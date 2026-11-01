@@ -188,7 +188,37 @@ deferred:
 - **AC5.** Given the UX spec and the mockup, when this story merges, then EXPERIENCE.md's row 3, its Flow 1 step 5 and its focus-replacement row, and states.html's C2 Next bar and caption, show no button. Each change carries a 2026-11-01 owner-feedback marker.
 - **AC6.** Given the change, when it merges, then the listed tests follow it, no test case or spec file is added, and CI is green on every workflow.
 
+### Review Findings
+
+Code review (epic-cycle code-review stage, 2026-11-01, base `0ca9d869`, HEAD `88923ca1` plus QA's uncommitted M14; layers: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor, all full tier). 23 rows, 4 entries after grouping (high 0, medium 0, low 4), 0 decision-needed, 3 patch, 0 defer, 1 by-design, 17 rows rejected.
+
+- [x] [Review][Patch] The `BREAK_FEED_BUTTON` doc comment named only the Do step 1 hand-off, not the new step-3 one (Rule 14) [web/src/app/guide/demo-guide.ts:30] - severity low, fix-risk low (comment only), in-story, spec-clear. Patched: it now also names a prompt or finish part lost while the bar shows step 3. (blind-hunter+acceptance-auditor)
+- [x] [Review][Patch] M14 started `recordAnnouncements` and never read it [web/e2e/floor/guide.spec.ts:690] - severity low, fix-risk low (one dead setup line deleted; Run again's silence is M10's pin), in-story, spec-clear. Patched. (blind-hunter+verification-gap)
+- [x] [Review][Patch] M7's waiting-line part checked "no button" with the class locator `.prompt .button` while its other parts use roles [web/e2e/floor/guide.spec.ts:392] - severity low, fix-risk low (two lines, the role check plus a link check so an `a.button` is still caught), in-story, spec-clear. Patched.
+- [x] [Review][By-design] EXPERIENCE.md:226 ("the selected step's exact prompt and its action button") and DESIGN.md:763 still read as if every step has a button [EXPERIENCE.md:226] - severity low, fix-risk low, spec-bound: Decided in-stage 7 keeps both (generic; steps 4 and 5 already show no button in some states; DESIGN.md is outside the footprint). Closed `by-design`. (blind-hunter)
+
+Verification after the patches: `npm --prefix web test` 1127 pass; `npm --prefix web run lint` exit 0; `ci/iris.sh build` then `ci/iris.sh live floor` (tag `e4s8c`, lane B) 106 passed (4.4 m, 369 s wall); teardown left nothing.
+
+DW-524 (row 4's negative cell): covered by QA's M14 for the step 2 form (its `find('bar') !== null` mutation went red on `sendOf(page)` `toBeFocused()`; the other mutation of that run, `promptOf(3)`, is never rendered in M14, which stays at step 2, so the red is attributable). The step 1 form (watch gone) has no case of its own; it takes the same branch (no step-3 mark). For the lead to adjudicate.
+
+**Rejected:**
+- `[false]` Blind/Edge: EXPERIENCE row 3's "by the user's own press" wording is narrower than `whenGone` - the cell is true for the paths it names; the `:419` focus-replacement row (amended) and the section's "whether the update came from the user or from another channel" cover the rest; the text is the spec's prescribed wording (Decided in-stage 1).
+- `[low]` Blind: the focus-replacement table has no row for Run again - the omission predates this story (Story 4.7), row 3's cell now states the step 3 target, and the fix is a new UX row, not a correction.
+- `[false]` Blind: the `FOCUS_KEY` comment omits the step mark - the mark is a separate attribute (`STEP_MARK`) with its own doc comment; `FOCUS_KEY`'s list is still exact.
+- `[low]` Blind: M14 asserts focus on Send before `settled(page)` and never re-checks - M10's same order; nothing moves focus on a live view at step 2 (only `keepFocus` on removal), and AC4 is pinned by M3 and M7.
+- `[false]` Blind: `refs.splice(refs.indexOf(reminder), 1)` could drop the last ref - `seedStretch` pushes the reminder's ref into `refs` (guide.spec.ts:172), so the index is never -1.
+- `[low]` Blind: the DW-349 occurrence line is thin - ledger trailers are append-only fixed-grammar lines; the story key is what the drain counts.
+- `[reject]` Blind/Edge/Verification/Acceptance (4 rows): the spec's bookkeeping still calls row 4's negative cell untested (frontmatter `deferred:`, Auto Run Result's Review, Residual risks, Files changed, the 105 count, "no case is added") and DW-524 is `open` - the fix edits the spec under review (build-auto's machine state) and DW-524 is the lead's adjudication; see the DW-524 note above.
+- `[reject]` Verification: Residual risks cites "(see `deferred`)" for the waiting-form gap, which was rejected in the review triage, not deferred - the fix edits the spec under review.
+- `[reject]` Verification/Acceptance (2 rows): M14 is a new test case against the Never rule "No new test case" and AC6 - the only fixes are amending the spec under review or removing or folding the one pin of matrix row 4's negative cell (Rule 19 asks for that pin; QA's own role is to add it). Kept; the measured cost is nil (`live floor` 106 passed in 4.4 m). The lead records the AC6 deviation with DW-524.
+- `[false]` Verification: M14's "nothing is pressed" check cannot fail - a hand-off mutation that clicks the box and ignores the step mark turns it red; it is not the pinning assertion.
+- `[false]` Verification: QA's two mutations shared one run, so M14's red is only reasoned - `promptOf(3)` is never rendered in M14 (the 200 answer's view is step 2 and the selection follows it), so only the `whenGone` mutation reaches it.
+- `[false]` Acceptance: M12 reaches step 3 from step 1, not step 2 - the task allows another seeded inactive state through the same Send hand-off, and it is recorded (Decided in-stage, review pass); the branch is the same (`action` lost, step-3 mark).
+- `[low]` Acceptance: row 3's announcement is not asserted in M6, and row 4's step 1 negative form has no case - the announcement is pinned by M3 and is independent of focus; the step 1 form takes M14's branch; a new case needs a new seeded state.
+
 ## Spec Change Log
+
+- 2026-11-01 (lead, after code review): QA added floor case M14 (`web/e2e/floor/guide.spec.ts`), which pins matrix row 4's negative cell (Run again back at step 2: focus on Send, not the box button; mutation `whenGone` ignores the step-3 mark -> M14 red). This supersedes the plan's "no test case is added" (AC6 and the Verification counts: `live floor` is now 106, not 105); a Rule 19 pin outranks the no-new-case preference. The frontmatter `deferred:` item is closed by M14 (ledger DW-524, resolved-by this story).
 
 ## Review Triage Log
 
@@ -306,6 +336,15 @@ deferred:
 - M12's second half reloads the page with `loadedAfter(page, () => page.reload())` (a second sign-in on a signed-in page hangs) and writes a `run_again` marker first, so the session has its guide state row and `startEpochAt` sets the window whichever case ran before; with no row, `startEpochAt` writes nothing and the old open incident would count (step 4).
 
 **Decided in-stage (review pass):** M12's second half now covers matrix row 6 as well as the inactive cell: the page reloads at step 1 (an open incident noticed before the run window, no watch), Send is focused, the watch and the reminder rows are seeded and one refreshGuide jumps the guide from step 1 to step 3.
+
+**QA stage (tag `e4s8q`, lane B):**
+- (QA) `web/e2e/floor/guide.spec.ts`: new case M14 (matrix row 4, negative cell; the work ledgered as DW-524): seeds the finishing run, holds the polls, removes the session's reminder row, presses Run again; the 200 answer's view is step 2 (`"Remind me in 1 minute to stretch."`), focus is on the prompt bar's Send, not on the box's Break the feed button, and no POST to `/demo/break-feed`. `seedIncidentPath` now also returns the reminder ref, and `seedFinishingRun` returns it (existing callers ignore it); header comment names M14. This is a test case in the existing `floor` unit, not a new CI unit.
+- Green run, before any mutation: `live floor` 106 passed (4.5 m), M14 included.
+- mutation: AC1: `promptOf(3)` gives action `'showMe'` (live, against M7) -> floor M7 red on `.prompt` getByRole('button') `toHaveCount(0)` (also M12 red, the button takes focus first).
+- mutation: matrix row 4 / AC3 negative cell: `whenGone` hand-off tests `find('bar') !== null` instead of the step-3 mark -> floor M14 red on `sendOf(page)` `toBeFocused()` (focus went to the box button).
+- Both mutations were applied in the same `live floor` run (5 failed, 101 passed; M7 and M14 among the failures, each attributable: step 3's prompt does not touch step 2's Send). Backups of `guide-view.ts` and `demo-guide.ts` were made by this stage; reverted from them, `shasum` of both files and `git diff` byte-identical to before the mutations (`cmp`), `git status --short` shows only `web/e2e/floor/guide.spec.ts` and this spec.
+- Files changed by QA: `web/e2e/floor/guide.spec.ts` (QA).
+- The frontmatter `deferred:` entry is left as it is for the lead.
 
 **Shared surfaces:**
 - the guide's `PromptAction` union (`guide-view.ts` and `demo-guide.ts`'s `@switch`);

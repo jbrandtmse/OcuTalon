@@ -27,7 +27,7 @@ import { advance, followSelection, GUIDE_HIDDEN_FLAG, GUIDE_HIDDEN_KEY, GUIDE_SH
 /** The attribute that marks the elements that focus may need to find again: the prompt bar's parts, the Hide and Show buttons and the box's Do step 1. */
 const FOCUS_KEY = 'data-guide-focus';
 
-/** The Break the feed button of the box, which takes focus when an update removes Do step 1 beside it. */
+/** The Break the feed button of the box, which takes focus when an update removes Do step 1 beside it, or a prompt or finish part while the prompt bar shows step 3. */
 const BREAK_FEED_BUTTON = 'app-break-feed-box app-server-button button';
 
 /** The attribute that marks the prompt bar while it shows step 3, so the focus rule can hand focus to the box beside it. */

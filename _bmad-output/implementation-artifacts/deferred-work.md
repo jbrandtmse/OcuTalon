@@ -2753,3 +2753,4 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-4-8-step-3-of-the-guide-points-to-break-the-feed-without-a-secon.md | severity: med | fix-risk: low | footprint: in-story
 - evidence: M6/M10/M12 all end at step 3; a mutation ignoring the step-3 mark may survive (unverified)
 - 2026-11-01T08:53:30Z status=open owner=4-8-step-3-of-the-guide-points-to-break-the-feed-without-a-secon by=harvest note=in-story test gap; code review to pin or adjudicate
+- 2026-11-01T09:27:02Z status=resolved-by:4-8-step-3-of-the-guide-points-to-break-the-feed-without-a-secon by=adjudication note=QA_floor_case_M14_pins_row4_negative_cell(step2);mutation_whenGone_ignores_step3_mark->M14_red;CR_confirmed;step1_form_runs_same_code

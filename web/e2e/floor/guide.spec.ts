@@ -19,7 +19,7 @@ import { helpSeen, stubTraces, TRACE_PAGE } from '../support/trace';
  * M4 holds the Orders failures before it seeds anything and releases them after its batch is complete, so that the real failure poller
  * makes no incident of the batch: an incident would open M7 at step 4, make M9's box inactive and replace M4's own progress lines.
  * Story 4.7 finishes the guide (M7 to M11), each on real guide.state from seeded rows: M7 step 3's instruction line and the waiting line, M8 Show me
- * and the step 4 variants, M9 Open the trace and the finish state with its run total, links and attention box, M10 Run again, M11 the same press with the sign-in help already seen, M12 and M13 (QA) the cells of those rows that need an odd state: Show me with no phone message, the hand-off of focus to an inactive box, a failed marker write and a finish with no turn. Their trace tabs
+ * and the step 4 variants, M9 Open the trace and the finish state with its run total, links and attention box, M10 Run again, M11 the same press with the sign-in help already seen, M12 to M14 (QA) the cells of those rows that need an odd state: Show me with no phone message, the hand-off of focus to an inactive box, a failed marker write, a finish with no turn, and a Run again that brings back step 2 (focus on Send, not the box). Their trace tabs
  * are stand-ins (stubTraces), so they hold no licence connection, and M9 and M10 start from a run_again, so that the run window is clean.
  */
 test.describe.configure({ timeout: 120_000 });
@@ -338,14 +338,14 @@ test('M4: a real press is busy, then sent (announced once, the elapsed time tick
 });
 
 /** The guide's step 4 and step 5 rows: an Orders incident with the trace session HEADER, and the watch and the reminder that come before it. */
-async function seedIncidentPath(user: string, refs: string[], incident: { state: string; openVariant: string }, request: 'pending' | 'approved'): Promise<{ incident: string; approval: string }> {
+async function seedIncidentPath(user: string, refs: string[], incident: { state: string; openVariant: string }, request: 'pending' | 'approved'): Promise<{ incident: string; approval: string; reminder: string }> {
   await seedWatch(user, refs);
-  await seedStretch(user, refs);
+  const reminder = await seedStretch(user, refs);
   const incidentRef = await seedIncident(user, { ...ORDERS, noticedAt: inMs(0), traceHeaderId: HEADER, ...incident });
   refs.push(incidentRef);
   const approval = await seedApproval(user, { incidentRef, state: request });
   refs.push(approval);
-  return { incident: incidentRef, approval };
+  return { incident: incidentRef, approval, reminder };
 }
 
 /** M7: step 3 shows only its instruction line, and the box's Next step tag and teal bar point to Break the feed; a run in flight shows only the waiting line, and no notice brings the prompt back. */
@@ -389,7 +389,8 @@ test('M7: step 3 shows only its instruction line, with the box\'s Next step tag 
     await refreshGuide(user);
     await expect(promptText(page), 'only the waiting line').toHaveText(WAITING, { timeout: CARD_MS });
     await expect(guideOf(page).locator('.prompt .next'), 'with no Next:').toHaveCount(0);
-    await expect(guideOf(page).locator('.prompt .button'), 'and no button').toHaveCount(0);
+    await expect(guideOf(page).locator('.prompt').getByRole('button'), 'and no button').toHaveCount(0);
+    await expect(guideOf(page).locator('.prompt').getByRole('link'), 'or link').toHaveCount(0);
     await expect(stepOf(page, 3, 'current')).toHaveAttribute('aria-current', 'step');
 
     // No notice after 3 minutes: the prompt is back.
@@ -451,12 +452,12 @@ test('M8: Show me selects the phone and focuses the pending notification, and a 
   }
 });
 
-/** Everything M9 and M10 start from: the guide at step 5 of a run that ended with an approved fix and a resolved incident, with its run total seeded. */
-async function seedFinishingRun(page: Page, user: string, refs: string[], usage: string[]): Promise<void> {
+/** Everything M9, M10 and M14 start from: the guide at step 5 of a run that ended with an approved fix and a resolved incident, with its run total seeded. Returns the ref of the reminder row. */
+async function seedFinishingRun(page: Page, user: string, refs: string[], usage: string[]): Promise<string> {
   await openFloor(page);
   const marked = await post(page.request, GUIDE_MARKERS, { marker: 'run_again' });
   expect(marked.status(), await marked.text()).toBe(200);
-  await seedIncidentPath(user, refs, { state: 'resolved', openVariant: 'fix' }, 'approved');
+  const { reminder } = await seedIncidentPath(user, refs, { state: 'resolved', openVariant: 'fix' }, 'approved');
   const seeded = await seedTurns(
     user,
     [
@@ -479,6 +480,7 @@ async function seedFinishingRun(page: Page, user: string, refs: string[], usage:
   usage.push(...seeded.decisions.flatMap((one) => [one.triage, one.turn]).filter((ref) => ref !== ''));
   await refreshGuide(user);
   await expect(stepOf(page, 5, 'current'), 'the guide is at step 5').toHaveAttribute('aria-current', 'step', { timeout: CARD_MS });
+  return reminder;
 }
 
 /**
@@ -672,6 +674,54 @@ test('M10: Run again returns the prompt bar at step 3 with focus on the box\'s B
     await dropUsage(usage);
     await cleanFixtureRows(refs);
     await dropBreakFeed(user);
+    await endRun(page);
+  }
+});
+
+/**
+ * M14 (QA, Story 4.8 row 4, the negative cell): when Run again brings the prompt bar back at step 2 (the session's reminder is gone),
+ * focus goes to that bar's Send as before, not to the box's Break the feed button; the hand-off to the box is for step 3 only. Nothing is posted.
+ */
+test('M14: Run again returns the prompt bar at step 2 with focus on its Send, not the box\'s Break the feed button, and nothing is pressed', async ({ page }) => {
+  const { user } = fixtureUser(KIND);
+  const refs: string[] = [];
+  const usage: string[] = [];
+  try {
+    await stubTraces(page.context());
+    const reminder = await seedFinishingRun(page, user, refs, usage);
+    const marked = await post(page.request, GUIDE_MARKERS, { marker: 'trace_opened' });
+    expect(marked.status(), await marked.text()).toBe(200);
+    const finish = guideOf(page).locator('.finish');
+    await expect(finish, 'the finish shows').toBeVisible({ timeout: CARD_MS });
+    const runAgain = finish.getByRole('button', { name: 'Run again', exact: true });
+    await runAgain.focus();
+    await expect(runAgain).toBeFocused();
+
+    const breakPosts: string[] = [];
+    page.on('request', (request) => {
+      if (request.method() === 'POST' && request.url().includes('/demo/break-feed')) {
+        breakPosts.push(request.url());
+      }
+    });
+    // The polls are held, so that the finish stays until Run again; the reminder goes before the press, so that the 200 answer's view is step 2.
+    const release = await holdPolls(page);
+    try {
+      await cleanFixtureRows([reminder]);
+      refs.splice(refs.indexOf(reminder), 1);
+      await runAgain.click();
+      await expect(promptText(page), "the 200 answer's view brings the prompt bar back at step 2, before any poll").toHaveText(`"${P2}"`, { timeout: 5000 });
+    } finally {
+      release();
+    }
+    await expect(finish, 'in place of the finish').toHaveCount(0);
+    await expect(stepOf(page, 2, 'current')).toHaveAttribute('aria-current', 'step');
+    await expect(sendOf(page), "focus goes to the prompt bar's Send").toBeFocused();
+    await expect(breakOf(page), 'and not to the box button').not.toBeFocused();
+    await settled(page);
+    expect(breakPosts, 'nothing is pressed').toEqual([]);
+  } finally {
+    await dropUsage(usage);
+    await cleanFixtureRows(refs);
     await endRun(page);
   }
 });
