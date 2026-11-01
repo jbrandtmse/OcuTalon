@@ -1,20 +1,22 @@
 #!/usr/bin/env bash
-# release/rehearse.sh <command> [--version <v>] --rc <n> [--candidate <ref>] [--record <file>] [--runs <n>] [--plant <bound id>] [--dry-run]
+# release/rehearse.sh <command> [--version <v>] --rc <n> [--candidate <ref>] [--record <file>] [--runs <n>] [--plant <bound id>[@<run>]] [--dry-run]
 #
-# The clean-machine rehearsal (Stories 11.3 and 11.11; FR-55, NFR-3, NFR-7 to NFR-11, NFR-22, REL-6, P30, UX-DR102; AD-15, AD-19, AD-22, AD-23, AD-25).
+# The clean-machine rehearsal (Stories 11.3, 11.11 and 11.12; FR-1, FR-55, NFR-3, NFR-7 to NFR-11, NFR-22, REL-6, P30, UX-DR101, UX-DR102; AD-12,
+# AD-15, AD-19, AD-22, AD-23, AD-25).
 # A release gate that runs by hand and in Story 11.5's sequence; it is no CI unit. It copies a release candidate to a clean host as a git
 # bundle, clones it there, puts the author's .env beside it, runs install.sh, signs in from a second (driver) host at the address that
-# install.sh printed, times the first start, then times the demo path (the REL-2 specs, web/e2e/demo-path/) against the install and checks
-# every bound, and writes the result into the candidate's record. This build has no clean host, no driver host and no real key, so the script
-# is proved on throwaways with --dry-run, whose result is "dry run" and never a pass; the real 20 runs are Story 38.2's. A real rehearsal
-# cannot pass yet either: its tell-now row is "not run" until Story 11.12 adds the repeats and the tell-now item.
+# install.sh printed, times the first start, then times the demo path against the install N times (run 1: the REL-2 specs, web/e2e/demo-path/,
+# then the tell-now item; runs 2 to N: the repeat project, web/e2e-rehearsal/, which uses Run again and the replay rule, then the same
+# tell-now item) and checks every bound over the whole set, and writes the result into the candidate's record. This build has no clean host, no
+# driver host and no real key, so the script is proved on throwaways with --dry-run, whose result is "dry run" and never a pass; the real 20
+# runs are Story 38.2's.
 #
 # Commands:
 #   plan     prints the candidate, its version and sha, how each host is reached (configured, local or stand-in), the phases and the
 #            record path; starts nothing
 #   install  the steps hosts, copy, install and sign-in (see below); keeps the state and, in a dry run, the throwaway project and its lock
-#   runs     one timed run of the demo path (see below); needs a passed install; run 2 and later (Run again and the replay rule) come with
-#            Story 11.12 and are refused
+#   runs     the next timed run of the demo path (see below), one run per call, up to --runs; needs a passed install. It is refused (exit
+#            2, nothing started) when --runs runs exist already, and when the newest run failed (run report, then down)
 #   exec [<namespace>]
 #            runs the script on its standard input in an iris session of the install, through host_run clean: "cd ocutalon-rehearsal/candidate
 #            && docker compose exec -T iris iris session IRIS -U <namespace>" (the namespace matches [A-Z][A-Z0-9]*, default OCUTALON). Its
@@ -26,18 +28,24 @@
 #            is 0, to show a missed bound
 #   down     in a dry run removes the tag's projects, volumes, images and lock (ci/iris.sh teardown), then the state (runs/ with it); in real
 #            mode the clean host keeps its install, and only the state is removed. It may always run
-#   run      install, runs (until --runs runs exist, a run fails or runs refuses), report (with --plant), then always down; each phase is its
-#            own process of this script
+#   run      one phase per call, with OCUTALON_RUN_TAG fixed and the same options on every call: the install; then one run per call; then
+#            report (with --plant), and down. Every call but the last prints "NEXT run: <what is due>" and exits 4 (call again); the last
+#            exits with report's code. A failed install step, or a failed run, makes report and down the next call's phase. Install's exit
+#            2 or 75 and a refusal pass through (exit 2: nothing happened; report's refusal of a --plant keeps the state for down). An option
+#            that differs from the state's (--dry-run, --rc, --runs, and --version, --candidate or --record when given) is refused, exit 2,
+#            naming it. No call passes the 10-minute cap: a call is the install, one run, or report and down
 # Options (taken by plan, install and run; the state keeps them for report): --rc <n> (a positive whole number, required), --version <v>
 # (it must equal <Version> in the candidate's src/module.xml; required unless --dry-run or --candidate is given), --candidate <ref> (a
 # local branch in real mode; the default is release/<v>-rc<n>, or HEAD in a dry run), --record <file> (default
 # release/records/<v>/rc<n>.md; a test passes a file outside the repository), --runs <n> (the runs a rehearsal needs: 20 or more in real mode,
-# the default; 1 to 20 in a dry run, default 1), --dry-run (stand-ins for both hosts). --plant <bound id> is taken by report and run, in a dry
-# run only (the ids of the Bounds table below that have a limit). In real mode plan, install and run refuse (exit 2, nothing started) a driver
-# that is not local (REHEARSAL_DRIVER_SSH: the specs drive the browser on this machine), a tree of web/e2e, web/playwright.config.ts,
-# web/package.json or web/package-lock.json that differs from the candidate commit (the record's Specs line is then the candidate's), and
-# --runs below 20.
-# The phases need OCUTALON_RUN_TAG (lower-case letters, digits and hyphens, 3 or more, no "slot"); run defaults it to reh-<epoch>. The
+# the default; 1 to 20 in a dry run, default 1), --dry-run (stand-ins for both hosts). --plant <bound id>[@<run>] is taken by report and run,
+# in a dry run only (the ids of the Bounds table below that have a limit): <id> alone misses that bound in every run (its limit is 0), and
+# <id>@<run> (a positive whole number naming a run of the state) misses it in that run only. In real mode plan, install and run refuse (exit
+# 2, nothing started) a driver that is not local (REHEARSAL_DRIVER_SSH: the specs drive the browser on this machine), a tree of web/e2e,
+# web/e2e-rehearsal, web/playwright.config.ts, web/playwright.rehearsal.config.ts, web/package.json, web/package-lock.json or the tell-now
+# eval case (eval/mail-endpoint-move-tomorrow/case.json) that differs from the candidate commit (the record's Specs line is then the
+# candidate's), and --runs below 20.
+# The phases need OCUTALON_RUN_TAG (lower-case letters, digits and hyphens, 3 or more, no "slot"); so does run. The
 # state is ${TMPDIR:-/tmp}/ocutalon-rehearsal-<tag>/. install on a tag that has a state, and report with no finished install, are refused;
 # runs and exec with no state, or after a failed install step, are refused (exit 2).
 #
@@ -68,19 +76,30 @@
 #            value as the script uses it and the host of each user@host too), and nothing key-like, is in the output of the phases,
 #            install.sh's output or the section
 #
-# The timed run (runs; one run per call; the Playwright run is bounded by OCUTALON_E2E_TIMEOUT_MS, default 480000). It takes the run's
-# server start (UTC, milliseconds) through exec, runs "npm --prefix web run e2e:demo-path" on this machine against the install's origin
-# (OCUTALON_URL), with OCUTALON_E2E_JSON, OCUTALON_E2E_MARKS (the page marks), OCUTALON_E2E_IRIS_EXEC (this script's exec: every IRIS read
-# of the specs goes through host_run clean), OCUTALON_DEMO_PATH_MODEL (mock in a dry run, real in real mode), OCUTALON_RUN_TAG and
-# OCUTALON_REHEARSAL_RUN=<k>; then web/scripts/demo-path-summary.mjs --only-telegram-skips on the report, then the collector (read-only
-# ObjectScript through exec). Files, under <state>/runs/<k>/: server.start, report.json, e2e.log (also in output.log), summary.log,
-# marks.page, marks.server, verdict, exec.count. Output: PASS or FAIL lines ("FAIL run <k> step <step> bound -: <reason>" for a failed spec,
-# naming its step; a run that read nothing through exec fails with step run) and one "RUN <k> <bound>=<seconds> ..." line ("-" for a value
-# that could not be measured).
+# The timed run (runs; one run per call; the Playwright time of a call, all its Playwright calls together, is at most
+# OCUTALON_E2E_TIMEOUT_MS, default 480000). k is the newest run plus one. It takes the run's server start (UTC, milliseconds) through exec,
+# then runs Playwright on this machine against the install's origin (OCUTALON_URL), with OCUTALON_E2E_JSON, OCUTALON_E2E_MARKS (the page
+# marks), OCUTALON_E2E_IRIS_EXEC (this script's exec: every IRIS read of the specs goes through host_run clean), OCUTALON_DEMO_PATH_MODEL
+# (mock in a dry run, real in real mode), OCUTALON_RUN_TAG and OCUTALON_REHEARSAL_RUN=<k>:
+#   run 1       "npm --prefix web run e2e:demo-path" (the REL-2 project verbatim on the fresh install; Playwright time
+#               OCUTALON_E2E_TIMEOUT_MS minus 90000), summarised by web/scripts/demo-path-summary.mjs --only-telegram-skips; then
+#               "npm --prefix web run e2e:rehearsal -- tell-now.spec.ts" (90000 ms), summarised with --steps tell-now
+#   run k >= 2  "npm --prefix web run e2e:rehearsal" (web/e2e-rehearsal/: repeat.spec.ts, which clears what the earlier run left (run 2
+#               rejects and dismisses the REL-2 replay's pending request; run 3 and later press Run again), sends guide steps 1 and 2
+#               through the composer, presses Break the feed under the replay rule, approves on the phone and opens the trace; then
+#               tell-now.spec.ts), summarised with --steps repeat,tell-now
+# Then the collector (read-only ObjectScript through exec). Files, under <state>/runs/<k>/: server.start, report.json (run 1 also
+# report.tellnow.json), e2e.log and summary.log (run 1 also e2e.tellnow.log and summary.tellnow.log; the e2e logs are also in output.log),
+# marks.page, marks.server, verdict, exec.count and, written last, passed (1 or 0). Output: PASS or FAIL lines ("FAIL run <k> step <step>
+# bound -: <reason>" for a failed test, naming its step: the spec file for run 1's REL-2 project, the test title's word before the colon for
+# the rehearsal project; a run that read nothing through exec fails with step run), one "RUN <k> <bound>=<seconds> ..." line ("-" for a
+# value that could not be measured) and, when the model did not decide Tell now, "NOTE run <k> tell-now decided <outcome> (no tell-now
+# sample)". Exit 0 for a passed run, 1 for a failed one, 2 for a refusal.
 # One clock per value: server values subtract two production message headers (milliseconds) or two rows' times of the install's IRIS; page
 # values subtract two marks of one page (Date.now() on this machine, e2e/support/rehearsal.ts: step1_sent, step1_decision_seen,
-# step1_reply_seen, approve_pressed, approval_result_seen). A server value is never subtracted from a page value. A missing mark fails the run's
-# step ("FAIL run <k> step <step> bound -: missing mark(s) ...").
+# step1_reply_seen, approve_pressed, approval_result_seen, tellnow_sent, tellnow_seen). A server value is never subtracted from a page value;
+# the tell-now value subtracts the decision's own duration (server) from the page time between tellnow_sent and tellnow_seen, a duration from
+# a duration. A missing mark fails the run's step ("FAIL run <k> step <step> bound -: missing mark(s) ...").
 # The Bounds table (report; id, step, from and to, limit, rule). "19 of 20" allows floor(N/20) runs to miss it:
 #   notice           incident  press to the notice's delivery (server)               60 s  19 of 20
 #   pick-up          incident  first failure to the FailureBatch (server)            15 s  every run
@@ -94,7 +113,8 @@
 #   reminder         reminder  due to fired (server; due in whole seconds)           10 s  every reminder
 #   reminder-result  reminder  the reminder's phone message minus the result's       -     recorded, signed
 #   largest-request  run       max LargestRequestTokens (server)                 100,000  every run, under
-#   tell-now         tell-now  -                                                    5 s  not run until Story 11.12
+#   tell-now         tell-now  (tellnow_seen - tellnow_sent) - the decision's duration  5 s  19 of 20 (an upper bound of the decision-to-page
+#                              time; a run whose item was not decided Tell now is no sample and counts as a miss, outcome named)
 # A miss prints "FAIL run <runs> step <step> bound <id> <limit>[ in 19 of 20][ (planted)]: <detail>" naming every missing run (ascending,
 # comma-separated); a met bound reads "pass" in real mode and "dry run" in a dry run (the mock's timings are plumbing only).
 #
@@ -108,17 +128,20 @@
 #   Driver host: <OS>, <CPU>, <memory> GiB memory
 #   Run: <UTC start> to <UTC end>
 #   Note: ...                                   (a dry run only)
-#   | Step | Result | Detail |                  rows hosts, copy, install, sign-in, secrets, demo path runs, then one row per bound id above
-#   ### Runs                                    the table of every run's values (a "###" line does not start a section)
+#   | Step | Result | Detail |                  rows hosts, copy, install, sign-in, secrets, demo path runs ("N of N runs passed", "k of N runs
+#                                               done" while short), then one row per bound id above (tell-now included)
+#   ### Runs                                    the table of every run's values, with a Tell now column (a "###" line does not start a section)
 # Result: fail when any step or bound failed; otherwise "dry run" in a dry run; otherwise "not run" while any row is not run (fewer runs
-# than --runs, or the tell-now row), else pass. Output: PASS/FAIL lines, PHASE lines, RECORD <file> and RESULT <result>.
+# than --runs), else pass. Output: PASS/FAIL lines, PHASE lines, RECORD <file> and RESULT <result>.
 # Exit codes: 0 only for a real pass; 1 for fail or not run (also a failed start); 3 for a dry run; 2 for a refusal (usage, configuration,
-# candidate, real-mode guard or phase order; nothing started); 75 when the lane's throwaway lock is busy (a dry run). Only exit 0 with
-# "Result: pass" passes. A runs call is not a Result: it exits 0 when its run passed (in a dry run too), 1 when the run failed and 2 for a
-# refusal. exec exits with the iris session's exit code (2 for a refusal).
+# candidate, real-mode guard or phase order; nothing started); 75 when the lane's throwaway lock is busy (a dry run); 4 from run only: a
+# phase is done and the next call is due. Only exit 0 with "Result: pass" passes. A runs call is not a Result: it exits 0 when its run
+# passed (in a dry run too), 1 when the run failed and 2 for a refusal. exec exits with the iris session's exit code (2 for a refusal).
 # A dry run needs docker compose, the IRIS base image and the mock image of ci/iris.sh, and the lane's variables of docker/tests/lib-live.sh
 # (OCUTALON_LOCK_DIR, OCUTALON_LOCK_OWNER, OCUTALON_TEST_WEB_PORT); the model is the CI mock, never a key. The runs phase needs Node.js with
-# web/node_modules and the Playwright browser on this machine. Needs bash 3.2 or later and git.
+# web/node_modules and the Playwright browser on this machine. Stories 11.14 (the rehearsal gate: install, runs until --runs runs exist or exit
+# 2, report, down), 11.13 (the rows and the ### Runs table, copied verbatim) and 38.2 (the real 20 runs) read this interface. Needs bash 3.2
+# or later and git.
 set -u
 umask 077
 
@@ -130,7 +153,7 @@ cd "$reh_root" || exit 1
 
 REH_ROWS="hosts copy install sign-in secrets runs notice pick-up settle-end diagnosis delivery median decision first-reply approval-result reminder reminder-result largest-request tell-now"
 REH_BOUND_ROWS="notice pick-up settle-end diagnosis delivery median decision first-reply approval-result reminder reminder-result largest-request tell-now"
-REH_PLANTABLE="notice pick-up settle-end diagnosis delivery decision approval-result reminder largest-request"
+REH_PLANTABLE="notice pick-up settle-end diagnosis delivery decision approval-result reminder largest-request tell-now"
 REH_RUNS_REAL=20
 REH_DIR=ocutalon-rehearsal
 REH_STANDIN_BRANCH=rehearsal/stand-in
@@ -166,12 +189,16 @@ echo "curl=$(command -v curl >/dev/null 2>&1 && echo 1 || echo 0)"
 EOS
 PROBE_DRIVER="$PROBE_DRIVER$PROBE_MACHINE"
 
-# The collector of the timed run (Story 11.11): read-only ObjectScript, sent through `rehearse.sh exec` after the specs ran. @START@ is the
-# run's server start (UTC, milliseconds) and @USER@ the printed user. It runs SELECTs and property reads only and prints CHK| lines:
+# The collector of the timed run (Stories 11.11 and 11.12): read-only ObjectScript, sent through `rehearse.sh exec` after the specs ran.
+# @START@ is the run's server start (UTC, milliseconds), @USER@ the printed user and @RUN@ the run number. It runs SELECTs and property
+# reads only and prints CHK| lines:
 #   CHK|mark|<name>|<epoch ms>   press, first_failure, pickup, settle_end, diagnosis_end, delivered, reminder_msg, result_msg (server clock:
 #                                production message headers in milliseconds; the rows' whole-second times for the two messages)
 #   CHK|reminder|<due ms>|<fired ms>   one per fired reminder of the run; CHK|late|<late flags>|<fired reminders>
 #   CHK|tokens|<n>               the largest model request's input tokens; CHK|missing|<name>   a source that gave nothing
+#   CHK|tellnow|<outcome>|<ms>   the decision of the run's tell-now item (the session's newest mailbox email created at or after the start
+#                                whose subject starts "Rehearsal run @RUN@: "): its outcome ("fallback" when the decision took the fallback
+#                                route, which is no model decision) and its own duration (DurationMs)
 IFS= read -r -d '' COLLECTOR <<'EOS' || true
 Set e="Set t=$ZSTRIP($TRANSLATE(t,""TZ"",""  ""),""<>W""),h=$ZDATETIMEH(t,3,1,,,,,,,""""),r=$SELECT(h="""":"""",1:$FNUMBER(((+$PIECE(h,"","",1)-47117)*86400+$PIECE(h,"","",2))*1000,"""",0))"
 Set start="@START@",sz=$PIECE(start,".",1),startZ=$PIECE(sz," ",1)_"T"_$PIECE(sz," ",2)_"Z"
@@ -218,6 +245,11 @@ Set tok=""
 Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT MAX(LargestRequestTokens) FROM OcuTalon_Bridge_Data.Usage WHERE OwnerRef = ? AND RecordedAt >= ?",ref,startZ)
 If rs.%Next() Set tok=rs.%GetData(1)
 If tok="" { Write !,"CHK|missing|tokens" } Else { Write !,"CHK|tokens|",tok }
+Set tni="",tno="",tnd=""
+Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT TOP 1 ItemId FROM OcuTalon_Data.SimMessage WHERE SessionRef = ? AND Kind = 'mailbox' AND Direction = 'in' AND CreatedAt >= ? AND Subject LIKE ? ORDER BY CreatedAt DESC, ID DESC",ref,startZ,"Rehearsal run @RUN@: %")
+If rs.%Next() Set tni=rs.%Get("ItemId")
+If tni'="" Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT TOP 1 Outcome, DurationMs, Fallback FROM OcuTalon_Bridge_Data.Decision WHERE ItemId = ? AND Kind = 'decide' ORDER BY ID DESC",tni) If rs.%Next() Set tno=$Select(rs.%Get("Fallback"):"fallback",1:rs.%Get("Outcome")),tnd=rs.%Get("DurationMs")
+If (tno="")!(tnd="") { Write !,"CHK|missing|tellnow" } Else { Write !,"CHK|tellnow|",tno,"|",tnd }
 Write !,"CHK|done|1"
 Halt
 EOS
@@ -225,8 +257,10 @@ EOS
 # The bounds (Story 11.11), one awk program for bounds_eval and for the RUN line of one run. Its input is runs_feed's lines
 # "<run> run", "<run> page <mark> <ms>", "<run> server <kind> ...", "<run> verdict pass" and "<run> verdict fail <step>|<detail>".
 # -v mode=eval writes the files bfile (id|step|result|detail), tfile (the ### Runs table) and sfile ("<runs> <passed runs>") and prints the FAIL
-# lines; -v mode=run prints the RUN line and the FAIL lines of the missing marks of the one run and exits 1 when a mark is missing. -v passw is
-# the result of a met bound (pass, or "dry run" on the mock); -v plant names the one bound whose limit is 0.
+# lines; -v mode=run prints the RUN line (and a NOTE when the tell-now item was decided otherwise) and the FAIL lines of the missing marks of
+# the one run and exits 1 when a mark is missing. -v passw is the result of a met bound (pass, or "dry run" on the mock); -v plant names the one
+# bound that is planted: with -v plantrun empty its limit is 0 (a miss in every measured run), with a run number only that run's value misses.
+# A "<run> server tellnow <outcome> <ms>" line is the collector's tell-now decision.
 IFS= read -r -d '' BOUNDS_AWK <<'EOS' || true
 function commas(n,   s, o) {
   s = sprintf("%d", n); o = ""
@@ -242,6 +276,11 @@ function limtext(id,   t) {
   if (id == plant) t = t " (planted)"
   return t
 }
+function srcof(step, list) {
+  if (step == "watch" || step == "approval") return "left by the page"
+  if (step == "tell-now") return (list == "tellnow") ? "read from the server's records" : "left by the page"
+  return "read from the server's records"
+}
 function has(k, n, kind) { return (kind == "p") ? ((k SUBSEP n) in pg) : ((k SUBSEP n) in sv) }
 function val(k, n, kind) { return (kind == "p") ? pg[k, n] : sv[k, n] }
 function joined(cur, add) { return cur (cur == "" ? "" : ",") add }
@@ -254,12 +293,12 @@ function medianOf(list, cnt,   i, j, t, a) {
 BEGIN {
   N = 0
   lim["notice"] = 60000; lim["pick-up"] = 15000; lim["settle-end"] = 30000; lim["diagnosis"] = 20000; lim["delivery"] = 5000
-  lim["decision"] = 10000; lim["approval-result"] = 2000; lim["reminder"] = 10000; lim["largest-request"] = 100000
-  if (plant != "") lim[plant] = 0
-  nid = split("notice pick-up settle-end diagnosis delivery decision approval-result reminder largest-request", IDS, " ")
+  lim["decision"] = 10000; lim["approval-result"] = 2000; lim["reminder"] = 10000; lim["largest-request"] = 100000; lim["tell-now"] = 5000
+  if (plant != "" && plantrun == "") lim[plant] = 0
+  nid = split("notice pick-up settle-end diagnosis delivery decision approval-result reminder largest-request tell-now", IDS, " ")
   stepof["notice"] = "incident"; stepof["pick-up"] = "incident"; stepof["settle-end"] = "incident"; stepof["diagnosis"] = "incident"; stepof["delivery"] = "incident"
-  stepof["decision"] = "watch"; stepof["approval-result"] = "approval"; stepof["reminder"] = "reminder"; stepof["largest-request"] = "run"
-  rule["notice"] = "19"; rule["decision"] = "19"; rule["approval-result"] = "19"
+  stepof["decision"] = "watch"; stepof["approval-result"] = "approval"; stepof["reminder"] = "reminder"; stepof["largest-request"] = "run"; stepof["tell-now"] = "tell-now"
+  rule["notice"] = "19"; rule["decision"] = "19"; rule["approval-result"] = "19"; rule["tell-now"] = "19"
   what["notice"] = "from Break the feed to the notice on the phone"
   what["pick-up"] = "from the first failure to the pick-up"
   what["settle-end"] = "from the first failure to the diagnosis request"
@@ -269,10 +308,12 @@ BEGIN {
   what["approval-result"] = "from the Approve press to the result on the page"
   what["reminder"] = "after its due time"
   what["largest-request"] = "input tokens in the largest request"
-  nsteps = split("incident watch reminder approval run", STEPS, " ")
+  what["tell-now"] = "from the decision to the notice on the web chat and the phone (an upper bound)"
+  nsteps = split("incident watch reminder approval run tell-now", STEPS, " ")
   nmark["incident"] = split("press first_failure pickup settle_end diagnosis_end delivered", M_incident, " ")
   nmark["watch"] = split("step1_sent step1_decision_seen step1_reply_seen", M_watch, " ")
   nmark["approval"] = split("approve_pressed approval_result_seen", M_approval, " ")
+  nmark["tell-now"] = split("tellnow_sent tellnow_seen", M_tellnow, " ")
 }
 $2 == "run" { RUN[++N] = $1; next }
 $2 == "page" { if (!(($1 SUBSEP $3) in pg)) pg[$1, $3] = $4 + 0; next }
@@ -290,6 +331,7 @@ $2 == "server" {
   else if (kind == "late") { lateN[k] = $4 + 0 }
   else if (kind == "tokens") { tok[k] = $4 + 0; havetok[k] = 1 }
   else if (kind == "missing") { srvmiss[k, $4] = 1 }
+  else if (kind == "tellnow") { tnout[k] = $4; tnms[k] = $5 + 0; havetn[k] = 1 }
   next
 }
 END {
@@ -308,6 +350,8 @@ END {
     if (!havetok[k]) miss[k, "run"] = joined(miss[k, "run"], "tokens")
     if (srvmiss[k, "session"]) miss[k, "run"] = joined(miss[k, "run"], "session")
     if (srvmiss[k, "collector"]) miss[k, "run"] = joined(miss[k, "run"], "collector")
+    if (!havetn[k]) miss[k, "tell-now"] = joined(miss[k, "tell-now"], "tellnow")
+    else if (tnout[k] == "tellnow") for (m = 1; m <= nmark["tell-now"]; m++) if (!has(k, M_tellnow[m], "p")) miss[k, "tell-now"] = joined(miss[k, "tell-now"], M_tellnow[m])
     # the values (ms; tokens for largest-request) and whether each could be measured
     ok["notice", k] = has(k, "press", "s") && has(k, "delivered", "s"); if (ok["notice", k]) V["notice", k] = sv[k, "delivered"] - sv[k, "press"]
     ok["pick-up", k] = has(k, "first_failure", "s") && has(k, "pickup", "s"); if (ok["pick-up", k]) V["pick-up", k] = sv[k, "pickup"] - sv[k, "first_failure"]
@@ -321,6 +365,7 @@ END {
     if (ok["reminder", k]) { mx = -1e18; for (j = 1; j <= nrem[k]; j++) { d = rfir[k, j] - rdue[k, j]; if (d > mx) mx = d } V["reminder", k] = mx }
     ok["reminder-result", k] = has(k, "reminder_msg", "s") && has(k, "result_msg", "s"); if (ok["reminder-result", k]) V["reminder-result", k] = (sv[k, "reminder_msg"] - sv[k, "result_msg"])
     ok["largest-request", k] = havetok[k] ? 1 : 0; if (ok["largest-request", k]) V["largest-request", k] = tok[k]
+    ok["tell-now", k] = (havetn[k] && tnout[k] == "tellnow" && has(k, "tellnow_sent", "p") && has(k, "tellnow_seen", "p")); if (ok["tell-now", k]) V["tell-now", k] = (pg[k, "tellnow_seen"] - pg[k, "tellnow_sent"]) - tnms[k]
     anymiss = 0
     for (s = 1; s <= nsteps; s++) if (miss[k, STEPS[s]] != "") anymiss = 1
     rpass[k] = (vd[k] == "pass" && !anymiss) ? 1 : 0
@@ -337,8 +382,9 @@ END {
       line = line " " id "=" text
     }
     print line
+    if (havetn[k] && tnout[k] != "tellnow") printf "NOTE run %s tell-now decided %s (no tell-now sample)\n", k, tnout[k]
     bad = 0
-    for (s = 1; s <= nsteps; s++) if (miss[k, STEPS[s]] != "") { bad = 1; printf "FAIL run %s step %s bound -: missing mark(s) %s (%s)\n", k, STEPS[s], miss[k, STEPS[s]], (STEPS[s] == "watch" || STEPS[s] == "approval") ? "left by the page" : "read from the server's records" }
+    for (s = 1; s <= nsteps; s++) if (miss[k, STEPS[s]] != "") { bad = 1; printf "FAIL run %s step %s bound -: missing mark(s) %s (%s)\n", k, STEPS[s], miss[k, STEPS[s]], srcof(STEPS[s], miss[k, STEPS[s]]) }
     exit bad
   }
 
@@ -346,21 +392,25 @@ END {
   for (i = 1; i <= N; i++) {
     k = RUN[i]
     if (vd[k] != "pass") printf "FAIL run %s step %s bound -: %s\n", k, (vstep[k] == "" ? "run" : vstep[k]), (vdet[k] == "" ? "the run left no verdict" : vdet[k])
-    for (s = 1; s <= nsteps; s++) if (miss[k, STEPS[s]] != "") printf "FAIL run %s step %s bound -: missing mark(s) %s (%s)\n", k, STEPS[s], miss[k, STEPS[s]], (STEPS[s] == "watch" || STEPS[s] == "approval") ? "left by the page" : "read from the server's records"
+    for (s = 1; s <= nsteps; s++) if (miss[k, STEPS[s]] != "") printf "FAIL run %s step %s bound -: missing mark(s) %s (%s)\n", k, STEPS[s], miss[k, STEPS[s]], srcof(STEPS[s], miss[k, STEPS[s]])
   }
 
   # the limited bounds
   for (b = 1; b <= nid; b++) {
     id = IDS[b]
-    nmeas = 0; nover = 0; longest = -1e18; lrun = ""; ovl = ""; ovd = ""; unm = ""
+    nmeas = 0; nover = 0; nosamp = 0; longest = -1e18; lrun = ""; ovl = ""; ovd = ""; unm = ""
     for (i = 1; i <= N; i++) {
       k = RUN[i]
+      if (id == "tell-now" && havetn[k] && tnout[k] != "tellnow") {
+        nover++; nosamp++; ovl = joined(ovl, k); ovd = ovd (ovd == "" ? "" : ", ") "run " k ": decided " tnout[k] " (no tell-now sample)"
+        continue
+      }
       if (!ok[id, k]) { unm = joined(unm, k); continue }
       nmeas++
       v = V[id, k]
       over = (id == "largest-request") ? (v >= lim[id]) : (v > lim[id])
       if (id == "reminder" && lateN[k] > 0) over = 1
-      if (id == plant) over = 1
+      if (id == plant && (plantrun == "" || (k + 0) == (plantrun + 0))) over = 1
       if (v > longest) { longest = v; lrun = k }
       if (over) { nover++; ovl = joined(ovl, k); ovd = ovd (ovd == "" ? "" : ", ") shown(id, v) " in run " k }
     }
@@ -377,14 +427,15 @@ END {
       detail = ovd " " what[id] " (limit " limtext(id) ")"
     } else {
       status = passw
-      okc = nmeas - nover
-      if (id == "notice" || id == "decision") detail = "within " (lim[id] / 1000) " s in " okc " of " nmeas " runs (19 of 20 needed); longest " sec(longest) " (run " lrun ")"
+      okc = nmeas - (nover - nosamp)
+      if (id == "tell-now") detail = "within " (lim[id] / 1000) " s in " okc " of " N " runs (19 of 20 needed); longest " sec(longest) " (run " lrun ")"
+      else if (id == "notice" || id == "decision") detail = "within " (lim[id] / 1000) " s in " okc " of " nmeas " runs (19 of 20 needed); longest " sec(longest) " (run " lrun ")"
       else if (id == "approval-result") detail = "within " (lim[id] / 1000) " s of the Approve press in " okc " of " nmeas " runs (19 of 20 needed); longest " sec(longest) " (run " lrun ")"
       else if (id == "pick-up" || id == "settle-end") detail = "within " (lim[id] / 1000) " s of the first failure in every run; longest " sec(longest) " (run " lrun ")"
       else if (id == "diagnosis" || id == "delivery") detail = "within " (lim[id] / 1000) " s in every run; longest " sec(longest) " (run " lrun ")"
       else if (id == "reminder") detail = "every reminder within " (lim[id] / 1000) " s of its due time; latest " sec(longest) " (run " lrun ")"
       else detail = "under " commas(lim[id]) " input tokens in every run; largest " commas(longest) " (run " lrun ")"
-      if (nover > 0) detail = detail "; " nover " run(s) over, within the allowance"
+      if (nover > 0) detail = detail "; " nover " run(s) over" (id == "tell-now" ? " or without a sample" : "") ", within the allowance"
       if (id == plant) detail = detail " (planted)"
     }
     print id "|" stepof[id] "|" status "|" detail > bfile
@@ -418,19 +469,19 @@ END {
     for (i = 2; i <= cnt; i++) { if (rr[i] < mn) mn = rr[i]; if (rr[i] > mxv) mxv = rr[i] }
     print "reminder-result|reminder|recorded|reminder minus result (negative: the reminder landed first): median " sec(medianOf(rr, cnt)) ", from " sec(mn) " to " sec(mxv) " over " cnt " runs" > bfile
   }
-  print "tell-now|tell-now|not run|the demo path has no tell-now item yet; Story 11.12 adds one to each run" > bfile
 
   # the table and the counts
   print "### Runs" > tfile
   print "" > tfile
-  print "| Run | Result | Notice | Pick-up | Settle end | Diagnosis | Delivery | Decision | First reply | Approval result | Reminder | Reminder to result | Largest request |" > tfile
-  print "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |" > tfile
+  print "| Run | Result | Notice | Pick-up | Settle end | Diagnosis | Delivery | Decision | First reply | Approval result | Reminder | Reminder to result | Largest request | Tell now |" > tfile
+  print "| --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |" > tfile
   for (i = 1; i <= N; i++) {
     k = RUN[i]
     row = "| " k " | " (rpass[k] ? "pass" : "fail") " |"
-    ncol = split("notice pick-up settle-end diagnosis delivery decision first-reply approval-result reminder reminder-result largest-request", COLS, " ")
+    ncol = split("notice pick-up settle-end diagnosis delivery decision first-reply approval-result reminder reminder-result largest-request tell-now", COLS, " ")
     for (c = 1; c <= ncol; c++) {
       id = COLS[c]
+      if (id == "tell-now" && havetn[k] && tnout[k] != "tellnow") { row = row " " tnout[k] " (no sample) |"; continue }
       if (!ok[id, k]) { row = row " - |"; continue }
       v = V[id, k]
       cell = (id == "largest-request") ? commas(v) : sec(v)
@@ -740,7 +791,7 @@ parse_options() {
     fi
   fi
   if [ -n "$o_plant" ] && ! plant_ok "$o_plant"; then
-    refuse "--plant '$o_plant' is not a bound id with a limit ($REH_PLANTABLE)"
+    refuse "--plant '$o_plant' is not a bound id with a limit ($REH_PLANTABLE), alone or as <id>@<run>"
     return 2
   fi
   if [ -n "$o_version" ] && ! printf '%s\n' "$o_version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+([-+.][0-9A-Za-z.-]+)?$'; then
@@ -750,11 +801,19 @@ parse_options() {
   return 0
 }
 
-# plant_ok <id>: 0 when the id is a bound with a limit.
+# plant_ok <id>[@<run>]: 0 when the id is a bound with a limit and the run, when given, is a positive whole number (at most five digits).
 plant_ok() {
-  local i
+  local id=${1%%@*} run="" i
+  case $1 in
+    *@*)
+      run=${1#*@}
+      case $run in
+        '' | 0* | *[!0-9]* | ??????*) return 1 ;;
+      esac
+      ;;
+  esac
   for i in $REH_PLANTABLE; do
-    if [ "$i" = "$1" ]; then return 0; fi
+    if [ "$i" = "$id" ]; then return 0; fi
   done
   return 1
 }
@@ -839,10 +898,11 @@ real_config() {
   real_guards
 }
 
-# real_guards: the guards of a real rehearsal (Story 11.11), after the configuration is read and the candidate resolved: the driver is this
-# machine (the specs drive the browser here), and the spec tree is the candidate's (HEAD or the working tree must not differ from it).
+# real_guards: the guards of a real rehearsal (Stories 11.11 and 11.12), after the configuration is read and the candidate resolved: the driver
+# is this machine (the specs drive the browser here), and the spec tree, the rehearsal project and the tell-now eval case are the candidate's
+# (HEAD or the working tree must not differ from it).
 real_guards() {
-  local paths="web/e2e web/playwright.config.ts web/package.json web/package-lock.json" extra
+  local paths="web/e2e web/e2e-rehearsal web/playwright.config.ts web/playwright.rehearsal.config.ts web/package.json web/package-lock.json eval/mail-endpoint-move-tomorrow/case.json" extra
   if [ "${REHEARSAL_DRIVER_SSH:-}" != local ]; then
     refuse "REHEARSAL_DRIVER_SSH must be local: the timed runs drive the browser on this machine"
     return 2
@@ -1257,17 +1317,19 @@ runs_feed() {
 # runs_ids <state>: the run numbers of the state, ascending.
 runs_ids() { ls "$1/runs" 2> /dev/null | grep -E '^[0-9]+$' | sort -n; }
 
-# bounds_eval <state> [<planted id>]: reads every runs/*/marks.page, marks.server and verdict of the state and applies the Bounds table. It
+# bounds_eval <state> [<planted id>[@<run>]]: reads every runs/*/marks.page, marks.server and verdict of the state and applies the Bounds table. It
 # writes <state>/bounds (id|step|result|detail), <state>/runs.table (the "### Runs" table) and <state>/runs.stat ("<runs> <passed runs>"), and
 # prints a FAIL line for each failed verdict, missing mark and missed bound. A met bound reads "pass" in real mode and "dry run" in a dry run.
 # The median is taken in awk (insertion sort) because the runs are few.
 bounds_eval() {
-  local st=$1 plant=${2:-} passw
+  local st=$1 plant=${2:-} passw prun=""
+  case $plant in *@*) prun=${plant#*@} ;; esac
+  plant=${plant%%@*}
   if [ "$(env_get "$st/options" mode)" = dry ]; then passw="dry run"; else passw=pass; fi
   : > "$st/bounds"
   : > "$st/runs.table"
   : > "$st/runs.stat"
-  runs_feed "$st" $(runs_ids "$st") | awk -v mode=eval -v passw="$passw" -v plant="$plant" -v bfile="$st/bounds" -v tfile="$st/runs.table" -v sfile="$st/runs.stat" "$BOUNDS_AWK"
+  runs_feed "$st" $(runs_ids "$st") | awk -v mode=eval -v passw="$passw" -v plant="$plant" -v plantrun="$prun" -v bfile="$st/bounds" -v tfile="$st/runs.table" -v sfile="$st/runs.stat" "$BOUNDS_AWK"
   [ -s "$st/runs.stat" ] || echo "0 0" > "$st/runs.stat"
   [ -n "$(runs_ids "$st")" ] || : > "$st/runs.table"
   return 0
@@ -1292,11 +1354,11 @@ bounds_merge() {
   if [ "${n:-0}" -eq 0 ]; then
     printf 'runs|not run|\n' >> "$state/results"
   elif [ "$passed" -lt "$n" ]; then
-    printf 'runs|fail|%s of %s runs failed the REL-2 specs or left a mark missing\n' "$((n - passed))" "$n" >> "$state/results"
+    printf 'runs|fail|%s of %s runs failed a spec or left a mark missing\n' "$((n - passed))" "$n" >> "$state/results"
   elif [ "$n" -lt "$want" ]; then
-    printf 'runs|not run|%s of %s runs done; run 2 and later come with Story 11.12\n' "$n" "$want" >> "$state/results"
+    printf 'runs|not run|%s of %s runs done\n' "$n" "$want" >> "$state/results"
   else
-    printf 'runs|pass|%s of %s runs passed the REL-2 specs\n' "$passed" "$n" >> "$state/results"
+    printf 'runs|pass|%s of %s runs passed\n' "$passed" "$n" >> "$state/results"
   fi
 }
 
@@ -1362,7 +1424,7 @@ cmd_plan() {
   echo "PLAN version $c_version rc$o_rc at $c_sha"
   echo "PLAN mode $([ "$o_dry" = 1 ] && echo "dry run" || echo rehearsal)"
   echo "PLAN hosts clean $hc, driver $hd"
-  echo "PLAN phases install runs report down (run does all four); steps hosts copy install sign-in secrets; runs $o_runs"
+  echo "PLAN phases install runs report down (run steps through them, one phase per call); steps hosts copy install sign-in secrets; runs $o_runs"
   echo "PLAN record ${o_record:-$(record_path "$c_version" "$o_rc")}"
   exit 0
 }
@@ -1408,9 +1470,17 @@ cmd_report() {
       exit 2
     fi
     if ! plant_ok "$plant"; then
-      refuse "report: --plant '$plant' is not a bound id with a limit ($REH_PLANTABLE)"
+      refuse "report: --plant '$plant' is not a bound id with a limit ($REH_PLANTABLE), alone or as <id>@<run>"
       exit 2
     fi
+    case $plant in
+      *@*)
+        if [ ! -d "$state/runs/${plant#*@}" ]; then
+          refuse "report: --plant '$plant' names run ${plant#*@}, which the state does not hold"
+          exit 2
+        fi
+        ;;
+    esac
   fi
   report_plant=$plant
   if [ "$REHEARSAL_MODE" = real ]; then real_config || exit 2; fi
@@ -1516,15 +1586,19 @@ marks_server_write() {
     $2 == "reminder" { if ($3 ~ /^[0-9]+$/ && $4 ~ /^[0-9]+$/) print "reminder " $3 " " $4; else print "missing fired"; next }
     $2 == "late" { if ($3 ~ /^[0-9]+$/ && $4 ~ /^[0-9]+$/) print "late " $3 " " $4; next }
     $2 == "tokens" { if ($3 ~ /^[0-9]+$/) print "tokens " $3; else print "missing tokens"; next }
+    $2 == "tellnow" { if ($3 ~ /^[a-z_]+$/ && $4 ~ /^[0-9]+$/) print "tellnow " $3 " " $4; else print "missing tellnow"; next }
     $2 == "missing" { if ($3 ~ /^[a-z_]+$/) print "missing " $3; next }'
 }
 
-# summary_step <reason>: the step id that a failure of demo-path-summary.mjs names (a spec file, or "step <n> <id>"), else run.
+# summary_step <reason>: the step id that a failure of demo-path-summary.mjs names (a numbered spec file, or "step <n> <id>"; in the rehearsal
+# project the word before the colon of the test's title, '<id>.spec.ts "<step>: ...', or "step <id> ..."), else run.
 summary_step() {
   local id
   id=$(printf '%s\n' "$1" | sed -n 's/.*0[1-8]-\([a-z][a-z-]*\)\.spec\.ts.*/\1/p' | head -n 1)
   [ -n "$id" ] || id=$(printf '%s\n' "$1" | sed -n 's/.*telegram-\([a-z][a-z-]*\)\.spec\.ts.*/\1/p' | head -n 1)
   [ -n "$id" ] || id=$(printf '%s\n' "$1" | sed -n 's/^step [1-8] \([a-z][a-z-]*\).*/\1/p' | head -n 1)
+  [ -n "$id" ] || id=$(printf '%s\n' "$1" | sed -n 's/^[a-z][a-z-]*\.spec\.ts "\([a-z][a-z-]*\): .*/\1/p' | head -n 1)
+  [ -n "$id" ] || id=$(printf '%s\n' "$1" | sed -n 's/^step \([a-z][a-z-]*\)[: ].*/\1/p' | head -n 1)
   [ -n "$id" ] || id=run
   printf '%s\n' "$id"
 }
@@ -1540,80 +1614,106 @@ scrub_origin() {
   REH_SCRUB=$host awk 'BEGIN { h = tolower(ENVIRON["REH_SCRUB"]) } { s = $0; out = ""; if (h != "") { while ((i = index(tolower(s), h)) > 0) { out = out substr(s, 1, i - 1) "<clean host>"; s = substr(s, i + length(h)) } } print out s }'
 }
 
-# phase_runs: run 1 of the timed runs (see the header).
-phase_runs() {
-  local k=1 dir me origin user model start out script e2e_rc sum_rc execs line step reason fails=0 first_step="" first_reason="" wait_ms
-  dir=$state/runs/$k
-  me=$reh_root/release/rehearse.sh
-  mkdir -p "$dir"
-  : > "$dir/marks.page"
-  : > "$dir/marks.server"
-  echo 0 > "$dir/exec.count"
-  origin=$(cat "$state/origin" 2> /dev/null)
-  user=$(cat "$state/user" 2> /dev/null)
-  if [ -z "$origin" ] || ! printf '%s\n' "$user" | grep -Eq '^[A-Za-z0-9_.-]+$'; then
-    fail_run_line "$k" run - "the install left no address or user to run against"
-    printf 'fail\nrun|the install left no address or user to run against\n' > "$dir/verdict"
-    return 1
-  fi
-  start=$(exec_chk 'Write !,"CHK|now|",$ZDATETIME($ZTIMESTAMP,3,1,3)
-Halt' | sed -n 's/^CHK|now|//p' | head -n 1)
-  if ! printf '%s\n' "$start" | grep -Eq '^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]+$'; then
-    fail_run_line "$k" run - "the server clock could not be read through the exec channel"
-    printf 'fail\nrun|the server clock could not be read through the exec channel\n' > "$dir/verdict"
-    return 1
-  fi
-  printf '%s\n' "$start" > "$dir/server.start"
-  if [ "$(opt mode)" = dry ]; then model=mock; else model=real; fi
-  wait_ms=${OCUTALON_E2E_TIMEOUT_MS:-480000}
-  case $wait_ms in '' | *[!0-9]* | 0*) wait_ms=480000 ;; esac
-  echo "PHASE runs: run $k of the REL-2 specs against the install (at most $((wait_ms / 1000)) s)"
+# e2e_call <file suffix> <timeout ms> <summary options> <npm run argument>...: one Playwright call of the run in progress, then its summary.
+# It reads run_one's locals (r_k, r_dir, r_me, r_origin, r_model) and adds to its fails, first_step, first_reason and passed_text. Files:
+# report<suffix>.json, e2e<suffix>.log and summary<suffix>.log in the run's folder; the summary options are one word or two, split here.
+e2e_call() {
+  local suffix=$1 tmo=$2 sopts=$3 json log summ e2e_rc sum_rc line reason step before=$fails
+  shift 3
+  json=$r_dir/report$suffix.json
+  log=$r_dir/e2e$suffix.log
+  summ=$r_dir/summary$suffix.log
   (
     cd "$reh_root" && env -u ANTHROPIC_API_KEY -u TELEGRAM_BOT_TOKEN \
-      OCUTALON_URL="$origin" OCUTALON_E2E_JSON="$dir/report.json" OCUTALON_E2E_MARKS="$dir/marks.page" \
-      OCUTALON_E2E_IRIS_EXEC="bash '${me//\'/\'\\\'\'}' exec" OCUTALON_REHEARSAL_RUN="$k" OCUTALON_DEMO_PATH_MODEL="$model" \
-      OCUTALON_E2E_TIMEOUT_MS="$wait_ms" \
-      npm --prefix web run e2e:demo-path > "$dir/e2e.log" 2>&1
+      OCUTALON_URL="$r_origin" OCUTALON_E2E_JSON="$json" OCUTALON_E2E_MARKS="$r_dir/marks.page" \
+      OCUTALON_E2E_IRIS_EXEC="bash '${r_me//\'/\'\\\'\'}' exec" OCUTALON_REHEARSAL_RUN="$r_k" OCUTALON_DEMO_PATH_MODEL="$r_model" \
+      OCUTALON_E2E_TIMEOUT_MS="$tmo" \
+      npm --prefix web run "$@" > "$log" 2>&1
   )
   e2e_rc=$?
-  scrub_origin < "$dir/e2e.log" | sed 's/^/  /'
-  if [ "$e2e_rc" -ne 0 ] && grep -q "Executable doesn't exist" "$dir/e2e.log"; then
+  scrub_origin < "$log" | sed 's/^/  /'
+  if [ "$e2e_rc" -ne 0 ] && grep -q "Executable doesn't exist" "$log"; then
     echo "  the browser is missing: run npx --prefix web playwright install chromium"
   fi
-  node web/scripts/demo-path-summary.mjs --only-telegram-skips "$dir/report.json" > "$dir/summary.log" 2>&1
+  # shellcheck disable=SC2086
+  node web/scripts/demo-path-summary.mjs $sopts "$json" > "$summ" 2>&1
   sum_rc=$?
-  scrub_origin < "$dir/summary.log" > "$dir/summary.scrubbed"
-  mv "$dir/summary.scrubbed" "$dir/summary.log"
-  cat "$dir/summary.log"
+  scrub_origin < "$summ" > "$summ.scrubbed"
+  mv "$summ.scrubbed" "$summ"
+  cat "$summ"
   while IFS= read -r line; do
     case $line in
       "FAIL "*)
         reason=${line#FAIL }
         step=$(summary_step "$reason")
-        fail_run_line "$k" "$step" - "$reason"
+        fail_run_line "$r_k" "$step" - "$reason"
         fails=$((fails + 1))
         if [ -z "$first_step" ]; then
           first_step=$step
           first_reason=$reason
         fi
         ;;
+      "DEMO-PATH "* | "REHEARSAL "*) passed_text="$passed_text${passed_text:+; }$line" ;;
     esac
-  done < "$dir/summary.log"
-  if [ "$sum_rc" -ne 0 ] && [ "$fails" -eq 0 ]; then
-    first_step=run
-    first_reason="demo-path-summary.mjs exited $sum_rc and printed no FAIL line"
-    fail_run_line "$k" run - "$first_reason"
-    fails=1
-  elif [ "$e2e_rc" -ne 0 ] && [ "$fails" -eq 0 ]; then
-    first_step=run
-    first_reason="Playwright exited $e2e_rc although the summary found no failed step"
-    fail_run_line "$k" run - "$first_reason"
-    fails=1
+  done < "$summ"
+  if [ "$sum_rc" -ne 0 ] && [ "$fails" -eq "$before" ]; then
+    if [ -z "$first_step" ]; then
+      first_step=run
+      first_reason="demo-path-summary.mjs exited $sum_rc and printed no FAIL line"
+    fi
+    fail_run_line "$r_k" run - "demo-path-summary.mjs exited $sum_rc and printed no FAIL line"
+    fails=$((fails + 1))
+  elif [ "$e2e_rc" -ne 0 ] && [ "$fails" -eq "$before" ]; then
+    if [ -z "$first_step" ]; then
+      first_step=run
+      first_reason="Playwright exited $e2e_rc although the summary found no failed step"
+    fi
+    fail_run_line "$r_k" run - "Playwright exited $e2e_rc although the summary found no failed step"
+    fails=$((fails + 1))
   fi
-  execs=$(cat "$dir/exec.count" 2> /dev/null)
+}
+
+# run_one <k>: run k of the timed runs (see the header). Writes the run's files but not `passed`; returns 0 for a passed run.
+run_one() {
+  local r_k=$1 r_dir r_me r_origin r_model start out script execs user fails=0 first_step="" first_reason="" passed_text="" wait_ms rel2 mrc
+  r_dir=$state/runs/$r_k
+  r_me=$reh_root/release/rehearse.sh
+  mkdir -p "$r_dir"
+  : > "$r_dir/marks.page"
+  : > "$r_dir/marks.server"
+  echo 0 > "$r_dir/exec.count"
+  r_origin=$(cat "$state/origin" 2> /dev/null)
+  user=$(cat "$state/user" 2> /dev/null)
+  if [ -z "$r_origin" ] || ! printf '%s\n' "$user" | grep -Eq '^[A-Za-z0-9_.-]+$'; then
+    fail_run_line "$r_k" run - "the install left no address or user to run against"
+    printf 'fail\nrun|the install left no address or user to run against\n' > "$r_dir/verdict"
+    return 1
+  fi
+  start=$(exec_chk 'Write !,"CHK|now|",$ZDATETIME($ZTIMESTAMP,3,1,3)
+Halt' | sed -n 's/^CHK|now|//p' | head -n 1)
+  if ! printf '%s\n' "$start" | grep -Eq '^[0-9]{4}-[0-9]{2}-[0-9]{2} [0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]+$'; then
+    fail_run_line "$r_k" run - "the server clock could not be read through the exec channel"
+    printf 'fail\nrun|the server clock could not be read through the exec channel\n' > "$r_dir/verdict"
+    return 1
+  fi
+  printf '%s\n' "$start" > "$r_dir/server.start"
+  if [ "$(opt mode)" = dry ]; then r_model=mock; else r_model=real; fi
+  wait_ms=${OCUTALON_E2E_TIMEOUT_MS:-480000}
+  case $wait_ms in '' | *[!0-9]* | 0*) wait_ms=480000 ;; esac
+  if [ "$r_k" -eq 1 ]; then
+    rel2=$((wait_ms - 90000))
+    if [ "$rel2" -lt 1000 ]; then rel2=1000; fi
+    echo "PHASE runs: run $r_k of the REL-2 specs, then the tell-now item, against the install (at most $((wait_ms / 1000)) s)"
+    e2e_call "" "$rel2" --only-telegram-skips e2e:demo-path
+    e2e_call .tellnow 90000 "--steps tell-now" e2e:rehearsal -- tell-now.spec.ts
+  else
+    echo "PHASE runs: run $r_k of the repeat and the tell-now item against the install (at most $((wait_ms / 1000)) s)"
+    e2e_call "" "$wait_ms" "--steps repeat,tell-now" e2e:rehearsal
+  fi
+  execs=$(cat "$r_dir/exec.count" 2> /dev/null)
   case $execs in '' | *[!0-9]*) execs=0 ;; esac
   if [ "$execs" -eq 0 ]; then
-    fail_run_line "$k" run - "the specs read nothing through the rehearsal's exec channel"
+    fail_run_line "$r_k" run - "the specs read nothing through the rehearsal's exec channel"
     if [ "$fails" -eq 0 ]; then
       first_step=run
       first_reason="the specs read nothing through the rehearsal's exec channel"
@@ -1621,40 +1721,68 @@ Halt' | sed -n 's/^CHK|now|//p' | head -n 1)
     fails=$((fails + 1))
   fi
   if [ "$fails" -eq 0 ]; then
-    printf 'pass\n' > "$dir/verdict"
+    printf 'pass\n' > "$r_dir/verdict"
   else
-    printf 'fail\n%s|%s\n' "$first_step" "$(printf '%s' "$first_reason" | detail_clean)" > "$dir/verdict"
+    printf 'fail\n%s|%s\n' "$first_step" "$(printf '%s' "$first_reason" | detail_clean)" > "$r_dir/verdict"
   fi
   # The collector runs also after a failed run: the marks it finds are the run's record.
   script=${COLLECTOR//@START@/$start}
   script=${script//@USER@/$user}
+  script=${script//@RUN@/$r_k}
   if out=$(exec_chk "$script" 'CHK|done|1'); then
-    marks_server_write "$out" > "$dir/marks.server"
+    marks_server_write "$out" > "$r_dir/marks.server"
   else
-    { marks_server_write "$out"; echo "missing collector"; } > "$dir/marks.server"
+    { marks_server_write "$out"; echo "missing collector"; } > "$r_dir/marks.server"
   fi
-  runs_feed "$state" "$k" | awk -v mode=run "$BOUNDS_AWK"
-  local mrc=${PIPESTATUS[1]}
+  runs_feed "$state" "$r_k" | awk -v mode=run "$BOUNDS_AWK"
+  mrc=${PIPESTATUS[1]}
   if [ "$fails" -eq 0 ] && [ "$mrc" -eq 0 ]; then
-    echo "PASS run $k demo path: $(grep '^DEMO-PATH' "$dir/summary.log" | head -n 1)"
+    if [ "$r_k" -eq 1 ]; then
+      echo "PASS run $r_k demo path: $passed_text"
+    else
+      echo "PASS run $r_k rehearsal: $passed_text"
+    fi
     return 0
   fi
   return 1
 }
 
-cmd_runs() {
+# phase_runs <k>: run k, then its `passed` file (1 or 0), written last.
+phase_runs() {
   local rc
+  run_one "$1"
+  rc=$?
+  if [ "$rc" -eq 0 ]; then echo 1 > "$state/runs/$1/passed"; else echo 0 > "$state/runs/$1/passed"; fi
+  return "$rc"
+}
+
+cmd_runs() {
+  local rc ids n newest want k
   if [ $# -gt 0 ]; then
     rehearse_usage
     exit 2
   fi
   need_installed runs || exit 2
-  if [ -e "$state/runs/1" ]; then
-    refuse "runs: run 1 exists; run 2 and later (Run again and the replay rule) come with Story 11.12"
+  ids=$(runs_ids "$state")
+  n=0
+  newest=0
+  if [ -n "$ids" ]; then
+    n=$(printf '%s\n' "$ids" | wc -l | tr -d ' ')
+    newest=$(printf '%s\n' "$ids" | tail -n 1)
+  fi
+  want=$(opt runs)
+  case $want in '' | *[!0-9]*) want=1 ;; esac
+  if [ "$n" -ge "$want" ]; then
+    refuse "runs: $n of $want runs done; run report"
     exit 2
   fi
+  if [ "$newest" -gt 0 ] && [ "$(cat "$state/runs/$newest/passed" 2> /dev/null)" != 1 ]; then
+    refuse "runs: run $newest failed; run report and down"
+    exit 2
+  fi
+  k=$((newest + 1))
   runtime_prepare guard || exit 2
-  reh_logged phase_runs
+  reh_logged phase_runs "$k"
   rc=$?
   exit "$rc"
 }
@@ -1719,44 +1847,108 @@ install_args() {
   done
 }
 
-cmd_run() {
-  local me=$reh_root/release/rehearse.sh rc report_rc rrc want made=0 iargs=()
-  parse_options "$@" || exit 2
-  if [ -n "$o_plant" ] && [ "$o_dry" != 1 ]; then
-    refuse "--plant is for dry runs only"
-    exit 2
+# run_next <text>: the end of a phase that is not the last: what is due next, and exit 4.
+run_next() {
+  echo "NEXT run: $1"
+  exit 4
+}
+
+# run_same_options: 0 when the options of this call equal the state's; else a REFUSED line naming the one that differs (return 2).
+run_same_options() {
+  local mode
+  mode=$([ "$o_dry" = 1 ] && echo dry || echo real)
+  if [ "$mode" != "$(opt mode)" ]; then
+    refuse "run: --dry-run differs from the state's (mode $(opt mode)); give the same options on every call"
+    return 2
   fi
-  if [ -z "${OCUTALON_RUN_TAG:-}" ]; then OCUTALON_RUN_TAG="reh-$(date +%s)"; fi
-  export OCUTALON_RUN_TAG
-  need_tag run || exit 2
-  install_args "$@"
-  (cd "$reh_caller_pwd" && bash "$me" install "${iargs[@]}")
-  rc=$?
-  case $rc in
-    2 | 75) exit "$rc" ;;
-  esac
-  if [ ! -d "$state" ]; then exit "$rc"; fi
-  if ! phase_done install; then
-    bash "$me" down
-    exit "$rc"
+  if [ "$o_rc" != "$(opt rc)" ]; then
+    refuse "run: --rc $o_rc differs from the state's ($(opt rc)); give the same options on every call"
+    return 2
   fi
-  if [ "$rc" -eq 0 ]; then
-    want=$(opt runs)
-    while [ "$made" -lt "$want" ]; do
-      bash "$me" runs
-      rrc=$?
-      if [ "$rrc" -ne 0 ]; then break; fi
-      made=$((made + 1))
-    done
+  if [ "$o_runs" != "$(opt runs)" ]; then
+    refuse "run: --runs $o_runs differs from the state's ($(opt runs)); give the same options on every call"
+    return 2
   fi
+  if [ -n "$o_version" ] && [ "$o_version" != "$(opt version)" ]; then
+    refuse "run: --version $o_version differs from the state's ($(opt version)); give the same options on every call"
+    return 2
+  fi
+  if [ -n "$o_candidate" ] && [ "$o_candidate" != "$(opt ref)" ]; then
+    refuse "run: --candidate differs from the state's; give the same options on every call"
+    return 2
+  fi
+  if [ -n "$o_record" ] && [ "$o_record" != "$(opt record)" ]; then
+    refuse "run: --record differs from the state's; give the same options on every call"
+    return 2
+  fi
+  return 0
+}
+
+# run_last: report (with --plant), then down; exits with report's code. A refusal of report (exit 2) keeps the state.
+run_last() {
+  local me=$reh_root/release/rehearse.sh report_rc
   if [ -n "$o_plant" ]; then
     bash "$me" report --plant "$o_plant"
   else
     bash "$me" report
   fi
   report_rc=$?
+  if [ "$report_rc" -eq 2 ]; then
+    echo "NOTE run: report was refused, so the state is kept; call run again with the right options, or run down"
+    exit 2
+  fi
   bash "$me" down
   exit "$report_rc"
+}
+
+cmd_run() {
+  local me=$reh_root/release/rehearse.sh rc n ids newest want k iargs=()
+  parse_options "$@" || exit 2
+  if [ -n "$o_plant" ] && [ "$o_dry" != 1 ]; then
+    refuse "--plant is for dry runs only"
+    exit 2
+  fi
+  need_tag run || exit 2
+  if [ ! -d "$state" ]; then
+    # The first call: the install.
+    install_args "$@"
+    (cd "$reh_caller_pwd" && bash "$me" install "${iargs[@]}")
+    rc=$?
+    case $rc in
+      2 | 75) exit "$rc" ;;
+    esac
+    if [ ! -d "$state" ]; then exit "$rc"; fi
+    if ! phase_done install; then
+      bash "$me" down
+      exit "$rc"
+    fi
+    if [ "$rc" -ne 0 ]; then run_next "report, then down (an install step failed)"; fi
+    run_next "run 1 of $(opt runs)"
+  fi
+  run_same_options || exit 2
+  if ! phase_done install || [ "$(row_result "$state/results" hosts)$(row_result "$state/results" copy)$(row_result "$state/results" install)$(row_result "$state/results" sign-in)" != passpasspasspass ]; then
+    run_last
+  fi
+  ids=$(runs_ids "$state")
+  n=0
+  newest=0
+  if [ -n "$ids" ]; then
+    n=$(printf '%s\n' "$ids" | wc -l | tr -d ' ')
+    newest=$(printf '%s\n' "$ids" | tail -n 1)
+  fi
+  want=$(opt runs)
+  if [ "$newest" -gt 0 ] && [ "$(cat "$state/runs/$newest/passed" 2> /dev/null)" != 1 ]; then run_last; fi
+  if [ "$n" -ge "$want" ]; then run_last; fi
+  k=$((newest + 1))
+  bash "$me" runs
+  rc=$?
+  case $rc in
+    2) exit 2 ;;
+    0) ;;
+    *) run_next "report, then down (run $k failed)" ;;
+  esac
+  if [ "$k" -ge "$want" ]; then run_next "report, then down"; fi
+  run_next "run $((k + 1)) of $want"
 }
 
 main() {

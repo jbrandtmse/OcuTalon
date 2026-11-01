@@ -118,6 +118,15 @@ describe('the projects, listed with no OCUTALON_ variable set', () => {
     assert.equal(script, 'playwright test --project=cards');
   });
 
+  it('rehearsal (the e2e:rehearsal script, Story 11.12) lists exactly the specs of e2e-rehearsal/ in run order, and the chromium script none of them', () => {
+    const own = readdirSync(join(webDir, 'e2e-rehearsal')).filter((name) => /\.spec\.ts$/.test(name)).sort();
+    assert.deepEqual(own, ['repeat.spec.ts', 'tell-now.spec.ts']);
+    assert.deepEqual(filesOf('e2e:rehearsal'), own.map((name) => `../e2e-rehearsal/${name}`));
+    assert.deepEqual(filesOf('e2e').filter((name) => name.includes('e2e-rehearsal')), []);
+    const script = JSON.parse(readFileSync(join(webDir, 'package.json'), 'utf8')).scripts['e2e:rehearsal'];
+    assert.equal(script, 'playwright test --config=playwright.rehearsal.config.ts');
+  });
+
   it('every spec file on disk is listed by at least one of the chromium, demo-path, demo-switch, floor, answers and cards scripts', () => {
     const listedByAny = new Set(['e2e', 'e2e:demo-path', 'e2e:demo-switch', 'e2e:floor', 'e2e:answers', 'e2e:cards'].flatMap((script) => filesOf(script)));
     assert.deepEqual(onDisk.filter((name) => !listedByAny.has(name)), []);

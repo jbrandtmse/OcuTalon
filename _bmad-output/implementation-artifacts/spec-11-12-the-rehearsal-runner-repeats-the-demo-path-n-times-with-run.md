@@ -2,14 +2,43 @@
 title: 'Story 11.12: The rehearsal runner repeats the demo path N times with Run again (runs 2 to N, the replay rule, the tell-now item and its bound; dry runs on throwaways)'
 type: 'feature'
 created: '2026-11-01'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'b7a6ee11b2799f6b371134f47d489a30ef58f959'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-11-context.md'
   - '{project-root}/_bmad-output/implementation-artifacts/spec-11-11-the-rehearsal-runner-times-the-demo-path-and-checks-every-bo.md'
 warnings: ['oversized']
-deferred: []
+deferred:
+  - summary: >-
+      Run 2 cannot press Run again as the spec's Repeat start row says: after 07's pending replay request is rejected and its incident dismissed, the guide still holds run 1's opened trace (GuideState.TraceOpened is cleared only by the run_again marker), shows no finish and so no Run again button, and reads step 5; the next trace step would then show the finish at once, with no step-5 link to open. The repeat posts the page's own run_again marker (POST /ocutalon/api/v1/guide/markers) after the Dismiss, so that runs 2 to N all start with the guide at step 3, current.
+    evidence: |-
+      Live dry run (tag e11s12d): the first run 2 failed at "Step 3, Break the feed, current" with the guide reading "Next: Open the incident's trace" (step 5); with the marker posted, runs 2 and 3 passed the same specs.
+    location: >-
+      web/e2e-rehearsal/repeat.spec.ts (again:)
+    severity: low
+  - summary: >-
+      The real-model texts of the repeat are unmeasured: the composer-sent watch and reminder prompts, the reminder notice card ("Reminder: " then the model's text) and the phone message without buttons (counted as "at least one more" on the real model), and the tell-now item's outcome (the eval case is expected to be decided Tell now; another outcome is a miss with its outcome named).
+    evidence: |-
+      Only the CI mock ran in this build; Story 38.2's first real run (or Story 11.14's candidate gate) confirms the shapes.
+    location: >-
+      web/e2e-rehearsal/repeat.spec.ts, web/e2e-rehearsal/tell-now.spec.ts
+    severity: low
+  - summary: >-
+      docker/tests/test-rehearsal.sh now takes about 77 s alone on the developer machine (the 11.11 build took about 47 s there, 36 s in the hosted checks job), so the hosted job's share is near the "about 60 s" budget.
+    evidence: |-
+      Per rule here (s): stub-runs 19, bounds 13, timed-runs 20, run-steps 14 (new), the rest under 5. The 20-run states are not shared between rules; sharing them (or fewer installs in run-steps) is the lever if the job needs the time.
+    location: >-
+      docker/tests/test-rehearsal.sh
+    severity: low
+  - summary: >-
+      The online demo-path unit (web/e2e-online/demo-path/demo-path.spec.ts) imports watchThroughGuide and approveOnPhone, which this story changed; only the type check and the web demo-path unit (ci/iris.sh live demo-path) were run on them, not ci/iris.sh live online-demo-path.
+    evidence: |-
+      Both helpers keep their arguments and, with OCUTALON_E2E_MARKS unset, their behaviour (approveOnPhone adds one phone count before the press, which is 0 and so today's 1 on a first run).
+    location: >-
+      web/e2e/support/demo-path.ts
+    severity: low
 ---
 
 <intent-contract>
@@ -291,6 +320,37 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-11-01 - Review pass
+- verdicts: 27 findings - high 0, medium 2, low 25, false 0, maybe-false 0
+- findings:
+  - `[low]` `[reject]` Blind: real-mode phone check satisfied by the approval result alone - the chat-card check on `real` is stricter and covers the reminder landing; the real-model shapes are unmeasured and deferred (item 2); a reminder-specific filter needs the real text.
+  - `[low]` `[reject]` Blind: tell-now call's 90 s global budget against 240 s per-test timeouts - the 90000 is the matrix's own figure; a slow decision still FAILs the run (step run), never passes.
+  - `[low]` `[reject]` Blind: a killed run has no recovery - spec-bound (a run without `passed` is a failed run: report, then down); not a user-reachable path inside one 10-minute call.
+  - `[low]` `[reject]` Blind: `cmd_run` and `cmd_runs` repeat the count and refusal logic - both are tested; a refactor, not a defect; no divergence found.
+  - `[low]` `[patch]` Blind: no unit test pins the `e2e:rehearsal` project - added a case to `playwright-projects.test.mjs` (lists exactly repeat and tell-now, chromium lists none, script string); mutation recorded.
+  - `[low]` `[reject]` Blind: the bound also measures model determinism - the spec says so (a non-Tell-now outcome is a named miss); the row text names the outcome.
+  - `[low]` `[reject]` Blind: `t_collector_names` thresholds and literal values - thresholds are a floor against reading nothing; literal values are the spec's named DW-534 residual.
+  - `[low]` `[reject]` Blind: `approveOnPhone` result count - earlier results are old by the time of the press; defaults unchanged for run 1 (0 + 1).
+  - `[low]` `[reject]` Edge: `--plant tell-now@k` on a no-sample run changes nothing - that run already counts as a miss, so the plant is moot, not silent.
+  - `[low]` `[reject]` Edge: a negative tell-now value passes - needs a decision duration longer than the page window, which the measured runs (2032 ms inside 2035) do not show.
+  - `[low]` `[reject]` Edge: the exec.count check with two Playwright calls - stays as 11.11 had it (any read through exec).
+  - `[low]` `[reject]` Edge: the 1 s clamp when the timeout is under 91 s - a configuration nobody uses (default 480 s).
+  - `[low]` `[reject]` Edge: `approveOnPhone` count (second sighting) - see the Blind row.
+  - `[low]` `[reject]` Edge: reminder counts around an earlier reminder - measured stable in runs 2 and 3 (three rows, all fired before the count).
+  - `[low]` `[patch]` Edge: collector-names item pattern `[A-Za-z]+` - widened to `[A-Za-z0-9_.-]+`.
+  - `[low]` `[reject]` Edge: a plant beyond `--runs` is found at report - the spec has report refuse it (exit 2, state kept).
+  - `[medium]` `[patch]` Verification gap: the relative `--record` case under `run` lost its test - restored in `t_run_steps` (four `run` calls from a caller folder); mutation recorded (dropping the `cd` turns run-steps red).
+  - `[low]` `[reject]` Verification gap: the two specs have no hosted executed host - the live dry run in the loop executes both on a throwaway; DW-534 chose static checks in the hosted jobs.
+  - `[low]` `[reject]` Verification gap: the approval probe is pinned by source text - the live dry run measures it per run (1.0 s); no page harness exists for the helpers.
+  - `[low]` `[patch]` Verification gap: `app-chat-panel` and `app-outcome-chip` not in the page-source pins - added, mutation recorded.
+  - `[low]` `[reject]` Verification gap: rare branches without a test (`summary_step` pattern, the clamp, `--candidate`) - cosmetic or unused configurations.
+  - `[low]` `[reject]` Verification gap: the collector's value literals - the spec's named residual for DW-534, ledgered.
+  - `[low]` `[reject]` Other: unused `skippedTitle` parameter in a summary test helper - dead test code, no assertion affected.
+  - `[low]` `[reject]` Other: `npm.env.all` accumulates in `t_timed_runs` - each assertion reads the latest call of the run under test; mutations went red.
+  - `[medium]` `[patch]` Intent: a fallback decision (Outcome tellnow, Fallback 1) counted as a Tell-now sample, a false all-clear on the bound - the collector reads Fallback and reports the outcome `fallback`; collector-names pins it and two bounds cases cover it; the live dry run still reads tell-now 0.9 to 1.0 s.
+  - `[low]` `[defer]` Intent: run 2 posts the run_again marker instead of pressing Run again - already deferred item 1 (the guide's behaviour after Dismiss made the spec's premise false; the result is the spec's expected state).
+  - `[low]` `[reject]` Intent: shared helpers changed under CI and the per-call timeouts - defaults unchanged, the live demo-path unit passes unchanged.
+
 ## Design Notes
 
 **Architecture decisions.**
@@ -449,9 +509,60 @@ Run `ci/iris.sh build` once first if `web/src` changed since the bundle was buil
 - `web/tsconfig.e2e.json` (lint) and `web/package.json` scripts.
 - Every test added or changed passes on a fresh environment, in either order: the self-test builds its own repository, stubs and run folders; the node tests use their own files; the dry run brings up its own throwaway and removes it.
 
+### Implement stage (2026-11-01; lane A, `ocutalon-slot-a` untouched, throwaway tags e11s12d and e11s12p)
+
+Loop results at hand-off:
+- `bash docker/tests/test-rehearsal.sh`: all 19 rules pass (`run-steps` and `collector-names` among them), about 77 s alone on the developer machine.
+- `node --test web/scripts/rehearsal-support.test.mjs web/scripts/demo-path-summary.test.mjs`: 68 tests pass. `npm --prefix web test`: 1185 tests pass. `npm --prefix web run lint` and `bash docker/tests/test-boundaries.sh`: exit 0.
+- Every script of `ci/checks.sh` passed, run by script in two calls (boundaries, storage, class-rules, ci-config, ci-changes, compose-file, pinned-sources, after-start, healthcheck, lib-live, bootstrap, demo-path-gate; then ci-warm, probe, install-script, readme, eval-set, online-host, online-load, upgrade-harness; rehearsal above).
+- `ci/iris.sh build` once, then `ci/iris.sh live demo-path` (fresh throwaway, tag e11s12p, 4 min 16 s): `20 passed`, 2 skipped (the Telegram parts), `test-demo-path: all checks passed` (AC7). No container, image or lock of either tag remained.
+- The live dry run, one call per phase (`install --dry-run --rc 1 --runs 3 --record <tmp>/rc1.md`, `runs` x3, a fourth `runs`, `report`, `report --plant pick-up@3`, `report --plant pick-up@4`, `down`): install 88 s, every row passes; `PASS run 1 demo path: ...; REHEARSAL 1 of 1 steps ran ...` with `RUN 1 ... tell-now=1.0 ...`; `PASS run 2 rehearsal` and `PASS run 3 rehearsal`; the fourth `runs` printed `REFUSED runs: 3 of 3 runs done; run report`, exit 2; `report` printed `RESULT dry run`, exit 3, every met row `dry run` (tell-now included), the runs row `3 of 3 runs passed` and the `### Runs` table with its `Tell now` column; `report --plant pick-up@3` printed `FAIL run 3 step incident bound pick-up 15 s (planted): 1.2 s in run 3 ...`, `RESULT fail`, exit 1, the record holding one section; `--plant pick-up@4` exit 2; `down` printed `TEARDOWN`, then 0 containers, 0 images, no state folder and an empty lane folder for the tag. No `ssh` ran.
+
+**Task 0, measured on the dry run (developer machine, Docker Desktop, arm64, tag e11s12d, lane A, CI mock):**
+- Seconds: `runs` call 1 took 3 min 12 s (the REL-2 Playwright call 3.0 min, the tell-now call 10.4 s inside it); call 2 took 1 min 24 s (Playwright 1.4 min); call 3 took 1 min 20 s (1.3 min). Install 88 s. `report` and `down` under 7 s each.
+- `exec.count`: run 1 30 (both Playwright calls), run 2 10, run 3 8.
+- Run 2's start state: 07's replay request pending (the one pending request on the phone). `again:` rejected it on the phone and dismissed its incident; Break the feed was then active (Dismiss asserts it), but the guide read step 5 ("Next: Open the incident's trace") with no finish and no Run again button, because run 1's opened trace is still set. The spec's "guide reads step 3 current" holds only after Run again, so run 2 posts the run_again marker (deferred item 1); runs 3 and later press the Run again button on the finish, and the guide reads "Step 3, Break the feed, current".
+- A composer-sent watch prompt on a watched session gets a decided reply (strip with the Act chip and the mock's reason), and the "Orders production" check row stays one (`watch:` passed in runs 2 and 3).
+- The reminders: three rows in the end, all fired, none pending, so the Reminders list (pending ones) holds only the run's own reminder; the repeat's count is relative anyway (`reminder:` passed). The reminder landed in the chat and on the phone within 90 s in runs 2 and 3 (46 s after the call that set it).
+- The tell-now item's `DurationMs` against its headers (ms): run 1 2032 inside `Decide` request 01.630 to `DecisionResponse` 03.665 (2035); run 2 2032 inside 29.962 to 31.998 (2036); run 3 2031 inside 54.469 to 56.505 (2036). The tell-now value per run: 0.9 s (first attempt), 1.0 s, 1.0 s, 1.0 s.
+- The notice card and the phone message hold the run stamp (`Rehearsal run <k>: `) in all three runs (`tell-now:` asserts one card and one phone message that hold it, and the card holds "Why now:").
+- Run values of the reported set: notice 10.6 to 10.8 s, pick-up 1.1 to 2.8 s, settle-end 10.1 to 10.4 s, largest request 3,657 to 4,247 tokens; reminder minus result is -1.0 s in run 1 and +47.0 s in runs 2 and 3 (the repeat sets its reminder before the incident, so it lands after the result; recorded only).
+- The reminder-result phone message and the result message matched on the mock in all three runs (no `CHK|missing|` line). The collector's reminder and result text matches (11.11 deferral) remain mock-only.
+
+**Mutations demonstrated (Rule 19; each applied from a backup, red observed, reverted byte-identical by md5):**
+- mutation: AC1: run k >= 2 calls `e2e:demo-path` again -> `test-rehearsal.sh` rules timed-runs and run-steps red (the argv case).
+- mutation: AC2: the tell-now value without the `DurationMs` subtraction -> rule bounds red (the tell-now cases).
+- mutation: AC2b: an outcome other than `tellnow` counted as met -> rule bounds red (the `decided digest` cases).
+- mutation: AC3: `runs` allowed after a failed run -> rule timed-runs red (the refusal).
+- mutation: AC4: `@<run>` ignored (every run planted) -> rule bounds red (`pick-up@17` and `notice@3`); the live planted report was run with the right plant only.
+- mutation: AC5: the tell-now row left `not run` -> rules bounds, timed-runs and run-steps red (the real all-pass case reads `not run`).
+- mutation: AC6: `run` doing two phases in one call (`exit 4` of `run_next` made a return) -> rule run-steps red.
+- mutation: AC7: `approval_result_seen` reading `incidentCard(page)` again -> `rehearsal-support.test.mjs` source pin red; `demo-path-summary.mjs`'s default `DEMO-PATH` line changed -> six tests of `demo-path-summary.test.mjs` red (five existing, unedited, and the new default-output test); the `--steps` summary counting a skip as ok -> its test red.
+- mutation: AC8: a collector column, table, message body class or production item renamed to a missing name (four mutations) -> rule collector-names red each time; the wording of `answered.approved` in `catalog.ts` changed and `class="text"` in `ocutalon-reply.ts` changed -> the page-source pins red.
+- mutation: the reply probe no longer counting replies, and `mark('tellnow_sent')` moved off the Send click -> their source pins red; the collector's `@RUN@` substitution dropped -> rule timed-runs red; the tell-now server line's missing-mark branch dropped -> rule bounds red.
+- mutation (review pass): the collector's tell-now outcome read from Outcome alone (the Fallback column dropped) -> rule collector-names red; a `fallback` outcome beside 19 samples is within the allowance and two fail the row (rule bounds, new cases).
+- mutation (review pass): `run`'s first call without `cd "$reh_caller_pwd"` -> rule run-steps red (the relative --record case: the second call is refused and the record is not in the caller's folder).
+- mutation (review pass): `playwright.rehearsal.config.ts` with `testDir: './e2e'` -> `playwright-projects.test.mjs` rehearsal case red; `app-outcome-chip`'s selector renamed in `web/src` -> the page-source pin red (reverted, `web/src` byte-identical).
+- Review pass, after the patches: the live dry run again (install, `runs` x3, a fourth `runs` refused with exit 2, `report` `RESULT dry run` exit 3, `report --plant pick-up@3` the run-3 FAIL line, `down`) with the changed collector: `tell-now=1.0`, `0.9`, `0.9` (Fallback 0 on the mock reads as `tellnow`); no container or lock left. `npm --prefix web test` 1186 pass; `ci/iris.sh live demo-path` passes; every script of `ci/checks.sh` passes, run by script.
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-Planned only; nothing is implemented. The spec passes the READY-FOR-DEVELOPMENT standard. No intent gap: every bound, tell-now included, has a measurement point (Design Notes, "The tell-now measurement"), so the Rule 5 tripwire did not fire. The ledger inbox is addressed: DW-522 by design, DW-534 by AC8 with a named residual, and DW-537 and DW-538 by `run`'s one phase per call. Eleven choices are recorded under Design Notes as "Decided in-stage". The footprint extensions are listed there for the completion contract.
+**Implemented.** `release/rehearse.sh runs` runs the next run per call (run 1: the REL-2 project then the tell-now spec; runs 2 to N: the new rehearsal project, `repeat.spec.ts` then `tell-now.spec.ts`), refuses beyond `--runs` or after a failed run, and writes `passed` last. The collector reports the tell-now item's outcome and duration; the tell-now bound is measured (page time between `tellnow_sent` and `tellnow_seen` less the decision's `DurationMs`), and an outcome other than `tellnow` is a named miss, never met. `report --plant <id>@<run>` plants a miss in one run. `run` does one phase per call (exit 4, `NEXT run:`). DW-534: `collector-names` (rehearsal check) and the page-source pins tie the collector's names and the probes to their sources. DW-522: run 2 rejects and dismisses 07's pending replay (and posts the page's `run_again` marker, deferred item 1); runs 3 and later press Run again.
+
+**Files changed.**
+- `release/rehearse.sh`: `runs`, `run`, the collector, `BOUNDS_AWK`, `--plant <id>@<run>`.
+- `docker/tests/test-rehearsal.sh`: rules `run-steps` and `collector-names`; updated and new cases.
+- `web/e2e-rehearsal/repeat.spec.ts`, `web/e2e-rehearsal/tell-now.spec.ts`, `web/playwright.rehearsal.config.ts`, `web/package.json` (`e2e:rehearsal`), `web/tsconfig.e2e.json`: the rehearsal project.
+- `web/e2e/support/demo-path.ts`, `web/e2e/support/rehearsal.ts`: `markedSend`, `sendThroughComposer`, optional card parameters (defaults unchanged).
+- `web/scripts/demo-path-summary.mjs` (`--steps`), `web/scripts/demo-path-summary.test.mjs`, `web/scripts/rehearsal-support.test.mjs`, `web/scripts/playwright-projects.test.mjs`: tests and pins.
+
+**Review (first pass, four layers, 27 findings: high 0, medium 2, low 25).** Patched: a fallback decision no longer counts as a tell-now sample (the collector reports the outcome `fallback` when the decision's Fallback flag is set; medium); the relative `--record` case under `run` is back in `run-steps` (medium); the rehearsal Playwright project's listing is pinned; the page-source pins cover `app-chat-panel` and `app-outcome-chip`; the collector-names item pattern accepts digits, dots, hyphens and underscores. Deferred: none new (the four implement-stage items stay). Rejected, each with its reason in the triage log: low, rare, spec-bound or covered by the live dry run.
+
+**Verification.** Loop commands green after the patches (`test-rehearsal.sh` all 19 rules, node tests, lint, boundaries, the live dry run on a lane-A throwaway). Once-lines: `npm --prefix web test` 1186 pass, `ci/iris.sh live demo-path` passes unchanged, every `ci/checks.sh` script passes (by script). Mutations are recorded under Verification.
+
+**Follow-up review recommended: true.** Two medium findings were patched in the first pass. The unverified risk: the `fallback` route of the collector runs only on the CI mock, where Fallback is 0; the first real-model rehearsal (Story 38.2) is the first time it sees a Fallback=1 decision.
+
+**Residual risks.** Real-model texts and the collector's value literals are unmeasured until Story 38.2 (deferred items 2 and the DW-534 residual in Design Notes); `test-rehearsal.sh` takes about 80 s alone (deferred item 3); `ci/iris.sh live online-demo-path` was not run (deferred item 4).

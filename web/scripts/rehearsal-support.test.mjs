@@ -1,7 +1,9 @@
 // Tests the rehearsal's seams in the e2e support code (e2e/support/rehearsal.ts, Story 11.11; release/rehearse.sh): the page marks and the
 // choice of the IRIS channel are inert unless the rehearsal asks for them (AC8), and write the grammar that rehearse.sh reads when it does.
 // The source pins read iris.ts and demo-path.ts and hold that the channel choice sits in runOnce and that the five marks sit next to their
-// clicks. The module is imported as it is: Node strips its types, which holds only while it keeps to erasable syntax.
+// clicks, and (Story 11.12) that the repeat's marked send and approval helpers read their own card, that the tell-now spec marks its send,
+// and that every selector and wording a page probe reads is still in web/src (DW-534). The module is imported as it is: Node strips its
+// types, which holds only while it keeps to erasable syntax.
 // Run with: node --test web/scripts/
 import assert from 'node:assert/strict';
 import { existsSync, mkdtempSync, readFileSync, rmSync } from 'node:fs';
@@ -15,6 +17,8 @@ const e2e = join(here, '..', 'e2e', 'support');
 const { irisSessionCommand, mark, markWhen, marksOn } = await import(pathToFileURL(join(e2e, 'rehearsal.ts')).href);
 
 const read = (name) => readFileSync(join(e2e, name), 'utf8');
+const webRoot = join(here, '..');
+const repoRoot = join(webRoot, '..');
 
 let dir;
 let file;
@@ -143,17 +147,59 @@ describe('by source', () => {
     return found;
   };
 
-  it('step1_sent sits just before the guide Send click, and the two step 1 marks just after it', () => {
-    const start = at('export async function watchThroughGuide');
+  it('markedSend holds step1_sent just before the click and the two step 1 marks just after it', () => {
+    const start = at('async function markedSend');
     const sent = at("mark('step1_sent')", start);
-    const click = at('await guideSend(page).click();', sent);
+    const click = at('await click();', sent);
     const decision = at("markWhen('step1_decision_seen'", click);
     const reply = at("markWhen('step1_reply_seen'", decision);
     assert.equal(click - sent, 1, 'the mark is the line before the click');
     assert.equal(decision - click, 1, 'the decision mark is the line after the click');
     assert.equal(reply - decision, 1);
-    assert.ok(reply < at('await expectGuideMessage(page, WATCH_PROMPT)', click), 'before any other wait');
-    assert.ok(reply < at('doneTurn(page, before)', click), 'and before the IRIS-reading doneTurn');
+  });
+
+  it('watchThroughGuide clicks the guide Send through markedSend, before any other wait and before the IRIS-reading doneTurn', () => {
+    const start = at('export async function watchThroughGuide');
+    const send = at('await markedSend(page, () => guideSend(page).click());', start);
+    assert.ok(send < at('await expectGuideMessage(page, WATCH_PROMPT)', send), 'before any other wait');
+    assert.ok(send < at('doneTurn(page, before)', send), 'and before the IRIS-reading doneTurn');
+  });
+
+  it('sendThroughComposer sends through markedSend only when asked for the step 1 marks', () => {
+    const start = at('export async function sendThroughComposer');
+    const marked = at('if (step1Marks) await markedSend(page, send);', start);
+    assert.match(lines[marked + 1], /^\s*else await send\(\);$/);
+    assert.match(lines.slice(start, marked).join('\n'), /composer\(page\)\.fill\(prompt\)/);
+  });
+
+  it('the reply probe counts replies, so that an earlier run\'s reply is not this one', () => {
+    const start = at('async function markedSend');
+    const counted = at('const repliesBefore =', start);
+    assert.match(lines[counted], /marksOn\(\) \? await replies\.count\(\) : 0/, 'counted behind marksOn()');
+    const reply = at("markWhen('step1_reply_seen'", counted);
+    assert.match(lines[reply], /\(await replies\.count\(\)\) > repliesBefore/);
+    assert.match(lines[reply], /\.text'\)\.allTextContents\(\)/, 'and the newest reply\'s text is not empty');
+  });
+
+  it('the approval_result_seen probe reads the card parameter, never the page\'s first incident card (a false pass on a repeat)', () => {
+    const press = at('async function pressOnPhone');
+    const body = lines.slice(at('const { notice, phone } = await requestNotice(page);', press), at('readApproval(key)', press)).join('\n');
+    assert.match(body, /const status = card\.locator\('\[data-part="approval"\] p\.status'\);/);
+    assert.doesNotMatch(body, /incidentCard\(page\)/);
+    assert.match(lines.slice(press, press + 6).join('\n'), /card: Locator = incidentCard\(page\)/, 'the default is today\'s card');
+    const approve = at('export async function approveOnPhone');
+    assert.match(lines[approve], /card: Locator = incidentCard\(page\)/);
+    assert.match(lines.slice(approve, approve + 6).join('\n'), /pressOnPhone\(page, key, 'approve', card\)/);
+    assert.match(lines.slice(approve, approve + 40).join('\n'), /toHaveCount\(resultsBefore \+ 1/, 'the phone result is the count before the press plus one');
+  });
+
+  it('the tell-now spec marks tellnow_sent just before its Send, and tellnow_seen right after it', () => {
+    const spec = readFileSync(join(webRoot, 'e2e-rehearsal', 'tell-now.spec.ts'), 'utf8').split('\n');
+    const sent = spec.findIndex((line) => line.includes("mark('tellnow_sent')"));
+    assert.ok(sent >= 0, 'the spec marks tellnow_sent');
+    assert.match(spec[sent + 1], /getByRole\('button', \{ name: 'Send', exact: true \}\)\.click\(\);$/, 'the line after the mark is the Send click');
+    assert.match(spec[sent + 2], /markWhen\(\s*$/);
+    assert.match(spec[sent + 3], /'tellnow_seen'/);
   });
 
   it('approve_pressed sits just before the phone Approve click, and approval_result_seen just after it and before the IRIS read', () => {
@@ -168,7 +214,7 @@ describe('by source', () => {
   });
 
   it('(QA) counts the strips before the click only when marks are on, and marks the Approve press only for approve', () => {
-    const start = at('export async function watchThroughGuide');
+    const start = at('async function markedSend');
     const counted = at('const stripsBefore =', start);
     assert.match(lines[counted], /marksOn\(\) \? await strips\.count\(\) : 0/, 'the count is behind marksOn(), so CI makes no extra page query');
     const press = at('async function pressOnPhone');
@@ -178,8 +224,58 @@ describe('by source', () => {
     assert.match(lines.slice(seen - 3, seen).join('\n'), /if \(action === 'approve'\) \{/, 'and starts no result wait');
   });
 
-  it('has exactly the five mark names', () => {
+  it('has exactly the five mark names in demo-path.ts, and the two tell-now names in the tell-now spec', () => {
+    const tell = readFileSync(join(webRoot, 'e2e-rehearsal', 'tell-now.spec.ts'), 'utf8');
+    assert.deepEqual([...tell.matchAll(/\bmark(?:When)?\(\s*'([a-z0-9_]+)'/g)].map((match) => match[1]).sort(), ['tellnow_seen', 'tellnow_sent']);
     const names = [...demo.matchAll(/\bmark(?:When)?\('([a-z0-9_]+)'/g)].map((match) => match[1]);
     assert.deepEqual([...names].sort(), ['approval_result_seen', 'approve_pressed', 'step1_decision_seen', 'step1_reply_seen', 'step1_sent']);
+  });
+});
+
+// The page sources that the probes of the rehearsal read (DW-534): the probes run only in a live rehearsal, so a renamed selector or a
+// reworded text in web/src would break the marks unseen. Each pin names what the probe reads and where.
+describe('the page sources behind the probes', () => {
+  const src = (...parts) => readFileSync(join(webRoot, 'src', 'app', ...parts), 'utf8');
+
+  it('the decision strip draws its reasons as .reason (step1_decision_seen)', () => {
+    assert.match(src('chat', 'decision-strip.ts'), /<p class="reason"/);
+    assert.match(src('chat', 'decision-strip.ts'), /selector: 'app-decision-strip'/);
+  });
+
+  it('the reply is data-part="reply" and its text is class="text" (step1_reply_seen)', () => {
+    const reply = src('chat', 'ocutalon-reply.ts');
+    assert.match(reply, /data-part="reply"/);
+    assert.match(reply, /<div class="text">/);
+  });
+
+  it('the approved status starts "Approved from the simulated phone at" once the channel name is filled in (approval_result_seen)', () => {
+    const catalog = src('msg', 'catalog.ts');
+    const approved = /'answered\.approved': '([^']*)'/.exec(catalog)?.[1];
+    assert.ok(approved, 'the catalog holds answered.approved');
+    const names = /CHANNEL_NAMES[^{]*\{([^}]*)\}/.exec(catalog)?.[1] ?? '';
+    const phone = /'phone': '([^']*)'/.exec(names)?.[1];
+    assert.ok(phone, 'the catalog names the phone channel');
+    assert.ok(approved.replace('{channel}', phone).startsWith('Approved from the simulated phone at'), approved);
+  });
+
+  it('the chat card is app-notice-card inside app-chat-panel, the chip is app-outcome-chip, and the phone message is .notification (tellnow_seen)', () => {
+    assert.match(src('chat', 'chat-panel.ts'), /selector: 'app-chat-panel'/);
+    assert.match(src('chat', 'outcome-chip.ts'), /selector: 'app-outcome-chip'/);
+    assert.match(src('chat', 'notice-card.ts'), /selector: 'app-notice-card'/);
+    assert.match(src('phone', 'simulated-phone.ts'), /<div class="notification"/);
+  });
+
+  it('the outcome chip reads "Tell now", and the tell-now notice carries a "Why now:" line', () => {
+    assert.match(src('chat', 'chat-view.ts'), /chipTellNow: 'Tell now'/);
+    assert.match(src('chat', 'chat-view.ts'), /Why now:/);
+    assert.match(src('chat', 'notice-card.ts'), /Why now:/);
+    assert.match(readFileSync(join(repoRoot, 'src', 'ocutalon', 'cls', 'OcuTalon', 'Core', 'Rule', 'Notice.cls'), 'utf8'), /Why now:/);
+  });
+
+  it('the composer has a Send button, and the mailbox has the compose labels the tell-now spec fills', () => {
+    assert.match(src('chat', 'chat-view.ts'), /send: 'Send'/);
+    assert.match(src('chat', 'composer.ts'), /selector: 'app-composer'/);
+    const mailbox = readFileSync(join(webRoot, 'src', 'app', 'mailbox', 'mailbox-view.ts'), 'utf8');
+    for (const word of ["simulate: 'Simulate an incoming email'", "labelFrom: 'From'", "labelSubject: 'Subject'", "labelBody: 'Body'", "send: 'Send'"]) assert.ok(mailbox.includes(word), `the mailbox texts hold ${word}`);
   });
 });

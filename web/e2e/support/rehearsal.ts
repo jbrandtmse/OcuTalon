@@ -14,8 +14,10 @@ import { appendFileSync } from 'node:fs';
  *
  * The mark names, written by e2e/support/demo-path.ts: step1_sent (just before the guide's Send for step 1 is clicked), step1_decision_seen
  * (the reply's decision strip shows its reason), step1_reply_seen (the reply's text shows), approve_pressed (just before Approve is clicked
- * on the simulated phone) and approval_result_seen (the incident card says "Approved from the simulated phone at"). Erasable TypeScript only:
- * web/scripts/rehearsal-support.test.mjs imports this file as it is.
+ * on the simulated phone) and approval_result_seen (the incident card says "Approved from the simulated phone at"). Story 11.12 adds, written
+ * by e2e-rehearsal/tell-now.spec.ts: tellnow_sent (just before the compose form's Send) and tellnow_seen (the notice card and the phone message
+ * of the item show, or its row shows another outcome). Erasable TypeScript only: web/scripts/rehearsal-support.test.mjs imports this file as
+ * it is.
  */
 
 /** The environment these helpers read (a plain record, so a test passes its own). */

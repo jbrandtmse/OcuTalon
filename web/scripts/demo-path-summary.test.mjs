@@ -11,7 +11,7 @@ import { dirname, join } from 'node:path';
 import { after, describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { STEPS, stepOfFile, summarize, summarizeFile } from './demo-path-summary.mjs';
+import { STEPS, stepOfFile, summarize, summarizeFile, summarizeSteps } from './demo-path-summary.mjs';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const webDir = join(here, '..');
@@ -402,6 +402,72 @@ describe('--only-telegram-skips', () => {
     assert.equal(spawnSync(process.execPath, [script, '--only-telegram-skips'], { encoding: 'utf8' }).status, 2);
     assert.equal(spawnSync(process.execPath, [script, join(work, 'every-step.json'), '--only-telegram-skips'], { encoding: 'utf8' }).status, 2);
     assert.equal(spawnSync(process.execPath, [script, '--only-telegram-skips', 'a', 'b'], { encoding: 'utf8' }).status, 2);
+  });
+});
+
+// --- --steps: the rehearsal's repeats (Story 11.12) ---
+
+describe('--steps <id,...>', () => {
+  const rehearsal = (result = 'passed', skippedTitle = '') => [
+    file('repeat.spec.ts', [spec('again: what the earlier run left is cleared', { result: 'passed' }), spec('watch: the watch prompt is decided', { result })]),
+    file('tell-now.spec.ts', [spec('tell-now: the item is decided', { result: skippedTitle ? 'skipped' : 'passed' })]),
+  ];
+
+  it('counts a step that passed, and prints the REHEARSAL line', () => {
+    const { lines, failures } = summarizeSteps(report(rehearsal()), ['repeat', 'tell-now']);
+    assert.deepEqual(failures, []);
+    assert.deepEqual(lines, ['STEP repeat: passed, 2 passed, 0 skipped', 'STEP tell-now: passed, 1 passed, 0 skipped', 'REHEARSAL 2 of 2 steps ran, 0 skipped, 0 failed']);
+  });
+
+  it('names the test of a failure by its file and title, keeping the state', () => {
+    for (const [result, state] of [['failed', 'failed'], ['timedOut', 'timed out'], ['interrupted', 'was interrupted']]) {
+      const { lines, failures } = summarizeSteps(report(rehearsal(result)), ['repeat', 'tell-now']);
+      assert.deepEqual(failures, [`repeat.spec.ts "watch: the watch prompt is decided": ${state}`]);
+      assert.match(lines.at(-1), /^REHEARSAL 1 of 2 steps ran, 0 skipped, 1 failed$/);
+    }
+  });
+
+  it('fails any skip, even one that names a story', () => {
+    const suites = rehearsal();
+    suites[1].specs = [unbuilt('tell-now: the item is decided', '11.12')];
+    const { failures } = summarizeSteps(report(suites), ['repeat', 'tell-now']);
+    assert.deepEqual(failures, ['tell-now.spec.ts "tell-now: the item is decided": skipped, but every test of a rehearsal step runs']);
+  });
+
+  it('fails a step with no file, a file with no test, and a file that is not a step', () => {
+    assert.deepEqual(summarizeSteps(report([rehearsal()[0]]), ['repeat', 'tell-now']).failures, ['step tell-now has no tell-now.spec.ts in the report']);
+    assert.deepEqual(summarizeSteps(report([file('tell-now.spec.ts', [])]), ['tell-now']).failures, ['step tell-now: tell-now.spec.ts holds no test']);
+    assert.deepEqual(summarizeSteps(report([file('other.spec.ts', [spec('x: y')])]), ['tell-now']).failures, [
+      'the report holds other.spec.ts, which is not a step of this run (tell-now)',
+      'step tell-now has no tell-now.spec.ts in the report',
+    ]);
+  });
+
+  it('needs no @floor test and fails a report that holds no suites list', () => {
+    assert.deepEqual(summarizeSteps(report(rehearsal()), ['repeat', 'tell-now']).failures, []);
+    assert.deepEqual(summarizeSteps({}, ['repeat']).failures, ['no usable report: it holds no suites list']);
+    assert.deepEqual(summarizeSteps(report(rehearsal(), [{ message: 'boom\nmore' }]), ['repeat', 'tell-now']).failures, ['Playwright reported an error: boom']);
+  });
+
+  it('is the command line: exit 0 and 1, and exit 2 for a bad list or a bad order', () => {
+    const good = join(work, 'steps-good.json');
+    writeFileSync(good, JSON.stringify(report(rehearsal())));
+    const ran = spawnSync(process.execPath, [script, '--steps', 'repeat,tell-now', good], { encoding: 'utf8' });
+    assert.equal(ran.status, 0, ran.stdout + ran.stderr);
+    assert.match(ran.stdout, /^REHEARSAL 2 of 2 steps ran, 0 skipped, 0 failed$/m);
+    const bad = join(work, 'steps-bad.json');
+    writeFileSync(bad, JSON.stringify(report(rehearsal('failed'))));
+    const red = spawnSync(process.execPath, [script, '--steps', 'repeat,tell-now', bad], { encoding: 'utf8' });
+    assert.equal(red.status, 1, red.stdout + red.stderr);
+    assert.match(red.stdout, /^FAIL repeat\.spec\.ts "watch: the watch prompt is decided": failed$/m);
+    for (const args of [['--steps'], ['--steps', good], ['--steps', 'a,a', good], ['--steps', 'A', good], ['--steps', 'repeat', good, 'x'], [good, '--steps', 'repeat']]) {
+      assert.equal(spawnSync(process.execPath, [script, ...args], { encoding: 'utf8' }).status, 2, args.join(' '));
+    }
+  });
+
+  it('leaves the default output alone: a step report read without --steps is still the demo-path summary', () => {
+    const { lines } = summarize(report(rehearsal()));
+    assert.match(lines.at(-1), /^DEMO-PATH /);
   });
 });
 

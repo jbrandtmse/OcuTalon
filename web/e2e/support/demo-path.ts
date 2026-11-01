@@ -23,8 +23,9 @@ import { TRACE_PAGE, drawnMessages, signOutTrace, type Turn } from './trace';
  * reasons and its trace link, and no Fallback flag, never which outcome) and matches the texts that a model's output fills by their
  * shape. Any other value throws when this module loads, so a run fails before its first step. On `real` the specs never point or restore
  * the runners' keys and never wait for the runners' records.
- * The clean-machine rehearsal (release/rehearse.sh, Story 11.11) asks watchThroughGuide and pressOnPhone (so approveOnPhone) for page marks
- * through e2e/support/rehearsal.ts; with OCUTALON_E2E_MARKS unset they add no wait and write nothing.
+ * The clean-machine rehearsal (release/rehearse.sh, Stories 11.11 and 11.12) asks watchThroughGuide, sendThroughComposer (through markedSend)
+ * and pressOnPhone (so approveOnPhone) for page marks through e2e/support/rehearsal.ts; with OCUTALON_E2E_MARKS unset they add no wait and
+ * write nothing. The repeats of web/e2e-rehearsal/ pass the incident's card to the approval helpers, so that every check reads that card.
  */
 
 /** The model the run is against: `mock` or `real`. */
@@ -160,7 +161,7 @@ export async function expectDecision(strip: Locator, what: string): Promise<void
 }
 
 export const guideRegion = (page: Page): Locator => page.getByRole('region', { name: 'Demo guide' });
-const reminderRows = (page: Page): Locator => page.getByRole('region', { name: 'Status', exact: true }).locator('li.row[data-section="reminders"]');
+export const reminderRows = (page: Page): Locator => page.getByRole('region', { name: 'Status', exact: true }).locator('li.row[data-section="reminders"]');
 
 /** The name of the Approve button of the incident's request: the diagnosis's fix words on the mock, its shape on the real model. */
 const APPROVE_NAME: string | RegExp = ON_MOCK ? 'Approve: repair and resend 50 orders' : /^Approve: /;
@@ -179,6 +180,46 @@ export async function expectGuideMessage(page: Page, prompt: string): Promise<vo
 }
 
 /**
+ * The rehearsal's step-1 marks around a send (Stories 11.11 and 11.12): the decision strips that show a reason and the replies are counted
+ * before the click, only when marks are on; then step1_sent is marked, the click made, and step1_decision_seen (one more strip with a reason)
+ * and step1_reply_seen (one more reply, whose newest text is not empty) are marked as they show. With marks off it clicks and waits for nothing.
+ */
+async function markedSend(page: Page, click: () => Promise<void>): Promise<void> {
+  const strips = page.locator('[data-part="reply"] app-decision-strip').filter({ has: page.locator('.reason') });
+  const replies = page.locator('[data-part="reply"]');
+  const stripsBefore = marksOn() ? await strips.count() : 0;
+  const repliesBefore = marksOn() ? await replies.count() : 0;
+  mark('step1_sent');
+  await click();
+  await markWhen('step1_decision_seen', async () => (await strips.count()) > stripsBefore, 90_000);
+  await markWhen('step1_reply_seen', async () => (await replies.count()) > repliesBefore && /\S/.test((await page.locator('[data-part="reply"] .text').allTextContents()).at(-1) ?? ''), 90_000);
+}
+
+/**
+ * Sends `prompt` through the composer (the repeats of web/e2e-rehearsal/ send guide steps 1 and 2 this way, since Run again reopens only
+ * steps 3 to 5): the prompt shows as one more user message than before, the turn is done, and its reply's strip passes expectDecision (on
+ * the mock the chip is Act). With `step1Marks` the send is made through markedSend. Returns the turn.
+ */
+export async function sendThroughComposer(page: Page, prompt: string, step1Marks: boolean): Promise<Turn> {
+  await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
+  const before = await newestClientId(page);
+  const shown = page.locator('main app-user-message').filter({ hasText: prompt });
+  const shownBefore = await shown.count();
+  await composer(page).fill(prompt);
+  const send = (): Promise<void> => page.locator('app-composer').getByRole('button', { name: 'Send', exact: true }).click();
+  if (step1Marks) await markedSend(page, send);
+  else await send();
+  await expect(shown, 'the prompt shows as one more message').toHaveCount(shownBefore + 1, { timeout: 30_000 });
+  await expect(shown.last().locator('.bubble'), 'which is the exact prompt').toHaveText(prompt);
+
+  const turn = await doneTurn(page, before);
+  const strip = replyOf(page, turn.clientId).locator('app-decision-strip');
+  await expectDecision(strip, 'the composer reply\'s decision');
+  if (ON_MOCK) await expect(strip.locator('app-outcome-chip .chip'), 'its chip is Act: the mock answered the Triage request with its own scenario').toHaveText('Act');
+  return turn;
+}
+
+/**
  * UJ-1 step 2 (the web run's 02, the online run's step 2): on a signed-in page at step 1 of a session that watches nothing, presses the
  * guide's own Send. The prompt shows as the guide's message; the reply's strip passes expectDecision (on the mock: chip Act with the
  * mock's reason, and the reply "I'll watch the Orders production and stay quiet unless something needs you."); the "Orders production"
@@ -189,12 +230,7 @@ export async function watchThroughGuide(page: Page): Promise<void> {
   await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
   await expect(guideSend(page), "the guide's Send is usable").not.toHaveAttribute('aria-disabled', 'true');
   const before = await newestClientId(page);
-  const strips = page.locator('[data-part="reply"] app-decision-strip .reason');
-  const stripsBefore = marksOn() ? await strips.count() : 0;
-  mark('step1_sent');
-  await guideSend(page).click();
-  await markWhen('step1_decision_seen', async () => (await strips.count()) > stripsBefore, 90_000);
-  await markWhen('step1_reply_seen', async () => /\S/.test((await page.locator('[data-part="reply"] .text').allTextContents()).at(-1) ?? ''), 90_000);
+  await markedSend(page, () => guideSend(page).click());
   await expectGuideMessage(page, WATCH_PROMPT);
 
   const turn = await doneTurn(page, before);
@@ -301,16 +337,22 @@ async function requestNotice(page: Page): Promise<{ notice: Locator; phone: Loca
 }
 
 /**
- * Presses the notice's Approve or Reject for the request `key` on the simulated phone and waits until the request is answered. Returns
+ * Presses the notice's Approve or Reject for the request `key` on the simulated phone and waits until the request is answered. `card` is the
+ * incident's card (default: the page's first incident card; a repeat passes its own, since the chat then holds earlier, approved ones). Returns
  * the answered row, the notice (found again by its Ref, since its buttons are replaced by the answer line) and the answer's HH:MM
  * (the row's AnsweredAt, in the instance zone: UTC on a stack).
  */
-async function pressOnPhone(page: Page, key: string, action: 'approve' | 'reject'): Promise<{ answered: Awaited<ReturnType<typeof readApproval>>; phone: Locator; time: string }> {
+async function pressOnPhone(
+  page: Page,
+  key: string,
+  action: 'approve' | 'reject',
+  card: Locator = incidentCard(page),
+): Promise<{ answered: Awaited<ReturnType<typeof readApproval>>; phone: Locator; time: string }> {
   const { notice, phone } = await requestNotice(page);
   if (action === 'approve') mark('approve_pressed');
   await notice.getByRole('button', { name: action === 'approve' ? APPROVE_NAME : REJECT_NAME, exact: true }).click();
   if (action === 'approve') {
-    const status = incidentCard(page).locator('[data-part="approval"] p.status');
+    const status = card.locator('[data-part="approval"] p.status');
     await markWhen('approval_result_seen', async () => ((await status.allTextContents())[0] ?? '').trim().startsWith('Approved from the simulated phone at'), CARD_MS);
   }
   await expect.poll(async () => readApproval(key).then((one) => one.at), { message: 'the request is answered', timeout: 30_000 }).not.toBe('');
@@ -325,12 +367,13 @@ async function pressOnPhone(page: Page, key: string, action: 'approve' | 'reject
  * none on a local install, " ET" on the online demo) and the card the same time in en-GB and UTC, the context the run sets. Within
  * 120 s the card's band says all orders went through ("All 50 orders went through." on the mock, its shape on the real model), its
  * audit line "Recorded in the IRIS audit log." follows and the chip says Resolved; the phone gets the result as a message with no
- * buttons, and the request's row leaves the rail.
+ * buttons, and the request's row leaves the rail. `card` is the incident's card (default: the page's one incident card); the phone's result
+ * count is the count before the press plus one, which is 1 on a first run.
  */
-export async function approveOnPhone(page: Page, key: string, zone = ''): Promise<void> {
-  const card = incidentCard(page);
+export async function approveOnPhone(page: Page, key: string, zone = '', card: Locator = incidentCard(page)): Promise<void> {
   const request = card.locator('[data-part="approval"]');
-  const { answered, phone, time } = await pressOnPhone(page, key, 'approve');
+  const resultsBefore = await phoneNotes(page).filter({ hasText: WENT_THROUGH_IN }).count();
+  const { answered, phone, time } = await pressOnPhone(page, key, 'approve', card);
   // The phone's line is the server's text (HH:MM in the instance zone, UTC on a stack, then the zone suffix the caller names); the card writes the time in the page's en-GB locale and UTC zone (no leading zero before ten), which the run's browser context sets.
   await expect(phone.locator('p[data-part="answer"]'), 'the phone says so').toHaveText(`Approved from the simulated phone at ${time}${zone}.`, { timeout: CARD_MS });
   await expect(request.locator('p.status'), 'so does the card').toHaveText(`Approved from the simulated phone at ${clock(answered.at, 'en-GB', 'UTC')}`, { timeout: CARD_MS });
@@ -341,7 +384,7 @@ export async function approveOnPhone(page: Page, key: string, zone = ''): Promis
   await expect(card.locator('.chip-row .chip'), 'the chip says Resolved').toHaveText('Resolved', { timeout: CARD_MS });
 
   const result = phoneNotes(page).filter({ hasText: WENT_THROUGH_IN });
-  await expect(result, 'the phone shows the result as a message').toHaveCount(1, { timeout: CARD_MS });
+  await expect(result, 'the phone shows the result as a message').toHaveCount(resultsBefore + 1, { timeout: CARD_MS });
   await expect(result.getByRole('button'), 'with no buttons').toHaveCount(0);
   await expect(approvalRows(page), "the request's row left the rail").toHaveCount(0, { timeout: CARD_MS });
 }
@@ -355,7 +398,7 @@ export async function approveOnPhone(page: Page, key: string, zone = ''): Promis
  */
 export async function rejectOnPhone(page: Page, key: string, card: Locator, zone = ''): Promise<void> {
   const request = card.locator('[data-part="approval"]');
-  const { answered, phone, time } = await pressOnPhone(page, key, 'reject');
+  const { answered, phone, time } = await pressOnPhone(page, key, 'reject', card);
   expect(answered.state, 'the request is rejected').toBe('rejected');
   await expect(phone.locator('p[data-part="answer"]'), 'the phone says so').toHaveText(`Rejected from the simulated phone at ${time}${zone}. Nothing was changed.`, { timeout: CARD_MS });
   await expect(request.locator('p.status'), 'so does the card').toHaveText(`Rejected from the simulated phone at ${clock(answered.at, 'en-GB', 'UTC')}. Nothing was changed.`, { timeout: CARD_MS });
