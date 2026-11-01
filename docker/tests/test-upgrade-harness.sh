@@ -12,9 +12,18 @@
 #   - storage-compare: the compiled-storage comparison (appended is clean; renamed, retyped, removed and moved slots are flagged);
 #   - record: the record section (the result, the mode, the pre-release note, the rows, pairing off) and its write (another section
 #     kept, a section replaced and not duplicated);
+#   - record-contract: what Stories 11.4 and 11.5 read from a record file: the section's lines in their fixed order, one Result:,
+#     Mode: and Required: line from the closed set of values, read as a consumer reads them with other sections around, and a table of
+#     three-cell ASCII rows;
+#   - run: the run command chained over a stub of the harness: the phases in order, the options only on build, the tag shared, report and
+#     down after any failed phase, and only down after a refused build;
 #   - static: the harness holds no docker push, login, save or export, no compose config without --quiet and no inspect without
 #     --format;
-#   - real-tree: plan on this checkout writes a dry-run record, a version that is not the candidate's and a phase with no tag exit 2.
+#   - real-tree: plan on this checkout writes a dry-run record, a version that is not the candidate's and a phase with no tag exit 2;
+#   - storage-base: test-storage.sh judges this checkout's storage blocks against the pinned pre-release commit, so a non-appending
+#     storage change since that commit fails this rule (a gate on the real tree), and the storage phase accepts only that verdict;
+#   - report: report and upgrade over a fabricated state folder: every phase's results joined, the row of a phase that started and did
+#     not end failed, exit 1 on any failure, and upgrade refused while seed is not done.
 # Each rule first runs on a synthetic break (the rule pattern of test-storage.sh): a check that can no longer fail makes its rule fail.
 # Prints one PASS or FAIL line per rule; exits 0 only when all pass.
 set -u
@@ -525,6 +534,9 @@ t_record() {
   record_write "$tmp/other.md" "$tmp/section.md"
   eq "a file with no section gets it appended" "$(grep -c '^## Upgrade harness$' "$tmp/other.md")" 1
   has "the appended file keeps its text" "$(cat "$tmp/other.md")" "Some text."
+  printf '\n# Appendix\n\nKept text.\n' >> "$tmp/other.md"
+  record_write "$tmp/other.md" "$tmp/section.md"
+  has "a top-level heading after the section ends it" "$(cat "$tmp/other.md")" "Kept text."
   [ "$bad" -eq 0 ]
 }
 b_record() { record_result() { echo pass; }; }
@@ -606,7 +618,7 @@ t_real() {
   OCUTALON_RUN_TAG=zz-uh-none-$$ bash "$root/release/upgrade-harness.sh" seed > /dev/null 2>&1
   eq "a phase with a tag and no state exits 2" "$?" 2
   OCUTALON_RUN_TAG=zz-uh-none-$$ bash "$root/release/upgrade-harness.sh" upgrade > /dev/null 2>&1
-  eq "upgrade before seed exits 2" "$?" 2
+  eq "upgrade with a tag and no state exits 2" "$?" 2
   OCUTALON_RUN_TAG=zz-uh-none-$$ bash "$root/release/upgrade-harness.sh" seed --rc 1 > /dev/null 2>&1
   eq "options on a phase other than build exit 2" "$?" 2
   env -u OCUTALON_RUN_TAG bash "$root/release/upgrade-harness.sh" frobnicate > /dev/null 2>&1
@@ -633,6 +645,211 @@ b_storage_base() {
   release_diff_verdict_ok() { return 0; }
 }
 
+# --- record-contract ---
+
+# What Stories 11.4 and 11.5 read from the record: the section's lines in their fixed order, and the values of Result:, Mode: and
+# Required: read the way a consumer reads a record file (the lines under the "## Upgrade harness" heading only).
+consumer_read() { # consumer_read <record file> <Key>: the value of the key in the harness section
+  sed -n '/^## Upgrade harness[[:space:]]*$/,$p' "$1" | awk 'NR > 1 && /^## / { exit } { print }' | sed -n "s/^$2: //p"
+}
+
+t_record_contract() {
+  local bad=0 r=$tmp/rc-results o=$tmp/rc-options sec rec=$tmp/rc-record.md kind mode res want want_order got_order v rows
+
+  want_order="## Upgrade harness,Result,Mode,Required,Candidate,Previous,Note,Run,| Record"
+  write_results "$r" pass
+  write_options "$o" pre-release aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa release
+  got_order=$(record_section "$r" "$o" | grep -E '^(## Upgrade harness|Result:|Mode:|Required:|Candidate:|Previous:|Note:|Run:|\| Record )' | sed 's/:.*//; s/ |.*$//' | tr '\n' ',')
+  eq "the lines of a pre-release section are in the fixed order" "$got_order" "$want_order,"
+  write_options "$o" tag v1.0.0 release
+  got_order=$(record_section "$r" "$o" | grep -E '^(## Upgrade harness|Result:|Mode:|Required:|Candidate:|Previous:|Note:|Run:|\| Record )' | sed 's/:.*//; s/ |.*$//' | tr '\n' ',')
+  eq "a tag section has the same order with no Note" "$got_order" "## Upgrade harness,Result,Mode,Required,Candidate,Previous,Run,| Record,"
+
+  # Every value a consumer can meet is one of the words it matches on, once, in a file that holds other sections around it.
+  for kind in pass fail partial; do
+    for mode in release rehearsal "rehearsal (uncommitted changes)" "dry run"; do
+      write_results "$r" "$kind"
+      write_options "$o" tag v1.0.0 "$mode"
+      record_section "$r" "$o" > "$tmp/rc-section.md"
+      printf '# OcuTalon 1.0.1 rc2\n\n## Rehearsal\n\nResult: dry run\nMode: rehearsal\nRequired: maybe\n\n' > "$rec"
+      record_write "$rec" "$tmp/rc-section.md"
+      printf '\n## Checklist\n\nResult: pass\n' >> "$rec"
+      record_write "$rec" "$tmp/rc-section.md"
+      res=$(consumer_read "$rec" Result)
+      case $kind in pass) want=pass ;; *) want=fail ;; esac
+      eq "one Result line for $kind/$mode, read as a consumer reads it" "$res" "$want"
+      eq "one Mode line for $kind/$mode" "$(consumer_read "$rec" Mode)" "$mode"
+      eq "one Required line for $kind/$mode" "$(consumer_read "$rec" Required)" yes
+    done
+  done
+  record_section /dev/null "$o" > "$tmp/rc-section.md"
+  printf '## Other\n\nResult: pass\n' > "$rec"
+  record_write "$rec" "$tmp/rc-section.md"
+  eq "a section that was never run reads not run" "$(consumer_read "$rec" Result)" "not run"
+  eq "the other section's Result line is kept beside the harness's" "$(grep -c '^Result: ' "$rec")" 2
+
+  # The table: three cells per row, a result from the closed set, and no pipe or non-ASCII character inside a cell.
+  write_results "$r" fail
+  (cur_row=upgrade results=$r record_line fail "$(printf 'a | b caf\303\251 \t tab')")
+  write_options "$o" tag v1.0.0 release
+  sec=$(record_section "$r" "$o")
+  rows=$(printf '%s\n' "$sec" | grep -E '^\| ' | sed '1,2d')
+  eq "every table row has three cells" "$(printf '%s\n' "$rows" | awk -F' [|] ' '{ if (NF != 3) bad++ } END { print bad + 0 }')" 0
+  eq "every row's result is pass, fail, not run or off" "$(printf '%s\n' "$rows" | awk -F' [|] ' '$2 != "pass" && $2 != "fail" && $2 != "not run" && $2 != "off" { bad++ } END { print bad + 0 }')" 0
+  eq "the section is plain ASCII" "$(printf '%s\n' "$sec" | LC_ALL=C grep -c '[^ -~]')" 0
+  v=$(printf '%s\n' "$rows" | sed -n 's/^| \([a-z ]*\) | .*/\1/p' | wc -l | tr -d ' ')
+  eq "the rows are the eleven records" "$v" 11
+  [ "$bad" -eq 0 ]
+}
+b_record_contract() {
+  eval "$(declare -f record_section | sed '1s/^record_section/orig_record_section/')"
+  record_section() { orig_record_section "$@" | sed 's/^Mode: /Mode:/'; }
+}
+
+# --- run ---
+
+# The harness's run command chains its phases as processes of itself. Here harness_root points at a folder whose release/upgrade-harness.sh
+# is a stub that logs the phase, its arguments and the run tag, and fails for the phases named in STUB_FAIL.
+make_run_stub() { # make_run_stub <root>
+  mkdir -p "$1/release"
+  cat > "$1/release/upgrade-harness.sh" << 'STUB'
+#!/usr/bin/env bash
+printf '%s|%s|%s\n' "$1" "$*" "${OCUTALON_RUN_TAG:-}" >> "$STUB_LOG"
+case " ${STUB_FAIL:-} " in *" $1 "*) exit "${STUB_FAIL_RC:-1}" ;; esac
+exit 0
+STUB
+}
+
+run_with_stub() { # run_with_stub <fail phases> <fail rc> <cmd_run arguments...>: prints the exit status; the stub's log is in $STUB_LOG
+  local fail=$1 frc=$2
+  shift 2
+  : > "$STUB_LOG"
+  (
+    harness_root=$tmp/run-root
+    STUB_FAIL=$fail STUB_FAIL_RC=$frc
+    export STUB_LOG STUB_FAIL STUB_FAIL_RC
+    cmd_run "$@" > /dev/null 2>&1
+  )
+  echo $?
+}
+
+phases_logged() { cut -d'|' -f1 "$STUB_LOG" | tr '\n' ' '; }
+
+t_run() {
+  local bad=0 rc tag1 tag2
+  STUB_LOG=$tmp/run-stub.log
+  make_run_stub "$tmp/run-root"
+
+  rc=$(unset OCUTALON_RUN_TAG; run_with_stub "" 1 --rc 3)
+  eq "a run in which every phase passes exits 0" "$rc" 0
+  eq "the phases run in order, ending with report and down" "$(phases_logged)" "build settings seed upgrade restart storage report down "
+  eq "build gets the options and no phase gets any" "$(cut -d'|' -f2 "$STUB_LOG" | tr '\n' ',')" "build --rc 3,settings,seed,upgrade,restart,storage,report,down,"
+  tag1=$(cut -d'|' -f3 "$STUB_LOG" | sort -u)
+  case $tag1 in
+    upg-[0-9]*) ;;
+    *)
+      echo "  the default tag '$tag1' is not upg-<epoch>"
+      bad=1
+      ;;
+  esac
+  eq "every phase of a run has the same tag" "$(cut -d'|' -f3 "$STUB_LOG" | sort -u | wc -l | tr -d ' ')" 1
+
+  rc=$(OCUTALON_RUN_TAG=mine-1 run_with_stub "" 1 --version 1.0.1 --rc 2 --previous HEAD~1 --rehearsal --record rec/out.md)
+  eq "a given tag is kept" "$(cut -d'|' -f3 "$STUB_LOG" | sort -u)" mine-1
+  has "every option reaches build" "$(head -n 1 "$STUB_LOG")" "build --version 1.0.1 --rc 2 --previous HEAD~1 --rehearsal --record $harness_caller_pwd/rec/out.md|mine-1"
+
+  rc=$(run_with_stub "seed" 1 --rc 3)
+  eq "a failed phase makes the run exit 1" "$rc" 1
+  eq "a failed phase does not stop the rest, and report and down still run" "$(phases_logged)" "build settings seed upgrade restart storage report down "
+  rc=$(run_with_stub "report" 1 --rc 3)
+  eq "a failed report makes the run exit 1" "$rc" 1
+  eq "down runs after a failed report" "$(phases_logged | awk '{ print $NF }')" down
+  rc=$(run_with_stub "settings upgrade restart storage" 1 --rc 3)
+  eq "several failed phases exit 1" "$rc" 1
+  eq "report and down run after several failures" "$(phases_logged | awk '{ print $(NF-1), $NF }')" "report down"
+
+  rc=$(run_with_stub "build" 2 --rc 3)
+  eq "a refused build makes the run exit 2" "$rc" 2
+  eq "after a refused build only down runs" "$(phases_logged)" "build down "
+  rc=$(run_with_stub "build" 1 --rc 3)
+  eq "a failed build exits 2 as well" "$rc" 2
+  eq "after a failed build only down runs" "$(phases_logged)" "build down "
+
+  rc=$(run_with_stub "" 1 --bogus)
+  eq "a bad option exits 2" "$rc" 2
+  eq "a bad option starts no phase" "$(phases_logged)" ""
+  rc=$(run_with_stub "" 1)
+  eq "no --rc and no --record exits 2" "$rc" 2
+  eq "that starts no phase either" "$(phases_logged)" ""
+  rc=$(run_with_stub "" 1 --rc 0)
+  eq "--rc 0 exits 2" "$rc" 2
+  eq "that starts no phase" "$(phases_logged)" ""
+  [ "$bad" -eq 0 ]
+}
+# The break: a run that never ends with down.
+b_run() {
+  eval "$(declare -f cmd_run | sed '1s/^cmd_run/orig_cmd_run/; s/^    bash "\$me" down;$/    :;/')"
+  cmd_run() { orig_cmd_run "$@"; }
+}
+
+# --- report ---
+
+# The report and upgrade commands over a state folder this rule fabricates (TMPDIR in the test's folder; no container): report joins
+# every phase's results, fails the row of a phase that started and did not end, and exits 1 on any failure; upgrade is refused while
+# seed is not done.
+report_state() { # report_state <tag>: a state folder with every phase done and passing results
+  local s ph
+  s=$(TMPDIR=$tmp/rs state_dir "$1")
+  rm -rf "$s"
+  mkdir -p "$s"
+  write_options "$s/options" tag v1.0.0 release
+  env_set "$s/options" record "$tmp/rs-$1.md"
+  write_results "$s/results.build" pass
+  for ph in build settings seed upgrade restart storage; do printf 'done 1\n' > "$s/phase.$ph"; done
+}
+run_cmd_phase() { # run_cmd_phase <tag> <phase>: the phase command on that tag's state; its output, then "status <n>"
+  (
+    TMPDIR=$tmp/rs OCUTALON_RUN_TAG=$1
+    export TMPDIR OCUTALON_RUN_TAG
+    cmd_phase "$2" 2>&1
+  )
+  echo "status $?"
+}
+
+t_report() {
+  local bad=0 s out
+  mkdir -p "$tmp/rs"
+  report_state rs-pass
+  out=$(run_cmd_phase rs-pass report)
+  has "report on passing results exits 0" "$out" "status 0"
+  has "its record reads pass" "$(cat "$tmp/rs-rs-pass.md" 2> /dev/null)" "Result: pass"
+
+  report_state rs-cut
+  s=$(TMPDIR=$tmp/rs state_dir rs-cut)
+  printf 'failed 0\n' > "$s/phase.restart"
+  out=$(run_cmd_phase rs-cut report)
+  has "report after a phase that did not end exits 1" "$out" "status 1"
+  has "its record reads fail" "$(cat "$tmp/rs-rs-cut.md" 2> /dev/null)" "Result: fail"
+  has "the unfinished phase's row fails" "$(cat "$tmp/rs-rs-cut.md" 2> /dev/null)" "| restart | fail |"
+
+  report_state rs-fail
+  s=$(TMPDIR=$tmp/rs state_dir rs-fail)
+  write_results "$s/results.upgrade" fail
+  : > "$s/results.build"
+  out=$(run_cmd_phase rs-fail report)
+  has "report after a failed check exits 1" "$out" "status 1"
+  has "a later phase's results reach the record" "$(cat "$tmp/rs-rs-fail.md" 2> /dev/null)" "| watch | fail |"
+
+  report_state rs-order
+  s=$(TMPDIR=$tmp/rs state_dir rs-order)
+  rm -f "$s/phase.seed" "$s/phase.upgrade" "$s/phase.restart" "$s/phase.storage"
+  out=$(run_cmd_phase rs-order upgrade)
+  has "upgrade with build done and seed not done exits 2" "$out" "status 2"
+  has "it names the missing phase" "$out" "REFUSED upgrade: seed is not done"
+  [ "$bad" -eq 0 ]
+}
+b_report() { unfinished_phase_lines() { :; }; }
+
 rule resolve-previous t_resolve b_resolve
 rule stamp-mode t_stamp_mode b_stamp_mode
 rule phase-ready t_phase_ready b_phase_ready
@@ -644,6 +861,9 @@ rule record t_record b_record
 rule static t_static b_static
 rule real-tree t_real b_real
 rule storage-base t_storage_base b_storage_base
+rule record-contract t_record_contract b_record_contract
+rule run t_run b_run
+rule report t_report b_report
 
 if [ "$fails_total" -ne 0 ]; then
   echo "test-upgrade-harness: $fails_total rule(s) failed"

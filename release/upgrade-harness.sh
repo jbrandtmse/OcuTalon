@@ -14,10 +14,10 @@
 #   run        build, settings, seed, upgrade, restart, storage and report, each as its own process, then down (always)
 #   build      resolves the previous build, exports its tree (git archive) into the state folder, stamps its version when it equals
 #              the candidate's, and builds its web bundle when the tree has none
-#   settings   throwaway project 1 (ocutalon-upgset-<tag>-...): the previous build, SetDemoMode(0), the upgrade, the demo-off checks;
+#   settings   the settings project (ocutalon-upgset-<tag>-...): the previous build, SetDemoMode(0), the upgrade, the demo-off checks;
 #              the project is removed at the end of the call
-#   seed       throwaway project 2 (ocutalon-upgrade-<tag>-...): the previous build, and the records through the HTTP API and the mock;
-#              the project and the lane's throwaway lock are kept until down
+#   seed       the records project (ocutalon-upgrade-<tag>-..., state in p1/): the previous build, and the records through the HTTP API
+#              and the mock; the project and the lane's throwaway lock are kept until down
 #   upgrade    the candidate on the same volume, and the checks of every record
 #   restart    a clean container restart, and the checks of every record
 #   storage    the storage snapshots against each other, and the release-diff rule against the previous commit
@@ -215,7 +215,7 @@ phase_ready() {
 phase_done() { [ "$(cut -d' ' -f1 "$1/phase.$2" 2> /dev/null)" = done ]; }
 
 # reminder_expect <due epoch> <ready epoch>: late when the reminder was due more than 20 s before the candidate was ready, on-time when
-# more than 20 s after, either inside the band (LATESECONDS is 10 and the waiters are re-armed a few seconds before Ready).
+# more than 20 s after, either inside the band (LATESECONDS is 10, and a waiter re-armed by Reconcile starts a few seconds before Ready).
 reminder_expect() {
   local d=$(($2 - $1))
   if [ "$d" -gt 20 ]; then
@@ -236,7 +236,8 @@ due_phrase() {
   fi
 }
 
-# iso_epoch <UTC time>: the epoch seconds of 2026-10-31T20:00:00Z (a fraction of a second is dropped).
+# iso_epoch <UTC time>: the epoch seconds of a UTC time such as 2026-10-31T20:00:00Z (a fraction of a second is dropped); nothing when
+# the text is no UTC time.
 iso_epoch() { jq -nr --arg t "$1" '$t | sub("\\.[0-9]+Z$"; "Z") | fromdateiso8601' 2> /dev/null; }
 
 # The readers of a /state answer (a file). Each prints nothing and returns 1 when it finds nothing.
@@ -362,14 +363,6 @@ env_set() {
 # detail_clean: a result detail on one line of printable ASCII, 300 characters at most, with no pipe (the record is a table).
 detail_clean() { tr -d '\r' | tr '\n' ' ' | LC_ALL=C tr -c '\040-\176' '?' | tr '|' '/' | cut -c1-300; }
 
-row_title() {
-  case $1 in
-    previous-build) echo "previous build" ;;
-    private-globals) echo "private globals" ;;
-    *) echo "$1" ;;
-  esac
-}
-
 # record_rows <results file>: one line per row of the record, in order: id, title, result (pass, fail, not run or off) and detail, tab
 # separated. The results file holds "RECORD <row id> pass|fail|off|note|seed <detail>" lines; a row is pass only when it has a pass line
 # and no fail line, fail when it has any fail line, off for a row of HARNESS_OFF, and not run when it has none. A note adds to a pass
@@ -461,7 +454,7 @@ record_write() {
     BEGIN { while ((getline l < sec) > 0) s[++n] = l }
     function put(   i) { for (i = 1; i <= n; i++) print s[i]; done = 1 }
     /^## Upgrade harness[ \t]*$/ && !done { skip = 1; put(); next }
-    skip && /^## / { skip = 0; print "" }
+    skip && /^##? / { skip = 0; print "" }
     skip { next }
     { print; last = $0 }
     END {
@@ -625,11 +618,6 @@ die() {
 }
 
 # --- the stack: the HTTP surface, the mock log, the iris sessions ---
-
-api_get() { # api_get <path>: the body of GET /ocutalon/api/v1/<path> with a unique probe
-  next_probe
-  curl -s --max-time 30 -b "$jar" -c "$jar" "$base/ocutalon/api/v1/$1?probe=$probes"
-}
 
 api_post() { # api_post <path> <json>: prints the status; the body is in $tmp/post.body
   curl -s --max-time 30 -b "$jar" -c "$jar" -o "$tmp/post.body" -w '%{http_code}' \
@@ -1215,7 +1203,6 @@ check_watch_upgrade() {
     env_set "$state/upgrade.env" inc2 "$inc2"
     env_set "$state/upgrade.env" ref2 "$ref2"
     env_set "$state/upgrade.env" expires2 "$expires2"
-    env_set "$state/upgrade.env" hold2 "$(approval_hold "$ref2")"
     pass "watch: a new press gave a new incident $inc2 that awaits approval with the pending request $ref2 (expires $expires2)"
   else
     fail "watch: no new incident awaits approval within 180 s of the new press"
@@ -1336,8 +1323,9 @@ load_seed() {
 
 phase_upgrade() {
   row upgrade
-  local cand=$(opt version) began last
+  local cand=$(opt version) began last r1_set
   attach_stack
+  preflight
   load_seed
   began=$(date +%s)
   began_epoch=$began
@@ -1369,7 +1357,10 @@ phase_upgrade() {
   env_set "$state/upgrade.env" ready_epoch "$ready_epoch"
   env_set "$state/upgrade.env" recreate_epoch "$recreate_epoch"
   echo "INFO Task 0 (a) the candidate image built and started in $((ready_epoch - began)) s (build until recreate $((recreate_epoch - began)) s)"
-  echo "INFO Task 0 (c) R1 was set $((ready_epoch - $(env_get "$state/seed.env" r1_set_epoch))) s before the candidate was ready (R1 delay 300 s)"
+  r1_set=$(env_get "$state/seed.env" r1_set_epoch)
+  if [ -n "$r1_set" ]; then
+    echo "INFO Task 0 (c) R1 was set $((ready_epoch - r1_set)) s before the candidate was ready (R1 delay 300 s)"
+  fi
   if ! storage_snapshot "$state/storage.cand"; then
     row storage
     fail "storage: the candidate's storage snapshot is empty"
@@ -1509,6 +1500,19 @@ phase_storage() {
 
 # --- report and down ---
 
+# unfinished_phase_lines <state folder>: a fail line, in the phase's row, for each phase that started and did not end (its mark still
+# reads failed: it died, was stopped or was killed), so that the checks it never reached cannot leave its row passing.
+unfinished_phase_lines() {
+  local ph id
+  for ph in build settings seed upgrade restart storage; do
+    [ -f "$1/phase.$ph" ] || continue
+    if ! phase_done "$1" "$ph"; then
+      case $ph in build | seed) id=previous-build ;; *) id=$ph ;; esac
+      printf 'RECORD %s fail the %s phase started and did not end\n' "$id" "$ph"
+    fi
+  done
+}
+
 phase_report() {
   local record file n ph
   env_set "$state/options" ended "$(date -u +%Y-%m-%dT%H:%M:%SZ)"
@@ -1516,6 +1520,7 @@ phase_report() {
   for ph in build settings seed upgrade restart storage; do
     if [ -f "$state/results.$ph" ]; then cat "$state/results.$ph" >> "$state/results"; fi
   done
+  unfinished_phase_lines "$state" >> "$state/results"
   record_section "$state/results" "$state/options" > "$state/section.md"
   record=$(opt record)
   file=$record

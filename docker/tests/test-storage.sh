@@ -499,13 +499,16 @@ if [ "$(release_diff "$d" | head -n 1)" != "$(printf 'TAG\tv1.0.0')" ]; then
   rd_ok=0
 fi
 
-# A base commit replaces the tag choice: a changed slot since the base is flagged with no tag present, an appended slot is clean, and
-# a base that is no commit is a violation that names it.
+# A base commit replaces the tag choice: a changed slot since the base is flagged even when a later v* tag would judge the tree clean,
+# an appended slot is clean, and a base that is no commit is a violation that names it.
 d=$(rd_repo base-changed)
 rd_base=$(git -C "$d" rev-parse HEAD)
 sed 's#<Value>P2</Value>#<Value>Q2</Value>#' "$d/$A" > "$d/$A.new" && mv "$d/$A.new" "$d/$A"
 rd_commit "$d" second
-rd_expect "a changed slot since the base commit is not flagged" "$d" VIOLATION "$A:"
+git -C "$d" tag v1.0.0
+printf 'x\n' > "$d/other.txt"
+rd_commit "$d" third
+rd_expect "a changed slot since the base commit is not flagged when a later tag is clean" "$d" VIOLATION "$A:"
 if [ "$(release_diff "$d" "$rd_base" | head -n 1)" != "$(printf 'TAG\t%s' "$rd_base")" ]; then
   echo "FAIL release-diff: the base commit is not named as the previous release"
   rd_ok=0

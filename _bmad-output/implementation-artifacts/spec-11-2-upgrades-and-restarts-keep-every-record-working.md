@@ -370,6 +370,51 @@ Paths are from the epic-11 worktree root. `C/` is `src/ocutalon/cls/OcuTalon/` a
 - **AC9 (no regression).** Given the moved `check_installed` and `stamp_version`, when `ci/iris.sh live install-upgrade` runs on a fresh stack, then it passes as before.
 - **AC10 (ten-minute calls).** Given the developer machine, when the phases run one per call, then each ends within 540 s. Every phase's seconds and the full run's total are recorded under Verification.
 
+### Review Findings
+
+Code review, 2026-11-01 (four layers: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor; 48 raw rows, 14 entries after grouping: high 0, medium 2, low 12). Rule 3: the deliverable is release tooling (CLI); its real-invocation evidence is the self-test's `plan`, refusals and `report` on this checkout, plus the recorded full live runs. Rule 6: AD-5, AD-19, AD-22, AD-23 and AD-29 match; no AD finding. Rule 2: the only copies are `api_post` (stated in Design Notes); `api_get`, an unused copy, is removed.
+
+- [x] [Review][Patch] `upgrade` exits on an arithmetic error after a failed reminder seed (empty `r1_set_epoch` in the Task 0 (c) INFO line), skipping every upgrade check (medium; fix-risk low: a guard on one line) [release/upgrade-harness.sh:1360]
+- [x] [Review][Patch] `report` ignored the phase marks, so a phase that died without a FAIL line (an unbound variable, a kill) could leave its row `pass` and give `Result: pass`; `unfinished_phase_lines` now fails the row of every phase that started and did not end (medium; fix-risk low: additive lines, pinned by the new `report` rule) [release/upgrade-harness.sh:1505]
+- [x] [Review][Patch] `report`'s exit status and the join of every phase's results had no test; the new `report` rule pins them (low) [docker/tests/test-upgrade-harness.sh]
+- [x] [Review][Patch] `record_write` dropped the text after a `# ` heading that follows the section; a section now also ends at `# ` (low) [release/upgrade-harness.sh:457]
+- [x] [Review][Patch] `upgrade` rebuilds the image without `preflight` (Tasks: every phase that starts a stack calls it first) (low) [release/upgrade-harness.sh:1328]
+- [x] [Review][Patch] No `test-storage.sh` sample had both a `v*` tag and `OCUTALON_STORAGE_BASE`; the base-changed sample now has a later clean tag (low) [docker/tests/test-storage.sh:508]
+- [x] [Review][Patch] "upgrade before seed exits 2" refused on the missing state, not the order; relabelled, and the `report` rule pins the order refusal on a fabricated state (low) [docker/tests/test-upgrade-harness.sh:621]
+- [x] [Review][Patch] Two QA `mutation:` lines named AC3 and AC10 for the `run` command; relabelled to the `run` task (low) [spec ## Verification]
+- [x] [Review][Patch] Dead code: `api_get`, `row_title` and the `hold2` write were never read; removed (low) [release/upgrade-harness.sh]
+- [x] [Review][Patch] Comments that did not state the contract: the project numbering in the usage header, `reminder_expect`'s "re-armed" claim, `iso_epoch`'s fixed date (low) [release/upgrade-harness.sh:17, 217, 239]
+- [x] [Review][Patch] The self-test header omitted `storage-base` (a gate on the real tree since the pinned commit) and `report` (low) [docker/tests/test-upgrade-harness.sh:1]
+- [x] [Review][Patch] A wrong label in `record-contract` and a wrong comment on `make_run_stub` (low) [docker/tests/test-upgrade-harness.sh]
+- [x] [Review][Defer] The upgrade-time waiter checks (`LiveHold`, `WaitingCount`) were never seen red, and a Run Q style fault injection before `upgrade` could observe the Reconcile re-arm path [release/upgrade-harness.sh:check_upgrade_log] -- deferred: the root cause is DW-525 (adjudicated wontfix-theoretical; AC2's pinning mutation is run V); occurrence appended
+- [x] [Review][Defer] In a rehearsal, release-diff judges the committed HEAD, not the working tree the image was built from [release/upgrade-harness.sh:phase_storage] -- deferred: the root cause is DW-526 (wontfix-accepted); occurrence appended
+
+Rejected (24):
+- low: the spec's Auto Run Result and Verification counts are stale after QA (11 or 10 rules; residual risks QA closed) -- the fix edits build-auto's own sections; this review's section above states the current count (14).
+- low: a storage base that is no commit is reported as a block change -- the harness passes the sha it resolved and exported; the line still fails loudly.
+- low (spec-bound): `Mode:` ignores untracked files -- Tasks fix `git status --porcelain --untracked-files=no`.
+- low: the lock guards in `attach_stack` and `cmd_down` have no test -- no defect today; a fabricated-lock test is new surface.
+- low (spec-bound): R2's rail card is checked at `restart` only -- the Upgrade matrix row asks for its waiter; no false pass.
+- low: R1 falling due during the image build gives a misleading late/on-time FAIL -- needs a gap of about 4 minutes between calls; it fails loudly.
+- false: `v<cand>-rc` tags would be taken as the previous build -- candidates are `release/<v>-rc<n>` branches, never tags (Story 11.5).
+- low: a clone with no tags falls back to the pinned commit after 1.0.0 -- clones fetch tags; a guard adds a branch.
+- low (spec-bound): a failed `build` in `run` writes no record -- `report` needs `build` (Tasks); `run` exits 2; QA pinned it.
+- low: `watch` passes with an empty `expires2` -- the chat and the rail come from one `/state` answer; `restart` fails loudly if it ever happened.
+- low: a failed `dc exec` in `mock_lines` makes the mark 0 -- it needs a transient failure between two exec calls that succeed; a guard adds a branch.
+- low: a git warning on stderr merges into `resolve_previous`'s line -- every git call there is `--quiet` or silenced; theoretical.
+- low: an empty `r1_due_epoch` in `check_upgrade_log` gives a misleading "not due yet" FAIL -- it still fails, and `check_reminder_upgrade` names the bad dueAt.
+- low: a failed seed step adds FAIL lines to later rows -- the result is already fail; the lines are diagnostics.
+- low: `--previous refs/tags/v1.0.0` is recorded `Required: no` -- operator spelling only; Story 11.5 uses the default resolution.
+- low: a different `TMPDIR` between calls loses the state -- the refusal is loud; a fixed root is a redesign.
+- low (spec-bound): the live phases have no CI test host -- the harness is a hand-run gate, not a CI unit (Design Notes 12); the evidence is the recorded full runs.
+- low (spec-bound): the real-tree rules depend on the checkout's history -- Tasks pin `plan` on the real tree; a shallow clone fails loudly; the header now names the storage gate.
+- low: a phase that dies prints no `PHASE` line -- it prints FAIL and "aborted", and `report` now fails its row.
+- low: the settings project never calls `keys_point` -- it runs no model turn.
+- low: the results grammar adds `note` and `seed` -- the "not run (seeded only)" row follows the Upgrade matrix row.
+- low: `build`, `storage` and `report` set no deadline -- they have no wait (rejected in the build-auto review as well).
+- low (spec-bound): `ci/units.sh` is in `contended-epic-11.txt` -- the `CHECK_SCRIPTS` line is the lead-ruled shared line (Design Notes 12); nothing else changes.
+- false: `attach_stack`'s INT/TERM/HUP trap goes beyond the spec -- it only turns a signal into an exit that runs the EXIT trap.
+
 ## Spec Change Log
 
 ## Review Triage Log
@@ -624,6 +669,40 @@ The record section of the final run (`--record` in a temporary folder, `Mode: re
 Run N (tag `e11s2n`, mutations A to D together, applied to the working tree and reverted byte-identical against scratchpad backups; `git status --short` and `git diff` equal before and after) ended `RESULT fail` with phases build 7 s, settings 149 s, seed 108 s, upgrade 292 s, restart 25 s, storage 10 s.
 
 **Final clean run after the review patches (tag `e11s2h`, fresh projects, one phase per call):** build 6 s, settings 148 s, seed 109 s, upgrade 292 s, restart 25 s, storage 11 s, report 0 s; every phase `(0 failed)`, `RESULT pass`, `Mode: rehearsal (uncommitted changes)`, previous `pre-release c9f1288c...`. The record section equals the one above except for its run times. After the patches the hermetic parts of the checks list (`boundaries ... pinned-sources`, `after-start ... ci-warm`, `probe ... upgrade-harness`), `test-mock.sh`, `ci/changes.sh ci.yml` and the dry run all passed; the lane-a lock folder was empty and no project of the stage's tags was left.
+
+### QA stage (2026-11-01, lane A, tag e11s2q; no slot, no MCP call, no key)
+
+- (QA) `docker/tests/test-upgrade-harness.sh` -- two rules added (now 13): `record-contract` and `run`. No other test file was created.
+  - `record-contract` (gap 3, the interface of Stories 11.3 to 11.5): the section's lines in their fixed order (`Result:`, `Mode:`, `Required:`, `Candidate:`, `Previous:`, `Note:` for a pre-release only, `Run:`, the table); one `Result:`, `Mode:` and `Required:` line from the closed set of values, read the way a consumer reads a record (the lines under the `## Upgrade harness` heading only), with other sections that hold their own `Result:` lines before and after it, for pass, fail and partial results and all four modes; a table of three-cell rows with a result of pass, fail, not run or off, eleven rows, plain ASCII, a pipe or non-ASCII character in a detail made safe by the real `record_line`.
+  - `run` (gap 1): `cmd_run` over a stub of the harness (`harness_root` pointed at a temporary folder): the phase order, the options on `build` only (and every option reaching it), a default `upg-<epoch>` tag shared by every phase and a given tag kept, `report` and `down` after any failed phase or several, only `down` after a refused or failed `build` (exit 2), and a bad option, a missing `--rc` and `--rc 0` starting no phase (exit 2).
+  - Each rule first fails on a synthetic break (`b_record_contract`: the Mode line loses its space; `b_run`: the run no longer ends with `down`).
+- Gap 2 (the restart's ref2 expiry and hold checks) is closed by a live run: Run Q applied the mutations below before `upgrade`, and after `upgrade` terminated the second request's hold and moved its row's `ExpiresAt` a day later in the throwaway container (a fault injection, the stand-in for a restart that loses a hold and shifts an expiry; the `Approval.Reconcile` mutation is what keeps the injected loss from being re-armed). Phases: build 5 s, settings 150 s, seed 109 s, upgrade 292 s, restart 25 s, storage 12 s, report 0 s; `RESULT fail`; `down` removed the project and released the lock.
+
+**QA mutations (Rule 19), each applied, observed red, reverted from a backup in the scratchpad, and the tree compared byte-identical (`git status --short` and the diff) before and after:**
+- mutation: the `run` command (Tasks: it chains every phase, then report, then always down; no AC of its own) `cmd_run` no longer ends with `bash "$me" down` -> self-test rule run red (5 assertions, the last phase is report).
+- mutation: the `run` command (Tasks: the phases chained in order; AC10 itself is a measurement) `cmd_run` runs `restart` before `upgrade` -> self-test rule run red.
+- mutation: AC6 (new) `record_section` prints `Mode:` without the space -> self-test rules record-contract, record and real-tree red.
+- mutation: AC6 (new) the `Mode:` and `Required:` lines swapped -> self-test rule record-contract red (the fixed order).
+- mutation: AC6 (new) a refused `build` in `run` no longer exits 2 -> self-test rule run red (exit 0, and the later phases ran).
+- mutation: AC1 `resolve_previous` no longer refuses HEAD itself -> self-test rule resolve-previous red.
+- mutation: AC5 `storage_compare` compares the first four columns only -> self-test rule storage-compare red (rename, retype, collection, removed and moved slots all pass wrongly).
+- mutation: AC8 `release_diff` ignores `OCUTALON_STORAGE_BASE` -> `test-storage.sh` red on the three base samples.
+- mutation: AC4 (live, Run Q, gap 2) `Bridge/Approval.cls` `Reconcile` returns OK at once, the second request's hold terminated and its row's `ExpiresAt` moved after `upgrade` -> `restart` red twice ("the second request is '<ref>|2026-11-03T11:21:43Z', wanted '<ref>|2026-11-02T11:21:43Z'" and "the second request has no live ApprovalHold"), every other restart line PASS.
+- mutation: AC3 (live, Run Q) `Msg/Catalog/Watch.cls` `result.allThrough` "went through" to "went thru" -> `approval` red (the incident resolved with 50, 50, 0 and the phone item was missing); `watch`, `reminder`, `conversation`, `settings` and `upgrade` stayed pass.
+- mutation: AC5 (live, Run Q) `Install/Step/PrivateData.cls` `Run()` starts with `Kill ^OcuTalonP.S01Probe` -> `private globals` red (2 of 5 probe values differ); `storage` stayed pass.
+- AC2 and AC9 were not re-run (no change to `docker/after-start.cos`, the harness's upgrade phase or `lib-upgrade.sh` since the implement stage's observed reds, run V and the `live install-upgrade` mutation).
+
+Run Q's record, fail rows only: approval, restart and private globals; previous build, upgrade, conversation, reminder, watch, settings and storage pass; pairing off.
+
+### Code review stage (2026-11-01, hermetic only; no container, no slot, no MCP call, no key)
+
+- (review) `docker/tests/test-upgrade-harness.sh` -- rule `report` added (now 14): `report` and `upgrade` over a state folder the rule fabricates under its own `TMPDIR`: a passing state exits 0 with `Result: pass`; a phase whose mark still reads `failed` fails its row and exits 1; a later phase's fail line reaches the record and exits 1; `upgrade` with `build` done and `seed` not done exits 2 with `REFUSED upgrade: seed is not done`. Its break is `unfinished_phase_lines` printing nothing. The `record` rule gained a `# ` heading after the section; `test-storage.sh`'s base-changed sample now has a later clean `v1.0.0` tag.
+- After the patches: `test-upgrade-harness.sh` (14 rules), `test-storage.sh` and `test-boundaries.sh` passed.
+
+**Review mutations (Rule 19), each applied, observed red, reverted from a backup in the scratchpad, the tree fingerprint (`git status --short`, the diff, the untracked files) equal before and after:**
+- mutation: AC6 `unfinished_phase_lines` returns at once -> self-test rule report red ("report after a phase that did not end exits 1", "its record reads fail").
+- mutation: AC6 `record_write` ends the section only at `## ` again -> self-test rule record red ("a top-level heading after the section ends it").
+- mutation: AC8 `release_diff` uses the base only when the repository has no `v*` tag -> `test-storage.sh` red ("a changed slot since the base commit is not flagged when a later tag is clean", "the base commit is not named").
 
 ## Auto Run Result
 

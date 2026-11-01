@@ -2751,8 +2751,10 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-11-2-upgrades-and-restarts-keep-every-record-working.md | severity: med | fix-risk: low | footprint: in-story
 - evidence: Run M: Reconcile mutated to return OK; R2 kept one waiting ReminderTimer and R1 fired on time; Reconcile is pinned by Test.Schedule.Reminders TestReconcileRearmsOnlyLostWaiters
 - 2026-11-01T11:06:24Z status=wontfix-theoretical owner=11-2-upgrades-and-restarts-keep-every-record-working by=harvest note=Reconcile's re-arm is pinned by Test.Schedule.Reminders; real if an in-place upgrade or a restart ever loses a ReminderTimer waiter (then the harness's reminder rows go red)
+- 2026-11-01T11:43:48Z occurrence=11-2-upgrades-and-restarts-keep-every-record-working
 
 ### DW-526: test-storage.sh release_diff reads the committed HEAD, so a rehearsal's uncommitted storage change passes release-diff (the harness's own storage compare still catches it)
 - source: spec-11-2-upgrades-and-restarts-keep-every-record-working.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: Run M: renaming Eval.Data.CaseResult DecidedAt in the working tree gave storage_compare MISSING but PASS release-diff
 - 2026-11-01T11:06:24Z status=wontfix-accepted owner=11-2-upgrades-and-restarts-keep-every-record-working by=harvest note=reopen_if=a storage-slot change reaches a candidate commit with test-storage.sh release-diff green
+- 2026-11-01T11:43:48Z occurrence=11-2-upgrades-and-restarts-keep-every-record-working
