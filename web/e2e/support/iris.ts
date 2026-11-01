@@ -1,5 +1,7 @@
 import { execFileSync, spawn } from 'node:child_process';
 
+import { irisSessionCommand } from './rehearsal';
+
 /**
  * What the e2e specs need from the throwaway stack that their script starts (docker/tests/test-sign-in.sh, test-floor.sh for the floor
  * specs of e2e/floor/, or test-demo-path.sh): the fixture users the sign-in and floor scripts created, and a way to run a line of
@@ -67,10 +69,11 @@ export function fixtureUser(kind: FixtureKind): { user: string; password: string
   return { user: required(`OCUTALON_${kind}_USER`), password: required(`OCUTALON_${kind}_PASSWORD`) };
 }
 
-/** Runs one script in a session of the container and returns whatever it printed. */
+/** Runs one script in a session of the container (or of the rehearsal's exec channel, e2e/support/rehearsal.ts) and returns whatever it printed. */
 function runOnce(script: string): Promise<string> {
   return new Promise((resolve, reject) => {
-    const child = spawn('docker', ['exec', '-i', irisContainer(), 'iris', 'session', 'IRIS', '-U', 'OCUTALON'], {
+    const { cmd, args } = irisSessionCommand(process.env, irisContainer);
+    const child = spawn(cmd, args, {
       stdio: ['pipe', 'pipe', 'ignore'],
     });
     let out = '';

@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Hermetic self-test of the clean-machine rehearsal (Story 11.3; release/rehearse.sh, release/lib-release.sh, env_file_hits of
+# Hermetic self-test of the clean-machine rehearsal (Stories 11.3 and 11.11; release/rehearse.sh, release/lib-release.sh, env_file_hits of
 # docker/tests/lib-keys.sh), with no container, no network call and no model. It sources the two release files and pins, in its own
 # temporary folder:
 #   - config: release_config_read and every refusal of the Config row, with no value in a refusal and no expansion of a value;
@@ -11,13 +11,19 @@
 #   - record: record_write (create with the heading, replace, append, another section byte for byte, no duplicate);
 #   - env-hits: env_file_hits finds a planted value, names the variable, and never prints the value;
 #   - dry-section: the record section of a dry run (Result, Mode, the stand-in candidate, the note) and of a real run
-#   - stub-runs: the copied script, run for real in a synthetic git repository against stub hosts: a hosts failure, a clone HEAD
-#     mismatch, a failed install.sh, and every step passing then report (twice), a planted value, phase order and the Candidate refusals;
+#   - stub-runs: the copied script, run for real in a synthetic git repository against stub hosts (the clean host a stub ssh, the driver
+#     this machine with a stub curl): a hosts failure, a clone HEAD mismatch, a failed install.sh, and every step passing then report
+#     (twice), a planted value, phase order and the Candidate refusals;
+#   - bounds: bounds_eval on synthetic runs/1..20 folders: every bound's pass and miss, the run lists, the median, a missing mark, a failed
+#     verdict, the planted bound (dry run only) and the Result rules over the merged rows;
+#   - timed-runs: runs on stub hosts with a stub npm: a passing run and its files, a failing report, a run that reads nothing through exec,
+#     the second run's refusal, the order refusals, the real-mode guards, exec's argv and its refusals, report --plant in real mode;
 #   - real-tree: plan on this checkout starts nothing, a version that is not the candidate's and a report with no state exit 2;
+#   - dry-report: report and report --plant on a dry state with a run: the plant reaches the evaluation through the command;
 #   - dry-down: down of a dry run's state on a stub docker: the saved image names removed, the lane lock released only when its content
 #     is the saved one, and the state removed;
 #   - static: no sourcing of a variable path but the three libraries, no cat of an env file, umask 077, mode 100755, ASCII, strict host
-#     keys and no docker push, login, save or export.
+#     keys and no docker push, login, save or export; the collector heredoc writes nothing.
 # Each rule with a break first runs on a synthetic break (the rule pattern of test-upgrade-harness.sh): a check that can no longer fail
 # makes its rule fail. Prints one PASS or FAIL line per rule; exits 0 only when all pass.
 set -u
@@ -102,6 +108,13 @@ REHEARSAL_DRIVER_SSH=driveruser@driver-host-3.invalid
 REHEARSAL_DRIVER_KEY=$1/driver.key
 REHEARSAL_ENV_FILE=$1/env
 EOC
+  chmod 600 "$1/release.conf"
+}
+
+mkconf_local() { # mkconf_local <dir>: the good configuration with a local driver (a real rehearsal drives the browser on this machine)
+  mkconf "$1"
+  grep -v '^REHEARSAL_DRIVER_KEY=' "$1/release.conf" | sed 's/^REHEARSAL_DRIVER_SSH=.*/REHEARSAL_DRIVER_SSH=local/' > "$1/release.conf.new"
+  mv "$1/release.conf.new" "$1/release.conf"
   chmod 600 "$1/release.conf"
 }
 
@@ -229,10 +242,20 @@ case $dest in
         ;;
       *'cat > .env'*) (cd "$STUB_REMOTE" && sh -c "$cmd" < "$inp") ;;
       *'bash install.sh'*)
-        sleep 1
+        sleep "${STUB_SLEEP:-0}"
         cat "$STUB_INSTALL_OUT"
         rm -f "$inp"
         exit "${STUB_INSTALL_RC:-0}"
+        ;;
+      *'docker compose exec'*)
+        if grep -q 'CHK|done|1' "$inp"; then
+          cp "$inp" "${STUB_COLLECTOR_IN:-/dev/null}"
+          cat "${STUB_COLLECTOR_OUT:-/dev/null}"
+        elif grep -q 'CHK|now|' "$inp"; then
+          echo "CHK|now|${STUB_NOW:-2026-11-01 10:00:00.000}"
+        else
+          echo "CHK|x|1"
+        fi
         ;;
       *echo*hi*) echo hi ;;
       *)
@@ -292,6 +315,55 @@ OcuTalon is ready after 1 min 5 s.
   Open:      http://localhost:52801/ocutalon/
   User:      ocu-user
   Password:  ocu-pass-1
+EOS
+}
+
+mkbin() { # mkbin <dir>: stub curl and npm for a local driver: curl keeps its config and prints the page, npm plays the browser run
+  mkdir -p "$1"
+  cat > "$1/curl" <<'EOS'
+#!/bin/sh
+cat > "$STUB_CURL_CFG"
+echo "${STUB_DRIVER_PAGE:-<html><app-root></app-root></html>}"
+exit 0
+EOS
+  cat > "$1/npm" <<'EOS'
+#!/bin/sh
+echo "$*" >> "$STUB_NPM_LOG"
+printf '%s\n' "URL=$OCUTALON_URL" "MODEL=$OCUTALON_DEMO_PATH_MODEL" "TIMEOUT=$OCUTALON_E2E_TIMEOUT_MS" "RUN=$OCUTALON_REHEARSAL_RUN" "TAG=$OCUTALON_RUN_TAG" "KEY=${ANTHROPIC_API_KEY-unset}" "EXEC=$OCUTALON_E2E_IRIS_EXEC" "MARKS=$OCUTALON_E2E_MARKS" > "$STUB_NPM_ENV"
+cp "${STUB_NPM_REPORT:?}" "$OCUTALON_E2E_JSON"
+cat "${STUB_NPM_MARKS:?}" >> "$OCUTALON_E2E_MARKS"
+if [ -z "${STUB_NPM_NOEXEC:-}" ]; then
+  printf 'Write !,"CHK|x|1"\nHalt\n' | sh -c "$OCUTALON_E2E_IRIS_EXEC" > /dev/null
+fi
+echo "stub npm: 1 test file ran"
+exit "${STUB_NPM_RC:-0}"
+EOS
+  chmod 755 "$1/curl" "$1/npm"
+  # A passing Playwright report of the eight steps (the shape demo-path-summary.mjs reads), and one whose approval step failed.
+  node -e '
+    const steps = ["page","watch","reminder","incident","approval","trace","failure-paths","quiet-outcomes"];
+    const build = (failed) => ({ suites: steps.map((id, i) => ({
+      file: `0${i + 1}-${id}.spec.ts`,
+      specs: [{ title: id + " works", tags: i === 0 ? ["floor"] : [], tests: [{ annotations: [], results: [{ status: id === failed ? "failed" : "passed", annotations: [] }] }] }],
+    })), errors: [] });
+    const fs = require("node:fs");
+    fs.writeFileSync(process.argv[1], JSON.stringify(build("")));
+    fs.writeFileSync(process.argv[2], JSON.stringify(build("approval")));
+  ' "$1/report.pass.json" "$1/report.fail.json"
+  printf 'step1_sent 1000\nstep1_decision_seen 3100\nstep1_reply_seen 3300\napprove_pressed 9000\napproval_result_seen 9600\n' > "$1/marks.page"
+  cat > "$1/collector.out" <<'EOS'
+CHK|mark|press|100000
+CHK|mark|first_failure|101000
+CHK|mark|pickup|103900
+CHK|mark|settle_end|113600
+CHK|mark|diagnosis_end|114400
+CHK|mark|delivered|114600
+CHK|reminder|150000|151000
+CHK|late|0|1
+CHK|mark|reminder_msg|200000
+CHK|mark|result_msg|214000
+CHK|tokens|1520
+CHK|done|1
 EOS
 }
 
@@ -526,11 +598,27 @@ t_results() {
   eq "the FAIL line grammar" "$(fail_line hosts - "git is not installed")" "FAIL run install step hosts bound -: git is not installed"
   eq "a bound goes in the line" "$(fail_line install "ready within 900 s" "install.sh exited 1")" "FAIL run install step install bound ready within 900 s: install.sh exited 1"
   printf 'hosts|pass|x\ncopy|pass|x\ninstall|pass|x\nsign-in|pass|x\nsecrets|pass|x\n' > "$r"
-  eq "a real run whose steps pass is not run (the timed runs are not built)" "$(rehearsal_result real "$r")" "not run"
+  eq "a real run whose steps pass is not run (no timed run)" "$(rehearsal_result real "$r")" "not run"
   eq "a dry run is a dry run" "$(rehearsal_result dry "$r")" "dry run"
-  printf 'runs|pass|x\n' >> "$r"
-  eq "a real run with every row passing is a pass" "$(rehearsal_result real "$r")" pass
+  local row
+  for row in runs notice pick-up settle-end diagnosis delivery decision approval-result reminder largest-request; do printf '%s|pass|x\n' "$row" >> "$r"; done
+  for row in median first-reply reminder-result; do printf '%s|recorded|x\n' "$row" >> "$r"; done
+  eq "a real run with the tell-now row not run is not run" "$(rehearsal_result real "$r")" "not run"
+  printf 'tell-now|not run|x\n' >> "$r"
+  eq "an explicit not-run tell-now row is not run too" "$(rehearsal_result real "$r")" "not run"
+  grep -v '^tell-now|' "$r" > "$r.new"
+  mv "$r.new" "$r"
+  printf 'tell-now|pass|x\n' >> "$r"
+  eq "a real run with every row met is a pass" "$(rehearsal_result real "$r")" pass
   eq "a dry run never passes" "$(rehearsal_result dry "$r")" "dry run"
+  printf 'pick-up|fail|x\n' >> "$r"
+  grep -v '^pick-up|pass' "$r" > "$r.new"
+  mv "$r.new" "$r"
+  eq "a missed bound fails a real run" "$(rehearsal_result real "$r")" fail
+  eq "a missed bound fails a dry run" "$(rehearsal_result dry "$r")" fail
+  grep -v '^pick-up|' "$r" > "$r.new"
+  mv "$r.new" "$r"
+  printf 'pick-up|pass|x\n' >> "$r"
   printf 'copy|fail|x\n' >> "$r"
   grep -v '^copy|pass' "$r" > "$r.new"
   mv "$r.new" "$r"
@@ -665,7 +753,8 @@ t_dry_section() {
   has "the candidate is a stand-in of the ref's commit with the bundle added" "$out" "Candidate: 1.0.0 rc1, branch rehearsal/stand-in at 1111111111111111111111111111111111111111, a stand-in of 2222222222222222222222222222222222222222 with the built web bundle added"
   has "the dry-run note is there" "$out" "Note: A dry run on throwaway stand-ins"
   has "it says it is not a rehearsal pass" "$out" "It is not a rehearsal pass"
-  has "the timed runs are not run" "$out" "| demo path runs | not run | the timed runs come with Story 11.11 |"
+  has "the timed runs are not run" "$out" "| demo path runs | not run | no timed run yet; the runs phase follows a passed install |"
+  has "the Specs line is the base commit's" "$out" "Specs: the REL-2 specs (web/e2e/demo-path) at 2222222222222222222222222222222222222222"
   env_set "$st/options" mode real
   env_set "$st/options" branch release/1.0.0-rc1
   section_build "$sec"
@@ -685,11 +774,12 @@ b_dry_section() {
 
 mksyn() { # mksyn <dir>: a synthetic repository with a copy of the release files, a version and a placeholder web bundle, on release/1.0.0-rc1
   rm -rf "$1"
-  mkdir -p "$1/release" "$1/docker/tests" "$1/src/ocutalon/csp"
+  mkdir -p "$1/release" "$1/docker/tests" "$1/src/ocutalon/csp" "$1/web/scripts"
   git init -q "$1"
   git -C "$1" symbolic-ref HEAD refs/heads/release/1.0.0-rc1
   cp "$root/release/rehearse.sh" "$root/release/lib-release.sh" "$1/release/"
   cp "$root/docker/tests/lib-keys.sh" "$1/docker/tests/"
+  cp "$root/web/scripts/demo-path-summary.mjs" "$1/web/scripts/"
   printf '<Export><Document><Version>1.0.0</Version></Document></Export>\n' > "$1/src/module.xml"
   printf '<html><app-root></app-root></html>\n' > "$1/src/ocutalon/csp/index.html"
   printf '#!/bin/sh\necho install\n' > "$1/install.sh"
@@ -710,8 +800,11 @@ run_reh() {
     export TMPDIR=$tmp/runs OCUTALON_RELEASE_CONFIG=$cfgdir/release.conf OCUTALON_REHEARSAL_SSH=$stubdir/ssh
     export STUB_LOG=$stublog STUB_REMOTE=$tmp/remote STUB_DRIVER_PROBE=$stubdir/driver.probe STUB_CURL_CFG=$tmp/curl.cfg
     export STUB_CLEAN_PROBE=${STUB_CLEAN_PROBE:-$stubdir/clean.probe} STUB_INSTALL_OUT=${STUB_INSTALL_OUT:-$stubdir/install.out}
+    export PATH=$bindir:$PATH STUB_NPM_LOG=$tmp/npm.log STUB_NPM_ENV=$tmp/npm.env STUB_COLLECTOR_IN=$tmp/collector.in
+    export STUB_NPM_REPORT=${STUB_NPM_REPORT:-$bindir/report.pass.json} STUB_NPM_MARKS=${STUB_NPM_MARKS:-$bindir/marks.page}
+    export STUB_COLLECTOR_OUT=${STUB_COLLECTOR_OUT:-$bindir/collector.out}
     if [ -n "$tag" ]; then export OCUTALON_RUN_TAG=$tag; else unset OCUTALON_RUN_TAG; fi
-    bash "$syn/release/rehearse.sh" "$@" < /dev/null 2>&1
+    bash "$syn/release/rehearse.sh" "$@" < "${REH_STDIN:-/dev/null}" 2>&1
     echo "status $?"
   )
 }
@@ -720,10 +813,13 @@ stub_setup() {
   syn=$tmp/syn
   cfgdir=$tmp/stubcfg
   stubdir=$tmp/stubs
+  bindir=$tmp/stubbin
   stublog=$tmp/stub-calls.log
   mksyn "$syn"
-  mkconf "$cfgdir"
+  mkconf_local "$cfgdir"
   mkstub "$stubdir"
+  mkbin "$bindir"
+  : > "$tmp/npm.log"
   rm -rf "$tmp/runs"
   mkdir -p "$tmp/runs"
   : > "$stublog"
@@ -816,7 +912,7 @@ t_stub_runs() {
   printf '# OcuTalon 1.0.0 rc1\n\n## Upgrade harness\n\nResult: pass\n| kept | text |\n' > "$rec"
   before=$(cat "$rec" | cksum)
   : > "$stublog"
-  out=$(run_reh rh-pass install --version 1.0.0 --rc 1 --record "$rec")
+  out=$(STUB_SLEEP=1 run_reh rh-pass install --version 1.0.0 --rc 1 --record "$rec")
   has "install passes" "$out" "PHASE install done"
   has "the hosts step passes" "$out" "PASS hosts both hosts answered"
   has "the copy step passes" "$out" "PASS copy git bundle of"
@@ -831,10 +927,10 @@ t_stub_runs() {
   eq "the state is private" "$(ls -ld "$state" | cut -c1-10)" "drwx------"
   argv=$(cat "$stublog")
   lacks "no env value in any argument of any call" "$argv" "planted-env-value-123456"
-  eq "every call checks host keys strictly" "$(grep -c '^ARG StrictHostKeyChecking=yes$' "$stublog")" 7
+  eq "every call checks host keys strictly" "$(grep -c '^ARG StrictHostKeyChecking=yes$' "$stublog")" 5
   lacks "no host key check is switched off" "$argv" "StrictHostKeyChecking=no"
   lacks "no OCUTALON_INSTALL_WAIT is passed when the caller set none" "$argv" "OCUTALON_INSTALL_WAIT"
-  eq "the calls are the probes, the copy, the clone, the env, install.sh and the sign-in" "$(grep -c '^CALL ' "$stublog")" 7
+  eq "the ssh calls are the probe, the copy, the clone, the env and install.sh (the driver is this machine)" "$(grep -c '^CALL ' "$stublog")" 5
   has "the bundle reached the host through stdin" "$argv" "stdin=$(wc -c < "$state/candidate.bundle" | tr -d ' ')"
   has "the sign-in config went by stdin to the driver" "$(cat "$tmp/curl.cfg")" 'data-urlencode = "IRISPassword=ocu-pass-1"'
   has "it signs in as the printed user" "$(cat "$tmp/curl.cfg")" 'data-urlencode = "IRISUsername=ocu-user"'
@@ -851,12 +947,14 @@ t_stub_runs() {
   has "the record reads Mode: rehearsal" "$(cat "$rec")" "Mode: rehearsal"
   has "the candidate line" "$(cat "$rec")" "Candidate: 1.0.0 rc1, branch release/1.0.0-rc1 at $sha"
   has "the clean host line" "$(cat "$rec")" "Clean host: Linux (Ubuntu 24.04.1 LTS), x86_64, 15.6 GiB memory; Node.js absent"
-  has "the driver host line" "$(cat "$rec")" "Driver host: macOS 26.0.1, arm64, 64.0 GiB memory"
+  matches "the driver host line gives system, CPU and memory (this machine)" "$(grep '^Driver host: ' "$rec")" '^Driver host: .+, .+, ([0-9.]+ GiB|unknown) memory$'
+  lacks "and no host name of this machine" "$(cat "$rec")" "$(uname -n)"
   lacks "no dry-run note in a real record" "$(cat "$rec")" "Note:"
   matches "the install row gives the first start, install included" "$(cat "$rec")" 'first start [1-9][0-9]* s, install included'
   has "install.sh's ready text is kept beside it" "$(cat "$rec")" 'OcuTalon is ready after 1 min 5 s.'
   has "the secrets row passes" "$(cat "$rec")" "| secrets | pass |"
-  has "the timed runs are not run" "$(cat "$rec")" "| demo path runs | not run | the timed runs come with Story 11.11 |"
+  has "the timed runs are not run" "$(cat "$rec")" "| demo path runs | not run | no timed run yet; the runs phase follows a passed install |"
+  has "the Specs line follows the candidate line" "$(cat "$rec")" "Specs: the REL-2 specs (web/e2e/demo-path) at $sha"
   lacks "the record holds no stub host" "$(cat "$rec")" "stub-host-secret"
   lacks "the record holds no driver stub host" "$(cat "$rec")" "driver-secret"
   lacks "the record holds no configured host" "$(cat "$rec")" "clean-host-7"
@@ -895,7 +993,7 @@ t_stub_runs() {
   has "the host of a user@host destination fails secrets" "$out" "REHEARSAL_CLEAN_SSH_HOST in 1 line(s)"
   lacks "neither value is printed" "$out" "quoted-web-5"
   lacks "nor the host" "$out" "clean-host-7"
-  mkconf "$cfgdir"
+  mkconf_local "$cfgdir"
   : > "$state/output.log"
   printf 'token sk-ant-%s\n' "abcdefghijklmnop" >> "$state/output.log"
   out=$(run_reh rh-pass report)
@@ -973,7 +1071,7 @@ t_candidate() {
   mv "$cfgdir/release.conf.off" "$cfgdir/release.conf"
   out=$(run_reh rh-c12 plan --version 1.0.0 --rc 1 --record "$tmp/c.md")
   has "plan on a good real candidate exits 0" "$out" "status 0"
-  has "plan names the hosts as configured" "$out" "PLAN hosts clean configured, driver configured"
+  has "plan names the hosts as configured, the driver as local" "$out" "PLAN hosts clean configured, driver local"
   has "plan names the record" "$out" "PLAN record $tmp/c.md"
   lacks "plan prints no host value" "$out" "clean-host-7"
   eq "plan starts no state" "$(ls "$tmp/runs" | wc -l | tr -d ' ')" 0
@@ -989,6 +1087,499 @@ t_candidate() {
   out=$(run_reh rh-c15 install --version 1.0.0 --rc 1234567 --record "$tmp/c.md")
   has "an --rc of seven digits is refused" "$out" "REFUSED --rc must be a positive whole number"
   eq "no state was started by these refusals" "$(ls "$tmp/runs" | wc -l | tr -d ' ')" 0
+  [ "$bad" -eq 0 ]
+}
+
+# --- the bounds ---
+
+mkruns() { # mkruns <state dir> <n> <dry|real>: a state with runs/1..n whose values are within every limit (notice 14.6 s), verdicts pass
+  local d=$1 n=$2 k
+  rm -rf "$d"
+  mkdir -p "$d/runs"
+  printf 'mode=%s\nruns=%s\n' "$3" "$n" > "$d/options"
+  printf 'hosts|pass|ok\ncopy|pass|ok\ninstall|pass|ok\nsign-in|pass|ok\nsecrets|pass|ok\n' > "$d/results"
+  for k in $(seq 1 "$n"); do
+    mkdir -p "$d/runs/$k"
+    printf 'step1_sent 1000\nstep1_decision_seen 3100\nstep1_reply_seen 3300\napprove_pressed 9000\napproval_result_seen 9600\n' > "$d/runs/$k/marks.page"
+    printf 'mark press 100000\nmark first_failure 101000\nmark pickup 103900\nmark settle_end 113600\nmark diagnosis_end 114400\nmark delivered 114600\nreminder 150000 151000\nlate 0 1\nmark reminder_msg 200000\nmark result_msg 214000\ntokens 1520\n' > "$d/runs/$k/marks.server"
+    printf 'pass\n' > "$d/runs/$k/verdict"
+  done
+}
+
+setv() { # setv <state> <run> <page|server> <mark name or line key> <new line>: replaces the line that starts with the key
+  local f=$1/runs/$2/marks.$3 key=$4
+  grep -Ev "^(mark )?$key " "$f" > "$f.new"
+  printf '%s\n' "$5" >> "$f.new"
+  mv "$f.new" "$f"
+}
+
+# evaluates the state, merges the rows into its results; prints bounds_eval's FAIL lines
+evalstate() { # evalstate <state> [<planted id>]
+  state=$1
+  bounds_eval "$1" "${2:-}"
+  bounds_merge
+}
+
+t_bounds() {
+  local bad=0 d=$tmp/bd out id
+  # twenty runs within every limit, real: every limited row passes, the recorded rows record, only tell-now is not run.
+  mkruns "$d" 20 real
+  out=$(evalstate "$d")
+  eq "twenty runs within every limit print no FAIL line" "$out" ""
+  for id in notice pick-up settle-end diagnosis delivery decision approval-result reminder largest-request runs; do
+    eq "real: $id passes" "$(row_result "$d/results" "$id")" pass
+  done
+  for id in median first-reply reminder-result; do eq "real: $id is recorded" "$(row_result "$d/results" "$id")" recorded; done
+  eq "the only row that is not run is tell-now" "$(awk -F'|' '$2 == "not run" { print $1 }' "$d/results")" "tell-now"
+  eq "so a real run is not run, never a pass" "$(rehearsal_result real "$d/results")" "not run"
+  has "the runs row counts the runs" "$(grep '^runs|' "$d/results")" "runs|pass|20 of 20 runs passed the REL-2 specs"
+  has "notice names its rule" "$(grep '^notice|' "$d/results")" "within 60 s in 20 of 20 runs (19 of 20 needed); longest 14.6 s (run 1)"
+  has "pick-up names its longest" "$(grep '^pick-up|' "$d/results")" "within 15 s of the first failure in every run; longest 2.9 s (run 1)"
+  has "the median is recorded against the typical 35 s" "$(grep '^median|' "$d/results")" "median notice 14.6 s against the typical 35 s"
+  has "the reminder is signed" "$(grep '^reminder-result|' "$d/results")" "-14.0 s"
+  has "the tell-now row names Story 11.12" "$(grep '^tell-now|' "$d/results")" "Story 11.12 adds one to each run"
+  has "the runs table has its heading" "$(cat "$d/runs.table")" "### Runs"
+  has "and a row for the run" "$(cat "$d/runs.table")" "| 1 | pass | 14.6 s | 2.9 s | 12.6 s | 0.8 s | 0.2 s | 2.1 s | 2.3 s | 0.6 s | 1.0 s | -14.0 s | 1,520 |"
+  eq "the runs table has a row for each run" "$(grep -c '^| [0-9]* | pass |' "$d/runs.table")" 20
+
+  # dry: the met rows read dry run, never pass.
+  mkruns "$d" 1 dry
+  out=$(evalstate "$d")
+  for id in notice pick-up settle-end diagnosis delivery decision approval-result reminder largest-request; do
+    eq "dry: $id reads dry run" "$(row_result "$d/results" "$id")" "dry run"
+  done
+  eq "dry: the runs row passes" "$(row_result "$d/results" runs)" pass
+  eq "dry: the result is a dry run" "$(rehearsal_result dry "$d/results")" "dry run"
+
+  # pick-up 16.0 s in run 7 only
+  mkruns "$d" 20 real
+  setv "$d" 7 server pickup "mark pickup 117000"
+  out=$(evalstate "$d")
+  has "run 7's pick-up misses" "$out" "FAIL run 7 step incident bound pick-up 15 s: 16.0 s in run 7 from the first failure to the pick-up"
+  eq "the pick-up row fails" "$(row_result "$d/results" pick-up)" fail
+  eq "and the result fails" "$(rehearsal_result real "$d/results")" fail
+  lacks "no other bound misses" "$(printf '%s\n' "$out" | grep -v 'bound pick-up')" "FAIL"
+
+  # notice over 60 s in one run of 20 passes, in two it fails and names both
+  mkruns "$d" 20 real
+  setv "$d" 5 server press "mark press 40000"
+  out=$(evalstate "$d")
+  lacks "one run over 60 s of 20 is within the allowance" "$out" "bound notice"
+  eq "the notice row passes" "$(row_result "$d/results" notice)" pass
+  has "and says so" "$(grep '^notice|' "$d/results")" "1 run(s) over, within the allowance"
+  mkruns "$d" 20 real
+  setv "$d" 3 server press "mark press 40000"
+  setv "$d" 9 server press "mark press 40000"
+  out=$(evalstate "$d")
+  has "two runs over 60 s fail and are listed" "$out" "FAIL run 3,9 step incident bound notice 60 s in 19 of 20: 74.6 s in run 3, 74.6 s in run 9 from Break the feed to the notice on the phone"
+  eq "the notice row fails" "$(row_result "$d/results" notice)" fail
+  mkruns "$d" 1 real
+  setv "$d" 1 server press "mark press 40000"
+  out=$(evalstate "$d")
+  has "with one run, 19 of 20 allows no miss" "$out" "FAIL run 1 step incident bound notice 60 s in 19 of 20:"
+
+  # decision 10.1 s in two runs, approval result 2.1 s in two runs
+  mkruns "$d" 20 real
+  setv "$d" 2 page step1_decision_seen "step1_decision_seen 11100"
+  setv "$d" 4 page step1_decision_seen "step1_decision_seen 11100"
+  out=$(evalstate "$d")
+  has "decision 10.1 s in two runs fails" "$out" "FAIL run 2,4 step watch bound decision 10 s in 19 of 20: 10.1 s in run 2, 10.1 s in run 4"
+  mkruns "$d" 20 real
+  setv "$d" 6 page approval_result_seen "approval_result_seen 11100"
+  setv "$d" 8 page approval_result_seen "approval_result_seen 11100"
+  out=$(evalstate "$d")
+  has "approval result 2.1 s in two runs fails" "$out" "FAIL run 6,8 step approval bound approval-result 2 s in 19 of 20: 2.1 s in run 6, 2.1 s in run 8"
+  mkruns "$d" 20 real
+  setv "$d" 6 page approval_result_seen "approval_result_seen 11100"
+  out=$(evalstate "$d")
+  eq "approval result 2.1 s in one run of 20 passes" "$(row_result "$d/results" approval-result)" pass
+
+  # one reminder 11 s late; 10.0 s is within
+  mkruns "$d" 20 real
+  setv "$d" 11 server reminder "reminder 150000 161000"
+  out=$(evalstate "$d")
+  has "a reminder 11 s late fails" "$out" "FAIL run 11 step reminder bound reminder 10 s: 11.0 s in run 11 after its due time"
+  mkruns "$d" 20 real
+  setv "$d" 11 server reminder "reminder 150000 160000"
+  out=$(evalstate "$d")
+  eq "a reminder 10.0 s late is within" "$(row_result "$d/results" reminder)" pass
+  setv "$d" 11 server late "late 1 1"
+  out=$(evalstate "$d")
+  has "a reminder the product marked late fails" "$out" "FAIL run 11 step reminder bound reminder 10 s:"
+
+  # the largest request: 100000 fails, 99999 passes
+  mkruns "$d" 20 real
+  setv "$d" 12 server tokens "tokens 100000"
+  out=$(evalstate "$d")
+  has "100000 tokens fail" "$out" "FAIL run 12 step run bound largest-request 100000 tokens: 100,000 in run 12 input tokens in the largest request"
+  setv "$d" 12 server tokens "tokens 99999"
+  out=$(evalstate "$d")
+  eq "99999 tokens pass" "$(row_result "$d/results" largest-request)" pass
+  eq "with no FAIL line" "$out" ""
+
+  # a missing delivered mark, a missing page mark, a collector that gave nothing
+  mkruns "$d" 20 real
+  grep -v '^mark delivered ' "$d/runs/4/marks.server" > "$d/x" && mv "$d/x" "$d/runs/4/marks.server"
+  out=$(evalstate "$d")
+  has "a missing delivered mark fails the run's step" "$out" "FAIL run 4 step incident bound -: missing mark(s) delivered"
+  eq "the notice row fails" "$(row_result "$d/results" notice)" fail
+  eq "the delivery row fails" "$(row_result "$d/results" delivery)" fail
+  eq "the runs row fails" "$(row_result "$d/results" runs)" fail
+  eq "the result fails" "$(rehearsal_result real "$d/results")" fail
+  has "the table marks the run as failed" "$(cat "$d/runs.table")" "| 4 | fail |"
+  mkruns "$d" 3 real
+  grep -v '^approve_pressed ' "$d/runs/2/marks.page" > "$d/x" && mv "$d/x" "$d/runs/2/marks.page"
+  out=$(evalstate "$d")
+  has "a missing page mark names the page" "$out" "FAIL run 2 step approval bound -: missing mark(s) approve_pressed (left by the page)"
+  mkruns "$d" 2 real
+  : > "$d/runs/2/marks.server"
+  out=$(evalstate "$d")
+  has "no server mark fails the incident step" "$out" "FAIL run 2 step incident bound -: missing mark(s) press,first_failure,pickup,settle_end,diagnosis_end,delivered"
+  has "and the reminder step" "$out" "FAIL run 2 step reminder bound -: missing mark(s) reminder,reminder_msg,result_msg"
+  has "and the run step" "$out" "FAIL run 2 step run bound -: missing mark(s) tokens"
+  mkruns "$d" 1 real
+  printf 'missing session\n' >> "$d/runs/1/marks.server"
+  out=$(evalstate "$d")
+  has "a session that was not found is named" "$out" "FAIL run 1 step run bound -: missing mark(s) session"
+
+  # a failed verdict is the run's FAIL; no verdict file is a failure too
+  mkruns "$d" 20 real
+  printf 'fail\napproval|05-approval.spec.ts "x": failed\n' > "$d/runs/5/verdict"
+  out=$(evalstate "$d")
+  has "a failed verdict is printed as the run's FAIL" "$out" "FAIL run 5 step approval bound -: 05-approval.spec.ts \"x\": failed"
+  has "the runs row counts the failed run" "$(grep '^runs|' "$d/results")" "runs|fail|1 of 20 runs failed"
+  rm -f "$d/runs/6/verdict"
+  out=$(evalstate "$d")
+  has "a run with no verdict fails" "$out" "FAIL run 6 step run bound -: the run left no verdict"
+
+  # fewer runs than --runs: the runs row is not run
+  mkruns "$d" 3 real
+  printf 'mode=real\nruns=20\n' > "$d/options"
+  out=$(evalstate "$d")
+  eq "three runs of twenty: the runs row is not run" "$(row_result "$d/results" runs)" "not run"
+  eq "so a real result is not run" "$(rehearsal_result real "$d/results")" "not run"
+
+  # no run: no Runs table, and every bound row not run
+  mkruns "$d" 1 real
+  rm -rf "$d/runs/1"
+  out=$(evalstate "$d")
+  eq "a state with no run has an empty Runs table" "$(wc -c < "$d/runs.table" | tr -d ' ')" 0
+  eq "and its notice row is not run" "$(row_result "$d/results" notice)" "not run"
+
+  # the median, for odd and even N
+  mkruns "$d" 3 real
+  setv "$d" 1 server delivered "mark delivered 110000"
+  setv "$d" 2 server delivered "mark delivered 130000"
+  setv "$d" 3 server delivered "mark delivered 120000"
+  out=$(evalstate "$d")
+  has "the median of 10, 30 and 20 s is 20.0 s" "$(grep '^median|' "$d/results")" "median notice 20.0 s"
+  mkruns "$d" 4 real
+  setv "$d" 1 server delivered "mark delivered 110000"
+  setv "$d" 2 server delivered "mark delivered 120000"
+  setv "$d" 3 server delivered "mark delivered 130000"
+  setv "$d" 4 server delivered "mark delivered 140000"
+  out=$(evalstate "$d")
+  has "the median of 10, 20, 30 and 40 s is 25.0 s" "$(grep '^median|' "$d/results")" "median notice 25.0 s"
+
+  # planted: the one bound's limit is 0, on a dry state
+  mkruns "$d" 1 dry
+  out=$(evalstate "$d" pick-up)
+  has "the planted pick-up misses with its text" "$out" "FAIL run 1 step incident bound pick-up 0 s (planted): 2.9 s in run 1 from the first failure to the pick-up"
+  has "the row says planted" "$(grep '^pick-up|' "$d/results")" "(planted)"
+  eq "the planted pick-up row fails" "$(row_result "$d/results" pick-up)" fail
+  eq "the other rows are untouched" "$(row_result "$d/results" notice)" "dry run"
+  eq "the planted result fails" "$(rehearsal_result dry "$d/results")" fail
+  eq "which exits 1" "$(rehearsal_exit "$(rehearsal_result dry "$d/results")")" 1
+  out=$(evalstate "$d" largest-request)
+  has "a planted largest request is 0 tokens" "$out" "bound largest-request 0 tokens (planted):"
+  out=$(evalstate "$d")
+  eq "a report with no plant reads the same state as a dry run again" "$(rehearsal_result dry "$d/results")" "dry run"
+
+  # the RUN line of one run (the runs phase)
+  mkruns "$d" 1 dry
+  out=$(runs_feed "$d" 1 | awk -v mode=run "$BOUNDS_AWK")
+  eq "the RUN line gives every value in seconds" "$out" "RUN 1 notice=14.6 pick-up=2.9 settle-end=12.6 diagnosis=0.8 delivery=0.2 decision=2.1 approval-result=0.6 reminder=1.0 largest-request=1520 first-reply=2.3 reminder-result=-14.0"
+  grep -v '^mark delivered ' "$d/runs/1/marks.server" > "$d/x" && mv "$d/x" "$d/runs/1/marks.server"
+  out=$(runs_feed "$d" 1 | awk -v mode=run "$BOUNDS_AWK")
+  has "a missing mark is a dash in the RUN line" "$out" "notice=- pick-up=2.9 settle-end=12.6 diagnosis=0.8 delivery=-"
+  has "and a FAIL line" "$out" "FAIL run 1 step incident bound -: missing mark(s) delivered"
+  runs_feed "$d" 1 | awk -v mode=run "$BOUNDS_AWK" > /dev/null
+  eq "which exits 1" "${PIPESTATUS[1]}" 1
+  rm -rf "$d"
+  [ "$bad" -eq 0 ]
+}
+# The break: the pick-up limit is ten times too wide, so no run can miss it.
+b_bounds() {
+  BOUNDS_AWK=$(printf '%s' "$BOUNDS_AWK" | sed 's/lim\["pick-up"\] = 15000/lim["pick-up"] = 150000/')
+}
+
+# --- the timed run and the exec channel, on stub hosts and a stub npm ---
+
+t_timed_runs() {
+  local bad=0 out st rec sha d envf
+  stub_setup
+  sha=$(git -C "$syn" rev-parse release/1.0.0-rc1)
+  printf 'Write !,"CHK|x|1"\nHalt\n' > "$tmp/exec.in"
+
+  # order: runs and exec with no state are refused, and so after a failed install.
+  out=$(run_reh rh-tm0 runs)
+  has "runs with no state is refused" "$out" "REFUSED runs: the install phase of tag rh-tm0 has not finished"
+  has "with exit 2" "$out" "status 2"
+  out=$(REH_STDIN=$tmp/exec.in run_reh rh-tm0 exec)
+  has "exec with no state is refused" "$out" "REFUSED exec: the install phase of tag rh-tm0 has not finished"
+  has "with exit 2 too" "$out" "status 2"
+  sed 's/^volumes=0/volumes=1/' "$stubdir/clean.probe" > "$stubdir/clean.volume"
+  out=$(STUB_CLEAN_PROBE=$stubdir/clean.volume run_reh rh-tm1 install --version 1.0.0 --rc 1 --record "$tmp/rec-tm1.md")
+  has "the install fails on a leftover volume" "$out" "status 1"
+  out=$(run_reh rh-tm1 runs)
+  has "runs after a failed install is refused" "$out" "REFUSED runs: the install step hosts did not pass"
+  has "with exit 2 as well" "$out" "status 2"
+  out=$(REH_STDIN=$tmp/exec.in run_reh rh-tm1 exec)
+  has "exec after a failed install is refused" "$out" "REFUSED exec: the install step hosts did not pass"
+  run_reh rh-tm1 down > /dev/null
+
+  # a passed install, the exec channel, then run 1.
+  rec=$tmp/rec-timed.md
+  out=$(run_reh rh-tm install --version 1.0.0 --rc 1 --record "$rec")
+  has "the install passes" "$out" "status 0"
+  st=$tmp/runs/ocutalon-rehearsal-rh-tm
+  eq "the origin of the clean host is kept for the runs" "$(cat "$st/origin")" "http://clean-web-9.invalid:52801"
+  eq "and the printed user" "$(cat "$st/user")" "ocu-user"
+
+  : > "$stublog"
+  out=$(REH_STDIN=$tmp/exec.in run_reh rh-tm exec)
+  has "exec prints the session's CHK line" "$out" "CHK|x|1"
+  has "exec exits 0" "$out" "status 0"
+  has "exec goes through the compose exec of the install" "$(cat "$stublog")" "ARG cd ocutalon-rehearsal/candidate && docker compose exec -T iris iris session IRIS -U OCUTALON"
+  has "with the script as stdin" "$(cat "$stublog")" "stdin=$(wc -c < "$tmp/exec.in" | tr -d ' ')"
+  eq "exec counts nothing without a run number" "$([ -e "$st/runs" ] && echo there || echo none)" none
+  eq "exec writes nothing to the output log" "$(grep -c 'CHK|x' "$st/output.log")" 0
+  out=$(REH_STDIN=$tmp/exec.in run_reh rh-tm exec USER2)
+  has "a namespace is passed to -U" "$(cat "$stublog")" "iris session IRIS -U USER2"
+  for d in bad_ns lower 2NS "A B" "" "$(printf 'OCUTALON\nreboot')"; do
+    out=$(REH_STDIN=$tmp/exec.in run_reh rh-tm exec "$d")
+    has "the namespace '$d' is refused" "$out" "status 2"
+  done
+  out=$(REH_STDIN=$tmp/exec.in run_reh rh-tm exec A B)
+  has "two arguments are refused" "$out" "status 2"
+  lacks "no env value in any argv of exec" "$(cat "$stublog")" "planted-env-value-123456"
+  out=$(OCUTALON_REHEARSAL_RUN=3 REH_STDIN=$tmp/exec.in run_reh rh-tm exec)
+  eq "exec counts its call for the run in the environment" "$(cat "$st/runs/3/exec.count")" 1
+  out=$(OCUTALON_REHEARSAL_RUN=3 REH_STDIN=$tmp/exec.in run_reh rh-tm exec)
+  eq "and again" "$(cat "$st/runs/3/exec.count")" 2
+  rm -rf "$st/runs"
+
+  : > "$tmp/npm.log"
+  out=$(run_reh rh-tm runs)
+  has "run 1 passes with the summary's line" "$out" "PASS run 1 demo path: DEMO-PATH 8 of 8 steps ran (0 partly skipped), 0 skipped, 0 failed; floor 1 of 1 passed"
+  has "and one RUN line" "$out" "RUN 1 notice=14.6 pick-up=2.9 settle-end=12.6 diagnosis=0.8 delivery=0.2 decision=2.1 approval-result=0.6 reminder=1.0 largest-request=1520 first-reply=2.3 reminder-result=-14.0"
+  has "the phase exits 0" "$out" "status 0"
+  lacks "no FAIL line" "$out" "FAIL"
+  d=$st/runs/1
+  for f in report.json e2e.log summary.log marks.page marks.server verdict exec.count server.start; do
+    eq "run 1 keeps $f" "$([ -e "$d/$f" ] && echo there || echo missing)" there
+  done
+  eq "the specs read once through exec" "$(cat "$d/exec.count")" 1
+  eq "the verdict is pass" "$(cat "$d/verdict")" pass
+  eq "the server start is the stub's" "$(cat "$d/server.start")" "2026-11-01 10:00:00.000"
+  has "the page marks are the stub's" "$(cat "$d/marks.page")" "approval_result_seen 9600"
+  has "the server marks come from the collector" "$(cat "$d/marks.server")" "mark delivered 114600"
+  has "the reminder line" "$(cat "$d/marks.server")" "reminder 150000 151000"
+  has "the late line" "$(cat "$d/marks.server")" "late 0 1"
+  has "the tokens line" "$(cat "$d/marks.server")" "tokens 1520"
+  eq "npm is called for the demo-path project of web" "$(cat "$tmp/npm.log")" "--prefix web run e2e:demo-path"
+  envf=$(cat "$tmp/npm.env")
+  has "Playwright gets the install's origin" "$envf" "URL=http://clean-web-9.invalid:52801"
+  has "the real model in real mode" "$envf" "MODEL=real"
+  has "the default timeout" "$envf" "TIMEOUT=480000"
+  has "the run number" "$envf" "RUN=1"
+  has "the tag" "$envf" "TAG=rh-tm"
+  has "no model key" "$envf" "KEY=unset"
+  has "the exec channel is this script's exec" "$envf" "EXEC=bash '$(cd "$syn" && pwd)/release/rehearse.sh' exec"
+  has "the marks file is the run's" "$envf" "MARKS=$d/marks.page"
+  has "the collector gets the server start" "$(cat "$tmp/collector.in")" 'Set start="2026-11-01 10:00:00.000"'
+  has "and the printed user" "$(cat "$tmp/collector.in")" '"ocu-user"'
+  lacks "no placeholder is left" "$(cat "$tmp/collector.in")" "@"
+  eq "run 1's output is in the output log" "$(grep -c 'PASS run 1 demo path' "$st/output.log")" 1
+  has "the e2e output is in the output log" "$(cat "$st/output.log")" "stub npm: 1 test file ran"
+
+  # a second runs call is refused and starts nothing
+  : > "$tmp/npm.log"
+  out=$(run_reh rh-tm runs)
+  has "run 2 is refused naming Story 11.12" "$out" "REFUSED runs: run 1 exists; run 2 and later (Run again and the replay rule) come with Story 11.12"
+  has "with exit 2" "$out" "status 2"
+  eq "nothing started" "$(wc -c < "$tmp/npm.log" | tr -d ' ')" 0
+  eq "no second run folder" "$([ -e "$st/runs/2" ] && echo there || echo none)" none
+
+  # report: the section holds the rows and the table, replaces itself, and a real run with one of 20 runs is not run
+  out=$(run_reh rh-tm report)
+  has "report ends with RESULT not run" "$out" "RESULT not run"
+  has "and exits 1" "$out" "status 1"
+  lacks "no FAIL line for a clean run" "$out" "FAIL"
+  has "the Specs line" "$(cat "$rec")" "Specs: the REL-2 specs (web/e2e/demo-path) at $sha"
+  has "the runs row counts the runs" "$(cat "$rec")" "| demo path runs | not run | 1 of 20 runs done; run 2 and later come with Story 11.12 |"
+  has "a met bound reads pass in real mode" "$(cat "$rec")" "| notice | pass | within 60 s in 1 of 1 runs (19 of 20 needed); longest 14.6 s (run 1) |"
+  has "the tell-now row names Story 11.12" "$(cat "$rec")" "| tell-now | not run | the demo path has no tell-now item yet; Story 11.12 adds one to each run |"
+  has "the Runs table is in the section" "$(cat "$rec")" "### Runs"
+  has "with the run's row" "$(cat "$rec")" "| 1 | pass | 14.6 s | 2.9 s | 12.6 s | 0.8 s | 0.2 s | 2.1 s | 2.3 s | 0.6 s | 1.0 s | -14.0 s | 1,520 |"
+  out=$(run_reh rh-tm report)
+  eq "a second report keeps one section" "$(grep -c '^## Clean-machine rehearsal$' "$rec")" 1
+  eq "and one Runs table" "$(grep -c '^### Runs$' "$rec")" 1
+  eq "and one tell-now row" "$(grep -c '^| tell-now |' "$rec")" 1
+  eq "install stays once in the output log" "$(grep -c '^PASS install ' "$st/output.log")" 1
+  out=$(run_reh rh-tm report --plant pick-up)
+  has "--plant in real mode is refused" "$out" "REFUSED report: --plant is for dry runs only"
+  has "with exit 2" "$out" "status 2"
+  out=$(run_reh rh-tm report --plant bogus)
+  has "an unknown bound id is refused" "$out" "status 2"
+  out=$(run_reh rh-tm report extra)
+  has "report takes only --plant" "$out" "status 2"
+  run_reh rh-tm down > /dev/null
+
+  # a failing report: the failed step is named, the collector still ran, and report fails
+  rec=$tmp/rec-timed-fail.md
+  run_reh rh-tf install --version 1.0.0 --rc 1 --record "$rec" > /dev/null
+  st=$tmp/runs/ocutalon-rehearsal-rh-tf
+  out=$(STUB_NPM_REPORT=$bindir/report.fail.json run_reh rh-tf runs)
+  has "a failed spec fails the run, naming its step" "$out" "FAIL run 1 step approval bound -: 05-approval.spec.ts \"approval works\": failed"
+  lacks "there is no PASS line" "$out" "PASS run 1"
+  has "the phase exits 1" "$out" "status 1"
+  has "the collector still ran" "$(cat "$st/runs/1/marks.server")" "mark delivered 114600"
+  has "and the RUN line is printed" "$out" "RUN 1 notice=14.6"
+  eq "the verdict is fail" "$(sed -n 1p "$st/runs/1/verdict")" fail
+  has "and names the step" "$(sed -n 2p "$st/runs/1/verdict")" "approval|05-approval.spec.ts"
+  out=$(run_reh rh-tf report)
+  has "report prints the failed run's FAIL again" "$out" "FAIL run 1 step approval bound -: 05-approval.spec.ts"
+  has "the result is fail" "$out" "RESULT fail"
+  has "report exits 1" "$out" "status 1"
+  has "the runs row fails" "$(cat "$rec")" "| demo path runs | fail | 1 of 1 runs failed"
+  run_reh rh-tf down > /dev/null
+
+  # a run that reads nothing through exec
+  rec=$tmp/rec-timed-noexec.md
+  run_reh rh-tn install --version 1.0.0 --rc 1 --record "$rec" > /dev/null
+  out=$(STUB_NPM_NOEXEC=1 run_reh rh-tn runs)
+  has "a run that read nothing through exec fails" "$out" "FAIL run 1 step run bound -: the specs read nothing through the rehearsal's exec channel"
+  lacks "and does not pass" "$out" "PASS run 1"
+  has "with exit 1" "$out" "status 1"
+  run_reh rh-tn down > /dev/null
+
+  # a missing mark from the collector fails the run too
+  rec=$tmp/rec-timed-mark.md
+  run_reh rh-tk install --version 1.0.0 --rc 1 --record "$rec" > /dev/null
+  grep -v 'delivered' "$bindir/collector.out" > "$bindir/collector.nodelivered"
+  out=$(STUB_COLLECTOR_OUT=$bindir/collector.nodelivered run_reh rh-tk runs)
+  has "a missing delivered mark fails the run" "$out" "FAIL run 1 step incident bound -: missing mark(s) delivered (read from the server's records)"
+  lacks "and the run does not pass" "$out" "PASS run 1"
+  has "the RUN line has a dash" "$out" "notice=-"
+  run_reh rh-tk down > /dev/null
+
+  # a collector that stops before its done line fails the run
+  rec=$tmp/rec-timed-trunc.md
+  run_reh rh-tt install --version 1.0.0 --rc 1 --record "$rec" > /dev/null
+  grep -v 'CHK|done' "$bindir/collector.out" > "$bindir/collector.nodone"
+  out=$(STUB_COLLECTOR_OUT=$bindir/collector.nodone run_reh rh-tt runs)
+  has "a collector without its done line fails the run" "$out" "FAIL run 1 step run bound -: missing mark(s) collector"
+  lacks "and the run does not pass" "$out" "PASS run 1"
+  run_reh rh-tt down > /dev/null
+
+  # the clean host's address never reaches a FAIL line, and a host name that sits in the replacement text still ends
+  rec=$tmp/rec-timed-host.md
+  run_reh rh-th install --version 1.0.0 --rc 1 --record "$rec" > /dev/null
+  sed 's#approval works#approval works at http://clean-web-9.invalid:52801#' "$bindir/report.fail.json" > "$bindir/report.host.json"
+  out=$(STUB_NPM_REPORT=$bindir/report.host.json run_reh rh-th runs)
+  has "a failure reason is printed" "$out" "FAIL run 1 step approval bound -: 05-approval.spec.ts"
+  lacks "without the clean host's address" "$out" "clean-web-9.invalid"
+  lacks "in the verdict either" "$(cat "$tmp/runs/ocutalon-rehearsal-rh-th/runs/1/verdict")" "clean-web-9.invalid"
+  run_reh rh-th down > /dev/null
+  mkdir -p "$tmp/scrub"
+  printf 'mode=real\n' > "$tmp/scrub/options"
+  printf 'http://host:52801\n' > "$tmp/scrub/origin"
+  out=$(state=$tmp/scrub; printf 'goto http://host:52801/x; the host is host\n' | scrub_origin)
+  eq "a host name inside the replacement text is replaced once per occurrence" "$out" "goto http://<clean host>:52801/x; the <clean host> is <clean host>"
+
+  # the whole run command: install, runs (the second refused), report, down
+  out=$(run_reh rh-trun run --version 1.0.0 --rc 1 --record "$tmp/rec-trun.md")
+  has "run does the timed run" "$out" "PASS run 1 demo path"
+  has "then reports" "$out" "RESULT not run"
+  has "then tears down" "$out" "TEARDOWN"
+  has "and exits 1 for not run" "$out" "status 1"
+  [ "$bad" -eq 0 ]
+}
+
+# The guards of a real rehearsal and the refusals of the new options.
+t_guards() {
+  local bad=0 out
+  stub_setup
+  out=$(run_reh rh-g1 plan --version 1.0.0 --rc 1 --record "$tmp/g.md")
+  has "a local driver and the committed specs: plan exits 0" "$out" "status 0"
+  mkconf "$cfgdir"
+  out=$(run_reh rh-g2 plan --version 1.0.0 --rc 1 --record "$tmp/g.md")
+  has "a driver that is not local is refused in plan" "$out" "REFUSED REHEARSAL_DRIVER_SSH must be local"
+  has "with exit 2" "$out" "status 2"
+  lacks "without its value" "$out" "driver-host-3"
+  out=$(run_reh rh-g3 install --version 1.0.0 --rc 1 --record "$tmp/g.md")
+  has "and in install" "$out" "REFUSED REHEARSAL_DRIVER_SSH must be local"
+  out=$(run_reh rh-g4 run --version 1.0.0 --rc 1 --record "$tmp/g.md")
+  has "and in run" "$out" "REFUSED REHEARSAL_DRIVER_SSH must be local"
+  has "with exit 2 in run" "$out" "status 2"
+  eq "nothing was started" "$(ls "$tmp/runs" | wc -l | tr -d ' ')" 0
+  eq "and no host was called" "$(wc -c < "$stublog" | tr -d ' ')" 0
+  mkconf_local "$cfgdir"
+
+  # the spec tree: a changed file, a new file, a changed config, all against the candidate commit
+  mkdir -p "$syn/web/e2e"
+  printf 'one\n' > "$syn/web/e2e/a.spec.ts"
+  printf '{}\n' > "$syn/web/package.json"
+  git -C "$syn" add -A
+  git -C "$syn" -c user.name=t -c user.email=t@example.invalid -c commit.gpgsign=false commit -q -m "web"
+  out=$(run_reh rh-g5 plan --version 1.0.0 --rc 1 --record "$tmp/g.md")
+  has "the committed spec tree passes" "$out" "status 0"
+  printf 'two\n' > "$syn/web/e2e/a.spec.ts"
+  out=$(run_reh rh-g6 plan --version 1.0.0 --rc 1 --record "$tmp/g.md")
+  has "a changed spec file is refused, naming the paths" "$out" "REFUSED the spec tree (web/e2e web/playwright.config.ts web/package.json web/package-lock.json) differs from the candidate commit"
+  has "with exit 2" "$out" "status 2"
+  git -C "$syn" checkout -q -- web/e2e/a.spec.ts
+  printf 'new\n' > "$syn/web/e2e/b.spec.ts"
+  out=$(run_reh rh-g7 install --version 1.0.0 --rc 1 --record "$tmp/g.md")
+  has "a new spec file is refused" "$out" "differs from the candidate commit"
+  rm -f "$syn/web/e2e/b.spec.ts"
+  printf '{"x":1}\n' > "$syn/web/package.json"
+  out=$(run_reh rh-g8 run --version 1.0.0 --rc 1 --record "$tmp/g.md")
+  has "a changed package.json is refused in run" "$out" "differs from the candidate commit"
+  has "with exit 2 in run" "$out" "status 2"
+  git -C "$syn" checkout -q -- web/package.json
+  out=$(run_reh rh-g9 plan --version 1.0.0 --rc 1 --record "$tmp/g.md")
+  has "restored, the plan passes again" "$out" "status 0"
+
+  # --runs: below 20 in real mode, malformed, and the dry range; --plant belongs to report and run
+  out=$(run_reh rh-g10 plan --version 1.0.0 --rc 1 --runs 5 --record "$tmp/g.md")
+  has "--runs 5 is refused in a real plan" "$out" "REFUSED --runs 5 is below 20"
+  has "with exit 2" "$out" "status 2"
+  out=$(run_reh rh-g11 install --version 1.0.0 --rc 1 --runs 5 --record "$tmp/g.md")
+  has "and in install" "$out" "REFUSED --runs 5 is below 20"
+  out=$(run_reh rh-g12 run --version 1.0.0 --rc 1 --runs 19 --record "$tmp/g.md")
+  has "and in run" "$out" "REFUSED --runs 19 is below 20"
+  out=$(run_reh rh-g13 plan --version 1.0.0 --rc 1 --runs 20 --record "$tmp/g.md")
+  has "--runs 20 is accepted" "$out" "status 0"
+  for d in 0 x 05 1.5 -3; do
+    out=$(run_reh rh-g14 plan --version 1.0.0 --rc 1 --runs "$d" --record "$tmp/g.md")
+    has "--runs '$d' is refused" "$out" "REFUSED --runs must be a positive whole number"
+  done
+  out=$(run_reh rh-g15 plan --rc 1 --dry-run --runs 21)
+  has "--runs 21 is refused in a dry run" "$out" "REFUSED --runs must be 1 to 20 in a dry run"
+  out=$(run_reh rh-g16 plan --rc 1 --dry-run --runs 20)
+  has "--runs 20 is accepted in a dry run" "$out" "status 0"
+  out=$(run_reh rh-g17 plan --version 1.0.0 --rc 1 --plant pick-up --record "$tmp/g.md")
+  has "--plant is refused by plan" "$out" "REFUSED --plant is taken by report and run"
+  out=$(run_reh rh-g18 install --version 1.0.0 --rc 1 --plant pick-up --record "$tmp/g.md")
+  has "and by install" "$out" "REFUSED --plant is taken by report and run"
+  out=$(run_reh rh-g19 run --version 1.0.0 --rc 1 --plant pick-up --record "$tmp/g.md")
+  has "--plant in a real run is refused" "$out" "REFUSED --plant is for dry runs only"
+  has "with exit 2" "$out" "status 2"
+  out=$(run_reh rh-g20 run --version 1.0.0 --rc 1 --plant bogus --record "$tmp/g.md")
+  has "an unknown bound id is refused" "$out" "REFUSED --plant 'bogus' is not a bound id with a limit"
+  eq "none of these started a state" "$(ls "$tmp/runs" | wc -l | tr -d ' ')" 0
   [ "$bad" -eq 0 ]
 }
 
@@ -1059,6 +1650,41 @@ t_dry_down() {
   [ "$bad" -eq 0 ]
 }
 
+# report and report --plant on a dry state with a run: the plant reaches the evaluation through the command.
+t_dry_report() {
+  local bad=0 d=$tmp/drep tag=rh-drep st out rec
+  rm -rf "$d"
+  mkdir -p "$d"
+  st=$d/ocutalon-rehearsal-$tag
+  rec=$d/rec.md
+  mkruns "$st" 1 dry
+  env_set "$st/options" version 1.0.0
+  env_set "$st/options" rc 1
+  env_set "$st/options" branch rehearsal/stand-in
+  env_set "$st/options" cand_sha 1111111111111111111111111111111111111111
+  env_set "$st/options" base_sha 2222222222222222222222222222222222222222
+  env_set "$st/options" started 2026-11-01T10:00:00Z
+  env_set "$st/options" record "$rec"
+  printf 'Linux (Ubuntu 24.04.1 LTS), x86_64, 15.6 GiB memory; Node.js absent\n' > "$st/machine.clean"
+  printf 'macOS 26.0.1, arm64, 64.0 GiB memory\n' > "$st/machine.driver"
+  printf 'done 0\n' > "$st/phase.install"
+  mkdir -p "$st/standin"
+  printf 'SOME_SETTING=plain\n' > "$st/standin/env"
+  out=$(TMPDIR=$d OCUTALON_RUN_TAG=$tag bash "$root/release/rehearse.sh" report < /dev/null 2>&1; echo "status $?")
+  has "a dry report with a run reads dry run" "$out" "RESULT dry run"
+  has "and exits 3" "$out" "status 3"
+  has "a met bound reads dry run, never pass" "$(cat "$rec")" "| pick-up | dry run |"
+  out=$(TMPDIR=$d OCUTALON_RUN_TAG=$tag bash "$root/release/rehearse.sh" report --plant pick-up < /dev/null 2>&1; echo "status $?")
+  has "the plant reaches the evaluation through report" "$out" "FAIL run 1 step incident bound pick-up 0 s (planted):"
+  has "the planted report fails" "$out" "RESULT fail"
+  has "and exits 1" "$out" "status 1"
+  has "the record says planted" "$(cat "$rec")" "(planted)"
+  out=$(TMPDIR=$d OCUTALON_RUN_TAG=$tag bash "$root/release/rehearse.sh" report --plant "notice pick-up" < /dev/null 2>&1; echo "status $?")
+  has "a plant of two ids is refused" "$out" "status 2"
+  rm -rf "$d"
+  [ "$bad" -eq 0 ]
+}
+
 # --- static ---
 
 SCRIPTS="release/rehearse.sh release/lib-release.sh"
@@ -1085,6 +1711,16 @@ t_static() {
     printf '%s\n' "$out"
     bad=1
   fi
+  # The collector only reads: no global set, no Kill, no save, and no statement that writes rows.
+  out=$(printf '%s\n' "$COLLECTOR" | grep -inE '(^|[^A-Za-z])(Set[[:space:]]+\^|Kill|%Save|%Delete|%DeleteId|INSERT|UPDATE|DELETE|DROP|TRUNCATE|ALTER)([^A-Za-z]|$)' | cut -c1-60)
+  if [ -n "$out" ]; then
+    printf 'the collector writes: %s\n' "$out"
+    bad=1
+  fi
+  if ! printf '%s\n' "$COLLECTOR" | grep -q 'SELECT'; then
+    echo "the collector holds no SELECT"
+    bad=1
+  fi
   [ "$bad" -eq 0 ]
 }
 # The break: a scripts list that holds a file with every violation.
@@ -1094,6 +1730,7 @@ b_static() {
     printf 'echo caf\303\251\n'
   } > "$tmp/bad-static.sh"
   SCRIPTS="$tmp/bad-static.sh"
+  COLLECTOR=$(printf 'Set ^Probe(1)=2\nDo obj.%%Save()\n')
 }
 
 rule config t_config b_config
@@ -1106,8 +1743,12 @@ rule dry-section t_dry_section b_dry_section
 rule stub-runs t_stub_runs
 rule phase-order t_phase_order
 rule candidate t_candidate
+rule bounds t_bounds b_bounds
+rule timed-runs t_timed_runs
+rule guards t_guards
 rule real-tree t_real
 rule dry-down t_dry_down
+rule dry-report t_dry_report
 rule static t_static b_static
 
 if [ "$fails_total" -ne 0 ]; then

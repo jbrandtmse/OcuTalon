@@ -2,14 +2,36 @@
 title: 'Story 11.11: The rehearsal runner times the demo path and checks every bound (one timed run, the splits and every bound; dry runs on throwaways)'
 type: 'feature'
 created: '2026-10-31'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '5e6e7a528527c4cdfdff6e124aa75ce171c6aa36'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-11-context.md'
   - '{project-root}/_bmad-output/implementation-artifacts/spec-11-3-the-clean-machine-rehearsal-installs-and-times-the-demo-path.md'
 warnings: ['oversized']
-deferred: []
+deferred:
+  - summary: >-
+      The collector finds the reminder's phone message by the reminder row's Text inside the phone message text and the result message by "went through."; both were measured on the CI mock only, so on the real model a different rendering makes a run fail with a missing reminder_msg mark rather than pass.
+    evidence: |-
+      Story 38.2's first real run (or Story 11.12) confirms the match.
+    location: >-
+      release/rehearse.sh (COLLECTOR)
+    severity: low
+  - summary: >-
+      The collector's queries and the page-mark probes (the strip's .reason count, the newest reply's .text, the status wording "Approved from the simulated phone at") run only in the manual live dry run; no CI unit executes them, so a product schema, message-body or wording change breaks the rehearsal's marks unseen until someone runs a dry run.
+    evidence: |-
+      Every hermetic test answers the collector with a canned file, and every CI browser unit runs with OCUTALON_E2E_MARKS unset, so markWhen never calls its probe there.
+    location: >-
+      release/rehearse.sh (COLLECTOR), web/e2e/support/demo-path.ts
+    severity: medium (unverified)
+  - summary: >-
+      docker/tests/test-rehearsal.sh takes about 36 s alone (48 s inside ci/checks.sh) against the roughly 5 to 10 s the CI budget note inferred.
+    evidence: |-
+      The stub installs, the 20-run states and the bounds rule that runs twice for its synthetic break. It stays in the hosted checks job; Story 11.12 may share the 20-run states if the job needs the time.
+    location: >-
+      docker/tests/test-rehearsal.sh
+    severity: low
 ---
 
 <intent-contract>
@@ -263,6 +285,43 @@ The repeats (runs 2 to N with Run again and the replay rule) and the per-run tel
 
 ## Review Triage Log
 
+### 2026-11-01 - Review pass
+- verdicts: 33 findings - high 0, medium 10, low 23, false 0, maybe-false 0
+- findings:
+  - `[medium]` `[patch]` Blind: FAIL reasons from summary.log bypass the host scrub - the reason was printed and written to `verdict` unscrubbed; fixed: summary.log is rewritten through `scrub_origin` before the FAIL lines are read; self-test case added (a failing report that names the host).
+  - `[low]` `[patch]` Blind: install-only report gets a header-only Runs table - `bounds_eval` now empties `runs.table` when no run exists; self-test case added.
+  - `[medium]` `[patch]` Blind: `runs` does not re-apply the spec-tree guard (c_sha unset) - `runtime_prepare guard` takes the saved `cand_sha` for `runs`; the guarded paths stay the spec's four.
+  - `[medium]` `[patch]` Blind: the "missing collector" marker is never read - the bounds awk now fails the run's step (`missing mark(s) collector`); self-test case added.
+  - `[low]` `[reject]` Blind: no wall-clock bound on the remote calls - the bound is Playwright's globalTimeout (OCUTALON_E2E_TIMEOUT_MS), which the header states; an ssh hang is `host_run`'s concern and not this story's.
+  - `[low]` `[reject]` Blind: operator environment passes into the browser run - the run's output goes through the secrets scan and no value is added by the run; `wontfix-accepted`, reopen_if a rehearsal host's environment holds a variable the scan cannot know.
+  - `[low]` `[reject]` Blind: the collector is brittle (text matches, hard-coded names, no real-IRIS test) - the text match is already in `deferred:` (first item) and the live dry run exercises the rest.
+  - `[low]` `[patch]` Blind: leftover `rargs` and an unused `step` - `rargs` removed; `step` is a field of the bounds line that `read` needs.
+  - `[low]` `[patch]` Blind: the `markWhen` gap assertion can flake - the upper bound is now 2000 ms.
+  - `[low]` `[reject]` Blind: dry `--runs` above 1 prints a refusal - the spec's Decided in-stage 10 and the matrix make 1 to 20 valid in a dry run; the repeats are Story 11.12's.
+  - `[medium]` `[patch]` Edge: `scrub_origin` never ends when the host name occurs in `<clean host>` - rewritten as a single pass; self-test case added (host name `host`).
+  - `[medium]` `[patch]` Edge: FAIL reasons keep the host - same root cause as the first row.
+  - `[medium]` `[patch]` Edge: the spec-tree guard is skipped in `runs` and `exec` - same root cause as the third row; `exec` is not guarded (it runs 20+ times per run).
+  - `[low]` `[patch]` Edge: `plant_ok` matches a substring (`notice pick-up`) - exact word match; covered by the dry-report case.
+  - `[low]` `[patch]` Edge: a namespace with a newline passes the line-wise grep - `namespace_ok` matches the whole string in the C locale; case added to the refusal list.
+  - `[low]` `[patch]` Edge: `OCUTALON_E2E_TIMEOUT_MS=0` disables Playwright's timeout - zero and leading-zero values fall back to 480000.
+  - `[medium]` `[patch]` Edge: the missing-collector marker is never read - same root cause as the fourth row.
+  - `[low]` `[reject]` Edge: first-wins pairing of `approve_pressed` after a timed-out result - `wontfix-theoretical`: the REL-2 specs press Approve once per run; a second press would show as a spec failure.
+  - `[low]` `[reject]` Edge: `step1_reply_seen` is marked at once if an earlier reply exists - `by-design`: the spec fixes the probe as "the newest reply's .text is non-empty", and run 1 starts from a fresh install.
+  - `[low]` `[reject]` Edge: origin and user are saved although the host is a configuration value - `by-design`: the state folder is outside the repository (umask 077), the output is scrubbed and scanned, and the spec says so.
+  - `[low]` `[reject]` Edge: "bounded by OCUTALON_E2E_TIMEOUT_MS" claim - same as the fifth row.
+  - `[low]` `[reject]` Edge: the static collector scan misses abbreviated writes (`S ^G`) - a keyword scan is a guard, not a parser; the collector is written by this story and the live dry run reads only.
+  - `[medium]` `[defer]` Gap: the collector's queries are never executed by a hermetic test - recorded under `deferred:` (second item), marked unverified; the live dry run is the proof the spec names.
+  - `[medium]` `[defer]` Gap: the page-mark probes run only in the manual dry run - grouped with the previous row.
+  - `[medium]` `[patch]` Gap: `report --plant` wiring on a dry state has no hermetic test - new rule `dry-report` runs `report` and `report --plant pick-up` on a dry state through the command.
+  - `[low]` `[reject]` Gap: dry-mode `runs` and `exec` (`model=mock`, stand-in reload) are not pinned by the self-test - `wontfix-accepted`, reopen_if the dry run's model stops being the mock; the live dry run covers it.
+  - `[low]` `[reject]` Gap: `existsSync` in the off tests is vacuous - the probe count and the elapsed time carry those cases.
+  - `[low]` `[patch]` Gap: wall-clock thresholds in the node test - loosened (see the `markWhen` row above).
+  - `[low]` `[reject]` Gap: `timed-runs` and `guards` have no synthetic break - the header's claim is for the rules that have one; the AC mutations cover them (Verification).
+  - `[low]` `[patch]` Gap: `scrub_origin` has no test - added with the host-name case.
+  - `[low]` `[reject]` Gap: real-mode `run` prints a spurious refusal for run 2 - same as the dry `--runs` row.
+  - `[low]` `[reject]` Gap: the spec's Auto Run Result read ready-for-dev - rewritten at finalize.
+  - `[low]` `[reject]` Intent: the live dry-run surface is not exercised by the diff's tests - the diff excluded the spec; the live dry run and Task 0 are recorded in Verification and were run again after the patches.
+
 ## Design Notes
 
 **Architecture decisions.**
@@ -386,6 +445,14 @@ Rows replacing and following 11.3's `demo path runs` row (dry run, N = 1):
   - No spec presses Run again outside `web/e2e/floor/guide.spec.ts:600-650`.
 - Story 11.5 then composes 11.3, 11.11 and 11.12.
 
+**Decided in-stage (implement).**
+11. **The two page marks of the Approve press sit in `pressOnPhone`**, the click that `approveOnPhone` and `rejectOnPhone` share, guarded by `action === 'approve'`, because the click is not in `approveOnPhone` itself. `approve_pressed` is the line before the Approve click and `approval_result_seen` follows the click and comes before the first IRIS read (the node test pins both positions).
+12. **The collector takes the first record at or after the run's server start**, not the newest: the REL-2 project also holds 07-failure-paths and 08-quiet-outcomes, which press Break the feed again and open later incidents, so the newest would be 07's. Run 1 is 04's press, 04's incident and 03's reminder.
+13. **Marks, rows and files.** `marks.server` holds `mark <name> <ms>`, `reminder <due ms> <fired ms>`, `late <n> <n>`, `tokens <n>` and `missing <name>`; `marks.page` holds `<name> <ms>`; `verdict` is `pass`, or `fail` and then `<step>|<detail>`. The collector's last line `CHK|done|1` proves it ran to its end (a script without it is tried again, three tries 5 s apart). A `recorded` row counts as met in the Result rule; `runs` is a row of its own (`not run` below `--runs`, `fail` when a run failed or lacks a mark). The median is taken in awk (insertion sort), not through `sort -n`, because the runs are few.
+14. **Real-mode stub tests moved to a local driver.** The new real-mode guard refuses a driver that is not local, so 11.3's stub runs use a local driver (a stub `curl` on `PATH` stands in for the page), and their ssh-call counts fell from 7 to 5.
+15. **The clean host's address is scrubbed from the specs' text in real mode** (`<clean host>`) before it reaches `output.log`, because it is a configuration value that the secrets scan would otherwise find in a Playwright error message.
+16. **A missing mark fails the run and its rows, whatever the rule.** A bound with "19 of 20" allows misses only of measured values; a run that could not be measured fails the row.
+
 **Ledger (Rule 17).** This story owns no entries.
 
 **Contended paths (U14).**
@@ -394,9 +461,9 @@ Rows replacing and following 11.3's `demo path runs` row (dry run, N = 1):
 - **New files:** `web/e2e/support/rehearsal.ts`, `web/scripts/rehearsal-support.test.mjs`.
 - **Changed files:** `release/rehearse.sh`, `docker/tests/test-rehearsal.sh` (this epic's), `web/e2e/support/iris.ts` and `web/e2e/support/demo-path.ts` (not contended).
 
-**CI budget (REL-4; inference until the next run).**
+**CI budget (REL-4; measured at implement).**
 - No unit is added and `ci/units.sh` is unchanged.
-- The hosted `checks` job (`test-rehearsal.sh`) takes about +5 to 10 s, and the hosted `web` job one more node test file (under 1 s).
+- The hosted `checks` job (`test-rehearsal.sh`) takes about 36 s alone and 48 s inside `ci/checks.sh` (11.3's was about 18 s), and the hosted `web` job one more node test file (about 1 s).
 - The browser units are unchanged, because the helpers are inert there. A `web/e2e` change still runs the groups that read the bundle (`ci/changes.sh`).
 
 ## Clarification Needed (non-blocking: the plan does not depend on the answer)
@@ -434,6 +501,52 @@ All commands run from the worktree root, each in its own foreground call with `t
 - AC7: let `runs` start run 2, so the repeat-refusal case fails.
 - AC8: let `markWhen` call the probe with marks off, so the node test's off case fails.
 
+**Implement stage (2026-11-01; lane A, `ocutalon-slot-a` untouched, throwaway tags e11s11d and e11s11p):**
+
+Loop results at hand-off:
+- `bash docker/tests/test-rehearsal.sh`: all 16 rules pass (36 s alone; the new rules are `bounds`, `timed-runs` and `guards`, and `results`, `dry-section`, `stub-runs`, `candidate` and `static` are updated).
+- `node --test web/scripts/rehearsal-support.test.mjs`: 12 tests pass. `npm --prefix web run lint`: exit 0. `bash docker/tests/test-boundaries.sh`: exit 0. `ci/iris.sh build` ran once after the `web/` changes.
+- The live dry run, one call per phase (`install --dry-run --rc 1 --runs 1 --record <tmp>/rc1.md`, `runs`, `report`, `report --plant pick-up`, `down`): install `PHASE install done 88s`, every install row passes (first start 82 s); `runs` printed `PASS run 1 demo path: DEMO-PATH 8 of 8 steps ran (2 partly skipped), 2 skipped, 0 failed; floor 7 of 7 passed` and `RUN 1 notice=11.1 pick-up=2.1 settle-end=10.4 diagnosis=0.3 delivery=0.3 decision=1.1 approval-result=1.0 reminder=0.3 largest-request=3657 first-reply=1.1 reminder-result=-2.0`; `report` printed `RESULT dry run`, exit 3, with every met bound row `dry run`, the runs row `pass | 1 of 1 runs passed the REL-2 specs`, `tell-now | not run` and the `### Runs` table; `report --plant pick-up` printed `FAIL run 1 step incident bound pick-up 0 s (planted): 2.1 s in run 1 from the first failure to the pick-up`, `RESULT fail`, exit 1, and the record still holds one section; `down` printed `TEARDOWN`, and afterwards `docker ps -a | grep -c e11s11d` printed 0, no image of the tag and no state folder remained, and the lane folder held no lock. No `ssh` ran (dry mode never calls it).
+
+Once-only commands:
+- `npm --prefix web test`: 1166 tests pass.
+- `ci/iris.sh live demo-path` (tag e11s11p, fresh throwaway, 4 min 47 s in all): `20 passed`, 2 skipped (the Telegram parts), `test-demo-path: all checks passed`, so AC8's CI unit passes unchanged. No container or lock of the tag remained.
+- `bash ci/checks.sh`: `checks: all scripts passed`. In one call it took about 14 minutes (eval-set 227 s, online-host 123 s, ci-config 47 s, ci-warm 47 s, probe 54 s, install-script 46 s, online-load about 95 s, rehearsal 48 s), past the 10-minute call cap, so the harness moved it to the background and it ran to its end; `test-online-load.sh` was also run by itself afterwards (exit 0). Split it by script when a call must stay under the cap.
+
+**Task 0, measured on the first live dry run (developer machine, Docker Desktop, arm64, tag e11s11d, lane A):**
+- Every named source existed and was non-empty; no nearest-header substitute was needed. Run 1's marks (server clock UTC, 2026-11-01; the `runs` call took the server start 15:47:28.897):
+  - `press`: `Ens.MessageHeader` 46, body `OcuTalon.Demo.Msg.SendOrders`, `TimeCreated` 15:48:06.637 (the later presses are 92, 110 and 142 from 07, so the collector takes the first).
+  - `first_failure`: header 2 of the incident's namespace (OCUORDERS), `TimeProcessed` 15:48:06.718 (the incident's `FirstHeaderId`).
+  - `pickup`: the first `OcuTalon.Watch.Msg.FailureBatch` header with the session's `TraceRef` as `SuperSession` at or after the first failure, `TimeCreated` 15:48:08.786 (2.1 s after the first failure).
+  - `settle_end` (also the diagnosis start): header 52, `OcuTalon.Bridge.Msg.Request` to `Decide` in session 49 (the incident's `TraceHeaderId`), `TimeCreated` 15:48:17.123 (10.4 s after the first failure).
+  - `diagnosis_end`: header 59, `OcuTalon.Bridge.Msg.DecisionResponse` with `CorrespondingMessageId` 52, `TimeCreated` 15:48:17.405 (0.3 s).
+  - `delivered`: header 68, the first header to `SimPhoneOut` in session 49, `TimeProcessed` 15:48:17.750 (0.3 s after the answer; the notice came 11.1 s after the press).
+  - Reminder: the row's `DueAt` 15:49:05Z (whole seconds), fired = the `OcuTalon.Msg.Notification` header in its `TraceHeaderId` session, `TimeCreated` 15:49:05.328 (0.3 s); `Late` 0. The reminder's phone message `CreatedAt` is 15:49:05Z and "All 50 orders went through." is 15:49:07Z, so the reminder landed 2.0 s before the result on the mock.
+  - Page marks (one clock): `step1_sent` to `step1_decision_seen` 1054 ms, to `step1_reply_seen` 1061 ms; `approve_pressed` to `approval_result_seen` 976 ms.
+  - Largest request: `MAX(LargestRequestTokens)` is 3657 on the mock (all four incidents of the REL-2 project included).
+- The gap between the settle waiter's last `Ens.AlarmResponse` header in session 49 (header 51, `TimeCreated` 15:48:16.909) and the diagnosis request (header 52, 15:48:17.123) is 0.214 s, so the request is a good proxy for the settle rule's end (it follows at once, under a quarter of a second).
+- The `SimPhoneOut` header's `TimeProcessed` (15:48:17.750) is at or after the phone `SimMessage.CreatedAt` second (15:48:17Z): the same second, so the whole-second row never reads later than the header.
+- The `runs` call took 2 min 29 s, the Playwright run 2.5 min (`20 passed (2.5m)`, 2 skipped), and `exec.count` ended at 27. A second call of `exec` costs about a second.
+- The REL-2 project passes unchanged on the stand-in after 11.3's sign-in step (all of 01-page's blank-install checks included); no spec was edited and nothing is deferred for it.
+- Phases (install, runs, report, down): 88 s, 149 s, under 1 s and 7 s.
+
+**Mutations demonstrated (Rule 19; each applied, red observed, reverted byte-identical by checksum; `git status --short` shows only this story's files):**
+- mutation: AC1: `demo-path-summary.mjs`'s exit and FAIL lines ignored in `phase_runs` -> `test-rehearsal.sh` rule timed-runs red (the failing-report case reads PASS: no FAIL for step approval, verdict `pass`, no `RESULT fail`).
+- mutation: AC2: pick-up timed from the press instead of the first failure -> rule bounds red (run 7's FAIL text, the pick-up row text and the RUN line change; 3.9 s instead of 2.9 s).
+- mutation: AC3: `approval-result` timed from `step1_sent` instead of `approve_pressed` -> rules bounds and stub-runs red (the approval two-miss case's FAIL line changes, and twenty runs within every limit now print an approval FAIL of 8.6 s).
+- mutation: AC4: the FAIL line of a run with a missing mark skipped -> rule bounds red (the missing-`delivered` case and the page, server and session cases).
+- mutation: AC5: `--plant` ignored (`if (0) lim[plant] = 0`) -> the live planted report exited 3 with `RESULT dry run` (not 1), and rule bounds red (the planted FAIL text, row, result and exit).
+- mutation: AC6: the tell-now row dropped (from the row list and the bounds) -> rules results and bounds red (the real all-pass case reads `pass`, not `not run`).
+- mutation: AC7: `runs` allowed to start again (the run-1-exists refusal switched off) -> rule timed-runs red (no REFUSED line naming Story 11.12, exit not 2, and the second call started npm again).
+- mutation: AC8: `markWhen` no longer returns at once with marks off -> `rehearsal-support.test.mjs` red ("writes nothing and calls no probe": the probe is called and 5 s are waited). A second mutation (`runOnce` given `{}` instead of `process.env`) turns the source pin red.
+
+- mutation (review patches): the `collector` miss line removed from the bounds awk, `report_plant` forced empty and `plant_ok` reverted to a substring match, all at once -> `test-rehearsal.sh` rules timed-runs (a collector without its done line reads PASS) and dry-report (no planted FAIL, no `(planted)`, a two-id plant not refused) red; the file restored byte-identical (md5).
+- After the review patches: `bash docker/tests/test-rehearsal.sh` all 17 rules, the node test (12), lint, `test-boundaries.sh` and `npm --prefix web test` (1166) pass; the live dry run was repeated (install 112 s, `PASS run 1`, `RESULT dry run` exit 3, the planted `FAIL run 1 step incident bound pick-up 0 s (planted)` exit 1, down: 0 containers, 0 images, empty lane folder). `ci/checks.sh` and `ci/iris.sh live demo-path` were not repeated: only `test-rehearsal.sh` and `test-boundaries.sh` read the files the patches changed, and `web/` is unchanged since their green run.
+
+**Shared surfaces, checked:**
+- `watchThroughGuide` and `pressOnPhone` (so `approveOnPhone` and `rejectOnPhone`) keep every assertion; `ci/iris.sh live demo-path` passes unchanged. `web/e2e/support/iris.ts` differs only in `runOnce` (and its import); `web/scripts/floor-fixtures.test.mjs` is in the 1166 passing tests.
+- 11.3's phase order and rows: `report` already ran again; the `demo path runs` row and its text, the real-mode stub cases (a local driver now) and the ssh-call counts are updated in the self-test.
+
 **Shared surfaces:**
 - `watchThroughGuide` and `approveOnPhone` (the web demo-path and online demo-path units).
 - `iris.ts`'s `runOnce` (every browser unit).
@@ -443,5 +556,21 @@ All commands run from the worktree root, each in its own foreground call with `t
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** `release/rehearse.sh` gains the `runs` and `exec` commands and the `--runs` and `--plant` options: run 1 drives the REL-2 specs through the `exec` channel, the read-only collector reads the production headers, and `bounds_eval` applies the Bounds table. `report` may repeat, writes the bound rows and the `### Runs` table, and keeps a real `Result: not run` while fewer than `--runs` runs exist or tell-now is `not run`. The two `demo-path.ts` helpers leave page marks only when `OCUTALON_E2E_MARKS` is set, and `iris.ts` spawns `docker exec` unless `OCUTALON_E2E_IRIS_EXEC` is set.
+
+**Files changed.**
+- `release/rehearse.sh` - the new phase, channel, options, guards, collector and bounds evaluation.
+- `docker/tests/test-rehearsal.sh` - rules bounds, timed-runs, guards and dry-report, and 11.3's updated cases.
+- `web/e2e/support/rehearsal.ts` (new) - `mark`, `markWhen`, `marksOn`, `irisSessionCommand`.
+- `web/e2e/support/iris.ts` - `runOnce` takes its command from `irisSessionCommand`.
+- `web/e2e/support/demo-path.ts` - five marks beside the clicks of `watchThroughGuide` and `pressOnPhone`.
+- `web/scripts/rehearsal-support.test.mjs` (new) - 12 node tests.
+
+**Review.** 33 findings: high 0, medium 10, low 23. Patched (8 medium rows in 5 root causes, 6 low): host scrub of FAIL reasons, the scrub loop, the spec-tree guard in `runs`, the unread missing-collector marker, the `--plant` wiring test, the empty Runs table, an exact `--plant` match, a whole-string namespace check, a zero timeout, a flaky timing bound, an unused local and a scrub test. Deferred: one item (the collector and the probes run only in the live dry run), beside the two the implementation recorded. Rejected: 15 low or descriptive rows with their reasons in the Review Triage Log.
+
+**Follow-up review recommended: true.** Two or more medium entries were patched (five root causes); the patches sit in `phase_runs`, `runtime_prepare` and the bounds awk and were checked by the self-test, one mutation run and the repeated live dry run, but no review layer re-read them.
+
+**Residual risks.** Real mode is proved on stub hosts only (the real 20 runs are Story 38.2's); the real-model text matches are unmeasured; a real rehearsal cannot pass before Story 11.12 fills the tell-now row.

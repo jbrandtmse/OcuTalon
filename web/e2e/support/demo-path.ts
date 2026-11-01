@@ -5,6 +5,7 @@ import { STATE } from './api';
 import { CARD_MS, replyOf } from './floor';
 import { chk, irisScript, quoted, readApproval } from './iris';
 import { clock } from './page';
+import { mark, markWhen, marksOn } from './rehearsal';
 import { TRACE_PAGE, drawnMessages, signOutTrace, type Turn } from './trace';
 
 /**
@@ -22,6 +23,8 @@ import { TRACE_PAGE, drawnMessages, signOutTrace, type Turn } from './trace';
  * reasons and its trace link, and no Fallback flag, never which outcome) and matches the texts that a model's output fills by their
  * shape. Any other value throws when this module loads, so a run fails before its first step. On `real` the specs never point or restore
  * the runners' keys and never wait for the runners' records.
+ * The clean-machine rehearsal (release/rehearse.sh, Story 11.11) asks watchThroughGuide and pressOnPhone (so approveOnPhone) for page marks
+ * through e2e/support/rehearsal.ts; with OCUTALON_E2E_MARKS unset they add no wait and write nothing.
  */
 
 /** The model the run is against: `mock` or `real`. */
@@ -186,7 +189,12 @@ export async function watchThroughGuide(page: Page): Promise<void> {
   await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
   await expect(guideSend(page), "the guide's Send is usable").not.toHaveAttribute('aria-disabled', 'true');
   const before = await newestClientId(page);
+  const strips = page.locator('[data-part="reply"] app-decision-strip .reason');
+  const stripsBefore = marksOn() ? await strips.count() : 0;
+  mark('step1_sent');
   await guideSend(page).click();
+  await markWhen('step1_decision_seen', async () => (await strips.count()) > stripsBefore, 90_000);
+  await markWhen('step1_reply_seen', async () => /\S/.test((await page.locator('[data-part="reply"] .text').allTextContents()).at(-1) ?? ''), 90_000);
   await expectGuideMessage(page, WATCH_PROMPT);
 
   const turn = await doneTurn(page, before);
@@ -299,7 +307,12 @@ async function requestNotice(page: Page): Promise<{ notice: Locator; phone: Loca
  */
 async function pressOnPhone(page: Page, key: string, action: 'approve' | 'reject'): Promise<{ answered: Awaited<ReturnType<typeof readApproval>>; phone: Locator; time: string }> {
   const { notice, phone } = await requestNotice(page);
+  if (action === 'approve') mark('approve_pressed');
   await notice.getByRole('button', { name: action === 'approve' ? APPROVE_NAME : REJECT_NAME, exact: true }).click();
+  if (action === 'approve') {
+    const status = incidentCard(page).locator('[data-part="approval"] p.status');
+    await markWhen('approval_result_seen', async () => ((await status.allTextContents())[0] ?? '').trim().startsWith('Approved from the simulated phone at'), CARD_MS);
+  }
   await expect.poll(async () => readApproval(key).then((one) => one.at), { message: 'the request is answered', timeout: 30_000 }).not.toBe('');
   const answered = await readApproval(key);
   expect(answered.channel, 'from the simulated phone').toBe('phone');
