@@ -264,3 +264,4 @@
 2026-11-01T07:09:56Z	Epic 4	ledger_load	total=463 open=0 routed=69 escalated=0 decision_pending=0 terminal=394 owner_unknown=0 burndown=0 reowned_none=0 epic4_owned=DW-198(4-4;effective_state_routed:the_2026-10-27_burndown_resolve_trailer_is_absent_from_this_ledger;re-adjudicated_at_this_burndown_gate)
 2026-11-01T07:09:56Z	Epic 4	sprint_planning_complete	gate=PASS mode=headless(skill_invoked;readiness_on_epic4_block;tracker_dry-run_in_sync,no_write) in_sync=true valid=true new_entries=0 dropped_orphans=0 warnings=2_title_headings prerequisite=5.13_merged(5fb79853_ancestor;Tools/RecentActivity.cls) model=claude-opus-5-5
 2026-11-01T07:09:56Z	Epic 4	retro_review_skipped	reason=skip(no_X.0_input;reopen;dispatch)
+2026-11-01T07:12:01Z	Epic 4	epic_context_compiled	reason=planning_artifact_newer(reopen_4.8-4.10) model=claude-opus
