@@ -32,7 +32,7 @@ Story 5.13 is the only open story.
   - Its description tells Chat to call it when the user asks about earlier failures, incidents, approvals or fixes, or about what happened.
 - **What it returns.** At most 5 of the session owner's own incidents from the last 24 hours, newest first, each holding only fields that code builds:
   - the production and the item, the failed-message count, and the first and last failure times;
-  - the element at fault, the cause category and the fix kind;
+  - the element at fault (shown only when it exactly matches the approved fix's field or an item name), the cause category and the fix kind;
   - the approval's answer (approved, rejected or expired), with its channel and time;
   - the fix result's counts (resent, went through, failed);
   - the incident's state (open, awaiting approval, fixing, resolved or dismissed).
@@ -54,9 +54,10 @@ Story 5.13 is the only open story.
 ## Technical Decisions
 
 - **Classification.** A built-in tool declares its classification as class parameters of its tool class: `CLASSIFICATION` (`safe` or `risky`), `READONLY` and `TRUSTEDOUTPUT` (1 or 0). A class that holds several tools adds a `<NAME>` suffix for each one. The gate fails closed: an undeclared tool is unclassified and counts as risky. In an untrusted or tainted turn, only safe, read-only calls run. Any allowed call whose tool is not trusted output taints the turn.
-- **Trusted output** is built by code from OcuTalon's own records and holds no text from outside a user's untainted turn. Two tools set the precedent:
-  - `dismiss_incident` (5.9) and `check_status` (5.7) are trusted output on a condition: a `Test.Bridge.Gate` test pins each answer to its code-built fields.
-  - Follow the same pattern here, so that a free-text field added later fails the test. (inference)
+- **Trusted output** is built by code from OcuTalon's own records and holds no text from outside a user's untainted turn. The classification convention now names `recent_activity` of `OcuTalon.Tools.RecentActivity` as read-only trusted output, on the same condition as its precedents:
+  - `dismiss_incident` (5.9) and `check_status` (5.7) are trusted output because a `Test.Bridge.Gate` test pins each answer to its code-built fields, so a free-text field added later fails it.
+  - `recent_activity`'s answer is built by code from the session's own incident, fix-run and approval rows only: production, item, failed count, first and last times, element at fault (only on an exact match with the approved fix's field or an item name), cause category, fix kind, the approval's answer, channel and time, the fix result's counts and the state.
+  - It never carries the diagnosis's cause sentence or any message body or header, and `Test.Tools.RecentActivity` pins its answer to those code-built fields.
 - **Not Epic 23's incident summary.** That later tool returns the evidence line and the sample error, so it is not trusted output. `recent_activity` must stay off those fields and off the diagnosis's sentences.
 - **Data and ownership.**
   - Lane A owns the tables this tool reads: `Incident`, `FailureGroup`, `FixRun`, `ApprovalRequest` and `Decision`. Lane B owns `Session` and the ownership API (`OcuTalon.Data.Ownership`). Only the owning lane edits a class, and Epic 5 is Lane A.
@@ -72,7 +73,7 @@ Story 5.13 is the only open story.
 - **The all-clear comes only from code.** `OcuTalon.Checks.ReplyGuard` runs once on every model-written text leaving `Decide` and removes the reserved sentences and the banned all-clear phrases. An all-clear reaches a reply only through `check_status` and `Checks.Render`.
 - **Mock and tests.**
   - Lane A adds mock behaviour only as files under `ci/mock/scenarios/A/`. Chat's `MOCKKEY` is `chat`.
-  - Tests are `%UnitTest` classes named `OcuTalon.Test.<Area>`; the watch tools' tests sit in `OcuTalon.Test.Watch`.
+  - Tests are `%UnitTest` classes named `OcuTalon.Test.<Area>`; the watch tools' tests sit in `OcuTalon.Test.Watch`, and the new tool's pinning test is `Test.Tools.RecentActivity`.
 
 ## UX & Interaction Patterns
 
