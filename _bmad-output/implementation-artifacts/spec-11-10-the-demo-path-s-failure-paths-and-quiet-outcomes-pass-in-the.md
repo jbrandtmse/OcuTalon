@@ -287,6 +287,35 @@ The line numbers are those of `OCT-epic11` at `f3515047`.
   - The browser job's estimate is (1668 s + 2 x the local increase) / 60, with 1668 s being run 41228357603's `iris (browser)` job. It must stay at or under 33 min. If it does not, the implement stage adds a `deferred:` item for the lead (Design Notes, CI budget).
   - The lead measures every `iris` job on this story's CI run (`gh run view <id> --json jobs`, start to completion, each at most 35 min).
 
+### Review Findings
+
+Code review, 2026-11-01. Four layers (blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor), full tier, 27 raw rows, 10 entries after grouping: high 0, med 1, low 9. Rule 3: 07 and 08 are Playwright journeys on the live throwaway stack. Rule 6: no AD mismatch. Rule 2: the copies keep the reasons in Design Notes. Rule 14: no non-ASCII byte in the changed sources. Rule 19: AC1 to AC7 each have a `mutation:` line (AC8 is a measurement), so no mutation line needed writing.
+
+- [x] [Review][Patch] (low; fix-risk low, two guarded lines in QA's own test hooks) A failed resume cleared `Paused` anyway, and `OnAfterOneTest` dropped the resume's status, so FailurePoller could stay stopped for the rest of the class with no cause logged. Now `Paused` clears only on success and the hook returns the resume's status. [src/ocutalon/cls/OcuTalon/Test/Demo/Production.cls:119] (blind+edge+auditor)
+- [x] [Review][Patch] (low; fix-risk low, message text only) `pauseReading` dropped the seam's `CHK|why|` line, so a failed pause read only "expected '1'". The assertion message now carries the script's output. [web/e2e/support/demo-path.ts:440] (blind)
+- [x] [Review][Patch] (low; fix-risk low, one assertion) 08's "the Orders production got no new message" compared two `breakFeedLeft(...).headers` reads that could both be `''`. The count before the press is now asserted numeric, as `failedBefore` is in 07. [web/e2e/demo-path/08-quiet-outcomes.spec.ts:84] (verification-gap)
+- [x] [Review][Patch] (low; fix-risk low, a narrower locator) On `real`, 08's "with a reason" check was `/\S/` over a row picked by its sender text, so it could not fail. It now reads the row's `.reason` line. [web/e2e/demo-path/08-quiet-outcomes.spec.ts:63] (auditor)
+- [x] [Review][Patch] (low; fix-risk low, one assertion) The matrix's "the rail's request rows are the same" was checked by count only. The test now also checks that the one row's `data-row-key` equals the key read before the press. [web/e2e/demo-path/08-quiet-outcomes.spec.ts:101] (auditor)
+- [x] [Review][Patch] (low; fix-risk low, comments only) Stale contract comments still said 06 restores the keys (02, 03) and "steps 2 to 6" (the summary test). They now say 08 and "2 to 8". [web/e2e/demo-path/02-watch.spec.ts:16, web/e2e/demo-path/03-reminder.spec.ts:13, web/scripts/demo-path-summary.test.mjs:425] (blind)
+- [x] [Review][Defer] (med; fix-risk med; in-epic) 07 and 08 run once per install. 07's replay is left pending, as the journey requires, and 08 expects one row per sample and looks the outcome up by sender, so Story 11.12's N runs on one install would go red on run 2. This story's journey makes the fix spec-bound here, so it is 11.12's design call. [web/e2e/demo-path/07-failure-paths.spec.ts, 08-quiet-outcomes.spec.ts:48] — deferred: DW-522 `routed owner=11-12-the-rehearsal-runner-repeats-the-demo-path-n-times-with-run` (blind)
+- [x] [Review][Defer] (low; fix-risk high, because no falsifiable pin fits the spec's bounds: the dry run's mock gives the same answers in both modes, and new mock state is barred) AC5's "never which outcome" on `real` cannot be falsified on the CI mock. Every outcome and mock-reason check in 07 and 08 sits behind `ON_MOCK` (read at review). [web/e2e/demo-path/08-quiet-outcomes.spec.ts] — deferred: DW-523 `wontfix-accepted`, `reopen_if` a real-model REL-2 run (Story 38.1 or 38.2) goes red on an outcome or mock-reason assertion (verification-gap)
+- [x] [Review][Defer] (low; spec-bound) AC4's no-action check can be falsified only from the test side, and the 1.5 s pause is fixed. Closed `by-design`: the matrix's "after 1.5 s (MB4's pause)" and Design Notes "AC4's no-action check" bind it, and `TestSuspiciousRequestActsOnNothing` pins the gate. A broken counter fails loudly through `actionsSince`'s numeric `read`. (verification-gap)
+- [x] [Review][Defer] (low; spec-bound) 07 and 08 rely on the journey order: 06's finish, `rejectedKey`, 07's pending replay, and 08's `afterAll` key restore. Closed `by-design`: the spec states one ordered journey, whose hermetic whole is two green fresh runs. (verification-gap)
+
+Verification after the patches (lane A, tag `e11s10c`, fresh throwaways): `ci/iris.sh class OcuTalon.Test.Demo.Production` passed (46.6 s). `ci/iris.sh live demo-path` was green in 248 s: `DEMO-PATH 8 of 8 steps ran (2 partly skipped), 2 skipped, 0 failed; floor 7 of 7 passed`, 07 with 4 tests, 08 with 2, and `test-demo-path: all checks passed`. `npm --prefix web run lint` exited 0. Teardown of `e11s10c` left no stack and no lock.
+
+Rejected:
+- `false` The uncommitted QA tests: stages are forbidden to commit, and the lead commits after the smoke gate.
+- `false` The spec's `status: done` against the sprint's `review`: the frontmatter is bmad-build-auto's machine state, and sprint-status carries the review state (blind, edge, auditor).
+- `reject` (the fix edits the spec under review) The Auto Run Result's residual risk and the Review Triage Log still say the seam has no direct unit test (blind, edge, auditor).
+- `low` The summary test's extra Playwright runs: stack-less listings that take seconds, and sharing reports across `it`s would couple the tests.
+- `low` `breakFeedForRefusal` polls `breakFeedLeft` with its `Headers` call. FailurePoller is paused during the poll, so there is no timing pressure, and it passed in every run.
+- `wontfix-theoretical` `TempStopConfigItem` returns OK with no running production: 07 runs on a started production, and `TestPauseReadingStopsAndResumes` pins the pause. It would become real if the seam ran before the production starts (edge, blind).
+- `wontfix-theoretical` A 240 s timeout inside the seam's `try` could tear the worker down before the `finally` resumes. The run is already red, and the stack is a throwaway. It would become real if an install is reused after a red 07 (see DW-522).
+- `false` Mutations for single clauses (the replay, step 5, the resume): Rule 19 asks for one demonstrated mutation per AC, and AC1 and AC2 each have theirs.
+- `false` The self-referential `STEPS.length` pins: the literal "of 8" and count pins beside them caught AC6's mutation.
+- `false` `mailbox.spec.ts`'s two inline tab clicks after a reload: a one-line call, not a near-copy of `mailboxOf`, and no harm was named.
+
 ## Spec Change Log
 
 ## Review Triage Log

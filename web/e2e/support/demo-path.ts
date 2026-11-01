@@ -438,8 +438,8 @@ async function seam(name: string, line: string): Promise<string> {
 
 /** Pauses (1) or resumes (0) FailurePoller (Test.Demo.Production.PauseReading); the call must report success. */
 async function pauseReading(pause: 0 | 1): Promise<void> {
-  const answer = await seam('pause', ['Set sc=##class(OcuTalon.Test.Demo.Production).PauseReading(' + pause + ')', 'Write !,"CHK|pause|",$System.Status.IsOK(sc)', 'If $System.Status.IsError(sc) Write !,"CHK|why|",$Translate($System.Status.GetErrorText(sc),$Char(13,10)," ")'].join('\n'));
-  expect(answer, `FailurePoller ${pause === 1 ? 'is paused' : 'reads again'}`).toBe('1');
+  const lines = await irisScript(['Set sc=##class(OcuTalon.Test.Demo.Production).PauseReading(' + pause + ')', 'Write !,"CHK|pause|",$System.Status.IsOK(sc)', 'If $System.Status.IsError(sc) Write !,"CHK|why|",$Translate($System.Status.GetErrorText(sc),$Char(13,10)," ")'].join('\n'));
+  expect(chk(lines, 'pause'), `FailurePoller ${pause === 1 ? 'is paused' : 'reads again'} (${lines.join(' ')})`).toBe('1');
 }
 
 /**

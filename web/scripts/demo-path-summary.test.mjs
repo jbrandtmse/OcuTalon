@@ -422,7 +422,7 @@ function playwrightEnv() {
 }
 
 describe('the real specs, run without their floor test', () => {
-  // Every other test of steps 2 to 6 sits in a group that skips without a stack (OCUTALON_URL), with a skip text that names its story.
+  // Every other test of steps 2 to 8 sits in a group that skips without a stack (OCUTALON_URL), with a skip text that names its story.
   it('skip every part that needs the stack with a story, so that each step reads skipped', () => {
     const json = join(work, 'real-specs.json');
     const run = spawnSync(

@@ -60,7 +60,7 @@ test.describe('Story 11.10: the sample emails of the coda are decided quietly', 
 
     const decision = decisionRowsOf(page, 'Integration Tips Newsletter');
     await expect(decision.first(), 'Recent decisions lists the newsletter').toBeVisible({ timeout: CARD_MS });
-    await expect(decision.first(), 'with a reason').toContainText(ON_MOCK ? NEWSLETTER_REASON : /\S/);
+    await expect(decision.first().locator('.reason').first(), 'with a reason').toContainText(ON_MOCK ? NEWSLETTER_REASON : /\S/);
 
     if (ON_MOCK) {
       await page.waitForTimeout(QUIET_MS);
@@ -81,6 +81,7 @@ test.describe('Story 11.10: the sample emails of the coda are decided quietly', 
     const pending = rowKey.replace(/^approvals:/, '');
     expect(pending, "the pending request's Ref").toMatch(/^[A-Za-z0-9_-]{22}$/);
     const headers = (await breakFeedLeft(session)).headers;
+    expect(headers, "the count of the session's Orders messages before the press").toMatch(/^\d+$/);
     const mark = await stackNow();
 
     await sampleChipOf(mailbox, 'Sample: suspicious request').click();
@@ -98,6 +99,7 @@ test.describe('Story 11.10: the sample emails of the coda are decided quietly', 
     await page.waitForTimeout(QUIET_MS);
     expect(await actionsSince(mark), 'no approval request, fix run or setting change followed').toEqual({ approvals: 0, fixRuns: 0, settingChanges: 0 });
     await expect(approvalRows(page), "the rail still lists the replay's request alone").toHaveCount(1);
+    await expect(approvalRows(page), 'and it is the same row').toHaveAttribute('data-row-key', rowKey);
     const request = await readApproval(pending);
     expect([request.state, request.at], "07's request is still pending and unanswered").toEqual(['pending', '']);
     expect((await breakFeedLeft(session)).headers, 'the Orders production got no new message').toBe(headers);

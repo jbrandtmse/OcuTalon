@@ -13,8 +13,8 @@ const NOT_WATCHING = 'Ask OcuTalon to watch the Orders production first (step 1)
 
 /**
  * UJ-1 step 2 (REL-2, Stories 11.1 and 11.7): the watch, on the first-start stack. On the CI mock the model keys are pointed at the mock
- * (they stay pointed through step 5; 06 puts them back); on the real model (OCUTALON_DEMO_PATH_MODEL=real) the specs leave the keys alone.
- * It runs after 01 and leaves the README session watching the Orders production for 03 to 06.
+ * (they stay pointed until 08 puts them back); on the real model (OCUTALON_DEMO_PATH_MODEL=real) the specs leave the keys alone.
+ * It runs after 01 and leaves the README session watching the Orders production for 03 to 08.
  *   - Before the watch: Break the feed is inactive with its hint and Do step 1, a press is refused 409 not_watching, and a refused press
  *     sends nothing (no run, no header, no failed order).
  *   - The watch: the guide's own Send at step 1 sends the watch prompt (support/demo-path.ts watchThroughGuide). The reply's strip passes

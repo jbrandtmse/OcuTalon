@@ -4021,6 +4021,7 @@ So that the 19-of-20 bounds are measured over a full run set, not one run.
 **Given** this build, which has no clean host and never a real model key
 **When** the runner's tests run
 **Then** they prove the above on throwaways with the CI mock in place of the model (a dry run, never a rehearsal pass), including a run set with a planted missed bound in a later run that fails the rehearsal and names the run, the step and the bound; the real rehearsal on the author's hosts is Story 38.2 (REL-6, NFR-11)
+- DW-522: 07 and 08 run once per install: a second run of the demo path on one install (Story 11.12's N runs) finds 07's replay request still pending (Break the feed refused) and 08's samples already in the mailbox; 11.12 decides which specs repeat (ledger; routed by cr 2026-11-01)
 
 ### Story 11.4: The release gets draft notes and a checklist
 

@@ -2736,3 +2736,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-11-7-the-demo-path-s-failure-paths-quiet-outcomes-and-online-run.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: web/e2e/support/demo-path.ts:154-156 and :247 match the noun as \S+ (DW-270: itemNoun comes from the diagnosis); web/e2e/demo-path/04-incident.spec.ts:90 filters phone notes with hasNot a button on real; the spec's Tasks fix these shapes, and real is never run in this story.
 - 2026-10-31T21:36:29Z status=by-design owner=11-7-the-demo-path-s-failure-paths-quiet-outcomes-and-online-run by=cr note=spec-bound (Tasks: real-mode shapes); reopens by amendment if Story 11.3's first real rehearsal goes red on a shape
+
+### DW-522: 07 and 08 run once per install: a second run of the demo path on one install (Story 11.12's N runs) finds 07's replay request still pending (Break the feed refused) and 08's samples already in the mailbox
+- source: spec-11-10-the-demo-path-s-failure-paths-and-quiet-outcomes-pass-in-the.md | severity: med | fix-risk: med | footprint: in-epic
+- evidence: 07's replay test leaves its incident Open with a pending request; 08 asserts toHaveCount(1) on each sample row and looks up mailOutcome by sender only, so run 2 on one install goes red
+- 2026-11-01T07:48:26Z status=routed owner=11-12-the-rehearsal-runner-repeats-the-demo-path-n-times-with-run by=cr note=11.12 decides which specs repeat: clear the replay (reject or dismiss) and key 08 to its own run, or run 07/08 once
+
+### DW-523: AC5's 'never which outcome' on the real model is not falsifiable on the CI mock: the real-mode dry run gets the mock's same Ignore and Digest answers, so an unguarded outcome check would stay green
+- source: spec-11-10-the-demo-path-s-failure-paths-and-quiet-outcomes-pass-in-the.md | severity: low | fix-risk: high | footprint: in-story
+- evidence: Every outcome and mock-reason check in 07 and 08 sits behind ON_MOCK (read at review); the dry run and the 07 count pin cannot see an unguarded one
+- 2026-11-01T07:48:26Z status=wontfix-accepted owner=11-10-the-demo-path-s-failure-paths-and-quiet-outcomes-pass-in-the by=cr note=reopen_if=a real-model REL-2 run (Story 38.1 or 38.2) goes red on an outcome or a mock-reason assertion in 07 or 08
