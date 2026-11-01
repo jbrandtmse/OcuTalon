@@ -4033,10 +4033,7 @@ For 1.0.0, the first release (0.1.0 and 0.1.1 are not cut), the notes and the ch
 
 **Acceptance Criteria:**
 
-**Given** the previous release's tag and the candidate
-**When** the notes generator in `release/` runs
-**Then** it drafts notes for the version in plain language, grouped by area, from the stories merged since the previous tag, claiming only what the release ships, with no class names or error codes outside a developer section (NFR-24, REL-8, CON-5)
-**And** the draft includes the evaluation summary from the result file Story 9.5 writes in `eval/` (scores, mean and maximum decision cost, largest request, and any REL-5 override reason), the rehearsal's timings, the upgrade result and any REL-5 override with its reason, and the author edits and publishes it (FR-62, REL-5, REL-6, REL-8)
+[AMENDED 2026-11-01, Story 11.4's plan, unattended ruling (decide: a split into a sibling planned next in this epic, product default 6): the notes generator's criterion and the 1.0.0 notes sentence moved verbatim to Story 11.13; 11.4 keeps the release checklist, which also scans the draft notes]
 
 **Given** the release checklist in `release/`
 **When** it runs for a candidate
@@ -4052,6 +4049,23 @@ For 1.0.0, the first release (0.1.0 and 0.1.1 are not cut), the notes and the ch
 **When** it is used for any release
 **Then** it states that posts, articles, the video and bonus claims are the author's actions, and confirms that no script or workflow posts anything or claims a bonus (REL-11)
 - DW-359: The README's clone command and the page's README_URL resolve only once the repository is public (github.com/jbrandtmse/OcuTalon answered 404 on 2026-10-28); the release checklist rechecks every README link and GitHub's heading slugs on the public page before the release (ledger; routed by merge_gate 2026-10-29)
+
+### Story 11.13: The release gets draft notes
+
+As the author,
+I want draft release notes produced for every candidate,
+So that I publish accurate plain-language notes.
+
+[ADDED 2026-11-01, split from Story 11.4 at its plan, unattended ruling (decide: a sibling planned next in this epic, product default 6); its criterion and the 1.0.0 sentence are Story 11.4's, moved verbatim; Story 11.4's checklist scans its draft, and Story 11.5's release sequence composes 11.4 and 11.13]
+
+For 1.0.0, the first release (0.1.0 and 0.1.1 are not cut), the notes and the checklist are 1.0.0's; "the previous release's tag" for 1.0.0 is none, so its notes cover every story merged for the release.
+
+**Acceptance Criteria:**
+
+**Given** the previous release's tag and the candidate
+**When** the notes generator in `release/` runs
+**Then** it drafts notes for the version in plain language, grouped by area, from the stories merged since the previous tag, claiming only what the release ships, with no class names or error codes outside a developer section (NFR-24, REL-8, CON-5)
+**And** the draft includes the evaluation summary from the result file Story 9.5 writes in `eval/` (scores, mean and maximum decision cost, largest request, and any REL-5 override reason), the rehearsal's timings, the upgrade result and any REL-5 override with its reason, and the author edits and publishes it (FR-62, REL-5, REL-6, REL-8)
 
 ### Story 11.5: One scripted sequence cuts a release
 
