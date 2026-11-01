@@ -259,3 +259,5 @@
 2026-11-01T17:57:01Z	Story 11.11	fresh_check	env=recipe(hermetic_self-tests;node_--test;live_dry_run_fresh) tests=test-rehearsal.sh(17_rules),test-boundaries.sh,rehearsal-support.test.mjs(13),lint result=pass order=forward,reverse
 2026-11-01T17:57:32Z	Story 11.11	committed	sha=57b4703d submodules= ci=pending runs=41334058862,41334059065 amendments=epics.md:11.11_split(11.12),11.12_DW-534_bullet pushed=verified_on_origin
 2026-11-01T17:57:32Z	Story 11.11	story_cycle	plan_to_commit_min=786 implement_passes=1 reviews=1 rework=0 first_ci=pending models=plan:claude-opus,implement:claude-sonnet,qa:claude-sonnet,cr:claude-opus
+2026-11-01T17:59:36Z	Epic 11	epic_context_compiled	reason=planning_artifact_newer(11.12_DW-534_bullet;11.3,11.11_done) model=claude-opus lines=47 header=ok subagent_tokens=75587
+2026-11-01T17:59:36Z	Story 11.12	stage_spawned	stage=plan spawn_at=2026-11-01T17:59:36Z model=claude-opus agent_name=11-12-the-rehearsal-runner-repeats-the-demo-path-n-times-with-run-plan-1 cycle_iteration=1 ledger_inbox=DW-522,DW-534 note=planned_while_11.11_CI_runs(Rule_23)
