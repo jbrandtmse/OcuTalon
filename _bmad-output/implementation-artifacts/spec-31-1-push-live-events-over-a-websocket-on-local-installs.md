@@ -2,7 +2,7 @@
 title: 'Push live events over a WebSocket on local installs'
 type: 'feature'
 created: '2026-10-30'
-status: 'draft'
+status: 'ready-for-dev'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: ['{project-root}/_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md']
@@ -35,7 +35,7 @@ deferred: []
   - the session from `Data.Ownership.SessionRef` (the CSP session, never request input; AD-4);
   - the cursors `after` and `afterInstance`, which must be 1 to 15 digits.
 
-  Sign-in itself comes first: `ApiBase.Login` answers 401 without a session.
+  Sign-in itself comes first: without a session the shell (`Shell.Login()`) answers with the sign-in page, and the socket gets no frame. [AMENDED 2026-11-01, lead (runner C), wording only, after the shell route: it read "`ApiBase.Login` answers 401 without a session".]
 - **Every frame is the polling body.** A frame is `##class(OcuTalon.Web.Api).EventsBody(session, sessionCursor, instanceCursor).%ToJSON()`. That gives one envelope `{seq, stream, ts, type, payload}`, streams labelled `session` or `instance`, trace URLs added by `Web.TraceLink`, and no row ids.
 - **The socket writes no table and no global** (AD-12/AD-13 web write rule). Waking uses `$SYSTEM.Event` named resources only. `Live.Publish` stays the only writer of events (AD-33).
 - No key or token in IRIS, a log, a commit, the trace or the bundle.
@@ -76,139 +76,217 @@ deferred: []
 
 ## Code Map
 
+Line numbers are at the worktree head (feature 416b0f64) unless marked "feature": those are at feature `02e91b21`, which holds Epic 4's merge (`374f958e`, after this worktree's base). The implement stage starts on a head that includes that merge (see Design Notes, "For the lead").
+
 **Server**
 
-- `src/ocutalon/cls/OcuTalon/Live/Publish.cls` -- the only event writer.
-  - `Publish` :62 unlocks at :101; signal the stream's resource after a successful commit and unlock.
-  - `LastSeq` :42 is the committed head of a stream, read under a shared lock that waits for an open publish. The socket compares it with its cursors.
-  - `RefreshGuide` :119 publishes `guide.state` through `Publish`, so it is covered.
-- `src/ocutalon/cls/OcuTalon/Live/Event.cls` -- `Since` :37 (the allow-listed unchecked prepare; call it, never copy it), `MAXEVENTS` 200.
-- `src/ocutalon/cls/OcuTalon/Web/Api.cls` -- `/ocutalon/api`, shared by entry.
-  - Routes and methods:
-    - UrlMap :127-138;
-    - `OnPreDispatch` :144 (role → 403 `no_role`; `EnvelopeError` exempts GET);
-    - `Events` :191;
-    - `CurrentSession` :900 (Private: `Ownership.SessionRef` + `Session.RefIndexOpen`);
-    - `EventsBody` :934 (public; the frame builder, with `instanceStream` as a test seam);
-    - `EnvelopeError` :954 (public; the one Origin rule);
-    - `Fail` :966 (public);
-    - `IsCursor` :1017 (Private, `?1.15N`).
-  - The class doc comment lists the routes.
-- `src/ocutalon/cls/OcuTalon/Web/Public/ApiBase.cls` -- `Login` answers 401 without a session (read only, contended).
-- `src/ocutalon/cls/OcuTalon/Web/Public/Shell.cls` -- `HasRole()` (public, reuse); `/(.*)` GET → `File`, which is why the AC URL never reaches a socket class (read only, contended).
-- `src/ocutalon/cls/OcuTalon/Data/Ownership.cls` -- `SessionRef(.sc)` :139. Call it in `OnPreServer`, before `%CSP.WebSocket.Page` unlocks the session, because it may write `%session.Data` on a local install (read only, contended).
-- `src/ocutalon/cls/OcuTalon/Web/TraceLink.cls` -- `Viewer`/`Add`; they use no `%request`, so they work in the socket process (inside `EventsBody`).
+- `src/ocutalon/cls/OcuTalon/Live/Publish.cls` -- the only event writer (AD-12, AD-33).
+  - `Publish` :62 commits, then unlocks at :101. The wake goes after that unlock, only when `sc` is OK, for every stream (the instance stream included).
+  - `LastSeq` :42 is the committed head of a stream (a shared lock that waits for an open publish; it throws after `LOCKWAIT`). The socket compares it with its cursors.
+  - `RefreshGuide` :119 publishes `guide.state` through `Publish`, so it is woken too.
+  - `^OcuTalonP.LiveEventC(stream)` :6, :80 is the precedent for a counter global kept beside a class's storage (the sign-out mark follows it).
+- `src/ocutalon/cls/OcuTalon/Live/Event.cls` -- `Since` :34 and `MAXEVENTS` :11 (200). Reached only through `Api.EventsBody`.
+- `src/ocutalon/cls/OcuTalon/Web/Api.cls` -- READ ONLY (Epic 11 changes it; its hunks are at :27, :555, :579, :819, :836).
+  - Call: `EventsBody` :934 (public; the frame; `instanceStream` is the test seam), `EnvelopeError` :954 (public; the one Origin rule, applied for a non-GET method).
+  - Do not call or copy beyond the two copies named in Design Notes: `CurrentSession` :900 and `IsCursor` :1017 are Private.
+  - `EndSession` :215 signs out with `%session.Logout(1)` :230, which runs the event class's `OnLogout` (measured T3).
+- `src/ocutalon/cls/OcuTalon/Web/Public/Shell.cls` -- the `/ocutalon` dispatch class (public package, AD-3).
+  - UrlMap :40-47: the new route goes between `/` :43 and `/(.*)` GET :44.
+  - `OnPreDispatch` :73 already ends a no-role session and shows the sign-in page; `Login()` :58 answers a request without a session (measured T6: no frame).
+  - `HasRole()` :142 (public; reuse).
+  - Class doc :1-16 gains one bullet for the route.
+- `src/ocutalon/cls/OcuTalon/Web/SessionEvents.cls` -- `/ocutalon`'s session events (Lane B; not contended).
+  - `OnLogin` :43 / `AttachFor` :50 are the shape to follow: always answer OK, catch everything, log without the user name (`Log` :142).
+  - The class doc :26-27 says it has no `OnLogout`. That line is rewritten.
+- `src/ocutalon/cls/OcuTalon/Data/Session.cls` -- Lane B's session row. DEFAULTGLOBAL `^OcuTalonP.Session` :16 (`D`, `I`, `S` in use; `M` is free). The mark adds two class methods and no property, so the storage block :185-234 and `Test.Data.Tables`'s Session contract are unchanged.
+- `src/ocutalon/cls/OcuTalon/Data/Ownership.cls` -- `SessionRef(.sc)` :139. Call it in `OnPreServer`: `Page` runs `OnPreServer` before it unlocks the session, and on a local install `SessionRef` may write `%session.Data` (Attach). READ ONLY.
+- `src/ocutalon/cls/OcuTalon/Data/Setting.cls` -- `Get("onlineDemo")` :39.
+- `src/ocutalon/cls/OcuTalon/Web/TraceLink.cls` -- used inside `EventsBody`; it needs no `%request` (measured in the earlier plan).
 - Platform (gitignored reference source, read only):
-  - `irislib/%CSP/WebSocket.cls`: `Page` :399 reads `HTTP_WEBSOCKET_ID` and HALTs without it; it calls `OnPreServer` before `InitializeServer`. In synchronous mode it unlocks the session and HALTs at the end. Asynchronous mode derives the class from the URL's last segment, so it is unusable behind a route.
-  - `irislib/%SYSTEM/Event.cls`: one wakeup per signal, wakes ONE waiter; a process waits on one resource at a time; `Create` / `Clear` / `Signal` (returns 0 for a missing resource).
+  - `irislib/%CSP/WebSocket.cls` `Page` :399. It HALTs without `HTTP_WEBSOCKET_ID`. It calls `OnPreServer` before `InitializeServer`. In synchronous mode it takes a shared lock on the CSP session id, unlocks the session, runs `Server()` and `OnPostServer()`, then HALTs. Asynchronous mode takes the class from the URL's last segment, so it is not used.
+  - `irislib/%CSP/Session.cls` `Logout` :1170: it calls each event class's `OnLogout` first, and an error status stops a non-forced logout. So `OnLogout` must always answer OK.
+  - `irislib/%SYSTEM/Event.cls`: a signal wakes one waiter or queues one wakeup; a process waits on one resource at a time; `Signal` on a missing resource returns 0.
+- Tests to extend (lane-b areas): `Test/Live/Publish.cls` (fresh streams from `Bridge.Ids.NewRef()`; the `Job` patterns at :163 and :270); `Test/Web/SessionEvents.cls` (stand-in `%session` and settings save/restore, for example `TestFlagOff` :497); `Test/Data/Session.cls`; `Test/Web/Shell.cls` (stub request pattern :42); `Test/Web/LeavingThePage.cls` `TestNoProductClassEndsASessionOnTimeout` :74 (pins "no product class defines OnLogout"; see Q2).
 - `src/ocutalon/cls/OcuTalon/Test/Web/StubRequest.cls` -- `MakeCall(application, method, contentType, header, origin, host, secure)` :35.
-- `src/ocutalon/cls/OcuTalon/Test/Web/Api.cls` -- `TestRoutes` :905 pins exactly 12 routes; it is a shared surface. Session stubbing: `%session = ##class(%CSP.Session).%New("ZzX", 0)` plus `.Data("OcuTalon.SessionRef")` (:635-664). Own-stream `EventsBody` tests are at :756-825.
-- `src/ocutalon/cls/OcuTalon/Test/Live/Publish.cls` -- fresh streams from `Bridge.Ids.NewRef()`, cleanup, and the `Job` patterns at :167 and :274 (pattern to mirror; not edited).
+- `src/ocutalon/cls/OcuTalon/Test/Web/Status.cls` -- `TestReferencesOnlyThePublicAllowList` :337, AD-3's scan of the public classes. It reads `##class(`, `$SYSTEM.` and the dynamic-dispatch functions in the class text, the superclasses and the member types. A UrlMap `Call="Class:Method"` target is none of these. Unchanged.
 
 **Client**
 
 - `web/src/app/live/live-state.ts` -- `LiveState`, the one live service.
-  - `stop()` :149 (permanent).
-  - `fetchSnapshot` :164.
-  - `accept` :200 starts polling once.
-  - `schedulePoll` :229, `poll` :244, `applyPoll` :267 (do not change these three).
-  - `otherEpoch` / `changeEpoch` (pinned by `scripts/leave-sources.test.mjs`).
-- `web/src/app/live/live-store.ts` -- `applyEvents(store, response)` :201 is the idempotent apply: a repeat is skipped, a skip gives `reload`, an epoch change gives `epochChanged`. `fromSnapshot` :114.
-- `web/src/app/live/contact-watch.ts` -- polling's contact; the socket never calls `answered()`.
-- `web/src/app/api/api-types.ts` -- `EventsResponse` :64, `StateSnapshot.onlineDemo` :50.
-- `web/scripts/contact-watch.test.mjs` and `web/scripts/fake-clock.mjs` -- the pattern for a framework-free module test (`npm test` = `node --test scripts/*.test.mjs`).
-- `web/scripts/announce-focus-sources.test.mjs` and `web/scripts/leave-sources.test.mjs` -- source pins. A new file must not announce or register `pagehide`, `visibilitychange` and the like.
+  - The imports :2 gain `effect` and `untracked`.
+  - Leave byte-identical: `stop` :149, `fetchSnapshot` :164, `accept` :200, `schedulePoll` :229, `poll` :244, `applyPoll` :267, `otherEpoch` :294 (pinned by `web/scripts/leave-sources.test.mjs` :135), `changeEpoch` :300.
+  - Reuse: `contact` :99, `halted` :102, `snapshot` :87, `store` :93, `stopped` :63.
+  - The wiring is one new block inside the class (fields plus one method), for example after `instanceSeq` :111.
+- `web/src/app/live/live-store.ts` -- `applyEvents` :201 is the idempotent apply (skips `seq <= cursor`, a skip gives `reload`, another epoch gives `epochChanged`). Every collection is keyed (`COLLECTIONS` :41), so a repeat can only show as a stale overwrite. READ ONLY (Epic 11).
+- `web/src/app/live/contact-watch.ts` -- `ContactState` :16. The socket never calls `answered()`.
+- `web/src/app/api/api-types.ts` -- `EventsResponse` :64, `StateSnapshot.onlineDemo` :50. READ ONLY.
+- `web/src/app/main-page/main-page.ts` :104 -- `data-session-seq` / `data-instance-seq` on the page (read by W3 and W9).
+- `web/scripts/contact-watch.test.mjs` + `web/scripts/fake-clock.mjs` -- the pattern for a framework-free module test. The module is imported as it is, so it imports only types and keeps to erasable syntax. `announce-focus-sources.test.mjs` and `leave-sources.test.mjs` scan every source: the new file must not announce, move focus or register `pagehide`, `visibilitychange`, `beforeunload` or `unload`.
 
-**E2E**
+**E2E** (impact map against feature `02e91b21`; `workers: 1`)
 
-- `web/e2e/support/iris.ts` -- `fixtureUser('LIVE')` :66 and `publishReminder(user)` :137 (through `docker exec … iris session`).
-- `web/e2e/live/live.spec.ts` -- L1-L13, the LIVE fixture user; publishes only on that user's stream (api.spec pins the README session's and the instance stream's counts).
-- Specs that steer delivery through routed polls. Each loses control once a socket also delivers:
-  - `web/e2e/live/live.spec.ts` L10 :403 (tampers with the poll that carries a real publish);
-  - `web/e2e/chat/chat.spec.ts` (:103 slices events, :111 `holdEvents`, :718 C8 filters `done`);
-  - `web/e2e/chat/decision.spec.ts` D10 :448 (waits for a poll whose body carries the event);
-  - `web/e2e/floor/guide.spec.ts` :470-478 (holds polls);
-  - `web/e2e/support/api.ts` :98 (`POLLS` handler).
-- `web/playwright.config.ts` :32-50 (read only) -- `workers: 1`. Project `chromium` = `e2e/**` except demo-path, demo-switch, floor, answers and cards, so a new `e2e/live/socket.spec.ts` joins the `sign-in` unit (browser group) with no config edit. `floor/guide.spec.ts` runs in `live:floor` (shards group).
+- `web/e2e/support/iris.ts` -- `fixtureUser('LIVE')` :66 and `publishReminder(user, fields)` :137 (`fields.ref` re-publishes the same entity). READ ONLY (Epic 11).
+- `web/playwright.config.ts` :48-61 -- project `chromium` is `e2e/**` except demo-path, demo-switch, floor, answers and cards. So `e2e/live/socket.spec.ts` joins the `sign-in` unit (browser group) with no edit. `web/scripts/playwright-projects.test.mjs` derives the spec lists from disk.
+- Tests that steer delivery through polls and break once a socket also delivers. Each one needs `blockLiveSocket(page)` before its page loads:
+  - `web/e2e/live/live.spec.ts`: L10 (:404-441, drops seq cursor+1 from a poll);
+  - `web/e2e/chat/chat.spec.ts`: C2 (:212, `oneEventPerPoll`), C3 (:275, `holdEvents`), C4 "the post reached the server but its answer was 503" (:377), C4 "a failed post whose turn then arrives by poll" (:474), C7 (:693), C8 (:717, strips `done`), C9 (:761);
+  - `web/e2e/chat/decision.spec.ts`: D10 (:449, waits for a poll body that holds the event);
+  - `web/e2e/chat/try-it.spec.ts` (feature): `keepRoutedFinish` :210, which strips `guide.state` from polls and is used by Y5 :417 (with `holdPoll` :430), Y9 :548 and Y10 :577. Put the call inside `keepRoutedFinish`, which already runs before the page loads;
+  - `web/e2e/floor/announcements.spec.ts`: A2 :162, A3 :187, A4 :214 and A5 :232 (`holdPoll` makes "one update"). The call goes in each test before `open()` :69;
+  - `web/e2e/floor/guide.spec.ts` (feature): M10 :618, M14 :685 and M13 :804 (`holdPolls` :490, "only the 200 answer"). These are the held-poll lines: one call per test before `seedFinishingRun`, plus the import line.
+- Need nothing: `support/api.ts` (`holdPoll` :83, used by the callers above), `support/clock.ts` (timing only), `support/floor.ts` (no events routing), `chat/notice.spec.ts`, `guide/guide.spec.ts` (synthetic events), `demo-path/**` (arrivals only; `01-page.spec.ts` :23-46 reads the first poll's cursors, safe unless the README session publishes during load), `rail`, `api`, `session`, `demo-switch`, `answers`, `cards`, `trace`, `phone`, `reminder`.
+- `web/e2e/banners/banners.spec.ts` B14 :858-920 (NEVER edited) publishes `heartbeatStalled` while `refuseApi` holds the API down, and asserts the page has not heard it until the first answer after the outage. It stays green because the page applies no socket frame while `contact` is not `ok` (Design Notes, D3).
+- The LIVE user: only `live.spec.ts` publishes on its stream (L2, L4, L10). `session/session.spec.ts` S8 uses it without publishing. A socket spec on LIVE is safe under `workers: 1` if each test reads its cursor fresh.
 
 ## Tasks & Acceptance
 
 **Execution:**
 
-- [ ] `src/ocutalon/cls/OcuTalon/Live/Publish.cls` -- add the wake path and call it after each commit.
-  - Add `WakeName(stream)`, which returns `$Name(^OcuTalonP.LiveWake(stream))`: a named resource only, never set as a global.
-  - Add `Wake(stream)`: `$SYSTEM.Event.Signal(..WakeName(stream))`, which ignores a missing resource.
-  - Call `Wake(stream)` in `Publish` after the commit and the unlock, only when `sc` is OK.
+- [ ] (lead, before implement) Integrate the feature forward so that the epic branch holds Epic 4's merge `374f958e`. The e2e anchors above marked "feature" assume it.
+- [ ] `src/ocutalon/cls/OcuTalon/Data/Session.cls` -- the sign-out mark (U-174, DW-457).
+  - `Parameter MARKGLOBAL` names `^OcuTalonP.SessionM`.
+  - `ClassMethod MarkSignedOut(ref) As %Status`: `$Increment(^OcuTalonP.SessionM(ref))` for a non-empty ref. It is atomic and takes no row lock, so it never waits on `Core.Trace`'s row lock.
+  - `ClassMethod SignOuts(ref) As %Integer`: `+$Get(...)`, 0 for an empty or unknown ref.
+  - The class doc gains one paragraph: what the mark is, who writes it and who reads it.
+  - No property, index or storage change.
+- [ ] `src/ocutalon/cls/OcuTalon/Web/SessionEvents.cls` -- `ClassMethod OnLogout() As %Status`.
+  - Only when `Data.Setting.Get("onlineDemo") '= 1` and `%session.Data(Ownership.#SESSIONKEY)` names a session: call `Session.MarkSignedOut(ref)`, then `Publish.Wake(ref)` so that its socket wakes at once.
+  - It always answers OK (an error would stop a non-forced logout) and catches everything. A failure goes through `Log` without the user name (measured T7: the console write may not land from this callback, so nothing depends on it).
+  - Rewrite the class-doc line "The class has no OnLogout…" to say what `OnLogout` does and that a CSP session's end still ends nothing else.
+- [ ] `src/ocutalon/cls/OcuTalon/Live/Publish.cls` -- the wake (AD-12: "`Live.Publish` signals after each commit").
+  - `ClassMethod WakeName(stream) As %String` returns `$Name(^OcuTalonP.LiveWake(stream))`, a resource name only (never set as a global).
+  - `ClassMethod Wake(stream)` calls `$SYSTEM.Event.Signal(..WakeName(stream))`, which ignores a missing resource.
+  - In `Publish`, call `..Wake(stream)` after the unlock at :101 when `sc` is OK, before `RefreshGuide`.
   - Update the class doc.
-  - Why: AD-12 says "`Live.Publish` signals after each commit".
-- [ ] `src/ocutalon/cls/OcuTalon/Web/Live.cls` (new, extends `%CSP.WebSocket`, synchronous mode) -- the socket.
-  - `Accept()` class method:
-    - with an empty `HTTP_WEBSOCKET_ID`, answer `Api.Fail(400, "not_websocket", …)`, because `Page` HALTs without one;
-    - otherwise `Do ##class(%Library.Device).ReDirectIO(0)` then `Quit ..Page()`.
-  - `OnPreServer()` runs every check in the Always list. `OriginError(origin, host, secure)` delegates to `Api.EnvelopeError("POST", "application/json", 1, origin, host, secure)` so the Origin rule stays in one place. It keeps `SessionRef`, both cursors and `InstanceStream` (default `Publish.#INSTANCE`; a test seam), creates both wake resources, and `Clear`s queued wakeups.
-  - `Server()` loop:
-    1. Send batches while either `LastSeq` is above its cursor, advancing each cursor to the highest `seq` sent on that stream.
-    2. `Wait` 0.25 s on the session's resource, then 0.25 s on the instance resource. Each wakes one waiter; the `LastSeq` check makes every socket correct either way.
-    3. `Read(, .sc, 0)`, then end on code 7951 (closed) or any error but 7950 (timeout).
-    4. Send a heartbeat frame every `HEARTBEAT` = 25 s.
-    5. `EndServer()` after `LIFETIME` = 60 s (Q1, pending).
-    6. A `LastSeq` that throws is retried next loop.
-  - Why: AC 1.
-- [ ] `src/ocutalon/cls/OcuTalon/Web/Api.cls` -- add the route entry `<Route Url="/v1/live" Method="GET" Call="Live"/>` and `ClassMethod Live()` (`Quit ##class(OcuTalon.Web.Live).Accept()`). Add one class-doc line for `GET /v1/live`. Why: the routing decision (measured M2).
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Web/Api.cls` -- `TestRoutes`: 13 routes, adding `"GET /v1/live Live"`; update the header's "12 routes". Why: Rule 19 shared surface.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Web/Live.cls` (new) -- `%UnitTest`, each test with its own streams and cleanup.
-  - Covers: `OnPreServer` with a stub request and session (role, online demo, Origin wrong/empty/right, cursors bad/good, no session); `OriginError`; and the batch builder (cursor advance, more than `MAXEVENTS`, envelope labels, `traceUrl` present, epoch).
-  - Unit-test every matrix row that does not need a gateway.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Live/PublishWake.cls` (new) -- a `Job`'d waiter on `WakeName(<fresh ref>)` wakes within 1 s of a `Publish` on that stream. No wake for a failed publish, and none for another stream.
-- [ ] `web/src/app/live/live-socket.ts` (new, framework-free, erasable syntax) -- `LiveSocket`.
-  - Injected: the WebSocket factory, timers, `location {protocol, host}`, `cursors()` and `onEvents(EventsResponse)`.
-  - `start(snapshot)` returns at once when `snapshot.onlineDemo === true`. Otherwise it opens `ws(s)://<host>/ocutalon/api/v1/live?after=<s>&afterInstance=<i>` with the current cursors.
-  - It parses each text frame as `EventsResponse` and ignores a malformed frame.
-  - On close or error it reconnects after 1 s when the socket delivered a frame, otherwise with a 1 s backoff doubling to 30 s.
-  - `stop()` closes and never reopens. No announcement, no focus, no banner.
-- [ ] `web/src/app/live/live-state.ts` -- wire the socket.
-  - In `accept()`, after polling starts the first time, call `socket.start(snapshot)`.
-  - New `applyPushed(response)`: `applyEvents` → `otherEpoch`/`changeEpoch` → on `reload` `fetchSnapshot(() => undefined, undefined, POLL_TIMEOUT_MS)` → `store.set`. No `watch.answered()`, no `answers`, no `schedulePoll`.
-  - `stop()` also calls `socket.stop()`.
-  - Update the class doc. Leave `poll`/`schedulePoll`/`applyPoll`/`fetchSnapshot` byte-identical.
-- [ ] `web/scripts/live-socket.test.mjs` (new) -- node tests with `fake-clock.mjs` and a fake WebSocket. Cases: the URL and cursors, frames to `onEvents`, a malformed frame, reconnect timing both ways, `stop()`, and online demo with no socket constructed.
-- [ ] `web/e2e/support/socket.ts` (new) -- the socket helpers for the specs.
-  - `LIVE_SOCKET` (`/\/ocutalon\/api\/v1\/live/`).
-  - `blockLiveSocket(page)`: `page.routeWebSocket(LIVE_SOCKET, ws => ws.close())`.
-  - `socketFrames(page)`: records frames through `page.on('websocket')`.
-  - `rawUpgrade({port, path, origin, cookie})`: a Node `net` handshake that returns the status line and whether any data frame arrived within 3 s.
-- [ ] `web/e2e/live/socket.spec.ts` (new; LIVE fixture user; publishes only on that user's stream) -- these cases, with W1 to W4 also asserting no banner and no new live-region text:
-  - W1: with polls answered event-free (`route.fetch` then `events: []`), a `publishReminder` shows on the page within 2 s and its `seq` is in a received frame. Log the ms, labelled (inference).
-  - W2: with `blockLiveSocket`, polling delivers it within 2 s.
-  - W3: the socket's URL carries the page's `data-session-seq` and `data-instance-seq`.
-  - W4: after the socket closes it is reopened, and an event still arrives through it.
-  - W5: `rawUpgrade` with a wrong Origin gets no frame.
-  - W6: `rawUpgrade` without a cookie gets no frame.
-  - W7: after `stop()` (sign out), no socket is reopened.
-- [ ] Existing specs that steer delivery through polls (Q2, pending) -- add `blockLiveSocket(page)` to each test that routes `/events` while publishing, or waits for a poll's body. Assertions stay unchanged.
-  - Files: `web/e2e/live/live.spec.ts` (L10), `web/e2e/chat/chat.spec.ts` (`holdEvents`, the `:103` helper's users, C8), `web/e2e/chat/decision.spec.ts` (D10), `web/e2e/floor/guide.spec.ts` (held polls), `web/e2e/support/api.ts` (`POLLS` handler).
-  - First grep `web/e2e` for `v1/events` and `EVENTS` to find every other one. `banners.spec.ts` needs none, because contact stays polling's.
-- [ ] `_bmad-output/implementation-artifacts/spec-31-1-…md` `## Verification` -- record the measured minutes of `socket.spec.ts` and of both `sign-in` parts before and after, the `live:floor` change, and one `mutation:` line per AC.
+- [ ] `src/ocutalon/cls/OcuTalon/Web/Live.cls` (new; extends `%CSP.WebSocket`; synchronous mode; code database, AD-3) -- the socket (AC 1).
+  - Parameters: `HEARTBEAT` 25, `LIFETIME` 60, `SLICE` 0.25.
+  - Properties: `SessionRef`, `After`, `AfterInstance`, `InstanceStream` (default `Publish.#INSTANCE`, a test seam), `Mark`, `StartedAt`, `SentAt`, `Lifetime` (default `LIFETIME`, a test seam).
+  - `ClassMethod Accept() As %Status`, the shell's route target. With an empty `HTTP_WEBSOCKET_ID` it sets `%response.Status` 404 and answers OK: no body and no new text, as the shell answers a path it doesn't serve, because `Page` would HALT. Otherwise `Do ##class(%Library.Device).ReDirectIO(0)` and `Quit ..Page()`.
+  - `ClassMethod Refusal(hasRole, onlineDemo, origin, host, secure, sessionRef, after, afterInstance) As %String`: "" or the first code of `no_role`, `online_demo`, `wrong_origin`, `no_session`, `bad_cursor`.
+    - Origin: `Api.EnvelopeError("POST", "application/json", 1, origin, host, secure) '= ""` means `wrong_origin`.
+    - Cursors: `?1.15N`.
+    - The codes are internal and never sent.
+  - `Method OnPreServer()`:
+    - reads `Shell.HasRole()`, `Setting.Get("onlineDemo")`, `HTTP_ORIGIN`, `HTTP_HOST`, `%request.Secure`, `Ownership.SessionRef(.sc)` and the two query cursors;
+    - calls `Refusal`; a refusal returns an error status (no frame; measured T6), and the class logs nothing;
+    - otherwise it keeps the cursors, `SessionRef`, `Mark = Session.SignOuts(ref)` and the times, creates both wake resources (`WakeName(ref)`, `WakeName(InstanceStream)`) and `Clear`s queued wakeups.
+  - `ClassMethod Next(markAtOpen, markNow, startedAt, now, sentAt, ahead, lifetime) As %String`: the loop's decision, in this order:
+    1. `end` when the mark changed;
+    2. `end` at the lifetime;
+    3. `send` when either stream is ahead;
+    4. `heartbeat` when `HEARTBEAT` s passed since the last frame;
+    5. otherwise `wait`.
+  - `Method Server()` loops:
+    - read `Session.SignOuts(SessionRef)` and `LastSeq` of both streams (a `LastSeq` that throws counts as not ahead, retried next loop);
+    - `send` writes `Api.EventsBody(session, After, AfterInstance, InstanceStream).%ToJSON()`, advances each cursor to the highest `seq` of its stream in the frame, and repeats until caught up;
+    - `heartbeat` writes the same body with no events;
+    - `end` calls `EndServer()`;
+    - then `Wait SLICE` on the session's resource and `SLICE` on the instance resource, and `Read(, .sc, 0)`: end on 7951 or any error but 7950.
+    - It writes no table and no global.
+- [ ] `src/ocutalon/cls/OcuTalon/Web/Public/Shell.cls` -- the forwarding route only (U-175).
+  - Add `<Route Url="/OcuTalon.Web.Live.cls" Method="GET" Call="OcuTalon.Web.Live:Accept"/>` after `/` and before `/(.*)`.
+  - Add one class-doc bullet: "a GET of /OcuTalon.Web.Live.cls is forwarded to the live-events WebSocket (AD-12, AD-13)".
+  - No `##class` and no new parameter, so `Test.Web.Status` and `Test.Web.PublicTexts` are unchanged.
+- [ ] `src/ocutalon/cls/OcuTalon/Test/Web/Live.cls` (new; lane-b area Web) -- each test makes its own streams and session rows and removes them.
+  - `TestRefusals` covers every `Refusal` case (U-174 (a)): no role; online demo; Origin wrong, empty, other scheme, other host and right; session empty; cursors `x`, empty, 16 digits, `0` and 15 digits.
+  - `TestOnPreServer` uses a stub request (`StubRequest.MakeCall`) and a stand-in `%session` holding a fixture `SessionRef`. It checks that a good upgrade keeps the cursors, the ref and the mark, that a wrong Origin returns an error status, and that the onlineDemo flag (saved and restored) refuses.
+  - `TestNext` drives `Next` with a shortened lifetime (U-174 (c)): mark changed → end before send; lifetime → end; ahead → send; 25 s quiet → heartbeat.
+  - `TestFrames` uses `EventsBody` on its own fresh session stream and an `InstanceStream` seam stream: more than `MAXEVENTS` events give successive frames in `Seq` order; the envelope labels are `session`/`instance`; `traceUrl` is present; the epoch is the session's. No frame holds the stored `SessionRef` or a row id (U-174 (d)).
+  - `TestAccept`: no `HTTP_WEBSOCKET_ID` gives 404 with no body.
+- [ ] `src/ocutalon/cls/OcuTalon/Test/Live/Publish.cls` -- `TestWake`.
+  - A `Job`'d waiter on `WakeName(<fresh ref>)` wakes within 1 s of a `Publish` on that stream.
+  - It does not wake for a refused publish (bad type), nor for a publish on another fresh stream.
+- [ ] `src/ocutalon/cls/OcuTalon/Test/Web/SessionEvents.cls` -- `TestSignOutMark` (DW-457).
+  - With a stand-in `%session` holding a fixture ref, `OnLogout` answers OK and `SignOuts(ref)` goes up by exactly 1.
+  - The row's `Epoch`, `CspSessionId` and the other fields are unchanged.
+  - With onlineDemo on (saved and restored), nothing changes.
+  - With no ref, it answers OK and nothing changes.
+- [ ] `src/ocutalon/cls/OcuTalon/Test/Data/Session.cls` -- `TestSignOutMark`: 0 for an unknown ref; two calls give +2; one ref's mark leaves another's alone.
+- [ ] `src/ocutalon/cls/OcuTalon/Test/Web/Shell.cls` -- `TestForwardsTheSocket` reads the UrlMap XData. It checks that GET `/OcuTalon.Web.Live.cls` calls `OcuTalon.Web.Live:Accept`, that the route comes before `/(.*)`, and that it is the only route naming a class outside the two public packages (Q3).
+- [ ] `src/ocutalon/cls/OcuTalon/Test/Web/LeavingThePage.cls` -- `TestNoProductClassEndsASessionOnTimeout`.
+  - No product class defines `OnTimeout` or `OnEndSession`.
+  - `OnLogout` is defined by `OcuTalon.Web.SessionEvents` alone.
+  - Update the header bullet to match.
+- [ ] `web/src/app/live/live-socket.ts` (new; framework-free; imports types only; erasable syntax) -- `LiveSocket`, following `ContactWatch`'s injected shape.
+  - Constants: `SOCKET_PATH = '/ocutalon/OcuTalon.Web.Live.cls'`, `RECONNECT_MS = 1000`, `MAX_BACKOFF_MS = 30_000`, `SILENT_MS = 60_000`.
+  - Injected: `open(url)` (the WebSocket factory), `setTimeout`/`clearTimeout`, `location {protocol, host}`, `cursors()`, `accepting()` and `onEvents(EventsResponse)`.
+  - `start(snapshot)` opens once. It returns at once and constructs nothing when `snapshot.onlineDemo === true`. Otherwise it opens `ws:` or `wss:` (by `location.protocol`) `//<host>` + `SOCKET_PATH` + `?after=<s>&afterInstance=<i>` from `cursors()` at that moment.
+  - Each text frame is parsed as `EventsResponse` and handed to `onEvents` only when `accepting()` is true. A malformed frame is ignored.
+  - On close or error, it reconnects with the cursors of that moment: `RECONNECT_MS` after a socket that delivered a frame, otherwise a backoff from `RECONNECT_MS` doubling to `MAX_BACKOFF_MS`.
+  - No frame for `SILENT_MS` closes the socket, which then reconnects. A refused upgrade can stay open with no frame (measured T6).
+  - `stop()` closes, clears every timer and never reopens.
+  - No announcement, no focus, no banner, no page-lifecycle handler.
+- [ ] `web/src/app/live/live-state.ts` -- the import line plus ONE self-contained block (AC 2).
+  - `private readonly socket = new LiveSocket({ open: (url) => new WebSocket(url), …, cursors: () => this.store()?.cursors, accepting: () => this.contact() === 'ok', onEvents: (response) => this.applyPushed(response) })`.
+  - One `effect` field: with the latest `snapshot()` and `halted()`, `untracked`, it calls `socket.stop()` when halted, else `socket.start(snapshot)` once a snapshot exists.
+  - `private applyPushed(response)`. When stopped or with no store it does nothing. Otherwise it runs `applyEvents`. Another online-demo epoch goes to `changeEpoch()`. `reload` calls `fetchSnapshot(() => undefined, undefined, POLL_TIMEOUT_MS)`. Otherwise it sets the store if it changed.
+  - It never touches the watch, `answers` or the poll schedule.
+  - The block's doc comment says that the socket only delivers sooner, beside polling.
+- [ ] `web/scripts/live-socket.test.mjs` (new; `fake-clock.mjs` and a fake WebSocket). Cases:
+  - the URL with both cursors, `ws:` and `wss:`;
+  - frames reach `onEvents`;
+  - a malformed frame is ignored;
+  - frames are dropped while `accepting()` is false (the B14 rule, D3);
+  - reconnect 1 s after a delivered frame;
+  - the backoff 1, 2, 4 … 30 s;
+  - the silence watchdog;
+  - `stop()` closes, cancels a pending reconnect and never reopens;
+  - a second `start` opens nothing;
+  - `onlineDemo` constructs no WebSocket.
+- [ ] `web/e2e/support/socket.ts` (new) -- the shared helper (U-173).
+  - `LIVE_SOCKET` (`/\/ocutalon\/OcuTalon\.Web\.Live\.cls/`).
+  - `blockLiveSocket(page)` is `page.routeWebSocket(LIVE_SOCKET, (ws) => ws.close())`. Call it before the page loads.
+  - `proxyLiveSocket(page)`: routes that `connectToServer()` and are kept for the test to close.
+  - `socketFrames(page)` records frames through `page.on('websocket')`.
+  - `rawUpgrade({baseURL, path, origin, cookie})`: a Node `net` handshake. It returns the status line, the data frames with their times, a close frame, and `close()`.
+- [ ] `web/e2e/live/socket.spec.ts` (new; LIVE user; publishes only on its own stream; cursors read fresh) -- W1 to W9.
+  - W1 (AC 3, AC 4, U-174 (d)): with polls answered event-free (`route.fetch`, then `events: []`), a `publishReminder` shows on the page within 2 s, and its `seq` is in a received frame. No banner. No frame holds the CSP session cookie's value or the session's `Ref`. Log the ms, labelled (inference).
+  - W2 (AC 3): with `blockLiveSocket`, polling delivers it within 2 s. No banner.
+  - W3: the socket URL is `SOCKET_PATH`, with the page's `data-session-seq` and `data-instance-seq`.
+  - W4 (U-174 (c), page side): with `proxyLiveSocket`, the test closes the first socket. The page opens a second upgrade with its current cursors, and a publish arrives through it while polls are event-free. No banner and no new live-region text.
+  - W5 (U-174 (a)): `rawUpgrade` with the LIVE cookie and Origin `http://evil.example`, then with no Origin: no data frame within 3 s.
+  - W6 (U-174 (a)): `rawUpgrade` with no cookie: no data frame within 3 s.
+  - W7 (U-174 (b)): Sign out from the account menu. The page's socket closes within one poll (2 s) and no new socket opens.
+  - W8 (U-174 sign-out mark, DW-457): open a `rawUpgrade` with a signed-in context's cookie. `POST /ocutalon/api/v1/session/end` with the same cookie and the envelope answers 204. A `publishReminder` after that reaches no data frame, and a close frame arrives within 1 s. Then the same with `GET /ocutalon/?IRISLogout=end`.
+  - W9 (U-173, dual delivery): hold the page's next poll, which was issued with `after=s`. Publish R "first" (s+1) and `route.fetch()` the held poll now, so that its answer holds s+1 only. Wait until "first" shows by the socket. Publish R "second" (s+2, same ref) and wait until it shows. Then fulfil the held poll with its answer. The page still shows "second", `data-session-seq` is s+2, and no `/state` request was made.
+- [ ] Existing specs: add `blockLiveSocket(page)` before the page loads in every test the Code Map lists. Assertions stay unchanged.
+  - Files: `web/e2e/live/live.spec.ts`, `web/e2e/chat/chat.spec.ts`, `web/e2e/chat/decision.spec.ts`, `web/e2e/chat/try-it.spec.ts`, `web/e2e/floor/announcements.spec.ts`, `web/e2e/floor/guide.spec.ts`.
+  - Grep `web/e2e` (not `e2e-online`) once more for `v1/events`, `holdPoll`, `holdEvents` and `keepRoutedFinish` on the implement head, and give any new caller the same call.
+  - Never edit `banners.spec.ts`, `support/floor.ts`, `e2e-online/**` or Epic 11's `support/*` files.
+- [ ] `## Verification` of this spec -- record each command's seconds, socket.spec's own duration, W1's ms (inference), and one `mutation:` line per pinning test.
 
 **Acceptance Criteria:**
-- **AC 1 (the server).**
+
+- **AC 1 (the server, AD-12, AD-13).**
   - Given a signed-in session with the user role on a local or IPM install,
-  - when the page opens the WebSocket `/ocutalon/api/v1/live?after=<s>&afterInstance=<i>` (AC URL amendment candidate A1),
-  - then `OcuTalon.Web.Live` has checked the role, the online-demo flag, `Origin`, the session (from the CSP session) and the cursors before `Server()` runs, and a refused socket gets no frame. It waits on the session's `$SYSTEM.Event` resource and one instance resource, which `Live.Publish` signals after each commit, and sends each new event after the client's cursors in the envelope `{seq, stream, ts, type, payload}` inside `{epoch, events}`, with trace URLs (AD-12, AD-13).
-- **AC 2 (the client).**
+  - when the page opens the WebSocket `/ocutalon/OcuTalon.Web.Live.cls?after=<s>&afterInstance=<i>` (forwarded by the shell),
+  - then `OcuTalon.Web.Live` has checked the role, the online-demo flag, `Origin`, the session (from the CSP session) and the cursors before `Server()` runs, and a refused socket gets no frame.
+  - It waits on the session's `$SYSTEM.Event` resource and one instance resource, which `Live.Publish` signals after each commit. It sends each new event after the client's cursors in `{epoch, events}`, in the envelope `{seq, stream, ts, type, payload}` with trace URLs.
+- **AC 2 (the client; FR-12, UX-DR91, UX-DR149).**
   - Given the page's live-event service,
   - when it starts,
-  - then on a local or IPM install it receives events over the WebSocket and applies them through `applyEvents`, the same idempotent path as polling. A `Seq` skip reloads the snapshot. With `onlineDemo` set it never constructs a WebSocket and only polls. If the socket closes or fails, delivery continues by polling with no message, and the socket reconnects in the background. Polling's cadence, contact and banners are unchanged (FR-12, AD-12, UX-DR91, UX-DR149).
-- **AC 3 (CI).**
-  - Given the CI demo-path environment (the browser group's throwaway stack with the model mock),
+  - then on a local or IPM install it receives events over the WebSocket and applies them through `applyEvents`. A `Seq` skip reloads the snapshot.
+  - With `onlineDemo` set it never constructs a WebSocket and only polls.
+  - If the socket closes or fails, delivery continues by polling with no message, and the socket reconnects in the background.
+  - Polling's cadence, contact and banners are unchanged, and no socket frame is applied while contact is not `ok`.
+- **AC 3 (CI; NFR-9).**
+  - Given the CI throwaway stack with the model mock,
   - when `web/e2e/live/socket.spec.ts` runs in the `sign-in` unit,
-  - then an event published while the socket is open reaches the page through it (W1), and with the socket blocked polling still delivers it (W2). The 2-second bound is checked against the mock and measured over real networks only in the rehearsal (NFR-9).
-- **AC 4 (integration).**
+  - then an event published while the socket is open reaches the page through it (W1), and with the socket blocked polling still delivers it (W2).
+  - The 2-second bound is checked against the mock and measured over real networks only in the rehearsal.
+- **AC 4 (integration, Rule 1).**
   - Given a fresh throwaway stack,
   - when the consumer `LiveState` reads from the socket,
   - then the published reminder appears on the page with no poll carrying it (W1, a real instance, no mock socket).
-- **AC 5 (regression).**
-  - Given the existing L, B, S, C, D and guide specs,
+- **AC 5 (sign-out; U-174, DW-457).**
+  - Given an open socket of a signed-in session on a local install,
+  - when that session signs out (`POST /v1/session/end`, or `?IRISLogout=end`),
+  - then the socket sends no further frame and closes within one loop (W8). Every refusal sends no frame (W5, W6, `TestRefusals`). The page closes its own socket at Sign out (W7). The server ends every socket at its lifetime, and the page reconnects through the checks (`TestNext`, W4). No frame carries a session id, cookie or ref (W1, `TestFrames`).
+- **AC 6 (one event, two paths; U-173).**
+  - Given an event that reaches the page over the socket and again in a late poll,
+  - then it is applied exactly once, by `seq`: a stale repeat never overwrites a newer view (W9).
+- **AC 7 (regression).**
+  - Given the existing L, C, D, Y, A, M, B and S specs and the demo path,
   - when they run with this change,
   - then all pass with their assertions unchanged.
 
@@ -219,159 +297,169 @@ deferred: []
 
 - 2026-11-01, lead (runner C): re-dispatched after Epic 29 merged. Intent block brought in line with U-173/U-174/U-175 (Approach: shell-forwarded route at the AC's URL and the sign-out mark; Never: contended paths re-computed, Shell and Session freed for this story's two edits; sign-out sentence). Re-dispatch rulings added at the top of ## Design Notes. Ledger inbox: DW-457, DW-397. Status stays `draft` for the re-plan.
 
+- 2026-11-01, lead (runner C): the re-plan halted on Q1-Q3; ruled under ## Design Notes (Q1 decide, Q2 veto U-209, Q3 decide), `pending` markers removed, the intent's sign-in sentence reworded for the shell route, status `ready-for-dev`.
+
 ## Review Triage Log
 
 ## Design Notes
 
-**Re-dispatch rulings (2026-11-01, runner C, policy ff1bd1a; read first; they govern the re-plan together with the rulings below):**
-- **Epic 29 has merged** (fe1d81e2): `Web/Public/Shell.cls` and `Data/Session.cls` are free. No open branch (Epics 4, 11, 12, 30) has changed either file (checked 2026-11-01 at feature 416b0f64). So the sign-out mark is built in this story (U-174's main case), and DW-457 is resolved by it at adjudication.
-- **Policy change (e204efac):** owner-fixed (3) now reads "Polling is the online demo's contract; local installs get the WebSocket with Epic 31 in 1.0.0." Nothing in this story's intent changes: polling stays on everywhere, and the socket is added on local installs only.
-- **Epic 11 (live) now changes `Web/Api.cls`:** this story only reads `Api.EventsBody`; it never edits `Api.cls`, `api-types.ts` or `live-store.ts`.
-- **Epic 4 (live) owns `web/src/app/**` and `web/e2e/floor/guide.spec.ts`** (Story 4.8 removes the Go-to-Break-the-feed cases there). Ruling (dispatch, decide): new files (`web/src/app/live/live-socket.ts`, `web/e2e/support/socket.ts`) are no collision. In `live-state.ts`, keep this story's wiring to ONE self-contained block. In `floor/guide.spec.ts`, change only this story's held-poll lines. Both go under `footprint_extensions:` and are resolved as a plain union at integrate-forward; if Epic 4's change and this story's touch the same lines, the lead raises a clarification.
-- **Re-measure, don't assume:** M2's handoff inside the shell application (`/ocutalon`, `OcuTalon.Web.Public.Shell`), on a lane-C throwaway (`OCUTALON_LOCK_DIR=<main>/.worktrees/.coordination/locks/lane-c`, `OCUTALON_TEST_WEB_PORT=52803`), against Epic 29's merged Shell, Session and banner code; and the spine's web-layer write rule for the sign-out mark.
-- **CI groups:** add no unit to a group over 30 minutes without moving another out; only `shards` is under 30 today. New IRIS test classes go into `shards`. No job renamed and no iris group added, renamed or removed (branch protection).
-- **DW-397** (routed here by the merge gate): its fix needs `Install/Step/Demo.cls` (not contended now, but outside this story's intent). Recommendation: decline it under Design Notes as out of scope for a WebSocket story (smaller is better); the lead re-owns it at the spec gate.
+**Rulings that govern this plan (read first).**
 
-**Rulings on this plan's questions (2026-10-30, policy 6df0676; these govern the re-plan and override the "Decided in-stage" items and recommendations below wherever they differ):**
-- **Q1 → U-174 (orchestrator ruling, veto): recommendation 1–3 kept.**
-  - `OnPreServer` checks the role, the online-demo flag (the server refuses too), `Origin` and the session before `Server()`; a refusal sends no frame.
-  - The page closes its socket in `LiveState.stop()`.
-  - The server ends each socket after a fixed 60-second lifetime and the page reconnects silently, so every reconnect re-runs the checks.
-  - Conditions, each one a test: (a) every refusal case (no session, missing role, wrong or missing `Origin`, the online-demo flag) sends no frame; (b) after sign-out, the page's socket closes within one poll; (c) the server closes the socket at the lifetime, and the page reconnects with the checks re-run (the lifetime may be shortened in tests); (d) no session id, cookie or token appears in any frame or log.
-  - ~~Known cost: a client that ignores the page's close keeps reading its own session's events for up to 60 s after sign-out (M5); the server-side sign-out check deferred to a ledger entry.~~ Superseded by the owner's answer to U-174 below: the server-side sign-out check is built in this story.
-- **A2 → U-175 (orchestrator ruling, veto): no AD-13 amendment; comply first (U7 step 1).**
-  - AD-13 already allows "forwarded by the shell", at the AC's own URL `/ocutalon/OcuTalon.Web.Live.cls`, so U7 step 2 does not apply; U14 also bars an amendment while other in-flight epics' specs cite AD-13 (Epic 29's do).
-  - So the socket is forwarded by the shell: a `Web/Public/Shell.cls` route for `/OcuTalon.Web.Live.cls`, placed before `/(.*)`, that hands the request to `OcuTalon.Web.Live.Page()` in synchronous mode (M2's handoff mechanism). `Web/Public/Shell.cls` is Epic 29's contended path, so this story waits on Epic 29's merge (`story_waiting … on=29`).
-  - **A1 is withdrawn:** AC 1's URL stays as written. Route (c), `/ocutalon/api/v1/live`, is NOT planned; "Decided in-stage" item 1 is superseded.
-  - **The re-plan after Epic 29 merges must re-measure M2's handoff inside the shell application** (`/ocutalon`, `OcuTalon.Web.Public.Shell`): the role, `%session` and SessionRef, the headers, the cursors, a concurrent `/state`, `Api.EventsBody`/`TraceLink` and the `$SYSTEM.Event` wake. It also re-reads Epic 29's merged Shell, Session and banner changes.
-  - U-175 was kept by the owner's delegate (route (c) declined) and is resolved.
-- **Q2 → U-173 (runner ruling, veto): polling keeps running unchanged beside the socket.** Contact and the banners stay polling's; the socket only delivers sooner, through the same idempotent apply path. The routed-poll specs block the socket for their tests with one shared helper (`page.routeWebSocket`), their assertions unchanged. Orchestrator guards: the helper must not edit `web/e2e/support/floor.ts` or `web/e2e/banners/banners.spec.ts` (both changed on Epic 29's unmerged branch), and every spec file it touches is reported under `footprint_extensions:`. (The lead's earlier wording "polling's tests stay as they are" was a gloss, not owner-fixed; the owner-fixed rule is "polling is the release-1 contract".)
-
-**Owner answers (the Contest Planner, the owner's delegate, through the inbox; applied 2026-10-30 by the lead; quoted verbatim):**
-- **U-173, at=2026-10-30T22:43:15Z#526:** "Accepted. Polling keeps running unchanged beside the socket; the socket only delivers sooner, through the same idempotent apply path; one shared page.routeWebSocket helper blocks the socket in the existing specs, assertions unchanged. Condition: add a test where one event arrives over both the socket and a poll and is applied exactly once (by seq). Record in the story's dev notes that polling stays on beside the socket, against the user story's wording 'polling only as the fallback'. The user-facing promise (updates arrive at once) holds, and on a single-user local install the extra polls cost nothing that matters."
-  - **For the re-plan:** a test where one event arrives over both the socket and a poll and is applied exactly once, by `seq`, is a required pinning test (with its mutation line).
-  - **Dev note (owner-recorded deviation from the user story's wording):** polling stays on beside the socket, against the user story's wording "polling only as the fallback". The user-facing promise (updates arrive at once) holds, and on a single-user local install the extra polls cost nothing that matters.
-- **U-174, at=2026-10-30T22:43:15Z#527:** "Accepted with your conditions and one change. U-175 makes 31.1 wait for Epic 29's merge, so Data/Session.cls will be free when 31.1 runs. Build the server-side sign-out check (a mark the sign-out sets, read on each socket loop) in 31.1 itself, with a test that an open socket sends no further frame within one loop after sign-out, and keep the 60 s lifetime as a backstop. That removes the known 60 s cost instead of ledgering it. Only if another open epic holds Data/Session.cls when 31.1 resumes: keep the ledger entry instead, due before 1.0.0, not open-ended. Keep the server's own online-demo refusal: the demo gate passes WebSocket upgrades (AD-24), so on the public host the server's refusal is the real guard. I will check it on the host at the 1.0.0 update."
-  - **For the re-plan:** conditions (a)–(d) above stay, plus: the sign-out sets a server-side mark (in `Data/Session.cls`, free once Epic 29 has merged) that the socket reads on each loop; a test that an open socket sends no further frame within one loop after sign-out; the 60 s lifetime stays as a backstop. There is no known 60 s cost any more.
-  - **At the re-plan, check first** whether another open epic's unmerged branch has changed `Data/Session.cls` (`git diff --name-only origin/feature/OCT_OcuTalon_MVP...origin/OCT-epic<M>` for every open `OCT-epic*` branch). If one has, do NOT build the mark: keep DW-457 as the ledger entry, re-owned with a note that it is due before 1.0.0 (not open-ended), and the 60 s lifetime stays as the interim cost.
-  - **The mark is a sign-out write by web code.** The spine's sign-out rule (ARCHITECTURE-SPINE.md, the web-layer write rule near its line 110: "REST and WebSocket code may read tables, and may write only: the `Session` row … at sign-in, a sign-out, which submits `SessionOps.End` through `CommandsIn` …") appears to allow it; re-read that rule at the re-plan and fit the mark to it exactly (an escalation if it does not fit).
-  - **The server's own online-demo refusal stays:** the demo gate passes WebSocket upgrades (AD-24), so on the public host the server's refusal is the real guard. The owner will check it on the host at the 1.0.0 update.
-  - **DW-457** (filed before this answer arrived) stays routed to this story as the tracking anchor of this requirement; it is resolved by this story's delivered mark (`resolved-by:31-1-…` at adjudication), or re-owned due before 1.0.0 in the contended case above.
+- **Re-dispatch, 2026-11-01 (runner C, policy ff1bd1a):**
+  - Epic 29 has merged (fe1d81e2), so `Web/Public/Shell.cls` and `Data/Session.cls` are free, and the sign-out mark is built here (U-174's main case). This plan re-checked that no open branch (Epics 11, 12, 13, 15, 30) changes either file.
+  - Owner-fixed (3) now reads "Polling is the online demo's contract; local installs get the WebSocket with Epic 31 in 1.0.0." This changes nothing in the intent.
+  - Epic 11 changes `Web/Api.cls`, `live-store.ts` and `Test/Web/Api.cls`: they are read only here.
+  - Epic 4 (`web/src/app/**`, `floor/guide.spec.ts`): the ruling is one self-contained block in `live-state.ts` and only the held-poll lines in `guide.spec.ts`. Epic 4 merged while this plan ran (`374f958e`), so that ruling now only limits the size of the edits.
+  - CI: add no unit to a group over 30 minutes; new IRIS test classes go into `shards`; rename no job and add, rename or remove no iris group (see Q1).
+- **U-174 (orchestrator, veto; owner answer at=2026-10-30T22:43:15Z#527):** every check before `Server()`, with no frame on refusal; the page closes its socket in `LiveState.stop()`; a 60 s server lifetime as a backstop; conditions (a)–(d) are tests. The owner: "Accepted with your conditions and one change. U-175 makes 31.1 wait for Epic 29's merge, so Data/Session.cls will be free when 31.1 runs. Build the server-side sign-out check (a mark the sign-out sets, read on each socket loop) in 31.1 itself, with a test that an open socket sends no further frame within one loop after sign-out, and keep the 60 s lifetime as a backstop. That removes the known 60 s cost instead of ledgering it. Only if another open epic holds Data/Session.cls when 31.1 resumes: keep the ledger entry instead, due before 1.0.0, not open-ended. Keep the server's own online-demo refusal: the demo gate passes WebSocket upgrades (AD-24), so on the public host the server's refusal is the real guard. I will check it on the host at the 1.0.0 update." So there is no known 60 s cost any more.
+- **U-175 (orchestrator, veto; kept by the owner's delegate):** no AD-13 amendment. The socket is forwarded by the shell at the AC's URL `/ocutalon/OcuTalon.Web.Live.cls`. Route (c) `/ocutalon/api/v1/live` is not planned, and the earlier amendment candidate A1 is withdrawn.
+- **U-173 (runner, veto; owner answer at=2026-10-30T22:43:15Z#526):** polling keeps running unchanged beside the socket. The routed-poll specs block the socket with one shared `page.routeWebSocket` helper, assertions unchanged, and `support/floor.ts` and `banners.spec.ts` are never edited. The owner: "Accepted. Polling keeps running unchanged beside the socket; the socket only delivers sooner, through the same idempotent apply path; one shared page.routeWebSocket helper blocks the socket in the existing specs, assertions unchanged. Condition: add a test where one event arrives over both the socket and a poll and is applied exactly once (by seq). Record in the story's dev notes that polling stays on beside the socket, against the user story's wording 'polling only as the fallback'. The user-facing promise (updates arrive at once) holds, and on a single-user local install the extra polls cost nothing that matters."
+  - **Dev note (owner-recorded deviation):** polling stays on beside the socket, against the user story's wording "polling only as the fallback".
 
 **Governing ADs (Rule 6):**
-- **AD-12:** polling first and the contract; the socket second; never on the online demo; one envelope and one idempotent apply; skip → reload; trace URLs on the socket; the session and instance resources signalled by `Publish`.
-- **AD-13:** the API application and its 401/403; the `Origin` check before accept; no CORS allow-list; the web write rule; "forwarded by the shell or moved to its own application, as its story decides" (see A2).
-- **AD-4:** the session from the CSP session.
-- **AD-33** and AD-1: `Publish` is the only event writer; the socket writes nothing.
-- **AD-3:** `Web.Live` sits in the code database, not the public package.
+- **AD-12:** polling first and the contract, the socket second, and never on the online demo. One envelope and one idempotent apply; a skip reloads. Trace URLs on the socket. The session and instance `$SYSTEM.Event` resources, signalled by `Publish`.
+- **AD-13:** the `/ocutalon` shell. "The WebSocket … is forwarded by the shell or moved to its own application, as its story decides." The WebSocket checks `Origin` before it accepts. No CORS allow-list.
+- **AD-1's web write rule** (spine :112): "REST and WebSocket code may read tables, and may write only: … a sign-out, which submits `SessionOps.End` through `CommandsIn` on the online demo, …". See D1.
+- **AD-3:** `Web.Live` sits in the code database. The public package's allow-list is held by `Test.Web.Status` (see Q3).
+- **AD-4:** the session comes from the CSP session. On a local install, signing out ends only the CSP session.
+- **AD-24:** the demo gate passes upgrades, so the server's own online-demo refusal is the guard.
+- **AD-33** and **AD-29:** `Publish` is the only event writer; Lane B's files.
+- **AD-5:** the mark is a global that survives a restart and an upgrade, with no storage change.
 - **AD-22:** tests on throwaways.
 
-**Task 0, measured in this plan stage** (throwaway warm stack `e31s1planw` on build 154U, lane B, torn down). The probe classes and client stayed outside the tree.
-- **M1.** A signed-in upgrade to `/ocutalon/OcuTalon.Web.Live.cls` never reaches the class (no `OnPreServer` call). The Shell's `File` route takes it, so (a) would need a Shell edit (Epic 29, contended).
-- **M2.** A route entry in `OcuTalon.Web.Api` whose method calls `OcuTalon.Web.Live.Page()` works in synchronous mode:
-  - The handshake and frames work both ways.
-  - The socket process runs as the signed-in user with `OcuTalonUser` and the application roles in `$Roles`, and has `%session.SessionId`, `%session.Data("OcuTalon.SessionRef")`, `HTTP_ORIGIN`, `HTTP_HOST` and the query cursors.
-  - A concurrent `GET /state` on the same session answered in 0.01 to 0.49 s (the session is unlocked).
-  - `Api.EventsBody` and `TraceLink` work in it, and a `$SYSTEM.Event.Signal` reached the waiting socket with no measurable delay.
-  - It works with `ReDirectIO` left on and with it turned off; the plan turns it off, the raw-device form the class writes.
-- **M3.** The built-in web server answers every upgrade with `101` before any IRIS code runs. Every refusal therefore shows as `101` then an immediate close with no frame:
-  - no session (ApiBase 401);
-  - an `OnPreServer` error (wrong Origin);
-  - a frame-less open on the M1 URL.
+**Task 0, measured in this plan stage** (2026-11-01, one fresh lane-C throwaway `ocutalon-t0probe-e31s1plan-*`, build 154, through `lib-live.sh`, port 52803, torn down; probe classes loaded from the scratch folder only: a copy of Shell with the route, a probe `Web.Live`, and copies of Session and SessionEvents with an `OnLogout` that bumps a row counter):
+- **T1 (M2 re-measured inside the shell application).** `<Route Url="/OcuTalon.Web.Live.cls" Method="GET" Call="OcuTalon.Web.Live:Accept"/>` before `/(.*)` reaches the class: a plain GET arrives with no `HTTP_WEBSOCKET_ID`, and an upgrade answers 101. `OnPreServer` saw:
+  - `$Username` = the user, with `%DB_OCUTALON_CODE`, `%DB_OCUTALON_DATA`, `%DB_OCUTALON_PRIVATE` and `OcuTalonUser` in `$Roles`;
+  - namespace OCUTALON, `%request.Application` `/ocutalon/`;
+  - `%session.SessionId`, and `Ownership.SessionRef` OK;
+  - `HTTP_ORIGIN`, `HTTP_HOST` and the cursors;
+  - `Shell.HasRole()` = 1 and `Setting.Get("onlineDemo")` = 0.
 
-  This holds for any WebSocket on this gateway; no config file exists to change it.
-- **M4.** `Read(, .sc, 0)` returns at once with error 7950 when no data waits, returns client data, and returns 7951 on a client close. The loop saw a close within one 0.25 s slice. `EndServer()` gives the client a clean close 1000.
-- **M5.** While a synchronous socket is open, signing out does not reach it. This was tried both through `POST /v1/session/end` (204) and through `?IRISLogout=end`:
-  - The next HTTP `/state` is 401.
-  - The socket's `%CSP.Session` (`%ExistsId`, `%OpenId`: user, security context, `SessionRef`) stays unchanged for at least 10 s.
-  - The socket keeps reading and writing.
-
-  See Q1.
-- **M6.** `%SYSTEM.Event` (documented in `irislib/%SYSTEM/Event.cls`): a signal wakes one waiter or queues one wakeup, and a process waits on one resource at a time. That is why the loop alternates the two resources and re-checks `LastSeq`. The AC and AD-12 mechanism is kept literally, and every socket stays correct with two tabs or many sessions.
+  A concurrent `GET /state` on the same session answered 200 in 22 to 58 ms.
+- **T2.** `Api.EventsBody` frames were delivered. A `Publish` followed by `$SYSTEM.Event.Signal` from another process woke the socket at once (the frame came 0 ms after the publish call returned). The first upgrade's IRIS process started about 2 s after the client saw 101, and its first frame still held the event published in between (cursor-based) (cause: inference).
+- **T3.** `POST /ocutalon/api/v1/session/end` (204, 8 to 14 ms) ran `OnLogout` of `/ocutalon`'s event class, and its `Data.Session` write in the private database succeeded. The open socket read the change on its next 0.25 s slice and sent a close frame 148 ms after the POST. `/state` was then 401.
+- **T4.** `GET /ocutalon/?IRISLogout=end` (200, 9 to 19 ms) ran `OnLogout` too, and the socket closed about 85 ms later.
+- **T5.** Two CSP sessions of the same user share the row. One's sign-out ended the other's socket while the other's `/state` stayed 200, so that page simply reconnects.
+- **T6.** Refusals:
+  - an upgrade with no cookie: 101, no frame, and the connection stayed open after 3 s (the shell's `Login()` answered and `Accept` never ran);
+  - an `OnPreServer` error status: 101, no frame, closed in 2 ms;
+  - a client close: `Read` returned 7951, `OnPostServer` ran, and TCP closed 1 ms after the close frame.
+- **T7.** `%SYS.System.WriteToConsoleLog` from `OnLogout` wrote nothing, while the write in the same call succeeded (cause unknown).
+- From the earlier plan (lane B, build 154U): `Read(, .sc, 0)` returns 7950 at once with nothing waiting; `EndServer()` gives a clean close 1000; while a socket is open, the socket's own `%CSP.Session` does not see a sign-out for at least 10 s (hence the mark).
+- **(inference, not measured):**
+  - the `$Increment` global write from `OnLogout`: T3 measured a row write in the same database under the same context, and W8 and `TestSignOutMark` prove it;
+  - a sign-out started from a trace application (group-wide): the 60 s lifetime backstops it;
+  - whether a CSP timeout runs `OnLogout`: a timed-out session has no open page socket.
 
 **Decided in-stage:**
-1. **Route (c), `/ocutalon/api/v1/live`.** M1 and M2 measured it; it stays inside the footprint; (a) and (b) touch contended paths. A1 and A2 record the amendments.
-2. **The literal AD-12 resources.** Alternating 0.25 s waits plus a `LastSeq` check. This avoids both an AD amendment and a socket registry, which would be a web-layer write. Latency is at most about 0.5 s for a socket the signal did not wake (inference until W1's log).
-3. **Synchronous mode**, because asynchronous mode needs the URL to name the class.
-4. **All checks inside `Web.Live`**, defence in depth: a namespace-default CSP application could name a `%CSP.Page` class directly (inference).
-5. **The server refuses on the online demo too**, not only the client: S13, and a visitor could hand-open sockets.
-6. **The socket spec reuses the LIVE fixture user** (`workers: 1`; each L test reads its cursor fresh), so `test-sign-in.sh` and `FixtureKind` stay unedited.
-7. **The socket URL constant lives in `live-socket.ts`**, because `api-client.ts`'s `BASE` is not exported and the file is changed on `OCT-epic29`.
-8. **Named resources are never deleted.** `Clear` at socket start drops stale queued wakeups. That leaves one resource per session that ever opened a socket, plus one instance resource (inference: negligible locally).
-9. **"CI demo-path environment"** means the browser group's throwaway stack with the mock; the spec runs in the `sign-in` unit. `e2e/demo-path/` stays the UJ-1 test alone.
+1. **D1, the sign-out mark (U-174; storage shape owner-approved, decided here).** `Data.Session` keeps `^OcuTalonP.SessionM(SessionRef)`, a sign-out count raised by `$Increment` in `MarkSignedOut`, beside its own storage, as `Publish` keeps `^OcuTalonP.LiveEventC`. Reasons for a global and not a row property:
+   - atomic, with no row lock (`Core.Trace.Join` can hold the row's lock across a send);
+   - no storage-block, `Test.Data.Tables` or storage-roundtrip change (`Test/Data/Tables.cls` is changed on `OCT-epic30`);
+   - an old row reads as 0.
+
+   It is set by `Web.SessionEvents.OnLogout`, the one hook that both sign-out paths reach (T3, T4), and only off the online demo. This fits the write rule exactly: on a local install a sign-out is web code's permitted write and submits nothing, and AD-4's "signing out ends only the CSP session" holds because the mark ends no OcuTalon state. On the online demo the sign-out keeps its one write, `SessionOps.End` through `CommandsIn`, and sockets are refused there anyway. The socket reads the mark at the top of every loop, before any send, so an event published after the sign-out's answer is never sent. The sign-out also signals the session's resource so that the read comes at once. The mark is per session row, so every socket of that IRIS user ends, and a page still signed in elsewhere reconnects through the checks (T5).
+2. **D2, the forward.** The shell's route names its target as `Call="OcuTalon.Web.Live:Accept"` (%CSP.REST's own cross-class call), so the shell's code holds no `##class` reference. `Accept` answers a non-upgrade GET 404 with no body: no new text, as the shell answers a path it doesn't serve. Synchronous mode is used, because asynchronous mode needs the URL to name the class.
+3. **D3, no frame applied while contact is not `ok`.** `LiveSocket` hands a frame on only while `contact() === 'ok'`, and drops it otherwise. The next answered poll brings it, because cursors are per stream. This keeps "Contact and the reconnecting banners are fed only by polling" and "applies nothing that polling would not". It also keeps the never-edited `banners.spec.ts` B14 green, where the page must not hear an event published during an outage until the first answer after it.
+4. **D4, the alternating waits.** 0.25 s on the session's resource, then 0.25 s on the instance resource, with a `LastSeq` check every loop. This is AD-12's mechanism, kept literally: a signal wakes one waiter, so an unwoken socket catches up within about 0.5 s (inference), with two tabs or many sessions.
+5. **D5, all checks in `Web.Live`,** as defence in depth behind the shell's own role check: `Refusal` is a pure method, so every refusal case is a unit test. The server refuses on the online demo too (S13, AD-24).
+6. **D6, the client watchdog (`SILENT_MS` 60 s, more than two heartbeats).** T6 shows that a refused upgrade can stay open with no frame. The page closes such a socket and reconnects instead of keeping it.
+7. **D7, the wiring in one block.** One `effect` field drives `start`/`stop` from `snapshot()` and `halted()`, so `accept()` and `stop()` stay byte-identical. A frame that lands between `stop()` and the effect is dropped by `applyPushed`'s `stopped` guard.
+8. **D8, the test placement.** The socket spec reuses the LIVE user (`workers: 1`; cursors read fresh), so `test-sign-in.sh` and `FixtureKind` stay unedited. AC 3's "CI demo-path environment" means a throwaway stack with the mock, and the spec runs in the `sign-in` unit; `e2e/demo-path/` stays UJ-1's test alone. The online-demo cases are a node test (client) and a unit test (server), because setting the flag on a shared e2e stack would disturb other specs.
+9. **D9, a dual-delivery observable.** Every store collection is keyed by ref, so a repeat by itself is invisible in the DOM. W9 therefore re-delivers an older view of the same entity late: it can only show if a path applied it out of `seq`.
 
 **Extend, don't copy (Rule 2):**
-- The frame is `Api.EventsBody` and the Origin rule is `Api.EnvelopeError`, both called rather than copied.
-- `applyPushed` reuses `applyEvents`, `otherEpoch`, `changeEpoch` and `fetchSnapshot`. It is not a copy of `applyPoll`: it leaves out contact and scheduling, which are polling's by the owner rule.
-- **Copy:** the `?1.15N` cursor check copies `Api.IsCursor`. Reason: that method is Private in an Api entry this story does not own, and `Web.Live` must check for itself (decision 4).
-- **Copy:** the 2-line `SessionRef` + `RefIndexOpen` copies `Api.CurrentSession`, which is Private, for the same reason.
-- `LiveSocket` follows `ContactWatch`'s injected-timer shape.
+- These are called, not copied: the frame is `Api.EventsBody`, the Origin rule is `Api.EnvelopeError`, the session is `Ownership.SessionRef`, and the apply is `applyEvents` with `otherEpoch`, `changeEpoch` and `fetchSnapshot`.
+- `applyPushed` is not a copy of `applyPoll`: it leaves out contact, `answers` and scheduling, which are polling's.
+- **Copy:** the `?1.15N` check copies `Api.IsCursor`, and the `SessionRef` + `RefIndexOpen` pair copies `Api.CurrentSession`. Reason: both are Private in `Api`, which this story may not edit (Epic 11), and `Web.Live` checks for itself (D5).
+- `LiveSocket` follows `ContactWatch`'s injected-timer shape. `OnLogout` follows `OnLogin`/`AttachFor` (always OK, all caught). The mark follows `Publish`'s counter global.
+- The new tests extend their siblings (`Test.Live.Publish`, `Test.Web.SessionEvents`, `Test.Data.Session`, `Test.Web.Shell`); only `Test.Web.Live` is a new class.
 
-**Integration:** consumer `LiveState`, on the page, reads from the socket and the event shows (W1, AC 4).
-- Consumes: `Live.Publish` (Story 0.5), `Live.Event.Since` and `Api.EventsBody` (2.2), `Web.TraceLink` (2.9), `Data.Ownership.SessionRef` (2.2), `LiveState` and `live-store` (2.2, 2.11, 16.3, 16.4).
+**Integration (Rule 1):** the consumer `LiveState`, on the page, reads from the socket and the event shows with no poll carrying it (W1, AC 4).
+- Consumes: `Live.Publish` (Story 0.5), `Api.EventsBody` and `Ownership.SessionRef` (2.2), `Web.TraceLink` (2.9), `LiveState`, `live-store` and `ContactWatch` (2.2, 2.11, 16.3, 16.4), `Web.SessionEvents` (16.3), `Shell` (0.3, 29.7).
 - Consumed-by: the page (this story). Every later publisher (for example Story 31.2's approval results) reaches the socket through `Live.Publish` with no change.
 
-**Ledger inbox:** none owned. **Footprint extensions:**
-- Existing e2e specs (only if Q2 is answered as recommended): `web/e2e/live/live.spec.ts`, `web/e2e/chat/chat.spec.ts`, `web/e2e/chat/decision.spec.ts`, `web/e2e/floor/guide.spec.ts`, `web/e2e/support/api.ts`. None is contended or changed on another unmerged branch (checked with `git diff` against each `OCT-epic*` branch's merge base).
-- `Test/Web/Api.cls` `TestRoutes`, a shared-surface edit.
+**Ledger inbox (Rule 17):**
+- DW-457 is addressed by the mark tasks, AC 5, W8 and `TestSignOutMark`. It is resolved by this story at adjudication.
+- Declined DW-397: its fix edits `Install/Step/Demo.cls`, which this story's Never list forbids (`Install/**`), and it has nothing to do with live delivery; the lead re-owns it.
 
-**Amendment candidates for the lead (Rule 5 / Rule 20):**
-- **A1.** AC 1's URL `/ocutalon/OcuTalon.Web.Live.cls` becomes `/ocutalon/api/v1/live`. Evidence: M1/M2; this corrects an AC-cited name. The spine's REST surface row (`WebSocket /ocutalon/OcuTalon.Web.Live.cls`) changes with it.
-- **A2.** AD-13's "forwarded by the shell or moved to its own application, as its story decides" gains "or served by a route of `/ocutalon/api`", which is neither listed option. The lead classifies this: a name correction, or an AD amendment (veto window 9).
+**Footprint extensions (report in the completion contract):**
+- `Web/SessionEvents.cls`.
+- The tests `Test/Web/Live.cls` (new), `Test/Web/SessionEvents.cls`, `Test/Data/Session.cls`, `Test/Web/Shell.cls`, `Test/Web/LeavingThePage.cls` and `Test/Live/Publish.cls`.
+- The specs `web/e2e/live/live.spec.ts`, `web/e2e/chat/chat.spec.ts`, `web/e2e/chat/decision.spec.ts`, `web/e2e/chat/try-it.spec.ts`, `web/e2e/floor/announcements.spec.ts` and `web/e2e/floor/guide.spec.ts`. None is changed on an open branch (checked against Epics 11, 12, 13, 15 and 30 at feature `02e91b21`).
 
-**Clarification Needed (this stage HALTs on Q1 and Q2):**
-- **Q1 (security posture, veto window).** M5 shows that the server cannot see a sign-out while a socket is open. M3 shows that refusals arrive as `101` then close. How must "serves only a signed-in session" hold after accept?
-  - Recommendation:
-    - every check before `Server()`, with no frame on refusal;
-    - the page closes its socket in `LiveState.stop()`, which a 401, Sign out, the idle cap and an epoch change all reach;
-    - the server ends each socket after a fixed 60 s lifetime and the page reconnects silently, so every reconnect re-runs sign-in, role and Origin.
-  - The exposure after sign-out is then at most 60 s, for a client that ignores the page's close.
-- **Q2 (owner-fixed "polling's code path, cadence and tests stay as they are").** As worded it can't hold, because Playwright's `page.route` does not intercept WebSockets. The specs listed in the Code Map steer delivery through routed polls, and with any socket open they lose control and fail. Pausing polling while the socket is open would also break L1, L8, L12, L13 and the contended B13-B19.
-  - Recommendation:
-    - polling runs unchanged beside the socket, and contact and banners stay polling's;
-    - those specs call `blockLiveSocket(page)` for their tests, with their assertions unchanged;
-    - no contended file is edited.
+**For the lead (not questions):**
+- The intent's sentence "Sign-in itself comes first: `ApiBase.Login` answers 401 without a session" is left over from route (c). Under the shell, `Shell.Login()` answers with the sign-in page, and the socket still gets no frame (T6). The matrix row "Signed out / no role … (401 / 403 path)" holds in the same sense. A wording touch-up only.
+- Epic 4's merge brought in `chat/try-it.spec.ts` and three new held-poll tests in `guide.spec.ts`. They are in the Code Map, so integrate forward before implement.
+
+**Rulings on the re-plan's questions (2026-11-01, lead (runner C), policy ff1bd1a):**
+- **Q1 → decide (CI detail; no unit added, no group or job changed):** recommendation kept. `Test.Web.Live` and the extended lane-b classes run in `shard:lane-b` (the `image` group) by area, and `socket.spec.ts` in the `browser` group's existing `sign-in` unit, with no edit to `ci/units.sh`. The dispatch's "new test units go into `shards`" concerns new units, and this story adds none. Condition: the implement stage measures the added seconds per class and per spec locally, and the lead records the CI step times of `image` and `browser` on the story's head under `ci_groups:`. If either group then crosses 35 minutes, the Contest Planner's CI trigger applies (split the heaviest group into a new iris group, which is a branch-protection change: raised as a clarification before any push that adds a group).
+- **Q2 → veto U-209 (a guarantee's wording, veto window 4):** recommendation kept. The mark is set in `OcuTalon.Web.SessionEvents.OnLogout`, and Story 16.4's pin is narrowed exactly as recommended: no product class defines `OnTimeout` or `OnEndSession`; `OnLogout` is defined by `Web.SessionEvents` alone and changes nothing but the local install's sign-out mark (`TestSignOutMark` checks that the epoch and every `Session` row field are unchanged, and that the online demo sets no mark). AD-4 holds: `OnLogout` does not run on a closed page, the idle cap or a timeout, and on a local install signing out still ends only the CSP session. Rejected: the mark in `Api.EndSession` (Epic 11's contended `Web/Api.cls`; the story would wait on Epic 11, and `?IRISLogout=end` would rely on the 60 s backstop). Reversal: move the mark to `Api.EndSession` after Epic 11 merges and restore the full pin.
+- **Q3 → decide (confirmed):** the shell's single forward to `OcuTalon.Web.Live:Accept` is AD-13's "forwarded by the shell", as U-175 already ruled; no AD-3 amendment. `Test.Web.Shell` pins it as the only route naming a class outside the two public packages.
+- Epic 4 has merged (374f958e): `web/src/app/**` (outside Epic 11's `api-types.ts` and `live-store.ts`) and `web/e2e/floor/guide.spec.ts` are no longer contended. The lead integrates forward before the implement stage. The self-contained-block rule for `live-state.ts` still stands (smaller diff, easy union); edits to `web/e2e/**` specs outside this story's paths_hint are reported under `footprint_extensions:`.
 
 ## Verification
 
-Lane variables on every `ci/iris.sh` and `ci/warm.sh` call: `OCUTALON_LOCK_DIR="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")/.worktrees/.coordination/locks/lane-b" OCUTALON_TEST_WEB_PORT=52802 OCUTALON_LOCK_OWNER='epic=31 stage=implement'`. Use tags `e31s1i` (fresh) and `e31s1iw` (warm). Pass `timeout: 600000` on every call, and make one test-runner call per message.
+Use these variables on every `ci/iris.sh` and `ci/warm.sh` call: `OCUTALON_LOCK_DIR="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")/.worktrees/.coordination/locks/lane-c" OCUTALON_TEST_WEB_PORT=52803 OCUTALON_LOCK_OWNER='epic=31 stage=implement'`, with tags `e31s1i` (fresh) and `e31s1iw` (warm).
+- Pass `timeout: 600000` on every call.
+- Make one test-runner call per message, and never re-submit a call after a client-side timeout.
+- Before any browser unit, run `ci/iris.sh build`, because the bundle is not rebuilt by itself (Rule 21).
 
 **Commands:**
-- (loop) `npm --prefix web test` -- expected: every `scripts/*.test.mjs` passes, `live-socket.test.mjs`, `announce-focus-sources` and `leave-sources` included.
+- (loop) `npm --prefix web test` -- expected: every `scripts/*.test.mjs` passes, including `live-socket.test.mjs`, `announce-focus-sources`, `leave-sources` and `playwright-projects`.
 - (loop) `npm --prefix web run lint` -- expected: exit 0.
-- (loop) `OCUTALON_RUN_TAG=e31s1iw ci/warm.sh up` once, then one call each:
+- (loop) `OCUTALON_RUN_TAG=e31s1iw ci/warm.sh up` once, then one call each, each expected to print `CLASS … passed`:
   - `OCUTALON_WARM=1 OCUTALON_RUN_TAG=e31s1iw ci/iris.sh class OcuTalon.Test.Web.Live`
-  - `… class OcuTalon.Test.Live.PublishWake`
-  - `… class OcuTalon.Test.Web.Api`
   - `… class OcuTalon.Test.Live.Publish`
+  - `… class OcuTalon.Test.Web.SessionEvents`
+  - `… class OcuTalon.Test.Data.Session`
+  - `… class OcuTalon.Test.Web.Shell`
+  - `… class OcuTalon.Test.Web.LeavingThePage`
+  - `… class OcuTalon.Test.Web.Status`
+  - `… class OcuTalon.Test.Web.SessionEndApi`
+  - `… class OcuTalon.Test.Web.Api`
 
-  Expected: `CLASS … passed`. Then `OCUTALON_RUN_TAG=e31s1iw ci/warm.sh down`.
+  At the stage's end, also after a failure: `OCUTALON_RUN_TAG=e31s1iw ci/warm.sh down`.
 - (once) `OCUTALON_RUN_TAG=e31s1i ci/iris.sh build` -- expected: the bundle is rebuilt with the client change.
-- (once) `OCUTALON_RUN_TAG=e31s1i ci/iris.sh live sign-in --part 1/2`, then `… --part 2/2` -- expected: both pass (W1 to W7 and every existing L, S, C and D spec). Record each part's seconds.
-- (once) `OCUTALON_RUN_TAG=e31s1i ci/iris.sh live floor` -- expected: passes (`guide.spec.ts`).
-- (once) `OCUTALON_RUN_TAG=e31s1i ci/iris.sh live demo-path` -- expected: passes (the demo path stays green).
-- (once) `OCUTALON_RUN_TAG=e31s1i ci/iris.sh shard lane-b`, then `… shard lane-b --reverse` -- expected: every class passes on fresh stacks in both orders (Rule 19).
-- (once) `bash ci/checks.sh` and `bash docker/tests/test-ci-config.sh` -- expected: all pass (class rules: no unchecked prepare outside the allow-list; boundaries: ASCII, no local paths).
+- (once) `OCUTALON_RUN_TAG=e31s1i ci/iris.sh live sign-in --part 1/3`, then `--part 2/3`, then `--part 3/3`, one per call -- expected: every part passes (W1 to W9, and every L, S, C, D, Y and B spec, B14 included). Record each part's seconds and socket.spec's own duration. Three parts keep each under 8 minutes now that `try-it.spec.ts` has joined the unit.
+- (once) `OCUTALON_RUN_TAG=e31s1i ci/iris.sh live floor` -- expected: passes (announcements A2–A5, guide M10, M13 and M14).
+- (once) `OCUTALON_RUN_TAG=e31s1i ci/iris.sh live demo-path` -- expected: passes, so UJ-1 stays green with the socket on.
+- (once) Fresh lane-b in both orders (Rule 19), one per call: `OCUTALON_RUN_TAG=e31s1i ci/iris.sh shard lane-b --part 1/2`, `… --part 2/2`, `… --reverse --part 1/2`, `… --reverse --part 2/2` -- expected: every class passes, with each part about 4 to 5 minutes for 86 classes.
+- (once) `bash ci/checks.sh`, then `bash docker/tests/test-ci-config.sh` -- expected: all pass. That covers the class rules (the unchecked-prepare allow-list, the public-global rule), the boundaries (ASCII, no local paths) and the shard coverage.
 - (once) `OCUTALON_RUN_TAG=e31s1i ci/iris.sh teardown`.
 
 **Shared surfaces:**
-- `OcuTalon.Web.Api`'s route list (`Test.Web.Api.TestRoutes`, 12 → 13).
-- The `chromium` project's spec list (a new file; derived from disk, so no pinned count).
-- No stream counts: tests publish only on their own fresh streams or the LIVE user's stream, never the README session's or the instance stream.
+- The shell's UrlMap: the new route, pinned by `Test.Web.Shell`; `Test.Web.Status`'s scan is unchanged.
+- The product's CSP-session callbacks: pinned by `Test.Web.LeavingThePage` (Q2).
+- The sign-out mark global `^OcuTalonP.SessionM`: new, and asserted only as a change since a test's own start.
+- The `chromium` spec list: a new file, derived from disk with no pinned count.
+- The LIVE user's stream: every test reads its cursor fresh.
+- Poll control in the listed specs: the block helper, assertions unchanged.
+- No stream counts: tests publish only on their own fresh streams or the LIVE user's, never the README session's or the real instance stream.
 
 Every test added or changed passes on a fresh environment, in either order.
 
-**Pinning tests and the mutations to apply (the implement stage records `mutation: … → …` here):**
-- **AC 1.** Remove the `Wake(stream)` call in `Publish` → `Test.Live.PublishWake` goes red. Drop the Origin check in `OnPreServer` → `Test.Web.Live`'s wrong-Origin test and W5 go red.
-- **AC 2.** Remove the `onlineDemo` return in `LiveSocket.start` → `live-socket.test.mjs`'s online-demo case goes red.
-- **AC 3.** Make `LiveState.accept` skip `socket.start` → W1 goes red. Make the socket start pause polling → W2 or L1 goes red.
-- **AC 4.** Same as W1.
+**Pinning tests and the mutations to apply** (the implement stage writes `mutation: <change> → <red test>` next to each):
+- AC 1, the wake: remove the `Wake(stream)` call in `Publish` → `Test.Live.Publish` `TestWake` goes red.
+- AC 1, the Origin: drop the Origin clause from `Refusal` → `TestRefusals` and W5 go red.
+- AC 1, the online demo, server side: drop the online-demo clause → `TestRefusals` goes red.
+- AC 2, the online demo, client side: remove the `onlineDemo` return in `LiveSocket.start` → the node online-demo case goes red.
+- AC 2, the contact gate (D3): pass every frame regardless of `accepting()` → the node case goes red, and so does B14.
+- AC 3 and AC 4: make the `effect` skip `socket.start` → W1 goes red. Make a socket start pause polling → W2 or L1 goes red.
+- AC 5, the mark: move the mark check after the send in `Next`/`Server`, or drop `MarkSignedOut` from `OnLogout` → W8 goes red (a frame after the 204, or no close), and so do `TestNext` and `TestSignOutMark`.
+- AC 5 (b): drop `socket.stop()` from the halted branch → W7 goes red.
+- AC 5 (c): give `Next` no lifetime → `TestNext` goes red. Drop the reconnect → W4 and the node reconnect case go red.
+- AC 5 (d): add the stored `SessionRef` to the frame → `TestFrames` and W1's no-ids assertion go red.
+- AC 6: make `applyPushed` apply a frame's events without advancing the shared cursors (each event spoofed as cursor + 1, then the old cursors restored) → W9 goes red (the page shows "first").
+- AC 7: remove `blockLiveSocket` from C8 → C8 goes red. That shows the helper is load-bearing.
 
 **Manual checks:**
-- In `git diff`, `poll`, `schedulePoll`, `applyPoll` and `fetchSnapshot` in `live-state.ts` are unchanged.
-- No contended path appears in `git status --short`.
+- In `git diff`, `poll`, `schedulePoll`, `applyPoll`, `fetchSnapshot`, `accept` and `stop` in `live-state.ts` are unchanged.
+- No contended path appears in `git status --short`, and neither do `banners.spec.ts`, `support/floor.ts`, `e2e-online/**` or Epic 11's `support/*` files.
+- `Shell.cls` changes only the route and its doc bullet, and `Data/Session.cls` only the mark.
 
 ## Auto Run Result
 
-Status: blocked
-Blocking condition: intent gap: (Q1, security posture, veto window) Measured on a throwaway (build 154U): while a WebSocket is open, signing out (`POST /v1/session/end`, and `?IRISLogout=end`) makes the next HTTP request 401 but leaves the socket's CSP session object unchanged (same user, security context and SessionRef) for at least 10 s, so the server cannot see the sign-out and the socket keeps serving; and the built-in web server answers every upgrade with 101 before IRIS code runs, so each refusal (no session, no role, wrong Origin, online demo) shows as 101 then an immediate close with no frame. How must "serves only a signed-in session" hold after accept? Recommendation: every check before Server() (no frame on refusal); the page closes its socket in LiveState.stop() (401, Sign out, idle cap, epoch change); and the server ends each socket after a fixed 60 s lifetime with a silent reconnect, so each reconnect re-runs the sign-in, role and Origin checks (exposure after sign-out at most 60 s for a client that ignores the page's close). (Q2, owner-fixed "polling's code path, cadence and tests stay as they are") Unreachable as worded: Playwright's page.route does not intercept WebSockets, and existing specs steer delivery through routed polls (live.spec.ts L10, chat.spec.ts holdEvents/the :103 helper/C8, decision.spec.ts D10, floor/guide.spec.ts held polls, support/api.ts POLLS), so with a socket open they lose control and fail; pausing polling while the socket is open would also break L1/L8/L12/L13 and the contended banners.spec.ts B13-B19. Recommendation: polling keeps running unchanged beside the socket (contact and banners stay polling's; the socket only delivers sooner), and those specs block the socket for their tests with one shared helper (page.routeWebSocket), assertions unchanged; no contended file is edited. Also for the lead, not blocking: amendment candidates A1 (AC 1's URL becomes /ocutalon/api/v1/live; /ocutalon/OcuTalon.Web.Live.cls was measured to land in the contended Shell) and A2 (AD-13's "forwarded by the shell or moved to its own application" and the spine's REST-surface row).
+Status: ready-for-dev
+Blocking condition: none
+
+(Plan re-run 2026-11-01 halted `blocked` on Q1-Q3; the lead ruled them under ## Design Notes (Q1 decide, Q2 veto U-209, Q3 decide) and set `ready-for-dev` with no re-plan, as the plan recommended.)
