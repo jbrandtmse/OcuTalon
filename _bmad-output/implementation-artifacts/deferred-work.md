@@ -2791,6 +2791,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-11-11-the-rehearsal-runner-times-the-demo-path-and-checks-every-bo.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: stub installs, the 20-run states and the bounds rule run twice
 - 2026-11-01T16:45:52Z status=wontfix-accepted owner=11-11-the-rehearsal-runner-times-the-demo-path-and-checks-every-bo by=harvest note=reopen_if=the hosted checks job passes 10 minutes or the self-test passes 90 s
+- 2026-11-01T20:25:12Z occurrence=11-12-the-rehearsal-runner-repeats-the-demo-path-n-times-with-run note=test-rehearsal.sh now about 77 s alone (stub-runs 19, bounds 13, timed-runs 20, run-steps 14); sharing the 20-run states is the lever
 
 ### DW-537: rehearse.sh run (install, runs, report and down in one process) can pass the 10-minute call cap when the Playwright run reaches its 480 s timeout
 - source: spec-11-11-the-rehearsal-runner-times-the-demo-path-and-checks-every-bo.md | severity: low | fix-risk: low | footprint: in-story
@@ -2801,3 +2802,18 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-11-11-the-rehearsal-runner-times-the-demo-path-and-checks-every-bo.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: A dry run needs the IRIS stack, so the self-test cannot run cmd_run end to end; t_dry_report calls report --plant directly.
 - 2026-11-01T17:45:39Z status=wontfix-accepted owner=11-11-the-rehearsal-runner-times-the-demo-path-and-checks-every-bo by=cr note=reopen_if=a dry rehearse.sh run --plant pick-up exits 3 (dry run) instead of 1
+
+### DW-545: Rehearsal run 2 posts the run_again marker instead of pressing Run again: after 07's pending replay is rejected and its incident dismissed, the guide still holds run 1's opened trace, shows no finish and no Run again button, and reads step 5 (runs 3 and later press the button)
+- source: spec-11-12-the-rehearsal-runner-repeats-the-demo-path-n-times-with-run.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: live dry run e11s12d: run 2 failed at 'Step 3, Break the feed, current' with the guide on step 5; with the marker posted, runs 2 and 3 passed
+- 2026-11-01T20:25:12Z status=wontfix-accepted owner=11-12-the-rehearsal-runner-repeats-the-demo-path-n-times-with-run by=harvest note=reopen_if=a hands-on pass (Story 38.1) or a user finds no Run again after rejecting a replay and dismissing its incident
+
+### DW-546: The rehearsal repeat's real-model texts are unmeasured: the composer-sent watch and reminder prompts, the reminder notice card, the phone message without buttons, and the tell-now item's outcome; only the CI mock ran
+- source: spec-11-12-the-rehearsal-runner-repeats-the-demo-path-n-times-with-run.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: web/e2e-rehearsal/repeat.spec.ts, tell-now.spec.ts; Story 38.2's first real run confirms the shapes
+- 2026-11-01T20:25:12Z status=wontfix-accepted owner=11-12-the-rehearsal-runner-repeats-the-demo-path-n-times-with-run by=harvest note=reopen_if=Story 38.2's first real run (or 11.14's candidate gate) fails on one of these shapes
+
+### DW-547: web/e2e-online/demo-path/demo-path.spec.ts imports watchThroughGuide and approveOnPhone, which Story 11.12 changed; only the type check and ci/iris.sh live demo-path ran on them, not ci/iris.sh live online-demo-path
+- source: spec-11-12-the-rehearsal-runner-repeats-the-demo-path-n-times-with-run.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: both helpers keep their arguments and, with OCUTALON_E2E_MARKS unset, their behaviour
+- 2026-11-01T20:25:12Z status=open owner=11-12-the-rehearsal-runner-repeats-the-demo-path-n-times-with-run by=harvest note=the lead runs ci/iris.sh live online-demo-path on a fresh lane-A throwaway at smoke
