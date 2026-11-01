@@ -253,3 +253,14 @@
 2026-10-27T05:26:38Z	Epic 4	epic_retro_skipped	reason=policy(gates.retrospective:skip)
 2026-10-27T05:31:09Z	Epic 4	integrated_forward	feature=93e049a head=f26e7d9 conflicts_resolved=_bmad-output/implementation-artifacts/sprint-status.yaml(theirs+SPRINT_PLAN_generate+--set_epic-4_and_4-1..4-7=done) code_tree=identical_to_8b858ae(CI_green_all_groups) checks_on_merged_tree=ci/checks.sh,web_test_691,payloads_--check,live_demo-path(e4ints:2/6_steps_ran,floor_7/7,0_failed) spine_lint=baseline(5_low) ledger_union=ok(211,no_dup_ids)
 2026-10-27T05:31:09Z	Epic 4	epic_runner_complete	stories_completed=7 ledger=open_before=4,resolved=1,terminal=1,chartered=0,overflow=1,to_decision_sheet=1,drain_ratio=0.88 decisions_for_user=DW-207
+2026-11-01T07:09:56Z	Epic 4	epic_branch_reopened	reason=stories_4.8_4.9_4.10_owner_feedback from=0751d0f1
+2026-11-01T07:09:56Z	Epic 4	runner_unattended_start	run=20261026T1518Z-1-37 policy=ff1bd1a doctrine=3d11cec note=reopen_for_stories_4.8_4.9_4.10
+2026-11-01T07:09:56Z	Epic 4	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-11-01T07:09:56Z	Epic 4	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh
+2026-11-01T07:09:56Z	Epic 4	launch_env	depth=4 watchdog=default bash_max_ms=default
+2026-11-01T07:09:56Z	Epic 4	telemetry_gate	pending=1 action=none(gates.model_tier:record_only)
+2026-11-01T07:09:56Z	Epic 4	epic_branch_checked_out	repos=. head=0751d0f1 runner=B slot=ocutalon-slot-b lane=lane-b web_port=52802 bootstrap_check=pass ci_expected=ci.yml,lane-a.yml
+2026-11-01T07:09:56Z	Epic 4	spine_resolved	path=_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md ads=33 status=final
+2026-11-01T07:09:56Z	Epic 4	ledger_load	total=463 open=0 routed=69 escalated=0 decision_pending=0 terminal=394 owner_unknown=0 burndown=0 reowned_none=0 epic4_owned=DW-198(4-4;effective_state_routed:the_2026-10-27_burndown_resolve_trailer_is_absent_from_this_ledger;re-adjudicated_at_this_burndown_gate)
+2026-11-01T07:09:56Z	Epic 4	sprint_planning_complete	gate=PASS mode=headless(skill_invoked;readiness_on_epic4_block;tracker_dry-run_in_sync,no_write) in_sync=true valid=true new_entries=0 dropped_orphans=0 warnings=2_title_headings prerequisite=5.13_merged(5fb79853_ancestor;Tools/RecentActivity.cls) model=claude-opus-5-5
+2026-11-01T07:09:56Z	Epic 4	retro_review_skipped	reason=skip(no_X.0_input;reopen;dispatch)
