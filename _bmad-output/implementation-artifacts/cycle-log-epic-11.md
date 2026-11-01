@@ -229,3 +229,5 @@
 2026-11-01T14:37:49Z	Story 11.3	ledger_adjudicated	owned=0 resolved=0 reowned=0 terminal=0 new_this_story=DW-531(wontfix-accepted) model=claude-opus-5-5
 2026-11-01T14:37:49Z	Story 11.3	smoke_complete	method=cli(release/rehearse.sh_run_--dry-run_--rc_1;lane-A_stand-ins_tag_e11s3sm) result=pass iterations=1 defects_caught=0 evidence=RESULT_dry_run_exit3,first_start_138s,all_install_rows_pass,no_secret_in_output_or_record,nothing_left model=claude-opus-5-5
 2026-11-01T14:37:49Z	Story 11.3	fresh_check	env=recipe(hermetic_self-tests;live_dry_run_fresh) tests=test-rehearsal.sh(13_rules),test-upgrade-harness.sh,test-boundaries.sh,test-ci-config.sh,test-ci-changes.sh,ci/changes.sh result=pass order=forward,reverse
+2026-11-01T14:38:18Z	Story 11.3	committed	sha=3af884ba submodules= ci=pending runs=41317149494,41317149495 amendments=epics.md:11.3_split(11.11_inserted) pushed=verified_on_origin
+2026-11-01T14:38:18Z	Story 11.3	story_cycle	plan_to_commit_min=616 implement_passes=1 reviews=1 rework=0 first_ci=pending models=plan:claude-opus,implement:claude-sonnet,qa:claude-sonnet,cr:claude-opus
