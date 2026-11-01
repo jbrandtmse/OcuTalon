@@ -176,3 +176,4 @@
 2026-11-01T21:13:11Z	Epic 30	ci_resolved	story=integrate-forward sha=a0a32cf9 runs=41344533534,41344533533 result=success failed=none via=none resolved_at=next_implement note=after_one_rerun(DW-306_production_row_21,DW-349_sign-in_heartbeat_mark)
 2026-11-01T21:13:21Z	Story 30.6	committed	sha=7d184ae3 pushed_head=3728ccee submodules= ci=pending runs=41350877752,41350877775 verified_on_origin=yes amendments=none footprint_extensions=docker/tests/test-class-rules.sh
 2026-11-01T21:13:21Z	Story 30.6	story_cycle	plan_to_commit_min=1371(across_hold_9) implement_passes=1 reviews=1 rework=0 first_ci=pending models=plan:claude-opus-5-5,implement:claude-sonnet-5-5,qa:claude-sonnet-5-5,cr:claude-opus-5-5
+2026-11-01T21:13:46Z	Story 30.5	stage_spawned	stage=plan spawn_at=2026-11-01T21:13:46Z model=claude-opus-5-5 agent_name=30-5-plan-2 cycle_iteration=2 note=supersedes_the_21:13:02Z_marker(push_and_CI_registration_ran_between;no_agent_was_spawned_then)
