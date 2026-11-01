@@ -4,7 +4,7 @@ import qrcode from 'qrcode-generator';
 import { changeSnapshot } from '../support/api';
 import { composerOf, inMs, signInReadmeLoaded } from '../support/floor';
 import { chk, irisScript, quoted, setTelegramIncluded } from '../support/iris';
-import { plain, tokenColor } from '../support/page';
+import { announcedTexts, plain, recordAnnouncements, tokenColor } from '../support/page';
 import { notBuilt } from './not-built';
 
 /**
@@ -15,7 +15,8 @@ import { notBuilt } from './not-built';
  * - Story 12.3's two tests and its extension of T1: the card's unpaired state with a fresh pairing code as a QR code. T1 also records the
  *   page's code requests: one before the pause, none while it lasts, a new one after the clear. T3 drives the real chain (TelegramIn against
  *   the CI mock with a queued getMe name, the real code route and the page) and then has the IRIS side check the server's code row and search
- *   the production's stores for every code; T4 shows the off and the paired cards from changed snapshots;
+ *   the production's stores for every code, and checks that the page keeps the codes to the card; T4 shows the off and the paired cards
+ *   from changed snapshots, and the card's failure, countdown and ten-minute rules from answers the route makes up;
  * - Story 12.4's pairing, still a part that no story has built: Story 12.4 replaces the declaration at the end of this file with the real
  *   test. web/scripts/demo-path-summary.mjs counts the file as a part of step 1 (the `page` in the file name), skipped with the story that
  *   owns it.
@@ -147,6 +148,22 @@ const CODE_PATH = '/ocutalon/api/v1/pairing/code';
 /** True for the card's request for a pairing code. */
 const isCodeRequest = (request: Request): boolean => request.method() === 'POST' && new URL(request.url()).pathname === CODE_PATH;
 
+/** What the page sent: the time of each code request, its body and its envelope header. */
+interface Sent {
+  at: number;
+  body: string | null;
+  envelope: string | undefined;
+}
+
+/** Records the card's code requests by time. */
+function recordRequests(page: Page): Sent[] {
+  const sent: Sent[] = [];
+  page.on('request', (request) => {
+    if (isCodeRequest(request)) sent.push({ at: Date.now(), body: request.postData(), envelope: request.headers()['x-ocutalon-request'] });
+  });
+  return sent;
+}
+
 /** The oracle for the QR symbol of a link: the side in modules, and one unit square per dark module, row by row, as the card draws it. */
 function symbolOf(link: string): { size: number; path: string } {
   const symbol = qrcode(0, 'M');
@@ -232,10 +249,7 @@ test.describe('the Telegram card is paused while Telegram is paused (Story 12.8)
       page.on('response', (response) => {
         if (new URL(response.url()).pathname.startsWith('/ocutalon/')) bodies.push(response.text().catch(() => ''));
       });
-      const posts: number[] = [];
-      page.on('request', (request) => {
-        if (isCodeRequest(request)) posts.push(Date.now());
-      });
+      const posts = recordRequests(page);
 
       const started = await fixture('Start(.saved)', ['saved']);
       saved = started.values['saved'] ?? '';
@@ -275,7 +289,7 @@ test.describe('the Telegram card is paused while Telegram is paused (Story 12.8)
       const clearApplied = await appliedInstance(page, clear);
       await expect(bannerOf(page), 'the banner leaves within one live update').toHaveCount(0, { timeout: ONE_UPDATE_MS });
       await expectNotPausedCard(page, leftOf(clearApplied));
-      expect(posts.filter((at) => at >= onsetApplied && at <= resumeAt).length, 'the page asked for no code from its onset to the resume, the reload included').toBe(0);
+      expect(posts.filter(({ at }) => at >= onsetApplied && at <= resumeAt).length, 'the page asked for no code from its onset to the resume, the reload included').toBe(0);
       await expect.poll(() => posts.length, { message: 'the card asks for a new code after the clear', timeout: LOADED_MS }).toBe(2);
       await expect(cardOf(page).locator('[data-state="unpaired"]'), 'and is unpaired again').toHaveCount(1, { timeout: LOADED_MS });
       await expect(cardOf(page).getByRole('link'), 'with the link to the bot of the pause').toHaveAttribute('href', /^https:\/\/t\.me\/ocutalon_ci_bot\?start=[A-Za-z0-9_-]{22}$/, {
@@ -337,22 +351,6 @@ test.describe('the Telegram card shows a fresh pairing code as a QR code (Story 
     at: number;
   }
 
-  /** What the page sent: the time of each code request, its body and its envelope header. */
-  interface Sent {
-    at: number;
-    body: string | null;
-    envelope: string | undefined;
-  }
-
-  /** Records the card's code requests by time. */
-  function recordRequests(page: Page): Sent[] {
-    const sent: Sent[] = [];
-    page.on('request', (request) => {
-      if (isCodeRequest(request)) sent.push({ at: Date.now(), body: request.postData(), envelope: request.headers()['x-ocutalon-request'] });
-    });
-    return sent;
-  }
-
   /**
    * Routes the code request: every real answer is kept (status, body, the test's time), and the page gets it as the server sent it, except
    * that the first answer's expiry is moved to 10 s after it and the second's to 60 s before it. This stands in for elapsed time.
@@ -409,8 +407,9 @@ test.describe('the Telegram card shows a fresh pairing code as a QR code (Story 
   /**
    * T3: the real chain. TelegramIn runs against the CI mock with a queued getMe answer that names ocutalon_qr_bot; the README account signs
    * in; the card asks the real code route for a code and shows it as a link and a QR code; the code runs out (the route moves its expiry)
-   * while the user types and while the link has focus, and each new code lands in the same elements; and the IRIS side then reads the
-   * server's code row and searches the production's stores for every code the page was given. The matrix rows "A fresh code", "The code
+   * while the user types and while the link has focus, and each new code lands in the same elements; no console line, storage entry,
+   * address, title or announcement of the page holds a code; and the IRIS side then reads the server's code row and searches the
+   * production's stores for every code the page was given. The matrix rows "A fresh code", "The code
    * runs out while the user types", "A past expiry, with focus on the link", "The server side of the codes" and "No code anywhere else".
    */
   test('T3: the card shows the real code as a link and a QR code, refreshes it in place, and no code is stored anywhere', { tag: '@floor' }, async ({ page }) => {
@@ -428,6 +427,9 @@ test.describe('the Telegram card shows a fresh pairing code as a QR code (Story 
 
       const sent = recordRequests(page);
       const answers = await routeCodes(page);
+      const consoled: string[] = [];
+      page.on('console', (message) => consoled.push(message.text()));
+      await recordAnnouncements(page);
       await signInReadmeLoaded(page);
       const card = cardOf(page);
       await expect(card, 'the release includes Telegram, so its card is in the rail').toHaveCount(1);
@@ -478,13 +480,13 @@ test.describe('the Telegram card shows a fresh pairing code as a QR code (Story 
       await expect(composer, 'and the draft').toHaveValue(draft);
       await expect(card.locator('.caption'), 'the countdown reads 1 min for an expiry in the past').toHaveText('New code in 1 min');
 
-      // A past expiry, with focus on the link: no request for 9 s, then exactly one.
+      // A past expiry, with focus on the link: no request for 9 s after the second one (the spacing counts from a request), then one.
       await link.focus();
-      await until(second.at + 8500);
-      expect(sent.length, 'no third request within 8.5 s of the second answer').toBe(2);
+      await until(sent[1]!.at + 8500);
+      expect(sent.length, 'no third request within 8.5 s of the second request').toBe(2);
       await expect.poll(() => sent.length, { message: 'the third request for a code', timeout: 12_000, intervals: [250] }).toBe(3);
-      const gap2 = sent[2]!.at - second.at;
-      expect(gap2, 'comes 9 to 16 s after the second answer').toBeGreaterThanOrEqual(9000);
+      const gap2 = sent[2]!.at - sent[1]!.at;
+      expect(gap2, 'comes 9 to 16 s after the second request').toBeGreaterThanOrEqual(9000);
       expect(gap2).toBeLessThanOrEqual(16_000);
       await expect.poll(() => answers.length, { message: 'the route kept the third answer', timeout: LOADED_MS }).toBe(3);
       const third = answers[2]!;
@@ -494,12 +496,26 @@ test.describe('the Telegram card shows a fresh pairing code as a QR code (Story 
         `https://t.me/${BOT}?start=${third.body.code}`,
       );
       await expect(composer, 'the draft is unchanged').toHaveValue(draft);
-      await until(second.at + 16_000);
+      await until(sent[1]!.at + 16_000);
       expect(sent.length, 'three requests in all').toBe(3);
       expect(answers.map((one) => one.status), 'all answered 200').toEqual([200, 200, 200]);
       const n = await minutesOf(page, third.body.expiresAt);
       expect(n, 'the third answer passes through, so about 9 min are left').toBe(9);
       await expect(card.locator('.caption'), 'and the card says so').toHaveText(`New code in ${n} min`);
+
+      // The codes stay in the card: no console line, storage entry, address, title or announcement of the page holds one.
+      const kept = await page.evaluate(() =>
+        [localStorage, sessionStorage]
+          .flatMap((store) => Object.keys(store).map((key) => `${key}=${store.getItem(key) ?? ''}`))
+          .concat(location.href, document.title)
+          .join('\n'),
+      );
+      const spoken = (await announcedTexts(page)).join('\n');
+      for (const [i, one] of answers.entries()) {
+        expect(consoled.some((line) => line.includes(one.body.code)), `no console line holds code ${i + 1}`).toBe(false);
+        expect(kept.includes(one.body.code), `no storage entry, the address or the title holds code ${i + 1}`).toBe(false);
+        expect(spoken.includes(one.body.code), `no announcement holds code ${i + 1}`).toBe(false);
+      }
 
       // The server side of the codes, and the search of the production for every code.
       const codes = answers.map((one) => one.body.code).join(',');
@@ -522,9 +538,11 @@ test.describe('the Telegram card shows a fresh pairing code as a QR code (Story 
 
   /**
    * T4: the card from changed snapshots, with the seam on and no TelegramIn (the server's state is off): "Refused while the server is off"
-   * and "Paired". Each case answers /state with a changed copy and reloads once.
+   * and "Paired". Each case answers /state with a changed copy and reloads once. Then the code route itself answers, with no server
+   * behind it, under the on and unpaired copy: a failure (500) shows nothing rather than the off card, an expiry two minutes out counts
+   * down, and an expiry an hour out is held ten minutes at most.
    */
-  test('T4: a refused code shows the off card and asks no more, and a paired session asks for no code', { tag: '@floor' }, async ({ page }) => {
+  test('T4: a refused code shows the off card and asks no more, a paired session asks for no code, and made-up answers keep the card\'s rules', { tag: '@floor' }, async ({ page }) => {
     const was = await setTelegramIncluded(1);
     try {
       const sent = recordRequests(page);
@@ -533,6 +551,27 @@ test.describe('the Telegram card shows a fresh pairing code as a QR code (Story 
         if (response.request().method() === 'POST' && new URL(response.url()).pathname === CODE_PATH) statuses.push(response.status());
       });
       await signInReadmeLoaded(page);
+      await expect(cardOf(page).locator('[data-state="not-set-up"]'), 'the server\'s own state is off, as the cases need: the card is not set up').toHaveCount(1, {
+        timeout: LOADED_MS,
+      });
+      expect(sent.length, 'and asks for no code').toBe(0);
+
+      /** Answers /state with the on copy of the Telegram block, with no pause, paired or not. */
+      const onSnapshot = (paired: boolean, displayName: string): Promise<void> =>
+        changeSnapshot(page, (snapshot) => {
+          snapshot['telegram'] = {
+            ...(snapshot['telegram'] as Record<string, unknown>),
+            included: true,
+            state: 'on',
+            botUserName: 'ocutalon_ci_bot',
+            paired,
+            displayName,
+            pausedUntil: '',
+          };
+          const others = (snapshot['status'] as Array<{ condition?: string }>).filter((member) => member.condition !== 'telegramPaused');
+          snapshot['status'] = [...others, { condition: 'telegramPaused', active: false }];
+        });
+
       const cases = [
         { label: 'refused', paired: false, displayName: '' },
         { label: 'paired', paired: true, displayName: 'Zz' },
@@ -541,19 +580,7 @@ test.describe('the Telegram card shows a fresh pairing code as a QR code (Story 
         await page.unrouteAll({ behavior: 'ignoreErrors' });
         sent.length = 0;
         statuses.length = 0;
-        await changeSnapshot(page, (snapshot) => {
-          snapshot['telegram'] = {
-            ...(snapshot['telegram'] as Record<string, unknown>),
-            included: true,
-            state: 'on',
-            botUserName: 'ocutalon_ci_bot',
-            paired: one.paired,
-            displayName: one.displayName,
-            pausedUntil: '',
-          };
-          const others = (snapshot['status'] as Array<{ condition?: string }>).filter((member) => member.condition !== 'telegramPaused');
-          snapshot['status'] = [...others, { condition: 'telegramPaused', active: false }];
-        });
+        await onSnapshot(one.paired, one.displayName);
         await page.reload();
         await loaded(page);
         const card = cardOf(page);
@@ -570,6 +597,30 @@ test.describe('the Telegram card shows a fresh pairing code as a QR code (Story 
         await expect(card.getByRole('link', { name: /Open in Telegram/ }), `${one.label}: no pairing link`).toHaveCount(0);
         expect(plain(await card.innerText()), `${one.label}: no scan line or countdown`).not.toMatch(/Scan with|Open in Telegram|New code in/);
       }
+
+      /** Answers the code request with no server behind it, under the on and unpaired copy, and reloads once. */
+      const madeUp = async (label: string, answer: () => { status: number; json: unknown }): Promise<void> => {
+        await page.unrouteAll({ behavior: 'ignoreErrors' });
+        sent.length = 0;
+        await onSnapshot(false, '');
+        await page.route(CODE_ROUTE, (route) => route.fulfill(answer()));
+        await page.reload();
+        await loaded(page);
+        await expect.poll(() => sent.length, { message: `${label}: one request for a code`, timeout: LOADED_MS }).toBe(1);
+      };
+      const caption = cardOf(page).locator('.caption');
+
+      await madeUp('failed', () => ({ status: 500, json: { error: 'internal' } }));
+      await page.waitForTimeout(ONE_UPDATE_MS);
+      await expect(cardOf(page).locator('[data-state]'), 'failed: the card shows nothing, not the off card').toHaveCount(0);
+      expect(sent.length, 'failed: and asks again only later').toBe(1);
+
+      await madeUp('ticking', () => ({ status: 200, json: { code: 'zzMadeUpCodeTicking000', expiresAt: inMs(122_000) } }));
+      await expect(caption, 'ticking: two minutes left').toHaveText('New code in 2 min', { timeout: LOADED_MS });
+      await expect(caption, 'ticking: and the countdown counts down while the page is open').toHaveText('New code in 1 min', { timeout: 5000 });
+
+      await madeUp('capped', () => ({ status: 200, json: { code: 'zzMadeUpCodeCapped0000', expiresAt: inMs(3_600_000) } }));
+      await expect(caption, 'capped: an expiry an hour out is held ten minutes at most').toHaveText('New code in 9 min', { timeout: LOADED_MS });
     } finally {
       await setTelegramIncluded(was);
     }

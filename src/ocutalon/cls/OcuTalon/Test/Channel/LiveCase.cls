@@ -22,8 +22,9 @@ Include Ensemble
 ///     and PutMarks, which hold the bodies of StartItems, StopItems, SaveMarks and RestoreMarks. The second user of them is
 ///     OcuTalon.Test.Channel.TelegramPageFixture (Story 12.8), which the page's browser test calls from an IRIS script.
 ///   - The scans of the token search are public class methods too: HeaderMark and HeadersFrom (the message headers), RowsText (every text
-///     of a SELECT's rows), Bodies (the exported body of every header after a mark) and LiveMark (the live events). Their first user is
-///     OcuTalon.Test.Channel.TelegramNoToken; the second is TelegramPageFixture's search of the pairing codes (Story 12.3).
+///     of a SELECT's rows), Bodies (the exported body of every header after a mark) and LiveMark (the live events). TelegramIn calls the
+///     two header ones and TelegramNoToken the other four as its own; TelegramPageFixture's search of the pairing codes (Story 12.3) calls
+///     HeaderMark, RowsText, Bodies and LiveMark from outside.
 Class OcuTalon.Test.Channel.LiveCase Extends %UnitTest.TestCase [ Abstract ]
 {
 

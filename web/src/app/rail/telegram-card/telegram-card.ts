@@ -36,9 +36,9 @@ import {
  * template), the scan line, and a foot with the "Open in Telegram" link and "New code in {n} min". The code lives only in this
  * component's memory and in the link and QR code it renders: it is written to no log, store, URL or announcement.
  *   - A code is due at the earlier of its expiry and ten minutes after it arrived; at that time the card asks again, never sooner than
- *     ten seconds after its previous request, so a browser clock ahead of the server's cannot make a loop. The new code is bound into the
- *     same link and SVG elements, so a focused link keeps its focus and nothing the user typed moves. The card moves focus nowhere and
- *     announces nothing.
+ *     ten seconds after its previous request, so a browser clock ahead of the server's asks at most once every ten seconds. The new
+ *     code is bound into the same link and SVG elements, so a focused link keeps its focus and nothing the user typed moves. The card
+ *     moves focus nowhere and announces nothing.
  *   - A 409 (the server's state is not `on`) shows the not-set-up view and stops asking until the Telegram block's state, bot name or
  *     pairing, or the pause, changes. Any other failure shows nothing and asks again 30 seconds later.
  *   - Leaving the condition (paused, paired, not on) drops the code and every timer; coming back asks for a fresh code.

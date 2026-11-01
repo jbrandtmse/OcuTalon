@@ -176,7 +176,8 @@ ClassMethod Codes(mark As %String, user As %String, codes As %String, expiresAt 
 }
 
 /// The server side of the codes: the session's one code row holds the hash of the last code with the answer's expiry and is unused and
-/// unpaired, the earlier codes' hashes find no row, and no column of any Pairing row holds any code.
+/// unpaired, the earlier codes' hashes find no row, and no column of any Pairing row holds any code (the scan of every column of every row
+/// must find the last code's hash first).
 ClassMethod CodeRow(user As %String, codes As %String, expiresAt As %String) As %String [ Private ]
 {
 	Try {
@@ -193,12 +194,12 @@ ClassMethod CodeRow(user As %String, codes As %String, expiresAt As %String) As 
 		Set rows = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Data.Pairing WHERE CodeSessionRef = ?", session.Ref)
 		Do rows.%Next()
 		If +rows.%GetData(1) '= 1 Return "the session does not have exactly one code row"
+		Set table = $ClassMethod(..#CASE, "RowsText", "SELECT * FROM OcuTalon_Data.Pairing WHERE ID > ?", 0)
+		If '$Find(table, row.CodeHash) Return "the scan of the Pairing rows does not read the last code's row"
 		For i = 1:1:count {
 			Set code = $Piece(codes, ",", i)
 			If (i < count) && $IsObject($ClassMethod(pairing, "ForCode", $ClassMethod(pairing, "HashCode", code))) Return "the hash of code "_i_" still finds a row"
-			Set held = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Data.Pairing WHERE Ref [ ? OR SessionRef [ ? OR ChatId [ ? OR DisplayName [ ? OR CodeSessionRef [ ? OR CodeHash [ ? OR CodeExpiresAt [ ? OR CodeUsedAt [ ? OR ReplySlotAt [ ? OR SeenAt [ ? OR CreatedAt [ ?", code, code, code, code, code, code, code, code, code, code, code)
-			Do held.%Next()
-			If +held.%GetData(1) > 0 Return "a column of a Pairing row holds code "_i
+			If $Find(table, code) Return "a column of a Pairing row holds code "_i
 		}
 	} Catch ex {
 		Return "the code row check failed: "_..Safe(ex)
@@ -207,8 +208,8 @@ ClassMethod CodeRow(user As %String, codes As %String, expiresAt As %String) As 
 }
 
 /// The search for the plaintext codes, with a probe for every store (Story 12.3, Decided 10): the probes are written through the product's
-/// paths first (CodeProbed checks that each scan finds its probe), then the probes are removed on every path (the audit entry stays).
-/// list is CodeMark's list.
+/// paths first (CodeProbed checks that each scan finds its probe), then the probes are removed on every path (the audit entry stays);
+/// a probe that is not removed is the reason when the search found nothing else. list is CodeMark's list.
 ClassMethod CodeSearch(list As %List, codes As %String) As %String [ Private ]
 {
 	Set fixture = "OcuTalon.Test.Data.Fixture"
@@ -225,12 +226,23 @@ ClassMethod CodeSearch(list As %List, codes As %String) As %String [ Private ]
 	} Catch ex {
 		Set reason = "the code search failed: "_..Safe(ex)
 	}
+	Set left = ""
 	Try {
-		If unique '= "" Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE Text [ ?", unique)
-		If trace '= "" Do $ClassMethod(fixture, "RemoveMessages", [(trace)])
+		If (unique '= "") && (##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE Text [ ?", unique).%SQLCODE < 0) Set left = "the probe's event-log row was not removed"
+	} Catch {
+		Set left = "the probe's event-log row was not removed"
+	}
+	Try {
+		If (trace '= "") && $$$ISERR($ClassMethod(fixture, "RemoveMessages", [(trace)])) && (left = "") Set left = "the probe's messages were not removed"
+	} Catch {
+		If left = "" Set left = "the probe's messages were not removed"
+	}
+	Try {
 		If probe '= "" Do $ClassMethod(fixture, "Clean", probe)
 	} Catch {
+		If left = "" Set left = "the probe session was not removed"
 	}
+	If reason = "" Set reason = left
 	Quit reason
 }
 
@@ -305,17 +317,24 @@ ClassMethod CodeRefs() As %List [ Private ]
 	Quit refs
 }
 
-/// Deletes every code row whose Ref is not in keep (a list), and returns "" or the first reason one was not deleted.
+/// Deletes every code row whose Ref is not in keep (a list), then reads the code rows back, and returns "" or the first reason the rows
+/// could not be read, one was not deleted, or one is still there.
 ClassMethod DropCodes(keep As %List) As %String [ Private ]
 {
 	Set first = ""
 	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT ID, Ref FROM OcuTalon_Data.Pairing WHERE CodeSessionRef IS NOT NULL AND CodeSessionRef <> ''")
+	If result.%SQLCODE < 0 Return "the code rows could not be read: "_result.%Message
 	While result.%Next() {
 		If $ListFind(keep, result.%GetData(2)) Continue
 		Set sc = ##class(OcuTalon.Data.Pairing).%DeleteId(result.%GetData(1))
 		If $$$ISERR(sc) && (first = "") Set first = "a code row was not deleted: "_$SYSTEM.Status.GetErrorText(sc)
 	}
-	Quit first
+	If first '= "" Return first
+	Set left = ..CodeRefs()
+	For i = 1:1:$ListLength(left) {
+		If '$ListFind(keep, $List(left, i)) Return "a code row that Start did not find is still there"
+	}
+	Quit ""
 }
 
 /// The text of an exception, in one line, with the token cut out (LiveCase.Cut).
