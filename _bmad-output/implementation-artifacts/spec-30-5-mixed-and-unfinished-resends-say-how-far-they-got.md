@@ -94,6 +94,12 @@ This spec was planned on 2026-10-30, before these rulings and before Story 30.5'
 
 **G5. Also in scope, unchanged:** DW-384 and DW-419, as the rows above plan them.
 
+**G6. Points the epic-context compile raised, decided at the gate.**
+- **Skipped stays wide** (`Total` less `Resent`, as rows 14 and 15 and V1 already plan it), with `Unreached` the part of it that was never reached. The page's result pick is not changed until Story 31.2 (U-183), and a narrow `Skipped` would make it read a partway run as all-through, a false all-clear (product default 2). The chat notice is honest either way, because `Notice.ResultKey` picks `stoppedPartway` before `skipped`. The spine's AD-16 extension says the same.
+- **DW-519's time-slot rule:** `Msg.Catalog` (the renderer) and `Data.Time` are Lane B's (AD-33), so do not edit them. Make `WatchAnswers.WatchNames` callable (Lane A) and call it from `RecentActivity`. For the time label, call an existing public entry point of the catalog (for example render a `{time}` slot through it) instead of repeating its rule. If the rule is reachable only through a private method of a Lane B class, HALT with an intent gap that names the method, rather than editing it.
+- **Verification is lane B's in this run:** slot `ocutalon-slot-b` (port 52791), `OCUTALON_LOCK_DIR` the lane-b lock folder, `OCUTALON_TEST_WEB_PORT=52802`; rewrite `## Verification` with those values (no lane-a, 52801 or `ocutalon-slot-a`).
+- **The README pin:** `docker/tests/test-readme.sh` pins that item word for word; update the pin with the sentence (G4).
+
 </intent-contract>
 
 ## Code Map
