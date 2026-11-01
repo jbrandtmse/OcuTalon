@@ -173,3 +173,5 @@
 2026-11-01T07:59:32Z	Story 11.10	fresh_check	env=recipe(ci/warm.sh_up_fresh_e11s10fcw;node_--test;test-demo-path-gate.sh;ci/mock_node_tests) tests=2_IRIS_classes(Test.Demo.Production,Test.Eval.Run)+demo-path-summary.test.mjs(37)+gate+mock(132)+demo-path_live(smoke) result=pass order=forward,reverse(P,E,E,P)
 2026-11-01T07:59:55Z	Story 11.10	committed	sha=64091097 submodules= ci=pending runs=41286953107,41286953112 amendments=epics.md:11.12_DW-522_bullet pushed=verified_on_origin
 2026-11-01T07:59:55Z	Story 11.10	story_cycle	plan_to_commit_min=608(includes_hold_9) implement_passes=1 reviews=1 rework=0 first_ci=pending models=plan:claude-opus,implement:claude-sonnet,qa:claude-sonnet,cr:claude-opus
+2026-11-01T08:02:00Z	Epic 11	epic_context_compiled	reason=planning_artifact_newer(11.11_split,11.12_inserted,DW-522_bullet) model=claude-opus lines=57 header=ok subagent_tokens=85089
+2026-11-01T08:02:00Z	Story 11.4	stage_spawned	stage=plan spawn_at=2026-11-01T08:02:00Z model=claude-opus agent_name=11-4-the-release-gets-draft-notes-and-a-checklist-plan-1 cycle_iteration=1 ledger_inbox=DW-359 note=planned_while_11.10_CI_runs(Rule_23);11.12_planned_after_11.11_is_built
