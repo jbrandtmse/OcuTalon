@@ -520,6 +520,21 @@ AC8 is a measurement. Its evidence is the recorded seconds and the lead's CI job
 
 - **After the review patches (2026-11-01).** `live demo-path` again green at 251 s (`8 of 8`, 07 with 4 tests and 08 with 2); the real-model dry run (07 with 3 tests) and `live online-demo-path` green; the static checks (`test-mock`, lint, `npm --prefix web test`, the gate, ci-config, ci-changes, boundaries, class-rules, eval-set) pass. Local increase over the 203 s baseline: 48 s, so the browser job estimate is (1668 + 2 x 48) / 60 = 29.4 min (the first run's 77 s gave 30.4 min), under the 33 min ceiling and REL-4's 35.
 
+**QA stage (2026-11-01; lane A, throwaway and warm stacks; HEAD e2791555).**
+
+- (QA) `src/ocutalon/cls/OcuTalon/Test/Demo/Production.cls` gains two tests that pin the refusal seam directly (already in Lane A's `ci/units.sh` entry for this class, so no CI-config change): `TestMarkNewFailuresMarksTheNewest` (3 failed orders sent, `MarkNewFailures(ref, 2, marker)` returns 2, the two newest bodies carry the marker and the oldest does not, a reference without failures marks 0) and `TestPauseReadingStopsAndResumes` (FailurePoller's run counter stands still for 8 s while paused, and runs again after the resume; `OnAfterOneTest` resumes it whatever the outcome, through a new `Paused` flag). Green on the warm stack twice and on a fresh throwaway (`CLASS OcuTalon.Test.Demo.Production passed`, 46 s).
+- mutation: `PauseReading` is a no-op (`Quit $$$OK`) -> red: `TestPauseReadingStopsAndResumes`, "FailurePoller starts no run while it is paused".
+- mutation: `MarkNewFailures` orders by `ID ASC` (marks the oldest) -> red: `TestMarkNewFailuresMarksTheNewest`, "the oldest failure is not marked" and "the newest failure is marked".
+- Re-demonstrated, each reverted with `git diff` byte-identical to before the mutation:
+  - mutation: AC1 `Demo/Guide.cls` `VARIANTS` without `rejected` -> red: 07's Reject test, "the guide stays at step 4" (and 08's suspicious test on its precondition, "07's replay request is pending").
+  - mutation: AC2 `demo-path.ts` marks the failed bodies with `ZZnotamarker` instead of `[[mock:refusal]]` (no refusal) -> red: 07's refusal test, "its chip says Open" (received "Awaiting approval").
+  - mutation: AC3 `B/mail-newsletter-triage.json` set aside (same run as the AC2 one; different tests) -> red: 08's newsletter test, "as Ignore" (received Digest).
+  - mutation: AC4 08's mark replaced by `2020-01-01T00:00:00Z` (test-side) -> red: 08's suspicious test, "no approval request, fix run or setting change followed".
+  - mutation: AC5 07's `if (ON_MOCK)` turned into `if (true)` -> red: `demo-path-summary.test.mjs`, "list one test fewer in 07 on the real model than on the mock".
+  - mutation: AC6 `STEPS` without `quiet-outcomes` -> red: `playwright-projects.test.mjs` and `demo-path-summary.test.mjs` (many pins).
+  - mutation: AC7 `Test.Eval.Run` `TestReport` left at `0|1|0|0` -> red: `TestReport`, "run 1: the newsletter expected Ignore ...".
+- AC8 stays a measurement; `test-class-rules` and `test-boundaries` pass; every stack of tags `e11s10q` and `e11s10qw` is torn down and the lane-a lock folder is empty.
+
 ## Auto Run Result
 
 Status: done
