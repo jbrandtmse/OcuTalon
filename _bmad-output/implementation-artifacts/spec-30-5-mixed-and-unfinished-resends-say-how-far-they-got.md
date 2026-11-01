@@ -2,7 +2,7 @@
 title: 'Mixed and unfinished resends say how far they got'
 type: 'feature'
 created: '2026-10-30'
-status: 'draft'
+status: 'ready-for-dev'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -102,373 +102,220 @@ This spec was planned on 2026-10-30, before these rulings and before Story 30.5'
 
 </intent-contract>
 
+## Re-planned matrix rows (2026-11-01)
+
+The rulings win over the intent's rows. These rows replace rows 14, 15, 17's `stoppedPartway` slots and 18 (G1), and add rows 19 to 27. Counts are `Total|Resent|Completed|FailedAgain|Skipped`, and `U` is Unreached. "The text" of `result.stoppedPartway` is under Design Notes, "stoppedPartway".
+
+| # | Scenario | Input / State | Expected Output / Behavior |
+|---|---|---|---|
+| 14 | Partway, with copies (probe) | 3 targets: 2 copies Completed, then the 3rd is `stopped` | One LOGPARTWAY warning. Ends `done`, `3\|2\|2\|0\|1`, U 1, Reason "". Key `result.stoppedPartway`: "The resend stopped partway: I resent 2 of the 3 orders (2 went through), the next one couldn't be resent, and 0 more weren't tried. Nothing else was changed, and I won't resend the rest without a new approval." Never `result.skipped` |
+| 15 | Partway, mixed (probe) | 5 targets: 3 copies (2 Completed, 1 Error), 1 real skip (`changed`), then 1 `refused`. Also: Carry throws after 2 of 3 copies | `5\|3\|2\|1\|2`, U 1, Reason the fail reason: "… I resent 3 of the 5 orders (2 went through), the next one couldn't be resent, and 0 more weren't tried. …". The throw: `3\|2\|2\|0\|1`, U 1, `stoppedPartway` |
+| 17 | Key order (pure) | `Notice.ResultKey`, `ResultSlots` | The intent's order. `stoppedPartway`'s slots are count (Total), itemNoun, resent, completed and notTried (U − 1, never below 0) |
+| 18 | Catalog | `result.stoppedPartway` on every channel | The text. With notTried 1, the one form: "… and 1 more wasn't tried. …" |
+| 19 | Stops at copy k of n (G1, probe) | 5 targets, copies 1 and 2 Completed, the 3rd `stopped` (k 3, n 5). Also 4 targets, the 3rd `error` | `5\|2\|2\|0\|3`, U 3: "… I resent 2 of the 5 orders (2 went through), the next one couldn't be resent, and 2 more weren't tried. …". The 4-target run: `4\|2\|2\|0\|2`, U 2, the one form "… and 1 more wasn't tried. …". Entries after the one that erred are never tried (`Resend` is called with them, and they come back as `after`) |
+| 20 | DW-500: Triage's instructions (unit) | Compiled XData `OcuTalon.Agent.Triage\|\|INSTRUCTIONS` | It holds the user-message paragraph (Design Notes, "DW-500"), no "You have no tools", and every phrase `Test.Agent.Instructions` requires |
+| 21 | DW-500: the scorer of a user-turn case (unit) | A decided `user-turn` case whose decision is `tellnow` with reasons R | Right for "A question from the user; the user is answered directly." Wrong for "There is nothing that needs the user at this moment.", for "I have no tools in this context and cannot look up production status.", for a fallback and for outcome `digest` |
+| 22 | DW-500: the four chip cases (eval) | `eval/user-turn-*/case.json`, each with one chip's exact text | `Test.Eval.Cases` passes their shape. The push run on the mock lists each case under "User turns" and prints its score, which fails nothing. A release-candidate run scores real Haiku |
+| 23 | DW-519 (unit) | `Tools.RecentActivity` over its existing fixtures | Its answer is unchanged: the same display names and time labels, " ET" on the online demo. It holds no `WatchNames` or `Shown` of its own |
+| 24 | Time label (unit) | `CommandCall.TimeLabel(utc, online)` | "" for ""; `Data.Time.ForMessage(utc)` for online 0; the same plus " ET" for online 1. Made by `Msg.Catalog.RenderAt("watch.time", …)` |
+| 25 | DW-484 (unit) | `CommandCall.Answer` of a result with a DueAt, online demo on, then off | `due` is "<ForMessage> ET", then "<ForMessage>". The keys stay `due,dueLocal,message,ok` |
+| 26 | DW-469 (unit) | `Test.Checks.Runs` TestFindingsRender: a stop with IRIS's stop time, a stop with none (the run time), a disabled item | Each renders "… at <clock> ET." with onlineDemo 1 and "… at <clock>." with 0 (" on " for another day) |
+| 27 | U-183: payload (unit) | `Live.Payload.Incident.FromRow` of an incident whose request R ended with U 1; one with U empty | R's `result.unreached` is 1 in the JSON; absent for the other |
+
 ## Code Map
 
-Paths are under `src/ocutalon/cls/OcuTalon/` unless they start with `web/`, `ci/` or `_bmad`.
+Paths are under `src/ocutalon/cls/OcuTalon/` unless they start with `web/`, `eval/`, `docker/`, `ci/` or `README`. Anchors re-checked on 2026-11-01.
+
+**DW-500 (first)**
+- `Agent/Triage.cls:20-38` XData INSTRUCTIONS. `:35` "You have no tools." feeds the tool-limit reasons.
+- `Test/Agent/Instructions.cls:40-66` TestTriage (Epic 11's, read only): required phrases. Copy its XData reader (`:285-290`) into the new test.
+- `src/bridge/cls/OcuTalon/Bridge/Process/Decide.cls:1171-1174` the user rule (ignore/digest → tellnow plus USERANSWERED `:129`). Unchanged.
+- `Agent/Input.cls:21-24`: a user message has no channel line and no `> ` quoting. Unchanged.
+- `Eval/In.cls`: KINDS `:59`, TURNKINDS `:65`, SendTurn `:411`, Converse `:447`, TurnRequest `:479` (Kind "turn"), Render `:515`.
+- `Eval/Report.cls`: key phrases in reasons (injection) `:455-496`, in the reply (command) `:565-616`.
+- `Test/Eval/Cases.cls`: TestTurnCases `:176-216` pins the turn cases. `Test/Eval/Report.cls`: the scorer tests. `eval/command-run-shell/case.json`: the shape to copy.
+- Mock (read only): `ci/mock/mock.mjs:26-31,440-447` (a guide prompt is matched before the mock key); `ci/mock/scenarios/B/try-it-*.json` (tool call or text replies, no decision).
+- `web/src/app/live/payloads.ts:162-186` DecisionPayload and `Live/Payload/Decision.cls:6-100`: no override field, so the fallback is closed.
 
 **The executor** (`Fix/Executor.cls`)
-- `:3-61` class doc: items 1, 4 and 5, "A run that resent nothing", the wait, and "Story 30.5 reports it in progress".
-- Parameters:
-  - `:77` NOSTART and `:82` NOTRUNNING, the reasons a partway run with no copy reuses;
-  - `:112` LOGWAIT; add LOGPARTWAY beside it.
-- `:189-222` Execute:
-  - the Refusal call is at `:193`;
-  - the StartExecution-failure branch at `:212-218` still requires "not past its expiry" (DW-384).
-- `:231-238` Refusal: `:236` refuses a past-expiry approved row (DW-384).
-- `:302-353` Run:
-  - the Carry result is read at `:318-324`;
-  - the throw is caught at `:327`;
-  - a throw with copies 0 ends `NOREAD` at `:337-339`;
-  - ResentAt is saved at `:343-344`;
-  - the all-skipped end is at `:352`.
-- `:379-394` CouldNotStart(row, total, reason, saved): reuse it for DW-384 and for a partway run with no copy.
-- `:410-425` Finish. `:569-585` Report and `:589-603` ResultOf: extend both with `final` (default 1) and set Unreached.
-- `:606-618` FirstReason.
-- `:677-711` Pass:
-  - `last(id)` holds the running count;
-  - the drop and its LOGWAIT are at `:701-710`.
-- `:715-730` Look: its counts are at `:728`, where Skipped is total - resent.
-- `:735-765` Tally: `lastAt` is read only by `Run.EndLeft`; remove it when nothing else reads it.
-- `:855-928` Resend:
-  - the codes are at `:870-909`;
-  - every non-sent entry is pushed to skipped at `:926`;
-  - `refused` and `error` log LOGCOPY at `:923-925`.
-- `:931-943` SkipReason.
+- Parameters: NOSTART `:77`, NOTRUNNING `:82`, LOGWAIT `:112` (add LOGPARTWAY beside it).
+- Execute `:189-222`: Refusal `:193`; the StartExecution-failure branch `:212-218`, its expiry test `:213`. Refusal `:231-238`, past expiry `:236`.
+- Run `:302-353`: NotRunning `:314` (30.4); Carry read `:318-324`; catch `:327`; NOTRUNNING end `:330-333`; NOREAD `:337-339`; ResentAt saved `:343-344`; all-skipped end `:352`.
+- NotRunning `:357-366`, ProductionState `:370-374` (`timeout` goes on to Resend). CouldNotStart `:379-394`. Finish `:410-425`. Report `:569-585`, ResultOf `:589-603`, FirstReason `:606-618`.
+- Pass `:677-711` (`last(id)` `:698`; drop and LOGWAIT `:701-710`). Look `:715-730` (counts `:728`). Tally `:735-765` (`lastAt` `:764`, read only by `Fix/Run.cls:207`).
+- Resend `:855-928` (codes `:870-909`; LOGCOPY `:923-925`; skipped push `:926`). SkipReason `:931-943`.
 
 **Around it**
-- `Fix/Kind/RepairResend.cls:219-233` Execute: it merges Resend's skipped into `result.skipped`. Pass `unreached` through.
-- `Fix/Run.cls`:
-  - `:3-29` doc;
-  - `:154-185` EndMarked (its counts are at `:180`);
-  - `:188-224` EndLeft (the `lastAt < due` gate is at `:207`, its counts at `:211`);
-  - `:236` LOGSWEPT.
-- `Fix/Msg/FixResult.cls`: properties, Storage slots 1-10.
-- `Data/FixRun.cls`: properties, doc, Storage slots 1-14 (`^OcuTalonP.FixRunD`).
-- `Watch/Notice.cls`:
-  - `:19-30` doc;
-  - `:59-72` the result keys;
-  - `:176-187` ResultKey;
-  - `:191-229` ResultSlots (the list of keys at `:203`, interrupted's remaining at `:227`).
-- `Msg/Catalog/Watch.cls:192-207` failedAndSkipped, `:221-234` interrupted (the shape to copy), `:235-241` couldNotStart.
-- `Checks/Process.cls:189-228` Fixes and its SendFixResult seam: unchanged. It already sends every result Sweep returns, in the incident's trace session.
+- `Fix/Kind/RepairResend.cls:219-233` Execute: Resend at `:226`, merge into `result.skipped` at `:228-231`.
+- `Fix/Run.cls`: doc `:1-30`; LOGSWEPT `:52`; EndMarked `:154-185` (counts `:180`); EndLeft `:188-224` (gate `:207`, counts `:211`).
+- `Fix/Msg/FixResult.cls`: properties `:11-33`, Storage `:35-71` (slots 1-10).
+- `Data/FixRun.cls`: properties `:19-52`, Storage `:83-134` (slots 1-14).
+- `Watch/Notice.cls`: doc `:19-30`; keys `:60-72`; ResultKey `:177-188`; ResultSlots `:190-228` (key list `:203`, interrupted's remaining `:226`).
+- `Msg/Catalog/Watch.cls`: productionStopped `:12-19`, itemDisabled `:20-28`, failedAndSkipped `:192-207`, stillResending `:208-220`, interrupted `:221-234` (the shape to copy), couldNotStart `:235-241`.
+- `Watch/IncidentManager.cls`: Result `:1205-1215` (`:1214` `$Select(final: ..ResultNotice(…), 1: "")`); ResultNotice `:1220-1229`; docs `:66-69`, `:1203-1204`, `:1217`. `Watch/Transitions.cls:118-120` accepts a progress.
+- `Live/Payload/Incident.cls:141-151` copies the ended FixRun into `Part/IncidentRequestResult.cls` (no Storage; `%JSONFIELDNAME` per property). `web/scripts/payloads.mjs` generates `web/src/app/live/payloads.ts:73-81` from them; `payloads.test.mjs` fails a stale file.
 
-**Contended** (`Watch/IncidentManager.cls`, Epic 9)
-- `:1164-1174` Result: `:1173` builds a notice only when `final`.
-- `:1179-1189` ResultNotice. The docs that need updating are at `:66-69`, `:1162-1163` and `:1176`.
-- `Watch/Transitions.cls`' row `fixing,*,progress → fixing` already accepts a progress result.
-
-**Lane B, read only** (needs recorded under Design Notes)
-- `Live/Payload/Incident.cls:141-151` fills a request's Result only from an ended FixRun.
-- `web/src/app/approvals/approval-view.ts:351-398` resultView.
-- `web/scripts/catalog.mjs:51-89` the allowlist of page keys: a new key not on the list leaves `catalog.ts` unchanged.
+**DW-519, DW-484, DW-469, README**
+- `Tools/WatchAnswers.cls:177-187` WatchNames `[ Private ]` (caller `:114`). `Tools/RecentActivity.cls`: WatchNames `:219-229` (copy, caller `:69`), Shown `:212-217` (copy, callers `:133`, `:134`, `:160`), `online` from `Watch.Reader.OnlineDemo()` `:70`.
+- `Msg/Catalog.cls` (Lane B, read only): RenderAt `:64` (public; now "" is the current time); SlotText `:152-165` is Private.
+- `Tools/CommandCall.cls:77-90` Answer (`due` `:84`). `Test/Tools/Reminders.cls` (Epic 11's, read only) pins the keys at `:507` and `due` = ForMessage at `:729`, `:993`, `:1062` (online demo off).
+- `Test/Tools/RecentActivity.cls`: `At` `:80-83`; online demo 0 and 1 `:158-164`, `:419`; names `:323`, `:425`.
+- `Test/Checks/Runs.cls:586-608` TestFindingsRender renders both keys with onlineDemo 0 only. `Checks/Process.cls:366-370` the two time sources.
+- `README.md:25` item 2. `docker/tests/test-readme.sh:117` ITEM2, `:371-382` chk_use_cases.
 
 **Tests and helpers**
-- `Test/Fix/ExecutorProbe.cls`:
-  - `:117` SendResult records `final` (add `unreached`);
-  - `:282` Carry, whose canned `{copies, skipped, fail}` gains `unreached`;
-  - `:159` Statuses;
-  - `:258` StateIs.
-- `Test/Fix/RunProbe.cls`: Feed, Narrow, FailClose.
-- `Test/Fix/Executor.cls`:
-  - `:188-233` TestRefusedStates (the past-expiry case is at `:207-209`);
-  - `:505-537` TestNothingResent (its case 2 cans every copy "stopped");
-  - `:679-700` TestRunThatErredAfterACopyStillWaits (`3|2|2|0|1`, "1 had changed");
-  - `:702-764` TestStillRunningAfterTheWait (it asserts no Results at `:726`);
-  - `:1044-1083` TestStartExecutionFailsForAnApprovedRequest (its past-expiry case is at `:1066-1072`);
-  - `:1455-1495` TestSweepEndsARunNoWaiterEnded;
-  - `:1497-1544` TestSweepLeavesRunsOfTheWaiterAndOfStory305;
-  - `:1546-1595` TestSweepDecidesByTheLatestCopyTime.
-  - Helpers: `:1818` Host, `:1884` AssertEnded, `:1960` Render, `:2002` CarryJSON, `:2018` Canned, `:2178` UnmarkedRun, `:2238` CannedAt, `:2246` Stamp.
-- `Test/Fix/Recheck.cls:120-137`: the direct `Resend(..#ORDERS, plan, "", .copies, .refused)` call.
-- `Test/Fix/Partial.cls`:
-  - `:28` TestSomeHadChanged (the rewrite) and `:69` TestCopiesFailAgain (FAILAGAIN at `:26`);
-  - `:167` WaitResultOf.
-- `Test/Fix/Waits.cls:46-112`: the TempStopItem technique and MARGIN.
-- `Test/Fix/Refused.cls`:
-  - `:13-66` TestNoApprovedRowNoRun (its past-expiry case is at `:35-36`, the count of 7 per kind at `:65`);
-  - `:68` Request.
-- `Test/Watch/Case.cls`:
-  - `:1589` Raised; `:1083` TempStopItem; `:1137` StopOrders;
-  - `:680` Tick; `:1987` WaitResent; `:1999` WaitQueued; `:1772` WaitState; `:1789` WaitIncidentState;
-  - `:1917` FixResultsFor; `:1960` WaitFixResults; `:1437` NoticeBodies; `:1973` WaitResultNotices; `:1497` ResultOf;
-  - `:481` PutBack.
-- `Test/Watch/Lifecycle.cls`:
-  - `:449` TestResultNotices ("a progress report sends none" is at `:511-518`);
-  - `:435-446` TestFixResults;
-  - helpers `:1206` Finish, `:1220` Results and `:1250` AssertSent;
-  - the probe is `Test/Watch/IncidentProbe.cls` (SendNotice records to Sent).
-- `Test/Watch/NoticeText.cls:340-372` TestResultKeys, `:411-420` TestRestartAndResendTexts.
-- `Test/Msg/Catalog.cls`:
-  - `:3` doc (22 Watch keys, 8 one forms);
-  - `:82-83`, `:121` (116 keys), `:553-554` (8 one forms);
-  - XData Keys `:952`, OneForms `:1088` and Fixtures (around `:1300`).
-- `Test/Data/Tables.cls:581-600`: our own FixRun entry.
+- `Test/Fix/ExecutorProbe.cls`: SendResult `:117`, Statuses `:159`, ProductionState `:258`, Carry `:282`. `Test/Fix/RunProbe.cls`: Narrow `:16`, Feed `:28`, FailClose `:41`.
+- `Test/Fix/Executor.cls`: TestRefusedStates `:188-233` (past expiry `:207-209`); TestNothingResent `:505-537` (case 2 `:520-528`); TestRunThatErredAfterACopyStillWaits `:679-700`; TestStillRunningAfterTheWait `:702-764` (no Results `:726`); TestStartExecutionFailsForAnApprovedRequest `:1044-1100` (past expiry `:1066-1072`); the Sweep tests `:1455-1595`. Helpers: Host `:1818`, Request `:1850`, AssertEnded `:1884`, Render `:1960`, CarryJSON `:2002`, Canned `:2018`, UnmarkedRun `:2178`, CannedAt `:2238`, Stamp `:2246`.
+- `Test/Fix/Recheck.cls:22-143` (direct Resend `:129`). `Test/Fix/Partial.cls`: FAILAGAIN `:26`, TestSomeHadChanged `:28`, TestCopiesFailAgain `:69`, WaitResultOf `:167`. `Test/Fix/Waits.cls`: MARGIN `:35`, TempStopItem technique `:46-113`. `Test/Fix/Refused.cls`: TestNoApprovedRowNoRun `:13-63` (past expiry `:38-39`, 7 per kind `:62`), Request `:68`.
+- `Test/Watch/Case.cls`: Raised `:1589`, TempStopItem `:1083`, StopOrders `:1137`, Tick `:680`, WaitResent `:1987`, WaitQueued `:1999`, WaitState `:1772`, WaitIncidentState `:1789`, FixResultsFor `:1917`, WaitFixResults `:1960`, NoticeBodies `:1437`, WaitResultNotices `:1973`, ResultOf `:1497`, PutBack `:481`.
+- `Test/Watch/Lifecycle.cls`: TestResultNotices `:449` ("a progress report sends none" `:511-518`); TestFixResults `:374` (progress `:435-446`); Finish `:1206`, Results `:1220`, AssertSent `:1250`. `Test/Watch/NoticeText.cls`: TestResultKeys `:340-409`, TestRestartAndResendTexts `:411-451`.
+- `Test/Msg/Catalog.cls`: doc `:3`, `:5`; Watch keys 22 `:81-83`; 117 keys `:121`; one forms 8 `:536`, `:553-554`; XData Keys `:952`, OneForms `:1089`, Fixtures `:1186` (result.* from `:1299`). `Test/Data/Tables.cls:581-603` FixRun's exact property set.
 
 ## Tasks & Acceptance
 
-**Execution:**
+**Execution** (in this order; G0 puts DW-500 first):
 - [ ] Task 0 -- on a fresh throwaway (`e30s5i`), measure and record under "Measured at implementation":
-  - (a) In OCUORDERS, with Orders running, `Ens.MessageHeader.ResendDuplicatedMessage` for an Error header of a test order whose `TargetConfigName` the test has set to a name that is no item of the production: its status, and whether `newId` is set. If the call gives an error with no `newId`, row 12's refused case is built with it. Otherwise the refused case is dropped and the gap is recorded.
-  - (b) After `StopOrders`, the same call gives `ErrProductionNotRunning`, with no `newId` and no new header (S8, again).
-- [ ] `Data/FixRun.cls` -- `Property Unreached As %Integer` after `Reason`. Doc: "The targets of the request that the run never reached: not resent because the resend stopped where a copy erred (the production stopped or refused it, or an error), counted among Skipped; written by Run with ResentAt, empty for a run that made no copy." Keep the Storage block. Write back the compiled `<Value name="15">` verbatim. Update the class doc -- V1, DW-419.
-- [ ] `Fix/Msg/FixResult.cls` -- add `Property Unreached As %Integer` after `Reason`, with its doc ("of Skipped, the targets the run never reached"). Write back slot 11 verbatim. Update the class doc: a progress report is sent once, when the wait ends with copies running -- V2.
-- [ ] `Fix/Executor.cls` -- DW-419, Resend:
-  - Add a trailing `Output unreached As %DynamicArray`.
-  - At the first entry whose code is `stopped`, `refused` or `error`, push `{"id", "code"}` and stop the loop. Every later entry is pushed as `{"id", "code": "after"}` without being tried.
-  - The real skips (`gone`, `status`, `body`, `field`, `changed`) still go to `skipped` and the loop goes on. Existing callers keep working.
-  - Update the doc -- DW-419, V4.
-- [ ] `Fix/Kind/RepairResend.cls` -- Execute's result gains `"unreached"` (Resend's; `[]` when nothing was planned). Update the doc.
-- [ ] `Fix/Executor.cls` -- DW-419, Run:
-  - unreached is the Carry result's `unreached`. After a throw with copies > 0, it is the passed targets less the copies, the throw still logs LOGRECHECK as today, and LOGPARTWAY names the first passed target without a copy.
-  - With copies 0 and unreached > 0: `CouldNotStart(row, total, reason, 1)`, where the reason is NOTRUNNING when the first code is `stopped`, else NOSTART (row 13). A throw with copies 0 stays NOREAD.
-  - With copies > 0: `run.Unreached` is saved in the same save as ResentAt. When unreached > 0, log one Type 3 warning, `LOGPARTWAY` ("FixExecutor stopped the resend of request <ref> at message <id>: <reason>; <n> of <total> targets were not reached", redacted).
-  - Look's counts gain `unreached` (`+run.Unreached`). Skipped stays total - resent.
-  - ResultOf sets `Unreached`.
-- [ ] `Fix/Executor.cls` -- AC 2, the progress:
-  - `Look(id, Output tally)` gives the tally of a read that was read. Pass keeps the last such tally (completed, failedAgain) beside `last(id)`.
-  - At the drop: when the run has no EndedAt, Interrupted 0, its row is executing, its time is up and Pass kept a tally, `Report(row, counts, 0)` with `{total, resent: copies, completed, failedAgain, skipped: total - resent, unreached, reason: ""}`. LOGWAIT stays. Nothing is stored and no entry is written (rows 2-5).
-  - `ResultOf(row, counts, final As %Boolean = 1)` and `Report(row, counts, final As %Boolean = 1)`.
-- [ ] `Fix/Executor.cls` -- DW-384:
-  - Refusal no longer refuses an approved fix row past its expiry.
-  - Execute, right after Refusal: an approved row with `'(ExpiresAt ] now)` gives `CouldNotStart(row, total, ..#NOSTART, 0)`.
-  - The StartExecution-failure branch ends any row that still reads approved with NOSTART, past its expiry or not.
-  - Update the class doc (items 1, 4 and 5, the wait, and "A run that resent nothing") -- DW-384, AD-16.
-- [ ] `Fix/Run.cls` -- EndLeft drops the `lastAt` gate: an unmarked run past its wait, with its row executing, a read of `read` and no copy running, ends `done` whenever its last copy was done (row 7). Its counts and EndMarked's gain `unreached` (`+run.Unreached`). Remove `Tally.lastAt` if nothing else reads it. Update the doc -- AC 2, DW-419.
-- [ ] `Watch/Notice.cls`:
-  - `Parameter KEYPARTWAY = "result.stoppedPartway"`.
-  - ResultKey: `stillResending` also for a result that is neither Final nor Interrupted, and `stoppedPartway` for `+result.Unreached > 0` after couldNotStart (row 17).
-  - ResultSlots: `stoppedPartway` takes interrupted's slots (count, itemNoun, completed, remaining), and `failedAndSkipped` adds `resent` (`+result.Resent`), which the catalog ignores (`Test.Msg.Catalog.TestExtraSlots`).
-  - Update the doc -- AC 1, AC 2, DW-419.
-- [ ] `Msg/Catalog/Watch.cls` -- `result.stoppedPartway`, per Design Notes V3 (text, slots, one form on remaining, source) -- V3.
-- [ ] CONTENDED, only after the orchestrator's ruling: `Watch/IncidentManager.cls` -- in Result `:1173`, pass `..ResultNotice(incident, row, result)` for every owned result, the progress one included, and update the docs at `:66-69`, `:1162-1163` and `:1176` -- AC 2 (row 9).
-- [ ] `Test/Fix/ExecutorProbe.cls` -- Carry's canned JSON takes `unreached` (`[{id, code}]`), and SendResult records `unreached`. Update the doc.
-- [ ] `Test/Fix/Executor.cls`:
-  - TestRefusedStates loses its past-expiry case.
-  - New TestPastExpiryCannotStart (row 10).
-  - TestStartExecutionFailsForAnApprovedRequest: its past-expiry case moves to the NOSTART end.
-  - TestNothingResent case 2 becomes couldn't start `NOTRUNNING`.
-  - TestRunThatErredAfterACopyStillWaits gives `stoppedPartway`.
-  - New TestResendThatErrsPartwaySaysHowFarItGot (rows 13-15, LOGPARTWAY).
-  - TestStillRunningAfterTheWait asserts the progress (rows 2, 4), and a new case covers rows 3 and 5.
-  - Sweep: TestSweepLeavesRunsOfTheWaiterAndOfStory305 becomes TestSweepLeavesRunsOfTheWaiter (row 8); TestSweepDecidesByTheLatestCopyTime becomes TestSweepEndsEveryRunWhoseCopiesAreDone (row 7); add a case for row 16. Pin AD-16 and DW-419 in the docs.
-- [ ] `Test/Fix/Recheck.cls` -- TestResendStopsWhereItErrs (row 12, Task 0a). Orders is started again after it, also after a failure (`PutBack`).
-- [ ] `Test/Fix/Partial.cls` -- TestSomeFailAgainAndSomeHadChanged (row 1). Update the doc.
-- [ ] `Test/Fix/Waits.cls` -- TestStillRunningIsReportedThenEnded (row 6). The stillResending Notification assertion is one block, which moves if the contended edit is split off. Update the doc.
-- [ ] `Test/Fix/Refused.cls` -- TestNoApprovedRowNoRun drops "past expiry" (6 rows per kind). New TestPastExpiryCannotStart (row 11). Update the doc.
-- [ ] `Test/Watch/NoticeText.cls` -- the rows of row 17, with the slots and texts of `stoppedPartway`. The `failedAndSkipped` slots include `resent`.
-- [ ] `Test/Watch/Lifecycle.cls` -- TestResultNotices:
-  - a final result with Unreached 1 sends `result.stoppedPartway` (Integration, not contended);
-  - [contended] "a progress report sends none" becomes row 9.
-- [ ] `Test/Msg/Catalog.cls` -- Keys (23 Watch keys, 117 in all), OneForms (9) and Fixtures for `result.stoppedPartway` (row 18), with the doc counts.
-- [ ] `Test/Data/Tables.cls` -- our own FixRun entry gains `"Unreached": "%Integer"`.
-- [ ] Every other test that asserts the old shapes: search `Test/` for `stillResending`, `Skipped`, `past expiry`, `lastAt` and `Resend(` and update them (Shared surfaces).
+  - (a) In OCUORDERS, with Orders running, `Ens.MessageHeader.ResendDuplicatedMessage` for an Error header of a test order whose `TargetConfigName` the test set to a name that is no item: its status, and whether `newId` is set. An error with no `newId` builds row 12's refused case; otherwise that case is dropped and the gap recorded.
+  - (b) After `StopOrders`, the same call gives `ErrProductionNotRunning`, no `newId`, no new header.
+  - (c) With the mock, a `decide` request of provenance `user` and the text "What can you do?" sent to Decide as the new user-turn path sends it: the decision's outcome, fallback and reasons (the chip's prompt scenario answers it). Record it; nothing asserts it.
+- [ ] `Agent/Triage.cls` -- DW-500: add the user-message paragraph (Design Notes) to INSTRUCTIONS, and replace "You have no tools." at `:35` with "Decide from the message alone.". Keep every phrase `Test.Agent.Instructions` requires and no `{{`.
+- [ ] `Test/Agent/TriageUserTurn.cls` (new) -- row 20: reads the compiled XData (a copy of Instructions' 5-line reader) and pins the paragraph's sentences and the absence of "You have no tools".
+- [ ] `Eval/In.cls` -- DW-500: kind `user-turn` in KINDS and TURNKINDS. Its case is sent like a command case, but TurnRequest gets the kind: a user-turn case's request has Kind `decide` (the decide request of a user's chat turn), and Converse skips Render for it. The TurnResult keeps the reply's DecisionRef, Fallback and FallbackReason. Update the class doc.
+- [ ] `Eval/Report.cls` -- DW-500: score a `user-turn` case from its decision row (by DecisionRef): right when it is no fallback, its outcome is `tellnow`, every `expectation.keyPhrases` group has a hit in the reasons and no `expectation.absentPhrases` entry is in them (case-insensitive). Add the score line "User turns: <right> of <total>" and a "User-turn cases" section, printed and never checked, like the command score.
+- [ ] `eval/user-turn-productions`, `-anything-wrong`, `-failure-earlier`, `-what-can-you-do` `/case.json` (new) -- one chip's exact text each; heldOut false; recordedBy "written for the evaluation set (Story 30.5, DW-500)"; expectation `keyPhrases` [["user"]], `absentPhrases` per Design Notes.
+- [ ] `Test/Eval/Cases.cls` -- TestUserTurnCases: exactly the four cases, their exact texts and shape (expectation fields `keyPhrases` and `absentPhrases` only). Keep TestTurnCases' pins of the other turn cases.
+- [ ] `Test/Eval/Report.cls` -- row 21, over decision rows the test makes and removes.
+- [ ] `Data/FixRun.cls` -- `Property Unreached As %Integer` after `Reason`: "The targets the run never reached: the copy that erred and every target after it, counted among Skipped; written by Run with ResentAt, empty for a run that made no copy." Write back the compiled `<Value name="15">` verbatim; update the class doc -- U-182.
+- [ ] `Fix/Msg/FixResult.cls` -- `Property Unreached As %Integer` after `Reason` ("of Skipped, the targets the run never reached"); slot 11 verbatim; the class doc says a progress report is sent once, when the wait ends with copies running.
+- [ ] `Fix/Executor.cls` -- Resend: trailing `Output unreached As %DynamicArray`. At the first entry coded `stopped`, `refused` or `error`, push `{"id", "code"}` and push every later entry as `{"id", "code": "after"}` untried. Real skips (`gone`, `status`, `body`, `field`, `changed`) still go to skipped and the loop goes on -- DW-419, U-182.
+- [ ] `Fix/Kind/RepairResend.cls` -- Execute's result gains `"unreached"` (`[]` when nothing was planned).
+- [ ] `Fix/Executor.cls` -- Run:
+  - unreached is the Carry result's `unreached`; after a throw with copies > 0 it is the passed targets less the copies (LOGRECHECK as today).
+  - copies 0 and unreached > 0: `CouldNotStart(row, total, reason, 1)`, NOTRUNNING when the first code is `stopped`, else NOSTART. A throw with copies 0 stays NOREAD.
+  - copies > 0: `run.Unreached` saved with ResentAt; when > 0, one Type 3 `LOGPARTWAY` ("FixExecutor stopped the resend of request <ref> at message <id>: <code>; <n> of <total> targets were not reached", through `Bridge.Redact`, ids and counts only).
+  - Look's counts gain `unreached`; Skipped stays total − resent (G6). ResultOf sets `Unreached`.
+- [ ] `Fix/Executor.cls` -- AC 2, the progress: `Look(id, Output tally)`; Pass keeps the last read tally beside `last(id)`. At the drop, for a run with no EndedAt, Interrupted 0, its row executing, its time up and a kept tally: `Report(row, counts, 0)` with `{total, resent, completed, failedAgain, skipped: total − resent, unreached, reason: ""}`. LOGWAIT stays; nothing stored, no Action entry. `ResultOf(…, final As %Boolean = 1)`, `Report(…, final As %Boolean = 1)`.
+- [ ] `Fix/Executor.cls` -- DW-384: Refusal no longer refuses an approved row past its expiry; Execute, right after Refusal, ends such a row with `CouldNotStart(row, total, ..#NOSTART, 0)`; the StartExecution-failure branch ends any row still approved with NOSTART, expired or not. Update the class doc (items 1, 4, 5, the wait, "A run that resent nothing").
+- [ ] `Fix/Run.cls` -- EndLeft drops the `lastAt` gate (row 7); its counts and EndMarked's gain `unreached`. Remove `Tally.lastAt`. Update the doc.
+- [ ] `Watch/Notice.cls` -- `KEYPARTWAY = "result.stoppedPartway"`; ResultKey: `stillResending` also for a result neither Final nor Interrupted, and `stoppedPartway` for `+result.Unreached > 0` right after couldNotStart; ResultSlots per row 17, and `failedAndSkipped` adds `resent`. Update the doc.
+- [ ] `Msg/Catalog/Watch.cls` -- `result.stoppedPartway` (text, slots, one form on notTried, source per Design Notes) and `watch.time` (text "{time}", slot time `time`, source "Story 30.5 (DW-519, DW-484): the catalog's time label alone, for a tool's answer to the model").
+- [ ] `Watch/IncidentManager.cls` -- Result `:1214` passes `..ResultNotice(incident, row, result)` for every owned result; docs `:66-69`, `:1203-1204`, `:1217` say a progress result gets `result.stillResending` (G3).
+- [ ] `Live/Payload/Part/IncidentRequestResult.cls` -- `Property Unreached As %Integer(%JSONFIELDNAME = "unreached")`; `Live/Payload/Incident.cls` -- `Set part.Result.Unreached = run.Unreached` after `:150`, doc `:70-72`; then `(cd web && node scripts/payloads.mjs)` regenerates `web/src/app/live/payloads.ts` (generator output only) -- U-183, row 27.
+- [ ] `Tools/WatchAnswers.cls` -- WatchNames loses `[ Private ]` (doc: "shared with RecentActivity"). `Tools/CommandCall.cls` -- new `TimeLabel(utc, online As %Boolean) As %String` (row 24; "" on an empty time or a render error), and Answer's `due` is `..TimeLabel(result.DueAt, ##class(OcuTalon.Watch.Reader).OnlineDemo())` (DW-484). `Tools/RecentActivity.cls` -- remove its WatchNames and Shown; call `WatchAnswers.WatchNames` and `CommandCall.TimeLabel` -- DW-519.
+- [ ] `Test/Tools/RecentActivity.cls` -- unchanged expectations stay green (row 23); add one assertion that RecentActivity has no WatchNames or Shown method (`%Dictionary.CompiledMethod`). `Test/Tools/CommandCallTime.cls` (new) -- rows 24, 25 (sets and restores the onlineDemo setting).
+- [ ] `Test/Checks/Runs.cls` -- TestFindingsRender: row 26 (DW-469); a third Step whose stop has no readable stop time gives the run time.
+- [ ] `README.md:25` -- append "It also tells you once when a production stops or one of its items is disabled."; `docker/tests/test-readme.sh:117` ITEM2 matches it (G4).
+- [ ] `Test/Fix/ExecutorProbe.cls` -- Carry's canned JSON takes `unreached`; SendResult records `unreached`.
+- [ ] `Test/Fix/Executor.cls` -- TestRefusedStates loses past expiry; new TestPastExpiryCannotStart (row 10); TestStartExecutionFailsForAnApprovedRequest's past-expiry case ends NOSTART; TestNothingResent case 2 becomes couldn't start NOTRUNNING (its Carry gives copies 0 and unreached `stopped`); TestRunThatErredAfterACopyStillWaits gives `stoppedPartway`; new TestResendThatErrsPartwaySaysHowFarItGot (rows 13-16, 19, LOGPARTWAY, and row 27 through `Live.Payload.Incident.FromRow` of an unsaved `Data.Incident` whose RequestRefs holds the row); TestStillRunningAfterTheWait asserts rows 2 and 4, and a new case rows 3 and 5; Sweep: TestSweepLeavesRunsOfTheWaiter (row 8), TestSweepEndsEveryRunWhoseCopiesAreDone (row 7), and row 16.
+- [ ] `Test/Fix/Recheck.cls` -- TestResendStopsWhereItErrs (row 12, Task 0a); Orders started again after it, also after a failure (`PutBack`).
+- [ ] `Test/Fix/Partial.cls` -- TestSomeFailAgainAndSomeHadChanged (row 1, `/state`'s result with no `unreached`). `Test/Fix/Waits.cls` -- TestStillRunningIsReportedThenEnded (row 6). `Test/Fix/Refused.cls` -- 6 rows per kind; new TestPastExpiryCannotStart (row 11).
+- [ ] `Test/Watch/NoticeText.cls` -- row 17 with `stoppedPartway`'s slots and texts (rows 14, 15, 18, 19); `failedAndSkipped` slots include `resent`. `Test/Watch/Lifecycle.cls` -- a final with Unreached 1 sends `result.stoppedPartway`; "a progress report sends none" becomes row 9.
+- [ ] `Test/Msg/Catalog.cls` -- Keys (24 Watch keys, 119 in all), OneForms (9), Fixtures for both new keys, doc counts. `Test/Data/Tables.cls` -- FixRun gains `"Unreached": "%Integer"`.
+- [ ] Every other test that asserts an old shape: search `Test/` for `stillResending`, `Skipped`, `past expiry`, `lastAt`, `Resend(`, `WatchNames`, `Shown(`, `user-turn`, `TURNKINDS` and update them (Shared surfaces).
 
 **Acceptance Criteria:**
-- Given an approved repair in which some copies fail again and some targets are skipped, when FixExecutor sends its FixResult, then it carries both counts (Unreached 0), the run's stored result and the incident event's request result carry them as the incident resolves (AD-15), and the result notification uses `result.failedAndSkipped`, with the resent, completed, failed-again and skipped counts as slots (rows 1, 17; FR-8, FR-25, AD-16, AD-32).
-- Given copies still running when FixExecutor's 60-second wait ends, when the wait ends, then FixExecutor sends one FixResult with `Final` 0 and the counts so far, the incident stays `fixing`, and the result notification uses `result.stillResending` [contended]; and once every registered copy has completed or failed, Checks' next Tick gets the run's final FixResult from `Fix.Run.Sweep()` and sends it to IncidentManager, which moves the incident by AD-15's table with the matching result text (rows 2-9; FR-25, AD-15, AD-16, AD-18).
-- Given an approved request whose ExpiresAt has passed when FixExecutor takes its Execute, when it is handled, then it ends as couldn't start with `NOSTART`: the row is closed `failed`, one final FixResult goes out with every count 0, and the incident leaves `fixing` with "Nothing was resent: OcuTalon couldn't start the resend. Nothing was changed." (rows 10, 11; DW-384, AD-16 as amended, U-161).
-- Given a resend that errs partway, when the run ends, then the targets it never reached are reported by how far it got: with no copy made, as couldn't start with a plain reason; otherwise, as `result.stoppedPartway` ("The resend stopped partway: {completed} of {count} {itemNoun} went through. The other {remaining} need a new approval."). No text says that they had changed since the dry run (rows 12-16, 18; DW-419, including 30.4's `timeout` occurrence; AD-16 as amended, U-160).
+- Given a user's own chat message, when Triage decides it, then its instructions tell it that the reasons only classify the message as the user's own, which is always answered, and never describe production state, tool limits or whether anything needs the user; and the evaluation set holds a user-turn case for each of the four chips' exact texts, scored by that rule (rows 20-22; DW-500, AD-28, AD-22). The mock cannot prove real Haiku's wording: the release-candidate run and the Contest Planner's host check do.
+- Given an approved repair in which some copies fail again and some targets are skipped, when FixExecutor sends its FixResult, then it carries both counts (Unreached 0), the run and the incident event's request result carry them, and the notification is `result.failedAndSkipped` with resent, completed, failed-again and skipped slots (rows 1, 17; AD-15, AD-16, AD-32).
+- Given copies still running when the 60-second wait ends, when the wait ends, then FixExecutor sends one FixResult with `Final` 0 and the counts so far, the incident stays `fixing` and its owner gets `result.stillResending`; and once every copy is done, Checks' next Tick sends Sweep's final FixResult, and the incident moves by AD-15's table with the matching text (rows 2-9; AD-15, AD-16, AD-18).
+- Given an approved request past its ExpiresAt when FixExecutor takes its Execute, when it is handled, then it ends as couldn't start with `NOSTART`, the row `failed`, one final FixResult with every count 0, and the incident leaves `fixing` with "Nothing was resent: OcuTalon couldn't start the resend. Nothing was changed." (rows 10, 11; DW-384, U-161).
+- Given a resend that errs at copy k of n, when the run ends, then with no copy made it is couldn't start with a plain reason, and otherwise its FixResult and FixRun carry Unreached (n − k + 1), the incident payload's request result carries `unreached`, and the notice reads `result.stoppedPartway` with the resent, erred and not-tried counts and "Nothing else was changed"; no text says they had changed since the dry run (rows 12-16, 18, 19, 27; DW-419 with 30.4's `timeout` occurrence, U-182, U-183).
+- Given `recent_activity` and the reminder tool's answer, when they show a time, then both make it through the catalog's time label (" ET" on the online demo), and `recent_activity`'s display names come from `WatchAnswers.WatchNames` (rows 23-25; DW-519, DW-484).
+- Given a `watch.productionStopped` or `watch.itemDisabled` notice from either time source, when it is rendered, then `{time}` carries " ET" on the online demo and none otherwise (row 26; DW-469).
+- Given the README, when `test-readme.sh` runs, then item 2 ends with the owner's sentence and the check passes (G4).
 
 ## Spec Change Log
 
 - 2026-11-01 (lead, spec gate, re-plan): status reset to draft; the spec-gate rulings G0-G5 (DW-500 widened and first, DW-519, DW-484's narrow part, DW-469, U-182, U-183, Q1, the README sentence) added inside the intent block; the Never lines on Lane B and Epic 9 files changed to match U-183 and Q1. The AD-16 extension is written in the spine.
+- 2026-11-01 (plan stage, re-plan): rows 14, 15, 17's slots and 18 re-worded and rows 19-27 added outside the frozen intent block; DW-500, DW-519, DW-484, DW-469, U-183's payload and the README added to the tasks; the contended and split notes removed (G3); verification moved to lane B (G6).
 
 ## Review Triage Log
 
 ## Design Notes
 
-**Architecture decisions (Rule 6).**
-- AD-16, as amended 2026-10-30:
-  - U-161: a past-expiry Execute ends as couldn't start with `NOSTART`.
-  - U-160: a resend that errs partway reports the targets it never reached by how far it got, and a result never claims a change.
-  - A run still running after the wait is reported in progress, and then with its final result through Sweep.
-  - Each run gets exactly one final FixResult.
-- AD-15: the transition table. `fixing` plus progress stays `fixing`; `fixing` plus final goes to `resolved`.
-- AD-18: Checks sends Sweep's final results on each Tick. It is unchanged.
-- AD-32: producers never render. Keys and slots only.
-- Conventions "Result texts": one key order for every producer.
-- AD-33: one writer of a run's end, and Lane B's classes are read only.
-- AD-26: the FixResult goes in the incident's trace session.
-- AD-3: Resend's one switch.
-- AD-5: append-only storage.
-- AD-11: FinishExecution closes the row.
-- AD-12: the payload is unchanged here (the Lane B need below).
-- AD-2: no bridge change.
-- AD-22: throwaway stacks.
+**Architecture decisions (Rule 6).** AD-16 (as amended for U-161, U-160 and U-182: past expiry, partway, Unreached, Skipped stays wide); AD-15 (`fixing` + progress stays `fixing`); AD-18 (Checks sends Sweep's results; unchanged); AD-32 (keys and slots only; `RenderAt` is the one renderer); AD-28 (no model-written all-clear; the user rule stays code); AD-22 (the evaluation set gains the user-turn kind); AD-7 (Triage stays declarative: instructions only); AD-12 (the incident payload's Result gains `unreached`); AD-33 (one writer of a run's end; Lane B's classes untouched); AD-26 (the FixResult in the incident's trace session); AD-3 (Resend's one switch); AD-5 (append-only Storage); AD-11 (FinishExecution closes the row); AD-2 (no bridge change).
 
-**Contended edit:** `src/ocutalon/cls/OcuTalon/Watch/IncidentManager.cls`.
-- In `Result` (`:1173`), `$Select(final: ..ResultNotice(incident, row, result), 1: "")` becomes `..ResultNotice(incident, row, result)`. One code line.
-- The docs of the class (`:66-69`), of Result (`:1162-1163`) and of ResultNotice (`:1176`) change about 4 lines, to say that a progress result gets `result.stillResending`.
-- With `Notice.ResultKey`'s new progress rule (ours), that is all the in-progress notice needs.
-- No design without it was found:
-  - IncidentManager calls no Lane A hook for a progress result: `Event`, `Apply`, `Transitions.Next` and `Move`/`Tell` all carry notification "".
-  - A notice sent by FixExecutor straight to Notify was rejected. It adds a FixExecutor → Notify path that the spine's incident flow ("FixExecutor → IncidentManager → Notify") does not have. It copies Tell's recipient fan-out (`Data.Session.Recipients`, Epic 29). And it would send even when the table refuses the progress (an incident not `fixing`).
-- **Split:** everything else lands without the edit. Without it, the progress FixResult is still sent and accepted, and only the stillResending Notification is missing; the final result and its notice still follow.
-  - So, if the orchestrator rules that the edit must wait for Epic 9, a sibling (Story 30.6, after Epic 9 merges) takes the edit, Lifecycle's row 9 assertion and the stillResending block of the Waits test, and this story lands the rest.
-  - Moving that one clause of AC 2 is the lead's call (a veto item when it is an AC move).
-  - Recommendation: keep it here if the orchestrator allows a one-line edit inside Epic 9's file, else split.
+**DW-500: the preferred route; the fallback is closed.** Neither `DecisionPayload` (`payloads.ts:162-186`) nor `Live.Payload.Decision` has an override field, so the web fallback would need `api-types.ts`/`payloads.ts` changes. The paragraph added to Triage's instructions:
+> **The user's own message.** A message that does not say which channel it arrived on and is not quoted is the user's own chat message to OcuTalon, and it is always answered, so choose "tellnow". Give one reason that only says what kind of message it is, for example "A question from the user; the user is answered directly." or "A request from the user; the user is answered directly." Never describe the state of a production, what you can or cannot look up or access, or whether anything needs the user: OcuTalon answers the user separately, from what it checks itself.
+- **What the mock can pin.** A chip's exact text matches its guide-prompt scenario before Triage's mock key (`mock.mjs:440-447`), whose reply is a tool call or text, not a decision, so on the mock Triage's decision for a chip is whatever Decide makes of an unusable reply (Task 0c). No mock case can show real Haiku's wording, and the mock's scenarios stay unchanged. So the pins are: the compiled instructions (row 20), the scorer (row 21) and the four cases' shape (row 22). The cases score real Haiku in every release-candidate run (REL-5), and the Contest Planner checks the host after the merge.
+- **absentPhrases** (case-insensitive, every case): "tool", "access", "look up", "cannot", "can't", "unable", "needs the user", "need the user", "nothing", "healthy", "all clear", "everything is", "no failure", "no error". The score is reported, never a REL-5 target (a target is a product number).
 
-**V1. Stored data (veto window): `FixRun.Unreached`** (`%Integer`, slot 15), written by Run with ResentAt.
-- The waiter and Sweep end the run in other jobs, later, so the count of the targets the run never reached must be stored when the copies are registered.
-- **Rejected:**
-  - (a) Making Skipped hold only the real changes and deriving the rest. The page's resultView (Lane B, unchanged) would then show "All N went through" for a partway run with no failure and no real skip: a false all-clear until Lane B changes the page.
-  - (b) Reusing `Interrupted`. Its key says "when OcuTalon restarted", and a stored Interrupted above 0 marks a run for `End`/`Mark`.
-  - (c) Counting the targets as FailedAgain. They were never resent, so "failed again" misstates what happened and breaks Completed + FailedAgain = Resent.
-  - (d) Storing the stop reason as well (a second column).
-- **Recommendation:** add it. Skipped keeps its meaning (the targets left out, Total - Resent), so today's page shows a partway run as it does now, never as all-through.
-
-**V2. Stored data and AD-16's message contract (veto window): `FixResult.Unreached`** (`%Integer`, slot 11).
-- IncidentManager picks the key from the FixResult (`Notice.ResultKey` is pure), and Skipped is inclusive, so the subset cannot be derived.
-- AD-16's list of FixResult's properties gains it: an addition in the sense of the Rule's "reports the targets it never reached", for the lead under U7.
-
-**V3. Public text (veto window): `result.stoppedPartway`.**
-- Text: "The resend stopped partway: {completed} of {count} {itemNoun} went through. The other {remaining} need a new approval."
-- Slots: count, itemNoun (noun), completed and remaining.
-- One form, on `remaining` = 1: "The resend stopped partway: {completed} of {count} {itemNoun} went through. The other one needs a new approval."
-- Source: "Story 30.5 (AD-16 as amended, U-160), in the form of EXPERIENCE Incidents and Approvals / Results / Cut off by a restart".
-- It folds the failed-again and skipped targets into "the other {remaining}", as `result.interrupted` does, and claims no change and no cause it does not know.
-- **Alternatives:**
-  - With a reason: "The resend stopped partway: {reason}. {completed} of {count} ...". This needs the stop reason stored (a second column) and a new reason sentence for a refusal or an error. The production-stopped case is already told to the user by 30.4's check finding.
-  - The word "didn't finish" in place of "stopped partway".
-- **Recommendation:** as written. EXPERIENCE.md's Results table gains a "Stopped partway" row with the ruling (UX note for the lead).
-
-**V4. A claim about what the product does (veto window): the resend stops at the first copy that errs** (`stopped`, `refused` or `error`) instead of trying the rest.
-- It makes "stopped partway" literally true and "never reached" literal (AD-16's wording).
-- It is the safe choice (product default 3): no more copies go out after an unexpected error.
-- The real skips still go on.
-- **Recommendation:** keep it.
+**stoppedPartway (U-182's condition).** Text: "The resend stopped partway: I resent {resent} of the {count} {itemNoun} ({completed} went through), the next one couldn't be resent, and {notTried} more weren't tried. Nothing else was changed, and I won't resend the rest without a new approval." One form on `notTried` = 1: "… and 1 more wasn't tried. …". Slots: count, itemNoun (noun), resent, completed, notTried. Source: "Story 30.5 (AD-16 as amended, U-182)". The copy that erred is always one (the loop stops at it), so it is written as "the next one"; "I resent" needs no verb agreement; completed is added so a copy that failed again is never shown as gone through. `stoppedPartway` implies Resent ≥ 1 and Total ≥ 2.
 
 **Decided in-stage.**
-- **No copy made** means couldn't start: the row is `failed`, every count is 0, and the reason is `NOTRUNNING` for a stop or `NOSTART` for a refusal or an error. A throw before the first copy stays `NOREAD`. This matches AD-16's couldn't-start shape and the existing "an error before any copy" rule, and it uses existing texts only.
-- **The progress** is sent once, by the waiter, when it drops a run whose time is up. It is sent only for an unmarked run whose row is executing and whose copies were read at least once in the wait. The counts are from the last read, at most WAITPAUSE old. It writes no audit entry and stores nothing, and LOGWAIT stays.
-- A run whose waiter was stopped (DW-395) gets no progress, only its final result.
-- The progress's count slot is Total, as the UX text has it: "30 of 50 have gone through so far" is true even when some targets were skipped or never reached, and the final result says the rest.
-- **ResultKey** gives `stillResending` for any result that is neither final nor interrupted. This guards a progress that IncidentManager handles after Sweep has closed the row: it never renders a final text from partial counts.
-- **Sweep** ends every unmarked run past its wait whose copies are all done, whenever the last copy was done. The `lastAt` gate only kept Story 30.5's branch open.
-- **The mixed slots** add `resent`, which the catalog ignores (Render accepts extra slots), so that the AC's four counts are all in the Notification's Slots. The text is unchanged.
-- **DW-384** goes through `CouldNotStart(…, 0)` with no gate beyond FinishExecution's locked approved → failed move, like UNUSABLE and NOTALLOWED. A second Execute for the row then finds it `failed` and is refused, and IncidentManager refuses a second final on a resolved incident.
-- **The Action entry's counts are unchanged.** Skipped there includes the unreached targets, as the FixRun's does.
-- **LOGPARTWAY** gives operators the reason the user text does not carry.
+- **The time label** goes through the catalog's public `RenderAt` with a new Lane A key `watch.time` (text "{time}"), the route G6 names ("render a {time} slot through it"). Its home is `CommandCall.TimeLabel`, because both of its callers are tool answers. Measured: the label equals `ForMessage` (+ " ET" on the demo).
+- **DW-484 needs no Epic 11 file:** the model takes the due time from `CommandCall.Answer` (Lane A, `Tools/**`), so no HALT. The label follows the catalog's rule: " ET" on the online demo, none on a local install. Whether Haiku copies "08:02 ET" into its reply is the host check's (inference).
+- **U-183's payload** needs Incident's own part class `Live/Payload/Part/IncidentRequestResult.cls` (only Incident uses it; Lane A by AD-33's table row for `Live.Payload.Incident`) and the generated `web/src/app/live/payloads.ts` (else `payloads.mjs --check` and `payloads.test.mjs` fail). G1b's "no web/** change" is read as the page's result pick, and the file is regenerated, never hand-edited. Flagged for the gate below.
+- **DW-469's pin** extends the existing `Test.Checks.Runs` TestFindingsRender (Lane A, warm) rather than a new class.
+- Kept from the first plan: no copy made is couldn't start (NOTRUNNING or NOSTART; a throw stays NOREAD); the progress is sent once, by the waiter, only for an unmarked executing run read at least once, stores nothing and writes no audit entry; a run whose waiter was stopped gets only its final; the progress's count is Total; ResultKey gives `stillResending` for any non-final, non-interrupted result; Sweep ends every unmarked run past its wait whose copies are done; the mixed slots add `resent` (ignored by the text); DW-384 goes through `CouldNotStart(…, 0)`; the Action entry's counts are unchanged; LOGPARTWAY gives operators the code.
+- Shard parts: lane-a in 8, lane-b in 6, because 30.6's `--part 1/3` of lane-b took 888 s.
+- The intent's row 13 names `StateIs`: since 30.4 the probe's seam is `ExecutorProbe.ProductionState` (`:258`). The first plan's V1, V2 and V4 (`FixRun.Unreached`, `FixResult.Unreached`, stop at the first copy that errs) were ruled by U-182; its V3 text is replaced by the one above.
 
-**Lane B needs (for the lead to route; not planned here).**
-- (1) The page's `resultView` gains `unreached > 0 → result.stoppedPartway` after couldNotStart. `catalog.mjs` lists the key and its one form, and the payload's `IncidentRequestResult` gains `unreached` from `FixRun.Unreached`. The spine's ownership table gives `Live.Payload.Incident` to Lane A (its publisher), and the lead says Lane B: the lead decides which lane. Until then the page shows a partway run as it does today (`result.skipped`'s claim, on the page only), never as all-through.
-- (2) The page has no in-progress band. A request whose run has not ended has no `result`, and the counts so far are stored nowhere.
+**For the lead's gate.**
+- G1b vs the intent's Never line: `Part/IncidentRequestResult.cls` and the regenerated `payloads.ts` (above). If refused, `unreached` and row 27 move to Story 31.2 with need (1) below.
+- Spine notes (Rule 20): Conventions "Result texts" (`stillResending` for a non-final result; `Unreached` > 0 → `stoppedPartway` after couldNotStart; the payload's Result gains `unreached`); AD-12's incident payload (`Result` gains `Unreached`); AD-22 (a run also sends user-turn cases to Decide as a user's decide).
+- Lane B needs, for Story 31.2: (1) the page's pick of `stoppedPartway` from `unreached` and `catalog.mjs`'s key and one form; (2) the in-progress band.
 
-**Spine notes for the lead (Rule 20).**
-- Conventions "Result texts": after couldNotStart, `Unreached` > 0 gives `result.stoppedPartway`. A producer that holds a FixResult that is neither final nor interrupted gives `result.stillResending`. The payload's Result gains `unreached`.
-- AD-16:
-  - the FixResult's properties gain `Unreached`;
-  - a resend that errs stops at that copy, and with no copy made it ends as couldn't start (`NOTRUNNING` or `NOSTART`);
-  - FixRun records `Unreached` with ResentAt.
+**Integration ACs (Rule 1).** `RecentActivity` (consumer) reads the shared `WatchAnswers.WatchNames` and `CommandCall.TimeLabel` and gives the same names and labels (row 23, `Test.Tools.RecentActivity` on a real stack). `CommandCall.Answer` reads TimeLabel (row 25). The real IncidentManager reads the progress FixResult and sends `result.stillResending` (row 6), and the mixed one, `result.failedAndSkipped` with `/state` (row 1). `Live.Payload.Incident` reads `FixRun.Unreached` (row 27).
 
-**Declined DW:** none. DW-384 is addressed in rows 10 and 11. DW-419, with 30.4's `timeout` occurrence, is addressed in rows 12-16.
+**Consumed-by:** `Tools.RecentActivity` (Story 5.13, this story) and `CommandCall.Answer` (this story) consume `WatchNames` and `TimeLabel`; IncidentManager (5.5, 7.3) via `Notice.ResultKey`/`ResultSlots`; Checks (7.5) via Sweep; the page (Story 31.2) via `unreached`; Telegram's in-place edit (Epic 12) sees a progress notice, then the final, with one ApprovalRef.
 
-**Integration ACs (Rule 1).**
-- Row 6: the real IncidentManager reads FixExecutor's progress FixResult, keeps the incident `fixing` and sends `result.stillResending`. The real Checks then sends Sweep's final, and IncidentManager resolves the incident with `result.allThrough`.
-- Row 1: the real IncidentManager reads the mixed FixResult and sends `result.failedAndSkipped`, and `/state` shows the request's result.
-- Lifecycle (in-process `IncidentProbe`): a final with Unreached 1 gives `result.stoppedPartway`.
+**Consumes:** `Msg.Catalog.RenderAt` (0.9), `Data.Time.ForMessage`, `Watch.Reader.OnlineDemo`, `Approval.FinishExecution`/`StartExecution`, `Watch.Transitions`, `Watch.Reader.Evidence`, `Test.Watch.Case`'s live helpers, Eval's turn path (9.7).
 
-**Consumed-by:**
-- IncidentManager (Story 5.5/7.3), through `Notice.ResultKey` and `ResultSlots`.
-- Checks (Story 7.5), with Sweep's results.
-- The page (Lane B), through need (1).
-- Telegram's in-place result edit (Epic 12), which sees a progress notice followed by the final notice with the same ApprovalRef.
+**Extend, don't copy (Rule 2).** RecentActivity's two copies are removed (DW-519). `ResultOf`/`Report` gain `final`; the progress reuses Tally; DW-384 and a no-copy partway reuse `CouldNotStart`; `stoppedPartway` reuses ResultSlots' interrupted branch and the catalog shape of `result.interrupted`; Resend gains a trailing output; the user-turn kind extends EvalIn's turn path and Report's key-phrase scoring; the new Triage test copies `Test.Agent.Instructions`' 5-line XData reader, because that file is Epic 11's.
 
-**Consumes:**
-- `Watch.Reader.Evidence`, through `Executor.Read`.
-- `Approval.FinishExecution` and `StartExecution` (3.x/7.3).
-- `Watch.Transitions` (5.5).
-- `Msg.Catalog.Render` (0.9).
-- `Test.Watch.Case`'s live helpers.
+**Ledger inbox (Rule 17).** DW-500: rows 20-22. DW-519: row 23. DW-484: row 25. DW-469: row 26. DW-384: rows 10, 11. DW-419 (with 30.4's `timeout` occurrence): rows 12-16, 19. None declined.
 
-**Extend, don't copy (Rule 2).**
-- `ResultOf` and `Report` gain `final`; there is no progress builder.
-- The progress reuses Tally and Report's trace session.
-- DW-384 and a partway run with no copy reuse `CouldNotStart`.
-- `stoppedPartway` reuses ResultSlots' interrupted branch and the catalog shape of `result.interrupted`.
-- `Resend` gains a trailing output.
-- The live tests reuse Case's helpers, Partial's `FAILAGAIN` and rewrite, and Waits' TempStopItem technique.
-- The Refused live test reuses its `Request` helper.
+**Files outside "Ours"** (`footprint_extensions`): `Tools/CommandCall.cls`; `Live/Payload/Part/IncidentRequestResult.cls` and `web/src/app/live/payloads.ts` (generated); `eval/user-turn-*`; `README.md` and `docker/tests/test-readme.sh` (G4); `Test/Msg/Catalog.cls` and `Test/Data/Tables.cls` (own entries).
 
-**Files outside "Ours"** (`footprint_extensions`):
-- `Data/FixRun.cls`: Lane A's table (AD-33).
-- `Watch/Notice.cls` and `Fix/Kind/RepairResend.cls`: Lane A's, not contended.
-- `Test/Msg/Catalog.cls`: the expectations for our Watch key.
-- `Test/Data/Tables.cls`: our own entry.
-- The contended `Watch/IncidentManager.cls`, only by ruling.
-
-**Measured at planning.** Planning used no IRIS instance and no throwaway stack.
+**Measured at planning** (slot B, `ocutalon-slot-b`, `OCUTALON`, build 154U; in-memory calls only, nothing saved or compiled): `RenderAt("answered.expired", {"time": t}, "web", "", 0|1)` gives `ForMessage(t)` without and with " ET" ("Expired at 21:25 ET."), "on" for another day, and accepts now "".
 
 ## Verification
 
-`<lane>` stands for `env OCUTALON_LOCK_DIR="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")/.worktrees/.coordination/locks/lane-a" OCUTALON_TEST_WEB_PORT=52801 OCUTALON_LOCK_OWNER='epic=30 stage=implement'`, run from the worktree root. The fresh tag is `e30s5i` and the warm tag `e30s5iw`.
+`<lane>` stands for `env OCUTALON_LOCK_DIR="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")/.worktrees/.coordination/locks/lane-b" OCUTALON_TEST_WEB_PORT=52802 OCUTALON_LOCK_OWNER='epic=30 stage=implement'`, run from the worktree root. Fresh tag `e30s5i`, warm tag `e30s5iw`.
 
-How to run:
-- One command per tool call, in the foreground, with `timeout: 600000`. Never two IRIS test runs in one message.
-- The harness moves a call to the background after about 180 s. Poll it in loops of under 170 s, and never start a second copy.
-
-Where to run:
-- **Throwaway stacks only.** These tests stop Orders and OrdersFromPartner, approve fixes and resend copies.
-- **Warm** for the in-process classes. **Fresh** for the classes that need the running production's FixExecutor, IncidentManager or Checks: a warm stack's jobs keep their old code.
-- **On `ocutalon-slot-a`** (`server` `ocutalon-slot-a`, `namespace` `OCUTALON`, checked with `iris_server_info`, build 154), only load and compile the changed classes (`iris_doc_load`, `baseDir` `src/ocutalon/cls`). Then export the compiled Storage blocks of FixRun and FixResult back into the files.
-- Tear down only your own tags, after a failure too.
+- One command per tool call, foreground, `timeout: 600000`; never two IRIS test runs in one message; after the harness backgrounds a call (about 180 s), poll its output in loops under 170 s and never start a second copy.
+- Throwaway stacks only for tests. Warm for in-process classes; fresh for classes that need the running production's FixExecutor, IncidentManager or Checks.
+- On `ocutalon-slot-b` (`server` `ocutalon-slot-b`, `namespace` `OCUTALON`, identity by `iris_server_info`, build 154U) only load and compile the changed classes (`iris_doc_load`, `baseDir` `src/ocutalon/cls`), then write the compiled Storage blocks of FixRun and FixResult back verbatim. Its production is not OcuTalon's: run no test there.
+- Tear down only your own tags, also after a failure.
 
 **Commands:**
-- (loop) `<lane> OCUTALON_RUN_TAG=e30s5iw ci/warm.sh up`, once. Expected: READY.
-- (loop) `<lane> OCUTALON_WARM=1 OCUTALON_RUN_TAG=e30s5iw ci/iris.sh class <Class>`, one call per class. Expected: `CLASS … passed`.
-  - `OcuTalon.Test.Fix.Executor` (about 30 s)
-  - `OcuTalon.Test.Watch.NoticeText`
-  - `OcuTalon.Test.Watch.Lifecycle`
-  - `OcuTalon.Test.Msg.Catalog`
-  - `OcuTalon.Test.Data.Tables`
-- (loop) `<lane> OCUTALON_RUN_TAG=e30s5i ci/iris.sh class <Class>`, fresh, one call per class. Expected: `CLASS … passed`.
-  - `OcuTalon.Test.Fix.Recheck` (Task 0 first)
-  - `OcuTalon.Test.Fix.Partial`
-  - `OcuTalon.Test.Fix.Waits` (about 4 to 5 min with the stack)
-  - `OcuTalon.Test.Fix.Refused`
-  - `OcuTalon.Test.Fix.Stopped`
-  - `OcuTalon.Test.Fix.Runs`
-- (once) `bash ci/checks.sh`. Expected: every script passes, storage and class rules included.
-- (once) `node web/scripts/catalog.mjs --check`. Expected: exit 0: the new key is not a page key, so `catalog.ts` is unchanged.
-- (once) `<lane> OCUTALON_RUN_TAG=e30s5i ci/iris.sh shard lane-a --part k/6` for k = 1 to 6, fresh, one call each. Expected: passed, with each part's time recorded.
-- (once) `<lane> OCUTALON_RUN_TAG=e30s5i ci/iris.sh shard lane-b --part 1/2`, then `--part 2/2`, fresh. Expected: passed (`Test.Msg.Catalog` and `Test.Data.Tables` run there).
+- (loop) `<lane> OCUTALON_RUN_TAG=e30s5iw ci/warm.sh up`, once -- expected: READY.
+- (loop) `<lane> OCUTALON_WARM=1 OCUTALON_RUN_TAG=e30s5iw ci/iris.sh class <Class>`, one call each -- expected: `CLASS … passed`: `OcuTalon.Test.Agent.TriageUserTurn`, `OcuTalon.Test.Agent.Instructions` (unchanged), `OcuTalon.Test.Eval.Cases`, `OcuTalon.Test.Eval.Report`, `OcuTalon.Test.Fix.Executor`, `OcuTalon.Test.Watch.NoticeText`, `OcuTalon.Test.Watch.Lifecycle`, `OcuTalon.Test.Msg.Catalog`, `OcuTalon.Test.Data.Tables`, `OcuTalon.Test.Tools.RecentActivity`, `OcuTalon.Test.Tools.CommandCallTime`, `OcuTalon.Test.Tools.Reminders` (unchanged), `OcuTalon.Test.Checks.Runs`, `OcuTalon.Test.Live.Payloads` (unchanged).
+- (loop) `<lane> OCUTALON_RUN_TAG=e30s5i ci/iris.sh class <Class>`, fresh, one call each -- expected: passed: `OcuTalon.Test.Fix.Recheck` (Task 0 first), `.Partial`, `.Waits` (about 4-5 min), `.Refused`, `.Stopped`, `.Runs`.
+- (loop) `bash docker/tests/test-readme.sh` -- expected: passed.
+- (loop) `(cd web && node scripts/payloads.mjs --check && node --test scripts/payloads.test.mjs)` -- expected: exit 0.
+- (once) `bash ci/checks.sh` -- expected: every script passes.
+- (once) `(cd web && node scripts/catalog.mjs --check)` -- expected: exit 0 (neither new key is a page key).
+- (once) `<lane> OCUTALON_RUN_TAG=e30s5i bash eval/run.sh` -- expected: "eval/run: all checks passed", with the "User turns" score line and section printed (inference: about 6-9 min; record its time).
+- (once) `<lane> OCUTALON_RUN_TAG=e30s5i ci/iris.sh shard lane-a --part k/8` for k = 1..8, then `shard lane-b --part k/6` for k = 1..6, fresh, one call each -- expected: passed, each part's time recorded.
 - (once) `<lane> OCUTALON_RUN_TAG=e30s5iw ci/warm.sh down`, then `<lane> OCUTALON_RUN_TAG=e30s5i ci/iris.sh teardown`, also after a failure.
 
-**Shared surfaces:**
-- **FixRun's columns (+Unreached):** `Test.Data.Tables`' own entry. `Live.Payload.Incident` reads fixed columns and is unchanged.
-- **FixResult (+Unreached):** `ExecutorProbe.SendResult`'s record. `Test.Checks.Probe.SendFixResult` is unchanged.
-- **Watch catalog (+1 key, +1 one form):** `Test.Msg.Catalog` (Keys 22 → 23, 116 → 117, OneForms 8 → 9, Fixtures). The web allowlist is unchanged.
-- **The result key order and slots:** `Test.Watch.NoticeText`, `Test.Watch.Lifecycle`. The page's resultView is Lane B's and unchanged (need 1).
-- **Resend's outputs (+unreached) and its stop:** the direct calls in `Test.Fix.Recheck`.
-- **Executor behaviour:**
-  - the past expiry: `Test.Fix.Executor` TestRefusedStates and TestStartExecutionFailsForAnApprovedRequest, and `Test.Fix.Refused`;
-  - the progress at the wait's end: TestStillRunningAfterTheWait;
-  - the Sweep gate: the three Sweep tests;
-  - an all-stopped Carry: TestNothingResent.
-- **IncidentManager's progress notice (contended):** Lifecycle's "a progress report sends none".
-- **CI time:** the new live tests run in `shards-2` (the Fix area). Expect about +3 to +5 minutes (inference) on its 23.
-- Every test added or changed passes on a fresh environment, in either order. Orders and OrdersFromPartner, when a test stopped them, are started again after it, also after a failure (`Case.PutBack`, `TempStartItem`).
+**Shared surfaces:** FixRun's columns (+Unreached: `Test.Data.Tables`); FixResult (+Unreached: `ExecutorProbe.SendResult`); the Watch catalog (+2 keys, +1 one form: `Test.Msg.Catalog`; the web allowlist unchanged); the result key order and slots (`Test.Watch.NoticeText`, `Test.Watch.Lifecycle`); the incident payload's Result (+unreached: `payloads.ts`, `Test.Live.Payloads` names seven fields without an exact-set check); Resend's outputs and stop (`Test.Fix.Recheck`); executor behaviour (past expiry: `Test.Fix.Executor`, `Test.Fix.Refused`; the progress; the Sweep gate; an all-stopped Carry); IncidentManager's progress notice (Lifecycle); the eval set's kinds and turn cases (`Test.Eval.Cases`, `Test.Eval.Report`; `Test.Eval.Run` uses its own fixture folders); `CommandCall.Answer`'s `due` (`Test.Tools.Reminders`, online demo off); RecentActivity's output (`Test.Tools.RecentActivity`); README item 2 (`test-readme.sh`). CI: the new live tests run in `shards-2`, about +3 to +5 min (inference). Every test added or changed passes on a fresh environment, in either order; Orders and OrdersFromPartner, when stopped, are started again after the test, also after a failure.
 
-**Pinning mutations (Rule 19).** Apply each mutation, observe red, revert byte-identically (`git status --short` and `git diff --stat` unchanged), and record `mutation: … → …` here.
+**Pinning mutations (Rule 19).** Apply, observe red, revert byte-identically (`git status --short` and `git diff --stat` unchanged), record `mutation: … → …` here.
 
 | AC or row | Mutation | Expected red |
 |---|---|---|
-| AC 1, row 1 | ResultSlots leaves out `resent` | NoticeText (the mixed slots); Partial row 1 (the slots) |
-| AC 1, row 1 | Look's skipped is 0 | Partial row 1 (`result.failedAgain`, `5\|3\|0\|3\|0`) |
-| AC 2, rows 2, 6 | the drop sends no progress | Executor TestStillRunningAfterTheWait; Waits row 6 (no `Final` 0 FixResult) |
-| row 3 | the progress counts come from the first look, not the last | Executor row 3 |
-| rows 4, 5 | the progress goes without a tally, or for a marked run | Executor rows 4, 5 |
-| AC 2, rows 7, 6 | EndLeft keeps the `lastAt < due` gate | Executor row 7; Waits row 6 (no final after the Tick) |
-| AC 2, row 9 | ResultKey without the progress rule (a `done` row) | NoticeText; Lifecycle row 9 |
-| AC 2, row 9 [contended] | Result keeps `$Select(final: …, 1: "")` | Lifecycle row 9; Waits row 6 (no stillResending) |
-| AC 3, rows 10, 11 | Refusal refuses a past expiry again | Executor TestPastExpiryCannotStart; Refused row 11 |
-| AC 3, row 10 | the StartExecution-failure branch keeps "not past its expiry" | Executor TestStartExecutionFailsForAnApprovedRequest |
-| AC 4, row 12 | Resend does not stop at `stopped` | Recheck row 12 (entry 3 tried, no `after`) |
-| AC 4, row 13 | copies 0 with unreached ends `done` with Skipped | Executor rows 13 (and TestNothingResent) |
-| AC 4, row 13 | the reason is NOSTART for `stopped` | Executor row 13 (`NOTRUNNING`) |
-| AC 4, rows 14, 15 | Unreached is never saved, or ResultKey ignores it | Executor rows 14, 15 (`result.skipped`), 16 |
-| AC 4, row 15 | after a throw, unreached is 0 | Executor row 15 (the throw case) |
-| row 18 | the one form drops "one" | Test.Msg.Catalog (OneForms) |
+| DW-500, row 20 | drop the paragraph's "Never describe the state of a production" sentence | `Test.Agent.TriageUserTurn` |
+| DW-500, row 21 | the scorer ignores absentPhrases | `Test.Eval.Report` (the all-clear reason scores right) |
+| DW-500, row 22 | one case's text loses its "?" | `Test.Eval.Cases` TestUserTurnCases |
+| AC 2, row 1 | ResultSlots leaves out `resent` | NoticeText; Partial row 1 |
+| AC 2, row 1 | Look's skipped is 0 | Partial row 1 (`result.failedAgain`) |
+| AC 3, rows 2, 6 | the drop sends no progress | Executor TestStillRunningAfterTheWait; Waits row 6 |
+| row 3 | progress counts from the first look | Executor row 3 |
+| rows 4, 5 | progress without a tally, or for a marked run | Executor rows 4, 5 |
+| AC 3, row 7 | EndLeft keeps the `lastAt < due` gate | Executor row 7; Waits row 6 |
+| AC 3, row 9 | ResultKey without the progress rule; Result keeps `$Select(final: …, 1: "")` | NoticeText, Lifecycle row 9; Waits row 6 |
+| AC 4, rows 10, 11 | Refusal refuses a past expiry again; the failure branch keeps "not past its expiry" | Executor TestPastExpiryCannotStart, TestStartExecutionFailsForAnApprovedRequest; Refused row 11 |
+| AC 5, row 12 | Resend does not stop at `stopped` | Recheck row 12 |
+| AC 5, row 13 | copies 0 with unreached ends `done`; NOSTART for `stopped` | Executor row 13, TestNothingResent |
+| AC 5, rows 14, 15, 19 | Unreached never saved, or ResultKey ignores it; notTried is Unreached | Executor rows 14, 15, 16, 19 |
+| AC 5, row 15 | after a throw, unreached is 0 | Executor row 15 (the throw) |
+| row 18 | the one form drops "1 more wasn't" | `Test.Msg.Catalog` (OneForms); NoticeText row 19 |
+| row 27 | Incident.cls does not copy Unreached | Executor row 27 |
+| AC 6, rows 23-25 | TimeLabel drops " ET"; Answer keeps `ForMessage` | RecentActivity (the onlineDemo 1 case); CommandCallTime rows 24, 25 |
+| AC 7, row 26 | `watch.productionStopped`'s `time` slot typed `text` | `Test.Checks.Runs` TestFindingsRender |
+| AC 8 | ITEM2 keeps the old line | `test-readme.sh` |
 | Storage | the Tables entry lacks `Unreached` | `Test.Data.Tables` |
 
 ## Auto Run Result
@@ -476,18 +323,8 @@ Where to run:
 Status: ready-for-dev
 Blocking condition: none
 
-**Plan stage (halted after planning, as dispatched).**
-- The spec covers Story 30.5's two ACs and DW-384 and DW-419, including 30.4's `timeout` occurrence. Nothing is declined.
-- Items for the lead's spec gate:
-  - **Contended edit:** `Watch/IncidentManager.cls` `Result` `:1173`: one code line and about 4 doc lines, for the in-progress notice. Everything else lands without it, and the split is described under Design Notes. For the orchestrator.
-  - **V1:** `FixRun.Unreached`, a stored-data change.
-  - **V2:** `FixResult.Unreached`, a stored-data change and an addition to AD-16's message contract (U7).
-  - **V3:** the new public text `result.stoppedPartway` and its one form, plus a UX row in EXPERIENCE.md.
-  - **V4:** the resend stops at the first copy that errs.
-  - **Spine notes (Rule 20):** Conventions "Result texts" and AD-16.
-  - **Lane B needs:** (1) the page's partway band and the payload's `unreached`; (2) the in-progress band.
-- Files outside "Ours":
-  - `Data/FixRun.cls`, `Watch/Notice.cls` and `Fix/Kind/RepairResend.cls`;
-  - `Test/Msg/Catalog.cls` and `Test/Data/Tables.cls` (own entries);
-  - the contended `Watch/IncidentManager.cls`, by ruling only.
-- Planning used no IRIS instance and no throwaway stack. Nothing was committed.
+**Plan stage (re-plan, halted after planning as dispatched).**
+- DW-500 first, by the preferred route (Triage's instructions, a unit pin, a user-turn evaluation kind and four chip cases). The web fallback is closed: the decision payload has no override field. The mock cannot prove real Haiku's wording; the release-candidate run and the Contest Planner's host check do.
+- U-182's three-count `stoppedPartway` text and a stop at copy k of n (row 19); U-183's `unreached` on the incident payload, catalog and chat notice; Q1 applied without a split; DW-519, DW-484 (in `Tools/CommandCall.cls`, no Epic 11 file), DW-469, DW-384, DW-419 and the README sentence planned. Nothing declined.
+- For the gate: `Part/IncidentRequestResult.cls` and the regenerated `web/src/app/live/payloads.ts` against the intent's Never line; spine notes (Result texts, AD-12, AD-22).
+- Measured on slot B with in-memory calls only. Nothing was committed.
