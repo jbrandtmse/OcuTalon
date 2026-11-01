@@ -2771,3 +2771,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-11-3-the-clean-machine-rehearsal-installs-and-times-the-demo-path.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: release/rehearse.sh tag_ok (5 lines) and its refusal text equal docker/tests/lib-live.sh live_tag_ok and LIVE_TAG_RULE; the spec limits rehearse.sh to sourcing lib-release.sh, lib-keys.sh and (dry only) ci/iris.sh
 - 2026-11-01T14:31:18Z status=wontfix-accepted owner=11-3-the-clean-machine-rehearsal-installs-and-times-the-demo-path by=cr note=reopen_if=LIVE_TAG_RULE or live_tag_ok in docker/tests/lib-live.sh changes and rehearse.sh tag_ok does not
+
+### DW-532: After 1.0.0's merge back, the built web bundle in src/ocutalon/csp/ (gitignored today) is tracked on the integration branch, as Story 11.5's merge-back criterion and AD-29 require; from then on every local web build (ci/iris.sh build) rewrites tracked files and leaves the tree dirty, which trips release.sh's clean-tree check at start and bmad-build-auto's clean-tree checks in every epic worktree
+- source: spec-11-16-the-sequence-asks-before-each-outward-step-after-the-gates.md | severity: med | fix-risk: high | footprint: out-of-footprint
+- evidence: web/package.json builds into src/ocutalon/csp/; .gitignore:28 ignores it; 11.16's merge back carries the bundle onto the integration branch
+- 2026-11-01T14:59:04Z status=escalated owner=burndown by=spec_gate note=for the decision sheet: e.g. build into a separate folder and copy at the cut, or untrack the bundle after the merge back; affects every epic after 1.0.0
