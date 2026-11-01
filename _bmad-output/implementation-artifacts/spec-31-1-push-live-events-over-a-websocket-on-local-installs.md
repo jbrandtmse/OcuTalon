@@ -2,7 +2,8 @@
 title: 'Push live events over a WebSocket on local installs'
 type: 'feature'
 created: '2026-10-30'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '1c972cc8e3619d3cb727b8bcb1a7b4d7f7fd67c4'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: ['{project-root}/_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md']
@@ -301,6 +302,33 @@ Line numbers are at the worktree head (feature 416b0f64) unless marked "feature"
 
 ## Review Triage Log
 
+### 2026-11-01 — Review pass
+- verdicts: 32 findings reported (blind 11, edge 12, verification-gap 8, intent 1; a row below groups findings with one root cause) — high 0, medium 1 (the heartbeat and lifetime gap), the rest low or false, maybe-false 0; the intent report is descriptive; the lead's own Matrix Test Audit adds the rows for W10 and W11
+- findings:
+  - `[low]` `patch` blind: W2 allows one announcement though its message says none -- message reworded to "beyond the event's own"; bound unchanged (the reminder's own announcement is the one allowed).
+  - `[low]` `patch` blind: `within` doc says half-second looks, polls every 100 ms -- comment corrected.
+  - `[low]` `patch` blind + edge: `Pause` compares `GetErrorCodes` with 7950, fragile for a multi-code status -- now `'$SYSTEM.Status.Equals(sc, 7950)`.
+  - `[medium]` `patch` verification-gap: the 25 s heartbeat and the 60 s server lifetime were pinned only through `Next` -- W12 added (raw upgrade held to the lifetime: heartbeat frame `{epoch, events: []}`, close frame at 60 s); mutation line written.
+  - `[low]` `patch` verification-gap: two node cases could not fail (the handlers were nulled before the second event) -- they now call handlers captured beforehand; mutation line written.
+  - `[medium]` `patch` Matrix Test Audit (lead): the rows "Seq skip" and "Client closes" had no test -- W10 and W11 added; W10 mutation line written, W11 noted.
+  - `[low]` `reject` blind: `MARKGLOBAL` parameter unused beside the literal global -- the parameter names the global as the spec requires; `Publish` keeps its counter global the same way; not worth indirection.
+  - `[low]` `reject` blind + edge: `SessionM` nodes and per-session wake resources never removed, not in short-names -- one integer per signed-out session and one resource per user (T5: a user has one durable row), no registry rule found in checks; accepted.
+  - `[low]` `reject` blind: `Server` swallows exceptions silently -- the page falls back to polling and the spec says the class logs nothing on a refusal; no logging seam is specified.
+  - `[false]` `reject` blind: multi-socket wake behaviour untested -- D4 designs for it (each socket also checks `LastSeq` every loop, so a missed wake costs at most 0.5 s).
+  - `[false]` `reject` blind: spec results stop at W9, status text stale -- results and Auto Run Result updated by the lead.
+  - `[low]` `reject` blind: `blockLiveSocket` added by hand per test -- U-173's ruling (one shared helper, assertions unchanged); the Code Map lists every affected test and the full sign-in and floor units passed.
+  - `[low]` `reject` blind + edge: `applyPushed` has no in-flight guard and ignores a failed reload -- `fetchSnapshot` orders answers by request number, a repeat reload is idempotent and the next skipping frame or poll repairs a failed one.
+  - `[low]` `reject` blind + edge: `rawUpgrade` is plain TCP and drops fragmented frames -- the CI stack is http and every frame is a single small text frame.
+  - `[low]` `reject` blind: W5/W6 never assert a refused upgrade is not 101 -- T6 measured that a refused upgrade answers 101 and sends no frame, so the status cannot be asserted.
+  - `[low]` `reject` edge: `Admit` calls `SessionRef` before `Refusal` -- the shell ends a no-role session and answers a no-session request before the route, and the attach is the write a sign-in or `/state` makes anyway.
+  - `[low]` `reject` edge: a local epoch reset would leave server cursors ahead of the heads -- the epoch changes only on the online demo, which has no socket; the 60 s lifetime ends any socket.
+  - `[low]` `reject` edge: a CSP timeout without `OnLogout` leaves frames flowing up to 60 s -- the lifetime backstop is U-174's ruling.
+  - `[low]` `reject` edge: `live-socket.ts` `connect` with no `location` -- the page injects `globalThis.location`.
+  - `[low]` `reject` edge: two claims (a socket-triggered reload goes through `fetchSnapshot`'s `accept`, the 0.5 s close bound) -- true and consistent with the spec: contact is fed by the answered snapshot request, as for any reload; tests assert one second.
+  - `[low]` `reject` verification-gap: `OnPreServer` forwarding `HasRole()` is never run -- the shell enforces the role first and `Admit(0)`/`Refusal` are unit-tested; no realistic user-reachable failure.
+  - `[low]` `reject` verification-gap: sub-behaviours without their own mutation line, W8's conditional close-frame timing, `TestWake`'s 1 s bound, `TestSignOutMark`'s whole-global count, the dead `changeEpoch` branch -- one mutation per AC is the bar; the bounds and the branch are the spec's (Code Map, AC 5); the count compares a test's own before and after on a test stack.
+  - `[none]` `reject` intent-alignment (descriptive report): descriptive; the diff implements the whole-path reading and the divergences (role/session checks unreachable through the shell, `blockLiveSocket` closes the socket browser-side) are the spec's own design.
+
 ## Design Notes
 
 **Rulings that govern this plan (read first).**
@@ -457,9 +485,56 @@ Every test added or changed passes on a fresh environment, in either order.
 - No contended path appears in `git status --short`, and neither do `banners.spec.ts`, `support/floor.ts`, `e2e-online/**` or Epic 11's `support/*` files.
 - `Shell.cls` changes only the route and its doc bullet, and `Data/Session.cls` only the mark.
 
+**Implement-stage results** (lane-c throwaways, tags e31s1i and e31s1iw):
+- `npm --prefix web test`: 1177 tests pass (live-socket.test.mjs: 19). `npm --prefix web run lint`: exit 0.
+- Warm IRIS classes, each `passed`, measured seconds of the class: `Test.Web.Live` (new) 0.28 to 0.36, `Test.Live.Publish` 3.5 (TestWake included; it waits 2 s for its quiet check), `Test.Web.SessionEvents` 5.6, `Test.Data.Session` 0.1, `Test.Web.Shell` 0.1, `Test.Web.LeavingThePage` 0.04, `Test.Web.Status` 0.22, `Test.Web.SessionEndApi` 22.6, `Test.Web.Api` 1.2.
+- Final tree (lead's `(once)` pass): `ci/iris.sh live sign-in --part 1/3`: 89 passed, 219 s. `--part 2/3`: 76 passed, 310 s (it holds live.spec.ts and socket.spec.ts; W12's 60 s included). `--part 3/3`: 81 passed, 195 s. `live floor`: 106 passed, 283 s (M10, M13, M14 and A2 to A5 included). `live demo-path`: passed, 128 s (9 skipped as before). Fresh `shard lane-b`, forward then `--reverse`, two parts each: 86 classes all passed, 291 s and 573 s forward, 556 s and 298 s reversed (the long ones hold `Schedule.Heartbeat`, 177 to 215 s, real Task Manager runs). One forward run of `Test.Schedule.Heartbeat` failed `TestTaskDeclared` ("the Task Manager ran the task within 75 s") on a loaded machine and passed alone on a fresh stack (177 s): wall-clock, not this story's code.
+- `socket.spec.ts` own duration (sum of its tests, run in part 2/3, final tree): about 82 s, of which W12 (a quiet socket held to its 60 s lifetime) is 60 s: W1 0.32, W2 1.3, W3 0.20, W4 2.4, W5 0.15, W6 3.0, W7 4.4, W8 3.1 + 3.1, W9 1.3, W10 1.8, W11 1.2, W12 60 s. Without W12 it is about 22 s.
+- W1: the frame was seen 30 ms after the publish began, and the reminder showed 2 ms after `publishReminder` returned (inference: the frame and the page update both land inside the publish call's own docker-exec time, so the true publish-to-page latency is below the call's duration and is not separable here).
+- `bash ci/checks.sh`: all scripts passed (9 min 14 s, near the 10-minute cap on this machine; not this story's growth). `bash docker/tests/test-ci-config.sh`: all rules passed (31 s).
+
+**Mutations** (each applied, observed red, reverted; the tree was checked byte-identical by md5 after each batch):
+- mutation: remove the `Wake(stream)` call in `Publish` -> `Test.Live.Publish` `TestWake` red ("it was woken, not timed out").
+- mutation: drop the Origin clause from `Refusal` -> `Test.Web.Live` `TestRefusals` (and `TestOnPreServer`) red; and W5 red in the browser.
+- mutation: drop the online-demo clause from `Refusal` -> `TestRefusals` and `TestOnPreServer` red.
+- mutation: remove the `onlineDemo` return in `LiveSocket.start` -> `live-socket.test.mjs` "constructs no WebSocket on the online demo" red.
+- mutation: pass every frame regardless of `accepting()` -> `live-socket.test.mjs` "are dropped while the page is not accepting them" red, and B14 red (part 1/3).
+- mutation: make the effect skip `socket.start` -> W1, W3, W4, W7 and W9 red.
+- mutation: make a socket start pause the polling (`clearTimers()` after `socket.start`) -> L1 and W2 red (20 tests in all, the polling ones).
+- mutation: move the mark check after the lifetime and the send in `Next` -> `TestNext` red ("a changed mark ends before a send").
+- mutation: drop `MarkSignedOut` from `OnLogout` -> `Test.Web.SessionEvents` `TestSignOutMark` red, and W8 (both sign-out paths) red.
+- mutation: `MarkSignedOut` does nothing -> `Test.Data.Session` `TestSignOutMark` red.
+- mutation: drop `socket.stop()` from the halted branch -> W7 red.
+- mutation: give `Next` no lifetime -> `TestNext` red.
+- mutation: drop the reconnect (`scheduleReconnect` arms no timer) -> `live-socket.test.mjs` reconnect and backoff cases red. (W4 was not run with this mutation; its reconnect is covered by the node cases.)
+- mutation: remove the `this.current !== socket` guard in `ended` and the `this.current === mine` guard in `connect` -> `live-socket.test.mjs` "counts the error and the close of one socket as one ending" and "ignores a socket that was replaced or closed by the page" red (both call the handlers they captured before the socket was released).
+- mutation: `applyPushed` ignores `result.reload` (a Seq skip does nothing) -> W10 red (the page's cursor stays where it was).
+- mutation: the server never writes the heartbeat (`Server` only notes the time) -> W12 red (no frame within 35 s).
+- W11 (the Client-closes row) has no mutation line: with `Pause` ignoring a client close, the loop still ends within two seconds, because the platform's read-error path halts the process when the gateway drops the connection; W11 therefore pins the observable (the connection and the socket's process end), not the graceful path.
+- mutation: add the stored `SessionRef` to the frame -> `TestFrames` red, and W1 red (its no-ids assertion).
+- mutation: make `applyPushed` apply events without advancing the shared cursors -> W9 (and W1, W4) red.
+- mutation: remove `blockLiveSocket` from C8 -> C8 red.
+- mutation: remove the shell's `/OcuTalon.Web.Live.cls` route -> `Test.Web.Shell` `TestForwardsTheSocket` red.
+- mutation: rename `OnLogout` in `SessionEvents` -> `Test.Web.LeavingThePage` `TestNoProductClassEndsASessionOnTimeout` red.
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-(Plan re-run 2026-11-01 halted `blocked` on Q1-Q3; the lead ruled them under ## Design Notes (Q1 decide, Q2 veto U-209, Q3 decide) and set `ready-for-dev` with no re-plan, as the plan recommended.)
+**Summary.** `OcuTalon.Web.Live` (a `%CSP.WebSocket`, synchronous) pushes each committed event after the client's cursors in `/events`' own body, reached at `/ocutalon/OcuTalon.Web.Live.cls` through one forwarding route in `Web/Public/Shell.cls`. Every check runs in `OnPreServer`. `Live.Publish` signals a per-stream `$SYSTEM.Event` resource after each commit. `Web.SessionEvents.OnLogout` raises a sign-out mark (`Data.Session.MarkSignedOut`, global `^OcuTalonP.SessionM`) that the socket reads on each loop; a 60 s lifetime stays as the backstop. The page's `LiveSocket` (`live-socket.ts`) opens it after the first snapshot on a non-demo install, reconnects in the background, and `live-state.ts` feeds each frame to `applyEvents` in one self-contained block; polling is unchanged beside it.
+
+**Files changed.**
+- `src/ocutalon/cls/OcuTalon/Web/Live.cls` (new): the socket, its refusals, `Next` and the loop.
+- `src/ocutalon/cls/OcuTalon/Web/Public/Shell.cls`: the forwarding route and one doc bullet.
+- `src/ocutalon/cls/OcuTalon/Web/SessionEvents.cls`: `OnLogout`.
+- `src/ocutalon/cls/OcuTalon/Data/Session.cls`: `MarkSignedOut`, `SignOuts`, `MARKGLOBAL`.
+- `src/ocutalon/cls/OcuTalon/Live/Publish.cls`: `WakeName`, `Wake`, and the wake after each commit.
+- `web/src/app/live/live-socket.ts` (new) and `web/src/app/live/live-state.ts` (one block): the client.
+- Tests: `Test/Web/Live.cls` (new), and extended `Test/Live/Publish.cls`, `Test/Web/SessionEvents.cls`, `Test/Data/Session.cls`, `Test/Web/Shell.cls`, `Test/Web/LeavingThePage.cls`; `web/scripts/live-socket.test.mjs`, `web/e2e/support/socket.ts`, `web/e2e/live/socket.spec.ts` (W1 to W12); `blockLiveSocket(page)` added to the polled-delivery tests of `live.spec.ts`, `chat.spec.ts`, `decision.spec.ts`, `try-it.spec.ts`, `announcements.spec.ts` and `guide.spec.ts`.
+
+**Review.** Patches applied: six (W2 message, `within` comment, `Status.Equals` for 7950, W12 for the heartbeat and lifetime, two node cases made falsifiable, W10 and W11 for the Seq-skip and Client-closes matrix rows). Deferred: none. Every other finding was rejected with its reason in the Review Triage Log. Follow-up review recommended: false (no HIGH, one MEDIUM patched with its own test and mutation run).
+
+**Verification.** See the results under `## Verification`: node tests 1177 pass, lint exit 0, nine warm IRIS classes pass, `live sign-in` parts 1/3, 2/3 and 3/3 pass (89, 76, 81), `live floor` 106, `live demo-path`, fresh `shard lane-b` both orders (86 classes), `ci/checks.sh` and `test-ci-config.sh`. Mutations were applied and reverted with the tree byte-identical.
+
+**Residual risks.** W12 holds a socket for 60 s, so `sign-in` part 2/3 is about 310 s (about 5 s of stack start included); the unit's CI time rises by about 70 s. `ci/checks.sh` takes 9 min 14 s on this machine, near the 10-minute cap. `Test.Schedule.Heartbeat` is a wall-clock test that failed once under load. W11 pins the observable close, not the graceful-path branch (see its note under Verification). The socket path is inference-only for latency over real networks (W1's 30 ms is the local stack).

@@ -4,6 +4,7 @@ import { signIn, watchViolations } from '../sign-in/helpers';
 import { loadedAfter, signInReadmeLoaded } from '../support/floor';
 import { fixtureUser, seedTurns, type SeedTurn } from '../support/iris';
 import { announcements, clock, fromBottom, plain, recordAnnouncements, scrollListTo, tokenColor } from '../support/page';
+import { blockLiveSocket } from '../support/socket';
 
 /**
  * Story 2.5, the chat panel (C1 to C14), and Story 2.6's C15 (the strip of a reply through the real Decide's no-key fallback; the rest
@@ -210,6 +211,7 @@ test('C1: the empty chat panel, the composer, no live region and the page policy
 
 /** C2: Enter sends; the bubble; the stages one poll apart, in order; the fallback reply under the mark and the name. */
 test('C2: Enter sends, and the turn shows Deciding, Working and then the fallback reply', async ({ page }) => {
+  await blockLiveSocket(page);
   await page.addInitScript(() => {
     const log: string[] = [];
     (window as unknown as { replyLog: string[] }).replyLog = log;
@@ -273,6 +275,7 @@ test('C2: Enter sends, and the turn shows Deciding, Working and then the fallbac
 
 /** C3: the field. Shift+Enter adds a line; empty and space-only text and Enter inside an IME composition send nothing; it grows to 5 lines; its name holds; it stays usable while a turn is deciding, and a click on Send sends and refocuses it. */
 test('C3: Shift+Enter, growth to 5 lines, the name, and a second message mid-turn', async ({ page }) => {
+  await blockLiveSocket(page);
   const field = await open(page);
   const posts = watchPosts(page);
   await expect(field).toHaveAccessibleName('Message OcuTalon');
@@ -375,6 +378,7 @@ test.describe('C4: a failed send', () => {
   });
 
   test('the post reached the server but its answer was 503: the retry is deduped to one turn', async ({ page }) => {
+    await blockLiveSocket(page);
     const field = await open(page);
     const posts = watchPosts(page);
     const hold = await holdEvents(page);
@@ -472,6 +476,7 @@ test.describe('C4: a failed send', () => {
   });
 
   test('a failed post whose turn then arrives by poll leaves no Not sent', async ({ page }) => {
+    await blockLiveSocket(page);
     const field = await open(page);
     const posts = watchPosts(page);
     const hold = await holdEvents(page);
@@ -691,6 +696,7 @@ test('C6: scrolled up, a new turn leaves the list where it is and New messages t
 
 /** C7: the dots of the turn indicator are static under reduced motion and animate otherwise. */
 test('C7: the indicator\'s dots have no animation under reduced motion', async ({ page }) => {
+  await blockLiveSocket(page);
   const field = await open(page);
   const hold = await holdEvents(page);
   const sent = await sendWithEnter(page, field, unique('C7'));
@@ -715,6 +721,7 @@ test('C7: the indicator\'s dots have no animation under reduced motion', async (
  * wall-clock interval of its own, which a slow host would stretch between the page's clock and the test's first look.
  */
 test('C8: after 10 seconds the working indicator adds the elapsed seconds, spoken in full', async ({ page }) => {
+  await blockLiveSocket(page);
   test.slow(); // the turn's own stages, then the page's 10 s: the 45 s of a quick host is too little for a slow one
   await page.route(EVENTS, async (route: Route) => {
     const response = await route.fetch();
@@ -759,6 +766,7 @@ async function longChat(page: Page, year: number, label: string): Promise<{ list
 
 /** C9: scrolled up, Send takes the list to the bottom; a reply that lands shows New messages and the press focuses that reply; scrolling down by hand hides the button. */
 test('C9: scrolled up, a reply that lands shows New messages, Send goes to the bottom and scrolling down hides the button', async ({ page }) => {
+  await blockLiveSocket(page);
   const field = await open(page);
   const { user } = fixtureUser('PANEL');
   const { list, stamp } = await longChat(page, 2022, 'C9');

@@ -1,7 +1,7 @@
 /// Tests of Live.Publish and Live.Event (matrix rows 1 to 3): the Seq of each stream, the refusals, two jobs
 /// publishing to one stream, and the purge. Every stream is a fresh reference from Bridge.Ids.NewRef(), recorded in
 /// ^OcuTalonTest("LivePublish","streams") so that OnBeforeAllTests removes what an interrupted run left, and
-/// OnAfterAllTests removes the run's rows and counters. Nothing is published on the instance stream.
+/// OnAfterAllTests removes the run's rows, counters and wake resources. Nothing is published on the instance stream.
 Class OcuTalon.Test.Live.Publish Extends %UnitTest.TestCase
 {
 
@@ -314,6 +314,50 @@ ClassMethod Reader(stream As %String)
 	Set ^OcuTalonTest("LivePublish", "hold", stream, "done") = 1
 }
 
+/// Publish wakes the waiters on its stream's resource (WakeName) once the event has committed: a waiter wakes within a second of
+/// a publish on its stream, and not for a refused publish (a bad type) or for a publish on another stream.
+Method TestWake()
+{
+	Set stream = ..NewStream()
+	Set other = ..NewStream()
+	Set reminder = ##class(OcuTalon.Live.Payload.Reminder).%New()
+	Set reminder.Ref = "ZzPub"_..Number_"w"
+	Set status = ##class(OcuTalon.Live.Payload.Status).%New()
+
+	Kill ^OcuTalonTest("LivePublish", "wake", stream)
+	Job ##class(OcuTalon.Test.Live.Publish).Waiter(stream, "quiet", 2)
+	Do ..WaitFor($Name(^OcuTalonTest("LivePublish", "wake", stream, "quiet", "ready")), 60)
+	Do $$$AssertEquals($Get(^OcuTalonTest("LivePublish", "wake", stream, "quiet", "ready")), 1, "the first waiter waits on the stream's resource")
+	Do $$$AssertStatusNotOK(##class(OcuTalon.Live.Publish).Publish(stream, "zz.type", reminder), "a publish with a bad type is refused")
+	Do $$$AssertStatusNotOK(##class(OcuTalon.Live.Publish).Publish(stream, "reminder", status), "so is one with another type's payload")
+	Do $$$AssertStatusOK(##class(OcuTalon.Live.Publish).Publish(other, "reminder", reminder), "a publish on another stream succeeds")
+	Do ..WaitFor($Name(^OcuTalonTest("LivePublish", "wake", stream, "quiet", "done")), 60)
+	Do $$$AssertEquals($Get(^OcuTalonTest("LivePublish", "wake", stream, "quiet", "done")), 1, "the first waiter returned")
+	Do $$$AssertEquals($Get(^OcuTalonTest("LivePublish", "wake", stream, "quiet", "result")), 0, "it timed out: neither a refused publish nor another stream's woke it")
+
+	Job ##class(OcuTalon.Test.Live.Publish).Waiter(stream, "woken", 20)
+	Do ..WaitFor($Name(^OcuTalonTest("LivePublish", "wake", stream, "woken", "ready")), 60)
+	Do $$$AssertEquals($Get(^OcuTalonTest("LivePublish", "wake", stream, "woken", "ready")), 1, "the second waiter waits")
+	Set start = $ZHorolog
+	Do $$$AssertStatusOK(##class(OcuTalon.Live.Publish).Publish(stream, "reminder", reminder), "a publish on the stream succeeds")
+	Do ..WaitFor($Name(^OcuTalonTest("LivePublish", "wake", stream, "woken", "done")), 20)
+	Do $$$AssertEquals($Get(^OcuTalonTest("LivePublish", "wake", stream, "woken", "done")), 1, "the second waiter returned")
+	Do $$$AssertEquals($Get(^OcuTalonTest("LivePublish", "wake", stream, "woken", "result")), 1, "it was woken, not timed out")
+	Do $$$AssertTrue(($ZHorolog - start) < 1, "within a second of the publish: "_($ZHorolog - start))
+}
+
+/// The job body of TestWake: creates the stream's resource, says it is ready, waits up to seconds on it and records the wait's code.
+ClassMethod Waiter(stream As %String, key As %String, seconds As %Integer)
+{
+	Set run = $Name(^OcuTalonTest("LivePublish", "wake", stream, key))
+	Set name = ##class(OcuTalon.Live.Publish).WakeName(stream)
+	Do $SYSTEM.Event.Create(name)
+	Do $SYSTEM.Event.Clear(name)
+	Set @run@("ready") = 1
+	Set @run@("result") = $SYSTEM.Event.Wait(name, seconds)
+	Set @run@("done") = 1
+}
+
 /// --- helpers ---
 /// Waits up to seconds for the global node named by ref to hold a value.
 ClassMethod WaitFor(ref As %String, seconds As %Integer) [ Private ]
@@ -374,6 +418,8 @@ ClassMethod Clean() [ Private ]
 		Kill ^OcuTalonP.LiveEventC(stream)
 		Kill ^OcuTalonTest("LivePublish", "run", stream)
 		Kill ^OcuTalonTest("LivePublish", "hold", stream)
+		Kill ^OcuTalonTest("LivePublish", "wake", stream)
+		Do $SYSTEM.Event.Delete(##class(OcuTalon.Live.Publish).WakeName(stream))
 		Kill ^OcuTalonTest("LivePublish", "streams", stream)
 	}
 }

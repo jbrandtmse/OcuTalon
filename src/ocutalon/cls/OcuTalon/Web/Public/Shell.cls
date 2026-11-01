@@ -11,6 +11,8 @@
 ///     is answered with the sign-in page in that state (Login.Show, the splash's field error for "addressLimit" and for "busy").
 ///   - On the online demo the same hook marks the CSP session of a proxied visitor under VISITORKEY (value 1), which
 ///     Web.Public.Status counts as a live visitor (AD-13).
+///   - A GET of /OcuTalon.Web.Live.cls is forwarded to the live-events WebSocket (AD-12, AD-13): the one route that names a class
+///     outside the public packages, by its Call target alone.
 ///   - The POST that signs in is answered with a redirect to the same URL and query, so the page that was asked
 ///     for is the page that loads.
 /// The class lives in OCUTALON_PUBLIC and references only %CSP and its own package (AD-3).
@@ -41,6 +43,7 @@ XData UrlMap [ XMLNamespace = "http://www.intersystems.com/urlmap" ]
 {
 <Routes>
 <Route Url="/" Method="GET" Call="Index"/>
+<Route Url="/OcuTalon.Web.Live.cls" Method="GET" Call="OcuTalon.Web.Live:Accept"/>
 <Route Url="/(.*)" Method="GET" Call="File"/>
 <Route Url="/(.*)" Method="POST" Call="Redirect"/>
 </Routes>

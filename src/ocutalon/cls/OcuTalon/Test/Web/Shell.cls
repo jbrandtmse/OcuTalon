@@ -118,6 +118,33 @@ Method TestRedirectDropsSince()
 	Do $$$AssertEquals(response.GetHeader("Location"), "/ocutalon/a?signedOut=1", "a query without since is unchanged")
 }
 
+/// The shell forwards the live WebSocket (Story 31.1, AD-12, AD-13): GET /OcuTalon.Web.Live.cls calls OcuTalon.Web.Live:Accept, the
+/// route comes before the catch-all GET /(.*), and it is the only route whose Call names a class outside the two public packages
+/// (the shell's own methods are named without a class, and any other class would have to be OcuTalon.Web.Public.* or %CSP.*).
+Method TestForwardsTheSocket()
+{
+	Set xdata = ##class(%Dictionary.XDataDefinition).%OpenId("OcuTalon.Web.Public.Shell||UrlMap")
+	Do $$$AssertTrue($IsObject(xdata), "the UrlMap is read")
+	If '$IsObject(xdata) Quit
+	Set text = xdata.Data.Read(100000)
+	Set forwarded = 0, socketAt = 0, catchAllAt = 0, foreign = ""
+	For i = 1:1:$Length(text, "<Route ") - 1 {
+		Set route = $Piece($Piece(text, "<Route ", i + 1), "/>", 1)
+		Set url = $Piece($Piece(route, "Url=""", 2), """", 1)
+		Set method = $Piece($Piece(route, "Method=""", 2), """", 1)
+		Set call = $Piece($Piece(route, "Call=""", 2), """", 1)
+		If (url = "/OcuTalon.Web.Live.cls") && (method = "GET") && (call = "OcuTalon.Web.Live:Accept") {
+			Set forwarded = forwarded + 1
+			Set socketAt = i
+		}
+		If (url = "/(.*)") && (method = "GET") Set catchAllAt = i
+		If call [ ":" Set foreign = foreign_$ListBuild(call)
+	}
+	Do $$$AssertEquals(forwarded, 1, "GET /OcuTalon.Web.Live.cls calls OcuTalon.Web.Live:Accept")
+	Do $$$AssertTrue((socketAt > 0) && (catchAllAt > socketAt), "the route comes before GET /(.*)")
+	Do $$$AssertEquals($ListToString(foreign), "OcuTalon.Web.Live:Accept", "it is the only route that names a class")
+}
+
 /// --- helpers ---
 /// Serves path through the shell with stand-in request and response objects, as the fixture application,
 /// and returns the body that was written. response is the response object; reached is 1 when the stream

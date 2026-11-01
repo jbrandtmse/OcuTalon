@@ -7,6 +7,7 @@ import { publishFixtureEvent } from '../support/devices';
 import { awaitOrdersPolls, dropBreakFeed, dropUsage, GUIDE_MARKERS, holdOrdersFailures, ORDERS, ordersFailuresHeld, pressIncidents, publishWatchProgress, refreshGuide, releaseOrdersFailures, rowCount, seedBreakFeedRun, setIncident, settleBatch, startEpochAt } from '../support/guide';
 import { cleanFixtureRows, fixtureUser, publishCheck, publishReminder, seedApproval, seedCheck, seedIncident, seedReminder, seedTurns, setApprovalState, turnRows } from '../support/iris';
 import { helpSeen, stubTraces, TRACE_PAGE } from '../support/trace';
+import { blockLiveSocket } from '../support/socket';
 
 /**
  * Story 4.4, the demo guide and the Break the feed box on the floor stack, as the FLOOR user (M1 to M6; the floor stack is in demo mode).
@@ -620,6 +621,7 @@ test('M10: Run again returns the prompt bar at step 3 with focus on the box\'s B
   const refs: string[] = [];
   const usage: string[] = [];
   try {
+    await blockLiveSocket(page);
     await stubTraces(page.context());
     await recordAnnouncements(page);
     await seedFinishingRun(page, user, refs, usage);
@@ -687,6 +689,7 @@ test('M14: Run again returns the prompt bar at step 2 with focus on its Send, no
   const refs: string[] = [];
   const usage: string[] = [];
   try {
+    await blockLiveSocket(page);
     await stubTraces(page.context());
     const reminder = await seedFinishingRun(page, user, refs, usage);
     const marked = await post(page.request, GUIDE_MARKERS, { marker: 'trace_opened' });
@@ -805,6 +808,7 @@ test('M13: a failed marker write changes nothing and is written again by the nex
   const { user } = fixtureUser(KIND);
   const refs: string[] = [];
   try {
+    await blockLiveSocket(page);
     await stubTraces(page.context());
     await helpSeen(page);
     await openFloor(page);

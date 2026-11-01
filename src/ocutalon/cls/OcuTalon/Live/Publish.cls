@@ -7,6 +7,9 @@ Include Ensemble
 /// guide.state has one publisher, RefreshGuide (AD-12, AD-33): while demo mode is on, Publish calls it after it has committed and
 /// unlocked an event of a GUIDETRIGGERS type on a session's stream, and the StatusMonitor tick and the guide marker endpoint call
 /// it too. A refresh that fails is logged and never changes what Publish answers.
+/// Waking: after each committed event, and after its lock is released, Publish signals the stream's $SYSTEM.Event resource (WakeName),
+/// which the live WebSocket (Web.Live) waits on beside its other stream's. A signal wakes one waiter or queues one wakeup, and a resource
+/// that nobody created is ignored. The resource is a name only: no global is ever set under it. A refused publish signals nothing.
 Class OcuTalon.Live.Publish
 {
 
@@ -47,6 +50,23 @@ ClassMethod LastSeq(stream As %String) As %Integer
 	Set seq = +$Get(^OcuTalonP.LiveEventC(stream))
 	Lock -^OcuTalonP.LiveEventC(stream)#"SI"
 	Quit seq
+}
+
+/// The name of the $SYSTEM.Event resource that a stream's waiters wait on and Publish signals. It is a resource name only: the
+/// global it spells is never set.
+ClassMethod WakeName(stream As %String) As %String
+{
+	Quit $Name(^OcuTalonP.LiveWake(stream))
+}
+
+/// Wakes one waiter on the stream's resource, or queues one wakeup for the next to wait. A resource that no process created is
+/// ignored.
+ClassMethod Wake(stream As %String)
+{
+	Try {
+		Do $SYSTEM.Event.Signal(..WakeName(stream))
+	} Catch {
+	}
 }
 
 /// 1 when stream is the instance stream or a 22-character reference.
@@ -99,6 +119,7 @@ ClassMethod Publish(stream As %String, type As %String, payload As %RegisteredOb
 	}
 	If $TLevel > 0 TROLLBACK
 	If locked Lock -^OcuTalonP.LiveEventC(stream)
+	If $SYSTEM.Status.IsOK(sc) Do ..Wake(stream)
 	If $SYSTEM.Status.IsOK(sc) && (stream '= ..#INSTANCE) && $ListFind($ListFromString(..#GUIDETRIGGERS), type) {
 		Set refresh = ..RefreshGuide(stream, , lockWait)
 		If $SYSTEM.Status.IsError(refresh) {

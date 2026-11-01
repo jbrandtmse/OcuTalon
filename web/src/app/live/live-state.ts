@@ -1,11 +1,12 @@
 import { HttpErrorResponse } from '@angular/common/http';
-import { Injectable, computed, inject, signal } from '@angular/core';
+import { Injectable, computed, effect, inject, signal, untracked } from '@angular/core';
 import { Observable, timeout, type Subscription } from 'rxjs';
 
 import { ApiClient } from '../api/api-client';
 import type { EventsResponse, StateSnapshot } from '../api/api-types';
 import { Announcer } from '../shared/announcer';
 import { BUSY_STATUS, ContactWatch, pollDelay, type ContactState } from './contact-watch';
+import { LiveSocket } from './live-socket';
 import { applyEvents, fromSnapshot, type LiveStore } from './live-store';
 
 /** How the snapshot's load went. */
@@ -109,6 +110,53 @@ export class LiveState {
 
   /** The last Seq applied on the instance stream, once loaded. */
   readonly instanceSeq = computed(() => this.store()?.cursors.instance);
+
+  /**
+   * The live-events WebSocket (Story 31.1), beside the polling and never in its place: it only delivers sooner, through the same
+   * idempotent apply. The effect opens it once the first snapshot has loaded (it opens nothing on the online demo) and closes it for
+   * good when the service halts. It reads the store's cursors when it opens, applies a frame only while `contact` is `ok`, and never
+   * touches the contact watch, `answers` or the poll schedule.
+   */
+  private readonly socket = new LiveSocket({
+    open: (url) => new WebSocket(url),
+    setTimeout: (handler, ms) => globalThis.setTimeout(handler, ms),
+    clearTimeout: (handle) => globalThis.clearTimeout(handle as ReturnType<typeof setTimeout>),
+    location: globalThis.location,
+    cursors: () => this.store()?.cursors,
+    accepting: () => this.contact() === 'ok',
+    onEvents: (response) => this.applyPushed(response),
+  });
+  private readonly socketLink = effect(() => {
+    const snapshot = this.snapshot();
+    const halted = this.halted();
+    untracked(() => {
+      if (halted) {
+        this.socket.stop();
+      } else if (snapshot) {
+        this.socket.start(snapshot);
+      }
+    });
+  });
+
+  /** Applies a frame of the socket: the events of a poll's body, by the poll's own rules, but with no part in the contact or the schedule. */
+  private applyPushed(response: EventsResponse): void {
+    const current = this.store();
+    if (this.stopped || !current) {
+      return;
+    }
+    const result = applyEvents(current, response);
+    if (result.epochChanged && this.otherEpoch(response.epoch)) {
+      this.changeEpoch();
+      return;
+    }
+    if (result.reload) {
+      this.fetchSnapshot(() => undefined, undefined, POLL_TIMEOUT_MS);
+      return;
+    }
+    if (result.store !== current) {
+      this.store.set(result.store);
+    }
+  }
 
   /** Asks for the snapshot; every call after the first does nothing. */
   load(): void {

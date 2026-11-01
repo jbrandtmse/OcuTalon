@@ -23,8 +23,10 @@
 ///     proxy: at the limit nothing is created, and the refusal is recorded in the CSP session for Shell, which ends the CSP
 ///     session in the same request and shows the splash's field error. A request that did not come through the proxy is exempt.
 /// The resume reference is held in local variables of this request and the cookie alone; no line of the log carries it.
-/// The class has no OnLogout, OnEndSession or OnTimeout: a CSP session that ends (a closed page, the idle cap, the timeout)
-/// ends nothing else (AD-4). Only Sign out ends the OcuTalon session, through SessionOps.End.
+/// The class has no OnEndSession or OnTimeout: a CSP session that ends (a closed page, the idle cap, the timeout) ends nothing
+/// else (AD-4). Only Sign out ends the OcuTalon session, through SessionOps.End. Its OnLogout, which runs at a sign-out (the API's
+/// and ?IRISLogout=end), only raises the session's sign-out mark off the online demo (Data.Session.MarkSignedOut) and wakes the
+/// session's WebSocket, so that an open socket ends within one loop (U-174); it ends no OcuTalon state, and it answers OK in every case.
 Class OcuTalon.Web.SessionEvents Extends %CSP.SessionEvents [ ProcedureBlock ]
 {
 
@@ -43,6 +45,26 @@ Parameter OWNCONNECTIONS = 0;
 ClassMethod OnLogin() As %Status
 {
 	Quit ..AttachFor(##class(OcuTalon.Web.Public.Shell).HasRole())
+}
+
+/// The sign-out hook: off the online demo, and when the CSP session names an OcuTalon session, raises that session's sign-out mark and
+/// wakes the session's WebSocket. The answer is OK in every case, because an error status stops a non-forced logout, and every failure is
+/// caught and logged without the user name.
+ClassMethod OnLogout() As %Status
+{
+	Try {
+		If ##class(OcuTalon.Data.Setting).Get("onlineDemo") '= 1 {
+			Set ref = $Get(%session.Data(##class(OcuTalon.Data.Ownership).#SESSIONKEY))
+			If ref '= "" {
+				Set sc = ##class(OcuTalon.Data.Session).MarkSignedOut(ref)
+				If $SYSTEM.Status.IsError(sc) Do ..Log("the sign-out could not be marked, error "_$SYSTEM.Status.GetErrorCodes(sc))
+				Do ##class(OcuTalon.Live.Publish).Wake(ref)
+			}
+		}
+	} Catch exception {
+		Do ..Log("the sign-out could not be marked, error "_$SYSTEM.Status.GetErrorCodes(exception.AsStatus()))
+	}
+	Quit $SYSTEM.Status.OK()
 }
 
 /// OnLogin's work for a user who holds the role (hasRole 1) or does not (0): the role attaches the durable session, or on the

@@ -9,6 +9,8 @@
 /// proxied attach, and OWNCONNECTIONS = 0): each test starts with the flag off, saves and restores onlineDemo, proxyAddress,
 /// resetAnchor, resetIntervalHours and the address limit's row, and removes its session rows and counter rows after, also
 /// when it failed. The sign-ins are in process, with a stand-in request and response, as the user that runs the tests.
+/// Story 31.1's TestSignOutMark covers OnLogout: it raises the session's sign-out mark by one off the online demo, changes nothing
+/// else, and always answers OK.
 Class OcuTalon.Test.Web.SessionEvents Extends %UnitTest.TestCase
 {
 
@@ -922,6 +924,56 @@ Method TestFailureIsLoggedWithoutTheUser()
 	Do $$$AssertEquals($ListLength(..LinesSince(log, mark)), 0, "and writes no line")
 	Set row = ##class(OcuTalon.Data.Session).RefIndexOpen($Get(%session.Data("OcuTalon.SessionRef")))
 	If before = 0, $IsObject(row) Do ##class(OcuTalon.Test.Data.Fixture).Adopt(row)
+}
+
+/// OnLogout (Story 31.1, DW-457): with a CSP session that names a session row and the online demo off it answers OK and raises the
+/// row's sign-out mark by exactly 1, and the row's Epoch, CspSessionId and other fields stay as they were; with the online demo on
+/// or with no ref in the CSP session it answers OK and the mark is unchanged; a broken CSP session still answers OK.
+Method TestSignOutMark()
+{
+	New %session
+	Set ref = ##class(OcuTalon.Test.Data.Fixture).Session($Username)
+	Set other = ##class(OcuTalon.Test.Data.Fixture).Session($Username)
+	Set before = ..RowText(ref)
+	Set otherBefore = ##class(OcuTalon.Data.Session).SignOuts(other)
+	Set %session = ##class(%CSP.Session).%New("ZzSignOutMark", 0)
+	Set %session.Data(##class(OcuTalon.Data.Ownership).#SESSIONKEY) = ref
+	Try {
+		Do $$$AssertEquals(##class(OcuTalon.Data.Session).SignOuts(ref), 0, "the session has no mark to begin with")
+		Do $$$AssertStatusOK(##class(OcuTalon.Web.SessionEvents).OnLogout(), "OnLogout answers OK")
+		Do $$$AssertEquals(##class(OcuTalon.Data.Session).SignOuts(ref), 1, "and raises the mark by 1")
+		Do $$$AssertStatusOK(##class(OcuTalon.Web.SessionEvents).OnLogout(), "a second sign-out answers OK")
+		Do $$$AssertEquals(##class(OcuTalon.Data.Session).SignOuts(ref), 2, "and raises it by 1 again")
+		Do $$$AssertEquals(..RowText(ref), before, "the row's fields are unchanged")
+		Do $$$AssertEquals(##class(OcuTalon.Data.Session).SignOuts(other), otherBefore, "another session's mark is unchanged")
+
+		Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "1")
+		Do $$$AssertStatusOK(##class(OcuTalon.Web.SessionEvents).OnLogout(), "on the online demo it answers OK")
+		Do $$$AssertEquals(##class(OcuTalon.Data.Session).SignOuts(ref), 2, "and changes no mark")
+		Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
+
+		Kill %session.Data(##class(OcuTalon.Data.Ownership).#SESSIONKEY)
+		Do $$$AssertStatusOK(##class(OcuTalon.Web.SessionEvents).OnLogout(), "with no ref in the CSP session it answers OK")
+		Do $$$AssertEquals(##class(OcuTalon.Data.Session).SignOuts(ref), 2, "and changes no mark")
+
+		Set %session = ""
+		Do $$$AssertStatusOK(##class(OcuTalon.Web.SessionEvents).OnLogout(), "with no CSP session it answers OK")
+		Do $$$AssertEquals(##class(OcuTalon.Data.Session).SignOuts(ref), 2, "and changes no mark")
+	} Catch exception {
+		Do $$$AssertEquals(exception.DisplayString(), "", "the checks ran without an error")
+	}
+	Kill ^OcuTalonP.SessionM(ref), ^OcuTalonP.SessionM(other)
+}
+
+/// The fields of a session row as one text, to see that nothing changed.
+ClassMethod RowText(ref As %String) As %String [ Private ]
+{
+	Set row = ##class(OcuTalon.Data.Session).RefIndexOpen(ref)
+	Set text = ""
+	For field = "Ref", "TraceRef", "IrisUser", "CreatedAt", "Epoch", "ThreadSessionId", "ThreadDay", "ResumeHash", "CspSessionId", "AllowanceUntil", "DailyCapDay" {
+		Set text = text_"|"_$Property(row, field)
+	}
+	Quit text_"|"_$ListLength(row.AllowanceTimes)
 }
 
 /// The lines of OcuTalon.Web.SessionEvents that the console log gained after byte offset mark, as a $List of lines.

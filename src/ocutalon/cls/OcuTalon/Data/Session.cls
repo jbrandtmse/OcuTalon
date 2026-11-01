@@ -9,11 +9,18 @@
 /// (AD-26): ThreadSessionId and ThreadDay, which Core.Trace reads and writes under the row's own lock.
 /// Three more fields serve the online demo's allowances (Story 16.9, AD-20), and Core.Allowance and Core.BridgeSink write them
 /// under that same row lock: AllowanceTimes, AllowanceUntil and DailyCapDay. A row that predates them reads as empty.
+/// The sign-out mark (U-174) is a count of the sign-outs of a session, kept in MARKGLOBAL beside the class's storage and not in a
+/// property, so that raising it is atomic, takes no row lock and changes no storage. Web.SessionEvents.OnLogout raises it
+/// (MarkSignedOut) when a CSP session signs out off the online demo; the live WebSocket (Web.Live) reads it (SignOuts) on each loop
+/// and ends when it has changed since the socket opened. A session that never signed out reads 0.
 Class OcuTalon.Data.Session Extends %Persistent
 {
 
 /// The private global of the class's data and indexes, from src/short-names.tsv (AD-3).
 Parameter DEFAULTGLOBAL = "^OcuTalonP.Session";
+
+/// The global of the sign-out marks, by session Ref: a count that only grows.
+Parameter MARKGLOBAL = "^OcuTalonP.SessionM";
 
 /// The session Ref: the SessionRef of its messages and rows.
 Property Ref As %String(MAXLEN = 22);
@@ -115,6 +122,20 @@ ClassMethod NewRow(irisUser As %String) As OcuTalon.Data.Session [ Private ]
 	Set session.IrisUser = irisUser
 	Set session.CreatedAt = ##class(OcuTalon.Data.Time).NowUtc()
 	Quit session
+}
+
+/// Raises the sign-out mark of the session ref by one: atomic, no row lock. An empty ref raises nothing.
+ClassMethod MarkSignedOut(ref As %String) As %Status
+{
+	If ref '= "" Do $Increment(^OcuTalonP.SessionM(ref))
+	Quit $SYSTEM.Status.OK()
+}
+
+/// The sign-out mark of the session ref: the number of sign-outs marked, 0 for an empty or unknown ref.
+ClassMethod SignOuts(ref As %String) As %Integer
+{
+	If ref = "" Quit 0
+	Quit +$Get(^OcuTalonP.SessionM(ref))
 }
 
 /// The SHA-256 of the UTF-8 text, base64url without padding (43 characters): the form in which the resume reference and
