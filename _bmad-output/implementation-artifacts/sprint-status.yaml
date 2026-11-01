@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 11-01-2026 12:55
+last_updated: 11-01-2026 13:01
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -175,8 +175,7 @@ development_status:
   11-8-the-chat-cancels-several-reminders-in-one-call-and-says-it-c: done
   11-9-every-check-left-off-for-release-1-turns-on-and-the-ci-flake: done
   11-2-upgrades-and-restarts-keep-every-record-working: done
-  11-3-the-clean-machine-rehearsal-installs-and-times-the-demo-path: 
-    ready-for-dev
+  11-3-the-clean-machine-rehearsal-installs-and-times-the-demo-path: in-progress
   11-11-the-rehearsal-runner-times-the-demo-path-and-checks-every-bo: 
     ready-for-dev
   11-12-the-rehearsal-runner-repeats-the-demo-path-n-times-with-run: backlog
