@@ -3,10 +3,11 @@
 # compose project with the CI override, as a judge's first start leaves it, then
 #   - times that first start and prints FIRST-START engine=<arch> build=<s>s ready=<s>s (the figure that the README quotes), and
 #     WARN when it is ready after more than 12 minutes (a decision for the author, AD-23, not a failure);
-#   - takes the audit mark, then runs the Playwright project demo-path in a real browser: the six step specs
-#     web/e2e/demo-path/0<n>-<id>.spec.ts, one ordered journey of the README account on the real components (Story 11.1): the
-#     watch, the reminder, Break the feed, Approve on the simulated phone and the trace, with the model keys pointed at the CI mock
-#     (by the specs themselves). OCUTALON_DEMO_PATH_MODEL (Story 11.7) picks the model the specs check against: `mock` (also when
+#   - takes the audit mark, then runs the Playwright project demo-path in a real browser: the eight step specs
+#     web/e2e/demo-path/0<n>-<id>.spec.ts, one ordered journey of the README account on the real components: UJ-1's six (Story 11.1: the
+#     watch, the reminder, Break the feed, Approve on the simulated phone and the trace), then 07 and 08 (Story 11.10: Run again, the
+#     refusal on the mock only, the rejection and the replay, then the two sample emails), with the model keys pointed at the CI mock
+#     (by the specs themselves; 08 puts them back). OCUTALON_DEMO_PATH_MODEL (Story 11.7) picks the model the specs check against: `mock` (also when
 #     unset) checks the outcomes and the mock's texts; `real` checks each decision by its shape only and makes the specs leave the
 #     keys alone, so a dry run of it on this stack prints `MODEL real: a dry run on the CI mock` and points the keys here first,
 #     through RunnerFixture.PointKeys, before the audit mark (FAIL and stop when that does not answer OK); any other value goes to

@@ -15,6 +15,8 @@
 #     (the stub logs it as `point`) before the audit mark and before Playwright, and fails with no spec run when that does not answer OK;
 #     the default and `mock` point nothing and print no MODEL line, and any other value goes through to Playwright untouched; `npm`
 #     records the value it got, or that it got none;
+#   - the step summary covers the eight numbered step specs (UJ-1's 01 to 06, then 07-failure-paths and 08-quiet-outcomes of Story 11.10),
+#     and the green run's DEMO-PATH line reads 8 of 8;
 #   - the unit exits 1, with the reason on a line, for a skipped or failed @floor test (Playwright exits 0 for a skip), a skipped
 #     test of a numbered step file (only the Telegram parts may skip), a skip that names no story, a spec file that maps to no
 #     step, a missing step spec, a Playwright exit 1 beside a green report, and a missing report;
@@ -178,6 +180,8 @@ function suites(floorTest = floor('passed')) {
     file('06-trace.spec.ts', [spec('the trace link opens Visual Trace', 'passed')]),
     file('telegram-page.spec.ts', [unbuilt('the page pairs a Telegram chat', '12.4')]),
     file('telegram-approval.spec.ts', [unbuilt('an approval request is answered from the paired Telegram chat', '12.7')]),
+    file('07-failure-paths.spec.ts', [spec('Reject on the simulated phone returns the incident to Open', 'passed')]),
+    file('08-quiet-outcomes.spec.ts', [spec('Sample: newsletter is decided Ignore', 'passed')]),
   ];
 }
 const write = (name, list) => writeFileSync(join(out, `${name}.json`), JSON.stringify({ suites: list, errors: [], stats: {} }));
@@ -315,7 +319,9 @@ expect "unit: passed web steps and skipped Telegram parts give exit 0, the PASS 
   "STEP 2 watch: passed, 1 passed, 0 skipped" \
   "STEP 5 approval: partly skipped, 1 passed, 1 skipped (Story 12.7: " \
   "STEP 6 trace: passed, 1 passed, 0 skipped" \
-  "DEMO-PATH 6 of 6 steps ran (2 partly skipped), 2 skipped, 0 failed; floor 2 of 2 passed" \
+  "STEP 7 failure-paths: passed, 1 passed, 0 skipped" \
+  "STEP 8 quiet-outcomes: passed, 1 passed, 0 skipped" \
+  "DEMO-PATH 8 of 8 steps ran (2 partly skipped), 2 skipped, 0 failed; floor 2 of 2 passed" \
   "  Running tests using 1 worker" \
   "PASS audit: the answered Approval entry (approved, from the phone) of the README session is in the log" \
   "PASS audit: the Approval entry holds exactly its shape and the common members" \

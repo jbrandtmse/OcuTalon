@@ -2,7 +2,8 @@
 title: 'Story 11.10: The demo path''s failure paths and quiet outcomes pass in the REL-2 test'
 type: 'feature'
 created: '2026-10-31'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '615dd8afa8ea95bbf3c8ae0a798cfe35666448aa'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -289,6 +290,41 @@ The line numbers are those of `OCT-epic11` at `f3515047`.
 
 ## Review Triage Log
 
+### 2026-10-31 — Review pass
+- verdicts: 30 findings — high 0, medium 0, low 21, false 9, maybe-false 0 (3 patched, 27 rejected as by-design, false, theoretical or not worth fixing)
+- findings:
+  - `[low]` `reject` Blind: 08's fixed 1.5 s pause before the no-action checks — the spec's matrix says "after 1.5 s (MB4's pause)"; spec-bound (by-design).
+  - `[low]` `reject` Blind: the key restore moved from 06 to 08, so a filtered run leaves the keys pointed at the mock — the spec's Keys boundary orders it; the unit always runs the files together (by-design).
+  - `[low]` `reject` Blind: 08's second test depends on 07's replay request — the spec's journey order requires it (by-design).
+  - `[false]` `reject` Blind: `PauseReading` runs a full UpdateProduction — measured at 69 ms and 66 ms (Task 0) with no restart of other items.
+  - `[low]` `reject` Blind: `breakFeedForRefusal`'s `finally` resume can mask the first error — the resume is checked and a failure is red either way; the pause call now sits inside the `try` (see the patch below).
+  - `[low]` `reject` Blind: no static tie between the two `B/` prompts and the sample bodies — Design Notes "No static tie" decided it; a drift turns 08 and `Test.Eval.Run` red.
+  - `[false]` `reject` Blind: other consumers of the newsletter's answer were not searched — searched: `mailbox.spec.ts` asserts Digest for the partner notice, not the newsletter; `floor/devices.spec.ts` only focuses the chip; `messages.spec.ts` asserts no outcome.
+  - `[low]` `reject` Blind: `actionsSince` counts Setting writes instance-wide — Design Notes "AC4's no-action check" decided it; nothing writes a Setting in the 1.5 s window of a green run.
+  - `[false]` `reject` Blind: the run budget is not revisited — the Verification section records the local seconds (203 s before, 280 s after) and the browser estimate of 30.4 min.
+  - `[low]` `reject` Blind: `MarkNewFailures` ignores errors — a shortfall fails the caller's `toBe('50')`; a diagnostic is not worth more code.
+  - `[low]` `patch` Edge: `openTraceFromGuide`'s sign-out ends the page's session before 06's finish checks, which could race the finish's arrival (06 passed in both green runs) — for step `current` the helper now waits for the finish before the sign-out.
+  - `[low]` `patch` Edge: `pauseReading(1)` sat outside the `try`, so a failed pause could leave FailurePoller stopped — moved into the `try`, so the `finally` always resumes (AC2).
+  - `[low]` `reject` Edge: a failing resume in the `finally` masks the first error and needs an afterEach — the resume is checked, and a stuck FailurePoller turns the serial tests red.
+  - `[low]` `patch` Edge: `Number('')` is 0 if the failed count is not read — the count is now asserted numeric before the press.
+  - `[low]` `reject` Edge: the poll wants exactly `before + 50` — the spec says "the count before the press plus 50" (by-design).
+  - `[low]` `reject` Edge: `MarkNewFailures` on a failed SQL or `PauseReading` with no production — theoretical; the caller checks the count and the pause answers.
+  - `[false]` `reject` Edge: 08's `toHaveCount(1)` fails if the mailbox already holds the sample — the unit runs once on a fresh throwaway; the standing criterion is two green fresh runs.
+  - `[low]` `reject` Edge: the key restore sits in 08's `afterAll` — a duplicate of the Blind finding (by-design).
+  - `[low]` `reject` Edge: `actionsSince` same-second and background-write flake — duplicate of the Blind finding; the mark is taken seconds before the press.
+  - `[false]` `reject` Edge: the long URL in the suspicious scenario's prompt may be redacted — the mock's keyed match answered in both green runs.
+  - `[false]` `reject` Edge: `pressOnPhone` does not select the notice by key — only one request is pending at each press; the key selects the `readApproval` row.
+  - `[false]` `reject` Edge: `rejectedKey` is stored only after Dismiss — the group is serial, so a failure skips the replay test.
+  - `[low]` `reject` Gap: on the mock the suspicious-request zero-action check holds whatever the product does with an untrusted email — Design Notes name the pinning mutation as test-side and the gate's denial as `TestSuspiciousRequestActsOnNothing` (by-design).
+  - `[low]` `reject` Gap: no mutation names the replay's or Dismiss's own assertions — Rule 19 asks one demonstrated mutation per AC, and AC1 has one (`wontfix-accepted`, `reopen_if` a replay or Dismiss defect that 07 misses).
+  - `[false]` `reject` Gap: AC8 has no `mutation:` line — it is a measurement, as the Verification section says.
+  - `[low]` `reject` Gap: AC5's "no key is touched on real" has no assertion — the real-mode dry run passes with the keys untouched; the count mutation pins the declaration.
+  - `[low]` `reject` Gap: tests depend on order — the spec states one ordered journey by design.
+  - `[low]` `reject` Gap: `incidentRows` defaults `requests` to `[]` — the card's `[data-part="approval"]` count of 0 pins the same fact.
+  - `[low]` `reject` Gap: the summary test reads `STEPS.length` from the script — literal pins ("of 8", counts) catch a shortened `STEPS` (AC6's mutation).
+  - `[false]` `reject` Gap: `PauseReading` and `MarkNewFailures` have no unit test — 07's refusal test covers both and the spec asks for none.
+  - Intent alignment: no defect reported (a description of the live unit versus stack-less checks); no row.
+
 ## Design Notes
 
 **Architecture decisions.** No AC contradicts an AD.
@@ -453,17 +489,54 @@ QA uses the stage name `qa` and tags `e11s10q`/`e11s10qw`. Review uses `code-rev
 
 AC8 is a measurement. Its evidence is the recorded seconds and the lead's CI job times, not a mutation.
 
+**Implement-stage evidence (2026-10-31, lane A, throwaway stacks; HEAD 615dd8af).**
+
+- **Task 0 measurements.**
+  - Baseline `live demo-path` on the unchanged tree: 202.95 s (3:22.95), `6 of 6`, Playwright 1.5 min for 14 tests.
+  - Final `live demo-path` (two green runs, plus the real-model dry run): 279.7 s (4:39.7) on the first, Playwright 2.6 min for 20 tests and `8 of 8`. The local increase is 77 s.
+  - `PauseReading(1)` took 69 ms and `PauseReading(0)` 66 ms (a `TempStopConfigItem` with the production update).
+  - From the resume to the fallback card: 11.1 s.
+  - The group line as drawn: `OrdersFromPartner: 50, 'The order date was not in the expected format.', first at 05:25`.
+  - `/state`'s `fallbackReason` is `refusal`, with openVariant `fallback`, state `open`, no request and a diagnosis trace header (07's refusal test pins all of it).
+  - `ApprovalRequest.RaisedAt` (Bridge.Approval, `Bridge.Time.NowUtc()`), `FixRun.StartedAt` and `Setting.UpdatedAt` (`Data.Time.NowUtc()`) are written by the same one-line form, `YYYY-MM-DDThh:mm:ssZ`, read from the source. `actionsSince` compares in that format (its mutation run counted 3 approvals since a mark 10 minutes back).
+- **AC8.** Browser job estimate = (1668 + 2 x 77) / 60 = 30.4 min, at or under the 33 min ceiling, so no `deferred:` item. The lead measures the CI jobs.
+- **Runs.**
+  - Green: `live demo-path` (`8 of 8`, `test-demo-path: all checks passed`) twice, `OCUTALON_DEMO_PATH_MODEL=real` once (`MODEL real: a dry run on the CI mock`, `STEP 7 failure-paths: passed, 3 passed, 0 skipped`), `live online-demo-path` (7 passed, 3 skipped, L1 and L2 PASS), `ci/iris.sh class` for `OcuTalon.Test.Eval.Run` and `OcuTalon.Test.Demo.Production`.
+  - Green: `test-mock.sh`, `test-demo-path-gate.sh`, `npm --prefix web test` (1154), `npm --prefix web run lint`, `test-ci-config`, `test-ci-changes`, `test-boundaries`, `test-class-rules` and `test-eval-set`; `ci/changes.sh ci.yml --paths-from` printed its GROUP lines.
+- **Finding for the lead (not a spec change).** `openTraceFromGuide` ends with `signOutTrace`, which ends the page's own sign-in group too (AD-13). So 07's refusal test signs in again before its Dismiss.
+
+**Mutations (Rule 19; each applied, run, reverted with the tree byte-identical by `git diff` and `cmp`).**
+
+- mutation: AC1 `answered.rejected` loses " Nothing was changed." in `Msg/Catalog/Core.cls` (the source of `web/src/app/msg/catalog.ts`, which `ci/iris.sh build` refuses to bundle when stale, so the generated file was regenerated with `npm --prefix web run catalog` and a rebuild) -> red: 07's Reject test, on the phone line (`Expected ... Nothing was changed.`); 08's suspicious test fails on its precondition (the replay never ran).
+- mutation: AC1 `Watch/IncidentManager.cls` `Find` loses `AND State <> 'closed'` AND the second guard `|| (incident.State = ..#CLOSED)` in its loop (dropping only the SQL clause stays green, because the loop skips closed rows too) -> red: 07's refusal test, "a new incident shows in /state" (the failures joined the closed incident).
+- mutation: AC2 `incident-view.ts` returns no group lines for a fallback (`compact || fallback ? []`) -> red: 07's refusal test, on "Failures:".
+- mutation: AC3 `B/mail-newsletter-triage.json` set aside -> red: 08's newsletter test ("as Ignore", received Digest); `Test.Eval.Run` `TestItemPath` and `TestReport` (class run).
+- mutation: AC3 `Core/Rule/Outcome.cls` routes ignore like tellnow -> red: 08's newsletter test, on the server's outcome and Delivery count.
+- mutation: AC4 08's mark taken 10 minutes back, before 07's replay press (test-side) -> red: 08's suspicious test, `approvals` 3 against 0.
+- mutation: AC5 07's `if (ON_MOCK)` guard turned into `if (true)` -> red: `demo-path-summary.test.mjs` (07 lists 4 tests on `real`, 3 expected).
+- mutation: AC6 `STEPS` without `quiet-outcomes` -> red: `playwright-projects.test.mjs` ("lists the spec of every step"), `demo-path-summary.test.mjs` and the gate's green run.
+- mutation: AC7 `Test.Eval.Run` `TestReport` left at `0|1|0|0` -> red: `TestReport` (class run).
+
+- **After the review patches (2026-11-01).** `live demo-path` again green at 251 s (`8 of 8`, 07 with 4 tests and 08 with 2); the real-model dry run (07 with 3 tests) and `live online-demo-path` green; the static checks (`test-mock`, lint, `npm --prefix web test`, the gate, ci-config, ci-changes, boundaries, class-rules, eval-set) pass. Local increase over the 203 s baseline: 48 s, so the browser job estimate is (1668 + 2 x 48) / 60 = 29.4 min (the first run's 77 s gave 30.4 min), under the 33 min ceiling and REL-4's 35.
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-**Plan stage (2026-10-31).** Planned only, with nothing implemented, and halted after planning as the dispatch asked.
-- **Scope.** Two journey files after 06 on the same stack: 07 holds Run again, the refusal (mock only), the rejection with Dismiss, and the replay; 08 holds the newsletter and the suspicious request.
-- **What makes them work on the mock.**
-  - A test-only refusal seam: pause FailurePoller, mark the new run's failed bodies' `OrderNumber` with `[[mock:refusal]]`, then resume.
-  - Two keyed `B/` triage scenarios for the sample emails.
-- **What follows from them.** The step summary gains steps 7 and 8. `Test.Eval.Run`'s newsletter is right on the mock.
-- **Size.** 15 files, so no split is proposed.
-- **Files of others.** No file of Epics 15, 30, 12 or 13, or of Stories 11.9 or 11.2, is changed. `ci/units.sh` does not change: the browser job's estimate is at most about 32.6 min (inference; Design Notes, CI budget).
-- **For the lead (non-blocking).** AD-22's "a guide prompt" wording now also covers the sample emails' text (Design Notes).
+**Implement and review (2026-11-01).**
+- **Summary.** `live:demo-path` now runs eight steps. 07 holds Run again, the mock-only refusal (a test seam pauses FailurePoller and marks the new run's 50 failed bodies with `[[mock:refusal]]`), the rejection with Dismiss, and the replay. 08 holds the newsletter (Ignore) and the suspicious request (Digest, no action). Two keyed `B/` mock scenarios give the samples their answers; the step summary gains steps 7 and 8; `Test.Eval.Run` follows the newsletter's new answer.
+- **Files changed.**
+  - `web/e2e/demo-path/07-failure-paths.spec.ts`, `08-quiet-outcomes.spec.ts` (new): the two journeys.
+  - `web/e2e/support/demo-path.ts`, `devices.ts`: the shared step functions, the refusal seam driver and the moved mailbox locators.
+  - `web/e2e/demo-path/04-incident.spec.ts`, `06-trace.spec.ts`, `web/e2e/demo-switch/mailbox.spec.ts`: import the shared pieces (06's key restore moved to 08).
+  - `ci/mock/scenarios/B/mail-newsletter-triage.json`, `mail-suspicious-request-triage.json` (new): the keyed triage answers.
+  - `src/ocutalon/cls/OcuTalon/Test/Demo/Production.cls`: `PauseReading`, `MarkNewFailures`. `Test/Eval/Run.cls`: the newsletter's Ignore.
+  - `web/scripts/demo-path-summary.mjs` and its test, `docker/tests/test-demo-path-gate.sh`, `test-demo-path.sh`: eight steps.
+- **Review.** 30 findings: high 0, medium 0, low 21, false 9. Patches applied: 3 (the pause call moved inside the `try` so the resume always runs; the failed-order count asserted numeric before the press; `openTraceFromGuide` waits for the finish before the sign-out when the step is current). Deferred: none. The other 27 are rejected with their reasons in the Review Triage Log (by-design, false, theoretical).
+- **Follow-up review recommended:** false (no high, and fewer than two medium, patched).
+- **Verification.** `live demo-path` green twice (280 s and 251 s, baseline 203 s), the real-model dry run, `live online-demo-path`, `Test.Eval.Run` and `Test.Demo.Production` fresh, the static checks and 9 mutations (see Verification). All throwaways torn down; no lock left.
+- **Residual risks.**
+  - The browser group's estimate (29.4 to 30.4 min) is an inference until the lead measures the CI run.
+  - `signOutTrace` ends the page's own session (AD-13), so 07's refusal test signs in again before Dismiss.
+  - `PauseReading` and `MarkNewFailures` are covered only through 07's refusal test.

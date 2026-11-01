@@ -1,3 +1,5 @@
+import { expect, type Locator, type Page } from '@playwright/test';
+
 import { chk, irisScript, quoted } from './iris';
 
 /**
@@ -5,7 +7,8 @@ import { chk, irisScript, quoted } from './iris';
  * support/iris.ts: a fixture event of any payload class on the user's own stream, the `mailbox` event (a fixture one, for the cases
  * that must not write on the server), and the removal of what real notifications leave on the phone for a session that is no fixture
  * session (the FLOOR session's and README's: Test.Data.Fixture.Clean keeps their phone rows). Story 4.6 adds the mailbox's: mailRows,
- * dropMail, mailOutcome, turnRows, and pointKeys and restoreKeys, which let Decide answer from the CI mock.
+ * dropMail, mailOutcome, turnRows, and pointKeys and restoreKeys, which let Decide answer from the CI mock. Story 11.10 adds the mailbox's
+ * locators (mailboxOf, sampleChipOf, mailRowsOf and decisionRowsOf), which demo-switch/mailbox.spec.ts and the demo path's 08 share.
  */
 
 /**
@@ -194,3 +197,23 @@ export async function restoreKeys(): Promise<void> {
   const lines = await irisScript(['Set sc=##class(OcuTalon.Test.Agent.RunnerFixture).RestoreKeys()', 'Write !,"CHK|keys|",$System.Status.IsOK(sc)', 'If $System.Status.IsError(sc) Write !,"CHK|why|",$Translate($System.Status.GetErrorText(sc),$Char(13,10)," ")'].join('\n'));
   if (chk(lines, 'keys') !== '1') throw new Error(`the runners' keys could not be restored (${lines.join(' ')})`);
 }
+
+/** The tab of the simulated mailbox in the region "Simulated devices". */
+export const MAILBOX_TAB = /^Simulated mailbox/;
+
+/** On a loaded page, selects the mailbox tab of the region "Simulated devices" and returns the mailbox once it shows. */
+export async function mailboxOf(page: Page): Promise<Locator> {
+  await page.getByRole('region', { name: 'Simulated devices' }).getByRole('tab', { name: MAILBOX_TAB }).click();
+  const mailbox = page.locator('app-simulated-mailbox');
+  await expect(mailbox).toBeVisible();
+  return mailbox;
+}
+
+/** The sample chip of the mailbox: its accessible name is "<label>, send sample email". */
+export const sampleChipOf = (mailbox: Locator, label: string): Locator => mailbox.getByRole('button', { name: `${label}, send sample email`, exact: true });
+
+/** The mailbox's list rows that hold the text. */
+export const mailRowsOf = (mailbox: Locator, text: string): Locator => mailbox.locator('.row').filter({ hasText: text });
+
+/** The status rail's Recent decisions rows that hold the text. */
+export const decisionRowsOf = (page: Page, text: string): Locator => page.getByRole('region', { name: 'Status', exact: true }).locator('app-decision-row').filter({ hasText: text });

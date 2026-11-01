@@ -20,8 +20,8 @@
 /// The tests that assert that nothing happened wait with AwaitPolls (FailurePoller's own count of runs) and not with a fixed pause.
 /// A failed order has header Status 8 (Error) at OrdersFromPartner, with IsError 0 and an empty ErrorStatus, because it is a
 /// request with no response; its error text is the event-log row of Type 2 (Error) for that item and session.
-/// Switching to OCUORDERS happens only in Snapshot, the class methods below (Running, Send, Count, Sessions, Headers, ErrorTexts and Resend; all but Resend
-/// are public, with WaitCount, for Test.Demo.BreakFeedProduction and the demo-path step) and Test.Data.Fixture.RemoveMessages, each of
+/// Switching to OCUORDERS happens only in Snapshot, the class methods below (Running, Send, Count, Sessions, Headers, ErrorTexts, MarkNewFailures and Resend; all but Resend
+/// are public, with WaitCount, for Test.Demo.BreakFeedProduction and the demo-path steps) and Test.Data.Fixture.RemoveMessages, each of
 /// which calls only classes that resolve there (OcuTalon.Demo.Orders, Ens, EnsLib and % classes) while it is there and returns plain
 /// values or dynamic objects.
 /// Every test makes its references before it switches, and OnAfterAllTests deletes the OCUORDERS headers, bodies and event-log rows of
@@ -680,6 +680,35 @@ ClassMethod Resend(headerId As %String, date As %String) As %DynamicObject [ Pri
 	Set copy.OrderDate = date
 	Set sc = ##class(Ens.MessageHeader).ResendDuplicatedMessage(headerId, .newId, "OrdersFromPartner", copy)
 	Quit {"id": ($Get(newId)), "error": ($Select($$$ISOK(sc): "", 1: $SYSTEM.Status.GetErrorText(sc)))}
+}
+
+/// The demo-path refusal seam (Story 11.10): pauses the FailurePoller item of OCUTALON (1) or lets it read again (0), with
+/// Ens.Director's TempStopConfigItem, which leaves the production definition and the persisted Orders WatchMark as they are. Call it in
+/// OCUTALON. While it is paused nothing reads the failures, so MarkNewFailures can mark their bodies before the first reading.
+ClassMethod PauseReading(pause As %Boolean) As %Status
+{
+	Quit ##class(Ens.Director).TempStopConfigItem("FailurePoller", +pause)
+}
+
+/// The demo-path refusal seam (Story 11.10): sets the OrderNumber (MAXLEN 20) of the bodies of the newest `count` failed headers
+/// (Status 8) at OrdersFromPartner whose SuperSession is the reference, and returns how many bodies it saved. The CI mock refuses the
+/// diagnosis when the sample body that the evidence pack reads holds a `[[mock:refusal]]` marker. Call it in OCUTALON: it switches to
+/// OCUORDERS itself.
+ClassMethod MarkNewFailures(ref As %String, count As %Integer, orderNumber As %String) As %Integer
+{
+	New $NAMESPACE
+	Set $NAMESPACE = ..#NAMESPACE
+	Set saved = 0
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT TOP ? ID FROM Ens.MessageHeader WHERE SuperSession = ? AND TargetConfigName = 'OrdersFromPartner' AND Status = 8 ORDER BY ID DESC", +count, ref)
+	While rs.%Next() {
+		Set header = ##class(Ens.MessageHeader).%OpenId(rs.%Get("ID"))
+		If '$IsObject(header) || (header.MessageBodyClassName '= "OcuTalon.Demo.Orders.PartnerOrder") Continue
+		Set body = ##class(OcuTalon.Demo.Orders.PartnerOrder).%OpenId(header.MessageBodyId)
+		If '$IsObject(body) Continue
+		Set body.OrderNumber = orderNumber
+		If $$$ISOK(body.%Save()) Set saved = saved + 1
+	}
+	Quit saved
 }
 
 /// Deletes the headers, the bodies and the event-log rows of the sessions of the references, in OCUORDERS.

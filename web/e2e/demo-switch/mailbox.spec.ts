@@ -1,7 +1,22 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
 import { STATE, changeSnapshot, post } from '../support/api';
-import { dropMail, dropPhone, mailOutcome, mailRows, pointKeys, publishFixtureEvent, publishMailbox, restoreKeys, turnRows } from '../support/devices';
+import {
+  MAILBOX_TAB,
+  decisionRowsOf as decisionRows,
+  dropMail,
+  dropPhone,
+  mailOutcome,
+  mailRows,
+  mailRowsOf as rowsOf,
+  mailboxOf,
+  pointKeys,
+  publishFixtureEvent,
+  publishMailbox,
+  restoreKeys,
+  sampleChipOf as chipOf,
+  turnRows,
+} from '../support/devices';
 import { announcedTexts, announcements, recordAnnouncements, tokenColor } from '../support/page';
 import { README_ACCOUNT } from '../sign-in/helpers';
 import { signInReadmeLoaded } from '../support/floor';
@@ -23,7 +38,6 @@ function stackMode(): '0' | '1' {
   return mode;
 }
 
-const MAILBOX_TAB = /^Simulated mailbox/;
 const USER = README_ACCOUNT.user;
 const INCOMING = '/ocutalon/api/v1/mailbox/incoming';
 const SAMPLE = '/ocutalon/api/v1/mailbox/samples/newsletter';
@@ -55,14 +69,9 @@ async function openMailbox(page: Page): Promise<Locator> {
   await recordAnnouncements(page);
   await signInReadmeLoaded(page);
   await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
-  await page.getByRole('region', { name: 'Simulated devices' }).getByRole('tab', { name: MAILBOX_TAB }).click();
-  const mailbox = page.locator('app-simulated-mailbox');
-  await expect(mailbox).toBeVisible();
-  return mailbox;
+  return mailboxOf(page);
 }
 
-const rowsOf = (mailbox: Locator, text: string): Locator => mailbox.locator('.row').filter({ hasText: text });
-const chipOf = (mailbox: Locator, label: string): Locator => mailbox.getByRole('button', { name: `${label}, send sample email`, exact: true });
 const simulateOf = (mailbox: Locator): Locator => mailbox.getByRole('button', { name: 'Simulate an incoming email', exact: true });
 const formOf = (mailbox: Locator): Locator => mailbox.locator('.form');
 
@@ -74,9 +83,6 @@ async function compose(mailbox: Locator, from: string, subject: string, body: st
   await mailbox.getByRole('textbox', { name: 'Body', exact: true }).fill(body);
   await formOf(mailbox).getByRole('button', { name: 'Send', exact: true }).click();
 }
-
-/** The rail's decision rows that hold the text. */
-const decisionRows = (page: Page, text: string): Locator => page.getByRole('region', { name: 'Status', exact: true }).locator('app-decision-row').filter({ hasText: text });
 
 /** The phone's messages that hold the text. */
 const phoneMessages = (page: Page, text: string): Locator => page.locator('app-simulated-phone .notification').filter({ hasText: text });

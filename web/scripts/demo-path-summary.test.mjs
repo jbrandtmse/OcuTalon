@@ -5,7 +5,7 @@
 // Run with: node --test web/scripts/
 import assert from 'node:assert/strict';
 import { spawnSync } from 'node:child_process';
-import { mkdtempSync, rmSync, writeFileSync } from 'node:fs';
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
 import { after, describe, it } from 'node:test';
@@ -50,7 +50,7 @@ const unbuilt = (title, story) => spec(title, { result: 'skipped', annotations: 
 const file = (name, specs, nested = []) => ({ title: `demo-path/${name}`, file: `demo-path/${name}`, column: 0, line: 0, specs, suites: nested });
 const report = (suites, errors = []) => ({ suites, errors, stats: { expected: 0, skipped: 0, unexpected: 0, flaky: 0 } });
 
-/** This story's report: one floor test and twelve unbuilt parts. */
+/** This story's report: one floor test and fourteen unbuilt parts. */
 function baseline() {
   return [
     file('01-page.spec.ts', [
@@ -65,6 +65,8 @@ function baseline() {
     file('04-incident.spec.ts', [unbuilt('one incident card awaits approval', '11.1'), unbuilt('the rail shows Approval requests (1)', '11.1')]),
     file('05-approval.spec.ts', [unbuilt('Approve on the simulated phone', '11.1')]),
     file('06-trace.spec.ts', [unbuilt('the trace link opens Visual Trace', '4.7')]),
+    file('07-failure-paths.spec.ts', [unbuilt('the rejected request returns the incident to Open', '11.10')]),
+    file('08-quiet-outcomes.spec.ts', [unbuilt('the newsletter is decided Ignore', '11.10')]),
   ];
 }
 
@@ -92,17 +94,17 @@ describe('this story\'s report', () => {
     assert.match(lines[0], /; Story 4\.7: Break the feed is marked as a demo control\)$/);
   });
 
-  it('reads steps 2 to 6 as skipped, and no step as passed', () => {
+  it('reads steps 2 to 8 as skipped, and no step as passed', () => {
     assert.match(lines[1], /^STEP 2 watch: skipped, 0 passed, 3 skipped \(Story 4\.7: .*; Story 8\.2: /);
-    for (let i = 1; i < 6; i += 1) {
+    for (let i = 1; i < STEPS.length; i += 1) {
       assert.match(lines[i], new RegExp(`^STEP ${i + 1} ${STEPS[i]}: skipped, 0 passed, `));
     }
-    assert.equal(lines.filter((line) => /^STEP \d \w+: passed/.test(line)).length, 0);
+    assert.equal(lines.filter((line) => /^STEP \d [\w-]+: passed/.test(line)).length, 0);
   });
 
   it('ends with the DEMO-PATH line', () => {
-    assert.equal(lines.length, 7);
-    assert.equal(lines[6], 'DEMO-PATH 1 of 6 steps ran (1 partly skipped), 12 skipped, 0 failed; floor 1 of 1 passed');
+    assert.equal(lines.length, STEPS.length + 1);
+    assert.equal(lines[STEPS.length], 'DEMO-PATH 1 of 8 steps ran (1 partly skipped), 14 skipped, 0 failed; floor 1 of 1 passed');
   });
 
   it('is exit 0 on the command line', () => {
@@ -110,7 +112,7 @@ describe('this story\'s report', () => {
     writeFileSync(path, JSON.stringify(report(baseline())));
     const run = spawnSync(process.execPath, [script, path], { encoding: 'utf8' });
     assert.equal(run.status, 0, run.stdout + run.stderr);
-    assert.equal(run.stdout.split('\n').filter((line) => line.startsWith('STEP ')).length, 6);
+    assert.equal(run.stdout.split('\n').filter((line) => line.startsWith('STEP ')).length, 8);
     assert.doesNotMatch(run.stdout, /^FAIL /m);
   });
 });
@@ -125,7 +127,7 @@ describe('the verdicts', () => {
     assert.deepEqual(failures, []);
     assert.match(lines[2], /^STEP 3 reminder: passed, 1 passed, 0 skipped$/);
     assert.match(lines[1], /^STEP 2 watch: partly skipped, 1 passed, 3 skipped \(/);
-    assert.match(lines[6], /^DEMO-PATH 3 of 6 steps ran \(2 partly skipped\), 11 skipped, 0 failed; floor 1 of 1 passed$/);
+    assert.match(lines[STEPS.length], /^DEMO-PATH 3 of 8 steps ran \(2 partly skipped\), 13 skipped, 0 failed; floor 1 of 1 passed$/);
   });
 
   it('counts the tests of a describe block, however deep, and accepts a tag with its @', () => {
@@ -145,7 +147,7 @@ describe('the verdicts', () => {
       const { lines, failures } = summarize(report(suites));
       assert.match(lines[1], /^STEP 2 watch: failed, 0 passed, 3 skipped, 1 failed \(/, result);
       assert.deepEqual(failures, [`02-watch.spec.ts "the watch prompt gets its reply": ${words}`], result);
-      assert.match(lines[6], /, 1 failed; floor 1 of 1 passed$/, result);
+      assert.match(lines[STEPS.length], /, 1 failed; floor 1 of 1 passed$/, result);
     }
   });
 });
@@ -199,7 +201,7 @@ describe('the floor', () => {
       const { lines, failures } = summarize(report(suites));
       assert.deepEqual(failures, ['floor test "signs in with the README account and loads the page snapshot" (01-page.spec.ts) ' + words], result);
       assert.match(lines[0], result === 'skipped' ? /^STEP 1 page: skipped, 0 passed, 5 skipped/ : /^STEP 1 page: failed, 0 passed, 4 skipped, 1 failed/, result);
-      assert.match(lines[6], /; floor 0 of 1 passed$/, result);
+      assert.match(lines[STEPS.length], /; floor 0 of 1 passed$/, result);
     }
   });
 
@@ -248,7 +250,7 @@ describe('the step specs', () => {
     const { lines, failures } = summarize(report(suites));
     assert.deepEqual(failures, []);
     assert.match(lines[1], /^STEP 2 watch: skipped, 0 passed, 4 skipped \(.*; Story 12\.4: the watch reply reaches Telegram\)$/);
-    assert.match(lines[6], /, 13 skipped, 0 failed;/);
+    assert.match(lines[STEPS.length], /, 15 skipped, 0 failed;/);
   });
 
   it('does not take a telegram part for the step\'s own spec', () => {
@@ -261,7 +263,7 @@ describe('the step specs', () => {
 
   it('fails a telegram part of an unknown step', () => {
     const suites = changed((s) => s.push(file('telegram-nope.spec.ts', [unbuilt('a part', '12.4')])));
-    assert.deepEqual(failuresOf(suites), ['the report holds telegram-nope.spec.ts, but nope is not a step (page, watch, reminder, incident, approval, trace)']);
+    assert.deepEqual(failuresOf(suites), ['the report holds telegram-nope.spec.ts, but nope is not a step (page, watch, reminder, incident, approval, trace, failure-paths, quiet-outcomes)']);
   });
 
   it('maps a file by its name, whatever folder the report gives', () => {
@@ -287,9 +289,9 @@ describe('no usable report', () => {
 
   it('fails a report whose run found no spec: every step is missing', () => {
     const { lines, failures } = summarize(report([]));
-    assert.equal(failures.length, 6);
-    assert.ok(failures.every((failure) => /^step \d \w+ has no 0\d-\w+\.spec\.ts in the report$/.test(failure)));
-    assert.equal(lines.filter((line) => /: failed, 0 passed, 0 skipped$/.test(line)).length, 6);
+    assert.equal(failures.length, 8);
+    assert.ok(failures.every((failure) => /^step \d [\w-]+ has no 0\d-[\w-]+\.spec\.ts in the report$/.test(failure)));
+    assert.equal(lines.filter((line) => /: failed, 0 passed, 0 skipped$/.test(line)).length, 8);
   });
 
   it('exits 1 with a FAIL line from the command line for a missing file, a file that is not JSON and a bad report', () => {
@@ -316,7 +318,7 @@ describe('no usable report', () => {
     const run = spawnSync(process.execPath, [script, path], { encoding: 'utf8' });
     assert.equal(run.status, 1);
     assert.match(run.stdout, /^STEP 1 page: failed, 0 passed, 4 skipped, 1 failed /m);
-    assert.match(run.stdout, /^DEMO-PATH 0 of 6 steps ran /m);
+    assert.match(run.stdout, /^DEMO-PATH 0 of 8 steps ran /m);
     assert.match(run.stdout, /^FAIL floor test "signs in with the README account and loads the page snapshot" \(01-page\.spec\.ts\) failed$/m);
   });
 
@@ -328,7 +330,7 @@ describe('no usable report', () => {
 
 // --- --only-telegram-skips: the demo-path unit's run, where every web step runs ---
 
-/** The report of a unit run since Story 11.1: every numbered test passed, and the Telegram parts of steps 1 and 5 are skipped with their stories. */
+/** The report of a unit run since Story 11.10: every numbered test passed (07 holds the four tests of the mock), and the Telegram parts of steps 1 and 5 are skipped with their stories. */
 function everyStepRan() {
   return [
     file('01-page.spec.ts', [floor(), spec('shows the empty chat panel and the composer', { tags: ['floor'] })]),
@@ -337,6 +339,8 @@ function everyStepRan() {
     file('04-incident.spec.ts', [spec('Break the feed', { tags: ['floor'] }), spec('the incident card')]),
     file('05-approval.spec.ts', [spec('Approve on the simulated phone')]),
     file('06-trace.spec.ts', [spec('Open the trace')]),
+    file('07-failure-paths.spec.ts', [spec('Run again'), spec('the refusal'), spec('Reject'), spec('the replay')]),
+    file('08-quiet-outcomes.spec.ts', [spec('the newsletter'), spec('the suspicious request')]),
     file('telegram-page.spec.ts', [unbuilt('the page pairs a Telegram chat', '12.4')]),
     file('telegram-approval.spec.ts', [unbuilt('an approval request is answered from the paired Telegram chat', '12.7')]),
   ];
@@ -346,17 +350,17 @@ describe('--only-telegram-skips', () => {
   const only = { onlyTelegramSkips: true };
   const WORDS = 'skipped, but every web step runs since Story 11.1 (REL-2); only telegram-*.spec.ts parts may skip';
 
-  it('accepts a run whose only skips are the Telegram parts, and reads steps 2, 3, 4 and 6 as passed and 1 and 5 as partly skipped', () => {
+  it('accepts a run whose only skips are the Telegram parts, and reads steps 2, 3, 4, 6, 7 and 8 as passed and 1 and 5 as partly skipped', () => {
     const { lines, failures } = summarize(report(everyStepRan()), only);
     assert.deepEqual(failures, []);
     assert.match(lines[0], /^STEP 1 page: partly skipped, 2 passed, 1 skipped \(Story 12\.4: /);
-    for (const i of [1, 2, 3, 5]) assert.match(lines[i], new RegExp(`^STEP ${i + 1} ${STEPS[i]}: passed, `));
+    for (const i of [1, 2, 3, 5, 6, 7]) assert.match(lines[i], new RegExp(`^STEP ${i + 1} ${STEPS[i]}: passed, `));
     assert.match(lines[4], /^STEP 5 approval: partly skipped, 1 passed, 1 skipped \(Story 12\.7: /);
-    assert.equal(lines[6], 'DEMO-PATH 6 of 6 steps ran (2 partly skipped), 2 skipped, 0 failed; floor 3 of 3 passed');
+    assert.equal(lines[STEPS.length], 'DEMO-PATH 8 of 8 steps ran (2 partly skipped), 2 skipped, 0 failed; floor 3 of 3 passed');
   });
 
   it('fails a skipped test of every numbered step file, with its file and title', () => {
-    for (const [name, i] of [['01-page.spec.ts', 0], ['02-watch.spec.ts', 1], ['03-reminder.spec.ts', 2], ['04-incident.spec.ts', 3], ['05-approval.spec.ts', 4], ['06-trace.spec.ts', 5]]) {
+    for (const [name, i] of [['01-page.spec.ts', 0], ['02-watch.spec.ts', 1], ['03-reminder.spec.ts', 2], ['04-incident.spec.ts', 3], ['05-approval.spec.ts', 4], ['06-trace.spec.ts', 5], ['07-failure-paths.spec.ts', 6], ['08-quiet-outcomes.spec.ts', 7]]) {
       const suites = everyStepRan();
       suites[i].specs.push(unbuilt('a part that nobody turned on', '11.1'));
       const { failures } = summarize(report(suites), only);
@@ -382,7 +386,7 @@ describe('--only-telegram-skips', () => {
     writeFileSync(green, JSON.stringify(report(everyStepRan())));
     const ran = spawnSync(process.execPath, [script, '--only-telegram-skips', green], { encoding: 'utf8' });
     assert.equal(ran.status, 0, ran.stdout + ran.stderr);
-    assert.match(ran.stdout, /^DEMO-PATH 6 of 6 steps ran \(2 partly skipped\), 2 skipped, 0 failed; floor 3 of 3 passed$/m);
+    assert.match(ran.stdout, /^DEMO-PATH 8 of 8 steps ran \(2 partly skipped\), 2 skipped, 0 failed; floor 3 of 3 passed$/m);
 
     const suites = everyStepRan();
     suites[5].specs.push(unbuilt('a part that nobody turned on', '11.1'));
@@ -446,23 +450,43 @@ describe('the real specs, run without their floor test', () => {
   });
 
   // OCUTALON_DEMO_PATH_MODEL (Story 11.7) is parsed when support/demo-path.ts loads, so a value that is neither mock nor real fails the run before any step.
-  const withModel = (model) =>
-    spawnSync(process.execPath, [playwright, 'test', '--project=demo-path', '--grep-invert', '@floor', '--output', join(work, `model-${model}-results`)], {
+  // Its report is written too: 07's refusal test is declared on the mock only, so the real model's 07 lists one test fewer (Story 11.10).
+  const withModel = (model) => {
+    const json = join(work, `model-${model || 'empty'}.json`);
+    const run = spawnSync(process.execPath, [playwright, 'test', '--project=demo-path', '--grep-invert', '@floor', '--output', join(work, `model-${model || 'empty'}-results`)], {
       cwd: webDir,
-      env: { ...playwrightEnv(), OCUTALON_DEMO_PATH_MODEL: model },
+      env: { ...playwrightEnv(), OCUTALON_DEMO_PATH_MODEL: model, OCUTALON_E2E_JSON: json },
       encoding: 'utf8',
     });
+    return { run, json };
+  };
+
+  /** The number of tests that the report lists for a step file. */
+  const testsOf = (json, name) => {
+    const count = (suite) => (suite.specs ?? []).reduce((total, one) => total + (one.tests ?? []).length, 0) + (suite.suites ?? []).reduce((total, child) => total + count(child), 0);
+    return JSON.parse(readFileSync(json, 'utf8')).suites.filter((suite) => String(suite.file ?? suite.title).endsWith(name)).reduce((total, suite) => total + count(suite), 0);
+  };
 
   it('fail before any step on a model value that is neither mock nor real, and name the value', () => {
-    const run = withModel('zz');
+    const { run } = withModel('zz');
     assert.notEqual(run.status, 0, run.stdout.slice(0, 500));
     assert.match(run.stdout + run.stderr, /OCUTALON_DEMO_PATH_MODEL is mock or real, not "zz"/);
   });
 
   it('take the real and the mock model, and an empty value as mock: the parts that need the stack still skip', () => {
     for (const model of ['real', 'mock', '']) {
-      const run = withModel(model);
+      const { run } = withModel(model);
       assert.equal(run.status, 0, `"${model}": ${run.stdout.slice(0, 500)}${run.stderr.slice(0, 1500)}`);
     }
+  });
+
+  it('list one test fewer in 07 on the real model than on the mock, because only the mock can be made to refuse', () => {
+    const counts = {};
+    for (const model of ['mock', 'real']) {
+      const { run, json } = withModel(model);
+      assert.equal(run.status, 0, `"${model}": ${run.stdout.slice(0, 500)}${run.stderr.slice(0, 1500)}`);
+      counts[model] = testsOf(json, '07-failure-paths.spec.ts');
+    }
+    assert.deepEqual(counts, { mock: 4, real: 3 });
   });
 });

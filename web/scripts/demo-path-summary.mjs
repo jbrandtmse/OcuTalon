@@ -6,12 +6,13 @@
 //
 // With --only-telegram-skips (the demo-path unit's run, since Story 11.1) every web step runs: a skipped test of a numbered step file
 // is a failure, and only the parts in telegram-<id>.spec.ts may skip. Without the flag a skip that names its story is accepted, as
-// a hosted run with no stack (OCUTALON_URL) skips the whole of steps 2 to 6.
+// a hosted run with no stack (OCUTALON_URL) skips the whole of steps 2 to 8.
 //
-// The steps are fixed: 1 page, 2 watch, 3 reminder, 4 incident, 5 approval, 6 trace. Step n is 0<n>-<id>.spec.ts, and a
+// The steps are fixed: 1 page, 2 watch, 3 reminder, 4 incident, 5 approval, 6 trace, 7 failure-paths, 8 quiet-outcomes (the last two are
+// Story 11.10's). Step n is 0<n>-<id>.spec.ts, and a
 // telegram-<id>.spec.ts file is a part of step <id>. It prints, in this order:
 //   STEP <n> <id>: <verdict>, <p> passed, <s> skipped[, <f> failed][ (Story <x>: <title>; ...)]   one line per step
-//   DEMO-PATH <r> of 6 steps ran (<k> partly skipped), <s> skipped, <f> failed; floor <p> of <n> passed
+//   DEMO-PATH <r> of 8 steps ran (<k> partly skipped), <s> skipped, <f> failed; floor <p> of <n> passed
 //   FAIL <reason>                                                                                 one line per failure
 // The verdicts: passed (a test passed, none skipped or failed), partly skipped (a test passed, one skipped, none failed),
 // skipped (none passed or failed), failed (a test failed, timed out, was interrupted or did not run). The story of a skipped
@@ -30,7 +31,7 @@ import { readFileSync, realpathSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
 
 /** The steps of UJ-1, in order. */
-export const STEPS = ['page', 'watch', 'reminder', 'incident', 'approval', 'trace'];
+export const STEPS = ['page', 'watch', 'reminder', 'incident', 'approval', 'trace', 'failure-paths', 'quiet-outcomes'];
 
 const STORY = /^Story (\d+\.\d+)\b/;
 const NUMBERED = /^(\d{2})-([a-z][a-z0-9-]*)\.spec\.ts$/;

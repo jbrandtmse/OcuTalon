@@ -42,7 +42,7 @@
 ///   - TestHops (AC3): the messages of the runs go from and to the items of the item path only, EvalIn sends requests only to Intake, Decide (the
 ///     turn cases' asks), EvalSink (their TurnResults) and IncidentManager (the incident cases), IncidentManager sends requests only to Decide and
 ///     EvalSink and gets them only from EvalIn, and EvalSink sends nothing.
-///   - TestReport (Story 9.2): the report of each run, built from its real rows (Eval.Report.Build): the newsletter is scored wrong with
+///   - TestReport (Story 9.2): the report of each run, built from its real rows (Eval.Report.Build): the newsletter is scored right on the mock (its B/ triage scenario answers Ignore) with
 ///     its cost, model and request size, the incident case is scored right (incidents 1 of 1, no skip is notRunYet) and the case that is not there is
 ///     the run's only problem; run 2 scores the act case right and the plain case wrong, lists the act case's two decisions and has the three refused
 ///     cases as its problems;
@@ -278,7 +278,7 @@ Method Apply(enabled As %Boolean) As %Status [ Private ]
 	Quit $SYSTEM.Status.Error(5001, "After the production update EvalIn is "_$Select(enabled: "still disabled", 1: "still enabled"))
 }
 
-/// Writes the fixture folder: the act case (a mail whose text holds the mock's marker for an act), a plain case (the mock's default triage),
+/// Writes the fixture folder: the act case (a mail whose text holds the mock's marker for an act), a plain case (the mock's default triage: its text lacks the sample emails' prompts that the B/ triage scenarios key on),
 /// the cases EvalIn must refuse (a case.json
 /// that is not JSON, one with no item.itemId, one recorded with provenance user), and a folder with no case.json. The reason it failed, or "".
 Method WriteFixture() As %String [ Private ]
@@ -629,7 +629,7 @@ Method TestItemPath()
 	Do $$$AssertEquals(row.ItemId_"|"_row.SourceItemId, item.ItemId_"|mail-newsletter", "the row is opened with the Item's ids")
 
 	Set decides = ##class(OcuTalon.Test.Data.Fixture).Between(headers, 1, "Intake", "Decide")
-	Do $$$AssertEquals(decides.%Size(), 1, "Intake asked Decide once: a digest has no turn")
+	Do $$$AssertEquals(decides.%Size(), 1, "Intake asked Decide once: an ignore has no turn")
 	If decides.%Size() = 1 {
 		Set request = ##class(OcuTalon.Bridge.Msg.Request).%OpenId(decides.%Get(0).bodyId)
 		Do $$$AssertEquals(request.Kind_"|"_request.Provenance_"|"_request.OwnerRef_"|"_request.ItemId, "decide|untrusted|eval|"_item.ItemId, "the request is a decide for the Item, untrusted, owner eval")
@@ -647,7 +647,7 @@ Method TestItemPath()
 	Do $$$AssertTrue($IsObject(decide), "Decide recorded its decision for the Item")
 	If '$IsObject(decide) Quit
 	Do $$$AssertEquals(decide.OwnerRef, "eval", "the Decision's owner is eval")
-	Do $$$AssertEquals(row.State_"|"_row.DecisionRef_"|"_row.Outcome_"|"_row.Fallback, "decided|"_decide.Ref_"|digest|0", "the row is decided with the decide Decision and the mock's default triage")
+	Do $$$AssertEquals(row.State_"|"_row.DecisionRef_"|"_row.Outcome_"|"_row.Fallback, "decided|"_decide.Ref_"|ignore|0", "the row is decided with the decide Decision and the mock's newsletter triage scenario (B/mail-newsletter-triage.json)")
 	Do $$$AssertTrue(row.CostUSD > 0, "its cost is above 0: "_row.CostUSD)
 	Do $$$AssertTrue(row.LargestRequestTokens > 0, "its largest request is above 0: "_row.LargestRequestTokens)
 	Do $$$AssertEquals(row.TurnDecisionRef_"|"_row.TurnCostUSD, "|", "it has no turn")
@@ -875,7 +875,7 @@ Method TestReport()
 	If '..Guard() Quit
 	Set report = ##class(OcuTalon.Eval.Report).Build(..Run1, ##class(OcuTalon.Eval.In).#FOLDER, ..Skipped1)
 	Set items = report.scores.items
-	Do $$$AssertEquals(items.right_"|"_items.total_"|"_items.share_"|"_items.%Get("met"), "0|1|0|0", "run 1: the newsletter expected Ignore and got the mock's Digest, so items are 0 of 1 and SM-1 is not met")
+	Do $$$AssertEquals(items.right_"|"_items.total_"|"_items.share_"|"_items.%Get("met"), "1|1|1|1", "run 1: the newsletter expected Ignore and got the mock's Ignore, so items are 1 of 1 and SM-1 is met")
 	Do $$$AssertEquals(report.cases.%Size(), 2, "run 1 scored two cases")
 	Kill scored
 	Set iterator = report.cases.%GetIterator()
@@ -885,7 +885,7 @@ Method TestReport()
 	Set first = $Get(scored("mail-newsletter")), incident = $Get(scored("orders-date-format"))
 	Do $$$AssertTrue($IsObject(first) && $IsObject(incident), "the newsletter and the incident are both scored")
 	If '$IsObject(first) || '$IsObject(incident) Quit
-	Do $$$AssertEquals(first.expected_"|"_first.got_"|"_first.%Get("right"), "ignore|digest|0", "the newsletter is listed as wrong")
+	Do $$$AssertEquals(first.expected_"|"_first.got_"|"_first.%Get("right"), "ignore|ignore|1", "the newsletter is listed as right")
 	Do $$$AssertEquals(incident.kind_"|"_incident.%Get("right")_"|"_incident.%Get("fallback")_"|"_incident.got.causeCategory_"/"_incident.got.elementAtFault_"/"_incident.got.fixKind, "incident|1|0|data_format_change/OrderDate/repair_resend", "and the incident is right: the mock's diagnosis is the recorded cause, element and fix")
 	Do $$$AssertEquals(..Line(report.scores.incidents), "1 of 1 share 1 met 1", "so incidents are 1 of 1")
 	Do $$$AssertEquals(incident.%GetTypeOf("fixParameters")_"|"_incident.fixParameters.field_"|"_incident.fixParameters.sourceFormat_"|"_incident.fixParameters.targetFormat, "object|OrderDate|MM/DD/YYYY|YYYY-MM-DD", "and its entry holds the mock's fix parameters, which Eval.Gate reads")

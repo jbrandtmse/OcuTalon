@@ -1,14 +1,12 @@
 import { expect, test } from '@playwright/test';
 
 import { STATE, post, sessionEvents } from '../support/api';
-import { BREAK_FEED, ON_MOCK, breakFeedButton, breakFeedLeft, expectIncidentAwaitingApproval, phoneNotes, readmeSession, refusal } from '../support/demo-path';
+import { BREAK_FEED, IN_PROGRESS, ON_MOCK, breakFeedButton, breakFeedLeft, expectIncidentAwaitingApproval, phoneNotes, readmeSession, refusal } from '../support/demo-path';
 import { CARD_MS, signInReadmeLoaded } from '../support/floor';
 import { chk, irisScript } from '../support/iris';
 
 // The times of the page's texts are the instance's (UTC on a stack) and the browser's, which the case sets to the same zone and a 24-hour clock.
 test.use({ timezoneId: 'UTC', locale: 'en-GB' });
-
-const IN_PROGRESS = 'Finish the current Orders incident first: approve or reject its fix, or dismiss the incident.';
 
 /**
  * UJ-1 step 4: the incident and its approval request. The first test is Break the feed over real HTTP (Story 4.3, REL-2), with the README
