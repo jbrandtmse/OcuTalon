@@ -2750,3 +2750,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: inbox U-199 (#603), Story 5.13 merge 5fb79853 | severity: med | fix-risk: low | footprint: in-epic
 - evidence: Tools/RecentActivity.cls declares READONLY=1 and TRUSTEDOUTPUT=1; Epic 14 has not started, so no overview exists yet and 5.13 regenerated nothing
 - 2026-11-01T07:05:35Z status=routed owner=14-1-the-overview-s-tool-and-privilege-lists-are-generated-from-t by=merge_gate note=U-199 condition: 14.1's generated tool section shows recent_activity read-only and trusted output; its drift test pins it
+
+### DW-530: Below about 480px wide the Demo view switch's stacked header passes a quarter of the window (157px local, 180px online at 320px wide; the whole window at 400% zoom, 320x180) while it stays sticky
+- source: inbox U-202 (#612), Story 4.9's notes | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Story 4.9 notes: stacked header 157px/180px at 320px wide; G4 amended to at most a quarter of the viewport (U-202)
+- 2026-11-01T12:30:52Z status=routed owner=31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=merge_gate note=Planner: where the stacked header would pass a quarter of the window's height it scrolls with the page (lean: position static below 480px), or a menu below 1024px, the cheaper; 1.0.0 only at no date cost to Epic 31, else the first daily release after 1.0.0
