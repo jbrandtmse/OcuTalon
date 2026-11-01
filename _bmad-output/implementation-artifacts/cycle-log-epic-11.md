@@ -231,3 +231,4 @@
 2026-11-01T14:37:49Z	Story 11.3	fresh_check	env=recipe(hermetic_self-tests;live_dry_run_fresh) tests=test-rehearsal.sh(13_rules),test-upgrade-harness.sh,test-boundaries.sh,test-ci-config.sh,test-ci-changes.sh,ci/changes.sh result=pass order=forward,reverse
 2026-11-01T14:38:18Z	Story 11.3	committed	sha=3af884ba submodules= ci=pending runs=41317149494,41317149495 amendments=epics.md:11.3_split(11.11_inserted) pushed=verified_on_origin
 2026-11-01T14:38:18Z	Story 11.3	story_cycle	plan_to_commit_min=616 implement_passes=1 reviews=1 rework=0 first_ci=pending models=plan:claude-opus,implement:claude-sonnet,qa:claude-sonnet,cr:claude-opus
+2026-11-01T14:38:24Z	Story 11.15	stage_spawned	stage=plan spawn_at=2026-11-01T14:38:24Z model=claude-opus agent_name=11-15-the-hands-on-gate-stops-the-sequence-and-its-resume-command-plan-1 cycle_iteration=1 ledger_inbox=none note=planned_while_11.3_CI_runs(Rule_23)
