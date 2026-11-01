@@ -2740,3 +2740,4 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-5-13-ask-ocutalon-what-happened-earlier-and-it-tells-you-from-its.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: Tools/RecentActivity.cls WatchNames (8 lines) = Tools/WatchAnswers.cls:178-187; Shown = Msg/Catalog.cls:159-164 time slot (ForMessage plus ET when onlineDemo); spec Design Notes record both copies as footprint-forced (Rule 2)
 - 2026-11-01T06:05:47Z status=routed owner=burndown by=cr note=Rule 2 forced copy: make WatchAnswers.WatchNames and the catalog's time label public (e.g. Data.Time) and call them from RecentActivity
+- 2026-11-01T06:50:33Z owner=30-5-mixed-and-unfinished-resends-say-how-far-they-got by=burndown note=overflow:make_WatchAnswers.WatchNames_and_the_catalog_ET_rule_shared_and_use_them_in_Tools.RecentActivity;Lane_A_Watch/catalog_hardening_story;not_chartered(1_entry,below_cap_8,no_repeat_occurrences)
