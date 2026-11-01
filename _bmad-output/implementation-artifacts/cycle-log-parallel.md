@@ -1243,3 +1243,6 @@
 2026-11-01T07:06:15Z	Epic 1-37	deps_hash_rerecorded	hash=92e2b904c8ba reason=ledger_routed
 2026-11-01T07:06:15Z	Epic 1-37	planner_note	to=Contest_Planner sent=5.13_merge_sha_5fb79853(at_once);ask=one_real-Haiku_ask_on_the_host_for_recent_activity(DW-518)
 2026-11-01T07:06:26Z	Epic 5	worktree_removed	worktree=.worktrees/epic-5 branch=OCT-epic5_deleted(local+remote)
+2026-11-01T07:07:33Z	Epic 4	worktree_provisioned	worktree=.worktrees/epic-4 branch=OCT-epic4 from=0751d0f1 reason=SC-5_reopen_for_stories_4.8_4.9_4.10 bootstrap=ok
+2026-11-01T07:07:33Z	Epic 4	worktree_bootstrapped	epic=4 result=ok
+2026-11-01T07:08:02Z	Epic 4	runner_dispatched	agent=a0fd67a7e980f8de4 model=opus runner=B slot=ocutalon-slot-b mode=reopen(SC-5,Stories_4.8,4.9,4.10) base=0751d0f1 prompt=prompts/dispatch-epic-4-48.md chip3=ships(5.13_merged_5fb79853) next_on_B=Epic_30
