@@ -2,9 +2,10 @@
 title: 'Story 11.3: The clean-machine rehearsal installs and times the demo path (the install half, dry runs on throwaways)'
 type: 'feature'
 created: '2026-11-01'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'f64cf74d0237b997705093b4fdab7c2b0b77b82b'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-11-context.md'
 warnings: ['oversized']
@@ -201,6 +202,28 @@ The timed runs and their bounds go to a proposed sibling, Story 11.11 (Design No
 
 ## Review Triage Log
 
+### 2026-11-01 -- Review pass
+- verdicts: 31 findings reported (Blind 10, Edge 15, Gap 6; the intent audit is descriptive and reported none), grouped by root cause into the rows below -- 4 medium (patched), 5 low patched, 9 low rejected, 0 high, 0 false, 0 maybe-false
+- findings:
+  - `[medium]` `[patch]` Blind: the secrets scan skipped `install.out`, the likeliest place for a leak -- `install.out` joins the scanned files (`scan_run`); pinned by a stub run with a value only in install.sh's output.
+  - `[medium]` `[patch]` Blind, Edge, Gap: `run --record <relative>` resolved against the repository root in the install child -- the child starts in the caller's folder; pinned by a stub run from another folder.
+  - `[medium]` `[patch]` Edge: a secrets hit still wrote install.sh's tail into the record through the other rows -- every other row's detail is withheld on a hit; pinned by a stub run whose install tail holds the value.
+  - `[medium]` `[patch]` Gap: the sign-in failure branch was never run (a mutation to always pass stayed green) -- a stub run with a page lacking `<app-root` pins the FAIL line, row and result.
+  - `[low]` `[patch]` Edge: `hosts_verdict` read `$c$v`, so one missing count passed -- each count is checked; two parser cases.
+  - `[low]` `[patch]` Edge: `record_write` failure was unchecked in `report` -- it returns non-zero and `report` prints FAIL and exits 1; an empty section title is refused.
+  - `[low]` `[patch]` Edge: `run` left the state when the install died before it was saved -- `run` calls `down` then ("then always down").
+  - `[low]` `[patch]` Gap: the dry record's Mode, stand-in and note lines had no hermetic pin -- rule dry-section with its own break.
+  - `[low]` `[patch]` Blind, Gap: `b_phase_order` and `b_real` were dead stubs and the no-tag case did not unset the tag -- stubs removed, the tag is unset and the refusal text is asserted; the hosts-failure run asserts the secrets row.
+  - `[low]` `[reject]` Blind, Edge: `host_run` does not wrap the command in `sh -c` remotely, no `ServerAliveInterval`, ssh config could weaken host keys -- the spec fixes the exact ssh command line (Boundaries); the author's host login shell is POSIX-compatible in practice.
+  - `[low]` `[reject]` Blind: the clean-host check ignores cached images -- the Hosts row defines the check; the dry run's first start is layer-cached and Task 0 says so.
+  - `[low]` `[reject]` Blind: `OCUTALON_REHEARSAL_SSH` honoured in real mode -- the spec names it as the test seam (`${OCUTALON_REHEARSAL_SSH:-ssh}`).
+  - `[low]` `[reject]` Blind: a symlink can hide a repository file from the in-repository check -- unlikely, and the fix adds link resolution.
+  - `[low]` `[reject]` Blind: real `down` keeps the `.env` on the clean host -- spec-bound (down says the clean host keeps its install; Story 38.2's host is a throwaway).
+  - `[low]` `[reject]` Blind: every usage error prints the whole header -- cosmetic.
+  - `[low]` `[reject]` Edge: stand-in without a built bundle, an older ref without compose files, an empty `REHEARSAL_CLEAN_WEB` with a port, a non-atomic state claim, `env_file_hits` with an inline comment or leading space, a value of 7 characters or fewer, no `curl` HTTP status for the sign-in (the sibling test does the same), trap order when `live_start` fails (down now cleans it) -- theoretical or spec-bound, or decided in-stage (item 10); the dry run's `live_start` builds the bundle first.
+  - `[low]` `[reject]` Gap: branch-level stub cases for a silent host, a failed bundle copy, a failed env write -- the parsers and verdicts that decide them are pinned; a stub case per branch adds more than 15 lines each.
+  - `[low]` `[reject]` Intent: no divergence beyond the spec's own scope -- the end-to-end dry run is a live loop command by the spec, and is not a CI unit.
+
 ## Design Notes
 
 **Architecture decisions.**
@@ -270,6 +293,15 @@ No AC contradicts an AD.
 5. **The self-scan is a recorded row in both modes**, so a real record also states it.
 6. **Not a CI unit.** It follows Story 11.2's precedent (the lead's ruling 3), so REL-4's budget is unchanged. The hermetic self-test runs in the hosted `checks` job, which adds a few seconds.
 7. **A real run cannot pass until Story 11.11** adds the timed runs (`Result: not run`).
+8. **The `secrets` step always runs**, in `report`, also after a failed install step: AC3 says the row speaks for any run. The steps hosts, copy, install and sign-in are the ones that become `not run` after a failure.
+9. **The log is written through a pipeline** (`phase | tee -a <state>/output.log`) rather than `exec > >(tee ...)`, so that `output.log` is complete when the phase returns and `report` cannot scan a half-written log. The exit code is the phase's own (`PIPESTATUS`).
+10. **`env_file_hits` reads values of 8 characters or more.** A short value such as `0` or `true` is in every log, so scanning it would fail every real run; a key, a token and a host address are longer.
+11. **Options.** `--rc` is always required. `--version` is optional in a dry run and with `--candidate` (the version is the ref's `<Version>`), and required in a real run without `--candidate` (the default ref needs it). A real candidate must be a local branch (the bundle and the clone use its name); the branch name may hold only letters, digits and `._/-`.
+12. **No ssh text is shown.** `host_run`'s own stderr is discarded (an ssh error names the host), so a remote command redirects its own stderr to its stdout (`2>&1`) when its text matters. A failed `hosts` step says to run the ssh command by hand.
+13. **Rule 2 moves.** Besides `record_write`, `env_get`, `env_set` and `detail_clean` moved from `release/upgrade-harness.sh` to `release/lib-release.sh` (the options and the result details of both scripts need them); the harness sources the library. `release/upgrade-harness.sh` keeps no other change.
+14. **The throwaway's temporary files move into the state.** `decoy.env`, `decoy.yml` and `port.yml` are copied to `<state>/standin/compose/` (the decoy file's path rewritten), the `COMPOSE_FILE` of the stand-in points at them and at the clone's compose files, and lib-live's temporary folder is removed at the save.
+15. **Smaller choices.** A real `plan` reads the configuration like `install` (the same refusals); `down` with no state removes nothing and exits 0 (without a state the mode is unknown); a dry-run stand-in commit is made with `--allow-empty`, so a candidate that already holds the bundle still gets its stand-in commit; in real mode `OCUTALON_INSTALL_WAIT` of the caller is passed to the remote `install.sh` as `env OCUTALON_INSTALL_WAIT=<n>`.
+16. **Review pass.** When the secrets step finds a value, `report` withholds every other row's detail from the record (`withheld: the secrets step found a value in this run`), because the rows carry install.sh's last lines. The scan also reads `install.out`. `run` starts its install child in the caller's folder, so a relative `--record` lands there, and `run` calls `down` when the install phase died before it was saved. `record_write` returns non-zero when the record cannot be written (the report then prints a FAIL line and exits 1), and `hosts_verdict` refuses a reply that lacks the containers or the volumes count.
 
 **Proposed split (smaller is better; for the lead).**
 - **Story 11.11, "The rehearsal runner times the demo path and checks every bound (dry runs on throwaways)",** right after 11.3, takes these verbatim:
@@ -325,6 +357,29 @@ No AC contradicts an AD.
 - AC7: let `report` run with no state, so the order case fails.
 - AC8: add `docker compose config` without `--quiet` to `rehearse.sh`, so `test-boundaries.sh` fails.
 
+**Task 0, measured on the first dry runs (developer machine, Docker Desktop, arm64, tag e11s3d, lane A):**
+- Phases, `run --dry-run` (three runs): `install` 88 to 90 s, `report` 0.1 s, `down` 6.3 s; the whole `run` 96 s. The first start (the seconds of the `install.sh` call, install included) was 82 to 84 s (install.sh said "ready after 1 min 21 s" to "1 min 23 s"); the image build was layer-cached, so a cold build adds to it. `live_start` and the stand-in candidate (clone, force-added bundle, commit, `git bundle` of 22 MiB) take about 5 s.
+- The mock mounts the clone's folder: `docker inspect --format '{{range .Mounts}}{{.Source}} {{end}}'` on the mock container gave `<TMPDIR>/ocutalon-rehearsal-<tag>/standin/clean/ocutalon-rehearsal/candidate/ci/mock` and the mock-log volume. The iris container mounts the clone's `eval/` the same way (through Docker Desktop's host mount). Docker Desktop mounts a folder under `TMPDIR` as it is, so `<state>` stays under `TMPDIR`.
+- install.sh's printed lines on the stand-in: "OcuTalon install"; "Docker is running on arm64, and Docker Compose is 5.5.0."; "Image: IRIS for Health, build 154 (...)"; "Tagged it as <P>-base:<tag>, the name that OcuTalon's own image is built from."; "Found .env. It was not changed."; the "Starting OcuTalon with docker compose up -d ..." line and the compose and build output; "Waiting, <n> s so far: container running, health check starting" every 10 s; then "OcuTalon is ready after 1 min 22 s.", `  Open:      http://localhost:52801/ocutalon/`, `  User:      ocutalon`, `  Password:  ocutalon`.
+- The record read: `Result: dry run`, `Mode: dry run`, the five passing rows and `demo path runs | not run`; `docker ps -a` for the tag printed 0 afterwards, and the lane folder held no lock. A held lane lock made `run --dry-run` exit 75 with no state left.
+
+**Mutations demonstrated (Rule 19; each applied, observed red, reverted byte-identical):**
+- mutation: AC1: drop `-o BatchMode=yes` from `host_run` -> `test-rehearsal.sh` rule host-run red (the stub-argv case lacks `BatchMode=yes`).
+- mutation: AC2: compute the first start before `install.sh` runs -> rule stub-runs red (the install row no longer gives a first start of 1 s or more); the live dry run's detail would read `first start 0 s`.
+- mutation: AC3: `cat` the env file in the install step -> rules stub-runs (the output log holds the value, the secrets row fails on a passing run) and static (`cat of an env file`) red.
+- mutation: AC4: add `uname -n` to `machine_line` -> rules parsers (the line holds this machine's host name) and stub-runs (the machine lines differ) red.
+- mutation: AC5: `host_run` leaves dry mode (`dry)` renamed) so dry calls the stub ssh -> rule host-run red (the stub log is not empty, the stand-in folders are not used).
+- mutation: AC6: make `record_write` never match its section, so it always appends -> rules record and stub-runs red (two sections, the old text kept), and `test-upgrade-harness.sh` rule record red.
+- mutation: AC7: let `report` run with no state (the refusal removed) -> rules phase-order and real-tree red (exit 1, not 2).
+- mutation: AC8: add `docker compose config` with no `--quiet` to `release/rehearse.sh` -> `test-boundaries.sh` rule "docker calls" red (`release/rehearse.sh:452`).
+- mutation: AC4 (review pass, sign-in): the sign-in step passes whatever the page holds -> rule stub-runs red (a page with no `<app-root` no longer fails the step, the row or the result).
+- mutation: AC3 (review pass, withheld text): the report no longer withholds the other rows' text after a secrets hit -> rule stub-runs red (the record holds the value; the withheld text is missing).
+- mutation: AC3 (review pass, install.sh's full output): `install.out` removed from the scanned files -> rule stub-runs red (a value only in install.sh's output passes the secrets step).
+- mutation: AC7 (review pass, relative record): `run` starts its install child in the repository folder instead of the caller's -> rule stub-runs red (the record is written into the repository).
+- mutation: AC5 (review pass, dry record): the dry section reads `Mode: rehearsal` (the mode option forced to real) -> rule dry-section red (its own synthetic break `b_dry_section` goes red the same way).
+
+**Loop results at hand-off:** `test-rehearsal.sh` all 11 rules pass; `test-boundaries.sh` passes with `release/*.sh` in scope (no existing release script failed it); `test-upgrade-harness.sh`, `test-storage.sh`, `test-ci-config.sh`, `test-ci-changes.sh` and `ci/changes.sh ci.yml` exit 0 (no pin of `test-ci-config.sh` needed an update); `rehearsal` is in `CHECK_SCRIPTS` only.
+
 **Shared surfaces:**
 - `CHECK_SCRIPTS` in `ci/units.sh`, read by the units rule of `test-ci-config.sh`.
 - The scope of `test-boundaries.sh`, which now covers every `release/*.sh`.
@@ -333,5 +388,24 @@ No AC contradicts an AD.
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** `release/rehearse.sh` (commands plan, install, report, down, run) copies a candidate as a `git bundle` to a clean host over SSH through the one `host_run`, clones it, puts the env file beside it through stdin, runs `install.sh`, times the first start, signs in from the driver host, self-scans for env and configuration values, and writes the `## Clean-machine rehearsal` section through the new shared `release/lib-release.sh`. `--dry-run` swaps both hosts for a lane-A throwaway with the CI mock and the local machine, and reads `Result: dry run`, exit 3. A real run whose steps all pass reads `Result: not run` (exit 1) until Story 11.11.
+
+**Files.**
+- `release/rehearse.sh` -- new, the rehearsal.
+- `release/lib-release.sh` -- new: `release_config_read`, `host_run`, `record_path`, `record_write`, plus `env_get`, `env_set`, `detail_clean` moved from the harness.
+- `release/upgrade-harness.sh` -- sources the library; its record writer moved out (self-test unchanged and green).
+- `docker/tests/lib-keys.sh` -- `env_file_hits` appended.
+- `docker/tests/test-rehearsal.sh` -- new hermetic self-test, 12 rules; a `checks` script.
+- `docker/tests/test-boundaries.sh` -- `release/*.sh` in scope.
+- `ci/units.sh` -- `rehearsal` appended to `CHECK_SCRIPTS`.
+
+**Review.** Patches applied: 4 medium (install.out scanned; relative `--record` under `run`; other rows withheld from the record on a secrets hit; sign-in failure pinned) and 5 low (count check in `hosts_verdict`, `record_write` failure, `run` calls `down` after an unsaved install, dry-section rule, dead test stubs and the no-tag case). Deferred: none. Rejected with reasons: see the Review Triage Log (9 low rows).
+
+**Follow-up review recommended: true.** Two or more medium entries were patched (4). The unverified risk: the real-mode SSH path (remote shell quoting, host-key behaviour, `curl -K -` on a real driver) is proved only on stub hosts and the local stand-in; Story 38.2 is its first real run.
+
+**Verification.** `test-rehearsal.sh` 12 rules pass; `test-boundaries.sh`, `test-ci-config.sh`, `test-ci-changes.sh`, `ci/changes.sh ci.yml`, `test-upgrade-harness.sh` pass; `ci/checks.sh` passes (rehearsal 18 s); the live dry run (tag e11s3d, lane A) printed `RESULT dry run`, exit 3, first start 95 s, 101 s install phase; afterwards no container, volume, image, state folder or lock of the tag remained. Mutations for AC1 to AC8 and the review-pass pins are recorded under Verification.
+
+**Residual risks.** The stand-in bundle is about 22 MiB (full history). Cached image layers make the dry run's first start shorter than a cold one. `test-boundaries.sh` prints a harmless `printf: write error: Broken pipe` from its scope loop.

@@ -41,6 +41,7 @@ harness_caller_pwd=$PWD
 harness_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)
 cd "$harness_root" || exit 1
 . "$harness_root/ci/iris.sh"
+. "$harness_root/release/lib-release.sh"
 . "$harness_root/docker/tests/lib-online.sh"
 . "$harness_root/docker/tests/lib-upgrade.sh"
 
@@ -350,19 +351,6 @@ storage_compare() {
   return 0
 }
 
-# env_get <file> <key> / env_set <file> <key> <value>: key=value files (options, seed.env, upgrade.env).
-env_get() { sed -n "s/^$2=//p" "$1" 2> /dev/null | tail -n 1; }
-env_set() {
-  if [ -f "$1" ]; then
-    grep -v "^$2=" "$1" > "$1.new"
-    mv "$1.new" "$1"
-  fi
-  printf '%s=%s\n' "$2" "$3" >> "$1"
-}
-
-# detail_clean: a result detail on one line of printable ASCII, 300 characters at most, with no pipe (the record is a table).
-detail_clean() { tr -d '\r' | tr '\n' ' ' | LC_ALL=C tr -c '\040-\176' '?' | tr '|' '/' | cut -c1-300; }
-
 # record_rows <results file>: one line per row of the record, in order: id, title, result (pass, fail, not run or off) and detail, tab
 # separated. The results file holds "RECORD <row id> pass|fail|off|note|seed <detail>" lines; a row is pass only when it has a pass line
 # and no fail line, fail when it has any fail line, off for a row of HARNESS_OFF, and not run when it has none. A note adds to a pass
@@ -440,26 +428,6 @@ record_section() {
   record_rows "$results" | while IFS="$(printf '\t')" read -r _ title result detail; do
     printf '| %s | %s | %s |\n' "$title" "$result" "$detail"
   done
-}
-
-# record_write <record file> <section file> [<title>]: replaces the file's "## Upgrade harness" section with the section file's text, or
-# appends it when the file has none. A missing file is created with the title (default "# OcuTalon") first. Other sections are kept.
-record_write() {
-  local file=$1 section=$2 title=${3:-"# OcuTalon"}
-  mkdir -p "$(dirname "$file")"
-  if [ ! -f "$file" ]; then
-    printf '%s\n\n' "$title" > "$file"
-  fi
-  awk -v sec="$section" '
-    BEGIN { while ((getline l < sec) > 0) s[++n] = l }
-    function put(   i) { for (i = 1; i <= n; i++) print s[i]; done = 1 }
-    /^## Upgrade harness[ \t]*$/ && !done { skip = 1; put(); next }
-    skip && /^##? / { skip = 0; print "" }
-    skip { next }
-    { print; last = $0 }
-    END {
-      if (!done) { if (NR > 0 && last != "") print ""; put() }
-    }' "$file" > "$file.new" && mv "$file.new" "$file"
 }
 
 # --- the state folder, the options and the results ---
