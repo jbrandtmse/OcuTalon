@@ -1,0 +1,17 @@
+{
+  "name": "telegram-turn-held",
+  "match": {
+    "marker": "telegram-turn-held"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "delayMs": 5000,
+      "text": "{\"outcome\":\"tellnow\",\"reasons\":[\"The CI mock answers the user now.\"],\"confidence\":0.9}"
+    },
+    {
+      "status": 200,
+      "text": "The CI mock answers the first Telegram message."
+    }
+  ]
+}

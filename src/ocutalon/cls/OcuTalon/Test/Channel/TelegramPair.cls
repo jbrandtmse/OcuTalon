@@ -7,8 +7,9 @@
 ///   - TestPairs: a valid code pairs the chat with the session (the chat's row, the used mark, the Pair command, the linked audit entry,
 ///     the pairing event and /state), the chat gets the one confirmation, no store holds the code, the chat id or the name, and the guide
 ///     follows the pairing and the page's Unpair;
-///   - TestNameOnlyWhilePaired: a paired chat keeps its name through later messages with no name (a pairing update too) and takes a new one, gets no
-///     reply to its other messages (the bad-code reply for a code, the start text for /help), and a chat that is
+///   - TestNameOnlyWhilePaired: a paired chat keeps its name through later messages with no name (a pairing update too) and takes a new one, and
+///     each of its other messages makes one Item to Conversation (Story 12.6) and no pairing Notification (the bad-code reply for a code, the
+///     start text for /help; a turn's fallback reply is left out of its texts, since this class points no runner key), and a chat that is
 ///     not paired never keeps a name, also after a code that links nothing, and its next update clears a name left on its row;
 ///   - TestNoPairWithoutACode: a bare /start, a /start of spaces and a group chat's /start submit no Pair;
 ///   - TestBadCodes (Story 12.5): an unknown, an expired, a used and a reset code each get the bad-code reply, link nothing, publish no
@@ -22,9 +23,6 @@
 ///     first one, which is treated as unpaired from then on.
 Class OcuTalon.Test.Channel.TelegramPair Extends OcuTalon.Test.Channel.LiveCase
 {
-
-/// The longest, in seconds, to wait for an effect of a handled update.
-Parameter WAIT = 10;
 
 /// The confirmation's text, the oracle of the catalog's pairing.paired.
 Parameter CONFIRMATION = "You're paired with your OcuTalon session; notifications, reminders and approval requests will arrive here (send /stop to unpair).";
@@ -43,165 +41,45 @@ Parameter FROMPAGE = "Unpaired from the OcuTalon page. Scan the QR code there to
 
 Parameter OTHERCHAT = "Another Telegram chat was paired with this OcuTalon session, so this chat is no longer paired.";
 
-/// The updates queued so far (the mock numbers them from 1 after the reset, and TelegramIn keeps the id of the last handled plus 1).
-Property Sent As %Integer [ InitialExpression = 0, Private ];
-
-/// 1 once the Telegram seam is set by Begin.
-Property Seam As %Boolean [ InitialExpression = 0, Private ];
-
-/// The seam as Begin found it.
-Property WasIncluded As %Boolean [ Private ];
-
-/// The Refs of the fixture sessions, as a list: their code rows are deleted by Ending.
-Property Sessions As %List [ Private ];
-
-/// The unique text of the event-log probe, removed by Ending.
-Property Probe As %String [ Private ];
-
-/// The start of every test: the live guard, demo mode, the seam, both items on, and a long poll open. 1 when the test may go on; when a
-/// step fails, the test is failed and ended here.
+/// The start of every test: the live guard, demo mode, the seam, both items on, and a long poll open (LiveCase.BeginPairing). 1 when the
+/// test may go on; when a step fails, the test is failed and ended there.
 Method Begin() As %Boolean [ Private ]
 {
-	If '..ReadyLive() Quit 0
-	Set ..Sent = 0
-	Set ..Sessions = ""
-	Set ..Probe = ""
-	Set ..WasIncluded = ##class(OcuTalon.Test.Data.Fixture).SetTelegramIncluded(1)
-	Set ..Seam = 1
-	If '##class(OcuTalon.Core.Rule.Functions).DemoOn() {
-		Do $$$AssertTrue(0, "demo mode is not on, and the guide of the pairing is read in demo mode")
-		Do ..Ending()
-		Quit 0
-	}
-	Set ids = "84017734101,84017734102,84017734103,84017734104,84017734105,84017734106,84017734107,84017734108,84017734109,84017734120,84017734121,84017734122,84017734123,84017734124"
-	Do ..Chat(ids)
-	Do ..DropChats(ids)
-	Set started = ..StartItems("TelegramOut,TelegramIn")
-	Do $$$AssertStatusOK(started, "TelegramOut and TelegramIn are enabled")
-	Set on = $$$ISOK(started) && ..WaitState("on", 20)
-	Do $$$AssertTrue(on, "the Telegram state becomes on")
-	Set polling = on && (..WaitCalls("getUpdates", 1, 20).%Size() >= 1)
-	Do $$$AssertTrue(polling, "a long poll is open")
-	If 'polling {
-		Do ..Ending()
+	Set reason = ..BeginPairing("84017734101,84017734102,84017734103,84017734104,84017734105,84017734106,84017734107,84017734108,84017734109,84017734120,84017734121,84017734122,84017734123,84017734124")
+	If reason '= "" {
+		Do $$$AssertTrue(0, reason)
 		Quit 0
 	}
 	Quit 1
 }
 
-/// The end of every test, on every path: Cleanup, then the probe row and the code rows of the fixture sessions deleted, and the seam back.
+/// The end of every test, on every path (LiveCase.EndPairing): the turns of the fixture sessions settled and removed with their Decision
+/// rows, Cleanup, the probe row and the code rows deleted, and the seam back.
 Method Ending() [ Private ]
 {
-	Do ..Cleanup()
-	Try {
-		If ..Probe '= "" Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE Text [ ?", ..Probe)
-		For i = 1:1:$ListLength(..Sessions) {
-			Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.Pairing WHERE CodeSessionRef = ?", $List(..Sessions, i))
+	Do ..EndPairing()
+}
+
+/// Asserts that the chat's texts, after count of them, are exactly the expected ones. When drop is given, the texts equal to it (the reply
+/// of a turn that a paired chat's plain message makes, which arrives when the turn ends) are waited for, replies of them, and left out.
+Method AssertTexts(chatId As %String, expected As %DynamicArray, message As %String, drop As %String = "", replies As %Integer = 0) [ Private ]
+{
+	Set texts = ..TextsAfter(chatId, expected.%Size() + replies)
+	If drop '= "" {
+		Set kept = []
+		Set iterator = texts.%GetIterator()
+		While iterator.%GetNext(, .text) {
+			If text '= drop Do kept.%Push(text)
 		}
-	} Catch {
+		Set texts = kept
 	}
-	Set ..Probe = ""
-	Set ..Sessions = ""
-	If ..Seam Do ##class(OcuTalon.Test.Data.Fixture).SetTelegramIncluded(..WasIncluded)
-	Set ..Seam = 0
-}
-
-/// A fixture session that watches nothing, and its Ref.
-Method NewSession() As %String [ Private ]
-{
-	Set session = ..FixtureSession("zztgpair")
-	Set ..Sessions = ..Sessions _ $ListBuild(session.Ref)
-	Quit session.Ref
-}
-
-/// Stores a new code for the session as the web route does (its hash, valid for lifetime seconds, 600 by default; a negative lifetime
-/// stores an expired code); the code is code and its hash is hash.
-Method NewCode(session As %String, Output hash As %String, lifetime As %Integer = 600) As %String [ Private ]
-{
-	Set code = "zzpair"_##class(OcuTalon.Bridge.Ids).NewRef()
-	Set hash = ##class(OcuTalon.Data.Pairing).HashCode(code)
-	Set expires = ##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), lifetime)
-	Do $$$AssertStatusOK(##class(OcuTalon.Data.Pairing).StoreCode(session, hash, expires), "the session's code is stored as its hash")
-	Quit code
-}
-
-/// Queues one update and counts it.
-Method Send(update As %DynamicObject) [ Private ]
-{
-	Set batch = []
-	Do batch.%Push(update)
-	Do $$$AssertTrue(..QueueUpdates(batch), "an update is queued")
-	Set ..Sent = ..Sent + 1
-}
-
-/// 1 when TelegramIn has handled every queued update.
-Method Handled() As %Boolean [ Private ]
-{
-	Quit ..WaitOffset(..Sent + 1, 20)
-}
-
-/// The chat's row: 1 when there is one, with its Ref, SessionRef and DisplayName.
-Method ChatRow(chatId As %String, Output ref As %String, Output sessionRef As %String, Output name As %String) As %Boolean [ Private ]
-{
-	Set ref = "", sessionRef = "", name = ""
-	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT TOP 1 Ref, SessionRef, DisplayName FROM OcuTalon_Data.Pairing WHERE ChatId = ? ORDER BY ID", chatId)
-	If 'result.%Next() Quit 0
-	Set ref = result.%GetData(1), sessionRef = result.%GetData(2), name = result.%GetData(3)
-	Quit 1
-}
-
-/// 1 when the chat's row is linked to the session within WAIT seconds.
-Method WaitLinked(chatId As %String, session As %String) As %Boolean [ Private ]
-{
-	Set deadline = $ZHorolog + ..#WAIT
-	For {
-		Do ..ChatRow(chatId, , .linked)
-		If (linked = session) || ($ZHorolog >= deadline) Quit
-		Hang 0.25
-	}
-	Quit linked = session
-}
-
-/// The Notification bodies that TelegramIn sent to Notify after the mark, in order.
-Method Notifications(mark As %Integer) As %DynamicArray [ Private ]
-{
-	Set found = []
-	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT MessageBodyId FROM Ens.MessageHeader WHERE ID > ? AND SourceConfigName = 'TelegramIn' AND TargetConfigName = 'Notify' AND MessageBodyClassName = 'OcuTalon.Msg.Notification' ORDER BY ID", mark)
-	While result.%Next() {
-		Set body = ##class(OcuTalon.Msg.Notification).%OpenId(result.%GetData(1))
-		If $IsObject(body) Do found.%Push({"kind": (body.Kind), "catalogKey": (body.CatalogKey), "chatRef": (body.ChatRef), "sessionRef": (body.SessionRef), "slots": (body.Slots)})
-	}
-	Quit found
-}
-
-/// The texts that the mock received for the chat: once there are count of them (or WAIT seconds pass), and 1 s more for any extra one.
-Method TextsAfter(chatId As %String, count As %Integer) As %DynamicArray [ Private ]
-{
-	Set deadline = $ZHorolog + ..#WAIT
-	For {
-		If (..TextsTo(chatId).%Size() >= count) || ($ZHorolog >= deadline) Quit
-		Hang 0.25
-	}
-	Hang 1
-	Quit ..TextsTo(chatId)
-}
-
-/// Asserts that the chat's texts, after count of them, are exactly the expected ones.
-Method AssertTexts(chatId As %String, expected As %DynamicArray, message As %String) [ Private ]
-{
-	Set texts = ..TextsAfter(chatId, expected.%Size())
 	Do $$$AssertEquals(texts.%ToJSON(), expected.%ToJSON(), message)
 }
 
-/// Pairs the chat with the session by a new code: 1 when the chat's row is linked to the session.
-Method PairChat(chatId As %String, name As %String, session As %String) As %Boolean [ Private ]
+/// The reply that a turn gets here, since this class points no runner key: the fallback for no_key, as the catalog renders it.
+ClassMethod Fallback() As %String [ Private ]
 {
-	Set code = ..NewCode(session)
-	Do ..Send(..PrivateMessage(chatId, name, "/start "_code))
-	Do $$$AssertTrue(..Handled(), "TelegramIn handled the pairing of "_chatId)
-	Set linked = ..WaitLinked(chatId, session)
-	Do $$$AssertTrue(linked, "the chat "_chatId_" is paired with its session")
-	Quit linked
+	Quit ##class(OcuTalon.Msg.Catalog).Render("conversation.turnFallback", {"fallbackReason": "no_key"}.%ToJSON(), "telegram")
 }
 
 /// The pairing events on the session's stream, in order.
@@ -372,6 +250,7 @@ Method TestNameOnlyWhilePaired()
 		Do $$$AssertTrue(..Handled(), "TelegramIn handled the pairing update")
 		Do $$$AssertTrue(..WaitLinked(paired, session), "the chat is paired")
 
+		Set turns = ..HeaderMark()
 		Do ..Send(..PrivateMessage(paired, "", "zz later"))
 		Do $$$AssertTrue(..Handled(), "TelegramIn handled a message with no name")
 		Do ..ChatRow(paired, , .linked, .stored)
@@ -384,10 +263,15 @@ Method TestNameOnlyWhilePaired()
 		Do $$$AssertTrue(..Handled(), "TelegramIn handled a code with no name from the paired chat")
 		Do ..ChatRow(paired, , .linked, .stored)
 		Do $$$AssertEquals(linked_"|"_stored, session_"|Zqnew", "(c) a pairing update with no name keeps the paired chat's name and session")
-		Do ..AssertTexts(paired, [(..#CONFIRMATION), (..#BAD)], "a paired chat gets the confirmation and the bad-code reply, and no reply to its other messages")
+		Set items = ..Items(turns)
+		Do $$$AssertEquals(items.%Size(), 2, "(d) each of the paired chat's two other messages makes one Item from TelegramIn to Conversation")
+		If items.%Size() = 2 Do $$$AssertEquals(items.%Get(0).text_"|"_items.%Get(1).text_"|"_items.%Get(0).channel_"|"_items.%Get(0).sessionRef, "zz later|zz again|telegram|"_session, "with the message's text, channel telegram and the session")
+		Do ..AssertTexts(paired, [(..#CONFIRMATION), (..#BAD)], "a paired chat gets the confirmation and the bad-code reply, and a turn's reply to each other message, which is not a pairing text", ..Fallback(), 2)
 		Do ..Send(..PrivateMessage(paired, "", "/help"))
 		Do $$$AssertTrue(..Handled(), "TelegramIn handled a /help from the paired chat")
-		Do ..AssertTexts(paired, [(..#CONFIRMATION), (..#BAD), (..#START)], "and the start text for /help, whatever the chat's state")
+		Do ..AssertTexts(paired, [(..#CONFIRMATION), (..#BAD), (..#START)], "and the start text for /help, whatever the chat's state", ..Fallback(), 2)
+		Set pairing = ..Notifications(turns)
+		Do $$$AssertEquals(pairing.%Size(), 2, "TelegramIn sent no pairing Notification for the other messages: only the bad code's and /help's")
 
 		Set stranger = 84017734102
 		Set headers = ..HeaderMark()

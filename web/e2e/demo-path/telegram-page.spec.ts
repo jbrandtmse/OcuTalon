@@ -2,7 +2,8 @@ import { expect, test, type Locator, type Page, type Request } from '@playwright
 import qrcode from 'qrcode-generator';
 
 import { changeSnapshot, STATE } from '../support/api';
-import { composerOf, inMs, signInReadmeLoaded } from '../support/floor';
+import { pointKeys, restoreKeys } from '../support/devices';
+import { composerOf, inMs, replyOf, signInReadmeLoaded } from '../support/floor';
 import { chk, irisScript, quoted, setTelegramIncluded } from '../support/iris';
 import { announcedTexts, plain, recordAnnouncements, tokenColor } from '../support/page';
 
@@ -22,6 +23,9 @@ import { announcedTexts, plain, recordAnnouncements, tokenColor } from '../suppo
  * - Story 12.5's extension of T5 and its T6: T5's Unpair now shows the card's "Telegram unpaired" view for 5 s with the focus on the
  *   Telegram heading, and the chat is told. T6 drives the real chain for a bad code (the card changes nothing), for /stop from the chat (the
  *   view, its 5 s window, the heading focus, the announcement) and for a pairing elsewhere (the composer keeps focus).
+ *
+ * - Story 12.6's T7: a message from the paired chat is the session's turn (TelegramIn, Conversation, the CI mock) and the web chat shows
+ *   it as the user's message with the caption "via Telegram", with the reply under it; the chat gets the confirmation and the reply.
  *
  * The browser runs in Asia/Kolkata with the en-GB locale, so a UTC time reads five and a half hours later, with an unpadded 24-hour hour:
  * 12:00 UTC is 17:30. The oracle for a time is `kolkata`, written here from the UTC clock and not from the page's own format.
@@ -960,6 +964,86 @@ test.describe('bad codes, a bare start command and unpairing get polite answers 
       let finished = { reason: '' };
       try {
         finished = await fixture(`Finish(${quoted(saved)})`);
+      } finally {
+        await setTelegramIncluded(was);
+      }
+      if (finished.reason !== '') {
+        if (passed) expect(finished.reason, 'the fixture puts everything back').toBe('');
+        else test.info().annotations.push({ type: 'finish', description: finished.reason });
+      }
+    }
+  });
+});
+
+test.describe('chat and notifications in the paired Telegram chat (Story 12.6)', () => {
+  test.use({ timezoneId: 'Asia/Kolkata', locale: 'en-GB' });
+
+  /** A poll that a routed handler is still answering when a test ends must not fail the next test. */
+  test.afterEach(async ({ page }) => {
+    await page.unrouteAll({ behavior: 'ignoreErrors' });
+  });
+
+  const CHAT = 84017734114;
+  const NAME = 'Zqweb';
+  const TEXT = 'zz from my phone 12.6';
+  /** The reply of the mock's chat scenario: it lists the productions and then says so. */
+  const REPLY = 'The CI mock looked at the productions.';
+
+  /** The text of the chat's user part: the Telegram message, found by its text. */
+  const userPart = (page: Page): Locator => page.locator('app-chat-panel [data-part="user"]').filter({ hasText: TEXT });
+
+  /**
+   * T7: the web chat shows a Telegram message. TelegramIn and TelegramOut run against the CI mock, the runners' keys point at the mock and
+   * the README account signs in; the code on the card pairs chat 84017734114 ("Zqweb"). The chat's message "zz from my phone 12.6" is the
+   * session's turn: the web chat shows it as the user's message with the caption "via Telegram" (and its time), the reply part with the same
+   * data-key shows the mock's reply, and the chat has been sent the confirmation and that reply. The matrix row "The web chat shows the
+   * Telegram turn".
+   */
+  test('T7: a Telegram message shows "via Telegram" in the web chat, with its reply, and the chat gets the reply', { tag: '@floor' }, async ({ page }) => {
+    test.setTimeout(120_000);
+    const was = await setTelegramIncluded(1);
+    let saved = '';
+    let pointed = false;
+    let passed = false;
+    try {
+      pointed = true;
+      await pointKeys();
+      const started = await fixture(`Start(.saved, ${quoted(BOT)}, 1)`, ['saved']);
+      saved = started.values['saved'] ?? '';
+      expect(started.reason, 'TelegramIn and TelegramOut start against the mock, which names the bot').toBe('');
+
+      await signInReadmeLoaded(page);
+      const card = cardOf(page);
+      await expect(card.locator('[data-state="unpaired"]'), 'the card is unpaired with a code').toHaveCount(1, { timeout: LOADED_MS });
+      const code = await codeOf(card);
+      expect(code, 'the "Open in Telegram" link carries the code').not.toBe('');
+      expect((await fixture(`Pair(${quoted(code)}, ${CHAT}, ${quoted(NAME)}, .queuedAt)`, ['queuedAt'])).reason, 'the chat pairs with the code').toBe('');
+      await expect(card.locator('[data-state="paired"]'), 'the card is paired').toHaveCount(1, { timeout: LOADED_MS });
+
+      expect((await fixture(`Send(${CHAT}, "", ${quoted(TEXT)}, .queuedAt)`, ['queuedAt'])).reason, 'the chat sends its message').toBe('');
+      const user = userPart(page);
+      await expect(user, 'the web chat shows the Telegram message as a user message').toHaveCount(1, { timeout: 60_000 });
+      await expect(user.locator('.bubble'), 'with the text as sent').toHaveText(TEXT);
+      await expect.poll(async () => plain((await user.locator('.when').textContent()) ?? ''), { message: 'and the caption via Telegram, then its time', timeout: LOADED_MS }).toMatch(/^via Telegram \u00B7 \d{1,2}:\d{2}$/);
+      const key = (await user.getAttribute('data-key')) ?? '';
+      expect(key, 'the user part has a key').not.toBe('');
+      await expect(replyOf(page, key).locator('.text'), 'the reply part with the same key shows the mock\'s reply').toHaveText(REPLY, { timeout: 60_000 });
+      await expect
+        .poll(async () => JSON.parse((await fixture(`Replies(${CHAT}, .texts)`, ['texts'])).values['texts'] ?? '[]') as string[], { message: 'the chat has the confirmation and the reply', timeout: LOADED_MS, intervals: [1000] })
+        .toEqual([CONFIRMATION, REPLY]);
+      passed = true;
+    } finally {
+      let finished = { reason: '' };
+      try {
+        try {
+          if (pointed) {
+            await restoreKeys();
+            const lines = await irisScript('Write !,"CHK|records|",##class(OcuTalon.Test.Agent.RunnerFixture).WaitRecords()');
+            expect(chk(lines, 'records'), 'the runners recorded the restored keys').toBe('1');
+          }
+        } finally {
+          finished = await fixture(`Finish(${quoted(saved)})`);
+        }
       } finally {
         await setTelegramIncluded(was);
       }

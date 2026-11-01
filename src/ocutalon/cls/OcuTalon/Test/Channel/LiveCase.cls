@@ -25,6 +25,13 @@ Include Ensemble
 ///   - PrivateMessage (an update with a name and a text), TextsTo (the sendMessage texts to one chat) and PairBodies (the Pair commands, or
 ///     with the verb Unpair the Unpair commands of Story 12.5, since a header mark) are public class methods for the pairing tests (Story
 ///     12.4); OcuTalon.Test.Channel.TelegramPageFixture calls the first.
+///   - BeginPairing and EndPairing (Story 12.6) are the start and the end that the two pairing-based classes share (TelegramPair and
+///     TelegramChat): the live guard, the seam on, demo mode checked, both Telegram items on and a long poll open; and the turns of the
+///     fixture sessions settled and adopted for their removal, the cleanup, the code rows and the probe row deleted and the seam put back.
+///     NewSession, NewCode, Send, Handled, ChatRow, WaitLinked and PairChat, which pair a fixture chat through the real /start path, move
+///     there with them. DropSessions also deletes the Turn, Delivery and SimMessage rows of the fixture sessions (zztg...).
+///   - Items, Notifications and TextsAfter read what a pairing test checks: the Items that TelegramIn sent to Conversation after a header
+///     mark (with the header's SessionId and SuperSession), the Notifications it sent to Notify, and the texts the mock got for a chat.
 ///   - The scans of the token search are public class methods too: HeaderMark and HeadersFrom (the message headers), RowsText (every text
 ///     of a SELECT's rows), Bodies (the exported body of every header after a mark) and LiveMark (the live events). TelegramIn calls the
 ///     two header ones and TelegramNoToken the other four as its own; TelegramPageFixture's search of the pairing codes (Story 12.3) calls
@@ -40,6 +47,9 @@ Parameter FIXTURE = "OcuTalon.Test.Agent.RunnerFixture";
 
 /// The longest, in seconds, that StartItems and StopItems wait for the jobs of an item.
 Parameter WAITJOB = 30;
+
+/// The longest, in seconds, to wait for an effect of a handled update.
+Parameter WAIT = 10;
 
 /// The two marks that the Telegram items write.
 Parameter MARKS = "telegramState,telegramPaused";
@@ -59,19 +69,43 @@ Property MarksFound As %String(MAXLEN = "") [ Private ];
 /// The fixture chat ids that Cleanup deletes, comma-separated.
 Property ChatIds As %String(MAXLEN = "") [ Private ];
 
-/// 1 when the test may send: the stack is a throwaway, no poller has a live job, and the reset worked.
-Method Ready() As %Boolean [ Private ]
+/// The updates queued so far by Send (the mock numbers them from 1 after the reset, and TelegramIn keeps the id of the last handled plus 1).
+Property Sent As %Integer [ InitialExpression = 0, Private ];
+
+/// 1 once the Telegram seam is set by BeginPairing.
+Property Seam As %Boolean [ InitialExpression = 0, Private ];
+
+/// The seam as BeginPairing found it.
+Property WasIncluded As %Boolean [ Private ];
+
+/// The Refs of the fixture sessions that NewSession made, as a list: EndPairing deletes their code rows and adopts their turns.
+Property Sessions As %List [ Private ];
+
+/// The unique text of an event-log probe row, removed by EndPairing.
+Property Probe As %String [ Private ];
+
+/// "" when the test may send: the stack is a throwaway, no poller has a live job, and the reset worked; otherwise the reason. Nothing is
+/// asserted here, so that it can run in OnBeforeAllTests.
+Method ReadyReason() As %String [ Private ]
 {
 	Set ..Token = $SYSTEM.Util.GetEnviron(##class(OcuTalon.Test.Contract.Mock).#TELEGRAMTOKENVAR)
 	Set reason = ##class(OcuTalon.Test.Contract.Mock).TelegramMissingReason($SYSTEM.Util.GetEnviron(##class(OcuTalon.Test.Contract.Mock).#TELEGRAMBASEVAR), ..Token)
 	If reason = "" Set reason = ##class(OcuTalon.Test.Channel.BotApi).PollerReason()
+	If reason '= "" Quit reason
+	Set status = ##class(OcuTalon.Test.Channel.BotApi).Reset()
+	If $$$ISERR(status) Quit "the mock's Bot API side could not be reset: "_..Cut($SYSTEM.Status.GetErrorText(status), ..Token)
+	Quit ""
+}
+
+/// 1 when the test may send (ReadyReason is empty); otherwise the test fails with the reason.
+Method Ready() As %Boolean [ Private ]
+{
+	Set reason = ..ReadyReason()
 	If reason '= "" {
 		Do $$$AssertTrue(0, reason)
 		Quit 0
 	}
-	Set status = ##class(OcuTalon.Test.Channel.BotApi).Reset()
-	Do $$$AssertStatusOK(status, "the mock's Bot API side is reset before the test")
-	Quit $$$ISOK(status)
+	Quit 1
 }
 
 /// Ends a test: the reset again, whatever happened.
@@ -320,7 +354,7 @@ Method FixtureSession(prefix As %String) As OcuTalon.Data.Session [ Private ]
 	Quit session
 }
 
-/// Deletes the fixture sessions (zztg...) with their events and counters.
+/// Deletes the fixture sessions (zztg...) with their events and counters, and the Turn, Delivery and SimMessage rows that name them.
 ClassMethod DropSessions()
 {
 	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT Ref FROM OcuTalon_Data.Session WHERE IrisUser %STARTSWITH 'zztg'")
@@ -328,6 +362,9 @@ ClassMethod DropSessions()
 		Set stream = result.%Get("Ref")
 		Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Live.Event WHERE Stream = ?", stream)
 		Kill ^OcuTalonP.LiveEventC(stream)
+		Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.Turn WHERE SessionRef = ?", stream)
+		Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.Delivery WHERE OwnerRef = ?", stream)
+		Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.SimMessage WHERE SessionRef = ?", stream)
 	}
 	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.Session WHERE IrisUser %STARTSWITH 'zztg'")
 }
@@ -561,6 +598,189 @@ ClassMethod PairBodies(mark As %Integer, verb As %String = "Pair") As %DynamicAr
 		}
 	}
 	Quit found
+}
+
+
+/// The start of a test that pairs fixture chats (the ids, comma-separated): the live guard and the saved marks, the seam on, demo mode
+/// checked, the fixture chats cleared, TelegramOut and TelegramIn enabled and a long poll open. It asserts nothing and returns "" when
+/// all of it holds; otherwise the reason, after EndPairing has put back what was set.
+Method BeginPairing(ids As %String) As %String
+{
+	Set reason = ..ReadyReason()
+	If reason = "" Set reason = $ClassMethod(..#FIXTURE, "RunningReason")
+	If reason '= "" Quit reason
+	Do ..SaveMarks()
+	Set ..Sent = 0
+	Set ..Sessions = ""
+	Set ..Probe = ""
+	Set ..WasIncluded = ##class(OcuTalon.Test.Data.Fixture).SetTelegramIncluded(1)
+	Set ..Seam = 1
+	If '##class(OcuTalon.Core.Rule.Functions).DemoOn() {
+		Do ..EndPairing()
+		Quit "demo mode is not on, and the guide of the pairing is read in demo mode"
+	}
+	Do ..Chat(ids)
+	Do ..DropChats(ids)
+	Set started = ..StartItems("TelegramOut,TelegramIn")
+	If $$$ISERR(started) Set reason = "TelegramOut and TelegramIn are not enabled: "_..Cut($SYSTEM.Status.GetErrorText(started), ..Token)
+	If (reason = "") && '..WaitState("on", 20) Set reason = "the Telegram state does not become on"
+	If (reason = "") && (..WaitCalls("getUpdates", 1, 20).%Size() < 1) Set reason = "no long poll is open"
+	If reason '= "" Do ..EndPairing()
+	Quit reason
+}
+
+/// The end of a pairing-based test, on every path: the turns of the fixture sessions settled (a turn that is still running would save its
+/// row after the delete), those turns and their Decision rows adopted and removed, Cleanup, then the probe row and the code rows of the
+/// fixture sessions deleted, and the seam put back.
+Method EndPairing()
+{
+	Set refs = ""
+	Try {
+		Set sessions = $ListToString(..Sessions)
+		Do ..SettleTurns(sessions)
+		Set refs = ##class(OcuTalon.Test.Data.Fixture).AdoptTurns(sessions, "")
+	} Catch {
+	}
+	Do ..Cleanup()
+	Try {
+		If refs '= "" Do ##class(OcuTalon.Test.Data.Fixture).Clean(refs)
+		If ..Probe '= "" Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE Text [ ?", ..Probe)
+		For i = 1:1:$ListLength(..Sessions) {
+			Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.Pairing WHERE CodeSessionRef = ?", $List(..Sessions, i))
+		}
+	} Catch {
+	}
+	Set ..Probe = ""
+	Set ..Sessions = ""
+	If ..Seam Do ##class(OcuTalon.Test.Data.Fixture).SetTelegramIncluded(..WasIncluded)
+	Set ..Seam = 0
+}
+
+/// Waits, up to WAIT seconds more than a turn needs, until no Turn of the sessions (comma-separated Refs) is queued or running.
+Method SettleTurns(sessions As %String) [ Private ]
+{
+	Set deadline = $ZHorolog + ..#WAIT + 30
+	For {
+		Set open = 0
+		For i = 1:1:$Length(sessions, ",") {
+			Set one = $Piece(sessions, ",", i)
+			If one = "" Continue
+			Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Data.Turn WHERE SessionRef = ? AND State IN ('queued', 'running')", one)
+			If result.%Next() Set open = open + result.%GetData(1)
+		}
+		If 'open || ($ZHorolog >= deadline) Quit
+		Hang 0.5
+	}
+}
+
+/// A fixture session of the prefix that watches nothing, and its Ref; its code row and turns are removed by EndPairing.
+Method NewSession(prefix As %String = "zztgpair") As %String [ Private ]
+{
+	Set session = ..FixtureSession(prefix)
+	Set ..Sessions = ..Sessions _ $ListBuild(session.Ref)
+	Quit session.Ref
+}
+
+/// Stores a new code for the session as the web route does (its hash, valid for lifetime seconds, 600 by default; a negative lifetime
+/// stores an expired code); the code is code and its hash is hash.
+Method NewCode(session As %String, Output hash As %String, lifetime As %Integer = 600) As %String [ Private ]
+{
+	Set code = "zzpair"_##class(OcuTalon.Bridge.Ids).NewRef()
+	Set hash = ##class(OcuTalon.Data.Pairing).HashCode(code)
+	Set expires = ##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), lifetime)
+	Do $$$AssertStatusOK(##class(OcuTalon.Data.Pairing).StoreCode(session, hash, expires), "the session's code is stored as its hash")
+	Quit code
+}
+
+/// Queues one update and counts it.
+Method Send(update As %DynamicObject) [ Private ]
+{
+	Set batch = []
+	Do batch.%Push(update)
+	Do $$$AssertTrue(..QueueUpdates(batch), "an update is queued")
+	Set ..Sent = ..Sent + 1
+}
+
+/// 1 when TelegramIn has handled every queued update.
+Method Handled() As %Boolean [ Private ]
+{
+	Quit ..WaitOffset(..Sent + 1, 20)
+}
+
+/// The chat's row: 1 when there is one, with its Ref, SessionRef and DisplayName.
+Method ChatRow(chatId As %String, Output ref As %String, Output sessionRef As %String, Output name As %String) As %Boolean [ Private ]
+{
+	Set ref = "", sessionRef = "", name = ""
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT TOP 1 Ref, SessionRef, DisplayName FROM OcuTalon_Data.Pairing WHERE ChatId = ? ORDER BY ID", chatId)
+	If 'result.%Next() Quit 0
+	Set ref = result.%GetData(1), sessionRef = result.%GetData(2), name = result.%GetData(3)
+	Quit 1
+}
+
+/// 1 when the chat's row is linked to the session within WAIT seconds.
+Method WaitLinked(chatId As %String, session As %String) As %Boolean [ Private ]
+{
+	Set deadline = $ZHorolog + ..#WAIT
+	For {
+		Do ..ChatRow(chatId, , .linked)
+		If (linked = session) || ($ZHorolog >= deadline) Quit
+		Hang 0.25
+	}
+	Quit linked = session
+}
+
+/// Pairs the chat with the session by a new code, through the real /start path: 1 when the chat's row is linked to the session.
+Method PairChat(chatId As %String, name As %String, session As %String) As %Boolean [ Private ]
+{
+	Set code = ..NewCode(session)
+	Do ..Send(..PrivateMessage(chatId, name, "/start "_code))
+	Do $$$AssertTrue(..Handled(), "TelegramIn handled the pairing of "_chatId)
+	Set linked = ..WaitLinked(chatId, session)
+	Do $$$AssertTrue(linked, "the chat "_chatId_" is paired with its session")
+	Quit linked
+}
+
+
+/// The Items that TelegramIn sent to Conversation after the header mark, in order, each as {"itemId", "sessionRef", "channel",
+/// "provenance", "text", "clientId", "fromGuide", "sessionId", "superSession", "xml"}: the body's fields, the header's SessionId and
+/// SuperSession, and the body's exported XML.
+Method Items(mark As %Integer) As %DynamicArray [ Private ]
+{
+	Set found = []
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT MessageBodyId, SessionId, SuperSession FROM Ens.MessageHeader WHERE ID > ? AND SourceConfigName = 'TelegramIn' AND TargetConfigName = 'Conversation' AND MessageBodyClassName = 'OcuTalon.Msg.Item' ORDER BY ID", mark)
+	While result.%Next() {
+		Set body = ##class(OcuTalon.Msg.Item).%OpenId(result.%GetData(1))
+		If '$IsObject(body) Continue
+		Set xml = ""
+		Do body.XMLExportToString(.xml)
+		Do found.%Push({"itemId": (body.ItemId), "sessionRef": (body.SessionRef), "channel": (body.Channel), "provenance": (body.Provenance), "text": (body.Text), "clientId": (body.ClientId), "fromGuide": (+body.FromGuide), "sessionId": (result.%GetData(2)), "superSession": (result.%GetData(3)), "xml": (xml)})
+	}
+	Quit found
+}
+
+/// The Notification bodies that TelegramIn sent to Notify after the mark, in order, each as {"id", "kind", "catalogKey", "chatRef",
+/// "sessionRef", "slots", "superSession", "sessionId"}: the body's fields and the header's SuperSession and SessionId.
+Method Notifications(mark As %Integer) As %DynamicArray [ Private ]
+{
+	Set found = []
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT MessageBodyId, SuperSession, SessionId FROM Ens.MessageHeader WHERE ID > ? AND SourceConfigName = 'TelegramIn' AND TargetConfigName = 'Notify' AND MessageBodyClassName = 'OcuTalon.Msg.Notification' ORDER BY ID", mark)
+	While result.%Next() {
+		Set body = ##class(OcuTalon.Msg.Notification).%OpenId(result.%GetData(1))
+		If $IsObject(body) Do found.%Push({"id": (body.%Id()), "kind": (body.Kind), "catalogKey": (body.CatalogKey), "chatRef": (body.ChatRef), "sessionRef": (body.SessionRef), "slots": (body.Slots), "superSession": (result.%GetData(2)), "sessionId": (result.%GetData(3))})
+	}
+	Quit found
+}
+
+/// The texts that the mock received for the chat: once there are count of them (or WAIT seconds pass), and 1 s more for any extra one.
+Method TextsAfter(chatId As %String, count As %Integer) As %DynamicArray [ Private ]
+{
+	Set deadline = $ZHorolog + ..#WAIT
+	For {
+		If (..TextsTo(chatId).%Size() >= count) || ($ZHorolog >= deadline) Quit
+		Hang 0.25
+	}
+	Hang 1
+	Quit ..TextsTo(chatId)
 }
 
 }

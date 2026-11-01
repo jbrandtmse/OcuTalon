@@ -31,8 +31,20 @@ Include Ensemble
 ///         (SessionOps.Unlink keeps one, DW-520) and answered pairing.stopped, for the session it left; on not_paired it is any other
 ///         message; after a failed or refused Submit there is one warning and no reply.
 ///       - any other message (a sticker too, and every other command): a chat that is not paired takes Pairing.TakeReplySlot and, when it
-///         gets the slot (once a minute), is answered pairing.notPaired. A paired chat is not answered (the turns are Story 12.6's).
+///         gets the slot (once a minute), is answered pairing.notPaired. A paired chat's text, when it is not empty once trimmed, is the
+///         user's turn (Story 12.6, below); a paired chat's message with no text gets no turn and no reply.
 ///     A reply to a chat that is not paired has no SessionRef: such a chat reaches no session and no model.
+///   - A turn takes the steps of WebChatIn.Accept (AD-20, AD-26, AD-30) for the session that the chat was paired with when its row was
+///     read: the session's row must exist (else one warning and nothing sent); Allowance.TryConsume is asked with the channel telegram.
+///     A refusal queues nothing and calls no model: with a retryAt, and on the first refusal of the window only, Notify gets the
+///     allowance Notice (kind allowance, for the session, in a trace session of its own under the session's TraceRef); with no retryAt
+///     (the row was busy) there is one warning. Trace.Join then gives the session's thread of the day, which is the service's %SessionId,
+///     with the session's TraceRef as its %SuperSession (a failed Join is one warning and the turn is traced on its own). One Msg.Item
+///     goes to Conversation with a new ItemId, the session's SessionRef, channel telegram, provenance user, the text as sent, no ClientId
+///     and FromGuide 0: no chat id and no name is in it. When the day had no thread, Trace.Started records the thread that the send gave,
+///     or none when the send failed. A send that fails gives the allowance entry back (Allowance.Refund) and is one warning. Afterwards
+///     %SessionId and %SuperSession are "" again, so that the next update of the same poll answer is traced on its own. The reply is
+///     Conversation's: it goes to Notify, and this class sends none.
 ///   - A 409 pauses the item PAUSESECONDS: the time is written to StatusMark.Record("telegramPaused", until), which is the one truth of
 ///     the pause and is read before every poll, so a restart honours it. Its warning carries Telegram's description, which says whether
 ///     another process polls the bot or a webhook is set. A getUpdates answered 200 deletes the mark. A 429 waits
@@ -89,6 +101,27 @@ Parameter LOGREPLY = "TelegramIn could not send the pairing reply to Notify: ";
 Parameter LOGSTOP = "TelegramIn could not submit an unpair, so the chat got no reply: ";
 
 Parameter LOGSTOPOUTCOME = "TelegramIn's unpair did not succeed, so the chat got no reply; the outcome was: ";
+
+Parameter LOGNOSESSION = "TelegramIn dropped a paired chat's message: the chat's session has no session row.";
+
+Parameter LOGBUSYALLOWANCE = "TelegramIn dropped a paired chat's message: the session's allowance could not be asked.";
+
+Parameter LOGNOTICE = "TelegramIn could not send the allowance notice to Notify: ";
+
+Parameter LOGJOIN = "TelegramIn could not join the session's trace thread, so this turn is traced on its own: ";
+
+Parameter LOGSTARTED = "TelegramIn could not record the session's trace thread, so the next turn starts another: ";
+
+Parameter LOGSEND = "TelegramIn could not send a paired chat's message to Conversation, and gave its allowance entry back: ";
+
+/// The item that takes every turn's Item.
+Parameter TARGET = "Conversation";
+
+/// The item that takes the allowance notice and the pairing replies.
+Parameter NOTIFY = "Notify";
+
+/// The channel of the Items this service sends: one of Msg.Enum CHANNEL.
+Parameter CHANNEL = "telegram";
 
 /// The text that starts a pairing message: the command and one space, then the code.
 Parameter STARTPREFIX = "/start ";
@@ -290,6 +323,7 @@ Method HandleUpdate(update As %DynamicObject) [ Private ]
 	}
 	If '$IsObject(chat) || (chat.%GetTypeOf("type") '= "string") || (chat.type '= "private") Quit
 	Set command = ..Command(message, .payload)
+	Set text = $Select($IsObject(message) && (message.%GetTypeOf("text") = "string"): message.text, 1: "")
 	Set updateName = $Select(chat.%GetTypeOf("first_name") = "string": chat."first_name", 1: "")
 	Do ..Row(chat.id, .sessionRef, .storedName)
 	If (payload = "") && (sessionRef = "") {
@@ -313,7 +347,7 @@ Method HandleUpdate(update As %DynamicObject) [ Private ]
 	} ElseIf command = "stop" {
 		Do ..Stop(ref, chat.id, sessionRef)
 	} ElseIf command = "other" {
-		Do ..Other(ref, sessionRef)
+		Do ..Other(ref, sessionRef, text)
 	}
 }
 
@@ -385,7 +419,7 @@ Method Stop(ref As %String, chatId As %String, sessionRef As %String) [ Private 
 		Do ..Forget(ref, chatId)
 		Do ..Reply(ref, "pairing.stopped", sessionRef)
 	} ElseIf outcome = "not_paired" {
-		Do ..Other(ref, "")
+		Do ..Other(ref, "", "")
 	} ElseIf outcome '= "" {
 		$$$LOGWARNING(..#LOGSTOPOUTCOME_##class(OcuTalon.Channel.Telegram.Api).Safe(outcome))
 	}
@@ -410,11 +444,104 @@ Method Outcome(command As OcuTalon.Msg.Command, log As %String) As %String [ Pri
 }
 
 /// Any other message: a chat that was not paired when its row was read takes its reply slot and, when it gets it (once a minute), is
-/// answered pairing.notPaired. A paired chat is not answered.
-Method Other(ref As %String, sessionRef As %String) [ Private ]
+/// answered pairing.notPaired. A paired chat's text, when it is not empty once trimmed, is the user's turn; with no text it gets nothing.
+Method Other(ref As %String, sessionRef As %String, text As %String) [ Private ]
 {
-	If sessionRef '= "" Quit
+	If sessionRef '= "" {
+		If $ZStrip(text, "<>WC") '= "" Do ..Turn(sessionRef, text)
+		Quit
+	}
 	If ##class(OcuTalon.Data.Pairing).TakeReplySlot(ref) Do ..Reply(ref, "pairing.notPaired", "")
+}
+
+/// A paired chat's text as the session's turn, in the steps of WebChatIn.Accept (see the class comment). The service's %SessionId and
+/// %SuperSession are "" again when the method ends, also after an exception, which it then raises to the caller.
+Method Turn(sessionRef As %String, text As %String) [ Private ]
+{
+	Set thrown = ""
+	Try {
+		Set session = ##class(OcuTalon.Data.Session).RefIndexOpen(sessionRef)
+		If '$IsObject(session) {
+			$$$LOGWARNING(..#LOGNOSESSION)
+		} ElseIf '..Allowed(sessionRef, ..#CHANNEL, text, .retryAt, .firstRefusal) {
+			If retryAt = "" {
+				$$$LOGWARNING(..#LOGBUSYALLOWANCE)
+			} ElseIf firstRefusal {
+				Do ..Notice(session, retryAt)
+			}
+		} Else {
+			Set now = ##class(OcuTalon.Data.Time).NowUtc()
+			Set thread = ##class(OcuTalon.Core.Trace).Join(sessionRef, .joinSc, now)
+			If $SYSTEM.Status.IsError(joinSc) $$$LOGWARNING(..#LOGJOIN_##class(OcuTalon.Channel.Telegram.Api).Safe($SYSTEM.Status.GetErrorText(joinSc)))
+			Set ..%SessionId = thread
+			Set ..%SuperSession = session.TraceRef
+			Set sc = $$$OK
+			Try {
+				Set item = ##class(OcuTalon.Msg.Item).%New()
+				Set item.ItemId = ##class(OcuTalon.Bridge.Ids).NewRef()
+				Set item.SessionRef = sessionRef
+				Set item.Channel = ..#CHANNEL
+				Set item.Provenance = "user"
+				Set item.Text = text
+				Set item.FromGuide = 0
+				Set sc = ..SendTurn(item)
+			} Catch exception {
+				Set sc = exception.AsStatus()
+			}
+			If $SYSTEM.Status.IsOK(joinSc) && (thread = "") {
+				Set startedSc = ##class(OcuTalon.Core.Trace).Started(sessionRef, $Select($SYSTEM.Status.IsOK(sc): ..%SessionId, 1: ""), now)
+				If $SYSTEM.Status.IsError(startedSc) $$$LOGWARNING(..#LOGSTARTED_##class(OcuTalon.Channel.Telegram.Api).Safe($SYSTEM.Status.GetErrorText(startedSc)))
+			}
+			If $SYSTEM.Status.IsError(sc) {
+				Do ..Refund(sessionRef)
+				$$$LOGWARNING(..#LOGSEND_##class(OcuTalon.Channel.Telegram.Api).Safe($SYSTEM.Status.GetErrorText(sc)))
+			}
+		}
+	} Catch exception {
+		Set thrown = exception
+	}
+	Set ..%SessionId = ""
+	Set ..%SuperSession = ""
+	If $IsObject(thrown) Throw thrown
+}
+
+/// Sends Notify the session's allowance notice, in a trace session of its own under the session's TraceRef (AD-26). A failure is one
+/// warning and goes no further.
+Method Notice(session As OcuTalon.Data.Session, retryAt As %String) [ Private ]
+{
+	Set sc = $$$OK
+	Try {
+		Set ..%SessionId = ""
+		Set ..%SuperSession = session.TraceRef
+		Set sc = ..Notify(##class(OcuTalon.Core.Allowance).Notice(session.Ref, retryAt))
+	} Catch exception {
+		Set sc = exception.AsStatus()
+	}
+	If $SYSTEM.Status.IsError(sc) $$$LOGWARNING(..#LOGNOTICE_##class(OcuTalon.Channel.Telegram.Api).Safe($SYSTEM.Status.GetErrorText(sc)))
+}
+
+/// The one send of a turn's Item to Conversation, asynchronously. Private; a test subclass overrides it.
+Method SendTurn(item As OcuTalon.Msg.Item) As %Status [ Private ]
+{
+	Quit ..SendRequestAsync(..#TARGET, item)
+}
+
+/// The one send to Notify, asynchronously. Private; a test subclass overrides it.
+Method Notify(notification As OcuTalon.Msg.Notification) As %Status [ Private ]
+{
+	Quit ..SendRequestAsync(..#NOTIFY, notification)
+}
+
+/// The one give-back of the allowance, for a message whose send failed. Private; a test subclass overrides it to record the call.
+Method Refund(sessionRef As %String) [ Private ]
+{
+	Do ##class(OcuTalon.Core.Allowance).Refund(sessionRef)
+}
+
+/// The one call of the allowance. Private; a test subclass overrides it to refuse.
+Method Allowed(sessionRef As %String, channel As %String, text As %String, Output retryAt As %String, Output firstRefusal As %Boolean) As %Boolean [ Private ]
+{
+	Quit ##class(OcuTalon.Core.Allowance).TryConsume(sessionRef, channel, text, .retryAt, .firstRefusal)
 }
 
 /// A chat whose row holds no session is recorded again with no name (AD-4), which clears a name that an unpair left on it.

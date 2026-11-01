@@ -2,9 +2,10 @@
 title: 'Story 12.6: Chat and get notifications in the paired Telegram chat'
 type: 'feature'
 created: '2026-11-01'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '083a983bf66e1ac0a71eb0afe839b37399bf2d22'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md (read only AD-4, AD-14, AD-20, AD-22, AD-26, AD-28, AD-30, AD-32 and AD-33, and the Consistency Conventions rows HostData and Notice cards)'
 warnings: ['oversized']
@@ -251,9 +252,47 @@ These rows assume:
 - DW-30: Given a rendered notice longer than 4,096 characters, when `TelegramOut` sends it, then it goes in parts of at most 4,096, which together are the whole text. Row "A long notice goes in parts".
 - DW-295: Given a reply with check results, when it reaches Telegram, then OcuTalon's own check sentence follows it, built from the key and rows as the page builds it, so "is everything OK?" gets a status on Telegram, and only the code-chosen key can give an all-clear (AD-28). Rows "The check sentence follows the reply" and "A paired chat's text is a turn".
 
+**Review patches (pass 1; tests and one scenario value only, no production code changes):**
+P1. `ci/mock/scenarios/A/telegram-turn-held.json`: raise the triage reply's `delayMs` from 3000 to 5000, so `TestQueued`'s queue window survives a slow runner. Re-run `TelegramChat` once.
+P2. `Test/Channel/TelegramChat.cls`: add `TestEmptyTurn`. A paired chat sends a message with no `text` (a sticker) and then "   ": no Item to Conversation, no Turn, no Notification, no text to the chat. Record its `mutation:` line (the `$ZStrip` condition in `TelegramIn.Other` removed -> red).
+P3. A Telegram-In turn-failure test (new class `Test/Channel/TelegramInTurn.cls`, or tests in `TelegramChat`, whichever reads smaller; follow `Test/Core/WebChatMessages.cls`'s probe subclass for `TestFailedSendGivesTheMessageBack`): a probe subclass of `OcuTalon.Channel.Telegram.In` overrides `SendTurn`, `Notify`, `Refund` and `Allowed` and runs `Turn`. Pin: (a) a failed send calls `Refund` once for the session and logs `LOGSEND`; (b) a day with no thread and an OK Join: `Trace.Started` records the thread that the send gave (and "" when the send failed); (c) a failed Join still sends the Item and logs `LOGJOIN`; (d) a missing session row logs `LOGNOSESSION` and sends nothing; (e) a refused `Allowed` with no `retryAt` logs `LOGBUSYALLOWANCE`, sends nothing and calls neither Notify nor SendTurn. Self-contained, fixture sessions `zztg...`, rows removed on every path, runs in `shard:lane-a@Channel` unchanged (no `ci/units.sh` edit). Record `mutation:` lines for (a) `Refund` call removed and (b) the `Started` block removed.
+P4. `Test/Channel/TelegramOut.cls` `TestCheckSentence`: add cases with literal expected texts: `onlineDemo` 1 (restored on every path) gives " ET" after the time; a row with an entry and neither finding nor time gives `{entry}`; a row with a time and no finding gives `{entry} (at {time})`; a row with an empty entry is left out; `CheckRows` of "not json" and "{}" give "" (the reply alone). Record the `mutation:` line (" ET" dropped -> red).
+P5. `Test/Channel/TelegramOut.cls` or `TelegramChat.cls`: send one Notification each of kind `status`, `digest` and `fallback` to TelegramOut: no sendMessage and no `telegram` Delivery row. Record the `mutation:` line (the three kinds added to `KINDS` -> red).
+P6. `Test/Channel/LiveCase.cls` `Ready` and `Test/Channel/TelegramPair.cls` `Begin`: remove the two assertions that cannot fail (`$$$AssertStatusOK($$$OK, ...)` and `$$$AssertTrue(1, ...)`). The failure of those steps stays reported through the reason string; where a caller ignores a non-empty reason, assert it.
+P7. `Test/Channel/TelegramOut.cls` `TestBySession` (c) and (d) and `TelegramPair.TestNameOnlyWhilePaired` and `TestNotices`' `incident.laterRequest` row: record `mutation:` lines (apply, see red, revert byte-identical): (c) `Target` without the `LOGNOCHAT` warning; (d) `Target` without the `IsSession` drop; `TestNameOnlyWhilePaired` (`Other` quits for a paired chat); `incident.laterRequest` (`OnNotification` renders kind `approval` as `incident`'s text, or the key list drops it; pick the smallest mutation that makes the phone comparison differ).
+P8. `web/e2e/demo-path/telegram-page.spec.ts` T7: set `pointed = true` before `await pointKeys()`, so `restoreKeys` runs when pointing fails part-way (confirm `restoreKeys` is safe to run when nothing was pointed).
+Run only the classes you touch (one per call, warm stack), and `live demo-path` once if P8 changes the spec.
+
 ## Spec Change Log
 
 ## Review Triage Log
+
+### 2026-11-01 - Review pass
+- verdicts: 28 findings reported (blind 11, edge 7, verification-gap 10; the intent-alignment layer gave readings and no findings), grouped by root cause into the 23 rows below - high 0, medium 2, low 15, false 6, maybe-false 0
+- findings:
+  - `[false]` `[reject]` Blind 1: a web reply on an unpaired session logs LOGNOCHAT - Notify routes to TelegramOut only while the session is paired (Rule.Functions.TelegramPaired); the warning is 12.2's specified one for the unpair race.
+  - `[low]` `[reject]` Blind 2 and Edge 4: a part-way send failure is retried from part 1 with no row - Ensemble retry semantics of 12.2's Deliver, unchanged here; unlikely, and the fix adds branching.
+  - `[low]` `[patch]` Blind 3, VGap 5: TestQueued relies on a 3 s hold - P1 raised the scenario's delayMs to 5000.
+  - `[false]` `[reject]` Blind 4: a slash command from a paired chat becomes a model turn - Decided in-stage 1, the user's own text.
+  - `[false]` `[reject]` Blind 5: Turn rethrows and the update replays - Handle wraps HandleUpdate in Try/Catch and calls Keep(id + 1) either way (In.cls Handle), so no replay.
+  - `[low]` `[reject]` Blind 6: the check-sentence test shares helpers with the code - TestCheckSentence uses literal expected texts and mutation lines; a cross-language fixture table is out of scope.
+  - `[medium]` `[patch]` Blind 7, 8 and VGap 2: Turn's failure branches (no session row, busy allowance, failed Join, failed send and Refund, Started) have no test - P3 added TelegramInTurn with a probe subclass, plus mutation lines.
+  - `[low]` `[patch]` Blind 9 and VGap other 1: two assertions that cannot fail ($$$AssertStatusOK($$$OK), $$$AssertTrue(1)) - P6 removed them; the callers assert the reason.
+  - `[false]` `[reject]` Blind 10: text sent untrimmed, no cap - the spec says "the text as sent"; Telegram caps a message at 4,096.
+  - `[low]` `[patch]` Blind 11: the spec's Auto Run Result is out of step - written at finalize.
+  - `[false]` `[reject]` Edge 1: no ClientId, a replay after a crash duplicates - Decided in-stage 2: the kept offset guarantees no repeated update; a synthetic id is the spec's veto.
+  - `[low]` `[reject]` Edge 2: empty text and key with a non-empty sentence opens with two blank lines - Conversation always gives a Text; unreachable.
+  - `[low]` `[reject]` Edge 3: a ChatRef row with an empty ChatId drops silently - unreachable: TelegramIn never records a row without a chat id.
+  - `[low]` `[reject]` Edge 5: non-breaking spaces trimmed by JS and not by $ZStrip - the rows come from Checks.Render's own text; theoretical.
+  - `[low]` `[reject]` Edge 6: BeginPairing's failure path reaches Cleanup's assertions - existing Cleanup behaviour (TelegramPair.Ending calls it the same way) and the failure path ends the class.
+  - `[false]` `[reject]` Edge 7: the sentence differs from the page's in zone and ET - Decided in-stage 4 and AD-32: the instance zone, with the catalog's own " ET" and "at"/"on" rules.
+  - `[medium]` `[patch]` VGap 1: the empty-text guard in Other has no test - P2 added TestEmptyTurn and its mutation line.
+  - `[low]` `[patch]` VGap 3: the " ET" suffix and several row forms are untested - P4 extended TestCheckSentence with literal expectations.
+  - `[low]` `[patch]` VGap 4: the status, digest and fallback kinds are tested for nothing - P5 added TestOtherKinds.
+  - `[low]` `[reject]` VGap other 2: text checks wrapped in `If calls.%Size() = N` - the size is asserted just before; a wrong count already fails.
+  - `[low]` `[reject]` VGap other 3: TestNoIdentity's header scan control - Ens.MessageHeader holds no body text; each scan has its own positive control and the bodies scan finds the turn's text.
+  - `[low]` `[patch]` VGap other 4: four behaviours without a mutation line - P7 recorded them.
+  - `[low]` `[patch]` VGap other 5: T7 sets `pointed` after pointKeys returns - P8 sets it first.
 
 ## Design Notes
 
@@ -426,9 +465,70 @@ How to run:
 | DW-295, no all-clear from rows | `CheckSentence` gives `checks.allPassed`'s text when no row is left to name | `TestCheckSentence` (d) |
 | DW-295, dated | The "at"/"on" rule is left out | `TestCheckSentence` (b) |
 
+Mutations run by the implement stage (each applied, seen red on a warm stack unless it says browser, and reverted byte for byte with `cmp`):
+- mutation: AC1, the turn (Other quits for a paired chat) -> red: TestTurn (no Item), TestQueued, TestRefused, TestNoIdentity; browser: T7 red (no user message within the wait)
+- mutation: AC1, the channel (Item Channel "web") -> red: TestTurn (Channel, chat.message, the reply never reaches the chat), TestQueued, TestNoIdentity; browser: T7 red (no "via Telegram")
+- mutation: AC1, the thread (Trace.Join not called, joinSc an error) -> red: TestTurn ("the session has a trace thread", "the header's SessionId is the session's thread")
+- mutation: AC1, the reset (%SessionId/%SuperSession not cleared after the turn) -> red: TestTurn (the stranger's Notification header carries a SuperSession and the session's thread)
+- mutation: AC1, the reply (Target ignores SessionRef) -> red: TestTurn, TestNotices, TestQueued, TestRefused, TestNoIdentity; TestBySession; browser: T7 red
+- mutation: AC2, the allowance (TryConsume not called, Allowed quits 1) -> red: TestRefused (an Item, a model request, no refused Turn)
+- mutation: AC2, once (the notice on every refusal) -> red: TestRefused (second refusal adds a text, a second Notification, a second card)
+- mutation: AC2, the channel (TryConsume called with "web") -> red: TestRefused (refused Turns of channel web)
+- mutation: AC3 (Conversation.Start starts the last queued turn while another runs; Lane B file, temporary, reverted and `git status` of Core empty) -> red: TestQueued ("the second Turn is queued", "while the first is still running")
+- mutation: AC3, user message (Item Provenance "untrusted") -> red: TestQueued, TestTurn, TestNoIdentity (no Turn is made)
+- mutation: AC4, identical (TelegramOut renders for "web") -> red: TestNotices (incident.withFix and incident.laterRequest differ from the phone's, no "Approve?")
+- mutation: AC4, the kinds (kind result left out) -> red: TestNotices (no text for the 7 result keys)
+- mutation: AC4, answered (answered sent) -> red: TestNotices (a sendMessage and a row for answered)
+- mutation: AC4, Delivery (no Recorded call) -> red: TestNotices, TestTurn (rows); TestBySession, TestCheckSentence, TestLongNotice
+- mutation: AC4, the id (the first part's id recorded) -> red: TestLongNotice ("one Delivery row holds the id of the last part")
+- mutation: AC4, the Watch set (the XData read keeps only incident.withFix) -> red: TestNotices ("there are 12 Watch notice keys")
+- mutation: AC6 (TelegramIn puts the chat's name before the Item's text) -> red: TestNoIdentity ("the bodies hold no the name"), TestTurn ("its text is the message as sent", "its body holds neither the chat id nor the name")
+- mutation: DW-30 (Send gives the text whole, no Split) -> red: TestLongNotice (one part over 4,096), TestSplit* and TestRateLimited
+- mutation: DW-295, the sentence (OnOutbound ignores CheckKey) -> red: TestCheckSentence (a)-(c), (e); TestTurn (R)
+- mutation: DW-295, the order (WhatFailed keeps row order) -> red: TestCheckSentence (a)
+- mutation: DW-295, no all-clear from rows (a key with no row to name renders checks.allPassed) -> red: TestCheckSentence (d)
+- mutation: DW-295, dated (the at/on rule left out) -> red: TestCheckSentence (b)
+- mutation: P2, empty turn (the $ZStrip condition in TelegramIn.Other removed, so that Turn runs for every paired message) -> red: TestEmptyTurn ("no Item goes to Conversation")
+- mutation: P3 (a), refund (the Refund call after a failed send removed) -> red: TelegramInTurn.TestFailedSendGivesTheEntryBack (the order of calls, the session)
+- mutation: P3 (b), thread (the Trace.Started block removed) -> red: TelegramInTurn.TestFirstTurnStartsTheThread (no thread recorded, the next turn does not join it), and the unit test run leaves the session rows locked
+- mutation: P4, ET (the " ET" after the time dropped from WhatFailed) -> red: TelegramOut.TestCheckSentence ("the time is followed by ET")
+- mutation: P5, other kinds (status, digest and fallback added to KINDS) -> red: TelegramOut.TestOtherKinds ("none of the three reaches the chat", "and none records a row")
+- mutation: P7 (c), no chat (Target without the LOGNOCHAT warning) -> red: TestBySession ("with one no-chat warning"), TestNoChat ("one warning for each message")
+- mutation: P7 (d), not a session (Target without the IsSession drop) -> red: TestBySession ("(d) an Outbound for the owner instance is OK", "with one not-a-session warning")
+- mutation: P7, TestNameOnlyWhilePaired (Other quits for a paired chat) -> red: TelegramPair.TestNameOnlyWhilePaired ("(d) each of the paired chat's two other messages makes one Item from TelegramIn to Conversation")
+- mutation: P7, incident.laterRequest (approval left out of KINDS, so a notice of kind approval sends nothing) -> red: TelegramChat.TestNotices ("incident.laterRequest reached the chat", "there are 18 of them", "the phone got none of the allowance notices")
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-Planned only. The plan stage made no code change, ran no test, and did not commit (the lead's validation gate).
+**Summary.** A paired chat's text is now the user's turn (`TelegramIn.Turn`, in `WebChatIn.Accept`'s steps), and `TelegramOut` finds the chat by `ChatRef` else by the session's pairing, sends the phone's kinds plus `allowance` and `pairing`, appends the reply's check sentence (DW-295), splits long notices (DW-30) and records one `Delivery` row per message with the last part's id.
+
+**Files changed.**
+- `src/ocutalon/cls/OcuTalon/Channel/Telegram/In.cls`: the turn (`Other`, `Turn`, `Notice` and the `SendTurn`/`Notify`/`Refund`/`Allowed` seams, six LOG parameters).
+- `src/ocutalon/cls/OcuTalon/Channel/Telegram/Out.cls`: `Target`, kind filter, `CheckSentence`/`WhatFailed`, `Send` returning the message id, `Recorded`.
+- `ci/mock/scenarios/A/telegram-turn-held.json` (new): the held triage reply (delayMs 5000) for `TestQueued`.
+- `src/ocutalon/cls/OcuTalon/Test/Channel/LiveCase.cls`: shared `BeginPairing`/`EndPairing`, `PairChat` and helpers moved from `TelegramPair`; `DropSessions` also removes Turn, Delivery and SimMessage rows.
+- `src/ocutalon/cls/OcuTalon/Test/Channel/TelegramPair.cls`: calls LiveCase's; `TestNameOnlyWhilePaired` asserts the turn.
+- `src/ocutalon/cls/OcuTalon/Test/Channel/TelegramChat.cls` (new): `TestTurn`, `TestRefused`, `TestQueued`, `TestNotices`, `TestNoIdentity`, `TestEmptyTurn`.
+- `src/ocutalon/cls/OcuTalon/Test/Channel/TelegramOut.cls`: `TestBySession`, `TestLongNotice`, `TestCheckSentence` (extended), `TestOtherKinds`.
+- `src/ocutalon/cls/OcuTalon/Test/Channel/TelegramInTurn.cls` and `TelegramInProbe.cls` (new): the turn's failure branches through a probe subclass of `TelegramIn`.
+- `web/e2e/demo-path/telegram-page.spec.ts`: T7.
+
+**Review.** Patches applied: 8 tasks (P1-P8), tests and one scenario value only; patched entries by verdict: medium 2, low 7. Deferred: none. Rejected: 14 rows with their reasons in the triage log (6 false, 8 low not worth a fix or by design). No production class changed after review.
+
+**Follow-up review recommended: true.** Two medium entries were patched, and the patch pass (TelegramInTurn/TelegramInProbe, TestEmptyTurn, TestCheckSentence additions, TestOtherKinds) was written and mutation-checked by the patch agent but has not been read by an independent review layer; its risk is a test that passes for the wrong reason, which the recorded mutation lines make unlikely.
+
+**Footprint extensions to report.** `ci/mock/scenarios/A/telegram-turn-held.json` (new, Lane A's scenario folder); `Test/Channel/TelegramInProbe.cls` and `TelegramInTurn.cls` (new, Epic 12's test folder). No Lane B, contended or `ci/units.sh` file changed; the spec's footprint `git status` printed nothing. `ci/mock/test/**` asserts no scenario count that this file breaks (`test-mock.sh` passes, 118 tests).
+
+**Verification (all on lane-C throwaways, tags e12s6impl and e12s6implw, both torn down).**
+- `npm --prefix web test` 1137 passed; `npm --prefix web run lint` clean; `docker/tests/test-mock.sh` passed.
+- Every Telegram class passed on the warm stack, and the fresh `shard lane-a@Channel` passed in both parts, in order and with `--reverse` (254, 250, 281 and 287 s per part).
+- `live demo-path`: 19 passed, 8 skipped (the other stories' own), 0 failed; telegram-page seven passed; the either-order run with the five describe blocks reversed also passed, and the spec file was restored byte-identical (`cmp`).
+- `test-ci-config.sh`, `test-boundaries.sh` and `ci/checks.sh` passed. `ci/changes.sh` answers "everything runs" for a non-push event, so no per-group classification was derived.
+- The Rule 19 mutation lines are in `## Verification`; each was applied, seen red and reverted byte-identical.
+
+**Measured durations (seconds, fresh shard).** `TelegramChat` 37 (TestTurn 3.3, TestRefused 2.8, TestQueued 6.6, TestNotices 9.1, TestNoIdentity 2.5, TestEmptyTurn 3.5); `TelegramOut` 13.7 (TestBySession 0.4, TestLongNotice 0.05, TestCheckSentence 0.6, TestOtherKinds 0.6); `TelegramInTurn` 0.1; T7 12.7 (12.1 to 12.2 in the other runs). CI minutes for `iris (production)` and `iris (browser)` are left to CI.
+
+**Residual risks.** `TestQueued` still depends on a fixed 5 s hold (no release gate exists in the mock; the mock is Lane B's). A `Turn` object opened twice in one process returns the stale instance, so any new wait helper on a Turn must `%Reload()`.
