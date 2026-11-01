@@ -2,7 +2,7 @@
 title: 'Mixed and unfinished resends say how far they got'
 type: 'feature'
 created: '2026-10-30'
-status: 'ready-for-dev'
+status: 'draft'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -34,8 +34,8 @@ deferred: []
 - Originals are never changed, and a copy is never retried without a new approval.
 
 **Never:**
-- Never edit a Lane B class or file: `Live.Payload.*`, `web/**`, `Core.*`, `Data/Session.cls`.
-- Never edit an Epic 9 file other than the one contended edit below, and that one only once the orchestrator has ruled on it: `Watch/IncidentManager.cls`, `FailurePoller.cls`, `Ops.cls`, `EvidencePack.cls`.
+- Never edit a Lane B class or file: `web/**` (except DW-500's fallback, ruling G-DW500 below), `Core.*`, `Data/Session.cls`, or any `Live.Payload.*` class other than `Live/Payload/Incident.cls` (U-183, ruling G1b).
+- Never edit `Watch/FailurePoller.cls`, `Ops.cls` or `EvidencePack.cls`. `Watch/IncidentManager.cls` takes only the one-line in-place edit to `Result()` (Q1, ruling G3).
 - Never edit `Install/**` or `Production.cls`, add a setting, or change the bridge (`Approval.*`).
 - Never send a progress result from a read of the copies that did not succeed, or for a marked run or a row that is no longer executing.
 - Never change the texts of the existing result keys or reasons. Never write an audit entry for a progress result.
@@ -65,6 +65,34 @@ The counts are written `Total|Resent|Completed|FailedAgain|Skipped`. "Probe" mea
 | 16 | Unreached travels (probe) | Sweep's EndLeft of a run whose FixRun has Unreached 1; the progress of such a run | Both FixResults carry Unreached 1. The final reads `stoppedPartway` | -- |
 | 17 | Key order (pure) | `Notice.ResultKey` | First match wins: executing, or a result that is neither final nor interrupted, gives `stillResending`; Interrupted gives `interrupted`; nothing counted and a Reason gives `couldNotStart`; Unreached > 0 gives `stoppedPartway`; then `failedAndSkipped`, `failedAgain`, `skipped`, `allThrough`. `stoppedPartway`'s slots are count, itemNoun, completed and remaining (count less completed) | -- |
 | 18 | Catalog | `result.stoppedPartway` on every channel; remaining 1 | The text of row 14. With remaining 1: "The other one needs a new approval." | -- |
+
+## Spec-gate rulings (2026-11-01, re-plan; the lead, applying the orchestrator's and the Contest Planner's rulings)
+
+This spec was planned on 2026-10-30, before these rulings and before Story 30.5's `epics.md` block gained DW-500, DW-519 and DW-484's note. The re-plan keeps the intent above and adds the following. Where they disagree with a row or a line above, these win.
+
+**G0. Order.** DW-500 is the demo launch's visible fix: plan it, and let the implement stage build it, first among this story's items.
+
+**G-DW500 (WIDENED; Contest Planner under the owner's delegation, 2026-11-01; `epics.md` Story 30.5).** On ANY user chat turn (the always-answered Tell-now override, AD-28), Triage's reasons never describe production state, what Triage can or cannot access, or whether anything needs the user. They only classify the turn as the user's own message, which is always answered (for example "A question from the user; the user is answered directly"). Seen on the host with real Haiku: under chip 2 the reasons made a model-written all-clear ("…there is nothing that needs the user at this moment"); under chips 1, 3 and 4 they described Triage's tool limits ("I have no tools in this context and cannot look up production status…", "I have no access to earlier items or failure logs…", "I have no tools, so I can only classify an item…").
+- **Preferred:** Triage's instructions (`Agent/Triage.cls`, Lane A). Add evaluation cases on the mock for all four "Try it yourself" chips' exact texts: "Which productions are running?", "Is anything wrong right now?", "What was that failure earlier?", "What can you do?" (their chat scenarios are `ci/mock/scenarios/B/try-it-*.json`). The cases pin the rule above (no production state, no tool limits, no all-clear; the reasons classify the turn as the user's own message).
+- **Fallback, only if the decision payload already marks the override** (no change to `web/src/app/api/api-types.ts` or `web/src/app/live/live-store.ts`, which are Epic 11's): with the override, the decision strip shows only the override line and the reasons move into Decision details (`web/src/app/chat/decision-strip.ts`, `decision-view.ts`, now free), pinned by a web unit test.
+- Record under Design Notes which one was built. The Contest Planner checks real Haiku's wording on the host after the merge. Never edit `Agent/Chat.cls` (Epic 11's).
+- Not this story's: chip 1's missing running state (DW-541, routed to Story 30.1).
+
+**G-DW519.** Make `WatchAnswers.WatchNames` and the catalog's ET time-slot rule shared (callable), and call them from `Tools.RecentActivity` instead of its copies (`RecentActivity.WatchNames`, `RecentActivity.Shown`; Story 5.13's), so `recent_activity`'s display names and time labels never drift from the cards'. Keep every existing test of `recent_activity` green.
+
+**G-DW484 (narrow part, kept in 30.5 by the Contest Planner).** The chat's reminder reply carries the zone label, so a visitor elsewhere can tell which clock it is. Only the zone label on the chat's reminder reply; the rest of DW-484 is not this story's. If the only place to add it is a path another in-flight epic owns (`Agent/Chat.cls`, `Tools/ReminderTools.cls`, `Test/Tools/Reminders.cls`, `Test/Schedule/ReminderChat.cls` are Epic 11's), HALT with an intent gap that names the file, rather than editing it.
+
+**G-DW469 (U-180's condition).** The `{time}` of a `watch.productionStopped` or `watch.itemDisabled` notice renders through the catalog's time format with the zone label, for both time sources; a test pins it.
+
+**G1. U-182 (`apply U-182 at=2026-10-31T06:23:40Z#553`).** Keep the AD-16 extension: `Unreached`, stop at the first copy that errs, none-went as couldn't-start, `result.stoppedPartway`. It is now written in the spine (AD-16, "A resend that errs partway stops at the first copy that errs", `[AMENDED 2026-11-01, Story 30.5, orchestrator ruling U-182]`). Condition: the `result.stoppedPartway` text gives the three counts (resent, the copy that erred, not tried) and says that nothing else was changed, and a test pins a run that stops partway at copy k of n. Rows 14, 15 and 18 above are re-worded to meet it (their earlier text "The other one needs a new approval" lacks the three counts).
+
+**G1b. U-183 (`apply U-183 at=2026-10-31T06:23:40Z#554`).** Keep the routing. For this story: `unreached` on `Live.Payload.Incident` (`src/ocutalon/cls/OcuTalon/Live/Payload/Incident.cls`, in this epic's footprint; append-only, per AD-5's Storage rule where it applies), the `result.stoppedPartway` text and its count-of-one form in `Msg/Catalog/Watch.cls`, and the chat notice using it. The page's result pick is DW-472/DW-473 for Story 31.2: don't touch it (no `web/**` change for this).
+
+**G3. Q1 (decided).** The one-line in-place edit to `Watch/IncidentManager.cls`'s `Result()` is allowed. No split.
+
+**G4. The README sentence (the owner's).** Append "It also tells you once when a production stops or one of its items is disabled." to the second item of "What you can use it for" in `README.md`. Keep `docker/tests/test-readme.sh` green; update its `use-cases` pin if it pins that text.
+
+**G5. Also in scope, unchanged:** DW-384 and DW-419, as the rows above plan them.
 
 </intent-contract>
 
@@ -236,6 +264,8 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless they start with `web/`, `ci/
 - Given a resend that errs partway, when the run ends, then the targets it never reached are reported by how far it got: with no copy made, as couldn't start with a plain reason; otherwise, as `result.stoppedPartway` ("The resend stopped partway: {completed} of {count} {itemNoun} went through. The other {remaining} need a new approval."). No text says that they had changed since the dry run (rows 12-16, 18; DW-419, including 30.4's `timeout` occurrence; AD-16 as amended, U-160).
 
 ## Spec Change Log
+
+- 2026-11-01 (lead, spec gate, re-plan): status reset to draft; the spec-gate rulings G0-G5 (DW-500 widened and first, DW-519, DW-484's narrow part, DW-469, U-182, U-183, Q1, the README sentence) added inside the intent block; the Never lines on Lane B and Epic 9 files changed to match U-183 and Q1. The AD-16 extension is written in the spine.
 
 ## Review Triage Log
 
