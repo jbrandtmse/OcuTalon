@@ -2723,3 +2723,21 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-16-11-the-splash-promises-telegram-only-when-the-release-includes.md | severity: low | fix-risk: low | footprint: in-epic
 - evidence: test-online-demo.sh:555: the input redirect fails before tr's 2>/dev/null applies; online_signin writes <jar>.g only after a 3xx; row 5 passes and its cookie-get check is moot at status 200
 - 2026-10-31T19:24:43Z status=wontfix-accepted owner=16-11-the-splash-promises-telegram-only-when-the-release-includes by=cr note=reopen_if=a stage reports the line as a failure again, or row 5 checks a refusal that redirects (docker/tests contended)
+
+### DW-517: Eval.Report TOOLCLASSES omits OcuTalon.Tools.RecentActivity, so Eval.Report.ReadOnly(recent_activity) is 0 and an eval Chat turn that calls recent_activity is scored as having acted
+- source: spec-5-13-ask-ocutalon-what-happened-earlier-and-it-tells-you-from-its.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: Eval/Report.cls L83 TOOLCLASSES=WatchTools,ReminderTools; ReadOnly reads READONLY<NAME> only from those classes
+- 2026-11-01T05:37:34Z status=open owner=5-13-ask-ocutalon-what-happened-earlier-and-it-tells-you-from-its by=harvest note=lead: fix in this story at code review: append the class to TOOLCLASSES (non-contended footprint extension) and pin ReadOnly(recent_activity)=1 in Test.Tools.RecentActivity, not in Test.Eval.Report (Epic 30's diff)
+- 2026-11-01T06:07:37Z status=resolved-by:5-13-ask-ocutalon-what-happened-earlier-and-it-tells-you-from-its by=adjudication note=Eval/Report.cls_TOOLCLASSES_gains_OcuTalon.Tools.RecentActivity(code_review_patch);pinned_by_Test.Tools.RecentActivity.TestClassification_ReadOnly(recent_activity)=1;mutation_demonstrated(append_removed->red)
+
+### DW-518: Chat INSTRUCTIONS give per-tool guidance for the other watch tools but none for recent_activity; whether the real model calls it for What was that failure earlier rests on the tool description alone (the mock scripts the call)
+- source: spec-5-13-ask-ocutalon-what-happened-earlier-and-it-tells-you-from-its.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: Agent/Chat.cls INSTRUCTIONS L53-61 name check_status, dismiss_incident, list_productions; Chat.cls is Epic 11's (orchestrator ruling); no real-model run in this story (no key)
+- 2026-11-01T05:37:34Z status=escalated owner=burndown by=harvest note=for the decision sheet: recommended route a one-line INSTRUCTIONS entry for recent_activity to the Chat.cls owner (Epic 11) after 5.13 merges, and confirm with one real-model ask in the release-candidate check (Epic 38) or live:demo-path
+- 2026-11-01T06:05:47Z occurrence=5-13-ask-ocutalon-what-happened-earlier-and-it-tells-you-from-its
+
+### DW-519: Tools.RecentActivity.WatchNames is a line-for-line copy of the private WatchAnswers.WatchNames, and RecentActivity.Shown repeats the catalog's private SlotText ET rule; a copy forced by Story 5.13's footprint, so the display names and the time labels of recent_activity drift from the cards when either rule changes
+- source: spec-5-13-ask-ocutalon-what-happened-earlier-and-it-tells-you-from-its.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: Tools/RecentActivity.cls WatchNames (8 lines) = Tools/WatchAnswers.cls:178-187; Shown = Msg/Catalog.cls:159-164 time slot (ForMessage plus ET when onlineDemo); spec Design Notes record both copies as footprint-forced (Rule 2)
+- 2026-11-01T06:05:47Z status=routed owner=burndown by=cr note=Rule 2 forced copy: make WatchAnswers.WatchNames and the catalog's time label public (e.g. Data.Time) and call them from RecentActivity
+- 2026-11-01T06:50:33Z owner=30-5-mixed-and-unfinished-resends-say-how-far-they-got by=burndown note=overflow:make_WatchAnswers.WatchNames_and_the_catalog_ET_rule_shared_and_use_them_in_Tools.RecentActivity;Lane_A_Watch/catalog_hardening_story;not_chartered(1_entry,below_cap_8,no_repeat_occurrences)

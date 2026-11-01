@@ -3,7 +3,7 @@
 /// called.
 ///   - TestAgents: each agent extends %AI.Agent, has MODEL claude-haiku-5-5 and its own MOCKKEY (the template-token check
 ///     on the INSTRUCTIONS is in OcuTalon.Test.Agent.Instructions);
-///   - TestToolNames: the eleven release-1 tool names are distinct snake_case values, and RELEASE1 lists exactly them;
+///   - TestToolNames: the twelve release-1 tool names are distinct snake_case values, and RELEASE1 lists exactly them;
 ///   - TestCompactionPrompt: the prompt is ASCII, starts with the prefix and names the seven keys of the summary.
 Class OcuTalon.Test.Agent.Constants Extends %UnitTest.TestCase
 {
@@ -24,7 +24,7 @@ Method TestAgents()
 	Do $$$AssertTrue(($List(keys, 1) '= $List(keys, 2)) && ($List(keys, 1) '= $List(keys, 3)) && ($List(keys, 2) '= $List(keys, 3)), "the keys are distinct")
 }
 
-/// OcuTalon.Tools.Names holds 11 distinct snake_case values, and RELEASE1 lists exactly them, comma-separated.
+/// OcuTalon.Tools.Names holds 12 distinct snake_case values, and RELEASE1 lists exactly them, comma-separated.
 Method TestToolNames()
 {
 	Set statement = ##class(%SQL.Statement).%New()
@@ -39,9 +39,9 @@ Method TestToolNames()
 		Do $$$AssertTrue('$ListFind(names, value), value_" is distinct")
 		Set names = names _ $ListBuild(value)
 	}
-	Do $$$AssertEquals(count, 11, "there are 11 tool names")
+	Do $$$AssertEquals(count, 12, "there are 12 tool names")
 	Set release = $ListFromString($Parameter("OcuTalon.Tools.Names", "RELEASE1"))
-	Do $$$AssertEquals($ListLength(release), 11, "RELEASE1 lists 11 names")
+	Do $$$AssertEquals($ListLength(release), 12, "RELEASE1 lists 12 names")
 	Set missing = ""
 	Set position = 0
 	While $ListNext(release, position, name) {

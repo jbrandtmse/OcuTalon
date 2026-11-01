@@ -20,7 +20,7 @@
 ///     manager discovers, each once, as read-only and runs, each returning the dynamic object {"items":[]} (Story 1.9: an object, not a JSON string), and
 ///     (Story 1.10) Chat has OcuTalon.Tools.Reminders, whose three tools a fresh tool manager discovers, each once, and runs with no bridge context, each
 ///     returning the dynamic object that says there is no session's turn and that nothing was done (the NOSESSION text of OcuTalon.Tools.CommandCall),
-///     and (Story 5.1) OcuTalon.Tools.Watching, whose five tools (start_watch, stop_watch, list_productions, dismiss_incident (Story 5.9), check_status (Story 5.7)) are
+///     and (Story 5.1) OcuTalon.Tools.Watching, whose six tools (start_watch, stop_watch, list_productions, dismiss_incident (Story 5.9), check_status (Story 5.7), recent_activity (Story 5.13)) are
 ///     discovered once each, and start_watch, stop_watch, dismiss_incident and check_status answer NOSESSION with no context, before anything is looked up;
 ///   - TestNoTemplates: no INSTRUCTIONS block of an OcuTalon class holds {{, and no OcuTalon class calls the AI Hub template
 ///     class on a code line (AD-7). Both scanners are first shown to flag a sample that breaks the rule.
@@ -202,7 +202,7 @@ Method TestToolsets()
 	}
 	Do manager.Cleanup()
 
-	Set expected = $ListBuild(##class(OcuTalon.Tools.Names).#SETREMINDER, ##class(OcuTalon.Tools.Names).#LISTREMINDERS, ##class(OcuTalon.Tools.Names).#CANCELREMINDER, ##class(OcuTalon.Tools.Names).#STARTWATCH, ##class(OcuTalon.Tools.Names).#STOPWATCH, ##class(OcuTalon.Tools.Names).#LISTPRODUCTIONS, ##class(OcuTalon.Tools.Names).#DISMISSINCIDENT, ##class(OcuTalon.Tools.Names).#CHECKSTATUS)
+	Set expected = $ListBuild(##class(OcuTalon.Tools.Names).#SETREMINDER, ##class(OcuTalon.Tools.Names).#LISTREMINDERS, ##class(OcuTalon.Tools.Names).#CANCELREMINDER, ##class(OcuTalon.Tools.Names).#STARTWATCH, ##class(OcuTalon.Tools.Names).#STOPWATCH, ##class(OcuTalon.Tools.Names).#LISTPRODUCTIONS, ##class(OcuTalon.Tools.Names).#DISMISSINCIDENT, ##class(OcuTalon.Tools.Names).#CHECKSTATUS, ##class(OcuTalon.Tools.Names).#RECENTACTIVITY)
 	Set arguments("set_reminder") = {"text": "stretch", "delaySeconds": 60}
 	Set arguments("list_reminders") = {}
 	Set arguments("cancel_reminder") = {"reminderRef": "zzReminderStretch00001"}

@@ -111,9 +111,9 @@ Parameter DENIED = "<%AICore>ToolAccessDenied";
 /// The built-in tools that declare TRUSTEDOUTPUT 1 and those that declare READONLY 1, as provider:name lists. A built-in tool that declares either
 /// flag fails TestFlagsAreListed until it is added here: that edit is the review of its output (message bodies, event-log text, email, webhook, MCP
 /// and document results are never trusted output).
-Parameter TRUSTEDTOOLS = "OcuTalon.Tools.ReminderTools:set_reminder,OcuTalon.Tools.ReminderTools:list_reminders,OcuTalon.Tools.ReminderTools:cancel_reminder,OcuTalon.Tools.WatchTools:start_watch,OcuTalon.Tools.WatchTools:stop_watch,OcuTalon.Tools.WatchTools:list_productions,OcuTalon.Tools.WatchTools:dismiss_incident,OcuTalon.Tools.WatchTools:check_status";
+Parameter TRUSTEDTOOLS = "OcuTalon.Tools.ReminderTools:set_reminder,OcuTalon.Tools.ReminderTools:list_reminders,OcuTalon.Tools.ReminderTools:cancel_reminder,OcuTalon.Tools.WatchTools:start_watch,OcuTalon.Tools.WatchTools:stop_watch,OcuTalon.Tools.WatchTools:list_productions,OcuTalon.Tools.WatchTools:dismiss_incident,OcuTalon.Tools.WatchTools:check_status,OcuTalon.Tools.RecentActivity:recent_activity";
 
-Parameter READONLYTOOLS = "OcuTalon.Tools.ReminderTools:list_reminders,OcuTalon.Tools.WatchTools:list_productions,OcuTalon.Tools.WatchTools:check_status,OcuTalon.Tools.WatchReads:read_failed_messages,OcuTalon.Tools.WatchReads:read_event_log,OcuTalon.Tools.WatchReads:read_item_settings";
+Parameter READONLYTOOLS = "OcuTalon.Tools.ReminderTools:list_reminders,OcuTalon.Tools.WatchTools:list_productions,OcuTalon.Tools.WatchTools:check_status,OcuTalon.Tools.WatchReads:read_failed_messages,OcuTalon.Tools.WatchReads:read_event_log,OcuTalon.Tools.WatchReads:read_item_settings,OcuTalon.Tools.RecentActivity:recent_activity";
 
 /// The suspicious-request sample of the UX (EXPERIENCE.md, Simulated devices and sample emails), as it arrives.
 Parameter SAMPLEFROM = "Order Partner Support <support@order-partner.example>";

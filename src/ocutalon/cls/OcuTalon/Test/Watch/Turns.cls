@@ -60,7 +60,7 @@ Method TestStartThroughTheAgent()
 			}
 		}
 	}
-	If requests.%Size() > 0 Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).ToolNames(requests.%Get(0)), "cancel_reminder,check_status,dismiss_incident,list_productions,list_reminders,set_reminder,start_watch,stop_watch", "the model is offered the eight tools of Chat")
+	If requests.%Size() > 0 Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).ToolNames(requests.%Get(0)), "cancel_reminder,check_status,dismiss_incident,list_productions,list_reminders,recent_activity,set_reminder,start_watch,stop_watch", "the model is offered the nine tools of Chat")
 	Do ..AssertSteps(answer, turnSession, "Starting a watch", "start_watch", "ok")
 	Set checks = ##class(OcuTalon.Data.Ownership).Checks(session)
 	Do $$$AssertEquals(checks.Count(), 1, "Ownership.Checks, the source of /state, lists one watch")
