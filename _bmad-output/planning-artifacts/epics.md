@@ -645,7 +645,7 @@ Every action is classified safe or risky by fixed rules the model and arriving c
 With demo mode on, the page shows the demo guide with one-click prompts, a labelled simulated phone and simulated mailbox that are real production channels (with three one-click sample emails), and a Break the feed control that sends the session's 50 orders in a changed date format into the Orders production, active only when the guide's conditions hold; an admin can switch demo mode.
 **Lane:** B. **Depends on:** Epic 2.
 **FRs covered:** FR-12 (demo-mode panels), FR-13, FR-16.
-**Also covers:** CON-3; AD-12 (guide state), AD-14; UX-DR43 to UX-DR50, UX-DR80 to UX-DR86, UX-DR101 to UX-DR105. [AMENDED 2026-11-01, owner feedback via the Contest Planner: Story 4.8 re-opens Epic 4 under SC-5 to remove step 3's Go to Break the feed button; Story 4.9 adds the Demo view switch (owner request, 2026-11-01).]
+**Also covers:** CON-3; AD-12 (guide state), AD-14; UX-DR43 to UX-DR50, UX-DR80 to UX-DR86, UX-DR101 to UX-DR105. [AMENDED 2026-11-01, owner feedback via the Contest Planner: Story 4.8 re-opens Epic 4 under SC-5 to remove step 3's Go to Break the feed button; Story 4.9 adds the Demo view switch, and Story 4.10 the "Try it yourself" chips (owner requests, 2026-11-01).]
 
 ### Epic 5: OcuTalon watches a production and explains what broke
 
@@ -686,7 +686,7 @@ A recorded evaluation set (at least 20 items across all four outcomes, injection
 
 On a machine with the build 154 image loaded, one script checks, retags and starts OcuTalon, waits for it with progress and prints the address and sign-in details, failing with an exact fix when the image or architecture is wrong; the README's release-1 sections tell a judge what to download, how to start, how to sign in and how to set the key.
 **Lane:** B (runner B, in Lane B's files; Story 10.1 may start early on whichever runner is idle, and each dispatch fixes the runner). **Depends on:** nothing at epic level (Story 10.1, the install script, needs no other epic); story-level: Story 10.2 needs Epic 4 merged (the README quotes Story 4.1's `SetDemoMode`), and Story 10.3 needs Epic 6 merged (it applies Story 6.2's answer rules); Story 10.3 builds the pairing unlink that Story 16.4 reuses. [AMENDED 2026-10-22, owner decision, worked out with the Contest Planner; the owner: "Okay, we'll start with 3 slots." it was Lane B; runner C may take it ahead of Epic 16 while Epic 16 waits for Epic 3, setting Story 10.3 aside until Epic 16 merges.] [AMENDED 2026-10-23, owner decision at the interactive resume (the third runner's graph approval, attended), reviewed by the Contest Planner: Story 10.2's wait on Epic 4 and Story 10.3's on Epic 6 added; Epic 8 labelled as order only] [AMENDED 2026-10-23, decided by the Contest Planner under the owner's delegation; the owner: "Go ahead wth the rebalance of slots." it was runner C after Epic 8 (order only), and Story 10.3 waited for Epic 16, whose Story 16.4 built the unlink] [AMENDED 2026-10-23, decided by the Contest Planner under the owner's delegation; the owner: "Go ahead wth the rebalance of slots." the epic-level edge on Epic 2 removed so Story 10.1 can fill an idle window, as the rebalance intended; Stories 10.2 and 10.3 wait for Epics 4 and 6, which come after Epic 2]
-**FRs covered:** FR-55 (complete), FR-58 (step 1 part); the session side of FR-18 to FR-22, switched off until the release includes Telegram (Story 10.3). [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner: Story 10.4 re-opens Epic 10 under SC-5 for the README's opening paragraph, its "What you can use it for" section and the with-a-model table, replacing the "Contest task" table; it depends on nothing unmerged and lands before the online demo launch]
+**FRs covered:** FR-55 (complete), FR-58 (step 1 part); the session side of FR-18 to FR-22, switched off until the release includes Telegram (Story 10.3). [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner: Story 10.4 re-opens Epic 10 under SC-5 for the README's opening paragraph, its "What you can use it for" section and the with-a-model table, replacing the "Contest task" table; it depends on nothing unmerged and lands before the online demo launch; AMENDED 2026-11-01, owner decision via the Contest Planner: Story 10.5 re-opens Epic 10 under SC-5 for the README's screenshots and a "How you talk to it" section]
 **Also covers:** NFR-21, NFR-22, CON-2, CON-5; AD-23.
 
 ### Epic 11: Release 1 ships: the demo path end to end, upgrade in place and a scripted release
@@ -2729,6 +2729,40 @@ So that I know how I would talk to OcuTalon after the contest.
 **And** CI is green on every workflow, and the story touches only `web/src/app/**` (not `api/api-types.ts` or `live/live-store.ts`, which Epic 11 is changing, nor `rail/telegram-card/**`, which Epic 12 is), the web unit and e2e tests, and the UX files
 - Dev note (known limit, the Planner 2026-11-01): text the server builds, such as a catalog line like "approve in the chat or on the Simulated phone", can still mention the simulated phone while the switch is off; that is accepted, because the switch is client-only by design. A client-side string of that kind may follow the demo view signal, within this story's footprint only.
 
+### Story 4.10: "Try it yourself" example prompts, one press each
+
+[ADDED 2026-11-01, owner decision relayed by the Contest Planner under delegation; the owner: "Yes to both questions." The Planner approved this block on 2026-11-01, with the chip set changed to abilities the guide does not show. In 1.0.0's scope; not launch-blocking. Runs after Story 4.9 on the same runner, and shows only in the demo view (4.9's signal).]
+
+As a judge who has finished the demo guide, or who opens an empty chat,
+I want a few example prompts I can send with one press,
+So that I try abilities the guide does not show, without having to think of what to ask.
+
+**Acceptance Criteria:**
+
+**Given** the demo view is on (Story 4.9's signal: the server's demo mode and the switch on)
+**When** the guide's finish state shows (after step 5), or the chat is empty
+**Then** a "Try it yourself" row of chips shows, in this order: "Which productions are running?" (`list_productions`), "Is anything wrong right now?" (`check_status`, whose answer stays code-built, AD-28), "What was that failure earlier?" (Story 5.13's `recent_activity`) and "What can you do?" (the exact wording is the UX spec's, under the public-text rules; the guide's own watch and reminder are not repeated); in the finish state the row follows the "More to try" line, and in the empty chat it follows the chat's last line (UX-DR47)
+**And** with the demo view off, or on an install without demo mode, no chip shows
+
+**Given** a chip
+**When** I press it
+**Then** its text is sent as my own chat turn through the normal chat path, exactly as if I had typed it: no "From the demo guide" tag, the same decision strip, reply and trace link as any turn, and it counts against the allowance as any turn does
+**And** nothing is sent without a press, and a press sends once
+
+**Given** a turn is in flight, or the allowance is used up
+**When** the chips render
+**Then** they are disabled, and the existing allowance line says why; they are native buttons, reachable by keyboard, and named by their text
+
+**Given** Story 5.13's `recent_activity` tool
+**When** this story starts
+**Then** if 5.13 has merged, the third chip ships with the others; if not, this story ships chips 1, 2 and 4, and the third chip is added by whichever of 4.10 and 5.13 lands second (the orchestrator routes it as a one-line follow-up in Epic 4 if 5.13 lands second, so 5.13's in-flight scope does not widen)
+
+**Given** the change
+**When** this story merges
+**Then** an e2e case per chip, on the CI mock, presses it and sees the turn go through the chat with a reply and its trace link; one more presses the third chip in a session with no incident yet, and its reply is `recent_activity`'s code-built "nothing yet" answer, with no all-clear (AD-28); each chip's exact text has a CI mock scenario (a new file under `ci/mock/scenarios/B/`, or 5.13's scenario for the third chip, whose prompt the chip's text must equal); no new evaluation cases
+**And** the UX spec's "Demo guide and controls" (the finish state and the empty chat) gains the row, with a marker citing the owner's decision of 2026-11-01
+**And** CI is green on every workflow, and the story touches only `web/src/app/**` within Story 4.9's footprint, new mock scenario files, the web unit and e2e tests, and the UX files; the guide's existing mock scenarios (`guide-*.json`, Epic 11's) are not edited
+
 ## Epic 5: OcuTalon watches a production and explains what broke
 
 A user asks in plain words to watch a production; new failures are picked up within 15 seconds, grouped by the settle rule into one incident with a plain-English cause, the element at fault and a proposed fix, with its evidence behind Show details; the incident moves through its states; asked whether everything is fine, OcuTalon never gives a false all-clear.
@@ -4059,6 +4093,31 @@ So that I see the value before I install it.
 **Then** the `top` rule pins the new order, the `teaser` rule pins the line under the opening, the `contest-table` rule is removed, and the pin on the "No key, still works." bullet (the `outcomes` or `key-account` rule) moves to the new paragraph and table; every other rule stays, above all `public-text` (no "from your phone"), `no-telegram` and FR-58 (the README never claims more than the release ships)
 **And** Story 10.2's criterion "the top of the README" and its table line carry an [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner] marker that quotes what they read
 **And** screenshots, a flow diagram, the measured 0.1.0 line and a CI badge are later additions the Contest Planner supplies; none of them is part of this story
+
+### Story 10.5: The README shows the product and says how you talk to it
+
+[ADDED 2026-11-01, owner decision relayed by the Contest Planner under delegation; the owner: "Yes to both questions." Epic 10 is re-opened for it under SC-5. Docs only. In 1.0.0's scope; not launch-blocking. Dispatched only once Story 4.9 is deployed to the demo host and the Contest Planner has delivered the images.]
+
+As a judge reading the README,
+I want to see the product and know how I would talk to it on my own install,
+So that I understand what OcuTalon is before I install it.
+
+**Acceptance Criteria:**
+
+**Given** the README
+**When** this story merges
+**Then** it has a "How you talk to it" section, after "What you can use it for": the web chat page is the product on every install, and the demo adds only the demo guide, Break the feed, and the simulated phone and simulated mailbox; Telegram, to chat and approve from your phone, is in 1.0.0; email comes in a later release (step 4); a small table is fine; Slack is not named (FR-12, FR-18)
+**And** every claim matches what 1.0.0 ships: if Epic 12 (Telegram) has not merged when this story starts, the Telegram row is a clarification for the orchestrator, never a promise
+
+**Given** the images the Contest Planner hands over (vetted by the Contest Planner before delivery; drafts in `contest-49/readme-shots`; exactly these five: the page with an incident as the hero, the incident card, the resolved incident, a Visual Trace of the decision, and the page with Demo view off; the draft-vt-watch-* shots are not used)
+**When** this story adds them
+**Then** they are copied as delivered into `docs/images/`, never re-shot or edited; the hero sits under the README's opening paragraph and the others where the text describes them, each with alt text that says what it shows
+**And** before committing, every image is looked at: an IP address, a credential, a token, a session id, a cookie, a gate user name, a personal or account detail, or any host name other than the public demo's `demo.ocutalon.com` stops the story with a clarification, and that image is never committed (the repository is public)
+
+**Given** the change
+**When** this story merges
+**Then** `docker/tests/test-readme.sh` checks the new section's heading and that every image link resolves to a file in `docs/images/` with non-empty alt text; CI is green on every workflow; and the story touches only `README.md`, `docs/images/*` and `docker/tests/test-readme.sh`
+- Not in this story: the Mermaid diagram, the evaluation line and the CI badge, which stay for the 1.0.0 README pass.
 
 ## Epic 11: Release 1 ships: the demo path end to end, upgrade in place and a scripted release
 
