@@ -2735,9 +2735,15 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Agent/Chat.cls INSTRUCTIONS L53-61 name check_status, dismiss_incident, list_productions; Chat.cls is Epic 11's (orchestrator ruling); no real-model run in this story (no key)
 - 2026-11-01T05:37:34Z status=escalated owner=burndown by=harvest note=for the decision sheet: recommended route a one-line INSTRUCTIONS entry for recent_activity to the Chat.cls owner (Epic 11) after 5.13 merges, and confirm with one real-model ask in the release-candidate check (Epic 38) or live:demo-path
 - 2026-11-01T06:05:47Z occurrence=5-13-ask-ocutalon-what-happened-earlier-and-it-tells-you-from-its
+- 2026-11-01T07:05:35Z status=routed owner=11-4-the-release-gets-draft-notes-and-a-checklist by=merge_gate note=Chat.cls_is_Epic_11's:one_INSTRUCTIONS_line_for_recent_activity_(what_happened_earlier_today)_and_the_class_doc's_watching-tool_list_to_six;the_real-model_confirmation_is_the_Contest_Planner's_host_check_after_5.13_deploys(no_key_in_the_pipeline)
 
 ### DW-519: Tools.RecentActivity.WatchNames is a line-for-line copy of the private WatchAnswers.WatchNames, and RecentActivity.Shown repeats the catalog's private SlotText ET rule; a copy forced by Story 5.13's footprint, so the display names and the time labels of recent_activity drift from the cards when either rule changes
 - source: spec-5-13-ask-ocutalon-what-happened-earlier-and-it-tells-you-from-its.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: Tools/RecentActivity.cls WatchNames (8 lines) = Tools/WatchAnswers.cls:178-187; Shown = Msg/Catalog.cls:159-164 time slot (ForMessage plus ET when onlineDemo); spec Design Notes record both copies as footprint-forced (Rule 2)
 - 2026-11-01T06:05:47Z status=routed owner=burndown by=cr note=Rule 2 forced copy: make WatchAnswers.WatchNames and the catalog's time label public (e.g. Data.Time) and call them from RecentActivity
 - 2026-11-01T06:50:33Z owner=30-5-mixed-and-unfinished-resends-say-how-far-they-got by=burndown note=overflow:make_WatchAnswers.WatchNames_and_the_catalog_ET_rule_shared_and_use_them_in_Tools.RecentActivity;Lane_A_Watch/catalog_hardening_story;not_chartered(1_entry,below_cap_8,no_repeat_occurrences)
+
+### DW-521: The generated security overview must list recent_activity (Story 5.13) as read-only and trusted output; the owner's delegate kept AD-22's as-built count of 12 on this condition (U-199)
+- source: inbox U-199 (#603), Story 5.13 merge 5fb79853 | severity: med | fix-risk: low | footprint: in-epic
+- evidence: Tools/RecentActivity.cls declares READONLY=1 and TRUSTEDOUTPUT=1; Epic 14 has not started, so no overview exists yet and 5.13 regenerated nothing
+- 2026-11-01T07:05:35Z status=routed owner=14-1-the-overview-s-tool-and-privilege-lists-are-generated-from-t by=merge_gate note=U-199 condition: 14.1's generated tool section shows recent_activity read-only and trusted output; its drift test pins it

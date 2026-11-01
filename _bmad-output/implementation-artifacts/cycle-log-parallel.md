@@ -1233,3 +1233,13 @@
 2026-11-01T05:34:24Z	Epic 1-37	planner_note	from=Contest_Planner received=keep_Epic_4_one_run_on_B_after_5.13;switch_2_expected(quota_5%@05:31Z,1.85%/h,95%~Nov3_00:30-09Z);possible_hold_order_Nov2_18-20Z action=noted_in_resume_prompt
 2026-11-01T05:52:55Z	Epic 1-37	planner_note	to=Contest_Planner sent=step3_forecast(34+19_for_Vector+Embedded_Python_bonus) step3_first:19_merged_Nov4_16Z-Nov5_03Z;personality_first:Nov5_22Z-Nov6_10Z gain=~30h cost=two_of_39-41_slip_1-1.5d pins=34.2->33(rc1-gated),19->34,19.5->17(footprint-only;17_needs_33_merged) note=release_after_1.0.0_needed_before_Nov9_04:59Z;no_change_made
 2026-11-01T06:01:08Z	Epic 1-37	owner_decision	via=contest_planner(delegation) decision=Scenario_2(personality_39-41p1_first) rulings=step3_chain(33,34,17,19)_first_among_step_epics;early_free_runner->33_or_34;19.5->17_pin_kept(no_graph_change);checkpoint=tell_Planner_if_Epic_19_forecast>Nov6_18Z;first_daily_release_after_34+19_carries_them(Planner+owner) recorded=dispatch.yaml_header+resume_prompt
+2026-11-01T07:03:48Z	Epic 5	runner_complete	agent=a13427f061480a952 head=73fcb843 ci=success(41282481997,41282482039) story=5.13(recent_activity,launch-blocking) story_code=c04c8841(41280154377,41280154366) decisions=AD-22_as-built_12(U-199),DW-518 routed=DW-519->30.5 footprint=verified(21_files_as_reported)
+2026-11-01T07:03:48Z	Epic 5	merge_enqueued	position=1(LAUNCH_BLOCKING)
+2026-11-01T07:03:48Z	Epic 5	epic_merge_started	branch=OCT-epic5 head=73fcb843
+2026-11-01T07:06:15Z	Epic 5	epic_merged_to_feature	merge=5fb79853 head=73fcb843 story=5.13 conflicts=none tracker=valid lint=baseline(8_low) verified_on_origin=yes source_identical_to_green_head=yes
+2026-11-01T07:06:15Z	Epic 5	spine_updated	reason=owner_decision(U-199_keep) AD-22_as-built_tool_names_11->12 marker=[AMENDED_2026-11-01,Story_5.13_merge,orchestrator_ruling] lint=baseline(8_low)
+2026-11-01T07:06:15Z	Epic 5	decision_sheet_recorded	decided=1(DW-518->11.4,by=merge_gate) notes=DW-519->30.5(bullet_written);DW-521_new(U-199_condition)->14.1;U-199_resolved;real-model_check_of_recent_activity_asked_of_the_Planner(host)
+2026-11-01T07:06:15Z	Epic 1-37	ledger_routed_planned	entries=DW-518->11.4,DW-519->30.5,DW-521->14.1 by=orchestrator deps_hash=rerecorded(ledger_routed)
+2026-11-01T07:06:15Z	Epic 1-37	deps_hash_rerecorded	hash=92e2b904c8ba reason=ledger_routed
+2026-11-01T07:06:15Z	Epic 1-37	planner_note	to=Contest_Planner sent=5.13_merge_sha_5fb79853(at_once);ask=one_real-Haiku_ask_on_the_host_for_recent_activity(DW-518)
+2026-11-01T07:06:26Z	Epic 5	worktree_removed	worktree=.worktrees/epic-5 branch=OCT-epic5_deleted(local+remote)

@@ -4259,6 +4259,7 @@ So that I publish accurate plain-language notes and never ship a naming, licence
 **When** it is used for any release
 **Then** it states that posts, articles, the video and bonus claims are the author's actions, and confirms that no script or workflow posts anything or claims a bonus (REL-11)
 - DW-359: The README's clone command and the page's README_URL resolve only once the repository is public (github.com/jbrandtmse/OcuTalon answered 404 on 2026-10-28); the release checklist rechecks every README link and GitHub's heading slugs on the public page before the release (ledger; routed by merge_gate 2026-10-29)
+- DW-518: Chat's INSTRUCTIONS gain one line for `recent_activity` (Story 5.13: asked what happened earlier, call it and answer from its result), and `Agent/Chat.cls`'s class doc lists six watching tools; whether the real model calls it is confirmed by the Contest Planner's host check, never by a key in the pipeline (ledger; routed by merge_gate 2026-11-01)
 
 ### Story 11.5: One scripted sequence cuts a release
 
@@ -4721,6 +4722,7 @@ So that what I approve is exactly what ships, release after release.
 **Then** it regenerates the generated sections and stops the release if the drift test or the privilege test fails, so the overview is updated with every release (FR-61, REL-3)
 
 - DW-213: The generated security overview lists the service role's demo-mode-only Read on `%DB_OCUORDERS_DATA` (granted by the Demo step with demo mode on, removed with it off or kept; U-79), so it never overstates least privilege (ledger; routed by merge_gate 2026-10-27)
+- DW-521: The generated tool section lists `recent_activity` (Story 5.13, `OcuTalon.Tools.RecentActivity`) as read-only and trusted output, and the drift test pins it; the owner's delegate kept AD-22's as-built count of 12 on this condition (U-199) (ledger; routed by merge_gate 2026-11-01)
 
 ### Story 14.2: The security overview says what OcuTalon can do and what stops it
 
@@ -7039,6 +7041,7 @@ So that I never think a fix finished when it didn't, and nothing is resent behin
 - DW-384: An approved request whose ExpiresAt has passed when FixExecutor takes its Execute is refused with an info line only (AD-16's refused list read as covering it), so it stays approved and its incident stays fixing with no result (ledger; routed by merge_gate 2026-10-30)
 - DW-419: A resend that errs partway counts the targets it never reached as Skipped, so its result reads 'had changed since the dry run', which is false; it must report them by how far the run got (AD-16 as amended for U-160) (ledger; routed by merge_gate 2026-10-30)
 - DW-484: An agent-written reply time has no zone label: the chat's reminder reply reads 'Your reminder is set for 08:02 to stretch.' in the instance zone (ET on the demo), while the page shows the visitor's own time ('5:01 AM PDT', 'Due 5:02 AM'), so a visitor elsewhere sees three different clocks (ledger; routed by orchestrator 2026-10-31)
+- DW-519: `Tools.RecentActivity.WatchNames` copies the private `WatchAnswers.WatchNames`, and `RecentActivity.Shown` repeats the catalog's private ET time-slot rule; make both shared and call them from `RecentActivity`, so `recent_activity`'s display names and time labels never drift from the cards' (ledger; routed by burndown 2026-11-01)
 
 ## Epic 31: Lane B post-demo hardening
 
