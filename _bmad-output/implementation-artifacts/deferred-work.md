@@ -2776,3 +2776,18 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-11-16-the-sequence-asks-before-each-outward-step-after-the-gates.md | severity: med | fix-risk: high | footprint: out-of-footprint
 - evidence: web/package.json builds into src/ocutalon/csp/; .gitignore:28 ignores it; 11.16's merge back carries the bundle onto the integration branch
 - 2026-11-01T14:59:04Z status=escalated owner=burndown by=spec_gate note=for the decision sheet: e.g. build into a separate folder and copy at the cut, or untrack the bundle after the merge back; affects every epic after 1.0.0
+
+### DW-533: The rehearsal collector finds the reminder's phone message by the reminder row's text and the result message by 'went through.'; measured on the CI mock only, so a different real-model rendering makes a run fail with a missing reminder_msg mark (never a false pass)
+- source: spec-11-11-the-rehearsal-runner-times-the-demo-path-and-checks-every-bo.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: release/rehearse.sh COLLECTOR; every match measured on the mock
+- 2026-11-01T16:45:52Z status=wontfix-accepted owner=11-11-the-rehearsal-runner-times-the-demo-path-and-checks-every-bo by=harvest note=reopen_if=Story 38.2's first real run (or 11.12's dry runs) reports a missing reminder_msg or result_msg mark
+
+### DW-534: The rehearsal collector's queries and the page-mark probes (the strip's .reason count, the newest reply's .text, 'Approved from the simulated phone at') run only in the manual live dry run; no CI unit executes them, so a schema, message-body or wording change breaks the rehearsal's marks unseen until a dry run
+- source: spec-11-11-the-rehearsal-runner-times-the-demo-path-and-checks-every-bo.md | severity: med | fix-risk: med | footprint: in-epic
+- evidence: every hermetic test answers the collector with a canned file; CI browser units run with OCUTALON_E2E_MARKS unset
+- 2026-11-01T16:45:52Z status=routed owner=11-12-the-rehearsal-runner-repeats-the-demo-path-n-times-with-run by=harvest note=11.12 drives N runs through the same collector and marks: give them a check that runs where a change would show (within the CI budget), or ledger why not
+
+### DW-535: docker/tests/test-rehearsal.sh takes about 36 s alone (48 s inside ci/checks.sh) against the 5 to 10 s the CI note inferred
+- source: spec-11-11-the-rehearsal-runner-times-the-demo-path-and-checks-every-bo.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: stub installs, the 20-run states and the bounds rule run twice
+- 2026-11-01T16:45:52Z status=wontfix-accepted owner=11-11-the-rehearsal-runner-times-the-demo-path-and-checks-every-bo by=harvest note=reopen_if=the hosted checks job passes 10 minutes or the self-test passes 90 s
