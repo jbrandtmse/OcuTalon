@@ -145,3 +145,8 @@
 2026-11-01T00:14:47Z	Epic 30	hold_ordered	reason=owner:account_switch(hold_9),quota_95%(HOLD_requested_at=2026-10-31T23:16:32Z;relayed_by_the_Contest_Planner) seen_at=stage_boundary(after_30.6_implement_returned) note=also_a_coordinator_yield_request_for_Story_5.13(superseded_by_the_hold)
 2026-11-01T00:14:47Z	Story 30.6	hold_saved	story=30-6-the-invalid-reply-warning-names-what-failed-never-the-reply stage=implement patch=none tree=clean note=implement_finalized(8937f0e0);nothing_uncommitted;next_stage=adr_verifications_then_qa
 2026-11-01T00:15:05Z	Epic 30	hold_complete	shas=8937f0e0(30.6_implement_finalize),6350fe3e(green:Reported_fix+integrate-forward) pushed_with=this_bookkeeping_commit stage_in_flight=none throwaways_up=none(lane-b_locks_empty) slot_B=loaded_at_414b725d+30.6_classes(compiled_by_the_implement_stage) next_at_resume=CI_on_the_pushed_head,30.6:adr_verifications->qa->code-review->adjudicate->smoke->fresh_check->committed;then_30.1_spec_gate,30.5_spec_gate(U-182,U-183,Q1)+README_sentence,burn-down(30.7)
+2026-11-01T19:58:10Z	Epic 30	runner_unattended_start	run=20261026T1518Z-1-37 policy=ff1bd1a6 doctrine=3d11cec note=redispatch_after_hold9_part1 redispatch=3(U-207_two-part_merge:part1=30.6,30.5;30.1_stays_backlog) lane=B slot=ocutalon-slot-b runner=B web_port=52802 lock_dir=locks/lane-b
+2026-11-01T19:58:10Z	Epic 30	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-11-01T19:58:10Z	Epic 30	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh visibility=PUBLIC
+2026-11-01T19:58:10Z	Epic 30	launch_env	depth=4 watchdog=default bash_max_ms=default
+2026-11-01T19:58:16Z	Story 30.6	ci_resolved	story=30.6 sha=a3a460fa runs=41255920496,41255920519 result=success failed=none via=none resolved_at=resume
