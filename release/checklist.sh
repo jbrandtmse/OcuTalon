@@ -129,7 +129,9 @@ ck_rel() {
 
 row_checkout() {
   local n
-  n=$(git status --porcelain --untracked-files=all 2> /dev/null | awk 'substr($0, 4) !~ /^release\/records\// { n++ } END { print n + 0 }')
+  # A rename counts when either of its two paths is outside release/records/.
+  n=$(git status --porcelain --untracked-files=all 2> /dev/null | awk '{ p = substr($0, 4); q = p; if ((i = index(p, " -> ")) > 0) { q = substr(p, i + 4); p = substr(p, 1, i - 1) } }
+    p !~ /^release\/records\// || q !~ /^release\/records\// { n++ } END { print n + 0 }')
   if [ "$n" -eq 0 ]; then
     ck_pass checkout
   else
@@ -309,7 +311,7 @@ $lines}"
     hits="${hits:+$hits
 }no draft notes at $(ck_rel "$notes")"
   else
-    lines=$({ local_path "$notes"; key_like "$notes"; } | sort -u)
+    lines=$({ local_path "$notes"; key_like "$notes"; } | sort -u | while IFS= read -r h; do ck_rel "$h"; done)
     [ -z "$lines" ] || hits="${hits:+$hits
 }$lines"
   fi
@@ -549,7 +551,10 @@ checklist_main() {
     return 2
   fi
 
-  ck_tmp=$(mktemp -d "${TMPDIR:-/tmp}/ocutalon-ck.XXXXXX") || return 2
+  ck_tmp=$(mktemp -d "${TMPDIR:-/tmp}/ocutalon-ck.XXXXXX" 2> /dev/null) || {
+    ck_refuse "no temporary folder for the run"
+    return 2
+  }
   ck_results=$ck_tmp/results
   ck_notes=$notes
   : > "$ck_results"

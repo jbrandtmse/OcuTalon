@@ -163,6 +163,32 @@ deferred:
   - each refusal exits 2 and writes nothing.
 - **AC8 (the moved scanner; integration: `test-boundaries.sh` consumes `lib-scan.sh`'s `local_path`).** Given `local_path` in `lib-scan.sh`, when `test-boundaries.sh` runs on the tree, then it passes, and its bad-sample check still flags each planted local path.
 
+### Review Findings
+
+Code review 2026-11-01 (follow-up review of the implement stage's patches; tier full-opus, layers: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor; 34 layer rows plus one found by the stage itself, 23 entries).
+
+- [x] [Review][Patch] A draft at the default notes path with a local path or key-like text put the absolute checkout path into the record's `public-text` detail and the output (`ck_rel` reached only the missing-notes line and `Notes:`) [release/checklist.sh:row_public_text] -- medium, in-story, fix-risk low; fixed: each scanner hit passes through `ck_rel`; a `script-rows` case plants both a path and the name in `release/records/1.0.0/rc1-notes.md` and asserts relative places and no temporary-folder name in the record or the output
+- [x] [Review][Patch] The "no local folder" assertions could not fail: they looked for `$tmp`, spelled with TMPDIR's trailing slash (`T//ocutalon-ckl.x`), while every real path is the `pwd -P` form [docker/tests/test-release-checklist.sh:t_script_rows] -- medium (Rule 19, unfalsifiable), in-story, fix-risk low; fixed: they look for the folder's own name (`tmpname`); the ck_rel mutation now turns all of them red
+- [x] [Review][Patch] `no-network` passed when run alone or first, with nothing behind it (Rule 19 hermeticity) [docker/tests/test-release-checklist.sh:t_nonetwork] -- medium, in-story, fix-risk low; fixed: `run_ck` counts its runs and the rule fails when none happened
+- [x] [Review][Patch] The synthetic repository's git still read the host's global ignore file (`~/.config/git/ignore`), so `iris-source` and `checkout` cases depended on the machine (Rule 19 hermeticity) [docker/tests/test-release-checklist.sh:28] -- medium, in-story, fix-risk low; fixed: `XDG_CONFIG_HOME` points into the temporary folder, as `test-boundaries.sh` does
+- [x] [Review][Patch] A staged rename out of `release/records/` passed `checkout` (porcelain `R  release/records/a -> docs/a` was read by its source side) [release/checklist.sh:row_checkout] -- low, two-way door; fixed: a rename counts when either path is outside; a `checkout-rows` case does `git mv` out of the folder
+- [x] [Review][Patch] A failed `mktemp -d` in main exited 2 with no `REFUSED` line, and mktemp's own error (a local path) on stderr [release/checklist.sh:checklist_main] -- low, two-way door; fixed: one `REFUSED no temporary folder for the run` line, stderr dropped; a `tmpfail` case pins exit 2, one line and the record unchanged
+- [x] [Review][Patch] The plain `from '<dep>'` import form (and the double-quote `tr`) of `licences` was never on a failing case [docker/tests/test-release-checklist.sh:t_licence_rows] -- low, two-way door; fixed: a double-quoted plain import without an entry fails `licences`
+- [x] [Review][Patch] The "a missing value" refusal checked only `--record`'s file, which that call does not pass [docker/tests/test-release-checklist.sh:refused] -- low, two-way door; fixed: `refused` also asserts that no `release/records/` was created
+- [x] [Review][Defer] DW-551's premise is wrong: `scan_files` lists untracked files that are not ignored, and `release/records/` is not ignored, so `name-only-in-note` already reads a draft at `notes_path` (now pinned by the default-draft case); the gap is only a `--notes` file outside the checkout [_bmad-output/implementation-artifacts/deferred-work.md:DW-551] -- deferred: trailer appended to DW-551 (routed, owner 11-13), correcting the premise for Story 11.13's plan
+- [x] [Review][Defer] A `--notes` or `--record` path outside the checkout stays absolute in `Notes:` and details [release/checklist.sh:ck_rel] -- deferred: DW-552, low, wontfix-accepted (Story 11.5 uses the default paths; `test-boundaries.sh` flags such a record on the next run and in CI)
+- [x] [Review][Defer] FAIL summaries and the no-bundle `licences` detail are new public-facing text outside the spec's ruled set [release/checklist.sh] -- deferred: DW-553, low, decision-pending owner=burndown (veto window 5; none names the inspiration, a rival or IRIS Couch)
+- [x] [Review][Defer] `row_name_only_in_note` repeats one line of `test-readme.sh`'s `public_text_scan`, a copy forced by Epic 10 owning that script (Rule 2) [release/checklist.sh:row_name_only_in_note; docker/tests/test-readme.sh:public_text_scan] -- deferred: DW-554, medium, out-of-footprint, escalated owner=burndown
+
+Rejected:
+- `checkout`'s pass text says "the candidate commit" when `--candidate` is not given (low) -- by-design: the spec's fixed text (U-200); Story 11.5 always passes `--candidate`
+- The Auto Run Result's counts are stale (13 rules, "eleven" items, mutation counts) (low) -- its fix edits the spec's record; the QA section records the 14th rule
+- An unreadable or binary draft passes `public-text`; a failing `git status` or a grep read error passes silently; an empty results file reads `pass`; the author-row mktemp fallback prints no line to add (low) -- wontfix-theoretical: each needs a file the run itself made or the checkout's own tracked files to be unreadable, or a failed append (disk full)
+- `name-only-in-note` fails on the author's free text in an untracked record that names the inspiration (false) -- that fails safe, and the record is public text, so the rule is right to read it
+- Sourcing the checklist sets `umask 077` in the caller (false) -- `release/lib-release.sh`, which any caller sources, sets it at source time already (line 34), and the spec requires it
+- Sub-clauses of ACs have no `mutation:` line (false) -- Rule 19 asks one mutation per AC, and each AC has one
+- The spec says `done` while sprint-status says `review` (false) -- the frontmatter is build-auto's machine state; the sprint key is this stage's to set
+
 ## Spec Change Log
 
 ## Review Triage Log
@@ -378,6 +404,26 @@ No AC contradicts an AD.
   - mutation: AC7: the section appended with `>>` in place of `record_write` -> `base` red (the second-run replace case)
 - AC8: remove `local_path` from `lib-scan.sh`, so `test-boundaries.sh` fails.
   - mutation: AC8: `local_path` renamed away in `lib-scan.sh` -> `test-boundaries.sh` red (its paths rule, samples 2 to 6)
+
+**QA (2026-11-01; Rule 19: re-demonstrated by the QA stage, each reverted and the tree checked byte for byte):**
+- mutation: AC1 (QA): `grep -Fxq` -> `grep -Fxiq` in `row_note_readme` -> `note-rows` red
+- mutation: AC2 (QA): the `Package: <dep>` test in `row_licences` replaced by `true` -> `licence-rows` red
+- mutation: AC3 (QA): `key_like` dropped from the notes scan of `row_public_text` -> `script-rows` red
+- mutation: AC4 (QA): `ck_valid_date` replaced by `true` in `ck_confirmed_date` -> `author` red
+- mutation: AC5 (QA): `row_readme` passes whatever `test-readme.sh` exits -> `script-rows` red
+- mutation: AC6 (QA): the `--visibilit[y]` pattern removed from `outward_hits` -> `outward-rows` red
+- mutation: AC7 (QA): the section appended with `>>` in place of `record_write` -> `base` red
+- mutation: AC8 (QA): `local_path` renamed away in `lib-scan.sh` -> `test-boundaries.sh` red (paths samples 2 to 6)
+- mutation: patch `ck_rel` (QA): `ck_rel` returns its argument -> `script-rows` red (default paths: no local folder in the record)
+- mutation: patch `note-about` (QA): the `index.html` test dropped from `row_note_about` -> `licence-rows` red
+- mutation: patch `row_public_text` argument (QA): `notes=${1:-...}` -> `notes=${ck_notes:-}` -> `sourcing` red
+- mutation: patch failing mktemp (QA): the FAIL line removed from `row_readme`'s, or from `row_public_text`'s, mktemp fallback, or the `ck_add` removed from `author_rows`' fallback -> `tmpfail` red (new rule: three sites, each with a result line; the author rows alone read `not confirmed`)
+- (QA) added the `tmpfail` rule (`t_tmpfail`) to `docker/tests/test-release-checklist.sh`, the only QA edit; it is discovered by `CHECK_SCRIPTS` (`release-checklist`). Fourteen mutations were red and reverted (`mutations_demonstrated=8` for the ACs).
+**Code review (2026-11-01; each applied, observed red, reverted; tree checked byte for byte):**
+- mutation: AC3 (CR): the `ck_rel` pass removed from `row_public_text`'s scanner hits -> `script-rows` red (default draft: the place and both no-local-folder assertions)
+- mutation: AC7 (CR): `row_checkout` counts a rename by its source path only -> `checkout-rows` red (a rename out of release/records/)
+- mutation: AC7 (CR): the `REFUSED` line removed from main's `mktemp -d` fallback -> `tmpfail` red (no temporary folder: one REFUSED line)
+- mutation: AC2 (CR): `-e "from '$dep'"` removed from `row_licences` -> `licence-rows` red (a plain, double-quoted import without an entry)
 
 **Shared surfaces:**
 - `CHECK_SCRIPTS` in `ci/units.sh`, read by the units rule of `test-ci-config.sh`.

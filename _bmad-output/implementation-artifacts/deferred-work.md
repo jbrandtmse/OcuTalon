@@ -2317,6 +2317,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Story 10.2 implement: HTTP 404 on the private repository; test-readme.sh checks anchors against its own slug rule (Design Note 8, inference until the page is public)
 - 2026-10-28T18:29:41Z status=routed owner=11-4-the-release-gets-draft-notes-and-a-checklist by=harvest note=release checklist item: open README_URL and every README anchor on the public repository page; Story 31.3 repeats it for 1.0.0
 - 2026-10-28T19:29:24Z note=measured 2026-10-28 on OCT-epic10 dc4b73c via the repository README render (application/vnd.github.html): all 22 GitHub heading ids equal test-readme.sh's slugs and every in-README anchor resolves; the residual is only opening README_URL and the clone URL once the repository is public
+- 2026-11-01T23:58:04Z status=resolved-by:11-4-the-release-gets-draft-notes-and-a-checklist by=adjudication note=142c6a3e: release/checklist.sh row readme runs test-readme.sh's offline link, anchor and heading-slug rules (no network), and the author row public-links asks for the recheck on the public page and the clone command at every candidate; the repository is public since 2026-10-31
 
 ### DW-360: The README's LAN warning names the default IRIS accounts' passwords but gives steps only for the README account
 - source: spec-10-2-the-readme-gets-a-judge-from-download-to-sign-in.md | severity: med | fix-risk: low | footprint: in-story
@@ -2839,3 +2840,19 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-11-4-the-release-gets-draft-notes-and-a-checklist.md | severity: low | fix-risk: low | footprint: in-epic
 - evidence: release/checklist.sh row_public_text scans the draft for local paths and key-like text only
 - 2026-11-01T23:27:24Z status=routed owner=11-13-the-release-gets-draft-notes by=harvest note=11.13's draft check also refuses the name outside the note (the note verbatim, or nowhere)
+- 2026-11-01T23:52:21Z status=routed owner=11-13-the-release-gets-draft-notes by=cr note=premise corrected: name-only-in-note reads a draft at notes_path (pinned in script-rows); gap is a --notes file outside
+
+### DW-552: release/checklist.sh ck_rel keeps a --notes or --record path outside the checkout absolute, so the record's Notes: line (or a public-text detail) can hold a local folder
+- source: spec-11-4-the-release-gets-draft-notes-and-a-checklist.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: ck_rel prints paths outside the checkout as given; t_base asserts Notes: <tmp path>. Story 11.5 uses the default paths, and test-boundaries flags such a record on the next run and in CI
+- 2026-11-01T23:52:21Z status=wontfix-accepted owner=11-4-the-release-gets-draft-notes-and-a-checklist by=cr note=reopen_if=a record under release/records/ holds an absolute Notes: line or detail (test-boundaries paths rule flags it)
+
+### DW-553: release/checklist.sh FAIL summaries and the no-bundle licences detail are new public-facing text not in the spec's ruled set (U-200 kept the spec's texts)
+- source: spec-11-4-the-release-gets-draft-notes-and-a-checklist.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: e.g. 'a licence notice is missing or empty', 'the IRIS reference source rule is broken', 'the licences pass detail without a bundle'; none names the inspiration, a rival or IRIS Couch
+- 2026-11-01T23:52:21Z status=decision-pending owner=burndown by=cr note=veto window 5: the lead or Planner rules the FAIL summary wordings before Story 11.5 reads the record
+
+### DW-554: row_name_only_in_note (release/checklist.sh) repeats the name-outside-the-note line of test-readme.sh public_text_scan, a copy forced by Epic 10 owning that top-level script (Rule 2)
+- source: spec-11-4-the-release-gets-draft-notes-and-a-checklist.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: about 5 awk lines; the spec records the reason (test-readme.sh cannot be sourced and is Epic 10's); both rules drift if the name rule changes in one place
+- 2026-11-01T23:52:21Z status=escalated owner=burndown by=cr note=unify when Epic 10 next edits test-readme.sh: one shared name scanner in lib-scan.sh that both call

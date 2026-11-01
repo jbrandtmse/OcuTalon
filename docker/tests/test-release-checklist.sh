@@ -10,8 +10,11 @@
 #   - author: the author rows are read from the record only: no section, a malformed line, an impossible date, another word, a leap day,
 #     a date with text, the precedence of fail over not confirmed, and the section never changed;
 #   - refusals: each refusal exits 2 with one line, and the record is neither created nor changed;
-#   - no-network: stubs for curl, wget, gh, ssh and nc leave no marker after any case;
+#   - no-network: stubs for curl, wget, gh, ssh and nc leave no marker after any case (it runs after the cases and fails when no stubbed
+#     run happened);
 #   - sourcing: sourcing the checklist runs nothing, and lib-scan.sh defines local_path;
+#   - tmpfail: with no temporary file (mktemp fails), readme, public-text and the author rows each still write a FAIL or CONFIRM line and a
+#     result line, so the result cannot be a pass; and a run with no temporary folder refuses with one line;
 #   - static: mode 100755, umask 077, ASCII, the main guard, no network command, and no line that holds the inspiration's name without
 #     the note (first run on a synthetic file that breaks each rule).
 # The samples that break a rule are built by concatenation, so that this file keeps the rules it tests. Prints one PASS or FAIL line per
@@ -23,7 +26,7 @@ cd "$root" || exit 1
 
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/ocutalon-ckl.XXXXXX") || exit 1
 trap 'rm -rf "$tmp"' EXIT
-export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
+export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1 XDG_CONFIG_HOME="$tmp/xdg"
 export GIT_AUTHOR_NAME=t GIT_AUTHOR_EMAIL=t@t.invalid GIT_COMMITTER_NAME=t GIT_COMMITTER_EMAIL=t@t.invalid
 unset ANTHROPIC_API_KEY TELEGRAM_BOT_TOKEN
 
@@ -32,6 +35,8 @@ NAME="Open""Claw"
 PLANT_PATH="/Use""rs/someone/work"
 PLANT_KEY="sk-""ant-""aaaaaaaaaaaaaaaa"
 W=$tmp/w
+# The temporary folder's own name: any absolute path below it holds this, however TMPDIR is spelled (a trailing slash, a symbolic link).
+tmpname=${tmp##*/}
 marks=$tmp/marks
 netm=$tmp/netmarks
 mkdir -p "$marks" "$netm" "$tmp/bin"
@@ -155,9 +160,11 @@ newcase() { # a fresh copy, a full record and a clean notes file
 }
 out=""
 rc=0
+net_runs=0
 run_ck() { # run_ck <args...>: out and rc
   out=$(cd "$tmp" && PATH="$tmp/bin:$PATH" CK_MARK="$marks" NETMARK="$netm" bash "$W/release/checklist.sh" "$@" 2>&1)
   rc=$?
+  net_runs=$((net_runs + 1))
 }
 std() { run_ck --version 1.0.0 --rc 1 --record "$rec" --notes "$notes" "$@"; }
 failed_ids() { printf '%s\n' "$out" | grep '^FAIL ' | awk '{ printf "%s ", $2 }'; }
@@ -311,6 +318,11 @@ t_licence_rows() {
   expect_fail "imported package without an entry" "licences "
   has "package: place" "$out" "3rdpartylicenses.txt: no entry for qrcode-generator"
   newcase
+  printf 'import q from "qrcode-generator";\n' > "$W/web/src/b.ts"
+  commit_all
+  expect_fail "a plain, double-quoted import without an entry" "licences "
+  has "plain import: place" "$out" "3rdpartylicenses.txt: no entry for qrcode-generator"
+  newcase
   git -C "$W" rm -q src/ocutalon/csp/assets/licenses/b-LICENSE.txt
   commit_all
   expect_fail "bundle without a licence file" "licences "
@@ -371,8 +383,18 @@ t_script_rows() {
   has "default notes: the line" "$out" "no draft notes at release/records/1.0.0/rc1-notes.md"
   has "default record: the CONFIRM line" "$out" "in release/records/1.0.0/rc1.md"
   has "default record: the Notes line" "$(cat "$W/release/records/1.0.0/rc1.md")" "Notes: release/records/1.0.0/rc1-notes.md"
-  lacks "default record: no local folder" "$(cat "$W/release/records/1.0.0/rc1.md")" "$tmp"
-  lacks "default output: no local folder" "$out" "$tmp"
+  lacks "default record: no local folder" "$(cat "$W/release/records/1.0.0/rc1.md")" "$tmpname"
+  lacks "default output: no local folder" "$out" "$tmpname"
+  # A draft at the default path: its scanner hits name it relative to the checkout, and name-only-in-note reads it too.
+  newcase
+  mkdir -p "$W/release/records/1.0.0"
+  printf 'see %s\nLike %s.\n' "$PLANT_PATH" "$NAME" > "$W/release/records/1.0.0/rc1-notes.md"
+  run_ck --version 1.0.0 --rc 1
+  eq "default draft: failed rows" "$(failed_ids)" "name-only-in-note public-text "
+  has "default draft: the path's place" "$out" "  release/records/1.0.0/rc1-notes.md:1"
+  has "default draft: the name's place" "$out" "  release/records/1.0.0/rc1-notes.md:2"
+  lacks "default draft: no local folder in the record" "$(cat "$W/release/records/1.0.0/rc1.md")" "$tmpname"
+  lacks "default draft: no local folder in the output" "$out" "$tmpname"
 }
 
 t_source_rows() {
@@ -476,6 +498,10 @@ t_checkout_rows() {
   printf 'new\n' > "$W/release/records/1.0.0/new.md"
   std
   eq "a change inside release/records/: exit" "$rc" 0
+  git -C "$W" add -A release/records
+  git -C "$W" commit -q -m records
+  git -C "$W" mv release/records/1.0.0/other.md docs/other.md
+  expect_fail "a rename out of release/records/" "checkout "
 }
 
 # --- the author's rows ---
@@ -553,6 +579,7 @@ refused() { # refused <label> <args...>: exit 2, one REFUSED line, no record
   eq "$label: one line" "$(printf '%s\n' "$out" | wc -l | tr -d ' ')" 1
   has "$label: REFUSED" "$out" "REFUSED "
   eq "$label: nothing written" "$([ -e "$rec" ] && echo written)" ""
+  eq "$label: no default record" "$([ -e "$W/release/records" ] && echo written)" ""
 }
 
 t_refusals() {
@@ -595,6 +622,7 @@ t_refusals() {
 }
 
 t_nonetwork() {
+  [ "$net_runs" -gt 0 ] || { echo "  no stubbed run happened before this rule"; bad=1; }
   eq "no stub was called" "$(ls "$netm" | tr '\n' ' ')" ""
 }
 
@@ -613,6 +641,46 @@ t_sourcing() {
   eq "lib-scan.sh defines local_path, which flags a planted path" "$o" "$tmp/lp.txt:1"
   o=$(cd "$root" && bash -c '. release/lib-release.sh; notes_path 1.0.0 3')
   eq "notes_path" "$o" "release/records/1.0.0/rc3-notes.md"
+}
+
+# A temporary file that cannot be made must never leave a row without a result (a false all-clear): each of the three sites writes a
+# FAIL (or CONFIRM) line and a result line. TMPDIR names a folder that does not exist, so that mktemp fails.
+t_tmpfail() {
+  local o res=$tmp/tmpfail-results
+  newcase
+  o=$(cd "$W" && TMPDIR="$tmp/no-such-dir" bash -c '
+    . release/checklist.sh
+    ck_results=$1
+    : > "$ck_results"
+    ck_tmp=
+    row_readme
+    row_public_text "$2"
+    author_rows "$3"
+    echo "RESULT $(checklist_result "$ck_results")"
+    echo "LINES $(wc -l < "$ck_results" | tr -d " ")"' _ "$res" "$notes" "$rec" 2>&1)
+  has "readme: a FAIL line" "$o" "FAIL readme no temporary file"
+  has "public-text: a FAIL line" "$o" "FAIL public-text no temporary file"
+  eq "author rows: five CONFIRM lines" "$(printf '%s\n' "$o" | grep -c '^CONFIRM .*no temporary file')" 5
+  has "result" "$o" "RESULT fail"
+  has "every row has a result line (2 rows and 5 author rows)" "$o" "LINES 7"
+  # The author rows alone: a record that confirms all five still reads not confirmed when it cannot be read.
+  o=$(cd "$W" && TMPDIR="$tmp/no-such-dir" bash -c '
+    . release/checklist.sh
+    ck_results=$1
+    : > "$ck_results"
+    ck_tmp=
+    author_rows "$2" > /dev/null
+    echo "RESULT $(checklist_result "$ck_results")"
+    echo "LINES $(wc -l < "$ck_results" | tr -d " ")"' _ "$res" "$rec" 2>&1)
+  has "author rows alone: not confirmed" "$o" "RESULT not confirmed"
+  has "author rows alone: five result lines" "$o" "LINES 5"
+  # The run itself: no temporary folder is a refusal, with one line, and the record is unchanged.
+  local sum
+  sum=$(cksum < "$rec")
+  out=$(cd "$tmp" && TMPDIR="$tmp/no-such-dir" PATH="$tmp/bin:$PATH" bash "$W/release/checklist.sh" --version 1.0.0 --rc 1 --record "$rec" --notes "$notes" 2>&1)
+  eq "no temporary folder: exit" "$?" 2
+  eq "no temporary folder: one REFUSED line" "$(printf '%s\n' "$out" | grep -c '^REFUSED ')/$(printf '%s\n' "$out" | wc -l | tr -d ' ')" "1/1"
+  eq "no temporary folder: the record unchanged" "$(cksum < "$rec")" "$sum"
 }
 
 # --- static ---
@@ -658,6 +726,7 @@ rule author t_author
 rule refusals t_refusals
 rule no-network t_nonetwork
 rule sourcing t_sourcing
+rule tmpfail t_tmpfail
 rule static t_static
 
 if [ "$fails_total" -ne 0 ]; then
