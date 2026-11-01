@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 11-01-2026 03:30
+last_updated: 11-01-2026 03:43
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -181,7 +181,7 @@ development_status:
   12-2-ocutalon-polls-and-writes-to-its-own-bot-and-pauses-when-ano: done
   12-8-the-page-shows-when-telegram-is-paused-and-when-it-will-try: done
   12-3-the-telegram-card-shows-a-fresh-pairing-code-as-a-qr-code: done
-  12-4-a-valid-code-pairs-the-chat-with-the-session: ready-for-dev
+  12-4-a-valid-code-pairs-the-chat-with-the-session: in-progress
   12-5-bad-codes-a-bare-start-command-and-unpairing-get-polite-answ: backlog
   12-6-chat-and-get-notifications-in-the-paired-telegram-chat: backlog
   12-7-approve-or-reject-from-telegram-and-every-copy-shows-who-ans: backlog
