@@ -1,11 +1,10 @@
 import { expect, test, type Locator, type Page, type Request } from '@playwright/test';
 import qrcode from 'qrcode-generator';
 
-import { changeSnapshot } from '../support/api';
+import { changeSnapshot, STATE } from '../support/api';
 import { composerOf, inMs, signInReadmeLoaded } from '../support/floor';
 import { chk, irisScript, quoted, setTelegramIncluded } from '../support/iris';
 import { announcedTexts, plain, recordAnnouncements, tokenColor } from '../support/page';
-import { notBuilt } from './not-built';
 
 /**
  * UJ-1 step 1, the Telegram part: the page's Telegram card, shown only once a release includes Telegram. Lane A owns this file from Epic 12
@@ -17,9 +16,9 @@ import { notBuilt } from './not-built';
  *   the CI mock with a queued getMe name, the real code route and the page) and then has the IRIS side check the server's code row and search
  *   the production's stores for every code, and checks that the page keeps the codes to the card; T4 shows the off and the paired cards
  *   from changed snapshots, and the card's failure, countdown and ten-minute rules from answers the route makes up;
- * - Story 12.4's pairing, still a part that no story has built: Story 12.4 replaces the declaration at the end of this file with the real
- *   test. web/scripts/demo-path-summary.mjs counts the file as a part of step 1 (the `page` in the file name), skipped with the story that
- *   owns it.
+ * - Story 12.4's T5 and T4's paired cases: T5 drives the real pairing (TelegramIn and TelegramOut against the CI mock, the real code route,
+ *   the real Pair command and the real DELETE) and T4 shows the paired card, with and without a name, from changed snapshots.
+ *   web/scripts/demo-path-summary.mjs counts the file as a part of step 1 (the `page` in the file name).
  *
  * The browser runs in Asia/Kolkata with the en-GB locale, so a UTC time reads five and a half hours later, with an unpadded 24-hour hour:
  * 12:00 UTC is 17:30. The oracle for a time is `kolkata`, written here from the UTC clock and not from the page's own format.
@@ -537,12 +536,12 @@ test.describe('the Telegram card shows a fresh pairing code as a QR code (Story 
   });
 
   /**
-   * T4: the card from changed snapshots, with the seam on and no TelegramIn (the server's state is off): "Refused while the server is off"
-   * and "Paired". Each case answers /state with a changed copy and reloads once. Then the code route itself answers, with no server
+   * T4: the card from changed snapshots, with the seam on and no TelegramIn (the server's state is off): "Refused while the server is off",
+   * "Paired" and, from Story 12.4, "The paired card from a snapshot" (with a name, and with none). Each case answers /state with a changed copy and reloads once. Then the code route itself answers, with no server
    * behind it, under the on and unpaired copy: a failure (500) shows nothing rather than the off card, an expiry two minutes out counts
    * down, and an expiry an hour out is held ten minutes at most.
    */
-  test('T4: a refused code shows the off card and asks no more, a paired session asks for no code, and made-up answers keep the card\'s rules', { tag: '@floor' }, async ({ page }) => {
+  test('T4: a refused code shows the off card and asks no more, a paired session shows its card and asks for no code, and made-up answers keep the card\'s rules', { tag: '@floor' }, async ({ page }) => {
     const was = await setTelegramIncluded(1);
     try {
       const sent = recordRequests(page);
@@ -557,13 +556,13 @@ test.describe('the Telegram card shows a fresh pairing code as a QR code (Story 
       expect(sent.length, 'and asks for no code').toBe(0);
 
       /** Answers /state with the on copy of the Telegram block, with no pause, paired or not. */
-      const onSnapshot = (paired: boolean, displayName: string): Promise<void> =>
+      const onSnapshot = (paired: boolean, displayName: string, own: { state?: string; botUserName?: string } = {}): Promise<void> =>
         changeSnapshot(page, (snapshot) => {
           snapshot['telegram'] = {
             ...(snapshot['telegram'] as Record<string, unknown>),
             included: true,
-            state: 'on',
-            botUserName: 'ocutalon_ci_bot',
+            state: own.state ?? 'on',
+            botUserName: own.botUserName ?? 'ocutalon_ci_bot',
             paired,
             displayName,
             pausedUntil: '',
@@ -575,6 +574,7 @@ test.describe('the Telegram card shows a fresh pairing code as a QR code (Story 
       const cases = [
         { label: 'refused', paired: false, displayName: '' },
         { label: 'paired', paired: true, displayName: 'Zz' },
+        { label: 'paired, no name', paired: true, displayName: '' },
       ] as const;
       for (const one of cases) {
         await page.unrouteAll({ behavior: 'ignoreErrors' });
@@ -591,11 +591,35 @@ test.describe('the Telegram card shows a fresh pairing code as a QR code (Story 
           await expect.poll(async () => plain(await card.innerText()), { message: `${one.label}: the card says so` }).toMatch(/^Telegram not set up How to set it up/);
         }
         await page.waitForTimeout(3000);
-        if (one.paired) await expect(card.locator('[data-state]'), `${one.label}: the card shows no state of its own yet`).toHaveCount(0);
+        if (one.paired) {
+          await expect(card.locator('[data-state="paired"]'), `${one.label}: the card is paired`).toHaveCount(1);
+          await expect.poll(async () => plain(await card.innerText()), { message: `${one.label}: the card says so` }).toBe(
+            one.displayName === '' ? 'Telegram paired Unpair' : `Telegram paired \u00b7 ${one.displayName} Unpair`,
+          );
+          await expect(card.getByRole('button', { name: 'Unpair Telegram', exact: true }), `${one.label}: with one button named Unpair Telegram`).toHaveCount(1);
+          await expect(card.getByRole('button'), `${one.label}: and no other button`).toHaveCount(1);
+        }
         expect(sent.length, one.paired ? 'paired: no request for a code' : 'refused: one request, and no second within 3 s').toBe(one.paired ? 0 : 1);
         await expect(card.getByRole('img'), `${one.label}: no QR code`).toHaveCount(0);
         await expect(card.getByRole('link', { name: /Open in Telegram/ }), `${one.label}: no pairing link`).toHaveCount(0);
         expect(plain(await card.innerText()), `${one.label}: no scan line or countdown`).not.toMatch(/Scan with|Open in Telegram|New code in/);
+      }
+
+      // The paired view needs the state on and no bot name; while the state is off or rejected, the card says "not set up" even when paired.
+      for (const one of [
+        { label: 'paired, no bot name', state: 'on', botUserName: '', says: 'Telegram paired \u00b7 Zz Unpair', view: 'paired' },
+        { label: 'paired, state off', state: 'off', botUserName: 'ocutalon_ci_bot', says: 'Telegram not set up How to set it up', view: 'not-set-up' },
+        { label: 'paired, state rejected', state: 'rejected', botUserName: '', says: 'Telegram not set up How to set it up', view: 'not-set-up' },
+      ]) {
+        await page.unrouteAll({ behavior: 'ignoreErrors' });
+        sent.length = 0;
+        await onSnapshot(true, 'Zz', { state: one.state, botUserName: one.botUserName });
+        await page.reload();
+        await loaded(page);
+        await expect(cardOf(page).locator(`[data-state="${one.view}"]`), `${one.label}: the card is ${one.view}`).toHaveCount(1, { timeout: LOADED_MS });
+        await expect.poll(async () => plain(await cardOf(page).innerText()), { message: `${one.label}: the card says so` }).toMatch(new RegExp(`^${one.says}`));
+        await page.waitForTimeout(3000);
+        expect(sent.length, `${one.label}: no request for a code`).toBe(0);
       }
 
       /** Answers the code request with no server behind it, under the on and unpaired copy, and reloads once. */
@@ -627,4 +651,140 @@ test.describe('the Telegram card shows a fresh pairing code as a QR code (Story 
   });
 });
 
-notBuilt('the page pairs a Telegram chat: a code and its QR code make the chat paired, and the paired chat shows its name', '12.4');
+test.describe('a valid code pairs the chat with the session (Story 12.4)', () => {
+  test.use({ timezoneId: 'Asia/Kolkata', locale: 'en-GB' });
+
+  /** A poll that a routed handler is still answering when a test ends must not fail the next test. */
+  test.afterEach(async ({ page }) => {
+    await page.unrouteAll({ behavior: 'ignoreErrors' });
+  });
+
+  const BOT = 'ocutalon_pair_bot';
+  const CHAT = 84017734110;
+  const NAME = 'Dana';
+  const CONFIRMATION = "You're paired with your OcuTalon session; notifications, reminders and approval requests will arrive here (send /stop to unpair).";
+  const PAIRING_PATH = '/ocutalon/api/v1/pairing';
+
+  /** The count of the recorded announcements that hold "Telegram paired". */
+  const pairedAnnouncements = async (page: Page): Promise<number> => (await announcedTexts(page)).filter((text) => text.includes('Telegram paired')).length;
+
+  /**
+   * T5: the real pairing, end to end. TelegramIn and TelegramOut run against the CI mock; the README account signs in; the card shows a real
+   * code; the test reads it from the "Open in Telegram" link and injects `/start <code>` as a private chat named Dana. The chain TelegramIn,
+   * Commands.Submit, SessionOps, the pairing event and the page shows the paired card within 5 s of the update being queued (the IRIS clock
+   * takes the start, after a check that it agrees with the test's), announces it once, and the chat gets exactly the confirmation. A reload
+   * shows the paired card from the snapshot, with no announcement and no request for a code. One press on Unpair sends one DELETE, and the
+   * card is unpaired again with a fresh code. The matrix rows "The page pairs within 5 s", "A reload while paired" and "Unpair from the card".
+   */
+  test('T5: a valid code pairs the chat within 5 s, the card shows it and says so once, the chat is told, and Unpair undoes it', { tag: '@floor' }, async ({ page }) => {
+    test.setTimeout(150_000);
+    const was = await setTelegramIncluded(1);
+    let saved = '';
+    let passed = false;
+    try {
+      const started = await fixture(`Start(.saved, ${quoted(BOT)}, 1)`, ['saved']);
+      saved = started.values['saved'] ?? '';
+      expect(started.reason, 'TelegramIn and TelegramOut start against the mock, which names the bot').toBe('');
+
+      const posts = recordRequests(page);
+      const deletes: string[] = [];
+      page.on('request', (request) => {
+        if (request.method() === 'DELETE' && new URL(request.url()).pathname === PAIRING_PATH) deletes.push(request.url());
+      });
+      await recordAnnouncements(page);
+      await signInReadmeLoaded(page);
+      const card = cardOf(page);
+      await expect(card.locator('[data-state="unpaired"]'), 'the card is unpaired with a code').toHaveCount(1, { timeout: LOADED_MS });
+      const href = (await card.getByRole('link', { name: /Open in Telegram/ }).getAttribute('href')) ?? '';
+      const code = new RegExp(`^https://t\\.me/${BOT}\\?start=([A-Za-z0-9_-]{22})$`).exec(href)?.[1] ?? '';
+      expect(code, 'the "Open in Telegram" link carries the code').not.toBe('');
+
+      // The two clocks agree: the IRIS time must fall between the test's times around the call, give or take 250 ms.
+      const before = Date.now();
+      const reading = Number((await fixture('Now()')).reason);
+      const after = Date.now();
+      expect(reading, 'the IRIS clock agrees with the test\'s clock (lower bound)').toBeGreaterThanOrEqual(before - 250);
+      expect(reading, 'and (upper bound)').toBeLessThanOrEqual(after + 250);
+
+      // The update is queued while a long poll is open; the card is watched from before the call returns.
+      const paired = card.locator('[data-state="paired"]');
+      let shownAt = 0;
+      const watching = (async (): Promise<void> => {
+        const end = Date.now() + 30_000;
+        try {
+          while (Date.now() < end) {
+            if ((await paired.count()) === 1) {
+              shownAt = Date.now();
+              return;
+            }
+            await page.waitForTimeout(100);
+          }
+        } catch {
+          // The page closed under a test that failed earlier; the test's own failure is the result.
+        }
+      })();
+      const queued = await fixture(`Pair(${quoted(code)}, ${CHAT}, ${quoted(NAME)}, .queuedAt)`, ['queuedAt']);
+      expect(queued.reason, 'the update is queued while a long poll is open').toBe('');
+      const queuedAt = Number(queued.values['queuedAt']);
+      await watching;
+      expect(shownAt > 0, 'the card shows the paired view').toBe(true);
+      expect(shownAt - queuedAt, 'no more than 5000 ms after the update was queued').toBeLessThanOrEqual(5000);
+
+      await expect.poll(async () => plain(await card.innerText()), { message: 'the card says who is paired' }).toBe('Telegram paired \u00b7 Dana Unpair');
+      const button = card.getByRole('button', { name: 'Unpair Telegram', exact: true });
+      await expect(button, 'one button named Unpair Telegram').toHaveCount(1);
+      await expect(card.getByRole('button'), 'and no other').toHaveCount(1);
+      await expect(button, 'with the visible text Unpair').toHaveText('Unpair');
+      const icon = card.locator('svg');
+      await expect(icon, 'the icon is the only svg').toHaveCount(1);
+      await expect(icon.locator('circle[cx="12"][cy="12"][r="10"]'), 'the icon is circle-check: a circle').toHaveCount(1);
+      await expect(icon.locator('path[d="m9 12 2 2 4-4"]'), 'with the tick').toHaveCount(1);
+      await expect(icon, 'hidden from assistive technology').toHaveAttribute('aria-hidden', 'true');
+      await expect(icon, 'in the paired icon token\'s colour').toHaveCSS('color', await tokenColor(page, '--telegram-card-paired-icon'));
+      await expect(card.locator('a, img, canvas, [role="img"]'), 'no link, QR code or image').toHaveCount(0);
+      expect(plain(await card.innerText()), 'and no code').not.toContain(code);
+      await expect.poll(() => pairedAnnouncements(page), { message: '"Telegram paired" is announced', timeout: LOADED_MS }).toBe(1);
+      await page.waitForTimeout(2000);
+      expect(await pairedAnnouncements(page), '"Telegram paired" is announced once, and not again').toBe(1);
+      await expect(page.getByRole('region', { name: 'Demo guide' }), 'the guide has no Telegram line').not.toContainText('Optional: scan the QR code', { timeout: LOADED_MS });
+
+      // The chat gets exactly the confirmation.
+      await expect
+        .poll(async () => JSON.parse((await fixture(`Replies(${CHAT}, .texts)`, ['texts'])).values['texts'] ?? '[]') as string[], { message: 'the chat has exactly the confirmation', timeout: LOADED_MS, intervals: [1000] })
+        .toEqual([CONFIRMATION]);
+
+      // A reload while paired: the snapshot shows it, nothing is announced and no code is asked for.
+      posts.length = 0;
+      await page.reload();
+      await loaded(page);
+      await expect(paired, 'the card is paired again from the snapshot').toHaveCount(1, { timeout: LOADED_MS });
+      await expect.poll(async () => plain(await card.innerText()), { message: 'with the name' }).toBe('Telegram paired \u00b7 Dana Unpair');
+      await page.waitForTimeout(3000);
+      expect(await pairedAnnouncements(page), 'the first value is not announced').toBe(0);
+      expect(posts.length, 'and no code was asked for').toBe(0);
+
+      // Unpair from the card: one press, one DELETE, and a fresh code.
+      await card.getByRole('button', { name: 'Unpair Telegram', exact: true }).click();
+      await expect.poll(() => deletes.length, { message: 'one DELETE of the pairing', timeout: LOADED_MS }).toBe(1);
+      await expect(card.locator('[data-state="unpaired"]'), 'the card is unpaired again').toHaveCount(1, { timeout: LOADED_MS });
+      const again = (await card.getByRole('link', { name: /Open in Telegram/ }).getAttribute('href')) ?? '';
+      expect(again, 'with a fresh code').toMatch(new RegExp(`^https://t\\.me/${BOT}\\?start=[A-Za-z0-9_-]{22}$`));
+      expect(again, 'which is not the old one').not.toContain(code);
+      const state = (await (await page.request.get(STATE)).json()) as { telegram: { paired: boolean } };
+      expect(state.telegram.paired, 'the session\'s /state says it is not paired').toBe(false);
+      expect(deletes.length, 'and there was still only one DELETE').toBe(1);
+      passed = true;
+    } finally {
+      let finished = { reason: '' };
+      try {
+        finished = await fixture(`Finish(${quoted(saved)})`);
+      } finally {
+        await setTelegramIncluded(was);
+      }
+      if (finished.reason !== '') {
+        if (passed) expect(finished.reason, 'the fixture puts everything back').toBe('');
+        else test.info().annotations.push({ type: 'finish', description: finished.reason });
+      }
+    }
+  });
+});

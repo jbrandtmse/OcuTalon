@@ -2,13 +2,21 @@
 title: 'Story 12.4: A valid code pairs the chat with the session'
 type: 'feature'
 created: '2026-10-31'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '70a51053232a3d3f6f45e8471d7eb5103be0be4f'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
   - '{project-root}/_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md (read only AD-1, AD-4, AD-12, AD-13, AD-14, AD-17, AD-22, AD-29, AD-32 and AD-33)'
 warnings: ['oversized']
-deferred: []
+deferred:
+  - summary: >-
+      SessionOps.Unlink keeps DisplayName in a row it unpairs, so an unpaired row holds a name until that chat writes again.
+    evidence: |-
+      Core/SessionOps.cls Unlink clears SessionRef and SeenAt only. TelegramIn clears the name on the chat's next update (this story), but between a page Unpair and that update the row holds a name with no session. No AC of this epic needs a change; a one-line Lane B change (clear DisplayName on unlink) would close the window.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Core/SessionOps.cls (Unlink)
+    severity: low
 ---
 
 <intent-contract>
@@ -280,6 +288,45 @@ These rows assume:
 
 ## Review Triage Log
 
+### 2026-10-31 - Review pass
+- verdicts: 35 findings - high 0, medium 1, low 30, false 4, maybe-false 0
+- findings:
+  - `[low]` `[reject]` Blind: race between the row read and RecordChat when Unpair lands in between - the window is microseconds and the effect is a name on an unpaired row until the chat's next update; the fix is a lock around two calls, more than a direct correction.
+  - `[low]` `[reject]` Blind: an unpaired chat holds its name briefly during a pairing attempt - the Boundaries order requires the name to be recorded first so `SessionOps.Link` can put it in the event; the second `RecordChat` clears it after a failed outcome.
+  - `[low]` `[reject]` Blind: a failed `RecordChat` loses the pairing silently - it is logged with a safe text and the update is confirmed (12.2's rule, Decided 4); the user scans again.
+  - `[low]` `[patch]` Blind: a pairing update with no `first_name` from a paired chat blanks its stored name - fixed in `HandleUpdate` (the stored name is the fallback for a pairing update too); `TestNameOnlyWhilePaired` (c) pins it.
+  - `[low]` `[reject]` Blind: no test that Unpair clears the stored name - `Unlink` is Lane B's and keeps the name (deferred below).
+  - `[false]` `[reject]` Blind: no test that a failed pairing sends nothing - Decided 3 pins only "nothing linked" for a bad code, Story 12.5 owns the reply.
+  - `[low]` `[reject]` Blind: thin `Payload` parsing coverage (`/start@bot`, upper case, tab) - the spec defines the match as "/start " literally; the listed inputs are not pairings by that rule.
+  - `[low]` `[reject]` Blind: `Hang 1` before the "exactly one message" check - a sleep as a negative signal is how an absence is shown; a duplicate would arrive well within it.
+  - `[false]` `[reject]` Blind: mixed clocks in the 5 s bound - Decided 10 and T5's 250 ms agreement check measure the offset.
+  - `[low]` `[reject]` Blind: `Now()` returns the number through the reason channel in the e2e call - recorded in Decided 14; cosmetic.
+  - `[low]` `[patch]` Blind: a long name pushes the Unpair button out of the rail - `.paired` wraps and `.text` breaks anywhere.
+  - `[low]` `[patch]` Blind: the speakers test title lost "and, from Story 16.1" - the title is reworded.
+  - `[low]` `[reject]` Blind: dead `ownTests` ternary in `api-client-sources.test.mjs` - the one remaining row is the 12.7 file and its message is still true.
+  - `[low]` `[reject]` Blind: `pairedAlone` is both the line and the announcement - the spec names it as both (Texts).
+  - `[low]` `[reject]` Edge: a failed `Row` lookup blanks a paired chat's name - needs an SQL error on a plain SELECT; the fix adds a branch for a case nobody shows reachable.
+  - `[low]` `[patch]` Edge: a pairing update with an empty name overwrites a paired chat's name - same fix as the fourth row above; a name that `RecordChat` strips to empty is not handled (negligible).
+  - `[low]` `[reject]` Edge: Row/RecordChat race - same as the first row.
+  - `[low]` `[reject]` Edge: crash between the named record and the clearing record - same as the second row.
+  - `[low]` `[reject]` Edge: a Submit that errors after the command was applied - nothing in the diff shows `CommandsIn` applying and then erroring; Decided 4.
+  - `[low]` `[defer]` Edge: `Unlink` keeps `DisplayName` (claim "an unpaired row holds no name") - Lane B code outside this change; recorded in `deferred:` and "For the lead".
+  - `[low]` `[reject]` Edge: a replayed used code gets the confirmation again - `SessionOps.Pair` answers `paired` for it by design, and an update is confirmed once.
+  - `[low]` `[patch]` Edge: T5's watching loop can reject on a closed page when an earlier step fails - the loop catches and ends.
+  - `[low]` `[reject]` Edge: no announcement when the pairing arrives during a pause - the spec announces only when the view is then `paired`; a pairing cannot arrive while TelegramIn is paused.
+  - `[medium]` `[patch]` Verification gap: the paired view's precedence (off, rejected, no bot name) has no test - T4 gains `paired, no bot name`, `paired, state off` and `paired, state rejected`.
+  - `[low]` `[patch]` Verification gap: "announced exactly once" cannot fail on a later duplicate - T5 waits 2 s and counts again; the second-announcement mutation is red.
+  - `[low]` `[patch]` Verification gap: pinning tests without `mutation:` lines - 10 mutations demonstrated and recorded in Verification.
+  - `[low]` `[patch]` Verification gap: the audit scan has no positive control - `TestPairs` asserts the scan reads the pairing's entry. The other-stream scan shares the own-stream query's shape, whose control exists.
+  - `[low]` `[reject]` Verification gap: a non-string `first_name` is untested - a one-line guard for an input Telegram does not send.
+  - `[low]` `[reject]` Verification gap: the error paths of `Row`, `Pair` and `Reply` are untested - they need fault injection that the mock does not offer.
+  - `[low]` `[reject]` Verification gap (other): `Row` SQL error blanks the name - same as the fourteenth row.
+  - `[low]` `[reject]` Verification gap (other): `Hang 1` - same as the eighth row.
+  - `[low]` `[reject]` Verification gap (other): the new `api-client-sources` assertion matches `test(` in a comment - the check exists to keep `notBuilt` out; T4 and T5 are the evidence that tests run.
+  - `[false]` `[reject]` Verification gap (other): `Finish`'s failure is only annotated after a failed test - that test is already red, and a pass asserts the reason is empty.
+  - `[low]` `[reject]` Intent audit: the announcement count in T5 is a substring match - no other announcement holds "Telegram paired" in that flow.
+  - `[false]` `[reject]` Intent audit: `LiveCase` and `TelegramPageFixture` are not named by the intent - both are Lane A files named in the Code Map and Tasks.
+
 ## Design Notes
 
 **Governing ADs:**
@@ -347,6 +394,16 @@ No acceptance criterion contradicts an AD. The NFRs this story touches are measu
 13. **Where the tests run.**
     - T5 runs in the existing `live:demo-path` unit (`browser` group), and `TelegramPair` in `shard:lane-a@Channel` (`production` group). No unit is added or moved.
     - Expected (inference): T5 about 25 to 35 s locally, about 1 to 1.5 minutes on the runner; `TelegramPair` about 30 to 60 s.
+14. **Test helpers (implement stage).**
+    - `LiveCase.PrivateMessage(chatId, name = "", text = "zz private", type = "private")` is public and extended in place (the old one-argument call gives the old update); with a name it also carries a `from` object whose names differ, so a test proves that only `chat.first_name` is read. `TextsTo` and `PairBodies` are new public class methods of `LiveCase`.
+    - `TelegramPair` waits for an update through the kept offset (the mock numbers updates from 1 after its reset, so the offset becomes the count plus 1), not by sleeping.
+    - `TelegramPageFixture.Now()` returns the number (it cannot fail); `Pair` and `Replies` return "" or a reason, with `queuedAt` and `texts` as output.
+    - Only a `message` update can be a pairing; a button press never is.
+15. **Review patches.**
+    - A pairing update with no name keeps a paired chat's stored name, as any other update does (DW-486); an unpaired chat's pairing update takes the update's name.
+    - The paired row wraps, and a long name breaks anywhere, so the Unpair button stays in the rail.
+    - T4 gains the precedence cases (a bot-less paired card, and a paired session while the state is off or rejected); T5 settles 2 s and counts the announcement again, and its watching loop ends quietly on a closed page.
+    - `TestPairs` checks that the audit scan reads the pairing's entry.
 
 **Extend, don't copy (Rule 2):**
 - **`HandleUpdate`** stays the one private-chat handler. The pairing path is a private method it calls, not a second handler.
@@ -465,25 +522,73 @@ How to run:
 | DW-486, AD-4 | A pairing update's name stays after an outcome that is not `paired` | `TestNameOnlyWhilePaired` (row (b) keeps "Zqstranger") |
 | Unpair | The button's action is a no-op (`of(null)`) | T5 (no `DELETE`; the card stays paired) |
 
+Observed (implement stage; each applied, seen red, reverted and compared with `cmp` against a backup; IRIS mutations ran on a warm stack, web mutations each with `ci/iris.sh build` and a full `live demo-path`):
+- mutation: `TelegramIn` puts the payload in `CodeHash` -> `TestPairs` red (no link, no used mark, no Pair body hash match, the bodies hold the code) and `TestNameOnlyWhilePaired` red.
+- mutation: `ChatRef` = the chat id -> `TestPairs` red (nothing linked; "a message body holds the chat id").
+- mutation: `Submit` with origin `system` -> `TestPairs` red (no Pair body, nothing linked).
+- mutation: the pairing update records the chat with `""` -> `TestPairs` red (the row, the event and `/state` hold no name); `TestNameOnlyWhilePaired` (a) red.
+- mutation: the name goes into the `Notification`'s `Slots` -> `TestPairs` red (slots not `{}`; a body holds the name).
+- mutation: no `Notification` on `paired` -> `TestPairs` red (no `sendMessage`, no Notification body).
+- mutation: the `Notification` has no `ChatRef` -> `TestPairs` red (no `sendMessage`).
+- mutation: `Live/Publish.cls` `GUIDETRIGGERS` without `pairing` (temporary, restored) -> `TestPairs` red (no `guide.state` after the pairing or the unpair).
+- mutation: `HandleUpdate` passes the update's name even when empty for a paired chat -> `TestNameOnlyWhilePaired` (a) red.
+- mutation: the second `RecordChat` with `""` after an outcome other than `paired` is removed -> `TestNameOnlyWhilePaired` (b) red ("nothing is linked and the row holds no name").
+- mutation: `telegramCardView` ignores `paired` -> T4 and T5 red (no `data-state="paired"`).
+- mutation: the Unpair button has no `label` -> T4 and T5 red (not named "Unpair Telegram").
+- mutation: no announcement -> T5 red ("Telegram paired" is announced).
+- mutation: the announcement is made for the first value too -> T5 red (the reload announces).
+- mutation: the paired view shows 6 s after the change (a `setTimeout`) -> T4 and T5 red (`shownAt - queuedAt` over 5000).
+- mutation: the card's link carries a fixed code -> T1, T3 and T5 red (nothing pairs).
+- mutation: the Unpair action is a resolved promise -> T5 red (no `DELETE`).
+- mutation: `Payload` returns the raw remainder, with no `$ZStrip(..., "<>W")` -> `TestNoPairWithoutACode` red ("no Pair body was sent": a "/start    " with white space only submits a Pair).
+- mutation: `HandleUpdate` without the `chat.type '= "private"` check -> `TestNoPairWithoutACode` red (the group chat pairs: "no Pair body was sent", "the code row is not marked used", "the group chat has no row").
+- mutation: `HandleUpdate` always keeps `storedName` for a non-pairing update of a paired chat -> `TestNameOnlyWhilePaired` (b) red ("the new name replaces it, and the session stays") and (c) red too ("a pairing update with no name keeps the paired chat's name and session").
+- mutation: `HandleUpdate` takes the old branch, so a pairing update uses `updateName` even when empty -> `TestNameOnlyWhilePaired` (c) red ("a pairing update with no name keeps the paired chat's name and session").
+- mutation: `Pair` calls `Reply(ref)` twice on `paired` -> `TestPairs` red ("the chat gets exactly one message" and "TelegramIn sent exactly one Notification to Notify").
+- mutation: `TelegramPageFixture.DropRows` skips every delete but keeps its read-back (the rows are left behind) -> T1 and T5 red, both with "the fixture puts everything back" (received "a Pairing row that Start did not find is still there"); T3 and T4 stay green. Disabling the whole `DropRows` call instead would remove the read-back too, so `Finish` would return "" and nothing would be seen: the read-back is what pins the clean-up.
+- mutation: the paired line always uses the "Telegram paired {middle dot} {name}" form, even for an empty name -> T4 red ("paired, no name: the card says so": expected "Telegram paired Unpair", received "Telegram paired \u00b7 Unpair").
+- mutation: the announcement effect calls `announce` twice in the same turn -> not red: `Announcer` joins the messages of one turn into one text, and T5 counts texts, so it still sees one. The same effect calling `announce` a second time 1.5 s later (a `setTimeout`) -> T5 red ("Telegram paired" is announced once, and not again: expected 1, received 2).
+- mutation: the `state === 'on' && telegram.paired` branch moved above the `off`/`rejected` branch -> not red: the branch is gated on `state === 'on'`, so for `off` and `rejected` the order cannot change the view. Only that move together with dropping the `state === 'on'` gate from the paired branch -> T4 red ("paired, state off: the card is not-set-up": expected 1, received 0). The gate alone, with the order kept, is not red either (the not-set-up branch returns first).
+- mutation: `Demo/Guide.cls` (Lane B, temporary, restored) `TelegramRow` always 1 -> T5 red ("the guide has no Telegram line": the Demo guide region still holds "Optional: scan the QR code" while paired).
+
+Measured: `TelegramPair` 16.2 to 16.6 s (warm, and in `shard lane-a@Channel` in both orders); the whole shard 352 s forward and 372 s reversed on a fresh throwaway; T5 8.0 s locally (T1 24.6 s, T2 0.6 s, T3 31.3 s, T4 14.4 s); `live demo-path` 4 min 56 s locally (first start 113 s ready); `STEP 1 page: passed, 11 passed, 0 skipped`. The either-order run (T5, T4, T3, T1, T2) passed. `live sign-in` parts 1/2 and 2/2 passed. `ci/changes.sh` with no push event runs every group (it reads GitHub for a base, so the real selection is CI's).
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-**Plan summary.**
-- `TelegramIn` turns `/start <code>` from a private chat into `Pair {HashCode(code), ChatRef}` through `Commands.Submit` with origin `telegram`, and sends the `pairing.paired` `Notification` on the outcome `paired`. It keeps a chat's name only while the chat is paired (DW-486).
-- The card gains its paired view, with a one-press "Unpair" (`ServerButton`, `ApiClient.unpair()`) and the "Telegram paired" announcement.
-- The tests:
-  - `Test.Channel.TelegramPair` (new): the command, the reply, the trace search and the guide;
-  - T5 replaces the `notBuilt` row (within 5 s, the announcement, the reply, the reload and Unpair), and T4 gains the paired cases;
-  - `TelegramPageFixture` gains `out`, the row removal, `Now`, `Pair` and `Replies`.
+**Summary.**
+- `TelegramIn` turns `/start <code>` from a private chat into `Pair {HashCode(code), ChatRef}` through `Commands.Submit` with origin `telegram`, and sends the `pairing.paired` `Notification` to `Notify` on the outcome `paired` only. A chat's name (`chat.first_name`) is kept only while the chat is paired (DW-486).
+- The Telegram card has its paired view (`circle-check`, "Telegram paired \u00b7 {name}", a one-press ghost "Unpair" button named "Unpair Telegram" through `ApiClient.unpair()`) and announces "Telegram paired" once.
+- The tests: `Test.Channel.TelegramPair` (new, in `shard:lane-a@Channel`), T5 in place of the `notBuilt` line, and T4's paired and precedence cases. `TelegramPageFixture` gains `out`, the removal of rows that `Start` did not find, `Now`, `Pair` and `Replies`; `LiveCase` gains public `PrivateMessage` (extended), `TextsTo` and `PairBodies`.
 
-**Footprint extensions to report:** `web/scripts/ux-strings.test.mjs` and `web/scripts/api-client-sources.test.mjs` (standing ruling, by entry). `web/scripts/announce-focus-sources.test.mjs` needs the runner's ruling (Design Notes, "Needs ruling").
+**Files changed.**
+- `src/ocutalon/cls/OcuTalon/Channel/Telegram/In.cls`: the pairing path, the name rule, the reply.
+- `src/ocutalon/cls/OcuTalon/Test/Channel/TelegramPair.cls` (new): `TestPairs`, `TestNameOnlyWhilePaired`, `TestNoPairWithoutACode`.
+- `src/ocutalon/cls/OcuTalon/Test/Channel/LiveCase.cls`, `TelegramPageFixture.cls`: the helpers above.
+- `web/src/app/rail/telegram-card/telegram-card-view.ts`, `telegram-card.ts`: the paired view, the Unpair button, the announcement.
+- `web/e2e/demo-path/telegram-page.spec.ts`: T5, T4's paired and precedence cases, no `notBuilt`.
+- `web/scripts/ux-strings.test.mjs` (four strings), `api-client-sources.test.mjs` (the page-file row), `announce-focus-sources.test.mjs` (the card joins the speakers): by entry, under the rulings.
 
-**For the lead:**
-- The ruling above.
-- The optional Lane B ask on `SessionOps.Unlink` keeping `DisplayName`.
+**Review.** 35 findings from four layers: 9 patched (1 medium, 8 low), 1 deferred (the `Unlink` name, low, in the frontmatter), 21 rejected as low and 4 as false, each with its reason in the Review Triage Log. Follow-up review recommended: false (one medium patched, no high).
 
-**Residual risks (inference until measured).**
-- `browser` gains about 1 to 1.5 minutes on the runner, and `production` about 1 minute.
-- A run over budget needs a unit moved in `ci/units.sh`, which is the orchestrator's.
+**Verification (final tree).**
+- `npm --prefix web test` 1127 passed; `npm --prefix web run lint` clean.
+- Warm: `TelegramPair`, `TelegramIn`, `TelegramOut`, `TelegramNoToken` passed.
+- Fresh `shard lane-a@Channel`: 9 of 9 classes passed forward and with `--reverse`.
+- `live demo-path`: passed, `STEP 1 page: passed, 11 passed, 0 skipped`, 17 Playwright tests in 2.3 min; also passed with the three describe blocks of `telegram-page.spec.ts` in reverse order (file restored, compared with a backup).
+- `live sign-in` part 1/2 failed once (1 failed, 126 passed; the failing test was not captured) and passed on the re-run (127 passed); part 2/2 passed (96). No test of this story is in those parts.
+- `test-ci-config.sh`, `test-boundaries.sh`, `ci/checks.sh` passed. `ci/changes.sh` with no push event selects every group.
+- The footprint `git status` printed nothing: no Lane B path changed beyond the three `web/scripts/` entries.
+- 27 mutations demonstrated red and restored byte for byte (Verification, "Observed"). Two came out not red as first stated (a double `announce` in one turn is joined into one text; a branch move that the `state === 'on'` gate neutralises) and were replaced by variants that are red.
+
+**Measured durations (for the budget).** `TelegramPair` 17.4 s on a fresh throwaway (16.3 s warm); T5 13.2 s, T4 22.7 s locally; the Channel shard 352 s forward and 372 s reversed locally; `live demo-path` 2.3 min of Playwright locally. CI group times are not known here: `browser` and `production` are left to CI (Rule 23).
+
+**Footprint extensions to report:** `web/scripts/ux-strings.test.mjs`, `web/scripts/api-client-sources.test.mjs` (standing ruling, by entry) and `web/scripts/announce-focus-sources.test.mjs` (the runner's ruling, two entries).
+
+**For the lead:** the optional Lane B ask on `SessionOps.Unlink` keeping `DisplayName` (deferred, low).
+
+**Residual risks.**
+- T5's 5 s bound is the most likely to flake on a slow runner (inference).
+- The unexplained single failure in `live sign-in` part 1/2.

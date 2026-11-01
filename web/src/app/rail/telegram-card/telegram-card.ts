@@ -9,6 +9,8 @@ import { pageTime } from '../../chat/page-time';
 import { Icon } from '../../icon/icon';
 import { LiveState } from '../../live/live-state';
 import { README_URL } from '../../links';
+import { Announcer } from '../../shared/announcer';
+import { ServerButton } from '../../shared/server-button';
 import { RAIL_TEXTS, readmeSection, TELEGRAM_ANCHOR } from '../rail-view';
 import {
   asksForCode,
@@ -42,11 +44,17 @@ import {
  *   - A 409 (the server's state is not `on`) shows the not-set-up view and stops asking until the Telegram block's state, bot name or
  *     pairing, or the pause, changes. Any other failure shows nothing and asks again 30 seconds later.
  *   - Leaving the condition (paused, paired, not on) drops the code and every timer; coming back asks for a fresh code.
- * The root's `data-state` is `paused`, `not-set-up` or `unpaired`.
+ * It is paired (Story 12.4; FR-15, FR-18, UX-DR55, UX-DR130, UX-DR132) while the snapshot says Telegram is `on` and the session is paired,
+ *   with or without a bot name: the `circle-check` icon, "Telegram paired {middle dot} {name}" ("Telegram paired" alone for an empty name) and a ghost
+ *   "Unpair" button named "Unpair Telegram", with no link, QR code or code. One press calls `ApiClient.unpair()` once, with no confirmation, and
+ *   moves no focus in this story (Story 12.5 adds the just-unpaired state and the heading focus); the card then asks for a fresh code. The
+ *   card announces "Telegram paired" once, when the store's `paired` changes from false to true while it shows this view; the first value
+ *   it sees is never announced.
+ * The root's `data-state` is `paused`, `not-set-up`, `paired` or `unpaired`.
  */
 @Component({
   selector: 'app-telegram-card',
-  imports: [Icon],
+  imports: [Icon, ServerButton],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (view().kind === 'paused') {
@@ -60,6 +68,13 @@ import {
         <a class="link" [href]="href" target="_blank" rel="noopener noreferrer"
           >{{ texts.telegramHowTo }}<app-icon name="external-link" [size]="12" /><span class="visually-hidden"> {{ opensInNewTab }}</span></a
         >
+      </div>
+    } @else if (view().kind === 'paired') {
+      <div class="card" data-state="paired">
+        <span class="paired">
+          <app-icon class="paired-icon" name="circle-check" [size]="16" /><span class="text">{{ view().paired }}</span>
+          <app-server-button variant="ghost" [label]="cardTexts.unpairLabel" [action]="unpair">{{ cardTexts.unpair }}</app-server-button>
+        </span>
       </div>
     } @else if (view().kind === 'unpaired') {
       <div class="card" data-state="unpaired">
@@ -103,6 +118,20 @@ import {
     .paused-icon {
       color: var(--telegram-card-paused-icon);
     }
+    .paired {
+      display: inline-flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: var(--space-2);
+      max-width: 100%;
+    }
+    .paired .text {
+      min-width: 0;
+      overflow-wrap: anywhere;
+    }
+    .paired-icon {
+      color: var(--telegram-card-paired-icon);
+    }
     .caption {
       font-family: var(--type-caption-font-family);
       font-size: var(--type-caption-font-size);
@@ -143,12 +172,15 @@ export class TelegramCard {
 
   private readonly live = inject(LiveState);
   private readonly api = inject(ApiClient);
+  private readonly announcer = inject(Announcer);
 
   protected readonly texts = RAIL_TEXTS;
   protected readonly cardTexts = TELEGRAM_CARD_TEXTS;
   protected readonly pausedText = TELEGRAM_CARD_TEXTS.paused;
   protected readonly opensInNewTab = CHAT_TEXTS.opensInNewTab;
   protected readonly href = readmeSection(README_URL, TELEGRAM_ANCHOR);
+  /** The Unpair button's call: one press, one DELETE, no confirmation. */
+  protected readonly unpair = () => this.api.unpair();
 
   /** The code the card holds, with its due time; none before the first answer and after a failure. */
   private readonly held = signal<HeldCode | undefined>(undefined);
@@ -185,6 +217,17 @@ export class TelegramCard {
   protected readonly newCodeIn = computed(() => TELEGRAM_CARD_TEXTS.newCodeIn.replace('{n}', String(this.view().minutes)));
 
   constructor() {
+    // The announcement: "Telegram paired" once, when the store's paired changes from false to true while the card shows the paired view.
+    // The first value the card sees is only remembered, so a page loaded or reloaded while paired is silent.
+    let before: boolean | undefined;
+    effect(() => {
+      const paired = this.telegram().paired;
+      const kind = this.view().kind;
+      untracked(() => {
+        if (before === false && paired && kind === 'paired') this.announcer.announce(TELEGRAM_CARD_TEXTS.pairedAlone);
+        before = paired;
+      });
+    });
     // The asking: while the key holds, ask for a code, and again at each code's due time; a change of the key ends the old asking.
     effect((onCleanup) => {
       const key = this.askKey();

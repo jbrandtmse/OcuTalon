@@ -89,13 +89,15 @@ describe('the page speaks only through the Announcer', () => {
     // box announces "Sent" (Story 4.4): nothing else announces either.
     // Story 16.1: the header's credential rows speak (credential-rows.ts: "Copied" or the copy failure, once, after the user's own press on a
     // copy button), so that file is the one header file that is not silent; the header itself still is.
-    const silent = files.filter((one) => (one.name !== 'app/header/credential-rows.ts' && /^app\/(rail|header)\//.test(one.name)) || ['app/chat/ocutalon-reply.ts', 'app/chat/notice-card.ts', 'app/chat/user-message.ts', 'app/chat/decision-strip.ts', 'app/incidents/incident-card.ts', 'app/incidents/evidence-panel.ts'].includes(one.name));
+    // Story 12.4: the Telegram card speaks (telegram-card.ts: "Telegram paired", once, when the pairing arrives), the one rail file that is not
+    // silent; the pairing change is announced once, from the card that shows it (UX-DR132).
+    const silent = files.filter((one) => (one.name !== 'app/header/credential-rows.ts' && one.name !== 'app/rail/telegram-card/telegram-card.ts' && /^app\/(rail|header)\//.test(one.name)) || ['app/chat/ocutalon-reply.ts', 'app/chat/notice-card.ts', 'app/chat/user-message.ts', 'app/chat/decision-strip.ts', 'app/incidents/incident-card.ts', 'app/incidents/evidence-panel.ts'].includes(one.name));
     assert.ok(silent.length >= 8, 'the silent files are found');
     assert.ok(silent.some((one) => one.name === 'app/incidents/incident-card.ts'), 'the incident card is among them');
     assert.deepEqual(silent.filter((one) => /\bAnnouncer\b|\.announce\(/.test(one.code)).map((one) => one.name), []);
   });
 
-  it('has these speakers and no others: banners, the chat and its outbox, the demo guide and the Break the feed box, the load failure, the simulated mailbox (a decided email and a sample that arrived), the busy notice, the narrow-window note, the press of Approve and Reject (the notices of the user\'s own press, on the chat\'s request card and on the simulated phone: busy, late, refused and failed), the approval request card (an answer that came from elsewhere, once), Dismiss (the message of an error reply, once, Story 6.4) and, from Story 16.1, the credential rows', () => {
+  it('has these speakers and no others: banners, the chat and its outbox, the demo guide and the Break the feed box, the load failure, the simulated mailbox (a decided email and a sample that arrived), the busy notice, the narrow-window note, the press of Approve and Reject (the notices of the user\'s own press, on the chat\'s request card and on the simulated phone: busy, late, refused and failed), the approval request card (an answer that came from elsewhere, once), Dismiss (the message of an error reply, once, Story 6.4), the credential rows (Story 16.1) and the Telegram card (the pairing, once, Story 12.4)', () => {
     assert.deepEqual(filesWith(/\bannouncer\.announce\(|\.announce\(/).sort(), [
       'app/approvals/answer-press.ts',
       'app/approvals/approval-request-card.ts',
@@ -108,6 +110,7 @@ describe('the page speaks only through the Announcer', () => {
       'app/incidents/incident-dismiss.ts',
       'app/live/live-state.ts',
       'app/mailbox/simulated-mailbox.ts',
+      'app/rail/telegram-card/telegram-card.ts',
       'app/shared/announcer.ts',
       'app/shared/narrow-note.ts',
       'app/shared/server-button.ts',

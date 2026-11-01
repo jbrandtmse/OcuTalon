@@ -111,10 +111,16 @@ describe('one typed client (DW-231)', () => {
 
 describe('the Telegram parts of the demo path', () => {
   const e2e = join(here, '..', 'e2e', 'demo-path');
-  const parts = [
-    ['telegram-page.spec.ts', 'page', 0, '12.4', true],
-    ['telegram-approval.spec.ts', 'approval', 4, '12.7', false],
-  ];
+  const parts = [['telegram-approval.spec.ts', 'approval', 4, '12.7', false]];
+
+  it('telegram-page.spec.ts has no not-built part, has tests of its own, skips none, and is a part of the page step (Story 12.4)', () => {
+    const code = readFileSync(join(e2e, 'telegram-page.spec.ts'), 'utf8');
+    assert.doesNotMatch(code, /\bnotBuilt\(/, 'no notBuilt call: T5 replaced it');
+    assert.doesNotMatch(code, /not-built/, 'no not-built import');
+    assert.equal(/\btest\(/.test(code), true, 'tests of its own');
+    assert.doesNotMatch(code, /\btest\.(?:describe\.)?(?:skip|only|fixme)\(/, 'no skipped, fixme or focused test or describe');
+    assert.deepEqual(stepOfFile('telegram-page.spec.ts'), { index: 0, numbered: false });
+  });
 
   for (const [name, step, index, story, ownTests] of parts) {
     it(`${name} declares one not-built part, owned by Story ${story}, ${ownTests ? 'has tests of its own' : 'has no test of its own yet'}, and is a part of the ${step} step`, () => {
@@ -123,8 +129,8 @@ describe('the Telegram parts of the demo path', () => {
       assert.equal((code.match(/\bnotBuilt\(/g) ?? []).length, 1, 'one declaration');
       assert.match(code, new RegExp(`^notBuilt\\('[^']+', '${story.replace('.', '\\.')}'\\);$`, 'm'));
       assert.doesNotMatch(code, /\btest\.(?:describe\.)?(?:skip|only|fixme)\(/, 'no skipped, fixme or focused test or describe: only notBuilt skips');
-      // The page file holds the tests of Story 12.8 (the pause), beside the one notBuilt that Story 12.4 replaces; the approval file has no test yet.
-      assert.equal(/\btest\(/.test(code), ownTests, ownTests ? 'tests of its own (Story 12.8)' : 'no test of its own yet: Lane A replaces the call');
+      // The approval file has no test yet.
+      assert.equal(/\btest\(/.test(code), ownTests, 'no test of its own yet: Lane A replaces the call');
       assert.deepEqual(stepOfFile(name), { index, numbered: false });
     });
   }

@@ -1,5 +1,5 @@
 /**
- * The state of the Telegram card (Stories 12.8 and 12.3; UX-DR55, UX-DR56, UX-DR116, FR-18, FR-22): which of its views the rail shows
+ * The state of the Telegram card (Stories 12.8, 12.3 and 12.4; UX-DR55, UX-DR56, UX-DR116, FR-18, FR-22): which of its views the rail shows
  * under the Telegram heading. A framework-free module: it imports only types and the QR library's ESM default, and uses only erasable
  * TypeScript syntax, so Node runs it as it is.
  *
@@ -12,8 +12,10 @@
  *   format with no suffix). A missing or unreadable time gives an empty time, as the banner's own rule does.
  * - Then the card says "not set up" while the state is `off` or `rejected`, or while the server refused the page a code (a 409: the
  *   server's state is not `on`, though the snapshot says so).
- * - Then it shows nothing while the state is `on` with no bot name, while the session is paired (Story 12.4 adds that view), or while it
- *   holds no code yet.
+ * - Then it is paired while the state is `on` and the session is paired, with or without a bot name: the `circle-check` icon, "Telegram
+ *   paired {middle dot} {name}" (or "Telegram paired" alone when the name is empty) and a ghost "Unpair" button. A paired card whose state is `off`
+ *   or `rejected` says "not set up", because nothing reaches the chat then.
+ * - Then it shows nothing while the state is `on` with no bot name, or while it holds no code yet.
  * - Otherwise it is unpaired: the QR code and the "Open in Telegram" link of `https://t.me/<bot>?start=<code>`, and "New code in {n} min".
  *   `asksForCode` is the condition under which the card asks for a code at all.
  *
@@ -35,6 +37,10 @@ export const TELEGRAM_CARD_TEXTS = {
   opensTelegram: '(opens Telegram)',
   newCodeIn: 'New code in {n} min',
   qrAlt: 'QR code that opens OcuTalon in Telegram to pair this session',
+  paired: 'Telegram paired \u00b7 {name}',
+  pairedAlone: 'Telegram paired',
+  unpair: 'Unpair',
+  unpairLabel: 'Unpair Telegram',
 } as const;
 
 /** How long a code lives on the page at most, in milliseconds: FR-18's ten minutes. */
@@ -69,12 +75,14 @@ export interface CardOwn {
 }
 
 /**
- * The view of the card: paused, not set up, unpaired or nothing. `retry` is the paused view's "Trying again at {time}" line, and "" in the
- * other views. `link` is the unpaired view's pairing link and `minutes` its {n}; they are "" and 0 in the other views.
+ * The view of the card: paused, not set up, paired, unpaired or nothing. `retry` is the paused view's "Trying again at {time}" line, and ""
+ * in the other views. `paired` is the paired view's line, "" in the other views. `link` is the unpaired view's pairing link and `minutes`
+ * its {n}; they are "" and 0 in the other views.
  */
 export interface TelegramCardView {
-  kind: 'paused' | 'not-set-up' | 'unpaired' | 'none';
+  kind: 'paused' | 'not-set-up' | 'paired' | 'unpaired' | 'none';
   retry: string;
+  paired: string;
   link: string;
   minutes: number;
 }
@@ -133,18 +141,22 @@ export function qrSymbol(text: string): QrSymbol {
 
 /** The card's view, from the snapshot's Telegram block, the store's status conditions, what the card itself holds and the page's time format. */
 export function telegramCardView(
-  telegram: Pick<TelegramState, 'state' | 'botUserName' | 'paired'>,
+  telegram: Pick<TelegramState, 'state' | 'botUserName' | 'paired' | 'displayName'>,
   status: Readonly<Record<string, StatusPayload>> | undefined,
   own: CardOwn,
   format: TelegramCardFormat,
 ): TelegramCardView {
   if (status !== undefined && telegramPaused(status)) {
     const time = status[PAUSED_CONDITION]?.slots?.time;
-    return { kind: 'paused', retry: TELEGRAM_CARD_TEXTS.tryingAgainAt.replace('{time}', typeof time === 'string' ? format.time(time) : ''), link: '', minutes: 0 };
+    return { kind: 'paused', retry: TELEGRAM_CARD_TEXTS.tryingAgainAt.replace('{time}', typeof time === 'string' ? format.time(time) : ''), paired: '', link: '', minutes: 0 };
   }
-  if (telegram.state === 'off' || telegram.state === 'rejected' || own.refused) return { kind: 'not-set-up', retry: '', link: '', minutes: 0 };
-  if (telegram.state !== 'on' || telegram.botUserName === '' || telegram.paired || own.code === undefined) {
-    return { kind: 'none', retry: '', link: '', minutes: 0 };
+  if (telegram.state === 'off' || telegram.state === 'rejected' || own.refused) return { kind: 'not-set-up', retry: '', paired: '', link: '', minutes: 0 };
+  if (telegram.state === 'on' && telegram.paired) {
+    const line = telegram.displayName === '' ? TELEGRAM_CARD_TEXTS.pairedAlone : TELEGRAM_CARD_TEXTS.paired.replace('{name}', () => telegram.displayName);
+    return { kind: 'paired', retry: '', paired: line, link: '', minutes: 0 };
   }
-  return { kind: 'unpaired', retry: '', link: pairingLink(telegram.botUserName, own.code.code), minutes: minutesLeft(own.code.due, own.now) };
+  if (telegram.state !== 'on' || telegram.botUserName === '' || own.code === undefined) {
+    return { kind: 'none', retry: '', paired: '', link: '', minutes: 0 };
+  }
+  return { kind: 'unpaired', retry: '', paired: '', link: pairingLink(telegram.botUserName, own.code.code), minutes: minutesLeft(own.code.due, own.now) };
 }

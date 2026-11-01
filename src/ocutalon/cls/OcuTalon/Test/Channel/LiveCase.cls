@@ -21,6 +21,8 @@ Include Ensemble
 ///     WaitMonitor, MonitorSettled, MonitorAge, InstanceSeq, Events, WaitEvent, WaitClear, EpochNow, Cut), and so are Enable, Disable, Marks
 ///     and PutMarks, which hold the bodies of StartItems, StopItems, SaveMarks and RestoreMarks. The second user of them is
 ///     OcuTalon.Test.Channel.TelegramPageFixture (Story 12.8), which the page's browser test calls from an IRIS script.
+///   - PrivateMessage (an update with a name and a text), TextsTo (the sendMessage texts to one chat) and PairBodies (the Pair commands since a
+///     header mark) are public class methods for the pairing tests (Story 12.4); OcuTalon.Test.Channel.TelegramPageFixture calls the first.
 ///   - The scans of the token search are public class methods too: HeaderMark and HeadersFrom (the message headers), RowsText (every text
 ///     of a SELECT's rows), Bodies (the exported body of every header after a mark) and LiveMark (the live events). TelegramIn calls the
 ///     two header ones and TelegramNoToken the other four as its own; TelegramPageFixture's search of the pairing codes (Story 12.3) calls
@@ -514,10 +516,42 @@ Method QueueUpdates(updates As %DynamicArray) As %Boolean [ Private ]
 	Quit ##class(OcuTalon.Test.Contract.Mock).Control("updates", updates)
 }
 
-/// A private-chat message update for the chat id.
-ClassMethod PrivateMessage(chatId As %Integer) As %DynamicObject [ Private ]
+/// A message update for the chat id: a private chat by default, with the text; first_name is the chat's name when it is not empty, and
+/// then the update also has a from object whose names differ from it (TelegramIn reads the chat's name only).
+ClassMethod PrivateMessage(chatId As %Integer, name As %String = "", text As %String = "zz private", type As %String = "private") As %DynamicObject
 {
-	Quit {"message": {"chat": {"id": (chatId), "type": "private"}, "text": "zz private"}}
+	Set chat = {"type": (type)}
+	Do chat.%Set("id", +chatId, "number")
+	If name = "" Quit {"message": {"chat": (chat), "text": (text)}}
+	Do chat.%Set("first_name", name)
+	Quit {"message": {"message_id": 1, "from": {"id": (+chatId), "first_name": "Zqfrom", "username": "zqfromuser"}, "chat": (chat), "text": (text)}}
+}
+
+/// The text of every sendMessage to the chat id, in order, as a dynamic array.
+ClassMethod TextsTo(chatId As %Integer) As %DynamicArray
+{
+	Set texts = []
+	Set iterator = ..CallsOf("sendMessage").%GetIterator()
+	While iterator.%GetNext(, .call) {
+		If call.params."chat_id" = chatId Do texts.%Push(call.params.text)
+	}
+	Quit texts
+}
+
+/// The Pair command bodies of the message headers after the mark, one per body, in order, each as {"codeHash", "chatRef", "origin"}.
+ClassMethod PairBodies(mark As %Integer) As %DynamicArray
+{
+	Set found = []
+	Set seen = ""
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT MessageBodyId FROM Ens.MessageHeader WHERE ID > ? AND MessageBodyClassName = 'OcuTalon.Msg.Command.Pair' ORDER BY ID", mark)
+	While result.%Next() {
+		Set id = result.%GetData(1)
+		If $ListFind(seen, id) Continue
+		Set seen = seen _ $ListBuild(id)
+		Set body = ##class(OcuTalon.Msg.Command.Pair).%OpenId(id)
+		If $IsObject(body) Do found.%Push({"codeHash": (body.CodeHash), "chatRef": (body.ChatRef), "origin": (body.Origin)})
+	}
+	Quit found
 }
 
 }

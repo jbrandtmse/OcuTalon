@@ -16,6 +16,12 @@
 ///     writes nothing to most of those stores, so Codes first writes one probe to each through the product's own paths and checks that its
 ///     scan finds it, then removes the probes (the audit entry stays: the audit log is append-only). It returns "" or the first failed
 ///     check, which names the check and never a code.
+///   - Story 12.4 (FR-15, AD-4): Start takes a third parameter, out; with 1 it enables TelegramOut before TelegramIn (through the same
+///     Enable, so rows holds both snapshots), so that the pairing reply reaches the mock. saved's fourth element lists the Refs of every
+///     Pairing row at Start (code rows and chat rows), and Finish disables both items and deletes every row that Start did not find, so that
+///     a pairing made during the test leaves no chat behind, and reads the rows back. Now is the IRIS clock as Unix milliseconds. Pair waits
+///     for an open long poll, takes queuedAt (Unix milliseconds) just before it queues one private "/start <code>" update with the chat's
+///     first_name, and Replies lists the text of every sendMessage to a chat as a JSON array.
 Class OcuTalon.Test.Channel.TelegramPageFixture Extends %RegisteredObject
 {
 
@@ -24,6 +30,9 @@ Parameter CASE = "OcuTalon.Test.Channel.LiveCase";
 
 /// The item the page's pause comes from.
 Parameter ITEM = "TelegramIn";
+
+/// The item that sends the pairing reply (Start with out 1).
+Parameter OUT = "TelegramOut";
 
 /// The pause mark.
 Parameter MARK = "telegramPaused";
@@ -44,8 +53,9 @@ Parameter WAITRESUME = 20;
 /// and the production runs. Then StatusMonitor must be past its silent first run and the mock's Bot API side is reset. saved is what
 /// Finish needs: it is set before TelegramIn is enabled, and again once its Enabled row is known. Returns "" once the Telegram state is on.
 /// When botName is not empty, one getMe reply that names that bot is queued after the reset and before TelegramIn is enabled, so that the
-/// user name /state shows is botName (the mock's default name otherwise). saved also holds the Refs of the code rows that exist now.
-ClassMethod Start(Output saved As %String, botName As %String = "") As %String
+/// user name /state shows is botName (the mock's default name otherwise). saved also holds the Refs of the Pairing rows that exist now.
+/// With out 1, TelegramOut is enabled before TelegramIn, so that a notification for a chat reaches the mock.
+ClassMethod Start(Output saved As %String, botName As %String = "", out As %Boolean = 0) As %String
 {
 	Set saved = ""
 	Set rows = ""
@@ -63,12 +73,17 @@ ClassMethod Start(Output saved As %String, botName As %String = "") As %String
 		If $$$ISERR(sc) Return $SYSTEM.Status.GetErrorText(sc)
 		Set marks = $ClassMethod(..#CASE, "Marks")
 		Set since = $ClassMethod(..#CASE, "InstanceSeq")
-		Set codes = $ListBuild(1, ..CodeRefs())
+		Set codes = $ListBuild(1, ..RowRefs())
 		Set saved = ..Pack(rows, marks, since, codes)
 		If botName '= "" {
 			Set result = {"id": 424243, "is_bot": true, "first_name": "OcuTalon QR", "username": (botName)}
 			Set reply = {"status": 200, "body": {"ok": true, "result": (result)}}
 			If '##class(OcuTalon.Test.Contract.Mock).Control("replies", {"method": "getMe", "replies": [(reply)]}) Return "the mock did not accept the getMe reply"
+		}
+		If out {
+			Set sc = $ClassMethod(..#CASE, "Enable", ..#OUT, .rows)
+			Set saved = ..Pack(rows, marks, since, codes)
+			If $$$ISERR(sc) Return $SYSTEM.Status.GetErrorText(sc)
 		}
 		Set sc = $ClassMethod(..#CASE, "Enable", ..#ITEM, .rows)
 		Set saved = ..Pack(rows, marks, since, codes)
@@ -121,8 +136,9 @@ ClassMethod Resume(seconds As %Numeric, onset As %Integer, Output clear As %Inte
 
 /// Puts back what Start saved, after any partial Start: TelegramIn is disabled and has no job, its Enabled row and the two Telegram marks
 /// are as they were (the marks are read back and compared), the mock's Bot API side is reset (after the item has no job, as BotApi.Reset
-/// requires), and StatusMonitor has published the clear of any pause. Every code row that Start did not find is deleted, after TelegramIn is
-/// disabled (a saved that holds no list of code rows, or whose Start did not get as far as reading them, deletes none). Returns "" or the first reason something was not put back.
+/// requires), and StatusMonitor has published the clear of any pause. Both items are disabled, and every Pairing row (code row or chat row)
+/// that Start did not find is deleted after that (a saved that holds no list of rows, or whose Start did not get as far as reading them,
+/// deletes none). Returns "" or the first reason something was not put back.
 ClassMethod Finish(saved As %String) As %String
 {
 	If saved = "" Quit ""
@@ -133,12 +149,12 @@ ClassMethod Finish(saved As %String) As %String
 		Set marks = $List(list, 2)
 		Set since = $List(list, 3)
 		If rows '= "" {
-			Set sc = $ClassMethod(..#CASE, "Disable", ..#ITEM, rows)
+			Set sc = $ClassMethod(..#CASE, "Disable", ..#ITEM_","_..#OUT, rows)
 			If $$$ISERR(sc) Set first = $SYSTEM.Status.GetErrorText(sc)
 		}
 		Set held = $Select($ListLength(list) > 3: $List(list, 4), 1: "")
 		If held '= "" {
-			Set reason = ..DropCodes($List(held, 2))
+			Set reason = ..DropRows($List(held, 2))
 			If (reason '= "") && (first = "") Set first = reason
 		}
 		Do $ClassMethod(..#CASE, "PutMarks", marks)
@@ -293,6 +309,43 @@ ClassMethod CodeProbed(list As %List, codes As %String, probe As %String, condit
 	Quit ""
 }
 
+/// The IRIS clock as Unix milliseconds (UTC), for the page test's 5-second bound.
+ClassMethod Now() As %Integer
+{
+	Set stamp = $ZTimeStamp
+	Quit ((($Piece(stamp, ",", 1) - 47117) * 86400) + $Piece(stamp, ",", 2)) * 1000 \ 1
+}
+
+/// Waits for an open long poll, then queues one private "/start <code>" update from the chat with the name as its first_name.
+/// queuedAt is Now() taken just before the update is queued. Returns "" when it was queued, or the reason it was not.
+ClassMethod Pair(code As %String, chatId As %String, name As %String, Output queuedAt As %Integer) As %String
+{
+	Set queuedAt = 0
+	Try {
+		If $ClassMethod(..#CASE, "WaitCalls", "getUpdates", 1, ..#WAITPOLL).%Size() < 1 Return "no long poll is open within "_..#WAITPOLL_" s"
+		Set update = $ClassMethod(..#CASE, "PrivateMessage", chatId, name, "/start "_code)
+		Set batch = []
+		Do batch.%Push(update)
+		Set queuedAt = ..Now()
+		If '##class(OcuTalon.Test.Contract.Mock).Control("updates", batch) Return "the mock did not accept the update"
+	} Catch ex {
+		Return "Pair failed: "_..Safe(ex)
+	}
+	Quit ""
+}
+
+/// The text of every sendMessage to the chat, in order, as a JSON array in texts. Returns "" or the reason it could not be read.
+ClassMethod Replies(chatId As %String, Output texts As %String) As %String
+{
+	Set texts = "[]"
+	Try {
+		Set texts = $ClassMethod(..#CASE, "TextsTo", chatId).%ToJSON()
+	} Catch ex {
+		Return "Replies failed: "_..Safe(ex)
+	}
+	Quit ""
+}
+
 /// The Bot API token of this stack (the CI dummy), read from the environment (AD-19). For the spec's search of the page only.
 ClassMethod Token() As %String
 {
@@ -306,33 +359,33 @@ ClassMethod Pack(rows As %List, marks As %List, since As %Integer, codes As %Lis
 	Quit $SYSTEM.Encryption.Base64Encode($ZConvert($ListBuild(rows, marks, since, codes), "O", "UTF8"), 1)
 }
 
-/// The Refs of every code row (a Pairing row with a CodeSessionRef), as a list.
-ClassMethod CodeRefs() As %List [ Private ]
+/// The Refs of every Pairing row (code rows and chat rows), as a list.
+ClassMethod RowRefs() As %List [ Private ]
 {
 	Set refs = ""
-	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT Ref FROM OcuTalon_Data.Pairing WHERE CodeSessionRef IS NOT NULL AND CodeSessionRef <> ''")
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT Ref FROM OcuTalon_Data.Pairing")
 	While result.%Next() {
 		Set refs = refs _ $ListBuild(result.%GetData(1))
 	}
 	Quit refs
 }
 
-/// Deletes every code row whose Ref is not in keep (a list), then reads the code rows back, and returns "" or the first reason the rows
+/// Deletes every Pairing row whose Ref is not in keep (a list), then reads the rows back, and returns "" or the first reason the rows
 /// could not be read, one was not deleted, or one is still there.
-ClassMethod DropCodes(keep As %List) As %String [ Private ]
+ClassMethod DropRows(keep As %List) As %String [ Private ]
 {
 	Set first = ""
-	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT ID, Ref FROM OcuTalon_Data.Pairing WHERE CodeSessionRef IS NOT NULL AND CodeSessionRef <> ''")
-	If result.%SQLCODE < 0 Return "the code rows could not be read: "_result.%Message
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT ID, Ref FROM OcuTalon_Data.Pairing")
+	If result.%SQLCODE < 0 Return "the Pairing rows could not be read: "_result.%Message
 	While result.%Next() {
 		If $ListFind(keep, result.%GetData(2)) Continue
 		Set sc = ##class(OcuTalon.Data.Pairing).%DeleteId(result.%GetData(1))
-		If $$$ISERR(sc) && (first = "") Set first = "a code row was not deleted: "_$SYSTEM.Status.GetErrorText(sc)
+		If $$$ISERR(sc) && (first = "") Set first = "a Pairing row was not deleted: "_$SYSTEM.Status.GetErrorText(sc)
 	}
 	If first '= "" Return first
-	Set left = ..CodeRefs()
+	Set left = ..RowRefs()
 	For i = 1:1:$ListLength(left) {
-		If '$ListFind(keep, $List(left, i)) Return "a code row that Start did not find is still there"
+		If '$ListFind(keep, $List(left, i)) Return "a Pairing row that Start did not find is still there"
 	}
 	Quit ""
 }

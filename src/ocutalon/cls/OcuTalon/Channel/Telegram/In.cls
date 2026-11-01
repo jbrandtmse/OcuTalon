@@ -15,7 +15,15 @@ Include Ensemble
 ///     poll and written after each handled update: an update below it is skipped, and an update that cannot be handled is logged and
 ///     confirmed. No other copy of the offset exists (AD-5).
 ///   - Only an update of a private chat, a message or a button press, is handled, and handling it records the chat through
-///     Pairing.RecordChat with no name. Everything else is confirmed and ignored; the from name of an update is not stored.
+///     Pairing.RecordChat. Everything else is confirmed and ignored.
+///   - The chat's name is the update's chat.first_name (the from object is never read) and is kept only while the chat is paired
+///     (DW-486, AD-4): a later update of a paired chat keeps the stored name when it has none of its own, and the row of a chat that
+///     is not paired holds no name.
+///   - A message whose text is "/start " and a code (Story 12.4) is a pairing: the chat is recorded with its name, the code is hashed
+///     with Pairing.HashCode and Msg.Command.Pair {CodeHash, ChatRef} is submitted through Commands.Submit with origin telegram. Only
+///     the outcome paired is answered, with a pairing Notification (catalog key pairing.paired) sent to Notify; this class never calls
+///     sendMessage (AD-1). After any other outcome a chat that is not paired is recorded again with no name. The code is never put in
+///     a message, a log text or any other store. Story 12.5 replies to every other text, to a bare /start and to a bad code.
 ///   - A 409 pauses the item PAUSESECONDS: the time is written to StatusMark.Record("telegramPaused", until), which is the one truth of
 ///     the pause and is read before every poll, so a restart honours it. Its warning carries Telegram's description, which says whether
 ///     another process polls the bot or a webhook is set. A getUpdates answered 200 deletes the mark. A 429 waits
@@ -62,6 +70,15 @@ Parameter LOGPAUSE = "Telegram refused getUpdates with a conflict (another proce
 Parameter LOGCHAT = "TelegramIn could not record a chat: ";
 
 Parameter LOGUPDATE = "TelegramIn could not handle an update, and confirmed it: ";
+
+Parameter LOGLOOKUP = "TelegramIn could not look up a chat's row, so it kept no name.";
+
+Parameter LOGPAIR = "TelegramIn could not submit a pairing: ";
+
+Parameter LOGREPLY = "TelegramIn could not send the pairing reply to Notify: ";
+
+/// The text that starts a pairing message: the command and one space, then the code.
+Parameter STARTPREFIX = "/start ";
 
 /// 1 once getMe has answered and the state on is recorded.
 Property Started As %Boolean [ InitialExpression = 0 ];
@@ -246,18 +263,108 @@ Method Handle(updates As %DynamicArray) [ Private ]
 	}
 }
 
-/// Only a message or a button press of a private chat is handled; handling it records the chat, with no name.
+/// Only a message or a button press of a private chat is handled. The chat is recorded with the name that the Boundaries of Story 12.4
+/// give it; a "/start <code>" message then goes on to Pair.
 Method HandleUpdate(update As %DynamicObject) [ Private ]
 {
 	Set chat = ""
+	Set message = ""
 	If update.%GetTypeOf("message") = "object" {
-		Set chat = update.message.chat
+		Set message = update.message
+		Set chat = message.chat
 	} ElseIf update.%GetTypeOf("callback_query") = "object" {
 		If update."callback_query".%GetTypeOf("message") = "object" Set chat = update."callback_query".message.chat
 	}
 	If '$IsObject(chat) || (chat.%GetTypeOf("type") '= "string") || (chat.type '= "private") Quit
-	Do ##class(OcuTalon.Data.Pairing).RecordChat(chat.id, "", .sc)
-	If $SYSTEM.Status.IsError(sc) $$$LOGWARNING(..#LOGCHAT_##class(OcuTalon.Channel.Telegram.Api).Safe($SYSTEM.Status.GetErrorText(sc)))
+	Set payload = ..Payload(message)
+	Set updateName = $Select(chat.%GetTypeOf("first_name") = "string": chat."first_name", 1: "")
+	Do ..Row(chat.id, .sessionRef, .storedName)
+	If (payload = "") && (sessionRef = "") {
+		Set name = ""
+	} ElseIf updateName '= "" {
+		Set name = updateName
+	} ElseIf sessionRef '= "" {
+		Set name = storedName
+	} Else {
+		Set name = ""
+	}
+	Set ref = ##class(OcuTalon.Data.Pairing).RecordChat(chat.id, name, .sc)
+	If $SYSTEM.Status.IsError(sc) {
+		$$$LOGWARNING(..#LOGCHAT_##class(OcuTalon.Channel.Telegram.Api).Safe($SYSTEM.Status.GetErrorText(sc)))
+		Quit
+	}
+	If payload '= "" Do ..Pair(ref, chat.id, payload)
+}
+
+/// The code of a pairing message: the text after "/start " once trimmed of white space; "" for anything else (no message, no text,
+/// another command, a bare /start or a payload of white space only).
+Method Payload(message As %DynamicObject) As %String [ Private ]
+{
+	If '$IsObject(message) || (message.%GetTypeOf("text") '= "string") Quit ""
+	Set text = message.text
+	If $Extract(text, 1, $Length(..#STARTPREFIX)) '= ..#STARTPREFIX Quit ""
+	Quit $ZStrip($Extract(text, $Length(..#STARTPREFIX) + 1, *), "<>W")
+}
+
+/// The chat's row before it is recorded, read-only, with the lookup that RecordChat makes: its SessionRef and DisplayName, both "" for a
+/// chat with no row.
+Method Row(chatId As %String, Output sessionRef As %String, Output displayName As %String) [ Private ]
+{
+	Set sessionRef = "", displayName = ""
+	Set found = ##class(%SQL.Statement).%ExecDirect(, "SELECT TOP 1 SessionRef, DisplayName FROM OcuTalon_Data.Pairing WHERE ChatId = ? ORDER BY ID", chatId)
+	If found.%SQLCODE < 0 {
+		$$$LOGWARNING(..#LOGLOOKUP)
+		Quit
+	}
+	If found.%Next() {
+		Set sessionRef = found.%Get("SessionRef")
+		Set displayName = found.%Get("DisplayName")
+	}
+}
+
+/// Submits the Pair command for a code and answers the outcome paired with one pairing Notification. The chat's id and name stay in its
+/// row, and the code only in this method's hash. After any other outcome, and after a refused or failed Submit, a chat that is not
+/// paired is recorded again with no name.
+Method Pair(ref As %String, chatId As %String, payload As %String) [ Private ]
+{
+	Set outcome = ""
+	Try {
+		Set command = ##class(OcuTalon.Msg.Command.Pair).%New()
+		Set command.CodeHash = ##class(OcuTalon.Data.Pairing).HashCode(payload)
+		Set command.ChatRef = ref
+		Set sc = ##class(OcuTalon.Core.Commands).Submit(command, "telegram", .result)
+		If $SYSTEM.Status.IsError(sc) {
+			$$$LOGWARNING(..#LOGPAIR_##class(OcuTalon.Channel.Telegram.Api).Safe($SYSTEM.Status.GetErrorText(sc)))
+		} ElseIf $IsObject(result) {
+			Set outcome = result.Outcome
+		}
+	} Catch exception {
+		$$$LOGWARNING(..#LOGPAIR_##class(OcuTalon.Channel.Telegram.Api).Safe(exception.Name))
+	}
+	If outcome = "paired" {
+		Do ..Reply(ref)
+		Quit
+	}
+	Set chat = ##class(OcuTalon.Data.Pairing).Chat(ref)
+	If $IsObject(chat) && (chat.SessionRef = "") {
+		Set chat = ""
+		Do ##class(OcuTalon.Data.Pairing).RecordChat(chatId, "", .sc)
+		If $SYSTEM.Status.IsError(sc) $$$LOGWARNING(..#LOGCHAT_##class(OcuTalon.Channel.Telegram.Api).Safe($SYSTEM.Status.GetErrorText(sc)))
+	}
+}
+
+/// The pairing Notification of a chat that has just been paired, sent to Notify, which routes it to TelegramOut by ChatRef.
+Method Reply(ref As %String) [ Private ]
+{
+	Set chat = ##class(OcuTalon.Data.Pairing).Chat(ref)
+	Set notification = ##class(OcuTalon.Msg.Notification).%New()
+	Set notification.SessionRef = $Select($IsObject(chat): chat.SessionRef, 1: "")
+	Set notification.ChatRef = ref
+	Set notification.Kind = "pairing"
+	Set notification.CatalogKey = "pairing.paired"
+	Set notification.Slots = "{}"
+	Set sc = ..SendRequestAsync("Notify", notification)
+	If $SYSTEM.Status.IsError(sc) $$$LOGWARNING(..#LOGREPLY_##class(OcuTalon.Channel.Telegram.Api).Safe($SYSTEM.Status.GetErrorText(sc)))
 }
 
 /// The offset that the item keeps: the last handled update_id plus 1, or "" when there is none.
