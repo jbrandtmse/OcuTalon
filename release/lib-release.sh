@@ -5,8 +5,8 @@
 # release_config_read <file>   reads the author's configuration file (KEY=value lines, outside the repository) and sets the shell
 #                              variables REHEARSAL_<KEY>. No line is expanded: a $(...) in a value stays text, and only a leading ~/ of a
 #                              path key becomes the home folder. Lines that do not start with REHEARSAL_, blank lines and # lines are
-#                              ignored. Keys: CLEAN_SSH (user@host), CLEAN_KEY, CLEAN_WEB (the address of the clean host's web port as
-#                              the driver host reaches it), DRIVER_SSH (user@host, or local), DRIVER_KEY (not needed for local),
+#                              ignored. Keys: CLEAN_SSH (user@host), CLEAN_KEY, CLEAN_WEB (the clean host's name or address as the
+#                              driver host reaches it; no scheme and no port), DRIVER_SSH (user@host, or local), DRIVER_KEY (not needed for local),
 #                              ENV_FILE; optional CLEAN_PORT, DRIVER_PORT and KNOWN_HOSTS. It prints one line "REFUSED config: ..."
 #                              that names a key or a kind of file, never a value, and returns 2 for a missing file, a missing or
 #                              unknown key, a file of the repository, or an env file that group or others can read; 0 otherwise
@@ -15,7 +15,8 @@
 # host_run <clean|driver> <command>
 #                              runs the POSIX sh command on a host, with the caller's standard input. REHEARSAL_MODE is real or dry. In real
 #                              mode it is ${OCUTALON_REHEARSAL_SSH:-ssh} -i <key> -o BatchMode=yes -o IdentitiesOnly=yes -o ConnectTimeout=15
-#                              [-o UserKnownHostsFile=<file>] [-p <port>] -- <destination> <command>, with strict host keys; a driver of
+#                              -o StrictHostKeyChecking=yes [-o UserKnownHostsFile=<file>] [-p <port>] -- <destination> <command>, so
+#                              host keys are checked strictly whatever the user's ssh configuration says; a driver of
 #                              local runs sh -c in REHEARSAL_LOCAL_DIR on this machine. In dry mode it never runs ssh: the clean host is
 #                              sh -c in $REHEARSAL_STANDIN/clean with the throwaway's STANDIN_PROJECT, STANDIN_FILES, STANDIN_IMAGE and
 #                              STANDIN_WAIT as COMPOSE_PROJECT_NAME, COMPOSE_FILE, IRIS_IMAGE and OCUTALON_INSTALL_WAIT, and the driver
@@ -191,7 +192,7 @@ host_run() {
     *) return 2 ;;
   esac
   read -r -a ssh_cmd <<< "${OCUTALON_REHEARSAL_SSH:-ssh}"
-  args=("${ssh_cmd[@]}" -i "$key" -o BatchMode=yes -o IdentitiesOnly=yes -o ConnectTimeout=15)
+  args=("${ssh_cmd[@]}" -i "$key" -o BatchMode=yes -o IdentitiesOnly=yes -o ConnectTimeout=15 -o StrictHostKeyChecking=yes)
   if [ -n "${REHEARSAL_KNOWN_HOSTS:-}" ]; then args+=(-o "UserKnownHostsFile=$REHEARSAL_KNOWN_HOSTS"); fi
   if [ -n "$port" ]; then args+=(-p "$port"); fi
   args+=(-- "$dest" "$cmd")

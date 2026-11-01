@@ -199,6 +199,39 @@ The timed runs and their bounds go to a proposed sibling, Story 11.11 (Design No
 - **AC7 (interface for Story 11.5).** Given the header's usage, when `plan`, `run`, a phase out of order or a bad option runs, then they behave as the matrix's Plan, Phase order and Candidate rows say, and the header documents the commands, the configuration keys, the section lines and the exit codes.
 - **AC8 (the boundary rules reach `release/`).** Given `test-boundaries.sh`, when it runs on the tree, then its docker-call and ASCII rules cover `release/*.sh` and pass.
 
+### Review Findings
+
+Code review, 2026-11-01 (follow-up review; four layers, full-opus tier; 32 raw findings grouped into 15 entries: 0 high, 5 medium, 10 low; all patched but one low, ledgered as DW-531).
+
+- [x] [Review][Patch] (med) The configuration scan read only `NAME=value` lines exactly as written, so a quoted or spaced line, an expanded `~/` path and the host of a `user@host` were never looked for (AC3) [release/rehearse.sh:config_values, scan_run] -- `report` also scans the values as `release_config_read` set them, with `<KEY>_HOST` for each destination's host; hits are de-duplicated.
+- [x] [Review][Patch] (med) "Host keys stay strictly checked" depended on the user's ssh configuration (a `StrictHostKeyChecking accept-new` there accepted a first key, and the env file then went to that host) [release/lib-release.sh:host_run] -- `host_run` passes `-o StrictHostKeyChecking=yes`; the headers say so.
+- [x] [Review][Patch] (med) The stub printed the same user and password, so a swapped or fixed sign-in passed (AC2) [docker/tests/test-rehearsal.sh:mkstub] -- the stub prints `ocu-user` and `ocu-pass-1`; the stub run asserts both in the curl config.
+- [x] [Review][Patch] (med) The clean-host probe never ran in a test, so a wrong label filter or a dropped `-a` would certify a host with a leftover stack (Hosts row) [docker/tests/test-rehearsal.sh:t_parsers] -- the probe runs on stub docker, git and node, its counts feed `hosts_verdict`.
+- [x] [Review][Patch] (med) The dry run's compose-file mapping and its `down` (image removal, lane-lock release) had no hermetic test (AC5) [release/rehearse.sh:standin_files, cmd_down] -- the mapping is `standin_files`, with a unit case; rule dry-down runs `down` on a hand-made dry state with a stub docker.
+- [x] [Review][Patch] (low) The `OCUTALON_INSTALL_WAIT` passed to the remote install.sh was never asserted [docker/tests/test-rehearsal.sh:t_stub_runs]
+- [x] [Review][Patch] (low) `plan` was never run with a local driver [docker/tests/test-rehearsal.sh:t_candidate]
+- [x] [Review][Patch] (low) `REHEARSAL_CLEAN_WEB` had two definitions (one read like `host:port`) [release/lib-release.sh, release/rehearse.sh headers] -- both say a name or address, no scheme and no port.
+- [x] [Review][Patch] (low) `REH_STEPS` was defined and never used [release/rehearse.sh]
+- [x] [Review][Patch] (low) The scope loop printed `printf: write error: Broken pipe` [docker/tests/test-boundaries.sh:112,119] -- `grep -qxF -- "$f" <<< "$files"`.
+- [x] [Review][Patch] (low) An `--rc` with a second line passed the line-wise check [release/rehearse.sh:parse_options] -- a `case` pattern.
+- [x] [Review][Patch] (low) The header said no configuration value is put on a command line; ssh's arguments name the destination, key and port [release/rehearse.sh header]
+- [x] [Review][Patch] (low) lib-live's `live_start` replaces the EXIT trap, so a failure inside it left the state and refused the next `install` on the tag [release/rehearse.sh:cmd_install] -- `install` removes a state whose install phase did not finish.
+- [x] [Review][Patch] (low) A dry `down` said the lock was removed when `live_lock_release` kept it [release/rehearse.sh:cmd_down] -- the line defers to the LOCK line.
+- [x] [Review][Defer] (low) `tag_ok` repeats lib-live's `live_tag_ok` (Rule 2, weak reason) [release/rehearse.sh:tag_ok] -- DW-531, wontfix-accepted, reopen_if the tag rule changes in lib-live alone.
+
+Rejected:
+- low, spec-bound: a dry run with no `--record` writes `release/records/<v>/rc<n>.md` (the spec names the default, and the section reads `Result: dry run`).
+- low, spec-bound: the sign-in step passes on `<app-root` without proving a signed-out page lacks it (the Sign-in row defines the check, as the sibling `test-install-script-live.sh` does).
+- low, theoretical: `command -v node`/`docker` in a non-interactive ssh shell miss nvm, Homebrew and `/usr/local/bin` (Story 38.2's clean host is a fresh Linux droplet with system packages; real on a macOS or nvm clean host).
+- low, theoretical: after a secrets hit the Candidate, host and Run lines are not withheld or re-scanned (they come from fixed probes and options).
+- low: a symlinked env file is refused with the chmod hint (fails closed; resolving links reopens a repository-path bypass).
+- low, spec-bound: `env_file_hits` in `lib-keys.sh`, an IRIS input (the Tasks place it there).
+- low: an interrupted `run` skips `down` (a signal path; `down` or `ci/iris.sh teardown` with the tag recovers).
+- low: an unreadable scan input reads "found a value" in the withheld text (fails closed; the files are the script's own).
+- false: setup FAIL lines outside the step grammar (the Dry-run candidate row allows `ensure_web_bundle`'s FAIL line; the step grammar is for steps).
+- low: the in-repository refusal checks this checkout only (the main checkout's `.env` is gitignored; nothing is printed or committed).
+- low, spec-bound: install.sh's last lines in a failed row may name a path (the Install row puts them there; `test-boundaries.sh` refuses a local path in a committed record).
+
 ## Spec Change Log
 
 ## Review Triage Log
@@ -378,6 +411,32 @@ No AC contradicts an AD.
 - mutation: AC3 (review pass, install.sh's full output): `install.out` removed from the scanned files -> rule stub-runs red (a value only in install.sh's output passes the secrets step).
 - mutation: AC7 (review pass, relative record): `run` starts its install child in the repository folder instead of the caller's -> rule stub-runs red (the record is written into the repository).
 - mutation: AC5 (review pass, dry record): the dry section reads `Mode: rehearsal` (the mode option forced to real) -> rule dry-section red (its own synthetic break `b_dry_section` goes red the same way).
+
+**QA stage (2026-11-01; mutations re-applied by the QA stage, each observed red and reverted byte-identical, `git status --short` and `git diff` checksums unchanged):**
+- mutation: AC1: drop `-o BatchMode=yes` from `host_run`'s ssh arguments -> `test-rehearsal.sh` rule host-run red.
+- mutation: AC2: `first=$((t0 - t0))` in `step_install` -> rule stub-runs red.
+- mutation: AC3: `cat "$(env_file_path)"` at the top of `step_install` -> rules stub-runs and static red.
+- mutation: AC4: `uname -n` appended to `machine_line`'s output -> rules parsers and stub-runs red.
+- mutation: AC5: `dry)` renamed in `host_run` -> rule host-run red.
+- mutation: AC6: `record_write` never matches its section -> rules record and stub-runs red.
+- mutation: AC7: `report`'s phase-order refusal replaced by `if false` -> rules phase-order and real-tree red.
+- mutation: AC8: `docker compose config > /dev/null` added to `release/rehearse.sh` -> `test-boundaries.sh` rule "docker calls" red; a non-ASCII character there -> rule "ascii" red. (Detection note: the rule needs a space or end of line after `config`, so `config;` is not seen; nothing in `release/` has that shape.)
+- (QA) `docker/tests/test-rehearsal.sh` rule record gains four cases for the shared writer's other direction (the upgrade harness's `## Upgrade harness` section replaced once while the `## Clean-machine rehearsal` and checklist sections stay byte for byte). mutation: the section terminator in `record_write` narrowed so a replaced section swallows the next one -> rule record red ("the checklist section after it is kept").
+- Harness section shape (AC6 integration): `git diff f64cf74d..HEAD -- release/upgrade-harness.sh` removes only `env_get`, `env_set`, `detail_clean` and `record_write` and adds the `lib-release.sh` source line; every caller passes its own heading, `record_section` is untouched, and `test-upgrade-harness.sh` (rules record and record-contract) is green.
+- QA live dry run (tag e11s3q, lane A, `--record` in the scratchpad): `RESULT dry run`, exit 3, first start 82 s, install phase 88 s; afterwards no container, volume, image, state folder or lane lock of the tag; `git status` shows no record under `release/records/`.
+- QA loop at HEAD: `test-rehearsal.sh` (12 rules), `test-boundaries.sh`, `test-upgrade-harness.sh`, `test-ci-config.sh`, `test-ci-changes.sh`, `ci/changes.sh ci.yml` all pass.
+
+**Code review (2026-11-01; each mutation applied, observed red and reverted, `git status --short` and `git diff` checksums unchanged):**
+- mutation: AC1 (strict host keys): `-o StrictHostKeyChecking=yes` removed from `host_run` -> rules host-run and stub-runs red.
+- mutation: AC3 (configuration as used): `config_values` prints only the `_HOST` lines -> rule stub-runs red (the spaced, quoted `REHEARSAL_CLEAN_WEB` passes the secrets step).
+- mutation: AC2 (printed user and password): `signin_config "$url" "$PI_PASSWORD" "$PI_USER"` in `step_signin` -> rule stub-runs red.
+- mutation: AC2 (install bound): the `env OCUTALON_INSTALL_WAIT=` prefix dropped -> rule stub-runs red.
+- mutation: Hosts row (the probe): the containers filter's label misspelled, and separately `-a` dropped from `docker ps` -> rule parsers red.
+- mutation: AC5 (stand-in compose files): the worktree arm of `standin_files` removed -> rule parsers red.
+- mutation: AC5 (down): `live_lock_release` removed from `cmd_down` -> rule dry-down red.
+- mutation: AC7 (plan, local driver): `hd=configured` always -> rule candidate red.
+- mutation: AC7 (`--rc`): the length and digit arms of the `--rc` pattern removed -> rule candidate red.
+- Code-review loop: `test-rehearsal.sh` (13 rules), `test-boundaries.sh` (no broken-pipe line), `test-upgrade-harness.sh` and `test-ci-config.sh` pass. Live dry run (tag e11s3cr, lane A, `--record` in the scratchpad): `RESULT dry run`, exit 3, first start 82 s, install phase 88 s, 94 s in all; afterwards no container, volume, image, state folder or lane lock of the tag, and nothing under `release/records/`.
 
 **Loop results at hand-off:** `test-rehearsal.sh` all 11 rules pass; `test-boundaries.sh` passes with `release/*.sh` in scope (no existing release script failed it); `test-upgrade-harness.sh`, `test-storage.sh`, `test-ci-config.sh`, `test-ci-changes.sh` and `ci/changes.sh ci.yml` exit 0 (no pin of `test-ci-config.sh` needed an update); `rehearsal` is in `CHECK_SCRIPTS` only.
 

@@ -5,7 +5,8 @@
 #   - config: release_config_read and every refusal of the Config row, with no value in a refusal and no expansion of a value;
 #   - host-run: host_run through a stub ssh that logs its argv and the size of its standard input: the options, the destination, --, the
 #     port and known-hosts cases, a local driver, no env-file value in any argv, and a dry mode that never calls the stub;
-#   - parsers: parse_install, machine_line (no host name), hosts_verdict, signin_config;
+#   - parsers: parse_install, machine_line (no host name), hosts_verdict, signin_config, the clean-host probe run on stub docker, git and
+#     node, and standin_files (the stand-in's compose files);
 #   - results: the FAIL line grammar, the Result rules and the exit codes;
 #   - record: record_write (create with the heading, replace, append, another section byte for byte, no duplicate);
 #   - env-hits: env_file_hits finds a planted value, names the variable, and never prints the value;
@@ -13,6 +14,8 @@
 #   - stub-runs: the copied script, run for real in a synthetic git repository against stub hosts: a hosts failure, a clone HEAD
 #     mismatch, a failed install.sh, and every step passing then report (twice), a planted value, phase order and the Candidate refusals;
 #   - real-tree: plan on this checkout starts nothing, a version that is not the candidate's and a report with no state exit 2;
+#   - dry-down: down of a dry run's state on a stub docker: the saved image names removed, the lane lock released only when its content
+#     is the saved one, and the state removed;
 #   - static: no sourcing of a variable path but the three libraries, no cat of an env file, umask 077, mode 100755, ASCII, strict host
 #     keys and no docker push, login, save or export.
 # Each rule with a break first runs on a synthetic break (the rule pattern of test-upgrade-harness.sh): a check that can no longer fail
@@ -28,7 +31,7 @@ cd "$root" || exit 1
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/ocutalon-rh.XXXXXX") || exit 1
 trap 'rm -rf "$tmp"' EXIT
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
-unset ANTHROPIC_API_KEY TELEGRAM_BOT_TOKEN OCUTALON_RELEASE_CONFIG OCUTALON_REHEARSAL_SSH
+unset ANTHROPIC_API_KEY TELEGRAM_BOT_TOKEN OCUTALON_RELEASE_CONFIG OCUTALON_REHEARSAL_SSH OCUTALON_INSTALL_WAIT
 bad=0
 
 eq() { # eq <label> <got> <want>
@@ -287,8 +290,8 @@ Found .env. It was not changed.
 OcuTalon is ready after 1 min 5 s.
 
   Open:      http://localhost:52801/ocutalon/
-  User:      ocutalon
-  Password:  ocutalon
+  User:      ocu-user
+  Password:  ocu-pass-1
 EOS
 }
 
@@ -318,7 +321,10 @@ ARG cleanuser@clean-host-7.invalid
 ARG echo hi"
   has "the standard input reaches the host" "$argv" "CALL dest=cleanuser@clean-host-7.invalid stdin=3"
   has "the driver is another destination" "$argv" "CALL dest=driveruser@driver-host-3.invalid stdin=0"
-  lacks "host keys stay strictly checked" "$argv" "StrictHostKeyChecking"
+  has "host keys are checked strictly, whatever the ssh configuration says" "$argv" "ARG -o
+ARG StrictHostKeyChecking=yes"
+  lacks "host key checking is never switched off" "$argv" "StrictHostKeyChecking=no"
+  lacks "nor set to accept a new key" "$argv" "accept-new"
   lacks "no known-hosts option without the key" "$argv" "UserKnownHostsFile"
   lacks "no port option without the key" "$argv" "ARG -p"
 
@@ -405,8 +411,8 @@ t_parsers() {
   eq "install.sh's output parses" "$?" 0
   eq "the printed address" "$PI_URL" "http://localhost:52801/ocutalon/"
   eq "the printed port" "$PI_PORT" "52801"
-  eq "the printed user" "$PI_USER" ocutalon
-  eq "the printed password" "$PI_PASSWORD" ocutalon
+  eq "the printed user" "$PI_USER" ocu-user
+  eq "the printed password" "$PI_PASSWORD" ocu-pass-1
   eq "the ready text is kept" "$PI_READY" "OcuTalon is ready after 1 min 5 s."
   for p in Open User Password; do
     grep -v "^  $p:" "$f" > "$tmp/pi-$p.out"
@@ -462,6 +468,44 @@ t_parsers() {
   eq "a reply with no containers count fails" "$?" 1
   hosts_verdict real "$(printf '%s\n' "$good" | grep -v '^volumes=')" "$drv" > /dev/null
   eq "a reply with no volumes count fails" "$?" 1
+
+  # The clean-host probe itself, on stub docker, git and node: it counts the compose project's containers (also stopped ones) and volumes.
+  local pb=$tmp/probe-bin probe
+  mkdir -p "$pb"
+  cat > "$pb/docker" <<'EOS'
+#!/bin/sh
+a=" $* "
+case $a in *" info "*) echo 27.0.1; exit 0 ;; esac
+case $a in *" label=com.docker.compose.project=$STUB_P "*) ;; *) exit 0 ;; esac
+case $a in
+  *" ps -a "*) printf 'c1\nc2\n' ;;
+  *" volume ls "*) printf 'v1\n' ;;
+esac
+exit 0
+EOS
+  printf '#!/bin/sh\nexit 0\n' > "$pb/git"
+  printf '#!/bin/sh\nexit 0\n' > "$pb/node"
+  chmod 755 "$pb/docker" "$pb/git" "$pb/node"
+  probe=$(cd "$pb" && env -u COMPOSE_PROJECT_NAME PATH="$pb:/usr/bin:/bin:/usr/sbin:/sbin" STUB_P=ocutalon sh -c "$PROBE_CLEAN" 2> /dev/null)
+  has "the probe finds git" "$probe" "git=1"
+  has "the probe finds Docker" "$probe" "docker=1"
+  has "the probe counts the containers of project ocutalon" "$probe" "containers=2"
+  has "the probe counts its volumes" "$probe" "volumes=1"
+  has "the probe finds Node.js" "$probe" "node=1"
+  matches "the probe gives the system" "$probe" '^os=[A-Za-z]'
+  matches "the probe gives the CPU" "$probe" '^arch=.'
+  matches "the probe asks for the memory" "$probe" '^mem='
+  out=$(hosts_verdict real "$probe" "$drv")
+  eq "a probed host with a leftover stack fails" "$?" 1
+  has "it names the leftover" "$out" "(2 container(s), 1 volume(s))"
+  probe=$(cd "$pb" && env PATH="$pb:/usr/bin:/bin:/usr/sbin:/sbin" COMPOSE_PROJECT_NAME=other STUB_P=ocutalon sh -c "$PROBE_CLEAN" 2> /dev/null)
+  has "another COMPOSE_PROJECT_NAME counts its own project only" "$probe" "containers=0"
+  probe=$(cd "$pb" && env PATH="$pb:/usr/bin:/bin:/usr/sbin:/sbin" COMPOSE_PROJECT_NAME=other STUB_P=other sh -c "$PROBE_CLEAN" 2> /dev/null)
+  has "and finds that project's containers" "$probe" "containers=2"
+
+  # The stand-in's compose files: lib-live's temporary files move into the state, the worktree's files become the clone's.
+  out=$(standin_files /t /r /c /s /r/docker-compose.yml /t/decoy.yml /r/docker/tests/compose.throwaway.yml /r/ci/compose.ci.yml /t/port.yml /x/other.yml)
+  eq "the stand-in's COMPOSE_FILE" "$out" "/c/docker-compose.yml:/s/decoy.yml:/c/docker/tests/compose.throwaway.yml:/c/ci/compose.ci.yml:/s/port.yml:/x/other.yml"
 
   out=$(signin_config "http://127.0.0.1:52801/ocutalon/" "ocu\"talon" 'p\w')
   has "the config signs in as the printed user" "$out" 'data-urlencode = "IRISUsername=ocu\"talon"'
@@ -528,6 +572,15 @@ t_record() {
   eq "the other sections are kept byte for byte" "$after" "$before"
   record_write "$rec" "$sec"
   eq "still one section after a third write" "$(grep -c '^## Clean-machine rehearsal$' "$rec")" 1
+
+  # The other writer's direction: the upgrade harness replaces its own section and keeps this one byte for byte (the library is shared).
+  printf '## Upgrade harness\n\nResult: fail\nMode: tag\n' > "$tmp/sec.harness.md"
+  before=$(sed -n '/^## Clean-machine rehearsal$/,/^## Upgrade harness$/p' "$rec" | sed '$d' | cksum)
+  record_write "$rec" "$tmp/sec.harness.md" "# OcuTalon 1.0.0 rc2"
+  eq "the harness section is replaced once" "$(grep -c '^## Upgrade harness$' "$rec")" 1
+  eq "the harness section holds the new text" "$(sed -n '/^## Upgrade harness$/,/^## Release checklist$/p' "$rec" | grep -c '^Result: fail$')" 1
+  eq "the rehearsal section is kept byte for byte" "$(sed -n '/^## Clean-machine rehearsal$/,/^## Upgrade harness$/p' "$rec" | sed '$d' | cksum)" "$before"
+  eq "the checklist section after it is kept" "$(grep -c '^Result: not confirmed$' "$rec")" 1
 
   # The section in the middle of the file ends at the next heading, and a blank line separates them.
   printf '# OcuTalon 1.0.0 rc3\n\n## Clean-machine rehearsal\n\nResult: old\n\n## Upgrade harness\n\nResult: pass\n' > "$tmp/rec/mid.md"
@@ -722,6 +775,7 @@ t_stub_runs() {
   has "the sign-in is not run" "$out" "NOT RUN sign-in"
   has "the install row fails in the record" "$(cat "$rec")" "| install | fail |"
   has "the install exits 1" "$out" "status 1"
+  has "the caller's OCUTALON_INSTALL_WAIT reaches the remote install.sh" "$(cat "$stublog")" "ARG cd ocutalon-rehearsal/candidate && env OCUTALON_INSTALL_WAIT=120 bash install.sh 2>&1"
 
   # sign-in: the page after the sign-in holds no <app-root.
   rec=$tmp/rec-signin.md
@@ -777,10 +831,13 @@ t_stub_runs() {
   eq "the state is private" "$(ls -ld "$state" | cut -c1-10)" "drwx------"
   argv=$(cat "$stublog")
   lacks "no env value in any argument of any call" "$argv" "planted-env-value-123456"
-  lacks "no host key check is switched off" "$argv" "StrictHostKeyChecking"
+  eq "every call checks host keys strictly" "$(grep -c '^ARG StrictHostKeyChecking=yes$' "$stublog")" 7
+  lacks "no host key check is switched off" "$argv" "StrictHostKeyChecking=no"
+  lacks "no OCUTALON_INSTALL_WAIT is passed when the caller set none" "$argv" "OCUTALON_INSTALL_WAIT"
   eq "the calls are the probes, the copy, the clone, the env, install.sh and the sign-in" "$(grep -c '^CALL ' "$stublog")" 7
   has "the bundle reached the host through stdin" "$argv" "stdin=$(wc -c < "$state/candidate.bundle" | tr -d ' ')"
-  has "the sign-in config went by stdin to the driver" "$(cat "$tmp/curl.cfg")" 'data-urlencode = "IRISPassword=ocutalon"'
+  has "the sign-in config went by stdin to the driver" "$(cat "$tmp/curl.cfg")" 'data-urlencode = "IRISPassword=ocu-pass-1"'
+  has "it signs in as the printed user" "$(cat "$tmp/curl.cfg")" 'data-urlencode = "IRISUsername=ocu-user"'
   has "the printed address is mapped to the clean host's web address" "$(cat "$tmp/curl.cfg")" 'url = "http://clean-web-9.invalid:52801/ocutalon/"'
 
   out=$(run_reh rh-pass report)
@@ -828,6 +885,17 @@ t_stub_runs() {
   out=$(run_reh rh-pass report)
   has "a planted configuration value fails secrets and names the key" "$out" "REHEARSAL_CLEAN_WEB in 1 line(s)"
   lacks "the configuration value is not printed" "$out" "clean-web-9"
+  # the configuration's values as the script uses them: a quoted value with spaces around =, and the host of a user@host.
+  sed 's/^REHEARSAL_CLEAN_WEB=.*/  REHEARSAL_CLEAN_WEB = "quoted-web-5.invalid"/' "$cfgdir/release.conf" > "$cfgdir/release.conf.new"
+  mv "$cfgdir/release.conf.new" "$cfgdir/release.conf"
+  : > "$state/output.log"
+  printf 'leak: quoted-web-5.invalid\nssh: connect to host clean-host-7.invalid port 22\n' >> "$state/output.log"
+  out=$(run_reh rh-pass report)
+  has "a value of a spaced, quoted line fails secrets" "$out" "REHEARSAL_CLEAN_WEB in 1 line(s)"
+  has "the host of a user@host destination fails secrets" "$out" "REHEARSAL_CLEAN_SSH_HOST in 1 line(s)"
+  lacks "neither value is printed" "$out" "quoted-web-5"
+  lacks "nor the host" "$out" "clean-host-7"
+  mkconf "$cfgdir"
   : > "$state/output.log"
   printf 'token sk-ant-%s\n' "abcdefghijklmnop" >> "$state/output.log"
   out=$(run_reh rh-pass report)
@@ -910,6 +978,17 @@ t_candidate() {
   lacks "plan prints no host value" "$out" "clean-host-7"
   eq "plan starts no state" "$(ls "$tmp/runs" | wc -l | tr -d ' ')" 0
   eq "plan calls no host" "$(wc -c < "$stublog" | tr -d ' ')" 0
+  grep -v '^REHEARSAL_DRIVER_KEY=' "$cfgdir/release.conf" | sed 's/^REHEARSAL_DRIVER_SSH=.*/REHEARSAL_DRIVER_SSH=local/' > "$cfgdir/release.conf.new"
+  mv "$cfgdir/release.conf.new" "$cfgdir/release.conf"
+  out=$(run_reh rh-c13 plan --version 1.0.0 --rc 1 --record "$tmp/c.md")
+  has "plan names a local driver" "$out" "PLAN hosts clean configured, driver local"
+  has "a local driver needs no key" "$out" "status 0"
+  mkconf "$cfgdir"
+  out=$(run_reh rh-c14 install --version 1.0.0 --rc "$(printf '1\nx')" --record "$tmp/c.md")
+  has "an --rc with a second line is refused" "$out" "REFUSED --rc must be a positive whole number"
+  out=$(run_reh rh-c15 install --version 1.0.0 --rc 1234567 --record "$tmp/c.md")
+  has "an --rc of seven digits is refused" "$out" "REFUSED --rc must be a positive whole number"
+  eq "no state was started by these refusals" "$(ls "$tmp/runs" | wc -l | tr -d ' ')" 0
   [ "$bad" -eq 0 ]
 }
 
@@ -938,6 +1017,48 @@ t_real() {
   has "and says it needs the tag" "$(cat "$tmp/rt3.out")" "OCUTALON_RUN_TAG"
   [ "$bad" -eq 0 ]
 }
+# --- down of a dry run, on a stub docker ---
+
+t_dry_down() {
+  local bad=0 d=$tmp/dd tag=rh-ddown st locks out log proj
+  rm -rf "$d"
+  mkdir -p "$d/bin" "$d/locks"
+  locks=$d/locks
+  log=$d/docker.log
+  : > "$log"
+  printf '#!/bin/sh\necho "docker $*" >> "%s"\nexit 0\n' "$log" > "$d/bin/docker"
+  chmod 755 "$d/bin/docker"
+  proj=ocutalon-rehearse-$tag-1700000000-1
+  mkdd() { # mkdd <lock content saved>: a dry run's state after install, and the lane lock as lib-live claimed it
+    st=$d/tmp/ocutalon-rehearsal-$tag
+    rm -rf "$st"
+    mkdir -p "$st/standin"
+    printf 'mode=dry\n' > "$st/options"
+    printf '%s\n' "$proj" > "$st/standin/project"
+    printf '%s\n' "$locks/throwaway-iris.lock" > "$st/standin/lock.file"
+    printf '%s\n' "$1" > "$st/standin/lock.content"
+    printf '%s\n' "$proj-base:tag1" "sha256:abcdef" > "$st/standin/images"
+    printf 'epic=11 stage=test project=%s\n' "$proj" > "$locks/throwaway-iris.lock"
+  }
+  mkdd "epic=11 stage=test project=$proj"
+  out=$(PATH="$d/bin:$PATH" TMPDIR=$d/tmp OCUTALON_LOCK_DIR=$locks OCUTALON_RUN_TAG=$tag bash "$root/release/rehearse.sh" down < /dev/null 2>&1)
+  eq "down of a dry run exits 0" "$?" 0
+  has "it tears the tag down" "$out" "TEARDOWN tag $tag:"
+  has "it releases the lane lock" "$out" "LOCK released throwaway-iris project=$proj"
+  eq "the lane lock is gone" "$([ -e "$locks/throwaway-iris.lock" ] && echo there || echo gone)" gone
+  has "the saved image name is removed" "$(cat "$log")" "docker image rm $proj-base:tag1"
+  has "the saved image id is removed" "$(cat "$log")" "docker image rm -f sha256:abcdef"
+  eq "the state is gone" "$([ -d "$st" ] && echo there || echo gone)" gone
+  has "the last line says what was removed" "$out" "TEARDOWN rehearsal tag $tag: the throwaway and the state are removed"
+
+  mkdd "epic=9 stage=qa project=someone-else"
+  out=$(PATH="$d/bin:$PATH" TMPDIR=$d/tmp OCUTALON_LOCK_DIR=$locks OCUTALON_RUN_TAG=$tag bash "$root/release/rehearse.sh" down < /dev/null 2>&1)
+  has "a lock whose content is not the saved one is kept" "$out" "LOCK kept"
+  eq "and stays in the lane folder" "$([ -e "$locks/throwaway-iris.lock" ] && echo there || echo gone)" there
+  rm -rf "$d"
+  [ "$bad" -eq 0 ]
+}
+
 # --- static ---
 
 SCRIPTS="release/rehearse.sh release/lib-release.sh"
@@ -986,6 +1107,7 @@ rule stub-runs t_stub_runs
 rule phase-order t_phase_order
 rule candidate t_candidate
 rule real-tree t_real
+rule dry-down t_dry_down
 rule static t_static b_static
 
 if [ "$fails_total" -ne 0 ]; then

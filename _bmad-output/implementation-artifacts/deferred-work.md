@@ -2766,3 +2766,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: gh api repos/jbrandtmse/OcuTalon/branches/main/protection -> 404 on 2026-11-01; DW-27's owner-only residual
 - 2026-11-01T12:24:37Z status=decision-pending owner=burndown by=spec_gate note=human=set branch protection on main (repository setting, owner-only); Story 11.16's merge step refuses until it is set
 - 2026-11-01T12:31:44Z status=dropped by=owner note=resolved_outside_the_build:branch_protection_set_2026-11-01T12:30Z_by_the_Contest_Planner(owner_approval_2026-10-25);12_required_checks(checks,web,install-macos,iris_(install-fresh|install-upgrade|production|browser|shards|shards-2|image),standalone-bridge,evaluation);not_an_action_item
+
+### DW-531: release/rehearse.sh tag_ok repeats lib-live's live_tag_ok and LIVE_TAG_RULE text (Rule 2 copy, weak reason: real mode sources no lib-live)
+- source: spec-11-3-the-clean-machine-rehearsal-installs-and-times-the-demo-path.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: release/rehearse.sh tag_ok (5 lines) and its refusal text equal docker/tests/lib-live.sh live_tag_ok and LIVE_TAG_RULE; the spec limits rehearse.sh to sourcing lib-release.sh, lib-keys.sh and (dry only) ci/iris.sh
+- 2026-11-01T14:31:18Z status=wontfix-accepted owner=11-3-the-clean-machine-rehearsal-installs-and-times-the-demo-path by=cr note=reopen_if=LIVE_TAG_RULE or live_tag_ok in docker/tests/lib-live.sh changes and rehearse.sh tag_ok does not

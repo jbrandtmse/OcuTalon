@@ -109,14 +109,14 @@ for f in src/module.xml src/bridge/cls/OcuTalon/Bridge/Installer.cls src/ocutalo
   web/scripts/tokens.mjs web/e2e/sign-in/helpers.ts web/src/signin/signin.js src/ocutalon/cls/OcuTalon/Web/Public/SignInAssets.cls \
   .github/workflows/ci.yml .github/workflows/lane-a.yml ci/iris.sh ci/compose.ci.yml install.sh \
   release/lib-release.sh release/rehearse.sh release/upgrade-harness.sh release/standalone-bridge.sh release/demo-host-check.sh release/demo-load.sh; do
-  if ! printf '%s\n' "$files" | grep -qx -- "$f"; then
+  if ! grep -qxF -- "$f" <<< "$files"; then
     echo "  not scanned: $f"
     scope_ok=0
   fi
 done
 for f in README.md CLAUDE.md _bmad/custom/skill-rules.md _bmad-output/implementation-artifacts/sprint-status.yaml \
   eval/orders-date-format/case.json eval/orders-date-format/snapshot.json; do
-  if ! printf '%s\n' "$all_files" | grep -qx -- "$f"; then
+  if ! grep -qxF -- "$f" <<< "$all_files"; then
     echo "  not scanned for paths and keys: $f"
     scope_ok=0
   fi

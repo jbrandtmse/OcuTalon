@@ -26,13 +26,15 @@
 #
 # The configuration (real mode only; a dry run never reads it): OCUTALON_RELEASE_CONFIG, else ${XDG_CONFIG_HOME:-$HOME/.config}/ocutalon/
 # release.conf, outside the repository. KEY=value lines, no expansion but a leading ~/ in a path key: REHEARSAL_CLEAN_SSH (user@host),
-# REHEARSAL_CLEAN_KEY, REHEARSAL_CLEAN_WEB (the clean host's address as the driver host reaches it), REHEARSAL_DRIVER_SSH (user@host, or
+# REHEARSAL_CLEAN_KEY, REHEARSAL_CLEAN_WEB (the clean host's name or address as the driver host reaches it; no scheme and no port),
+# REHEARSAL_DRIVER_SSH (user@host, or
 # local), REHEARSAL_DRIVER_KEY (not for local), REHEARSAL_ENV_FILE (mode 600, outside the repository); optional REHEARSAL_CLEAN_PORT,
 # REHEARSAL_DRIVER_PORT, REHEARSAL_KNOWN_HOSTS. The same file can hold Story 11.5's DEMO_ keys, which this script ignores. Every remote
-# action is host_run of release/lib-release.sh: ssh with the key, BatchMode and strict host keys (add each host's key to known_hosts, or name
-# a file in REHEARSAL_KNOWN_HOSTS). Remote paths are relative to the login folder (ocutalon-rehearsal/). No value of the env file or the
-# configuration is printed, recorded or put on a command line: the env file reaches the clone only as the standard input of one remote
-# cat, and ssh's own messages are not shown.
+# action is host_run of release/lib-release.sh: ssh with the key, BatchMode and StrictHostKeyChecking=yes (add each host's key to
+# known_hosts, or name a file in REHEARSAL_KNOWN_HOSTS). Remote paths are relative to the login folder (ocutalon-rehearsal/). No value of
+# the env file or the configuration is printed or recorded, and no value of the env file is put on a command line: the env file reaches
+# the clone only as the standard input of one remote cat, and ssh's own messages are not shown. ssh's own arguments name the configured
+# destination, key file and port.
 #
 # The steps, one PASS line or one line "FAIL run install step <step> bound <bound>: <detail>" each; the steps after a failed step are "not
 # run" (the secrets step of report always runs):
@@ -44,8 +46,9 @@
 #            install included; the bound is "ready within <OCUTALON_INSTALL_WAIT or 900> s"
 #   sign-in  the driver host signs in at the printed address (localhost replaced by the clean host's address) with the printed user and
 #            password, sent as a curl config on stdin, and the page holds <app-root
-#   secrets  (report) no value of the env file (a value of 8 characters or more), of the configuration, and nothing key-like, is in the
-#            output of the phases or in the section
+#   secrets  (report) no value of the env file or of the configuration (a value of 8 characters or more; for the configuration, each
+#            value as the script uses it and the host of each user@host too), and nothing key-like, is in the output of the phases,
+#            install.sh's output or the section
 # The section of the record (the order is fixed; each line starts at column 1):
 #   ## Clean-machine rehearsal
 #   Result: fail | dry run | not run | pass
@@ -71,7 +74,6 @@ cd "$reh_root" || exit 1
 . "$reh_root/release/lib-release.sh"
 . "$reh_root/docker/tests/lib-keys.sh"
 
-REH_STEPS="hosts copy install sign-in secrets"
 REH_ROWS="hosts copy install sign-in secrets runs"
 REH_DIR=ocutalon-rehearsal
 REH_STANDIN_BRANCH=rehearsal/stand-in
@@ -363,10 +365,12 @@ parse_options() {
     '' | /*) ;;
     *) o_record=$reh_caller_pwd/$o_record ;;
   esac
-  if ! printf '%s\n' "$o_rc" | grep -Eq '^[1-9][0-9]{0,5}$'; then
-    refuse "--rc must be a positive whole number"
-    return 2
-  fi
+  case $o_rc in
+    '' | 0* | *[!0-9]* | ???????*)
+      refuse "--rc must be a positive whole number"
+      return 2
+      ;;
+  esac
   if [ -n "$o_version" ] && ! printf '%s\n' "$o_version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+([-+.][0-9A-Za-z.-]+)?$'; then
     refuse "--version '$o_version' is not a version number"
     return 2
@@ -473,10 +477,25 @@ reh_abort() {
   fi
 }
 
+# standin_files <tmp> <root> <clone> <compose dir> <file>...: the stand-in's COMPOSE_FILE: a file of lib-live's temporary folder becomes
+# the copy in <compose dir>, a file of the worktree becomes the clone's file of the same path, and any other file stays.
+standin_files() {
+  local t=$1 r=$2 c=$3 d=$4 f cf=""
+  shift 4
+  for f in "$@"; do
+    case $f in
+      "$t"/*) f=$d/${f#"$t"/} ;;
+      "$r"/*) f=$c/${f#"$r"/} ;;
+    esac
+    cf="$cf${cf:+:}$f"
+  done
+  printf '%s\n' "$cf"
+}
+
 # dry_prepare: the throwaway project of lib-live (no key, the CI override and the mock, the lane's lock), the image names of
 # test-install-script-live.sh, the stand-in candidate and the stand-in env file.
 dry_prepare() {
-  local src f cf clone images_tag
+  local src f clone images_tag
   . "$reh_root/ci/iris.sh"
   setup_tag
   preflight
@@ -519,20 +538,12 @@ dry_prepare() {
   clone=$state/standin/clean/$REH_DIR/candidate
   for f in decoy.env decoy.yml port.yml; do cp "$tmp/$f" "$state/standin/compose/$f"; done
   printf 'services:\n  iris:\n    env_file:\n      - %s\n' "$state/standin/compose/decoy.env" > "$state/standin/compose/decoy.yml"
-  cf=""
-  for f in "${LIVE_FILES[@]}"; do
-    case $f in
-      "$tmp"/*) f=$state/standin/compose/${f#"$tmp"/} ;;
-      "$root"/*) f=$clone/${f#"$root"/} ;;
-    esac
-    cf="$cf${cf:+:}$f"
-  done
   left=$((deadline - SECONDS))
   if [ "$left" -gt 900 ]; then left=900; fi
   if [ "$left" -lt 10 ]; then left=10; fi
   REHEARSAL_STANDIN=$state/standin
   STANDIN_PROJECT=$P
-  STANDIN_FILES=$cf
+  STANDIN_FILES=$(standin_files "$tmp" "$root" "$clone" "$state/standin/compose" "${LIVE_FILES[@]}")
   STANDIN_IMAGE=$test_base
   STANDIN_WAIT=$left
 }
@@ -734,9 +745,24 @@ section_build() {
   } > "$out"
 }
 
+# config_values: the configuration's values as this script uses them (quotes and spaces taken off, ~/ expanded), as NAME=value lines,
+# with the host of each user@host destination as <NAME>_HOST. Read only by env_file_hits, which never prints a value.
+config_values() {
+  local k var v
+  for k in $REHEARSAL_KEYS; do
+    var=REHEARSAL_$k
+    v=${!var:-}
+    [ -n "$v" ] || continue
+    printf '%s=%s\n' "$var" "$v"
+    case $k:$v in
+      CLEAN_SSH:*@* | DRIVER_SSH:*@*) printf '%s_HOST=%s\n' "$var" "${v#*@}" ;;
+    esac
+  done
+}
+
 # scan_run: the secrets step. Prints the detail of a failure and returns 1; prints nothing and returns 0 when nothing is found.
 scan_run() {
-  local envf hits cfghits kl names="" n rc scanned
+  local envf hits cfghits h f kl names="" n rc scanned
   envf=$(env_file_path)
   scanned=("$state/output.log" "$state/section.md")
   if [ -f "$state/install.out" ]; then scanned+=("$state/install.out"); fi
@@ -753,7 +779,14 @@ scan_run() {
       echo "the configuration file could not be read for the scan"
       return 1
     fi
-    hits=$(printf '%s\n%s\n' "$hits" "$cfghits" | grep .)
+    for f in "${scanned[@]}"; do
+      if ! h=$(env_file_hits <(config_values) "$f"); then
+        echo "the configuration could not be read for the scan"
+        return 1
+      fi
+      cfghits=$(printf '%s\n%s\n' "$cfghits" "$h")
+    done
+    hits=$(printf '%s\n%s\n' "$hits" "$cfghits" | grep . | LC_ALL=C sort -u)
   fi
   kl=$(key_like "${scanned[@]}")
   if [ -z "$hits" ] && [ -z "$kl" ]; then return 0; fi
@@ -837,6 +870,7 @@ cmd_install() {
   options_write
   reh_logged phase_install
   rc=$?
+  if [ -d "$state" ] && ! phase_done install; then rm -rf "$state"; fi
   exit "$rc"
 }
 
@@ -891,7 +925,7 @@ cmd_down() {
       live_lock_release
     fi
     rm -rf "$state"
-    echo "TEARDOWN rehearsal tag $OCUTALON_RUN_TAG: the throwaway, its lock and the state are removed"
+    echo "TEARDOWN rehearsal tag $OCUTALON_RUN_TAG: the throwaway and the state are removed (the LOCK line says what became of the lock)"
   else
     rm -rf "$state"
     echo "TEARDOWN rehearsal tag $OCUTALON_RUN_TAG: the state is removed; the clean host keeps its install"
