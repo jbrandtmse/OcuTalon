@@ -522,6 +522,15 @@ Mutations run at the implement stage (each applied, seen red, reverted byte for 
 - mutation: the "other" branch quits as if the chat were paired (no reply) -> `TestOneLivePairing` ("chat 123 got the confirmation, the other-chat notice and then the not-paired text"); `TestStrangerReplies` fails too
 - mutation: `Other` replies to a paired chat too (its `If sessionRef '= "" Quit` line removed) -> `TestNameOnlyWhilePaired` ("a paired chat gets the confirmation and the bad-code reply, and no reply to its other messages", and the `/help` assertion), found at review
 
+Tests added and mutations demonstrated at the QA stage (QA):
+- (QA) `web/scripts/telegram-card-view.test.mjs` (new; `npm --prefix web test` picks it up by the existing `scripts/*.test.mjs` glob, no `package.json` change): pins the card view's state order on the framework-free view (paused, then not set up, then paired, then just unpaired, then none or unpaired), the 5000 ms constant and the text. It closes DW-527.
+- mutation (QA): the `if (own.justUnpaired)` line of `telegramCardView` moved above the not-set-up/paired branch -> `telegram-card-view.test.mjs` ("shows paired, not just unpaired, when a pairing happens inside the 5 s window", "... with no name", "shows not set up ahead of just unpaired"); moved above the paused branch too -> also "shows paused ahead of just unpaired". Reverted; `cmp` identical.
+- T6 pins its own rows independently. The other tests of the file were set to `test.skip` in a temporary copy (`.only` is refused by `forbidOnly`), so T6 ran alone on a fresh stack (`e12s5qa`), after `ci/iris.sh build` for each web mutation. Each was reverted, `cmp` against a backup was identical, and the tree was unchanged (`git status --short`):
+  - mutation (QA): `telegramCardView` ignores `justUnpaired` (the line removed) -> T6 alone ("the card showed \"Telegram unpaired\"")
+  - mutation (QA): no announcement on true -> false (the `announce(TELEGRAM_CARD_TEXTS.unpaired)` line removed) -> T6 alone ("\"Telegram unpaired\" was announced once")
+  - mutation (QA): the paired root has no `data-row-key` and `data-section` -> T6 alone ("the focus went to the Telegram heading")
+- (QA) `npm --prefix web test`: 1137 passed, 0 failed (1127 before, plus the 10 cases of the new file). `npm --prefix web run lint`: clean.
+
 ## Auto Run Result
 
 Status: done
