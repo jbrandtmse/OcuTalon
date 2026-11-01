@@ -271,3 +271,6 @@
 2026-11-01T07:22:36Z	Epic 4	ci_resolved	story=epic_start sha=da367a01 runs=41283827993,41283828009 result=success failed=none via=none resolved_at=next_plan
 2026-11-01T07:22:36Z	Epic 4	epic_status_reopened	epic-4=in-progress(SC-5_reopen;sanctioned_by_dispatch)
 2026-11-01T07:22:36Z	Story 4.8	stage_spawned	stage=implement spawn_at=2026-11-01T07:22:36Z model=claude-sonnet agent_name=4-8-step-3-of-the-guide-points-to-break-the-feed-without-a-secon-implement-1 cycle_iteration=1 story_base=7556b81e
+2026-11-01T08:53:31Z	Story 4.8	dev_complete	spawn_at=2026-11-01T07:22:36Z model=claude-sonnet build_sha=7ffe775b baseline_revision=0ca9d869 story_base=7556b81e review_loop_iteration=0 followup_review_recommended=false deferred=1(DW-524) files=10 loc_added=175 loc_removed=63 nfr_tripwires=0 adr_violations_surfaced=0 verification=web_test_1127,lint,live_floor_105,sign-in_1of2_127(DW-349_rerun),demo-path,sign-in_2of2_96,web-build,checks mutations=8 cycle_iteration=1
+2026-11-01T08:53:38Z	Story 4.8	adr_verifications_complete	tool=none acs=none result=none_required evidence= mutations=none note=no_AD_commits_a_tool_stack_for_these_ACs model=claude-opus-5-5
+2026-11-01T08:53:38Z	Story 4.8	stage_spawned	stage=qa spawn_at=2026-11-01T08:53:38Z model=claude-sonnet agent_name=4-8-step-3-of-the-guide-points-to-break-the-feed-without-a-secon-qa-1 cycle_iteration=1

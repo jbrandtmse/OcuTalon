@@ -2196,6 +2196,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-31T07:36:27Z occurrence=29-9-epic-29-burn-down note=CI run 41178903176 attempt 1 (OCT-epic29 b8090784, bookkeeping over e7a5bb94's green code): iris image shard:lane-b Test.Web.GuideApi TestOnlyTheMarkerChanges (Fixture.Check's seeded row run by a real tick between the two fingerprints) and iris browser live:sign-in session.spec.ts S1 (the rail row gained a finding); superseded by the Epic 9 integrate-forward head, not rerun
 - 2026-10-31T08:07:39Z occurrence=29-9-epic-29-burn-down note=CI run 41181446111 attempt 1 (OCT-epic29 13e56475, Epic 9 integrate-forward): iris browser live:sign-in banners.spec.ts B2 'Last run 13:19 · No read access to its namespace' (seeded check row run by a real tick); flake class, one rerun
 - 2026-10-31T11:20:46Z occurrence=10-4-the-readme-opens-with-what-ocutalon-is-for-and-what-a-model by=ci note=CI run 41192152812 attempt 1 (OCT-epic10 192f60c3, Epic 10's final integrate-forward of feature 366a79ab; code = feature + README/test-readme only), iris (shards), live:floor web/e2e/floor/focus.spec.ts:209 P4: the seeded check row read 'No read access to its namespace' (run by a real heartbeat tick) before the republish assertion; floor/focus is on DW-349's list; flake class, one rerun (attempt 2 green); status_unchanged routed owner=11-1
+- 2026-11-01T08:53:30Z occurrence=4-8-step-3-of-the-guide-points-to-break-the-feed-without-a-secon note=implement_live_sign-in_part1_B2_red_then_unchanged_rerun_green
 
 ### DW-358: Live check of 'cancel all my reminders' with three or more reminders pending, on the online demo's model, effort and endpoint: the turn cancels every pending reminder within Chat's iteration ceiling (AD-20) through the multi-id cancel_reminder of DW-140, and the reply says so
 - source: U-118 (owner via the Contest Planner, 2026-10-27); filed at Epic 8's merge | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -2747,3 +2748,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: inbox U-199 (#603), Story 5.13 merge 5fb79853 | severity: med | fix-risk: low | footprint: in-epic
 - evidence: Tools/RecentActivity.cls declares READONLY=1 and TRUSTEDOUTPUT=1; Epic 14 has not started, so no overview exists yet and 5.13 regenerated nothing
 - 2026-11-01T07:05:35Z status=routed owner=14-1-the-overview-s-tool-and-privilege-lists-are-generated-from-t by=merge_gate note=U-199 condition: 14.1's generated tool section shows recent_activity read-only and trusted output; its drift test pins it
+
+### DW-524: No test pins the negative cell of 4.8 matrix row 4: after Run again the prompt bar comes back at step 1 or 2 and focus should go to Send, not the box button (FOCUS_RULE.whenGone keys on data-guide-step=3)
+- source: spec-4-8-step-3-of-the-guide-points-to-break-the-feed-without-a-secon.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: M6/M10/M12 all end at step 3; a mutation ignoring the step-3 mark may survive (unverified)
+- 2026-11-01T08:53:30Z status=open owner=4-8-step-3-of-the-guide-points-to-break-the-feed-without-a-secon by=harvest note=in-story test gap; code review to pin or adjudicate
