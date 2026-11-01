@@ -202,3 +202,4 @@
 2026-11-01T12:04:08Z	Story 11.2	fresh_check	env=recipe(hermetic_self-tests;ci/iris.sh_live_install-upgrade_fresh) tests=test-upgrade-harness.sh(14_rules),test-storage.sh,test-boundaries.sh,test-ci-config.sh,live_install-upgrade(335s) result=pass order=forward,reverse(harness,storage,storage,harness)
 2026-11-01T12:04:38Z	Story 11.2	committed	sha=4bb3d59c submodules= ci=pending runs=41304700491,41304700489 amendments=none pushed=verified_on_origin
 2026-11-01T12:04:38Z	Story 11.2	story_cycle	plan_to_commit_min=1070(includes_hold_9) implement_passes=1 reviews=1 rework=0 first_ci=pending models=plan:claude-opus,implement:claude-sonnet,qa:claude-sonnet,cr:claude-opus
+2026-11-01T12:05:01Z	Story 11.5	stage_spawned	stage=plan spawn_at=2026-11-01T12:05:01Z model=claude-opus agent_name=11-5-one-scripted-sequence-cuts-a-release-plan-1 cycle_iteration=1 ledger_inbox=DW-27 note=planned_while_11.2_CI_runs(Rule_23)
