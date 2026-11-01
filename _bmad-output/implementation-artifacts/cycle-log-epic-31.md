@@ -27,3 +27,10 @@
 2026-10-30T22:44:54Z	Story 31.1	owner_decision	id=U-173 at=2026-10-30T22:43:15Z#526 via=inbox by=Contest_Planner(owner_delegate) answer=accepted+test_one_event_over_socket_and_poll_applied_once_by_seq+dev_note_polling_stays_on_beside_socket applied=spec_Design_Notes_and_Spec_Change_Log
 2026-10-30T22:44:54Z	Story 31.1	owner_decision	id=U-174 at=2026-10-30T22:43:15Z#527 via=inbox by=Contest_Planner(owner_delegate) answer=accepted_with_change:server-side_sign-out_mark_built_in_31.1(test_no_further_frame_within_one_loop),60s_lifetime_backstop,server_online-demo_refusal_kept;ledger_only_if_Data/Session.cls_held_by_another_open_epic_at_re-plan(due_before_1.0.0) applied=spec_Design_Notes_and_Spec_Change_Log,epics.md_DW-457_bullet,DW-457_trailer(by=owner)
 2026-10-30T22:44:54Z	Epic 31	epic_runner_ended	reason=waiting waiting_on=29(31.1_U-175),30(31.2),12,15(31.3),12,29(31.4) stories_completed=0 inbox=U-173,U-174,U-175 applied=U-173_at=2026-10-30T22:43:15Z#526,U-174_at=2026-10-30T22:43:15Z#527 ci_groups=none_measured unpushed=bookkeeping_only(CI_outage_rule) note=re-ended_after_applying_owner_answers
+2026-11-01T19:38:19Z	Epic 31	runner_unattended_start	run=20261026T1518Z-1-37 policy=ff1bd1a60299f4f82e554739400da95233d7bcb5 doctrine=3d11cec98d91c1d4d9c225fe3b265e1af418abe4 lane=C slot=ocutalon-slot-c lock_lane=lane-c web_port=52803 note=redispatch_after_29_merged
+2026-11-01T19:38:19Z	Epic 31	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-11-01T19:38:19Z	Epic 31	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh
+2026-11-01T19:38:19Z	Epic 31	launch_env	depth=4 watchdog=default bash_max_ms=default
+2026-11-01T19:38:19Z	Epic 31	stage_block_rendered	source=policy_ff1bd1a reason=coordination_stage_block_predates_policy_e204efac(owner_fixed_3_changed)
+2026-11-01T19:38:19Z	Epic 31	integrated_forward	feature=416b0f64 head=e1de9422 conflicts_resolved=epics.md(union_DW-457+DW-397_bullets_31.1),sprint-status.yaml(theirs+regenerate,validate_ok) stage=redispatch
+2026-11-01T19:38:19Z	Epic 31	bootstrap_check	result=ok note=web/package.json_scripts_only
