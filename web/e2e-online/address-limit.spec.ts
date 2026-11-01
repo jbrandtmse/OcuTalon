@@ -2,7 +2,7 @@ import { expect, test } from '@playwright/test';
 
 import { pageTime } from '../src/app/chat/page-time';
 import { irisScript, chk, quoted } from '../e2e/support/iris';
-import { removeSession, sha256url, signInFromSplash, signInOverHttpFrom, signOutGroup, SIGN_OUT } from './support';
+import { removeCounterRows, removeSession, signInFromSplash, signInOverHttpFrom, signOutGroup, SIGN_OUT } from './support';
 
 /**
  * Story 16.3, the address limit on the page (L1; matrix row 11). It runs in the unit's proxied phase only, when the unit has set the
@@ -20,7 +20,6 @@ test.skip(process.env['OCUTALON_ONLINE_PROXIED'] !== '1', "runs in the unit's pr
 test('L1: the sixth new session of an address is refused under the button, with the time of the next place', async ({ browser, playwright }) => {
   const address = process.env['OCUTALON_ONLINE_LIMIT_ADDRESS'] ?? '';
   expect(address, 'the unit names the address of the case').not.toBe('');
-  const hash = sha256url(address);
   const epochsToRemove: string[] = [];
   const context = await browser.newContext({ timezoneId: 'Asia/Kolkata', locale: 'en-US', extraHTTPHeaders: { 'X-Forwarded-For': address } });
   const page = await context.newPage();
@@ -39,7 +38,7 @@ test('L1: the sixth new session of an address is refused under the button, with 
     }
     const counted = await irisScript(
       [
-        `Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*), MIN(CreatedAt) FROM OcuTalon_Data.AddressCounter WHERE AddressHash = ?",${quoted(hash)})`,
+        `Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*), MIN(CreatedAt) FROM OcuTalon_Data.AddressCounter WHERE AddressHash = ?",##class(OcuTalon.Data.AddressCounter).AddressHash(${quoted(address)}))`,
         'Do rs.%Next()',
         'Write !,"CHK|count|",rs.%GetData(1),!,"CHK|oldest|",rs.%GetData(2)',
       ].join('\n'),
@@ -64,6 +63,6 @@ test('L1: the sixth new session of an address is refused under the button, with 
     await signOutGroup(context);
     await context.close();
     for (const epoch of epochsToRemove) await removeSession(epoch);
-    await irisScript(`Do ##class(%SQL.Statement).%ExecDirect(,"DELETE FROM OcuTalon_Data.AddressCounter WHERE AddressHash = ?",${quoted(hash)})\nWrite !,"CHK|dropped|1"`);
+    await removeCounterRows(address);
   }
 });

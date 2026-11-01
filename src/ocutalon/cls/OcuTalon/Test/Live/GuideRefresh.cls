@@ -188,7 +188,7 @@ Method TestNoRefresh()
 Method TestHeldLock()
 {
 	Set ref = ..NewSession()
-	Do ##class(OcuTalon.Test.Data.Fixture).Check(ref, ..#NS, ..#PROD)
+	Do ##class(OcuTalon.Test.Data.Fixture).Check(ref, ..#NS, ..#PROD, {"NextDueAt": (##class(OcuTalon.Test.Watch.Case).Ahead())})
 	Kill ^OcuTalonTest("GuideRefresh", "hold", ref)
 	Job ##class(OcuTalon.Test.Live.GuideRefresh).Holder(ref)
 	Do ..WaitFor($Name(^OcuTalonTest("GuideRefresh", "hold", ref, "ready")), 60)

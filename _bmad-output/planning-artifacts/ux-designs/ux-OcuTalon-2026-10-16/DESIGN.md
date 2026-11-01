@@ -729,7 +729,7 @@ Cards never lift on hover.
 
 ## Components
 
-Visual specs live here; behavior lives in `EXPERIENCE.md`'s Component Patterns, under the same names and groups. Every interactive target is at least `{spacing.target-min}` tall, and phone buttons are `{spacing.control-height-lg}` tall. The release-plan steps (step 1 is release 1, 0.1.0, with Telegram in 0.1.1; steps 2 to 6 follow) mark components that arrive later.
+Visual specs live here; behavior lives in `EXPERIENCE.md`'s Component Patterns, under the same names and groups. Every interactive target is at least `{spacing.target-min}` tall, and phone buttons are `{spacing.control-height-lg}` tall. The release-plan steps (step 1 is release 1, 0.1.0, with Telegram in 0.1.1, read 1.0.0 as in EXPERIENCE.md's Release terms; steps 2 to 6 follow, and the personality track after 1.0.0) mark components that arrive later.
 
 → State reference: [mockups/states.html](mockups/states.html) shows the alternate states of the incident card, approval request card, decision strip, demo guide, Break the feed, Telegram card, banners, and simulated devices.
 
@@ -777,7 +777,7 @@ Visual specs live here; behavior lives in `EXPERIENCE.md`'s Component Patterns, 
 
 - **Status rail section.** A `{typography.label}` heading, with a count where the section is a list, then rows divided by `{colors.border}`. A row has a title (`{typography.body-strong}`), a detail line (`{typography.body-sm}`), and a meta line (`{typography.caption}`) carrying the row's trace link.
 - **Approval request row, background check row, reminder row.** These follow the section pattern. An approval request row carries a 3px attention bar on its left. A reminder row's countdown uses tabular figures.
-- **Telegram card** (from 0.1.1; a release without Telegram has no Telegram section). The section heading is "Telegram", with no count.
+- **Telegram card** (from 0.1.1 (read 1.0.0; see EXPERIENCE.md's Release terms); a release without Telegram has no Telegram section). The section heading is "Telegram", with no count.
   - **Unpaired:** the QR code block (132px, always navy on white in both themes), one line of instructions, an underlined "Open in Telegram" link, and "New code in 9 min" in caption.
   - **Paired:** one row with `circle-check` in `{colors.success-ink}`, "Telegram paired · {name}", and an "Unpair" ghost button.
   - **Not set up:** "Telegram not set up" with a "How to set it up" link.
@@ -854,6 +854,10 @@ Visual specs live here; behavior lives in `EXPERIENCE.md`'s Component Patterns, 
 - **Classification control** (step 4). A segmented radio group: Unclassified (counts as risky), Read-only, Risky. The selected option uses its `classification-*` colors and a check icon; the others stay neutral.
 - **Usage chart** (step 6). Token bars in `{colors.chart-tokens}` and the cost line in `{colors.chart-cost}`, each labeled directly as well as in the legend.
 - **History table** (step 6). Rows at least 40px tall, with outcome chips in the first column.
+- **Heartbeat checklist card** (personality track). The status rail section pattern, headed "Heartbeat checklist" with no count. The state line uses `{typography.body-strong}`; the last check-in line is the meta line in `{typography.caption}`, with the outcome chip, the cost and the trace link; a skip uses `{colors.ink-muted}`. Edit opens in place: the checklist is a text area like the composer, with its counter in caption, the interval a select, active hours two time selects, and on/off a switch. "Run the heartbeat now" is a `button-secondary`; while a cooldown or the cap holds it is disabled, with its reason as a visible caption line below. [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner (U-195)]
+- **Persona card** (personality track). The same section pattern, headed "Persona". The current choice is the row title and its description the detail line. Change opens a radio group of presets, each with its description in `{typography.body-sm}`; the Language field and the Your own words text area appear under their option, with `field-error` for a refusal. Nothing here uses the attention colors. [ADDED 2026-10-31, as above]
+- **Memory card** (personality track). The same section pattern, headed "Memory", with tabs styled as the header navigation's items (the selected tab's 2px bottom bar in `{colors.action}`). Rows follow the section's row pattern; Forget, Pin and Unpin are ghost buttons; the token count under Pinned uses tabular figures. Told and Learned are neutral chips (`{components.context-badge}`). [ADDED 2026-10-31, as above]
+- **"This was noise" control** (personality track). A ghost button in the notice card's meta line, after the trace link; once pressed it becomes caption text in `{colors.ink-muted}`. [ADDED 2026-10-31, as above]
 
 ## Do's and Don'ts
 

@@ -1,0 +1,15 @@
+# The override of a release-candidate run (Story 9.5; AD-19, AD-22). Only `bash eval/run.sh` layers it, and no workflow names it:
+# `--release-candidate` lays it last, on top of the throwaway's files and ci/compose.ci.yml; the key-path rehearsal
+# (`--release-candidate --on-mock --key-path`, Story 9.10, which eval/key-proof.sh runs with a fake key, in CI too) lays ci/compose.ci.yml
+# again after it, so that the two mock settings below are the CI file's there and every model request goes to the CI mock.
+#   - ANTHROPIC_API_KEY is the shell's own, interpolated by compose when the project starts; the run refuses to start without it. The key
+#     reaches only the iris service of the throwaway, where the Provider step's placeholder @{env:ANTHROPIC_API_KEY} resolves inside AI Hub.
+#     It is never written to a file, printed or stored in IRIS.
+#   - OCUTALON_MODEL_BASE_URL is empty, so the model's own endpoint is used and not the CI mock's (an empty value means no override).
+#   - OCUTALON_MOCK_KEY_HEADER is 0, so the mock's key header is not added (it is added only for exactly 1).
+services:
+  iris:
+    environment:
+      ANTHROPIC_API_KEY: ${ANTHROPIC_API_KEY:?the release-candidate run needs ANTHROPIC_API_KEY in its environment}
+      OCUTALON_MODEL_BASE_URL: ""
+      OCUTALON_MOCK_KEY_HEADER: "0"

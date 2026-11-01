@@ -12,7 +12,7 @@
 # .env and .env.<x> other than .env.example never read), CON-5:
 #   - no local machine path: a home or volume folder with a name below it, a /private/tmp, /private/var or /private/etc path,
 #     a macOS per-user temporary folder (/var/folders/<x>, the form TMPDIR takes), or a Windows user folder with a name below it;
-#   - no key-like string.
+#   - no key-like string (the patterns are those of docker/tests/lib-keys.sh).
 # Starts nothing. Each scanner first runs on a synthetic file that breaks its rule and on one that
 # keeps it, so a scanner that can no longer flag anything fails. A failing scan prints file:line only,
 # never the text of the line. Prints one PASS or FAIL line per rule; exits 0 only when all pass.
@@ -21,6 +21,7 @@ set -u
 root=$(cd "$(dirname "$0")/../.." && pwd)
 cd "$root" || exit 1
 . "$root/docker/tests/lib-scan.sh"
+. "$root/docker/tests/lib-keys.sh"
 
 fails=0
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/ocutalon-bd.XXXXXX") || exit 1
@@ -36,9 +37,7 @@ local_path() {
   } | cut -d: -f1,2
 }
 
-key_like() {
-  grep -nHIE -e 'sk-ant-[A-Za-z0-9_-]{8,}|[0-9]{8,10}:[A-Za-z0-9_-]{35}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|dop_v1_[a-f0-9]{20,}|AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY' "$@" | cut -d: -f1,2
-}
+# key_like (the key-like patterns) comes from docker/tests/lib-keys.sh, the one definition that eval/run.sh also reads.
 
 # Non-comment logical lines (a trailing backslash joins the next line).
 risky_docker_calls() {

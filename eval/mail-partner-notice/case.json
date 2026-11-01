@@ -1,0 +1,18 @@
+{
+  "name": "mail-partner-notice",
+  "kind": "item",
+  "heldOut": false,
+  "description": "The simulated mailbox's partner-notice sample: a certificate change announced for Friday, which the UX shows as a digest item (EXPERIENCE.md, Simulated devices and sample emails), so it is kept for the digest.",
+  "expectation": {
+    "outcome": "digest"
+  },
+  "recordedBy": "written for the evaluation set (Story 9.3)",
+  "item": {
+    "itemId": "mail-partner-notice",
+    "channel": "mailbox",
+    "provenance": "untrusted",
+    "sender": "Results Partner IT <it@results-partner.example>",
+    "subject": "Certificate change on Friday",
+    "text": "Hello, the TLS certificate on our results endpoint changes this Friday at 18:00. Please load the new certificate before then so results keep flowing. Thanks, Results Partner IT"
+  }
+}

@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 10-30-2026 21:51
+last_updated: 11-01-2026 19:40
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -104,6 +104,9 @@ development_status:
   4-5-get-notifications-on-the-simulated-phone: done
   4-6-simulate-incoming-email-in-the-simulated-mailbox: done
   4-7-finish-the-demo-guide: done
+  4-8-step-3-of-the-guide-points-to-break-the-feed-without-a-secon: backlog
+  4-9-a-demo-view-switch-shows-the-page-as-it-looks-on-your-own-in: backlog
+  4-10-try-it-yourself-example-prompts-one-press-each: backlog
   epic-4-retrospective: optional
 
   epic-5: done
@@ -118,6 +121,8 @@ development_status:
   5-9-ask-ocutalon-in-the-chat-to-dismiss-an-incident: done
   5-10-epic-5-burn-down: done
   5-11-the-demo-guide-s-tests-hold-now-that-incidents-are-real: done
+  5-12-a-correct-diagnosis-is-never-refused-for-an-over-long-eviden: done
+  5-13-ask-ocutalon-what-happened-earlier-and-it-tells-you-from-its: done
   epic-5-retrospective: optional
 
   epic-6: done
@@ -146,18 +151,25 @@ development_status:
   8-7-epic-8-burn-down: done
   epic-8-retrospective: optional
 
-  epic-9: backlog
-  9-1-evaluation-cases-run-through-the-product-path-and-reach-nobo: backlog
-  9-2-each-run-scores-decisions-and-causes-and-records-cost-and-si: backlog
-  9-3-decision-cases-cover-every-outcome-two-injections-the-all-cl: backlog
-  9-4-ten-incidents-are-recorded-from-real-failures: backlog
-  9-5-release-candidates-pass-the-evaluation-and-the-demo-incident: backlog
+  epic-9: done
+  9-1-evaluation-cases-run-through-the-product-path-and-reach-nobo: done
+  9-2-each-run-scores-decisions-and-causes-and-records-cost-and-si: done
+  9-3-decision-cases-cover-every-outcome-two-injections-the-all-cl: done
+  9-7-turn-cases-measure-the-all-clear-the-command-reply-and-a-sto: done
+  9-8-a-stop-watching-injection-leaves-the-watch-unchanged: done
+  9-4-ten-incidents-are-recorded-from-real-failures: done
+  9-9-the-other-nine-incidents-come-from-real-failures-in-a-test-f: done
+  9-6-incident-cases-are-diagnosed-through-incidentmanager-and-rea: done
+  9-5-release-candidates-pass-the-evaluation-and-the-demo-incident: done
+  9-10-the-release-candidate-run-proves-the-key-leaks-nowhere-and-g: done
   epic-9-retrospective: optional
 
   epic-10: done
   10-1-one-script-finds-the-image-starts-ocutalon-and-says-where-to: done
   10-2-the-readme-gets-a-judge-from-download-to-sign-in: done
   10-3-the-session-side-of-telegram-is-ready-and-stays-off: done
+  10-4-the-readme-opens-with-what-ocutalon-is-for-and-what-a-model: done
+  10-5-the-readme-shows-the-product-and-says-how-you-talk-to-it: backlog
   epic-10-retrospective: optional
 
   epic-11: backlog
@@ -205,6 +217,7 @@ development_status:
   16-6-a-probe-checks-the-demo-every-15-minutes: done
   16-8-the-page-counts-down-to-the-reset-and-waits-it-out: done
   16-9-allowances-cap-messages-model-cost-and-simulated-emails: done
+  16-11-the-splash-promises-telegram-only-when-the-release-includes: done
   epic-16-retrospective: optional
 
   epic-17: backlog
@@ -291,9 +304,14 @@ development_status:
   28-3-offer-ocutalon-s-read-only-tools-to-mcp-clients: backlog
   epic-28-retrospective: optional
 
-  epic-29: backlog
-  29-3-the-demo-host-is-adapted-for-the-launch: backlog
-  29-4-sessions-stay-isolated-under-load: backlog
+  epic-29: done
+  29-3-the-demo-host-is-adapted-for-the-launch: done
+  29-4-sessions-stay-isolated-under-load: done
+  29-5-the-address-counter-s-hash-is-keyed-per-reset: done
+  29-6-the-probe-alerts-when-every-turn-falls-back: done
+  29-7-demo-busy-counts-the-live-visitors: done
+  29-8-the-author-s-load-run-measures-the-demo-s-capacity: done
+  29-9-epic-29-burn-down: done
   epic-29-retrospective: optional
 
   epic-30: backlog
@@ -342,6 +360,42 @@ development_status:
   37-1-fix-step-6-s-contracts-approver-roles-and-the-photo-caption: backlog
   37-2-see-tokens-and-cost-over-time-on-the-usage-page: backlog
   epic-37-retrospective: optional
+
+  epic-39: backlog
+  39-1-fix-the-heartbeat-s-names-and-contracts: backlog
+  39-2-save-your-heartbeat-settings-and-ask-for-a-beat: backlog
+  39-3-beats-fall-due-on-the-tick-and-skip-without-a-model-call-whe: backlog
+  39-4-each-beat-carries-your-checklist-and-a-status-snapshot-built: backlog
+  39-5-the-heartbeat-checklist-card-and-run-the-heartbeat-now: backlog
+  39-6-evaluation-cases-for-the-heartbeat: backlog
+  epic-39-retrospective: optional
+
+  epic-40: backlog
+  40-1-fix-the-persona-s-names-contracts-and-preset-texts: backlog
+  40-2-save-your-persona-and-let-ocutalon-propose-one: backlog
+  40-3-the-persona-reaches-chat-and-triage-as-a-data-block: backlog
+  40-4-the-persona-card: backlog
+  40-5-a-setting-approval-in-the-bridge-and-ocutalon-s-proposal-too: backlog
+  40-6-answer-a-proposed-persona-from-the-page-the-phone-or-telegra: backlog
+  40-7-evaluation-cases-for-the-persona: backlog
+  epic-40-retrospective: optional
+
+  epic-41: backlog
+  41-1-fix-the-names-and-contracts-of-memory-s-first-part: backlog
+  41-2-the-precedent-table-its-one-writer-and-the-routes: backlog
+  41-3-daily-notes-built-by-code-and-the-session-starts-that-read-t: backlog
+  41-4-the-notes-and-your-answers-reach-the-model: backlog
+  41-5-this-was-noise-and-your-approval-answers-become-precedents: backlog
+  41-6-the-memory-card-your-notes-and-your-answers: backlog
+  41-7-evaluation-and-tests-for-memory-s-first-part: backlog
+  41-8-told-or-learned-and-facts-ocutalon-learns-in-your-own-turns: backlog
+  41-9-pins-and-learned-saves-get-their-verbs-and-routes: backlog
+  41-10-facts-learned-at-compaction-optional-needs-ad-31-s-amendment: backlog
+  41-11-bridgesink-saves-compaction-facts-as-learned-memories-option: backlog
+  41-12-core-memory-pins-under-a-hard-cap-read-at-every-session-star: backlog
+  41-13-the-memory-card-pinned-and-learned-memories: backlog
+  41-14-evaluation-and-tests-for-memory-s-second-part: backlog
+  epic-41-retrospective: optional
 action_items:
   - id: "epic-32-retro-item-1-ci-capacity-dw-55-ocutalon-ci-c-starts-i"
     epic: 32

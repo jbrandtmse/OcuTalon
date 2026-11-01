@@ -31,9 +31,14 @@
 #     reference searches' controls: the three log sources are readable and not empty, and each searched record (the event log, the live
 #     events, the production message headers, the audit log, each of the three databases of the global scan) holds something the search
 #     can find, so that a count of 0 cannot come from a search that sees nothing;
+#   - the address counter's key (Story 29.5; AD-3, AD-5, AD-25): none exists after the start, the splash checks and row 12's exempt
+#     sign-ins; phase 2 removes the node row 12's lookups made, and its first counted sign-in makes it, with the start's last reset as its
+#     marker and no row under the plain SHA-256; row 13 adds a counter row before the restart, and after it the row still counts, the marker
+#     is unchanged, and no node of OCUTALON_DATA, OCUTALON_PRIVATE and OCUTALON_PUBLIC holds the key but its own, raw or base64url (counts
+#     only; the key is never printed);
 #   - the browser (rows 7 to 12, Story 16.8's reset.spec.ts (the last ten minutes before a reset on a controlled clock, and a real reset four
-#     minutes away) with Task 0's MEASURED lines, and the splash's S1 to S12, S2b, S6b and S8b and the REL-2 online run's step 1 of Story 16.2, and Story
-#     16.3's R1, R2, R4 and R5): the project online-demo of web/playwright.config.ts (web/e2e-online/) as both public accounts;
+#     minutes away) with Task 0's MEASURED lines, and the splash's S1 to S12, S2b, S6b and S8b, and Story 16.3's R1, R2, R4 and R5; the REL-2 online run
+#     has its own unit, test-online-demo-path.sh): the project online-demo of web/playwright.config.ts (web/e2e-online/) as both public accounts;
 #   - the proxied phase (Story 16.3, rows 10 and 11 and Task 0 (c)): the public proxy address is set to the address IRIS sees for this
 #     host's requests, a first proxied sign-in must write a counter row (else the check fails naming the derived address), then five
 #     sign-ins from one forwarded address are counted and the sixth is refused with the splash's field error, a cookie sign-in resumes,
@@ -45,23 +50,31 @@
 #     on build 154, so the cap, set from the baseline, brings the status to the boundary in place of more sessions); with S1 and S2 signed in,
 #     a cap of the baseline plus the reserve plus 1 gives a status that is not busy with no X-OcuTalon-Busy header and the baseline plus the
 #     reserve gives busy with the header and status 200 (row 1), the splash of a fresh jar shows the busy error and link with the header and
-#     the splash's exact policy, and with the cap one higher a fresh splash shows no busy error and no header (row 2); at that boundary a proxied sign-in is allowed, because the check leaves out the new session's own
-#     connection (row 6), and with the cap one lower (so that row 6 pins OWNCONNECTIONS at 1) a proxied sign-in and one with a valid resume cookie are refused with the busy splash,
-#     the header, no resume cookie, no session, no counter row and no attach (rows 5 and 6); the cap is put back to 8 and read back on every
+#     the splash's exact policy, and with the cap one higher a fresh splash shows no busy error and no header (row 2); with the status busy
+#     a proxied sign-in and one with a valid resume cookie are refused with the busy splash, the header, no resume cookie, no session, no
+#     counter row and no attach (row 5), and with the cap one higher a proxied sign-in is let in: the boundary is the status's own, because
+#     the check leaves out no own connection (OWNCONNECTIONS is 0, Story 29.7; row 6); the cap is put back to 8 and read back on every
 #     path, beside the proxy address; MEASURED lines give Task 0's results;
 #   - the probe (Story 16.6; docker/probe.sh, AD-25), in a phase right after the proxy address is put back (so no request is proxied) and
-#     before the password-log checks, with the three runners' model keys pointed at the mock key variable for the phase
-#     (Test.Agent.RunnerFixture, so that a turn reaches the mock) and put back and read back after it: eight runs on one state folder
+#     before the password-log checks, with the three runners' model keys pointed at the mock key variable for P1 to P8
+#     (Test.Agent.RunnerFixture, so that a turn reaches the mock) and put back and read back before P9 and after the phase: nine runs on one state folder
 #     with stub alert and reset commands that append "alert <outcome> <line>" or "reset" to one record file: P1 healthy (row 1: exit 0,
 #     no alert or reset, exactly one new Session row whose CSP session
 #     no longer exists), P2 a wrong password (row 2, auth_failed count=1), P3 the online-demo flag "0" (row 3, no_splash), P4 the cap at the
 #     HTTP view plus the reserve (row 4, busy, today's line of busy-per-day, no new Session row), P5 the Conversation item disabled with a
 #     10 s wait (row 5, no_decision count=2, the reset line right before the alert line), P6 a wrong password (row 6, the count starts
 #     again), P7 the mock's daily-cap marker (row 7, capped with fallback=daily_cap, the day's mark removed), P8 a wrong password (row 8,
-#     capped cleared the count); row 9: the eight log lines in order, six alert lines and one reset line in the record, the AddressCounter
+#     capped cleared the count), P9 (Story 29.6) the runners' keys put back to the Provider step's placeholder first, so that the turn is
+#     a no_key fallback: degraded count=1 fallback=no_key, exit 1, one more alert line, no reset and the count unchanged;
+#     row 9: the nine log lines in order, seven alert lines and one reset line in the record, the AddressCounter
 #     rows unchanged, neither password anywhere, and the flag, the cap, the Conversation item and the capped mark read back. Task 0's
 #     MEASURED lines (a) to (f) give a healthy turn's events, the capped mark, the disabled Conversation item, the sign-out (a control
 #     session, then the probe's), the splash cookie and the phase's time. The phase starts only with 150 s of the deadline left;
+#   - Story 29.3, IRIS's own answers to the host check (release/demo-host-check.sh, docker/tests/lib-online.sh): signed out and with no
+#     proxy, each item on a jar of its own ended with logout_all, the section prints one "MEASURED host probe" line per host_probes probe
+#     and pins its status and whether the page holds an IRIS form field against the line's <iris> field; a signed-in trace page loads the
+#     /csp/broker/ file the check reads, which IRIS serves with 200; the splash's three-field POST and the trace page's four-field POST
+#     (dummy values) come back as IRIS's sign-in page: the splash's refused (aria-invalid), the trace page's the page a plain GET gives;
 #   - neither published password is in the container's output, messages.log, the after-start log, the production event log, the live
 #     events or the audit log, checked after the browser and again after the restart;
 #   - a restart (row 13): the second start's STEP lines are the expected run for a restart, all OK, ready, the guard setting still
@@ -82,7 +95,7 @@
 # stop polling and leave for the splash after the idle cap (600 s of no key press, click or sent message): no check here reuses a jar or a
 # page after more than 120 s without a request, and a case of the browser step that lets a page's clock pass 600 s keeps the page active.
 # The shared start (the test values, redact, the probe counter, logout_all and online_signin) is docker/tests/lib-online.sh's, which
-# test-online-session.sh (Story 16.4) uses too.
+# test-online-session.sh (Story 16.4) uses too, and so do the S17 forms (password_form) and the host check's probes (host_probes).
 # Prints one PASS or FAIL line per check; exits 0 only when all pass.
 # Needs docker compose, the build 154 base image (IRIS_IMAGE, default ocutalon-iris-base:2026.3.0AI.154.0), Node 24.15 or later, curl, the
 # built web bundle and Chromium (npx --prefix web playwright install chromium; ci/iris.sh live installs it).
@@ -246,15 +259,6 @@ fi
 
 # --- rows 5 and 6: the password-change forms over HTTP ---
 
-# pct <text>: every byte of the text as %XX.
-pct() {
-  local s=$1 out="" i
-  for ((i = 0; i < ${#s}; i++)); do
-    out="$out$(printf '%%%02X' "'${s:i:1}")"
-  done
-  printf '%s' "$out"
-}
-
 # signin_outcome <user> <password>: a plain sign-in POST to /ocutalon/, on a jar of its own, and what it led to, ended with a sign-out:
 #   shell    IRIS accepted it and the page is the application's shell;
 #   norole   IRIS accepted it and the page says the account has no OcuTalon user role;
@@ -286,18 +290,13 @@ page_token() {
 # application's F1 and F3 carry the session token of its sign-in page; F12 signs in at the application with its form first, then posts
 # the password-change page's own form with that page's token.
 form_request() {
-  local form=$1 path=$2 app=$3 user=$4 old=$5 new=$6 jar url u o p l
+  local form=$1 path=$2 app=$3 user=$4 old=$5 new=$6 jar url
   next_probe
   jar="$tmp/jar.$probes"
   : > "$jar"
   url="$base$path?probe=$probes"
-  case $form in
-    F2 | F4 | F9) u=CacheUserName o=CacheOldPassword p=CachePassword l=CacheLogin ;;
-    F11) u=irisusername o=IrisOldPassword p=irispassword l=irislogin ;;
-    *) u=IRISUsername o=IRISOldPassword p=IRISPassword l=IRISLogin ;;
-  esac
   local common=(-s --max-time 30 -o /dev/null -c "$jar" -b "$jar")
-  local token="" plain="$u=$user&$o=$old&$p=$new&$l=Sign+in"
+  local token=""
   case $path in
     /ocutalon/trace/*)
       if [ "$form" = F12 ]; then
@@ -311,8 +310,8 @@ form_request() {
         token=$(page_token "$jar" "$url")
         [ -n "$token" ] || fail "row 5: $form for $user at $path: the password-change page gave no session token, so the request cannot sign in"
         next_probe
-        curl "${common[@]}" --data-urlencode "IRISSessionToken=$token" --data-urlencode "IRISUsername=$user" --data-urlencode "IRISOldPassword=$old" \
-          --data-urlencode "IRISPassword=$new" --data-urlencode "IRISRepeatPassword=$new" --data-urlencode 'IRISLogin=Login' "$base$path?probe=$probes"
+        password_form F12 "$user" "$old" "$new" "$token"
+        curl "${common[@]}" "${form_args[@]}" "$base$path?probe=$probes"
         logout_all "$jar" "$app"
         return 0
       fi
@@ -325,18 +324,8 @@ form_request() {
       esac
       ;;
   esac
-  case $form in
-    F1 | F2) curl "${common[@]}" ${token:+--data-urlencode IRISSessionToken=$token} --data-urlencode "$u=$user" --data-urlencode "$o=$old" --data-urlencode "$p=$new" --data-urlencode "$l=Sign in" "$url" ;;
-    F3 | F4) curl "${common[@]}" -G ${token:+--data-urlencode IRISSessionToken=$token} --data-urlencode "$u=$user" --data-urlencode "$o=$old" --data-urlencode "$p=$new" --data-urlencode "$l=Sign in" "$url" ;;
-    F5) curl "${common[@]}" --data-binary '' "$url&$plain" ;;
-    F6)
-      curl "${common[@]}" --data-raw "IRISUsername=$user&IRIS$(pct OldPassword)=$old&IRIS$(pct Password)=$new&IRISLogin=Sign+in" "$url"
-      ;;
-    F7) curl "${common[@]}" "$url&IRISUsername=$user&IRIS$(pct OldPassword)=$old&IRIS$(pct Password)=$new&IRISLogin=Sign+in" ;;
-    F8 | F9) curl "${common[@]}" -F "$u=$user" -F "$o=$old" -F "$p=$new" -F "$l=Sign in" "$url" ;;
-    F10) curl "${common[@]}" -H 'Transfer-Encoding: chunked' --data-raw "$plain" "$url" ;;
-    F11) curl "${common[@]}" --data-raw "$plain&IRISRepeatPassword=$new" "$url" ;;
-  esac
+  password_form "$form" "$user" "$old" "$new" "$token"
+  curl "${common[@]}" ${form_args[@]+"${form_args[@]}"} "$url${form_query:+&$form_query}"
   logout_all "$jar" "$app"
 }
 
@@ -597,16 +586,9 @@ row_field() {
     'Halt' | session_value OCUTALON field
 }
 
-# session_rows: the number of Session rows. counter_rows: the number of AddressCounter rows; with an address, those of its hash.
+# session_rows: the number of Session rows (counter_rows is lib-online.sh's).
 session_rows() {
   printf '%s\n' 'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM OcuTalon_Data.Session") Do rs.%Next() Write !,"CHK|rows|",rs.%GetData(1)' 'Halt' | session_value OCUTALON rows
-}
-counter_rows() {
-  if [ -n "${1:-}" ]; then
-    printf '%s\n' "Set rs=##class(%SQL.Statement).%ExecDirect(,\"SELECT COUNT(*) FROM OcuTalon_Data.AddressCounter WHERE AddressHash = ?\",##class(OcuTalon.Data.Session).Hash(\"$1\")) Do rs.%Next() Write !,\"CHK|rows|\",rs.%GetData(1)" 'Halt' | session_value OCUTALON rows
-  else
-    printf '%s\n' 'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM OcuTalon_Data.AddressCounter") Do rs.%Next() Write !,"CHK|rows|",rs.%GetData(1)' 'Halt' | session_value OCUTALON rows
-  fi
 }
 
 # --- row 14 (live): the seeded address limit ---
@@ -633,6 +615,11 @@ for i in 1 2 3 4 5 6; do
   if [ "$outcome" = shell ] && [ -n "$(set_cookie_value "$jar.h")" ]; then exempt_ok=$((exempt_ok + 1)); fi
   logout_all "$jar" /ocutalon/
 done
+# The start, the splash checks and these exempt sign-ins make no key (Story 29.5): the counter makes it at its first counted sign-in.
+check_session "row 12: the start, the splash checks and six exempt sign-ins made no address key" OCUTALON \
+  "CHK|key|0" \
+  'Set k=##class(OcuTalon.Data.AddressCounter).#KEYGLOBAL Write !,"CHK|key|",$Data(@k)' \
+  'Halt'
 if [ "$exempt_ok" = 6 ] && [ "$(counter_rows)" = "$counter_before" ] && [ "$(counter_rows "$a0")" = 0 ]; then
   pass "row 12: six sign-ins from one forwarded address, not from the proxy, all give the shell and a cookie, and write no counter row"
 else
@@ -818,13 +805,6 @@ fi
 
 # --- Story 16.3, the proxied phase (rows 10 and 11, Task 0 (c)) ---
 
-# The public proxy address is set to the address that IRIS sees for this host's requests, and put back to the start value on every path.
-set_proxy() { printf '%s\n' "Do ##class(OcuTalon.Data.Public.Settings).Set(\"proxyAddress\",\"$1\")" "Write !,\"CHK|proxy|\",##class(OcuTalon.Data.Public.Settings).Get(\"proxyAddress\")" 'Halt' | session_value OCUTALON proxy; }
-# host_address: the container's default gateway, from /proc/net/route (little-endian hex), which is the source address of a request that the
-# host publishes a port for; nothing when the table has no default route.
-host_address() {
-  dc exec -T iris sh -c "awk '\$2 == \"00000000\" { print \$3; exit }' /proc/net/route" 2>/dev/null | tr -d '\r' | node -e 'const h = require("fs").readFileSync(0, "utf8").trim(); if (/^[0-9A-Fa-f]{8}$/.test(h)) console.log([6, 4, 2, 0].map((i) => parseInt(h.slice(i, i + 2), 16)).join("."));'
-}
 host_ip=$(host_address)
 echo "MEASURED REMOTE_ADDR of the host's requests, derived from the container's default gateway: ${host_ip:-<none>}"
 proxied_ok=0
@@ -832,8 +812,21 @@ if [ -n "$host_ip" ] && [ "$(set_proxy "$host_ip")" = "$host_ip" ]; then
   precondition="zz-phase2-precondition"
   jar="$tmp/jar.precondition"
   : > "$jar"
+  # Row 12's lookups made a key: remove it, so that this counted sign-in is the first use (Story 29.5).
+  check_session "phase 2: the key is removed before the first counted sign-in" OCUTALON \
+    "CHK|key|0" \
+    'Set k=##class(OcuTalon.Data.AddressCounter).#KEYGLOBAL Kill @k Write !,"CHK|key|",$Data(@k)' \
+    'Halt'
   online_signin "$jar" "$precondition" "" > /dev/null
   logout_all "$jar" /ocutalon/
+  check_session "phase 2: the first counted sign-in made the key with the start's marker, and wrote no row under the plain SHA-256" OCUTALON \
+    "CHK|key|1
+CHK|marker|1
+CHK|sha|0" \
+    'Set k=##class(OcuTalon.Data.AddressCounter).#KEYGLOBAL Write !,"CHK|key|",$Data(@k)' \
+    'Set v=$Get(@k) Write !,"CHK|marker|",$ListValid(v)&&($ListLength(v)=2)&&($List(v,1)=##class(OcuTalon.Data.Public.Settings).Get("lastReset"))&&($Length($List(v,2))=32)' \
+    "Set rs=##class(%SQL.Statement).%ExecDirect(,\"SELECT COUNT(*) FROM OcuTalon_Data.AddressCounter WHERE AddressHash = ?\",##class(OcuTalon.Data.Session).Hash(\"$precondition\")) Do rs.%Next() Write !,\"CHK|sha|\",rs.%GetData(1)" \
+    'Halt'
   if [ "$(counter_rows "$precondition")" = 1 ]; then
     proxied_ok=1
     pass "phase 2: one proxied sign-in wrote a counter row for its forwarded address (the proxy address is $host_ip)"
@@ -863,12 +856,12 @@ if [ "$proxied_ok" = 1 ]; then
     logout_all "$jar" /ocutalon/
   done
   # The first creation is aged to 50 minutes: the window is the past hour, so it still counts and the sixth is refused until ten minutes from now.
-  aged=$(printf '%s\n' "Set rs=##class(%SQL.Statement).%ExecDirect(,\"SELECT TOP 1 ID FROM OcuTalon_Data.AddressCounter WHERE AddressHash = ? ORDER BY ID\",##class(OcuTalon.Data.Session).Hash(\"$addr_a\")) Set ok=0 If rs.%Next() { Set r=##class(OcuTalon.Data.AddressCounter).%OpenId(rs.%Get(\"ID\")) Set r.CreatedAt=##class(OcuTalon.Data.AddressCounter).Shift(##class(OcuTalon.Data.Time).NowUtc(),-3000) Set ok=\$SYSTEM.Status.IsOK(r.%Save()) } Write !,\"CHK|aged|\",ok" 'Halt' | session_value OCUTALON aged)
+  aged=$(printf '%s\n' "Set rs=##class(%SQL.Statement).%ExecDirect(,\"SELECT TOP 1 ID FROM OcuTalon_Data.AddressCounter WHERE AddressHash = ? ORDER BY ID\",##class(OcuTalon.Data.AddressCounter).AddressHash(\"$addr_a\")) Set ok=0 If rs.%Next() { Set r=##class(OcuTalon.Data.AddressCounter).%OpenId(rs.%Get(\"ID\")) Set r.CreatedAt=##class(OcuTalon.Data.AddressCounter).Shift(##class(OcuTalon.Data.Time).NowUtc(),-3000) Set ok=\$SYSTEM.Status.IsOK(r.%Save()) } Write !,\"CHK|aged|\",ok" 'Halt' | session_value OCUTALON aged)
   rows_before=$(session_rows)
   jar="$tmp/jar.limit.6"
   : > "$jar"
   code=$(online_signin "$jar" "$addr_a" "")
-  oldest=$(printf '%s\n' "Set rs=##class(%SQL.Statement).%ExecDirect(,\"SELECT MIN(CreatedAt) FROM OcuTalon_Data.AddressCounter WHERE AddressHash = ?\",##class(OcuTalon.Data.Session).Hash(\"$addr_a\")) Do rs.%Next() Write !,\"CHK|oldest|\",##class(OcuTalon.Data.AddressCounter).Shift(rs.%GetData(1),3600)" 'Halt' | session_value OCUTALON oldest)
+  oldest=$(printf '%s\n' "Set rs=##class(%SQL.Statement).%ExecDirect(,\"SELECT MIN(CreatedAt) FROM OcuTalon_Data.AddressCounter WHERE AddressHash = ?\",##class(OcuTalon.Data.AddressCounter).AddressHash(\"$addr_a\")) Do rs.%Next() Write !,\"CHK|oldest|\",##class(OcuTalon.Data.AddressCounter).Shift(rs.%GetData(1),3600)" 'Halt' | session_value OCUTALON oldest)
   state_status=$(curl -s --max-time 30 -o /dev/null -w '%{http_code}' -b "$jar" -c "$jar" "$base/ocutalon/api/v1/state?probe=$(next_probe; echo "$probes")")
   refused_page=$(tr -d '\n' < "$jar.b")
   refused_ok=1
@@ -936,21 +929,8 @@ public_value() { printf '%s\n' "Write !,\"CHK|v|\",##class(OcuTalon.Data.Public.
 set_cap() { printf '%s\n' "Do ##class(OcuTalon.Data.Public.Settings).Set(\"connectionCap\",\"$1\")" 'Write !,"CHK|cap|",##class(OcuTalon.Data.Public.Settings).Get("connectionCap")' 'Halt' | session_value OCUTALON cap; }
 # script_connections: InstanceConnections() as an iris_script reads it (its own process holds one connection).
 script_connections() { printf '%s\n' 'Write !,"CHK|conn|",$SYSTEM.License.InstanceConnections()' 'Halt' | session_value OCUTALON conn; }
-# status_read: GETs /ocutalon/public/status on no jar with a unique probe, leaves the headers in $tmp/status.h and the body in $tmp/status.b, and
-# prints "<busy: true, false or unreadable> <marker header: 1 or none> <HTTP status>".
-status_read() {
-  local code busy marker
-  next_probe
-  code=$(curl -s --max-time 30 -D "$tmp/status.h" -o "$tmp/status.b" -w '%{http_code}' "$base/ocutalon/public/status?probe=$probes")
-  case $(cat "$tmp/status.b") in
-    *'"busy":true'*) busy=true ;;
-    *'"busy":false'*) busy=false ;;
-    *) busy=unreadable ;;
-  esac
-  if tr -d '\r' < "$tmp/status.h" | grep -qi '^x-ocutalon-busy: 1$'; then marker=1; else marker=none; fi
-  printf '%s %s %s' "$busy" "$marker" "$code"
-}
-# http_view: the HTTP view of the licence connections, which is what the status counts, by the flip of Task 0 (a): with r what script_connections
+# http_view: the HTTP view of the licence connections, which is what the status's connection check counts, by the flip of Task 0 (a) on the
+# status's trace form (its busy comes from the connection check alone, so live visitors never move it): with r what script_connections
 # reads, the cap is set to r plus the reserve, and a busy status means the view is r; otherwise it is r - 1, which a cap of r - 1 plus the
 # reserve must confirm. The cap is put back to what it was. It prints the view, or nothing when neither r nor r - 1 held.
 http_view() {
@@ -959,11 +939,11 @@ http_view() {
   r=$(script_connections)
   case $r in '' | *[!0-9]*) set_cap "$saved" > /dev/null; return 1 ;; esac
   set_cap "$((r + reserve_start))" > /dev/null
-  if [ "$(status_read | cut -d' ' -f1)" = true ]; then
+  if [ "$(status_read trace | cut -d' ' -f1)" = true ]; then
     view=$r
   else
     set_cap "$((r - 1 + reserve_start))" > /dev/null
-    if [ "$(status_read | cut -d' ' -f1)" = true ]; then view=$((r - 1)); fi
+    if [ "$(status_read trace | cut -d' ' -f1)" = true ]; then view=$((r - 1)); fi
   fi
   set_cap "$saved" > /dev/null
   printf '%s' "$view"
@@ -978,7 +958,7 @@ drop_session() {
     'Halt' | session_value OCUTALON dropped > /dev/null
 }
 drop_counter() {
-  printf '%s\n' "Do ##class(%SQL.Statement).%ExecDirect(,\"DELETE FROM OcuTalon_Data.AddressCounter WHERE AddressHash = ?\",##class(OcuTalon.Data.Session).Hash(\"$1\"))" 'Write !,"CHK|dropped|1"' 'Halt' | session_value OCUTALON dropped > /dev/null
+  printf '%s\n' "Do ##class(%SQL.Statement).%ExecDirect(,\"DELETE FROM OcuTalon_Data.AddressCounter WHERE AddressHash = ?\",##class(OcuTalon.Data.AddressCounter).AddressHash(\"$1\"))" 'Write !,"CHK|dropped|1"' 'Halt' | session_value OCUTALON dropped > /dev/null
 }
 # marker_in <headers file>: 1 when the headers hold X-OcuTalon-Busy: 1.
 marker_in() { if tr -d '\r' < "$1" 2>/dev/null | grep -qi '^x-ocutalon-busy: 1$'; then printf 1; else printf none; fi; }
@@ -1110,9 +1090,52 @@ if [ "$busy_ok" = 1 ]; then
     cache_busy_of() { case $1 in *'"busy":true'*) printf true ;; *'"busy":false'*) printf false ;; *) printf unreadable ;; esac; }
     echo "MEASURED Task 0 (f): two GETs of one /ocutalon/public/status URL with the cap changed between them answered busy=$(cache_busy_of "$cache_first") and then busy=$(cache_busy_of "$cache_second") (the gateway $([ "$cache_first" = "$cache_second" ] && echo 'repeated the first answer' || echo 'did not cache'))"
 
-    # Row 6, the boundary: the status is busy (the connections have reached cap minus reserve), yet a proxied sign-in is allowed, because the
-    # check leaves out the new session's own connection (OWNCONNECTIONS): the shell, a cookie and a counter row. Task 0 (d).
+    # Rows 5 and 6, at the status's own boundary (OWNCONNECTIONS = 0: the new session holds no connection, so the check leaves none out):
+    # with the cap at cap_busy the status is busy, so a proxied sign-in (S3), and one with a valid resume cookie of S2's row (S4), are
+    # refused with the busy splash.
     own=$(printf '%s\n' 'Write !,"CHK|own|",##class(OcuTalon.Web.SessionEvents).#OWNCONNECTIONS' 'Halt' | session_value OCUTALON own)
+    conn_before_s3=$(script_connections)
+    rows_before=$(session_rows)
+    csp_before=$(row_field "$s2_epoch" CspSessionId)
+    jar_s3="$tmp/jar.busy.s3"
+    : > "$jar_s3"
+    s3_code=$(online_signin "$jar_s3" "$addr_s3" "")
+    s3_state=$(curl -s --max-time 30 -o /dev/null -w '%{http_code}' -b "$jar_s3" -c "$jar_s3" "$base/ocutalon/api/v1/state?probe=$(next_probe; echo "$probes")")
+    s3_ok=1
+    s3_why=""
+    [ "$s3_code" = 200 ] || { s3_ok=0; s3_why="$s3_why status"; }
+    [ "$(busy_page "$jar_s3.b")" = 1 ] || { s3_ok=0; s3_why="$s3_why page"; }
+    [ "$(marker_in "$jar_s3.h")" = 1 ] || { s3_ok=0; s3_why="$s3_why header"; }
+    [ -z "$(set_cookie_value "$jar_s3.h")" ] || { s3_ok=0; s3_why="$s3_why cookie-post"; }
+    [ -z "$(set_cookie_value "$jar_s3.g")" ] || { s3_ok=0; s3_why="$s3_why cookie-get"; }
+    [ "$s3_state" = 401 ] || { s3_ok=0; s3_why="$s3_why state"; }
+    [ "$(session_rows)" = "$rows_before" ] || { s3_ok=0; s3_why="$s3_why rows"; }
+    [ "$(counter_rows "$addr_s3")" = 0 ] || { s3_ok=0; s3_why="$s3_why counter"; }
+    logout_all "$jar_s3" /ocutalon/
+    [ -n "$s2_cookie" ] || { s4_cookie_missing=1; }
+    jar_s4="$tmp/jar.busy.s4"
+    : > "$jar_s4"
+    s4_code=$(online_signin "$jar_s4" "$addr_s4" "$s2_cookie")
+    s4_ok=1
+    s4_why=""
+    [ -z "${s4_cookie_missing:-}" ] || { s4_ok=0; s4_why="$s4_why no-resume-cookie-from-S2"; }
+    [ "$s4_code" = 200 ] || { s4_ok=0; s4_why="$s4_why status"; }
+    [ "$(busy_page "$jar_s4.b")" = 1 ] || { s4_ok=0; s4_why="$s4_why page"; }
+    [ "$(marker_in "$jar_s4.h")" = 1 ] || { s4_ok=0; s4_why="$s4_why header"; }
+    [ -z "$(set_cookie_value "$jar_s4.h")" ] || { s4_ok=0; s4_why="$s4_why cookie"; }
+    [ "$(row_field "$s2_epoch" CspSessionId)" = "$csp_before" ] || { s4_ok=0; s4_why="$s4_why attached"; }
+    [ "$(session_rows)" = "$rows_before" ] || { s4_ok=0; s4_why="$s4_why rows"; }
+    [ "$(counter_rows "$addr_s4")" = 0 ] || { s4_ok=0; s4_why="$s4_why counter"; }
+    logout_all "$jar_s4" /ocutalon/
+    if [ "$s3_ok" = 1 ] && [ "$s4_ok" = 1 ]; then
+      pass "row 5: with the status busy (the cap at the baseline plus the reserve) a proxied sign-in and a proxied sign-in with a valid resume cookie each get 200 and the busy splash with X-OcuTalon-Busy: 1, no resume cookie, no session, no new Session row, no counter row, and the cookie's row is not attached"
+    else
+      fail "row 5: S3 (status '$s3_code', session state '$s3_state') ok=$s3_ok, failed:${s3_why:- none}; the cookie sign-in (status '$s4_code') ok=$s4_ok, failed:${s4_why:- none}; the script read ${conn_before_s3:-<unknown>} connections before S3 (view $view_base)"
+    fi
+
+    # Row 6, one cap higher: the status is not busy, and a proxied sign-in is let in (the shell, a cookie and a counter row), so the
+    # boundary is the status's own (OWNCONNECTIONS = 0, Task 0 (d)).
+    set_cap "$cap_free" > /dev/null
     jar_s5="$tmp/jar.busy.s5"
     : > "$jar_s5"
     conn_before_s5=$(script_connections)
@@ -1122,64 +1145,17 @@ if [ "$busy_ok" = 1 ]; then
     s5_epoch=$(jar_epoch "$jar_s5")
     s5_counter=$(counter_rows "$addr_s5")
     logout_all "$jar_s5" /ocutalon/
-    if [ "$s5_outcome" = shell ] && [ -n "$s5_cookie" ] && [ "$s5_counter" = 1 ]; then
-      pass "row 6: with the status busy at the baseline plus the reserve, a proxied sign-in is allowed (the shell, a cookie, one counter row), because its own connection is left out (OWNCONNECTIONS = $own)"
+    if [ "$s3_ok" = 1 ] && [ "$s5_outcome" = shell ] && [ -n "$s5_cookie" ] && [ "$s5_counter" = 1 ]; then
+      pass "row 6: the boundary is the status's own (the check leaves out no own connection, OWNCONNECTIONS = $own): refused with the status busy at the cap $cap_busy, and with the cap $cap_free a proxied sign-in is let in (the shell, a cookie, one counter row)"
     else
-      fail "row 6: with the cap at $cap_busy a proxied sign-in gave '$s5_outcome' with cookie '${s5_cookie:+set}' and $s5_counter counter row(s); the script read ${conn_before_s5:-<unknown>} connections before it (view $view_base, OWNCONNECTIONS $own)"
+      fail "row 6: the sign-in past the boundary was refused=$s3_ok, and with the cap at $cap_free a proxied sign-in gave '$s5_outcome' with cookie '${s5_cookie:+set}' and $s5_counter counter row(s) (view $view_base, OWNCONNECTIONS $own, the script read ${conn_before_s3:-<unknown>} before S3 and ${conn_before_s5:-<unknown>} before S5)"
     fi
-
-    # Rows 5 and 6, past the boundary: with the cap one below the allowed one, the connections without the new session's own (OWNCONNECTIONS
-    # = 1) are at cap minus reserve, so a proxied sign-in (S3), and one with a valid resume cookie of S2's row (S4), are refused with the busy
-    # splash. The allowed sign-in above needs OWNCONNECTIONS >= 1 and this refusal OWNCONNECTIONS <= 1, so row 6 pins it at 1.
-    cap_refuse=$((cap_busy - 1))
-    if [ "$cap_refuse" -lt 1 ] || [ "$(set_cap "$cap_refuse")" != "$cap_refuse" ]; then
-      fail "row 5: the connection cap could not be set to $cap_refuse (one below $cap_busy, the baseline $view_base plus the reserve)"
+    if [ "${s3_ok:-0}" = 1 ] && [ "$s5_outcome" = shell ]; then
+      own_reading="so a new session holds no connection when OnLogin runs"
     else
-      conn_before_s3=$(script_connections)
-      rows_before=$(session_rows)
-      csp_before=$(row_field "$s2_epoch" CspSessionId)
-      jar_s3="$tmp/jar.busy.s3"
-      : > "$jar_s3"
-      s3_code=$(online_signin "$jar_s3" "$addr_s3" "")
-      s3_state=$(curl -s --max-time 30 -o /dev/null -w '%{http_code}' -b "$jar_s3" -c "$jar_s3" "$base/ocutalon/api/v1/state?probe=$(next_probe; echo "$probes")")
-      s3_ok=1
-      s3_why=""
-      [ "$s3_code" = 200 ] || { s3_ok=0; s3_why="$s3_why status"; }
-      [ "$(busy_page "$jar_s3.b")" = 1 ] || { s3_ok=0; s3_why="$s3_why page"; }
-      [ "$(marker_in "$jar_s3.h")" = 1 ] || { s3_ok=0; s3_why="$s3_why header"; }
-      [ -z "$(set_cookie_value "$jar_s3.h")" ] || { s3_ok=0; s3_why="$s3_why cookie-post"; }
-      [ -z "$(set_cookie_value "$jar_s3.g")" ] || { s3_ok=0; s3_why="$s3_why cookie-get"; }
-      [ "$s3_state" = 401 ] || { s3_ok=0; s3_why="$s3_why state"; }
-      [ "$(session_rows)" = "$rows_before" ] || { s3_ok=0; s3_why="$s3_why rows"; }
-      [ "$(counter_rows "$addr_s3")" = 0 ] || { s3_ok=0; s3_why="$s3_why counter"; }
-      logout_all "$jar_s3" /ocutalon/
-      [ -n "$s2_cookie" ] || { s4_cookie_missing=1; }
-      jar_s4="$tmp/jar.busy.s4"
-      : > "$jar_s4"
-      s4_code=$(online_signin "$jar_s4" "$addr_s4" "$s2_cookie")
-      s4_ok=1
-      s4_why=""
-      [ -z "${s4_cookie_missing:-}" ] || { s4_ok=0; s4_why="$s4_why no-resume-cookie-from-S2"; }
-      [ "$s4_code" = 200 ] || { s4_ok=0; s4_why="$s4_why status"; }
-      [ "$(busy_page "$jar_s4.b")" = 1 ] || { s4_ok=0; s4_why="$s4_why page"; }
-      [ "$(marker_in "$jar_s4.h")" = 1 ] || { s4_ok=0; s4_why="$s4_why header"; }
-      [ -z "$(set_cookie_value "$jar_s4.h")" ] || { s4_ok=0; s4_why="$s4_why cookie"; }
-      [ "$(row_field "$s2_epoch" CspSessionId)" = "$csp_before" ] || { s4_ok=0; s4_why="$s4_why attached"; }
-      [ "$(session_rows)" = "$rows_before" ] || { s4_ok=0; s4_why="$s4_why rows"; }
-      [ "$(counter_rows "$addr_s4")" = 0 ] || { s4_ok=0; s4_why="$s4_why counter"; }
-      logout_all "$jar_s4" /ocutalon/
-      if [ "$s3_ok" = 1 ] && [ "$s4_ok" = 1 ]; then
-        pass "row 5: past the boundary a proxied sign-in and a proxied sign-in with a valid resume cookie each get 200 and the busy splash with X-OcuTalon-Busy: 1, no resume cookie, no session, no new Session row, no counter row, and the cookie's row is not attached"
-      else
-        fail "row 5: S3 (status '$s3_code', session state '$s3_state') ok=$s3_ok, failed:${s3_why:- none}; the cookie sign-in (status '$s4_code') ok=$s4_ok, failed:${s4_why:- none}; the script read ${conn_before_s3:-<unknown>} connections before S3 (view $view_base)"
-      fi
-      if [ "$s3_ok" = 1 ] && [ "$s5_outcome" = shell ]; then
-        pass "row 6: one connection lower than the allowed sign-in the proxied sign-in is refused: the boundary lies between the caps $cap_refuse and $cap_busy, so the check leaves out exactly one own connection (OWNCONNECTIONS = $own)"
-      else
-        fail "row 6: the sign-in at the boundary gave '$s5_outcome' and the one past it refused=$s3_ok (view $view_base, OWNCONNECTIONS $own, the script read ${conn_before_s3:-<unknown>} before S3)"
-      fi
+      own_reading="so this run does not show whether a new session holds a connection when OnLogin runs"
     fi
-    echo "MEASURED Task 0 (d): OWNCONNECTIONS = $own; with the view at $view_base the sign-in at cap $cap_busy gave '$s5_outcome' and the one at cap $cap_refuse was '$([ "${s3_ok:-0}" = 1 ] && echo refused || echo not-refused)'; two sessions add $((${view_two:-0} - ${view_base:-0})) to the HTTP view here, so whether OnLogin counts the new session itself is not measurable on this stack"
+    echo "MEASURED Task 0 (d): OWNCONNECTIONS = $own; with the view at $view_base the sign-in at cap $cap_busy was '$([ "${s3_ok:-0}" = 1 ] && echo refused || echo not-refused)' and the one at cap $cap_free gave '$s5_outcome'; two sessions add $((${view_two:-0} - ${view_base:-0})) to the HTTP view here, $own_reading"
     for epoch in "$s5_epoch"; do drop_session "$epoch"; done
   fi
   logout_all "$jar_s2" /ocutalon/
@@ -1208,10 +1184,11 @@ fi
 
 # docker/probe.sh runs against this unit's own throwaway, directly (no request is proxied: the proxy address is back at its start value),
 # with the demo account and its published password, a state folder of its own and two stub commands that append one line per call to one
-# record file ("alert <outcome> <line>" or "reset"), so that the record shows the order of the calls. Eight runs on one state folder:
+# record file ("alert <outcome> <line>" or "reset"), so that the record shows the order of the calls. Nine runs on one state folder:
 # P1 healthy, P2 wrong password, P3 online-demo flag "0", P4 cap lowered to the boundary, P5 Conversation disabled, P6 wrong password,
-# P7 the daily-cap mock marker, P8 wrong password. Every setting a run changes is put back at once and read back at the end of the phase;
-# the runners' model keys, pointed at the mock key variable before P1, are put back and read back after the phase.
+# P7 the daily-cap mock marker, P8 wrong password, P9 (Story 29.6) the runners' keys back at the placeholder, so the turn falls back with
+# no_key. Every setting a run changes is put back at once and read back at the end of the phase; the runners' model keys, pointed at the
+# mock key variable before P1, are put back and read back before P9 and again after the phase.
 probe_started=$SECONDS
 probe_state="$tmp/probe-state"
 probe_record="$tmp/probe-record"
@@ -1243,27 +1220,28 @@ probe_run() {
   ) > "$tmp/probe.$label.out" 2> "$tmp/probe.$label.err" < /dev/null
   probe_rc=$?
 }
-# probe_expect <label> <label of the check> <exit> <text>: the run's exit code, one stdout line that is also the log's last line, and the
-# text after the time.
+# probe_expect <label> <label of the check> <exit> <text> [<story>]: the run's exit code, one stdout line that is also the log's last line,
+# and the text after the time. The story named in the check's lines is 16.6 unless given.
 probe_expect() {
-  local out="$tmp/probe.$1.out" got last lines
+  local out="$tmp/probe.$1.out" got last lines story=${5:-16.6}
   got=$(sed 's/^[^ ]* //' "$out")
   last=$(tail -n 1 "$probe_state/probe.log" 2> /dev/null)
   lines=$(wc -l < "$out" | tr -d ' ')
   if [ "$probe_rc" = "$3" ] && [ "$got" = "$4" ] && [ "$lines" = 1 ] && [ "$(cat "$out")" = "$last" ] && grep -Eq '^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z ' "$out"; then
-    pass "Story 16.6, $2: exit $3, the log's last line and stdout are '<time> $4'"
+    pass "Story $story, $2: exit $3, the log's last line and stdout are '<time> $4'"
   else
-    fail "Story 16.6, $2: exit $probe_rc (wanted $3), '$got' (wanted '$4'), $lines stdout line(s), the log's last line is '$(printf '%s' "$last" | sed 's/^[^ ]* //')'"
+    fail "Story $story, $2: exit $probe_rc (wanted $3), '$got' (wanted '$4'), $lines stdout line(s), the log's last line is '$(printf '%s' "$last" | sed 's/^[^ ]* //')'"
   fi
 }
 # probe_counts: "<alert lines> <reset lines>" of the command record so far.
 probe_counts() { printf '%s %s' "$(grep -c '^alert ' "$probe_record")" "$(grep -c '^reset$' "$probe_record")"; }
-# probe_calls_ok <check label> <alerts> <resets>: the record holds this many alert and reset lines.
+# probe_calls_ok <check label> <alerts> <resets> [<story>]: the record holds this many alert and reset lines.
 probe_calls_ok() {
+  local story=${4:-16.6}
   if [ "$(probe_counts)" = "$2 $3" ]; then
-    pass "Story 16.6, $1: the record holds $2 alert line(s) and $3 reset line(s)"
+    pass "Story $story, $1: the record holds $2 alert line(s) and $3 reset line(s)"
   else
-    fail "Story 16.6, $1: the record holds '$(probe_counts)' alert and reset lines, wanted '$2 $3'"
+    fail "Story $story, $1: the record holds '$(probe_counts)' alert and reset lines, wanted '$2 $3'"
   fi
 }
 
@@ -1519,21 +1497,41 @@ if [ "$probe_ok" = 1 ]; then
   probe_expect p8 "row 8" 1 "auth_failed count=1"
   probe_calls_ok "row 8" 6 1
 
+  # P9 (Story 29.6, row 6): the runners' keys go back to the Provider step's placeholder, so the next turn is a no_key fallback, which the
+  # probe reports as degraded: an alert, exit 1, and the count of counted failures (1 after P8) unchanged, with no reset.
+  p9_keys=0
+  if [ "$(keys_restore)" = 1 ]; then
+    p9_keys=1
+    pass "Story 29.6, row 6: the runners' model keys are back to the Provider step's placeholder before P9"
+  else
+    fail "Story 29.6, row 6: the runners' model keys could not be put back to the placeholder, so P9 is not run"
+  fi
+  if [ "$p9_keys" = 1 ]; then
+    probe_run p9
+    probe_expect p9 "row 6" 1 "degraded count=1 fallback=no_key" 29.6
+    probe_calls_ok "row 6" 7 1 29.6
+    if [ "$(cat "$probe_state/counted-failures" 2> /dev/null)" = 1 ]; then
+      pass "Story 29.6, row 6: degraded left the stored count at 1"
+    else
+      fail "Story 29.6, row 6: the stored count reads '$(cat "$probe_state/counted-failures" 2> /dev/null)' after degraded (wanted 1)"
+    fi
+  fi
+
   # Row 9: the phase as a whole.
-  if [ "$(sed 's/^[^ ]* //; s/ .*//' "$probe_state/probe.log" | tr '\n' ' ')" = "healthy auth_failed no_splash busy no_decision auth_failed capped auth_failed " ]; then
-    pass "Story 16.6, row 9: probe.log holds exactly eight lines: healthy, auth_failed, no_splash, busy, no_decision, auth_failed, capped, auth_failed"
+  if [ "$(sed 's/^[^ ]* //; s/ .*//' "$probe_state/probe.log" | tr '\n' ' ')" = "healthy auth_failed no_splash busy no_decision auth_failed capped auth_failed degraded " ]; then
+    pass "Story 16.6, row 9: probe.log holds exactly nine lines: healthy, auth_failed, no_splash, busy, no_decision, auth_failed, capped, auth_failed, degraded"
   else
     fail "Story 16.6, row 9: probe.log's outcomes are '$(sed 's/^[^ ]* //; s/ .*//' "$probe_state/probe.log" | tr '\n' ' ')'"
   fi
   : > "$tmp/probe-expected"
-  for label in p2 p3 p4 p5 p6 p8; do
+  for label in p2 p3 p4 p5 p6 p8 p9; do
     if [ "$label" = p5 ]; then echo reset >> "$tmp/probe-expected"; fi
     printf 'alert %s %s\n' "$(sed 's/^[^ ]* //; s/ .*//' "$tmp/probe.$label.out")" "$(cat "$tmp/probe.$label.out")" >> "$tmp/probe-expected"
   done
   if cmp -s "$tmp/probe-expected" "$probe_record"; then
-    pass "Story 16.6, row 9: the record holds six alert lines (each with its outcome and its run's line) and one reset line, in the order of the runs"
+    pass "Story 16.6, row 9: the record holds seven alert lines (each with its outcome and its run's line) and one reset line, in the order of the runs"
   else
-    fail "Story 16.6, row 9: the command record is not the six alerts and the one reset of the runs ($(grep -c '^alert ' "$probe_record") alert, $(grep -c '^reset$' "$probe_record") reset line(s))"
+    fail "Story 16.6, row 9: the command record is not the seven alerts and the one reset of the runs ($(grep -c '^alert ' "$probe_record") alert, $(grep -c '^reset$' "$probe_record") reset line(s))"
   fi
   counter_phase_after=$(counter_rows)
   if [ "$counter_phase_after" = "$counter_phase_before" ]; then
@@ -1579,6 +1577,124 @@ if [ "$keys_attempted" = 1 ]; then
 fi
 echo "MEASURED Task 0 (f): the probe phase took $((SECONDS - probe_started)) s; the unit has run $SECONDS s at this point (deadline $((deadline - SECONDS)) s away)"
 
+# --- Story 29.3: IRIS's own answers to the host check (release/demo-host-check.sh) ---
+
+# The script and the stand-in of test-online-host.sh rely on what IRIS itself answers to the host check's requests. This section sends
+# every item signed out with no proxy, each on a jar of its own ended with logout_all, prints one MEASURED line per item, and pins:
+# (a) each host_probes line's <iris> (the status and whether the page holds an IRIS form field); (b) the static /csp/broker/ file the
+# check reads, which a signed-in trace page loads and IRIS serves with 200; (c) the two dummy-value sign-in POSTs of the guard checks,
+# which come back as IRIS's sign-in page (the splash's with aria-invalid). Each item signs out on its application (host_app, the
+# script's mapping too). The probes stop at the unit's deadline.
+host_started=$SECONDS
+
+# host_send <target> [<curl argument>...]: one request signed out on a jar of its own, with a unique probe parameter and the path sent as
+# is; leaves the status in host_code (000 for no answer) and the body in $tmp/host.body (empty for no answer), then ends the jar's sessions.
+host_send() {
+  local target=$1 jar sep='?'
+  shift
+  next_probe
+  jar="$tmp/jar.$probes"
+  : > "$jar"
+  : > "$tmp/host.body"
+  case $target in *\?*) sep='&' ;; esac
+  host_code=$(curl -s --max-time 30 --path-as-is -c "$jar" -b "$jar" -o "$tmp/host.body" -w '%{http_code}' ${1+"$@"} "$base$target${sep}probe=$probes" < /dev/null)
+  logout_all "$jar" "$(host_app "$target")"
+}
+
+# host_form_flag: form when the last body holds an IRIS form field, otherwise noform.
+host_form_flag() {
+  if grep -Eq "$HOST_FORM_FIELD_RE" "$tmp/host.body"; then printf form; else printf noform; fi
+}
+
+# host_text: the last body as text, up to 600 characters: its style and script blocks and tags removed, white space squeezed.
+host_text() {
+  tr '\r\n' '  ' < "$tmp/host.body" | sed 's/<style[^>]*>[^<]*<\/style>//g; s/<script[^>]*>.*<\/script>//g; s/<[^>]*>/ /g' | tr -s ' \t' ' ' | head -c 600
+}
+
+host_lines=$(host_probes)
+host_count=0
+host_wrong=0
+while IFS= read -r host_line; do
+  [ -n "$host_line" ] || continue
+  if [ "$SECONDS" -ge "$deadline" ]; then
+    fail "Story 29.3: the deadline passed after $host_count host_probes probes"
+    break
+  fi
+  if ! host_probe_args "$host_line"; then
+    fail "Story 29.3: the host_probes line '$host_line' cannot be built"
+    host_wrong=$((host_wrong + 1))
+    continue
+  fi
+  host_send "$probe_target" ${probe_args[@]+"${probe_args[@]}"}
+  host_got="$host_code:$(host_form_flag)"
+  echo "MEASURED host probe $probe_id $probe_method $host_got"
+  host_count=$((host_count + 1))
+  if [ "$host_got" != "$probe_iris" ]; then
+    fail "Story 29.3: IRIS answers the probe $probe_id ($probe_method $probe_target) with $host_got, host_probes lists $probe_iris"
+    host_wrong=$((host_wrong + 1))
+  fi
+done << HOSTLINES
+$host_lines
+HOSTLINES
+if [ "$host_wrong" = 0 ] && [ "$host_count" -ge 90 ]; then
+  pass "Story 29.3: IRIS's own answer to each of the $host_count host_probes probes is the one listed (status, and whether the page holds an IRIS form field)"
+else
+  fail "Story 29.3: $host_count host_probes probes were measured (wanted at least 90) and $host_wrong of them differ from the list"
+fi
+
+# (b) a signed-in trace page loads the broker file the check reads, and IRIS serves it with 200.
+trace_page=/ocutalon/trace/ocutalon/EnsPortal.MessageViewer.zen
+host_jar="$tmp/jar.hosttrace"
+: > "$host_jar"
+next_probe
+host_token=$(page_token "$host_jar" "$base$trace_page?probe=$probes")
+if [ -z "$host_token" ]; then
+  fail "Story 29.3 (b): the trace application's sign-in page gave no session token"
+else
+  next_probe
+  curl -s --max-time 30 -o /dev/null -c "$host_jar" -b "$host_jar" --data-urlencode "IRISSessionToken=$host_token" --data-urlencode "IRISUsername=$readonly_user" \
+    --data-urlencode "IRISPassword=$readonly_password" --data-urlencode 'IRISLogin=Login' "$base$trace_page?probe=$probes" < /dev/null
+  next_probe
+  curl -s --max-time 30 -o "$tmp/host.trace" -c "$host_jar" -b "$host_jar" "$base$trace_page?probe=$probes" < /dev/null
+  host_refs=$(grep -oE '/csp/broker/[A-Za-z0-9_./-]+' "$tmp/host.trace" | sort -u | tr '\n' ' ')
+  echo "MEASURED the signed-in trace page's /csp/broker/ references: ${host_refs% }"
+  host_broker=$(host_broker_file)
+  next_probe
+  host_broker_code=$(curl -s --max-time 30 -o /dev/null -w '%{http_code}' "$base$host_broker?probe=$probes" < /dev/null)
+  echo "MEASURED $host_broker answers $host_broker_code with no session"
+  if printf '%s\n' $host_refs | grep -qxF "$host_broker" && [ "$host_broker_code" = 200 ]; then
+    pass "Story 29.3 (b): a signed-in trace page loads $host_broker, and IRIS serves it with 200 with no session"
+  else
+    fail "Story 29.3 (b): the signed-in trace page loads '${host_refs% }' (wanted $host_broker), which answers $host_broker_code (wanted 200)"
+  fi
+fi
+logout_all "$host_jar" /ocutalon/trace/ocutalon/
+
+# (c) the two dummy-value sign-in POSTs of the guard checks come back as IRIS's sign-in page: the splash's refused (aria-invalid), the trace
+# page's as the same page a plain GET gives (the Login form), which shows the POST reached IRIS and no more.
+host_signin 3
+host_send "$signin_target" "${signin_args[@]}"
+host_splash_flag=$(grep -c 'aria-invalid="true"' "$tmp/host.body")
+echo "MEASURED the splash's three-field POST: $host_code, aria-invalid $host_splash_flag, $(host_form_flag)"
+if [ "$host_code" = 200 ] && [ "$host_splash_flag" -ge 1 ]; then
+  pass "Story 29.3 (c): the splash's three-field POST with dummy values is refused by IRIS (200, aria-invalid)"
+else
+  fail "Story 29.3 (c): the splash's three-field POST gives $host_code with $host_splash_flag aria-invalid marker(s)"
+fi
+host_send "$trace_page"
+host_plain_marker=$(grep -cF -- "$(host_trace_signin_marker)" "$tmp/host.body")
+echo "MEASURED the trace application's sign-in page, a plain GET: $host_code, $(host_form_flag), Login form markers: $host_plain_marker"
+host_signin 4
+host_send "$signin_target" "${signin_args[@]}"
+host_marker=$(host_trace_signin_marker)
+echo "MEASURED the trace page's four-field POST: $host_code, $(host_form_flag), text: $(host_text)"
+if [ "$host_code" = 200 ] && [ "$(host_form_flag)" = form ] && grep -qF -- "$host_marker" "$tmp/host.body"; then
+  pass "Story 29.3 (c): the trace page's four-field POST with dummy values comes back as IRIS's sign-in page (200, a password field, its Login form; a plain GET gives the same page, so this shows the POST reached IRIS, not that IRIS refused the token)"
+else
+  fail "Story 29.3 (c): the trace page's four-field POST gives $host_code, $(host_form_flag), and the marker '$host_marker' is $(grep -qF -- "$host_marker" "$tmp/host.body" && echo present || echo absent)"
+fi
+echo "MEASURED Story 29.3 section took $((SECONDS - host_started)) s"
+
 # --- the published passwords stay out of the logs and the event log (Never) ---
 
 # log_hits <value>: the number of lines of the container's output, messages.log and the after-start log that hold the value (only the
@@ -1602,32 +1718,12 @@ check_password_not_logged() {
     fail "$label: '$n' line(s) of the container's output, messages.log or the after-start log hold it"
   fi
 }
-# ref_script <namespace> < script: iris_script with the resume reference of row 6 in the session's environment as OCUTALON_T16_REF (the
-# way live_fixture_user hands a password over), so that the reference is in no script text.
-ref_script() {
-  local script out try=1
-  script=$(cat)
-  while :; do
-    out=$(printf '%s\n' "$script" | OCUTALON_T16_REF="$resume_ref" dc exec -T -e OCUTALON_T16_REF iris iris session IRIS -U "$1" 2>/dev/null | tr -d '\r' | sed -n 's/.*\(CHK|.*\)$/\1/p')
-    if [ -n "$out" ] || [ "$try" -ge 3 ]; then break; fi
-    try=$((try + 1))
-    sleep 5
-  done
-  if [ -n "$out" ]; then printf '%s\n' "$out"; fi
-}
-# check_ref_session <label> <namespace> <expected CHK lines> <script line>...: check_session with ref_script.
-check_ref_session() {
-  local label=$1 ns=$2
-  printf '%s\n' "$3" > "$tmp/expected.chk"
-  printf '%s\n' "${@:4}" | ref_script "$ns" > "$tmp/actual.chk"
-  compare_chk "$label" "$tmp/actual.chk" "$tmp/expected.chk"
-}
-# check_records_clean <when> <check_session or check_ref_session> <what> <variable>...: none of the values of the variables (in the
-# environment of the session that runs the script) is in a row of the production event log, of the live events (OCUTALON) or in an audit
-# entry (%SYS); <what> names them in the labels. Only counts are printed.
+# check_records_clean <when> <what> <variable>...: none of the values of the variables (in the environment of the session that runs the
+# script; LIVE_SESSION_ENV names those that check_session hands over) is in a row of the production event log, of the live events
+# (OCUTALON) or in an audit entry (%SYS); <what> names them in the labels. Only counts are printed.
 check_records_clean() {
-  local when=$1 runner=$2 what=$3 names="" events="" audits="" live="" v
-  shift 3
+  local when=$1 what=$2 names="" events="" audits="" live="" v
+  shift 2
   for v in "$@"; do
     names="$names${names:+,}\"$v\""
     events="$events${events:+
@@ -1637,13 +1733,13 @@ check_records_clean() {
     audits="$audits${audits:+
 }CHK|audit|$v|0"
   done
-  "$runner" "$when: the production event log and the live events hold $what" OCUTALON \
+  check_session "$when: the production event log and the live events hold $what" OCUTALON \
     "$events
 $live" \
     "For p=$names { Set e=\$SYSTEM.Util.GetEnviron(p) Set rs=##class(%SQL.Statement).%ExecDirect(,\"SELECT COUNT(*) FROM Ens_Util.Log WHERE Text [ ?\",e) Set n=\$Select(e=\"\":\"<unset>\",rs.%Next():rs.%GetData(1),1:\"<no row>\") Write !,\"CHK|eventlog|\",p,\"|\",n }" \
     "For p=$names { Set e=\$SYSTEM.Util.GetEnviron(p) Set rs=##class(%SQL.Statement).%ExecDirect(,\"SELECT COUNT(*) FROM OcuTalon_Live.Event WHERE Payload [ ?\",e) Set n=\$Select(e=\"\":\"<unset>\",rs.%Next():rs.%GetData(1),1:\"<no row>\") Write !,\"CHK|liveevent|\",p,\"|\",n }" \
     'Halt'
-  "$runner" "$when: no audit entry holds $what" %SYS \
+  check_session "$when: no audit entry holds $what" %SYS \
     "$audits" \
     "For p=$names { Set e=\$SYSTEM.Util.GetEnviron(p) Set rs=##class(%SQL.Statement).%ExecDirect(,\"SELECT COUNT(*) FROM %SYS.Audit WHERE EventData [ ? OR Description [ ?\",e,e) Set n=\$Select(e=\"\":\"<unset>\",rs.%Next():rs.%GetData(1),1:\"<no row>\") Write !,\"CHK|audit|\",p,\"|\",n }" \
     'Halt'
@@ -1692,7 +1788,7 @@ CHK|control|scan-public|seen" \
 check_logs_clean() {
   check_password_not_logged OCUTALON_DEMO_PASSWORD "$1: the demo account's password"
   check_password_not_logged OCUTALON_READONLY_PASSWORD "$1: the read-only account's password"
-  check_records_clean "$1" check_session "neither published password" OCUTALON_DEMO_PASSWORD OCUTALON_READONLY_PASSWORD
+  check_records_clean "$1" "neither published password" OCUTALON_DEMO_PASSWORD OCUTALON_READONLY_PASSWORD
   if [ -z "$resume_ref" ]; then
     fail "$1: row 6 kept no resume reference, so a search for it proves nothing"
     return
@@ -1702,8 +1798,8 @@ check_logs_clean() {
   else
     fail "$1: row 6: '$(log_hits "$resume_ref")' line(s) of the container's output, messages.log or the after-start log hold the resume reference"
   fi
-  check_records_clean "$1: row 6" check_ref_session "the resume reference" OCUTALON_T16_REF
-  check_ref_session "$1: row 6: no node of any global of OCUTALON_DATA, OCUTALON_PRIVATE and OCUTALON_PUBLIC holds the resume reference" OCUTALON \
+  OCUTALON_T16_REF="$resume_ref" LIVE_SESSION_ENV=OCUTALON_T16_REF check_records_clean "$1: row 6" "the resume reference" OCUTALON_T16_REF
+  OCUTALON_T16_REF="$resume_ref" LIVE_SESSION_ENV=OCUTALON_T16_REF check_session "$1: row 6: no node of any global of OCUTALON_DATA, OCUTALON_PRIVATE and OCUTALON_PUBLIC holds the resume reference" OCUTALON \
     "CHK|globals|0" \
     'Write !,"CHK|globals|",##class(OcuTalon.Test.Web.SessionEvents).ReferenceHits($SYSTEM.Util.GetEnviron("OCUTALON_T16_REF"))' \
     'Halt'
@@ -1713,6 +1809,10 @@ check_logs_clean "after the first start"
 
 # --- row 13: every start, a restart ---
 
+check_session "row 13: a counter row is added before the restart" OCUTALON \
+  "CHK|added|1" \
+  'Write !,"CHK|added|",$SYSTEM.Status.IsOK(##class(OcuTalon.Data.AddressCounter).Add("zz-row13-restart"))' \
+  'Halt'
 dc stop iris > /dev/null 2>&1
 dc start iris > /dev/null 2>&1
 if ! wait_started_ready 200; then
@@ -1740,6 +1840,18 @@ else
   fail "row 13: after the restart the read-only account's sign-in gives '$restart_readonly', wanted norole"
 fi
 check_logs_clean "after the restart"
+# The same restart keeps the key and the row, and the key sits in its own node only, raw and base64url (counts only, Story 29.5).
+check_session "row 13: after the restart the row still counts, the key's marker is the start's, and only the key's own node holds the key" OCUTALON \
+  "CHK|counted|1
+CHK|marker|1
+CHK|raw|1
+CHK|b64|0" \
+  'Write !,"CHK|counted|",##class(OcuTalon.Data.AddressCounter).Recent("zz-row13-restart")' \
+  'Set k=##class(OcuTalon.Data.AddressCounter).#KEYGLOBAL Set v=$Get(@k) Write !,"CHK|marker|",$ListValid(v)&&($ListLength(v)=2)&&($List(v,1)=##class(OcuTalon.Data.Public.Settings).Get("lastReset"))&&($Length($List(v,2))=32)' \
+  'Write !,"CHK|raw|",##class(OcuTalon.Test.Web.SessionEvents).ReferenceHits($List(v,2))' \
+  'Write !,"CHK|b64|",##class(OcuTalon.Test.Web.SessionEvents).ReferenceHits($Translate($SYSTEM.Encryption.Base64Encode($List(v,2),1),"+/=","-_"))' \
+  'Halt'
+drop_counter "zz-row13-restart"
 
 if [ "$fails" -ne 0 ]; then
   echo "test-online-demo: $fails check(s) failed (project $P)"

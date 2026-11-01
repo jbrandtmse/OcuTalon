@@ -4,98 +4,67 @@
 
 ## Goal
 
-Epic 16 builds the repository side of the online demo. A visitor with no install and no key signs in from the splash with the published credentials and gets an OcuTalon session of their own, which this browser resumes until the scheduled reset. This works even though every visitor shares one IRIS account and the Community licence allows only 8 connections. The splash, per-sign-in sessions, the busy state with the host's busy and maintenance pages, the probe and the reset countdown are done. Two stories remain. 16.4 closes the session lifecycle: closing the page or going idle frees the licence connection but keeps the session, and only Sign out or the reset ends it. 16.9 caps use of the shared model key (messages per session, the instance's daily cost cap, simulated emails), always saying why and what still works. Local and IPM installs must not change.
+Epic 16 builds the repository side of the online demo. A visitor with no install and no key signs in from the splash with the published credentials and gets a session of their own, which this browser resumes until the reset. The visitor sees the reset countdown, the busy state and the allowances, and can leave or sign out cleanly. Stories 16.1 to 16.9 are merged. The epic is re-opened for one launch-text hotfix, Story 16.11. On the live demo host, the splash's "Before you start" list promises Telegram and a QR code, but a signed-in visitor finds neither, because Telegram arrives only with Epic 12. The fix is that the splash promises only what the demo has. The splash shows Telegram again only when Story 12.7 adds it.
 
 ## Stories
 
 - Story 16.1: The online demo's settings arrive at start, and its public accounts are safe to publish (done)
 - Story 16.2: The splash screen shows the demo and its sign-in details (done)
 - Story 16.3: Signing in opens a session this browser resumes until the reset (done)
-- Story 16.4: Leaving the page frees its place, and Sign out ends the session
+- Story 16.4: Leaving the page frees its place, and Sign out ends the session (done)
 - Story 16.5: A full demo says it is busy, and the host's busy and maintenance pages are ready (done)
 - Story 16.6: A probe checks the demo every 15 minutes (done)
 - Story 16.8: The page counts down to the reset and waits it out (done)
-- Story 16.9: Allowances cap messages, model cost and simulated emails
+- Story 16.9: Allowances cap messages, model cost and simulated emails (done)
+- Story 16.11: The splash promises Telegram only when the release includes it
 
-Order: 16.4 (owns DW-285, DW-290, DW-291, DW-333 and the owner's tagline change DW-378), then 16.9 (owns DW-300, DW-361). Stories 16.7 and 16.10 moved to 29.3 and 31.3.
+Stories 16.7 and 16.10 moved to Stories 29.3 and 31.3.
 
 ## Requirements & Constraints
 
-- **Flag off changes nothing.** On a local or IPM install the CSP timeout stays at least 8 hours and each IRIS user keeps one durable session. Sign out ends only the CSP session and lands on the local sign-in page ("You were signed out."). There is no message allowance and no email limit. A local daily cost cap (step 2) shows its banner and never sends a chat message.
-- **Session lifetime on the online demo.** The OcuTalon session lasts until the reset, and CSP sessions only hold licence connections. A closed page, the idle cap or a timeout frees the connection and ends nothing else: the conversation, pairing, reminders, watches, orders and approval requests stay. Reminders, watches, Telegram and approvals keep working while no CSP session is open. Only Sign out or the reset ends a session.
-- **Idle cap:** a product setting, 600 s by default. Only key presses, clicks and sent messages count as activity; polling doesn't.
-- **Licence:** leaving a Visual Trace page must sign its trace session out, and the 120 s timeout is only the backstop (DW-285). Nothing calls IRIS under a public account without a session.
-- **Isolation:** the page never shows another session's data, not even across an epoch change. Ending one session leaves every other session's pairing, reminders, watches and requests untouched. There are no shared counters.
-- **Allowances (online demo only):**
-  - 50 messages per session per rolling hour, counting web chat, Telegram and guide prompts. The limit comes from the public settings.
-  - A $20 daily cost cap for the instance: IRIS's own spend plus the gateway spend passed at start.
-  - 20 simulated incoming emails per session per hour, sample emails included.
-  - Reaching a limit never calls the model for the refused message. Break the feed, Approve and Reject always keep working.
-- **Secrets:** the resume reference never appears in a production message, log, live event or audit entry.
+- **No gate.** The change applies unconditionally, with no release switch. The "Before you start" list shows no Telegram line. The allowance line always reads "Each session can send {limit} messages an hour in the chat."
+- **`{limit}` is unchanged.** It is still the per-session message allowance from the public settings (50 an hour by default).
+- **No text in code.** The chat-only allowance line gets its own new message-catalog key.
+- **Keep the old keys.** `splash.telegramLine` and `splash.limitLine` keep their current text, word for word, because Story 12.7 brings them back.
+- **Tests:**
+  - Pin both that the Telegram line is missing and that the chat-only allowance line is shown.
+  - The splash's existing tests and the public-text checks stay green.
+- **Flag off changes nothing.** The splash renders only when the online-demo flag is set, and the local sign-in page stays exactly as it is.
+- **Timing:** merge into the feature branch before the online demo goes public on October 31 if it can. Otherwise it must merge before Epic 12 does, which is an accepted risk.
 
 ## Technical Decisions
 
-**Leaving and signing out (16.4)**
-- `OcuTalon.Install.Step.Web` reads the online-demo flag through `OcuTalon.Data.Public.Settings`; the earlier `Public` step has written it. With the flag set, `/ocutalon`, `/ocutalon/api` and both trace applications get a 120 s CSP timeout, and otherwise at least 8 h.
-- While the page is open, polling keeps the main CSP session alive, and a reload keeps it too. The page never signs out on `pagehide`, because that also fires on a reload. The online demo only polls and never opens the WebSocket.
-- **Returning to the splash:** after the idle cap, a 401 or a changed epoch, the page stops polling and returns to the splash with `?since=<UTC ISO 8601>`, the time the page loaded. The server-rendered splash shows the place-freed notice, or the reset notice when the last reset that status reports is later (16.8 built that comparison). On the online demo a 401 never goes to the local sign-in page.
-- **The epoch** is opaque, generated by OcuTalon, kept on the `Session` row and returned by `/state`. It is never derived from `%session.SessionId`, which IRIS reuses across timeouts and sign-outs. It changes only when the OcuTalon session ended.
-- **Sign out:** on the online demo, `POST /api/v1/session/end` submits `SessionOps.End(SessionRef)` through `CommandsIn`. REST writes nothing else for a sign-out. `SessionOps.End`:
-  - removes the pairing through Story 10.3's unlink, reusing its `Pairing` audit entry (no dropped-chat notice in this case);
-  - cancels the session's reminders through `ReminderOps`;
-  - stops its watches through `WatchOps`;
-  - cancels its pending approval requests through `OcuTalon.Bridge.Approval.Cancel` (state `cancelled`, audited);
-  - expires the resume cookie under the same name and path;
-  - ends the CSP session across the whole `OcuTalon` sign-in group (`?IRISLogout=end`).
-- `SessionOps.End` gets its document and memory drops in step 3 (Story 19.5), not now.
-- `SessionRef` always comes from the server-side CSP session through `OcuTalon.Data.Ownership`, and no endpoint accepts it from the client.
-
-**Allowances (16.9)**
-- **The message allowance:** Story 2.4's `OcuTalon.Core.Allowance.TryConsume(SessionRef, Channel, Text)` allows everything today. 16.9 adds the online-demo refusal. The call is synchronous and runs under a per-session lock. It returns allowed, `retryAt` and a first-refusal flag, and on a refusal it records the refused message itself as a `Turn` with no decision.
-  - `WebChatIn` calls it before queueing a turn. On a refusal it queues nothing, and `POST /api/v1/messages` answers 429 with `retryAt`.
-  - `Conversation` never checks the allowance again. `TelegramIn` (Story 12.6) makes the same call with channel `telegram`.
-- **The allowance notice:** on the first refusal in a window, the channel service whose call was refused sends one `OcuTalon.Msg.Notification` of kind `allowance`. `Notify` routes that kind to the web chat and the paired chat only, never to the simulated phone. Producers send a catalog key and slots (times as UTC ISO 8601), and `Catalog.Render` renders the text in instance time with "ET".
-- **Status conditions:** `allowance` and `dailyCap` belong to the closed status-condition catalog. `/state` computes them on read, and `StatusMonitor` publishes them as `status` events.
-- **The daily cap:**
-  - The cap state is read only through `OcuTalon.Bridge.Budget.State()`.
-  - Already built in Epic 1: IRIS's precheck and the gateway's 403 "daily cost cap reached" both end in a `daily_cap` fallback that is never re-sent. The bridge then marks the day capped once and fires HostSink `budget.capped` once, with `ownerRef` `instance` and payload `{day}`.
-  - 16.9 adds the online-demo message, sent only with the flag set. `OcuTalon.Core.BridgeSink` sends the daily-cap message once a day, through `NoticesIn`, to each session with activity. A session has activity when it is open and its user has sent a chat message, pressed Break the feed or answered a request since it began. The `Session` row records the day the message was sent.
-  - A session that first becomes active later gets the message with its first `daily_cap` fallback, which `BridgeSink` sees in `decision.recorded`.
-- **The email limit:** `SimMailboxIn` refuses with the time sending reopens and creates no item and no decision.
-
-**Files and tests**
-- **Paths:** all of this epic's files are Lane B's, built on runner C. The epic-16 `paths_hint` in `_bmad/custom/epic-dependencies.yaml` lists them.
-- **The public package:** `OcuTalon.Web.Public` and `OcuTalon.Data.Public` run with no roles before sign-in. They may reference only `%CSP`, dynamic objects, `$SYSTEM.License`, `$SYSTEM.Status`, `$SYSTEM.Encryption` and each other (CI-checked). New splash texts are `Splash` parameters matched to `splash.*` catalog keys. The splash's styles and script stay hash-pinned, with no `style=` attributes.
-- **Where tests go:** flag-on checks extend the `online-demo` live unit (`docker/tests/test-online-demo.sh`) and `web/e2e-online/`, reusing `signInFromSplash` and `signOutGroup`, never `web/e2e/demo-path/`. Every test signs out.
-- **Real paths and doubles:**
-  - Stories 5.1, 8.4 and 10.3 have merged. The sign-out test runs the real `ReminderOps` cancel with no double (DW-291) and the real unlink. The `WatchOps` double applied only until 5.1 merged.
-  - Test pairings are fixture rows. With `Included()` at 0 the pairing endpoints answer 404, and test classes switch Telegram on with `^OcuTalonTest("TelegramIncluded")`.
-  - Both stories' Telegram cases stay off until Story 31.3.
-- **DW-300:** `Test.Core.BridgeSink` and `Test.Web.Api.TestStateSections` must seed check rows a day ahead or count typed events, so that a real heartbeat tick can't disturb them.
+- **Why there is no gate (orchestrator ruling, veto U-197, option C):**
+  - The splash can't call `OcuTalon.Channel.Telegram.In.Included()`, because the public package's allow-list forbids it.
+  - Carrying the switch in a new public setting would amend the fixed key set of `OcuTalon.Data.Public.Settings`, and that amendment is the owner's.
+  - The launch doesn't need it. The "Telegram included" case and its mechanism move to Story 12.7.
+- **Scope:**
+  - Lane B's splash class in `OcuTalon.Web.Public`, plus the catalog lines and their tests.
+  - No Lane A file: not `OcuTalon.Channel.Telegram`, and not the installer's `Public` step or its tests.
+  - No new public setting, and no read of `^OcuTalonTest`.
+- **The public package's allow-list.** `OcuTalon.Web.Public` and `OcuTalon.Data.Public` load from `OCUTALON_PUBLIC` and run with no roles before sign-in. They may reference only these: `%CSP`, dynamic objects, `$SYSTEM.License`, `$SYSTEM.Status`, `$SYSTEM.Encryption` (compile-time generator only) and each other. A CI check enforces this, and it reads `##class` calls and dynamic dispatch. The splash reads public values only through `OcuTalon.Data.Public.Settings`.
+- **The public package's copies of its texts.** The public package keeps its own copies of the texts it renders, and a test compares them with the `splash.*` catalog keys. So the chat-only line needs both a catalog entry and a matching copy in the splash. Elsewhere, the catalog's one renderer is `OcuTalon.Msg.Catalog.Render(key, slots, channel)`.
+- **Splash security.** Styles are inline from the token stylesheet under the hashed `style-src`, with no `style=` attributes. The one inline script is pinned by its hash in `script-src`. A change that touches either must keep the CSP pins in step.
+- **Where tests go:**
+  - The fixed-string test checks every splash text.
+  - Flag-on checks go in the online-demo live unit and in `web/e2e-online/`, not in `web/e2e/demo-path/`.
+  - The REL-2 online-demo run signs in from the splash and must keep passing.
+- **Release names.** Where planning says 0.1.0 or 0.1.1, read 1.0.0. 1.0.0 is the first release and Telegram ships in it.
 
 ## UX & Interaction Patterns
 
-The exact texts are in the story criteria and the message catalog.
-
-- **Sign out (online demo):** a modal confirm dialog with **Cancel** and **Sign out**. **Cancel** takes the initial focus, overriding the usual heading focus. Focus is trapped, and Cancel or Esc changes nothing.
-- **Place freed:** an info notice above both splash cards says the place was freed and that signing in again from this browser picks the session up.
-- **Session allowance:** an unclosable danger banner heads the banner stack, with "Install it yourself" (README).
-  - The composer and the guide's prompt buttons become `aria-disabled`, never `disabled`. They stay focusable, with the reason as visible text linked by `aria-describedby`.
-  - At `retryAt` the banner clears and the controls return.
-  - The chat and the paired chat each get the allowance message once.
-- **Daily cap (online demo):** the daily-cap danger banner shows, and the chat gets one message pointing to the local install. The composer stays usable, and replies take the fallback with the daily-cap reason.
-- **Email limit:** the mailbox's **Send** and sample chips become `aria-disabled` in the same way, with the time sending reopens.
-- **Times and wording:** banners use page time. Chat and Telegram messages use instance time followed by "ET". The texts say "messages", never "turns".
-- **README links:** the page's "Install it yourself" and "How to set a key" actions point at the README's `#install-it-yourself` and `#set-a-model-key` (DW-361).
-- **About dialog:** the tagline becomes "An AI assistant for InterSystems IRIS.", and the not-affiliated note stays verbatim (DW-378).
+- **Card order.** The "Before you start" card keeps its order: the reset schedule, the isolation line, the allowance line (chat-only form), then the no-shell-commands and audit line. Nothing else on the splash changes.
+- **The UX spec.** EXPERIENCE.md's splash list now marks the Telegram line as shown only once the release includes Telegram (Story 12.7), and gives the chat-only allowance form until then (U-196).
 
 ## Cross-Story Dependencies
 
-- **16.4** builds on 16.3 (`OnLogin`, the resume cookie, the `Session` row) and 16.8 (the splash's `?since=` notices), and reuses Story 10.3's unlink. Epic 10 has merged; Telegram's session side stays switched off in 0.1.0.
-- **16.9** extends Story 2.4's `TryConsume`, Story 2.10's banners and Epic 1's `Budget.State()` and `budget.capped`. Epic 6 has merged, so tests answer a fixture approval request through `OcuTalon.Bridge.Approval.Answer` while both caps hold.
-- **Shared files:** both stories touch `Web/Api.cls`, `/state`, `StatusMonitor` and the `Session` row, so build 16.4 first.
-- **Downstream:**
-  - Story 12.6's `TelegramIn` refusal handling relies on 16.9's `TryConsume`, and Story 31.3 turns on both stories' Telegram cases.
-  - Stories 31.1 and 31.2 wait for this epic: 31.1 extends the live client that 16.3 and 16.4 change, and 31.2 extends 16.9's `BridgeSink`.
-  - Stories 19.5 and 34.2 add the document and memory drops to `SessionOps.End`.
-  - Story 29.4 measures licence units per visitor. Epic 29 waits for this epic to merge.
+- **Builds on:**
+  - Story 16.2's splash, its copies of the catalog texts and its tests.
+  - Story 16.1's public settings, for the `{limit}` value.
+- **Downstream (Story 12.7, Epic 12):**
+  - Story 12.7 turns `Included()` on.
+  - It now owns the "Telegram included" splash case: it restores both `splash.telegramLine` and the "or Telegram" form of `splash.limitLine`, and decides how the switch reaches the public package.
+  - DW-501, the page's allowance banner wording, is also routed to Story 12.7.
+  - Epic 12 must not merge before this story.
+- **Runner and order:** the re-open runs on runner B, after Story 5.12.
+- **Not in this story's scope:** DW-378, the About dialog's tagline, belongs to the merged Story 16.4 and is settled at this epic's burndown.

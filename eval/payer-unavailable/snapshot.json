@@ -1,0 +1,162 @@
+{
+  "format": "ocutalon.readerSnapshot/1",
+  "source": {
+    "namespace": "EVALFEED",
+    "production": "OcuTalon.Test.Eval.Feed",
+    "item": "PayerClaimsOut"
+  },
+  "failures": [
+    {
+      "headerId": 14,
+      "sessionId": 14,
+      "superSession": "6kfU_QJoNp3cSeow1Er5gg",
+      "timeCreated": "2026-10-29T16:12:57Z",
+      "timeProcessed": "2026-10-29T16:12:59Z",
+      "sourceConfigName": "FeedIn",
+      "targetConfigName": "PayerClaimsOut",
+      "bodyClass": "OcuTalon.Test.Eval.Feed.Claim",
+      "bodyId": "13",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR <Ens>ErrHTTPStatus: Received non-OK status 503 from remote HTTP server: 'HTTP/1.1 503 Service Unavailable'",
+      "body": {
+        "ClaimId": "CL-5001",
+        "MemberId": "M-50001",
+        "ServiceDate": "2026-10-15",
+        "Amount": "125.40",
+        "PayerCode": "PAYER-A"
+      }
+    },
+    {
+      "headerId": 15,
+      "sessionId": 15,
+      "superSession": "6kfU_QJoNp3cSeow1Er5gg",
+      "timeCreated": "2026-10-29T16:12:57Z",
+      "timeProcessed": "2026-10-29T16:13:01Z",
+      "sourceConfigName": "FeedIn",
+      "targetConfigName": "PayerClaimsOut",
+      "bodyClass": "OcuTalon.Test.Eval.Feed.Claim",
+      "bodyId": "14",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR <Ens>ErrHTTPStatus: Received non-OK status 503 from remote HTTP server: 'HTTP/1.1 503 Service Unavailable'",
+      "body": {
+        "ClaimId": "CL-5002",
+        "MemberId": "M-50002",
+        "ServiceDate": "2026-10-15",
+        "Amount": "80.00",
+        "PayerCode": "PAYER-A"
+      }
+    },
+    {
+      "headerId": 16,
+      "sessionId": 16,
+      "superSession": "6kfU_QJoNp3cSeow1Er5gg",
+      "timeCreated": "2026-10-29T16:12:57Z",
+      "timeProcessed": "2026-10-29T16:13:03Z",
+      "sourceConfigName": "FeedIn",
+      "targetConfigName": "PayerClaimsOut",
+      "bodyClass": "OcuTalon.Test.Eval.Feed.Claim",
+      "bodyId": "15",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR <Ens>ErrHTTPStatus: Received non-OK status 503 from remote HTTP server: 'HTTP/1.1 503 Service Unavailable'",
+      "body": {
+        "ClaimId": "CL-5003",
+        "MemberId": "M-50003",
+        "ServiceDate": "2026-10-16",
+        "Amount": "310.25",
+        "PayerCode": "PAYER-B"
+      }
+    }
+  ],
+  "eventLog": [
+    {
+      "id": "28",
+      "timeLogged": "2026-10-29T16:12:57Z",
+      "type": "Error",
+      "configName": "PayerClaimsOut",
+      "sourceClass": "OcuTalon.Test.Eval.Feed.PartnerOut",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 14,
+      "text": "ERROR <Ens>ErrHTTPStatus: Received non-OK status 503 from remote HTTP server: 'HTTP/1.1 503 Service Unavailable'"
+    },
+    {
+      "id": "68",
+      "timeLogged": "2026-10-29T16:12:59Z",
+      "type": "Error",
+      "configName": "PayerClaimsOut",
+      "sourceClass": "OcuTalon.Test.Eval.Feed.PartnerOut",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 14,
+      "text": "ERROR <Ens>ErrFailureTimeout: FailureTimeout of 2 seconds exceeded in OcuTalon.Test.Eval.Feed.PartnerOut; status from last attempt was ERROR <Ens>ErrHTTPStatus: Received non-OK status 503 from remote HTTP server: 'HTTP/1.1 503 Service Unavailable'"
+    },
+    {
+      "id": "74",
+      "timeLogged": "2026-10-29T16:12:59Z",
+      "type": "Error",
+      "configName": "PayerClaimsOut",
+      "sourceClass": "OcuTalon.Test.Eval.Feed.PartnerOut",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 15,
+      "text": "ERROR <Ens>ErrHTTPStatus: Received non-OK status 503 from remote HTTP server: 'HTTP/1.1 503 Service Unavailable'"
+    },
+    {
+      "id": "85",
+      "timeLogged": "2026-10-29T16:13:01Z",
+      "type": "Error",
+      "configName": "PayerClaimsOut",
+      "sourceClass": "OcuTalon.Test.Eval.Feed.PartnerOut",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 15,
+      "text": "ERROR <Ens>ErrFailureTimeout: FailureTimeout of 2 seconds exceeded in OcuTalon.Test.Eval.Feed.PartnerOut; status from last attempt was ERROR <Ens>ErrHTTPStatus: Received non-OK status 503 from remote HTTP server: 'HTTP/1.1 503 Service Unavailable'"
+    },
+    {
+      "id": "91",
+      "timeLogged": "2026-10-29T16:13:01Z",
+      "type": "Error",
+      "configName": "PayerClaimsOut",
+      "sourceClass": "OcuTalon.Test.Eval.Feed.PartnerOut",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 16,
+      "text": "ERROR <Ens>ErrHTTPStatus: Received non-OK status 503 from remote HTTP server: 'HTTP/1.1 503 Service Unavailable'"
+    },
+    {
+      "id": "106",
+      "timeLogged": "2026-10-29T16:13:03Z",
+      "type": "Error",
+      "configName": "PayerClaimsOut",
+      "sourceClass": "OcuTalon.Test.Eval.Feed.PartnerOut",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 16,
+      "text": "ERROR <Ens>ErrFailureTimeout: FailureTimeout of 2 seconds exceeded in OcuTalon.Test.Eval.Feed.PartnerOut; status from last attempt was ERROR <Ens>ErrHTTPStatus: Received non-OK status 503 from remote HTTP server: 'HTTP/1.1 503 Service Unavailable'"
+    }
+  ],
+  "items": [
+    {
+      "name": "PayerClaimsOut",
+      "className": "OcuTalon.Test.Eval.Feed.PartnerOut",
+      "enabled": 1,
+      "poolSize": 1,
+      "settings": {
+        "HTTPServer": "127.0.0.1",
+        "HTTPPort": "9381",
+        "URL": "/payer/claims",
+        "FailureTimeout": "2",
+        "RetryInterval": "1"
+      }
+    }
+  ],
+  "trace": [
+    {
+      "headerId": "14",
+      "type": "Request",
+      "sourceConfigName": "FeedIn",
+      "targetConfigName": "PayerClaimsOut",
+      "bodyClass": "OcuTalon.Test.Eval.Feed.Claim",
+      "status": "Error",
+      "timeCreated": "2026-10-29T16:12:57Z",
+      "isError": false
+    }
+  ]
+}

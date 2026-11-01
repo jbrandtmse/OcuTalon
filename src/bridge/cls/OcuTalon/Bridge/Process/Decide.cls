@@ -718,7 +718,8 @@ ClassMethod HoldsAll(text As %String, pieces As %String) As %Boolean [ Private ]
 ///      failure "The runner gave no Reply"), the reply's finishReason and text, and invalid, which is true when the reply fails its check
 ///      or nothing is left of it once the filter has run. For decide and diagnose, the check is CheckReply against replyClass; for a
 ///      turn, the text itself;
-///   2. calls Classify once. A reason goes to RecordFallback, which records the fallback and answers (below);
+///   2. calls Classify once. A reason goes to RecordFallback, which records the fallback and answers (below); for an invalid decide or diagnose
+///      reply, the check's own error text (problem, see Interpret) is first logged, redacted, as one warning in the decision's trace session;
 ///   3. otherwise, the reply is usable and each model-written text was filtered once with filterClass (each reason; each property that
 ///      the reply class names in its FILTERED parameter that is not empty, each item of a list, after which the payload is validated again; a
 ///      turn's reply text),
@@ -752,6 +753,7 @@ ClassMethod Conclude(request As OcuTalon.Bridge.Msg.Request, decisionRef As %Str
 	Set reasons = ""
 	Set confidence = ""
 	Set json = ""
+	Set problem = ""
 	If isReply {
 		Do facts.%Set("finishReason", reply.FinishReason)
 		Do facts.%Set("text", reply.Text)
@@ -761,7 +763,7 @@ ClassMethod Conclude(request As OcuTalon.Bridge.Msg.Request, decisionRef As %Str
 				Set text = $ClassMethod(filterClass, "Filter", reply.Text)
 				If $ZStrip(text, "*WC") = "" Set invalid = 1
 			} Else {
-				Set invalid = '..Interpret(request, reply.Text, replyClass, filterClass, .outcome, .reasons, .confidence, .json, .sc)
+				Set invalid = '..Interpret(request, reply.Text, replyClass, filterClass, .outcome, .reasons, .confidence, .json, .sc, .problem)
 			}
 		}
 		Do facts.%Set("invalid", invalid, "boolean")
@@ -769,6 +771,7 @@ ClassMethod Conclude(request As OcuTalon.Bridge.Msg.Request, decisionRef As %Str
 	If $$$ISERR(sc) Quit sc
 	Set reason = ..Classify(facts)
 	If reason '= "" {
+		If (reason = "invalid") && (problem '= "") $$$LOGWARNING(##class(OcuTalon.Bridge.Redact).Text("The reply check refused the reply of the decision "_decisionRef_": "_problem))
 		Quit ..RecordFallback(request, decisionRef, reason, reply, sinkClass, traceSessionId, .response, durationMs, stepCount, ..Broken(request, failure))
 	}
 	If ##class(OcuTalon.Bridge.Data.Decision).ItemIdKindIndexExists(request.ItemId, kind, .id) {
@@ -804,18 +807,20 @@ ClassMethod Conclude(request As OcuTalon.Bridge.Msg.Request, decisionRef As %Str
 /// when the reply is a decision: outcome, reasons (one line each, with the code-written line first when the user rule changed the
 /// outcome), confidence (two decimals) and json (the payload as JSON, with the filtered properties) are set. 0 when it fails the check,
 /// no reason is left of it once filtered, or the payload fails its check again after filtering (invalid). sc is an error only when the payload cannot be exported.
+/// problem is "" unless the result is 0; then it says why: CheckReply's error text, "No reason is left once the reply filter has run", or "After the reply filter ran: " and the first 400 characters of the second check's error text. Conclude logs it, redacted, as a warning in the decision's trace session when the fallback is invalid.
 /// Both checks run with OcuTalon.Bridge.ReplyCheck begun from the request, so a reply class's %OnValidateObject can read what the request carried; it is ended on every
 /// exit, an exception included, and an exception is thrown on.
-ClassMethod Interpret(request As OcuTalon.Bridge.Msg.Request, text As %String, replyClass As %String, filterClass As %String, Output outcome As %String, Output reasons As %String, Output confidence As %String, Output json As %String, Output sc As %Status) As %Boolean [ Private ]
+ClassMethod Interpret(request As OcuTalon.Bridge.Msg.Request, text As %String, replyClass As %String, filterClass As %String, Output outcome As %String, Output reasons As %String, Output confidence As %String, Output json As %String, Output sc As %Status, Output problem As %String) As %Boolean [ Private ]
 {
 	Set sc = $$$OK
 	Set outcome = "tellnow"
 	Set reasons = ""
 	Set confidence = ""
 	Set json = ""
+	Set problem = ""
 	Do ##class(OcuTalon.Bridge.ReplyCheck).Begin(request)
 	Try {
-		Set valid = ..Judge(request, text, replyClass, filterClass, .outcome, .reasons, .confidence, .json, .sc)
+		Set valid = ..Judge(request, text, replyClass, filterClass, .outcome, .reasons, .confidence, .json, .sc, .problem)
 	} Catch exception {
 		Do ##class(OcuTalon.Bridge.ReplyCheck).End()
 		Throw exception
@@ -825,14 +830,19 @@ ClassMethod Interpret(request As OcuTalon.Bridge.Msg.Request, text As %String, r
 }
 
 /// The work of Interpret, run while the ReplyCheck of the request is begun: the reply check, the filtering and the check again, with the same results.
-ClassMethod Judge(request As OcuTalon.Bridge.Msg.Request, text As %String, replyClass As %String, filterClass As %String, Output outcome As %String, Output reasons As %String, Output confidence As %String, Output json As %String, Output sc As %Status) As %Boolean [ Private ]
+ClassMethod Judge(request As OcuTalon.Bridge.Msg.Request, text As %String, replyClass As %String, filterClass As %String, Output outcome As %String, Output reasons As %String, Output confidence As %String, Output json As %String, Output sc As %Status, Output problem As %String) As %Boolean [ Private ]
 {
 	Set sc = $$$OK
 	Set outcome = "tellnow"
 	Set reasons = ""
 	Set confidence = ""
 	Set json = ""
-	If $$$ISERR(..CheckReply(text, replyClass, .payload)) Quit 0
+	Set problem = ""
+	Set checked = ..CheckReply(text, replyClass, .payload)
+	If $$$ISERR(checked) {
+		Set problem = $SYSTEM.Status.GetErrorText(checked)
+		Quit 0
+	}
 	Set lines = ""
 	For i = 1:1:payload.Reasons.Count() {
 		Set filtered = $ClassMethod(filterClass, "Filter", payload.Reasons.GetAt(i))
@@ -840,7 +850,10 @@ ClassMethod Judge(request As OcuTalon.Bridge.Msg.Request, text As %String, reply
 		Set line = $ZStrip($Translate($Replace(filtered, $Char(13, 10), " "), $Char(10, 11, 12, 13, 133, 8232, 8233), "       "), "<>WC")
 		If line '= "" Set lines = lines _ $ListBuild(line)
 	}
-	If lines = "" Quit 0
+	If lines = "" {
+		Set problem = "No reason is left once the reply filter has run"
+		Quit 0
+	}
 	Set named = $Parameter(payload, "FILTERED")
 	For i = 1:1:$Length(named, ",") {
 		Set name = $ZStrip($Piece(named, ",", i), "<>W")
@@ -860,7 +873,13 @@ ClassMethod Judge(request As OcuTalon.Bridge.Msg.Request, text As %String, reply
 			Set $Property(holder, leaf) = $ClassMethod(filterClass, "Filter", value)
 		}
 	}
-	If (named '= "") && $$$ISERR(payload.%ValidateObject()) Quit 0
+	If named '= "" {
+		Set checked = payload.%ValidateObject()
+		If $$$ISERR(checked) {
+			Set problem = "After the reply filter ran: "_$Extract($SYSTEM.Status.GetErrorText(checked), 1, 400)
+			Quit 0
+		}
+	}
 	Set outcome = payload.Outcome
 	If (request.Kind = "decide") && (request.Provenance = "user") && ((outcome = "ignore") || (outcome = "digest")) {
 		Set outcome = "tellnow"

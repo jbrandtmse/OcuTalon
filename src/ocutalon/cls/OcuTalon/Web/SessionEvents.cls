@@ -7,13 +7,17 @@
 /// written to the console log, without the user name.
 /// On the online demo (onlineDemo on, read through Data.Setting) the sign-in gives the visitor a session of their own
 /// instead (AD-4, AD-13, Story 16.3), and only /ocutalon does so, because the trace applications have no session event class:
-///   - a request that came through the proxy while the demo is busy (Status.Busy with the new session's own connection, OWNCONNECTIONS,
-///     left out, so that it refuses exactly when connections exceed the cap minus the reserve) is refused first: nothing is resumed,
+///   - a request that came through the proxy while the demo is busy (Status.Busy with the new session's own connections, OWNCONNECTIONS,
+///     left out: none, so that it refuses exactly when the status reports busy, from the connections or from the live visitors,
+///     the 7th visitor included) is refused first: nothing is resumed,
 ///     created, locked or counted and no cookie is set, and the refusal $ListBuild("busy") is recorded in the CSP session for Shell,
 ///     which ends the CSP session in the same request and shows the splash's busy error with the marker header. A request that did
 ///     not come through the proxy (the probe, an operator) is exempt;
 ///   - a cookie RESUMECOOKIE whose reference opens a row of the signed-in user attaches that row, sets no cookie and is
 ///     never counted or refused at the address limit (the busy refusal above comes first);
+///   - a proxied sign-in that attaches, by resume or by creation, marks its CSP session with Shell.VISITORKEY = 1 in the
+///     session data, which is how Status.Visitors counts it until its sign-out or its CSP timeout. A refusal, a request that did
+///     not come through the proxy (the probe's path, an operator) and a user without the role are never marked;
 ///   - otherwise a new row is created (Ownership.StartVisitor) and the cookie is set once, expiring at the next reset;
 ///   - the creation is counted per client address (ClientAddress) in Data.AddressCounter when the request came through the
 ///     proxy: at the limit nothing is created, and the refusal is recorded in the CSP session for Shell, which ends the CSP
@@ -31,8 +35,9 @@ Parameter RESUMECOOKIE As COSEXPRESSION = "##class(OcuTalon.Web.Public.Shell).#R
 /// The Expires date of an expired resume cookie: an RFC 1123 date in the past.
 Parameter EXPIREDDATE = "Thu, 01 Jan 1970 00:00:00 GMT";
 
-/// The licence connections that the signing-in session itself holds when OnLogin runs; the busy check leaves them out.
-Parameter OWNCONNECTIONS = 1;
+/// The licence connections that the signing-in session itself holds when OnLogin runs; the busy check leaves them out. A new
+/// session holds none on build 154, so the check leaves none out and the post-sign-in refusal is the status's own rule.
+Parameter OWNCONNECTIONS = 0;
 
 /// Attaches the signed-in user's session when the user holds the OcuTalon user role (AttachFor).
 ClassMethod OnLogin() As %Status
@@ -60,7 +65,8 @@ ClassMethod AttachFor(hasRole As %Boolean) As %Status
 }
 
 /// The online demo's attach: records the busy refusal of a proxied request, or resumes the row of the browser's cookie, or creates
-/// a visitor's row and sets the cookie, or records the refusal at the address limit. Returns the first error status.
+/// a visitor's row and sets the cookie, or records the refusal at the address limit. A proxied attach that succeeds marks the CSP
+/// session as a counted visitor (Shell.VISITORKEY). Returns the first error status.
 ClassMethod AttachVisitor() As %Status [ Private ]
 {
 	Set address = ..ClientAddress($Get(%request.CgiEnvs("REMOTE_ADDR")), $Get(%request.CgiEnvs("HTTP_X_FORWARDED_FOR")), ##class(OcuTalon.Data.Public.Settings).Get("proxyAddress"), .proxied)
@@ -71,6 +77,7 @@ ClassMethod AttachVisitor() As %Status [ Private ]
 	Set reference = $Get(%request.Cookies(..#RESUMECOOKIE, 1))
 	If reference '= "" {
 		Set ref = ##class(OcuTalon.Data.Ownership).Resume(reference, .sc)
+		If $SYSTEM.Status.IsOK(sc), ref '= "", proxied Set %session.Data(##class(OcuTalon.Web.Public.Shell).#VISITORKEY) = 1
 		If (ref '= "") || $SYSTEM.Status.IsError(sc) Quit sc
 	}
 	Set reference = ""
@@ -87,6 +94,7 @@ ClassMethod AttachVisitor() As %Status [ Private ]
 			} Else {
 				Set ref = ##class(OcuTalon.Data.Ownership).StartVisitor(.reference, .sc)
 				If $SYSTEM.Status.IsOK(sc) Set sc = ##class(OcuTalon.Data.AddressCounter).Add(address)
+				If $SYSTEM.Status.IsOK(sc) Set %session.Data(##class(OcuTalon.Web.Public.Shell).#VISITORKEY) = 1
 			}
 		} Catch exception {
 			Set sc = exception.AsStatus()

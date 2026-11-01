@@ -1,10 +1,10 @@
 import { createHash } from 'node:crypto';
 
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page, type Response } from '@playwright/test';
 
 import { countdownText, pageTime, WHEN_TEXTS } from '../src/app/chat/page-time';
 import { README_URL } from '../src/app/links';
-import { expectRing, expectRingInside, readFocus, type Reading } from '../e2e/support/floor';
+import { expectRing, expectRingInside, loadedAfter, readFocus, type Reading } from '../e2e/support/floor';
 import { fixtureUser } from '../e2e/support/iris';
 import { plain, tokenColor } from '../e2e/support/page';
 import { scanPage } from '../e2e/support/scan';
@@ -20,7 +20,7 @@ import { recordSplashAnnouncements, signInFromSplash, signOutGroup, splashAnnoun
  * - S1: the head and the sign-in card: the texts, the prefilled text inputs with their 88px labels, the four copy buttons, the session
  *   line, the warning notice just before the full-width button, no show/hide toggle.
  * - S2: the Before you start card with the reset line (the browser's zone and clock, the countdown at 1 h 42 min, 9 min and 23 s, then
- *   rolled forward), the limit, the Visual Trace card and the footer.
+ *   rolled forward), its four lines in order with the chat-only limit line and no Telegram line, the Visual Trace card and the footer.
  * - S3: the four copy buttons write the exact value, show "Copied" for about 2 seconds and announce it once.
  * - S4: a rejected write, then no clipboard at all: the failure text under that card's rows, announced once, the value selected, the line
  *   gone after the next successful copy in that card.
@@ -49,8 +49,7 @@ const WRONG = "That user name and password didn't work.";
 const NO_ROLE = "This IRIS account doesn't have the OcuTalon user role. Ask an OcuTalon admin to add it.";
 const COPY_FAILED = "Couldn't copy. Select the text and copy it yourself.";
 const OWN_LINE = 'Your chat, phone, mailbox and orders are yours alone.';
-const TELEGRAM_LINE = 'Have Telegram? You can scan a QR code inside to get the notices on your own phone.';
-const LIMIT_LINE = 'Each session can send 50 messages an hour in the chat or Telegram.';
+const LIMIT_LINE = 'Each session can send 50 messages an hour in the chat.';
 const SHELL_LINE = "OcuTalon can't run shell commands, and every action it takes is recorded in the IRIS audit log.";
 const TRACE_HEADING = 'Read-only Visual Trace account,';
 const TRACE_PARAGRAPH = 'for opening Visual Trace in the portal yourself (trace links on the page are already signed in). See each decision with its cost, and every step.';
@@ -215,7 +214,11 @@ test.describe('S1 to S2, the page', () => {
       expect((await shown.textContent()) ?? '', 'the countdown counts to the rolled reset').toMatch(/^in 3 h (5\d|4\d) min$/);
 
       await expect(page.getByText(OWN_LINE, { exact: true })).toBeVisible();
-      await expect(page.getByText(TELEGRAM_LINE, { exact: true })).toBeVisible();
+      const before = page.getByRole('region', { name: 'Before you start', exact: true });
+      await expect(before.locator('li'), 'the list holds the reset, own, limit and shell lines').toHaveCount(4);
+      await expect(before.locator('li'), 'the reset, own, chat-only limit and shell lines, in that order').toHaveText([/^The demo resets every 4 hours\. Next reset: /, OWN_LINE, LIMIT_LINE, SHELL_LINE]);
+      await expect(before, 'no Telegram line').not.toContainText('Telegram');
+      await expect(before, 'no QR code line').not.toContainText('QR');
       await expect(page.getByText(LIMIT_LINE, { exact: true }), 'the limit line reads the allowance of the start values').toBeVisible();
       await expect(page.getByText(SHELL_LINE, { exact: true })).toBeVisible();
 
@@ -410,14 +413,14 @@ test.describe('S5 to S7, signing in', () => {
   /** S5: the button, and Enter in the password field, sign in without typing. */
   test('S5: Sign in and start, and Enter in the password field, open the main page without typing', async ({ page }) => {
     try {
-      await signInFromSplash(page, undefined, undefined, splashPath());
+      await loadedAfter(page, () => signInFromSplash(page, undefined, undefined, splashPath()));
       await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
       await expect(page).toHaveTitle('OcuTalon');
       await signOutGroup(page);
 
       await page.goto(splashPath());
       await expect(page).toHaveTitle('Try OcuTalon');
-      await passwordInput(page).press('Enter');
+      await loadedAfter(page, () => passwordInput(page).press('Enter'));
       await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
     } finally {
       await signOutGroup(page);
@@ -488,7 +491,10 @@ test.describe('S5 to S7, signing in', () => {
           });
         };
         page.on('request', watch);
-        const answer = await signInFromSplash(page, undefined, undefined, path);
+        let answer!: Response;
+        await loadedAfter(page, async () => {
+          answer = await signInFromSplash(page, undefined, undefined, path);
+        });
         await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
         const location = answer.headers()['location'] ?? '';
         expect(location, `the sign-in POST answers with a redirect (from ${path})`).not.toBe('');
@@ -512,7 +518,7 @@ test.describe('S11 to S12, the fragment and the phone width', () => {
   /** S11: the address's fragment is carried through sign-in by the splash's script. */
   test('S11: signing in at an address with a fragment lands on that fragment', async ({ page }) => {
     try {
-      await signInFromSplash(page, undefined, undefined, `${splashPath()}#/x`);
+      await loadedAfter(page, () => signInFromSplash(page, undefined, undefined, `${splashPath()}#/x`));
       await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
       await expect(page, 'the page lands on #/x once it has booted').toHaveURL((url) => url.hash === '#/x');
     } finally {

@@ -2,10 +2,10 @@ import { expect, test } from '@playwright/test';
 
 import { incidentOf, raise, refOf } from '../support/approvals';
 import { dropPhone, phoneMessage } from '../support/devices';
-import { CARD_MS, applied, inMs } from '../support/floor';
+import { CARD_MS, applied, inMs, signInReadmeLoaded } from '../support/floor';
 import { cleanFixtureRows, publishIncident, readApproval, sendNotification } from '../support/iris';
 import { clock } from '../support/page';
-import { README_ACCOUNT, signInReadme } from '../sign-in/helpers';
+import { README_ACCOUNT } from '../sign-in/helpers';
 import { notBuilt } from './not-built';
 
 // The times of the page's texts are the instance's (UTC on a stack) and the browser's, which the case sets to the same zone and a 24-hour clock.
@@ -28,7 +28,7 @@ test('Approve on the simulated phone, on fixtures: the phone, the card and the r
   const rows: string[] = [];
   const start = inMs(-2000);
   try {
-    await signInReadme(page);
+    await signInReadmeLoaded(page);
     await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
     const incident = refOf('D5');
     const request = await raise(page, user, rows, incident, []);
@@ -77,7 +77,7 @@ test('Fixing, then "All 50 orders went through." and Resolved, on fixtures for L
   const rows: string[] = [];
   const start = inMs(-2000);
   try {
-    await signInReadme(page);
+    await signInReadmeLoaded(page);
     await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
     const incident = refOf('D5r');
     const request = await raise(page, user, rows, incident, []);

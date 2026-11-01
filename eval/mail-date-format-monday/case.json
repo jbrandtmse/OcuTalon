@@ -1,0 +1,18 @@
+{
+  "name": "mail-date-format-monday",
+  "kind": "item",
+  "heldOut": true,
+  "description": "A partner changes its order date format on Monday and wants a confirmation by Friday: the user must decide, and OcuTalon cannot check or change it, so the user is told now.",
+  "expectation": {
+    "outcome": "tellnow"
+  },
+  "recordedBy": "written for the evaluation set (Story 9.3)",
+  "item": {
+    "itemId": "mail-date-format-monday",
+    "channel": "mailbox",
+    "provenance": "untrusted",
+    "sender": "Order Partner Operations <operations@order-partner.example>",
+    "subject": "Order date format changes on Monday",
+    "text": "Hello, starting Monday our orders carry the order date as dd/MM/yyyy instead of yyyy-MM-dd. Please confirm by Friday that your system accepts the new format, or tell us if you need more time. Thanks, Order Partner Operations"
+  }
+}
