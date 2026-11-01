@@ -4075,6 +4075,8 @@ So that a release takes me at most 15 minutes of hands-on time and never skips a
 
 **Acceptance Criteria:**
 
+[AMENDED 2026-11-01, Story 11.5's plan, unattended ruling (decide: a split into siblings planned next in this epic, product default 6): the gates' criterion to Story 11.14, the hands-on gate's to Story 11.15, the outward steps' after the gates (and DW-27) to Story 11.16, the IPM artifact's to Story 11.17, and the update hook's and the rehearsal candidate's to Story 11.18, each moved verbatim; 11.5 keeps the cut, the first outward step, no image push or environment value, and the hands-on time with the draft-notes step]
+
 **Given** the integration branch with the demo-path test green
 **When** the author starts the release sequence in `release/` with a version
 **Then** it refuses, for the first release, a version other than 1.0.0 (whose candidate branch is `release/1.0.0-rc<n>`, and for which the author confirms the 1.0.0 kit is in it) and a version already tagged; it sets the version in `src/module.xml`, which the package, the image's ready marker and the About dialog report, builds the web bundle with Node.js and commits it on a new candidate branch, `release/<version>-rc<n>`, so a Docker install needs no Node.js, and checks the version inside the built image (REL-3, REL-9, AD-23) [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0" and "New Linux droplet"]
@@ -4085,26 +4087,6 @@ So that a release takes me at most 15 minutes of hands-on time and never skips a
 **When** the sequence takes its first outward step
 **Then** it stops for the author's word and pushes the candidate branch, because the full CI run, the FR-57 job and the clean hosts need it; nothing else goes out before every gate passes, except the candidate's record, which the sequence commits to the integration branch and pushes on the author's word whenever it stops (REL-1, REL-11)
 
-**Given** the pushed candidate
-**When** the gates run
-**Then** the full CI run, the release-candidate evaluation with the demo incident gate, the upgrade harness, the clean-machine rehearsal, the release checklist and the Contest Planner's REL-7 hands-on pass on this candidate (with no open finding the Contest Planner hasn't deferred: for 1.0.0, Stories 38.1 and 38.3 on `release/1.0.0-rc1`) must all pass, each result goes into the candidate's record, the sequence stops naming the gate that failed, and REL-5's override is the only override it accepts (REL-1, REL-5, REL-6, REL-7, CON-2, CON-5) [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0" and "New Linux droplet"]
-**And** it refuses a candidate in which an enabled production item still answers "not implemented", so unfinished features stay off the demo path (REL-1, AD-29)
-
-**Given** the hands-on gate
-**When** the sequence reaches it
-**Then** it stops and names the candidate to install; the Contest Planner runs the pass and records it in the candidate's record, and the sequence is resumed with its resume command, which refuses to go on until the record holds a pass or a carry-over for this candidate; the time spent on the pass doesn't count toward the 15 minutes (REL-3, REL-7)
-**And** the release that ends a build step (1.0.0, the first release, with the web demo path and Telegram, then each later step's release) needs a fresh pass; a re-cut from the passed candidate plus the recorded fixes' commits (cherry-picked from the integration branch), whose only changes since that candidate are those fixes, carries the pass over, with the Contest Planner's note in its record, while a re-cut from the integration branch's head needs a fresh pass; other releases record a carry-over (REL-7, P29) [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0" and "New Linux droplet"]
-
-**Given** every gate passed
-**When** the sequence reaches each later step that acts outside the machine
-**Then** it stops for the author's word before each one: opening the release pull request from the candidate branch that passed, merging it into `main` only when every required check is green (it reads `main`'s branch protection, which the author sets up with the `ci.yml` and `lane-a.yml` checks required before the sequence first runs, and refuses if those checks aren't required; while the repository is private on a GitHub plan that offers no branch protection, which GitHub answers with HTTP 403, the sequence instead checks every job of the `ci.yml` and `lane-a.yml` runs for the pull request's head commit itself, merges only when each one has succeeded or was skipped by its own condition, and records in the candidate's record that it checked the jobs itself because branch protection was unavailable) [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner; the owner: "We won't make the repo public until we release on Open Exchange." On GitHub Free a private repository has no branch protection, so the first public release merges to `main` while the repository is still private; the author makes it public together with the Open Exchange release, and the Contest Planner then sets up the branch protection for every later release], tagging the release, merging `main` back into the integration branch after the merge and the tag, so the version bump and the built web bundle are on it and the next candidate's pull request doesn't conflict with `main`, and updating the online demo; it never publishes the notes, which the author does (REL-1, REL-8, REL-11, AD-29)
-
-**Given** the author's word to update the online demo
-**When** the update hook runs
-**Then** it copies a `git bundle` of the release tag `v<version>` to the demo host over SSH and calls `ocutalon-demo update <version>` there: the host builds the image from that bundle (no registry, and no repository access on the host) before the reset boundary and refreshes the golden copy there (restore it, start it on the new image so it upgrades in place with no visitor data, wait for ready, check the version, capture the new golden copy, start from it); before launch (`access` restricted) the command runs at once, blocks until ready and prints `{"result": "updated", "version": "<version>"}`, and after launch it prints `{"result": "scheduled", "at": "<nextReset>"}`, which the hook writes into the draft notes; a non-zero exit prints one line with the reason, which the sequence shows and records (REL-10, AD-25, CON-1)
-**And** the hook then reads `ocutalon-demo status`, one JSON object with `runningVersion`, `goldenVersion`, `lastReset` (UTC ISO 8601), `lastResetKind` (`scheduled` or `unscheduled`), `nextReset` (UTC ISO 8601), `pendingVersion` (or null) and `access` (`restricted` or `public`), and checks the running and golden-copy versions, or `pendingVersion` for a scheduled update; the host's address and SSH key come from the author's configuration outside the repository; with no demo host configured, it says so and the draft notes state that the online demo wasn't updated (REL-10, AD-25, CON-5)
-**And** the hook is tested against a throwaway compose project standing in for the demo host, which answers `status` and `update` exactly as above (both results and a failing update's non-zero exit), and whose update restore is exempt from the reset's version refusal: it checks that the golden copy holds the previous version and that the upgraded copy reports `<version>` before capture (REL-10, AD-25)
-
 **Given** the whole sequence
 **When** it runs
 **Then** no step pushes an image or signs in to a registry, and no step prints an environment value (CON-1, NFR-11, AD-22)
@@ -4113,15 +4095,85 @@ So that a release takes me at most 15 minutes of hands-on time and never skips a
 **When** the sequence runs
 **Then** it records in the candidate's record the author's hands-on time for that release (the time spent at its prompts), which is at most 15 minutes, not counting CI or the time spent on the hands-on pass, and its steps include the draft-notes generator from Story 11.13 (REL-3, REL-8) [AMENDED 2026-11-01, after Story 11.4's split (unattended ruling, decide): it read "from Story 11.4"]
 
-**Given** a rehearsal candidate cut from the integration branch (its record marked as a rehearsal), a fixture pass record and the stand-in demo host
-**When** the author runs the sequence on it before the real 1.0.0 cut [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0" and "New Linux droplet"]
-**Then** it pushes the candidate on the author's word, runs every gate, stops at the hands-on gate, refuses to resume until the fixture pass record is in the candidate's record, then resumes with the resume command; the author declines the release pull request, the merge, the tag and the merge back (a declined step is skipped and the sequence goes on), the update hook runs against the stand-in, copying a `git bundle` of the rehearsal candidate's commit because there is no tag, and the stand-in builds from it, a rehearsal record never carries a pass over to a real candidate, and the record holds the commit SHA, each gate's result and the hands-on time; this proves the sequence, and Epic 38 runs the real 1.0.0 cut through it (REL-1, REL-3, REL-7) [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0" and "New Linux droplet"]
+### Story 11.14: The release sequence runs every gate on the pushed candidate
+
+As the author,
+I want the release sequence to run every gate on the pushed candidate and stop naming the gate that failed,
+So that a release never skips a gate.
+
+[ADDED 2026-11-01, split from Story 11.5 at its plan, unattended ruling (decide: a sibling planned next in this epic, product default 6); its criteria are Story 11.5's, moved verbatim; it adds its steps to Story 11.5's `release/release.sh`]
+
+**Acceptance Criteria:**
+
+**Given** the pushed candidate
+**When** the gates run
+**Then** the full CI run, the release-candidate evaluation with the demo incident gate, the upgrade harness, the clean-machine rehearsal, the release checklist and the Contest Planner's REL-7 hands-on pass on this candidate (with no open finding the Contest Planner hasn't deferred: for 1.0.0, Stories 38.1 and 38.3 on `release/1.0.0-rc1`) must all pass, each result goes into the candidate's record, the sequence stops naming the gate that failed, and REL-5's override is the only override it accepts (REL-1, REL-5, REL-6, REL-7, CON-2, CON-5) [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0" and "New Linux droplet"]
+**And** it refuses a candidate in which an enabled production item still answers "not implemented", so unfinished features stay off the demo path (REL-1, AD-29)
+
+### Story 11.15: The hands-on gate stops the sequence, and its resume command waits for a pass or a carry-over
+
+As the author,
+I want the sequence to stop at the hands-on gate and resume only on a recorded pass or carry-over,
+So that the Contest Planner's pass is part of every release that needs one.
+
+[ADDED 2026-11-01, split from Story 11.5 at its plan, unattended ruling (decide: a sibling planned next in this epic, product default 6); its criteria are Story 11.5's, moved verbatim; it adds its steps to Story 11.5's `release/release.sh`]
+
+**Acceptance Criteria:**
+
+**Given** the hands-on gate
+**When** the sequence reaches it
+**Then** it stops and names the candidate to install; the Contest Planner runs the pass and records it in the candidate's record, and the sequence is resumed with its resume command, which refuses to go on until the record holds a pass or a carry-over for this candidate; the time spent on the pass doesn't count toward the 15 minutes (REL-3, REL-7)
+**And** the release that ends a build step (1.0.0, the first release, with the web demo path and Telegram, then each later step's release) needs a fresh pass; a re-cut from the passed candidate plus the recorded fixes' commits (cherry-picked from the integration branch), whose only changes since that candidate are those fixes, carries the pass over, with the Contest Planner's note in its record, while a re-cut from the integration branch's head needs a fresh pass; other releases record a carry-over (REL-7, P29) [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0" and "New Linux droplet"]
+
+### Story 11.16: The sequence asks before each outward step after the gates
+
+As the author,
+I want the sequence to ask for my word before the release pull request, the merge, the tag and the merge back,
+So that nothing goes out without my word.
+
+[ADDED 2026-11-01, split from Story 11.5 at its plan, unattended ruling (decide: a sibling planned next in this epic, product default 6); its criteria are Story 11.5's, moved verbatim; it adds its steps to Story 11.5's `release/release.sh`]
+
+**Acceptance Criteria:**
+
+**Given** every gate passed
+**When** the sequence reaches each later step that acts outside the machine
+**Then** it stops for the author's word before each one: opening the release pull request from the candidate branch that passed, merging it into `main` only when every required check is green (it reads `main`'s branch protection, which the author sets up with the `ci.yml` and `lane-a.yml` checks required before the sequence first runs, and refuses if those checks aren't required; while the repository is private on a GitHub plan that offers no branch protection, which GitHub answers with HTTP 403, the sequence instead checks every job of the `ci.yml` and `lane-a.yml` runs for the pull request's head commit itself, merges only when each one has succeeded or was skipped by its own condition, and records in the candidate's record that it checked the jobs itself because branch protection was unavailable) [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner; the owner: "We won't make the repo public until we release on Open Exchange." On GitHub Free a private repository has no branch protection, so the first public release merges to `main` while the repository is still private; the author makes it public together with the Open Exchange release, and the Contest Planner then sets up the branch protection for every later release], tagging the release, merging `main` back into the integration branch after the merge and the tag, so the version bump and the built web bundle are on it and the next candidate's pull request doesn't conflict with `main`, and updating the online demo; it never publishes the notes, which the author does (REL-1, REL-8, REL-11, AD-29)
+
+- DW-27: Before the repository goes public, a fork pull request cannot merge without a demo-path run: 0.7's fork guard keeps the IRIS jobs off fork pull requests, so branch protection or a maintainer-run path from a same-repository branch must require it (REL-2; owner-only settings) (ledger; routed by adjudication 2026-10-20)
+
+### Story 11.17: The release's IPM artifact carries the built page
+
+As the author,
+I want the release's IPM artifact to carry the built web page,
+So that a registry install works with no Node.js on a judge's machine.
+
+[ADDED 2026-11-01, split from Story 11.5 at its plan, unattended ruling (decide: a sibling planned next in this epic, product default 6); its criteria are Story 11.5's, moved verbatim; it adds its steps to Story 11.5's `release/release.sh`]
+
+**Acceptance Criteria:**
 
 **Given** the release sequence packaging a candidate's IPM artifact
 **When** it builds the package
 **Then** it builds the web page and puts the built bundle into the package's resources, in `src/ocutalon/csp/` (which `src/module.xml`'s `FileCopy` already copies into `${dataDir}csp/ocutalon-web/`), before it packages the artifact, so the artifact is self-contained and a registry install works with no Node.js on the judge's machine; it records in the candidate's record the artifact it would publish, so Story 15.3 can install exactly that artifact; the registry publish itself stays the author's action, at 1.0.0, and the sequence asks for the author's word before anything goes out (REL-3, REL-11, AD-23) [ADDED 2026-10-31, decided by the Contest Planner under the owner's delegation]
 
-- DW-27: Before the repository goes public, a fork pull request cannot merge without a demo-path run: 0.7's fork guard keeps the IRIS jobs off fork pull requests, so branch protection or a maintainer-run path from a same-repository branch must require it (REL-2; owner-only settings) (ledger; routed by adjudication 2026-10-20)
+### Story 11.18: The update hook updates the online demo, and a rehearsal candidate proves the sequence
+
+As the author,
+I want the update hook to update the online demo and a rehearsal candidate to prove the whole sequence,
+So that the real 1.0.0 cut runs a sequence that has been proved.
+
+[ADDED 2026-11-01, split from Story 11.5 at its plan, unattended ruling (decide: a sibling planned next in this epic, product default 6); its criteria are Story 11.5's, moved verbatim; it adds its steps to Story 11.5's `release/release.sh`]
+
+**Acceptance Criteria:**
+
+**Given** the author's word to update the online demo
+**When** the update hook runs
+**Then** it copies a `git bundle` of the release tag `v<version>` to the demo host over SSH and calls `ocutalon-demo update <version>` there: the host builds the image from that bundle (no registry, and no repository access on the host) before the reset boundary and refreshes the golden copy there (restore it, start it on the new image so it upgrades in place with no visitor data, wait for ready, check the version, capture the new golden copy, start from it); before launch (`access` restricted) the command runs at once, blocks until ready and prints `{"result": "updated", "version": "<version>"}`, and after launch it prints `{"result": "scheduled", "at": "<nextReset>"}`, which the hook writes into the draft notes; a non-zero exit prints one line with the reason, which the sequence shows and records (REL-10, AD-25, CON-1)
+**And** the hook then reads `ocutalon-demo status`, one JSON object with `runningVersion`, `goldenVersion`, `lastReset` (UTC ISO 8601), `lastResetKind` (`scheduled` or `unscheduled`), `nextReset` (UTC ISO 8601), `pendingVersion` (or null) and `access` (`restricted` or `public`), and checks the running and golden-copy versions, or `pendingVersion` for a scheduled update; the host's address and SSH key come from the author's configuration outside the repository; with no demo host configured, it says so and the draft notes state that the online demo wasn't updated (REL-10, AD-25, CON-5)
+**And** the hook is tested against a throwaway compose project standing in for the demo host, which answers `status` and `update` exactly as above (both results and a failing update's non-zero exit), and whose update restore is exempt from the reset's version refusal: it checks that the golden copy holds the previous version and that the upgraded copy reports `<version>` before capture (REL-10, AD-25)
+
+**Given** a rehearsal candidate cut from the integration branch (its record marked as a rehearsal), a fixture pass record and the stand-in demo host
+**When** the author runs the sequence on it before the real 1.0.0 cut [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0" and "New Linux droplet"]
+**Then** it pushes the candidate on the author's word, runs every gate, stops at the hands-on gate, refuses to resume until the fixture pass record is in the candidate's record, then resumes with the resume command; the author declines the release pull request, the merge, the tag and the merge back (a declined step is skipped and the sequence goes on), the update hook runs against the stand-in, copying a `git bundle` of the rehearsal candidate's commit because there is no tag, and the stand-in builds from it, a rehearsal record never carries a pass over to a real candidate, and the record holds the commit SHA, each gate's result and the hands-on time; this proves the sequence, and Epic 38 runs the real 1.0.0 cut through it (REL-1, REL-3, REL-7) [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0" and "New Linux droplet"]
 
 ## Epic 12: Approve from your own phone with Telegram
 

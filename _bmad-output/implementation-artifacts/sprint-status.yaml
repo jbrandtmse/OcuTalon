@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 11-01-2026 11:44
+last_updated: 11-01-2026 12:24
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -182,7 +182,12 @@ development_status:
   11-12-the-rehearsal-runner-repeats-the-demo-path-n-times-with-run: backlog
   11-4-the-release-gets-draft-notes-and-a-checklist: ready-for-dev
   11-13-the-release-gets-draft-notes: ready-for-dev
-  11-5-one-scripted-sequence-cuts-a-release: backlog
+  11-5-one-scripted-sequence-cuts-a-release: ready-for-dev
+  11-14-the-release-sequence-runs-every-gate-on-the-pushed-candidate: backlog
+  11-15-the-hands-on-gate-stops-the-sequence-and-its-resume-command: backlog
+  11-16-the-sequence-asks-before-each-outward-step-after-the-gates: backlog
+  11-17-the-release-s-ipm-artifact-carries-the-built-page: backlog
+  11-18-the-update-hook-updates-the-online-demo-and-a-rehearsal-cand: backlog
   epic-11-retrospective: optional
 
   epic-12: backlog

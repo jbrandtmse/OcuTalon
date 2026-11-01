@@ -177,6 +177,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: ci.yml iris job if: push or same-repository PR (CON-1, REL-4); code review of 0.8, October 20
 - 2026-10-20T03:35:26Z status=routed owner=11-5-one-scripted-sequence-cuts-a-release by=adjudication note=branch protection or a maintainer-run path must require the demo path for fork PRs before the repo goes public (owner-only settings)
 - 2026-10-25T04:09:47Z status=routed owner=11-5-one-scripted-sequence-cuts-a-release by=orchestrator note=owner decision via the Contest Planner 2026-10-25 (the owner: 'We won't make the repo public until we release on Open Exchange.'): GitHub Free gives a private repository no branch protection (HTTP 403), so branch protection, with the demo path required for fork pull requests, is set up at the public flip together with the Open Exchange release; while private, Story 11.5 checks every ci.yml and lane-a.yml job on the PR head itself (b258031)
+- 2026-11-01T12:24:37Z owner=11-16-the-sequence-asks-before-each-outward-step-after-the-gates by=spec_gate note=Story 11.5 split at its plan (decide): the merge step that reads main's branch protection and refuses unless ci.yml and lane-a.yml are required checks is Story 11.16's; the protection setting itself is the owner's (see the new human= entry)
 
 ### DW-28: flake: test-production.sh's two 'another production' checks failed once on the first run with the compose-level TZ file, then passed on three unchanged reruns
 - source: spec-0-9-the-message-catalog-and-its-one-renderer.md | severity: med | fix-risk: low | footprint: in-epic
@@ -2758,3 +2759,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Run M: renaming Eval.Data.CaseResult DecidedAt in the working tree gave storage_compare MISSING but PASS release-diff
 - 2026-11-01T11:06:24Z status=wontfix-accepted owner=11-2-upgrades-and-restarts-keep-every-record-working by=harvest note=reopen_if=a storage-slot change reaches a candidate commit with test-storage.sh release-diff green
 - 2026-11-01T11:43:48Z occurrence=11-2-upgrades-and-restarts-keep-every-record-working
+
+### DW-529: Branch protection on main is not set (404 'Branch not protected') although the repository went public on 2026-10-31: the owner sets it with the ci.yml and lane-a.yml checks required, and decides how fork pull requests are kept from merging without a demo-path run (a job skipped by its own if: shows as a successful check; a rule that only release pull requests merge into main closes the gap)
+- source: spec-11-5-one-scripted-sequence-cuts-a-release.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: gh api repos/jbrandtmse/OcuTalon/branches/main/protection -> 404 on 2026-11-01; DW-27's owner-only residual
+- 2026-11-01T12:24:37Z status=decision-pending owner=burndown by=spec_gate note=human=set branch protection on main (repository setting, owner-only); Story 11.16's merge step refuses until it is set
