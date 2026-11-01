@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 11-01-2026 00:14
+last_updated: 11-01-2026 19:58
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -104,6 +104,9 @@ development_status:
   4-5-get-notifications-on-the-simulated-phone: done
   4-6-simulate-incoming-email-in-the-simulated-mailbox: done
   4-7-finish-the-demo-guide: done
+  4-8-step-3-of-the-guide-points-to-break-the-feed-without-a-secon: done
+  4-9-a-demo-view-switch-shows-the-page-as-it-looks-on-your-own-in: done
+  4-10-try-it-yourself-example-prompts-one-press-each: done
   epic-4-retrospective: optional
 
   epic-5: done
@@ -119,6 +122,7 @@ development_status:
   5-10-epic-5-burn-down: done
   5-11-the-demo-guide-s-tests-hold-now-that-incidents-are-real: done
   5-12-a-correct-diagnosis-is-never-refused-for-an-over-long-eviden: done
+  5-13-ask-ocutalon-what-happened-earlier-and-it-tells-you-from-its: done
   epic-5-retrospective: optional
 
   epic-6: done
@@ -165,6 +169,7 @@ development_status:
   10-2-the-readme-gets-a-judge-from-download-to-sign-in: done
   10-3-the-session-side-of-telegram-is-ready-and-stays-off: done
   10-4-the-readme-opens-with-what-ocutalon-is-for-and-what-a-model: done
+  10-5-the-readme-shows-the-product-and-says-how-you-talk-to-it: backlog
   epic-10-retrospective: optional
 
   epic-11: backlog

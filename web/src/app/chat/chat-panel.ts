@@ -19,6 +19,7 @@ import { Dismissals } from '../incidents/dismissals';
 import { announcementOf, bandTexts, incidentView } from '../incidents/incident-view';
 import { LiveState } from '../live/live-state';
 import { Announcer } from '../shared/announcer';
+import { DemoView } from '../shared/demo-view';
 import { type FocusRule, keepFocus, type LostFocus } from '../shared/focus-rule';
 import { atBottom, BOTTOM_SLACK_PX } from '../shared/follow-bottom';
 import { LAYOUT_QUERIES } from '../shared/layout-view';
@@ -252,6 +253,7 @@ const ANNOUNCE_FORMAT: Omit<ChatAnnounceFormat, 'incidentText' | 'bandTexts' | '
 })
 export class ChatPanel {
   protected readonly live = inject(LiveState);
+  private readonly demoView = inject(DemoView);
   protected readonly outbox = inject(ChatOutbox);
   protected readonly dismissals = inject(Dismissals);
   protected readonly texts = CHAT_TEXTS;
@@ -279,8 +281,8 @@ export class ChatPanel {
   /** The first entry that arrived or changed while the list was scrolled up. */
   private target: Target | undefined;
 
-  /** True in demo mode: the empty chat points at the demo guide. */
-  protected readonly demo = computed(() => this.live.snapshot()?.demoMode === true);
+  /** True in the demo view: the empty chat points at the demo guide. */
+  protected readonly demo = computed(() => this.demoView.on());
 
   /** True while the empty chat panel shows. */
   protected readonly fresh = computed(() => isFreshChat(this.live.store()?.chat ?? [], this.outbox.entries()));

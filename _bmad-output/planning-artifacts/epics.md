@@ -373,7 +373,7 @@ From the architecture spine (`ARCHITECTURE-SPINE.md`, final, updated 2026-10-17)
 - UX-DR41 [R1] Skeleton: D `skeleton`: static `sunken` blocks shaped like the coming rows, never shimmering, until data arrives or 10 s pass, then content or the load error (UX-DR89). (Supports: —; Source: D+E › Frame)
 - UX-DR42 [R1] Links and trace links: Links (D `link`) are always underlined; leaving the page adds "(opens in a new tab)" or "(opens Telegram)" to its name. Trace links (D `trace-link`) sit on every decision, check and reminder, opening their UX-DR139 target in a new tab. On local and IPM installs, until the sign-in popover is seen this session, trace links are named "Open in Visual Trace (shows sign-in help first)" with `aria-haspopup="dialog"`. (Supports: —; Source: D+E › Frame)
 - UX-DR43 [R1] Demo guide strip: Demo mode only (D `demo-guide`). Row 1: "Demo guide", the steps Watch, Reminder, Break the feed, Approve and Open the trace, "About 2 minutes", "Hide guide"; row 2, the `sunken` prompt bar: "Next:", quoted prompt, action button; Break the feed box at right. Markers per D `guide-step-*`, never a teal ring; current step `aria-current="step"`; names carry state ("Step 3, Break the feed, current"). Any order; done only from real state; self-advancing (focus per UX-DR131); only Break the feed is gated. (Supports: FR-16, UJ-1; Source: D+E › Demo guide and controls)
-- UX-DR44 [R1] Guide steps and completion: Prompts per the source (keys: optional Telegram row, steps 1–5, step 3 waiting, step 4 paired and unpaired); step 1 "Watch the Orders production and only tell me if something needs me.", step 2 "Remind me in 1 minute to stretch.". A buttonless Telegram row precedes step 1 while Telegram is on and unpaired. Done when: 1 a watch exists; 2 a reminder exists; 3 the notice arrives (**Go to Break the feed** focuses, never presses); 4 the request is answered (**Show me** focuses the pending phone notification, never Approve); 5 the trace is opened. (Supports: FR-16, UJ-1; Source: E › Demo Mode › The demo guide)
+- UX-DR44 [R1] Guide steps and completion: Prompts per the source (keys: optional Telegram row, steps 1–5, step 3 waiting, step 4 paired and unpaired); step 1 "Watch the Orders production and only tell me if something needs me.", step 2 "Remind me in 1 minute to stretch.". A buttonless Telegram row precedes step 1 while Telegram is on and unpaired. Done when: 1 a watch exists; 2 a reminder exists; 3 the notice arrives (**Go to Break the feed** focuses, never presses [AMENDED 2026-11-01, Story 4.8: no button; focus moves to Break the feed when step 3 becomes current by the user's own press]); 4 the request is answered (**Show me** focuses the pending phone notification, never Approve); 5 the trace is opened. (Supports: FR-16, UJ-1; Source: E › Demo Mode › The demo guide)
 - UX-DR45 [R1] Guide turns, step 4 variants: Steps 1–2 send their prompt verbatim as the user's message; the "From the demo guide" tag is display-only [ASSUMPTION]; guide sends aren't announced; the reminder precedes Break the feed to overlap the wait. Step 4 has rejected, fallback and no-fix (P25) variants (source), and after a fallback notice or a no-fix notice, step 5 stays available. At the allowance limit, prompt buttons are `aria-disabled`, with the reason shown. (Supports: FR-16, UJ-1, FR-40; Source: E › Demo Mode › The demo guide)
 - UX-DR46 [R1] Compact and collapsed guide: Under 680px tall: one `guide-compact-height` row (numbered steps, prompt bar); at 1024–1279px wide: numbers instead of step labels. "Hide guide" collapses it to D `guide-collapsed-bar`, "Demo guide · step {n} of 5 · Show guide" (`aria-expanded`), with the Break the feed box on the right. The choice is remembered per browser. (Supports: —; Source: D+E › Demo guide and controls)
 - UX-DR47 [R1] Guide finish state: Replaces the prompt bar after step 5: "Done." paragraph; run total "This run: {n} decisions · {tokens} tokens · {cost} on {model}." (`body-sm`, `ink-muted`, tabular figures); the links "See the whole conversation in Visual Trace ↗", "Install OcuTalon yourself ↗" and "Use the same bridge in your own production ↗" (Kit; ↗ hidden; names say new tab); "More to try"; **Run again** (markers only). Focus to its first line; Break the feed back to attention style. (Supports: FR-5, UJ-1; Source: E › Demo Mode › The demo guide) Shown only after an approved fix and a resolved incident (P24).
@@ -645,7 +645,7 @@ Every action is classified safe or risky by fixed rules the model and arriving c
 With demo mode on, the page shows the demo guide with one-click prompts, a labelled simulated phone and simulated mailbox that are real production channels (with three one-click sample emails), and a Break the feed control that sends the session's 50 orders in a changed date format into the Orders production, active only when the guide's conditions hold; an admin can switch demo mode.
 **Lane:** B. **Depends on:** Epic 2.
 **FRs covered:** FR-12 (demo-mode panels), FR-13, FR-16.
-**Also covers:** CON-3; AD-12 (guide state), AD-14; UX-DR43 to UX-DR50, UX-DR80 to UX-DR86, UX-DR101 to UX-DR105.
+**Also covers:** CON-3; AD-12 (guide state), AD-14; UX-DR43 to UX-DR50, UX-DR80 to UX-DR86, UX-DR101 to UX-DR105. [AMENDED 2026-11-01, owner feedback via the Contest Planner: Story 4.8 re-opens Epic 4 under SC-5 to remove step 3's Go to Break the feed button; Story 4.9 adds the Demo view switch, and Story 4.10 the "Try it yourself" chips (owner requests, 2026-11-01).]
 
 ### Epic 5: OcuTalon watches a production and explains what broke
 
@@ -686,7 +686,7 @@ A recorded evaluation set (at least 20 items across all four outcomes, injection
 
 On a machine with the build 154 image loaded, one script checks, retags and starts OcuTalon, waits for it with progress and prints the address and sign-in details, failing with an exact fix when the image or architecture is wrong; the README's release-1 sections tell a judge what to download, how to start, how to sign in and how to set the key.
 **Lane:** B (runner B, in Lane B's files; Story 10.1 may start early on whichever runner is idle, and each dispatch fixes the runner). **Depends on:** nothing at epic level (Story 10.1, the install script, needs no other epic); story-level: Story 10.2 needs Epic 4 merged (the README quotes Story 4.1's `SetDemoMode`), and Story 10.3 needs Epic 6 merged (it applies Story 6.2's answer rules); Story 10.3 builds the pairing unlink that Story 16.4 reuses. [AMENDED 2026-10-22, owner decision, worked out with the Contest Planner; the owner: "Okay, we'll start with 3 slots." it was Lane B; runner C may take it ahead of Epic 16 while Epic 16 waits for Epic 3, setting Story 10.3 aside until Epic 16 merges.] [AMENDED 2026-10-23, owner decision at the interactive resume (the third runner's graph approval, attended), reviewed by the Contest Planner: Story 10.2's wait on Epic 4 and Story 10.3's on Epic 6 added; Epic 8 labelled as order only] [AMENDED 2026-10-23, decided by the Contest Planner under the owner's delegation; the owner: "Go ahead wth the rebalance of slots." it was runner C after Epic 8 (order only), and Story 10.3 waited for Epic 16, whose Story 16.4 built the unlink] [AMENDED 2026-10-23, decided by the Contest Planner under the owner's delegation; the owner: "Go ahead wth the rebalance of slots." the epic-level edge on Epic 2 removed so Story 10.1 can fill an idle window, as the rebalance intended; Stories 10.2 and 10.3 wait for Epics 4 and 6, which come after Epic 2]
-**FRs covered:** FR-55 (complete), FR-58 (step 1 part); the session side of FR-18 to FR-22, switched off until the release includes Telegram (Story 10.3). [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner: Story 10.4 re-opens Epic 10 under SC-5 for the README's opening paragraph, its "What you can use it for" section and the with-a-model table, replacing the "Contest task" table; it depends on nothing unmerged and lands before the online demo launch]
+**FRs covered:** FR-55 (complete), FR-58 (step 1 part); the session side of FR-18 to FR-22, switched off until the release includes Telegram (Story 10.3). [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner: Story 10.4 re-opens Epic 10 under SC-5 for the README's opening paragraph, its "What you can use it for" section and the with-a-model table, replacing the "Contest task" table; it depends on nothing unmerged and lands before the online demo launch; AMENDED 2026-11-01, owner decision via the Contest Planner: Story 10.5 re-opens Epic 10 under SC-5 for the README's screenshots and a "How you talk to it" section]
 **Also covers:** NFR-21, NFR-22, CON-2, CON-5; AD-23.
 
 ### Epic 11: Release 1 ships: the demo path end to end, upgrade in place and a scripted release
@@ -2628,7 +2628,7 @@ So that I finish the demo in about two minutes and know what I saw.
 
 **Acceptance Criteria:**
 
-**Given** step 3 is selected
+**Given** step 3 is selected [AMENDED 2026-11-01, owner feedback via the Contest Planner: Story 4.8 removes the Go to Break the feed button; focus moves to the box's button when step 3 becomes current by the user's own press]
 **When** I press **Go to Break the feed**
 **Then** focus moves to the Break the feed control without pressing it; the prompt reads "Press Break the feed. The partner will send 50 orders in a new date format.", and while waiting "Waiting for OcuTalon. The reminder may arrive first."; the step is done when the incident notice, fallback notice or no-fix notice arrives (FR-16, FR-24, UX-DR44)
 
@@ -2657,6 +2657,111 @@ So that I finish the demo in about two minutes and know what I saw.
 **Then** the specs for UJ-1's page step in demo mode, the watch and reminder steps (the two guide prompts) and the trace step follow Flow 1's web route, and Lane B turns each on as soon as it passes on the integration branch with the CI mock, leaving the rest skipped; the time budget is measured in the rehearsal, not in CI (REL-2, AD-29, UX-DR101, UX-DR102, UX-DR104)
 - DW-146: Specs that open real Visual Trace pages may starve later cases of the same live sign-in stack (an inference: each signed-in trace tab may hold a licence connection until its session times out), and no spec signs its trace tabs out. This story adds real trace pages: measure licence and gateway connections on a throwaway with trace tabs open; if the tabs hold connections, the specs sign their trace tabs out (ledger; routed by merge_gate 2026-10-25)
 - DW-215: Guide.Compute could report finished true together with step 4 current and a rejected, fallback or no_fix variant if a resolved incident keeps that OpenVariant (unverified until Story 5.5's IncidentManager exists): when this story renders the finish state and the step 4 hints, make the finish condition exclude an incident whose variant is rejected, fallback or no_fix, or prove with a test that a resolved incident never keeps one (ledger; routed by cr 2026-10-25)
+
+### Story 4.8: Step 3 of the guide points to Break the feed without a second button
+
+[ADDED 2026-11-01, owner feedback from the demo walk-through, relayed by the Contest Planner under delegation; the owner: "The demo seems to work fine, but the green "Go to Break the feed" button is redundent when teh "Break the feed" red button is right next to it." Epic 4 is re-opened for it under SC-5. In 1.0.0's scope (a fix to an existing feature); not launch-blocking.]
+
+As a judge on step 3 of the demo guide,
+I want the guide to point me at the red Break the feed button without a second button beside it,
+So that there is one obvious thing to press.
+
+**Acceptance Criteria:**
+
+**Given** step 3 is current or selected
+**When** the guide's Next bar renders
+**Then** it shows only the instruction line "Press Break the feed. The partner will send 50 orders in a new date format." (and, while waiting, "Waiting for OcuTalon. The reminder may arrive first.") with no action button: the **Go to Break the feed** button, its `goToBreakFeed` prompt action, its text and its handler are removed (UX-DR44)
+**And** the Demo Control's "Next step" tag and the box's teal left bar stay as they are; they are what points the visitor to the red button now (UX-DR48)
+
+**Given** step 3 becomes current by the user's own press (step 2 to step 3, after the user's Send on step 2; and **Run again** from the finish state)
+**When** the guide moves to step 3
+**Then** focus moves to the box's **Break the feed** button and nothing is pressed, so the keyboard and screen-reader path the removed button gave stays (UX-DR44, UX-DR131)
+**And** focus never moves when step 3 becomes current without the user's own press, as the focus rule already says (shared/focus-rule.ts)
+
+**Given** the UX spec and the mockup
+**When** this story merges
+**Then** EXPERIENCE.md's demo guide table row 3 and Flow 1's step 5 ("Dana presses Go to Break the feed, then Break the feed") and the mockup's C2 state (states.html: the Next bar's button and the C2 caption) drop the button, each with a marker citing the owner's feedback of 2026-11-01
+
+**Given** the change
+**When** this story merges
+**Then** the guide's tests follow it: the floor e2e cases M7, M10 and M12 and the step 2 to step 3 case (web/e2e/floor/guide.spec.ts), web/e2e/guide/guide.spec.ts, 01-page.spec.ts's step 3 row, guide-view.test.mjs, announce-focus-sources.test.mjs and ux-strings.test.mjs's guide string list
+**And** CI is green on every workflow, and the story touches only `web/src/app/guide/*`, those tests, and the two UX files
+
+### Story 4.9: A Demo view switch shows the page as it looks on your own install
+
+[ADDED 2026-11-01, owner request relayed by the Contest Planner under delegation; the owner: "We need a toggle switch to "turn off demo mode", which would hide the guide and simulated phone to show what the screen would look like for a real deployment." In 1.0.0's scope; not launch-blocking. Runs after Story 4.8 on the same runner (the same guide files). The Planner approved this block on 2026-11-01: the header pill stays with the switch off ("Demo mode" on a local demo install, "Online demo" on the online demo).]
+
+As a judge on the demo page,
+I want to switch the demo parts off and see the page as it looks on my own install,
+So that I know how I would talk to OcuTalon after the contest.
+
+**Acceptance Criteria:**
+
+**Given** demo mode is on (the online demo, or a local install with demo mode switched on, Story 4.1)
+**When** the page renders its top bar
+**Then** it has a labelled switch, "Demo view", on by default, with help text such as "Off shows the page as it looks on your own install." (the exact wording is the UX spec's, under the public-text rules); it is a native switch (`role="switch"`, `aria-checked`), reachable by keyboard, and its state is announced when it changes; with demo mode off on the server, the switch is not shown (UX-DR43)
+
+**Given** the switch is off
+**When** the page re-renders
+**Then** the demo guide bar, the Demo control with Break the feed, and the Simulated devices region (the simulated phone and the simulated mailbox) are gone, and the page lays out exactly as a session with demo mode off does: the chat region takes the devices' width, the skip links drop the demo targets, the empty chat's last line and the rail's empty-checks line are the non-demo ones (UX-DR43, UX-DR48)
+**And** it uses the same render path as a session with demo mode off: every component that reads demo mode today (guide, Demo control, chat panel and empty chat, phone, mailbox, device panel, rail, skip links, main page) reads one client-side "demo view" signal that is true only when the server's `demoMode` is true and the switch is on; nothing else reads `demoMode` directly
+**And** whatever a real install shows in that space shows its real state; the Telegram card follows the server's Telegram state exactly as now, so on the online demo, which has no bot token, it shows only what 12.1 and 16.11 allow, and nothing promises a Telegram the demo lacks
+
+**Given** the switch is off on the online demo
+**When** the page renders
+**Then** the online demo's honest markers stay: the "Online demo" pill, the reset countdown and the allowance lines; on a local install in demo mode, the "Demo mode" pill stays. The switch never makes a visitor think they are on their own install
+
+**Given** the switch
+**When** it changes
+**Then** only the view changes: no request to the server, no change to demo mode, the session, its guide markers, its allowance, its watches, reminders or incidents; the incident flow, approvals and the Orders production keep running underneath
+**And** the choice is kept per browser tab in sessionStorage (read and written inside try/catch, falling back to on), and focus stays on the switch
+
+**Given** a pending approval request
+**When** the switch is turned off and on again
+**Then** the request is never hidden or lost: with the switch off it is answerable in the chat as on any install; with it on again it is also on the simulated phone, and an answer given while off shows there as answered (UX-DR80)
+**And** turning the switch back on restores the guide at the step the session's own state gives, and the guide's own Hide guide choice as it was
+
+**Given** the change
+**When** this story merges
+**Then** e2e cases check: off, then the guide, the Demo control and the simulated devices are gone and the chat still sends and answers; on, then they return with the guide step preserved; a pending approval survives off and on; and the off page's regions, landmarks, skip links and rail sections equal those of the same page with demo mode off on the server, compared as structure, never as pixels or screenshots
+**And** a source test checks that no component outside the demo view signal reads `demoMode`
+**And** the UX spec's "Demo guide and controls" and "Demo Mode and the Online Demo" sections and DESIGN.md's top bar gain the switch, each with a marker citing the owner's request of 2026-11-01
+**And** CI is green on every workflow, and the story touches only `web/src/app/**` (not `api/api-types.ts` or `live/live-store.ts`, which Epic 11 is changing, nor `rail/telegram-card/**`, which Epic 12 is), the web unit and e2e tests, and the UX files
+- Dev note (known limit, the Planner 2026-11-01): text the server builds, such as a catalog line like "approve in the chat or on the Simulated phone", can still mention the simulated phone while the switch is off; that is accepted, because the switch is client-only by design. A client-side string of that kind may follow the demo view signal, within this story's footprint only.
+
+### Story 4.10: "Try it yourself" example prompts, one press each
+
+[ADDED 2026-11-01, owner decision relayed by the Contest Planner under delegation; the owner: "Yes to both questions." The Planner approved this block on 2026-11-01, with the chip set changed to abilities the guide does not show. In 1.0.0's scope; not launch-blocking. Runs after Story 4.9 on the same runner, and shows only in the demo view (4.9's signal).]
+
+As a judge who has finished the demo guide, or who opens an empty chat,
+I want a few example prompts I can send with one press,
+So that I try abilities the guide does not show, without having to think of what to ask.
+
+**Acceptance Criteria:**
+
+**Given** the demo view is on (Story 4.9's signal: the server's demo mode and the switch on)
+**When** the guide's finish state shows (after step 5), or the chat is empty
+**Then** a "Try it yourself" row of chips shows, in this order: "Which productions are running?" (`list_productions`), "Is anything wrong right now?" (`check_status`, whose answer stays code-built, AD-28), "What was that failure earlier?" (Story 5.13's `recent_activity`) and "What can you do?" (the exact wording is the UX spec's, under the public-text rules; the guide's own watch and reminder are not repeated); in the finish state the row follows the "More to try" line, and in the empty chat it follows the chat's last line (UX-DR47)
+**And** with the demo view off, or on an install without demo mode, no chip shows
+
+**Given** a chip
+**When** I press it
+**Then** its text is sent as my own chat turn through the normal chat path, exactly as if I had typed it: no "From the demo guide" tag, the same decision strip, reply and trace link as any turn, and it counts against the allowance as any turn does
+**And** nothing is sent without a press, and a press sends once
+
+**Given** a turn is in flight, or the allowance is used up
+**When** the chips render
+**Then** they are disabled, and the existing allowance line says why; they are native buttons, reachable by keyboard, and named by their text
+
+**Given** Story 5.13's `recent_activity` tool
+**When** this story starts
+**Then** if 5.13 has merged, the third chip ships with the others; if not, this story ships chips 1, 2 and 4, and the third chip is added by whichever of 4.10 and 5.13 lands second (the orchestrator routes it as a one-line follow-up in Epic 4 if 5.13 lands second, so 5.13's in-flight scope does not widen)
+
+**Given** the change
+**When** this story merges
+**Then** an e2e case per chip, on the CI mock, presses it and sees the turn go through the chat with a reply and its trace link; one more presses the third chip in a session with no incident yet, and its reply is `recent_activity`'s code-built "nothing yet" answer, with no all-clear (AD-28); each chip's exact text has a CI mock scenario (a new file under `ci/mock/scenarios/B/`, or 5.13's scenario for the third chip, whose prompt the chip's text must equal); no new evaluation cases
+**And** the UX spec's "Demo guide and controls" (the finish state and the empty chat) gains the row, with a marker citing the owner's decision of 2026-11-01
+**And** CI is green on every workflow, and the story touches only `web/src/app/**` within Story 4.9's footprint, new mock scenario files, the web unit and e2e tests, and the UX files; the guide's existing mock scenarios (`guide-*.json`, Epic 11's) are not edited
 
 ## Epic 5: OcuTalon watches a production and explains what broke
 
@@ -3000,6 +3105,42 @@ The second fixture is the reply the host recorded at 12:01:54Z, kind diagnose, C
 `{"outcome":"act","causeCategory":"data_format_change","elementAtFault":"OrderDate","evidence":["errorPattern: expected YYYY-MM-DD","sample headerId 3","body.OrderDate 10/31/2026","count 50 failed","trace PartnerOrdersIn"],"fixKind":"repair_resend","fixParameters":{"field":"OrderDate","sourceFormat":"MM/DD/YYYY","targetFormat":"YYYY-MM-DD"},"cause":"The partner now sends OrderDate as MM/DD/YYYY, but OrdersFromPartner expects YYYY-MM-DD, so each order is rejected.","fixSummary":"repair the OrderDate field from MM/DD/YYYY to YYYY-MM-DD and resend the 50 failed orders","itemNoun":{"one":"order","other":"orders"},"reasons":["All 50 failures show the same date error pattern.","The sample body holds OrderDate 10/31/2026 in MM/DD/YYYY, and the error names that value.","The item expects YYYY-MM-DD, so this is a format mismatch in one field.","The sample trace shows the message came in from PartnerOrdersIn with status Error."],"confidence":0.9}`
 
 Not in this story: one retry on an `invalid` reply before the fallback. It would add a model call inside NFR-7's diagnosis budget, so it is a measured follow-up for the bridge's owner (Epic 30), decided by the Contest Planner.
+
+### Story 5.13: Ask OcuTalon what happened earlier, and it tells you from its own records
+
+[ADDED 2026-10-31, launch-blocking, owner decision relayed by the Contest Planner; the owner: "Add it to 1.0.0" and, on going live, "Wait for the fix". Epic 5 is re-opened for it under SC-5. In the owner's walk-through of the online demo (10b38707), the visitor asked OcuTalon about the earlier failure and it couldn't recall it. The incident card is an IncidentManager notice, not a chat turn, so it never enters Chat's AI session; Chat's toolsets (Reminders, Watching) can't read past incidents; and `check_status` gives only the latest check, which reads "passed" after the fix. The online demo stays gated until this merges.]
+
+As a user who just watched an incident get fixed,
+I want to ask OcuTalon in the chat what happened earlier,
+So that it tells me what failed, what I approved and how the fix went.
+
+**Acceptance Criteria:**
+
+**Given** the chat agent's Watching toolset
+**When** this story merges
+**Then** it has one new read-only tool, `recent_activity`. It lives in its own class in `OcuTalon.Tools`, is declared `TrustedOutput` (built by code from OcuTalon's own records, AD-10 step 3), and is classified read-only, so calling it never taints the turn or starts a fresh session. Its description tells Chat to call it when the user asks about earlier failures, incidents, approvals or fixes, or about what happened (AD-10, AD-20)
+
+**Given** a session with incidents in the last 24 hours
+**When** Chat calls `recent_activity`
+**Then** it returns the session owner's own recent incidents, at most 5, newest first, each with code-built fields only:
+- the production and the item, the failed-message count, and the first and last failure times, in the instance's zone with its zone label (as the catalog's times are, DW-484's direction);
+- the element at fault, the cause category and the fix kind;
+- the approval's answer (approved, rejected or expired), with its channel and time;
+- the fix result's counts (resent, went through, failed), and the incident's state (open, awaiting approval, fixing, resolved or dismissed)
+
+**And** it never returns the model-written cause sentence or any message body or header text, so its output stays trusted (AD-10 step 3)
+**And** on the online demo it returns the session's own incidents only, never another visitor's (AD-4, AD-13)
+**And** with no incident in the last 24 hours it says so plainly, and makes no claim that everything is fine (AD-28)
+
+**Given** a resolved incident in the session (the demo path: Break the feed, the incident notice, Approve, the result)
+**When** the user then asks "What was that failure earlier?"
+**Then** the reply names the failed count, the element at fault, the approval and the fix result, and contains no all-clear; the AD-28 guard still applies to the reply (FR-1, AD-28)
+**And** a gate test checks that `recent_activity` is classified read-only and `TrustedOutput`, and a test checks that its output never holds the cause sentence or a message body
+
+**Given** the change
+**When** this story merges
+**Then** CI is green on every workflow, the evaluation set on the mock passes, and the story touches only the new tool class, the Watching toolset's tool list, the gate's tool classification entry, and their tests and mock scenarios
+- Optional, if it costs nothing extra: reminders fired today (trusted), in the same tool's output.
 
 ## Epic 6: Incidents and approvals you can answer from the page
 
@@ -3953,6 +4094,31 @@ So that I see the value before I install it.
 **And** Story 10.2's criterion "the top of the README" and its table line carry an [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner] marker that quotes what they read
 **And** screenshots, a flow diagram, the measured 0.1.0 line and a CI badge are later additions the Contest Planner supplies; none of them is part of this story
 
+### Story 10.5: The README shows the product and says how you talk to it
+
+[ADDED 2026-11-01, owner decision relayed by the Contest Planner under delegation; the owner: "Yes to both questions." Epic 10 is re-opened for it under SC-5. Docs only. In 1.0.0's scope; not launch-blocking. Dispatched only once Story 4.9 is deployed to the demo host and the Contest Planner has delivered the images.]
+
+As a judge reading the README,
+I want to see the product and know how I would talk to it on my own install,
+So that I understand what OcuTalon is before I install it.
+
+**Acceptance Criteria:**
+
+**Given** the README
+**When** this story merges
+**Then** it has a "How you talk to it" section, after "What you can use it for": the web chat page is the product on every install, and the demo adds only the demo guide, Break the feed, and the simulated phone and simulated mailbox; Telegram, to chat and approve from your phone, is in 1.0.0; email comes in a later release (step 4); a small table is fine; Slack is not named (FR-12, FR-18)
+**And** every claim matches what 1.0.0 ships: if Epic 12 (Telegram) has not merged when this story starts, the Telegram row is a clarification for the orchestrator, never a promise
+
+**Given** the images the Contest Planner hands over (vetted by the Contest Planner before delivery; drafts in `contest-49/readme-shots`; exactly these five: the page with an incident as the hero, the incident card, the resolved incident, a Visual Trace of the decision, and the page with Demo view off; the draft-vt-watch-* shots are not used)
+**When** this story adds them
+**Then** they are copied as delivered into `docs/images/`, never re-shot or edited; the hero sits under the README's opening paragraph and the others where the text describes them, each with alt text that says what it shows
+**And** before committing, every image is looked at: an IP address, a credential, a token, a session id, a cookie, a gate user name, a personal or account detail, or any host name other than the public demo's `demo.ocutalon.com` stops the story with a clarification, and that image is never committed (the repository is public)
+
+**Given** the change
+**When** this story merges
+**Then** `docker/tests/test-readme.sh` checks the new section's heading and that every image link resolves to a file in `docs/images/` with non-empty alt text; CI is green on every workflow; and the story touches only `README.md`, `docs/images/*` and `docker/tests/test-readme.sh`
+- Not in this story: the Mermaid diagram, the evaluation line and the CI badge, which stay for the 1.0.0 README pass.
+
 ## Epic 11: Release 1 ships: the demo path end to end, upgrade in place and a scripted release
 
 The whole web demo path (UJ-1 without Telegram) runs end to end on real components and in the REL-2 test; an in-place upgrade from the previous release keeps every conversation, reminder, approval request, watch and setting, and, once Telegram ships, every pairing; one scripted sequence cuts a release with its rehearsal, notes and the Contest Planner's hands-on pass; the release checklist covers naming, licence notices and public text.
@@ -4093,6 +4259,7 @@ So that I publish accurate plain-language notes and never ship a naming, licence
 **When** it is used for any release
 **Then** it states that posts, articles, the video and bonus claims are the author's actions, and confirms that no script or workflow posts anything or claims a bonus (REL-11)
 - DW-359: The README's clone command and the page's README_URL resolve only once the repository is public (github.com/jbrandtmse/OcuTalon answered 404 on 2026-10-28); the release checklist rechecks every README link and GitHub's heading slugs on the public page before the release (ledger; routed by merge_gate 2026-10-29)
+- DW-518: Chat's INSTRUCTIONS gain one line for `recent_activity` (Story 5.13: asked what happened earlier, call it and answer from its result), and `Agent/Chat.cls`'s class doc lists six watching tools; whether the real model calls it is confirmed by the Contest Planner's host check, never by a key in the pipeline (ledger; routed by merge_gate 2026-11-01)
 
 ### Story 11.5: One scripted sequence cuts a release
 
@@ -4555,6 +4722,7 @@ So that what I approve is exactly what ships, release after release.
 **Then** it regenerates the generated sections and stops the release if the drift test or the privilege test fails, so the overview is updated with every release (FR-61, REL-3)
 
 - DW-213: The generated security overview lists the service role's demo-mode-only Read on `%DB_OCUORDERS_DATA` (granted by the Demo step with demo mode on, removed with it off or kept; U-79), so it never overstates least privilege (ledger; routed by merge_gate 2026-10-27)
+- DW-521: The generated tool section lists `recent_activity` (Story 5.13, `OcuTalon.Tools.RecentActivity`) as read-only and trusted output, and the drift test pins it; the owner's delegate kept AD-22's as-built count of 12 on this condition (U-199) (ledger; routed by merge_gate 2026-11-01)
 
 ### Story 14.2: The security overview says what OcuTalon can do and what stops it
 
@@ -6878,6 +7046,8 @@ So that I never think a fix finished when it didn't, and nothing is resent behin
 - DW-419: A resend that errs partway counts the targets it never reached as Skipped, so its result reads 'had changed since the dry run', which is false; it must report them by how far the run got (AD-16 as amended for U-160) (ledger; routed by merge_gate 2026-10-30)
 - DW-469: U-180's condition: the {time} of a watch.productionStopped or watch.itemDisabled notice renders through the catalog's time format with the zone label, for both time sources; pin it with a test (ledger; routed by lead 2026-10-31)
 - DW-484: An agent-written reply time has no zone label: the chat's reminder reply reads 'Your reminder is set for 08:02 to stretch.' in the instance zone (ET on the demo), while the page shows the visitor's own time ('5:01 AM PDT', 'Due 5:02 AM'), so a visitor elsewhere sees three different clocks (ledger; routed by orchestrator 2026-10-31)
+- DW-519: `Tools.RecentActivity.WatchNames` copies the private `WatchAnswers.WatchNames`, and `RecentActivity.Shown` repeats the catalog's private ET time-slot rule; make both shared and call them from `RecentActivity`, so `recent_activity`'s display names and time labels never drift from the cards' (ledger; routed by burndown 2026-11-01)
+- DW-500 [PROMOTED 2026-11-01 into 1.0.0's scope, Contest Planner under the owner's delegation]: for the user's own message (the always-answered Tell-now override, AD-28), the decision strip never shows reasons that describe Triage's own tool limits (for example "I have no access to earlier items or failure logs…" under a correct `recent_activity` answer). Preferred: Triage's instructions make its reasons describe the request (for example "A question about earlier activity; the user is answered directly"), with an evaluation case that pins it on the mock; fallback, only if the decision payload already marks the override (no change to `api/api-types.ts` or `live/live-store.ts`): with the override, the strip shows only the override line and the reasons move into Decision details, pinned by a web unit test (ledger; routed by owner decision 2026-11-01)
 
 ### Story 30.6: The invalid-reply warning names what failed, never the reply
 
@@ -6949,6 +7119,7 @@ So that a tool call is answered the same way as a fix.
 **Then** `BridgeSink` sends `Notification`s of kinds `approval`, `answered` and `result` through `NoticesIn`, each carrying the request's `ApprovalRef` (and its `IncidentRef`, empty for a tool call), so the phone gets buttons and in-place edits for it too; for kind `fix`, `IncidentManager` sends them, its `answered` and `result` notifications carrying both `ApprovalRef` and `IncidentRef` (AD-31, AD-32)
 **And** until Story 30.3 merges, its tests call `BridgeSink.OnEvent` with fixture `approval.*` events of kind `tool_call`, and the replay's real `approval.result` turns on then [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner]
 - DW-497: flake: live:cards A7 (web/e2e/cards/approval-card.spec.ts:348, another session's request answers 404) timed out at sign-in waiting for the page's first GET of the state (web/e2e/support/floor.ts:141, loadedAfter) in CI; it passed on the unchanged rerun (ledger; routed by orchestrator 2026-10-31)
+- DW-530: Where the top bar's stacked header (Story 4.9's Demo view switch) would pass a quarter of the window's height (157px local, 180px online at 320px wide; the whole window at 400% zoom), it scrolls with the page instead of sticking (for example `position: static` below 480px wide), or the switch moves into a menu below 1024px, whichever is cheaper; floor G4's quarter-of-the-viewport rule then holds at every width. In 1.0.0 only at no date cost to Epic 31: if the plan finds it adds time, re-own it to the first daily release after 1.0.0 (ledger; routed by owner decision U-202, 2026-11-01)
 
 ### Story 31.3: The README leads to the demo, and the launched demo is measured
 

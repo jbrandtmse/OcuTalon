@@ -215,7 +215,7 @@ test('Q2: selecting steps changes the prompt and the bar under the step, and mar
   await expect(action('Show me'), 'with Show me').toBeVisible();
   await stepOf(page, 3, 'upcoming').click();
   await expect(prompt, 'step 3 shows its prompt').toHaveText(`"${P3}"`);
-  await expect(action('Go to Break the feed'), 'with Go to Break the feed').toBeVisible();
+  await expect(promptOf(page).getByRole('button'), 'with no button').toHaveCount(0);
   await stepOf(page, 1, 'current').click();
   await expect(prompt, 'back to step 1, in any order').toHaveText(`"${P1}"`);
   for (const n of [2, 3, 4, 5]) {
@@ -238,7 +238,7 @@ test('Q2: the markers, names and aria-current come from the guide view', async (
   await expect(guideRegion(page).locator('.step.done .marker svg'), 'a check for each done step').toHaveCount(2);
   await expect(guideRegion(page).locator('.step.selected'), 'the selection starts on the current step').toHaveAttribute('aria-label', stepName(3, 'current'));
   await expect(promptOf(page).locator('.prompt-text'), 'which shows its prompt').toHaveText(`"${P3}"`);
-  await expect(promptOf(page).getByRole('button', { name: 'Go to Break the feed', exact: true })).toBeVisible();
+  await expect(promptOf(page).getByRole('button'), 'and no button').toHaveCount(0);
 });
 
 /** Q3: Send posts the exact prompt with fromGuide, shows its caption, announces nothing, and a second press while the first is sending sends nothing. */

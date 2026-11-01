@@ -64,6 +64,17 @@
 # all on release/1.0.0-rc1, and gates the v1.0.0 tag. The policy's owner_fixed line 14 is amended at hold #9.
 # Changed 2026-10-31 (launch-text fix, at the Contest Planner's request): Story 16.11 re-opens Epic 16 under SC-5 (the splash
 # promises Telegram only when the release includes it). Lane B's Web/Public/Splash.cls and the catalog lines only; no edge changes.
+# Changed 2026-10-31T21:4xZ (launch-blocking, owner decision via the Contest Planner: "Add it to 1.0.0", "Wait for the fix"):
+# Story 5.13 re-opens Epic 5 under SC-5: a read-only, trusted `recent_activity` chat tool (Lane A's OcuTalon.Tools). 1.0.0 scope, so
+# no merge gate; it runs ahead of other pool work. No edge changes.
+# Changed 2026-11-01T05:2xZ (owner feedback from the demo walk-through, via the Contest Planner under delegation): Story 4.8
+# re-opens Epic 4 under SC-5: step 3 of the demo guide loses its "Go to Break the feed" button (web/src/app/guide/*, the guide's
+# tests, EXPERIENCE.md and the C2 mockup). 1.0.0 scope, no merge gate, not launch-blocking; first free runner. No edge changes.
+# Changed 2026-11-01 (owner request via the Contest Planner, block approved by the Planner): Story 4.9, a client-only Demo view
+# switch, joins Epic 4 after 4.8 on the same runner (web/src/app/**, the web tests, the UX files). 1.0.0 scope. No edge changes.
+# Changed 2026-11-01 (owner: "Yes to both questions", via the Contest Planner, blocks approved): Story 4.10 ("Try it yourself" chips)
+# joins Epic 4 after 4.9; Story 10.5 (README screenshots, "How you talk to it") re-opens Epic 10 under SC-5, docs only, held in
+# backlog until the Planner delivers the images and 4.9 is on the host. 1.0.0 scope. No edge changes.
 # Changed 2026-10-31, owner decisions relayed by the Contest Planner (the owner's personality decisions of 2026-10-31, inbox U-195;
 # the owner: "I want Heartbeat enhancements, persona and memory enhancements to be able to be on different lanes so they
 # can ship quickly."): three personality epics, 39 (agent heartbeat), 40 (persona) and 41 (memory that learns), join the
@@ -116,7 +127,7 @@
 #   - No whole-epic soft-serialization edge: every estimated overlap above footprint_overlap_threshold (0.20) is
 #     resolved by a story wait that puts the overlapping story after the other epic's merge (8 vs 4: 8.3, 8.4;
 #     31 vs 16: 31.1, 31.2; 14 vs 11: 14.1, 14.2).
-epics_md_hash: "ad0ac7ca7a882e04d7aaeaf4b8d2ed5bbc8cc4371f4595fa9a409a85d764d0ad"
+epics_md_hash: "e3a399b9e9807092a6c41d682a7ad7b0980975b3bd4448b8d880935ab5b4db8a"
 analyzed_by: "claude-opus-5-5 (orchestrator), from the Contest Planner's proposal"
 approved: true
 approved_at: "2026-10-26T15:19:25Z"
