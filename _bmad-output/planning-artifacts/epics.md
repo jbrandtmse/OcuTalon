@@ -4111,7 +4111,7 @@ So that a release takes me at most 15 minutes of hands-on time and never skips a
 
 **Given** every release cut with the scripted sequence, not only 1.0.0 [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0" and "New Linux droplet"]
 **When** the sequence runs
-**Then** it records in the candidate's record the author's hands-on time for that release (the time spent at its prompts), which is at most 15 minutes, not counting CI or the time spent on the hands-on pass, and its steps include the draft-notes generator from Story 11.4 (REL-3, REL-8)
+**Then** it records in the candidate's record the author's hands-on time for that release (the time spent at its prompts), which is at most 15 minutes, not counting CI or the time spent on the hands-on pass, and its steps include the draft-notes generator from Story 11.13 (REL-3, REL-8) [AMENDED 2026-11-01, after Story 11.4's split (unattended ruling, decide): it read "from Story 11.4"]
 
 **Given** a rehearsal candidate cut from the integration branch (its record marked as a rehearsal), a fixture pass record and the stand-in demo host
 **When** the author runs the sequence on it before the real 1.0.0 cut [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0" and "New Linux droplet"]
