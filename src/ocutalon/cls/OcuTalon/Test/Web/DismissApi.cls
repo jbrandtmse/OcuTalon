@@ -5,7 +5,7 @@
 /// with that reason, so that a broken stack can never give a green shard. Demo mode is on for the whole run (the guide reads it); it is
 /// put back, with onlineDemo, in OnAfterAllTests, which also removes the fixture rows, events and the sessions' messages. The commands
 /// that IncidentManager received are read from the bodies of the CommandsIn to IncidentManager headers of the session's trace
-/// (CommandList). Test.Demo.IncidentManagerDouble is put behind the item only inside TestOwnerErrorIs500, for the two answers the real
+/// (CommandList). Test.Demo.IncidentManagerDouble is put behind the item only inside TestOwnerErrorIs500, for the answers the real
 /// item never gives.
 ///   - TestOwnIncidentCloses: an own open (rejected) noticed incident, with a done request and its ended FixRun, answers 200
 ///     {"result":"done"}; its row is closed; one IncidentCommand dismiss (the ref, the session, origin web_user) reached IncidentManager,
@@ -75,7 +75,8 @@ Method OnBeforeOneTest() As %Status
 Method OnAfterAllTests() As %Status
 {
 	// The real item is back even when TestOwnerErrorIs500 died between Use and its own Restore (Restore does nothing when nothing was saved).
-	Do ##class(OcuTalon.Test.Demo.IncidentManagerDouble).Restore()
+	Set sc = ##class(OcuTalon.Test.Demo.IncidentManagerDouble).Restore()
+	If $SYSTEM.Status.IsError(sc) Write !, "The IncidentManager item was not restored: ", $SYSTEM.Status.GetErrorText(sc), !
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", ..SavedOnline)
 	Do ##class(OcuTalon.Test.Demo.Step).PutBack(..SavedModeFound, ..SavedModeValue, ..SavedModeUpdatedAt)
 	Do ##class(OcuTalon.Test.Data.Fixture).RemoveMessages(..Traces, "OCUTALON")
@@ -206,8 +207,9 @@ Method TestRealItemAppliesAD15DismissRows()
 	}
 }
 
-/// The two answers the real item never gives, from the double behind the item: an error status is 500 server_error and the row stays, and a
-/// refusal with no Message is 409 not_dismissible with MESSAGENOTDISMISSIBLE. The real item is put back in the test, also after a failure.
+/// The answers the real item never gives, from the double behind the item: an error status is 500 server_error and the row stays, a
+/// refusal with no Message is 409 not_dismissible with MESSAGENOTDISMISSIBLE, and a refusal of another outcome than not_allowed is 409
+/// not_dismissible with the Message it carries. The real item is put back in the test, also after a failure.
 Method TestOwnerErrorIs500()
 {
 	If '..Guard() Quit
@@ -366,7 +368,7 @@ Method StateOf(ref As %String) As %String [ Private ]
 Method CommandList(trace As %String) As %DynamicArray [ Private ]
 {
 	Set list = []
-	Set headers = ##class(OcuTalon.Test.Data.Fixture).Between(##class(OcuTalon.Test.Data.Fixture).Headers(trace), 1, "CommandsIn", "IncidentManager")
+	Set headers = ..IncidentManagerHeaders(trace)
 	For i = 0:1:headers.%Size() - 1 {
 		Set body = ##class(OcuTalon.Msg.IncidentCommand).%OpenId(headers.%Get(i).bodyId)
 		If $IsObject(body) Do list.%Push({"verb": (body.Verb), "incident": (body.IncidentRef), "session": (body.SessionRef), "origin": (body.Origin)})
@@ -409,7 +411,13 @@ Method IncidentEvents(session As %String) As %Integer [ Private ]
 /// The number of requests from CommandsIn to IncidentManager whose SuperSession is the trace.
 Method CommandsInHeaders(trace As %String) As %Integer [ Private ]
 {
-	Quit ##class(OcuTalon.Test.Data.Fixture).Between(##class(OcuTalon.Test.Data.Fixture).Headers(trace), 1, "CommandsIn", "IncidentManager").%Size()
+	Quit ..IncidentManagerHeaders(trace).%Size()
+}
+
+/// The requests from CommandsIn to IncidentManager whose SuperSession is the trace, oldest first (Fixture.Between).
+Method IncidentManagerHeaders(trace As %String) As %DynamicArray [ Private ]
+{
+	Quit ##class(OcuTalon.Test.Data.Fixture).Between(##class(OcuTalon.Test.Data.Fixture).Headers(trace), 1, "CommandsIn", "IncidentManager")
 }
 
 /// The number of Turn rows of the session.

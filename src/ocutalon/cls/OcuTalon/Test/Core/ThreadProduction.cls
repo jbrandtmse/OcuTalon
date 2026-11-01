@@ -12,8 +12,8 @@
 ///     of their Item headers (the second after the first, and both what Core.Trace.Position says afterwards);
 ///   - TestNewThreadAfterMidnight: with the Session row's day set to yesterday, the next message starts a new thread, its own Item's id, which the
 ///     row then holds with today, and everything of that turn is in it;
-///   - TestBrokenRetryThroughTheProduction (DW-112; AD-8): the marker scenario thread-broken-retry, armed through Mock.Arm, answers the turn's first
-///     Chat request with the 400 "Invalid input" and then the retried turn with its text. The turn is retried through the running production as a
+///   - TestBrokenRetryThroughTheProduction (DW-112; AD-8): the marker scenario thread-broken-retry, armed through Mock.Arm, answers the turn's
+///     triage request and its first Chat request with the 400 "Invalid input" and then the retried turn with its text. The turn is retried through the running production as a
 ///     new Decide call under RetryItemId of the turn's ItemId, in the day's thread, and gets the scenario's text; the mock's log holds the 400 and
 ///     the retry's request.
 /// Both thread tests also check that every session id among the headers of the run is the ID of a header whose SessionId is itself.
@@ -206,7 +206,7 @@ Method TestNewThreadAfterMidnight()
 }
 
 /// DW-112 through the running production: the marker scenario thread-broken-retry (A/thread-broken-retry.json), armed for ARMED requests, answers
-/// the turn's first Chat request with the 400 "Invalid input", which breaks the turn's session; Conversation then asks again as a new Decide call under
+/// the turn's triage request and its first Chat request with the 400 "Invalid input", which breaks the turn's session; Conversation then asks again as a new Decide call under
 /// RetryItemId of the turn's ItemId, in the day's thread with the TraceRef as SuperSession (a request under the turn's own ItemId would be refused,
 /// as Decide refuses it), and the retried turn gets the scenario's second reply. The turn is done with that text and keeps its own ItemId, the
 /// broken attempt keeps its fallback row, and the mock's log holds the 400 and the retry's request.

@@ -22,15 +22,18 @@
 ///     publishes no notification event.
 /// The guard, the fixture sessions, the run's number (^OcuTalonTest("RoutingProduction","n")) and the clean-up are those of
 /// Test.Core.InProduction; the clean-up also removes the Delivery rows of the fixture sessions, the decide rows that the tests
-/// adopt and the digest rows of the fixture prefix (Test.Digest.Store.Clean).
+/// adopt and the digest rows of the fixture prefix (Test.Digest.Store.Clean); a digest row of the prefix that is left after it fails the class.
 Class OcuTalon.Test.Core.RoutingProduction Extends OcuTalon.Test.Core.InProduction
 {
 
-/// The base's clean-up, then the digest rows that the digest cases left (the fixture prefix of Test.Digest.Store).
+/// The base's clean-up, then the digest rows that the digest cases left (the fixture prefix of Test.Digest.Store); a row of the prefix that is
+/// still there fails the class.
 Method OnAfterAllTests() As %Status
 {
 	Set sc = ##super()
 	Do ##class(OcuTalon.Test.Digest.Store).Clean()
+	Set left = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Digest_Data.Item WHERE ItemId %STARTSWITH ?", ##class(OcuTalon.Test.Digest.Store).#PREFIX)
+	If 'left.%Next() || (+left.%GetData(1) > 0) Set sc = $SYSTEM.Status.AppendStatus(sc, $SYSTEM.Status.Error(5001, "Digest rows of the fixture prefix are left after the clean-up"))
 	Quit sc
 }
 

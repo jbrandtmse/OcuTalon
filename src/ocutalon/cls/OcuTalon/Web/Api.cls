@@ -557,8 +557,9 @@ ClassMethod AnswerResponse(ref As %String, kind As %String, sessionRef As %Strin
 ///   - Commands.Submit of an OcuTalon.Msg.Command.Dismiss (the incident's Ref, the session's Ref) with origin web_user, which reaches
 ///     IncidentManager through CommandsIn, synchronously; an error status is 500 server_error;
 ///   - the answer: Ok is 200 {"result":"done"}; not_built is 501 not_built; not_found is 404; failed and unknown_command are 500 server_error;
-///     not_allowed, the owner's refusal, and any other outcome are 409 not_dismissible with MESSAGENOTDISMISSIBLE (the owner's Message is developer
-///     text, and the words a user sees are the channel's), unless the other outcome carries a Message of its own.
+///     not_allowed, the owner's refusal, is 409 not_dismissible with MESSAGENOTDISMISSIBLE (the owner's Message is developer text, and the
+///     words a user sees are the channel's). Any other outcome, which the real IncidentManager never gives to a dismissal, is 409
+///     not_dismissible with its own Message, or MESSAGENOTDISMISSIBLE when it has none.
 ClassMethod DismissIncident(ref As %String) As %Status
 {
 	Set sessionRef = ##class(OcuTalon.Data.Ownership).SessionRef(.sc)

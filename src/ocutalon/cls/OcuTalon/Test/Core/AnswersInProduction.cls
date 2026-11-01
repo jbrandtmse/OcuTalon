@@ -27,10 +27,11 @@
 ///     turn.step to the session's stream, and an unclassified call's pending approval event and, once the answer endpoint rejects it,
 ///     its rejected event reach the stream, through BridgeSink;
 ///   - TestHeldCallExpiresOnTheStream, TestHeldCallCancelledOnTheStream (Story 2.8): a request that the real gate raised for a held
-///     call. Expired: its hold is deleted, the row is aged past its expiry and the Reconcile step re-arms a hold whose timer expires it
-///     (as Test.Bridge.Approval.TestTimerExpires does); the stream gets an expired approval event and the answer endpoint answers 409
-///     expired. Cancelled by Approval.Cancel with the arguments of SessionOps.EndApprovals: the stream gets a cancelled event and the
-///     endpoint answers 404 as for an unknown ref. TestExpiredRequestAnswersExpired also sees the expired event of an answer past the
+///     call. Expired: its hold is deleted, the row is aged past its expiry and the approvals area's Reconcile (OcuTalon.Install.Step.Approvals,
+///     which the Reconcile step calls) re-arms a hold whose timer expires it, as in Test.Bridge.Approval.TestTimerExpires; only that area
+///     reconciles, because Conversation's would run again the fixture turns that HeldCall leaves running; the stream gets an expired
+///     approval event and the answer endpoint answers 409 expired. Cancelled by Approval.Cancel with the arguments of
+///     SessionOps.EndApprovals: the stream gets a cancelled event and the endpoint answers 404 as for an unknown ref. TestExpiredRequestAnswersExpired also sees the expired event of an answer past the
 ///     expiry.
 Class OcuTalon.Test.Core.AnswersInProduction Extends OcuTalon.Test.Core.InProduction
 {
@@ -339,7 +340,7 @@ Method TestHeldCallExpiresOnTheStream()
 	If hold = "" Quit
 	Do ##class(OcuTalon.Test.Bridge.Approval).Age(ref, 86460, -60)
 	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Process.ApprovalHold).%DeleteId(hold), "its hold is deleted, as a restart leaves a request without one")
-	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Reconcile).Run(), "the Reconcile step re-arms a hold, whose timer finds the request past its expiry")
+	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Approvals).Reconcile(), "the approvals area's Reconcile re-arms a hold, whose timer finds the request past its expiry")
 	Set events = ##class(OcuTalon.Test.Core.Observe).Events(session, "approval", 2, ..#EVENTSECONDS)
 	Do $$$AssertEquals(events.%Size(), 2, "a second approval event reaches the stream")
 	If events.%Size() > 1 Do $$$AssertEquals(events.%Get(1).payload.ref_"|"_events.%Get(1).payload.state, ref_"|expired", "and it is the expired request")

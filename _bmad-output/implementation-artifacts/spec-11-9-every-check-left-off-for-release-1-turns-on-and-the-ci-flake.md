@@ -296,6 +296,42 @@ deferred: []
 - **AC10 (DW-396).** Given a held `warm-iris.lock` and a first lock try that takes 1.2 s, when `ci/warm.sh up` runs, then it prints `LOCK waiting` before `LOCK busy` and exits 75 (`test-ci-warm.sh`).
 - **AC11 (DW-415; integration: consumers `fillSignIn`, `openTrace`, the online splash and trace helpers).** Given the matrix's goto rows, when `gotoSettled` navigates, then each row holds (`goto-settled.test.mjs`), and every shared sign-in navigation goes through it (`live:sign-in` part 1 passes).
 
+### Review Findings
+
+Code review, 2026-11-01 UTC (four layers on the full tier: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor; 33 rows, 8 entries after grouping; high 0, medium 1, low 7; every entry patched; nothing deferred or ledgered).
+
+- [x] [Review][Patch] (medium; fix-risk low: a test-side call to the approvals area's own public Reconcile declaration; footprint in-story; Rule 19 hermeticity) `TestHeldCallExpiresOnTheStream` ran the whole Reconcile step, whose Web area sweeps every `queued` or `running` Turn of the namespace (`Conversation.Sweep`). `HeldCall` leaves its fixture turn `running`, so the sweep ran this class's fixture turns again (and any other class's leftovers) through the real Conversation and Decide, leaving rows the clean-up does not name. It now calls `OcuTalon.Install.Step.Approvals.Reconcile()` (`Bridge.Approval.Reconcile`, the declaration that the Reconcile step calls for this area), which re-arms the hold as AC2 requires. Decided in-stage: the Task named `Install.Step.Reconcile.Run()`, and its intent (the re-armed hold's timer expires the row) is unchanged. [src/ocutalon/cls/OcuTalon/Test/Core/AnswersInProduction.cls:343]
+- [x] [Review][Patch] (low; fix-risk low; in-story) `DismissApi.OnAfterAllTests` discarded the status of the backstop `IncidentManagerDouble.Restore()`, so a failed restore left later classes on the double without a word. It writes the error again, as before this story. [src/ocutalon/cls/OcuTalon/Test/Web/DismissApi.cls:78]
+- [x] [Review][Patch] (low; fix-risk low; in-story) The `DismissApi` class doc and `TestOwnerErrorIs500`'s doc said "the two answers the real item never gives", but the test now holds three. Both docs name the three. [src/ocutalon/cls/OcuTalon/Test/Web/DismissApi.cls:8,209]
+- [x] [Review][Patch] (low; fix-risk low; in-story; Rule 2) `CommandList` repeated `CommandsInHeaders`' header query instead of extending it. Both now read the private `IncidentManagerHeaders(trace)`. [src/ocutalon/cls/OcuTalon/Test/Web/DismissApi.cls:369,410]
+- [x] [Review][Patch] (low; fix-risk low; in-story) The ThreadProduction docs said `thread-broken-retry` answers only the turn's first Chat request with the 400. As `ARMED = 2` and Task 0 (b) record, the triage request gets it too, and the docs now say so. That the triage also breaks is the spec's own choice (Task 0 (b)). [src/ocutalon/cls/OcuTalon/Test/Core/ThreadProduction.cls:15,208]
+- [x] [Review][Patch] (low; fix-risk low; in-story) `DismissIncident`'s doc gave the developer-text rationale for every outcome, then excepted any outcome with a Message, which contradicted itself. It now says `not_allowed` is MESSAGENOTDISMISSIBLE, and that any other outcome, which the real IncidentManager never gives to a dismissal (`Watch/IncidentManager.Command` answers unknown_command, not_found, failed, not_allowed or closed), carries its own Message. The branch itself is unchanged, as the spec's Task orders, and is closed `wontfix-theoretical`: it would become real if a CommandsIn owner answered a dismissal with another outcome that carries developer text. [src/ocutalon/cls/OcuTalon/Web/Api.cls:559]
+- [x] [Review][Patch] (low; fix-risk low; in-story; Rule 19) No assertion pinned AC1's third bullet, "the class leaves no digest row behind". `RoutingProduction.OnAfterAllTests` now fails the class when a `Digest.Data.Item` row of the fixture prefix is still there after `Test.Digest.Store.Clean()`. The mutation is recorded under Verification. [src/ocutalon/cls/OcuTalon/Test/Core/RoutingProduction.cls:30]
+- [x] [Review][Patch] (low; fix-risk low; bookkeeping) `sprint-status.yaml`'s `last_updated` had gone backwards (10-31 01:21 for a write at 2026-11-01T01:21Z). The review's `sprint_plan.py generate` sync rewrites it. [_bmad-output/implementation-artifacts/sprint-status.yaml:163]
+
+Verified after the patches: on slot A, the five changed classes compile. On warm stack `e11s9cw` (lane A), `AnswersInProduction`, `DismissApi` and `RoutingProduction` pass. `test-class-rules` and `test-boundaries` pass. The stack is torn down, and lane-a holds no lock.
+
+**Rejected** (21 of the 33 rows; the other 12 are the eight entries above):
+- `false` The spec's `status: 'done'` disagrees with sprint-status `review` (blind, edge, acceptance): the frontmatter is bmad-build-auto's machine state, and the review's verdict goes to sprint-status.
+- `false` `TestHeldCallCancelledOnTheStream` cancels before the hold exists (edge): `Approval.Cancel` moves the row under its lock and polls up to TASKSECONDS for the hold's task. The verification-gap layer checked this and filed it as not a finding (two rows).
+- `false` `Payloads.Run`'s assertion cannot fail when `FixRun` throws (edge): a throw errors the test, which is a loud failure.
+- `false` The slow-date shim's `/bin/date` is missing on some hosts (edge): `/bin/date` exists on macOS and, with merged `/usr`, on the Ubuntu runners.
+- `false` C10's "submits nothing" has no mutation line (verification-gap): Verification already records the route-level pin (the review-stage mutation without the visibility check, against `TestOtherSessionsIncidentIs404` and `TestBodyIsIgnored`).
+- `low` The cycle log's `hold_complete` names `2da3f0ba` twice (blind): this is the lead's record, and this stage writes no cycle-log entry. It is passed to the lead.
+- `low` The previous Review paragraph counts a row that changed nothing as a patch (blind): fixing it would edit the spec's own historical record.
+- `low` AC9's wake has no assertion (blind, verification-gap): `by-design`. AC9 names Task 0 (a)'s six latencies as the reproduction, and the previous review adjudicated this. A latency bound on the real Task Manager would add a timing assertion to a flake fix. Removing the wake costs at most 60 s and no flake, because the 90 s ceiling is polled.
+- `low` C1 seeds a `done` row while the first payload says `executing` (blind): `by-design`. Task 0 (c) and the C1 task name the `done` row, and the page draws from the published payloads.
+- `low` The Message branch pins developer text reaching the user (blind, acceptance; the code part of the doc entry above, the same two rows): the branch is spec-bound ("the branch for any other outcome is unchanged"), and the real item never reaches it. Its doc is patched above.
+- `low` `WaitLiveHold` and the heartbeat's `took` do not handle the `$ZHorolog` midnight wrap (edge, two rows): the wait follows the waits of its siblings (`Test.Bridge.Approval`, `Test.Schedule.Heartbeat`). A hang needs a run that crosses midnight and a hold that never appears. The fix adds a guard.
+- `low` `Fixture.FixRun` with an empty incident (edge): every caller passes a seeded incident, and the fix adds a guard.
+- `low` `RemoveRetries` ignores a failed `Ownership.Turns` (edge): a failed read fails loudly or leaves an empty list in a class that has just run the turns. Unlikely, and the fix adds a branch.
+- `low` The broken-retry log count does not filter on the label (edge): the class runs alone under the lane lock, and nothing else sends this scenario after the mark.
+- `low` AC3's steps are asserted for the turn decision only (acceptance): `by-design`. The Task names `StepProblems` per turn, and every SuperSession header is asserted in T.
+- `low` `TestOwnOpenIncidentCloses` was renamed `TestOwnIncidentCloses` (acceptance): nothing refers to the old name, and the Verification lines use the new one.
+- `low` The slow-date marker is in the script's work folder, not the case's (acceptance): it is removed before the case, and the behaviour is the same.
+- `low` The DW-415 source pin matches text (verification-gap): the previous review adjudicated it, and `live:sign-in` part 1 ran through the wrapper.
+- Grouped into the entries above: the restore status (blind and edge, two rows), last_updated (blind, edge and acceptance, three rows), the Message-branch doc (blind and acceptance, two rows), the triage 400 doc (blind) and the AC1 clean-up (verification-gap).
+
 ## Spec Change Log
 
 ## Review Triage Log
@@ -515,6 +551,7 @@ deferred: []
   - mutation (QA, AC10): the slow-first-try case with `OCUTALON_LOCK_WAIT=1` -> `test-ci-warm.sh` red twice (no `LOCK waiting`, slow date ran); reverted, `test-ci-warm` all checks passed.
   - mutation (QA, AC11): `gotoSettled` throws the first error -> `goto-settled.test.mjs` retry row and twice row red; `fillSignIn` back to `page.goto` -> the source pin red; reverted, 11 of 11 green; `npm --prefix web test` 1153 pass.
   - QA also ran: `Digest.Store`, `DismissApi` (warm, green), `live:answers` 20 passed, `live:online-demo` 50 passed. The warm stack and throwaways are torn down; lane-a holds no lock.
+- mutation (code review, AC1 third bullet): `RoutingProduction.OnAfterAllTests` without `Test.Digest.Store.Clean()` (warm `e11s9cw`) -> the class red with "Digest rows of the fixture prefix are left after the clean-up"; reverted (tree byte-identical), green.
 - Runs: the six loop classes and `Intake`, `ConversationTurns`, `Live.Payloads`, `BreakFeedProduction`, `Bridge.Fallback`, `Web.Api` pass warm; the six loop classes pass on a fresh stack; `live:answers` 20 passed; `live:online-demo` passed; `live:sign-in` part 1/2 passed with no `NAV retry` line; `test-mock`, `test-ci-warm`, `test-online-host`, `test-boundaries`, `test-class-rules` and `npm test` pass.
 
 ## Auto Run Result
