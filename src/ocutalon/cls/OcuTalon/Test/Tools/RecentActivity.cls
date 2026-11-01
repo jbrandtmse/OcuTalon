@@ -1,16 +1,19 @@
 /// Tests of the Chat agent's recent_activity tool (Story 5.13; AD-4, AD-10, AD-13, AD-28): OcuTalon.Tools.RecentActivity answers what happened earlier in the
-/// session's incidents from OcuTalon's own records, with trusted output only. TestClassification and TestDescription need no production; THE OTHER TESTS RUN IN
-/// THROWAWAY STACKS AND IN CI ONLY (Rule 21), through Test.Watch.Case. They call the tool method in this process with a bridge context begun for the turn, and
-/// each makes its own sessions, Incident, FailureGroup, ApprovalRequest and FixRun rows, which Case removes.
+/// session's incidents from OcuTalon's own records, with trusted output only. TestClassification, TestDescription and TestUnreadable need no production; THE
+/// OTHER TESTS RUN IN THROWAWAY STACKS AND IN CI ONLY (Rule 21), through Test.Watch.Case. They call the tool method in this process with a bridge context begun
+/// for the turn, and each makes its own sessions, Incident, FailureGroup, ApprovalRequest and FixRun rows, which Case removes.
 ///   - TestDemoPath ("Demo path, resolved"): the whole answer for the records of the demo, on a local install and on the online demo (" ET" after each time);
 ///   - TestPoisoned ("Poisoned free text"): the cause, fix summary, sample error, error pattern, error summary, run reason, dry run, tool arguments and answerer
 ///     hold ZZPOISON sentences, and the answer holds none of it and has exactly the pinned keys;
 ///   - TestElement ("Element not verified"): the element is kept only when it equals a group's item name or a request's fix field; a cause category, fix kind and
-///     channel outside their fixed lists are empty;
+///     channel outside their fixed lists are empty; TestElementApprovedOnly (review): only an approved request's fix field confirms it;
 ///   - TestApprovalStates ("Approval states") and TestNoRun ("No run, or a run still going") and TestClosed ("Closed");
 ///   - TestWindow ("Window and order"), TestNothing ("Nothing in 24 hours"), TestAnotherSession ("Another session"), TestNoSession ("No session") and
-///     TestUnreadable ("Unreadable");
-///   - TestClassification (AC1): the gate classifies the tool safe, read-only and trusted output by code, and the Watching toolset offers it once from its class;
+///     TestUnreadable and TestUnreadableRuns ("Unreadable": the code, and both failing reads at run time through Test.Tools.RecentActivityUnread);
+///   - TestProductionName, TestGroupsAndFixKind and TestWindowEdge (QA): the display name or the row's Production, the first group's item and the first known fix
+///     kind, and the 24-hour window just inside and just outside;
+///   - TestClassification (AC1): the gate classifies the tool safe, read-only and trusted output by code, the Watching toolset offers it once from its class, and
+///     Eval.Report scores it read-only;
 ///   - TestDescription (AC1): the description names earlier failures, incidents, approvals, fixes and what happened.
 /// Demo is the one set-up of the demo path's rows, shared with Test.Tools.RecentActivityTurn.
 Class OcuTalon.Test.Tools.RecentActivity Extends OcuTalon.Test.Watch.Case
@@ -213,6 +216,25 @@ Method TestElement()
 	Do $$$AssertTrue(answer.%ToJSON() '[ "holds another format", "nor the sentence")
 }
 
+/// Element of an approved fix only (review, Story 5.13; the spine's Tool classification clause): an element that equals the fix field of a request that is not
+/// approved (rejected, pending, expired, cancelled) is "", and one that equals the field of an approved request (failed included) is kept.
+Method TestElementApprovedOnly()
+{
+	If '..Ready() Quit
+	Do ..SetOnlineDemo(0)
+	Set session = ..Session("approvedonly")
+	Set states = $ListBuild("failed", "rejected", "pending", "expired", "cancelled")
+	For n = 1:1:5 {
+		Do ..Ask(session, ..Plain(session, n * 60, {"Element": "OrderDate"}), $List(states, n), 30)
+	}
+	Set elements = ""
+	Set iterator = ..Call(session).incidents.%GetIterator()
+	While iterator.%GetNext(, .incident) {
+		Set elements = elements _ $Select(elements = "": "", 1: ",") _ incident.element
+	}
+	Do $$$AssertEquals(elements, "OrderDate,,,,", "only the approved request's fix field confirms the element, newest first: failed, rejected, pending, expired, cancelled")
+}
+
 /// Approval states: pending is waiting; approved, executing, done and failed are approved; rejected, expired and cancelled stay; expired shows ExpiresAt; a channel
 /// outside Msg.Enum CHANNEL is "".
 Method TestApprovalStates()
@@ -287,6 +309,55 @@ Method TestClosed()
 	Do $$$AssertEquals(answer.incidents.%Get(0).state, "closed", "with the state closed")
 }
 
+/// Production (QA, Story 5.13): the production is the display name of the session's own watch of it ("Orders"), and the row's own Production when the session
+/// has no watch of it.
+Method TestProductionName()
+{
+	If '..Ready() Quit
+	Do ..SetOnlineDemo(0)
+	Set watching = ..Session("named")
+	Do ..Watch(watching)
+	Do ..Plain(watching, 60, {"Count": 11})
+	Set plain = ..Session("unnamed")
+	Do ..Plain(plain, 60, {"Count": 12})
+	Do $$$AssertEquals(..Call(watching).incidents.%Get(0).production, "Orders", "a session that watches the production sees the display name of its watch")
+	Do $$$AssertEquals(..Call(plain).incidents.%Get(0).production, ##class(OcuTalon.Install.Step.Demo).#PRODUCTION, "a session with no watch sees the row's own Production")
+}
+
+/// Groups and fix kind (QA, Story 5.13): the item is the first group's ItemName (Seq 1); an element that equals a later group's ItemName is kept; the fix kind
+/// is the first request's kind that is a known one, so a request with a kind outside the fix kinds does not hide the next one's.
+Method TestGroupsAndFixKind()
+{
+	If '..Ready() Quit
+	Do ..SetOnlineDemo(0)
+	Set session = ..Session("groups")
+	Set incident = ..Plain(session, 60, {"Element": "SecondItem"}, "FirstItem")
+	Set group = ##class(OcuTalon.Data.FailureGroup).%New()
+	Set group.IncidentRef = incident
+	Set group.Seq = 2
+	Set group.ItemName = "SecondItem"
+	Do $$$AssertStatusOK(group.%Save(), "a second fixture group is saved")
+	Do ..Ask(session, incident, "failed", 300, {"FixKind": "ZZPOISONkind"})
+	Do ..Ask(session, incident, "done", 200, {"FixKind": ""})
+	Do ..Ask(session, incident, "done", 100)
+	Set one = ..Call(session).incidents.%Get(0)
+	Do $$$AssertEquals(one.item, "FirstItem", "the item is the first group's ItemName")
+	Do $$$AssertEquals(one.element, "SecondItem", "an element that equals a later group's ItemName is kept")
+	Do $$$AssertEquals(one.fixKind, "repair_resend", "the fix kind is the first known one, past a request with an unknown kind and one with none")
+	Do $$$AssertEquals(one.approvals.%Size(), 3, "and all three requests are listed")
+}
+
+/// Window edge (QA, Story 5.13): an incident last active 23 hours 50 minutes ago is in the window; one last active 24 hours 10 minutes ago is out.
+Method TestWindowEdge()
+{
+	If '..Ready() Quit
+	Do ..SetOnlineDemo(0)
+	Set session = ..Session("edge")
+	Do ..Plain(session, 86400 - 600, {"Count": 23})
+	Do ..Plain(session, 86400 + 600, {"Count": 24})
+	Do $$$AssertEquals(..Counts(..Call(session)), "23", "the incident of 23 hours 50 minutes ago is listed, the one of 24 hours 10 minutes ago is not")
+}
+
 /// Window and order: of seven incidents, six active within 24 hours and one last active 25 hours ago, the five newest by NoticedAt come and the old one never. With
 /// fewer in the window the old one is still left out, and an incident noticed earlier but last active (or closed) within the window is in, in NoticedAt order.
 Method TestWindow()
@@ -320,7 +391,8 @@ Method TestNothing()
 	Do ..SetOnlineDemo(0)
 	Set expected = {"ok": true, "hours": 24, "incidents": [], "message": ($Parameter(..#TOOL, "NONE"))}
 	Set old = ..Session("old")
-	Do ..Plain(old, 25 * 3600, {"State": "resolved"})
+	#; Closed 25 hours ago, so that the Checks quiet sweep (closeQuiet, which would set ClosedAt to now) cannot move it into the window during the test.
+	Do ..Plain(old, 25 * 3600, {"State": "closed", "ClosedAt": (##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), -(25 * 3600)))})
 	Do ..AssertObject(..Call(old), expected, "an incident last active 25 hours ago")
 	Set empty = ..Session("empty")
 	Do ..AssertObject(..Call(empty), expected, "no incident")
@@ -435,6 +507,7 @@ Method TestClassification()
 	}
 	Do $$$AssertEquals(offered, 1, "and the Watching toolset offers it once")
 	Do $$$AssertEquals($Parameter("OcuTalon.Tools.Names", "RECENTACTIVITY"), "recent_activity", "under the name of Tools.Names")
+	Do $$$AssertEquals(##class(OcuTalon.Eval.Report).ReadOnly("recent_activity"), 1, "and the eval report scores it read-only (Eval.Report TOOLCLASSES, DW-517)")
 }
 
 /// AC1: the description of the tool for the model names earlier failures, incidents, approvals, fixes and what happened, and says an empty list plainly.

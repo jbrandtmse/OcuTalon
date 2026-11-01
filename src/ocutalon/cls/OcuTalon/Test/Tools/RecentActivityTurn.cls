@@ -17,7 +17,7 @@ Parameter MARKER = "recent-activity";
 
 Parameter ASK = "What was that failure earlier? [[mock:recent-activity]]";
 
-/// The first two sentences of the scenario's last reply; the third is the all-clear that the guard removes.
+/// The first two sentences of the scenario's last reply; the third, "Everything is fine now.", is the all-clear, of which the guard removes the phrase and keeps " now.".
 Parameter KEPT = "Earlier, 50 orders failed on the OrdersFromPartner item because of OrderDate. You approved the fix on the web, and all 50 went through.";
 
 /// The longest to wait for a turn through the mock, in seconds.
@@ -53,7 +53,8 @@ Method TestEarlierFailureInTheChat()
 	}
 	Set ..ItemIds = ..ItemIds_$ListBuild(row.ItemId)
 	Do $$$AssertEquals(row.State_"|"_row.FallbackReason_"|"_row.ReplyCatalogKey_"|"_row.Tainted, "done|||0", "the Turn is done, with no fallback, and untainted")
-	Do $$$AssertEquals($Extract(row.ReplyText, 1, $Length(..#KEPT)), ..#KEPT, "the reply keeps the sentences about the incident")
+	#; The guard deletes only the phrase "Everything is fine" (no punctuation follows it directly) and folds the spaces, so the rest of the reply is kept as it is.
+	Do $$$AssertEquals(row.ReplyText, ..#KEPT_" now.", "the reply keeps the sentences about the incident, and only the all-clear is removed")
 	Do ..AssertNoAllClear(row.ReplyText)
 	Do ..AssertToolStep(row)
 	Do ..AssertToolResult(mark)

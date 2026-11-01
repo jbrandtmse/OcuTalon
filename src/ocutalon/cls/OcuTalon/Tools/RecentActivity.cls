@@ -44,15 +44,20 @@ Parameter READMAX = 100;
 /// The kind of a watch row of a production (the Kind of its BackgroundCheck).
 Parameter KIND = "production";
 
+/// The request states of an approved fix, comma-separated: the states whose answer is approved. Only their fix field can confirm the element at fault.
+Parameter APPROVED = "approved,executing,done,failed";
+
 /// Tells what happened earlier in this conversation: the user's recent incidents (the last 24 hours, at most 5, newest first), each with its approvals and the
 /// result of its fix. Call it when the user asks about earlier failures, incidents, approvals, fixes or what happened, for example "what was that failure
 /// earlier?" or "did the fix work?". The answer is ok with hours (the window) and incidents. An incident has production: the name to say; item: the production
 /// item that failed; count: how many failures; firstFailure and lastFailure: when, in the instance's time; element: the field at fault, empty when it is not
 /// known; causeCategory: the kind of cause, such as data_format_change; fixKind: the kind of fix that was proposed, empty when none was; state: open,
 /// awaiting_approval, fixing, resolved or closed; and approvals. An approval has answer: waiting, approved, rejected, expired or cancelled; channel: where it was
-/// answered; answered: when; and fix, which is null when no fix ran, otherwise resent (the failed messages sent again), wentThrough (how many of them went
-/// through), failedAgain and finished (false while the fix is still running). When incidents is empty, the answer has a message: say plainly that nothing is
-/// recorded for the last 24 hours, and never say that everything is fine or that nothing is wrong, because an empty list says nothing about now.
+/// answered, empty when nobody answered it; answered: when it was answered, or when it expired, and empty while it waits; and fix, which is null when no fix
+/// ran, otherwise resent (the failed messages sent again), wentThrough (how many of them went through), failedAgain and finished (false while the fix is still
+/// running). When incidents is empty, the answer has a message: say plainly that nothing is recorded for the last 24 hours, and never say that everything is
+/// fine or that nothing is wrong, because an empty list says nothing about now. When ok is false, the answer has only a message: say that the records could not
+/// be read, and say nothing about what happened.
 ClassMethod RecentActivity() As %DynamicObject
 {
 	Set refusal = ##class(OcuTalon.Tools.CommandCall).Session(.context)
@@ -170,7 +175,8 @@ ClassMethod Approval(request As %Persistent, online As %Boolean, Output approval
 	}
 }
 
-/// The element at fault in element: the text when it equals the name of one of the incident's items or the field of one of its requests' fixes, otherwise "".
+/// The element at fault in element: the text when it equals the name of one of the incident's items or the field of the fix of one of its approved requests (a
+/// state of APPROVED), otherwise "".
 ClassMethod Element(text As %String, groups As %ListOfObjects, requests As %ListOfObjects, Output element As %String) [ Private ]
 {
 	Set element = ""
@@ -179,6 +185,7 @@ ClassMethod Element(text As %String, groups As %ListOfObjects, requests As %List
 		If groups.GetAt(i).ItemName = text Set element = text
 	}
 	For i = 1:1:requests.Count() {
+		If '$ListFind($ListFromString(..#APPROVED), requests.GetAt(i).State) Continue
 		Do ..FixField(requests.GetAt(i), .field)
 		If field = text Set element = text
 	}
