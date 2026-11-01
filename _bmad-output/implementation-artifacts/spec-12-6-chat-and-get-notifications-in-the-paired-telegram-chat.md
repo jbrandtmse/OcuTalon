@@ -499,6 +499,17 @@ Mutations run by the implement stage (each applied, seen red on a warm stack unl
 - mutation: P7, TestNameOnlyWhilePaired (Other quits for a paired chat) -> red: TelegramPair.TestNameOnlyWhilePaired ("(d) each of the paired chat's two other messages makes one Item from TelegramIn to Conversation")
 - mutation: P7, incident.laterRequest (approval left out of KINDS, so a notice of kind approval sends nothing) -> red: TelegramChat.TestNotices ("incident.laterRequest reached the chat", "there are 18 of them", "the phone got none of the allowance notices")
 
+QA stage (each mutation applied on warm stack e12s6qaw, seen red, reverted with `cmp` against a backup, `git status --short` unchanged):
+- (QA) File-list: the existing tests `Test/Channel/TelegramInTurn.cls` (new `TestRefusedNotice`) and `Test/Channel/TelegramInProbe.cls` (`FailNotify`, and Notify records `chatRef`, `%SessionId`, `%SuperSession`) gained the allowance-notice cases; no new file.
+- mutation: AC1, the channel (the Item's Channel "web") -> red: TelegramChat.TestTurn (item fields, Turn channel, chat.message, texts, Notify targets, Delivery row), TestQueued, TestNoIdentity
+- mutation: AC2, the notice header (Notice no longer sets %SuperSession to the session's TraceRef) -> red: TelegramInTurn.TestRefusedNotice ("sent in no session of its own, under the session's TraceRef")
+- mutation: AC2, once (the notice on every refusal, firstRefusal ignored) -> red: TelegramChat.TestRefused ("the second refusal adds no text", "no second Notification", "one allowance card")
+- mutation: AC3, user message (Item Provenance "untrusted") -> red: TelegramChat.TestQueued ("the first Turn is running", "the second Turn is queued"), TestTurn, TestNoIdentity
+- mutation: AC4, the kinds (reminder left out of KINDS) -> red: TelegramChat.TestNotices ("reminder.due reached the chat", "reminder.late reached the chat", "there are 18 of them")
+- mutation: AC6 (the Pairing row's display name put before the Item's text) -> red: TelegramChat.TestNoIdentity ("the bodies hold no the name"), TestTurn ("its text is the message as sent", "its body holds neither the chat id nor the name")
+- mutation: DW-30 (Send gives the text whole, no Split) -> red: TelegramOut.TestLongNotice ("it goes in two parts or more", "each part is 4,096 UTF-16 units or fewer")
+- mutation: DW-295 (OnOutbound ignores CheckKey, sentence "") -> red: TelegramOut.TestCheckSentence (a), (b), (c), (e), (f), (g)
+
 ## Auto Run Result
 
 Status: done
