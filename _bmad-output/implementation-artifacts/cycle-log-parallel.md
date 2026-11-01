@@ -1284,3 +1284,5 @@
 2026-11-01T19:56:12Z	Epic 4	decision_sheet_recorded	decided=0 notes=U-202_kept(resolved);DW-530_on_31.2;DW-198_wontfix-accepted(reopen_condition) deps_hash=unchanged(epics.md_not_touched)
 2026-11-01T19:56:12Z	Epic 1-37	planner_note	to=Contest_Planner sent=Epic_4_merge_sha_374f958e(at_once;deploy+browser_check+10.5_Demo-view-off_shot)
 2026-11-01T19:56:12Z	Epic 4	worktree_removed	worktree=.worktrees/epic-4 branch=OCT-epic4_deleted(local+remote)
+2026-11-01T19:57:51Z	Epic 30	runner_dispatched	agent=a717a931bacaed0b8 model=opus runner=B slot=ocutalon-slot-b mode=redispatch_after_hold9(part_1_of_2,U-207:30.6_then_30.5(DW-500_first);30.1_held_out) base=a3a460fa(green_41255920496,41255920519) feature=c112c03e prompt=prompts/dispatch-epic-30-redispatch.md(rewritten)
+2026-11-01T19:57:51Z	Epic 1-37	planner_note	from=Contest_Planner received=Epic_4_374f958e_bundled;deploy_after_20:00Z_reset;run_1+browser_check(4.8,4.9_incl_200%_zoom,4.10_chip2_no_all-clear,chip3_recent_activity);10.5_images_shot_on_the_Epic_30_part_1_build;10.5_dispatches_when_delivered(around_launch)
