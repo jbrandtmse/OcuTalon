@@ -22,6 +22,8 @@
 #                              STANDIN_WAIT as COMPOSE_PROJECT_NAME, COMPOSE_FILE, IRIS_IMAGE and OCUTALON_INSTALL_WAIT, and the driver
 #                              is sh -c in $REHEARSAL_STANDIN/driver. Paths in a command are relative to the login folder
 # record_path <version> <rc>   prints release/records/<version>/rc<rc>.md
+# notes_path <version> <rc>    prints release/records/<version>/rc<rc>-notes.md: the draft notes of a candidate, the one contract of the
+#                              notes file (Story 11.4's checklist scans it; Story 11.13 writes it)
 # record_write <file> <section file> [<heading>]
 #                              writes the section file (its first line is its "## " title) into the record: it replaces the section with
 #                              that title, up to the next heading or the end of the file, or appends it. A missing file (and its folder) is
@@ -202,6 +204,8 @@ host_run() {
 # --- the record ---
 
 record_path() { printf 'release/records/%s/rc%s.md\n' "$1" "$2"; }
+
+notes_path() { printf 'release/records/%s/rc%s-notes.md\n' "$1" "$2"; }
 
 # record_write <file> <section file> [<heading>]: see the header.
 record_write() {

@@ -31,12 +31,6 @@ trap 'rm -rf "$tmp"' EXIT
 
 non_ascii() { LC_ALL=C grep -nH '[^[:print:][:space:]]' "$@" | cut -d: -f1,2; }
 
-local_path() {
-  { grep -nHIE '/Use[r]s/[A-Za-z0-9]|/Volume[s]/[A-Za-z0-9]|/privat[e]/(tmp|var|etc)/|(^|[^A-Za-z0-9_.])/va[r]/folders/[A-Za-z0-9_]|[A-Za-z]:\\Use[r]s\\[A-Za-z0-9]' "$@"
-    grep -nHIE '/hom[e]/[A-Za-z]' "$@" | grep -v '/home/irisowner'
-  } | cut -d: -f1,2
-}
-
 # key_like (the key-like patterns) comes from docker/tests/lib-keys.sh, the one definition that eval/run.sh also reads.
 
 # Non-comment logical lines (a trailing backslash joins the next line).

@@ -2,13 +2,25 @@
 title: 'Story 11.4: The release gets draft notes and a checklist (the checklist half; the notes generator is the proposed Story 11.13)'
 type: 'feature'
 created: '2026-11-01'
-status: 'ready-for-dev'
+status: 'done'
 review_loop_iteration: 0
-followup_review_recommended: false
+baseline_revision: 'fc28b0159723146d0c6c0834cab8764ce741bc8b'
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-11-context.md'
 warnings: ['oversized', 'multiple-goals']
-deferred: []
+deferred:
+  - summary: >-
+      The draft notes are scanned for local paths and key-like text only; the inspiration's name outside the not-affiliated note is not
+      checked in them.
+    evidence: |-
+      row_public_text (release/checklist.sh) runs local_path and key_like on the notes file, as the matrix row says. The notes live
+      under release/records/, which is untracked while the notes are drafted, so name-only-in-note (which reads scan_files) never reads
+      them. A draft that names the inspiration without the note would pass every row. Story 11.13 writes the notes and runs
+      row_public_text on its draft, so its developer-section rule is the natural place to add the same name-outside-the-note filter.
+    location: >-
+      release/checklist.sh:row_public_text
+    severity: low
 ---
 
 <intent-contract>
@@ -154,6 +166,64 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-11-01 -- Review pass
+- verdicts: 50 findings -- high 0, medium 8, low 40, false 2, maybe-false 0
+- findings:
+  - Blind Hunter
+    - `[medium]` `[patch]` an absolute notes or record path reached the committed record (the missing-notes detail, the Notes line) -- fixed: `ck_rel` writes a path inside the checkout relative to it; a test runs the default paths and asserts no local folder in the record or the output (same root cause as Edge 10 and Gap 14)
+    - `[low]` `[patch]` row_public_text read undocumented globals -- fixed: it takes `[<notes file>]` and the header says to run it from the repository root; a sourced test calls it on a clean and on a bad draft
+    - `[medium]` `[patch]` three of the five product-name sources were never planted in the test -- fixed: package.json, the page title and the compose name now have cases (same root cause as Gap 1); the other untested branches (the symlink fallback, a missing About source, `--rc 01`) are `[low]` and not worth a case
+    - `[low]` `[reject]` the licence row recognises only `from '<dep>'` imports -- the matrix defines exactly that rule; a wider scan is a spec change
+    - `[low]` `[reject]` no-outward covers few file kinds and patterns -- the file kinds and the patterns are the matrix's own; the claim that `gh  release` (two spaces) passes is wrong (the pattern is `gh[ ]+release`); test coverage is patched under Gap 2
+    - `[false]` `[reject]` the note rows treat whitespace differently -- the matrix asks for an exact README line and a trimmed About line, and the code does both
+    - `[low]` `[reject]` a record-write failure exits 1 and there is no trap -- exit 1 is never a pass, so Story 11.5 cannot be misled; a leftover temporary folder holds no secret
+    - `[low]` `[reject]` a future date confirms a row -- the matrix asks for a real calendar date only; the line is the author's own
+    - `[low]` `[reject]` a path with a colon, or a rename out of release/records/ -- rare; the porcelain case fails safe
+  - Edge Case Hunter
+    - `[low]` `[reject]` irislib/ ignored only by .git/info/exclude -- the matrix names `git check-ignore`; on the candidate checkout the committed `.gitignore` is what the repository ships, and the cost of a stricter check is a second source of truth
+    - `[low]` `[reject]` the awk location parse drops a path with a colon -- no tracked path has one; same as Blind 9
+    - `[low]` `[reject]` spelled variants of the name ("Open Claw") -- the matrix fixes the pattern
+    - `[low]` `[reject]` grep errors in name-only-in-note are silent -- the files are the tracked ones of the checkout; no failing read was shown
+    - `[low]` `[patch]` a failing mktemp left a row without a result line (a false all-clear) -- fixed: each of the three sites writes a FAIL (or CONFIRM) line instead
+    - `[low]` `[reject]` an empty or binary draft passes public-text -- an empty draft holds nothing to leak; the matrix scans text
+    - `[low]` `[defer]` the draft notes are not checked for the name outside the note -- the matrix scans the notes for paths and keys only; Story 11.13 owns the draft's rules (deferred, low)
+    - `[false]` `[reject]` a `--candidate` that starts with a dash is read as a git option -- `rev-parse --verify` fails on it and the script refuses with exit 2, which is the wanted result
+    - `[low]` `[reject]` a record folder that cannot be created exits 1 after the rows -- never a pass; same as Blind 7
+    - `[medium]` `[patch]` the Notes line and the RECORD line could hold an absolute path -- fixed with Blind 1
+    - `[low]` `[reject]` porcelain rename and quoted paths -- both fail safe
+    - `[medium]` `[patch]` `note-about` passed "no built page" beside a present index.html -- fixed: the built page is there when its `index.html` or a `main-*.js` is; a test removes `main-x.js`
+    - `[low]` `[reject]` a one-line "dependencies" or a non-`from` import -- the matrix's rule; package.json here is multi-line
+    - `[low]` `[reject]` a whitespace-only licence file is non-empty -- the matrix says non-empty
+    - `[low]` `[reject]` `gh api` and other routes to the settings -- not in the matrix's list
+    - `[low]` `[reject]` publishing scripts in other file kinds or folders -- the matrix names the kinds and folders
+    - `[low]` `[reject]` a confirmation line inside a fence or a comment counts -- the Planner writes the section; a template line there would be the author's own choice
+    - `[low]` `[reject]` a pipe in a path splits the table row -- detail_clean removes pipes from details
+    - `[low]` `[reject]` AC2 claim: a licence deleted from both folders -- the matrix compares the bundle with the source folder
+    - `[low]` `[reject]` AC6 claim: other file kinds -- as Edge 16
+    - `[low]` `[reject]` AC7 claim: exit codes of a write failure -- as Edge 9
+    - `[low]` `[reject]` AC3 claim: sub-script FAIL lines are printed -- the matrix asks for the script's FAIL lines (readme) and the scanners print file:line only
+  - Verification Gap Reviewer
+    - `[medium]` `[patch]` product-name pinned for one of five sources -- fixed (Blind 3)
+    - `[medium]` `[patch]` no-outward patterns and roots unpinned -- fixed: two groups of planted lines (ten patterns, four roots, `.mjs`, `.js`, `install.sh`) and a longer-host-name negative; a mutation on `gh repo edit` goes red
+    - `[medium]` `[patch]` the test-readme.sh exception unpinned -- fixed: a case plants the name in the stub; removing the exclusion goes red
+    - `[low]` `[patch]` the note-about no-bundle detail was asserted against the whole section -- fixed: the assertion is the table row
+    - `[low]` `[patch]` the MIT line was unpinned -- fixed (copyright-only LICENSE case); the empty-licence-folder branch is `[low]` and not worth a case
+    - `[low]` `[patch]` heading exactness claimed but not asserted -- fixed: look-alike headings case
+    - `[low]` `[patch]` t_sourcing relied on the previous rule's copy -- fixed: it starts with newcase
+    - `[low]` `[reject]` t_nonetwork is an aggregate and some runs have no stubs -- the rule runs last by construction and the static rule covers the remaining commands
+    - `[low]` `[reject]` the git-mode break sample is untracked -- the working-tree mode check is the demonstrated one; the git-mode check is one line
+    - `[low]` `[reject]` the network regex is exercised for four commands -- the regex is one alternation; each name is in the same group
+    - `[low]` `[patch]` the byte-for-byte claim compared sections after command substitution -- fixed: the record's earlier bytes are compared with a prefix checksum after the first and the second run
+    - `[low]` `[patch]` the change-inside-release/records/ case was untracked only -- fixed: the file is committed, then changed, and a new file is added
+    - `[low]` `[patch]` the (once) timing was not recorded -- recorded in Verification
+    - `[medium]` `[patch]` an absolute path in the Notes line -- fixed with Blind 1
+    - `[low]` `[reject]` rename in row_checkout -- fails safe (as Blind 9)
+    - `[low]` `[reject]` a CRLF record reads as not confirmed -- fails safe
+  - Intent Alignment Auditor
+    - `[low]` `[reject]` no committed test runs the real tree -- by design (the matrix says hermetic); the (once) real-tree run was done and recorded
+    - `[low]` `[reject]` author rows print CONFIRM on stdout and "not confirmed" in the record -- the Tasks fix the line form (`PASS|FAIL|CONFIRM`)
+    - `[low]` `[reject]` a record-write failure exits 1 -- as Blind 7
+
 ## Design Notes
 
 **Architecture decisions.**
@@ -285,18 +355,28 @@ No AC contradicts an AD.
   - `RESULT fail` and exit 1;
   - no file under `release/records/` is created.
   - If `src/ocutalon/csp/index.html` is missing, first run `ci/iris.sh build` once, with lane A's variables (`OCUTALON_LOCK_DIR="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")/.worktrees/.coordination/locks/lane-a" OCUTALON_TEST_WEB_PORT=52801 OCUTALON_LOCK_OWNER='epic=11 stage=implement' OCUTALON_RUN_TAG=e11s4b`), and then `ci/iris.sh teardown` with the same tag and variables.
-  - Record the seconds the run took here.
+  - Record the seconds the run took here. Measured 2026-11-01: 11.8 s (exit 1, `RESULT fail`; `checkout` failed on the 7 uncommitted paths, the other ten automated rows passed, five `CONFIRM` lines, no file under `release/records/`).
 - `(once)` `bash ci/checks.sh` -- expected: every check script passes.
 
 **Mutations to demonstrate (Rule 19; one per AC, recorded here as `mutation: <change> -> <test red>`):**
 - AC1: compare the README's note case-insensitively, so the altered-note case fails.
+  - mutation: AC1: `grep -Fxq` -> `grep -Fxiq` in `row_note_readme` -> `note-rows` red (the note-in-another-case case)
+  - mutation: AC1: the `ck_name_in web/package.json` call removed from `row_product_name` -> `name-rows` red (the name-in-package.json case); the `docker/tests/test-readme.sh` exclusion removed from `row_name_only_in_note` -> `name-rows` red; the `index.html` test dropped from `row_note_about` -> `licence-rows` red (a built page with no `main-*.js`)
 - AC2: skip the bundle's `3rdpartylicenses.txt` package check, so the missing-package case fails.
+  - mutation: AC2: the `Package: <dep>` test in `row_licences` replaced by `true` -> `licence-rows` red (the imported-package-without-an-entry case); the `MIT License` line test replaced by `true` -> `licence-rows` red
 - AC3: drop `key_like` from `row_public_text`, so the key-in-notes case fails.
+  - mutation: AC3: `key_like` dropped from the notes scan of `row_public_text` -> `script-rows` red (the key-like-text-in-the-notes case); `ck_rel` made to return its argument -> `script-rows` red (the default-paths case: no local folder in the record)
 - AC4: accept any line that starts with `- <id>: confirmed`, so the malformed-line case fails.
+  - mutation: AC4: the heading test of `author_rows` made a prefix match -> `author` red (the look-alike-headings case)
+  - mutation: AC4: `ck_confirmed_date` accepts any line that starts with `- <id>: confirmed` (no date check) -> `author` red (the malformed, impossible-date and bare-word cases)
 - AC5: treat a non-zero exit of `test-readme.sh` as a pass, so the readme-marker case fails.
+  - mutation: AC5: `row_readme` passes whatever `test-readme.sh` exits -> `script-rows` and `author` red (the readme-marker cases)
 - AC6: remove `--visibility` from the no-outward patterns, so that case fails.
+  - mutation: AC6: the `--visibility` pattern removed from `outward_hits` -> `outward-rows` red (the visibility-line case); the `gh repo edit` pattern removed -> `outward-rows` red (the first-group case)
 - AC7: write the section by appending it to the record (`>>`) in place of `record_write`, so the second-run replace case fails.
+  - mutation: AC7: the section appended with `>>` in place of `record_write` -> `base` red (the second-run replace case)
 - AC8: remove `local_path` from `lib-scan.sh`, so `test-boundaries.sh` fails.
+  - mutation: AC8: `local_path` renamed away in `lib-scan.sh` -> `test-boundaries.sh` red (its paths rule, samples 2 to 6)
 
 **Shared surfaces:**
 - `CHECK_SCRIPTS` in `ci/units.sh`, read by the units rule of `test-ci-config.sh`.
@@ -306,5 +386,23 @@ No AC contradicts an AD.
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+Summary: `release/checklist.sh` is the release checklist. It checks eleven automated items on a candidate checkout (the note in the README, the About source and the built page; the product names; the name only inside the note; the licence notices; the built bundle; the README test; the public-text check and the draft notes; the IRIS reference source rule; no outward action), reads the five author confirmations from the record, and writes `## Release checklist` through `record_write` without touching the confirmations. The result is `fail`, `not confirmed` or `pass`, with exit 1, 1 and 0, and a refusal exits 2. `local_path` moved into `docker/tests/lib-scan.sh`, `notes_path` joined `release/lib-release.sh`, and the hermetic self-test `release-checklist` joined `CHECK_SCRIPTS`.
+
+Files changed:
+- `release/checklist.sh` (new): the checklist.
+- `docker/tests/test-release-checklist.sh` (new): the hermetic self-test (a synthetic git repository, 13 rules, about 20 s).
+- `docker/tests/lib-scan.sh`: gains `local_path`, moved unchanged from `test-boundaries.sh`.
+- `docker/tests/test-boundaries.sh`: loses its copy of `local_path`.
+- `release/lib-release.sh`: gains `notes_path`.
+- `ci/units.sh`: `release-checklist` at the end of `CHECK_SCRIPTS`.
+
+Review: 50 findings (medium 8, low 40, false 2). Patched: 5 entries (a local path in the record; product-name tests; no-outward tests; the test-readme.sh exception test; `note-about` with a page but no `main-*.js`), plus 10 low items (a missing temporary file, the sourced `row_public_text`, and eight test gaps). Deferred: 1 (the name outside the note in the draft notes, for Story 11.13). Rejected: the rest, each with its reason in the Review Triage Log.
+
+Follow-up review recommended: true. Five medium entries were patched after the review layers ran (`ck_rel`, the `note-about` bundle test, the `row_public_text` parameter, and the new cases of the self-test), and no layer has read those edits.
+
+Verification: `test-release-checklist.sh`, `test-boundaries.sh`, `test-rehearsal.sh`, `test-ci-config.sh`, `test-ci-changes.sh` and `ci/changes.sh ci.yml` exit 0 after the last patch. The `(once)` real-tree run gave `RESULT fail`, exit 1, `checkout` failing on the uncommitted paths and the other ten rows passing, five `CONFIRM` lines, in 11.8 s, with no file under `release/records/`. Every script of `CHECK_SCRIPTS` was run one by one and passed (the longest: `eval-set`, 170 s). Eight mutations went red and were reverted, and six more for the patched cases.
+
+Residual risks: the matrix defines the patterns of `no-outward`, the licence import form and the name spelling, so a script that publishes by another route (`gh api`, another file kind) would not be seen. `row_iris_source` asks `git check-ignore`, which also honours `.git/info/exclude`.

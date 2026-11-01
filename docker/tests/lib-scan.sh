@@ -1,5 +1,6 @@
-# Helpers shared by the static scanners (test-boundaries.sh, test-class-rules.sh, test-install-start.sh row 5) and by the two
-# Storage block checks (test-storage.sh, test-storage-roundtrip.sh).
+# Helpers shared by the static scanners (test-boundaries.sh, test-class-rules.sh, test-install-start.sh row 5), by the two
+# Storage block checks (test-storage.sh, test-storage-roundtrip.sh) and by the release checklist (release/checklist.sh, Story 11.4,
+# which scans the draft notes with local_path).
 # Sourced, not run: it defines functions and one variable, STORAGE_BLOCKS_AWK, and nothing else. The caller keeps the counter `fails`.
 #
 # A scanner prints file:line for each offending line of the files it is given, and never the text of the line.
@@ -51,6 +52,16 @@ scan_rule() {
   else
     echo "PASS $label"
   fi
+}
+
+# local_path <file>...: file:line of each line that holds a local machine path (CON-5): a home or volume folder with a name below it,
+# a /private/tmp, /private/var or /private/etc path, a macOS per-user temporary folder (/var/folders/<x>), a Windows user folder with
+# a name below it, or a Linux home folder other than the image's /home/irisowner. The patterns are written so that they cannot match
+# this file.
+local_path() {
+  { grep -nHIE '/Use[r]s/[A-Za-z0-9]|/Volume[s]/[A-Za-z0-9]|/privat[e]/(tmp|var|etc)/|(^|[^A-Za-z0-9_.])/va[r]/folders/[A-Za-z0-9_]|[A-Za-z]:\\Use[r]s\\[A-Za-z0-9]' "$@"
+    grep -nHIE '/hom[e]/[A-Za-z]' "$@" | grep -v '/home/irisowner'
+  } | cut -d: -f1,2
 }
 
 # bridge_refs <file>...: file:line of each code line that names an OcuTalon package other than OcuTalon.Bridge and
