@@ -2743,6 +2743,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-11-10-the-demo-path-s-failure-paths-and-quiet-outcomes-pass-in-the.md | severity: med | fix-risk: med | footprint: in-epic
 - evidence: 07's replay test leaves its incident Open with a pending request; 08 asserts toHaveCount(1) on each sample row and looks up mailOutcome by sender only, so run 2 on one install goes red
 - 2026-11-01T07:48:26Z status=routed owner=11-12-the-rehearsal-runner-repeats-the-demo-path-n-times-with-run by=cr note=11.12 decides which specs repeat: clear the replay (reject or dismiss) and key 08 to its own run, or run 07/08 once
+- 2026-11-01T21:20:37Z status=resolved-by:11-12-the-rehearsal-runner-repeats-the-demo-path-n-times-with-run by=adjudication note=69b8bdce: rehearsal run 2 rejects and dismisses the replay request 07 leaves pending and each repeat keys its counts to its own run (web/e2e-rehearsal/repeat.spec.ts); lead smoke --runs 3 on one install: runs 1-3 passed
 
 ### DW-523: AC5's 'never which outcome' on the real model is not falsifiable on the CI mock: the real-mode dry run gets the mock's same Ignore and Digest answers, so an unguarded outcome check would stay green
 - source: spec-11-10-the-demo-path-s-failure-paths-and-quiet-outcomes-pass-in-the.md | severity: low | fix-risk: high | footprint: in-story
@@ -2786,12 +2787,15 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-11-11-the-rehearsal-runner-times-the-demo-path-and-checks-every-bo.md | severity: med | fix-risk: med | footprint: in-epic
 - evidence: every hermetic test answers the collector with a canned file; CI browser units run with OCUTALON_E2E_MARKS unset
 - 2026-11-01T16:45:52Z status=routed owner=11-12-the-rehearsal-runner-repeats-the-demo-path-n-times-with-run by=harvest note=11.12 drives N runs through the same collector and marks: give them a check that runs where a change would show (within the CI budget), or ledger why not
+- 2026-11-01T20:58:12Z occurrence=11-12-the-rehearsal-runner-repeats-the-demo-path-n-times-with-run by=cr note=code review: the collector's tell-now query and its Fallback=1 to fallback mapping are pinned by name and source text only; first executed on Fallback=1 at 38.2
+- 2026-11-01T21:20:37Z status=resolved-by:11-12-the-rehearsal-runner-repeats-the-demo-path-n-times-with-run by=adjudication note=69b8bdce: test-rehearsal.sh rule collector-names ties every name the collector reads to src/, and rehearsal-support.test.mjs ties each page probe to its source (hosted jobs, no CI unit); residual by design: the queries' meaning runs only in live dry runs and the rehearsal gate; reopen_if=a schema or wording change passes both static checks and breaks a dry run
 
 ### DW-535: docker/tests/test-rehearsal.sh takes about 36 s alone (48 s inside ci/checks.sh) against the 5 to 10 s the CI note inferred
 - source: spec-11-11-the-rehearsal-runner-times-the-demo-path-and-checks-every-bo.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: stub installs, the 20-run states and the bounds rule run twice
 - 2026-11-01T16:45:52Z status=wontfix-accepted owner=11-11-the-rehearsal-runner-times-the-demo-path-and-checks-every-bo by=harvest note=reopen_if=the hosted checks job passes 10 minutes or the self-test passes 90 s
 - 2026-11-01T20:25:12Z occurrence=11-12-the-rehearsal-runner-repeats-the-demo-path-n-times-with-run note=test-rehearsal.sh now about 77 s alone (stub-runs 19, bounds 13, timed-runs 20, run-steps 14); sharing the 20-run states is the lever
+- 2026-11-01T20:58:12Z occurrence=11-12-the-rehearsal-runner-repeats-the-demo-path-n-times-with-run by=cr note=code review: test-rehearsal.sh 83 s alone after the review's added timed-runs case (one more stub install)
 
 ### DW-537: rehearse.sh run (install, runs, report and down in one process) can pass the 10-minute call cap when the Playwright run reaches its 480 s timeout
 - source: spec-11-11-the-rehearsal-runner-times-the-demo-path-and-checks-every-bo.md | severity: low | fix-risk: low | footprint: in-story
@@ -2807,6 +2811,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-11-12-the-rehearsal-runner-repeats-the-demo-path-n-times-with-run.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: live dry run e11s12d: run 2 failed at 'Step 3, Break the feed, current' with the guide on step 5; with the marker posted, runs 2 and 3 passed
 - 2026-11-01T20:25:12Z status=wontfix-accepted owner=11-12-the-rehearsal-runner-repeats-the-demo-path-n-times-with-run by=harvest note=reopen_if=a hands-on pass (Story 38.1) or a user finds no Run again after rejecting a replay and dismissing its incident
+- 2026-11-01T20:58:12Z occurrence=11-12-the-rehearsal-runner-repeats-the-demo-path-n-times-with-run by=cr note=code review: run 2 reaches step 3 only through the posted marker; the guide's step 5 with no link after Reject and Dismiss is a product guide behaviour
 
 ### DW-546: The rehearsal repeat's real-model texts are unmeasured: the composer-sent watch and reminder prompts, the reminder notice card, the phone message without buttons, and the tell-now item's outcome; only the CI mock ran
 - source: spec-11-12-the-rehearsal-runner-repeats-the-demo-path-n-times-with-run.md | severity: low | fix-risk: low | footprint: in-story
@@ -2817,3 +2822,10 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-11-12-the-rehearsal-runner-repeats-the-demo-path-n-times-with-run.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: both helpers keep their arguments and, with OCUTALON_E2E_MARKS unset, their behaviour
 - 2026-11-01T20:25:12Z status=open owner=11-12-the-rehearsal-runner-repeats-the-demo-path-n-times-with-run by=harvest note=the lead runs ci/iris.sh live online-demo-path on a fresh lane-A throwaway at smoke
+- 2026-11-01T20:58:13Z occurrence=11-12-the-rehearsal-runner-repeats-the-demo-path-n-times-with-run by=cr note=code review: still not run; approveOnPhone's result count before the press is 0 on the online run's first approval
+- 2026-11-01T21:20:37Z status=resolved-by:11-12-the-rehearsal-runner-repeats-the-demo-path-n-times-with-run by=adjudication note=lead ran ci/iris.sh live online-demo-path (all checks passed) and live demo-path (8 of 8, floor 7/7) on fresh lane-A stacks after the review patches
+
+### DW-548: Story 11.14's spec and epic-11-context.md still state rehearse.sh's pre-11.12 contract: 11.14 line 103 says 11.12 is not planned and the second runs exits 2 naming it; the context says the gate calls run --version --rc and accepts exit 0, but run now needs OCUTALON_RUN_TAG, does one phase per call and exits 4 until the last
+- source: spec-11-12-the-rehearsal-runner-repeats-the-demo-path-n-times-with-run.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: spec-11-14 :103 and :124-128 (exits 0,1,2,3,75; no exit 4, no --plant <id>@<run>); epic-11-context.md Release sequence line; release/rehearse.sh header and cmd_run now differ
+- 2026-11-01T20:58:12Z status=routed owner=11-14-the-release-sequence-runs-every-gate-on-the-pushed-candidate by=cr note=11.14's plan re-reads rehearse.sh's header (runs k, refusal beyond N, run exit 4, OCUTALON_RUN_TAG) before implementing its gate

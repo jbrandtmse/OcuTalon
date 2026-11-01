@@ -317,6 +317,37 @@ deferred:
 - **AC7 (CI unchanged).** Given `OCUTALON_E2E_MARKS` unset and the default arguments, when the demo-path and online demo-path units run, then they make the same assertions as before. `ci/iris.sh live demo-path` passes unchanged, and `demo-path-summary.mjs` without `--steps` prints what it printed before (its existing tests pass unedited).
 - **AC8 (DW-534).** Given a collector that names a column, table, body class or production item that `src/` lacks, or a page probe whose selector or wording is gone from `web/src`, when the hosted `checks` and `web` jobs run, then `test-rehearsal.sh` (rule `collector-names`) or `rehearsal-support.test.mjs` fails, naming the name.
 
+### Review Findings
+
+Code review (bmad-code-review, 2026-11-01; four layers at the full tier: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor; 27 layer rows plus one reviewer check (Rule 2); 0 decision-needed, 6 patch, 5 defer, 12 rejected). Each finding gives its severity, fix-risk, footprint and disposition (Rule 15).
+
+- [x] [Review][Patch] On the real model, the repeat's landed-reminder phone check counted every buttonless phone message. The approval's answered notice and its result message have no buttons, so `toBeGreaterThan(phoneBefore)` held even if the reminder never arrived (a claimed pass that was not seen). It now filters by the catalog's `reminder.due` text, `Reminder: {text}.`, as the chat check does. A node pin ties the filter to `Core.cls`. [web/e2e-rehearsal/repeat.spec.ts:67] (med; fix-risk low, the mock branch is unchanged; in-story; fixed)
+- [x] [Review][Patch] `markedSend`'s `step1_reply_seen` probe read the last `[data-part="reply"] .text` on the page. While a turn runs, its reply holds only the indicator, so on runs 2 to N the probe found the earlier run's text and marked early: the recorded `first-reply` value was understated. The probe now reads `replies.last()`'s own `.text`. The source pin requires it. Live: run 2 read `first-reply=1.0` with the decision at 1.0 s. [web/e2e/support/demo-path.ts:196] (med; fix-risk low, it runs only with marks on; in-story; fixed)
+- [x] [Review][Patch] Two paths of `e2e_call` had no test: its per-call fallback ("Playwright exited N although the summary found no failed step", the only guard when an `afterAll` fails after its tests passed) and `summary_step`'s new `step <id>` pattern. A `t_timed_runs` case now covers both (`STUB_NPM_RC=1`, and a tell-now report with no suites). [docker/tests/test-rehearsal.sh, t_timed_runs] (med; fix-risk low; in-story; fixed)
+- [x] [Review][Patch] The last `reminder:` test used `cardsBefore`/`phoneBefore` without checking that the earlier `reminder:` test had set them. A `reminderSet` guard now does, as `approval:` and `trace:` guard theirs. [web/e2e-rehearsal/repeat.spec.ts] (low; two-way door; fixed)
+- [x] [Review][Patch] The QA test title claimed "the specs run in that order" but compared a sorted set. The title is now accurate; `playwright-projects.test.mjs` pins the run order. [web/scripts/rehearsal-support.test.mjs:301] (low; mechanical; fixed)
+- [x] [Review][Patch] `cmd_runs` and `cmd_run` repeated the same run-count block (Rule 2). It is now one helper, `runs_count`. [release/rehearse.sh:1759] (low; mechanical; fixed)
+- [x] [Review][Defer] Story 11.14's spec (`:103`, `:124-128`) and `epic-11-context.md` still state the pre-11.12 contract: the second `runs` exits 2, and the gate calls `run --version --rc` and accepts exit 0. `run` now needs `OCUTALON_RUN_TAG`, does one phase per call and exits 4 until the last. [_bmad-output/implementation-artifacts/spec-11-14-...md:103] -- deferred: DW-548 `routed owner=11-14-the-release-sequence-runs-every-gate-on-the-pushed-candidate` (med; fix-risk low; in-epic)
+- [x] [Review][Defer] Run 2 reaches step 3 through the posted `run_again` marker, not a page press. After Reject and Dismiss, the guide shows step 5 with no link (a product guide behaviour; product classes are out of this story's scope). [web/e2e-rehearsal/repeat.spec.ts:82] -- deferred: DW-545 occurrence (low; out-of-footprint for the product side)
+- [x] [Review][Defer] The collector's tell-now query and its mapping of Fallback=1 to `fallback` are pinned only by name and source text. They first execute against a Fallback=1 decision in Story 38.2. [release/rehearse.sh:245-249] -- deferred: DW-534 occurrence (med; by-design: Decided in-stage 11 keeps executed checks out of CI units)
+- [x] [Review][Defer] `test-rehearsal.sh` takes about 83 s alone, over the about 60 s budget. [docker/tests/test-rehearsal.sh] -- deferred: DW-535 occurrence (low)
+- [x] [Review][Defer] `ci/iris.sh live online-demo-path` has not been run on the changed helpers. [web/e2e/support/demo-path.ts] -- deferred: DW-547 occurrence (low; the lead runs it at smoke)
+
+Rejected:
+- `low` `--plant <id>@<run>` beyond `--runs` is refused only at report: a dry-run-only tool, the refusal is loud and keeps the state, and an early check adds a guard.
+- `low` The spec's 77 s and 80 s figures disagree: the fix would edit the spec under review. The measured figure is in DW-535.
+- `low` A killed install leaves a state that later `run` calls refuse: the refusal is loud, `down` recovers, and install takes about 99 s, well inside the cap.
+- `false` `run` after `down` starts a new install on the same tag: that is the design (a tag names one rehearsal; `record_write` replaces only its own section).
+- `low` A `--record` spelled differently on a later call is refused: a loud exit 2 with the option named, and nothing is lost.
+- `low` The 1 s clamp when `OCUTALON_E2E_TIMEOUT_MS` is under 91 s: nobody uses that configuration (default 480 s). Already rejected in the implement pass.
+- `low` A `t_bounds` case ("a collector that found no decision") repeats its neighbour, and the malformed-`tellnow` path is not run: no defect follows, since a missing server line fails the run through `!havetn`.
+- `low` `again:` checks the finish once without waiting: the worst case is a false fail, never a false pass, and runs 3 and later were measured passing.
+- `false` No automated host runs the rehearsal specs: by design (Decided in-stage 11, DW-534). The live dry run executes them.
+- `low` The default-output test of `demo-path-summary.test.mjs` checks only its first word: the five unedited tests are AC7's pin.
+- `false` AC4's mutation was half demonstrated: Rule 19 asks for one demonstrated mutation per AC, and `t_bounds` went red.
+- `low` (theoretical) The page's tell-now outcome and the server's could differ if one item were decided twice: one `decide` Decision per item. This would become real if an item could be re-decided.
+- `low` `playwright-projects.test.mjs` was edited although Design Note 4 says it is untouched: a test case was added and no pin changed (for the lead: a footprint extension).
+
 ## Spec Change Log
 
 ## Review Triage Log
@@ -545,6 +576,28 @@ Loop results at hand-off:
 - mutation (review pass): `run`'s first call without `cd "$reh_caller_pwd"` -> rule run-steps red (the relative --record case: the second call is refused and the record is not in the caller's folder).
 - mutation (review pass): `playwright.rehearsal.config.ts` with `testDir: './e2e'` -> `playwright-projects.test.mjs` rehearsal case red; `app-outcome-chip`'s selector renamed in `web/src` -> the page-source pin red (reverted, `web/src` byte-identical).
 - Review pass, after the patches: the live dry run again (install, `runs` x3, a fourth `runs` refused with exit 2, `report` `RESULT dry run` exit 3, `report --plant pick-up@3` the run-3 FAIL line, `down`) with the changed collector: `tell-now=1.0`, `0.9`, `0.9` (Fallback 0 on the mock reads as `tellnow`); no container or lock left. `npm --prefix web test` 1186 pass; `ci/iris.sh live demo-path` passes; every script of `ci/checks.sh` passes, run by script.
+
+### QA stage (2026-11-01; hermetic only, no IRIS, no live run; each mutation applied from a backup in the scratchpad, red observed, restored, tree checked unchanged)
+
+- `(QA)` `web/scripts/rehearsal-support.test.mjs` -- new describe "(QA) the rehearsal specs agree with release/rehearse.sh" (3 tests, in the default `npm --prefix web test`): the tell-now spec's subject stamp equals the prefix the collector selects the email by (`Rehearsal run <k>: `, which no test tied across the two files); every `--steps` id of `rehearse.sh` is a spec file of the rehearsal project; every test title of `repeat.spec.ts` and `tell-now.spec.ts` starts with the step id a FAIL line names, in order, and the bound steps are read from the script's `nsteps`.
+- mutation (AC1): `runs` k >= 2 calls `e2e:demo-path` -> `test-rehearsal.sh` rules timed-runs and run-steps red.
+- mutation (AC2): the tell-now value without the `DurationMs` subtraction -> rule bounds red ("the decision's duration is subtracted").
+- mutation (AC3): `runs` allowed after a failed run -> rule timed-runs red ("a run after a failed run is refused").
+- mutation (AC4): `@<run>` ignored in the plant -> rule bounds red (`pick-up@17`, `notice@3`, tell-now plant in run 2).
+- mutation (AC5): the tell-now row's met status left `not run` -> rules bounds, timed-runs, dry-report and run-steps red (the real all-pass case).
+- mutation (AC6): `run_next` returns instead of `exit 4` (two phases in one call) -> rule run-steps red.
+- mutation (AC7): `approval_result_seen` reading `incidentCard(page)` -> `rehearsal-support.test.mjs` source pin red. Separately the default `DEMO-PATH` line changed in `demo-path-summary.mjs` -> six `demo-path-summary.test.mjs` tests red.
+- mutation (AC8): a collector column renamed (`DurationMs` -> `DurationMz`) -> rule collector-names red; `answered.approved` reworded in `catalog.ts` -> the page-source pin red (`web/src` restored byte-identical).
+- mutation (QA pin): the tell-now spec's stamp changed -> the new stamp test red.
+- After restoring: `node --test` 71 pass, `npm --prefix web test` 1189 pass, `test-rehearsal.sh` all 19 rules pass, `test-boundaries.sh` pass.
+
+### Code review stage (2026-11-01; lane A, throwaway tag e11s12c; each mutation applied from a backup in the scratchpad, red observed, restored byte-identical by md5)
+
+- mutation (review, AC3): `e2e_call`'s `elif "$e2e_rc"` branch disabled, and `summary_step`'s `step <id>` line deleted -> rule timed-runs red (both new assertions: "Playwright exited 1 although the summary found no failed step" and "step tell-now has no tell-now.spec.ts in the report").
+- mutation (review, the reply probe): `step1_reply_seen` reading the page's last `[data-part="reply"] .text` again -> `rehearsal-support.test.mjs` "the reply probe counts replies" red.
+- mutation (review, the landed reminder on the real model): `landedPhone` back to `hasNot: page.getByRole('button')` -> `rehearsal-support.test.mjs` "a fired reminder reads \"Reminder: {text}.\"" red.
+- After restoring: `node --test` on rehearsal-support, demo-path-summary and playwright-projects: 99 pass. `npm --prefix web run lint`: exit 0. `test-rehearsal.sh`: all 19 rules pass, 83 s alone.
+- Live, after the patches: `install --dry-run --rc 1 --runs 2` (99 s, every row passed); `runs` run 1 (2 min 27 s: `PASS run 1`, `tell-now=0.9`, `first-reply=1.1`); `runs` run 2 (1 min 24 s: `PASS run 2 rehearsal`, `first-reply=1.0`, decision 1.0 s); a third `runs` refused, exit 2; `report` `RESULT dry run`, exit 3, runs row `2 of 2 runs passed`; `down` `TEARDOWN`. No container, volume, image or lock of the tag remained.
 
 ## Auto Run Result
 

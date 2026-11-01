@@ -231,6 +231,9 @@ This story takes epics.md Story 11.14's two criteria (the gates; the "not implem
 
 ## Design Notes
 
+**Lead update 2026-11-01 (DW-548, from Story 11.12's review).** Story 11.12 changed `release/rehearse.sh`'s `run`: it needs `OCUTALON_RUN_TAG`, does one phase per call and exits 4 ("call again") until the last phase; `runs` does the next run and refuses once all `--runs` are done or after a failed run; `--plant <id>@<run>` plants a miss in one run. The rehearsal gate step calls `run` once per `next` call (exit 4 = waiting on the next phase, mapped to this story's exit 5 "waiting") and judges only exit 0 with `Result: pass`. Where this spec describes the older contract, this note wins.
+
+
 **Governing ADs (Rule 6):**
 - **AD-29:**
   - `Parameter STUB = 1` on every unbuilt item.

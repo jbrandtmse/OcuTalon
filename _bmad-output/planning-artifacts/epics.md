@@ -4110,6 +4110,7 @@ So that a release never skips a gate.
 **When** the gates run
 **Then** the full CI run, the release-candidate evaluation with the demo incident gate, the upgrade harness, the clean-machine rehearsal, the release checklist and the Contest Planner's REL-7 hands-on pass on this candidate (with no open finding the Contest Planner hasn't deferred: for 1.0.0, Stories 38.1 and 38.3 on `release/1.0.0-rc1`) must all pass, each result goes into the candidate's record, the sequence stops naming the gate that failed, and REL-5's override is the only override it accepts (REL-1, REL-5, REL-6, REL-7, CON-2, CON-5) [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0" and "New Linux droplet"]
 **And** it refuses a candidate in which an enabled production item still answers "not implemented", so unfinished features stay off the demo path (REL-1, AD-29)
+- DW-548: Story 11.14's spec and the epic context still describe release/rehearse.sh's old run contract; since Story 11.12, run needs OCUTALON_RUN_TAG, does one phase per call and exits 4 until the last phase, so the rehearsal gate calls it once per phase (ledger; routed by cr 2026-11-01)
 
 ### Story 11.15: The hands-on gate stops the sequence, and its resume command waits for a pass or a carry-over
 

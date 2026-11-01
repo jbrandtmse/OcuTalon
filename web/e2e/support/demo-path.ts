@@ -182,7 +182,8 @@ export async function expectGuideMessage(page: Page, prompt: string): Promise<vo
 /**
  * The rehearsal's step-1 marks around a send (Stories 11.11 and 11.12): the decision strips that show a reason and the replies are counted
  * before the click, only when marks are on; then step1_sent is marked, the click made, and step1_decision_seen (one more strip with a reason)
- * and step1_reply_seen (one more reply, whose newest text is not empty) are marked as they show. With marks off it clicks and waits for nothing.
+ * and step1_reply_seen (one more reply, and the newest reply's own text is not empty: while its turn runs it holds only the indicator) are
+ * marked as they show. With marks off it clicks and waits for nothing.
  */
 async function markedSend(page: Page, click: () => Promise<void>): Promise<void> {
   const strips = page.locator('[data-part="reply"] app-decision-strip').filter({ has: page.locator('.reason') });
@@ -192,7 +193,7 @@ async function markedSend(page: Page, click: () => Promise<void>): Promise<void>
   mark('step1_sent');
   await click();
   await markWhen('step1_decision_seen', async () => (await strips.count()) > stripsBefore, 90_000);
-  await markWhen('step1_reply_seen', async () => (await replies.count()) > repliesBefore && /\S/.test((await page.locator('[data-part="reply"] .text').allTextContents()).at(-1) ?? ''), 90_000);
+  await markWhen('step1_reply_seen', async () => (await replies.count()) > repliesBefore && /\S/.test((await replies.last().locator('.text').allTextContents())[0] ?? ''), 90_000);
 }
 
 /**

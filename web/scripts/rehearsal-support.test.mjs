@@ -178,7 +178,7 @@ describe('by source', () => {
     assert.match(lines[counted], /marksOn\(\) \? await replies\.count\(\) : 0/, 'counted behind marksOn()');
     const reply = at("markWhen('step1_reply_seen'", counted);
     assert.match(lines[reply], /\(await replies\.count\(\)\) > repliesBefore/);
-    assert.match(lines[reply], /\.text'\)\.allTextContents\(\)/, 'and the newest reply\'s text is not empty');
+    assert.match(lines[reply], /replies\.last\(\)\.locator\('\.text'\)\.allTextContents\(\)/, 'and the newest reply\'s own text is not empty (an earlier reply\'s text is not this one)');
   });
 
   it('the approval_result_seen probe reads the card parameter, never the page\'s first incident card (a false pass on a repeat)', () => {
@@ -277,5 +277,48 @@ describe('the page sources behind the probes', () => {
     assert.match(src('chat', 'composer.ts'), /selector: 'app-composer'/);
     const mailbox = readFileSync(join(webRoot, 'src', 'app', 'mailbox', 'mailbox-view.ts'), 'utf8');
     for (const word of ["simulate: 'Simulate an incoming email'", "labelFrom: 'From'", "labelSubject: 'Subject'", "labelBody: 'Body'", "send: 'Send'"]) assert.ok(mailbox.includes(word), `the mailbox texts hold ${word}`);
+  });
+
+  it('a fired reminder reads "Reminder: {text}." on every channel, which the repeat\'s real-model phone check filters by (never by buttons alone)', () => {
+    const core = readFileSync(join(repoRoot, 'src', 'ocutalon', 'cls', 'OcuTalon', 'Msg', 'Catalog', 'Core.cls'), 'utf8');
+    assert.match(core, /"reminder\.due": \{\s*"text": "Reminder: \{text\}\."/);
+    const repeat = readFileSync(join(webRoot, 'e2e-rehearsal', 'repeat.spec.ts'), 'utf8');
+    const phone = /const landedPhone = [^\n]*/.exec(repeat)?.[0] ?? '';
+    assert.match(phone, /\/Reminder: \\S\//, 'the real-model phone check reads the reminder text');
+    assert.doesNotMatch(phone, /hasNot/, "the approval's answered notice and result message have no buttons either");
+  });
+});
+
+// (QA, Story 11.12) The names the two rehearsal specs and release/rehearse.sh must agree on. Neither side runs the other offline: the
+// specs run only against a live install, and rehearse.sh's self-test stubs npm. A drift would show only as a failed live run (a
+// missing tell-now server line, or a FAIL line that names no step), so each name is read from the script and pinned against the specs.
+describe('(QA) the rehearsal specs agree with release/rehearse.sh', () => {
+  const rehearse = readFileSync(join(repoRoot, 'release', 'rehearse.sh'), 'utf8');
+  const specs = join(webRoot, 'e2e-rehearsal');
+  const titles = (name) => [...readFileSync(join(specs, name), 'utf8').matchAll(/^\s*test\('([^']*)'/gm)].map((match) => match[1]);
+
+  it('the tell-now spec stamps the subject with the prefix that the collector selects by', () => {
+    const spec = readFileSync(join(specs, 'tell-now.spec.ts'), 'utf8');
+    const stamp = /const stamp = `([^`]*)`;/.exec(spec)?.[1];
+    assert.equal(stamp, 'Rehearsal run ${run}: ');
+    assert.ok(/const subject = `\$\{stamp\}/.test(spec), 'the subject starts with the stamp');
+    const collector = /Subject LIKE \?[^\n]*"(Rehearsal run @RUN@: %)"/.exec(rehearse)?.[1];
+    assert.ok(collector, 'the collector selects the tell-now email by its subject prefix');
+    assert.equal(collector.replace('@RUN@', '${run}').replace(/%$/, ''), stamp);
+  });
+
+  it('every --steps id of rehearse.sh is a spec file of the rehearsal project', () => {
+    const ids = [...rehearse.matchAll(/--steps ([a-z,-]+)/g)].map((match) => match[1]).flatMap((list) => list.split(','));
+    assert.deepEqual([...new Set(ids)].sort(), ['repeat', 'tell-now']);
+    for (const id of ids) assert.ok(existsSync(join(specs, `${id}.spec.ts`)), `${id}.spec.ts exists`);
+  });
+
+  it('each test title starts with the step id that a FAIL line names, and that id is a step of the bounds table (again and trace measure no bound)', () => {
+    const steps = /nsteps = split\("([^"]*)"/.exec(rehearse)?.[1].split(' ') ?? [];
+    assert.ok(steps.includes('tell-now') && steps.includes('watch'), 'the steps are read from the script');
+    const own = titles('repeat.spec.ts').map((title) => /^([a-z-]+): /.exec(title)?.[1]);
+    assert.deepEqual(own, ['again', 'watch', 'reminder', 'incident', 'approval', 'trace', 'reminder']);
+    for (const id of own.filter((name) => !['again', 'trace'].includes(name))) assert.ok(steps.includes(id), `${id} is a step of the bounds table`);
+    assert.deepEqual(titles('tell-now.spec.ts').map((title) => /^([a-z-]+): /.exec(title)?.[1]), ['tell-now']);
   });
 });

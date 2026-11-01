@@ -1706,6 +1706,16 @@ t_timed_runs() {
   has "the runs row fails" "$(cat "$rec")" "| demo path runs | fail | 1 of 1 runs failed"
   run_reh rh-tf down > /dev/null
 
+  # Playwright exits non-zero although its report shows no failed test (a failed afterAll), and a report that lacks a step's file
+  printf '{"suites":[]}\n' > "$tmp/report.empty.json"
+  run_reh rh-te install --version 1.0.0 --rc 1 --record "$tmp/rec-timed-rc.md" > /dev/null
+  out=$(STUB_NPM_RC=1 STUB_NPM_REPORT_TN=$tmp/report.empty.json run_reh rh-te runs)
+  has "a Playwright exit with a clean summary fails the run, step run" "$out" "FAIL run 1 step run bound -: Playwright exited 1 although the summary found no failed step"
+  has "a step with no spec file in the report is named from the summary's reason" "$out" "FAIL run 1 step tell-now bound -: step tell-now has no tell-now.spec.ts in the report"
+  lacks "there is no PASS line" "$out" "PASS run 1"
+  has "the phase exits 1" "$out" "status 1"
+  run_reh rh-te down > /dev/null
+
   # a run that reads nothing through exec
   rec=$tmp/rec-timed-noexec.md
   run_reh rh-tn install --version 1.0.0 --rc 1 --record "$rec" > /dev/null

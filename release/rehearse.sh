@@ -1756,13 +1756,9 @@ phase_runs() {
   return "$rc"
 }
 
-cmd_runs() {
-  local rc ids n newest want k
-  if [ $# -gt 0 ]; then
-    rehearse_usage
-    exit 2
-  fi
-  need_installed runs || exit 2
+# runs_count: sets n, the number of runs in the state, and newest, the newest run's number (0 for none).
+runs_count() {
+  local ids
   ids=$(runs_ids "$state")
   n=0
   newest=0
@@ -1770,6 +1766,16 @@ cmd_runs() {
     n=$(printf '%s\n' "$ids" | wc -l | tr -d ' ')
     newest=$(printf '%s\n' "$ids" | tail -n 1)
   fi
+}
+
+cmd_runs() {
+  local rc n newest want k
+  if [ $# -gt 0 ]; then
+    rehearse_usage
+    exit 2
+  fi
+  need_installed runs || exit 2
+  runs_count
   want=$(opt runs)
   case $want in '' | *[!0-9]*) want=1 ;; esac
   if [ "$n" -ge "$want" ]; then
@@ -1902,7 +1908,7 @@ run_last() {
 }
 
 cmd_run() {
-  local me=$reh_root/release/rehearse.sh rc n ids newest want k iargs=()
+  local me=$reh_root/release/rehearse.sh rc n newest want k iargs=()
   parse_options "$@" || exit 2
   if [ -n "$o_plant" ] && [ "$o_dry" != 1 ]; then
     refuse "--plant is for dry runs only"
@@ -1929,13 +1935,7 @@ cmd_run() {
   if ! phase_done install || [ "$(row_result "$state/results" hosts)$(row_result "$state/results" copy)$(row_result "$state/results" install)$(row_result "$state/results" sign-in)" != passpasspasspass ]; then
     run_last
   fi
-  ids=$(runs_ids "$state")
-  n=0
-  newest=0
-  if [ -n "$ids" ]; then
-    n=$(printf '%s\n' "$ids" | wc -l | tr -d ' ')
-    newest=$(printf '%s\n' "$ids" | tail -n 1)
-  fi
+  runs_count
   want=$(opt runs)
   if [ "$newest" -gt 0 ] && [ "$(cat "$state/runs/$newest/passed" 2> /dev/null)" != 1 ]; then run_last; fi
   if [ "$n" -ge "$want" ]; then run_last; fi

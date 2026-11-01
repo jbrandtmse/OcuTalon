@@ -62,7 +62,10 @@ test.describe('Story 11.12: one repeat of the demo path', () => {
 
   const landedCards = (page: Page): Locator =>
     page.locator('main app-notice-card').filter({ hasText: ON_MOCK ? 'Reminder: stretch.' : /Reminder: \S/ });
-  const landedPhone = (page: Page): Locator => (ON_MOCK ? phoneNotes(page).filter({ hasText: 'stretch' }) : phoneNotes(page).filter({ hasNot: page.getByRole('button') }));
+  // On the real model the phone's reminder is the catalog's reminder.due text, "Reminder: {text}.", as the chat card's is: the approval's
+  // answered notice and its result message have no buttons either, so a filter on buttons alone would count them.
+  const landedPhone = (page: Page): Locator => phoneNotes(page).filter({ hasText: ON_MOCK ? 'stretch' : /Reminder: \S/ });
+  let reminderSet = false;
 
   test.beforeAll(async () => {
     test.setTimeout(240_000);
@@ -109,6 +112,7 @@ test.describe('Story 11.12: one repeat of the demo path', () => {
     const rows = reminderRows(page);
     await expect(rows, 'one more reminder shows under Reminders').toHaveCount(rowsBefore + 1, { timeout: 30_000 });
     await expect(rows.last().locator('.countdown'), 'with its countdown').toHaveText(/^in \d+ (s|min)$/);
+    reminderSet = true;
   });
 
   test('incident: Break the feed opens a new incident that awaits approval', async ({ page }) => {
@@ -139,12 +143,13 @@ test.describe('Story 11.12: one repeat of the demo path', () => {
 
   test('reminder: the reminder landed in the chat and on the phone', async ({ page }) => {
     test.setTimeout(240_000);
+    expect(reminderSet, 'the reminder test ran first').toBe(true);
     await signInReadmeLoaded(page);
     await expect(landedCards(page), 'the chat has one more reminder notice card').toHaveCount(cardsBefore + 1, { timeout: 90_000 });
     if (ON_MOCK) {
       await expect(landedPhone(page), 'and the phone one more stretch message').toHaveCount(phoneBefore + 1, { timeout: CARD_MS });
     } else {
-      await expect.poll(() => landedPhone(page).count(), { message: 'and the phone a message without buttons', timeout: CARD_MS }).toBeGreaterThan(phoneBefore);
+      await expect.poll(() => landedPhone(page).count(), { message: 'and the phone one more "Reminder: " message', timeout: CARD_MS }).toBeGreaterThan(phoneBefore);
     }
   });
 
