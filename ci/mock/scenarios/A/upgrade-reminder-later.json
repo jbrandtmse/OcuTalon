@@ -1,0 +1,22 @@
+{
+  "name": "upgrade-reminder-later",
+  "match": {
+    "marker": "upgrade-reminder-later"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "set_reminder",
+        "input": {
+          "text": "review the upgrade notes",
+          "delaySeconds": 86400
+        }
+      }
+    },
+    {
+      "status": 200,
+      "text": "The CI mock set the reminder for tomorrow."
+    }
+  ]
+}

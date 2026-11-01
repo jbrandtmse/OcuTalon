@@ -19,6 +19,9 @@
 #     on HEAD itself does not count) is a subsequence of the lines of the same class's block at HEAD, so a release only appends
 #     slots; a stored class that HEAD removed, a changed line and a shallow clone (which cannot show the tag) fail. With no
 #     earlier tag the rule prints `PASS release-diff: no release tag yet`. Its samples are synthetic git repositories.
+#     OCUTALON_STORAGE_BASE=<commit>, when set, replaces the tag choice: the blocks are judged against that commit (the release upgrade
+#     harness, release/upgrade-harness.sh, passes the commit of its previous build), a value that is no commit is a violation naming it,
+#     and the verdict line reads `PASS release-diff: the storage blocks only grew since <commit>`. Unset, every result is as above.
 # Starts nothing: the checks read the files only. Each rule first runs on synthetic trees in a temporary folder, one that
 # keeps every rule and one that breaks only this rule, so a rule that can no longer flag anything fails.
 # A failing check prints file:line and the rule; the tree's own text is not printed.
@@ -311,23 +314,33 @@ slot_pairs() { awk '/^<Data name=/ { d = $0 } pending { print d "|" slot "|" $0;
 # is_subsequence <old> <new>: every line of the old file appears in the new file, in order.
 is_subsequence() { awk 'NR == FNR { a[++n] = $0; next } i < n && $0 == a[i + 1] { i++ } END { exit !(i == n) }' "$1" "$2"; }
 
-# release_diff <repository directory>: the verdict on that repository, one line each:
-#   NOTAG | TAG<TAB><tag> | SHALLOW | VIOLATION<TAB><file:line><TAB><what>
+# release_diff <repository directory> [<base commit>]: the verdict on that repository, one line each:
+#   NOTAG | TAG<TAB><tag or base> | SHALLOW | VIOLATION<TAB><file:line><TAB><what>
+# A base commit, when given and not empty, is the "tag": the blocks are judged against it, with no tag choice and no shallow refusal.
 release_diff() {
-  local dir=$1 head_tags tag path line
+  local dir=$1 base=${2:-} head_tags tag path line
   rd_git() { git -C "$dir" "$@"; }
-  if [ "$(rd_git rev-parse --is-shallow-repository 2>/dev/null)" = true ]; then
-    printf 'SHALLOW\n'
-    return
+  if [ -n "$base" ]; then
+    tag=$base
+    printf 'TAG\t%s\n' "$tag"
+    if ! rd_git rev-parse --verify --quiet "$tag^{commit}" >/dev/null 2>&1; then
+      printf 'VIOLATION\t%s\tthe storage base %s is not a commit of this repository\n' "$tag" "$tag"
+      return
+    fi
+  else
+    if [ "$(rd_git rev-parse --is-shallow-repository 2>/dev/null)" = true ]; then
+      printf 'SHALLOW\n'
+      return
+    fi
+    head_tags=$(rd_git tag --points-at HEAD)
+    # versionsort.suffix=- puts a pre-release (v1.0.0-rc1) before its release (v1.0.0), which git's default order puts after it.
+    tag=$(rd_git -c versionsort.suffix=- tag --merged HEAD --list 'v[0-9]*' --sort=-version:refname 2>/dev/null | grep -vxF -f <(printf '%s\n' "$head_tags") | head -n 1)
+    if [ -z "$tag" ]; then
+      printf 'NOTAG\n'
+      return
+    fi
+    printf 'TAG\t%s\n' "$tag"
   fi
-  head_tags=$(rd_git tag --points-at HEAD)
-  # versionsort.suffix=- puts a pre-release (v1.0.0-rc1) before its release (v1.0.0), which git's default order puts after it.
-  tag=$(rd_git -c versionsort.suffix=- tag --merged HEAD --list 'v[0-9]*' --sort=-version:refname 2>/dev/null | grep -vxF -f <(printf '%s\n' "$head_tags") | head -n 1)
-  if [ -z "$tag" ]; then
-    printf 'NOTAG\n'
-    return
-  fi
-  printf 'TAG\t%s\n' "$tag"
   rd_git grep -l '^Storage ' "$tag" -- 'src/*.cls' 2>/dev/null | sort | while IFS= read -r line; do
     path=${line#"$tag":}
     if ! rd_git cat-file -e "HEAD:$path" 2>/dev/null; then
@@ -366,10 +379,12 @@ A=src/ocutalon/cls/OcuTalon/Data/A.cls
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 
 rd_ok=1
-# rd_verdict <repository>: NOTAG, SHALLOW, VIOLATION or CLEAN (a tag was found and no block went wrong).
+# rd_verdict <repository>: NOTAG, SHALLOW, VIOLATION or CLEAN (a tag was found and no block went wrong). rd_base, when set, is the base
+# commit that the verdict is judged against.
+rd_base=""
 rd_verdict() {
   local out
-  out=$(release_diff "$1")
+  out=$(release_diff "$1" "$rd_base")
   if printf '%s\n' "$out" | grep -q '^VIOLATION'; then echo VIOLATION
   elif [ "$(printf '%s\n' "$out" | head -n 1)" = NOTAG ]; then echo NOTAG
   elif [ "$(printf '%s\n' "$out" | head -n 1)" = SHALLOW ]; then echo SHALLOW
@@ -382,7 +397,7 @@ rd_expect() { # rd_expect <label> <repository> <verdict> [<text the violation li
   if [ "$got" != "$3" ]; then
     echo "FAIL release-diff: $1 (judged $got, wanted $3)"
     rd_ok=0
-  elif [ -n "${4:-}" ] && ! release_diff "$2" | grep -q -- "$4"; then
+  elif [ -n "${4:-}" ] && ! printf '%s\n' "$(release_diff "$2" "$rd_base")" | grep -q -- "$4"; then
     echo "FAIL release-diff: $1 (the violation does not name $4)"
     rd_ok=0
   fi
@@ -483,9 +498,31 @@ if [ "$(release_diff "$d" | head -n 1)" != "$(printf 'TAG\tv1.0.0')" ]; then
   echo "FAIL release-diff: the previous tag is not v1.0.0"
   rd_ok=0
 fi
+
+# A base commit replaces the tag choice: a changed slot since the base is flagged with no tag present, an appended slot is clean, and
+# a base that is no commit is a violation that names it.
+d=$(rd_repo base-changed)
+rd_base=$(git -C "$d" rev-parse HEAD)
+sed 's#<Value>P2</Value>#<Value>Q2</Value>#' "$d/$A" > "$d/$A.new" && mv "$d/$A.new" "$d/$A"
+rd_commit "$d" second
+rd_expect "a changed slot since the base commit is not flagged" "$d" VIOLATION "$A:"
+if [ "$(release_diff "$d" "$rd_base" | head -n 1)" != "$(printf 'TAG\t%s' "$rd_base")" ]; then
+  echo "FAIL release-diff: the base commit is not named as the previous release"
+  rd_ok=0
+fi
+
+d=$(rd_repo base-appended)
+rd_base=$(git -C "$d" rev-parse HEAD)
+stored_class OcuTalon.Data.A 3 > "$d/$A"
+rd_commit "$d" second
+rd_expect "an appended slot since the base commit is flagged" "$d" CLEAN
+
+rd_base=0000000000000000000000000000000000000000
+rd_expect "a base that is no commit is not flagged" "$d" VIOLATION "$rd_base"
+rd_base=""
 unset GIT_CONFIG_GLOBAL GIT_CONFIG_NOSYSTEM
 
-out=$(release_diff "$root")
+out=$(release_diff "$root" "${OCUTALON_STORAGE_BASE:-}")
 if [ "$rd_ok" -eq 0 ]; then
   fails=$((fails + 1))
   echo "FAIL release-diff: a sample is not judged as designed"

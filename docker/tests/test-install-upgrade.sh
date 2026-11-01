@@ -22,6 +22,7 @@
 set -u
 
 . "$(dirname "$0")/lib-live.sh"
+. "$(dirname "$0")/lib-upgrade.sh"
 live_start t02u
 base_files=${#LIVE_FILES[@]}
 
@@ -32,8 +33,7 @@ ipm_version=0.10.10
 # first <Version> replaced, and, when asked, with an SSL step that returns an error.
 make_image_context() {
   copy_build_context "$1"
-  awk -v v="$2" '!done && /<Version>/ { sub(/<Version>[^<]*<\/Version>/, "<Version>" v "</Version>"); done = 1 } { print }' \
-    src/module.xml > "$1/src/module.xml"
+  stamp_version src/module.xml "$2" > "$1/src/module.xml"
   # The bundle of each image differs, so that the durable copy must follow the upgrade.
   printf '<!-- %s -->\n' "$2" >> "$1/src/ocutalon/csp/index.html"
   if [ "${3:-}" = broken ]; then
@@ -73,26 +73,6 @@ recreate_with() {
   live_track_image
   cid=$(dc ps -q iris)
   [ -n "$cid" ] || die "no iris container in project $P"
-}
-
-# check_installed <label> <version>: the installed package, the marker and readiness all hold the version.
-check_installed() {
-  local label=$1 want=$2
-  if [ "$(marker)" = "$want" ]; then
-    pass "$label: the marker equals $want"
-  else
-    fail "$label: the marker is '$(marker)', wanted $want"
-  fi
-  if [ "$(dc exec -T iris cat /opt/ocutalon/version 2>/dev/null | tr -d '\r\n')" = "$want" ]; then
-    pass "$label: the image's version file says $want"
-  else
-    fail "$label: the image's version file does not say $want"
-  fi
-  check_session "$label: installed package and readiness" OCUTALON "CHK|package|$want
-CHK|ready|1" \
-    'Set m=##class(%IPM.Storage.Module).NameOpen("ocutalon") Write !,"CHK|package|",$Select($IsObject(m):m.VersionString,1:"")' \
-    'Write !,"CHK|ready|",##class(OcuTalon.Data.Public.Settings).Get("ready")' \
-    'Halt'
 }
 
 # orders_probe: sends one order in MM/DD/YYYY into OCUORDERS, tagged with a 22-character reference derived from the project name,

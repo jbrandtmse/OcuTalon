@@ -2,13 +2,28 @@
 title: 'Story 11.2: Upgrades and restarts keep every record working'
 type: 'feature'
 created: '2026-10-31'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'df1c9d8cd86eef75c1ba62ada6b05728025b860a'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-11-context.md'
 warnings: ['oversized']
-deferred: []
+deferred:
+  - summary: >-
+      The planned mutation 3 (Install.Step.Schedule Reconcile returns OK without calling Schedule.Reminder.Reconcile) cannot turn the harness red: the reminder waiters survive an in-place upgrade, so the step has nothing to re-arm.
+    evidence: |-
+      Run M (mutation applied before the settings phase): after the upgrade R2 had one waiting ReminderTimer (ReminderFixture.WaitingCount) and R1 fired on time, so the upgrade and reminder rows passed. Schedule.Reminder.Reconcile skips a row that has a live waiter (LiveWaiter), and the ApprovalHold id was the same before and after (Task 0 (e)). The Reconcile step would only show if a waiter were lost (an unclean stop), which a clean in-place upgrade and `docker compose restart` do not do.
+    location: >-
+      release/upgrade-harness.sh (check_upgrade_log, check_reminder_upgrade); src/ocutalon/cls/OcuTalon/Install/Step/Schedule.cls
+    severity: medium
+  - summary: >-
+      The planned mutation 7 turns the harness's storage compare red but not the release-diff rule, because release-diff reads the committed HEAD and the mutation is a working-tree edit.
+    evidence: |-
+      Run M: the rename of Eval.Data.CaseResult DecidedAt (class and storage slot, plus the two files that name it, since no stored class has a property that no other file names) gave storage_compare MISSING for the DecidedAt slot line, while `OCUTALON_STORAGE_BASE=<pinned> test-storage.sh` printed PASS release-diff. The rule's own base sample (a committed change since the base) is red in the self-test.
+    location: >-
+      docker/tests/test-storage.sh (release_diff); release/upgrade-harness.sh (phase_storage)
+    severity: low
 ---
 
 <intent-contract>
@@ -358,6 +373,36 @@ Paths are from the epic-11 worktree root. `C/` is `src/ocutalon/cls/OcuTalon/` a
 
 ## Review Triage Log
 
+### 2026-11-01 — Review pass
+- verdicts: 26 findings — high 0, medium 2, low 19, false 5, maybe-false 0 (several rows repeat another row's root and carry its verdict)
+- findings:
+  - `[low]` `reject` Blind 1: `plan` with the default record path replaces a real run's section — only an operator who omits `--record`; stage runs pass it, `report` of a real run is what writes the committed record; the fix is a new refusal branch.
+  - `[low]` `reject` Blind 2: the candidate's bundle and `web/node_modules` are checked late — the failure is explicit (Dockerfile, Playwright), cheap to see, and an up-front check is new surface.
+  - `[false]` `reject` Blind 3: R1's 300 s window may not survive the candidate image build — measured: build until recreate 17 s, R1 set 66 s before ready, so 230 s remain; the image is already cached by the settings phase.
+  - `[low]` `patch` Blind 4: a re-run `seed` keeps stale `seed.env` values — `phase_seed` now truncates `seed.env` first.
+  - `[low]` `patch` Blind 5: `static_violations` misses `compose -p x config` and `dc config` — the pattern is widened and the self-test samples include both.
+  - `[low]` `patch` Blind 6: `iso_epoch` output is unvalidated, and `ready_epoch` falls back silently — `check_reminder_upgrade` fails on an empty epoch and the fallback prints an INFO line.
+  - `[low]` `reject` Blind 7: the `build` phase sets no deadline — the phase has no wait and took 5 to 7 s; a deadline would bound nothing.
+  - `[medium]` `patch` Blind 8: the `OCUTALON_STORAGE_BASE` environment wiring and its verdict line are untested — see Gap 1; `rd_expect` change is behaviour-neutral and stays.
+  - `[false]` `reject` Blind 9: the pairing hooks are never called — the spec requires them as an off hook for Story 12.7, called only when the family is in `HARNESS_ON`.
+  - `[low]` `patch` Edge 1: a re-run `seed` keeps stale state — same root as Blind 4.
+  - `[low]` `reject` Edge 2: `wait_until` returns 1 without a try when the deadline has passed — the phases end far inside 540 s (at most 292 s), and a guard adds branches.
+  - `[low]` `patch` Edge 3: an unparsable `dueAt` gives a misleading arithmetic error — same root as Blind 6.
+  - `[low]` `reject` Edge 4: an interrupted `run` leaves the project and lock until a manual `down` — the usage says to end with `down`; a trap in `run` is new behaviour the spec does not ask for.
+  - `[low]` `reject` Edge 5: no deadline in `build`, `storage`, `report` — same as Blind 7.
+  - `[low]` `patch` Edge 6: R1 due during the image build blames "phases too far apart" — the cutoff is now the start of the upgrade phase (`began_epoch`), as the spec states, with its own message.
+  - `[low]` `defer` Edge 7: release-diff reads the committed HEAD, so a rehearsal's uncommitted storage change is judged only by `storage_compare` — carried by the second `deferred:` item (it is a working-tree edit; the compare sees it).
+  - `[false]` `reject` Edge 8: the spec's deadline claim — the same fact as Blind 7.
+  - `[low]` `patch` Edge 9: the cutoff differs from the spec — same root as Edge 6.
+  - `[medium]` `patch` Gap 1: the storage phase accepts "no release tag yet", so a dropped base passes — `release_diff_verdict_ok` now requires "only grew since <sha>", and the rule storage-base runs the real tree against the pinned commit.
+  - `[low]` `patch` Gap 2: `iso_epoch` is asserted by two empty outputs — the self-test pins absolute epochs and the break overrides `iso_epoch`.
+  - `[low]` `patch` Gap 3: waiter, restart and private-globals checks have no mutation line — run N applied four mutations and lines are written for the reminder, restart (R2), private globals and approval rows; the Schedule waiter mutation stays deferred as before (a clean upgrade leaves the waiters).
+  - `[low]` `patch` Gap 4: the default previous build is never run on the real tree — `t_real` runs `plan` without `--previous` and requires a tag or the pinned commit.
+  - `[low]` `defer` Other 1: release-diff does not judge a rehearsal's working tree — same as Edge 7.
+  - `[low]` `patch` Other 2: the label "plan prints the record path" asserts `RESULT not run` — relabelled.
+  - `[false]` `reject` Other 3: the pairing hooks never run — same as Blind 9.
+  - `[false]` `reject` Intent: the live phases are not run by the diff's tests — the harness is a gate whose evidence is the full run on fresh projects, recorded under Verification (two green runs and a mutated run); the `test-install-upgrade.sh` refactor is a named task.
+
 ## Design Notes
 
 **Architecture decisions (Rule 6).**
@@ -516,16 +561,87 @@ Run M (tag `e11s2m`) is one full harness run with mutations 2 to 7 applied toget
 | AC9 | `lib-upgrade.sh` `check_installed` compares the marker with `$1` instead of `$2` | `live install-upgrade` FAIL on the marker; run V's red already covers the harness side |
 | AC10 | (a measurement, not a test) | -- |
 
+**Recorded by the implement stage (2026-11-01, lane A, tags e11s2i, e11s2u, e11s2h, e11s2m, e11s2v and e11s2d; no slot, no MCP call, no key):**
+
+- Task 0 (a): the `build` phase took 5 s for the pinned commit (export, `npm ci` and the bundle build, with the machine's npm cache warm).
+- Task 0 (b): the previous image stamped `0.1.0-pre.1` reached ready with that marker, the image's version file and the IPM `VersionString`; IPM took the pre-release version, so `stamp_for` keeps the primary rule. The upgrade log read `STEP package loaded (version 0.1.0-pre.1 to 0.1.0)`.
+- Task 0 (c): R1 was set 67 s before the candidate was ready (70 s in the first run). That is under 240 s, so `delaySeconds` stays 300. R1 was due 230 s after ready and fired on time ("Reminder: check the upgrade.").
+- Task 0 (d): the post-upgrade `recall-ask` turn made two requests in order: the Triage request (no tools, 1 message, no fact), then the ChatAgent's (8 tools, 15 messages, the fact in them: the AI session continues). After the restart the chat request had 17 messages and carried the fact. The Triage request does not carry the fact, and the earlier conversation is in `messages`, so there is no Clarification Needed.
+- Task 0 (e): `LiveHold(ref)` was `11` before the upgrade and `11` after: the hold is kept, not re-armed.
+- Task 0 (f) and AC10, the final run on fresh projects after the last change to the harness (build 5 s, settings 145 s, seed 109 s, upgrade 293 s, restart 26 s, storage 9 s, report 0 s; 587 s of phases, about 10 minutes of wall time with the calls between): each phase ended far inside 540 s, and `settings` is under 480 s, so it is not split. An earlier full run took 5, 153, 111, 292, 25, 10 and 0 s.
+- Other runs: `live install-upgrade` (AC9) passed in 336 s (`test-install-upgrade: all checks passed`). The dry run `plan --rc 1 --record <tmp>` exited 0 with `Mode: dry run` and `Result: not run`. `test-upgrade-harness.sh` (10 rules), `test-storage.sh`, `test-mock.sh` (131 tests, the two scenarios load), `test-ci-config.sh`, `test-ci-changes.sh`, `ci/changes.sh ci.yml` and the three parts of the checks list (`boundaries ... pinned-sources`, `after-start ... ci-warm`, `probe ... upgrade-harness`) passed with no `FAILED` line. `docker/tests/test-ci-config.sh` needed no pin change for the new `CHECK_SCRIPTS` name.
+
+The record section of the final run (`--record` in a temporary folder, `Mode: rehearsal (uncommitted changes)` because the stage's work was uncommitted), indented by two spaces here:
+```
+  ## Upgrade harness
+
+  Result: pass
+  Mode: rehearsal (uncommitted changes)
+  Required: no
+  Candidate: 0.1.0 at df1c9d8cd86eef75c1ba62ada6b05728025b860a
+  Previous: pre-release c9f1288c7a735f1ee3aa14a4f5289de794ce5257, version 0.1.0, built as 0.1.0-pre.1
+  Note: 1.0.0 is the first release: it has no previous release, so the previous side is a pre-release build of the integration branch (c9f1288c7a735f1ee3aa14a4f5289de794ce5257), which proves the harness itself.
+  Run: 2026-11-01T10:01:09Z to 2026-11-01T10:11:12Z, tag e11s2h
+
+  | Record | Result | Detail |
+  | --- | --- | --- |
+  | previous build | pass | 12 checks passed |
+  | upgrade | pass | 13 checks passed |
+  | conversation | pass | 3 checks passed |
+  | reminder | pass | 2 checks passed; R1 fired on-time (due 230 s after the candidate was ready) |
+  | approval | pass | 3 checks passed |
+  | watch | pass | 2 checks passed |
+  | settings | pass | 9 checks passed |
+  | restart | pass | 10 checks passed |
+  | storage | pass | 2 checks passed |
+  | private globals | pass | 2 checks passed |
+  | pairing | off | joins from the release after 1.0.0 (Story 12.7) |
+```
+
+**Mutations (Rule 19), each applied, observed, reverted with a fingerprint of `git status --short`, the diff and the untracked files compared equal before and after (backups only in the scratchpad):**
+- mutation: AC2 (run V, also repeated after the last change) `docker/after-start.cos` `inst'=img` in the `why` `$Select` to `0` -> `upgrade` red (`STEP package skipped`, `STEP session FAILED 'RESULT OK 0.1.0-pre.1', the image is 0.1.0`, `not ready`, "the candidate did not end ready"); conversation, reminder, approval and watch read "not run (seeded only)", and settings, restart, storage and private globals read "not run"; `RESULT fail`.
+- mutation: AC3, AC4 (run M) `Core/Conversation.cls` `Ask` always `fresh` with an empty `SeedText` -> `conversation` red and `restart` red ("the chat agent's request does not carry the fact told before"; the request had 1 message).
+- mutation: AC3 (run M) `Install/Step/Schedule.cls` `Reconcile` starts with `Quit $SYSTEM.Status.OK()` -> NOT red: R2 had one waiting ReminderTimer and R1 fired on time (waiters survive the upgrade; see `deferred:`). A first try that left the loop's list undefined failed the Schedule step and so the candidate's start in the settings project, which is no result for this row.
+- mutation: AC3 (run M) `Msg/Catalog/Watch.cls` `result.allThrough` "went through" to "went thru" -> `approval` red (the incident resolved with 50, 50, 0 but the phone item "All 50 orders went through." was missing).
+- mutation: AC3 (run M) `Install/Step/Demo.cls` `Mode()` with `Setting.Set` instead of `Seed` -> `settings` red (the row read `1|...` after the upgrade, OCUORDERS present, `/state` demoMode true, break-feed 409, the page specs failed).
+- mutation: AC3 (run M) `Install/Step/Web.cls` `Reconcile` also runs `BackgroundCheck.%KillExtent()` -> `watch` red ("the rail lists no Orders check") and `restart` red ("Orders is not listed in the rail's checks").
+- mutation: AC5 (run M) `Eval/Data/CaseResult.cls` `DecidedAt` renamed to `DecidedOn` in the class and its storage slot, and in `Eval/Sink.cls` and `Test/Eval/Sink.cls` that name it (no stored class has a property that no other file names) -> `storage` red from the compare (`MISSING OcuTalon.Eval.Data.CaseResult|CaseResultDefaultData|8|DecidedAt|%Library.String|`); the release-diff rule stayed green because it reads the committed HEAD (see `deferred:`).
+- mutation: AC1 `resolve_previous` prints HEAD's sha -> self-test rule resolve-previous red.
+- mutation: AC6 `record_rows` ignores fail lines -> self-test rule record red.
+- mutation: AC7 `chat_request_carries` skips the `tools` filter -> self-test rule chat-request red (the Triage-only line is taken for the chat request).
+- mutation: AC5 `storage_compare` drops the type column -> self-test rule storage-compare red.
+- mutation: AC8 `release_diff` ignores its base -> `test-storage.sh` red on the three base samples (a changed slot since the base, an appended slot, a base that is no commit) and "a sample is not judged as designed".
+- mutation: AC9 `lib-upgrade.sh` `check_installed` compares the marker with `$1` -> `live install-upgrade` red: "first start: the marker is '0.1.0', wanted 0.1.0", row 6 and the next good image alike (3 checks failed).
+- mutation: AC3 (run N, after the review patches) `Msg/Catalog/Core.cls` "Reminder: {text}." to "Reminded: {text}." -> `reminder` red ("the notice 'Reminded: check the upgrade.' is neither the on-time nor the late text").
+- mutation: AC5 (run N) `Install/Step/PrivateData.cls` `Run()` starts with `Kill ^OcuTalonP.S01Probe` -> `private globals` red ("probes after the upgrade (written under the previous build) (2 of 5 values differ)").
+- mutation: AC3 (run N) `Install/Step/Approvals.cls` `Reconcile` first sets every pending request's `ExpiresAt` to 2099 -> `approval` red (the pending request carries the changed `expiresAt`), and `watch` red as a consequence (the press answers 409 `incident_in_progress`).
+- mutation: AC4 (run N) `Install/Step/Schedule.cls` `Reconcile` first sets R2's `DueAt` to 2099 -> `restart` red ("R2 is '...|2099-01-01T00:00:00Z|pending', wanted '...|2026-11-02T10:38:13Z|pending'"). The restart's ref2 checks (expiry and hold) were not reached in run N, because the watch row failed first; they are pinned by the clean run only.
+- mutation: AC5, AC8 `OCUTALON_STORAGE_BASE` wiring (review patch) -> self-test rule storage-base: its break (the real-tree run answers the no-tag line and the verdict reader accepts anything) turns the rule red.
+- mutation: AC3 (review patch) `iso_epoch` prints nothing -> self-test rule state-readers red (absolute epochs 10 and 70, and a non-UTC time has none).
+- mutation: AC1 (review patch) the static rule's `compose config` pattern -> self-test rule static red on `compose -p x config` and `dc config`.
+
+Run N (tag `e11s2n`, mutations A to D together, applied to the working tree and reverted byte-identical against scratchpad backups; `git status --short` and `git diff` equal before and after) ended `RESULT fail` with phases build 7 s, settings 149 s, seed 108 s, upgrade 292 s, restart 25 s, storage 10 s.
+
+**Final clean run after the review patches (tag `e11s2h`, fresh projects, one phase per call):** build 6 s, settings 148 s, seed 109 s, upgrade 292 s, restart 25 s, storage 11 s, report 0 s; every phase `(0 failed)`, `RESULT pass`, `Mode: rehearsal (uncommitted changes)`, previous `pre-release c9f1288c...`. The record section equals the one above except for its run times. After the patches the hermetic parts of the checks list (`boundaries ... pinned-sources`, `after-start ... ci-warm`, `probe ... upgrade-harness`), `test-mock.sh`, `ci/changes.sh ci.yml` and the dry run all passed; the lane-a lock folder was empty and no project of the stage's tags was left.
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-**Summary (plan stage, 2026-10-31; nothing implemented, nothing committed).**
-- What was planned: the upgrade harness `release/upgrade-harness.sh`, a hermetic self-test `docker/tests/test-upgrade-harness.sh` added to `CHECK_SCRIPTS`, two `A/` reminder scenarios, `docker/tests/lib-upgrade.sh` (moved out of `test-install-upgrade.sh`), and `OCUTALON_STORAGE_BASE` in `test-storage.sh`.
-- Phases: the harness runs one phase per call (`build`, `settings`, `seed`, `upgrade`, `restart`, `storage`, `report`, `down`) or chains them with `run`, and keeps lane A's lock across calls while its records project is up.
-- Previous ref: a `v*` tag when one exists, else the pinned pre-release commit `c9f1288c7a735f1ee3aa14a4f5289de794ce5257` (the integration branch at Epic 11's start), with the record note that 1.0.0 has no previous release.
-- Pairing: the family is built as a hook and left off for Story 12.7.
-- Not a CI unit: the full run stays out of every group and out of REL-4's budget.
-- Ledger: owned entries: none. Amendments: none. Clarifications: none. Split: none proposed (Design Notes, Size).
-- Footprint: Epic 11's footprint is "either lane's files", so there is no extension. The only shared-by-region edit is the `CHECK_SCRIPTS` line of `ci/units.sh`. No contended file is changed.
+**Summary.** The upgrade harness `release/upgrade-harness.sh` builds the previous build (a `v*` tag, else the pinned pre-release commit) from `git archive`, seeds a conversation, an Orders watch, a pending approval and two reminders through the product's HTTP API and the CI mock, switches demo mode off in a second project, upgrades both in place, restarts the records project and writes the `## Upgrade harness` section (`Result:`, `Mode:`, `Required:`, rows per record) to the record. It runs one phase per call and holds lane A's lock across calls. A hermetic self-test (`test-upgrade-harness.sh`, 11 rules) joins `CHECK_SCRIPTS`.
+
+**Files changed**
+- `release/upgrade-harness.sh` -- new: the harness (phases, pure functions, record writer, off pairing hook).
+- `docker/tests/test-upgrade-harness.sh` -- new: the hermetic self-test; each rule first fails on a synthetic break.
+- `docker/tests/lib-upgrade.sh` -- new: `check_installed` (moved) and `stamp_version`, shared with `test-install-upgrade.sh`.
+- `docker/tests/test-install-upgrade.sh` -- sources `lib-upgrade.sh`; no behaviour change.
+- `docker/tests/test-storage.sh` -- `OCUTALON_STORAGE_BASE` replaces the tag choice in `release_diff`, with three synthetic samples.
+- `ci/mock/scenarios/A/upgrade-reminder.json`, `upgrade-reminder-later.json` -- new reminder scenarios.
+- `ci/units.sh` -- `upgrade-harness` appended to `CHECK_SCRIPTS` only.
+
+**Review.** 26 findings: patches applied 13 rows (2 medium, 11 low: seed state reset, static rule widened, epoch guards, the upgrade-start cutoff, the storage verdict requiring the base text, the storage-base rule, the default-previous plan check, absolute epoch assertions, a label, and four new `mutation:` lines), deferred 2 rows (both low: the working-tree storage change seen only by the compare; carried by the existing item), rejected 11 (reasons in the log). The two `deferred:` items from the implement pass (the Schedule waiter mutation cannot go red on a clean upgrade; release-diff reads the committed HEAD) stay in the frontmatter. Patched counts by verdict: medium 2, high 0. Follow-up review recommended: false.
+
+**Verification performed.** Self-test (11 rules), `test-storage.sh`, `test-mock.sh`, `test-ci-config.sh`, `test-ci-changes.sh`, `ci/changes.sh ci.yml`, the other hermetic check scripts and the dry run all passed after the last patch; `live install-upgrade` passed in the implement pass (336 s; its inputs are unchanged since). A mutated full run (N) turned the reminder, approval, watch, restart and private-globals rows red; the final clean full run on fresh projects after the patches passed with every phase inside 540 s. Details and measurements are under Verification.
+
+**Residual risks.** `run` (all phases chained) is exercised only through its refusal path; run it per phase. R1's 300 s window leaves about 230 s between the candidate being ready and R1 falling due, and about 4 minutes between `seed` and the recreate, so a long gap between calls fails the reminder row as "the phases ran too far apart". `settings` after `seed` is refused because the records project holds the lane lock until `down`. The restart's ref2 expiry and hold checks have no mutation of their own (run N never reached them).
