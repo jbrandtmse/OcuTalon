@@ -449,7 +449,20 @@ async function expectColumn(page: Page, wideBlock: number, link: Locator): Promi
   await settled(page);
   const after = await layers(page);
   expect(Math.abs(after.header), 'after scrolling to the bottom the header is still at the top').toBeLessThanOrEqual(0.5);
-  expect(after.headerBlock, 'and it is shorter than at 1280x720').toBeLessThan(wideBlock);
+  const header = await page.evaluate(() => {
+    const centres = Array.from(document.querySelectorAll('app-header a, app-header button'))
+      .map((el) => el.getBoundingClientRect())
+      .filter((box) => box.width > 0 && box.height > 0)
+      .map((box) => box.top + box.height / 2);
+    const rows: number[] = [];
+    for (const centre of centres) if (!rows.some((row) => Math.abs(row - centre) < 6)) rows.push(centre);
+    return { rows: rows.length, demoSwitch: document.querySelectorAll('app-header [role="switch"]').length, inner: window.innerHeight };
+  });
+  if (header.demoSwitch > 0 && header.rows > 1) {
+    expect(after.headerBlock, `with the Demo view switch the compact header may wrap to a second row, and stays within a quarter of the window (${header.inner}px)`).toBeLessThanOrEqual(header.inner * 0.25);
+  } else {
+    expect(after.headerBlock, 'and it is shorter than at 1280x720').toBeLessThan(wideBlock);
+  }
   const positions = await page.evaluate(() => {
     const sticky: string[] = [];
     const fixed: string[] = [];

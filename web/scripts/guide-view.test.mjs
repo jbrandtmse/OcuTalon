@@ -44,7 +44,6 @@ describe('the fixed strings', () => {
       promptReminder: P2,
       promptBreakFeed: 'Press Break the feed. The partner will send 50 orders in a new date format.',
       waiting: 'Waiting for OcuTalon. The reminder may arrive first.',
-      goToBreakFeed: 'Go to Break the feed',
       approvePaired: 'Approve the fix in Telegram on your phone, or on the simulated phone.',
       approveUnpaired: 'Approve the fix on the simulated phone, or in the chat.',
       rejected: 'Rejected. Nothing was changed. Dismiss the incident in the chat, then press Break the feed again.',
@@ -226,9 +225,9 @@ describe('promptOf: steps 3 to 5 (Story 4.7, rows 1 to 6)', () => {
   it('step 3 sends the user to Break the feed, quoted, for every stage but the waiting ones (row 1)', () => {
     for (const stage of [undefined, '', 'no_notice', 'notice_arrived']) {
       const prompt = promptOf(3, view(2, { breakFeed: { active: true, stage } }));
-      assert.deepEqual(prompt, { text: T.promptBreakFeed, quoted: quoted(T.promptBreakFeed), action: 'goToBreakFeed' }, String(stage));
+      assert.deepEqual(prompt, { text: T.promptBreakFeed, quoted: quoted(T.promptBreakFeed), action: 'none' }, String(stage));
     }
-    assert.deepEqual(promptOf(3, { step: 3 }), { text: T.promptBreakFeed, quoted: quoted(T.promptBreakFeed), action: 'goToBreakFeed' }, 'a view with no breakFeed');
+    assert.deepEqual(promptOf(3, { step: 3 }), { text: T.promptBreakFeed, quoted: quoted(T.promptBreakFeed), action: 'none' }, 'a view with no breakFeed');
   });
 
   it('step 3 shows only the waiting line, unquoted and with no action, while the batch is sending or waiting (row 2)', () => {

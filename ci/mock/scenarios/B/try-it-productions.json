@@ -1,0 +1,19 @@
+{
+  "name": "try-it-productions",
+  "match": {
+    "prompt": "Which productions are running?"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "list_productions",
+        "input": {}
+      }
+    },
+    {
+      "status": 200,
+      "text": "The CI mock listed the productions."
+    }
+  ]
+}

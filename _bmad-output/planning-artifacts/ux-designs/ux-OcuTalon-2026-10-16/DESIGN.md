@@ -725,7 +725,7 @@ Cards never lift on hover.
 - `{rounded.xl}` (28px): the phone frame only.
 - `{rounded.full}`: chips and badges.
 
-**Pills mean state or category:** outcome chips, state chips, the context badge, and the reset countdown are borderless; the "Simulated" label is the one outlined state pill, in amber. **An actionable chip always carries a `{colors.border-strong}` outline and a hover fill;** currently, only the sample email chips. Buttons, including the new-messages button, are never pill-shaped.
+**Pills mean state or category:** outcome chips, state chips, the context badge, and the reset countdown are borderless; the "Simulated" label is the one outlined state pill, in amber. **An actionable chip always carries a `{colors.border-strong}` outline and a hover fill;** currently, the sample email chips and the Try it yourself chips. [ADDED 2026-11-01, Story 4.10, owner decision relayed by the Contest Planner under delegation; the owner: "Yes to both questions."] [AMENDED 2026-11-01, Story 4.10: the text was "currently, only the sample email chips".] Buttons, including the new-messages button, are never pill-shaped.
 
 ## Components
 
@@ -739,6 +739,11 @@ Visual specs live here; behavior lives in `EXPERIENCE.md`'s Component Patterns, 
   - the logo mark (`logo/web/icon-192.png`, shown at 28px, its navy tile intact);
   - the wordmark ("Ocu" `{colors.ink}`, "Talon" `{colors.brand-orange}`);
   - the context badge, a neutral pill reading "Online demo" or "Demo mode";
+  - on a demo-mode page, the Demo view switch [ADDED 2026-11-01, Story 4.9, owner request relayed by the Contest Planner; the owner: "We need a toggle switch to "turn off demo mode", which would hide the guide and simulated phone to show what the screen would look like for a real deployment."]
+    - a ghost control: a 32x18 track (on: `{colors.action}` fill and `{colors.on-action}` thumb at the right; off: `{colors.surface}` fill, `{colors.border-strong}` border and `{colors.ink-muted}` thumb at the left);
+    - then the label "Demo view" in `{typography.body-strong}`;
+    - the track alone in the 1024-1279px band;
+    - the standard focus ring, and no animation;
   - the header navigation, from step 2 of the release plan (the current item in `{colors.ink}` with a teal bottom bar, the others in `{colors.ink-muted}`);
   - right-aligned: the reset countdown, the Visual Trace menu, the theme menu, and the account menu.
 - **Buttons and focus ring.**
@@ -840,6 +845,7 @@ Visual specs live here; behavior lives in `EXPERIENCE.md`'s Component Patterns, 
 - **Simulated mailbox.** A header ("Simulated mailbox" with the Simulated label), then the sample email chips (always visible), a "Simulate an incoming email" `button-secondary`, and the inbox list of email rows. The compose form opens in place of the list.
 - **Email row.** Sender, subject, and time. Unread rows carry a teal dot and the visually hidden word "Unread" (announced by screen readers). Once OcuTalon has decided, the row shows its outcome chip.
 - **Sample email chip.** A bordered, actionable pill with a `mail` icon: "Sample: newsletter", "Sample: partner notice", or "Sample: suspicious request". The three chips wrap to a second row when the mailbox is narrow.
+- **Try it yourself row.** The label "Try it yourself" in `{typography.body-sm}` and `{colors.ink-muted}`, then four bordered, actionable pills on `{components.sample-email-chip}` with no icon, wrapping to further rows when narrow. Centred in the empty chat, start-aligned in the finish state. No animation. [ADDED 2026-11-01, Story 4.10, owner decision relayed by the Contest Planner under delegation; the owner: "Yes to both questions."]
 
 ### Sign-in
 

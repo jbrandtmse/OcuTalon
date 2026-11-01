@@ -2,7 +2,7 @@ import { expect, test, type Locator, type Page, type Route } from '@playwright/t
 
 import { post, STATE } from '../support/api';
 import { announcements, announcedTexts, recordAnnouncements, tokenColor } from '../support/page';
-import { CARD_MS, HEADER, MOST_STOPS, SKIP_CHAT, applied, composerOf, expectStopRing, inMs, mainOf, openFloor, railOf, readFocus, settled, skipLink, stepKeys } from '../support/floor';
+import { CARD_MS, HEADER, MOST_STOPS, SKIP_CHAT, applied, composerOf, expectStopRing, inMs, loadedAfter, mainOf, openFloor, railOf, readFocus, settled, skipLink, stepKeys } from '../support/floor';
 import { publishFixtureEvent } from '../support/devices';
 import { awaitOrdersPolls, dropBreakFeed, dropUsage, GUIDE_MARKERS, holdOrdersFailures, ORDERS, ordersFailuresHeld, pressIncidents, publishWatchProgress, refreshGuide, releaseOrdersFailures, rowCount, seedBreakFeedRun, setIncident, settleBatch, startEpochAt } from '../support/guide';
 import { cleanFixtureRows, fixtureUser, publishCheck, publishReminder, seedApproval, seedCheck, seedIncident, seedReminder, seedTurns, setApprovalState, turnRows } from '../support/iris';
@@ -18,8 +18,8 @@ import { helpSeen, stubTraces, TRACE_PAGE } from '../support/trace';
  * session is no fixture session, so Fixture.Clean keeps its run rows, and a run under 180 s old would show in the next case's guide).
  * M4 holds the Orders failures before it seeds anything and releases them after its batch is complete, so that the real failure poller
  * makes no incident of the batch: an incident would open M7 at step 4, make M9's box inactive and replace M4's own progress lines.
- * Story 4.7 finishes the guide (M7 to M11), each on real guide.state from seeded rows: M7 Go to Break the feed and the waiting line, M8 Show me
- * and the step 4 variants, M9 Open the trace and the finish state with its run total, links and attention box, M10 Run again, M11 the same press with the sign-in help already seen, M12 and M13 (QA) the cells of those rows that need an odd state: Show me with no phone message, Go to Break the feed on an inactive box, a failed marker write and a finish with no turn. Their trace tabs
+ * Story 4.7 finishes the guide (M7 to M11), each on real guide.state from seeded rows: M7 step 3's instruction line and the waiting line, M8 Show me
+ * and the step 4 variants, M9 Open the trace and the finish state with its run total, links and attention box, M10 Run again, M11 the same press with the sign-in help already seen, M12 to M14 (QA) the cells of those rows that need an odd state: Show me with no phone message, the hand-off of focus to an inactive box, a failed marker write, a finish with no turn, and a Run again that brings back step 2 (focus on Send, not the box). Their trace tabs
  * are stand-ins (stubTraces), so they hold no licence connection, and M9 and M10 start from a run_again, so that the run window is clean.
  */
 test.describe.configure({ timeout: 120_000 });
@@ -58,7 +58,6 @@ const breakOf = (page: Page): Locator => guideOf(page).getByRole('button', { nam
 const boxOf = (page: Page): Locator => page.locator('app-break-feed-box');
 const hideOf = (page: Page): Locator => guideOf(page).getByRole('button', { name: 'Hide guide', exact: true });
 const showOf = (page: Page): Locator => guideOf(page).getByRole('button', { name: 'Show guide', exact: true });
-const goOf = (page: Page): Locator => guideOf(page).getByRole('button', { name: 'Go to Break the feed', exact: true });
 const promptText = (page: Page): Locator => guideOf(page).locator('.prompt-text');
 
 /** The ring and the name of every tab stop inside the demo guide, from the first skip link until focus leaves it, each judged by expectStopRing. */
@@ -204,7 +203,7 @@ test('M3: the real guide.state advances the page to step 2 and step 3, announced
     await expect(composerOf(page), 'focus in the composer stays there').toBeFocused();
     await expect.poll(() => announcements(page, 'Step 3 of 5: Break the feed'), { message: 'announced', timeout: CARD_MS }).toBe(1);
     await expect(promptText(page), "step 3's prompt (Story 4.7)").toHaveText(`"${P3}"`);
-    await expect(goOf(page), 'with its Go to Break the feed button').toBeVisible();
+    await expect(guideOf(page).locator('.prompt').getByRole('button'), 'with no button in the prompt bar').toHaveCount(0);
 
     // At step 3 the box is active, with the tag.
     await expect(breakOf(page)).toHaveClass(/button-attention/, { timeout: CARD_MS });
@@ -219,8 +218,8 @@ test('M3: the real guide.state advances the page to step 2 and step 3, announced
   }
 });
 
-/** M6: an update that removes the focused prompt button moves focus to the next step's action; an update that removes nothing leaves focus in the composer. */
-test('M6: focus in the composer stays through an advance, and a removed prompt button hands focus to the next step\'s action', async ({ page }) => {
+/** M6: an update that removes the focused prompt button moves focus to the box's Break the feed button; an update that removes nothing leaves focus in the composer. */
+test('M6: focus in the composer stays through an advance, and a removed Send hands focus to the box\'s Break the feed button', async ({ page }) => {
   const { user } = fixtureUser(KIND);
   const refs: string[] = [];
   try {
@@ -234,13 +233,21 @@ test('M6: focus in the composer stays through an advance, and a removed prompt b
     await expect(stepOf(page, 2, 'current'), 'the watch advances the guide to step 2').toHaveAttribute('aria-current', 'step', { timeout: CARD_MS });
     await expect(composerOf(page), 'focus in the composer stays there').toBeFocused();
 
-    // Step 2 to step 3 with focus on the prompt bar's Send, which step 3 replaces with Go to Break the feed: focus goes to that action.
+    // Step 2 to step 3 with focus on the prompt bar's Send, which step 3 removes: focus goes to the box's Break the feed button, which is not pressed.
+    const posts: string[] = [];
+    page.on('request', (request) => {
+      if (request.method() === 'POST' && request.url().includes('/demo/break-feed')) {
+        posts.push(request.url());
+      }
+    });
     const reminder = await seedStretch(user, refs);
     await sendOf(page).focus();
     await expect(sendOf(page)).toBeFocused();
     await publishReminder(user, { ref: reminder, text: 'zz M stretch' });
     await expect(stepOf(page, 3, 'current'), 'the reminder advances it to step 3').toHaveAttribute('aria-current', 'step', { timeout: CARD_MS });
-    await expect(goOf(page), "the removed Send hands focus to the next step's action").toBeFocused();
+    await expect(breakOf(page), "the removed Send hands focus to the box's Break the feed button").toBeFocused();
+    await settled(page);
+    expect(posts, 'nothing is pressed or posted').toEqual([]);
   } finally {
     await cleanFixtureRows(refs);
   }
@@ -331,18 +338,18 @@ test('M4: a real press is busy, then sent (announced once, the elapsed time tick
 });
 
 /** The guide's step 4 and step 5 rows: an Orders incident with the trace session HEADER, and the watch and the reminder that come before it. */
-async function seedIncidentPath(user: string, refs: string[], incident: { state: string; openVariant: string }, request: 'pending' | 'approved'): Promise<{ incident: string; approval: string }> {
+async function seedIncidentPath(user: string, refs: string[], incident: { state: string; openVariant: string }, request: 'pending' | 'approved'): Promise<{ incident: string; approval: string; reminder: string }> {
   await seedWatch(user, refs);
-  await seedStretch(user, refs);
+  const reminder = await seedStretch(user, refs);
   const incidentRef = await seedIncident(user, { ...ORDERS, noticedAt: inMs(0), traceHeaderId: HEADER, ...incident });
   refs.push(incidentRef);
   const approval = await seedApproval(user, { incidentRef, state: request });
   refs.push(approval);
-  return { incident: incidentRef, approval };
+  return { incident: incidentRef, approval, reminder };
 }
 
-/** M7: Go to Break the feed focuses the box's button and presses nothing; a run in flight shows only the waiting line, and no notice brings the prompt back. */
-test('M7: Go to Break the feed focuses the box without pressing it, and a run in flight shows only the waiting line', async ({ page }) => {
+/** M7: step 3 shows only its instruction line, and the box's Next step tag and teal bar point to Break the feed; a run in flight shows only the waiting line, and no notice brings the prompt back. */
+test('M7: step 3 shows only its instruction line, with the box\'s Next step tag and teal bar, and a run in flight shows only the waiting line', async ({ page }) => {
   const { user } = fixtureUser(KIND);
   const refs: string[] = [];
   const posts: string[] = [];
@@ -363,10 +370,15 @@ test('M7: Go to Break the feed focuses the box without pressing it, and a run in
     await expect(guideOf(page).locator('.prompt .next'), 'after Next:').toHaveText('Next:');
 
     posts.length = 0;
-    await goOf(page).click();
-    await expect(breakOf(page), "focus moves to the box's Break the feed button").toBeFocused();
-    await expect(breakOf(page), 'which is active and still unpressed').not.toHaveAttribute('aria-busy', /.*/);
+    await expect(guideOf(page).locator('.prompt').getByRole('button'), 'with no button').toHaveCount(0);
+    await expect(guideOf(page).locator('.prompt').getByRole('link'), 'and no link').toHaveCount(0);
+    await expect(boxOf(page), 'the box is the next step').toHaveClass(/next-step/);
+    await expect(boxOf(page).getByText('Next step', { exact: true }), 'with its tag').toBeVisible();
+    await expect(boxOf(page), 'and the 4px action bar on its left').toHaveCSS('border-inline-start-width', '4px');
+    await expect(boxOf(page)).toHaveCSS('border-inline-start-color', await tokenColor(page, '--action'));
     await settled(page);
+    await expect(breakOf(page), 'the load moved no focus to the box').not.toBeFocused();
+    await expect(breakOf(page), 'and pressed nothing').not.toHaveAttribute('aria-busy', /.*/);
     expect(
       posts.filter((path) => path.includes('/demo/break-feed') || path.includes('/guide/markers') || path.includes('/messages')),
       'nothing was pressed or written',
@@ -377,7 +389,8 @@ test('M7: Go to Break the feed focuses the box without pressing it, and a run in
     await refreshGuide(user);
     await expect(promptText(page), 'only the waiting line').toHaveText(WAITING, { timeout: CARD_MS });
     await expect(guideOf(page).locator('.prompt .next'), 'with no Next:').toHaveCount(0);
-    await expect(guideOf(page).locator('.prompt .button'), 'and no button').toHaveCount(0);
+    await expect(guideOf(page).locator('.prompt').getByRole('button'), 'and no button').toHaveCount(0);
+    await expect(guideOf(page).locator('.prompt').getByRole('link'), 'or link').toHaveCount(0);
     await expect(stepOf(page, 3, 'current')).toHaveAttribute('aria-current', 'step');
 
     // No notice after 3 minutes: the prompt is back.
@@ -387,11 +400,14 @@ test('M7: Go to Break the feed focuses the box without pressing it, and a run in
     const stage = ((await (await page.request.get(STATE)).json()) as { guide: { breakFeed: { stage?: string } } }).guide.breakFeed.stage;
     expect(stage, "the run is the epoch's, with no notice after 3 minutes").toBe('no_notice');
     await expect(promptText(page), 'no notice brings the prompt back').toHaveText(`"${P3}"`, { timeout: CARD_MS });
-    await expect(goOf(page)).toBeVisible();
+    await expect(guideOf(page).locator('.prompt').getByRole('button'), 'with no button').toHaveCount(0);
   } finally {
     await dropBreakFeed(user);
     await cleanFixtureRows(refs);
-    if (epochStart !== undefined) await startEpochAt(user, epochStart);
+    if (epochStart !== undefined) {
+      await startEpochAt(user, epochStart);
+      await endRun(page);
+    }
   }
 });
 
@@ -436,12 +452,12 @@ test('M8: Show me selects the phone and focuses the pending notification, and a 
   }
 });
 
-/** Everything M9 and M10 start from: the guide at step 5 of a run that ended with an approved fix and a resolved incident, with its run total seeded. */
-async function seedFinishingRun(page: Page, user: string, refs: string[], usage: string[]): Promise<void> {
+/** Everything M9, M10 and M14 start from: the guide at step 5 of a run that ended with an approved fix and a resolved incident, with its run total seeded. Returns the ref of the reminder row. */
+async function seedFinishingRun(page: Page, user: string, refs: string[], usage: string[]): Promise<string> {
   await openFloor(page);
   const marked = await post(page.request, GUIDE_MARKERS, { marker: 'run_again' });
   expect(marked.status(), await marked.text()).toBe(200);
-  await seedIncidentPath(user, refs, { state: 'resolved', openVariant: 'fix' }, 'approved');
+  const { reminder } = await seedIncidentPath(user, refs, { state: 'resolved', openVariant: 'fix' }, 'approved');
   const seeded = await seedTurns(
     user,
     [
@@ -464,6 +480,7 @@ async function seedFinishingRun(page: Page, user: string, refs: string[], usage:
   usage.push(...seeded.decisions.flatMap((one) => [one.triage, one.turn]).filter((ref) => ref !== ''));
   await refreshGuide(user);
   await expect(stepOf(page, 5, 'current'), 'the guide is at step 5').toHaveAttribute('aria-current', 'step', { timeout: CARD_MS });
+  return reminder;
 }
 
 /**
@@ -597,8 +614,8 @@ test('M11: with the sign-in help seen, Open the trace opens the tab and writes t
   }
 });
 
-/** M10: Run again brings the prompt bar back at step 3, with focus on Go to Break the feed, silently; the session's data stays and the epoch rises. */
-test('M10: Run again returns the prompt bar at step 3 with focus on its action, silently, and changes only the guide markers', async ({ page }) => {
+/** M10: Run again brings the prompt bar back at step 3, with focus on the box's Break the feed button and nothing pressed, silently; the session's data stays and the epoch rises. */
+test('M10: Run again returns the prompt bar at step 3 with focus on the box\'s Break the feed button, silently, and changes only the guide markers', async ({ page }) => {
   const { user } = fixtureUser(KIND);
   const refs: string[] = [];
   const usage: string[] = [];
@@ -626,6 +643,12 @@ test('M10: Run again returns the prompt bar at step 3 with focus on its action, 
     const before = (await announcedTexts(page)).length;
 
     // The page's polls are held while Run again is pressed, so that only the 200 answer can bring the prompt bar back: it is the guide view at once.
+    const breakPosts: string[] = [];
+    page.on('request', (request) => {
+      if (request.method() === 'POST' && request.url().includes('/demo/break-feed')) {
+        breakPosts.push(request.url());
+      }
+    });
     const release = await holdPolls(page);
     await finish.getByRole('button', { name: 'Run again', exact: true }).click();
     try {
@@ -635,7 +658,9 @@ test('M10: Run again returns the prompt bar at step 3 with focus on its action, 
     }
     await expect(finish, 'in place of the finish').toHaveCount(0);
     await expect(stepOf(page, 3, 'current')).toHaveAttribute('aria-current', 'step');
-    await expect(goOf(page), 'with focus on its action').toBeFocused();
+    await expect(breakOf(page), "with focus on the box's Break the feed button").toBeFocused();
+    await settled(page);
+    expect(breakPosts, 'which is not pressed').toEqual([]);
     expect(await epochOf(), 'the run epoch rose').toBe(epoch + 1);
     expect(await counts(), 'the session\'s checks, reminders, incidents and conversation are as they were').toEqual(rows);
     await page.waitForTimeout(1500);
@@ -653,6 +678,54 @@ test('M10: Run again returns the prompt bar at step 3 with focus on its action, 
   }
 });
 
+/**
+ * M14 (QA, Story 4.8 row 4, the negative cell): when Run again brings the prompt bar back at step 2 (the session's reminder is gone),
+ * focus goes to that bar's Send as before, not to the box's Break the feed button; the hand-off to the box is for step 3 only. Nothing is posted.
+ */
+test('M14: Run again returns the prompt bar at step 2 with focus on its Send, not the box\'s Break the feed button, and nothing is pressed', async ({ page }) => {
+  const { user } = fixtureUser(KIND);
+  const refs: string[] = [];
+  const usage: string[] = [];
+  try {
+    await stubTraces(page.context());
+    const reminder = await seedFinishingRun(page, user, refs, usage);
+    const marked = await post(page.request, GUIDE_MARKERS, { marker: 'trace_opened' });
+    expect(marked.status(), await marked.text()).toBe(200);
+    const finish = guideOf(page).locator('.finish');
+    await expect(finish, 'the finish shows').toBeVisible({ timeout: CARD_MS });
+    const runAgain = finish.getByRole('button', { name: 'Run again', exact: true });
+    await runAgain.focus();
+    await expect(runAgain).toBeFocused();
+
+    const breakPosts: string[] = [];
+    page.on('request', (request) => {
+      if (request.method() === 'POST' && request.url().includes('/demo/break-feed')) {
+        breakPosts.push(request.url());
+      }
+    });
+    // The polls are held, so that the finish stays until Run again; the reminder goes before the press, so that the 200 answer's view is step 2.
+    const release = await holdPolls(page);
+    try {
+      await cleanFixtureRows([reminder]);
+      refs.splice(refs.indexOf(reminder), 1);
+      await runAgain.click();
+      await expect(promptText(page), "the 200 answer's view brings the prompt bar back at step 2, before any poll").toHaveText(`"${P2}"`, { timeout: 5000 });
+    } finally {
+      release();
+    }
+    await expect(finish, 'in place of the finish').toHaveCount(0);
+    await expect(stepOf(page, 2, 'current')).toHaveAttribute('aria-current', 'step');
+    await expect(sendOf(page), "focus goes to the prompt bar's Send").toBeFocused();
+    await expect(breakOf(page), 'and not to the box button').not.toBeFocused();
+    await settled(page);
+    expect(breakPosts, 'nothing is pressed').toEqual([]);
+  } finally {
+    await dropUsage(usage);
+    await cleanFixtureRows(refs);
+    await endRun(page);
+  }
+});
+
 /** The guide's marker endpoint as the page calls it, to route it. */
 const MARKERS_ROUTE = '**/ocutalon/api/v1/guide/markers';
 
@@ -661,16 +734,17 @@ const failMarker = (route: Route): Promise<void> => route.fulfill({ status: 500,
 
 /**
  * M12 (QA, rows 1 and 3): with no phone message that names the request, Show me selects the phone tab and focuses the phone's feed
- * region (never a button); and Go to Break the feed on a selected step 3 moves focus to the box's button even while it is inactive
- * (aria-disabled), pressing nothing.
+ * region (never a button); and when the guide jumps from step 1 to step 3 by the removed Send while the box is inactive (an open Orders
+ * incident noticed before the run window), the inactive button (aria-disabled) still takes focus, pressing nothing.
  */
-test('M12: Show me with no pending notification focuses the phone feed, and Go to Break the feed focuses an inactive box without pressing it', async ({ page }) => {
+test('M12: Show me with no pending notification focuses the phone feed, and a jump to step 3 hands focus to an inactive box without pressing it', async ({ page }) => {
   const { user } = fixtureUser(KIND);
   const refs: string[] = [];
   const posts: string[] = [];
   page.on('request', (request) => {
     if (request.method() === 'POST') posts.push(new URL(request.url()).pathname);
   });
+  let epochStart: string | undefined;
   try {
     await seedIncidentPath(user, refs, { state: 'open', openVariant: 'fix' }, 'pending');
     await openFloor(page);
@@ -686,12 +760,26 @@ test('M12: Show me with no pending notification focuses the phone feed, and Go t
     await expect(page.locator('app-simulated-phone .notification:focus'), 'and not to a notification').toHaveCount(0);
     await expect(page.locator('button:focus, a:focus'), 'never a button').toHaveCount(0);
 
-    // Step 3 selected while an incident is open: the box is inactive, and Go to Break the feed still hands it focus.
-    await stepOf(page, 3, 'done').click();
+    // Step 3 reached from step 1 by the removed Send, while an open incident noticed before the run window keeps the box inactive: it still takes focus.
+    await cleanFixtureRows(refs);
+    refs.length = 0;
+    // The marker gives the session its guide state row, so that the run window below is set whichever case ran before.
+    const marked = await post(page.request, GUIDE_MARKERS, { marker: 'run_again' });
+    expect(marked.status(), await marked.text()).toBe(200);
+    epochStart = await startEpochAt(user, inMs(-300_000));
+    refs.push(await seedIncident(user, { ...ORDERS, noticedAt: inMs(-600_000), state: 'open', openVariant: 'fix' }));
+    await loadedAfter(page, () => page.reload());
+    await expect(composerOf(page)).toBeVisible();
+    await expect(stepOf(page, 1, 'current'), 'the page reloads at step 1').toHaveAttribute('aria-current', 'step', { timeout: CARD_MS });
+    await seedWatch(user, refs);
+    await seedStretch(user, refs);
+    await sendOf(page).focus();
+    await expect(sendOf(page)).toBeFocused();
+    posts.length = 0;
+    await refreshGuide(user);
+    await expect(stepOf(page, 3, 'current'), 'the one update jumps the guide from step 1 to step 3').toHaveAttribute('aria-current', 'step', { timeout: CARD_MS });
     await expect(promptText(page), "step 3's prompt").toHaveText(`"${P3}"`);
     await expect(breakOf(page), 'the box is inactive while an incident is open').toHaveAttribute('aria-disabled', 'true');
-    posts.length = 0;
-    await goOf(page).click();
     await expect(breakOf(page), 'the inactive button takes focus').toBeFocused();
     await expect(breakOf(page), 'and stays inactive').toHaveAttribute('aria-disabled', 'true');
     await settled(page);
@@ -701,6 +789,10 @@ test('M12: Show me with no pending notification focuses the phone feed, and Go t
     ).toEqual([]);
   } finally {
     await cleanFixtureRows(refs);
+    if (epochStart !== undefined) {
+      await startEpochAt(user, epochStart);
+      await endRun(page);
+    }
   }
 });
 
