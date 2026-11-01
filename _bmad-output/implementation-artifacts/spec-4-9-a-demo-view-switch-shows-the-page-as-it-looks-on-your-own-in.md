@@ -2,7 +2,8 @@
 title: 'Story 4.9: A Demo view switch shows the page as it looks on your own install'
 type: 'feature'
 created: '2026-11-01'
-status: 'ready-for-dev'
+status: 'in-progress'
+baseline_revision: 'cc0418c4012ae4cf4b5d851a861c2def5736af5d'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -254,7 +255,12 @@ deferred: []
 - **AC9.** Given this story merges, when the UX documents are read, then EXPERIENCE.md's "Demo guide and controls" and "Demo Mode and the Online Demo" sections and DESIGN.md's app header carry the switch, each with the 2026-11-01 marker. `ux-strings.test.mjs` finds both strings in EXPERIENCE.md.
 - **AC10.** Given the change, when it merges, then the story stays inside the footprint, adds no CI unit or e2e folder, and CI is green on every workflow.
 
+- [ ] [Review] G4 compact-header pin vs the switch at 200% - `web/e2e/floor/layout.spec.ts` (`expectColumn`, the `headerBlock < wideBlock` check) - amend as the Spec Change Log ruling of 2026-11-01 (U-202) says, add its EXPERIENCE.md marker, and record a `mutation:` line (e.g. the header block forced to 40% of the viewport -> G4 red); then `live floor` must pass 106 of 106.
+
 ## Spec Change Log
+
+- 2026-11-01 (lead, unattended ruling, veto item U-202; implement-stage intent gap on floor G4): the switch makes the sticky demo-mode header wrap to a second control row at 200% (640x360, scale 2): about 77px against about 56px at 1280x720, which contradicts G4's "the compact header is shorter than at 1280x720" (`web/e2e/floor/layout.spec.ts`, the `expectColumn` helper). **Ruled (veto, reversible):** amend G4's compact-header check, not the header: with demo mode on, the compact header may wrap to a second row, and at every G4 size its block size is at most a quarter of the viewport's height (`<= innerHeight * 0.25`); keep the old `< wideBlock` check wherever demo mode is off or the header still fits one row, keep "only the header is sticky" and "there is no horizontal scroll" exactly as they are. `web/e2e/floor/layout.spec.ts` is outside the story's listed footprint and in no in-flight epic's diff: a footprint extension the lead reports. EXPERIENCE.md's "Narrower than 1024" row ("Nothing is sticky except a compact header") gains a marker: `[AMENDED 2026-11-01, Story 4.9, owner request of 2026-11-01: in demo mode the compact header may wrap to a second row for the Demo view switch, and stays within a quarter of the window's height]`. Rejected: shrinking or hiding other header items (the pill and the online demo's markers must stay), dropping the switch from the stacked band (AC: the switch is in the top bar; scope change). Also accepted by the lead: F7's extra Tab step in `frame.spec.ts`, the `playwright-projects.test.mjs` answers pin (X1-X11, 21 cases), and the stacked header's `flex-wrap` and 4px padding (fixes a pre-existing 189px scroll across at 320px on the online demo).
+- The rest of the implementation is in the working tree, uncommitted (the halt came before finalize); keep it, do only the open G4 item below, then re-run verification and finalize.
 
 ## Review Triage Log
 
@@ -309,6 +315,13 @@ deferred: []
 - **The stand-in switch** (track and "Demo view") needs 131px plus a 12px gap. So the full form does not fit the drawer band on the online demo, and the track alone (about 48px plus 12px) does (inference until Task 0).
 - **The sign-in split:** part 1/2 is 8 files and 127 of 223 tests, ending with `guide/guide.spec.ts`; `frame/frame.spec.ts` is in part 1.
 
+**Measured in implement** (the final bundle served statically with the online-demo snapshot, a throwaway Playwright script outside the repository, Chromium; the numbers are the gap between the header's two groups):
+- **1024x800, online demo:** 42px with the switch on and 50px with it off (the countdown text differs by a few px), in the drawer form: the switch is 50px wide (track alone). The full form (131px plus the 12px gap) would not fit. So the drawer-band form leaves at least 42px, above the 16px floor: no HALT.
+- **Local demo:** 265px at 1024. Online: 118px at 1100, 297px at 1279, 316px at 1280 (full form, 131px), 476px at 1440.
+- **Stacked band:** at 640 and 320 the page does not scroll across (scrollWidth equals clientWidth) with the switch, on both the online and the local snapshot. The right group needed `flex-wrap` in the stacked band: before this story the online demo's right group alone was 497px wide, so the page scrolled across by 189px at 320 (the same on a snapshot with demo mode off). The header is 77px at 640 and 157px (local) / 180px (online) at 320, in two or more rows. Floor G4 (`web/e2e/floor/layout.spec.ts:452`, 640x360 at scale 2, demo snapshot) requires the header to be shorter than at 1280x720; the demo header at 640 had 15px free and the switch needs at least 62px even as a track, so G4 is red (105 of 106 floor cases pass).
+- **The unscripted `zz` message:** the demo-switch stack answers it with a reply. V3 ("zz demo view hello") passed in mode 1, so the fallback text "zz demo switch hello" was not needed.
+- **Times, locally:** `live:demo-switch` 308 s (mode 0: 6 cases; mode 1: 19 cases, view.spec.ts included), `live:answers` 349 s (21 cases, X11 10 s), `live:floor` 372 s, `live:sign-in` part 1/2 329 s (127 cases) and part 2/2 318 s (96), `live:demo-path` 170 s, `live:online-demo` 383 s (`MEASURED R8` at 1024px: 0px across, right group ends -16px past the edge; at 640px: 0px across, -103.9px).
+
 **Decided in-stage** (unattended: small, reversible, within the intent):
 1. **The view-model gates stay.** `guideOf`, `phoneOf` and `mailOf` keep `snapshot.demoMode !== true` on their argument, and their callers pass `DemoView.snapshot()`, which is undefined outside the demo view.
    - Why: removing the gates would change `guide-view.test.mjs:87-99`, where only added lines are allowed.
@@ -326,6 +339,11 @@ deferred: []
    - The approval case goes in `live:answers`, for its fixtures.
    - The sign-in unit gets no new case (README is pinned there; F3 only changes).
 10. **The CI cost (inference):** `live:demo-switch` gains about 60-90 s (locally 290-320 s, so under about 7 minutes) and `live:answers` about 15-25 s. No group gains a unit. shards-2 (with demo-switch) stays under about 32 minutes, and browser (answers) under about 27. Implement records the measured times.
+11. **The stacked header wraps by design, with room above and below.** The stacked `.side` groups wrap (`flex-wrap`) so that nothing scrolls across from 320px, and the stacked `.header` has 4px of block padding (`--space-1`), so that the home link's focus ring stays inside the window when the left group wraps (floor G5 at 200%). A single-row stacked header is unchanged (its 48px minimum holds).
+12. **A control class of its own.** The switch carries `.header-switch`, not `.header-button`, because it is not a menu button and the cases that pick the account button read `app-header button.header-button` `.last()`.
+13. **F7 (frame.spec.ts) gets one Tab step.** F7 walked Tab from the home link to the Visual Trace button; the switch is now the first stop. The step is added in the file F3 is in (the spec said "change nothing else" of F3 only).
+14. **The answers project's case count.** `web/scripts/playwright-projects.test.mjs` pinned X1 to X10 and 20 cases; it now pins X1 to X11 and 21 (the spec's own count).
+15. **Track and thumb sizes are minimums.** `floor-sources` allows no fixed `height`, so the 18px track and the 12px thumb use `min-height`.
 
 **Veto items:** none.
 - The two strings are the AC's own.
@@ -376,6 +394,21 @@ deferred: []
 - **AC8:** the drawer-band rule hides nothing (the label always shows) → V5 at 1024 (the right group ends past the header, or the page scrolls across).
 - **AC9:** change one word of the help text in EXPERIENCE.md → `ux-strings` "finds each ux and design string in its document".
 
+**Recorded mutations (implement, Rule 19).** Each was applied, built (`ci/iris.sh build`), run, observed red, and reverted (the tree was byte-identical to its state before: `git diff` and `git status --short` equal, rebuilt after the revert).
+- mutation: the switch renders `@if (true)` instead of `available()` -> `live:demo-switch` mode 0, V0 red ("demo mode is off on the server: no switch").
+- mutation: drop `role="switch"` -> `live:demo-switch`, V1 red (and every case that finds the switch by role); `demo-view-sources` (e) red.
+- mutation: `device-panel.ts` `demo` reads `this.live.snapshot()?.demoMode === true` -> `live:demo-switch` V2 red ("no Simulated devices"), V0 structure red in mode 0, and `demo-view-sources` (a) and (c) red.
+- mutation: `skip-links.ts` ignores the signal -> `live:demo-switch` V2 red (with V0 in mode 0).
+- mutation: `demo-guide.ts` passes `this.live.snapshot()` to `guideOf` -> `demo-view-sources` (b) red.
+- mutation: `badge` reads `demoView.on()` -> `live:demo-switch` V5 (local demo pill) red.
+- mutation: `set()` also calls `this.live.retry().subscribe()` -> `live:demo-switch` V1 red ("no request but the poll").
+- mutation: `set()` skips `writeFlag` -> `live:demo-switch` V1 red (a run of six mutations; V1 was the only case that needed it).
+- mutation: the incident card's request cards render only while `demoView.on()` -> `live:answers` X11 red ("the chat card keeps Approve"); the other 20 cases passed.
+- mutation: the view effect of `demo-guide.ts` skips an undefined view -> `live:demo-switch` V4 red.
+- mutation: the drawer-band rule hides nothing (the label always shows) -> `live:demo-switch` V5 red (the label-hidden check at 1024).
+- mutation: one word of the help text changed in EXPERIENCE.md -> `ux-strings` "finds each ux and design string in its document" red.
+- The runs that held several mutations at once (the run of six and the run of two) were read test by test: each red case is the one that the mutation names above.
+
 **Shared surfaces:**
 - the header's control list, box order and Tab sequence (frame F3; any floor or online walk; R8's right-group fit, read only);
 - the skip-link list per demo view (floor keyboard K-cases keep the demo list with the switch on);
@@ -392,7 +425,11 @@ Every test added or changed passes on a fresh environment, in either order.
 
 ## Auto Run Result
 
-Status: ready-for-dev
-Blocking condition: none
+Status: blocked
+Blocking condition: intent gap - the spec's stacked-band header (the switch wraps with the header, AC8) contradicts the existing floor pin G4 (`web/e2e/floor/layout.spec.ts:452`, "the compact header at 200% (640x360, scale 2) is shorter than at 1280x720"), and the spec lists `live floor` as PASS. At 640px a demo-mode header has 15px free; the switch needs at least 62px even as a track alone, so the stacked header becomes two rows of 32px controls (77px) against a 1280 header of about 56px. Rule 5 / Rule 11: that file is outside the footprint, and weakening G4 weakens a stated UX guarantee. No in-footprint design passes both (never shrink other header items).
+
+Recommended amendment (lead's choice): (A, recommended) amend G4's comparison in `web/e2e/floor/layout.spec.ts` so the 200% demo header may wrap to two rows (compare with the 1280x720 header plus one control row, or against the same page with the switch off), and record it in the Spec Change Log; (B) amend the spec to put the switch on its own row only below 640px and keep the one-row rule above, which still fails at 640; (C) drop the switch from the stacked band (an AC8 and scope change, owner-only). After the amendment, re-dispatch on this spec path with `status: in-progress`; the working tree already holds the full implementation (uncommitted, nothing committed or pushed, HEAD still `cc0418c4`; stack tag e4s9i torn down).
+
+State at halt: `npm --prefix web test` 1133 pass, lint 0, `live:demo-switch` 308 s, `live:answers` 349 s (21 cases), `live:sign-in` parts 1 and 2, `live:demo-path`, `live:online-demo` (R8 0px across), `test-web-build.sh`, `ci/checks.sh` all green; `live:floor` 105 of 106, only G4 red (P4 was a ledgered flake and passed on rerun). All 12 planned mutations applied, observed red and reverted. Deviations for the lead to confirm: F7 in `frame.spec.ts` gained one Tab step (the switch is now the first stop after the home link); `web/scripts/playwright-projects.test.mjs` pin for the answers project changed from X1 to X10 / 20 cases to X1 to X11 / 21; the stacked header got 4px of block padding and `flex-wrap` on `.side` (before this story the online demo's right group scrolled the page across by 189px at 320px).
 
 **Plan summary.** A web-only story. One `DemoView` signal: the server's `demoMode` and a per-tab switch. A native "Demo view" switch in the header. Every demo-mode reader routes through the signal, except the header pill. The e2e cases run on the real server switch (`live:demo-switch`, modes 0 and 1) and the answers unit (X11), and a source test pins the signal. Footprint extensions: none. Amendments: none. Clarifications: none. One measured design input: the header has 104px free at 1024px on the online demo, which gives the drawer band its track-only form.
