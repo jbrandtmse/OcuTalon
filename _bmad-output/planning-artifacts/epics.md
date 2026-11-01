@@ -3986,9 +3986,11 @@ So that the timing bounds are measured on each candidate, not assumed.
 
 **Acceptance Criteria:**
 
-**Given** the rehearsal runner, which runs the REL-2 Playwright specs from the driver host against the clean machine N times (20 for a real rehearsal), using Run again and the replay rule between runs
+[AMENDED 2026-11-01, Story 11.11's plan, unattended ruling (decide: a split into a sibling planned next in this epic, product default 6): 'N times (20 for a real rehearsal), using Run again and the replay rule between runs' and 'the tell-now notice's 5 seconds in at least 19 of 20 runs', with their dry-run proof, moved verbatim to Story 11.12; 11.11 keeps one timed run per call, the timing collector, every other bound and its record rows]
+
+**Given** the rehearsal runner, which runs the REL-2 Playwright specs from the driver host against the clean machine
 **When** the runs end
-**Then** the report splits each run's Break the feed to incident notice time, from production message timestamps, into pick-up, the settle rule's end, diagnosis and delivery, and checks every bound Story 38.2 measures: NFR-7's 60 seconds in at least 19 of 20 runs and its split bounds, the median against about 35 seconds, step 1's decision time, the approval result's 2 seconds, each reminder's firing within 10 seconds, the largest model request under 100,000 input tokens, the first reply's time, when the reminder lands relative to "All 50 orders went through.", and the tell-now notice's 5 seconds in at least 19 of 20 runs (NFR-3, NFR-7, NFR-8, NFR-9, NFR-10, P30, AD-15, UX-DR102)
+**Then** the report splits each run's Break the feed to incident notice time, from production message timestamps, into pick-up, the settle rule's end, diagnosis and delivery, and checks every bound Story 38.2 measures: NFR-7's 60 seconds in at least 19 of 20 runs and its split bounds, the median against about 35 seconds, step 1's decision time, the approval result's 2 seconds, each reminder's firing within 10 seconds, the largest model request under 100,000 input tokens, the first reply's time, when the reminder lands relative to "All 50 orders went through." (NFR-3, NFR-7, NFR-8, NFR-9, NFR-10, P30, AD-15, UX-DR102)
 
 **Given** a failed run or a missed bound
 **When** the rehearsal ends
@@ -3997,6 +3999,28 @@ So that the timing bounds are measured on each candidate, not assumed.
 **Given** this build, which has no clean host and never a real model key
 **When** the runner's tests run
 **Then** they prove the above on throwaways with the CI mock in place of the model (a dry run, never a rehearsal pass), including a run set with a planted missed bound that fails the rehearsal and names the run, the step and the bound; the real rehearsal on the author's hosts is Story 38.2 (REL-6, NFR-11)
+
+### Story 11.12: The rehearsal runner repeats the demo path N times with Run again
+
+As the author,
+I want the rehearsal to repeat the timed demo path N times on one install, using Run again between runs, and check the tell-now notice,
+So that the 19-of-20 bounds are measured over a full run set, not one run.
+
+[ADDED 2026-11-01, split from Story 11.11 at its plan, unattended ruling (decide: a sibling planned next in this epic, product default 6); its criteria are Story 11.11's (Story 11.3's), moved verbatim; it builds on Story 11.11's runner, and Story 11.5's release sequence composes 11.3, 11.11 and 11.12]
+
+**Acceptance Criteria:**
+
+**Given** the rehearsal runner, which runs the REL-2 Playwright specs from the driver host against the clean machine N times (20 for a real rehearsal), using Run again and the replay rule between runs
+**When** the runs end
+**Then** the report checks every bound Story 11.11 checks over the whole run set, and the tell-now notice's 5 seconds in at least 19 of 20 runs (NFR-3, NFR-7, NFR-8, NFR-9, NFR-10, P30, AD-15, UX-DR102)
+
+**Given** a failed run or a missed bound in any run of the set
+**When** the rehearsal ends
+**Then** the rehearsal fails, its report names the run, the step and the bound, and the release is blocked (REL-6)
+
+**Given** this build, which has no clean host and never a real model key
+**When** the runner's tests run
+**Then** they prove the above on throwaways with the CI mock in place of the model (a dry run, never a rehearsal pass), including a run set with a planted missed bound in a later run that fails the rehearsal and names the run, the step and the bound; the real rehearsal on the author's hosts is Story 38.2 (REL-6, NFR-11)
 
 ### Story 11.4: The release gets draft notes and a checklist
 
