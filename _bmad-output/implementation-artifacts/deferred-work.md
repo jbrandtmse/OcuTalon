@@ -2800,3 +2800,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Core/SessionOps.cls Unlink clears SessionRef and SeenAt only; TelegramIn (12.4) clears the name on the chat's next update; the name never reaches a production message, /state of another session or the trace
 - 2026-11-01T06:58:27Z status=wontfix-accepted owner=12-4-a-valid-code-pairs-the-chat-with-the-session by=harvest note=reopen_if=a test or audit finds a DisplayName on a Pairing row with no SessionRef older than one update, or a Lane B story edits SessionOps.Unlink (then add the one-line clear)
 - 2026-11-01T07:39:08Z occurrence=12-4-a-valid-code-pairs-the-chat-with-the-session
+
+### DW-527: The Telegram card's state order (paused, not set up and paired ahead of just-unpaired) has no unit test: moving the justUnpaired branch above paired or paused keeps T5 and T6 green
+- source: _bmad-output/implementation-artifacts/spec-12-5-bad-codes-a-bare-start-command-and-unpairing-get-polite-answ.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: telegram-card-view.ts:169 telegramCardView is framework-free; no web/scripts/*.test.mjs calls it; only T5/T6 run the just-unpaired view
+- 2026-11-01T11:13:27Z status=open owner=12-5-bad-codes-a-bare-start-command-and-unpairing-get-polite-answ by=harvest note=runner ruling: a NEW test file web/scripts/telegram-card-view.test.mjs (Epic 12's own card view; not contended) is allowed and reported as a footprint extension; or pin it with a T6 case (a pairing during the 5 s window shows the paired row)
