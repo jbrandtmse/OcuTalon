@@ -59,6 +59,7 @@ const IMPORTED = [
   ['live/reset-schedule.ts', ['RESET_TEXTS']],
   ['header/sign-out-texts.ts', ['SIGN_OUT_TEXTS']],
   ['header/demo-view-texts.ts', ['DEMO_VIEW_TEXTS']],
+  ['chat/try-it-view.ts', ['TRY_IT_TEXTS']],
 ];
 const modules = {};
 const imported = [];
@@ -361,6 +362,11 @@ const SOURCES = {
     'Install OcuTalon yourself',
     'More to try: simulate an incoming email in the simulated mailbox and see what OcuTalon decides. On your own install, ask it to watch any production.',
     'Run again',
+    'Try it yourself',
+    'Which productions are running?',
+    'Is anything wrong right now?',
+    'What was that failure earlier?',
+    'What can you do?',
     '\u2197',
     'Open',
     'Error',

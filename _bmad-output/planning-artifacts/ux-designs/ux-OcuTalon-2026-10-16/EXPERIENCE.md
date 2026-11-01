@@ -234,6 +234,11 @@ Behavioral rules, grouped as in `DESIGN.md` › Components, which holds the visu
   - Its help text, "Off shows the page as it looks on your own install.", is its accessible description and its pointer tooltip. In the 1024-1279px band, where the label is hidden, the tooltip is "Demo view".
   - A press (click, Space or Enter) changes only the view. Nothing is sent to the server, and focus stays on it. Screen readers hear the new state from `aria-checked`; the page announces nothing.
   - It is kept per browser tab, falling back to on.
+- **Try it yourself.** In the demo view only. [ADDED 2026-11-01, Story 4.10, owner decision relayed by the Contest Planner under delegation; the owner: "Yes to both questions."]
+  - A row labelled "Try it yourself" with four chips: "Which productions are running?", "Is anything wrong right now?", "What was that failure earlier?" and "What can you do?". It sits after the finish state's "More to try" line and after the empty chat panel's last line.
+  - The chips are native buttons named by their text, in the sample email chips' look.
+  - A press sends the text once as the user's own message, exactly as if typed: no "From the demo guide" tag, the same decision strip, reply and trace link as any turn, and it counts against the message allowance. Nothing is sent without a press.
+  - While a turn is in flight, or the message allowance is used up, the chips are `aria-disabled` and a press sends nothing. While the allowance is used up, they are described by the composer's reason.
 
 ### Status rail
 
@@ -275,6 +280,7 @@ Behavioral rules, grouped as in `DESIGN.md` › Components, which holds the visu
   - "It watches your productions from inside IRIS, and every decision is a production message you can trace.";
   - "Anything risky waits for your approval.";
   - in demo mode, "Start with step 1 of the demo guide above."; otherwise, "Ask OcuTalon to watch a production, set a reminder, or say what you need."
+  - in the demo view, then the Try it yourself row (Demo guide and controls). [ADDED 2026-11-01, Story 4.10, owner decision relayed by the Contest Planner under delegation; the owner: "Yes to both questions."]
 
 ### Incident and approval components
 
@@ -607,6 +613,7 @@ Demo mode adds the demo guide, Break the feed, and the simulated devices (FR-16)
   - "This run: {n} decisions · {tokens} tokens · {cost} on {model}." The figures cover this session's decisions and turns; for example, "This run: 3 decisions · 9,850 tokens · $0.0041 on Claude Haiku 5.5".
   - The links "See the whole conversation in Visual Trace ↗", "Install OcuTalon yourself ↗", and "Use the same bridge in your own production ↗" (the bridge developer guide, 1.0.0 kit; FR-5).
   - "More to try: simulate an incoming email in the simulated mailbox and see what OcuTalon decides. On your own install, ask it to watch any production."
+  - In the demo view, the Try it yourself row (Demo guide and controls). [ADDED 2026-11-01, Story 4.10, owner decision relayed by the Contest Planner under delegation; the owner: "Yes to both questions."]
   - **Run again**, which resets the guide's markers only, never the session's data.
 
 ### Break the feed

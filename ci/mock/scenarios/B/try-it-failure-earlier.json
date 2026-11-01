@@ -1,0 +1,19 @@
+{
+  "name": "try-it-failure-earlier",
+  "match": {
+    "prompt": "What was that failure earlier?"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "recent_activity",
+        "input": {}
+      }
+    },
+    {
+      "status": 200,
+      "text": "The CI mock read the recent activity."
+    }
+  ]
+}

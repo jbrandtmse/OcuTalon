@@ -6,6 +6,7 @@ import type { GuideMarker } from '../api/api-types';
 import { allowanceReason } from '../banners/banner-stack';
 import { ChatOutbox } from '../chat/chat-outbox';
 import { formatCost, formatTokens } from '../chat/decision-view';
+import { TryItRow } from '../chat/try-it-row';
 import { DeviceTabs } from '../devices/device-tabs';
 import { BreakFeedBox } from '../feed/break-feed-box';
 import { Icon } from '../icon/icon';
@@ -39,7 +40,7 @@ const PROMPT_KEYS = ['action', 'text', 'bar'] as const;
 
 /** The finish state's first line and the parts that hand focus back to the prompt bar when the prompt bar replaces the finish. */
 const FINISH_KEY = 'finish';
-const FINISH_PARTS = ['finish', 'finishLink', 'runAgain'];
+const FINISH_PARTS = ['finish', 'finishLink', 'tryIt', 'runAgain'];
 
 /** The page's token and cost formats, which the finish's run line is written with. */
 const RUN_FORMAT: RunFormat = { tokens: formatTokens, cost: formatCost };
@@ -54,7 +55,7 @@ const phoneMessage = (ref: string) => `app-simulated-phone .notification[data-ke
  * itself hand it to the first of the three that is still there (the action button that now carries the next step, else the prompt text,
  * else the bar), else to the finish's first line. While the prompt bar shows step 3 (data-guide-step), a lost prompt part or finish
  * part hands focus to the box's Break the feed button instead, active or inactive; nothing is pressed. The finish's parts (its first
- * line, its links and Run again) hand it to the prompt bar's parts in the same order when Run again brings the prompt bar back. Focus
+ * line, its links, the Try it yourself row and Run again) hand it to the prompt bar's parts in the same order when Run again brings the prompt bar back. Focus
  * anywhere else is never moved.
  */
 const FOCUS_RULE: FocusRule = {
@@ -87,8 +88,8 @@ const FOCUS_RULE: FocusRule = {
  * Send sends the prompt as the user's own message from the guide (ChatOutbox, fromGuide), Show me selects the Simulated phone tab and
  * focuses the pending notification, and Open the trace is the run's trace link, which writes the trace_opened marker once a Visual Trace
  * tab opens. Once the server's view is finished the finish state
- * replaces the prompt bar: the exact lines, the run total, the two links, More to try and Run again, which writes the run_again
- * marker. A marker's 200 answer is the guide view until the next live view arrives. Any step can be selected in any order, and nothing
+ * replaces the prompt bar: the exact lines, the run total, the two links, More to try, the "Try it yourself" row (app-try-it-row,
+ * a finish part for focus) and Run again, which writes the run_again marker. A marker's 200 answer is the guide view until the next live view arrives. Any step can be selected in any order, and nothing
  * is marked done by a click. The Break the feed box sits at the right.
  *
  * While the session's message allowance is used up (Story 16.9; AllowanceState.active) a prompt whose action is Send is aria-disabled, not
@@ -109,7 +110,7 @@ const FOCUS_RULE: FocusRule = {
  */
 @Component({
   selector: 'app-demo-guide',
-  imports: [BreakFeedBox, Icon, ServerButton, TraceLink],
+  imports: [BreakFeedBox, Icon, ServerButton, TraceLink, TryItRow],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (model(); as guide) {
@@ -175,6 +176,7 @@ const FOCUS_RULE: FocusRule = {
                   >
                 </p>
                 <p class="more">{{ texts.moreToTry }}</p>
+                <app-try-it-row data-guide-focus="tryIt" />
                 <app-server-button class="run-again" variant="secondary" [action]="runAgain" data-guide-focus="runAgain">{{ texts.runAgain }}</app-server-button>
               </div>
             } @else {

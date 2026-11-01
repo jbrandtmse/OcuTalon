@@ -2,7 +2,8 @@
 title: 'Story 4.10: "Try it yourself" example prompts, one press each'
 type: 'feature'
 created: '2026-11-01'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '6505ea49586aa8f091428e74a19b91bcf7b6d9c6'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -240,6 +241,34 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-11-01 - Review pass
+- verdicts: 24 findings - high 0, medium 1, low 21, false 2, maybe-false 0
+- findings:
+  - `[low]` `[reject]` Blind: EXPERIENCE.md's state table, explained-disabled rule and allowance edge case do not name the chips - the spec lists the three doc edits; the sample email chips are not named in those lines either, and the chips' own bullet states the allowance behaviour
+  - `[low]` `[reject]` Blind: the Demo view switch section does not say the row goes with the guide - the row's bullet says "In the demo view only" and the finish and empty-chat items carry it; not worth a fourth edit
+  - `[low]` `[reject]` Blind: in-flight chips have no visible reason - by design: the matrix row 7 pins "no description" while a turn is in flight (the composer stays usable; the chat shows the running turn)
+  - `[low]` `[reject]` Blind: a queued or running turn from any source disables the chips for good - the in-flight definition is the spec's; the same turn shows as running in the chat; reopen_if a stuck queued/running turn is seen on a real session
+  - `[low]` `[patch]` Blind: FOCUS_RULE doc comment omits the Try it yourself row - comment in demo-guide.ts now names the row among the finish's parts
+  - `[low]` `[reject]` Blind: COMPOSER_REASON_ID lives in composer.ts - the Code Map names composer.ts for the export; allowance-sources pins it
+  - `[low]` `[reject]` Blind: chip CSS is a copy of ServerButton's .button-chip - Decided 6 and Rule 2 copy (1) state the reason (scoped component styles, controls.css out of footprint)
+  - `[low]` `[patch]` Blind: e2e residue (task 0 annotation names) and fixed waits - the annotation type and its comment no longer narrate the story's Task 0; the 500/700 ms waits stay: a negative check for "nothing was sent" needs a real wait under a stopped clock
+  - `[low]` `[reject]` Edge: a stuck in-flight state disables the chips for the page's life - same claim and evidence as the Blind row on stuck turns
+  - `[low]` `[reject]` Edge: a refused chip send puts the text back in the composer - the matrix and Always say a 429 or online 503 takes the outbox's typed-message path
+  - `[false]` `[reject]` Edge: demo view switched off while focus is on a finish chip drops focus - the guide itself is gated by DemoView, so the finish and the row leave together and the guide's existing focus rule applies
+  - `[false]` `[reject]` Edge: the data-guide-focus host is not focusable - FocusRule finds the held item by focused.closest(item), which matches the host; the target on hand-off is a prompt part, never the host (Run again's app-server-button host is the same pattern)
+  - `[low]` `[reject]` Edge: aria-describedby could point at a missing reason paragraph - the id is mandated by the spec, and the composer is always in the main page's chat panel
+  - `[low]` `[patch]` Edge: the session mark in beforeAll may be empty - beforeAll now expects a numeric mark
+  - `[low]` `[reject]` Edge: clearTurns reports a script error only as a string mismatch - the case still fails, with the script output in the message
+  - `[low]` `[reject]` VG: the focus hand-off of the tryIt part is pinned by source text only - FINISH_PARTS membership changes the outcome only for the step-3 box case; the closest() mechanism is shared and pinned by floor M9-M14; a routed case is not a two-way door; reopen_if a chip loses focus to the body when Run again is pressed
+  - `[low]` `[reject]` VG: Y4 and Y7 no-all-clear assertions cannot fail - the spec forbids a guarded phrase in the canned text; ReplyGuard has its own server tests; the code-built halves are the real pins
+  - `[medium]` `[patch]` VG: AC3 described-by, AC1 placement and AC2 posts-once had no mutation line - three mutation lines added and observed red (Y2 on the stack, two node-side); AC8, AC6's second half and DESIGN.md's text are process or static text with no test to mutate, left as they are
+  - `[low]` `[reject]` VG: Y2 compares the reason element with itself - the real checks are the aria-describedby attribute and the accessible description beside it; the spec words this check
+  - `[low]` `[reject]` VG: the precondition is not created by the case - spec-prescribed (held empty by convention, with a loud failure that names what it found)
+  - `[low]` `[reject]` VG: Y5 presses before it holds the poll - spec-prescribed order; a race would give a false red, never a false green; stable in every run
+  - `[low]` `[reject]` VG: guardPhrases splits on commas, and sources tests duplicate Y3 - the >= 9 guard bounds the split; the node-side checks are the cheap first line
+  - `[low]` `[reject]` Intent: allowance-sources.test.mjs changed (not an append-only file) - necessary: the row must inject AllowanceState and the reason id is now exported; the file is in web/scripts, in footprint
+  - `[low]` `[reject]` Intent: matrix row 3's loading and failed snapshots are not exercised by Y1 - DemoView.on() is pinned by Story 4.9's tests; Y1 covers the switch off and demoMode false as the spec words it
+
 ## Design Notes
 
 **Architecture decisions** (spine `_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md`, status final):
@@ -355,6 +384,20 @@ deferred: []
 - **AC6:** one word of a prompt changed in `TRY_IT_TEXTS` only → `try-it-view` (b) "keys the exact text".
 - **AC7:** one word of a chip text changed in EXPERIENCE.md → `ux-strings` "finds each ux and design string in its document".
 
+**Mutations run (Rule 19, implement stage; each applied, observed red, reverted, tree byte-identical by `git status --short`, `git diff --stat` and file hashes; `ci/iris.sh build` after applying and after reverting for each `web/src` mutation tested through `live sign-in --part 2/3`, which holds `chat/try-it.spec.ts`):**
+- mutation: `try-it-row.ts` `@if (demoView.on())` -> `@if (true)` => red: Y1 (a group on the page with the switch off), `try-it-sources` (a) "reads demoView.on()".
+- mutation: swap the first two prompts in `TRY_IT_TEXTS` -> red: `try-it-view` (a) "is the label and the four prompts, in order" and (b) "key the exact text of their chip", Y1 (the four buttons in order).
+- mutation: `this.outbox.send(text)` -> `this.outbox.send(text, true)` -> red: Y3 ("not from the guide": `fromGuide` true), `try-it-sources` (a) "sends once through the outbox with the text alone".
+- mutation: `turnInFlight` always false -> red: Y5 (chip 1 not `aria-disabled` while the turn is in flight), `try-it-view` (c) "is true for a sending or sent entry, and for a queued or running turn".
+- mutation: `press` guards on `this.inFlight()` only (the allowance guard removed) -> red: Y2 ("a click and an Enter send nothing": a POST).
+- mutation: `try-it-anything-wrong.json` drops its `toolUse` reply (text only) -> red: Y4 (no check sentence).
+- mutation: `try-it-failure-earlier.json` calls `check_status` instead of `recent_activity` -> red: Y7 (no `recent_activity` request) and `try-it-view` (b) "call the tool each chip needs"; Y5 is red as well (its tool step is "Reading the check results").
+- mutation: one word of a prompt changed in `TRY_IT_TEXTS` only ("What can you do?" -> "What can you see?") -> red: `try-it-view` (b) "key the exact text of their chip".
+- mutation: one word of a chip text changed in EXPERIENCE.md ("What was that failure earlier?" -> "before?") -> red: `ux-strings` "finds each ux and design string in its document".
+- mutation: `describedBy` always `null` (the chips never point at the composer's reason) -> red: Y2 ("chip 1 is described by the composer's reason"); applied with `ci/iris.sh build`, run on `live sign-in --part 2/3`, reverted with a rebuild.
+- mutation: `press` calls `this.outbox.send(text)` twice -> red: `try-it-sources` (a) "sends once through the outbox with the text alone" (node-side; Y3's "exactly one POST" pins it on the stack).
+- mutation: `<app-try-it-row>` moved before the empty chat's last `<p class="line">` -> red: `try-it-sources` (b) "has the empty chat's template hold the row after its last line" (node-side; Y1's `follows` pins it on the stack).
+
 **Shared surfaces:**
 - the empty chat's content (`app-empty-chat .line` readers: chat C1, demo-path 01, guide Q, demo-switch badge and view);
 - the finish's content and focus parts (floor guide M9-M14; `FINISH_PARTS`);
@@ -372,5 +415,28 @@ Every test added or changed passes on a fresh environment, in either order.
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** The demo view's "Try it yourself" row: four chips (`app-try-it-row`) after the finish state's "More to try" line and after the empty chat's last line. A press sends the chip's exact text through `ChatOutbox.send` (not from the guide, counted against the allowance); the chips are `aria-disabled` while a turn is in flight or the allowance is used up, and described by the composer's reason then. Four new `B/try-it-*.json` mock scenarios. EXPERIENCE.md and DESIGN.md carry the row with the 2026-11-01 marker.
+
+**Files changed.**
+- `web/src/app/chat/try-it-view.ts` (new): `TRY_IT_TEXTS`, `turnInFlight`.
+- `web/src/app/chat/try-it-row.ts` (new): the row, with a `centered` input for the empty chat.
+- `web/src/app/chat/composer.ts`: exports `COMPOSER_REASON_ID`.
+- `web/src/app/chat/empty-chat.ts`, `web/src/app/guide/demo-guide.ts`: placements, `FINISH_PARTS` gains `tryIt`.
+- `ci/mock/scenarios/B/try-it-{productions,anything-wrong,failure-earlier,what-can-you-do}.json` (new).
+- `web/scripts/try-it-view.test.mjs`, `web/scripts/try-it-sources.test.mjs`, `web/e2e/chat/try-it.spec.ts` (new); `web/scripts/ux-strings.test.mjs` (lines appended); `web/scripts/allowance-sources.test.mjs` (four pins updated for the new injector and the exported reason id).
+- `EXPERIENCE.md`, `DESIGN.md` of the UX folder: the row, with markers.
+
+**Task 0.** (a) the RAIL session was empty at the start of every pressing case; (b) the `[toolUse, text]` shape ended each chip's turn `done` with the scenario's reply and no fallback; (c) chip 3's tool result was `{"ok":true,"hours":24,"incidents":[],"message":<RecentActivity NONE>}`. No HALT.
+
+**Review.** 24 findings: patches applied 4 (medium 1, low 3: FOCUS_RULE comment, e2e annotation naming and the mark guard, three mutation lines); deferred 0; rejected 20, each with its reason in the Review Triage Log (2 false, 18 low). One deviation recorded by the implementer: `afterEach` drops the AI sessions since the case's mark (`RunnerFixture.DropSince`), because Y7's second Chat request otherwise carried earlier cases' tool results.
+
+**Follow-up review recommended:** false (no high patched; one medium patched).
+
+**Verification.** `npm --prefix web test` 1148 pass; `npm --prefix web run lint` exit 0; `docker/tests/test-mock.sh` 118 pass; `live sign-in` part 1/3 89 passed (4:51 wall), part 2/3 (holds `chat/try-it.spec.ts`) 66 passed (2.4 min Playwright, about 4:30-4:50 wall) and part 3/3 75 passed (2.1 min, 4:13 wall); `live floor` 106 passed (7:19); `live demo-path` PASS (2:55); `live demo-switch` PASS both modes (6:19); `live online-allowance` 10 passed (4:54); `test-web-build.sh` and `ci/checks.sh` pass; the mock diff holds only the four new files. All mutations observed red and reverted with the tree byte-identical. Stack tag `e4s10i` torn down.
+
+**CI cost.** `try-it.spec.ts` sits in part 2/3 of `live:sign-in`; no part passed about 5 minutes wall locally (part 1/3 4:51 is the longest), well under the 9-minute report line.
+
+**Residual risks.** Y5 presses a chip and then holds the poll: a poll that delivers the finished turn before the hold would give a false red (stable in every local run; watch it in CI). A turn stuck in queued or running would keep the chips disabled until it ends.

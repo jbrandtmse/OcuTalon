@@ -725,7 +725,7 @@ Cards never lift on hover.
 - `{rounded.xl}` (28px): the phone frame only.
 - `{rounded.full}`: chips and badges.
 
-**Pills mean state or category:** outcome chips, state chips, the context badge, and the reset countdown are borderless; the "Simulated" label is the one outlined state pill, in amber. **An actionable chip always carries a `{colors.border-strong}` outline and a hover fill;** currently, only the sample email chips. Buttons, including the new-messages button, are never pill-shaped.
+**Pills mean state or category:** outcome chips, state chips, the context badge, and the reset countdown are borderless; the "Simulated" label is the one outlined state pill, in amber. **An actionable chip always carries a `{colors.border-strong}` outline and a hover fill;** currently, the sample email chips and the Try it yourself chips. [ADDED 2026-11-01, Story 4.10, owner decision relayed by the Contest Planner under delegation; the owner: "Yes to both questions."] [AMENDED 2026-11-01, Story 4.10: the text was "currently, only the sample email chips".] Buttons, including the new-messages button, are never pill-shaped.
 
 ## Components
 
@@ -845,6 +845,7 @@ Visual specs live here; behavior lives in `EXPERIENCE.md`'s Component Patterns, 
 - **Simulated mailbox.** A header ("Simulated mailbox" with the Simulated label), then the sample email chips (always visible), a "Simulate an incoming email" `button-secondary`, and the inbox list of email rows. The compose form opens in place of the list.
 - **Email row.** Sender, subject, and time. Unread rows carry a teal dot and the visually hidden word "Unread" (announced by screen readers). Once OcuTalon has decided, the row shows its outcome chip.
 - **Sample email chip.** A bordered, actionable pill with a `mail` icon: "Sample: newsletter", "Sample: partner notice", or "Sample: suspicious request". The three chips wrap to a second row when the mailbox is narrow.
+- **Try it yourself row.** The label "Try it yourself" in `{typography.body-sm}` and `{colors.ink-muted}`, then four bordered, actionable pills on `{components.sample-email-chip}` with no icon, wrapping to further rows when narrow. Centred in the empty chat, start-aligned in the finish state. No animation. [ADDED 2026-11-01, Story 4.10, owner decision relayed by the Contest Planner under delegation; the owner: "Yes to both questions."]
 
 ### Sign-in
 
