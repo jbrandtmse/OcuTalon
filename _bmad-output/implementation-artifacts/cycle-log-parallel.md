@@ -1286,3 +1286,6 @@
 2026-11-01T19:56:12Z	Epic 4	worktree_removed	worktree=.worktrees/epic-4 branch=OCT-epic4_deleted(local+remote)
 2026-11-01T19:57:51Z	Epic 30	runner_dispatched	agent=a717a931bacaed0b8 model=opus runner=B slot=ocutalon-slot-b mode=redispatch_after_hold9(part_1_of_2,U-207:30.6_then_30.5(DW-500_first);30.1_held_out) base=a3a460fa(green_41255920496,41255920519) feature=c112c03e prompt=prompts/dispatch-epic-30-redispatch.md(rewritten)
 2026-11-01T19:57:51Z	Epic 1-37	planner_note	from=Contest_Planner received=Epic_4_374f958e_bundled;deploy_after_20:00Z_reset;run_1+browser_check(4.8,4.9_incl_200%_zoom,4.10_chip2_no_all-clear,chip3_recent_activity);10.5_images_shot_on_the_Epic_30_part_1_build;10.5_dispatches_when_delivered(around_launch)
+2026-11-01T20:10:32Z	Epic 1-37	owner_decision	via=contest_planner(delegation) item=DW-500 decision=widen:any_user_chat_turn;no_production_state/access/needs-the-user_in_Triage_reasons;eval_cases_chip_2_text+recall evidence=host_374f958e_real_Haiku_chip_2_reasons_all-clear(AD-28) launch_relevant=yes
+2026-11-01T20:10:32Z	Epic 1-37	deps_hash_rerecorded	hash=b44506a6d785 reason=ledger_routed(DW-500_widened,30.5)
+2026-11-01T20:10:43Z	Epic 30	runner_message	agent=a717a931bacaed0b8 note=DW-500_widened(any_user_chat_turn;eval_cases_chip_2+recall)_for_30.5_spec_gate
