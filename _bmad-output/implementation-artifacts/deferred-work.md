@@ -2764,3 +2764,4 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-11-5-one-scripted-sequence-cuts-a-release.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: gh api repos/jbrandtmse/OcuTalon/branches/main/protection -> 404 on 2026-11-01; DW-27's owner-only residual
 - 2026-11-01T12:24:37Z status=decision-pending owner=burndown by=spec_gate note=human=set branch protection on main (repository setting, owner-only); Story 11.16's merge step refuses until it is set
+- 2026-11-01T12:31:44Z status=dropped by=owner note=resolved_outside_the_build:branch_protection_set_2026-11-01T12:30Z_by_the_Contest_Planner(owner_approval_2026-10-25);12_required_checks(checks,web,install-macos,iris_(install-fresh|install-upgrade|production|browser|shards|shards-2|image),standalone-bridge,evaluation);not_an_action_item
