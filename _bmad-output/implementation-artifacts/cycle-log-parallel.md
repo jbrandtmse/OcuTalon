@@ -1202,3 +1202,6 @@
 2026-11-01T02:51:59Z	Epic 11	dispatch_planned	runner=A slot=ocutalon-slot-a mode=redispatch_after_hold9 head=d47e4674 apply=U-192(2026-10-31T13:03:35Z#582) prompt=.worktrees/.coordination/prompts/dispatch-epic-11-resume9.md
 2026-11-01T02:51:59Z	Epic 12	dispatch_planned	runner=C slot=ocutalon-slot-c mode=redispatch_after_hold9 head=6d4c9f1e hold_patch=12-3_code-review(tree=clean) prompt=.worktrees/.coordination/prompts/dispatch-epic-12-resume9.md
 2026-11-01T02:51:59Z	Epic 30	waiting	on=5.13_merge(runner_B) then=dispatch-epic-30-redispatch.md_refreshed_for_a3a460fa
+2026-11-01T02:52:42Z	Epic 5	runner_dispatched	agent=a13427f061480a952 model=opus runner=B slot=ocutalon-slot-b mode=reopen(5.13,launch-blocking) base=8b11e411 prompt=.worktrees/.coordination/prompts/dispatch-epic-5-513-resume9.md
+2026-11-01T02:52:42Z	Epic 11	runner_dispatched	agent=a7a36d994abfccfc6 model=opus runner=A slot=ocutalon-slot-a mode=redispatch_after_hold9 previous_runner=afc683417d6fbb637 head=d47e4674 apply=U-192
+2026-11-01T02:52:42Z	Epic 12	runner_dispatched	agent=add2eeb8885e38731 model=opus runner=C slot=ocutalon-slot-c mode=redispatch_after_hold9 previous_runner=ab46a01f748320374 head=6d4c9f1e hold_patch=12-3
