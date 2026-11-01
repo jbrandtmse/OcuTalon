@@ -58,6 +58,7 @@ const IMPORTED = [
   ['mailbox/mailbox-view.ts', ['MAILBOX_TEXTS']],
   ['live/reset-schedule.ts', ['RESET_TEXTS']],
   ['header/sign-out-texts.ts', ['SIGN_OUT_TEXTS']],
+  ['header/demo-view-texts.ts', ['DEMO_VIEW_TEXTS']],
 ];
 const modules = {};
 const imported = [];
@@ -153,6 +154,8 @@ for (const [name, text] of [...imported, ...fromSource, ...fromTemplates]) {
 const SOURCES = {
   ux: [
     'Message OcuTalon',
+    'Demo view',
+    'Off shows the page as it looks on your own install.',
     'Send',
     'Not sent',
     'Retry sending',

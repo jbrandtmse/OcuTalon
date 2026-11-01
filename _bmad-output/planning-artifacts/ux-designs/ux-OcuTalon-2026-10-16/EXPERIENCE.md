@@ -229,6 +229,11 @@ Behavioral rules, grouped as in `DESIGN.md` › Components, which holds the visu
   - Steps, prompts, and completion signals are under Demo Mode and the Online Demo.
 - **Guide collapsed bar.** "Hide guide" collapses the demo guide to this bar. Its "Show guide" button has `aria-expanded`. Break the feed stays at the bar's right end with the same rules. The choice is remembered per browser.
 - **Break the feed.** Availability is decided on the server (FR-16, addendum §7). When inactive, the button stays focusable with `aria-disabled`, and its visible hint is its accessible description (`aria-describedby`). States and wording are under Demo Mode and the Online Demo.
+- **Demo view switch.** Demo mode only, in the app header after the context badge. [ADDED 2026-11-01, Story 4.9, owner request relayed by the Contest Planner; the owner: "We need a toggle switch to "turn off demo mode", which would hide the guide and simulated phone to show what the screen would look like for a real deployment."]
+  - A native switch (`role="switch"`, `aria-checked`), labelled "Demo view", on by default.
+  - Its help text, "Off shows the page as it looks on your own install.", is its accessible description and its pointer tooltip. In the 1024-1279px band, where the label is hidden, the tooltip is "Demo view".
+  - A press (click, Space or Enter) changes only the view. Nothing is sent to the server, and focus stays on it. Screen readers hear the new state from `aria-checked`; the page announces nothing.
+  - It is kept per browser tab, falling back to on.
 
 ### Status rail
 
@@ -464,7 +469,7 @@ Behavioral rules. Contrast is specified and verified in `DESIGN.md` under Colors
 | **1280–1439 wide** (reference) | Rail `{spacing.rail-width}`, devices `{spacing.device-width}`, chat about 640px. Every UJ-1 control is reachable without scrolling the page, because regions scroll on their own. |
 | **Shorter than 680** | The guide switches to its compact single row. At 1280×600, the incident card's headline, cause, dry-run count, Approve, and Reject stay visible without scrolling the chat. The phone screen shrinks to `{spacing.phone-screen-min-height}` and then scrolls. |
 | **1024–1279 wide** | The rail becomes a drawer opened from a "Status" header button, which shows the approval request count. While Telegram is unpaired, the Telegram card moves to the top of the device column, so the QR code stays on the page from the start. Guide step labels shorten to numbers; the prompt bar keeps its full text. |
-| **Narrower than 1024** (including 200% zoom) | One column that scrolls as a page: header, banners, guide, the Telegram card (while unpaired), the chat (scrolling on its own at `min(70vh, content)`), simulated devices, then the status sections. Nothing is sticky except a compact header. |
+| **Narrower than 1024** (including 200% zoom) | One column that scrolls as a page: header, banners, guide, the Telegram card (while unpaired), the chat (scrolling on its own at `min(70vh, content)`), simulated devices, then the status sections. Nothing is sticky except a compact header. [AMENDED 2026-11-01, Story 4.9, owner request of 2026-11-01: in demo mode the compact header may wrap to a second row for the Demo view switch, and stays within a quarter of the window's height] |
 
 - **The narrow-window note.** In the stacked layout, an info inline notice at the top reads "This page is designed for a wider window. Everything still works." It shows once per session, and its close button is remembered per browser.
 - **Browsers:** current desktop Chrome, Edge, Firefox, and Safari (FR-12).
@@ -573,6 +578,13 @@ Sam is an integration engineer who runs three productions (ADT, Orders, and Resu
 ## Demo Mode and the Online Demo
 
 Demo mode adds the demo guide, Break the feed, and the simulated devices (FR-16). The online demo adds the splash screen, the reset countdown, and allowance limits.
+
+**The Demo view switch.** [ADDED 2026-11-01, Story 4.9, owner request relayed by the Contest Planner; the owner: "We need a toggle switch to "turn off demo mode", which would hide the guide and simulated phone to show what the screen would look like for a real deployment."]
+- Off, the page shows as on your own install: no demo guide, no Break the feed, no Simulated devices. The chat takes their width, the skip links drop "Skip to simulated devices", and the empty chat and Background checks show their non-demo lines.
+- The honest markers stay: the "Demo mode" pill on a local install, and the "Online demo" pill, the reset countdown and the allowance lines on the online demo. The Telegram card follows the server's Telegram state.
+- Nothing on the server changes. A pending approval request stays answerable in the chat.
+- Back on, the guide shows the session's current step with its Hide guide choice as before, and the simulated phone shows answers given meanwhile.
+- Text the server writes may still name the simulated phone while the switch is off.
 
 ### The demo guide
 

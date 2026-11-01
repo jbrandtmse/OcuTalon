@@ -2,7 +2,7 @@
 title: 'Story 4.9: A Demo view switch shows the page as it looks on your own install'
 type: 'feature'
 created: '2026-11-01'
-status: 'in-progress'
+status: 'done'
 baseline_revision: 'cc0418c4012ae4cf4b5d851a861c2def5736af5d'
 review_loop_iteration: 0
 followup_review_recommended: false
@@ -255,7 +255,7 @@ deferred: []
 - **AC9.** Given this story merges, when the UX documents are read, then EXPERIENCE.md's "Demo guide and controls" and "Demo Mode and the Online Demo" sections and DESIGN.md's app header carry the switch, each with the 2026-11-01 marker. `ux-strings.test.mjs` finds both strings in EXPERIENCE.md.
 - **AC10.** Given the change, when it merges, then the story stays inside the footprint, adds no CI unit or e2e folder, and CI is green on every workflow.
 
-- [ ] [Review] G4 compact-header pin vs the switch at 200% - `web/e2e/floor/layout.spec.ts` (`expectColumn`, the `headerBlock < wideBlock` check) - amend as the Spec Change Log ruling of 2026-11-01 (U-202) says, add its EXPERIENCE.md marker, and record a `mutation:` line (e.g. the header block forced to 40% of the viewport -> G4 red); then `live floor` must pass 106 of 106.
+- [x] [Review] G4 compact-header pin vs the switch at 200% - `web/e2e/floor/layout.spec.ts` (`expectColumn`, the `headerBlock < wideBlock` check) - amend as the Spec Change Log ruling of 2026-11-01 (U-202) says, add its EXPERIENCE.md marker, and record a `mutation:` line (e.g. the header block forced to 40% of the viewport -> G4 red); then `live floor` must pass 106 of 106.
 
 ## Spec Change Log
 
@@ -263,6 +263,46 @@ deferred: []
 - The rest of the implementation is in the working tree, uncommitted (the halt came before finalize); keep it, do only the open G4 item below, then re-run verification and finalize.
 
 ## Review Triage Log
+
+### 2026-11-01 - Review pass (whole story, diff from cc0418c4)
+- verdicts: 32 findings - high 0, medium 6, low 23, false 3, maybe-false 0
+- findings:
+  - Blind hunter:
+    - `[low]` `[reject]` no forced-colors fallback on the switch - the repo has no forced-colors handling anywhere; the thumb position and `aria-checked` still carry the state; the fix adds a media branch for a cosmetic gain.
+    - `[low]` `[reject]` the new track/thumb colour pairs are not in DESIGN.md's contrast table - they are existing tokens; a documentation-only completeness point with no user-reachable failure.
+    - `[false]` `[reject]` the device tabs' new counts reset on switch-on - intended: Boundaries ("start at 0, as on a load") and Decided-in-stage 7.
+    - `[low]` `[reject]` V1's request window is a fixed 1500 ms and the listener is added after sign-in - a negative window needs a duration; the listener is added before the first press; mutation `set()` also calls `retry()` showed the check can fail.
+    - `[false]` `[reject]` V3 depends on a real model reply - the spec requires a live reply (every demo step is generated live); the unit runs with the stack's own key setup.
+    - `[low]` `[reject]` the compact-header height bound is checked only in G4, and the padding/flex-wrap change touches the non-demo compact header - the lead's ruling of 2026-11-01 accepted the wrap and the 4px padding; V5 pins the fit from 320px.
+    - `[low]` `[patch]` the sources test's `doesNotMatch(/live\.snapshot\(/)` cannot fail (the capture stops at the first `)` and the earlier `match` already requires `demoView.snapshot(`) - deleted the line.
+    - `[low]` `[reject]` other looseness of the source-shape tests (the pill literal, only `.ts` files, `^\s*snapshot\b`) - a stricter pin than the whole-file `demoMode` list would break on reformatting; each pin has a recorded mutation.
+    - `[low]` `[reject]` the help is visible only on hover - the tooltip component is the app's one tooltip (pointer only by design, F8); keyboard users get the description; the spec decided this (Decided 4).
+    - `[low]` `[reject]` no unit-level tests of `DemoView` - the web tests are framework-free; V1 and V6 run the service in the browser.
+  - Edge case hunter:
+    - `[low]` `[reject]` the guide's `answered` signal survives an off/on - the next live event replaces it; no user-reachable wrong state shown.
+    - `[low]` `[reject]` an in-flight Break the feed request loses its pending state while off - the server is unchanged and the box rebuilds from the next view.
+    - `[medium]` `[patch]` 1440 is named in matrix row 9 but not in V5's loop - added 1440.
+    - `[low]` `[reject]` tabs opened by `context.newPage()` stay open - the page closes with the test context.
+    - `[low]` `[reject]` V1's request window can see other legitimate requests - the same row as the blind hunter's V1 row.
+    - `[low]` `[reject]` G4 could pass a header of three rows under a quarter of the window - the ruling is exactly "at most a quarter of the viewport's height".
+  - Verification-gap reviewer:
+    - `[medium]` `[patch]` the tooltip text is never asserted in either band - V1 now hovers the switch (the help text) and V5 hovers at 1024 ("Demo view"); the swapped-branch mutation is covered by these.
+    - `[medium]` `[patch]` no `mutation:` line for the empty-chat and empty-checks routing, or for `set()` announcing or moving focus - four mutations run and recorded below (V2 chat line, V2 checks line, V1 focus, V1 announcement).
+    - `[medium]` `[patch]` V4's "no announcement" cannot be shown to fail - a mutation that announces on every view turned V4 red, which shows the recorder catches the guide's speech.
+    - `[medium]` `[patch]` the stacked `.side` `flex-wrap` has no mutation and 1440 is not looped - mutation recorded (V5 red at 320); 1440 added.
+    - `[medium]` `[patch]` matrix row 1's "sessionStorage throws" has no case - V6 added (mode 1); mutation recorded.
+    - `[low]` `[reject]` AC4's countdown/banner/Telegram card and AC6's second half have no mutation - those components do not read `demoMode` and `DemoView` cannot change them; reopen_if=a component there starts reading `DemoView`.
+    - `[low]` `[reject]` V3 depends on file order and the shared README session - V3 asserts `before + 1` and the later cases do not count replies; a rerun adds one turn and passes.
+    - `[low]` `[reject]` V1's fixed 1500 ms wait - as above.
+    - `[low]` `[reject]` V2 selects the checks line with `.nth(1)` - the mutation on `status-rail.ts` showed it fails on the wrong text.
+    - `[low]` `[reject]` `structure` could compare two empty lists - each list is non-empty on these pages and V2 asserts the individual regions and lines too.
+    - `[low]` `[reject]` G4 branches on a value the page produces - the ruling's own shape; the switch and a second row must both be present for the quarter bound to apply.
+    - `[low]` `[reject]` the sources test is source-text only - it is a complement to the browser cases, and each of its checks has a recorded mutation.
+  - Intent-alignment auditor (descriptive; no defects filed):
+    - `[low]` `[reject]` row 1 error handling pinned only by source text - closed by V6 (patched above).
+    - `[low]` `[reject]` the visual spec (32x18 track, tokens, no transition) has no assertion - `shell-styles.test.mjs` and `floor-sources.test.mjs` pin the tokens and the no-fixed-height rule; the sizes are a DESIGN.md value.
+    - `[low]` `[reject]` the device tabs' counts reset on return is pinned only by construction - `DevicePanel.note` is unchanged and a changed snapshot identity is its fresh look; reopen_if=the panel keeps a baseline across an undefined snapshot.
+    - `[false]` `[reject]` the "snapshot loading or failed" half of row 2 - `available` is false until a snapshot says so; frame F-cases of the failed snapshot (no badge, no switch) pass.
 
 ## Design Notes
 
@@ -344,6 +384,7 @@ deferred: []
 13. **F7 (frame.spec.ts) gets one Tab step.** F7 walked Tab from the home link to the Visual Trace button; the switch is now the first stop. The step is added in the file F3 is in (the spec said "change nothing else" of F3 only).
 14. **The answers project's case count.** `web/scripts/playwright-projects.test.mjs` pinned X1 to X10 and 20 cases; it now pins X1 to X11 and 21 (the spec's own count).
 15. **Track and thumb sizes are minimums.** `floor-sources` allows no fixed `height`, so the 18px track and the 12px thumb use `min-height`.
+16. **G4 (floor) follows the lead's ruling of 2026-11-01 (U-202).** In `layout.spec.ts` `expectColumn`, the compact header with the Demo view switch present and more than one control row must be at most a quarter of the window high; otherwise it stays shorter than at 1280x720. EXPERIENCE.md's "Narrower than 1024" row carries the ruling's AMENDED marker.
 
 **Veto items:** none.
 - The two strings are the AC's own.
@@ -407,6 +448,16 @@ deferred: []
 - mutation: the view effect of `demo-guide.ts` skips an undefined view -> `live:demo-switch` V4 red.
 - mutation: the drawer-band rule hides nothing (the label always shows) -> `live:demo-switch` V5 red (the label-hidden check at 1024).
 - mutation: one word of the help text changed in EXPERIENCE.md -> `ux-strings` "finds each ux and design string in its document" red.
+- mutation: the stacked header forced to `min-height: 40vh` (`header.ts`, rebuilt) -> `live:floor` G4 at 200% red ("with the Demo view switch the compact header may wrap to a second row, and stays within a quarter of the window (360px)"), 4 cases red in all: the two column cases through the quarter check (1000x800 and 200%), plus the empty-chat G4 and G5 at 200%, which the tall header starves of room; reverted from my own backup, tree byte-identical, rebuilt, and `live:floor` is 106 of 106 without it.
+- mutation (review pass, built with `ci/iris.sh build`, run, red, reverted from my own backup, tree byte-identical, rebuilt):
+  - `chat-panel.ts` `demo` reads `demoView.available()` -> `live:demo-switch` V2 red ("the non-demo empty chat line").
+  - `status-rail.ts` passes `demoView.available()` to `railView` -> `live:demo-switch` V2 red ("and the non-demo empty checks line"; it ran in a second run because the chat line fails first).
+  - `demo-view-switch.ts` blurs the target on click -> `live:demo-switch` V1 red ("focus stays on it").
+  - `DemoView.set()` announces through the `Announcer` -> `live:demo-switch` V1 red ("nothing was announced").
+  - `demo-guide.ts` `follow()` announces for every view -> `live:demo-switch` V4 red ("no step announcement").
+  - `header.ts` drops the stacked `.side` `flex-wrap` -> `live:demo-switch` V5 red ("320px: nothing scrolls across").
+  - `DemoView.set()` calls `window.sessionStorage.setItem` unguarded before the state -> `live:demo-switch` V6 red ("a press turns it off for the page").
+  - The label rule is still the AC8 line above; V1's and V5's tooltip assertions were added in this pass and are exercised by the green run (a swapped tooltip branch reads the other text).
 - The runs that held several mutations at once (the run of six and the run of two) were read test by test: each red case is the one that the mutation names above.
 
 **Shared surfaces:**
@@ -425,11 +476,30 @@ Every test added or changed passes on a fresh environment, in either order.
 
 ## Auto Run Result
 
-Status: blocked
-Blocking condition: intent gap - the spec's stacked-band header (the switch wraps with the header, AC8) contradicts the existing floor pin G4 (`web/e2e/floor/layout.spec.ts:452`, "the compact header at 200% (640x360, scale 2) is shorter than at 1280x720"), and the spec lists `live floor` as PASS. At 640px a demo-mode header has 15px free; the switch needs at least 62px even as a track alone, so the stacked header becomes two rows of 32px controls (77px) against a 1280 header of about 56px. Rule 5 / Rule 11: that file is outside the footprint, and weakening G4 weakens a stated UX guarantee. No in-footprint design passes both (never shrink other header items).
+Status: done
+Blocking condition: none
 
-Recommended amendment (lead's choice): (A, recommended) amend G4's comparison in `web/e2e/floor/layout.spec.ts` so the 200% demo header may wrap to two rows (compare with the 1280x720 header plus one control row, or against the same page with the switch off), and record it in the Spec Change Log; (B) amend the spec to put the switch on its own row only below 640px and keep the one-row rule above, which still fails at 640; (C) drop the switch from the stacked band (an AC8 and scope change, owner-only). After the amendment, re-dispatch on this spec path with `status: in-progress`; the working tree already holds the full implementation (uncommitted, nothing committed or pushed, HEAD still `cc0418c4`; stack tag e4s9i torn down).
+This pass: the lead's G4 ruling (U-202) applied, then the review of the whole story (diff from `cc0418c4`, untracked files included).
 
-State at halt: `npm --prefix web test` 1133 pass, lint 0, `live:demo-switch` 308 s, `live:answers` 349 s (21 cases), `live:sign-in` parts 1 and 2, `live:demo-path`, `live:online-demo` (R8 0px across), `test-web-build.sh`, `ci/checks.sh` all green; `live:floor` 105 of 106, only G4 red (P4 was a ledgered flake and passed on rerun). All 12 planned mutations applied, observed red and reverted. Deviations for the lead to confirm: F7 in `frame.spec.ts` gained one Tab step (the switch is now the first stop after the home link); `web/scripts/playwright-projects.test.mjs` pin for the answers project changed from X1 to X10 / 20 cases to X1 to X11 / 21; the stacked header got 4px of block padding and `flex-wrap` on `.side` (before this story the online demo's right group scrolled the page across by 189px at 320px).
+**Summary.** A client-only "Demo view" switch in the header (demo mode only, on by default, kept per tab). One `DemoView` signal (the server's demo mode and the switch) feeds the guide, Break the feed, the simulated devices, the skip links, the empty chat and the rail's empty checks line; the header pill keeps the server's flag. Nothing is sent to the server. The stacked header wraps so that nothing scrolls across from 320px. EXPERIENCE.md and DESIGN.md carry the switch with markers; floor G4 now allows a second header row in demo mode (a quarter of the window at most), as the lead ruled.
 
-**Plan summary.** A web-only story. One `DemoView` signal: the server's `demoMode` and a per-tab switch. A native "Demo view" switch in the header. Every demo-mode reader routes through the signal, except the header pill. The e2e cases run on the real server switch (`live:demo-switch`, modes 0 and 1) and the answers unit (X11), and a source test pins the signal. Footprint extensions: none. Amendments: none. Clarifications: none. One measured design input: the header has 104px free at 1024px on the online demo, which gives the drawer band its track-only form.
+**Files changed.**
+- `web/src/app/shared/demo-view.ts`, `header/demo-view-switch.ts`, `header/demo-view-texts.ts` (new): the signal, the switch and its texts.
+- `web/src/app/header/header.ts`, `header/skip-links.ts`, `chat/chat-panel.ts`, `devices/device-panel.ts`, `rail/status-rail.ts`, `guide/demo-guide.ts`, `phone/simulated-phone.ts`, `mailbox/simulated-mailbox.ts`: route through `DemoView`; the stacked header wraps.
+- `web/scripts/demo-view-sources.test.mjs` (new), `ux-strings.test.mjs`, `playwright-projects.test.mjs`: source pins, the two strings, the answers project's X1-X11 / 21 cases.
+- `web/e2e/demo-switch/view.spec.ts` (new: V0-V6), `answers/answers.spec.ts` (X11), `frame/frame.spec.ts` (F3 box order and Tab sequence, F7 one Tab step), `floor/layout.spec.ts` (G4 compact-header check, a sanctioned footprint extension).
+- `EXPERIENCE.md`, `DESIGN.md`: the switch, with the 2026-11-01 markers; the "Narrower than 1024" row carries the ruling's AMENDED marker.
+
+**Review.** 32 findings: 6 medium, 23 low, 3 false. Patches applied: 6 medium (tooltip assertions, mutations for the chat, rail, focus and announcement, V4's recorder, the stacked wrap, 1440 in V5, V6 for a throwing storage) and 1 low (a dead assertion deleted); no high. Deferred: none. Rejected with their reasons: see the Review Triage Log.
+
+**Follow-up review recommendation:** `false` (this pass patched no high; the patches are test additions and a deleted assertion, with source unchanged).
+
+**Verification.**
+- `npm --prefix web test` 1133 pass; lint 0.
+- `live:floor` 106 of 106 (after the G4 amendment, 389 s); `live:demo-switch` mode 0 6 passed, mode 1 20 passed (311 s, with V6 and the tooltip assertions); `live:answers` 21 passed (352 s); `live:sign-in` part 1/2 127 passed (330 s), part 2/2 96 passed (321 s); `live:demo-path` pass (145 s); `live:online-demo` 50 passed (383 s; `MEASURED R8` at 1024px: 0px across, right group -16px past the edge; at 640px: 0px across, -103.9px); `docker/tests/test-web-build.sh` passes; `ci/checks.sh` exit 0.
+- The `grep -n 'Demo view'` check: every hit sits in a section with the story's marker (the "Narrower than 1024" hit carries the ruling's AMENDED marker).
+- G4 mutation and the review-pass mutations: see `## Verification`. Stack e4s9i torn down; HEAD stayed `fa199fab` until finalize; nothing pushed.
+
+**Residual risks.** Screen-reader speech of `aria-checked` is an inference (not measured). The tooltip is pointer-only by the app's design. The online demo's real-world header fit at 1024px keeps the 42px measured margin.
+
+Footprint extensions: `web/e2e/floor/layout.spec.ts` (the lead's ruling). Amendments: EXPERIENCE.md "Narrower than 1024" row (the ruling's marker).

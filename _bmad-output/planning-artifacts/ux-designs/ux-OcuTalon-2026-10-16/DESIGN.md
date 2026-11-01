@@ -739,6 +739,11 @@ Visual specs live here; behavior lives in `EXPERIENCE.md`'s Component Patterns, 
   - the logo mark (`logo/web/icon-192.png`, shown at 28px, its navy tile intact);
   - the wordmark ("Ocu" `{colors.ink}`, "Talon" `{colors.brand-orange}`);
   - the context badge, a neutral pill reading "Online demo" or "Demo mode";
+  - on a demo-mode page, the Demo view switch [ADDED 2026-11-01, Story 4.9, owner request relayed by the Contest Planner; the owner: "We need a toggle switch to "turn off demo mode", which would hide the guide and simulated phone to show what the screen would look like for a real deployment."]
+    - a ghost control: a 32x18 track (on: `{colors.action}` fill and `{colors.on-action}` thumb at the right; off: `{colors.surface}` fill, `{colors.border-strong}` border and `{colors.ink-muted}` thumb at the left);
+    - then the label "Demo view" in `{typography.body-strong}`;
+    - the track alone in the 1024-1279px band;
+    - the standard focus ring, and no animation;
   - the header navigation, from step 2 of the release plan (the current item in `{colors.ink}` with a teal bottom bar, the others in `{colors.ink-muted}`);
   - right-aligned: the reset countdown, the Visual Trace menu, the theme menu, and the account menu.
 - **Buttons and focus ring.**

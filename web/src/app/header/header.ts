@@ -33,6 +33,7 @@ import { newTraceHeadingId, TraceHelpBlock } from '../shared/trace-link';
 import { conversationUrl, TRACE_TEXTS } from '../shared/trace-view';
 import { Theme, type ThemeChoice } from '../theme/theme';
 import { CredentialRows } from './credential-rows';
+import { DemoViewSwitch } from './demo-view-switch';
 import { SignOutDialog, SIGN_OUT_FOCUS } from './sign-out-dialog';
 import { SIGN_OUT_TEXT_ID } from './sign-out-texts';
 import { ResetCountdown } from './reset-countdown';
@@ -70,6 +71,9 @@ const STATUS_RULE: FocusRule = { within: '.status-button' };
  * On the online demo the right group also holds the reset countdown pill (ResetCountdown, Story 16.8), after the Status button and before
  * the Visual Trace menu. It is silent: the header announces nothing.
  *
+ * After the context badge sits the Demo view switch (DemoViewSwitch, Story 4.9), on a demo-mode page only. The pill keeps reading the
+ * server's demo mode, not the switch, so that the install's honest marker stays whatever the view.
+ *
  * In the drawer band (1024 to 1279px, Layout) the right group starts with the Status button, which opens and closes the rail's drawer
  * (aria-controls="status-region", aria-expanded). It shows "Status" and a count pill of the approval requests (the same count as the
  * rail's heading), both hidden from assistive technology beside the spoken name ("Status, 2 approval requests"). Before the snapshot
@@ -82,7 +86,7 @@ const STATUS_RULE: FocusRule = { within: '.status-button' };
  */
 @Component({
   selector: 'app-header',
-  imports: [CdkMenuTrigger, CdkMenu, CdkMenuItem, CdkMenuItemRadio, CredentialRows, Icon, ResetCountdown, TraceHelpBlock, Tooltip],
+  imports: [CdkMenuTrigger, CdkMenu, CdkMenuItem, CdkMenuItemRadio, CredentialRows, DemoViewSwitch, Icon, ResetCountdown, TraceHelpBlock, Tooltip],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <header class="header">
@@ -94,6 +98,7 @@ const STATUS_RULE: FocusRule = { within: '.status-button' };
         @if (badge(); as text) {
           <span class="context-badge">{{ text }}</span>
         }
+        <app-demo-view-switch />
       </div>
       <div class="side right">
         @if (layout.band() === 'drawer') {
@@ -294,7 +299,10 @@ const STATUS_RULE: FocusRule = { within: '.status-button' };
         flex-wrap: wrap;
         gap: var(--space-1) var(--space-3);
         min-height: var(--space-12);
-        padding-inline: var(--space-3);
+        padding: var(--space-1) var(--space-3);
+      }
+      .side {
+        flex-wrap: wrap;
       }
     }
     .reason {

@@ -1,6 +1,7 @@
 import { ChangeDetectionStrategy, Component, ElementRef, Injector, computed, effect, inject, signal, untracked } from '@angular/core';
 
 import { LiveState } from '../live/live-state';
+import { DemoView } from '../shared/demo-view';
 import { type FocusRule, keepFocus } from '../shared/focus-rule';
 import { LAYOUT_QUERIES } from '../shared/layout-view';
 import { Popovers } from '../shared/popover';
@@ -232,6 +233,7 @@ const panelId = (tab: DeviceTab): string => `device-panel-${tab}`;
 })
 export class DevicePanel {
   protected readonly live = inject(LiveState);
+  private readonly demoView = inject(DemoView);
   protected readonly deviceTabs = inject(DeviceTabs);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injector = inject(Injector);
@@ -239,8 +241,8 @@ export class DevicePanel {
   protected readonly texts = DEVICE_TEXTS;
   protected readonly tabs = TABS;
 
-  /** True while the snapshot says demo mode is on: the only time the panel shows. */
-  protected readonly demo = computed(() => this.live.snapshot()?.demoMode === true);
+  /** True while the demo view is on: the only time the panel shows. */
+  protected readonly demo = computed(() => this.demoView.on());
 
   /** The selected tab. */
   protected readonly selected = this.deviceTabs.selected;
@@ -255,7 +257,7 @@ export class DevicePanel {
 
   constructor() {
     effect(() => {
-      const snapshot = this.live.snapshot();
+      const snapshot = this.demoView.snapshot();
       const store = this.live.store();
       const selected = this.selected();
       untracked(() => this.note(snapshot as (PhoneSnapshot & MailboxSnapshot) | undefined, store, selected));

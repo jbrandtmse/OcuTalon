@@ -15,6 +15,7 @@ import { LiveState } from '../live/live-state';
 import type { GuideStatePayload } from '../live/payloads';
 import { pendingRef, phoneOf, type PhoneSnapshot } from '../phone/phone-view';
 import { Announcer } from '../shared/announcer';
+import { DemoView } from '../shared/demo-view';
 import { type FocusRule, keepFocus } from '../shared/focus-rule';
 import { HEIGHT_QUERIES, LAYOUT_QUERIES } from '../shared/layout-view';
 import { Popovers } from '../shared/popover';
@@ -496,6 +497,7 @@ const FOCUS_RULE: FocusRule = {
 })
 export class DemoGuide {
   private readonly live = inject(LiveState);
+  private readonly demoView = inject(DemoView);
   private readonly outbox = inject(ChatOutbox);
   private readonly allowance = inject(AllowanceState);
   private readonly announcer = inject(Announcer);
@@ -518,8 +520,8 @@ export class DemoGuide {
     return window === undefined ? '' : allowanceReason(window);
   });
 
-  /** The guide view of the live state: the latest guide.state, else the snapshot's guide; undefined outside demo mode. */
-  private readonly liveView = computed(() => guideOf(this.live.snapshot() as GuideSnapshot | undefined, this.live.store()));
+  /** The guide view of the live state: the latest guide.state, else the snapshot's guide; undefined outside the demo view. */
+  private readonly liveView = computed(() => guideOf(this.demoView.snapshot() as GuideSnapshot | undefined, this.live.store()));
 
   /** The 200 answer of the page's last marker, which stands as the guide view until the next live view arrives. */
   private readonly answered = signal<GuideStatePayload | undefined>(undefined);
@@ -594,7 +596,7 @@ export class DemoGuide {
    */
   protected showMe(): void {
     const store = this.live.store();
-    const list = phoneOf(this.live.snapshot() as PhoneSnapshot | undefined, store) ?? [];
+    const list = phoneOf(this.demoView.snapshot() as PhoneSnapshot | undefined, store) ?? [];
     const ref = pendingRef(list, store?.approvals);
     this.tabs.select('phone');
     afterNextRender(
