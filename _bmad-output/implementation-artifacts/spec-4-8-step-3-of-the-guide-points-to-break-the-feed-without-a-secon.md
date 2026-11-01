@@ -2,12 +2,21 @@
 title: 'Story 4.8: Step 3 of the guide points to Break the feed without a second button'
 type: 'feature'
 created: '2026-11-01'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '0ca9d869348741fcc47411f71e5a6721102ca0b9'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
 warnings: ['oversized']
-deferred: []
+deferred:
+  - summary: >-
+      No test pins the negative cell of matrix row 4 (the prompt bar comes back at step 1 or 2 after Run again: focus goes to Send, not the box button).
+    evidence: |-
+      FOCUS_RULE.whenGone hands focus to the box only when the bar carries data-guide-step="3". M6, M10 and M12 all end at step 3, so a mutation that ignores the mark (find('bar') !== null) may survive; existing floor cases that lose a prompt part at other steps might already catch it. Unverified.
+    location: >-
+      web/src/app/guide/demo-guide.ts (FOCUS_RULE.whenGone), web/e2e/floor/guide.spec.ts
+    severity: medium (unverified)
+
 ---
 
 <intent-contract>
@@ -182,6 +191,29 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-11-01 - Review pass
+- verdicts: 19 findings - high 0, medium 1, low 14, false 3, maybe-false 1
+- findings:
+  - `[low]` `[patch]` Blind: step-3 branch in whenGone returns null when the box button is missing, skipping the prompt fallback (Edge Case Hunter reported the same) - whenGone now falls through to today's order when the box button is absent.
+  - `[low]` `[reject]` Blind: bare `=== 3` mark repeated as a magic number - two uses of one documented attribute; no named harm.
+  - `[false]` `[reject]` Blind: UX wording "user's own press" narrower than the rule - the rule fires when the focused prompt part is removed (the spine's focus convention), which is what the spec, Decided in-stage 1 and the EXPERIENCE text state.
+  - `[medium]` `[patch]` Blind: coverage gaps for the new path (1 to 3 jump, row 6, had no test) - M12 now starts at step 1 and one refreshGuide jumps the guide to step 3 with Send focused, asserting focus on the inactive box. The waiting form, the missing-button fallback and selected-not-current stay untested (low, unlikely, a test would need new seeded states).
+  - `[low]` `[reject]` Blind: AC1 mutation line says the live M7 check was not run - the node test is red for that mutation and M7 asserts the same shape; recorded as such.
+  - `[low]` `[patch]` Blind: M7's no-notice "no button" check used a class locator - now `.prompt` plus getByRole('button').
+  - `[low]` `[patch]` Blind: M12 fragile and leaves a run_again epoch bump (Edge Case Hunter and verification-gap reported the same) - the finally block restores the epoch start and ends the run with endRun, as M9 to M11 do.
+  - `[low]` `[patch]` Edge: the same missing-button fallback as the first row - patched with it.
+  - `[false]` `[reject]` Edge: focus moves without a press, wording wider than code - same as the third row; by design.
+  - `[low]` `[patch]` Edge: epoch restore in finally runs after cleanFixtureRows and restores the post-marker value - patched with the M12 cleanup row.
+  - `[maybe-false]` `[defer]` Verification gap: no test for row 4's negative cell (prompt bar back at step 1 or 2 hands focus to Send) - deferred, unverified medium; a mutation run ignoring the mark would settle it.
+  - `[low]` `[reject]` Verification gap: the step 3 waiting form's hand-off has no test - rare path (Break the feed pressed from step 2), same single branch as M6/M10; a test needs a new seeded state.
+  - `[low]` `[reject]` Verification gap: a click on the step 3 step button keeping focus is not asserted - the select handler is untouched and no focus call was added; the only focus mutation (AC4) is pinned.
+  - `[low]` `[patch]` Verification gap, other: M10's no-POST check had no settled() before it - settled(page) added.
+  - `[low]` `[patch]` Verification gap, other: M12 hermeticity - the same cleanup as above.
+  - `[low]` `[reject]` Verification gap, other: M7's 4px and --action assertions were not mutated - the same values are pinned at guide/guide.spec.ts:334 and :513, and the next-step class and tag are mutated.
+  - `[low]` `[reject]` Intent alignment: the click on the step 3 step button keeping focus is not asserted - same as the earlier row.
+  - `[low]` `[reject]` Intent alignment: the mark follows `selected`, not the current step - the two coincide after an advance or Run again (followSelection); the spec says "shown step".
+  - `[false]` `[reject]` Intent alignment: M12 changed shape - the spec allows another seeded inactive state reached through the same hand-off.
+
 ## Design Notes
 
 **Architecture decisions** (spine `_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md`, status final):
@@ -258,6 +290,22 @@ deferred: []
 - AC5: restore EXPERIENCE.md row 3's old cell with no marker → the UX `grep … | grep -v` command prints it.
 - AC6: leave the 'Go to Break the feed' entry in `ux-strings.test.mjs` → "has no entry that matches no inventory string".
 
+**Mutation results (implement stage, each applied, observed red, reverted; tree byte-identical by `git diff --stat` and md5):**
+- mutation: AC1: `promptOf(3)` gives action `'showMe'` -> red in `guide-view.test.mjs` "step 3 sends the user to Break the feed, quoted, for every stage but the waiting ones (row 1)" (the live M7 button check was not run for this one).
+- mutation: AC1: keep a `goToBreakFeed()` with its `.focus(` in `demo-guide.ts` -> red in `announce-focus-sources.test.mjs` "has a .focus( call only in the files that ...".
+- mutation: AC2: `break-feed-view.ts` `nextStep` needs `current === 99` (temporary, restored) -> red: floor M3 and M7 (M7 on `toHaveClass(/next-step/)`).
+- mutation: AC3: `whenGone` step-3 mark test compares with `'x'` (no step-3 hand-off) -> red: floor M6, M10 and M12 (`toBeFocused`); M3 and M7 stay green.
+- mutation: AC3: the hand-off also clicks the box's button -> red: floor M6, M10 and M12 (M6: a `/demo/break-feed` POST seen; M10: the prompt did not come back).
+- mutation: AC4: `follow()` focuses `BREAK_FEED_BUTTON` whenever the view's step is 3 -> red: floor M3 (composer loses focus) and M7 (focus after the load); M6, M10 and M12 stay green.
+- mutation: AC5: EXPERIENCE.md row 3's old cell with no marker -> the UX `grep ... | grep -v 'AMENDED 2026-11-01'` command prints the line.
+- mutation: AC6: leave the 'Go to Break the feed' entry in `ux-strings.test.mjs` -> red "has no entry that matches no inventory string".
+
+**Decided in-stage (implement):**
+- The hand-off marker is `data-guide-step="3"` on `div.prompt` (set when `guide.selected === 3`); `FOCUS_RULE.whenGone` reads it through `find('bar')`.
+- M12's second half reloads the page with `loadedAfter(page, () => page.reload())` (a second sign-in on a signed-in page hangs) and writes a `run_again` marker first, so the session has its guide state row and `startEpochAt` sets the window whichever case ran before; with no row, `startEpochAt` writes nothing and the old open incident would count (step 4).
+
+**Decided in-stage (review pass):** M12's second half now covers matrix row 6 as well as the inactive cell: the page reloads at step 1 (an open incident noticed before the run window, no watch), Send is focused, the watch and the reminder rows are seeded and one refreshGuide jumps the guide from step 1 to step 3.
+
 **Shared surfaces:**
 - the guide's `PromptAction` union (`guide-view.ts` and `demo-guide.ts`'s `@switch`);
 - `GUIDE_TEXTS` (`guide-view.test.mjs`'s deepEqual, and `ux-strings.test.mjs`'s inventory);
@@ -272,7 +320,24 @@ Every test added or changed passes on a fresh environment, in either order.
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
 **Plan summary.** A web-only removal of step 3's Go to Break the feed button, with the keyboard path kept. The guide's existing focus rule hands focus to the box's Break the feed button when step 3 becomes current by the user's Send or Run again. The UX spec and the mockup are updated with 2026-11-01 owner-feedback markers. The tests listed in the ruling are reworked; no case is added. Footprint extensions: none. Amendments: none. Clarifications: none.
+
+**Implemented change.** Step 3's "Go to Break the feed" button is removed (`goToBreakFeed` in `PromptAction`, `GUIDE_TEXTS`, the `@case` and the handler). The prompt bar carries `data-guide-step="3"` while step 3 is shown; `FOCUS_RULE.whenGone` hands a lost prompt part or finish part to the box's Break the feed button then (active or inactive, never pressed), and falls through to the old order if the button is absent.
+
+**Files changed.**
+- `web/src/app/guide/guide-view.ts`, `demo-guide.ts`: the removal and the focus hand-off.
+- `web/scripts/guide-view.test.mjs`, `announce-focus-sources.test.mjs`, `ux-strings.test.mjs`: action `none`, one `.focus(` call, the string entry removed.
+- `web/e2e/floor/guide.spec.ts` (M3, M6, M7, M10, M12), `web/e2e/guide/guide.spec.ts` (Q2 twice), `web/e2e/demo-path/01-page.spec.ts` (a button-less step 3 block): reworked to the new behaviour.
+- `EXPERIENCE.md`, `mockups/states.html`: row 3, Flow 1 step 5, the focus-replacement row, and the C2 bar and caption, each with a 2026-11-01 marker.
+
+**Review.** Patches applied: 5 entries (1 medium, 4 low). Deferred: 1 (row 4's negative cell, unverified medium). Rejected: the rest, with reasons in the Review Triage Log. Follow-up review recommended: false (no high patched, one medium patched).
+
+**Verification performed.**
+- `npm --prefix web test`: 1127 pass. `npm --prefix web run lint`: exit 0. Both grep checks: no output.
+- `ci/iris.sh live floor`: 105 passed (6:12). `live sign-in --part 1/2`: first run 1 failure (B2, DW-349 flake), unchanged rerun 127 passed (5:30). `live demo-path`: floor 7 of 7, 5 of 6 steps ran, 0 failed (2:24). `live sign-in --part 2/2`: 96 passed (5:20). `docker/tests/test-web-build.sh` and `ci/checks.sh`: pass. Tag `e4s8i` torn down, no containers left.
+- Mutations: eight planned, each red and reverted (see Verification).
+
+**Residual risks.** Row 4's negative cell and the waiting-form hand-off have no pinning test (see `deferred`). Footprint extensions: none. Amendments: none.

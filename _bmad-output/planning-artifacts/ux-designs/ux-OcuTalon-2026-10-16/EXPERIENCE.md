@@ -416,7 +416,7 @@ Behavioral rules. Contrast is specified and verified in `DESIGN.md` under Colors
   | Update | Focus goes to |
   | --- | --- |
   | Approve or Reject answered (here or elsewhere) | The answered status line |
-  | Guide step advances | The prompt bar's action button, which now carries the next step; if the step has none, the prompt bar text (`tabindex="-1"`) |
+  | Guide step advances | The prompt bar's action button, which now carries the next step; if the step has none, the prompt bar text (`tabindex="-1"`); on step 3, which has none, the box's Break the feed button [AMENDED 2026-11-01, Story 4.8, owner feedback from the demo walk-through, relayed by the Contest Planner; the owner: "...redundent when teh "Break the feed" red button is right next to it." It read: "The prompt bar's action button, which now carries the next step; if the step has none, the prompt bar text (`tabindex="-1"`)"] |
   | Finish state replaces the prompt bar | Its first line |
   | Unpair, or the pairing code refreshes while focused | The Telegram card heading, or the new "Open in Telegram" link |
   | Dismiss | The compacted incident card's headline |
@@ -513,7 +513,7 @@ Dana is an InterSystems integration expert on the Experts jury, with a stack of 
    - Within 10 seconds (NFR-8) the decision strip appears: **Act** · Confidence 0.9x · $0.000x · Trace, with its reasons. The reply follows: OcuTalon will watch the Orders production and stay quiet unless something needs Dana.
    - "Orders production" appears under Background checks, Break the feed turns active, and step 2 becomes current.
 4. **The reminder.** Dana presses **Send** on step 2. OcuTalon confirms, and "Stretch · in 59 s" appears under Reminders.
-5. **The incident.** Dana presses **Go to Break the feed**, then **Break the feed**. The box shows "Sent." and, as the server reports them, the live status lines.
+5. **The incident.** Dana presses **Break the feed**. [AMENDED 2026-11-01, Story 4.8, owner feedback from the demo walk-through, relayed by the Contest Planner; the owner: "...redundent when teh "Break the feed" red button is right next to it." It read: "Dana presses **Go to Break the feed**, then **Break the feed**."] The box shows "Sent." and, as the server reports them, the live status lines.
    - About a minute after it was set, the reminder lands in the chat (with its due time), on the simulated phone, and in Telegram.
    - Within 60 seconds of the press, one incident card appears: Awaiting approval, "50 orders failed since 14:12 ET", the cause, the evidence line, the proposed fix, the fixed-targets line, the dry run, Approve, and Reject.
    - The same notice and buttons appear on the phone and in Telegram, "Approval requests (1)" appears in the rail, and the guide moves to step 4.
@@ -581,7 +581,7 @@ Demo mode adds the demo guide, Break the feed, and the simulated devices (FR-16)
 | — | *(before step 1, from 0.1.1 (read 1.0.0; see Release terms), while Telegram is on and unpaired)* | "Optional: scan the QR code in the Telegram card to get the notice on your own phone." | None | Telegram paired, or step 1 done |
 | 1 | Watch | "Watch the Orders production and only tell me if something needs me." | **Send** | A production watch for the Orders production exists in the session |
 | 2 | Reminder | "Remind me in 1 minute to stretch." | **Send** | A reminder exists in the session, pending or fired |
-| 3 | Break the feed | "Press Break the feed. The partner will send 50 orders in a new date format." While waiting: "Waiting for OcuTalon. The reminder may arrive first." | **Go to Break the feed**, which focuses the control without pressing it | The incident notice, fallback notice or no-fix notice arrived |
+| 3 | Break the feed | "Press Break the feed. The partner will send 50 orders in a new date format." While waiting: "Waiting for OcuTalon. The reminder may arrive first." | None. The box's "Next step" tag and teal left bar point to **Break the feed**; when step 3 becomes current by the user's own press (Send on step 2, or Run again), focus moves to the box's Break the feed button without pressing it. [AMENDED 2026-11-01, Story 4.8, owner feedback from the demo walk-through, relayed by the Contest Planner; the owner: "...redundent when teh "Break the feed" red button is right next to it." It read: "**Go to Break the feed**, which focuses the control without pressing it"] | The incident notice, fallback notice or no-fix notice arrived |
 | 4 | Approve | Paired (from 0.1.1 (read 1.0.0; see Release terms)): "Approve the fix in Telegram on your phone, or on the simulated phone." Unpaired: "Approve the fix on the simulated phone, or in the chat." | **Show me** (see Accessibility Floor › Focus replacement) | The approval request is answered |
 | 5 | Open the trace | "Open the incident's trace: watch your assistant in Visual Trace like any other feed, with every step it took and the tokens and cost of each decision." | **Open the trace** (the incident's trace link) | The trace link was opened |
 

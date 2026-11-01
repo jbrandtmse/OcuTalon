@@ -342,7 +342,6 @@ const SOURCES = {
     'Results Partner IT <it@results-partner.example>',
     'Press Break the feed. The partner will send 50 orders in a new date format.',
     'Waiting for OcuTalon. The reminder may arrive first.',
-    'Go to Break the feed',
     'Approve the fix in Telegram on your phone, or on the simulated phone.',
     'Approve the fix on the simulated phone, or in the chat.',
     'Rejected. Nothing was changed. Dismiss the incident in the chat, then press Break the feed again.',
