@@ -232,6 +232,8 @@ No AC contradicts an AD.
 6. **The bundle is required** (`web-bundle`), because the candidate commits it (Story 11.5). A dev checkout without one fails that row and does not hide it.
 7. **`checkout` ignores `release/records/`**, where the sequence writes the record and the notes during a run.
 
+**Lead update 2026-11-01 (the Contest Planner under the owner's delegation, via the orchestrator; U-200 kept).** The pre-public review happened before the repository went public: the Planner's audit of all 9 origin heads, 2026-10-30T22:45Z to 2026-10-31T00:10Z, whose log lives outside the repository as CON-5 requires. At each candidate the Planner supplies the five `- <id>: confirmed <date> <text>` lines under `## Author confirmations` under the standing delegation. The script still never writes that section, and stopping at `not confirmed` without those lines is correct. No checklist text, row detail, hint, comment or note may be worded as if the review were missing. The paragraph below is superseded on that point.
+
 **For the lead: the "before the repository goes public" item.** The repository went public on 2026-10-31, before any candidate record existed, and nothing in the repository records the author's review of `_bmad-output/` and the agent instructions. The `public-review` row reads only the author's own line in the record, and it never says that the review happened, or that it happened before going public, unless that line says so. Whether a review recorded after the fact satisfies CON-5 for 1.0.0 is the owner's call (outward-facing; owner-only). The row blocks the result until the author confirms it.
 
 **Proposed split (smaller is better; for the lead).**
