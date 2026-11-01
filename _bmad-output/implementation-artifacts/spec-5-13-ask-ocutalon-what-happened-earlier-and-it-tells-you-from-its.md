@@ -2,7 +2,7 @@
 title: 'Ask OcuTalon what happened earlier, and it tells you from its own records'
 type: 'feature'
 created: '2026-10-31'
-status: 'draft'
+status: 'ready-for-dev'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -87,13 +87,15 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless they say otherwise.
 - Gate, read-only:
   - `src/bridge/.../Policy/Gate.cls` `ClassificationOf` L176-195 and `Flag` L340;
   - `Bridge/Adapter/StepBuffer.cls` `ToolParameter` L167.
-- Tests whose fixed lists change (shared surfaces):
+- Tests whose fixed lists change (shared surfaces), not contended (free to extend):
   - `Test/Watch/Tools.cls` `TestDeclarations` L59-90: five tools, all from WatchTools;
-  - `Test/Agent/Instructions.cls` L205-212 and the doc L23-24;
   - `Test/Agent/Runners.cls` `REMINDERTOOLS` L73, the doc L43-45, `TestToolInventory` L317-328;
-  - `Test/Watch/Turns.cls` L63;
   - `Test/Agent/Constants.cls` L6, L27 and L44 (11 names).
-  - **Blocked:** `Test/Tools/Reminders.cls` L263 and `Test/Bridge/Gate.cls` L114 and L116, which `TestFlagsAreListed` (L1343-1361) checks.
+- Tests whose fixed lists change, **contended: one-name append only** (orchestrator ruling):
+  - `Test/Tools/Reminders.cls` L263: `TestSetRelative`'s alphabetical `ToolNames` list (Epic 11);
+  - `Test/Watch/Turns.cls` L63: the alphabetical offered-tools list (Epic 11's hunk sits at L64);
+  - `Test/Agent/Instructions.cls` the doc L23-24 ("five tools (...)") and the `expected` `$ListBuild` at L205; the `arguments(...)` lines L206-212 are optional per tool (`If '$Data(arguments(tool.name)) Continue`, L226), so none is added;
+  - `Test/Bridge/Gate.cls` `TRUSTEDTOOLS` L114 and `READONLYTOOLS` L116, which `TestFlagsAreListed` (L1346-1362) compares as sorted lists, so an end-append is enough.
 - Reuse for the tests:
   - `Test/Watch/Case.cls`: `Begin` L559, `SetOnlineDemo` L369, the fixture sessions, and the Incident and FailureGroup clean-up;
   - `Test/Checks/Turns.cls`: the pattern of a turn through WebChatIn with a triage `tellnow` reply (`Ask` L115, `AssertNoAllClear` L130, `AssertToolStep` L164);
@@ -129,7 +131,14 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless they say otherwise.
 
   It deletes its own ApprovalRequest and FixRun rows.
 - `src/ocutalon/cls/OcuTalon/Test/Tools/RecentActivityTurn.cls` (new, extends `Test.Watch.Case`): the Integration AC row, in the `Test.Checks.Turns` pattern, with the fixture's LastAt 2 minutes old so that closeQuiet leaves it alone. It cleans up its turns and rows.
-- Updates for the shared surfaces: `Test/Watch/Tools.cls` (6 tools; recent_activity comes from RecentActivity with ("safe",1,1,"Reading recent activity","","")), `Test/Agent/Instructions.cls`, `Test/Agent/Runners.cls`, `Test/Watch/Turns.cls` and `Test/Agent/Constants.cls` (12). Then, after the ruling: `Test/Tools/Reminders.cls` L263, and `Test/Bridge/Gate.cls` TRUSTEDTOOLS and READONLYTOOLS, each gaining `OcuTalon.Tools.RecentActivity:recent_activity`.
+- Non-contended shared-surface updates: `Test/Watch/Tools.cls` (6 tools; recent_activity comes from RecentActivity with ("safe",1,1,"Reading recent activity","","")), `Test/Agent/Runners.cls` (the inventory and its doc) and `Test/Agent/Constants.cls` (12 names in `OcuTalon.Tools.Names`).
+- Contended lists, **one-name append only** (orchestrator ruling). Each file gains the one name on the named line(s); **nothing else in these four files changes**:
+  - `Test/Tools/Reminders.cls` L263: `recent_activity` inserted in its alphabetical place (after `list_reminders`);
+  - `Test/Watch/Turns.cls` L63: the same insertion;
+  - `Test/Agent/Instructions.cls`: `##class(OcuTalon.Tools.Names).#RECENTACTIVITY` appended to the `expected` list at L205, and the doc L23-24 names the sixth tool, recent_activity (Story 5.13). No `arguments` line is added;
+  - `Test/Bridge/Gate.cls`: `,OcuTalon.Tools.RecentActivity:recent_activity` appended to `TRUSTEDTOOLS` and to `READONLYTOOLS`.
+
+  On Reminders L263 and Turns L63, the assertion message on the same line keeps its count true (Decided in-stage).
 
 **Acceptance Criteria:**
 - **AC1.** Given the Chat agent, when its tools are discovered, then:
@@ -149,6 +158,7 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless they say otherwise.
 ## Spec Change Log
 
 - 2026-11-01 (plan round 1 -> round 2): the orchestrator ruled on the round-1 intent gap (contended test lists). See Design Notes, "Orchestrator ruling (2026-11-01)". Status reset to draft for re-planning around the ruling.
+- 2026-11-01 (plan round 2): applied the ruling. The four contended files are one-name appends, and the Tasks say that nothing else in them changes. Three in-stage choices are recorded (alphabetical placement, the same-line message counts, no Instructions `arguments` line). The intent gap is marked resolved, the "For the lead" items are dropped (the spine clause is written, and AD-22 is the orchestrator's), and the Shared surfaces carry no "blocked". KEEP: the rest of the round-1 plan (the intent, the matrix, the element check, the window, the times, the tests and the mutations).
 
 ## Review Triage Log
 
@@ -159,6 +169,7 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless they say otherwise.
 - AD-4 and AD-13: the session scope goes through the ownership API.
 - AD-28: no all-clear in the answer; the guard applies to the reply.
 - AD-7: the Chat agent's toolsets.
+- AD-20 (usage, cost, budgets and allowances; added by the lead at the spec gate): the tool call is one more step inside the user's own chat turn, counted with that turn's usage and inside the demo's per-session message allowance; the tool itself makes no model call. (The agents and their toolsets are AD-7.)
 - AD-29 and AD-33: Lane A files; Ownership and Session are Lane B's and are only read.
 - Conventions: Times (`Data.Time`) and Tool results (`Tools.Result`).
 - AD-22: tests on the mock.
@@ -188,7 +199,7 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless they say otherwise.
   - `Incident.Element` is the Diagnosis model's free text (up to 128 characters), written in an untrusted turn from failed messages.
   - The AC asks for "code-built fields only" and for output that stays trusted, so the element is given only when it exactly equals an instance-defined name: a request's fix `field` (which CheckFix verified to be a compiled property name of the body class) or a group's ItemName. Otherwise it is "".
   - On the demo path, OrderDate is the fix field, so it is shown.
-  - This is flagged for the lead as security posture.
+  - It was flagged as security posture in round 1; the orchestrator's ruling (item 4) accepted it.
 - **`closed` stays `closed`.** The row does not record whether it was closed by a dismiss, by closeQuiet or by closeForReplay. Calling a quiet close "dismissed" would be false (honest text), and the card's chip says "Closed" too.
 - **The window and the order.**
   - An incident is in the window when its latest of NoticedAt, LastAt and ClosedAt falls within the last 24 hours.
@@ -205,24 +216,16 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless they say otherwise.
 4. **Decided in-stage choices accepted:** the element at fault only on an exact match with the approved fix's field or an item name, otherwise empty; a closed incident reads "closed", not "dismissed"; "reminders fired today" omitted.
 The intent gap below is resolved by this ruling; re-plan with it and keep the rest of the plan.
 
-**For the lead (Rule 20, at the spec gate):**
-- The spine's Tool classification row gains "so is the read-only `recent_activity` ... pinned by `Test.Tools.RecentActivity`".
-- AD-22's "the 11 built-in tool names" becomes 12.
-- Footprint extension: `Tools/Names.cls`, and five Lane A tests whose fixed lists change.
+**Intent gap (resolved by the ruling above).** Round 1 asked whether this story may edit `Test/Tools/Reminders.cls` L263 and `Test/Bridge/Gate.cls` `TRUSTEDTOOLS` and `READONLYTOOLS`, which go red when any tool is added to Chat. These are "the two the blocking question names" in the intent's Never list. The ruling allows them, with `Test/Watch/Turns.cls` L63 and `Test/Agent/Instructions.cls`, as one-name appends.
+
+**Spine:** none in this story. The Tool classification row's `recent_activity` clause is already in the spine (pinned by `Test.Tools.RecentActivity`, so that class name is fixed). AD-22's "11 built-in tool names" is the orchestrator's to write (12) at the merge gate; `Test/Agent/Constants.cls` asserts 12 regardless.
+
+**Decided in-stage (round 2, within the ruling):**
+- The sorted lists (Reminders L263, Turns L63) get `recent_activity` in its alphabetical place, because `RunnerFixture.ToolNames` sorts. "Append" means one name added, not a position.
+- The assertion message on those same lines keeps its count true ("eight tools" becomes "nine"; Reminders names Story 5.13 and six watching tools). A stale count in a message is a false claim, and the change stays on the line the ruling opens.
+- `Test/Agent/Instructions.cls` gets no `arguments("recent_activity")` line. That loop skips a tool with no arguments, and `Test.Tools.RecentActivity`'s No-session row pins the NOSESSION answer, so the contended file changes less.
 
 **Ledger inbox:** none.
-
-**Intent gap (blocking).** Adding any tool to Chat makes two tests red in files that the orchestrator's footprint forbids:
-1. `src/ocutalon/cls/OcuTalon/Test/Tools/Reminders.cls` L263 (Epic 11, live). `TestSetRelative` asserts Chat's exact offered list, "cancel_reminder,...,stop_watch".
-2. `src/ocutalon/cls/OcuTalon/Test/Bridge/Gate.cls` L114 and L116 (in Epic 30's diff). `TestFlagsAreListed` (L1343-1361) requires every trusted-output or read-only built-in tool to be listed in TRUSTEDTOOLS and READONLYTOOLS. The class doc makes that edit "the review of what its result can hold". The AC's "the gate's tool classification entry" plausibly means this.
-
-There is no compliant alternative. Another toolset would change `Chat.cls` and the same list, and a setting-based classification would plan around the AC.
-
-**Recommendation:** allow both edits in this story, each one line and append-only:
-- add `recent_activity` to L263's sorted list;
-- append `OcuTalon.Tools.RecentActivity:recent_activity` to both parameters.
-
-Serialize them against Epics 11 and 30 at merge. Routing them to those epics instead would leave 5.13's CI red until they land.
 
 ## Verification
 
@@ -268,14 +271,14 @@ The rules for every run:
 - **(once)** `<lane> OCUTALON_RUN_TAG=e5s13iw ci/warm.sh down`, then `<lane> OCUTALON_RUN_TAG=e5s13i ci/iris.sh teardown`, also after a failure. Confirm that the lane-b lock folder holds none of this stage's locks.
 
 **Shared surfaces:**
-- the Watching toolset's tool list and Chat's offered tool list: `Test.Watch.Tools`, `Test.Agent.Instructions`, `Test.Agent.Runners`, `Test.Watch.Turns`, `Test.Tools.Reminders` L263 (blocked);
+- the Watching toolset's tool list and Chat's offered tool list: `Test.Watch.Tools` and `Test.Agent.Runners` (free), and the contended one-name appends `Test.Agent.Instructions` (doc L23-24, L205), `Test.Watch.Turns` L63 and `Test.Tools.Reminders` L263;
 - `Tools.Names` and RELEASE1's count: `Test.Agent.Constants`, and the mock's `constants.test.mjs`;
-- the trusted and read-only tool lists: `Test.Bridge.Gate` `TestFlagsAreListed` (blocked);
+- the trusted and read-only tool lists: `Test.Bridge.Gate` `TRUSTEDTOOLS` and `READONLYTOOLS` (contended one-name appends), checked by `TestFlagsAreListed`;
 - the mock's scenario set: one new file.
 
 Every test added or changed passes on a fresh environment, in either order.
 
 ## Auto Run Result
 
-Status: blocked
-Blocking condition: intent gap: adding recent_activity to Chat's Watching toolset (the AC) turns two tests red in files the orchestrator's footprint forbids, so the story cannot merge green without editing them: (1) src/ocutalon/cls/OcuTalon/Test/Tools/Reminders.cls L263 (Epic 11, live): TestSetRelative asserts Chat's exact offered tool list; (2) src/ocutalon/cls/OcuTalon/Test/Bridge/Gate.cls L114/L116 TRUSTEDTOOLS/READONLYTOOLS, which TestFlagsAreListed (L1343-1361) requires to list every trusted-output or read-only built-in tool (Epic 30's diff; plausibly the AC's "gate's tool classification entry"). Recommended amendment: permit both one-line append-only edits in Story 5.13, serialized against Epics 11 and 30 at merge. Gate.cls itself needs no edit (verified). The rest of the plan is complete above; on the ruling, reset status to draft and re-dispatch.
+Status: ready-for-dev
+Blocking condition: none
