@@ -2,12 +2,27 @@
 title: 'Ask OcuTalon what happened earlier, and it tells you from its own records'
 type: 'feature'
 created: '2026-10-31'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '7ca64df2ad1d2d3c0772d3a375d860af268dcb2c'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
 warnings: ['oversized']
-deferred: []
+deferred:
+  - summary: >-
+      Eval.Report TOOLCLASSES lists only WatchTools and ReminderTools, so Eval.Report.ReadOnly("recent_activity") is false and an eval injection case whose Chat turn calls recent_activity is scored as having acted.
+    evidence: |-
+      Eval/Report.cls L83 TOOLCLASSES = "OcuTalon.Tools.WatchTools,OcuTalon.Tools.ReminderTools"; ReadOnly reads READONLY<NAME> from those classes only; Test/Eval/Report.cls TestReadOnly has no recent_activity. AC4 of Story 5.13 says no Eval file changes, so this story cannot fix it. The fix is OcuTalon.Tools.RecentActivity added to TOOLCLASSES and recent_activity added to TestReadOnly's read-only list.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Eval/Report.cls:83
+    severity: medium
+  - summary: >-
+      Chat's INSTRUCTIONS give explicit per-tool guidance (check_status, dismiss_incident, list_productions) but none for recent_activity, so whether the real model calls it for "What was that failure earlier?" rests on the tool description alone.
+    evidence: |-
+      Agent/Chat.cls INSTRUCTIONS L53-61 name the other watch tools and when to call them; Chat.cls is outside this story's footprint (orchestrator ruling) and the mock scripts the tool call, so no test shows the real model's choice. Settled by one run of live:demo-path or a real-model eval case asking about the earlier failure, or by a one-line Chat instruction owned by a story that may edit Chat.cls.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Agent/Chat.cls:53
+    severity: medium (unverified)
 ---
 
 <intent-contract>
@@ -162,6 +177,39 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless they say otherwise.
 
 ## Review Triage Log
 
+### 2026-10-31 — Review pass
+- verdicts: 29 findings — high 0, medium 3, low 18, false 6, maybe-false 2
+- findings:
+  - `[low]` `[reject]` Blind: `WatchNames` and `KIND` copy `WatchAnswers` — the copy and its reason are recorded in Design Notes (Rule 2); a private 8-line helper outside the footprint.
+  - `[low]` `[reject]` Blind: `Shown` repeats the catalog's " ET" rule — recorded copy (private one-line helper); the time tests pin the form.
+  - `[low]` `[reject]` Blind: a multi-group incident shows the first group's item — the spec pins "the item is the first group's ItemName"; the fix would add an items member to the pinned keys.
+  - `[low]` `[reject]` Blind: one unreadable incident turns the whole answer into NOTREAD — refusing is the honest answer and claims nothing about health (AD-28); a partial answer could read as an all-clear for the missing incident.
+  - `[false]` `[reject]` Blind: `Latest` can drop an incident with malformed times — NoticedAt of a noticed incident is written by code as UTC; no reachable row has none of the three.
+  - `[medium]` `[patch]` Blind: `TestUnreadable` only greps the source and the unread-approvals branch has no test — patched: private `ReadIncidents` and `ReadApprovals` seams, `Test.Tools.RecentActivityUnread` and `TestUnreadableRuns`; both NOTREAD paths now run, with a mutation for each.
+  - `[low]` `[reject]` Blind: test assumptions (RaisedAt order, `Demo` LastAt before NoticedAt, `ForMessage` at two instants) — the order assertions pass and the fixtures' times are fixed UTC values, so the two `ForMessage` calls differ only across a day change by microseconds; the LastAt/NoticedAt offset is cosmetic.
+  - `[low]` `[reject]` Blind: garbled `Runners.cls` header, hard-coded provider string, `Chat.cls` not mentioning the tool — the header follows the file's existing "(seven since ..., eight since ...)" form and is true; the provider string is test data; the `Chat.cls` part is the deferred Chat-instructions entry.
+  - `[low]` `[reject]` Edge: null subscript when Namespace or Production is empty (`names(...)`) — the same pattern as `WatchAnswers`; an incident row always holds its production.
+  - `[low]` `[reject]` Edge: null subscript in `WatchNames` for a check with empty Namespace or Production — as above; a production watch row always holds both.
+  - `[low]` `[reject]` Edge: no Try/Catch around the whole method — the siblings have none and the reads return statuses; an exception reaches AI Hub's tool-error path, which tells the model the call failed.
+  - `[low]` `[reject]` Edge: several groups on different items — same as the multi-group row above.
+  - `[low]` `[reject]` Edge: one unreadable incident discards the good entries — same as the NOTREAD row above.
+  - `[false]` `[reject]` Edge: a failed request with no run reads as approved with fix null — the matrix pins failed to approved; `fix` null says no run was recorded.
+  - `[low]` `[reject]` Edge: a request with a state outside APPROVALSTATE is dropped — the state is a fixed-list property; no reachable value.
+  - `[false]` `[reject]` Edge: expected times formatted at a later instant than the tool's — both format the fixture's fixed UTC times; only a day change between two calls microseconds apart could differ.
+  - `[low]` `[reject]` Edge: the scenario's "Everything is fine now." leaves " now." after the guard — the spec states the guard removes the all-clear and "nothing else of the reply is removed"; the test checks the kept prefix.
+  - `[medium]` `[defer]` Verification gap: `Eval.Report` TOOLCLASSES misses `RecentActivity`, so the eval scores a `recent_activity` step as an action — out of footprint and AC4 forbids an Eval edit; in the spec's `deferred:` list.
+  - `[medium]` `[patch]` Verification gap: the Unreadable row is pinned only by source text and the Entry-unread path is untested — same root cause as the Blind row; patched as above.
+  - `[low]` `[reject]` Verification gap: behaviours with a test but no `mutation:` line (approval mapping, fix counts, " ET", MAX, ClosedAt, NONE, description) — Rule 19 asks one demonstrated mutation per AC; AC1 to AC3 each have one, and the per-behaviour tests assert exact values.
+  - `[low]` `[reject]` Verification gap: `TestWindow`'s first half cannot catch the filter — its second half and `TestNothing` do, and the 24-hour mutation turned both red.
+  - `[low]` `[reject]` Verification gap: `TestAnotherSession` expects count 7 on a local install — `Test.Watch.Case` removes the instance rows it created and the class passed on a fresh stack, in the shard and warm.
+  - `[low]` `[reject]` Verification gap: `TestDescription` asserts source text — the description is the AC; a text assertion is the test of a text.
+  - `[maybe-false]` `[defer]` Verification gap: Chat's INSTRUCTIONS do not mention `recent_activity` — in the spec's `deferred:` list (Chat.cls is outside the footprint; settled by a real-model run).
+  - `[maybe-false]` `[defer]` Intent: tool choice is scripted by the mock, so the real model's choice is unverified — same entry as the Chat-instructions defer.
+  - `[false]` `[reject]` Intent: "no all-clear" comes from the existing guard — AC3 says the guard applies to the reply; the tool adds NONE and NOTREAD, tested against the guard's lists.
+  - `[false]` `[reject]` Intent: the reply is canned in the mock — AC3's Given/Then reads the tool result in the second request, which the test checks.
+  - `[false]` `[reject]` Intent: rows are fixtures, not production-written — the spec's Design Notes decide "the Given state is fixture rows shaped like the demo path's"; `live:demo-path` stays the full run.
+  - `[low]` `[reject]` Intent: deployment and freshness of the running Chat agent are not shown — the Verification runs the turn on a fresh stack for that reason; a deploy is not this story's.
+
 ## Design Notes
 
 **Governing ADs:**
@@ -259,6 +307,15 @@ The rules for every run:
   - drop the 24-hour filter → the Window and Nothing tests go red;
   - `TRUSTEDOUTPUTRECENTACTIVITY` 0 → `TestClassification` and the turn's Tainted assertion go red;
   - remove the `<Tool>` line → `TestClassification` and the turn test go red.
+
+Observed in the implement stage (each applied, red seen, reverted, tree byte-identical):
+- mutation: `Set entry.cause = row.Cause` added to the entry → `Test.Tools.RecentActivity` `TestPoisoned` red (AC2).
+- mutation: `Element` copied from the row without the check → `TestElement` red (AC2).
+- mutation: the read replaced with an SQL read of every owner's noticed incidents → `TestAnotherSession` red (AC2).
+- mutation: the 24-hour `Continue` line removed → `TestWindow` and `TestNothing` red (AC2).
+- mutation: `TRUSTEDOUTPUTRECENTACTIVITY` 0 → `TestClassification` red, and `Test.Tools.RecentActivityTurn` red on "the Turn is done, with no fallback, and untainted" (AC1, AC3).
+- mutation: the `<Tool name="recent_activity">` line removed → `TestClassification`/`TestDescription` red, and `RecentActivityTurn` red on "exactly one tool step" and "both offer recent_activity" (AC1, AC3).
+- mutation: the incidents read's `$$$ISERR(sc)` test removed → `TestUnreadableRuns` red on "a failing read of the incidents answers NOTREAD" (AC2, Unreadable row); the `If unread Quit ..Return(...)` line changed to ignore an unread approvals read → `TestUnreadableRuns` red on "a failing read of the approvals answers NOTREAD". A session's turn cannot make Ownership fail, so `Test.Tools.RecentActivityUnread` (the tool with a failing read on demand, through the private `ReadIncidents` and `ReadApprovals`) triggers it; `TestUnreadable` also pins the source.
 - **(once)** `bash docker/tests/test-mock.sh`. Expected: pass (it covers the scenario and the constants test).
 - **(once)** Fresh shards, one part per call:
   - `<lane> OCUTALON_RUN_TAG=e5s13i ci/iris.sh shard lane-a@Tools`;
@@ -280,5 +337,27 @@ Every test added or changed passes on a fresh environment, in either order.
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** The Chat agent now has a sixth watching tool, `recent_activity` (`OcuTalon.Tools.RecentActivity`), read-only and trusted-output by class parameters. It answers from the session's own records (at most 5 incidents of the last 24 hours, newest first) through `Ownership.RecentIncidents`, `IncidentApprovals` and `Checks` plus `FailureGroup.OfIncident` and `FixRun.OfRequest`. Every string comes from a fixed list, a `ForMessage` time (" ET" online), an instance name, or a constant; the element is kept only when it equals an approved fix's field or an item name. With nothing in 24 hours it says so and claims nothing about health.
+
+**Files changed.**
+- `src/ocutalon/cls/OcuTalon/Tools/RecentActivity.cls` (new): the tool, with private `ReadIncidents` and `ReadApprovals` seams.
+- `src/ocutalon/cls/OcuTalon/Tools/Watching.cls`, `Tools/Names.cls`: the `<Tool>` line, DependsOn, `RECENTACTIVITY` in `RELEASE1`.
+- `ci/mock/scenarios/A/recent-activity.json` (new): the triage, tool-use and reply scenario.
+- `Test/Tools/RecentActivity.cls`, `Test/Tools/RecentActivityTurn.cls`, `Test/Tools/RecentActivityUnread.cls` (new): the matrix tests, the chat-turn Integration AC, and the failing-read double.
+- `Test/Watch/Tools.cls`, `Test/Agent/Runners.cls`, `Test/Agent/Constants.cls`: shared-surface updates (6 tools, 12 names).
+- Contended one-name appends: `Test/Tools/Reminders.cls` L263, `Test/Watch/Turns.cls` L63, `Test/Agent/Instructions.cls` (doc and expected list), `Test/Bridge/Gate.cls` `TRUSTEDTOOLS` and `READONLYTOOLS`.
+
+**Review.** 29 findings (high 0, medium 3, low 18, false 6, maybe-false 2). Patched: 1 entry (medium; the NOTREAD paths had only a source-text test, now `TestUnreadableRuns` runs both through `RecentActivityUnread`, with two mutations). Deferred: 2 (Eval.Report TOOLCLASSES misses the tool, medium; Chat INSTRUCTIONS do not mention the tool, medium unverified), both out of footprint. Rejected with reasons: see the Review Triage Log.
+
+**Follow-up review recommended:** false (one medium entry patched, no high).
+
+**Verification.**
+- Warm: `Test.Tools.RecentActivity`, `Test.Watch.Tools`, `Test.Agent.Constants` passed; after the patch `RecentActivity` passed and all six mutations were red and reverted (tree identical each time; the two chat-turn parts of mutations 5 and 6 were observed before the patch).
+- Fresh: `RecentActivityTurn`, `Agent.Instructions`, `Agent.Runners`, `Watch.Turns`, `Tools.Reminders`, `Bridge.Gate` passed; after the patch `shard lane-a@Tools` (4 classes) and `Test.Bridge.CodeRules` passed.
+- Shards before the patch: `lane-a@Tools`, `lane-a@Agent` (10 classes), `lane-a@Watch` parts 1/3, 2/3, 3/3 passed; `Test.Eval.Run` passed with no Eval file changed.
+- `bash docker/tests/test-mock.sh` (118 pass) and `bash ci/checks.sh` (all scripts passed), both before and after the patch. Throwaways torn down; the lane-b lock folder is empty.
+
+**Residual risks.** Whether the real model calls `recent_activity` for "What was that failure earlier?" is unverified (mock-scripted; deferred entry 2). Eval scoring treats the tool as an action until `Eval.Report` lists it (deferred entry 1). The patch changed the tool after the full lane-a shards ran; the post-patch shard and CodeRules runs passed, and the Agent and Watch shards were not repeated.
