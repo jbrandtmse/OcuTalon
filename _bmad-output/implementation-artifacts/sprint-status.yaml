@@ -177,7 +177,7 @@ development_status:
   11-2-upgrades-and-restarts-keep-every-record-working: done
   11-3-the-clean-machine-rehearsal-installs-and-times-the-demo-path: done
   11-11-the-rehearsal-runner-times-the-demo-path-and-checks-every-bo: 
-    ready-for-dev
+    in-progress
   11-12-the-rehearsal-runner-repeats-the-demo-path-n-times-with-run: backlog
   11-4-the-release-gets-draft-notes-and-a-checklist: ready-for-dev
   11-13-the-release-gets-draft-notes: ready-for-dev
