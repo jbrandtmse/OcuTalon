@@ -4,7 +4,7 @@ import { signIn } from '../sign-in/helpers';
 import { pointKeys, restoreKeys } from '../support/devices';
 import { composerOf, loadedAfter, mainOf, replyOf, settled } from '../support/floor';
 import { changeSnapshot, holdPoll, MESSAGES } from '../support/api';
-import { chk, fixtureUser, irisScript, quoted } from '../support/iris';
+import { chk, cleanFixtureRows, finishTurn, fixtureUser, irisScript, quoted, seedTurns } from '../support/iris';
 
 /**
  * Story 4.10, the "Try it yourself" row, in a real browser against a real stack with the CI mock. The rail user's session is held empty
@@ -23,6 +23,11 @@ import { chk, fixtureUser, irisScript, quoted } from '../support/iris';
  *   - Y6: chip 4 by Tab and Enter: a reply without a tool step;
  *   - Y7: chip 3 in a session with no incident: the tool result that the model received is the code-built "nothing in the last 24
  *     hours" answer, and the reply holds no all-clear wording.
+ *   - Y8 and Y9: a press sends once: two clicks in one instant, and an Enter held down (key repeat), each post the text once;
+ *   - Y10 (seeded): while a turn of the session runs (a queued or running chat message in the store, with no outbox entry) every chip
+ *     is aria-disabled and a press sends nothing; once the turn ends the chips are enabled again.
+ * Y2 covers both rows, the empty chat's and the finish state's, and Y5 holds the poll before the press, so that no poll can deliver the
+ * finished turn first.
  * The hooks are those of reminder/chat.spec.ts: beforeAll points the runners' keys at the CI mock; afterAll drops the AI sessions that the
  * turns saved, puts the keys back and waits until the runners have recorded them, because trace/links.spec.ts runs later and expects the
  * no-key reply; the rail user's session holds no turn before and after each case. The browser runs in UTC with the en-GB locale.
@@ -198,6 +203,28 @@ function finishedGuide(): Record<string, unknown> {
   };
 }
 
+/**
+ * Makes the routed finish stand: the page's polls are answered without their guide.state events, so the real guide state (not finished
+ * on this stack) cannot replace the routed one. Call it before the page loads.
+ */
+async function keepRoutedFinish(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    const original = window.fetch.bind(window);
+    window.fetch = async (input, init) => {
+      const response = await original(input, init);
+      const url = typeof input === 'string' ? input : input instanceof Request ? input.url : String(input);
+      if (!/\/ocutalon\/api\/v1\/events\?/.test(url)) return response;
+      try {
+        const body = (await response.clone().json()) as { events: Array<{ type: string }> };
+        body.events = body.events.filter((event) => event.type !== 'guide.state');
+        return new Response(JSON.stringify(body), { status: response.status, statusText: response.statusText, headers: response.headers });
+      } catch {
+        return response;
+      }
+    };
+  });
+}
+
 const groupIn = (scope: Locator | Page): Locator => scope.getByRole('group', { name: LABEL, exact: true });
 const emptyRow = (page: Page): Locator => groupIn(page.locator('app-empty-chat'));
 const finishRow = (page: Page): Locator => groupIn(page.locator('app-demo-guide .finish'));
@@ -227,7 +254,7 @@ async function expectChips(row: Locator): Promise<void> {
   }
 }
 
-/** Presses the chip, with the real empty chat showing, and returns the clientId of the one POST that it made. */
+/** Presses the chip (a click, or the key on the focused chip) and returns the body of the one POST /messages that it made. */
 async function press(page: Page, posted: () => Posted[], chip: Locator, how: 'click' | 'Enter' | 'Space'): Promise<Posted> {
   const before = posted().length;
   if (how === 'click') await chip.click();
@@ -296,30 +323,36 @@ test('Y2: while the allowance is used up every chip is aria-disabled and describ
   const posted = watchPosts(page);
   await changeSnapshot(page, (snapshot) => {
     snapshot['chat'] = [];
+    snapshot['guide'] = finishedGuide();
     snapshot['status'] = [...(snapshot['status'] as unknown[]), { condition: 'allowance', active: true, slots: { limit: 20, time: '2037-07-01T12:00:00Z' } }];
   });
   await open(page);
 
-  const row = emptyRow(page);
   const reason = (await page.locator('app-composer .reason').textContent())?.trim() ?? '';
   expect(reason, "the composer's reason shows").not.toBe('');
-  for (let n = 1; n <= 4; n += 1) {
-    const chip = chipOf(row, n);
-    await expect(chip, `chip ${n} is aria-disabled`).toHaveAttribute('aria-disabled', 'true');
-    await expect(chip).not.toHaveAttribute('disabled');
-    await expect(chip, `chip ${n} is described by the composer's reason`).toHaveAttribute('aria-describedby', REASON_ID);
+  // Both rows (the empty chat's and the finish's) are blocked and say why, by the one existing line.
+  for (const row of [emptyRow(page), finishRow(page)]) {
+    await expect(row).toHaveCount(1);
+    for (let n = 1; n <= 4; n += 1) {
+      const chip = chipOf(row, n);
+      await expect(chip, `chip ${n} is aria-disabled`).toHaveAttribute('aria-disabled', 'true');
+      await expect(chip).not.toHaveAttribute('disabled');
+      await expect(chip, `chip ${n} is described by the composer's reason`).toHaveAttribute('aria-describedby', REASON_ID);
+    }
+    await expect(chipOf(row, 1)).toHaveAccessibleDescription(reason);
   }
   await expect(page.locator(`#${REASON_ID}`), 'the described paragraph is the composer\'s reason').toHaveText(reason);
-  await expect(chipOf(row, 1)).toHaveAccessibleDescription(reason);
 
   // Playwright treats an aria-disabled button as not enabled, so the click is forced: the page, not the tool, must refuse it.
-  await chipOf(row, 1).click({ force: true });
-  await chipOf(row, 1).focus();
-  await page.keyboard.press('Enter');
-  await settled(page);
-  await page.waitForTimeout(500);
-  expect(posted(), 'a click and an Enter send nothing').toEqual([]);
-  await expect(chipOf(row, 1), 'and the chip keeps its focus').toBeFocused();
+  for (const row of [emptyRow(page), finishRow(page)]) {
+    await chipOf(row, 1).click({ force: true });
+    await chipOf(row, 1).focus();
+    await page.keyboard.press('Enter');
+    await settled(page);
+    await page.waitForTimeout(500);
+    expect(posted(), 'a click and an Enter send nothing').toEqual([]);
+    await expect(chipOf(row, 1), 'and the chip keeps its focus').toBeFocused();
+  }
 });
 
 test('Y3: a click on chip 1 sends its exact text once as an ordinary message and the reply has its strip and trace link', async ({ page }) => {
@@ -347,7 +380,7 @@ test('Y3: a click on chip 1 sends its exact text once as an ordinary message and
   expect(posted().length, 'and the press made no other POST').toBe(1);
 
   const turn = await doneTurn(sent.clientId, ['Listing the productions|ok']);
-  measured('b chip 1', `state ${turn.state}, fallback "${turn.fallback}", reply "${turn.reply}", tools ${turn.tools.join(';')}`);
+  measured('chip 1 turn', `state ${turn.state}, fallback "${turn.fallback}", reply "${turn.reply}", tools ${turn.tools.join(';')}`);
   expect(turn.reply).toContain('The CI mock listed the productions.');
 });
 
@@ -371,7 +404,7 @@ test('Y4: chip 2 by Space in a session that watches nothing is answered with the
   await expect(reply.locator('app-check-rows .sentence'), 'the code-built sentence').toHaveText(NOTHING_WATCHED, { timeout: REPLY_MS });
   await expectNoAllClear((await reply.innerText()).replace(/\s+/g, ' '));
   const turn = await doneTurn(sent.clientId, ['Reading the check results|ok']);
-  measured('b chip 2', `state ${turn.state}, fallback "${turn.fallback}", key ${turn.catalogKey}, reply "${turn.reply}", tools ${turn.tools.join(';')}`);
+  measured('chip 2 turn', `state ${turn.state}, fallback "${turn.fallback}", key ${turn.catalogKey}, reply "${turn.reply}", tools ${turn.tools.join(';')}`);
   await expectNoAllClear(turn.reply);
   expect(posted().length).toBe(1);
 });
@@ -381,22 +414,7 @@ test('Y5: while the turn of a finish chip is in flight every chip is aria-disabl
   await expectEmptySession();
   const posted = watchPosts(page);
   await page.clock.install();
-  // The routed finish stands only while no guide.state arrives, so the page's polls are answered without those events.
-  await page.addInitScript(() => {
-    const original = window.fetch.bind(window);
-    window.fetch = async (input, init) => {
-      const response = await original(input, init);
-      const url = typeof input === 'string' ? input : input instanceof Request ? input.url : String(input);
-      if (!/\/ocutalon\/api\/v1\/events\?/.test(url)) return response;
-      try {
-        const body = (await response.clone().json()) as { events: Array<{ type: string }> };
-        body.events = body.events.filter((event) => event.type !== 'guide.state');
-        return new Response(JSON.stringify(body), { status: response.status, statusText: response.statusText, headers: response.headers });
-      } catch {
-        return response;
-      }
-    };
-  });
+  await keepRoutedFinish(page);
   await changeSnapshot(page, (snapshot) => {
     snapshot['guide'] = finishedGuide();
   });
@@ -405,12 +423,18 @@ test('Y5: while the turn of a finish chip is in flight every chip is aria-disabl
   const row = finishRow(page);
   await expectChips(row);
   const chip = chipOf(row, 3);
-  const sent = await press(page, posted, chip, 'click');
-  expect(sent.text).toBe('What was that failure earlier?');
-  expect(sent.fromGuide).toBe(false);
-
+  // The poll is held BEFORE the press, so no poll can bring the finished turn (or even its queued message) to the page before the
+  // assertions below: the chips are disabled by the outbox entry alone (sent, and the store does not hold the message), whatever the
+  // speed of the turn. The page's clock stands still during the hold and Angular schedules its renders with timers, so after the press
+  // the clock is run on by a tick to let the page render; the held poll stays held (it is out, and the next one waits for its answer).
   const release = await holdPoll(page);
+  let sent!: Posted;
   try {
+    await chip.focus();
+    sent = await press(page, posted, chip, 'Enter');
+    await page.clock.runFor(100);
+    expect(sent.text).toBe('What was that failure earlier?');
+    expect(sent.fromGuide).toBe(false);
     for (let n = 1; n <= 4; n += 1) {
       await expect(chipOf(row, n), `chip ${n} is aria-disabled while the turn is in flight`).toHaveAttribute('aria-disabled', 'true');
       await expect(chipOf(row, n), 'with no description').not.toHaveAttribute('aria-describedby');
@@ -431,7 +455,7 @@ test('Y5: while the turn of a finish chip is in flight every chip is aria-disabl
   }
   expect(posted().length).toBe(1);
   const turn = await doneTurn(sent.clientId, ['Reading recent activity|ok']);
-  measured('b chip 3', `state ${turn.state}, fallback "${turn.fallback}", reply "${turn.reply}", tools ${turn.tools.join(';')}`);
+  measured('chip 3 turn', `state ${turn.state}, fallback "${turn.fallback}", reply "${turn.reply}", tools ${turn.tools.join(';')}`);
 });
 
 test('Y6: chip 4 by keyboard sends "What can you do?" and the reply has no tool step', async ({ page }) => {
@@ -454,7 +478,7 @@ test('Y6: chip 4 by keyboard sends "What can you do?" and the reply has no tool 
   await expect(reply.locator('app-decision-strip')).toHaveCount(1);
   await expect(reply.locator('app-decision-strip .line1 .meta > :last-child')).toHaveJSProperty('tagName', 'APP-TRACE-LINK');
   const turn = await doneTurn(sent.clientId, []);
-  measured('b chip 4', `state ${turn.state}, fallback "${turn.fallback}", reply "${turn.reply}", tools ${turn.tools.join(';') || 'none'}`);
+  measured('chip 4 turn', `state ${turn.state}, fallback "${turn.fallback}", reply "${turn.reply}", tools ${turn.tools.join(';') || 'none'}`);
 });
 
 test('Y7: chip 3 in a session with no incident hands the model the code-built "nothing in the last 24 hours" answer', async ({ page }) => {
@@ -484,11 +508,106 @@ test('Y7: chip 3 in a session with no incident hands the model the code-built "n
   expect(chk(lines, 'requests'), "the Chat agent's requests that offer recent_activity (the tool call and the one with its result)").toBe('2');
   expect(chk(lines, 'results'), 'the second carries one tool result').toBe('1');
   const result = JSON.parse(chk(lines, 'result') ?? 'null') as { ok: boolean; hours: number; incidents: unknown[]; message: string };
-  measured('c chip 3 tool result', chk(lines, 'result') ?? '');
+  measured('chip 3 tool result', chk(lines, 'result') ?? '');
   expect(result.ok).toBe(true);
   expect(result.hours).toBe(24);
   expect(result.incidents).toEqual([]);
   expect(result.message, "the tool's own 'none' message").toBe(chk(lines, 'none'));
   expect(Object.keys(result).sort()).toEqual(['hours', 'incidents', 'message', 'ok']);
   await expectNoAllClear((await reply.innerText()).replace(/\s+/g, ' '));
+});
+
+test('Y8: two presses in the same instant send the text once', async ({ page }) => {
+  test.setTimeout(120_000);
+  await expectEmptySession();
+  const posted = watchPosts(page);
+  await open(page);
+
+  // Both clicks run in one task of the page, before it renders anything: the second must be refused by the row's own state (the
+  // outbox entry of the first), not by a chip that is already gone or disabled in the DOM.
+  await chipOf(emptyRow(page), 4).evaluate((chip) => {
+    (chip as HTMLElement).click();
+    (chip as HTMLElement).click();
+  });
+  await expect.poll(() => posted().length, { message: 'the presses made a POST /messages' }).toBeGreaterThanOrEqual(1);
+  // A wrong second POST is made at once, but a real wait lets a late one show.
+  await page.waitForTimeout(700);
+  expect(posted().length, 'two clicks in one instant post once').toBe(1);
+  const sent = posted()[0]!;
+  expect(sent.text).toBe('What can you do?');
+  expect(sent.fromGuide).toBe(false);
+  await expect(replyOf(page, sent.clientId), "the scenario's reply shows").toContainText('The CI mock answered what OcuTalon can do.', { timeout: REPLY_MS });
+  await doneTurn(sent.clientId, []);
+  expect(posted().length, 'and the turn made no other POST').toBe(1);
+});
+
+test('Y9: Enter held down on a finish chip (key repeat) sends the text once', async ({ page }) => {
+  test.setTimeout(120_000);
+  await expectEmptySession();
+  const posted = watchPosts(page);
+  await keepRoutedFinish(page);
+  await changeSnapshot(page, (snapshot) => {
+    snapshot['guide'] = finishedGuide();
+  });
+  await open(page);
+
+  const chip = chipOf(finishRow(page), 4);
+  await chip.focus();
+  await page.keyboard.down('Enter');
+  await page.keyboard.down('Enter');
+  await page.keyboard.down('Enter');
+  await page.keyboard.up('Enter');
+  await expect.poll(() => posted().length, { message: 'the key made a POST /messages' }).toBeGreaterThanOrEqual(1);
+  await page.waitForTimeout(700);
+  expect(posted().length, 'a held Enter posts once').toBe(1);
+  const sent = posted()[0]!;
+  expect(sent.text).toBe('What can you do?');
+  expect(sent.fromGuide).toBe(false);
+  await expect(chip, 'the chip keeps its focus').toBeFocused();
+  await expect(replyOf(page, sent.clientId), "the scenario's reply shows").toContainText('The CI mock answered what OcuTalon can do.', { timeout: REPLY_MS });
+  await doneTurn(sent.clientId, []);
+  expect(posted().length, 'and the turn made no other POST').toBe(1);
+});
+
+test('Y10: while a turn of the session is running every chip is aria-disabled and a press sends nothing', async ({ page }) => {
+  test.setTimeout(120_000);
+  await expectEmptySession();
+  const { user } = fixtureUser('RAIL');
+  const posted = watchPosts(page);
+  await keepRoutedFinish(page);
+  await changeSnapshot(page, (snapshot) => {
+    snapshot['guide'] = finishedGuide();
+  });
+  await open(page);
+
+  const row = finishRow(page);
+  await expectChips(row);
+  // A running turn that this page did not send: the store holds its chat message, and the outbox holds no entry.
+  const seeded = await seedTurns(user, [{ createdAt: '2019-09-01T10:00:00Z', text: 'zz Y10 question', replyText: '', state: 'running' }], true);
+  const ref = seeded.refs[0]!;
+  try {
+    await expect(replyOf(page, ref).locator('.indicator'), 'the turn shows as running').toBeVisible({ timeout: REPLY_MS });
+    for (let n = 1; n <= 4; n += 1) {
+      await expect(chipOf(row, n), `chip ${n} is aria-disabled while the turn runs`).toHaveAttribute('aria-disabled', 'true');
+      await expect(chipOf(row, n), 'with no description').not.toHaveAttribute('aria-describedby');
+    }
+    const chip = chipOf(row, 1);
+    // Playwright treats an aria-disabled button as not enabled, so the click is forced: the page, not the tool, must refuse it.
+    await chip.click({ force: true });
+    await chip.focus();
+    await page.keyboard.press('Enter');
+    await settled(page);
+    await page.waitForTimeout(500);
+    expect(posted(), 'a click and an Enter send nothing').toEqual([]);
+    await expect(chip, 'and the chip keeps its focus').toBeFocused();
+
+    await finishTurn(user, ref, 'zz Y10 reply.');
+    await expect(replyOf(page, ref).locator('.text'), 'the reply lands').toHaveText('zz Y10 reply.', { timeout: REPLY_MS });
+    for (let n = 1; n <= 4; n += 1) {
+      await expect(chipOf(row, n), `chip ${n} is enabled again`).not.toHaveAttribute('aria-disabled');
+    }
+    expect(posted(), 'and nothing was sent').toEqual([]);
+  } finally {
+    await cleanFixtureRows([ref]);
+  }
 });

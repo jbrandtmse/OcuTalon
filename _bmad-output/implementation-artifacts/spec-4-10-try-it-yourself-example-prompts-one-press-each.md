@@ -238,7 +238,38 @@ deferred: []
 - **AC7.** Given this story merges, when the UX documents are read, then EXPERIENCE.md's "Demo guide and controls" (with the finish state and the empty chat) and DESIGN.md carry the row with the 2026-11-01 marker, and `ux-strings.test.mjs` finds the five strings in EXPERIENCE.md.
 - **AC8.** Given the change, when it merges, then it stays inside the footprint and adds no CI unit or e2e folder, and CI is green on every workflow.
 
+### Review Findings
+
+Code review 2026-11-01 (stage code-review, tag `e4s10c`; layers blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor). 0 decision-needed, 6 patch (applied), 1 defer, 15 rejected.
+
+- [x] [Review][Patch] [med] The store half of "in flight" (a queued or running chat message with no outbox entry) had no runtime pin once QA held Y5's poll before the press: new Y10 seeds a running turn of the RAIL session over a routed finish, asserts every chip `aria-disabled` with no description, that a forced click and an Enter post nothing, and that the chips are enabled again once the turn ends [web/e2e/chat/try-it.spec.ts:572]
+- [x] [Review][Patch] [low] `turnInFlight` and `inFlight` said "a turn of this page"; any queued or running chat message of the session counts, whatever its channel: comments corrected [web/src/app/chat/try-it-view.ts:16] [web/src/app/chat/try-it-row.ts:100]
+- [x] [Review][Patch] [low] try-it-view (b)'s title claimed "each prompt in exactly one B file" but read only the four named files: it now scans `ci/mock/scenarios/B/*.json` and finds each prompt keyed exactly once [web/scripts/try-it-view.test.mjs:53]
+- [x] [Review][Patch] [low] Nothing pinned the row's look rules (centred in the empty chat only, chips wrap): new try-it-sources case [web/scripts/try-it-sources.test.mjs:69]
+- [x] [Review][Patch] [low] Rule 14 residue: `measured` annotation types `b chip n` / `c chip 3 tool result`, the `press()` comment that said "with the real empty chat showing" (Y5 and Y9 press finish chips), "(QA)" tags in the e2e header and "QA of" in try-it-qa's header [web/e2e/chat/try-it.spec.ts:9] [web/scripts/try-it-qa.test.mjs:1]
+- [x] [Review][Patch] [low] Rule 19: no `mutation:` line for AC1's finish placement, AC2's "nothing is sent without a press", AC3's `aria-disabled` under a used-up allowance, or matrix 7's "no description while in flight": observed red and recorded under Verification (code review)
+- [x] [Review][Defer] [low] The CI mock's comments and error texts call every prompt scenario a "guide prompt" [ci/mock/mock.mjs:30,442,448] — deferred: out of footprint (`ci/mock/mock.mjs` is off limits); DW-539 `wontfix-accepted`, reopen_if a mock failure message misleads a debugging session or the next story that edits mock.mjs
+
+**Rejected:**
+- Blind: a press in the empty chat puts focus on the main region rather than the chat list - spec-bound (Decided 9, matrix row 4, pinned by Y3).
+- Blind: the amended DESIGN.md sentence carries both an ADDED and an AMENDED marker - the Tasks prescribe both (the story marker, and the old text quoted in an AMENDED marker).
+- Edge: a refused chip press (429, online 503) puts the chip's text in an empty composer - spec-bound (Always: the outbox's typed-message path).
+- Edge: a refused chip press with a draft leaves the message failed with Retry - spec-bound, same path.
+- Edge: a Telegram or other-tab turn disables the chips - the spec's in-flight definition; the comment now says so (patch 2).
+- Edge: a stuck queued or running turn keeps the chips disabled until reload - already rejected in the implement review; reopen_if a stuck turn is seen on a real session.
+- VG: `doneTurn(clientId, [])` can read `done|` before a tool step lands - theoretical: chip 4's scenario has no toolUse (try-it-view (b)); a guard would add a settle loop for a step that cannot occur.
+- VG: the AD-28 "no all-clear wording" halves of Y4 and Y7 cannot fail - by-design: the spec forbids a guarded phrase in any scenario text and ReplyGuard has its own server tests; the code-built halves (Y4's sentence, Y7's tool result) are the real pins.
+- VG: a case that fails before its turn ends can leak a late-saved AI session into the next case - only after a red; afterAll still drops everything since the mark.
+- VG: Y7 relies on no leftover ConversationLink for the RAIL session - spec precondition held by convention, with afterEach and afterAll dropping the AI sessions since the file's mark.
+- VG: `expectEmptySession`'s turn count cannot fail right after beforeEach - its watch and incident halves can; harmless.
+- VG: Y2 compares the reason paragraph with its own text - already rejected; the attribute and accessible-description checks are the pins.
+- VG and Auditor: Task Y5's order, the Residual risks line and triage line 268 still describe the press-then-hold order - the fix is an edit of the spec's intent text; the QA section records the reorder.
+- Auditor: the label sets no `--type-body-sm-font-family` - false: no component in `web/src/app` sets the body-sm family (23 size uses, 0 family uses); it is inherited.
+- Auditor: QA's work is uncommitted and missing from the Auto Run file list - process, not code; the lead commits it.
+
 ## Spec Change Log
+
+- 2026-11-01 (lead, after code review): QA reordered Y5 (the poll is held first, then the press, then `page.clock.runFor(100)`), so the chips are disabled by the outbox entry alone and no poll can race; the store-side queued/running case is pinned on the stack by the reviewer's Y10. The Y5 task text and the Residual-risks line above that describe press-then-hold are superseded by this entry.
 
 ## Review Triage Log
 
@@ -398,6 +429,25 @@ deferred: []
 - mutation: `describedBy` always `null` (the chips never point at the composer's reason) -> red: Y2 ("chip 1 is described by the composer's reason"); applied with `ci/iris.sh build`, run on `live sign-in --part 2/3`, reverted with a rebuild.
 - mutation: `press` calls `this.outbox.send(text)` twice -> red: `try-it-sources` (a) "sends once through the outbox with the text alone" (node-side; Y3's "exactly one POST" pins it on the stack).
 - mutation: `<app-try-it-row>` moved before the empty chat's last `<p class="line">` -> red: `try-it-sources` (b) "has the empty chat's template hold the row after its last line" (node-side; Y1's `follows` pins it on the stack).
+
+**QA stage (tag `e4s10q`; audit of every AC and matrix row against Y1-Y7 and the node tests):**
+- Audit result: matrix 1-8 and AC1-AC7 were covered; the gaps filled are (d) a press sends exactly once under a double click or a held Enter (no case), (e) the finish row's chips with the allowance used up (Y2 read only the empty chat's row), (f) native buttons named by their text alone, no aria-label/tabindex/disabled (only indirect), and the Y5 race.
+- Y5 risk assessed: the press came before `holdPoll`, so a poll could deliver the queued or finished turn before the hold (a false red, a slow host or a fast mock). Hardened: the poll is held first, then the press (focus + Enter), then `page.clock.runFor(100)` so Angular's timer-scheduled render runs under the stopped clock; the chips are then disabled by the outbox entry alone (sent, store empty), so no poll can race. What Y5 proves is kept (all four chips aria-disabled with no description, a second Enter posts nothing, focus stays, the reply lands, chips enabled again). The store-side queued/running half is pinned by `try-it-view.test.mjs` (c).
+- (QA) `web/e2e/chat/try-it.spec.ts`: Y2 also covers the finish row (routed finished guide); Y5 reordered as above; `keepRoutedFinish` helper; new Y8 (two clicks in one task, real empty chat, chip 4: one POST) and Y9 (Enter down three times on a routed finish chip: one POST).
+- (QA) `web/scripts/try-it-qa.test.mjs` (new, 9 cases): the whole group inside `@if (demoView.on())`; chips are native buttons named by `{{ prompt }}` with no aria-label/tabindex/disabled and `aria-disabled` bound; label is a `<p>` with a per-instance id, no heading; `blocked = inFlight || used` checked before `outbox.send`; `describedBy` only while used up; `turnInFlight` ignores non-chat items.
+- Runs: `npm --prefix web test` 1157 pass; lint exit 0; `live sign-in --part 2/3` 68 passed (2.3 m, 2.4 m on the confirming run after the revert and rebuild); stack torn down.
+- mutation: `turnInFlight` ignores the outbox entries (`if (false && outbox.some(...))`) -> red: Y5 (chips not aria-disabled while the held poll keeps the store empty), Y8 (second click posts), Y9 (held Enter posts more than once); applied with `ci/iris.sh build`, run on `live sign-in --part 2/3` (3 failed, 65 passed), reverted with a rebuild, tree and file hash byte-identical.
+- mutation: `aria-label="x"` added to the chip button -> red: `try-it-qa` "has native buttons named by their text alone" (node-side); reverted, hash identical.
+
+**Code review (tag `e4s10c`; each applied, observed red, reverted; tree, `git status --short`, `git diff --stat` and file hashes byte-identical after each):**
+- mutation: the finish's `<app-try-it-row data-guide-focus="tryIt" />` moved after Run again -> red: `try-it-sources` "has the guide's finish hold the row after More to try and before Run again" (node-side; Y1's `follows` pins it on the stack).
+- mutation: `[attr.aria-disabled]` bound to `inFlight()` only (not `blocked()`) -> red: `try-it-qa` "has native buttons named by their text alone" (node-side; Y2 pins it on the stack).
+- mutation: `describedBy` bound to `blocked()` instead of `used()` -> red: `try-it-qa` "describes the chips by the composer's reason only while the allowance is used up" (node-side; Y5 and Y10 "with no description" pin it on the stack).
+- mutation: the row sends `TRY_IT_TEXTS.prompts[0]` from its constructor -> red: `try-it-sources` (a) "sends once through the outbox with the text alone" (node-side; Y1 "nothing is sent without a press" on the stack).
+- mutation: the empty chat's `[centered]="true"` dropped -> red: `try-it-sources` "centres the chips in the empty chat only, and lets them wrap".
+- mutation: a second B file (`zz-dup.json`, a copy of `try-it-productions.json`) keys chip 1 -> red: `try-it-view` (b) "key the exact text of their chip, each prompt in exactly one B file".
+- mutation: `inFlight` reads `turnInFlight([], this.outbox.entries())` (the store's chat ignored) -> red: Y10 ("chip 1 is aria-disabled while the turn runs"; `live sign-in --part 2/3` 1 failed, 68 passed) and `try-it-qa` "refuses a press before it sends"; applied with `ci/iris.sh build`, reverted with a rebuild.
+- Runs: `npm --prefix web test` 1158 pass; `npm --prefix web run lint` exit 0; `live sign-in --part 2/3` (holds `chat/try-it.spec.ts`, 6 of 20 files, 69 of 233 tests) 69 passed (2.3 m Playwright, 4:10 wall); stacks of tag `e4s10c` torn down.
 
 **Shared surfaces:**
 - the empty chat's content (`app-empty-chat .line` readers: chat C1, demo-path 01, guide Q, demo-switch badge and view);

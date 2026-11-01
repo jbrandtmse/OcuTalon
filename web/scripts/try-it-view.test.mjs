@@ -4,7 +4,7 @@
 // they are: Node strips their types, which holds only while they keep to erasable syntax.
 // Run with: node --test web/scripts/
 import assert from 'node:assert/strict';
-import { readFileSync } from 'node:fs';
+import { readdirSync, readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -56,6 +56,11 @@ describe('the CI mock scenarios of the chips\' prompts', () => {
       assert.equal(scenario(name).match.prompt, TRY_IT_TEXTS.prompts[i], `${name} keys prompt ${i + 1}`);
       assert.equal(scenario(name).name, name);
     });
+    const folder = join(root, 'ci', 'mock', 'scenarios', 'B');
+    const prompts = readdirSync(folder).filter((one) => one.endsWith('.json')).map((one) => JSON.parse(readFileSync(join(folder, one), 'utf8')).match?.prompt);
+    for (const prompt of TRY_IT_TEXTS.prompts) {
+      assert.equal(prompts.filter((one) => one === prompt).length, 1, `one B file keys "${prompt}"`);
+    }
   });
 
   it('call the tool each chip needs with no input and end in a text reply', () => {

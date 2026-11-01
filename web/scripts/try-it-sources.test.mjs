@@ -65,4 +65,13 @@ describe('the placements', () => {
     assert.match(code, /<app-try-it-row data-guide-focus="tryIt"/);
     assert.match(code, /const FINISH_PARTS = \[[^\]]*'tryIt'[^\]]*\]/);
   });
+
+  it('centres the chips in the empty chat only, and lets them wrap', () => {
+    assert.match(file('chat/empty-chat.ts').code, /<app-try-it-row \[centered\]="true" \/>/);
+    assert.doesNotMatch(file('guide/demo-guide.ts').code, /<app-try-it-row[^>]*centered/);
+    const { code } = file('chat/try-it-row.ts');
+    assert.match(code, /\.try-chips \{[^}]*flex-wrap: wrap;/);
+    assert.match(code, /\.row\.centered \{[^}]*align-items: center;/);
+    assert.match(code, /\.centered \.try-chips \{[^}]*justify-content: center;/);
+  });
 });

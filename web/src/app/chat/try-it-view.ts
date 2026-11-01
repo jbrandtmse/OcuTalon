@@ -13,8 +13,9 @@ export const TRY_IT_TEXTS = {
 } as const;
 
 /**
- * True while a turn of this page is in flight: an outbox entry that is sending or sent (posted, and the store does not hold its message
- * yet), or a store chat message that is queued or running. A failed entry is not in flight.
+ * True while a turn of the session is in flight: an outbox entry of this page that is sending or sent (posted, and the store does not
+ * hold its message yet), or a chat message of the session's store that is queued or running, whatever its channel. A failed entry is
+ * not in flight.
  */
 export function turnInFlight(chat: readonly LiveItem[], outbox: readonly OutboxEntry[]): boolean {
   if (outbox.some((entry) => entry.status === 'sending' || entry.status === 'sent')) {

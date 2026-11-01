@@ -2754,3 +2754,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: M6/M10/M12 all end at step 3; a mutation ignoring the step-3 mark may survive (unverified)
 - 2026-11-01T08:53:30Z status=open owner=4-8-step-3-of-the-guide-points-to-break-the-feed-without-a-secon by=harvest note=in-story test gap; code review to pin or adjudicate
 - 2026-11-01T09:27:02Z status=resolved-by:4-8-step-3-of-the-guide-points-to-break-the-feed-without-a-secon by=adjudication note=QA_floor_case_M14_pins_row4_negative_cell(step2);mutation_whenGone_ignores_step3_mark->M14_red;CR_confirmed;step1_form_runs_same_code
+
+### DW-539: The CI mock's comments and error texts call every prompt scenario a guide prompt, now that B/try-it-*.json are prompt scenarios too
+- source: spec-4-10-try-it-yourself-example-prompts-one-press-each.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: ci/mock/mock.mjs:30 says 'the one guide prompt scenario'; :442 'two guide prompts match' and :448 'no guide prompt' would name a chip prompt a guide prompt; mock.mjs is off limits to Story 4.10
+- 2026-11-01T18:22:57Z status=wontfix-accepted owner=4-10-try-it-yourself-example-prompts-one-press-each by=cr note=wording only; reopen_if=a mock failure message misleads a debugging session or the next story that edits mock.mjs

@@ -97,7 +97,7 @@ export class TryItRow {
   protected readonly texts = TRY_IT_TEXTS;
   protected readonly labelId = `try-it-label-${++rows}`;
 
-  /** True while a turn of this page is in flight. */
+  /** True while a turn of the session is in flight (turnInFlight). */
   private readonly inFlight = computed(() => turnInFlight(this.live.store()?.chat ?? [], this.outbox.entries()));
 
   /** True while the session's message allowance is used up. */
