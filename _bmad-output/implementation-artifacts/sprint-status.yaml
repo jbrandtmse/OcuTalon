@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 11-01-2026 03:15
+last_updated: 11-01-2026 03:16
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -106,7 +106,7 @@ development_status:
   4-7-finish-the-demo-guide: done
   epic-4-retrospective: optional
 
-  epic-5: done
+  epic-5: in-progress
   5-1-ask-ocutalon-to-watch-a-production-and-to-stop: done
   5-2-new-failures-are-picked-up-within-seconds: done
   5-3-same-cause-failures-become-one-incident-by-the-settle-rule: done
@@ -119,8 +119,7 @@ development_status:
   5-10-epic-5-burn-down: done
   5-11-the-demo-guide-s-tests-hold-now-that-incidents-are-real: done
   5-12-a-correct-diagnosis-is-never-refused-for-an-over-long-eviden: done
-  5-13-ask-ocutalon-what-happened-earlier-and-it-tells-you-from-its: 
-    ready-for-dev
+  5-13-ask-ocutalon-what-happened-earlier-and-it-tells-you-from-its: in-progress
   epic-5-retrospective: optional
 
   epic-6: done
