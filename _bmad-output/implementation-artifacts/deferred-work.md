@@ -2698,6 +2698,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-12-2-ocutalon-polls-and-writes-to-its-own-bot-and-pauses-when-ano.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: Data/Pairing.cls RecordChat sets row.DisplayName = name unconditionally; Channel/Telegram/In.cls HandleUpdate passes an empty name (as 12.2's spec fixes it); no story stores a name yet, so nothing is lost today (dd849271)
 - 2026-10-31T12:13:11Z status=routed owner=12-4-a-valid-code-pairs-the-chat-with-the-session by=harvest note=fix on Epic 12's side if possible (TelegramIn passes the update's own name, or skips the name when it is empty); Data/Pairing.cls is Lane B's (AD-33) and contended with Epic 11, so a change there is a Lane B ask
+- 2026-11-01T07:40:52Z status=resolved-by:12-4-a-valid-code-pairs-the-chat-with-the-session by=adjudication note=TelegramIn_keeps_chat.first_name_only_while_paired(never_blanks_a_paired_name;clears_an_unpaired_row);pinned_by_Test.Channel.TelegramPair.TestNameOnlyWhilePaired(a-d);Data/Pairing.cls_untouched;commit_72017ebd+review_patches
 
 ### DW-487: A Bot API call can outlast the 10-second item stop on a slow network: OpenTimeout inherits the read Timeout, and sendMessage reads 15 s
 - source: spec-12-2-ocutalon-polls-and-writes-to-its-own-bot-and-pauses-when-ano.md | severity: low | fix-risk: med | footprint: in-story
@@ -2798,3 +2799,4 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: _bmad-output/implementation-artifacts/spec-12-4-a-valid-code-pairs-the-chat-with-the-session.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: Core/SessionOps.cls Unlink clears SessionRef and SeenAt only; TelegramIn (12.4) clears the name on the chat's next update; the name never reaches a production message, /state of another session or the trace
 - 2026-11-01T06:58:27Z status=wontfix-accepted owner=12-4-a-valid-code-pairs-the-chat-with-the-session by=harvest note=reopen_if=a test or audit finds a DisplayName on a Pairing row with no SessionRef older than one update, or a Lane B story edits SessionOps.Unlink (then add the one-line clear)
+- 2026-11-01T07:39:08Z occurrence=12-4-a-valid-code-pairs-the-chat-with-the-session

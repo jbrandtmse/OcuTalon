@@ -285,6 +285,42 @@ These rows assume:
 - Given the mocked Telegram API, when UJ-1's page step reaches its Telegram pairing part, then that part is a real test (T5) in place of the `notBuilt` line. It reads the code from the "Open in Telegram" link, injects `/start <code>`, and sees the paired card and the confirmation. `live demo-path` prints `STEP 1 page: passed`, with no skipped part (REL-2, AD-29, UX-DR101).
 - Given a paired chat writes again, when its update has no name, then the stored name stays. An unpaired chat's row never keeps a name (DW-486, AD-4). Rows "A stored name survives later messages" and "No name without a pairing".
 
+### Review Findings
+
+Code review of 2026-11-01 (four layers: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor; 30 raw findings, 7 entries after grouping: high 0, medium 3, low 4). Each entry carries severity, fix-risk, footprint and its Rule 15 disposition.
+
+- [x] [Review][Patch] Nothing pinned that an unpaired chat's next update clears a name left on its row (verification-gap; AC6, DW-486, and the ground DW-520 was accepted on). Medium, fix-risk low (test only), in-story: `TestNameOnlyWhilePaired` (d) seeds the name that `SessionOps.Unlink` leaves, sends a message with no name and expects an empty name. Mutation recorded under Verification. [src/ocutalon/cls/OcuTalon/Test/Channel/TelegramPair.cls:307]
+- [x] [Review][Patch] Nothing pinned that the pause comes before the paired view (verification-gap; Boundaries, "the card's order of states", AC3). Medium, fix-risk low (test only), in-story: T2 gains the case "on and paired, paused" and expects the paused card. Mutation recorded under Verification. [web/e2e/demo-path/telegram-page.spec.ts:199]
+- [x] [Review][Patch] If a run stopped before its `Finish` left a fixture chat's row, `Start` treated that row as found. Every later T5, and the codes of T1 and T3, then failed on that stack (verification-gap + edge-case-hunter; Rule 19 hermeticity). Medium, fix-risk low, in-story: `Start` first deletes the rows of the 11-digit `840177341xx` fixture chats, then lists the rows. The SQL was checked on a warm stack: it deleted the 11-digit row and kept a 10-digit look-alike. [src/ocutalon/cls/OcuTalon/Test/Channel/TelegramPageFixture.cls:80]
+- [x] [Review][Patch] `TelegramPair.Begin` returned 1 after a failed setup, so each test went on into 10-to-20-second waits (blind-hunter). Low, fix-risk low, mechanical: `Begin` now fails and ends the test when the items do not start, the state is not `on` or no long poll opens. [src/ocutalon/cls/OcuTalon/Test/Channel/TelegramPair.cls:39]
+- [x] [Review][Patch] T4's comments were stale. The doc did not mention the precedence cases, and the inline comment said "needs ... no bot name" (blind-hunter + acceptance-auditor). Low, fix-risk low, mechanical. [web/e2e/demo-path/telegram-page.spec.ts:546]
+- [x] [Review][Patch] `TelegramIn`'s class doc claimed "the row of a chat that is not paired holds no name", which `SessionOps.Unlink` contradicts until the chat's next update (edge-case-hunter, claim). Low, fix-risk low, mechanical: the doc now says that a chat that is not paired is recorded with no name, so its next update clears a name that an unpair left. [src/ocutalon/cls/OcuTalon/Channel/Telegram/In.cls:19]
+- [x] [Review][Defer] `SessionOps.Unlink` keeps `DisplayName` [src/ocutalon/cls/OcuTalon/Core/SessionOps.cls] — deferred: pre-existing Lane B behaviour, already DW-520 (wontfix-accepted, reopen_if set); an occurrence for this story was appended through the ledger tool. Low, fix-risk low, out-of-footprint.
+
+Rejected (each verified at the cited code):
+- `low` (by-design, spec-bound) Blind: any non-blank `/start <text>` is submitted as a Pair, and each failed attempt writes an audit entry, with no limit per chat. The Boundaries define a pairing as exactly that. A shape check or rate limit would change specified behaviour and the security posture (veto window). A 22-character base64url code cannot be guessed.
+- `false` Blind: a pairing exception is logged by name only. The Boundaries require exactly `Api.Safe` of the exception's name, and `Handle` and `OnProcessInput` do the same.
+- `false` Blind: the spec says `done` while in review. The frontmatter and Auto Run `status` are build-auto's machine state, which a review must not change. The cycle-log `story_base` is not this story's file.
+- `low` Blind: the spec's timings disagree. Those are two separate runs (implement and final), and the fix would edit the spec under review.
+- `maybe-false` (would be low) Blind: `live sign-in --part 1/2` failed once. No test of this story is in it (R11 is unpaired, and its view is unchanged), and QA's fresh rerun passed 127 of 127. A recurrence with the failing test captured would settle it.
+- `low` (wontfix-theoretical) Blind: the page Unpair's notice may still be queued in TelegramOut at `Finish`. T5 first waits seconds, for the fresh code and `/state`. TelegramOut sends in milliseconds, and `Disable` waits for the item's jobs. It becomes real if TelegramOut ever lags more than about 5 s.
+- `low` Blind: the moved-chat path is untested here. That is `SessionOps`'s behaviour (Lane B, covered by `SessionOpsProduction`), and no AC of this story names it.
+- `low` (by-design) Blind: a replayed used code gets the confirmation again. `SessionOps.Pair` answers `paired` for its own chat by design, and the Boundaries reply on `paired`.
+- `low` (wontfix-theoretical) Edge: a failed `Row` SELECT blanks a paired chat's name. It needs an SQL error on a plain indexed SELECT (also in the earlier triage).
+- `low` (wontfix-theoretical) Edge: a `first_name` of white space or control characters only erases a stored name. Telegram does not allow a blank first name. It becomes real if the mock or Telegram delivers one.
+- `low` (wontfix-theoretical) Edge: a race between `Row` and `RecordChat` with an Unpair. The window is microseconds, and the effect lasts one update (also in the earlier triage).
+- `low` (wontfix-theoretical) Edge: `Submit` times out after 120 s while the link still lands. It needs `CommandsIn` to stall for two minutes on a sync call.
+- `low` (wontfix-theoretical) Edge: `Reply` reads an empty `SessionRef` if the row disappears right after `paired`. Nothing deletes a just-linked row in that window.
+- `low` Edge: a failed Unpair DELETE gives no feedback. `ServerButton` is the shared contract (busy state and no-answer notice), and the card stays honestly paired, so the user can press again.
+- `false` Edge: `Finish` disables `TelegramOut` when `Start` had `out` 0. Task 3 says `Finish` disables both, and the Telegram installer step leaves `TelegramOut` disabled on every stack these tests run on.
+- `low` Edge: the clock check's window widens when `irisScript` is slow. Both clocks are the host's (Decided 10), and correcting by the measured offset adds logic for no observed skew.
+- `low` Auditor: the speakers-test title changed beyond the two entries. The title lists the speakers that the entry changes, and the earlier triage patched it on purpose.
+- `low` Auditor (Rule 2): `TelegramPair.Notifications` resembles `LiveCase.PairBodies`. They are two header scans over different body classes, with different filters and projections. One parameterised helper for two callers adds surface for no named divergence.
+- `low` Auditor (Rule 2): three deadline loops in `TelegramPair`. That is the four-line wait idiom of `LiveCase` (`WaitState`, `WaitCalls`), not a copied helper.
+- `low` Auditor: `Ending` runs `Cleanup` first, not last. It stops the items before the deletes, which is the safer order, and does the same work.
+- `false` Auditor: `Now()` breaks the "" or reason contract. Decided 14 records that it returns the number.
+- `false` Auditor (informational): the stray `Set chat = ""` in `Pair`. It drops the open `Pairing` object before `RecordChat` saves the same row, because IRIS returns the same OREF for an id that is already open in the process.
+
 ## Spec Change Log
 
 ## Review Triage Log
@@ -556,6 +592,11 @@ QA stage (audit of every AC and matrix row against the existing tests; no test f
 - (QA) mutation: `TelegramIn.Pair` writes `$$$LOGINFO("paired chat "_chatId)` on `paired` (AC1/AC3, the event-log scan of "Nothing leaks into the trace") -> `TestPairs` red ("the event log holds the chat id").
 - (QA) mutation: `.paired-icon` loses `color: var(--telegram-card-paired-icon)` (AC3, the icon's token colour) -> T5 red (`toHaveCSS` on the icon; `STEP 1 page: failed, 10 passed, 1 failed`).
 - (QA) `live sign-in --part 1/2` on a fresh throwaway (tag `e12s4qa`): passed, 127 passed in 3.7 min.
+
+Code review stage (tags `e12s4crw` warm, `e12s4cr` fresh). Each mutation was applied, seen red and restored from a backup, then checked with `cmp`. `git status --short` and `git diff --stat` were unchanged afterwards, and the bundle was rebuilt clean after the web mutation:
+- (CR) mutation: in `HandleUpdate`, an unpaired chat's non-pairing update records `storedName` in place of `""` (AC6, DW-486/DW-520) -> `TestNameOnlyWhilePaired` red, (d) only ("the chat's next update clears the name left on its row").
+- (CR) mutation: `telegramCardView`'s paired branch moved above the paused check (AC3, the card's order of states) -> T2 red at its new case "on and paired, paused" ("the card is paused"); `STEP 1 page: failed, 10 passed, 0 skipped, 1 failed`.
+- (CR) After the patches: `TelegramPair` passed warm (18.9 s) and `TelegramIn` passed warm (97.8 s). `live demo-path` passed (`STEP 1 page: passed, 11 passed, 0 skipped`, 17 Playwright tests in 2.3 min). `npm --prefix web test` passed 1127 tests, `npm --prefix web run lint` was clean, and `test-boundaries.sh` passed.
 
 Measured: `TelegramPair` 16.2 to 16.6 s (warm, and in `shard lane-a@Channel` in both orders); the whole shard 352 s forward and 372 s reversed on a fresh throwaway; T5 8.0 s locally (T1 24.6 s, T2 0.6 s, T3 31.3 s, T4 14.4 s); `live demo-path` 4 min 56 s locally (first start 113 s ready); `STEP 1 page: passed, 11 passed, 0 skipped`. The either-order run (T5, T4, T3, T1, T2) passed. `live sign-in` parts 1/2 and 2/2 passed. `ci/changes.sh` with no push event runs every group (it reads GitHub for a base, so the real selection is CI's).
 

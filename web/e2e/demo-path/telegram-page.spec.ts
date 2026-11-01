@@ -187,20 +187,27 @@ test.describe('the Telegram card is paused while Telegram is paused (Story 12.8)
   });
 
   /**
-   * T2: the card's states from a changed snapshot: the matrix rows "Paused while off", "Paused while rejected" and "Not paused". There is no
-   * seam and no IRIS state: the snapshot says the release includes Telegram and holds (or does not hold) the pause.
+   * T2: the card's states from a changed snapshot: the matrix rows "Paused while off", "Paused while rejected" and "Not paused", and, from
+   * Story 12.4, a paired session while paused (the pause comes before the paired view). There is no seam and no IRIS state: the snapshot
+   * says the release includes Telegram and holds (or does not hold) the pause.
    */
   test('T2: the card is paused ahead of off and rejected, and not set up when there is no pause', { tag: '@floor' }, async ({ page }) => {
     await signInReadmeLoaded(page);
     const cases = [
-      { label: 'off, paused', state: 'off', paused: true },
-      { label: 'rejected, paused', state: 'rejected', paused: true },
-      { label: 'off, not paused', state: 'off', paused: false },
+      { label: 'off, paused', state: 'off', paused: true, paired: false },
+      { label: 'rejected, paused', state: 'rejected', paused: true, paired: false },
+      { label: 'on and paired, paused', state: 'on', paused: true, paired: true },
+      { label: 'off, not paused', state: 'off', paused: false, paired: false },
     ] as const;
     for (const one of cases) {
       await page.unrouteAll({ behavior: 'ignoreErrors' });
       await changeSnapshot(page, (snapshot) => {
-        snapshot['telegram'] = { ...(snapshot['telegram'] as Record<string, unknown>), included: true, state: one.state };
+        snapshot['telegram'] = {
+          ...(snapshot['telegram'] as Record<string, unknown>),
+          included: true,
+          state: one.state,
+          ...(one.paired ? { paired: true, displayName: 'Zz' } : {}),
+        };
         const others = (snapshot['status'] as Array<{ condition?: string }>).filter((member) => member.condition !== 'telegramPaused');
         snapshot['status'] = [
           ...others,
@@ -537,7 +544,9 @@ test.describe('the Telegram card shows a fresh pairing code as a QR code (Story 
 
   /**
    * T4: the card from changed snapshots, with the seam on and no TelegramIn (the server's state is off): "Refused while the server is off",
-   * "Paired" and, from Story 12.4, "The paired card from a snapshot" (with a name, and with none). Each case answers /state with a changed copy and reloads once. Then the code route itself answers, with no server
+   * "Paired" and, from Story 12.4, "The paired card from a snapshot" (with a name, and with none) and the paired view's place in the order
+   * (paired with no bot name, and paired while the state is off or rejected), none of which asks for a code. Each case answers /state with
+   * a changed copy and reloads once. Then the code route itself answers, with no server
    * behind it, under the on and unpaired copy: a failure (500) shows nothing rather than the off card, an expiry two minutes out counts
    * down, and an expiry an hour out is held ten minutes at most.
    */
@@ -605,7 +614,7 @@ test.describe('the Telegram card shows a fresh pairing code as a QR code (Story 
         expect(plain(await card.innerText()), `${one.label}: no scan line or countdown`).not.toMatch(/Scan with|Open in Telegram|New code in/);
       }
 
-      // The paired view needs the state on and no bot name; while the state is off or rejected, the card says "not set up" even when paired.
+      // The paired view needs the state on but no bot name; while the state is off or rejected, the card says "not set up" even when paired.
       for (const one of [
         { label: 'paired, no bot name', state: 'on', botUserName: '', says: 'Telegram paired \u00b7 Zz Unpair', view: 'paired' },
         { label: 'paired, state off', state: 'off', botUserName: 'ocutalon_ci_bot', says: 'Telegram not set up How to set it up', view: 'not-set-up' },

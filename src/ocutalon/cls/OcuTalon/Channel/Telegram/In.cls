@@ -17,8 +17,8 @@ Include Ensemble
 ///   - Only an update of a private chat, a message or a button press, is handled, and handling it records the chat through
 ///     Pairing.RecordChat. Everything else is confirmed and ignored.
 ///   - The chat's name is the update's chat.first_name (the from object is never read) and is kept only while the chat is paired
-///     (DW-486, AD-4): a later update of a paired chat keeps the stored name when it has none of its own, and the row of a chat that
-///     is not paired holds no name.
+///     (DW-486, AD-4): a later update of a paired chat keeps the stored name when it has none of its own, and a chat that is not paired
+///     is recorded with no name, so its next update clears a name that an unpair left on its row (SessionOps.Unlink keeps it, DW-520).
 ///   - A message whose text is "/start " and a code (Story 12.4) is a pairing: the chat is recorded with its name, the code is hashed
 ///     with Pairing.HashCode and Msg.Command.Pair {CodeHash, ChatRef} is submitted through Commands.Submit with origin telegram. Only
 ///     the outcome paired is answered, with a pairing Notification (catalog key pairing.paired) sent to Notify; this class never calls

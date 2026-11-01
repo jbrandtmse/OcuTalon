@@ -8,7 +8,7 @@
 ///     the pairing event and /state), the chat gets the one confirmation, no store holds the code, the chat id or the name, and the guide
 ///     follows the pairing and the page's Unpair;
 ///   - TestNameOnlyWhilePaired: a paired chat keeps its name through later messages with no name (a pairing update too) and takes a new one, and a chat that is
-///     not paired never keeps a name, also after a code that links nothing;
+///     not paired never keeps a name, also after a code that links nothing, and its next update clears a name left on its row;
 ///   - TestNoPairWithoutACode: a bare /start, a /start of spaces and a group chat's /start submit no Pair.
 Class OcuTalon.Test.Channel.TelegramPair Extends OcuTalon.Test.Channel.LiveCase
 {
@@ -34,7 +34,8 @@ Property Sessions As %List [ Private ];
 /// The unique text of the event-log probe, removed by Ending.
 Property Probe As %String [ Private ];
 
-/// The start of every test: the live guard, demo mode, the seam, both items on, and a long poll open. 1 when the test may go on.
+/// The start of every test: the live guard, demo mode, the seam, both items on, and a long poll open. 1 when the test may go on; when a
+/// step fails, the test is failed and ended here.
 Method Begin() As %Boolean [ Private ]
 {
 	If '..ReadyLive() Quit 0
@@ -50,9 +51,16 @@ Method Begin() As %Boolean [ Private ]
 	}
 	Do ..Chat("84017734101,84017734102,84017734103,84017734104,84017734105")
 	Do ..DropChats("84017734101,84017734102,84017734103,84017734104,84017734105")
-	Do $$$AssertStatusOK(..StartItems("TelegramOut,TelegramIn"), "TelegramOut and TelegramIn are enabled")
-	Do $$$AssertTrue(..WaitState("on", 20), "the Telegram state becomes on")
-	Do $$$AssertTrue(..WaitCalls("getUpdates", 1, 20).%Size() >= 1, "a long poll is open")
+	Set started = ..StartItems("TelegramOut,TelegramIn")
+	Do $$$AssertStatusOK(started, "TelegramOut and TelegramIn are enabled")
+	Set on = $$$ISOK(started) && ..WaitState("on", 20)
+	Do $$$AssertTrue(on, "the Telegram state becomes on")
+	Set polling = on && (..WaitCalls("getUpdates", 1, 20).%Size() >= 1)
+	Do $$$AssertTrue(polling, "a long poll is open")
+	If 'polling {
+		Do ..Ending()
+		Quit 0
+	}
 	Quit 1
 }
 
@@ -295,6 +303,15 @@ Method TestNameOnlyWhilePaired()
 		Do ..ChatRow(stranger, , .linked, .stored)
 		Do $$$AssertEquals(linked_"|"_stored, "|", "nothing is linked and the row holds no name")
 		Do $$$AssertEquals($Length(..RowsText("SELECT Type FROM OcuTalon_Live.Event WHERE %ID > ? AND Type = 'pairing'", live)), 0, "and no pairing event was published")
+
+		Do ##class(OcuTalon.Data.Pairing).RecordChat(stranger, "Zqleft", .sc)
+		Do $$$AssertStatusOK(sc, "a name is left on the row of a chat that is not paired, as SessionOps.Unlink leaves one (DW-520)")
+		Do ..ChatRow(stranger, , .linked, .stored)
+		Do $$$AssertEquals(linked_"|"_stored, "|Zqleft", "the row holds that name and no session")
+		Do ..Send(..PrivateMessage(stranger, "", "zz after"))
+		Do $$$AssertTrue(..Handled(), "TelegramIn handled a message with no name from that chat")
+		Do ..ChatRow(stranger, , .linked, .stored)
+		Do $$$AssertEquals(linked_"|"_stored, "|", "(d) the chat's next update clears the name left on its row")
 	} Catch ex {
 		Do $$$AssertTrue(0, "the name test failed: "_..Safe(ex))
 	}

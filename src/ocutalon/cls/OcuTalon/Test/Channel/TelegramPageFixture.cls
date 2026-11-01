@@ -17,7 +17,8 @@
 ///     scan finds it, then removes the probes (the audit entry stays: the audit log is append-only). It returns "" or the first failed
 ///     check, which names the check and never a code.
 ///   - Story 12.4 (FR-15, AD-4): Start takes a third parameter, out; with 1 it enables TelegramOut before TelegramIn (through the same
-///     Enable, so rows holds both snapshots), so that the pairing reply reaches the mock. saved's fourth element lists the Refs of every
+///     Enable, so rows holds both snapshots), so that the pairing reply reaches the mock. Before it lists the rows, Start deletes those of
+///     the fixture chats (840177341xx) that a run stopped before its Finish left behind, so they never count as found. saved's fourth element lists the Refs of every
 ///     Pairing row at Start (code rows and chat rows), and Finish disables both items and deletes every row that Start did not find, so that
 ///     a pairing made during the test leaves no chat behind, and reads the rows back. Now is the IRIS clock as Unix milliseconds. Pair waits
 ///     for an open long poll, takes queuedAt (Unix milliseconds) just before it queues one private "/start <code>" update with the chat's
@@ -36,6 +37,9 @@ Parameter OUT = "TelegramOut";
 
 /// The pause mark.
 Parameter MARK = "telegramPaused";
+
+/// The first nine digits of the fixture chat ids (840177341xx, 11 digits).
+Parameter CHATPREFIX = "840177341";
 
 /// The longest, in seconds, to wait for TelegramIn to record that it is on.
 Parameter WAITON = 20;
@@ -73,6 +77,8 @@ ClassMethod Start(Output saved As %String, botName As %String = "", out As %Bool
 		If $$$ISERR(sc) Return $SYSTEM.Status.GetErrorText(sc)
 		Set marks = $ClassMethod(..#CASE, "Marks")
 		Set since = $ClassMethod(..#CASE, "InstanceSeq")
+		Set left = ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.Pairing WHERE ChatId %STARTSWITH ? AND LENGTH(ChatId) = 11", ..#CHATPREFIX)
+		If left.%SQLCODE < 0 Return "the rows of the fixture chats could not be deleted: "_left.%Message
 		Set codes = $ListBuild(1, ..RowRefs())
 		Set saved = ..Pack(rows, marks, since, codes)
 		If botName '= "" {
