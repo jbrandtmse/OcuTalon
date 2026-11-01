@@ -3960,10 +3960,31 @@ So that the release works for a judge and the timing bounds are measured, not as
 
 **Acceptance Criteria:**
 
+[AMENDED 2026-11-01, Story 11.3's plan, unattended ruling (decide: a split into a sibling planned next in this epic, product default 6): the rehearsal runner's criterion, the 'names the run, the step and the bound' parts of the failed-run criterion and the planted missed bound of the throwaway criterion moved verbatim to Story 11.11; 11.3 keeps the hosts, the copy, the install, the first start, the record, the no-value rule and the dry run on throwaways]
+
 **Given** the rehearsal script in `release/`, the clean host's and the driver host's addresses and SSH keys from the author's configuration outside the repository, and a candidate branch (for 1.0.0, one clean Linux host, a droplet the Contest Planner provides, creating and deleting it for each check, with the Contest Planner's Mac as the driver host; no clean macOS run) [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0" and "New Linux droplet"]
 **When** it runs against a host
 **Then** it reaches the clean host and the driver host over SSH, copies the candidate branch to the clean host as a `git bundle` and clones it there, so the host needs no outbound access beyond the model provider, runs `install.sh` with the model key in the host's `.env`, waits for ready, reads the printed address and sign-in details, and records the first start's duration, install included (FR-55, NFR-22, REL-6, AD-23)
 **And** the script never prints a value from `.env`: it runs `docker compose config` only with `--quiet` and `docker inspect` only with `--format` (NFR-11, AD-22)
+
+**Given** a failed install step
+**When** the rehearsal ends
+**Then** the rehearsal fails, its report names the step, and the release is blocked (REL-6)
+**And** its result goes into the candidate's record (`release/records/<version>/rc<n>.md`), which describes the machine only by operating system, CPU architecture and memory, never by host name or address (CON-5)
+
+**Given** this build, which has no clean host and never a real model key
+**When** the script's tests run
+**Then** they prove all of the above on throwaways: a throwaway compose project or container standing in for the clean host and the driver host, the CI mock in place of the model (the report and the record mark such a run as a dry run, never as a rehearsal pass), and a scan of the script's whole output that finds no `.env` value; the real rehearsal on the author's hosts is Story 38.2 (REL-6, NFR-11)
+
+### Story 11.11: The rehearsal runner times the demo path and checks every bound
+
+As the author,
+I want the rehearsal to run the demo path N times on the installed candidate and check every timing bound,
+So that the timing bounds are measured on each candidate, not assumed.
+
+[ADDED 2026-11-01, split from Story 11.3 at its plan, unattended ruling (decide: a sibling planned next in this epic, product default 6); its criteria are Story 11.3's, moved verbatim; it builds on Story 11.3's `release/rehearse.sh`, and Story 11.5's release sequence composes both]
+
+**Acceptance Criteria:**
 
 **Given** the rehearsal runner, which runs the REL-2 Playwright specs from the driver host against the clean machine N times (20 for a real rehearsal), using Run again and the replay rule between runs
 **When** the runs end
@@ -3972,11 +3993,10 @@ So that the release works for a judge and the timing bounds are measured, not as
 **Given** a failed run or a missed bound
 **When** the rehearsal ends
 **Then** the rehearsal fails, its report names the run, the step and the bound, and the release is blocked (REL-6)
-**And** its result goes into the candidate's record (`release/records/<version>/rc<n>.md`), which describes the machine only by operating system, CPU architecture and memory, never by host name or address (CON-5)
 
 **Given** this build, which has no clean host and never a real model key
-**When** the script's tests run
-**Then** they prove all of the above on throwaways: a throwaway compose project or container standing in for the clean host and the driver host, the CI mock in place of the model (the report and the record mark such a run as a dry run, never as a rehearsal pass), a run set with a planted missed bound that fails the rehearsal and names the run, the step and the bound, and a scan of the script's whole output that finds no `.env` value; the real rehearsal on the author's hosts is Story 38.2 (REL-6, NFR-11)
+**When** the runner's tests run
+**Then** they prove the above on throwaways with the CI mock in place of the model (a dry run, never a rehearsal pass), including a run set with a planted missed bound that fails the rehearsal and names the run, the step and the bound; the real rehearsal on the author's hosts is Story 38.2 (REL-6, NFR-11)
 
 ### Story 11.4: The release gets draft notes and a checklist
 
