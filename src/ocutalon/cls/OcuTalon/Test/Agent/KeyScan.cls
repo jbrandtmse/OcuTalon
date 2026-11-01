@@ -120,7 +120,7 @@ Method TestKeyIsStoredNowhere()
 		Do $$$AssertStatusOK(step.%Save(), "an agent step with a fresh value is saved")
 		Set stepId = step.%Id()
 		Set text = $ListToString(..Find(stepText), "; ")
-		Do $$$AssertTrue(text [ "agent steps "_stepId, "Find sees an agent step: "_text)
+		Do $$$AssertTrue(text [ ("agent steps "_stepId), "Find sees an agent step: "_text)
 	} Catch exception {
 		Do $$$AssertStatusOK(exception.AsStatus(), "the key scan runs without an exception")
 	}

@@ -13,8 +13,9 @@
 ///     the evidence, cause, category, element, fix kind, fix parameters, fix summary and noun of the reply;
 ///   - TestRefusalTrace (rows Over the limit and Key in a refused value): a diagnose reply that fails its check, or that the filter leaves with no reason or makes invalid,
 ///     gives the fallback invalid, with no reasons and no payload on the row and the response, and one Type 3 warning of Decide.Conclude that starts with REFUSED and the
-///     decision's Ref and holds the check's text ("The reply check failed" and the field evidence; "No reason is left once the reply filter has run"; "After the reply
-///     filter ran: ") and, for a key in a refused value, holds [redacted] and not the key;
+///     decision's Ref and is exactly the words of what failed, never the reply: "The reply check failed: the reply is not one JSON object that <class> accepts: Evidence
+///     element 2: 129 > 128" (a list element over its limit); "... ERROR #5001" for a key in a refused value (the class's own check), with neither the key nor [redacted];
+///     "No reason is left once the reply filter has run"; "After the reply filter ran: <class> refused the filtered payload: ERROR #5001";
 ///   - TestOtherFallbacksLogNothing (row Other fallbacks): a cut_off and a refusal whose text fails the check, and a turn that the filter empties (invalid with no check error),
 ///     are fallbacks of their own reason and log no warning of the reply check (Story 5.12, QA);
 ///   - TestFilteredParameter: the parameter FILTERED names every text of the model that the payload holds, which Decide filters (AD-31);
@@ -248,18 +249,19 @@ Method TestRefusalTrace()
 		Do $$$AssertEquals($IsObject(row) && (row.Fallback_"|"_row.FallbackReason_"|"_row.Reasons_"|"_row.Payload = "1|invalid||"), 1, label_": the row is the fallback with no reasons and no payload")
 		Set count = ##class(OcuTalon.Test.Core.Observe).Warnings(..Mark, .text, "Conclude", ..#REFUSED_ref)
 		Do $$$AssertEquals(count, 1, label_": one warning names the decision")
-		If $Extract(label, 1, 2) = "no" {
-			Do $$$AssertTrue(text [ "No reason is left once the reply filter has run", label_": it holds the reason")
-		} ElseIf label = "invalid after the filter" {
-			Do $$$AssertTrue(text [ "After the reply filter ran: ", label_": it holds the re-validation's text")
-		} Else {
-			Do $$$AssertTrue(text [ "The reply check failed", label_": it holds the check's text")
-		}
+		Set start = ..#REFUSED_ref_": "
+		Set first = start_"The reply check failed: the reply is not one JSON object that "_..#CLASS_" accepts: "
 		If label = "over the limit" {
-			Do $$$AssertTrue(text [ "evidence", label_": it names the field evidence")
+			Set expected = first_"Evidence element 2: 129 > 128"
 		} ElseIf label = "key in a refused value" {
-			Do $$$AssertTrue((text [ "[redacted]") && (text '[ secret), label_": it holds [redacted] and not the key")
+			Set expected = first_"ERROR #5001"
+		} ElseIf label = "no reason left after the filter" {
+			Set expected = start_"No reason is left once the reply filter has run"
+		} Else {
+			Set expected = start_"After the reply filter ran: "_..#CLASS_" refused the filtered payload: ERROR #5001"
 		}
+		Do $$$AssertEquals(text, expected, label_": the warning names what failed")
+		Do $$$AssertTrue((text '[ secret) && (text '[ "[redacted]"), label_": and holds neither the key nor [redacted]")
 	}
 	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..Mark, "Conclude", ..#REFUSED)
 	Set ..Mark = ""

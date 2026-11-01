@@ -49,7 +49,9 @@ Include Ensemble
 ///     properties that the reply class names in a FILTERED parameter, a dotted name for a property of an object property and a list item by item,
 ///     which are then checked again; the request is exposed to both checks through ReplyCheck, ended on every exit), the user
 ///     rule is applied, one Decision row is recorded, the event decision.recorded is fired after the commit (FireEvent) and the answer
-///     is built. For a user's decide request an ignore or digest becomes tellnow.
+///     is built. For a user's decide request an ignore or digest becomes tellnow. A decide or diagnose reply that is invalid because of its check
+///     gets one trace warning that names what failed and never the reply (RefusalText: the error code, the reply class's property, the element,
+///     the limit and the computed length; no value, no IRIS message text and no field name of the reply).
 ///   - Any other reply is a fallback (RecordFallback): one Decision row with the outcome tellnow, Fallback true and the reason, and no
 ///     reasons, confidence or payload, so that no model text is kept; decision.recorded after the commit; and, for daily_cap, the day is
 ///     marked as capped once (Budget.MarkCapped). A decide or diagnose request is answered with the row's DecisionResponse, and a turn
@@ -600,10 +602,12 @@ ClassMethod CheckSettings(kind As %String, runner As %String, replyClass As %Str
 
 /// Checks the reply text against the class: one JSON object that the class imports (%JSONImport, with exceptions caught) and
 /// validates (%ValidateObject). A reply class's %OnValidateObject may read the request through OcuTalon.Bridge.ReplyCheck, which Interpret begins. Only surrounding white space, or one surrounding Markdown code fence, is removed first.
-/// payload is the validated object, or "" with an error that names the reply check.
-ClassMethod CheckReply(text As %String, replyClass As %String, Output payload As %RegisteredObject) As %Status
+/// payload is the validated object, or "" with an error that names the reply check. cause is the status of the import or the validation before it is
+/// wrapped ($$$OK when the reply passes): RefusalText turns it into words that quote nothing of the reply.
+ClassMethod CheckReply(text As %String, replyClass As %String, Output payload As %RegisteredObject, Output cause As %Status) As %Status
 {
 	Set payload = ""
+	Set cause = $$$OK
 	Try {
 		Set object = $ClassMethod(replyClass, "%New")
 		Set sc = object.%JSONImport(..Unfenced(text))
@@ -612,10 +616,189 @@ ClassMethod CheckReply(text As %String, replyClass As %String, Output payload As
 		Set sc = exception.AsStatus()
 	}
 	If $$$ISERR(sc) {
-		Quit $$$ERROR($$$GeneralError, "The reply check failed: the reply is not one JSON object that "_replyClass_" accepts: "_$Extract($SYSTEM.Status.GetErrorText(sc), 1, 400))
+		Set cause = sc
+		Quit $$$ERROR($$$GeneralError, ..#CHECKFAILED_replyClass_" accepts: "_$Extract($SYSTEM.Status.GetErrorText(sc), 1, 400))
 	}
 	Set payload = object
 	Quit $$$OK
+}
+
+/// The words of the errors of a failed reply check (cause, from CheckReply, or the status of the second check), for the warning that Conclude logs. Each part is
+/// made only of fixed words, an error code, the name of a compiled property of replyClass, an element position, a numeric limit and a computed length: never a
+/// value of the reply, an IRIS message text or a field name taken from the reply. The parts, in DecomposeStatus order and without repeats:
+///   - a text over or under its limit (#7201, #7202) and a value outside its limits (#7203, #7204), with a property and a numeric limit, give
+///     "<Property>[ element <n>]: <length> > <limit>" (the length of the value, never the value) and "<Property>[ element <n>]: value > <limit>"; the property and
+///     the position come from the embedded #5802 (or a #5659) as "<class>:<Property>[(<n>)]", and only a name that replyClass compiles is used;
+///   - an import error that names a JSON field (#9406) is traced to the property of replyClass with that field name, and the reply text (a JSON object) is
+///     checked the way the property would be: every element of a list, or the value, by the property's own <Property>IsValid check, which gives the forms above;
+///     with no failing check, "ERROR #9406 on <Property>"; with no such property, "ERROR #9406";
+///   - any other error is "ERROR #<code>" (or "ERROR <code>" for a code that is not a number), and " on <Property>[ element <n>]" when a property is known.
+/// At most 5 parts are given, then "; and <k> more". With no part, or if anything throws, the text is "an error". text is the reply text that CheckReply checked.
+ClassMethod RefusalText(cause As %Status, replyClass As %String, text As %String = "") As %String
+{
+	Set result = "an error"
+	Try {
+		Set count = 0
+		If $$$ISERR(cause) {
+			Do $SYSTEM.Status.DecomposeStatus(cause, .errors)
+			For i = 1:1:+$Get(errors) {
+				Set code = $Get(errors(i, "code"))
+				Set property = ""
+				Set position = ""
+				If (code = 5659) || (code = 5802) Do ..RefusalProperty(replyClass, $Get(errors(i, "param", 1)), .property, .position)
+				If $Data(errors(i, "embeddedstatus")) {
+					Kill inner
+					Do $SYSTEM.Status.DecomposeStatus(errors(i, "embeddedstatus"), .inner)
+					For j = 1:1:+$Get(inner) {
+						If $Get(inner(j, "code")) = 5802 {
+							Do ..RefusalProperty(replyClass, $Get(inner(j, "param", 1)), .property, .position)
+							Quit
+						}
+					}
+				}
+				If code = 9406 {
+					Do ..RefusalImport(replyClass, $Get(errors(i, "param", 1)), text, .parts, .count)
+				} Else {
+					Do ..RefusalAdd(..RefusalPart(code, $Get(errors(i, "param", 1)), $Get(errors(i, "param", 2)), property, position), .parts, .count)
+				}
+			}
+		}
+		If count > 0 {
+			Set shown = $Select(count > ..#MAXREFUSALPARTS: ..#MAXREFUSALPARTS, 1: count)
+			Set result = ""
+			For i = 1:1:shown Set result = result _ $Select(i > 1: "; ", 1: "") _ parts(i)
+			If count > shown Set result = result_"; and "_(count - shown)_" more"
+		}
+	} Catch exception {
+		Set result = "an error"
+	}
+	Quit result
+}
+
+/// The words that begin the message of a failed reply check, before the reply class: CheckReply's error and Judge's problem share them.
+Parameter CHECKFAILED = "The reply check failed: the reply is not one JSON object that ";
+
+/// The most parts that RefusalText names before "and <k> more".
+Parameter MAXREFUSALPARTS = 5;
+
+/// Adds the part to parts(1..count) unless it is there already.
+ClassMethod RefusalAdd(part As %String, ByRef parts, ByRef count) [ Private ]
+{
+	If $Data(parts("seen", part)) Quit
+	Set parts("seen", part) = ""
+	Set count = count + 1
+	Set parts(count) = part
+}
+
+/// The property and the position of "<class>:<Property>" or "<class>:<Property>(<n>)" (the first parameter of #5802 and #5659), each "" unless the
+/// property is compiled in replyClass and the position is a whole number.
+ClassMethod RefusalProperty(replyClass As %String, field As %String, Output property As %String, Output position As %String) [ Private ]
+{
+	Set property = ""
+	Set position = ""
+	Set name = $Piece(field, ":", 2, *)
+	If name = "" Quit
+	If ($Extract(name, *) = ")") && (name [ "(") {
+		Set inner = $Piece($Piece(name, "(", 2, *), ")", 1)
+		Set name = $Piece(name, "(", 1)
+		If inner '? 1.N Quit
+		Set position = +inner
+	}
+	If '##class(%Dictionary.CompiledProperty).%ExistsId(replyClass_"||"_name) {
+		Set position = ""
+		Quit
+	}
+	Set property = name
+}
+
+/// 1 when the text is a plain number: digits, with an optional sign and decimal part.
+ClassMethod RefusalNumber(value As %String) As %Boolean [ Private ]
+{
+	Quit value ? .1"-"1.N.1(1".".N)
+}
+
+/// The words of one error: see RefusalText.
+ClassMethod RefusalPart(code As %String, value As %String, limit As %String, property As %String, position As %String) As %String [ Private ]
+{
+	Set label = property
+	If (label '= "") && (position '= "") Set label = label_" element "_position
+	If (label '= "") && ..RefusalNumber(limit) {
+		If (code = 7201) || (code = 7202) Quit label_": "_$Length(value)_$Select(code = 7201: " > ", 1: " < ")_limit
+		If (code = 7203) || (code = 7204) Quit label_": value"_$Select(code = 7203: " > ", 1: " < ")_limit
+	}
+	Set text = "ERROR"
+	If code ? 1.N {
+		Set text = text_" #"_code
+	} ElseIf code ? 1"<"1.AN1">"1.AN {
+		Set text = text_" "_code
+	}
+	If label '= "" Set text = text_" on "_label
+	Quit text
+}
+
+/// The parts of an import error (#9406) that names the JSON field: see RefusalText.
+ClassMethod RefusalImport(replyClass As %String, field As %String, text As %String, ByRef parts, ByRef count) [ Private ]
+{
+	Set property = ""
+	Set collection = ""
+	Set type = ""
+	Set class = ##class(%Dictionary.CompiledClass).%OpenId(replyClass)
+	If $IsObject(class) {
+		For i = 1:1:class.Properties.Count() {
+			Set candidate = class.Properties.GetAt(i)
+			Set name = candidate.Name
+			If ($Extract(name) = "%") || candidate.Private || candidate.Internal Continue
+			Set included = candidate.Parameters.GetAt("%JSONINCLUDE")
+			If (included = "none") || (included = "outputonly") Continue
+			Set json = candidate.Parameters.GetAt("%JSONFIELDNAME")
+			If json = "" Set json = name
+			If (json = field) && ($Length(json) = $Length(field)) {
+				Set property = name
+				Set collection = candidate.Collection
+				Set type = candidate.Type
+				Quit
+			}
+		}
+	}
+	If property = "" {
+		Do ..RefusalAdd("ERROR #9406", .parts, .count)
+		Quit
+	}
+	Set found = 0
+	Try {
+		Set object = {}.%FromJSON(..Unfenced(text))
+		If $ClassMethod(type, "%Extends", "%Library.DataType") && object.%IsA("%Library.DynamicObject") {
+			Set kind = object.%GetTypeOf(field)
+			If (collection = "list") && (kind = "array") {
+				Set array = object.%Get(field)
+				For k = 1:1:array.%Size() {
+					Set elementKind = array.%GetTypeOf(k - 1)
+					If (elementKind = "object") || (elementKind = "array") {
+						Do ..RefusalAdd("ERROR #9406 on "_property_" element "_k, .parts, .count)
+						Set found = found + 1
+					} Else {
+						Set found = found + ..RefusalCheck(replyClass, property, array.%Get(k - 1), k, .parts, .count)
+					}
+				}
+			} ElseIf (collection = "") && (kind '= "object") && (kind '= "array") && (kind '= "unassigned") {
+				Set found = found + ..RefusalCheck(replyClass, property, object.%Get(field), "", .parts, .count)
+			}
+		}
+	} Catch exception {
+	}
+	If 'found Do ..RefusalAdd("ERROR #9406 on "_property, .parts, .count)
+}
+
+/// Checks one value with the property's own <Property>IsValid and adds the parts of its errors; the number of errors.
+ClassMethod RefusalCheck(replyClass As %String, property As %String, value As %String, position As %String, ByRef parts, ByRef count) As %Integer [ Private ]
+{
+	Set sc = $ClassMethod(replyClass, property_"IsValid", value)
+	If $$$ISOK(sc) Quit 0
+	Do $SYSTEM.Status.DecomposeStatus(sc, .errors)
+	For i = 1:1:+$Get(errors) {
+		Do ..RefusalAdd(..RefusalPart($Get(errors(i, "code")), $Get(errors(i, "param", 1)), $Get(errors(i, "param", 2)), property, position), .parts, .count)
+	}
+	Quit +$Get(errors)
 }
 
 /// The text without surrounding white space, and without one surrounding Markdown code fence: three backticks and an optional
@@ -778,7 +961,7 @@ ClassMethod HoldsAll(text As %String, pieces As %String) As %Boolean [ Private ]
 ///      or nothing is left of it once the filter has run. For decide and diagnose, the check is CheckReply against replyClass; for a
 ///      turn, the text itself;
 ///   2. calls Classify once. A reason goes to RecordFallback, which records the fallback and answers (below); for an invalid decide or diagnose
-///      reply, the check's own error text (problem, see Interpret) is first logged, redacted, as one warning in the decision's trace session;
+///      reply, what the check refused (problem, see Interpret: RefusalText's words, never the reply) is first logged, redacted, as one warning in the decision's trace session;
 ///   3. otherwise, the reply is usable and each model-written text was filtered once with filterClass (each reason; each property that
 ///      the reply class names in its FILTERED parameter that is not empty, each item of a list, after which the payload is validated again; a
 ///      turn's reply text),
@@ -908,7 +1091,7 @@ ClassMethod StillApproved(ref As %String) As %Boolean [ Private ]
 /// when the reply is a decision: outcome, reasons (one line each, with the code-written line first when the user rule changed the
 /// outcome), confidence (two decimals) and json (the payload as JSON, with the filtered properties) are set. 0 when it fails the check,
 /// no reason is left of it once filtered, or the payload fails its check again after filtering (invalid). sc is an error only when the payload cannot be exported.
-/// problem is "" unless the result is 0; then it says why: CheckReply's error text, "No reason is left once the reply filter has run", or "After the reply filter ran: " and the first 400 characters of the second check's error text. Conclude logs it, redacted, as a warning in the decision's trace session when the fallback is invalid.
+/// problem is "" unless the result is 0; then it says why, in words that quote no content of the reply (RefusalText): "The reply check failed: the reply is not one JSON object that <replyClass> accepts: " and what the first check refused, "No reason is left once the reply filter has run", or "After the reply filter ran: <replyClass> refused the filtered payload: " and what the second check refused. Conclude logs it, redacted, as a warning in the decision's trace session when the fallback is invalid.
 /// Both checks run with OcuTalon.Bridge.ReplyCheck begun from the request, so a reply class's %OnValidateObject can read what the request carried; it is ended on every
 /// exit, an exception included, and an exception is thrown on.
 ClassMethod Interpret(request As OcuTalon.Bridge.Msg.Request, text As %String, replyClass As %String, filterClass As %String, Output outcome As %String, Output reasons As %String, Output confidence As %String, Output json As %String, Output sc As %Status, Output problem As %String) As %Boolean [ Private ]
@@ -930,7 +1113,8 @@ ClassMethod Interpret(request As OcuTalon.Bridge.Msg.Request, text As %String, r
 	Quit valid
 }
 
-/// The work of Interpret, run while the ReplyCheck of the request is begun: the reply check, the filtering and the check again, with the same results.
+/// The work of Interpret, run while the ReplyCheck of the request is begun: the reply check, the filtering and the check again, with the same results. A check
+/// that fails gives problem the words of RefusalText for the status of the check (CheckReply's cause, or the second check's status), never IRIS's error text.
 ClassMethod Judge(request As OcuTalon.Bridge.Msg.Request, text As %String, replyClass As %String, filterClass As %String, Output outcome As %String, Output reasons As %String, Output confidence As %String, Output json As %String, Output sc As %Status, Output problem As %String) As %Boolean [ Private ]
 {
 	Set sc = $$$OK
@@ -939,9 +1123,9 @@ ClassMethod Judge(request As OcuTalon.Bridge.Msg.Request, text As %String, reply
 	Set confidence = ""
 	Set json = ""
 	Set problem = ""
-	Set checked = ..CheckReply(text, replyClass, .payload)
+	Set checked = ..CheckReply(text, replyClass, .payload, .cause)
 	If $$$ISERR(checked) {
-		Set problem = $SYSTEM.Status.GetErrorText(checked)
+		Set problem = ..#CHECKFAILED_replyClass_" accepts: "_..RefusalText(cause, replyClass, text)
 		Quit 0
 	}
 	Set lines = ""
@@ -977,7 +1161,7 @@ ClassMethod Judge(request As OcuTalon.Bridge.Msg.Request, text As %String, reply
 	If named '= "" {
 		Set checked = payload.%ValidateObject()
 		If $$$ISERR(checked) {
-			Set problem = "After the reply filter ran: "_$Extract($SYSTEM.Status.GetErrorText(checked), 1, 400)
+			Set problem = "After the reply filter ran: "_replyClass_" refused the filtered payload: "_..RefusalText(checked, replyClass)
 			Quit 0
 		}
 	}

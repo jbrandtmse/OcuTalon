@@ -2,7 +2,8 @@
 title: 'The invalid-reply warning names what failed, never the reply'
 type: 'bugfix'
 created: '2026-10-31'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '97b4405e8a1f016e26251716fda39747dac5f23b'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -134,8 +135,8 @@ Class paths are under `src/ocutalon/cls/OcuTalon/` unless they start with `src/b
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] Task 0: no measurement is left. The platform facts were measured at planning (Design Notes). The fresh `Test.Watch.Diagnose` run confirms them in a production job.
-- [ ] `src/bridge/cls/OcuTalon/Bridge/Process/Decide.cls` (rows 1-16; DW-498):
+- [x] Task 0: no measurement is left. The platform facts were measured at planning (Design Notes). The fresh `Test.Watch.Diagnose` run confirms them in a production job.
+- [x] `src/bridge/cls/OcuTalon/Bridge/Process/Decide.cls` (rows 1-16; DW-498):
   - `CheckReply` gains a trailing `Output cause As %Status`. It is the status of the import or the validation before it is wrapped (`$$$OK` when the reply passes). The returned status and its text are unchanged. Add a doc line.
   - New `ClassMethod RefusalText(cause As %Status, replyClass As %String, text As %String = "") As %String` gives the words of each error of `cause`, in DecomposeStatus order:
     - **Property and position.** They come from an embedded `#5802`, or from a `#5659`, whose first parameter is "<class>:<Property>" or "<class>:<Property>(<n>)". The name is used only when `%Dictionary.CompiledProperty` has it on `replyClass`.
@@ -151,7 +152,7 @@ Class paths are under `src/ocutalon/cls/OcuTalon/` unless they start with `src/b
   - `Judge` path 1: `problem` = "The reply check failed: the reply is not one JSON object that "_replyClass_" accepts: "_`RefusalText(cause, replyClass, text)`.
   - `Judge` path 2: `problem` = "After the reply filter ran: "_replyClass_" refused the filtered payload: "_`RefusalText(checked, replyClass)`.
   - Update the docs of the class, Conclude, Interpret and Judge.
-- [ ] `Test/Bridge/ReplyCheck.cls`:
+- [x] `Test/Bridge/ReplyCheck.cls`:
   - The Conclude helper gains a filter argument (default as today) and returns its Ref.
   - New helpers: Marker(), and Warning(ref, .text) through `Test.Core.Observe.Warnings(mark, .text, "Conclude", REFUSED_ref)`.
   - OnBeforeOneTest keeps the mark (`Test.Core.Observe.LastLog()`). OnBefore/OnAfterOneTest kill `^||ZzProbeFilter`, and OnAfterOneTest removes the REFUSED warnings after the mark, also after a failure.
@@ -161,14 +162,14 @@ Class paths are under `src/ocutalon/cls/OcuTalon/` unless they start with `src/b
     - `TestRefusalTextForms` (row 15, on statuses built with `$SYSTEM.Status.Error`, `EmbedStatus` and `AppendStatus`).
   - Each Conclude case asserts the whole warning text, a count of 1 and "no marker". `TestRefusalTextForms` asserts the text `RefusalText` returns.
   - Update the doc (AC 1-4).
-- [ ] `Test/Watch/Payload.cls` TestRefusalTrace (rows 4, 9, 12, 13):
+- [x] `Test/Watch/Payload.cls` TestRefusalTrace (rows 4, 9, 12, 13):
   - Pin the exact `W1`/`W2` text of each case.
   - "Over the limit" asserts "Evidence element 2: 129 > 128". It no longer asserts "evidence".
   - "Key in a refused value" asserts "ERROR #5001", with neither the key nor "[redacted]".
   - Update the doc `:14-18`.
-- [ ] `Test/Watch/Diagnose.cls:287` (row 14): also assert that the warning ends with "OcuTalon.Watch.Msg.DiagnosisPayload accepts: ERROR #9406 on Reasons". Update the doc `:19-20`.
-- [ ] `Test/Agent/KeyScan.cls:123` (row 17; DW-505): `Do $$$AssertTrue(text [ ("agent steps "_stepId), "Find sees an agent step: "_text)`.
-- [ ] `docker/tests/test-class-rules.sh` (row 18; DW-505; footprint extension):
+- [x] `Test/Watch/Diagnose.cls:287` (row 14): also assert that the warning ends with "OcuTalon.Watch.Msg.DiagnosisPayload accepts: ERROR #9406 on Reasons". Update the doc `:19-20`.
+- [x] `Test/Agent/KeyScan.cls:123` (row 17; DW-505): `Do $$$AssertTrue(text [ ("agent steps "_stepId), "Find sees an agent step: "_text)`.
+- [x] `docker/tests/test-class-rules.sh` (row 18; DW-505; footprint extension):
   - A new rule `assert-concat`: in the first argument of `$$$AssertTrue(`, `$$$AssertNotTrue(`, `$$$AssertEquals(` and `$$$AssertNotEquals(`, no `_` at the top level to the right of a top-level `[`, `]` or `]]`, or their `'` forms.
   - "Top level" means outside string literals (`""` escapes), parentheses, braces and JSON-array brackets. A `[` is the operator when the significant character before it ends an operand (a letter, a digit, `)`, `}`, `"` or `'`); otherwise it opens an array. A `]` closes an array only when one is open.
   - It scans joined text, so an assertion that spans lines is named at its first line.
@@ -179,7 +180,7 @@ Class paths are under `src/ocutalon/cls/OcuTalon/` unless they start with `src/b
     - **Clean:** `text [ ("a"_y), "l: "_t`; `(x [ "a")_y`; `x_y [ z`; `x [ y, "l "_z`; `x [ y && (a_b = c)`; `[1,2].%ToJSON()_"", "[1,2]"`; `..F([1, 2]) [ "a"`; `x = "a [ b_c"`; `If x [ "a"_y Quit` (not an assertion); comment and doc lines; an allowed Class:Method.
     - A stale entry is reported.
   - Scan `scan_files src | grep '\.cls$'`. Add the header bullet.
-- [ ] Slot B: `iris_doc_load` and compile the changed classes (`server` `ocutalon-slot-b`, `namespace` `OCUTALON`, identity checked with `iris_server_info`), 0 errors.
+- [x] Slot B: `iris_doc_load` and compile the changed classes (`server` `ocutalon-slot-b`, `namespace` `OCUTALON`, identity checked with `iris_server_info`), 0 errors.
 
 **Acceptance Criteria:**
 - Given a reply whose check fails on a length or datatype rule, when `Decide` refuses it as `invalid`, then its one trace warning names the failing property and the limit, with the measured length where it applies ("Evidence element 2: 129 > 128"). It is built from the error code, the reply class's own property and the limit, and quotes none of the reply (rows 1-4, 15; U-193, DW-498).
@@ -191,6 +192,30 @@ Class paths are under `src/ocutalon/cls/OcuTalon/` unless they start with `src/b
 ## Spec Change Log
 
 ## Review Triage Log
+
+### 2026-10-31 - Review pass
+- verdicts: 20 rows covering every finding of the four layers (grouped by root cause) - medium 2 (patched), low 18 (2 patched, 16 rejected as by-design, defensive or not worth the added state), high 0, false 0, maybe-false 0
+- findings:
+  - `[low]` `[patch]` Blind: the wrapper sentence is written twice (CheckReply, Judge), and a change of only the colon was pinned by no test - fixed: one Parameter CHECKFAILED feeds both, and ReplyCheck pins Judge's side to the same words.
+  - `[low]` `[reject]` Blind: "an error" is shared by `$$$OK`, an empty decomposition and a caught exception - the spec fixes that text; the catch is defensive and unreachable from outside.
+  - `[low]` `[reject]` Blind: a class's own #5001, #9404 and #5035 name no property - by design (rows 7-9; naming one would need a value-dependent rule).
+  - `[low]` `[reject]` Blind: the key/[redacted] pin is gone - by design: row 9 pins that neither appears, and Conclude's Redact.Text call is unchanged.
+  - `[low]` `[reject]` Blind and Edge: RefusalNumber accepts digits-first limits only - IRIS limits of the reply classes are such; any other form degrades to "ERROR #<code> on <Property>", which is safe; widening adds a pattern for no reachable case.
+  - `[low]` `[reject]` Blind and Edge: assert-concat does not skip trailing comments, block comments or string literals holding an assertion token, and scans only `.cls` - only a false positive on rare text; `src/` passes; fix adds scanner state.
+  - `[low]` `[reject]` Blind: the allow-listed Lane B line stays - by design (U-193 routing, DW-505 option ii); the stale check removes the entry with the fix.
+  - `[low]` `[reject]` Blind: the Auto Run Result and the "reverted byte for byte" note - bookkeeping, written at finalize; each revert was checked with `git diff --stat`.
+  - `[low]` `[reject]` Edge: RefusalProperty ignores the class part of "<class>:<Property>" - the name printed is the reply class's own compiled property; no reply content is reachable.
+  - `[medium]` `[patch]` Edge: RefusalAdd compared every new part with all earlier ones, quadratic in a list of invalid elements - fixed: a subscript index (`parts("seen", part)`).
+  - `[low]` `[reject]` Edge: a %JSONMAPPING or array-collection property degrades to the bare code - graceful, and no reply class uses either.
+  - `[low]` `[reject]` Edge: other operators (=, <, >, &&) and nested positions are not flagged - by design (spec scope; `=`, `<`, `>` had no hit).
+  - `[low]` `[reject]` Edge: the allow-list is per Class:Method - by design (the spec names Class:Method).
+  - `[low]` `[reject]` Edge: no `.cls` file would make awk read stdin - `src/` always has them.
+  - `[low]` `[reject]` Edge claims (two): the rule's reach and the property check - restate rows covered above.
+  - `[medium]` `[patch]` Verification gap: RefusalImport's `Unfenced` was pinned by no test (a fenced reply) - fixed: a fenced row 1 case in TestRefusalNamesTheLimitNotTheReply, mutation recorded.
+  - `[low]` `[patch]` Verification gap: the object or array list element form was pinned by no test - fixed: a row 10 case, mutation recorded.
+  - `[low]` `[reject]` Verification gap: the catch-all "an error" path and the %JSONINCLUDE skip have no test - theoretical; ProbeReplyCheck has no such property and the catch is defensive.
+  - `[low]` `[reject]` Verification gap: per-method allow-list, redundant marker assertions, row 14's dependence on the mock reply - by design or harmless.
+  - `[low]` `[reject]` Intent alignment: seven descriptive items (readings A-E; no divergence found; the frozen CheckReply text is read by Judge no more) - descriptive only.
 
 ## Design Notes
 
@@ -323,10 +348,35 @@ Where to run:
 | AC 5, row 17 | KeyScan's expected id made wrong (`stepId + 1`) | KeyScan TestKeyIsStoredNowhere |
 | AC 5, row 18 | KeyScan:123 put back as it was; the allow-list entry removed; a stale entry added | `assert-concat` FAIL naming each file:line, or the stale entry |
 
+Mutation results (Rule 19; each applied, observed red, reverted byte for byte; the warm class was green again after each revert):
+- mutation: Judge path 1 keeps `GetErrorText(checked)` -> `Test.Bridge.ReplyCheck` TestOtherRefusalsNameTheCode rows 7-11 and TestRefusalNamesTheLimitNotTheReply rows 1-3 (the marker appears in rows 8 and 9); `Test.Watch.Payload` TestRefusalTrace over-the-limit and key-in-a-refused-value (the key case now holds "[redacted]"); `Test.Watch.Diagnose` (fresh) TestDiagnosisVariants "it ends with what the check refused".
+- mutation: Judge path 2 keeps `GetErrorText(checked)` (first 400 characters) -> `Test.Bridge.ReplyCheck` TestRefusalNamesTheLimitNotTheReply rows 5 and 6 (the marker appears).
+- mutation: the length part prints parameter 1 instead of its `$Length` -> `Test.Bridge.ReplyCheck` TestRefusalNamesTheLimitNotTheReply rows 1, 2, 5 and 6 (the marker appears).
+- mutation: the `#9406` lookup dropped (`If 0 && ...` in RefusalImport) -> `Test.Bridge.ReplyCheck` TestRefusalNamesTheLimitNotTheReply rows 1, 2 and 3 and TestOtherRefusalsNameTheCode row 10 (Confidence); `Test.Watch.Payload` TestRefusalTrace over-the-limit.
+- mutation: the element position dropped -> `Test.Bridge.ReplyCheck` TestRefusalNamesTheLimitNotTheReply rows 2 and 6 and TestRefusalTextForms a.
+- mutation: the compiled-property check dropped -> `Test.Bridge.ReplyCheck` TestRefusalTextForms d.
+- mutation: the cap removed (MAXREFUSALPARTS 999) -> `Test.Bridge.ReplyCheck` TestRefusalNamesTheLimitNotTheReply row 6 and TestRefusalTextForms h.
+- mutation: the IsValid code ignored (RefusalCheck always adds nothing, so "ERROR #9406 on <Property>") -> `Test.Bridge.ReplyCheck` TestRefusalNamesTheLimitNotTheReply rows 1, 2 and 3 and TestOtherRefusalsNameTheCode row 10 (Confidence).
+- mutation: `CheckReply`'s wrapper text changed ("The reply check failed" to "The reply check fails") -> `Test.Fix.Kind` TestReplyCheckRows and `Test.Watch.Payload` TestPayloadRefused (a change of only the colon after "failed" is not pinned by any test: the pins match "The reply check failed").
+- mutation: KeyScan's expected id made wrong (`stepId + 1`) -> `Test.Agent.KeyScan` TestKeyIsStoredNowhere ("Find sees an agent step").
+- mutation: KeyScan:123 put back as `text [ "agent steps "_stepId` -> `assert-concat` FAIL at `src/ocutalon/cls/OcuTalon/Test/Agent/KeyScan.cls:123`; the allow-list entry removed -> FAIL at `src/ocutalon/cls/OcuTalon/Test/Data/PublicSettings.cls:105`; a stale entry added -> FAIL "stale allow-list entry" at the entry's line in `docker/tests/test-class-rules.sh`.
+- mutation: `RefusalImport` reads the reply text without `Unfenced` (a fenced reply) -> `Test.Bridge.ReplyCheck` TestRefusalNamesTheLimitNotTheReply "row 1: a text over its limit in a Markdown code fence".
+- mutation: the object-or-array list element line of `RefusalImport` dropped -> `Test.Bridge.ReplyCheck` TestOtherRefusalsNameTheCode "row 10: an object for a list element".
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-- Planned only ("Halt after planning."). The spec met the READY FOR DEVELOPMENT standard after one repair pass, which spelled out the `#9406` lookup's shapes, the test mark and the pure test's assertion.
-- Measured at planning on slot B (`ocutalon-slot-b`, build 154U): in-memory objects only; nothing was saved, loaded or compiled.
+- Summary: an invalid decide or diagnose reply now gets a trace warning built by the new `Decide.RefusalText` from the error code, the reply class's own property, the element position, the numeric limit and a computed length; no value, IRIS message text or reply field name. `CheckReply` gained a trailing `Output cause`; its returned status and text are unchanged, and its wrapper words are now one Parameter (`CHECKFAILED`) shared with `Judge`. DW-505: `Test.Agent.KeyScan:123` parenthesised, and the `assert-concat` class-rules check added with one allow-listed Lane B line (`Test.Data.PublicSettings:TestNextReset`; routing in Design Notes).
+- Files changed:
+  - `src/bridge/cls/OcuTalon/Bridge/Process/Decide.cls`: `CheckReply` cause output, `RefusalText` and helpers, `Judge` on both paths, docs.
+  - `src/ocutalon/cls/OcuTalon/Test/Bridge/ReplyCheck.cls`: three new tests, helpers, a fenced-reply case and an object-element case.
+  - `src/ocutalon/cls/OcuTalon/Test/Watch/Payload.cls`: exact warning text per case.
+  - `src/ocutalon/cls/OcuTalon/Test/Watch/Diagnose.cls`: the live warning's ending.
+  - `src/ocutalon/cls/OcuTalon/Test/Agent/KeyScan.cls`: line 123.
+  - `docker/tests/test-class-rules.sh`: `assert-concat` (footprint extension, not contended).
+- Review: 4 layers; patches applied 4 (2 medium: the quadratic part de-duplication, the unpinned `Unfenced` call; 2 low: the shared wrapper Parameter, the object list element case); deferred 0; rejected 16 low as by-design, defensive or not worth the added state (reasons in the Review Triage Log).
+- Follow-up review recommended: false (the two patched mediums are covered by a recorded mutation each and by the green full shards).
+- Verification: `test-class-rules.sh` green; slot B load and compile 0 errors; warm `Test.Bridge.ReplyCheck`, `Test.Watch.Payload`, `Test.Agent.KeyScan`, `Test.Bridge.Decide`, `Test.Fix.Kind`, `Test.Fix.Validation` passed; fresh `Test.Watch.Diagnose` passed; `bash ci/checks.sh` passed; fresh `shard lane-a` parts 1-6 and `shard lane-b` parts 1-3 passed (lane-a: 514, 230, 248, 577, 401, 482 s; lane-b: 888, 228, 465 s). Both throwaway tags torn down.
+- Residual risks: `assert-concat` ran on macOS awk only; the Lane B line stays allow-listed until Epic 31 fixes it and removes the entry in the same change.
