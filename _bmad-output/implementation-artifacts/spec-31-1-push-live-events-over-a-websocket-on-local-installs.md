@@ -16,7 +16,7 @@ deferred: []
 
 **Problem:** The page gets live events only by polling `GET /api/v1/events` (1 s after each answer). On a local or IPM install an update can wait a whole poll cycle. AD-12 plans a WebSocket as the second live path, built after polling and never replacing it (FR-12, NFR-9).
 
-**Approach:** Add a new `%CSP.WebSocket` class, `OcuTalon.Web.Live`. It is reached through a new `GET /v1/live` route entry of `/ocutalon/api`, which was measured working on build 154U. The AC's `/ocutalon/OcuTalon.Web.Live.cls` is served by the contended Shell and never reaches the class. The socket sends each committed event after the client's cursors, in `/events`' own body `{epoch, events}`. The page's live service opens it after the first snapshot on a non-demo install and feeds every frame to the same `applyEvents` path. Polling keeps running, unchanged, beside it.
+**Approach:** Add a new `%CSP.WebSocket` class, `OcuTalon.Web.Live`. It is reached at the AC's own URL, `/ocutalon/OcuTalon.Web.Live.cls`, forwarded by the shell (AD-13: "forwarded by the shell"): a `Web/Public/Shell.cls` route for `/OcuTalon.Web.Live.cls`, placed before `/(.*)`, hands the request to `OcuTalon.Web.Live.Page()` in synchronous mode (U-175; route (c) `/ocutalon/api/v1/live` is not planned, and M2's handoff is re-measured inside the shell application). The sign-out sets a server-side mark in `Data/Session.cls` that the socket reads on each loop, so an open socket sends no further frame within one loop after sign-out; a fixed 60-second socket lifetime stays as a backstop (U-174). The socket sends each committed event after the client's cursors, in `/events`' own body `{epoch, events}`. The page's live service opens it after the first snapshot on a non-demo install and feeds every frame to the same `applyEvents` path. Polling keeps running, unchanged, beside it (U-173). [AMENDED 2026-11-01, lead (runner C) at the re-plan, applying rulings U-173/U-174/U-175 and the owner's answers already recorded under ## Design Notes; it read: "It is reached through a new `GET /v1/live` route entry of `/ocutalon/api` … The AC's `/ocutalon/OcuTalon.Web.Live.cls` is served by the contended Shell and never reaches the class."]
 
 ## Boundaries & Constraints
 
@@ -42,13 +42,13 @@ deferred: []
 - The socket path makes no announcement, moves no focus and shows no banner or message.
 
 **Never:**
-- **No edit to a contended path.** That covers:
-  - `src/ocutalon/cls/OcuTalon/Web/Public/**` (the Shell included), `Web/SessionEvents.cls`, `Data/{Ownership,Session,Setting}.cls`, `Install/**`;
-  - `web/e2e/banners/banners.spec.ts`, `web/e2e/support/floor.ts`, `web/e2e-online/**`;
-  - `web/playwright.config.ts`, `web/package.json`, `web/scripts/playwright-projects.test.mjs`;
-  - `docker/tests/lib-live.sh`, `ci/units.sh`;
-  - `web/src/app/api/api-client.ts` (changed on unmerged `OCT-epic29`).
-- No new web application, role, grant, CSP or gateway setting. No change to how anyone signs in or out.
+- **No edit to a contended path** (open epics' paths as of 2026-11-01; re-check with `git diff --name-only origin/feature/OCT_OcuTalon_MVP...origin/OCT-epic<N>` before editing an existing file). That covers:
+  - Epic 11's: `src/ocutalon/cls/OcuTalon/Web/Api.cls` (read `EventsBody` only, never edit), `Data/Pairing.cls`, `web/src/app/api/api-types.ts`, `web/src/app/live/live-store.ts`, `web/e2e/support/{approvals,demo-path,devices,iris,navigate,rehearsal,trace}.ts`, `ci/units.sh`, `release/**`, `Test/Live/Payloads.cls`;
+  - Epic 4's: `web/src/app/**` except one self-contained block in `web/src/app/live/live-state.ts` and new files (`live/live-socket.ts`); in `web/e2e/floor/guide.spec.ts` only this story's held-poll lines; `web/scripts/*.test.mjs`;
+  - Epic 12's: `docker/tests/lib-live.sh`, Telegram; Epic 30's: the bridge, Checks, Fix, Tasks, `Install/Step/{Retention,Watch}`;
+  - standing: `web/e2e/banners/banners.spec.ts`, `web/e2e/support/floor.ts`, `web/e2e-online/**` (U-173), `web/playwright.config.ts`, `web/package.json`, `Install/**`.
+  - Free since Epic 29 merged, and this story's to edit: `Web/Public/Shell.cls` (the forwarding route only) and `Data/Session.cls` (the sign-out mark only). [AMENDED 2026-11-01, lead (runner C): the contended list re-computed after Epic 29 merged; it listed `Web/Public/**`, `Web/SessionEvents.cls`, `Data/{Ownership,Session,Setting}.cls`, `Install/**`, `web/e2e/banners/banners.spec.ts`, `web/e2e/support/floor.ts`, `web/e2e-online/**`, `web/playwright.config.ts`, `web/package.json`, `web/scripts/playwright-projects.test.mjs`, `docker/tests/lib-live.sh`, `ci/units.sh`, `web/src/app/api/api-client.ts`.]
+- No new web application, role, grant, CSP or gateway setting. No change to how anyone signs in, or to what a sign-out does beyond also setting the server-side mark (U-174).
 - No new production item, message class, table or event type.
 - No unit added to any CI group. No socket on the online demo. No change to approvals.
 
@@ -217,9 +217,20 @@ deferred: []
 - 2026-10-30, lead (runner B): the plan HALTed `blocked` on Q1 and Q2 (with A1/A2). Rulings written under ## Design Notes: Q1 → U-174 (orchestrator, veto: checks before `Server()`, page close in `stop()`, 60 s lifetime; conditions (a)–(d) as tests; DW-457 for the server-side sign-out check), A2 → U-175 (orchestrator, veto: no AD-13 amendment; the shell forwards the socket at the AC's URL; A1 withdrawn; the story waits on Epic 29), Q2 → U-173 (runner, veto: polling unchanged beside the socket; specs block it with a helper that never edits `web/e2e/support/floor.ts` or `web/e2e/banners/banners.spec.ts`). Status reset to `draft`, so the spec is re-planned for the shell route once Epic 29 merges (re-measure M2 in the shell application). Ledger inbox at the re-plan: DW-457.
 - 2026-10-30, lead (runner B): owner answers applied (the Contest Planner, the owner's delegate, through the inbox), quoted under ## Design Notes. U-173 at=2026-10-30T22:43:15Z#526: accepted, plus a required test that one event arriving over both the socket and a poll is applied exactly once (by `seq`), and the dev note that polling stays on beside the socket against the user story's "polling only as the fallback". U-174 at=2026-10-30T22:43:15Z#527: accepted with one change: the server-side sign-out mark (set at sign-out, read on each socket loop) is built in this story, with a test that an open socket sends no further frame within one loop after sign-out; the 60 s lifetime stays as a backstop; the server's own online-demo refusal stays (the demo gate passes upgrades, AD-24); only if another open epic holds `Data/Session.cls` at the re-plan does DW-457 stay a ledger entry, due before 1.0.0. U-175 kept (route (c) declined) and resolved. Status stays `draft`.
 
+- 2026-11-01, lead (runner C): re-dispatched after Epic 29 merged. Intent block brought in line with U-173/U-174/U-175 (Approach: shell-forwarded route at the AC's URL and the sign-out mark; Never: contended paths re-computed, Shell and Session freed for this story's two edits; sign-out sentence). Re-dispatch rulings added at the top of ## Design Notes. Ledger inbox: DW-457, DW-397. Status stays `draft` for the re-plan.
+
 ## Review Triage Log
 
 ## Design Notes
+
+**Re-dispatch rulings (2026-11-01, runner C, policy ff1bd1a; read first; they govern the re-plan together with the rulings below):**
+- **Epic 29 has merged** (fe1d81e2): `Web/Public/Shell.cls` and `Data/Session.cls` are free. No open branch (Epics 4, 11, 12, 30) has changed either file (checked 2026-11-01 at feature 416b0f64). So the sign-out mark is built in this story (U-174's main case), and DW-457 is resolved by it at adjudication.
+- **Policy change (e204efac):** owner-fixed (3) now reads "Polling is the online demo's contract; local installs get the WebSocket with Epic 31 in 1.0.0." Nothing in this story's intent changes: polling stays on everywhere, and the socket is added on local installs only.
+- **Epic 11 (live) now changes `Web/Api.cls`:** this story only reads `Api.EventsBody`; it never edits `Api.cls`, `api-types.ts` or `live-store.ts`.
+- **Epic 4 (live) owns `web/src/app/**` and `web/e2e/floor/guide.spec.ts`** (Story 4.8 removes the Go-to-Break-the-feed cases there). Ruling (dispatch, decide): new files (`web/src/app/live/live-socket.ts`, `web/e2e/support/socket.ts`) are no collision. In `live-state.ts`, keep this story's wiring to ONE self-contained block. In `floor/guide.spec.ts`, change only this story's held-poll lines. Both go under `footprint_extensions:` and are resolved as a plain union at integrate-forward; if Epic 4's change and this story's touch the same lines, the lead raises a clarification.
+- **Re-measure, don't assume:** M2's handoff inside the shell application (`/ocutalon`, `OcuTalon.Web.Public.Shell`), on a lane-C throwaway (`OCUTALON_LOCK_DIR=<main>/.worktrees/.coordination/locks/lane-c`, `OCUTALON_TEST_WEB_PORT=52803`), against Epic 29's merged Shell, Session and banner code; and the spine's web-layer write rule for the sign-out mark.
+- **CI groups:** add no unit to a group over 30 minutes without moving another out; only `shards` is under 30 today. New IRIS test classes go into `shards`. No job renamed and no iris group added, renamed or removed (branch protection).
+- **DW-397** (routed here by the merge gate): its fix needs `Install/Step/Demo.cls` (not contended now, but outside this story's intent). Recommendation: decline it under Design Notes as out of scope for a WebSocket story (smaller is better); the lead re-owns it at the spec gate.
 
 **Rulings on this plan's questions (2026-10-30, policy 6df0676; these govern the re-plan and override the "Decided in-stage" items and recommendations below wherever they differ):**
 - **Q1 → U-174 (orchestrator ruling, veto): recommendation 1–3 kept.**
