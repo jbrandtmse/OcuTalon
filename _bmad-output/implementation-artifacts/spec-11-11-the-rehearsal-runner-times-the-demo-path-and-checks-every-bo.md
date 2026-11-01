@@ -282,6 +282,46 @@ The repeats (runs 2 to N with Run again and the replay rule) and the per-run tel
 - **AC7 (interface).** Given the header's usage, when `runs` repeats, `runs` or `exec` runs out of order, `--plant` runs in real mode, or a real-mode guard trips, then each behaves as its matrix row says, and the header documents `runs`, `exec`, `--runs`, `--plant`, the mark names, the Bounds table's ids and the exit codes.
 - **AC8 (inert in CI).** Given `OCUTALON_E2E_MARKS` and `OCUTALON_E2E_IRIS_EXEC` unset, when the demo-path helpers and `irisScript` run, then they add no wait, write no file and spawn today's `docker exec`. Pinned by `rehearsal-support.test.mjs`; `ci/iris.sh live demo-path` passes.
 
+### Review Findings
+
+Code review (follow-up, 2026-11-01; tier full-opus, layers blind-hunter, edge-case-hunter, verification-gap and acceptance-auditor; 35 rows, 30 entries: high 0, medium 5, low 23, false 1, duplicate 1). Every patch was re-run through `test-rehearsal.sh` (17 rules), the node test (13), lint and `test-boundaries.sh`, and each new pin was shown red by a mutation (Verification).
+
+Patched (in-story):
+- [x] [Review][Patch] `[medium]` A missed bound printed no FAIL line, and a plant lost its `(planted)` line, when another run of the same bound had no measurement (AC4) - blind+edge+acceptance; fix-risk low (one awk branch). The FAIL line now prints whenever the misses pass the allowance, and the row names both. [release/rehearse.sh BOUNDS_AWK]
+- [x] [Review][Patch] `[medium]` The settle-end, diagnosis and delivery limits and their every-run rule had no test (AC2) - verification-gap; fix-risk low (tests only). Each one now has a miss just over its limit and a pass at it, and the passing detail texts are pinned. [docker/tests/test-rehearsal.sh t_bounds]
+- [x] [Review][Patch] `[medium]` The "no model key" check could not fail: the test itself had unset the key (N-list: no key) - verification-gap; fix-risk low. The passing run now gets a planted key and bot token, and the stub records both as `unset`. [docker/tests/test-rehearsal.sh t_timed_runs]
+- [x] [Review][Patch] `[medium]` Nothing checked that the clean host is scrubbed from the Playwright output (AD-19; Decided in-stage 15) - verification-gap; fix-risk low. The stub npm can print the URL; the run's output and `output.log` are checked for the host. [docker/tests/test-rehearsal.sh]
+- [x] [Review][Patch] `[medium]` The self-test read `OCUTALON_E2E_TIMEOUT_MS`, `OCUTALON_REHEARSAL_RUN` and the other e2e variables from the caller (Rule 19 hermeticity) - verification-gap; fix-risk low. They are now unset at the top. [docker/tests/test-rehearsal.sh]
+- [x] [Review][Patch] `[low]` The zero-timeout fallback had no test - verification-gap. One `runs` call now passes `OCUTALON_E2E_TIMEOUT_MS=0`. [docker/tests/test-rehearsal.sh]
+- [x] [Review][Patch] `[low]` `run`'s `--plant` filter walked the options one at a time: with `--record --plant` last it never ended, and mid-list it dropped another option's value - edge+verification-gap. It is now `install_args`, which walks by pairs as `parse_options` does, with a unit case. The forwarding to `report --plant` stays untested: DW-538. [release/rehearse.sh cmd_run]
+- [x] [Review][Patch] `[low]` The median row recorded a median over only the measured runs; it now fails when a run is unmeasured, like first-reply and reminder-result (Decided in-stage 16) - blind+edge. [release/rehearse.sh BOUNDS_AWK]
+- [x] [Review][Patch] `[low]` A planted bound whose measured value is 0 or below read as met; a planted bound now misses in every measured run - edge. [release/rehearse.sh BOUNDS_AWK]
+- [x] [Review][Patch] `[low]` `scrub_origin` was case-sensitive, and a URL lower-cases its host - edge. [release/rehearse.sh scrub_origin]
+- [x] [Review][Patch] `[low]` `exec` with `OCUTALON_REHEARSAL_RUN=<k>` made `runs/<k>` when it did not exist, so a later `runs` refused - edge. It now counts only into an existing run folder. [release/rehearse.sh cmd_exec]
+- [x] [Review][Patch] `[low]` A checkout path that holds a single quote broke `OCUTALON_E2E_IRIS_EXEC`; the quote is now escaped - edge. [release/rehearse.sh phase_runs]
+- [x] [Review][Patch] `[low]` The header did not list `server.start` or give the exit codes of `runs` and `exec`, and it said the whole `runs` call was bounded by `OCUTALON_E2E_TIMEOUT_MS` (AC7) - blind+edge. [release/rehearse.sh header]
+- [x] [Review][Patch] `[low]` The self-test's header did not name the `guards` rule - blind. [docker/tests/test-rehearsal.sh header]
+- [x] [Review][Patch] `[low]` Two `existsSync(file)` assertions in the marks-off tests could not fail (Rule 19); removed, since the probe count, the elapsed time and a throwing write carry those cases - verification-gap. [web/scripts/rehearsal-support.test.mjs]
+
+Deferred (ledger):
+- [x] [Review][Defer] `[low]` `run` can pass the 10-minute call cap when the Playwright run times out - acceptance; DW-537 `wontfix-accepted` (reopen_if a dry `run` call exceeds 600 s).
+- [x] [Review][Defer] `[low]` `run --dry-run --plant` forwarding to `report` is never executed by a test - verification-gap; DW-538 `wontfix-accepted` (reopen_if a dry `run --plant pick-up` exits 3).
+
+Dismissed (with the reason):
+- `[low]` first-reply cannot be shorter than decision (the reply probe starts after the decision mark), and an earlier reply is marked at once - by-design: the spec fixes the sequence ("then markWhen('step1_reply_seen')") and the probe; first-reply is recorded only, and the value is an upper bound. (The earlier pass closed the second half the same way.)
+- `[low]` with marks on, the two 90 s waits can use 02-watch's 180 s budget - the run still fails naming step watch; a cap would add complexity for a better message only.
+- `[low]` a failed run 1 cannot be retried without down and a new install, and `runs` checks no browser or `node_modules` first - by-design (the matrix's Next run row; repeats are Story 11.12's); the preflight would add checks for an operator message only.
+- `[low]` the spec-tree guard leaves out `demo-path-summary.mjs` and ignored files - by-design: the spec names the four paths, and Decided in-stage 2 ties the guard to the record's `Specs:` line.
+- `[low]` the collector turns an SQL error into `missing <name>` - the run still fails (no false all-clear); a new line kind per query is more than a direct fix.
+- `[low]` the Auto Run Result's counts are stale - its fix edits the spec under review.
+- `[false]` a short host name scrubbed inside spec paths makes the FAIL line's step `run` - `summary_step` reads the spec file's base name, which a host name such as `web` does not touch.
+- `[low]` `host_run` has no deadline after connecting - 11.3's `host_run` (ConnectTimeout=15) and adjudicated by the earlier pass; the header's overclaim is patched above.
+- `[low]` the approval status may already read "Approved" before the press - wontfix-theoretical: run 1 presses Approve once, on a pending card.
+- `[low]` the result message is matched by "went through." and the row says "the result message" - the match is DW-533; the wording is cosmetic.
+- `[low]` the section prints `1.0 s` for whole seconds and adds `*` markers - cosmetic; Design Notes call the figures illustrations.
+- `[low]` a dry record's `Specs:` line names a commit that nothing checked - by-design (Decided in-stage 2: real mode only).
+- duplicate: the collector and probes have no CI host - already DW-534.
+
 ## Spec Change Log
 
 ## Review Triage Log
@@ -543,6 +583,39 @@ Once-only commands:
 
 - mutation (review patches): the `collector` miss line removed from the bounds awk, `report_plant` forced empty and `plant_ok` reverted to a substring match, all at once -> `test-rehearsal.sh` rules timed-runs (a collector without its done line reads PASS) and dry-report (no planted FAIL, no `(planted)`, a two-id plant not refused) red; the file restored byte-identical (md5).
 - After the review patches: `bash docker/tests/test-rehearsal.sh` all 17 rules, the node test (12), lint, `test-boundaries.sh` and `npm --prefix web test` (1166) pass; the live dry run was repeated (install 112 s, `PASS run 1`, `RESULT dry run` exit 3, the planted `FAIL run 1 step incident bound pick-up 0 s (planted)` exit 1, down: 0 containers, 0 images, empty lane folder). `ci/checks.sh` and `ci/iris.sh live demo-path` were not repeated: only `test-rehearsal.sh` and `test-boundaries.sh` read the files the patches changed, and `web/` is unchanged since their green run.
+
+**QA stage (2026-11-01; lane A, throwaway tag e11s11q, `ocutalon-slot-a` untouched):**
+- (QA) `docker/tests/test-rehearsal.sh` (extended, rule guards): after a passed real install, `runs` with a changed or a new untracked spec file is refused (REFUSED naming the four paths, exit 2, npm not called, no run folder), and `exec` still answers. The review patch "runs re-applies the spec-tree guard" had no pinning test before.
+- (QA) `web/scripts/rehearsal-support.test.mjs` (extended, 13 tests): the strips are counted before the guide click only behind `marksOn()`, and the Approve mark and result wait sit behind `action === 'approve'` (a reject press leaves no mark).
+- AC8 in the CI unit: `ci/iris.sh build`, then `ci/iris.sh live demo-path` (fresh throwaway, tag e11s11q): `20 passed`, 2 skipped (the Telegram parts), `test-demo-path: all checks passed`, 4 min 59 s; no container or lock of the tag remained.
+- mutation: AC1: the summary's output and exit ignored in `phase_runs` -> `test-rehearsal.sh` rule timed-runs red (the passing line, the failing-report FAIL, the runs row).
+- mutation: AC2: pick-up timed from the press instead of the first failure -> rules bounds and timed-runs red (run 7's FAIL text, the planted text).
+- mutation: AC3: `approval-result` timed from `step1_sent` -> rules bounds, stub-runs, timed-runs and dry-report red (8.6 s FAIL in all twenty runs).
+- mutation: AC4: the report's FAIL line for a missing mark skipped -> rule bounds red (missing delivered, page, server, reminder, tokens and session cases).
+- mutation: AC5: `--plant` ignored (`if (0) lim[plant] = 0`) -> rules bounds and dry-report red (the planted FAIL text and `(planted)`).
+- mutation: AC6: the tell-now row dropped from the bounds -> rules bounds and timed-runs red.
+- mutation: AC7: `runs` allowed to start with run 1 present -> rule timed-runs red.
+- mutation: AC8: `markWhen` no longer returns at once with marks off -> `rehearsal-support.test.mjs` "writes nothing and calls no probe" red. Further AC8 mutations: strips counted without `marksOn()` -> the QA source pin red; `runOnce` handed a fixed exec variable -> "runOnce spawns what irisSessionCommand gives" red; the Approve mark made unconditional -> the QA source pin red.
+- mutation (review patch 1, FAIL reasons scrubbed): `summary.log` copied instead of scrubbed -> rule timed-runs red (the host name in a failure reason).
+- mutation (review patch 2, spec-tree guard in runs): `runtime_prepare guard` -> `runtime_prepare` in `cmd_runs` -> the new QA cases in rule guards red (green before the QA cases).
+- mutation (review patch 3, missing-collector marker): the collector line of the bounds awk removed -> rule timed-runs red ("a collector without its done line fails the run").
+- mutation (review patch 4, scrub_origin single pass): the `while` replaced by an `if` (only the first occurrence replaced) -> rule timed-runs red (the host-name-in-replacement case).
+- mutation (review patch 5, exact `--plant` match): `plant_ok` back to a substring match -> rule dry-report red (the two-id plant is no longer refused).
+- Every mutation was applied from a backup in the QA scratchpad and restored byte-identical (md5 compared by the script); `git status --short` after the last one showed only the two QA-edited test files.
+
+**Code review (follow-up, 2026-11-01; hermetic, no runtime touched):**
+- mutation: AC4: the bound's FAIL line printed only when every run was measured (`&& unm == ""`) -> rule bounds red (run 7's missed delivery beside run 4's missing mark, and the plant beside an unmeasured run).
+- mutation: AC2: `lim["delivery"]` 5000 -> 50000 -> rule bounds red (the 5.1 s delivery miss, the row, the passing detail text).
+- mutation: AC5: the planted bound's `over = 1` removed -> rule bounds red (a planted pick-up of 0.0 s no longer misses).
+- mutation: Decided in-stage 16: the median's unmeasured-run branch switched off -> rule bounds red (the median over a partly measured notice reads `recorded`).
+- mutation: N-list (no key): `env -u ANTHROPIC_API_KEY -u TELEGRAM_BOT_TOKEN` dropped -> rule timed-runs red (`KEY=unset`, `TOKEN=unset`).
+- mutation: AD-19: `e2e.log` copied instead of scrubbed -> rule timed-runs red (the host in the run's output and in `output.log`).
+- mutation: the zero-timeout fallback (`| 0*`) removed -> rule timed-runs red.
+- mutation: `install_args`'s pair arm removed -> rule timed-runs red (`--record --plant` loses its value).
+- mutation: `scrub_origin` case-sensitive again -> rule timed-runs red (`HOST` is not scrubbed).
+- mutation: `exec` makes the run folder again -> rule timed-runs red (a folder for a run that has none, and the counts).
+- mutation (hermeticity): the new `unset` line removed, with `OCUTALON_E2E_TIMEOUT_MS=120000 OCUTALON_REHEARSAL_RUN=1` in the caller -> rule timed-runs red; with the line, green.
+- Each mutation was applied by a script from a copy of the patched file, then restored byte-identical (md5). After the patches: `test-rehearsal.sh` all 17 rules, the node test (13), `npm --prefix web run lint` and `test-boundaries.sh` pass. `web/e2e` is unchanged by the review, so `ci/iris.sh live demo-path` (AC8) was not repeated; the live dry run was not repeated either: the runtime lines the review changed (exec's counter, the exec variable's quoting, the scrub) run end to end in rule timed-runs on the stub hosts, through `sh -c` of the exec variable, and the rest is the bounds awk and tests.
 
 **Shared surfaces, checked:**
 - `watchThroughGuide` and `pressOnPhone` (so `approveOnPhone` and `rejectOnPhone`) keep every assertion; `ci/iris.sh live demo-path` passes unchanged. `web/e2e/support/iris.ts` differs only in `runOnce` (and its import); `web/scripts/floor-fixtures.test.mjs` is in the 1166 passing tests.

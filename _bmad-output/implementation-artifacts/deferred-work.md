@@ -2791,3 +2791,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-11-11-the-rehearsal-runner-times-the-demo-path-and-checks-every-bo.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: stub installs, the 20-run states and the bounds rule run twice
 - 2026-11-01T16:45:52Z status=wontfix-accepted owner=11-11-the-rehearsal-runner-times-the-demo-path-and-checks-every-bo by=harvest note=reopen_if=the hosted checks job passes 10 minutes or the self-test passes 90 s
+
+### DW-537: rehearse.sh run (install, runs, report and down in one process) can pass the 10-minute call cap when the Playwright run reaches its 480 s timeout
+- source: spec-11-11-the-rehearsal-runner-times-the-demo-path-and-checks-every-bo.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: A dry install takes 88 to 112 s; with a timed-out Playwright run (480 s), the exec retries and down, one run call comes to about 620 s or more; the passing dry case is about 270 s.
+- 2026-11-01T17:45:39Z status=wontfix-accepted owner=11-11-the-rehearsal-runner-times-the-demo-path-and-checks-every-bo by=cr note=reopen_if=a dry rehearse.sh run call exceeds 600 s; each phase still fits its own call
+
+### DW-538: run --dry-run --plant <id> forwards the plant to report, but no test executes that forwarding (only install_args, the filter before install, is unit-tested)
+- source: spec-11-11-the-rehearsal-runner-times-the-demo-path-and-checks-every-bo.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: A dry run needs the IRIS stack, so the self-test cannot run cmd_run end to end; t_dry_report calls report --plant directly.
+- 2026-11-01T17:45:39Z status=wontfix-accepted owner=11-11-the-rehearsal-runner-times-the-demo-path-and-checks-every-bo by=cr note=reopen_if=a dry rehearse.sh run --plant pick-up exits 3 (dry run) instead of 1

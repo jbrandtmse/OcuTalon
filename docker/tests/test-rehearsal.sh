@@ -17,7 +17,10 @@
 #   - bounds: bounds_eval on synthetic runs/1..20 folders: every bound's pass and miss, the run lists, the median, a missing mark, a failed
 #     verdict, the planted bound (dry run only) and the Result rules over the merged rows;
 #   - timed-runs: runs on stub hosts with a stub npm: a passing run and its files, a failing report, a run that reads nothing through exec,
-#     the second run's refusal, the order refusals, the real-mode guards, exec's argv and its refusals, report --plant in real mode;
+#     the second run's refusal, the order refusals, exec's argv and its refusals, report --plant in real mode, the clean host scrubbed
+#     from the e2e output and the FAIL lines, and the options run hands to install;
+#   - guards: the real-mode guards (a driver that is not local, a spec tree that differs from the candidate at plan, install, run and
+#     runs, --runs below 20, --plant in real mode);
 #   - real-tree: plan on this checkout starts nothing, a version that is not the candidate's and a report with no state exit 2;
 #   - dry-report: report and report --plant on a dry state with a run: the plant reaches the evaluation through the command;
 #   - dry-down: down of a dry run's state on a stub docker: the saved image names removed, the lane lock released only when its content
@@ -38,6 +41,7 @@ tmp=$(mktemp -d "${TMPDIR:-/tmp}/ocutalon-rh.XXXXXX") || exit 1
 trap 'rm -rf "$tmp"' EXIT
 export GIT_CONFIG_GLOBAL=/dev/null GIT_CONFIG_NOSYSTEM=1
 unset ANTHROPIC_API_KEY TELEGRAM_BOT_TOKEN OCUTALON_RELEASE_CONFIG OCUTALON_REHEARSAL_SSH OCUTALON_INSTALL_WAIT
+unset OCUTALON_E2E_TIMEOUT_MS OCUTALON_REHEARSAL_RUN OCUTALON_E2E_MARKS OCUTALON_E2E_IRIS_EXEC OCUTALON_E2E_JSON OCUTALON_DEMO_PATH_MODEL OCUTALON_URL
 bad=0
 
 eq() { # eq <label> <got> <want>
@@ -329,12 +333,13 @@ EOS
   cat > "$1/npm" <<'EOS'
 #!/bin/sh
 echo "$*" >> "$STUB_NPM_LOG"
-printf '%s\n' "URL=$OCUTALON_URL" "MODEL=$OCUTALON_DEMO_PATH_MODEL" "TIMEOUT=$OCUTALON_E2E_TIMEOUT_MS" "RUN=$OCUTALON_REHEARSAL_RUN" "TAG=$OCUTALON_RUN_TAG" "KEY=${ANTHROPIC_API_KEY-unset}" "EXEC=$OCUTALON_E2E_IRIS_EXEC" "MARKS=$OCUTALON_E2E_MARKS" > "$STUB_NPM_ENV"
+printf '%s\n' "URL=$OCUTALON_URL" "MODEL=$OCUTALON_DEMO_PATH_MODEL" "TIMEOUT=$OCUTALON_E2E_TIMEOUT_MS" "RUN=$OCUTALON_REHEARSAL_RUN" "TAG=$OCUTALON_RUN_TAG" "KEY=${ANTHROPIC_API_KEY-unset}" "TOKEN=${TELEGRAM_BOT_TOKEN-unset}" "EXEC=$OCUTALON_E2E_IRIS_EXEC" "MARKS=$OCUTALON_E2E_MARKS" > "$STUB_NPM_ENV"
 cp "${STUB_NPM_REPORT:?}" "$OCUTALON_E2E_JSON"
 cat "${STUB_NPM_MARKS:?}" >> "$OCUTALON_E2E_MARKS"
 if [ -z "${STUB_NPM_NOEXEC:-}" ]; then
   printf 'Write !,"CHK|x|1"\nHalt\n' | sh -c "$OCUTALON_E2E_IRIS_EXEC" > /dev/null
 fi
+if [ -n "${STUB_NPM_SAY_URL:-}" ]; then echo "page.goto: net::ERR_CONNECTION_REFUSED at $OCUTALON_URL/ocutalon/"; fi
 echo "stub npm: 1 test file ran"
 exit "${STUB_NPM_RC:-0}"
 EOS
@@ -1135,6 +1140,9 @@ t_bounds() {
   has "the runs row counts the runs" "$(grep '^runs|' "$d/results")" "runs|pass|20 of 20 runs passed the REL-2 specs"
   has "notice names its rule" "$(grep '^notice|' "$d/results")" "within 60 s in 20 of 20 runs (19 of 20 needed); longest 14.6 s (run 1)"
   has "pick-up names its longest" "$(grep '^pick-up|' "$d/results")" "within 15 s of the first failure in every run; longest 2.9 s (run 1)"
+  has "settle-end names its limit" "$(grep '^settle-end|' "$d/results")" "within 30 s of the first failure in every run; longest 12.6 s (run 1)"
+  has "diagnosis names its limit" "$(grep '^diagnosis|' "$d/results")" "within 20 s in every run; longest 0.8 s (run 1)"
+  has "delivery names its limit" "$(grep '^delivery|' "$d/results")" "within 5 s in every run; longest 0.2 s (run 1)"
   has "the median is recorded against the typical 35 s" "$(grep '^median|' "$d/results")" "median notice 14.6 s against the typical 35 s"
   has "the reminder is signed" "$(grep '^reminder-result|' "$d/results")" "-14.0 s"
   has "the tell-now row names Story 11.12" "$(grep '^tell-now|' "$d/results")" "Story 11.12 adds one to each run"
@@ -1159,6 +1167,33 @@ t_bounds() {
   eq "the pick-up row fails" "$(row_result "$d/results" pick-up)" fail
   eq "and the result fails" "$(rehearsal_result real "$d/results")" fail
   lacks "no other bound misses" "$(printf '%s\n' "$out" | grep -v 'bound pick-up')" "FAIL"
+
+  # settle end 30.1 s, diagnosis 20.1 s and delivery 5.1 s each miss in one run (every run); each at its limit is within
+  mkruns "$d" 20 real
+  setv "$d" 3 server settle_end "mark settle_end 131100"
+  setv "$d" 5 server diagnosis_end "mark diagnosis_end 133700"
+  setv "$d" 8 server delivered "mark delivered 119500"
+  out=$(evalstate "$d")
+  has "a settle end 30.1 s after the first failure misses" "$out" "FAIL run 3 step incident bound settle-end 30 s: 30.1 s in run 3 from the first failure to the diagnosis request"
+  has "a diagnosis of 20.1 s misses" "$out" "FAIL run 5 step incident bound diagnosis 20 s: 20.1 s in run 5 from the diagnosis request to its answer"
+  has "a delivery of 5.1 s misses" "$out" "FAIL run 8 step incident bound delivery 5 s: 5.1 s in run 8 from the answer to the notice's delivery"
+  for id in settle-end diagnosis delivery; do eq "the $id row fails" "$(row_result "$d/results" "$id")" fail; done
+  mkruns "$d" 20 real
+  setv "$d" 3 server settle_end "mark settle_end 131000"
+  setv "$d" 5 server diagnosis_end "mark diagnosis_end 133600"
+  setv "$d" 8 server delivered "mark delivered 119400"
+  out=$(evalstate "$d")
+  for id in settle-end diagnosis delivery; do eq "the $id row at its limit passes" "$(row_result "$d/results" "$id")" pass; done
+
+  # a missed bound is printed also when another run of the same bound could not be measured
+  mkruns "$d" 20 real
+  grep -v '^mark delivered ' "$d/runs/4/marks.server" > "$d/x" && mv "$d/x" "$d/runs/4/marks.server"
+  setv "$d" 7 server delivered "mark delivered 120400"
+  out=$(evalstate "$d")
+  has "run 4's missing mark is printed" "$out" "FAIL run 4 step incident bound -: missing mark(s) delivered"
+  has "and run 7's missed delivery as well" "$out" "FAIL run 7 step incident bound delivery 5 s: 6.0 s in run 7 from the answer to the notice's delivery"
+  has "the row names both" "$(grep '^delivery|' "$d/results")" "no measurement in run 4 (a mark is missing); 6.0 s in run 7"
+  eq "and the median fails over a partly measured notice" "$(row_result "$d/results" median)" fail
 
   # notice over 60 s in one run of 20 passes, in two it fails and names both
   mkruns "$d" 20 real
@@ -1294,6 +1329,11 @@ t_bounds() {
   has "a planted largest request is 0 tokens" "$out" "bound largest-request 0 tokens (planted):"
   out=$(evalstate "$d")
   eq "a report with no plant reads the same state as a dry run again" "$(rehearsal_result dry "$d/results")" "dry run"
+  mkruns "$d" 2 dry
+  grep -v '^mark pickup ' "$d/runs/2/marks.server" > "$d/x" && mv "$d/x" "$d/runs/2/marks.server"
+  setv "$d" 1 server pickup "mark pickup 101000"
+  out=$(evalstate "$d" pick-up)
+  has "a plant beside an unmeasured run still prints its miss, even for a value of 0" "$out" "FAIL run 1 step incident bound pick-up 0 s (planted): 0.0 s in run 1"
 
   # the RUN line of one run (the runs phase)
   mkruns "$d" 1 dry
@@ -1364,13 +1404,16 @@ t_timed_runs() {
   has "two arguments are refused" "$out" "status 2"
   lacks "no env value in any argv of exec" "$(cat "$stublog")" "planted-env-value-123456"
   out=$(OCUTALON_REHEARSAL_RUN=3 REH_STDIN=$tmp/exec.in run_reh rh-tm exec)
+  eq "exec makes no folder for a run that has none" "$([ -e "$st/runs" ] && echo there || echo none)" none
+  mkdir -p "$st/runs/3"
+  out=$(OCUTALON_REHEARSAL_RUN=3 REH_STDIN=$tmp/exec.in run_reh rh-tm exec)
   eq "exec counts its call for the run in the environment" "$(cat "$st/runs/3/exec.count")" 1
   out=$(OCUTALON_REHEARSAL_RUN=3 REH_STDIN=$tmp/exec.in run_reh rh-tm exec)
   eq "and again" "$(cat "$st/runs/3/exec.count")" 2
   rm -rf "$st/runs"
 
   : > "$tmp/npm.log"
-  out=$(run_reh rh-tm runs)
+  out=$(ANTHROPIC_API_KEY=planted-k TELEGRAM_BOT_TOKEN=planted-t run_reh rh-tm runs)
   has "run 1 passes with the summary's line" "$out" "PASS run 1 demo path: DEMO-PATH 8 of 8 steps ran (0 partly skipped), 0 skipped, 0 failed; floor 1 of 1 passed"
   has "and one RUN line" "$out" "RUN 1 notice=14.6 pick-up=2.9 settle-end=12.6 diagnosis=0.8 delivery=0.2 decision=2.1 approval-result=0.6 reminder=1.0 largest-request=1520 first-reply=2.3 reminder-result=-14.0"
   has "the phase exits 0" "$out" "status 0"
@@ -1394,7 +1437,8 @@ t_timed_runs() {
   has "the default timeout" "$envf" "TIMEOUT=480000"
   has "the run number" "$envf" "RUN=1"
   has "the tag" "$envf" "TAG=rh-tm"
-  has "no model key" "$envf" "KEY=unset"
+  has "no model key, although the caller had one" "$envf" "KEY=unset"
+  has "no bot token either" "$envf" "TOKEN=unset"
   has "the exec channel is this script's exec" "$envf" "EXEC=bash '$(cd "$syn" && pwd)/release/rehearse.sh' exec"
   has "the marks file is the run's" "$envf" "MARKS=$d/marks.page"
   has "the collector gets the server start" "$(cat "$tmp/collector.in")" 'Set start="2026-11-01 10:00:00.000"'
@@ -1458,7 +1502,8 @@ t_timed_runs() {
   # a run that reads nothing through exec
   rec=$tmp/rec-timed-noexec.md
   run_reh rh-tn install --version 1.0.0 --rc 1 --record "$rec" > /dev/null
-  out=$(STUB_NPM_NOEXEC=1 run_reh rh-tn runs)
+  out=$(OCUTALON_E2E_TIMEOUT_MS=0 STUB_NPM_NOEXEC=1 run_reh rh-tn runs)
+  has "a zero timeout falls back to the default (0 would turn Playwright's off)" "$(cat "$tmp/npm.env")" "TIMEOUT=480000"
   has "a run that read nothing through exec fails" "$out" "FAIL run 1 step run bound -: the specs read nothing through the rehearsal's exec channel"
   lacks "and does not pass" "$out" "PASS run 1"
   has "with exit 1" "$out" "status 1"
@@ -1487,9 +1532,11 @@ t_timed_runs() {
   rec=$tmp/rec-timed-host.md
   run_reh rh-th install --version 1.0.0 --rc 1 --record "$rec" > /dev/null
   sed 's#approval works#approval works at http://clean-web-9.invalid:52801#' "$bindir/report.fail.json" > "$bindir/report.host.json"
-  out=$(STUB_NPM_REPORT=$bindir/report.host.json run_reh rh-th runs)
+  out=$(STUB_NPM_SAY_URL=1 STUB_NPM_REPORT=$bindir/report.host.json run_reh rh-th runs)
   has "a failure reason is printed" "$out" "FAIL run 1 step approval bound -: 05-approval.spec.ts"
   lacks "without the clean host's address" "$out" "clean-web-9.invalid"
+  has "the e2e output names the host as <clean host>" "$out" "ERR_CONNECTION_REFUSED at http://<clean host>:52801/ocutalon/"
+  lacks "and the output log never holds the host" "$(cat "$tmp/runs/ocutalon-rehearsal-rh-th/output.log")" "clean-web-9.invalid"
   lacks "in the verdict either" "$(cat "$tmp/runs/ocutalon-rehearsal-rh-th/runs/1/verdict")" "clean-web-9.invalid"
   run_reh rh-th down > /dev/null
   mkdir -p "$tmp/scrub"
@@ -1497,6 +1544,12 @@ t_timed_runs() {
   printf 'http://host:52801\n' > "$tmp/scrub/origin"
   out=$(state=$tmp/scrub; printf 'goto http://host:52801/x; the host is host\n' | scrub_origin)
   eq "a host name inside the replacement text is replaced once per occurrence" "$out" "goto http://<clean host>:52801/x; the <clean host> is <clean host>"
+  out=$(state=$tmp/scrub; printf 'goto http://HOST:52801/x\n' | scrub_origin)
+  eq "the host is matched in any case (a URL lower-cases it)" "$out" "goto http://<clean host>:52801/x"
+
+  # run hands install every option but --plant, walked by pairs (a value that reads like an option stays with it)
+  install_args --dry-run --rc 1 --record --plant --plant pick-up --runs 1
+  eq "install gets every option but --plant" "${iargs[*]}" "--dry-run --rc 1 --record --plant --runs 1"
 
   # the whole run command: install, runs (the second refused), report, down
   out=$(run_reh rh-trun run --version 1.0.0 --rc 1 --record "$tmp/rec-trun.md")
@@ -1580,6 +1633,30 @@ t_guards() {
   out=$(run_reh rh-g20 run --version 1.0.0 --rc 1 --plant bogus --record "$tmp/g.md")
   has "an unknown bound id is refused" "$out" "REFUSED --plant 'bogus' is not a bound id with a limit"
   eq "none of these started a state" "$(ls "$tmp/runs" | wc -l | tr -d ' ')" 0
+
+  # (QA) the timed run applies the spec-tree guard again: the tree can change between install and runs, and the run would then time
+  # specs that are not the candidate's. exec is not guarded (it runs 20 times and more per run).
+  printf 'Write !,"CHK|x|1"\nHalt\n' > "$tmp/g21.exec.in"
+  out=$(run_reh rh-g21 install --version 1.0.0 --rc 1 --record "$tmp/g21.md")
+  has "a real install on the committed spec tree passes" "$out" "status 0"
+  printf 'drift\n' > "$syn/web/e2e/a.spec.ts"
+  : > "$tmp/npm.log"
+  out=$(run_reh rh-g21 runs)
+  has "runs after the spec tree changed is refused, naming the paths" "$out" "REFUSED the spec tree (web/e2e web/playwright.config.ts web/package.json web/package-lock.json) differs from the candidate commit"
+  has "with exit 2" "$out" "status 2"
+  eq "the specs were not started" "$(wc -c < "$tmp/npm.log" | tr -d ' ')" 0
+  eq "and no run folder was made" "$([ -e "$tmp/runs/ocutalon-rehearsal-rh-g21/runs/1" ] && echo there || echo none)" none
+  printf 'new\n' > "$syn/web/e2e/c.spec.ts"
+  git -C "$syn" checkout -q -- web/e2e/a.spec.ts
+  out=$(run_reh rh-g21 runs)
+  has "an untracked new spec file is refused by runs too" "$out" "differs from the candidate commit"
+  rm -f "$syn/web/e2e/c.spec.ts"
+  printf 'drift\n' > "$syn/web/e2e/a.spec.ts"
+  out=$(REH_STDIN=$tmp/g21.exec.in run_reh rh-g21 exec)
+  has "exec still answers with the spec tree changed" "$out" "CHK|x|1"
+  has "and exits 0" "$out" "status 0"
+  git -C "$syn" checkout -q -- web/e2e/a.spec.ts
+  run_reh rh-g21 down > /dev/null
   [ "$bad" -eq 0 ]
 }
 

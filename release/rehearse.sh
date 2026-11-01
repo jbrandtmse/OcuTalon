@@ -68,14 +68,15 @@
 #            value as the script uses it and the host of each user@host too), and nothing key-like, is in the output of the phases,
 #            install.sh's output or the section
 #
-# The timed run (runs; one run per call, bounded by OCUTALON_E2E_TIMEOUT_MS, default 480000). It takes the run's server start (UTC, milliseconds)
-# through exec, runs "npm --prefix web run e2e:demo-path" on this machine against the install's origin (OCUTALON_URL), with OCUTALON_E2E_JSON,
-# OCUTALON_E2E_MARKS (the page marks), OCUTALON_E2E_IRIS_EXEC (this script's exec: every IRIS read of the specs goes through host_run clean),
-# OCUTALON_DEMO_PATH_MODEL (mock in a dry run, real in real mode), OCUTALON_RUN_TAG and OCUTALON_REHEARSAL_RUN=<k>; then web/scripts/
-# demo-path-summary.mjs --only-telegram-skips on the report, then the collector (read-only ObjectScript through exec). Files, under
-# <state>/runs/<k>/: report.json, e2e.log (also in output.log), summary.log, marks.page, marks.server, verdict, exec.count. Output: PASS or FAIL
-# lines ("FAIL run <k> step <step> bound -: <reason>" for a failed spec, naming its step; a run that read nothing through exec fails with step
-# run) and one "RUN <k> <bound>=<seconds> ..." line ("-" for a value that could not be measured).
+# The timed run (runs; one run per call; the Playwright run is bounded by OCUTALON_E2E_TIMEOUT_MS, default 480000). It takes the run's
+# server start (UTC, milliseconds) through exec, runs "npm --prefix web run e2e:demo-path" on this machine against the install's origin
+# (OCUTALON_URL), with OCUTALON_E2E_JSON, OCUTALON_E2E_MARKS (the page marks), OCUTALON_E2E_IRIS_EXEC (this script's exec: every IRIS read
+# of the specs goes through host_run clean), OCUTALON_DEMO_PATH_MODEL (mock in a dry run, real in real mode), OCUTALON_RUN_TAG and
+# OCUTALON_REHEARSAL_RUN=<k>; then web/scripts/demo-path-summary.mjs --only-telegram-skips on the report, then the collector (read-only
+# ObjectScript through exec). Files, under <state>/runs/<k>/: server.start, report.json, e2e.log (also in output.log), summary.log,
+# marks.page, marks.server, verdict, exec.count. Output: PASS or FAIL lines ("FAIL run <k> step <step> bound -: <reason>" for a failed spec,
+# naming its step; a run that read nothing through exec fails with step run) and one "RUN <k> <bound>=<seconds> ..." line ("-" for a value
+# that could not be measured).
 # One clock per value: server values subtract two production message headers (milliseconds) or two rows' times of the install's IRIS; page
 # values subtract two marks of one page (Date.now() on this machine, e2e/support/rehearsal.ts: step1_sent, step1_decision_seen,
 # step1_reply_seen, approve_pressed, approval_result_seen). A server value is never subtracted from a page value. A missing mark fails the run's
@@ -113,7 +114,8 @@
 # than --runs, or the tell-now row), else pass. Output: PASS/FAIL lines, PHASE lines, RECORD <file> and RESULT <result>.
 # Exit codes: 0 only for a real pass; 1 for fail or not run (also a failed start); 3 for a dry run; 2 for a refusal (usage, configuration,
 # candidate, real-mode guard or phase order; nothing started); 75 when the lane's throwaway lock is busy (a dry run). Only exit 0 with
-# "Result: pass" passes.
+# "Result: pass" passes. A runs call is not a Result: it exits 0 when its run passed (in a dry run too), 1 when the run failed and 2 for a
+# refusal. exec exits with the iris session's exit code (2 for a refusal).
 # A dry run needs docker compose, the IRIS base image and the mock image of ci/iris.sh, and the lane's variables of docker/tests/lib-live.sh
 # (OCUTALON_LOCK_DIR, OCUTALON_LOCK_OWNER, OCUTALON_TEST_WEB_PORT); the model is the CI mock, never a key. The runs phase needs Node.js with
 # web/node_modules and the Playwright browser on this machine. Needs bash 3.2 or later and git.
@@ -358,6 +360,7 @@ END {
       v = V[id, k]
       over = (id == "largest-request") ? (v >= lim[id]) : (v > lim[id])
       if (id == "reminder" && lateN[k] > 0) over = 1
+      if (id == plant) over = 1
       if (v > longest) { longest = v; lrun = k }
       if (over) { nover++; ovl = joined(ovl, k); ovd = ovd (ovd == "" ? "" : ", ") shown(id, v) " in run " k }
     }
@@ -365,13 +368,13 @@ END {
     status = ""
     detail = ""
     if (N == 0) { print id "|" stepof[id] "|not run|" > bfile; continue }
+    if (nover > allowed) printf "FAIL run %s step %s bound %s: %s %s\n", ovl, stepof[id], limtext(id), ovd, what[id]
     if (unm != "") {
       status = "fail"; detail = "no measurement in run " unm " (a mark is missing)"
-      if (nover > allowed) detail = detail "; over its limit in run " ovl
+      if (nover > allowed) detail = detail "; " ovd " " what[id] " (limit " limtext(id) ")"
     } else if (nover > allowed) {
       status = "fail"
       detail = ovd " " what[id] " (limit " limtext(id) ")"
-      printf "FAIL run %s step %s bound %s: %s %s\n", ovl, stepof[id], limtext(id), ovd, what[id]
     } else {
       status = passw
       okc = nmeas - nover
@@ -391,7 +394,7 @@ END {
   cnt = 0; unm = ""
   for (i = 1; i <= N; i++) { k = RUN[i]; if (ok["notice", k]) { cnt++; nl[cnt] = V["notice", k] } else unm = joined(unm, k) }
   if (N == 0) print "median|incident|not run|" > bfile
-  else if (cnt == 0) print "median|incident|not run|no notice was measured" > bfile
+  else if (unm != "") print "median|incident|fail|no measurement in run " unm " (a mark is missing)" > bfile
   else print "median|incident|recorded|median notice " sec(medianOf(nl, cnt)) " against the typical 35 s" > bfile
   cnt = 0; unm = ""; longest = -1e18; lrun = ""
   for (i = 1; i <= N; i++) { k = RUN[i]; if (ok["first-reply", k]) { cnt++; fl[cnt] = V["first-reply", k]; if (V["first-reply", k] > longest) { longest = V["first-reply", k]; lrun = k } } else unm = joined(unm, k) }
@@ -1475,10 +1478,11 @@ cmd_exec() {
   case $k in
     '' | *[!0-9]*) ;;
     *)
-      mkdir -p "$state/runs/$k"
-      cnt=$(cat "$state/runs/$k/exec.count" 2> /dev/null || echo 0)
-      case $cnt in '' | *[!0-9]*) cnt=0 ;; esac
-      echo $((cnt + 1)) > "$state/runs/$k/exec.count"
+      if [ -d "$state/runs/$k" ]; then
+        cnt=$(cat "$state/runs/$k/exec.count" 2> /dev/null || echo 0)
+        case $cnt in '' | *[!0-9]*) cnt=0 ;; esac
+        echo $((cnt + 1)) > "$state/runs/$k/exec.count"
+      fi
       ;;
   esac
   host_run clean "cd $REH_DIR/candidate && docker compose exec -T iris iris session IRIS -U $ns" 2> /dev/null
@@ -1533,7 +1537,7 @@ scrub_origin() {
   else
     host=""
   fi
-  REH_SCRUB=$host awk 'BEGIN { h = ENVIRON["REH_SCRUB"] } { s = $0; out = ""; if (h != "") { while ((i = index(s, h)) > 0) { out = out substr(s, 1, i - 1) "<clean host>"; s = substr(s, i + length(h)) } } print out s }'
+  REH_SCRUB=$host awk 'BEGIN { h = tolower(ENVIRON["REH_SCRUB"]) } { s = $0; out = ""; if (h != "") { while ((i = index(tolower(s), h)) > 0) { out = out substr(s, 1, i - 1) "<clean host>"; s = substr(s, i + length(h)) } } print out s }'
 }
 
 # phase_runs: run 1 of the timed runs (see the header).
@@ -1567,7 +1571,7 @@ Halt' | sed -n 's/^CHK|now|//p' | head -n 1)
   (
     cd "$reh_root" && env -u ANTHROPIC_API_KEY -u TELEGRAM_BOT_TOKEN \
       OCUTALON_URL="$origin" OCUTALON_E2E_JSON="$dir/report.json" OCUTALON_E2E_MARKS="$dir/marks.page" \
-      OCUTALON_E2E_IRIS_EXEC="bash '$me' exec" OCUTALON_REHEARSAL_RUN="$k" OCUTALON_DEMO_PATH_MODEL="$model" \
+      OCUTALON_E2E_IRIS_EXEC="bash '${me//\'/\'\\\'\'}' exec" OCUTALON_REHEARSAL_RUN="$k" OCUTALON_DEMO_PATH_MODEL="$model" \
       OCUTALON_E2E_TIMEOUT_MS="$wait_ms" \
       npm --prefix web run e2e:demo-path > "$dir/e2e.log" 2>&1
   )
@@ -1696,6 +1700,25 @@ cmd_down() {
   exit 0
 }
 
+# install_args <run's options>: sets iargs to the options install takes, every one but --plant (which report takes), walked by pairs
+# as parse_options walks them, so a value that reads like an option stays with its option.
+install_args() {
+  iargs=()
+  while [ $# -gt 0 ]; do
+    case $1 in
+      --plant) shift 2 ;;
+      --version | --rc | --candidate | --record | --runs)
+        iargs+=("$1" "$2")
+        shift 2
+        ;;
+      *)
+        iargs+=("$1")
+        shift
+        ;;
+    esac
+  done
+}
+
 cmd_run() {
   local me=$reh_root/release/rehearse.sh rc report_rc rrc want made=0 iargs=()
   parse_options "$@" || exit 2
@@ -1706,16 +1729,7 @@ cmd_run() {
   if [ -z "${OCUTALON_RUN_TAG:-}" ]; then OCUTALON_RUN_TAG="reh-$(date +%s)"; fi
   export OCUTALON_RUN_TAG
   need_tag run || exit 2
-  # install takes the options but --plant, which report takes.
-  while [ $# -gt 0 ]; do
-    case $1 in
-      --plant) shift 2 ;;
-      *)
-        iargs+=("$1")
-        shift
-        ;;
-    esac
-  done
+  install_args "$@"
   (cd "$reh_caller_pwd" && bash "$me" install "${iargs[@]}")
   rc=$?
   case $rc in

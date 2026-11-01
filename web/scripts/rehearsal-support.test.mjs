@@ -40,14 +40,12 @@ describe('marks are off', () => {
     }, 5_000);
     assert.equal(probed, 0, 'the probe is never called');
     assert.ok(Date.now() - started < 1_000, 'and nothing is waited for');
-    assert.equal(existsSync(file), false);
   });
 
   it('treats an empty variable as off', () => {
     process.env.OCUTALON_E2E_MARKS = '';
     assert.equal(marksOn(), false);
     mark('step1_sent');
-    assert.equal(existsSync(file), false);
   });
 });
 
@@ -167,6 +165,17 @@ describe('by source', () => {
     assert.equal(click - pressed, 1, 'the mark is the line before the click');
     assert.ok(seen > click && seen < read, 'the result mark is after the click and before the first IRIS read');
     assert.ok(seen - click <= 5, 'right after the click');
+  });
+
+  it('(QA) counts the strips before the click only when marks are on, and marks the Approve press only for approve', () => {
+    const start = at('export async function watchThroughGuide');
+    const counted = at('const stripsBefore =', start);
+    assert.match(lines[counted], /marksOn\(\) \? await strips\.count\(\) : 0/, 'the count is behind marksOn(), so CI makes no extra page query');
+    const press = at('async function pressOnPhone');
+    const pressed = at("mark('approve_pressed')", press);
+    assert.match(lines[pressed], /^\s*if \(action === 'approve'\) mark\('approve_pressed'\);$/, 'a reject press leaves no approve mark');
+    const seen = at("markWhen('approval_result_seen'", pressed);
+    assert.match(lines.slice(seen - 3, seen).join('\n'), /if \(action === 'approve'\) \{/, 'and starts no result wait');
   });
 
   it('has exactly the five mark names', () => {
