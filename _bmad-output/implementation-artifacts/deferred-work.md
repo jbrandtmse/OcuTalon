@@ -2793,3 +2793,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-12-3-the-telegram-card-shows-a-fresh-pairing-code-as-a-qr-code.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: Pairing.StoreCode reuses the session's row (CodeSessionRefIndexOpen), and DropCodes keeps every Ref Start saved; mutation M5 showed it (T1's leftover row survived T3's Finish)
 - 2026-10-31T23:27:33Z status=wontfix-accepted owner=12-3-the-telegram-card-shows-a-fresh-pairing-code-as-a-qr-code by=cr note=reopen_if=Start finds a code row of the test's own session, or a later test reads the README session's code row
+
+### DW-520: SessionOps.Unlink keeps DisplayName in a row it unpairs, so an unpaired Pairing row holds a name until that chat writes again (Lane B ask: clear DisplayName on unlink)
+- source: _bmad-output/implementation-artifacts/spec-12-4-a-valid-code-pairs-the-chat-with-the-session.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Core/SessionOps.cls Unlink clears SessionRef and SeenAt only; TelegramIn (12.4) clears the name on the chat's next update; the name never reaches a production message, /state of another session or the trace
+- 2026-11-01T06:58:27Z status=wontfix-accepted owner=12-4-a-valid-code-pairs-the-chat-with-the-session by=harvest note=reopen_if=a test or audit finds a DisplayName on a Pairing row with no SessionRef older than one update, or a Lane B story edits SessionOps.Unlink (then add the one-line clear)
