@@ -951,7 +951,9 @@ test.describe('bad codes, a bare start command and unpairing get polite answers 
       await watchWindow(page);
       await expect(composerOf(page), 'the composer keeps focus').toBeFocused();
       expect(await announcedCount(page, 'Telegram unpaired'), '"Telegram unpaired" was announced again, twice in all').toBe(2);
-      expect((await card.getByRole('link', { name: /Open in Telegram/ }).count()), 'the card has a fresh code again').toBe(1);
+      const third = await codeOf(card);
+      expect(third, 'the card has a fresh code again').not.toBe('');
+      expect(third, 'which is not the one chat 112 used').not.toBe(second);
       await expect.poll(() => repliesOf(MOVING_CHAT), { message: 'chat 112 got the confirmation twice', timeout: LOADED_MS, intervals: [1000] }).toEqual([CONFIRMATION, CONFIRMATION]);
       passed = true;
     } finally {

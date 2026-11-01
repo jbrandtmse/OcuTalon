@@ -293,6 +293,37 @@ These rows assume:
 
   Rows "A chat moves to another session", "A session pairs a second chat" and "Pairing elsewhere, focus untouched".
 
+
+### Review Findings
+
+Code review of 2026-11-01 (layers: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor; tier full-opus). 7 patches applied, 1 closed in the ledger, 15 rejected. No high finding, no AD mismatch.
+
+- [x] [Review][Patch] (medium) The QA test file holds a literal U+00B7, so CI's `test-boundaries.sh` ASCII rule fails once it is committed (Rule 14). It is now written as the `\u00b7` escape [web/scripts/telegram-card-view.test.mjs:58]. fix-risk low: one escape, and the 10 cases still pass.
+- [x] [Review][Patch] (medium) `Stop`'s Submit block was a near-copy of `Pair`'s (Rule 2: `In.cls` `Pair` and `Stop`). Both now call one private `Outcome(command, log)` [src/ocutalon/cls/OcuTalon/Channel/Telegram/In.cls:396]. fix-risk low: private methods of one class, pinned by `TestBadCodes` and `TestStop`.
+- [x] [Review][Patch] (medium) When an unpaired chat sends `/stop` while its reply slot is free, the answer is `not_paired` and then `Other`. No test reached that path. `TestStrangerReplies` now sends a `/stop` after the second slot reset and asserts NOTPAIRED, the outcomes `not_paired,not_paired` and five notices; its mutation line is under `## Verification` [src/ocutalon/cls/OcuTalon/Test/Channel/TelegramPair.cls:547]. fix-risk low: test only.
+- [x] [Review][Patch] (low) `LOGSTOP` said "could not submit" even when the unpair was submitted and answered with an unexpected outcome, and that line added a literal after the parameter. That case now uses its own `LOGSTOPOUTCOME` parameter [src/ocutalon/cls/OcuTalon/Channel/Telegram/In.cls:91]. fix-risk low: a log text.
+- [x] [Review][Patch] (low) `TestStrangerReplies` checked 3 of the row's notices, and checked the request headers only before the sticker. Both checks now run after every message [src/ocutalon/cls/OcuTalon/Test/Channel/TelegramPair.cls:552]. fix-risk low: test only.
+- [x] [Review][Patch] (low) `TestBadCodes` looked for the chat id and the name only in the Pairing audit entries. It now searches every audit entry since the mark (`AuditLog.Entries` with the marker) [src/ocutalon/cls/OcuTalon/Test/Channel/TelegramPair.cls:493]. fix-risk low: test only.
+- [x] [Review][Patch] (low) T6's last "fresh code again" check counted a link that is always present, so it could not fail. It now compares the code with the one chat 112 used [web/e2e/demo-path/telegram-page.spec.ts:954]. fix-risk low: test only.
+- [x] [Review][Defer] (low) When a pairing removes the focused "Open in Telegram" link, focus goes to the main region, not the Telegram heading. Neither 12.4 nor 12.5 specifies focus on pairing [web/src/app/rail/telegram-card/telegram-card.ts:92]. Deferred: DW-528, `wontfix-accepted` with a `reopen_if` keyboard probe. fix-risk low.
+
+Rejected:
+- `false`: the QA test file is not committed (all four layers). The lead commits after the smoke gate, and the runner's ruling allows the file.
+- `low`, edits the spec or the ledger: DW-527's records are stale (frontmatter `deferred:`, Residual risks, ledger `open`). The runner closes DW-527 at adjudication.
+- `false`: `sprint-status.yaml` says `review` while the spec says `done`. This review sets the status through the script.
+- `false`, specified: `/start` followed by a tab and a code is "other". That is 12.4's `STARTPREFIX` rule (Boundaries, "pair").
+- `false`, specified: `/stop@bot`, `/Stop` and `/START` are "other" (Decided 1).
+- `false`, specified: the start and bad-code replies have no rate limit (Decided 5, AD-4).
+- `false`, specified: a `failed` outcome gets the bad-code reply (Decided 2). The catalog has no try-again key.
+- `false`: the claim that a chat can pair between `Row` and `Stop`, so that `pairing.stopped` carries no session. A chat pairs only through its own message (`Pair` is telegram-only), and TelegramIn handles the updates one at a time. `TelegramOut` does not read `SessionRef` anyway.
+- `low`: no announcement when the view is masked (paused or not set up) at the change. The implement review already rejected this. It is rare, and the fix adds state.
+- `low`: `DropSessions`' SQLCODE is not checked in `Finish`. Any leftover `zztg` session is dropped by the next `LiveCase.Cleanup`. This is theoretical.
+- `low`, edits the spec: the Shared-surfaces line still says `TestNameOnlyWhilePaired` is unchanged.
+- `false`: some clauses have no mutation line (`TestPrivateOnly` and the `unlinked` audits). Rule 19 asks for one demonstrated mutation per AC, and every AC has one.
+- `false`: in `/start <code>`, the edge-case hunter's suggested guard for `rest` would change 12.4's rule. This is the same item as the tab case.
+- `false`: an unpaired chat flooding `/start` uses up the bot's outbound rate. `TelegramOut` retries a 429, and the limit is specified as AD-4's only.
+- `false`: the acceptance auditor's Logs-constraint wording item. It is fixed by the `LOGSTOPOUTCOME` patch above (merged).
+
 ## Spec Change Log
 
 ## Review Triage Log
@@ -530,6 +561,10 @@ Tests added and mutations demonstrated at the QA stage (QA):
   - mutation (QA): no announcement on true -> false (the `announce(TELEGRAM_CARD_TEXTS.unpaired)` line removed) -> T6 alone ("\"Telegram unpaired\" was announced once")
   - mutation (QA): the paired root has no `data-row-key` and `data-section` -> T6 alone ("the focus went to the Telegram heading")
 - (QA) `npm --prefix web test`: 1137 passed, 0 failed (1127 before, plus the 10 cases of the new file). `npm --prefix web run lint`: clean.
+
+Mutations demonstrated at code review (warm lane-C stack `e12s5crw`; reverted from a backup, `cmp` identical, `git status --short` unchanged):
+- mutation (CR): `Stop`'s `not_paired` branch does nothing (`Do ..Other(ref, "")` replaced by `Quit`) -> `TestStrangerReplies` ("a /stop answered not_paired gets the not-paired text when the slot is free", "TelegramIn sent five Notifications", "they are pairing.start twice and pairing.notPaired three times")
+- (CR) After the patches: `TelegramPair` passed (62.9 s) and `TelegramIn` passed (97.9 s) on the warm stack. `ci/iris.sh build` and `live demo-path` on the fresh stack `e12s5cr`: STEP 1 page 12 passed, 0 failed. `npm --prefix web test` 1137 passed, lint clean, `test-boundaries.sh` passed (it failed on the literal U+00B7 before the patch), `test-ci-config.sh` and `ci/checks.sh` passed.
 
 ## Auto Run Result
 

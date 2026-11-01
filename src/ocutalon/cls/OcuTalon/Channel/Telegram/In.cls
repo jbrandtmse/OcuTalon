@@ -88,6 +88,8 @@ Parameter LOGREPLY = "TelegramIn could not send the pairing reply to Notify: ";
 
 Parameter LOGSTOP = "TelegramIn could not submit an unpair, so the chat got no reply: ";
 
+Parameter LOGSTOPOUTCOME = "TelegramIn's unpair did not succeed, so the chat got no reply; the outcome was: ";
+
 /// The text that starts a pairing message: the command and one space, then the code.
 Parameter STARTPREFIX = "/start ";
 
@@ -358,20 +360,10 @@ Method Row(chatId As %String, Output sessionRef As %String, Output displayName A
 /// answered pairing.badCode, and a chat that is not paired is recorded again with no name.
 Method Pair(ref As %String, chatId As %String, payload As %String) [ Private ]
 {
-	Set outcome = ""
-	Try {
-		Set command = ##class(OcuTalon.Msg.Command.Pair).%New()
-		Set command.CodeHash = ##class(OcuTalon.Data.Pairing).HashCode(payload)
-		Set command.ChatRef = ref
-		Set sc = ##class(OcuTalon.Core.Commands).Submit(command, "telegram", .result)
-		If $SYSTEM.Status.IsError(sc) {
-			$$$LOGWARNING(..#LOGPAIR_##class(OcuTalon.Channel.Telegram.Api).Safe($SYSTEM.Status.GetErrorText(sc)))
-		} ElseIf $IsObject(result) {
-			Set outcome = result.Outcome
-		}
-	} Catch exception {
-		$$$LOGWARNING(..#LOGPAIR_##class(OcuTalon.Channel.Telegram.Api).Safe(exception.Name))
-	}
+	Set command = ##class(OcuTalon.Msg.Command.Pair).%New()
+	Set command.CodeHash = ##class(OcuTalon.Data.Pairing).HashCode(payload)
+	Set command.ChatRef = ref
+	Set outcome = ..Outcome(command, ..#LOGPAIR)
 	If outcome = "paired" {
 		Set chat = ##class(OcuTalon.Data.Pairing).Chat(ref)
 		Do ..Reply(ref, "pairing.paired", $Select($IsObject(chat): chat.SessionRef, 1: ""))
@@ -386,27 +378,35 @@ Method Pair(ref As %String, chatId As %String, payload As %String) [ Private ]
 /// the row was read as paired and an unpair came first); a refused or failed Submit is one warning and no reply.
 Method Stop(ref As %String, chatId As %String, sessionRef As %String) [ Private ]
 {
-	Set outcome = ""
-	Try {
-		Set command = ##class(OcuTalon.Msg.Command.Unpair).%New()
-		Set command.ChatRef = ref
-		Set sc = ##class(OcuTalon.Core.Commands).Submit(command, "telegram", .result)
-		If $SYSTEM.Status.IsError(sc) {
-			$$$LOGWARNING(..#LOGSTOP_##class(OcuTalon.Channel.Telegram.Api).Safe($SYSTEM.Status.GetErrorText(sc)))
-		} ElseIf $IsObject(result) {
-			Set outcome = result.Outcome
-		}
-	} Catch exception {
-		$$$LOGWARNING(..#LOGSTOP_##class(OcuTalon.Channel.Telegram.Api).Safe(exception.Name))
-	}
+	Set command = ##class(OcuTalon.Msg.Command.Unpair).%New()
+	Set command.ChatRef = ref
+	Set outcome = ..Outcome(command, ..#LOGSTOP)
 	If outcome = "unpaired" {
 		Do ..Forget(ref, chatId)
 		Do ..Reply(ref, "pairing.stopped", sessionRef)
 	} ElseIf outcome = "not_paired" {
 		Do ..Other(ref, "")
 	} ElseIf outcome '= "" {
-		$$$LOGWARNING(..#LOGSTOP_"the outcome was "_##class(OcuTalon.Channel.Telegram.Api).Safe(outcome))
+		$$$LOGWARNING(..#LOGSTOPOUTCOME_##class(OcuTalon.Channel.Telegram.Api).Safe(outcome))
 	}
+}
+
+/// Submits a chat's command with origin telegram and returns its CommandResult's Outcome, or "" after a refused or failed Submit, which
+/// is logged as one warning: the log parameter, then the status text or the exception's name.
+Method Outcome(command As OcuTalon.Msg.Command, log As %String) As %String [ Private ]
+{
+	Set outcome = ""
+	Try {
+		Set sc = ##class(OcuTalon.Core.Commands).Submit(command, "telegram", .result)
+		If $SYSTEM.Status.IsError(sc) {
+			$$$LOGWARNING(log_##class(OcuTalon.Channel.Telegram.Api).Safe($SYSTEM.Status.GetErrorText(sc)))
+		} ElseIf $IsObject(result) {
+			Set outcome = result.Outcome
+		}
+	} Catch exception {
+		$$$LOGWARNING(log_##class(OcuTalon.Channel.Telegram.Api).Safe(exception.Name))
+	}
+	Quit outcome
 }
 
 /// Any other message: a chat that was not paired when its row was read takes its reply slot and, when it gets it (once a minute), is

@@ -2805,3 +2805,9 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: _bmad-output/implementation-artifacts/spec-12-5-bad-codes-a-bare-start-command-and-unpairing-get-polite-answ.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: telegram-card-view.ts:169 telegramCardView is framework-free; no web/scripts/*.test.mjs calls it; only T5/T6 run the just-unpaired view
 - 2026-11-01T11:13:27Z status=open owner=12-5-bad-codes-a-bare-start-command-and-unpairing-get-polite-answ by=harvest note=runner ruling: a NEW test file web/scripts/telegram-card-view.test.mjs (Epic 12's own card view; not contended) is allowed and reported as a footprint extension; or pin it with a T6 case (a pairing during the 5 s window shows the paired row)
+- 2026-11-01T12:06:25Z status=resolved-by:12-5-bad-codes-a-bare-start-command-and-unpairing-get-polite-answ by=adjudication note=web/scripts/telegram-card-view.test.mjs(10_cases;QA)_pins_paused,not-set-up,paired_ahead_of_just-unpaired_and_the_5000ms_window;mutations_moving_justUnpaired_above_paired(3_red)/paused(4_red)
+
+### DW-528: A pairing that removes the focused Open in Telegram link sends focus to the main region, not the Telegram heading
+- source: spec-12-5-bad-codes-a-bare-start-command-and-unpairing-get-polite-answ.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: The unpaired root of telegram-card.ts carries no data-row-key/data-section, so keepFocus finds no item and falls back to the main region when the paired view replaces it. EXPERIENCE Focus replacement says nearest container. Neither 12.4 nor 12.5 specifies focus on pairing, and it needs a T6 step plus a live run.
+- 2026-11-01T12:04:51Z status=wontfix-accepted owner=12-5-bad-codes-a-bare-start-command-and-unpairing-get-polite-answ by=cr note=reopen_if=a keyboard pass (38.3 real-device or an a11y audit) finds focus outside the Telegram section after pairing

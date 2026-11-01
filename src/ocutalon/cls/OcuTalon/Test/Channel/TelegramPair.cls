@@ -490,8 +490,8 @@ Method TestBadCodes()
 			Set seen = seen _ $Select(seen = "": "", 1: ",") _ entries.%Get(i).data.change _ ":" _ entries.%Get(i).data.reason _ ":" _ entries.%Get(i).data.channel
 		}
 		Do $$$AssertEquals(seen, "rejected:unknown:telegram,rejected:expired:telegram,rejected:used:telegram,rejected:unknown:telegram", "four rejected Pairing entries on telegram, with the reasons unknown, expired, used and unknown")
-		Set everything = entries.%ToJSON()
-		Do $$$AssertNotTrue($Find(everything, chatId) || $Find(everything, "Zqbad"), "no audit entry holds the chat id or the name")
+		Set holding = ##class(OcuTalon.Test.Bridge.AuditLog).Entries(audit, , , , chatId).%Size() + ##class(OcuTalon.Test.Bridge.AuditLog).Entries(audit, , , , "Zqbad").%Size()
+		Do $$$AssertEquals(holding, 0, "no audit entry since the mark holds the chat id or the name")
 		Set notices = ..Notifications(headers)
 		Do $$$AssertEquals(notices.%Size(), 4, "TelegramIn sent four Notifications to Notify")
 		For i = 0:1:notices.%Size() - 1 {
@@ -527,25 +527,6 @@ Method TestStrangerReplies()
 		Do ..ChatRow(stranger, .ref, .linked, .stored)
 		If unpairs.%Size() = 1 Do $$$AssertEquals(unpairs.%Get(0).origin_"|"_unpairs.%Get(0).chatRef_"|"_unpairs.%Get(0).sessionRef, "telegram|"_ref_"|", "from origin telegram, by the row's Ref, with no session")
 		Do $$$AssertEquals(..Outcomes(headers), "not_paired", "and it was answered not_paired")
-		Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Entries(audit, "OcuTalon", "Pairing").%Size(), 0, "with no audit entry")
-		Set notices = ..Notifications(headers)
-		Do $$$AssertEquals(notices.%Size(), 3, "TelegramIn sent three Notifications")
-		Set keys = ""
-		For i = 0:1:notices.%Size() - 1 {
-			Set notice = notices.%Get(i)
-			Set keys = keys _ $Select(keys = "": "", 1: ",") _ notice.catalogKey
-			Do $$$AssertEquals(notice.kind_"|"_notice.chatRef_"|"_notice.sessionRef_"|"_notice.slots, "pairing|"_ref_"||{}", "notice "_(i + 1)_" is by the row's Ref, with no session and no slots")
-		}
-		Do $$$AssertEquals(keys, "pairing.start,pairing.start,pairing.notPaired", "they are pairing.start twice and pairing.notPaired once")
-		Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens.MessageHeader WHERE ID > ? AND TargetConfigName = 'Conversation'", headers)
-		Do result.%Next()
-		Do $$$AssertEquals(+result.%GetData(1), 0, "no request header reaches Conversation")
-		Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT TargetConfigName FROM Ens.MessageHeader WHERE ID > ? AND Type = 1 AND SourceConfigName IN ('TelegramIn', 'Notify', 'CommandsIn', 'TelegramOut')", headers)
-		Set found = ""
-		While result.%Next() {
-			If '$ListFind(found, result.%GetData(1)) Set found = found _ $ListBuild(result.%GetData(1))
-		}
-		Do $$$AssertTrue($ListLength(found) = 3 && $ListFind(found, "Notify") && $ListFind(found, "SessionOps") && $ListFind(found, "TelegramOut"), "the requests of the chat's path go only to Notify, SessionOps and TelegramOut (found "_$ListToString(found)_")")
 		Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT ChatId, Ref, CreatedAt, SeenAt, ReplySlotAt, SessionRef, DisplayName, CodeSessionRef, CodeHash, CodeExpiresAt, CodeUsedAt FROM OcuTalon_Data.Pairing WHERE ChatId = ?", stranger)
 		Do $$$AssertTrue(result.%Next(), "the chat's row exists")
 		For column = 1:1:5 {
@@ -563,6 +544,30 @@ Method TestStrangerReplies()
 		Do ..Send(sticker)
 		Do $$$AssertTrue(..Handled(), "TelegramIn handled a message with no text")
 		Do ..AssertTexts(stranger, [(..#START), (..#START), (..#NOTPAIRED), (..#NOTPAIRED)], "it gets the not-paired text again")
+		Do $$$AssertEquals(##class(%SQL.Statement).%ExecDirect(, "UPDATE OcuTalon_Data.Pairing SET ReplySlotAt = ? WHERE ChatId = ?", back, stranger).%SQLCODE, 0, "the chat's reply slot is set 61 s back again")
+		Do ..Send(..PrivateMessage(stranger, "Zqstranger", "/stop"))
+		Do $$$AssertTrue(..Handled(), "TelegramIn handled a /stop with the reply slot free")
+		Do ..AssertTexts(stranger, [(..#START), (..#START), (..#NOTPAIRED), (..#NOTPAIRED), (..#NOTPAIRED)], "a /stop answered not_paired gets the not-paired text when the slot is free")
+		Do $$$AssertEquals(..Outcomes(headers), "not_paired,not_paired", "both Unpair commands were answered not_paired")
+		Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Entries(audit, "OcuTalon", "Pairing").%Size(), 0, "the two not_paired unpairs wrote no audit entry")
+		Set notices = ..Notifications(headers)
+		Do $$$AssertEquals(notices.%Size(), 5, "TelegramIn sent five Notifications")
+		Set keys = ""
+		For i = 0:1:notices.%Size() - 1 {
+			Set notice = notices.%Get(i)
+			Set keys = keys _ $Select(keys = "": "", 1: ",") _ notice.catalogKey
+			Do $$$AssertEquals(notice.kind_"|"_notice.chatRef_"|"_notice.sessionRef_"|"_notice.slots, "pairing|"_ref_"||{}", "notice "_(i + 1)_" is by the row's Ref, with no session and no slots")
+		}
+		Do $$$AssertEquals(keys, "pairing.start,pairing.start,pairing.notPaired,pairing.notPaired,pairing.notPaired", "they are pairing.start twice and pairing.notPaired three times")
+		Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens.MessageHeader WHERE ID > ? AND TargetConfigName = 'Conversation'", headers)
+		Do result.%Next()
+		Do $$$AssertEquals(+result.%GetData(1), 0, "no request header reaches Conversation")
+		Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT TargetConfigName FROM Ens.MessageHeader WHERE ID > ? AND Type = 1 AND SourceConfigName IN ('TelegramIn', 'Notify', 'CommandsIn', 'TelegramOut')", headers)
+		Set found = ""
+		While result.%Next() {
+			If '$ListFind(found, result.%GetData(1)) Set found = found _ $ListBuild(result.%GetData(1))
+		}
+		Do $$$AssertTrue($ListLength(found) = 3 && $ListFind(found, "Notify") && $ListFind(found, "SessionOps") && $ListFind(found, "TelegramOut"), "the requests of the chat's path go only to Notify, SessionOps and TelegramOut (found "_$ListToString(found)_")")
 
 		Set old = "2001-01-01T00:00:00Z"
 		Do ##class(%SQL.Statement).%ExecDirect(, "UPDATE OcuTalon_Data.Pairing SET SeenAt = ?, CreatedAt = ? WHERE ChatId IN (?, ?)", old, old, stranger, paired)
