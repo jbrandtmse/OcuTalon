@@ -2746,3 +2746,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-11-10-the-demo-path-s-failure-paths-and-quiet-outcomes-pass-in-the.md | severity: low | fix-risk: high | footprint: in-story
 - evidence: Every outcome and mock-reason check in 07 and 08 sits behind ON_MOCK (read at review); the dry run and the 07 count pin cannot see an unguarded one
 - 2026-11-01T07:48:26Z status=wontfix-accepted owner=11-10-the-demo-path-s-failure-paths-and-quiet-outcomes-pass-in-the by=cr note=reopen_if=a real-model REL-2 run (Story 38.1 or 38.2) goes red on an outcome or a mock-reason assertion in 07 or 08
+
+### DW-525: Upgrade harness cannot observe Install.Step.Schedule's Reminder.Reconcile: a clean in-place upgrade and docker compose restart keep every ReminderTimer waiter, so the step has nothing to re-arm (planned mutation 3 stayed green)
+- source: spec-11-2-upgrades-and-restarts-keep-every-record-working.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: Run M: Reconcile mutated to return OK; R2 kept one waiting ReminderTimer and R1 fired on time; Reconcile is pinned by Test.Schedule.Reminders TestReconcileRearmsOnlyLostWaiters
+- 2026-11-01T11:06:24Z status=wontfix-theoretical owner=11-2-upgrades-and-restarts-keep-every-record-working by=harvest note=Reconcile's re-arm is pinned by Test.Schedule.Reminders; real if an in-place upgrade or a restart ever loses a ReminderTimer waiter (then the harness's reminder rows go red)
+
+### DW-526: test-storage.sh release_diff reads the committed HEAD, so a rehearsal's uncommitted storage change passes release-diff (the harness's own storage compare still catches it)
+- source: spec-11-2-upgrades-and-restarts-keep-every-record-working.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Run M: renaming Eval.Data.CaseResult DecidedAt in the working tree gave storage_compare MISSING but PASS release-diff
+- 2026-11-01T11:06:24Z status=wontfix-accepted owner=11-2-upgrades-and-restarts-keep-every-record-working by=harvest note=reopen_if=a storage-slot change reaches a candidate commit with test-storage.sh release-diff green
