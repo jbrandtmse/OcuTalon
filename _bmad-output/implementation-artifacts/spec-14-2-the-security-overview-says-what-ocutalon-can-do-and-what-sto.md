@@ -4,6 +4,7 @@ type: 'feature'
 created: '2026-11-02'
 status: 'done'
 baseline_revision: 'fc2fcddef4eb67360dc0041c9577005fb4a587ed'
+baseline_commit: 'fc2fcddef4eb67360dc0041c9577005fb4a587ed'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -184,6 +185,8 @@ deferred: []
 - Given the overview, when a reviewer compares each section with the fact lists above, then every listed fact is there and nothing else is claimed (manual check).
 
 ## Spec Change Log
+
+- 2026-11-02, runner, after dev_complete (owner answers through the orchestrator): U-223 (keep the no-purge sentence; every 'this release' line must stay true of 1.0.0 at rc1) -- the lead rephrased three Data and audit lines so they stay true when Telegram ships: the audit line now says Pairing, MCP and Tool entries are written only by the features that pair a chat, add or remove an MCP server, or change a tool's classification; the channels line reads 'on configured channels, such as OcuTalon's own web page'; the key line drops 'resolved only inside AI Hub's provider'. No new claim. U-224 (keep stating the host-side protections; the Planner checked H10, H12, H23 by hand on 2026-11-02) -- `release/demo-host-checks.md` marks H10, H12, H23 `pass 2026-11-02 (by hand, Contest Planner); re-check at the release deploy`, its intro and status-value sentences say so, and `docker/tests/test-online-host.sh` accepts that fourth status (a bare `pass` still fails). Footprint extension: `docker/tests/test-online-host.sh` (uncontended). Checked: `test-release-sequence.sh overviewdoc`, `test-boundaries.sh`, `test-online-host.sh` exit 0.
 
 ## Review Triage Log
 
