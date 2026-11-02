@@ -260,6 +260,7 @@ deferred: []
 
 - 2026-11-02, lead (Epic 12 runner, runner A), spec gate: the split is accepted (Part A only; the switch and Part C go to Story 12.9); the gated Part C block and its Verification lines are removed from this spec; the two edits outside Lane A are ruled and the `Delivery.Text` ask is a veto ruling (Design Notes, "Runner rulings at the spec gate"). DW-501 and DW-506 are re-owned to Story 12.9.
 - 2026-11-02, lead, spec gate: U-218 applied (owner KEPT, three conditions): the stored text is redacted and identity-free, `answered` rows store no text, the 90-day purge is DW-437's (Epic 30.7), the reader check stays and one test pins that the stored text has no chat id or name (Design Notes, "Applied U-218").
+- 2026-11-02, lead, re-dispatch after hold #2: Story 30.7 (the 90-day purge U-218's condition 2 relies on) is deferred after the v1.0.0 tag (Contest Planner, reserve lever d1). This story still does not build any purge: the dependency stays on DW-437 (its `occurrence=` stands) and the runner reports it in its contract. Nothing else in this spec changes; a new test class still goes into the lane-a `Channel` shard with no `ci/units.sh` change and no unit is moved between CI groups.
 
 ## Review Triage Log
 

@@ -3368,3 +3368,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-11-19-seeded-check-rows-stay-out-of-the-heartbeat-s-way-unless-a-c.md | severity: low | fix-risk: med | footprint: in-story
 - evidence: a deterministic red needs a browser spec that waits a tick, or a mutated Test.Data.Fixture CHECKAHEAD; both are outside 11.19's footprint (spec Never list); AC1's source pins and FixtureDefaults.TestCheckIsNotDue are the falsifiable halves
 - 2026-11-02T12:35:31Z status=wontfix-accepted owner=11-19-seeded-check-rows-stay-out-of-the-heartbeat-s-way-unless-a-c by=cr note=reopen_if=a seeded browser case reads a finding or last run it was not seeded with in CI after Epic 11 part 1 merges
+
+### DW-591: flake: OcuTalon.Test.Channel.TelegramChat setup (RunnerFixture) failed with ERROR 5001 'not every item runs 120 s after the TriageAgent restart' in CI iris (production) shard:lane-a@Channel (399 s vs 38 s locally); the unchanged rerun of the failed jobs was green
+- source: cycle-log-epic-12.md (integrate-forward head 404351eb, run 41456056242) | severity: med | fix-risk: low | footprint: src/ocutalon/cls/OcuTalon/Test/Channel/TelegramChat.cls
+- evidence: run 41456056242 attempt 1 production group 2369 s, TelegramChat setup red; attempt 2 (gh run rerun --failed) green; lane-a 41456056000 green
+- 2026-11-02T17:51:56Z status=routed owner=burndown by=harvest note=CI flake (one unchanged rerun green); setup restart wait likely too short on a loaded CI host; not a 1.0.0 blocker unless it recurs

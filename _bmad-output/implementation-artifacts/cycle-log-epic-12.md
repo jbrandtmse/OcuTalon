@@ -231,3 +231,9 @@
 2026-11-02T14:54:10Z	Epic 12	hold_ordered	reason=owner:account_switch_2(HOLD_requested_at_2026-11-02T14:53:34Z) at=story_boundary(12.7_spec_validated,implement_not_started) policy_change_expected=5086036
 2026-11-02T14:54:10Z	Story 12.7	hold_saved	story=12-7-approve-or-reject-from-telegram-and-every-copy-shows-who-ans stage=spec_validated patch=none tree=clean note=no_stage_in_flight;no_code_yet
 2026-11-02T14:54:20Z	Epic 12	hold_complete	shas=a2965da2(integrate_merge),c5830c5d(TelegramChat_counts),404351eb(ci_rerun_of_production_in_flight:41456056242),bookkeeping_to_this_commit runtimes=none_up(lane-A_throwaways_torn_down) slot=ocutalon-slot-a_loaded_at_a2965da2 next=12.7_implement_after_404351eb_green
+2026-11-02T17:51:36Z	Epic 12	runner_unattended_start	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec note=resume_after_hold_2 lane=A slot=ocutalon-slot-a runner=A web_port=52801 head=af128a0b model=claude-opus-5-5
+2026-11-02T17:51:36Z	Epic 12	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-11-02T17:51:56Z	Epic 12	ci_red_classified	run=41456056242 workflow=.github/workflows/ci.yml class=flake test=OcuTalon.Test.Channel.TelegramChat(setup_RunnerFixture_ERROR_5001) job=iris(production)/shard:lane-a@Channel rerun=green ledger=DW-591 head=404351eb
+2026-11-02T17:51:56Z	Epic 12	ci_resolved	story=integrate_forward sha=404351eb runs=41456056242,41456056000 result=success failed=none via=none resolved_at=resume attempts=ci:2(production_rerun_flake),lane-a:1
+2026-11-02T17:51:56Z	Epic 12	ci_resolved	story=bookkeeping sha=af128a0b runs=41466388995,41466389062 result=success failed=none via=none resolved_at=resume
+2026-11-02T17:52:56Z	Story 12.7	stage_spawned	stage=implement spawn_at=2026-11-02T17:52:56Z model=claude-sonnet-5-5 agent_name=12-7-implement-1 cycle_iteration=1 story_base=af128a0b
