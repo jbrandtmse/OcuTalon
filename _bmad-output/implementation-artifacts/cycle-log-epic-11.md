@@ -329,3 +329,4 @@
 2026-11-02T05:47:48Z	Story 11.5	committed	sha=0b8681e6 submodules= ci=pending runs=41396051573,41396051652 amendments=epics.md:11.5_split(11.14-11.18),DW-560_bullet pushed=verified_on_origin
 2026-11-02T05:47:48Z	Story 11.5	story_cycle	plan_to_commit_min=1062 implement_passes=1 reviews=1 rework=0 first_ci=pending models=plan:claude-opus,implement:claude-sonnet,qa:claude-sonnet,cr:claude-opus
 2026-11-02T06:53:31Z	Story 11.5	ci_resolved	story=11.5 sha=0b8681e6 runs=41396051573,41396051652 result=success failed=none via=none resolved_at=next_implement note=jobs_queued_~30min ci_groups=install-macos_0,web_0,shards-2_32,checks_10,shards_30,browser_30,install-upgrade_32,install-fresh_33,image_31,production_24
+2026-11-02T06:53:32Z	Story 11.14	stage_spawned	stage=implement spawn_at=2026-11-02T06:53:32Z model=claude-sonnet agent_name=11-14-the-release-sequence-runs-every-gate-on-the-pushed-candidate-implement-1 cycle_iteration=1 story_base=22ecabdb
