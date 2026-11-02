@@ -2618,6 +2618,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-30T15:56:40Z status=decision-pending owner=burndown by=cr note=product call: purge turns and sessions with their decisions, or keep usage as long as turns; AD-27 weight (Rule 20 Deferred)
 - 2026-11-02T07:15:31Z status=routed owner=burndown by=merge_gate note=Epic_30_part_1_decision_sheet,veto:purge_Turn,Delivery,Session_on_the_same_90-day_cut_as_their_Decision_and_Usage_rows(AD-27_retention_extension,marker+lint),one_test_that_TurnCost_and_ShownDecisionRef_never_read_a_purged_turn;Epic_30_part_2_burn-down(30.7)
 - 2026-11-02T07:16:07Z status=routed owner=burndown by=merge_gate note=veto_U-210
+- 2026-11-02T14:56:21Z status=routed owner=burndown by=owner note=U-218_condition_2_(Planner_2026-11-02):30.7's_purge_must_cover_Delivery.Text_on_Telegram_rows_with_buttons(Story_12.7);1.0.0_has_no_Delivery_purge(accepted:redacted,no_chat_id,demo_wipes_every_4h);30.7_deferred_after_the_tag(d1)
 
 ### DW-438: The OcuTalon heartbeat task's description (Install.Step.Schedule, 124 characters) is stored cut at 100 characters, mid-sentence, in the Task Manager
 - source: spec-30-2-old-messages-and-records-are-purged-on-schedule.md | severity: low | fix-risk: low | footprint: out-of-footprint

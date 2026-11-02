@@ -1376,3 +1376,4 @@
 2026-11-02T14:55:52Z	Epic 12	owner_decision	via=contest_planner(delegation) item=U-219(#661) decision=(a_prime):telegramIncluded=Included()_AND_bot_token_set_on_that_start;Install.Step.Public_writes;splash_only_reads;AD-19_dated_sub-bullet+marker(approved,written_in_12.9);banner_text_as_veto_item;Planner_keeps_pairing_off_on_demo_by_host_config_until_31.4
 2026-11-02T14:55:52Z	Epic 1-37	planner_note	from=Contest_Planner received=31.4_deferred(owner);U-219=(a_prime);reforecast_with_d1+d2_at_resume;quota_63pct_at_hold
 2026-11-02T14:55:52Z	Epic 31	deps_hash_rerecorded	reason=owner_drop(31.4_deferred_from_1.0.0;edges_unchanged) hash=d60650409c8b
+2026-11-02T14:56:21Z	Epic 30	ledger_note	DW-437 note=U-218_condition_2_on_30.7s_charter(Delivery.Text_Telegram_rows) by=owner(Planner_accepted_caveat)
