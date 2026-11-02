@@ -286,11 +286,18 @@ record_commit() {
   return 0
 }
 
-# record_only: succeeds when every commit between the start and the record commit touches only release/records/.
+# record_only: succeeds when every commit that the record push would add to the remote (those after the start and after the remote's
+# head, when that head is known here) changes this record or another candidate record (release/records/<v>/rc<n>.md) and
+# nothing else; a draft, any other path, an empty commit or a merge (both list no path, and the empty line counts) fails it.
 record_only() {
-  local c paths
-  for c in $(git rev-list "$(sget base_sha)..$REC_SHA" < /dev/null 2> /dev/null); do
-    paths=$(git diff-tree --no-commit-id --name-only -r "$c" < /dev/null 2> /dev/null | grep -v '^release/records/' | wc -l | tr -d ' ')
+  local c paths rel not rhead
+  rel=$(record_relpath)
+  not=$(sget base_sha)
+  rhead=$(git ls-remote "$remote" "refs/heads/$integration" < /dev/null 2> /dev/null | awk '{ print $1 }')
+  if [ -n "$rhead" ] && git cat-file -e "$rhead^{commit}" < /dev/null 2> /dev/null; then not="$not $rhead"; fi
+  for c in $(git rev-list "$REC_SHA" --not $not < /dev/null 2> /dev/null); do
+    paths=$(git diff-tree --no-commit-id --name-only -r "$c" < /dev/null 2> /dev/null)
+    paths=$(printf '%s\n' "$paths" | grep -vxF -e "$rel" | grep -Evx 'release/records/[^/]+/rc[0-9]+\.md' | wc -l | tr -d ' ')
     [ "$paths" -eq 0 ] || return 1
   done
   return 0
@@ -349,10 +356,8 @@ stop_routine() {
     record_put "$result"
     record_commit amend
     echo "NOTE $integration holds commits besides the record; the record commit is not pushed"
-  elif [ "$REC_STATE" = unchanged ] && [ "$(sget rec_pushed)" = 1 ]; then
-    row_set record pushed "committed to $integration and pushed on the author's word"
-    record_put "$result"
   else
+    sset rec_pushed 0
     ask record "Push the record commit of $version rc$rc to $integration on $remote?"
     code=$?
     case $code in
@@ -368,7 +373,7 @@ stop_routine() {
           [ "$code" -ne 0 ] || code=2
           if [ "$code" -eq 1 ]; then
             rec_detail="not pushed: $integration moved on $remote"
-            echo "FAIL record $rec_detail; bring the checkout up to date and run release.sh resume"
+            echo "FAIL record $rec_detail; bring the checkout up to date and run release.sh resume (git pull --rebase: a merge is never offered for a push)"
           else
             rec_detail="not pushed: git push failed"
             echo "FAIL record $rec_detail"
@@ -422,9 +427,13 @@ hands_total() {
 STEP_ROW=""
 STEP_DETAIL=""
 
-step_fail() { # step_fail <step> <detail>
+step_fail() { # step_fail <step> <detail>: the detail names no local path (the state folder, the checkout or the home folder)
+  local d=$2 home_mark='~'
+  [ -z "${sdir:-}" ] || d=${d//"$sdir"/<state>}
+  d=${d//"$rel_root"/.}
+  [ -z "${HOME:-}" ] || d=${d//"$HOME"/$home_mark}
   STEP_ROW=fail
-  STEP_DETAIL=$(printf '%s' "$2" | detail_clean)
+  STEP_DETAIL=$(printf '%s' "$d" | detail_clean)
   echo "FAIL $1 $STEP_DETAIL"
   return 1
 }
@@ -581,6 +590,11 @@ step_push() {
   fi
   if [ "$(git rev-parse "refs/heads/$branch" < /dev/null 2> /dev/null)" != "$cand" ]; then
     step_fail push "$branch no longer points at the cut commit; a candidate is never moved"
+    return 1
+  fi
+  remote_sha=$(git ls-remote "$remote" "refs/heads/$branch" < /dev/null 2> /dev/null | awk '{ print $1 }')
+  if [ -n "$remote_sha" ] && [ "$remote_sha" != "$cand" ]; then
+    step_fail push "$branch already exists on $remote at another commit; a candidate is never moved, so start the next one"
     return 1
   fi
   ask push "Push $branch (${cand%"${cand#???????}"}) to $remote?"
@@ -791,6 +805,9 @@ cmd_start() {
   printf '%s\n' "$version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$' || refuse "--version must be x.y.z"
   [ -z "$opt_rc" ] || printf '%s\n' "$opt_rc" | grep -Eq '^[1-9][0-9]{0,5}$' || refuse "--rc must be a positive whole number"
   [ -n "$integration" ] || integration=feature/OCT_OcuTalon_MVP
+  case $integration in
+    main | master | HEAD | release/* | rehearsal/* | refs/* | -* | *:* | +*) refuse "--integration $integration is not an integration branch" ;;
+  esac
   [ -n "$remote" ] || remote=origin
   for t in git node npm docker; do
     command -v "$t" > /dev/null 2>&1 || refuse "$t is not installed"

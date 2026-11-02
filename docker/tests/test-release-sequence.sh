@@ -25,6 +25,9 @@
 #   gate      the record is accepted by Story 11.2's harness, and its section stays byte for byte
 #   secret    a full run prints, records and logs no value of the environment, calls no docker push or login, and the scan finds a
 #             planted line
+#   first     (QA) every first version but 1.0.0 is refused with nothing written
+#   word      (QA) only the line yes proceeds; no option, variable or terminal answers in advance
+#   pushes    (QA) exactly two pushes, each to the local bare remote and named; the checkout never switched; the draft never leaves
 #   static    mode, ASCII, the main guard, the forbidden commands and push forms
 # Prints one PASS or FAIL line per rule; exits 0 only when all pass.
 set -u
@@ -157,7 +160,7 @@ case "$1" in
         *) ctx=$1; shift ;;
       esac
     done
-    [ -f "$SHIMFLAGS/build-fail" ] && { echo "planted build failure" >&2; exit 1; }
+    [ -f "$SHIMFLAGS/build-fail" ] && { echo "planted build failure in $ctx/docker/Dockerfile" >&2; exit 1; }
     if [ ! -f "$ctx/src/ocutalon/csp/index.html" ]; then
       echo "web bundle missing: run npm --prefix web run build" >&2
       exit 1
@@ -448,6 +451,12 @@ t_refusals() {
   rs "$Y" start --version 1.0.0 --rc 3
   eq "--rc not the next: exit" "$rc" 2
   has "--rc not the next" "$out" "REFUSED --rc 3 is not the next number; the next is rc1"
+  for t in main master release/1.0.0-rc1 rehearsal/1.0.0-rc1 refs/heads/x; do
+    rs "$Y" start --version 1.0.0 --integration "$t"
+    eq "--integration $t: exit" "$rc" 2
+    eq "--integration $t: the line" "$out" "REFUSED --integration $t is not an integration branch"
+  done
+  eq "the integration names: nothing written" "$(find "$OCUTALON_RELEASE_STATE" -mindepth 1 2> /dev/null | wc -l | tr -d ' ')" 0
   rs "$Y" start --version 1.0.0 --integration nope
   has "an integration branch that is not checked out" "$out" "REFUSED the checkout is not on nope"
   rs "$Y" start --version 1.0.0 --remote nowhere
@@ -685,7 +694,8 @@ t_image() {
   unflag no-base
   flag build-fail
   rs "$N" next
-  has "a failed build" "$out" "FAIL image docker build failed: planted build failure"
+  has "a failed build" "$out" "FAIL image docker build failed: planted build failure in <state>/context/docker/Dockerfile"
+  lacks "a failed build: no local path in the record" "$(cat "$(rec_file)")" "$tmp"
   unflag build-fail
   flag no-bundle
   rs "$N" next
@@ -735,6 +745,15 @@ t_push() {
   has "a moved candidate: the line" "$out" "FAIL push release/1.0.0-rc1 no longer points at the cut commit"
   lacks "a moved candidate: no question" "$out" "ASK push"
   eq "a moved candidate: the remote has no candidate" "$(git --git-dir="$R" for-each-ref refs/heads/release | wc -l | tr -d ' ')" 0
+  # a candidate name taken on the remote after the start is never pushed over
+  newcase
+  to_step push
+  git --git-dir="$R" branch release/1.0.0-rc1 "$EXPECT_BASE"
+  rs '' next
+  eq "a name taken on the remote: exit" "$rc" 1
+  has "a name taken on the remote: the line" "$out" "FAIL push release/1.0.0-rc1 already exists on origin at another commit"
+  lacks "a name taken on the remote: no question" "$out" "ASK push"
+  eq "a name taken on the remote: the remote's branch is unchanged" "$(git --git-dir="$R" rev-parse refs/heads/release/1.0.0-rc1)" "$EXPECT_BASE"
   # a full run that answers yes to every question
   newcase
   before=$(git --git-dir="$R" for-each-ref --format='%(objectname) %(refname)')
@@ -786,6 +805,32 @@ t_record() {
   has "own commit: the note" "$out" "NOTE $INTEG holds commits besides the record; the record commit is not pushed"
   lacks "own commit: no question" "$out" "ASK record"
   eq "own commit: the remote is unchanged" "$(rhead)" "$EXPECT_BASE"
+  for c in draft empty merge; do
+    newcase
+    rs "$Y" start --version 1.0.0
+    rs '' next
+    if [ "$c" = draft ]; then
+      mkdir -p "$W/release/records/1.0.0"
+      echo "my draft" > "$W/release/records/1.0.0/rc1-notes.md"
+      git -C "$W" add -f release/records/1.0.0/rc1-notes.md
+      git -C "$W" commit -q -m "own draft"
+    elif [ "$c" = empty ]; then
+      git -C "$W" commit -q --allow-empty -m "own empty commit"
+    else
+      git -C "$W" checkout -q -b side
+      mkdir -p "$W/release/records/1.0.0"
+      echo "an older record" > "$W/release/records/1.0.0/rc5.md"
+      git -C "$W" add release/records/1.0.0/rc5.md
+      git -C "$W" commit -q -m "a record on a side branch"
+      git -C "$W" checkout -q "$INTEG"
+      git -C "$W" merge -q --no-ff -m "own merge" side
+    fi
+    flag lie
+    rs "$Y" next
+    has "own $c commit: the note" "$out" "NOTE $INTEG holds commits besides the record; the record commit is not pushed"
+    lacks "own $c commit: no question" "$out" "ASK record"
+    eq "own $c commit: the remote is unchanged" "$(rhead)" "$EXPECT_BASE"
+  done
   newcase
   rs "$Y" start --version 1.0.0
   rs '' next
@@ -851,7 +896,9 @@ t_record() {
   to_step push
   rs "$Y" next
   git clone -q "$R" "$C/o"
-  git -C "$C/o" commit -q --allow-empty -m "someone else"
+  echo "their work" > "$C/o/theirs.txt"
+  git -C "$C/o" add theirs.txt
+  git -C "$C/o" commit -q -m "someone else"
   git -C "$C/o" push -q origin "$INTEG"
   rs "$Y" next
   eq "a moved branch: exit" "$rc" 1
@@ -923,6 +970,18 @@ t_hands() {
   has "901 s: the warning" "$out" "WARN hands-on time 15 min 1 s for 1.0.0 is over the 15-minute target"
   has "901 s: the record" "$(cat "$(rec_file)")" "Hands-on time: 15 min 1 s for this candidate; 15 min 1 s for 1.0.0 so far, over the 15-minute target (target at most 15 min; CI and the hands-on pass not counted)"
   eq "901 s: it refuses nothing" "$rc" 1
+  # an earlier record under a minute counts, and the version's total warns when each candidate is under the target
+  newcase
+  git -C "$W" branch release/1.0.0-rc1
+  mkdir -p "$W/release/records/1.0.0"
+  printf '%s\n' "# OcuTalon 1.0.0 rc1" "## Release sequence" "Hands-on time: 45 s for this candidate; 45 s for 1.0.0 so far (target at most 15 min)" > "$W/release/records/1.0.0/rc1.md"
+  clockfile 1000 1860 1860 1860 1860 1860 1860 1860
+  rs "$Y" start --version 1.0.0
+  has "the total over the target: rc2" "$out" "START 1.0.0 rc2 "
+  flag npm-fail
+  rs '' next --version 1.0.0 --rc 2
+  has "the total over the target: the warning" "$out" "WARN hands-on time 15 min 5 s for 1.0.0 is over the 15-minute target"
+  has "the total over the target: the record" "$(cat "$(rec_file 2)")" "Hands-on time: 14 min 20 s for this candidate; 15 min 5 s for 1.0.0 so far, over the 15-minute target"
   # a step's own run time does not count: the clock is read by the questions only
   newcase
   clockfile 10 20 30 40 50 60 70 80 90
@@ -1097,6 +1156,7 @@ forbidden_scan() { # forbidden_scan <file>...: file:line of each forbidden form
       line = $0
       if (line ~ /docker[ \t]+(push|login|save|export)([ \t]|$)/) bad()
       else if (line ~ /printenv/) bad()
+      else if (line ~ /(^|[;&|(` \t])env[ \t]*($|[|;&)>`])/) bad()
       else if (line ~ /(^|[;& \t])set[ \t]+-[a-zA-Z]*x/) bad()
       else if (line ~ /declare[ \t]+-[a-zA-Z]*p/) bad()
       else if (line ~ /docker[ \t]+compose[ \t]+config/ && line !~ /--quiet/) bad()
@@ -1125,7 +1185,7 @@ t_secret() {
   # the scan of the real scripts, and of planted lines
   eq "the scan of the scripts" "$(forbidden_scan "$root/release/release.sh" "$root/release/lib-release.sh")" ""
   mkdir -p "$tmp/scan"
-  for p in "dock""er push img" "dock""er login" "dock""er save x" "dock""er export x" "print""env" "set"" -x" "declare"" -p" "dock""er compose config" "dock""er image inspect x" "git"" push --force origin x" "git"" push origin --tags" "git"" push origin --all" "git"" push origin +x:y" "git"" tag v1.0.0"; do
+  for p in "dock""er push img" "dock""er login" "dock""er save x" "dock""er export x" "print""env" "en""v" "x=\$(en""v | sort)" "set"" -x" "declare"" -p" "dock""er compose config" "dock""er image inspect x" "git"" push --force origin x" "git"" push origin --tags" "git"" push origin --all" "git"" push origin +x:y" "git"" tag v1.0.0"; do
     printf '#!/bin/sh\necho ok\n%s\n' "$p" > "$tmp/scan/s.sh"
     eq "the scan flags '$p'" "$(forbidden_scan "$tmp/scan/s.sh")" "$tmp/scan/s.sh:3"
   done
@@ -1142,6 +1202,144 @@ t_secret() {
   eq "the network stubs were not called" "$(ls "$tmp/netmarks" | tr '\n' ' ')" ""
   plant=$(grep -rl "$OCUTALON_TEST_SECRET" "$tmp"/c*/shim "$tmp/alloutput" 2> /dev/null)
   eq "the planted value is in no output and shim log of any case" "$plant" ""
+}
+
+# --- first (QA: the first version must be 1.0.0) ---
+
+t_first() {
+  local before v
+  newcase
+  before=$(snap)
+  for v in 1.0.1 1.1.0 2.0.0 0.1.0 0.1.1 0.9.9 10.0.0 1.0.00; do
+    rs "$Y" start --version "$v"
+    eq "first release $v: exit" "$rc" 2
+    eq "first release $v: the line" "$out" "REFUSED the first release is 1.0.0"
+    eq "first release $v: nothing written" "$(snap)" "$before"
+  done
+  rs "$Y" start --version 1.0.0
+  eq "first release 1.0.0: exit" "$rc" 0
+  has "first release 1.0.0: the kit is asked" "$out" "ASK kit "
+}
+
+# --- word (QA: only the line yes proceeds; nothing answers in advance) ---
+
+t_word() {
+  local a o v before names
+  names="OCUTALON_RELEASE_YES OCUTALON_RELEASE_ANSWER OCUTALON_RELEASE_ANSWERS OCUTALON_RELEASE_ASSUME_YES OCUTALON_RELEASE_CONFIRM OCUTALON_YES OCUTALON_ASSUME_YES RELEASE_YES ASSUME_YES YES ANSWER CI NONINTERACTIVE DEBIAN_FRONTEND OCUTALON_RELEASE_KIT_CONFIRMED"
+  # the kit question: any line but yes refuses and writes nothing
+  newcase
+  before=$(snap)
+  for a in y Y YES Yes "yes please" " yes" "yes " ok true 1 "yes!" "no"; do
+    rs "$a"$'\n' start --version 1.0.0
+    eq "kit '$a': exit" "$rc" 2
+    has "kit '$a': the line" "$out" "REFUSED the author did not confirm the 1.0.0 kit"
+    eq "kit '$a': nothing written" "$(snap)" "$before"
+  done
+  # no option answers a question in advance
+  for o in --yes -y --assume-yes --answer=yes "--answer yes" --force --no-ask --non-interactive --confirm; do
+    # shellcheck disable=SC2086
+    rs "$Y" start --version 1.0.0 $o
+    eq "start $o: exit" "$rc" 2
+    has "start $o: refused" "$out" "REFUSED unknown option"
+    lacks "start $o: no question was printed" "$out" "ASK "
+    eq "start $o: nothing written" "$(snap)" "$before"
+  done
+  # no variable of the environment answers a question in advance
+  for v in $names; do export "$v=yes"; done
+  rs '' start --version 1.0.0
+  for v in $names; do unset "$v"; done
+  eq "environment answers, start: exit" "$rc" 2
+  has "environment answers, start: refused" "$out" "REFUSED the author did not confirm the 1.0.0 kit"
+  eq "environment answers, start: nothing written" "$(snap)" "$before"
+  # the push question: any other line stops with exit 4 and pushes nothing
+  newcase
+  to_step push
+  before=$(git --git-dir="$R" for-each-ref --format='%(objectname) %(refname)')
+  for a in y YES "yes please" " yes" "yes " ok "no"; do
+    rs "$a"$'\n' next
+    eq "push '$a': exit" "$rc" 4
+    has "push '$a': the line" "$out" "STOPPED push waiting for the author's word"
+    eq "push '$a': the remote is unchanged" "$(git --git-dir="$R" for-each-ref --format='%(objectname) %(refname)')" "$before"
+  done
+  # one line answers one question: the 'no' to push is not followed by the 'yes' reaching push
+  rs "no"$'\nyes\n' next
+  eq "no then yes: exit" "$rc" 4
+  eq "no then yes: the candidate is not on the remote" "$(git --git-dir="$R" for-each-ref refs/heads/release | wc -l | tr -d ' ')" 0
+  # the second line answered the record question (a separate question, one line each); the candidate is still not pushed
+  before=$(git --git-dir="$R" for-each-ref --format='%(objectname) %(refname)')
+  for o in --yes -y --assume-yes --answer=yes --force; do
+    rs '' next "$o"
+    eq "next $o: exit" "$rc" 2
+    has "next $o: refused" "$out" "REFUSED unknown option"
+  done
+  rs '' resume --yes
+  eq "resume --yes: exit" "$rc" 2
+  eq "no option pushed anything" "$(git --git-dir="$R" for-each-ref --format='%(objectname) %(refname)')" "$before"
+  for v in $names; do export "$v=yes"; done
+  rs '' next
+  for v in $names; do unset "$v"; done
+  eq "environment answers, push: exit" "$rc" 4
+  has "environment answers, push: the line" "$out" "STOPPED push waiting for the author's word"
+  eq "environment answers, push: the remote is unchanged" "$(git --git-dir="$R" for-each-ref --format='%(objectname) %(refname)')" "$before"
+  # the script reads one line from standard input, and from nothing else
+  eq "one read command, from standard input" "$(grep -v '^[[:space:]]*#' "$root/release/release.sh" | grep -E '(^|[^[:alnum:]_])read[[:space:]]' | sed 's/^[[:space:]]*//')" 'if ! IFS= read -r line && [ -z "$line" ]; then'
+  eq "no terminal device and no pre-answer file" "$(grep -v '^[[:space:]]*#' "$root/release/release.sh" | grep -cE '/dev/tty|/dev/fd|--yes|assume|ANSWER')" 0
+}
+
+# --- pushes (QA: exactly two pushes, to the local bare remote only; the author's checkout never switched; the draft never leaves) ---
+
+t_pushes() {
+  local real shimdir log pushes head n
+  newcase
+  shimdir=$C/gitshim
+  mkdir -p "$shimdir"
+  real=$(command -v git)
+  printf '#!/bin/sh\nprintf "%%s\\n" "$*" >> "$SHIMLOG/git.log"\nexec "%s" "$@"\n' "$real" > "$shimdir/git"
+  chmod 755 "$shimdir/git"
+  RS_PATH="$shimdir:$PATH"
+  git -C "$W" tag note-to-self
+  rs "$Y" start --version 1.0.0
+  rs '' next
+  rs '' next
+  rs "$Y" next
+  rs "$Y" next
+  eq "two pushes: the last exit" "$rc" 0
+  log=$(cat "$SHIMLOG/git.log")
+  pushes=$(printf '%s\n' "$log" | grep -E '(^| )push( |$)')
+  head=$(git -C "$W" rev-parse HEAD)
+  eq "exactly two pushes" "$(printf '%s\n' "$pushes" | grep -c .)" 2
+  eq "the first push is the candidate branch alone" "$(printf '%s\n' "$pushes" | sed -n 1p)" "push -q origin refs/heads/release/1.0.0-rc1:refs/heads/release/1.0.0-rc1"
+  eq "the second push is the record commit to the integration branch alone" "$(printf '%s\n' "$pushes" | sed -n 2p)" "push -q origin $head:refs/heads/$INTEG"
+  eq "no force, tag, all, mirror, delete, plus refspec or main in a push" "$(printf '%s\n' "$pushes" | grep -cE -e '--force|--tags|--all|--mirror|--delete|--prune| -f |:?\+|refs/tags|main|note-to-self')" 0
+  eq "every push names the remote origin" "$(printf '%s\n' "$pushes" | awk '{ print $3 }' | sort -u)" origin
+  eq "origin is the local bare repository of the test" "$(git -C "$W" remote get-url origin)" "$R"
+  eq "no tag was created (the tag calls only list)" "$(printf '%s\n' "$log" | grep -E '(^| )tag( |$)' | grep -vcE -e '--list|--points-at|--merged')" 0
+  eq "no remote was added or changed (the remote calls only read a URL)" "$(printf '%s\n' "$log" | grep -E '(^| )remote( |$)' | grep -vcE 'remote get-url')" 0
+  # the author's checkout is never switched: the reflog of HEAD holds the clone and the record commits only
+  eq "the checkout stays on the integration branch" "$(git -C "$W" symbolic-ref --short HEAD)" "$INTEG"
+  eq "no checkout, switch, reset, rebase, merge or pull in the checkout's HEAD reflog" "$(git -C "$W" reflog show --format=%gs HEAD | grep -vcE '^(clone|commit)')" 0
+  eq "the checkout's branches are the integration branch, the candidate and the author's own" "$(git -C "$W" for-each-ref --format='%(refname:short)' refs/heads | tr '\n' ' ')" "$INTEG release/1.0.0-rc1 "
+  # the draft exists and is in no commit, locally or on the remote (DW-560)
+  n=release/records/1.0.0/rc1-notes.md
+  eq "the draft exists in the checkout" "$([ -f "$W/$n" ] && echo yes)" yes
+  eq "the draft is untracked" "$(git -C "$W" status --porcelain -- "$n")" "?? $n"
+  eq "the draft is in no object of the local history" "$(git -C "$W" log --all --format=%H -- "$n")" ""
+  eq "the draft is in no tree of the candidate" "$(git -C "$W" ls-tree -r --name-only release/1.0.0-rc1 | grep -c 'rc1-notes.md')" 0
+  eq "the remote's integration tree holds the record and no draft" "$(git --git-dir="$R" ls-tree -r --name-only "$INTEG" -- release/records | tr '\n' ' ')" "release/records/1.0.0/rc1.md "
+  eq "the remote's candidate tree holds no draft" "$(git --git-dir="$R" ls-tree -r --name-only release/1.0.0-rc1 | grep -c 'rc1-notes.md')" 0
+  eq "the remote has no tag" "$(git --git-dir="$R" for-each-ref refs/tags | wc -l | tr -d ' ')" 0
+  # declined words: no push at all
+  newcase
+  mkdir -p "$C/gitshim"
+  cp "$shimdir/git" "$C/gitshim/git"
+  RS_PATH="$C/gitshim:$PATH"
+  rs "$Y" start --version 1.0.0
+  rs '' next
+  rs '' next
+  rs "$N" next
+  rs '' next
+  eq "declined and unanswered words: no push" "$(grep -cE '(^| )push( |$)' "$SHIMLOG/git.log")" 0
+  RS_PATH=""
 }
 
 # --- static ---
@@ -1229,6 +1427,9 @@ rule resume t_resume
 rule notes t_notes
 rule gate t_gate
 rule secret t_secret
+rule first t_first
+rule word t_word
+rule pushes t_pushes
 rule static t_static
 
 if [ "$fails_total" -eq 0 ]; then

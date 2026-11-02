@@ -190,6 +190,39 @@ This story takes four of epics.md Story 11.5's criteria, verbatim there:
 - IA3 (once, `--live`): **Given** the real Dockerfile, **when** the `image` step builds a throwaway candidate, **then** `/opt/ocutalon/version` reads `1.0.0` as the cut stamped it, and the check image is gone afterwards.
 - Standing: every test added or changed passes on a fresh environment, in either order.
 
+### Review Findings
+
+Code review 2026-11-01 (follow-up review, full tier; layers: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor, no model override). Each entry: severity, fix-risk, footprint, spec-status, disposition.
+
+- [x] [Review][Patch] HIGH: the record push's own-commit guard let an author-committed draft notes file (and an empty or merge commit) go out under the record question (DW-560) [release/release.sh:record_only] -- it accepted any path under `release/records/`; now every commit the push would add must change only this record or another `release/records/<v>/rc<n>.md`, and an empty path list (an empty commit, a merge) fails it. fix-risk low (one function, pinned); in-story; clear; fixed. Tests: `record` draft, empty and merge cases. (blind-hunter+edge-case-hunter+acceptance-auditor)
+- [x] [Review][Patch] HIGH: `--integration` took `main` (or a `release/*` branch), so the record push could go to `main` or move a candidate [release/release.sh:cmd_start] -- now `main`, `master`, `HEAD`, `release/*`, `rehearsal/*`, `refs/*`, `-*`, `+*` and `*:*` are refused with nothing written. fix-risk low; in-story; clear; fixed. Test: `refusals`. (blind-hunter+edge-case-hunter+acceptance-auditor)
+- [x] [Review][Patch] MED: after the moved-branch FAIL, following its own advice (bring the checkout up to date, resume) left the record unpushable for good, because the guard counted the pulled commits from `base_sha` [release/release.sh:record_only] -- the range now also excludes the remote's head (`git ls-remote`, when that commit is known locally); the advice names `git pull --rebase`. fix-risk low; in-story; clear; fixed. Test: `record` moved case now uses a commit that changes a file (the empty fixture hid the defect). (all four layers)
+- [x] [Review][Patch] MED: the push step pushed over a candidate name taken on the remote after `start` (a plain push fast-forwards it, moving a `release/*` branch) [release/release.sh:step_push] -- it now fails before the question when the remote holds the name at another commit. fix-risk low; in-story; clear; fixed. Test: `push` taken-name case. (blind-hunter+acceptance-auditor)
+- [x] [Review][Patch] MED: a FAIL detail (docker build's last lines, notes.sh's refusal line) could carry a local absolute path into the committed record (test-boundaries would then fail on the integration branch) [release/release.sh:step_fail] -- `step_fail` replaces the state folder, the checkout and the home folder with `<state>`, `.` and `~`. fix-risk low; in-story; clear; fixed. Test: `image` failed-build case (the shim's failure now names its context path). (acceptance-auditor)
+- [x] [Review][Patch] MED (Rule 19): AC7's version total over the target was tested only within one candidate [docker/tests/test-release-sequence.sh:t_hands] -- new case: rc1 record 45 s, rc2 860 s, total 905 s warns. fix-risk low; in-story; clear; fixed. (verification-gap)
+- [x] [Review][Patch] LOW (Rule 19): `earlier_hands`' under-a-minute branch never ran [docker/tests/test-release-sequence.sh:t_hands] -- the same case reads `45 s`. fixed. (verification-gap)
+- [x] [Review][Patch] LOW: `rec_pushed` kept the previous stop's `1` while the record question waited, so an interrupt there closed the sequence with the last record unpushed [release/release.sh:stop_routine] -- set to 0 before the question. fix-risk low; fixed (no automated interrupt case). (blind-hunter)
+- [x] [Review][Patch] LOW: the `unchanged`-and-pushed branch of the stop routine was dead (the `Run:` time and the waiting row make every render differ) and, if reached, would leave the record dirty [release/release.sh:stop_routine] -- removed. fixed. (blind-hunter+edge-case-hunter)
+- [x] [Review][Patch] LOW: AC6's scan had no pattern for a bare `env` (the Always list names it) [docker/tests/test-release-sequence.sh:forbidden_scan] -- added (a bare `env` with no argument, so `env -u` and prose pass), with two planted lines. fixed. (verification-gap)
+- [x] [Review][Patch] LOW (Rule 19): the Standing criterion had no recorded order evidence -- recorded under Verification (every rule passes without `libs` and `word` ahead of it). fixed. (verification-gap)
+- [x] [Review][Defer] LOW: the default state root is not keyed by checkout, so `next`/`status` without names in a second checkout can pick up another checkout's sequence [release/release.sh:61] -- wontfix-accepted, DW-573 (reopen_if a run acts on a sequence started in another checkout). (edge-case-hunter)
+
+Rejected:
+- low: no command closes a sequence whose record push was declined (blind-hunter) -- by the matrix the next `next` asks again; a close command is new surface.
+- low: a version below the highest tag is accepted (blind-hunter, edge-case-hunter) -- the spec has no ordering rule; a patch line on an older minor may be legitimate (a product call, not a guard to add here).
+- low: leading zeros (`1.01.0`) pass the version pattern after the first release (blind-hunter) -- the branch name is shown in the push question; unlikely.
+- low: the Auto Run Result predates QA (blind-hunter) -- a spec edit outside Verification.
+- low: a `--pick` given as a ref is resolved at the cut (edge-case-hunter) -- picks are SHAs by contract and must be on the start head.
+- low: a custom `--record` folder undercounts the version total (edge-case-hunter) -- only with a non-default record folder.
+- low: an ignored `record_write` failure could report the record pushed (edge-case-hunter) -- needs a write failure in a folder the script just wrote; theoretical.
+- low: a push that the remote accepted but reported as failed is amended (edge-case-hunter) -- local bare or SSH remote; theoretical.
+- low: a draft written before an unknown RESULT blocks the retry (edge-case-hunter) -- notes.sh's own refusal names the file; rare.
+- low: decision 10 (a new start while an earlier candidate waits) is blocked when the earlier record commit is unpushed (edge-case-hunter) -- the matrix's "Bad start state" row (local differs from the remote) governs.
+- low: `IRIS_IMAGE` in the missing-base FAIL line (acceptance-auditor) -- an image tag, not a secret; adjudicated in the implement review (Blind 9).
+- false: the kit question at end of input exits 2, not 4 (acceptance-auditor) -- the matrix row "Kit not confirmed" says exit 2.
+- false: more than two pushes when a run stops several times (acceptance-auditor) -- the matrix asks the record question at every stop; the all-yes run makes exactly two (`pushes`).
+- low: the CLI header adds `[--rc <n>]` to the golden one (acceptance-auditor) -- the matrix uses `--rc`; a spec edit.
+
 ## Spec Change Log
 
 ## Review Triage Log
@@ -470,6 +503,45 @@ All commands run from the worktree root, each in its own foreground call with `t
 - IA2 mutation: `record_write` keeps no other section (`{ print; last = $0 }` made `{ last = $0 }`) -> `gate` red (the other gate's section and `## Release sequence` are gone).
 - IA3 mutation: the image step builds from the integration head (`git archive "$(sget base_sha)"`) instead of the candidate -> `--live` red (`PASS image 1.0.0` missing, the image reads 0.1.0); a failed start or cut in `--live` now sets `bad` too, so it cannot print `PASS live` without an image.
 - Review patch mutations: the `record_only` guard replaced by `false` -> `record` red (the author's own commit is pushed); the candidate-moved guard in `step_push` removed -> `push` red; the empty-`RESULT` refusal in `step_notes` removed -> `notes` red; the step_cut taken-name check replaced by `false` -> `cut` red; the `$tags` condition dropped from the first-release rule -> `cut` red (a later release is refused); the off-branch check in `record_commit` replaced by `false` -> `record` red; `10#` removed from `next_rc` -> `libs` red; the empty-`--pick` refusal removed -> `refusals` red.
+
+**QA stage (Rule 8, Rule 19; tests only, no product code changed):**
+- Test file changed (QA): `docker/tests/test-release-sequence.sh` gains three rules, `first`, `word` and `pushes` (already discovered through `CHECK_SCRIPTS`; no new file, no CI change). They pin what the earlier rules left open:
+  - `first`: every first version but 1.0.0 (1.0.1, 1.1.0, 2.0.0, 0.1.0, 0.1.1, 0.9.9, 10.0.0, 1.0.00) is refused with nothing written, even when the stdin answer is `yes`.
+  - `word`: only the exact line `yes` proceeds (`y`, `YES`, `Yes`, `yes please`, ` yes`, `yes `, `ok`, `true`, `1`, `no` decline at the kit and at the push); one line answers one question; no option (`--yes`, `-y`, `--assume-yes`, `--answer yes`, `--force`, and others, at `start`, `next` and `resume`) and no environment variable (fifteen names set to `yes`) answers in advance; the only `read` in the script is the one from standard input.
+  - `pushes`: with a logging `git` shim, a full run makes exactly two pushes, `push -q origin refs/heads/release/1.0.0-rc1:refs/heads/release/1.0.0-rc1` and `push -q origin <record sha>:refs/heads/<integration>`; neither carries a force, tag, all, mirror, delete, `+` refspec or `main`; `origin` is the test's bare repository; no tag is created and no remote is changed; the checkout's HEAD reflog holds only the clone and commits (never switched); the draft `rc1-notes.md` exists, is untracked, and is in no commit, no candidate tree and no tree of the remote (DW-560); declined or unanswered words make no push at all.
+- Run: `bash docker/tests/test-release-sequence.sh` all 16 rules PASS (also `first word static` under /bin/bash 3.2); `test-boundaries.sh` and `test-ci-config.sh` exit 0. The three added rules take about 3 s, 13 s and 7 s (the hermetic run is now about 80 s on this loaded dev machine; the hosted-runner figure is still unmeasured).
+- Mutations re-demonstrated in the QA stage (each applied alone, the named rules run red, the file restored from a scratchpad backup and checked with `cmp`; `git status --short` showed only the test file changed):
+  - mutation: AC1 `start` ignores the no-tag rule (`if false`) -> `refusals` and `first` red.
+  - mutation: AC2 a re-cut reuses rc1's name (`rc=1`) -> `cut` and `recut` red.
+  - mutation: AC3 the image step skips the version compare (`if false`) -> `image` red.
+  - mutation: AC4 the record commit uses `git commit -a` instead of the pathspec -> `record` red.
+  - mutation: AC5 `--tags` added to the candidate push -> `push` and `pushes` red; `-f` on the record push -> `pushes` red.
+  - mutation: AC6 a debug line echoes the planted value in `cmd_next` -> `secret` red.
+  - mutation: AC7 a step's own time added to the hands-on sum -> `hands` red.
+  - mutation: AC8 `next` restarts at `cut` -> `resume` red.
+  - mutation: IA1 the notes row ignores notes.sh's RESULT (`res=draft`) -> `notes` red.
+  - mutation: IA2 `record_write` keeps no other section -> `gate` red.
+  - mutation: DW-560 the record commit stages the records folder -> `record`, `notes` and `pushes` red (`push` stays green, so `pushes` adds coverage); folder `git add -A` with no pathspec -> `push`, `notes` and `pushes` red.
+  - mutation: the author's word: `y` accepted; a case-insensitive `yes`; `CI`/`OCUTALON_RELEASE_YES` pre-answering a question; `--yes` accepted at `start` or at `next`; `read` from `/dev/tty`; a second line read for one question -> `word` red each time.
+  - mutation: end of input at push exits 1 instead of 4 -> `push` and `word` red.
+  - mutation: the first-version rule weakened to `1.x` -> `first` red.
+  - mutation: the author's checkout switched and switched back during the cut -> `pushes` red (HEAD reflog).
+- `mutations_demonstrated=10` for the 8 ACs and 2 IAs (plus 14 more on the DW-560, author's-word, push-form, first-version and checkout rules). IA3 (`--live`) was not re-run in this stage (needs the base image and 78 s; its mutation stands from the implement stage).
+
+**Code review stage (2026-11-01; patches in `release/release.sh` and `docker/tests/test-release-sequence.sh`):**
+- Run: `bash docker/tests/test-release-sequence.sh` all 16 rules PASS (about 2 min on this loaded machine); `record`, `push`, `image`, `refusals` and `hands` also PASS under /bin/bash 3.2; `test-boundaries.sh`, `test-upgrade-harness.sh`, `test-release-notes.sh`, `test-rehearsal.sh` and `test-release-checklist.sh` exit 0. `--live` was not re-run (no step of the image build changed).
+- Standing (order): the runner runs rules in a fixed order, so independence was shown by subsets: every rule but `libs` passed without `libs` and `word` ahead of it (`secret static`; `record`; `image push record refusals hands`; `pushes`; `cut recut resume notes gate first word`).
+- mutation: the record guard's remote-head exclusion removed -> `record` red (the moved case's resume gets the NOTE, no push).
+- mutation: the record guard allows any `release/records/` path -> `record` red (the committed draft is offered and pushed).
+- mutation: the record guard skips commits with no path -> `record` red (the own empty commit is pushed).
+- mutation: the record guard lists a merge's paths (`diff-tree -m`) -> `record` red (the own merge is pushed).
+- mutation: the push step's remote-name check removed -> `push` red (the remote's taken `release/1.0.0-rc1` is asked about and moved).
+- mutation: the `--integration` name refusal removed -> `refusals` red.
+- mutation: `step_fail`'s state-folder replacement removed -> `image` red (the record holds the local path).
+- mutation: the over-target test reads this candidate's seconds only -> `hands` red (905 s total, no WARN).
+- mutation: `earlier_hands` drops an `N s` line -> `hands` red.
+- mutation: the bare-`env` scan pattern removed -> `secret` red (the planted `env` lines pass).
+- Not pinned by a test: `rec_pushed` reset before the record question (needs an interrupt at the question) and the removed dead branch.
 
 **Shared surfaces:**
 - `CHECK_SCRIPTS` in `ci/units.sh`, read by `test-ci-config.sh`'s units rule.

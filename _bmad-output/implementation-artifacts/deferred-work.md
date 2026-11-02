@@ -2881,6 +2881,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-11-13-the-release-gets-draft-notes.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: git check-ignore release/records/1.0.0/rc1-notes.md matches no rule (exit 1); epic-11-context says the notes are never committed or pushed; 11.5 commits rc<n>.md
 - 2026-11-02T02:26:59Z status=routed owner=11-5-one-scripted-sequence-cuts-a-release by=cr note=11.5's record commit stages only rc<n>.md (or ignores *-notes.md), with a pinning case that the draft stays untracked
+- 2026-11-02T05:47:19Z status=resolved-by:11-5-one-scripted-sequence-cuts-a-release by=adjudication note=aab79f1e + review patch: the record commit stages only release/records/<v>/rc<n>.md by explicit pathspec, and the record push refuses unless every commit it would add changes only an rc<n>.md record (a committed draft, an empty or a merge commit stops it); rules record and pushes pin it
 
 ### DW-561: names_outside_section (docker/tests/lib-scan.sh) is a copy of test-readme.sh's dev_names with the heading as a parameter; the two can drift
 - source: spec-11-13-the-release-gets-draft-notes.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -2896,3 +2897,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-11-13-the-release-gets-draft-notes.md | severity: low | fix-risk: low | footprint: in-epic
 - evidence: record_write appends a missing section at the end; the draft's last section is the developer one; dev-only still scans the added section
 - 2026-11-02T02:26:59Z status=wontfix-accepted owner=11-13-the-release-gets-draft-notes by=cr note=reopen_if=11.5's draft shows the online demo section after ## For admins and developers
+
+### DW-573: release.sh's default state root is not keyed by checkout, so next/resume/status without --version/--rc in a second checkout of the author's can pick up a sequence started in another one
+- source: spec-11-5-one-scripted-sequence-cuts-a-release.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: state_root (release.sh:61) is one folder for every checkout; load_state takes integration, remote and record from the state but runs against this script's checkout; the golden State path has no checkout key
+- 2026-11-02T05:38:58Z status=wontfix-accepted owner=11-5-one-scripted-sequence-cuts-a-release by=cr note=reopen_if=a release.sh run reports a step or writes a record for a sequence whose start ran in another checkout
