@@ -219,6 +219,7 @@ Rejected:
 
 ## Spec Change Log
 
+- 2026-11-02 (lead, fix-forward for DW-544, the Contest Planner's rule under delegation): a field the reply class does not have (#9404) now reads "ERROR #9404: an unexpected property", never the field's name; row 8 re-pinned (its marker is the invented key, and the warning must not hold it). Nested schema paths with the limit are allowed by the rule and not built here.
 - 2026-11-01 (lead, after code review): the Design Note on a top-level JSON array now names the first list property (QA measured `Reasons`), and the Auto Run Result's residual risk notes the mawk run. No behaviour or test changed.
 ## Review Triage Log
 

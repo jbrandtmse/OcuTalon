@@ -633,6 +633,7 @@ ClassMethod CheckReply(text As %String, replyClass As %String, Output payload As
 ///     checked the way the property would be: every element of a list, or the value, by the property's own <Property>IsValid check, which gives the forms above;
 ///     an element of a list that is an object or an array gives "ERROR #9406 on <Property> element <n>"; with no failing check, or a value of another shape (an
 ///     object or an array for a scalar, no array for a list, a reply that is not a JSON object), "ERROR #9406 on <Property>"; with no such property, "ERROR #9406";
+///   - a field that replyClass does not have (#9404) is "ERROR #9404: an unexpected property": the field's name came from the reply, so it is never given;
 ///   - any other error is "ERROR #<code>" (or "ERROR <code>" for a code of the form "<Domain>Name", else "ERROR"), and " on <Property>[ element <n>]" when a
 ///     property is known.
 /// At most 5 parts are given, then "; and <k> more". With no part, or if anything throws, the text is "an error". text is the reply text that CheckReply checked.
@@ -731,6 +732,7 @@ ClassMethod RefusalPart(code As %String, value As %String, limit As %String, pro
 	Set text = "ERROR"
 	If code ? 1.N {
 		Set text = text_" #"_code
+		If code = 9404 Quit text_": an unexpected property"
 	} ElseIf code ? 1"<"1.AN1">"1.AN {
 		Set text = text_" "_code
 	}

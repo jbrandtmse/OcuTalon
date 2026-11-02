@@ -13,7 +13,7 @@
 ///     failing value carries, not even a part of it;
 ///   - TestOtherRefusalsNameTheCode: a reply that is not JSON, one with an unknown field, one whose class check quotes a value, one of the wrong JSON type or shape (a string,
 ///     an object or an array where the property wants another, an object as a list element, a top-level array) and a check that throws give a warning of the error code,
-///     with the property and the element when they are known ("ERROR #5035", "ERROR #9404", "ERROR #5001", "ERROR #9406 on Reasons", "ERROR #7207 on Confidence",
+///     with the property and the element when they are known ("ERROR #5035", "ERROR #9404: an unexpected property" (never the field's name), "ERROR #5001", "ERROR #9406 on Reasons", "ERROR #7207 on Confidence",
 ///     "ERROR #9406 on Reasons element 1"), with no marker and no IRIS message text;
 ///   - TestRefusalTextForms: Decide.RefusalText for statuses built with the forms of IRIS's own (the length and value forms, the position, a property that the class lacks, a limit that
 ///     is not a number, a code that is not a number, a repeated error, the cap of five, and no error).
@@ -331,7 +331,7 @@ Method TestOtherRefusalsNameTheCode()
 
 	Set reply = ..Usable()
 	Do reply.%Set(marker, 1)
-	Do ..Refuse("row 8: an unknown field", reply.%ToJSON(), "ERROR #9404", marker)
+	Do ..Refuse("row 8: an unknown field", reply.%ToJSON(), "ERROR #9404: an unexpected property", marker)
 
 	Set reply = ..Usable()
 	Set reply.outcome = marker
