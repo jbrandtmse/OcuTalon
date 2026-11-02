@@ -312,3 +312,5 @@
 2026-11-02T02:32:25Z	Story 11.13	ledger_adjudicated	owned=3 resolved=3 reowned=0 terminal=0 entries=DW-551,DW-557,DW-558:resolved-by model=claude-opus-5-5
 2026-11-02T02:32:25Z	Story 11.13	smoke_complete	method=cli(release/notes.sh_--candidate_HEAD_on_the_real_tree) result=pass iterations=1 defects_caught=0 evidence=128_stories,8_areas,48_dev;dev-only_and_public-text_PASS;eval/rehearsal/upgrade_FAIL(no_inputs,expected);no_local_path;nothing_under_release/records;default_candidate_release/0.1.0-rc1_refused(not_a_commit) model=claude-opus-5-5
 2026-11-02T02:32:25Z	Story 11.13	fresh_check	env=recipe(hermetic_self-tests) tests=test-release-notes.sh(15),test-upgrade-harness.sh,test-release-checklist.sh,test-boundaries.sh result=pass order=forward,reverse
+2026-11-02T02:32:57Z	Story 11.13	committed	sha=7e1e4582 submodules= ci=pending runs=41378276955,41378276849 amendments=epics.md:11.5_DW-560_bullet pushed=verified_on_origin
+2026-11-02T02:32:57Z	Story 11.13	story_cycle	plan_to_commit_min=1096 implement_passes=1 reviews=1 rework=0 first_ci=pending models=plan:claude-opus,implement:claude-sonnet,qa:claude-sonnet,cr:claude-opus
