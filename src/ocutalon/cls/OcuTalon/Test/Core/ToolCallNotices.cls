@@ -130,13 +130,12 @@ Method Answerer() As %String [ Private ]
 Method UseReplayAgent() As %Boolean [ Private ]
 {
 	If ..Swapped Quit 1
-	Kill ^OcuTalonTest("ToolCallNotices")
 	Set sc = ##class(OcuTalon.Test.Agent.RunnerFixture).PointKeys()
 	Set ^OcuTalonTest("ToolCallNotices", "keys") = 1
 	Do $$$AssertStatusOK(sc, "the runners' entries point at the CI mock key")
 	If $$$ISERR(sc) Quit 0
 	Set sc = ##class(OcuTalon.Test.Agent.RunnerFixture).UseAgent("ChatAgent", "OcuTalon.Test.Bridge.ZzReplayAgent", .saved)
-	If $IsObject(saved) Set ^OcuTalonTest("ToolCallNotices", "agent") = saved.%ToJSON()
+	If $IsObject(saved) && '$Data(^OcuTalonTest("ToolCallNotices", "agent")) Set ^OcuTalonTest("ToolCallNotices", "agent") = saved.%ToJSON()
 	Do $$$AssertStatusOK(sc, "ChatAgent runs ZzReplayAgent")
 	Set ..Swapped = $$$ISOK(sc)
 	Quit ..Swapped

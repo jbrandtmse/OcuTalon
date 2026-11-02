@@ -883,14 +883,20 @@ test('X12: a tool call\'s request reaches the phone with Approve and Reject, the
     const reply = nextReply(page);
     await approve.click();
     const response = await reply;
+    const repliedAt = Date.now();
     expect(response.status(), 'the answer is 200').toBe(200);
     const answeredAt = (await replyBody(response)).body.approval?.answeredAt ?? '';
     expect(answeredAt, "the reply carries the request's answer").toMatch(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/);
     const line = `Approved from the simulated phone at ${hhmm(answeredAt)}.`;
     await expect(lineOf(message), 'the phone replaces the buttons with the answer').toHaveText(line);
+    await expect(message.locator('.buttons'), 'and the two buttons are gone').toHaveCount(0);
     await expect
-      .poll(() => phoneMessage(user, request).then((one) => one?.answer), { message: "the server edited the request's message within 5 s of the reply", timeout: PHONE_MS })
+      .poll(() => phoneMessage(user, request).then((one) => one?.answer), {
+        message: "the server edited the request's message within 5 s of the reply",
+        timeout: Math.max(1, PHONE_MS - (Date.now() - repliedAt)),
+      })
       .toBe(line);
+    console.log(`ANSWERS X12 the server edited the request's message ${Date.now() - repliedAt} ms after the reply (bound ${PHONE_MS} ms)`);
 
     expect(await answerQuietly(user, request, 'reject', 'phone'), 'a second answer is refused').toBe('already_answered');
     const row = await readApproval(request);

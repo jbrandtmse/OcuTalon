@@ -36,7 +36,8 @@ Include Ensemble
 /// that is one of HeldReasons (Decide's HELDBEFOREUPDATE) it is toolCall.failedWithReason {tool, reason} and the approval event
 /// carries that line as its reason; any other line sends toolCall.failed {tool, time = FinishedAt} with no reason slot and
 /// publishes no event, so no raw error text reaches a notice or a payload. A failed read or send logs one warning that names the
-/// event type and the request's Ref and sends nothing.
+/// event type and the request's Ref and sends nothing; when the send of a held call's reason notice fails, its approval event with
+/// the reason is still published.
 /// A cross-owner read that fails (the request's incident, the incident's watchers) is logged as a warning that names the
 /// event type, the request and the incident, and publishes nothing; a failed read never means that nobody watches, and
 /// nobody watching logs nothing (DW-68).

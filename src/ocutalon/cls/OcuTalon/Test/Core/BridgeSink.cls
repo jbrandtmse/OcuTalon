@@ -879,7 +879,8 @@ Method TestToolCallServerForm()
 }
 
 /// U-212 (2): the inputs are the bridge's redacted text on one line, at most 200 characters, ending with U+2026 when cut; a text of
-/// exactly 200 characters is unchanged and no inputs are {}.
+/// exactly 200 characters is unchanged, one of 201 is cut, the cap applies to the redacted text (a long secret that shrinks is not cut),
+/// and no inputs are {}.
 Method TestToolCallInputsLine()
 {
 	Set session = ..Session("toolinputs")
@@ -890,8 +891,7 @@ Method TestToolCallInputsLine()
 	Set inputs = ..Slot(1, "inputs")
 	Do $$$AssertEquals($Length(inputs), 200, "a long text is cut to 200 characters")
 	Do $$$AssertEquals($Ascii(inputs, 200), 8230, "ending with U+2026")
-	Do $$$AssertTrue(inputs '[ $Char(10), "and holds no line break")
-	Do $$$AssertTrue(inputs '[ "zz-secret", "nor the secret")
+	Do $$$AssertTrue(inputs '[ "zz-secret", "and holds not the secret")
 	Do $$$AssertTrue(inputs [ "[redacted]", "which the bridge's redactor replaced")
 
 	Set lines = ..ToolRow(session, "pending", {"ToolArguments": ("{""a"":""x"","_$Char(10)_"  ""b"":""y""}")})
@@ -902,6 +902,12 @@ Method TestToolCallInputsLine()
 	Set edge = ..ToolRow(session, "pending", {"ToolArguments": (exact)})
 	Set plain = ..ToolRow(session, "pending", {"ToolArguments": ("one"_$Char(10)_"two"_$Char(13,10)_$Char(9)_"three")})
 	Set none = ..ToolRow(session, "pending", {"ToolArguments": ""})
+	Set over = "{""a"":"""_note_"x""}"
+	Do $$$AssertEquals($Length(over), 201, "the fixture text one over the limit has 201 characters")
+	Set overRow = ..ToolRow(session, "pending", {"ToolArguments": (over)})
+	Set secret = ""
+	For i = 1:1:300 Set secret = secret_"z"
+	Set shrunk = ..ToolRow(session, "pending", {"ToolArguments": ("{""password"":"""_secret_"""}")})
 	Do ..Fire(session, "approval.raised", lines)
 	Do $$$AssertEquals(..Slot(2, "inputs"), "{""a"":""x"",""b"":""y""}", "a JSON text with line breaks is on one line")
 	Do ..Fire(session, "approval.raised", edge)
@@ -910,6 +916,20 @@ Method TestToolCallInputsLine()
 	Do $$$AssertEquals(..Slot(4, "inputs"), "one two three", "line breaks and tabs in a plain text fold to single spaces")
 	Do ..Fire(session, "approval.raised", none)
 	Do $$$AssertEquals(..Slot(5, "inputs"), "{}", "no arguments give {}")
+	Do ..Fire(session, "approval.raised", overRow)
+	Do $$$AssertEquals(..Slot(6, "inputs"), $Extract(over, 1, 199)_$Char(8230), "a text one character over the limit is cut to 199 characters and U+2026")
+	Do ..Fire(session, "approval.raised", shrunk)
+	Set redacted = ##class(OcuTalon.Bridge.Redact).Text("{""password"":"""_secret_"""}")
+	Do $$$AssertEquals(..Slot(7, "inputs"), redacted, "the cap applies to the redacted text: a long secret that shrinks to [redacted] is not cut")
+	Do $$$AssertTrue(..Slot(7, "inputs") '[ $Char(8230), "and carries no cut mark")
+	Do $$$AssertTrue(..Slot(7, "inputs") [ "[redacted]", "but the redactor's mark")
+
+	Set mixed = ..ToolRow(session, "pending", {"ToolArguments": ("to ops"_$Char(10)_"password=zz-secret"_$Char(13,10)_words)})
+	Do ..Fire(session, "approval.raised", mixed)
+	Set inputs = ..Slot(8, "inputs")
+	Do $$$AssertTrue((inputs '[ $Char(10)) && (inputs '[ $Char(13)), "a plain text with line breaks, a secret and over 200 characters is on one line")
+	Do $$$AssertTrue((inputs '[ "zz-secret") && (inputs [ "[redacted]"), "with the secret redacted")
+	Do $$$AssertEquals($Length(inputs)_"|"_$Ascii(inputs, 200), "200|8230", "and cut to 200 characters ending with U+2026")
 }
 
 /// A request that is not a replayable tool_call of a session that exists sends no notice, though its approval event is published as
@@ -949,6 +969,7 @@ Method TestToolCallNoticesOnlyForReplayableSessionRows()
 	}
 	Do $$$AssertEquals(..Calls(), 0, "no notice was sent for any of them")
 	Do $$$AssertEquals(..Events(session, "approval").%Size(), 4 * 5, "while the session's own four requests published their approval events as before (the other session's is not its)")
+	Do $$$AssertEquals(..Warnings(), 0, "and nothing is logged")
 }
 
 /// DW-454: an approved call held before ToolSource and Runner existed is closed failed by Decide, and approval.result sends nothing for
