@@ -1,5 +1,5 @@
-/// Tests of Live.Publish and Live.Event (matrix rows 1 to 3): the Seq of each stream, the refusals, and two jobs
-/// publishing to one stream. Every stream is a fresh reference from Bridge.Ids.NewRef(), recorded in
+/// Tests of Live.Publish and Live.Event (matrix rows 1 to 3): the Seq of each stream, the refusals, two jobs
+/// publishing to one stream, and the purge. Every stream is a fresh reference from Bridge.Ids.NewRef(), recorded in
 /// ^OcuTalonTest("LivePublish","streams") so that OnBeforeAllTests removes what an interrupted run left, and
 /// OnAfterAllTests removes the run's rows and counters. Nothing is published on the instance stream.
 Class OcuTalon.Test.Live.Publish Extends %UnitTest.TestCase
@@ -62,6 +62,41 @@ Method TestSeqPerStream()
 	Do $$$AssertEquals(otherSeq, 1, "another stream starts at 1")
 	Do $$$AssertEquals(##class(OcuTalon.Live.Publish).LastSeq(other), 1, "its LastSeq is 1")
 	Do $$$AssertEquals(##class(OcuTalon.Live.Publish).LastSeq(stream), 3, "the first stream is unchanged")
+}
+
+/// Purge deletes the events published more than 24 hours ago, whatever daysToKeep is, and keeps the newer ones; no stream's
+/// counter is touched, so the next Publish continues the stream's Seq. Two streams each hold an aged event (25 hours) and
+/// a 1-hour-old one; the first stream's third event is 23 hours old, the second's 48. It deletes the events of every stream, rows this test did not create too, so
+/// this class runs only on a throwaway (Rule 21).
+Method TestPurge()
+{
+	Set first = ..NewStream()
+	Set second = ..NewStream()
+	For stream = first, second {
+		For i = 1:1:3 {
+			Set payload = ##class(OcuTalon.Live.Payload.Reminder).%New()
+			Set payload.Ref = "ZzPub"_..Number_"g"_i
+			Do $$$AssertStatusOK(##class(OcuTalon.Live.Publish).Publish(stream, "reminder", payload), "event "_i_" of "_stream_" is published")
+		}
+		Do ##class(OcuTalon.Test.Data.Fixture).SetEventTs(stream, 1, ##class(OcuTalon.Test.Data.Fixture).HoursAgo(25))
+		Do ##class(OcuTalon.Test.Data.Fixture).SetEventTs(stream, 2, ##class(OcuTalon.Test.Data.Fixture).HoursAgo(1))
+	}
+	Do ##class(OcuTalon.Test.Data.Fixture).SetEventTs(first, 3, ##class(OcuTalon.Test.Data.Fixture).HoursAgo(23))
+	Do ##class(OcuTalon.Test.Data.Fixture).SetEventTs(second, 3, ##class(OcuTalon.Test.Data.Fixture).HoursAgo(48))
+	Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).EventSeqs(first), "1,2,3", "the first stream holds three events")
+	Do $$$AssertStatusOK(##class(OcuTalon.Live.Event).Purge(90), "Purge(90)")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).EventSeqs(first), "2,3", "the 25-hour-old event is gone, the 1-hour-old and the 23-hour-old kept, though 90 days were asked for")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).EventSeqs(second), "2", "the second stream keeps its 1-hour-old event only")
+	For stream = first, second {
+		Do $$$AssertEquals(+$Get(^OcuTalonP.LiveEventC(stream)), 3, "the counter of "_stream_" is unchanged")
+		Do $$$AssertEquals(##class(OcuTalon.Live.Publish).LastSeq(stream), 3, "and so is LastSeq")
+		Set payload = ##class(OcuTalon.Live.Payload.Reminder).%New()
+		Set payload.Ref = "ZzPub"_..Number_"h"
+		Do $$$AssertStatusOK(##class(OcuTalon.Live.Publish).Publish(stream, "reminder", payload, .seq), "the next event is published")
+		Do $$$AssertEquals(seq, 4, "it gets Seq 4, so Seq never restarts")
+	}
+	Do $$$AssertStatusOK(##class(OcuTalon.Live.Event).Purge(0), "Purge(0)")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).EventSeqs(first), "2,3,4", "a number of days of 0 keeps the same events")
 }
 
 /// An unknown type, a payload of another type's class, a payload that isn't an object, a bad stream and a call

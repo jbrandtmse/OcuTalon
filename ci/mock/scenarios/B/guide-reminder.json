@@ -1,0 +1,23 @@
+{
+  "name": "guide-reminder",
+  "match": {
+    "prompt": "Remind me in 1 minute to stretch.",
+    "mockkey": "chat"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "set_reminder",
+        "input": {
+          "text": "stretch",
+          "delaySeconds": 60
+        }
+      }
+    },
+    {
+      "status": 200,
+      "text": "The CI mock set the reminder."
+    }
+  ]
+}

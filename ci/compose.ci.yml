@@ -7,6 +7,9 @@
 # no env_file and no key variable, so a start in it is a start with no key. ci/iris.sh pulls the mock's image once per machine.
 # OCUTALON_MOCK_KEY_HEADER is the CI-only switch (AD-19, owner decision 5) that makes the Provider step send the agent's
 # MOCKKEY in x-ocutalon-mockkey: this file is the only place that sets it, so no other start carries that header.
+# The mock also serves the Telegram Bot API (Story 10.3; AD-19, AD-22): OCUTALON_TELEGRAM_API_BASE is the base that the Telegram service
+# calls instead of api.telegram.org, and TELEGRAM_BOT_TOKEN is a dummy that matches no key pattern, so that a start in this override
+# can call the mock. This file is the only one that sets either; a bot token is never a secret here, and the model key stays absent.
 name: ocutalon-ci
 
 services:
@@ -15,6 +18,8 @@ services:
       OCUTALON_EVAL: ${OCUTALON_EVAL:-0}
       OCUTALON_MODEL_BASE_URL: http://mock:8080/v1/
       OCUTALON_MOCK_KEY_HEADER: "1"
+      OCUTALON_TELEGRAM_API_BASE: http://mock:8080
+      TELEGRAM_BOT_TOKEN: ocutalon-ci-dummy-bot-token
     volumes:
       - mock-log:/opt/ocutalon/mock-log:ro
   mock:

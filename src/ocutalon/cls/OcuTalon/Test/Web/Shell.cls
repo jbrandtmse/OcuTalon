@@ -102,6 +102,22 @@ Method TestRedirect()
 	Do $$$AssertEquals(response.GetHeader("Location"), "/ocutalon/ab?q=c", "line breaks in the URL and the query are dropped")
 }
 
+/// The sign-in POST's redirect drops every since pair (the splash's after-reset marker) and keeps the other pairs in order, so the
+/// signed-in page's address never carries it.
+Method TestRedirectDropsSince()
+{
+	Set response = ..Redirect("/ocutalon/", "since=2026-10-25T07:49:30Z")
+	Do $$$AssertEquals(response.GetHeader("Location"), "/ocutalon/", "only since: the bare URL")
+	Set response = ..Redirect("/ocutalon/", "x=1&since=2026-10-25T07:49:30Z&y=2")
+	Do $$$AssertEquals(response.GetHeader("Location"), "/ocutalon/?x=1&y=2", "the other pairs stay, in order")
+	Set response = ..Redirect("/ocutalon/", "since=2026-10-25T07:49:30Z&since=2026-10-25T07:50:00Z")
+	Do $$$AssertEquals(response.GetHeader("Location"), "/ocutalon/", "since twice: both dropped")
+	Set response = ..Redirect("/ocutalon/", "sincere=1&since=x&insince=2")
+	Do $$$AssertEquals(response.GetHeader("Location"), "/ocutalon/?sincere=1&insince=2", "only the pairs named since")
+	Set response = ..Redirect("/ocutalon/a", "signedOut=1")
+	Do $$$AssertEquals(response.GetHeader("Location"), "/ocutalon/a?signedOut=1", "a query without since is unchanged")
+}
+
 /// --- helpers ---
 /// Serves path through the shell with stand-in request and response objects, as the fixture application,
 /// and returns the body that was written. response is the response object; reached is 1 when the stream

@@ -44,7 +44,13 @@
 /// Added by Story 1.9 (AD-6, AD-20):
 ///   - TestPrecheckCountsHistory: the estimate that Decide works out before it sends a turn (EstimateTokens) is the agent part, the stored history of
 ///     the owner's session and the input that Chat gets; it is the agent part and the input alone for the owner's first turn, for an untrusted turn and
-///     for a fresh turn; and for a turn that continues it is within BANDPERCENT of the runner's own estimate of the same turn.
+///     for a fresh turn; and for a turn that continues it is above the runner's own estimate of the same turn by the agent's system prompt, JSON-escaped
+///     as the stored history holds it, give or take ENVELOPECHARS (the bound follows the agent's own prompt, so it holds as the prompt changes).
+/// Added by Story 3.3 (AD-6, AD-10 3a):
+///   - TestQuarantineAfterTaint: on the gate's agent (ZzGateAgent), a user's turn whose tool result is not trusted output (gate-read) comes back
+///     Tainted and leaves the link and the saved session as they were; the next turn, fresh with a code-written recap, rotates the link and its first request
+///     holds neither the tool result nor the tool's name; an untrusted turn of the owner leaves the link and the data alone; and the user's next turn
+///     continues the conversation of the rotation without the tool result.
 /// Every test removes the AI sessions it saved (and the links that name them) and the Usage rows that ZzRunner wrote.
 Class OcuTalon.Test.Bridge.Conversation Extends %UnitTest.TestCase
 {
@@ -62,14 +68,19 @@ Parameter MOCK = "OcuTalon.Test.Contract.Mock";
 /// The probe agent, whose tool taints the turn (the scenario context-probe).
 Parameter PROBEAGENT = "OcuTalon.Test.Bridge.ProbeAgent";
 
+/// The gate's agent, whose tool zz_gate_read answers text from outside (the scenario gate-read).
+Parameter GATEAGENT = "OcuTalon.Test.Bridge.ZzGateAgent";
+
 /// The cap of the composed session config, in tokens.
 Parameter CAP = 8000;
 
-/// How far Decide's estimate of a turn that continues may be from the runner's own estimate of its first model step, in percent of the runner's: the stored
-/// history holds the system prompt that the agent part counts too, so the estimate is the larger (measured in Story 1.9: 24 percent for a first exchange of
-/// 4,000 characters, and the band is that and 5 points more). The gap is the agent's system prompt and the envelope of the stored value, 901 + 328 = 1,229
-/// characters (about 310 tokens) for Chat, the same whatever the conversation, so it shrinks as the history grows.
-Parameter BANDPERCENT = 29;
+/// How many characters, besides the agent's system prompt, Decide's estimate of a turn that continues may count above the runner's own estimate of its
+/// first model step. The stored history holds the agent's system prompt, JSON-escaped, which the runner counts once, raw, in the agent part, and not again
+/// in the exported messages that it reads from the session; so Decide's estimate (agent part, stored history and input) is above the runner's by that
+/// prompt, whatever the conversation, and by the envelope of the stored value less the difference between the two readings of the tool catalog (the
+/// runner's reading is the longer). Measured for Chat: an envelope of 316 characters and a runner's catalog 167 characters longer, so 149 characters beyond
+/// the escaped prompt, and the envelope the same after a second exchange.
+Parameter ENVELOPECHARS = 500;
 
 /// A model of the Anthropic family other than the agents' own, with a Price row (Bridge.Installer), for TestResumeFollowsTheRunner.
 Parameter OTHERMODEL = "claude-sonnet-5-5";
@@ -236,6 +247,79 @@ Method TestTaintedTurn()
 	Do $$$AssertEquals(tainted.Tainted, 1, "with Tainted 1")
 	Do $$$AssertEquals(..LinkOf(first), "", "it made no link")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).SessionMark(), mark, "and saved no AI session")
+}
+
+/// Story 3.3, AD-10 3a: the quarantine after a taint, on a shadow ZzRunner of ZzGateAgent.
+///   - Turn 1 (user, recall-tell) makes the link. Turn 2 (user, gate-read) has a tool result that is not trusted output: Tainted 1, and the link and the
+///     saved session's data are as they were.
+///   - Turn 3 (user, SessionMode fresh with a SeedText recap, recall-tell) rotates the link (SessionRotated 1), and its first logged request has exactly one
+///     user message, the seed, a blank line and the input, which holds neither OUTSIDETEXT nor zz_gate_read.
+///   - An untrusted turn of the same owner (gate-read, allowed because it is read-only) leaves the link and the saved data as they were, and its first request
+///     carries its input alone.
+///   - A user's continue turn (recall-tell) then sends turn 3's exchange before its input and not OUTSIDETEXT.
+/// The checks for OUTSIDETEXT and zz_gate_read read the JSON of the request's messages, so a tool call or a tool result in the history counts.
+Method TestQuarantineAfterTaint()
+{
+	If ..Guard() Quit
+	Set fixture = ..#FIXTURE
+	Set outside = $Parameter("OcuTalon.Test.Bridge.ZzGateTool", "OUTSIDETEXT")
+	Set host = ..NewHost(..#GATEAGENT)
+	Set owner = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Do $$$AssertStatusOK(..Send(host, ..NewTurn("[[mock:recall-tell]] My build server is called ORION-7.", owner), .told), "turn 1 is answered")
+	Do $$$AssertEquals(told.Tainted, 0, "and is not tainted")
+	Set id = ..LinkOf(owner)
+	Set export = $ClassMethod(fixture, "SessionExport", id)
+	Do $$$AssertTrue(id '= "", "the link names a session: "_id)
+	Do $$$AssertTrue(export [ "ORION-7", "which holds turn 1's history (a reader that returns nothing would make every 'unchanged' check below pass for the wrong reason)")
+	Set mark = $ClassMethod(fixture, "SessionMark")
+
+	Set request = ..NewTurn("[[mock:gate-read]] Read the partner's text.", owner)
+	Do $$$AssertStatusOK(..Send(host, request, .tainted, .logged), "turn 2 is answered")
+	Do $$$AssertEquals(tainted.Tainted, 1, "with Tainted 1: the tool result is not trusted output")
+	Do $$$AssertEquals(logged.%Size(), 2, "the turn made the tool request and the one after the tool")
+	If logged.%Size() = 2 Do $$$AssertTrue($ListToString($ClassMethod(fixture, "ToolResults", logged.%Get(1)), "|") [ outside, "and the tool result with the outside text reached the model")
+	Do $$$AssertEquals(..LinkOf(owner), id, "the link is as it was")
+	Do $$$AssertEquals($ClassMethod(fixture, "SessionExport", id), export, "and so is the saved session's data")
+	Do $$$AssertEquals($ClassMethod(fixture, "SessionMark"), mark, "no AI session was saved")
+
+	Set seed = "Earlier, the user said that the build server is called ORION-7."
+	Set three = ..NewTurn("[[mock:recall-tell]] Carry on.", owner, , "turn", "user", "fresh", seed)
+	Do $$$AssertStatusOK(..Send(host, three, .fresh, .loggedThree), "turn 3 is answered")
+	Do $$$AssertEquals(fresh.SessionRotated_"|"_fresh.Tainted, "1|0", "with SessionRotated 1, untainted")
+	Set new = ..LinkOf(owner)
+	Do $$$AssertTrue((new '= "") && (new '= id), "the link names a new session: "_new_" (it named "_id_")")
+	Do $$$AssertEquals(loggedThree.%Size(), 1, "turn 3 made one model request")
+	If loggedThree.%Size() = 1 {
+		Set sent = $ClassMethod(fixture, "Messages", loggedThree.%Get(0))
+		Do $$$AssertEquals(loggedThree.%Get(0).request.messages.%Size(), 1, "whose messages are exactly one")
+		Do $$$AssertEquals(sent, "user:"_seed_$Char(10, 10)_three.Input, "from the user: the seed, a blank line and the input")
+		Set history = loggedThree.%Get(0).request.messages.%ToJSON()
+		Do $$$AssertTrue(history '[ outside, "it holds no text of the tool result")
+		Do $$$AssertTrue(history '[ "zz_gate_read", "and no call of the tool")
+	}
+	Set saved = $ClassMethod(fixture, "SessionExport", new)
+	Do $$$AssertTrue(saved [ "ORION-7", "the new session holds data: the seed of its recap (a reader that returns nothing would make the checks on the outside text pass for the wrong reason)")
+	Do $$$AssertTrue(saved '[ outside, "the new session's data holds none of it either")
+
+	Set savedNew = saved
+	Set untrustedTurn = ..NewTurn("[[mock:gate-read]] Read the partner's text for the owner.", owner, , "turn", "untrusted")
+	Do $$$AssertStatusOK(..Send(host, untrustedTurn, .quiet, .loggedUntrusted), "an untrusted turn of the owner is answered")
+	Do $$$AssertEquals(quiet.Tainted, 1, "it reads the outside text through the read-only tool, so it is tainted")
+	Do $$$AssertEquals(..LinkOf(owner), new, "the link is as it was")
+	Do $$$AssertEquals($ClassMethod(fixture, "SessionExport", new), savedNew, "and so is the saved session's data")
+	Do $$$AssertTrue(loggedUntrusted.%Size() '< 1, "the untrusted turn made a model request")
+	If loggedUntrusted.%Size() '< 1 Do $$$AssertEquals($ClassMethod(fixture, "Messages", loggedUntrusted.%Get(0)), "user:"_untrustedTurn.Input, "its first request carries its input alone")
+
+	Set four = ..NewTurn("[[mock:recall-tell]] And again.", owner)
+	Do $$$AssertStatusOK(..Send(host, four, .again, .loggedFour), "the user's next turn is answered")
+	Do $$$AssertEquals(again.SessionRotated_"|"_again.Tainted, "0|0", "it continues the conversation, untainted")
+	Do $$$AssertEquals(..LinkOf(owner), new, "on the session of the rotation")
+	Do $$$AssertTrue(loggedFour.%Size() '< 1, "the next turn made a model request")
+	If loggedFour.%Size() '< 1 {
+		Set sent = $ClassMethod(fixture, "Messages", loggedFour.%Get(0))
+		Do $$$AssertTrue(sent [ ("user:"_seed_$Char(10, 10)_three.Input_$Char(1)_"assistant:Noted."), "its first request holds turn 3's exchange")
+		Do $$$AssertTrue(loggedFour.%Get(0).request.messages.%ToJSON() '[ outside, "and not the outside text")
+	}
 }
 
 /// SessionMode fresh moves the link to a new session that starts with the seed. The logged first request has exactly one message, from the user, whose
@@ -426,8 +510,11 @@ Method TestFirstStepCountsHistory()
 
 /// Decide's estimate of a turn counts the stored history of the conversation (Story 1.9; AD-6, AD-20). Turn 1 of an owner, with 4,000 characters of input, is
 /// answered and saved. The estimate of turn 2, worked out before it is sent, is the agent part (RequestSize.AgentChars), the stored size of the saved session
-/// (RequestSize.HistoryChars, which is more than the 4,000 characters) and the input that Chat gets, and it is within BANDPERCENT of the runner's own estimate of
-/// turn 2's first model step. An untrusted turn and a fresh turn of the same owner count no history, and turn 1, which has no link yet, counts none either.
+/// (RequestSize.HistoryChars, which is more than the 4,000 characters) and the input that Chat gets. Against the runner's own estimate of turn 2's first model
+/// step it is above it by the system prompt of the agent, JSON-escaped as the stored history holds it (the runner reads the prompt from the agent and not
+/// again from the exported messages), give or take ENVELOPECHARS, in tokens: a lower bound that fails when the history is dropped, or cut by more than
+/// ENVELOPECHARS and the residue that it names, and an upper bound that fails when anything larger than the prompt is counted twice. An untrusted turn
+/// and a fresh turn of the same owner count no history, and turn 1, which has no link yet, counts none either.
 Method TestPrecheckCountsHistory()
 {
 	If ..Guard() Quit
@@ -461,7 +548,12 @@ Method TestPrecheckCountsHistory()
 	Do $$$AssertStatusOK(..Send(host, two, .next), "turn 2 is answered")
 	Set runner = ..FirstEstimate(next)
 	Do $$$AssertTrue(runner > 0, "the runner's own estimate of turn 2's first model step is read: "_runner)
-	Do $$$AssertTrue($ZAbs(estimate - runner) * 100 '> (..#BANDPERCENT * runner), "Decide's estimate, "_estimate_", is within "_..#BANDPERCENT_" percent of it, "_runner)
+	Set prompt = $Length([(host.Adapter.Agent.SystemPrompt)].%ToJSON()) - 4
+	Do $$$AssertTrue(prompt > 0, "the system prompt of the agent, JSON-escaped as the stored history holds it, is read: "_prompt_" characters")
+	Set allowed = ..Tokens(prompt + ..#ENVELOPECHARS)
+	Set least = ..Tokens(prompt) - ..Tokens(..#ENVELOPECHARS)
+	Do $$$AssertTrue(estimate - runner '< least, "Decide's estimate, "_estimate_", is above the runner's, "_runner_", by at least the system prompt less the envelope, "_least_" tokens, so the history is counted: "_(estimate - runner))
+	Do $$$AssertTrue(estimate - runner '> allowed, "Decide's estimate, "_estimate_", is above the runner's, "_runner_", by no more than the system prompt and the envelope, "_allowed_" tokens: "_(estimate - runner))
 }
 
 /// A user's turn with an empty OwnerRef has no conversation to link: the runner refuses it with an error that names OwnerRef, sends nothing to the
@@ -700,9 +792,10 @@ ClassMethod Stored(id As %String, property As %String) As %String [ Private ]
 }
 
 /// --- helpers ---
+/// NewHost, NewTurn, Send and LinkOf are public: Test.Bridge.Compaction and Test.Agent.Compaction reuse them.
 /// A runner host (Test.Bridge.Runner NewRunner) named ZzRunner for the agent class, with the effort low and the provider of the CI mock. The
 /// scenario of a request is picked by the marker in its input.
-ClassMethod NewHost(agentClass As %String = "OcuTalon.Agent.Chat") As OcuTalon.Bridge.Operation.AgentRunner [ Private ]
+ClassMethod NewHost(agentClass As %String = "OcuTalon.Agent.Chat") As OcuTalon.Bridge.Operation.AgentRunner
 {
 	Quit $ClassMethod(..#RUNNERTEST, "NewRunner", agentClass, "low")
 }
@@ -710,7 +803,7 @@ ClassMethod NewHost(agentClass As %String = "OcuTalon.Agent.Chat") As OcuTalon.B
 /// A request for the runner: the kind (a turn) with the provenance (user), the input with " (test <ref>)" appended, so that the mock's log finds it
 /// by the reference (ItemId), the owner, the session mode, the seed and the note. ref is the reference. It has a DecisionRef of its own, because
 /// Decide allocates it before the runner is asked.
-ClassMethod NewTurn(input As %String, owner As %String, Output ref As %String, kind As %String = "turn", provenance As %String = "user", mode As %String = "", seed As %String = "", note As %String = "") As OcuTalon.Bridge.Msg.Request [ Private ]
+ClassMethod NewTurn(input As %String, owner As %String, Output ref As %String, kind As %String = "turn", provenance As %String = "user", mode As %String = "", seed As %String = "", note As %String = "") As OcuTalon.Bridge.Msg.Request
 {
 	Set ref = ##class(OcuTalon.Bridge.Ids).NewRef()
 	Set request = ##class(OcuTalon.Bridge.Msg.Request).%New()
@@ -730,7 +823,7 @@ ClassMethod NewTurn(input As %String, owner As %String, Output ref As %String, k
 
 /// Sends the request through the host's OnMessage and returns the status; reply is the runner's Reply (or ""), and logged holds the entries of the
 /// mock's log for the requests that carry the reference of the request.
-Method Send(host As OcuTalon.Bridge.Operation.AgentRunner, request As OcuTalon.Bridge.Msg.Request, Output reply As OcuTalon.Bridge.Msg.Reply, Output logged As %DynamicArray) As %Status [ Private ]
+ClassMethod Send(host As OcuTalon.Bridge.Operation.AgentRunner, request As OcuTalon.Bridge.Msg.Request, Output reply As OcuTalon.Bridge.Msg.Reply, Output logged As %DynamicArray) As %Status
 {
 	Set logged = []
 	Set mark = ##class(OcuTalon.Test.Contract.Mock).LogMark()
@@ -785,7 +878,7 @@ Method SessionStats(host As OcuTalon.Bridge.Operation.AgentRunner, id As %String
 }
 
 /// The id of the AI session that the link of the owner and ZzRunner names, or "".
-ClassMethod LinkOf(owner As %String) As %String [ Private ]
+ClassMethod LinkOf(owner As %String) As %String
 {
 	Quit ##class(OcuTalon.Bridge.Data.ConversationLink).SessionOf(owner, ..#AGENT)
 }

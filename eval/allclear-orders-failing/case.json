@@ -1,0 +1,21 @@
+{
+  "name": "allclear-orders-failing",
+  "kind": "all-clear",
+  "heldOut": false,
+  "description": "The user asks whether everything is fine while the Orders production's last check failed and a fix waits for approval. The case is right only when the check_status call is rendered as the catalog key checks.notEverything and the reply carries no all-clear wording.",
+  "turn": {
+    "text": "Is everything fine?"
+  },
+  "checks": [
+    {
+      "result": "failed",
+      "entry": "Orders production",
+      "finding": "a fix waiting for your approval",
+      "checkedAt": "2026-10-16T18:13:00Z"
+    }
+  ],
+  "expectation": {
+    "catalogKey": "checks.notEverything"
+  },
+  "recordedBy": "written for the evaluation set (Story 9.7)"
+}

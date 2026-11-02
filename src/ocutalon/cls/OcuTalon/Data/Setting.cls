@@ -8,6 +8,19 @@ Parameter DEFAULTGLOBAL = "^OcuTalonP.Setting";
 /// How long Get keeps a value in the per-process cache (AD-19).
 Parameter CACHESECONDS = 60;
 
+/// The key of the new sessions per client address per hour, online demo (Web.SessionEvents; seeded by Install.Step.Web).
+Parameter ADDRESSLIMITKEY = "onlineDemo.sessionsPerAddress";
+
+/// The seeded value of ADDRESSLIMITKEY: new sessions per client address per hour, online demo.
+Parameter ADDRESSLIMITSEED = 5;
+
+/// The key of the idle cap in seconds, online demo: how long the page may go without a key press, a click or a sent message
+/// before it frees its place (Web.Api /state idleSeconds; seeded by Install.Step.Web).
+Parameter IDLEKEY = "onlineDemo.idleSeconds";
+
+/// The seeded value of IDLEKEY, and the value that stands for any stored value that is not a whole number above 0: 600 seconds.
+Parameter IDLESEED = 600;
+
 /// The key; unique. Product keys are dotted, such as digest.time.
 Property Key As %String(MAXLEN = 128);
 
@@ -43,12 +56,42 @@ ClassMethod Get(key As %String, default As %String = "") As %String
 /// An empty key is refused with an error status, and so is a public key, which the status names.
 ClassMethod Seed(key As %String, value As %String) As %Status
 {
-	If key = "" Quit $SYSTEM.Status.Error(5001, "A setting key must not be empty")
-	If ..IsPublic(key) Quit $SYSTEM.Status.Error(5001, "Setting '"_key_"' is a public setting and is not seeded here")
+	Set sc = ..Refusal(key, "seeded")
+	If $$$ISERR(sc) Quit sc
 	Kill ^||OcuTalon.Setting(key)
 	If ..KeyIndexExists(key) Quit $SYSTEM.Status.OK()
-	Set row = ..%New()
-	Set row.Key = key
+	Quit ..Upsert(key, value)
+}
+
+/// Writes a value, creating the row or replacing its value, with UpdatedAt as the time of the write, and drops this
+/// process's cache entry for the key (other processes read the new value when their entries expire, within CACHESECONDS).
+/// An empty key is refused with an error status, and so is a public key, which the status names. OcuTalon.Core.SettingsOps
+/// is its only caller: it is the run-time writer API of AD-19, and SettingsOps checks the key against its allow-list first.
+ClassMethod Set(key As %String, value As %String) As %Status
+{
+	Set sc = ..Refusal(key, "written")
+	If $$$ISERR(sc) Quit sc
+	Kill ^||OcuTalon.Setting(key)
+	Quit ..Upsert(key, value)
+}
+
+/// The error status that refuses an empty key or a public key, and OK for any other key; verb ("seeded" or "written") ends the
+/// public key's refusal.
+ClassMethod Refusal(key As %String, verb As %String) As %Status [ Private ]
+{
+	If key = "" Quit $SYSTEM.Status.Error(5001, "A setting key must not be empty")
+	If ..IsPublic(key) Quit $SYSTEM.Status.Error(5001, "Setting '"_key_"' is a public setting and is not "_verb_" here")
+	Quit $SYSTEM.Status.OK()
+}
+
+/// Saves the row of the key with the value and the time now, creating the row when it is absent.
+ClassMethod Upsert(key As %String, value As %String) As %Status [ Private ]
+{
+	Set row = ..KeyIndexOpen(key)
+	If '$IsObject(row) {
+		Set row = ..%New()
+		Set row.Key = key
+	}
 	Set row.Value = value
 	Set row.UpdatedAt = ##class(OcuTalon.Data.Time).NowUtc()
 	Quit row.%Save()

@@ -47,10 +47,62 @@ Property Result As %String(%JSONFIELDNAME = "result", MAXLEN = 32);
 /// When the action finished, UTC to the second.
 Property FinishedAt As %String(%JSONFIELDNAME = "finishedAt", MAXLEN = 20);
 
-/// The request's trace session id (AD-26).
+/// The trace session id of the request's incident (AD-26); absent when the request has no incident that the session can
+/// see, or the incident has no trace.
 Property TraceHeaderId As %Integer(%JSONFIELDNAME = "traceHeaderId");
 
 /// The namespace that holds the trace.
 Property TraceNamespace As %String(%JSONFIELDNAME = "traceNamespace", MAXLEN = 128);
+
+/// The payload for an approval request row, with every row-backed field set; dryRun is the row's stored JSON parsed
+/// into its part (left absent when the row holds none or it can't be read). The reason has no source in the row and
+/// stays empty. The trace target is the request's incident's: when sessionRef, the Ref of the session the payload is for,
+/// and the row's IncidentRef are both set and Ownership.Incident gives an incident that session can see with a
+/// TraceHeaderId, traceHeaderId is that id and traceNamespace the current namespace. Otherwise the payload has no target.
+ClassMethod FromRow(row As OcuTalon.Bridge.Data.ApprovalRequest, sessionRef As %String = "") As OcuTalon.Live.Payload.Approval
+{
+	Set payload = ..%New()
+	Set payload.Ref = row.Ref
+	Set payload.Kind = row.Kind
+	Set payload.State = row.State
+	Set payload.IncidentRef = row.IncidentRef
+	Set payload.ToolName = row.ToolName
+	Set payload.RaisedAt = row.RaisedAt
+	Set payload.ExpiresAt = row.ExpiresAt
+	Set payload.AnsweredAction = row.AnsweredAction
+	Set payload.AnsweredChannel = row.AnsweredChannel
+	Set payload.AnsweredBy = row.AnsweredBy
+	Set payload.AnsweredAt = row.AnsweredAt
+	Set payload.Result = row.Result
+	Set payload.FinishedAt = row.FinishedAt
+	If (sessionRef '= "") && (row.IncidentRef '= "") {
+		Set incident = ##class(OcuTalon.Data.Ownership).Incident(row.IncidentRef, sessionRef, .sc)
+		If $SYSTEM.Status.IsOK(sc), $IsObject(incident), incident.TraceHeaderId '= "" {
+			Set payload.TraceHeaderId = incident.TraceHeaderId
+			Set payload.TraceNamespace = $Namespace
+		}
+	}
+	If row.DryRun '= "" {
+		Try {
+			Set dry = ##class(%DynamicObject).%FromJSON(row.DryRun)
+			Set part = ##class(OcuTalon.Live.Payload.Part.DryRun).%New()
+			Set part.Affected = dry.affected
+			Set part.Resend = dry.resend
+			Set part.LeftOut = dry.leftOut
+			Set part.Field = dry.field
+			Set part.Before = dry.before
+			Set part.After = dry.after
+			If $IsObject(dry.itemNoun) {
+				Set part.ItemNoun = ##class(OcuTalon.Live.Payload.Part.ItemNoun).%New()
+				Set part.ItemNoun.One = dry.itemNoun.one
+				Set part.ItemNoun.Other = dry.itemNoun.other
+			}
+			Set payload.DryRun = part
+		} Catch {
+			Set payload.DryRun = ""
+		}
+	}
+	Quit payload
+}
 
 }

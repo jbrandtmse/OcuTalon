@@ -6,7 +6,6 @@
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
 import fs from 'node:fs';
-import http from 'node:http';
 import os from 'node:os';
 import path from 'node:path';
 import { Readable } from 'node:stream';
@@ -14,7 +13,7 @@ import test from 'node:test';
 import { fileURLToPath } from 'node:url';
 import { createMock, redact } from '../mock.mjs';
 import { loadScenarios } from '../scenarios.mjs';
-import { spawnServer } from './helpers.mjs';
+import { makeTree, spawnServer, withServer } from './helpers.mjs';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
 const MOCK_DIR = path.join(HERE, '..');
@@ -53,6 +52,7 @@ const SHAPES = {
     { status: 200, toolUse: [{ name: 'check_status', input: { all: true } }, { name: 'read_event_log' }] },
     { status: 200, body: { custom: 'raw' }, headers: { 'X-Extra': 'one' } },
     { status: 200, text: 'Typed.', headers: { 'Content-Type': 'text/x-test' } },
+    { status: 403, body: 'daily cost cap reached', headers: { 'Content-Type': 'text/plain' } },
   ],
 };
 const STEPS = {
@@ -64,45 +64,6 @@ const STEPS = {
     { status: 200, text: 'Done.' },
   ],
 };
-
-function makeTree(extra = {}, omit = []) {
-  const tree = fs.mkdtempSync(path.join(os.tmpdir(), 'ocu-mock-tree-'));
-  fs.cpSync(COMMITTED, tree, { recursive: true });
-  for (const name of omit) fs.rmSync(path.join(tree, 'A', `${name}.json`));
-  for (const [rel, data] of Object.entries(extra)) {
-    fs.mkdirSync(path.dirname(path.join(tree, rel)), { recursive: true });
-    fs.writeFileSync(path.join(tree, rel), JSON.stringify(data, null, 2));
-  }
-  return tree;
-}
-
-// withServer({files, omit}, fn): fn({base, mock, lines, logFile, readLog}) runs against a fresh in-process server.
-async function withServer(opts, fn) {
-  const tree = makeTree(opts.files, opts.omit);
-  const logDir = fs.mkdtempSync(path.join(os.tmpdir(), 'ocu-mock-log-'));
-  const logFile = path.join(logDir, 'requests.jsonl');
-  let server = null;
-  try {
-    const { scenarios, problems } = loadScenarios(tree);
-    assert.deepEqual(problems, []);
-    const lines = [];
-    const mock = createMock({ scenarios, logDir, out: { write: (s) => lines.push(s) } });
-    server = http.createServer((req, res) => {
-      mock.handle(req, res);
-    });
-    await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve));
-    const base = `http://127.0.0.1:${server.address().port}`;
-    const readLog = () => (fs.existsSync(logFile) ? fs.readFileSync(logFile, 'utf8').split('\n').filter(Boolean).map((l) => JSON.parse(l)) : []);
-    await fn({ base, mock, lines, logFile, readLog });
-  } finally {
-    if (server !== null) {
-      server.closeAllConnections();
-      await new Promise((resolve) => server.close(resolve));
-    }
-    fs.rmSync(tree, { recursive: true, force: true });
-    fs.rmSync(logDir, { recursive: true, force: true });
-  }
-}
 
 async function post(base, body, headers = {}, key = KEY) {
   const h = { 'content-type': 'application/json', ...(key === null ? {} : { 'x-api-key': key }), ...headers };
@@ -341,6 +302,52 @@ test('row 7: a guide prompt is its exact text inside the newest user message, af
   });
 });
 
+test('row 7: a keyed guide prompt answers only the agent it names; another key falls through to its default script, no key to a 500, and a marker still wins', async () => {
+  const prompt = 'Keyed guide prompt: report the watched productions.';
+  const keyed = (name, mockkey, text) => [`B/${name}.json`, { name, match: { prompt, mockkey }, replies: [{ status: 200, text }] }];
+  const files = Object.fromEntries([keyed('keyed-chat', 'chat', 'Chat answer.'), keyed('keyed-triage', 'triage', 'Triage answer.')]);
+  await withServer({ files }, async ({ base, readLog }) => {
+    const text = `Agent.Input preamble: item 3.\n\n${prompt}`;
+    const of = (key) => post(base, request([user(text)]), key === null ? {} : { 'x-ocutalon-mockkey': key });
+
+    const chat = await of('chat');
+    assert.equal(chat.json.content[0].text, 'Chat answer.');
+    let line = readLog().pop();
+    assert.equal(line.scenario, 'keyed-chat');
+    assert.equal(line.selectedBy, 'prompt');
+
+    const triage = await of('triage');
+    assert.equal(triage.json.content[0].text, 'Triage answer.');
+    line = readLog().pop();
+    assert.equal(line.scenario, 'keyed-triage');
+    assert.equal(line.selectedBy, 'prompt');
+
+    const diagnosis = await of('diagnosis');
+    assert.equal(diagnosis.status, 200);
+    line = readLog().pop();
+    assert.equal(line.scenario, 'diagnosis');
+    assert.equal(line.selectedBy, 'mockkey');
+
+    const absent = await of(null);
+    assert.equal(absent.status, 500);
+    assert.equal(absent.json.error.message, 'CI mock: no scenario: no marker, no guide prompt and no known mock key');
+    line = readLog().pop();
+    assert.equal(line.rejected, 'no-scenario');
+
+    const marker = await post(base, request([user(`${text} [[mock:refusal]]`)]), { 'x-ocutalon-mockkey': 'chat' });
+    assert.equal(marker.json.stop_reason, 'refusal');
+    assert.equal(readLog().pop().selectedBy, 'marker');
+  });
+  const keyless = { name: 'keyless-guide', match: { prompt: 'Keyless guide prompt: any agent.' }, replies: [{ status: 200, text: 'Keyless answer.' }] };
+  await withServer({ files: { 'B/keyless-guide.json': keyless } }, async ({ base, readLog }) => {
+    for (const key of ['chat', 'triage', null]) {
+      const r = await post(base, request([user(keyless.match.prompt)]), key === null ? {} : { 'x-ocutalon-mockkey': key });
+      assert.equal(r.json.content[0].text, 'Keyless answer.', String(key));
+      assert.equal(readLog().pop().selectedBy, 'prompt');
+    }
+  });
+});
+
 test('row 8: the mock key header picks a default script when there is no marker and no prompt', async () => {
   await withServer({}, async ({ base, readLog }) => {
     const r = await post(base, request([user('hello')]), { 'x-ocutalon-mockkey': 'triage' });
@@ -409,6 +416,10 @@ test('row 9: a toolUse list gives one block per item, a body reply is sent as wr
     const third = await post(base, request([marked, use, result, assistant('more'), result]));
     assert.equal(third.json.content[0].text, 'Typed.');
     assert.equal(third.headers.get('content-type'), 'text/x-test');
+    const fourth = await post(base, request([marked, use, result, assistant('more'), result, assistant('more'), result]));
+    assert.equal(fourth.status, 403);
+    assert.equal(fourth.text, 'daily cost cap reached');
+    assert.equal(fourth.headers.get('content-type'), 'text/plain');
   });
 });
 
@@ -575,6 +586,10 @@ test('row 13: the error scenarios answer the API error shapes', async () => {
       assert.equal(r.headers.get('retry-after'), retryAfter, name);
       assert.equal(r.headers.get('content-type'), 'application/json');
     }
+    const plain = await post(base, request([user('[[mock:daily-cap-text]]')]));
+    assert.equal(plain.status, 403);
+    assert.equal(plain.text, 'daily cost cap reached');
+    assert.equal(plain.headers.get('content-type'), 'text/plain');
     const other = await post(base, request([user('[[mock:max-tokens]]')]));
     assert.equal(other.json.stop_reason, 'max_tokens');
     const rejected = await post(base, request([user('[[mock:invalid-reply]]')]));
@@ -601,7 +616,7 @@ test('row 14: one stdout line and one file line per request, written before the 
     const { request: logged, ...fileFields } = fileLines[0];
     assert.deepEqual(fileFields, stdoutLine);
     assert.equal(Object.hasOwn(stdoutLine, 'request'), false);
-    assert.deepEqual(Object.keys(stdoutLine), ['ts', 'id', 'method', 'path', 'status', 'scenario', 'selectedBy', 'marker', 'step', 'countdown', 'headerNames', 'keyLength', 'rejected', 'model', 'maxTokens']);
+    assert.deepEqual(Object.keys(stdoutLine), ['ts', 'id', 'method', 'path', 'status', 'scenario', 'selectedBy', 'marker', 'step', 'countdown', 'headerNames', 'keyLength', 'tokenLength', 'rejected', 'model', 'maxTokens']);
     assert.equal(stdoutLine.id, 1);
     assert.equal(stdoutLine.method, 'POST');
     assert.equal(stdoutLine.path, '/v1/messages');
@@ -610,6 +625,7 @@ test('row 14: one stdout line and one file line per request, written before the 
     assert.equal(stdoutLine.selectedBy, 'mockkey');
     assert.equal(stdoutLine.step, 0);
     assert.equal(stdoutLine.keyLength, PLAIN_KEY.length);
+    assert.equal(stdoutLine.tokenLength, null, 'a model call has no Bot API token');
     assert.equal(stdoutLine.rejected, null);
     assert.equal(stdoutLine.model, MODEL);
     assert.equal(stdoutLine.maxTokens, 8000);
@@ -676,7 +692,7 @@ test('row 14: one stdout line and one file line per request, written before the 
   }
 });
 
-test('row 17: other paths are 404s, the Bot API one names Story 10.3, and health answers', async () => {
+test('row 17: other paths are 404s, a Bot API path is served without the model key rule, and health answers', async () => {
   await withServer({}, async ({ base, readLog }) => {
     const wrong = await fetch(`${base}/messages`, { method: 'POST', headers: { 'x-api-key': KEY }, body: '{}' });
     const wrongBody = await wrong.json();
@@ -688,10 +704,14 @@ test('row 17: other paths are 404s, the Bot API one names Story 10.3, and health
     assert.equal(list.json.error.type, 'not_found_error');
     assert.ok(list.json.error.message.includes('/v1/models'));
     const bot = await getJson(`${base}/bot${'1234567890'}:${'A'.repeat(35)}/getMe`);
-    assert.equal(bot.status, 404);
-    assert.equal(bot.json.error.type, 'not_found_error');
-    assert.ok(bot.json.error.message.includes('Story 10.3'));
+    assert.equal(bot.status, 200, 'the Bot API is served, with no x-api-key header');
+    assert.equal(bot.json.ok, true);
+    assert.equal(bot.json.result.username, 'ocutalon_ci_bot');
     assert.equal(bot.text.includes('A'.repeat(35)), false);
+    const notBot = await getJson(`${base}/botnotapi`);
+    assert.equal(notBot.status, 404, 'a path that is no /bot<token>/<method> is the generic 404');
+    assert.equal(notBot.json.error.type, 'not_found_error');
+    assert.equal(notBot.json.error.message.includes('Story 10.3'), false);
     const getMessages = await getJson(`${base}/v1/messages`, { 'x-api-key': KEY });
     assert.equal(getMessages.status, 404);
     assert.equal(readLog().some((l) => JSON.stringify(l).includes('A'.repeat(35))), false);

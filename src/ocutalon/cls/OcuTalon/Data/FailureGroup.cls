@@ -1,4 +1,5 @@
-/// A group of same-cause failures within an incident (AD-15). Lane A.
+/// A group of same-cause failures within an incident (AD-15). Lane A. IncidentManager is its only writer. The groups of an incident are numbered
+/// from 1 by Seq in the order they were made, and OfIncident reads them by that number, with no SQL (AD-13).
 Class OcuTalon.Data.FailureGroup Extends %Persistent
 {
 
@@ -14,7 +15,92 @@ Property ItemName As %String(MAXLEN = 128);
 /// The normalised error text that groups the failures.
 Property ErrorPattern As %String(MAXLEN = 1000);
 
+/// The keys (h<header id> or l<log id>, as OcuTalon.Watch.Mark.KeyOf gives them) of the group's newest failures, comma-separated, newest last, at
+/// most OcuTalon.Watch.Settle SEENMAX of them. IncidentManager holds a failure once by this set.
+Property Seen As %String(MAXLEN = "");
+
+/// The group's number within its incident: 1 for the first group.
+Property Seq As %Integer;
+
+/// The failures held in the group (kept by IncidentManager as the incident's Count is).
+Property Count As %Integer [ SqlFieldName = FailureCount ];
+
+/// When the group's first failure arrived, UTC to the second.
+Property FirstAt As %String(MAXLEN = 20);
+
+/// When the group's last failure arrived, UTC to the second.
+Property LastAt As %String(MAXLEN = 20);
+
+/// The group's failures at the incident's notice: the incident's NoticeCount for the group, set when the settle rule ends.
+Property NoticeCount As %Integer;
+
+/// The error of the group's first failure in one plain sentence of at most 80 characters (OcuTalon.Watch.ErrorText.Summary).
+Property ErrorSummary As %String(MAXLEN = 1000);
+
+/// The key of Seen where the newest dry-run ask before the current one ended; empty before a second ask. The newest ask's window starts after it
+/// (OcuTalon.Watch.Settle.Window). Written by IncidentManager only, before the ask is sent (Story 7.6).
+Property AskedFrom As %String(MAXLEN = 32);
+
+/// The key of Seen where the newest dry-run ask ended: the last key of Seen when the ask was made; empty before the first ask. A failed message is in the
+/// window of one ask only, so a request's targets never overlap those of another (Story 7.6).
+Property AskedTo As %String(MAXLEN = 32);
+
 Index IncidentRefIndex On IncidentRef;
+
+Index SeqIndex On (IncidentRef, Seq) [ Unique ];
+
+/// The most groups that OfIncident reads for one incident.
+Parameter MAXGROUPS = 100;
+
+/// The groups of the incident, in Seq order, as a list of objects: SeqIndexOpen(ref, 1), then 2, and so on up to the first Seq that has no row, at most
+/// MAXGROUPS. Reads rows by object access only, so that a REST request may call it (AD-13).
+ClassMethod OfIncident(ref As %String) As %ListOfObjects
+{
+	Set list = ##class(%ListOfObjects).%New()
+	If $Get(ref) = "" Quit list
+	For seq = 1:1:..#MAXGROUPS {
+		Set group = ..SeqIndexOpen(ref, seq)
+		If '$IsObject(group) Quit
+		Do list.Insert(group)
+	}
+	Quit list
+}
+
+/// The keys of Seen that the newest dry-run ask covers: its window (Settle.Window of AskedFrom and AskedTo), or the whole Seen while the group has no
+/// mark, as before the first ask was recorded.
+Method AskedKeys() As %String
+{
+	If (..AskedFrom = "") && (..AskedTo = "") Quit ..Seen
+	Quit ##class(OcuTalon.Watch.Settle).Window(..Seen, ..AskedFrom, ..AskedTo)
+}
+
+/// How many failures of the group's window Seen no longer lists (Story 7.4, DW-318). Seen keeps only the newest SEENMAX keys of the group (Settle.Hold, oldest first),
+/// so the dropped keys are the oldest failures, which belong to the first window; Count still holds them. Pure: it reads this row's properties only.
+///   - no marks, or an empty AskedFrom with an AskedTo that Seen holds (the first window): Count less the keys of Seen, at least 0, and known;
+///   - an AskedFrom that Seen holds (a later window, which starts after it and so lies wholly in Seen): 0, and known;
+///   - an AskedFrom or an AskedTo that Seen has dropped: the window can no longer be told, so the number is 0 and known is 0.
+Method Unlisted(Output known As %Boolean) As %Integer
+{
+	Set known = 1
+	Set from = ..AskedFrom
+	Set to = ..AskedTo
+	Set listed = 0
+	Set seen = ..Seen
+	For i = 1:1:$Length(seen, ",") {
+		Set key = $Piece(seen, ",", i)
+		If key = "" Continue
+		Set listed = listed + 1
+		If key = from Set haveFrom = 1
+		If key = to Set haveTo = 1
+	}
+	If ((from '= "") && '$Get(haveFrom)) || ((to '= "") && '$Get(haveTo)) {
+		Set known = 0
+		Quit 0
+	}
+	If from '= "" Quit 0
+	Set unlisted = +..Count - listed
+	Quit $Select(unlisted > 0: unlisted, 1: 0)
+}
 
 Storage Default
 {
@@ -30,6 +116,33 @@ Storage Default
 </Value>
 <Value name="4">
 <Value>ErrorPattern</Value>
+</Value>
+<Value name="5">
+<Value>Seen</Value>
+</Value>
+<Value name="6">
+<Value>Seq</Value>
+</Value>
+<Value name="7">
+<Value>Count</Value>
+</Value>
+<Value name="8">
+<Value>FirstAt</Value>
+</Value>
+<Value name="9">
+<Value>LastAt</Value>
+</Value>
+<Value name="10">
+<Value>NoticeCount</Value>
+</Value>
+<Value name="11">
+<Value>ErrorSummary</Value>
+</Value>
+<Value name="12">
+<Value>AskedFrom</Value>
+</Value>
+<Value name="13">
+<Value>AskedTo</Value>
 </Value>
 </Data>
 <DataLocation>^OcuTalonP.FailGroupD</DataLocation>

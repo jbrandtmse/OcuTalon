@@ -1,0 +1,126 @@
+{
+  "format": "ocutalon.readerSnapshot/1",
+  "source": {
+    "namespace": "EVALFEED",
+    "production": "OcuTalon.Test.Eval.Feed",
+    "item": "ClaimsToArchive"
+  },
+  "failures": [
+    {
+      "headerId": 5,
+      "sessionId": 5,
+      "superSession": "22drfiM2uN4z84M_2cpOSA",
+      "timeCreated": "2026-10-29T16:12:57Z",
+      "timeProcessed": "2026-10-29T16:12:57Z",
+      "sourceConfigName": "FeedIn",
+      "targetConfigName": "ClaimsToArchive",
+      "bodyClass": "OcuTalon.Test.Eval.Feed.Claim",
+      "bodyId": "4",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR <Ens>ErrException: <UNDEFINED>OnMessage+1^OcuTalon.Test.Eval.Feed.Archive.1 *archiveSlot -- logged as '-' number - @' Set total = archiveSlot + 1'",
+      "body": {
+        "ClaimId": "CL-6001",
+        "MemberId": "M-60001",
+        "ServiceDate": "2026-10-15",
+        "Amount": "125.40",
+        "PayerCode": "PAYER-A"
+      }
+    },
+    {
+      "headerId": 6,
+      "sessionId": 6,
+      "superSession": "22drfiM2uN4z84M_2cpOSA",
+      "timeCreated": "2026-10-29T16:12:57Z",
+      "timeProcessed": "2026-10-29T16:12:57Z",
+      "sourceConfigName": "FeedIn",
+      "targetConfigName": "ClaimsToArchive",
+      "bodyClass": "OcuTalon.Test.Eval.Feed.Claim",
+      "bodyId": "5",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR <Ens>ErrException: <UNDEFINED>OnMessage+1^OcuTalon.Test.Eval.Feed.Archive.1 *archiveSlot -- logged as '-' number - @' Set total = archiveSlot + 1'",
+      "body": {
+        "ClaimId": "CL-6002",
+        "MemberId": "M-60002",
+        "ServiceDate": "2026-10-15",
+        "Amount": "80.00",
+        "PayerCode": "PAYER-A"
+      }
+    },
+    {
+      "headerId": 7,
+      "sessionId": 7,
+      "superSession": "22drfiM2uN4z84M_2cpOSA",
+      "timeCreated": "2026-10-29T16:12:57Z",
+      "timeProcessed": "2026-10-29T16:12:57Z",
+      "sourceConfigName": "FeedIn",
+      "targetConfigName": "ClaimsToArchive",
+      "bodyClass": "OcuTalon.Test.Eval.Feed.Claim",
+      "bodyId": "6",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR <Ens>ErrException: <UNDEFINED>OnMessage+1^OcuTalon.Test.Eval.Feed.Archive.1 *archiveSlot -- logged as '-' number - @' Set total = archiveSlot + 1'",
+      "body": {
+        "ClaimId": "CL-6003",
+        "MemberId": "M-60003",
+        "ServiceDate": "2026-10-16",
+        "Amount": "310.25",
+        "PayerCode": "PAYER-B"
+      }
+    }
+  ],
+  "eventLog": [
+    {
+      "id": "19",
+      "timeLogged": "2026-10-29T16:12:57Z",
+      "type": "Error",
+      "configName": "ClaimsToArchive",
+      "sourceClass": "OcuTalon.Test.Eval.Feed.Archive",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 5,
+      "text": "ERROR <Ens>ErrException: <UNDEFINED>OnMessage+1^OcuTalon.Test.Eval.Feed.Archive.1 *archiveSlot -- logged as '-' number - @' Set total = archiveSlot + 1'"
+    },
+    {
+      "id": "20",
+      "timeLogged": "2026-10-29T16:12:57Z",
+      "type": "Error",
+      "configName": "ClaimsToArchive",
+      "sourceClass": "OcuTalon.Test.Eval.Feed.Archive",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 6,
+      "text": "ERROR <Ens>ErrException: <UNDEFINED>OnMessage+1^OcuTalon.Test.Eval.Feed.Archive.1 *archiveSlot -- logged as '-' number - @' Set total = archiveSlot + 1'"
+    },
+    {
+      "id": "21",
+      "timeLogged": "2026-10-29T16:12:57Z",
+      "type": "Error",
+      "configName": "ClaimsToArchive",
+      "sourceClass": "OcuTalon.Test.Eval.Feed.Archive",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 7,
+      "text": "ERROR <Ens>ErrException: <UNDEFINED>OnMessage+1^OcuTalon.Test.Eval.Feed.Archive.1 *archiveSlot -- logged as '-' number - @' Set total = archiveSlot + 1'"
+    }
+  ],
+  "items": [
+    {
+      "name": "ClaimsToArchive",
+      "className": "OcuTalon.Test.Eval.Feed.Archive",
+      "enabled": 1,
+      "poolSize": 1,
+      "settings": {}
+    }
+  ],
+  "trace": [
+    {
+      "headerId": "5",
+      "type": "Request",
+      "sourceConfigName": "FeedIn",
+      "targetConfigName": "ClaimsToArchive",
+      "bodyClass": "OcuTalon.Test.Eval.Feed.Claim",
+      "status": "Error",
+      "timeCreated": "2026-10-29T16:12:57Z",
+      "isError": false
+    }
+  ]
+}

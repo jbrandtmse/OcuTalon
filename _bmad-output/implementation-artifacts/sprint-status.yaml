@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 10-24-2026 23:10
+last_updated: 11-02-2026 23:05
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -65,96 +65,133 @@ development_status:
   1-13-epic-1-burn-down: done
   epic-1-retrospective: optional
 
-  epic-2: backlog
-  2-1-lay-out-the-main-page-frame: backlog
-  2-2-keep-the-session-and-load-its-snapshot-with-live-updates: backlog
-  2-3-route-every-command-by-verb-with-origin-checks: backlog
-  2-4-answer-every-chat-message-through-the-turn-pipeline: backlog
-  2-5-chat-with-ocutalon-in-the-page: backlog
-  2-6-show-every-decision-with-its-reasons-and-cost: backlog
-  2-7-route-untrusted-items-and-notifications-by-outcome: backlog
-  2-8-show-the-status-rail: backlog
-  2-9-open-anything-in-visual-trace: backlog
-  2-10-show-status-banners-for-a-missing-key-or-a-stalled-heartbeat: backlog
-  2-11-say-plainly-when-the-page-loses-contact: backlog
-  2-12-meet-the-accessibility-and-responsive-floor: backlog
+  epic-2: done
+  2-1-lay-out-the-main-page-frame: done
+  2-2-keep-the-session-and-load-its-snapshot-with-live-updates: done
+  2-3-route-every-command-by-verb-with-origin-checks: done
+  2-4-answer-every-chat-message-through-the-turn-pipeline: done
+  2-5-chat-with-ocutalon-in-the-page: done
+  2-6-show-every-decision-with-its-reasons-and-cost: done
+  2-7-route-untrusted-items-and-notifications-by-outcome: done
+  2-8-show-the-status-rail: done
+  2-9-open-anything-in-visual-trace: done
+  2-10-show-status-banners-for-a-missing-key-or-a-stalled-heartbeat: done
+  2-11-say-plainly-when-the-page-loses-contact: done
+  2-12-meet-the-accessibility-and-responsive-floor: done
+  2-13-open-visual-trace-from-the-page: done
+  2-14-work-the-whole-page-by-keyboard-with-labels-and-words: done
+  2-15-lay-the-page-out-at-every-supported-width: done
+  2-16-prove-the-floor-in-chromium-firefox-and-webkit: done
+  2-17-epic-2-s-tests-follow-the-real-decide: done
   epic-2-retrospective: optional
 
-  epic-3: backlog
-  3-1-roles-and-the-service-user-grant-only-what-the-architecture: backlog
-  3-2-one-gate-decides-every-tool-call: backlog
-  3-3-content-that-didn-t-come-from-the-user-can-only-look-notify: backlog
-  3-4-each-risky-action-becomes-one-approval-request-held-in-iris: backlog
-  3-5-the-first-answer-wins-and-unanswered-requests-expire: backlog
-  3-6-a-risky-tool-call-waits-for-approval-and-runs-nothing: backlog
-  3-7-every-action-and-governance-event-is-in-the-iris-audit-log: backlog
-  3-8-the-online-demo-s-settings-password-guard-and-spending-cap-a: backlog
+  epic-3: done
+  3-1-roles-and-the-service-user-grant-only-what-the-architecture: done
+  3-2-one-gate-decides-every-tool-call: done
+  3-3-content-that-didn-t-come-from-the-user-can-only-look-notify: done
+  3-4-each-risky-action-becomes-one-approval-request-held-in-iris: done
+  3-5-the-first-answer-wins-and-unanswered-requests-expire: done
+  3-6-a-risky-tool-call-waits-for-approval-and-runs-nothing: done
+  3-7-every-action-and-governance-event-is-in-the-iris-audit-log: done
+  3-8-the-online-demo-s-settings-password-guard-and-spending-cap-a: done
   epic-3-retrospective: optional
 
-  epic-4: backlog
-  4-1-switch-demo-mode-from-the-terminal: backlog
-  4-2-derive-the-guide-state-and-break-the-feed-availability-on-th: backlog
-  4-3-break-the-feed-with-a-real-batch-of-50-orders: backlog
-  4-4-show-the-demo-guide-and-the-break-the-feed-box: backlog
-  4-5-get-notifications-on-the-simulated-phone: backlog
-  4-6-simulate-incoming-email-in-the-simulated-mailbox: backlog
-  4-7-finish-the-demo-guide: backlog
+  epic-4: done
+  4-1-switch-demo-mode-from-the-terminal: done
+  4-2-derive-the-guide-state-and-break-the-feed-availability-on-th: done
+  4-3-break-the-feed-with-a-real-batch-of-50-orders: done
+  4-4-show-the-demo-guide-and-the-break-the-feed-box: done
+  4-5-get-notifications-on-the-simulated-phone: done
+  4-6-simulate-incoming-email-in-the-simulated-mailbox: done
+  4-7-finish-the-demo-guide: done
+  4-8-step-3-of-the-guide-points-to-break-the-feed-without-a-secon: done
+  4-9-a-demo-view-switch-shows-the-page-as-it-looks-on-your-own-in: done
+  4-10-try-it-yourself-example-prompts-one-press-each: done
   epic-4-retrospective: optional
 
-  epic-5: backlog
-  5-1-ask-ocutalon-to-watch-a-production-and-to-stop: backlog
-  5-2-new-failures-are-picked-up-within-seconds: backlog
-  5-3-same-cause-failures-become-one-incident-by-the-settle-rule: backlog
-  5-4-the-diagnosis-explains-the-cause-from-the-failed-messages: backlog
-  5-5-an-incident-moves-through-its-states-and-closes: backlog
-  5-6-the-production-watch-runs-on-every-heartbeat: backlog
-  5-7-asked-whether-everything-is-fine-ocutalon-never-gives-a-fals: backlog
+  epic-5: done
+  5-1-ask-ocutalon-to-watch-a-production-and-to-stop: done
+  5-2-new-failures-are-picked-up-within-seconds: done
+  5-3-same-cause-failures-become-one-incident-by-the-settle-rule: done
+  5-4-the-diagnosis-explains-the-cause-from-the-failed-messages: done
+  5-5-an-incident-moves-through-its-states-and-closes: done
+  5-6-the-production-watch-runs-on-every-heartbeat: done
+  5-7-asked-whether-everything-is-fine-ocutalon-never-gives-a-fals: done
+  5-8-each-noticed-incident-says-what-broke-with-its-evidence-behi: done
+  5-9-ask-ocutalon-in-the-chat-to-dismiss-an-incident: done
+  5-10-epic-5-burn-down: done
+  5-11-the-demo-guide-s-tests-hold-now-that-incidents-are-real: done
+  5-12-a-correct-diagnosis-is-never-refused-for-an-over-long-eviden: done
+  5-13-ask-ocutalon-what-happened-earlier-and-it-tells-you-from-its: done
   epic-5-retrospective: optional
 
-  epic-6: backlog
-  6-1-show-each-incident-as-one-card-in-the-chat: backlog
-  6-2-approve-or-reject-a-fix-from-the-web-chat: backlog
-  6-3-answer-on-the-simulated-phone-and-see-every-answer-everywher: backlog
-  6-4-close-the-loop-with-results-rejections-expiry-fallbacks-and: backlog
+  epic-6: done
+  6-1-show-each-incident-as-one-card-in-the-chat: done
+  6-2-approve-or-reject-a-fix-from-the-web-chat: done
+  6-3-answer-on-the-simulated-phone-and-see-every-answer-everywher: done
+  6-4-close-the-loop-with-results-rejections-expiry-fallbacks-and: done
   epic-6-retrospective: optional
 
-  epic-7: backlog
-  7-1-repair-and-resend-proposes-a-dry-run-that-changes-nothing: backlog
-  7-2-the-incident-notice-carries-the-dry-run-and-one-approval-req: backlog
-  7-3-approved-repairs-are-re-checked-and-resent: backlog
-  7-4-ocutalon-reports-how-many-orders-went-through: backlog
-  7-5-a-resend-cut-short-by-a-restart-says-how-far-it-got: backlog
+  epic-7: done
+  7-1-repair-and-resend-proposes-a-dry-run-that-changes-nothing: done
+  7-2-the-incident-notice-carries-the-dry-run-and-one-approval-req: done
+  7-6-later-failures-in-the-same-incident-get-their-own-dry-run-an: done
+  7-3-approved-repairs-are-re-checked-and-resent: done
+  7-4-ocutalon-reports-how-many-orders-went-through: done
+  7-5-a-resend-cut-short-by-a-restart-says-how-far-it-got: done
   epic-7-retrospective: optional
 
-  epic-8: backlog
-  8-1-the-heartbeat-ticks-every-minute-and-catches-up-once-after-a: backlog
-  8-2-the-heartbeat-stalled-warning-comes-from-the-real-heartbeat: backlog
-  8-3-a-reminder-fires-on-time-on-every-channel: backlog
-  8-4-set-list-and-cancel-reminders-in-plain-words: backlog
-  8-5-reminders-survive-restarts-and-upgrades-and-late-ones-say-so: backlog
+  epic-8: done
+  8-1-the-heartbeat-ticks-every-minute-and-catches-up-once-after-a: done
+  8-2-the-heartbeat-stalled-warning-comes-from-the-real-heartbeat: done
+  8-3-a-reminder-fires-on-time-on-every-channel: done
+  8-4-set-list-and-cancel-reminders-in-plain-words: done
+  8-5-reminders-survive-restarts-and-upgrades-and-late-ones-say-so: done
+  8-6-reminders-through-the-chat-on-the-demo-path: done
+  8-7-epic-8-burn-down: done
   epic-8-retrospective: optional
 
-  epic-9: backlog
-  9-1-evaluation-cases-run-through-the-product-path-and-reach-nobo: backlog
-  9-2-each-run-scores-decisions-and-causes-and-records-cost-and-si: backlog
-  9-3-decision-cases-cover-every-outcome-two-injections-the-all-cl: backlog
-  9-4-ten-incidents-are-recorded-from-real-failures: backlog
-  9-5-release-candidates-pass-the-evaluation-and-the-demo-incident: backlog
+  epic-9: done
+  9-1-evaluation-cases-run-through-the-product-path-and-reach-nobo: done
+  9-2-each-run-scores-decisions-and-causes-and-records-cost-and-si: done
+  9-3-decision-cases-cover-every-outcome-two-injections-the-all-cl: done
+  9-7-turn-cases-measure-the-all-clear-the-command-reply-and-a-sto: done
+  9-8-a-stop-watching-injection-leaves-the-watch-unchanged: done
+  9-4-ten-incidents-are-recorded-from-real-failures: done
+  9-9-the-other-nine-incidents-come-from-real-failures-in-a-test-f: done
+  9-6-incident-cases-are-diagnosed-through-incidentmanager-and-rea: done
+  9-5-release-candidates-pass-the-evaluation-and-the-demo-incident: done
+  9-10-the-release-candidate-run-proves-the-key-leaks-nowhere-and-g: done
   epic-9-retrospective: optional
 
-  epic-10: backlog
-  10-1-one-script-finds-the-image-starts-ocutalon-and-says-where-to: backlog
-  10-2-the-readme-gets-a-judge-from-download-to-sign-in: backlog
-  10-3-the-session-side-of-telegram-is-ready-and-stays-off: backlog
+  epic-10: done
+  10-1-one-script-finds-the-image-starts-ocutalon-and-says-where-to: done
+  10-2-the-readme-gets-a-judge-from-download-to-sign-in: done
+  10-3-the-session-side-of-telegram-is-ready-and-stays-off: done
+  10-4-the-readme-opens-with-what-ocutalon-is-for-and-what-a-model: done
+  10-5-the-readme-shows-the-product-and-says-how-you-talk-to-it: backlog
   epic-10-retrospective: optional
 
-  epic-11: backlog
-  11-1-the-web-demo-path-passes-end-to-end-in-the-rel-2-test: backlog
-  11-2-upgrades-and-restarts-keep-every-record-working: backlog
-  11-3-the-clean-machine-rehearsal-installs-and-times-the-demo-path: backlog
-  11-4-the-release-gets-draft-notes-and-a-checklist: backlog
-  11-5-one-scripted-sequence-cuts-a-release: backlog
-  11-6-a-hands-on-pass-with-real-keys-finds-and-fixes-what-the-test: backlog
+  epic-11: in-progress
+  11-0-epic-10-deferred-cleanup: done
+  11-1-the-web-demo-path-passes-end-to-end-in-the-rel-2-test: done
+  11-7-the-demo-path-s-failure-paths-quiet-outcomes-and-online-run: done
+  11-10-the-demo-path-s-failure-paths-and-quiet-outcomes-pass-in-the: done
+  11-8-the-chat-cancels-several-reminders-in-one-call-and-says-it-c: done
+  11-9-every-check-left-off-for-release-1-turns-on-and-the-ci-flake: done
+  11-2-upgrades-and-restarts-keep-every-record-working: done
+  11-3-the-clean-machine-rehearsal-installs-and-times-the-demo-path: done
+  11-11-the-rehearsal-runner-times-the-demo-path-and-checks-every-bo: done
+  11-12-the-rehearsal-runner-repeats-the-demo-path-n-times-with-run: done
+  11-4-the-release-gets-draft-notes-and-a-checklist: done
+  11-13-the-release-gets-draft-notes: done
+  11-5-one-scripted-sequence-cuts-a-release: done
+  11-14-the-release-sequence-runs-every-gate-on-the-pushed-candidate: backlog
+  11-15-the-hands-on-gate-stops-the-sequence-and-its-resume-command: backlog
+  11-16-the-sequence-asks-before-each-outward-step-after-the-gates: backlog
+  11-17-the-release-s-ipm-artifact-carries-the-built-page: done
+  11-18-the-update-hook-updates-the-online-demo-and-a-rehearsal-cand: backlog
+  11-19-seeded-check-rows-stay-out-of-the-heartbeat-s-way-unless-a-c: done
   epic-11-retrospective: optional
 
   epic-12: backlog
@@ -184,19 +221,19 @@ development_status:
   15-3-an-ipm-install-survives-restarts-and-reinstalls-and-every-re: backlog
   epic-15-retrospective: optional
 
-  epic-16: backlog
-  16-1-the-online-demo-s-settings-arrive-at-start-and-its-public-ac: backlog
-  16-2-the-splash-screen-shows-the-demo-and-its-sign-in-details: backlog
-  16-3-signing-in-opens-a-session-this-browser-resumes-until-the-re: backlog
-  16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi: backlog
-  16-5-a-full-demo-says-it-is-busy-and-the-host-s-busy-and-maintena: backlog
-  16-6-a-probe-checks-the-demo-every-15-minutes: backlog
-  16-8-the-page-counts-down-to-the-reset-and-waits-it-out: backlog
-  16-9-allowances-cap-messages-model-cost-and-simulated-emails: backlog
+  epic-16: done
+  16-1-the-online-demo-s-settings-arrive-at-start-and-its-public-ac: done
+  16-2-the-splash-screen-shows-the-demo-and-its-sign-in-details: done
+  16-3-signing-in-opens-a-session-this-browser-resumes-until-the-re: done
+  16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi: done
+  16-5-a-full-demo-says-it-is-busy-and-the-host-s-busy-and-maintena: done
+  16-6-a-probe-checks-the-demo-every-15-minutes: done
+  16-8-the-page-counts-down-to-the-reset-and-waits-it-out: done
+  16-9-allowances-cap-messages-model-cost-and-simulated-emails: done
+  16-11-the-splash-promises-telegram-only-when-the-release-includes: done
   epic-16-retrospective: optional
 
   epic-17: backlog
-  17-1-fix-the-step-2-contracts-in-the-spine: backlog
   17-2-retry-once-on-a-second-model-before-falling-back: backlog
   17-3-run-each-agent-on-a-supported-provider: backlog
   17-4-apply-model-price-budget-and-zone-changes-through-the-bridge: backlog
@@ -206,27 +243,25 @@ development_status:
   epic-17-retrospective: optional
 
   epic-18: backlog
-  18-1-open-the-settings-page-as-an-admin: backlog
   18-2-set-the-time-zone-and-the-daily-digest-at-run-time: backlog
   18-3-choose-models-and-set-budgets-in-settings: backlog
   18-4-read-the-digest-on-every-channel-and-mark-notices-as-handled: backlog
   epic-18-retrospective: optional
 
   epic-19: backlog
-  19-1-settle-step-3-ownership-and-fix-its-contracts: backlog
   19-2-compute-embeddings-offline-in-a-worker: backlog
   19-3-remember-recall-list-and-forget-in-the-chat: backlog
   19-4-answer-from-documents-with-citations: backlog
   19-5-keep-each-online-demo-session-s-documents-and-memories-to-it: backlog
+  19-6-extract-text-from-pdf-and-word-files-with-embedded-python: backlog
+  19-7-answer-from-pdf-and-word-documents: backlog
   epic-19-retrospective: optional
 
   epic-20: backlog
-  20-1-add-and-remove-documents-on-a-documents-page: backlog
   20-2-see-citations-and-memories-in-answers: backlog
   epic-20-retrospective: optional
 
   epic-21: backlog
-  21-1-fix-lane-b-s-step-4-contracts-and-send-events-to-ocutalon-th: backlog
   21-2-read-a-mailbox-and-send-email-over-pop3-and-smtp: backlog
   21-3-sign-in-to-gmail-and-microsoft-365-with-oauth2: backlog
   21-4-add-remove-and-classify-mcp-servers-and-tools-in-settings: backlog
@@ -234,7 +269,6 @@ development_status:
   epic-21-retrospective: optional
 
   epic-22: backlog
-  22-1-fix-step-4-s-contracts-and-register-mcp-servers: backlog
   22-2-classify-mcp-tools-by-server-and-name: backlog
   22-3-call-mcp-tools-only-through-the-governed-proxy: backlog
   22-4-hold-risky-and-unclassified-mcp-calls-for-approval: backlog
@@ -244,7 +278,6 @@ development_status:
   epic-22-retrospective: optional
 
   epic-23: backlog
-  23-1-record-the-setting-history-of-each-watched-production: backlog
   23-2-suspend-resume-and-reroute-with-a-dry-run: backlog
   23-3-name-the-setting-change-behind-an-incident-and-offer-its-rol: backlog
   23-4-decide-when-to-page-the-on-call-person-and-when-to-escalate: backlog
@@ -255,14 +288,12 @@ development_status:
   epic-23-retrospective: optional
 
   epic-24: backlog
-  24-1-set-the-on-call-person-and-backup-in-settings: backlog
   24-2-set-partner-contacts-and-saved-sql-query-watches-in-settings: backlog
   24-3-deliver-pages-on-the-on-call-channel-and-stop-escalation-on: backlog
   24-4-show-the-new-fixes-partner-warnings-and-setting-changes-on-t: backlog
   epic-24-retrospective: optional
 
   epic-25: backlog
-  25-1-see-tokens-and-cost-over-time-on-the-usage-page: backlog
   25-2-filter-past-decisions-and-incidents-on-the-history-page: backlog
   25-3-send-a-pdf-word-file-or-photo-from-the-web-app-or-telegram: backlog
   25-4-assign-approver-and-viewer-roles-in-settings: backlog
@@ -270,8 +301,7 @@ development_status:
   epic-25-retrospective: optional
 
   epic-26: backlog
-  26-1-extract-text-from-pdf-and-word-files-with-embedded-python: backlog
-  26-2-files-become-items-and-pdf-and-word-documents: backlog
+  26-2-files-sent-from-the-chat-or-telegram-become-items: backlog
   26-3-caption-a-photo-and-keep-the-caption-as-a-memory: backlog
   26-4-approver-roles-for-all-risky-actions-or-one-kind-and-a-viewe: backlog
   epic-26-retrospective: optional
@@ -287,17 +317,25 @@ development_status:
   28-3-offer-ocutalon-s-read-only-tools-to-mcp-clients: backlog
   epic-28-retrospective: optional
 
-  epic-29: backlog
-  29-3-the-demo-host-is-adapted-for-the-launch: backlog
-  29-4-sessions-stay-isolated-under-load: backlog
+  epic-29: done
+  29-3-the-demo-host-is-adapted-for-the-launch: done
+  29-4-sessions-stay-isolated-under-load: done
+  29-5-the-address-counter-s-hash-is-keyed-per-reset: done
+  29-6-the-probe-alerts-when-every-turn-falls-back: done
+  29-7-demo-busy-counts-the-live-visitors: done
+  29-8-the-author-s-load-run-measures-the-demo-s-capacity: done
+  29-9-epic-29-burn-down: done
   epic-29-retrospective: optional
 
-  epic-30: backlog
-  30-1-long-conversations-are-compacted-under-the-limit: backlog
-  30-2-old-messages-and-records-are-purged-on-schedule: backlog
-  30-3-an-approved-tool-call-runs-exactly-once-with-no-model: backlog
-  30-4-a-stopped-production-or-a-disabled-item-is-reported-once: backlog
-  30-5-mixed-and-unfinished-resends-say-how-far-they-got: backlog
+  epic-30: in-progress
+  30-1-long-conversations-are-compacted-under-the-limit: done
+  30-2-old-messages-and-records-are-purged-on-schedule: done
+  30-3-an-approved-tool-call-runs-exactly-once-with-no-model: done
+  30-4-a-stopped-production-or-a-disabled-item-is-reported-once: done
+  30-5-mixed-and-unfinished-resends-say-how-far-they-got: done
+  30-6-the-invalid-reply-warning-names-what-failed-never-the-reply: done
+  30-7-epic-30-burn-down: backlog
+  30-8-the-redactor-and-the-key-proof-catch-every-key-shape: done
   epic-30-retrospective: optional
 
   epic-31: backlog
@@ -313,6 +351,73 @@ development_status:
   32-3-every-iris-job-finishes-in-about-ten-minutes: done
   32-4-the-developer-loop-reuses-one-warm-throwaway-per-lane: done
   epic-32-retrospective: optional
+
+  epic-33: backlog
+  33-1-fix-the-step-2-contracts-in-the-spine: backlog
+  33-2-open-the-settings-page-as-an-admin: backlog
+  epic-33-retrospective: optional
+
+  epic-34: backlog
+  34-1-settle-step-3-ownership-and-fix-its-contracts: backlog
+  34-2-add-and-remove-documents-on-a-documents-page: backlog
+  epic-34-retrospective: optional
+
+  epic-35: backlog
+  35-1-fix-step-4-s-contracts-and-register-mcp-servers: backlog
+  35-2-fix-lane-b-s-step-4-contracts-and-send-events-to-ocutalon-th: backlog
+  epic-35-retrospective: optional
+
+  epic-36: backlog
+  36-1-record-the-setting-history-of-each-watched-production: backlog
+  36-2-set-the-on-call-person-and-backup-in-settings: backlog
+  epic-36-retrospective: optional
+
+  epic-37: backlog
+  37-1-fix-step-6-s-contracts-approver-roles-and-the-photo-caption: backlog
+  37-2-see-tokens-and-cost-over-time-on-the-usage-page: backlog
+  epic-37-retrospective: optional
+
+  epic-38: backlog
+  38-1-a-hands-on-pass-with-real-keys-finds-and-fixes-what-the-test: backlog
+  38-2-the-clean-machine-rehearsal-runs-on-the-author-s-hosts-and-t: backlog
+  38-3-the-owner-s-telegram-pass-on-the-1-0-0-candidate: backlog
+  epic-38-retrospective: optional
+
+  epic-39: backlog
+  39-1-fix-the-heartbeat-s-names-and-contracts: backlog
+  39-2-save-your-heartbeat-settings-and-ask-for-a-beat: backlog
+  39-3-beats-fall-due-on-the-tick-and-skip-without-a-model-call-whe: backlog
+  39-4-each-beat-carries-your-checklist-and-a-status-snapshot-built: backlog
+  39-5-the-heartbeat-checklist-card-and-run-the-heartbeat-now: backlog
+  39-6-evaluation-cases-for-the-heartbeat: backlog
+  epic-39-retrospective: optional
+
+  epic-40: backlog
+  40-1-fix-the-persona-s-names-contracts-and-preset-texts: backlog
+  40-2-save-your-persona-and-let-ocutalon-propose-one: backlog
+  40-3-the-persona-reaches-chat-and-triage-as-a-data-block: backlog
+  40-4-the-persona-card: backlog
+  40-5-a-setting-approval-in-the-bridge-and-ocutalon-s-proposal-too: backlog
+  40-6-answer-a-proposed-persona-from-the-page-the-phone-or-telegra: backlog
+  40-7-evaluation-cases-for-the-persona: backlog
+  epic-40-retrospective: optional
+
+  epic-41: backlog
+  41-1-fix-the-names-and-contracts-of-memory-s-first-part: backlog
+  41-2-the-precedent-table-its-one-writer-and-the-routes: backlog
+  41-3-daily-notes-built-by-code-and-the-session-starts-that-read-t: backlog
+  41-4-the-notes-and-your-answers-reach-the-model: backlog
+  41-5-this-was-noise-and-your-approval-answers-become-precedents: backlog
+  41-6-the-memory-card-your-notes-and-your-answers: backlog
+  41-7-evaluation-and-tests-for-memory-s-first-part: backlog
+  41-8-told-or-learned-and-facts-ocutalon-learns-in-your-own-turns: backlog
+  41-9-pins-and-learned-saves-get-their-verbs-and-routes: backlog
+  41-10-facts-learned-at-compaction-optional-needs-ad-31-s-amendment: backlog
+  41-11-bridgesink-saves-compaction-facts-as-learned-memories-option: backlog
+  41-12-core-memory-pins-under-a-hard-cap-read-at-every-session-star: backlog
+  41-13-the-memory-card-pinned-and-learned-memories: backlog
+  41-14-evaluation-and-tests-for-memory-s-second-part: backlog
+  epic-41-retrospective: optional
 action_items:
   - id: "epic-32-retro-item-1-ci-capacity-dw-55-ocutalon-ci-c-starts-i"
     epic: 32
@@ -338,6 +443,47 @@ action_items:
       cut at max_tokens and reports only the last response stop reason; also measure
       whether such a call can be truncated on the real Anthropic API (DW-92). Until
       then Epic 3 gate governs risky tool calls."
+    owner: "user"
+    status: done
+    ref: ""
+  - id: "epic-2-retro-item-4-screen-reader-check-of-the-announcer-voi"
+    epic: 2
+    action: "Screen-reader check of the announcer: VoiceOver on macOS and NVDA on
+      Windows, on two banners in one update, a reply, and a burst of four announcements
+      (DW-159; Story 2.12 built the joined announcement and its automated test A4)"
+    owner: "user"
+    status: done
+    ref: ""
+  - id: "epic-2-retro-item-5-accessibility-tree-check-of-the-announce"
+    epic: 2
+    action: "Accessibility-tree check of the announcer in Chrome (the owner chose
+      it over a VoiceOver/NVDA listening test, which is dropped): observe the live
+      region on two banners in one update, a reply, and a burst of four announcements,
+      on the Planner's own Docker install of the feature head (DW-159; replaces epic-2-retro-item-4)"
+    owner: "Contest Planner"
+    status: done
+    ref: ""
+  - id: "epic-30-decision-item-1-dw-483-measure-decide-invalid-rate"
+    epic: 30
+    action: "DW-483: measure diagnose/Decide invalid-reply rate after Story 5.12 on
+      host Decision rows and in the real-key release-candidate run (Story 9.5); build
+      the one retry only above about 1 in 50 (U-191 condition)"
+    owner: "user"
+    status: open
+    ref: ""
+  - id: "epic-30-decision-item-2-dw-580-summarizer-latency-real-model"
+    epic: 30
+    action: "DW-580: in the release-candidate run, measure a ~100k-token summarizer
+      request latency on the real model against AD-20 20 s timeout (30.1 measured
+      it only on the mock)"
+    owner: "user"
+    status: open
+    ref: ""
+  - id: "epic-30-decision-item-3-dw-575-ad-20-fallback-spine-notes"
+    epic: 30
+    action: "DW-575: attended bmad-architecture Update after the run writes (or declines)
+      the 30.1 Spine notes for AD-20 fallback cases (AD-20/AD-8/AD-6/AD-22 text is
+      silent; no code change)"
     owner: "user"
     status: open
     ref: ""

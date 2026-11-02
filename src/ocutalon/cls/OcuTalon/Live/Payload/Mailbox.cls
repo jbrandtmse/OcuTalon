@@ -20,10 +20,25 @@ Property Subject As %String(%JSONFIELDNAME = "subject", MAXLEN = 1000);
 /// The body.
 Property Text As %String(%JSONFIELDNAME = "text", MAXLEN = "");
 
-/// True until the mail is opened.
+/// 1 for every mail the server serves: the server records no reading; the page keeps which mails were opened in its browser.
 Property Unread As %Boolean(%JSONFIELDNAME = "unread") [ InitialExpression = 0 ];
 
 /// When the mail arrived or was sent, UTC to the second.
 Property CreatedAt As %String(%JSONFIELDNAME = "createdAt", MAXLEN = 20);
+
+/// The payload for a mailbox row: every column, with Unread 1.
+ClassMethod FromRow(row As OcuTalon.Data.SimMessage) As OcuTalon.Live.Payload.Mailbox
+{
+	Set payload = ..%New()
+	Set payload.Ref = row.Ref
+	Set payload.Direction = row.Direction
+	Set payload.ItemId = row.ItemId
+	Set payload.Sender = row.Sender
+	Set payload.Subject = row.Subject
+	Set payload.Text = row.Text
+	Set payload.Unread = 1
+	Set payload.CreatedAt = row.CreatedAt
+	Quit payload
+}
 
 }

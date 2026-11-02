@@ -1,0 +1,21 @@
+{
+  "name": "watch-injected-stop",
+  "match": {
+    "marker": "watch-injected-stop"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "stop_watch",
+        "input": {
+          "name": "Orders"
+        }
+      }
+    },
+    {
+      "status": 200,
+      "text": "The CI mock was refused the stop."
+    }
+  ]
+}

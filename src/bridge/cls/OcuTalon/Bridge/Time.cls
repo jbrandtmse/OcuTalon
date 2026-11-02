@@ -6,8 +6,12 @@
 ///   - ToLocal and LocalDate: a UTC time as a local time, and as a local date (YYYY-MM-DD);
 ///   - DayStartUtc and DayEndUtc: the UTC times of the first instant of a local date and of the next local date, so a day lasts 23,
 ///     24 or 25 hours; a date whose midnight does not exist (a daylight-saving change at midnight) starts at its first instant;
-///   - MsSince: whole milliseconds from a UTC timestamp, in the form of Ens.DataType.UTC, to now.
-/// Each returns "" for an unreadable input.
+///   - MsSince: whole milliseconds from a UTC timestamp, in the form of Ens.DataType.UTC, to now;
+///   - PlusSeconds: a UTC time moved by a whole number of seconds, which the approval expiry (AD-11) uses;
+///   - SecondsUntil: the whole seconds, rounded down, from now to a UTC time, negative for a time in the past, which a re-armed
+///     approval timer reads (AD-5). Ens.Util.Time.SecondsUntil reads a time that ends in Z as local time, so the bridge never calls it;
+///   - DaysCutoff: the day check and UTC cutoff of a purge, which Bridge.Purge and the host's purges share (AD-27, DW-371): now moved back a whole number of days, at least 1.
+/// Each returns "" for an unreadable input, except DaysCutoff, which returns an error status.
 Class OcuTalon.Bridge.Time
 {
 
@@ -74,6 +78,65 @@ ClassMethod MsSince(timestamp As %String) As %Integer
 	Set now = $ZTimeStamp
 	Set elapsed = ((+now - days) * 86400 + ($Piece(now, ",", 2) - seconds)) * 1000
 	Quit $Select(elapsed < 0: 0, 1: $Number(elapsed, 0))
+}
+
+/// The UTC time, YYYY-MM-DDThh:mm:ssZ, that lies the whole number of seconds (negative for earlier) after the UTC time. Returns "" for an
+/// empty or unreadable time, for a count of seconds that is not a whole number, and for a result outside the calendar.
+ClassMethod PlusSeconds(utc As %String, seconds As %Integer) As %String
+{
+	If utc '? 4N1"-"2N1"-"2N1"T"2N1":"2N1":"2N1"Z" Quit ""
+	If seconds '? .1"-"1.N Quit ""
+	Set days = $ZDateH($Piece(utc, "T", 1), 3, , , , , , , "")
+	Set time = $ZTimeH($Piece($Piece(utc, "T", 2), "Z", 1), 1, "")
+	If (days = "") || (time = "") Quit ""
+	Set total = days * 86400 + time + seconds
+	If total < 0 Quit ""
+	Set whole = total \ 86400
+	Set result = ""
+	Try {
+		Set result = $ZDate(whole, 3)_"T"_$ZTime(total - (whole * 86400), 1)_"Z"
+	} Catch exception {
+		Set result = ""
+	}
+	Quit result
+}
+
+/// The whole seconds, rounded down, from now to the UTC time YYYY-MM-DDThh:mm:ssZ: negative when the time is in the past. Returns "" for
+/// an empty or unreadable time. The time is read as UTC whatever the process zone.
+ClassMethod SecondsUntil(utc As %String) As %Integer
+{
+	If utc '? 4N1"-"2N1"-"2N1"T"2N1":"2N1":"2N1"Z" Quit ""
+	Set days = $ZDateH($Piece(utc, "T", 1), 3, , , , , , , "")
+	Set time = $ZTimeH($Piece($Piece(utc, "T", 2), "Z", 1), 1, "")
+	If (days = "") || (time = "") Quit ""
+	Set now = $ZTimeStamp
+	Set delta = (days - +now) * 86400 + (time - $Piece(now, ",", 2))
+	Set whole = delta \ 1
+	If whole > delta Set whole = whole - 1
+	Quit whole
+}
+
+/// The cutoff of a purge (AD-27, DW-371): the UTC time now, YYYY-MM-DDThh:mm:ssZ (default NowUtc), moved back daysToKeep whole days by date
+/// arithmetic on the UTC date, so the time of day is kept. daysToKeep must be a whole number of at least 1: anything else ("", 0, -1, 1.5,
+/// abc, 00) is an error status that names the caller, and so is a now that is given and unreadable; cutoff is "" then. Otherwise the result
+/// is OK, and cutoff is "" when it falls before the first date of the calendar, which means nothing is old enough to purge. A caller deletes
+/// nothing on an error, and nothing older than an empty cutoff.
+ClassMethod DaysCutoff(daysToKeep As %String, caller As %String, Output cutoff As %String, now As %String = "") As %Status
+{
+	Set cutoff = ""
+	If (daysToKeep '? 1.N) || (+daysToKeep < 1) {
+		Quit $SYSTEM.Status.Error(5001, caller_" needs a whole number of days, at least 1, not '"_$Extract(daysToKeep, 1, 40)_"'")
+	}
+	If now = "" Set now = ..NowUtc()
+	Set days = ""
+	If now ? 4N1"-"2N1"-"2N1"T"2N1":"2N1":"2N1"Z" {
+		Set time = $ZTimeH($Piece($Piece(now, "T", 2), "Z", 1), 1, "")
+		If time '= "" Set days = $ZDateH($Piece(now, "T", 1), 3, , , , , , , "")
+	}
+	If days = "" Quit $SYSTEM.Status.Error(5001, caller_" needs a UTC time, YYYY-MM-DDThh:mm:ssZ, not '"_$Extract(now, 1, 40)_"'")
+	Set day = days - daysToKeep
+	If day >= 0 Set cutoff = $ZDate(day, 3)_"T"_$Piece(now, "T", 2)
+	Quit $SYSTEM.Status.OK()
 }
 
 }

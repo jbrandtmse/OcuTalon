@@ -20,8 +20,15 @@ Property CatalogKey As %String(MAXLEN = 128);
 /// The slots of the catalog text, as JSON (AD-32).
 Property Slots As %String(MAXLEN = "");
 
-/// The check rows a tool filled, as JSON (AD-6 HostData).
+/// The check rows of the reply (AD-28), as a JSON array of {result, entry, finding, checkedAt}: what Checks.Render made of
+/// the reply's HostData checks. Empty for a reply with none.
 Property CheckRows As %String(MAXLEN = "");
+
+/// The Ref of the decision the reply shows (AD-20): the one whose reasons and cost go with the reply; empty when it has none.
+Property DecisionRef As %String(MAXLEN = 22);
+
+/// The catalog key of the check results (AD-28); empty when the reply has none.
+Property CheckKey As %String(MAXLEN = 128);
 
 Storage Default
 {
@@ -47,6 +54,12 @@ Storage Default
 </Value>
 <Value name="7">
 <Value>CheckRows</Value>
+</Value>
+<Value name="8">
+<Value>DecisionRef</Value>
+</Value>
+<Value name="9">
+<Value>CheckKey</Value>
 </Value>
 </Data>
 <DefaultData>OutboundDefaultData</DefaultData>

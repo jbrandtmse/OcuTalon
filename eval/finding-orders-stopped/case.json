@@ -1,0 +1,23 @@
+{
+  "name": "finding-orders-stopped",
+  "kind": "item",
+  "heldOut": false,
+  "description": "A production state change in the finding shape (the Orders production stopped): a current failure that OcuTalon can look into with its read-only tools, so it acts.",
+  "expectation": {
+    "outcome": "act"
+  },
+  "recordedBy": "written for the evaluation set (Story 9.3)",
+  "item": {
+    "itemId": "finding-orders-stopped",
+    "channel": "system",
+    "provenance": "untrusted",
+    "sender": "",
+    "subject": "",
+    "text": "The Orders production stopped at 18:12 UTC.\nWhy now: you asked me to watch the Orders production.",
+    "catalogKey": "watch.productionStopped",
+    "slots": {
+      "production": "Orders",
+      "time": "2026-10-16T18:12:00Z"
+    }
+  }
+}

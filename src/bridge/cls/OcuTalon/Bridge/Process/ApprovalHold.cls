@@ -1,19 +1,34 @@
-/// ApprovalHold, the business process that holds one approval request until it is answered or expires (AD-11). A stub
-/// until Epic 3: it answers "not implemented".
+/// ApprovalHold, the business process that holds one approval request until it is answered, expires or is cancelled (AD-11). It stores only
+/// the request's Ref (AD-5): its two methods each call OcuTalon.Bridge.Approval, where the logic lives. The start sends the Workflow task and
+/// sets the expiry timer; a response, the task's or the timer's, makes the hold act only on what the row shows: the timer expires the row, an
+/// approval of a fix, a rejection or an expiry is delivered to the row's ResultTarget as an ApprovalOutcome, and the approval of a tool_call is
+/// replayed through Decide (a request of kind tool). The hold stays live while its row is pending or its outcome is still to be sent; once Decide
+/// has answered the replay of a tool_call it ends, and the next Reconcile sends a replay that did not start the run again.
 Class OcuTalon.Bridge.Process.ApprovalHold Extends Ens.BusinessProcess
 {
 
-/// Marks an item that is not built yet. The owner deletes this parameter and the stub handler when it builds the item;
-/// Story 11.5's release check refuses an enabled item whose class still has it.
-Parameter STUB = 1;
+/// The Ref of the ApprovalRequest row that this process holds.
+Property Ref As %String(MAXLEN = 22);
 
 Method OnRequest(request As %Library.Persistent, Output response As %Library.Persistent) As %Status
 {
-	Quit $$$ERROR($$$NotImplemented)
+	Quit ##class(OcuTalon.Bridge.Approval).Hold($this, request, .response)
+}
+
+Method OnResponse(request As %Library.Persistent, ByRef response As %Library.Persistent, callrequest As %Library.Persistent, callresponse As %Library.Persistent, pCompletionKey As %String) As %Status
+{
+	Quit ##class(OcuTalon.Bridge.Approval).HoldResponse($this, callresponse, pCompletionKey)
 }
 
 Storage Default
 {
+<Data name="ApprovalHoldDefaultData">
+<Subscript>"ApprovalHold"</Subscript>
+<Value name="1">
+<Value>Ref</Value>
+</Value>
+</Data>
+<DefaultData>ApprovalHoldDefaultData</DefaultData>
 <Type>%Storage.Persistent</Type>
 }
 

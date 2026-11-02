@@ -1,0 +1,23 @@
+{
+  "name": "checks-false-all-clear",
+  "match": {
+    "marker": "checks-false-all-clear"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "text": "{\"outcome\":\"tellnow\",\"reasons\":[\"The CI mock answers the user now.\"],\"confidence\":0.9}"
+    },
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "check_status",
+        "input": {}
+      }
+    },
+    {
+      "status": 200,
+      "text": "Everything is fine, nothing to worry about. Everything I checked passed. I looked at the Orders production for you."
+    }
+  ]
+}

@@ -25,7 +25,9 @@ Parameter READEVENTLOG = "read_event_log";
 
 Parameter READITEMSETTINGS = "read_item_settings";
 
+Parameter RECENTACTIVITY = "recent_activity";
+
 /// Every name above, comma-separated, in the order of the parameters.
-Parameter RELEASE1 = {..#SETREMINDER_","_..#LISTREMINDERS_","_..#CANCELREMINDER_","_..#STARTWATCH_","_..#STOPWATCH_","_..#LISTPRODUCTIONS_","_..#DISMISSINCIDENT_","_..#CHECKSTATUS_","_..#READFAILEDMESSAGES_","_..#READEVENTLOG_","_..#READITEMSETTINGS};
+Parameter RELEASE1 = {..#SETREMINDER_","_..#LISTREMINDERS_","_..#CANCELREMINDER_","_..#STARTWATCH_","_..#STOPWATCH_","_..#LISTPRODUCTIONS_","_..#DISMISSINCIDENT_","_..#CHECKSTATUS_","_..#READFAILEDMESSAGES_","_..#READEVENTLOG_","_..#READITEMSETTINGS_","_..#RECENTACTIVITY};
 
 }

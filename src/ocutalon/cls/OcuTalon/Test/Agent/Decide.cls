@@ -16,7 +16,8 @@
 ///   - TestTurn: a user's turn gets the mock's final text with the outcome tellnow and its DecisionRef, one row of kind turn, the
 ///     rendered input as the text of a user-role message in every logged request and in no tool_result block; the same item again
 ///     is refused with an error that names the item and the DecisionRef, and nothing is sent;
-///   - TestDiagnoseNeedsReplyClass: a diagnose request is refused, naming DiagnosisAgent and ReplyClass, and nothing is sent;
+///   - TestSnapshotDiagnosis (Story 5.4): the recorded evaluation snapshot through EvidencePack and a diagnose request gives the usable data-format diagnosis,
+///     and the marker invalid-reply gives the fallback invalid;
 ///   - TestReplyFallbacks (Story 1.6, since TestUnusableEndsWithError): the five markers refusal, max-tokens, empty, provider-error and
 ///     invalid-reply are answered with fallbacks;
 ///   - TestTimer (Story 1.7): with a TimerSeconds row of 12, a reply that comes after 18 s is answered with a timeout fallback 11 to 17 s after
@@ -59,6 +60,9 @@
 ///     Decide started again) count as off: a decide is sent and answered as usual, and Precheck logs one warning for each (AC8);
 ///   - TestDailyCapBothPaths: the gateway's 403 and the precheck both give daily_cap, the day is marked once, and the host sink got one
 ///     budget.capped and three decision.recorded;
+///   - TestDailyCapPlainText (Story 29.6, DW-94): a plain-text 403 whose body is "daily cost cap reached" gives daily_cap too, with the same
+///     guarantees as the gateway step of TestDailyCapBothPaths (GatewayCap), one request sent, the day marked and decision.recorded then one
+///     budget.capped;
 ///   - OnAfterOneTest puts back every System Default Settings row, item setting and model family that a test changed, kills today's
 ///     day mark and ^OcuTalonTest("ProbeSink"), and starts Decide and ChatAgent again where the test changed them.
 /// Added by the QA stage of Story 1.6 (AD-8, AD-20, AD-26, AD-30):
@@ -107,6 +111,9 @@ Parameter WAITSECONDS = 120;
 
 /// The first reason line of a user's decide request whose outcome was ignore or digest.
 Parameter USERANSWERED = "The outcome was changed because a message the user writes is always answered.";
+
+/// The recorded evaluation snapshot, as mounted in a throwaway (docker/tests/compose.throwaway.yml).
+Parameter SNAPSHOT = "/opt/ocutalon/eval/orders-date-format/snapshot.json";
 
 /// The final text of chat.json.
 Parameter CHATTEXT = "The CI mock looked at the productions.";
@@ -428,25 +435,51 @@ Method TestTurn()
 	Do $$$AssertEquals(result.%GetData(1), 1, "and no second row was recorded")
 }
 
-/// A diagnose request is refused while DiagnosisAgent names no ReplyClass: the error names both, nothing is sent and no row is
-/// recorded.
-Method TestDiagnoseNeedsReplyClass()
+/// The recorded snapshot of the evaluation case (eval/orders-date-format, mounted read-only at /opt/ocutalon/eval/ in a throwaway) through the evidence pack and
+/// Decide (Story 5.4, row Snapshot): the pack has the 50 failures, their one time, the item OrdersFromPartner, the sample with the date 10/16/2026 and its sentence,
+/// that item's settings and the trace excerpt; the diagnose request carrying Input(pack) gets the usable diagnosis of the default script, whose Payload is the
+/// checked DiagnosisPayload JSON. With the marker invalid-reply the same request is the fallback invalid, and its row holds no payload.
+Method TestSnapshotDiagnosis()
 {
 	If '..Prepare() Quit
 	Set fixture = "OcuTalon.Test.Agent.RunnerFixture"
-	Set mock = "OcuTalon.Test.Contract.Mock"
-	Set request = $ClassMethod(fixture, "NewRequest", "diagnose", "untrusted", "Why did the messages fail?", .ref)
+	Set pack = "OcuTalon.Watch.EvidencePack"
+	Set file = ..#SNAPSHOT
+	If '##class(%File).Exists(file) {
+		Do $$$AssertTrue(0, "the recorded snapshot is at "_file_": this class runs in a throwaway, which mounts eval/ read-only")
+		Quit
+	}
+	Do $$$AssertStatusOK($ClassMethod(pack, "Load", file, .snapshot), "the snapshot is loaded")
+	Do $$$AssertStatusOK($ClassMethod(pack, "Build", snapshot, .built), "the pack is built from it")
+	If '$IsObject($Get(built)) Quit
+	Do $$$AssertEquals(built.count_"|"_built.firstAt_"|"_built.lastAt_"|"_built.item, "50|2026-10-20T10:37:45Z|2026-10-20T10:37:45Z|OrdersFromPartner", "the pack has the count, the one time and the item")
+	Do $$$AssertEquals(built.sample.body.OrderDate, "10/16/2026", "its sample holds the order date")
+	Set input = $ClassMethod(pack, "Input", built)
+	Set request = $ClassMethod(fixture, "NewRequest", "diagnose", "untrusted", input, .ref)
 	Set ..ItemIds = ..ItemIds _ $ListBuild(ref)
-	Set mark = $ClassMethod(mock, "LogMark")
 	Set sc = ..Run(request, .response, .session)
-	Do $$$AssertStatusNotOK(sc, "the diagnose request is refused")
-	Set text = $SYSTEM.Status.GetErrorText(sc)
-	Do $$$AssertTrue((text [ "DiagnosisAgent") && (text [ "ReplyClass"), "with an error that names DiagnosisAgent and ReplyClass: "_text)
-	Do $$$AssertEquals(response, "", "and gives no answer")
-	Do $$$AssertStatusOK($ClassMethod(mock, "LogSince", mark, .entries), "the mock's log is read")
-	Do $$$AssertEquals(entries.%Size(), 0, "nothing reached the mock")
-	Do $$$AssertEquals(..Targets($ClassMethod(fixture, "Headers", session, "Decide")), "ApprovalStartIn", "and Decide sent nothing to a runner or the timer")
-	Do $$$AssertEquals($ClassMethod(fixture, "DecisionOf", ref, "diagnose"), "", "no row is recorded")
+	Do $$$AssertStatusOK(sc, "Decide answers the diagnose request")
+	If '$IsObject(response) || 'response.%IsA("OcuTalon.Bridge.Msg.DecisionResponse") {
+		Do $$$AssertTrue(0, "the answer is a DecisionResponse")
+		Quit
+	}
+	Do $$$AssertEquals(response.Fallback_"|"_response.FallbackReason, "0|", "the diagnosis is usable")
+	Set payload = {}.%FromJSON(response.Payload)
+	Do $$$AssertEquals(payload.causeCategory_"|"_payload.elementAtFault_"|"_payload.fixKind_"|"_payload.itemNoun.one_"/"_payload.itemNoun.other, "data_format_change|OrderDate|repair_resend|order/orders", "it names the data-format change at OrderDate, the repair and the noun")
+	Do $$$AssertEquals(payload.fixParameters.field_"|"_payload.fixParameters.sourceFormat_"|"_payload.fixParameters.targetFormat, "OrderDate|MM/DD/YYYY|YYYY-MM-DD", "with its parameters")
+	Set row = $ClassMethod(fixture, "DecisionOf", ref, "diagnose")
+	Do $$$AssertTrue($IsObject(row), "one row is recorded")
+	If $IsObject(row) Do $$$AssertEquals(row.Payload_"|"_row.Outcome, response.Payload_"|act", "and holds the same payload, with the outcome act")
+
+	Set request = $ClassMethod(fixture, "NewRequest", "diagnose", "untrusted", input_" [[mock:invalid-reply]]", .ref)
+	Set ..ItemIds = ..ItemIds _ $ListBuild(ref)
+	Set sc = ..Run(request, .response, .session)
+	Do $$$AssertStatusOK(sc, "Decide answers the diagnose request with the invalid reply")
+	If $IsObject(response) {
+		Do $$$AssertEquals(response.Fallback_"|"_response.FallbackReason_"|"_response.Payload, "1|invalid|", "it is the fallback invalid, with no payload")
+	} Else {
+		Do $$$AssertTrue(0, "the answer is an object")
+	}
 }
 
 /// An untrusted decide request for each of the five markers (refusal, max-tokens, empty, provider-error, invalid-reply) is answered with a
@@ -966,7 +999,7 @@ Method TestUsageDecide()
 
 /// A user's turn with the scenario usage-turn: a request that asks for a tool ChatAgent does not have, and a final text (1,000 prompt
 /// tokens and 512 written to the cache, then 1,100 prompt tokens and 512 read from it). One Usage row holds the sums of the two requests
-/// and the largest request, which is the last one. The Reply of the runner, the Decision row and the answer hold them, with a step count
+/// and the largest request, which is the larger of the last one and the estimate of the first (since Story 5.1 the estimate of Chat's first request is the larger). The Reply of the runner, the Decision row and the answer hold them, with a step count
 /// of the two requests plus the tool call.
 Method TestUsageTurn()
 {
@@ -989,7 +1022,17 @@ Method TestUsageTurn()
 	Do $$$AssertEquals(usage.RequestCount, 2, "two model requests")
 	Do $$$AssertEquals(usage.InputTokens, 3124, "InputTokens: prompt 1,000 + 1,100, cache read 512 and cache write 512")
 	Do $$$AssertEquals(usage.OutputTokens_"|"_usage.CacheReadTokens_"|"_usage.CacheWriteTokens, "130|512|512", "OutputTokens 50 + 80, and the cache counts")
-	Do $$$AssertEquals(usage.LargestRequestTokens, 1612, "the largest request is the last one: prompt 1,100 and cache read 512")
+	#; The larger of the last request's measured input (prompt 1,100 and cache read 512) and the estimate of the first request, which is Chat's
+	#; system prompt, its tool schemas and the input: the estimate passes the measured 1,612 once Chat's toolsets are the reminder and watch tools.
+	Set largest = 1612
+	Set first = ""
+	Set iterator = $ClassMethod(fixture, "StepsOf", answer.DecisionRef).%GetIterator()
+	While iterator.%GetNext(, .step) {
+		If (first = "") && (step.kind = "model") Set first = +step.estimatedTokens
+	}
+	Do $$$AssertTrue(first > 0, "the first model step has an estimate: "_first)
+	If first > largest Set largest = first
+	Do $$$AssertEquals(usage.LargestRequestTokens, largest, "the largest request is the larger of the last one (prompt 1,100 and cache read 512: 1,612) and the estimate of the first ("_first_")")
 	Do $$$AssertEquals(usage.CostUSD, .000344, "the cost is that of the sums at the Price row of the model")
 	Set expected = "3124|130|512|512|.000344|claude-haiku-5-5|"_..#USAGETURNSTEPS
 	Set runner = ..HeaderTo($ClassMethod(fixture, "Headers", session, "ChatAgent"), "Decide")
@@ -1340,24 +1383,7 @@ Method TestDailyCapBothPaths()
 	Set fixture = "OcuTalon.Test.Agent.RunnerFixture"
 	Set mock = "OcuTalon.Test.Contract.Mock"
 	Set today = ##class(OcuTalon.Bridge.Time).LocalDate(##class(OcuTalon.Bridge.Time).NowUtc())
-	Do ..Put("Decide", "DailyCostCapUSD", 0)
-	Do ..SwapSink()
-	Do $$$AssertEquals($Data(^OcuTalonBP.UsageCapped(today)), 0, "the day is not marked")
-	Do $$$AssertEquals(..EventTypes($ClassMethod(fixture, "SinkCalls")), "", "and the sink has had no call")
-
-	// the gateway's 403
-	Set request = $ClassMethod(fixture, "NewRequest", "decide", "untrusted", "[[mock:daily-cap]] Triage this item.", .first)
-	Set ..ItemIds = ..ItemIds _ $ListBuild(first)
-	Set mark = $ClassMethod(mock, "LogMark")
-	Set sc = ..Run(request, .answer, .session)
-	Do $$$AssertStatusOK(sc, "the decide that the gateway refuses is answered")
-	Set row = $ClassMethod(fixture, "DecisionOf", first, "decide")
-	Do $$$AssertEquals($ClassMethod(fixture, "FallbackProblems", answer, row, "decide", "daily_cap"), "", "with a tellnow fallback with the reason daily_cap, in the answer, its XML and the row")
-	Do $$$AssertStatusOK($ClassMethod(mock, "LogSince", mark, .entries), "the mock's log is read")
-	Do $$$AssertEquals($ClassMethod(fixture, "FindRequests", entries, first).%Size(), 1, "the runner called the gateway once, and AI Hub did not send the refused request again")
-	Do $$$AssertTrue($Data(^OcuTalonBP.UsageCapped(today)) > 0, "and the day is marked")
-	Do $$$AssertEquals(..Targets($ClassMethod(fixture, "Headers", session, "Decide")), "ApprovalStartIn,Ens.Alarm,TriageAgent", "Decide sent the runner request and the timer, and no step: the call failed at its first request")
-	Do $$$AssertEquals(..EventTypes($ClassMethod(fixture, "SinkCalls")), "decision.recorded,budget.capped", "the 403's fallback alone fired decision.recorded and then one budget.capped")
+	Do ..GatewayCap("daily-cap")
 
 	// the precheck, for a decide and for a turn
 	Set request = $ClassMethod(fixture, "NewRequest", "decide", "untrusted", "Triage this item.", .second)
@@ -1390,7 +1416,44 @@ Method TestDailyCapBothPaths()
 	Do $$$AssertEquals(##class(OcuTalon.Bridge.Budget).State().capped, 1, "and Budget.State reports the cap reached")
 }
 
+/// The plain-text 403 of DW-94: the gateway answers HTTP 403 with Content-Type text/plain and the body "daily cost cap reached"
+/// (the mock scenario daily-cap-text), and AI Hub puts that body after "(HTTP 403): " in the failure text, so the decide gets daily_cap
+/// exactly as it does for Anthropic's error JSON. The same steps and assertions as the gateway step of TestDailyCapBothPaths (GatewayCap).
+Method TestDailyCapPlainText()
+{
+	If '..Prepare() Quit
+	Do ..GatewayCap("daily-cap-text")
+}
+
 /// --- helpers ---
+/// The gateway's HTTP 403 for the mock scenario <var>marker</var>, with the cap off, the day unmarked and Decide's host sink swapped to the probe
+/// sink: a decide gets a daily_cap fallback with every guarantee after one call of the runner, the day is marked, Decide sent the runner request
+/// and the timer and no step, and the sink got decision.recorded and then one budget.capped. The caller has run Prepare. The sink stays swapped.
+Method GatewayCap(marker As %String) [ Private ]
+{
+	Set fixture = "OcuTalon.Test.Agent.RunnerFixture"
+	Set mock = "OcuTalon.Test.Contract.Mock"
+	Set today = ##class(OcuTalon.Bridge.Time).LocalDate(##class(OcuTalon.Bridge.Time).NowUtc())
+	Do ..Put("Decide", "DailyCostCapUSD", 0)
+	Do ..SwapSink()
+	Do $$$AssertEquals($Data(^OcuTalonBP.UsageCapped(today)), 0, "the day is not marked")
+	Do $$$AssertEquals(..EventTypes($ClassMethod(fixture, "SinkCalls")), "", "and the sink has had no call")
+
+	// the gateway's 403
+	Set request = $ClassMethod(fixture, "NewRequest", "decide", "untrusted", "[[mock:"_marker_"]] Triage this item.", .first)
+	Set ..ItemIds = ..ItemIds _ $ListBuild(first)
+	Set mark = $ClassMethod(mock, "LogMark")
+	Set sc = ..Run(request, .answer, .session)
+	Do $$$AssertStatusOK(sc, "the decide that the gateway refuses is answered")
+	Set row = $ClassMethod(fixture, "DecisionOf", first, "decide")
+	Do $$$AssertEquals($ClassMethod(fixture, "FallbackProblems", answer, row, "decide", "daily_cap"), "", "with a tellnow fallback with the reason daily_cap, in the answer, its XML and the row")
+	Do $$$AssertStatusOK($ClassMethod(mock, "LogSince", mark, .entries), "the mock's log is read")
+	Do $$$AssertEquals($ClassMethod(fixture, "FindRequests", entries, first).%Size(), 1, "the runner called the gateway once, and AI Hub did not send the refused request again")
+	Do $$$AssertTrue($Data(^OcuTalonBP.UsageCapped(today)) > 0, "and the day is marked")
+	Do $$$AssertEquals(..Targets($ClassMethod(fixture, "Headers", session, "Decide")), "ApprovalStartIn,Ens.Alarm,TriageAgent", "Decide sent the runner request and the timer, and no step: the call failed at its first request")
+	Do $$$AssertEquals(..EventTypes($ClassMethod(fixture, "SinkCalls")), "decision.recorded,budget.capped", "the 403's fallback alone fired decision.recorded and then one budget.capped")
+}
+
 /// 1 when the production runs with every item in the CI override's environment and the entries of the runners are pointed at the
 /// mock key variable. Otherwise the test fails with the reason, and quits. The entries are put back by OnAfterAllTests. Today's day
 /// mark is removed first, so that no earlier class leaves the day capped.

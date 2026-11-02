@@ -16,7 +16,12 @@
 ///   - TestMarker: a [[mock:refusal:<key>]] marker picks the refusal scenario, whatever the mock key;
 ///   - TestSamplingAndCapRefused: a sampling parameter in extra_params and a max_tokens of 3999 are refused as "Invalid input";
 ///   - TestCountdownAndRetryAfterCap: an armed countdown makes the first request a 429 with Retry-After 30, and the retry block's
-///     max_backoff_ms caps the wait (S18).
+///     max_backoff_ms caps the wait (S18);
+///   - TestTelegramBotApi (Story 10.3; AD-19, AD-22): the Telegram Bot API side of the mock, called as the Telegram service will, at
+///     OCUTALON_TELEGRAM_API_BASE + /bot + TELEGRAM_BOT_TOKEN + /<method>: getMe answers the bot, a queued update comes back from
+///     getUpdates, a sendMessage is listed by the mock's calls, and the mock's log holds the path as /bot[redacted]/<method> with the
+///     token's length and never the token. Where the base is anything but the mock's or the token is empty, the test fails with that
+///     reason and sends nothing. It never writes the token to a log, an assertion text or a status.
 /// The helpers are class methods that either lane's tests may call (read, do not copy):
 ///   - Provider(mockKey, httpConfig): the Anthropic provider for the mock. It throws unless the environment variable is the mock's
 ///     base URL. httpConfig defaults to request_timeout_secs 10 and the retry block {max_retries 1, attempt_timeout_secs 10,
@@ -43,6 +48,14 @@ Parameter LOGFILE = "/opt/ocutalon/mock-log/requests.jsonl";
 
 /// The request header that carries an agent's MOCKKEY.
 Parameter MOCKKEYHEADER = "x-ocutalon-mockkey";
+
+/// The Bot API base of the mock: the only value of OCUTALON_TELEGRAM_API_BASE that TestTelegramBotApi runs under.
+Parameter TELEGRAMBASE = "http://mock:8080";
+
+/// The environment variables of the Bot API side, as the CI override sets them.
+Parameter TELEGRAMBASEVAR = "OCUTALON_TELEGRAM_API_BASE";
+
+Parameter TELEGRAMTOKENVAR = "TELEGRAM_BOT_TOKEN";
 
 /// The environment variable that switches the mock-key header on: only the CI override sets it, to 1 (owner decision 5).
 Parameter MOCKKEYFLAG = "OCUTALON_MOCK_KEY_HEADER";
@@ -326,6 +339,99 @@ ClassMethod ProviderSettings(switch As %String, mockKey As %String, httpConfig A
 		Do config."custom_headers".%Set(name, value)
 	}
 	Quit {"api_key": (..#DUMMYKEY), "base_url": (..#BASEURL), "http_config": (config)}
+}
+
+/// Story 10.3: the Telegram service's calls to the mock's Bot API side, over the environment of the CI override. A getMe answers the bot
+/// ocutalon_ci_bot, an update that the test queues comes back from getUpdates with update_id 1, a sendMessage is in the mock's list of
+/// calls with its parameters, and the mock's request log holds each call as a line whose path is /bot[redacted]/<method>, with the
+/// token's length and without the token. The mock's Bot API state is reset before and after.
+Method TestTelegramBotApi()
+{
+	If '..Guard() Quit
+	Set token = $SYSTEM.Util.GetEnviron(..#TELEGRAMTOKENVAR)
+	Set reason = ..TelegramMissingReason($SYSTEM.Util.GetEnviron(..#TELEGRAMBASEVAR), token)
+	If reason '= "" {
+		Do $$$AssertTrue(0, reason)
+		Quit
+	}
+	Set mark = ..LogMark()
+	Do $$$AssertTrue(..Control("reset"), "the mock's Bot API state is reset")
+	Try {
+		Set answer = ..BotCall(token, "getMe", "")
+		Do $$$AssertEquals(answer.ok_"|"_answer.result."is_bot"_"|"_answer.result.username, "1|1|ocutalon_ci_bot", "getMe answers the bot, with its user name")
+		Set text = "zz telegram "_##class(OcuTalon.Bridge.Ids).NewRef()
+		Do $$$AssertTrue(..Control("updates", [{"message": {"chat": {"id": 42}, "text": (text)}}]), "an update is queued")
+		Set answer = ..BotCall(token, "getUpdates", {"offset": 0, "timeout": 0}.%ToJSON())
+		Do $$$AssertEquals(answer.result.%Size()_"|"_answer.result.%Get(0)."update_id"_"|"_answer.result.%Get(0).message.text, "1|1|"_text, "getUpdates returns the update with update_id 1")
+		Set answer = ..BotCall(token, "sendMessage", {"chat_id": 42, "text": (text)}.%ToJSON())
+		Do $$$AssertEquals(answer.ok_"|"_answer.result."message_id"_"|"_answer.result.chat.id_"|"_answer.result.text, "1|1|42|"_text, "sendMessage answers a Message with a counted message_id, the chat id and the text")
+		Set calls = ..Calls()
+		Do $$$AssertEquals(calls.%Size(), 3, "the mock lists the three calls")
+		If calls.%Size() = 3 {
+			Do $$$AssertEquals(calls.%Get(0).method_"|"_calls.%Get(1).method_"|"_calls.%Get(2).method, "getMe|getUpdates|sendMessage", "in order")
+			Do $$$AssertEquals(calls.%Get(2).params.text_"|"_calls.%Get(2).params."chat_id", text_"|42", "and the sendMessage's parameters")
+		}
+		Hang 0.2
+		Do ..LogSince(mark, .entries)
+		Set seen = 0
+		Set iterator = entries.%GetIterator()
+		While iterator.%GetNext(, .entry) {
+			If $Extract(entry.path, 1, 5) '= "/bot[" Continue
+			Set seen = seen + 1
+			Do $$$AssertEquals(entry.path_"|"_entry.tokenLength, "/bot[redacted]/"_$Piece(entry.path, "/", 3)_"|"_$Length(token), "a Bot API line has the masked path and the token's length")
+		}
+		Do $$$AssertEquals(seen, 3, "the log holds the three calls")
+		Do $$$AssertEquals(..LogHolds(token), 0, "and the token is nowhere in the mock's log")
+		Do $$$AssertEquals(..LogHolds(text), 0, "nor the text of the message")
+	} Catch ex {
+		Do $$$AssertTrue(0, "a Bot API call failed: "_$Piece($Translate(ex.DisplayString(), $Char(13, 10), "  "), token, 1))
+	}
+	Do ..Control("reset")
+}
+
+/// The reason why TestTelegramBotApi does not run: the Bot API base is not the mock's or the token is empty, or "". It checks values, not
+/// the environment. It never names the token.
+ClassMethod TelegramMissingReason(base As %String, token As %String) As %String
+{
+	If base '= ..#TELEGRAMBASE Quit ..#TELEGRAMBASEVAR_" is not "_..#TELEGRAMBASE_": this test runs in throwaways and CI only, where ci/compose.ci.yml sets it (Rule 21)"
+	If token = "" Quit ..#TELEGRAMTOKENVAR_" is empty: this test runs in throwaways and CI only, where ci/compose.ci.yml sets a dummy (Rule 21)"
+	Quit ""
+}
+
+/// A Bot API call to the mock as the Telegram service makes it: POST /bot<token>/<method> with the JSON body (none when ""). The answer
+/// is the parsed JSON. A failure to reach the mock throws a text that names the method and never the token.
+ClassMethod BotCall(token As %String, method As %String, body As %String) As %DynamicObject
+{
+	Set request = ..NewRequest()
+	If body '= "" {
+		Set request.ContentType = "application/json"
+		Do request.EntityBody.Write(body)
+	}
+	Set status = request.Post("/bot"_token_"/"_method)
+	If $$$ISERR(status) Throw ##class(%Exception.General).%New("BotCall", 5001, , "the call to "_method_" did not reach the mock")
+	If request.HttpResponse.StatusCode '= 200 Throw ##class(%Exception.General).%New("BotCall", 5001, , "the mock answered "_request.HttpResponse.StatusCode_" to "_method)
+	Quit {}.%FromJSON(request.HttpResponse.Data)
+}
+
+/// A control call of the mock's Bot API side (/_mock/telegram/<route>) with an optional JSON value as the body; 1 when it answered 200.
+ClassMethod Control(route As %String, body As %DynamicAbstractObject = "") As %Boolean
+{
+	Set request = ..NewRequest()
+	If $IsObject(body) {
+		Set request.ContentType = "application/json"
+		Do request.EntityBody.Write(body.%ToJSON())
+	}
+	Set status = request.Post("/_mock/telegram/"_route)
+	Quit $$$ISOK(status) && (request.HttpResponse.StatusCode = 200)
+}
+
+/// The calls that the mock lists, as a dynamic array of {seq, ts, method, params}.
+ClassMethod Calls() As %DynamicArray
+{
+	Set request = ..NewRequest()
+	Set status = request.Get("/_mock/telegram/calls")
+	If $$$ISERR(status) || (request.HttpResponse.StatusCode '= 200) Quit []
+	Quit {}.%FromJSON(request.HttpResponse.Data).calls
 }
 
 /// Arms the countdown of a marker ("<name>[:<key>]", without brackets) with the number of requests that get its first reply;

@@ -26,12 +26,8 @@ Property SavedUpdatedAt As %String(MAXLEN = 20);
 
 Method OnBeforeAllTests() As %Status
 {
-	Set row = ##class(OcuTalon.Data.Setting).KeyIndexOpen($Parameter(..#STEP, "MODEKEY"))
-	Set ..Found = $IsObject(row)
-	If ..Found {
-		Set ..SavedValue = row.Value
-		Set ..SavedUpdatedAt = row.UpdatedAt
-	}
+	Do ..Saved(.found, .value, .updatedAt)
+	Set ..Found = found, ..SavedValue = value, ..SavedUpdatedAt = updatedAt
 	Quit $$$OK
 }
 
@@ -124,15 +120,27 @@ Method TestOwned()
 	}
 }
 
-/// Deletes the demo.mode row.
-Method Remove() [ Private ]
+/// The demo.mode row as it is now, for a later PutBack: found is 1 when the row exists, with its value and UpdatedAt.
+/// Shared with the other tests that switch demo mode (Test.Web.Api), like Put, Remove and PutBack.
+ClassMethod Saved(Output found As %Boolean, Output value As %String, Output updatedAt As %String)
 {
 	Set row = ##class(OcuTalon.Data.Setting).KeyIndexOpen($Parameter(..#STEP, "MODEKEY"))
-	If $IsObject(row) Do ##class(OcuTalon.Data.Setting).%DeleteId(row.%Id())
+	Set found = $IsObject(row), value = "", updatedAt = ""
+	If found Set value = row.Value, updatedAt = row.UpdatedAt
 }
 
-/// Writes the demo.mode row with the value and the time, creating it when it is absent.
-Method Put(value As %String, updatedAt As %String) [ Private ]
+/// Deletes the demo.mode row and drops this process's cache entry of it. A failed delete throws its status.
+ClassMethod Remove()
+{
+	Set key = $Parameter(..#STEP, "MODEKEY")
+	Set row = ##class(OcuTalon.Data.Setting).KeyIndexOpen(key)
+	If $IsObject(row) $$$ThrowOnError(##class(OcuTalon.Data.Setting).%DeleteId(row.%Id()))
+	Kill ^||OcuTalon.Setting(key)
+}
+
+/// Writes the demo.mode row with the value and the time, creating it when it is absent, and drops this process's cache
+/// entry of it, so that the next Get reads the row. A failed save throws its status.
+ClassMethod Put(value As %String, updatedAt As %String)
 {
 	Set key = $Parameter(..#STEP, "MODEKEY")
 	Set row = ##class(OcuTalon.Data.Setting).KeyIndexOpen(key)
@@ -142,19 +150,24 @@ Method Put(value As %String, updatedAt As %String) [ Private ]
 	}
 	Set row.Value = value
 	Set row.UpdatedAt = updatedAt
-	Do row.%Save()
+	$$$ThrowOnError(row.%Save())
 	Kill ^||OcuTalon.Setting(key)
+}
+
+/// Puts the demo.mode row back as Saved found it: written again when it existed, deleted when it did not.
+ClassMethod PutBack(found As %Boolean, value As %String, updatedAt As %String)
+{
+	If found {
+		Do ..Put(value, updatedAt)
+	} Else {
+		Do ..Remove()
+	}
 }
 
 /// Puts the row back as OnBeforeAllTests found it.
 Method Restore() [ Private ]
 {
-	If ..Found {
-		Do ..Put(..SavedValue, ..SavedUpdatedAt)
-	} Else {
-		Do ..Remove()
-		Kill ^||OcuTalon.Setting($Parameter(..#STEP, "MODEKEY"))
-	}
+	Do ..PutBack(..Found, ..SavedValue, ..SavedUpdatedAt)
 }
 
 }

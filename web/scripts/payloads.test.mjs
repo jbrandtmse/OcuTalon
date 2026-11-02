@@ -30,6 +30,7 @@ const ALPHA = [
   'Property Tags As list Of %String(%JSONFIELDNAME = "tags");',
   'Property Thing As OcuTalon.Live.Payload.Part.Thing(%JSONFIELDNAME = "thing");',
   'Property Things As list Of OcuTalon.Live.Payload.Part.Thing(%JSONFIELDNAME = "things");',
+  'Property Peer As OcuTalon.Live.Payload.Beta(%JSONFIELDNAME = "peer");',
 ];
 
 /** A fixture tree: Publish.cls, Payload/Alpha.cls (with `alpha`'s properties), Payload/Beta.cls, Payload/Part/Thing.cls. */
@@ -78,9 +79,65 @@ describe('the real tree', () => {
     assert.match(text, /^export interface DecisionPayload \{[\s\S]*?\n  costUSD\?: number;/m);
     assert.match(text, /^export interface IncidentPayload \{[\s\S]*?\n  fallback\?: boolean;/m);
   });
+
+  it('nests the decision payload, the cost and the check rows in ChatMessagePayload', () => {
+    const text = readFileSync(realOut, 'utf8');
+    assert.match(text, /^export interface ChatMessagePayload \{[\s\S]*?\n  decision\?: DecisionPayload;\n  turnCost\?: Cost;\n  checkKey\?: string;\n  checks\?: CheckRow\[\];\n  traceUrl\?: string;\n\}/m);
+    assert.match(text, /^export interface Cost \{\n  inputTokens\?: number;[\s\S]*?\n  costUSD\?: number;\n\}/m);
+    assert.match(text, /^export interface CheckRow \{\n  result\?: string;\n  entry\?: string;\n  finding\?: string;\n  checkedAt\?: string;\n\}/m);
+    assert.match(text, /^export interface TurnStepPayload \{\n  turnRef\?: string;\n  decisionRef\?: string;/m);
+  });
+});
+
+describe('traceUrl in the real tree', () => {
+  /** The generated interfaces as { name, fields } in file order, each field as its key. */
+  const interfaces = () =>
+    [...readFileSync(realOut, 'utf8').matchAll(/^export interface (\w+) \{\n([\s\S]*?)\n\}/gm)].map((match) => ({
+      name: match[1],
+      fields: match[2].split('\n').map((line) => line.trim().replace(/\?:.*$/, '')),
+    }));
+
+  it('is on exactly the interfaces that have both traceHeaderId and traceNamespace, as their last field', () => {
+    const traced = [];
+    for (const { name, fields } of interfaces()) {
+      const both = fields.includes('traceHeaderId') && fields.includes('traceNamespace');
+      assert.equal(fields.includes('traceUrl'), both, `${name}: traceUrl is there exactly when both trace fields are`);
+      if (both) {
+        traced.push(name);
+        assert.equal(fields.at(-1), 'traceUrl', `${name}: traceUrl is the last field`);
+      }
+    }
+    assert.deepEqual(traced.sort(), ['ApprovalPayload', 'CheckPayload', 'ChatMessagePayload', 'DecisionPayload', 'ReminderPayload', 'TraceTarget'].sort());
+    assert.ok(!traced.includes('NotificationPayload'), 'a notification carries its decision, not a target of its own');
+  });
+
+  it('types it as an optional string', () => {
+    assert.match(readFileSync(realOut, 'utf8'), /^export interface CheckPayload \{[\s\S]*?\n  traceNamespace\?: string;\n  traceUrl\?: string;\n\}/m);
+  });
+
+  it('gives DecisionPayload the two item indexes before traceUrl', () => {
+    assert.match(readFileSync(realOut, 'utf8'), /^export interface DecisionPayload \{[\s\S]*?\n  traceNamespace\?: string;\n  traceItemIndex\?: number;\n  traceItemIndexNoEvents\?: number;\n  traceUrl\?: string;\n\}/m);
+  });
 });
 
 describe('a fixture tree', () => {
+  it('adds traceUrl last to a class with both trace fields, and to no other', () => {
+    const alpha = [...ALPHA, 'Property TraceHeaderId As %Integer(%JSONFIELDNAME = "traceHeaderId");', 'Property TraceNamespace As %String(%JSONFIELDNAME = "traceNamespace", MAXLEN = 128);'];
+    const dir = fixture('trace-url', {
+      alpha,
+      extra: {
+        'Payload/Beta.cls': classText('Beta', ['Property TraceHeaderId As %Integer(%JSONFIELDNAME = "traceHeaderId");']),
+        'Payload/Part/Thing.cls': classText('Part.Thing', ['Property TraceHeaderId As %Integer(%JSONFIELDNAME = "traceHeaderId");', 'Property TraceNamespace As %String(%JSONFIELDNAME = "traceNamespace", MAXLEN = 128);']),
+      },
+    });
+    assert.equal(run(...args(dir)).status, 0);
+    const text = readFileSync(join(dir, 'payloads.ts'), 'utf8');
+    assert.match(text, /export interface Thing \{\n  traceHeaderId\?: number;\n  traceNamespace\?: string;\n  traceUrl\?: string;\n\}/);
+    assert.match(text, /export interface AlphaPayload \{[\s\S]*?\n  traceHeaderId\?: number;\n  traceNamespace\?: string;\n  traceUrl\?: string;\n\}/);
+    assert.match(text, /export interface BetaPayload \{\n  traceHeaderId\?: number;\n\}/);
+    assert.equal(text.match(/traceUrl\?: string;/g).length, 2);
+  });
+
   it('maps each type, writes the file, and then finds it current', () => {
     const dir = fixture('maps');
     let r = run(...args(dir));
@@ -93,7 +150,7 @@ describe('a fixture tree', () => {
         '',
         'export interface Thing {\n  name?: string;\n}',
         '',
-        'export interface AlphaPayload {\n  ref?: string;\n  count?: number;\n  price?: number;\n  done?: boolean;\n  tags?: string[];\n  thing?: Thing;\n  things?: Thing[];\n}',
+        'export interface AlphaPayload {\n  ref?: string;\n  count?: number;\n  price?: number;\n  done?: boolean;\n  tags?: string[];\n  thing?: Thing;\n  things?: Thing[];\n  peer?: BetaPayload;\n}',
         '',
         'export interface BetaPayload {\n  text?: string;\n}',
         '',
@@ -150,6 +207,7 @@ describe('refusals name the file and line', () => {
     refuse('date', { alpha: withLine('Property When As %Date(%JSONFIELDNAME = "when");') }, /Payload\/Alpha\.cls:7: property When has the type %Date, which the generator does not map/);
     refuse('listint', { alpha: withLine('Property Counts As list Of %Integer(%JSONFIELDNAME = "counts");') }, /Payload\/Alpha\.cls:7: property Counts has the type list Of %Integer/);
     refuse('foreign', { alpha: withLine('Property Other As OcuTalon.Data.Session(%JSONFIELDNAME = "other");') }, /Payload\/Alpha\.cls:7: property Other has the type OcuTalon\.Data\.Session/);
+    refuse('nodirect', { alpha: withLine('Property Gone As OcuTalon.Live.Payload.Gone(%JSONFIELDNAME = "gone");') }, /Payload\/Alpha\.cls:7: property Gone has the type OcuTalon\.Live\.Payload\.Gone/);
     refuse('nopart', { alpha: withLine('Property Gone As OcuTalon.Live.Payload.Part.Gone(%JSONFIELDNAME = "gone");') }, /Payload\/Alpha\.cls:7: property Gone has the type OcuTalon\.Live\.Payload\.Part\.Gone/);
   });
 

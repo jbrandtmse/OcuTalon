@@ -12,7 +12,9 @@
 ///   - TestCrossLaneSignatures: the cross-lane methods keep their parameter names and order and their return type, which
 ///     the other lane's callers rely on (Delivery.Record and FindByApproval are named by the AC; the cross-lane APIs of
 ///     AD-29, the extension accessor and the extension bases of AD-31 are pinned from Story 0.6 on, and the catalog renderer
-///     of AD-32 and Data.Time.ForMessage from Story 0.9, and the Orders partner's Send from Story 0.10);
+///     of AD-32 and Data.Time.ForMessage from Story 0.9, the Orders partner's Send from Story 0.10, and the Telegram session side that Lane A calls from
+///     Story 10.3: Pairing.HashCode, RecordChat, TakeReplySlot, StoreCode, Chat and Purge, StatusMark.RecordTelegram and TelegramState, AnswersIn.FromTelegram,
+///     Ownership.ApprovalKnown and Install.Step.Core.Purge);
 ///   - TestTelegramStubHasAnAdapter: the stub is an inbound service with an adapter class.
 /// The incident fixtures use a per-run Zz reference, and every row is deleted in the test and again in OnAfterAllTests.
 Class OcuTalon.Test.Contract.Ac Extends OcuTalon.Test.Contract
@@ -301,13 +303,26 @@ XData Signatures [ MimeType = application/json ]
  {"class": "OcuTalon.Data.Setting", "method": "Seed", "args": "key,value", "returns": "%Status"},
  {"class": "OcuTalon.Data.StatusMark", "method": "Record", "args": "mark,value", "returns": "%Status"},
  {"class": "OcuTalon.Data.StatusMark", "method": "Get", "args": "mark", "returns": "%String"},
+ {"class": "OcuTalon.Data.StatusMark", "method": "RecordTelegram", "args": "state,botUserName", "returns": "%Status"},
+ {"class": "OcuTalon.Data.StatusMark", "method": "TelegramState", "args": "*botUserName", "returns": "%String"},
+ {"class": "OcuTalon.Data.Pairing", "method": "HashCode", "args": "code", "returns": "%String"},
+ {"class": "OcuTalon.Data.Pairing", "method": "RecordChat", "args": "chatId,displayName,*sc", "returns": "%String"},
+ {"class": "OcuTalon.Data.Pairing", "method": "TakeReplySlot", "args": "chatRef", "returns": "%Boolean"},
+ {"class": "OcuTalon.Data.Pairing", "method": "StoreCode", "args": "sessionRef,codeHash,expiresAt", "returns": "%Status"},
+ {"class": "OcuTalon.Data.Pairing", "method": "Chat", "args": "chatRef", "returns": "OcuTalon.Data.Pairing"},
+ {"class": "OcuTalon.Data.Pairing", "method": "Purge", "args": "daysToKeep", "returns": "%Status"},
+ {"class": "OcuTalon.Install.Step.Core", "method": "Purge", "args": "daysToKeep", "returns": "%Status"},
+ {"class": "OcuTalon.Core.AnswersIn", "method": "FromTelegram", "args": "ref,action,chatRef,*code,*slots", "returns": "%Status"},
+ {"class": "OcuTalon.Data.Ownership", "method": "ApprovalKnown", "args": "ref,*sc", "returns": "%Boolean"},
  {"class": "OcuTalon.Bridge.Audit", "method": "Write", "args": "type,data,description", "returns": "%Status"},
  {"class": "OcuTalon.Bridge.Audit", "method": "Events", "args": "", "returns": "%List"},
+ {"class": "OcuTalon.Bridge.Audit", "method": "Record", "args": "type,data", "returns": "%Status"},
+ {"class": "OcuTalon.Bridge.Audit", "method": "Shape", "args": "type", "returns": "%List"},
  {"class": "OcuTalon.Channel.Telegram.In", "method": "Included", "args": "", "returns": "%Boolean"},
  {"class": "OcuTalon.Bridge.Approval", "method": "Raise", "args": "request,*ref", "returns": "%Status"},
  {"class": "OcuTalon.Bridge.Approval", "method": "Answer", "args": "ref,action,channel,irisUser,sessionRef,*winner", "returns": "%String"},
  {"class": "OcuTalon.Bridge.Approval", "method": "Expire", "args": "ref", "returns": "%Status"},
- {"class": "OcuTalon.Bridge.Approval", "method": "Cancel", "args": "ref", "returns": "%Status"},
+ {"class": "OcuTalon.Bridge.Approval", "method": "Cancel", "args": "ref,sinkClass,channel,irisUser,sessionRef", "returns": "%Status"},
  {"class": "OcuTalon.Bridge.Approval", "method": "StartExecution", "args": "ref", "returns": "%Status"},
  {"class": "OcuTalon.Bridge.Approval", "method": "FinishExecution", "args": "ref,result", "returns": "%Status"},
  {"class": "OcuTalon.Agent.Input", "method": "Render", "args": "item", "returns": "%String"},
@@ -325,6 +340,7 @@ XData Signatures [ MimeType = application/json ]
  {"class": "OcuTalon.Data.Ownership", "method": "TurnCost", "args": "turnRef", "returns": "%DynamicObject"},
  {"class": "OcuTalon.Data.Ownership", "method": "RunCost", "args": "sessionRef,since", "returns": "%DynamicObject"},
  {"class": "OcuTalon.Core.Commands", "method": "Submit", "args": "command,origin,*result", "returns": "%Status"},
+ {"class": "OcuTalon.Core.Allowance", "method": "TryConsume", "args": "sessionRef,channel,text,*retryAt,*firstRefusal", "returns": "%Boolean"},
  {"class": "OcuTalon.Bridge.Ext.Accessor", "method": "ClassFor", "args": "setting,production,item,*sc", "returns": "%String"},
  {"class": "OcuTalon.Bridge.Ext.Accessor", "method": "Check", "args": "setting,class", "returns": "%Status"},
  {"class": "OcuTalon.Bridge.Ext.HostSink", "method": "OnEvent", "args": "type,ownerRef,payload", "returns": "%Status"},
@@ -332,7 +348,7 @@ XData Signatures [ MimeType = application/json ]
  {"class": "OcuTalon.Bridge.Ext.HostSink", "method": "TurnStepPayload", "args": "decisionRef,label", "returns": "%DynamicObject"},
  {"class": "OcuTalon.Bridge.Ext.HostSink", "method": "BudgetCappedPayload", "args": "day", "returns": "%DynamicObject"},
  {"class": "OcuTalon.Bridge.Ext.ReplyFilter", "method": "Filter", "args": "text", "returns": "%String"},
- {"class": "OcuTalon.Bridge.Ext.Classification", "method": "Classify", "args": "tool,arguments", "returns": "%String"},
+ {"class": "OcuTalon.Bridge.Ext.Classification", "method": "Classify", "args": "source,name,arguments", "returns": "%String"},
  {"class": "OcuTalon.Bridge.Operation.AgentRunner", "method": "ResolveModel", "args": "item,production", "returns": "%String"},
  {"class": "OcuTalon.Bridge.Compaction", "method": "Prompt", "args": "", "returns": "%String"},
  {"class": "OcuTalon.Msg.Catalog", "method": "Render", "args": "key,slots,channel,*sc", "returns": "%String"},

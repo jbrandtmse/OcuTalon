@@ -1,4 +1,6 @@
-/// The one table for every background check, a production watch included (AD-18). Lane A.
+/// The one table for every background check, a production watch included (AD-18). Lane A. WatchOps creates and removes a row, and Checks records each
+/// run on it: LastRunAt, Result, Finding, LastRunHeaderId and NextDueAt, and with each run that read the production what its findings have reported
+/// (Reported), so that only a new finding is sent.
 Class OcuTalon.Data.BackgroundCheck Extends %Persistent
 {
 
@@ -26,6 +28,9 @@ Property DisplayName As %String(MAXLEN = 128);
 /// The IRIS user who asked for the check.
 Property AskedBy As %String(MAXLEN = 128);
 
+/// When the check was created: UTC to the second, written by WatchOps. A watch's failures start no earlier than the earliest of these.
+Property CreatedAt As %String(MAXLEN = 20);
+
 /// When the check is next due.
 Property NextDueAt As %String(MAXLEN = 20);
 
@@ -40,6 +45,9 @@ Property Finding As %String(MAXLEN = 1000);
 
 /// The trace header id of the latest run.
 Property LastRunHeaderId As %Integer;
+
+/// What the findings of the check have reported, as JSON, written by Checks with each run that read the production: {"stopped": 1 while the production's stop has been reported, "disabled": [the names of its items reported disabled]}; empty until the first such run, which reports nothing (veto U-179).
+Property Reported As %String(MAXLEN = "");
 
 Index RefIndex On Ref [ Unique ];
 
@@ -88,6 +96,12 @@ Storage Default
 </Value>
 <Value name="13">
 <Value>LastRunHeaderId</Value>
+</Value>
+<Value name="14">
+<Value>CreatedAt</Value>
+</Value>
+<Value name="15">
+<Value>Reported</Value>
 </Value>
 </Data>
 <DataLocation>^OcuTalonP.CheckD</DataLocation>

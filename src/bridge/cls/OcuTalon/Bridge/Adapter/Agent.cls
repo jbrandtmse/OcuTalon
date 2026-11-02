@@ -14,8 +14,9 @@ Include Ensemble
 ///     (OpenSession), because a session that is resumed without its config loses the cap and the effort. The config carries timeout_ms,
 ///     which Timeouts.Derive gives for the TimerSeconds setting of Decide as it stands when the config is composed (SessionConfigFor). A
 ///     saved session is opened with the agent's model and system prompt too, because AI Hub resumes a session with the ones it was saved with.
-///   - It adds the step audit policy to every agent it builds (OnAfterAgentInit), after any policy that a setting names, and refuses
-///     the AuditPolicy setting (REFUSED), so that every tool call is a step (AD-6, AD-9).
+///   - It adds the gate (OcuTalon.Bridge.Policy.Gate) as the authorization policy and the step audit policy to every agent it builds
+///     (OnAfterAgentInit), after any policy that a setting names, and refuses the AuthPolicy and AuditPolicy settings (REFUSED), so that
+///     the gate decides every tool call and every tool call is a step (AD-6, AD-9, AD-10).
 /// Answer is the runner's answer to a Request: the context is set before Chat and ended on every path, and the reply holds the
 /// text, the provider's stop reason, and the host data and taint that the tools put in the context.
 /// The conversation (AD-6, AD-10): only a turn with provenance user is linked (IsLinked), under the key (OwnerRef, the name of the runner
@@ -27,6 +28,16 @@ Include Ensemble
 /// request: Answer clears the agent's Session (ReleaseSession) before the lock is released, so that every linked turn, a re-sent one
 /// included, opens the saved history from the database. decide, diagnose and untrusted turns chat in a throwaway session that is never
 /// saved or linked. ChatInput composes what Chat gets: the seed of a fresh turn, the system note and the input.
+/// Compaction (AD-6, AD-20): a request that Decide flags (Compact 1) and that continues a linked conversation is compacted by Compact in
+/// AnswerLinked, in the runner's job, under the conversation lock, after the session is opened and before Converse. The runner cuts the
+/// stored history so that the last user turn stays whole (Compaction.Cut, CutOf), calls ForkAndSummarize on the session with the
+/// compaction prompt and a low-effort summarizer provider (SummarizerProvider), writes one Usage row for the summarizer's request
+/// (RecordCompaction), and moves the link to the fork only after Compaction.Check passes: the fork is saved, every reference to the original
+/// is released, the fork is opened again with OpenSession, and the link names it. Any exception, a failed check, save or reopen, a summarizer
+/// request whose estimate would pass the request-size limit (Decide RequestLimit) and a first request that would still pass it start a
+/// fresh AI session seeded with a code-written summary instead (Compaction.Seed), which is saved and linked after a completed, untainted
+/// Chat like the session of a fresh turn. A compaction that fails is one warning (CompactWarning), never the reply's FailureText. The reply
+/// of a compaction that moved the link has SessionRotated 1. No callback compacts, and no AI Hub call runs inside one.
 /// Converse counts the call (AD-6, AD-9, AD-20): it reads the session's GetStats() after the session is made and again after Chat,
 /// outside every callback, and RecordUsage writes one Usage row from the difference, priced from Price. That happens after every Chat
 /// that returns, whether or not Decide still waits for it, and after a Chat that threw when the difference holds a model request or a
@@ -159,11 +170,14 @@ Method BuildAgent() As %Status
 	Quit $$$OK
 }
 
-/// AI Hub's hook after the agent is initialized: adds the step audit policy (OcuTalon.Bridge.Policy.StepAudit) to the agent's tool
-/// manager (AD-6, AD-9). AI Hub chains the policies that code adds after those that settings name, and calls every audit policy.
+/// AI Hub's hook after the agent is initialized: adds the gate (OcuTalon.Bridge.Policy.Gate) as the authorization policy and the step audit
+/// policy (OcuTalon.Bridge.Policy.StepAudit) to the agent's tool manager (AD-6, AD-9, AD-10). AI Hub chains the policies that code adds after
+/// those that settings name: every authorization policy must allow a call, and every audit policy is called. The status is the first error.
 Method OnAfterAgentInit(ByRef agent As %AI.Agent) As %Status [ Private ]
 {
 	Set sc = ##super(.agent)
+	If $$$ISERR(sc) Quit sc
+	Set sc = agent.ToolManager.SetAuthPolicy(##class(OcuTalon.Bridge.Policy.Gate).%New())
 	If $$$ISERR(sc) Quit sc
 	Quit agent.ToolManager.SetAuditPolicy(##class(OcuTalon.Bridge.Policy.StepAudit).%New())
 }
@@ -285,7 +299,8 @@ Method OpenSession(id As %String, Output session As %AI.Agent.Session) As %Statu
 	Quit sc
 }
 
-/// Answers a request with a reply. It refuses kind tool ($$$NotImplemented), any kind that is not a request kind, an Input that is
+/// Answers a request with a reply. A request of kind tool is the replay of an approved tool call and is answered by Replay.Run (no model request,
+/// no Chat, no conversation link; the context it sets carries the runner item and a grant). It refuses any kind that is not a request kind, an Input that is
 /// empty once white space is removed, and a linked turn (IsLinked) with an empty OwnerRef, which names OwnerRef; builds the agent if
 /// needed; sets the context with the super session before Chat; and answers in one of two ways.
 ///   - A turn with provenance user is linked to its conversation (AnswerLinked): the runner holds the conversation lock, opens the AI
@@ -302,16 +317,16 @@ Method Answer(request As OcuTalon.Bridge.Msg.Request, superSession As %String = 
 {
 	Set reply = ""
 	Set kind = request.Kind
-	If kind = "tool" Quit $$$ERROR($$$NotImplemented)
 	If '$ListFind($ListFromString(##class(OcuTalon.Bridge.Msg.Enum).#REQUESTKIND), kind) {
 		Quit $$$ERROR($$$GeneralError, "The request kind '"_kind_"' is not one of "_##class(OcuTalon.Bridge.Msg.Enum).#REQUESTKIND)
 	}
+	If kind = "tool" Quit ##class(OcuTalon.Bridge.Replay).Run($this, request, superSession, .reply)
 	If $ZStrip(request.Input, "<>WC") = "" Quit $$$ERROR($$$GeneralError, "The request of kind "_kind_" has an empty Input, so nothing is sent")
 	Set linked = ..IsLinked(request)
 	If linked && (request.OwnerRef = "") Quit $$$ERROR($$$GeneralError, "The turn of the user has an empty OwnerRef, so it has no conversation to open or link, and nothing is sent")
 	Set sc = ..BuildAgent()
 	If $$$ISERR(sc) Quit sc
-	Set sc = ##class(OcuTalon.Bridge.Context).Begin(request, superSession)
+	Set sc = ##class(OcuTalon.Bridge.Context).Begin(request, superSession, ..BusinessHost.%ConfigName)
 	If $$$ISOK(sc) {
 		Try {
 			If linked {
@@ -346,9 +361,13 @@ ClassMethod IsLinked(request As OcuTalon.Bridge.Msg.Request) As %Boolean
 ///   2. The session: a turn with SessionMode fresh, or one whose conversation has no link, gets NewSession. Any other turn opens the AI
 ///      session that the link names (OpenSession), composing the config as for a new session, with the agent's model and system prompt. A
 ///      failure keeps its error status.
+///   2a. The compaction (Compact), for an opened session of a request with Compact 1: the session becomes the reopened fork, whose link was
+///      moved before the call (SessionRotated is then 1), or a new session with the seed of the fallback (the turn then runs as a fresh
+///      one); or it stays as it is.
 ///   3. The call (Converse) with ChatInput, whose seed is sent on a fresh turn only.
 ///   4. The save (SaveLinked), after a completed Chat whose context is not tainted: the session is saved and the link points at it.
-///      Nothing is saved after a Chat that threw or a tainted one, and the link stays as it was.
+///      Nothing is saved after a Chat that threw or a tainted one, and the link stays as it was (after a compaction fork, as the fork
+///      moved it).
 ///   5. On every path, an exception included, the session object is released and the agent's Session cleared (ReleaseSession), and then
 ///      the lock is released, so that the next request opens the session from the database and a waiting turn finds it saved.
 Method AnswerLinked(request As OcuTalon.Bridge.Msg.Request, Output reply As OcuTalon.Bridge.Msg.Reply) As %Status [ Private ]
@@ -365,12 +384,22 @@ Method AnswerLinked(request As OcuTalon.Bridge.Msg.Request, Output reply As OcuT
 		Set fresh = (request.SessionMode = "fresh")
 		Set id = $Select(fresh: "", 1: ##class(OcuTalon.Bridge.Data.ConversationLink).SessionOf(owner, runner))
 		Set opened = (id '= "")
+		Set seed = ""
+		Set outcome = ""
 		If opened {
 			Set sc = ..OpenSession(id, .session)
+			If $$$ISOK(sc) && request.Compact Set sc = ..Compact(request, .session, .seed, .outcome)
+			If outcome = "seed" {
+				Set fresh = 1
+				Set opened = 0
+			}
 		} Else {
 			Set sc = ..NewSession(.session)
 		}
-		If $$$ISOK(sc) Set sc = ..Converse(request, session, ..ChatInput(request, fresh), opened, .reply, .completed)
+		If $$$ISOK(sc) {
+			Set sc = ..Converse(request, session, $Select(outcome = "seed": ..ChatInput(request, 1, seed), 1: ..ChatInput(request, fresh)), opened, .reply, .completed)
+			If $$$ISOK(sc) && $IsObject(reply) && (outcome = "fork") Set reply.SessionRotated = 1
+		}
 		If $$$ISOK(sc) && completed && 'reply.Tainted Do ..SaveLinked(request, session, fresh, reply)
 	} Catch exception {
 		Set reply = ""
@@ -454,6 +483,220 @@ Method SaveLinked(request As OcuTalon.Bridge.Msg.Request, session As %AI.Agent.S
 	}
 }
 
+/// The compaction of a conversation that continues (AD-6, AD-20), for the opened session of a request that Decide flagged. It reads the
+/// history of the session (GetContext, outside every callback) and leaves one of three outcomes:
+///   - "" (the session is untouched): the history holds no message older than the last user turn, and the request as it stands is within the
+///     request-size limit; or the history cannot be read (one warning);
+///   - "fork": the older messages were summarized (Condense), the fork passed the check and the size guard, and it was saved, the original
+///     released, the fork opened again with OpenSession (a newly composed config) and the link pointed at it; session is the reopened fork;
+///   - "seed": any step failed (one warning that names it, CompactWarning), so session is a new AI session (NewSession) and seed is the
+///     code-written summary of the stored user and assistant texts (Compaction.Seed); the caller runs the turn as a fresh one.
+/// The status is an error only when the fallback's NewSession fails. Nothing here changes the reply.
+Method Compact(request As OcuTalon.Bridge.Msg.Request, ByRef session As %AI.Agent.Session, Output seed As %String, Output outcome As %String) As %Status [ Private ]
+{
+	Set seed = ""
+	Set outcome = ""
+	Set context = ""
+	Set fork = ""
+	Set problem = ""
+	Set step = "reading the stored history"
+	Try {
+		Set context = session.GetContext()
+	} Catch exception {
+		Set context = ""
+		Do ..CompactWarning(request, step, $SYSTEM.Status.GetErrorText(##class(%AI.System).HandleError(exception, 1)), "the turn runs on the history as it is")
+	}
+	If '$IsObject(context) Quit $$$OK
+	Try {
+		Set limit = ..RequestTokens()
+		Set input = ..ChatInput(request, 0)
+		Set step = "the cut"
+		Set k = ..CutOf(context, .older)
+		If k = 0 {
+			Set step = "the size of the request"
+			If ..Over(input, session, limit) Set problem = "the stored history passes the request-size limit and holds nothing older than the last user turn to summarize"
+		} Else {
+			Set problem = ..Condense(request, session, k, older, input, limit, .fork, .step)
+			If (problem = "") && $IsObject(fork) {
+				Set problem = ..SwitchTo(request, .session, .fork, .step)
+				If problem = "" Set outcome = "fork"
+			}
+		}
+	} Catch exception {
+		Set problem = $SYSTEM.Status.GetErrorText(##class(%AI.System).HandleError(exception, 1))
+	}
+	If problem = "" Quit $$$OK
+	Set outcome = ""
+	Set fork = ""
+	Set session = ""
+	Do ..ReleaseSession()
+	Do ..CompactWarning(request, step, problem, "the conversation continues in a new AI session seeded with a summary")
+	Set sc = ..NewSession(.session)
+	If $$$ISOK(sc) {
+		Set seed = ##class(OcuTalon.Bridge.Compaction).Seed(context)
+		Set outcome = "seed"
+	}
+	Quit sc
+}
+
+/// The cut of the history (Compaction.Cut): k, the number of messages to keep whole, and older, the messages before them. A method of its own so
+/// that a test can ask for a cut that the rule never gives.
+Method CutOf(context As %DynamicArray, Output older As %DynamicArray) As %Integer [ Private ]
+{
+	Quit ##class(OcuTalon.Bridge.Compaction).Cut(context, .older)
+}
+
+/// The request-size limit in tokens: Decide's RequestTokenLimit as Ext.Accessor ValueFor reads it now, normalized by Decide's RequestLimit, which
+/// is MAXREQUESTTOKENS when the setting cannot be read.
+ClassMethod RequestTokens() As %Integer [ Private ]
+{
+	Set text = ##class(OcuTalon.Bridge.Ext.Accessor).ValueFor("RequestTokenLimit", "", "Decide", .sc)
+	If $$$ISERR(sc) Set text = ""
+	Quit ##class(OcuTalon.Bridge.Process.Decide).RequestLimit(text)
+}
+
+/// 1 when the first request of a call with the input in the session (BaseChars) would pass the limit, in tokens.
+Method Over(input As %String, session As %AI.Agent.Session, limit As %Integer) As %Boolean [ Private ]
+{
+	Quit ##class(OcuTalon.Bridge.Adapter.StepBuffer).Tokens(..BaseChars(input, session)) > limit
+}
+
+/// The summary step of a compaction: asks the summarizer to compress the older messages (ForkAndSummarize, keeping the last k messages whole),
+/// writes the Usage row of the request, and checks the fork. Returns "" with the fork when the fork passed Compaction.Check and the size
+/// guard, otherwise the text of the problem, and step names the step that failed. No request is made when the summarizer's request, by
+/// estimate, would pass the limit. A request that threw is a problem too, and gets its row (output 0).
+Method Condense(request As OcuTalon.Bridge.Msg.Request, session As %AI.Agent.Session, k As %Integer, older As %DynamicArray, input As %String, limit As %Integer, Output fork As %AI.Agent.Session, ByRef step As %String) As %String [ Private ]
+{
+	Set fork = ""
+	Set prompt = ##class(OcuTalon.Bridge.Compaction).Prompt()
+	Set chars = $Length(prompt) + ##class(OcuTalon.Bridge.Compaction).TranscriptChars(older)
+	Set step = "the size of the summarizer's request"
+	If ##class(OcuTalon.Bridge.Adapter.StepBuffer).Tokens(chars) > limit Quit "the summarizer's request would pass the request-size limit"
+	Set step = "the summarizer's provider"
+	Set sc = ..SummarizerProvider(.provider)
+	If $$$ISERR(sc) Quit "the provider cannot be built from the settings of the runner"
+	Set step = "the summarizer's request"
+	Set model = session.Model
+	Set thrown = ""
+	Try {
+		Set fork = session.ForkAndSummarize(provider, "", k, prompt, 0)
+	} Catch exception {
+		Set fork = ""
+		Set thrown = $SYSTEM.Status.GetErrorText(##class(%AI.System).HandleError(exception, 1))
+	}
+	Set provider = ""
+	Set summary = 0
+	If $IsObject(fork) {
+		Try {
+			Set summary = ##class(OcuTalon.Bridge.Compaction).SummaryChars(fork.GetContext())
+		} Catch {
+			Set summary = 0
+		}
+	}
+	Do ..RecordCompaction(request, model, chars, summary)
+	If thrown '= "" Quit thrown
+	Set step = "the check of the fork"
+	If '..ForkIsSafe(fork) Quit "the fork does not start with a user message, or holds a tool result before its tool call"
+	Set step = "the size of the first request"
+	If ..Over(input, fork, limit) Quit "the first request would still pass the request-size limit"
+	Quit ""
+}
+
+/// 1 when the history of the fork passes Compaction.Check.
+ClassMethod ForkIsSafe(fork As %AI.Agent.Session) As %Boolean [ Private ]
+{
+	Quit ##class(OcuTalon.Bridge.Compaction).Check(fork.GetContext())
+}
+
+/// The switch to a fork that passed (AD-20), in this order: the fork is saved, every reference to the original session is released (the
+/// caller's session and the agent's), the fork is opened again with OpenSession, and the link names it (Data.ConversationLink Point, under
+/// the conversation lock that the caller holds). Returns "" when all four worked, otherwise the text of the problem, with step naming the
+/// one that failed; the fork that was saved stays unlinked and the purge removes it (AD-27).
+Method SwitchTo(request As OcuTalon.Bridge.Msg.Request, ByRef session As %AI.Agent.Session, ByRef fork As %AI.Agent.Session, ByRef step As %String) As %String [ Private ]
+{
+	Set step = "saving the fork"
+	Set sc = fork.%Save()
+	If $$$ISERR(sc) Quit $SYSTEM.Status.GetErrorText(sc)
+	Set forkId = fork.%Id()
+	Set fork = ""
+	Set session = ""
+	Do ..ReleaseSession()
+	Set step = "opening the fork again"
+	Set sc = ..OpenSession(forkId, .session)
+	If $$$ISERR(sc) Quit $SYSTEM.Status.GetErrorText(sc)
+	Set step = "linking the fork"
+	Set sc = ##class(OcuTalon.Bridge.Data.ConversationLink).Point(request.OwnerRef, ..BusinessHost.%ConfigName, forkId)
+	If $$$ISERR(sc) Quit $SYSTEM.Status.GetErrorText(sc)
+	Quit ""
+}
+
+/// The provider of the summarizer's request (AD-7, AD-8, AD-19, AD-20): AI Hub's Create with the provider settings of this runner as AI
+/// Hub's own adapter expands them (EnsLib.AI.Agent.OutboundAdapter setupProviderFromSettings: ProviderConfig expanded through the
+/// setting store, else the agent's PROVIDERCONFIG, which is also the agent's own provider when the runner names none; the agent's APIKEY when
+/// the settings hold none; the name from ProviderName, else the settings' model_provider, else the agent's PROVIDER), changed by
+/// Compaction.SummarizerSettings. The settings live in this method alone: they
+/// are never logged, stored or put in a message, and an error says nothing of them. The agent is built.
+Method SummarizerProvider(Output provider As %AI.Provider) As %Status [ Private ]
+{
+	Set provider = ""
+	Set sc = $$$OK
+	Try {
+		If ..ProviderConfig '= "" {
+			Set settings = {}.%FromJSON(##class(%AI.Utils.SettingStore).Expand(..ProviderConfig))
+		} Else {
+			Set configured = $Parameter(..Agent, "PROVIDERCONFIG")
+			If $IsObject(configured) {
+				Set settings = configured
+			} ElseIf configured '= "" {
+				Set settings = {}.%FromJSON(##class(%AI.Utils.SettingStore).Expand(configured))
+			} Else {
+				Set settings = {}
+			}
+		}
+		Set apiKey = $Parameter(..Agent, "APIKEY")
+		If 'settings.%IsDefined("api_key") && (apiKey '= "") Do settings.%Set("api_key", ##class(%AI.Utils.SettingStore).Expand(apiKey))
+		Set name = ..ProviderName
+		If name = "" {
+			If settings.%IsDefined("model_provider") {
+				Set name = settings.%Get("model_provider")
+			} Else {
+				Set name = $Parameter(..Agent, "PROVIDER")
+			}
+		}
+		If name = "" {
+			Set sc = $$$ERROR($$$GeneralError, "No provider is named")
+		} Else {
+			Set provider = ##class(%AI.Provider).Create(name, ##class(OcuTalon.Bridge.Compaction).SummarizerSettings(settings))
+		}
+	} Catch {
+		Set provider = ""
+		Set sc = $$$ERROR($$$GeneralError, "The provider cannot be built")
+	}
+	Quit sc
+}
+
+/// Writes the Usage row of the summarizer's request (Usage.FromEstimate; Agent compaction, Estimated 1): the input is the prompt and the
+/// transcript of the summarized messages (inputChars) and the output the stored summary (outputChars, 0 when the request threw), priced at
+/// the model of the session. A problem is one warning and never changes the compaction.
+Method RecordCompaction(request As OcuTalon.Bridge.Msg.Request, model As %String, inputChars As %Integer, outputChars As %Integer) [ Private ]
+{
+	Try {
+		Set sc = ##class(OcuTalon.Bridge.Data.Usage).FromEstimate(request, model, inputChars, outputChars, .row)
+		If $$$ISOK(sc) Set sc = row.%Save()
+		If $$$ISERR(sc) $$$LOGWARNING("The usage of the compaction request is not recorded: "_##class(OcuTalon.Bridge.Adapter.StepBuffer).Part($SYSTEM.Status.GetErrorText(sc), ##class(OcuTalon.Bridge.Msg.Reply).#MAXFAILURE))
+	} Catch exception {
+		$$$LOGWARNING("The usage of the compaction request is not recorded: "_##class(OcuTalon.Bridge.Adapter.StepBuffer).Part(exception.DisplayString(), ##class(OcuTalon.Bridge.Msg.Reply).#MAXFAILURE))
+	}
+}
+
+/// The one warning of a compaction that did not work: the runner item, the OwnerRef, the DecisionRef, the step that failed, what the turn
+/// does instead (then) and the redacted text of the problem, cut to Reply.#MAXFAILURE (StepBuffer.Part). It is never the reply's
+/// FailureText or a fallback reason (AD-8).
+Method CompactWarning(request As OcuTalon.Bridge.Msg.Request, step As %String, text As %String, then As %String) [ Private ]
+{
+	$$$LOGWARNING("The compaction of the conversation of "_..BusinessHost.%ConfigName_" for the OwnerRef "_request.OwnerRef_" and the decision "_request.DecisionRef_" failed at "_step_" ("_then_"): "_##class(OcuTalon.Bridge.Adapter.StepBuffer).Part(text, ##class(OcuTalon.Bridge.Msg.Reply).#MAXFAILURE))
+}
+
 /// Clears the agent's Session, the one reference to an AI session that the adapter holds, so that the session object is freed when the
 /// caller lets go of its own, and the next request opens the session from the database. CreateSession and OpenSession set it.
 Method ReleaseSession() [ Private ]
@@ -464,17 +707,26 @@ Method ReleaseSession() [ Private ]
 	}
 }
 
+/// Drops the throwaway AI session of a replay (Replay.Run): ReleaseSession, for a caller outside the class.
+Method ReleaseThrowaway()
+{
+	Do ..ReleaseSession()
+}
+
 /// What Chat gets as its input (AD-6), for every request: the non-empty parts below, in this order, joined by a blank line
 /// ($Char(10, 10)).
-///   - the SeedText of the request, only when seeded is 1 (the linked fresh turn: the recap that starts the new session);
+///   - the SeedText of the request, only when seeded is 1 (the linked fresh turn: the recap that starts the new session), or the seed
+///     argument when it is passed (the compaction fallback: the seed that Compaction.Seed wrote replaces the SeedText);
 ///   - the SystemNote of the request (code-written text, never a tool result);
 ///   - the Input of the request.
 /// Requests that carry neither a seed nor a note send their Input as it is. It is pure.
-ClassMethod ChatInput(request As OcuTalon.Bridge.Msg.Request, seeded As %Boolean = 0) As %String
+ClassMethod ChatInput(request As OcuTalon.Bridge.Msg.Request, seeded As %Boolean = 0, seed As %String) As %String
 {
 	Set text = ""
 	Set blank = $Char(10, 10)
-	If seeded && (request.SeedText '= "") Set text = request.SeedText
+	If seeded {
+		Set text = $Select($Data(seed): seed, 1: request.SeedText)
+	}
 	If request.SystemNote '= "" Set text = text _ $Select(text = "": "", 1: blank) _ request.SystemNote
 	If request.Input '= "" Set text = text _ $Select(text = "": "", 1: blank) _ request.Input
 	Quit text
@@ -520,8 +772,8 @@ Method FailureText(thrown As %Exception.AbstractException, request As OcuTalon.B
 }
 
 /// The step records of the call (StepBuffer.Records), or "" with a warning when they cannot be read. Call it after Chat, outside every
-/// callback.
-Method StepRecords() As %DynamicArray [ Private ]
+/// callback. Replay.Run calls it too.
+Method StepRecords() As %DynamicArray
 {
 	Set records = ""
 	Try {
@@ -533,8 +785,8 @@ Method StepRecords() As %DynamicArray [ Private ]
 	Quit records
 }
 
-/// The step records as a JSON array, or "" for records that could not be read (StepRecords).
-ClassMethod StepsJson(records As %DynamicArray) As %String [ Private ]
+/// The step records as a JSON array, or "" for records that could not be read (StepRecords). Replay.Run calls it too.
+ClassMethod StepsJson(records As %DynamicArray) As %String
 {
 	Quit $Select($IsObject(records): records.%ToJSON(), 1: "")
 }

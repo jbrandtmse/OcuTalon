@@ -1,0 +1,126 @@
+{
+  "format": "ocutalon.readerSnapshot/1",
+  "source": {
+    "namespace": "EVALFEED",
+    "production": "OcuTalon.Test.Eval.Feed",
+    "item": "ShipmentsToLedger"
+  },
+  "failures": [
+    {
+      "headerId": 26,
+      "sessionId": 26,
+      "superSession": "XEToLH9Xj54Sz884FS2Hpw",
+      "timeCreated": "2026-10-29T16:12:57Z",
+      "timeProcessed": "2026-10-29T16:12:57Z",
+      "sourceConfigName": "FeedIn",
+      "targetConfigName": "ShipmentsToLedger",
+      "bodyClass": "OcuTalon.Test.Eval.Feed.Shipment",
+      "bodyId": "25",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR #7208: Datatype value '1792138500' is not a valid timestamp format\r\n  > ERROR #5802: Datatype validation failed on property 'OcuTalon.Test.Eval.Feed.LedgerEntry:ShippedAt', with value equal to \"1792138500\"",
+      "body": {
+        "ShipmentId": "SH-1001",
+        "OrderNumber": "ON-1001",
+        "ShippedAt": "1792138500",
+        "Weight": "12.5",
+        "Carrier": "CARRIER-A"
+      }
+    },
+    {
+      "headerId": 27,
+      "sessionId": 27,
+      "superSession": "XEToLH9Xj54Sz884FS2Hpw",
+      "timeCreated": "2026-10-29T16:12:57Z",
+      "timeProcessed": "2026-10-29T16:12:57Z",
+      "sourceConfigName": "FeedIn",
+      "targetConfigName": "ShipmentsToLedger",
+      "bodyClass": "OcuTalon.Test.Eval.Feed.Shipment",
+      "bodyId": "26",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR #7208: Datatype value '1792142100' is not a valid timestamp format\r\n  > ERROR #5802: Datatype validation failed on property 'OcuTalon.Test.Eval.Feed.LedgerEntry:ShippedAt', with value equal to \"1792142100\"",
+      "body": {
+        "ShipmentId": "SH-1002",
+        "OrderNumber": "ON-1002",
+        "ShippedAt": "1792142100",
+        "Weight": "8.0",
+        "Carrier": "CARRIER-A"
+      }
+    },
+    {
+      "headerId": 28,
+      "sessionId": 28,
+      "superSession": "XEToLH9Xj54Sz884FS2Hpw",
+      "timeCreated": "2026-10-29T16:12:57Z",
+      "timeProcessed": "2026-10-29T16:12:57Z",
+      "sourceConfigName": "FeedIn",
+      "targetConfigName": "ShipmentsToLedger",
+      "bodyClass": "OcuTalon.Test.Eval.Feed.Shipment",
+      "bodyId": "27",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR #7208: Datatype value '1792145700' is not a valid timestamp format\r\n  > ERROR #5802: Datatype validation failed on property 'OcuTalon.Test.Eval.Feed.LedgerEntry:ShippedAt', with value equal to \"1792145700\"",
+      "body": {
+        "ShipmentId": "SH-1003",
+        "OrderNumber": "ON-1003",
+        "ShippedAt": "1792145700",
+        "Weight": "20.5",
+        "Carrier": "CARRIER-B"
+      }
+    }
+  ],
+  "eventLog": [
+    {
+      "id": "41",
+      "timeLogged": "2026-10-29T16:12:57Z",
+      "type": "Error",
+      "configName": "ShipmentsToLedger",
+      "sourceClass": "OcuTalon.Test.Eval.Feed.Intake",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 26,
+      "text": "ERROR #7208: Datatype value '1792138500' is not a valid timestamp format\r\n  > ERROR #5802: Datatype validation failed on property 'OcuTalon.Test.Eval.Feed.LedgerEntry:ShippedAt', with value equal to \"1792138500\""
+    },
+    {
+      "id": "48",
+      "timeLogged": "2026-10-29T16:12:57Z",
+      "type": "Error",
+      "configName": "ShipmentsToLedger",
+      "sourceClass": "OcuTalon.Test.Eval.Feed.Intake",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 27,
+      "text": "ERROR #7208: Datatype value '1792142100' is not a valid timestamp format\r\n  > ERROR #5802: Datatype validation failed on property 'OcuTalon.Test.Eval.Feed.LedgerEntry:ShippedAt', with value equal to \"1792142100\""
+    },
+    {
+      "id": "52",
+      "timeLogged": "2026-10-29T16:12:57Z",
+      "type": "Error",
+      "configName": "ShipmentsToLedger",
+      "sourceClass": "OcuTalon.Test.Eval.Feed.Intake",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 28,
+      "text": "ERROR #7208: Datatype value '1792145700' is not a valid timestamp format\r\n  > ERROR #5802: Datatype validation failed on property 'OcuTalon.Test.Eval.Feed.LedgerEntry:ShippedAt', with value equal to \"1792145700\""
+    }
+  ],
+  "items": [
+    {
+      "name": "ShipmentsToLedger",
+      "className": "OcuTalon.Test.Eval.Feed.Intake",
+      "enabled": 1,
+      "poolSize": 1,
+      "settings": {}
+    }
+  ],
+  "trace": [
+    {
+      "headerId": "26",
+      "type": "Request",
+      "sourceConfigName": "FeedIn",
+      "targetConfigName": "ShipmentsToLedger",
+      "bodyClass": "OcuTalon.Test.Eval.Feed.Shipment",
+      "status": "Error",
+      "timeCreated": "2026-10-29T16:12:57Z",
+      "isError": false
+    }
+  ]
+}

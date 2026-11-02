@@ -35,6 +35,9 @@ Property CatalogKey As %String(MAXLEN = 128);
 /// Optional: the slots of CatalogKey, as JSON (AD-32).
 Property Slots As %String(MAXLEN = "");
 
+/// The page's own id for the message; set only by WebChatIn (AD-30), empty otherwise.
+Property ClientId As %String(MAXLEN = 128);
+
 Storage Default
 {
 <Data name="ItemDefaultData">
@@ -71,6 +74,9 @@ Storage Default
 </Value>
 <Value name="11">
 <Value>Slots</Value>
+</Value>
+<Value name="12">
+<Value>ClientId</Value>
 </Value>
 </Data>
 <DefaultData>ItemDefaultData</DefaultData>

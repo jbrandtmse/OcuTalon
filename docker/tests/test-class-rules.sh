@@ -11,7 +11,22 @@
 #   - unchecked-prepare (AD-13, DW-17): outside the methods of ALLOW_UNCHECKED, no %Prepare whose second argument is not 1,
 #     no %PrepareClassQuery whose third argument is not 1, and no %ExecDirectNoPriv or %ExecDirectNoPrivNoAudit, even when the
 #     call spans lines or its SQL text holds commas and parentheses; and no entry of ALLOW_UNCHECKED that matches no such call.
-#     A call that leaves the argument out takes the checked default. Embedded SQL is not scanned.
+#     A call that leaves the argument out takes the checked default. Embedded SQL is not scanned by this rule, because it is
+#     not privilege-checked and this rule could not see it: the next rule keeps it out of src/;
+#   - no-embedded-sql (AD-13 condition 4, inbox U-15): no &sql( or ##sql( on a code line of src/ outside its string literals, in
+#     any case (a test's fixture text such as "&sql(DELETE ...)" is data, not embedded SQL), and no class
+#     query of type %SQLQuery, whose SELECT compiles to embedded SQL. Embedded SQL is not privilege-checked and the
+#     unchecked-prepare rule cannot see it, so the one unchecked path stays Ownership.Rows.
+#   - trace-join (AD-26, Story 2.9): a call of OcuTalon.Core.Trace.Join, in any case, appears on a code line of src/ only in the
+#     packages OcuTalon.Channel and OcuTalon.Test (a package matches by whole name, a sub-package belongs to its package): only a
+#     channel service starts a session's trace thread; commands, approvals and notices inside a turn join through the bridge
+#     context's ThreadSessionId;
+#   - assert-concat (DW-505): in the first argument of $$$AssertTrue(, $$$AssertNotTrue(, $$$AssertEquals( and $$$AssertNotEquals(, no "_" at
+#     the top level to the right of a top-level "[", "]" or "]]" (or their "'" forms). ObjectScript evaluates left to right, so
+#     `text [ "a "_id` is `(text [ "a ") _ id`: it compares against the prefix alone and can never fail. Top level means outside string
+#     literals, parentheses, braces and JSON-array brackets; a "[" is the operator when the character before it ends an operand, and a "]"
+#     closes an array only when one is open. An assertion that spans lines is named at its first line; the Class:Method entries of
+#     ALLOW_CONCAT are the exceptions, and an entry that matches no assertion fails as stale.
 # A comment line (// ///, ; and #;) is not code. Each rule first runs on synthetic classes: ones that break it, ones that keep it,
 # and one with only a comment that mentions it, so a rule that can no longer flag anything fails. A failing rule prints file:line
 # and never the text of the line. Prints one PASS or FAIL line per rule; exits 0 only when all pass.
@@ -27,10 +42,16 @@ trap 'rm -rf "$tmp"' EXIT
 
 # The only unchecked prepares of src/ (DW-17): Class:Method, one per line.
 ALLOW_UNCHECKED="OcuTalon.Data.Session:ForUser
-OcuTalon.Live.Event:Since"
+OcuTalon.Live.Event:Since
+OcuTalon.Data.Ownership:Rows"
 # The allow-list that the synthetic classes are judged by, so that the samples do not depend on the real list.
 SAMPLE_ALLOW="OcuTalon.Data.Session:ForUser
 OcuTalon.Live.Event:Since"
+
+# The only assertions of src/ that compare with a concatenation on the right of "[" (DW-505), Class:Method, one per line. This one is Lane B's
+# (Epic 31 fixes it); in the change that fixes the line, the entry goes too, or the stale check fails.
+ALLOW_CONCAT="OcuTalon.Test.Data.PublicSettings:TestNextReset"
+SAMPLE_ALLOW_CONCAT="OcuTalon.Zz.Allowed:Run"
 
 # The packages that may use %AI (AD-2), by whole name; a sub-package belongs to its package.
 AI_PACKAGES="OcuTalon.Bridge OcuTalon.BridgeExample OcuTalon.Agent OcuTalon.Tools OcuTalon.Docs OcuTalon.Memory OcuTalon.Mcp OcuTalon.Install OcuTalon.Test"
@@ -69,16 +90,70 @@ public_global() {
   ' "$@"
 }
 
+# The awk machinery that unchecked_prepares and assert_concat share. The caller's program defines process(), which scans the joined text of
+# one file (nlines lines in body[], their start offsets in lstart[] once join_text() has run) and calls hit() or allowed() for what it finds.
+#   - comment lines of a class, routine or include file are blanked, so that a rule never sees them;
+#   - memberAt[] and clsAt[] give the Class and the method of each line, and allow[] the Class:Method entries of -v allowlist (-v stale=1 also
+#     prints an "allow-list:" line for each entry that allowed nothing).
+SCAN_COMMON='
+  function trim(s) { gsub(/^[ \t\r\n]+/, "", s); gsub(/[ \t\r\n]+$/, "", s); return s }
+  function lineof(pos,   lo, hi, mid) {
+    lo = 1; hi = nlines
+    while (lo < hi) { mid = int((lo + hi + 1) / 2); if (lstart[mid] <= pos) lo = mid; else hi = mid - 1 }
+    return lo
+  }
+  function join_text(   i, text) {
+    text = ""
+    for (i = 1; i <= nlines; i++) { lstart[i] = length(text) + 1; text = text body[i] "\n" }
+    return text
+  }
+  function allowed(ln,   key) {
+    key = tolower(clsAt[ln] ":" memberAt[ln])
+    if (key in allow) { used[key] = 1; return 1 }
+    return 0
+  }
+  function reset(   k) {
+    for (k in body) delete body[k]
+    for (k in lstart) delete lstart[k]
+    for (k in memberAt) delete memberAt[k]
+    for (k in clsAt) delete clsAt[k]
+    nlines = 0; cls = ""; member = ""
+  }
+  BEGIN {
+    n = split(allowlist, a, " ")
+    for (i = 1; i <= n; i++) { allow[tolower(a[i])] = a[i] }
+  }
+  FNR == 1 {
+    process(); reset()
+    fname = FILENAME
+    objscript = (FILENAME ~ /\.(cls|cos|inc|mac|int)$/)
+  }
+  {
+    line = $0
+    sub(/\r$/, "", line)
+    nlines++
+    if (line ~ /^Class /) { split(line, w, /[ \t]+/); cls = w[2] }
+    else if (line ~ /^(ClassMethod|Method)[ \t]/) {
+      s = line
+      sub(/^(ClassMethod|Method)[ \t]+/, "", s)
+      match(s, /^[A-Za-z0-9_%]+/)
+      member = substr(s, 1, RLENGTH)
+    }
+    else if (line ~ /^(Property|Parameter|Index|Query|ClassQuery|XData|Storage|Relationship|Trigger|ForeignKey|Projection)[ \t]/) member = ""
+    memberAt[nlines] = member
+    clsAt[nlines] = cls
+    body[nlines] = (objscript && line ~ /^[ \t]*(\/\/|;|#;|##;)/) ? "" : line
+  }
+  END {
+    process()
+    if (stale == 1) for (k in allow) if (!(k in used)) print "allow-list:" allow[k]
+  }
+'
+
 # unchecked_prepares <file>...: file:line of each unchecked prepare outside ALLOW_UNCHECKED; with STALE=1, also a line for each
 # entry that no unchecked call uses.
 unchecked_prepares() {
-  awk -v allowlist="$(printf '%s' "$ALLOW_UNCHECKED" | tr '\n' ' ')" -v stale="${STALE:-0}" '
-    function trim(s) { gsub(/^[ \t\r\n]+/, "", s); gsub(/[ \t\r\n]+$/, "", s); return s }
-    function lineof(pos,   lo, hi, mid) {
-      lo = 1; hi = nlines
-      while (lo < hi) { mid = int((lo + hi + 1) / 2); if (lstart[mid] <= pos) lo = mid; else hi = mid - 1 }
-      return lo
-    }
+  awk -v allowlist="$(printf '%s' "$ALLOW_UNCHECKED" | tr '\n' ' ')" -v stale="${STALE:-0}" "$SCAN_COMMON"'
     # The arguments of the call whose "(" precedes position from: parg[1..pn], each trimmed.
     function parse_args(text, from,   i, c, depth, instr, cur, len) {
       pn = 0; cur = ""; depth = 0; instr = 0; len = length(text)
@@ -96,16 +171,14 @@ unchecked_prepares() {
       }
       if (trim(cur) != "" || pn > 0) parg[++pn] = trim(cur)
     }
-    function hit(pos,   ln, key) {
+    function hit(pos,   ln) {
       ln = lineof(pos)
-      key = tolower(clsAt[ln] ":" memberAt[ln])
-      if (key in allow) { used[key] = 1; return }
+      if (allowed(ln)) return
       print fname ":" ln
     }
-    function process(   i, text, low, tok, t, pos, p, start, nt) {
+    function process(   text, low, tok, t, pos, p, start, nt) {
       if (nlines == 0) return
-      text = ""
-      for (i = 1; i <= nlines; i++) { lstart[i] = length(text) + 1; text = text body[i] "\n" }
+      text = join_text()
       low = tolower(text)
       nt = split("%prepare( %prepareclassquery( %execdirectnopriv", tok, " ")
       for (t = 1; t <= nt; t++) {
@@ -120,42 +193,92 @@ unchecked_prepares() {
         }
       }
     }
-    function reset(   k) {
-      for (k in body) delete body[k]
-      for (k in lstart) delete lstart[k]
-      for (k in memberAt) delete memberAt[k]
-      for (k in clsAt) delete clsAt[k]
-      nlines = 0; cls = ""; member = ""
+  ' "$@"
+}
+
+# assert_concat <file>...: file:line of each assertion (the first line of it) whose first argument concatenates ("_") at the top level to the
+# right of a top-level "[", "]" or "]]" (or their apostrophe forms), outside ALLOW_CONCAT; with STALE=1, also a line for each entry that no
+# assertion uses.
+assert_concat() {
+  awk -v allowlist="$(printf '%s' "$ALLOW_CONCAT" | tr '\n' ' ')" -v stale="${STALE:-0}" "$SCAN_COMMON"'
+    # 1 when the character ends an operand: a letter, a digit, ")", "}", a quote or an apostrophe.
+    function ends_operand(c) {
+      return (c ~ /^[A-Za-z0-9)}]$/) || c == "\"" || c == "\047"
     }
-    BEGIN {
-      n = split(allowlist, a, " ")
-      for (i = 1; i <= n; i++) { allow[tolower(a[i])] = a[i] }
-    }
-    FNR == 1 {
-      process(); reset()
-      fname = FILENAME
-      objscript = (FILENAME ~ /\.(cls|cos|inc|mac|int)$/)
-    }
-    {
-      line = $0
-      sub(/\r$/, "", line)
-      nlines++
-      if (line ~ /^Class /) { split(line, w, /[ \t]+/); cls = w[2] }
-      else if (line ~ /^(ClassMethod|Method)[ \t]/) {
-        s = line
-        sub(/^(ClassMethod|Method)[ \t]+/, "", s)
-        match(s, /^[A-Za-z0-9_%]+/)
-        member = substr(s, 1, RLENGTH)
+    # 1 when the argument that starts at position from has a "_" at the top level to the right of a top-level "[" or "]" operator.
+    # The argument ends at a top-level "," or at the ")" that closes the assertion. stack holds the open "(", "{" and array "[".
+    function concat_after_operator(text, from,   i, c, len, instr, prev, op, depth, stack) {
+      len = length(text); instr = 0; prev = ""; op = 0; depth = 0; stack = ""
+      for (i = from; i <= len; i++) {
+        c = substr(text, i, 1)
+        if (instr) { if (c == "\"") { instr = 0; prev = c }; continue }
+        if (c == "\"") { instr = 1; continue }
+        if (c ~ /^[ \t\r\n]$/) continue
+        if (c == "(" || c == "{") { depth++; stack = stack c }
+        else if (c == ")" || c == "}") {
+          if (depth == 0) return 0
+          depth--; stack = substr(stack, 1, depth)
+        }
+        else if (c == "[") {
+          if (ends_operand(prev)) { if (depth == 0) op = 1 }
+          else { depth++; stack = stack c }
+        }
+        else if (c == "]") {
+          if (depth > 0 && substr(stack, depth, 1) == "[") { depth--; stack = substr(stack, 1, depth) }
+          else if (depth == 0) op = 1
+        }
+        else if (c == "," && depth == 0) return 0
+        else if (c == "_" && depth == 0 && op) return 1
+        prev = c
       }
-      else if (line ~ /^(Property|Parameter|Index|Query|ClassQuery|XData|Storage|Relationship|Trigger|ForeignKey|Projection)[ \t]/) member = ""
-      memberAt[nlines] = member
-      clsAt[nlines] = cls
-      body[nlines] = (objscript && line ~ /^[ \t]*(\/\/|;|#;|##;)/) ? "" : line
+      return 0
     }
-    END {
-      process()
-      if (stale == 1) for (k in allow) if (!(k in used)) print "allow-list:" allow[k]
+    function process(   text, low, tok, t, pos, p, start, nt, ln) {
+      if (nlines == 0) return
+      text = join_text()
+      low = tolower(text)
+      nt = split("$$$asserttrue( $$$assertnottrue( $$$assertequals( $$$assertnotequals(", tok, " ")
+      for (t = 1; t <= nt; t++) {
+        pos = 1
+        while ((p = index(substr(low, pos), tok[t])) > 0) {
+          start = pos + p - 1
+          pos = start + length(tok[t])
+          if (!concat_after_operator(text, pos)) continue
+          ln = lineof(start)
+          if (!allowed(ln)) print fname ":" ln
+        }
+      }
     }
+  ' "$@"
+}
+
+# embedded_sql <file>...: file:line of each code line of a class, routine or include file that holds embedded SQL: &sql( or
+# ##sql(, in any case, with blanks allowed before the parenthesis, or the declaration of a class query of type %SQLQuery.
+embedded_sql() {
+  awk '
+    FNR == 1 { code = (FILENAME ~ /\.(cls|cos|inc|mac|int)$/) }
+    !code || /^[ \t]*(\/\/|;|#;|##;)/ { next }
+    { line = $0; gsub(/"([^"]|"")*"/, "\"\"", line) }
+    tolower(line) ~ /(&|##)sql[ \t]*\(/ || tolower($0) ~ /^[ \t]*query[ \t].*[ \t]as[ \t]+%(library\.)?sqlquery([^a-z0-9_.]|$)/ { print FILENAME ":" FNR }
+  ' "$@"
+}
+
+# trace_join <file>...: file:line of each code line of a class, routine or include file that calls OcuTalon.Core.Trace.Join, in
+# any case, outside the packages OcuTalon.Channel and OcuTalon.Test (whole package names; a sub-package belongs to its package).
+trace_join() {
+  awk '
+    FNR == 1 {
+      cls = FILENAME
+      sub(/^.*\/cls\//, "", cls)
+      sub(/\.cls$/, "", cls)
+      gsub(/\//, ".", cls)
+      pkg = cls
+      sub(/\.[^.]*$/, "", pkg)
+      ok = (pkg == "OcuTalon.Channel" || index(pkg, "OcuTalon.Channel.") == 1 || pkg == "OcuTalon.Test" || index(pkg, "OcuTalon.Test.") == 1)
+      code = (FILENAME ~ /\.(cls|cos|inc|mac|int)$/)
+    }
+    ok || !code || /^[ \t]*(\/\/|;|#;|##;)/ { next }
+    tolower($0) ~ /ocutalon\.core\.trace\)[ \t]*\.join[ \t]*\(/ { print FILENAME ":" FNR }
   ' "$@"
 }
 
@@ -338,11 +461,124 @@ if [ "$samples_ok" -eq 1 ]; then
   )
   if [ -n "$hits" ]; then
     printf '%s\n' "$hits" | head -n 10 | sed 's/^/  /'
-    echo "FAIL unchecked-prepare: only Session.ForUser and Live.Event.Since prepare without the privilege check, and each allow-list entry matches a call"
+    echo "FAIL unchecked-prepare: only Session.ForUser, Live.Event.Since and Ownership.Rows prepare without the privilege check, and each allow-list entry matches a call"
     fails=$((fails + 1))
   else
-    echo "PASS unchecked-prepare: only Session.ForUser and Live.Event.Since prepare without the privilege check, and each allow-list entry matches a call"
+    echo "PASS unchecked-prepare: only Session.ForUser, Live.Event.Since and Ownership.Rows prepare without the privilege check, and each allow-list entry matches a call"
   fi
+fi
+
+# --- assert-concat ---
+
+ac_class() { # ac_class <sample> <Class> <method> <line>...: a class with one method that holds the lines
+  local sample=$1 class=$2 method=$3
+  shift 3
+  write_class "ac/$sample" "$class" "ClassMethod $method()" '{' "$@" '}'
+}
+mkdir -p "$tmp/ac"
+real_allow_concat=$ALLOW_CONCAT
+ALLOW_CONCAT=$SAMPLE_ALLOW_CONCAT
+ac_bad=$(ac_class bad OcuTalon.Zz.AcBad Run \
+  '	Do $$$AssertTrue(text [ "agent steps "_stepId, "l: "_text)' \
+  '	Do $$$AssertTrue(now ] $Translate(a, " ", "T")_"Z", "l")' \
+  '	Do $$$AssertTrue(x '"'"'[ "a"_y, "l")' \
+  '	Do $$$AssertEquals(x ]] "a"_y, 1)' \
+  '	Do $$$AssertNotTrue(x '"'"'] "a" _ y, 0)' \
+  '	Do $$$AssertNotEquals(x [ "a"_y, 0)')
+ac_bad_two_lines=$(ac_class bad-two-lines OcuTalon.Zz.AcTwo Run \
+  '	Set x = 1' \
+  '	Do $$$AssertTrue(x [ "a"' \
+  '		_ y, "l")')
+ac_good=$(ac_class good OcuTalon.Zz.AcGood Run \
+  '	Do $$$AssertTrue(text [ ("a"_y), "l: "_t)' \
+  '	Do $$$AssertTrue((x [ "a")_y, "l")' \
+  '	Do $$$AssertTrue(x_y [ z, "l")' \
+  '	Do $$$AssertTrue(x [ y, "l "_z)' \
+  '	Do $$$AssertTrue(x [ y && (a_b = c), "l")' \
+  '	Do $$$AssertEquals([1,2].%ToJSON()_"", "[1,2]")' \
+  '	Do $$$AssertTrue(..F([1, 2]) [ "a", "l")' \
+  '	Do $$$AssertTrue(x = "a [ b_c", "l")' \
+  '	If x [ "a"_y Quit' \
+  '	// Do $$$AssertTrue(x [ "a"_y, "l")' \
+  '	; Do $$$AssertTrue(x [ "a"_y, "l")')
+mkdir -p "$tmp/ac/good-doc"
+printf '/// Never write $$$AssertTrue(x [ "a"_y, "l") here.\nClass OcuTalon.Zz.AcDoc\n{\n}\n' > "$tmp/ac/good-doc/Doc.cls"
+ac_allowed=$(ac_class allowed OcuTalon.Zz.Allowed Run '	Do $$$AssertTrue(text [ "a "_y, "l")')
+samples_ok=1
+expect_flagged "assert-concat" assert_concat "$ac_bad" 6
+expect_flagged "assert-concat" assert_concat "$ac_bad_two_lines" 1
+expect_clean "assert-concat" assert_concat "$ac_good"
+expect_clean "assert-concat" assert_concat "$tmp/ac/good-doc/Doc.cls"
+expect_clean "assert-concat" assert_concat "$ac_allowed"
+# The line that is named is the first line of the assertion.
+call_line=$(grep -n 'AssertTrue(x \[ "a"$' "$ac_bad_two_lines" | cut -d: -f1)
+if [ "$(assert_concat "$ac_bad_two_lines")" != "$ac_bad_two_lines:$call_line" ]; then
+  echo "FAIL assert-concat: the assertion that spans two lines is not named at its first line ($(assert_concat "$ac_bad_two_lines" | sed "s#$tmp/##"))"
+  fails=$((fails + 1)); samples_ok=0
+fi
+# An entry that matches no assertion is reported; an entry that matches one reports nothing.
+stale_out=$(STALE=1 assert_concat "$ac_good")
+if [ "$stale_out" != "allow-list:OcuTalon.Zz.Allowed:Run" ]; then
+  echo "FAIL assert-concat: the stale entry is not reported (got '$stale_out')"
+  fails=$((fails + 1)); samples_ok=0
+fi
+if [ -n "$(STALE=1 assert_concat "$ac_allowed")" ]; then
+  echo "FAIL assert-concat: an allowed assertion is flagged, or its entry is reported stale"
+  fails=$((fails + 1)); samples_ok=0
+fi
+ALLOW_CONCAT=$real_allow_concat
+if [ "$samples_ok" -eq 1 ]; then
+  hits=$(
+    IFS='
+'
+    set -f
+    STALE=1 assert_concat $(scan_files src | grep '\.cls$') | name_stale
+  )
+  if [ -n "$hits" ]; then
+    printf '%s\n' "$hits" | head -n 10 | sed 's/^/  /'
+    echo "FAIL assert-concat: no assertion compares with a concatenation to the right of [ or ], and each allow-list entry matches an assertion"
+    fails=$((fails + 1))
+  else
+    echo "PASS assert-concat: no assertion compares with a concatenation to the right of [ or ], and each allow-list entry matches an assertion"
+  fi
+fi
+
+# --- no-embedded-sql ---
+
+es_bad=$(write_class es OcuTalon.Zz.EsBad 'ClassMethod A()' '{' '	&sql(SELECT 1 INTO :x FROM T)' '	&SQL (SELECT 2 INTO :y FROM T)' '	Set a = ##sql(SELECT 3 INTO :z FROM T)' '}' \
+  'Query B(x As %String) As %SQLQuery(ROWSPEC = "y:%String") [ SqlProc ]' '{' 'SELECT y FROM T WHERE x = :x' '}' \
+  'Query C() As %Library.SQLQuery' '{' 'SELECT 1 FROM T' '}')
+es_good=$(write_class es OcuTalon.Zz.EsGood 'ClassMethod A()' '{' '	Set sc = statement.%Prepare("SELECT 1 FROM T")' '	Set text = "a &amp; sqlx and ##class(A.B).Sql()"' '	Quit 1' '}' \
+  'Query B() As %Query(ROWSPEC = "y:%String")' '{' '}' 'Query C() As %SQLQueryCustom' '{' '}')
+es_string=$(write_class es OcuTalon.Zz.EsString 'ClassMethod A(x)' '{' '	Set s = "&sql(SELECT 1 INTO :x FROM T)"' '	Do x.Matches($Char(9)_"&sql(DELETE FROM A.B)", "##sql(")' '	Set q = "a ""quoted"" &SQL ( text"' '	Quit 1' '}')
+es_after=$(write_class es OcuTalon.Zz.EsAfter 'ClassMethod A()' '{' '	Set a = "&sql(" &sql(SELECT 1 INTO :x FROM T)' '}')
+es_comment=$(write_class es OcuTalon.Zz.EsComment '/// Never write &sql( or ##sql( here.' 'ClassMethod A()' '{' '	// &sql(SELECT 1 INTO :x FROM T)' '	; &sql(SELECT 1 INTO :x FROM T)' '	Quit 1' '}')
+samples_ok=1
+expect_flagged "no-embedded-sql" embedded_sql "$es_bad" 5
+expect_clean "no-embedded-sql" embedded_sql "$es_good"
+expect_clean "no-embedded-sql" embedded_sql "$es_comment"
+expect_clean "no-embedded-sql" embedded_sql "$es_string"
+expect_flagged "no-embedded-sql" embedded_sql "$es_after" 1
+if [ "$samples_ok" -eq 1 ]; then
+  scan_rule "no-embedded-sql: no &sql( and no %SQLQuery class query on a code line of src/" embedded_sql \
+    "$es_bad" "$es_good" "$(scan_files src | grep -E '\.(cls|cos|inc|mac|int)$')"
+fi
+
+# --- trace-join ---
+
+tj_bad1=$(write_class tj/src/ocutalon/cls OcuTalon/Core/ZzBad 'ClassMethod A()' '{' '	Set thread = ##class(OcuTalon.Core.Trace).Join(ref, .sc)' '}')
+tj_bad2=$(write_class tj/src/ocutalon/cls OcuTalon/Web/ZzBadCase 'ClassMethod A()' '{' '	Set thread = ##class(ocutalon.core.TRACE).join(ref, .sc)' '}')
+tj_bad3=$(write_class tj/src/ocutalon/cls OcuTalon/Channels/ZzBadPackage 'ClassMethod A()' '{' '	Set thread = ##class(OcuTalon.Core.Trace).Join(ref, .sc)' '}')
+tj_good1=$(write_class tj/src/ocutalon/cls OcuTalon/Channel/WebChat/ZzOk 'ClassMethod A()' '{' '	Set thread = ##class(OcuTalon.Core.Trace).Join(ref, .sc, now)' '}')
+tj_good2=$(write_class tj/src/ocutalon/cls OcuTalon/Test/Core/ZzOk 'ClassMethod A()' '{' '	Set thread = ##class(OcuTalon.Core.Trace).Join(ref, .sc)' '}')
+tj_good3=$(write_class tj/src/ocutalon/cls OcuTalon/Core/ZzComment '/// Never call ##class(OcuTalon.Core.Trace).Join( from a Core class.' 'ClassMethod A()' '{' '	// ##class(OcuTalon.Core.Trace).Join(ref, .sc)' '	; ##class(OcuTalon.Core.Trace).Join(ref, .sc)' '	Quit 1' '}')
+tj_good4=$(write_class tj/src/ocutalon/cls OcuTalon/Core/ZzOther 'ClassMethod A()' '{' '	Set sc = ##class(OcuTalon.Core.Trace).Started(ref, 5150)' '	Set sc = ##class(OcuTalon.Core.Trace).Position(id, .a, .b)' '	Quit ##class(OcuTalon.Core.TraceJoin).Join(ref)' '}')
+samples_ok=1
+for f in "$tj_bad1" "$tj_bad2" "$tj_bad3"; do expect_flagged "trace-join" trace_join "$f" 1; done
+for f in "$tj_good1" "$tj_good2" "$tj_good3" "$tj_good4"; do expect_clean "trace-join" trace_join "$f"; done
+if [ "$samples_ok" -eq 1 ]; then
+  scan_rule "trace-join: OcuTalon.Core.Trace.Join is called only from OcuTalon.Channel and OcuTalon.Test" trace_join \
+    "$tj_bad1" "$tj_good1" "$(scan_files src | grep -E '\.(cls|cos|inc|mac|int)$')"
 fi
 
 if [ "$fails" -ne 0 ]; then

@@ -679,6 +679,59 @@ check_verdict "an empty actual file fails" FAIL "$surf/with" "$surf/empty" --dro
 check_verdict "an empty expected file fails" FAIL "$surf/empty" "$surf/without"
 check_verdict "an unknown option fails" FAIL "$surf/with" "$surf/without" --drop-everything
 
+# --- live_key_count and check_no_key (Story 10.3): the CI dummy bot token is no key, a model key and any other bot token are ---
+
+# `dc exec -T iris env ... sh -c ...` runs the command here, in a process whose environment the test sets, with the root pointing at a
+# fixture tree that holds the CI override.
+key_root="$tmp/keyroot"
+mkdir -p "$key_root/ci"
+printf 'name: ocutalon-ci\nservices:\n  iris:\n    environment:\n      TELEGRAM_BOT_TOKEN: fixture-dummy-token\n' > "$key_root/ci/compose.ci.yml"
+key_count() { # key_count <ANTHROPIC_API_KEY or -> <TELEGRAM_BOT_TOKEN or -> [<root>]: the count live_key_count prints
+  (
+    unset ANTHROPIC_API_KEY TELEGRAM_BOT_TOKEN
+    if [ "$1" != - ]; then export ANTHROPIC_API_KEY=$1; fi
+    if [ "$2" != - ]; then export TELEGRAM_BOT_TOKEN=$2; fi
+    root=${3:-$key_root}
+    live_key_count
+  )
+}
+printf 'name: ocutalon-ci\nservices:\n  iris:\n    environment:\n      OCUTALON_EVAL: 0\n' > "$tmp/no-dummy.yml"
+mkdir -p "$tmp/keyroot-none/ci"
+cp "$tmp/no-dummy.yml" "$tmp/keyroot-none/ci/compose.ci.yml"
+if [ "$(root=$key_root live_ci_bot_token)" = fixture-dummy-token ] && [ -z "$(root=$tmp/keyroot-none live_ci_bot_token)" ]; then
+  pass "live_ci_bot_token: the dummy is read from ci/compose.ci.yml, and is empty when the file sets none"
+else
+  fail "live_ci_bot_token does not read the dummy from the CI override"
+fi
+check_count() { # check_count <label> <want> <ANTHROPIC_API_KEY or -> <TELEGRAM_BOT_TOKEN or -> [<root>]
+  local got
+  got=$(key_count "$3" "$4" "${5:-}")
+  if [ "$got" = "$2" ]; then pass "live_key_count: $1"; else fail "live_key_count: $1 (wanted $2, got '$got')"; fi
+}
+check_count "no key variable counts 0" 0 - -
+check_count "the CI dummy bot token alone counts 0" 0 - fixture-dummy-token
+check_count "a model key counts 1" 1 anything -
+check_count "a model key with the dummy counts 1" 1 anything fixture-dummy-token
+check_count "the decoy bot token counts 1" 1 - decoy
+check_count "a bot token of the dummy plus a character counts 1" 1 - fixture-dummy-token-x
+check_count "a bot token of the dummy less a character counts 1" 1 - fixture-dummy-toke
+check_count "an empty bot token counts 1" 1 - ""
+check_count "a model key and the decoy bot token count 2" 2 decoy decoy
+check_count "any bot token counts 1 when the CI override sets no dummy" 1 - fixture-dummy-token "$tmp/keyroot-none"
+check_count "a case-changed dummy counts 1" 1 - FIXTURE-DUMMY-TOKEN
+out=$( ( dc() { echo 0; }; pass() { echo "VERDICT PASS $*"; }; fail() { echo "VERDICT FAIL $*"; }; check_no_key probe ) 2>&1)
+if [ "$out" = "VERDICT PASS probe: the container holds no model key and no bot token but the CI dummy" ]; then
+  pass "check_no_key: a count of 0 passes"
+else
+  fail "check_no_key: a count of 0 does not pass ($out)"
+fi
+out=$( ( dc() { echo 2; }; pass() { echo "VERDICT PASS $*"; }; fail() { echo "VERDICT FAIL $*"; }; check_no_key probe ) 2>&1)
+if [ "$out" = "VERDICT FAIL probe: the container holds '2' key variable(s), so a start in it is not a start with no key" ]; then
+  pass "check_no_key: a count of 2 fails, and prints the count only"
+else
+  fail "check_no_key: a count of 2 does not fail as it should ($out)"
+fi
+
 if [ "$fails" -ne 0 ]; then
   echo "test-lib-live: $fails check(s) failed"
   exit 1

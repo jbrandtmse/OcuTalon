@@ -7,6 +7,13 @@
 ///     the first instant of a day is its local midnight and the second before it is 23:59:59 of the day before; in America/Havana
 ///     2025-03-09, whose midnight does not exist, starts at its first instant, local 01:00; with no zone a day is a UTC day;
 ///   - TestUnreadable: every method gives "" for an input it cannot read;
+///   - TestPlusSeconds, TestSecondsUntil (Story 3.4): PlusSeconds moves a UTC time by whole seconds across a day, a month end (also 29 February
+///     of a leap year) and a year end, backwards too, and gives "" for an unreadable time or count; SecondsUntil is the whole seconds,
+///     rounded down, to a UTC time, negative for the past, the same in three zones, and "" for an unreadable time;
+///   - TestDaysCutoff (Story 30.2; DW-371): DaysCutoff moves a UTC time back a whole number of days, keeping the time of day, across a month end, a year
+///     end and a leap day, the same in three zones; it gives an error status that names the caller for "", 0, -1, 1.5, abc and 00, and for an unreadable
+///     now, and an empty cutoff for a count that reaches before the calendar's first date; Digest.Data.Item.Purge, which uses it, refuses a bad count
+///     with its own text, word for word (it deletes nothing then);
 ///   - TestMsSince: the milliseconds since a UTC timestamp 250 ms old, the same result in three zones, 0 for a timestamp ahead of the clock;
 ///   - TestMsSinceFraction: the fraction of a second counts: a stamp with .900 reads about 900 ms less than the same second with .000
 ///     (at least 600 ms less, whatever pause there is between the two reads);
@@ -100,6 +107,98 @@ Method TestUnreadable()
 	}
 	For input = "", "x", "2025-03-09", "2025-03-09T05:00:00Z", "2025-03-09 05:00", "2025-13-09 05:00:00", "2025-03-09 25:00:00", "2025-03-09 05:00:00." {
 		Do $$$AssertEquals($ClassMethod(time, "MsSince", input), "", "MsSince of '"_input_"' is empty")
+	}
+	For input = "", "x", "2025-03-09", "2025-03-09 05:00:00", "2025-03-09T05:00:00", "2025-13-09T05:00:00Z", "2025-02-30T05:00:00Z", "2025-03-09T25:00:00Z" {
+		Do $$$AssertEquals($ClassMethod(time, "PlusSeconds", input, 60)_"|"_$ClassMethod(time, "SecondsUntil", input), "|", "PlusSeconds and SecondsUntil of '"_input_"' are empty")
+	}
+	For seconds = "", "x", "1.5", "1e3" {
+		Do $$$AssertEquals($ClassMethod(time, "PlusSeconds", "2025-03-09T05:00:00Z", seconds), "", "PlusSeconds by '"_seconds_"' seconds is empty")
+	}
+}
+
+/// PlusSeconds adds whole seconds to a UTC time, whatever the zone of the process: a day (86,400 s) is the next date at the same time, 24 hours
+/// from a time of the 31st is the first of the next month, 28 and 29 February are told apart by the leap year, 31 December rolls to the
+/// next year, a negative count moves back across the same edges, and a count of 0 keeps the time. A result before the calendar's start is "".
+Method TestPlusSeconds()
+{
+	Set time = "OcuTalon.Bridge.Time"
+	For zone = "", "America/New_York", "Asia/Kolkata" {
+		Do $SYSTEM.Process.TimeZone(zone)
+		Set label = "in the zone '"_zone_"': "
+		Do $$$AssertEquals($ClassMethod(time, "PlusSeconds", "2026-10-24T13:05:09Z", 86400), "2026-10-25T13:05:09Z", label_"a day later")
+		Do $$$AssertEquals($ClassMethod(time, "PlusSeconds", "2026-10-24T13:05:09Z", 0), "2026-10-24T13:05:09Z", label_"0 seconds keep the time")
+		Do $$$AssertEquals($ClassMethod(time, "PlusSeconds", "2026-10-24T13:05:09Z", 1), "2026-10-24T13:05:10Z", label_"a second later")
+		Do $$$AssertEquals($ClassMethod(time, "PlusSeconds", "2026-10-31T23:59:59Z", 1), "2026-11-01T00:00:00Z", label_"a month end")
+		Do $$$AssertEquals($ClassMethod(time, "PlusSeconds", "2026-10-31T12:00:00Z", 86400), "2026-11-01T12:00:00Z", label_"a day across the end of October")
+		Do $$$AssertEquals($ClassMethod(time, "PlusSeconds", "2026-12-31T23:59:59Z", 1), "2027-01-01T00:00:00Z", label_"a year end")
+		Do $$$AssertEquals($ClassMethod(time, "PlusSeconds", "2026-12-31T12:00:00Z", 86400), "2027-01-01T12:00:00Z", label_"a day across the end of the year")
+		Do $$$AssertEquals($ClassMethod(time, "PlusSeconds", "2027-02-28T12:00:00Z", 86400), "2027-03-01T12:00:00Z", label_"28 February of a common year")
+		Do $$$AssertEquals($ClassMethod(time, "PlusSeconds", "2028-02-28T12:00:00Z", 86400), "2028-02-29T12:00:00Z", label_"28 February of a leap year")
+		Do $$$AssertEquals($ClassMethod(time, "PlusSeconds", "2026-11-01T00:00:00Z", -1), "2026-10-31T23:59:59Z", label_"a month end, backwards")
+		Do $$$AssertEquals($ClassMethod(time, "PlusSeconds", "2027-01-01T00:00:00Z", -1), "2026-12-31T23:59:59Z", label_"a year end, backwards")
+		Do $$$AssertEquals($ClassMethod(time, "PlusSeconds", "2026-10-24T13:05:09Z", -3600), "2026-10-24T12:05:09Z", label_"an hour earlier")
+		Do $$$AssertEquals($ClassMethod(time, "PlusSeconds", "2026-10-24T13:05:09Z", 3600 * 24 * 365), "2027-10-24T13:05:09Z", label_"a year of 365 days")
+	}
+	Do $$$AssertEquals($ClassMethod(time, "PlusSeconds", "1840-12-31T00:00:00Z", -1), "", "a result before the calendar's start is empty")
+}
+
+/// DaysCutoff: the cutoff of a purge, now moved back a whole number of days (DW-371).
+Method TestDaysCutoff()
+{
+	Set time = "OcuTalon.Bridge.Time"
+	For zone = "", "America/New_York", "Asia/Kolkata" {
+		Do $SYSTEM.Process.TimeZone(zone)
+		Set label = "in the zone '"_zone_"': "
+		Do $$$AssertStatusOK($ClassMethod(time, "DaysCutoff", 30, "Caller.Name", .cutoff, "2026-10-30T13:05:09Z"), label_"a whole count of days is accepted")
+		Do $$$AssertEquals(cutoff, "2026-09-30T13:05:09Z", label_"30 days back keeps the time of day")
+		Do $$$AssertStatusOK($ClassMethod(time, "DaysCutoff", 1, "Caller.Name", .cutoff, "2026-03-01T00:00:00Z"), label_"1 day")
+		Do $$$AssertEquals(cutoff, "2026-02-28T00:00:00Z", label_"1 day back from a month start")
+		Do $$$AssertStatusOK($ClassMethod(time, "DaysCutoff", 1, "Caller.Name", .cutoff, "2028-03-01T23:59:59Z"), label_"1 day in a leap year")
+		Do $$$AssertEquals(cutoff, "2028-02-29T23:59:59Z", label_"1 day back reaches 29 February")
+		Do $$$AssertStatusOK($ClassMethod(time, "DaysCutoff", 365, "Caller.Name", .cutoff, "2027-01-01T12:00:00Z"), label_"365 days")
+		Do $$$AssertEquals(cutoff, "2026-01-01T12:00:00Z", label_"365 days back crosses a year end")
+		Do $$$AssertStatusOK($ClassMethod(time, "DaysCutoff", "007", "Caller.Name", .cutoff, "2026-10-30T13:05:09Z"), label_"leading zeros before a count are fine")
+		Do $$$AssertEquals(cutoff, "2026-10-23T13:05:09Z", label_"7 days back")
+	}
+	Do $$$AssertStatusOK($ClassMethod(time, "DaysCutoff", 90, "Caller.Name", .cutoff), "the current time is the default")
+	Do $$$AssertStatusOK($ClassMethod(time, "DaysCutoff", 90, "Caller.Name", .cutoff, ""), "an empty now is the current time too")
+	Do $$$AssertEquals($ZDateH($Piece($ClassMethod(time, "NowUtc"), "T", 1), 3) - $ZDateH($Piece(cutoff, "T", 1), 3), 90, "exactly 90 days")
+	Do $$$AssertStatusOK($ClassMethod(time, "DaysCutoff", 100000, "Caller.Name", .cutoff, "2026-10-30T13:05:09Z"), "a count that reaches before the calendar is accepted")
+	Do $$$AssertEquals(cutoff, "", "with an empty cutoff")
+	Do $$$AssertStatusOK($ClassMethod(time, "DaysCutoff", 55000, "Caller.Name", .cutoff, "2026-10-30T13:05:09Z"), "a large count that stays in the calendar")
+	Do $$$AssertNotEquals(cutoff, "", "has a cutoff")
+	For bad = "", 0, -1, 1.5, "abc", "00", " 1", "1 ", "1e2", "+1" {
+		Set sc = $ClassMethod(time, "DaysCutoff", bad, "Caller.Name", .cutoff, "2026-10-30T13:05:09Z")
+		Do $$$AssertStatusNotOK(sc, "'"_bad_"' is refused")
+		Do $$$AssertEquals(cutoff, "", "'"_bad_"' leaves no cutoff")
+		Do $$$AssertEquals($SYSTEM.Status.GetErrorText(sc), "ERROR #5001: Caller.Name needs a whole number of days, at least 1, not '"_bad_"'", "'"_bad_"' names the caller and the count")
+	}
+	Set long = $Translate($Justify("", 50), " ", "x")
+	Do $$$AssertEquals($SYSTEM.Status.GetErrorText($ClassMethod(time, "DaysCutoff", long, "Caller.Name", .cutoff)), "ERROR #5001: Caller.Name needs a whole number of days, at least 1, not '"_$Extract(long, 1, 40)_"'", "a long count is cut to 40 characters")
+	For bad = "yesterday", "2026-10-30", "2026-10-30T13:05:09", "2026-13-30T13:05:09Z", "2026-10-30T25:05:09Z", "2026-02-30T13:05:09Z" {
+		Set sc = $ClassMethod(time, "DaysCutoff", 30, "Caller.Name", .cutoff, bad)
+		Do $$$AssertStatusNotOK(sc, "the time '"_bad_"' is refused")
+		Do $$$AssertEquals(cutoff, "", "'"_bad_"' leaves no cutoff")
+		Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ "Caller.Name needs a UTC time", "and the error names the caller")
+	}
+	Do $$$AssertEquals($SYSTEM.Status.GetErrorText(##class(OcuTalon.Digest.Data.Item).Purge("abc")), "ERROR #5001: OcuTalon.Digest.Data.Item.Purge needs a whole number of days, at least 1, not 'abc'", "Digest.Data.Item.Purge keeps its text for a bad count")
+}
+
+/// SecondsUntil is the whole seconds from now to a UTC time, rounded down, in three zones: a time 100 s ahead reads 98 to 100 (the clock moves
+/// between the reads), a time a minute ago reads -62 to -60, and a day ahead reads 86,398 to 86,400, each a whole number, the same in every zone.
+Method TestSecondsUntil()
+{
+	Set time = "OcuTalon.Bridge.Time"
+	For zone = "", "America/New_York", "Asia/Kolkata" {
+		Do $SYSTEM.Process.TimeZone(zone)
+		Set now = ##class(OcuTalon.Bridge.Time).NowUtc()
+		Set ahead = $ClassMethod(time, "SecondsUntil", $ClassMethod(time, "PlusSeconds", now, 100))
+		Do $$$AssertTrue((ahead >= 98) && (ahead <= 100), "a time 100 s ahead is "_ahead_" s ahead in the zone '"_zone_"'")
+		Do $$$AssertEquals(ahead, ahead \ 1, "in whole seconds")
+		Set behind = $ClassMethod(time, "SecondsUntil", $ClassMethod(time, "PlusSeconds", now, -60))
+		Do $$$AssertTrue((behind >= -62) && (behind <= -60), "a time a minute ago is "_behind_" s ahead in the zone '"_zone_"'")
+		Set day = $ClassMethod(time, "SecondsUntil", $ClassMethod(time, "PlusSeconds", now, 86400))
+		Do $$$AssertTrue((day >= 86398) && (day <= 86400), "a day ahead is "_day_" s ahead in the zone '"_zone_"'")
 	}
 }
 

@@ -23,3 +23,4 @@ FailGroup	^OcuTalonP.FailGroup	OcuTalon.Data.FailureGroup	A
 FixRun	^OcuTalonP.FixRun	OcuTalon.Data.FixRun	A
 LiveEvent	^OcuTalonP.LiveEvent	OcuTalon.Live.Event	B
 DigestItem	^OcuTalonP.DigestItem	OcuTalon.Digest.Data.Item	A
+EvalCaseResult	^OcuTalonP.EvalCaseResult	OcuTalon.Eval.Data.CaseResult	A

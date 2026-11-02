@@ -16,7 +16,9 @@
       "toolUse": {
         "name": "cancel_reminder",
         "input": {
-          "reminderRef": "zzReminderStretch00001"
+          "reminderRefs": [
+            "zzReminderStretch00001"
+          ]
         }
       }
     },

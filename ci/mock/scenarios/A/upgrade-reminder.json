@@ -1,0 +1,22 @@
+{
+  "name": "upgrade-reminder",
+  "match": {
+    "marker": "upgrade-reminder"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "set_reminder",
+        "input": {
+          "text": "check the upgrade",
+          "delaySeconds": 300
+        }
+      }
+    },
+    {
+      "status": 200,
+      "text": "The CI mock set the reminder for after the upgrade."
+    }
+  ]
+}

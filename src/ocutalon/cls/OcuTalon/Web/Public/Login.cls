@@ -5,7 +5,8 @@
 /// The page carries its stylesheet and one script inline, generated into OcuTalon.Web.Public.SignInAssets, and
 /// the Content-Security-Policy header pins both by hash. There is no style attribute, no external script and
 /// no font file: the fonts are the system's. The page keeps its own copy of the UX texts as parameters (AD-3);
-/// a non-ASCII character in them is an HTML entity.
+/// a non-ASCII character in them is an HTML entity. With the online-demo flag set, Show hands the page to its subclass
+/// OcuTalon.Web.Public.Splash, the online demo's splash screen.
 Class OcuTalon.Web.Public.Login Extends (%CSP.Login, OcuTalon.Web.Public.SignInAssets)
 {
 
@@ -84,14 +85,25 @@ ClassMethod OnPreHTTP() As %Boolean [ ServerOnly = 1 ]
 	Quit ok
 }
 
+/// 1 when the online-demo flag is set, so that the page is the splash screen. Splash returns 0.
+ClassMethod UseSplash() As %Boolean
+{
+	Quit ##class(OcuTalon.Data.Public.Settings).Get("onlineDemo") = "1"
+}
+
 /// Sends the page: the response headers, then the page. state is "" for the page that a request without a
-/// session gets, or "norole" for a signed-in user who lacks the OcuTalon user role. writeHeader is 1 where
+/// session gets, "norole" for a signed-in user who lacks the OcuTalon user role, or on the online demo "addressLimit" for a
+/// sign-in that the address limit refused, or "busy" for a sign-in that the busy check refused (the splash shows its busy text; the
+/// local page ignores it), with until the UTC time ("...Z") at which the address can start another session
+/// (the local page ignores it). writeHeader is 1 where
 /// nothing has been sent yet (the Login method of a dispatch class), and 0 inside a REST dispatch, where the
 /// first write sends the header and writing it again would put a second header in the page. Returns the
 /// status of writing the header or the page.
-ClassMethod Show(state As %String = "", writeHeader As %Boolean = 1) As %Status
+ClassMethod Show(state As %String = "", writeHeader As %Boolean = 1, until As %String = "") As %Status
 {
+	If ..UseSplash() Quit ##class(OcuTalon.Web.Public.Splash).Show(state, writeHeader, until)
 	Set %OcuTalonState = state
+	Set %OcuTalonUntil = until
 	If '..OnPreHTTP() Quit $SYSTEM.Status.OK()
 	If writeHeader {
 		Set sc = %response.WriteHTTPHeader()
@@ -100,30 +112,34 @@ ClassMethod Show(state As %String = "", writeHeader As %Boolean = 1) As %Status
 	Quit ..OnPage()
 }
 
-/// The error text for a state and the server's error code: none for the first visit (code 864) and for no
-/// code, the no-role text for "norole", and the wrong-credentials text for any other code.
-ClassMethod Message(state As %String, code As %String) As %String
+/// The message for a state, the server's error code and whether the request carried signedOut=1. The no-role text
+/// for "norole" and the wrong-credentials text for any code but 864 come first. For the first visit (code 864) and
+/// for no code the message is the signed-out text, the API's own (ApiBase MESSAGESIGNEDOUT), when signedOut is 1, and
+/// none otherwise.
+ClassMethod Message(state As %String, code As %String, signedOut As %Boolean = 0) As %String
 {
 	If state = "norole" Quit ..#ERRORNOROLE
-	If code = "" Quit ""
+	Set notice = $Select(signedOut: ##class(OcuTalon.Web.Public.ApiBase).#MESSAGESIGNEDOUT, 1: "")
+	If code = "" Quit notice
 	Set codes = ""
 	Try {
 		Set codes = $SYSTEM.Status.GetErrorCodes(code)
 	} Catch {
 		Set codes = ""
 	}
-	If (","_codes_",") [ ",864," Quit ""
+	If (","_codes_",") [ ",864," Quit notice
 	Quit ..#ERRORCREDENTIALS
 }
 
-/// Writes the page. A wrong password marks both fields and keeps the user name; the no-role state marks
-/// nothing. Both put the message under the button and focus it. Otherwise the user name has the focus.
+/// Writes the page. A wrong password marks both fields and keeps the user name; the no-role state and the signed-out
+/// notice (the query signedOut=1) mark nothing. Each puts the message under the button and focuses it. Otherwise the
+/// user name has the focus.
 ClassMethod OnLoginPage() As %Status
 {
 	Set state = $Get(%OcuTalonState)
 	Kill %OcuTalonState
-	Set message = ..Message(state, $Get(%request.Data("Error:ErrorCode", 1)))
-	Set marked = (state '= "norole") && (message '= "")
+	Set message = ..Message(state, $Get(%request.Data("Error:ErrorCode", 1)), $Get(%request.Data("signedOut", 1)) = 1)
+	Set marked = (message = ..#ERRORCREDENTIALS)
 	Set base = %request.Application
 	If $Extract(base, $Length(base)) '= "/" Set base = base_"/"
 	Set base = $ZConvert(base, "O", "HTML")

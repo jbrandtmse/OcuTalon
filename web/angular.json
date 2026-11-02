@@ -31,7 +31,8 @@
             ],
             "styles": [
               "src/styles/tokens.css",
-              "src/styles/base.css"
+              "src/styles/base.css",
+              "src/styles/controls.css"
             ],
             "extractLicenses": true,
             "optimization": {

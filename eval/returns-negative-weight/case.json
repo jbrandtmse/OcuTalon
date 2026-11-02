@@ -1,0 +1,13 @@
+{
+  "name": "returns-negative-weight",
+  "kind": "incident",
+  "heldOut": true,
+  "description": "Three returned shipments from the test feed with a negative weight (-2.5); the ledger operation accepts a weight of 0 or more.",
+  "snapshot": "snapshot.json",
+  "expectation": {
+    "causeCategory": "validation_error",
+    "elementAtFault": "Weight",
+    "fixKind": ""
+  },
+  "recordedBy": "OcuTalon.Eval.Record (Story 9.4)"
+}

@@ -1,8 +1,8 @@
 /// Tests of the message catalog and its one renderer (Story 0.9; AD-29, AD-32). The XData blocks hold the expectations, typed
 /// apart from the catalog's templates:
-///   - Keys: the 63 keys of OcuTalon.Msg.Catalog.Core and the 22 of OcuTalon.Msg.Catalog.Watch;
+///   - Keys: the 95 keys of OcuTalon.Msg.Catalog.Core and the 24 of OcuTalon.Msg.Catalog.Watch;
 ///   - Gaps: the keys whose entry carries a gap field, the forms the UX does not fix (none now);
-///   - OneForms: for each of the 8 entries with a count-of-one form, its slots with the form's slot at 1, the exact text of the
+///   - OneForms: for each of the 9 entries with a count-of-one form, its slots with the form's slot at 1, the exact text of the
 ///     form on the message channels (and on the page where it differs), and the plural fragment that the other counts keep;
 ///   - Reasons: the plain-words text of each of the 12 Msg.Enum FALLBACKREASON values;
 ///   - Fixtures: for every key, its slots (the UJ-1 values) and the exact text it renders on the message channels, and its
@@ -77,10 +77,10 @@ Method TestEntries()
 	Set keys = ..Read("Keys")
 	Set core = ..Read("Entries", "OcuTalon.Msg.Catalog.Core")
 	Set watch = ..Read("Entries", "OcuTalon.Msg.Catalog.Watch")
-	Do $$$AssertEquals(keys.core.%Size(), 63, "the expected Core list has 63 keys")
-	Do $$$AssertEquals(keys.watch.%Size(), 22, "the expected Watch list has 22 keys")
-	Do $$$AssertEquals(..SortedKeys(core), ..SortedList(keys.core), "Core holds exactly its 63 keys")
-	Do $$$AssertEquals(..SortedKeys(watch), ..SortedList(keys.watch), "Watch holds exactly its 22 keys")
+	Do $$$AssertEquals(keys.core.%Size(), 95, "the expected Core list has 95 keys")
+	Do $$$AssertEquals(keys.watch.%Size(), 24, "the expected Watch list has 24 keys")
+	Do $$$AssertEquals(..SortedKeys(core), ..SortedList(keys.core), "Core holds exactly its 95 keys")
+	Do $$$AssertEquals(..SortedKeys(watch), ..SortedList(keys.watch), "Watch holds exactly its 24 keys")
 	Set corePrefixes = ..Prefixes(..SortedKeys(core))
 	Set watchPrefixes = ..Prefixes(..SortedKeys(watch))
 	Set shared = ""
@@ -118,7 +118,7 @@ Method TestEveryKeyOnEveryChannel()
 {
 	Set fixtures = ..Read("Fixtures")
 	Set catalogKeys = ..SortedKeys(..Read("Entries", "OcuTalon.Msg.Catalog.Core"))_","_..SortedKeys(..Read("Entries", "OcuTalon.Msg.Catalog.Watch"))
-	Do $$$AssertEquals(..SortedList($ListFromString(catalogKeys)), ..SortedKeys(fixtures), "the fixtures cover exactly the 85 keys of the catalog")
+	Do $$$AssertEquals(..SortedList($ListFromString(catalogKeys)), ..SortedKeys(fixtures), "the fixtures cover exactly the 119 keys of the catalog")
 	Set refused = ..RefusedChannels()
 	Do $$$AssertEquals(refused, "email,webhook,slack,system", "four Msg.Enum channels are refused")
 	Set iterator = fixtures.%GetIterator()
@@ -286,6 +286,8 @@ Method TestCost()
 	Set cases = $ListBuild($ListBuild("5", "$5.00"), $ListBuild("1.24", "$1.24"), $ListBuild("0.042", "$0.042"), $ListBuild("0.0006", "$0.0006"), $ListBuild("0.00004", "<$0.0001"))
 	Set cases = cases_$ListBuild($ListBuild("0", "<$0.0001"), $ListBuild("0.0001", "$0.0001"), $ListBuild("0.01", "$0.010"), $ListBuild("1", "$1.00"), $ListBuild("12.5", "$12.50"))
 	Set cases = cases_$ListBuild($ListBuild("0.99996", "$1.00"), $ListBuild("0.99949", "$0.999"), $ListBuild("0.009996", "$0.010"), $ListBuild("0.009949", "$0.0099"))
+	// The ties round up on the decimal amount; the page's formatter (web/scripts/decision-view.test.mjs) holds the same six.
+	Set cases = cases_$ListBuild($ListBuild("0.00015", "$0.0002"), $ListBuild("0.00035", "$0.0004"), $ListBuild("0.00045", "$0.0005"), $ListBuild("0.1235", "$0.124"), $ListBuild("1.005", "$1.01"), $ListBuild("0.009995", "$0.010"))
 	For i = 1:1:$ListLength(cases) {
 		Set case = $ListGet(cases, i)
 		Set slots = ##class(%DynamicAbstractObject).%FromJSON("{""cap"": "_$List(case, 1)_", ""time"": ""2026-10-16T18:15:00Z""}")
@@ -528,10 +530,10 @@ Method TestNounForms()
 			Do $$$AssertTrue((text [ picked) && (text '[ other), key_" with the count "_count_" shows only the form '"_picked_"'")
 		}
 	}
-	Do $$$AssertEquals(keys, 12, "the keys with a noun are swept")
+	Do $$$AssertEquals(keys, 13, "the keys with a noun are swept")
 }
 
-/// Rows 1 to 8: the count-of-one forms. Exactly the 8 entries of the OneForms block carry a one form. With the form's slot at 1 each
+/// Rows 1 to 9: the count-of-one forms. Exactly the 9 entries of the OneForms block carry a one form. With the form's slot at 1 each
 /// renders the owner's exact text on the four channels (the page wording for the two incident notices). With the slot at 0 or 2
 /// it renders the entry's own text, which holds the plural fragment. The resend count of the dry runs is refused when it is
 /// missing, null, negative, fractional or text, and the slot of every form is refused as the text 1 and as true, the values
@@ -549,7 +551,7 @@ Method TestCountOfOneForms()
 		}
 	}
 	Do $$$AssertEquals(..Names(.carriers), ..SortedKeys(forms), "exactly the entries of the OneForms block carry a one form")
-	Do $$$AssertEquals($Length(..SortedKeys(forms), ","), 8, "8 entries carry a one form")
+	Do $$$AssertEquals($Length(..SortedKeys(forms), ","), 9, "9 entries carry a one form")
 	Set iterator = forms.%GetIterator()
 	While iterator.%GetNext(.key, .form) {
 		For channel = "phone", "mailbox", "telegram", "web" {
@@ -987,6 +989,7 @@ XData Keys [ MimeType = application/json ]
   "fallbackReason.noKey",
   "fallbackReason.generic",
   "notice.tellNow",
+  "notice.tellNowFallback",
   "reminder.due",
   "reminder.late",
   "banner.allowance",
@@ -998,6 +1001,7 @@ XData Keys [ MimeType = application/json ]
   "banner.telegramPaused",
   "banner.resetSoon",
   "banner.reconnecting",
+  "banner.demoBusy",
   "bannerAction.installYourself",
   "bannerAction.howToSetKey",
   "bannerAction.budgets",
@@ -1013,6 +1017,36 @@ XData Keys [ MimeType = application/json ]
   "signIn.userLabel",
   "signIn.passwordLabel",
   "signIn.showPassword",
+  "splash.title",
+  "splash.heading",
+  "splash.subheading",
+  "splash.description",
+  "splash.signInHeading",
+  "splash.sessionNote",
+  "splash.warning",
+  "splash.submit",
+  "splash.copyUserName",
+  "splash.copyPassword",
+  "splash.copied",
+  "splash.copyFailed",
+  "splash.beforeHeading",
+  "splash.resetLine",
+  "splash.placeFreed",
+  "splash.resetNotice",
+  "splash.restartNotice",
+  "splash.resetSoon",
+  "splash.ownLine",
+  "splash.telegramLine",
+  "splash.limitLine",
+  "splash.limitLineChat",
+  "splash.tooManySessions",
+  "splash.shellLine",
+  "splash.visualTrace",
+  "splash.copyTraceUserName",
+  "splash.copyTracePassword",
+  "splash.footerNote",
+  "splash.install",
+  "splash.newTab",
   "audit.recorded"
  ],
  "watch": [
@@ -1037,7 +1071,9 @@ XData Keys [ MimeType = application/json ]
   "result.failedAndSkipped",
   "result.stillResending",
   "result.interrupted",
-  "result.couldNotStart"
+  "result.stoppedPartway",
+  "result.couldNotStart",
+  "watch.time"
  ]
 }
 }
@@ -1048,7 +1084,7 @@ XData Gaps [ MimeType = application/json ]
 []
 }
 
-/// The 8 entries with a count-of-one form. slot is the form's count slot, slots are the entry's slots with that slot at 1, text
+/// The 9 entries with a count-of-one form. slot is the form's count slot, slots are the entry's slots with that slot at 1, text
 /// is the exact text on the message channels and web the page wording where it differs, plural is the fragment that the
 /// entry's own text keeps for any other count ({n} stands for the slot's value) and singular a fragment of the form's text that the
 /// entry's own text never holds.
@@ -1105,6 +1141,13 @@ XData OneForms [ MimeType = application/json ]
   "text": "Still resending: 1 of 50 orders has gone through so far. I'll tell you when it's done.",
   "plural": "orders have gone through",
   "singular": "has gone through"
+ },
+ "result.stoppedPartway": {
+  "slot": "notTried",
+  "slots": {"count": 5, "itemNoun": {"one": "order", "other": "orders"}, "resent": 3, "completed": 3, "notTried": 1},
+  "text": "The resend stopped partway: I resent 3 of the 5 orders (3 went through), the next one couldn't be resent, and 1 more wasn't tried. Nothing else was changed, and I won't resend the rest without a new approval.",
+  "plural": "and {n} more weren't tried.",
+  "singular": "and 1 more wasn't tried."
  },
  "result.interrupted": {
   "slot": "remaining",
@@ -1188,6 +1231,7 @@ XData Fixtures [ MimeType = application/json ]
  "fallbackReason.noKey": {"slots": {}, "text": "no model key is set"},
  "fallbackReason.generic": {"slots": {}, "text": "the model's reply couldn't be used"},
  "notice.tellNow": {"slots": {"whatHappened": "Mail from Dana Smith: Invoice 4412 is overdue", "reason": "It mentions a deadline today."}, "text": "Mail from Dana Smith: Invoice 4412 is overdue\nWhy now: It mentions a deadline today."},
+ "notice.tellNowFallback": {"slots": {"whatHappened": "Mail from Dana Smith: Invoice 4412 is overdue", "reason": "refusal"}, "text": "Mail from Dana Smith: Invoice 4412 is overdue\nWhy now: the model declined to answer"},
  "reminder.due": {"slots": {"text": "Call the vendor."}, "text": "Reminder: Call the vendor."},
  "reminder.late": {"slots": {"time": "2026-10-15T14:00:00Z", "text": "Call the vendor."}, "text": "Reminder (late; it was due on Thursday at 10:00 ET): Call the vendor."},
  "banner.allowance": {"slots": {"limit": 50, "time": "2026-10-16T19:02:00Z"}, "text": "You've used this session's 50 messages for the hour (messages you send in the chat or Telegram). You can send more at 15:02 ET."},
@@ -1199,6 +1243,7 @@ XData Fixtures [ MimeType = application/json ]
  "banner.telegramPaused": {"slots": {"time": "2026-10-16T18:30:00Z"}, "text": "Telegram is paused: this bot is in use by another OcuTalon. OcuTalon will try again at 14:30 ET. Each OcuTalon needs its own bot."},
  "banner.resetSoon": {"slots": {}, "text": "The demo resets in 5 minutes. Your session and Telegram pairing will be cleared."},
  "banner.reconnecting": {"slots": {}, "text": "Reconnecting\u2026 New messages may be delayed."},
+ "banner.demoBusy": {"slots": {}, "text": "The demo is busy right now. Try again in a few minutes, or install it yourself."},
  "bannerAction.installYourself": {"slots": {}, "text": "Install it yourself"},
  "bannerAction.howToSetKey": {"slots": {}, "text": "How to set a key"},
  "bannerAction.budgets": {"slots": {}, "text": "Budgets"},
@@ -1214,6 +1259,36 @@ XData Fixtures [ MimeType = application/json ]
  "signIn.userLabel": {"slots": {}, "text": "User name"},
  "signIn.passwordLabel": {"slots": {}, "text": "Password"},
  "signIn.showPassword": {"slots": {}, "text": "Show password"},
+ "splash.title": {"slots": {}, "text": "Try OcuTalon"},
+ "splash.heading": {"slots": {}, "text": "Try OcuTalon in two minutes"},
+ "splash.subheading": {"slots": {}, "text": "Break the feed, and approve the fix from your phone."},
+ "splash.description": {"slots": {}, "text": "OcuTalon is an assistant that lives inside InterSystems IRIS Interoperability. When a feed breaks, it reads the failed messages and the trace, names the cause in plain English, and proposes a fix that waits for your approval. For everything that arrives, an AI Hub agent makes one attention decision (ignore it, save it for your daily digest, tell you now, or act), and every decision, with its reasons and cost, is a production message you can open in Visual Trace. No API key needed."},
+ "splash.signInHeading": {"slots": {}, "text": "Sign in to the demo"},
+ "splash.sessionNote": {"slots": {}, "text": "Your session is yours alone and lasts until the next reset. Signing in again from this browser picks it up."},
+ "splash.warning": {"slots": {}, "text": "Other visitors can see messages in Visual Trace, so don't type personal information."},
+ "splash.submit": {"slots": {}, "text": "Sign in and start"},
+ "splash.copyUserName": {"slots": {}, "text": "Copy user name"},
+ "splash.copyPassword": {"slots": {}, "text": "Copy password"},
+ "splash.copied": {"slots": {}, "text": "Copied"},
+ "splash.copyFailed": {"slots": {}, "text": "Couldn't copy. Select the text and copy it yourself."},
+ "splash.beforeHeading": {"slots": {}, "text": "Before you start"},
+ "splash.resetLine": {"slots": {"interval": "4 hours", "time": "16:00", "countdown": "in 1 h 42 min"}, "text": "The demo resets every 4 hours. Next reset: 16:00 (in 1 h 42 min)."},
+ "splash.placeFreed": {"slots": {}, "text": "You were away for a while, so your place was freed for other visitors. Sign in again to pick up where you left off."},
+ "splash.resetNotice": {"slots": {"time": "08:00"}, "text": "The demo was reset at 08:00, which cleared your session. Sign in again for a fresh one."},
+ "splash.restartNotice": {"slots": {}, "text": "The demo was restarted, which cleared your session. Sign in again for a fresh one."},
+ "splash.resetSoon": {"slots": {"countdown": "4 min", "time": "16:00"}, "text": "The demo resets in 4 min, which may cut your run short. You can start now or come back after 16:00."},
+ "splash.ownLine": {"slots": {}, "text": "Your chat, phone, mailbox and orders are yours alone."},
+ "splash.telegramLine": {"slots": {}, "text": "Have Telegram? You can scan a QR code inside to get the notices on your own phone."},
+ "splash.limitLine": {"slots": {"limit": 50}, "text": "Each session can send 50 messages an hour in the chat or Telegram."},
+ "splash.limitLineChat": {"slots": {"limit": 50}, "text": "Each session can send 50 messages an hour in the chat."},
+ "splash.tooManySessions": {"slots": {"time": "15:20"}, "text": "Too many new sessions from your network this hour. You can start another at 15:20."},
+ "splash.shellLine": {"slots": {}, "text": "OcuTalon can't run shell commands, and every action it takes is recorded in the IRIS audit log."},
+ "splash.visualTrace": {"slots": {}, "text": "Read-only Visual Trace account, for opening Visual Trace in the portal yourself (trace links on the page are already signed in). See each decision with its cost, and every step."},
+ "splash.copyTraceUserName": {"slots": {}, "text": "Copy Visual Trace user name"},
+ "splash.copyTracePassword": {"slots": {}, "text": "Copy Visual Trace password"},
+ "splash.footerNote": {"slots": {}, "text": "OcuTalon is inspired by OpenClaw and is not affiliated with or endorsed by the OpenClaw Foundation."},
+ "splash.install": {"slots": {}, "text": "Install it yourself (README)"},
+ "splash.newTab": {"slots": {}, "text": "(opens in a new tab)"},
  "audit.recorded": {"slots": {}, "text": "Recorded in the IRIS audit log."},
  "watch.productionStopped": {"slots": {"production": "Orders", "time": "2026-10-16T18:12:00Z"}, "text": "The Orders production stopped at 14:12 ET.\nWhy now: you asked me to watch the Orders production."},
  "watch.itemDisabled": {"slots": {"itemName": "order importer", "production": "Orders", "time": "2026-10-16T18:12:00Z"}, "text": "The order importer in the Orders production was disabled at 14:12 ET.\nWhy now: you asked me to watch the Orders production."},
@@ -1236,7 +1311,9 @@ XData Fixtures [ MimeType = application/json ]
  "result.failedAndSkipped": {"slots": {"count": 50, "itemNoun": {"one": "order", "other": "orders"}, "completed": 45, "failedAgain": 2, "failReason": "the order date still wasn't accepted", "skipped": 3}, "text": "45 of 50 orders went through. 2 failed again (the order date still wasn't accepted), and 3 had changed since the dry run, so I skipped them. I won't retry any of them without a new approval."},
  "result.stillResending": {"slots": {"count": 50, "itemNoun": {"one": "order", "other": "orders"}, "completed": 30}, "text": "Still resending: 30 of 50 orders have gone through so far. I'll tell you when it's done."},
  "result.interrupted": {"slots": {"count": 50, "itemNoun": {"one": "order", "other": "orders"}, "completed": 30, "remaining": 20}, "text": "The resend stopped when OcuTalon restarted: 30 of 50 orders went through. The other 20 need a new approval."},
- "result.couldNotStart": {"slots": {"reason": "OcuTalon isn't allowed to resend messages in that production"}, "text": "Nothing was resent: OcuTalon isn't allowed to resend messages in that production. Nothing was changed."}
+ "result.stoppedPartway": {"slots": {"count": 50, "itemNoun": {"one": "order", "other": "orders"}, "resent": 47, "completed": 45, "notTried": 2}, "text": "The resend stopped partway: I resent 47 of the 50 orders (45 went through), the next one couldn't be resent, and 2 more weren't tried. Nothing else was changed, and I won't resend the rest without a new approval."},
+ "result.couldNotStart": {"slots": {"reason": "OcuTalon isn't allowed to resend messages in that production"}, "text": "Nothing was resent: OcuTalon isn't allowed to resend messages in that production. Nothing was changed."},
+ "watch.time": {"slots": {"time": "2026-10-16T18:12:00Z"}, "text": "14:12 ET"}
 }
 }
 

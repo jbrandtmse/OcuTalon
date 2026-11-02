@@ -121,6 +121,85 @@ Method TestNextReset()
 	Do $$$AssertEquals($ClassMethod(accessor, "NextReset", "not a time"), "", "an unreadable now gives no reset")
 }
 
+/// Row 1 (DW-235): the one UTC helper. ToSeconds accepts exactly YYYY-MM-DDThh:mm:ssZ with a real date and time and gives "" for
+/// anything else without throwing; FromSeconds round-trips it; Shift moves a time and gives "" for an unreadable one. The two old
+/// callers, AddressCounter.Shift and SessionEvents.CookieExpiry, hold no $ZDateTimeH of their own.
+Method TestUtcHelper()
+{
+	Set accessor = ..#ACCESSOR
+	For time = "2026-10-18T00:00:00Z", "2026-12-31T23:59:59Z", "2028-02-29T12:30:45Z" {
+		Set seconds = $ClassMethod(accessor, "ToSeconds", time)
+		Do $$$AssertTrue(seconds ? 1.N, "ToSeconds reads "_time)
+		Do $$$AssertEquals($ClassMethod(accessor, "FromSeconds", seconds), time, "the round trip of "_time)
+	}
+	Do $$$AssertEquals($ClassMethod(accessor, "ToSeconds", "2026-10-18T00:00:01Z") - $ClassMethod(accessor, "ToSeconds", "2026-10-18T00:00:00Z"), 1, "one second apart")
+	For bad = "", "2026-10-18T00:00:00", "2026-10-18T00:00:00.5Z", "2026-02-30T00:00:00Z", "2026-10-18T25:00:00Z", "2026-10-18 00:00:00Z", "x", "2026-10-18T00:00:00Zx" {
+		Set error = "", result = "x"
+		Try {
+			Set result = $ClassMethod(accessor, "ToSeconds", bad)
+		} Catch exception {
+			Set error = exception.DisplayString()
+		}
+		Do $$$AssertEquals(error, "", "ToSeconds does not throw for '"_bad_"'")
+		Do $$$AssertEquals(result, "", "ToSeconds gives nothing for '"_bad_"'")
+		Do $$$AssertEquals($ClassMethod(accessor, "Shift", bad, 60), "", "Shift gives nothing for '"_bad_"'")
+	}
+	Do $$$AssertEquals($ClassMethod(accessor, "Shift", "2026-10-18T00:00:00Z", 86400), "2026-10-19T00:00:00Z", "Shift by a day")
+	Do $$$AssertEquals($ClassMethod(accessor, "Shift", "2026-12-31T23:59:59Z", 1), "2027-01-01T00:00:00Z", "Shift across a year")
+	Do $$$AssertEquals($ClassMethod(accessor, "Shift", "2026-10-18T00:00:00Z", -1), "2026-10-17T23:59:59Z", "Shift back")
+	Do $$$AssertEquals($ClassMethod(accessor, "Shift", "2026-10-18T00:00:00Z", 0), "2026-10-18T00:00:00Z", "Shift by nothing")
+	Do $$$AssertEquals(##class(OcuTalon.Data.AddressCounter).Shift("2026-10-18T00:00:00Z", -3600), "2026-10-17T23:00:00Z", "AddressCounter.Shift delegates")
+	Do $$$AssertEquals(##class(OcuTalon.Data.AddressCounter).Shift("nonsense", 5), "", "AddressCounter.Shift of an unreadable time")
+	Do $$$AssertEquals(##class(OcuTalon.Web.SessionEvents).CookieExpiry("2026-10-25T20:00:00Z"), "Sun, 25 Oct 2026 20:00:00 GMT", "CookieExpiry keeps its date form")
+	Do $$$AssertEquals(##class(OcuTalon.Web.SessionEvents).CookieExpiry("2026-10-25T20:00:00"), "", "CookieExpiry of a time without the Z")
+	For method = "OcuTalon.Data.AddressCounter||Shift", "OcuTalon.Web.SessionEvents||CookieExpiry" {
+		Set definition = ##class(%Dictionary.MethodDefinition).%OpenId(method)
+		Do $$$AssertTrue($IsObject(definition), method_" is defined")
+		Set code = $ZConvert(definition.Implementation.Read(32000), "U")
+		Do $$$AssertTrue(code '[ "$ZDATETIMEH", method_" has no $ZDateTimeH of its own")
+		Do $$$AssertTrue(code '[ "$ZDTH", method_" has no $ZDTH of its own")
+		Do $$$AssertTrue(code [ "SETTINGS", method_" reads Public.Settings")
+	}
+}
+
+/// Row 2: the schedule reads only the anchor and the interval, so the last reset and its kind never move it; SecondsToReset and
+/// ResetSoon count to the next slot, and 300 s ahead is still soon.
+Method TestSecondsToResetAndResetSoon()
+{
+	Set accessor = ..#ACCESSOR
+	Do $ClassMethod(accessor, "Set", "resetAnchor", "2026-10-18T00:00:00Z")
+	Do $ClassMethod(accessor, "Set", "resetIntervalHours", 4)
+	Do $ClassMethod(accessor, "Set", "lastReset", "2026-10-18T05:13:00Z")
+	Do $ClassMethod(accessor, "Set", "lastResetKind", "unscheduled")
+	Do $$$AssertEquals($ClassMethod(accessor, "NextReset", "2026-10-18T05:30:00Z"), "2026-10-18T08:00:00Z", "an unscheduled reset leaves the schedule")
+	Do $ClassMethod(accessor, "Set", "lastReset", "")
+	Do $ClassMethod(accessor, "Set", "lastResetKind", "")
+	Do $$$AssertEquals($ClassMethod(accessor, "NextReset", "2026-10-18T05:30:00Z"), "2026-10-18T08:00:00Z", "with no last reset, the same")
+	Do $$$AssertEquals($Parameter(accessor, "RESETSOONSECONDS"), 300, "reset soon is 300 s")
+
+	Do $$$AssertEquals($ClassMethod(accessor, "SecondsToReset", "2026-10-18T07:55:00Z"), 300, "300 s left")
+	Do $$$AssertEquals($ClassMethod(accessor, "ResetSoon", "2026-10-18T07:55:00Z"), 1, "300 s left is soon")
+	Do $$$AssertEquals($ClassMethod(accessor, "SecondsToReset", "2026-10-18T07:54:59Z"), 301, "301 s left")
+	Do $$$AssertEquals($ClassMethod(accessor, "ResetSoon", "2026-10-18T07:54:59Z"), 0, "301 s left is not soon")
+	Do $$$AssertEquals($ClassMethod(accessor, "SecondsToReset", "2026-10-18T07:59:59Z"), 1, "one second left")
+	Do $$$AssertEquals($ClassMethod(accessor, "ResetSoon", "2026-10-18T07:59:59Z"), 1, "one second left is soon")
+	Do $$$AssertEquals($ClassMethod(accessor, "SecondsToReset", "2026-10-18T08:00:00Z"), 14400, "at the reset: the next slot")
+	Do $$$AssertEquals($ClassMethod(accessor, "ResetSoon", "2026-10-18T08:00:00Z"), 0, "at the reset, the next one is far")
+	Do $$$AssertEquals($ClassMethod(accessor, "SecondsToReset", "not a time"), "", "an unreadable now")
+	Do $$$AssertEquals($ClassMethod(accessor, "ResetSoon", "not a time"), 0, "an unreadable now is not soon")
+
+	Set now = $ZDateTime($ZTimeStamp, 3, 1)
+	Set now = $Translate(now, " ", "T")_"Z"
+	Do $ClassMethod(accessor, "Set", "resetAnchor", $ClassMethod(accessor, "Shift", now, 120))
+	Do $$$AssertEquals($ClassMethod(accessor, "ResetSoon"), 1, "without now: a reset 120 s away is soon")
+	Do $ClassMethod(accessor, "Set", "resetAnchor", $ClassMethod(accessor, "Shift", now, 3600))
+	Do $$$AssertEquals($ClassMethod(accessor, "ResetSoon"), 0, "without now: a reset an hour away is not")
+
+	Do $ClassMethod(accessor, "Set", "resetAnchor", "")
+	Do $$$AssertEquals($ClassMethod(accessor, "SecondsToReset", "2026-10-18T07:55:00Z"), "", "no anchor: no seconds")
+	Do $$$AssertEquals($ClassMethod(accessor, "ResetSoon", "2026-10-18T07:55:00Z"), 0, "no anchor: not soon")
+}
+
 /// The Public step writes the online-demo flag from the environment, and Ready() stores readiness.
 Method TestPublicStep()
 {

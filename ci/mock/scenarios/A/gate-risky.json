@@ -1,0 +1,19 @@
+{
+  "name": "gate-risky",
+  "match": {
+    "marker": "gate-risky"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "zz_gate_risky",
+        "input": {}
+      }
+    },
+    {
+      "status": 200,
+      "text": "The CI mock tried the risky gate test tool."
+    }
+  ]
+}

@@ -1,6 +1,10 @@
 Include Ensemble
 
-/// The one way a tool submits a command (AD-1, AD-4, AD-6, AD-18), and the shaping of the owner's answer for the model.
+/// The one way a tool submits a command (AD-1, AD-4, AD-6, AD-18), and the shaping of the owner's answer for the model. The reminder tools
+/// and the watch tools share it.
+///   - Session says whether the call is a session's turn: "" when it is, otherwise the NOSESSION answer. Run starts with it, and a tool that
+///     reads something before it submits (the watch tools look up a production first) asks it first, so that a call with no session does
+///     nothing at all.
 ///   - Run fills the common fields of the command from the bridge context of the call: SessionRef is the context's OwnerRef, and
 ///     IdempotencyKey is the context's ItemId, a colon and the command's position in the call (the context's CommandCount plus 1, written
 ///     back, so that a call that runs again numbers its commands from 1 again). It sends the command through
@@ -16,10 +20,10 @@ Class OcuTalon.Tools.CommandCall
 {
 
 /// The answer when the call is not a session's turn.
-Parameter NOSESSION = "Reminders belong to the conversation of a signed-in session, and this call has none, so nothing was done.";
+Parameter NOSESSION = "This call is not part of the conversation of a signed-in session, so nothing was done.";
 
 /// The answer when the command could not be submitted or its answer is not a CommandResult.
-Parameter NOTSENT = "The reminder service did not answer, so nothing was done.";
+Parameter NOTSENT = "The service for this request did not answer, so nothing was done.";
 
 /// The answer when the list that the owner gave cannot be read.
 Parameter NOTREAD = "The reminder list could not be read, so it is not known which reminders are pending.";
@@ -32,9 +36,8 @@ Parameter NOTREAD = "The reminder list could not be read, so it is not known whi
 ClassMethod Run(command As OcuTalon.Msg.Command, Output result As OcuTalon.Msg.CommandResult) As %DynamicObject
 {
 	Set result = ""
-	If '##class(OcuTalon.Bridge.Context).Active() Quit ..Refusal(..#NOSESSION)
-	Set context = ##class(OcuTalon.Bridge.Context).Current()
-	If '$IsObject(context) || '..IsSessionRef(context.OwnerRef) || (context.ItemId = "") Quit ..Refusal(..#NOSESSION)
+	Set refusal = ..Session(.context)
+	If $IsObject(refusal) Quit refusal
 	Set position = +context.CommandCount + 1
 	Do ##class(OcuTalon.Bridge.Context).Put("CommandCount", position)
 	Set command.SessionRef = context.OwnerRef
@@ -51,15 +54,37 @@ ClassMethod Run(command As OcuTalon.Msg.Command, Output result As OcuTalon.Msg.C
 		Set sc = $SYSTEM.Status.Error(5001, "The answer is not an OcuTalon.Msg.CommandResult")
 	}
 	If $$$ISERR(sc) {
-		$$$LOGWARNING("A reminder tool could not submit "_$ClassName(command)_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
+		$$$LOGWARNING("A tool could not submit "_$ClassName(command)_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
 		Quit ..Refusal(..#NOTSENT)
 	}
 	Set result = answered
 	Quit ""
 }
 
+/// "" when the call is a session's turn (a context is active, its owner is a session's Ref and it has an ItemId), with the context in context.
+/// Otherwise the NOSESSION answer, and nothing may be submitted.
+ClassMethod Session(Output context As OcuTalon.Bridge.Context) As %DynamicObject
+{
+	Set context = ""
+	If '##class(OcuTalon.Bridge.Context).Active() Quit ..Refusal(..#NOSESSION)
+	Set context = ##class(OcuTalon.Bridge.Context).Current()
+	If '$IsObject(context) || '..IsSessionRef(context.OwnerRef) || (context.ItemId = "") Quit ..Refusal(..#NOSESSION)
+	Quit ""
+}
+
+/// The time of a UTC stamp as the catalog shows it in a message: Data.Time.ForMessage of it, and " ET" after it on the online demo (online 1), rendered through the
+/// catalog's own time slot (key watch.time) so that the rule is the catalog's. "" for an empty time and for one that does not render. Answer's due, Listed's due
+/// and Tools.RecentActivity's times use it, so that the times of those answers carry the clock they are in (DW-519, DW-484).
+ClassMethod TimeLabel(utc As %String, online As %Boolean) As %String
+{
+	If $Get(utc) = "" Quit ""
+	Set text = ##class(OcuTalon.Msg.Catalog).RenderAt("watch.time", {"time": (utc)}.%ToJSON(), "web", "", +$Get(online), .sc)
+	If $$$ISERR(sc) Quit ""
+	Quit text
+}
+
 /// The CommandResult as an object for the model: ok (a JSON boolean) and the owner's message unchanged, then, only when they are not empty,
-/// ref, due (OcuTalon.Data.Time.ForMessage of the due time) and dueLocal (ToLocal of it).
+/// ref, due (TimeLabel of the due time: ForMessage, with " ET" on the online demo) and dueLocal (ToLocal of it).
 ClassMethod Answer(result As OcuTalon.Msg.CommandResult) As %DynamicObject
 {
 	Set answer = {}
@@ -67,7 +92,7 @@ ClassMethod Answer(result As OcuTalon.Msg.CommandResult) As %DynamicObject
 	Set answer.message = result.Message
 	If result.Ref '= "" Set answer.ref = result.Ref
 	If result.DueAt '= "" {
-		Set due = ##class(OcuTalon.Data.Time).ForMessage(result.DueAt)
+		Set due = ..TimeLabel(result.DueAt, ##class(OcuTalon.Watch.Reader).OnlineDemo())
 		Set local = ##class(OcuTalon.Data.Time).ToLocal(result.DueAt)
 		If due '= "" Set answer.due = due
 		If local '= "" Set answer.dueLocal = local
@@ -76,14 +101,15 @@ ClassMethod Answer(result As OcuTalon.Msg.CommandResult) As %DynamicObject
 }
 
 /// The answer of ListReminders for the model. A refusal (Ok 0) is Answer. Otherwise it reads result.Data, the list contract
-/// {"reminders": [{"ref", "text", "dueAt"}, ...]}, and gives {"ok": true, "zone": the instance zone, "reminders": [{"ref", "text", "due",
-/// "dueLocal"}, ...]} in the order of Data. A Data that cannot be read (not JSON, no reminders array, a reminder with no ref or with a due
+/// {"reminders": [{"ref", "text", "dueAt"}, ...]}, and gives {"ok": true, "zone": the instance zone, "reminders": [{"ref", "text", "due" (TimeLabel
+/// of dueAt: ForMessage, with " ET" on the online demo), "dueLocal"}, ...]} in the order of Data. A Data that cannot be read (not JSON, no reminders array, a reminder with no ref or with a due
 /// time that is not UTC to the second) logs one Type 3 warning and gives {"ok": false, "message": NOTREAD}.
 ClassMethod Listed(result As OcuTalon.Msg.CommandResult) As %DynamicObject
 {
 	If 'result.Ok Quit ..Answer(result)
 	Set reminders = []
 	Set problem = ""
+	Set online = ##class(OcuTalon.Watch.Reader).OnlineDemo()
 	Try {
 		Set data = {}.%FromJSON(result.Data)
 		If data.%GetTypeOf("reminders") '= "array" {
@@ -92,7 +118,7 @@ ClassMethod Listed(result As OcuTalon.Msg.CommandResult) As %DynamicObject
 			Set iterator = data.reminders.%GetIterator()
 			While iterator.%GetNext(, .item) {
 				If $IsObject(item) && (item.%GetTypeOf("ref") = "string") && (item.ref '= "") && (item.%GetTypeOf("text") = "string") && (item.%GetTypeOf("dueAt") = "string") {
-					Set due = ##class(OcuTalon.Data.Time).ForMessage(item.dueAt)
+					Set due = ..TimeLabel(item.dueAt, online)
 					Set local = ##class(OcuTalon.Data.Time).ToLocal(item.dueAt)
 				} Else {
 					Set due = "", local = ""
