@@ -11,7 +11,8 @@
 ///   - Unlock runs outside any transaction.
 /// Only the adapter calls Point, which writes the link. Decide also calls SessionOf, which only reads, to size the stored history of a
 /// turn that continues a conversation (RequestSize). The adapter and Decide are the only callers of Lock, Unlock and SessionOf. No other
-/// product class names this class.
+/// product class names this class, except Bridge.Purge, which reads the SessionId of every link through one SELECT to tell which AI sessions
+/// are still named, and writes nothing.
 Class OcuTalon.Bridge.Data.ConversationLink Extends %Persistent
 {
 

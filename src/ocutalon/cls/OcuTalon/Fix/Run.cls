@@ -17,12 +17,12 @@ Include Ensemble
 ///         a read that throws (one Type 3 warning, LOGREAD) count no copy as completed or failed again. The Reason is that of the failed copy with the lowest id (Executor.FailReason). The
 ///         run ends interrupted (Executor.End), one Action entry is written with the result interrupted (WriteAudit) and the FixResult is built (Executor.ResultOf; Interrupted 1 when
 ///         Interrupted is above 0, else the run's own result). A run whose request's row is gone ends with its counts, and no entry or result is made.
-///       - A run that no waiter ended (DW-395), not marked: its FixExecutor waiter stopped (its job was asked to quiesce or terminate, or its item was stopped) and left it. Sweep takes it
-///         when it has a ResentAt, its wait is over (now is at least ResentAt + Executor WAITSECONDS), its request's row is executing, the read is read, no copy is still running and the
-///         last of its copies was done before the wait was over (Tally lastAt, from the header's time of its last status change; a copy without one never qualifies). Sweep ends it as the
-///         waiter would have: Skipped is Total - Resent, Interrupted 0, the request is closed done after End (a close that fails or throws logs one Type 3 warning, LOGCLOSE, and the rest goes on), one Action entry is written with
-///         the result done, and the FixResult is returned. A run inside its wait (the waiter's), with a copy still running or whose last copy was done after the wait (Story 30.5's), with no ResentAt
-///         (the next start's Interrupt ends it) or whose row is not executing is left alone.
+///       - A run that no waiter ended (DW-395), not marked: its FixExecutor waiter stopped (its job was asked to quiesce or terminate, or its item was stopped), or its wait ended with
+///         copies still running (the waiter then sent the one progress FixResult; Executor.Pass). Sweep takes it when it has a ResentAt, its wait is over (now is at least ResentAt +
+///         Executor WAITSECONDS), its request's row is executing, the read is read and no copy is still running, whenever the last copy was done. Sweep ends it as the waiter would
+///         have: Skipped is Total - Resent, Unreached is the run's, Interrupted 0, the request is closed done after End (a close that fails or throws logs one Type 3 warning, LOGCLOSE, and the rest goes on), one Action entry is written with
+///         the result done, and the FixResult is returned. A run inside its wait (the waiter's), with a copy still running, with no ResentAt
+///         (the next start's Interrupt ends it), whose row is not executing or whose read is not read is left alone.
 ///     A run whose End refuses it (another job ended it) or whose save failed (one Type 3 warning, LOGSAVE) returns no result and is left for the next Tick; a result never goes out twice for
 ///     a run. Sweep logs one Type 4 line for each run it ends (LOGSWEPT); an exception for one run logs one Type 3 warning (LOGSWEEP) and the next run is still swept.
 /// The seams Unended (the runs with no EndedAt), Started (the start of the production), Statuses (the read of the copies, Executor.Read), Close (FinishExecution) and WriteAudit (the audit write)
@@ -177,7 +177,7 @@ ClassMethod EndMarked(run As OcuTalon.Data.FixRun, row As OcuTalon.Bridge.Data.A
 	Set cutOff = total - tally.completed - tally.failedAgain
 	Set reason = ""
 	If tally.failedAgain > 0 Set reason = ##class(OcuTalon.Fix.Executor).FailReason(incident, row, statuses.%Get(tally.failed))
-	Set counts = {"total": (total), "resent": (run.Copies.Count()), "completed": (tally.completed), "failedAgain": (tally.failedAgain), "skipped": 0, "interrupted": ($Select(cutOff > 0: cutOff, 1: 0)), "reason": (..Plain(reason))}
+	Set counts = {"total": (total), "resent": (run.Copies.Count()), "completed": (tally.completed), "failedAgain": (tally.failedAgain), "skipped": 0, "unreached": (+run.Unreached), "interrupted": ($Select(cutOff > 0: cutOff, 1: 0)), "reason": (..Plain(reason))}
 	If '..Ended(run, row, counts, 1) Quit ""
 	If '$IsObject(row) Quit ""
 	Do ..Entry(row, ..#INTERRUPTED, counts)
@@ -204,11 +204,11 @@ ClassMethod EndLeft(run As OcuTalon.Data.FixRun, row As OcuTalon.Bridge.Data.App
 	}
 	If outcome '= "read" Quit ""
 	Set tally = ##class(OcuTalon.Fix.Executor).Tally(run, outcome, statuses)
-	If (tally.running > 0) || (tally.lastAt = "") || (tally.lastAt '< due) Quit ""
+	If tally.running > 0 Quit ""
 	Set total = ..Targets(row)
 	Set resent = run.Copies.Count()
 	Set reason = $Select(tally.failed = "": "", 1: ##class(OcuTalon.Fix.Executor).FailReason(incident, row, statuses.%Get(tally.failed)))
-	Set counts = {"total": (total), "resent": (resent), "completed": (tally.completed), "failedAgain": (tally.failedAgain), "skipped": ($Select(total > resent: total - resent, 1: 0)), "interrupted": 0, "reason": (..Plain(reason))}
+	Set counts = {"total": (total), "resent": (resent), "completed": (tally.completed), "failedAgain": (tally.failedAgain), "skipped": ($Select(total > resent: total - resent, 1: 0)), "unreached": (+run.Unreached), "interrupted": 0, "reason": (..Plain(reason))}
 	If '..Ended(run, row, counts, 0) Quit ""
 	Set sc = $$$OK
 	Try {

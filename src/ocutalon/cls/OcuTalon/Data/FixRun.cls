@@ -3,7 +3,7 @@
 ///     shows how far it got. CopiesIndex finds the run of a copy (CopyOf), so that IncidentManager does not take a copy's failure for a new one (AD-15).
 ///   - ResentAt is the time (UTC to the second) of the run's last registration: the 60 seconds that FixExecutor waits for the copies run from it, and a run with
 ///     ResentAt set and EndedAt empty is a run that waits or was given up on. EndedAt is the time the run ended, and is set together with the counts, which are
-///     the run's final FixResult: Total, Resent, Completed, FailedAgain, Skipped, Interrupted and Reason (Stories 7.4 and 7.5). A run without EndedAt has no result. The class
+///     the run's final FixResult: Total, Resent, Completed, FailedAgain, Skipped, Unreached, Interrupted and Reason (Stories 7.4, 7.5 and 30.5). A run without EndedAt has no result. The class
 ///     methods End and Mark of FixExecutor are the only writers of these properties, under the run's lock, for every job that ends a run: FixExecutor's own waiter, Fix.Run
 ///     Interrupt (the Reconcile step) and Fix.Run Sweep (Checks). Mark sets Total and Interrupted on a run that a restart cut short, before it ends (Interrupted above 0
 ///     and no EndedAt is a marked run).
@@ -50,6 +50,10 @@ Property Interrupted As %Integer;
 
 /// Why the run ended as it did, when it did not complete (redacted, as the FixResult carries it).
 Property Reason As %String(MAXLEN = 1000);
+
+/// The targets the run never reached: the copy that erred and every target after it, counted among Skipped. Written by Run with ResentAt and by End; empty for a run that
+/// made no copy and for one whose resend did not stop partway.
+Property Unreached As %Integer;
 
 Index ApprovalRefIndex On ApprovalRef;
 
@@ -124,6 +128,9 @@ Storage Default
 </Value>
 <Value name="14">
 <Value>Reason</Value>
+</Value>
+<Value name="15">
+<Value>Unreached</Value>
 </Value>
 </Data>
 <DataLocation>^OcuTalonP.FixRunD</DataLocation>

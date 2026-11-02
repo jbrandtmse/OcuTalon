@@ -145,6 +145,17 @@ Method AssertKey(state As %String, fields As %DynamicObject, key As %String, lab
 	Do $$$AssertEquals($ClassMethod(..#NOTICE, "ResultKey", state, ..Result(fields)), key, label_": "_key)
 }
 
+/// The slots without resent for the key of a mixed result, after asserting that resent is there and is the result's Resent: the catalog's text ignores it, so the entry does not declare it
+/// (the page renders failedAndSkipped from the declared slots, Story 30.5). The slots of every other key are returned as they are.
+Method WithoutResent(key As %String, result As OcuTalon.Fix.Msg.FixResult, slots As %DynamicObject) As %DynamicObject
+{
+	If key '= "result.failedAndSkipped" Quit slots
+	Do $$$AssertEquals(slots.resent, +result.Resent, key_": the slots carry resent, the copies made")
+	Set copy = {}.%FromJSON(slots.%ToJSON())
+	Do copy.%Remove("resent")
+	Quit copy
+}
+
 /// The names of the members of the object, sorted, comma-separated.
 ClassMethod Names(object As %DynamicObject) As %String
 {
@@ -346,9 +357,16 @@ Method TestResultKeys()
 	// the convention, first match wins
 	Do ..AssertKey("executing", {"Final": 1, "Total": 50, "Completed": 30}, "result.stillResending", "the request is executing")
 	Do ..AssertKey("executing", {"Interrupted": 1, "Total": 50, "Completed": 30}, "result.stillResending", "the request is executing, whatever else the result says")
+	Do ..AssertKey("done", {"Total": 3, "Resent": 3, "Completed": 1}, "result.stillResending", "a progress report (neither final nor interrupted), whatever the row's state")
+	Do ..AssertKey("executing", {"Total": 3, "Resent": 3}, "result.stillResending", "a progress report of an executing request")
 	Do ..AssertKey("failed", {"Interrupted": 1, "Total": 50, "Completed": 30}, "result.interrupted", "the run was interrupted")
 	Do ..AssertKey("failed", {"Interrupted": 1, "Total": 3, "Reason": (reason)}, "result.interrupted", "interrupted comes before couldn't start")
 	Do ..AssertKey("failed", {"Final": 1, "Total": 3, "Reason": (reason)}, "result.couldNotStart", "every count 0 and a reason")
+	Do ..AssertKey("failed", {"Final": 1, "Total": 3, "Unreached": 3, "Reason": (reason)}, "result.couldNotStart", "couldn't start comes before stopped partway")
+	Do ..AssertKey("failed", {"Interrupted": 1, "Total": 3, "Resent": 2, "Unreached": 1}, "result.interrupted", "interrupted comes before stopped partway")
+	Do ..AssertKey("done", {"Final": 1, "Total": 3, "Resent": 2, "Completed": 2, "Skipped": 1, "Unreached": 1}, "result.stoppedPartway", "a resend that stopped partway")
+	Do ..AssertKey("done", {"Final": 1, "Total": 5, "Resent": 3, "Completed": 2, "FailedAgain": 1, "Skipped": 2, "Unreached": 1, "Reason": "x"}, "result.stoppedPartway", "stopped partway comes before failures and skips")
+	Do ..AssertKey("done", {"Final": 1, "Total": 5, "Resent": 3, "Completed": 2, "FailedAgain": 1, "Skipped": 2, "Unreached": 0, "Reason": "x"}, "result.failedAndSkipped", "with no Unreached it is failures and skips")
 	Do ..AssertKey("done", {"Final": 1, "Total": 3, "Skipped": 3, "Reason": "message 101 changed"}, "result.skipped", "a reason with skipped targets is not couldn't start")
 	Do ..AssertKey("done", {"Final": 1, "Total": 3, "Resent": 3, "Reason": "x"}, "result.allThrough", "a reason with resent targets is not couldn't start")
 	Do ..AssertKey("failed", {"Final": 1, "Total": 3}, "result.allThrough", "every count 0 and no reason is not couldn't start")
@@ -365,6 +383,7 @@ Method TestResultKeys()
 		$ListBuild("result.failedAndSkipped", "done", "{""Final"":1,""Total"":50,""Resent"":47,""Completed"":45,""FailedAgain"":2,""Skipped"":3,""Reason"":""the order date still wasn't accepted""}"),
 		$ListBuild("result.stillResending", "executing", "{""Total"":50,""Resent"":50,""Completed"":30}"),
 		$ListBuild("result.interrupted", "failed", "{""Interrupted"":1,""Total"":50,""Resent"":50,""Completed"":30}"),
+		$ListBuild("result.stoppedPartway", "done", "{""Final"":1,""Total"":50,""Resent"":47,""Completed"":45,""Skipped"":3,""Unreached"":3}"),
 		$ListBuild("result.couldNotStart", "failed", "{""Final"":1,""Total"":3,""Reason"":"""_reason_"""}"))
 	Set position = 0
 	While $ListNext(cases, position, case) {
@@ -375,6 +394,7 @@ Method TestResultKeys()
 		Do $$$AssertStatusOK(sc, key_": the slots are built")
 		If '$IsObject(slots) Continue
 		Set fixture = fixtures.%Get(key)
+		Set slots = ..WithoutResent(key, result, slots)
 		Do $$$AssertEquals(..Flat(slots), ..Flat(fixture.slots), key_": the slots are the fixture's")
 		Set text = ##class(OcuTalon.Msg.Catalog).RenderAt(key, slots.%ToJSON(), "telegram", ..#NOW, 1, .sc)
 		Do $$$AssertStatusOK(sc, key_": renders")
@@ -419,6 +439,7 @@ Method TestRestartAndResendTexts()
 	Set cases = $ListBuild(
 		$ListBuild("result.failedAndSkipped", "done", "{""Final"":1,""Total"":50,""Resent"":47,""Completed"":45,""FailedAgain"":2,""Skipped"":3,""Reason"":"""_reason_"""}", "45 of 50 orders went through. 2 failed again (the order date still wasn't accepted), and 3 had changed since the dry run, so I skipped them. I won't retry any of them without a new approval.", "47 of 50 orders went through. 2 failed again (the order date still wasn't accepted), and 1 had changed since the dry run, so I skipped it. I won't retry any of them without a new approval."),
 		$ListBuild("result.stillResending", "executing", "{""Total"":50,""Resent"":50,""Completed"":30}", "Still resending: 30 of 50 orders have gone through so far. I'll tell you when it's done.", "Still resending: 1 of 50 orders has gone through so far. I'll tell you when it's done."),
+		$ListBuild("result.stoppedPartway", "done", "{""Final"":1,""Total"":50,""Resent"":47,""Completed"":45,""Skipped"":3,""Unreached"":3}", "The resend stopped partway: I resent 47 of the 50 orders (45 went through), the next one couldn't be resent, and 2 more weren't tried. Nothing else was changed, and I won't resend the rest without a new approval.", "The resend stopped partway: I resent 3 of the 5 orders (3 went through), the next one couldn't be resent, and 1 more wasn't tried. Nothing else was changed, and I won't resend the rest without a new approval."),
 		$ListBuild("result.interrupted", "failed", "{""Interrupted"":1,""Total"":50,""Resent"":50,""Completed"":30}", "The resend stopped when OcuTalon restarted: 30 of 50 orders went through. The other 20 need a new approval.", "The resend stopped when OcuTalon restarted: 49 of 50 orders went through. The other one needs a new approval."))
 	Set position = 0
 	While $ListNext(cases, position, case) {
@@ -432,6 +453,7 @@ Method TestRestartAndResendTexts()
 		Set slots = $ClassMethod(..#NOTICE, "ResultSlots", key, result, noun, .sc)
 		Do $$$AssertStatusOK(sc, key_": ResultSlots builds the slots")
 		If '$IsObject(slots) Continue
+		Set slots = ..WithoutResent(key, result, slots)
 		Do $$$AssertEquals(..Names(slots), ..Names(entry.slots), key_": the slots that ResultSlots builds are the ones the entry declares")
 		Do $$$AssertEquals(..Flat(slots), ..Flat(fixtures.%Get(key).slots), key_": and the UX fixture's")
 		For channel = "web", "phone", "mailbox", "telegram" {

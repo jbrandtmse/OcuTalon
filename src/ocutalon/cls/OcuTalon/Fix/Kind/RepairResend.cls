@@ -214,17 +214,19 @@ ClassMethod Recheck(incident As OcuTalon.Data.Incident, parameters As %DynamicOb
 
 /// Resends a repaired copy of each of the targets (those that passed Recheck) through Fix.Executor.Resend and registers each copy on run (see the class
 /// description). The targets are read again by the same test as Recheck, so that a value that changed since the re-check is skipped, and the value that is read
-/// is the one the copy is checked against at the switch. result is {"resent": the copies made, "skipped": [{"id", "reason"}]}: the targets left out by the
-/// test and by the resend, in the order they were left out. An error status when the failed messages cannot be read.
+/// is the one the copy is checked against at the switch. result is {"resent": the copies made, "skipped": [{"id", "reason"}], "unreached": [{"id", "code"}]}: the targets left out
+/// by the test and by the resend because they really changed, in the order they were left out, and the targets the resend never reached (the first copy that erred and every
+/// target after it; Executor.Resend), which are in no skipped entry. An error status when the failed messages cannot be read.
 ClassMethod Execute(incident As OcuTalon.Data.Incident, parameters As %DynamicObject, targets As %String, Output result As %DynamicObject, run As OcuTalon.Data.FixRun = "") As %Status
 {
-	Set result = {"resent": 0, "skipped": []}
+	Set result = {"resent": 0, "skipped": [], "unreached": []}
 	Set sc = ..Plan(incident, parameters, targets, .plan, .skipped)
 	If $$$ISERR(sc) Quit sc
 	Set result.skipped = skipped
 	If plan.%Size() = 0 Quit $$$OK
-	Do ##class(OcuTalon.Fix.Executor).Resend(incident.Namespace, plan, run, .resent, .resendSkipped)
+	Do ##class(OcuTalon.Fix.Executor).Resend(incident.Namespace, plan, run, .resent, .resendSkipped, .unreached)
 	Set result.resent = resent
+	Set result.unreached = unreached
 	Set iterator = resendSkipped.%GetIterator()
 	While iterator.%GetNext(, .entry) {
 		Do result.skipped.%Push(entry)

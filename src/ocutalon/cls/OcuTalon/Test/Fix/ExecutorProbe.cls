@@ -4,7 +4,9 @@
 /// throw is a check that throws), else the product's own check of the service user's resources; Check and Carry record each call (Checked and Carried: {class, incident, parameters, targets}) and give the canned answer
 /// of CheckIs or CarryIs when one is set, else the kind's own Recheck or Execute. A canned CheckIs is the text error (an error status), throw (an exception) or JSON
 /// {"passed": the ids, "skipped": [{"id", "reason"}]}; a canned CarryIs is error, throw or JSON {"copies": [header ids that the run registers on its FixRun, as the
-/// kind does], "skipped": [{"id", "reason"}], and an optional "fail", an error text: the copies are registered and the call then fails, as a resend that stops partway}.
+/// kind does], "skipped": [{"id", "reason"}], an optional "unreached": [{"id", "code"}] (the targets the resend never reached: the first code is stopped, refused or error, the rest after), and an optional "fail", an error text: the copies are registered and the call then fails, as a resend that errs after some copies}.
+/// StateIs (Story 30.4; DW-368) is the running state that ProductionState gives (stopped, suspended, network_stopped, troubled, running or timeout), none for a production that was
+/// not read (ProductionState gives ""), or throw for a read that throws; empty for the product's own read through Watch.Reader.
 /// RefusalIs none makes the refusal check pass for any row, so that a request that is not approved reaches
 /// StartExecution. StartIs, an error text, makes StartExecution fail with it (the Start seam); otherwise it is the product's. SaveFails makes the save of a run's FixRun fail: 1 for the first save only (the run's own, in Run), 2 for the second as well (the one of
 /// CouldNotStart); SavedWas holds the saved argument that CouldNotStart was given.
@@ -72,7 +74,7 @@ Property AuditFails As %Boolean [ InitialExpression = 0, Transient ];
 /// The session of the host at each SendResult, in order, each {approvalRef, session, super}.
 Property Sessions As %DynamicArray [ Transient ];
 
-/// The FixResults that SendResult recorded, in order, each {approvalRef, incidentRef, final, interrupted, total, resent, completed, failedAgain, skipped, reason, storedEnd,
+/// The FixResults that SendResult recorded, in order, each {approvalRef, incidentRef, final, interrupted, total, resent, completed, failedAgain, skipped, unreached, reason, storedEnd,
 /// storedState}.
 Property Results As %DynamicArray [ Transient ];
 
@@ -89,6 +91,9 @@ Property RefusalIs As %String [ Transient ];
 Property CheckIs As %String(MAXLEN = "") [ Transient ];
 
 Property CarryIs As %String(MAXLEN = "") [ Transient ];
+
+/// The state that ProductionState gives, none for "" (not read), or throw; empty for the product's own read.
+Property StateIs As %String [ Transient ];
 
 /// The calls of Check and Carry, in order, each {class, incident (its Ref), parameters (as JSON text), targets}.
 Property Checked As %DynamicArray [ Transient ];
@@ -116,7 +121,7 @@ Method SendResult(result As OcuTalon.Fix.Msg.FixResult) As %Status [ Private ]
 	Set storedEnd = $Select(stored.%Next(): (stored.%GetData(1) '= ""), 1: 0)
 	Set stored = ##class(%SQL.Statement).%ExecDirect(, "SELECT State FROM OcuTalon_Bridge_Data.ApprovalRequest WHERE %EXACT(Ref) = ?", result.ApprovalRef)
 	Set storedState = $Select(stored.%Next(): stored.%GetData(1), 1: "")
-	Do ..Results.%Push({"approvalRef": (result.ApprovalRef), "incidentRef": (result.IncidentRef), "final": (+result.Final), "interrupted": (+result.Interrupted), "total": (+result.Total), "resent": (+result.Resent), "completed": (+result.Completed), "failedAgain": (+result.FailedAgain), "skipped": (+result.Skipped), "reason": (result.Reason), "storedEnd": (storedEnd), "storedState": (storedState)})
+	Do ..Results.%Push({"approvalRef": (result.ApprovalRef), "incidentRef": (result.IncidentRef), "final": (+result.Final), "interrupted": (+result.Interrupted), "total": (+result.Total), "resent": (+result.Resent), "completed": (+result.Completed), "failedAgain": (+result.FailedAgain), "skipped": (+result.Skipped), "unreached": (+result.Unreached), "reason": (result.Reason), "storedEnd": (storedEnd), "storedState": (storedState)})
 	If '$IsObject(..Sessions) Set ..Sessions = []
 	Do ..Sessions.%Push({"approvalRef": (result.ApprovalRef), "session": (..%SessionId), "super": (..%SuperSession)})
 	If ..FailSend Quit $SYSTEM.Status.Error(5001, "The send of the result of "_result.ApprovalRef_" is refused")
@@ -147,6 +152,12 @@ Method WaitingNow() As %List
 Method LookNow(id As %String) As %Integer
 {
 	Quit ..Look(id)
+}
+
+/// The progress report of the run with the counts of tally (the product's Progress, which is private).
+Method ProgressNow(run As OcuTalon.Data.FixRun, tally As %DynamicObject)
+{
+	Do ..Progress(run, tally)
 }
 
 /// The canned copies (see the class description) with the outcome StatusOutcome (read by default); the product's read when none is set. With EndSaveFails the
@@ -249,6 +260,14 @@ Method Missing(class As %String) As %String [ Private ]
 	Quit $Select(..MissingIs = "none": "", 1: ..MissingIs)
 }
 
+/// StateIs when it is set (throw makes the read throw), else the product's read.
+Method ProductionState(incident As OcuTalon.Data.Incident) As %String [ Private ]
+{
+	If ..StateIs = "" Quit ##super(incident)
+	If ..StateIs = "throw" Throw ##class(%Exception.General).%New("Probe", 5001, , "The state read threw")
+	Quit $Select(..StateIs = "none": "", 1: ..StateIs)
+}
+
 /// Records the call; the canned answer of CheckIs when it is set, else the kind's Recheck.
 Method Check(class As %String, incident As OcuTalon.Data.Incident, parameters As %DynamicObject, targets As %String, Output passed As %String, Output skipped As %DynamicArray) As %Status [ Private ]
 {
@@ -271,7 +290,7 @@ Method Carry(class As %String, incident As OcuTalon.Data.Incident, parameters As
 	If '$IsObject(..Carried) Set ..Carried = []
 	Do ..Carried.%Push({"class": (class), "incident": (incident.Ref), "parameters": (parameters.%ToJSON()), "targets": (targets)})
 	If ..CarryIs = "" Quit ##super(class, incident, parameters, targets, .result, run)
-	Set result = {"resent": 0, "skipped": []}
+	Set result = {"resent": 0, "skipped": [], "unreached": []}
 	If ..CarryIs = "error" Quit $SYSTEM.Status.Error(5001, "The copies could not be made")
 	If ..CarryIs = "throw" Throw ##class(%Exception.General).%New("Probe", 5001, , "The resend threw")
 	Set canned = {}.%FromJSON(..CarryIs)
@@ -283,6 +302,7 @@ Method Carry(class As %String, incident As OcuTalon.Data.Incident, parameters As
 	$$$ThrowOnError(run.%Save())
 	If ..ResentSaveFails Set run.IncidentRef = run.IncidentRef_"-too-long-for-a-run"
 	Set result.skipped = canned.skipped
+	If canned.%IsDefined("unreached") Set result.unreached = canned.unreached
 	If canned.%IsDefined("fail") Quit $SYSTEM.Status.Error(5001, canned.fail)
 	Quit $$$OK
 }

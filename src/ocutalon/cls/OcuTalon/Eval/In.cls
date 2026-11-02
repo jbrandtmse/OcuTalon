@@ -9,7 +9,7 @@
 ///     so the Decide timer of a turn case would otherwise be spent behind the act turns of earlier item cases.
 ///   - A case is a folder with a case.json (the shape of the eval/ cases): name, kind, heldOut, description, expectation and
 ///     recordedBy, and for a kind of item or injection an item {itemId, channel, provenance, sender, subject, text, catalogKey, slots},
-///     and for a kind of all-clear or command a turn {text} (and, for an all-clear, checks: the array of the recorded check rows).
+///     and for a kind of all-clear, command or user-turn a turn {text} (and, for an all-clear, checks: the array of the recorded check rows).
 ///     A case that is not sent is logged as a warning and goes into the skipped list with its reason: a kind that is not sent (one
 ///     that is not in KINDS), no case.json or one that is not a JSON object, no item.itemId, a recorded provenance other than untrusted, no
 ///     turn.text, an all-clear case whose checks is not an array, or an incident case whose snapshot is missing or is not a reader
@@ -27,6 +27,10 @@
 ///     DecisionRef, ToolsRun, Text, Fallback and FallbackReason go into the TurnResult, and so do the catalog key and rows that
 ///     Checks.Render gives the Reply's HostData checks. EvalIn then sends the TurnResult to EvalSink, which completes the row. A Decide
 ///     that gives no Reply (an error, a timeout or an answer that is not a Reply) deletes the row and the TurnResult and skips the case.
+///   - A user-turn case (Story 30.5, DW-500) is sent as the decide request of a user's chat turn: Kind decide, Provenance user, and no
+///     SessionMode, with the same Input. Decide answers it with a DecisionResponse, not a Reply, so the TurnResult keeps that answer's
+///     DecisionRef, Fallback and FallbackReason, and has no reply text, no tool run and no check rows. The report scores the case from the
+///     Decision row of that DecisionRef (its outcome and reasons).
 ///   - An incident case (SendIncident) names a recorded reader snapshot in its snapshot member (a file of the case's folder, loaded with
 ///     EvidencePack.Load). EvalIn sends IncidentManager one OcuTalon.Eval.Msg.IncidentCase (a fresh IncidentRef from OcuTalon.Bridge.Ids.NewRef, the
 ///     case's folder name as SourceItemId, and the snapshot's JSON text) and, before the send, opens the case's row with ItemId the IncidentRef, which
@@ -56,13 +60,17 @@ Parameter DECIDE = "Decide";
 Parameter SINK = "EvalSink";
 
 /// The kinds of case that EvalIn sends, comma-separated.
-Parameter KINDS = "item,injection,all-clear,command,incident";
+Parameter KINDS = "item,injection,all-clear,command,user-turn,incident";
 
 /// The kinds of case that hold a recorded Item, and go to Intake.
 Parameter ITEMKINDS = "item,injection";
 
 /// The kinds of case that are a user turn, and go to Decide.
-Parameter TURNKINDS = "all-clear,command";
+Parameter TURNKINDS = "all-clear,command,user-turn";
+
+/// The kind of turn case that is a user's own chat message as Triage decides it (Story 30.5, DW-500): its request is a decide request of
+/// provenance user, answered with a DecisionResponse, and it has no reply text.
+Parameter USERTURNKIND = "user-turn";
 
 /// The kind of case that holds a recorded reader snapshot, and goes to IncidentManager.
 Parameter INCIDENTKIND = "incident";
@@ -433,7 +441,7 @@ Method SendTurn(case As %DynamicObject, kind As %String, name As %String) As %St
 	Set ..%SuperSession = ..RunRef
 	Set reason = ""
 	Try {
-		Set reason = ..Converse(result, text, name)
+		Set reason = ..Converse(result, text, name, kind)
 	} Catch exception {
 		Set reason = exception.DisplayString()
 	}
@@ -444,20 +452,26 @@ Method SendTurn(case As %DynamicObject, kind As %String, name As %String) As %St
 /// Asks Decide for the turn, again after a Busy reply, then keeps the Reply in the TurnResult and sends the TurnResult to EvalSink. The
 /// reason there was no Reply to keep, or "". The turn is asked at most BUSYMAX + 1 times, BUSYWAIT seconds apart; a Decide that is busy
 /// every time ends the case as a fallback with the reason rate_limited, with no DecisionRef.
-Method Converse(result As OcuTalon.Eval.Msg.TurnResult, text As %String, name As %String) As %String [ Private ]
+Method Converse(result As OcuTalon.Eval.Msg.TurnResult, text As %String, name As %String, kind As %String = "") As %String [ Private ]
 {
+	Set userTurn = (kind = ..#USERTURNKIND)
+	Set answerClass = $Select(userTurn: "OcuTalon.Bridge.Msg.DecisionResponse", 1: "OcuTalon.Bridge.Msg.Reply")
 	Set reply = ""
 	For asks = 1:1:..#BUSYMAX + 1 {
 		Kill reply
-		Set sc = ..Ask(..TurnRequest(result.ItemId, text), .reply)
+		Set sc = ..Ask(..TurnRequest(result.ItemId, text, userTurn), .reply)
 		If $$$ISERR(sc) Quit
-		If '$IsObject($Get(reply)) || 'reply.%IsA("OcuTalon.Bridge.Msg.Reply") Quit
-		If 'reply.Busy Quit
+		If '$IsObject($Get(reply)) || 'reply.%IsA(answerClass) Quit
+		If userTurn || 'reply.Busy Quit
 		If asks '> ..#BUSYMAX Do ..Pause(..#BUSYWAIT)
 	}
 	If $$$ISERR(sc) Quit $SYSTEM.Status.GetOneStatusText(sc)
-	If '$IsObject($Get(reply)) || 'reply.%IsA("OcuTalon.Bridge.Msg.Reply") Quit ..#REASONNOREPLY
-	If reply.Busy {
+	If '$IsObject($Get(reply)) || 'reply.%IsA(answerClass) Quit ..#REASONNOREPLY
+	If userTurn {
+		Set result.DecisionRef = reply.DecisionRef
+		Set result.Fallback = +reply.Fallback
+		Set result.FallbackReason = reply.FallbackReason
+	} ElseIf reply.Busy {
 		Set result.Fallback = 1
 		Set result.FallbackReason = "rate_limited"
 	} Else {
@@ -476,7 +490,8 @@ Method Converse(result As OcuTalon.Eval.Msg.TurnResult, text As %String, name As
 
 /// The request to Decide for a turn case (AD-6): a user turn of owner eval, in a fresh conversation, with no recap. The Input is what
 /// Agent.Input renders from an Item of the same fields as a user's turn in the chat, so the model sees the turn as the product sends it.
-Method TurnRequest(itemId As %String, text As %String) As OcuTalon.Bridge.Msg.Request [ Private ]
+/// With userTurn the request is the decide request of a user's chat turn (Kind decide, no SessionMode) instead of the turn request.
+Method TurnRequest(itemId As %String, text As %String, userTurn As %Boolean = 0) As OcuTalon.Bridge.Msg.Request [ Private ]
 {
 	Set item = ##class(OcuTalon.Msg.Item).%New()
 	Set item.ItemId = itemId
@@ -485,7 +500,7 @@ Method TurnRequest(itemId As %String, text As %String) As OcuTalon.Bridge.Msg.Re
 	Set item.Provenance = "user"
 	Set item.Text = text
 	Set request = ##class(OcuTalon.Bridge.Msg.Request).%New()
-	Set request.Kind = "turn"
+	Set request.Kind = $Select(userTurn: "decide", 1: "turn")
 	Set request.Provenance = "user"
 	Set request.Input = ##class(OcuTalon.Agent.Input).Render(item)
 	Set request.ItemId = itemId
@@ -494,7 +509,7 @@ Method TurnRequest(itemId As %String, text As %String) As OcuTalon.Bridge.Msg.Re
 	Set request.TraceRef = ..RunRef
 	Set request.Channel = ..#TURNCHANNEL
 	Set request.ThreadSessionId = ..%SessionId
-	Set request.SessionMode = "fresh"
+	If 'userTurn Set request.SessionMode = "fresh"
 	Quit request
 }
 

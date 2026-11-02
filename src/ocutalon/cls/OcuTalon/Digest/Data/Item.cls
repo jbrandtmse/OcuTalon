@@ -59,25 +59,15 @@ ClassMethod Since(sessionRef As %String, since As %String, Output items As %Dyna
 	Quit $SYSTEM.Status.OK()
 }
 
-/// Deletes the items recorded before the cutoff: now in UTC (Data.Time.NowUtc) moved back daysToKeep whole days, by date arithmetic on the UTC date.
+/// Deletes the items recorded before the cutoff: now in UTC moved back daysToKeep whole days (Bridge.Time.DaysCutoff, by date arithmetic on the UTC date).
 /// An item recorded at the cutoff stays. daysToKeep must be a whole number of at least 1; anything else is an error status and nothing is deleted.
 ClassMethod Purge(daysToKeep As %Integer) As %Status
 {
-	Set bad = $SYSTEM.Status.Error(5001, "OcuTalon.Digest.Data.Item.Purge needs a whole number of days, at least 1, not '"_$Extract(daysToKeep, 1, 40)_"'")
-	If daysToKeep '? 1.N Quit bad
-	Set sc = $SYSTEM.Status.OK()
+	Set sc = ##class(OcuTalon.Bridge.Time).DaysCutoff(daysToKeep, "OcuTalon.Digest.Data.Item.Purge", .cutoff)
+	If $$$ISERR(sc) || (cutoff = "") Quit sc
 	Try {
-		If +daysToKeep < 1 {
-			Set sc = bad
-		} Else {
-			Set now = ##class(OcuTalon.Data.Time).NowUtc()
-			Set day = $ZDateH($Piece(now, "T", 1), 3) - daysToKeep
-			If day >= 0 {
-				Set cutoff = $ZDate(day, 3)_"T"_$Piece(now, "T", 2)
-				Set result = ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Digest_Data.Item WHERE RecordedAt < ?", cutoff)
-				If result.%SQLCODE < 0 Set sc = $SYSTEM.Status.Error(5001, "Deleting the old digest items failed: "_result.%Message)
-			}
-		}
+		Set result = ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Digest_Data.Item WHERE RecordedAt < ?", cutoff)
+		If result.%SQLCODE < 0 Set sc = $SYSTEM.Status.Error(5001, "Deleting the old digest items failed: "_result.%Message)
 	} Catch exception {
 		Set sc = exception.AsStatus()
 	}
