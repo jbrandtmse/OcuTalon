@@ -53,3 +53,12 @@
 2026-11-02T05:47:29Z	Story 40.2	ledger_adjudicated	owned=2 resolved=2 reowned=0 terminal=0 ids=DW-564,DW-565 model=claude-opus-5-5
 2026-11-02T05:47:29Z	Story 40.2	smoke_complete	method=cli result=pass iterations=1 defects_caught=0 evidence=slot-c_SettingsOps.Persona(no_session)=professional_defaults,customOffered=true;PersonaKey=person.zzS1.persona.preset;AuditForm_never_holds_custom_text;PERSONAPRESET_six_ids model=claude-opus-5-5
 2026-11-02T05:47:29Z	Story 40.2	fresh_check	env=recipe(warm_stack_started_fresh_e40s2fresh) tests=8 result=pass order=forward,reverse classes=Core.SettingsPersona,Core.CommandsRouting,Core.SessionOps,Core.CommandsInProduction,Core.SettingsOps,Core.SessionOpsProduction,Msg.Catalog,Msg.Contracts model=claude-opus-5-5
+2026-11-02T05:47:43Z	Story 40.2	committed	sha=acad790c submodules= ci=pending runs=41396068664,41396068637 amendments=epics.md:Story_40.2_split_markers,epics.md:Story_40.8_added footprint_extensions=src/bridge/cls/OcuTalon/Bridge/Msg/Enum.cls
+2026-11-02T05:47:43Z	Story 40.2	story_cycle	plan_to_commit_min=188 implement_passes=1 reviews=1 rework=0 first_ci=pending models=plan:opus,implement:sonnet,qa:sonnet,cr:opus
+2026-11-02T05:48:17Z	Story 40.3	story_waiting	story=40-3-the-persona-reaches-chat-and-triage-as-a-data-block on=11,30 reason=Agent/Chat.cls(epic_11)_and_Agent/Triage.cls(epic_30_30.5)
+2026-11-02T05:48:17Z	Story 40.4	story_waiting	story=40-4-the-persona-card on=11 reason=needs_Story_40.8_routes_and_web/src/app/api/api-types.ts(epic_11)
+2026-11-02T05:48:17Z	Story 40.5	story_waiting	story=40-5-a-setting-approval-in-the-bridge-and-ocutalon-s-proposal-too on=14,30 reason=graph_story_waits
+2026-11-02T05:48:17Z	Story 40.6	story_waiting	story=40-6-answer-a-proposed-persona-from-the-page-the-phone-or-telegra on=12,30,31 reason=graph_story_waits
+2026-11-02T05:48:17Z	Story 40.7	story_waiting	story=40-7-evaluation-cases-for-the-persona on=40.3,40.5,40.6 reason=tests_those_stories
+2026-11-02T05:48:17Z	Epic 40	ruling	question=gap_fill_when_no_story_independent choice=no_gap_fill rejected=charter_gap-fill_from_DW-570 why=DW-570_and_DW-571_are_planned_AC_bullets_of_Story_40.6_whose_design_decides_them;DW-571_needs_contended_Web/Api.cls;no_other_closable_entry_owned_by_epic_40 category=decide policy=ff1bd1a
+2026-11-02T05:48:17Z	Epic 40	runner_ended	reason=waiting waiting_on=11 stories_done=40.1,40.2 note=40.2_ci_pending_runs_41396068664,41396068637_resolve_at_resume
