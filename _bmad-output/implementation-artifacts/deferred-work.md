@@ -2882,11 +2882,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-11-8-the-chat-cancels-several-reminders-in-one-call-and-says-it-c.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Test/Bridge/Gate.cls:1764 passes the old key; RunDenied (Gate.cls:2235) detects a built-in tool's run only by CommandCount; ReminderTools.CancelReminder answers BADREFS for a missing reminderRefs without calling Run (TestCancelThroughTheToolManager pins {} as BADREFS with nothing recorded)
 - 2026-10-31T15:54:05Z status=escalated owner=burndown by=cr note=fix is one argument in Epic 30's contended Gate.cls:1764 -> {"reminderRefs":["x"]}; route to the Epic 30 story that next touches Gate.cls
+- 2026-11-02T13:18:40Z status=routed owner=burndown by=merge_gate note=Epic_30_part_2_burn-down(30.7):Test.Bridge.Gate_untrusted-turn_row_sends_reminderRefs(the_Gate_test_owner)
 
 ### DW-496: AD-1's Rule says a tool command's IdempotencyKey is the turn's ItemId plus the tool call's position, but the build keys each command at its command position (CommandCall.Run, CommandCount + 1), and U-118's several-ref cancel_reminder gives one tool call the keys :2, :3 and :4
 - source: spec-11-8-the-chat-cancels-several-reminders-in-one-call-and-says-it-c.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: ARCHITECTURE-SPINE.md AD-1 Rule (parenthetical); src/ocutalon/cls/OcuTalon/Tools/CommandCall.cls:41-44; TestCancelAllThroughChat asserts :2, :3, :4 for one call; a literal reading would make ReminderOps refuse refs 2 and 3 as reused_key
 - 2026-10-31T15:54:12Z status=escalated owner=burndown by=cr note=as-built AD-1 wording needed: the command's position in the turn (U-118); an AD amendment is a veto item for the lead (Rule 20)
+- 2026-11-02T13:18:26Z status=resolved-by:orchestrator by=merge_gate note=AD-1_amended_as-built(command_position;marker+lint);veto_U-215
 
 ### DW-509: The demo-path key guard (refuseOnRealModel) sits in the shared pointKeys/restoreKeys of web/e2e/support/devices.ts, so OCUTALON_DEMO_PATH_MODEL=real exported for a wider run makes reminder/chat.spec.ts and demo-switch/mailbox.spec.ts throw
 - source: spec-11-7-the-demo-path-s-failure-paths-quiet-outcomes-and-online-run.md | severity: low | fix-risk: low | footprint: in-story
@@ -2936,6 +2938,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-11-16-the-sequence-asks-before-each-outward-step-after-the-gates.md | severity: med | fix-risk: high | footprint: out-of-footprint
 - evidence: web/package.json builds into src/ocutalon/csp/; .gitignore:28 ignores it; 11.16's merge back carries the bundle onto the integration branch
 - 2026-11-01T14:59:04Z status=escalated owner=burndown by=spec_gate note=for the decision sheet: e.g. build into a separate folder and copy at the cut, or untrack the bundle after the merge back; affects every epic after 1.0.0
+- 2026-11-02T13:18:26Z status=routed owner=11-16-the-sequence-asks-before-each-outward-step-after-the-gates by=merge_gate note=build_into_a_separate_folder,copy_in_only_at_the_cut;veto_U-216
 
 ### DW-533: The rehearsal collector finds the reminder's phone message by the reminder row's text and the result message by 'went through.'; measured on the CI mock only, so a different real-model rendering makes a run fail with a missing reminder_msg mark (never a false pass)
 - source: spec-11-11-the-rehearsal-runner-times-the-demo-path-and-checks-every-bo.md | severity: low | fix-risk: low | footprint: in-story
@@ -3011,11 +3014,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-11-4-the-release-gets-draft-notes-and-a-checklist.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: e.g. 'a licence notice is missing or empty', 'the IRIS reference source rule is broken', 'the licences pass detail without a bundle'; none names the inspiration, a rival or IRIS Couch
 - 2026-11-01T23:52:21Z status=decision-pending owner=burndown by=cr note=veto window 5: the lead or Planner rules the FAIL summary wordings before Story 11.5 reads the record
+- 2026-11-02T13:18:26Z status=by-design by=merge_gate note=texts_kept_as_U-200;veto_U-217
 
 ### DW-554: row_name_only_in_note (release/checklist.sh) repeats the name-outside-the-note line of test-readme.sh public_text_scan, a copy forced by Epic 10 owning that top-level script (Rule 2)
 - source: spec-11-4-the-release-gets-draft-notes-and-a-checklist.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: about 5 awk lines; the spec records the reason (test-readme.sh cannot be sourced and is Epic 10's); both rules drift if the name rule changes in one place
 - 2026-11-01T23:52:21Z status=escalated owner=burndown by=cr note=unify when Epic 10 next edits test-readme.sh: one shared name scanner in lib-scan.sh that both call
+- 2026-11-02T13:18:26Z status=routed owner=burndown by=merge_gate note=unify_checklist_row_name_only_in_note_with_test-readme.sh_in_Epic_10s_next_README_story_after_1.0.0(release/**_and_test-readme.sh_both_needed)
 
 ### DW-555: flake: a CI-host network blip at sign-in can surface as 'page.goto: Navigation ... is interrupted by another navigation to chrome-error://chromewebdata/', which gotoSettled (web/e2e/support/navigate.ts, Story 11.9, DW-415) does not retry: it matches only net::ERR_NETWORK_CHANGED
 - source: cycle-log-epic-11.md | severity: med | fix-risk: low | footprint: in-epic

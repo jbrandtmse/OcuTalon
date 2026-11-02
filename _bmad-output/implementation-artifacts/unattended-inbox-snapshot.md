@@ -25,6 +25,55 @@ question: After the 90-day purge deletes a turn's Decision and Usage rows, its T
 options: keep: purge turns, deliveries and sessions with their decisions (AD-27 extension, Epic 30 part 2); reverse: keep Usage as long as turns (no purge of either until a later retention story), and TurnCost reads stay as they are
 recommendation: keep (ruled by the orchestrator): one retention cut for a turn and its records keeps every read consistent, the data is past the 90-day line the owner already approved, and it lands after 1.0.0's critical path
 blocks: nothing now; Epic 30 part 2's burn-down builds it
+answer: Keep, with two conditions. (1) A Session row is purged only when the session has no Turn, Delivery or Decision newer than the 90-day cut and isn't a current session (signed in, or with an open approval request, watch or reminder); it's never purged by age alone. (2) The purge touches only OcuTalon's own tables. The IRIS audit log entries for approvals and actions are never purged by this story. Add one test for each condition, next to the TurnCost/ShownDecisionRef test. The AD-27 retention extension marker is fine. Note: 30.7 is one of the reserve levers that could move after the tag if rc1 slips past Nov 3 18Z, so build it independently of 30.1. (by Contest Planner via inbox, 2026-11-02T09:22:13Z#641; quoting the owner: "I have delegated authority to the Contest Planner. That agent is allowed to make decision on my behalf.")
+
+### U-211 | veto | Story 31.2 | 2026-11-02T07:58:18Z
+question: U-183 routed a 'still resending' band to Story 31.2 for 1.0.0, noting that a running fix run's counts so far are not stored where the page reads them. 31.2's plan (part 1) ruled: the card's existing 'Repairing and resending...' fixing line is the page's still-resending state, with no new band. Every result.* text needs counts (result.stillResending takes completed and count), the page receives none while a run is going (Live.Payload.Incident fills Requests[].Result only from an ended FixRun, Lane A's), and a count-free band would be new public text and would contradict the pinned 'no band before a result' behaviour. A test pins that an executing request with no result shows the fixing line and no band, so the page never claims an outcome. The counts-so-far residual (Lane A: Fix/Run.cls and Live/Payload/Incident.cls store and send the counts so far) is filed in the ledger for the orchestrator to route to a Lane A story, as U-183's own routing foresaw.
+options: (a) keep: the fixing line is the still-resending state now; a counts band when Lane A sends counts (the routed residual); (b) reverse: 31.2 adds a count-free 'still resending' band with new text (its own veto item; changes pinned card behaviour)
+recommendation: (a) keep
+blocks: nothing: veto window; 31.2 part 1 proceeds on (a)
+answer: Keep. The card's existing 'Repairing and resending...' fixing line is the still-resending state, with no new band. It's honest: it claims no outcome and no counts, and adds no new public text. The pinned test stays as ruled: an executing request with no result shows the fixing line and no band. The counts-so-far residual (Lane A's Fix/Run.cls and Live/Payload/Incident.cls) goes to the ledger for a later Lane A story, after 1.0.0; it isn't 1.0.0 scope. (by Contest Planner via inbox, 2026-11-02T09:22:13Z#640; quoting the owner: "I have delegated authority to the Contest Planner. That agent is allowed to make decision on my behalf.")
+
+### U-212 | veto | Story 31.5 | 2026-11-02T09:38:54Z
+question: Story 31.5 (a tool call's approval request reaches the phone and paired chat) adds four Lane B catalog texts that the UX does not specify (EXPERIENCE.md words only the card's 'Run {tool} on {server}' and 'No dry run is available for this tool. Approving runs exactly this call once.'). Ruled: toolCall.request = 'Run {tool}' + newline + 'Inputs: {inputs}' + newline + 'No dry run is available for this tool. Approving runs exactly this call once.' (inputs on one line, through the bridge's redactor); toolCall.done = '{tool} ran once at {time}.'; toolCall.failed = '{tool} failed at {time}. I won't run it again without a new approval.'; toolCall.failedWithReason (DW-454, an old held call) = '{tool} didn't run. {reason}'. Answered statuses reuse answered.approved/rejected/expired. Also decided (Q3): a tool call's messages behave exactly as a fix's (Story 6.4): the answer edits the request message in place, the result is a new message with no buttons (the user story's wording 'edited in place when its result arrives' is read through its 'answered the same way as a fix').
+options: (a) keep these texts; (b) reverse: other wording (a text change in Msg/Catalog/Core.cls's appended block and its tests)
+recommendation: (a) keep
+blocks: nothing: veto window; 31.5 proceeds on (a)
+answer: (none yet -- answer with the script or --review)
+
+### U-213 | veto | Story 11.17 | 2026-11-02T10:22:06Z
+question: Story 11.17's ipm step adds two FAIL lines that the ruled list (U-206) did not include: 'the candidate holds no single docker/ipm/zpm-*.xml' and 'the candidate's tree (src and docker/ipm) could not be exported'. Ruled: keep (plain, factual, they name the cause and nothing else).
+options: keep | reverse (re-word in a follow-up before 1.0.0's cut)
+recommendation: keep
+blocks: nothing (Story 11.17 continues)
+answer: (none yet -- answer with the script or --review)
+
+### U-214 | veto | Story 30.7 | 2026-11-02T12:34:02Z
+question: Story 30.7 (DW-470, U-172's kept conditions) adds new public-facing failure text for a replayed tool call whose provider cannot be reached: 'The model provider could not be reached, so the approved call did not run. Nothing was changed.' (the no-key case reuses U-170's existing no_key wording with 'Nothing was changed.'). Ruled: keep this wording; Story 31.2 displays it.
+options: keep the sentence | reword it (give the words) | drop the new reason and show only the generic failed text
+recommendation: keep: it says exactly what happened and that nothing changed, in the catalog's plain style, as U-172 asked
+blocks: nothing (decided; a reversal is a one-line catalog change before 1.0.0)
+answer: (none yet -- answer with the script or --review)
+
+### U-215 | veto | DW-496 (Epic 11 decision sheet; AD-1) | 2026-11-02T13:18:26Z
+question: AD-1's Rule says a tool command's IdempotencyKey is the turn's ItemId plus the tool call's position in the turn, but the build keys each command by the command's position (CommandCall.Run), so U-118's several-ref cancel_reminder gives one tool call the keys :2, :3 and :4; a literal reading would make ReminderOps refuse two of them as reused. The orchestrator amended AD-1's wording to the as-built rule (the command's position in the turn), with a marker and the lint; no code changes.
+options: keep: AD-1 reads the command's position (as built, pinned by TestCancelAllThroughChat); reverse: one key per tool call, which needs a different key scheme for several-ref commands (a fix story in Lane A)
+recommendation: keep (ruled by the orchestrator): the as-built rule is the safe one (each command is still acted on at most once), and U-118 already relies on it
+blocks: nothing now
+answer: (none yet -- answer with the script or --review)
+
+### U-216 | veto | DW-532 (Epic 11 decision sheet) | 2026-11-02T13:18:26Z
+question: After 1.0.0's merge-back of main into the integration branch, the built web bundle in src/ocutalon/csp/ (put there by Story 11.17 at the cut) is tracked, so every later local web build dirties the tree. The orchestrator routed it to Epic 11 part 2 (Story 11.16, the merge-back), which builds into a separate folder and copies the bundle in only at the cut; until then a developer runs git checkout on src/ocutalon/csp/ after a local build.
+options: keep: Epic 11 part 2 (11.16) after rc1; reverse: fix it before the 1.0.0 cut (a fix-forward on 11.17, on the critical path)
+recommendation: keep (ruled by the orchestrator): it bites only after the merge-back, which follows the tag; it touches no judge-visible behavior
+blocks: nothing now; the Contest Planner's hand merge-back should expect src/ocutalon/csp/ changes
+answer: (none yet -- answer with the script or --review)
+
+### U-217 | veto | DW-553 (Epic 11 decision sheet) | 2026-11-02T13:18:26Z
+question: The release checklist (Story 11.4) prints FAIL summaries and a no-bundle licences detail that are public text nobody ruled on. The orchestrator keeps them as written, as with U-200.
+options: keep: the texts stand; reverse: a wording pass on the checklist's FAIL lines (Epic 11 part 2)
+recommendation: keep (ruled by the orchestrator): plain English, no class names, names no private infrastructure; same standard as U-200
+blocks: nothing
 answer: (none yet -- answer with the script or --review)
 
 ## Run reports
@@ -268,4 +317,4 @@ answer: (none yet -- answer with the script or --review)
 - U-207 | veto | Epic 30: To bring Epic 30's merge (DW-500, the demo launch) forward, as the Contest Planner asked: Epic 30 merges after Stories 30.6 and 30.5, with Story 30.1 (compaction, its largest story) held out of that merge by this ruling, and re-opened on the same runner right after under SC-5. No other epic waits on 30.1 (13.2 and 31.2 wait on 30.3, done); 30.1 must still be done before rc1 (the candidate run executes its smoke test). Expected gain: the merge lands roughly one 30.1 duration earlier (about 5-8 h); 1.0.0's date does not move (critical path Epic 11 then 13). -> Keep: Epic 30 merges as part 1 (30.6 and 30.5 with DW-500), and 30.1 re-opens on the same runner right after under SC-5. Conditions: (1) part 1's burn-down leaves every ledger item owned by 30.1 open; (2) 30.1 merges before the rc1 cut, and if its re-open ever threatens rc1's date, tell me before it does; (3) send me part 1's merge sha the moment it lands, at any hour, because the demo launch waits on it. (by Contest Planner via inbox, 2026-11-01T15:27:35Z#625; quoting the owner: "I have delegated authority to the Contest Planner. That agent is allowed to make decision on my behalf."); resolved by orchestrator, 2026-11-01T19:34:28Z -- kept; conditions in Epic 30's dispatch prompt and the resume notes (burn-down leaves 30.1's items open; 30.1 before rc1; part 1 sha at once)
 - U-208 | veto | Story 11.18: Story 11.18's update hook (release/demo-update.sh) and rehearsal mode print and record new fixed text: the hook's output lines and failure reasons, the '## Online demo update' section in the record and the draft notes (including the line that the online demo wasn't updated when no host is configured), release.sh's rehearsal refusals, rows and end Result (spec-11-18 Design Notes). It also adds a configuration key DEMO_STANDIN=yes (a safety marker: a rehearsal reaches only a host marked as a stand-in, so it can never update the real online demo) and fixes the bundle's place on the demo host at ocutalon-demo/bundles/ocutalon-<v>.bundle (one ref), which AD-25 leaves open; the Contest Planner applies that to the real host's command (Epic 29's H19). Ruled: keep as planned. -> Keep as planned, including DEMO_STANDIN=yes (the real host never carries it) and the bundle place ocutalon-demo/bundles/ocutalon-<v>.bundle with one ref. Planner action, before rc1's demo step: I adapt the real host's ocutalon-demo command (H19) to that contract and dry-run it. For that, send me 11.18's exact host contract when it's done: the absolute path on the host, the ref name inside the bundle, the ssh command line the hook runs, and its expected output and exit codes. (by Contest Planner via inbox, 2026-11-02T00:43:58Z#632; quoting the owner: "I have delegated authority to the Contest Planner. That agent is allowed to make decision on my behalf."); resolved by orchestrator, 2026-11-02T01:22:13Z -- kept; Epic 11 runner told to report 11.18's host contract for the Planner
 
-<!-- journal: 638 lines -->
+<!-- journal: 647 lines -->
