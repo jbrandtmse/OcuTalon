@@ -345,3 +345,5 @@
 2026-11-02T10:22:06Z	Story 11.17	ruling	question=two_unlisted_FAIL_ipm_lines choice=keep category=veto reversal=re-word_before_1.0.0_cut inbox=U-213 policy=ff1bd1a
 2026-11-02T10:22:06Z	Story 11.17	adr_verifications_complete	tool=none acs=none result=none_required evidence= mutations=none model=claude-opus-5-5
 2026-11-02T10:22:06Z	Story 11.17	stage_spawned	stage=qa spawn_at=2026-11-02T10:22:06Z model=claude-sonnet agent_name=11-17-the-release-s-ipm-artifact-carries-the-built-page-qa-1 cycle_iteration=1
+2026-11-02T10:41:08Z	Story 11.17	qa_complete	spawn_at=2026-11-02T10:22:06Z model=claude-sonnet tests_added=1_case(ipmfail:failed_ipm_never_pushed) mutations_demonstrated=9 first_run_failures=0 clarifications=0 closing_sections_present=true note=a_leaked_mutation_batch_restored(release.sh_byte-identical_to_HEAD,verified) subagent_tokens=117832 duration_min=19
+2026-11-02T10:41:08Z	Story 11.17	stage_spawned	stage=code-review spawn_at=2026-11-02T10:41:08Z model=claude-opus agent_name=11-17-the-release-s-ipm-artifact-carries-the-built-page-code-review-1 cycle_iteration=1 scope=5ab43766..HEAD
