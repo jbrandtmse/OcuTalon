@@ -316,3 +316,4 @@
 2026-11-02T02:32:57Z	Story 11.13	story_cycle	plan_to_commit_min=1096 implement_passes=1 reviews=1 rework=0 first_ci=pending models=plan:claude-opus,implement:claude-sonnet,qa:claude-sonnet,cr:claude-opus
 2026-11-02T03:08:23Z	Story 11.13	ci_red_classified	run=41378276955 workflow=.github/workflows/ci.yml class=flake test=test-production.sh_row_21 ledger=DW-306(occurrence) action=gh_run_rerun_--failed
 2026-11-02T03:30:55Z	Story 11.13	ci_resolved	story=11.13 sha=7e1e4582 runs=41378276955,41378276849 result=success failed=none via=none resolved_at=next_implement first=flake(DW-306_row_21;rerun_green) ci_groups=production_20,install-macos_0,browser_28,shards-2_31,image_30,web_0,shards_28,install-upgrade_31,install-fresh_32,checks_8
+2026-11-02T03:30:56Z	Story 11.5	stage_spawned	stage=implement spawn_at=2026-11-02T03:30:56Z model=claude-sonnet agent_name=11-5-one-scripted-sequence-cuts-a-release-implement-1 cycle_iteration=1 story_base=642cd585
