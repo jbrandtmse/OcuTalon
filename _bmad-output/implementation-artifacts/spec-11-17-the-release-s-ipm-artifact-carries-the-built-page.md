@@ -2,13 +2,12 @@
 title: 'Story 11.17: The release''s IPM artifact carries the built page'
 type: 'feature'
 created: '2026-11-01'
-status: 'draft'
+status: 'ready-for-dev'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-11-context.md'
   - '{project-root}/_bmad-output/implementation-artifacts/spec-11-5-one-scripted-sequence-cuts-a-release.md'
-  - '{project-root}/_bmad-output/implementation-artifacts/spec-11-14-the-release-sequence-runs-every-gate-on-the-pushed-candidate.md'
 warnings: ['oversized']
 deferred: []
 ---
@@ -19,9 +18,9 @@ deferred: []
 
 **Problem:** Story 11.5's cut builds the web bundle with Node.js and commits it on `release/<v>-rc<n>`, but nothing packages the candidate as an IPM artifact. Nothing checks that the artifact carries that bundle, and the candidate's record names no artifact. So Story 15.3 has no exact artifact to install from a local filesystem repository, and nothing shows that a registry install would need no Node.js.
 
-**Approach:** Add one step, `ipm`, to 11.5's `STEPS`, between 11.14's `stubs` and `push`:
+**Approach:** Add one step, `ipm`, to 11.5's `STEPS`, between `image` and `push`:
 
-`cut image stubs ipm push ci eval upgrade rehearsal notes checklist hands-on pr merge tag mergeback demo`
+`cut image ipm push notes`
 
 The step runs entirely on the author's machine. It:
 - takes the cut commit's tree, with the bundle the cut committed in `src/ocutalon/csp/`;
@@ -36,13 +35,13 @@ Nothing goes out. The registry publish stays the author's own action. This story
 ## Boundaries & Constraints
 
 **Always:**
-- **The conventions of 11.5, 11.14, 11.15 and 11.16 hold:**
+- **The conventions of 11.5 hold:**
   - Bash 3.2 and ASCII; mode 100755; `umask 077`; the main guard;
   - `PASS|FAIL|WAIT <step> <detail>`, then `RECORD` and `RESULT`;
   - the stop routine (record, commit with an explicit pathspec, ASK `record`);
-  - exit codes 0, 1, 2, 4 and 5;
+  - exit codes 0, 1, 2, 4 and 5 (5, `WAIT`, is new in this story: a busy lane lock; nothing recorded; the next `next` runs the step again);
   - no value printed; the record names no local absolute path.
-- **The bundle is the cut's.** The step packages the tree of the recorded cut SHA (`git archive <cut sha> -- src docker/ipm`), read from the repository that holds `release/<v>-rc<n>` before the push, as 11.14's `stubs` reads it. It never builds the bundle again: a second build could differ from the committed one, and then the artifact would not be the candidate.
+- **The bundle is the cut's.** The step packages the tree of the recorded cut SHA (`git archive <cut sha> -- src docker/ipm`), read in the repository that holds `release/<v>-rc<n>` (11.5's cut fetches the cut commit there from its state clone, then removes the clone), as 11.5's `image` step reads it. It never builds the bundle again: a second build could differ from the committed one, and then the artifact would not be the candidate.
 - **The throwaway.**
   - `docker run -d --pull never --network none --name ocutalon-release-ipm-<v digits>-rc<n>-<epoch>-<pid>` of `${IRIS_IMAGE:-ocutalon-iris-base:2026.3.0AI.154.0}`.
   - The run passes no `-e`, `--env`, `--env-file`, `-v`, `--mount` or `-p`.
@@ -60,8 +59,7 @@ Nothing goes out. The registry publish stays the author's own action. This story
   - every file the cut commit tracks under `src/ocutalon/csp/` is in the artifact as `ocutalon/csp/<rel>`, with the same bytes;
   - IPM's filesystem repository lists `ocutalon <v>` from the artifact, extracted to `/tmp/ocutalon-check/ocutalon-<v>/` (the layout measured below).
 - **Extend, don't copy (Rule 2):**
-  - 11.5's step list, stop routine, state and `manifest_version`;
-  - 11.14's exit 5 (`WAIT`) and its pre-push tree reader;
+  - 11.5's step list, stop routine, state, `manifest_version`, and its `git archive` read of the cut tree;
   - 11.3's `record_write` and `detail_clean`;
   - lib-live's `live_lock_claim` and `live_lock_release` (source only).
   - New helpers go into `release/lib-release.sh`.
@@ -82,7 +80,7 @@ Nothing goes out. The registry publish stays the author's own action. This story
 
 | Scenario | Input / State | Expected Output / Behavior | Error Handling |
 |----------|--------------|---------------------------|----------------|
-| Packaged | `stubs` passed. The cut tree tracks `src/ocutalon/csp/index.html` and the rest of the bundle; the base image is present; `next` | `<state>/ipm/ocutalon-1.0.0.tgz`. `PASS ipm ocutalon-1.0.0.tgz <bytes> bytes sha256 <64 hex>`, then `ARTIFACT <absolute path>`. `## IPM artifact` and the row (Design Notes); exit 0; the next step is `push` | The container is gone, and the lock is released |
+| Packaged | `image` passed. The cut tree tracks `src/ocutalon/csp/index.html` and the rest of the bundle; the base image is present; `next` | `<state>/ipm/ocutalon-1.0.0.tgz`. `PASS ipm ocutalon-1.0.0.tgz <bytes> bytes sha256 <64 hex>`, then `ARTIFACT <absolute path>`. `## IPM artifact` and the row (Design Notes); exit 0; the next step is `push` | The container is gone, and the lock is released |
 | Two-run package | The tree's `module.xml` has Epic 15's CPF and `MapAndStop`. USER's load ends with the stop sentence, and OCUTALON then exists | Loaded again in OCUTALON and packaged there; same as Packaged | -- |
 | One-run package | The tree's `module.xml` is today's (no CPF). USER's load reaches `Activate SUCCESS` | Packaged in USER; same as Packaged | -- |
 | No bundle in the cut | `src/ocutalon/csp/index.html` is not in the cut commit | `FAIL ipm the candidate has no committed web bundle (src/ocutalon/csp/index.html)`; exit 1; record `Result: failed at ipm: ...` | No container started |
@@ -99,45 +97,60 @@ Nothing goes out. The registry publish stays the author's own action. This story
 
 ## Code Map
 
-**Prerequisites.** Stories 11.3, 11.4, 11.13, 11.5 and 11.14 must be merged into this branch (11.15 and 11.16 too if they are built first; their pins move by one step). Today `release/` holds `lib-release.sh`, `rehearse.sh`, `upgrade-harness.sh`, `standalone-bridge.sh` and Epic 29's files, and 11.5 and 11.14 are `ready-for-dev`. If `release.sh`, its stop routine, or 11.14's exit 5 and `stubs` step are missing, implement HALTs `blocked` with `missing prerequisite story`, naming them.
+**Base (built, at HEAD `63936d68`).** Story 11.5 is `done` and merged here: `release/release.sh`, `release/lib-release.sh`, `release/notes.sh` and `docker/tests/test-release-sequence.sh` exist. Stories 11.14, 11.15, 11.16 and 11.18 are NOT built (Epic 11 part 2) and are not prerequisites: no `stubs` step, no 11.14 tree reader, no `--cases` filter. If `release.sh`'s `STEPS`, `stop_routine` or `cmd_next` are missing, implement HALTs `blocked` with `missing prerequisite story`, naming them.
 
-**Files:**
-- `release/release.sh` (11.5; extended by 11.14 to 11.16) -- insert `ipm` after `stubs` in `STEPS`, add `step_ipm`, and make `status` print the `ARTIFACT` line. The header comment gains the step (contract only, Rule 14). New state keys: `ipm_container`, `ipm_ns` and `ipm_result`.
-- `release/lib-release.sh` -- add these helpers:
-  - `sha256_file <file>`: the 64-hex digest only, from `sha256sum`, else `shasum -a 256`;
-  - `ipm_artifact_path <v> <rc>`: `<state>/ipm/ocutalon-<v>.tgz`. It uses 11.5's state-folder rule; if 11.5 kept that rule inline in `release.sh`, lift it here as `release_state_dir <v> <rc>` and use it in both;
-  - `ipm_artifact_check <tgz> <v> <tree>`: one line per problem, empty when the artifact is good; it runs the checks under Always;
-  - `ipm_content_digest <tgz>`: the SHA-256 of the sorted `<sha256>  <path>` lines of every regular file in the archive, so two packagings of one tree give one value.
-  - Keep every existing function and its consumers' self-tests.
-- `docker/tests/test-release-sequence.sh` (11.5; extended by 11.14 to 11.16) -- extend it; no new `CHECK_SCRIPTS` entry.
-  - The docker shim keeps a fake container root per `--name` under its folder, and logs every call. It answers:
-    - `image inspect --format` (a flag file makes it fail);
-    - `run -d`;
-    - `exec ... iris qlist` (`^running`);
-    - `exec mkdir` and `exec -u root chmod`;
-    - `cp` in both directions;
-    - `rm -f -v`;
-    - `exec -i ... iris session IRIS -U <ns>`, which reads the script on stdin:
-      - `zpm "load <dir>"` outside OCUTALON prints 15.1's stop sentence when `module.xml` has `MapAndStop`, and creates OCUTALON; otherwise it prints `[<NS>|ocutalon]` and `Activate SUCCESS`;
-      - `zpm "package ocutalon -only -path <p>"` writes `<p>.tgz` with `tar -czf` of the copied `src/` (module.xml at the top);
-      - `repo ... -list-modules` prints `ocutalon <version> @ <path>` for the folder's `module.xml`;
-    - flag files make the load fail, drop `ocutalon/csp/`, change one bundle byte, change the version, or empty the repository listing.
-  - Add `--cases ipm` if 11.15 added `--cases`.
-  - Add `--live ipm`: the real base image and IPM on a throwaway candidate cut with a real bundle (11.5's `--live` folder, or its own cut). It asserts the matrix's Packaged row against real IPM, then no container whose name starts with `ocutalon-release-ipm-` and no lock of it.
-- Read only:
-  - `src/module.xml`: today `<Version>` at `:6` and `FileCopy` at `:12`. On `origin/OCT-epic15` it adds `CPF`, `MapAndStop` and `Registry.Ipm`; the step handles both forms.
-  - `docker/ipm/zpm-0.10.10.xml`: the pinned IPM, the only `zpm-*.xml`.
-  - `docker/tests/lib-live.sh:94-150`: `live_lock_dir`, `live_lock_claim` (it exits 75 when the lock is busy, hence the subshell), `live_lock_release`; and `:587` `manifest_version`.
-  - `docker/after-start.cos:4`: the precedent for loading IPM from its release file with `"ck-d"`.
-  - `release/ipm-install.sh` on `origin/OCT-epic15`: the precedents for `run` (sessions through stdin, ANSI stripped with `strip_ansi`) and `final_line` (the last non-prompt line).
+**`release/release.sh` (11.5; extend):**
+- `:4` and `:5` header lines -- steps `cut, image, ipm, push, notes` (part 2's 11.14-11.16 and 11.18 insert theirs); exit adds `5 waited: the lane's throwaway lock is busy (nothing recorded; the next call runs the step again)`. `:24-26` gain one sentence on `ipm` (contract only, Rule 14). `:35` output becomes `PASS|FAIL|WAIT <step> <detail>`. `:36` adds tar, gzip and `sha256sum` or `shasum`.
+- `:47` `STEPS="cut image push notes"` -> `"cut image ipm push notes"`.
+- `:61` `state_root` -- its body moves to lib-release's `release_state_root`; `state_root` stays as a one-line call (its callers `find_state`, `cmd_start` unchanged). `:672` and `:865` build `sdir` with `release_state_dir "$version" "$rc"`.
+- `:430` `step_fail` -- reuse for every `FAIL ipm` (it already maps `$sdir` to `<state>` and the checkout to `.`).
+- `:538` `step_image`'s base default -- lift into a one-line `base_image` function used by `step_image` and `step_ipm` (no second copy of the default).
+- `:542` `git archive "$(sget cand_sha)" | tar -x -C ...` -- the precedent `step_ipm` follows to read the cut tree (into `<state>/ipm-tree/`, removed by the step on every path).
+- New `step_ipm`, after `step_image` (`:582`). Order: tree export; bundle and version refusals; the single `docker/ipm/zpm-*.xml`; `docker image inspect --format`; `sset ipm_container <name>` (and `docker rm -f -v` of an earlier recorded leftover); then the subshell. Inside the subshell set `root=$rel_root` before `live_lock_claim` (lib-live's `live_lock_dir` reads `$root`, which only `live_start` sets), and send its stdout and stderr to `<state>/ipm/run.log`, so lib-live's `LOCK` lines are not printed. The subshell's exit 75 is the WAIT; any other non-zero is a FAIL whose detail the subshell wrote to a state file. On pass: `sset ipm_result pass`, `sset ipm_ns <NS>`, write the section with `record_write "$(record_abs)" <section file>` at step time (the stop routine's `record_put` later replaces only `## Release sequence` and keeps this section byte for byte), print `PASS ipm ...` and `ARTIFACT <abs path>`, set `STEP_ROW=pass` and `STEP_DETAIL` to the row text. On fail: `sset ipm_result fail`, write the fail section (Design Notes), return 1. On busy: print the WAIT line, return 5, write nothing.
+- `:732` `cmd_next` -- add `5) exit 5 ;;` before the `*)` branch: no `row_set`, no `stop_routine`, `next` unchanged.
+- `:719` `cmd_status` -- after the `Result:` line, when `ipm_result` is `pass` and the file exists, print `ARTIFACT <abs path> <bytes> <sha256>`.
+- Never touch `ask`, `stop_routine`, `record_render`, `record_put`, `record_commit`, `record_only`, `record_push` or `step_push` (Rule 2).
+
+**`release/lib-release.sh` (11.3; extend, header lines `:5-44` list each new helper):**
+- `release_state_root` and `release_state_dir <v> <rc>` -- lifted from `release.sh:61` (`${OCUTALON_RELEASE_STATE:-${XDG_STATE_HOME:-$HOME/.local/state}/ocutalon/release}` and `/<v>-rc<n>`).
+- `sha256_file <file>` -- the 64-hex digest only, from `sha256sum`, else `shasum -a 256`.
+- `ipm_artifact_path <v> <rc>` -- `$(release_state_dir <v> <rc>)/ipm/ocutalon-<v>.tgz`.
+- `ipm_artifact_check <tgz> <v> <tree>` -- one line per problem, empty when good; the name, version, `FileCopy` and bundle byte checks of Always (the repository listing is checked in the container, not here).
+- `ipm_content_digest <tgz>` -- the SHA-256 of the sorted `<sha256>  <path>` lines of every regular file in the archive, extracted to a temporary folder that it removes.
+- Keep every existing function; its consumers' self-tests stay green.
+
+**`docker/tests/test-release-sequence.sh` (11.5; extend; already in `CHECK_SCRIPTS`):**
+- `:4-28` header -- the new rules and `--live ipm`.
+- `:38-45` argument loop -- `--live` stays IA3; `--live ipm` also runs the real `ipm` step on the same throwaway (one call).
+- `:115-212` `mkshims` docker shim -- today it answers `image`, `build`, `run --rm --entrypoint`, `rmi`. Extend it (the image step's branch unchanged) to keep a fake container root per `--name` under `$SHIMSTATE`, and to answer: `run -d ...` (records the flags); `exec <c> iris qlist` (`^running`); `exec [-u root] <c> mkdir|chmod`; `cp` both ways; `rm -f -v`; `exec -i <c> iris session IRIS -U <ns>` reading the script on stdin:
+  - `zpm "load <dir>"` outside OCUTALON prints 15.1's stop sentence when the copied `module.xml` has `MapAndStop`, and creates OCUTALON; otherwise `[<NS>|ocutalon]`, a tab and `Activate SUCCESS`;
+  - the OCUTALON existence check answers from that state;
+  - `zpm "package ocutalon -only -path <p>"` writes `<p>.tgz` with `tar -czf` of the copied `src/` (module.xml at the top);
+  - `repo ... -list-modules` prints `ocutalon <version> @ <path>` from the extracted folder's `module.xml`;
+  - flag files: `ipm-load-fail`, `ipm-drop-csp`, `ipm-byte`, `ipm-version`, `ipm-empty-repo`, `ipm-mapandstop` (the shim treats the module as Epic 15's).
+- `:240` `mkseed` -- add `docker/ipm` to the archived paths (the tree's `zpm-0.10.10.xml`, 1.6 MB).
+- `:324` `to_step` -- add the `ipm` stop: `push` now follows one more `rs '' next`.
+- Every pin of the old order (Shared surfaces): `t_image` `NEXT push` (`:667`, `:706`) -> `NEXT ipm`; `t_record` `:875`; the explicit `rs` sequences of `t_push` (`:716`), `t_secret` (`:1169`), `t_pushes` (`:1291`, two runs), `t_hands`, `t_resume`, `t_notes`, `t_gate`, `t_word`, `t_cut`, `t_recut` -- search for every `rs '' next` chain and `NEXT ` pin.
+- `newcase` (`:273`) -- export `OCUTALON_LOCK_DIR=$C/locks` (created empty) for every hermetic case, overriding a caller's lane value, so no hermetic run touches a real lock folder; `live_run` keeps the caller's.
+- `:1152` `forbidden_scan` -- add `docker pull`, and on lines that hold `zpm` or `repo` followed by a blank: `publish`, ` -r `, `-url`. Patterns built from parts; planted lines give `file:line`.
+- `:1347` `t_static` -- also `bash -n` and mode for `lib-release.sh` unchanged; no `release/ipm*` file in the diff.
+- `:1377` `live_run` -- with `ipm`, one more real `next`, then asserts IA1.
+
+**Read only:**
+- `docker/tests/lib-live.sh:94-150` (`live_lock_dir` reads `$root`, `live_lock_claim` exits 75 after `OCUTALON_LOCK_WAIT` s, `live_lock_release`) and `:587` `manifest_version`. Epic 12 changes this file (no lock lines); source it, never edit it.
+- `src/module.xml`: today `<Version>` at `:6` and `FileCopy` at `:12`. On `origin/OCT-epic15` it adds `CPF`, `MapAndStop` and `Registry.Ipm`; the step handles both forms.
+- `docker/ipm/zpm-0.10.10.xml`: the pinned IPM, the only `zpm-*.xml`.
+- `docker/after-start.cos:4`: loading IPM from its release file with `"ck-d"`.
+- `release/ipm-install.sh` on `origin/OCT-epic15`: `run` (sessions through stdin, ANSI stripped with `strip_ansi`) and `final_line` (the last non-prompt line).
+- `release/notes.sh`: never writes the record (`:46`), so IA2's byte-identity holds by construction; the test proves it.
 
 ## Tasks & Acceptance
 
 **Execution:**
 - Task 0 is done at plan (see Verification). Implement re-measures only the step's wall-clock in `--live ipm`, with the real bundle, and records it.
-- `release/lib-release.sh` -- add the four helpers.
-- `release/release.sh` -- `step_ipm` as in the Matrix and Always, the `ARTIFACT` line, and the header.
-- `docker/tests/test-release-sequence.sh` -- update the `STEPS`, row and order pins of 11.5 and 11.14 to 11.16 for `ipm`. Then add the shim, a case for every Matrix row, the ACs and IA2, the scan below, and `--live ipm` (IA1).
+- `release/lib-release.sh` -- add `release_state_root`, `release_state_dir`, `sha256_file`, `ipm_artifact_path`, `ipm_artifact_check` and `ipm_content_digest`, with header lines -- the shared helpers the step and Story 15.3 read.
+- `release/release.sh` -- `STEPS`, `state_root` via the lib, `base_image`, `step_ipm` as in the Matrix and Always, exit 5 in `cmd_next`, the `ARTIFACT` line in `cmd_status`, and the header -- the step itself.
+- `docker/tests/test-release-sequence.sh` -- update 11.5's order pins for `ipm` first (the suite green again with `ipm` passing in the shim). Then add the shim, a case for every Matrix row, the ACs and IA2, the scan, and `--live ipm` (IA1). Reuse one advanced case per rule and toggle flags between `next` calls (as `t_image` does), to keep the hosted `checks` job fast.
 
 **Acceptance Criteria:**
 - **AC1 (the bundle in the artifact; REL-3, AD-23):** **Given** a cut whose tree tracks the bundle, **when** `next` runs `ipm`, **then** the `.tgz` holds every tracked `src/ocutalon/csp/` file, byte for byte, as `ocutalon/csp/<rel>`, under a `module.xml` with `ocutalon`, `<v>` and the `FileCopy` of `ocutalon/csp/`. **Given** each shim flag (a dropped bundle, a changed byte, a wrong version), **when** the step runs, **then** it fails naming the problem, the file is gone, and no push ASK follows.
@@ -156,12 +169,13 @@ Nothing goes out. The registry publish stays the author's own action. This story
 
 ## Spec Change Log
 
+- **2026-11-02, re-plan (orchestrator ruling "Re-plan 2026-11-02", decide; owner trim of Epic 11).** Trigger: Stories 11.14, 11.15 and 11.16 are not built (Epic 11 part 2), and the earlier plan stood on them. Amended: the Approach's step list (`cut image ipm push notes`, `ipm` between `image` and `push`); in Always, the conventions line (11.5's only; exit 5 marked as this story's), the bundle line (the cut tree read with `git archive <cut sha>` as 11.5's `image` step reads it, not by 11.14's pre-push reader), and the Extend line (no 11.14 item); the Matrix's Packaged row (`image` passed, not `stubs`); the Code Map, Tasks, Verification commands, mutation plan and Shared surfaces (11.5's pins only; no `--cases`); Consumes and Consumed-by; Decided in-stage 1 and 7 and new items 8 to 13. Every acceptance criterion, the Matrix's outcomes and every ruled fixed text (U-206) are unchanged. Known-bad state avoided: an implement pass HALTing on missing 11.14 prerequisites, or pulling part 2's steps in. KEEP: the Task 0 measurements, the record golden, the content digest and the 15.3 facts.
+
 ## Review Triage Log
 
 ## Design Notes
 
-**Re-plan 2026-11-02 (orchestrator ruling, decide; owner trim: Epic 11 ends after 11.17 for 1.0.0, 11.14 to 11.16 and 11.18 move to Epic 11 part 2).** Re-plan this story on Story 11.5's base alone; 11.14, 11.15, 11.16 are NOT built and must not be pulled in. Step order: `cut image ipm push notes`. `step_ipm` reads the cut tree itself with `git archive <cut sha>` from 11.5's state clone (no 11.14 pre-push tree reader). A busy lane lock is `step_ipm`'s own exit 5 (`WAIT`, nothing recorded), a code this story introduces; part 2's 11.14 adopts it and never redefines it. The `## IPM artifact` record keeps exactly the shape Story 15.3 reads: file name, size, SHA-256, content digest, `Published: no`. No acceptance criterion changes: the re-plan touches only the Approach, the Code Map and the Tasks, plus the self-test pins for 11.5's step list. Where older text in this spec names 11.14's `stubs`, exit 5 or tree reader, or 11.15/11.16 pins, this note wins.
-
+**Re-plan 2026-11-02 (orchestrator ruling, decide; owner trim: Epic 11 ends after 11.17 for 1.0.0, 11.14 to 11.16 and 11.18 move to Epic 11 part 2).** Re-plan this story on Story 11.5's base alone; 11.14, 11.15, 11.16 are NOT built and must not be pulled in. Step order: `cut image ipm push notes`. `step_ipm` reads the cut tree itself with `git archive <cut sha>` from 11.5's state clone (no 11.14 pre-push tree reader). A busy lane lock is `step_ipm`'s own exit 5 (`WAIT`, nothing recorded), a code this story introduces; part 2's 11.14 adopts it and never redefines it. The `## IPM artifact` record keeps exactly the shape Story 15.3 reads: file name, size, SHA-256, content digest, `Published: no`. No acceptance criterion changes: the re-plan touches only the Approach, the Code Map and the Tasks, plus the self-test pins for 11.5's step list. Where older text in this spec names 11.14's `stubs`, exit 5 or tree reader, or 11.15/11.16 pins, this note wins. (Applied in this re-plan; see the Spec Change Log.)
 
 **Governing ADs (Rule 6):**
 - **AD-2:** one IPM package, `ocutalon`, with the bridge first, plus the built bundle.
@@ -175,7 +189,7 @@ Nothing goes out. The registry publish stays the author's own action. This story
 - **AD-29:** `release/` is Lane A's; Epic 15 owns `src/module.xml`, `release/ipm*` and `Install/**`.
 - No criterion contradicts an AD.
 
-**Record (golden; written with `record_write`):**
+**Record (golden; written with `record_write`; ruled under U-206, kept):**
 ```
 ## IPM artifact
 Result: pass
@@ -189,10 +203,10 @@ Web bundle: 19 files of src/ocutalon/csp/, index.html included, byte-identical t
 Published: no; publishing to the package registry is the author's own action, outside this sequence
 ```
 - The step's row reads `| ipm | pass | ocutalon-1.0.0.tgz, 2486113 bytes, SHA-256 <first 12 hex>; carries the candidate's web bundle; not published |`.
-- A failure reads `Result: fail` in the section, and `failed at ipm: <detail>` in `## Release sequence`.
+- A failure reads `Result: fail` in the section (with the `Candidate:` and `Published:` lines, nothing else), and `failed at ipm: <detail>` in `## Release sequence`. A refusal before the tree is read (no cut) writes no section.
 
 **Decided in-stage (unattended block: small, reversible, within the intent):**
-1. **`ipm` comes before `push`.** A candidate whose artifact fails then never goes out, and Story 15.3's later gate finds the artifact already there. It comes after `stubs`, so the static check fails fast first.
+1. **`ipm` comes before `push`.** A candidate whose artifact fails then never goes out, and Story 15.3's later gate finds the artifact already there. It comes after `image`, so 11.5's version check of the built image fails fast first.
 2. **The artifact is IPM's own `.tgz`.** That is what `package` and `publish` produce. A filesystem repository needs it extracted (measured), and 15.3 does that.
 3. **The content digest sits beside the file's SHA-256.** IPM's `package` is not byte-reproducible: two runs on one tree gave `9d43b0e2...` and `089e6c35...`. A later re-packaging, for example the author's publish (inference: `publish` runs `package` again), can then be matched to the recorded content.
 4. **The throwaway is a plain `docker run --network none` of the base image, not lib-live's compose project.**
@@ -202,9 +216,16 @@ Published: no; publishing to the package registry is the author's own action, ou
    - lib-live's lock still serializes it with the lane's other throwaways.
 5. **The bundle is not rebuilt** (Always). The criterion's "builds the web page ... before it packages" is 11.5's cut, which this step packs.
 6. **No ASK.** The step sends nothing out. The publish is the author's own, outside the sequence, and the record says so.
-7. **The base image's default name** (`ocutalon-iris-base:2026.3.0AI.154.0`, overridable by `IRIS_IMAGE`) is a one-line copy of lib-live's default. lib-live sets it only inside `live_start`, and lib-live is source-only for this epic.
+7. **The base image's default name** comes from one `base_image` function in `release.sh`, used by `step_image` and `step_ipm` (11.5 already holds the same default inline in `step_image`; lib-live sets it only inside `live_start`, and lib-live is source-only for this epic).
+8. **"From 11.5's state clone" read as built.** 11.5's cut makes the commit in `<state>/clone`, fetches it into the author's repository as `release/<v>-rc<n>`, and removes the clone (`release.sh:516-524`); `step_image` then reads the tree with `git archive <cand_sha>` in that repository. `step_ipm` does the same into `<state>/ipm-tree/`. Same SHA, same tree, no clone kept.
+9. **Exit 5 is handled in `cmd_next`, not in the stop routine.** A WAIT writes no row and no record and leaves `next` at `ipm`, so the stop routine (Rule 2: never redefined) is not touched. lib-live's `LOCK` lines go to `<state>/ipm/run.log`, never to standard output.
+10. **The section is written at step time** with `record_write` (uncommitted, in `release/records/`, which `start` already tolerates); the next stop routine commits the record file with it. 11.5's `record_put` replaces only `## Release sequence`, so no record logic changes.
+11. **Lane lock folder.** `step_ipm` sets `root=$rel_root` in its subshell, because lib-live's `live_lock_dir` reads `$root` (set only by `live_start`). The hermetic self-test pins `OCUTALON_LOCK_DIR` to a folder of its own in every case.
+12. **The Matrix's "Nothing goes out" `run` check covers the `ipm` throwaway's `run -d` lines.** 11.5's `image` step reads its locally built check image with `run --rm --entrypoint`; those lines are 11.5's, and its own AC already pins them. The scan for `docker pull` covers both scripts whole.
+13. **`--live ipm` is one call** (cut, image and ipm on one throwaway): 11.5 measured `--live` at 78 s and Task 0 the IPM flow at 97 s, so about 4 to 5 minutes with the real bundle (inference), inside the 10-minute cap. If it measures over about 8 minutes, implement splits it as 11.5's spec says for `--live`.
+- **The step's IRIS start wait** is 300 s; a timeout reports through the ruled `FAIL ipm the package did not install: <line>` form, with the line `the throwaway instance was not running after 300 s`.
 
-**New fixed texts, for the lead to rule (veto window: public text, since records are pushed):**
+**New fixed texts (ruled under the veto window, U-206, 2026-11-01: kept as planned):**
 - `Artifact: <file>, kept in the release state folder (<v>-rc<n>/ipm/), outside the repository; release.sh status prints its full path`
 - `Content SHA-256: <hex> (over every file in the artifact; the same for every packaging of this candidate)`
 - `Packaged by: IPM <x>, zpm "package ocutalon -only", in namespace <NS> of a throwaway build 154 instance with no network`
@@ -215,8 +236,7 @@ Published: no; publishing to the package registry is the author's own action, ou
 
 **Integration ACs, Consumes and Consumed-by (Rules 1 and 2):**
 - **Consumes:**
-  - 11.5's `STEPS`, stop routine, state, cut SHA, committed bundle and `manifest_version`;
-  - 11.14's exit 5 and pre-push tree reader;
+  - 11.5's `STEPS`, `cmd_next`, stop routine, state, cut SHA (`cand_sha`), committed bundle, `git archive` tree read and `manifest_version`;
   - 11.3's `record_write` and `detail_clean`;
   - lib-live's lock;
   - `docker/ipm/zpm-0.10.10.xml`;
@@ -227,33 +247,34 @@ Published: no; publishing to the package registry is the author's own action, ou
   - **Story 15.3:** before any publish, it installs this artifact on a clean throwaway with no Node.js. It reads `## IPM artifact`, finds the file with `ipm_artifact_path` (or `status`'s `ARTIFACT` line), and checks its SHA-256.
     - Measured for it (Task 0): a filesystem repository whose folder holds only the `.tgz` lists nothing. One whose folder holds the extracted artifact (`<root>/ocutalon-<v>/module.xml`, `repo -name <n> -fs -depth 2 -path <root>/`) lists `ocutalon <v> @ <root>/ocutalon-<v>/`, and `zpm "load <file>.tgz"` takes the `.tgz` directly.
     - Its criterion's "(Story 11.5 builds it into the package's resources)" now means this story. That wording is for the orchestrator; it is not this epic's block.
-  - **Story 11.18:** the rehearsal runs this step.
-  - **Epic 38:** the real 1.0.0 cut.
+  - **Epic 11 part 2:** Story 11.14 adopts exit 5 and never redefines it; Story 11.18's rehearsal runs this step.
+  - **Epic 38:** the real 1.0.0 cut (until part 2 merges, the Contest Planner's hand steps read this record; epics.md, Epic 38's reading note of 2026-11-02).
 
 **Epic 15 dependency: none waits.** The step edits none of Epic 15's files, and it packages whichever `module.xml` the candidate carries. Task 0 measured both today's and `origin/OCT-epic15`'s. The `FileCopy` of `ocutalon/csp/` is in both.
 - Observed, not a finding: the package carries the `OcuTalon.Test.*` classes (341 entries), because they are part of `OcuTalon.PKG`. CI runs the units from the installed package (Rule 21), so this is by design.
 
-**Ledger inbox (Rule 17):** none (`LEDGER slice` is empty).
+**Ledger inbox (Rule 17):** none (`LEDGER slice` is empty, re-checked 2026-11-02).
 
-**Previous story continuity:** 11.10 (done) touched web e2e only, so there is nothing shared. The working base is 11.5, 11.14 and 11.16's plans.
+**Previous story continuity:** 11.5 (done) is the base; its Code Map and spec are in `context:`.
 
-**Contended paths (U14):** checked at plan time with `git diff --name-only origin/feature/OCT_OcuTalon_MVP...origin/OCT-epic<N>` over every open epic branch.
+**Contended paths (U14):** re-checked 2026-11-02 with `git diff --name-only origin/feature/OCT_OcuTalon_MVP...origin/OCT-epic<N>` over every open epic branch.
 - No other branch changes `release/release.sh`, `release/lib-release.sh` or `docker/tests/test-release-sequence.sh`.
+- `origin/OCT-epic12` changes `docker/tests/lib-live.sh` (no lock or `manifest_version` lines); this story only sources it.
 - Epic 15's `src/module.xml`, `release/ipm-install.sh` and `release/ipm/*` are read only.
 - No `footprint_extensions`.
 
-**CI budget:** the hermetic cases add a few seconds to the `checks` job (inference). `release/` and `docker/tests/test-*.sh` are not IRIS inputs, so no IRIS group runs.
+**CI budget:** the hermetic cases add one more `next` to each existing sequence and a few `ipm` cases to the `checks` job, about 20 to 40 s on the hosted runner (inference). `release/` and `docker/tests/test-*.sh` are not IRIS inputs, so no IRIS group runs.
 
 ## Verification
 
 Every command runs from the worktree root, in its own foreground call with `timeout: 600000`. `release/release.sh` runs only inside the self-test's throwaway repository.
 
 **Commands:**
-- `(loop)` `bash docker/tests/test-release-sequence.sh` (or `--cases ipm`, then the other parts, one per call, when 11.15's filter exists) -- expected: exit 0, and the throwaway is removed.
+- `(loop)` `bash docker/tests/test-release-sequence.sh <rule>...` for the rules being worked on, then the whole suite `bash docker/tests/test-release-sequence.sh` in one call (about 2 to 3 minutes) -- expected: `PASS all rules`, exit 0, and the throwaway folder removed.
 - `(loop)` `bash docker/tests/test-boundaries.sh` -- expected: exit 0.
-- `(loop)` Each existing consumer self-test of `lib-release.sh`, one per call -- expected: exit 0.
+- `(loop)` Each existing consumer self-test of `lib-release.sh`, one per call: `bash docker/tests/test-upgrade-harness.sh`, `bash docker/tests/test-rehearsal.sh`, `bash docker/tests/test-release-checklist.sh`, `bash docker/tests/test-release-notes.sh` -- expected: exit 0.
 - `(once)` `OCUTALON_LOCK_DIR="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")/.worktrees/.coordination/locks/lane-a" OCUTALON_TEST_WEB_PORT=52801 OCUTALON_LOCK_OWNER='epic=11 stage=implement' bash docker/tests/test-release-sequence.sh --live ipm` -- expected:
-  - `PASS ipm` from real IPM;
+  - `PASS image 1.0.0` and `PASS ipm` from real IPM;
   - then `docker ps -a --format '{{.Names}}' | grep -c '^ocutalon-release-ipm-'` prints 0, and the lane folder holds no lock of the run.
   - Record the step's wall-clock here.
 - `(once)` `bash ci/checks.sh` in its parts, one per call -- expected: no `FAILED`.
@@ -276,25 +297,30 @@ Every command runs from the worktree root, in its own foreground call with `time
   - Two packagings of one tree gave different SHA-256s.
   - `zpm "load <tgz>"` in OCUTALON reinstalled it (every STEP OK), and `${dataDir}csp/ocutalon-web/index.html` existed afterwards.
   - Filesystem repositories behaved as recorded under Consumed-by.
+- Re-checked at the re-plan (2026-11-02): the base image `ocutalon-iris-base:2026.3.0AI.154.0` is on this machine; 11.5 measured its `--live` at 78 s.
 
 **Mutations to demonstrate (Rule 19; one per AC, recorded as `mutation: <change> -> <test red>`):**
-- AC1: skip the bundle-file compare, so the changed-byte case passes.
+- AC1: skip the bundle-file compare in `ipm_artifact_check`, so the changed-byte case passes.
 - AC2: write the size from the tree instead of the file, so the size check fails.
 - AC3: always package in USER, so the two-run case fails.
-- AC4: drop `--network none`, so the shim-log case fails.
-- AC5: treat 75 as a failure, so the WAIT case fails.
+- AC4: drop `--network none` from `step_ipm`'s `docker run`, so the shim-log case fails.
+- AC5: treat the subshell's 75 as a failure, so the WAIT case fails.
 - AC6: skip the trap's `rm -f -v`, so the clean-up case fails.
 - AC7: hash the `.tgz` bytes in `ipm_content_digest`, so the two-packagings case fails.
-- IA2: write the section with a hand-rolled writer, so the byte-identical case fails.
+- IA1: point the live check's bundle compare at a changed byte of the extracted artifact, so `--live ipm` fails (once).
+- IA2: write the section with a hand-rolled writer that rewrites the file, so the byte-identical case fails.
 
 **Shared surfaces:**
-- The `STEPS` list, the rows and the step-order pins of 11.5's and 11.14 to 11.16's self-test cases. This story updates each pin for `ipm`.
-- The docker shim and its call log, which 11.5's AC6 reads.
-- `lib-release.sh`'s function list.
+- 11.5's `STEPS` list and every step-order pin of its self-test (`to_step`, the `NEXT push` pins of `t_image` and `t_record`, the `rs` chains of `t_push`, `t_secret`, `t_pushes`, `t_hands`, `t_resume`, `t_notes`, `t_gate`, `t_word` and `live_run`). This story updates each for `ipm`.
+- The docker shim and its call log, which 11.5's `t_image` and `t_secret` read.
+- `lib-release.sh`'s function list and header.
+- `release.sh`'s exit codes (new 5) and header contract.
 - The record's `## ` sections.
-- Every test added or changed passes on a fresh environment, in either order. The self-test builds and removes its own repository, bare remote, shims, state and record. `--live ipm` removes its container and its folders.
+- Every test added or changed passes on a fresh environment, in either order. The self-test builds and removes its own repository, bare remote, shims, lock folder, state and record. `--live ipm` removes its container and its folders.
 
 ## Auto Run Result
 
 Status: ready-for-dev
 Blocking condition: none
+
+Re-plan of 2026-11-02 on Story 11.5's built base (HEAD 63936d68); halted after planning as instructed. No acceptance criterion changed; the intent block's references to 11.14 (Approach, Always, the Packaged row) were rewritten per the orchestrator's ruling and logged in the Spec Change Log.
