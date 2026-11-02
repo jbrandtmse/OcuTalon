@@ -48,23 +48,24 @@ IRIS_GROUPS="install-fresh install-upgrade production browser shards shards-2 im
 # 900 and about 5 for Story 11.7's two new tests (inference), online-demo-path 358 + the growth).
 # Epic 30's CI step (2026-11-02; the Contest Planner's rule: every group at or under 33 minutes, an eighth group only if no packing of
 # seven gets there) added the eighth group shards-3. From the largest unit seconds of CI runs 41350877752 (attempt 1), 41395335549,
-# 41442099518 and 41495443713 (Epic 30 after Epic 11 part 1 merged; about 14,030 s in all), no packing of seven groups gets each group's
-# units under about 1,940 s (33 minutes less the job's own setup): on 41495443713 shards-2 took 38.9 minutes and install-fresh,
-# shards and install-upgrade 34 to 35. The groups now hold, in seconds: install-fresh about 1,830 (install-start 849, online-demo 664,
-# install-script-live 314), install-upgrade about 1,670 (install-upgrade 827, online-visitors 431, online-allowance 415), production
-# about 1,310 (its three units; live:audit moved to shards-3, so production keeps room for shard:lane-a@Channel, Story 12.2, about
-# 8 minutes, plus a minute), browser about 1,830, shards about 1,830 (lane-a's Checks, Install and Watch 902, online-session 530,
-# cards 402), shards-2 about 1,820 (lane-a's other areas alone; any area added to lane-a later lands here), image about 1,840, and
-# shards-3 about 1,890 (floor 734, demo-switch 524, bundle-folder 320, audit 309).
+# 41442099518, 41495443713 and 41526116324 (Epic 30 after Epic 11 part 1 merged; about 14,160 s in all), no packing of seven groups
+# gets each group's units under about 1,940 s (33 minutes less the job's own setup): on 41495443713 shards-2 took 38.9 minutes and
+# install-fresh, shards and install-upgrade 34 to 35. The groups now hold, in seconds: install-fresh about 1,830 (install-start 849,
+# online-demo 664, install-script-live 314), install-upgrade about 1,880 (install-upgrade 827, online-visitors 431, online-allowance
+# 415, compose-start 202), production about 1,330 (its three units; live:audit moved to shards-3, so production keeps room for
+# shard:lane-a@Channel, Story 12.2, about 8 minutes, plus a minute), browser about 1,830, shards about 1,830 (lane-a's Checks, Install
+# and Watch 902, online-session 530, cards 402), shards-2 about 1,820 (lane-a's other areas alone; any area added to lane-a later
+# lands here), image about 1,740 (lane-b 1,013, online-demo-path 389, storage-roundtrip 325, build-inputs 13), and shards-3 about
+# 1,890 (floor 734, demo-switch 524, bundle-folder 320, audit 310).
 group_units() {
   case $1 in
     install-fresh) echo "live:install-start live:online-demo live:install-script-live" ;;
-    install-upgrade) echo "live:install-upgrade live:online-allowance live:online-visitors" ;;
+    install-upgrade) echo "live:install-upgrade live:online-allowance live:online-visitors live:compose-start" ;;
     production) echo "live:production live:production-restart live:reminder-restart" ;;
     browser) echo "live:demo-path live:sign-in live:answers" ;;
     shards) echo "shard:lane-a@Checks,Install,Watch live:online-session live:cards" ;;
     shards-2) echo "shard:lane-a@rest" ;;
-    image) echo "live:storage-roundtrip live:build-inputs live:compose-start shard:lane-b live:online-demo-path" ;;
+    image) echo "live:storage-roundtrip live:build-inputs shard:lane-b live:online-demo-path" ;;
     shards-3) echo "live:floor live:demo-switch live:bundle-folder live:audit" ;;
     *) return 1 ;;
   esac
