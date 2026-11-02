@@ -2,7 +2,7 @@
 title: 'Story 11.17: The release''s IPM artifact carries the built page'
 type: 'feature'
 created: '2026-11-01'
-status: 'ready-for-dev'
+status: 'draft'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -159,6 +159,9 @@ Nothing goes out. The registry publish stays the author's own action. This story
 ## Review Triage Log
 
 ## Design Notes
+
+**Re-plan 2026-11-02 (orchestrator ruling, decide; owner trim: Epic 11 ends after 11.17 for 1.0.0, 11.14 to 11.16 and 11.18 move to Epic 11 part 2).** Re-plan this story on Story 11.5's base alone; 11.14, 11.15, 11.16 are NOT built and must not be pulled in. Step order: `cut image ipm push notes`. `step_ipm` reads the cut tree itself with `git archive <cut sha>` from 11.5's state clone (no 11.14 pre-push tree reader). A busy lane lock is `step_ipm`'s own exit 5 (`WAIT`, nothing recorded), a code this story introduces; part 2's 11.14 adopts it and never redefines it. The `## IPM artifact` record keeps exactly the shape Story 15.3 reads: file name, size, SHA-256, content digest, `Published: no`. No acceptance criterion changes: the re-plan touches only the Approach, the Code Map and the Tasks, plus the self-test pins for 11.5's step list. Where older text in this spec names 11.14's `stubs`, exit 5 or tree reader, or 11.15/11.16 pins, this note wins.
+
 
 **Governing ADs (Rule 6):**
 - **AD-2:** one IPM package, `ocutalon`, with the bridge first, plus the built bundle.

@@ -297,6 +297,9 @@ This story takes epics.md Story 11.14's two criteria (the gates; the "not implem
 
 ## Design Notes
 
+**Set aside 2026-11-02 (owner trim: Epic 11 part 2, after rc1; orchestrator ruling).** This story's finished implement is saved as `_bmad-output/implementation-artifacts/set-aside/11-14-the-release-sequence-runs-every-gate-on-the-pushed-candidate-1.patch` (apply with the U4 pick-up). Story 11.17 was re-planned on 11.5's base without this story: its `step_ipm` introduces exit 5 (`WAIT`, nothing recorded) for a busy lane lock and reads the cut tree itself (`git archive <cut sha>` from 11.5's state clone), with the step order `cut image ipm push notes`. At the pick-up, this story ADOPTS 11.17's exit 5 and never redefines it, and places `stubs` before `ipm` (so `cut image stubs ipm push ...`), updating 11.17's step-order pins.
+
+
 **Lead update 2026-11-01 (DW-548, from Story 11.12's review).** Story 11.12 changed `release/rehearse.sh`'s `run`: it needs `OCUTALON_RUN_TAG`, does one phase per call and exits 4 ("call again") until the last phase; `runs` does the next run and refuses once all `--runs` are done or after a failed run; `--plant <id>@<run>` plants a miss in one run. The rehearsal gate step calls `run` once per `next` call (exit 4 = waiting on the next phase, mapped to this story's exit 5 "waiting") and judges only exit 0 with `Result: pass`. Where this spec describes the older contract, this note wins.
 
 
