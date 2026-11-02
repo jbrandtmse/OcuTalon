@@ -20,7 +20,8 @@
 ///   - TestGlobalHitsMessageBody: a saved message body (Eval.Msg.IncidentCase) whose text sits next to a wide character is found by a scan of the
 ///     database that holds its data global (DW-448);
 ///   - TestNoMessageBodyHoldsAGlobalStream: no message-body class of OcuTalon (and no system base class of one) has a property that is a global
-///     stream (a %Stream.GlobalCharacter or %Stream.GlobalBinary, or a subclass), also inside a serial object to a depth of 3, with a positive
+///     stream (a %Stream.GlobalCharacter or %Stream.GlobalBinary, or a subclass, or an abstract stream type that is stored as one), also inside
+///     a serial object to a depth of 3, with a positive
 ///     control that finds the one in %AI.Agent.Session. A body that stores its text in a global stream would hold it in chunks (compressed or
 ///     not) that the global walk does not join, so the key proof could not see it: this test is the guard of that blind spot (DW-448);
 ///   - TestTraceHits: a message body and its header that hold a value are found after a mark and not before it, a value nobody holds gives 0, and an
@@ -41,8 +42,8 @@ Parameter LISTDEPTH = 10;
 Parameter MAXPLACES = 20;
 
 /// The system message-body classes that the guard TestNoMessageBodyHoldsAGlobalStream checks besides every OcuTalon message-body class: the base
-/// classes. The measurement of DW-448 (Story 30.8) saw no other system body class in the trace of an OcuTalon stack.
-Parameter SYSTEMBODIES = "Ens.Request,Ens.Response,Ens.MessageBody";
+/// classes, and the system body classes that OcuTalon code sends (Bridge.Operation.AgentRunner, Schedule.ReminderOps, Bridge.Approval).
+Parameter SYSTEMBODIES = "Ens.Request,Ens.Response,Ens.MessageBody,Ens.StringResponse,Ens.AlarmTriggerRequest,EnsLib.Workflow.TaskRequest,EnsLib.Workflow.TaskResponse";
 
 /// The class that holds a global stream in the AI Hub, the guard's positive control (its property ContextData is a %Stream.GlobalCharacter).
 Parameter STREAMCONTROL = "%AI.Agent.Session";
@@ -56,6 +57,8 @@ Method TestGlobalHits()
 {
 	Set value = "keyproof-control-"_##class(OcuTalon.Bridge.Ids).NewRef()
 	Kill ^OcuTalonTest("KeyProof")
+	// A root that holds this test's own root row (a run that was stopped before its cleanup) is cleared; any other root is left as it is.
+	If ($Data(^OcuTalonTest) # 2) && $ListValid(^OcuTalonTest) && ($ListGet(^OcuTalonTest, 2) [ "keyproof-list-") ZKill ^OcuTalonTest
 	Set rootSet = 0
 	Try {
 		Set ^OcuTalonTest("KeyProof", "data") = "before "_value_" after"
@@ -128,7 +131,8 @@ Method TestGlobalHitsMessageBody()
 }
 
 /// DW-448, the stream question: no message-body class holds a global stream, so the global walk needs no decoder for stream chunks. The set is every
-/// compiled OcuTalon class that extends Ens.Request, Ens.Response or Ens.MessageBody, and the classes of SYSTEMBODIES. The control is the global
+/// compiled OcuTalon class that extends Ens.Request, Ens.Response or Ens.MessageBody, and the classes of SYSTEMBODIES (GlobalStreams says what
+/// counts). The control is the global
 /// stream of STREAMCONTROL, which the same check must find. It reads compiled classes only (no trace, no data).
 Method TestNoMessageBodyHoldsAGlobalStream()
 {
@@ -572,7 +576,8 @@ ClassMethod HeaderMark() As %Integer [ Private ]
 
 /// The properties of the class (inherited ones included) that are global streams, added to found as "<path>.<property>"; the properties of serial
 /// objects are read too, to a depth of 3. A global stream is a %Stream.GlobalCharacter or %Stream.GlobalBinary, a subclass of one, or a
-/// %Library.GlobalCharacterStream or %Library.GlobalBinaryStream.
+/// %Library.GlobalCharacterStream or %Library.GlobalBinaryStream; a property typed by an abstract stream class (%Stream.Object,
+/// %Library.CharacterStream, %Library.BinaryStream) counts too, because a persistent class stores it as a global stream.
 ClassMethod GlobalStreams(class As %String, depth As %Integer, path As %String, ByRef found As %List) [ Private ]
 {
 	Set rows = ##class(%SQL.Statement).%ExecDirect(, "SELECT Name, Type FROM %Dictionary.CompiledProperty WHERE parent = ?", class)
@@ -580,9 +585,10 @@ ClassMethod GlobalStreams(class As %String, depth As %Integer, path As %String, 
 		Set type = rows.%Get("Type")
 		If ($Extract(type) = "%") && ($Length(type, ".") = 1) Set type = "%Library."_$Extract(type, 2, *)
 		If (type = "") || '##class(%Dictionary.CompiledClass).%ExistsId(type) Continue
-		Set classType = ##class(%Dictionary.CompiledClass).%OpenId(type).ClassType
+		Set compiled = ##class(%Dictionary.CompiledClass).%OpenId(type)
+		Set classType = compiled.ClassType
 		If classType = "datatype" Continue
-		Set isStream = 0
+		Set isStream = (classType = "stream") && compiled.Abstract
 		For global = "%Stream.GlobalCharacter", "%Stream.GlobalBinary", "%Library.GlobalCharacterStream", "%Library.GlobalBinaryStream" {
 			If $ClassMethod(type, "%IsA", global) Set isStream = 1
 		}

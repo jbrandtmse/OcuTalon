@@ -10,12 +10,12 @@
 ///   - A text that is exactly one JSON string (a tool that returns text has its result encoded so) is redacted by its content, as a
 ///     text of its own: JSON inside the string is parsed as above. A string that needs no change is returned as it is.
 ///   - Then, anywhere in the text, these patterns are replaced: sk-ant- keys and other sk- keys of 20 or more characters (the prefix included),
-///     DigitalOcean tokens (dop_v1_ and 20 or more hex digits), PEM private key blocks (from the BEGIN line through the first END line, or to the
-///     end of the text when there is none; real and escaped line breaks alike), Telegram bot tokens (6 or more digits, a colon and 30 or more of
-///     A-Z, a-z, 0-9, _ and -), Bearer tokens, JWT-shaped tokens, GitHub tokens (ghp_ and the other gh*_ forms, github_pat_), AWS access key ids
-///     (AKIA) and the user and password of a URL. A key of
-///     SENSITIVEKEYS followed by = or : and a value is replaced too, also when its quotes are escaped (JSON inside a text), in text that is
-///     not JSON and in the string values of JSON that is.
+///     DigitalOcean tokens (dop_v1_ and 20 or more hex digits), PEM private key blocks (from the BEGIN line through the first END line, or, when
+///     there is none, to the end of the text, which in JSON is the end of the string value; real and escaped line breaks alike), Telegram bot
+///     tokens (6 or more digits, a colon and 30 or more of A-Z, a-z, 0-9, _ and -), Bearer tokens, JWT-shaped tokens, GitHub tokens (ghp_ and the
+///     other gh*_ forms, github_pat_), AWS access key ids (AKIA) and the user and password of a URL. A key of SENSITIVEKEYS followed by = or :
+///     and a value is replaced too, also when its quotes are escaped (JSON inside a text), in text that is not JSON and in the string values of
+///     JSON that is.
 ///   - It is idempotent: Text(Text(x)) is Text(x).
 ///   - It never throws and never logs or stores its input. When it fails (for example when the redacted form of a text would
 ///     pass the limit of a string), it fails closed: it returns UNCHECKED and nothing of the text.

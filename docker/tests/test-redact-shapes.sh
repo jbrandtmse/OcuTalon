@@ -31,6 +31,6 @@ if [ -z "$copy" ]; then
 elif same "$copy" "$KEY_LIKE_ERE"; then
   pass "KEYLIKE in $test_file equals KEY_LIKE_ERE in $lib_file"
 else
-  fail "KEYLIKE in $test_file differs from KEY_LIKE_ERE in $lib_file: update the copy and add a fixture for the new shape in Test.Bridge.Redact"
+  fail "KEYLIKE in $test_file differs from KEY_LIKE_ERE in $lib_file: update the copy, and the fixtures of each changed alternative in Test.Bridge.Redact"
 fi
 [ "$fails" -eq 0 ]

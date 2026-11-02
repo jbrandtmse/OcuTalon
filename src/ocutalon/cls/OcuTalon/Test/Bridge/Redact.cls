@@ -376,19 +376,20 @@ Method Check(text As %String, expected As %String, what As %String) [ Private ]
 	Do $$$AssertEquals(..Text(once), once, "and Text(Text(x)) is Text(x): " _ what)
 }
 
-/// The fixtures of an alternative of KEYLIKE, built from fragments at run time, as a list; an empty list for an alternative that is not known.
+/// The fixtures of an alternative of KEYLIKE, built from fragments at run time, as a list, keyed by the alternative's whole text (so an alternative
+/// that lib-keys.sh changes has no fixture until its fixtures are checked against it); an empty list for an alternative that is not known.
 ClassMethod Fixtures(alternative As %String) As %List [ Private ]
 {
 	Set lf = $Char(10)
 	Set telegram = ":AAH" _ $Translate($Justify("", 32), " ", "z")
-	Set key = $Case($Piece($Extract(alternative, 1, 12), "[", 1),
-		"sk-ant-": $ListBuild("sk" _ "-ant-api03-" _ $Translate($Justify("", 40), " ", "x"), "sk" _ "-ant-" _ "abcdefgh"),
-		"": $ListBuild("12345678" _ telegram, "1234567890" _ telegram, "1234567890123" _ telegram),
-		"gh": $ListBuild("gh" _ "p_" _ $Translate($Justify("", 30), " ", "A"), "gh" _ "s_" _ $Translate($Justify("", 20), " ", "b")),
-		"github_pat_": $ListBuild("github" _ "_pat_" _ $Translate($Justify("", 30), " ", "B") _ "_9"),
-		"dop_v1_": $ListBuild("dop" _ "_v1_" _ $Translate($Justify("", 64), " ", "a"), "dop" _ "_v1_" _ $Translate($Justify("", 20), " ", "0")),
-		"AKIA": $ListBuild("AK" _ "IA" _ "ABCDEFGH12345678"),
-		"-----BEGIN ": $ListBuild("-----" _ "BEGIN RSA PRIV" _ "ATE KEY-----" _ lf _ "ZmFrZWZha2U=" _ lf _ "-----" _ "END RSA PRIV" _ "ATE KEY-----",
+	Set key = $Case(alternative,
+		"sk-ant-[A-Za-z0-9_-]{8,}": $ListBuild("sk" _ "-ant-api03-" _ $Translate($Justify("", 40), " ", "x"), "sk" _ "-ant-" _ "abcdefgh"),
+		"[0-9]{8,10}:[A-Za-z0-9_-]{35}": $ListBuild("12345678" _ telegram, "1234567890" _ telegram, "1234567890123" _ telegram),
+		"gh[pousr]_[A-Za-z0-9]{20,}": $ListBuild("gh" _ "p_" _ $Translate($Justify("", 30), " ", "A"), "gh" _ "s_" _ $Translate($Justify("", 20), " ", "b")),
+		"github_pat_[A-Za-z0-9_]{20,}": $ListBuild("github" _ "_pat_" _ $Translate($Justify("", 30), " ", "B") _ "_9", "github" _ "_pat_" _ $Translate($Justify("", 20), " ", "c")),
+		"dop_v1_[a-f0-9]{20,}": $ListBuild("dop" _ "_v1_" _ $Translate($Justify("", 64), " ", "a"), "dop" _ "_v1_" _ $Translate($Justify("", 20), " ", "0")),
+		"AKIA[0-9A-Z]{16}": $ListBuild("AK" _ "IA" _ "ABCDEFGH12345678"),
+		"-----BEGIN [A-Z ]*PRIVATE KEY": $ListBuild("-----" _ "BEGIN RSA PRIV" _ "ATE KEY-----" _ lf _ "ZmFrZWZha2U=" _ lf _ "-----" _ "END RSA PRIV" _ "ATE KEY-----",
 			"-----" _ "BEGIN RSA PRIV" _ "ATE KEY-----" _ lf _ "ZmFrZWZha2U=",
 			"-----" _ "BEGIN PRIV" _ "ATE KEY-----" _ lf _ "ZmFrZQ==" _ lf _ "-----" _ "END PRIV" _ "ATE KEY-----",
 			"-----" _ "BEGIN EC PRIV" _ "ATE KEY-----"),
@@ -402,7 +403,12 @@ Method Shape(alternatives As %List, index As %Integer, alternative As %String, t
 	Set once = ..Text(text)
 	Set label = "alternative " _ index _ " (" _ alternative _ ") " _ where
 	Do $$$AssertTrue(once [ ..#MARK, label _ ": the result holds the mark")
-	If where = "in text" Do $$$AssertTrue($Extract(once, 1, 7) = "before ", label _ ": and the text before the fixture is kept")
+	If where = "in text" {
+		Do $$$AssertTrue($Extract(once, 1, 7) = "before ", label _ ": and the text before the fixture is kept")
+		// A PEM block with no END line runs to the end of the text by design; every other shape keeps the text after it.
+		If $Extract(alternative, 1, 5) '= "-----" Do $$$AssertTrue($Extract(once, *-5, *) = " after", label _ ": and the text after the fixture is kept")
+	}
+	If where = "in a JSON string" Do $$$AssertTrue((once [ "{""note"":""before ") && (once [ """n"":1}"), label _ ": and the rest of the JSON is kept")
 	Set clean = 1
 	Set position = 0
 	While $ListNext(alternatives, position, other) {

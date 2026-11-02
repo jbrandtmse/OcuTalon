@@ -2316,6 +2316,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-02T12:09:16Z owner=30-7-epic-30-burn-down by=burndown note=chartered_into_the_Epic_30_burn-down_story_30.7(part_2_gate);conditions_unchanged
 - 2026-11-02T16:32:22Z status=routed owner=burndown by=orchestrator note=U-184/U-185_kept_conditions_say_before_1.0.0:not_with_deferred_30.7;Epic_30_part_2_builds_it_as_fix-forward_30.8_at_the_resume
 - 2026-11-02T17:54:38Z owner=30-8-the-redactor-and-the-key-proof-catch-every-key-shape by=spec_gate note=fix-forward_30.8(U-184/U-185_before_1.0.0;30.7_deferred_after_tag)
+- 2026-11-02T21:03:32Z status=resolved-by:30-8-the-redactor-and-the-key-proof-catch-every-key-shape by=adjudication note=build_134e0a11+review_patches:Bridge.Redact.PatternList_adds_dop_v1_(hex_either_case)+PEM_private-key_block(BEGIN..END_or_to_end_of_text/JSON_value)+Telegram_ids_6+_digits;sk-ant-,ghp_,github_pat_,AKIA_already_covered;one_test_per_shape(TestDigitalOceanToken,TestPrivateKey,TestAnthropicKey,TestTelegramToken,TestPatterns)+TestEveryKeyLikeShape_oracle_over_a_verbatim_KEY_LIKE_ERE_copy+docker/tests/test-redact-shapes.sh_drift_check(CHECK_SCRIPTS)+Integration_AC_Test.Bridge.Audit.TestNewKeyShapesInNoEntry(IRIS_audit_log_read_back);U-184_met
 
 ### DW-392: Ownership.Watchers (Lane B) does not skip a watch row of owner eval, so while an evaluation run's watch of a production exists, an instance incident of that production caused by another session's watch would list eval as a recipient (a Notification with SessionRef eval reaches Notify, which refuses it with a warning)
 - source: spec-9-8-a-stop-watching-injection-leaves-the-watch-unchanged.md | severity: low | fix-risk: med | footprint: out-of-footprint
@@ -2848,6 +2849,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-02T12:09:16Z owner=30-7-epic-30-burn-down by=burndown note=chartered_into_the_Epic_30_burn-down_story_30.7(part_2_gate);conditions_unchanged
 - 2026-11-02T16:32:22Z status=routed owner=burndown by=orchestrator note=U-184/U-185_kept_conditions_say_before_1.0.0:not_with_deferred_30.7;Epic_30_part_2_builds_it_as_fix-forward_30.8_at_the_resume
 - 2026-11-02T17:54:38Z owner=30-8-the-redactor-and-the-key-proof-catch-every-key-shape by=spec_gate note=fix-forward_30.8(U-184/U-185_before_1.0.0;30.7_deferred_after_tag)
+- 2026-11-02T21:03:32Z status=resolved-by:30-8-the-redactor-and-the-key-proof-catch-every-key-shape by=adjudication note=$List_half:Test.Eval.KeyProof.Walk_decodes_$List_values_in_data_and_subscripts(Holds,HoldsSubscript,LISTDEPTH_10;nested_lists)_pinned_by_TestGlobalHits(8-bit,16-bit,nested,subscript,root_rows)+TestGlobalHitsMessageBody(IncidentCase_beside_a_wide_char);stream_half=wontfix-accepted_per_U-185:measured_on_throwaway_e30s8iw/e30s8i,build_2026.3.0AI_154U:46_compiled_OcuTalon_message-body_classes(Ens.Request/Response/MessageBody_subclasses,IncidentCase_included),369_properties,0_global_streams,0_streams_of_any_kind(abstract_stream_types_counted_after_review),control_%AI.Agent.Session.ContextData_found;nothing_stored_(no_body_class_can_hold_a_stream);reopen_if=Test.Eval.KeyProof.TestNoMessageBodyHoldsAGlobalStream_goes_red;key_proof_otherwise_unchanged;Lane_B_copy_DW-474_untouched(occurrence_appended)
 
 ### DW-449: project_leftovers puts the eval harness's container listing (docker ps -a, docker volume ls) in docker/tests/lib-keys.sh, a third library beside ci/iris.sh and lib-live.sh that the eval-scripts rule does not cover, and repeats cmd_teardown's name listing with its own matching
 - source: spec-9-10-the-release-candidate-run-proves-the-key-leaks-nowhere-and-g.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -2858,12 +2860,14 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-9-10-the-release-candidate-run-proves-the-key-leaks-nowhere-and-g.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: KeyProof.cls Walk vs SessionEvents.cls ReferenceHits :590-598; the spec records the reason (Test/Web is contended by Epic 29, and the sibling walks one namespace by location); no story in Epic 9 touches Test/Web; found by code review (Rule 2)
 - 2026-10-30T20:42:31Z status=wontfix-accepted owner=9-10-the-release-candidate-run-proves-the-key-leaks-nowhere-and-g by=cr note=reopen_if=either walk changes how it matches a node (for example the decoding of the escalated globals-scan entry) and the other does not
+- 2026-11-02T21:03:47Z status=routed owner=31-4-the-paired-chat-stays-isolated-under-load-too by=adjudication note=reopen_if_fired:30.8_changed_KeyProof.Walk's_node_match(Holds,HoldsSubscript,LISTDEPTH);Lane_B_ReferenceHits_mirrors_it_with_DW-474(same_story);exact_change_recorded_in_spec-30-8_Design_Notes(DW-450_Walk-change_record)
 
 ### DW-474: Test.Web.SessionEvents.ReferenceHits copies the release candidate's key-proof walk (DW-448); apply Story 30.1's $List decode, and any stream-chunk decode its measurement calls for, to this Lane B copy too
 - source: orchestrator: Epic 9 decision sheet (DW-448 split, veto U-185) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Test.Web.SessionEvents.ReferenceHits mirrors Test.Eval.KeyProof Walk (DW-448's evidence)
 - 2026-10-31T07:17:56Z status=routed owner=31-4-the-paired-chat-stays-isolated-under-load-too by=merge_gate note=Lane_B_half_of_DW-448;after_Story_30.1_settles_the_decode;veto_U-185
 - 2026-11-02T14:55:52Z status=routed owner=31-4-the-paired-chat-stays-isolated-under-load-too by=owner note=31.4_deferred_after_the_v1.0.0_tag(owner:Move_it_after_the_tag);first_daily_release
+- 2026-11-02T20:59:27Z occurrence=30-8-the-redactor-and-the-key-proof-catch-every-key-shape
 
 ### DW-478: Session.Hash's doc comment names only the resume reference and a client address as forms stored with it; Pairing.HashCode now stores pairing-code hashes through it
 - source: spec-11-0-epic-10-deferred-cleanup.md | severity: low | fix-risk: low | footprint: in-epic
@@ -3275,6 +3279,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-30-7-epic-30-burn-down.md | severity: med | fix-risk: low | footprint: in-story
 - evidence: settle by timing eval/key-proof.sh's global scan before and after 30.7's patch on a throwaway
 - 2026-11-02T16:28:42Z status=routed owner=30-7-epic-30-burn-down by=harvest note=travels with 30.7's set-aside patch
+- 2026-11-02T20:59:27Z occurrence=30-8-the-redactor-and-the-key-proof-catch-every-key-shape
 
 ### DW-590: 30.7 (set aside): Test.Install.Retention failed twice locally because the stock Ens purge tasks did not start inside the test's wait (once beside a second IRIS stack); four other fresh runs passed (unverified)
 - source: spec-30-7-epic-30-burn-down.md | severity: med | fix-risk: low | footprint: in-story
@@ -3294,3 +3299,18 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: Epic 11 merge decision sheet (DW-496, veto U-215 kept by the Contest Planner) | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: AD-1 amended a9a221ed; TestCancelAllThroughChat asserts the keys but not the repeat refusal per key
 - 2026-11-02T13:25:27Z status=routed owner=burndown by=merge_gate note=Epic 30 part 2 burn-down 30.7 (sent to its runner with U-215's apply)
+
+### DW-594: eval/key-proof's globals control is satisfied by subscript hits alone, so a Walk that stops matching node data still passes the outer surface
+- source: spec-30-8-the-redactor-and-the-key-proof-catch-every-key-shape.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: 30.8 code review: Holds Quit 0 first kept eval/key-proof.sh green on fresh e30s8r (control found 33 of 188 times, via subscripts); only TestGlobalHits pins the data match
+- 2026-11-02T20:59:27Z status=wontfix-accepted owner=30-8-the-redactor-and-the-key-proof-catch-every-key-shape by=cr note=reopen_if=TestGlobalHits loses its data-row assertions, or a Walk change lands without TestGlobalHits run (CHK lines spec-frozen)
+
+### DW-599: flake: OcuTalon.Test.Core.ThreadProduction TestNewThreadAfterMidnight went red once in CI (mixed headers: a header of one turn counted in the other thread) and passed on the unchanged rerun
+- source: ci run 41495443713 (OCT-epic30 8b2f15f9) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: iris (image) attempt 1 red, attempt 2 green on the same head; the assertion counts headers by id against the second thread's first Item id, so a late header of the first turn trips it (inference)
+- 2026-11-02T21:03:11Z status=routed owner=31-3-the-readme-leads-to-the-demo-and-the-launched-demo-is-measur by=ci note=Lane_B_test(Epic_11_part_1);first_seen_on_Epic_30_integrate-forward;make_the_mixed_count_wait_for_the_first_turn's_last_header_or_scope_it
+
+### DW-600: The key proof's globals walk cannot read the saved AI session history (%AI.Agent.Session.ContextData, a compressed %Stream.GlobalCharacter), so a key stored there would read as clean
+- source: spec-30-8-the-redactor-and-the-key-proof-catch-every-key-shape.md | severity: low | fix-risk: med | footprint: out-of-footprint
+- evidence: 30.8 Task 0 control: ContextData is the one global stream found; U-185 scopes the stream question to message bodies (0 streams there); the provider key travels in a request header and never in session content (inference)
+- 2026-11-02T21:03:47Z status=wontfix-accepted owner=30-8-the-redactor-and-the-key-proof-catch-every-key-shape by=adjudication note=reopen_if=a_product_path_puts_the_provider_key_or_a_request_header_into_an_AI_session's_messages,or_the_key_proof_is_asked_to_cover_session_history
