@@ -2628,6 +2628,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-02T07:15:31Z status=routed owner=burndown by=merge_gate note=Epic_30_part_1_decision_sheet,veto:purge_Turn,Delivery,Session_on_the_same_90-day_cut_as_their_Decision_and_Usage_rows(AD-27_retention_extension,marker+lint),one_test_that_TurnCost_and_ShownDecisionRef_never_read_a_purged_turn;Epic_30_part_2_burn-down(30.7)
 - 2026-11-02T07:16:07Z status=routed owner=burndown by=merge_gate note=veto_U-210
 - 2026-11-02T14:15:18Z occurrence=12-7-approve-or-reject-from-telegram-and-every-copy-shows-who-ans note=U-218(owner_KEPT):from_Story_12.7_Telegram_Delivery_rows_of_request_messages_hold_redacted_sent_Text;the_purge_of_Delivery_rows_on_the_90-day_cut(30.7)_is_the_owner's_condition_2_for_it;its_test_should_cover_a_telegram_row_with_Text
+- 2026-11-02T21:34:22Z occurrence=12-7-approve-or-reject-from-telegram-and-every-copy-shows-who-ans by=harvest note=built_in_4ff30f5b:Telegram_request_rows_keep_redacted_Text(and_the_Approval_Ref);answered_rows_store_empty_Text;also_Lane_B_doc_ask:Data/Delivery.cls_Text_doc_line(line_31)_still_says_empty_for_any_other_row-fix_it_with_the_purge(Story_30.7,deferred_after_v1.0.0)
 
 ### DW-438: The OcuTalon heartbeat task's description (Install.Step.Schedule, 124 characters) is stored cut at 100 characters, mid-sentence, in the Task Manager
 - source: spec-30-2-old-messages-and-records-are-purged-on-schedule.md | severity: low | fix-risk: low | footprint: out-of-footprint
