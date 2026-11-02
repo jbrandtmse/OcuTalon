@@ -2,7 +2,7 @@
 title: 'Story 11.14: The release sequence runs every gate on the pushed candidate'
 type: 'feature'
 created: '2026-11-01'
-status: 'done'
+status: 'ready-for-dev'
 review_loop_iteration: 0
 baseline_revision: '10f83005265a3e04535d2d63a429f9511e08d89c'
 followup_review_recommended: true

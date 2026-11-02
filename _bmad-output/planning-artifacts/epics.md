@@ -4100,6 +4100,8 @@ So that a release takes me at most 15 minutes of hands-on time and never skips a
 
 ### Story 11.14: The release sequence runs every gate on the pushed candidate
 
+[SPLIT 2026-11-02, owner decision via the Contest Planner: Epic 11 part 2, after rc1]
+
 As the author,
 I want the release sequence to run every gate on the pushed candidate and stop naming the gate that failed,
 So that a release never skips a gate.
@@ -4116,6 +4118,8 @@ So that a release never skips a gate.
 
 ### Story 11.15: The hands-on gate stops the sequence, and its resume command waits for a pass or a carry-over
 
+[SPLIT 2026-11-02, owner decision via the Contest Planner: Epic 11 part 2, after rc1]
+
 As the author,
 I want the sequence to stop at the hands-on gate and resume only on a recorded pass or carry-over,
 So that the Contest Planner's pass is part of every release that needs one.
@@ -4130,6 +4134,8 @@ So that the Contest Planner's pass is part of every release that needs one.
 **And** the release that ends a build step (1.0.0, the first release, with the web demo path and Telegram, then each later step's release) needs a fresh pass; a re-cut from the passed candidate plus the recorded fixes' commits (cherry-picked from the integration branch), whose only changes since that candidate are those fixes, carries the pass over, with the Contest Planner's note in its record, while a re-cut from the integration branch's head needs a fresh pass; other releases record a carry-over (REL-7, P29) [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0" and "New Linux droplet"]
 
 ### Story 11.16: The sequence asks before each outward step after the gates
+
+[SPLIT 2026-11-02, owner decision via the Contest Planner: Epic 11 part 2, after rc1]
 
 As the author,
 I want the sequence to ask for my word before the release pull request, the merge, the tag and the merge back,
@@ -4160,6 +4166,8 @@ So that a registry install works with no Node.js on a judge's machine.
 **Then** it builds the web page and puts the built bundle into the package's resources, in `src/ocutalon/csp/` (which `src/module.xml`'s `FileCopy` already copies into `${dataDir}csp/ocutalon-web/`), before it packages the artifact, so the artifact is self-contained and a registry install works with no Node.js on the judge's machine; it records in the candidate's record the artifact it would publish, so Story 15.3 can install exactly that artifact; the registry publish itself stays the author's action, at 1.0.0, and the sequence asks for the author's word before anything goes out (REL-3, REL-11, AD-23) [ADDED 2026-10-31, decided by the Contest Planner under the owner's delegation]
 
 ### Story 11.18: The update hook updates the online demo, and a rehearsal candidate proves the sequence
+
+[SPLIT 2026-11-02, owner decision via the Contest Planner: Epic 11 part 2, after rc1]
 
 As the author,
 I want the update hook to update the online demo and a rehearsal candidate to prove the whole sequence,
@@ -7458,6 +7466,8 @@ So that I can see what OcuTalon costs and spot a request close to the size limit
 ## Epic 38: 1.0.0 is checked by hand and cut
 
 Epic 38 depends on every 1.0.0-scope epic and gates the v1.0.0 tag. Once those epics have merged and Story 11.5's sequence has cut `release/1.0.0-rc1`, the first release's candidate (0.1.0 and 0.1.1 are not cut), one full candidate check runs on it: the Contest Planner's real-key pass on the web demo path (Story 38.1), the timed runs on one clean Linux droplet that the Contest Planner creates and deletes for each check, driven from the Contest Planner's Mac, with no clean macOS run (Story 38.2), and the owner's Telegram pass on the same candidate (Story 38.3). [ADDED 2026-10-31, decided by the Contest Planner under the owner's delegation (inbox U-189, option (a))] [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0" and "New Linux droplet"]; it read "Once Epic 11 has merged and Story 11.5's sequence has cut the 0.1.0 candidate, the author's clean macOS and Linux hosts install it and time its demo path on the real model, and the Contest Planner runs the web demo path by hand with a real model key on the author's behalf; this epic gates the v0.1.0 tag."]
+
+[AMENDED 2026-11-02, owner decision via the Contest Planner (Epic 11 trimmed to 11.17)] Until Epic 11 part 2 merges, read "Story 11.5's sequence stopped at the hands-on gate" in Stories 38.1 and 38.3 as: the candidate cut and pushed by Story 11.5's sequence, with the Contest Planner's hand run of Story 11.14's gate list recorded in its record (the full CI run, the release-candidate evaluation with the demo incident gate, the upgrade harness, the rehearsal, the checklist and the REL-7 hands-on pass, the refusal of any enabled item that answers "not implemented" included); read "resumed after the recorded pass and it finishes" as the Contest Planner's hand steps under REL-11's standing go (the PRD amendment is written on the feature branch). The demo host is updated by the Contest Planner's update-ref path; U-208 and H19 move with Story 11.18 to Epic 11 part 2. No acceptance criterion changes; Story 15.3 still reads Story 11.17's artifact record.
 
 ### Story 38.1: A hands-on pass with real keys finds and fixes what the tests missed before 1.0.0
 
