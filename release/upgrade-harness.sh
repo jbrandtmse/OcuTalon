@@ -74,7 +74,7 @@ MOCK_LOG=/opt/ocutalon/mock-log/requests.jsonl
 # commit). The commit must be an ancestor of HEAD and not HEAD itself: otherwise nothing is printed, one line goes to stderr and the
 # status is 2.
 resolve_previous() {
-  local repo=$1 cand=$2 ref=${3:-} kind sha head skip tag
+  local repo=$1 cand=$2 ref=${3:-} kind sha head
   head=$(git -C "$repo" rev-parse --verify --quiet 'HEAD^{commit}') || {
     echo "harness: $repo has no HEAD commit" >&2
     return 2
@@ -86,17 +86,7 @@ resolve_previous() {
       return 2
     }
   else
-    skip=$(git -C "$repo" tag --points-at HEAD)
-    ref=""
-    while IFS= read -r tag; do
-      [ -n "$tag" ] || continue
-      [ "$tag" != "v$cand" ] || continue
-      if printf '%s\n' "$skip" | grep -qxF -- "$tag"; then continue; fi
-      ref=$tag
-      break
-    done <<EOT
-$(git -C "$repo" -c versionsort.suffix=- tag --merged HEAD --list 'v[0-9]*' --sort=-version:refname 2>/dev/null)
-EOT
+    ref=$(release_previous_tag HEAD "$cand" "$repo")
     if [ -n "$ref" ]; then
       kind=tag
       sha=$(git -C "$repo" rev-parse --verify --quiet "$ref^{commit}") || {

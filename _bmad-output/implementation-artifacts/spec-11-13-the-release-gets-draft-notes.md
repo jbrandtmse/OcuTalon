@@ -2,13 +2,28 @@
 title: 'Story 11.13: The release gets draft notes'
 type: 'feature'
 created: '2026-11-01'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'cef528ba000a1bcc202b500f7544eae56e71af00'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-11-context.md'
 warnings: ['oversized']
-deferred: []
+deferred:
+  - summary: >-
+      The self-test's real-tree rule (AC8) runs notes.sh on the repository's own HEAD, so it goes red when a story of an epic with no line in release/notes-areas.txt is marked done, or when a v* tag leaves no new story.
+    evidence: |-
+      By design (AC8 and the mapping header: the first release that ships a step or personality epic fails areas until a line is added). It makes the checks job red on the integration branch when such an epic merges, before any release is drafted.
+    location: >-
+      docker/tests/test-release-notes.sh (real-tree rule), release/notes-areas.txt
+    severity: medium
+  - summary: >-
+      The not-affiliated note is spelled in two places (release/checklist.sh CK_NOTE and the fragments in release/notes.sh) and nothing compares them or the README line.
+    evidence: |-
+      A wording change in one copy would make correct notes fail public-text or let a stale note pass, with no test noticing.
+    location: >-
+      release/notes.sh (notes_note), release/checklist.sh:53
+    severity: low
 ---
 
 <intent-contract>
@@ -130,9 +145,50 @@ deferred: []
 - **AC7 (integration: Story 11.4's checklist consumes the draft).** Given a draft written at the default `notes_path <v> <rc>`, when the checklist's `row_public_text` runs on its own default notes path, then it passes; and after a planted local path, both `notes.sh`'s `public-text` row and the checklist's row fail.
 - **AC8 (the mapping covers release 1).** Given the real tree, when the self-test's real-tree case runs, then every `done` story maps to an area or to the developer section, and every `story` line of `release/notes-areas.txt` names a story heading of epics.md.
 
+**Review patches (pass 1; apply with the smallest change, each with a pinning case in `docker/tests/test-release-notes.sh`):**
+- P1 `release/notes.sh` -- the EXIT trap also removes the temporary draft beside the notes file; when `notes_draft` fails, remove the temporary file, refuse (exit 2, nothing written) and never `mv` a truncated draft.
+- P2 `release/notes.sh` -- refuse (exit 2, one line, nothing written) when `--notes` is the same file (`-ef`) as `--record`, `--eval` or `--areas`, even with `--replace`.
+- P3 `release/notes.sh` -- when `epics.md` is missing or empty at the candidate, the `stories` row FAILs naming the file (today every story silently becomes a titleless developer story and the run reads `draft`).
+- P4 `release/notes.sh` -- compare the candidate's and the tag's trackers by story id (`<e>-<s>`, the first two key segments), not by the full key, so a story whose slug was renamed since the tag is not listed as new.
+- P5 `release/notes.sh` -- an option value that starts with `-` (for example `--record --eval x`, `--candidate -x`) is refused as a missing value (exit 2).
+- P6 tests -- add: (a) a fixture whose mapping order differs from the epics.md order, asserting the `## ` area order is the mapping's; (b) a `story <e>.<s> <named area>` line that moves a story into another named area, asserting it lands there; (c) `eval` fail-closed cases: no `onMock`, empty `verdict`, a JSON `null` document; (d) a rehearsal section without `Mode:` and one without `Result:`, and the same for the upgrade section, each failing its own row alone; (e) the `t_nonetwork` marker check also after the real-tree rule; (f) the "not a git repository" refusal asserts its own message, not only the `REFUSED` prefix; (g) a differently cased inspiration name outside the note fails `public-text`. Add or update `mutation:` lines in `## Verification` for P1 to P5.
+- Rejected, not to change: previous tag also an rc tag of the same version (candidates are branches, never tags; the spec's tag rule), the blocked/failed gate results being copied (Decided in-stage 5), the real-tree rule's coupling to the tracker (AC8 by design), the class-name regex (the README's own rule).
+
 ## Spec Change Log
 
 ## Review Triage Log
+
+### 2026-11-01 -- Review pass
+- verdicts: 27 findings -- high 0, medium 11, low 12, false 4, maybe-false 0
+- findings:
+  - `[low]` `reject` Blind: previous tag can be an rc tag of the same version -- the spec's tag rule; candidates are `release/<v>-rc<n>` branches, never tags (Story 11.2 spec), so no rc tag exists to be taken
+  - `[medium]` `defer` Blind: real-tree rule ties hosted CI to tracker state (an unmapped epic marked done turns it red) -- AC8 asks for exactly this tripwire; recorded as a deferred note because it forces a mapping line with each new epic
+  - `[low]` `reject` Blind: blocked/failed gate results copied with `RESULT draft` -- Decided in-stage 5: the generator reports, Story 11.5's gates judge
+  - `[low]` `patch` Blind: option value swallows the next option -- P5, a value starting with `-` is refused
+  - `[medium]` `patch` Blind: temporary draft left behind when interrupted -- P1, trap removes it
+  - `[low]` `reject` Blind: `names_outside_section` not under `scan_rule` -- unit-tested in the self-test; wiring is extra surface for a negligible risk
+  - `[low]` `reject` Blind: class-name regex can flag prose -- it is the README's own rule (Design Notes, extend don't copy)
+  - `[false]` `reject` Blind: timing claim in the Results section -- not code; part 3 was split in this pass
+  - `[low]` `reject` Blind: `stories` passes with nothing under any area -- a patch with only developer stories is a legal draft; the intent allows it
+  - `[medium]` `patch` Edge: `--notes` equal to an input file with `--replace` overwrites it -- P2
+  - `[medium]` `patch` Edge: epics.md missing at the candidate degrades silently -- P3 (FAIL stories)
+  - `[medium]` `patch` Edge: a failed or interrupted draft write is moved into place -- P1
+  - `[low]` `reject` Edge: empty release folder left after a mktemp failure -- harmless empty folder in an exit-2 path
+  - `[medium]` `patch` Edge: a renamed slug lists a shipped story as new -- P4 (compare by story id)
+  - `[low]` `reject` Edge: fractional target percent shown rounded -- spec fixes targets as whole percent; targets are 0.9 and 0.8
+  - `[low]` `reject` Edge: rc tag as previous tag -- same as the first row
+  - `[false]` `reject` Edge: real-tree test coupling -- same as the second row (AC8 by design)
+  - `[false]` `reject` Edge: a row missing from the results prints PASS -- every row is written by `notes_main` before printing; no path leaves one out
+  - `[medium]` `patch` Verification gap: area order unpinned -- P6a
+  - `[medium]` `patch` Verification gap: `story` line to a named area unpinned -- P6b
+  - `[medium]` `patch` Verification gap: eval reader fail-closed branches unpinned -- P6c
+  - `[medium]` `patch` Verification gap: Result:/Mode: required unpinned -- P6d
+  - `[medium]` `patch` Verification gap: missing epics.md untested -- P3 case
+  - `[low]` `patch` Verification gap: name check pinned in one casing only -- P6g (the script lower-cases; the case is now pinned). Drift between the note's two copies stays deferred
+  - `[low]` `reject` Verification gap: blocked/failed results copy unpinned -- Decided in-stage 5; Story 11.5's gate tests are the place
+  - `[low]` `patch` Verification gap: marker check before the real-tree rule, and a weak not-a-repository assertion -- P6e, P6f
+  - `[false]` `reject` Verification gap: t_real is not self-contained -- AC8 asks for the real tree
+- Intent Alignment Auditor (descriptive, no findings): reading R1+R2+R4 implemented; divergences are the rc-tag reading, the extra DW-551 name check and the stricter input checks, all in the spec or the lead's update.
 
 ## Design Notes
 
@@ -301,6 +357,9 @@ story 31.4 Telegram
 8. **No record section.** The generator writes only the draft. Story 11.5 records its steps in the candidate's record.
 9. **The developer heading** is the README's own, `## For admins and developers`, so the two documents keep one rule.
 10. **Node for JSON**, the tool `eval/run.sh --override` already uses. A missing `node` fails `eval`; it is not a refusal.
+11. **The inspiration's name in the draft (DW-551, the lead's update above).** The `public-text` row also runs `notes_name_hits`: a line of the draft that holds the name once the not-affiliated note (word for word) is removed fails the row with `file:line`. It covers a `--notes` file outside the checkout, which Story 11.4's `name-only-in-note` row (a scan of the tracked files) cannot see, and it is part of `public-text`, so the output rows stay the seven of the Output row. The script assembles the name and the note from fragments (`"Open""Claw"`), so its own text never spells it; the header documents the extra scan. Pinned in `test-release-notes.sh` (`checks`): the name outside the note fails with `file:line` and without the planted text, the note word for word passes, and the note plus a second bare name fails.
+12. **`release_previous_tag <ref> <version> [<repository>]`** has an optional third argument (the repository, `.` by default) so that Story 11.2's `resolve_previous <repo> ...` calls it with its `-C` repository; `notes.sh` calls it with the candidate's sha. `resolve_previous` keeps its behaviour (`test-upgrade-harness.sh` green).
+13. **Result states and details.** A row is `pass`, `fail` or `dry` internally (`dry` prints as `PASS` with a dry-run detail); `notes_result` reads them. An unmapped story is left out of the draft and named by `areas`; a story line that maps a story with no heading lists it under that area by its key. The record's `Result:` and `Mode:` lines are required (a section without them fails its row, since a dry run could not be told from a real one); `Note:` and the host lines are copied when present. The copied lines are separated by blank lines so that Markdown shows each on its own line.
 
 **Siblings.** Stories 11.2 (`## Upgrade harness`, `resolve_previous`), 11.3 (`lib-release.sh`, `## Clean-machine rehearsal`), 11.11 (the bound rows and `### Runs`) and 11.4 (`notes_path`, `row_public_text`, `local_path` in `lib-scan.sh`) are planned (ready-for-dev) and built before this story; this plan uses their specs' stated interfaces. Story 11.12 adds rows only. Story 11.5 composes this story.
 
@@ -339,13 +398,33 @@ Run everything from the epic-11 worktree root, each command in the foreground of
 
 **Mutations to demonstrate (Rule 19; one per AC, recorded here as `mutation: <change> -> <test red>`):**
 - AC1: read the previous tag's tracker from the candidate instead, so the later-version case lists the old stories.
+  mutation: read the previous tag's tracker from the candidate (`git show "$cand:..."` in `notes_stories`) -> `later` red (the old stories are not new, so nothing is listed)
 - AC2: drop the story-number-0 rule, so that fixture story is listed under its area.
+  mutation: drop the story-number-0 test in `notes_areas` -> `base` red (the 2.0 fixture story is listed under its area)
 - AC3: skip the `commit` comparison, so the other-commit case passes.
+  mutation: delete the `r.commit !== sha` check of the evaluation reader -> `inputs` red (the other-commit case passes)
 - AC4: accept a `Candidate:` line without the candidate's sha, so that case passes.
+  mutation: accept any `Candidate:` line (`*) ;;` in place of `*"$sha"*) ;;` in `notes_record_part`) -> `inputs` red (the rehearsal and upgrade cases of another sha pass)
 - AC5: ignore `onMock`, so the mock case gives `RESULT draft`.
+  mutation: read every evaluation as real (`'OK'` in place of `r.onMock ? 'MOCK' : 'OK'`) -> `dry` red (the mock case gives `RESULT draft`)
 - AC6: drop the existing-file refusal, so the refusal case overwrites the file.
+  mutation: make the existing-file refusal unreachable (`[ "$replace" -eq 9 ]`) -> `refusals` red (the author's edit is overwritten)
 - AC7: write the draft to `rc<n>.notes.md` in place of `notes_path`, so the checklist's default-path call fails.
+  mutation: default `--notes` to `release/records/<v>/rc<n>.notes.md` in place of `notes_path` -> `integration` red (the checklist's default-path call finds no draft)
 - AC8: delete the `epic 8` line of the real mapping, so the real-tree case fails `areas`.
+  mutation: delete the `epic 8` line of `release/notes-areas.txt` -> `real-tree` red (`areas` fails, naming epic 8)
+- P1 to P5 (review patches, pass 1):
+  mutation: drop the temporary draft from the EXIT trap of `notes_main` -> `refusals` red (a `.notes-draft.*` file stays beside the notes file after a draft that cannot be completed)
+  mutation: ignore the status of `notes_draft` (`[ $? -ne 99 ]` in place of `[ $? -ne 0 ]`) -> `refusals` red (a truncated draft is moved into place and the exit is 0, not 2)
+  mutation: make the same-file test unreachable (`[ "$notes" = "" ]` in place of `[ "$notes" -ef "${!n}" ]`) -> `refusals` red (a notes file that is the record, the evaluation result, the mapping or a link to the record is rewritten)
+  mutation: drop the `[ ! -s "$d/epics.md" ]` test of `notes_stories` -> `epics` red (an empty epics.md reads `RESULT draft`)
+  mutation: compare the trackers by full key (`set[k]` and `k in pset` in `notes_stories`) -> `later` red (a story with a renamed slug is listed as new)
+  mutation: drop the `[ "${2#-}" != "$2" ]` test of the option reader -> `refusals` red (`--notes -x` is accepted and a file named `-x` is written)
+
+**Results (implement stage, 2026-11-01):**
+- Real tree (`HEAD` of OcuTalon-epic-11, 128 `done` stories): `PASS stories 128`, `PASS areas 8 areas and 48 developer stories`, FAIL eval, rehearsal and upgrade (no inputs), `PASS dev-only`, `PASS public-text`, `RESULT fail`, exit 1, no `release/records/` folder. Stories per area in the draft: Install, upgrade and sign in 7; The page and the chat 13; The demo 8; Watching productions and incidents 9; Approvals and the audit log 17; Attention decisions and the model 8; Heartbeat and reminders 8; The online demo 10; developer section 48. The run took under 1 s (0.3 s measured with `time`).
+- `test-release-notes.sh` 12 rules green in about 11 s. `test-release-checklist.sh` 20 s, `test-rehearsal.sh` 81 s, `test-upgrade-harness.sh` 20 s, `test-boundaries.sh` 5 s, `test-readme.sh` 6 s, `test-ci-config.sh`, `test-ci-changes.sh` and `ci/changes.sh ci.yml` exit 0 (no pin changed).
+- `CHECK_SCRIPTS` in parts, no `FAILED` line: (1) 73 s; (2) 70 s; (3) 520 s (near the 8-minute mark; `online-host` and `online-load` dominate: split it next time); (4) 213 s.
 
 **Shared surfaces:**
 - `CHECK_SCRIPTS` in `ci/units.sh` (it gains `release-notes`), read by `ci/checks.sh` and `test-ci-config.sh`.
@@ -355,5 +434,22 @@ Run everything from the epic-11 worktree root, each command in the foreground of
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** `release/notes.sh` drafts the release notes of a candidate: the stories `done` at the candidate and not at the previous tag, grouped by area from `release/notes-areas.txt`, then the evaluation summary, the rehearsal's and the upgrade's own lines and tables, and a developer section. It writes only the notes file, refuses an existing one without `--replace`, and checks the draft (`dev-only`, and `public-text` with the local-path, key-like and not-affiliated-note rules, which also answers DW-551). Results and exit codes: `draft` 0, `fail` 1, refusal 2, `dry run` 3.
+
+**Files changed.**
+- `release/notes.sh` (new): the generator.
+- `release/notes-areas.txt` (new): the area mapping.
+- `docker/tests/test-release-notes.sh` (new): hermetic self-test, 14 rules.
+- `release/lib-release.sh`: `release_previous_tag`.
+- `release/upgrade-harness.sh`: `resolve_previous` calls `release_previous_tag`.
+- `docker/tests/lib-scan.sh`: `names_outside_section`.
+- `ci/units.sh`: `release-notes` at the end of `CHECK_SCRIPTS`.
+
+**Review.** 27 findings from four layers: 13 patched (P1 to P6: temp-draft cleanup and failed-write refusal, `--notes` equal to an input refused, missing `epics.md` fails `stories`, tracker compared by story id, dash-leading option values refused, and the added pinning cases), 1 medium deferred (real-tree rule coupling; the duplicate note text is a second, low deferral), the rest rejected with reasons in the Review Triage Log. Patched at entry verdict: high 0, medium 8 (grouped entries), low 5. Follow-up review recommended: false (no high patched; the patches carry new pinning cases with mutation lines).
+
+**Verification.** `test-release-notes` (14 rules), `test-release-checklist`, `test-rehearsal`, `test-upgrade-harness`, `test-boundaries`, `test-readme`, `test-ci-config`, `test-ci-changes`, `ci/changes.sh ci.yml`, and every other `CHECK_SCRIPTS` script in parts: all exit 0, no FAILED line. Real-tree run: 128 stories, 8 areas, 48 developer stories, PASS stories, areas, dev-only, public-text; FAIL eval, rehearsal, upgrade; RESULT fail, exit 1; about 0.3 s; nothing under `release/records/`. The lane-a lock folder was empty at the end.
+
+**Residual risks.** The success path was exercised only on fixtures built from the producers' documented layouts, not on a real rehearsal or upgrade record. The two deferred items in the frontmatter.

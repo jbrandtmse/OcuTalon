@@ -2,6 +2,7 @@
 # Storage block checks (test-storage.sh, test-storage-roundtrip.sh) and by the release checklist (release/checklist.sh, Story 11.4,
 # which scans the draft notes with local_path).
 # Sourced, not run: it defines functions and one variable, STORAGE_BLOCKS_AWK, and nothing else. The caller keeps the counter `fails`.
+# Its scanners: local_path, bridge_refs and names_outside_section (below); scan_files lists the files, and scan_rule runs a scanner.
 #
 # A scanner prints file:line for each offending line of the files it is given, and never the text of the line.
 # scan_rule first runs a scanner on a sample that breaks the rule and on one that keeps it, so that a scanner that can no
@@ -62,6 +63,21 @@ local_path() {
   { grep -nHIE '/Use[r]s/[A-Za-z0-9]|/Volume[s]/[A-Za-z0-9]|/privat[e]/(tmp|var|etc)/|(^|[^A-Za-z0-9_.])/va[r]/folders/[A-Za-z0-9_]|[A-Za-z]:\\Use[r]s\\[A-Za-z0-9]' "$@"
     grep -nHIE '/hom[e]/[A-Za-z]' "$@" | grep -v '/home/irisowner'
   } | cut -d: -f1,2
+}
+
+# names_outside_section <heading> <file>...: file:line of each line outside the H2 section whose heading line equals <heading> (for
+# example "## For admins and developers") that holds a ##class( call, an ERROR #<digits> code, an <UPPER> error name or a dotted class
+# name (parts that start with an upper-case letter, a leading % allowed): the README's developer-section rule (CON-5, NFR-24), with the
+# heading as a parameter. A file's lines before its first H2 heading are outside the section.
+names_outside_section() {
+  local heading=$1
+  shift
+  awk -v heading="$heading" '
+    FNR == 1 { stop = 0 }
+    /^## / { stop = ($0 == heading) }
+    stop { next }
+    /##class\(/ || /ERROR #[0-9]+/ || /<[A-Z][A-Z][A-Z]+>/ || /(^|[^A-Za-z0-9_])%?[A-Z][A-Za-z0-9]*(\.[A-Z][A-Za-z0-9]*)+/ { print FILENAME ":" FNR }
+  ' "$@"
 }
 
 # bridge_refs <file>...: file:line of each code line that names an OcuTalon package other than OcuTalon.Bridge and

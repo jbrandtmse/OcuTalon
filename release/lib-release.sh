@@ -29,6 +29,11 @@
 #                              that title, up to the next heading or the end of the file, or appends it. A missing file (and its folder) is
 #                              created with the heading, by default "# OcuTalon <v> rc<n>" for a path ending <v>/rc<n>.md and
 #                              "# OcuTalon candidate record" otherwise. The other sections are kept byte for byte
+# release_previous_tag <ref> <version> [<repository>]
+#                              prints the previous release's tag: the highest v[0-9]* tag merged into <ref>, skipping a tag that points at
+#                              <ref> and v<version>, with a pre-release (v1.1.0-rc1) before its release; nothing when there is none (the
+#                              first release). The repository defaults to the current folder. Story 11.13's notes and Story 11.2's
+#                              resolve_previous use it
 # env_get <file> <key>, env_set <file> <key> <value>   key=value files (options, results of a run)
 # detail_clean                 a result detail on one line of printable ASCII, 300 characters at most, with no pipe (stdin to stdout)
 umask 077
@@ -206,6 +211,22 @@ host_run() {
 record_path() { printf 'release/records/%s/rc%s.md\n' "$1" "$2"; }
 
 notes_path() { printf 'release/records/%s/rc%s-notes.md\n' "$1" "$2"; }
+
+# release_previous_tag <ref> <version> [<repository>]: see the header.
+release_previous_tag() {
+  local ref=$1 ver=$2 repo=${3:-.} skip tag
+  skip=$(git -C "$repo" tag --points-at "$ref" 2> /dev/null)
+  while IFS= read -r tag; do
+    [ -n "$tag" ] || continue
+    [ "$tag" != "v$ver" ] || continue
+    if printf '%s\n' "$skip" | grep -qxF -- "$tag"; then continue; fi
+    printf '%s\n' "$tag"
+    return 0
+  done <<EOT
+$(git -C "$repo" -c versionsort.suffix=- tag --merged "$ref" --list 'v[0-9]*' --sort=-version:refname 2> /dev/null)
+EOT
+  return 0
+}
 
 # record_write <file> <section file> [<heading>]: see the header.
 record_write() {
