@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # The helpers that the release scripts share (Story 11.3; AD-25, AD-29; REL-6). Sourced, not run: it defines functions and a few
-# variables, and runs nothing. release/rehearse.sh, release/upgrade-harness.sh and the scripts of Stories 11.4, 11.5 and 11.13 use it.
+# variables, and runs nothing. release/rehearse.sh, release/upgrade-harness.sh and the scripts of Stories 11.4, 11.5, 11.13 and 11.17
+# use it; Story 15.3 reads the IPM artifact through it.
 #
 # release_config_read <file>   reads the author's configuration file (KEY=value lines, outside the repository) and sets the shell
 #                              variables REHEARSAL_<KEY>. No line is expanded: a $(...) in a value stays text, and only a leading ~/ of a
@@ -53,6 +54,7 @@
 #                              artifact as ocutalon/csp/<rel> with the same bytes
 # ipm_content_digest <tgz>     prints the SHA-256 of the sorted "<sha256>  <path>" lines of every regular file of the artifact: one value for
 #                              every packaging of one tree, whatever the archive's own bytes
+# ipm_unpack <tgz> <folder>    extracts the artifact into the folder; status 1 when it cannot be read as a gzip tar archive
 # last_prompt_free_line <file> prints the last line of a session's plain output that is not blank and not a terminal prompt (NS>)
 umask 077
 
@@ -96,7 +98,10 @@ ipm_unpack() {
 
 ipm_artifact_check() {
   local tgz=$1 ver=$2 tree=$3 d f rel mx
-  d=$(mktemp -d "${TMPDIR:-/tmp}/ocutalon-ipmchk.XXXXXX") || return 1
+  d=$(mktemp -d "${TMPDIR:-/tmp}/ocutalon-ipmchk.XXXXXX" 2> /dev/null) || {
+    echo "cannot be checked (no temporary folder)"
+    return 0
+  }
   if ! ipm_unpack "$tgz" "$d"; then
     echo "cannot be read as a gzip tar archive"
     rm -rf "$d"

@@ -17,7 +17,8 @@
 # next     runs the step that the state names (resume is the same command). A step that passes names the next one (NEXT <step>);
 #          the last one ends the sequence. A stop (a step that fails, an ASK that is not answered yes, or the end of the steps) writes
 #          the record, commits only that file on the integration branch, and asks to push that commit.
-# status   prints STATE <v> rc<n> next <step>, RECORD <file>, the hands-on time and the record's result; it changes nothing.
+# status   prints STATE <v> rc<n> next <step>, RECORD <file>, the hands-on time and the record's result, and after a passed ipm step
+#          ARTIFACT <absolute path> <bytes> <sha256>; it changes nothing.
 #
 # The steps. cut makes the candidate in a temporary clone inside the state folder (so the author's checkout is never switched): the
 # integration head (or --from's candidate plus the cherry-picked --pick commits, each an integration-branch commit), one cut commit that
@@ -36,7 +37,8 @@
 #
 # Pushes: exactly two, each on the author's word: the candidate branch, and the integration branch fast-forward with the record commit.
 # Never a force, a tag, main or another ref. No value of the environment is ever printed.
-# Output: PASS|FAIL|WAIT <step> <detail>, then RECORD <file> and RESULT <stopped|fail>. This script reports no pass for a release.
+# Output: PASS|FAIL|WAIT <step> <detail>, then RECORD <file> and RESULT <stopped|fail>; a WAIT prints only its own line (exit 5), and a
+# passed ipm step also prints ARTIFACT <absolute path>. This script reports no pass for a release.
 # Needs bash 3.2 or later, git, awk, tar, gzip, sha256sum or shasum, node, npm and docker (the base image of docker/Dockerfile for the
 # image and ipm steps).
 #
@@ -692,7 +694,7 @@ zpm \"enable -map -ns USER\""
     rm -f "$art"
     ipm_pack_fail artifact "$(printf '%s\n' "$problems" | head -n 1)"
   fi
-  IPM_TMP=$(mktemp -d "${TMPDIR:-/tmp}/ocutalon-ipmrepo.XXXXXX") || ipm_pack_fail install "no temporary folder"
+  IPM_TMP=$(mktemp -d "${TMPDIR:-/tmp}/ocutalon-ipmrepo.XXXXXX") || ipm_pack_fail artifact "could not be checked (no temporary folder)"
   ext="$IPM_TMP/ocutalon-$version"
   ipm_unpack "$art" "$ext"
   docker exec "$IPM_C" mkdir -p "$chk" < /dev/null > /dev/null 2>&1 \
@@ -700,7 +702,7 @@ zpm \"enable -map -ns USER\""
     && docker exec -u root "$IPM_C" chmod -R a+rX "$chk" < /dev/null > /dev/null 2>&1 \
     || {
       rm -f "$art"
-      ipm_pack_fail install "the artifact could not be copied back for the repository check"
+      ipm_pack_fail artifact "could not be copied back for the repository check"
     }
   ipm_session repo-add "$ns" "zpm \"repo -name ocutalon-check -fs -depth 2 -path $chk/\""
   ipm_session repo-list "$ns" 'zpm "repo -name ocutalon-check -list-modules"'
@@ -760,7 +762,7 @@ step_ipm() {
   sset ipm_container "$cname"
   rm -rf "$idir"
   mkdir -p "$idir"
-  (ipm_pack "$cname" "$tree" "$idir" "$zpmfile")
+  (ipm_pack "$cname" "$tree" "$idir" "$zpmfile") >> "$idir/run.log" 2>&1
   sub_rc=$?
   rm -rf "$tree"
   case $sub_rc in
@@ -813,7 +815,7 @@ step_ipm() {
   } > "$sdir/ipm-section.md"
   if ! record_write "$(record_abs)" "$sdir/ipm-section.md" "# OcuTalon $version rc$rc"; then
     rm -f "$art"
-    ipm_fail "the record section could not be written"
+    ipm_fail "the artifact could not be written into the record"
     return 1
   fi
   sset ipm_result pass

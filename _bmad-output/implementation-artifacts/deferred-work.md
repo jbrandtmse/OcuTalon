@@ -2912,3 +2912,4 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-11-17-the-release-s-ipm-artifact-carries-the-built-page.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: packaging is not byte-reproducible (Task 0); the content digest strips archive metadata
 - 2026-11-02T10:22:06Z status=wontfix-accepted owner=11-17-the-release-s-ipm-artifact-carries-the-built-page by=harvest note=reopen_if=two --live ipm packagings of one cut commit print different Content SHA-256 lines
+- 2026-11-02T11:11:59Z status=resolved-by:11-17-the-release-s-ipm-artifact-carries-the-built-page by=adjudication note=lead smoke: two real --live ipm packagings (cut 3eecf1f6 and 144579a1, the same tree) gave different file SHA-256 (c69f1a4b..., bfc911b2...) and the same Content SHA-256 e7a83479...; the record's claim holds on real IPM

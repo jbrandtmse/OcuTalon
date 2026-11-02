@@ -183,6 +183,38 @@ Nothing goes out. The registry publish stays the author's own action. This story
 - **IA2 (the record's readers):** **Given** the record after `ipm`, **when** the later real `release/notes.sh` step (11.5's IA1) and the stop routine write their sections, **then** `## IPM artifact` stays byte-identical, and `status` still prints the `ARTIFACT` line.
 - **Standing:** every test added or changed passes on a fresh environment, in either order.
 
+### Review Findings
+
+Code review 2026-11-02 (full-opus tier; layers blind-hunter, edge-case-hunter, verification-gap and acceptance-auditor; 35 rows, 12 entries patched, 0 decision-needed, 0 new deferrals, 14 rejected). Every patch has fix-risk low: each one only adds a test case, changes text or adds a header line, or adds one redirect or guard, and the whole suite stays green.
+- [x] [Review][Patch] (med) `--live ipm` held no lane lock when `OCUTALON_LOCK_DIR` was unset: the throwaway repository has no coordination folder, and the lock assertion read `/throwaway-iris.lock`. Live mode now takes the folder that lib-live's `live_lock_dir` derives from the real checkout. [docker/tests/test-release-sequence.sh live branch]
+- [x] [Review][Patch] (med, Rule 19 hermeticity) The `ipmfail` loop's section check could pass on an earlier iteration's section. Each iteration now marks the earlier `Result: fail` stale first and gets a fresh `zpm.log`. [docker/tests/test-release-sequence.sh t_ipmfail]
+- [x] [Review][Patch] (med) No test reached the two-run fallback's failure branch (USER stops, OCUTALON exists, OCUTALON's load fails). Added shim flag `ipm-ocutalon-load-fail` and a loop case: no package. `ipm-load-fail` asserts no OCUTALON load. [docker/tests/test-release-sequence.sh shim, t_ipmfail]
+- [x] [Review][Patch] (med, Rule 19 hermeticity) The `t_static` check `git status -- 'release/ipm*'` read the developer's working tree, so it could not fail in CI and goes red on Epic 15's uncommitted edits. Removed. This review checked the boundary instead: `git diff --name-only 5ab43766..` holds no `release/ipm*` file. [docker/tests/test-release-sequence.sh t_static]
+- [x] [Review][Patch] (low) The export-failure line (the earlier review's git archive patch) had no test. Added a refusal case: an absent `cand_sha` gives that line, no container and no section. [docker/tests/test-release-sequence.sh t_ipmfail]
+- [x] [Review][Patch] (low) No test reached the step-level deletion of a copied-out, unchecked `.tgz` after a stop. Added shim flag `ipm-kill-after-copy`, which sends TERM to the packaging subshell right after the copy-out. [docker/tests/test-release-sequence.sh shim, t_ipmfail]
+- [x] [Review][Patch] (low) No test reached a package run that writes no `.tgz`. Added shim flag `ipm-package-fail` and a loop case. [docker/tests/test-release-sequence.sh shim, t_ipmfail]
+- [x] [Review][Patch] (low) `ipm_artifact_check` failed open: with no temporary folder it printed nothing, and a caller that reads its output took that as a good artifact. It now prints `cannot be checked (no temporary folder)`, and `t_ipmlib` pins it. [release/lib-release.sh ipm_artifact_check]
+- [x] [Review][Patch] (low) Unruled or misleading failure lines now use the ruled `FAIL ipm the artifact <what>` form: `the artifact could not be written into the record`, `the artifact could not be copied back for the repository check` and `the artifact could not be checked (no temporary folder)`. The last two used to read "the package did not install", although the install had succeeded. [release/release.sh ipm_pack, step_ipm]
+- [x] [Review][Patch] (low) Headers: `status` lists the `ARTIFACT` line; the Output line covers WAIT (its own line only) and `ARTIFACT`; lib-release.sh lists `ipm_unpack` and its users. [release/release.sh:1-45, release/lib-release.sh:1-60]
+- [x] [Review][Patch] (low) The packaging subshell's stdout and stderr now go to `<state>/ipm/run.log` as a whole, as the Code Map asks. [release/release.sh step_ipm]
+- [x] [Review][Patch] (low, Rule 19) IA1's mutation had been shown only on the hermetic rule. It is now shown live too (see Verification).
+- Already ledgered, not re-filed: the record's "the same for every packaging" claim and the deferred item's severity (blind-hunter, edge-case-hunter, acceptance-auditor) are DW-577. The two-run path on real IPM is DW-576.
+- Rejected:
+  - (low) Ctrl-C during packaging is recorded as "ended without a result": rare, the container and lock are still removed by the EXIT trap, `next` re-runs the step, and the fix adds a branch.
+  - (low) The IPM version comes from the release file's name, not IPM: the file is pinned and named for its version; reading it from IPM adds a session.
+  - (spec edit) U-213 is not recorded in Design Notes 14: the cycle log carries the ruling.
+  - (spec edit) The triage log says "medium 4" and lists three.
+  - (spec edit) "Four to six sessions": the step runs five or seven.
+  - (low) Two concurrent `next` calls on one state can collide: this is 11.5's design, a single author runs it, and the fix adds a lock.
+  - (low) The repository-check unpack's status is ignored: the same archive was fully extracted and checked moments earlier, so a partial unpack cannot pass a bad artifact.
+  - (false) sha256sum escapes backslash and newline names: no IPM or bundle path holds either.
+  - (low, theoretical) Symlinks are skipped by `find -type f`: neither the Angular build nor IPM's package writes them.
+  - (low) A failed write of the failure section is silent: the step still fails, and the stop routine records `failed at ipm`.
+  - (low) Any `docker image inspect` error reads "not on this machine": the step still fails before any container, and the fix adds a probe.
+  - (false) The Standing criterion has no mutation: Rule 19 pins it with the lead's fresh check, forward and reverse.
+  - (low) A WAIT clears an earlier attempt's logs: that failure's detail is already printed and recorded, and the fix needs a new state layout.
+  - (by-design) "build 154" is fixed under an `IRIS_IMAGE` override: ruled text, U-206.
+
 ## Spec Change Log
 
 - **2026-11-02, re-plan (orchestrator ruling "Re-plan 2026-11-02", decide; owner trim of Epic 11).** Trigger: Stories 11.14, 11.15 and 11.16 are not built (Epic 11 part 2), and the earlier plan stood on them. Amended: the Approach's step list (`cut image ipm push notes`, `ipm` between `image` and `push`); in Always, the conventions line (11.5's only; exit 5 marked as this story's), the bundle line (the cut tree read with `git archive <cut sha>` as 11.5's `image` step reads it, not by 11.14's pre-push reader), and the Extend line (no 11.14 item); the Matrix's Packaged row (`image` passed, not `stubs`); the Code Map, Tasks, Verification commands, mutation plan and Shared surfaces (11.5's pins only; no `--cases`); Consumes and Consumed-by; Decided in-stage 1 and 7 and new items 8 to 13. Every acceptance criterion, the Matrix's outcomes and every ruled fixed text (U-206) are unchanged. Known-bad state avoided: an implement pass HALTing on missing 11.14 prerequisites, or pulling part 2's steps in. KEEP: the Task 0 measurements, the record golden, the content digest and the 15.3 facts.
@@ -350,6 +382,29 @@ Every command runs from the worktree root, in its own foreground call with `time
 - IA1: mutation: the shared `bundle_diff` compare (used by the hermetic `ipm` rule and by `--live ipm`) is pointed at a changed byte of the extracted file -> `ipm` red (`every bundle file of the candidate is in the artifact, byte for byte: got assets/a.txt`). Shown on the hermetic rule only; the live run was not repeated with it (about 2 minutes), and the helper is the same one.
 - Review patches: mutation: `ipm_content_digest` hashes the file list without the bytes -> `ipmlib` red (`the digest ignores module.xml`, the independent expected value); the `IPMLOAD OK` guard replaced by `true` -> `ipmfail` red (`ipm-iris-load-fail`).
 - IA2: mutation: `record_write` rewrites the whole file with its section -> `ipm` red (`the section is byte for byte after the notes step and the stop routine: got ''`).
+
+**QA stage (2026-11-02):**
+- (QA) `docker/tests/test-release-sequence.sh`, rule `ipmfail`: one added case, a failed packaging (`ipm-byte`) with every question answered yes leaves exit 1, no `PASS push`, no `release/*` branch and no tag on the bare remote, and the sequence still at `ipm`.
+- mutation: a failure advances `next` to push and runs `step_push` (cmd_next `*)` branch) -> `ipmfail` red (`a failed packaging: the candidate branch is not on the remote: got '1'`, `no push`, `still waits at ipm`).
+- AC1 (re-shown): mutation: `ipm_artifact_check` FileCopy complaint replaced by `true` -> `ipmlib` red (`no FileCopy`).
+- AC2 (re-shown): mutation: the record's Content SHA-256 line prints the file SHA -> `ipm` red (`the record's section`, `byte for byte after the notes step`).
+- AC3 (re-shown): mutation: the second load's namespace set to USER -> `ipm` red (`two-run: exit`, `the zpm calls`, `two-run by flag`).
+- AC4 (re-shown): mutation: `--pull never` dropped from the throwaway's `docker run` -> `ipm` and `ipmnet` red (the exact run line, `no network and no pull`).
+- AC5 (re-shown): mutation: `5) exit 5 ;;` removed from `cmd_next` -> `ipmwait` red (`exit: got '1', wanted '5'`, a record and a commit).
+- AC6 (re-shown): mutation: `live_lock_release` removed from the EXIT trap -> `ipmfail` red (`the lock is released: got '1'`; the next claim then waits, so the run was stopped by hand and reverted).
+- AC7 (re-shown): mutation: `ipm_content_digest` hashes the `.tgz` bytes via `sha256_file` -> `ipmlib` red (`the same for both packagings`, `SHA-256 of the sorted per-file sums`).
+- IA2 (re-shown): mutation: the pass section titled `## Release sequence` -> `ipm` red (`the record's section: got ''`; the stop routine overwrites it). IA1 was not re-run live (implement's run and mutation stand).
+- All mutations reverted; `release/release.sh` and `release/lib-release.sh` are byte-identical to HEAD (`git show HEAD:<file> | cmp`). Whole suite `PASS all rules` (2 min 5 s).
+
+**Code review (2026-11-02):** each mutation was applied alone, observed red and restored (`cmp` against the reviewer's copy).
+- Matrix "Install fails", two-run branch (AC3): mutation: `! ipm_load_ok "$last" OCUTALON || ns=OCUTALON` replaced by `ns=OCUTALON` -> `ipmfail` red (`ipm-ocutalon-load-fail: the line`, `nothing packaged`).
+- AC1/AC2 failure section (each iteration writes its own): mutation: the artifact-kind failure calls `step_fail` instead of `ipm_fail` -> `ipmfail` red (`ipm-drop-csp`, `ipm-byte`, `ipm-version`, `ipm-empty-repo`: `the record's section`).
+- Export refusal (AC5): mutation: the git archive is piped into tar again -> `ipmfail` red (`a tree that cannot be exported: the line`, `no section`).
+- Only a verified artifact is kept (Always): mutation: the `rm -f` of the `.tgz` in `step_ipm`'s failure branch is removed -> `ipmfail` red (`ipm-kill-after-copy: no artifact file`).
+- Package failure (Matrix "Install fails"): mutation: the copy-out's `|| ipm_pack_fail install "the package left no ..."` is removed -> `ipmfail` red (`ipm-package-fail: the line`).
+- AC1 check fails closed: mutation: `ipm_artifact_check`'s missing-temporary-folder branch `return 1` with no output -> `ipmlib` red (`no temporary folder: a problem, never a pass`).
+- IA1 (live): mutation: the filesystem repository's `-path` points at `/tmp/ocutalon-check/none/` -> `--live ipm` red (`ipm: exit: got '1'`, no `PASS ipm`); restored. Then the unmutated `--live ipm` passed: 78 s whole call, `ipm` step 44 s, 4,763,536 bytes, 19 bundle files, `ocutalon 1.0.0` listed, no `ocutalon-release-ipm-*` container, and the lane-A lock folder empty.
+- After the patches: the whole `test-release-sequence.sh` PASS all rules (2 min 9 s); `test-boundaries.sh`, `test-release-notes.sh`, `test-release-checklist.sh`, `test-rehearsal.sh` and `test-upgrade-harness.sh` each exit 0.
 
 **Measured in `--live ipm` (2026-11-02, Apple silicon, Docker 29.7.2, lane A, real IPM 0.10.10, today's `src/module.xml`):** whole call 77 s (first run 1 min 43 s with a cold npm cache); the `ipm` step 43 to 48 s (the container start, the IPM load, one package run in USER, the checks, the filesystem-repository listing). The artifact was 4,763,488 bytes with the real bundle of 19 files; IPM's filesystem repository listed `ocutalon 1.0.0 @ /tmp/ocutalon-check/ocutalon-1.0.0/`. Packaged in USER (no CPF in today's module). The container and the lane lock were gone afterwards. Epic 15's module (the two-run path) was measured at plan (Task 0) and is covered here by the shim only.
 
