@@ -3297,6 +3297,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-02T20:59:30Z status=open owner=31-5-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=harvest note=investigate at 31.5 smoke: reproduce, compare with CI's live:answers, classify
 - 2026-11-02T21:50:55Z status=wontfix-accepted by=adjudication note=local lane-C only: CI ran live:answers on the merged head a95624a9 (run 41495452746, iris browser) and C1 passed; reopen_if=C1 goes red in CI's live:answers
 - 2026-11-02T23:15:15Z status=open owner=31-5-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=adjudication note=reopen_if fired: C1 red twice in CI on 6e57e259 (run 41534940990 attempts 1-2, line 222); 31.5 rework iteration 1 [CI] item
+- 2026-11-02T23:52:33Z status=resolved-by:31-5-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=adjudication note=7c96f9bc + round-2 patch: C1's fixture row carries ItemNoun, CauseCategory and Element (from incidentOf) and C1 waits for the server's Closed chip before reading the band; live answers 22/22 on fresh lane-C; mutation (drop ItemNoun) turns C1 red at close-loop.spec.ts:261
 
 ### DW-601: Story 31.6's web card must take its first line and inputs from BridgeSink.ServerOf/InputsOf (private today), not a re-implementation, so U-212 (1)(2) phone and card texts cannot drift
 - source: spec-31-5-a-tool-call-s-approval-request-reaches-the-phone-with-approv.md | severity: med | fix-risk: low | footprint: in-epic
@@ -3307,6 +3308,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-31-5-a-tool-call-s-approval-request-reaches-the-phone-with-approv.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: answers.spec.ts newestPhoneMessage = phoneMessage minus the ApprovalRef filter (phoneMessage(user,'') never matches: SQL = '' on an empty property); support/iris.ts ApprovalFields lacks the tool fields
 - 2026-11-02T21:46:03Z status=routed owner=burndown by=cr note=Rule 2 forced copy: extend seedApproval's fields and add an any-request newest read in support/ when its owner touches it
+- 2026-11-02T23:50:56Z occurrence=31-5-a-tool-call-s-approval-request-reaches-the-phone-with-approv note=close-loop.spec.ts setIncidentFields: support IncidentFields lacks ItemNoun, CauseCategory, Element
 
 ### DW-603: Test.Core.ToolCallNotices copies Lane A's private Test.Bridge.Approval HeldCall, UseReplayAgent and RestoreReplayAgent (forced by AD-29); the copy already drifted once (its Kill took the InProduction run counter)
 - source: spec-31-5-a-tool-call-s-approval-request-reaches-the-phone-with-approv.md | severity: med | fix-risk: low | footprint: out-of-footprint

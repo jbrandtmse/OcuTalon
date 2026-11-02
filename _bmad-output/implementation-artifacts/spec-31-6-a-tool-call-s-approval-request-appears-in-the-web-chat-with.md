@@ -279,7 +279,7 @@ Use these variables on every `ci/iris.sh` and `ci/warm.sh` call: `OCUTALON_LOCK_
 - **The only IRIS MCP target** is server `ocutalon-slot-c`, namespace `OCUTALON`. Check its identity with `iris_server_info` first, and pass `server` and `namespace` on every call.
 - **Rebuild the bundle first.** Before any browser unit, run `ci/iris.sh build`, because the bundle is not rebuilt by itself (Rule 21).
 - No real model key, ever.
-- **DW-597.** `live answers` case C1 (`close-loop.spec.ts`) is red on lane-C local stacks only (green in CI). Expect it, and don't count it against this story.
+- **DW-597.** `live answers` case C1 (`close-loop.spec.ts`) passes since Story 31.5's CI rework (its incident row carries the item noun, cause category and element, and its Dismiss reply is held for the owner's closed view). A red C1 counts against this story.
 
 **Commands:**
 - (loop) `npm --prefix web test` -- expected: every `scripts/*.test.mjs` passes, including `chat-view`, `approval-view`, `approval-sources`, `chat-announcements`, `page-safety`, `announce-focus-sources`, `ux-strings` and `playwright-projects`.
@@ -294,7 +294,7 @@ Use these variables on every `ci/iris.sh` and `ci/warm.sh` call: `OCUTALON_LOCK_
 
   At the stage's end, also after a failure: `OCUTALON_RUN_TAG=e31s6iw ci/warm.sh down`.
 - (once) `OCUTALON_RUN_TAG=e31s6i ci/iris.sh build` -- expected: the bundle is rebuilt with the page changes.
-- (once) `OCUTALON_RUN_TAG=e31s6i ci/iris.sh live answers` -- expected: X1 to X13 pass, with C1 red only (DW-597).
+- (once) `OCUTALON_RUN_TAG=e31s6i ci/iris.sh live answers` -- expected: X1 to X13 and C1 to C10 pass.
 - (once) `OCUTALON_RUN_TAG=e31s6i ci/iris.sh live cards` -- expected: passes (a fix's request card is unchanged).
 - (once) `OCUTALON_RUN_TAG=e31s6i ci/iris.sh live floor` -- expected: passes (floor/approval.spec A1 and the focus and announcement specs).
 - (once) `OCUTALON_RUN_TAG=e31s6i ci/iris.sh live sign-in --part 1/3`, then `--part 2/3`, then `--part 3/3`, one per call -- expected: every part passes (the chat and notice specs).

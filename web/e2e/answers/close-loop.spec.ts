@@ -68,9 +68,11 @@ const AUDIT = 'Recorded in the IRIS audit log.';
 
 /**
  * The fields that a diagnosed incident row keeps and the closed view reads: the item noun as JSON (the band reads it, else it falls back to
- * "messages") and the cause's category and element (Show details has a Cause row from them, else a row with no failure group has no panel).
+ * "messages") and the cause's category and element (Show details has a Cause row from them, else a row with no failure group has no panel),
+ * taken from incidentOf so that the row and the published payloads agree.
  */
-const DIAGNOSED = { ItemNoun: '{"one":"order","other":"orders"}', CauseCategory: 'data_format_change', Element: 'order date' };
+const DIAGNOSIS = incidentOf('', []);
+const DIAGNOSED = { ItemNoun: JSON.stringify(DIAGNOSIS['itemNoun']), CauseCategory: String(DIAGNOSIS['causeCategory']), Element: String(DIAGNOSIS['element']) };
 
 /** Sets these properties (letters only) of the incident row with this Ref. */
 async function setIncidentFields(incident: string, fields: Record<string, string>): Promise<void> {
@@ -179,7 +181,8 @@ async function expectBand(page: Page, band: Locator, tone: 'success' | 'partial'
  * C1: a finished fix. R is published fixing, then resolved with A's result: A's card gets a band in the success colours with
  * circle-check and "All 50 orders went through.", the audit line beneath it, and a ghost Dismiss at the band's right end. The text is
  * announced once. The incident's row lists the request (done, with its ended FixRun), so that the real closed view carries the band. The `result` notification gives the phone a new message with the same text and no buttons, and A's request message
- * keeps its answer line. A press on Dismiss goes to the route: the card compacts in place to its headline and the band (chip Closed, the
+ * keeps its answer line. A press on Dismiss goes to the route, whose reply is held until the owner's closed view has reached the page, so
+ * that what follows is read from the row's closed view: the card compacts in place to its headline and the band (chip Closed, the
  * border-strong bar, Show details, no Dismiss, no request card), focus is on the headline, and nothing is announced for the closing.
  */
 test('C1: a finished fix shows its result band with Dismiss, the phone gets the result, and Dismiss compacts the card to the headline', async ({ page }) => {
@@ -241,8 +244,17 @@ test('C1: a finished fix shows its result band with Dismiss, the phone gets the 
     await expect(result.getByRole('button'), 'and no buttons').toHaveCount(0);
     await expect(line, "A's request message keeps its line").toHaveText(`Approved from the web chat at ${hhmm(a.at)}.`);
 
+    let replied!: (closedFirst: boolean) => void;
+    const order = new Promise<boolean>((done) => (replied = done));
+    await page.route(DISMISS, async (route) => {
+      const response = await route.fetch();
+      const closedFirst = await card.locator('.chip-row .chip', { hasText: 'Closed' }).waitFor({ timeout: CARD_MS }).then(() => true, () => false);
+      await route.fulfill({ response });
+      replied(closedFirst);
+    });
     await dismiss.click();
     await expect(card.locator('.chip-row .chip'), 'the card compacts: Closed').toHaveText('Closed', { timeout: CARD_MS });
+    expect(await order, "the owner's closed view reached the page before the 200").toBe(true);
     await expect(card).toHaveCSS('border-left-color', await tokenColor(page, '--border-strong'));
     await expect(requestCard(page, a.ref), 'no request card').toHaveCount(0);
     await expect(bandsOf(card), 'the band stays').toHaveCount(1);
