@@ -2,7 +2,8 @@
 title: 'Story 14.2: The security overview says what OcuTalon can do and what stops it'
 type: 'feature'
 created: '2026-11-02'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'fc2fcddef4eb67360dc0041c9577005fb4a587ed'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -186,6 +187,26 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-11-02 — Review pass
+- verdicts: 16 triage rows (findings grouped by shared claim) — high 0, medium 0, low 16, false 0, maybe-false 0
+- findings:
+  - `[low]` `[patch]` Phrase checks are bare substring matches ("17 days" holds "7 days", "25 new sessions" holds "5 new sessions"; Blind, Edge, Verification-gap, Intent) -- `ovw_phrases` now requires no letter or digit right before the phrase; controls added for "17 days"; mutation recorded.
+  - `[low]` `[reject]` Two 90-day bullets and the 7-day bullet are not pinned per bullet; a swap between them passes (Blind, Verification-gap, Intent) -- the matrix pins the section holding the numbers; per-bullet anchoring adds scope beyond the AC; reopen_if a code change moves a number between bullets unnoticed.
+  - `[low]` `[reject]` Numbers not in the matrix are not tied to code (03:00, live events 24 hours, "a day", 4-hour reset, 15-minute probe, four resources, seven classes, build 154, Haiku default, "per hour", "three daily tasks") (Blind, Edge, Verification-gap, Intent) -- the matrix names exactly which values are pinned; the others are covered by the `overview-review` and `demo-protections` author rows (V2, V4); pinning more is a scope addition; I spot-checked 03:00, 24 hours and seven classes against the code and they match.
+  - `[low]` `[reject]` `git grep call_mcp_tool` sees tracked files only, matches any mention, exits 128 on a git error, and the check goes quiet once MCP lands (Blind, Edge, Verification-gap) -- the command is the matrix's own; a built MCP client forces an overview rewrite anyway, and the `mcp.md` control then needs the same update; reopen_if an MCP story lands.
+  - `[low]` `[reject]` The `mcp.md` control depends on repo state (Verification-gap) -- same cause as the row above.
+  - `[low]` `[reject]` `hours=$((v / 3600))` truncates a non-whole-hour expiry; "1 hours" and "1 days" grammar (Blind, Edge) -- the code holds 86400 and 7/90; no user-reachable failure today (theoretical).
+  - `[low]` `[reject]` The Retention sed takes one count per line; a whitespace-only line passes `grep -m 1 .` (Edge) -- each count sits alone on its line today; theoretical.
+  - `[low]` `[reject]` The kept sentence is searched in the whole file, not the Data section; the extraction stops at an inner quote (Edge, Intent) -- the matrix says the overview holds it word for word; EXPERIENCE.md quotes it without an inner quote.
+  - `[low]` `[reject]` `OVW_LIMITS` is a copy of the AD-24 text (Edge) -- the spec requires the paragraph word for word and pins that copy; the source is in a planning file that a stage does not amend.
+  - `[low]` `[reject]` The MCP second sentence and the closing demo sentence are not pinned; no controls for the "the code has no X" branches or a missing section (Edge, Verification-gap) -- the matrix does not require them; the branches fail closed.
+  - `[low]` `[reject]` Prose points: "three daily tasks" above five bullets, "every built-in tool is safe" beside "the one risky built-in action", "one writer, the IRIS audit log", "documented terminal command", undefined terms (Blind, Edge, Intent) -- the wording is the spec's own fact text (runner-ruled); changing it is a spec edit.
+  - `[low]` `[reject]` The URL rule matches only `://` and IPv4 shapes, may match a four-part version string (Blind, Verification-gap) -- the matrix defines it so; no such string is in the file.
+  - `[low]` `[reject]` The `demo-protections` and `overview-review` rows rest on an unevidenced author line; the row text names the public-text row without enforcing it (Blind, Intent) -- author rows are by design (runner ruling 4); the public-text row runs `test-boundaries.sh`, which scans the overview.
+  - `[low]` `[reject]` The release-scope claims (written audit types, only channel) have no repo-state guard like the MCP one (Verification-gap, Intent) -- V4 is decided; the `overview-review` row gates the release.
+  - `[low]` `[reject]` The mutation table has no `mutation:` lines, and no non-ASCII mutation for `test-boundaries.sh` (Verification-gap) -- closed in this pass: the `mutation:` block under Verification records every mutation, run again by the parent, plus the non-ASCII one.
+  - `[low]` `[reject]` Intent-alignment readings A-F and the Regenerate row not run by the diff (Intent) -- descriptive; `live:security-overview` printed PASS on a fresh lane-D throwaway.
+
 ## Design Notes
 
 **Governing ADs:**
@@ -290,6 +311,14 @@ Every IRIS command runs from the worktree root with this prefix, `timeout: 60000
 | 5 | "30 simulated incoming emails", or an `https://` link is added | `overviewdoc` |
 | 6 | `overview-review` is dropped from `CK_AUTHOR_IDS`; the overview is dropped from the scope of `test-boundaries.sh` | `test-release-checklist.sh`; `test-boundaries.sh` scope |
 
+mutation: (each applied, red observed, reverted; tree byte-identical afterwards, 2026-11-02)
+- AC 1, DW-598: a `HAND-WRITTEN` line appended; `%All` without backticks -- `overviewdoc` FAIL both times.
+- AC 2: "48 hours" for the expiry; backticks dropped from `Tool` -- `overviewdoc` FAIL both times.
+- AC 3, DW-46: "because" changed to "as" in the kept sentence -- `overviewdoc` FAIL.
+- AC 4: a line inserted under `## MCP tools` before the can't-connect sentence -- `overviewdoc` FAIL.
+- AC 5: "30 simulated incoming emails"; "25 new sessions"; "17 days" for the 7-day bullet; an added link -- `overviewdoc` FAIL each. Reverting `ovw_phrases` to a bare substring match turns the "17 days" control red.
+- AC 6: `overview-review` dropped from `CK_AUTHOR_IDS` -- `test-release-checklist.sh` FAIL (base, author, tmpfail); the overview dropped from the `scan_files` arguments -- `test-boundaries.sh` FAIL scope ("not scanned"); a non-ASCII byte planted in the overview -- `test-boundaries.sh` FAIL ascii.
+
 **Shared surfaces:**
 - `release/checklist.sh` `CK_AUTHOR_IDS`, pinned by `test-release-checklist.sh` (`CONF_IDS`, the counts);
 - the scope and must-scan lists of `test-boundaries.sh`, read by `test-readme.sh` `must-scan`;
@@ -302,7 +331,22 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-Planned only (halt after planning). Veto items V1-V4 are listed under Design Notes for the runner; the default text ships unless vetoed.
+**Summary.** The five hand-written sections of `docs/security-overview.md` replace the placeholders, using only the spec's fact lists, with the AD-24 paragraph and the kept-OCUORDERS sentence word for word. V1 stays as ruled (the sentence "no scheduled purge removes them" is in, without the veto label). The `overviewdoc` rule now fails on a remaining placeholder, a changed Limits paragraph, a changed kept sentence, a missing MCP opening sentence (while src has no `call_mcp_tool`), a number or audit type that no longer follows the code, and a URL or address. Two author rows were added to the release checklist, and the overview joined the ASCII scope of `test-boundaries.sh`.
+
+**Files changed.**
+- `docs/security-overview.md`: the five sections (outside the generated markers).
+- `docker/tests/test-release-sequence.sh`: `ovw_doc_problems` checks and 14 new `t_overviewdoc` controls; the header comment.
+- `release/checklist.sh`: `overview-review` and `demo-protections` in `CK_AUTHOR_IDS` and `ck_author_text`.
+- `docker/tests/test-release-checklist.sh`: seven ids, counts (CONFIRM lines 5 to 7, LINES 7 to 9 and 5 to 7, PASS lines 16 to 18), the two rows' detail text, the leap-day case confirming the new ids.
+- `docker/tests/test-boundaries.sh`: the overview in the `scan_files` arguments, the first must-scan list and the PASS text.
+
+**Review.** Patches applied: 1 (low): phrase checks match from a non-alphanumeric boundary, with a control for "17 days". Deferred: 0. Rejected: 15 findings, each with its reason in the triage log. Follow-up review recommended: false (one low patch).
+
+**Verification.** `test-release-sequence.sh overviewdoc` PASS; `test-release-checklist.sh` exit 0; `test-boundaries.sh` exit 0; `test-readme.sh` exit 0; `test-release-notes.sh` exit 0; full `test-release-sequence.sh` exit 0 with no FAIL; `ci/iris.sh live security-overview` (tag e14s2impl, lane D) PASS, then `ci/iris.sh teardown` removed everything (0 leftovers). The mutations in `## Verification` were run by the subagent and again by the parent after the last patch; all were red and reverted.
+
+**Residual risks.** Numbers outside the matrix (03:00, 4-hour resets, 15-minute probe, build 154) are held only by the author rows. The host-side demo protections (H10, H12, H23) are pending in `release/demo-host-checks.md`; the `demo-protections` row checks them before 1.0.0. Epic 12 or Epic 31 merging makes the channel and Pairing lines stale (V4).
+
+**Footprint extensions:** `docker/tests/test-boundaries.sh`, `docker/tests/test-release-checklist.sh` (approved, uncontended).

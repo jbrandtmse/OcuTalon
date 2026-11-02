@@ -30,8 +30,9 @@
 # The author's rows, which only the author's own line confirms. They are read from the record's "## Author confirmations" section, one
 # line each, in this form and no other (the date is a real calendar date; the text after it is optional):
 #   - <id>: confirmed <YYYY-MM-DD>[ <text>]
-# with <id> one of no-copied-code, no-artwork, no-ai-hub-copy, public-review and public-links. A row that the record does not confirm
-# reads "not confirmed", and a CONFIRM line prints the line to add. This script never writes that section and never confirms a row.
+# with <id> one of no-copied-code, no-artwork, no-ai-hub-copy, public-review, public-links, overview-review and demo-protections. A row
+# that the record does not confirm reads "not confirmed", and a CONFIRM line prints the line to add. This script never writes that section
+# and never confirms a row.
 #
 # It writes the section "## Release checklist" into the record through record_write (replacing its own section, or appending it) and
 # prints RECORD <file> and RESULT <result>. The section holds Result:, Candidate: (the version, the rc and the full sha of HEAD),
@@ -54,7 +55,7 @@ CK_NOTE='OcuTalon is inspired by OpenClaw and is not affiliated with or endorsed
 CK_NAME_ERE='[o]pen[c]law'
 CK_CSP=src/ocutalon/csp
 CK_LICENSES=web/public/assets/licenses
-CK_AUTHOR_IDS="no-copied-code no-artwork no-ai-hub-copy public-review public-links"
+CK_AUTHOR_IDS="no-copied-code no-artwork no-ai-hub-copy public-review public-links overview-review demo-protections"
 CK_AUTHOR_ACTIONS="Posts, articles, the video and bonus claims are the author's actions, done by hand. No script or workflow posts anything or claims a bonus."
 
 # --- the results ---
@@ -88,6 +89,8 @@ ck_author_text() {
     no-ai-hub-copy) echo "Nothing is copied from InterSystems' published AI Hub examples." ;;
     public-review) echo "Before the repository went public, the author reviewed every planning file under _bmad-output/ and the agent instructions (CLAUDE.md and the .claude/ and _bmad/ folders) for keys, local machine paths, private infrastructure details and names of other contest entrants." ;;
     public-links) echo "On the public repository page, every README link and section link opens, and the README's clone command works." ;;
+    overview-review) echo "The hand-written sections of docs/security-overview.md were reviewed against this release, and each statement is true of it; the public-text row passed on the overview." ;;
+    demo-protections) echo "Each online-demo protection that docs/security-overview.md states was checked against the running online demo for this release." ;;
   esac
 }
 

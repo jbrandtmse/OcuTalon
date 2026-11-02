@@ -26,8 +26,11 @@
 #             the live step, a failed class step, --write, the run tag, and the teardown that follows every case
 #   overviewdrift (Story 14.1) docker/tests/lib-security-overview.sh on small overview files: the DRIFT line for a changed tool row, for a
 #             change outside the rows, for the fix kinds and for the privileges, and nothing for equal files
-#   overviewdoc   (Story 14.1, QA) the committed docs/security-overview.md: its title, its three marker pairs once each and in order, ASCII only,
-#             no machine path; and the CI claims of the file and of the live unit in ci/units.sh (every group runs on the file, production holds the unit)
+#   overviewdoc   (Story 14.1, QA; Story 14.2) the committed docs/security-overview.md: its title, its three marker pairs once each and in order,
+#             ASCII only, no machine path, no URL or address; no hand-written placeholder; the privilege-limits paragraph word for word under its
+#             heading; EXPERIENCE.md's kept-OCUORDERS sentence word for word; while src has no call_mcp_tool, the MCP section opening with the
+#             can't-connect sentence; the numbers and the audit types of the code in their sections; and the CI claims of the file and of the live
+#             unit in ci/units.sh (every group runs on the file, production holds the unit)
 #   push      only the candidate branch goes out, on the author's word; a no or the end of input pushes nothing and asks again
 #   record    every stop writes the record section and commits only that path; the record question; a moved branch is reported
 #   hands     the hands-on time is the sum of the ASK windows, over all candidates of the version, and warns over 15 minutes
@@ -1805,10 +1808,34 @@ DRIFT tool add_note"
 
 # --- overviewdoc (Story 14.1, QA: the committed docs/security-overview.md and its CI claims) ---
 
-# ovw_doc_problems <file>: one line per problem of the overview's frame, nothing for a good file. The frame is what Story 14.2 keeps while it
-# writes the hand-written sections: the title line, each marker once and in order, ASCII only, no machine path.
+# The privilege-limits paragraph (AD-24), word for word.
+OVW_LIMITS="OcuTalon's production runs as IRIS's Interoperability system user, which holds \`%All\`. The service user is a privilege profile: the gate checks it before every tool call and the fix executor before every fix, but IRIS doesn't enforce it on the running code. The protections are the fixed tool inventory (no shell, no code, no data-changing SQL, tested), classification and approval, each fix kind's own validation, and the IRIS roles on the web and portal applications. Running tool code under the service user's own identity is deferred."
+OVW_EXPERIENCE=_bmad-output/planning-artifacts/ux-designs/ux-OcuTalon-2026-10-16/EXPERIENCE.md
+
+# ovw_section <file> <title>: the lines under the "## <title>" heading, up to the next "## " heading.
+ovw_section() { awk -v h="## $2" '$0 == h { on = 1; next } on && /^## / { exit } on { print }' "$1"; }
+
+# ovw_code_value <sed expression> <file under the repository root>: the numbers that the expression prints from the code, one per line.
+ovw_code_value() { sed -n "$1" "$root/$2"; }
+
+# ovw_phrases <file> <section title> <phrase>...: one line for each phrase that the section does not hold. A phrase counts only where no
+# letter or digit comes right before it, so "17 days" does not hold "7 days".
+ovw_phrases() {
+  local f=$1 title=$2 sec p re
+  shift 2
+  sec=$(ovw_section "$f" "$title")
+  for p in "$@"; do
+    re=$(printf '%s' "$p" | sed 's/[][\\.*^$(){}+?|]/\\&/g')
+    printf '%s\n' "$sec" | grep -qE -e "(^|[^0-9A-Za-z])$re" || echo "the $title section lacks '$p'"
+  done
+}
+
+# ovw_doc_problems <file>: one line per problem of the overview, nothing for a good file. The frame: the title line, each marker once and in
+# order, ASCII only, no machine path, no URL or address. The hand-written sections (Story 14.2): no placeholder, the privilege-limits paragraph
+# under its heading, the kept-OCUORDERS sentence, the MCP opening sentence while src has no MCP client, and the numbers and audit types of the code.
 ovw_doc_problems() {
   local f=$1 key b e n prev=0 owner='written by OcuTalon.Install.SecurityOverview, do not edit'
+  local kept v hours t first
   [ "$(sed -n 1p "$f")" = '# OcuTalon security overview' ] || echo "the first line is not the title"
   for key in tools fix-kinds privileges; do
     b=$(grep -nxF "<!-- BEGIN GENERATED $key: $owner -->" "$f" | cut -d: -f1)
@@ -1824,6 +1851,46 @@ ovw_doc_problems() {
   [ "$n" -eq 0 ] || echo "$n line(s) with a character outside ASCII"
   n=$(grep -cE '(/Us''ers/|/ho''me/|/pri''vate/|/t''mp/|[A-Za-z]:\\)' "$f")
   [ "$n" -eq 0 ] || echo "$n line(s) with a machine path"
+  n=$(grep -cE '(:/''/|[0-9]+\.[0-9]+\.[0-9]+\.[0-9]+)' "$f")
+  [ "$n" -eq 0 ] || echo "$n line(s) with a URL or address"
+  n=$(grep -c 'HAND-WRITTEN' "$f")
+  [ "$n" -eq 0 ] || echo "a hand-written placeholder remains"
+  ovw_section "$f" 'Limits of the privilege check' | grep -qxF -e "$OVW_LIMITS" || echo "the privilege-limits paragraph is not there word for word"
+  kept=$(sed -n 's/^.*"\(OcuTalon left the OCUORDERS namespace[^"]*\)".*$/\1/p' "$root/$OVW_EXPERIENCE" | head -n 1)
+  if [ -z "$kept" ]; then
+    echo "EXPERIENCE.md has no kept-OCUORDERS sentence (the extraction found none)"
+  elif ! grep -qF -e "$kept" "$f"; then
+    echo "the kept-OCUORDERS sentence is not there word for word"
+  fi
+  if ! git -C "$root" grep -q call_mcp_tool -- src; then
+    first=$(ovw_section "$f" 'MCP tools' | grep -m 1 .)
+    case $first in
+      "This release can't connect to MCP servers."*) ;;
+      *) echo "the MCP tools section does not open with the can't-connect sentence" ;;
+    esac
+  fi
+  v=$(ovw_code_value 's/^Parameter EXPIRYSECONDS = \([0-9][0-9]*\);.*$/\1/p' src/bridge/cls/OcuTalon/Bridge/Approval.cls)
+  if [ -z "$v" ]; then
+    echo "the code has no EXPIRYSECONDS"
+  else
+    hours=$((v / 3600))
+    ovw_phrases "$f" 'Approval and audit' "$hours hours"
+  fi
+  t=$(ovw_code_value 's/^Parameter TYPES = "\([A-Za-z,]*\)";.*$/\1/p' src/bridge/cls/OcuTalon/Bridge/Audit.cls)
+  if [ -z "$t" ]; then
+    echo "the code has no audit TYPES"
+  else
+    for v in $(printf '%s' "$t" | tr ',' ' '); do ovw_phrases "$f" 'Approval and audit' "\`$v\`"; done
+  fi
+  v=$(ovw_code_value 's/^.*"NumberOfDaysToKeep": \([0-9][0-9]*\).*$/\1/p; s/^.*"DaysToKeep": \([0-9][0-9]*\).*$/\1/p' src/ocutalon/cls/OcuTalon/Install/Step/Retention.cls | sort -un)
+  if [ -z "$v" ]; then echo "the code has no day counts"; fi
+  for n in $v; do ovw_phrases "$f" 'Data' "$n days"; done
+  v=$(ovw_code_value 's/^Parameter DEFAULTLIMIT = \([0-9][0-9]*\);.*$/\1/p' src/ocutalon/cls/OcuTalon/Core/Allowance.cls)
+  if [ -z "$v" ]; then echo "the code has no DEFAULTLIMIT"; else ovw_phrases "$f" 'Online demo' "$v messages"; fi
+  v=$(ovw_code_value 's/^Parameter EMAILLIMIT = \([0-9][0-9]*\);.*$/\1/p' src/ocutalon/cls/OcuTalon/Core/Allowance.cls)
+  if [ -z "$v" ]; then echo "the code has no EMAILLIMIT"; else ovw_phrases "$f" 'Online demo' "$v simulated incoming emails"; fi
+  v=$(ovw_code_value 's/^Parameter ADDRESSLIMITSEED = \([0-9][0-9]*\);.*$/\1/p' src/ocutalon/cls/OcuTalon/Data/Setting.cls)
+  if [ -z "$v" ]; then echo "the code has no ADDRESSLIMITSEED"; else ovw_phrases "$f" 'Online demo' "$v new sessions"; fi
   return 0
 }
 
@@ -1862,6 +1929,35 @@ t_overviewdoc() {
   eq "control: a non-ASCII byte" "$(ovw_doc_problems "$d/ascii.md")" "1 line(s) with a character outside ASCII"
   { cat "$doc"; echo 'See /Us''ers/someone/git/x'; } > "$d/path.md"
   eq "control: a machine path" "$(ovw_doc_problems "$d/path.md")" "1 line(s) with a machine path"
+  # controls of the hand-written sections (Story 14.2): each is a copy of the committed file with one fault and yields its own problem line
+  { cat "$doc"; echo '<!-- HAND-WRITTEN (Story 14.2) -->'; } > "$d/placeholder.md"
+  eq "control: a placeholder" "$(ovw_doc_problems "$d/placeholder.md")" "a hand-written placeholder remains"
+  sed 's/which holds `%All`\./which holds %All./' "$doc" > "$d/ticks.md"
+  eq "control: the privilege-limits paragraph without its backticks" "$(ovw_doc_problems "$d/ticks.md")" "the privilege-limits paragraph is not there word for word"
+  { grep -vxF -e "$OVW_LIMITS" "$doc"; printf '%s\n' "$OVW_LIMITS"; } > "$d/outside.md"
+  eq "control: the privilege-limits paragraph outside its section" "$(ovw_doc_problems "$d/outside.md")" "the privilege-limits paragraph is not there word for word"
+  sed 's/OcuTalon left the OCUORDERS namespace in place because/OcuTalon left the OCUORDERS namespace in place as/' "$doc" > "$d/kept.md"
+  eq "control: a word of the kept sentence" "$(ovw_doc_problems "$d/kept.md")" "the kept-OCUORDERS sentence is not there word for word"
+  awk '{ print } $0 == "## MCP tools" { print ""; print "Note." }' "$doc" > "$d/mcp.md"
+  eq "control: the can't-connect sentence below the first line" "$(ovw_doc_problems "$d/mcp.md")" "the MCP tools section does not open with the can't-connect sentence"
+  sed 's/^- It expires after 24 hours\./- It expires after 48 hours./' "$doc" > "$d/hours.md"
+  eq "control: another expiry" "$(ovw_doc_problems "$d/hours.md")" "the Approval and audit section lacks '24 hours'"
+  sed 's/^- `Tool`: /- Tool: /' "$doc" > "$d/type.md"
+  eq "control: an audit type without backticks" "$(ovw_doc_problems "$d/type.md")" "the Approval and audit section lacks '\`Tool\`'"
+  sed 's/^- heartbeat and background-check messages after 7 days;/- heartbeat and background-check messages after 8 days;/' "$doc" > "$d/days.md"
+  eq "control: another message retention" "$(ovw_doc_problems "$d/days.md")" "the Data section lacks '7 days'"
+  sed 's/^- heartbeat and background-check messages after 7 days;/- heartbeat and background-check messages after 17 days;/' "$doc" > "$d/days17.md"
+  eq "control: a longer number that ends in the pinned one" "$(ovw_doc_problems "$d/days17.md")" "the Data section lacks '7 days'"
+  sed 's/^- A per-session message allowance, a public setting shown on the splash: 50 messages/- A per-session message allowance, a public setting shown on the splash: 40 messages/' "$doc" > "$d/messages.md"
+  eq "control: another message allowance" "$(ovw_doc_problems "$d/messages.md")" "the Online demo section lacks '50 messages'"
+  sed 's/^- 20 simulated incoming emails/- 30 simulated incoming emails/' "$doc" > "$d/emails.md"
+  eq "control: another email allowance" "$(ovw_doc_problems "$d/emails.md")" "the Online demo section lacks '20 simulated incoming emails'"
+  sed 's/^- 5 new sessions/- 6 new sessions/' "$doc" > "$d/sessions.md"
+  eq "control: another session allowance" "$(ovw_doc_problems "$d/sessions.md")" "the Online demo section lacks '5 new sessions'"
+  { cat "$doc"; printf 'See %s\n' 'https:/''/example.org/x'; } > "$d/url.md"
+  eq "control: a link" "$(ovw_doc_problems "$d/url.md")" "1 line(s) with a URL or address"
+  { cat "$doc"; printf 'Host %s\n' '10.20.30.''40'; } > "$d/ip.md"
+  eq "control: an address" "$(ovw_doc_problems "$d/ip.md")" "1 line(s) with a URL or address"
   # the CI claims (runner ruling 4): the file is an input of every group, a lookalike path is not, and the live unit sits in production
   want=$(ovw_ci_claims)
   eq "ci/units.sh: every group claims the overview, and the unit is placed" "$want" "install-fresh:claimed lookalike-free
