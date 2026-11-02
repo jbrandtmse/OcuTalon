@@ -130,6 +130,38 @@ deferred:
 - Given hand-written text outside the markers, when `--write` runs, then `git diff` shows changes only between markers.
 - Given the release sequence at step `overview`, when the callable unit fails, then the release stops with `FAIL overview` and its record, and never reaches `ipm`.
 
+### Review Findings
+
+Code review 2026-11-02 (four layers, full-opus tier; 36 raw rows, 11 entries after grouping: high 0, med 6, low 5).
+
+- [x] [Review][Patch] (med, fix-risk low) The application roles were a hard-coded list (`APPLICATIONS`), so a new web application with MatchRoles would be missing from the overview and from the privilege test (AD-24) -- `Applications()` now reads `Install.Step.Web.Definitions` (every application whose MatchRoles is not empty, failing on a match-role form that would make "every signed-in user" untrue), and the privilege test checks the MatchRoles of every application of the Web step [src/ocutalon/cls/OcuTalon/Install/SecurityOverview.cls:267]
+- [x] [Review][Patch] (med, fix-risk low) The privilege test read only role `Resources`, so a granted role or a service-user escalation role would add privileges the overview does not list (epics AC 4 "no more", AD-24 Prevents) -- it now asserts `GrantedRoles` is empty for each listed role and `EscalationRoles` for the service user [src/ocutalon/cls/OcuTalon/Test/Install/SecurityOverview.cls:490]
+- [x] [Review][Patch] (med, fix-risk low) The statement says the named test checks "every running runner", but `TestToolInventory` loops a fixed `RUNNERS` list and nothing tied it to the production (AD-10) -- `TestInventoryStatement` now asserts that list equals the production's enabled agent runners [src/ocutalon/cls/OcuTalon/Test/Install/SecurityOverview.cls:383]
+- [x] [Review][Patch] (med, fix-risk low; Rule 19 shared surface `STEPS`) `live_ipm_run` (`--live ipm`) still sent one `next` after image and expected `PASS ipm`, which the new overview step now answers -- it runs the overview step (the seed's stub) first [docker/tests/test-release-sequence.sh:2391]
+- [x] [Review][Patch] (med, fix-risk low; Rule 19 no pinning test) The "Declared by" column of the roles table had no test beyond the snapshot -- new `TestRoleRowsDeclaredBy` computes the areas from `Registry.Declared` and pins two table lines [src/ocutalon/cls/OcuTalon/Test/Install/SecurityOverview.cls:261]
+- [x] [Review][Patch] (low) `Regenerate` wrote with the default file translation, so a byte above 127 outside the markers would not be kept byte for byte -- the output is opened with `K\RAW\` [src/ocutalon/cls/OcuTalon/Install/SecurityOverview.cls:509]
+- [x] [Review][Patch] (low; Rule 19) The "unit's own line is not repeated" assertion could not fail (the fail stub's first line is a DRIFT line) -- a `silent` stub and case exercise the `FAIL overview` prefix strip [docker/tests/test-release-sequence.sh:1624]
+- [x] [Review][Patch] (low; Rule 19) The per-call branch of `TestToolRows` compared the generator's flag reader with itself -- it compares with `Gate.ClassificationOf`'s flags, and `TestToolResourcesCell` does so for the fixture's hook tool [src/ocutalon/cls/OcuTalon/Test/Install/SecurityOverview.cls:46]
+- [x] [Review][Patch] (low) `docs/security-overview.md` is claimed in `IRIS_INPUT` while `NOT_IRIS_INPUT_PATTERN` lists `docs/` -- the comment of this story's own line says the claim outranks it [ci/units.sh:135]
+- [x] [Review][Patch] (low) The `overviewdoc` missing-end-marker control carried a no-op second substitution -- removed [docker/tests/test-release-sequence.sh:1857]
+- [x] [Review][Defer] (med, fix-risk low, in-epic) The overview lists the service role's narrow grants while AD-24's Limits paragraph is still a Story 14.2 placeholder, so a candidate cut between 14.1 and 14.2 overstates least privilege [docs/security-overview.md:83] -- deferred: this spec's Never list forbids the hand-written text; routed to Story 14.2 as DW-598
+
+Rejected:
+- false: "Declared by" drops the Tools area for `OcuTalonServiceRole` -- the column attributes each grant row, and `%Ens_MessageResend` is declared by Fix alone; the Tools declaration of the bare role grants nothing.
+- false: `step_overview` sets no lock owner -- the unit inherits `OCUTALON_LOCK_OWNER` from the caller's environment, as `step_ipm` does.
+- false: the `release/release.sh` header is stale -- it lists `overview` and still correctly says 11.14-11.16 and 11.18 insert their steps.
+- false: mutation labels AC1-AC6 do not map to four criteria -- they are the six acceptance criteria of Story 14.1 in epics.md (a line in Verification now says so).
+- by-design: a tool with its own `Classify<NAME>` but only the class-wide rule shows `CLASSIFYRULE` -- the spec reads the rule through `ToolParameter`'s `<BASE><NAME>` fallback.
+- by-design: `TestClassifyHookShowsItsRule` uses Bridge's `ZzGateWide` fixture and `TestToolsetScope`'s controls count other fixtures -- Decided in-stage (n); compiled fixture classes, not run-time state or run order.
+- low: `Regenerate` reports a missing input file as a missing marker -- the live unit always copies the file in; a new guard for a message.
+- low: the README and online-demo accounts are not in the generated section -- no AC asks for them; Story 14.2's hand-written text covers the accounts.
+- low: `ci/units.sh` group timing notes not updated -- outside this story's three entries; the estimate is in Design Notes ruling 4.
+- low: duplicate tool names across toolsets, CR-only or outside-region drift, a discarded teardown status -- theoretical (no tool is in two toolsets; Regenerate keeps outside bytes; teardown is idempotent); each still exits 1 or reruns.
+- low: the fix-kind sort assertion cannot fail with one kind -- the drift unit pins the committed order.
+- low: AC 1's reverse order is not run inside the class -- `ci/iris.sh` reverses class order only; the lead's fresh check runs forward and reverse, and no method depends on another.
+- low: the `--write` copy of the live unit has no automated run -- a no-op would surface at the next compare; `TestRegenerate` pins the written bytes.
+- low: `/ocutalon` adds `%DB_OCUTALON_PRIVATE` to the read-only trace account -- outside this diff (Web step, Lane B); the overview states it accurately.
+
 ## Spec Change Log
 
 ## Review Triage Log
@@ -271,6 +303,24 @@ mutation: (run in the Implement stage; each applied, run, observed red, and reve
 - mutation: AC6 `step_overview` does not hand the lane lock folder to the unit -> the pass case of `test-release-sequence.sh overview` red (the stub's recorded folder).
 - mutation: AC3 `drift` prints `DRIFT <key>x` -> `test-release-sequence.sh overviewdrift` red (fix-kinds and privileges cases).
 Each mutation above was applied, run on the warm stack (or in the shell suite), observed red, and reverted from a private copy; `git status` and `git diff` were identical before and after, and the class passed again.
+
+Code review stage (each mutation applied on the warm lane-D stack or in the shell suite, observed red, reverted from a private copy; `git status` and `git diff` identical before and after; the class and suite green again). AC numbers are the six acceptance criteria of Story 14.1 in epics.md.
+- mutation: AC4 `RoleRows` keys each grant's declaredBy with `ResourceKey("")` -> `TestRoleRowsDeclaredBy` red (each row names the areas; the Fix line).
+- mutation: AC4 `Applications` keeps only the first application -> `TestPrivilegesMatchSecurityRecords` red (`/ocutalon/api adds no role, as it is not listed`) and `TestDemoOnlyGrantsListed` red.
+- mutation: AC4 `ReadRole` (the test's reader) reports a granted role `%Manager`, standing for a role granted to an OcuTalon role, since this story changes no security record -> `TestPrivilegesMatchSecurityRecords` red (each listed role "is granted no other role").
+- mutation: AC5 `TestInventoryStatement` adds a fourth enabled runner `FourthAgent`, standing for a runner added to the production -> `TestInventoryStatement` red (the runners of TestToolInventory are every enabled runner).
+- mutation: AC1 `ToolRow` inverts READONLY only for a tool with a Classify hook -> `TestToolResourcesCell` red (own: the read-only flag is the gate's; the table lines).
+- mutation: AC6 `step_overview` drops `line=${line#FAIL overview }` -> `test-release-sequence.sh overview` red (silent case: the prefix repeated, the record line).
+- `live_ipm_run` (`--live ipm`) change: checked by `bash -n` only; the live mode builds a real image and was not run.
+
+QA stage (tests added or extended, no new file; each mutation applied, observed red and reverted from a private copy, `git status` and `git diff` identical before and after):
+- (QA) `OcuTalon.Test.Install.SecurityOverview.TestToolResourcesCell` (new; with RESOURCES parameters and STEPLABEL on the fixture `Test/Install/ZzOverviewRule.cls`): the Resources column of a tool row, which no shipped tool exercises (own value, class value, empty own value shows `none`, malformed value names the tool and class).
+- (QA) `docker/tests/test-release-sequence.sh` rule `overviewdrift`: two new cases, a removed tool row and a renamed one (both names reported).
+- (QA) `docker/tests/test-release-sequence.sh` rule `overviewdoc` (new): the committed `docs/security-overview.md` frame (title, each marker pair once and in order, ASCII only, no machine path), seven negative controls, and the `ci/units.sh` claims (every group claims the file, a lookalike path is not claimed, `live:security-overview` is in `production` and in `NO_WEB_BUNDLE_UNITS`).
+- mutation: AC1 `Pairs` drops the permission of a resource (`OcuTalon.Install.SecurityOverview`) -> `TestToolResourcesCell` red (own, plain, the table line of own); `TestFixKindRows` red as well.
+- mutation: AC3 `drift` (lib-security-overview.sh) drops the loop that names removed rows -> `test-release-sequence.sh overviewdrift` red (a changed row, a removed row, a renamed row print `DRIFT tools`).
+- mutation: ruling 4 the `IRIS_INPUT` line for `docs/security-overview.md` removed from `ci/units.sh` -> `overviewdoc` red (no group claims the file).
+- mutation: AC3 an end marker of `docs/security-overview.md` changed by a space -> `overviewdoc` red (the committed overview has a good frame).
 
 **Shared surfaces:**
 - `ci/units.sh`: the `production` group membership, `NO_WEB_BUNDLE_UNITS` and `IRIS_INPUT`, checked by `test-ci-config.sh` and `test-ci-changes.sh`;

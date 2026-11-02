@@ -4958,6 +4958,7 @@ So that I can approve OcuTalon from one document without reading its code.
 **Then** a release checklist item reviews its hand-written sections against the release, the public-text check passes on it, and this story supplies the overview's path for the About dialog's security overview link, which Lane B's Story 31.3 (was Story 16.10) adds (FR-61, CON-5, UX-DR28)
 
 - DW-46: The security overview quotes the same sentence where it describes what demo mode off leaves in place (EXPERIENCE.md, the owner forms table; Story 0.12) (ledger; routed by harvest 2026-10-21)
+- DW-598: The overview's privilege section carries AD-24's limits paragraph (the production runs as the Interoperability system user, which holds `%All`) in place of its placeholder, and a check fails while any hand-written placeholder remains, so the generated grants never read as the whole story (ledger; routed by cr 2026-11-02)
 
 ## Epic 15: Install into an existing IRIS with IPM
 

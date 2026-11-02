@@ -1436,6 +1436,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-5-1-ask-ocutalon-to-watch-a-production-and-to-stop.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Orchestrator ruling 2026-10-25 on Story 5.1 (veto U-79): Install/Step/Demo.cls grants OcuTalonServiceRole %DB_OCUORDERS_DATA:R only with demo mode on (AD-3 readable-namespace rule; AD-24 Prevents: a role that grants more than the security overview says)
 - 2026-10-25T18:12:36Z status=routed owner=14-1-the-overview-s-tool-and-privilege-lists-are-generated-from-t by=spec_gate note=orchestrator_ruling:the_generated_overview_marks_this_grant_demo-mode-only;its_DW_bullet_is_the_orchestrator's_after_Epic_5's_merge
+- 2026-11-02T21:02:17Z status=resolved-by:14-1-the-overview-s-tool-and-privilege-lists-are-generated-from-t by=adjudication note=docs/security-overview.md 'With demo mode on' lists OcuTalonServiceRole %DB_OCUORDERS_DATA R (Demo.WithOrdersData); pinned by Test.Install.SecurityOverview TestDemoOnlyGrantsListed and TestPrivilegesMatchSecurityRecords
 
 ### DW-218: WatchOps' failure answers (session lock timeout, a failed save or delete) and the per-session lock's serialisation of one session's commands have no test
 - source: spec-5-1-ask-ocutalon-to-watch-a-production-and-to-stop.md | severity: med | fix-risk: low | footprint: in-story
@@ -3158,6 +3159,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: inbox U-199 (#603), Story 5.13 merge 5fb79853 | severity: med | fix-risk: low | footprint: in-epic
 - evidence: Tools/RecentActivity.cls declares READONLY=1 and TRUSTEDOUTPUT=1; Epic 14 has not started, so no overview exists yet and 5.13 regenerated nothing
 - 2026-11-01T07:05:35Z status=routed owner=14-1-the-overview-s-tool-and-privilege-lists-are-generated-from-t by=merge_gate note=U-199 condition: 14.1's generated tool section shows recent_activity read-only and trusted output; its drift test pins it
+- 2026-11-02T21:02:17Z status=resolved-by:14-1-the-overview-s-tool-and-privilege-lists-are-generated-from-t by=adjudication note=recent_activity row reads OcuTalon.Tools.RecentActivity safe read-only yes trusted yes; pinned by TestRecentActivityRow and live:security-overview drift (DRIFT tool recent_activity)
 
 ### DW-524: No test pins the negative cell of 4.8 matrix row 4: after Run again the prompt bar comes back at step 1 or 2 and focus should go to Send, not the box button (FOCUS_RULE.whenGone keys on data-guide-step=3)
 - source: spec-4-8-step-3-of-the-guide-points-to-break-the-feed-without-a-secon.md | severity: med | fix-risk: low | footprint: in-story
@@ -3236,3 +3238,9 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: _bmad-output/implementation-artifacts/spec-14-1-the-overview-s-tool-and-privilege-lists-are-generated-from-t.md | severity: low | fix-risk: low | footprint: in-epic
 - evidence: src/ocutalon/cls/OcuTalon/Test/Install/SecurityOverview.cls; Test/Install/Registry.cls:1047,1103 private
 - 2026-11-02T20:16:46Z status=open owner=14-1-the-overview-s-tool-and-privilege-lists-are-generated-from-t by=harvest note=copy forced by contention (Rule 2)
+- 2026-11-02T21:02:18Z status=wontfix-accepted by=adjudication note=reopen_if=Test.Install.Registry's ReadRole/UserResources/SqlPrivileges become public after Epic 15 merges, or a third copy of a security-record reader appears
+
+### DW-598: The generated overview shows the service role's narrow grants while the AD-24 Limits paragraph (production runs as the Interoperability system user, which holds %All) is still a Story 14.2 placeholder, so a candidate cut before 14.2 overstates least privilege
+- source: spec-14-1-the-overview-s-tool-and-privilege-lists-are-generated-from-t.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: docs/security-overview.md 'Limits of the privilege check' holds only the HAND-WRITTEN (Story 14.2) placeholder; step_overview and overviewdoc pass with it; spec 14.1 Never forbids writing that text
+- 2026-11-02T21:00:29Z status=routed owner=14-2-the-security-overview-says-what-ocutalon-can-do-and-what-sto by=cr note=14.2 writes AD-24 Limits word for word and adds an overviewdoc check that no HAND-WRITTEN placeholder remains

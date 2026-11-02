@@ -39,9 +39,6 @@ Parameter HOMENAMESPACE = "OCUTALON";
 /// The SQL object that the trace role may read.
 Parameter SQLOBJECT = "Ens.MessageHeader";
 
-/// The web applications that grant the application roles to every signed-in user, comma-separated.
-Parameter APPLICATIONS = "/ocutalon,/ocutalon/api";
-
 /// The facts of the document as {"tools","fixKinds","roles","demoOnly","sql","serviceUser","applications"}:
 ///   - tools: one {"name","source","toolset","agents","label","classification","readOnly","trustedOutput","resources"} per tool, sorted by name;
 ///     agents is the array of the agent classes that hold the tool's toolset, resources the array of {"resource","permission"};
@@ -50,7 +47,9 @@ Parameter APPLICATIONS = "/ocutalon,/ocutalon/api";
 ///     sorted by resource and declaredBy the short names of the areas whose Grants() declare it;
 ///   - demoOnly: the {"role","resource","permission"} that demo mode adds to the service role and the trace role;
 ///   - sql: the {"role","privilege","object","namespace","when"} of the trace role, when being always or demo mode on;
-///   - serviceUser: {"user","roles","login"}; applications: {"names","roles"}, the MatchRoles that the web applications grant.
+///   - serviceUser: {"user","roles","login"};
+///   - applications: one {"name","roles"} per web application of Install.Step.Web.Definitions whose MatchRoles adds roles for every signed-in
+///     user, sorted by name, where roles is the array of those roles.
 /// Throws a status when a fact cannot be read.
 ClassMethod Model() As %DynamicObject
 {
@@ -262,19 +261,29 @@ ClassMethod ServiceUser() As %DynamicObject
 	Quit {"user": (##class(OcuTalon.Install.Step.Users).#SERVICEUSER), "roles": [(##class(OcuTalon.Install.Step.Users).#SERVICEROLE)], "login": "disabled"}
 }
 
-/// The web applications that add the roles of Web.APPLICATIONROLES (their MatchRoles) for every signed-in user, and those roles.
-ClassMethod Applications() As %DynamicObject
+/// The web applications of the Web step (Install.Step.Web.Definitions) that add roles for every signed-in user, and those roles: an application
+/// whose MatchRoles is not empty. Throws a status that names the application when its MatchRoles is not of the form :role[:role...], which
+/// adds the roles for every signed-in user; a match role would make that claim untrue.
+ClassMethod Applications() As %DynamicArray
 {
-	Set names = []
-	For i = 1:1:$Length(..#APPLICATIONS, ",") {
-		Do names.%Push($Piece(..#APPLICATIONS, ",", i))
+	$$$ThrowOnError(##class(OcuTalon.Install.Step.Web).Definitions(.apps))
+	Set result = []
+	Set name = ""
+	For {
+		Set name = $Order(apps(name))
+		Quit:name=""
+		Set matched = $Get(apps(name, "MatchRoles"))
+		If matched = "" Continue
+		If ($Extract(matched) '= ":") || (matched [ ",") {
+			$$$ThrowStatus($SYSTEM.Status.Error(5001, "The web application "_name_" has the MatchRoles "_matched_", which is not of the form :role[:role...]"))
+		}
+		Set roles = []
+		For i = 2:1:$Length(matched, ":") {
+			If $Piece(matched, ":", i) '= "" Do roles.%Push($Piece(matched, ":", i))
+		}
+		Do result.%Push({"name": (name), "roles": (roles)})
 	}
-	Set roles = []
-	Set matched = ##class(OcuTalon.Install.Step.Web).#APPLICATIONROLES
-	For i = 1:1:$Length(matched, ":") {
-		If $Piece(matched, ":", i) '= "" Do roles.%Push($Piece(matched, ":", i))
-	}
-	Quit {"names": (names), "roles": (roles)}
+	Quit result
 }
 
 /// sections(key) = the Markdown of each key of KEYS: lines that each end in a line feed, in ASCII. Throws a status that names the key when a
@@ -364,9 +373,9 @@ ClassMethod PrivilegesText(model As %DynamicObject) As %String
 	Set text = text_lf_"### Service user"_lf_lf_"| User | Roles | Login |"_lf_"| --- | --- | --- |"_lf
 	Set text = text_"| "_..Code(model.serviceUser.user)_" | "_..CodeList(model.serviceUser.roles)_" | "_model.serviceUser.login_" |"_lf
 	Set text = text_lf_"### Application roles"_lf_lf_"| Web application | Roles added for every signed-in user |"_lf_"| --- | --- |"_lf
-	Set names = model.applications.names.%GetIterator()
-	While names.%GetNext(, .name) {
-		Set text = text_"| "_..Code(name)_" | "_..CodeList(model.applications.roles)_" |"_lf
+	Set iterator = model.applications.%GetIterator()
+	While iterator.%GetNext(, .app) {
+		Set text = text_"| "_..Code(app.name)_" | "_..CodeList(app.roles)_" |"_lf
 	}
 	Quit text_lf
 }
@@ -497,7 +506,7 @@ ClassMethod Regenerate(inFile As %String, outFile As %String) As %Status
 		Kill stream
 		Set sc = ..Splice(text, .out)
 		If $$$ISOK(sc) {
-			Open outFile:"WNS":5
+			Open outFile:("WNSK\RAW\"):5
 			If '$Test $$$ThrowStatus($SYSTEM.Status.Error(5001, "The file "_outFile_" cannot be written"))
 			Use outFile
 			Write out

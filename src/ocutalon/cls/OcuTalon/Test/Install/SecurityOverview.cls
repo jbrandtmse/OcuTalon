@@ -30,7 +30,7 @@ Method OnAfterOneTest(testname As %String) As %Status
 
 /// The rows are the 12 built-in tools of release 1 (Tools.Names RELEASE1), sorted by name, none of them a fixture or the bridge's example agent, and the
 /// classification, the read-only flag and the trusted-output flag of each row are those that the gate gives (Gate.ClassificationOf); for a tool that
-/// classifies by its arguments the two flags are its READONLY and TRUSTEDOUTPUT parameters, the values that the gate reads.
+/// classifies by its arguments only the two flags are compared, since its classification is decided per call.
 Method TestToolRows()
 {
 	Set rows = $ClassMethod(..#GENERATOR, "ToolRows")
@@ -43,18 +43,13 @@ Method TestToolRows()
 		Set names = names _ $ListBuild(row.name)
 		If '..StartsWith(row.source, "OcuTalon.Tools.") Set bad = bad _ " " _ row.name _ ":" _ row.source
 		If '..StartsWith(row.toolset, "OcuTalon.Tools.") Set bad = bad _ " " _ row.name _ ":" _ row.toolset
-		If row.classification [ "per call: " {
-			Set readOnly = +(##class(OcuTalon.Bridge.Adapter.StepBuffer).ToolParameter(row.source, row.name, "READONLY") = 1)
-			Set trustedOutput = +(##class(OcuTalon.Bridge.Adapter.StepBuffer).ToolParameter(row.source, row.name, "TRUSTEDOUTPUT") = 1)
-		} Else {
-			Set facts = ##class(OcuTalon.Bridge.Policy.Gate).ClassificationOf(row.source, row.name)
+		Set facts = ##class(OcuTalon.Bridge.Policy.Gate).ClassificationOf(row.source, row.name)
+		If '(row.classification [ "per call: ") {
 			Set shown = $Select(facts.classification = "": "unclassified", 1: facts.classification)
 			Do $$$AssertEquals(row.classification, shown, row.name_": the classification is the gate's")
-			Set readOnly = +facts.readOnly
-			Set trustedOutput = +facts.trustedOutput
 		}
-		Do $$$AssertEquals(row.readOnly, readOnly, row.name_": the read-only flag is the gate's")
-		Do $$$AssertEquals(row.trustedOutput, trustedOutput, row.name_": the trusted-output flag is the gate's")
+		Do $$$AssertEquals(row.readOnly, +facts.readOnly, row.name_": the read-only flag is the gate's")
+		Do $$$AssertEquals(row.trustedOutput, +facts.trustedOutput, row.name_": the trusted-output flag is the gate's")
 	}
 	Do $$$AssertEquals(bad, "", "every row is a class of OcuTalon.Tools, so no fixture and no bridge example appears")
 	Do $$$AssertEquals($ListToString(names), $ListToString(..Sorted(released)), "the names are those of RELEASE1, sorted")
@@ -144,6 +139,39 @@ Method TestClassifyHookShowsItsRule()
 	Do $$$AssertEquals(..Cell("a | b"), "a \| b", "a vertical bar in a rule is escaped in the table cell")
 }
 
+/// The Resources column of a tool row (no shipped tool declares RESOURCES, so the fixture does): the pairs of the tool's own value, else of the class,
+/// as resource:permission code spans in the table line; a tool whose own value is empty shows none although the class declares one; a value that is
+/// not resource:permission fails generation with a status that names the tool and the class. The read-only and trusted-output flags of a tool that
+/// classifies by its arguments are those that the gate gives.
+Method TestToolResourcesCell()
+{
+	Set rule = "OcuTalon.Test.Install.ZzOverviewRule"
+	Set agents = ["OcuTalon.Agent.Probe"]
+	Set own = $ClassMethod(..#GENERATOR, "ToolRow", rule, "own", "OcuTalon.Tools.Probe", agents)
+	Do $$$AssertEquals(own.resources.%Size(), 2, "own: two pairs")
+	Set facts = ##class(OcuTalon.Bridge.Policy.Gate).ClassificationOf(rule, "own")
+	Do $$$AssertEquals(own.readOnly, +facts.readOnly, "own: the read-only flag is the gate's")
+	Do $$$AssertEquals(own.trustedOutput, +facts.trustedOutput, "own: the trusted-output flag is the gate's")
+	Do $$$AssertEquals($ClassMethod(..#GENERATOR, "Pairs", own.resources), "`ZzOverviewProbe:R`, `%Ens_Portal:U`", "own: its own value outranks the class's")
+	Set plain = $ClassMethod(..#GENERATOR, "ToolRow", rule, "plain", "OcuTalon.Tools.Probe", agents)
+	Do $$$AssertEquals($ClassMethod(..#GENERATOR, "Pairs", plain.resources), "`ZzOverviewProbe:W`", "plain: the value of the class")
+	Set quiet = $ClassMethod(..#GENERATOR, "ToolRow", rule, "quiet", "OcuTalon.Tools.Probe", agents)
+	Do $$$AssertEquals($ClassMethod(..#GENERATOR, "Pairs", quiet.resources), "none", "quiet: an empty own value shows none")
+	Set text = $ClassMethod(..#GENERATOR, "ToolsText", {"tools": [(own), (quiet)]})
+	Do $$$AssertTrue(..HasLine(text, "| `own` | `"_rule_"` | `OcuTalon.Tools.Probe` | `OcuTalon.Agent.Probe` | Probing the overview | per call: safe unless the text holds a delete | no | no | `ZzOverviewProbe:R`, `%Ens_Portal:U` |"), "the table line of own ends with its resources")
+	Do $$$AssertTrue(..HasLine(text, "| `quiet` | `"_rule_"` | `OcuTalon.Tools.Probe` | `OcuTalon.Agent.Probe` | Probing the overview | per call: risky when the request names a production \| else safe | no | no | none |"), "and the table line of quiet reads none")
+	Set text = ""
+	Try {
+		Set bad = $ClassMethod(..#GENERATOR, "ToolRow", rule, "bad", "OcuTalon.Tools.Probe", agents)
+		Set text = "<no error>"
+	} Catch exception {
+		Set text = $SYSTEM.Status.GetErrorText(exception.AsStatus())
+	}
+	Do $$$AssertNotEquals(text, "<no error>", "a RESOURCES value that is not resource:permission fails generation")
+	Do $$$AssertTrue(text [ "bad", "and the status names the tool")
+	Do $$$AssertTrue(text [ rule, "and its class")
+}
+
 /// The fix kinds are every non-abstract class of the package OcuTalon.Fix.Kind, each row has the kind's NAME and RESOURCES, and the table shows
 /// repair_resend with %Ens_MessageResend:U.
 Method TestFixKindRows()
@@ -182,7 +210,8 @@ Method TestFixKindRows()
 
 /// DW-213: the grants that only demo mode adds are listed apart: the service role Read on the OCUORDERS data database, and the trace role Read
 /// on its code and data databases. The trace role's SQL SELECT on Ens.MessageHeader is listed in OCUTALON, and in OCUORDERS with demo mode on. The
-/// service user holds exactly the service role with login disabled, and the web applications add the roles of Web.APPLICATIONROLES.
+/// service user holds exactly the service role with login disabled, and /ocutalon and /ocutalon/api, alone of the Web step's applications, add the
+/// roles of Web.APPLICATIONROLES.
 Method TestDemoOnlyGrantsListed()
 {
 	Set model = $ClassMethod(..#GENERATOR, "Model")
@@ -202,8 +231,13 @@ Method TestDemoOnlyGrantsListed()
 	Do $$$AssertEquals(model.serviceUser.roles.%Size(), 1, "holds one role")
 	Do $$$AssertEquals(model.serviceUser.roles.%Get(0), "OcuTalonServiceRole", "the service role")
 	Do $$$AssertEquals(model.serviceUser.login, "disabled", "with login disabled")
-	Do $$$AssertEquals(":"_..List(model.applications.roles, ":"), ##class(OcuTalon.Install.Step.Web).#APPLICATIONROLES, "the application roles are those of the Web step")
-	Do $$$AssertEquals(..List(model.applications.names, ","), "/ocutalon,/ocutalon/api", "added by /ocutalon and /ocutalon/api")
+	Set shown = ""
+	Set iterator = model.applications.%GetIterator()
+	While iterator.%GetNext(, .app) {
+		Set shown = shown _ $Select(shown = "": "", 1: ";") _ app.name_"=:"_..List(app.roles, ":")
+	}
+	Set roles = ##class(OcuTalon.Install.Step.Web).#APPLICATIONROLES
+	Do $$$AssertEquals(shown, "/ocutalon="_roles_";/ocutalon/api="_roles, "/ocutalon and /ocutalon/api add the roles of Web.APPLICATIONROLES, and no other application of the Web step adds a role")
 	Do $ClassMethod(..#GENERATOR, "Sections", .sections)
 	Set text = sections("privileges")
 	Do $$$AssertTrue(..HasLine(text, "| `OcuTalonServiceRole` | `%DB_OCUORDERS_DATA` | R |"), "the privilege section lists the service role's demo-only grant")
@@ -220,6 +254,38 @@ Method TestDemoOnlyGrantsListed()
 		}
 	}
 	Do $$$AssertEquals(base, "", "control: the base grants hold no OCUORDERS resource, so the list of demo-only grants is not a repeat")
+}
+
+/// The Declared by column: each grant of a role names the installer areas, by their short class names, whose Grants() declare that role and
+/// resource, and a role with no resource names the areas that declare the role; the table shows both kinds of row.
+Method TestRoleRowsDeclaredBy()
+{
+	Set sc = ##class(OcuTalon.Install.Registry).Declared("Grants", .entries)
+	Do $$$AssertStatusOK(sc, "the declared grants can be read")
+	Set n = ""
+	For {
+		Set n = $Order(entries(n))
+		Quit:n=""
+		Set grant = entries(n)
+		Set areas(grant.role, $Select(grant.resource = "": " ", 1: grant.resource), $Piece(entries(n, "area"), ".", *)) = ""
+	}
+	Set bad = ""
+	Set rows = $ClassMethod(..#GENERATOR, "RoleRows")
+	Set iterator = rows.%GetIterator()
+	While iterator.%GetNext(, .role) {
+		If role.grants.%Size() = 0 {
+			If ..List(role.declaredBy, ",") '= ..Areas(.areas, role.role, " ") Set bad = bad _ "; "_role.role_" shows "_..List(role.declaredBy, ",")
+			Continue
+		}
+		Set grants = role.grants.%GetIterator()
+		While grants.%GetNext(, .grant) {
+			If ..List(grant.declaredBy, ",") '= ..Areas(.areas, role.role, grant.resource) Set bad = bad _ "; "_role.role_" "_grant.resource_" shows "_..List(grant.declaredBy, ",")
+		}
+	}
+	Do $$$AssertEquals(bad, "", "each row names the areas whose Grants() declare it")
+	Do $ClassMethod(..#GENERATOR, "Sections", .sections)
+	Do $$$AssertTrue(..HasLine(sections("privileges"), "| `OcuTalonServiceRole` | `%Ens_MessageResend` | U | `Fix` |"), "the table names Fix for the service role's resend grant")
+	Do $$$AssertTrue(..HasLine(sections("privileges"), "| `OcuTalonAdmin` | none | - | `Users` |"), "and Users for the admin role, which holds no resource")
 }
 
 /// Splice replaces the lines between the markers of each key and no other byte: with LF and CRLF line endings, with and without a final newline,
@@ -308,6 +374,14 @@ Method TestInventoryStatement()
 	Do $ClassMethod(..#GENERATOR, "Sections", .sections)
 	Do $$$AssertTrue(..HasLine(sections("tools"), ..#STATEMENT), "the tools section holds it as a line")
 	Do $$$AssertTrue(##class(%Dictionary.CompiledMethod).%ExistsId("OcuTalon.Test.Agent.Runners||TestToolInventory"), "OcuTalon.Test.Agent.Runners has the method TestToolInventory that it names")
+	Set sc = ##class(OcuTalon.Install.Step.Production).Runners(..#PRODUCTION, .runners)
+	Do $$$AssertStatusOK(sc, "the runners of the production can be listed")
+	Set enabled = ""
+	For i = 1:1:$Get(runners) {
+		If $List(runners(i), 3) Set enabled = enabled _ $ListBuild($List(runners(i), 1))
+	}
+	Set checked = $ListFromString($Parameter("OcuTalon.Test.Agent.Runners", "RUNNERS"))
+	Do $$$AssertEquals($ListToString(..Sorted(checked)), $ListToString(..Sorted(enabled)), "the runners that TestToolInventory checks are every enabled agent runner of the production, so the statement's every running runner holds")
 }
 
 /// The sections are made of ASCII alone, and the check that says so finds a character outside ASCII.
@@ -387,7 +461,8 @@ Method TestToolsMatchRunners()
 
 /// The security records of the instance are the model: each listed role holds exactly its resources and permissions (the base grants, and with
 /// demo mode on the demo-only ones); the service user holds exactly the service role, with login disabled; the trace role's SQL privileges are
-/// the listed SELECT rows; and /ocutalon and /ocutalon/api add the listed roles. A difference names the role, the resource and the permission,
+/// the listed SELECT rows; the listed roles are granted no other role and the service user has no escalation role; and each application of the
+/// Web step adds exactly the roles listed for it, none when it is not listed. A difference names the role, the resource and the permission,
 /// and whether it is extra or missing.
 Method TestPrivilegesMatchSecurityRecords()
 {
@@ -406,17 +481,19 @@ Method TestPrivilegesMatchSecurityRecords()
 				If extra.role = role.role Set expected(extra.resource) = ..Letters($Get(expected(extra.resource))_extra.permission)
 			}
 		}
-		Set actual = ..ReadRole(role.role)
+		Set actual = ..ReadRole(role.role, .granted)
 		If actual = "<none>" {
 			Do $$$AssertTrue(0, "the role "_role.role_" exists")
 			Continue
 		}
 		Do $$$AssertEquals(..Differences(role.role, .expected, actual), "", role.role_" holds exactly the listed resources (demo mode "_$Select(demo: "on", 1: "off")_")")
+		Do $$$AssertEquals(granted, "", role.role_" is granted no other role, whose privileges the overview would not list")
 	}
 	Set user = model.serviceUser.user
-	Do ..ReadUser(user, .exists, .enabled, .roles)
+	Do ..ReadUser(user, .exists, .enabled, .roles, .escalation)
 	Do $$$AssertTrue(exists, "the service user "_user_" exists")
 	Do $$$AssertEquals(roles, ..List(model.serviceUser.roles, ","), user_" holds exactly the service role")
+	Do $$$AssertEquals(escalation, "", user_" has no escalation role")
 	Do $$$AssertEquals(enabled, 0, user_" has login disabled")
 	Set trace = ##class(OcuTalon.Install.Step.Web).#TRACEROLE
 	Set sql = ""
@@ -427,9 +504,17 @@ Method TestPrivilegesMatchSecurityRecords()
 		Set sql = sql _ $ListBuild(row.namespace_"|1,"_row.object_"|s")
 	}
 	Do $$$AssertEquals(..SqlPrivileges(trace), $ListToString(..Sorted(sql), ";"), "the trace role's SQL privileges are the listed SELECT rows")
-	Set names = model.applications.names.%GetIterator()
-	While names.%GetNext(, .name) {
-		Do $$$AssertEquals(..MatchRoles(name), ":"_..List(model.applications.roles, ":"), name_" adds the listed roles for every signed-in user")
+	Set iterator = model.applications.%GetIterator()
+	While iterator.%GetNext(, .app) {
+		Set listed(app.name) = ":"_..List(app.roles, ":")
+	}
+	Set sc = ##class(OcuTalon.Install.Step.Web).Definitions(.apps)
+	Do $$$AssertStatusOK(sc, "the applications of the Web step can be listed")
+	Set name = ""
+	For {
+		Set name = $Order(apps(name))
+		Quit:name=""
+		Do $$$AssertEquals(..MatchRoles(name), $Get(listed(name)), name_$Select($Data(listed(name)): " adds the listed roles for every signed-in user", 1: " adds no role, as it is not listed"))
 	}
 }
 
@@ -473,6 +558,19 @@ ClassMethod List(array As %DynamicArray, separator As %String) As %String [ Priv
 	Set iterator = array.%GetIterator()
 	While iterator.%GetNext(, .item) {
 		Set list = list _ $Select(list = "": "", 1: separator) _ item
+	}
+	Quit list
+}
+
+/// The areas of areas(role, resource, area), comma-separated, in order.
+ClassMethod Areas(ByRef areas, role As %String, resource As %String) As %String [ Private ]
+{
+	Set list = ""
+	Set area = ""
+	For {
+		Set area = $Order(areas(role, resource, area))
+		Quit:area=""
+		Set list = list _ $Select(list = "": "", 1: ",") _ area
 	}
 	Quit list
 }
@@ -573,28 +671,32 @@ ClassMethod Differences(role As %String, ByRef expected, resources As %String) A
 	Quit text
 }
 
-/// The resources of the role as one resource:permission list, or "<none>" when it does not exist. Runs in %SYS.
-ClassMethod ReadRole(role As %String) As %String [ Private ]
+/// The resources of the role as one resource:permission list, or "<none>" when it does not exist; granted is the roles it is granted. Runs in %SYS.
+ClassMethod ReadRole(role As %String, Output granted As %String) As %String [ Private ]
 {
 	New $Namespace
 	Set $Namespace = "%SYS"
+	Set granted = ""
 	If '##class(Security.Roles).Exists(role) Quit "<none>"
 	Do ##class(Security.Roles).Get(role, .properties)
+	Set granted = $Get(properties("GrantedRoles"))
 	Quit $Get(properties("Resources"))
 }
 
-/// Whether the user exists, whether it is enabled, and its roles. Runs in %SYS.
-ClassMethod ReadUser(user As %String, Output exists As %Boolean, Output enabled As %Boolean, Output roles As %String) [ Private ]
+/// Whether the user exists, whether it is enabled, its roles and its escalation roles. Runs in %SYS.
+ClassMethod ReadUser(user As %String, Output exists As %Boolean, Output enabled As %Boolean, Output roles As %String, Output escalation As %String) [ Private ]
 {
 	New $Namespace
 	Set $Namespace = "%SYS"
 	Set exists = ''##class(Security.Users).Exists(user)
 	Set enabled = ""
 	Set roles = ""
+	Set escalation = ""
 	If 'exists Quit
 	Do ##class(Security.Users).Get(user, .properties)
 	Set enabled = +$Get(properties("Enabled"))
 	Set roles = $Get(properties("Roles"))
+	Set escalation = $Get(properties("EscalationRoles"))
 }
 
 /// The SQL privileges of the role as Namespace|SQLObject|Privilege, sorted, separated by semicolons. Runs in %SYS.

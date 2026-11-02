@@ -132,7 +132,7 @@ NOT_BOOKKEEPING_PATTERN='^_bmad-output/planning-artifacts/ux-designs/'
 # .github/workflows/ci.yml, and the root .gitattributes and .gitignore. These are unanchored ERE alternatives, joined by
 # group_input_pattern.
 IRIS_INPUT='src/|docker/[^/]+$|docker/ipm/|docker/tests/lib-[^/]+\.sh$|release/demo-load\.sh$|docker/tests/compose\.[^/]+\.yml$|docker-compose[^/]*\.yml$|\.dockerignore$|eval/|ci/|\.github/workflows/ci\.yml$|\.gitattributes$|\.gitignore$'
-# The generated overview is read by live:security-overview, which compares it with a fresh generation (Story 14.1).
+# The generated overview is read by live:security-overview, which compares it with a fresh generation (Story 14.1); this claim outranks docs/ in NOT_IRIS_INPUT_PATTERN.
 IRIS_INPUT="$IRIS_INPUT|docs/security-overview\.md\$"
 
 # The inputs of the built web bundle, which every stack installs; a unit that reads, compares or serves the bundle's files depends on them.

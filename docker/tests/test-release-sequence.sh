@@ -26,6 +26,8 @@
 #             the live step, a failed class step, --write, the run tag, and the teardown that follows every case
 #   overviewdrift (Story 14.1) docker/tests/lib-security-overview.sh on small overview files: the DRIFT line for a changed tool row, for a
 #             change outside the rows, for the fix kinds and for the privileges, and nothing for equal files
+#   overviewdoc   (Story 14.1, QA) the committed docs/security-overview.md: its title, its three marker pairs once each and in order, ASCII only,
+#             no machine path; and the CI claims of the file and of the live unit in ci/units.sh (every group runs on the file, production holds the unit)
 #   push      only the candidate branch goes out, on the author's word; a no or the end of input pushes nothing and asks again
 #   record    every stop writes the record section and commits only that path; the record question; a moved branch is reported
 #   hands     the hands-on time is the sum of the ASK windows, over all candidates of the version, and warns over 15 minutes
@@ -406,7 +408,7 @@ leanpath() {
 
 # --- the throwaway repository ---
 
-# stub_text <pass|fail|busy>: the text of a stub release/security-overview.sh, the callable unit of the overview step, which prints what the real
+# stub_text <pass|fail|busy|silent>: the text of a stub release/security-overview.sh, the callable unit of the overview step, which prints what the real
 # unit prints for that outcome and exits as it does. It makes no call outside its own folder.
 stub_text() {
   printf '%s\n' '#!/usr/bin/env bash' 'set -u'
@@ -424,10 +426,13 @@ stub_text() {
     busy)
       printf '%s\n' 'echo "LOCK busy: throwaway-iris is held by someone"' 'echo "WAIT overview the lane lock is busy"' 'exit 75'
       ;;
+    silent)
+      printf '%s\n' 'echo "FAIL overview a step ended with exit 3"' 'exit 1'
+      ;;
   esac
 }
 
-# set_stub <pass|fail|busy>: replaces the stub in the case's checkout, commits it on the integration branch and pushes it, before start.
+# set_stub <pass|fail|busy|silent>: replaces the stub in the case's checkout, commits it on the integration branch and pushes it, before start.
 set_stub() {
   stub_text "$1" > "$W/release/security-overview.sh"
   git -C "$W" add release/security-overview.sh
@@ -1611,6 +1616,15 @@ t_overview() {
   eq "overview fail: nothing pushed" "$(git --git-dir="$R" for-each-ref --format='%(refname)' | tr '\n' ' ')" "refs/heads/$INTEG "
   rs '' status
   has "overview fail: the state still names overview" "$out" "STATE 1.0.0 rc1 next overview"
+  # a failure whose first line is the unit's own FAIL overview line: its prefix is not repeated
+  newcase
+  set_stub silent
+  to_step overview
+  rs "$N" next
+  eq "overview silent: exit" "$rc" 1
+  has "overview silent: the line" "$out" "FAIL overview a step ended with exit 3"
+  lacks "overview silent: the unit's own prefix is not repeated" "$out" "FAIL overview FAIL overview"
+  has "overview silent: the record" "$(cat "$(rec_file)")" "Result: failed at overview: a step ended with exit 3"
   # a busy lane lock: WAIT, exit 5, nothing recorded, and the next call runs the step again
   newcase
   set_stub busy
@@ -1777,10 +1791,89 @@ t_overviewdrift() {
   # the privileges
   ovw_doc safe '## Built-in tools' repair_resend R > "$T/priv.md"
   eq "a privileges change: the DRIFT lines" "$(ovw_drift "$T/committed.md" "$T/priv.md" | grep '^DRIFT')" "DRIFT privileges"
+  # a row removed, and a row renamed (a removed and an added row): each name is reported
+  ovw_doc safe '## Built-in tools' repair_resend U '| `add_note` | safe |' > "$T/with-note.md"
+  eq "a removed row: the DRIFT lines" "$(ovw_drift "$T/with-note.md" "$T/committed.md" | grep '^DRIFT')" "DRIFT tool add_note"
+  ovw_doc safe '## Built-in tools' repair_resend U '| `add_memo` | safe |' > "$T/with-memo.md"
+  eq "a renamed row: the DRIFT lines (the old and the new name)" "$(ovw_drift "$T/with-note.md" "$T/with-memo.md" | grep '^DRIFT')" "DRIFT tool add_memo
+DRIFT tool add_note"
   # a change in hand-written text only is not drift
   ovw_doc safe '## Built-in tools' repair_resend U | sed 's/^Hand-written text\.$/Other hand-written text./' > "$T/hand.md"
   eq "a hand-written change: nothing is printed" "$(ovw_drift "$T/committed.md" "$T/hand.md")" ""
   rm -rf "$T"
+}
+
+# --- overviewdoc (Story 14.1, QA: the committed docs/security-overview.md and its CI claims) ---
+
+# ovw_doc_problems <file>: one line per problem of the overview's frame, nothing for a good file. The frame is what Story 14.2 keeps while it
+# writes the hand-written sections: the title line, each marker once and in order, ASCII only, no machine path.
+ovw_doc_problems() {
+  local f=$1 key b e n prev=0 owner='written by OcuTalon.Install.SecurityOverview, do not edit'
+  [ "$(sed -n 1p "$f")" = '# OcuTalon security overview' ] || echo "the first line is not the title"
+  for key in tools fix-kinds privileges; do
+    b=$(grep -nxF "<!-- BEGIN GENERATED $key: $owner -->" "$f" | cut -d: -f1)
+    e=$(grep -nxF "<!-- END GENERATED $key -->" "$f" | cut -d: -f1)
+    if [ -z "$b" ] || [ -z "$e" ] || [ "$(printf '%s\n' "$b" | grep -c .)" -ne 1 ] || [ "$(printf '%s\n' "$e" | grep -c .)" -ne 1 ]; then
+      echo "the $key markers are not there once each"
+      continue
+    fi
+    if [ "$b" -le "$prev" ] || [ "$e" -le "$b" ]; then echo "the $key markers are out of order"; fi
+    prev=$e
+  done
+  n=$(LC_ALL=C grep -c '[^[:print:][:space:]]' "$f")
+  [ "$n" -eq 0 ] || echo "$n line(s) with a character outside ASCII"
+  n=$(grep -cE '(/Us''ers/|/ho''me/|/pri''vate/|/t''mp/|[A-Za-z]:\\)' "$f")
+  [ "$n" -eq 0 ] || echo "$n line(s) with a machine path"
+  return 0
+}
+
+# ovw_ci_claims: what ci/units.sh says about the overview, one line per group and two for the unit (a subshell, so no variable of units.sh leaks).
+ovw_ci_claims() {
+  (
+    . "$root/ci/units.sh"
+    for grp in $IRIS_GROUPS; do
+      pattern=$(group_input_pattern "$grp")
+      printf '%s:' "$grp"
+      if printf '%s\n' docs/security-overview.md | grep -qE "$pattern"; then printf 'claimed'; else printf 'NOT-claimed'; fi
+      if printf '%s\n' docs/security-overview.md.bak docs/other.md | grep -qE "$pattern"; then printf ' and-lookalike\n'; else printf ' lookalike-free\n'; fi
+    done
+    if group_units production | grep -qw 'live:security-overview'; then echo "production holds live:security-overview"; else echo "production LACKS live:security-overview"; fi
+    if printf '%s\n' $NO_WEB_BUNDLE_UNITS | grep -qx 'live:security-overview'; then echo "NO_WEB_BUNDLE_UNITS holds live:security-overview"; else echo "NO_WEB_BUNDLE_UNITS LACKS live:security-overview"; fi
+  )
+}
+
+t_overviewdoc() {
+  local doc=$root/docs/security-overview.md d=$tmp/ovwdoc grp want
+  rm -rf "$d"
+  mkdir -p "$d"
+  eq "the committed overview has a good frame" "$(ovw_doc_problems "$doc")" ""
+  # controls: the checker finds each kind of fault in a copy of the committed file
+  sed 's/^# OcuTalon security overview$/# Overview/' "$doc" > "$d/title.md"
+  eq "control: a changed title" "$(ovw_doc_problems "$d/title.md")" "the first line is not the title"
+  sed 's/^<!-- BEGIN GENERATED fix-kinds: .*$/<!-- BEGIN GENERATED fix-kinds -->/' "$doc" > "$d/begin.md"
+  eq "control: a begin marker without the owner text" "$(ovw_doc_problems "$d/begin.md")" "the fix-kinds markers are not there once each"
+  { cat "$doc"; echo '<!-- END GENERATED tools -->'; } > "$d/twice.md"
+  eq "control: a repeated end marker" "$(ovw_doc_problems "$d/twice.md")" "the tools markers are not there once each"
+  sed 's/^<!-- END GENERATED tools -->$/<!-- END GENERATED TOOLS -->/' "$doc" > "$d/gone.md"
+  eq "control: a missing end marker" "$(ovw_doc_problems "$d/gone.md")" "the tools markers are not there once each"
+  awk '/^<!-- BEGIN GENERATED fix-kinds:/ { hold = 1 } hold { buf = buf $0 "\n"; if ($0 ~ /^<!-- END GENERATED fix-kinds -->$/) { hold = 0; held = 1 } ; next } { print } /^<!-- END GENERATED privileges -->$/ && held { printf "%s", buf }' "$doc" > "$d/order.md"
+  eq "control: the fix-kinds region moved after the privileges region" "$(ovw_doc_problems "$d/order.md")" "the privileges markers are out of order"
+  { cat "$doc"; printf 'caf\303\251\n'; } > "$d/ascii.md"
+  eq "control: a non-ASCII byte" "$(ovw_doc_problems "$d/ascii.md")" "1 line(s) with a character outside ASCII"
+  { cat "$doc"; echo 'See /Us''ers/someone/git/x'; } > "$d/path.md"
+  eq "control: a machine path" "$(ovw_doc_problems "$d/path.md")" "1 line(s) with a machine path"
+  # the CI claims (runner ruling 4): the file is an input of every group, a lookalike path is not, and the live unit sits in production
+  want=$(ovw_ci_claims)
+  eq "ci/units.sh: every group claims the overview, and the unit is placed" "$want" "install-fresh:claimed lookalike-free
+install-upgrade:claimed lookalike-free
+production:claimed lookalike-free
+browser:claimed lookalike-free
+shards:claimed lookalike-free
+shards-2:claimed lookalike-free
+image:claimed lookalike-free
+production holds live:security-overview
+NO_WEB_BUNDLE_UNITS holds live:security-overview"
+  rm -rf "$d"
 }
 
 # --- ipm (Story 11.17: the IPM artifact carries the built page) ---
@@ -2293,6 +2386,10 @@ live_run() {
 # live_ipm_run: IA1, the real packaging of the throwaway candidate with IPM (one call; the lane variables name the lock folder).
 live_ipm_run() {
   local t0 art x n lockf
+  # the overview step comes before ipm; the seed's passing stub of the unit runs it
+  rs '' next
+  has "ipm: the overview step before it" "$out" "PASS overview "
+  [ "$bad" -eq 0 ] || return 0
   echo "LIVE the real IPM packaging of the candidate (throwaway build 154 container, no network)"
   t0=$SECONDS
   rs '' next
@@ -2348,6 +2445,7 @@ rule image t_image
 rule overview t_overview
 rule overviewunit t_overviewunit
 rule overviewdrift t_overviewdrift
+rule overviewdoc t_overviewdoc
 rule push t_push
 rule record t_record
 rule hands t_hands
