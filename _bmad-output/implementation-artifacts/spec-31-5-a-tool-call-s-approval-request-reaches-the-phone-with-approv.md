@@ -2,7 +2,7 @@
 title: 'Story 31.5: a tool call''s approval request reaches the phone with Approve and Reject (notices)'
 type: 'feature'
 created: '2026-11-02'
-status: 'ready-for-dev'
+status: 'draft'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -12,10 +12,6 @@ deferred:
   - summary: 'Telegram press alert for an approved tool call: AnswersIn.TelegramCode answers approved with no count or noun for a tool_call (no dry run), and TelegramIn renders press.approved ("Approved. Repairing and resending {count} {itemNoun}."), which has no tool-call form'
     evidence: 'Core/AnswersIn.cls :86-100 (slots from the dry run only); Msg/Catalog/Core.cls press.approved :52-58; TelegramOut is a stub on this branch (Channel/Telegram/Out.cls :1-14)'
     location: 'src/ocutalon/cls/OcuTalon/Channel/Telegram/In.cls (Epic 12), Story 31.4'
-    severity: 'med'
-  - summary: 'No web chat card answers a tool_call request: WebChatOut records approval, answered and result notifications as Delivery rows only (INCIDENTKINDS), and the rail row of a tool_call has no Approve or Reject, so on the web a tool call is answerable only on the simulated phone or in the paired chat; the epic requirement says every approval request appears in the web chat with Approve and Reject'
-    evidence: 'Channel/WebChat/Out.cls :12-14, :29; web/src/app/rail/rail-view.ts approvalRow :199-216 (a jump only with an incidentRef)'
-    location: 'src/ocutalon/cls/OcuTalon/Channel/WebChat/Out.cls, web/src/app/chat (Lane B)'
     severity: 'med'
 ---
 
@@ -33,6 +29,8 @@ deferred:
 
 Four `toolCall.*` keys are appended to `Msg.Catalog.Core`. `SimPhoneOut`'s answered edit only ever lands on a request message.
 
+**Web chat card [AMENDED 2026-11-02, Story 31.5, Contest Planner under the owner's delegation: "The web-chat tool-call approval gap is 1.0.0-VISIBLE: PUT IT INTO 31.5"; it was a `deferred:` item].** A tool call's approval request also appears in the web chat, as a card with Approve and Reject (FR-8; PRD "Channels": the web chat, the simulated phone and the paired chat, with inline Approve and Reject). Its texts are the phone's (the U-212 conditions below), it is answered once with the first answer winning across every copy (web chat, simulated phone, paired chat), and its result shows as a new message with no buttons. It reuses the fix card's component (`web/src/app/approvals/approval-request-card.ts`, today drawn only inside an incident card) and the existing approval API (`ApiClient.answerApproval`, `POST /ocutalon/api/v1/approvals/:ref/answer`) -- Rule 2: extend, don't copy; the plan names the sibling it extends under Design Notes.
+
 ## Boundaries & Constraints
 
 **Always:**
@@ -47,7 +45,7 @@ Four `toolCall.*` keys are appended to `Msg.Catalog.Core`. `SimPhoneOut`'s answe
 
   | Event | Kind | Key and slots |
   |---|---|---|
-  | `approval.raised` | `approval` | `toolCall.request` {`tool` = ToolName, `inputs` = `Bridge.Redact.Text(ToolArguments)`, or `{}` when that is empty} |
+  | `approval.raised` | `approval` | `toolCall.request` {`tool` = ToolName, `server` when it is known (U-212 (1)), `inputs` = `Bridge.Redact.Text(ToolArguments)` on one line and capped at 200 characters (U-212 (2)), or `{}` when that is empty} |
   | `approval.answered` | `answered` | from the row's `AnsweredAction`, not its `State`: `approve` gives `answered.approved` and `reject` gives `answered.rejected`, both {`channel` = AnsweredChannel, `time` = AnsweredAt}; an empty action sends nothing |
   | `approval.expired` | `answered` | `answered.expired` {`time` = ExpiresAt} |
   | `approval.result` | `result` | `Result` `done` gives `toolCall.done`; `failed` or `interrupted` gives `toolCall.failed`; both {`tool`, `time` = FinishedAt}. An empty Result or FinishedAt sends nothing |
@@ -66,20 +64,31 @@ Four `toolCall.*` keys are appended to `Msg.Catalog.Core`. `SimPhoneOut`'s answe
   Then `BridgeSink` does two things:
   - It sends one kind `result` notice, `toolCall.failedWithReason` {`tool`, `reason` = that first line}, with `DecisionRef` set to the decision's Ref.
   - It publishes one `approval` event: `Live.Payload.Approval.FromRow(row, owner)` with `Reason` set to the same line.
+- **U-212: the texts (veto, kept by the Contest Planner under the owner's delegation with four conditions, `at=2026-11-02T13:19:05Z#648`).** Verbatim: "Keep, with four conditions. (1) Match the card: the first line is 'Run {tool} on {server}' when the server is known, and 'Run {tool}' only when it isn't. (2) {inputs} stays on one line through the bridge's redactor, and is capped at 200 characters, ending with '…' when cut; the phone and paired chat never get more of a call's inputs than the card shows. (3) {reason} in toolCall.failedWithReason is only ever a catalog reason (such as U-214's), never raw error or exception text; a test pins it. (4) {time} uses the same labelled form as the other catalog times (DW-574 will unify zones later). The Q3 reading (answer edits the request in place; the result is a new message with no buttons, as for a fix in Story 6.4) is kept." So:
+  - (1) The request's first line, on every channel and on the web card, is 'Run {tool} on {server}' when the call's server is known (an MCP tool: the server named by the row's MCP toolref in `ToolSource`), else 'Run {tool}'. The web card's title and the phone's first line come from the same rule, so they always match.
+  - (2) `{inputs}` is `Bridge.Redact.Text(ToolArguments)` folded to one line and cut to at most 200 characters, ending with '…' (written `…`-style in source, Rule 14) when cut. The web card shows the same string, and no channel ever gets more of a call's inputs than the card shows.
+  - (3) `{reason}` in `toolCall.failedWithReason` is only ever one of a fixed set of catalog reasons (Decide's `HELDBEFOREUPDATE`, U-170's no-key wording, U-214's unreachable-endpoint sentences), never raw error or exception text. A fallback Decision whose first `Reasons` line is anything else sends `toolCall.failed` instead (no reason slot). A test pins it with a raw error line.
+  - (4) `{time}` is a catalog `time` slot, rendered in the same labelled form as the other catalog times (as `answered.*` render theirs).
+- **The web chat card.** A replayable session `tool_call` request (the same gate as the notices) appears in that session's web chat as a card with Approve and Reject:
+  - It reuses `ApprovalRequestCard` and the answer path a fix card uses (`ApiClient.answerApproval`); no second card component and no second answer API.
+  - Answered once: the first answer from any copy (web card, simulated phone, paired chat) wins; a later press on another copy changes nothing and the card shows the answered line, as a fix card does today.
+  - When it is answered, the card's buttons give way to the answered line in place; its result shows as a new chat message with no buttons, and the card keeps its answered line (the Q3 reading).
+  - A non-replayable row, a `fix` row and another session's row get no tool-call card (a fix keeps its card inside the incident card).
 - **Errors never escape.** A failed read or send logs one warning that names the event type and the request's Ref and sends nothing. `OnEvent` still returns OK, publishes its events as today and waits on no lock for more than 1 s (AD-31).
 - **`SimPhoneOut.EditAnswered` edits only a request message.** The found message must carry `ApprovalRef` = the notification's `ApprovalRef`. Any other message (a result message) counts as "no such message", so only its Delivery row is recorded.
 - **The catalog change is appended.** The four keys go at the end of `Msg/Catalog/Core.cls`'s Entries, after `audit.recorded`. In `Test/Msg/Catalog.cls`, only the count lines change and the appended `Keys` and `Fixtures` entries are added (Q1 ruling; the only shared-file edits).
-- **The keys are channel-only:** the web catalog lists none of them (`web/scripts/catalog.mjs` and `catalog.ts` are unchanged).
+- **Web texts come from the catalog.** The web card's texts are catalog texts (a `web` form of the same keys, or existing web keys such as the rail's "Run {toolName}" extended for the server), never hand-written page strings; any new web key is appended (`web/scripts/catalog.mjs`, `catalog.ts` regenerated) and any new string is appended to `web/scripts/ux-strings.test.mjs` (a plain union with Epic 12). [AMENDED 2026-11-02: it read "The keys are channel-only: the web catalog lists none of them"]
 - Every test added or changed creates and removes its own rows and phone messages, and passes on a fresh stack in either order.
 
 **Never:**
 - **Never edit these files:**
   - Lane A: `Watch/**`, `Fix/**`, `src/bridge/**`, `Test/Bridge/**`, `Test/Watch/**`;
   - Epic 11 and Epic 12: `Test/Live/Payloads.cls`, `Test/Data/Fixture.cls` (calling its helpers is fine), `web/e2e/support/**` (importing is fine), `Channel/Telegram/**`, `Test/Channel/**`, `Web/Api.cls`, `ci/units.sh`, `.github/**`;
-  - not needed here, so left unchanged: `Live/Payload/Approval.cls` (Lane B's, but this story fills `reason` in `BridgeSink`, not in `FromRow`) and `Channel/WebChat/Out.cls`;
-  - Part 1's files: `Core/Conversation.cls`, `Data/Ownership.cls`, `web/src/app/approvals/**`, header, guide, chat.
-- No new stored property, column, global or table. No change to the `approval` payload's shape.
-- No new page string and no web catalog key. No new CI job, group or unit.
+  - Epic 12's `web/src/app/rail/telegram-card/**`; `web/e2e/support/floor.ts`, `web/e2e/banners/banners.spec.ts`, `web/e2e-online/**` (standing rulings);
+  - `web/src/app/api/api-types.ts` and `web/src/app/live/live-store.ts` only with a recorded reason (Epic 11's files until its part 2; a one-field append is the most it may take).
+  [AMENDED 2026-11-02 for the web chat card: Part 1 (Story 31.2) is done, so `web/src/app/approvals/**` and `web/src/app/chat/**` are this story's to extend; `Channel/WebChat/Out.cls` and `Live/Payload/Approval.cls` may change if the card needs it (an append to the `approval` payload only, Lane B's).]
+- No new stored property, column, global or table. The `approval` payload's existing fields keep their shape (an appended optional field, such as the server, is allowed).
+- No hand-written page string (web texts come from the catalog, above). No new CI job, group or unit.
 - No notice for `fix` or `setting` rows from `BridgeSink`. No change to `IncidentManager`.
 - No real model key: the replay test runs on the CI mock key.
 
@@ -88,6 +97,12 @@ Four `toolCall.*` keys are appended to `Msg.Catalog.Core`. `SimPhoneOut`'s answe
 | Scenario | Input / State | Expected Output / Behavior | Error Handling |
 |----------|--------------|---------------------------|----------------|
 | Raised | session row `tool_call`, pending, ToolName `zz_send`, ToolArguments `{"to":"ops"}`, ToolSource and Runner set | one notice: kind `approval`, `toolCall.request` {tool `zz_send`, inputs `{"to":"ops"}`}, ApprovalRef the Ref, IncidentRef "", DecisionRef ""; phone text "Run zz_send\nInputs: {"to":"ops"}\nNo dry run is available for this tool. Approving runs exactly this call once." with Approve and Reject | none |
+| Raised, server known (U-212 (1)) | as Raised, but the call is an MCP tool whose toolref names server `ops-mcp` | first line "Run zz_send on ops-mcp", on the phone and on the web card alike | server unknown: "Run zz_send" |
+| Long inputs (U-212 (2)) | ToolArguments whose redacted one-line text is over 200 characters, or holds line breaks or a secret | `inputs` is one line, redacted, exactly 200 characters ending with '…'; the web card shows the same string; no channel gets more | none |
+| Web card raised | the same row, the session's web chat open | a card with the request's texts (the same first line and inputs as the phone) and Approve and Reject, drawn with `ApprovalRequestCard` | a non-replayable, `fix` or other-session row: no tool-call card |
+| Web card answered first | Approve pressed on the web card | `POST .../approvals/:ref/answer` approves once; the card's buttons give way to the answered line; the phone's request message gets the same answered line in place | none |
+| Answered on another copy first | Approve pressed on the phone, then the web card's Approve (or the reverse) | the first answer wins; the second press changes nothing (the existing answered/409 path) and every copy shows the first answer's line | none |
+| Web card result | `approval.result` with Result `done` (or failed) | a new chat message with the result text and no buttons; the card keeps its answered line | none |
 | Answered approve | the row approved (or already `executing`/`done`), AnsweredAction `approve`, channel `phone` | kind `answered`, `answered.approved` {channel, time AnsweredAt}; the phone's request message gets the line "Approved from the simulated phone at HH:MM." in place | none |
 | Answered reject | AnsweredAction `reject` | `answered.rejected`; line "Rejected from ... at HH:MM. Nothing was changed."; no result notice | none |
 | Expired | `approval.expired`, row expired | `answered.expired` {time ExpiresAt} | none |
@@ -96,6 +111,7 @@ Four `toolCall.*` keys are appended to `Msg.Catalog.Core`. `SimPhoneOut`'s answe
 | Not for us | a `fix` or `setting` row; owner `instance`, `eval` or a Ref with no session; another session's row | no notice; the approval events are as today | none |
 | Not replayable | ToolSource or Runner empty, any `approval.*` | no notice | none |
 | DW-454 | the row `failed`/`failed`, ToolSource "" (or Runner ""); then `decision.recorded` of a Decision row kind `tool`, ItemId the Ref, Fallback 1, Reasons = `Decide.#HELDBEFOREUPDATE` | after `approval.result`: no notice. After `decision.recorded`: one kind `result` notice "zz_send didn't run. This request was held before an update and cannot be run again safely, so please ask again." (DecisionRef set, no buttons) and one `approval` event with state `failed` and `reason` the sentence | Reasons empty, or the row is not failed: nothing |
+| Raw reason (U-212 (3)) | as DW-454, but the Decision's first `Reasons` line is raw error text (for example `ERROR #5002: ObjectScript error`) | `toolCall.failed` with no reason slot, never the raw text; no `{reason}` ever carries text outside the catalog's reasons | none |
 | Send fails | `NoticesIn.Send` returns an error, or throws | one warning naming the type and the Ref; `OnEvent` returns OK; the approval event is still published | logged |
 | Answered after a result | phone: request message R (ApprovalRef A), then result message M (Delivery newest for A), then answered for A | M unchanged; R unchanged; one answered Delivery row with an empty ChannelMessageId | none |
 
@@ -204,9 +220,15 @@ Line numbers are at the worktree head `c5bfcbe26cf1351fa25f85a97c0a5747f4a326ea`
 
 ## Spec Change Log
 
+- 2026-11-02 (lead, epic-31 runner, after hold #2; re-plan): (a) U-212 applied (`apply U-212 at=2026-11-02T13:19:05Z#648`): its four conditions are written into the intent contract's Boundaries and the I/O matrix (server form of the first line, 200-character one-line inputs, catalog-only `{reason}`, labelled `{time}`); Design Notes item 6's "no `on {server}` form" is superseded. (b) The web chat tool-call approval card moves from `deferred:` into scope (the Contest Planner under the owner's delegation: "The web-chat tool-call approval gap is 1.0.0-VISIBLE: PUT IT INTO 31.5"), with an `[AMENDED 2026-11-02, Story 31.5, Contest Planner under the owner's delegation]` acceptance bullet in epics.md. Status reset to `draft` so the plan re-derives the Code Map, Tasks, Verification and size around the amended intent.
+
 ## Review Triage Log
 
 ## Design Notes
+
+**U-212 (owner decision, lead-written; keep verbatim through the re-plan).** Veto U-212, kept by the Contest Planner under the owner's delegation with four conditions (`at=2026-11-02T13:19:05Z#648`): "Keep, with four conditions. (1) Match the card: the first line is 'Run {tool} on {server}' when the server is known, and 'Run {tool}' only when it isn't. (2) {inputs} stays on one line through the bridge's redactor, and is capped at 200 characters, ending with '…' when cut; the phone and paired chat never get more of a call's inputs than the card shows. (3) {reason} in toolCall.failedWithReason is only ever a catalog reason (such as U-214's), never raw error or exception text; a test pins it. (4) {time} uses the same labelled form as the other catalog times (DW-574 will unify zones later). The Q3 reading (answer edits the request in place; the result is a new message with no buttons, as for a fix in Story 6.4) is kept." The Boundaries say how each condition binds; item 6 below is superseded where it says the request has no `on {server}` form.
+
+**Web chat card (lead-written; keep).** Moved from `deferred:` into scope (see the Intent's amendment). The sibling to extend is `web/src/app/approvals/approval-request-card.ts` (`ApprovalRequestCard`, today drawn by `web/src/app/incidents/incident-card.ts` inside a fix's incident card) with `ApiClient.answerApproval`; Rule 2 applies.
 
 **Governing ADs (Rule 6):**
 - **AD-31:** `BridgeSink` sends the tool-call notices through `NoticesIn`, asynchronously, never waiting more than 1 s; `IncidentManager` keeps fixes.
@@ -307,5 +329,5 @@ Every test added or changed passes on a fresh environment, in either order.
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: draft (re-plan after the 2026-11-02 amendment)
 Blocking condition: none
