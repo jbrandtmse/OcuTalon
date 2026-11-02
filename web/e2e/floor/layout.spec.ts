@@ -532,6 +532,31 @@ test('G4: below 1024px an empty chat list is as tall as its content', async ({ p
   expect(sizes.client, 'and is shorter than 70vh').toBeLessThan(0.7 * sizes.inner);
 });
 
+/**
+ * G4, a very short window (U-202): where the stacked header's wrapped height passes a quarter of the window, it scrolls away with the
+ * page instead of sticking over it, and --app-header-block-size is 0px, since nothing stays above a focused element. The case opens at
+ * the normal size, narrows the window to 320x180 and scrolls to the bottom. (1000x800 and 640x360 stay sticky: expectColumn.)
+ */
+test('G4: at 320x180 a header over a quarter of the window scrolls with the page', async ({ page }) => {
+  const normal = page.viewportSize()!;
+  try {
+    await openFloor(page);
+    await page.setViewportSize({ width: 320, height: 180 });
+    await settled(page);
+    const header = page.locator('app-header');
+    const sizes = await page.evaluate(() => ({ header: document.querySelector('app-header')!.getBoundingClientRect().height, inner: window.innerHeight }));
+    expect(sizes.header, `control: the header (${sizes.header}px) is over a quarter of the window (${sizes.inner}px)`).toBeGreaterThan(sizes.inner / 4);
+    await expect(header, 'the header scrolls with the page').toHaveCSS('position', 'static');
+    expect(await page.evaluate(() => document.documentElement.style.getPropertyValue('--app-header-block-size')), 'and writes no scroll padding').toBe('0px');
+    await page.evaluate(() => window.scrollTo(0, document.scrollingElement!.scrollHeight));
+    await settled(page);
+    expect((await pageScroll(page)).top, 'the page scrolled').toBeGreaterThan(0);
+    expect(await headerBottom(page), 'and the header went above the window').toBeLessThanOrEqual(0.5);
+  } finally {
+    await page.setViewportSize(normal);
+  }
+});
+
 test.describe('at 200%: 640x360 at device scale 2', () => {
   test.use({ viewport: { width: 640, height: 360 }, deviceScaleFactor: 2 });
 

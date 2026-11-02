@@ -342,10 +342,12 @@ export type PageRender = (key: string, slots: Readonly<Record<string, unknown>>)
  * - state `executing`: result.stillResending, partial, `clock`;
  * - `interrupted` above 0: result.interrupted (remaining = total less completed), partial, `triangle-alert`;
  * - `resent`, `completed`, `failedAgain` and `skipped` all 0 and a reason: result.couldNotStart, partial, `triangle-alert`;
+ * - `unreached` above 0: result.stoppedPartway (notTried = unreached less 1, at least 0), partial, `triangle-alert`;
  * - `failedAgain` and `skipped` above 0: result.failedAndSkipped; `failedAgain` above 0: result.failedAgain; `skipped` above 0:
  *   result.skipped; all partial, `triangle-alert`;
  * - otherwise result.allThrough, success, `circle-check`.
- * The count is the result's `total`; the item noun is the incident's, else "message" and "messages". The catalog picks the count-of-one
+ * A run still going reaches the page as `executing` with no result, so no band shows and the card's fixing line is its still-resending
+ * state. The count is the result's `total`; the item noun is the incident's, else "message" and "messages". The catalog picks the count-of-one
  * forms and the noun's form from the strings given.
  */
 export function resultView(request: IncidentRequest, itemNoun: ItemNoun | undefined, render: PageRender): ResultView | undefined {
@@ -359,6 +361,7 @@ export function resultView(request: IncidentRequest, itemNoun: ItemNoun | undefi
   const failedAgain = numberOf(result.failedAgain) ?? 0;
   const skipped = numberOf(result.skipped) ?? 0;
   const interrupted = numberOf(result.interrupted) ?? 0;
+  const unreached = numberOf(result.unreached) ?? 0;
   const reason = textOf(result.reason);
   const counts = {
     count: String(total),
@@ -379,6 +382,9 @@ export function resultView(request: IncidentRequest, itemNoun: ItemNoun | undefi
   } else if (resent === 0 && completed === 0 && failedAgain === 0 && skipped === 0 && reason !== '') {
     key = 'result.couldNotStart';
     slots = { reason };
+  } else if (unreached > 0) {
+    key = 'result.stoppedPartway';
+    slots = { ...counts, resent: String(resent), notTried: String(Math.max(unreached - 1, 0)) };
   } else if (failedAgain > 0 && skipped > 0) {
     key = 'result.failedAndSkipped';
     slots = { ...counts, failedAgain: String(failedAgain), failReason: reason, skipped: String(skipped) };

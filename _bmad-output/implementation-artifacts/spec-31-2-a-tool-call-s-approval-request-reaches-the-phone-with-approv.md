@@ -2,9 +2,10 @@
 title: 'Story 31.2 part 1: a fix result says how far it got, the next turn knows a tool call finished, and three layout fixes'
 type: 'feature'
 created: '2026-11-02'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'aa312ea4c9d9b56cb7409af90580336c03e5bb2c'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad/custom/skill-rules.md'
 warnings: ['multiple-goals', 'oversized']
@@ -169,32 +170,32 @@ Line numbers are at the worktree head `2a84fb6b`.
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] `web/src/app/approvals/approval-view.ts` -- read `unreached` with `numberOf`. Add the `result.stoppedPartway` branch after couldNotStart, with slots `{count, itemNoun, completed, resent, notTried}` as strings, like the other slots, and tone and icon as in Boundaries. Add the row to the doc table, plus one line: a run still going reaches the page as `executing` with no result, so the card's fixing line is its still-resending state (DW-473) -- DW-472, DW-473.
-- [ ] `web/scripts/catalog.mjs` then `npm --prefix web run catalog` (writes `web/src/app/msg/catalog.ts`) -- list the key after couldNotStart and update the header count -- DW-472.
-- [ ] `web/scripts/catalog.test.mjs` -- `RESULT_KEYS` gains the key in order (9). Add its slot types, a render example for each form, the `PAGE_ONE_FORMS` lists (:219, :472) with slot `notTried`, and a `RESULTS` fixture entry -- DW-472.
-- [ ] `web/scripts/approval-view.test.mjs` -- cover the matrix's first four rows: the text, the one form, notTried 0, each ordering case, and an absent, 0, null or non-number `unreached` -- DW-472.
-- [ ] `web/scripts/incident-view.test.mjs` -- pin the still-running row: a `fixing` incident whose request is `executing` with no result gives the fixing line and no band. If an existing case already pins exactly this, name it under Verification instead -- DW-473.
-- [ ] `web/e2e/cards/approval-card.spec.ts` -- new A11 (and the file doc's case list). Seed a request row in state `done`, then publish a `resolved` incident whose request result is `{total 3, resent 2, completed 2, failedAgain 0, skipped 1, interrupted 0, unreached 1, reason ''}`. The request card's `[data-part="result"]` reads the stopped-partway text (partial tone, `triangle-alert`) and not "had changed since the dry run". It creates and cleans its own rows -- DW-472 (real-runtime, Rule 3).
-- [ ] `src/ocutalon/cls/OcuTalon/Data/Ownership.cls` -- add the `finishedToolCalls` kind and `FinishedToolCalls`. An empty `through` is an error. It keeps the class's owner-Ref checks -- DW-443.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Data/Ownership.cls` -- add the kind to the :512 list. Add a row test: own vs another session, `fix` vs `tool_call`, no FinishedAt, both window bounds (the lower one exclusive, the upper one inclusive) and the order -- DW-443.
-- [ ] `src/ocutalon/cls/OcuTalon/Core/Conversation.cls`:
+- [x] `web/src/app/approvals/approval-view.ts` -- read `unreached` with `numberOf`. Add the `result.stoppedPartway` branch after couldNotStart, with slots `{count, itemNoun, completed, resent, notTried}` as strings, like the other slots, and tone and icon as in Boundaries. Add the row to the doc table, plus one line: a run still going reaches the page as `executing` with no result, so the card's fixing line is its still-resending state (DW-473) -- DW-472, DW-473.
+- [x] `web/scripts/catalog.mjs` then `npm --prefix web run catalog` (writes `web/src/app/msg/catalog.ts`) -- list the key after couldNotStart and update the header count -- DW-472.
+- [x] `web/scripts/catalog.test.mjs` -- `RESULT_KEYS` gains the key in order (9). Add its slot types, a render example for each form, the `PAGE_ONE_FORMS` lists (:219, :472) with slot `notTried`, and a `RESULTS` fixture entry -- DW-472.
+- [x] `web/scripts/approval-view.test.mjs` -- cover the matrix's first four rows: the text, the one form, notTried 0, each ordering case, and an absent, 0, null or non-number `unreached` -- DW-472.
+- [x] `web/scripts/incident-view.test.mjs` -- pin the still-running row: a `fixing` incident whose request is `executing` with no result gives the fixing line and no band. If an existing case already pins exactly this, name it under Verification instead -- DW-473.
+- [x] `web/e2e/cards/approval-card.spec.ts` -- new A11 (and the file doc's case list). Seed a request row in state `done`, then publish a `resolved` incident whose request result is `{total 3, resent 2, completed 2, failedAgain 0, skipped 1, interrupted 0, unreached 1, reason ''}`. The request card's `[data-part="result"]` reads the stopped-partway text (partial tone, `triangle-alert`) and not "had changed since the dry run". It creates and cleans its own rows -- DW-472 (real-runtime, Rule 3).
+- [x] `src/ocutalon/cls/OcuTalon/Data/Ownership.cls` -- add the `finishedToolCalls` kind and `FinishedToolCalls`. An empty `through` is an error. It keeps the class's owner-Ref checks -- DW-443.
+- [x] `src/ocutalon/cls/OcuTalon/Test/Data/Ownership.cls` -- add the kind to the :512 list. Add a row test: own vs another session, `fix` vs `tool_call`, no FinishedAt, both window bounds (the lower one exclusive, the upper one inclusive) and the order -- DW-443.
+- [x] `src/ocutalon/cls/OcuTalon/Core/Conversation.cls`:
   - Add the parameters `TOOLNOTEHEAD` = "Approved tool calls that finished since the last message, as OcuTalon recorded them (not their output):", `TOOLNOTEDONE` = "- {tool}: done at {time}" and `TOOLNOTEFAILED` = "- {tool}: failed at {time}", filled by `$Replace`, not the catalog.
   - Add a `ToolNote(turn)` class method that finds the window from `Ownership.Turns` and reads `FinishedToolCalls`.
   - `Ask` sets `request.SystemNote` on both branches.
   - Add the class doc bullet.
   - DW-443.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Core/ConversationTurns.cls` -- cover the matrix's five note rows through the DecideDouble's `systemNote`, with real `ApprovalRequest` rows that the test seeds and removes. Assert the note holds no `ToolArguments` value. `TestSourceKeepsToItsBoundaries` stays green -- DW-443 (the integration AC: Conversation reads `Ownership.FinishedToolCalls` against real rows).
-- [ ] `web/src/app/header/header.ts`:
+- [x] `src/ocutalon/cls/OcuTalon/Test/Core/ConversationTurns.cls` -- cover the matrix's five note rows through the DecideDouble's `systemNote`, with real `ApprovalRequest` rows that the test seeds and removes. Assert the note holds no `ToolArguments` value. `TestSourceKeepsToItsBoundaries` stays green -- DW-443 (the integration AC: Conversation reads `Ownership.FinishedToolCalls` against real rows).
+- [x] `web/src/app/header/header.ts`:
   - One `update()`, called by the existing observer and by a window `resize` listener that is removed on destroy. It toggles the host class `scrolls` when the layout is stacked and the host height is over `innerHeight / 4`, and then writes `0px` to `HEADER_SIZE`; otherwise it writes the height.
   - CSS `:host(.scrolls) { position: static; }` inside the stacked block.
   - Update the class doc.
   - DW-530.
-- [ ] `web/e2e/floor/layout.spec.ts` -- new case: open at a normal size, resize to 320x180, scroll to the bottom; `app-header` is `position: static`, its bottom is at or above 0, and the root `--app-header-block-size` is `0px`. Restore the viewport -- DW-530.
-- [ ] `web/src/app/guide/demo-guide.ts` -- `@media ${HEIGHT_QUERIES.compact} and ${LAYOUT_QUERIES.stacked} { .finish { flex-basis: 100%; } }` after the stacked block. `.prompt` is unchanged -- DW-542.
-- [ ] `web/e2e/floor/guide.spec.ts` -- in M9, once the finish shows, at 640x360 at scale 2, `.finish` top is at or below `.row1` bottom, and its width is within 2px of `.main`'s content width. Restore the viewport -- DW-542.
-- [ ] `web/src/app/chat/chat-panel.ts` -- the observer scrolls only when `this.atBottom && !this.fresh()`, and `onScroll` returns early while `fresh()`. Update the class doc -- DW-543.
-- [ ] `web/e2e/chat/chat.spec.ts` -- new case on C11's routed empty `/state`, at a size where the empty chat overflows (assert `scrollHeight > clientHeight` as the precondition): `scrollTop` 0 and the headline in view. Then the first send leaves the list at the bottom -- DW-543.
-- [ ] `web/e2e/cards/approval-card.spec.ts` -- in A7, replace `open(page)` with `signInOverHttp(page.request, user, password)` and `expect((await page.request.get(STATE)).status()).toBe(200)`. Its assertions are unchanged -- DW-497.
+- [x] `web/e2e/floor/layout.spec.ts` -- new case: open at a normal size, resize to 320x180, scroll to the bottom; `app-header` is `position: static`, its bottom is at or above 0, and the root `--app-header-block-size` is `0px`. Restore the viewport -- DW-530.
+- [x] `web/src/app/guide/demo-guide.ts` -- `@media ${HEIGHT_QUERIES.compact} and ${LAYOUT_QUERIES.stacked} { .finish { flex-basis: 100%; } }` after the stacked block. `.prompt` is unchanged -- DW-542.
+- [x] `web/e2e/floor/guide.spec.ts` -- in M9, once the finish shows, at 640x360 at scale 2, `.finish` top is at or below `.row1` bottom, and its width is within 2px of `.main`'s content width. Restore the viewport -- DW-542.
+- [x] `web/src/app/chat/chat-panel.ts` -- the observer scrolls only when `this.atBottom && !this.fresh()`, and `onScroll` returns early while `fresh()`. Update the class doc -- DW-543.
+- [x] `web/e2e/chat/chat.spec.ts` -- new case on C11's routed empty `/state`, at a size where the empty chat overflows (assert `scrollHeight > clientHeight` as the precondition): `scrollTop` 0 and the headline in view. Then the first send leaves the list at the bottom -- DW-543.
+- [x] `web/e2e/cards/approval-card.spec.ts` -- in A7, replace `open(page)` with `signInOverHttp(page.request, user, password)` and `expect((await page.request.get(STATE)).status()).toBe(200)`. Its assertions are unchanged -- DW-497.
 
 **Acceptance Criteria:**
 - Given a resolved incident whose request result has `unreached` 1, when the signed-in page shows its card, then the result band reads `result.stoppedPartway`'s text and never `result.skipped`'s (DW-472; pinned by A11).
@@ -209,6 +210,41 @@ Line numbers are at the worktree head `2a84fb6b`.
 ## Spec Change Log
 
 ## Review Triage Log
+
+### 2026-11-02 - Review pass
+- verdicts: 31 findings - high 0, medium 4, low 16, false 11, maybe-false 0
+- findings:
+  - `[medium]` `[patch]` (blind) a refused turn's window is lost: ToolNote took the lower bound from every Turn, refused ones included - a refused turn never reaches Ask, so its calls were named in no note. Fixed: the lower bound skips a refused Turn; TestToolNoteNamesTheFinishedCalls gained a refused turn between two asked ones.
+  - `[low]` `[reject]` (blind) the note has no line or name-length cap - a user approves each call, so a window of dozens of calls is not reachable, and a cap adds a branch and a new model-facing text.
+  - `[low]` `[patch]` (blind) a tool name holding `{time}` was rewritten by the second `$Replace`. Fixed: `{time}` is filled first, then `{tool}`; the test seeds `zz_{time}x`.
+  - `[low]` `[reject]` (blind) every Ask reads all of the session's turns - the same read and cost shape as Recap; a one-row read would be a new Ownership kind for no observed cost.
+  - `[low]` `[patch]` (blind) missing tests (the turn-not-among-its-session branch, the Turns failure, log clean-up, FinishedAt precision) - the not-among branch now has a test and a mutation; a Turns failure is not reachable without a fault injection, the log clean-up follows the existing probe-log pattern, and FinishedAt is system-written in one fixed form.
+  - `[false]` `[reject]` (blind) the stopped-partway band hides the reason - the server's ResultKey order and slots are the contract (spec Always); the catalog text of `result.stoppedPartway` has no reason slot (U-182).
+  - `[false]` `[reject]` (blind) "0 more weren't tried" reads awkwardly - the text is ruled (U-182) and pinned by the matrix's first row; a zero form is a new public text.
+  - `[false]` `[reject]` (blind) `onScroll`'s early return leaves `lastTop` stale - the chat leaves the fresh state once and for good, and the first scroll afterwards sets `atBottom` from the position (at the bottom wins; a scroll up needs a lower top than the stale 0, which it cannot have).
+  - `[low]` `[reject]` (blind) the header flips on the phone keyboard's innerHeight change - the quarter-of-the-window rule is the spec's (Decided 4); static there only loses stickiness and writes 0px, which is the wanted behaviour for a short window, and a hysteresis is a new rule.
+  - `[low]` `[patch]` (blind) `iconPaths` could return no paths - fixed: it asserts at least one path; the cwd-relative read is the way the other e2e specs read sources.
+  - `[medium]` `[patch]` (edge) same root cause as the refused turn's window above (patched once).
+  - `[false]` `[reject]` (edge) a previous Turn with an empty CreatedAt makes the lower bound "0" - a Turn gets its CreatedAt when it is created (Fixture and the page's POST both set it); no reachable row has none.
+  - `[low]` `[reject]` (edge) a call that commits after the first Ask in the turn's own second - FinishedAt is whole seconds, the upper bound is the turn's CreatedAt (a call in a later second goes to the next turn, once); the tie is the spec's rule (Decided 3).
+  - `[medium]` `[patch]` (edge) ForMessage defaulted `now` to the clock, so the note's text changed across a local midnight between two asks of one turn. Fixed: `now` is the turn's CreatedAt; the tests pass the turn's time.
+  - `[low]` `[patch]` (edge) same root cause as the `{time}` order above (patched once).
+  - `[false]` `[reject]` (edge) ToolName is model-chosen text - the row's ToolName is the registered tool's name that the governance recorded, and the spec names it as an allowed field (AD-30); control characters are stripped.
+  - `[low]` `[reject]` (edge) no line cap - same as the first cap finding.
+  - `[false]` `[reject]` (edge) an unreadable FinishedAt gives an empty time - FinishedAt is written by FinishExecution in one form; an unreadable value is not reachable.
+  - `[low]` `[reject]` (edge) the read loads every Turn - same as the all-turns finding.
+  - `[false]` `[reject]` (edge) `atBottom` stale if the chat emptied while scrolled up - a chat never goes back to empty on a live page.
+  - `[false]` `[reject]` (edge) C16 runs at 1280x560, not 1280x800 - the matrix says "at 1280x800 or a height where it overflows"; at 1280x800 the welcome panel fits, which the control assertion would show.
+  - `[medium]` `[patch]` (gap) the `onScroll` early return and the arrival path were unpinned - C16 never scrolled the list and the first entry was a send. Fixed: C16 reloads the empty chat, scrolls the list down and up, lets a tall seeded turn arrive and asserts the list follows the bottom (with a control that it overflows); mutation recorded.
+  - `[low]` `[reject]` (gap) ToolNote's Catch is never executed - it is a defensive branch for an unforeseen exception; the two reachable failures (an empty window end, a turn not among its session's) are pinned.
+  - `[low]` `[patch]` (gap) several AC clauses had no `mutation:` line (the window's lower bound, the done/failed mapping, no tool arguments, the time, `unreached` non-numeric, the header's sticky half, DW-542 alone). Fixed: each was applied, seen red and reverted; the lines are in Verification.
+  - `[low]` `[patch]` (gap) the new ConversationTurns tests did not collect their ApprovalRequest Refs, so OnAfterAllTests left them. Fixed: `Finished` and the two direct rows go through `Kept`, which adds the Ref to the cleaned Refs.
+  - `[low]` `[reject]` (gap) the failure test deletes its log rows after its assertions - the rows are scoped by mark and SourceMethod, and OnBeforeAllTests' sibling probes clean the log in OnAfterAllTests.
+  - `[low]` `[patch]` (gap) same root cause as the `{time}` order above (patched once).
+  - `[low]` `[patch]` (gap) same root cause as the `iconPaths` guard above (patched once).
+  - `[false]` `[reject]` (intent) DW-472's server-to-page path is not in A11 - the Lane A payload is read-only here; the AC sits at the page given the payload (the order is mirrored from ResultKey and pinned in approval-view tests).
+  - `[false]` `[reject]` (intent) DW-543's AC names 1280x800 but C16 runs at 1280x560 - same as the size finding above.
+  - `[false]` `[reject]` (intent) DW-443 is pinned at the Decide request, not through the model - the AC names the Decide `turn` request's SystemNote; ChatInput's carrying of the note is unchanged and pinned by Test.Bridge.Conversation.
 
 ## Design Notes
 
@@ -252,6 +288,8 @@ Line numbers are at the worktree head `2a84fb6b`.
 5. **DW-542:** the CSS is limited to compact height and stacked width; windows 1024px and wider keep one compact row.
 6. **DW-543:** only the fresh (welcome-only) chat is exempt from bottom-follow; the first entry or send pins the bottom as before.
 7. **DW-497:** fixed for A7, the one failing occurrence, which never used the rendered page. The shared `loadedAfter` (`floor.ts`, never edited) is unchanged. Another `open()` test failing the same way is an `occurrence` on DW-497's root cause, not a new entry.
+8. **DW-443 window and refused turns (review):** the window's lower bound is the previous Turn that was not refused. A refused turn is never asked, so its calls go to the next turn that is, and each call still lands in exactly one note.
+9. **DW-443 time (review):** `Time.ForMessage` is called with the turn's `CreatedAt` as `now`, so the note is the same each time the turn is asked, even across a local midnight.
 
 **Ledger inbox (Rule 17):**
 - DW-472: addressed (tasks 1-4 and 6).
@@ -348,11 +386,30 @@ Every test added or changed passes on a fresh environment, in either order.
 
 **Pinning tests and the mutations to apply** (the implement stage writes `mutation: <change> → <red test>` next to each):
 - DW-472: drop the stoppedPartway branch → the `approval-view.test.mjs` stoppedPartway case and A11 go red.
+  - mutation: `unreached > 0` branch of `resultView` made never true -> `approval-view.test.mjs` 'is the partial band with triangle-alert for a run that stopped partway ...' and 'puts stopped partway after interrupted ...' red, and cards A11 red (live:cards, bundle rebuilt with the mutation); reverted byte-identically.
+  - mutation: `unreached` read as `result.unreached ? 1 : 0` (a non-numeric value counts as 1) -> `approval-view.test.mjs` 'is the partial band with triangle-alert ...' and 'reads an absent, 0, null or non-numeric unreached as 0 ...' red; reverted byte-identically.
 - DW-473: give an executing request with no result a band → task 5's pin (and `approval-view.test.mjs` :317) goes red.
+  - mutation: `resultView` reads an executing request with no `result` as `{}` -> `approval-view.test.mjs` 'is undefined for a request with no result ...' and `incident-view.test.mjs` 'show no band for a fix run that is still going ...' red; reverted byte-identically.
 - DW-443 (a): `Ask` sets no `SystemNote` → the ConversationTurns note case goes red. (b) Make the lower bound inclusive → the `Test.Data.Ownership` bounds case goes red (a row whose FinishedAt equals the lower bound). (c) Drop the `OwnerRef` bind → the other-session case and the `Test.Data.Ownership` row test go red.
+  - mutation (a): `Set request.SystemNote = ""` in `Ask` -> `Test.Core.ConversationTurns` TestToolNoteNamesTheFinishedCalls, TestToolNoteIsTheSameOnEveryAsk and TestToolNoteReadFailureNeverStopsTurn red; reverted byte-identically, class green again on the same warm stack.
+  - mutation (b): `a.FinishedAt >= ?` in the `finishedToolCalls` statement -> `Test.Data.Ownership` TestFinishedToolCalls ('the lower bound is exclusive ...', 'a window whose bounds are one time is empty', 'a window after the newest is empty') red; reverted byte-identically.
+  - mutation (c): `a.OwnerRef = ?` and its bind removed from the statement (binds "aa") -> `Test.Data.Ownership` TestFinishedToolCalls ('... other session's or instance request', 'another session reads its own only') and `Test.Core.ConversationTurns` TestToolNoteNamesTheFinishedCalls, TestToolNoteIsTheSameOnEveryAsk red; reverted byte-identically, both classes green again on the same warm stack.
+  - mutation (d): `Set after = ""` instead of advancing the lower bound -> `Test.Core.ConversationTurns` TestToolNoteNamesTheFinishedCalls (the third and the second turn's note) red; reverted byte-identically.
+  - mutation (e): the line chosen by `call.Result = "done"` instead of `call.State = "done"` -> TestToolNoteNamesTheFinishedCalls red (a failed row whose Result is done); reverted byte-identically.
+  - mutation (f): `call.ToolArguments` appended to each line -> TestToolNoteNamesTheFinishedCalls ('and holds no tool arguments') and TestToolNoteIsTheSameOnEveryAsk red; reverted byte-identically.
+  - mutation (g): `ForMessage(call.FinishedAt)` without the turn's CreatedAt -> TestToolNoteNamesTheFinishedCalls and TestToolNoteIsTheSameOnEveryAsk red (the time text depends on the clock); reverted byte-identically.
+  - mutation (h): the refused-turn skip removed from the lower bound -> TestToolNoteNamesTheFinishedCalls red; reverted byte-identically.
+  - mutation (i): `{tool}` filled before `{time}` -> TestToolNoteNamesTheFinishedCalls (the `zz_{time}x` call) red; reverted byte-identically.
+  - mutation (j): the turn-not-among-its-session's error removed -> TestToolNoteReadFailureNeverStopsTurn red; reverted byte-identically.
 - DW-530: drop `:host(.scrolls)` → the new layout case goes red.
+  - mutation: `:host(.scrolls) { position: static; }` removed from `header.ts` -> `floor/layout.spec.ts` 'G4: at 320x180 a header over a quarter of the window scrolls with the page' red (toHaveCSS position static); reverted byte-identically.
+  - mutation (sticky half): `const scrolls = this.layout.stacked();` (no quarter-of-the-window test) -> `floor/layout.spec.ts` 'G4: at 1000x800 ...', 'at 200%: ... G4' and 'at 200%: ... G5' red (live:floor, applied together with the DW-542 mutation below; 4 failed, 103 passed); reverted byte-identically.
 - DW-542: drop the `.finish` flex-basis rule → M9's new assertion goes red.
+  - mutation: the `${HEIGHT_QUERIES.compact} and ${LAYOUT_QUERIES.stacked}` block removed from `demo-guide.ts` -> `floor/guide.spec.ts` M9 red (applied together with the DW-530 mutation in one live:floor run: exactly these two cases failed, 105 passed); reverted byte-identically. The viewport is 640x360 at the default device scale: CSS pixels, so the layout is the same as at scale 2.
+  - mutation (alone, in the same live:floor run as the sticky-half mutation): only `floor/guide.spec.ts` M9 is red among the guide cases, with the layout cases red for the other mutation; reverted byte-identically.
 - DW-543: drop `!this.fresh()` → the new chat case goes red.
+  - mutation: `!this.fresh()` removed from the ResizeObserver callback of `chat-panel.ts` -> `chat/chat.spec.ts` C16 red (live:sign-in --part 1/3: scrollTop expected 0, received 252; 89 passed); reverted byte-identically.
+  - mutation (onScroll): the `if (this.fresh()) return;` in `onScroll` removed -> `chat/chat.spec.ts` C16 red alone (live:sign-in --part 1/3: after an arrival the list follows the bottom, expected <= 24, received 599; 89 passed); reverted byte-identically.
 - DW-497: none. It removes a dependency; the evidence is A7 passing without `open()`.
 
 **Manual checks:**
@@ -361,5 +418,27 @@ Every test added or changed passes on a fresh environment, in either order.
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** The page shows a run that stopped partway as `result.stoppedPartway` (DW-472); a run still going keeps the fixing line and no band (DW-473, pinned; counts-so-far deferred). `Conversation.Ask` puts a code-written `SystemNote` on the turn request from the session's own finished `tool_call` rows in the turn's window, through the new `Ownership.FinishedToolCalls` (DW-443). The stacked header scrolls away where it passes a quarter of the window (DW-530), the guide's finish state takes full width at compact stacked sizes (DW-542), the empty chat opens at its top (DW-543), and cards A7 signs in over HTTP (DW-497).
+
+**Files changed.**
+- `src/ocutalon/cls/OcuTalon/Core/Conversation.cls`: `ToolNote`, the three `TOOLNOTE*` parameters, `Ask` sets the note.
+- `src/ocutalon/cls/OcuTalon/Data/Ownership.cls`: kind `finishedToolCalls` and `FinishedToolCalls`.
+- `src/ocutalon/cls/OcuTalon/Test/Core/ConversationTurns.cls`, `src/ocutalon/cls/OcuTalon/Test/Data/Ownership.cls`: note and row tests.
+- `web/src/app/approvals/approval-view.ts`, `web/scripts/catalog.mjs`, `web/src/app/msg/catalog.ts` (generated): the stoppedPartway branch and listed key.
+- `web/src/app/header/header.ts`, `web/src/app/guide/demo-guide.ts`, `web/src/app/chat/chat-panel.ts`: DW-530, DW-542, DW-543.
+- Tests: `web/scripts/{approval-view,catalog,incident-view}.test.mjs`; `web/e2e/cards/approval-card.spec.ts` (A11, A7), `web/e2e/floor/{layout,guide}.spec.ts`, `web/e2e/chat/chat.spec.ts` (C16).
+- Footprint extensions beyond the spec's list (Rule 11 (b), none contended): `web/scripts/ux-strings.test.mjs` (the ruled U-182 text of `result.stoppedPartway`), `web/scripts/floor-sources.test.mjs` (a leading height query may precede a width band), `web/scripts/playwright-projects.test.mjs` (cards A2 to A11, 20 cases).
+
+**Review.** 31 findings (high 0, medium 4, low 16, false 11). Patches applied: the refused-turn window, `{time}` in a tool name, the `now` of the note's time, the not-among-turns test, the `iconPaths` guard, C16's scroll-then-arrival segment, the test Refs clean-up, and the missing mutation lines. Rejected with reasons: see the Review Triage Log. Deferred: none new (the DW-473 residual stays).
+
+**Follow-up review recommendation.** `followup_review_recommended: true`: three medium entries were patched. The unverified risk is the refused-turn skip in `ToolNote`: it is pinned by a unit fixture with a refused Turn, not by an online-demo refusal end to end.
+
+**Verification (final tree).**
+- (loop) catalog current; `npm --prefix web test` 1181 of 1181; lint exit 0; warm `ConversationTurns`, `Data.Ownership` and `Bridge.Conversation` passed.
+- (once, fresh tag e31s2i, bundle rebuilt after the last patch): `live cards` 20 passed (A7, A11); `live floor` 107 passed; `live sign-in` parts 1/3 90, 2/3 76, 3/3 81 passed; `live answers` 21 passed; `live demo-path` 12 passed, 9 skipped as before; `shard lane-b@Core,Data` forward and `--reverse` 41 classes each passed; `test-boundaries`, `test-class-rules`, `test-storage` and `test-ci-config` passed. No known flake occurred, so no rerun.
+- Mutations: each recorded under Verification was applied, seen red and reverted byte-identically (`cmp`). The warm and fresh stacks were torn down.
+
+**Residual risks.** `docker/tests/test-cards.sh` still words its pass line as "A2-A10". `FinishedToolCalls` binds "0" for an empty lower bound because an empty string binds as NULL (documented on the method).

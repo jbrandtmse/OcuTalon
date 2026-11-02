@@ -491,6 +491,9 @@ const SOURCES = {
       'Step {n}, {label}, done',
       'Step {n}, {label}, upcoming',
     ],
+    'Story 30.5 ruling U-182 (AD-16 as amended: the text of result.stoppedPartway, a resend that stops at the first copy that errs; the page renders the catalog\'s text)': [
+      "The resend stopped partway: I resent {resent} of the {count} {itemNoun} ({completed} went through), the next one couldn't be resent, and {notTried} more weren't tried. Nothing else was changed, and I won't resend the rest without a new approval.",
+    ],
   },
   calendar: [
     'Sunday',

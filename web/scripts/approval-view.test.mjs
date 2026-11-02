@@ -355,6 +355,43 @@ describe('the result band (Story 6.4)', () => {
     assert.equal(band({ completed: 0, resent: 0, reason: 'zz' }, 'executing').key, 'result.stillResending', 'executing wins over could not start');
   });
 
+  it('is the partial band with triangle-alert for a run that stopped partway, and notTried is the unreached less the copy that erred', () => {
+    const stopped = { total: 3, resent: 2, completed: 2, failedAgain: 0, skipped: 1, unreached: 1 };
+    assert.deepEqual(band(stopped), {
+      key: 'result.stoppedPartway',
+      text: "The resend stopped partway: I resent 2 of the 3 orders (2 went through), the next one couldn't be resent, and 0 more weren't tried. Nothing else was changed, and I won't resend the rest without a new approval.",
+      tone: 'partial',
+      icon: 'triangle-alert',
+      audit: AUDIT,
+    });
+    assert.equal(
+      band({ ...stopped, total: 4, skipped: 2, unreached: 2 }).text,
+      "The resend stopped partway: I resent 2 of the 4 orders (2 went through), the next one couldn't be resent, and 1 more wasn't tried. Nothing else was changed, and I won't resend the rest without a new approval.",
+      'the count-of-one form follows notTried',
+    );
+    assert.equal(band({ ...stopped, unreached: 5 }).text.includes('and 4 more weren\'t tried'), true);
+    assert.equal(band({ ...stopped, total: 1, resent: 0, completed: 0, skipped: 1, unreached: 1 }).key, 'result.stoppedPartway', 'a first copy that erred without a reason is not "could not start"');
+  });
+
+  it('puts stopped partway after interrupted and could not start and before failed and skipped', () => {
+    assert.equal(band({ unreached: 1, interrupted: 1, completed: 2, skipped: 1 }).key, 'result.interrupted');
+    assert.equal(band({ resent: 0, completed: 0, failedAgain: 0, skipped: 0, unreached: 1, reason: 'x' }).key, 'result.couldNotStart');
+    assert.equal(band({ unreached: 1, failedAgain: 1, skipped: 1, completed: 1, reason: 'x' }).key, 'result.stoppedPartway');
+    assert.equal(band({ unreached: 1, failedAgain: 1, completed: 1, reason: 'x' }).key, 'result.stoppedPartway');
+    assert.equal(band({ unreached: 1, skipped: 1, completed: 1 }).key, 'result.stoppedPartway');
+    assert.equal(band({ unreached: 1, completed: 5 }, 'executing').key, 'result.stillResending', 'executing wins');
+  });
+
+  it('reads an absent, 0, null or non-numeric unreached as 0, so an older payload picks the keys it picked before', () => {
+    const before = { completed: 47, skipped: 3 };
+    for (const unreached of [undefined, 0, null, 'x', NaN, -1]) {
+      assert.equal(band({ ...before, unreached }).key, 'result.skipped', String(unreached));
+    }
+    assert.equal(band({ ...before }).key, 'result.skipped');
+    assert.equal(band({ completed: 49, failedAgain: 1, reason: REASON, unreached: null }).key, 'result.failedAgain');
+    assert.equal(band({ unreached: 'x' }).key, 'result.allThrough');
+  });
+
   it('takes the first matching row: executing, then interrupted, then could not start, then both, then failed again, then skipped', () => {
     assert.equal(band({ interrupted: 5, failedAgain: 2, skipped: 1, completed: 10 }, 'executing').key, 'result.stillResending');
     assert.equal(band({ interrupted: 5, failedAgain: 2, skipped: 1, completed: 10 }).key, 'result.interrupted');

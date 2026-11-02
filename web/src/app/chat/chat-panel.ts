@@ -106,7 +106,9 @@ const ANNOUNCE_FORMAT: Omit<ChatAnnounceFormat, 'incidentText' | 'bandTexts' | '
  * Focus: only the user's New messages button moves it, and the page's focus rule (shared/focus-rule.ts) when an update removes the
  * element that holds it inside the list: an item that is still there takes it (the message of Retry sending), else the main region.
  *
- * Scrolling: the list scrolls on its own and is at the bottom when within 24 px of it. On the first load, and whenever it is at
+ * Scrolling: the list scrolls on its own and is at the bottom when within 24 px of it. The empty chat (the welcome panel alone, `fresh`)
+ * stays at the top of the list, so that its heading is never clipped when the panel is taller than the list, and its scrolls do not
+ * count; the first entry or message follows the bottom as below. On the first load, and whenever it is at
  * the bottom, new content keeps it there (a ResizeObserver on the list and its content), except that while the newest entry is an
  * incident card taller than the view that is left, following stops at the card's headline, so that its headline, cause, dry-run
  * count and Approve and Reject stay in view (Story 6.2); a later entry follows to the bottom as before, and so does the card while
@@ -358,7 +360,7 @@ export class ChatPanel {
     afterNextRender(() => {
       const list = this.list().nativeElement;
       const observer = new ResizeObserver(() => {
-        if (this.atBottom) {
+        if (this.atBottom && !this.fresh()) {
           this.scrollToBottom();
         }
       });
@@ -400,6 +402,9 @@ export class ChatPanel {
 
   /** At the bottom (within 24 px) the list is at the bottom; away from it, it has left the bottom only if it was scrolled up. */
   protected onScroll(): void {
+    if (this.fresh()) {
+      return;
+    }
     const list = this.list().nativeElement;
     const top = list.scrollTop;
     const up = top < this.lastTop;

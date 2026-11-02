@@ -38,6 +38,8 @@
 ///   - The online demo's allowances (Story 16.9) read through three more: IncomingMail, the session's own count of incoming
 ///     simulated emails since a time (a Rows kind), and ActiveVisitors and AllowanceHeld above. RecentTurns leaves out a refused
 ///     turn, and RecentNotices includes the allowance cards.
+///   - FinishedToolCalls (Story 31.2) is the session's own tool_call approval requests that finished in a window of FinishedAt, oldest
+///     first: Conversation's code-written note to the next turn reads it (AD-30). It is a Rows kind like the others.
 Class OcuTalon.Data.Ownership
 {
 
@@ -529,6 +531,19 @@ ClassMethod IncomingMail(sessionRef As %String, since As %String, Output oldest 
 	Quit rows.Count()
 }
 
+/// The session's own approval requests of Kind tool_call that finished after the time after and at or before the time through (UTC
+/// strings, as FinishedAt is; after "" is the start of time, bound as "0" because an empty bind is a NULL that no comparison matches), by FinishedAt and then ID: a request with no FinishedAt (pending,
+/// approved or executing) is never one of them. An empty through gives an empty list and an error status in sc, and so does a failed
+/// read. A request of another session or of owner instance is never one of them.
+ClassMethod FinishedToolCalls(sessionRef As %String, after As %String, through As %String, Output sc As %Status) As %ListOfObjects
+{
+	If $Get(through) = "" {
+		Set sc = $SYSTEM.Status.Error(5001, "A read of finished tool calls needs the end of its window")
+		Quit ##class(%ListOfObjects).%New()
+	}
+	Quit ..Rows("finishedToolCalls", sessionRef, .sc, $Select($Get(after) = "": "0", 1: after), through)
+}
+
 /// The IncidentRef of the approval request whose Ref is exactly ref (case-sensitive) when its owner is instance, "" for
 /// every other request, an unknown Ref and an empty one. One fixed statement narrows the rows by the collated index and
 /// the Ref is then compared exactly. It reads across owners and has no session, so it is prepared with the privilege
@@ -776,6 +791,10 @@ ClassMethod Statement(kind As %String, Output class As %String, Output binds As 
 	If kind = "incomingMail" {
 		Set class = "OcuTalon.Data.SimMessage", binds = "oa"
 		Quit "SELECT ID FROM OcuTalon_Data.SimMessage WHERE SessionRef = ? AND Kind = 'mailbox' AND Direction = 'in' AND CreatedAt > ? ORDER BY CreatedAt, ID"
+	}
+	If kind = "finishedToolCalls" {
+		Set class = "OcuTalon.Bridge.Data.ApprovalRequest", binds = "oaa"
+		Quit "SELECT a.ID FROM OcuTalon_Bridge_Data.ApprovalRequest a WHERE a.OwnerRef = ? AND a.Kind = 'tool_call' AND a.FinishedAt IS NOT NULL AND a.FinishedAt > ? AND a.FinishedAt <= ? ORDER BY a.FinishedAt, a.ID"
 	}
 	If kind = "decisionOfItem" {
 		Set class = "OcuTalon.Bridge.Data.Decision", binds = "ao"

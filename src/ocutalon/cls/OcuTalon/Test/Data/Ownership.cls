@@ -9,7 +9,9 @@
 /// (TestApprovalIncident) and the status of Watchers (TestInstanceScope). Story 2.13 adds the turn of an Item (TestTurnOfItem), which
 /// the isolation and refusal tests cover as the row kind turnOfItem. Story 16.9 adds TestRecentTurnsLeaveOutRefusedTurns (a refused
 /// Turn is in Turns and in no other read), TestRecentNoticesIncludeAllowanceCards, TestActiveVisitors and TestAllowanceHeld (the two
-/// cross-owner reads of the allowances) and TestIncomingMail (the session's count of incoming simulated emails).
+/// cross-owner reads of the allowances) and TestIncomingMail (the session's count of incoming simulated emails). Story 31.2 adds
+/// TestFinishedToolCalls (the session's tool calls that finished in a window of FinishedAt) and the row kind finishedToolCalls to
+/// the refusal list of TestRowsRefuses.
 Class OcuTalon.Test.Data.Ownership Extends %UnitTest.TestCase
 {
 
@@ -509,7 +511,7 @@ Method TestRowsRefuses()
 		Do $$$AssertStatusNotOK(sc, "'"_$ZConvert(owner, "O", "URL")_"' (URL-encoded) is not a session's Ref")
 		Do $$$AssertEquals(rows.Count(), 0, "with no rows")
 	}
-	For kind = "turnByClient", "turnOfItem", "turnQueue", "lastReplied", "recentTurns", "recentIncidents", "decision", "turnUsage", "runUsage", "runDecisions", "recentNotices", "recentPhone", "recentMail", "incomingMail", "decisionOfItem", "deliveryByApproval" {
+	For kind = "turnByClient", "turnOfItem", "turnQueue", "lastReplied", "recentTurns", "recentIncidents", "decision", "turnUsage", "runUsage", "runDecisions", "recentNotices", "recentPhone", "recentMail", "incomingMail", "finishedToolCalls", "decisionOfItem", "deliveryByApproval" {
 		Set rows = $ClassMethod(probe, "Call", kind, "", .sc, "zzownshared", "zzownshared")
 		Do $$$AssertStatusNotOK(sc, kind_": an empty owner Ref is an error")
 		Do $$$AssertEquals(rows.Count(), 0, kind_": with no rows")
@@ -1082,6 +1084,45 @@ Method TestIncomingMail()
 	Do $$$AssertEquals($ClassMethod(ownership, "IncomingMail", b, "2030-01-01T09:00:00Z", .oldest)_"|"_oldest, "1|2030-01-01T10:00:01Z", "another session counts its own only")
 	Do $ClassMethod(ownership, "IncomingMail", "", "2030-01-01T09:00:00Z", .oldest, .sc)
 	Do $$$AssertStatusNotOK(sc, "an empty SessionRef is an error")
+}
+
+/// FinishedToolCalls reads the session's own tool_call requests with a FinishedAt in the window (after, through], by FinishedAt and
+/// then ID: the lower bound is exclusive and the upper one inclusive; a fix request, a tool_call request with no FinishedAt, another
+/// session's request and an instance request are never in it; an empty through and an empty SessionRef are errors.
+Method TestFinishedToolCalls()
+{
+	Set fixture = "OcuTalon.Test.Data.Fixture"
+	Set ownership = "OcuTalon.Data.Ownership"
+	Set a = $ClassMethod(fixture, "Session", "zzown"_..Number_"ftca")
+	Set b = $ClassMethod(fixture, "Session", "zzown"_..Number_"ftcb")
+	Set t3 = $ClassMethod(fixture, "Approval", a, , "done", , {"Kind": "tool_call", "ToolName": "zz_third", "Result": "done", "FinishedAt": "2030-01-01T10:00:03Z"})
+	Set t1 = $ClassMethod(fixture, "Approval", a, , "failed", , {"Kind": "tool_call", "ToolName": "zz_first", "Result": "failed", "FinishedAt": "2030-01-01T10:00:01Z"})
+	Set t2 = $ClassMethod(fixture, "Approval", a, , "done", , {"Kind": "tool_call", "ToolName": "zz_second", "Result": "done", "FinishedAt": "2030-01-01T10:00:02Z"})
+	Set t2b = $ClassMethod(fixture, "Approval", a, , "failed", , {"Kind": "tool_call", "ToolName": "zz_second_b", "Result": "interrupted", "FinishedAt": "2030-01-01T10:00:02Z"})
+	Set t4 = $ClassMethod(fixture, "Approval", a, , "done", , {"Kind": "tool_call", "ToolName": "zz_fourth", "Result": "done", "FinishedAt": "2030-01-01T10:00:04Z"})
+	Do $ClassMethod(fixture, "Approval", a, , "done", , {"Kind": "fix", "Result": "done", "FinishedAt": "2030-01-01T10:00:02Z"})
+	Do $ClassMethod(fixture, "Approval", a, , "executing", , {"Kind": "tool_call", "ToolName": "zz_running"})
+	Do $ClassMethod(fixture, "Approval", a, , "approved", , {"Kind": "tool_call", "ToolName": "zz_approved"})
+	Set theirs = $ClassMethod(fixture, "Approval", b, , "done", , {"Kind": "tool_call", "ToolName": "zz_theirs", "Result": "done", "FinishedAt": "2030-01-01T10:00:02Z"})
+	Do $ClassMethod(fixture, "Approval", "instance", , "done", , {"Kind": "tool_call", "ToolName": "zz_instance", "Result": "done", "FinishedAt": "2030-01-01T10:00:02Z"})
+
+	Set rows = $ClassMethod(ownership, "FinishedToolCalls", a, "", "2030-01-01T10:00:04Z", .sc)
+	Do $$$AssertStatusOK(sc, "a read with no lower bound")
+	Do $$$AssertEquals(..Refs(rows), t1_","_t2_","_t2b_","_t3_","_t4, "gives the session's tool calls that finished, by FinishedAt and then ID, and no fix, unfinished, other session's or instance request")
+	Set rows = $ClassMethod(ownership, "FinishedToolCalls", a, "2030-01-01T10:00:01Z", "2030-01-01T10:00:03Z", .sc)
+	Do $$$AssertEquals(..Refs(rows), t2_","_t2b_","_t3, "the lower bound is exclusive and the upper bound inclusive")
+	Set rows = $ClassMethod(ownership, "FinishedToolCalls", a, "2030-01-01T10:00:02Z", "2030-01-01T10:00:02Z", .sc)
+	Do $$$AssertEquals(..Refs(rows), "", "a window whose bounds are one time is empty")
+	Set rows = $ClassMethod(ownership, "FinishedToolCalls", a, "2030-01-01T10:00:04Z", "2030-01-01T10:00:09Z", .sc)
+	Do $$$AssertEquals(..Refs(rows), "", "a window after the newest is empty")
+	Set rows = $ClassMethod(ownership, "FinishedToolCalls", b, "", "2030-01-01T10:00:09Z", .sc)
+	Do $$$AssertEquals(..Refs(rows), theirs, "another session reads its own only")
+	Set rows = $ClassMethod(ownership, "FinishedToolCalls", a, "", "", .sc)
+	Do $$$AssertStatusNotOK(sc, "an empty end of the window is an error")
+	Do $$$AssertEquals(rows.Count(), 0, "with no rows")
+	Set rows = $ClassMethod(ownership, "FinishedToolCalls", "", "", "2030-01-01T10:00:09Z", .sc)
+	Do $$$AssertStatusNotOK(sc, "an empty SessionRef is an error")
+	Do $$$AssertEquals(rows.Count(), 0, "with no rows")
 }
 
 /// An open fixture session: it has a resume hash. Its Ref is kept in Mine.

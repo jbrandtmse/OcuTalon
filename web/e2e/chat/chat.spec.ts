@@ -1,13 +1,13 @@
 import { expect, test, type Locator, type Page, type Request, type Route } from '@playwright/test';
 
 import { signIn, watchViolations } from '../sign-in/helpers';
-import { loadedAfter, signInReadmeLoaded } from '../support/floor';
+import { loadedAfter, settled, signInReadmeLoaded } from '../support/floor';
 import { fixtureUser, seedTurns, type SeedTurn } from '../support/iris';
 import { announcements, clock, fromBottom, plain, recordAnnouncements, scrollListTo, tokenColor } from '../support/page';
 import { blockLiveSocket } from '../support/socket';
 
 /**
- * Story 2.5, the chat panel (C1 to C14), and Story 2.6's C15 (the strip of a reply through the real Decide's no-key fallback; the rest
+ * Story 2.5, the chat panel (C1 to C14), Story 31.2's C16 (an empty chat opens at its top), and Story 2.6's C15 (the strip of a reply through the real Decide's no-key fallback; the rest
  * of Story 2.6 is decision.spec.ts), in a real browser against a real stack. C1 reads the README account and sends nothing;
  * every other case signs in as the panel fixture user that test-sign-in.sh created (OCUTALON_PANEL_USER) and sends or seeds on
  * its own session, so that no spec publishes on the README session or the instance stream (api.spec pins their counts) or
@@ -849,6 +849,55 @@ test('C11: the first message replaces the empty chat panel at once, before the s
   await expectFallbackReply(page, clientId, 'the answered post gets its turn and reply');
   await expect(empty, 'the empty chat panel does not come back').toHaveCount(0);
   await expect(userOf(page, clientId), 'one bubble').toHaveCount(1);
+});
+
+/**
+ * C16: an empty chat whose welcome panel is taller than the list opens at the top of the list, so that its heading is not clipped,
+ * and the first message then takes the list to the bottom as before; scrolling the welcome panel does not stop a later arrival from following
+ * the bottom.
+ */
+test('C16: an empty chat that overflows its list opens at the top, and the first send follows the bottom', async ({ page }) => {
+  await page.route(`**${STATE}`, async (route: Route) => {
+    const response = await route.fetch();
+    const body = (await response.json()) as Json;
+    await route.fulfill({ response, json: { ...body, chat: [] } });
+  });
+  await page.setViewportSize({ width: 1280, height: 560 });
+  const field = await open(page);
+  const empty = page.locator('app-chat-panel app-empty-chat');
+  const list = page.locator('app-chat-panel > .list');
+  await expect(empty, 'a snapshot with no chat shows the empty chat panel').toHaveCount(1);
+  await settled(page);
+  const sizes = await list.evaluate((element) => ({ client: element.clientHeight, scroll: element.scrollHeight }));
+  expect(sizes.scroll, `control: the empty chat overflows its list (${sizes.scroll}px in ${sizes.client}px)`).toBeGreaterThan(sizes.client);
+  await expect.poll(() => list.evaluate((element) => element.scrollTop), { message: 'the list is at its top' }).toBe(0);
+  const tops = await page.evaluate(() => ({
+    headline: document.querySelector('app-chat-panel app-empty-chat .headline')!.getBoundingClientRect().top,
+    list: document.querySelector('app-chat-panel > .list')!.getBoundingClientRect().top,
+  }));
+  expect(tops.headline, 'and the welcome heading is not clipped above it').toBeGreaterThanOrEqual(tops.list);
+
+  const sent = await sendWithEnter(page, field, unique('C16'));
+  expect(sent.status).toBe(202);
+  await expectFallbackReply(page, sent.posted.clientId, 'the first message gets its reply');
+  await expect.poll(() => fromBottom(list), { message: 'after the first send the list is at the bottom' }).toBeLessThanOrEqual(24);
+
+  // Scrolling the welcome panel down and up again leaves the list following the bottom: an entry that arrives later still takes it there.
+  await page.reload();
+  await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
+  await expect(empty, 'the snapshot with no chat shows the empty chat panel again').toHaveCount(1);
+  await settled(page);
+  const { user } = fixtureUser('PANEL');
+  await scrollListTo(list, 'bottom');
+  await scrollListTo(list, 'top');
+  await expect.poll(() => list.evaluate((element) => element.scrollTop), { message: 'the list is back at its top' }).toBe(0);
+  const stamp = Date.now().toString(36);
+  const published = await seedTurns(user, [{ createdAt: '2021-03-01T10:00:00Z', text: `zz C16 ${stamp} arrives`, replyText: Array.from({ length: 30 }, (_unused, i) => `Line ${i} of a reply that lands in an empty chat.`).join('\n') }], true);
+  await expect(page.locator('main.main')).toHaveAttribute('data-session-seq', String(published.seqs[0]), { timeout: 5000 });
+  await expect(userOf(page, published.refs[0]!), 'the turn is in the list').toHaveCount(1);
+  const grown = await list.evaluate((element) => ({ client: element.clientHeight, scroll: element.scrollHeight }));
+  expect(grown.scroll, `control: the arrival overflows the list (${grown.scroll}px in ${grown.client}px)`).toBeGreaterThan(grown.client);
+  await expect.poll(() => fromBottom(list), { message: 'after an arrival the list follows the bottom' }).toBeLessThanOrEqual(24);
 });
 
 /**

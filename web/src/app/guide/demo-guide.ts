@@ -495,6 +495,11 @@ const FOCUS_RULE: FocusRule = {
         flex-wrap: wrap;
       }
     }
+    @media ${HEIGHT_QUERIES.compact} and ${LAYOUT_QUERIES.stacked} {
+      .finish {
+        flex-basis: 100%;
+      }
+    }
   `,
 })
 export class DemoGuide {

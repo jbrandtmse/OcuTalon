@@ -24,6 +24,10 @@
 ///   - TestBrokenRetryAfterATaintedTurn (QA; DW-112): a turn that is fresh only because the turn before it was tainted still sends
 ///     its first request under its own ItemId, so that its retry after a broken session is a new Item and not the first request again;
 ///   - TestRecapFromTurnRows: the recap is written from the Turn rows;
+///   - TestToolNoteNamesTheFinishedCalls, TestToolNoteIsTheSameOnEveryAsk, TestToolNoteReadFailureNeverStopsTurn (Story 31.2; AD-30):
+///     the turn request's SystemNote names the session's approved tool calls that finished in the turn's window, done or failed,
+///     with the time, once and never with their arguments; it is the same on a Busy retry, a broken retry and a fresh turn after a
+///     taint; a failed read gives an empty note and the turn still runs;
 ///   - TestEveryFallbackReason: the 12 reasons, an error status and an answer of the wrong class give the fallback sentences;
 ///   - TestDuplicateItemDropped, TestUntrustedItemRefused: an Item is taken once, and only when it is trusted;
 ///   - TestStaleAnswerDropped: the answer of an instance that a later attempt replaced changes nothing;
@@ -709,6 +713,181 @@ Method TestRecapFromTurnRows()
 	Do ..Pump(.probes)
 	Set next = ##class(OcuTalon.Test.Data.Fixture).Turn(tool, "2999-01-01T00:00:00Z", "queued", "zz next question", "zzc"_..Number_"recapnext")
 	Do $$$AssertEquals(##class(OcuTalon.Core.Conversation).Recap(tool, next), ..Header()_$Char(10)_"User: zz tool question"_$Char(10)_"OcuTalon: zz reply to zz tool question", "the recap after a tainted reply holds the user's text and the reply as sent, and nothing of the tool result (HostData)")
+}
+
+/// The turn request's SystemNote (AD-30): one line for each approved tool call of the session that finished in the turn's window
+/// (the previous Turn's CreatedAt, this Turn's CreatedAt] on FinishedAt, oldest first, with its tool, done (State done) or failed
+/// (State failed, Result failed or interrupted) and its time in the instance zone. Another session's call, an instance call, a fix
+/// request, a call with no FinishedAt, a call before the window, on its lower bound or after its upper bound is not in it, and nothing
+/// of a call's arguments is. Every finished call is in exactly one turn's note (ToolNote of each turn of the session). The decide
+/// request carries no note, and a turn with no call in its window has an empty one.
+Method TestToolNoteNamesTheFinishedCalls()
+{
+	Set session = ..Session("toolnote")
+	Set other = ..Session("toolnoteother")
+	Set p1 = ##class(OcuTalon.Test.Data.Fixture).Turn(session, "2026-01-01T10:00:00Z", "done", "zz first", "zzc"_..Number_"tn1")
+	Set p2 = ##class(OcuTalon.Test.Data.Fixture).Turn(session, "2026-01-01T11:00:00Z", "done", "zz second", "zzc"_..Number_"tn2")
+	Do ##class(OcuTalon.Test.Data.Fixture).Turn(session, "2026-01-01T11:40:00Z", "refused", "zz turned away", "zzc"_..Number_"tnr")
+	Set live = ##class(OcuTalon.Test.Data.Fixture).Turn(session, "2026-01-01T12:00:00Z", "queued", "zz third", "zzc"_..Number_"tn3")
+	Do ..Finished(session, "done", "2026-01-01T09:00:00Z", "zz_early")
+	Do ..Finished(session, "done", "2026-01-01T10:00:00Z", "zz_on_first")
+	Do ..Finished(session, "done", "2026-01-01T10:30:00Z", "zz_middle")
+	Do ..Finished(session, "failed", "2026-01-01T11:00:00Z", "zz_on_second")
+	Do ..Finished(session, "done", "2026-01-01T11:30:00Z", "zz_send")
+	Do ..Finished(session, "done", "2026-01-01T11:35:00Z", "zz_{time}x")
+	Do ..Finished(session, "failed", "2026-01-01T11:45:00Z", "zz_boom", "failed")
+	Do ..Finished(session, "failed", "2026-01-01T12:00:00Z", "zz_cut", "interrupted")
+	Do ..Finished(session, "done", "2026-01-01T12:00:01Z", "zz_later")
+	Do ..Finished(other, "done", "2026-01-01T11:30:00Z", "zz_theirs")
+	Do ..Finished("instance", "done", "2026-01-01T11:30:00Z", "zz_instance")
+	Do ..Kept(##class(OcuTalon.Test.Data.Fixture).Approval(session, , "done", , {"Kind": "fix", "Result": "done", "FinishedAt": "2026-01-01T11:30:00Z"}))
+	Do ..Kept(##class(OcuTalon.Test.Data.Fixture).Approval(session, , "executing", , {"Kind": "tool_call", "ToolName": "zz_running", "ToolArguments": (..Arguments())}))
+	Set run = ##class(OcuTalon.Core.Msg.RunTurns).%New()
+	Set run.SessionRef = session
+	Set probe = ..NewProbe()
+	Do $$$AssertStatusOK(probe.OnRequest(run, .response), "a RunTurns request starts the third turn")
+	Set probes(1) = probe
+	Do ..Pump(.probes)
+	Do $$$AssertEquals(##class(OcuTalon.Data.Turn).RefIndexOpen(live).State, "done", "the turn is done")
+	Set notes = ..Notes(session, "turn")
+	Do $$$AssertEquals($ListLength(notes), 1, "one turn request")
+	Set now = "2026-01-01T12:00:00Z"
+	Set expected = ..NoteOf($ListBuild("- zz_send: done at "_..At("2026-01-01T11:30:00Z", now), "- zz_{time}x: done at "_..At("2026-01-01T11:35:00Z", now), "- zz_boom: failed at "_..At("2026-01-01T11:45:00Z", now), "- zz_cut: failed at "_..At("2026-01-01T12:00:00Z", now)))
+	Do $$$AssertEquals($List(notes, 1), expected, "its note names the four calls that finished in the window, oldest first: the upper bound is in, the lower one is not, a refused turn between opens no window of its own, and a tool name that holds {time} is written as it is")
+	Do $$$AssertTrue($List(notes, 1) '[ "zzSECRETARGS", "and holds no tool arguments")
+	Do $$$AssertEquals($List(..Notes(session, "decide"), 1), "", "the decide request carries no note")
+
+	Do $$$AssertEquals(##class(OcuTalon.Core.Conversation).ToolNote(##class(OcuTalon.Data.Turn).RefIndexOpen(p1)), ..NoteOf($ListBuild("- zz_early: done at "_..At("2026-01-01T09:00:00Z", "2026-01-01T10:00:00Z"), "- zz_on_first: done at "_..At("2026-01-01T10:00:00Z", "2026-01-01T10:00:00Z"))), "the first turn's window has no lower bound, and a call on its upper bound is in it")
+	Do $$$AssertEquals(##class(OcuTalon.Core.Conversation).ToolNote(##class(OcuTalon.Data.Turn).RefIndexOpen(p2)), ..NoteOf($ListBuild("- zz_middle: done at "_..At("2026-01-01T10:30:00Z", "2026-01-01T11:00:00Z"), "- zz_on_second: failed at "_..At("2026-01-01T11:00:00Z", "2026-01-01T11:00:00Z"))), "the second turn's note holds the calls after the first turn's CreatedAt, up to its own")
+	Do $$$AssertEquals(##class(OcuTalon.Core.Conversation).ToolNote(##class(OcuTalon.Data.Turn).RefIndexOpen(live)), $List(notes, 1), "a turn's note is the same when it is worked out again")
+
+	Set empty = ..Session("toolnoteempty")
+	Do ##class(OcuTalon.Test.Data.Fixture).Turn(empty, "2026-01-01T12:00:00Z", "queued", "zz nothing", "zzc"_..Number_"tn4")
+	Set run.SessionRef = empty
+	Set probe = ..NewProbe()
+	Do probe.OnRequest(run, .response)
+	Kill probes
+	Set probes(1) = probe
+	Do ..Pump(.probes)
+	Do $$$AssertEquals($List(..Notes(empty, "turn"), 1), "", "a turn with no finished call in its window has an empty note")
+}
+
+/// The note is the same each time Ask runs for the turn: on a Busy answer's second request (the turn continues), on the request
+/// after a broken session (fresh, with the recap) and on a turn that is fresh because the turn before it was tainted.
+Method TestToolNoteIsTheSameOnEveryAsk()
+{
+	Set cases = $ListBuild("continue|busy,reply|2", "fresh after broken|broken,reply|2", "fresh after taint|reply|1")
+	Set position = 0
+	While $ListNext(cases, position, case) {
+		Set label = $Piece(case, "|", 1)
+		Set session = ..Session("sameask"_position)
+		Set previous = ##class(OcuTalon.Test.Data.Fixture).Turn(session, "2026-01-01T10:00:00Z", "done", "zz earlier", "zzc"_..Number_"sa"_position_"p")
+		If $Piece(case, "|", 1) = "fresh after taint" {
+			Set row = ##class(OcuTalon.Data.Turn).RefIndexOpen(previous)
+			Set row.Tainted = 1
+			Set row.TurnDecisionRef = "zzdecision"
+			Do row.%Save()
+		}
+		Do ..Finished(session, "done", "2026-01-01T11:00:00Z", "zz_once")
+		Do ##class(OcuTalon.Test.Data.Fixture).Turn(session, "2026-01-01T12:00:00Z", "queued", "zz now", "zzc"_..Number_"sa"_position_"n")
+		Do ##class(OcuTalon.Test.Core.DecideDouble).Script(session, "turn", $ListFromString($Piece(case, "|", 2), ","))
+		Set run = ##class(OcuTalon.Core.Msg.RunTurns).%New()
+		Set run.SessionRef = session
+		Set probe = ..NewProbe()
+		Do probe.OnRequest(run, .response)
+		Kill probes
+		Set probes(1) = probe
+		Do ..Pump(.probes)
+		Set notes = ..Notes(session, "turn")
+		Do $$$AssertEquals($ListLength(notes), $Piece(case, "|", 3), label_": the turn request is asked "_$Piece(case, "|", 3)_" time(s)")
+		Set expected = ..NoteOf($ListBuild("- zz_once: done at "_..At("2026-01-01T11:00:00Z", "2026-01-01T12:00:00Z")))
+		For i = 1:1:$ListLength(notes) {
+			Do $$$AssertEquals($List(notes, i), expected, label_": request "_i_" carries the note")
+		}
+		Set turns = ..Sent("Decide", "turn")
+		Do $$$AssertEquals(..Call($List(turns, $ListLength(turns)), "sessionMode"), $Select($Piece(case, "|", 1) = "continue": "continue", 1: "fresh"), label_": the last request is "_$Select($Piece(case, "|", 1) = "continue": "a continue", 1: "a fresh")_" turn")
+	}
+}
+
+/// A note that cannot be worked out never stops the turn: the read of the finished calls fails (the turn has no CreatedAt, so its
+/// window has no end), the error is logged by ToolNote, the note is empty and the turn is done with its reply.
+Method TestToolNoteReadFailureNeverStopsTurn()
+{
+	Set session = ..Session("toolnotefail")
+	Do ..Finished(session, "done", "2026-01-01T11:00:00Z", "zz_unread")
+	Set ref = ##class(OcuTalon.Test.Data.Fixture).Turn(session, "", "queued", "zz no window", "zzc"_..Number_"tnf")
+	Set mark = ..LastLog()
+	Set run = ##class(OcuTalon.Core.Msg.RunTurns).%New()
+	Set run.SessionRef = session
+	Set probe = ..NewProbe()
+	Do probe.OnRequest(run, .response)
+	Set probes(1) = probe
+	Do ..Pump(.probes)
+	Set row = ##class(OcuTalon.Data.Turn).RefIndexOpen(ref)
+	Do $$$AssertEquals(row.State_"|"_row.ReplyText, "done|zz reply to zz no window", "the turn is done with its reply")
+	Do $$$AssertEquals($List(..Notes(session, "turn"), 1), "", "the note is empty")
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens_Util.Log WHERE ID > ? AND Type = 2 AND SourceMethod = ?", mark, "ToolNote")
+	Do result.%Next()
+	Do $$$AssertEquals(result.%GetData(1), 1, "and the failed read is logged once")
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE ID > ? AND Type = 2 AND SourceMethod = ?", mark, "ToolNote")
+
+	Set mark = ..LastLog()
+	Set stray = ##class(OcuTalon.Data.Turn).%New()
+	Set stray.Ref = "zzstray"_..Number
+	Set stray.SessionRef = session
+	Set stray.CreatedAt = "2030-01-01T00:00:00Z"
+	Do $$$AssertEquals(##class(OcuTalon.Core.Conversation).ToolNote(stray), "", "a turn that is not among its session's turns gives an empty note")
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens_Util.Log WHERE ID > ? AND Type = 2 AND SourceMethod = ?", mark, "ToolNote")
+	Do result.%Next()
+	Do $$$AssertEquals(result.%GetData(1), 1, "and that is logged once")
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE ID > ? AND Type = 2 AND SourceMethod = ?", mark, "ToolNote")
+}
+
+/// A tool_call request row of the owner that finished at the time: State state, Result done unless result is given, and ToolArguments
+/// that a note must never hold. Its Ref joins the Refs that OnAfterAllTests cleans.
+Method Finished(owner As %String, state As %String, finishedAt As %String, tool As %String, result As %String = "done") As %String [ Private ]
+{
+	Quit ..Kept(##class(OcuTalon.Test.Data.Fixture).Approval(owner, , state, , {"Kind": "tool_call", "ToolName": (tool), "Result": (result), "FinishedAt": (finishedAt), "ToolArguments": (..Arguments())}))
+}
+
+/// The Ref of a fixture row, which joins the Refs that OnAfterAllTests cleans.
+Method Kept(ref As %String) As %String [ Private ]
+{
+	Set ..Refs = ..Refs_$Select(..Refs = "": "", 1: ",")_ref
+	Quit ref
+}
+
+/// The arguments of a seeded tool call: a value that a note must never hold.
+Method Arguments() As %String [ Private ]
+{
+	Quit "{""secret"":""zzSECRETARGS""}"
+}
+
+/// The SystemNote of each request of the kind that Decide's double received for the session, as a list, in order.
+Method Notes(session As %String, kind As %String) As %List [ Private ]
+{
+	Set list = ""
+	Set n = ""
+	For {
+		Set n = $Order(^OcuTalonTest("DecideDouble", session, "seen", n))
+		Quit:n=""
+		If ^OcuTalonTest("DecideDouble", session, "seen", n, "kind") = kind Set list = list_$ListBuild($Get(^OcuTalonTest("DecideDouble", session, "seen", n, "systemNote")))
+	}
+	Quit list
+}
+
+/// The time of a call in the note of a turn created at now, as Time.ForMessage gives it.
+Method At(utc As %String, now As %String) As %String [ Private ]
+{
+	Quit ##class(OcuTalon.Data.Time).ForMessage(utc, now)
+}
+
+/// A note as the spec words it: the first line, then the lines, each after a line feed.
+Method NoteOf(lines As %List) As %String [ Private ]
+{
+	Set note = "Approved tool calls that finished since the last message, as OcuTalon recorded them (not their output):"
+	For i = 1:1:$ListLength(lines) Set note = note_$Char(10)_$List(lines, i)
+	Quit note
 }
 
 /// Each of the 12 fallback reasons, an error status and an answer of the wrong class, as the turn's answer: the Outbound, the

@@ -581,6 +581,28 @@ test('M9: Open the trace, then the finish state: the exact lines, the run total,
     await expect(breakOf(page)).toHaveClass(/button-attention/);
     expect(await breakOf(page).evaluate((node) => getComputedStyle(node).backgroundColor), 'in the attention colour').toBe(await tokenColor(page, '--button-attention-background'));
     expect((await announcedTexts(page)).slice(before).filter((text) => text.includes('Done') || text.includes('This run')), 'the finish is not announced').toEqual([]);
+
+    // In a short, narrow window the finish state wraps under the step row and takes the full width.
+    const normal = page.viewportSize()!;
+    try {
+      await page.setViewportSize({ width: 640, height: 360 });
+      const boxes = (): Promise<{ rowBottom: number; finishTop: number; finishWidth: number; mainWidth: number }> =>
+        guideOf(page).evaluate((guide) => {
+          const main = guide.querySelector('.main')!;
+          const style = getComputedStyle(main);
+          return {
+            rowBottom: guide.querySelector('.row1')!.getBoundingClientRect().bottom,
+            finishTop: guide.querySelector('.finish')!.getBoundingClientRect().top,
+            finishWidth: guide.querySelector('.finish')!.getBoundingClientRect().width,
+            mainWidth: main.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight),
+          };
+        });
+      await expect.poll(async () => (await boxes()).finishTop - (await boxes()).rowBottom, { message: 'at 640x360 the finish starts below the step row' }).toBeGreaterThanOrEqual(-0.5);
+      const laid = await boxes();
+      expect(Math.abs(laid.finishWidth - laid.mainWidth), `and spans the width of main's content (${laid.finishWidth} of ${laid.mainWidth})`).toBeLessThanOrEqual(2);
+    } finally {
+      await page.setViewportSize(normal);
+    }
   } finally {
     await dropUsage(usage);
     await cleanFixtureRows(refs);

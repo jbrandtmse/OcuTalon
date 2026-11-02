@@ -1,7 +1,10 @@
+import { readFileSync } from 'node:fs';
+import { resolve } from 'node:path';
+
 import { expect, test, type Locator, type Page, type Route } from '@playwright/test';
 
-import { signIn } from '../sign-in/helpers';
-import { changeSnapshot, post } from '../support/api';
+import { signIn, signInOverHttp } from '../sign-in/helpers';
+import { STATE, changeSnapshot, post } from '../support/api';
 import { CARD_MS, HEADER, applied, composerOf, mainOf, unique, loadedAfter } from '../support/floor';
 import {
   answerHeaders,
@@ -26,8 +29,9 @@ import { announcedTexts, clock, recordAnnouncements, tokenColor } from '../suppo
  * the task that a fixture row's hold would have. HH:MM is the row's AnsweredAt, read back through iris, so that the expected text is
  * exact. A case's rows are its own and are removed in finally.
  * A2 is an Approve, A3 two requests and a Reject, A4 the busy rule (one request however often pressed, the notice after 10 s and the late
- * answer), A5 the press that lost the race to the phone, A6 the 1280x600 layout and A7 another session's request, A8 the replies that are
- * not an answer, A9 a closed incident and A10 the headline cap letting go once the reader scrolls on.
+ * answer), A5 the press that lost the race to the phone, A6 the 1280x600 layout and A7 another session's request (signed in over HTTP,
+ * with no page load), A8 the replies that are not an answer, A9 a closed incident, A10 the headline cap letting go once the reader scrolls
+ * on and A11 the result band of a run that stopped partway (Story 31.2).
  */
 test.describe.configure({ timeout: 120_000 });
 test.use({ timezoneId: 'UTC', locale: 'en-GB' });
@@ -346,10 +350,11 @@ test('A6: at 1280 by 600 the headline, the cause, the dry-run count, Approve and
  * the request stays pending.
  */
 test('A7: another session\'s request answers 404 from the page\'s context and stays pending', async ({ page }) => {
-  const { user } = fixtureUser(KIND);
+  const { user, password } = fixtureUser(KIND);
   const rows: string[] = [];
   try {
-    await open(page);
+    await signInOverHttp(page.request, user, password);
+    expect((await page.request.get(STATE)).status(), 'signed in').toBe(200);
     const other = await seedOtherSession(`zzother${Date.now().toString(36)}`);
     rows.push(other);
     const theirs = await seedApproval(user, { requiredRole: 'OcuTalonUser', expiresAt: TOMORROW_AT_1413, dryRun: DRY_RUN }, { sessionRef: other });
@@ -500,6 +505,50 @@ test('A10: after the reader scrolls on with the wheel, the card\'s next change f
     await applied(page, await publishIncident(user, { ...incidentOf(incident, requests), count: 53 }));
     await expect(card.locator('p.more'), 'the card changes').toHaveText('3 more since the notice', { timeout: CARD_MS });
     await expect.poll(gap, { message: 'and the list follows to its bottom, not back to the headline' }).toBeLessThanOrEqual(24);
+  } finally {
+    await cleanFixtureRows(rows);
+  }
+});
+
+/** The path data of an icon of the page's icon module, read from its source: the icon that a case expects is the module's own. */
+function iconPaths(name: string): string[] {
+  const source = readFileSync(resolve('src/app/icon/icon.ts'), 'utf8');
+  const start = source.indexOf(`@case ('${name}') {`);
+  expect(start, `the icon module draws ${name}`).toBeGreaterThan(-1);
+  const block = source.slice(start, source.indexOf('\n        }', start));
+  const paths = [...block.matchAll(/<path\s+d="([^"]+)"/g)].map((match) => match[1] ?? '');
+  expect(paths.length, `the icon module gives ${name} at least one path`).toBeGreaterThan(0);
+  return paths;
+}
+
+/**
+ * A11: a run that stopped partway. The request is done and the resolved incident carries its result with `unreached` 1: the request
+ * card's band reads the stopped-partway text in the partial tone with triangle-alert, and never the skipped text.
+ */
+test('A11: a fix run that stopped partway reads as stopped partway, not as changed since the dry run', async ({ page }) => {
+  const { user } = fixtureUser(KIND);
+  const rows: string[] = [];
+  try {
+    await open(page);
+    const incident = refOf('A11');
+    const requests: string[] = [];
+    const request = await raise(page, user, rows, incident, requests, {
+      state: 'done',
+      answeredAction: 'approve',
+      answeredChannel: 'web',
+      answeredBy: user,
+      answeredAt: today('14:20:00'),
+    });
+    const result = { total: 3, resent: 2, completed: 2, failedAgain: 0, skipped: 1, interrupted: 0, unreached: 1, reason: '' };
+    await applied(page, await publishIncident(user, { ...incidentOf(incident, []), state: 'resolved', requests: [{ ref: request, state: 'done', result }] }));
+    const band = requestCard(page, request).locator('[data-part="result"]');
+    await expect(band.locator('.text'), 'the stopped-partway text').toHaveText(
+      "The resend stopped partway: I resent 2 of the 3 orders (2 went through), the next one couldn't be resent, and 0 more weren't tried. Nothing else was changed, and I won't resend the rest without a new approval.",
+      { timeout: CARD_MS },
+    );
+    await expect(band.locator('.text'), 'and not the skipped text').not.toContainText('had changed since the dry run');
+    await expect(band, 'in the partial tone').toHaveAttribute('data-tone', 'partial');
+    expect(await band.locator('svg').first().locator('path').evaluateAll((paths) => paths.map((path) => path.getAttribute('d') ?? '')), 'with triangle-alert').toEqual(iconPaths('triangle-alert'));
   } finally {
     await cleanFixtureRows(rows);
   }
