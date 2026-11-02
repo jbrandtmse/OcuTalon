@@ -582,7 +582,8 @@ Method TestThrownSendIsNeverRetried()
 	Do $$$AssertEquals(..Items().%Size(), 2, "and the next Tick sends neither again")
 }
 
-/// Each Item's key and slots render, through the catalog at a fixed now, to the text of the UX.
+/// Each Item's key and slots render, through the catalog at a fixed now, to the text of the UX, without " ET" on a local install and with it on the online demo (DW-469): a stop
+/// with IRIS's stop time, a disabled item, and a stop with no readable stop time, which takes the time of the run.
 Method TestFindingsRender()
 {
 	Set host = ..Host()
@@ -592,16 +593,29 @@ Method TestFindingsRender()
 	Set ref = ..Watch(a, production)
 	Do ..Step(host, production, 0, "running")
 	Do ..Step(host, production, 1, "stopped", ["Zz.Door"], "2030-06-01 12:01:20.000")
+	Do ..Step(host, production, 2, "running")
+	Do ..Step(host, production, 3, "stopped")
 	Set items = ..Items()
-	Do $$$AssertEquals(items.%Size(), 2, "a stop and a disabled item")
-	If items.%Size() '= 2 Quit
+	Do $$$AssertEquals(items.%Size(), 3, "a stop, a disabled item and a stop with no stop time")
+	If items.%Size() '= 3 Quit
 	Set now = "2030-06-01T12:05:00Z"
-	Set clock = ##class(OcuTalon.Data.Time).ForMessage("2030-06-01T12:01:20Z", now)
 	Set why = $Char(10)_"Why now: you asked me to watch the Zz "_production_" production."
-	Do $$$AssertEquals(##class(OcuTalon.Msg.Catalog).RenderAt(items.%Get(0).catalogKey, items.%Get(0).slots, "web", now, 0), "The Zz "_production_" production stopped at "_clock_"."_why, "the stop renders to the UX text")
-	Set clock = ##class(OcuTalon.Data.Time).ForMessage(..Slot(items.%Get(1).slots, "time"), now)
-	Set joiner = $Select(clock ? 2N1":"2N: " at ", 1: " on ")
-	Do $$$AssertEquals(##class(OcuTalon.Msg.Catalog).RenderAt(items.%Get(1).catalogKey, items.%Get(1).slots, "web", now, 0), "The Zz.Door in the Zz "_production_" production was disabled"_joiner_clock_"."_why, "and so does the disabled item (a time on another day reads 'on {date} at {time}')")
+	Do $$$AssertEquals(..Slot(items.%Get(0).slots, "time"), "2030-06-01T12:01:20Z", "the first stop has IRIS's stop time")
+	Set runTime = ..Slot(items.%Get(2).slots, "time")
+	Do $$$AssertTrue(runTime ? 4N1"-"2N1"-"2N1"T"2N1":"2N1":"2N1"Z", "and the stop with none has the time of its run, a UTC stamp: "_runTime)
+	Do $$$AssertTrue(runTime '= "2030-06-01T12:01:20Z", "which is not the first stop's")
+	For online = 0, 1 {
+		Set suffix = $Select(online: " ET", 1: "")
+		Set label = $Select(online: "on the online demo", 1: "on a local install")
+		For n = 0, 2 {
+			Set clock = ##class(OcuTalon.Data.Time).ForMessage(..Slot(items.%Get(n).slots, "time"), now)
+			Set joiner = $Select(clock ? 2N1":"2N: " at ", 1: " on ")
+			Do $$$AssertEquals(##class(OcuTalon.Msg.Catalog).RenderAt(items.%Get(n).catalogKey, items.%Get(n).slots, "web", now, online), "The Zz "_production_" production stopped"_joiner_clock_suffix_"."_why, "the stop "_$Select(n = 0: "with a stop time", 1: "with none")_" renders to the UX text "_label)
+		}
+		Set clock = ##class(OcuTalon.Data.Time).ForMessage(..Slot(items.%Get(1).slots, "time"), now)
+		Set joiner = $Select(clock ? 2N1":"2N: " at ", 1: " on ")
+		Do $$$AssertEquals(##class(OcuTalon.Msg.Catalog).RenderAt(items.%Get(1).catalogKey, items.%Get(1).slots, "web", now, online), "The Zz.Door in the Zz "_production_" production was disabled"_joiner_clock_suffix_"."_why, "and so does the disabled item "_label_" (a time on another day reads 'on {date} at {time}')")
+	}
 }
 
 /// (QA) Row 7 with row 8: a row with nothing reported whose first run did not read the production keeps Reported empty, so that its first run that does read is

@@ -10,6 +10,11 @@ Include Ensemble
 ///     to the target format before the approval. Three copies are made, of the three that were not rewritten, and the two rewritten orders get none. The FixResult is
 ///     5/3/3/0/2 with an empty reason, the FixRun stores the same, the Notification is result.skipped and renders "3 of 5 orders went through. 2 had changed since the
 ///     dry run, so I skipped them; they need a new approval.", and the incident is resolved;
+///   - TestSomeFailAgainAndSomeHadChanged (AC 2; the matrix row "Mixed result"): R1 is over five failed orders, its FixParameters get the target format DD/MM/YYYY and two of the
+///     orders are rewritten to the target format before the approval. Three copies are made, they fail again, and the two rewritten orders get none. The FixResult is 5/3/0/3/2
+///     with Unreached 0 and the reason "the order date still wasn't accepted", the FixRun stores the same, the incident is resolved, its event and /state list R1 done with that result,
+///     and the one Notification is result.failedAndSkipped with the slots count, itemNoun, completed, failedAgain, failReason, skipped and resent, which renders "0 of 5 orders went through. 3 failed
+///     again (the order date still wasn't accepted), and 2 had changed since the dry run, so I skipped them. I won't retry any of them without a new approval.";
 ///   - TestCopiesFailAgain (AC 3, AC 4; the matrix row "Copies fail again"): R1 is over three failed orders, and before the approval its FixParameters get the target
 ///     format DD/MM/YYYY, so that the copies fail at OrdersFromPartner with the incident's own error. The FixResult is 3/3/0/3/0 with the reason "the order date still
 ///     wasn't accepted" and the Notification renders "0 of 3 orders went through. 3 failed again (the order date still wasn't accepted). I won't retry them without
@@ -64,6 +69,57 @@ Method TestSomeHadChanged()
 	Set last = ..LastIncident(a, ref)
 	Do $$$AssertTrue($IsObject(last), "the incident event is on S's stream")
 	If $IsObject(last) Do $$$AssertEquals(..ResultOf(last), "5|3|3|0|2|0|", "and lists R1 with the same result")
+}
+
+Method TestSomeFailAgainAndSomeHadChanged()
+{
+	If '..Raised("mixed", .a, .ref, .request, 5) Quit
+	Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(ref)
+	Set trace = row.TraceHeaderId
+	Kill row
+	Set ids = request.fixTargets
+	Do $$$AssertEquals($Length(ids, ","), 5, "R1 has five targets")
+	If $Length(ids, ",") '= 5 Quit
+	Set kept = $Piece(ids, ",", 1)_","_$Piece(ids, ",", 3)_","_$Piece(ids, ",", 5)
+	If '..SetFixParameters(request.ref, ..#FAILAGAIN) Quit
+	Do $$$AssertStatusOK(..SetOrderDate($Piece(ids, ",", 2), "2026-10-16"), "the second order is written in the target format")
+	Do $$$AssertStatusOK(..SetOrderDate($Piece(ids, ",", 4), "2026-10-16"), "and so is the fourth")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Approval).Answer(request.ref, "approve", "web", ..#ANSWERER, a, .winner), "done", "R1 is approved")
+	Do $$$AssertEquals(..WaitState(ref, request.ref, "done", ..#WAITEND), "done", "R1 is done")
+
+	Set run = ..RunOf(ref, request.ref)
+	Do $$$AssertTrue($IsObject(run), "R1 has a FixRun")
+	If '$IsObject(run) Quit
+	Set expected = "5|3|0|3|2|0|the order date still wasn't accepted"
+	Do $$$AssertEquals(..Originals(..Copies(ref, request.ref)), kept, "three copies were made, of the three orders that were not rewritten and none of the two that were")
+	Do $$$AssertEquals(run.total_"|"_run.resent_"|"_run.completed_"|"_run.failedAgain_"|"_run.skipped_"|"_run.interrupted_"|"_run.reason, expected, "the FixRun stores 5/3/0/3/2 and the reason the order date still wasn't accepted")
+	Do $$$AssertEquals(+run.unreached, 0, "with no Unreached")
+	Set results = ..FixResultsOf(trace, 1)
+	Do $$$AssertEquals(results.%Size(), 1, "one FixResult goes to IncidentManager")
+	If results.%Size() = 1 {
+		Set result = results.%Get(0)
+		Do $$$AssertEquals(result.ApprovalRef_"|"_result.IncidentRef_"|"_result.Final_"|"_result.Interrupted, request.ref_"|"_ref_"|1|0", "it names R1 and the incident and is final")
+		Do $$$AssertEquals(result.Total_"|"_result.Resent_"|"_result.Completed_"|"_result.FailedAgain_"|"_result.Skipped_"|"_result.Unreached_"|"_result.Reason, "5|3|0|3|2|0|the order date still wasn't accepted", "with the counts 5, 3, 0, 3 and 2, no Unreached and the plain reason")
+	}
+	Do $$$AssertEquals(..WaitIncidentState(ref, "resolved"), "resolved", "the incident is resolved")
+	Set notes = ..WaitResults(ref, 1)
+	Do $$$AssertEquals(notes.%Size(), 1, "S has one result Notification")
+	If notes.%Size() = 1 {
+		Set note = notes.%Get(0)
+		Do $$$AssertEquals(note.catalogKey_"|"_note.approvalRef_"|"_note.incidentRef, "result.failedAndSkipped|"_request.ref_"|"_ref, "of the key failedAndSkipped, with R1's Ref and the incident's")
+		Set slots = note.slots
+		Do $$$AssertEquals(slots.count_"|"_slots.completed_"|"_slots.failedAgain_"|"_slots.failReason_"|"_slots.skipped_"|"_slots.resent, "5|0|3|the order date still wasn't accepted|2|3", "with the slots count 5, completed 0, failedAgain 3, the reason, skipped 2 and resent 3")
+		Do $$$AssertEquals(##class(OcuTalon.Msg.Catalog).Render(note.catalogKey, note.slots.%ToJSON(), "phone", .sc), "0 of 5 orders went through. 3 failed again (the order date still wasn't accepted), and 2 had changed since the dry run, so I skipped them. I won't retry any of them without a new approval.", "which renders as the UX document has it")
+	}
+	Set last = ..WaitResultOf(a, ref, expected)
+	Do $$$AssertTrue($IsObject(last), "the incident event is on S's stream")
+	If $IsObject(last) {
+		Do $$$AssertEquals(last.state_"|"_..Listed(last)_"|"_..ResultOf(last), "resolved|1|"_request.ref_"|done|"_expected, "and lists R1 done with the same result")
+		Do $$$AssertEquals(last.requests.%Get(0).result.%IsDefined("unreached"), 0, "which has no unreached")
+	}
+	Set state = ..StateIncident(a, ref)
+	Do $$$AssertTrue($IsObject(state), "/state lists the incident")
+	If $IsObject(state) Do $$$AssertEquals(..ResultOf(state), expected, "with the same result and reason")
 }
 
 Method TestCopiesFailAgain()

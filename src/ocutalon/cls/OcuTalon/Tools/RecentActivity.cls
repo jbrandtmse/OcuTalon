@@ -8,7 +8,7 @@
 /// {"resent", "wentThrough", "failedAgain", "finished"}.
 /// Trusted output: every string of the answer is one of
 ///   - a value of a fixed list (the incident state, the cause category, the fix kind, the approval answer, the channel);
-///   - a time formatted by OcuTalon.Data.Time.ForMessage, with " ET" on the online demo, as the catalog shows a time;
+///   - a time given by OcuTalon.Tools.CommandCall TimeLabel (the catalog's time slot: ForMessage, with " ET" on the online demo), and a display name by Tools.WatchAnswers WatchNames, both shared with the watch cards (DW-519);
 ///   - a name that the instance defines (the display name of a production, the name of an item, or the element at fault when it equals the approved fix's field or
 ///     an item's name, which the fix check verified against the compiled properties of the message body);
 ///   - a constant that the code wrote.
@@ -41,9 +41,6 @@ Parameter MAX = 5;
 
 Parameter READMAX = 100;
 
-/// The kind of a watch row of a production (the Kind of its BackgroundCheck).
-Parameter KIND = "production";
-
 /// The request states of an approved fix, comma-separated: the states whose answer is approved. Only their fix field can confirm the element at fault.
 Parameter APPROVED = "approved,executing,done,failed";
 
@@ -66,7 +63,7 @@ ClassMethod RecentActivity() As %DynamicObject
 	Do ..ReadIncidents(owner, .rows, .sc)
 	If $$$ISERR(sc) || '$IsObject(rows) Quit ..Return({"ok": false, "message": (..#NOTREAD)})
 	Set cutoff = ##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), -(..#HOURS * 3600))
-	Do ..WatchNames(owner, .names)
+	Do ##class(OcuTalon.Tools.WatchAnswers).WatchNames(owner, .names)
 	Set online = ##class(OcuTalon.Watch.Reader).OnlineDemo()
 	Set incidents = []
 	Set unread = 0
@@ -130,8 +127,8 @@ ClassMethod Entry(row As OcuTalon.Data.Incident, owner As %String, display As %S
 	Do ..Element(row.Element, groups, requests, .element)
 	Do ..Listed(##class(OcuTalon.Watch.Msg.DiagnosisPayload).#CAUSECATEGORIES, row.CauseCategory, .category)
 	Do ..Listed(##class(OcuTalon.Msg.Enum).#INCIDENTSTATE, row.State, .state)
-	Do ..Shown(row.FirstAt, online, .firstFailure)
-	Do ..Shown(row.LastAt, online, .lastFailure)
+	Set firstFailure = ##class(OcuTalon.Tools.CommandCall).TimeLabel(row.FirstAt, online)
+	Set lastFailure = ##class(OcuTalon.Tools.CommandCall).TimeLabel(row.LastAt, online)
 	Set entry = {}
 	Set entry.production = $Select(display '= "": display, 1: row.Production)
 	Set entry.item = item
@@ -157,7 +154,7 @@ ClassMethod Approval(request As %Persistent, online As %Boolean, Output approval
 	If answer = "" Quit
 	Set time = $Case(state, "pending": "", "expired": request.ExpiresAt, : request.AnsweredAt)
 	Do ..Listed(##class(OcuTalon.Msg.Enum).#CHANNEL, request.AnsweredChannel, .channel)
-	Do ..Shown(time, online, .answered)
+	Set answered = ##class(OcuTalon.Tools.CommandCall).TimeLabel(time, online)
 	Set approval = {}
 	Set approval.answer = answer
 	Set approval.channel = channel
@@ -207,25 +204,6 @@ ClassMethod FixField(request As %Persistent, Output field As %String) [ Private 
 ClassMethod Listed(list As %String, value As %String, Output out As %String) [ Private ]
 {
 	Set out = $Select((value '= "") && $ListFind($ListFromString(list), value): value, 1: "")
-}
-
-/// The time as message text in text (Data.Time.ForMessage), with " ET" on the online demo as the catalog shows a time; "" for an empty or unreadable time.
-ClassMethod Shown(utc As %String, online As %Boolean, Output text As %String) [ Private ]
-{
-	Set text = ##class(OcuTalon.Data.Time).ForMessage(utc)
-	If (text '= "") && online Set text = text_" ET"
-}
-
-/// The display names of the session's own watches of productions: names(namespace, production) is the display name. A read that fails gives none.
-ClassMethod WatchNames(sessionRef As %String, ByRef names) [ Private ]
-{
-	Kill names
-	Set checks = ##class(OcuTalon.Data.Ownership).Checks(sessionRef, .sc)
-	If $$$ISERR(sc) || '$IsObject(checks) Quit
-	For i = 1:1:checks.Count() {
-		Set check = checks.GetAt(i)
-		If (check.Kind = ..#KIND) && (check.DisplayName '= "") && '$Data(names(check.Namespace, check.Production)) Set names(check.Namespace, check.Production) = check.DisplayName
-	}
 }
 
 }

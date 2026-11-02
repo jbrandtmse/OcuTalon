@@ -593,7 +593,8 @@ XData Contracts [ MimeType = application/json ]
    "FailedAgain": "%Integer",
    "Skipped": "%Integer",
    "Interrupted": "%Integer",
-   "Reason": "%String(MAXLEN=1000)"
+   "Reason": "%String(MAXLEN=1000)",
+   "Unreached": "%Integer"
   },
   "indexes": {
    "ApprovalRefIndex": "ApprovalRef",

@@ -7,7 +7,7 @@ Include Ensemble
 /// re-check, resend, wait and result are pinned by Test.Fix.Recheck, Execute, Refused, Runs, Results, Partial, Waits and Scale on a fresh stack. They run warm.
 /// Each test asserts the FixRun rows, the request's state and Result and the recorded FixResult; a run's end also asserts that its counts and close were on disk when the
 /// FixResult was sent.
-///   - TestRefusedStates (AC 4): a request that is pending, rejected, expired, cancelled, executing, done or failed, an approved one past its ExpiresAt, a tool_call, a Ref
+///   - TestRefusedStates (AC 4): a request that is pending, rejected, expired, cancelled, executing, done or failed, a tool_call, a Ref
 ///     with no row and an empty Ref are each refused, as are a cancelled request of a closed incident and a pending one of an unregistered kind (the state decides, not
 ///     the row's other faults): the handler answers OK, writes no FixRun, leaves the row as it was (every column), sends no FixResult, calls neither the re-check nor the
 ///     resend and logs one Type 4 line that gives the case's own reason;
@@ -38,8 +38,9 @@ Include Ensemble
 ///     executor sends it, gives the key result.couldNotStart and renders whole, through Notice.ResultKey, ResultSlots and Catalog.Render, as "Nothing was resent:
 ///     OcuTalon isn't allowed to resend messages in that production. Nothing was changed.", "Nothing was resent: OcuTalon couldn't read the approved fix. Nothing was
 ///     changed." and "Nothing was resent: OcuTalon couldn't read the failed messages in that production. Nothing was changed.";
-///   - TestNothingResent (AC 3, AC 5; V2): a run whose targets are all skipped (by the re-check, by the resend, or by both) closes its request done and sends one final FixResult:
-///     Total and Skipped the number of targets, Resent, Completed and FailedAgain 0 and the reason of the lowest skipped target, with the counts stored and one Action entry;
+///   - TestNothingResent (AC 3, AC 5; V2): a run whose targets are all skipped (by the re-check, or by the re-check and the resend) closes its request done and sends one final FixResult:
+///     Total and Skipped the number of targets, Resent, Completed and FailedAgain 0 and the reason of the lowest skipped target, with the counts stored and one Action entry; a resend
+///     whose first copy finds the production stopped makes no copy and ends as could not start (NOTRUNNING), not as skipped;
 ///   - TestResentRunEndsWithItsCounts (AC 1, AC 3; the matrix row "Counts and reasons"): a run that resent copies counts them: 50 targets and 50 copies of which 48 completed
 ///     and 2 failed again with the incident's own error give 50/50/48/2/0, the reason "the order date still wasn't accepted" and the text "48 of 50 orders went through. 2 failed
 ///     again (the order date still wasn't accepted). I won't retry them without a new approval."; 47 copies of 50 targets, all completed, give 50/47/47/0/3 and "47 of 50 orders
@@ -50,10 +51,17 @@ Include Ensemble
 ///     still wasn't accepted", another error its first sentence without the closing full stop, no error text "no error text", an error at another item the sentence too; a
 ///     key in the text is redacted and the reason is at most 1000 characters;
 ///   - TestRunThatErredAfterACopyStillWaits (AC 1): a resend that registers two copies of three targets and then fails still waits for the copies it has: the request is
-///     closed done, the FixResult is 3/2/2/0/1 and reads as 2 of 3 orders went through, and one Type 3 warning (LOGRECHECK) names the request and the error;
-///   - TestStillRunningAfterTheWait (AC 1): copies that stay queued past the wait leave the request executing, the FixRun without an EndedAt or counts, no FixResult and no
-///     Action entry, and one Type 3 warning (LOGWAIT) that names the request and says how many copies still ran, once; a read that does not give read, or that throws, counts as still running,
+///     closed done, the FixResult is 3/2/2/0/1 with Unreached 1 and reads result.stoppedPartway (2 of the 3 orders resent, the next one not, none left untried), and one Type 3 warning (LOGRECHECK)
+///     names the request and the error;
+///   - TestStillRunningAfterTheWait (AC 1, AC 2): copies that stay queued past the wait leave the request executing, the FixRun without an EndedAt or counts, no Action entry, one
+///     progress FixResult (Final 0, 3/3/0/0/0, Unreached 0, no reason, which reads result.stillResending) and one Type 3 warning (LOGWAIT) that names the request and says how many
+///     copies still ran, once, and a later Wait sends nothing more; a read that does not give read, or that throws, counts as still running and sends no progress report,
 ///     and a read that throws logs one Type 3 warning (LOGLOOK) for the run, however many passes threw;
+///   - TestProgressReportCarriesTheCountsSoFar (AC 2): the report holds the counts of the last look that read the copies (1 completed, 1 failed again and 1 queued give 3/3/1/1/0), none goes
+///     for a run that is marked as interrupted, whose request is no longer executing or whose time is not up (Progress), and a partway run reports its Unreached;
+///   - TestResendThatErrsPartwaySaysHowFarItGot (DW-419, U-182, U-183): a resend that erred before its first copy ends as could not start (NOTRUNNING for a stopped production, else NOSTART, also
+///     with a real skip beside it and with a production read as timeout); after a copy it ends done with Unreached, one Type 3 warning (LOGPARTWAY) and result.stoppedPartway with the resent,
+///     completed and not-tried counts (stopped at copy 3 of 5 and of 4, and a mixed run with a copy that failed again); the incident payload's request result carries unreached;
 ///   - TestOneWaiterFinishesEveryRun (AC 7, AC 8; the matrix row "One waiter for every run"): while another job holds the probe's wait lock, two Executes (two incidents) return
 ///     with no FixResult and both runs wait; once the lock is free one Wait sends two FixResults, each with its own Ref and counts, in its own incident's trace session
 ///     (TraceHeaderId) with its row's TraceRef as the SuperSession, and the host's own session is put back;
@@ -70,9 +78,12 @@ Include Ensemble
 ///     logs one Type 3 warning (LOGFINISH), and its counts and EndedAt are stored, its entry written and its FixResult sent all the same;
 ///   - TestWaitLastsWaitSecondsFromResentAt (AC 1): on the long probe, a run whose ResentAt is 10 seconds inside the wait waits, though it started long before, and one whose
 ///     ResentAt is 2 seconds past the wait does not: the wait lasts WAITSECONDS from ResentAt;
+///   - TestPastExpiryCannotStart (AC 4; DW-384): an approved request past its ExpiresAt ends as could not start with the reason NOSTART, before the kind is read, with or without a
+///     StartExecution that fails: one FixRun with no copy, the request failed, one final FixResult of Total the number of targets and every other count 0, one Action entry failed,
+///     and the text "Nothing was resent: OcuTalon couldn't start the resend. Nothing was changed."; a pending, rejected, expired, cancelled and executing request past its ExpiresAt is still refused;
 ///   - TestStartExecutionFailsForAnApprovedRequest (AC 11; DW-380): an approved request, not past its expiry, whose StartExecution fails ends as could not start: one FixRun, the
 ///     request failed, one FixResult with Total the number of targets, every other count 0 and the reason "OcuTalon couldn't start the resend", one Action entry, and
-///     neither the re-check nor the resend is called; a pending, a cancelled and an executing request, and an approved one past its expiry, are refused; so is an approved
+///     neither the re-check nor the resend is called; a pending, a cancelled and an executing request are refused; so is an approved
 ///     request whose row on disk was cancelled or started by another job while its StartExecution failed (the row is read again): no FixRun, no FixResult, the row as it was left;
 ///   - TestEveryRunWritesOneActionEntry (AC 5): a run that cannot start, one that resent nothing and one that resent copies each write one Action entry, with the row's FixKind,
 ///     the production and namespace of the incident, the result, the counts as numbers, the request's Ref, the approver and channel (the system and the job's user without
@@ -98,11 +109,10 @@ Include Ensemble
 ///     warning, and the next Sweep reports the run; a close that throws logs one Type 3 warning and the next run is still swept;
 ///   - TestSweepEndsARunNoWaiterEnded (AC 4; DW-395): an unmarked run past its wait whose copies were all done inside it ends as the waiter would have ended it: Skipped is Total - Resent, Interrupted 0,
 ///     the row done, one Action entry done; a failed close logs one Type 3 warning and the result still comes;
-///   - TestSweepLeavesRunsOfTheWaiterAndOfStory305 (AC 5): unmarked runs inside their wait, with a copy still queued, whose last copy finished after the wait or has no time, whose read is not read,
+///   - TestSweepLeavesRunsOfTheWaiter (AC 5): unmarked runs inside their wait, with a copy still queued, whose read is not read,
 ///     with no ResentAt or whose request is done get no result, no EndedAt and no close, and Sweep logs no warning and reads the copies of exactly the runs that get that far;
-///   - TestSweepDecidesByTheLatestCopyTime (AC 4, AC 5; QA): the unmarked branch compares the latest time of the done copies with the end of the wait, strictly: one second before it the run ends done
-///     (the latest copy first in the list, the others earlier), at the end of the wait it is left, and so is one whose copies are done but one of them has no time among others that have one, and one
-///     whose latest done copy is a failed one;
+///   - TestSweepEndsEveryRunWhoseCopiesAreDone (AC 3, AC 4; Story 30.5): the unmarked branch ends a run past its wait once all its copies are done, whenever the last was done: after the wait, at its
+///     end, with a copy that has no time, with a failed copy last, and for a run that stopped partway, whose Unreached comes with its result;
 ///   - TestSweepGoesOnWhenTheEndFails: a marked or an unmarked run whose end cannot be saved gives no result, no entry and one Type 3 warning, and the next Sweep reports it once; a marked run whose audit
 ///     write throws still gives its result (one warning); an unmarked run whose close throws still gives its result and its entry (one warning);
 ///   - TestSweepSkipsALockedRun: a marked and an unmarked run whose locks other jobs hold are skipped, with nothing written or closed, and End and Mark refuse the marked one; once the
@@ -193,7 +203,7 @@ Method TestRefusedStates()
 	Set owner = ..Owner("refused")
 	Set incident = ..Incident(owner)
 	Set closed = ..Incident(owner, {"State": "closed", "ClosedAt": "2030-01-01T10:00:00Z"})
-	Set cases = $ListBuild("pending", "rejected", "expired", "cancelled", "executing", "done", "failed", "past expiry", "tool_call", "unknown", "empty", "cancelled on a closed incident", "pending of an unknown kind")
+	Set cases = $ListBuild("pending", "rejected", "expired", "cancelled", "executing", "done", "failed", "tool_call", "unknown", "empty", "cancelled on a closed incident", "pending of an unknown kind")
 	Set position = 0
 	While $ListNext(cases, position, case) {
 		Set where = incident
@@ -204,9 +214,6 @@ Method TestRefusedStates()
 		} ElseIf case = "empty" {
 			Set ref = ""
 			Set because = "no approval request"
-		} ElseIf case = "past expiry" {
-			Set ref = ..Request(owner, incident, "approved", {"ExpiresAt": "2020-01-01T00:00:00Z"})
-			Set because = "past its expiry"
 		} ElseIf case = "tool_call" {
 			Set ref = ..Request(owner, incident, "approved", {"Kind": "tool_call"})
 			Set because = "not a fix"
@@ -520,10 +527,10 @@ Method TestNothingResent()
 	// the resend skips every target
 	Set incident = ..Incident(owner)
 	Set host.CheckIs = "{""passed"":""101,102,103"",""skipped"":[]}"
-	Set host.CarryIs = "{""copies"":[],""skipped"":[{""id"":102,""reason"":""message 102 was not resent because the production isn't running""},{""id"":101,""reason"":""message 101 was not resent because the production isn't running""},{""id"":103,""reason"":""message 103 was not resent because the production isn't running""}]}"
+	Set host.CarryIs = "{""copies"":[],""skipped"":[],""unreached"":[{""id"":101,""code"":""stopped""},{""id"":102,""code"":""after""},{""id"":103,""code"":""after""}]}"
 	Set ref = ..Request(owner, incident, "approved")
-	Do $$$AssertStatusOK(..Send(host, ref), "a run whose copies are all skipped is handled")
-	Do ..AssertEnded(host, ref, incident, "done|done|finished", 3, "message 101 was not resent because the production isn't running", "resend skips all", 3)
+	Do $$$AssertStatusOK(..Send(host, ref), "a run whose first copy finds the production stopped is handled")
+	Do ..AssertEnded(host, ref, incident, "failed|failed|finished", 3, ..#NOTRUNNING, "resend stops at the first copy")
 	Do $$$AssertEquals(..Calls(host), "2/1", "the resend was called once, with the targets that passed")
 	Do $$$AssertEquals(host.Carried.%Get(0).targets, "101,102,103", "with all of them")
 
@@ -534,6 +541,111 @@ Method TestNothingResent()
 	Set ref = ..Request(owner, incident, "approved")
 	Do $$$AssertStatusOK(..Send(host, ref), "a run whose targets are skipped by both is handled")
 	Do ..AssertEnded(host, ref, incident, "done|done|finished", 3, "message 101 has been resent already", "both skip", 3)
+}
+
+Method TestResendThatErrsPartwaySaysHowFarItGot()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set host.MissingIs = "none"
+	Set owner = ..Owner("partwayend")
+	Set own = "The order date was not in the expected format. Expected YYYY-MM-DD, got '16/10/2026'."
+	Set tail = " Nothing else was changed, and I won't resend the rest without a new approval."
+
+	// the first copy errs, so no copy was made: the run could not start, and the reason says whether the production was stopped (a real skip beside it changes nothing)
+	Set cases = $ListBuild($ListBuild("stopped", "", ..#NOTRUNNING), $ListBuild("stopped", "skip", ..#NOTRUNNING), $ListBuild("refused", "", ..#NOSTART), $ListBuild("error", "", ..#NOSTART), $ListBuild("stopped", "timeout", ..#NOTRUNNING))
+	Set position = 0
+	While $ListNext(cases, position, case) {
+		Set code = $List(case, 1), extra = $List(case, 2)
+		Set incident = ..Incident(owner)
+		Set host.CheckIs = "{""passed"":"""_..TargetList(3)_""",""skipped"":[]}"
+		Set skipped = $Select(extra = "skip": "[{""id"":101,""reason"":""the order date of message 101 changed while the run was starting""}]", 1: "[]")
+		Set host.CarryIs = "{""copies"":[],""skipped"":"_skipped_",""unreached"":[{""id"":102,""code"":"""_code_"""},{""id"":103,""code"":""after""}]}"
+		Set host.StateIs = $Select(extra = "timeout": "timeout", 1: "")
+		Set mark = ##class(OcuTalon.Test.Core.Observe).LastLog()
+		Set ref = ..Request(owner, incident, "approved")
+		Do $$$AssertStatusOK(..Send(host, ref), code_" "_extra_": a run whose first copy erred is handled")
+		Do ..AssertEnded(host, ref, incident, "failed|failed|finished", 3, $Select(code = "stopped": ..#NOTRUNNING, 1: ..#NOSTART), code_" "_extra_": no copy was made")
+		Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Warnings(mark, , "Run", $Parameter(..#PROBE, "LOGPARTWAY")_ref), 0, code_" "_extra_": and no partway warning is logged")
+	}
+	Set host.StateIs = ""
+
+	// 3 targets, 2 copies completed, the third stopped: partway, with the three counts
+	Set incident = ..Incident(owner)
+	Set host.Incidents = incident
+	Set host.CheckIs = "{""passed"":"""_..TargetList(3)_""",""skipped"":[]}"
+	Set carry = {}.%FromJSON(..CarryJSON(9201, 2))
+	Set carry.unreached = [{"id": 103, "code": "stopped"}]
+	Set host.CarryIs = carry.%ToJSON()
+	Set host.StatusIs = ..Canned(9201, 2, "Completed").%ToJSON()
+	Set mark = ##class(OcuTalon.Test.Core.Observe).LastLog()
+	Set ref = ..Request(owner, incident, "approved", {"FixTargets": (..TargetList(3))})
+	Do $$$AssertStatusOK(..Send(host, ref), "a run whose third copy found the production stopped is handled")
+	Do ..AssertCounted(host, ref, incident, "done|done|finished", "3|2|2|0|1", "", "stopped at the third", "The resend stopped partway: I resent 2 of the 3 orders (2 went through), the next one couldn't be resent, and 0 more weren't tried."_tail, 1)
+	Set warned = ##class(OcuTalon.Test.Core.Observe).Warnings(mark, .text, "Run", $Parameter(..#PROBE, "LOGPARTWAY")_ref)
+	Do $$$AssertEquals(warned, 1, "one Type 3 warning (LOGPARTWAY) names the request: "_text)
+	Do $$$AssertTrue($Find(text, " at message 103: stopped; 1 of 3 targets were not reached") > 0, "and the message, the code and the counts")
+	Do $$$AssertEquals(##class(OcuTalon.Fix.Executor).ResultOf(##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(ref), {"total": 3, "resent": 2, "completed": 2, "failedAgain": 0, "skipped": 1, "unreached": 1, "reason": ""}).Unreached, 1, "ResultOf carries Unreached")
+
+	// 5 targets: 3 copies (2 completed, 1 failed again), 1 real skip, then 1 refused
+	Set incident = ..Incident(owner)
+	Do ..Group(incident, "OrdersFromPartner", ..#ORDERDATETEXT)
+	Set host.Incidents = incident
+	Set host.CheckIs = "{""passed"":"""_..TargetList(5)_""",""skipped"":[]}"
+	Set carry = {}.%FromJSON(..CarryJSON(9211, 3))
+	Set carry.skipped = [{"id": 104, "reason": "the order date of message 104 changed while the run was starting"}]
+	Set carry.unreached = [{"id": 105, "code": "refused"}]
+	Set host.CarryIs = carry.%ToJSON()
+	Set statuses = ..Canned(9211, 3, "Completed")
+	Do statuses.%Set("9213", {"status": "Error", "error": (own), "target": "OrdersFromPartner"})
+	Set host.StatusIs = statuses.%ToJSON()
+	Set ref = ..Request(owner, incident, "approved", {"FixTargets": (..TargetList(5))})
+	Do $$$AssertStatusOK(..Send(host, ref), "a run with a copy that failed again, a real skip and a refused copy is handled")
+	Do ..AssertCounted(host, ref, incident, "done|done|finished", "5|3|2|1|2", "the order date still wasn't accepted", "mixed with a partway stop", "The resend stopped partway: I resent 3 of the 5 orders (2 went through), the next one couldn't be resent, and 0 more weren't tried."_tail, 1)
+
+	// stops at copy k of n: 5 targets, the third copy stopped, two entries never tried
+	Set incident = ..Incident(owner)
+	Set host.Incidents = incident
+	Set host.CheckIs = "{""passed"":"""_..TargetList(5)_""",""skipped"":[]}"
+	Set carry = {}.%FromJSON(..CarryJSON(9221, 2))
+	Set carry.unreached = [{"id": 103, "code": "stopped"}, {"id": 104, "code": "after"}, {"id": 105, "code": "after"}]
+	Set host.CarryIs = carry.%ToJSON()
+	Set host.StatusIs = ..Canned(9221, 2, "Completed").%ToJSON()
+	Set ref = ..Request(owner, incident, "approved", {"FixTargets": (..TargetList(5))})
+	Do $$$AssertStatusOK(..Send(host, ref), "a run that stopped at copy 3 of 5 is handled")
+	Do ..AssertCounted(host, ref, incident, "done|done|finished", "5|2|2|0|3", "", "stopped at 3 of 5", "The resend stopped partway: I resent 2 of the 5 orders (2 went through), the next one couldn't be resent, and 2 more weren't tried."_tail, 3)
+
+	// 4 targets, the third copy errs: one entry never tried, the one form
+	Set incident = ..Incident(owner)
+	Set host.Incidents = incident
+	Set host.CheckIs = "{""passed"":"""_..TargetList(4)_""",""skipped"":[]}"
+	Set carry = {}.%FromJSON(..CarryJSON(9231, 2))
+	Set carry.unreached = [{"id": 103, "code": "error"}, {"id": 104, "code": "after"}]
+	Set host.CarryIs = carry.%ToJSON()
+	Set host.StatusIs = ..Canned(9231, 2, "Completed").%ToJSON()
+	Set ref = ..Request(owner, incident, "approved", {"FixTargets": (..TargetList(4))})
+	Do $$$AssertStatusOK(..Send(host, ref), "a run that stopped at copy 3 of 4 is handled")
+	Do ..AssertCounted(host, ref, incident, "done|done|finished", "4|2|2|0|2", "", "stopped at 3 of 4", "The resend stopped partway: I resent 2 of the 4 orders (2 went through), the next one couldn't be resent, and 1 more wasn't tried."_tail, 2)
+
+	// the incident's payload carries the stored count, and none for a run that did not stop partway
+	Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(incident)
+	Set row.RequestRefs = ref
+	Do ##class(OcuTalon.Live.Payload.Incident).FromRow(row).%JSONExportToString(.json)
+	Set object = {}.%FromJSON(json)
+	Do $$$AssertEquals(object.requests.%Get(0).result.unreached, 2, "the incident payload's request result carries unreached 2")
+	Set incident = ..Incident(owner)
+	Set host.Incidents = incident
+	Set host.CheckIs = "{""passed"":"""_..TargetList(3)_""",""skipped"":[]}"
+	Set host.CarryIs = ..CarryJSON(9251, 3)
+	Set host.StatusIs = ..Canned(9251, 3, "Completed").%ToJSON()
+	Set ref = ..Request(owner, incident, "approved", {"FixTargets": (..TargetList(3))})
+	Do $$$AssertStatusOK(..Send(host, ref), "a run that did not stop partway is handled")
+	Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(incident)
+	Set row.RequestRefs = ref
+	Kill json
+	Do ##class(OcuTalon.Live.Payload.Incident).FromRow(row).%JSONExportToString(.json)
+	Set object = {}.%FromJSON(json)
+	Do $$$AssertEquals(object.requests.%Get(0).result.%IsDefined("unreached"), 0, "and its request result has no unreached")
 }
 
 Method TestResentRunEndsWithItsCounts()
@@ -692,7 +804,7 @@ Method TestRunThatErredAfterACopyStillWaits()
 	Set mark = ##class(OcuTalon.Test.Core.Observe).LastLog()
 	Set ref = ..Request(owner, incident, "approved", {"FixTargets": (..TargetList(3))})
 	Do $$$AssertStatusOK(..Send(host, ref), "a run whose resend stopped after two copies is handled")
-	Do ..AssertCounted(host, ref, incident, "done|done|finished", "3|2|2|0|1", "", "the two copies made", "2 of 3 orders went through. 1 had changed since the dry run, so I skipped it; it needs a new approval.")
+	Do ..AssertCounted(host, ref, incident, "done|done|finished", "3|2|2|0|1", "", "the two copies made", "The resend stopped partway: I resent 2 of the 3 orders (2 went through), the next one couldn't be resent, and 0 more weren't tried. Nothing else was changed, and I won't resend the rest without a new approval.", 1)
 	Do $$$AssertEquals(host.Reads, 1, "the wait read the two copies the run had")
 	Set warned = ##class(OcuTalon.Test.Core.Observe).Warnings(mark, .text, "Run", $Parameter(..#PROBE, "LOGRECHECK")_ref)
 	Do $$$AssertEquals(warned, 1, "one Type 3 warning names the request: "_text)
@@ -723,7 +835,12 @@ Method TestStillRunningAfterTheWait()
 		Do $$$AssertEquals((run.resentAt '= "")_"|"_run.endedAt_"|"_run.total_run.resent_run.completed_run.failedAgain_run.skipped_run.reason, "1||", "which has a ResentAt and no EndedAt and no counts")
 		Do $$$AssertEquals(run.copies.%Size(), 3, "and holds the three copies")
 	}
-	Do $$$AssertEquals($Select($IsObject(host.Results): host.Results.%Size(), 1: 0), 0, "no FixResult is sent")
+	Do $$$AssertEquals($Select($IsObject(host.Results): host.Results.%Size(), 1: 0), 1, "one FixResult is sent: the progress report")
+	Set last = ..LastResult(host)
+	If $IsObject(last) {
+		Do $$$AssertEquals(last.approvalRef_"|"_last.final_"|"_last.interrupted_"|"_last.total_"|"_last.resent_"|"_last.completed_"|"_last.failedAgain_"|"_last.skipped_"|"_last.unreached_"|"_last.reason, ref_"|0|0|3|3|0|0|0|0|", "which is not final, not interrupted and holds 3|3|0|0|0, Unreached 0 and no reason")
+		Do $$$AssertEquals(..Render(last, "executing"), "Still resending: 0 of 3 orders have gone through so far. I'll tell you when it's done.", "and reads still resending")
+	}
 	Do $$$AssertEquals($Select($IsObject(host.Audits): host.Audits.%Size(), 1: 0), 0, "and no Action entry is written")
 	Set warned = ##class(OcuTalon.Test.Core.Observe).Warnings(mark, .text, "Pass", $Parameter(..#PROBE, "LOGWAIT")_ref)
 	Do $$$AssertEquals(warned, 1, "one Type 3 warning names the request: "_text)
@@ -732,7 +849,7 @@ Method TestStillRunningAfterTheWait()
 	// the run is not waited for any more: another wait neither warns again nor sends anything
 	Do host.WaitNow()
 	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Warnings(mark, .text, "Pass", $Parameter(..#PROBE, "LOGWAIT")_ref), 1, "a later Wait logs no second warning")
-	Do $$$AssertEquals($Select($IsObject(host.Results): host.Results.%Size(), 1: 0), 0, "and sends no result")
+	Do $$$AssertEquals($Select($IsObject(host.Results): host.Results.%Size(), 1: 0), 1, "and sends no result: the progress report was the only one")
 	Do $$$AssertEquals(..Row(ref), "executing||", "the request is still executing")
 
 	// a read that does not give read counts as still running
@@ -744,7 +861,7 @@ Method TestStillRunningAfterTheWait()
 	Set ref = ..Request(owner, incident, "approved", {"FixTargets": (..TargetList(3))})
 	Do $$$AssertStatusOK(..Send(host, ref), "a run whose copies cannot be read is handled")
 	Do $$$AssertEquals(..Row(ref), "executing||", "its request stays executing: an unreadable copy is never counted as completed")
-	Do $$$AssertEquals($Select($IsObject(host.Results): host.Results.%Size(), 1: 0), 0, "and no FixResult is sent")
+	Do $$$AssertEquals($Select($IsObject(host.Results): host.Results.%Size(), 1: 0), 1, "and no FixResult is sent: a progress report needs a read that read, so the one result is still the first run's")
 	Set host.StatusOutcome = ""
 
 	// a read that throws: one Type 3 warning for the run, however many passes threw, and the request stays executing
@@ -761,6 +878,79 @@ Method TestStillRunningAfterTheWait()
 	Do $$$AssertEquals(warned, 1, "one Type 3 warning names the request, however many passes threw: "_text)
 	Do $$$AssertTrue($Find(text, "The read threw") > 0, "and says why the copies could not be read")
 	Set host.StatusOutcome = ""
+}
+
+Method TestProgressReportCarriesTheCountsSoFar()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set host.MissingIs = "none"
+	Set owner = ..Owner("progress")
+	Set own = "The order date was not in the expected format. Expected YYYY-MM-DD, got '16/10/2026'."
+
+	// the last look before the drop: 1 copy completed, 1 failed again, 1 queued (the first look found all three queued)
+	Set incident = ..Incident(owner)
+	Set host.Incidents = incident
+	Set host.CheckIs = "{""passed"":"""_..TargetList(3)_""",""skipped"":[]}"
+	Set host.CarryIs = ..CarryJSON(9501, 3)
+	Set statuses = ..Canned(9501, 3, "Queued")
+	Set host.StatusIs = statuses.%ToJSON()
+	Do statuses.%Set("9501", {"status": "Completed", "error": "", "target": "OrdersFromPartner"})
+	Do statuses.%Set("9502", {"status": "Error", "error": (own), "target": "OrdersFromPartner"})
+	Set host.StatusThen = statuses.%ToJSON()
+	Set host.ThenAfter = 1
+	Set ref = ..Request(owner, incident, "approved", {"FixTargets": (..TargetList(3))})
+	Do $$$AssertStatusOK(..Send(host, ref), "a run with one completed, one failed and one queued copy is handled")
+	Set last = ..LastResult(host)
+	Do $$$AssertTrue($IsObject(last), "a FixResult was sent")
+	If $IsObject(last) {
+		Do $$$AssertEquals(last.final_"|"_last.interrupted_"|"_last.total_"|"_last.resent_"|"_last.completed_"|"_last.failedAgain_"|"_last.skipped_"|"_last.unreached_"|"_last.reason, "0|0|3|3|1|1|0|0|", "the progress report is not final and holds 3|3|1|1|0, Unreached 0, no reason")
+		Do $$$AssertEquals(last.storedEnd_"|"_last.storedState, "0|executing", "when it was sent, the run had no EndedAt and the request was executing")
+		Do $$$AssertEquals(..Render(last, "executing"), "Still resending: 1 of 3 orders has gone through so far. I'll tell you when it's done.", "and it reads still resending")
+	}
+	Do $$$AssertEquals(host.Results.%Size(), 1, "exactly one report went")
+	Do $$$AssertEquals($Select($IsObject(host.Audits): host.Audits.%Size(), 1: 0), 0, "and no Action entry")
+	Set run = ##class(OcuTalon.Test.Watch.Case).RunOf(incident, ref)
+	Do $$$AssertEquals(run.endedAt_"|"_run.total_run.resent_run.completed_run.failedAgain_run.skipped_run.reason, "|", "the run stores no counts")
+
+	Set host.StatusThen = ""
+	Set host.ThenAfter = 0
+	Set host.Reads = 0
+
+	// the report goes only for a run that is not marked as interrupted, whose request is executing and whose time is up (Progress, called as the drop calls it)
+	Set tally = {"completed": 1, "failedAgain": 0, "running": 2, "failed": ""}
+	Set cases = $ListBuild($ListBuild("an unmarked run past its wait of an executing request", "executing", -100, 0, 1), $ListBuild("a marked run", "executing", -100, 3, 0), $ListBuild("a run of a request that is no longer executing", "failed", -100, 0, 0), $ListBuild("a run still inside its wait", "executing", -1, 0, 0))
+	Set position = 0
+	While $ListNext(cases, position, case) {
+		Set incident = ..Incident(owner)
+		Set ref = ..Request(owner, incident, $List(case, 2), {"FixTargets": (..TargetList(3))})
+		Set fields = {"startedAt": (..Stamp(-200)), "copies": [9511, 9512, 9513], "resentAt": (..Stamp($List(case, 3)))}
+		If $List(case, 4) Do fields.%Set("total", $List(case, 4))
+		Set one = ..FixRun(incident, ref, fields)
+		Set before = host.Results.%Size()
+		Do host.ProgressNow(one, tally)
+		Do $$$AssertEquals(host.Results.%Size() - before, $List(case, 5), $List(case, 1)_": "_$Select($List(case, 5): "one report goes", 1: "no report goes"))
+		If $List(case, 5) {
+			Set last = ..LastResult(host)
+			Do $$$AssertEquals(last.final_"|"_last.total_"|"_last.resent_"|"_last.completed_"|"_last.failedAgain_"|"_last.skipped, "0|3|3|1|0|0", $List(case, 1)_": the report holds the tally's counts")
+		}
+	}
+
+	// a partway run reports its Unreached
+	Set incident = ..Incident(owner)
+	Set host.Incidents = incident
+	Set host.CheckIs = "{""passed"":"""_..TargetList(3)_""",""skipped"":[]}"
+	Set carry = {}.%FromJSON(..CarryJSON(9521, 2))
+	Set carry.unreached = [{"id": 103, "code": "stopped"}]
+	Set host.CarryIs = carry.%ToJSON()
+	Set host.StatusIs = ..Canned(9521, 2, "Queued").%ToJSON()
+	Set ref = ..Request(owner, incident, "approved", {"FixTargets": (..TargetList(3))})
+	Do $$$AssertStatusOK(..Send(host, ref), "a partway run whose copies stay queued is handled")
+	Set last = ..LastResult(host)
+	If $IsObject(last) {
+		Do $$$AssertEquals(last.final_"|"_last.total_"|"_last.resent_"|"_last.completed_"|"_last.failedAgain_"|"_last.skipped_"|"_last.unreached, "0|3|2|0|0|1|1", "its progress report holds 3|2|0|0|1 and Unreached 1")
+		Do $$$AssertEquals(..Render(last, "executing"), "Still resending: 0 of 3 orders have gone through so far. I'll tell you when it's done.", "and still reads still resending")
+	}
 }
 
 Method TestOneWaiterFinishesEveryRun()
@@ -1063,15 +1253,11 @@ Method TestStartExecutionFailsForAnApprovedRequest()
 
 	// the others are refused
 	Set host.RefusalIs = "none"
-	Set cases = $ListBuild("pending", "cancelled", "executing", "past expiry")
+	Set cases = $ListBuild("pending", "cancelled", "executing")
 	Set position = 0
 	While $ListNext(cases, position, case) {
 		Set incident = ..Incident(owner)
-		If case = "past expiry" {
-			Set ref = ..Request(owner, incident, "approved", {"ExpiresAt": "2020-01-01T00:00:00Z"})
-		} Else {
-			Set ref = ..Request(owner, incident, case)
-		}
+		Set ref = ..Request(owner, incident, case)
 		Set whole = ..Whole(ref)
 		Set before = $Select($IsObject(host.Results): host.Results.%Size(), 1: 0)
 		Set infos = ..Infos()
@@ -1097,6 +1283,43 @@ Method TestStartExecutionFailsForAnApprovedRequest()
 		Do $$$AssertEquals(..Infos() - infos, 1, moved_" on disk: one info line is logged")
 	}
 	Set host.StartMoves = ""
+}
+
+Method TestPastExpiryCannotStart()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set host.MissingIs = "none"
+	Set owner = ..Owner("expired")
+
+	// an approved request past its ExpiresAt ends as could not start; the kind is never read, and a StartExecution that fails changes nothing
+	For startIs = "", "the lock could not be taken" {
+		Set host.StartIs = startIs
+		Set incident = ..Incident(owner)
+		Set ref = ..Request(owner, incident, "approved", {"ExpiresAt": "2020-01-01T00:00:00Z"})
+		Do $$$AssertStatusOK(..Send(host, ref), "an approved request past its expiry is handled")
+		Do ..AssertEnded(host, ref, incident, "failed|failed|finished", 3, ..#NOSTART, "past expiry")
+		Do $$$AssertEquals(..Calls(host), 0, "past expiry: neither the re-check nor the resend was called")
+		Do $$$AssertEquals(..Runs(incident).%Size(), 1, "past expiry: the request has exactly one FixRun")
+		Do $$$AssertEquals(..Infos(), 0, "past expiry: nothing was refused")
+		Set last = ..LastResult(host)
+		If $IsObject(last) Do $$$AssertEquals(..Render(last, "failed"), "Nothing was resent: OcuTalon couldn't start the resend. Nothing was changed.", "past expiry: it reads as Nothing was resent: OcuTalon couldn't start the resend. Nothing was changed.")
+	}
+	Set host.StartIs = ""
+
+	// every other state, past its expiry as well, is still refused with one info line
+	Set before = host.Results.%Size()
+	For state = "pending", "rejected", "expired", "cancelled", "executing" {
+		Set incident = ..Incident(owner)
+		Set ref = ..Request(owner, incident, state, {"ExpiresAt": "2020-01-01T00:00:00Z"})
+		Set whole = ..Whole(ref)
+		Set infos = ..Infos()
+		Do $$$AssertStatusOK(..Send(host, ref), state_": the Execute is handled")
+		Do $$$AssertEquals(..Whole(ref), whole, state_": the row is as it was, every column")
+		Do $$$AssertEquals(..Runs(incident).%Size(), 0, state_": no FixRun is written")
+		Do $$$AssertEquals(..Infos() - infos, 1, state_": one info line is logged")
+	}
+	Do $$$AssertEquals(host.Results.%Size(), before, "and no FixResult is sent for any of them")
 }
 
 Method TestEveryRunWritesOneActionEntry()
@@ -1494,14 +1717,12 @@ Method TestSweepEndsARunNoWaiterEnded()
 	Do $$$AssertEquals(again.Count(), 0, "a second Sweep returns nothing")
 }
 
-Method TestSweepLeavesRunsOfTheWaiterAndOfStory305()
+Method TestSweepLeavesRunsOfTheWaiter()
 {
 	Set probe = "OcuTalon.Test.Fix.RunProbe"
 	Set owner = ..Owner("left")
 	Set sentAt = ..Stamp(-100)
 	Set doneAt = ##class(OcuTalon.Bridge.Time).PlusSeconds(sentAt, 20)
-	Set lateAt = ##class(OcuTalon.Bridge.Time).PlusSeconds(sentAt, 70)
-	Set all = ..CannedAt(9901, 3, "Completed", doneAt)
 	Set cases = 0
 
 	// inside its wait
@@ -1512,14 +1733,6 @@ Method TestSweepLeavesRunsOfTheWaiterAndOfStory305()
 	Set queued = ..CannedAt(9911, 2, "Completed", doneAt)
 	Do queued.%Set("9913", {"status": "Queued", "error": "", "target": "OrdersFromPartner", "at": (sentAt)})
 	Set cases($Increment(cases)) = $ListBuild("with a copy still queued", ..UnmarkedRun(owner, i, 3, "9911,9912,9913", sentAt, queued), i)
-	// past its wait, the last copy done after the wait
-	Set i = ..Incident(owner)
-	Set late = ..CannedAt(9921, 2, "Completed", doneAt)
-	Do late.%Set("9923", {"status": "Completed", "error": "", "target": "OrdersFromPartner", "at": (lateAt)})
-	Set cases($Increment(cases)) = $ListBuild("whose last copy finished after the wait", ..UnmarkedRun(owner, i, 3, "9921,9922,9923", sentAt, late), i)
-	// past its wait, a copy that is done and has no time
-	Set i = ..Incident(owner)
-	Set cases($Increment(cases)) = $ListBuild("with a copy that has no time", ..UnmarkedRun(owner, i, 3, "9931,9932,9933", sentAt, ..CannedAt(9931, 3, "Completed", "")), i)
 	// no ResentAt
 	Set i = ..Incident(owner)
 	Set cases($Increment(cases)) = $ListBuild("with no ResentAt", ..UnmarkedRun(owner, i, 3, "9941,9942,9943", "", ..CannedAt(9941, 3, "Completed", doneAt)), i)
@@ -1534,7 +1747,7 @@ Method TestSweepLeavesRunsOfTheWaiterAndOfStory305()
 	Set results = $ClassMethod(probe, "Sweep")
 	Do $$$AssertEquals(results.Count(), 0, "Sweep returns nothing for any of the runs")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Warnings(mark, , "Sweep", $Parameter("OcuTalon.Fix.Run", "LOGSWEEP"))_"|"_##class(OcuTalon.Test.Core.Observe).Warnings(mark, , "EndLeft", $Parameter("OcuTalon.Fix.Run", "LOGREAD")), "0|0", "and logs no warning: none of the runs was left because Sweep failed on it")
-	Do $$$AssertEquals($ClassMethod(probe, "Reads"), 4, "the copies were read for the four runs that are past their wait and whose request is executing, and for no other")
+	Do $$$AssertEquals($ClassMethod(probe, "Reads"), 2, "the copies were read for the two runs that are past their wait and whose request is executing, and for no other")
 	Do $$$AssertEquals(..AuditCount()_"|"_..ClosedList(), "0|", "writes no entry and closes no request")
 	For n = 1:1:cases {
 		Set ref = $List(cases(n), 2)
@@ -1543,54 +1756,57 @@ Method TestSweepLeavesRunsOfTheWaiterAndOfStory305()
 	}
 }
 
-Method TestSweepDecidesByTheLatestCopyTime()
+Method TestSweepEndsEveryRunWhoseCopiesAreDone()
 {
 	Set probe = "OcuTalon.Test.Fix.RunProbe"
 	Set owner = ..Owner("latest")
 	Set own = "The order date was not in the expected format. Expected YYYY-MM-DD, got '16/10/2026'."
 	Set sentAt = ..Stamp(-100)
 	Set early = ##class(OcuTalon.Bridge.Time).PlusSeconds(sentAt, 10)
-	Set justIn = ##class(OcuTalon.Bridge.Time).PlusSeconds(sentAt, ##class(OcuTalon.Fix.Executor).#WAITSECONDS - 1)
+	Set late = ##class(OcuTalon.Bridge.Time).PlusSeconds(sentAt, ##class(OcuTalon.Fix.Executor).#WAITSECONDS + 10)
 	Set atEnd = ##class(OcuTalon.Bridge.Time).PlusSeconds(sentAt, ##class(OcuTalon.Fix.Executor).#WAITSECONDS)
 
-	// A: the latest copy (one second before the end of the wait) is the first of the list: the run ends
+	// A: the last copy was done 70 seconds after ResentAt, past the wait (the waiter reported the run in progress)
 	Set iA = ..Incident(owner)
 	Set statuses = ..CannedAt(9971, 3, "Completed", early)
-	Do statuses.%Set("9971", {"status": "Completed", "error": "", "target": "OrdersFromPartner", "at": (justIn)})
+	Do statuses.%Set("9971", {"status": "Completed", "error": "", "target": "OrdersFromPartner", "at": (late)})
 	Set rA = ..UnmarkedRun(owner, iA, 3, "9971,9972,9973", sentAt, statuses)
 
-	// B: the latest copy is done at the end of the wait itself, and is the first of the list: the run is left
+	// B: the last copy was done at the end of the wait itself
 	Set iB = ..Incident(owner)
 	Set statuses = ..CannedAt(9981, 3, "Completed", early)
 	Do statuses.%Set("9981", {"status": "Completed", "error": "", "target": "OrdersFromPartner", "at": (atEnd)})
 	Set rB = ..UnmarkedRun(owner, iB, 3, "9981,9982,9983", sentAt, statuses)
 
-	// C: two copies are done early and the third has no time: the run is left
+	// C: one done copy has no time
 	Set iC = ..Incident(owner)
 	Set statuses = ..CannedAt(9991, 2, "Completed", early)
 	Do statuses.%Set("9993", {"status": "Completed", "error": "", "target": "OrdersFromPartner", "at": ""})
 	Set rC = ..UnmarkedRun(owner, iC, 3, "9991,9992,9993", sentAt, statuses)
 
-	// D: the copy that is done last is a failed one, at the end of the wait: the run is left
+	// D: the copy done last is a failed one, past the wait
 	Set iD = ..Incident(owner)
+	Do ..Group(iD, "OrdersFromPartner", ..#ORDERDATETEXT)
 	Set statuses = ..CannedAt(9961, 2, "Completed", early)
-	Do statuses.%Set("9963", {"status": "Error", "error": (own), "target": "OrdersFromPartner", "at": (atEnd)})
+	Do statuses.%Set("9963", {"status": "Error", "error": (own), "target": "OrdersFromPartner", "at": (late)})
 	Set rD = ..UnmarkedRun(owner, iD, 3, "9961,9962,9963", sentAt, statuses)
+
+	// E: the resend stopped partway (Unreached 1), and its copies are done
+	Set iE = ..Incident(owner)
+	Set rE = ..UnmarkedRun(owner, iE, 3, "9951,9952", sentAt, ..CannedAt(9951, 2, "Completed", late), "executing", "read", 1)
 	Do $ClassMethod(probe, "Narrow", ..Incidents)
 	Set mark = ##class(OcuTalon.Test.Core.Observe).LastLog()
 	Set results = $ClassMethod(probe, "Sweep")
-	Do $$$AssertEquals(results.Count(), 1, "Sweep returns one FixResult: that of the run whose latest copy was done a second before the end of its wait")
-	Do ..AssertDone(results, rA, iA, "3|3|3|0|0", "", "result.allThrough", "All 3 orders went through.", "done|done|finished", "A: the latest copy done a second before the end of the wait, listed first")
-	Set left = $ListBuild($ListBuild(rB, iB, "B: the latest copy done at the end of the wait, listed first"), $ListBuild(rC, iC, "C: one done copy has no time among copies that have one"), $ListBuild(rD, iD, "D: the copy done last is a failed one, at the end of the wait"))
-	Set position = 0
-	While $ListNext(left, position, each) {
-		Set ref = $List(each, 1)
-		Set run = ##class(OcuTalon.Test.Watch.Case).RunOf($List(each, 2), ref)
-		Do $$$AssertEquals(..Stored(run.id)_"#"_..Row(ref), "0|0|0|0|0|0|0|#executing||", $List(each, 3)_": the run is left, with no EndedAt and its request executing")
-		Do $$$AssertTrue('$IsObject(..ResultFor(results, ref)), $List(each, 3)_": no FixResult")
-	}
-	Do $$$AssertEquals($ClassMethod(probe, "Reads"), 4, "the copies of all four runs were read, so the three that are left were left for their copy times")
-	Do $$$AssertEquals(..AuditCount()_"|"_..ClosedList(), "1|"_rA_"|done", "one entry is written and one request closed: those of run A")
+	Do $$$AssertEquals(results.Count(), 5, "Sweep returns one FixResult for each of the five runs, whenever its last copy was done")
+	Do ..AssertDone(results, rA, iA, "3|3|3|0|0", "", "result.allThrough", "All 3 orders went through.", "done|done|finished", "A: the last copy done after the wait")
+	Do ..AssertDone(results, rB, iB, "3|3|3|0|0", "", "result.allThrough", "All 3 orders went through.", "done|done|finished", "B: the last copy done at the end of the wait")
+	Do ..AssertDone(results, rC, iC, "3|3|3|0|0", "", "result.allThrough", "All 3 orders went through.", "done|done|finished", "C: one done copy with no time")
+	Do ..AssertDone(results, rD, iD, "3|3|2|1|0", "the order date still wasn't accepted", "result.failedAgain", "2 of 3 orders went through. 1 failed again (the order date still wasn't accepted). I won't retry it without a new approval.", "done|done|finished", "D: the copy done last is a failed one")
+	Do ..AssertDone(results, rE, iE, "3|2|2|0|1", "", "result.stoppedPartway", "The resend stopped partway: I resent 2 of the 3 orders (2 went through), the next one couldn't be resent, and 0 more weren't tried. Nothing else was changed, and I won't resend the rest without a new approval.", "done|done|finished", "E: a partway run keeps its Unreached", 1)
+	Set run = ##class(OcuTalon.Data.FixRun).OfRequest(rE)
+	Do $$$AssertEquals(+run.Unreached, 1, "E: and the run stores Unreached 1")
+	Do $$$AssertEquals($ClassMethod(probe, "Reads"), 5, "the copies of all five runs were read")
+	Do $$$AssertEquals(..AuditCount(), 5, "one entry is written for each")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Warnings(mark, , "Sweep", $Parameter("OcuTalon.Fix.Run", "LOGSWEEP")), 0, "and Sweep logged no failure")
 }
 
@@ -1906,7 +2122,7 @@ Method AssertEnded(host As OcuTalon.Test.Fix.ExecutorProbe, ref As %String, inci
 /// Asserts how a run that resent copies ended: the request is in the state row ("State|Result|finished"), the probe recorded the final FixResult with the counts
 /// ("total|resent|completed|failedAgain|skipped") and the reason, the FixRun stores the same with a ResentAt and an EndedAt (on disk already when the result was sent, as was
 /// the request's close), the last Action entry carries the same counts, and the result reads as text through the catalog.
-Method AssertCounted(host As OcuTalon.Test.Fix.ExecutorProbe, ref As %String, incident As %String, row As %String, counts As %String, reason As %String, label As %String, text As %String)
+Method AssertCounted(host As OcuTalon.Test.Fix.ExecutorProbe, ref As %String, incident As %String, row As %String, counts As %String, reason As %String, label As %String, text As %String, unreached As %Integer = 0)
 {
 	Do $$$AssertEquals(..Row(ref), row, label_": the request is "_row)
 	Set last = ..LastResult(host)
@@ -1915,12 +2131,14 @@ Method AssertCounted(host As OcuTalon.Test.Fix.ExecutorProbe, ref As %String, in
 	Do $$$AssertEquals(last.approvalRef_"|"_last.incidentRef_"|"_last.final_"|"_last.interrupted, ref_"|"_incident_"|1|0", label_": it names the request and the incident and is final")
 	Do $$$AssertEquals(last.total_"|"_last.resent_"|"_last.completed_"|"_last.failedAgain_"|"_last.skipped, counts, label_": with the counts "_counts)
 	Do $$$AssertEquals(last.reason, reason, label_": and the reason")
+	Do $$$AssertEquals(last.unreached, unreached, label_": and Unreached "_unreached)
 	Do $$$AssertEquals(last.storedEnd_"|"_last.storedState, "1|"_$Piece(row, "|", 1), label_": when it was sent, the FixRun's EndedAt and counts and the request's close were saved already")
 	Set run = ##class(OcuTalon.Test.Watch.Case).RunOf(incident, ref)
 	Do $$$AssertTrue($IsObject(run), label_": the request has a FixRun")
 	If $IsObject(run) {
 		Do $$$AssertEquals(run.total_"|"_run.resent_"|"_run.completed_"|"_run.failedAgain_"|"_run.skipped, counts, label_": which stores the same counts")
 		Do $$$AssertEquals(run.interrupted_"|"_run.reason, "0|"_reason, label_": Interrupted 0 and the same reason")
+		Do $$$AssertEquals(+run.unreached, unreached, label_": and Unreached "_unreached)
 		Do $$$AssertTrue((run.resentAt '= "") && (run.endedAt '= ""), label_": with a ResentAt and an EndedAt")
 	}
 	Set entry = ..LastAudit(host)
@@ -1970,6 +2188,7 @@ Method Render(sent As %DynamicObject, state As %String, Output key As %String) A
 	Set result.FailedAgain = sent.failedAgain
 	Set result.Skipped = sent.skipped
 	Set result.Reason = sent.reason
+	Set result.Unreached = +sent.%Get("unreached")
 	Set key = ##class(OcuTalon.Watch.Notice).ResultKey(state, result)
 	Set slots = ##class(OcuTalon.Watch.Notice).ResultSlots(key, result, {"one": "order", "other": "orders"}, .sc)
 	Do $$$AssertStatusOK(sc, "the slots of "_key_" are built")
@@ -2144,6 +2363,7 @@ Method FixRun(incident As %String, ref As %String, fields As %DynamicObject = ""
 	If $IsObject(fields) {
 		If fields.%IsDefined("startedAt") Set run.StartedAt = fields.startedAt
 		If fields.%IsDefined("resentAt") Set run.ResentAt = fields.resentAt
+		If fields.%IsDefined("unreached") Set run.Unreached = fields.unreached
 		If fields.%IsDefined("endedAt") Set run.EndedAt = fields.endedAt
 		If fields.%IsDefined("total") {
 			Set run.Total = fields.total
@@ -2175,13 +2395,14 @@ Method MarkedRun(owner As %String, incident As %String, targets As %Integer, cop
 
 /// An unmarked run of a new request over targets targets, with the copies, the ResentAt given and the request in the state (executing by default), fed the statuses and the outcome for
 /// Test.Fix.RunProbe; the request's Ref.
-Method UnmarkedRun(owner As %String, incident As %String, targets As %Integer, copies As %String, resentAt As %String, statuses As %DynamicObject, state As %String = "executing", outcome As %String = "read") As %String
+Method UnmarkedRun(owner As %String, incident As %String, targets As %Integer, copies As %String, resentAt As %String, statuses As %DynamicObject, state As %String = "executing", outcome As %String = "read", unreached As %Integer = "") As %String
 {
 	Set ref = ..Request(owner, incident, state, {"FixTargets": (..TargetList(targets))})
 	Set list = []
 	For i = 1:1:$Length(copies, ",") Do list.%Push($Piece(copies, ",", i))
 	Set fields = {"startedAt": (##class(OcuTalon.Bridge.Time).PlusSeconds(##class(OcuTalon.Data.Time).NowUtc(), -200)), "copies": (list)}
 	If resentAt '= "" Do fields.%Set("resentAt", resentAt)
+	If unreached '= "" Do fields.%Set("unreached", unreached)
 	Do ..FixRun(incident, ref, fields)
 	Do ##class(OcuTalon.Test.Fix.RunProbe).Feed(ref, statuses, outcome)
 	Quit ref
@@ -2264,7 +2485,7 @@ ClassMethod ResultFor(results As %ListOfObjects, ref As %String) As OcuTalon.Fix
 /// The FixResult as the dynamic object that Render takes (the fields of the probe's records).
 ClassMethod AsSent(result As OcuTalon.Fix.Msg.FixResult) As %DynamicObject
 {
-	Quit {"approvalRef": (result.ApprovalRef), "incidentRef": (result.IncidentRef), "final": (+result.Final), "interrupted": (+result.Interrupted), "total": (+result.Total), "resent": (+result.Resent), "completed": (+result.Completed), "failedAgain": (+result.FailedAgain), "skipped": (+result.Skipped), "reason": (result.Reason)}
+	Quit {"approvalRef": (result.ApprovalRef), "incidentRef": (result.IncidentRef), "final": (+result.Final), "interrupted": (+result.Interrupted), "total": (+result.Total), "resent": (+result.Resent), "completed": (+result.Completed), "failedAgain": (+result.FailedAgain), "skipped": (+result.Skipped), "unreached": (+result.Unreached), "reason": (result.Reason)}
 }
 
 /// Asserts the FixResult that a Sweep gave for a marked run: the counts ("total|resent|completed|failedAgain|skipped"), the Interrupted flag of the result and of the stored run
@@ -2285,7 +2506,7 @@ Method AssertCut(results As %ListOfObjects, ref As %String, counts As %String, f
 }
 
 /// Asserts the FixResult that a Sweep gave for a run that no waiter ended: the counts, the reason, the key and the text, the Interrupted flag 0 and the state of the request's row.
-Method AssertDone(results As %ListOfObjects, ref As %String, incident As %String, counts As %String, reason As %String, key As %String, text As %String, row As %String, label As %String)
+Method AssertDone(results As %ListOfObjects, ref As %String, incident As %String, counts As %String, reason As %String, key As %String, text As %String, row As %String, label As %String, unreached As %Integer = 0)
 {
 	Set result = ..ResultFor(results, ref)
 	Do $$$AssertTrue($IsObject(result), label_": a FixResult is returned")
@@ -2293,6 +2514,7 @@ Method AssertDone(results As %ListOfObjects, ref As %String, incident As %String
 	Do $$$AssertEquals(result.IncidentRef_"|"_+result.Final_"|"_+result.Interrupted, incident_"|1|0", label_": it names the incident, is final and is not interrupted")
 	Do $$$AssertEquals(result.Total_"|"_result.Resent_"|"_result.Completed_"|"_result.FailedAgain_"|"_result.Skipped, counts, label_": the counts "_counts)
 	Do $$$AssertEquals(result.Reason, reason, label_": the reason")
+	Do $$$AssertEquals(+result.Unreached, unreached, label_": Unreached "_unreached)
 	Set got = ..Render(..AsSent(result), ..StateOf(ref), .gotKey)
 	Do $$$AssertEquals(gotKey, key, label_": the key is "_key)
 	Do $$$AssertEquals(got, text, label_": the text")
@@ -2344,6 +2566,8 @@ Method RemoveLogs()
 {
 	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE ID > ? AND Type = 4 AND Text %STARTSWITH ?", ..LogMark, $Parameter(..#PROBE, "LOGREFUSED"))
 	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "Run", $Parameter(..#PROBE, "LOGRECHECK"))
+	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "Run", $Parameter(..#PROBE, "LOGPARTWAY"))
+	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "Progress", $Parameter(..#PROBE, "LOGRESULT"))
 	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "Report", $Parameter(..#PROBE, "LOGRESULT"))
 	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "Close", $Parameter(..#PROBE, "LOGFINISH"))
 	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "CouldNotStart", $Parameter(..#PROBE, "LOGRUN"))

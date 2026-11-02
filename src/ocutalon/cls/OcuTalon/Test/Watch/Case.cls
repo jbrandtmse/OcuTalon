@@ -1714,7 +1714,7 @@ Method RaisedTwo(name As %String, Output a As %String, Output ref As %String, Ou
 }
 
 /// The FixRun rows of the incident, by ID, as a dynamic array of {"id", "approvalRef", "incidentRef", "startedAt", "copies" (an array of the registered header ids),
-/// "resentAt", "endedAt", "total", "resent", "completed", "failedAgain", "skipped", "interrupted", "reason" (the run's stored result; empty before it ended)}.
+/// "resentAt", "endedAt", "total", "resent", "completed", "failedAgain", "skipped", "interrupted", "unreached" (empty unless the resend stopped partway), "reason" (the run's stored result; empty before it ended)}.
 ClassMethod Runs(incidentRef As %String) As %DynamicArray
 {
 	Set runs = []
@@ -1726,7 +1726,7 @@ ClassMethod Runs(incidentRef As %String) As %DynamicArray
 		For i = 1:1:row.Copies.Count() {
 			Do copies.%Push(row.Copies.GetAt(i))
 		}
-		Do runs.%Push({"id": (row.%Id()), "approvalRef": (row.ApprovalRef), "incidentRef": (row.IncidentRef), "startedAt": (row.StartedAt), "copies": (copies), "resentAt": (row.ResentAt), "endedAt": (row.EndedAt), "total": (row.Total), "resent": (row.Resent), "completed": (row.Completed), "failedAgain": (row.FailedAgain), "skipped": (row.Skipped), "interrupted": (row.Interrupted), "reason": (row.Reason)})
+		Do runs.%Push({"id": (row.%Id()), "approvalRef": (row.ApprovalRef), "incidentRef": (row.IncidentRef), "startedAt": (row.StartedAt), "copies": (copies), "resentAt": (row.ResentAt), "endedAt": (row.EndedAt), "total": (row.Total), "resent": (row.Resent), "completed": (row.Completed), "failedAgain": (row.FailedAgain), "skipped": (row.Skipped), "interrupted": (row.Interrupted), "unreached": (row.Unreached), "reason": (row.Reason)})
 	}
 	Quit runs
 }
@@ -1912,7 +1912,7 @@ Method FixResultsOf(trace As %String, count As %Integer) As %DynamicArray [ Priv
 }
 
 /// Every FixResult of the request (its ApprovalRef), from any sender and in any session, in header order, as a dynamic array of {"headerId", "source", "target", "sessionId",
-/// "superSession", "incidentRef", "final", "interrupted", "total", "resent", "completed", "failedAgain", "skipped", "reason"}: the exactly-once checks count every sender and session,
+/// "superSession", "incidentRef", "final", "interrupted", "total", "resent", "completed", "failedAgain", "skipped", "unreached", "reason"}: the exactly-once checks count every sender and session,
 /// where FixResultsOf reads one sender in one session.
 ClassMethod FixResultsFor(approvalRef As %String) As %DynamicArray
 {
@@ -1921,7 +1921,7 @@ ClassMethod FixResultsFor(approvalRef As %String) As %DynamicArray
 	While rs.%Next() {
 		Set body = ##class(OcuTalon.Fix.Msg.FixResult).%OpenId(rs.%GetData(6))
 		If '$IsObject(body) || (body.ApprovalRef '= approvalRef) Continue
-		Do found.%Push({"headerId": (rs.%GetData(1)), "source": (rs.%GetData(2)), "target": (rs.%GetData(3)), "sessionId": (rs.%GetData(4)), "superSession": (rs.%GetData(5)), "incidentRef": (body.IncidentRef), "final": (+body.Final), "interrupted": (+body.Interrupted), "total": (+body.Total), "resent": (+body.Resent), "completed": (+body.Completed), "failedAgain": (+body.FailedAgain), "skipped": (+body.Skipped), "reason": (body.Reason)})
+		Do found.%Push({"headerId": (rs.%GetData(1)), "source": (rs.%GetData(2)), "target": (rs.%GetData(3)), "sessionId": (rs.%GetData(4)), "superSession": (rs.%GetData(5)), "incidentRef": (body.IncidentRef), "final": (+body.Final), "interrupted": (+body.Interrupted), "total": (+body.Total), "resent": (+body.Resent), "completed": (+body.Completed), "failedAgain": (+body.FailedAgain), "skipped": (+body.Skipped), "unreached": (+body.Unreached), "reason": (body.Reason)})
 	}
 	Quit found
 }

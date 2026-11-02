@@ -1,8 +1,8 @@
 /// Tests of the message catalog and its one renderer (Story 0.9; AD-29, AD-32). The XData blocks hold the expectations, typed
 /// apart from the catalog's templates:
-///   - Keys: the 95 keys of OcuTalon.Msg.Catalog.Core and the 22 of OcuTalon.Msg.Catalog.Watch;
+///   - Keys: the 95 keys of OcuTalon.Msg.Catalog.Core and the 24 of OcuTalon.Msg.Catalog.Watch;
 ///   - Gaps: the keys whose entry carries a gap field, the forms the UX does not fix (none now);
-///   - OneForms: for each of the 8 entries with a count-of-one form, its slots with the form's slot at 1, the exact text of the
+///   - OneForms: for each of the 9 entries with a count-of-one form, its slots with the form's slot at 1, the exact text of the
 ///     form on the message channels (and on the page where it differs), and the plural fragment that the other counts keep;
 ///   - Reasons: the plain-words text of each of the 12 Msg.Enum FALLBACKREASON values;
 ///   - Fixtures: for every key, its slots (the UJ-1 values) and the exact text it renders on the message channels, and its
@@ -78,9 +78,9 @@ Method TestEntries()
 	Set core = ..Read("Entries", "OcuTalon.Msg.Catalog.Core")
 	Set watch = ..Read("Entries", "OcuTalon.Msg.Catalog.Watch")
 	Do $$$AssertEquals(keys.core.%Size(), 95, "the expected Core list has 95 keys")
-	Do $$$AssertEquals(keys.watch.%Size(), 22, "the expected Watch list has 22 keys")
+	Do $$$AssertEquals(keys.watch.%Size(), 24, "the expected Watch list has 24 keys")
 	Do $$$AssertEquals(..SortedKeys(core), ..SortedList(keys.core), "Core holds exactly its 95 keys")
-	Do $$$AssertEquals(..SortedKeys(watch), ..SortedList(keys.watch), "Watch holds exactly its 22 keys")
+	Do $$$AssertEquals(..SortedKeys(watch), ..SortedList(keys.watch), "Watch holds exactly its 24 keys")
 	Set corePrefixes = ..Prefixes(..SortedKeys(core))
 	Set watchPrefixes = ..Prefixes(..SortedKeys(watch))
 	Set shared = ""
@@ -118,7 +118,7 @@ Method TestEveryKeyOnEveryChannel()
 {
 	Set fixtures = ..Read("Fixtures")
 	Set catalogKeys = ..SortedKeys(..Read("Entries", "OcuTalon.Msg.Catalog.Core"))_","_..SortedKeys(..Read("Entries", "OcuTalon.Msg.Catalog.Watch"))
-	Do $$$AssertEquals(..SortedList($ListFromString(catalogKeys)), ..SortedKeys(fixtures), "the fixtures cover exactly the 117 keys of the catalog")
+	Do $$$AssertEquals(..SortedList($ListFromString(catalogKeys)), ..SortedKeys(fixtures), "the fixtures cover exactly the 119 keys of the catalog")
 	Set refused = ..RefusedChannels()
 	Do $$$AssertEquals(refused, "email,webhook,slack,system", "four Msg.Enum channels are refused")
 	Set iterator = fixtures.%GetIterator()
@@ -530,10 +530,10 @@ Method TestNounForms()
 			Do $$$AssertTrue((text [ picked) && (text '[ other), key_" with the count "_count_" shows only the form '"_picked_"'")
 		}
 	}
-	Do $$$AssertEquals(keys, 12, "the keys with a noun are swept")
+	Do $$$AssertEquals(keys, 13, "the keys with a noun are swept")
 }
 
-/// Rows 1 to 8: the count-of-one forms. Exactly the 8 entries of the OneForms block carry a one form. With the form's slot at 1 each
+/// Rows 1 to 9: the count-of-one forms. Exactly the 9 entries of the OneForms block carry a one form. With the form's slot at 1 each
 /// renders the owner's exact text on the four channels (the page wording for the two incident notices). With the slot at 0 or 2
 /// it renders the entry's own text, which holds the plural fragment. The resend count of the dry runs is refused when it is
 /// missing, null, negative, fractional or text, and the slot of every form is refused as the text 1 and as true, the values
@@ -551,7 +551,7 @@ Method TestCountOfOneForms()
 		}
 	}
 	Do $$$AssertEquals(..Names(.carriers), ..SortedKeys(forms), "exactly the entries of the OneForms block carry a one form")
-	Do $$$AssertEquals($Length(..SortedKeys(forms), ","), 8, "8 entries carry a one form")
+	Do $$$AssertEquals($Length(..SortedKeys(forms), ","), 9, "9 entries carry a one form")
 	Set iterator = forms.%GetIterator()
 	While iterator.%GetNext(.key, .form) {
 		For channel = "phone", "mailbox", "telegram", "web" {
@@ -1071,7 +1071,9 @@ XData Keys [ MimeType = application/json ]
   "result.failedAndSkipped",
   "result.stillResending",
   "result.interrupted",
-  "result.couldNotStart"
+  "result.stoppedPartway",
+  "result.couldNotStart",
+  "watch.time"
  ]
 }
 }
@@ -1082,7 +1084,7 @@ XData Gaps [ MimeType = application/json ]
 []
 }
 
-/// The 8 entries with a count-of-one form. slot is the form's count slot, slots are the entry's slots with that slot at 1, text
+/// The 9 entries with a count-of-one form. slot is the form's count slot, slots are the entry's slots with that slot at 1, text
 /// is the exact text on the message channels and web the page wording where it differs, plural is the fragment that the
 /// entry's own text keeps for any other count ({n} stands for the slot's value) and singular a fragment of the form's text that the
 /// entry's own text never holds.
@@ -1139,6 +1141,13 @@ XData OneForms [ MimeType = application/json ]
   "text": "Still resending: 1 of 50 orders has gone through so far. I'll tell you when it's done.",
   "plural": "orders have gone through",
   "singular": "has gone through"
+ },
+ "result.stoppedPartway": {
+  "slot": "notTried",
+  "slots": {"count": 5, "itemNoun": {"one": "order", "other": "orders"}, "resent": 3, "completed": 3, "notTried": 1},
+  "text": "The resend stopped partway: I resent 3 of the 5 orders (3 went through), the next one couldn't be resent, and 1 more wasn't tried. Nothing else was changed, and I won't resend the rest without a new approval.",
+  "plural": "and {n} more weren't tried.",
+  "singular": "and 1 more wasn't tried."
  },
  "result.interrupted": {
   "slot": "remaining",
@@ -1302,7 +1311,9 @@ XData Fixtures [ MimeType = application/json ]
  "result.failedAndSkipped": {"slots": {"count": 50, "itemNoun": {"one": "order", "other": "orders"}, "completed": 45, "failedAgain": 2, "failReason": "the order date still wasn't accepted", "skipped": 3}, "text": "45 of 50 orders went through. 2 failed again (the order date still wasn't accepted), and 3 had changed since the dry run, so I skipped them. I won't retry any of them without a new approval."},
  "result.stillResending": {"slots": {"count": 50, "itemNoun": {"one": "order", "other": "orders"}, "completed": 30}, "text": "Still resending: 30 of 50 orders have gone through so far. I'll tell you when it's done."},
  "result.interrupted": {"slots": {"count": 50, "itemNoun": {"one": "order", "other": "orders"}, "completed": 30, "remaining": 20}, "text": "The resend stopped when OcuTalon restarted: 30 of 50 orders went through. The other 20 need a new approval."},
- "result.couldNotStart": {"slots": {"reason": "OcuTalon isn't allowed to resend messages in that production"}, "text": "Nothing was resent: OcuTalon isn't allowed to resend messages in that production. Nothing was changed."}
+ "result.stoppedPartway": {"slots": {"count": 50, "itemNoun": {"one": "order", "other": "orders"}, "resent": 47, "completed": 45, "notTried": 2}, "text": "The resend stopped partway: I resent 47 of the 50 orders (45 went through), the next one couldn't be resent, and 2 more weren't tried. Nothing else was changed, and I won't resend the rest without a new approval."},
+ "result.couldNotStart": {"slots": {"reason": "OcuTalon isn't allowed to resend messages in that production"}, "text": "Nothing was resent: OcuTalon isn't allowed to resend messages in that production. Nothing was changed."},
+ "watch.time": {"slots": {"time": "2026-10-16T18:12:00Z"}, "text": "14:12 ET"}
 }
 }
 

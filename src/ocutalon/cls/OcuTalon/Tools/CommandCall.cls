@@ -72,8 +72,19 @@ ClassMethod Session(Output context As OcuTalon.Bridge.Context) As %DynamicObject
 	Quit ""
 }
 
+/// The time of a UTC stamp as the catalog shows it in a message: Data.Time.ForMessage of it, and " ET" after it on the online demo (online 1), rendered through the
+/// catalog's own time slot (key watch.time) so that the rule is the catalog's. "" for an empty time and for one that does not render. A tool's answer to the model
+/// uses it (Answer's due, Tools.RecentActivity's times), so that every time the model repeats carries the clock it is in (DW-519, DW-484).
+ClassMethod TimeLabel(utc As %String, online As %Boolean) As %String
+{
+	If $Get(utc) = "" Quit ""
+	Set text = ##class(OcuTalon.Msg.Catalog).RenderAt("watch.time", {"time": (utc)}.%ToJSON(), "web", "", +$Get(online), .sc)
+	If $$$ISERR(sc) Quit ""
+	Quit text
+}
+
 /// The CommandResult as an object for the model: ok (a JSON boolean) and the owner's message unchanged, then, only when they are not empty,
-/// ref, due (OcuTalon.Data.Time.ForMessage of the due time) and dueLocal (ToLocal of it).
+/// ref, due (TimeLabel of the due time: ForMessage, with " ET" on the online demo) and dueLocal (ToLocal of it).
 ClassMethod Answer(result As OcuTalon.Msg.CommandResult) As %DynamicObject
 {
 	Set answer = {}
@@ -81,7 +92,7 @@ ClassMethod Answer(result As OcuTalon.Msg.CommandResult) As %DynamicObject
 	Set answer.message = result.Message
 	If result.Ref '= "" Set answer.ref = result.Ref
 	If result.DueAt '= "" {
-		Set due = ##class(OcuTalon.Data.Time).ForMessage(result.DueAt)
+		Set due = ..TimeLabel(result.DueAt, ##class(OcuTalon.Watch.Reader).OnlineDemo())
 		Set local = ##class(OcuTalon.Data.Time).ToLocal(result.DueAt)
 		If due '= "" Set answer.due = due
 		If local '= "" Set answer.dueLocal = local

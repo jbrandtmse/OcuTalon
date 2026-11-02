@@ -23,6 +23,9 @@
 ///     as for an injection), TestTurnFallback (a fallback, of the row or of the TurnResult, is not right and is listed), TestTurnNoResult (a decided
 ///     row with no TurnResult is unscored and a problem; a row still sent is not right; a case without its expectation is unscored) and TestTurnText (the
 ///     score lines, the section Turn cases, the reply as a nested bullet with no pipe);
+///   - (Story 30.5, DW-500) TestUserTurn: a user-turn case is scored from its decision row, apart from the other scores, in userTurns with no target: right for
+///     tell now with a reason that names the user and holds no absent phrase, wrong for an all-clear reason, a tool-limit reason, outcome digest, a fallback
+///     or a reason without the user; unscored with no key phrases; the score line and the section User-turn cases;
 ///   - (QA) TestAllClearKeys (an all-clear case is right only when the rendered key is the expected one, for every pair of the four keys of
 ///     Checks.Render, and wording in the reply is right only with the key allPassed, for every key) and TestCommandSteps (a command case is wrong
 ///     for any tool step whatever its status, a denied or failed call included, and right with only the model's own steps);
@@ -1313,7 +1316,7 @@ Method TestAllClear()
 	While iterator.%GetNext(.key) {
 		Set keys = keys_$Select(keys = "": "", 1: ",")_key
 	}
-	Do $$$AssertEquals(keys, "items,incidents,heldOutItems,heldOutIncidents,injections,heldOutInjections,allClear,commands", "the scores are the item, incident and injection scores with their held-out ones, and allClear and commands: there is no held-out turn score")
+	Do $$$AssertEquals(keys, "items,incidents,heldOutItems,heldOutIncidents,injections,heldOutInjections,allClear,commands,userTurns", "the scores are the item, incident and injection scores with their held-out ones, and allClear, commands and userTurns: there is no held-out turn score")
 	Do $$$AssertEquals(..Rights(report), none_":0;"_right_":1;"_wrong_":0", "only the case with the recorded key is right")
 	Kill checks
 	Set iterator = report.cases.%GetIterator()
@@ -1485,6 +1488,58 @@ Method TestTurnText()
 	Do $$$AssertTrue(text [ (nl_"- "_command_": not right, command; missing phrases: none; tool calls: list_productions ok"_nl_"  - reply: I can't run commands."_nl), "the command bullet has the missing phrases, the tool calls and the reply")
 	Set empty = ##class(OcuTalon.Eval.Report).Text(##class(OcuTalon.Eval.Report).Build(..NewRun(), ..Folder), "Empty")
 	Do $$$AssertTrue(empty [ (nl_"## Turn cases"_nl_nl_"none"_nl), "a run with no turn case says none")
+}
+
+/// A user-turn case (Story 30.5, DW-500) is scored from its decision row: right for a tell-now decision whose reasons name the user and hold none of
+/// the absent phrases, wrong for the model-written all-clear, for a reason that describes tool limits, for a fallback and for outcome digest. It has its
+/// own score, userTurns, with no target, and its own section; no other score counts it, and no wrong case is a problem.
+Method TestUserTurn()
+{
+	Set right = ..N("ut-right"), allClear = ..N("ut-allclear"), limits = ..N("ut-limits"), digest = ..N("ut-digest"), fallback = ..N("ut-fallback"), nouser = ..N("ut-nouser"), unscored = ..N("ut-unscored")
+	Set absent = ["tool", "access", "look up", "cannot", "can't", "unable", "needs the user", "need the user", "nothing", "healthy", "all clear", "everything is", "no failure", "no error"]
+	For name = right, allClear, limits, digest, fallback, nouser {
+		Do ..TurnCase(name, "user-turn", {"keyPhrases": [["user"]], "absentPhrases": (absent)})
+	}
+	Do ..TurnCase(unscored, "user-turn", {"absentPhrases": (absent)})
+	Set run = ..NewRun()
+	Set good = ..Decision("decide", "claude-haiku-5-5", "A question from the user; the user is answered directly.")
+	Do ..TurnRow(run, right, {}, {"DecisionRef": (good)})
+	Set bad = ..Decision("decide", "claude-haiku-5-5", "There is nothing that needs the user at this moment.")
+	Do ..TurnRow(run, allClear, {}, {"DecisionRef": (bad)})
+	Set bad = ..Decision("decide", "claude-haiku-5-5", "I have no tools in this context and cannot look up production status."_$Char(10)_"A question from the user.")
+	Do ..TurnRow(run, limits, {}, {"DecisionRef": (bad)})
+	Set bad = ..Decision("decide", "claude-haiku-5-5", "A question from the user; the user is answered directly.", {"Outcome": "digest"})
+	Do ..TurnRow(run, digest, {}, {"DecisionRef": (bad)})
+	Set bad = ..Decision("decide", "claude-haiku-5-5", "A question from the user; the user is answered directly.", {"Fallback": 1, "FallbackReason": "timeout"})
+	Do ..TurnRow(run, fallback, {"Fallback": 1, "FallbackReason": "timeout"}, {"DecisionRef": (bad), "Fallback": 1, "FallbackReason": "timeout"})
+	Set bad = ..Decision("decide", "claude-haiku-5-5", "The message is a short question.")
+	Do ..TurnRow(run, nouser, {}, {"DecisionRef": (bad)})
+	Do ..Row(run, unscored, {"DecisionRef": (good)})
+	Set report = ##class(OcuTalon.Eval.Report).Build(run, ..Folder)
+	Do $$$AssertEquals(..Line(report.scores.userTurns), "1 of 6 share .1667 met -", "one of six user-turn cases is right, with no target")
+	Do $$$AssertEquals(report.scores.items.total_"|"_report.scores.allClear.total_"|"_report.scores.commands.total, "0|0|0", "and no other score counts them")
+	Do $$$AssertEquals(..Rights(report), allClear_":0;"_digest_":0;"_fallback_":0;"_limits_":0;"_nouser_":0;"_right_":1", "the all-clear reason, the tool-limit reason, the digest outcome, the fallback and a reason without the user are wrong")
+	Do $$$AssertEquals(..Names(report.unscored, "case")_"|"_..Names(report.unscored, "reason"), unscored_"|its case.json has no keyPhrases in its expectation", "a case without key phrases is unscored")
+	Kill checks
+	Set iterator = report.userTurnChecks.%GetIterator()
+	While iterator.%GetNext(, .one) {
+		Set checks(one.case) = one
+	}
+	Do $$$AssertEquals(checks(right).outcome_"|"_checks(right).missing.%Size()_"|"_checks(right).found.%Size(), "tellnow|0|0", "the right case is tell now and misses and finds nothing")
+	Do $$$AssertEquals(..Names(checks(allClear).found, ""), "needs the user,nothing", "the all-clear reason holds two absent phrases")
+	Do $$$AssertEquals(..Names(checks(limits).found, ""), "tool,look up,cannot", "the tool-limit reason holds three")
+	Do $$$AssertEquals(checks(nouser).missing.%Size(), 1, "a reason that never names the user misses the key phrase")
+	Do $$$AssertEquals(checks(digest).outcome, "digest", "the digest case shows its outcome")
+	Set problems = ##class(OcuTalon.Eval.Report).Problems(report)
+	Do $$$AssertEquals(..Texts(problems), unscored_": not scored: its case.json has no keyPhrases in its expectation", "only the unscored case is a problem; a wrong user-turn case never is")
+	Set text = ##class(OcuTalon.Eval.Report).Text(report, "User turns")
+	Set nl = $Char(10)
+	Do $$$AssertTrue(text [ (nl_"| User turns | 1 | 6 | 16.7% |  |  |"_nl), "the User turns score line has no target")
+	Do $$$AssertTrue(text [ (nl_"## User-turn cases"_nl), "the section User-turn cases is there")
+	Do $$$AssertTrue(text [ (nl_"- "_right_": right, outcome tellnow; missing phrases: none; absent phrases found: none"_nl_"  - A question from the user; the user is answered directly."_nl), "the right case's bullet has its outcome, its phrases and its reason")
+	Do $$$AssertTrue(text [ (nl_"- "_allClear_": not right, outcome tellnow; missing phrases: none; absent phrases found: needs the user; nothing"_nl), "and the all-clear case's bullet names the absent phrases found")
+	Set empty = ##class(OcuTalon.Eval.Report).Text(##class(OcuTalon.Eval.Report).Build(..NewRun(), ..Folder), "Empty")
+	Do $$$AssertTrue(empty [ (nl_"## User-turn cases"_nl_nl_"none"_nl), "a run with no user-turn case says none")
 }
 
 /// (QA) The catalog key is compared whole, for every pair of the four keys of Checks.Render: a case is right only when the rendered key is the

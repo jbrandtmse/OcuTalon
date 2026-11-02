@@ -2,12 +2,20 @@
 title: 'Mixed and unfinished resends say how far they got'
 type: 'feature'
 created: '2026-10-30'
-status: 'ready-for-dev'
+status: 'done'
 review_loop_iteration: 0
+baseline_revision: 'a0fce35a53ace6e64c9a511439476cfa8929b98d'
 followup_review_recommended: false
 context: []
 warnings: ['oversized']
-deferred: []
+deferred:
+  - summary: >-
+      The reminders list answer (CommandCall.Listed) shows each due time without the zone label on the online demo, while the set reply (Answer) now carries " ET".
+    evidence: |-
+      CommandCall.Listed builds `due` with Data.Time.ForMessage; Answer uses TimeLabel. G-DW484 limits this story to the chat's reminder reply, and Test.Tools.Reminders (Epic 11's) pins the list's due with the online demo off only.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Tools/CommandCall.cls:120
+    severity: low
 ---
 
 <intent-contract>
@@ -230,6 +238,37 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless they start with `web/`, `eva
 
 ## Review Triage Log
 
+### 2026-11-01 - Review pass
+- verdicts: 27 findings (26 from the layers, one from the shard run) - high 1, medium 4, low 22, false 0, maybe-false 0
+- findings:
+  - `[low]` `[reject]` Blind: the approvals page ignores `unreached`, so it still shows `result.skipped` - the page's result pick is Story 31.2 (U-183, G6); the spec forbids a `web/**` edit for it.
+  - `[low]` `[reject]` Blind: "and 0 more weren't tried" when Unreached is 1 - the wording is fixed by G1 and pinned by rows 14, 15, 19 and the tests; changing it is a spec edit (a one-form on notTried 0 is a product-text call).
+  - `[low]` `[reject]` Blind: `stoppedPartway` omits failed-again, the reason and real skips - G1 fixes the text; they stay in the FixResult, the FixRun and the payload; spec-bound.
+  - `[low]` `[reject]` Blind: a marked run stores Skipped 0 beside Unreached > 0 - EndMarked's Skipped 0 is as before; the interrupted key wins in ResultKey, so the text is right; reached only by a restart during a partway run.
+  - `[low]` `[reject]` Blind: an expired approval reads as a generic start failure - row 11's text is the spec's (DW-384, U-161).
+  - `[medium]` `[reject]` Blind, Edge: after a throw with copies, Unreached is passed less copies and may count plan-skips - row 15 pins `3|2|2|0|1` for a throw; the thrown result carries no skip list; spec-bound.
+  - `[low]` `[reject]` Blind, Edge: a progress report can follow the final result - Progress re-checks the executing row at the send; the window is milliseconds, and row 9 has IncidentManager handle a late progress (still `stillResending`); a lock around a send would hold RUNLOCK across a message.
+  - `[low]` `[reject]` Blind: the user-turn score gates nothing and the absent list is thin - spec-bound (printed, never checked: a target is a product number); the list is the spec's.
+  - `[low]` `[reject]` Blind: the spec's Auto Run Result is stale - rewritten at finalize.
+  - `[medium]` `[patch]` Blind, VG: pinning mutations for Partial row 1, Waits row 6 and the DW-519 half of AC 6 were not observed on the live classes - applied on fresh stacks: Partial, Waits and RecentActivity went red; lines in `## Verification` updated.
+  - `[low]` `[reject]` Blind, Edge, IA: `failedAndSkipped` carries `resent` but the catalog does not declare it - spec row 1 asks for the slot "ignored by the text"; declaring it would regenerate the page's catalog (Lane B).
+  - `[low]` `[reject]` Edge: EndMarked sets skipped 0 beside Unreached - same as the row above.
+  - `[low]` `[reject]` Edge: a notice reads "0 more weren't tried" - same as above.
+  - `[low]` `[reject]` Edge: CouldNotStart discards real skips of a run that made no copy - row 13 pins `n|0|0|0|0`; spec-bound.
+  - `[low]` `[reject]` Edge: Progress may use a stale tally - row 3 says "the last look that read the copies"; spec-bound.
+  - `[low]` `[reject]` Edge: malformed `absentPhrases` is treated as none - the four shipped cases are pinned by Test.Eval.Cases; no user-reachable path.
+  - `[low]` `[reject]` Edge: a channel-less hostile item can pass as the user's message - the paragraph is the DW-500 ruling; Decide's user rule is code and does not read Triage's text for provenance.
+  - `[low]` `[reject]` Edge: `failedAndSkipped` slot `resent` undeclared - duplicate of the row above.
+  - `[medium]` `[patch]` VG: Resend's `error` branch is never driven (dropping `|| (code = "error")` left every test green) - added a third case to `Test.Fix.Recheck` TestResendStopsWhereItErrs (a namespace that cannot be entered); mutation observed red, restored.
+  - `[low]` `[reject]` VG: `EndMarked` carrying `unreached` is unpinned - the marked path is outside rows 7 and 16; the interrupted key wins in the text; reached only by a restart during a partway run.
+  - `[low]` `[reject]` VG: the StartExecution-failure guard for a past expiry is an equivalent mutant - Execute ends an expired row before Start; the spec records it. Execute's own expiry check is also not pinned by outcome (StartExecution refuses an expired row), noted in `## Verification`.
+  - `[medium]` `[patch]` VG: `Test.Fix.Refused` TestPastExpiryCannotStart used targets that do not exist (101-103), so its "nothing changed" check was vacuous - it now runs over three real failed orders; the mutation "Refusal refuses a past expiry" is red on a fresh stack.
+  - `[low]` `[defer]` VG: `CommandCall.Listed` (the reminders list) shows a due time with no zone label on the online demo - G-DW484 is narrowed to the reminder reply; deferred below.
+  - `[low]` `[reject]` VG: the unreadable and throw cases of TestStillRunningAfterTheWait count Results from an earlier section - one method, one order; green only when no progress is sent from an unreadable read, which is the point.
+  - `[low]` `[reject]` IA (descriptive): the page's result band does not read `unreached` - same as the first row; the `web/src/app/live/payloads.ts` edit is the generator's output, ruled by the lead.
+  - `[low]` `[reject]` IA (descriptive): a late progress after the final result - same as the race row.
+  - `[high]` `[patch]` Found by the shard run (not a layer): `Test.Agent.Runners` failed ("Triage request 1 leaves the system block unmarked") because Triage's longer instructions now reach min_tokens_for_cache; the test expects the system block marked for Triage (systemMarked 1) and its comment is corrected. The old expectation going red on the new prompt is the mutation observed.
+
 ## Design Notes
 
 **Architecture decisions (Rule 6).** AD-16 (as amended for U-161, U-160 and U-182: past expiry, partway, Unreached, Skipped stays wide); AD-15 (`fixing` + progress stays `fixing`); AD-18 (Checks sends Sweep's results; unchanged); AD-32 (keys and slots only; `RenderAt` is the one renderer); AD-28 (no model-written all-clear; the user rule stays code); AD-22 (the evaluation set gains the user-turn kind); AD-7 (Triage stays declarative: instructions only); AD-12 (the incident payload's Result gains `unreached`); AD-33 (one writer of a run's end; Lane B's classes untouched); AD-26 (the FixResult in the incident's trace session); AD-3 (Resend's one switch); AD-5 (append-only Storage); AD-11 (FinishExecution closes the row); AD-2 (no bridge change).
@@ -268,6 +307,19 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless they start with `web/`, `eva
 **Files outside "Ours"** (`footprint_extensions`): `Tools/CommandCall.cls`; `Live/Payload/Part/IncidentRequestResult.cls` and `web/src/app/live/payloads.ts` (generated); `eval/user-turn-*`; `README.md` and `docker/tests/test-readme.sh` (G4); `Test/Msg/Catalog.cls` and `Test/Data/Tables.cls` (own entries).
 
 **Measured at planning** (slot B, `ocutalon-slot-b`, `OCUTALON`, build 154U; in-memory calls only, nothing saved or compiled): `RenderAt("answered.expired", {"time": t}, "web", "", 0|1)` gives `ForMessage(t)` without and with " ET" ("Expired at 21:25 ET."), "on" for another day, and accepts now "".
+
+**Implementation notes (2026-11-01).**
+- DW-500: the preferred route was built, the web fallback was not. `Agent/Triage.cls` has the user-message paragraph and "Decide from the message alone." in place of "You have no tools."; `Eval.In` and `Eval.Report` have the kind `user-turn` (the request is a `decide` of provenance `user`, answered with a `DecisionResponse`, scored from its decision row by outcome, key phrases and absent phrases; the "User turns" score line and the "User-turn cases" section are printed and never checked); `eval/user-turn-productions`, `-anything-wrong`, `-failure-earlier` and `-what-can-you-do` hold the four chips' exact texts. The Contest Planner checks real Haiku's wording on the host.
+- `result.failedAndSkipped` carries `resent` in its slots, but the catalog entry does not declare it (the text ignores it), so the page's generated catalog is unchanged and `catalog.mjs --check` needs no regeneration; `Test.Watch.NoticeText` pins `resent` apart from the declared slots.
+- `Look(id, Output tally)` gives the tally only when the read outcome was `read`; `Pass` keeps the latest such tally in `last(id, "tally")`; at the drop, `Progress` sends the report if the run is not marked, its request is executing and its time is up. `Test.Fix.ExecutorProbe.ProgressNow` is the public call of `Progress` for the tests.
+- `FixRun.Unreached` and `FixResult.Unreached` are stored as empty for a run that did not stop partway (End writes it only above 0), so the payload leaves `unreached` out; `Skipped` stays wide (G6).
+- `Test.Watch.Case` gained `unreached` in `Runs` and `FixResultsFor`; `Test.Eval.ZzIn` answers a `decide` request with a `DecisionResponse`.
+- Not done: `eval/run.sh` and `docker/tests/test-eval-set.sh` are unchanged (the latter passes and checks no field of a user-turn case beyond the common ones); `Test.Tools.RecentActivity`'s data tests skip on the warm stack, so its unchanged expectations are for the lead's shard run to confirm; `Test.Fix.Partial` row 1 and `Test.Fix.Waits` row 6 pass on a fresh stack as written, but their mutation lines were observed in `Test.Fix.Executor` only.
+
+**Measured at implementation** (fresh throwaway `e30s5i`, `Test.Fix.Recheck`; the same values were read first on the warm stack):
+- Task 0a (Orders running, an Error header whose `TargetConfigName` is set to `ZzNoSuchItem`): `Ens.MessageHeader.ResendDuplicatedMessage` returns the error "Target config item 'ZzNoSuchItem' is not running", which is not `ErrProductionNotRunning`, with no `newId` and no new header. Row 12's refused case is built (`TestResendStopsWhereItErrs`, second half).
+- Task 0b (after `StopOrders`): the same call returns `ErrProductionNotRunning` ("No production is running"), no `newId`, no new header (first half of the same test).
+- Task 0c (mock, a `decide` request of provenance `user`, text "What can you do?", through the `SimMailboxIn` service to `Decide`, owner eval): the answer is a `DecisionResponse` with outcome `tellnow`, `Fallback` 1, fallback reason `invalid` and empty reasons; the decision row is kind `decide` with a cost (0.000071 USD), so the cost and size of the row are known. "Which productions are running?" gives the same with a cost of 0.000151. On the mock the four chip cases therefore score not right and are listed as fallbacks, and fail nothing.
 
 ## Verification
 
@@ -318,13 +370,50 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless they start with `web/`, `eva
 | AC 8 | ITEM2 keeps the old line | `test-readme.sh` |
 | Storage | the Tables entry lacks `Unreached` | `Test.Data.Tables` |
 
+
+**Pinning mutations, observed at implementation (Rule 19).** Each was applied to one file, the named class run (warm lane-B stack unless it says fresh), red observed, and the file put back byte-identically (checked with `cmp` against a copy).
+- mutation: drop the paragraph's "Never describe the state of a production" sentence from Triage's instructions → red: `Test.Agent.TriageUserTurn` TestUserMessageParagraph.
+- mutation: the user-turn scorer ignores absentPhrases → red: `Test.Eval.Report` TestUserTurn (the all-clear reason scores right).
+- mutation: one chip case's text loses its "?" → red: `Test.Eval.Cases` TestUserTurnCases.
+- mutation: `ResultSlots` leaves out `resent` for failedAndSkipped → red: `Test.Watch.NoticeText` TestResultKeys and TestRestartAndResendTexts.
+- mutation: Look's skipped is 0 (the final result of a waited run) → red: `Test.Fix.Executor` TestResendThatErrsPartwaySaysHowFarItGot (3|2|2|0|1 loses its skip). `Test.Fix.Partial` TestSomeFailAgainAndSomeHadChanged (row 1) and TestSomeHadChanged are red with it too (fresh stack, review pass).
+- mutation: the drop sends no progress (Pass never calls Progress) → red: `Test.Fix.Executor` TestStillRunningAfterTheWait and TestProgressReportCarriesTheCountsSoFar. `Test.Fix.Waits` TestStillRunningIsReportedThenEnded ("one FixResult goes to IncidentManager when the wait ends", row 6) is red with it too (fresh stack, review pass).
+- mutation: the progress tally is kept from the first look, not the latest → red: `Test.Fix.Executor` TestProgressReportCarriesTheCountsSoFar (row 3).
+- mutation: Progress does not check Interrupted or the request's executing state → red: `Test.Fix.Executor` TestProgressReportCarriesTheCountsSoFar (a marked run; a request no longer executing).
+- mutation: Look keeps the tally of a read that is not read (row 4) → red: `Test.Fix.Executor` TestStillRunningAfterTheWait (the unreadable case sends a report).
+- mutation: Sweep leaves a run more than 30 s past its wait (stands for a gate on the time of the last copy; Tally.lastAt is gone) → red: `Test.Fix.Executor` TestSweepEndsARunNoWaiterEnded and TestSweepEndsEveryRunWhoseCopiesAreDone.
+- mutation: ResultKey without the progress rule (`'result.Final && 'result.Interrupted`) → red: `Test.Watch.NoticeText` TestResultKeys.
+- mutation: IncidentManager Result keeps `$Select(final: ..ResultNotice(...), 1: "")` → red: `Test.Watch.Lifecycle` TestResultNotices (rows 9).
+- mutation: Refusal refuses a past expiry again → red: `Test.Fix.Executor` TestPastExpiryCannotStart and, on a fresh stack over three real failed orders, `Test.Fix.Refused` TestPastExpiryCannotStart (row 11; no FixResult, the row stays approved). Execute's own expiry check is not pinned by an outcome (replacing it with `If 0` leaves Refused green, because StartExecution refuses an expired row and the failure branch ends it as NOSTART). The StartExecution-failure branch keeping "not past its expiry" is an equivalent mutant: Execute ends an expired row before it calls Start, so that guard cannot be reached by an expired row.
+- mutation: Resend does not stop at `stopped` → red: `Test.Fix.Recheck` TestResendStopsWhereItErrs (row 12).
+- mutation: Resend does not stop at `error` (a copy that throws goes to skipped and the loop goes on) → red: `Test.Fix.Recheck` TestResendStopsWhereItErrs (the throwing copy, fresh stack, review pass).
+- mutation: copies 0 with unreached ends done (the NOTRUNNING/NOSTART branch is switched off) → red: `Test.Fix.Executor` TestNothingResent and TestResendThatErrsPartwaySaysHowFarItGot.
+- mutation: Unreached is never saved with ResentAt → red: `Test.Fix.Executor` TestResendThatErrsPartwaySaysHowFarItGot, TestProgressReportCarriesTheCountsSoFar.
+- mutation: after a throw the unreached count is 0 → red: `Test.Fix.Executor` TestRunThatErredAfterACopyStillWaits.
+- mutation: ResultKey ignores Unreached → red: `Test.Watch.NoticeText` TestResultKeys and TestRestartAndResendTexts.
+- mutation: notTried is Unreached, not Unreached less the copy that erred → red: `Test.Watch.NoticeText` TestRestartAndResendTexts.
+- mutation: the one form drops "1 more wasn't" ("1 more weren't") → red: `Test.Msg.Catalog` TestCountOfOneForms.
+- mutation: Incident.cls does not copy Unreached → red: `Test.Fix.Executor` TestResendThatErrsPartwaySaysHowFarItGot (the payload check).
+- mutation: TimeLabel drops " ET" → red: `Test.Tools.CommandCallTime` TestTimeLabel and TestAnswerDue.
+- mutation: Answer keeps `ForMessage` for `due` → red: `Test.Tools.CommandCallTime` TestAnswerDue.
+- mutation: `watch.productionStopped`'s `time` slot typed `text` → red: `Test.Checks.Runs` TestFindingsRender.
+- mutation: ITEM2 in `docker/tests/test-readme.sh` keeps the old line → red: `test-readme.sh` use-cases.
+- mutation: the Tables entry lacks `Unreached` → red: `Test.Data.Tables` TestContracts.
+- mutation: TimeLabel ignores `online` (always 0) → red on a fresh stack: `Test.Tools.RecentActivity` TestDemoPath (the online demo's times lose " ET") and TestSharedRulesAreNotCopied (review pass).
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-**Plan stage (re-plan, halted after planning as dispatched).**
-- DW-500 first, by the preferred route (Triage's instructions, a unit pin, a user-turn evaluation kind and four chip cases). The web fallback is closed: the decision payload has no override field. The mock cannot prove real Haiku's wording; the release-candidate run and the Contest Planner's host check do.
-- U-182's three-count `stoppedPartway` text and a stop at copy k of n (row 19); U-183's `unreached` on the incident payload, catalog and chat notice; Q1 applied without a split; DW-519, DW-484 (in `Tools/CommandCall.cls`, no Epic 11 file), DW-469, DW-384, DW-419 and the README sentence planned. Nothing declined.
-- For the gate: `Part/IncidentRequestResult.cls` and the regenerated `web/src/app/live/payloads.ts` against the intent's Never line; spine notes (Result texts, AD-12, AD-22).
-- Measured on slot B with in-memory calls only. Nothing was committed.
+**Summary.** DW-500 first (Triage's user-message paragraph, the `user-turn` evaluation kind and four chip cases; the web fallback is closed), then the Story 30.5 items: the progress `FixResult` when the wait ends with copies running and Sweep's gate removed, `Unreached` and the stop at the first copy that errs with `result.stoppedPartway` (three counts, one form), couldn't-start for no copy made, a past-expiry approved Execute ending as NOSTART, `resent` in the mixed result's slots, `unreached` on the incident payload, DW-519 (shared `WatchNames` and `CommandCall.TimeLabel`), DW-484 (the zone label on the reminder reply's `due`), DW-469 (a pin on the stop and disabled-item times), and the README sentence.
+
+**Files changed.** `Agent/Triage.cls`, `Eval/In.cls`, `Eval/Report.cls`, `eval/user-turn-*/case.json` (4 new), `Data/FixRun.cls`, `Fix/Msg/FixResult.cls`, `Fix/Executor.cls`, `Fix/Run.cls`, `Fix/Kind/RepairResend.cls`, `Watch/Notice.cls`, `Msg/Catalog/Watch.cls`, `Watch/IncidentManager.cls` (the one-line `Result()` edit), `Live/Payload/Incident.cls`, `Live/Payload/Part/IncidentRequestResult.cls`, `web/src/app/live/payloads.ts` (generated), `Tools/WatchAnswers.cls`, `Tools/CommandCall.cls`, `Tools/RecentActivity.cls`, `README.md`, `docker/tests/test-readme.sh`, and the tests under `Test/` (new: `Agent/TriageUserTurn`, `Tools/CommandCallTime`).
+
+**Footprint notes for the lead.** `Test/Live/Payloads.cls` (Epic 11's file) gained one line in its Contracts XData (`Unreached` in the request-result contract), forced by the payload field the lead's gate ruled; it is append-only and mechanical. `Test/Agent/Runners.cls` now expects Triage's system block to be cache-marked (its instructions now reach min_tokens_for_cache).
+
+**Review.** 27 findings (26 from the four layers, one from the shard run): patches applied 4 (live mutation evidence for Partial, Waits and RecentActivity; Resend's `error` branch case in `Test.Fix.Recheck`; `Test.Fix.Refused` over real failed orders; `Test.Agent.Runners`' Triage expectation), deferred 1 (the reminders list's due time has no zone label), 22 rejected with the reasons in the Review Triage Log (spec-bound texts, Story 31.2's page pick, a millisecond race the receiver handles, equivalent mutants). Patched by verdict: high 1, medium 3. Follow-up review recommended: false (the one high was a stale test expectation found and fixed by the shard run).
+
+**Verification.** Loop classes passed warm and fresh (see Design Notes); this pass on fresh stacks: `Test.Fix.Recheck`, `Refused` and `Tools.RecentActivity` green, and red under their mutations; `Partial` and `Waits` red under theirs. Once-lines: `bash ci/checks.sh` passed (11 min 24 s), `catalog.mjs --check` passed, `eval/run.sh` passed (123 s; "User turns | 0 | 4" printed, the mock falls back), `payloads.mjs --check` and `payloads.test.mjs` passed, `test-readme.sh` passed; `shard lane-a` parts 1-8 (442, 165, 157, 210, 442, 472, 297, 383 s) and `shard lane-b` parts 1-6 (184, 185, 149, 207, 559, 142 s) all passed (part 1/8 first failed on `Test.Agent.Runners`, fixed, then passed). Warm `e30s5iw` and fresh `e30s5i` stacks are torn down.
+
+**Residual risks.** Real Haiku's wording for the four chips is not provable on the mock; the release-candidate run and the Contest Planner's host check decide DW-500. The page still picks its result text from counts until Story 31.2 reads `unreached`.
