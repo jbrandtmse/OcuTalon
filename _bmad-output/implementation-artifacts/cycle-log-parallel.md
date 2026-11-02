@@ -1324,3 +1324,12 @@
 2026-11-02T07:16:29Z	Epic 30	deps_hash_rerecorded	reason=gap_fill(30.6_inserted_in_Epic_30)+rule5_amendment hash=188a2e991ed0
 2026-11-02T07:16:29Z	Epic 1-37	ci_trigger_fired	condition=any_job_over_38m_once(iris_install-fresh_38.6m_run_41350877752_attempt_1_red_flake)+shards-2_36.6m_on_81f230eb action=split_heaviest_group_into_new_iris_group_via_Epic_30_reopen_(30.1;off_critical_path;never_Epic_11) planner=told_before_the_merge
 2026-11-02T07:16:40Z	Epic 30	worktree_removed	worktree=.worktrees/epic-30 branch=OCT-epic30_deleted(local+remote) next=reopen_30.1_fresh_from_01bb86fc
+2026-11-02T07:26:06Z	Epic 30	worktree_provisioned	worktree=.worktrees/epic-30 branch=OCT-epic30 from=89d76705 reason=SC-5_reopen_part2(30.1,CI_repack_or_8th_group,30.7) bootstrap=ok
+2026-11-02T07:26:06Z	Epic 30	worktree_bootstrapped	epic=30 result=ok
+2026-11-02T07:26:18Z	Epic 30	runner_dispatched	agent=abf8249e21eaf6a24 model=opus runner=B slot=ocutalon-slot-b mode=reopen(SC-5,part_2:30.1,CI_repack_or_8th_group,burn-down_30.7_with_DW-437_U-210) base=89d76705 prompt=prompts/dispatch-epic-30-part2.md
+2026-11-02T07:27:37Z	Epic 31	runner_dispatched	agent=a598cc277d5d465e9 model=opus runner=C slot=ocutalon-slot-c mode=redispatch(apply_U-209_#633,31.2) base=89d76705 prompt=prompts/dispatch-epic-31-312.md
+2026-11-02T07:30:02Z	Epic 11	owner_decision	via=contest_planner(delegation;AskUserQuestion_~07:15Z) item=trim_epic_11 decision="Trim to 11.17" scope_1.0.0=11.1-11.13,11.17 part_2=11.14,11.15,11.16,11.18(backlog;ledger_open;merge_gate_rc1) replaced_by=Epic_38_hand_gate_list(Planner)+standing_go+update-ref_demo_path
+2026-11-02T07:30:02Z	Epic 11	ruling	question=11.14_mid-implement choice=stop_now(24min;1112_uncommitted_lines;workflow_files_overlap_30.1_CI_split):spec_committed,diff_saved_as_patch,set_aside_backlog(U4),then_11.17 rejected=finish_11.14_first(2-4h_on_the_critical_path)
+2026-11-02T07:30:02Z	Epic 11	runner_message	agent=a7a36d994abfccfc6 note=trim_ruling+Epic_38_reading_note(on_branch)
+2026-11-02T07:30:02Z	Epic 1-37	owner_decision	via=contest_planner(delegation) item=standing_go_v1.0.0 decision="Yes, if every check passes" recorded=PRD_REL-11_[AMENDED_2026-11-02]+memlog scope=Planner:release_PR,merge_to_main_on_green,tag_v1.0.0,merge_back,notify;owner_still:IPM_publish,OEx_listing,contest_entry orchestrator=no_outward_steps(policy_owner_only_unchanged)
+2026-11-02T07:30:02Z	Epic 1-37	deps_approved	by=Contest_Planner(owner_decision_relay) change=epic-11_part1/part2(no_edge_change) marker=epic-dependencies.yaml_Changed_2026-11-02T07:2xZ
