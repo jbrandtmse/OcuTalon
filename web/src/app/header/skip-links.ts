@@ -1,6 +1,6 @@
 import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/core';
 
-import { LiveState } from '../live/live-state';
+import { DemoView } from '../shared/demo-view';
 import { Layout } from '../shared/layout';
 
 /** A skip link: its text, the selector of the region it moves focus to, and whether it shows only in demo mode. */
@@ -62,10 +62,10 @@ export const SKIP_LINKS: readonly SkipLink[] = [
 })
 export class SkipLinks {
   private readonly layout = inject(Layout);
-  private readonly live = inject(LiveState);
+  private readonly demoView = inject(DemoView);
 
-  /** The links that show: the demo-only link only while the snapshot says demo mode is on. */
-  protected readonly links = computed(() => SKIP_LINKS.filter((link) => link.demo !== true || this.live.snapshot()?.demoMode === true));
+  /** The links that show: the demo-only link only while the demo view is on. */
+  protected readonly links = computed(() => SKIP_LINKS.filter((link) => link.demo !== true || this.demoView.on()));
 
   /** Moves focus to the region (opening the drawer that holds it) and keeps the press from following the link. */
   protected skip(event: Event, target: string): void {

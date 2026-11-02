@@ -7,6 +7,7 @@ import { newRefs } from '../devices/device-view';
 import { Icon } from '../icon/icon';
 import { LiveState } from '../live/live-state';
 import type { ApprovalPayload, PhonePayload } from '../live/payloads';
+import { DemoView } from '../shared/demo-view';
 import { atBottom, BOTTOM_SLACK_PX } from '../shared/follow-bottom';
 import { revealRing } from '../shared/reveal-ring';
 import { PhoneRequest } from './phone-request';
@@ -210,6 +211,7 @@ export class SimulatedPhone implements AfterViewInit {
   readonly labelledBy = input.required<string>();
 
   private readonly live = inject(LiveState);
+  private readonly demoView = inject(DemoView);
   private readonly destroyRef = inject(DestroyRef);
   private readonly feed = viewChild.required<ElementRef<HTMLElement>>('feed');
   private readonly content = viewChild.required<ElementRef<HTMLElement>>('content');
@@ -227,7 +229,7 @@ export class SimulatedPhone implements AfterViewInit {
   private target: string | undefined;
 
   /** The phone's list; empty outside demo mode, where the panel shows no phone. */
-  protected readonly messages = computed<readonly PhonePayload[]>(() => phoneOf(this.live.snapshot() as PhoneSnapshot | undefined, this.live.store()) ?? []);
+  protected readonly messages = computed<readonly PhonePayload[]>(() => phoneOf(this.demoView.snapshot() as PhoneSnapshot | undefined, this.live.store()) ?? []);
 
   /** The instance's time zone, from the snapshot; the captions name the browser's zone when its offset differs. */
   protected readonly instanceZone = computed(() => this.live.snapshot()?.instanceZone ?? '');

@@ -1,7 +1,7 @@
 /// The checked payload that the Diagnosis agent answers with (AD-6, AD-7, AD-8, AD-31). It extends OcuTalon.Bridge.Msg.DecisionPayload, so Decide
 /// checks a diagnose reply with it as the ReplyClass of DiagnosisAgent: outcome, reasons and confidence are the parent's, and the JSON adds
 ///   - causeCategory, one of CAUSECATEGORIES, and elementAtFault;
-///   - evidence, a list of references of at most MAXEVIDENCE entries;
+///   - evidence, a list of at most MAXEVIDENCE references, each at most 128 characters;
 ///   - fixKind, repair_resend or empty, and fixParameters {field, sourceFormat, targetFormat};
 ///   - cause and fixSummary, and itemNoun {one, other}.
 /// Decide filters every text of the model that the payload holds (FILTERED, AD-31). Import refuses a field that is not declared here.
@@ -37,8 +37,8 @@ Property CauseCategory As %String(%JSONFIELDNAME = "causeCategory", MAXLEN = 32)
 /// The element of the production that failed: a message field, an item or a setting.
 Property ElementAtFault As %String(%JSONFIELDNAME = "elementAtFault", MAXLEN = 128);
 
-/// References to what the diagnosis rests on.
-Property Evidence As list Of %String(%JSONFIELDNAME = "evidence", MAXLEN = 32);
+/// References to what the diagnosis rests on, each at most 128 characters.
+Property Evidence As list Of %String(%JSONFIELDNAME = "evidence", MAXLEN = 128);
 
 /// The NAME of a kind of OcuTalon.Fix.Kind (repair_resend), or empty.
 Property FixKind As %String(%JSONFIELDNAME = "fixKind", MAXLEN = 32);

@@ -17,11 +17,10 @@ Include Ensemble
 ///     (an incident event lists R1 done with its result and R2 not done); R2's is 2/2/2/0/0 and the incident is then resolved. S gets R1's result.skipped (2 of 3) and
 ///     R2's result.allThrough (2) Notification. Each run's Copies are copies of its own targets only, the two sets share none, and each request's FixRun, Action entry
 ///     and last incident event carry its own counts;
-///   - TestStoppedProductionSkipsEveryCopy (AC 7, V4; the matrix row "Production stopped"): the Orders production is stopped when R1 is approved. The re-check still
-///     reads the stopped production, and every copy is skipped with the plain reason that the production isn't running, because Ens.MessageHeader refuses with
-///     ErrProductionNotRunning: no header is made, the FixRun holds no copies, R1 is done, the FixResult has Total 3, Skipped 3 and nothing resent, and the one result
-///     Notification is result.skipped, whose text says the orders had changed since the dry run (V4: AD-16 counts a refused copy as skipped, the convention picks that
-///     key, and no text of its own exists for a stopped production yet).
+///   - TestStoppedProductionCannotStart (DW-368, AC 4, AD-16 as amended; the matrix row 14): the Orders production is stopped when R1 is approved. The run ends as could not
+///     start, before the re-check: one final FixResult with Total 3, Resent, Completed, FailedAgain and Skipped 0 and the reason NOTRUNNING; R1 is failed, its FixRun holds no
+///     copy, and the incident is resolved. S has one result Notification, result.couldNotStart, which renders "Nothing was resent: the production isn't running.
+///     Nothing was changed."; one Action entry has the result failed; no header is made and nothing in OCUORDERS changes. No text claims that the orders had changed.
 Class OcuTalon.Test.Fix.Runs Extends OcuTalon.Test.Watch.Case
 {
 
@@ -210,16 +209,16 @@ Method TestTwoResentRunsHaveTheirOwnResults()
 	If $IsObject(last) Do $$$AssertEquals(..ResultOf(last, 0)_"#"_..ResultOf(last, 1), "3|2|2|0|1|0|#2|2|2|0|0|0|", "the last one lists each request with its own result")
 }
 
-Method TestStoppedProductionSkipsEveryCopy()
+Method TestStoppedProductionCannotStart()
 {
 	If '..Raised("stopped", .a, .ref, .request) Quit
 	Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(ref)
 	Set trace = row.TraceHeaderId
 	Kill row
-	Set originals = ..Failed(..OrdersFloor)
 	Set namespaces = $ListBuild(..#ORDERS)
 	If '..StopOrders() Quit
 	Do ##class(OcuTalon.Test.Fix.Snapshot).Take(namespaces, .before)
+	Set mark = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
 	Do $$$AssertEquals(##class(OcuTalon.Bridge.Approval).Answer(request.ref, "approve", "web", ..#ANSWERER, a, .winner), "done", "R1 is approved while the Orders production is stopped")
 
 	Set results = ..FixResultsOf(trace, 1)
@@ -227,14 +226,13 @@ Method TestStoppedProductionSkipsEveryCopy()
 	If results.%Size() = 1 {
 		Set result = results.%Get(0)
 		Do $$$AssertEquals(result.ApprovalRef_"|"_result.IncidentRef_"|"_result.Final_"|"_result.Interrupted, request.ref_"|"_ref_"|1|0", "it names R1 and the incident and is final")
-		Do $$$AssertEquals(result.Total_"|"_result.Resent_"|"_result.Completed_"|"_result.FailedAgain_"|"_result.Skipped, "3|0|0|0|3", "with Total 3, nothing resent and 3 skipped")
-		Do $$$AssertTrue($Find(result.Reason, "message "_originals.%Get(0).id) > 0, "the reason names the lowest order: "_result.Reason)
-		Do $$$AssertTrue($Find(result.Reason, "the production isn't running") > 0, "and says that the production isn't running")
+		Do $$$AssertEquals(result.Total_"|"_result.Resent_"|"_result.Completed_"|"_result.FailedAgain_"|"_result.Skipped, "3|0|0|0|0", "with Total 3 and every other count 0")
+		Do $$$AssertEquals(result.Reason, ##class(OcuTalon.Fix.Executor).#NOTRUNNING, "and the reason that the production isn't running")
 	}
-	Do $$$AssertEquals(..WaitState(ref, request.ref, "done"), "done", "R1 is done")
+	Do $$$AssertEquals(..WaitState(ref, request.ref, "failed"), "failed", "R1 is failed")
 	Set run = ..RunOf(ref, request.ref)
 	Do $$$AssertTrue($IsObject(run), "R1 has a FixRun")
-	If $IsObject(run) Do $$$AssertEquals(run.copies.%Size(), 0, "which holds no copy")
+	If $IsObject(run) Do $$$AssertEquals(run.copies.%Size()_"|"_run.total_"|"_run.skipped_"|"_run.reason, "0|3|0|"_##class(OcuTalon.Fix.Executor).#NOTRUNNING, "which holds no copy and stores the same counts and reason")
 	Do $$$AssertEquals(..WaitIncidentState(ref, "resolved"), "resolved", "the incident is resolved")
 	Set end = $ZHorolog + ..#WAITHOLD
 	For {
@@ -245,9 +243,12 @@ Method TestStoppedProductionSkipsEveryCopy()
 	Do $$$AssertEquals(notes.%Size(), 1, "S has one result Notification")
 	If notes.%Size() = 1 {
 		Set note = notes.%Get(0)
-		Do $$$AssertEquals(note.catalogKey_"|"_note.approvalRef, "result.skipped|"_request.ref, "it is result.skipped with R1's Ref (V4: no text of its own for a stopped production)")
-		Do $$$AssertEquals(note.slots.count_"|"_note.slots.completed_"|"_note.slots.skipped, "3|0|3", "and counts 3 skipped of 3")
+		Do $$$AssertEquals(note.catalogKey_"|"_note.approvalRef, "result.couldNotStart|"_request.ref, "it is result.couldNotStart with R1's Ref")
+		Do $$$AssertEquals(##class(OcuTalon.Msg.Catalog).Render(note.catalogKey, note.slots.%ToJSON(), "web"), "Nothing was resent: the production isn't running. Nothing was changed.", "and it reads that nothing was resent because the production isn't running")
 	}
+	Set entries = ##class(OcuTalon.Test.Bridge.AuditLog).Wait(mark, "OcuTalon", "Action", "", request.ref)
+	Do $$$AssertEquals(entries.%Size(), 1, "one Action entry is written")
+	If entries.%Size() = 1 Do $$$AssertEquals(entries.%Get(0).data.result, "failed", "with the result failed")
 	Do ##class(OcuTalon.Test.Fix.Snapshot).Take(namespaces, .after)
 	Set lines = ##class(OcuTalon.Test.Fix.Snapshot).Diff(before, after)
 	Do $$$AssertEquals(lines.%Size(), 0, "no header was made and nothing in OCUORDERS changed: "_lines.%ToJSON())

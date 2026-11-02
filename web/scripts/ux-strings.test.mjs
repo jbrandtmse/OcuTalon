@@ -58,6 +58,8 @@ const IMPORTED = [
   ['mailbox/mailbox-view.ts', ['MAILBOX_TEXTS']],
   ['live/reset-schedule.ts', ['RESET_TEXTS']],
   ['header/sign-out-texts.ts', ['SIGN_OUT_TEXTS']],
+  ['header/demo-view-texts.ts', ['DEMO_VIEW_TEXTS']],
+  ['chat/try-it-view.ts', ['TRY_IT_TEXTS']],
 ];
 const modules = {};
 const imported = [];
@@ -153,6 +155,8 @@ for (const [name, text] of [...imported, ...fromSource, ...fromTemplates]) {
 const SOURCES = {
   ux: [
     'Message OcuTalon',
+    'Demo view',
+    'Off shows the page as it looks on your own install.',
     'Send',
     'Not sent',
     'Retry sending',
@@ -342,7 +346,6 @@ const SOURCES = {
     'Results Partner IT <it@results-partner.example>',
     'Press Break the feed. The partner will send 50 orders in a new date format.',
     'Waiting for OcuTalon. The reminder may arrive first.',
-    'Go to Break the feed',
     'Approve the fix in Telegram on your phone, or on the simulated phone.',
     'Approve the fix on the simulated phone, or in the chat.',
     'Rejected. Nothing was changed. Dismiss the incident in the chat, then press Break the feed again.',
@@ -359,6 +362,11 @@ const SOURCES = {
     'Install OcuTalon yourself',
     'More to try: simulate an incoming email in the simulated mailbox and see what OcuTalon decides. On your own install, ask it to watch any production.',
     'Run again',
+    'Try it yourself',
+    'Which productions are running?',
+    'Is anything wrong right now?',
+    'What was that failure earlier?',
+    'What can you do?',
     '\u2197',
     'Open',
     'Error',

@@ -6,6 +6,7 @@ import type { GuideMarker } from '../api/api-types';
 import { allowanceReason } from '../banners/banner-stack';
 import { ChatOutbox } from '../chat/chat-outbox';
 import { formatCost, formatTokens } from '../chat/decision-view';
+import { TryItRow } from '../chat/try-it-row';
 import { DeviceTabs } from '../devices/device-tabs';
 import { BreakFeedBox } from '../feed/break-feed-box';
 import { Icon } from '../icon/icon';
@@ -15,6 +16,7 @@ import { LiveState } from '../live/live-state';
 import type { GuideStatePayload } from '../live/payloads';
 import { pendingRef, phoneOf, type PhoneSnapshot } from '../phone/phone-view';
 import { Announcer } from '../shared/announcer';
+import { DemoView } from '../shared/demo-view';
 import { type FocusRule, keepFocus } from '../shared/focus-rule';
 import { HEIGHT_QUERIES, LAYOUT_QUERIES } from '../shared/layout-view';
 import { Popovers } from '../shared/popover';
@@ -27,15 +29,18 @@ import { advance, followSelection, GUIDE_HIDDEN_FLAG, GUIDE_HIDDEN_KEY, GUIDE_SH
 /** The attribute that marks the elements that focus may need to find again: the prompt bar's parts, the Hide and Show buttons and the box's Do step 1. */
 const FOCUS_KEY = 'data-guide-focus';
 
-/** The Break the feed button of the box, which takes focus when an update removes Do step 1 beside it. */
+/** The Break the feed button of the box, which takes focus when an update removes Do step 1 beside it, or a prompt or finish part while the prompt bar shows step 3. */
 const BREAK_FEED_BUTTON = 'app-break-feed-box app-server-button button';
+
+/** The attribute that marks the prompt bar while it shows step 3, so the focus rule can hand focus to the box beside it. */
+const STEP_MARK = 'data-guide-step';
 
 /** The prompt bar's action, its text and the bar itself, which take focus in that order when an advance replaces what held it. */
 const PROMPT_KEYS = ['action', 'text', 'bar'] as const;
 
 /** The finish state's first line and the parts that hand focus back to the prompt bar when the prompt bar replaces the finish. */
 const FINISH_KEY = 'finish';
-const FINISH_PARTS = ['finish', 'finishLink', 'runAgain'];
+const FINISH_PARTS = ['finish', 'finishLink', 'tryIt', 'runAgain'];
 
 /** The page's token and cost formats, which the finish's run line is written with. */
 const RUN_FORMAT: RunFormat = { tokens: formatTokens, cost: formatCost };
@@ -48,8 +53,10 @@ const phoneMessage = (ref: string) => `app-simulated-phone .notification[data-ke
  * Where focus goes when an update removes the element that holds it (UX-DR131, EXPERIENCE: focus replacement): Hide guide and Show guide
  * hand it to each other, the box's Do step 1 hands it to the Break the feed button beside it, and the prompt bar's action, text or the bar
  * itself hand it to the first of the three that is still there (the action button that now carries the next step, else the prompt text,
- * else the bar), else to the finish's first line. The finish's parts (its first line, its links and Run again) hand it to the prompt
- * bar's parts in the same order when Run again brings the prompt bar back. Focus anywhere else is never moved.
+ * else the bar), else to the finish's first line. While the prompt bar shows step 3 (data-guide-step), a lost prompt part or finish
+ * part hands focus to the box's Break the feed button instead, active or inactive; nothing is pressed. The finish's parts (its first
+ * line, its links, the Try it yourself row and Run again) hand it to the prompt bar's parts in the same order when Run again brings the prompt bar back. Focus
+ * anywhere else is never moved.
  */
 const FOCUS_RULE: FocusRule = {
   item: `[${FOCUS_KEY}]`,
@@ -62,6 +69,12 @@ const FOCUS_RULE: FocusRule = {
     if (key === 'step1') {
       return host.querySelector<HTMLElement>(BREAK_FEED_BUTTON);
     }
+    if ((PROMPT_KEYS as readonly string[]).includes(key) || FINISH_PARTS.includes(key)) {
+      const box = find('bar')?.getAttribute(STEP_MARK) === '3' ? host.querySelector<HTMLElement>(BREAK_FEED_BUTTON) : null;
+      if (box !== null) {
+        return box;
+      }
+    }
     const prompt = PROMPT_KEYS.map(find).find((element) => element !== null) ?? null;
     return FINISH_PARTS.includes(key) ? prompt : (prompt ?? find(FINISH_KEY));
   },
@@ -72,11 +85,11 @@ const FOCUS_RULE: FocusRule = {
  * shows the server's guide view (AD-12; guide-view.ts) and decides none of its progress. Row 1 holds the label, the five steps (buttons in
  * a list, joined by decorative chevrons; the current step carries aria-current="step" and its state is in every step's name), "About
  * 2 minutes" and Hide guide. Row 2, the prompt bar, shows the selected step's exact prompt and its action (guide-view.ts promptOf):
- * Send sends the prompt as the user's own message from the guide (ChatOutbox, fromGuide), Go to Break the feed focuses the box's button
- * without pressing it, Show me selects the Simulated phone tab and focuses the pending notification, and Open the trace is the run's
- * trace link, which writes the trace_opened marker once a Visual Trace tab opens. Once the server's view is finished the finish state
- * replaces the prompt bar: the exact lines, the run total, the two links, More to try and Run again, which writes the run_again
- * marker. A marker's 200 answer is the guide view until the next live view arrives. Any step can be selected in any order, and nothing
+ * Send sends the prompt as the user's own message from the guide (ChatOutbox, fromGuide), Show me selects the Simulated phone tab and
+ * focuses the pending notification, and Open the trace is the run's trace link, which writes the trace_opened marker once a Visual Trace
+ * tab opens. Once the server's view is finished the finish state
+ * replaces the prompt bar: the exact lines, the run total, the two links, More to try, the "Try it yourself" row (app-try-it-row,
+ * a finish part for focus) and Run again, which writes the run_again marker. A marker's 200 answer is the guide view until the next live view arrives. Any step can be selected in any order, and nothing
  * is marked done by a click. The Break the feed box sits at the right.
  *
  * While the session's message allowance is used up (Story 16.9; AllowanceState.active) a prompt whose action is Send is aria-disabled, not
@@ -92,11 +105,12 @@ const FOCUS_RULE: FocusRule = {
  * Announcements and focus: "Step {n} of 5: {step}" is announced once when the view advances to a later step of the same run (never for the
  * first view, a reload or a lower step), through the Announcer; the guide is not a live region, and the finish and Run again are silent.
  * The selection follows the current step when it changes. Focus moves only when an update removed the element that held it
- * (shared/focus-rule.ts) or by the user's own action (Go to Break the feed, Show me).
+ * (shared/focus-rule.ts; step 3 has no button of its own, so the box's Break the feed button takes the focus that Send or Run again held)
+ * or by the user's own action (Show me).
  */
 @Component({
   selector: 'app-demo-guide',
-  imports: [BreakFeedBox, Icon, ServerButton, TraceLink],
+  imports: [BreakFeedBox, Icon, ServerButton, TraceLink, TryItRow],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (model(); as guide) {
@@ -162,10 +176,11 @@ const FOCUS_RULE: FocusRule = {
                   >
                 </p>
                 <p class="more">{{ texts.moreToTry }}</p>
+                <app-try-it-row data-guide-focus="tryIt" />
                 <app-server-button class="run-again" variant="secondary" [action]="runAgain" data-guide-focus="runAgain">{{ texts.runAgain }}</app-server-button>
               </div>
             } @else {
-              <div class="prompt" tabindex="-1" data-guide-focus="bar">
+              <div class="prompt" tabindex="-1" data-guide-focus="bar" [attr.data-guide-step]="guide.selected === 3 ? '3' : null">
                 @if (guide.telegramRow) {
                   <p class="telegram">{{ texts.telegram }}</p>
                 }
@@ -185,9 +200,6 @@ const FOCUS_RULE: FocusRule = {
                           [attr.aria-describedby]="allowanceText() ? reasonId : null"
                           (click)="send(prompt.text)"
                         >{{ texts.send }}</button>
-                      }
-                      @case ('goToBreakFeed') {
-                        <button type="button" class="button button-primary" data-guide-focus="action" (click)="goToBreakFeed()">{{ texts.goToBreakFeed }}</button>
                       }
                       @case ('showMe') {
                         <button type="button" class="button button-primary" data-guide-focus="action" (click)="showMe()">{{ texts.showMe }}</button>
@@ -487,6 +499,7 @@ const FOCUS_RULE: FocusRule = {
 })
 export class DemoGuide {
   private readonly live = inject(LiveState);
+  private readonly demoView = inject(DemoView);
   private readonly outbox = inject(ChatOutbox);
   private readonly allowance = inject(AllowanceState);
   private readonly announcer = inject(Announcer);
@@ -509,8 +522,8 @@ export class DemoGuide {
     return window === undefined ? '' : allowanceReason(window);
   });
 
-  /** The guide view of the live state: the latest guide.state, else the snapshot's guide; undefined outside demo mode. */
-  private readonly liveView = computed(() => guideOf(this.live.snapshot() as GuideSnapshot | undefined, this.live.store()));
+  /** The guide view of the live state: the latest guide.state, else the snapshot's guide; undefined outside the demo view. */
+  private readonly liveView = computed(() => guideOf(this.demoView.snapshot() as GuideSnapshot | undefined, this.live.store()));
 
   /** The 200 answer of the page's last marker, which stands as the guide view until the next live view arrives. */
   private readonly answered = signal<GuideStatePayload | undefined>(undefined);
@@ -579,18 +592,13 @@ export class DemoGuide {
     this.outbox.send(text, true);
   }
 
-  /** Go to Break the feed: focus moves to the box's button. Nothing is pressed, and an inactive button still takes focus. */
-  protected goToBreakFeed(): void {
-    this.host.nativeElement.querySelector<HTMLElement>(BREAK_FEED_BUTTON)?.focus();
-  }
-
   /**
    * Show me: the Simulated phone tab is selected, then focus goes to the newest phone message that names a pending approval request,
    * else to the phone's feed. Never to a button inside the phone.
    */
   protected showMe(): void {
     const store = this.live.store();
-    const list = phoneOf(this.live.snapshot() as PhoneSnapshot | undefined, store) ?? [];
+    const list = phoneOf(this.demoView.snapshot() as PhoneSnapshot | undefined, store) ?? [];
     const ref = pendingRef(list, store?.approvals);
     this.tabs.select('phone');
     afterNextRender(

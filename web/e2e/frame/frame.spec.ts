@@ -27,6 +27,8 @@ async function realSnapshot(page: Page): Promise<Snapshot> {
 const themeButton = (page: Page, name = 'Theme: System'): Locator => page.getByRole('button', { name, exact: true });
 const accountButton = (page: Page): Locator => page.getByRole('button', { name: README_ACCOUNT.user, exact: true });
 const traceButton = (page: Page): Locator => page.getByRole('button', { name: 'Visual Trace', exact: true });
+/** The header's Demo view switch (Story 4.9). */
+const demoViewSwitch = (page: Page): Locator => page.getByRole('switch', { name: 'Demo view', exact: true });
 
 /** The heading that the About dialog names itself with, for a snapshot's version. */
 const aboutTitle = (version: unknown): string => (typeof version === 'string' && version !== '' ? `OcuTalon ${version}` : 'OcuTalon');
@@ -122,7 +124,7 @@ test('F2: demo mode off', async ({ page }) => {
   expect(main.x + main.width, "main ends at the viewport's right edge").toBeCloseTo(viewport, 0);
 });
 
-/** F3: the header, left to right, on the real stack (demo mode on): the Visual Trace button sits between the badge and the theme button. */
+/** F3: the header, left to right, on the real stack (demo mode on): the Demo view switch follows the badge, and the Visual Trace button sits between the switch and the theme button. */
 test('F3: the header', async ({ page }) => {
   await signInReadmeLoaded(page);
   await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
@@ -140,13 +142,15 @@ test('F3: the header', async ({ page }) => {
     mark: (await mark.boundingBox())!,
     wordmark: (await wordmark.boundingBox())!,
     badge: (await badge.boundingBox())!,
+    demoView: (await demoViewSwitch(page).boundingBox())!,
     trace: (await traceButton(page).boundingBox())!,
     theme: (await themeButton(page).boundingBox())!,
     account: (await accountButton(page).boundingBox())!,
   };
   expect(boxes.mark.x + boxes.mark.width, 'the mark, then the wordmark').toBeLessThanOrEqual(boxes.wordmark.x + 2);
   expect(boxes.wordmark.x + boxes.wordmark.width, 'then the badge').toBeLessThanOrEqual(boxes.badge.x);
-  expect(boxes.badge.x + boxes.badge.width, 'then the Visual Trace, theme and account buttons at the right').toBeLessThanOrEqual(boxes.trace.x);
+  expect(boxes.badge.x + boxes.badge.width, 'then the Demo view switch').toBeLessThanOrEqual(boxes.demoView.x);
+  expect(boxes.demoView.x + boxes.demoView.width, 'then the Visual Trace, theme and account buttons at the right').toBeLessThanOrEqual(boxes.trace.x);
   expect(boxes.trace.x + boxes.trace.width, 'the Visual Trace button comes before the theme button').toBeLessThanOrEqual(boxes.theme.x);
   expect(boxes.theme.x + boxes.theme.width).toBeLessThanOrEqual(boxes.account.x);
   const viewport = await page.evaluate(() => document.documentElement.clientWidth);
@@ -155,7 +159,9 @@ test('F3: the header', async ({ page }) => {
   expect(await badge.evaluate((el) => (el as HTMLElement).tabIndex), 'the badge takes no focus').toBe(-1);
   await home.focus();
   await page.keyboard.press('Tab');
-  await expect(traceButton(page), 'Tab goes from the home link to the Visual Trace button, past the badge').toBeFocused();
+  await expect(demoViewSwitch(page), 'Tab goes from the home link to the Demo view switch, past the badge').toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(traceButton(page), 'then to the Visual Trace button').toBeFocused();
   await page.keyboard.press('Tab');
   await expect(themeButton(page), 'and then to the theme button').toBeFocused();
 });
@@ -397,6 +403,8 @@ test('F7: ghost buttons and the focus ring', async ({ page }) => {
   };
 
   await page.locator('app-header a.home').focus();
+  await page.keyboard.press('Tab');
+  await expect(demoViewSwitch(page), 'the Demo view switch follows the home link').toBeFocused();
   await page.keyboard.press('Tab');
   await expect(traceButton(page)).toBeFocused();
   await expectRing(traceButton(page), 'the Visual Trace button');

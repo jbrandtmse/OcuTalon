@@ -754,3 +754,60 @@ test('X10: after a reload the answered message keeps its line and the pending on
     await cleanFixtureRows(rows);
   }
 });
+
+/**
+ * X11 (Story 4.9): the Demo view switch hides the phone, never the request. With a request raised and its notice on the phone, the switch
+ * goes off: the request card in the chat still has Approve and Reject, the rail row stays and the Simulated devices region is gone. Approve
+ * on the card answers 200; the stand-in for IncidentManager's answered notification arrives while the switch is off. With the switch on
+ * again the phone's message shows the stored answer line and no buttons.
+ */
+test('X11: with the Demo view off the request is answerable in the chat, and the phone shows the answer once the view is on', async ({ page }) => {
+  const { user } = fixtureUser(KIND);
+  const rows: string[] = [];
+  const start = startOf();
+  try {
+    await open(page);
+    const incident = refOf('X11');
+    const request = await raise(page, user, rows, incident, []);
+    const { ref } = await noticeOnPhone(page, user, request, incident, inMs(-120_000));
+    const card = requestCard(page, request);
+    await expect(card).toHaveCount(1, { timeout: CARD_MS });
+
+    const demoView = page.getByRole('switch', { name: 'Demo view' });
+    await expect(demoView, 'the switch is on').toHaveAttribute('aria-checked', 'true');
+    await demoView.click();
+    await expect(demoView, 'the switch is off').toHaveAttribute('aria-checked', 'false');
+    await expect(page.getByRole('region', { name: 'Simulated devices' }), 'the Simulated devices region is gone').toHaveCount(0);
+    await expect(phoneOf(page), 'and so is the phone').toHaveCount(0);
+    await expect(card.getByRole('button', { name: APPROVE, exact: true }), 'the chat card keeps Approve').toHaveCount(1);
+    await expect(card.getByRole('button', { name: REJECT, exact: true }), 'and Reject').toHaveCount(1);
+    await expect(rowOfRequest(page, request), 'the rail row stays').toHaveCount(1);
+
+    const reply = nextReply(page);
+    await card.getByRole('button', { name: APPROVE, exact: true }).click();
+    const response = await reply;
+    expect(response.status()).toBe(200);
+    const answeredAt = (await replyBody(response)).body.approval?.answeredAt ?? '';
+    expect(answeredAt, "the reply carries the request's answer").toMatch(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/);
+    await sendNotification(user, {
+      kind: 'answered',
+      catalogKey: 'answered.approved',
+      slots: { channel: 'web', time: answeredAt },
+      approvalRef: request,
+      incidentRef: incident,
+    });
+    const expected = `Approved from the web chat at ${hhmm(answeredAt)}.`;
+    await expect.poll(() => phoneMessage(user, request).then((one) => one?.answer), { message: 'the server holds the answer line' }).toBe(expected);
+    await expect(phoneOf(page), 'the phone is still gone while the view is off').toHaveCount(0);
+
+    await demoView.click();
+    await expect(demoView, 'the switch is on again').toHaveAttribute('aria-checked', 'true');
+    const message = messageOf(page, ref);
+    await expect(message, 'the phone shows the message').toHaveCount(1, { timeout: CARD_MS });
+    await expect(lineOf(message), 'with the answer given meanwhile').toHaveText(expected, { timeout: PHONE_MS });
+    await expect(message.getByRole('button'), 'and no buttons').toHaveCount(0);
+  } finally {
+    await dropPhone(user, start);
+    await cleanFixtureRows(rows);
+  }
+});

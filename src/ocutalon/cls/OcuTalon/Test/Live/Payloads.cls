@@ -1122,6 +1122,7 @@ XData Contracts [ MimeType = application/json ]
    "FailedAgain": "%Integer(%JSONFIELDNAME=failedAgain)",
    "Skipped": "%Integer(%JSONFIELDNAME=skipped)",
    "Interrupted": "%Integer(%JSONFIELDNAME=interrupted)",
+   "Unreached": "%Integer(%JSONFIELDNAME=unreached)",
    "Reason": "%String(%JSONFIELDNAME=reason,MAXLEN=1000)"
   }
  },

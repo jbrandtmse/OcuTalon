@@ -248,6 +248,13 @@ production can use.
 One rule never changes: nothing risky happens until a person says yes, and everything OcuTalon does goes
 into the audit log.
 
+**Note added 2026-10-31** [owner decisions, relayed by the Contest Planner (U-195)]. Two things changed after this brief was final; the PRD and the epics carry them, and the body above is kept as written.
+- **A broader pitch,** which the owner adopted: "a general personal assistant, built the IRIS way". Every new feature runs through the production: Visual Trace, approvals, the audit log and IRIS tables.
+- **Three personality features** (PRD FR-63 to FR-74; Epics 39 to 41), built after 1.0.0 and each shipped on its own:
+  - an agent heartbeat that looks at a person's own checklist on a schedule, at most once every 30 minutes, and stays quiet unless something needs them;
+  - a persona that sets how OcuTalon words its replies, with presets, a language of the person's choice, and on a local install the person's own words, while what OcuTalon may do never changes;
+  - memory that learns: daily notes built by code, precedents from the person's own answers, facts learned in the person's own turns, and a small core memory the person pins.
+
 ---
 
 *OcuTalon is inspired by OpenClaw and is not affiliated with or endorsed by the OpenClaw Foundation.*
