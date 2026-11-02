@@ -7116,10 +7116,14 @@ So that a tool call is answered the same way as a fix.
 
 **Acceptance Criteria:**
 
-**Given** an approval of kind `tool_call`
-**When** the bridge reports `approval.raised`, `approval.answered` or `approval.result`
-**Then** `BridgeSink` sends `Notification`s of kinds `approval`, `answered` and `result` through `NoticesIn`, each carrying the request's `ApprovalRef` (and its `IncidentRef`, empty for a tool call), so the phone gets buttons and in-place edits for it too; for kind `fix`, `IncidentManager` sends them, its `answered` and `result` notifications carrying both `ApprovalRef` and `IncidentRef` (AD-31, AD-32)
-**And** until Story 30.3 merges, its tests call `BridgeSink.OnEvent` with fixture `approval.*` events of kind `tool_call`, and the replay's real `approval.result` turns on then [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner]
+**Given** a resolved incident whose request result has `unreached` above 0
+**When** the signed-in page shows its card
+**Then** the result band reads `result.stoppedPartway`'s text, picked in the server's `Watch.Notice.ResultKey` order, and never `result.skipped`'s; a run still going past FixExecutor's 60-second wait shows the card's fixing line and no result band (DW-472, DW-473; AD-16, AD-32)
+**And** an approved tool call of the session that finished after one message is named in the next turn's code-written `SystemNote` (the tool, done or failed, and the time), and in that turn only (DW-443, AD-30)
+[AMENDED 2026-11-02, Story 31.2's plan, split (Rule 5 tier-2, unattended ruling, decide): the story's `tool_call` notice criterion moved verbatim to Story 31.5, which keeps this story's user story; this story is part 1: the page's stopped-partway result (U-183 condition 1), the tool-call note to the next turn and the routed layout fixes below. Its title and key are kept]
+- DW-472: The page's result band picks `result.stoppedPartway` when a request's `unreached` is above 0; the web catalog key lists gain the key and its count-of-one form (ledger; routed by orchestrator 2026-10-31, U-183)
+- DW-473: The page has a named still-resending state for a fix run still running after FixExecutor's 60-second wait (ledger; routed by orchestrator 2026-10-31, U-183)
+- DW-443: A replayed tool call's approval.result reaches the next turn as a code-written SystemNote (the tool, done or failed, and the time; AD-30) (ledger; routed earlier)
 - DW-497: flake: live:cards A7 (web/e2e/cards/approval-card.spec.ts:348, another session's request answers 404) timed out at sign-in waiting for the page's first GET of the state (web/e2e/support/floor.ts:141, loadedAfter) in CI; it passed on the unchanged rerun (ledger; routed by orchestrator 2026-10-31)
 - DW-530: Where the top bar's stacked header (Story 4.9's Demo view switch) would pass a quarter of the window's height (157px local, 180px online at 320px wide; the whole window at 400% zoom), it scrolls with the page instead of sticking (for example `position: static` below 480px wide), or the switch moves into a menu below 1024px, whichever is cheaper; floor G4's quarter-of-the-viewport rule then holds at every width. In 1.0.0 only at no date cost to Epic 31: if the plan finds it adds time, re-own it to the first daily release after 1.0.0 (ledger; routed by owner decision U-202, 2026-11-01)
 - DW-542: At 640px wide (200% zoom) the guide's finish state wraps to full width instead of a 321px right column beside an empty left half (Contest Planner's Epic 4 host check); with DW-530's rule: 1.0.0 only at no date cost (ledger; routed by merge_gate 2026-11-01)
@@ -7175,6 +7179,22 @@ So that what reaches my phone is my own work.
 - DW-446: The probe reports healthy when every turn is an error fallback (a revoked real key, a provider 500 or a down gateway behind the demo's gateway), because degraded covers only no_key, timeout and rate_limited (ledger; routed by merge_gate 2026-10-31)
 - DW-237: Story 10.3's Pairing.HashCode must delegate to Session.Hash (Story 16.3) instead of adding a second SHA-256 base64url helper (ledger; routed by merge_gate 2026-10-31)
 - DW-485: release/demo-host-check.sh has no allow-hyperevent check, so run 1 passed while the host's S17 filter refused every Visual Trace hyperevent (WARGC, WEVENT, WARG_<n> to /ocutalon/trace/<app>/%25CSP.Broker.cls answered 400 'unexpected form field'), which broke demo step 5's message clicks; add a check that a hyperevent-shaped POST with dummy WARGC, WEVENT and WARG_1 to each trace application's %CSP.Broker.cls gets neither the block status nor the block mark (ledger; routed by orchestrator 2026-10-31)
+
+### Story 31.5: A tool call's approval request reaches the phone with Approve and Reject (notices)
+
+[AMENDED 2026-11-02, Story 31.2's plan, split (Rule 5 tier-2, unattended ruling, decide): part 2 of Story 31.2, its `tool_call` notice criterion moved here verbatim, its spent "until Story 30.3 merges" clause kept for the record (30.3 has merged, so the replay's real `approval.result` is on)]
+
+As a production developer,
+I want a risky tool call's approval request on the session's simulated phone and paired chat with Approve and Reject, edited in place when it is answered and when its result arrives,
+So that a tool call is answered the same way as a fix.
+
+**Acceptance Criteria:**
+
+**Given** an approval of kind `tool_call`
+**When** the bridge reports `approval.raised`, `approval.answered` or `approval.result`
+**Then** `BridgeSink` sends `Notification`s of kinds `approval`, `answered` and `result` through `NoticesIn`, each carrying the request's `ApprovalRef` (and its `IncidentRef`, empty for a tool call), so the phone gets buttons and in-place edits for it too; for kind `fix`, `IncidentManager` sends them, its `answered` and `result` notifications carrying both `ApprovalRef` and `IncidentRef` (AD-31, AD-32)
+**And** until Story 30.3 merges, its tests call `BridgeSink.OnEvent` with fixture `approval.*` events of kind `tool_call`, and the replay's real `approval.result` turns on then [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner]
+- DW-454: U-170's plain-English reason for an old held tool call reaches the approval card and the tool-call notices, not only the decision live event (ledger; routed to this story by Story 31.2's spec gate 2026-11-02)
 
 ## Epic 32: CI gives a verdict in about ten minutes, even with both lanes pushing
 
