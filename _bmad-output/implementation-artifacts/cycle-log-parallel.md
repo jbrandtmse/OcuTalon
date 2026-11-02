@@ -1301,3 +1301,6 @@
 2026-11-02T01:22:13Z	Epic 40	runner_dispatched	agent=a9e7a07f80806e2b4 model=opus runner=C slot=ocutalon-slot-c mode=first_dispatch(yield_on_message;merge_gate_rc1) base=1ff552c0(source=green_f6ab8c36) prompt=prompts/dispatch-epic-40.md
 2026-11-02T01:22:13Z	Epic 11	runner_message	agent=a7a36d994abfccfc6 note=U-208_kept;report_11.18_host_contract_in_ending
 2026-11-02T01:22:13Z	Epic 1-37	stage_block_fixed	file=.coordination/unattended-stage-block.md item=owner_fixed_3(polling_contract)_aligned_to_policy_ff1bd1a6 backup=.bak-20261102
+2026-11-02T02:16:44Z	Epic 30	runner_clarification	story=30.5(after_implement,c67cdf16_local) q=one_line_in_Epic_11-contended_Test/Live/Payloads.cls_Contracts_block(U-183_unreached) head=94534207(8_local) origin=3728ccee(green) 30.6=done(7d184ae3;DW-498,DW-505_resolved;DW-544_decision-pending) DW-500=preferred_route(Triage_instructions+user-turn_eval_4_chip_cases;payload_has_no_override_field) flakes=DW-306,DW-349,DW-549(new)
+2026-11-02T02:16:44Z	Epic 30	ruling	q=30.5_Payloads.cls_one_line choice=a:keep(different_method_from_Epic_11_s_L317-350;trial_merge_clean;no_behaviour_choice);plain_union rejected=b(drops_U-183_from_the_launch_build),c(blocks_the_launch) category=decide policy=ff1bd1a60299f4f82e554739400da95233d7bcb5
+2026-11-02T02:16:44Z	Epic 30	runner_resumed	agent=a717a931bacaed0b8 answer=ruling_a
