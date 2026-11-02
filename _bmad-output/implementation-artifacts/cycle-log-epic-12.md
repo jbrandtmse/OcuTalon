@@ -215,3 +215,5 @@
 2026-11-02T13:47:32Z	Epic 12	integrate_checks	live=demo-path(27_passed;STEP_5_approval_partly_skipped=12.7;floor_14/14;audit_pass) tag=e12s7int teardown=clean
 2026-11-02T13:47:32Z	Epic 12	integrated_forward	feature=a9a221ed head=a2965da2 conflicts_resolved=ci/units.sh(comment_union),sprint-status.yaml(regenerated;feature_statuses_re-applied;valid) merge_fix=c5830c5d(TelegramChat_counts_13/19) kind=mid_epic_redispatch
 2026-11-02T13:47:32Z	Epic 12	epic_context_compiled	reason=planning_artifact_newer(integrate_forward) model=claude-opus-5-5 bytes=9458 agent=a7c84d2c1ecf2bcba
+2026-11-02T13:48:29Z	Epic 12	ci_pending	sha=404351eb runs=41456056242,41456056000 note=integrate-forward_head(a9a221ed);not_a_story_commit
+2026-11-02T13:48:29Z	Story 12.7	stage_spawned	stage=plan spawn_at=2026-11-02T13:48:29Z model=claude-opus-5-5 agent_name=12-7-plan-1 cycle_iteration=1 note=plan_during_404351eb_CI(Rule_23);story_waiting_on_11_released(Epic_11_part_1_merged_d12b931f)
