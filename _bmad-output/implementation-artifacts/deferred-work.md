@@ -2862,3 +2862,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: cycle-log-epic-11.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: CI run 41364655268 attempt 1 (OCT-epic11 dea3f6dd, iris browser, live:demo-path): 01-page.spec.ts:127 failed in signInReadmeLoaded -> signInReadme -> gotoSettled with that message; Story 11.4 changed no web file
 - 2026-11-02T00:28:56Z status=routed owner=burndown by=ci note=burn-down with priority: widen gotoSettled's retry to the chrome-error interruption (one retry, same deadline), with a goto-settled.test.mjs row
+
+### DW-557: test-release-notes.sh's real-tree rule runs notes.sh on the repository's own HEAD in the hosted checks job, so the integration branch's CI goes red for every epic as soon as a story of an epic with no line in release/notes-areas.txt (the step and personality epics) is marked done, or a v* tag leaves no new story; the areas refusal belongs at release time (notes.sh on a candidate), not in every push's CI
+- source: spec-11-13-the-release-gets-draft-notes.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: release/notes-areas.txt maps no line for Epics 17-28, 33-37, 39-41; the real-tree rule calls notes.sh on HEAD
+- 2026-11-02T01:56:39Z status=open owner=11-13-the-release-gets-draft-notes by=harvest note=patch in this story: the self-test's real tree must not fail on an unmapped epic (e.g. pin a fixed tree or tolerate unmapped epics there), while notes.sh itself still fails areas on a candidate
+
+### DW-558: The not-affiliated note is spelled in two places (release/checklist.sh CK_NOTE and release/notes.sh's fragments) and nothing compares them with each other or with README.md's line
+- source: spec-11-13-the-release-gets-draft-notes.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: a wording change in one copy would fail correct notes or pass a stale one unseen
+- 2026-11-02T01:56:40Z status=open owner=11-13-the-release-gets-draft-notes by=harvest note=two-way door: a self-test case comparing the two copies and the README line
