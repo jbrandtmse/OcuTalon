@@ -209,3 +209,6 @@
 2026-11-02T13:25:26Z	Epic 12	lead_model_gate	model=claude-opus-5-5 action=proceed
 2026-11-02T13:25:26Z	Epic 12	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh visibility=PUBLIC
 2026-11-02T13:25:26Z	Epic 12	launch_env	depth=4 watchdog=1 bash_max_ms=default
+2026-11-02T13:27:42Z	Epic 12	slot_reloaded	slot=ocutalon-slot-a ns=OCUTALON loaded=616(bridge48+ocutalon568) stale_deleted=0 compile=ok(CompilePackage_OcuTalon) identity=38116100-CB21-11F1-89CB-6E39548FE8BF head=a2965da2
+2026-11-02T13:43:28Z	Epic 12	ruling	question=merged_Story_30.5_adds_Watch_key_result.stoppedPartway;TelegramChat.TestNotices_pins_12_Watch_keys(18_rows) choice=update_the_counts_to_13_and_19(test_iterates_every_incident./result._key;fixture_exists_in_Test.Msg.Catalog) rejected=derive_count_dynamically(loses_the_pin),leave_red category=decide policy=ff1bd1a evidence=part1_red:TestNotices_12vs13,18vs19;class_rerun_green_37.8s(e12s7int)
+2026-11-02T13:43:28Z	Epic 12	integrate_checks	shard=lane-a@Channel(11_classes;part1_red_TelegramChat_then_fixed_green,part2_5/5_green) web_test=1242/1242 build=ok tag=e12s7int lane=A

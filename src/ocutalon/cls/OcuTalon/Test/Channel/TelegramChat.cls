@@ -479,7 +479,7 @@ Method TestNotices()
 		While iterator.%GetNext(.key) {
 			If ($Extract(key, 1, 9) = "incident.") || ($Extract(key, 1, 7) = "result.") Set keys = keys _ $ListBuild(key)
 		}
-		Do $$$AssertEquals($ListLength(keys), 12, "there are 12 Watch notice keys")
+		Do $$$AssertEquals($ListLength(keys), 13, "there are 13 Watch notice keys")
 		For core = "notice.tellNow", "notice.tellNowFallback", "reminder.due", "reminder.late", "conversation.sessionAllowance", "conversation.dailyCap" Set keys = keys _ $ListBuild(core)
 		Set expectedRows = "", approvals = 0, position = 0, phones = 0
 		While $ListNext(keys, position, key) {
@@ -526,7 +526,7 @@ Method TestNotices()
 			Set expectedRows = expectedRows _ $Select(expectedRows = "": "", 1: ",") _ kind_"|"_approval_"|"_chatRef_":"_(before + 1)
 		}
 		Do $$$AssertEquals(..Rows(session, "telegram", "pairing"), expectedRows, "the telegram Delivery rows have each notice's kind, its approval Ref and <ChatRef>:<message_id>")
-		Do $$$AssertEquals($Length(expectedRows, ","), 18, "there are 18 of them")
+		Do $$$AssertEquals($Length(expectedRows, ","), 19, "there are 19 of them")
 
 		Set before = ..CallsOf("sendMessage").%Size()
 		Set answered = fixtures.%Get("answered.approved")
