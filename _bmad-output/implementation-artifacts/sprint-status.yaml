@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 11-02-2026 03:00
+last_updated: 11-02-2026 12:35
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -172,13 +172,26 @@ development_status:
   10-5-the-readme-shows-the-product-and-says-how-you-talk-to-it: backlog
   epic-10-retrospective: optional
 
-  epic-11: backlog
-  11-1-the-web-demo-path-passes-end-to-end-in-the-rel-2-test: backlog
-  11-2-upgrades-and-restarts-keep-every-record-working: backlog
-  11-3-the-clean-machine-rehearsal-installs-and-times-the-demo-path: backlog
-  11-4-the-release-gets-draft-notes-and-a-checklist: backlog
-  11-5-one-scripted-sequence-cuts-a-release: backlog
-  11-6-a-hands-on-pass-with-real-keys-finds-and-fixes-what-the-test: backlog
+  epic-11: in-progress
+  11-0-epic-10-deferred-cleanup: done
+  11-1-the-web-demo-path-passes-end-to-end-in-the-rel-2-test: done
+  11-7-the-demo-path-s-failure-paths-quiet-outcomes-and-online-run: done
+  11-10-the-demo-path-s-failure-paths-and-quiet-outcomes-pass-in-the: done
+  11-8-the-chat-cancels-several-reminders-in-one-call-and-says-it-c: done
+  11-9-every-check-left-off-for-release-1-turns-on-and-the-ci-flake: done
+  11-2-upgrades-and-restarts-keep-every-record-working: done
+  11-3-the-clean-machine-rehearsal-installs-and-times-the-demo-path: done
+  11-11-the-rehearsal-runner-times-the-demo-path-and-checks-every-bo: done
+  11-12-the-rehearsal-runner-repeats-the-demo-path-n-times-with-run: done
+  11-4-the-release-gets-draft-notes-and-a-checklist: done
+  11-13-the-release-gets-draft-notes: done
+  11-5-one-scripted-sequence-cuts-a-release: done
+  11-14-the-release-sequence-runs-every-gate-on-the-pushed-candidate: backlog
+  11-15-the-hands-on-gate-stops-the-sequence-and-its-resume-command: backlog
+  11-16-the-sequence-asks-before-each-outward-step-after-the-gates: backlog
+  11-17-the-release-s-ipm-artifact-carries-the-built-page: done
+  11-18-the-update-hook-updates-the-online-demo-and-a-rehearsal-cand: backlog
+  11-19-seeded-check-rows-stay-out-of-the-heartbeat-s-way-unless-a-c: done
   epic-11-retrospective: optional
 
   epic-12: backlog
@@ -361,6 +374,12 @@ development_status:
   37-1-fix-step-6-s-contracts-approver-roles-and-the-photo-caption: backlog
   37-2-see-tokens-and-cost-over-time-on-the-usage-page: backlog
   epic-37-retrospective: optional
+
+  epic-38: backlog
+  38-1-a-hands-on-pass-with-real-keys-finds-and-fixes-what-the-test: backlog
+  38-2-the-clean-machine-rehearsal-runs-on-the-author-s-hosts-and-t: backlog
+  38-3-the-owner-s-telegram-pass-on-the-1-0-0-candidate: backlog
+  epic-38-retrospective: optional
 
   epic-39: backlog
   39-1-fix-the-heartbeat-s-names-and-contracts: backlog

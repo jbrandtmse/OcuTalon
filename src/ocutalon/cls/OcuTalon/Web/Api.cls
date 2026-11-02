@@ -27,8 +27,9 @@
 ///     Telegram channel enters through AnswersIn only) and goes through AnswersIn to AnswerOps (AD-11): 200 {"result":"done","approval"},
 ///     409 already_answered or expired (the error beside the request's "approval" payload), 403 not_allowed, 404 not_found and 400 bad_answer.
 ///     POST /v1/incidents/:ref/dismiss (AD-1, AD-15) never reads the body and submits a Dismiss command for the CSP session through
-///     Commands.Submit (origin web_user): 200 {"result":"done"}, 409 not_dismissible (the owner's refusal), 501 not_built for a stub
-///     owner, 404 not_found and 500 server_error.
+///     Commands.Submit (origin web_user): 200 {"result":"done"}, 409 not_dismissible (IncidentManager's not_allowed, the owner's refusal
+///     of a dismissal that the incident's state or its approval request forbids), 501 not_built for a stub owner, 404 not_found and 500
+///     server_error.
 ///     The snapshot also tells the page who is signed in, which mode
 ///     the instance runs in (onlineDemo, demoMode), the display names of the models its agents use, the Telegram block
 ///     and the active status conditions, then, only while demo mode is on, the simulated phone, the simulated mailbox
@@ -555,8 +556,10 @@ ClassMethod AnswerResponse(ref As %String, kind As %String, sessionRef As %Strin
 ///     incident the session can't see is 404 not_found, before anything is submitted;
 ///   - Commands.Submit of an OcuTalon.Msg.Command.Dismiss (the incident's Ref, the session's Ref) with origin web_user, which reaches
 ///     IncidentManager through CommandsIn, synchronously; an error status is 500 server_error;
-///   - the answer: Ok is 200 {"result":"done"}; not_built is 501 not_built; not_found is 404; failed, unknown_command and not_allowed are
-///     500 server_error; any other outcome is the owner's refusal, 409 not_dismissible with the owner's Message, else MESSAGENOTDISMISSIBLE.
+///   - the answer: Ok is 200 {"result":"done"}; not_built is 501 not_built; not_found is 404; failed and unknown_command are 500 server_error;
+///     not_allowed, the owner's refusal, is 409 not_dismissible with MESSAGENOTDISMISSIBLE (the owner's Message is developer text, and the
+///     words a user sees are the channel's). Any other outcome, which the real IncidentManager never gives to a dismissal, is 409
+///     not_dismissible with its own Message, or MESSAGENOTDISMISSIBLE when it has none.
 ClassMethod DismissIncident(ref As %String) As %Status
 {
 	Set sessionRef = ##class(OcuTalon.Data.Ownership).SessionRef(.sc)
@@ -579,9 +582,10 @@ ClassMethod DismissIncident(ref As %String) As %Status
 	Set outcome = result.Outcome
 	If outcome = "not_built" Quit ..Fail(501, "not_built", ..#MESSAGENOTBUILT)
 	If outcome = "not_found" Quit ..Fail(404, "not_found", ..#MESSAGENOTFOUND)
-	If $ListFind($ListBuild("failed", "unknown_command", "not_allowed"), outcome) {
+	If $ListFind($ListBuild("failed", "unknown_command"), outcome) {
 		Quit ..ServerError($SYSTEM.Status.Error(5001, "The dismissal was answered "_outcome))
 	}
+	If outcome = "not_allowed" Quit ..Fail(409, "not_dismissible", ..#MESSAGENOTDISMISSIBLE)
 	Quit ..Fail(409, "not_dismissible", $Select(result.Message '= "": result.Message, 1: ..#MESSAGENOTDISMISSIBLE))
 }
 
@@ -819,7 +823,10 @@ ClassMethod MailboxItems(sessionRef As %String) As %DynamicArray [ Private ]
 }
 
 /// The chat: the newest CHATMAX of the session's turns, its visible noticed incidents and its web notice cards (the tell-now
-/// and reminder cards that WebChatOut kept, DW-62), as live items ({"type", "payload"}), oldest first. The three reads are
+/// and reminder cards that WebChatOut kept, DW-62), as live items ({"type", "payload"}), oldest first. An incident whose
+/// DecisionRef is a decision of the session's own carries it as the member decision beside payload, the Decision payload
+/// object, so that the card's footer finds its diagnosis decision after a load; another owner's decision or an empty
+/// DecisionRef gives none, and a read that fails throws. The three reads are
 /// newest first and at most CHATMAX, so the newest CHATMAX of the three together are among them. They are merged by time (a
 /// turn's CreatedAt, an incident's NoticedAt, a card's RecordedAt), at the same time a turn before an incident before a
 /// card, then by row ID; the merge is walked from its newest end and the entries kept are pushed oldest first.
@@ -836,7 +843,13 @@ ClassMethod ChatItems(sessionRef As %String) As %DynamicArray [ Private ]
 	Do ..Check(sc)
 	For i = 1:1:incidents.Count() {
 		Set incident = incidents.GetAt(i)
-		Set merged("T"_incident.NoticedAt, 1, incident.%Id()) = {"type": "incident", "payload": (..PayloadObject(##class(OcuTalon.Live.Payload.Incident).FromRow(incident)))}
+		Set item = {"type": "incident", "payload": (..PayloadObject(##class(OcuTalon.Live.Payload.Incident).FromRow(incident)))}
+		If incident.DecisionRef '= "" {
+			Set decision = ##class(OcuTalon.Data.Ownership).Decision(incident.DecisionRef, sessionRef, .sc)
+			Do ..Check(sc)
+			If $IsObject(decision) Set item.decision = ..PayloadObject(##class(OcuTalon.Live.Payload.Decision).FromRow(decision))
+		}
+		Set merged("T"_incident.NoticedAt, 1, incident.%Id()) = item
 	}
 	Set notices = ##class(OcuTalon.Data.Ownership).RecentNotices(sessionRef, ..#CHATMAX, .sc)
 	Do ..Check(sc)

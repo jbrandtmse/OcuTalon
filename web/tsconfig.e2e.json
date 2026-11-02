@@ -4,5 +4,5 @@
     "noEmit": true,
     "types": ["node"]
   },
-  "include": ["e2e/**/*.ts", "e2e-online/**/*.ts", "playwright.config.ts"]
+  "include": ["e2e/**/*.ts", "e2e-online/**/*.ts", "e2e-rehearsal/**/*.ts", "playwright.config.ts", "playwright.rehearsal.config.ts"]
 }

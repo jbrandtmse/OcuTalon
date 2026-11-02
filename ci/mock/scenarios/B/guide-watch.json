@@ -1,12 +1,22 @@
 {
   "name": "guide-watch",
   "match": {
-    "prompt": "Watch the Orders production and only tell me if something needs me."
+    "prompt": "Watch the Orders production and only tell me if something needs me.",
+    "mockkey": "chat"
   },
   "replies": [
     {
       "status": 200,
-      "text": "The CI mock answered the guide's watch prompt."
+      "toolUse": {
+        "name": "start_watch",
+        "input": {
+          "name": "Orders"
+        }
+      }
+    },
+    {
+      "status": 200,
+      "text": "I'll watch the Orders production and stay quiet unless something needs you."
     }
   ]
 }

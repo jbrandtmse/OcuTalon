@@ -7,7 +7,7 @@ Include Ensemble
 ///   - After downtime the next call sends one Tick with CatchUp 1, never one per missed minute.
 ///   - A send that fails records nothing, so the next call finds the same gap and catches up.
 ///   - It works under one lock (Heartbeat LOCK), waited for 5 s. A call that cannot take it ends OK and sends nothing.
-///   - While the class behind Checks carries STUB (Lane A's OcuTalon.Checks.Process until Story 5.6), it sends nothing and
+///   - While the class behind Checks carries STUB (as Lane A's OcuTalon.Checks.Process did until Story 5.6), it sends nothing and
 ///     records the marks as after a send, so that the stub writes no error row and the stalled warning stays real (ruling U-52).
 ///   - A call that succeeds writes no event-log row. The Tick is the output.
 /// It is also the Schedule area's way in for the re-arm of a reminder's waiter (AD-1): a ReminderStart as the input is not a tick. It is

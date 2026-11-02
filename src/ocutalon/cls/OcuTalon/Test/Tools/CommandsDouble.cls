@@ -18,6 +18,8 @@
 ///       any other verb: Ok 0, Outcome not_handled.
 ///   - It follows the modes that a test sets (the test that sets one kills ^OcuTalonTest("CommandsDouble")):
 ///       ^OcuTalonTest("CommandsDouble","refuse",<the verb's class name without its package>) = <message>: Ok 0, Outcome refused, and that message;
+///       ^OcuTalonTest("CommandsDouble","refuseRef",<a reminder's Ref>) = <message>: a CancelReminder of that ReminderRef is refused the same way, and one of
+///         any other Ref is answered as usual;
 ///       ^OcuTalonTest("CommandsDouble","data") = <text>: ListReminders is answered with that text as its Data;
 ///       ^OcuTalonTest("CommandsDouble","fail") = 1: OnProcessInput returns an error status, after it has recorded the command; any other text is the
 ///         message of that status;
@@ -48,6 +50,10 @@ Method OnProcessInput(pInput As %RegisteredObject, Output pOutput As %Registered
 	Set verb = $Piece($ClassName(pInput), ".", $Length($ClassName(pInput), "."))
 	Set result = ##class(OcuTalon.Msg.CommandResult).%New()
 	If $Data(^OcuTalonTest("CommandsDouble", "refuse", verb), message) # 2 {
+		Set result.Ok = 0
+		Set result.Outcome = "refused"
+		Set result.Message = message
+	} ElseIf (verb = "CancelReminder") && (pInput.ReminderRef '= "") && ($Data(^OcuTalonTest("CommandsDouble", "refuseRef", pInput.ReminderRef), message) # 2) {
 		Set result.Ok = 0
 		Set result.Outcome = "refused"
 		Set result.Message = message

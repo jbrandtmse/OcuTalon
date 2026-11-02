@@ -1,0 +1,16 @@
+{
+  "name": "thread-broken-retry",
+  "match": {
+    "marker": "thread-broken-retry"
+  },
+  "replies": [
+    {
+      "status": 400,
+      "text": "CI mock: messages: the stored conversation is not valid input."
+    },
+    {
+      "status": 200,
+      "text": "The CI mock answered the retried turn."
+    }
+  ]
+}

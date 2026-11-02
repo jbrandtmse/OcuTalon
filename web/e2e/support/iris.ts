@@ -1,5 +1,7 @@
 import { execFileSync, spawn } from 'node:child_process';
 
+import { irisSessionCommand } from './rehearsal';
+
 /**
  * What the e2e specs need from the throwaway stack that their script starts (docker/tests/test-sign-in.sh, test-floor.sh for the floor
  * specs of e2e/floor/, or test-demo-path.sh): the fixture users the sign-in and floor scripts created, and a way to run a line of
@@ -67,10 +69,11 @@ export function fixtureUser(kind: FixtureKind): { user: string; password: string
   return { user: required(`OCUTALON_${kind}_USER`), password: required(`OCUTALON_${kind}_PASSWORD`) };
 }
 
-/** Runs one script in a session of the container and returns whatever it printed. */
+/** Runs one script in a session of the container (or of the rehearsal's exec channel, e2e/support/rehearsal.ts) and returns whatever it printed. */
 function runOnce(script: string): Promise<string> {
   return new Promise((resolve, reject) => {
-    const child = spawn('docker', ['exec', '-i', irisContainer(), 'iris', 'session', 'IRIS', '-U', 'OCUTALON'], {
+    const { cmd, args } = irisSessionCommand(process.env, irisContainer);
+    const child = spawn(cmd, args, {
       stdio: ['pipe', 'pipe', 'ignore'],
     });
     let out = '';
@@ -157,7 +160,7 @@ export async function publishReminder(user: string, fields: ReminderFields = {})
 /**
  * Publishes one fixture incident on the user's own session stream and returns its Seq: the payload (a camelCase object of
  * OcuTalon.Live.Payload.Incident, parts included: itemNoun, groups, requests, evidence, traceTargets) is imported into the payload
- * class and published as the `incident` event, as IncidentManager will (Live.Publish.Publish). A later event with the same ref
+ * class and published as the `incident` event, through Live.Publish.Publish. A later event with the same ref
  * replaces the card. Fixture rows with the ref's incident are not written: the event is the whole of it. A payload the class cannot
  * import throws with the import's error text.
  */
@@ -688,6 +691,8 @@ export interface SeedDryRun {
  * (OcuTalonUser for a request that the floor user may answer); the answered fields describe an answer that is already recorded.
  */
 export interface ApprovalFields {
+  /** The request's Ref (a new one unless given): a case that names the Ref in its incident's RequestRefs gives it before the request exists. */
+  ref?: string;
   kind?: string;
   state?: string;
   incidentRef?: string;
@@ -725,6 +730,7 @@ export async function seedApproval(user: string, fields: ApprovalFields = {}, ow
             itemNoun: fields.dryRun.itemNoun,
           });
   const row = properties({
+    Ref: fields.ref,
     Kind: fields.kind,
     ToolName: fields.toolName,
     ExpiresAt: fields.expiresAt,
@@ -838,9 +844,12 @@ export interface CheckFields {
   result?: string;
   finding?: string;
   /**
-   * seedCheck only: when the check is next due, an ISO UTC time to the second. A production check with no NextDueAt is due at the next
-   * heartbeat tick (Checks runs it, overwrites its last run and makes it due again a minute later), so a spec that asserts the row's seeded
-   * last run while a real tick may run, its own or the minute task's, gives it a time after the spec.
+   * seedCheck only: when the check is next due, an ISO UTC time to the second. Leave it unset for a row that no tick runs:
+   * Test.Data.Fixture.Check defaults it to an hour ahead (DW-349), so that no heartbeat tick runs the row while a spec asserts its seeded
+   * last run. "" is the opt-in for a case that wants the real watch to run the row: the row is due at the next tick (Checks runs it,
+   * overwrites its last run and makes it due again a minute later), and that case says `real watch` in a comment on the `nextDueAt` line
+   * or directly above it. A direct Test.Data.Fixture.Check call that passes NextDueAt carries the same comment.
+   * web/scripts/check-seeds.test.mjs pins this.
    */
   nextDueAt?: string;
   /** The header of the check's latest run, where its trace link opens (the namespace should have a trace application, as OCUTALON has). */
@@ -960,6 +969,8 @@ export interface IncidentFields {
   /** The incident's state (open unless given) and its open variant (fix unless given). */
   state?: string;
   openVariant?: string;
+  /** The Refs of the incident's approval requests, comma-separated: the closed view lists the requests whose rows name the incident. */
+  requestRefs?: string;
 }
 
 /**
@@ -971,6 +982,7 @@ export async function seedIncident(owner: string | { sessionRef: string }, field
     TraceHeaderId: fields.traceHeaderId === undefined ? undefined : numeric(fields.traceHeaderId, 'traceHeaderId'),
     State: fields.state,
     OpenVariant: fields.openVariant,
+    RequestRefs: fields.requestRefs,
   });
   const lines = await irisScript(
     [
@@ -988,36 +1000,60 @@ export async function seedIncident(owner: string | { sessionRef: string }, field
   return ref;
 }
 
+/** The fields of a FixRun row that a spec may set: the counts and reason of its result (Fixture.FixRun ends the run unless endedAt is given). */
+export interface FixRunFields {
+  total?: number;
+  resent?: number;
+  completed?: number;
+  failedAgain?: number;
+  skipped?: number;
+  interrupted?: number;
+  reason?: string;
+  /** "" is a run that has not ended; undefined ends it now. */
+  endedAt?: string;
+}
+
 /**
- * Puts Test.Demo.IncidentManagerDouble behind the IncidentManager item of the stack's production (its Use), so that a dismissal reaches a
- * fixture owner that closes the incident and publishes its closed view (Story 6.4; AD-29). Throws with the status text when the item
- * could not take it. A spec that calls this puts the item back with restoreIncidentManager in its afterAll.
+ * Writes the FixRun of a request for an incident through Test.Data.Fixture.FixRun (the closed view lists the request's result from an ended
+ * run). cleanFixtureRows with the incident's Ref removes it.
  */
-export async function useIncidentManagerDouble(): Promise<void> {
-  const lines = await irisScript(['Set sc=##class(OcuTalon.Test.Demo.IncidentManagerDouble).Use()', 'Write !,"CHK|use|",$System.Status.IsOK(sc),"|",$TRANSLATE($System.Status.GetErrorText(sc),$Char(13,10),"  ")'].join('\n'));
-  const use = chk(lines, 'use');
-  if (!use?.startsWith('1|')) throw new Error(`the IncidentManager item could not take the double (${lines.join(' ')})`);
+export async function seedFixRun(incident: string, request: string, fields: FixRunFields = {}): Promise<void> {
+  const row = properties({
+    Total: fields.total === undefined ? undefined : numeric(fields.total, 'total'),
+    Resent: fields.resent === undefined ? undefined : numeric(fields.resent, 'resent'),
+    Completed: fields.completed === undefined ? undefined : numeric(fields.completed, 'completed'),
+    FailedAgain: fields.failedAgain === undefined ? undefined : numeric(fields.failedAgain, 'failedAgain'),
+    Skipped: fields.skipped === undefined ? undefined : numeric(fields.skipped, 'skipped'),
+    Interrupted: fields.interrupted === undefined ? undefined : numeric(fields.interrupted, 'interrupted'),
+    Reason: fields.reason,
+    EndedAt: fields.endedAt,
+  });
+  const lines = await irisScript([`Set r=##class(OcuTalon.Test.Data.Fixture).FixRun(${quoted(incident)},${quoted(request)},${fieldsObject(row)})`, 'Write !,"CHK|fixrun|",r'].join('\n'));
+  if (!chk(lines, 'fixrun')) throw new Error(`the FixRun could not be seeded (${lines.join(' ')})`);
 }
 
-/** Puts the IncidentManager item's class back as useIncidentManagerDouble found it (the double's Restore); throws when that fails. */
-export async function restoreIncidentManager(): Promise<void> {
-  const lines = await irisScript(['Set sc=##class(OcuTalon.Test.Demo.IncidentManagerDouble).Restore()', 'Write !,"CHK|restore|",$System.Status.IsOK(sc),"|",$TRANSLATE($System.Status.GetErrorText(sc),$Char(13,10),"  ")'].join('\n'));
-  const restore = chk(lines, 'restore');
-  if (!restore?.startsWith('1|')) throw new Error(`the IncidentManager item could not be restored (${lines.join(' ')})`);
-}
-
-/** A command that the double recorded: its verb, the session it came for and its origin. */
-export interface DoubleCommand {
+/** A command that IncidentManager received: its verb, the session it came for and its origin. */
+export interface IncidentCommand {
   verb: string;
   session: string;
   origin: string;
 }
 
-/** The commands about the incident that the IncidentManager double recorded, oldest first (the double's Recorded). */
-export async function doubleCommands(ref: string): Promise<DoubleCommand[]> {
-  const lines = await irisScript(`Write !,"CHK|commands|",##class(OcuTalon.Test.Demo.IncidentManagerDouble).Recorded(${quoted(ref)})`);
+/**
+ * The commands about the incident that CommandsIn sent to IncidentManager, oldest first, read from the IncidentCommand bodies of the
+ * CommandsIn to IncidentManager request headers.
+ */
+export async function incidentCommands(ref: string): Promise<IncidentCommand[]> {
+  const lines = await irisScript(
+    [
+      'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT MessageBodyId FROM Ens.MessageHeader WHERE SourceConfigName = \'CommandsIn\' AND TargetConfigName = \'IncidentManager\' AND Type = 1 AND MessageBodyClassName = \'OcuTalon.Msg.IncidentCommand\' ORDER BY ID")',
+      'Set out=""',
+      `While rs.%Next() { Set b=##class(OcuTalon.Msg.IncidentCommand).%OpenId(rs.%GetData(1)) If $IsObject(b),b.IncidentRef=${quoted(ref)} Set out=out_$Select(out="":"",1:";")_b.Verb_"|"_b.SessionRef_"|"_b.Origin }`,
+      'Write !,"CHK|commands|",out',
+    ].join('\n'),
+  );
   const recorded = chk(lines, 'commands');
-  if (recorded === undefined) throw new Error(`the double's commands could not be read (${lines.join(' ')})`);
+  if (recorded === undefined) throw new Error(`the incident commands could not be read (${lines.join(' ')})`);
   return recorded === ''
     ? []
     : recorded.split(';').map((command) => {
