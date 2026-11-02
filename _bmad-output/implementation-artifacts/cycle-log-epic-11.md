@@ -314,3 +314,5 @@
 2026-11-02T02:32:25Z	Story 11.13	fresh_check	env=recipe(hermetic_self-tests) tests=test-release-notes.sh(15),test-upgrade-harness.sh,test-release-checklist.sh,test-boundaries.sh result=pass order=forward,reverse
 2026-11-02T02:32:57Z	Story 11.13	committed	sha=7e1e4582 submodules= ci=pending runs=41378276955,41378276849 amendments=epics.md:11.5_DW-560_bullet pushed=verified_on_origin
 2026-11-02T02:32:57Z	Story 11.13	story_cycle	plan_to_commit_min=1096 implement_passes=1 reviews=1 rework=0 first_ci=pending models=plan:claude-opus,implement:claude-sonnet,qa:claude-sonnet,cr:claude-opus
+2026-11-02T03:08:23Z	Story 11.13	ci_red_classified	run=41378276955 workflow=.github/workflows/ci.yml class=flake test=test-production.sh_row_21 ledger=DW-306(occurrence) action=gh_run_rerun_--failed
+2026-11-02T03:30:55Z	Story 11.13	ci_resolved	story=11.13 sha=7e1e4582 runs=41378276955,41378276849 result=success failed=none via=none resolved_at=next_implement first=flake(DW-306_row_21;rerun_green) ci_groups=production_20,install-macos_0,browser_28,shards-2_31,image_30,web_0,shards_28,install-upgrade_31,install-fresh_32,checks_8
