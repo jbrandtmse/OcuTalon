@@ -29,3 +29,8 @@
 2026-11-02T02:37:03Z	Story 40.1	ledger_adjudicated	owned=0 resolved=0 reowned=0 terminal=0 note=cr_filed_DW-566_by-design_DW-567_wontfix-accepted_terminal_at_emission model=claude-opus-5-5
 2026-11-02T02:37:03Z	Story 40.1	smoke_complete	method=cli result=pass iterations=1 defects_caught=0 evidence=slot-c_Presets()=6_bends_ok_Preset(nope)=empty_Block=empty_PROPOSEPERSONA=propose_persona_not_in_RELEASE1 model=claude-opus-5-5
 2026-11-02T02:37:03Z	Story 40.1	fresh_check	env=recipe tests=3 result=pass order=forward,reverse note=one_fresh_throwaway_per_class(Test.Agent.Persona,Test.Agent.Constants)+node_mock_6of6;order_independent model=claude-opus-5-5
+2026-11-02T02:37:17Z	Story 40.1	committed	sha=ab47bcb5 submodules= ci=pending runs=41378700188,41378700079 amendments=epics.md:7864,epics.md:8036-8037,EXPERIENCE.md:891-892
+2026-11-02T02:37:17Z	Story 40.1	story_cycle	plan_to_commit_min=69 implement_passes=1 reviews=1 rework=0 first_ci=pending models=plan:opus,implement:sonnet,qa:sonnet,cr:opus
+2026-11-02T02:39:11Z	Story 40.2	ruling	question=40.2_needs_contended_Web/Api.cls_routes choice=split_HTTP_routes_to_new_Story_40.8_waiting_on_epic_11 rejected=set_aside_whole_40.2,mid-file_edit_of_contended_Api.cls why=U5_split_within_epic_decide;keeps_independent_core_on_branch;every_AC_kept category=decide policy=ff1bd1a
+2026-11-02T02:39:11Z	Story 40.8	story_waiting	story=40-8-the-persona-s-web-routes on=11 reason=Web/Api.cls_contended_by_epic_11
+2026-11-02T02:39:11Z	Epic 40	deps_hash_note	reason=split note=Story_40.8_split_from_40.2_orchestrator_re-records_epics_md_hash

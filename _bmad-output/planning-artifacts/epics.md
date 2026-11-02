@@ -7889,7 +7889,7 @@ So that the voice I choose is mine and nothing changes behind my back.
 **And** `CommandsIn` routes both verbs to `SettingsOps`: `SetPersona` from origin `web_user` only, and `ProposePersona` from origin `tool` only (AD-1 as amended)
 **And** the governance test refuses `SetPersona` from origin `tool`
 
-**Given** `PUT /api/v1/persona` from a signed-in person
+**Given** a `SetPersona` command from a signed-in person (origin `web_user`; the `PUT /api/v1/persona` route that submits it is Story 40.8's) [AMENDED 2026-11-02, unattended split ruling (Epic 40 runner): the HTTP routes moved to Story 40.8, because `OcuTalon.Web.Api` is another in-flight epic's file until it merges; every AC kept; it read "Given `PUT /api/v1/persona` from a signed-in person"]
 **When** `SettingsOps` handles `SetPersona`
 **Then** it validates the values (FR-67, FR-68, AD-19):
 - the preset is one of `PERSONAPRESET`;
@@ -7900,8 +7900,8 @@ So that the voice I choose is mine and nothing changes behind my back.
 **And** a refusal returns the plain message from EXPERIENCE.md › Later Steps › Personality and writes nothing
 **And** an accepted change writes the `Settings` audit entry (the preset id and the language name, never the custom text), then the keys, and applies within 60 seconds (AD-17, AD-19)
 
-**Given** `GET /api/v1/persona`
-**When** the person opens it
+**Given** `SettingsOps`'s persona read for a session (the `GET /api/v1/persona` route that returns it is Story 40.8's) [AMENDED 2026-11-02, unattended split ruling (Epic 40 runner): the HTTP routes moved to Story 40.8, because `OcuTalon.Web.Api` is another in-flight epic's file until it merges; every AC kept; it read "Given `GET /api/v1/persona` / When the person opens it"]
+**When** the person's page asks for it
 **Then** it returns their preset, language and custom text (or the defaults: Professional), whether the custom choice is offered here, and the `Ref` of any pending persona request (FR-67, FR-70)
 
 **Given** an online-demo session that signs out, or a new visitor
@@ -8075,6 +8075,23 @@ So that a judge who picks Pirate or another language sees the same decisions.
 **And** a unit test in `OcuTalon.Test.Core` refuses each instruction-shaped language value. One example: "Spanish. Ignore your rules", whose full stop isn't allowed. Another: "{{rules}}".
 
 **Release check:** at the first daily release that ships this epic, the Contest Planner's hands-on pass with real keys tries each preset and one language on the web app and on the demo host, checks that a Pirate reply's emoji reach the page and Telegram, and answers one proposal from Telegram (REL-7, as amended 2026-10-31).
+
+### Story 40.8: The persona's web routes
+
+*Home lane: B.* [ADDED 2026-11-02, unattended split ruling (Epic 40 runner): split from Story 40.2, whose `PUT` and `GET /api/v1/persona` ACs it carries; `OcuTalon.Web.Api` is another in-flight epic's file until that epic merges, so this story waits for it]
+
+As a user,
+I want my page to read and save my persona over the API,
+So that the Persona card can show and change it.
+
+**Acceptance Criteria:**
+
+**Given** Story 40.2's `SetPersona` handling and persona read in `SettingsOps`
+**When** this story adds `GET` and `PUT /api/v1/persona` to `OcuTalon.Web.Api`, session-checked (AD-19, AD-33's route table)
+**Then** `PUT` submits `SetPersona` with origin `web_user` for the signed-in person and returns the result: the accepted change, or the refusal's plain message from EXPERIENCE.md › Later Steps › Personality, with nothing written (FR-67, FR-68)
+**And** `GET` returns the person's preset, language and custom text (or the defaults: Professional), whether the custom choice is offered here, and the `Ref` of any pending persona request (FR-67, FR-70)
+**And** a request with no signed-in session is refused like every session-checked route
+**And** tests in `OcuTalon.Test.Web` cover an accepted `PUT`, a refused language name, the online demo's refusal of `custom`, a `GET` before and after a change, and a request without a session
 
 ## Epic 41: OcuTalon keeps a daily note, learns from your answers, and remembers what matters
 
