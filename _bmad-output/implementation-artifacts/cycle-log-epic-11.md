@@ -326,3 +326,5 @@
 2026-11-02T05:47:19Z	Story 11.5	ledger_adjudicated	owned=1 resolved=1 reowned=0 terminal=0 entries=DW-560:resolved-by new_this_story=DW-573(wontfix-accepted) model=claude-opus-5-5
 2026-11-02T05:47:19Z	Story 11.5	smoke_complete	method=cli(docker/tests/test-release-sequence.sh_--live:the_real_cut_and_image_build_on_a_throwaway_repo_with_a_local_bare_remote) result=pass iterations=1 defects_caught=0 evidence=PASS_cut,PASS_image_1.0.0,PASS_live(48s);no_check_image_left;no_release/*_branch_in_the_worktree model=claude-opus-5-5
 2026-11-02T05:47:19Z	Story 11.5	fresh_check	env=recipe(hermetic_self-tests) tests=test-release-sequence.sh(16_rules,130s),test-boundaries.sh,test-release-notes.sh,test-release-checklist.sh,test-rehearsal.sh result=pass order=forward
+2026-11-02T05:47:48Z	Story 11.5	committed	sha=0b8681e6 submodules= ci=pending runs=41396051573,41396051652 amendments=epics.md:11.5_split(11.14-11.18),DW-560_bullet pushed=verified_on_origin
+2026-11-02T05:47:48Z	Story 11.5	story_cycle	plan_to_commit_min=1062 implement_passes=1 reviews=1 rework=0 first_ci=pending models=plan:claude-opus,implement:claude-sonnet,qa:claude-sonnet,cr:claude-opus
