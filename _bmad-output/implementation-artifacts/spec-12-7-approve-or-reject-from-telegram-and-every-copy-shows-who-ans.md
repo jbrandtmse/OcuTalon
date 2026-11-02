@@ -34,7 +34,10 @@ deferred: []
   - The labels are `Catalog.Render` of `button.approve` and `button.reject` for `telegram` ("Approve", "Reject").
   - The callback data carries the request's `Ref` and the action, never a sequential number.
   - A message with buttons is split at 3,840 UTF-16 units (4,096 less a reserve), so its edited text always fits.
-- **The Delivery row of a message with buttons** is recorded through `Delivery.Record` with the approval `Ref` and the last part's text (`text` argument), which the edit needs. Rows with no `ApprovalRef` keep `text` "".
+- **The Delivery row of a message with buttons** is recorded through `Delivery.Record` with the approval `Ref` and the last part's text (`text` argument), which the edit needs, under the owner's conditions (U-218, applied 2026-11-02):
+  - the stored text is `OcuTalon.Bridge.Redact.Text(<the last part's text>)`; when the redactor returns its `UNCHECKED` value, `text` is "" (the message is then not edited later, with one warning, as a row with no stored text);
+  - it holds no chat id, no chat name and no Telegram user name (the notice is rendered from the catalog with the notification's slots, which carry none); a test pins this;
+  - rows with no `ApprovalRef`, and every row of kind `answered`, keep `text` "" (data minimization: only the request's own message keeps text, for the edit).
 - **A press (AD-11, AD-32).**
   - **Which presses count:** a `callback_query` from a private chat (12.2's rule). It is recorded through `Pairing.RecordChat` first, unchanged.
   - **The call:** `TelegramIn` splits `data` at the first ":" into action and `Ref`. It calls `AnswersIn.FromTelegram(ref, action, chatRef, .code, .slots)` synchronously with the chat row's `Ref`, never a chat id.
@@ -60,7 +63,7 @@ deferred: []
   - **The row's kind is `answered`:** nothing is sent. The first answer stays.
   - **Otherwise:**
     1. It calls `editMessageText` with `chat_id` (the chat row of the id's `ChatRef`, `Pairing.Chat`), `message_id` and text = the stored text + LF LF + `Catalog.Render(CatalogKey, Slots, "telegram")`. It sends no `reply_markup`, which removes the buttons.
-    2. It records a Delivery row of kind `answered`, with the same id and `ApprovalRef` and the edited text.
+    2. It records a Delivery row of kind `answered`, with the same id and `ApprovalRef` and `text` "" (U-218: only the request's message keeps text).
     3. When `CatalogKey` is `answered.rejected` or `answered.rejectedBy`, `Slots.channel` is `telegram` and `IncidentRef` is set, it then sends `press.rejectedFollowUp` as a new message to the same chat. That message's row has kind `answered` and `ApprovalRef` "".
   - **The result:** `result` notifications stay 12.6's new messages.
   - **Retries:** a 429 on the edit is retried as `SendPart` retries.
@@ -256,6 +259,7 @@ deferred: []
 ## Spec Change Log
 
 - 2026-11-02, lead (Epic 12 runner, runner A), spec gate: the split is accepted (Part A only; the switch and Part C go to Story 12.9); the gated Part C block and its Verification lines are removed from this spec; the two edits outside Lane A are ruled and the `Delivery.Text` ask is a veto ruling (Design Notes, "Runner rulings at the spec gate"). DW-501 and DW-506 are re-owned to Story 12.9.
+- 2026-11-02, lead, spec gate: U-218 applied (owner KEPT, three conditions): the stored text is redacted and identity-free, `answered` rows store no text, the 90-day purge is DW-437's (Epic 30.7), the reader check stays and one test pins that the stored text has no chat id or name (Design Notes, "Applied U-218").
 
 ## Review Triage Log
 
@@ -309,6 +313,11 @@ deferred: []
 - **Edit 1, `Test/Msg/Catalog.cls` (contended, Epic 40), orchestrator ruling option (i):** add `button.approve` and `button.reject` to Lane A's `Msg/Catalog/Watch.cls` and make the four edits in `Test/Msg/Catalog.cls` (header, the Watch count lines 24 to 26, the total 119 to 121, the two keys and fixtures in XData `Keys` and `Fixtures`). Whichever epic merges second resolves the total by adding the deltas. Touch no other line of that file.
 - **Edit 2, `web/scripts/api-client-sources.test.mjs` (Lane B, not contended):** allowed; the pin flip as described.
 - **Ask 3, `Delivery.Text` (veto ruling, inbox U-218):** storing the sent text of a Telegram message with buttons is allowed on three conditions: the schema is unchanged; the stored text is the phone copy's text, with no chat id; and the implement checks that every reader of `Delivery.Text` filters on channel `web`, and stops with `## Clarification Needed` if one does not. Lane B's doc line stays unedited.
+
+**Applied U-218 (owner, through the Contest Planner: `apply U-218 at=2026-11-02T14:10:57Z#659`; KEPT with three conditions):**
+1. **Redacted, no identity:** the stored `Delivery.Text` of a Telegram message with buttons goes through `OcuTalon.Bridge.Redact.Text` (the one redactor, AD-31), and holds no chat id, no chat name and no Telegram user name. `UNCHECKED` stores "".
+2. **The 90-day purge covers it:** Delivery rows are purged on the same 90-day cut as their turn's Decision and Usage rows by DW-437's ruling (veto U-210: Epic 30 part 2's burn-down, Story 30.7, purges Turn, Delivery and Session rows). This story adds no purge of its own (the purge classes are Epic 30's, contended); the runner appends an occurrence to DW-437 so its purge test covers Telegram rows with `Text`. Only the request's own message keeps text; `answered` rows and rows without an `ApprovalRef` keep "".
+3. **Readers and a test:** the implement stage checks that every reader of `Delivery.Text` filters on channel `web` (or reads only the row it wrote, as `EditAnswered` does), and stops with `## Clarification Needed` if one does not; and one test (`TestButtons` or a new `TestStoredTextHasNoIdentity`) asserts that the stored `Text` of a request message holds neither the fixture chat id, nor the chat's name, nor the Telegram user's first name or username, and equals `Redact.Text` of the sent text.
 
 **Pending orchestrator ruling (U-197): the telegramIncluded public key and AD-19**
 
@@ -456,6 +465,8 @@ From Stories 12.2-12.6: `TelegramIn`'s dispatch, `TelegramOut`'s `Send`/`Target`
 | AC1, the Ref | The callback data carries a counter, not the Ref | `TestButtons`; `TestApprove` (unknown) |
 | AC1, last part | Markup on every part | `TestButtons` (5,000-character case) |
 | AC1, kinds | Buttons on `incident` with no `ApprovalRef` | `TestNoButtons` |
+| U-218, stored text | `Record` stores the text without `Redact.Text`, or with the chat id appended | the stored-text test (no chat id, no name, equals `Redact.Text` of the sent text) |
+| U-218, answered rows | The `answered` row stores the edited text | the stored-text test (an `answered` row's `Text` is "") |
 | AC2, hand-over | `Press` passes the chat id, not the `ChatRef` | `TestApprove` (`not_paired`) |
 | AC2, answer text | `press.rejected` rendered for `approved` | `TestApprove` |
 | AC2, follow-up | No follow-up | `TestRejectedFollowUp` |
