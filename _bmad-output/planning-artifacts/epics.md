@@ -7861,7 +7861,7 @@ So that both lanes build the persona from one set of names.
 - the verbs `SetPersona` (`Preset`, `Language`, `Custom`) and `ProposePersona` (`Preset`, `Language`, `Custom`, plus the common command fields);
 - `Msg.Enum`'s `PERSONAPRESET` = `professional,starship,pirate,kindfriend,language,custom`, and `APPROVALKIND` gaining `setting`;
 - the per-person keys `person.<SessionRef>.persona.preset|language|custom`;
-- the catalog keys `approval.persona`, `result.persona.applied` and `result.persona.stale` in `Catalog.Core`, with their texts from EXPERIENCE.md › Later Steps › Personality.
+- the catalog keys `approval.persona`, `persona.applied` and `persona.stale` in `Catalog.Core`, with their texts from EXPERIENCE.md › Later Steps › Personality and › Message Catalog › Personality notices [AMENDED 2026-11-02 — see the story change log (spec-40-1); unattended ruling: catalog keys renamed to fit AD-32, texts unchanged; it read `result.persona.applied`, `result.persona.stale`].
 
 **Given** `OcuTalon.Agent.Persona`
 **When** it is created
@@ -8033,8 +8033,8 @@ So that I stay in charge of how OcuTalon talks to me.
 **Given** an `ApprovalOutcome` for a `setting` request
 **When** `SettingsOps` handles it
 **Then** on approval it re-reads the row (`StartExecution`) and checks that the current values still equal `old`:
-- if they do, it writes `new`, audits the change, records `FinishExecution` `done`, and sends `result.persona.applied`;
-- if they don't, it writes nothing, records `failed`, and sends `result.persona.stale`, which ends "Nothing was changed."
+- if they do, it writes `new`, audits the change, records `FinishExecution` `done`, and sends `persona.applied` [AMENDED 2026-11-02 — see the story change log (spec-40-1); unattended ruling: catalog keys renamed to fit AD-32, texts unchanged; it read `result.persona.applied`, `result.persona.stale`];
+- if they don't, it writes nothing, records `failed`, and sends `persona.stale`, which ends "Nothing was changed."
 
   (FR-70, AD-11, AD-17)
 **And** on a rejection or expiry, the answered notices edit each copy in place, as for every request (AD-32)

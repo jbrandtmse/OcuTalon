@@ -888,8 +888,8 @@ Banners stack in this table's order.
 | Case | Text |
 | --- | --- |
 | Persona proposal (`approval.persona`, with Approve and Reject) | "OcuTalon suggests a new persona for you. Now: {old}. Proposed: {new}. Nothing changes unless you approve." |
-| Persona applied (`result.persona.applied`) | "Persona updated. It applies from your next message." |
-| Persona stale (`result.persona.stale`) | "Your persona changed after this was suggested. Nothing was changed." |
+| Persona applied (`persona.applied`) [AMENDED 2026-11-02 — see the story change log (spec-40-1); unattended ruling: catalog keys renamed to fit AD-32, texts unchanged; it read `result.persona.applied`, `result.persona.stale`] | "Persona updated. It applies from your next message." |
+| Persona stale (`persona.stale`) | "Your persona changed after this was suggested. Nothing was changed." |
 | Marked as noise (the notice card's status line) | "Marked as noise at {time}. Similar items will take this into account." |
 
 ## Visual Trace Links

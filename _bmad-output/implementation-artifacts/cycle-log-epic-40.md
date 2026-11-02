@@ -11,3 +11,6 @@
 2026-11-02T01:25:55Z	Epic 40	epic_context_compiled	sha=afbbc293 reason=initial model=opus
 2026-11-02T01:27:56Z	Epic 40	slot_loaded	server=ocutalon-slot-c namespace=OCUTALON container=96362ba1e3f4 loaded=583 stale_deleted=0 compile=ok source=afbbc293
 2026-11-02T01:27:56Z	Story 40.1	stage_spawned	stage=plan spawn_at=2026-11-02T01:27:56Z model=opus agent_name=40-1-fix-the-persona-s-names-contracts-and-preset-texts-plan-1 cycle_iteration=1
+2026-11-02T01:39:16Z	Story 40.1	plan_clarification_requested	condition=intent_gap ad=AD-32 question=catalog_keys_result.persona.*_violate_one_dot_and_prefix_rule cycle_iteration=1
+2026-11-02T01:39:16Z	Story 40.1	ruling	question=catalog_keys_ad32 choice=rename_persona.applied_persona.stale_texts_unchanged rejected=amend_AD-32,keep_two_dot_keys why=comply_first_U7_and_Rule5_tier1_wrong_name category=decide policy=ff1bd1a
+2026-11-02T01:39:16Z	Story 40.1	amendment	files=epics.md:7864,epics.md:8036,epics.md:8037,EXPERIENCE.md:891,EXPERIENCE.md:892 tier=1 what=catalog_key_rename
