@@ -2,9 +2,10 @@
 title: 'Story 11.5: One scripted sequence cuts a release (the cut, the author''s word, the candidate''s push, the draft notes and the record; the gates, the hands-on gate, the later outward steps, the IPM artifact and the update hook are the proposed Stories 11.14 to 11.18)'
 type: 'feature'
 created: '2026-11-01'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'ceae16f5725acd0bf74e12c7ea2cd3cd0ff09fb8'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-11-context.md'
   - '{project-root}/_bmad-output/implementation-artifacts/spec-11-3-the-clean-machine-rehearsal-installs-and-times-the-demo-path.md'
@@ -192,6 +193,48 @@ This story takes four of epics.md Story 11.5's criteria, verbatim there:
 
 ## Review Triage Log
 
+### 2026-11-01 — Review pass
+- verdicts: 37 findings — high 0, medium 9, low 26, false 1, maybe-false 1
+- findings:
+  - `[low]` `[reject]` Blind 1: a bad `--pick` is accepted at start and strands the state — the matrix row says a pick off the integration branch gives `FAIL cut` and no branch; a new `start` and `--version --rc` still work.
+  - `[low]` `[reject]` Blind 2: a merge or empty pick reads "did not apply cleanly" — the message is accurate enough for the matrix row; a distinct message adds branches for a rare case.
+  - `[low]` `[reject]` Blind 3: each stop adds a record commit — by design (the record is committed at every stop); a full run makes one.
+  - `[low]` `[reject]` Blind 4: `start` ignores committed records when picking the rc — rc comes from branches as the contract says; a record with no branch needs a failed cut and a lost state folder.
+  - `[low]` `[reject]` Blind 5: a stopped Docker daemon reads as a missing base image — the message tells the author to load the image; a docker info check adds a branch for a message.
+  - `[low]` `[reject]` Blind 6: the base image tag is a default in the script — it is overridable with IRIS_IMAGE and mirrors the Dockerfile ARG; no drift today.
+  - `[low]` `[reject]` Blind 7: an earlier candidate without a record adds nothing to the version's sum — records are written at every stop, so only a candidate never stopped is missing.
+  - `[medium]` `[patch]` Blind 8 (with Edge K): `step_notes` took an empty or unknown RESULT and printed PASS — patched: an unknown or empty RESULT fails the step (`FAIL notes release/notes.sh printed no RESULT`); tests: notes stubs for draft, dry run and no RESULT.
+  - `[low]` `[reject]` Blind 9: IRIS_IMAGE and build-log tails reach a FAIL detail — an image tag is no secret and the planted-value rule covers the environment; the build uses no secret.
+  - `[low]` `[reject]` Blind 10: small test-file inconsistencies (header list, a comment, an unused parameter) — cosmetic.
+  - `[low]` `[reject]` Edge A: a failed amend before the record push — needs `git commit` to fail after it just succeeded.
+  - `[medium]` `[patch]` Edge B: the record push sends HEAD, so the author's own later commits on the integration branch would go out under the record question — patched: `record_only` checks every commit since the start touches only `release/records/`; otherwise a NOTE, no question, no push; test: an own commit between cut and stop.
+  - `[low]` `[patch]` Edge C: a candidate branch moved after the cut was pushed before the mismatch was seen — patched: `step_push` fails before the question when the branch no longer equals the cut commit; test added.
+  - `[false]` `[reject]` Edge D: kit question at end of input gives exit 2, not 4 — the matrix row "Kit not confirmed" says end of input gives `REFUSED`, exit 2.
+  - `[low]` `[reject]` Edge E: IRIS_IMAGE value in a FAIL line — same as Blind 9.
+  - `[low]` `[reject]` Edge F: any "rejected" push output reads as moved — the line still says not pushed; a hook rejection is rare.
+  - `[maybe-false]` `[reject]` Edge G: an unchanged record rewritten after a push leaves a dirty file — a rewrite with identical rows is byte-identical; not reachable by the tests or the flow read.
+  - `[low]` `[reject]` Edge H: merge or empty pick message — same as Blind 2.
+  - `[low]` `[patch]` Edge I: `--pick` directly followed by an option was accepted with no commits — patched: `REFUSED --pick needs a commit`; test added.
+  - `[low]` `[reject]` Edge J: a stray `v*` tag like `vagrant` disables the first-release rule — the contract says `v*` tags.
+  - `[medium]` `[patch]` Edge K: see Blind 8.
+  - `[low]` `[reject]` Edge L: the kit window of a refused start is not counted — a refused start writes nothing by contract.
+  - `[low]` `[patch]` Edge M: `next_rc` read `rc08` as invalid octal — patched with `10#`; test added.
+  - `[low]` `[reject]` Edge N: no trap to remove the check image on an interrupt — rare; the image tag carries the pid and the next run starts clean.
+  - `[medium]` `[patch]` Gap 1: `--live` printed `PASS live` when start or cut failed — patched: those paths set `bad`; mutation run red.
+  - `[medium]` `[patch]` Gap 2: the 900 s and 901 s cases read the real clock once the seam file ran dry — patched: seven extra seam values per case.
+  - `[medium]` `[patch]` Gap 3: the record on a checkout that left the integration branch was untested — patched: new case (note, no question, no commit, remote unchanged).
+  - `[medium]` `[patch]` Gap 4: a later release (tags exist, version not 1.0.0) was never started — patched: new case (exit 0, no kit question, NEXT cut).
+  - `[medium]` `[patch]` Gap 5: the cut-step taken-name refusal was untested — patched: new case.
+  - `[medium]` `[patch]` Gap 6: the notes row was observed only with `fail` — patched with the stubs (draft, dry run, no RESULT).
+  - `[low]` `[patch]` Gap 7: no IA3 mutation line — added with the red `--live` run.
+  - `[low]` `[reject]` Gap 8: no test for `--from` naming another version and a rejected push — operator-slip nets, not matrix rows.
+  - `[low]` `[reject]` Other 1: `t_secret` truncates the output file — the shim logs still cover every case.
+  - `[low]` `[reject]` Other 2: the seed is `git archive HEAD` with release.sh and lib-release.sh overlaid — CI tests the committed tree.
+  - `[low]` `[reject]` Other 3: the static mode check is weak while files are untracked — the on-disk `-x` check holds; tracked after the commit.
+  - `[low]` `[reject]` Other 4: notes.sh and rehearse.sh build the candidate name inline — outside this story's files.
+  - `[low]` `[reject]` Other 5: the network-stub assertion also passes if the code never reaches out — it is a trip-wire by design.
+  - Intent audit: no findings (descriptive); the ambiguities it lists (rc from branches, version total for the target, kit at end of input) follow the matrix.
+
 ## Design Notes
 
 **Governing ADs (Rule 6):**
@@ -247,6 +290,18 @@ Run: 2026-11-20T14:02:11Z to 2026-11-20T14:09:40Z
 8. **The kit question is asked only for 1.0.0** (the criterion asks it of the first release).
 9. **The `notes` step is not a gate.** Its row carries notes.sh's own `RESULT` (11.4's checklist judges the draft), and it stops only on a refusal.
 10. **A new `start` is always allowed,** even while an earlier candidate of the same version waits at an ASK. The earlier state and record stay as they were, and `next`, `resume` and `status` then need `--version` and `--rc`.
+
+**Decided at implement (small, reversible, in intent):**
+11. The branch `release/<v>-rc<n>` is created in the author's repository, never checked out, by a fetch from the temporary clone at the end of the cut (a fetch without `+`, so an existing name is refused). The notes script, the rehearsal and the checklist resolve the default candidate name in the author's checkout.
+12. `<n>` is the larger of `next_rc` and 1 more than the highest state folder of the version, so a new `start` while an earlier candidate still waits at an ASK takes the next number (decision 10).
+13. The record commit made at a stop is amended, only when this stop made it and it is still HEAD, after the record question is answered (the answer, the pushed row and the question's window are then in the commit that is pushed); a commit of an earlier stop is never amended. The integration push sends that commit as `<sha>:refs/heads/<integration>`, fast-forward only.
+14. A moved integration branch at the record push exits 1 (a stop for a question keeps exit 4; the end of the steps with the record question unanswered exits 4). A record outside the checkout, or a checkout that is not on the integration branch, writes the record, commits nothing and asks nothing.
+15. The `notes` step passes for notes.sh's exit 0, 1 and 3 (its row carries `draft`, `fail` or `dry run`, with a `WARN` for `fail`) and fails only for a refusal or an unknown exit.
+16. `--from` names a local candidate branch or one fetched from the remote; `--pick` needs `--from`; a pick that is not a commit, not on the integration head recorded at start or does not apply gives `FAIL cut` and no branch.
+17. With no sequence waiting but exactly one state, `next`, `resume` and `status` use that state. An ASK that reaches end of input counts no window. An exhausted seam file falls back to `date -u +%s`.
+18. The hermetic throwaway holds only the paths that the sequence, the notes script and the harness read (`git archive HEAD` of those paths, with the working tree's `release/release.sh` and `release/lib-release.sh` on top); `--live` uses the whole tree.
+
+**Decided at review (patches):** a record commit is offered for a push only when every commit since the start touches `release/records/` only (the author's own commits are never published under the record question); the push step refuses a candidate branch that no longer equals the cut commit; an empty or unknown `RESULT` from notes.sh fails the notes step.
 
 **Integration ACs, Consumes and Consumed-by (Rules 1 and 2):**
 - **Consumes:**
@@ -392,6 +447,29 @@ All commands run from the worktree root, each in its own foreground call with `t
 - IA1: ignore notes.sh's RESULT, so the row case fails.
 - IA2: write the section with a hand-rolled writer that drops other sections, so the harness-section case fails.
 
+**Task 0 figures (measured in a scratch `git clone --shared` of this worktree's HEAD, on the Apple-silicon dev machine, warm npm cache):**
+- `git clone --shared`: under 1 s.
+- `ensure_web_bundle` with `LIVE_REBUILD_WEB=1` (`npm --prefix web ci`, then `npm --prefix web run build`): 7 s.
+- `docker build -q -f docker/Dockerfile` of that tree: 23 s; `docker run --rm --entrypoint cat <image> /opt/ocutalon/version`: 1 s (read `0.1.0`, the committed version).
+- Clone, `npm ci` and build together are far under the 6-minute line, so the cut does not reuse the author checkout's `web/node_modules`, and nothing goes under Spec Change Log.
+- `--live` (clone, npm, build, docker build, version read, image removal, throwaway folders removed): 78 s in one call, so it is not split. The hermetic run takes about 60 s on this machine (Bash 3.2 and Bash 5 alike; it is about 20 repository/shim sequences), against the CI budget note of +20 to 40 s on the hosted runner (inference; the hosted runner has not run it yet).
+
+**Results of the commands (this pass):** `test-release-sequence.sh` all 13 rules PASS (also under /bin/bash 3.2); `--live` PASS with `PASS image 1.0.0` and `docker images --format '{{.Repository}}' | grep -c ocutalon-release-check` printing 0; `test-boundaries.sh`, `test-ci-config.sh`, `test-ci-changes.sh`, `test-upgrade-harness.sh`, `test-rehearsal.sh`, `test-release-checklist.sh` and `test-release-notes.sh` exit 0; `ci/changes.sh ci.yml` with a push payload whose changed paths are `release/release.sh`, `release/lib-release.sh` and `docker/tests/test-release-sequence.sh` prints `run=false` for all seven groups (`ci/units.sh` itself is a CI-recipe input of every group, as for 11.2 to 11.13).
+
+**Mutations demonstrated (Rule 19; each applied to one file, the rules named run red, then the file restored from a backup in the scratchpad and confirmed identical with `cmp`):**
+- AC1 mutation: `start` ignores the no-tag rule (`if [ -z "$tags" ] && [ "$version" != "$KIT_VERSION" ]` made `if false`) -> `refusals` red (the 1.1.0 case starts).
+- AC2 mutation: a re-cut reuses rc1's name (`rc=1`, the exists-refusal removed) -> `cut` and `recut` red (no `START 1.0.0 rc2`, `rc2` missing).
+- AC3 mutation: the image step skips the version compare (`if [ "$got" != "$version" ]` made `if false`) -> `image` red (the lying shim passes).
+- AC4 mutation: the record commit uses `git commit -a` instead of the pathspec -> `record` red (the unstaged `README.md` edit lands in the record commit).
+- AC5 mutation: `git push --tags` after the candidate push -> `push` red (the remote gains `refs/tags/note-to-self`); `git push --all` instead of the explicit refspec -> `push` red as well.
+- AC6 mutation: a debug line that prints `printenv` in `cmd_next` -> `secret` red (the planted value in the output, and the scan names `release/release.sh:<line>`).
+- AC7 mutation: the step's own run time added to the hands-on sum through the clock seam -> `hands` red (the 3 min 21 s, 15 min 0 s and 901 s cases).
+- AC8 mutation: `next` restarts at `cut` whatever the state names -> `resume` red (a stop at push is not continued at push).
+- IA1 mutation: the notes row ignores notes.sh's `RESULT` (`res=draft`) -> `notes` red (the real script printed `fail` in the throwaway).
+- IA2 mutation: `record_write` keeps no other section (`{ print; last = $0 }` made `{ last = $0 }`) -> `gate` red (the other gate's section and `## Release sequence` are gone).
+- IA3 mutation: the image step builds from the integration head (`git archive "$(sget base_sha)"`) instead of the candidate -> `--live` red (`PASS image 1.0.0` missing, the image reads 0.1.0); a failed start or cut in `--live` now sets `bad` too, so it cannot print `PASS live` without an image.
+- Review patch mutations: the `record_only` guard replaced by `false` -> `record` red (the author's own commit is pushed); the candidate-moved guard in `step_push` removed -> `push` red; the empty-`RESULT` refusal in `step_notes` removed -> `notes` red; the step_cut taken-name check replaced by `false` -> `cut` red; the `$tags` condition dropped from the first-release rule -> `cut` red (a later release is refused); the off-branch check in `record_commit` replaced by `false` -> `record` red; `10#` removed from `next_rc` -> `libs` red; the empty-`--pick` refusal removed -> `refusals` red.
+
 **Shared surfaces:**
 - `CHECK_SCRIPTS` in `ci/units.sh`, read by `test-ci-config.sh`'s units rule.
 - `lib-release.sh`'s function list, sourced by the harness, rehearsal, checklist and notes scripts and their self-tests.
@@ -400,5 +478,21 @@ All commands run from the worktree root, each in its own foreground call with `t
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Summary: `release/release.sh` is a resumable sequence (`start`, `next`, `resume`, `status`; steps `cut`, `image`, `push`, `notes`; the record at every stop) with one prompt mechanism for the author's word and the hands-on clock. `release/lib-release.sh` gains `candidate_branch`, `release_tags` and `next_rc`.
+
+Files changed:
+- `release/release.sh` -- new, the release sequence.
+- `release/lib-release.sh` -- three shared helpers.
+- `docker/tests/test-release-sequence.sh` -- new hermetic self-test (13 rules) plus `--live`.
+- `ci/units.sh` -- `release-sequence` appended to `CHECK_SCRIPTS`.
+
+Review: 37 findings (high 0, medium 9, low 26, false 1, maybe-false 1). Patches applied: notes RESULT guard, record-only push guard, moved-candidate guard, `--pick` needs a commit, `10#` in `next_rc`, and tests for the live false green, the clock seam, off-branch record, a later release, a taken name and the notes results. Deferred: none. Rejected findings carry their reasons in the Review Triage Log.
+
+Follow-up review recommended: true. Unverified risk: the new `record_only` guard in the stop routine (patched in review, covered by one case and one mutation).
+
+Verification: `test-release-sequence.sh` all 13 rules PASS, `--live` PASS with 0 check images left, test-boundaries, test-ci-config, test-ci-changes, `ci/changes.sh ci.yml`, the consumer self-tests and the checks scripts in three parts all exit 0 with no FAILED.
+
+Residual risks: the hermetic run takes about 60 s locally against the CI budget estimate of +20 to 40 s (not measured on the hosted runner); `ci/units.sh` is also appended to by Epics 12, 13 and 15 (plain union at merge).
+
+Status: done
 Blocking condition: none

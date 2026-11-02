@@ -34,6 +34,12 @@
 #                              <ref> and v<version>, with a pre-release (v1.1.0-rc1) before its release; nothing when there is none (the
 #                              first release). The repository defaults to the current folder. Story 11.13's notes and Story 11.2's
 #                              resolve_previous use it
+# candidate_branch <version> <rc>
+#                              prints release/<version>-rc<rc>: the name of a candidate (Story 11.5)
+# release_tags [<remote>]      prints the v* tags of the current repository, locally and (with a remote) on the remote, one per line, sorted,
+#                              without duplicates. An unreachable remote gives status 1 and the local tags only
+# next_rc <version> <remote>   prints 1 more than the highest rc of the branches release/<version>-rc<n> found locally or on the remote
+#                              (1 when there is none); status 1 when the remote cannot be read
 # env_get <file> <key>, env_set <file> <key> <value>   key=value files (options, results of a run)
 # detail_clean                 a result detail on one line of printable ASCII, 300 characters at most, with no pipe (stdin to stdout)
 umask 077
@@ -211,6 +217,35 @@ host_run() {
 record_path() { printf 'release/records/%s/rc%s.md\n' "$1" "$2"; }
 
 notes_path() { printf 'release/records/%s/rc%s-notes.md\n' "$1" "$2"; }
+
+candidate_branch() { printf 'release/%s-rc%s\n' "$1" "$2"; }
+
+# release_tags [<remote>]: see the header.
+release_tags() {
+  local remote=${1:-} out=0 remote_tags=""
+  if [ -n "$remote" ]; then
+    remote_tags=$(git ls-remote --tags "$remote" 'refs/tags/v*' < /dev/null 2> /dev/null) || out=1
+  fi
+  {
+    git tag --list 'v*' < /dev/null 2> /dev/null
+    printf '%s\n' "$remote_tags" | awk 'NF >= 2 { t = $2; sub(/^refs\/tags\//, "", t); sub(/\^\{\}$/, "", t); print t }'
+  } | grep -v '^$' | sort -u
+  return $out
+}
+
+# next_rc <version> <remote>: see the header.
+next_rc() {
+  local ver=$1 remote=$2 out=0 remote_heads="" highest
+  remote_heads=$(git ls-remote --heads "$remote" "refs/heads/release/$ver-rc*" < /dev/null 2> /dev/null) || out=1
+  highest=$(
+    {
+      git for-each-ref --format='%(refname:short)' "refs/heads/release/$ver-rc*" < /dev/null 2> /dev/null
+      printf '%s\n' "$remote_heads" | awk 'NF >= 2 { sub(/^refs\/heads\//, "", $2); print $2 }'
+    } | sed -n "s|^release/$ver-rc\\([0-9][0-9]*\\)\$|\\1|p" | sort -n | tail -n 1
+  )
+  echo $((10#${highest:-0} + 1))
+  return $out
+}
 
 # release_previous_tag <ref> <version> [<repository>]: see the header.
 release_previous_tag() {
