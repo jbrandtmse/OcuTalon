@@ -1432,3 +1432,8 @@
 2026-11-02T23:01:23Z	Epic 30	epic_branches_deleted	OCT-epic30 local+remote
 2026-11-02T23:01:23Z	Epic 1-37	ci_green_verified	runs=41540291727,41540291669 head=368ea9bc result=success via=ci-gate (feature)
 2026-11-02T23:01:39Z	Epic 13	runner_dispatched	runner=a71817ff3166d3528 name=epic-runner-13 model=opus lane=B slot=ocutalon-slot-b prompt=prompts/dispatch-epic-13-h2.md base=feature_368ea9bc(green) note=redispatch_after_epic30_merge;13.2+13.3;critical_chain;INFO_stop_if_story>3h
+2026-11-02T23:08:27Z	Epic 1-37	planner_note	build_ruling(FYI,no_action):staff_allow_2027.1.0AI.109.0;OcuTalon_stays_on_154_for_1.0.0;README_already_names_154+image_tag;109_compat_check_Tuesday_by_Planner->post-tag_item;plan_no_109_work_before_then
+2026-11-02T23:46:44Z	Epic 13	runner_clarification	INFO:13.2_size hours=3.75(3.5-4) drivers=standalone-bridge_5e_9_matrix_rows+audit_readback+4_scenarios+12-item_production split_offered=13.2(AC1,2,6,7,8)+sibling(AC3,4,5) integrate=54d0c440(units.sh+sprint-status_plain_unions) ci_pending=65ca1cf3(41545284035,41545284045) head=12542f2b shas_verified=ok
+2026-11-02T23:46:44Z	Epic 13	ruling	q=13.2_split category=decide choice=continue_whole_story rejected=split_within_1.0.0(no_time_saved:both_halves_on_critical_chain;moving_AC3-5_out_of_1.0.0_is_owner_only) policy=5086036 planner_told=yes
+2026-11-02T23:46:54Z	Epic 30	owner_decision	id=U-226 at=2026-11-02T23:02:12Z#680 via=inbox by=Contest_Planner_1(delegated) answer=keep(c)_accept;reopen_if>100k_tokens applied=already_in_ledger(DW-579_wontfix-accepted,368ea9bc)
+2026-11-02T23:47:12Z	Epic 13	runner_resumed	answer=continue_whole_13.2(decide);TestAgent_L36_ruling_stands planner_told=3.75h+lever(AC3-5_after_tag_is_owner-only)
