@@ -2234,6 +2234,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-02T05:12:28Z occurrence=30-5-mixed-and-unfinished-resends-say-how-far-they-got note=CI_run_41389356450_head_dd8ccfd4:live:sign-in_banners.spec.ts:439_B7_late_mark_overwritten(Last_run_10:17_No_read_access)_also_seen_at_a0a32cf9(sign-in_heartbeat-stalled_mark);one_rerun
 - 2026-11-02T07:15:31Z status=open owner=burndown by=merge_gate note=occurrence:81f230eb(Epic_30_part_1_final_head)_browser_banners_B2,one_rerun_green(41395335549)
 - 2026-11-02T07:15:49Z status=routed owner=11-1-the-web-demo-path-passes-end-to-end-in-the-rel-2-test by=merge_gate note=correction:previous_trailer's_status/owner_were_an_error;routing_to_11.1_unchanged(occurrence_81f230eb_recorded_above)
+- 2026-11-02T11:31:04Z owner=11-19-seeded-check-rows-stay-out-of-the-heartbeat-s-way-unless-a-c by=runner note=fix-forward story 11.19 (orchestrator ruling with the Contest Planner, 2026-11-02): lands the not-due seed default with Epic 11 part 1
 
 ### DW-358: Live check of 'cancel all my reminders' with three or more reminders pending, on the online demo's model, effort and endpoint: the turn cancels every pending reminder within Chat's iteration ceiling (AD-20) through the multi-id cancel_reminder of DW-140, and the reply says so
 - source: U-118 (owner via the Contest Planner, 2026-10-27); filed at Epic 8's merge | severity: med | fix-risk: low | footprint: out-of-footprint

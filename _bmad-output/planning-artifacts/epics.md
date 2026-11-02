@@ -4515,6 +4515,26 @@ So that the real 1.0.0 cut runs a sequence that has been proved.
 **When** the sequence cuts and pushes it
 **Then** rehearsal candidates are always named `rehearsal/<v>-rc<n>`, never `release/*`; a rehearsal branch never goes to origin, because the repository is public: the rehearsal works on a local bare remote only, the sequence's rehearsal mode refuses a `release/*` name (a test pins the refusal), and the script's header and usage say that a rehearsal branch accidentally pushed to origin is deleted when the rehearsal ends; the rc1 merge gate (`git ls-remote --heads origin release/1.0.0-rc1`) is unchanged, and no dependency statement changes
 
+### Story 11.19: Seeded check rows stay out of the heartbeat's way unless a case asks for the real watch
+
+As the author,
+I want every check row the e2e specs seed to be not due by default,
+So that no heartbeat tick overwrites a seeded last run while a spec asserts it, on any epic's CI.
+
+[ADDED 2026-11-02, fix-forward (orchestrator ruling with the Contest Planner, reason fix_forward): DW-349 reds most browser runs on every epic (23 occurrences); Story 11.1 gave Test.Data.Fixture.Check an hour-ahead NextDueAt default on this branch, which has not reached the integration branch; this story makes the default the whole contract, proves it on every seeding path, and lands it with Epic 11 part 1]
+
+**Acceptance Criteria:**
+
+**Given** a spec that seeds a check row through the e2e seed helper (`seedCheck`, which calls `Test.Data.Fixture.Check`) without asking for the real watch
+**When** the row is stored
+**Then** it is not due: its next due time is about an hour ahead, so no heartbeat tick (the minute task or a fixture's HeartbeatTask) runs it or overwrites its seeded last run, result or finding while the spec asserts them (DW-349, AD-15)
+**And** a case that wants the real watch to run opts in explicitly (an empty next due time), and every spec that relies on the real watch says so
+
+**Given** every place that seeds a check row for the browser specs (banners, rail, answers/close-loop, floor/focus, floor/guide, trace/links, session, 04-incident and any other caller)
+**When** they run on the merged tree
+**Then** each gets the not-due default without its spec being edited (banners.spec.ts is changed only if the fix truly needs it), and one test pins the default on the web side as Test.Data.FixtureDefaults pins it on the IRIS side
+- DW-349: Specs that seed a production check row with no NextDueAt can have it run by a real heartbeat tick since Story 5.6, which overwrites its last run, result and finding: a Last-run assertion can flake (ledger; routed by merge_gate 2026-10-29; fix-forward 2026-11-02)
+
 ## Epic 12: Approve from your own phone with Telegram
 
 A user scans the page's QR code to pair their Telegram private chat with their session, then chats, gets notifications and reminders, and answers approval requests with inline buttons from Telegram; unknown codes and a bare `/start` get polite instructions and link nothing; OcuTalon runs fully without a bot token, and pauses politely if another process polls the same bot. Built in Lane A after Epic 11 and shipped as 0.1.1, the release right after 0.1.0 and before the online demo goes public (PRD §7.2). [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation (inbox U-67): built alongside Epic 11 by the first free runner once Epic 10 has merged, and merged only after the `v0.1.0` tag exists; still shipped as 0.1.1.]
