@@ -2806,6 +2806,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: orchestrator: launch-risk hotfix Story 5.12 (Contest Planner: not now, a measured follow-up in Epic 30) | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: host Decision rows since the 11:36Z reset on fe1d81e2: diagnose 1 invalid of 9, decide 0 of 10, turn 0 of 10; Story 5.12 removes the one observed cause
 - 2026-10-31T11:55:11Z status=routed owner=30-1-long-conversations-are-compacted-under-the-limit by=orchestrator note=measure first:_the_invalid_rate_after_5.12_and_the_retry's_cost_and_time;veto_item
+- 2026-11-02T07:40:01Z status=decision-pending owner=burndown by=spec_gate note=human=measure_diagnose's_invalid_rate_after_5.12_on_host_Decision_rows_and_Story_9.5's_real-key_release-candidate_run;build_the_one_retry_only_if_above_about_1_in_50(U-191's_kept_condition);this_unattended_run_has_neither_host_access_nor_a_real_key(30.1_spec_declined_it)
 
 ### DW-492: No test pins AC2's floor: a model-written text property of a reply class capped at 32 characters or fewer would pass CI (TestDiagnosisLengths checks only prompt and class agreement)
 - source: spec-5-12-a-correct-diagnosis-is-never-refused-for-an-over-long-eviden.md | severity: low | fix-risk: low | footprint: in-story
@@ -2962,3 +2963,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: DW-484 adjudication at 30.5 | severity: low | fix-risk: med | footprint: out-of-footprint
 - evidence: Contest Planner note on DW-484 (2026-11-01T07:18:36Z): the wider mixed-clock issue stays post-1.0.0
 - 2026-11-02T03:02:29Z status=wontfix-accepted owner=30-5-mixed-and-unfinished-resends-say-how-far-they-got by=adjudication note=post-1.0.0 by the Planner's decision; reopen_if=a_1.x_step_or_the_Planner_schedules_the_mixed-clock_fix
+
+### DW-575: Spine notes from Story 30.1 for an attended bmad-architecture Update: AD-20 fallback also covers a summarizer request or first request over the request-size limit and a fork that cannot be saved and reopened; the fork is reopened through OpenSession before Chat; a compaction sets SessionRotated; the seed is bounded by SEEDCHARS (80,000); the 20 s go only to a flagged turn that continues a linked conversation; AD-8 judges too_large for such a turn on the post-compaction bound; AD-6's adapter save rule gains the compaction fork after its check; AD-22 names Test.Eval.ThinkingSmoke's home
+- source: spec-30-1-long-conversations-are-compacted-under-the-limit.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: 30.1 Design Notes V1 and Spine notes; the ADs allow the behaviour as written, but their text is silent; AD-20/AD-8/AD-6/AD-22 are cited by merged stories, so a runner may not amend them unattended (U7, U14)
+- 2026-11-02T07:40:01Z status=decision-pending owner=burndown by=spec_gate note=human=an attended bmad-architecture Update after the run writes these lines (or declines them); no code change

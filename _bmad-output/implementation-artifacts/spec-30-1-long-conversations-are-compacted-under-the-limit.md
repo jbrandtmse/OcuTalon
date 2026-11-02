@@ -2,7 +2,7 @@
 title: 'Long conversations are compacted under the limit'
 type: 'feature'
 created: '2026-10-31'
-status: 'draft'
+status: 'ready-for-dev'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -80,11 +80,12 @@ Bridge classes are under `src/bridge/cls/OcuTalon/Bridge/`, product and test cla
   - `BaseChars` (:498-516): the first request's size (prompt, tool catalog, input, `GetContext()` JSON). Reuse it for the fork's and the as-is size.
   - `RecordUsage` (:590-605): the warning pattern for a Usage row. `TimeoutMs` (:242-247): how the adapter reads a Decide setting (`Ext.Accessor ValueFor`).
 - `Bridge/Compaction.cls` (:1-39) -- `PREFIX` (:8), `XData Prompt` (:11-22: the seven keys, every tool result in `facts_learned`), `Prompt()` (:26). It gains the constants and the pure helpers. `Test.Contract.Ac` pins only `Prompt`'s signature (:353).
-- `Bridge/Process/Decide.cls` -- (ours).
-  - `MAXTIMER` (:105), `MAXREQUESTTOKENS` (:112), `COMPACTTOKENS` (:115), `TimerSeconds` (:169).
-  - `OnRequest`'s send and timer (:273-279). `OnResponse`'s re-send delay with `RemainingMs` (:340-351, :347). `Resend` (:366-380). `SentRequest` (:394-400, unchanged rule). `RemainingMs` (:404-409).
-  - `Precheck` (:648-681): limit normalization (:665-672, to become the shared `RequestLimit`) and `tooLarge` (:679). `EstimateTokens` (:693-704): it adds the history at :701. It gains an Output with the history's characters.
-  - The class doc on the estimate and the flag (:18-30) says "The runner ignores it until Story 30.1". Update it.
+- `Bridge/Process/Decide.cls` -- (ours; lines as of `60eedf07`).
+  - `MAXTIMER` (:107), `MAXREQUESTTOKENS` (:114), `COMPACTTOKENS` (:117), `TimerSeconds` (:171).
+  - `OnRequest`'s precheck, send and timer (:274-281, `SetTimer` :281). `OnResponse`'s re-send delay with `RemainingMs` (:344-354, :349). `Resend` (:368-382: `RemainingMs` :373, `SetTimer` :381). `SentRequest` (:396-402, unchanged rule). `RemainingMs` (:406-411).
+  - `Precheck` (:835-868): limit normalization (:853-860, to become the shared `RequestLimit`) and `tooLarge` (:866). `EstimateTokens` (:880-891): it adds the history at :888. It gains an Output with the history's characters.
+  - The class doc on the estimate and the flag (:21-31) says "The runner ignores it until Story 30.1" (:30). Update it.
+  - Read only for this story: the reply check of Stories 5.12 and 30.6 and DW-544 (`CheckReply` :607, `RefusalText` and its helpers :640-806, the invalid-reply warning in `Conclude` :1021, `Interpret`/`Judge` :1101-1194, class doc :52-54). The timer, the precheck bound and `RequestLimit` touch none of it.
 - `Bridge/RequestSize.cls` -- `HistoryChars` (:67-85): the stored `ContextData` size, read without a native call.
 - `Bridge/Data/Usage.cls` -- `Agent` (:23, "or compaction"), `Estimated` (:56). `FromStats` (:110-138) is the sibling of the new `FromEstimate`. `Totals` (:144). No storage change.
 - `Bridge/Data/Price.cls` -- `CostFor(model, prompt, cacheRead, cacheWrite, completion, largest, requestCount)` (:58-64). `Bridge/Adapter/StepBuffer.cls` -- `Tokens` (:146-149), `CHARSPERTOKEN` 4 (:19).
@@ -101,8 +102,9 @@ Bridge classes are under `src/bridge/cls/OcuTalon/Bridge/`, product and test cla
 - `Test/Agent/RequestSize.cls` -- the live pattern: `Prepare`, `Put` of a Decide setting and restart, `OverTurn` (:217), `SentCompact` (:225). `TestCompactFlag` (:146-178) stays valid: its owner is new, so there is nothing to compact.
 - `Test/Agent/RunnerFixture.cls` -- `Run`, `NewRequest`, `UsageIds`, `FindRequests`, `Messages`, `Headers`, `AddUsage` (:1066). `Test/Contract/Mock.cls` -- `LogMark`, `LogSince`.
 - `Test/Bridge/CodeRules.cls` -- `CHATCALLS` (:113), `CHATTERS` (:140), `SESSIONCALLS` (:146), `SESSIONMAKERS` (:149), `LINKNAMERS` (:163), `TestSessionsOnlyThroughTheComposer` (:370). `Offenders` (:1054) skips `OcuTalon.Test.*`.
-- `Test/Bridge/Decide.cls` -- `TestCompactFlag` (:2097), `TestTimerFallback` (:2273), and the precheck tests (`TestPrecheckOrder` :1766, `TestResendTooLargeSendsNothing` :2430).
-- `Test/Agent/Constants.cls` (:54-68) -- `TestCompactionPrompt` pins the prompt.
+- `Test/Bridge/Decide.cls` -- `TestCompactFlag` (:2097), `TestTimerFallback` (:2273), and the precheck tests (`TestPrecheckOrder` :1766, `TestResendTooLargeSendsNothing` :2430). No test asserts that the runner ignores the flag (the text is only in `Decide.cls` :30, `Msg/Request.cls` :53, `Eval/Gate.cls` :64 and `eval/run.sh` :84).
+- `Test/Bridge/ReplyCheck.cls` -- the reply-check tests of 5.12, 30.6 and DW-544 (regression only). `Test/Agent/Decide.cls` -- the live timer and re-send tests on `decide` requests (`TestTimer`, about 105 s for the class; regression only: `TimerFor` keeps `TimerSeconds` for them).
+- `Test/Agent/Constants.cls` (:55-73) -- `TestCompactionPrompt` pins the prompt.
 - `Eval/Gate.cls` -- `SMOKE` "not run" (:64-65), `Result` sets `thinkingHistorySmoke` (:333), `Text` (:415). `Test/Eval/Gate.cls` pins it (:463, :524).
 - `Test/Eval/KeyProof.cls` -- the sibling pattern: a `%UnitTest` class that is also the helper `eval/run.sh` calls (`Scan` :182, `Print` :231).
 - `eval/run.sh` -- the header note (:83-84), modes (:121-134), `verdict_run` and its context `cx` (:339-354, :345), the release-candidate sequence (:656-740).
@@ -127,7 +129,7 @@ Bridge classes are under `src/bridge/cls/OcuTalon/Bridge/`, product and test cla
   - `SummaryChars(context) As %Integer` (the fork's head system messages);
   - `SummarizerSettings(settings) As %DynamicObject` (a copy with the overrides).
 - [ ] `src/bridge/cls/OcuTalon/Bridge/Data/Usage.cls` -- `FromEstimate(request, model, inputChars, outputChars, Output row) As %Status` beside `FromStats`. It reuses `StepBuffer.Tokens` and `Price.CostFor`. No storage change.
-- [ ] `src/bridge/cls/OcuTalon/Bridge/Process/Decide.cls` -- these changes, and the docs (:18-30 and the methods):
+- [ ] `src/bridge/cls/OcuTalon/Bridge/Process/Decide.cls` -- these changes, and the docs (:21-31 and the methods), leaving the reply check (5.12, 30.6, DW-544) as it is:
   - `RequestLimit(text, Output warning)`, taken out of `Precheck` and used by the adapter too;
   - `EstimateTokens` gives the history's characters;
   - `Precheck` uses the post-compaction bound for a turn that will be flagged and continues a linked conversation;
@@ -142,7 +144,7 @@ Bridge classes are under `src/bridge/cls/OcuTalon/Bridge/`, product and test cla
 - [ ] `ci/mock/scenarios/A/summary-rate-limited.json` (new: 429, `Retry-After` 1) and `ci/mock/scenarios/A/compaction-loop.json` (new: three `zz_result_text` steps of 40,000 characters, then text) -- rows 5 and 10.
 - [ ] `src/ocutalon/cls/OcuTalon/Test/Bridge/Compaction.cls` (new) -- rows 1-11, one method each or grouped, on the mock with a shadow `ZzRunner`. It is self-contained: owners, links, sessions, Usage rows and settings rows are put back in `OnAfterOneTest`, also after a failure. `ZzCutAdapter.cls` and `ZzCutRunner.cls` (new, the `ZzThrow*` pattern): `CutOf` returns a cut that starts at a tool result.
 - [ ] `src/ocutalon/cls/OcuTalon/Test/Agent/Compaction.cls` (new, through the running production; the `RequestSize` pattern) -- AC 1 to AC 3 and row 12.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Bridge/Decide.cls` -- `TimerFor` (row 12's cases, `MAXTIMER` cap) and the precheck bound (with and without a link, history below and above `SEEDCHARS`, a `fresh` turn). Update every existing assertion and doc that says the runner ignores the flag.
+- [ ] `src/ocutalon/cls/OcuTalon/Test/Bridge/Decide.cls` -- `TimerFor` (row 12's cases, `MAXTIMER` cap) and the precheck bound (with and without a link, history below and above `SEEDCHARS`, a `fresh` turn). Update any test doc that says the runner ignores the flag (none found at `60eedf07`).
 - [ ] `src/ocutalon/cls/OcuTalon/Test/Bridge/CodeRules.cls` -- `SESSIONCALLS` also flags `forkandsummarize`; a new test flags `.summarize(` in every non-test class (none allowed), with its scanner checks -- AC 4.
 - [ ] `src/ocutalon/cls/OcuTalon/Test/Eval/ThinkingSmoke.cls` (new; the `KeyProof` pattern), with `ZzSmokeAdapter`, `ZzSmokeRunner` and `ZzSmokeChat` (new; `OcuTalon.Agent.Chat` with `TOOLSETS` `OcuTalon.Tools.Reminders` only) -- AC 5. The class has:
   - `Run(Output problems) As %Boolean`;
@@ -173,7 +175,7 @@ Bridge classes are under `src/bridge/cls/OcuTalon/Bridge/`, product and test cla
   - no logged assistant message holds a thinking block;
   - every turn is usable, and `Run` returns 1.
   And `eval/run.sh --release-candidate` (real model) records `thinkingHistorySmoke` passed or failed, while the push run and `--on-mock` record "not run" (`test-eval-set.sh`).
-- AC 6 (regression): Given this story's changes, when the existing tests run, then `Test.Agent.RequestSize`, `Test.Bridge.Conversation`, `Test.Bridge.Runner`, `Test.Bridge.Decide`, `Test.Bridge.Usage`, `Test.Bridge.Purge` and `Test.Agent.Constants` pass unchanged in intent, and `bash eval/key-proof.sh` still passes.
+- AC 6 (regression): Given this story's changes, when the existing tests run, then `Test.Agent.RequestSize`, `Test.Bridge.Conversation`, `Test.Bridge.Runner`, `Test.Bridge.Decide`, `Test.Bridge.ReplyCheck`, `Test.Agent.Decide`, `Test.Bridge.Usage`, `Test.Bridge.Purge` and `Test.Agent.Constants` pass unchanged in intent, and `bash eval/key-proof.sh` still passes.
 
 ## Spec Change Log
 
@@ -208,6 +210,7 @@ Bridge classes are under `src/bridge/cls/OcuTalon/Bridge/`, product and test cla
   - Story 9.5's release-candidate run reads `thinkingHistorySmoke`, wired here;
   - Lane B's `Core.Conversation` (Epic 2), with no change: its long conversations now keep working;
   - `Data.Ownership.TurnCost` and `RunCost` (Lane B) sum the `compaction` row by DecisionRef, with no change.
+  - Epic 41's optional Stories 41.10 and 41.11 (AD-21 "At compaction") may later report a guarded compaction's summary through a HostSink event. That needs an AD-31 amendment decided at Epic 41's re-open; this story adds no hook for it.
 
 **Extend, don't copy (Rule 2).**
 - `Usage.FromEstimate` sits beside `FromStats` and shares `Price.CostFor` and `StepBuffer.Tokens`.
@@ -217,7 +220,7 @@ Bridge classes are under `src/bridge/cls/OcuTalon/Bridge/`, product and test cla
 - The seams follow `ZzThrowAdapter`/`ZzThrowRunner`. The smoke follows `Test.Eval.KeyProof`.
 
 **Decided in-stage.**
-1. DW-386 and DW-448 are declined together, for size (see Declined). The compaction core, its tests and the smoke already make the spec oversized and one long implement pass.
+1. Redact and key-proof work stays out (the intent's Never line). The lead re-owned DW-386 and DW-448 (and DW-541) to Story 30.7 at the 2026-11-02 spec gate. This spec does no work for any of the three.
 2. Compaction runs inside the adapter and puts its pure rules in `Bridge.Compaction`. So `CHATTERS`, `SESSIONMAKERS` and `LINKNAMERS` stay as they are, and `SESSIONCALLS` gains `forkandsummarize`, so that a later class outside the adapter is flagged.
 3. The fork is reopened with `OpenSession` before `Chat`, so that the composed config (cap, effort, `timeout_ms`) applies (S2: a session resumed without it loses them). `Point` follows a successful reopen. A fork saved but not reopened stays unlinked, and the purge removes it.
 4. "Can compact", for the 20 s and the precheck bound, means a flagged turn that continues a linked conversation (Decide cannot see the history's turns). A conversation with one earlier turn gets the 20 s and no summarizer call. That is harmless.
@@ -231,6 +234,7 @@ Bridge classes are under `src/bridge/cls/OcuTalon/Bridge/`, product and test cla
    - A failed smoke is recorded and does not change the verdict: making it a release gate is the owner's call.
 10. DW-93's threshold is 250 ms (median `Precheck` at 100,000 rows). A turn's model call takes seconds, and Decide's timer is 60 s.
 11. Test hint: a seeded turn's first mock marker is the oldest one the seed quotes, so give older turns the marker that the seeded turn expects (`recall-tell`).
+12. Re-plan against `60eedf07`: since `d4793d2d`, Decide changed only in its reply check (5.12's evidence-reference rule, 30.6's invalid-reply warning, DW-544's "an unexpected property"). `OnRequest`, `OnResponse`, `Resend`, `SentRequest`, `RemainingMs`, `Precheck` and `EstimateTokens` are unchanged, apart from line moves. So `TimerFor`, the precheck bound and `RequestLimit` compose with them as planned. A `too_large` or `daily_cap` precheck fallback still logs no reply-check warning. The `diagnose` timer (NFR-7) is unchanged, because `TimerFor` changes only flagged `turn`s. No other Code Map file changed, except `Test.Agent.Constants` (its tool-name count; the prompt test moved to :55-73).
 
 **V1. An addition to AD-20's fallback triggers (veto window: amending an AD, U7). For the lead.**
 - AD-20 names two triggers: an exception from `ForkAndSummarize` and a failed check.
@@ -240,6 +244,8 @@ Bridge classes are under `src/bridge/cls/OcuTalon/Bridge/`, product and test cla
   - a failed save or reopen of the fork.
 - Recommendation: keep. Spine line (Rule 20, light path), in AD-20's Fallback bullet: "…or a summarizer request or first request that would pass the request-size limit, or a fork that cannot be saved and reopened…".
 
+- **Lead ruling (spec gate 2026-11-02, U7 step 1: comply, no AD amendment).** Implement the three over-the-limit guards exactly as planned: each takes AD-20's seeded fallback. AD-20 is silent on these cases and does not limit the seed to its two named triggers; AD-8 and NFR-3 require that no request over the limit is sent. So the guards comply with both ADs as written, and the spine text is NOT changed in this story (AD-20 is cited by merged stories' specs, so under the unattended doctrine any change to its text is the owner's, through an attended `bmad-architecture` Update after the run). The proposed AD-20 sentence above and the spine notes below are recorded in the ledger for that Update. Reviewers: these guards are not an AD-20 violation.
+
 **R1. NFR-3 residual (for the lead; the frontmatter's `deferred` item; not planned around).**
 - AD-20's 94,000 bound needs a first request of at most 40,000 tokens. This spec guards at the limit. A fork whose kept turn was tool-heavy, a flagged turn with nothing older, or a large input can therefore start between 40,000 and the limit, and its loop can pass 100,000.
 - Options:
@@ -248,15 +254,16 @@ Bridge classes are under `src/bridge/cls/OcuTalon/Bridge/`, product and test cla
   - (c) Accept, with `reopen_if`: the mock or a recorded run logs a request above 100,000.
 - (a) and (b) change what the product does: they are for the owner. DW-130 is addressed for the compacted case (row 10).
 
-**Declined.**
-- Declined DW-386: moved to the Epic 30 burn-down story (size). The lead re-owns it with U-184's condition (every `key_like` shape of `docker/tests/lib-keys.sh` in `Bridge.Redact`, one test per shape).
-- Declined DW-448: moved to the Epic 30 burn-down story (size). The lead re-owns it with U-185's condition. Investigation notes for it:
+**Declined and re-owned.**
+- DW-386 and DW-448: re-owned to Story 30.7 (the lead, 2026-11-02), with U-184's and U-185's conditions. Notes for 30.7 on DW-448:
   - No OcuTalon class has a `%Stream.Global*` property.
   - `%AI.Agent.Session.ContextData` is a `%Stream.GlobalCharacter` with `COMPRESS` 1: zstd for a first block of 1,024 characters or more, flagged in the header node, not in the chunk.
   - User text sits in `$List` elements of `%String(MAXLEN="")` properties, and an element with any character above 255 is stored as 16-bit.
-- DW-93, DW-125 and DW-130 are addressed: DW-93 by Task 0 (d) and the lead item, DW-125 by rows 6-7 and AC 2, DW-130 by rows 1 and 10 and AC 1, with R1.
+- Declined DW-483 (lead, spec gate 2026-11-02: accepted; the entry becomes `decision-pending` for the decision sheet, `note=human=`: the measurement needs host Decision rows and a real-key run): its kept condition (U-191) builds the retry only if `diagnose` still falls back on `invalid` in more than about 1 in 50 after 5.12, measured on host Decision rows and Story 9.5's real-key run. This run has neither: no real key, ever, and the demo host is off limits. The CI mock's invalid rate is whatever its scenarios script, so a Task 0 here would measure nothing. A retry is also a behaviour change in Decide's reply path, outside compaction. The lead re-owns it (for example to the first real-key release-candidate run's evidence) or closes it.
+- Addressed: DW-93 by Task 0 (d) and the lead item, DW-125 by rows 6-7 and AC 2, DW-130 by rows 1 and 10 and AC 1, with R1.
 
 **Spine notes for the lead (Rule 20).**
+- Lead (spec gate 2026-11-02): none of these is written into the spine in this unattended run (U7, U14: a runner never amends an AD; AD-20, AD-8, AD-6 and AD-22 are cited by merged stories). They describe behaviour the ADs allow as written, and they go to the ledger for an attended spine Update after the run.
 - AD-20: V1's text. The fork is reopened through `OpenSession` before `Chat`. A compaction sets `SessionRotated`. The seed's bound (`SEEDCHARS`, 80,000 characters). The 20 s go only to a flagged turn that continues a linked conversation.
 - AD-8: `too_large` for such a turn is judged on the post-compaction bound.
 - AD-6: the adapter bullet "`%Save`s an AI session only after a completed `Chat`" gains "or a compaction fork, after its check (AD-20)".
@@ -269,8 +276,7 @@ Bridge classes are under `src/bridge/cls/OcuTalon/Bridge/`, product and test cla
 `<lane>` stands for `env OCUTALON_LOCK_DIR="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")/.worktrees/.coordination/locks/lane-b" OCUTALON_TEST_WEB_PORT=52802 OCUTALON_LOCK_OWNER='epic=30 stage=implement'`, run from the worktree root. The fresh tag is `e30s1i`, the warm tag `e30s1iw`.
 
 How to run:
-- One command per tool call, in the foreground, with `timeout: 600000`. Never two IRIS test runs in one message.
-- The harness moves a call to the background after about 180 s. Poll it in loops of under 170 s, and never start a second copy.
+- One command per tool call, in the foreground, with `timeout: 600000`; never in the background. Each command below finishes inside one call. Never two IRIS test runs in one message.
 
 Where to run:
 - Throwaway stacks only.
@@ -284,6 +290,7 @@ Where to run:
 - (loop) `<lane> OCUTALON_WARM=1 OCUTALON_RUN_TAG=e30s1iw ci/iris.sh class <Class>`, one call per class. Expected: `CLASS … passed`.
   - `OcuTalon.Test.Bridge.Compaction`
   - `OcuTalon.Test.Bridge.Decide`
+  - `OcuTalon.Test.Bridge.ReplyCheck`
   - `OcuTalon.Test.Bridge.CodeRules`
   - `OcuTalon.Test.Bridge.Conversation`
   - `OcuTalon.Test.Bridge.Runner`
@@ -295,6 +302,7 @@ Where to run:
 - (loop) `<lane> OCUTALON_RUN_TAG=e30s1i ci/iris.sh class <Class>`, fresh, one call per class. Expected: `CLASS … passed`.
   - `OcuTalon.Test.Agent.Compaction`
   - `OcuTalon.Test.Agent.RequestSize`
+  - `OcuTalon.Test.Agent.Decide` (about 105 s; the timer and re-send paths that `TimerFor` rewires)
 - (once) `bash ci/checks.sh`. Expected: every script passes (boundaries, storage, class rules).
 - (once) `bash docker/tests/test-mock.sh`. Expected: passes with the two new scenarios.
 - (once) `bash docker/tests/test-eval-set.sh`. Expected: passes.
@@ -307,14 +315,14 @@ Where to run:
 **Task 0 facts:** the implement stage records (a) to (d) here, each with the throwaway's build and what was stored.
 
 **Shared surfaces:**
-- **Decide's timer and precheck for a flagged turn that continues its conversation:** `Test.Bridge.Decide` (the precheck and timer tests) and `Test.Agent.RequestSize` `TestTooLarge`. Its history of about 8,000 characters is below `SEEDCHARS`, so its full estimate still applies (inference: check it).
+- **Decide's timer and precheck for a flagged turn that continues its conversation:** `Test.Bridge.Decide` (the precheck and timer tests), `Test.Agent.Decide` (`decide` requests: unchanged) and `Test.Agent.RequestSize` `TestTooLarge`. Its history of about 8,000 characters is below `SEEDCHARS`, so its full estimate still applies (inference: check it).
 - **The runner's linked path:** `Test.Bridge.Conversation` and `Test.Bridge.Runner` (`Compact` 0 by default: no change).
 - **`SessionRotated` on a compaction:** the Decide carry tests (unchanged), and `Test.Eval.Run`'s rotation count (eval cases are `fresh`: no compaction).
 - **Usage rows per item:** any test that counts one row for a flagged continuing turn (only the new tests).
 - **`SESSIONCALLS` (+`forkandsummarize`) and the no-`Summarize` rule:** `Test.Bridge.CodeRules` itself.
 - **`Eval.Gate.Result`'s context:** `Test.Eval.Gate`. **`eval/run.sh`'s release-candidate branch:** `docker/tests/test-eval-set.sh`.
 - **Mock scenarios (+2):** `ci/mock/test/scenarios.test.mjs` (a required-name list, unchanged).
-- **CI time:** the new classes run in `shards-2` (`lane-a@rest`, 30.9 minutes on the feature head). Record their times. If `shards-2` would pass 33 minutes, report it to the lead for a rebalance. Do not edit `ci/units.sh`.
+- **CI time:** the new classes (`Test.Bridge.Compaction`, `Test.Agent.Compaction`, `Test.Eval.ThinkingSmoke`) run in `shards-2` (`lane-a@rest`), already 36.6 minutes on part 1's head `81f230eb`, where the CI trigger fired. Record each new class's time for the lead, who owns the split. Do not edit `ci/units.sh` or `docker/tests/test-ci-config.sh` (contended, Epic 11).
 - Every test added or changed passes on a fresh environment, in either order. Each one creates and removes its owners, links, sessions, Usage rows, settings rows and restarts, also after a failure.
 
 **Pinning mutations (Rule 19).** Apply each mutation, observe red, revert byte-identically (`git status --short` and `git diff --stat` unchanged), and record `mutation: … → …` here.
@@ -344,15 +352,10 @@ Where to run:
 Status: ready-for-dev
 Blocking condition: none
 
-**Plan stage (halted after planning, as dispatched).**
-- The spec covers Story 30.1's three ACs (with the live smoke and the NFR-3 check), DW-125, DW-130 and DW-93.
-- DW-386 and DW-448 are declined together for size, to the Epic 30 burn-down story; the lead re-owns them with U-184's and U-185's conditions.
-- Items for the lead's spec gate:
-  - **V1:** the over-the-limit guards added to AD-20's fallback triggers (an AD amendment within U7), with its spine line.
-  - **R1:** the NFR-3 residual in the loop (a first request between 40,000 and the limit). It is for the owner, with options (a) to (c). It is also the frontmatter's `deferred` item: a decision, not routed work.
-  - **DW-93:** the lead writes the trailer from Task 0 (d), by the 250 ms rule.
-  - **Spine notes (Rule 20):** AD-20, AD-8, AD-6 and AD-22, as listed under Design Notes.
-  - **CI time:** the new classes run in `shards-2` (30.9 minutes on the feature head). The implement stage records their times. A rebalance in `ci/units.sh`, if one is needed, is the lead's.
-  - **Lane B needs:** none. If Task 0 (e) shows that the mock refuses the smoke's request shape, that becomes one.
-- Files outside "Ours": `eval/run.sh` and `docker/tests/test-eval-set.sh` (Lane A's, from Epic 9; not contended). No contended file is planned.
-- Planning used no IRIS instance and no throwaway stack. Nothing was committed.
+**Re-plan (2026-11-02, halted after planning, as dispatched; base `60eedf07f0fbf3d1e5a29a56cf0a8dd64f58c7e1`).**
+- The intent block is kept verbatim. The 2026-10-31 plan still holds. Since `d4793d2d`, Decide changed only in its reply check (5.12, 30.6, DW-544). Every Decide task is re-checked against today's code, and the Decide line references are refreshed (Design Notes, Decided in-stage 12). Of the other Code Map files, only `Test.Agent.Constants` changed (its line range is refreshed).
+- Added as regression checks: `Test.Bridge.ReplyCheck` (warm) and `Test.Agent.Decide` (fresh, about 105 s), in AC 6 and Verification.
+- Ledger inbox: DW-93, DW-125 and DW-130 are addressed as before. DW-483 is declined: the owner's condition (U-191) needs host Decision rows and a real-key run, and this run has neither. DW-386 and DW-448 are listed as re-owned to Story 30.7. DW-541 has no work here.
+- Items for the lead's spec gate, carried over: V1 (AD-20 fallback triggers, a veto-window AD amendment), R1 (the NFR-3 residual, for the owner), DW-93's trailer by the 250 ms rule, and the spine notes for AD-20, AD-8, AD-6 and AD-22.
+- CI time: `shards-2` was already 36.6 minutes on `81f230eb`. The new classes add to it, and the implement stage records their times for the lead's split (`ci/units.sh` is contended).
+- No contended file is planned. Planning used no IRIS instance and no throwaway. Nothing was committed.
