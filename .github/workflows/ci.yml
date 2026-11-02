@@ -15,6 +15,7 @@ on:
       - main
       - feature/OCT_OcuTalon_MVP
       - "OCT-epic*"
+      - "release/*"
   pull_request:
 
 permissions:

@@ -2,14 +2,36 @@
 title: 'Story 11.14: The release sequence runs every gate on the pushed candidate'
 type: 'feature'
 created: '2026-11-01'
-status: 'ready-for-dev'
+status: 'done'
 review_loop_iteration: 0
-followup_review_recommended: false
+baseline_revision: '10f83005265a3e04535d2d63a429f9511e08d89c'
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-11-context.md'
   - '{project-root}/_bmad-output/implementation-artifacts/spec-11-5-one-scripted-sequence-cuts-a-release.md'
 warnings: ['oversized']
-deferred: []
+deferred:
+  - summary: >-
+      Self-test cost: docker/tests/test-release-sequence.sh takes about 4 minutes on a loaded dev Mac against the spec's +20 to 40 s inference for the hosted checks job.
+    evidence: |-
+      503 release.sh calls over 25 rules; measured 3 min 52 s on this machine in the final pass. The hosted figure is unmeasured. Measure it from this story's push run; if the checks job is too long, split the gate rules into a second script in a story that may add a CHECK_SCRIPTS entry (this spec forbids one).
+    location: >-
+      docker/tests/test-release-sequence.sh
+    severity: low
+  - summary: >-
+      IA4 (--live-gates) has no mutation line and no CI run, and its clean part trusts docker for its zero counts.
+    evidence: |-
+      The live drive takes about 12 minutes of real docker and npm, so a mutation run (for example the Candidate: check dropped, or the row forced to pass, then --live-gates check red) was not paid for. clean now fails when docker is unreachable. Add the mutation line the next time the live drive is run.
+    location: >-
+      docker/tests/test-release-sequence.sh (--live-gates)
+    severity: low
+  - summary: >-
+      The end-of-steps Result text and the DONE every step branch of release.sh are unreachable until Story 11.15 replaces step_hands_on, so no test pins them.
+    evidence: |-
+      step_hands_on always returns 6, so the state never reaches done. Story 11.15 must restore the assertion on the end text and on DONE when it makes the pass reachable.
+    location: >-
+      release/release.sh (stop_routine end kind, cmd_next)
+    severity: low
 ---
 
 <intent-contract>
@@ -173,6 +195,7 @@ This story takes epics.md Story 11.14's two criteria (the gates; the "not implem
 - `.github/workflows/ci.yml` and `.github/workflows/lane-a.yml`: one line each, `      - "release/*"`, after `"OCT-epic*"`.
 - `docker/tests/test-ci-config.sh`: add `release/*` to the pin at `:189` and the matching line to the good sample. Append ` and release/*` to the two descriptions. Nothing else.
 - Then run `test-ci-config.sh`, `test-ci-changes.sh` and `ci/changes.sh ci.yml`.
+- **DW-548 (lead update, rehearse.sh `run`) -- met.** `step_rehearsal` calls `rehearse.sh run --version --rc --candidate release/<v>-rc<n> --record <abs> --runs 20` once per `next`, in `<state>/candidate`, with the fixed tag `rel<v digits>rc<n>reh` and the same options on every call. Exit 4 prints `WAIT rehearsal <the NEXT run line>` and exits 5 (the `<state>/candidate` clone is kept); 75 is a `WAIT` too; 2 is `FAIL rehearsal release/rehearse.sh refused: ...` followed by `rehearse.sh down`; 3 (dry run), 1 and any other code are `FAIL`. Only exit 0 with `Result: pass`, `Mode: rehearsal` and the candidate's full sha passes. `--plant` is never passed. A pin in the self-test (`static`) names the one `run` call and the one `down` call. The older install/runs/report/down wording of the Matrix and of AC7 is met by the `run` command's own phases.
 
 **Acceptance Criteria:**
 - **AC1 (gate order, stop and record; REL-1, REL-6):**
@@ -229,6 +252,49 @@ This story takes epics.md Story 11.14's two criteria (the gates; the "not implem
 
 ## Review Triage Log
 
+### 2026-11-02 -- Review pass
+- verdicts: 38 findings -- high 0, medium 13, low 24, false 1, maybe-false 0
+- findings:
+  - `[low]` `[patch]` blind: a failed ci check names only the first missing workflow -- now every missing workflow is named; test added.
+  - `[medium]` `[patch]` blind: ci loses its 15-minute ceiling when pushed_at is absent -- the first clock read is kept as pushed_at; test and mutation added.
+  - `[medium]` `[patch]` blind: a mid-drive clone failure resets upg_phase to build and orphans the harness resources -- the phase now stays; test and mutation added.
+  - `[low]` `[patch]` blind: a failing down phase is ignored -- WARN line added, gate still judged on the report; test added.
+  - `[low]` `[patch]` blind: gate_verdict with an empty sha -- refuses; the substring match is the Candidate: line of the gate's own section.
+  - `[low]` `[reject]` blind: rehearsal runs down only for exit 2 -- spec-bound (Matrix); rehearse.sh runs report and down itself on its normal failures.
+  - `[medium]` `[patch]` blind: production_stubs misses (continued Extends, single quotes, spaces, STUB = 0 subclass) -- all four handled; test and mutation added.
+  - `[low]` `[reject]` blind: the eval WAIT line prints a local path -- a console line for the author to copy, never written to a record or committed.
+  - `[low]` `[patch]` blind: spec contradicts itself (status, Decision 14 wording, AC5 mutation note) -- status set at finalize, Decision 14 reworded; the AC5 note stands (checks live in override).
+  - `[low]` `[reject]` blind: release.sh header next description stale -- the header states exit 5 and the gates paragraph states the NEXT behaviour.
+  - `[medium]` `[patch]` edge: awk fails or prints nothing in production_stubs -- status 3 and FAIL stubs.
+  - `[medium]` `[patch]` edge: a path with a space is skipped by the unquoted file list -- one file per line now; test added.
+  - `[low]` `[patch]` edge: a STUB = 0 subclass of a stub is judged a stub -- the class's own value wins; test and mutation added.
+  - `[medium]` `[patch]` edge: continued Extends, CRLF, single quotes -- continued Extends and single quotes handled; CRLF was already read correctly; tests added.
+  - `[low]` `[patch]` edge: node failing in step_eval prints a bare FAIL eval -- a reason is given.
+  - `[low]` `[patch]` edge: gate_verdict with an empty sha matches everything -- refuses (same patch as above).
+  - `[medium]` `[patch]` edge: pushed_at absent waits forever -- same patch as the blind row.
+  - `[low]` `[reject]` edge: ci_runs with a non-numeric databaseId -- wontfix-theoretical: gh prints integers.
+  - `[medium]` `[patch]` edge: mid-drive clone failure -- same patch as the blind row.
+  - `[low]` `[patch]` edge: down status discarded -- same patch as the blind row.
+  - `[low]` `[reject]` edge: run tag 1.10.0 and 11.0.0 collide -- by-design: the spec fixes the tag as rel<v digits>rc<n>; only 1.x is released.
+  - `[low]` `[reject]` edge: OCUTALON_RELEASE_GH_REPO seam chooses the repo read -- by-design: the spec names the seam; it names a repository to read, and skips no gate.
+  - `[low]` `[patch]` edge: --live-gates clean passes when docker is unreachable -- clean fails when docker info fails.
+  - `[false]` `[reject]` edge: clean checks only rel100rc1upg, never the given tag -- the given tag names the throwaway folder only; the gate always runs under the fixed run tag, which clean checks.
+  - `[low]` `[patch]` edge: the unrelated local branch no longer pinned out of the pushes -- scratch-branch added to t_pushes.
+  - `[medium]` `[patch]` verification-gap: the no-section upgrade case saw a leftover rehearsal section -- cases for a section with no Result and for near-miss and short shas added; the stale pass case cannot arise (a passed gate does not rerun).
+  - `[medium]` `[patch]` verification-gap: an extra --plant is invisible to the options assertion -- the whole argv is compared.
+  - `[medium]` `[patch]` verification-gap: the full-sha rule is pinned only against an all-zero sha -- near-miss and short fixtures for upgrade, rehearsal and checklist; mutation added.
+  - `[medium]` `[patch]` verification-gap: the AC7 exit-3 mutation went red on wording only -- a row of exit 3 with a passing rehearsal section added.
+  - `[low]` `[defer]` verification-gap: IA4 has no mutation line and no CI run -- a live mutation costs about 12 minutes; deferred.
+  - `[low]` `[defer]` verification-gap: the end Result text and DONE are unreachable and unpinned -- Story 11.15 makes them reachable; deferred.
+  - `[low]` `[patch]` verification-gap: t_secret scans before the real-gate rules ran -- the same scan runs again in static, after every rule.
+  - `[low]` `[patch]` verification-gap: IA1 compares four of the nine rows -- each row of push to notes is checked against the sequence's state.
+  - `[low]` `[reject]` verification-gap: no bad sample for AC9 in test-ci-config.sh -- by-design: the ruling allows only release/* in that file; the pin fails when it is removed (mutation shown).
+  - `[medium]` `[patch]` verification-gap other: pushed_at absent -- same patch as the blind row.
+  - `[low]` `[patch]` verification-gap other: down status ignored -- same patch as the blind row.
+  - `[low]` `[defer]` verification-gap other: self-test runtime -- already in deferred.
+  - `[low]` `[reject]` verification-gap other: static pins match wording -- the spec asks for them and the dynamic rules cover the behaviour.
+  - intent-alignment: no finding; it reported readings only (R1b rehearsal through `run` as DW-548 says, R2b enabled unless false/0, R3b one verdict over the drive, R4b hermetic stand-ins with real scripts in `real` and the live part); no divergence from the intent.
+
 ## Design Notes
 
 **Lead update 2026-11-01 (DW-548, from Story 11.12's review).** Story 11.12 changed `release/rehearse.sh`'s `run`: it needs `OCUTALON_RUN_TAG`, does one phase per call and exits 4 ("call again") until the last phase; `runs` does the next run and refuses once all `--runs` are done or after a failed run; `--plant <id>@<run>` plants a miss in one run. The rehearsal gate step calls `run` once per `next` call (exit 4 = waiting on the next phase, mapped to this story's exit 5 "waiting") and judges only exit 0 with `Result: pass`. Where this spec describes the older contract, this note wins.
@@ -257,6 +323,22 @@ This story takes epics.md Story 11.14's two criteria (the gates; the "not implem
 5. **A failed gate is run again by `next`.** The candidate cannot change, so a rerun can only be an honest re-read (for example after the author reruns CI, or overrides the eval). The row shows the latest attempt.
 6. **The rehearsal uses N = 20,** the bound's denominator (19 of 20).
 7. **Two descriptive lines in `test-ci-config.sh`** (`:6`, `:459`) gain `release/*`, so no comment states a stale trigger list (Rule 14). Every edit there adds only `release/*` to one rule. They are reported with the workflow lines.
+
+**Decided in-stage (implement stage, small, reversible, in intent):**
+8. **`record_field` is new, not moved.** Built `notes.sh` has `notes_section` (a section reader) but no field reader, so `record_field` in `lib-release.sh` is its own 8-line awk (it ends a section at the next `# ` or `## ` line, as `notes_section` does) and `notes.sh` is untouched.
+9. **JSON is read with node, not jq.** `start` already needs node, so the `ci` and `eval` steps read their JSON with `node -e` and no step needs jq. The `gh` shim answers canned JSON and the node shim of the self-test passes `-e` through to the real node.
+10. **Step return codes.** A step returns 0 (passed, or with `STEP_MORE=1` a phase done and the step stays current: `NEXT <step>`), 1 (failed), 4 (the author's word not given), 5 (waiting: `WAIT`, nothing written) or 6 (the hands-on stop). The function of `hands-on` is `step_hands_on` (`${step//-/_}`).
+11. **The push time is read from the sequence clock at the push** (`pushed_at` in the state, one clock read), so the 15 minutes of the `ci` step run on the seam clock. A run found for one of the two required workflows, a red run and a missing workflow are judged in that order: red first, then missing after 15 minutes, then pending or not yet started (`WAIT`).
+12. **The evaluation clone and the candidate clone are cloned from the remote** (`git clone --branch release/<v>-rc<n> <remote url>`), reused only when HEAD is the cut commit, and checked against the remote's branch. The upgrade harness `build`, the rehearsal's first call and the checklist each start from a fresh clone; a rehearsal in progress keeps its clone between the calls.
+13. **A harness phase done exits 0** (`NEXT upgrade`), because the Matrix says 0 is a step or phase done; only the rehearsal's exit 4 maps to the waiting exit 5, as DW-548 says. Phase output is printed behind a `upgrade:` / `rehearsal:` / `checklist:` label and kept in `<state>/<gate>.log`.
+14. **The `ci` check reads the newest run of each workflow** (highest `databaseId`), so a later run of a workflow supersedes an earlier one (a re-run of one run keeps its id: `gh run list` shows that run's latest attempt). Any workflow that ran for the commit counts, not only `ci` and `lane-a`; those two must be present.
+15. **`test-ci-config.sh` descriptions** read "main, feature/OCT_OcuTalon_MVP, OCT-epic* and release/*" (a comma list, not a bare append), so no comment states a stale trigger list.
+16. **The self-test seeds** are made once per variant from one archive of HEAD (`stub`, `chk` with the real checklist, `reh` with the real rehearsal, `real`), and the gate chain is built once as snapshots (`pushed`, `cleared`, `evalwait`, `evaled`, `upgraded`, `rehearsed`, `noted`) that the gate rules fork. A gate stub (`gatestub.sh`, written into the throwaway at run time) logs its argv, tag, directory and head, and writes its section from a fixture or a default.
+
+**Decided in-stage (review patches, implement stage):**
+17. **`production_stubs`** reads single- or double-quoted attributes, an `Extends (...)` list continued over lines and files whose path holds a space, and a class's own `Parameter STUB` value wins over its superclasses (a subclass with `STUB = 0` is built). A scan that prints no `COUNTS` line is status 3 and `FAIL stubs`, never a pass.
+18. **`step_ci`** keeps the first clock read as `pushed_at` when the state has none, so the 15 minutes still end; a missing workflow check names every missing workflow (`no ci, lane-a run on <sha>`).
+19. **`step_upgrade`** leaves the phase as it is when the candidate clone fails mid-drive (the harness of the run tag is still in that clone and `down` must reach it); a `down` that exits non-zero prints `WARN upgrade the down phase exited <n>; leftovers of run tag <tag> may remain`, and the gate is still judged on the report. `gate_verdict` fails on a state with no candidate sha, and `eval` fails on a result it could not judge (node failed).
 
 **Hands-on, shared with 11.15.** This story puts `hands-on` last in the gate list, writes its row (`not run`) and stops. Story 11.15 replaces `step_hands_on`:
 - the `## Hands-on pass` grammar;
@@ -322,7 +404,49 @@ Run each command in its own foreground call, with `timeout: 600000`, from the wo
 - the workflow trigger set pinned by `test-ci-config.sh`.
 - Every test added or changed passes on a fresh environment, in either order.
 
+**Task 0 figures (this pass, Apple-silicon dev machine, load average 4 to 8):**
+- `production_stubs` on this tree: status 0, `COUNTS|45|3|2|0` (45 items in 3 productions, 2 stub items, both disabled, none enabled). On a scratch copy of `src/` with TelegramIn `Enabled="true"`, and again with the attribute removed: status 1, `FOUND|OcuTalon.Production|TelegramIn|OcuTalon.Channel.Telegram.In`.
+- `gh run list --branch feature/OCT_OcuTalon_MVP --commit <pushed sha> --event push --json databaseId,workflowName,status,conclusion,url` (read only): a list of `{"conclusion","databaseId","status","url","workflowName"}`; `conclusion` is the empty string while a run is not completed, `status` is `queued`, `in_progress` or `completed`, the workflow names are `ci` and `lane-a`. The self-test's `gh` shim answers this shape.
+- Real `rehearse.sh` with no `release.conf`: in this worktree it refuses a candidate without the built bundle first (exit 2, before any docker call); in the sequence's throwaway, whose candidate holds the bundle, `rehearse.sh run` refuses with `REFUSED config: the configuration file is missing or not readable` (exit 2), starts no container and leaves no state (IA3).
+- One live upgrade drive (IA4), run tag `e11s14lg`, lane A: prepare (start, cut, image, stubs, push, ci, eval; real npm and docker) 20 s; then one `next` per phase: build 6 s, settings 167 s, seed 126 s, upgrade 285 s (started right after the seed; the reminder R1 fired on time, due 235 s after the candidate was ready), restart 26 s, storage 12 s, report 0 s, down 9 s, so every call fits the 10-minute cap. The harness section read `Result: pass`, `Mode: release`, `Required: no`, `Candidate: 1.0.0 at <the cut sha>`; the upgrade row read `pass`; `clean` left no container, image tag or folder of the run tag, and the lane-A lock folder was empty.
+- The hermetic self-test: 25 rules, 503 `release.sh` calls, about 4 min 20 s on this loaded machine (the 11.5 version was about 80 s), also green under `/bin/bash` 3.2 for the gate rules. The hosted figure is unmeasured (see `deferred:`).
+
+**Results of the commands (this pass):** `test-release-sequence.sh` all 25 rules PASS (each of `fail`, `notes`, `override`, `secret` also alone; `libs stubs ci eval upgrade rehearsal checklist fail real push` under `/bin/bash` 3.2); `test-boundaries.sh`, `test-upgrade-harness.sh`, `test-rehearsal.sh`, `test-release-checklist.sh`, `test-release-notes.sh`, `test-ci-config.sh` and `test-ci-changes.sh` exit 0; `ci/changes.sh ci.yml` exits 0; with a push payload, release-only paths (`release/release.sh`, `release/lib-release.sh`, `docker/tests/test-release-sequence.sh`) run no IRIS group and a `ci.yml` path runs all seven; the other 15 scripts of `CHECK_SCRIPTS` (storage, class-rules, compose-file, pinned-sources, after-start, healthcheck, lib-live, bootstrap, demo-path-gate, ci-warm, probe, install-script, readme, eval-set, online-host, online-load) print no `FAILED`. `--live-gates prepare`, nine `next` calls, `check` and `clean` passed (IA4).
+
+**Mutations demonstrated (Rule 19; each applied to one file, the rule named run red, then the file restored from a backup in the scratchpad and confirmed identical with `cmp`):**
+- mutation: AC1 a failed gate advances the state (`sset next "$(next_step "$step")"` before the failed stop) -> `fail` red (the next call no longer runs the gate again).
+- mutation: AC2 a missing `Enabled` counts as disabled (`en != "true"`) -> `stubs` red (the removed-attribute candidate passes the gate).
+- mutation: AC3 `failure` accepted as a green conclusion -> `ci` red (a red `lane-a` passes).
+- mutation: AC4 the `onMock` check removed -> `eval` red (the mock and missing-field results pass).
+- mutation: AC5 `gate_verdict` trusts the exit status alone (returns 0 after it) -> `override` red (the planted fail, dry run, other-sha and other-mode sections pass) and `rehearsal` unchanged green (its checks are in `override`).
+- mutation: AC6 a failed `seed` jumps to `down` -> `upgrade` red (`restart storage report` do not run).
+- mutation: AC7 exit 3 passes the rehearsal gate -> `rehearsal` red (the dry run is no longer a `FAIL ... dry run`).
+- mutation: AC8 `hands-on` prints `PASS` and returns 0 -> `checklist` red (no stop, no `Result: stopped at hands-on`).
+- mutation: AC9 `release/*` removed from the pin in `test-ci-config.sh` -> every rule flags the good sample (`triggers`); and `release/*` removed from `lane-a.yml` -> `FAIL triggers`.
+- mutation: IA1 the checklist verdict skipped (`if false`) -> `real` red (the real checklist's `fail` or `not confirmed` passes the gate).
+- mutation: IA2 `override.reason` replaced by a fixed text -> `eval` and `real` red (the row and the draft lack `fixture reason`).
+- mutation: review patch, `pushed_at` not kept when absent -> `ci` red (the 15 minutes never end).
+- mutation: review patch, the phase reset to `build` on a clone failure -> `upgrade` red (the phase no longer stays at `seed`).
+- mutation: review patch, a class's `STUB = 0` ignored -> `stubs` red (the built subclass is reported).
+- mutation: review patch, `gate_verdict` compares the first seven characters of the sha -> `override` red (the near-miss sha passes).
+- mutation: IA3 exit 2 of the rehearsal mapped to `WAIT` -> `real` red (no `FAIL rehearsal ... REFUSED config`).
+
+**Shared surfaces touched:** the `STEPS` list, the `Result:` text at the end of the steps and the stop kinds of `release.sh` (11.5's `record`, `hands`, `resume`, `notes`, `gate`, `push`, `image` and `pushes` rules were updated for the new steps); `lib-release.sh` gains `record_field`, `production_stubs`, `candidate_clone` and `gh_repo`; both workflows and `test-ci-config.sh` gain `release/*` (`ci.yml` is an IRIS input, so this story's push runs every group once).
+
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** `release/release.sh` gains the gate steps (`stubs ci eval upgrade rehearsal checklist hands-on`), the waiting exit 5 and the hands-on stop that never passes; `release/lib-release.sh` gains `record_field`, `production_stubs`, `candidate_clone` and `gh_repo`; both workflows and the trigger pin gain `release/*`. DW-548 is met: the rehearsal gate calls `rehearse.sh run` once per `next`, exit 4 and 75 give exit 5, and only exit 0 with `Result: pass`, `Mode: rehearsal` and the candidate sha passes.
+
+**Files.** `release/release.sh` (steps, verdicts, exit 5); `release/lib-release.sh` (four helpers); `docker/tests/test-release-sequence.sh` (rules for every Matrix row, IA1 to IA3, `--live-gates` for IA4); `.github/workflows/ci.yml` and `lane-a.yml` (one line each); `docker/tests/test-ci-config.sh` (pin, good sample, two descriptions).
+
+**Review.** 38 findings, 0 high, 13 medium, 24 low, 1 false. Patches applied: 26 rows (some share one fix; the medium ones: the `pushed_at` ceiling, the mid-drive clone failure, `production_stubs` robustness, and the test-strength gaps for `--plant`, near-miss shas, exit 3 and the no-section case; the rest low). Deferred: 3 (IA4 mutation, 11.15's unreachable end text, self-test runtime). Rejected: 9, each with its reason in the log above.
+
+**Follow-up review recommended: true.** Patched medium entries: 13 (two or more). The unverified risk is the `production_stubs` awk rewrite (a `getline` continuation, one file per line with globbing off, STUB precedence) and the `step_upgrade` phase handling after a clone failure: each has a new test and a mutation, but no second reviewer has read them.
+
+**Verification.** `test-release-sequence.sh` all 25 rules PASS (3 min 52 s); `test-boundaries.sh` exit 0; the four mutations of the patches went red and the files were restored (`cmp`); the earlier pass's figures stand: `test-upgrade-harness.sh`, `test-rehearsal.sh`, `test-release-checklist.sh`, `test-release-notes.sh`, `test-ci-config.sh`, `test-ci-changes.sh`, `ci/changes.sh ci.yml` exit 0, the other `CHECK_SCRIPTS` scripts print no `FAILED`, and IA4 ran live (prepare, eight phases, check, clean) with the lane-A lock folder empty.
+
+**Residual risks.** The real rehearsal (20 runs), checklist, evaluation and hands-on passes are untested end to end (no clean host, author confirmations or model key); they are covered through stubs and the real scripts' refusals. The hosted checks-job time of the self-test is unmeasured.

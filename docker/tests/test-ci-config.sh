@@ -3,7 +3,7 @@
 # which have a fixed layout (two-space indent, one key per line, flow lists for runs-on and the matrix), ci/units.sh and the
 # test folders. The rules, each shown first to flag its bad samples and to pass a good one, then run on the real files:
 #   - permissions: the top level is exactly `contents: read`; a job-level block holds only contents: read and actions: read;
-#   - triggers: push.branches is main, feature/OCT_OcuTalon_MVP and OCT-epic*; pull_request has no filter; no
+#   - triggers: push.branches is main, feature/OCT_OcuTalon_MVP, OCT-epic* and release/*; pull_request has no filter; no
 #     pull_request_target, workflow_run, paths or paths-ignore, so the workflow itself is never skipped;
 #   - concurrency: a push has a group of its own run id and is never cancelled; only a pull request cancels its superseded run;
 #   - pins: every action is owner/repo@<40 hex> followed by a version comment, and no docker:// image;
@@ -186,7 +186,7 @@ BEGIN {
   guard = "github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository"
   group = "${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.run_id }}"
   cancel = "${{ github.event_name == 'pull_request' }}"
-  nreq = split("main feature/OCT_OcuTalon_MVP OCT-epic*", req, " ")
+  nreq = split("main feature/OCT_OcuTalon_MVP OCT-epic* release/*", req, " ")
 }
 { kind = $1; ln = $2; job = $3; st = $4; text = $5 }
 kind == "top:permissions" { toppermissions = 1; if (text != "") bad(ln, "permissions") }
@@ -300,6 +300,7 @@ on:
       - main
       - feature/OCT_OcuTalon_MVP
       - "OCT-epic*"
+      - "release/*"
   pull_request:
 
 permissions:
@@ -456,7 +457,7 @@ rule() {
 
 rule permissions "the top level is contents: read; a job-level block holds only contents: read and actions: read" \
   perm-top-missing perm-top-write perm-top-extra perm-job-write perm-job-extra perm-job-inline
-rule triggers "push on main, feature/OCT_OcuTalon_MVP and OCT-epic*, every pull request, no pull_request_target, workflow_run, paths or paths-ignore" \
+rule triggers "push on main, feature/OCT_OcuTalon_MVP, OCT-epic* and release/*, every pull request, no pull_request_target, workflow_run, paths or paths-ignore" \
   trigger-no-epic trigger-no-feature trigger-extra-branch trigger-target trigger-workflow-run trigger-pr-filter trigger-paths trigger-paths-ignore
 rule concurrency "a push group is its own run id, and only a pull request cancels its superseded run" conc-cancel-true conc-group-branch
 rule pins "every action is owner/repo@<40 hex> with a version comment, and no docker:// image" pin-tag pin-no-comment pin-short-sha pin-docker
