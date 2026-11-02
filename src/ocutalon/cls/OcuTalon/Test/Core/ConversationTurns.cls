@@ -27,7 +27,8 @@
 ///   - TestToolNoteNamesTheFinishedCalls, TestToolNoteIsTheSameOnEveryAsk, TestToolNoteReadFailureNeverStopsTurn (Story 31.2; AD-30):
 ///     the turn request's SystemNote names the session's approved tool calls that finished in the turn's window, done or failed,
 ///     with the time, once and never with their arguments; it is the same on a Busy retry, a broken retry and a fresh turn after a
-///     taint; a failed read gives an empty note and the turn still runs;
+///     taint; a failed read gives an empty note and the turn still runs; TestToolNoteCarriesPastAFallback: a turn that ended in a
+///     fallback closes no window, so its calls are named again in the next turn's note;
 ///   - TestEveryFallbackReason: the 12 reasons, an error status and an answer of the wrong class give the fallback sentences;
 ///   - TestDuplicateItemDropped, TestUntrustedItemRefused: an Item is taken once, and only when it is trusted;
 ///   - TestStaleAnswerDropped: the answer of an instance that a later attempt replaced changes nothing;
@@ -727,7 +728,9 @@ Method TestToolNoteNamesTheFinishedCalls()
 	Set other = ..Session("toolnoteother")
 	Set p1 = ##class(OcuTalon.Test.Data.Fixture).Turn(session, "2026-01-01T10:00:00Z", "done", "zz first", "zzc"_..Number_"tn1")
 	Set p2 = ##class(OcuTalon.Test.Data.Fixture).Turn(session, "2026-01-01T11:00:00Z", "done", "zz second", "zzc"_..Number_"tn2")
-	Do ##class(OcuTalon.Test.Data.Fixture).Turn(session, "2026-01-01T11:40:00Z", "refused", "zz turned away", "zzc"_..Number_"tnr")
+	// The state is the one Core.Allowance records for a refused message (Conversation may not reference Allowance, so it holds the word):
+	// if Allowance ever renames it, this turn is no longer refused to ToolNote and the note below goes red.
+	Do ##class(OcuTalon.Test.Data.Fixture).Turn(session, "2026-01-01T11:40:00Z", $Parameter("OcuTalon.Core.Allowance", "REFUSED"), "zz turned away", "zzc"_..Number_"tnr")
 	Set live = ##class(OcuTalon.Test.Data.Fixture).Turn(session, "2026-01-01T12:00:00Z", "queued", "zz third", "zzc"_..Number_"tn3")
 	Do ..Finished(session, "done", "2026-01-01T09:00:00Z", "zz_early")
 	Do ..Finished(session, "done", "2026-01-01T10:00:00Z", "zz_on_first")
@@ -843,6 +846,38 @@ Method TestToolNoteReadFailureNeverStopsTurn()
 	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE ID > ? AND Type = 2 AND SourceMethod = ?", mark, "ToolNote")
 }
 
+/// A turn that ended in a fallback got no answer from the model, so it closes no window: the calls of its window are named again in
+/// the note of the next turn, and a turn after an answered one starts its window there.
+Method TestToolNoteCarriesPastAFallback()
+{
+	Set session = ..Session("toolnotefallback")
+	Set f1 = ..Turned(session, "2026-01-01T10:00:00Z", "no_key", "fb1")
+	Set a2 = ..Turned(session, "2026-01-01T11:00:00Z", "", "fb2")
+	Set f3 = ..Turned(session, "2026-01-01T11:30:00Z", "timeout", "fb3")
+	Set a4 = ..Turned(session, "2026-01-01T12:00:00Z", "", "fb4")
+	Do ..Finished(session, "done", "2026-01-01T09:30:00Z", "zz_before_fallback")
+	Do ..Finished(session, "done", "2026-01-01T10:30:00Z", "zz_after_fallback")
+	Do ..Finished(session, "failed", "2026-01-01T11:15:00Z", "zz_after_answer", "failed")
+	Do ..Finished(session, "done", "2026-01-01T11:45:00Z", "zz_after_timeout")
+	Do $$$AssertEquals(##class(OcuTalon.Core.Conversation).ToolNote(##class(OcuTalon.Data.Turn).RefIndexOpen(f1)), ..NoteOf($ListBuild("- zz_before_fallback: done at "_..At("2026-01-01T09:30:00Z", "2026-01-01T10:00:00Z"))), "the turn that fell back was given the call")
+	Do $$$AssertEquals(##class(OcuTalon.Core.Conversation).ToolNote(##class(OcuTalon.Data.Turn).RefIndexOpen(a2)), ..NoteOf($ListBuild("- zz_before_fallback: done at "_..At("2026-01-01T09:30:00Z", "2026-01-01T11:00:00Z"), "- zz_after_fallback: done at "_..At("2026-01-01T10:30:00Z", "2026-01-01T11:00:00Z"))), "and the next turn names it again, with the call after the fallback")
+	Do $$$AssertEquals(##class(OcuTalon.Core.Conversation).ToolNote(##class(OcuTalon.Data.Turn).RefIndexOpen(f3)), ..NoteOf($ListBuild("- zz_after_answer: failed at "_..At("2026-01-01T11:15:00Z", "2026-01-01T11:30:00Z"))), "a window starts at the answered turn before it")
+	Do $$$AssertEquals(##class(OcuTalon.Core.Conversation).ToolNote(##class(OcuTalon.Data.Turn).RefIndexOpen(a4)), ..NoteOf($ListBuild("- zz_after_answer: failed at "_..At("2026-01-01T11:15:00Z", "2026-01-01T12:00:00Z"), "- zz_after_timeout: done at "_..At("2026-01-01T11:45:00Z", "2026-01-01T12:00:00Z"))), "a timeout fallback closes no window either")
+}
+
+/// A done Turn of the session created at the time, with the fallback reason when one is given (FallbackReason and the fallback key).
+Method Turned(session As %String, createdAt As %String, reason As %String, tag As %String) As %String [ Private ]
+{
+	Set ref = ##class(OcuTalon.Test.Data.Fixture).Turn(session, createdAt, "done", "zz "_tag, "zzc"_..Number_tag)
+	If reason '= "" {
+		Set row = ##class(OcuTalon.Data.Turn).RefIndexOpen(ref)
+		Set row.FallbackReason = reason
+		Set row.ReplyCatalogKey = ##class(OcuTalon.Core.Conversation).#FALLBACKKEY
+		Do $$$AssertStatusOK(row.%Save(), "the turn "_tag_" ended in the fallback "_reason)
+	}
+	Quit ref
+}
+
 /// A tool_call request row of the owner that finished at the time: State state, Result done unless result is given, and ToolArguments
 /// that a note must never hold. Its Ref joins the Refs that OnAfterAllTests cleans.
 Method Finished(owner As %String, state As %String, finishedAt As %String, tool As %String, result As %String = "done") As %String [ Private ]
@@ -867,11 +902,10 @@ Method Arguments() As %String [ Private ]
 Method Notes(session As %String, kind As %String) As %List [ Private ]
 {
 	Set list = ""
-	Set n = ""
-	For {
-		Set n = $Order(^OcuTalonTest("DecideDouble", session, "seen", n))
-		Quit:n=""
-		If ^OcuTalonTest("DecideDouble", session, "seen", n, "kind") = kind Set list = list_$ListBuild($Get(^OcuTalonTest("DecideDouble", session, "seen", n, "systemNote")))
+	Set seen = ##class(OcuTalon.Test.Core.DecideDouble).Seen(session)
+	For i = 0:1:seen.%Size() - 1 {
+		Set one = seen.%Get(i)
+		If one.kind = kind Set list = list_$ListBuild(one.systemNote)
 	}
 	Quit list
 }

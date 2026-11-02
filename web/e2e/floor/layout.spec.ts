@@ -535,7 +535,8 @@ test('G4: below 1024px an empty chat list is as tall as its content', async ({ p
 /**
  * G4, a very short window (U-202): where the stacked header's wrapped height passes a quarter of the window, it scrolls away with the
  * page instead of sticking over it, and --app-header-block-size is 0px, since nothing stays above a focused element. The case opens at
- * the normal size, narrows the window to 320x180 and scrolls to the bottom. (1000x800 and 640x360 stay sticky: expectColumn.)
+ * the normal size, narrows the window to 320x180 and scrolls to the bottom, then makes it 320x900, where the header is sticky again.
+ * (1000x800 and 640x360 stay sticky: expectColumn.)
  */
 test('G4: at 320x180 a header over a quarter of the window scrolls with the page', async ({ page }) => {
   const normal = page.viewportSize()!;
@@ -552,6 +553,14 @@ test('G4: at 320x180 a header over a quarter of the window scrolls with the page
     await settled(page);
     expect((await pageScroll(page)).top, 'the page scrolled').toBeGreaterThan(0);
     expect(await headerBottom(page), 'and the header went above the window').toBeLessThanOrEqual(0.5);
+
+    // A taller window at the same width changes neither the header's size nor the layout band: the window's resize alone makes it sticky again.
+    await page.setViewportSize({ width: 320, height: 900 });
+    await settled(page);
+    const tall = await page.evaluate(() => ({ header: document.querySelector('app-header')!.getBoundingClientRect().height, inner: window.innerHeight }));
+    expect(tall.header, `control: the header (${tall.header}px) is at most a quarter of the window (${tall.inner}px)`).toBeLessThanOrEqual(tall.inner / 4);
+    await expect(header, 'the header is sticky again').toHaveCSS('position', 'sticky');
+    expect(await page.evaluate(() => document.documentElement.style.getPropertyValue('--app-header-block-size')), 'and writes its height again').toBe(`${tall.header}px`);
   } finally {
     await page.setViewportSize(normal);
   }

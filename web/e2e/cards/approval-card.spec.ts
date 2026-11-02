@@ -20,7 +20,7 @@ import {
 import { announcedTexts, clock, recordAnnouncements, tokenColor } from '../support/page';
 
 /**
- * Story 6.2, the approval request card inside the incident card (A2 to A10; A1 is in floor/approval.spec.ts, which runs it in three
+ * Story 6.2, the approval request card inside the incident card (A2 to A11; A1 is in floor/approval.spec.ts, which runs it in three
  * engines), moved here by Story 6.4 (DW-315), in a real browser against a real stack, as the cards unit's user CARDS (OCUTALON_CARDS_USER,
  * with the role OcuTalonUser; the stack is in demo mode, its instance zone is UTC and the browser's is UTC and en-GB; the page's clock is
  * fixed at 14:30 UTC on the run's date). An incident card is made as IncidentManager will make it (an `incident` event, publishIncident); a

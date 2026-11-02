@@ -30,10 +30,10 @@
 ///     rows, and RunTurns goes to Conversation itself when the session has a queued turn. A failed publish or send is logged
 ///     and never stops the turn;
 ///   - the turn request carries a code-written SystemNote (ToolNote, AD-30): one line for each approved tool call of the session that
-///     finished in the turn's window, (the previous Turn's CreatedAt, this Turn's CreatedAt] on FinishedAt, so that every finished
-///     call is named in exactly one turn's note and the note is the same each time the turn is asked. A line holds the tool's name,
-///     done or failed, and the time in the instance zone, from the request row's ToolName, State and FinishedAt only: never its
-///     arguments, a result or any model-written text. A read that fails is logged and the note is empty;
+///     finished in the turn's window, (the CreatedAt of the previous Turn that was answered, this Turn's CreatedAt] on FinishedAt, so
+///     that every finished call is named in the note of exactly one answered turn and the note is the same each time the turn is
+///     asked. A line holds the tool's name, done or failed, and the time in the instance zone, from the request row's ToolName, State
+///     and FinishedAt only: never its arguments, a result or any model-written text. A read that fails is logged and the note is empty;
 ///   - an answer whose instance Attempt differs from the Turn's, or whose Turn is not running, changes nothing, so that a turn
 ///     that a sweep started again gives exactly one reply.
 /// The trace: before any send a turn sets %SessionId to the SessionId of the Item's header (the Turn's TraceHeaderId; without
@@ -666,9 +666,11 @@ ClassMethod Recap(sessionRef As %String, turnRef As %String) As %String
 /// The note about the approved tool calls of the turn's session that finished in the turn's window (AD-30): TOOLNOTEHEAD, then one
 /// line for each call, oldest first, with its tool's name, done (the row's State done) or failed (any other), and its FinishedAt as
 /// Time.ForMessage gives it relative to the turn's CreatedAt, so that the text is the same each time the turn is asked. The window is
-/// (the CreatedAt of the session's previous Turn that was not refused, the CreatedAt of this Turn], with no lower bound for the
-/// session's first turn: a refused turn is never asked, so the calls of its window go to the next turn that is. It is written by code from the request rows' ToolName, State and FinishedAt, never from their
-/// arguments or results. "" when no call finished in the window, and when a read fails (the failure is logged).
+/// (the CreatedAt of the session's previous Turn that was answered, the CreatedAt of this Turn], with no lower bound for the session's
+/// first turn. A refused turn is never asked, and a turn that ended in a fallback (FallbackReason set) got no answer from the model,
+/// so neither closes a window: the calls of its window are named again in the next turn's note. It is written by code from the
+/// request rows' ToolName, State and FinishedAt, never from their arguments or results. "" when no call finished in the window, and
+/// when a read fails (the failure is logged).
 ClassMethod ToolNote(turn As OcuTalon.Data.Turn) As %String
 {
 	Set note = ""
@@ -683,7 +685,7 @@ ClassMethod ToolNote(turn As OcuTalon.Data.Turn) As %String
 					Set found = 1
 					Quit
 				}
-				If one.State '= "refused" Set after = one.CreatedAt
+				If (one.State '= "refused") && (one.FallbackReason = "") Set after = one.CreatedAt
 			}
 			If 'found Set sc = $SYSTEM.Status.Error(5001, "The turn "_turn.Ref_" is not among the turns of its session")
 		}

@@ -208,6 +208,35 @@ Line numbers are at the worktree head `2a84fb6b`.
 - Given cards A7, when it runs, then it needs no browser page load and asserts the same four things (DW-497).
 - Given the demo path, when `live:demo-path` runs, then it passes unchanged: no tool call in UJ-1, so the note is empty (default 1).
 
+### Review Findings
+
+Code review 2026-11-02 (bmad-code-review, review_mode full, tier full-opus; layers blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor). Each line: severity, fix-risk, footprint, disposition.
+
+- [x] [Review][Patch] A turn that ended in a fallback closed the note's window, so a call named only in that turn's note never reached the model (Begin's Abandon, rate_limited after Busy, no_key, budget, timeout...) [src/ocutalon/cls/OcuTalon/Core/Conversation.cls:688] -- med; fix-risk low (one condition, Decided 8's rule extended from "never asked" to "never answered"); in-story; fixed: the lower bound skips a Turn with FallbackReason set, docs updated, new TestToolNoteCarriesPastAFallback (blind-hunter+edge-case-hunter).
+- [x] [Review][Patch] stoppedPartway's `resent` slot was never told apart from `completed` (every case had resent = completed, so `resent: String(completed)` stayed green) [web/scripts/approval-view.test.mjs:356] -- med; fix-risk low; in-story; fixed: a case with resent 3, completed 2, failedAgain 1 and the full text (verification-gap).
+- [x] [Review][Patch] Nothing pinned the header's window `resize` listener, the only path for a height-only change at one width [web/e2e/floor/layout.spec.ts:540] -- med; fix-risk low; in-story; fixed: G4 then goes to 320x900 (control: header at most a quarter) and asserts sticky and the measured block size (verification-gap).
+- [x] [Review][Patch] C16 left its seeded 30-line turn on the shared PANEL session (Rule 19 hermeticity; spec Always) [web/e2e/chat/chat.spec.ts:895] -- med; fix-risk low; in-story; fixed: removed in `finally` through cleanFixtureRows. The turn the page itself sends stays, as in every send case of the file (removing it needs a support/ helper) (verification-gap).
+- [x] [Review][Patch] `Notes` in ConversationTurns re-walked DecideDouble's `seen` global, a near-copy of `DecideDouble.Seen` (Rule 2) [src/ocutalon/cls/OcuTalon/Test/Core/ConversationTurns.cls:Notes] -- med; fix-risk low; in-story; fixed: Notes reads `DecideDouble.Seen` (reviewer).
+- [x] [Review][Patch] C16's "after the first send the list is at the bottom" could not fail: one bubble and a one-line reply never overflow the list [web/e2e/chat/chat.spec.ts:742] -- low; fix-risk low; in-story; fixed: the send step asserts the welcome panel is replaced, and the title and doc name the arrival as the bottom-follow pin (its mutations are unchanged) (verification-gap).
+- [x] [Review][Patch] M9's poll read `.finish` and `.row1` from two separate evaluations [web/e2e/floor/guide.spec.ts:600] -- low; fix-risk low; in-story; fixed: one evaluation per poll (blind-hunter).
+- [x] [Review][Patch] TestFinishedToolCalls seeded no `pending` tool_call row (matrix: "pending, approved, executing") [src/ocutalon/cls/OcuTalon/Test/Data/Ownership.cls:1104] -- low; fix-risk low; in-story; fixed (acceptance-auditor).
+- [x] [Review][Patch] layout-view.ts's doc still said every width `@media` is one of the four strings, after floor-sources allowed a leading height query [web/src/app/shared/layout-view.ts:5] -- low; fix-risk low; in-epic, uncontended; fixed (acceptance-auditor).
+- [x] [Review][Patch] Stale "A2 to A10" in the cards spec's doc and floor/approval.spec.ts's doc [web/e2e/cards/approval-card.spec.ts:23, web/e2e/floor/approval.spec.ts:8] -- low; fix-risk low; fixed (blind-hunter+acceptance-auditor).
+- [x] [Review][Patch] Doc lines left unwrapped (ToolNote, FinishedToolCalls, chat.spec's header with C16 before C15, catalog.mjs's header, chat-panel's Scrolling paragraph) -- low; fix-risk low; in-story; fixed; `catalog.mjs --check` current (blind-hunter).
+- [x] [Review][Patch] AC 8 (the note is empty with no tool call) had no `mutation:` line -- low; closed in-pass: mutation applied, red, reverted; line under Verification (verification-gap).
+- [x] [Review][Defer] `docker/tests/test-cards.sh` (:6, :77, :83) and `test-answers.sh` (:7) still say A2-A10 [docker/tests/test-cards.sh:77] -- deferred: low, out-of-footprint (docker/tests/** is Epic 13's and 15's, contended); DW-586 wontfix-accepted, reopen_if a story that owns docker/tests/ edits either script.
+- [x] [Review][Defer] `iconPaths` in approval-card.spec.ts is a near-copy of close-loop.spec.ts's (Rule 2) [web/e2e/cards/approval-card.spec.ts:515] -- deferred: low, the copy is forced by the Never list (support/ and close-loop.spec.ts); DW-587 wontfix-accepted, reopen_if a third spec reads icon paths or a story editing web/e2e/support/ can host it.
+- [x] [Review][By-design] An interrupted call reads "failed" to the model (blind-hunter) -- low; spec-bound: Always says `failed` (including Result `interrupted`) reads "failed", per AD-30's "done or failed".
+- [x] [Review][By-design] The note's time has no online-demo " ET" suffix (acceptance-auditor) -- low; spec-bound: the time comes from `Time.ForMessage`; the note is model-facing, not rendered.
+- [x] [Review][By-design] AC 7 (DW-497) has no mutation (verification-gap) -- low; spec-bound: Verification records "none", it removes a dependency.
+
+**Rejected:**
+- (edge-case-hunter, acceptance-auditor) A call whose FinishedAt shares the turn's CreatedAt second and commits after the first Ask is missed -- low, wontfix-theoretical (Decided 3): real only if a replay finished in the same second as the user's next message and committed after that turn's first Ask.
+- (edge-case-hunter) A refused first message makes the chat fresh again with stale scroll state -- false: the one-bubble list fits, so scrollTop is 0 when the welcome panel returns, and the next send leaves `fresh` and follows the bottom as before.
+- (blind-hunter, acceptance-auditor) M9 runs at device scale 1, C16 at 1280x560, not the spec's wording -- fix edits the spec; the layout is in CSS px at any scale, and the matrix allows "a height where it overflows".
+- (acceptance-auditor) The intent block's window rule predates Decided 8 -- fix edits the spec (the lead's Spec Change Log).
+- (verification-gap) Redundant assertions after an exact one (incident-view `.some`, A11's `not.toContainText`, `zzSECRETARGS`) -- false: each mirrors its AC's wording, and the exact assertion before it is the mutation-proven pin; nothing is weakened.
+
 ## Spec Change Log
 
 ## Review Triage Log
@@ -416,6 +445,28 @@ Every test added or changed passes on a fresh environment, in either order.
 **Manual checks:**
 - `git status --short` shows no path from the Never list.
 - `payloads.ts` and `api-types.ts` are byte-identical.
+
+**QA (Rule 19; lane C, warm tag e31s2qw, fresh tag e31s2q; each mutation applied to the worktree source, seen red, reverted from a private backup and confirmed byte-identical with `cmp`):**
+- (QA) Test file changed: `src/ocutalon/cls/OcuTalon/Test/Core/ConversationTurns.cls`. `TestToolNoteNamesTheFinishedCalls` now seeds its refused Turn with `$Parameter("OcuTalon.Core.Allowance", "REFUSED")` instead of the literal "refused". Reason: `Conversation` may not reference `Allowance` (scanned boundary) and so holds the word "refused" itself, and the fixture held the same literal, so a rename in `Allowance` would have kept the test green while real refused turns stopped being skipped.
+- (QA) Judgment on the refused-turn skip (the implement stage's flagged risk): a unit fixture is enough, now that it is tied to the writer. The real writer, `Allowance.Refused`, saves an ordinary `OcuTalon.Data.Turn` row (state refused, CreatedAt now) in the same table that `ToolNote` reads through `Ownership.Turns`, so the fixture row has the real shape and the test runs `ToolNote` and `Ask` against real rows; an online-demo end-to-end refusal would add the allowance machinery and no further path through `ToolNote`.
+- (QA) mutation (DW-472): `unreached > 0` made `unreached > 99` in `resultView` -> `approval-view.test.mjs` 'is the partial band with triangle-alert for a run that stopped partway ...' and 'puts stopped partway after interrupted ...' red (2 failed of 1181); reverted.
+- (QA) mutation (DW-473): `const result = request.result ?? {};` in `resultView` -> `approval-view.test.mjs` 'is undefined for a request with no result ...' and `incident-view.test.mjs` 'show no band for a fix run that is still going ...' (and two band-list cases) red (4 failed); reverted.
+- (QA) mutation (DW-443 a, the note on the request): `Set request.SystemNote = ""` in `Ask` -> `Test.Core.ConversationTurns` TestToolNoteNamesTheFinishedCalls, TestToolNoteIsTheSameOnEveryAsk (all 5 requests) red; reverted.
+- (QA) mutation (DW-443 refused-turn skip): `If one.State '= "refused" Set after = one.CreatedAt` made `Set after = one.CreatedAt` -> TestToolNoteNamesTheFinishedCalls red; reverted.
+- (QA) mutation (DW-443 refused state coupling): `Allowance` `Parameter REFUSED = "turnedaway"` -> TestToolNoteNamesTheFinishedCalls red (it is green with the literal fixture, which is why the fixture changed); reverted.
+- (QA) mutation (DW-443 window bound): `a.FinishedAt >= ?` in the `finishedToolCalls` statement -> `Test.Data.Ownership` TestFinishedToolCalls ('the lower bound is exclusive and the upper bound inclusive', 'a window whose bounds are one time is empty', 'a window after the newest is empty') red; reverted.
+- (QA) mutation (DW-530): `:host(.scrolls) { position: sticky; }` (was static) -> `floor/layout.spec.ts` 'G4: at 320x180 a header over a quarter of the window scrolls with the page' red alone (live:floor, 106 passed, 1 failed); reverted.
+- (QA) mutation (DW-542): the whole `${HEIGHT_QUERIES.compact} and ${LAYOUT_QUERIES.stacked}` block removed from `demo-guide.ts` -> `floor/guide.spec.ts` M9 red alone (live:floor, 106 passed, 1 failed); reverted. A weaker mutation, `flex-basis: 100%` changed to `flex-basis: auto`, left M9 green: with `.finish { flex: 1 }` the item still wraps under the step row and grows to full width, so only removing the rule (the real regression) is a valid mutation for this AC.
+- (QA) mutation (DW-543): `&& !this.fresh()` removed from the ResizeObserver callback of `chat-panel.ts` -> `chat/chat.spec.ts` C16 red alone (live:sign-in --part 1/3, 89 passed, 1 failed); reverted. The bundle was rebuilt from the restored tree afterwards.
+- (QA) DW-497 has no mutation (it removes a dependency; the evidence is A7 passing without `open()`), as recorded above. The demo-path AC is a no-regression AC with no new test.
+- (QA) After the mutations: `git status --short` shows only the test file above; `npm --prefix web test` 1181 of 1181; warm `Test.Core.ConversationTurns` and `Test.Data.Ownership` passed again; `test-class-rules` passed. `mutations_demonstrated=9`.
+
+**Code review (Rule 19; lane C, warm tag e31s2cw, fresh tag e31s2c; each mutation applied to the worktree source, seen red, restored from a private backup and confirmed byte-identical with `cmp`):**
+- (CR) mutation (DW-443 fallback turn): `If (one.State '= "refused") && (one.FallbackReason = "")` made `If one.State '= "refused"` in `ToolNote` -> `Test.Core.ConversationTurns` TestToolNoteCarriesPastAFallback ('and the next turn names it again ...', 'a timeout fallback closes no window either') red; restored, class green again on the same warm stack.
+- (CR) mutation (AC 8, the empty note): `ToolNote` returns TOOLNOTEHEAD when no call is found -> TestToolNoteNamesTheFinishedCalls ('a turn with no finished call in its window has an empty note') and TestToolNoteReadFailureNeverStopsTurn red; restored, class green again on the same warm stack.
+- (CR) mutation (DW-472 resent slot): `resent: String(completed)` in `resultView` -> `approval-view.test.mjs` 'is the partial band with triangle-alert ...' (the resent 3, completed 2 case) red; restored.
+- (CR) mutation (DW-530 window resize): `view?.addEventListener('resize', update)` removed from `header.ts` -> `floor/layout.spec.ts` 'G4: at 320x180 ...' red alone ('the header is sticky again'; live:floor 106 passed, 1 failed); restored, bundle rebuilt.
+- (CR) After the patches: `npm --prefix web test` 1181 of 1181; lint exit 0; catalog current; warm `Test.Core.ConversationTurns` and `Test.Data.Ownership` passed; `test-class-rules` and `test-boundaries` passed; fresh `live floor` 107 passed; fresh `live sign-in --part 1/3` 90 passed (C16 included). Warm and fresh tags torn down.
 
 ## Auto Run Result
 

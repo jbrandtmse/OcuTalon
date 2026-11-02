@@ -532,9 +532,10 @@ ClassMethod IncomingMail(sessionRef As %String, since As %String, Output oldest 
 }
 
 /// The session's own approval requests of Kind tool_call that finished after the time after and at or before the time through (UTC
-/// strings, as FinishedAt is; after "" is the start of time, bound as "0" because an empty bind is a NULL that no comparison matches), by FinishedAt and then ID: a request with no FinishedAt (pending,
-/// approved or executing) is never one of them. An empty through gives an empty list and an error status in sc, and so does a failed
-/// read. A request of another session or of owner instance is never one of them.
+/// strings, as FinishedAt is; after "" is the start of time, bound as "0" because an empty bind is a NULL that no comparison
+/// matches), by FinishedAt and then ID: a request with no FinishedAt (pending, approved or executing) is never one of them. An empty
+/// through gives an empty list and an error status in sc, and so does a failed read. A request of another session or of owner
+/// instance is never one of them.
 ClassMethod FinishedToolCalls(sessionRef As %String, after As %String, through As %String, Output sc As %Status) As %ListOfObjects
 {
 	If $Get(through) = "" {

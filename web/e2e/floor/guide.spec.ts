@@ -597,7 +597,10 @@ test('M9: Open the trace, then the finish state: the exact lines, the run total,
             mainWidth: main.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight),
           };
         });
-      await expect.poll(async () => (await boxes()).finishTop - (await boxes()).rowBottom, { message: 'at 640x360 the finish starts below the step row' }).toBeGreaterThanOrEqual(-0.5);
+      await expect.poll(async () => {
+        const laidOut = await boxes();
+        return laidOut.finishTop - laidOut.rowBottom;
+      }, { message: 'at 640x360 the finish starts below the step row' }).toBeGreaterThanOrEqual(-0.5);
       const laid = await boxes();
       expect(Math.abs(laid.finishWidth - laid.mainWidth), `and spans the width of main's content (${laid.finishWidth} of ${laid.mainWidth})`).toBeLessThanOrEqual(2);
     } finally {

@@ -369,6 +369,11 @@ describe('the result band (Story 6.4)', () => {
       "The resend stopped partway: I resent 2 of the 4 orders (2 went through), the next one couldn't be resent, and 1 more wasn't tried. Nothing else was changed, and I won't resend the rest without a new approval.",
       'the count-of-one form follows notTried',
     );
+    assert.equal(
+      band({ total: 5, resent: 3, completed: 2, failedAgain: 1, skipped: 1, unreached: 1 }).text,
+      "The resend stopped partway: I resent 3 of the 5 orders (2 went through), the next one couldn't be resent, and 0 more weren't tried. Nothing else was changed, and I won't resend the rest without a new approval.",
+      'resent and completed are their own slots',
+    );
     assert.equal(band({ ...stopped, unreached: 5 }).text.includes('and 4 more weren\'t tried'), true);
     assert.equal(band({ ...stopped, total: 1, resent: 0, completed: 0, skipped: 1, unreached: 1 }).key, 'result.stoppedPartway', 'a first copy that erred without a reason is not "could not start"');
   });

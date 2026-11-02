@@ -108,8 +108,8 @@ const ANNOUNCE_FORMAT: Omit<ChatAnnounceFormat, 'incidentText' | 'bandTexts' | '
  *
  * Scrolling: the list scrolls on its own and is at the bottom when within 24 px of it. The empty chat (the welcome panel alone, `fresh`)
  * stays at the top of the list, so that its heading is never clipped when the panel is taller than the list, and its scrolls do not
- * count; the first entry or message follows the bottom as below. On the first load, and whenever it is at
- * the bottom, new content keeps it there (a ResizeObserver on the list and its content), except that while the newest entry is an
+ * count; the first entry or message follows the bottom as below. On the first load, and whenever it is at the bottom, new content
+ * keeps it there (a ResizeObserver on the list and its content), except that while the newest entry is an
  * incident card taller than the view that is left, following stops at the card's headline, so that its headline, cause, dry-run
  * count and Approve and Reject stay in view (Story 6.2); a later entry follows to the bottom as before, and so does the card while
  * focus is inside it (a press on Show details shows the panel it opens) and once the user's own wheel, touch scroll or press in the

@@ -1103,6 +1103,7 @@ Method TestFinishedToolCalls()
 	Do $ClassMethod(fixture, "Approval", a, , "done", , {"Kind": "fix", "Result": "done", "FinishedAt": "2030-01-01T10:00:02Z"})
 	Do $ClassMethod(fixture, "Approval", a, , "executing", , {"Kind": "tool_call", "ToolName": "zz_running"})
 	Do $ClassMethod(fixture, "Approval", a, , "approved", , {"Kind": "tool_call", "ToolName": "zz_approved"})
+	Do $ClassMethod(fixture, "Approval", a, , "pending", , {"Kind": "tool_call", "ToolName": "zz_pending"})
 	Set theirs = $ClassMethod(fixture, "Approval", b, , "done", , {"Kind": "tool_call", "ToolName": "zz_theirs", "Result": "done", "FinishedAt": "2030-01-01T10:00:02Z"})
 	Do $ClassMethod(fixture, "Approval", "instance", , "done", , {"Kind": "tool_call", "ToolName": "zz_instance", "Result": "done", "FinishedAt": "2030-01-01T10:00:02Z"})
 

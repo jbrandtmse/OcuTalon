@@ -2604,6 +2604,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-30T17:04:59Z status=escalated owner=burndown by=spec_gate note=for the decision sheet: recommended route to Story 31.2 (31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv, Lane B) as a DW bullet, or another Lane B story; out of Lane A's files (AD-33)
 - 2026-10-31T00:33:43Z status=routed owner=31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=orchestrator note=U-178:_Lane_B_display(AD-33);31.2_reads_the_sentence_from_the_existing_fallback_Decision_row;a_new_stored_column_is_its_own_veto_item
 - 2026-10-31T00:41:46Z note=U-178_kept:routed_to_31.2_with_DW-454
+- 2026-11-02T15:14:11Z status=resolved-by:31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=adjudication note=Conversation.ToolNote+Ownership.FinishedToolCalls:code-written_SystemNote(tool,done/failed,time);ConversationTurns+Data.Ownership_tests_on_real_ApprovalRequest_rows
 
 ### DW-444: A tool_call ApprovalRequest left executing by a crash or restart mid-replay stays executing: the call is never re-run (NFR-13 holds) but no result or approval.result is ever sent
 - source: spec-30-3-an-approved-tool-call-runs-exactly-once-with-no-model.md | severity: med | fix-risk: med | footprint: in-epic
@@ -2684,11 +2685,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-30-5-mixed-and-unfinished-resends-say-how-far-they-got.md (orchestrator ruling U-183) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: 30.5 plan, Lane B need 1: the page picks result.* from Live.Payload.Incident (Conventions Result texts); web/ is Lane B's (AD-33)
 - 2026-10-31T06:20:20Z status=routed owner=31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=orchestrator note=U-183: Lane B display part of 30.5's stopped-partway result; 30.5 lands the Lane A payload field and the catalog text
+- 2026-11-02T15:14:11Z status=resolved-by:31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=adjudication note=approval-view.ts_resultView_picks_result.stoppedPartway(unreached>0,ResultKey_order);catalog.mjs+catalog.ts;approval-view.test.mjs+A11(approval-card.spec.ts)
 
 ### DW-473: The page has no 'still resending' result band for a fix run still running after FixExecutor's 60-second wait, and the counts so far are stored nowhere the page reads them
 - source: spec-30-5-mixed-and-unfinished-resends-say-how-far-they-got.md (orchestrator ruling U-183) | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: 30.5 plan, Lane B need 2: Live.Payload.Incident fills a request's result only from an ended run; the chat notice uses result.stillResending (30.5)
 - 2026-10-31T06:20:20Z status=routed owner=31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=orchestrator note=U-183: Lane B display part (the still-resending band)
+- 2026-11-02T15:14:11Z status=resolved-by:31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=adjudication note=fixing_line_is_the_still-resending_state(U-211_kept);incident-view/approval-view_tests_pin_no_band_for_executing_with_no_result;counts_residual_DW-585
 
 ### DW-457: A WebSocket keeps serving its session for up to its 60 s lifetime after sign-out, because the socket's CSP session never sees the sign-out; add a server-side sign-out check (a mark set at sign-out and read on each socket loop)
 - source: spec-31-1-push-live-events-over-a-websocket-on-local-installs.md | severity: med | fix-risk: med | footprint: out-of-footprint
@@ -2844,6 +2847,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: iris (install-upgrade) attempt 1 red only on live:cards A7 after a 2.0 min test timeout in page.waitForResponse; every other unit and group green; attempt 2 of the same job green on the same sha; Story 5.12 touched no web or cards file
 - 2026-10-31T16:42:54Z status=routed owner=burndown by=ci note=flake class, filed at CI resolution point 1 (Story 5.12); fix: find why the first state GET can miss the 120 s window under the install-upgrade group's load (sign-in wait or the response predicate)
 - 2026-10-31T16:43:23Z owner=31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=burndown note=overflow at Epic 5's burn-down gate (re-open for Story 5.12): the approval-card spec is Lane B's (Epic 6); Story 31.2, Lane B's hardening story on approval requests, is the next story to touch that path; one occurrence, under the cap, so no burn-down story was chartered
+- 2026-11-02T15:14:11Z status=resolved-by:31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=adjudication note=A7_signs_in_over_HTTP(signInOverHttp),no_open();floor.ts_untouched
 
 ### DW-498: Story 5.12's invalid-reply warning logs $SYSTEM.Status.GetErrorText of the reply check, and for a MAXLEN or datatype failure that text quotes the offending value (the model's own reply content), which U-193's condition forbids: the warning must name the failing property and the limit (for example 'Evidence element 6: 42 > 32') and quote none of the reply
 - source: orchestrator: U-193's condition (#581) checked against Story 5.12's merged code (14de8018) | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -2928,6 +2932,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Story 4.9 notes: stacked header 157px/180px at 320px wide; G4 amended to at most a quarter of the viewport (U-202)
 - 2026-11-01T12:30:52Z status=routed owner=31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=merge_gate note=Planner: where the stacked header would pass a quarter of the window's height it scrolls with the page (lean: position static below 480px), or a menu below 1024px, the cheaper; 1.0.0 only at no date cost to Epic 31, else the first daily release after 1.0.0
 - 2026-11-01T19:39:55Z occurrence=4-9-a-demo-view-switch-shows-the-page-as-it-looks-on-your-own-in note=4.9_code_review:at_320px_the_stacked_demo_header_measures_157-180px,over_a_quarter_of_windows_under_~720px_high(U-202_bound)
+- 2026-11-02T15:14:11Z status=resolved-by:31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=adjudication note=header.ts_scrolls_class_where_over_a_quarter_of_the_window;layout_G4(320x180,resize_back_to_sticky)
 
 ### DW-544: An invalid diagnose reply whose nested field (fixParameters.field/sourceFormat/targetFormat, itemNoun.one/other) breaks its MAXLEN gets the warning 'ERROR #9406' with no property, limit or length: RefusalImport matches the #9406 field only among the reply class's own properties
 - source: spec-30-6-the-invalid-reply-warning-names-what-failed-never-the-reply.md | severity: med | fix-risk: med | footprint: in-story
@@ -2943,11 +2948,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: Contest Planner: Epic 4 host check on 374f958e, 2026-11-01 | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: host browser check at 640x360 scale 2
 - 2026-11-01T20:13:34Z status=routed owner=31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=merge_gate note=the finish state wraps to full width below the breakpoint; with DW-530, 1.0.0 only at no date cost
+- 2026-11-02T15:14:11Z status=resolved-by:31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=adjudication note=demo-guide.ts_compact_stacked_.finish_full_width;guide_M9
 
 ### DW-543: At 1280x800 the empty chat opens scrolled to the bottom, so the welcome block's heading is clipped at the top
 - source: Contest Planner: Epic 4 host check on 374f958e, 2026-11-01 | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: host browser check at 1280x800
 - 2026-11-01T20:13:34Z status=routed owner=31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=merge_gate note=cosmetic; the empty chat opens at its top; only if cheap, with DW-530's no-date-cost rule
+- 2026-11-02T15:14:12Z status=resolved-by:31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=adjudication note=chat-panel.ts_fresh_chat_exempt_from_bottom-follow;chat_C16
 
 ### DW-556: Web.Live copies Api.IsCursor (?1.15N) and Api.CurrentSession's SessionRef+RefIndexOpen pair, both Private in the contended Web/Api.cls (Rule 2 spec-forced copy)
 - source: spec-31-1-push-live-events-over-a-websocket-on-local-installs.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -2985,3 +2992,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: _bmad-output/implementation-artifacts/spec-31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv.md | severity: low | fix-risk: med | footprint: out-of-footprint
 - evidence: Incident.cls:144-147 (Lane A); spec-30-5 row 2 (FixRun has no EndedAt and no counts while executing); Watch.Notice ResultSlots needs completed/count
 - 2026-11-02T14:20:12Z status=routed owner=burndown by=harvest note=U-211 kept (Contest Planner, 2026-11-02T09:22:13Z#640): post-1.0.0 Lane A story (Fix/Run.cls, Live/Payload/Incident.cls); not 1.0.0 scope
+
+### DW-586: docker/tests/test-cards.sh (lines 6, 77, 83) and test-answers.sh (line 7) still word the cards unit's approval cases as A2-A10 after Story 31.2 added A11
+- source: spec-31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: playwright-projects.test.mjs now pins A2 to A11 (20 cases); the two scripts' comments and pass/fail lines say A2-A10; docker/tests/** is in Epic 13's and Epic 15's footprints (contended)
+- 2026-11-02T15:12:18Z status=wontfix-accepted owner=31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=cr note=reopen_if=a story that owns docker/tests/ edits test-cards.sh or test-answers.sh (fix the wording then)
+
+### DW-587: web/e2e/cards/approval-card.spec.ts iconPaths is a near-copy of web/e2e/answers/close-loop.spec.ts iconPaths (Rule 2); its shared home, web/e2e/support/, and close-loop.spec.ts are outside Story 31.2's footprint
+- source: spec-31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: the two functions read src/app/icon/icon.ts the same way (31.2's adds a non-empty guard); unifying needs web/e2e/support/ and close-loop.spec.ts, both on the spec's Never list
+- 2026-11-02T15:12:18Z status=wontfix-accepted owner=31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=cr note=reopen_if=a third e2e spec reads icon paths from icon.ts, or a story editing web/e2e/support/ can host the helper
