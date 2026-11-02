@@ -3,6 +3,8 @@
 ///   - HasSpend: whether the turn spent a request or a token, so that a Chat that threw still gets its row;
 ///   - Largest: the largest request of a turn, the larger of the last request's measured input and the estimates of the other requests;
 ///   - FromStats: the unsaved row of one Chat, from the request, the two stats readings, the last response's usage and the estimates;
+///   - FromEstimate: the unsaved row of one compaction summarizer request, whose tokens AI Hub does not report, from the sizes of what was
+///     sent and what came back;
 ///   - Totals: the sums over the rows of one decision, which Decide puts on its Decision row and its answer.
 Class OcuTalon.Bridge.Data.Usage Extends %Persistent
 {
@@ -133,6 +135,38 @@ ClassMethod FromStats(request As OcuTalon.Bridge.Msg.Request, agent As %String, 
 	Set row.LargestRequestTokens = largest
 	Set row.CostUSD = ##class(OcuTalon.Bridge.Data.Price).CostFor(model, prompt, cacheRead, cacheWrite, output, largest, requests)
 	Set row.Estimated = 0
+	Set row.RecordedAt = ##class(OcuTalon.Bridge.Time).NowUtc()
+	Quit $$$OK
+}
+
+/// Builds the unsaved row of one compaction summarizer request (AD-20) in row and returns OK. AI Hub's GetStats() never counts the
+/// summarizer's tokens, so the row is an estimate (Estimated 1) from the sizes in characters, at StepBuffer.CHARSPERTOKEN characters a token:
+///   - Agent is compaction and RequestCount 1; DecisionRef, ItemId, Kind, OwnerRef and Channel come from the request; Model is given;
+///   - InputTokens and LargestRequestTokens are the tokens of inputChars (the prompt and the transcript of the summarized messages);
+///   - OutputTokens is the tokens of outputChars (the stored summary; 0 when the request threw), and there is no cache read or write;
+///   - CostUSD is Price.CostFor of the model for those counts, empty when no Price row has it; RecordedAt is the current UTC time.
+ClassMethod FromEstimate(request As OcuTalon.Bridge.Msg.Request, model As %String, inputChars As %Integer, outputChars As %Integer, Output row As OcuTalon.Bridge.Data.Usage) As %Status
+{
+	Set row = ""
+	If '$IsObject(request) Quit $$$ERROR($$$GeneralError, "No request, so no compaction usage row can be built")
+	Set input = ##class(OcuTalon.Bridge.Adapter.StepBuffer).Tokens(inputChars)
+	Set output = ##class(OcuTalon.Bridge.Adapter.StepBuffer).Tokens(outputChars)
+	Set row = ..%New()
+	Set row.DecisionRef = request.DecisionRef
+	Set row.ItemId = request.ItemId
+	Set row.Kind = request.Kind
+	Set row.OwnerRef = request.OwnerRef
+	Set row.Channel = request.Channel
+	Set row.Agent = "compaction"
+	Set row.Model = model
+	Set row.RequestCount = 1
+	Set row.InputTokens = input
+	Set row.OutputTokens = output
+	Set row.CacheReadTokens = 0
+	Set row.CacheWriteTokens = 0
+	Set row.LargestRequestTokens = input
+	Set row.CostUSD = ##class(OcuTalon.Bridge.Data.Price).CostFor(model, input, 0, 0, output, input, 1)
+	Set row.Estimated = 1
 	Set row.RecordedAt = ##class(OcuTalon.Bridge.Time).NowUtc()
 	Quit $$$OK
 }
