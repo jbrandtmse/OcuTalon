@@ -205,3 +205,7 @@
 2026-11-01T19:32:33Z	Story 12.6	ci_resolved	story=12.6 sha=b14f7527 runs=41334145441,41334145439 result=success failed=none via=none resolved_at=epic_end attempts=ci:2(shards-2_rerun_flake_DW-540),lane-a:1 ci_groups=shards:29m,shards-2:37m(incl_MB9_timeout),install-upgrade:31m,browser:34m,install-fresh:33m,image:34m,production:32m(Run_the_group_step_time;attempt_1)
 2026-11-01T19:32:45Z	Story 12.7	story_waiting	story=12-7-approve-or-reject-from-telegram-and-every-copy-shows-who-ans on=11 note=not_planned;no_code_to_set_aside;epic11_not_merged_at_2026-11-01T19:32:45Z(origin/OCT-epic11_not_ancestor_of_feature)
 2026-11-01T19:32:45Z	Epic 12	runner_ended	reason=waiting waiting_on=11 stories_done_this_dispatch=12.3,12.4,12.5,12.6 last_code_head=b14f7527(ci_success) inbox=none applied=none
+2026-11-02T13:25:26Z	Epic 12	runner_unattended_start	run=20261026T1518Z-1-37 policy=ff1bd1a doctrine=3d11cec note=redispatch_after_11_part1 lane=A slot=ocutalon-slot-a runner=A web_port=52801 head=1e79ecdb model=claude-opus-5-5
+2026-11-02T13:25:26Z	Epic 12	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-11-02T13:25:26Z	Epic 12	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh visibility=PUBLIC
+2026-11-02T13:25:26Z	Epic 12	launch_env	depth=4 watchdog=1 bash_max_ms=default
