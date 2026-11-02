@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 11-02-2026 01:46
+last_updated: 11-02-2026 02:13
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -371,7 +371,7 @@ development_status:
   epic-39-retrospective: optional
 
   epic-40: in-progress
-  40-1-fix-the-persona-s-names-contracts-and-preset-texts: in-progress
+  40-1-fix-the-persona-s-names-contracts-and-preset-texts: review
   40-2-save-your-persona-and-let-ocutalon-propose-one: backlog
   40-3-the-persona-reaches-chat-and-triage-as-a-data-block: backlog
   40-4-the-persona-card: backlog
