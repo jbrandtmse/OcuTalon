@@ -3278,3 +3278,18 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: _bmad-output/implementation-artifacts/spec-31-5-a-tool-call-s-approval-request-reaches-the-phone-with-approv.md | severity: low | fix-risk: low | footprint: in-epic
 - evidence: spec-31-5 re-plan W3 (deferred item); Web/Api.cls RailBody serves Ownership.Approvals (pending only); U-222
 - 2026-11-02T18:27:51Z status=routed owner=burndown by=spec_gate note=first daily release after 1.0.0 (U-222); U-222 kept at=2026-11-02T18:27:03Z#671 with one condition: the reloaded card shows no pending cue, which is Story 31.6's
+
+### DW-595: Telegram press alert for an approved tool call: AnswersIn.TelegramCode answers approved with no count or noun for a tool_call (no dry run), and TelegramIn renders press.approved (Repairing and resending {count} {itemNoun}), which has no tool-call form
+- source: _bmad-output/implementation-artifacts/spec-31-5-a-tool-call-s-approval-request-reaches-the-phone-with-approv.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: Core/AnswersIn.cls :86-100 (slots from the dry run only); Msg/Catalog/Core.cls press.approved :52-58; TelegramOut is a stub on OCT-epic31
+- 2026-11-02T20:59:30Z status=routed owner=12-7-approve-or-reject-from-telegram-and-every-copy-shows-who-ans by=harvest note=Story 31.5 harvest: Telegram's press alert for a tool call belongs to Epic 12's TelegramIn (Story 12.7); cross-epic, the orchestrator plans the bullet
+
+### DW-596: Tool-call result reasons from Story 30.7 (U-214 unreachable-endpoint sentences, U-170 no-key wording) do not reach toolCall.failedWithReason: BridgeSink's reason allowlist holds only Decide's HELDBEFOREUPDATE, so a replayable row's failed result sends toolCall.failed with no reason
+- source: _bmad-output/implementation-artifacts/spec-31-5-a-tool-call-s-approval-request-reaches-the-phone-with-approv.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: U-214 (#650); Story 30.7 set aside (deferred after the v1.0.0 tag); the texts exist nowhere in src/
+- 2026-11-02T20:59:30Z status=wontfix-accepted owner=31-5-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=harvest note=reopen_if=Story 30.7 is planned and its replay-failure reasons exist in a catalog (then add them to BridgeSink.HeldReasons)
+
+### DW-597: live answers close-loop C1 red locally at the 31.5 baseline: the result band reads All 50 messages went through where the case expects All 50 orders went through (incident row with no itemNoun falls back to messages; inference)
+- source: _bmad-output/implementation-artifacts/spec-31-5-a-tool-call-s-approval-request-reaches-the-phone-with-approv.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: ci/iris.sh live answers fresh, with and without 31.5: 1 failed (C1), 20 passed; web/e2e/answers/close-loop.spec.ts:62,:159
+- 2026-11-02T20:59:30Z status=open owner=31-5-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=harvest note=investigate at 31.5 smoke: reproduce, compare with CI's live:answers, classify
