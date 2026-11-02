@@ -16,15 +16,21 @@
 #   - dry: the mock, a dry-run rehearsal and a non-release upgrade give RESULT dry run and exit 3; a failure still wins;
 #   - checks: dev-only and public-text fail with file:line and without the planted text (a local path, key-like text, the inspiration's
 #     name outside the not-affiliated note), and pass for the note word for word;
+#   - defaults: with no path options the record, the evaluation and the notes are at their own default paths; the tracker is read from the
+#     candidate commit (not the working tree) and --candidate may name another commit than the checked-out one;
 #   - integration: the checklist's row_public_text, sourced, reads the draft at the default notes path;
-#   - refusals: each exits 2 with one line and writes nothing (an option value starting with "-", a notes file that is an input, a
-#     draft that cannot be completed); --replace rewrites an existing file;
-#   - no-network: stubs for curl, wget, gh, ssh and nc leave no marker;
+#   - refusals: each exits 2 with one line and writes nothing (an option value starting with "-", a notes file that is an input or a
+#     tracked file, a draft that cannot be completed); --replace rewrites an existing file;
+#   - no-network: the stubs for curl, wget, gh, ssh and nc are live (a call leaves a marker), and a run leaves none;
 #   - library: release_previous_tag and names_outside_section;
-#   - static: the rules on release/notes.sh and on this file;
-#   - real-tree: the real mapping parses, names real story headings, and a run on HEAD with temporary inputs reads as the spec says.
-# The samples that break a rule are built by concatenation, so that this file keeps the rules it tests. Prints one PASS or FAIL line per
-# rule; exits 0 only when all pass.
+#   - static: the rules on release/notes.sh and on this file; the not-affiliated note of release/notes.sh, release/checklist.sh and
+#     README.md is one text; names_outside_section finds nothing in README.md, as the README's own rule does;
+#   - real-tree: the real mapping parses and names real story and epic headings; a run on a fresh repository holding the real scripts,
+#     mapping, module.xml, tracker and epics.md of HEAD (no tag) passes stories, dev-only and public-text, and its areas row passes or
+#     fails only for epics outside release 1 (RELEASE1_EPICS); notes.sh itself still fails areas for such an epic.
+# Every run of notes.sh is checked for a network stub call and a temporary folder left behind (after_run). The samples that break a rule
+# are built by concatenation, so that this file keeps the rules it tests. Prints one PASS or FAIL line per rule; exits 0 only when all
+# pass.
 set -u
 
 root=$(cd "$(dirname "$0")/../.." && pwd -P)
@@ -46,8 +52,11 @@ PERSTEP="per"" step"
 W=$tmp/w
 C=$tmp/c
 netm=$tmp/netmarks
-mkdir -p "$netm" "$tmp/bin"
-net_runs=0
+ntmp=$tmp/ntmp
+mkdir -p "$netm" "$ntmp" "$tmp/bin"
+# The epics of release 1 (epics.md, Epic List): all but the step epics (17 to 28, 33 to 37) and the personality epics (39 to 41), which
+# merge only after release/1.0.0-rc1 exists. The real-tree run tolerates an unmapped epic outside this list and fails on one inside it.
+RELEASE1_EPICS=" 0 1 2 3 4 5 6 7 8 9 10 11 12 13 14 15 16 29 30 31 32 38 "
 bad=0
 fails_total=0
 out=""
@@ -200,10 +209,22 @@ commit_all() {
   ready
 }
 
+after_run() { # after_run: a run of notes.sh called no network stub and left no temporary folder
+  if [ -n "$(ls -A "$netm")" ]; then
+    echo "  a network stub was called: $(ls "$netm" | tr '\n' ' ')"
+    rm -f "$netm"/*
+    bad=1
+  fi
+  if [ -n "$(ls -A "$ntmp")" ]; then
+    echo "  a run left a temporary folder behind"
+    rm -rf "${ntmp:?}"/*
+    bad=1
+  fi
+}
 run_notes() { # run_notes <args>: sets out and rc
-  net_runs=$((net_runs + 1))
-  out=$(cd "$W" && NETMARK=$netm PATH="$tmp/bin:$PATH" bash release/notes.sh "$@" 2>&1)
+  out=$(cd "$W" && NETMARK=$netm TMPDIR=$ntmp PATH="$tmp/bin:$PATH" bash release/notes.sh "$@" 2>&1)
   rc=$?
+  after_run
 }
 run_std() { run_notes --version 1.0.0 --rc 1 --record "$rec" --eval "$ev" --notes "$notes" "$@"; }
 
@@ -224,10 +245,13 @@ expect_only() { # expect_only <label> <exit> <result> <failed rows, space separa
 # --- the rules ---
 
 t_base() {
-  local before d pub dev
+  local before refs d pub dev
   newcase
   before=$(sums)
+  refs=$(git -C "$W" for-each-ref)
   run_std
+  eq "base: no tracked file changed" "$(git -C "$W" status --porcelain)" ""
+  eq "base: no tag or branch made" "$(git -C "$W" for-each-ref)" "$refs"
   eq "base: exit" "$rc" 0
   has "base: result" "$out" "RESULT draft"
   eq "base: all seven rows pass, in order" "$(passed_rows)" "stories areas eval rehearsal upgrade dev-only public-text "
@@ -290,6 +314,10 @@ t_base() {
   has "base: upgrade checks heading" "$dev" "### Upgrade checks"
   has "base: upgrade table row" "$dev" "| Reminder | pass | kept |"
   lacks "base: the sha of the rehearsal's Candidate line is not copied" "$d" "branch release"
+  lacks "base: the rehearsal's Specs: line is not copied" "$d" "Specs: the REL-2"
+  lacks "base: no Run: line is copied" "$d" "Run: 2026-11-01"
+  lacks "base: the upgrade's Required: line is not copied" "$d" "Required: yes"
+  lacks "base: the upgrade's Candidate: line is not copied" "$d" "Candidate: 1.0.0 at"
 }
 
 t_later() {
@@ -601,6 +629,39 @@ t_checks() {
   expect_only "the note and the name again" 1 fail "public-text "
 }
 
+t_defaults() {
+  local d
+  # With no --record, --eval, --notes, --candidate or --areas, the defaults are the record's, the evaluation's and the notes' own paths.
+  newcase
+  mkdir -p "$W/release/records/1.0.0" "$W/eval"
+  cp "$rec" "$W/release/records/1.0.0/rc1.md"
+  cp "$ev" "$W/eval/release-candidate.json"
+  run_notes --version 1.0.0 --rc 1
+  eq "defaults: exit" "$rc" 0
+  has "defaults: result" "$out" "RESULT draft"
+  has "defaults: the notes line" "$out" "NOTES release/records/1.0.0/rc1-notes.md"
+  eq "defaults: the notes file" "$([ -f "$W/release/records/1.0.0/rc1-notes.md" ] && echo yes)" yes
+  eq "defaults: nothing else written beside the record" "$(ls -A "$W/release/records/1.0.0" | tr '\n' ' ')" "rc1-notes.md rc1.md "
+  eq "defaults: the record is unchanged" "$(cksum < "$W/release/records/1.0.0/rc1.md")" "$(cksum < "$rec")"
+  # The tracker comes from the candidate commit, not from the working tree.
+  write_tracker "$W/_bmad-output/implementation-artifacts/sprint-status.yaml" "  1-4-extra-chat: done"
+  run_notes --version 1.0.0 --rc 1 --replace
+  has "working tree: the stories row" "$out" "PASS stories 7 stories"
+  lacks "working tree: an uncommitted story is not listed" "$(cat "$W/release/records/1.0.0/rc1-notes.md")" "Extra chat"
+  # --candidate names another commit than the checked-out one.
+  newcase
+  git -C "$W" checkout -q -b other
+  write_tracker "$W/_bmad-output/implementation-artifacts/sprint-status.yaml" "  1-4-extra-chat: done"
+  commit_all
+  git -C "$W" checkout -q release/1.0.0-rc1
+  run_std --candidate other
+  d=$(draft)
+  eq "another candidate: exit" "$rc" 0
+  has "another candidate: the stories row" "$out" "PASS stories 8 stories"
+  has "another candidate: its story" "$d" "- Extra chat"
+  has "another candidate: its sha" "$d" "at $(git -C "$W" rev-parse other). Edit it"
+}
+
 t_integration() {
   local o
   newcase
@@ -641,7 +702,9 @@ t_refusals() {
     refused "an rc that is not a number" --version 1.0.0 --rc x $std
     refused "an option without a value" --version 1.0.0 --rc 1 --record
     refused "an option value that is the next option" --version 1.0.0 --rc 1 --record --eval "$ev" --notes "$notes"
+    has "an option value that is the next option: says so" "$out" "REFUSED --record needs a value"
     refused "a candidate that starts with a dash" --version 1.0.0 --rc 1 --candidate -x $std
+    has "a candidate that starts with a dash: says so" "$out" "REFUSED --candidate needs a value"
     refused "a notes value that starts with a dash" --version 1.0.0 --rc 1 --record "$rec" --eval "$ev" --notes -x
     refused "an unknown candidate" --version 1.0.0 --rc 2 $std
     refused "a version that differs from module.xml" --version 1.0.1 --rc 1 --candidate HEAD $std
@@ -657,13 +720,17 @@ t_refusals() {
     refused "notes is a link to the record" --version 1.0.0 --rc 1 --record "$rec" --eval "$ev" --notes "$C/rec-link.md" --replace
   }
   eq "the inputs are unchanged by those refusals" "$(cat "$rec" "$ev" "$W/release/notes-areas.txt" | cksum)" "$sum"
+  # Nor a tracked file of the repository, even with --replace.
+  refused "notes is a tracked file" --version 1.0.0 --rc 1 --record "$rec" --eval "$ev" --notes src/module.xml --replace
+  has "notes is a tracked file: says so" "$out" "REFUSED the notes file src/module.xml is a tracked file of the repository"
+  eq "notes is a tracked file: the tree is unchanged" "$(git -C "$W" status --porcelain)" ""
   # A draft that cannot be completed is never moved into place, and no temporary file stays.
   mkdir -p "$tmp/failbin"
   printf '#!/bin/sh\ncase "$*" in *intro.txt*) exit 1 ;; esac\nexec /bin/cat "$@"\n' > "$tmp/failbin/cat"
   chmod 755 "$tmp/failbin/cat"
-  net_runs=$((net_runs + 1))
-  out=$(cd "$W" && NETMARK=$netm PATH="$tmp/failbin:$tmp/bin:$PATH" bash release/notes.sh --version 1.0.0 --rc 1 --record "$rec" --eval "$ev" --notes "$notes" 2>&1)
+  out=$(cd "$W" && NETMARK=$netm TMPDIR=$ntmp PATH="$tmp/failbin:$tmp/bin:$PATH" bash release/notes.sh --version 1.0.0 --rc 1 --record "$rec" --eval "$ev" --notes "$notes" 2>&1)
   rc=$?
+  after_run
   eq "a draft that fails: exit" "$rc" 2
   has "a draft that fails: REFUSED" "$out" "REFUSED the draft could not be written"
   eq "a draft that fails: one line" "$(printf '%s\n' "$out" | wc -l | tr -d ' ')" 1
@@ -672,9 +739,9 @@ t_refusals() {
   # A shallow repository.
   rm -rf "$tmp/shallow"
   git clone -q --depth 1 "file://$tmp/base" "$tmp/shallow" 2> /dev/null
-  net_runs=$((net_runs + 1))
-  out=$(cd "$tmp/shallow" && git checkout -q release/1.0.0-rc1 2> /dev/null; NETMARK=$netm PATH="$tmp/bin:$PATH" bash release/notes.sh --version 1.0.0 --rc 1 --candidate HEAD --record "$rec" --eval "$ev" --notes "$notes" 2>&1)
+  out=$(cd "$tmp/shallow" && git checkout -q release/1.0.0-rc1 2> /dev/null; NETMARK=$netm TMPDIR=$ntmp PATH="$tmp/bin:$PATH" bash release/notes.sh --version 1.0.0 --rc 1 --candidate HEAD --record "$rec" --eval "$ev" --notes "$notes" 2>&1)
   rc=$?
+  after_run
   eq "a shallow repository: exit" "$rc" 2
   has "a shallow repository: says so" "$out" "REFUSED the repository is shallow"
   eq "a shallow repository: nothing written" "$([ -e "$C/out" ] && echo yes)" ""
@@ -682,9 +749,9 @@ t_refusals() {
   rm -rf "$tmp/nogit"
   mkdir -p "$tmp/nogit"
   cp -R "$tmp/base/release" "$tmp/base/docker" "$tmp/nogit/"
-  net_runs=$((net_runs + 1))
-  out=$(cd "$tmp/nogit" && NETMARK=$netm PATH="$tmp/bin:$PATH" bash release/notes.sh --version 1.0.0 --rc 1 $std 2>&1)
+  out=$(cd "$tmp/nogit" && NETMARK=$netm TMPDIR=$ntmp PATH="$tmp/bin:$PATH" bash release/notes.sh --version 1.0.0 --rc 1 $std 2>&1)
   rc=$?
+  after_run
   eq "not a git repository: exit" "$rc" 2
   has "not a git repository: says so" "$out" "is not the root of a git repository"
   has "not a git repository: REFUSED" "$out" "REFUSED "
@@ -707,8 +774,17 @@ t_refusals() {
 }
 
 t_nonetwork() {
-  [ "$net_runs" -gt 0 ] || { echo "  no stubbed run happened before this rule"; bad=1; }
-  eq "no stub was called" "$(ls "$netm" | tr '\n' ' ')" ""
+  local n
+  # The stubs are live: each, called through the PATH that every run uses, leaves its marker.
+  for n in curl wget gh ssh nc; do
+    (NETMARK=$netm PATH="$tmp/bin:$PATH" "$n" x > /dev/null 2>&1)
+  done
+  eq "no-network: every stub leaves its marker" "$(ls "$netm" | tr '\n' ' ')" "curl gh nc ssh wget "
+  rm -f "$netm"/*
+  # A full real-mode run calls none of them (after_run checks the markers).
+  newcase
+  run_std
+  eq "no-network: a real-mode run" "$rc" 0
 }
 
 t_library() {
@@ -742,6 +818,9 @@ t_library() {
   printf 'plain\nSee ##class(A.B).C() here\n## For admins and developers\nIn ##class(A.B).C() it is fine\n## Other\nERROR #5001 outside\nFine text, Node.js too\n' > "$tmp/sec.md"
   o=$(. "$root/docker/tests/lib-scan.sh"; names_outside_section '## For admins and developers' "$tmp/sec.md" | tr '\n' ' ')
   eq "names_outside_section: lines outside the section" "$o" "$tmp/sec.md:2 $tmp/sec.md:6 "
+  printf 'An <UNDEFINED> error\n%s here\nPlain words, v1.0.0 and 3.5 are fine\n## For admins and developers\n<UNDEFINED> in the section\n' "$PLANT_CLASS" > "$tmp/sec2.md"
+  o=$(. "$root/docker/tests/lib-scan.sh"; names_outside_section '## For admins and developers' "$tmp/sec2.md" "$tmp/sec.md" | tr '\n' ' ')
+  eq "names_outside_section: an error name, a dotted class name, two files" "$o" "$tmp/sec2.md:1 $tmp/sec2.md:2 $tmp/sec.md:2 $tmp/sec.md:6 "
   o=$(. "$root/docker/tests/lib-scan.sh"; names_outside_section '## Other' "$tmp/sec.md" | tr '\n' ' ')
   eq "names_outside_section: the heading is a parameter" "$o" "$tmp/sec.md:2 $tmp/sec.md:4 "
 }
@@ -775,39 +854,105 @@ t_static() {
   o=$(static_hits release/notes.sh)
   eq "release/notes.sh keeps the static rules" "$o" ""
   o=$(static_hits docker/tests/test-release-notes.sh | grep -v -e 'a banned phrase' -e 'the name' -e 'an outward string')
-  eq "this file is executable and ASCII, with a main guard-free body" "$(printf '%s\n' "$o" | grep -e 'not executable' -e 'not ASCII' -e 'not mode')" ""
+  eq "this file is executable, mode 100755 and ASCII" "$(printf '%s\n' "$o" | grep -e 'not executable' -e 'not ASCII' -e 'not mode')" ""
   eq "this file does not spell the name" "$(grep -c -i -e '[o]pen[c]law' docker/tests/test-release-notes.sh)" 0
   eq "this file does not spell the banned phrases" "$(grep -c -F -e "$COUCH" -e "$PERSTEP" docker/tests/test-release-notes.sh)" 0
   eq "release/notes-areas.txt is ASCII" "$(LC_ALL=C grep -c '[^[:print:][:space:]]' release/notes-areas.txt)" 0
+  # One not-affiliated note: the draft's (release/notes.sh), the checklist's (release/checklist.sh) and the README's line.
+  eq "the note of release/notes.sh" "$(. release/notes.sh; printf '%s' "$notes_note")" "$NOTE"
+  eq "the note of release/checklist.sh" "$(. release/checklist.sh; printf '%s' "$CK_NOTE")" "$NOTE"
+  [ "$(grep -c -F -- "$NOTE" README.md)" -gt 0 ] || { echo "  README.md does not hold the note word for word"; bad=1; }
+  # names_outside_section is the README's own developer-section rule (dev_names of test-readme.sh): it finds nothing there either.
+  eq "names_outside_section on README.md" "$(. docker/tests/lib-scan.sh; names_outside_section '## For admins and developers' README.md)" ""
+}
+
+areas_ok_real() { # areas_ok_real: the areas row of $out passes, or fails only for unmapped epics outside RELEASE1_EPICS
+  local l e
+  l=$(printf '%s\n' "$out" | grep -m 1 -E '^(PASS|FAIL) areas ')
+  case $l in
+    "PASS areas "*) return 0 ;;
+    "FAIL areas no area for epic "*) ;;
+    *) return 1 ;;
+  esac
+  l=${l#FAIL areas no area for }
+  case $l in *";"*) return 1 ;; esac
+  for e in $(printf '%s\n' "$l" | tr ',' '\n' | sed 's/^ *epic //'); do
+    case $e in "" | *[!0-9]*) return 1 ;; esac
+    case $RELEASE1_EPICS in *" $e "*) return 1 ;; esac
+  done
+  return 0
+}
+
+mkreal() { # mkreal <dir>: a fresh repository (no tag) with the real scripts and mapping, and HEAD's module.xml, tracker and epics.md
+  local r=$1 f
+  rm -rf "$r"
+  for f in release/notes.sh release/lib-release.sh release/notes-areas.txt docker/tests/lib-scan.sh docker/tests/lib-keys.sh; do
+    mkdir -p "$r/$(dirname "$f")"
+    cp -p "$f" "$r/$f"
+  done
+  for f in src/module.xml _bmad-output/implementation-artifacts/sprint-status.yaml _bmad-output/planning-artifacts/epics.md; do
+    mkdir -p "$r/$(dirname "$f")"
+    git show "HEAD:$f" > "$r/$f"
+  done
+  git init -q "$r" && git -C "$r" add -A && git -C "$r" commit -q -m real
+}
+
+run_real() { # run_real <dir> <args>: notes.sh in the fresh repository on its HEAD, with temporary inputs; sets out and rc
+  local r=$1
+  shift
+  out=$(cd "$r" && NETMARK=$netm TMPDIR=$ntmp PATH="$tmp/bin:$PATH" bash release/notes.sh --version "$version" --rc 1 --candidate HEAD \
+    --record "$d/rc1.md" --eval "$d/none.json" --notes "$d/notes.md" "$@" 2>&1)
+  rc=$?
+  after_run
 }
 
 t_real() {
-  local d version before o stories n
+  local d r version o stories epics n
   d=$tmp/real
+  r=$tmp/realtree
   mkdir -p "$d"
-  # The mapping parses, and every story line names a heading of the real epics.md.
+  # The mapping parses, and every story line names a story heading and every epic line an epic heading of the real epics.md.
   o=$(. release/notes.sh; : > "$d/none.txt"; notes_areas release/notes-areas.txt "$d/none.txt" | grep '^!' | tr '\n' ' ')
   eq "the real mapping parses" "$o" ""
   stories=$(sed -n 's/^### Story \([0-9]*\.[0-9]*\):.*/\1/p' _bmad-output/planning-artifacts/epics.md | sort -u)
+  epics=$(sed -n 's/^## Epic \([0-9]*\):.*/\1/p' _bmad-output/planning-artifacts/epics.md | sort -u)
   n=0
   while read -r kind id _; do
-    [ "$kind" = story ] || continue
-    printf '%s\n' "$stories" | grep -qxF "$id" || { echo "  story $id of the mapping has no heading in epics.md"; bad=1; }
-    n=$((n + 1))
+    case $kind in
+      story)
+        printf '%s\n' "$stories" | grep -qxF "$id" || { echo "  story $id of the mapping has no heading in epics.md"; bad=1; }
+        n=$((n + 1))
+        ;;
+      epic) printf '%s\n' "$epics" | grep -qxF "$id" || { echo "  epic $id of the mapping has no heading in epics.md"; bad=1; } ;;
+    esac
   done < release/notes-areas.txt
   [ "$n" -gt 0 ] || { echo "  the real mapping holds no story line"; bad=1; }
-  version=$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' src/module.xml | head -n 1)
-  before=$(ls -A release/records 2> /dev/null | tr '\n' ' ')
-  net_runs=$((net_runs + 1))
-  out=$(NETMARK=$netm PATH="$tmp/bin:$PATH" bash release/notes.sh --version "$version" --rc 1 --candidate HEAD --record "$d/rc1.md" --eval "$d/none.json" --notes "$d/notes.md" 2>&1)
-  rc=$?
+  # A run on a fresh repository with no tag, so neither the checkout's tags nor an epic outside release 1 decides the result.
+  mkreal "$r"
+  version=$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' "$r/src/module.xml" | head -n 1)
+  run_real "$r"
   eq "real tree: exit" "$rc" 1
   has "real tree: RESULT" "$out" "RESULT fail"
-  eq "real tree: failed rows" "$(failed_rows)" "eval rehearsal upgrade "
-  eq "real tree: passed rows" "$(passed_rows)" "stories areas dev-only public-text "
-  eq "real tree: release/records unchanged" "$(ls -A release/records 2> /dev/null | tr '\n' ' ')" "$before"
+  eq "real tree: failed rows" "$(failed_rows | sed 's/^areas //')" "eval rehearsal upgrade "
+  eq "real tree: passed rows" "$(passed_rows | sed 's/ areas / /')" "stories dev-only public-text "
+  areas_ok_real || { echo "  real tree: $(printf '%s\n' "$out" | grep -m 1 '^FAIL areas ') (an epic of release 1, or a mapping line)"; bad=1; }
+  eq "real tree: the repository is unchanged" "$(git -C "$r" status --porcelain)" ""
   eq "real tree: only the notes file" "$(ls -A "$d" | tr '\n' ' ')" "none.txt notes.md "
-  eq "real tree: no network stub was called" "$(ls "$netm" | tr '\n' ' ')" ""
+  # notes.sh itself fails areas for an unmapped epic outside release 1, which the real-tree run tolerates.
+  printf '  40-1-a-later-story: done\n' >> "$r/_bmad-output/implementation-artifacts/sprint-status.yaml"
+  printf '\n### Story 40.1: A later story\n' >> "$r/_bmad-output/planning-artifacts/epics.md"
+  git -C "$r" commit -q -am later
+  run_real "$r" --replace
+  has "a later epic: notes.sh fails areas, naming it" "$out" "FAIL areas no area for epic 40"
+  areas_ok_real || { echo "  a later epic: the real-tree run does not tolerate it"; bad=1; }
+  # An unmapped epic of release 1 is not tolerated.
+  grep -v '^epic 8 ' "$r/release/notes-areas.txt" > "$tmp/areas-no8.txt"
+  run_real "$r" --replace --areas "$tmp/areas-no8.txt"
+  has "an epic of release 1 unmapped: notes.sh fails areas" "$out" "epic 8"
+  if areas_ok_real; then
+    echo "  an epic of release 1 unmapped: the real-tree run tolerates it"
+    bad=1
+  fi
 }
 
 mkbase
@@ -819,6 +964,7 @@ rule inputs t_inputs
 rule eval-forms t_eval_forms
 rule dry t_dry
 rule checks t_checks
+rule defaults t_defaults
 rule integration t_integration
 rule refusals t_refusals
 rule no-network t_nonetwork

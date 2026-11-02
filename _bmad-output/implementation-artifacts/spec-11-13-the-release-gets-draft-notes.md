@@ -155,6 +155,36 @@ deferred:
 - P6 tests -- add: (a) a fixture whose mapping order differs from the epics.md order, asserting the `## ` area order is the mapping's; (b) a `story <e>.<s> <named area>` line that moves a story into another named area, asserting it lands there; (c) `eval` fail-closed cases: no `onMock`, empty `verdict`, a JSON `null` document; (d) a rehearsal section without `Mode:` and one without `Result:`, and the same for the upgrade section, each failing its own row alone; (e) the `t_nonetwork` marker check also after the real-tree rule; (f) the "not a git repository" refusal asserts its own message, not only the `REFUSED` prefix; (g) a differently cased inspiration name outside the note fails `public-text`. Add or update `mutation:` lines in `## Verification` for P1 to P5.
 - Rejected, not to change: previous tag also an rc tag of the same version (candidates are branches, never tags; the spec's tag rule), the blocked/failed gate results being copied (Decided in-stage 5), the real-tree rule's coupling to the tracker (AC8 by design), the class-name regex (the README's own rule).
 
+### Review Findings
+
+Code review 2026-11-02 (bmad-code-review, full mode; four layers; 33 rows, 15 entries after grouping: high 0, med 3, low 12).
+
+- [x] [Review][Patch] DW-557 (MED): the real-tree rule turns the integration branch's CI red for an unmapped epic or a v* tag that leaves no new story [docker/tests/test-release-notes.sh t_real]. Now it runs notes.sh in a fresh repository (`mkreal`) holding the real scripts and mapping plus HEAD's module.xml, tracker and epics.md, with no tag, so the checkout's tags cannot decide the result. `areas_ok_real` accepts `areas` PASS, or FAIL only for unmapped epics outside `RELEASE1_EPICS` (the epics.md Epic List: every epic but 17-28, 33-37 and 39-41). Two self-checks pin it: a planted done story 40.1 makes notes.sh FAIL `areas` naming epic 40, and the tolerance accepts it; a mapping without `epic 8` fails `areas` and the tolerance refuses it. AC8 keeps its mutation, and notes.sh still fails `areas` on a candidate.
+- [x] [Review][Patch] `t_nonetwork` depended on run order and on other rules' markers (MED, Rule 19 hermeticity) [docker/tests/test-release-notes.sh]. Now every run of notes.sh is followed by `after_run`, which fails the running rule on a stub marker or on a temporary folder left in its own `TMPDIR`. `t_nonetwork` is self-contained: every stub leaves its marker when called through the run's PATH, and a fresh real-mode run leaves none.
+- [x] [Review][Patch] DW-558 (LOW): the not-affiliated note of `release/notes.sh` (`notes_note`) and of `release/checklist.sh` (`CK_NOTE`) is compared with the test's own note, and README.md must hold it word for word [docker/tests/test-release-notes.sh t_static].
+- [x] [Review][Patch] `--notes` could name a tracked file and, with `--replace`, overwrite it, against "never ... any tracked file" (LOW) [release/notes.sh notes_main]. Now refused, exit 2 (`git ls-files --error-unmatch`). The header's refusal list says so, and a case in `refusals` pins it.
+- [x] [Review][Patch] AC6's "tags nothing, only the notes file" was unpinned for tracked files and refs (LOW) [docker/tests/test-release-notes.sh t_base]. Now asserted: `git status --porcelain` empty and `for-each-ref` unchanged.
+- [x] [Review][Patch] Temporary folders left in `TMPDIR` were never checked (LOW): `after_run`, above.
+- [x] [Review][Patch] Two P5 refusal cases could not fail: another refusal fired first (LOW) [docker/tests/test-release-notes.sh t_refusals]. They now assert `REFUSED --record needs a value` and `REFUSED --candidate needs a value`.
+- [x] [Review][Patch] The DW-551 name check had no `mutation:` line (LOW, Rule 19). It is demonstrated and recorded under `## Verification`.
+- [x] [Review][Patch] The real mapping's `epic` lines were not checked against epics.md (LOW) [t_real]. Every `epic <n>` line must now name a `## Epic <n>:` heading.
+- [x] [Review][Patch] The record lines left out of the draft were unpinned (LOW) [t_base]. Asserted absent: the rehearsal's `Specs:` and `Run:` lines, and the upgrade's `Required:`, `Candidate:` and `Run:` lines.
+- [x] [Review][Patch] A garbled `t_static` label (LOW). It reads "executable, mode 100755 and ASCII" now.
+- [x] [Review][Patch] The header said a class name "appears only in the last section", which Story 11.5's appended section would make false (LOW). It now names `## For admins and developers`. The section order itself is DW-563 (`wontfix-accepted`, reopen_if in the entry).
+- [x] [Review][Defer] The draft notes file is not git-ignored and sits beside the record that Story 11.5 commits [release/lib-release.sh notes_path] -- deferred: DW-560, MED, `routed owner=11-5-one-scripted-sequence-cuts-a-release`.
+- [x] [Review][Defer] `names_outside_section` copies test-readme.sh's `dev_names` [docker/tests/lib-scan.sh] -- deferred: DW-561 `wontfix-accepted` (the spec forces the copy; Epic 10's file). Partly guarded now: t_static runs it on README.md.
+- [x] [Review][Defer] `notes_name_hits` repeats the checklist's strip-the-note awk [release/notes.sh] -- deferred: DW-562 `wontfix-accepted` (the note texts are now compared).
+
+Rejected:
+- `false`: a `done` value wrapped onto the next tracker line would be dropped (Blind, Edge, Auditor). sprint_plan.py caps a slug at 60 characters (`_slug`), so a `key: done` line is at most about 76 characters, under ruamel's 80-character width. Today's wrapped keys are `ready-for-dev` lines only, and no `done` value is wrapped.
+- `low`: a `mktemp` failure inside `notes_stories` reads as "no sprint tracker". The run's own `mktemp` succeeded just before, and the fix adds a return code.
+- `low`: `notes_main` called in-process replaces the caller's EXIT trap and cwd. Story 11.5 runs `bash release/notes.sh`, and sourcing defines functions only.
+- `low`: duplicate mapping lines (the last one wins) and a mistyped area name. The author sees the draft, and the fix adds guards.
+- `false`: `notes_print_rows` fails open on a missing row. `notes_main` writes every row on every path.
+- `false`: the QA stage's changes are uncommitted. The lead commits after the smoke gate.
+- by-design: the integration case computes `ck_notes` with `notes_path`, as the Tasks line prescribes ("call `row_public_text` as `test-release-checklist.sh` does").
+- spec edit: the rule-count and patch-count mismatches in `## Auto Run Result` (14 vs 15 rules), and the ledger-versus-frontmatter state of DW-557 and DW-558. The latter is the lead's adjudication after this review.
+
 ## Spec Change Log
 
 ## Review Triage Log
@@ -421,6 +451,30 @@ Run everything from the epic-11 worktree root, each command in the foreground of
   mutation: drop the `[ ! -s "$d/epics.md" ]` test of `notes_stories` -> `epics` red (an empty epics.md reads `RESULT draft`)
   mutation: compare the trackers by full key (`set[k]` and `k in pset` in `notes_stories`) -> `later` red (a story with a renamed slug is listed as new)
   mutation: drop the `[ "${2#-}" != "$2" ]` test of the option reader -> `refusals` red (`--notes -x` is accepted and a file named `-x` is written)
+
+**QA stage (2026-11-01):** no new file; `docker/tests/test-release-notes.sh` (QA) gained the rule `defaults` (15 rules now, about 20 s) and one `names_outside_section` case (an `<UPPER>` error name, a dotted class name, two files). Mutations re-demonstrated by the QA stage, each reverted and `cmp`-identical to the backup (`git status --short` unchanged):
+- mutation: delete the `if (id in pset) continue` line of `notes_stories` (AC1) -> `later` red
+- mutation: drop `s == 0 ||` from `notes_areas` (AC2) -> `base` red (the 2.0 story is listed under its area)
+- mutation: `if (false) bad(` in place of `if (r.commit !== sha) bad(` (AC3) -> `inputs` red (the other-commit case reads `draft`)
+- mutation: `*) ;;` in place of `*"$sha"*) ;;` in `notes_record_part` (AC4) -> `inputs` red
+- mutation: `'OK'` in place of `r.onMock ? 'MOCK' : 'OK'` (AC5) -> `dry` red (the mock gives exit 0)
+- mutation: `[ "$replace" -eq 9 ]` in the existing-file refusal (AC6) -> `refusals` red
+- mutation: default `--notes` to `release/records/<v>/rc<n>.notes.md` (AC7) -> `defaults` red (and `integration`)
+- mutation: delete the `epic 8` line of `release/notes-areas.txt` (AC8) -> `real-tree` red (`areas` fails)
+- mutation: read the tracker from the working tree (`cat "$NOTES_TRACKER"`) in `notes_stories` -> `defaults` red (an uncommitted story is listed)
+- mutation: drop the `<UPPER>` alternative of `names_outside_section` -> `library` red
+
+**Code review (2026-11-02):** each applied, observed red, and restored from a backup (`cmp` identical; `git status --short` and `git diff --stat` unchanged):
+- mutation: delete the `epic 8` line of `release/notes-areas.txt` (AC8, after the DW-557 patch) -> `real-tree` red (`FAIL areas no area for epic 8`, not tolerated)
+- mutation: drop the `RELEASE1_EPICS` membership test of `areas_ok_real` (DW-557 tolerance) -> `real-tree` red (the unmapped epic 8 is tolerated)
+- mutation: "nor endorsed" in place of "or endorsed" in `CK_NOTE` of `release/checklist.sh` (DW-558) -> `static` red
+- mutation: `if false && git ls-files ...` in the tracked-file refusal of `notes_main` -> `refusals` red (src/module.xml is overwritten)
+- mutation: a `curl -s http://x` call in `notes_main` -> `base` (and every rule that runs notes.sh) red (`after_run`: a network stub was called)
+- mutation: drop `rm -rf "$nt_work"` from the EXIT trap of `notes_main` -> `base` (and every rule that runs notes.sh) red (`after_run`: a temporary folder left behind)
+- mutation: `git tag "v$o_version-draft" "$sha"` in `notes_main` (AC6) -> `base` red (no tag or branch made)
+- mutation: drop the note-removal `while` loop of `notes_name_hits` (DW-551, Decided in-stage 11) -> `checks` red (the note word for word fails `public-text`)
+- After the patches: `test-release-notes.sh` 15 rules green (about 36 s), `test-release-checklist.sh` and `test-boundaries.sh` exit 0.
+- (QA) `docker/tests/test-release-notes.sh`: rule `defaults` (default record, evaluation, notes and candidate paths; tracker read from the candidate commit; `--candidate` naming another commit than the checked-out one) and the library case above. `test-upgrade-harness.sh`, `test-release-checklist.sh`, `test-boundaries.sh` and `test-ci-config.sh` stay green. DW-557 and DW-558 left for the code review.
 
 **Results (implement stage, 2026-11-01):**
 - Real tree (`HEAD` of OcuTalon-epic-11, 128 `done` stories): `PASS stories 128`, `PASS areas 8 areas and 48 developer stories`, FAIL eval, rehearsal and upgrade (no inputs), `PASS dev-only`, `PASS public-text`, `RESULT fail`, exit 1, no `release/records/` folder. Stories per area in the draft: Install, upgrade and sign in 7; The page and the chat 13; The demo 8; Watching productions and incidents 9; Approvals and the audit log 17; Attention decisions and the model 8; Heartbeat and reminders 8; The online demo 10; developer section 48. The run took under 1 s (0.3 s measured with `time`).

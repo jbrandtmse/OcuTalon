@@ -21,7 +21,7 @@
 #   ## How this release was checked   with ### Evaluation, ### Clean-machine rehearsal and ### Upgrade in place
 #   ## For admins and developers      with ### Stories about how OcuTalon is built and tested, ### Rehearsal runs (the record's
 #                                     ### Runs table) and ### Upgrade checks (the upgrade table); a subsection with nothing is left out
-# A class name, ##class( call or error code appears only in the last section.
+# A class name, ##class( call or error code appears only in the "## For admins and developers" section.
 #
 # The rows, one `PASS|FAIL <id> <detail>` line each (a failure names a place as file:line, an epic or a tag, and never the text found):
 #   stories    the tracker (and the previous tag's tracker) and epics.md are readable and at least one story is new
@@ -42,7 +42,7 @@
 # Exit codes: 0 draft; 1 fail; 3 dry run; 2 a refusal with nothing written (an unknown option, a missing --version or --rc, a version
 # that is not x.y.z or differs from src/module.xml at the candidate, an rc that is not a positive whole number, an unknown candidate,
 # a shallow repository, no git repository, an option whose value is missing or starts with "-", a notes file that is the record, the
-# evaluation result or the mapping, or an existing notes file without --replace). Story 11.5 reads RESULT.
+# evaluation result, the mapping or a tracked file, or an existing notes file without --replace). Story 11.5 reads RESULT.
 # The script writes the notes file (through a temporary file beside it) and nothing else: never the record, the evaluation result or a
 # tracked file. It makes no network call and publishes, posts, tags and pushes nothing. It needs bash 3.2, git, awk and node (the JSON is
 # read from the file path given as an argument; a missing node fails the eval row).
@@ -555,6 +555,10 @@ notes_main() {
       return 2
     fi
   done
+  if git ls-files --error-unmatch -- "$notes" > /dev/null 2>&1; then
+    notes_refuse "the notes file $(notes_rel "$notes") is a tracked file of the repository"
+    return 2
+  fi
   if [ -f "$notes" ] && [ "$replace" -eq 0 ]; then
     notes_refuse "the notes file $(notes_rel "$notes") exists; give --replace to rewrite it"
     return 2

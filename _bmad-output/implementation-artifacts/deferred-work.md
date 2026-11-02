@@ -2842,6 +2842,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: release/checklist.sh row_public_text scans the draft for local paths and key-like text only
 - 2026-11-01T23:27:24Z status=routed owner=11-13-the-release-gets-draft-notes by=harvest note=11.13's draft check also refuses the name outside the note (the note verbatim, or nowhere)
 - 2026-11-01T23:52:21Z status=routed owner=11-13-the-release-gets-draft-notes by=cr note=premise corrected: name-only-in-note reads a draft at notes_path (pinned in script-rows); gap is a --notes file outside
+- 2026-11-02T02:32:25Z status=resolved-by:11-13-the-release-gets-draft-notes by=adjudication note=c1da2616 + review patch: notes.sh public-text refuses the inspiration's name outside the not-affiliated note in whichever --notes file it is given (four pinning cases, mutation recorded); 11.4's name-only-in-note already reads a draft at notes_path
 
 ### DW-552: release/checklist.sh ck_rel keeps a --notes or --record path outside the checkout absolute, so the record's Notes: line (or a public-text detail) can hold a local folder
 - source: spec-11-4-the-release-gets-draft-notes-and-a-checklist.md | severity: low | fix-risk: low | footprint: in-story
@@ -2867,8 +2868,30 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-11-13-the-release-gets-draft-notes.md | severity: med | fix-risk: low | footprint: in-story
 - evidence: release/notes-areas.txt maps no line for Epics 17-28, 33-37, 39-41; the real-tree rule calls notes.sh on HEAD
 - 2026-11-02T01:56:39Z status=open owner=11-13-the-release-gets-draft-notes by=harvest note=patch in this story: the self-test's real tree must not fail on an unmapped epic (e.g. pin a fixed tree or tolerate unmapped epics there), while notes.sh itself still fails areas on a candidate
+- 2026-11-02T02:32:25Z status=resolved-by:11-13-the-release-gets-draft-notes by=adjudication note=review patch: test-release-notes.sh real-tree runs notes.sh on a fresh tagless repository built from HEAD's tracker and epics.md, and tolerates unmapped epics outside release 1 (0-16, 29-32, 38) while an unmapped release-1 epic still fails; notes.sh itself still fails areas on a candidate (planted 40.1 self-check)
 
 ### DW-558: The not-affiliated note is spelled in two places (release/checklist.sh CK_NOTE and release/notes.sh's fragments) and nothing compares them with each other or with README.md's line
 - source: spec-11-13-the-release-gets-draft-notes.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: a wording change in one copy would fail correct notes or pass a stale one unseen
 - 2026-11-02T01:56:40Z status=open owner=11-13-the-release-gets-draft-notes by=harvest note=two-way door: a self-test case comparing the two copies and the README line
+- 2026-11-02T02:32:25Z status=resolved-by:11-13-the-release-gets-draft-notes by=adjudication note=review patch: rule static checks notes.sh's notes_note and checklist.sh's CK_NOTE against the note and README.md's line word for word
+
+### DW-560: The draft notes file (notes_path: release/records/<v>/rc<n>-notes.md) sits beside the record that Story 11.5 commits and is not git-ignored, so a record commit that stages the folder commits and pushes the unpublished draft
+- source: spec-11-13-the-release-gets-draft-notes.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: git check-ignore release/records/1.0.0/rc1-notes.md matches no rule (exit 1); epic-11-context says the notes are never committed or pushed; 11.5 commits rc<n>.md
+- 2026-11-02T02:26:59Z status=routed owner=11-5-one-scripted-sequence-cuts-a-release by=cr note=11.5's record commit stages only rc<n>.md (or ignores *-notes.md), with a pinning case that the draft stays untracked
+
+### DW-561: names_outside_section (docker/tests/lib-scan.sh) is a copy of test-readme.sh's dev_names with the heading as a parameter; the two can drift
+- source: spec-11-13-the-release-gets-draft-notes.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Spec Design Notes force the copy: test-readme.sh is Epic 10's read-only file; test-release-notes.sh static now runs names_outside_section on README.md
+- 2026-11-02T02:26:59Z status=wontfix-accepted owner=11-13-the-release-gets-draft-notes by=cr note=reopen_if=dev_names and names_outside_section disagree on README.md, or Epic 10 next edits test-readme.sh's dev_names
+
+### DW-562: notes_name_hits (release/notes.sh) repeats the strip-the-note awk of row_name_only_in_note (release/checklist.sh) instead of sharing one helper
+- source: spec-11-13-the-release-gets-draft-notes.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: Two 1-line strip loops over the same note text; Decided in-stage 11 gives the scan target, not the copy, as the reason; the note texts are now compared
+- 2026-11-02T02:26:59Z status=wontfix-accepted owner=11-13-the-release-gets-draft-notes by=cr note=reopen_if=a third copy of the note-strip scan appears, or one of the two scans changes its matching rule
+
+### DW-563: Story 11.5's update hook adds the online demo section with record_write, which appends it after ## For admins and developers, so public text follows the admin section
+- source: spec-11-13-the-release-gets-draft-notes.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: record_write appends a missing section at the end; the draft's last section is the developer one; dev-only still scans the added section
+- 2026-11-02T02:26:59Z status=wontfix-accepted owner=11-13-the-release-gets-draft-notes by=cr note=reopen_if=11.5's draft shows the online demo section after ## For admins and developers
