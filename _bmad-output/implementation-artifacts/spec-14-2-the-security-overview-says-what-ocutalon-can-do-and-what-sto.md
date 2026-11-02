@@ -184,14 +184,41 @@ deferred: []
 - Given `docker/tests/test-boundaries.sh`, when it runs, then it passes with the overview in scope, and a planted non-ASCII byte in a copy fails the ascii rule.
 - Given the overview, when a reviewer compares each section with the fact lists above, then every listed fact is there and nothing else is claimed (manual check).
 
+### Review Findings
+
+Code review 2026-11-02 (bmad-code-review, epic-cycle stage; layers: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor, all at the session model, tier full-opus because `_bmad/custom/model-overrides.yaml` is absent). 0 decision-needed, 6 patch (all applied), 2 defer (ledgered), 12 rejected. Rule 3: `live:security-overview` PASS on a lane-D throwaway after the patches (tag e14s2cr). Rule 6: the AD-24 paragraph matches the spine word for word; no unmerged feature is claimed.
+
+- [x] [Review][Patch] (medium, fix-risk low: two sentences, sourced) The overview presented classification as code-only and implied that any change to a tool's classification writes a `Tool` entry, while as built a developer's own tools are classified by Decide's `ToolClassification` setting (`Bridge/Process/Decide.cls:202`, `Policy/Gate.cls` `EntryFor`) and no `Tool` entry is written for it -- the classification sentence now names the bridge's classification setting and that it never changes what code gives (epics.md:2232, spine AD-10 and the Tool classification convention); the audit sentence now says "or classify an MCP tool" (epics.md:6068) [docs/security-overview.md:100,134] (acceptance-auditor)
+- [x] [Review][Patch] (low) "exactly the seven trace-page classes" counted `%CSP.Broker` as a trace page -- now "exactly seven: the six trace and message-viewer pages and `%CSP.Broker`" (`Install/Step/Web.cls:29` `PERMITTED`) [docs/security-overview.md:142] (acceptance-auditor)
+- [x] [Review][Patch] (low) The check list said H10, H12 and H23 were "checked by hand on the running demo"; H23 is the author's preconditions (configuration outside the repository, DNS, opening the gate), and U-224 says only "by hand" -- "on the running demo" removed from both sentences [release/demo-host-checks.md:7,36] (blind-hunter, acceptance-auditor)
+- [x] [Review][Patch] (low) The PASS line "no row is marked as a pass" contradicted the check list, which now marks three rows as passing -- the PASS and FAIL lines now say "bare pass, passed or ok" [docker/tests/test-online-host.sh:906] (blind-hunter)
+- [x] [Review][Patch] (low, Rule 19) `ctl_row` never checked that its sed changed the copy, so the H1 control would pass vacuously once H1 leaves `pending` -- `ctl_row` now FAILs "(the fault was not applied)" when the copy equals the check list; mutation recorded under Verification [docker/tests/test-online-host.sh:916] (verification-gap)
+- [x] [Review][Patch] (low, Rule 19) The regenerate criterion (`live:security-overview`) had a PASS but no `mutation:` line -- mutation run and recorded under Verification [docs/security-overview.md] (verification-gap)
+- [x] [Review][Defer] FR-9 names "tool classified" as audited, but a change to Decide's `ToolClassification` setting writes no `Tool` entry [src/bridge/cls/OcuTalon/Bridge/Process/Decide.cls:202] -- deferred: DW-606, decision-pending owner=burndown (med, fix-risk med, out-of-footprint: a product call whether FR-9 covers the bridge setting)
+- [x] [Review][Defer] `ovw_doc_problems` repeats `chk_demo_mode`'s kept-sentence sed (Rule 2; the spec states the reason) [docker/tests/test-release-sequence.sh ovw_doc_problems; docker/tests/test-readme.sh:551] -- deferred: DW-607, wontfix-accepted (low; unifying needs an edit to test-readme.sh, outside the footprint; reopen_if the two extractions differ)
+
+Rejected:
+- low (spec edit): the Execution fact lists (Audit, channels, keys) still carry the pre-U-223 wording -- the Spec Change Log records the owner answer; fixing it edits the spec under review.
+- low (spec edit): Auto Run Result's Residual risks still say H10, H12, H23 are pending and that Epic 12 or 31 makes the lines stale -- superseded by U-223/U-224 in the Spec Change Log.
+- low (spec edit): "Files changed" and "Footprint extensions" omit `test-online-host.sh` and `release/demo-host-checks.md` -- the Spec Change Log names both.
+- low (spec edit): a triage-log row marked `[reject]` says "closed in this pass", so the counts are off by one.
+- low: frontmatter `status: done` before this review -- written by bmad-build-auto; this stage never changes it.
+- false: the fourth status is pinned to one date and to exactly H10, H12, H23, so the release re-check breaks the test -- the measured status is pinned to 2026-10-30 the same way; recording a re-check edits the check list and its test together, by design.
+- low (by-design, runner ruling 4 and U-224): the `demo-protections` author row does not read the check list's statuses.
+- low (spec-bound): the overview never names its release, and its intro does not mention the hand-written sections -- the intro is above the generated end marker, which the spec forbids editing.
+- low (owner answer U-223): "such as OcuTalon's own web page" and the audit line not naming this release's written types -- the owner set this wording; "only" still governs the three closed categories.
+- low (theoretical): the EXPIRYSECONDS sed could print several lines or a leading zero -- `Approval.cls` holds one such line, 86400; real if a second `Parameter EXPIRYSECONDS` line appears.
+- low (owner ruling U-224, V2): the host-side protections are stated while H5, H13, H16 and H20 are open -- covered by the closing sentence and the `demo-protections` row.
+- low (spec edit): the Code Map cites `Core/SessionOps.cls:136` for the Pairing write, which is at `:443`; the overview does not depend on it.
+
 ## Spec Change Log
 
 - 2026-11-02, runner, after dev_complete (owner answers through the orchestrator): U-223 (keep the no-purge sentence; every 'this release' line must stay true of 1.0.0 at rc1) -- the lead rephrased three Data and audit lines so they stay true when Telegram ships: the audit line now says Pairing, MCP and Tool entries are written only by the features that pair a chat, add or remove an MCP server, or change a tool's classification; the channels line reads 'on configured channels, such as OcuTalon's own web page'; the key line drops 'resolved only inside AI Hub's provider'. No new claim. U-224 (keep stating the host-side protections; the Planner checked H10, H12, H23 by hand on 2026-11-02) -- `release/demo-host-checks.md` marks H10, H12, H23 `pass 2026-11-02 (by hand, Contest Planner); re-check at the release deploy`, its intro and status-value sentences say so, and `docker/tests/test-online-host.sh` accepts that fourth status (a bare `pass` still fails). Footprint extension: `docker/tests/test-online-host.sh` (uncontended). Checked: `test-release-sequence.sh overviewdoc`, `test-boundaries.sh`, `test-online-host.sh` exit 0.
 
 ## Review Triage Log
 
-### 2026-11-02 — Review pass
-- verdicts: 16 triage rows (findings grouped by shared claim) — high 0, medium 0, low 16, false 0, maybe-false 0
+### 2026-11-02 -- Review pass
+- verdicts: 16 triage rows (findings grouped by shared claim) -- high 0, medium 0, low 16, false 0, maybe-false 0
 - findings:
   - `[low]` `[patch]` Phrase checks are bare substring matches ("17 days" holds "7 days", "25 new sessions" holds "5 new sessions"; Blind, Edge, Verification-gap, Intent) -- `ovw_phrases` now requires no letter or digit right before the phrase; controls added for "17 days"; mutation recorded.
   - `[low]` `[reject]` Two 90-day bullets and the 7-day bullet are not pinned per bullet; a swap between them passes (Blind, Verification-gap, Intent) -- the matrix pins the section holding the numbers; per-bullet anchoring adds scope beyond the AC; reopen_if a code change moves a number between bullets unnoticed.
@@ -321,6 +348,26 @@ mutation: (each applied, red observed, reverted; tree byte-identical afterwards,
 - AC 4: a line inserted under `## MCP tools` before the can't-connect sentence -- `overviewdoc` FAIL.
 - AC 5: "30 simulated incoming emails"; "25 new sessions"; "17 days" for the 7-day bullet; an added link -- `overviewdoc` FAIL each. Reverting `ovw_phrases` to a bare substring match turns the "17 days" control red.
 - AC 6: `overview-review` dropped from `CK_AUTHOR_IDS` -- `test-release-checklist.sh` FAIL (base, author, tmpfail); the overview dropped from the `scan_files` arguments -- `test-boundaries.sh` FAIL scope ("not scanned"); a non-ASCII byte planted in the overview -- `test-boundaries.sh` FAIL ascii.
+
+**QA stage (2026-11-02), files changed (QA):**
+- `docker/tests/test-release-sequence.sh` (QA): `ovw_doc_problems` also pins the five headings once each and in order, the no-scheduled-purge sentence (U-223), the demo section's closing sentence (U-224, V2) and, while src has no MCP client, the MCP rules sentence; 5 new `t_overviewdoc` controls (90 days, purge, rules sentence, closing sentence, a repeated heading); header comment.
+- `docker/tests/test-release-checklist.sh` (QA): `t_author` pins a record that confirms only the five older rows (exactly the two new CONFIRM lines, `not confirmed`, exit 1) and a record that lacks only one of the two.
+- `docker/tests/test-online-host.sh` (QA): the status check is a function (`host_status_bad`, `host_marked_pass`, `host_hand_rows`) with 15 controls on copies of the check list: a bare `pass` or `Passed` on H10, H12 and H23 fails and counts as a marked pass; the fourth status fails with another date, another checker, no re-check clause, a capital P or a full stop; the by-hand rows are exactly H10, H12 and H23; the row 15 header says four statuses.
+
+mutation (QA; each applied, red observed, reverted; the tree byte-identical to before, checked with `cmp` against backups and `git diff | cksum`):
+- Matrix "Numbers follow code" (the second retention count): "90 days" changed to "60 days" in the two 90-day bullets -> `overviewdoc` red (new control side: "the Data section lacks '90 days'").
+- U-223 (kept no-purge sentence): "no scheduled purge removes them" changed -> `overviewdoc` red ("the Data section lacks the no-scheduled-purge sentence").
+- U-224 / V2 (closing sentence of the demo section): "before every release" dropped -> `overviewdoc` red ("lacks the checked-before-every-release sentence").
+- V3 / matrix "MCP, none built" (rules sentence): the "When a release adds MCP support" sentence dropped -> `overviewdoc` red ("the MCP tools section lacks the rules sentence").
+- Boundary "keep the five headings in order": `## Online demo` renamed -> `overviewdoc` red.
+- AC 3 (checklist, partial record): `release/checklist.sh` made to record `overview-review` and `demo-protections` as confirmed when the record lacks them -> only the new `t_author` checks went red (`FAIL author`: exit 0 instead of 1, no `RESULT not confirmed`).
+- U-224 (owner answer, the by-hand status): H10 set to a bare `pass` and H12 to another date in `release/demo-host-checks.md` -> `test-online-host.sh` red (status check, marked-as-a-pass check, the by-hand rows list, and the controls).
+- AC 6 (public text; re-run): a non-ASCII byte appended to the overview -> `test-boundaries.sh` `FAIL ascii`; the overview dropped from the `scan_files` arguments -> `FAIL scope` ("not scanned: docs/security-overview.md").
+- `ci/iris.sh live security-overview` (tag e14s2qa, lane D throwaway): PASS (the generated sections equal a fresh generation); the overview file was unchanged byte for byte afterwards.
+
+mutation (code review, 2026-11-02; each applied, red observed, reverted with `cmp` against a copy and `git diff | cksum` unchanged):
+- AC 2 (regenerate, `live:security-overview`): the generated `list_productions` row's classification changed from safe to risky in the overview -> `ci/iris.sh live security-overview` (tag e14s2cr, lane D) exit 1 with `DRIFT tool list_productions` and FAIL "the generated sections ... differ from a fresh generation"; reverted, the same unit PASS. The hand-written text surviving `--write` is pinned by Story 14.1's `TestRegenerate` mutation.
+- Rule 19 (the `ctl_row` guard, review patch): the H1 control's sed pattern changed so it matches nothing -> `test-online-host.sh` FAIL "the fourth status on another row ... (the fault was not applied)".
 
 **Shared surfaces:**
 - `release/checklist.sh` `CK_AUTHOR_IDS`, pinned by `test-release-checklist.sh` (`CONF_IDS`, the counts);

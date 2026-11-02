@@ -29,7 +29,8 @@
 #   overviewdoc   (Story 14.1, QA; Story 14.2) the committed docs/security-overview.md: its title, its three marker pairs once each and in order,
 #             ASCII only, no machine path, no URL or address; no hand-written placeholder; the privilege-limits paragraph word for word under its
 #             heading; EXPERIENCE.md's kept-OCUORDERS sentence word for word; while src has no call_mcp_tool, the MCP section opening with the
-#             can't-connect sentence; the numbers and the audit types of the code in their sections; and the CI claims of the file and of the live
+#             can't-connect sentence; the numbers and the audit types of the code in their sections; the five headings once each and in order, the
+#             no-scheduled-purge sentence, the MCP rules sentence and the demo section's closing sentence (QA); and the CI claims of the file and of the live
 #             unit in ci/units.sh (every group runs on the file, production holds the unit)
 #   push      only the candidate branch goes out, on the author's word; a no or the end of input pushes nothing and asks again
 #   record    every stop writes the record section and commits only that path; the record question; a moved branch is reported
@@ -1891,6 +1892,15 @@ ovw_doc_problems() {
   if [ -z "$v" ]; then echo "the code has no EMAILLIMIT"; else ovw_phrases "$f" 'Online demo' "$v simulated incoming emails"; fi
   v=$(ovw_code_value 's/^Parameter ADDRESSLIMITSEED = \([0-9][0-9]*\);.*$/\1/p' src/ocutalon/cls/OcuTalon/Data/Setting.cls)
   if [ -z "$v" ]; then echo "the code has no ADDRESSLIMITSEED"; else ovw_phrases "$f" 'Online demo' "$v new sessions"; fi
+  # QA (Story 14.2): the five hand-written headings once each and in order; the V1 sentence (U-223) and the closing sentence of the demo section
+  # (U-224); while src has no MCP client, the sentence that opens the rules.
+  n=$(grep -nxE '## (Limits of the privilege check|Approval and audit|Data|MCP tools|Online demo)' "$f" | sed 's/^[0-9]*:## //' | tr '\n' '|')
+  [ "$n" = 'Limits of the privilege check|Approval and audit|Data|MCP tools|Online demo|' ] || echo "the five hand-written headings are not there once each, in order"
+  ovw_section "$f" 'Data' | grep -qF -e 'no scheduled purge removes them' || echo "the Data section lacks the no-scheduled-purge sentence"
+  ovw_section "$f" 'Online demo' | grep -qxF -e 'Each protection listed here is checked against the running demo before every release.' || echo "the Online demo section lacks the checked-before-every-release sentence"
+  if ! git -C "$root" grep -q call_mcp_tool -- src; then
+    ovw_section "$f" 'MCP tools' | grep -qF -e 'When a release adds MCP support, these rules apply:' || echo "the MCP tools section lacks the rules sentence"
+  fi
   return 0
 }
 
@@ -1952,6 +1962,16 @@ t_overviewdoc() {
   eq "control: another message allowance" "$(ovw_doc_problems "$d/messages.md")" "the Online demo section lacks '50 messages'"
   sed 's/^- 20 simulated incoming emails/- 30 simulated incoming emails/' "$doc" > "$d/emails.md"
   eq "control: another email allowance" "$(ovw_doc_problems "$d/emails.md")" "the Online demo section lacks '20 simulated incoming emails'"
+  sed 's/ after 90 days;/ after 60 days;/' "$doc" > "$d/days90.md"
+  eq "control: another long retention" "$(ovw_doc_problems "$d/days90.md")" "the Data section lacks '90 days'"
+  sed 's/ and no scheduled purge removes them\./ and a scheduled purge removes them./' "$doc" > "$d/purge.md"
+  eq "control: the no-scheduled-purge sentence changed" "$(ovw_doc_problems "$d/purge.md")" "the Data section lacks the no-scheduled-purge sentence"
+  sed 's/ When a release adds MCP support, these rules apply:$//' "$doc" > "$d/rules.md"
+  eq "control: the MCP rules sentence dropped" "$(ovw_doc_problems "$d/rules.md")" "the MCP tools section lacks the rules sentence"
+  sed 's/^Each protection listed here is checked against the running demo before every release\.$/Each protection listed here is checked against the running demo./' "$doc" > "$d/close.md"
+  eq "control: the closing demo sentence changed" "$(ovw_doc_problems "$d/close.md")" "the Online demo section lacks the checked-before-every-release sentence"
+  { cat "$doc"; printf '\n## Data\n'; } > "$d/heading.md"
+  eq "control: a hand-written heading twice" "$(ovw_doc_problems "$d/heading.md")" "the five hand-written headings are not there once each, in order"
   sed 's/^- 5 new sessions/- 6 new sessions/' "$doc" > "$d/sessions.md"
   eq "control: another session allowance" "$(ovw_doc_problems "$d/sessions.md")" "the Online demo section lacks '5 new sessions'"
   { cat "$doc"; printf 'See %s\n' 'https:/''/example.org/x'; } > "$d/url.md"

@@ -23,7 +23,7 @@
 #   row 10  the status JSON    row 11  --demo-status    row 12  --zone
 #   row 13  busy    row 14  maintenance (DW-240)
 #   row 15  both release scripts (demo-host-check.sh and, Story 29.8, demo-load.sh) and the check list hold no host detail; the check
-#           list's rows H1 to H25 hold one of the three statuses
+#           list's rows H1 to H25 hold one of the four statuses
 #   row 16  a host that refuses the password-change pages with 404 (the Planner's settings pass, no answer of IRIS counts as a block)
 # Needs Node, curl and jq. Prints one PASS or FAIL line per check; exits 0 only when all pass.
 set -u
@@ -878,21 +878,60 @@ fi
 status_pending="pending"
 status_measured="measured 2026-10-30 (Epic 16 deploy); re-check at the release deploy"
 status_part="measured in part 2026-10-30 (Epic 16 deploy); rest pending"
-bad=""
-for n in $(seq 1 25); do
-  rows=$(grep -E "^\| H$n \|" "$checklist" 2> /dev/null)
-  count=$(printf '%s\n' "$rows" | grep -c .)
-  status=$(printf '%s\n' "$rows" | awk -F'|' '{ gsub(/^ +| +$/, "", $(NF-1)); print $(NF-1) }')
-  if [ "$count" != 1 ] || { [ "$status" != "$status_pending" ] && [ "$status" != "$status_measured" ] && [ "$status" != "$status_part" ]; }; then
-    bad="$bad H$n"
-  fi
-done
+status_hand="pass 2026-11-02 (by hand, Contest Planner); re-check at the release deploy"
+# host_status_bad <file>: the rows among H1 to H25 that are not present once with exactly one of the four statuses.
+host_status_bad() {
+  local f=$1 n rows count status bad=""
+  for n in $(seq 1 25); do
+    rows=$(grep -E "^\| H$n \|" "$f" 2> /dev/null)
+    count=$(printf '%s\n' "$rows" | grep -c .)
+    status=$(printf '%s\n' "$rows" | awk -F'|' '{ gsub(/^ +| +$/, "", $(NF-1)); print $(NF-1) }')
+    if [ "$count" != 1 ] || { [ "$status" != "$status_pending" ] && [ "$status" != "$status_measured" ] && [ "$status" != "$status_part" ] && [ "$status" != "$status_hand" ]; }; then
+      bad="$bad H$n"
+    fi
+  done
+  printf '%s' "$bad"
+}
+# host_hand_rows <file>: the rows that carry the by-hand status (U-224: the Planner checked H10, H12 and H23 on 2026-11-02).
+host_hand_rows() { awk -F'|' -v s="$status_hand" '/^\| H[0-9]+ \|/ { v = $(NF-1); gsub(/^ +| +$/, "", v); if (v == s) { id = $2; gsub(/ /, "", id); printf "%s ", id } }' "$1"; }
+# host_marked_pass <file>: succeeds when a row's status is a bare pass, passed or ok.
+host_marked_pass() { grep -qiE '^\| H[0-9]+ \|.*\|[[:space:]]*(pass|passed|ok)[[:space:]]*\|[[:space:]]*$' "$1" 2> /dev/null; }
+
+bad=$(host_status_bad "$checklist")
 if [ -z "$bad" ]; then
-  pass "check list: H1 to H25 are each present once with one of the three statuses (none is a pass)"
+  pass "check list: H1 to H25 are each present once with one of the four statuses (no bare pass)"
 else
-  fail "check list: no single row with one of the three statuses for:$bad"
+  fail "check list: no single row with one of the four statuses for:$bad"
 fi
-if grep -qiE '^\| H[0-9]+ \|.*\|[[:space:]]*(pass|passed|ok)[[:space:]]*\|[[:space:]]*$' "$checklist" 2> /dev/null; then fail "check list: a row is marked as a pass"; else pass "check list: no row is marked as a pass"; fi
+if host_marked_pass "$checklist"; then fail "check list: a row is marked as a bare pass"; else pass "check list: no row is marked as a bare pass, passed or ok"; fi
+hand=$(host_hand_rows "$checklist")
+if [ "$hand" = "H10 H12 H23 " ]; then pass "check list: the by-hand status is on H10, H12 and H23 and on no other row"; else fail "check list: the by-hand status is on '$hand', not H10 H12 H23"; fi
+# Controls (Story 14.2, QA): each is a copy of the check list with one fault in one row. A bare pass fails the status check and is marked as a
+# pass; the fourth status counts only in its exact form; the committed file gives neither.
+ctl="$tmp/hostchecks"
+mkdir -p "$ctl"
+ctl_row() { # <row> <sed expression for that row> <label> <want bad> <want marked pass: yes|no>
+  local row=$1 expr=$2 label=$3 want=$4 marked=$5 got m=no
+  sed "/^| $row |/ $expr" "$checklist" > "$ctl/c.md"
+  if cmp -s "$checklist" "$ctl/c.md"; then fail "check list control: $label (the fault was not applied)"; return; fi
+  got=$(host_status_bad "$ctl/c.md")
+  if host_marked_pass "$ctl/c.md"; then m=yes; fi
+  if [ "$got" = "$want" ] && [ "$m" = "$marked" ]; then pass "check list control: $label"; else fail "check list control: $label (bad '$got', marked as a pass: $m)"; fi
+}
+[ -z "$(host_status_bad "$checklist")" ] && ! host_marked_pass "$checklist" && pass "check list control: the committed file has no bad row and no marked pass" || fail "check list control: the committed file is not clean"
+for row in H10 H12 H23; do
+  ctl_row $row "s/| $status_hand |\$/| pass |/" "$row with a bare pass fails the status check and is marked as a pass" " $row" yes
+  ctl_row $row "s/| $status_hand |\$/| Passed |/" "$row with 'Passed' fails and is marked as a pass" " $row" yes
+done
+ctl_row H10 's/| pass 2026-11-02 (by hand/| pass 2026-11-03 (by hand/' "the fourth status with another date fails" " H10" no
+ctl_row H12 's/(by hand, Contest Planner)/(by script, Contest Planner)/' "the fourth status with another checker fails" " H12" no
+ctl_row H23 's/; re-check at the release deploy |$/ |/' "the fourth status without its re-check clause fails" " H23" no
+ctl_row H10 's/| pass 2026-11-02/| Pass 2026-11-02/' "the fourth status with a capital P fails" " H10" no
+ctl_row H12 's/| pass 2026-11-02 (by hand, Contest Planner); re-check at the release deploy |$/| pass 2026-11-02 (by hand, Contest Planner); re-check at the release deploy. |/' "the fourth status with a trailing full stop fails" " H12" no
+ctl_row H1 "s/| pending |\$/| $status_hand |/" "the fourth status on another row passes the status check but is not on H10, H12 and H23 only" "" no
+other=$(sed "/^| H1 |/ s/| pending |\$/| $status_hand |/" "$checklist" > "$ctl/c.md"; host_hand_rows "$ctl/c.md")
+if [ "$other" = "H1 H10 H12 H23 " ]; then pass "check list control: the by-hand rows list names the extra row H1"; else fail "check list control: the by-hand rows list is '$other'"; fi
+rm -rf "$ctl"
 # H25, the load run through the real proxy, is the Planner's: the repository keeps it pending.
 h25=$(grep -E '^\| H25 \|' "$checklist" 2> /dev/null | awk -F'|' '{ gsub(/^ +| +$/, "", $(NF-1)); print $(NF-1) }')
 if [ "$h25" = "$status_pending" ]; then pass "check list: H25 (the load run through the real proxy) is pending"; else fail "check list: H25 reads '$h25', not pending"; fi

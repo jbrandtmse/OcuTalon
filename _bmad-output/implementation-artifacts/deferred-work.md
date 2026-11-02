@@ -300,6 +300,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-0-12-epic-0-burn-down.md | severity: low | fix-risk: low | footprint: out-of-epic
 - evidence: 0.12 rework deferred item
 - 2026-10-21T02:41:40Z status=routed owner=14-2-the-security-overview-says-what-ocutalon-can-do-and-what-sto by=harvest note=14.2 quotes the sentence where it describes what demo mode off leaves in place
+- 2026-11-02T23:29:46Z status=resolved-by:14-2-the-security-overview-says-what-ocutalon-can-do-and-what-sto by=adjudication note=docs/security-overview.md Data section quotes the kept-OCUORDERS how-to-remove sentence word for word; pinned by test-release-sequence.sh overviewdoc (read from EXPERIENCE.md)
 
 ### DW-47: flake: web/e2e/sign-in/sign-in.spec.ts row 13 (sign-in at a deep link) ended at /ocutalon/#/ instead of /ocutalon/index.html?x=1 once on the runner, then passed on an unchanged rerun
 - source: ci run 39534434817 attempt 1 (head 811102f) | severity: med | fix-risk: low | footprint: in-epic
@@ -3245,3 +3246,14 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-14-1-the-overview-s-tool-and-privilege-lists-are-generated-from-t.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: docs/security-overview.md 'Limits of the privilege check' holds only the HAND-WRITTEN (Story 14.2) placeholder; step_overview and overviewdoc pass with it; spec 14.1 Never forbids writing that text
 - 2026-11-02T21:00:29Z status=routed owner=14-2-the-security-overview-says-what-ocutalon-can-do-and-what-sto by=cr note=14.2 writes AD-24 Limits word for word and adds an overviewdoc check that no HAND-WRITTEN placeholder remains
+- 2026-11-02T23:29:46Z status=resolved-by:14-2-the-security-overview-says-what-ocutalon-can-do-and-what-sto by=adjudication note=Limits of the privilege check carries the AD-24 paragraph word for word; overviewdoc fails while any HAND-WRITTEN placeholder remains and pins the paragraph
+
+### DW-606: FR-9 lists 'tool classified' as audited, but a change to Decide's ToolClassification setting (a developer's own tools) writes no Tool entry; decide whether FR-9 covers the bridge setting
+- source: spec-14-2-the-security-overview-says-what-ocutalon-can-do-and-what-sto.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: Gate.cls EntryFor reads Decide's ToolClassification (Decide.cls:202); git grep finds no Record("Tool" in src; FR-9 (epics.md:51) names 'tool classified'; the spine (AD-10, conventions 1095) assigns no Tool writer for the setting.
+- 2026-11-02T23:27:32Z status=decision-pending owner=burndown by=cr note=product call: audit developer-tool classification changes or narrow FR-9 to MCP classification; overview now says 'classify an MCP tool'
+
+### DW-607: ovw_doc_problems (test-release-sequence.sh) repeats chk_demo_mode's kept-OCUORDERS sed extraction (test-readme.sh:551), a copy the spec states because test-readme.sh runs on load (Rule 2)
+- source: spec-14-2-the-security-overview-says-what-ocutalon-can-do-and-what-sto.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Both files hold the same sed line for the sentence in EXPERIENCE.md; unifying means a shared lib that test-readme.sh sources, an edit outside Epic 14's footprint. Either copy that no longer matches fails loudly (empty extraction).
+- 2026-11-02T23:27:39Z status=wontfix-accepted owner=14-2-the-security-overview-says-what-ocutalon-can-do-and-what-sto by=cr note=reopen_if=the two kept-OCUORDERS extractions print different text for the same EXPERIENCE.md

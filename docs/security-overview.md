@@ -97,7 +97,7 @@ OcuTalon reads a namespace only when the service user may read that namespace's 
 
 ## Approval and audit
 
-Classification uses fixed rules in code, outside the model: a class parameter, or a per-call rule. Anything unclassified counts as risky. Every built-in tool is safe. Repair and resend, the one risky built-in action, goes through a fix kind with a dry run.
+Classification uses fixed rules outside the model: a class parameter or a per-call rule in code, and, for a developer's own tools, the bridge's classification setting, which never changes a classification that code gives. Anything unclassified counts as risky. Every built-in tool is safe. Repair and resend, the one risky built-in action, goes through a fix kind with a dry run.
 
 Content that didn't come from the user (for example a simulated email, or a failed message's body):
 
@@ -131,7 +131,7 @@ The audit log has one writer, the IRIS audit log, source `OcuTalon`. The types a
 - `MCP`: a server added or removed;
 - `Tool`: a tool's classification.
 
-Every entry carries its time (the audit log's own timestamp), the IRIS user who acted or answered, the session and the channel. A redactor removes every key, access token, password and Telegram identity, and a sensitive setting's values are blanked. This release writes `Action`, `Approval` and `Settings` entries. The other three types belong to features that aren't in this release.
+Every entry carries its time (the audit log's own timestamp), the IRIS user who acted or answered, the session and the channel. A redactor removes every key, access token, password and Telegram identity, and a sensitive setting's values are blanked. Pairing, MCP and Tool entries are written only by the features that pair a chat, add or remove an MCP server, or classify an MCP tool, so a release without those features writes none of them.
 
 Roles and accounts:
 
@@ -139,7 +139,7 @@ Roles and accounts:
 - `OcuTalonAdmin` switches demo mode with the documented terminal command.
 - `OcuTalonTraceViewer` is the trace role: Use on the four `%Ens_*` resources, Read on the data and code databases, `SELECT` on `Ens.MessageHeader`, and nothing on the private database.
 - The local (README) account holds all three roles. The online demo account holds `OcuTalonUser` and `OcuTalonTraceViewer`. The read-only account holds `OcuTalonTraceViewer` alone.
-- The read-only account opens only Visual Trace and the message viewer, through OcuTalon's trace applications, whose permitted classes are exactly the seven trace-page classes. It can't use the OcuTalon page or its API.
+- The read-only account opens only Visual Trace and the message viewer, through OcuTalon's trace applications, whose permitted classes are exactly seven: the six trace and message-viewer pages and `%CSP.Broker`. It can't use the OcuTalon page or its API.
 - As the Privileges tables show, no OcuTalon role holds `%All`.
 
 ## Data
@@ -152,10 +152,10 @@ Storage:
 Data leaves the instance only:
 
 - In model requests to the configured provider (Anthropic; Claude Haiku 5.5 by default). A request carries the agent's fixed instructions, the local time, the user's message or the arriving item (quoted as data), the conversation's history or a recap written by code, the tool definitions and the tool results. For a diagnosis, the results are the failed messages, the event-log rows and the item settings, with credential settings left out and every value taken from the watched production passed through the redactor.
-- In messages on configured channels. In this release the only channel is OcuTalon's own web page, which IRIS serves to signed-in users.
+- In messages on configured channels, such as OcuTalon's own web page, which IRIS serves to signed-in users.
 - In calls to configured MCP servers, which this release can't make.
 
-Model keys and bot tokens come only from environment variables. They are resolved only inside AI Hub's provider and are never stored in IRIS or shown. OcuTalon reports only whether a key is present.
+Model keys and bot tokens come only from environment variables. They are never stored in IRIS or shown. OcuTalon reports only whether a key is present.
 
 Demo mode:
 

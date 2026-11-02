@@ -521,6 +521,23 @@ t_author() {
   has "no section: the table" "$(sect "$rec" "## Release checklist")" "| no-artwork | not confirmed | None of that project's logo or artwork is used. |"
   has "no section: the overview-review row" "$(sect "$rec" "## Release checklist")" "| overview-review | not confirmed | The hand-written sections of docs/security-overview.md were reviewed against this release, and each statement is true of it; the public-text row passed on the overview. |"
   has "no section: the demo-protections row" "$(sect "$rec" "## Release checklist")" "| demo-protections | not confirmed | Each online-demo protection that docs/security-overview.md states was checked against the running online demo for this release. |"
+  # Story 14.2 (QA), AC 3: a record that confirms the five older rows but not the two new ones is not confirmed, with exactly the two CONFIRM
+  # lines; and a record that lacks only one of the two names that one alone.
+  newcase
+  mkrec "$rec" no-copied-code no-artwork no-ai-hub-copy public-review public-links
+  std
+  eq "only the two new rows missing: exit" "$rc" 1
+  has "only the two new rows missing: result" "$out" "RESULT not confirmed"
+  eq "only the two new rows missing: the CONFIRM ids" "$(printf '%s\n' "$out" | sed -n 's/^CONFIRM \([a-z-]*\):.*$/\1/p' | tr '\n' ' ')" "overview-review demo-protections "
+  has "only the two new rows missing: the record" "$(sect "$rec" "## Release checklist")" "Result: not confirmed"
+  for id in overview-review demo-protections; do
+    newcase
+    mkrec "$rec" $(printf '%s\n' $CONF_IDS | grep -vx "$id")
+    std
+    eq "only $id missing: exit" "$rc" 1
+    has "only $id missing: result" "$out" "RESULT not confirmed"
+    eq "only $id missing: the CONFIRM ids" "$(printf '%s\n' "$out" | sed -n 's/^CONFIRM \([a-z-]*\):.*$/\1/p' | tr '\n' ' ')" "$id "
+  done
   # A malformed line, an impossible date, another word: each row stays not confirmed, and the rest are confirmed.
   newcase
   {
