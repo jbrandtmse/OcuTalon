@@ -4,7 +4,7 @@
 
 ## Goal
 
-Finish the Lane B work that was moved out of the demo path so it lands in 1.0.0. On local and IPM installs the page receives live events over a WebSocket, with polling as the silent fallback. A risky tool call's approval request reaches the simulated phone and the paired Telegram chat with Approve and Reject, and is edited in place when it is answered and when its result arrives. The README is completed for 1.0.0 so a judge can reach the online demo in two minutes, and the paired chat is shown to stay isolated per session under load. Epic 31 merges when it is done and ships in 1.0.0. The old merge gate on `v0.1.1` was dropped. The online demo still only polls.
+This epic finishes the Lane B parts of the demo-path stories that were held back so the demo path could ship first. It does four things. Local and IPM installs get live events pushed over a WebSocket, with polling as the silent fallback. A risky tool call's approval request reaches the simulated phone and the paired Telegram chat with Approve and Reject, and that message is edited in place when the request is answered and when its result arrives. The README becomes the judge's 1.0.0 entry point. The paired Telegram chat is proven isolated between online-demo sessions under load. Every part lands before 1.0.0. Epic 31 merges when it is done and ships in 1.0.0; there is no `v0.1.1` gate any more.
 
 ## Stories
 
@@ -15,71 +15,71 @@ Finish the Lane B work that was moved out of the demo path so it lands in 1.0.0.
 
 ## Requirements & Constraints
 
-- **Live delivery:** messages, notifications and approval results reach the page within 2 seconds. Other channels show an approval's result within 5 seconds. CI checks these bounds against the mock on every run; real-network timing is measured in the rehearsal and on the demo.
-- **WebSocket scope:** the WebSocket serves local and IPM installs only. With the online-demo flag set, the page never opens it and only polls, because an open socket keeps its session, and so a licence connection, alive. If the socket closes or fails, the page switches to polling without showing anything and reconnects in the background. The "Reconnecting…" and "Can't reach OcuTalon" banners belong to Story 2.11, not to this epic.
-- **Sign-out:** an open socket must stop sending frames within one loop after sign-out. Sign-out sets a server-side mark that each socket loop reads. The 60 s socket lifetime stays as a backstop (DW-457, ruling U-174).
-- **Tool-call approvals:** they behave like fix approvals. The phone and the paired chat get buttons, first answer wins, and the message is edited in place on answer and on result.
-- **Paired chat under load:** session A's incident, notification and approval reach only A's paired chat. A button press from B's chat on A's request is refused and changes nothing. No OCUTALON or OCUORDERS message body or header carries a paired chat's display name, user name, chat id or phone number.
-- **README for 1.0.0:**
-  - "Try it in two minutes" sits at the top, with the online demo link and a note that the sign-in details are on the splash screen.
-  - It names the read-only Visual Trace account and says trace links on the demo open without a second sign-in.
-  - It adds an IPM install section: the registry install first, then load-from-folder.
-  - It describes only what 1.0.0 ships.
-  - It keeps the BMAD Method and Claude Code credits and the not-affiliated note.
-  - It is plain English, with no class names or error codes outside the developer sections, no private infrastructure details, and every link resolving.
-  - It adds an MIT `LICENSE` with the holder line "Copyright (c) 2026 jbrandtmse" and a one-line licence credit.
-  - It shows two screenshots (the demo-path page, and Visual Trace of one decision), each under 300 KB, with alt text and no secrets. They are captured by Playwright on a throwaway stack.
-  - It adds steps to change the default IRIS passwords (DW-360).
-- **About dialog and guide:** the About dialog gains the bridge guide and security overview links. The guide's finish state gains "Use the same bridge in your own production ↗".
-- **Not a story criterion:** Story 31.3's measurement on the public online demo is a release check at 1.0.0, done by the author. No story waits for it.
-- **Ledger items in scope:** DW-457, DW-397, DW-497, DW-530 (only at no date cost; otherwise re-owned to the first daily release after 1.0.0), DW-360, DW-416, DW-432, DW-474, DW-446, DW-237 and DW-485.
+- **Live updates:** messages, notifications and approval results reach the page within 2 seconds. Other channels show an approval's result within 5 seconds. CI checks both bounds against the mock, and the rehearsal measures them over real networks (19 of 20 runs).
+- **Polling stays the contract:** it is the shared live path and must keep working on its own. The WebSocket is only an enhancement. With the online-demo flag set, the page never opens the WebSocket, because an open socket keeps a CSP session, and so a licence connection, alive with no timeout.
+- **Socket fallback:** if the socket closes or fails, the page switches to polling silently and reconnects in the background. The existing reconnecting banners (info at 10 s, danger at 30 s) are unchanged.
+- **Sign-out must stop the socket:** an open socket must send no further frame within one loop after sign-out. Use a server-side mark that the sign-out sets and each socket loop reads, and keep the 60 s socket lifetime as a backstop.
+- **Approvals (tool calls):**
+  - Each request offers inline Approve and Reject, and the first answer wins.
+  - Other channels then show who answered and from where, and their buttons stop working.
+  - Buttons carry an unguessable approval reference, never a sequential number.
+  - A press from any chat other than the paired chat is refused and changes nothing.
+- **Isolation:** one session's incident, notification or approval request never reaches another session's paired chat. No OCUTALON or OCUORDERS message body or header may carry a Telegram display name, user name, chat id or phone number; messages use only an internal `ChatRef`.
+- **README (1.0.0):**
+  - "Try it in two minutes" is at the top, with the online demo link and a note that the sign-in details are on the splash screen.
+  - It names the read-only Visual Trace account.
+  - It has an IPM install section that gives the registry install (`zpm "install ocutalon"`) first and loading from a folder second.
+  - It adds the MIT `LICENSE` with the holder line "Copyright (c) 2026 jbrandtmse" and the licence line under "Credits and licences".
+  - It shows two screenshots in `docs/images/`, each under 300 KB and with alt text, captured by Playwright.
+  - It is plain English, keeps the BMAD Method and Claude Code credits and the not-affiliated note, claims nothing that 1.0.0 doesn't ship, names no private infrastructure detail, and every link resolves.
+  - `docker/tests/test-readme.sh` pins the README's required content.
+- **Release check, not story work:** measuring the launched demo on the public host is a 1.0.0 release check run by the Contest Planner. No story waits for it.
 
 ## Technical Decisions
 
-- **The live-event contract:**
-  - `OcuTalon.Live.Event` rows hold a per-stream `Seq`, and are written only by `Live.Publish` after commit.
-  - The browser envelope is `{seq, stream, ts, type, payload}`, where stream is `session` or `instance`.
-  - Payloads are full entity views keyed by `Ref`, never deltas.
-  - The page loads `GET /api/v1/state`, then follows per-stream cursors. It applies events idempotently and reloads the snapshot when a stream's `Seq` skips.
-  - WebSocket and polling must go through the same apply path.
-- **The WebSocket server:**
-  - It is `/ocutalon/OcuTalon.Web.Live.cls`, a `%CSP.WebSocket` class.
-  - It checks `Origin` before it accepts, serves only a signed-in session, and waits on the session's `$SYSTEM.Event` resource and one instance resource. `Live.Publish` signals both after each commit.
-  - It sends events after the client's cursors.
-  - The `/ocutalon` shell (`OcuTalon.Web.Public.Shell`) forwards the WebSocket, or the WebSocket gets its own application; the story decides. Ruling U-175 points 31.1 at the shell route now that Epic 29 has merged.
-  - Trace URLs are added by `OcuTalon.Web.TraceLink` on every live path.
-- **The web applications:** `/ocutalon` and `/ocutalon/api` share one CSP session and one sign-in group (`OcuTalon`). Strict session scope, no CORS.
-- **The notification contract:**
-  - Every non-reply outbound message is an `OcuTalon.Msg.Notification` carrying `SessionRef`, `Kind`, `CatalogKey`, `Slots`, `ApprovalRef`, `IncidentRef` and `DecisionRef`.
-  - Producers never render text. Only the `*Out` operations render, through `OcuTalon.Msg.Catalog.Render`.
-  - Approve and Reject buttons appear only for kinds `incident` and `approval` when `ApprovalRef` is set.
-- **Who sends approval notices:**
-  - `BridgeSink` (Lane B) is the only class that turns bridge HostSink events (`approval.raised`, `approval.answered`, `approval.result` and the rest) into `Live.Publish` calls.
-  - For kind `tool_call` (and, from step 4, a fix with no incident), `BridgeSink` sends `approval`, `answered` and `result` Notifications through the adapterless `NoticesIn` service. Each carries `ApprovalRef`, with an empty `IncidentRef`.
-  - For kind `fix`, `IncidentManager` sends these notices, carrying both refs.
-  - `setting` requests send their own notices, so `BridgeSink`'s rules don't change.
-  - `BridgeSink` sends asynchronously and never waits on a lock for more than 1 s. The bridge wraps `OnEvent` and never fails its caller.
-  - HostSink payloads carry the public `Ref`. `BridgeSink` reads the row through the ownership API.
-- **Approvals:**
-  - `ApprovalRequest` state changes only through the `OcuTalon.Bridge.Approval` API, under a per-`Ref` lock.
-  - Telegram presses resolve through `AnswersIn` using `ChatRef`, never a chat id. `AnswersIn` returns result codes such as `already_answered`, `not_visible` and `unknown`.
-- **Session ownership:**
-  - Every per-person record carries `SessionRef`.
-  - Telegram identity lives only in the `Pairing` row, and production messages refer to a chat only by `ChatRef`.
-  - An online-demo sign-out runs `SessionOps.End`, which removes the pairing, cancels reminders, stops watches and cancels pending approvals.
-- **Ownership rules:** only the owning lane edits a class. `BridgeSink`, `NoticesIn`, `Web.SessionEvents`, `Data.Session` and `Data.Pairing` are Lane B's. `WatchOps`, the Telegram channel, the bridge guide (Story 13.3), the security overview (Story 14.2) and `docs/install-ipm.md` (Story 15.2) are Lane A's.
-- **Reuse:** `Pairing.HashCode` must delegate to `Session.Hash` rather than add a second SHA-256 base64url helper (DW-237).
+- **Live event envelope:** `{seq, stream, ts, type, payload}`. There is one cursor per stream (`session`, `instance`), and payloads are full entity views keyed by a public `Ref`.
+  - The client applies events idempotently and reloads the snapshot when a stream's `seq` skips.
+  - The WebSocket must feed the same apply path as polling, so the two cannot drift apart.
+  - Rows are written only through `OcuTalon.Live.Publish`, after commit.
+- **WebSocket server:** `/ocutalon/OcuTalon.Web.Live.cls`, a `%CSP.WebSocket`.
+  - It checks `Origin` before it accepts and serves only a signed-in session.
+  - It waits on the session's `$SYSTEM.Event` resource plus one instance resource, which `Live.Publish` signals after each commit, and sends events that come after the client's cursors.
+  - The `/ocutalon` shell either forwards the socket or the socket gets its own application; the story decides which.
+  - Web and REST code may write only the session row, sign-in and sign-out effects, pairing-code hashes and UI-only markers.
+- **Tool-call notices:**
+  - The bridge reports `approval.raised`, `approval.answered` and `approval.result` to the HostSink. `OcuTalon.Core.BridgeSink` is the only place that turns these into `Live.Publish` calls. For approvals of kind `tool_call`, it also sends `Notification`s of kinds `approval`, `answered` and `result` through the adapterless `NoticesIn` service.
+  - Each of these notifications carries `ApprovalRef`, with `IncidentRef` empty for a tool call.
+  - For kind `fix`, `IncidentManager` sends the notices, not `BridgeSink`.
+  - `BridgeSink` sends asynchronously and never waits on a lock for longer than 1 s. The bridge wraps every `OnEvent` call and never fails its caller.
+  - `*Out` operations render only through `OcuTalon.Msg.Catalog.Render`, and add Approve and Reject for kinds `incident` and `approval` when `ApprovalRef` is set.
+  - In-place edits find their message with `Data.Delivery.FindByApproval(approvalRef, channel, ownerRef)`. There is one delivery row per session copy, and a Telegram row's id is `<ChatRef>:<message_id>`.
+- **Answers:**
+  - `AnswersIn` resolves the answering session server-side: from the CSP session for the web and the phone, and from the press's `ChatRef` through the live `Pairing` for Telegram.
+  - It returns result codes: `approved`, `rejected`, `already_answered`, `expired`, `not_paired`, `not_visible` and `unknown`.
+  - The approval row is the truth, and its state changes only through the `OcuTalon.Bridge.Approval` API.
+- **Ownership:** this epic works only in Lane B's files: `OcuTalon.Web`, `.Core`, `.Live`, `.Msg`, `.Data.*` (except bridge data), `web/` (except the rail's Telegram card and `web/e2e/demo-path/telegram-*.spec.ts`), `docker/`, most of `ci/` and the README.
+  - `docs/install-ipm.md`, the bridge guide, the security overview and `release/` are Lane A's. Read them, don't edit them.
+  - Owned rows carry `SessionRef` or `OwnerRef`.
+  - On an online-demo sign-out, `SessionOps.End` cancels the session's pending approvals and removes its pairing.
 
 ## UX & Interaction Patterns
 
-- If live updates are interrupted, the page falls back to polling with nothing shown. The banners after 10 s and 30 s are Story 2.11's, and they must keep working with the socket present.
-- Live events carry chat messages, decisions, notifications, incident and approval changes, checks, reminders, pairing, status conditions, the reset schedule and guide state. Guide state is derived on the server only.
-- The About dialog's links, in order: README, bridge guide, security overview. The guide's finish state lists "Use the same bridge in your own production ↗", which opens in a new tab.
-- Stacked-header overflow (DW-530): above a quarter of the viewport, the header scrolls with the page, or the Demo view switch moves into a menu below 1024px, whichever is cheaper.
+- The WebSocket fallback is invisible. Only the existing reconnecting banners speak, and missed content loads into place on recovery.
+- An approval message on the phone or in Telegram is edited in place to show who answered, from where and when (for example "Approved from Telegram at 14:15"), and later its result.
+- The About dialog gains links to the bridge developer guide and the security overview.
+- The demo guide's finish state gains "Use the same bridge in your own production ↗", which opens in a new tab with the ↗ hidden from assistive technology.
+- Layout fixes are optional and only if they cost no time:
+  - DW-530: the stacked header must not stick past a quarter of the viewport height.
+  - DW-542: the finish state at 640px wide.
+  - DW-543: the welcome heading at 1280x800.
 
 ## Cross-Story Dependencies
 
-- **Story 31.1:** needs Epic 16 (done) and Epic 29 (now merged; the shell route and `Data/Session.cls` were contended). DW-457 stays in this story unless another open epic holds `Data/Session.cls` at re-plan.
-- **Story 31.2:** needs Epic 6 (done), Epic 16 (done; Story 16.9's `BridgeSink`) and Epic 30 (backlog). Story 30.3 supplies the real `approval.result` from the tool-call replay. Until it merges, tests call `BridgeSink.OnEvent` with fixture `approval.*` events of kind `tool_call`.
-- **Story 31.3:** needs Lane A's Epics 12 to 15 merged (all backlog): the Telegram channel and Stories 13.3, 14.2, 15.2 and 15.3. It then turns on Story 16.4's and Story 16.9's Telegram cases (`WatchOps` stopping a signed-out session's watches; an approval that completes while both caps hold).
-- **Story 31.4:** needs Epic 12 (backlog) and Story 29.4 (merged). It turns on Story 29.4's paired-chat cases.
+- **Story 31.1:** needs Epic 16 merged, because Stories 16.3 and 16.4 changed the live client and the session handling.
+- **Story 31.2:**
+  - It extends Epic 6's approval notices and Story 16.9's `BridgeSink`.
+  - It needs Epic 30 merged, for Story 30.3's real `approval.result` from the tool-call replay. Otherwise its tests call `BridgeSink.OnEvent` with fixture `approval.*` events of kind `tool_call`.
+- **Story 31.3:**
+  - It needs Epics 12 to 15 merged: Telegram, the bridge guide (13.3), the security overview (14.2) and `docs/install-ipm.md` (15.2/15.3).
+  - It turns on Story 16.4's and Story 16.9's Telegram cases and their real Lane A paths.
+- **Story 31.4:** needs Lane A's Epic 12 and Epic 29 merged. It turns on Story 29.4's paired-chat isolation cases.
