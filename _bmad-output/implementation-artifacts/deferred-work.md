@@ -2349,6 +2349,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-30T15:56:40Z occurrence=30-2-old-messages-and-records-are-purged-on-schedule
 - 2026-10-30T16:58:58Z occurrence=29-5-the-address-counter-s-hash-is-keyed-per-reset note=CI run 41088697760 (OCT-epic29 511f1b03, iris image, shard lane-b): Test.Schedule.Heartbeat TestStoppedThenStarted 'the task ran while the production was stopped' (197 s); flake class, one rerun
 - 2026-11-02T00:00:24Z occurrence=31-1-push-live-events-over-a-websocket-on-local-installs note=local_fresh_lane-b_forward_run_at_31.1_implement:Test.Schedule.Heartbeat_75s_wall-clock_assertion_failed_under_load;passed_alone_on_a_fresh_stack_in_177s
+- 2026-11-02T10:31:13Z occurrence=31-1-push-live-events-over-a-websocket-on-local-installs note=CI_run_41419787515_attempt_1_image_shard:lane-b_TestStoppedThenStarted_red;green_on_rerun
 
 ### DW-378: Tagline: replace 'An OpenClaw-style assistant for InterSystems IRIS.' with 'An AI assistant for InterSystems IRIS.' in the About dialog and the tests that pin it; the not-affiliated note stays verbatim
 - source: owner decision 2026-10-29 (relayed by the Contest Planner) | severity: high | fix-risk: low | footprint: out-of-footprint
@@ -2972,3 +2973,9 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: DW-484 adjudication at 30.5 | severity: low | fix-risk: med | footprint: out-of-footprint
 - evidence: Contest Planner note on DW-484 (2026-11-01T07:18:36Z): the wider mixed-clock issue stays post-1.0.0
 - 2026-11-02T03:02:29Z status=wontfix-accepted owner=30-5-mixed-and-unfinished-resends-say-how-far-they-got by=adjudication note=post-1.0.0 by the Planner's decision; reopen_if=a_1.x_step_or_the_Planner_schedules_the_mixed-clock_fix
+
+### DW-578: flake: live:sign-in web/e2e/banners/banners.spec.ts:927 B15 (a skipped Seq after the outage loads the snapshot again, once) hit the 45 s test timeout in CI and passed on the unchanged rerun
+- source: cycle-log-epic-31 CI run 41419787515 attempt 1 | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: head 17c86e98 changed only Test/Web/SessionEvents.cls; browser green on 63bfe214; B15 green on attempt 2. banners.spec.ts is never edited (U-173) and does not block the 31.1 socket: check whether a socket frame right after the outage adds a reload (31.1 review's rejected 'one extra, idempotent snapshot reload')
+- 2026-11-02T10:31:21Z status=routed owner=burndown by=cr note=flake class: one rerun and an occurrence; reopen as story if it reds twice on one head
+- 2026-11-02T10:31:25Z by=ci note=filed_by_runner_C_at_the_CI_red_classification(the_new_line_says_by=cr_in_error)
