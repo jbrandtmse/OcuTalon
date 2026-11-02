@@ -1095,6 +1095,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Task 0 measured toolset tools only; rows 8 and 9 build the toolref by hand
 - 2026-10-24T18:06:19Z status=routed owner=22-2-classify-mcp-tools-by-server-and-name by=harvest note=measure a real MCP tool's toolref and metadata in %CanExecute (stdio, remote, JSON configuration) when step 4 registers MCP servers
 - 2026-10-24T20:53:20Z occurrence=3-2-one-gate-decides-every-tool-call
+- 2026-11-02T21:46:12Z occurrence=31-5-a-tool-call-s-approval-request-reaches-the-phone-with-approv
 
 ### DW-175: Two tools of one class whose names differ only in underscores, hyphens or case share their CLASSIFICATION, RESOURCES and STEPLABEL parameters (StepBuffer.ToolParameter's naming rule)
 - source: spec-3-2-one-gate-decides-every-tool-call.md | severity: low | fix-risk: med | footprint: in-epic
@@ -2679,6 +2680,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-31T00:33:43Z status=routed owner=31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=orchestrator note=U-178:_Lane_B_display(AD-33);31.2_reads_the_sentence_from_the_existing_fallback_Decision_row;a_new_stored_column_is_its_own_veto_item;it_carries_the_visible_half_of_U-170's_owner_condition
 - 2026-10-31T00:41:46Z note=U-178_kept:31.2_tests_prove_the_approval_card_and_the_notice_both_show_the_sentence_and_offer_no_Approve_for_an_old_held_tool_call_row;read_from_the_existing_fallback_Decision_row;a_new_stored_column_is_its_own_veto_at_31.2's_spec_gate;U-170_checked_at_Epic_31's_merge
 - 2026-11-02T07:57:37Z status=routed owner=31-5-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=spec_gate note=Story_31.2_split:DW-454_needs_part_2s_tool-call_notice_keys(declined_in_31.2_part_1)
+- 2026-11-02T21:50:55Z status=routed owner=31-6-a-tool-call-s-approval-request-appears-in-the-web-chat-with by=adjudication note=31.5 delivered the notice and event half (BridgeSink.HeldNotice: toolCall.failedWithReason to the phone and paired chat, the approval event's reason; TestHeldBeforeUpdateSaysWhy, TestHeldReasonIsCatalogOnly, commit 4c0c0eb8); residual: the same result notice in the web chat (W10), Story 31.6's card path
 
 ### DW-455: When FinishExecution is refused (row lock not taken) for an old approved tool_call row with ToolSource or Runner empty, Decide records a fallback Decision row with no reason, answers a repeat from it, and the row stays approved; untested
 - source: spec-30-3-an-approved-tool-call-runs-exactly-once-with-no-model.md | severity: low | fix-risk: med | footprint: in-story
@@ -3293,3 +3295,29 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: _bmad-output/implementation-artifacts/spec-31-5-a-tool-call-s-approval-request-reaches-the-phone-with-approv.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: ci/iris.sh live answers fresh, with and without 31.5: 1 failed (C1), 20 passed; web/e2e/answers/close-loop.spec.ts:62,:159
 - 2026-11-02T20:59:30Z status=open owner=31-5-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=harvest note=investigate at 31.5 smoke: reproduce, compare with CI's live:answers, classify
+- 2026-11-02T21:50:55Z status=wontfix-accepted by=adjudication note=local lane-C only: CI ran live:answers on the merged head a95624a9 (run 41495452746, iris browser) and C1 passed; reopen_if=C1 goes red in CI's live:answers
+
+### DW-601: Story 31.6's web card must take its first line and inputs from BridgeSink.ServerOf/InputsOf (private today), not a re-implementation, so U-212 (1)(2) phone and card texts cannot drift
+- source: spec-31-5-a-tool-call-s-approval-request-reaches-the-phone-with-approv.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: BridgeSink.cls ServerOf/InputsOf are [ Private ]; U-212 binds the card and the phone to one rule and one 200-char string; nothing pins the two equal yet
+- 2026-11-02T21:46:03Z status=routed owner=31-6-a-tool-call-s-approval-request-appears-in-the-web-chat-with by=cr note=make ServerOf/InputsOf one shared public helper the card calls; pin card text = phone text in a test
+
+### DW-602: X12 (answers.spec.ts) near-copies support/devices.ts phoneMessage as newestPhoneMessage and works around seedApproval's missing ToolSource/Runner/ToolArguments with a local setApprovalFields, forced by support/* being import-only
+- source: spec-31-5-a-tool-call-s-approval-request-reaches-the-phone-with-approv.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: answers.spec.ts newestPhoneMessage = phoneMessage minus the ApprovalRef filter (phoneMessage(user,'') never matches: SQL = '' on an empty property); support/iris.ts ApprovalFields lacks the tool fields
+- 2026-11-02T21:46:03Z status=routed owner=burndown by=cr note=Rule 2 forced copy: extend seedApproval's fields and add an any-request newest read in support/ when its owner touches it
+
+### DW-603: Test.Core.ToolCallNotices copies Lane A's private Test.Bridge.Approval HeldCall, UseReplayAgent and RestoreReplayAgent (forced by AD-29); the copy already drifted once (its Kill took the InProduction run counter)
+- source: spec-31-5-a-tool-call-s-approval-request-reaches-the-phone-with-approv.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: ToolCallNotices.cls HeldCall/UseReplayAgent/Restore (about 40 lines) vs Test/Bridge/Approval.cls :2561-2598; the review patched the drifted Kill
+- 2026-11-02T21:46:03Z status=routed owner=burndown by=cr note=Rule 2 forced copy: make HeldCall and the replay-agent swap public helpers of Test.Bridge.Approval (Lane A) and call them
+
+### DW-604: A tool call's answered notice that reaches SimPhoneOut after its result message edits nothing, so the request message keeps Approve and Reject (a press then gets 409)
+- source: spec-31-5-a-tool-call-s-approval-request-reaches-the-phone-with-approv.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: Approval.Answer fires approval.answered after the unlock and audit, while FinishExecution can take the lock first; EditAnswered's ApprovalRef guard skips a newest result row
+- 2026-11-02T21:46:12Z status=by-design owner=31-5-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=cr note=spec matrix row 'Answered after a result' requires M and R unchanged; reopen only by spec amendment (find the request row, not the newest)
+
+### DW-605: BridgeSink.Compose repeats IncidentManager.Compose (the six Notification property sets), forced across lanes (AD-29)
+- source: spec-31-5-a-tool-call-s-approval-request-reaches-the-phone-with-approv.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Core/BridgeSink.cls Compose (9 lines) vs Watch/IncidentManager.cls Compose :1192-1201; the spec records the reason
+- 2026-11-02T21:46:12Z status=wontfix-accepted owner=31-5-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=cr note=reopen_if=a third Notification Compose copy appears or Msg.Notification gains a constructor
