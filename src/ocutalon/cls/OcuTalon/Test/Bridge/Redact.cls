@@ -5,11 +5,6 @@
 ///     array); a key that is not in the list keeps its value, and the text is the serialized JSON;
 ///   - TestPatterns: the free-text patterns (a key followed by = or :, a quoted value, Bearer, sk-ant- and other sk- keys, a Telegram bot
 ///     token also inside a URL, a JWT, ghp_ and github_pat_ tokens, an AKIA key) are replaced, and the text around them is kept;
-///   - TestDigitalOceanToken (DW-386): a dop_v1_ token of hex digits is replaced in text and in a JSON string, and a shorter one is kept;
-///   - TestPrivateKey (DW-386): a PEM private key block is replaced from its BEGIN line through its END line, or to the end of the text when the
-///     END line is missing, with real and with escaped line breaks, in text and in a JSON string;
-///   - TestAnthropicKey (DW-386): an sk-ant- key is replaced in text and in a JSON string, in either case;
-///   - TestTelegramToken (DW-386): a bot token with a 10-digit id and one with a 13-digit id are replaced in text and in a JSON string;
 ///   - TestJsonString: a text that is exactly one JSON string, as AI Hub gives the result of a tool that returns text, is redacted by
 ///     its content: JSON inside the string (also encoded twice) has its sensitive keys replaced, text inside it has its patterns
 ///     replaced, and a string that needs no change, or that is not alone in the text, is returned as it is or by the free-text rules;
@@ -93,66 +88,6 @@ Method TestPatterns()
 	Do $$$AssertEquals(..Text("id " _ aws _ " ok"), "id " _ mark _ " ok", "an AKIA key")
 	Do $$$AssertEquals(..Text("{""note"":""the password: foo and sk-" _ "ant-zzz"",""x"":1}"), "{""note"":""the password: " _ mark _ " and " _ mark _ """,""x"":1}", "the string values of a JSON object are checked for the patterns too")
 	Do $$$AssertEquals(..Text("{""list"":[""Bearer abc"",""fine""]}"), "{""list"":[""Bearer " _ mark _ """,""fine""]}", "and so are the strings of an array")
-}
-
-/// A DigitalOcean token (DW-386): dop_v1_ and 20 or more hex digits, in text and inside a JSON string.
-Method TestDigitalOceanToken()
-{
-	Set mark = ..#MARK
-	Set token = "dop" _ "_v1_" _ $Translate($Justify("", 64), " ", "a")
-	Do ..Check("token " _ token _ " ok", "token " _ mark _ " ok", "a dop_v1_ token in text")
-	Do ..Check(token, mark, "a text that is the token")
-	Do ..Check({"note": ("made " _ token _ " today")}.%ToJSON(), {"note": ("made " _ mark _ " today")}.%ToJSON(), "and inside a JSON string")
-	Do ..Check({"outer": {"list": [(token)]}}.%ToJSON(), {"outer": {"list": [(mark)]}}.%ToJSON(), "and nested in an array")
-	Set upper = "dop" _ "_v1_" _ $Translate($Justify("", 30), " ", "F")
-	Do ..Check("t " _ upper, "t " _ mark, "with hex digits in upper case")
-	Set short = "dop" _ "_v1_" _ $Translate($Justify("", 19), " ", "a")
-	Do ..Check("t " _ short, "t " _ short, "a shorter run of hex digits is no token")
-}
-
-/// A PEM private key block (DW-386): replaced from its BEGIN line through its END line, or to the end of the text when the text has none.
-Method TestPrivateKey()
-{
-	Set mark = ..#MARK
-	Set lf = $Char(10)
-	Set begin = "-----" _ "BEGIN RSA PRIV" _ "ATE KEY-----"
-	Set end = "-----" _ "END RSA PRIV" _ "ATE KEY-----"
-	Set body = "ZmFrZWZha2VmYWtl" _ lf _ "ZmFrZWZha2VmYWtl"
-	Do ..Check("pem " _ begin _ lf _ body _ lf _ end _ " after", "pem " _ mark _ " after", "a block with an END line, with real line breaks")
-	Do ..Check("pem " _ begin _ "\n" _ $Translate(body, lf, "|") _ "\n" _ end _ " after", "pem " _ mark _ " after", "and with escaped line breaks")
-	Do ..Check("pem " _ begin _ lf _ body _ lf _ "tail text", "pem " _ mark, "a header-only block goes to the end of the text")
-	Do ..Check("pem " _ begin _ "\n" _ "ZmFrZQ==\ntail", "pem " _ mark, "also with escaped line breaks")
-	Set plain = "-----" _ "BEGIN PRIV" _ "ATE KEY-----" _ lf _ body _ lf _ "-----" _ "END PRIV" _ "ATE KEY-----"
-	Do ..Check("a " _ plain _ " b", "a " _ mark _ " b", "a block with no algorithm name")
-	Do ..Check({"pem": (begin _ lf _ body _ lf _ end _ " after")}.%ToJSON(), {"pem": (mark _ " after")}.%ToJSON(), "a block with an END line inside a JSON string")
-	Do ..Check({"pem": ("before " _ begin _ lf _ body)}.%ToJSON(), {"pem": ("before " _ mark)}.%ToJSON(), "a header-only block inside a JSON string")
-	Do ..Check(begin _ lf _ body _ lf _ end _ lf _ begin _ lf _ body _ lf _ end, mark _ lf _ mark, "two blocks are each replaced")
-	Do ..Check("-----" _ "BEGIN CERTIFI" _ "CATE-----" _ lf _ body, "-----" _ "BEGIN CERTIFI" _ "CATE-----" _ lf _ body, "a certificate is no private key")
-}
-
-/// An Anthropic key (DW-386): sk-ant- and the rest of the key, in text and inside a JSON string.
-Method TestAnthropicKey()
-{
-	Set mark = ..#MARK
-	Set key = "sk" _ "-ant-api03-" _ $Translate($Justify("", 40), " ", "x") _ "_-Z9"
-	Do ..Check("key " _ key _ " ok", "key " _ mark _ " ok", "an sk-ant- key in text")
-	Do ..Check("key " _ $ZConvert(key, "U") _ " ok", "key " _ mark _ " ok", "in upper case")
-	Do ..Check({"note": ("used " _ key _ " here")}.%ToJSON(), {"note": ("used " _ mark _ " here")}.%ToJSON(), "inside a JSON string")
-	Do ..Check({"list": [(key), "fine"]}.%ToJSON(), {"list": [(mark), "fine"]}.%ToJSON(), "inside an array")
-}
-
-/// A Telegram bot token (DW-386): the id may have 6 or more digits, in text and inside a JSON string.
-Method TestTelegramToken()
-{
-	Set mark = ..#MARK
-	Set secret = "AAH" _ $Translate($Justify("", 32), " ", "z")
-	For id = "1234567890", "1234567890123", "123456" {
-		Set token = id _ ":" _ secret
-		Do ..Check("token " _ token _ " end", "token " _ mark _ " end", "a token with a " _ $Length(id) _ "-digit id in text")
-		Do ..Check({"note": ("bot " _ token _ ".")}.%ToJSON(), {"note": ("bot " _ mark _ ".")}.%ToJSON(), "and inside a JSON string")
-	}
-	Do ..Check("https://api.example.test/bot1234567890123:" _ secret _ "/getMe", "https://api.example.test/bot" _ mark _ "/getMe", "a 13-digit id inside a URL")
-	Do ..Check("12345:" _ secret, "12345:" _ secret, "an id of 5 digits is no bot token")
 }
 
 /// A text that is exactly one JSON string is redacted by its content, and is a JSON string again.

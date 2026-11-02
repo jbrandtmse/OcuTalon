@@ -2999,8 +2999,25 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-30-7-epic-30-burn-down.md | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: 30.7 plan residual (inference): Data.Purge.Run deletes Turn, Delivery and Session only (U-210's scope); the other session-keyed rows are Lane B's and no area purges them
 - 2026-11-02T12:34:12Z status=escalated owner=burndown by=spec_gate note=for the decision sheet: a stored-data retention change (veto category); recommended: route to a Lane B story after 1.0.0 that purges every row keyed by a purged session, the link first
+- 2026-11-02T16:29:07Z status=routed owner=30-7-epic-30-burn-down by=lead note=Contest_Planner_ruling_(reserve_lever_d1):30.7_moves_after_the_v1.0.0_tag;its_residuals_travel_with_it
 
 ### DW-582: An approval hold whose replay was lost to a crash is never cleared: 30.7's Reconcile pass closes the executing tool_call row as interrupted, but the hold waiting on that replay's result is not ended
 - source: spec-30-7-epic-30-burn-down.md | severity: med | fix-risk: med | footprint: in-epic
 - evidence: 30.7 plan residual (inference), DW-444's neighbour: the hold's end is driven by the replay's result message, which a crash never sends
 - 2026-11-02T12:34:12Z status=escalated owner=burndown by=spec_gate note=for the decision sheet: recommended: have the same Reconcile pass end the hold with the interrupted result (a bridge change) in a fix story after 1.0.0, or accept with reopen_if a stuck hold is seen
+- 2026-11-02T16:29:07Z status=routed owner=30-7-epic-30-burn-down by=lead note=Contest_Planner_ruling_(reserve_lever_d1):30.7_moves_after_the_v1.0.0_tag;its_residuals_travel_with_it
+
+### DW-588: 30.7 (set aside): an answer that outlives TASKSECONDS before its approval task exists leaves the hold waiting on its 24-hour timer: Reconcile pass 1 discards the late task and sends the hold no deferred response
+- source: spec-30-7-epic-30-burn-down.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: measured at 30.7's implement on build 154U: EnsLib.Workflow.Engine.%CancelRequest discards the task without a deferred response; Bridge/Approval.cls CompleteHoldTask, Reconcile pass 1
+- 2026-11-02T16:28:42Z status=routed owner=30-7-epic-30-burn-down by=harvest note=travels with 30.7's set-aside patch (planner reserve lever d1)
+
+### DW-589: 30.7 (set aside): Test.Eval.KeyProof.Walk's per-node list check and subscript decode may slow the key-proof global scan on large databases (unmeasured)
+- source: spec-30-7-epic-30-burn-down.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: settle by timing eval/key-proof.sh's global scan before and after 30.7's patch on a throwaway
+- 2026-11-02T16:28:42Z status=routed owner=30-7-epic-30-burn-down by=harvest note=travels with 30.7's set-aside patch
+
+### DW-590: 30.7 (set aside): Test.Install.Retention failed twice locally because the stock Ens purge tasks did not start inside the test's wait (once beside a second IRIS stack); four other fresh runs passed (unverified)
+- source: spec-30-7-epic-30-burn-down.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: 30.7 implement; the OcuTalon purge task's own assertions passed in every run
+- 2026-11-02T16:28:42Z status=routed owner=30-7-epic-30-burn-down by=harvest note=travels with 30.7's set-aside patch; settle on CI over several pushes

@@ -16,7 +16,7 @@
 ///   - TestOwnNamespaceOnly (matrix 4): every run of every task was in OCUTALON (the Task Manager's history, read in OnBeforeAllTests) and the 92-day
 ///     message in OCUORDERS stays, with its body;
 ///   - TestMessagesPurge (matrix 5), TestAllPurge (matrix 6): the 7-day and the 90-day standard purges;
-///   - TestOcuTalonPurge (matrix 7): the Task Manager's run of the OcuTalon purge task reaches Bridge.Purge, Data.Purge (the turn created 61 days ago is gone and the one 59 days ago is kept) and the Digest and Watch areas with the task's days;
+///   - TestOcuTalonPurge (matrix 7): the Task Manager's run of the OcuTalon purge task reaches Bridge.Purge and the Digest and Watch areas with the task's days;
 ///   - TestAuditUntouched (matrix 8), TestHistoryReadsTables (matrix 9: a decision whose trace session and an incident whose trace header are purged
 ///     are still read through Data.Ownership).
 Class OcuTalon.Test.Install.Retention Extends %UnitTest.TestCase
@@ -149,7 +149,7 @@ Method TestNoSettingRead()
 	Set pattern = "ocutalon\.data\.setting"
 	Do $$$AssertTrue($ClassMethod(source, "Matches", $Char(9)_"Set days = ##class(OcuTalon.Data.Setting).Get(""PurgeDays"")", pattern), "the scanner flags a read of a setting")
 	Do $$$AssertTrue('$ClassMethod(source, "Matches", "/// reads no OcuTalon.Data.Setting"_$Char(10)_$Char(9)_"Quit ##class(OcuTalon.Bridge.Purge).Run(days)", pattern), "and passes a comment line and a purge")
-	For class = "OcuTalon.Install.Task.Purge", "OcuTalon.Install.Step.Retention", "OcuTalon.Install.Step.Watch", "OcuTalon.Install.Step.Digest", "OcuTalon.Bridge.Purge", "OcuTalon.Data.Purge", "OcuTalon.Bridge.Time", "OcuTalon.Install.Registry", "OcuTalon.Digest.Data.Item" {
+	For class = "OcuTalon.Install.Task.Purge", "OcuTalon.Install.Step.Retention", "OcuTalon.Install.Step.Watch", "OcuTalon.Install.Step.Digest", "OcuTalon.Bridge.Purge", "OcuTalon.Bridge.Time", "OcuTalon.Install.Registry", "OcuTalon.Digest.Data.Item" {
 		Do $$$AssertStatusOK($ClassMethod(source, "Text", class, .text), class_" has source")
 		Do $$$AssertEquals($ClassMethod(source, "Matches", text, pattern), 0, class_" names OcuTalon.Data.Setting nowhere")
 	}
@@ -252,8 +252,6 @@ Method TestOcuTalonPurge()
 	Do $$$AssertEquals(##class(OcuTalon.Bridge.Data.Decision).RefIndexExists(..Fx.dec59) _ "|" _ ##class(OcuTalon.Test.Bridge.Purge).UsageExists(..Fx.use59), "1|1", "the ones 59 days old are kept")
 	Do $$$AssertEquals(##class(OcuTalon.Data.Incident).RefIndexExists(..Fx.inc61), 0, "the incident closed 61 days ago is gone")
 	Do $$$AssertEquals(##class(OcuTalon.Data.Incident).RefIndexExists(..Fx.inc59), 1, "the one closed 59 days ago is kept")
-	Do $$$AssertEquals(##class(OcuTalon.Data.Turn).RefIndexExists(..Fx.turn61), 0, "the turn created 61 days ago is gone")
-	Do $$$AssertEquals(##class(OcuTalon.Data.Turn).RefIndexExists(..Fx.turn59), 1, "the one created 59 days ago is kept")
 	Do $$$AssertEquals(##class(OcuTalon.Digest.Data.Item).%ExistsId(..Fx.item61), 0, "the digest item 61 days old is gone")
 	Do $$$AssertEquals(##class(OcuTalon.Digest.Data.Item).%ExistsId(..Fx.item59), 1, "the one 59 days old is kept")
 	Do $$$AssertEquals(##class(%AI.Agent.Session).%ExistsId(..Fx.session), 0, "the AI session that no link has named for two days is gone")
@@ -327,10 +325,6 @@ Method Seed()
 	Do ..Track("refs", ..Fx.use59)
 	Do ..Track("refs", ..Fx.inc61)
 	Do ..Track("refs", ..Fx.inc59)
-	Set ..Fx.turn61 = ##class(OcuTalon.Test.Data.Fixture).Turn(owner, ..Utc(61))
-	Set ..Fx.turn59 = ##class(OcuTalon.Test.Data.Fixture).Turn(owner, ..Utc(59))
-	Do ..Track("refs", ..Fx.turn61)
-	Do ..Track("refs", ..Fx.turn59)
 	// 9: an incident closed and noticed 30 days ago whose trace is the 9-day Checks message (a header that is its own session)
 	Set ..Fx.inc30 = ##class(OcuTalon.Test.Data.Fixture).Incident(owner, ..Utc(30), "ZZNS", "Zz.Retention30", {"State": "closed", "OpenVariant": "", "ClosedAt": (..Utc(30)), "TraceHeaderId": (..Fx.ck9)})
 	Do ..Track("refs", ..Fx.inc30)

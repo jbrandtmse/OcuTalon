@@ -2,7 +2,7 @@
 title: 'Epic 30 burn-down'
 type: 'bugfix'
 created: '2026-11-02'
-status: 'done'
+status: 'ready-for-dev'
 baseline_revision: '0e5d27304acbf24dcc1896176578ec0013d8fda1'
 review_loop_iteration: 0
 followup_review_recommended: false
@@ -251,6 +251,8 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless they start with `src/bridge/
 - Given the Chat agent calls `list_productions`, when Orders is stopped, then its entry's state is `stopped`, built from IRIS's status code and no other field (DW-541).
 
 ## Spec Change Log
+
+- 2026-11-02 (lead, set-aside): DEFERRED by the Contest Planner (reserve lever d1) to after the v1.0.0 tag, first daily release. The implemented and self-reviewed work (finalize commit 0fae3b72) was taken out of the tree by a forward set-aside commit and saved as `_bmad-output/implementation-artifacts/set-aside/30-7-epic-30-burn-down-1.patch` (the source diff from story_base 58dbdd26 plus the AD-27 U-210 spine bullet). Pick-up (doctrine U4): apply the patch with `git apply --3way`, commit, set this spec `in-review` with `baseline_revision` = the commit before the pick-up, then QA and code review. The frontmatter `deferred:` items are harvested to the ledger (owner 30.7). Not yet code-reviewed or QA'd.
 
 ## Review Triage Log
 

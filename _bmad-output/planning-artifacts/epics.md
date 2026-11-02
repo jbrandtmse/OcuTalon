@@ -7081,6 +7081,8 @@ So that the model's own reply content never reaches the trace through an error t
 
 ### Story 30.7: Epic 30 burn-down
 
+[DEFERRED 2026-11-02, the Contest Planner (reserve lever d1): after the v1.0.0 tag, first daily release]
+
 [ADDED 2026-11-02, Epic 30 part 2 burn-down gate (Rule 17; U-207): the ledger entries this epic still owns, chartered with their kept conditions. DW-437 is the orchestrator's ruling U-210 (veto), kept by the Contest Planner with two conditions; DW-386 and DW-448 are U-184's and U-185's kept conditions, re-owned here from Story 30.1 at its spec gate; DW-541 is in 1.0.0 only at no date cost. This story is built independently of Story 30.1 (no code or test of it depends on 30.1's changes) and lands in commits of its own, so it can be deferred on its own: if the rc1 forecast slips past 2026-11-03 18:00Z, the Contest Planner may move it after the tag.]
 
 As a maintainer,

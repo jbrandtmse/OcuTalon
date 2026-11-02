@@ -1,7 +1,7 @@
 /// Tests of OcuTalon.Watch.Reader (Story 5.1; AD-3, AD-4). THEY RUN IN THROWAWAY STACKS AND IN CI ONLY (Rule 21), with demo mode on, through
 /// Test.Watch.Case: they need the running production and the Orders demo production in OCUORDERS, and fail with the reason where they do not have them.
 ///   - TestOrdersIsListed: Productions lists the Orders production, as {namespace OCUORDERS, production OcuTalon.Demo.Orders.Production, displayName
-///     Orders, state running}, once, and Find finds it by the display name in any case, with white space around it (a line break included, as Label treats it), with a
+///     Orders}, once, and Find finds it by the display name in any case, with white space around it (a line break included, as Label treats it), with a
 ///     trailing " production", by the class name, and with the namespace argument in any case; a name that is not Orders, an empty name and another
 ///     namespace find nothing;
 ///   - TestUnreadableNamespaceIsLeftOut: the service user cannot read OCUTALON's data database in a throwaway, and OCUTALON is not listed (a filter that
@@ -27,7 +27,7 @@
 ///     entered the namespace before the check would throw);
 ///   - TestFailuresNotCurrent (DW-38): a production that is not its namespace's own gives not_current and no row: another production in OCUORDERS, and the
 ///     Orders production asked for in OCUTALON, which is readable;
-///   - TestStoppedProduction (DW-222; Story 30.4; DW-541): with the Orders production cleanly stopped, Productions and Find still list it (Productions with the state stopped, and running again after the restart), Failures still reads the failures that it
+///   - TestStoppedProduction (DW-222; Story 30.4): with the Orders production cleanly stopped, Productions and Find still list it, Failures still reads the failures that it
 ///     made, gives the state stopped, the stop time that IRIS recorded (a stamp between just before and just after the stop) and no disabled item, and a StartWatch reaches
 ///     WatchOps' shadow instance and is admitted (its row only records a baseline); the production is started again and the test asserts it runs;
 ///   - TestDisabledItems (Story 30.4): with OrdersToWarehouse disabled in OCUORDERS Failures gives disabled ["OrdersToWarehouse"], with the stop time "" while Orders runs, and
@@ -64,8 +64,7 @@ Method TestOrdersIsListed()
 		If entry.namespace = orders {
 			Set count = count + 1
 			Do $$$AssertEquals(entry.production_"|"_entry.displayName, production_"|Orders", "the entry of "_orders_" is the Orders production, named Orders")
-			Do $$$AssertEquals(..SortedKeys(entry), "displayName,namespace,production,state", "and has those four fields")
-			Do $$$AssertEquals(entry.state, "running", "and it runs")
+			Do $$$AssertEquals(..SortedKeys(entry), "displayName,namespace,production", "and has those three fields")
 		}
 	}
 	Do $$$AssertEquals(count, 1, orders_" is listed once")
@@ -290,7 +289,6 @@ Method TestStoppedProduction()
 		If (entry.namespace = ..#ORDERS) && (entry.production = ..#ORDERSPRODUCTION) {
 			Set count = count + 1
 			Do $$$AssertEquals(entry.displayName, "Orders", "the stopped production is listed as Orders")
-			Do $$$AssertEquals(entry.state, "stopped", "with the state stopped, from the status code of Ens.Director")
 		}
 	}
 	Do $$$AssertEquals(count, 1, "it is listed once")
@@ -316,11 +314,6 @@ Method TestStoppedProduction()
 		Do $$$AssertEquals(response.Ok_"|"_response.Outcome, "1|started", "and admits it")
 	}
 	Do ..StartOrders()
-	Do $$$AssertEquals(..OrdersRunning(), 1, "the production is started again and runs")
-	Set iterator = $ClassMethod(..#READER, "Productions").%GetIterator()
-	While iterator.%GetNext(, .entry) {
-		If (entry.namespace = ..#ORDERS) && (entry.production = ..#ORDERSPRODUCTION) Do $$$AssertEquals(entry.state, "running", "and its entry says running again")
-	}
 }
 
 Method TestDisabledItems()

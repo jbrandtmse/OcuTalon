@@ -27,8 +27,7 @@ Include Ensemble
 ///   - Reconcile (declared by Install.Step.Approvals, AD-23) cancels the Workflow tasks that no live hold of a pending row owns, starts
 ///     a new hold for each pending row whose hold is gone, timed from the row's ExpiresAt, and starts a delivery hold for each row that owes
 ///     a delivery whose hold is gone: an approved tool_call, and an approved, rejected or expired fix with a ResultTarget whose ApprovalOutcome
-///     was not sent. It also closes an executing tool_call whose replay is no longer alive, as failed with the result interrupted (Replay.CloseInterrupted,
-///     DW-444), and never runs the call again.
+///     was not sent.
 /// Nothing here makes a %AI call or runs Python (AD-6).
 Class OcuTalon.Bridge.Approval
 {
@@ -767,8 +766,8 @@ ClassMethod IsLive(holdId As %String) As %Boolean [ Private ]
 	Quit 'hold.%IsCompleted && 'hold.%IsTerminated && (hold.%MasterPendingResponses.Count() > 0)
 }
 
-/// Re-arms the holds after a start (AD-5, AD-23), in four passes that try every task and every row and combine the failures into one status,
-/// each naming its Ref. It is idempotent; passes 1 to 3 fire no event, and pass 4 fires approval.result for each replay it closes.
+/// Re-arms the holds after a start (AD-5, AD-23), in three passes that try every task and every row and combine the failures into one status,
+/// each naming its Ref. It is idempotent and fires no event.
 ///   1. It cancels, with EnsLib.Workflow.Engine.%CancelRequest, every incomplete task of the role WORKFLOWROLE that is not the task of a live
 ///      hold of a pending row. The hold that sent a task is the BusinessProcessId of its TaskRequest's message header.
 ///   2. It starts, through ApprovalStartIn, a new hold for every pending row that has no live hold, in a new session whose SuperSession is the
@@ -776,9 +775,6 @@ ClassMethod IsLive(holdId As %String) As %Boolean [ Private ]
 ///   3. It starts a delivery hold, through ApprovalStartIn, for every row that owes a delivery and has no live hold (DW-192): an approved
 ///      tool_call (its replay), and an approved, rejected or expired fix with a ResultTarget whose ExpiresAt lies within DELIVERYDAYS and for
 ///      which no ApprovalOutcome message names the Ref. A cancelled, executing, done or failed row, and a row that is older, gets no hold.
-///   4. It closes, through Replay.CloseInterrupted, every executing tool_call row whose replay lock it can take at once, meaning that no replay is
-///      alive (DW-444): the row becomes failed with the result interrupted, the Action entry and the Approval entry are written and approval.result
-///      fires. It never runs the call again (NFR-13). A row whose replay is alive, and an executing fix row (Fix.Run closes it), are left alone.
 /// The Lane A declaration OcuTalon.Install.Step.Approvals.Reconcile calls it, and the Reconcile step runs it after the production starts.
 ClassMethod Reconcile() As %Status
 {
@@ -814,8 +810,7 @@ ClassMethod Reconcile() As %Status
 		Set one = ..StartHold(ref, "", $List(entry, 2))
 		If $$$ISERR(one) Set sc = ..Combine(sc, "the hold of " _ ref _ " did not start: " _ $SYSTEM.Status.GetErrorText(one))
 	}
-	Set sc = ..ReconcileDeliveries(sc)
-	Quit $SYSTEM.Status.AppendStatus(sc, ##class(OcuTalon.Bridge.Replay).CloseInterrupted())
+	Quit ..ReconcileDeliveries(sc)
 }
 
 /// Reconcile's pass 3: starts a delivery hold for each row that owes a delivery and has no live hold; see Reconcile.

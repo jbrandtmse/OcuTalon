@@ -9,10 +9,6 @@
 ///     probe and no ReplyClass; a reply without a failure records the outcome act and a repeat is answered from the row with no send; a
 ///     failure reply records a fallback with the reason error and is never sent again; a row with no runner is closed failed, a missing
 ///     row and a fix row are left alone, and each is answered with a fallback;
-///   - TestToolFailureReasons (Story 30.7, DW-470, rows 14 to 16): a failed replay whose failure text is the provider's no-key error and whose
-///     Reply says the call did not run (ToolsRun 0) records a fallback with the reason no_key and the sentence REPLAYNOKEY as its Reasons; the
-///     same text with ToolsRun 1 (a tool's own error), a provider error that is not the no-key one and a failure with no Reply stay error with
-///     no reasons;
 ///   - TestToolRowHeldBeforeAnUpdate (Story 30.3, row 9, owner decision U-170): an approved tool_call row with an empty ToolSource, and one with
 ///     an empty Runner, is closed failed through FinishExecution and never sent to a runner (the tool runs 0 times); the fallback Decision row
 ///     carries a plain-English reason (HELDBEFOREUPDATE) that holds no class name, no code and no status text;
@@ -387,51 +383,6 @@ Method TestToolRequest()
 	Do $$$AssertEquals(..ToolRowState(noRunner), "failed|failed", "(a) the row is closed failed through FinishExecution")
 	Do $$$AssertTrue(..SinkTypes() [ "decision.recorded", "and the decision was recorded")
 	Do $$$AssertEquals(..ToolRowText(fix), fixText, "(b) the fix row is unchanged")
-	Do ..RemoveToolRows()
-}
-
-/// Story 30.7, DW-470 (rows 14 to 16): the reason and the Reasons of the fallback Decision row of a failed replay. The failure text of the no-key case
-/// is the one that Task 0 measured (the runner fails in BuildAgent, the call does not run, ToolsRun 0). An unreachable provider fails no replay (Task 0:
-/// the replay makes no provider request, so the tool ran), so no sentence is made for it.
-Method TestToolFailureReasons()
-{
-	Set class = "OcuTalon.Bridge.Process.Decide"
-	Set sentence = $Parameter(class, "REPLAYNOKEY")
-	Do $$$AssertEquals(sentence, "No model key is set, so the approved call did not run. Nothing was changed.", "the sentence is the agreed one")
-	Do $$$AssertTrue(sentence '[ "ERROR", "and it holds no code, class name or status text")
-	Set noKey = "ERROR <%AICore>ProviderConfigError: PROVIDERCONFIG is invalid    > ERROR <%AICore>InternalError: Internal AI-Core error: @{env:ZZ_UNSET_VARIABLE} has no value and no :-fallback was given"
-	Set cases = $ListBuild(
-		$ListBuild("no key, the call did not run", noKey, 0, 1, "1|no_key|" _ sentence),
-		$ListBuild("no key text from a tool that ran", noKey, 1, 1, "1|error|"),
-		$ListBuild("a tool's own error", "ZZ tool failure", 1, 1, "1|error|"),
-		$ListBuild("a provider error that is not the no-key one", "Connection refused", 0, 1, "1|error|"),
-		$ListBuild("no Reply at all", noKey, "", 0, "1|error|"))
-	Set position = 0
-	While $ListNext(cases, position, case) {
-		Set label = "(" _ $List(case, 1) _ ")"
-		Set ref = ..ToolRow("zz_replay_throw", "ZzRunner", "failed")
-		Set request = ..NewToolRequest(ref)
-		Kill ^||ZzDecideCalls, ^||ZzProbeSink
-		Set process = ..ToolRecorder()
-		Set process.%TimeCreated = ..Ago(3)
-		Do $$$AssertStatusOK(process.OnRequest(request, .nothing), label _ " the request is sent")
-		Set call = request.%ConstructClone()
-		Set call.DecisionRef = process.DecisionRef
-		Set reply = ""
-		If $List(case, 4) {
-			Set reply = ##class(OcuTalon.Bridge.Msg.Reply).%New()
-			Set reply.FailureText = $List(case, 2)
-			Set reply.ToolsRun = $List(case, 3)
-		}
-		Do $$$AssertStatusOK(process.OnResponse(request, .out, call, reply, "reply"), label _ " OnResponse takes the reply")
-		Set row = ..RowOf(ref, "tool")
-		Do $$$AssertTrue($IsObject(row), label _ " a Decision row of kind tool records it")
-		If $IsObject(row) Do $$$AssertEquals(row.Fallback _ "|" _ row.FallbackReason _ "|" _ row.Reasons, $List(case, 5), label _ " the fallback, its reason and its Reasons")
-		If $IsObject(row) Do $$$AssertEquals(row.Outcome, "tellnow", label _ " with the outcome tellnow")
-		If $IsObject(out) Do $$$AssertEquals(out.Fallback _ "|" _ out.FallbackReason, "1|" _ $Piece($List(case, 5), "|", 2), label _ " and the answer says the same reason")
-		Do $$$AssertEquals(..Calls("send"), 1, label _ " nothing was sent again")
-	}
-	Do $$$AssertEquals($Data(^OcuTalonBP.UsageCapped(##class(OcuTalon.Bridge.Time).LocalDate(##class(OcuTalon.Bridge.Time).NowUtc()))), 0, "no failure marked the day as capped")
 	Do ..RemoveToolRows()
 }
 

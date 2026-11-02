@@ -9,11 +9,9 @@
 ///     sensitive when the name is.
 ///   - A text that is exactly one JSON string (a tool that returns text has its result encoded so) is redacted by its content, as a
 ///     text of its own: JSON inside the string is parsed as above. A string that needs no change is returned as it is.
-///   - Then, anywhere in the text, these patterns are replaced: sk-ant- keys and other sk- keys of 20 or more characters (the prefix included),
-///     DigitalOcean tokens (dop_v1_ and 20 or more hex digits), PEM private key blocks (from the BEGIN line through the first END line, or to the
-///     end of the text when there is none; real and escaped line breaks alike), Telegram bot tokens (6 or more digits, a colon and 30 or more of
-///     A-Z, a-z, 0-9, _ and -), Bearer tokens, JWT-shaped tokens, GitHub tokens (ghp_ and the other gh*_ forms, github_pat_), AWS access key ids
-///     (AKIA) and the user and password of a URL. A key of
+///   - Then, anywhere in the text, these patterns are replaced: sk-ant- keys and other sk- keys of 20 or more characters (the prefix included), Telegram
+///     bot tokens (6 to 12 digits, a colon and 30 or more of A-Z, a-z, 0-9, _ and -), Bearer tokens, JWT-shaped tokens, GitHub
+///     tokens (ghp_ and the other gh*_ forms, github_pat_), AWS access key ids (AKIA) and the user and password of a URL. A key of
 ///     SENSITIVEKEYS followed by = or : and a value is replaced too, also when its quotes are escaped (JSON inside a text), in text that is
 ///     not JSON and in the string values of JSON that is.
 ///   - It is idempotent: Text(Text(x)) is Text(x).
@@ -192,13 +190,10 @@ ClassMethod Patterns(text As %String, kv As %Boolean) As %String [ Private ]
 ClassMethod PatternList(kv As %Boolean) As %List [ Private ]
 {
 	Set mark = ..#REDACTED
-	Set pem = "-----BEG" _ "IN [A-Z ]*PRIV" _ "ATE KEY(?:[\s\S]*?-----E" _ "ND [A-Z ]*PRIV" _ "ATE KEY-----|[\s\S]*)"
 	Set patterns = $ListBuild(
 		$ListBuild("(?i)sk-ant-[A-Za-z0-9_-]+", mark),
 		$ListBuild("(?<![A-Za-z0-9])sk-[A-Za-z0-9_-]{17,}", mark),
-		$ListBuild("dop_v1_[A-Fa-f0-9]{20,}", mark),
-		$ListBuild(pem, mark),
-		$ListBuild("(?<![0-9])[0-9]{6,}:[A-Za-z0-9_-]{30,}", mark),
+		$ListBuild("(?<![0-9])[0-9]{6,12}:[A-Za-z0-9_-]{30,}", mark),
 		$ListBuild("(?i)(\bBearer\s+)[^\s""',;]+", "$1"_mark),
 		$ListBuild("eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*", mark),
 		$ListBuild("gh[pousr]_[A-Za-z0-9]{20,}", mark),
