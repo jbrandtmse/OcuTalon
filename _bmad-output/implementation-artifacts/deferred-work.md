@@ -3231,3 +3231,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: Epic 11 merge decision sheet (DW-496, veto U-215 kept by the Contest Planner) | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: AD-1 amended a9a221ed; TestCancelAllThroughChat asserts the keys but not the repeat refusal per key
 - 2026-11-02T13:25:27Z status=routed owner=burndown by=merge_gate note=Epic 30 part 2 burn-down 30.7 (sent to its runner with U-215's apply)
+
+### DW-593: Test.Install.SecurityOverview reads Security.Roles, Security.Users and Security.SQLPrivileges with its own small readers, a copy of Test.Install.Registry's private ReadRole/UserResources/SqlPrivileges (that class is contended by Epic 15)
+- source: _bmad-output/implementation-artifacts/spec-14-1-the-overview-s-tool-and-privilege-lists-are-generated-from-t.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: src/ocutalon/cls/OcuTalon/Test/Install/SecurityOverview.cls; Test/Install/Registry.cls:1047,1103 private
+- 2026-11-02T20:16:46Z status=open owner=14-1-the-overview-s-tool-and-privilege-lists-are-generated-from-t by=harvest note=copy forced by contention (Rule 2)
