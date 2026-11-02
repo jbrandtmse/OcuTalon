@@ -3273,3 +3273,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: Epic 11 merge decision sheet (DW-496, veto U-215 kept by the Contest Planner) | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: AD-1 amended a9a221ed; TestCancelAllThroughChat asserts the keys but not the repeat refusal per key
 - 2026-11-02T13:25:27Z status=routed owner=burndown by=merge_gate note=Epic 30 part 2 burn-down 30.7 (sent to its runner with U-215's apply)
+
+### DW-592: Web chat tool-call card: after a page reload an answered, expired or finished tool-call request shows no answered line, because /state serves pending approvals only (Ownership.Approvals through Web/Api.cls RailBody); the live page shows who answered
+- source: _bmad-output/implementation-artifacts/spec-31-5-a-tool-call-s-approval-request-reaches-the-phone-with-approv.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: spec-31-5 re-plan W3 (deferred item); Web/Api.cls RailBody serves Ownership.Approvals (pending only); U-222
+- 2026-11-02T18:27:51Z status=routed owner=burndown by=spec_gate note=first daily release after 1.0.0 (U-222); U-222 kept at=2026-11-02T18:27:03Z#671 with one condition: the reloaded card shows no pending cue, which is Story 31.6's

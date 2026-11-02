@@ -2,7 +2,7 @@
 title: 'Story 31.5: a tool call''s approval request reaches the phone with Approve and Reject (notices)'
 type: 'feature'
 created: '2026-11-02'
-status: 'ready-for-dev'
+status: 'draft'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -13,10 +13,6 @@ deferred:
     evidence: 'Core/AnswersIn.cls :86-100 (slots from the dry run only); Msg/Catalog/Core.cls press.approved :52-58; TelegramOut is a stub on this branch (Channel/Telegram/Out.cls :1-14)'
     location: 'src/ocutalon/cls/OcuTalon/Channel/Telegram/In.cls (Epic 12), Story 31.4'
     severity: 'med'
-  - summary: 'After a page reload, an answered, expired or finished tool-call request is drawn as its request text with no buttons and no answered line: /state serves pending approvals only (Ownership.Approvals through Web/Api.cls RailBody), and Web/Api.cls is on this story''s Never list. The live page shows the answered line; the result notice survives the reload.'
-    evidence: 'Web/Api.cls :886-901 (RailBody, Ownership.Approvals); Data/Ownership.cls :303 and :768-770 (State = pending); SessionOps.cls :310 also reads Approvals, so widening it is not safe'
-    location: 'src/ocutalon/cls/OcuTalon/Web/Api.cls (snapshot: the session''s answered tool-call approvals that have a web card)'
-    severity: 'low'
   - summary: 'When Story 30.7 lands (deferred after the v1.0.0 tag), its replay-failure reasons (U-214''s unreachable-endpoint sentences, U-170''s no-key wording) could reach the tool-call result as toolCall.failedWithReason; until then a replayable row''s failed result sends toolCall.failed with no reason, and BridgeSink''s reason allowlist holds only Decide''s HELDBEFOREUPDATE'
     evidence: 'U-214 (#650) and its story are set aside (cycle log 2026-11-02T14:11:59Z); the texts exist nowhere in src/'
     location: 'src/ocutalon/cls/OcuTalon/Core/BridgeSink.cls (reason allowlist), Story 30.7'
@@ -37,7 +33,7 @@ deferred:
 
 Four `toolCall.*` keys are appended to `Msg.Catalog.Core`. `SimPhoneOut`'s answered edit only ever lands on a request message.
 
-**Web chat card [AMENDED 2026-11-02, Story 31.5, Contest Planner under the owner's delegation: "The web-chat tool-call approval gap is 1.0.0-VISIBLE: PUT IT INTO 31.5"; it was a `deferred:` item].** A tool call's approval request also appears in the web chat, as a card with Approve and Reject (FR-8; PRD "Channels": the web chat, the simulated phone and the paired chat, with inline Approve and Reject). Its texts are the phone's (the U-212 conditions below), it is answered once with the first answer winning across every copy (web chat, simulated phone, paired chat), and its result shows as a new message with no buttons. It reuses the fix card's component (`web/src/app/approvals/approval-request-card.ts`, today drawn only inside an incident card) and the existing approval API (`ApiClient.answerApproval`, `POST /ocutalon/api/v1/approvals/:ref/answer`) -- Rule 2: extend, don't copy; the plan names the sibling it extends under Design Notes.
+**Web chat card: Story 31.6** [AMENDED 2026-11-02, Story 31.5 split, orchestrator ruling (decide, Rule 5 tier-2 split into a sibling planned next): the web chat tool-call approval card that the Contest Planner put into 31.5 ("The web-chat tool-call approval gap is 1.0.0-VISIBLE: PUT IT INTO 31.5") is Story 31.6, planned and built right after this story on the same run. This story (part A) keeps the notices, U-212's texts on the phone and in the paired chat, DW-454 and the SimPhoneOut edit guard.]
 
 ## Boundaries & Constraints
 
@@ -73,19 +69,15 @@ Four `toolCall.*` keys are appended to `Msg.Catalog.Core`. `SimPhoneOut`'s answe
   - It sends one kind `result` notice, `toolCall.failedWithReason` {`tool`, `reason` = that first line}, with `DecisionRef` set to the decision's Ref.
   - It publishes one `approval` event: `Live.Payload.Approval.FromRow(row, owner)` with `Reason` set to the same line.
 - **U-212: the texts (veto, kept by the Contest Planner under the owner's delegation with four conditions, `at=2026-11-02T13:19:05Z#648`).** Verbatim: "Keep, with four conditions. (1) Match the card: the first line is 'Run {tool} on {server}' when the server is known, and 'Run {tool}' only when it isn't. (2) {inputs} stays on one line through the bridge's redactor, and is capped at 200 characters, ending with '…' when cut; the phone and paired chat never get more of a call's inputs than the card shows. (3) {reason} in toolCall.failedWithReason is only ever a catalog reason (such as U-214's), never raw error or exception text; a test pins it. (4) {time} uses the same labelled form as the other catalog times (DW-574 will unify zones later). The Q3 reading (answer edits the request in place; the result is a new message with no buttons, as for a fix in Story 6.4) is kept." So:
-  - (1) The request's first line, on every channel and on the web card, is 'Run {tool} on {server}' when the call's server is known (an MCP tool: the server named by the row's MCP toolref in `ToolSource`), else 'Run {tool}'. The web card's title and the phone's first line come from the same rule, so they always match.
-  - (2) `{inputs}` is `Bridge.Redact.Text(ToolArguments)` folded to one line and cut to at most 200 characters, ending with '…' (written `…`-style in source, Rule 14) when cut. The web card shows the same string, and no channel ever gets more of a call's inputs than the card shows.
+  - (1) The request's first line, on every channel (and on Story 31.6's web card, which uses the same rule), is 'Run {tool} on {server}' when the call's server is known (an MCP tool: the server named by the row's MCP toolref in `ToolSource`), else 'Run {tool}'. The web card's title and the phone's first line come from the same rule, so they always match.
+  - (2) `{inputs}` is `Bridge.Redact.Text(ToolArguments)` folded to one line and cut to at most 200 characters, ending with '…' (written `…`-style in source, Rule 14) when cut. Story 31.6's web card shows the same string, and no channel ever gets more of a call's inputs than the card shows.
   - (3) `{reason}` in `toolCall.failedWithReason` is only ever one of a fixed set of catalog reasons (Decide's `HELDBEFOREUPDATE`, U-170's no-key wording, U-214's unreachable-endpoint sentences), never raw error or exception text. A fallback Decision whose first `Reasons` line is anything else sends `toolCall.failed` instead (no reason slot). A test pins it with a raw error line.
   - (4) `{time}` is a catalog `time` slot, rendered in the same labelled form as the other catalog times (as `answered.*` render theirs).
-- **The web chat card.** A replayable session `tool_call` request (the same gate as the notices) appears in that session's web chat as a card with Approve and Reject:
-  - It reuses `ApprovalRequestCard` and the answer path a fix card uses (`ApiClient.answerApproval`); no second card component and no second answer API.
-  - Answered once: the first answer from any copy (web card, simulated phone, paired chat) wins; a later press on another copy changes nothing and the card shows the answered line, as a fix card does today.
-  - When it is answered, the card's buttons give way to the answered line in place; its result shows as a new chat message with no buttons, and the card keeps its answered line (the Q3 reading).
-  - A non-replayable row, a `fix` row and another session's row get no tool-call card (a fix keeps its card inside the incident card).
+- **The web chat card is Story 31.6's** [AMENDED 2026-11-02, split]: this story changes no page file and draws no web card.
 - **Errors never escape.** A failed read or send logs one warning that names the event type and the request's Ref and sends nothing. `OnEvent` still returns OK, publishes its events as today and waits on no lock for more than 1 s (AD-31).
 - **`SimPhoneOut.EditAnswered` edits only a request message.** The found message must carry `ApprovalRef` = the notification's `ApprovalRef`. Any other message (a result message) counts as "no such message", so only its Delivery row is recorded.
 - **The catalog change is appended.** The four keys go at the end of `Msg/Catalog/Core.cls`'s Entries, after `audit.recorded`. In `Test/Msg/Catalog.cls`, only the count lines change and the appended `Keys` and `Fixtures` entries are added (Q1 ruling; the only shared-file edits).
-- **Web texts come from the catalog.** The web card's texts are catalog texts (a `web` form of the same keys, or existing web keys such as the rail's "Run {toolName}" extended for the server), never hand-written page strings; any new web key is appended (`web/scripts/catalog.mjs`, `catalog.ts` regenerated) and any new string is appended to `web/scripts/ux-strings.test.mjs` (a plain union with Epic 12). [AMENDED 2026-11-02: it read "The keys are channel-only: the web catalog lists none of them"]
+- **The keys are channel-only in this story:** the web catalog lists none of them (`web/scripts/catalog.mjs` and `catalog.ts` are unchanged); Story 31.6 adds any `web` forms the card needs. [AMENDED 2026-11-02, split: it read "Web texts come from the catalog ..." while the card was in this story]
 - Every test added or changed creates and removes its own rows and phone messages, and passes on a fresh stack in either order.
 
 **Never:**
@@ -94,7 +86,7 @@ Four `toolCall.*` keys are appended to `Msg.Catalog.Core`. `SimPhoneOut`'s answe
   - Epic 11 and Epic 12: `Test/Live/Payloads.cls`, `Test/Data/Fixture.cls` (calling its helpers is fine), `web/e2e/support/**` (importing is fine), `Channel/Telegram/**`, `Test/Channel/**`, `Web/Api.cls`, `ci/units.sh`, `.github/**`;
   - Epic 12's `web/src/app/rail/telegram-card/**`; `web/e2e/support/floor.ts`, `web/e2e/banners/banners.spec.ts`, `web/e2e-online/**` (standing rulings);
   - `web/src/app/api/api-types.ts` and `web/src/app/live/live-store.ts` only with a recorded reason (Epic 11's files until its part 2; a one-field append is the most it may take).
-  [AMENDED 2026-11-02 for the web chat card: Part 1 (Story 31.2) is done, so `web/src/app/approvals/**` and `web/src/app/chat/**` are this story's to extend; `Channel/WebChat/Out.cls` and `Live/Payload/Approval.cls` may change if the card needs it (an append to the `approval` payload only, Lane B's).]
+  [AMENDED 2026-11-02, split: `web/src/app/**`, `Channel/WebChat/Out.cls`, `Data/Ownership.cls` and `Live/Payload/Approval.cls` are Story 31.6's; this story leaves them unchanged.]
 - No new stored property, column, global or table. The `approval` payload's existing fields keep their shape (an appended optional field, such as the server, is allowed).
 - No hand-written page string (web texts come from the catalog, above). No new CI job, group or unit.
 - No notice for `fix` or `setting` rows from `BridgeSink`. No change to `IncidentManager`.
@@ -105,12 +97,8 @@ Four `toolCall.*` keys are appended to `Msg.Catalog.Core`. `SimPhoneOut`'s answe
 | Scenario | Input / State | Expected Output / Behavior | Error Handling |
 |----------|--------------|---------------------------|----------------|
 | Raised | session row `tool_call`, pending, ToolName `zz_send`, ToolArguments `{"to":"ops"}`, ToolSource and Runner set | one notice: kind `approval`, `toolCall.request` {tool `zz_send`, inputs `{"to":"ops"}`}, ApprovalRef the Ref, IncidentRef "", DecisionRef ""; phone text "Run zz_send\nInputs: {"to":"ops"}\nNo dry run is available for this tool. Approving runs exactly this call once." with Approve and Reject | none |
-| Raised, server known (U-212 (1)) | as Raised, but the call is an MCP tool whose toolref names server `ops-mcp` | first line "Run zz_send on ops-mcp", on the phone and on the web card alike | server unknown: "Run zz_send" |
-| Long inputs (U-212 (2)) | ToolArguments whose redacted one-line text is over 200 characters, or holds line breaks or a secret | `inputs` is one line, redacted, exactly 200 characters ending with '…'; the web card shows the same string; no channel gets more | none |
-| Web card raised | the same row, the session's web chat open | a card with the request's texts (the same first line and inputs as the phone) and Approve and Reject, drawn with `ApprovalRequestCard` | a non-replayable, `fix` or other-session row: no tool-call card |
-| Web card answered first | Approve pressed on the web card | `POST .../approvals/:ref/answer` approves once; the card's buttons give way to the answered line; the phone's request message gets the same answered line in place | none |
-| Answered on another copy first | Approve pressed on the phone, then the web card's Approve (or the reverse) | the first answer wins; the second press changes nothing (the existing answered/409 path) and every copy shows the first answer's line | none |
-| Web card result | `approval.result` with Result `done` (or failed) | a new chat message with the result text and no buttons; the card keeps its answered line | none |
+| Raised, server known (U-212 (1)) | as Raised, but the call is an MCP tool whose toolref names server `ops-mcp` | first line "Run zz_send on ops-mcp", on the phone (Story 31.6's card follows the same rule) | server unknown: "Run zz_send" |
+| Long inputs (U-212 (2)) | ToolArguments whose redacted one-line text is over 200 characters, or holds line breaks or a secret | `inputs` is one line, redacted, exactly 200 characters ending with '…'; Story 31.6's card shows the same string; no channel gets more | none |
 | Answered approve | the row approved (or already `executing`/`done`), AnsweredAction `approve`, channel `phone` | kind `answered`, `answered.approved` {channel, time AnsweredAt}; the phone's request message gets the line "Approved from the simulated phone at HH:MM." in place | none |
 | Answered reject | AnsweredAction `reject` | `answered.rejected`; line "Rejected from ... at HH:MM. Nothing was changed."; no result notice | none |
 | Expired | `approval.expired`, row expired | `answered.expired` {time ExpiresAt} | none |
@@ -242,6 +230,7 @@ Page:
 
 ## Spec Change Log
 
+- 2026-11-02 (lead, after the orchestrator's split ruling): Story 31.5 is part A (the notices, U-212's texts on the phone and in the paired chat, DW-454, the SimPhoneOut edit guard); the web chat card (part B) moved to Story 31.6 with its epics.md bullet. The intent contract's card parts are replaced by pointers to 31.6; status reset to `draft` for a re-plan of part A. The whole two-part plan is kept for 31.6's plan outside git.
 - 2026-11-02 (lead, epic-31 runner, after hold #2; re-plan): (a) U-212 applied (`apply U-212 at=2026-11-02T13:19:05Z#648`): its four conditions are written into the intent contract's Boundaries and the I/O matrix (server form of the first line, 200-character one-line inputs, catalog-only `{reason}`, labelled `{time}`); Design Notes item 6's "no `on {server}` form" is superseded. (b) The web chat tool-call approval card moves from `deferred:` into scope (the Contest Planner under the owner's delegation: "The web-chat tool-call approval gap is 1.0.0-VISIBLE: PUT IT INTO 31.5"), with an `[AMENDED 2026-11-02, Story 31.5, Contest Planner under the owner's delegation]` acceptance bullet in epics.md. Status reset to `draft` so the plan re-derives the Code Map, Tasks, Verification and size around the amended intent.
 
 ## Review Triage Log

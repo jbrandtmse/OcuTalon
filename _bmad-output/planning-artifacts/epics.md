@@ -7396,7 +7396,20 @@ So that a tool call is answered the same way as a fix.
 **Then** `BridgeSink` sends `Notification`s of kinds `approval`, `answered` and `result` through `NoticesIn`, each carrying the request's `ApprovalRef` (and its `IncidentRef`, empty for a tool call), so the phone gets buttons and in-place edits for it too; for kind `fix`, `IncidentManager` sends them, its `answered` and `result` notifications carrying both `ApprovalRef` and `IncidentRef` (AD-31, AD-32)
 **And** until Story 30.3 merges, its tests call `BridgeSink.OnEvent` with fixture `approval.*` events of kind `tool_call`, and the replay's real `approval.result` turns on then [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner]
 - DW-454: U-170's plain-English reason for an old held tool call reaches the approval card and the tool-call notices, not only the decision live event (ledger; routed to this story by Story 31.2's spec gate 2026-11-02)
-- A tool call's approval request also appears in the web chat as a card with Approve and Reject, with the same texts as the phone (first line 'Run {tool} on {server}' when the server is known, else 'Run {tool}'; the inputs on one line through the redactor, capped at 200 characters and ending with '…' when cut); it is answered once, the first answer winning across every copy (web chat, simulated phone, paired chat), and its result shows as a new message with no buttons (FR-8; PRD "Channels": the web chat, the simulated phone and the paired chat with inline Approve and Reject) [AMENDED 2026-11-02, Story 31.5, Contest Planner under the owner's delegation]
+- [AMENDED 2026-11-02, Story 31.5 split, orchestrator ruling (decide, Rule 5 tier-2 split into a sibling planned next): the web chat card criterion moved to Story 31.6]
+
+### Story 31.6: A tool call's approval request appears in the web chat with Approve and Reject (card)
+
+[AMENDED 2026-11-02, Story 31.5 split, orchestrator ruling (decide, Rule 5 tier-2 split into a sibling planned next in the same epic): part B of Story 31.5, its web chat card criterion moved here verbatim; it follows Story 31.5, whose notices, texts (U-212) and catalog keys it reuses]
+
+As a production developer,
+I want a risky tool call's approval request in the web chat as a card with Approve and Reject, answered once whichever copy is pressed first, with its result as a new message,
+So that a tool call is answered in the web chat the same way as a fix.
+
+**Acceptance Criteria:**
+
+- A tool call's approval request also appears in the web chat as a card with Approve and Reject, with the same texts as the phone (first line 'Run {tool} on {server}' when the server is known, else 'Run {tool}'; the inputs on one line through the redactor, capped at 200 characters and ending with '…' when cut); it is answered once, the first answer winning across every copy (web chat, simulated phone, paired chat), and its result shows as a new message with no buttons (FR-8; PRD "Channels": the web chat, the simulated phone and the paired chat with inline Approve and Reject) [AMENDED 2026-11-02, Story 31.5, Contest Planner under the owner's delegation; moved here by the Story 31.5 split]
+- U-222 (owner decision, kept with one condition): after a page reload, an answered, expired or finished tool-call card must not look pending: no buttons, and no 'awaiting approval' label, badge or colour that suggests it is still waiting; a test pins it. The full answered line after a reload (/state serving answered tool-call requests) is DW-592, routed to the first daily release after 1.0.0 [AMENDED 2026-11-02, Story 31.6, Contest Planner under the owner's delegation (U-222 at=2026-11-02T18:27:03Z#671)]
 
 ## Epic 32: CI gives a verdict in about ten minutes, even with both lanes pushing
 
