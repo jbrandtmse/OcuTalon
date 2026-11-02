@@ -37,3 +37,9 @@
 2026-10-24T23:44:36Z	Story 13.2	story_waiting	story=13-2-the-example-s-own-tools-wait-for-approval-when-they-are-risk on=30 reason=approved_graph_story_wait(Story_30.3_tool-call_replay) code=none
 2026-10-24T23:44:36Z	Story 13.3	story_waiting	story=13-3-the-bridge-developer-guide-proved-on-a-clean-instance on=11 reason=approved_graph_story_wait(release_checklist_item_11.4) code=none owns=DW-181
 2026-10-24T23:44:36Z	Epic 13	epic_runner_ended	reason=waiting waiting_on=30(13.2),11(13.3) stories_committed=1 gap_fill=none(dispatch:_no_gap-fill_for_story_waits) inbox=none applied=none
+2026-11-02T23:02:43Z	Epic 13	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-11-02T23:02:43Z	Epic 13	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh
+2026-11-02T23:02:43Z	Epic 13	launch_env	depth=4 watchdog=0 bash_max_ms=default
+2026-11-02T23:02:43Z	Epic 13	telemetry_gate	pending=0 action=none
+2026-11-02T23:02:43Z	Epic 13	runner_unattended_start	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec note=redispatch_after_epic30_merge lane=B slot=ocutalon-slot-b hold_at=none
+2026-11-02T23:02:43Z	Epic 13	ci_resolved	story=none sha=3adb4ce1 runs=40144004019,40144003989 result=success failed=none via=none resolved_at=resume
