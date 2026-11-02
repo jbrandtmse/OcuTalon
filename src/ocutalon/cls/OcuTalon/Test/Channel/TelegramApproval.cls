@@ -15,17 +15,21 @@
 ///   - TestNotPairedChat: a press of an unpaired chat, and of a chat paired with another session, is the alert "Only the paired chat can
 ///     answer this request." and the request stays pending with no audit entry;
 ///   - TestUnknown: a press for a Ref nobody has, one with no ":" and one with no Ref are the alert "That request is no longer
-///     available.";
-///   - TestApproveNoDryRun: approving a request with no dry run answers the press with no text and no alert, and approves it;
+///     available."; a press with no id gets no answer and one warning;
+///   - TestApproveNoDryRun: approving a request with no dry run answers the press with no text and no alert, and approves it; a press on
+///     a request whose role the session's user lacks (not_allowed) is answered with no text and no alert, with one warning, and the request
+///     stays pending;
 ///   - TestEveryCopy: an incident notice, its answered notification and its result through Notify: Telegram and the simulated phone both get
 ///     the notice (Telegram with the buttons), and within 5 seconds the Telegram message is edited with the status and the phone message
 ///     shows it as its answer; the result follows as one new chat message.
-/// The fixture chats are 84017734140 to 84017734148, and the fixture sessions zztgappr....
+///   - TestPressAnswerFails (QA): when Telegram refuses the answer to a press (a 400), the request is still answered, TelegramIn logs one
+///     warning that names no Ref, chat id, name or callback data, and the next press is answered as usual;
+/// The fixture chats are 84017734140 to 84017734149, and the fixture sessions zztgappr....
 Class OcuTalon.Test.Channel.TelegramApproval Extends OcuTalon.Test.Channel.LiveCase
 {
 
 /// The fixture chat ids.
-Parameter CHATS = "84017734140,84017734141,84017734142,84017734143,84017734144,84017734145,84017734146,84017734147,84017734148";
+Parameter CHATS = "84017734140,84017734141,84017734142,84017734143,84017734144,84017734145,84017734146,84017734147,84017734148,84017734149";
 
 /// The most seconds between an answered notification and the edited copies.
 Parameter FIVE = 5;
@@ -173,6 +177,23 @@ ClassMethod Shown(utc As %String) As %String [ Private ]
 {
 	Set clock = ##class(OcuTalon.Data.Time).ForMessage(utc)
 	Quit $Select(clock '? 2N1":"2N: "on ", 1: "at ")_clock_$Select(+##class(OcuTalon.Data.Public.Settings).Get("onlineDemo"): " ET", 1: "")
+}
+
+/// The count of TelegramIn warnings since the event mark whose text holds the text, waiting up to 10 seconds for the first.
+ClassMethod Warnings(mark As %String, text As %String) As %Integer [ Private ]
+{
+	Set fixture = "OcuTalon.Test.Agent.RunnerFixture"
+	Set deadline = $ZHorolog + 10
+	For {
+		Set told = 0, position = 0
+		Set rows = $ClassMethod(fixture, "EventRows", mark, "TelegramIn")
+		While $ListNext(rows, position, row) {
+			If ($Extract(row, 1, 2) = "3:") && ($Find(row, text) > 0) Set told = told + 1
+		}
+		If told || ($ZHorolog >= deadline) Quit
+		Hang 0.25
+	}
+	Quit told
 }
 
 /// Asserts one answer of the press: its text (or no text) and its alert.
@@ -330,8 +351,10 @@ Method TestUnknown()
 		Set chatId = 84017734146
 		Set session = ..Paired(chatId, "Zqunknown", .chatRef)
 		Set answers = ..CallsOf("answerCallbackQuery").%Size()
+		Set log = ##class(OcuTalon.Test.Agent.RunnerFixture).EventMark()
 		Do ..Send(..ButtonPress(chatId, "Zqunknown", 1, "zz", ""))
 		Do $$$AssertTrue(..Handled(), "TelegramIn handled a press with no id")
+		Do $$$AssertEquals(..Warnings(log, "could not answer a button press: the press has no id."), 1, "one warning says the press with no id was not answered")
 		Do ..Press(chatId, "Zqunknown", "approve:"_##class(OcuTalon.Bridge.Ids).NewRef())
 		Do ..Press(chatId, "Zqunknown", "zz")
 		Do ..Press(chatId, "Zqunknown", "approve:")
@@ -346,7 +369,8 @@ Method TestUnknown()
 	}
 }
 
-/// A request with no dry run is approved, and the press is answered with no text.
+/// The presses answered with no text: a request with no dry run is approved, and the press is answered with no text and no alert; a
+/// request whose role the session's user lacks (not_allowed) stays pending, and the press is answered with no text, no alert and one warning.
 Method TestApproveNoDryRun()
 {
 	If '..Go() Quit
@@ -360,8 +384,60 @@ Method TestApproveNoDryRun()
 		Do $$$AssertEquals(found.%Size(), 1, "one answerCallbackQuery")
 		If found.%Size() = 1 Do ..AssertAnswer(found.%Get(0), "", 0, "no dry run")
 		Do $$$AssertEquals(..Facts(request), "approved|approve|telegram", "the request is approved")
+		Set refused = ..Request(session, {"RequiredRole": "ZzNoSuchRole"})
+		Set log = ##class(OcuTalon.Test.Agent.RunnerFixture).EventMark()
+		Set answers = ..CallsOf("answerCallbackQuery").%Size()
+		Do ..Press(chatId, "Zqnodry", "approve:"_refused)
+		Set found = ..WaitAnswers(answers, 1)
+		Do $$$AssertEquals(found.%Size(), 1, "not_allowed: one answerCallbackQuery")
+		If found.%Size() = 1 Do ..AssertAnswer(found.%Get(0), "", 0, "not_allowed")
+		Do $$$AssertEquals(..Warnings(log, "may not answer this kind of request"), 1, "not_allowed: one warning")
+		Do $$$AssertEquals(..Facts(refused), "pending||", "not_allowed: the request stays pending")
 	} Catch ex {
 		Do $$$AssertTrue(0, "the no-dry-run test failed: "_..Safe(ex))
+	}
+}
+
+/// A failed answerCallbackQuery is one warning that names nothing of the press; the request stays answered and the next press is served.
+Method TestPressAnswerFails()
+{
+	If '..Go() Quit
+	Try {
+		Set chatId = 84017734149
+		Set session = ..Paired(chatId, "Zqfails", .chatRef)
+		Set first = ..Request(session)
+		Set second = ..Request(session)
+		Set failed = {"status": 400, "body": {"ok": false, "error_code": 400, "description": "Bad Request: query is too old and response timeout expired or query ID is invalid"}}
+		Do $$$AssertTrue(##class(OcuTalon.Test.Contract.Mock).Control("replies", {"method": "answerCallbackQuery", "replies": [(failed)]}), "a 400 for the next answerCallbackQuery is queued")
+		Set fixture = "OcuTalon.Test.Agent.RunnerFixture"
+		Set log = $ClassMethod(fixture, "EventMark")
+		Set answers = ..CallsOf("answerCallbackQuery").%Size()
+		Do ..Press(chatId, "Zqfails", "approve:"_first)
+		Set found = ..WaitAnswers(answers, 1)
+		Do $$$AssertEquals(found.%Size(), 1, "the press was answered once (and refused)")
+		Do $$$AssertEquals(..Facts(first), "approved|approve|telegram", "the request is approved all the same")
+		Set told = 0, names = 0
+		Set deadline = $ZHorolog + 10
+		For {
+			Set told = 0, names = 0, position = 0
+			Set rows = $ClassMethod(fixture, "EventRows", log, "TelegramIn")
+			While $ListNext(rows, position, row) {
+				If ($Extract(row, 1, 2) = "3:") && ($Find(row, "could not answer a button press") > 0) Set told = told + 1
+				If ($Find(row, first) > 0) || ($Find(row, chatId) > 0) || ($Find(row, "Zqfails") > 0) || ($Find(row, "approve:") > 0) || ($Find(row, chatRef) > 0) Set names = names + 1
+			}
+			If told || ($ZHorolog >= deadline) Quit
+			Hang 0.25
+		}
+		Do $$$AssertEquals(told, 1, "one warning says the press was not answered")
+		Do $$$AssertEquals(names, 0, "and no TelegramIn log text names the Ref, the chat id, the chat's name, its Ref or the callback data")
+		Set answers = ..CallsOf("answerCallbackQuery").%Size()
+		Do ..Press(chatId, "Zqfails", "reject:"_second)
+		Set found = ..WaitAnswers(answers, 1)
+		Do $$$AssertEquals(found.%Size(), 1, "the next press is answered")
+		If found.%Size() = 1 Do ..AssertAnswer(found.%Get(0), "Rejected. Nothing was changed.", 0, "the next press")
+		Do $$$AssertEquals(..Facts(second), "rejected|reject|telegram", "and its request is rejected")
+	} Catch ex {
+		Do $$$AssertTrue(0, "the failed-answer test failed: "_..Safe(ex))
 	}
 }
 

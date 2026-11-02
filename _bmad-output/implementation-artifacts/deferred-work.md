@@ -3374,3 +3374,4 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: cycle-log-epic-12.md (integrate-forward head 404351eb, run 41456056242) | severity: med | fix-risk: low | footprint: src/ocutalon/cls/OcuTalon/Test/Channel/TelegramChat.cls
 - evidence: run 41456056242 attempt 1 production group 2369 s, TelegramChat setup red; attempt 2 (gh run rerun --failed) green; lane-a 41456056000 green
 - 2026-11-02T17:51:56Z status=routed owner=burndown by=harvest note=CI flake (one unchanged rerun green); setup restart wait likely too short on a loaded CI host; not a 1.0.0 blocker unless it recurs
+- 2026-11-02T22:14:54Z occurrence=12-7-approve-or-reject-from-telegram-and-every-copy-shows-who-ans by=harvest note=QA_warm_stack_reversed_lane-a@Channel_part2/2:TelegramChat_setup_production_items_not_running_after_120s;passed_alone(36s)_and_fresh_reversed

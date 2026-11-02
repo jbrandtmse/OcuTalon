@@ -30,8 +30,9 @@ import { clock } from '../support/page';
  * rail has no row for the request, the press got "Approved. Repairing and resending 50 orders." and the Telegram message is edited
  * to the notice, a blank line and the same status. Then the chat gets "All 50 orders went through." as a new message, and the IRIS audit
  * entry of the answer names the channel telegram and holds neither the chat id nor the chat's name. HH:MM is the row's AnsweredAt.
- * The fixture's reads go through IRIS scripts, which take a second or so each, so the page's checks hold the 5 s and the IRIS reads
- * are allowed ten.
+ * The page's checks hold the 5 s from the time IRIS queued the press (the fixture's queuedAt, after the clocks are checked to agree, as T5
+ * does), with no grace after it. The fixture's reads go through IRIS scripts, which take a second or so each, so the IRIS reads are
+ * allowed ten.
  * The incident is raised after the pairing, because a Telegram notice reaches only a chat that is paired when it is sent. The test depends
  * on step 2's watch of the Orders production, as 05 and 07 do (one journey on one stack, AD-29), and asserts that the watch is there.
  * The runners' keys are pointed at the mock again for the diagnosis (08 put them back), and put back at the end.
@@ -145,11 +146,17 @@ test.describe('approve from the paired Telegram chat (Story 12.7)', () => {
       const notice = (await repliesOf()).find((text) => text.includes('Approve?')) ?? '';
       expect(notice, "the chat got the incident's notice").not.toBe('');
 
-      // Press Approve from the chat.
+      // Press Approve from the chat. The 5 s run from the moment IRIS queued the press, so the two clocks must agree (T5's check).
+      const before = Date.now();
+      const reading = Number((await fixture('Now()')).reason);
+      const after = Date.now();
+      expect(reading, "the IRIS clock agrees with the test's clock (lower bound)").toBeGreaterThanOrEqual(before - 250);
+      expect(reading, 'and (upper bound)').toBeLessThanOrEqual(after + 250);
       const pressed = await fixture(`Press(${CHAT}, ${quoted(NAME)}, ${quoted(`approve:${key}`)}, .queuedAt)`, ['queuedAt']);
       expect(pressed.reason, 'the press is queued while a long poll is open').toBe('');
-      const queued = Date.now();
-      const left = (): number => Math.max(500, WITHIN_MS - (Date.now() - queued));
+      const queued = Number(pressed.values['queuedAt']);
+      expect(queued, 'the fixture gives the time the press was queued').toBeGreaterThan(0);
+      const left = (): number => Math.max(1, WITHIN_MS - (Date.now() - queued));
 
       // Within 5 s: the chat card, the phone and the rail show the answer.
       const request = incident.locator('[data-part="approval"]');

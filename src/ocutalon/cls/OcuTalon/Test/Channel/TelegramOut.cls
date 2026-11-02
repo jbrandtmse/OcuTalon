@@ -37,6 +37,10 @@
 ///     no telegram row, or a row with no text, edits nothing and logs one warning;
 ///   - TestRejectedFollowUp: a rejection from Telegram of a fix edits the message and then sends the follow-up as a new message, whose
 ///     row is of the kind answered with no Ref; a rejection from the web chat, or one with no IncidentRef, only edits;
+///   - TestEditRateLimited, TestEditElsewhere, TestEditWarnings (QA): a 429 on the edit is sent again after its retry_after and edits the
+///     message once; a request answered on the web chat or the phone, with a name, or expired, is edited with that answer's status and
+///     gets no follow-up; every edit that cannot be made (no row, no chat row, no message id, a failed edit) is one warning that names no
+///     Ref, chat id, chat or message text;
 ///   - TestNoChat: a ChatRef with no chat row, or none, sends nothing, logs one warning that names neither, and is OK. It first sends one
 ///     message of its own and waits for it, so that messages queued before the test have been handled before it counts.
 Class OcuTalon.Test.Channel.TelegramOut Extends OcuTalon.Test.Channel.LiveCase
@@ -671,7 +675,7 @@ Method TestButtons()
 			Set words = words _ "word" _ $Length(words) _ " "
 		}
 		Set words = $Extract(words, 1, 4999) _ "x"
-		Set notice = ..Notification(session, "approval", "notice.tellNow", {"whatHappened": (words), "reason": "you asked to hear about disk space"}, long)
+		Set notice = ..Notification(session, "approval", "notice.tellNow", {"whatHappened": (words), "reason": "you asked to hear about disk space, password=zzhunter2"}, long)
 		Set expectedLong = ##class(OcuTalon.Msg.Catalog).Render("notice.tellNow", notice.Slots, "telegram", .sc)
 		Do $$$AssertStatusOK(sc, "(c) the 5,000-character notice renders")
 		Do $$$AssertStatusOK($ClassMethod(fixture, "Send", "TelegramOut", notice, .response), "the 5,000-character request notice is sent")
@@ -706,6 +710,8 @@ Method TestButtons()
 			Do $$$AssertEquals(rows.GetAt(1).Text, ##class(OcuTalon.Bridge.Redact).Text(expected), "the first row's Text is the redacted text that was sent")
 			Do $$$AssertEquals(rows.GetAt(2).Text, ##class(OcuTalon.Bridge.Redact).Text(expectedLater), "the second row's too")
 			Do $$$AssertEquals(rows.GetAt(3).Text, ##class(OcuTalon.Bridge.Redact).Text(lastText), "the third row's Text is the redacted text of the last part only")
+			Do $$$AssertTrue($Find(lastText, "password=zzhunter2") > 0, "control: the last part that was sent holds a password")
+			Do $$$AssertEquals(($Find(rows.GetAt(3).Text, "zzhunter2") > 0)_"|"_($Find(rows.GetAt(3).Text, "password=[redacted]") > 0), "0|1", "the third row's Text holds it redacted, not as sent")
 			For i = 1:1:3 {
 				Set text = rows.GetAt(i).Text
 				Do $$$AssertTrue(text '= "", "row "_i_" has a stored text")
@@ -940,6 +946,152 @@ Method TestEditFails()
 		}
 	} Catch ex {
 		Do $$$AssertTrue(0, "the failed-edit test failed: "_..Safe(ex))
+	}
+	Do ..Cleanup()
+}
+
+/// The rows of the event log after the mark whose item is TelegramOut and whose text holds any of the values (a list); a log text must
+/// hold no Ref, chat id or message text (AD-4).
+Method Naming(mark As %Integer, values As %List) As %Integer [ Private ]
+{
+	Set found = 0, position = 0
+	Set rows = ##class(OcuTalon.Test.Agent.RunnerFixture).EventRows(mark, "TelegramOut")
+	While $ListNext(rows, position, row) {
+		Set at = 0
+		Set one = 0
+		While $ListNext(values, at, value) {
+			If (value '= "") && ($Find(row, value) > 0) Set one = 1
+		}
+		Set found = found + one
+	}
+	Quit found
+}
+
+/// AC3 (Retries): a 429 on the edit waits and sends the same edit again, and the request's message is edited once.
+Method TestEditRateLimited()
+{
+	If '..ReadyLive() Quit
+	Try {
+		Set chatId = 8627
+		Set session = ..NewSessionRef()
+		Set ref = ..PairedChat(chatId, session)
+		Do $$$AssertStatusOK(..StartItems("TelegramOut"), "TelegramOut is enabled")
+		Set approval = ..NewRef()
+		Set messageId = ..SendRequest(chatId, session, approval)
+		Set sent = ..SentTo(chatId).%Get(0).params.text
+		Set limited = {"status": 429, "body": {"ok": false, "error_code": 429, "description": "Too Many Requests: retry after 1", "parameters": {"retry_after": 1}}}
+		Do $$$AssertTrue(##class(OcuTalon.Test.Contract.Mock).Control("replies", {"method": "editMessageText", "replies": [(limited)]}), "a 429 with retry_after 1 is queued for the edit")
+		Set time = ##class(OcuTalon.Data.Time).NowUtc()
+		Set log = ##class(OcuTalon.Test.Agent.RunnerFixture).EventMark()
+		Do $$$AssertStatusOK(##class(OcuTalon.Test.Agent.RunnerFixture).Send("TelegramOut", ..Answered(session, approval, "answered.approved", {"channel": "telegram", "time": (time)}), .response), "an answered.approved notification returns OK")
+		Set calls = []
+		Set iterator = ..CallsOf("editMessageText").%GetIterator()
+		While iterator.%GetNext(, .call) {
+			If call.params."chat_id" = chatId Do calls.%Push(call)
+		}
+		Do $$$AssertEquals(calls.%Size(), 2, "the edit was sent twice")
+		If calls.%Size() = 2 {
+			Do $$$AssertEquals(calls.%Get(0).params.text = calls.%Get(1).params.text, 1, "with the same text")
+			Do $$$AssertEquals(calls.%Get(1).params.text, sent_$Char(10, 10)_"Approved from Telegram at "_..Shown(time)_".", "which is the notice and the status")
+			Set gap = ..Epoch(calls.%Get(1).ts) - ..Epoch(calls.%Get(0).ts)
+			Do $$$AssertTrue(gap >= 0.95, "the second is at least a second after the first: "_$Justify(gap, 0, 2))
+		}
+		Set rows = ..TelegramRows(session)
+		Do $$$AssertEquals(rows.Count(), 2, "the request's row and one answered row")
+		If rows.Count() = 2 Do $$$AssertEquals(rows.GetAt(2).Kind_"|"_rows.GetAt(2).ApprovalRef, "answered|"_approval, "the row is of the kind answered, with the Ref")
+		Do $$$AssertEquals(..Warned(log, "could not edit a message"), 0, "and the retry is no warning")
+		Do $$$AssertEquals(..SentTo(chatId).%Size(), 1, "and nothing else is sent")
+	} Catch ex {
+		Do $$$AssertTrue(0, "the rate-limited edit test failed: "_..Safe(ex))
+	}
+	Do ..Cleanup()
+}
+
+/// AC3: a request answered on any channel, or expired, is edited with the status of that answer, and only a Telegram rejection of a fix
+/// gets a follow-up.
+Method TestEditElsewhere()
+{
+	If '..ReadyLive() Quit
+	Try {
+		Set chatId = 8628
+		Set session = ..NewSessionRef()
+		Set ref = ..PairedChat(chatId, session)
+		Do $$$AssertStatusOK(..StartItems("TelegramOut"), "TelegramOut is enabled")
+		Set fixture = "OcuTalon.Test.Agent.RunnerFixture"
+		Set time = ##class(OcuTalon.Data.Time).NowUtc()
+		Set incident = ##class(OcuTalon.Bridge.Ids).NewRef()
+		Set cases = $ListBuild($ListBuild("answered.approved", {"channel": "web", "time": (time)}.%ToJSON()), $ListBuild("answered.approved", {"channel": "phone", "time": (time)}.%ToJSON()), $ListBuild("answered.rejected", {"channel": "web", "time": (time)}.%ToJSON()), $ListBuild("answered.approvedBy", {"user": "sam", "channel": "web", "time": (time)}.%ToJSON()), $ListBuild("answered.expired", {"time": (time)}.%ToJSON()))
+		For n = 1:1:$ListLength(cases) {
+			Set case = $List(cases, n)
+			Set key = $List(case, 1), slots = {}.%FromJSON($List(case, 2))
+			Set status = ##class(OcuTalon.Msg.Catalog).Render(key, slots.%ToJSON(), "telegram", .sc)
+			Do $$$AssertStatusOK(sc, "(case "_n_") "_key_" renders")
+			Set approval = ..NewRef()
+			Set messageId = ..SendRequest(chatId, session, approval)
+			Set sent = ..SentTo(chatId).%Get(..SentTo(chatId).%Size() - 1).params.text
+			Set before = ..SentTo(chatId).%Size()
+			Set edits = ..EditsTo(chatId).%Size()
+			Do $$$AssertStatusOK($ClassMethod(fixture, "Send", "TelegramOut", ..Answered(session, approval, key, slots, incident), .response), "(case "_n_") a "_key_" notification is sent")
+			Set all = ..EditsTo(chatId)
+			Do $$$AssertEquals(all.%Size(), edits + 1, "it edits the message once")
+			If all.%Size() = (edits + 1) {
+				Do $$$AssertEquals(all.%Get(edits).text, sent_$Char(10, 10)_status, "with the notice, a blank line and "_status)
+				Set rows = ..TelegramRows(session)
+				Set stored = rows.GetAt(rows.Count()).ChannelMessageId
+				Do $$$AssertEquals(all.%Get(edits)."message_id", +$Piece(stored, ":", 2), "of the request's own message, as its first row recorded it")
+			}
+			Do $$$AssertEquals(..SentTo(chatId).%Size(), before, "and sends nothing new, with an incident set too")
+		}
+	} Catch ex {
+		Do $$$AssertTrue(0, "the edit-elsewhere test failed: "_..Safe(ex))
+	}
+	Do ..Cleanup()
+}
+
+/// AD-4 and the edit's contract: every edit that cannot be made is one warning, the status is OK, and no log text holds a Ref, a chat id
+/// or a message text.
+Method TestEditWarnings()
+{
+	If '..ReadyLive() Quit
+	Try {
+		Set chatId = 8629
+		Set session = ..NewSessionRef()
+		Set ref = ..PairedChat(chatId, session)
+		Do $$$AssertStatusOK(..StartItems("TelegramOut"), "TelegramOut is enabled")
+		Set fixture = "OcuTalon.Test.Agent.RunnerFixture"
+		Set time = ##class(OcuTalon.Data.Time).NowUtc()
+		Set slots = {"channel": "telegram", "time": (time)}
+		Set stored = "zzstored text of the request"
+		Set values = $ListBuild(chatId, stored, "zzghostchatref")
+		Set approvals = ""
+		// (1) a Ref with no telegram row; (2) a row whose chat has no chat row; (3) a row with no message id.
+		Set none = ..NewRef(), noChat = ..NewRef(), noId = ..NewRef()
+		Do $$$AssertStatusOK(##class(OcuTalon.Data.Delivery).Record(session, "telegram", "zzghostchatref:77", noChat, "incident", stored), "(2) a row of a chat that has no chat row is recorded")
+		Do $$$AssertStatusOK(##class(OcuTalon.Data.Delivery).Record(session, "telegram", ref_":", noId, "incident", stored), "(3) a row with no message id is recorded")
+		Set cases = $ListBuild($ListBuild(none, "no row"), $ListBuild(noChat, "no chat row"), $ListBuild(noId, "no message id"))
+		For n = 1:1:3 {
+			Set approval = $List($List(cases, n), 1)
+			Set log = $ClassMethod(fixture, "EventMark")
+			Set edits = ..EditsTo(chatId).%Size()
+			Do $$$AssertStatusOK($ClassMethod(fixture, "Send", "TelegramOut", ..Answered(session, approval, "answered.approved", slots), .response), "("_n_") an answered notification with "_$List($List(cases, n), 2)_" returns OK")
+			Do $$$AssertEquals(..EditsTo(chatId).%Size(), edits, "it edits nothing")
+			Do $$$AssertEquals(..Warned(log, "did not edit an answered request"), 1, "with one warning")
+			Do $$$AssertEquals(..Naming(log, values_$ListBuild(approval, ref)), 0, "that names no Ref, chat id, chat or message text")
+		}
+		Set rows = ..TelegramRows(session)
+		Do $$$AssertEquals(rows.Count(), 2, "and no answered row was recorded")
+		// (4) a failed edit.
+		Set approval = ..NewRef()
+		Set messageId = ..SendRequest(chatId, session, approval)
+		Set sent = ..SentTo(chatId).%Get(0).params.text
+		Set failed = {"status": 400, "body": {"ok": false, "error_code": 400, "description": "Bad Request: message to edit not found"}}
+		Do $$$AssertTrue(##class(OcuTalon.Test.Contract.Mock).Control("replies", {"method": "editMessageText", "replies": [(failed)]}), "(4) a 400 for the edit is queued")
+		Set log = $ClassMethod(fixture, "EventMark")
+		Do $$$AssertStatusOK($ClassMethod(fixture, "Send", "TelegramOut", ..Answered(session, approval, "answered.approved", slots), .response), "the notification returns OK")
+		Do $$$AssertEquals(..Warned(log, "could not edit a message"), 1, "a failed edit is one warning")
+		Do $$$AssertEquals(..Naming(log, values_$ListBuild(approval, ref, $Extract(sent, 1, 40))), 0, "that names no Ref, chat id, chat or message text")
+	} Catch ex {
+		Do $$$AssertTrue(0, "the edit-warnings test failed: "_..Safe(ex))
 	}
 	Do ..Cleanup()
 }

@@ -265,6 +265,30 @@ deferred:
 
 **Part C (the online demo's texts, U-197, DW-501, DW-506) is not this story's:** it moved to Story 12.9 at the spec gate (Spec Change Log, 2026-11-02).
 
+### Review Findings
+
+Code review 2026-11-02 (`bmad-code-review`, run tag `e12s7cr`; layers Blind Hunter, Edge Case Hunter, Verification Gap, Acceptance Auditor, all on the session's model). 27 raw findings; 3 entries after grouping (0 high, 3 medium, 0 low), all patched in this pass; 0 decision-needed, 0 deferred, 14 rejected (below). Rule 3: T8 is the real-runtime test and ran green after the patches (`live demo-path`, 28 of 28, `STEP 5 approval: passed`). Rule 6: no AD mismatch. Rule 11: the only contended path touched is the ruled `Test/Msg/Catalog.cls` edit.
+
+- [x] [Review][Patch] T8 measured its "within 5 s" from after the IRIS script returned and gave every page check a 500 ms floor, so the enforced press-to-page bound was about 6 to 7 s (AC2, NFR-9; sev med, fix-risk low: one test file, the sibling T5 pattern) [web/e2e/demo-path/telegram-approval.spec.ts:157] - the window now starts at the fixture's `queuedAt`, after T5's clock-agreement check, with no grace (`Math.max(1, ...)`); `live demo-path` green, mutation recorded.
+- [x] [Review][Patch] The U-218 stored-text assertion could not fail when `Redact.Text` was removed, because every notice in `TestButtons` was text the redactor leaves unchanged (Rule 19; sev med, fix-risk low) [src/ocutalon/cls/OcuTalon/Test/Channel/TelegramOut.cls:678] - the long notice's `reason` now carries `password=zzhunter2`; the test asserts the sent part holds it and the stored text holds `password=[redacted]` and not the value; mutation recorded.
+- [x] [Review][Patch] The Boundaries' `not_allowed` press (no text, `show_alert` false, one warning, request untouched) had no test, though fixture data reaches it, and the no-id press's warning was not asserted (sev med, fix-risk low) [src/ocutalon/cls/OcuTalon/Test/Channel/TelegramApproval.cls:374] - `TestApproveNoDryRun` gains a request with `RequiredRole` `ZzNoSuchRole` on its own chat 148 (no new fixture id), `TestUnknown` asserts the no-id warning; a private `Warnings(mark, text)` helper polls TelegramIn's warnings (the loop shape of `TestPressAnswerFails`; `TelegramOut.Warned` is a non-waiting TelegramOut-only helper from 12.6, and moving one into `LiveCase` would collide with `TelegramInTurn`'s private `Warned` of another signature); mutations recorded.
+
+Rejected:
+- `low` Redacted stored text can rewrite the visible notice in the edit, and `[redacted]` is longer than some values, eating the 256-unit reserve (Blind Hunter, Edge Case Hunter, Acceptance Auditor) - storing `Redact.Text` of the sent part is the owner-kept U-218 condition 1 (spec-bound); an overflow needs about 20 redactions in one 3,840-unit part, and a failed edit is one warning by contract.
+- `low` The rejection follow-up is not sent on the "nothing to edit" path (no stored text, no message id) (Blind Hunter, Edge Case Hunter, Acceptance Auditor) - the Boundaries say "nothing is sent, with one warning" there; the path needs a redactor `UNCHECKED` on a catalog text of at most 3,840 units or a Telegram answer with no `message_id`, neither reachable in practice.
+- `low` The edit goes to the row's chat even when that chat is no longer the session's paired chat (Blind Hunter, Edge Case Hunter) - Notify routes `answered` to TelegramOut only while the session is paired, and AD-14 and the Boundaries pin the edit to the message's own `<ChatRef>:<message_id>`; the message being edited is already in that chat.
+- `low` One `LOGNOEDIT` text covers four causes (Blind Hunter) - the spec names one "nothing to edit" parameter; splitting adds parameters for an operator detail.
+- `low` `TelegramChat.TestNotices` computes message ids as `before + 1` while `IdOf` counts edits too (Blind Hunter) - no edit precedes the notices in that class (the pattern predates this story), and the class passes in both orders.
+- `false` T8 picks the first "Approve?" reply, not the keyboard's message (Blind Hunter) - `Start` resets the mock and T8 raises one incident, so the chat holds one notice.
+- `false` `already_answered` with a winner channel outside web, phone and telegram renders nothing (Edge Case Hunter) - no release-1 path answers on another channel, and a render error is the Boundaries' no-text case.
+- `low` T8's clear-the-way skips an incident left in state `fixing` (Edge Case Hunter) - 07 and 08 leave incidents open, awaiting approval or resolved; T8 passes on the journey as built.
+- `low` `Shown(time)` can disagree with the render across the instance's midnight (Edge Case Hunter) - a window of the seconds between two reads once a day; a fix adds a clock seam to every expected status.
+- `low` `TestPressAnswerFails` can leave its queued 400 for the next test (Verification Gap) - only after it has already failed before the press; the next test's assertions read the mock's recorded params and still hold.
+- `low` T8 gives the press answer and the edit 10 s, not 5 s (Acceptance Auditor) - Decided in-stage 16 records it; `TestEveryCopy` pins the edit's 5 s in process.
+- `low` The Matrix row "Edit in place" says the `answered` row keeps the edited text (Acceptance Auditor) - the code and tests follow the Boundaries and U-218 (`text` ""); the fix is a spec edit.
+- `low` The Matrix row "Expired" says "row unchanged, no audit entry" (Acceptance Auditor) - known decision (Decided in-stage 13): Lane B's `Approval.Answer` moves the row to `expired` and audits it; the fix is a spec edit.
+- `low` Stale 12.6 spec mutation records, synthetic "not built" fixtures in the summarizer tests, a redundant `answered` guard (Verification Gap) - records of another spec and hermetic summarizer inputs, not tests of this file; the `Kind` guard saves the warning on a second answer.
+
 ## Spec Change Log
 
 - 2026-11-02, lead (Epic 12 runner, runner A), spec gate: the split is accepted (Part A only; the switch and Part C go to Story 12.9); the gated Part C block and its Verification lines are removed from this spec; the two edits outside Lane A are ruled and the `Delivery.Text` ask is a veto ruling (Design Notes, "Runner rulings at the spec gate"). DW-501 and DW-506 are re-owned to Story 12.9.
@@ -564,6 +588,22 @@ Mutations run by the implement stage (each applied to a warm `e12s7iw` stack, se
 - mutation: press with no id: the `id = ""` guard removed -> `TestUnknown` red (an answer with an empty `callback_query_id`).
 - mutation: Matrix "No dry run": `PressText` answers "Approved." for an approve with no count -> `TestApproveNoDryRun` red.
 - mutation: AC2 reject text, the other direction: `press.approved` rendered for `rejected` -> `TestReject` red.
+
+QA stage (tags `e12s7qa`/`e12s7qaw`): gaps found against the Boundaries and Matrix, closed with new tests in existing classes (no new file):
+- (QA) `src/ocutalon/cls/OcuTalon/Test/Channel/TelegramOut.cls`: `TestEditRateLimited` (a 429 on the edit is retried, Boundaries "Retries"), `TestEditElsewhere` (AC3: an edit for an answer from the web chat, the phone, with a name, or an expiry, with no follow-up), `TestEditWarnings` (no row, no chat row, no message id, a failed edit: one warning each, no Ref, chat id, chat or message text in any log row; AD-4).
+- (QA) `src/ocutalon/cls/OcuTalon/Test/Channel/TelegramApproval.cls`: `TestPressAnswerFails` (chat 84017734149, added to `CHATS`; a refused `answerCallbackQuery` is one warning that names nothing of the press, the request stays answered, the next press is served).
+- mutation: AC3 retries: no 429 retry for `editMessageText` -> `TestEditRateLimited` red (edit sent once, no answered row).
+- mutation: AC1 split limit: `BUTTONLIMIT` 4096 -> `TestButtons` red ("each part is 3,840 UTF-16 units or fewer").
+- mutation: AC3 nothing to edit, no chat row: the `'$IsObject(chat)` guard removed -> `TestEditWarnings` red (INVALID OREF error status, no warning).
+- mutation: AC3 expired is edited: `EditAnswered` returns at `answered.expired` -> `TestEditElsewhere` red.
+- mutation: AD-4 edit log: the Ref appended to the "did not edit" warning -> `TestEditWarnings` red (3 assertions).
+- mutation: AD-4 press log: the Ref prefixed to the failed-`answerCallbackQuery` warning -> `TestPressAnswerFails` red. (The first try, on the error-status branch only, stayed green, because a 400 takes the other branch; both branches log the same parameter.)
+- (code review, tags `e12s7cr`/`e12s7crw`) mutation: U-218 stored text: `Deliver` stores `lastText` without `Redact.Text` -> `TestButtons` red ("the third row's Text holds it redacted, not as sent", and "is the redacted text of the last part only"). This replaces the implement stage's note that dropping `Redact.Text` was not observable.
+- (code review) mutation: Boundaries `not_allowed` press: `PressText`'s `not_allowed` branch not taken (falls to `press.unavailable`) -> `TestApproveNoDryRun` red ("not_allowed: the text of the answer", "no alert", "one warning").
+- (code review) mutation: Decided in-stage 9, the no-id press's warning: `LOGPRESSANSWER` "the press has no id." not logged -> `TestUnknown` red ("one warning says the press with no id was not answered").
+- (code review) mutation: AC2 5 s in the browser, press to page: `Hang 5` in `TelegramIn.Press` before `FromTelegram`, run through `live demo-path` -> T8 red at the card's status check (`telegram-approval.spec.ts:163`, timed from the fixture's `queuedAt`). The unmutated run passed (28 of 28, `STEP 5 approval: passed`, T8 25.5 s).
+- (code review) Each mutation was reverted from the stage's own backup (`cmp` clean); `TelegramApproval` (59.4 s) and `TelegramOut` (20.2 s) were green again on the same warm stack after the reverts.
+- QA runs: `TelegramOut` and `TelegramApproval` passed warm and on fresh stacks (`lane-a@Channel` part 2/2 forward and reversed); part 1/2 reversed passed warm. Every mutation was reverted from the stage's own backup (`cmp` clean, `git status --short` shows only the two test files). One warm-stack `TelegramChat` failure (production items not running after 120 s) in a reversed warm part 2/2 did not repeat alone or on a fresh stack (warm-stack drift after many reloads).
 
 ## Auto Run Result
 
