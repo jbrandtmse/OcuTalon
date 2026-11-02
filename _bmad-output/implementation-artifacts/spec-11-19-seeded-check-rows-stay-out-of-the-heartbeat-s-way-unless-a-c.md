@@ -2,7 +2,8 @@
 title: 'Story 11.19: Seeded check rows stay out of the heartbeat''s way unless a case asks for the real watch'
 type: 'bugfix'
 created: '2026-11-02'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '2a6f1677d09a92c0c90bc7341ba2dab7ace71b67'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -96,6 +97,24 @@ It also writes the opt-in rule into `CheckFields.nextDueAt`'s doc comment. The f
 
 ## Review Triage Log
 
+### 2026-11-02 - Review pass
+- verdicts: 14 rows (findings reported by more than one layer share a row) - high 0, medium 2, low 12, false 0, maybe-false 0
+- findings:
+  - `[medium]` `[patch]` (verification-gap) the `properties()` pin accepted a filter that also drops `''`, so the opt-in could silently stop working - the regex is now anchored on the whole filter expression; a mutation drops `''` and the pin goes red.
+  - `[medium]` `[patch]` (verification-gap) `fieldsObject()` was outside the "adds no due time" pin - a new test pins `fieldsObject` as `JSON.stringify(properties)` alone; a mutation that injects `NextDueAt` makes it red.
+  - `[low]` `[patch]` (blind, edge-case) the doc comment said the marker goes on "the call's line" while the pin checks the `nextDueAt` line or the lines above it, and a multi-line call is checked at the `nextDueAt` line - the doc comment now says "on the `nextDueAt` line or directly above it".
+  - `[low]` `[patch]` (edge-case, blind) a quoted key `'nextDueAt': ''` escaped the empty-value match - the regex takes an optional quote; a sample pins it.
+  - `[low]` `[reject]` (blind, edge-case) "not a real watch" satisfies the marker - a keyword marker is the decided form (Decided in-stage 1); no reachable spec writes that.
+  - `[low]` `[reject]` (verification-gap, edge-case, intent) a past or "now" non-empty time, a variable, a `?? ''`, or a multi-line `Fixture.Check` fields object is not flagged - Decided in-stage 2 and the matrix limit the pin to literal empty values and same-line direct calls; the heartbeat H1 time is the case's own choice.
+  - `[low]` `[reject]` (blind, edge-case, verification-gap) bypass patterns miss `%OpenId`/`%Save`, `INSERT OR UPDATE`, global writes - the matrix names exactly three patterns; no source in e2e or e2e-online uses any other route (grep: only `rowCount` and one DELETE name the table).
+  - `[low]` `[reject]` (edge-case, blind) `web/e2e-rehearsal` and non-`.ts` files are not scanned - the folder holds no `seedCheck`, `Fixture.Check` or `BackgroundCheck` reference (grep), and the spec names `web/e2e` and `web/e2e-online`.
+  - `[low]` `[reject]` (blind, edge-case) a stray `/*` in a string, or `//` in a template literal, can hide code from `code()` - the same comment stripping serves every source ratchet in `web/scripts/`; no such text sits in the scanned sources.
+  - `[low]` `[reject]` (blind, verification-gap) the non-vacuity list names eight files - the spec requires exactly these; a rename turns the test red, which is the point.
+  - `[low]` `[reject]` (edge-case) `properties()` renamed gives a misleading failure - the failure names iris.ts and the function; the message is enough.
+  - `[low]` `[reject]` (blind) the spec's Auto Run Result read `ready-for-dev` mid-run - finalize rewrites it; (verification-gap) mutation lines for each sub-assertion - one mutation per AC is the rule, and the two patched pins now carry one each.
+  - `[low]` `[reject]` (edge-case) the describe title "no e2e source stores a check row except through Fixture.Check" overclaims for product code a spec calls - the title is scoped to e2e sources by its own words.
+  - `[low]` `[reject]` (intent-alignment, descriptive) the pin reads source text, not runtime values - this is the reading the Approach states (a source-reading node test); the runtime half is `FixtureDefaults.TestCheckIsNotDue` and the sign-in unit.
+
 ## Design Notes
 
 **Governing ADs (Rule 6):**
@@ -158,7 +177,39 @@ Run every command from the worktree root, each in its own foreground call with `
 
 **Shared surfaces:** `seedCheck`'s `CheckFields.nextDueAt` contract and `Fixture.Check`'s `NextDueAt` default. Every browser spec that seeds checks reads them, and none of their assertions change. Every test added or changed passes on a fresh environment, in either order.
 
+**Results (implement stage):**
+- `(loop)` `node --test web/scripts/check-seeds.test.mjs`: 10 tests in 3 suites, all pass.
+- `(once)` `npm --prefix web test`: exit 0, 1231 tests, 0 fail (check-seeds.test.mjs included).
+- `(once)` `npm --prefix web run lint`: exit 0.
+- `(once)` `bash docker/tests/test-boundaries.sh`: exit 0, "all rules passed".
+- `(once)` `ci/iris.sh build`: ok. `ci/iris.sh live sign-in --part 1/2`: exit 0, 119 passed (3.8m in Playwright, 5m32s wall). `--part 2/2`: exit 0, 114 passed (4.0m, 5m49s wall). No red; no seeded row showed a finding it was not seeded with. The lane-A lock folder was empty at the end.
+
+**Mutation results (Rule 19), review pass:**
+- mutation: `&& entry[1] !== ''` added to the filter in `properties()` (web/e2e/support/iris.ts): "keeps an empty nextDueAt, because properties() drops undefined only" red; reverted (cmp identical).
+- mutation: `{ NextDueAt: "", ...properties }` in `fieldsObject()`: "adds no key in fieldsObject" and "seedCheck adds no due time of its own" red; reverted (cmp identical).
+
+**Mutation results (Rule 19):** each file was backed up to the scratchpad, mutated, observed red, restored (`cmp` identical), and `git status --short` and `git diff --stat` matched the state before.
+- mutation: `NextDueAt: fields.nextDueAt ?? '',` in `seedCheck` (web/e2e/support/iris.ts): (a) red, "seedCheck passes `NextDueAt: fields.nextDueAt,` and nothing more"; reverted.
+- mutation: `nextDueAt: ''` added to rail R4's `seedCheck` (web/e2e/rail/rail.spec.ts:200), no comment: (b) red, names `e2e/rail/rail.spec.ts:200`; reverted.
+- mutation: `,"ZZNS","Zz.Production",{"NextDueAt":""}` added to session S1's direct `Fixture.Check` call (web/e2e/session/session.spec.ts:69): (b) red, names `e2e/session/session.spec.ts:69`; reverted.
+- mutation: `##class(OcuTalon.Data.BackgroundCheck).%New()` added to an irisScript line in web/e2e/support/floor.ts: (c) red, names `e2e/support/floor.ts`; reverted.
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary:** Adds `web/scripts/check-seeds.test.mjs`, a source-reading node test that pins the web half of DW-349's fix: `seedCheck` adds no due time of its own (and `fieldsObject` and `properties()` add none or drop none), an empty `nextDueAt` still reaches `Fixture.Check` as the opt-in, every opt-in and every direct `Fixture.Check` call with `NextDueAt` says `real watch`, and no e2e source stores a check row except through `Fixture.Check`. The `CheckFields.nextDueAt` doc comment in `web/e2e/support/iris.ts` now states the opt-in rule. No seeding code, spec, CI or IRIS change.
+
+**Files changed:**
+- `web/scripts/check-seeds.test.mjs` (new): 11 tests in 3 suites.
+- `web/e2e/support/iris.ts`: the doc comment of `CheckFields.nextDueAt` only.
+- This spec: Verification results, mutation lines, triage log.
+
+**Review:** 4 layers. Patches applied: 4 (2 medium: `properties()` pin anchored, `fieldsObject()` pinned; 2 low: doc-comment placement wording, quoted-key match). Deferred: none. Rejected: the findings listed in the triage log with their reasons.
+
+**Follow-up review recommended:** false (no high patched, two medium patched; each patch carries a demonstrated mutation).
+
+**Verification:** `node --test web/scripts/check-seeds.test.mjs` 11 of 11; `npm --prefix web test` 1232 of 1232; `npm --prefix web run lint` clean; `bash docker/tests/test-boundaries.sh` all rules passed; `ci/iris.sh live sign-in --part 1/2` 119 passed and `--part 2/2` 114 passed, no red, lock folder empty after. Mutations: four from the plan plus two from the review pass, each red then reverted.
+
+**Residual risks:** the pin reads source text, so it relies on `FixtureDefaults.TestCheckIsNotDue` (Story 11.1) for the IRIS default; DW-349's remaining reds on the integration branch end only when Epic 11 part 1 carries that default. DW-349 is the ledger entry; the lead adjudicates it. DW-578 is out of scope.
