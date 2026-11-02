@@ -8,3 +8,5 @@
 2026-11-02T17:53:52Z	Epic 14	sprint_planning_complete	gate=PASS tracker_in_sync=true validate=ok model=claude-opus-5-5
 2026-11-02T17:53:52Z	Epic 14	retro_review_skipped	reason=orchestrator(1.0.0_lean:earlier_epics'_burndown_entries_are_routed_by_their_own_gates_and_the_post-1.0.0_note;Epic_14's_own_entries_are_AC_bullets)
 2026-11-02T17:54:58Z	Epic 14	slot_loaded	slot=ocutalon-slot-d server=ocutalon-slot-d namespace=OCUTALON identity=build_154U,id=FE850E91-D6CE-11F1-85F9-8E14B457CD86 merge_cpf=match last_merge=match loaded=600(bridge=48,ocutalon=552)_bridge_first compile=CompilePackage(OcuTalon,ck-d) errors=0 classes_in_ns=640 from=024d8504 reason=first_epic_start_empty_namespace model=claude-opus-5-5
+2026-11-02T17:56:43Z	Epic 14	epic_context_compiled	sha=261caacb reason=initial model=claude-opus-5-5 bytes=9542
+2026-11-02T17:56:57Z	Story 14.1	stage_spawned	stage=plan spawn_at=2026-11-02T17:56:57Z model=opus agent_name=14-1-plan-1 cycle_iteration=1
