@@ -7,7 +7,7 @@ paradigm: 'Message-driven Interoperability production (pipes and filters) with p
 scope: 'OcuTalon: the 1.0.0 kit and release, build steps 2 to 6, the personality epics (39 to 41), and step 7 after the contest'
 status: final
 created: '2026-10-16'
-updated: '2026-11-01'
+updated: '2026-11-02'
 binds: [FR-1..FR-74, NFR-1..NFR-28, CON-1..CON-5, REL-1..REL-11, UJ-1, UJ-2]
 sources:
   - _bmad-output/planning-artifacts/prds/prd-OcuTalon-2026-10-16/prd.md
@@ -910,6 +910,7 @@ Every layer submits commands through `OcuTalon.Core.Commands.Submit`, the one en
 - **Rule:**
   - Two standard `Ens.Util.Tasks.Purge` tasks. One, type `messages`, keeps 7 days for the heartbeat and check items, using `optionalMessageLimitToConfigItems` and `BodiesToo`. The other, type `all` (messages, business-process instances, rule logs, the event log, I/O logs, host monitor data and managed alerts; VDocs aren't used), keeps 90 days for everything else, with `KeepIntegrity` and `BodiesToo`. Their day counts are the tasks' own `NumberOfDaysToKeep`. All three purge tasks (these two and `OcuTalon.Install.Task.Purge`) run daily at 03:00 instance time.
   - `OcuTalon.Bridge.Purge(daysToKeep)` keeps bridge decisions and usage for that many days, and deletes AI sessions that no conversation link has pointed to for a day (left behind by compaction and rotation, S18). One OcuTalon task, `OcuTalon.Install.Task.Purge` (Lane A), with the task property `DaysToKeep` (90), calls it and each area's `Purge(daysToKeep)` declaration: incidents for that many days (Lane A), and live events for 24 hours whatever the number (`OcuTalon.Live`, Lane B).
+  - With the same now, `OcuTalon.Data.Purge.Run(daysToKeep, now)` (called by the Retention area after the bridge's purge) deletes Turn rows created before the cutoff and Delivery rows recorded before it. It deletes a Session row created before it only when the session has no Turn, Delivery or Decision at or after the cutoff and is not current (signed in through a live CSP session, a live Telegram pairing, an open approval request, a watch or a pending reminder): never by age alone. It touches only OcuTalon's own tables and never an IRIS audit entry (AD-17). [AMENDED 2026-11-02, Story 30.7, orchestrator ruling U-210]
   - **Day counts are task properties,** which the installer's task step writes only when it creates each task: an upgrade keeps a changed value, and an admin can change one in the Task Manager without a release (PRD NFR-19's "by default"). No purge reads `OcuTalon.Data.Setting`.
   - History (FR-53) reads OcuTalon's and the bridge's tables, not messages.
 

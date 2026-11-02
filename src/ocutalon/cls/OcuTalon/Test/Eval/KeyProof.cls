@@ -15,7 +15,7 @@
 ///     mock's log, each with a positive control (the demo case's name must be found in the globals, a stored placeholder in the stores, the demo case's
 ///     name in the trace), and Print writes the CHK lines that eval/run.sh reads. A scan that finds nothing and whose control finds nothing fails there.
 /// The tests are warm-safe: each writes a fresh control value and removes what it made.
-///   - TestGlobalHits: a value is found as data and as a subscript when the scan is scoped to the database that holds the global, a value nobody holds
+///   - TestGlobalHits: a value in an element of a $List value (8-bit, 16-bit or nested, in data or in a subscript) is found too (DW-448); a value is found as data and as a subscript when the scan is scoped to the database that holds the global, a value nobody holds
 ///     gives 0, an empty value gives -1 and a database that does not exist gives -1, and the database can be named by its name or its directory;
 ///   - TestTraceHits: a message body and its header that hold a value are found after a mark and not before it, a value nobody holds gives 0, and an
 ///     empty value gives -1, in the test's own namespace (the messages of the others are not the test's);
@@ -27,6 +27,9 @@ Class OcuTalon.Test.Eval.KeyProof Extends %UnitTest.TestCase
 
 /// The characters read at a time from an exported message.
 Parameter CHUNK = 32000;
+
+/// The deepest level of lists inside lists that the global scan reads.
+Parameter LISTDEPTH = 10;
 
 /// The most places that a result names.
 Parameter MAXPLACES = 20;
@@ -59,6 +62,14 @@ Method TestGlobalHits()
 		Do $$$AssertEquals(..GlobalHits(value_"-nobody", directory), 0, "a value nobody holds gives 0")
 		Do $$$AssertEquals(..GlobalHits("", directory), -1, "an empty value gives -1")
 		Do $$$AssertEquals(..GlobalHits(value, "zz-no-such-database"), -1, "a database that does not exist gives -1")
+		// DW-448: a value inside a $List element of a node's data or subscript is found
+		Set listed = "keyproof-list-"_##class(OcuTalon.Bridge.Ids).NewRef()
+		Set ^OcuTalonTest("KeyProof", "list8") = $ListBuild("a", "x"_listed_"y", "b")
+		Set ^OcuTalonTest("KeyProof", "list16") = $ListBuild("a", $Char(8364)_listed_$Char(8364))
+		Set ^OcuTalonTest("KeyProof", "nested") = $ListBuild("a", $ListBuild("b", $ListBuild("c", $Char(8364)_listed)))
+		Set ^OcuTalonTest("KeyProof", $ListBuild("s", $Char(8364)_listed)) = ""
+		Do $$$AssertEquals(..GlobalHits(listed, directory), 4, "a value in an 8-bit element, a 16-bit element, a nested list and a list subscript is found in each")
+		Do $$$AssertEquals(..GlobalHits(listed_"-nobody", directory), 0, "and a value that is not in them gives 0")
 	} Catch exception {
 		Do $$$AssertStatusOK(exception.AsStatus(), "the global scan runs without an exception")
 	}
@@ -273,15 +284,15 @@ ClassMethod Walk(value As %String, control As %String, databases As %String, Out
 				Set data = ""
 				If $Data(@reference, data) # 2 {
 					Set nodes = 1
-					If data [ value Set found = found + 1
-					If (control '= "") && (data [ control) Set controlFound = controlFound + 1
+					If ..Holds(data, value) Set found = found + 1
+					If (control '= "") && ..Holds(data, control) Set controlFound = controlFound + 1
 				}
 				For {
 					Set reference = $Query(@reference, 1, data)
 					Quit:reference=""
 					Set nodes = nodes + 1
-					If (reference [ value) || (data [ value) Set found = found + 1
-					If (control '= "") && ((reference [ control) || (data [ control)) Set controlFound = controlFound + 1
+					If ..Holds(data, value) || ..HoldsSubscript(reference, value) Set found = found + 1
+					If (control '= "") && (..Holds(data, control) || ..HoldsSubscript(reference, control)) Set controlFound = controlFound + 1
 				}
 			} Catch exception {
 				Set readable = 0
@@ -299,6 +310,35 @@ ClassMethod Walk(value As %String, control As %String, databases As %String, Out
 	Set stats.seconds = $Number($ZHorolog - begun, 2)
 	If stats.unreadable.%Size() Quit -1
 	Quit hits
+}
+
+/// 1 when the text holds the value, as a substring or inside an element of a $List value in it (an element that is itself a $List is read the same
+/// way, to a depth of LISTDEPTH). The elements of a list are stored with length marks, and a wide-character element is not stored as the characters,
+/// so a plain substring match misses them.
+ClassMethod Holds(text As %String, value As %String, depth As %Integer = 0) As %Boolean [ Private ]
+{
+	If text [ value Quit 1
+	If (depth >= ..#LISTDEPTH) || '$ListValid(text) || ($ListLength(text) = 0) Quit 0
+	Set position = 0, holds = 0
+	While 'holds && $ListNext(text, position, element) {
+		If $Data(element) Set holds = ..Holds(element, value, depth + 1)
+		Kill element
+	}
+	Quit holds
+}
+
+/// 1 when the global reference holds the value in the text of a subscript, or inside a subscript that is a $List value (Holds).
+ClassMethod HoldsSubscript(reference As %String, value As %String) As %Boolean [ Private ]
+{
+	If reference [ value Quit 1
+	Set holds = 0
+	For i = 1:1:$QLength(reference) {
+		If ..Holds($QSubscript(reference, i), value) {
+			Set holds = 1
+			Quit
+		}
+	}
+	Quit holds
 }
 
 /// The local databases to scan, as {name, directory} in list, and in stats the databases that were skipped as read-only or not mounted (stats.skipped) and

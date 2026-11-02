@@ -20,6 +20,10 @@ Include Ensemble
 ///   4. The reply holds no text and no host data, Tainted 0, ToolsRun 1 (0 when the failure came before ExecuteTool was called), the step records and, for a call that failed, its redacted and cut error
 ///      text as FailureText.
 ///   5. The context and the step buffer end, and the throwaway session is released, on every path.
+/// A replay holds LOCK ^OcuTalon.Bridge.Replay(<Ref>) from before StartExecution until after Record, and releases it on every path, so the lock
+/// says whether a replay of the Ref is alive. CloseInterrupted, which Approval.Reconcile runs after an instance start, closes an executing tool_call
+/// row only when it can take that lock at once (no live replay): it writes the Action entry with the result interrupted and finishes the row as
+/// interrupted, and never runs the call again (NFR-13).
 /// No Chat, no conversation link and no Usage row. This class names no other OcuTalon package (AD-2).
 Class OcuTalon.Bridge.Replay
 {
@@ -39,6 +43,24 @@ ClassMethod Run(adapter As OcuTalon.Bridge.Adapter.Agent, request As OcuTalon.Br
 		Set reply = ..Failure("there is no tool_call approval request with this Ref, so nothing was run")
 		Quit $$$OK
 	}
+	Lock +^OcuTalon.Bridge.Replay(ref):0
+	If '$Test {
+		Set reply = ..Failure("another replay of this call is running, so nothing was run")
+		Quit $$$OK
+	}
+	Try {
+		Set sc = ..Execute(adapter, request, superSession, row, ref, .reply)
+	} Catch exception {
+		Lock -^OcuTalon.Bridge.Replay(ref)
+		Throw exception
+	}
+	Lock -^OcuTalon.Bridge.Replay(ref)
+	Quit sc
+}
+
+/// The part of Run that holds the replay lock: the start, the call and Record.
+ClassMethod Execute(adapter As OcuTalon.Bridge.Adapter.Agent, request As OcuTalon.Bridge.Msg.Request, superSession As %String, row As OcuTalon.Bridge.Data.ApprovalRequest, ref As %String, Output reply As OcuTalon.Bridge.Msg.Reply) As %Status [ Private ]
+{
 	Set sc = ##class(OcuTalon.Bridge.Approval).StartExecution(ref)
 	If $$$ISERR(sc) {
 		Do ..CloseUnstarted(ref)
@@ -144,9 +166,11 @@ ClassMethod CloseUnstarted(ref As %String) [ Private ]
 	}
 }
 
-/// Writes the Action entry of a run that started and then finishes it with the result. A failed write or finish is a warning that names the Ref.
-ClassMethod Record(row As OcuTalon.Bridge.Data.ApprovalRequest, ref As %String, result As %String) [ Private ]
+/// Writes the Action entry of a run that started and then finishes it with the result. A failed write or finish is a warning that names the Ref,
+/// and the errors are returned combined.
+ClassMethod Record(row As OcuTalon.Bridge.Data.ApprovalRequest, ref As %String, result As %String) As %Status [ Private ]
 {
+	Set status = $$$OK
 	Try {
 		Set sc = $$$OK
 		If $$$ISOK(row.%Reload()) {
@@ -154,18 +178,56 @@ ClassMethod Record(row As OcuTalon.Bridge.Data.ApprovalRequest, ref As %String, 
 		}
 		If $$$ISERR(sc) {
 			$$$LOGWARNING("OcuTalon.Bridge.Replay: the Action entry of "_ref_" was not written: "_$SYSTEM.Status.GetErrorText(sc))
+			Set status = $SYSTEM.Status.AppendStatus(status, sc)
 		}
 	} Catch exception {
 		$$$LOGWARNING("OcuTalon.Bridge.Replay: the Action entry of "_ref_" was not written: "_exception.DisplayString())
+		Set status = $SYSTEM.Status.AppendStatus(status, exception.AsStatus())
 	}
 	Try {
 		Set sc = ##class(OcuTalon.Bridge.Approval).FinishExecution(ref, result)
 		If $$$ISERR(sc) {
 			$$$LOGWARNING("OcuTalon.Bridge.Replay: "_ref_" was not finished as "_result_": "_$SYSTEM.Status.GetErrorText(sc))
+			Set status = $SYSTEM.Status.AppendStatus(status, sc)
 		}
 	} Catch exception {
 		$$$LOGWARNING("OcuTalon.Bridge.Replay: "_ref_" was not finished as "_result_": "_exception.DisplayString())
+		Set status = $SYSTEM.Status.AppendStatus(status, exception.AsStatus())
 	}
+	Quit status
+}
+
+/// Closes the replays that an instance stop interrupted (DW-444): every tool_call row that is executing and whose replay lock can be taken at once,
+/// which means that no replay of it is alive. For each, the Action entry with the result interrupted is written and the row is finished as
+/// interrupted (failed, Result interrupted, FinishedAt set, approval.result fired), exactly as Record does; the call is never run again (NFR-13). A
+/// row whose lock is held (a live replay), and a row in any other state or kind, is left alone. Every row is tried; the errors are combined, each
+/// naming its Ref.
+ClassMethod CloseInterrupted() As %Status
+{
+	Set sc = $$$OK
+	Set rows = ##class(%SQL.Statement).%ExecDirect(, "SELECT Ref FROM OcuTalon_Bridge_Data.ApprovalRequest WHERE Kind = 'tool_call' AND State = 'executing'")
+	If rows.%SQLCODE < 0 Quit $SYSTEM.Status.Error(5001, "The executing tool calls cannot be read: SQLCODE " _ rows.%SQLCODE _ " " _ rows.%Message)
+	Set refs = ""
+	While rows.%Next() {
+		Set refs = refs _ $ListBuild(rows.%Get("Ref"))
+	}
+	If rows.%SQLCODE < 0 Quit $SYSTEM.Status.Error(5001, "The executing tool calls cannot be read: SQLCODE " _ rows.%SQLCODE _ " " _ rows.%Message)
+	Set position = 0
+	While $ListNext(refs, position, ref) {
+		Lock +^OcuTalon.Bridge.Replay(ref):0
+		If '$Test Continue
+		Try {
+			Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(ref)
+			If $IsObject(row) && $$$ISOK(row.%Reload()) && (row.Kind = "tool_call") && (row.State = "executing") {
+				Set one = ..Record(row, ref, "interrupted")
+				If $$$ISERR(one) Set sc = $SYSTEM.Status.AppendStatus(sc, $SYSTEM.Status.Error(5001, "The interrupted replay of " _ ref _ " was not closed: " _ $SYSTEM.Status.GetErrorText(one)))
+			}
+		} Catch exception {
+			Set sc = $SYSTEM.Status.AppendStatus(sc, $SYSTEM.Status.Error(5001, "The interrupted replay of " _ ref _ " was not closed: " _ exception.DisplayString()))
+		}
+		Lock -^OcuTalon.Bridge.Replay(ref)
+	}
+	Quit sc
 }
 
 /// The data of the Action entry of the run (the shape of the field's own entry, which the bridge cannot call, AD-2): the action is the tool's

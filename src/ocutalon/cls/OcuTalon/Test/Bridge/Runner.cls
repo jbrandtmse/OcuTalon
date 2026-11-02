@@ -66,6 +66,10 @@
 /// that name them. TestStepsRedacted and TestStepsRedactedText drop the session of their turn before they scan: the saved conversation holds what
 /// the model was shown, the tools' results with their fake secrets included, and it is not a store of steps, logs or errors.
 /// Added by Story 30.3 (an approved tool call runs exactly once, with no model; AD-6, AD-10, AD-11):
+///   - TestReplayThroughTheRunner also shows that the replay lock ^OcuTalon.Bridge.Replay(<Ref>) is free after every replay (done, a tool that raises, a refused start,
+///     a failure before the call), as a second job sees it (Story 30.7, DW-444);
+///   - TestReplayWithoutAKey (Story 30.7, DW-470, Task 0): a replay with an unset key fails in BuildAgent with the no-key text and ToolsRun 0, and a
+///     replay with an unreachable provider makes no provider request and succeeds;
 ///   - TestReplayThroughTheRunner: a request of kind tool (the Ref of an approved tool_call in ItemId) to the shadow runner ZzRunner, whose agent is
 ///     ZzReplayAgent: the stored call runs once (the reply holds no text, ToolsRun 1 and a tool step), the row is done, the grant is gone and the
 ///     mock got no request (rows 4b, 7, 8 and the success reply); a second request for the same Ref is refused by StartExecution and runs nothing;
@@ -1025,6 +1029,7 @@ Method TestReplayThroughTheRunner()
 	Do $$$AssertEquals(##class(OcuTalon.Bridge.Adapter.StepBuffer).Active(), 0, "and the step buffer")
 	Do $$$AssertEquals(##class(OcuTalon.Bridge.Context).TakeGrant("zz_replay_send", {}, tool), 0, "a call after the run finds no grant")
 	Do $$$AssertEquals(..ActionEntries(audit, ref, "done"), 1, "one Action entry says done")
+	Do ..AssertReplayLockFree(ref, "(done)")
 
 	// row 4b: the same request again
 	Set sc = host.OnMessage(..ToolRequest(ref), .again)
@@ -1049,6 +1054,7 @@ Method TestReplayThroughTheRunner()
 	Do $$$AssertEquals(..Prop(thrown, "State")_"|"_..Prop(thrown, "Result"), "failed|failed", "(7) the row is failed")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.ZzReplayTool).Ran("zz_replay_throw"), 1, "(7) the tool ran once, and is not retried")
 	Do $$$AssertEquals(..ActionEntries(audit, thrown, "failed"), 1, "(7) the Action entry says failed")
+	Do ..AssertReplayLockFree(thrown, "(7)")
 
 	// row 8: could not start
 	Set late = ..ApprovedRow("zz_replay_send", "{}", tool, -60)
@@ -1057,6 +1063,7 @@ Method TestReplayThroughTheRunner()
 	Do $$$AssertTrue($IsObject(refused), "(8) with a Reply")
 	If $IsObject(refused) Do $$$AssertTrue((refused.FailureText '= "") && (refused.ToolsRun = 0), "(8) with a failure reply and ToolsRun 0: "_refused.FailureText)
 	Do $$$AssertEquals(..Prop(late, "State")_"|"_..Prop(late, "Result"), "failed|failed", "(8) the row is closed failed")
+	Do ..AssertReplayLockFree(late, "(8)")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.ZzReplayTool).Ran("zz_replay_send"), 1, "(8) nothing ran")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Wait(audit, "OcuTalon", "Approval", "Approval", late, , 2).%Size(), 1, "(8) the Approval finished entry is the only entry of the Ref")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Entries(audit, "OcuTalon", "Action", "Action", late).%Size(), 0, "(8) no Action entry")
@@ -1074,6 +1081,7 @@ Method TestReplayThroughTheRunner()
 	If $IsObject(duplicate) Do $$$AssertTrue((duplicate.FailureText '= "") && (duplicate.ToolsRun = 0), "(duplicate) with a failure reply and ToolsRun 0: "_duplicate.FailureText)
 	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.ZzReplayTool).Ran("zz_replay_send"), ran, "(duplicate) the tool did not run")
 	Do $$$AssertEquals(..Prop(busy, "State"), "executing", "(duplicate) and the row is as it was")
+	Do ..AssertReplayLockFree(busy, "(duplicate)")
 
 	// a failure before ExecuteTool is called: the tool did not run, so ToolsRun is 0, and the row is closed failed
 	Set broken = ..ApprovedRow("zz_replay_send", "this is not json", tool, 3600)
@@ -1082,6 +1090,7 @@ Method TestReplayThroughTheRunner()
 	Do $$$AssertTrue($IsObject(unrun), "(before the call) with a Reply")
 	If $IsObject(unrun) Do $$$AssertTrue((unrun.FailureText '= "") && (unrun.ToolsRun = 0), "(before the call) with a failure reply and ToolsRun 0: "_unrun.FailureText)
 	Do $$$AssertEquals(..Prop(broken, "State")_"|"_..Prop(broken, "Result"), "failed|failed", "(before the call) the row is closed failed")
+	Do ..AssertReplayLockFree(broken, "(before the call)")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.ZzReplayTool).Ran("zz_replay_send"), ran, "(before the call) the tool did not run")
 
 	// a fix row and a missing row are left alone
@@ -1109,6 +1118,55 @@ Method TestReplayThroughTheRunner()
 	Do $$$AssertEquals(others, "", "and nothing but AI Hub's model lookup (GET /v1/models/<model>, no tokens): "_$Extract(entries.%ToJSON(), 1, 300))
 	Do $$$AssertEquals(..LinkCount(), links, "no conversation link was made")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).SessionMark(), ..SessionMark, "and no AI session was saved: the replay's throwaway session is never linked or saved")
+	Do ..RemoveRows()
+}
+
+/// Story 30.7, DW-470, Task 0 (rows 14 and 15): how a replay fails when the provider is not usable, as the shadow runner ZzRunner (agent
+/// ZzReplayAgent) shows it, and what Decide reads from it (TestToolFailureReasons).
+///   - No key (the key placeholder names a variable that is not set): the runner fails in BuildAgent, before the call: the failure text holds both
+///     pieces of Decide NOKEYTEXT, ToolsRun is 0, the tool did not run, the row is closed failed and its Action entry says failed;
+///   - Provider unreachable (the base URL is a closed port): a replay makes no provider request, so it does not fail: the tool ran once, ToolsRun
+///     is 1, the failure text is empty and the row is done. No sentence is made for an unreachable provider.
+Method TestReplayWithoutAKey()
+{
+	If ..Guard() Quit
+	Set tool = "OcuTalon.Test.Bridge.ZzReplayTool"
+	Set variable = ##class(OcuTalon.Test.Agent.RunnerFixture).#MOCKKEYVARIABLE
+	Do $$$AssertNotEquals($SYSTEM.Util.GetEnviron(variable), "", "the non-secret CI key variable is set")
+	Set audit = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
+	Set pieces = $Parameter("OcuTalon.Bridge.Process.Decide", "NOKEYTEXT")
+
+	// no key
+	Set unset = ..ProviderConfig("", "@{env:"_..#UNSETVARIABLE_"}")
+	Set host = ..NewRunner("OcuTalon.Test.Bridge.ZzReplayAgent", "low", unset)
+	Set ran = ##class(OcuTalon.Test.Bridge.ZzReplayTool).Ran("zz_replay_send")
+	Set ref = ..ApprovedRow("zz_replay_send", "{}", tool, 3600)
+	Set sc = host.OnMessage(..ToolRequest(ref), .reply)
+	Do $$$AssertStatusOK(sc, "(no key) the replay is answered")
+	Do $$$AssertTrue($IsObject(reply), "(no key) with a Reply")
+	If $IsObject(reply) {
+		Set text = $ZConvert(reply.FailureText, "L")
+		For i = 1:1:$Length(pieces, "|") {
+			Do $$$AssertTrue(text [ $ZConvert($Piece(pieces, "|", i), "L"), "(no key) the failure text holds '" _ $Piece(pieces, "|", i) _ "': " _ $Extract(reply.FailureText, 1, 200))
+		}
+		Do $$$AssertEquals(reply.ToolsRun _ "|" _ reply.AgentStepCount, "0|0", "(no key) ToolsRun is 0 and there are no steps")
+	}
+	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.ZzReplayTool).Ran("zz_replay_send"), ran, "(no key) the tool did not run")
+	Do $$$AssertEquals(..Prop(ref, "State") _ "|" _ ..Prop(ref, "Result"), "failed|failed", "(no key) the row is failed")
+	Do $$$AssertEquals(..ActionEntries(audit, ref, "failed"), 1, "(no key) the Action entry says failed")
+	Do ..AssertReplayLockFree(ref, "(no key)")
+
+	// provider unreachable
+	Set closed = {"model_provider": "anthropic", "api_key": ("@{env:" _ variable _ "}"), "base_url": "http://127.0.0.1:9/v1/"}.%ToJSON()
+	Set host = ..NewRunner("OcuTalon.Test.Bridge.ZzReplayAgent", "low", closed)
+	Set ran = ##class(OcuTalon.Test.Bridge.ZzReplayTool).Ran("zz_replay_send")
+	Set other = ..ApprovedRow("zz_replay_send", "{}", tool, 3600)
+	Set sc = host.OnMessage(..ToolRequest(other), .reply)
+	Do $$$AssertStatusOK(sc, "(unreachable) the replay is answered")
+	Do $$$AssertTrue($IsObject(reply), "(unreachable) with a Reply")
+	If $IsObject(reply) Do $$$AssertEquals(reply.FailureText _ "|" _ reply.ToolsRun, "|1", "(unreachable) no failure text and ToolsRun 1: the replay makes no provider request")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.ZzReplayTool).Ran("zz_replay_send"), ran + 1, "(unreachable) the tool ran once")
+	Do $$$AssertEquals(..Prop(other, "State") _ "|" _ ..Prop(other, "Result"), "done|done", "(unreachable) the row is done")
 	Do ..RemoveRows()
 }
 
@@ -1200,6 +1258,31 @@ Method ApprovedRow(name As %String, arguments As %String, source As %String, exp
 	If ref '= "" Set ^OcuTalonTest("Replay", "rows", ref) = ""
 	Do $$$AssertStatusOK(sc, "the fixture row "_kind_" is saved, approved")
 	Quit ref
+}
+
+/// Asserts that no job of this test holds the replay lock of the Ref (DW-444): a second job takes ^OcuTalon.Bridge.Replay(ref) at once. The lock is
+/// per process, so only another job can tell that this one left it held.
+Method AssertReplayLockFree(ref As %String, label As %String) [ Private ]
+{
+	Set node = $Name(^OcuTalonTest("Replay", "lock", ref))
+	Kill @node
+	Job ##class(OcuTalon.Test.Bridge.Runner).TakeReplayLock(ref)
+	Set deadline = $ZHorolog + 15
+	While ($Get(@node@("done")) = "") && ($ZHorolog < deadline) {
+		Hang 0.05
+	}
+	Do $$$AssertEquals($Get(@node@("taken")), 1, label_": the replay lock of the Ref is free")
+	Kill @node
+}
+
+/// The job body of AssertReplayLockFree: takes the replay lock of the Ref (waiting up to 5 seconds), reports whether it was taken and releases it.
+ClassMethod TakeReplayLock(ref As %String)
+{
+	Set node = $Name(^OcuTalonTest("Replay", "lock", ref))
+	Lock +^OcuTalon.Bridge.Replay(ref):5
+	Set @node@("taken") = $Test
+	If $Test Lock -^OcuTalon.Bridge.Replay(ref)
+	Set @node@("done") = 1
 }
 
 /// Deletes the fixture rows of ApprovedRow.
