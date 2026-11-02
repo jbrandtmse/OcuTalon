@@ -166,3 +166,5 @@
 2026-11-02T18:28:27Z	Epic 31	ledger_new	id=DW-592 status=routed owner=burndown by=spec_gate note=first_daily_release_after_1.0.0(U-222) from=31.5_re-plan_W3_deferred_item(removed_from_the_spec_to_avoid_a_double_harvest)
 2026-11-02T18:28:27Z	Story 31.6	sprint_key	key=31-6-a-tool-call-s-approval-request-appears-in-the-web-chat-with status=backlog note=31.6_stays_in_1.0.0(Contest_Planner_1);build_right_after_31.5
 2026-11-02T18:28:27Z	Story 31.5	spec_reset	status=draft reason=split(part_A_only;intent_card_parts_replaced_by_31.6_pointers) note=whole_two-part_plan_kept_outside_git_for_31.6s_plan
+2026-11-02T18:30:15Z	Epic 31	epic_context_compiled	sha=f24faaa0 reason=planning_artifact_newer(31.5_split,31.6_added) model=claude-opus-5-5
+2026-11-02T18:30:15Z	Story 31.5	stage_spawned	stage=plan spawn_at=2026-11-02T18:30:15Z model=claude-opus-5-5 agent_name=31-5-plan-3 cycle_iteration=3 note=re-plan_part_A_after_split
