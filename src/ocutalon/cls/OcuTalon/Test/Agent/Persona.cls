@@ -1,8 +1,9 @@
 /// Tests of the persona presets (Story 40.1, AD-7): the six presets of OcuTalon.Agent.Persona against a test-held copy of the
 /// UX table (EXPERIENCE.md, Personality), the rule that no PRESETS block holds a template token, and the Block stub. Nothing
 /// is written anywhere and no model is called.
-///   - TestPresets: Presets() and Preset(id) give the six entries in PERSONAPRESET order with exactly the five fields, the
-///     UX texts, the bends flag per id, and "" for an unknown or empty id;
+///   - TestPresets: Presets() and Preset(id) give the six entries in PERSONAPRESET order (compared with Msg.Enum once it
+///     has PERSONAPRESET) with exactly the five fields and their JSON types, the UX texts, the bends flag per id, and "" for
+///     an unknown or empty id;
 ///   - TestNoTemplates: no compiled PRESETS block of an OcuTalon class holds {{, @{ or a control character other than a line
 ///     feed; the scanner flags a sample that breaks the rule, and passes one that keeps it;
 ///   - TestBlock: Block() returns "" for an empty and for a 22-character session reference.
@@ -86,6 +87,7 @@ Method TestPresets()
 		Set position = 0
 		While $ListNext(fields, position, field) {
 			Do $$$AssertTrue(got.%IsDefined(field), want.id_" has "_field)
+			Do $$$AssertEquals(got.%GetTypeOf(field), want.%GetTypeOf(field), want.id_" "_field_" has the UX table's JSON type")
 			Do $$$AssertEquals(got.%Get(field), want.%Get(field), want.id_" "_field_" is the UX table's")
 		}
 		Set one = ##class(OcuTalon.Agent.Persona).Preset(want.id)
@@ -93,6 +95,9 @@ Method TestPresets()
 		If $IsObject(one) Do $$$AssertEquals(one.%ToJSON(), got.%ToJSON(), "Preset("_want.id_") is the same entry as in Presets()")
 	}
 	Do $$$AssertEquals($ListToString(ids), "professional,starship,pirate,kindfriend,language,custom", "the ids are in PERSONAPRESET order")
+	Set enum = $Parameter("OcuTalon.Msg.Enum", "PERSONAPRESET")
+	If enum = "" Do $$$LogMessage("OcuTalon.Msg.Enum has no PERSONAPRESET yet (Story 40.2), so the ids are not compared with it")
+	If enum '= "" Do $$$AssertEquals($ListToString(ids), enum, "the ids are Msg.Enum PERSONAPRESET, in its order")
 
 	Set pirate = ##class(OcuTalon.Agent.Persona).Preset("pirate")
 	Do $$$AssertEquals(pirate.id, "pirate", "Preset(pirate) is the pirate")
@@ -127,12 +132,14 @@ Method TestNoTemplates()
 	Do $$$AssertTrue('..HasBadToken("Hello name."_$Char(10)_"Aye, shipmate! { } @ {"), "and passes a clean text with a line feed and lone braces")
 
 	Set blocks = 0
+	Set persona = 0
 	Set statement = ##class(%SQL.Statement).%New()
 	Do $$$AssertStatusOK(statement.%Prepare("SELECT parent FROM %Dictionary.CompiledXData WHERE Name = 'PRESETS' AND parent %STARTSWITH 'OcuTalon.'"), "the PRESETS blocks are listed")
 	Set result = statement.%Execute()
 	While result.%Next() {
 		Set blocks = blocks + 1
 		Set class = result.%GetData(1)
+		If class = "OcuTalon.Agent.Persona" Set persona = 1
 		Set xdata = ##class(%Dictionary.CompiledXData).%OpenId(class_"||PRESETS")
 		Set presets = ##class(%DynamicAbstractObject).%FromJSON(xdata.Data)
 		Set entries = 0
@@ -147,7 +154,7 @@ Method TestNoTemplates()
 		}
 		Do $$$AssertTrue(entries > 0, class_" has entries in its PRESETS: "_entries)
 	}
-	Do $$$AssertTrue(blocks >= 1, "at least OcuTalon.Agent.Persona has a PRESETS block: "_blocks)
+	Do $$$AssertTrue(persona, "OcuTalon.Agent.Persona's PRESETS block is among the blocks scanned: "_blocks)
 }
 
 /// Block() is a stub of this story: "" for an empty and for a 22-character session reference.

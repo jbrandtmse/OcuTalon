@@ -2786,3 +2786,23 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: Contest Planner: Epic 4 host check on 374f958e, 2026-11-01 | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: host browser check at 1280x800
 - 2026-11-01T20:13:34Z status=routed owner=31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=merge_gate note=cosmetic; the empty chat opens at its top; only if cheap, with DW-530's no-date-cost rule
+
+### DW-564: APPROVALKIND gains setting in OcuTalon.Msg.Enum (Lane B) and OcuTalon.Bridge.Msg.Enum (Lane A), which Test.Msg.Contracts.TestBridgeEnumerationsEqualOcuTalons requires equal in the same merge; spec 40.1's residual gives both to Lane B's 40.2, and Epic 40's paths_hint omits src/bridge/cls/OcuTalon/Bridge/Msg/Enum.cls
+- source: spec-40-1-fix-the-persona-s-names-contracts-and-preset-texts.md | severity: med | fix-risk: med | footprint: in-epic
+- evidence: Test/Msg/Contracts.cls:85-92 asserts each Bridge.Msg.Enum value equals OcuTalon's; AD-33 puts OcuTalon.Bridge in Lane A; Bridge/Approval.cls:179 validates the kind against the bridge copy (Story 40.5)
+- 2026-11-02T02:29:01Z status=routed owner=40-2-save-your-persona-and-let-ocutalon-propose-one by=cr note=40.2's plan settles which story changes the bridge copy so both enums land in one merge without a cross-lane edit left unrecorded (escalate if it needs a lane exception)
+
+### DW-565: The spine's Conventions table Enumerations row (line 1078) still lists ApprovalKind fix, tool_call and no PersonaPreset, against AD-11 as amended and the Epic 40 names sub-bullet; Test.Msg.Contracts says the enumerations equal that row
+- source: spec-40-1-fix-the-persona-s-names-contracts-and-preset-texts.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: ARCHITECTURE-SPINE.md:1078 'ApprovalKind `fix, tool_call`'; the 40.1 sub-bullet (line 948) now states the row gains both values
+- 2026-11-02T02:29:01Z status=routed owner=40-2-save-your-persona-and-let-ocutalon-propose-one by=cr note=40.2 creates PERSONAPRESET and setting in Msg.Enum and updates the Enumerations row in the same change
+
+### DW-566: AD-22's as-built line ('the 12 built-in tool names are defined once in OcuTalon.Tools.Names') and the Tools/Names.cls class comment (release-1 tools) predate PROPOSEPERSONA, a 13th parameter that is not a release-1 tool
+- source: spec-40-1-fix-the-persona-s-names-contracts-and-preset-texts.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: ARCHITECTURE-SPINE.md:743; Tools/Names.cls top comment; the spec forbids edits there (contended file, additive spine lines only) and leaves the count to the merge gate (U-199 precedent, DW-521)
+- 2026-11-02T02:29:01Z status=by-design owner=40-1-fix-the-persona-s-names-contracts-and-preset-texts by=cr note=spec Design Notes, Decided in-stage: count corrected at the merge gate once propose_persona has its tool (Story 40.5)
+
+### DW-567: The PRESETS-vs-EXPERIENCE.md comparison runs only as a hand-run (once) command; CI pins PRESETS only against the test-held UX copy
+- source: spec-40-1-fix-the-persona-s-names-contracts-and-preset-texts.md | severity: low | fix-risk: med | footprint: out-of-footprint
+- evidence: Test/Agent/Persona.cls TestPresets compares with XData UX; the node comparison is in the spec's Verification only, not in ci/checks.sh or docker/tests/test-mock.sh (ci/ is Lane B's)
+- 2026-11-02T02:29:01Z status=wontfix-accepted owner=40-1-fix-the-persona-s-names-contracts-and-preset-texts by=cr note=reopen_if=EXPERIENCE.md's Personality preset table changes after Story 40.1 while XData PRESETS does not

@@ -7912,6 +7912,9 @@ So that the voice I choose is mine and nothing changes behind my back.
 **When** `Catalog.Render` renders it for the web, phone, mailbox and telegram channels, in automated tests in `OcuTalon.Test.Msg`
 **Then** the greeting, the exclamation mark and the emoji come out unchanged, the notice's fixed frame ("Why now:" and the rest) is exact, and only control characters and line breaks are cleaned from the slot, as before (FR-69, AD-7, AD-32)
 
+- DW-564: `setting` reaches `APPROVALKIND` in both `OcuTalon.Msg.Enum` and `OcuTalon.Bridge.Msg.Enum` in the same merge (Test.Msg.Contracts requires them equal); the plan decides who changes the bridge copy (Lane A's file, not in Epic 40's paths_hint) (ledger; routed by cr 2026-11-02)
+- DW-565: the spine's Conventions Enumerations row gains ApprovalKind `setting` and the PersonaPreset values, matching the Epic 40 names sub-bullet (ledger; routed by cr 2026-11-02)
+
 ### Story 40.3: The persona reaches Chat and Triage as a data block
 
 *Home lane: A.*
