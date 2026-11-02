@@ -7357,6 +7357,8 @@ So that I can try OcuTalon in two minutes from the README.
 
 ### Story 31.4: The paired chat stays isolated under load too
 
+[DEFERRED 2026-11-02, owner decision relayed by the Contest Planner (AskUserQuestion ~14:55Z; the owner: "Move it after the tag."): Story 31.4 moves out of 1.0.0 into the first daily release after the v1.0.0 tag, with its ledger entries (DW-237, DW-446, DW-474, DW-485, DW-511). Epic 31 merges for 1.0.0 with Stories 31.1, 31.2, 31.5 and 31.3; 31.4 re-opens Epic 31 under SC-5 after the tag. Until it lands, the Contest Planner keeps Telegram pairing off on the public demo by host configuration (U-219: the splash's Telegram line shows only when a bot token is set).]
+
 [AMENDED 2026-10-21, owner decision at the unattended launch, worked out with the Contest Planner: a new story for Story 29.4's paired-chat cases, so that no Lane A epic waits on Epic 29, which merges only after the author's host work. Lane B builds it in Epic 31, once Lane A's Epic 12 and Epic 29 have merged]
 
 As a judge,

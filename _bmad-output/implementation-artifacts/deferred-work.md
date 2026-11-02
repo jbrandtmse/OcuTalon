@@ -1371,6 +1371,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-31T07:31:51Z owner=11-0-epic-10-deferred-cleanup by=x0 note=Pairing.HashCode (Data/Pairing.cls:68) still repeats Session.Hash's SHA-256 base64url line; trivial and low fix-risk, so default-included in Story 11.0
 - 2026-10-31T08:34:17Z status=resolved-by:11-0-epic-10-deferred-cleanup by=adjudication note=Pairing.HashCode keeps its empty-code guard and quits ##class(OcuTalon.Data.Session).Hash(code) (build e5eceafe + review patch); TestHashCodeIsSessionHash pins the whole body, TestHashCodeVectors unchanged and green
 - 2026-10-31T10:06:02Z status=routed owner=31-4-the-paired-chat-stays-isolated-under-load-too by=burndown note=residual: Data/Pairing.cls:68 HashCode still repeats Data/Session.cls:122 Hash's body (same SHA-256 base64url line, plus an empty-code guard); make HashCode keep its guard and quit Session.Hash(code). Not covered by 10.3 (missed adjudication); overflow, not chartered (1 entry, under cap 8, no occurrences; Story 10.4 is a README-only re-open with a launch deadline). 31-4 is a Lane B pairing story (Data/Pairing.cls is Lane B's, AD-29)
+- 2026-11-02T14:55:52Z status=routed owner=31-4-the-paired-chat-stays-isolated-under-load-too by=owner note=31.4_deferred_after_the_v1.0.0_tag(owner:Move_it_after_the_tag);first_daily_release
 
 ### DW-238: Session.ForUser (TOP 1 by IrisUser) can return a visitor row as a user's durable session if onlineDemo is turned off on an instance that keeps visitor rows
 - source: spec-16-3-signing-in-opens-a-session-this-browser-resumes-until-the-re.md | severity: low | fix-risk: low | footprint: in-story
@@ -2771,6 +2772,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: docker/probe.sh run_checks matches only daily_cap, no_key, timeout and rate_limited; Decide.Classify gives error to a failure without the cap, key, timeout or rate-limit text (a 401, a 500); H12: the host's IRIS holds a dummy key, so no_key needs a broken deploy; Story 29.6's So that: a demo whose replies are all fallbacks never reports healthy
 - 2026-10-30T19:11:36Z status=decision-pending owner=burndown by=cr note=product call: should error also be degraded (alert-only)? U-157 named three; recommended: yes, like the three
 - 2026-10-31T09:02:42Z status=routed owner=31-4-the-paired-chat-stays-isolated-under-load-too by=merge_gate note=veto_U-187:error_counts_as_degraded(alert_only,not_toward_the_reset),like_U-157's_three;with_a_probe_test
+- 2026-11-02T14:55:52Z status=routed owner=31-4-the-paired-chat-stays-isolated-under-load-too by=owner note=31.4_deferred_after_the_v1.0.0_tag(owner:Move_it_after_the_tag);first_daily_release
 
 ### DW-447: AD-25's probe bullet lists the outcomes busy, capped, auth_failed and no_decision, but the probe also has no_splash (Story 16.6) and degraded (Story 29.6, epic29_brief), and the spine does not record them
 - source: spec-29-6-the-probe-alerts-when-every-turn-falls-back.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -2840,6 +2842,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: orchestrator: Epic 9 decision sheet (DW-448 split, veto U-185) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Test.Web.SessionEvents.ReferenceHits mirrors Test.Eval.KeyProof Walk (DW-448's evidence)
 - 2026-10-31T07:17:56Z status=routed owner=31-4-the-paired-chat-stays-isolated-under-load-too by=merge_gate note=Lane_B_half_of_DW-448;after_Story_30.1_settles_the_decode;veto_U-185
+- 2026-11-02T14:55:52Z status=routed owner=31-4-the-paired-chat-stays-isolated-under-load-too by=owner note=31.4_deferred_after_the_v1.0.0_tag(owner:Move_it_after_the_tag);first_daily_release
 
 ### DW-478: Session.Hash's doc comment names only the resume reference and a client address as forms stored with it; Pairing.HashCode now stores pairing-code hashes through it
 - source: spec-11-0-epic-10-deferred-cleanup.md | severity: low | fix-risk: low | footprint: in-epic
@@ -2877,6 +2880,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: Contest Planner: demo host pass on fe1d81e2, 2026-10-31 (host filter fixed host-side: on a decoded route ending in /%csp.broker.cls it also admits ^W(ARGC|EVENT|ARG_[0-9]{1,3})$) | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: Visual Trace drew but every message click showed IRIS's 'error while loading this page' with empty Header, Body and Contents; after the host fix run 1 is 110/110 and the Header pane fills at a full house of six
 - 2026-10-31T12:04:51Z status=routed owner=31-4-the-paired-chat-stays-isolated-under-load-too by=orchestrator note=also_check_that_the_repo's_proxy_stand-in(Story_29.3)_admits_the_broker-path_hyperevent_fields,and_record_the_allowance_as_built_beside_AD-25's_sign-in_rule
+- 2026-11-02T14:55:52Z status=routed owner=31-4-the-paired-chat-stays-isolated-under-load-too by=owner note=31.4_deferred_after_the_v1.0.0_tag(owner:Move_it_after_the_tag);first_daily_release
 
 ### DW-495: Test.Bridge.Gate's untrusted-turn row still calls cancel_reminder with {"reminderRef":"x"}, which now answers BADREFS before CommandCall.Run, so the row's 'its method did not run' check (CommandCount '= 0) can no longer fail for cancel_reminder
 - source: spec-11-8-the-chat-cancels-several-reminders-in-one-call-and-says-it-c.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -3125,6 +3129,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-30-6-the-invalid-reply-warning-names-what-failed-never-the-reply.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: Test/Data/PublicSettings.cls:105 Do $$$AssertTrue(now ] $Translate(...)_"Z", ...); fix: parenthesise the right side; remove OcuTalon.Test.Data.PublicSettings:TestNextReset from ALLOW_CONCAT in docker/tests/test-class-rules.sh in the same change (its stale check fails otherwise)
 - 2026-10-31T21:42:02Z status=routed owner=31-4-the-paired-chat-stays-isolated-under-load-too by=spec_gate note=AD-33: Lane B's file, so Lane B's Story 31.4 (beside DW-474's Lane B test fix); one-line change plus the allow-list entry's removal
+- 2026-11-02T14:55:52Z status=routed owner=31-4-the-paired-chat-stays-isolated-under-load-too by=owner note=31.4_deferred_after_the_v1.0.0_tag(owner:Move_it_after_the_tag);first_daily_release
 ### DW-517: Eval.Report TOOLCLASSES omits OcuTalon.Tools.RecentActivity, so Eval.Report.ReadOnly(recent_activity) is 0 and an eval Chat turn that calls recent_activity is scored as having acted
 - source: spec-5-13-ask-ocutalon-what-happened-earlier-and-it-tells-you-from-its.md | severity: med | fix-risk: low | footprint: in-story
 - evidence: Eval/Report.cls L83 TOOLCLASSES=WatchTools,ReminderTools; ReadOnly reads READONLY<NAME> only from those classes
