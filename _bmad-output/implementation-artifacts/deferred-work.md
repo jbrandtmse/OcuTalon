@@ -3249,6 +3249,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-16-11-the-splash-promises-telegram-only-when-the-release-includes.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: Msg/Catalog/Core.cls:268 and web/src/app/msg/catalog.ts carry the text unconditionally; web/e2e-online/allowance/messages.spec.ts:35 and web/e2e/banners/banners.spec.ts:359,501 pin it; a visitor who uses up the 50 messages reads 'or Telegram' while the release has none
 - 2026-10-31T17:45:09Z status=routed owner=12-7-approve-or-reject-from-telegram-and-every-copy-shows-who-ans by=harvest note=orchestrator ruling U-197: keep it out of 16.11, route it to Story 12.7 with the splash's included case
+- 2026-11-02T14:10:41Z status=routed owner=12-9-telegram-is-included by=spec_gate note=split_at_12.7_spec_gate:the_splash_and_banner_part_moved_to_12.9;mechanism_waits_on_U-219(U-197_follow-up)
 
 ### DW-505: An assertion written x [ "a"_y tests only x [ "a" (ObjectScript evaluates left to right), so it can pass whatever y is: Test.Agent.KeyScan:123 can never fail, and no check rejects the form
 - source: spec-16-11-the-splash-promises-telegram-only-when-the-release-includes.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -3262,6 +3263,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-16-11-the-splash-promises-telegram-only-when-the-release-includes.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: Msg/Catalog/Core.cls:315 and web/src/app/msg/catalog.ts:18 carry it unconditionally; banner-view.ts shows it 5 minutes before each reset; web/e2e-online/reset.spec.ts:48 pins it
 - 2026-10-31T19:24:43Z status=routed owner=12-7-approve-or-reject-from-telegram-and-every-copy-shows-who-ans by=cr note=same ruling as DW-501 (U-197: no other wording change in 16.11); 12.7 gates it with the allowance banner
+- 2026-11-02T14:10:41Z status=routed owner=12-9-telegram-is-included by=spec_gate note=split_at_12.7_spec_gate:the_splash_and_banner_part_moved_to_12.9;mechanism_waits_on_U-219(U-197_follow-up)
 
 ### DW-507: live:online-demo prints 'jar.busy.s3.g: No such file or directory' on every run: set_cookie_value reads the redirect-GET headers file that a refused (200) sign-in never writes
 - source: spec-16-11-the-splash-promises-telegram-only-when-the-release-includes.md | severity: low | fix-risk: low | footprint: in-epic

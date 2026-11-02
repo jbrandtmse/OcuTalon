@@ -24,7 +24,7 @@ deferred: []
 - **Answered.** On `answered`, `TelegramOut` edits the message in place: it removes the buttons and makes the status the last line. After a Telegram rejection it sends the follow-up.
 - **Proof.** The REL-2 Telegram part of step 5 is turned on, checked against the CI mock.
 
-**Part C, the online demo's texts (U-197, DW-501, DW-506)** is a separate block gated on the orchestrator's ruling (Design Notes). The rest of the epic's criterion, the switch (`Included()` returns 1, the README section, the harness and the online case), is proposed as sibling Story 12.9 (Design Notes, "Proposed split").
+**Part C, the online demo's texts (U-197, DW-501, DW-506)**, and the rest of the epic's criterion, the switch (`Included()` returns 1, the README section, the harness and the online case), are sibling Story 12.9's (the split was accepted at the spec gate; Design Notes, "Proposed split" and "Runner rulings at the spec gate").
 
 ## Boundaries & Constraints
 
@@ -80,7 +80,7 @@ deferred: []
   - `Included()` keeps its seam body; the switch is Story 12.9.
   - No README change.
   - No real bot, no `api.telegram.org`, no real token or model key.
-  - Part C is built only after the ruling (U-197).
+  - Part C is Story 12.9's (the split; U-197's follow-up decides its mechanism there).
 
 ## I/O & Edge-Case Matrix
 
@@ -251,34 +251,11 @@ deferred: []
 
   `demo-path-summary` reports step 5 as passed (FR-8, FR-9, REL-1, REL-2, UX-DR101, UX-DR103).
 
-**Execution (Part C, gated on U-197: build only after the orchestrator's ruling picks option (a). Under option (b) this block moves to Story 12.9 in the shorter form given in the ruling subsection. Rows DW-501 and DW-506 are addressed here):**
-- C1. `src/ocutalon/cls/OcuTalon/Install/Step/Public.cls` (Lane A; `Run` :39-63 and `RunLocal` :65-71): on every start, write `telegramIncluded` through `Data.Public.Settings.Set`, as "1" when `OcuTalon.Channel.Telegram.In.Included()` is 1, else "0" (structural, AD-19).
-- C2. `src/ocutalon/cls/OcuTalon/Data/Public/Settings.cls` :9 (Lane B, needs the ruling): add `telegramIncluded` to `KEYS` (13 to 14 keys).
-- C3. `src/ocutalon/cls/OcuTalon/Web/Public/Splash.cls` :194-200 (Lane B, needs the ruling):
-  - restore `Parameter TELEGRAMLINE` and `LIMITLINE`, equal to `splash.telegramLine` and `splash.limitLine`;
-  - when `Get("telegramIncluded")` is "1", the Before you start list is: reset, own, the Telegram line, `LIMITLINE` (when the allowance is set), shell;
-  - otherwise it is today's list.
-- C4. The tests:
-  - `Test/Web/Splash.cls` gains a key-1 case;
-  - `Test/Web/PublicTexts.cls` :158: 40 to 42 entries, both assertions;
-  - `Test/Data/PublicSettings.cls` :43: 14 keys;
-  - `Test/Install/Public.cls` :187: the expected object (contended, Epic 15: needs the ruling);
-  - `docker/tests/test-online-demo.sh` :163;
-  - `web/e2e-online/splash.spec.ts` S2 is unchanged (the throwaway's key is "0"). A new S2b sets the key to "1" through the accessor and restores it, and sees both Telegram lines.
-- C5. **DW-501 and DW-506, the banners** (Lane B web and catalog, contended: needs the ruling):
-  - `web/src/app/banners/banner-view.ts` `BannerInput` :117-125 gains `telegram`, which `banner-stack.ts:197` sets from `store.telegram.included`.
-  - `banner.allowance` and `banner.resetSoon` are used only when it is true. Otherwise the page uses two new keys:
-    - `banner.allowanceChat`: "You've used this session's {limit} messages for the hour. You can send more at {time}." (EXPERIENCE.md:174's form);
-    - `banner.resetSoonChat`: "The demo resets in 5 minutes. Your session will be cleared." (new public text: veto window).
-  - The new keys go in `Msg/Catalog/Core.cls` (after `banner.resetSoon`, not at the end), `web/scripts/catalog.mjs`'s allowlist and the regenerated `catalog.ts`, with `Test/Msg/Catalog.cls`'s counts.
-  - `web/e2e/banners/banners.spec.ts` :120, :359 and :501, `web/e2e-online/allowance/messages.spec.ts:35` and `web/e2e-online/reset.spec.ts:48` take the chat forms, since the seam is 0 there; one banner case with the seam at 1 keeps the Telegram forms.
-
-**Acceptance Criteria (Part C, gated):**
-- Given `Included()` 1 (the seam), when the online demo starts and its splash renders, then `telegramIncluded` is "1". The list shows "Have Telegram? You can scan a QR code inside to get the notices on your own phone." and "Each session can send 50 messages an hour in the chat or Telegram.".
-- With `Included()` 0, the key is "0" and the list is 16.11's, with no "Telegram" (FR-14, FR-20, AD-3, AD-19).
-- Given the signed-in page, when the allowance or reset-soon banner shows, then it mentions Telegram only while `/state`'s `telegram.included` is true (DW-501, DW-506).
+**Part C (the online demo's texts, U-197, DW-501, DW-506) is not this story's:** it moved to Story 12.9 at the spec gate (Spec Change Log, 2026-11-02).
 
 ## Spec Change Log
+
+- 2026-11-02, lead (Epic 12 runner, runner A), spec gate: the split is accepted (Part A only; the switch and Part C go to Story 12.9); the gated Part C block and its Verification lines are removed from this spec; the two edits outside Lane A are ruled and the `Delivery.Text` ask is a veto ruling (Design Notes, "Runner rulings at the spec gate"). DW-501 and DW-506 are re-owned to Story 12.9.
 
 ## Review Triage Log
 
@@ -326,6 +303,12 @@ deferred: []
 
   It turns on Story 16.3's online case, `web/e2e-online/resume.spec.ts:190` R2c (the rail's card shows R2b's fixture pairing "Zz chat"; the card renders once `telegram.included` is true). Under U-197 option (b) it also carries the splash change (below).
 - **If the runner wants a smaller first story,** Part C moves whole to its own sibling, Story 12.10, "The online demo's texts follow Telegram", with no change to Part A.
+
+**Runner rulings at the spec gate (2026-11-02; the orchestrator ruled the cross-epic questions):**
+- **Split (U5 decide, accepted by the orchestrator):** this story is Part A only. Story 12.9, "Telegram is included" (inserted in `epics.md` under Epic 12), takes the switch, the README, Story 11.2's harness pairing family, Story 16.3's online case and Part C (the splash and banners, DW-501 and DW-506, re-owned to `12-9-telegram-is-included`). Part C's design as planned here (Tasks C1-C5 and its acceptance criteria) is in this spec's first committed version (git history of this file) and is input to Story 12.9's plan. U-197's mechanism waits on the Contest Planner (inbox U-219); only Story 12.9's splash and banner part waits on it.
+- **Edit 1, `Test/Msg/Catalog.cls` (contended, Epic 40), orchestrator ruling option (i):** add `button.approve` and `button.reject` to Lane A's `Msg/Catalog/Watch.cls` and make the four edits in `Test/Msg/Catalog.cls` (header, the Watch count lines 24 to 26, the total 119 to 121, the two keys and fixtures in XData `Keys` and `Fixtures`). Whichever epic merges second resolves the total by adding the deltas. Touch no other line of that file.
+- **Edit 2, `web/scripts/api-client-sources.test.mjs` (Lane B, not contended):** allowed; the pin flip as described.
+- **Ask 3, `Delivery.Text` (veto ruling, inbox U-218):** storing the sent text of a Telegram message with buttons is allowed on three conditions: the schema is unchanged; the stored text is the phone copy's text, with no chat id; and the implement checks that every reader of `Delivery.Text` filters on channel `web`, and stops with `## Clarification Needed` if one does not. Lane B's doc line stays unedited.
 
 **Pending orchestrator ruling (U-197): the telegramIncluded public key and AD-19**
 
@@ -411,7 +394,7 @@ From Stories 12.2-12.6: `TelegramIn`'s dispatch, `TelegramOut`'s `Send`/`Target`
 - **26.4:** `not_allowed`'s alert.
 - **38.3:** the owner's real-bot pass and the 20 timed approvals (moved there by the owner's decision of 2026-10-31; this story touches no real bot).
 
-**Owned ledger (Rule 17):**
+**Owned ledger (Rule 17):** none after the spec gate: DW-501 and DW-506 were re-owned to `12-9-telegram-is-included` with Part C (`by=spec_gate`). As planned:
 - **DW-501** (the allowance banner) is addressed by Part C's C5 under option (a). Under the recommended (b) it is resolved by the switch in Story 12.9, and the runner re-owns it there.
 - **DW-506** (the reset-soon banner) is the same: C5 under (a), and Story 12.9 under (b).
 
@@ -450,11 +433,6 @@ From Stories 12.2-12.6: `TelegramIn`'s dispatch, `TelegramOut`'s `Send`/`Target`
 - (once) Write the changed paths to a file in the stage's scratchpad subfolder, run `bash ci/changes.sh ci.yml --paths-from <file>`, and record the groups.
 - (once) `<lane> OCUTALON_RUN_TAG=e12s7i ci/iris.sh teardown`.
 - (once) `git status --short -- src/ocutalon/cls/OcuTalon/Core src/ocutalon/cls/OcuTalon/Data src/ocutalon/cls/OcuTalon/Msg/Catalog/Core.cls src/ocutalon/cls/OcuTalon/Msg/Catalog.cls src/ocutalon/cls/OcuTalon/Watch src/ocutalon/cls/OcuTalon/Web src/ocutalon/cls/OcuTalon/Live src/ocutalon/cls/OcuTalon/Channel/WebChat src/ocutalon/cls/OcuTalon/Channel/SimPhone src/bridge web/src web/e2e/support ci/units.sh ci/mock/mock.mjs ci/mock/scenarios.mjs ci/mock/test README.md`. Expected: it prints nothing. Part C, when it is ruled in, adds its own files.
-- **Part C (gated), when it is built:**
-  - (loop) warm `class` runs of `OcuTalon.Test.Web.Splash`, `Test.Web.PublicTexts`, `Test.Data.PublicSettings` and `Test.Install.Public`;
-  - (once) `live online-demo`;
-  - (once) `live sign-in --part 1/2` and `--part 2/2` (banners);
-  - (once) `live online-allowance`.
 - **Left to CI (Rule 23):** `production` (`shard:lane-a@Channel`), `browser` (`demo-path`), and the groups `ci/changes.sh` selects. Record `TelegramApproval`'s seconds, T8's seconds, and the `iris (browser)` minutes.
 
 **Shared surfaces:**
