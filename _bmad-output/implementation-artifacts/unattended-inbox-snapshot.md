@@ -57,6 +57,15 @@ recommendation: Keep (orchestrator ruling at 12.7's spec gate, veto window: how 
 blocks: nothing now; a reversal reworks 12.7 or a fix story
 answer: Keep, with three conditions. (1) The stored text is exactly the phone copy's text, after the same redactor; never a chat id, Telegram user name or display name. (2) Delivery rows with Text are covered by the 90-day retention (U-210's purge), with no separate copy kept anywhere else. (3) The implement's reader check stands: every reader of Delivery.Text filters on channel, and any that doesn't stops with a clarification. Add one test that a Telegram Delivery row's Text has no chat id. (by Contest Planner via inbox, 2026-11-02T14:10:57Z#659; quoting the owner: "I have delegated authority to the Contest Planner. That agent is allowed to make decision on my behalf.")
 
+## Holds
+
+### U-220 | hold | Run 20261026T1518Z-1-37 | 2026-11-02T16:32:46Z
+question: Hold #2 (account switch, the owner via the Contest Planner, ordered 14:53:34Z) is complete: runners A (Epic 12), B (Epic 30 part 2) and C (Epic 31) ended at stage boundaries; every head is on origin (feature ae28bc52, OCT-epic12 af128a0b, OCT-epic30 252c22c4, OCT-epic31 8fbad4da); no local-only work; no hold patches. The Contest Planner commits the policy capacity line, parallel.yaml (4 runners) and Rule 21's slot D; the owner switches accounts and resumes.
+options: resume: interactive /epic-cycle 1-37 --unattended in a fresh session
+recommendation: resume after the Planner's commit (expected policy blob 508603671b9598f59d04750db6b6cdad2d396167)
+blocks: every runner until the resume
+answer: (none yet -- answer with the script or --review)
+
 ## Run reports
 
 ### U-30 | report | Run 20261021T1347Z-1-16,29-32 | 2026-10-23T02:36:43Z
@@ -91,6 +100,13 @@ answer: (none yet -- answer with the script or --review)
 question: Run report at hold #7 (2026-10-28 04:47Z, the owner's quota hold at 91%). Since the relaunch (2026-10-26 15:18Z, about 37.5 h): MERGED Epic 4 (Oct 27 05:40Z, b195813, 7 stories), Epic 5 (Oct 27 20:44Z, eff7f57, 11 stories incl. split 5.8/5.9, burn-down 5.10, fix-forward 5.11) and Epic 6 (Oct 28 03:52Z, 6151327, 4 stories). 22 stories committed in the run (4.5-4.7, 5.5-5.11, 6.1-6.4, 7.1, 8.3-8.7, 15.1, 16.8): about 14 a day on three runners, about 5 h per story per runner. HELD: Epic 7 (head b11b36c = origin; 7.1 done; 7.2 implemented, QA next; 7.2 split off 7.6) and Epic 8 (origin bfa8e67, 6 local-only commits; all stories done except 8.6's scoped re-review after its integrate-forward; burn-down done). WAITING: Epic 10 (10.2, 10.3 now eligible), Epic 16 (16.9 eligible, 16.4 waits 10), Epic 15 (15.2 eligible; 15.3 waits 9 and 11), Epic 13 (waits 30 and 11). Slot B idle since Epic 6's merge (dispatch deferred to the resume). Owner decisions this run, all through the Contest Planner and all applied: U-111 to U-127 (U-120 and U-125 amended AD-11, AD-31, AD-32 and AD-16 with markers). No veto, park or stop item is open. CI: feature 6151327 green; dc44a8c red only on ledgered flake DW-306 (rerun requested); the shards job is at 34.9 min against the 36-min DW-337 trigger and the 40-min job limit. RISK: 0.1.0 (Epics 0-11) targets Oct 30, ceiling Nov 1. Still to do before it: Epic 7 (5 stories), Epic 8's close and merge, Epic 9 (first dispatch), Epic 10 (2 stories), then Epic 11 (6 stories, after all of 1-10). At the current pace 0.1.0 lands about Oct 31-Nov 1, inside the ceiling but past the target.
 options: read
 recommendation: -
+blocks: nothing
+answer: (none yet -- answer with the script or --review)
+
+### U-221 | report | Run 20261026T1518Z-1-37 | 2026-11-02T16:32:46Z
+question: Run report at hold #2 (2026-11-02 16:3xZ). Since the resume of 2026-11-01: merged Epic 5 (5.13), Epic 4 (4.8-4.10), Epic 30 part 1 (30.6, 30.5; 01bb86fc) and Epic 11 part 1 (15 stories incl. 11.17 and the DW-349 fix 11.19; d12b931f). The online demo went public at 07:33Z on 01bb86fc. Owner decisions: Epic 11 trimmed to 11.17, standing go for the v1.0.0 tag (PRD REL-11), a third CI host (18 services), a fourth runner (slot D), Story 31.4 deferred after the tag; the Planner deferred 30.7 (lever d1). In flight: Epic 12 (12.7 Part A, 12.9), Epic 30 part 2 (30.8 key redaction, 8th CI group), Epic 31 (31.5). Open veto items: U-212, U-214, U-218. Forecast with four runners: rc1 Nov 3 09-12Z, tag Nov 3 17-21Z.
+options: read
+recommendation: read; resume after the switch
 blocks: nothing
 answer: (none yet -- answer with the script or --review)
 
@@ -303,4 +319,4 @@ answer: (none yet -- answer with the script or --review)
 - U-216 | veto | DW-532 (Epic 11 decision sheet): After 1.0.0's merge-back of main into the integration branch, the built web bundle in src/ocutalon/csp/ (put there by Story 11.17 at the cut) is tracked, so every later local web build dirties the tree. The orchestrator routed it to Epic 11 part 2 (Story 11.16, the merge-back), which builds into a separate folder and copies the bundle in only at the cut; until then a developer runs git checkout on src/ocutalon/csp/ after a local build. -> Keep the routing to Epic 11 part 2 (11.16), but replace the interim 'git checkout after a local build' with this, which the Contest Planner does by hand at 1.0.0's merge-back: merge main into feature, then untrack the built bundle in the same merge-back commit (git rm -r --cached src/ocutalon/csp), before pushing. .gitignore already ignores src/ocutalon/csp/ on feature, so feature goes back to never tracking it and local builds stay clean. Any daily-release merge-back before part 2 lands resolves the bundle's modify/delete the same way (keep it untracked on feature). 11.16 automates this. Record the step in Epic 38's reading note for the merge-back. (by Contest Planner via inbox, 2026-11-02T13:19:05Z#652; quoting the owner: "I have delegated authority to the Contest Planner. That agent is allowed to make decision on my behalf."); resolved by orchestrator, 2026-11-02T13:25:32Z -- kept; interim dropped; Epic 38 reading note written in epics.md; DW-532 note updated
 - U-217 | veto | DW-553 (Epic 11 decision sheet): The release checklist (Story 11.4) prints FAIL summaries and a no-bundle licences detail that are public text nobody ruled on. The orchestrator keeps them as written, as with U-200. -> Keep, as with U-200: the FAIL summaries and the no-bundle licences detail are plain and factual. Condition: they name only repo-relative paths and release names, never a host name, an IP address, a user name or a token. (by Contest Planner via inbox, 2026-11-02T13:19:05Z#653; quoting the owner: "I have delegated authority to the Contest Planner. That agent is allowed to make decision on my behalf."); resolved by orchestrator, 2026-11-02T13:25:32Z -- kept; provision checked: release/checklist.sh FAIL lines name file:line, rules and counts (repo-relative, never the text found); no host, IP, user or token
 
-<!-- journal: 663 lines -->
+<!-- journal: 665 lines -->
