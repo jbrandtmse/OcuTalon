@@ -2,7 +2,7 @@
 title: 'Push live events over a WebSocket on local installs'
 type: 'feature'
 created: '2026-10-30'
-status: 'done'
+status: 'in-progress'
 baseline_revision: '1c972cc8e3619d3cb727b8bcb1a7b4d7f7fd67c4'
 baseline_commit: '1c972cc8e3619d3cb727b8bcb1a7b4d7f7fd67c4'
 review_loop_iteration: 0
@@ -292,6 +292,15 @@ Line numbers are at the worktree head (feature 416b0f64) unless marked "feature"
   - when they run with this change,
   - then all pass with their assertions unchanged.
 
+### Fix-forward: U-209 (veto kept, 2026-11-02)
+
+The owner's delegate kept U-209 (inbox 2026-11-02T00:43:58Z#633): the pin stays narrowed to "no product class defines OnTimeout or OnEndSession; OnLogout only in Web.SessionEvents, changing nothing but the local install's sign-out mark", with the test that the epoch and every Session row field stay unchanged and that nothing is set on the online demo. Work ONLY these items:
+
+- [ ] [Veto] U-209: `TestSignOutMark` covers every Session row field by construction -- src/ocutalon/cls/OcuTalon/Test/Web/SessionEvents.cls (`RowText`) -- derive the compared fields from the class's stored properties (`%Dictionary.CompiledProperty` of `OcuTalon.Data.Session`, not transient, not calculated, `%%`-names excluded, list properties compared by value, for example with `$ListToString` or `$ListSame`), so a field added later is compared too, and assert the derived set holds at least `Epoch`, `Ref`, `CspSessionId` and `ResumeHash` (a guard that the derivation found the fields, so it cannot pass empty).
+- [ ] [Veto] U-209: the epoch is asserted by name -- same test -- before and after the two sign-outs, `Epoch` read on its own (`##class(OcuTalon.Data.Session).RefIndexOpen(ref).Epoch`) equals its value before, beside the whole-row comparison.
+- [ ] [Veto] U-209: nothing is set on the online demo -- same test -- with `onlineDemo` 1, a session that has never signed out (a fresh fixture ref) gets no mark node at all (`$Data(^OcuTalonP.SessionM(<fresh ref>))` = 0, read through `Data.Session`'s `MARKGLOBAL` parameter, not a literal), its row text is unchanged, and the already-marked session's count is unchanged; the setting is put back in every case (also after a failure), and every mark node the test made is killed.
+- [ ] [Veto] U-209: each new assertion gets its `mutation:` line under ## Verification (Rule 19): for example, `MarkSignedOut` ignores the online-demo check (`OnLogout` without its `onlineDemo` guard) makes the fresh-ref `$Data` assertion red; `OnLogout` sets `Epoch` (or any field) makes the field comparison red.
+
 ### Review Findings
 
 Epic-cycle code review, 2026-11-01 (layers: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor; full-opus tier). 31 raw findings, 8 entries after grouping (high 0, medium 4, low 4); every patch applied, re-run green; 15 rejected (below).
@@ -330,6 +339,8 @@ Rejected:
 - 2026-11-01, lead (runner C): re-dispatched after Epic 29 merged. Intent block brought in line with U-173/U-174/U-175 (Approach: shell-forwarded route at the AC's URL and the sign-out mark; Never: contended paths re-computed, Shell and Session freed for this story's two edits; sign-out sentence). Re-dispatch rulings added at the top of ## Design Notes. Ledger inbox: DW-457, DW-397. Status stays `draft` for the re-plan.
 
 - 2026-11-01, lead (runner C): the re-plan halted on Q1-Q3; ruled under ## Design Notes (Q1 decide, Q2 veto U-209, Q3 decide), `pending` markers removed, the intent's sign-in sentence reworded for the shell route, status `ready-for-dev`.
+
+- 2026-11-02, lead (runner C): fix-forward for U-209 (veto kept by the Contest Planner for the owner, 2026-11-02T00:43:58Z#633). Status `in-progress`, rework iteration 1 of 3: the four `[Veto]` items under ## Tasks & Acceptance (the sign-out mark test made field-complete by construction, the epoch asserted by name, the online-demo case on a fresh ref). The pin itself (`Test.Web.LeavingThePage`) already reads as U-209 states; Story 16.4's spec carries the `[AMENDED ...]` markers on the narrowed rule (lead edit). The marker stays out of the class comments (Rule 14: comments state the contract, not its history) -- decided by the lead.
 
 ## Review Triage Log
 
