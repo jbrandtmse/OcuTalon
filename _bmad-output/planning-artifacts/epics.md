@@ -4829,6 +4829,8 @@ So that I can pair my own phone and approve from it in a release.
 
 **Note on the splash criterion above** [ADDED 2026-11-02, orchestrator ruling at Story 12.7's spec gate]: the mechanism (the public key `telegramIncluded`, option (a) or (a'), or no key with the splash lines shown unconditionally once `Included()` is a constant 1, option (b)) waits on the Contest Planner's answer to the U-197 follow-up; this story's spec gate reads that answer. Only this story's splash and banner part waits on it.
 
+**U-219 answered: option (a')** [AMENDED 2026-11-02, Story 12.9, U-219; the Contest Planner under the owner's delegation, after the owner deferred Story 31.4 to after the v1.0.0 tag]: the public key `telegramIncluded` is `1` only when `Included()` returns 1 and a bot token is set on that start, otherwise `0`; Lane A's `Install.Step.Public` writes it on every start and only the splash reads it (AD-19's dated sub-bullet). The splash line, the allowance line's "or Telegram" and `banner.allowance`'s "chat or Telegram" follow that key, not `Included()` alone, so the online demo keeps Telegram off by host configuration (no bot token in its IRIS container) until Story 31.4 lands, with a truthful splash; when 31.4 merges, no code change is needed. This story does not depend on Story 31.4.
+
 - DW-501: The allowance banner (catalog banner.allowance) promises Telegram on the online demo while the release has no Telegram (ledger; routed by spec_gate 2026-11-02)
 - DW-506: The reset-soon banner (catalog banner.resetSoon) names Telegram pairing on the online demo while the release has no Telegram (ledger; routed by spec_gate 2026-11-02)
 
