@@ -1296,3 +1296,8 @@
 2026-11-02T01:20:07Z	Epic 31	runner_ended	agent=a64655230fb684ae7 reason=waiting waiting_on=30 head=b4f713cd(=origin) story_done=31.1(3010f5a7,922a14c1;CI_green_41368867537,41368867709) inbox=U-209(veto) ci_groups(922a14c1)=install-fresh_31.9,install-upgrade_29.7,shards-2_30.3,image_27.6,shards_27.6,browser_25.2,production_22.1 notes=stage-block_owner-fixed_(3)_stale(fixed_by_orchestrator);slot_C_reload_needed
 2026-11-02T01:20:07Z	Epic 1-37	owner_decision	id=U-208 at=2026-11-02T00:43:58Z#632 via=inbox by=Contest_Planner answer=keep
 2026-11-02T01:20:07Z	Epic 1-37	owner_decision	id=U-209 at=2026-11-02T00:43:58Z#633 via=inbox by=Contest_Planner answer=keep
+2026-11-02T01:22:13Z	Epic 40	worktree_provisioned	worktree=.worktrees/epic-40 branch=OCT-epic40 from=1ff552c0 reason=first_dispatch(post-1.0.0_personality;Scenario_2_order;runner_C_idle:no_1.0.0_work_eligible) bootstrap=ok
+2026-11-02T01:22:13Z	Epic 40	ruling	q=40.3_waits choice=40.3_waits_on_Epic_11(Chat.cls)_and_Epic_30_part_1(Triage.cls,DW-500);one-name_appends_to_constants.test.mjs_and_Tools/Names.cls_plain_union rejected=graph_wait_on_5_only(footprint_now_contended) category=decide policy=ff1bd1a60299f4f82e554739400da95233d7bcb5
+2026-11-02T01:22:13Z	Epic 40	runner_dispatched	agent=a9e7a07f80806e2b4 model=opus runner=C slot=ocutalon-slot-c mode=first_dispatch(yield_on_message;merge_gate_rc1) base=1ff552c0(source=green_f6ab8c36) prompt=prompts/dispatch-epic-40.md
+2026-11-02T01:22:13Z	Epic 11	runner_message	agent=a7a36d994abfccfc6 note=U-208_kept;report_11.18_host_contract_in_ending
+2026-11-02T01:22:13Z	Epic 1-37	stage_block_fixed	file=.coordination/unattended-stage-block.md item=owner_fixed_3(polling_contract)_aligned_to_policy_ff1bd1a6 backup=.bak-20261102
