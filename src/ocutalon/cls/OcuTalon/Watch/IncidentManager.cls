@@ -63,10 +63,10 @@
 ///     send logs one Type 3 warning and the row stays as saved. An accepted approved, rejected or expired outcome also sends one Notification of kind answered
 ///     (answered.approved and answered.rejected with the channel and time of the answer, answered.expired with the request's ExpiresAt; the request's Ref and the
 ///     incident's; no DecisionRef) to each recipient, through the same Move and Tell as the event, even when the state stays awaiting_approval or fixing, and an
-///     approved one before the Execute goes out (Story 7.3). An accepted final or interrupted FixResult (Story 7.3) sends each recipient one Notification of
+///     approved one before the Execute goes out (Story 7.3). An accepted FixResult, final, interrupted or in progress (Story 7.3, 30.5), sends each recipient one Notification of
 ///     kind result the same way (Notice.ResultKey picks the catalog key by the Result texts convention from the request's state and the result's counts, and
 ///     Notice.ResultSlots builds the slots, with the item noun of the request's dry run, else the incident's, else the code noun; the request's Ref and the
-///     incident's; no DecisionRef); a progress FixResult, a refused one, and one whose slots cannot be built (one Type 3 warning, LOGRESULT) send none. A refused
+///     incident's; no DecisionRef); a progress FixResult sends the one notification result.stillResending (the incident stays fixing), and a refused one, and one whose slots cannot be built (one Type 3 warning, LOGRESULT) send none. A refused
 ///     ApprovalOutcome or FixResult writes, sends and publishes nothing and logs one Type 4
 ///     line; a repeat of an outcome is refused because the request's row does not show it any more.
 ///   - An IncidentCommand is answered synchronously with a CommandResult (AD-1): unknown_command, not_found (also for a dismiss from a session that is not a
@@ -1200,8 +1200,8 @@ Method Compose(incident As OcuTalon.Data.Incident, kind As %String, key As %Stri
 	Quit notice
 }
 
-/// A FixResult from FixExecutor or from Checks (the runs that Fix.Run Sweep ends): finished when the run ended or was interrupted, progress otherwise, of one of the incident's requests. A finished one carries the
-/// result notice (ResultNotice), which goes out with the accepted move.
+/// A FixResult from FixExecutor or from Checks (the runs that Fix.Run Sweep ends): finished when the run ended or was interrupted, progress otherwise, of one of the incident's requests. Every
+/// result carries its result notice (ResultNotice; a progress report's is result.stillResending), which goes out with the accepted move.
 Method Result(result As OcuTalon.Fix.Msg.FixResult) As %Status [ Private ]
 {
 	Set final = result.Final || result.Interrupted
@@ -1211,10 +1211,10 @@ Method Result(result As OcuTalon.Fix.Msg.FixResult) As %Status [ Private ]
 		Do ..Drop(result.IncidentRef, event, $Select($IsObject(incident): incident.State, 1: "none"))
 		Quit $$$OK
 	}
-	Quit ..Event(incident, event, result.ApprovalRef, $Select(final: ..ResultNotice(incident, row, result), 1: ""))
+	Quit ..Event(incident, event, result.ApprovalRef, ..ResultNotice(incident, row, result))
 }
 
-/// The notification of kind result for a final or interrupted FixResult of the request (row): the key from Notice.ResultKey, the slots from Notice.ResultSlots with
+/// The notification of kind result for a FixResult of the request (row), final, interrupted or in progress: the key from Notice.ResultKey, the slots from Notice.ResultSlots with
 /// the item noun of the request's dry run, else the incident's, else the code noun, the request's Ref and the incident's, no DecisionRef. "" with one Type 3
 /// warning (LOGRESULT) when the slots cannot be built.
 Method ResultNotice(incident As OcuTalon.Data.Incident, row As OcuTalon.Bridge.Data.ApprovalRequest, result As OcuTalon.Fix.Msg.FixResult) As OcuTalon.Msg.Notification [ Private ]

@@ -1,7 +1,8 @@
 /// A Checks process whose reads and sends are under test control (test only; Story 5.6). Test.Checks.Runs calls OnRequest of a shadow instance of it, in its
 /// own process, so that a Tick runs the real handlers over fixture rows and the production is never read. It is not an item of any production.
 ///   - Read (the reader's seam) answers per production from the process-private global ^||ChecksProbe("read", production), a JSON object
-///     {"outcome", "state", "rows", "throw", "delete"}: the outcome and the state it gives, the rows (an array of reader rows) it gives, the text of the error
+///     {"outcome", "state", "rows", "disabled", "stoppedAt", "throw", "delete"}: the outcome and the state it gives, the rows (an array of reader rows) it gives,
+///     the names of the disabled items (an array, [] by default) and the recorded stop time (a string, "" by default) it gives, the text of the error
 ///     it throws instead, and the Ref of a check row it deletes first (a watch that is stopped while the check is running). A production with no entry
 ///     answers not_current. Each call is kept in ^||ChecksProbe("calls", n) as a $ListBuild of namespace, production, from and limit (Calls reads them).
 ///     A shadow instance has no reachable production, and the reader needs one.
@@ -16,7 +17,10 @@
 ///   - Unclosed throws when FailUnclosed is set, as a failed read of the incidents does; a real failure of that read needs a database fault.
 ///   - FixRunSweep (Story 7.5) gives the FixResults in Swept (none by default, so that a Tick never sweeps the fix runs of a stack) or throws the text in SweepThrows. SendFixResult cannot reach
 ///     IncidentManager from a shadow instance, so it records {approvalRef, sessionId, superSession} in Sent and answers OK, or an error for a request that FailFix names (comma-separated Refs).
-///   - Order lists each send in order, "quiet:<incident Ref>" for SendQuiet and "fix:<approval Ref>" for SendFixResult, so that a test can tell that the quiet sweep came first. Quieted keeps its shape.
+///   - SendFinding (Story 30.4) cannot reach Intake from a shadow instance, so it keeps {itemId, sessionRef, channel, provenance, text, sender, subject,
+///     catalogKey, slots, sessionId, superSession} in ^||ChecksProbe("findings", n) (FindingItems reads them) and answers OK, or an error for an item whose Text holds one of
+///     the texts that FailFindings set (comma-separated; the finding of one display name or item name), or throws when FailFindings asked for it. Reset clears them.
+///   - Order lists each send in order, "quiet:<incident Ref>" for SendQuiet and "fix:<approval Ref>" for SendFixResult and "finding:<catalog key>" for SendFinding, so that a test can tell that the quiet sweep came first. Quieted keeps its shape.
 Class OcuTalon.Test.Checks.Probe Extends OcuTalon.Checks.Process
 {
 
@@ -60,10 +64,12 @@ Property FailFix As %String(MAXLEN = "") [ Transient ];
 /// Each send in order, as text.
 Property Order As %DynamicArray [ Transient ];
 
-Method Read(namespace As %String, production As %String, from As %String, limit As %Integer, Output rows As %DynamicArray, Output state As %String) As %String [ Private ]
+Method Read(namespace As %String, production As %String, from As %String, limit As %Integer, Output rows As %DynamicArray, Output state As %String, Output disabled As %DynamicArray, Output stoppedAt As %String) As %String [ Private ]
 {
 	Set rows = []
 	Set state = ""
+	Set disabled = []
+	Set stoppedAt = ""
 	Set ^||ChecksProbe("calls", $Increment(^||ChecksProbe("calls"))) = $ListBuild(namespace, production, from, limit)
 	Set text = $Get(^||ChecksProbe("read", production))
 	If text = "" Quit "not_current"
@@ -73,6 +79,8 @@ Method Read(namespace As %String, production As %String, from As %String, limit 
 	}
 	If spec.throw '= "" $$$ThrowStatus($SYSTEM.Status.Error(5001, spec.throw))
 	If spec.rows '= "" Set rows = spec.rows
+	If spec.disabled '= "" Set disabled = spec.disabled
+	Set stoppedAt = spec.stoppedAt
 	Set state = spec.state
 	Quit spec.outcome
 }
@@ -103,6 +111,23 @@ Method SendFixResult(result As OcuTalon.Fix.Msg.FixResult) As %Status [ Private 
 	Do ..Sent.%Push({"approvalRef": (result.ApprovalRef), "sessionId": (..%SessionId), "superSession": (..%SuperSession)})
 	Do ..Ordered("fix:"_result.ApprovalRef)
 	If $ListFind($ListFromString(..FailFix), result.ApprovalRef) Quit $SYSTEM.Status.Error(5001, "The send of the result of "_result.ApprovalRef_" is refused")
+	Quit $$$OK
+}
+
+/// Keeps the item with the session and the SuperSession it was sent in, and answers OK, or an error (or throws, when FailFindings says so) for an item whose Text
+/// holds a text of FailFindings.
+Method SendFinding(item As OcuTalon.Msg.Item) As %Status [ Private ]
+{
+	Set ^||ChecksProbe("findings", $Increment(^||ChecksProbe("findings"))) = {"itemId": (item.ItemId), "sessionRef": (item.SessionRef), "channel": (item.Channel), "provenance": (item.Provenance), "text": (item.Text), "sender": (item.Sender), "subject": (item.Subject), "catalogKey": (item.CatalogKey), "slots": (item.Slots), "sessionId": (..%SessionId), "superSession": (..%SuperSession)}.%ToJSON()
+	Do ..Ordered("finding:"_item.CatalogKey)
+	Set position = 0
+	Set fails = $ListFromString($Get(^||ChecksProbe("failFindings")))
+	While $ListNext(fails, position, text) {
+		If (text '= "") && (item.Text [ text) {
+			If $Get(^||ChecksProbe("failThrow")) Throw ##class(%Exception.StatusException).CreateFromStatus($SYSTEM.Status.Error(5001, "The send of the finding threw"))
+			Return $SYSTEM.Status.Error(5001, "The send of the finding is refused")
+		}
+	}
 	Quit $$$OK
 }
 
@@ -138,6 +163,27 @@ Method Unclosed(row As %DynamicObject, onlineDemo As %Boolean) As %String [ Priv
 {
 	If ..FailUnclosed $$$ThrowStatus($SYSTEM.Status.Error(5001, "The incidents are refused"))
 	Quit ##super(row, onlineDemo)
+}
+
+/// The findings that SendFinding kept, in order, as a dynamic array of {itemId, sessionRef, channel, provenance, text, sender, subject, catalogKey, slots,
+/// sessionId, superSession}.
+ClassMethod FindingItems() As %DynamicArray
+{
+	Set findings = []
+	Set n = ""
+	For {
+		Set n = $Order(^||ChecksProbe("findings", n), 1, json)
+		Quit:n=""
+		Do findings.%Push(##class(%DynamicAbstractObject).%FromJSON(json))
+	}
+	Quit findings
+}
+
+/// Makes SendFinding answer an error, or throw when throw is 1, for an item whose Text holds one of the texts (comma-separated).
+ClassMethod FailFindings(texts As %String, throw As %Boolean = 0)
+{
+	Set ^||ChecksProbe("failFindings") = texts
+	Set ^||ChecksProbe("failThrow") = +throw
 }
 
 /// The reads that Read recorded, in order, as a dynamic array of {namespace, production, from, limit}.

@@ -19,6 +19,7 @@
 ///     characters); its TurnResult holds the case's checks as JSON and its row is open when the request is asked; the delivered TurnResult holds the Reply's
 ///     DecisionRef, ToolsRun and text and the catalog key and rows that Checks.Render gives its HostData checks; a HostData without checks adds none;
 ///   - TestSendsCommand: a command case keeps no recorded checks, and with no HostData the key and rows stay empty;
+///   - TestSendsUserTurn (Story 30.5, DW-500): a user-turn case is the decide request of a user (no SessionMode), answered with a DecisionResponse whose DecisionRef and fallback the TurnResult keeps; an answer that is not a DecisionResponse is no answer;
 ///   - TestTurnBusy: a Busy reply is asked again, BUSYWAIT seconds later, with the same ItemId (the numbers are Core.Conversation's); after BUSYMAX + 1
 ///     asks the case ends as a fallback with the reason rate_limited, with no DecisionRef, and is still delivered; a fallback Reply is delivered as it is, and
 ///     a TurnResult that cannot be delivered is logged and leaves its row sent;
@@ -503,6 +504,32 @@ Method TestSendsCommand()
 	Set delivered = ..DeliveredAt(1)
 	Do $$$AssertEquals($List(delivered, 2)_"|"_$List(delivered, 3)_"|"_$List(delivered, 4)_"|"_$List(delivered, 5)_"|"_$List(delivered, 6), "zz-command||zzDecisionRef000000002|0|I can't run commands.", "the delivered TurnResult holds the reply, ToolsRun 0 and no recorded checks")
 	Do $$$AssertEquals($List(delivered, 7)_"|"_$List(delivered, 8)_"|"_$List(delivered, 9), "||0", "and no key, no rows and no fallback")
+}
+
+/// A user-turn case (Story 30.5, DW-500) is the decide request of a user's chat turn: Kind decide, Provenance user, no SessionMode, the same Input as a turn. Decide answers it with a
+/// DecisionResponse, whose DecisionRef, Fallback and FallbackReason the TurnResult keeps, with no reply text, no tool run and no key or rows; an answer that is not a DecisionResponse is no
+/// answer, and the case is skipped with no row.
+Method TestSendsUserTurn()
+{
+	Set service = ..Service()
+	If '$IsObject(service) Quit
+	Do ..WriteCase("zz-userturn", {"name": "zz-userturn", "kind": "user-turn", "turn": {"text": "What can you do?"}, "expectation": {"keyPhrases": [["user"]]}}.%ToJSON())
+	Set ^OcuTalonTest("EvalIn", "reply", 1) = {"DecisionRef": "zzDecisionRef000000007", "Outcome": "tellnow", "Fallback": true, "FallbackReason": "invalid"}.%ToJSON()
+	Do $$$AssertEquals(..Process(service, "zz-userturn"), "", "a user-turn case is sent")
+	Set asked = ..AskedAt(1)
+	Do $$$AssertEquals($List(asked, 1)_"|"_$List(asked, 2)_"|"_$List(asked, 3)_"|"_$List(asked, 10)_"|"_$List(asked, 11)_"|"_$List(asked, 12), "decide|user|eval|||", "it is the decide request of a user of owner eval, with no SessionMode, SeedText or SystemNote")
+	Do $$$AssertEquals($Length($List(asked, 4)), 22, "its ItemId is new and 22 characters")
+	Do $$$AssertEquals($Piece($List(asked, 5), $Char(10, 10), 2), "What can you do?", "its Input holds the case's text after the preamble")
+	Do $$$AssertEquals($List(asked, 13)_"|"_$List(asked, 15), "1|1", "its TurnResult and its row exist when Decide is asked")
+	Set delivered = ..DeliveredAt(1)
+	Do $$$AssertEquals($List(delivered, 2)_"|"_$List(delivered, 4)_"|"_$List(delivered, 5)_"|"_$List(delivered, 6)_"|"_$List(delivered, 7)_"|"_$List(delivered, 8)_"|"_$List(delivered, 9)_"|"_$List(delivered, 10), "zz-userturn|zzDecisionRef000000007|0||||1|invalid", "the TurnResult keeps the DecisionRef and the fallback of the answer, with no text, tool run, key or rows")
+
+	// an answer that is not a DecisionResponse is no answer to a decide request
+	Do ..Reset()
+	Do ..WriteCase("zz-userturn2", {"name": "zz-userturn2", "kind": "user-turn", "turn": {"text": "What can you do?"}, "expectation": {"keyPhrases": [["user"]]}}.%ToJSON())
+	Set ^OcuTalonTest("EvalIn", "reply", 1) = "nonreply"
+	Do $$$AssertEquals(..Process(service, "zz-userturn2"), $Parameter("OcuTalon.Eval.In", "REASONNOREPLY"), "a user-turn case whose answer is not a DecisionResponse is skipped")
+	Do $$$AssertEquals(..Delivered(), 0, "and nothing is delivered")
 }
 
 /// A Busy reply is asked again after BUSYWAIT seconds, with the same ItemId, at most BUSYMAX times; then the case ends as a fallback.

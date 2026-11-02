@@ -10,7 +10,8 @@
 ///     its RecordedChecks, 1 when the case's row was open, and the SuperSession of the service. It answers what
 ///     ^OcuTalonTest("EvalIn", "reply", n) holds for its nth call: busy (a Busy Reply), error (an error status), throw (an exception), none (OK
 ///     and no response), nonreply (a response that is not a Reply), or the JSON of the fields of a Reply (Text, DecisionRef, ToolsRun, HostData,
-///     Fallback, FallbackReason); with no script it answers a Reply with no text.
+///     Fallback, FallbackReason); with no script it answers a Reply with no text. A decide request (a user-turn case) is answered with a
+///     DecisionResponse instead, whose fields the script sets in the same way (DecisionRef, Outcome, Reasons, Fallback, FallbackReason).
 ///   - Deliver (the TurnResult to EvalSink) records the fields of the TurnResult under ^OcuTalonTest("EvalIn", "delivered", n) as a list: ItemId,
 ///     SourceItemId, RecordedChecks, DecisionRef, ToolsRun, ReplyText, CatalogKey, CheckRows, Fallback, FallbackReason and the SuperSession of the
 ///     service. It answers the error status that ^OcuTalonTest("EvalIn", "deliverFail") holds, or OK when that is empty.
@@ -59,6 +60,17 @@ Method Ask(request As OcuTalon.Bridge.Msg.Request, Output reply As %Library.Pers
 	If script = "none" Quit $$$OK
 	If script = "nonreply" {
 		Set reply = ##class(Ens.StringContainer).%New("this is not a Reply")
+		Quit $$$OK
+	}
+	If request.Kind = "decide" {
+		Set reply = ##class(OcuTalon.Bridge.Msg.DecisionResponse).%New()
+		If script '= "" {
+			Set fields = ##class(%DynamicAbstractObject).%FromJSON(script)
+			Set iterator = fields.%GetIterator()
+			While iterator.%GetNext(.key, .value) {
+				Set $Property(reply, key) = value
+			}
+		}
 		Quit $$$OK
 	}
 	Set reply = ##class(OcuTalon.Bridge.Msg.Reply).%New()

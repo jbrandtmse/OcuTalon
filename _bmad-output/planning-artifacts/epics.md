@@ -7000,6 +7000,10 @@ So that my own risky tools work through the bridge and never run without a yes.
 **Given** a test answers an approval request and replays its approved test tool
 **When** it reads the IRIS audit log back, polling with a timeout because IRIS writes some rows late, through Story 3.7's read-back helper
 **Then** it finds the approval entry and the action entry, each with time, IRIS user and session (FR-9, AD-17) [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: moved from Story 3.7, which keeps the approval entry]
+
+**Given** an approved `tool_call` request whose row was held before the update that added its tool source and runner (either of `ToolSource` and `Runner` empty)
+**When** its replay is asked for
+**Then** the row closes `failed` with a plain-English reason the person sees: it was held before an update and can't be run again safely, so ask again; the reason holds no class name and no error code, and a test seeds such a row (AD-10, AD-11) [AMENDED 2026-10-30, Story 30.3, owner decision U-170, decided by the Contest Planner under the owner's delegation, relayed by the orchestrator: "an old approved tool_call row with ToolSource or Runner empty closes failed with a plain-English reason the person sees (it was held before an update and can't be run again safely, so ask again), never a class name or error code. A test covers that row"]
 - DW-99: Story 2.8's real `approval.result` path for a replayed tool call has no story that turns it on; this story turns it on (ledger; routed by load 2026-10-23)
 - DW-192: A pending approval row can lose its hold (a task completed outside Answer, the timer's Expire failing on the lock or a save, a past-expiry Answer on a row whose hold is gone); then no timer fires and no `ApprovalOutcome` is sent until the next Reconcile. This story reworks the hold's delivery: Reconcile or the hold delivers an answered or expired row that has no live hold, including the expired outcome to `ResultTarget` (ledger; routed by merge_gate 2026-10-25, veto U-78)
 - DW-194: A tool_call ApprovalRequest stores neither the tool's source class nor the runner item that made the call, which AD-10's replay needs (the live grant matches the source; the replay goes to the runner of the agent that made the call). This story adds the two fields (a stored-data change, in its own veto window) or derives them, for example from the decision's trace (ledger; routed by spec_gate 2026-10-25)
@@ -7041,9 +7045,38 @@ So that I never think a fix finished when it didn't, and nothing is resent behin
 **Then** `FixExecutor` sends a `FixResult` marked in progress (`Final` 0) with the counts so far, the incident stays fixing, and the `result` notification uses the in-progress catalog key; once every registered copy has completed or failed, `Checks`, on its next heartbeat `Tick`, calls `OcuTalon.Fix.Run.Sweep()`, which returns the run's final `FixResult`, and sends it to `IncidentManager`, which moves the incident per AD-15's transition table with the matching result text (FR-25, AD-15, AD-16, AD-18)
 - DW-384: An approved request whose ExpiresAt has passed when FixExecutor takes its Execute is refused with an info line only (AD-16's refused list read as covering it), so it stays approved and its incident stays fixing with no result (ledger; routed by merge_gate 2026-10-30)
 - DW-419: A resend that errs partway counts the targets it never reached as Skipped, so its result reads 'had changed since the dry run', which is false; it must report them by how far the run got (AD-16 as amended for U-160) (ledger; routed by merge_gate 2026-10-30)
+- DW-469: U-180's condition: the {time} of a watch.productionStopped or watch.itemDisabled notice renders through the catalog's time format with the zone label, for both time sources; pin it with a test (ledger; routed by lead 2026-10-31)
 - DW-484: An agent-written reply time has no zone label: the chat's reminder reply reads 'Your reminder is set for 08:02 to stretch.' in the instance zone (ET on the demo), while the page shows the visitor's own time ('5:01 AM PDT', 'Due 5:02 AM'), so a visitor elsewhere sees three different clocks (ledger; routed by orchestrator 2026-10-31)
 - DW-519: `Tools.RecentActivity.WatchNames` copies the private `WatchAnswers.WatchNames`, and `RecentActivity.Shown` repeats the catalog's private ET time-slot rule; make both shared and call them from `RecentActivity`, so `recent_activity`'s display names and time labels never drift from the cards' (ledger; routed by burndown 2026-11-01)
 - DW-500 [PROMOTED 2026-11-01 into 1.0.0's scope, Contest Planner under the owner's delegation; WIDENED 2026-11-01 after the Epic 4 host check]: on ANY user chat turn (the always-answered Tell-now override, AD-28), Triage's reasons never describe production state, what Triage can or cannot access, or whether anything needs the user; they only classify the turn as the user's own message, which is always answered (for example "A question from the user; the user is answered directly"). Seen on the host with real Haiku: under chip 2 ("Is anything wrong right now?") the reasons said "…there is nothing that needs the user at this moment", a model-written all-clear (AD-28); under a correct `recent_activity` answer they said "I have no access to earlier items or failure logs…". Preferred: Triage's instructions, with evaluation cases on the mock for all four "Try it yourself" chips' exact texts ("Which productions are running?", "Is anything wrong right now?", "What was that failure earlier?", "What can you do?"; on the host, chips 1 and 4 also drew tool-limit reasons: "I have no tools in this context and cannot look up production status…", "I have no tools, so I can only classify an item…"); fallback, only if the decision payload already marks the override (no change to `api/api-types.ts` or `live/live-store.ts`): with the override, the strip shows only the override line and the reasons move into Decision details, pinned by a web unit test (ledger; routed by owner decision 2026-11-01)
+
+### Story 30.6: The invalid-reply warning names what failed, never the reply
+
+[ADDED 2026-10-31 at Epic 30's second re-dispatch, by the orchestrator's dispatch: DW-498, U-193's condition (kept by the Contest Planner), done first, as a story of its own because Story 30.1 is full. It reaches the demo with the next deploy of Epic 30's merge.]
+
+As a production developer,
+I want the trace warning for a refused reply to say which property failed and by how much, without quoting the reply,
+So that the model's own reply content never reaches the trace through an error text.
+
+**Acceptance Criteria:**
+
+**Given** a reply whose check fails on a length or datatype rule (for example an evidence element longer than its limit)
+**When** `Decide` refuses it as `invalid`
+**Then** its one trace warning names the failing property and the limit, with the measured length where it applies (for example 'Evidence element 6: 42 > 32'), built from the status's error code, property and limit, and quotes none of the reply's own content (U-193)
+
+**Given** a reply that fails its check again after the reply filter ran
+**When** `Decide` refuses it
+**Then** the "After the reply filter ran" warning follows the same rule (U-193)
+
+**Given** any other check failure (the reply is not one JSON object, or the status carries an error code with no property and limit)
+**When** the warning is written
+**Then** it names the error code and the reply class, and still quotes no reply content
+
+**Given** the tests in `OcuTalon.Test.Bridge`
+**When** they run
+**Then** a test pins that no reply content appears in the warning: a refused reply whose failing value carries a unique marker produces a warning without the marker, for both paths; the change stays inside `Decide.Judge` and its caller in `Bridge/Process/Decide.cls`
+- DW-498: Story 5.12's invalid-reply warning logs $SYSTEM.Status.GetErrorText of the reply check, and for a MAXLEN or datatype failure that text quotes the offending value (the model's own reply content); the warning must name the failing property and the limit and quote none of the reply (ledger; routed by orchestrator 2026-10-31)
+- DW-505: An assertion written x [ "a"_y tests only x [ "a", so it can pass whatever y is: Test.Agent.KeyScan:123 can never fail; parenthesise it, and have a class-rules check reject a top-level _ right of [ or ] in an assertion's first argument (ledger; routed by burndown 2026-10-31)
 
 ## Epic 31: Lane B post-demo hardening
 

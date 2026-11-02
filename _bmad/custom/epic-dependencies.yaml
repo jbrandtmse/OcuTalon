@@ -75,6 +75,10 @@
 # Changed 2026-11-01 (owner: "Yes to both questions", via the Contest Planner, blocks approved): Story 4.10 ("Try it yourself" chips)
 # joins Epic 4 after 4.9; Story 10.5 (README screenshots, "How you talk to it") re-opens Epic 10 under SC-5, docs only, held in
 # backlog until the Planner delivers the images and 4.9 is on the host. 1.0.0 scope. No edge changes.
+# Changed 2026-11-02T03:2xZ (owner decision via the Contest Planner, step-3 checkpoint, option (b); the owner chose
+#   "Step 3 before Memory pt 1"): dispatch ORDER after the 1.0.0 scope only, no edge change. The first runner that frees
+#   after the 1.0.0 scope starts epic-33 (not epic-41 part 1); step 3's chain 33 -> 34 + 17 -> 19 goes ahead of epic-41
+#   part 1; epics 39 and 40 keep their places; the 19.5 -> 17 pin is unchanged. Checkpoint: epic-19 merged by Nov 6 18Z.
 # Changed 2026-10-31, owner decisions relayed by the Contest Planner (the owner's personality decisions of 2026-10-31, inbox U-195;
 # the owner: "I want Heartbeat enhancements, persona and memory enhancements to be able to be on different lanes so they
 # can ship quickly."): three personality epics, 39 (agent heartbeat), 40 (persona) and 41 (memory that learns), join the
@@ -127,7 +131,7 @@
 #   - No whole-epic soft-serialization edge: every estimated overlap above footprint_overlap_threshold (0.20) is
 #     resolved by a story wait that puts the overlapping story after the other epic's merge (8 vs 4: 8.3, 8.4;
 #     31 vs 16: 31.1, 31.2; 14 vs 11: 14.1, 14.2).
-epics_md_hash: "a792837c4e55341ba23c54073bfe2fe617d5080489cee727dbd8a0da0347a87e"
+epics_md_hash: "188a2e991ed062ddca434725a20d5607715b88af55932d359675137199c0b107"
 analyzed_by: "claude-opus-5-5 (orchestrator), from the Contest Planner's proposal"
 approved: true
 approved_at: "2026-10-26T15:19:25Z"

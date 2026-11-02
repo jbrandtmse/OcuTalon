@@ -61,3 +61,8 @@
 2026-11-02T01:18:11Z	Story 31.1	ci_resolved	story=31.1 sha=922a14c1 runs=41368867537,41368867709 result=success failed=none via=none resolved_at=burndown_or_end first_ci=success ci_groups_step_s=install-fresh:1914,install-upgrade:1779,production:1326,browser:1513,shards:1654,shards-2:1820,image:1658(all<35min)
 2026-11-02T01:18:11Z	Story 31.2	story_waiting	story=31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv on=30 reason=Epic_30_part_1(30.6+30.5,with_30.3)_not_merged_at_feature_f6ab8c36 code=none note=DW-530,DW-542,DW-543_in_its_block(no_date_cost_rule)
 2026-11-02T01:18:11Z	Epic 31	epic_runner_ended	reason=waiting waiting_on=30(31.2),12,15(31.3),12(31.4) stories_completed=1(31.1) inbox=U-209 applied=none ci_groups=all_under_35(max_install-fresh_31.9min) footprint_extensions=web/e2e/{chat/chat,chat/decision,chat/try-it,floor/announcements,floor/guide,live/live,live/socket}.spec.ts,web/e2e/support/socket.ts,web/scripts/live-socket.test.mjs,Test/Web/LeavingThePage.cls amendments=spec-31-1_intent(Approach,Never,sign-in_wording)
+2026-11-02T07:28:14Z	Epic 31	runner_unattended_start	run=20261026T1518Z-1-37 policy=ff1bd1a60299f4f82e554739400da95233d7bcb5 doctrine=3d11cec98d91c1d4d9c225fe3b265e1af418abe4 lane=C slot=ocutalon-slot-c lock_lane=lane-c web_port=52803 note=redispatch_after_30_part1
+2026-11-02T07:28:14Z	Epic 31	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-11-02T07:28:14Z	Epic 31	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh
+2026-11-02T07:28:14Z	Epic 31	launch_env	depth=4 watchdog=default bash_max_ms=default
+2026-11-02T07:28:14Z	Story 31.1	ci_resolved	story=31.1-bookkeeping sha=b4f713cd runs=41371779472,41371779535 result=success failed=none via=none resolved_at=resume

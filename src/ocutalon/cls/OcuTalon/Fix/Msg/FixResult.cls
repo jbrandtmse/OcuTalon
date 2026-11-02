@@ -1,9 +1,9 @@
-/// What a fix run reports to IncidentManager (AD-16): FixExecutor sends it to IncidentManager as the run goes (Final 0, progress) and when it ends (Final 1), and
+/// What a fix run reports to IncidentManager (AD-16): FixExecutor sends it to IncidentManager once as a progress report (Final 0) when its wait ends with copies still running, and when it ends (Final 1), and
 /// OcuTalon.Fix.Run.Sweep returns a final one for a run that Reconcile marked as interrupted (Interrupted 1 when targets were cut off, else the run's own result) and for a run
 /// that a stopped waiter left, which Checks sends on (Stories 7.3 to 7.5); a run reported in progress whose copies have all completed or failed ends the same way (Story 30.5). IncidentManager moves the incident
 /// by it (OcuTalon.Watch.Transitions): a run that ended moves a fixing incident on, a progress report changes nothing but the incident's published view. The
 /// counts are those of the run: Total records in the affected set, Resent the records sent again, Completed those that completed, FailedAgain those that failed
-/// again and Skipped those that were left out. Lane A.
+/// again and Skipped those that were left out; Unreached is the part of Skipped that the resend never reached (it stopped at the first copy that erred). Lane A.
 Class OcuTalon.Fix.Msg.FixResult Extends Ens.Request
 {
 
@@ -31,6 +31,9 @@ Property Skipped As %Integer;
 
 /// Why the run ended as it did, when it did not complete.
 Property Reason As %String(MAXLEN = 1000);
+
+/// Of Skipped, the targets the resend never reached: the copy that erred and every target after it; 0 when the resend did not stop partway.
+Property Unreached As %Integer;
 
 Storage Default
 {
@@ -65,6 +68,9 @@ Storage Default
 </Value>
 <Value name="10">
 <Value>Reason</Value>
+</Value>
+<Value name="11">
+<Value>Unreached</Value>
 </Value>
 </Data>
 <DefaultData>FixResultDefaultData</DefaultData>
