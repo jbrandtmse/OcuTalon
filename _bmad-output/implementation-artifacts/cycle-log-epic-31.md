@@ -177,3 +177,5 @@
 2026-11-02T20:59:54Z	Story 31.5	adr_verifications_complete	tool=none acs=none result=none_required evidence=none mutations=none note=no_AD_commits_agent-time_tooling(AD-31/32/14/11/33_pinned_by_tests) model=claude-opus-5-5
 2026-11-02T21:00:04Z	Epic 31	ci_resolved	sha=11d8d89f runs=41500324320,41500324280 result=success failed=none via=none resolved_at=next_stage note=bookkeeping_head
 2026-11-02T21:00:04Z	Story 31.5	stage_spawned	stage=qa spawn_at=2026-11-02T21:00:04Z model=claude-sonnet-5 agent_name=31-5-qa-1 cycle_iteration=1
+2026-11-02T21:09:49Z	Story 31.5	qa_complete	spawn_at=2026-11-02T21:00:04Z model=claude-sonnet-5 tests=Test/Core/BridgeSink.cls(TestToolCallInputsLine_strengthened:201-char_boundary,cap_after_redaction) tests_added=0 mutations_demonstrated=13 first_run_failures=0 clarifications=0 closing_sections_present=true cycle_iteration=1
+2026-11-02T21:09:49Z	Story 31.5	stage_spawned	stage=code-review spawn_at=2026-11-02T21:09:49Z model=claude-opus-5-5 agent_name=31-5-code-review-1 cycle_iteration=1
