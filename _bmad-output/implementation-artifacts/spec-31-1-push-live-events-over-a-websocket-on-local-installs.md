@@ -2,9 +2,9 @@
 title: 'Push live events over a WebSocket on local installs'
 type: 'feature'
 created: '2026-10-30'
-status: 'in-progress'
-baseline_revision: '1c972cc8e3619d3cb727b8bcb1a7b4d7f7fd67c4'
-baseline_commit: '1c972cc8e3619d3cb727b8bcb1a7b4d7f7fd67c4'
+status: 'done'
+baseline_revision: '6c490dc0150580a947565d86921980780b894954'
+baseline_commit: '6c490dc0150580a947565d86921980780b894954'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: ['{project-root}/_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md']
@@ -18,7 +18,22 @@ deferred: []
 
 **Problem:** The page gets live events only by polling `GET /api/v1/events` (1 s after each answer). On a local or IPM install an update can wait a whole poll cycle. AD-12 plans a WebSocket as the second live path, built after polling and never replacing it (FR-12, NFR-9).
 
-**Approach:** Add a new `%CSP.WebSocket` class, `OcuTalon.Web.Live`. It is reached at the AC's own URL, `/ocutalon/OcuTalon.Web.Live.cls`, forwarded by the shell (AD-13: "forwarded by the shell"): a `Web/Public/Shell.cls` route for `/OcuTalon.Web.Live.cls`, placed before `/(.*)`, hands the request to `OcuTalon.Web.Live.Page()` in synchronous mode (U-175; route (c) `/ocutalon/api/v1/live` is not planned, and M2's handoff is re-measured inside the shell application). The sign-out sets a server-side mark in `Data/Session.cls` that the socket reads on each loop, so an open socket sends no further frame within one loop after sign-out; a fixed 60-second socket lifetime stays as a backstop (U-174). The socket sends each committed event after the client's cursors, in `/events`' own body `{epoch, events}`. The page's live service opens it after the first snapshot on a non-demo install and feeds every frame to the same `applyEvents` path. Polling keeps running, unchanged, beside it (U-173). [AMENDED 2026-11-01, lead (runner C) at the re-plan, applying rulings U-173/U-174/U-175 and the owner's answers already recorded under ## Design Notes; it read: "It is reached through a new `GET /v1/live` route entry of `/ocutalon/api` … The AC's `/ocutalon/OcuTalon.Web.Live.cls` is served by the contended Shell and never reaches the class."]
+**Approach:** Add a new `%CSP.WebSocket` class, `OcuTalon.Web.Live`. It is reached at the AC's own URL, `/ocutalon/OcuTalon.Web.Live.cls`, forwarded by the shell (AD-13: "forwarded by the shell"): a `Web/Public/Shell.cls` route for `/OcuTalon.Web.Live.cls`, placed before `/(.*)`, hands the request to `OcuTalon.Web.Live.Page()` in synchronous mode (U-175; route (c) `/ocutalon/api/v1/live` is not planned, and M2's handoff is re-measured inside the shell application). The sign-out sets a server-side mark in `Data/Session.cls` that the socket reads on each loop, so an open socket sends no further frame within one loop after sign-out; a fixed 60-second socket lifetime stays as a backstop (U-174). The socket sends each committed event after the client's cursors, in `/events`' own body `{epoch, events}`. The page's live service opens it after the first snapshot on a non-demo install and feeds every frame to the same `applyEvents` path. Polling keeps running, unchanged, beside it (U-173). [AMENDED 2026-11-01, lead (runner C) at the re-plan, applying rulings U-173/U-174/U-175 and the owner's answers already recorded under ### 2026-11-02 — Review pass (rework 1, U-209 fix-forward)
+- verdicts: 14 findings reported (blind-hunter 4, edge-case-hunter 9, verification-gap 1; intent-alignment is descriptive and reported none), grouped by shared claim into 11 rows — high 0, medium 0, low 7, false 4, maybe-false 0
+- findings:
+  - `[low]` `patch` `MarkedFixture` discards `%Save()`'s status (blind-hunter, edge-case-hunter) — fixed: a failed save throws, so the test errors instead of comparing empty fields.
+  - `[low]` `patch` the compared values could be empty without a failure; only field names are guarded (blind-hunter, edge-case-hunter) — fixed: `TestSignOutMark` asserts the row text holds the resume hash, the CSP session id and the allowance list by its elements.
+  - `[low]` `patch` the derivation guard names only four fields (verification-gap, filed as defer) — fixed in-pass as a two-way door: the guard now names seven (adds AllowanceTimes, ThreadSessionId, DailyCapDay).
+  - `[low]` `patch` the fresh ref's "no mark node" is asserted only after the sign-out (edge-case-hunter) — fixed: asserted before it as well.
+  - `[low]` `patch` the fresh session's unchanged row text on the online demo has no mutation line (blind-hunter) — fixed: mutation applied (an `Else` branch writing `ThreadDay`), observed red, restored, line written.
+  - `[low]` `reject` a stored property that is a collection, stream or object reference, or a list element holding the delimiter, or a %List alias, would be compared by an unstable text (blind-hunter x1, edge-case-hunter x3, intent-alignment note) — `Data.Session` has no such property; the fix adds branches for a case that cannot occur today (wontfix-theoretical; real if a stream or collection property is added to the class).
+  - `[low]` `reject` `TestSignOutWakesTheSocket` kills the mark nodes by a literal global name (blind-hunter, verification-gap) — outside the four U-209 items, which name `TestSignOutMark` only; the literal is the class's own storage name and already in the passing test.
+  - `[false]` `reject` the online-demo setting is set to "" instead of the value found (blind-hunter, edge-case-hunter, intent-alignment) — `OnBeforeOneTest` saves the setting and sets it to "" and `OnAfterOneTest` restores the saved value, so "" is the test's own baseline; the test restores it after the Try/Catch, also after a failure.
+  - `[false]` `reject` the online-demo `OnLogout` could wake sockets or write other nodes with no assertion failing (edge-case-hunter) — `TestSignOutWakesTheSocket` asserts "and wakes nothing" on the online demo.
+  - `[false]` `reject` an exception before the Try skips the cleanup (edge-case-hunter) — nothing before the Try signs out, so no mark node exists there; the fixture rows and the setting are cleaned by `OnAfterOneTest`.
+  - `[false]` `reject` intent-alignment divergence "the diff exercises the unit surface only" — the four items name `TestSignOutMark` and `RowText`; the real sign-out paths stay pinned by W8 and the pin by `Test.Web.LeavingThePage`, both unchanged.
+
+## Design Notes; it read: "It is reached through a new `GET /v1/live` route entry of `/ocutalon/api` … The AC's `/ocutalon/OcuTalon.Web.Live.cls` is served by the contended Shell and never reaches the class."]
 
 ## Boundaries & Constraints
 
@@ -296,10 +311,10 @@ Line numbers are at the worktree head (feature 416b0f64) unless marked "feature"
 
 The owner's delegate kept U-209 (inbox 2026-11-02T00:43:58Z#633): the pin stays narrowed to "no product class defines OnTimeout or OnEndSession; OnLogout only in Web.SessionEvents, changing nothing but the local install's sign-out mark", with the test that the epoch and every Session row field stay unchanged and that nothing is set on the online demo. Work ONLY these items:
 
-- [ ] [Veto] U-209: `TestSignOutMark` covers every Session row field by construction -- src/ocutalon/cls/OcuTalon/Test/Web/SessionEvents.cls (`RowText`) -- derive the compared fields from the class's stored properties (`%Dictionary.CompiledProperty` of `OcuTalon.Data.Session`, not transient, not calculated, `%%`-names excluded, list properties compared by value, for example with `$ListToString` or `$ListSame`), so a field added later is compared too, and assert the derived set holds at least `Epoch`, `Ref`, `CspSessionId` and `ResumeHash` (a guard that the derivation found the fields, so it cannot pass empty).
-- [ ] [Veto] U-209: the epoch is asserted by name -- same test -- before and after the two sign-outs, `Epoch` read on its own (`##class(OcuTalon.Data.Session).RefIndexOpen(ref).Epoch`) equals its value before, beside the whole-row comparison.
-- [ ] [Veto] U-209: nothing is set on the online demo -- same test -- with `onlineDemo` 1, a session that has never signed out (a fresh fixture ref) gets no mark node at all (`$Data(^OcuTalonP.SessionM(<fresh ref>))` = 0, read through `Data.Session`'s `MARKGLOBAL` parameter, not a literal), its row text is unchanged, and the already-marked session's count is unchanged; the setting is put back in every case (also after a failure), and every mark node the test made is killed.
-- [ ] [Veto] U-209: each new assertion gets its `mutation:` line under ## Verification (Rule 19): for example, `MarkSignedOut` ignores the online-demo check (`OnLogout` without its `onlineDemo` guard) makes the fresh-ref `$Data` assertion red; `OnLogout` sets `Epoch` (or any field) makes the field comparison red.
+- [x] [Veto] U-209: `TestSignOutMark` covers every Session row field by construction -- src/ocutalon/cls/OcuTalon/Test/Web/SessionEvents.cls (`RowText`) -- derive the compared fields from the class's stored properties (`%Dictionary.CompiledProperty` of `OcuTalon.Data.Session`, not transient, not calculated, `%%`-names excluded, list properties compared by value, for example with `$ListToString` or `$ListSame`), so a field added later is compared too, and assert the derived set holds at least `Epoch`, `Ref`, `CspSessionId` and `ResumeHash` (a guard that the derivation found the fields, so it cannot pass empty).
+- [x] [Veto] U-209: the epoch is asserted by name -- same test -- before and after the two sign-outs, `Epoch` read on its own (`##class(OcuTalon.Data.Session).RefIndexOpen(ref).Epoch`) equals its value before, beside the whole-row comparison.
+- [x] [Veto] U-209: nothing is set on the online demo -- same test -- with `onlineDemo` 1, a session that has never signed out (a fresh fixture ref) gets no mark node at all (`$Data(^OcuTalonP.SessionM(<fresh ref>))` = 0, read through `Data.Session`'s `MARKGLOBAL` parameter, not a literal), its row text is unchanged, and the already-marked session's count is unchanged; the setting is put back in every case (also after a failure), and every mark node the test made is killed.
+- [x] [Veto] U-209: each new assertion gets its `mutation:` line under ## Verification (Rule 19): for example, `MarkSignedOut` ignores the online-demo check (`OnLogout` without its `onlineDemo` guard) makes the fresh-ref `$Data` assertion red; `OnLogout` sets `Epoch` (or any field) makes the field comparison red.
 
 ### Review Findings
 
@@ -546,6 +561,11 @@ Every test added or changed passes on a fresh environment, in either order.
 - mutation: move the mark check after the lifetime and the send in `Next` -> `TestNext` red ("a changed mark ends before a send").
 - mutation: drop `MarkSignedOut` from `OnLogout` -> `Test.Web.SessionEvents` `TestSignOutMark` red, and W8 (both sign-out paths) red.
 - mutation: `MarkSignedOut` does nothing -> `Test.Data.Session` `TestSignOutMark` red.
+- mutation (U-209): `OnLogout` without its `onlineDemo` guard (`If 1 {`) -> `Test.Web.SessionEvents` `TestSignOutMark` red on "and sets no mark node" (the fresh ref's `$Data` of `Data.Session`'s `MARKGLOBAL`) and on the marked session's unchanged count.
+- mutation (U-209): `OnLogout` sets the row's `Epoch` -> `TestSignOutMark` red on "the row's fields are unchanged" and on "the Epoch is unchanged".
+- mutation (U-209): `OnLogout` sets the row's `AllowanceTimes` (a list field) -> `TestSignOutMark` red on "the row's fields are unchanged" alone (the list is compared by its elements).
+- mutation (U-209): `OnLogout` writes a row field only on the online demo (an `Else` branch that sets `ThreadDay`) -> `TestSignOutMark` red on "and its row's fields are unchanged" (the fresh session's row text on the online demo).
+- mutation (U-209): the stored-field query selects `Transient = 1` (the derivation finds nothing) -> `TestSignOutMark` red on the guard assertions (seven stored-field names, among them Epoch, Ref, CspSessionId and ResumeHash). (Each applied from a scratchpad backup, observed red, and restored; `git diff` md5 identical before and after.)
 - mutation: drop `socket.stop()` from the halted branch -> W7 red.
 - mutation: give `Next` no lifetime -> `TestNext` red.
 - mutation: drop the reconnect (`scheduleReconnect` arms no timer) -> `live-socket.test.mjs` reconnect and backoff cases red. (W4 was not run with this mutation; its reconnect is covered by the node cases.)
@@ -594,3 +614,13 @@ Blocking condition: none
 **Verification.** See the results under `## Verification`: node tests 1177 pass, lint exit 0, nine warm IRIS classes pass, `live sign-in` parts 1/3, 2/3 and 3/3 pass (89, 76, 81), `live floor` 106, `live demo-path`, fresh `shard lane-b` both orders (86 classes), `ci/checks.sh` and `test-ci-config.sh`. Mutations were applied and reverted with the tree byte-identical.
 
 **Residual risks.** W12 holds a socket for 60 s, so `sign-in` part 2/3 is about 310 s (about 5 s of stack start included); the unit's CI time rises by about 70 s. `ci/checks.sh` takes 9 min 14 s on this machine, near the 10-minute cap. `Test.Schedule.Heartbeat` is a wall-clock test that failed once under load. W11 pins the observable close, not the graceful-path branch (see its note under Verification). The socket path is inference-only for latency over real networks (W1's 30 ms is the local stack).
+
+### Rework 1 (U-209 fix-forward, 2026-11-02)
+
+Status: done
+Blocking condition: none
+
+- Changed: `src/ocutalon/cls/OcuTalon/Test/Web/SessionEvents.cls` only (plus this spec). `TestSignOutMark` derives the compared row fields from the stored properties of `Data.Session` (`StoredFields`, `RowText`; a list by its elements), guards that the derivation holds seven named fields, asserts the Epoch by name, and asserts that on the online demo a fresh session gets no mark node (read through `MARKGLOBAL`), keeps its row text and leaves the marked session's count alone; the setting is reset and every mark node killed after the Try/Catch. `MarkedFixture` gives the fixture rows a value in every field.
+- Review: 14 findings in 11 rows; five patched (all low), none deferred, the rest rejected with reasons in the Review Triage Log. Follow-up review recommended: false (no HIGH patched).
+- Verification: `Test.Web.SessionEvents`, `Test.Web.LeavingThePage` and `Test.Data.Session` pass warm; fresh `shard lane-b@Web` passes forward and `--reverse` (18 classes each); `test-boundaries.sh` and `test-class-rules.sh` pass. Five mutations applied, observed red and restored (see Verification).
+- Residual risk: a future stored property that is a collection, stream or object reference would need `RowText` extended (it handles scalar and `%List` properties).
