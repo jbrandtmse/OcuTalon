@@ -110,13 +110,25 @@ function keyed<T>(payloads: readonly T[], field: string): Record<string, T> {
   return map;
 }
 
+/** The rail's decisions, then the decision of each incident entry of the chat whose ref the rail does not hold. */
+function snapshotDecisions(snapshot: StateSnapshot): DecisionPayload[] {
+  const decisions = [...snapshot.rail.decisions];
+  for (const item of snapshot.chat) {
+    const decision = item.type === 'incident' ? item.decision : undefined;
+    if (decision && !decisions.some((entry) => entry.ref === decision.ref)) {
+      decisions.push(decision);
+    }
+  }
+  return decisions;
+}
+
 /** The store of a snapshot. */
 export function fromSnapshot(snapshot: StateSnapshot): LiveStore {
   return {
     epoch: snapshot.epoch,
     cursors: { session: snapshot.streams.session, instance: snapshot.streams.instance },
     chat: [...snapshot.chat],
-    decisions: [...snapshot.rail.decisions],
+    decisions: snapshotDecisions(snapshot),
     approvals: keyed(snapshot.rail.approvals, 'ref'),
     checks: keyed(snapshot.rail.checks, 'ref'),
     reminders: keyed(snapshot.rail.reminders, 'ref'),

@@ -17,11 +17,14 @@
 ///   - TestReleaseKeepsLaterFailures: failing orders sent after ReleaseFailures are read as before and become an incident;
 ///   - TestBeforeOneTestHolds and TestAfterAllTestsReleases (QA): the hooks themselves hold the mark ahead after a release and put it
 ///     at the release time, so the call sites of HoldFailures and ReleaseFailures in this class are pinned.
+///   - TestMarkNewFailuresMarksTheNewest and TestPauseReadingStopsAndResumes (QA, Story 11.10): the refusal seam that the demo-path
+///     unit drives directly: MarkNewFailures marks the newest failed orders of the reference only, and PauseReading stops and
+///     resumes FailurePoller's runs (OnAfterOneTest resumes it whatever the outcome).
 /// The tests that assert that nothing happened wait with AwaitPolls (FailurePoller's own count of runs) and not with a fixed pause.
 /// A failed order has header Status 8 (Error) at OrdersFromPartner, with IsError 0 and an empty ErrorStatus, because it is a
 /// request with no response; its error text is the event-log row of Type 2 (Error) for that item and session.
-/// Switching to OCUORDERS happens only in Snapshot, the class methods below (Running, Send, Count, Sessions, Headers, ErrorTexts and Resend; all but Resend
-/// are public, with WaitCount, for Test.Demo.BreakFeedProduction and the demo-path step) and Test.Data.Fixture.RemoveMessages, each of
+/// Switching to OCUORDERS happens only in Snapshot, the class methods below (Running, Send, Count, Sessions, Headers, ErrorTexts, MarkNewFailures and Resend; all but Resend
+/// are public, with WaitCount, for Test.Demo.BreakFeedProduction and the demo-path steps) and Test.Data.Fixture.RemoveMessages, each of
 /// which calls only classes that resolve there (OcuTalon.Demo.Orders, Ens, EnsLib and % classes) while it is there and returns plain
 /// values or dynamic objects.
 /// Every test makes its references before it switches, and OnAfterAllTests deletes the OCUORDERS headers, bodies and event-log rows of
@@ -70,6 +73,9 @@ Property Watchers As %String(MAXLEN = "");
 /// The newest Incident id when the running test began, "" before the first test.
 Property IncidentFloor As %String;
 
+/// 1 while a test has paused FailurePoller with PauseReading, so that OnAfterOneTest lets it read again whatever the test's outcome.
+Property Paused As %Boolean;
+
 Method OnBeforeAllTests() As %Status
 {
 	Set ..Refs = []
@@ -77,6 +83,7 @@ Method OnBeforeAllTests() As %Status
 	Set ..Held = 0
 	Set ..Watchers = ""
 	Set ..IncidentFloor = ""
+	Set ..Paused = 0
 	If '##class(%SYS.Namespace).Exists(..#NAMESPACE) {
 		Set ..Missing = "OCUORDERS does not exist: this class runs in throwaways and CI only (Rule 21)"
 	} ElseIf '..Running() {
@@ -107,10 +114,16 @@ Method OnBeforeOneTest() As %Status
 	Quit $$$OK
 }
 
-/// Deletes the incidents of the test's watchers and the instance incidents made since it began, with their groups and decisions,
-/// then the fixture rows.
+/// Lets FailurePoller read again when the test left it paused (Paused), then deletes the incidents of the test's watchers and the
+/// instance incidents made since it began, with their groups and decisions, then the fixture rows. A failed resume keeps Paused set,
+/// so the next test's hook tries again, and is returned, so the unit-test log records it.
 Method OnAfterOneTest() As %Status
 {
+	Set resumed = $$$OK
+	If ..Paused {
+		Set resumed = ..PauseReading(0)
+		If $$$ISOK(resumed) Set ..Paused = 0
+	}
 	If ..Missing = "" {
 		For i = 1:1:$Length(..Watchers, ",") {
 			Set ref = $Piece(..Watchers, ",", i)
@@ -119,7 +132,7 @@ Method OnAfterOneTest() As %Status
 		If ..IncidentFloor '= "" Do ##class(OcuTalon.Test.Watch.Case).DropIncidentRows("SELECT ID FROM OcuTalon_Data.Incident WHERE OwnerRef = 'instance' AND ID > ?", ..IncidentFloor)
 	}
 	Do ##class(OcuTalon.Test.Data.Fixture).Clean()
-	Quit $$$OK
+	Quit resumed
 }
 
 Method OnAfterAllTests() As %Status
@@ -379,6 +392,49 @@ Method TestAfterAllTestsReleases()
 	Do $$$AssertStatusOK(..OnAfterAllTests(), "the hook runs")
 	Do $$$AssertTrue('..MarkIsAhead(60), "OnAfterAllTests released the mark")
 	Do $$$AssertTrue(..MarkIsAhead(-30), "and the mark is at the release time")
+}
+
+/// The refusal seam (Story 11.10, PauseReading and MarkNewFailures): MarkNewFailures sets the OrderNumber of the bodies of the newest
+/// `count` failed orders of the reference and of no others, returns how many it saved, and returns 0 for a reference without failures.
+/// This is the direct pin of the seam that 07-failure-paths.spec.ts drives; the marker is the one that makes the CI mock refuse.
+Method TestMarkNewFailuresMarksTheNewest()
+{
+	If '..Guard() Quit
+	Set marker = "[[mock:refusal]]"
+	Set ref = ..NewRef()
+	Do $$$AssertEquals(..Send(3, "MM/DD/YYYY", ref, "2026-10-16"), "", "3 failing orders are sent")
+	Do $$$AssertEquals(..WaitCount(ref, "OrdersFromPartner", 8, 3), 3, "the 3 orders fail")
+	Do $$$AssertEquals(..MarkNewFailures(ref, 2, marker), 2, "2 bodies are marked")
+	Set failed = []
+	Set headers = ..Headers(ref)
+	For i = 0:1:headers.%Size() - 1 {
+		Set header = headers.%Get(i)
+		If (header.target = "OrdersFromPartner") && (header.status = 8) Do failed.%Push(header)
+	}
+	Do $$$AssertEquals(failed.%Size(), 3, "the reference holds 3 failed headers at OrdersFromPartner")
+	If failed.%Size() = 3 {
+		Do $$$AssertTrue(failed.%Get(0).body.OrderNumber '= marker, "the oldest failure is not marked")
+		Do $$$AssertEquals(failed.%Get(1).body.OrderNumber, marker, "the second newest failure is marked")
+		Do $$$AssertEquals(failed.%Get(2).body.OrderNumber, marker, "the newest failure is marked")
+	}
+	Do $$$AssertEquals(..MarkNewFailures(..NewRef(), 5, marker), 0, "a reference with no failure marks nothing")
+}
+
+/// The refusal seam (Story 11.10): PauseReading(1) stops FailurePoller's runs (its run counter stands still for more than two poll
+/// intervals) and PauseReading(0) lets it run again; OnAfterOneTest resumes it even when an assertion here fails.
+Method TestPauseReadingStopsAndResumes()
+{
+	If '..Guard() Quit
+	Set ..Paused = 1
+	Do $$$AssertStatusOK(..PauseReading(1), "FailurePoller is paused")
+	Hang 2
+	Set before = ..Polls()
+	Hang 8
+	Do $$$AssertEquals(..Polls(), before, "FailurePoller starts no run while it is paused")
+	Set sc = ..PauseReading(0)
+	Do $$$AssertStatusOK(sc, "FailurePoller is resumed")
+	If $$$ISOK(sc) Set ..Paused = 0
+	Do $$$AssertTrue(..AwaitPolls(1) >= 1, "FailurePoller polls again after the resume")
 }
 
 /// Holds the Orders WatchMark HOLDSECONDS ahead of now, with no failure marked as seen, so that FailurePoller reads nothing that the
@@ -680,6 +736,35 @@ ClassMethod Resend(headerId As %String, date As %String) As %DynamicObject [ Pri
 	Set copy.OrderDate = date
 	Set sc = ##class(Ens.MessageHeader).ResendDuplicatedMessage(headerId, .newId, "OrdersFromPartner", copy)
 	Quit {"id": ($Get(newId)), "error": ($Select($$$ISOK(sc): "", 1: $SYSTEM.Status.GetErrorText(sc)))}
+}
+
+/// The demo-path refusal seam (Story 11.10): pauses the FailurePoller item of OCUTALON (1) or lets it read again (0), with
+/// Ens.Director's TempStopConfigItem, which leaves the production definition and the persisted Orders WatchMark as they are. Call it in
+/// OCUTALON. While it is paused nothing reads the failures, so MarkNewFailures can mark their bodies before the first reading.
+ClassMethod PauseReading(pause As %Boolean) As %Status
+{
+	Quit ##class(Ens.Director).TempStopConfigItem("FailurePoller", +pause)
+}
+
+/// The demo-path refusal seam (Story 11.10): sets the OrderNumber (MAXLEN 20) of the bodies of the newest `count` failed headers
+/// (Status 8) at OrdersFromPartner whose SuperSession is the reference, and returns how many bodies it saved. The CI mock refuses the
+/// diagnosis when the sample body that the evidence pack reads holds a `[[mock:refusal]]` marker. Call it in OCUTALON: it switches to
+/// OCUORDERS itself.
+ClassMethod MarkNewFailures(ref As %String, count As %Integer, orderNumber As %String) As %Integer
+{
+	New $NAMESPACE
+	Set $NAMESPACE = ..#NAMESPACE
+	Set saved = 0
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT TOP ? ID FROM Ens.MessageHeader WHERE SuperSession = ? AND TargetConfigName = 'OrdersFromPartner' AND Status = 8 ORDER BY ID DESC", +count, ref)
+	While rs.%Next() {
+		Set header = ##class(Ens.MessageHeader).%OpenId(rs.%Get("ID"))
+		If '$IsObject(header) || (header.MessageBodyClassName '= "OcuTalon.Demo.Orders.PartnerOrder") Continue
+		Set body = ##class(OcuTalon.Demo.Orders.PartnerOrder).%OpenId(header.MessageBodyId)
+		If '$IsObject(body) Continue
+		Set body.OrderNumber = orderNumber
+		If $$$ISOK(body.%Save()) Set saved = saved + 1
+	}
+	Quit saved
 }
 
 /// Deletes the headers, the bodies and the event-log rows of the sessions of the references, in OCUORDERS.

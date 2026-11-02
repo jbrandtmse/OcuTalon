@@ -61,8 +61,14 @@ Parameter TASKCLASS = "OcuTalon.Schedule.HeartbeatTask";
 /// The longest to wait for the double to record a tick, in seconds. A ceiling, not a delay: the wait polls and returns as soon as it has.
 Parameter RECORDSECONDS = 30;
 
-/// The longest to wait for the Task Manager to run the task, in seconds. A ceiling: it runs the task once a minute, and RunNow takes up to a minute.
+/// The longest to wait for the Task Manager's next scheduled run of the task, in seconds. A ceiling, polled: the Task Manager runs the task at the
+/// start of each minute, and a slow host may add some seconds.
 Parameter RUNSECONDS = 75;
+
+/// The longest to wait for the run that RunNow asks for with WakeTASKMGR after it, in seconds. A ceiling, polled, so that a passing run pays only
+/// the latency: the wake makes the Task Manager take the request at once, and the ceiling allows one pass taken by a note that a task expired
+/// (after TestSendFails suspended the task), a whole minute and 30 s for a slow host.
+Parameter RUNNOWSECONDS = 90;
 
 /// What UseItemClass saved ({"className"}) when the double was put behind Checks, as JSON text, or "" while the item is as it was found. A text,
 /// because an object property would read as a new empty object when it is unset.
@@ -279,8 +285,9 @@ Method TestCatchUp()
 }
 
 /// AC 5. The production is stopped (after the scheduler settled, DW-28) and the tick mark is 3 minutes back. The Task Manager runs the task
-/// (RunNow): its history shows no error, no HeartbeatIn message header is written, and the tick mark and the gap marks are unchanged; a run that
-/// the stop overtakes after the task's own check (CreateBusinessService then says not registered) ends quietly too. When the
+/// (RunNow, then WakeTASKMGR, because without the wake the Task Manager takes the request at its next minute boundary; the run is seen within
+/// RUNNOWSECONDS, and a miss names the history rows and the task's state): its history shows no error, no HeartbeatIn message header is
+/// written, and the tick mark and the gap marks are unchanged; a run that the stop overtakes after the task's own check (CreateBusinessService then says not registered) ends quietly too. When the
 /// Production step starts the production again, the next scheduled run (within RUNSECONDS) is the single catch-up tick: PreviousTickAt is the mark
 /// from before the stop, CatchUp is 1, the double records it once, its message header exists, and the history of the runs since the stop shows
 /// no error. The real task is not suspended, since the schedule is what is tested.
@@ -301,7 +308,11 @@ Method TestStoppedThenStarted()
 	Set eventMark = ##class(OcuTalon.Test.Agent.RunnerFixture).EventMark()
 
 	Do $$$AssertStatusOK(##class(%SYS.Task).RunNow(##class(%SYS.Task).FindId(..#TASK)), "the Task Manager is asked to run the task now")
-	Do $$$AssertTrue(..WaitRuns(historyMark, ..#RUNSECONDS) > 0, "the task ran while the production was stopped")
+	Do ##class(%SYS.Task).WakeTASKMGR()
+	Set asked = $ZHorolog
+	Set ran = ..WaitRuns(historyMark, ..#RUNNOWSECONDS) > 0
+	Set took = $FNumber($ZHorolog - asked, "", 1)
+	Do $$$AssertTrue(ran, $Select(ran: "the task ran while the production was stopped, "_took_" s after RunNow", 1: "the task did not run within "_..#RUNNOWSECONDS_" s of RunNow: "_..RunDiagnostics(historyMark)))
 	Do $$$AssertEquals(..RunErrors(historyMark), 0, "its history has no error")
 	Do $$$AssertEquals(..HeartbeatHeaders(headerMark), 0, "no HeartbeatIn header was written")
 	Do $$$AssertEquals(..Marks(), marks, "the tick mark and the gap marks are unchanged")
@@ -808,6 +819,23 @@ ClassMethod HistoryMark() As %Integer
 ClassMethod RunsWhere() As %String [ Private ]
 {
 	Quit "ID > ? AND Name = '"_..#TASK_"' AND UPPER(ExecuteCode) = '"_$ZConvert(..#TASKCLASS, "U")_"' AND (Error IS NULL OR UPPER(Error) NOT LIKE 'TASK HAS EXPIRED%')"
+}
+
+/// What a missed run leaves to read: the history rows after the mark (Name, Error and LastStarted of each, the Task Manager's notes included) and the
+/// task's Suspended, LastFinished and TimeNextScheduled.
+ClassMethod RunDiagnostics(mark As %Integer) As %String
+{
+	Set text = "history rows after the mark:"
+	Set rows = 0
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT Name, Error, LastStarted FROM %SYS_Task.History WHERE ID > ? ORDER BY ID", mark)
+	While result.%Next() {
+		Set rows = rows + 1
+		Set text = text_" ["_result.%Get("Name")_" | "_result.%Get("Error")_" | "_result.%Get("LastStarted")_"]"
+	}
+	If 'rows Set text = text_" none"
+	Set task = ##class(%SYS.Task).%OpenId(##class(%SYS.Task).FindId(..#TASK))
+	If '$IsObject(task) Quit text_"; the task does not exist"
+	Quit text_"; the task: Suspended "_task.Suspended_", LastFinished "_task.LastFinished_", TimeNextScheduled "_task.TimeNextScheduled
 }
 
 /// The number of runs of the heartbeat task in the history after the mark.

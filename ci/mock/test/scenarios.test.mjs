@@ -113,6 +113,17 @@ const DEFECTS = [
   ['no match', { 'A/good.json': { name: 'good', replies: GOOD.replies } }, ['A/good.json', 'exactly one key']],
   ['no replies', { 'A/good.json': { name: 'good', match: GOOD.match } }, ['A/good.json', 'replies must be a non-empty list']],
   ['replies that are not a list', { 'A/good.json': { ...GOOD, replies: { status: 200, text: 'x' } } }, ['A/good.json', 'replies must be a non-empty list']],
+  ['a keyed prompt under A', { 'A/good.json': { ...GOOD, match: { prompt: 'Some guide prompt.', mockkey: 'chat' } } }, ['A/good.json', 'belongs under B/']],
+  ['one prompt text twice under one key', { 'B/one.json': { ...GOOD, name: 'one', match: { prompt: 'The same prompt.', mockkey: 'chat' } }, 'B/two.json': { ...GOOD, name: 'two', match: { prompt: 'The same prompt.', mockkey: 'chat' } } }, ['B/two.json', 'prompt repeats the one of B/one.json']],
+  ['one prompt text keyed and keyless', { 'B/one.json': { ...GOOD, name: 'one', match: { prompt: 'The same prompt.', mockkey: 'chat' } }, 'B/two.json': { ...GOOD, name: 'two', match: { prompt: 'The same prompt.' } } }, ['B/two.json', 'prompt repeats the one of B/one.json']],
+  ['one prompt text keyless and keyed', { 'B/one.json': { ...GOOD, name: 'one', match: { prompt: 'The same prompt.' } }, 'B/two.json': { ...GOOD, name: 'two', match: { prompt: 'The same prompt.', mockkey: 'chat' } } }, ['B/two.json', 'prompt repeats the one of B/one.json']],
+  ['a marker with a mock key', { 'A/good.json': { ...GOOD, match: { marker: 'good', mockkey: 'chat' } } }, ['A/good.json', 'exactly one key']],
+  ['a mock key with a telegram method', { 'A/good.json': { ...GOOD, match: { mockkey: 'chat', telegram: 'getMe' }, replies: [TG_REPLY] } }, ['A/good.json', 'exactly one key']],
+  ['a match with three keys', { 'B/good.json': { ...GOOD, match: { prompt: 'A prompt.', mockkey: 'chat', marker: 'good' } } }, ['B/good.json', 'exactly one key']],
+  ['a keyed prompt with an empty mock key', { 'B/good.json': { ...GOOD, match: { prompt: 'A prompt.', mockkey: '' } } }, ['B/good.json', 'match mockkey is not a non-empty string']],
+  ['a keyed prompt with a white-space mock key', { 'B/good.json': { ...GOOD, match: { prompt: 'A prompt.', mockkey: '  ' } } }, ['B/good.json', 'match mockkey is not a non-empty string']],
+  ['a keyed prompt with a mock key that holds white space', { 'B/good.json': { ...GOOD, match: { prompt: 'A prompt.', mockkey: 'a b' } } }, ['B/good.json', 'the mock key holds white space']],
+  ['a keyed prompt with an empty prompt', { 'B/good.json': { ...GOOD, match: { prompt: '', mockkey: 'chat' } } }, ['B/good.json', 'match prompt is not a non-empty string']],
   ['a prompt scenario with an empty prompt', { 'B/guide.json': { name: 'guide', match: { prompt: '' }, replies: [reply({ text: 'x' })] } }, ['B/guide.json', 'match prompt is not a non-empty string']],
 ];
 
@@ -159,6 +170,20 @@ test('row 15: valid files, dotfiles and the two folders load; every problem is l
   } finally {
     fs.rmSync(parent, { recursive: true, force: true });
   }
+});
+
+test('row 15: a keyed prompt is in prompts with its key and never in byMockKey; one prompt text may repeat across distinct keys', () => {
+  const keyed = (name, mockkey) => [`B/${name}.json`, { name, match: { prompt: 'The shared prompt.', mockkey }, replies: [reply({ text: name })] }];
+  withTree({ 'A/triage.json': { ...GOOD, name: 'triage', match: { mockkey: 'triage' } }, ...Object.fromEntries([keyed('shared-chat', 'chat'), keyed('shared-triage', 'triage')]) }, (dir) => {
+    const { scenarios, problems } = loadScenarios(dir);
+    assert.deepEqual(problems, []);
+    assert.deepEqual(scenarios.prompts.map((p) => [p.prompt, p.mockkey, p.scenario.name]), [
+      ['The shared prompt.', 'chat', 'shared-chat'],
+      ['The shared prompt.', 'triage', 'shared-triage'],
+    ]);
+    assert.deepEqual([...scenarios.byMockKey.keys()], ['triage']);
+    assert.equal(scenarios.byMockKey.get('triage').name, 'triage');
+  });
 });
 
 test('row 15: the limits of the format are inclusive, and every API stop reason is accepted', () => {

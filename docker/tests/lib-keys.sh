@@ -8,6 +8,10 @@
 #                            environment by awk (ENVIRON), never from an argument, a here-document or a file, and is never printed. A file
 #                            of - is the standard input. It prints nothing and returns 2 when the variable is unset or empty, so an
 #                            empty value never reads as clean; it returns 1 when a file cannot be read, and 0 otherwise
+# env_file_hits <env file> <file>...   prints "file:line NAME" for each line of the files that holds the value of a NAME=value line of the env file
+#                            (Story 11.3; AD-19). Blank lines, # lines and values of fewer than 8 characters are not read (a short value such as
+#                            0 or true is in every log). The env file is read inside awk, and its values are never printed or put on a command
+#                            line; a file of - is the standard input. It returns 1 when the env file or a file cannot be read, and 0 otherwise
 # project_leftovers <project>  prints "<containers>|<volumes>": how many containers (in any state) and volumes of the compose project <project>
 #                            exist, found by the tool itself (a name that is the project followed by - or _), and returns 1 with no output when the
 #                            tool cannot be asked. eval/key-proof.sh uses it to check, besides the teardown of ci/iris.sh (which counts a leftover
@@ -35,4 +39,34 @@ project_leftovers() {
   c=$(docker ps -a --format '{{.Names}}') || return 1
   v=$(docker volume ls --format '{{.Name}}') || return 1
   printf '%s|%s\n' "$(printf '%s\n' "$c" | grep -Ec -- "^$1[-_]" || true)" "$(printf '%s\n' "$v" | grep -Ec -- "^$1[-_]" || true)"
+}
+
+env_file_hits() {
+  local envf=$1 f rc=0
+  shift
+  [ -r "$envf" ] || return 1
+  for f in "$@"; do
+    if [ "$f" != - ] && [ ! -r "$f" ]; then
+      rc=1
+      continue
+    fi
+    LC_ALL=C awk -v name="$f" -v envf="$envf" '
+      BEGIN {
+        while ((getline line < envf) > 0) {
+          sub(/\r$/, "", line)
+          if (line ~ /^[ \t]*#/) continue
+          sub(/^[ \t]*export[ \t]+/, "", line)
+          if (line !~ /^[A-Za-z_][A-Za-z0-9_]*=/) continue
+          eq = index(line, "=")
+          nm = substr(line, 1, eq - 1)
+          val = substr(line, eq + 1)
+          if (val ~ /^".*"$/ || val ~ /^'"'"'.*'"'"'$/) val = substr(val, 2, length(val) - 2)
+          if (length(val) >= 8) { n++; names[n] = nm; vals[n] = val }
+        }
+        close(envf)
+      }
+      { for (i = 1; i <= n; i++) if (index($0, vals[i])) print name ":" FNR " " names[i] }
+    ' "$f" || rc=1
+  done
+  return $rc
 }

@@ -1,9 +1,29 @@
 import { randomBytes } from 'node:crypto';
 
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Page } from '@playwright/test';
 
 import { notBuilt } from '../../e2e/demo-path/not-built';
-import { EVENTS, STATE, post, type LiveEvent } from '../../e2e/support/api';
+import { EVENTS, post, type LiveEvent } from '../../e2e/support/api';
+import {
+  BREAK_FEED,
+  approvalCard,
+  approvalCount,
+  approvalRows,
+  approveOnPhone,
+  breakFeedButton,
+  checkRow,
+  doneTurn,
+  expectGuideMessage,
+  expectIncidentAwaitingApproval,
+  guideSend,
+  incidentCard,
+  phoneNotes,
+  readState,
+  reminderThroughGuide,
+  WATCH_PROMPT,
+  watchThroughGuide,
+  type Snapshot,
+} from '../../e2e/support/demo-path';
 import { loadedAfter } from '../../e2e/support/floor';
 import { fixtureUser, readApproval } from '../../e2e/support/iris';
 import { drawnMessages, type Turn } from '../../e2e/support/trace';
@@ -30,53 +50,22 @@ import {
  * mock. It has its own project and unit (online-demo-path, docker/tests/test-online-demo-path.sh) on a flag-on throwaway with the test
  * start values: a fresh browser context opens the splash and finds the published demo credentials prefilled.
  * - Step 1 is real: the button signs in without typing and the page loads.
- * - Steps 2 to 5 are the web run's (web/e2e/demo-path/02-watch.spec.ts to 05-approval.spec.ts) and wait for Story 11.1.
+ * - Steps 2 to 5 are one visitor's journey through the step functions of web/e2e/support/demo-path.ts, which the web run's 02 to 05 call
+ *   too (Story 11.7, DW-221): the guide's own Send for the watch and for the reminder, Break the feed and the incident awaiting approval
+ *   (the phone's notice and "Approval requests, 1"), and Approve on the simulated phone to "All 50 orders went through.", the audit line and
+ *   Resolved. They run in order on one session, as the web run's do, and skip the heartbeat's last-run wait that the web run proves.
  * - Step 6 is real: the guide's watch prompt gets its reply, and the reply's Trace link opens Visual Trace at the turn, signed in, drawing
  *   the turn's header and its agent steps, with the steps and the cost in the decision's details.
- * - "Second visitor" is the isolation run (Story 29.4): visitors A and B each watch Orders, A presses Break the feed, and A's incident, its
+ * - "Second visitor" is the isolation run (Story 29.4): visitors A and B each watch Orders (through the guide's Send), A presses Break the feed, and A's incident, its
  *   notice and its approval request reach only A; B's page, /state and /events get nothing, an answer of B to A's request is refused as
  *   an unknown request, and A answers on its simulated phone.
  * - The paired chat and the message search wait for Story 31.4 (a paired mock Telegram chat).
  * The unit fails when a case that must be skipped passes, or one is missing. The texts are written out here, as the independent oracle of
  * the page's own.
  */
-const guideSend = (page: Page): Locator => page.locator('app-demo-guide [data-guide-focus="action"]');
-const composer = (page: Page): Locator => page.getByRole('textbox', { name: 'Message OcuTalon' });
-const rail = (page: Page): Locator => page.locator('app-status-rail');
-const breakFeedButton = (page: Page): Locator => page.locator('app-break-feed-box app-server-button button');
-const approvalCard = (page: Page): Locator => page.locator('app-chat-panel [data-part="approval"]');
-const incidentCard = (page: Page): Locator => page.locator('app-chat-panel [data-part="incident"]');
-const phoneNotes = (page: Page): Locator => page.locator('app-simulated-phone .notification');
-const approvalRows = (page: Page): Locator => rail(page).locator('li.row[data-row-key^="approvals:"]');
-const approvalCount = (page: Page): Locator => rail(page).locator('[data-section="approvals"] h3 .visually-hidden');
-const checkRow = (page: Page): Locator => rail(page).locator('li.row[data-section="checks"]').filter({ hasText: 'Orders production' });
 
-/** The message that starts a watch of the Orders production through the page's chat: the guide's watch prompt behind the mock's start_watch marker. */
-const WATCH_MESSAGE = '[[mock:watch-start-orders]] Watch the Orders production and only tell me if something needs me.';
-
-const BREAK_FEED = '/ocutalon/api/v1/demo/break-feed';
 const APPROVALS = '/ocutalon/api/v1/approvals';
 const FIFTY = 50;
-
-/** The parts of /state that these cases read. */
-interface Snapshot {
-  epoch: string;
-  streams: { session: number; instance: number };
-  chat: Array<{ type: string; payload: Record<string, unknown> }>;
-  rail: { approvals: Array<{ ref: string; state: string }>; checks: Array<{ ref: string; displayName: string }>; reminders: Array<{ ref: string }> };
-  telegram: { displayName: string };
-  phone?: Array<{ ref: string; approvalRef: string }>;
-  mailbox?: Array<{ ref: string }>;
-  guide?: unknown;
-}
-
-/** The page's own /state, parsed, and its text as served (for the searches of A's refs). */
-async function readState(page: Page): Promise<{ snapshot: Snapshot; text: string }> {
-  const response = await page.request.get(STATE);
-  expect(response.status(), 'the state is served').toBe(200);
-  const text = await response.text();
-  return { snapshot: JSON.parse(text) as Snapshot, text };
-}
 
 /** The rows of a session that the cases follow: its chat turns, reminders, checks, pairing name and mail items. */
 interface OwnRows {
@@ -95,22 +84,6 @@ function ownRows(snapshot: Snapshot): OwnRows {
     pairing: snapshot.telegram.displayName,
     mail: (snapshot.mailbox ?? []).map((item) => item.ref),
   };
-}
-
-/** The session's newest chat turn, once it is done (its reply, decision and trace target are in /state then). */
-async function doneTurn(page: Page): Promise<Turn> {
-  let turn: Turn | undefined;
-  await expect
-    .poll(
-      async () => {
-        const turns = (await readState(page)).snapshot.chat.filter((item) => item.type === 'chat.message');
-        turn = turns.length === 0 ? undefined : (turns[turns.length - 1]!.payload as unknown as Turn);
-        return turn?.state;
-      },
-      { message: 'the turn is done', timeout: 90_000, intervals: [1_000, 2_000] },
-    )
-    .toBe('done');
-  return turn!;
 }
 
 /** The cursors of the page's own streams, from /state. */
@@ -143,10 +116,11 @@ async function eventsSince(page: Page, from: Cursors): Promise<{ events: LiveEve
 /** The event types that only A's run may give A's session. */
 const A_ONLY = ['incident', 'approval', 'phone', 'breakfeed.progress', 'watch.progress'];
 
-/** Asks the page's chat to watch the Orders production (the guide's watch prompt behind the mock's start_watch marker) and waits for the check row. */
+/** Presses the guide's own Send at step 1, which asks the chat to watch the Orders production, and waits for the check row. */
 async function askToWatch(page: Page): Promise<void> {
-  await composer(page).fill(WATCH_MESSAGE);
-  await composer(page).press('Enter');
+  await expect(guideSend(page), "the guide's Send is usable").not.toHaveAttribute('aria-disabled', 'true');
+  await guideSend(page).click();
+  await expectGuideMessage(page, WATCH_PROMPT);
   await expect(checkRow(page), 'the "Orders production" check row shows').toHaveCount(1, { timeout: 90_000 });
 }
 
@@ -164,10 +138,58 @@ test('step 1: the splash holds the published credentials, and Sign in and start 
   }
 });
 
-notBuilt("step 2: the watch prompt and the background check, as the web run's 02-watch.spec.ts", '11.1');
-notBuilt("step 3: the reminder prompt, as the web run's 03-reminder.spec.ts", '11.1');
-notBuilt("step 4: Break the feed and the incident card, as the web run's 04-incident.spec.ts", '11.1');
-notBuilt("step 5: Approve and the result, as the web run's 05-approval.spec.ts", '11.1');
+test.describe('steps 2 to 5: one visitor watches Orders, sets a reminder, breaks the feed and approves the fix', () => {
+  test.describe.configure({ mode: 'serial' });
+  let visitor: Visitor | undefined;
+  let request = '';
+
+  test.beforeAll(async ({ browser }) => {
+    test.setTimeout(120_000);
+    // The page writes its times in the context's zone and locale: the same UTC and 24-hour clock as the web run, so that the texts match.
+    visitor = await openVisitor(browser, undefined, { timezoneId: 'UTC', locale: 'en-GB' });
+  });
+
+  test.afterAll(async () => {
+    test.setTimeout(120_000);
+    if (visitor === undefined) return;
+    try {
+      await cleanPopulated({ session: visitor.ref, reminder: '', approval: '', pairing: '' });
+    } finally {
+      await leaveVisitor(visitor);
+    }
+  });
+
+  const pageOf = (): Page => {
+    if (visitor === undefined) throw new Error('the visitor could not be opened');
+    return visitor.page;
+  };
+
+  test("step 2: the guide's Send for step 1 gets a decision with its reason and trace link, the check row shows, and Break the feed becomes active", async () => {
+    test.setTimeout(180_000);
+    await watchThroughGuide(pageOf());
+  });
+
+  test("step 3: the guide's Send for step 2 sets the reminder, which shows with its countdown", async () => {
+    test.setTimeout(120_000);
+    await reminderThroughGuide(pageOf());
+  });
+
+  test('step 4: Break the feed leads to one incident card awaiting approval, with the phone\'s notice and "Approval requests, 1"', async () => {
+    test.setTimeout(180_000);
+    const page = pageOf();
+    const pressed = page.waitForResponse((response) => response.url().includes(BREAK_FEED) && response.request().method() === 'POST');
+    await breakFeedButton(page).click();
+    expect((await pressed).status(), 'Break the feed answers 200').toBe(200);
+    request = await expectIncidentAwaitingApproval(page);
+  });
+
+  test('step 5: Approve on the phone ends with "All 50 orders went through.", the audit line and Resolved, and the request leaves the rail', async () => {
+    test.setTimeout(240_000);
+    expect(request, 'step 4 found the approval request').not.toBe('');
+    // The online demo's message times carry " ET" (Msg.Catalog's time slot).
+    await approveOnPhone(pageOf(), request, ' ET');
+  });
+});
 
 test('step 6: the trace link opens Visual Trace at the conversation, signed in, with the turn, its agent steps and the cost', async ({ page, context }) => {
   test.setTimeout(240_000);

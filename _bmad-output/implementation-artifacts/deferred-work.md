@@ -177,6 +177,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: ci.yml iris job if: push or same-repository PR (CON-1, REL-4); code review of 0.8, October 20
 - 2026-10-20T03:35:26Z status=routed owner=11-5-one-scripted-sequence-cuts-a-release by=adjudication note=branch protection or a maintainer-run path must require the demo path for fork PRs before the repo goes public (owner-only settings)
 - 2026-10-25T04:09:47Z status=routed owner=11-5-one-scripted-sequence-cuts-a-release by=orchestrator note=owner decision via the Contest Planner 2026-10-25 (the owner: 'We won't make the repo public until we release on Open Exchange.'): GitHub Free gives a private repository no branch protection (HTTP 403), so branch protection, with the demo path required for fork pull requests, is set up at the public flip together with the Open Exchange release; while private, Story 11.5 checks every ci.yml and lane-a.yml job on the PR head itself (b258031)
+- 2026-11-01T12:24:37Z owner=11-16-the-sequence-asks-before-each-outward-step-after-the-gates by=spec_gate note=Story 11.5 split at its plan (decide): the merge step that reads main's branch protection and refuses unless ci.yml and lane-a.yml are required checks is Story 11.16's; the protection setting itself is the owner's (see the new human= entry)
 
 ### DW-28: flake: test-production.sh's two 'another production' checks failed once on the first run with the compose-level TZ file, then passed on three unchanged reruns
 - source: spec-0-9-the-message-catalog-and-its-one-renderer.md | severity: med | fix-risk: low | footprint: in-epic
@@ -526,6 +527,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-1-9-no-model-request-goes-over-100-000-tokens.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: Bridge/RequestSize.cls HistoryChars; Test.Bridge.Conversation BANDPERCENT 29
 - 2026-10-23T21:02:46Z status=wontfix-accepted owner=1-9-no-model-request-goes-over-100-000-tokens by=harvest note=reopen_if=Story 30.1 reads the stored history and can subtract the stored prompt, or BANDPERCENT has to grow above 29
+- 2026-10-31T17:47:57Z status=wontfix-accepted occurrence=11-8-the-chat-cancels-several-reminders-in-one-call-and-says-it-c by=harvest note=reopen_if restated after Story 11.8's CI rework (837f77f3): Test.Bridge.Conversation's BANDPERCENT 29 is replaced by ENVELOPECHARS 500, so the bound follows Chat's own system prompt; reopen_if=ENVELOPECHARS has to grow above 500, or Decide's estimate of a continuing turn exceeds the runner's by more than the agent's prompt plus 500 characters
+- 2026-10-31T18:09:20Z status=wontfix-accepted by=cr note=reopen_if=Decide subtracts the stored prompt (Story 30.1), or the gap past Chat's escaped prompt tops 500 (now 149)
 
 ### DW-133: RequestSize.HistoryChars returns 0 with no status or log line when the SQL read of the stored history or the stream open fails, so the estimate fails open silently
 - source: spec-1-9-no-model-request-goes-over-100-000-tokens.md | severity: low | fix-risk: low | footprint: in-story
@@ -566,6 +569,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: AD-20 max_iterations arithmetic; one cancel_reminder call per Ref
 - 2026-10-24T01:30:42Z status=routed owner=8-4-set-list-and-cancel-reminders-in-plain-words by=harvest note=unverified; 8.4's live check of a 'cancel all my reminders' turn with three or more pending reminders settles it; raising the ceiling amends AD-20 (owner's veto window)
 - 2026-10-27T11:58:29Z status=routed owner=11-1-the-web-demo-path-passes-end-to-end-in-the-rel-2-test by=spec_gate note=routed by orchestrator 2026-10-27, U-118 (kept): fix in Lane A's cancel_reminder, which takes one or more reminder ids and sends one CancelReminder per id within one tool call, each with its own IdempotencyKey; no AD-20 change; 11.6 runs the live check (its own entry)
+- 2026-10-31T09:29:36Z owner=11-8-the-chat-cancels-several-reminders-in-one-call-and-says-it-c by=spec_gate note=Story 11.1 split at its plan (unattended ruling, decide): moved to Story 11.8, Lane A's chat reminder tools; DW-142's live check runs in Story 38.1
+- 2026-10-31T15:56:02Z status=resolved-by:11-8-the-chat-cancels-several-reminders-in-one-call-and-says-it-c by=adjudication note=cancel_reminder takes reminderRefs and submits one CancelReminder per ref in one call with its own key (CommandCall.Run positions); TestCancelSeveral, TestCancelThroughTheToolManager and TestCancelAllThroughChat (three cancels in 3 model requests, ceiling 4 unchanged)
 
 ### DW-141: The reminder command key is only <ItemId>:<position>, so an owner that treats a repeated key as a repeat may answer a different command from an earlier one's result when a turn is run again with other tool calls
 - source: spec-1-10-the-chat-agent-sets-lists-and-cancels-reminders.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -580,6 +585,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Agent/Chat.cls INSTRUCTIONS, unchanged by decision 16; the CI mock scripts the tool call, so no test sees a live model's choice
 - 2026-10-24T02:57:20Z status=routed owner=8-4-set-list-and-cancel-reminders-in-plain-words by=cr note=unverified; 8.4's live check of the reminder phrasings on Haiku 5.5 settles it; the fix is Lane A's Chat INSTRUCTIONS
 - 2026-10-27T11:58:29Z status=routed owner=11-1-the-web-demo-path-passes-end-to-end-in-the-rel-2-test by=spec_gate note=routed by orchestrator 2026-10-27, U-118 (kept): Chat instruction lines say Chat can set, list and cancel reminders and keep the no-commands rule for the rest; live check on Claude Haiku 5.5 with the guide's exact step-2 sentence plus two paraphrases, on the online demo's model, effort and endpoint; passes before 0.1.0 is cut
+- 2026-10-31T09:29:36Z owner=11-8-the-chat-cancels-several-reminders-in-one-call-and-says-it-c by=spec_gate note=Story 11.1 split at its plan (unattended ruling, decide): moved to Story 11.8, Lane A's chat reminder tools; DW-142's live check runs in Story 38.1
+- 2026-10-31T15:56:03Z status=routed owner=38-1-a-hands-on-pass-with-real-keys-finds-and-fixes-what-the-test by=adjudication note=the instruction half is delivered by Story 11.8 (Chat's reminder block ahead of the unchanged no-commands rule; TestChat pins it on the CI mock); residual: the live check on Claude Haiku 5.5 with the guide's exact step-2 sentence plus two paraphrases, on the online demo's model, effort and endpoint, runs in Story 38.1's real-key pass on release/1.0.0-rc1
 
 ### DW-143: The watch fixture's three tools declare no CLASSIFICATION, READONLY or TRUSTEDOUTPUT parameters, so by the Tool classification convention they are unclassified (risky) once Epic 3's gate reads the parameters, and Diagnosis's read-only tools would be held
 - source: spec-1-10-the-chat-agent-sets-lists-and-cancels-reminders.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -1206,12 +1213,14 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-26T05:22:57Z occurrence=16-3-signing-in-opens-a-session-this-browser-resumes-until-the-re note=ci run 40270323742 iris(shards) floor-webkit G1 at 1280x600, sha 4ded1e0; rerun
 - 2026-10-26T09:37:32Z occurrence=16-5-a-full-demo-says-it-is-busy-and-the-host-s-busy-and-maintena note=ci run 40297305113 iris(shards) floor-webkit G1 ring bottom 600.78 at 1280x600, sha a535d13; third Epic 16 first-run red in a row; rerun
 - 2026-10-25T16:37:49Z occurrence=8-2-the-heartbeat-stalled-warning-comes-from-the-real-heartbeat note=run_40209749982_attempt_2_floor-webkit_G1_ring_bottom_600.86_over_600_(ci-6);rerun
+- 2026-10-31T07:31:51Z status=resolved-by:4-4-show-the-demo-guide-and-the-break-the-feed-box by=x0 note=re-recorded: Epic 4 burn-down's resolve trailer (2026-10-27T05:26:00Z, reveal-ring 1px margin, G1 green on runs 40304315110 40367647349 40385075588 40421999437) landed under DW-211's heading in a union merge, so this entry still read routed; no occurrence since 2026-10-26
 - 2026-11-01T18:36:04Z status=wontfix-accepted by=burndown note=reopen_if=a_floor-webkit_G1_focus-ring-past-viewport_red_recurs_on_any_CI_run_after_2026-11-01;evidence:last_recorded_occurrence_2026-10-27(Epic_5_story_5.7);no_webkit_G1_ring_red_in_any_cycle_log_since,incl_4.8/4.9_shards_green_first_attempt;the_fix_(1px_tolerance_or_full-outset_reveal_in_expectStopRing/expectRingInside)_lives_in_web/e2e/support/floor.ts,contended_by_in-flight_Epic_11;the_2026-10-27_burndown_resolve_trailer_was_never_written
 
 ### DW-202: REL-2 step 2: the real 'Orders production check row shows a real last run' assertion in web/e2e/demo-path/02-watch.spec.ts is still notBuilt(..., '8.2') after Story 8.2 (fixture-backed block appended); turn it on with the real watch and Checks once Epics 5 and 8 have merged on the integration branch, and drop 8.2's fixture block
 - source: spec-8-2-the-heartbeat-stalled-warning-comes-from-the-real-heartbeat.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: epics.md Story 8.2 AC3 defers the real switch until Epics 5 and 8 merge; Story 11.1 turns every UJ-1 step spec on; 02-watch.spec.ts lines are Epic 4's while it runs (append-only ruling)
 - 2026-10-25T12:55:18Z status=routed owner=11-1-the-web-demo-path-passes-end-to-end-in-the-rel-2-test by=spec_gate note=AC3 real-path residual of 8.2; the notBuilt label names 8.2 but the switch needs Lane A's Checks/WatchOps (Stories 5.1, 5.6)
+- 2026-10-31T13:32:52Z status=resolved-by:11-1-the-web-demo-path-passes-end-to-end-in-the-rel-2-test by=adjudication note=AC1: 02-watch.spec.ts asserts the real Orders production check row's last run on the live stack (no notBuilt 8.2; fixture block dropped); live demo-path green 232 s
 
 ### DW-204: heartbeat.spec.ts leaves two instance-stream status events, and api.spec.ts still pins the instance stream at one event, green only because api/ runs before heartbeat/
 - source: spec-8-2-the-heartbeat-stalled-warning-comes-from-the-real-heartbeat.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -1278,6 +1287,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-3-7-every-action-and-governance-event-is-in-the-iris-audit-log.md (inbox U-69) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Story 3.7 (OCT-epic3 10c39c4) adds Answer's not_allowed check for a sessionRef that is neither empty nor a Ref; Story 10.3 adds AnswersIn's Telegram entry, which Story 12.7's TelegramIn calls with a ChatRef
 - 2026-10-25T12:10:22Z status=routed owner=10-3-the-session-side-of-telegram-is-ready-and-stays-off by=owner note=U-69 condition (the Contest Planner for the owner): the entry's fixture tests pin that a press passes the paired session's Ref, and that an unresolvable one answers not_allowed
+- 2026-10-31T07:31:51Z status=resolved-by:10-3-the-session-side-of-telegram-is-ready-and-stays-off by=x0 note=re-recorded: Story 10.3's adjudication trailer (2026-10-28T23:55:20Z, AnswersIn FromTelegram resolves the session from the live Pairing row and passes its Ref; spec-10-3 rows FromTelegram approved and bad session) landed under DW-269's heading in a union merge
 - 2026-10-31T10:06:02Z status=resolved-by:10-3-the-session-side-of-telegram-is-ready-and-stays-off by=burndown note=delivered_by_10.3_d917d26(adjudication_trailer_missed_on_2026-10-28): AnswersIn.FromTelegram passes only the paired session's Ref (Core/AnswersIn.cls:44-80); Test/Core/AnswersTelegram.cls TestApprovedAndRejected:74 pins sessionRef=the session's Ref, TestBadSessionRefIsNotAllowed:128 pins not_allowed with nothing handed over
 
 ### DW-214: Build 154 serves IRIS's own %CSP.PasswordChange.cls (200) at /ocutalon/trace/ocutalon/ and /ocutalon/trace/ocuorders/ to a signed-in user despite PermittedClasses; the demo host's proxy must block that path
@@ -1314,6 +1324,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Story 16.2 spec gate: the demo-path project lists every spec under web/e2e/demo-path/ and demo-path-summary/test-demo-path-gate.sh pin file-to-step mapping, so the online run sits in the online-demo project; Story 16.2's AC says Story 11.1 turns its later steps on
 - 2026-10-25T21:32:41Z status=routed owner=11-1-the-web-demo-path-passes-end-to-end-in-the-rel-2-test by=spec_gate note=11.1 turns on the online run's steps 2-6 in web/e2e-online/demo-path.spec.ts together with the web run's (the online-demo unit runs them on its flag-on throwaway)
 - 2026-10-30T13:10:06Z occurrence=29-4-sessions-stay-isolated-under-load by=cr note=moved to e2e-online/demo-path/ (unit online-demo-path, shards-2); step 6 is real; report_check pins the 4 skips of 11.1
+- 2026-10-31T09:29:35Z owner=11-7-the-demo-path-s-failure-paths-quiet-outcomes-and-online-run by=spec_gate note=Story 11.1 split at its plan (unattended ruling, decide): moved to Story 11.7 with the failure paths, the coda and the online run
+- 2026-10-31T21:38:57Z status=resolved-by:11-7-the-demo-path-s-failure-paths-quiet-outcomes-and-online-run by=adjudication note=the online run's steps 2 to 5 run as one visitor's journey through the shared step functions in web/e2e/support/demo-path.ts; live online-demo-path 7 passed, 3 skipped (Story 31.4's cases)
 
 ### DW-225: The path lists that name SignInAssets.cls (ci/units.sh WEB_INPUT_PATTERN, test-ci-changes, test-compose-file's not-ignored check, test-boundaries' scope) do not name SplashAssets.cls or splash.css/js
 - source: spec-16-2-the-splash-screen-shows-the-demo-and-its-sign-in-details.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -1359,7 +1371,10 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-16-3-signing-in-opens-a-session-this-browser-resumes-until-the-re.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Session.Hash (16.3) has AD-4's HashCode shape; Data/Pairing.cls is Epic 10's, so the spec forced the copy by order (Design Notes, Rule 2)
 - 2026-10-26T04:26:20Z status=routed owner=10-3-the-session-side-of-telegram-is-ready-and-stays-off by=cr note=Rule 2 forced copy: HashCode(code) quits Session.Hash(code)
+- 2026-10-31T07:31:51Z owner=11-0-epic-10-deferred-cleanup by=x0 note=Pairing.HashCode (Data/Pairing.cls:68) still repeats Session.Hash's SHA-256 base64url line; trivial and low fix-risk, so default-included in Story 11.0
+- 2026-10-31T08:34:17Z status=resolved-by:11-0-epic-10-deferred-cleanup by=adjudication note=Pairing.HashCode keeps its empty-code guard and quits ##class(OcuTalon.Data.Session).Hash(code) (build e5eceafe + review patch); TestHashCodeIsSessionHash pins the whole body, TestHashCodeVectors unchanged and green
 - 2026-10-31T10:06:02Z status=routed owner=31-4-the-paired-chat-stays-isolated-under-load-too by=burndown note=residual: Data/Pairing.cls:68 HashCode still repeats Data/Session.cls:122 Hash's body (same SHA-256 base64url line, plus an empty-code guard); make HashCode keep its guard and quit Session.Hash(code). Not covered by 10.3 (missed adjudication); overflow, not chartered (1 entry, under cap 8, no occurrences; Story 10.4 is a README-only re-open with a launch deadline). 31-4 is a Lane B pairing story (Data/Pairing.cls is Lane B's, AD-29)
+- 2026-11-02T14:55:52Z status=routed owner=31-4-the-paired-chat-stays-isolated-under-load-too by=owner note=31.4_deferred_after_the_v1.0.0_tag(owner:Move_it_after_the_tag);first_daily_release
 
 ### DW-238: Session.ForUser (TOP 1 by IrisUser) can return a visitor row as a user's durable session if onlineDemo is turned off on an instance that keeps visitor rows
 - source: spec-16-3-signing-in-opens-a-session-this-browser-resumes-until-the-re.md | severity: low | fix-risk: low | footprint: in-story
@@ -1783,6 +1798,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-8-6-reminders-through-the-chat-on-the-demo-path.md | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: 8.6 plan Task 0 on a warm throwaway: the mock log held 2 Triage requests (no tools, selectedBy prompt, guide-reminder); the triage decision was a fallback 'invalid'; the turn ended done with the scenario reply
 - 2026-10-27T17:18:09Z status=routed owner=11-1-the-web-demo-path-passes-end-to-end-in-the-rel-2-test by=spec_gate note=CI-mock only (a real model triages normally); the demo path's CI trace shows an invalid triage decision for guide step 2; the fix is in the mock's request routing or scenario shape (ci/mock, contended), so it belongs with the end-to-end demo-path story
+- 2026-10-31T09:29:35Z owner=11-7-the-demo-path-s-failure-paths-quiet-outcomes-and-online-run by=spec_gate note=Story 11.1 split at its plan (unattended ruling, decide): moved to Story 11.7 with the failure paths, the coda and the online run
+- 2026-10-31T21:38:57Z status=resolved-by:11-7-the-demo-path-s-failure-paths-quiet-outcomes-and-online-run by=adjudication note=AD-22 amended (U-194): guide-watch-triage and guide-reminder-triage answer Triage with Act (mockkey triage), so a guide-step chat turn's triage decision is valid; server.test.mjs pins the keyed match
 
 ### DW-314: live:sign-in runs every web/e2e spec but demo-path in one unit; locally the whole call now takes about 515 s (222 tests) against the 10-minute foreground cap every stage works under (OCUTALON_LIVE_DEADLINE=900 already needed), so the next story that adds browser cases to it cannot run it in one call
 - source: spec-8-6-reminders-through-the-chat-on-the-demo-path.md | severity: med | fix-risk: med | footprint: out-of-footprint
@@ -1795,6 +1812,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-8-6-reminders-through-the-chat-on-the-demo-path.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: src/ocutalon/cls/OcuTalon/Test/Schedule/ReminderChat.cls AssertToolSteps vs src/ocutalon/cls/OcuTalon/Test/Tools/Reminders.cls:928 AssertSteps (about 25 of 35 lines alike); the spec records the reason (Lane A's private method, AD-29); Story 11.1 changes cancel_reminder and that test class
 - 2026-10-27T20:11:28Z status=routed owner=11-1-the-web-demo-path-passes-end-to-end-in-the-rel-2-test by=cr note=Rule 2 forced copy: make Lane A's step check a public helper (e.g. in RunnerFixture) and have ReminderChat call it
+- 2026-10-31T09:29:36Z owner=11-8-the-chat-cancels-several-reminders-in-one-call-and-says-it-c by=spec_gate note=Story 11.1 split at its plan (unattended ruling, decide): moved to Story 11.8, Lane A's chat reminder tools; DW-142's live check runs in Story 38.1
+- 2026-10-31T15:56:02Z status=resolved-by:11-8-the-chat-cancels-several-reminders-in-one-call-and-says-it-c by=adjudication note=RunnerFixture.StepProblems replaces the copies in Test.Tools.Reminders, Test.Schedule.ReminderChat, Test.Watch.Turns and Test.Checks.Turns
 
 ### DW-317: web/e2e/demo-path/03-reminder.spec.ts and web/e2e/reminder/chat.spec.ts each repeat restoreKeys() followed by an irisScript of RunnerFixture.WaitRecords() in their afterAll; the natural home, support/devices.ts restoreKeys, is contended
 - source: spec-8-6-reminders-through-the-chat-on-the-demo-path.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -1888,6 +1907,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: live-store.ts fromSnapshot takes decisions from snapshot.rail.decisions; Ownership.cls's decisions query keeps Kind = 'decide' (spine Live events: other kinds reach the store, not the rail); an incident's decisionRef is its diagnosis (kind diagnose); floor I1/I7 seed a decide-kind decision, so they pass
 - 2026-10-27T08:44:01Z status=escalated owner=burndown by=cr note=needs /state (Web.Api, Epic 16) or Lane A's payload to carry the diagnosis decision, or a spine Live events change; sibling of DW-292
 - 2026-10-28T03:51:21Z status=routed owner=11-1-the-web-demo-path-passes-end-to-end-in-the-rel-2-test by=merge_gate note=Epic 6 decision sheet (orchestrator, decide): /state or the incident payload carries the incident's diagnose decision and the page store reads it after a reload (both lanes)
+- 2026-10-31T13:32:52Z status=resolved-by:11-1-the-web-demo-path-passes-end-to-end-in-the-rel-2-test by=adjudication note=AC8: Web.Api /state carries each incident's diagnose decision for the session's own decisions; live-store.ts reads it; TestStateIncidentDecision (diagnose fixtures) and live-store.test.mjs pin it
 
 ### DW-298: Test.Bridge.CodeRules (Lane A) lists the approval classes a tool may not reference (Approval API, ApprovalStartIn, AnswersIn) but not Story 6.2's new AnswerOps item; AnswerOps refuses any sender but AnswersIn at run time, so the static rule is a second line only
 - source: spec-6-2-approve-or-reject-a-fix-from-the-web-chat.md (implement deferred 2) | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -1901,6 +1921,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-27T14:01:37Z occurrence=6-2-approve-or-reject-a-fix-from-the-web-chat by=cr note=cr confirms routed burndown: card order is UX-fixed; only the guide's compact height (web/src/app/guide) fixes it
 - 2026-10-28T02:25:49Z status=escalated owner=burndown by=burndown note=decision_sheet: no remaining Epic 16 story (16.4, 16.9 left on OCT-epic16) builds the guide's compact height (orchestrator ruling 5); recommended: a guide-layout fix (the guide reaches DESIGN's 56 px compact form while its Break the feed box shows), routed to Story 11.1's UJ-1 check or a new pool story, then 6.2's A6 runs without Hide guide
 - 2026-10-28T03:51:21Z status=routed owner=11-6-a-hands-on-pass-with-real-keys-finds-and-fixes-what-the-test by=merge_gate note=Epic 6 decision sheet (orchestrator, decide): the guide reaches DESIGN's 56 px compact form while Break the feed shows, so 6.2's AC3 holds at 1280x600 with the guide open; then 6.2's A6 runs without Hide guide
+- 2026-10-31T09:29:35Z owner=38-1-a-hands-on-pass-with-real-keys-finds-and-fixes-what-the-test by=orchestrator note=U-189 at=2026-10-31T09:06:08Z#567 (option (a)): Story 11.6 moved whole to Story 38.1 in Epic 38, which gates the v0.1.0 tag
 
 ### DW-301: Story 6.2's design is missing from the spine: AD-11's Rule and AD-31 still say AnswersIn's job calls Approval.Answer (Veto V1, kept by U-113: AnswerOps' production job calls it), and AD-32's render exceptions do not list the answer endpoint's 409 text (Web.Api renders the answered.* late-press and expired texts through Catalog.Render)
 - source: spec-6-2-approve-or-reject-a-fix-from-the-web-chat.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -1997,6 +2018,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-27T15:51:26Z status=routed owner=burndown by=flake note=(inference) the session line timed out or errored while the production stopped and started with the stub WatchOps; route to the story that next edits docker/tests/test-production.sh (Epic 15 owns docker/tests): give row 21 a longer wait or a retry
 - 2026-10-27T21:20:07Z status=routed owner=15-3-an-ipm-install-survives-restarts-and-reinstalls-and-every-re by=x0 note=Epic_7_X.0_triage:docker/tests/**_is_Epic_15's(test-production.sh_is_being_edited_by_Epic_8,contended_for_Epic_7);15.3's_restart_tests_are_the_next_planned_docker/tests_owner;residual:give_test-production.sh_row_21('Start(15)_with_a_WatchOps_whose_OnInit_fails')_a_longer_wait_or_one_retry;if_Epic_8_edits_the_file_again_first,the_orchestrator_may_re-route;bullet_is_the_orchestrator's_post-merge
 - 2026-10-28T04:48:55Z status=routed owner=15-3-an-ipm-install-survives-restarts-and-reinstalls-and-every-re by=orchestrator note=flake occurrence=2: CI run 40629178094 (iris production, row 21 wanted CHK|start-fails|1|1, got '') on feature dc44a8c, a bookkeeping-only commit whose code head 6151327 passed; rerun --failed; owner as Epic 7's X.0 re-own (15-3)
+- 2026-11-01T12:38:07Z occurrence=11-2-upgrades-and-restarts-keep-every-record-working note=CI run 41304700491 attempt 1 (OCT-epic11 4bb3d59c, iris production, live:production): FAIL row 21 'the step fails naming WatchOps while it cannot start, and succeeds once it can (1 of 5 values differ)'; the story changed no product or test-production.sh line; one rerun
+- 2026-11-02T03:08:23Z occurrence=11-13-the-release-gets-draft-notes note=CI run 41378276955 attempt 1 (OCT-epic11 7e1e4582, iris production): FAIL row 21 (1 of 5 values differ) again; the second Epic 11 occurrence on 2026-11-01/02; one rerun
 
 ### DW-309: Test.Data.Fixture.Check rows carry no CreatedAt, so with no WatchMark the FailurePoller starts each reading at its poll time and a batch that lands between two polls is never read: a test that expects its failures to be noticed can pass or fail by timing
 - source: spec-5-11-the-demo-guide-s-tests-hold-now-that-incidents-are-real.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -2125,6 +2148,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Proposed (later) builds its slots with Notice.WithFixSlots(incident, ...), whose fixSummary is Incident.FixSummary; Agent/Diagnosis.cls does not forbid a count; the UX fixtures in Test.Msg.Catalog put counts in it
 - 2026-10-28T21:18:33Z status=decision-pending owner=burndown by=cr note=human=run a live diagnosis to see if fixSummary names a count; then choose a count-free prompt rule or other later text
 - 2026-10-30T05:17:59Z status=routed owner=11-6-a-hands-on-pass-with-real-keys-finds-and-fixes-what-the-test by=merge_gate note=the Contest Planner's hands-on pass with a real key checks whether a live diagnosis writes a count into fixSummary; if it can, a count-free rule in the diagnosis prompt or count-free later-request text (decide)
+- 2026-10-31T09:29:35Z owner=38-1-a-hands-on-pass-with-real-keys-finds-and-fixes-what-the-test by=orchestrator note=U-189 at=2026-10-31T09:06:08Z#567 (option (a)): Story 11.6 moved whole to Story 38.1 in Epic 38, which gates the v0.1.0 tag
 
 ### DW-366: The spine's Conventions row 'Later requests' does not say that stragglers of the first ask start a round after its raise, or that a failed later round's failures rejoin the next round's window
 - source: spec-7-6-later-failures-in-the-same-incident-get-their-own-dry-run-and-approval-request.md | severity: low | fix-risk: low | footprint: in-epic
@@ -2184,6 +2208,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Demo/Guide.cls takes the first undone step as current and step 1 as done once the session has an Orders check row; guide-view.ts names it 'current'; today 02 is notBuilt (read from code, not run with a real 02)
 - 2026-10-28T14:02:09Z status=routed owner=11-1-the-web-demo-path-passes-end-to-end-in-the-rel-2-test by=harvest note=fix: accept either name for step 2 (upcoming|current) and keep the 'Step 2, Reminder, done' assertion; 11.1's own demo-path run shows it first
 - 2026-10-28T14:12:56Z occurrence=8-6-reminders-through-the-chat-on-the-demo-path by=cr note=also:_11.1's_step-4_check_'the_reminder_lands_in_the_chat_and_on_the_phone_during_the_wait'_needs_03's_afterAll_cancel_(ReminderFixture.CancelPending)_dropped_or_moved;_today_the_hand-off_is_written_only_in_spec-8-6
+- 2026-10-31T13:32:52Z status=resolved-by:11-1-the-web-demo-path-passes-end-to-end-in-the-rel-2-test by=adjudication note=AC2: 03-reminder.spec.ts finds step 2 as upcoming or current and no longer cancels the reminder (ReminderFixture.CancelPending removed)
 
 ### DW-349: Specs that seed a production check row with no NextDueAt can have it run by a real heartbeat tick since Story 5.6 (the minute task, or a fixture calling HeartbeatTask), which overwrites its last run, result and finding: a Last-run assertion can flake
 - source: spec-8-2-the-heartbeat-stalled-warning-comes-from-the-real-heartbeat.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -2207,6 +2232,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-30T10:50:46Z occurrence=9-6-incident-cases-are-diagnosed-through-incidentmanager-and-rea by=cr note=sibling Test.Live.GuideRefresh.TestHeldLockCallerWait seeds Fixture.Check with no NextDueAt, asserts seq=1; status_unchanged
 - 2026-10-31T07:36:27Z occurrence=29-9-epic-29-burn-down note=CI run 41178903176 attempt 1 (OCT-epic29 b8090784, bookkeeping over e7a5bb94's green code): iris image shard:lane-b Test.Web.GuideApi TestOnlyTheMarkerChanges (Fixture.Check's seeded row run by a real tick between the two fingerprints) and iris browser live:sign-in session.spec.ts S1 (the rail row gained a finding); superseded by the Epic 9 integrate-forward head, not rerun
 - 2026-10-31T08:07:39Z occurrence=29-9-epic-29-burn-down note=CI run 41181446111 attempt 1 (OCT-epic29 13e56475, Epic 9 integrate-forward): iris browser live:sign-in banners.spec.ts B2 'Last run 13:19 · No read access to its namespace' (seeded check row run by a real tick); flake class, one rerun
+- 2026-10-31T13:32:52Z status=resolved-by:11-1-the-web-demo-path-passes-end-to-end-in-the-rel-2-test by=adjudication note=AC9: Test.Data.Fixture.Check seeds NextDueAt an hour ahead when the caller passes none, so a heartbeat tick never runs a seeded row; Test.Data.FixtureDefaults pins it
 - 2026-10-31T11:20:46Z occurrence=10-4-the-readme-opens-with-what-ocutalon-is-for-and-what-a-model by=ci note=CI run 41192152812 attempt 1 (OCT-epic10 192f60c3, Epic 10's final integrate-forward of feature 366a79ab; code = feature + README/test-readme only), iris (shards), live:floor web/e2e/floor/focus.spec.ts:209 P4: the seeded check row read 'No read access to its namespace' (run by a real heartbeat tick) before the republish assertion; floor/focus is on DW-349's list; flake class, one rerun (attempt 2 green); status_unchanged routed owner=11-1
 - 2026-11-01T08:53:30Z occurrence=4-8-step-3-of-the-guide-points-to-break-the-feed-without-a-secon note=implement_live_sign-in_part1_B2_red_then_unchanged_rerun_green
 - 2026-11-02T05:12:28Z occurrence=30-5-mixed-and-unfinished-resends-say-how-far-they-got note=CI_run_41389356450_head_dd8ccfd4:live:sign-in_banners.spec.ts:439_B7_late_mark_overwritten(Last_run_10:17_No_read_access)_also_seen_at_a0a32cf9(sign-in_heartbeat-stalled_mark);one_rerun
@@ -2214,11 +2240,14 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-02T07:15:49Z status=routed owner=11-1-the-web-demo-path-passes-end-to-end-in-the-rel-2-test by=merge_gate note=correction:previous_trailer's_status/owner_were_an_error;routing_to_11.1_unchanged(occurrence_81f230eb_recorded_above)
 - 2026-11-02T12:40:53Z occurrence=30-1-long-conversations-are-compacted-under-the-limit by=ci note=CI_run_41442099518_job_125266219466(iris_browser,live:sign-in):banners.spec.ts:439_B7_expected_'Last_run_15:30_(late)_·_Passed'_received_'Last_run_17:49_(late)_·_No_read_access_to_its_namespace';head_9cb51f7e;30.1_touches_no_Checks_or_web_code;one_rerun
 - 2026-11-02T13:11:45Z occurrence=30-1-long-conversations-are-compacted-under-the-limit by=ci note=rerun_attempt_2_of_41442099518(job_125282252713):banners.spec.ts:215_B2_expected_'Last_run_15:30_·_Passed'_received_'Last_run_18:23_·_No_read_access_to_its_namespace';same_root_cause(seeded_check_runs_for_real);orchestrator_ruling_2026-11-02T11:26Z:DW-349_reds_are_flake_occurrences;fix_in_Epic_11_part_1
+- 2026-11-02T11:31:04Z owner=11-19-seeded-check-rows-stay-out-of-the-heartbeat-s-way-unless-a-c by=runner note=fix-forward story 11.19 (orchestrator ruling with the Contest Planner, 2026-11-02): lands the not-due seed default with Epic 11 part 1
+- 2026-11-02T12:36:57Z status=resolved-by:11-19-seeded-check-rows-stay-out-of-the-heartbeat-s-way-unless-a-c by=adjudication note=Story 11.1's Fixture.Check default (NextDueAt now+CHECKAHEAD, pinned by Test.Data.FixtureDefaults.TestCheckIsNotDue) covers every seeding path (11.19 Task 0: seedCheck callers, seedFullPage, session's direct calls; no bypass); 11.19 pins the web side (web/scripts/check-seeds.test.mjs: seedCheck adds no due time, empty nextDueAt only with a real-watch comment, no other row store); sign-in unit green in two parts; the integration branch gets the default when Epic 11 part 1 merges; residual: DW-583 (the overwrite cannot be made red on demand)
 
 ### DW-358: Live check of 'cancel all my reminders' with three or more reminders pending, on the online demo's model, effort and endpoint: the turn cancels every pending reminder within Chat's iteration ceiling (AD-20) through the multi-id cancel_reminder of DW-140, and the reply says so
 - source: U-118 (owner via the Contest Planner, 2026-10-27); filed at Epic 8's merge | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: DW-140's ceiling is unverified on a live model; U-118's answer (at=2026-10-27T11:31:36Z#355, placement amended by the Planner 2026-10-27T11:3xZ) gives this live check to 11.6 and the tool change to 11.1
 - 2026-10-28T16:26:29Z status=routed owner=11-6-a-hands-on-pass-with-real-keys-finds-and-fixes-what-the-test by=merge_gate note=routed by orchestrator at Epic 8's merge, U-118 (kept): 11.6's hands-on pass with real keys runs it; the fix itself is DW-140 in Story 11.1
+- 2026-10-31T09:29:35Z owner=38-1-a-hands-on-pass-with-real-keys-finds-and-fixes-what-the-test by=orchestrator note=U-189 at=2026-10-31T09:06:08Z#567 (option (a)): Story 11.6 moved whole to Story 38.1 in Epic 38, which gates the v0.1.0 tag
 
 ### DW-362: Story 9.2's repository check docker/tests/test-eval-set.sh (a Lane A check of eval/) sits in Lane B's docker/tests and Lane B's ci/units.sh CHECK_SCRIPTS line, outside AD-29's lane map
 - source: spec-9-2-each-run-scores-decisions-and-causes-and-records-cost-and-si.md | severity: med | fix-risk: med | footprint: in-story
@@ -2285,6 +2314,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-31T07:25:04Z status=routed owner=30-1-long-conversations-are-compacted-under-the-limit by=owner note=U-184_kept(#557):also_the_Anthropic_key(sk-ant-...)_and_the_Telegram_bot_token(digits:35-char),each_with_a_test,if_key_like_lacks_them
 - 2026-11-02T07:30:15Z status=routed owner=burndown by=spec_gate note=re-owned_to_the_burn-down_story_30.7(chartered_at_part_2's_gate):U-184's_kept_condition_unchanged(every_key_like_shape_incl_dop_v1_,PEM_private-key_headers,sk-ant-,Telegram_bot_token,one_test_each,before_1.0.0);reason:Bridge.Redact_work_is_outside_30.1's_compaction_intent(its_spec_declines_it),and_30.1_is_already_oversized
 - 2026-11-02T12:09:16Z owner=30-7-epic-30-burn-down by=burndown note=chartered_into_the_Epic_30_burn-down_story_30.7(part_2_gate);conditions_unchanged
+- 2026-11-02T16:32:22Z status=routed owner=burndown by=orchestrator note=U-184/U-185_kept_conditions_say_before_1.0.0:not_with_deferred_30.7;Epic_30_part_2_builds_it_as_fix-forward_30.8_at_the_resume
 
 ### DW-392: Ownership.Watchers (Lane B) does not skip a watch row of owner eval, so while an evaluation run's watch of a production exists, an instance incident of that production caused by another session's watch would list eval as a recipient (a Notification with SessionRef eval reaches Notify, which refuses it with a warning)
 - source: spec-9-8-a-stop-watching-injection-leaves-the-watch-unchanged.md | severity: low | fix-risk: med | footprint: out-of-footprint
@@ -2312,6 +2342,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Story 10.2 implement: HTTP 404 on the private repository; test-readme.sh checks anchors against its own slug rule (Design Note 8, inference until the page is public)
 - 2026-10-28T18:29:41Z status=routed owner=11-4-the-release-gets-draft-notes-and-a-checklist by=harvest note=release checklist item: open README_URL and every README anchor on the public repository page; Story 31.3 repeats it for 1.0.0
 - 2026-10-28T19:29:24Z note=measured 2026-10-28 on OCT-epic10 dc4b73c via the repository README render (application/vnd.github.html): all 22 GitHub heading ids equal test-readme.sh's slugs and every in-README anchor resolves; the residual is only opening README_URL and the clone URL once the repository is public
+- 2026-11-01T23:58:04Z status=resolved-by:11-4-the-release-gets-draft-notes-and-a-checklist by=adjudication note=142c6a3e: release/checklist.sh row readme runs test-readme.sh's offline link, anchor and heading-slug rules (no network), and the author row public-links asks for the recheck on the public page and the clone command at every candidate; the repository is public since 2026-10-31
 
 ### DW-360: The README's LAN warning names the default IRIS accounts' passwords but gives steps only for the README account
 - source: spec-10-2-the-readme-gets-a-judge-from-download-to-sign-in.md | severity: med | fix-risk: low | footprint: in-story
@@ -2355,11 +2386,14 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-29T01:11:55Z owner=11-1-the-web-demo-path-passes-end-to-end-in-the-rel-2-test by=burndown note=Epic 10 burn-down overflow: the release-1 flake class beside DW-349 (a fixed wait on a heartbeat-driven run); 11.1 gates REL-2 on a green CI, so it fixes the RunNow wait or ledgers the rerun rule
 - 2026-10-30T15:56:40Z occurrence=30-2-old-messages-and-records-are-purged-on-schedule
 - 2026-10-30T16:58:58Z occurrence=29-5-the-address-counter-s-hash-is-keyed-per-reset note=CI run 41088697760 (OCT-epic29 511f1b03, iris image, shard lane-b): Test.Schedule.Heartbeat TestStoppedThenStarted 'the task ran while the production was stopped' (197 s); flake class, one rerun
+- 2026-10-31T09:29:36Z owner=11-9-every-check-left-off-for-release-1-turns-on-and-the-ci-flake by=spec_gate note=Story 11.1 split at its plan (unattended ruling, decide): moved to Story 11.9 with the checks left off and the CI flakes
+- 2026-11-01T03:59:33Z status=resolved-by:11-9-every-check-left-off-for-release-1-turns-on-and-the-ci-flake by=adjudication note=2da3f0ba: Schedule/HeartbeatIn.cls wakes the Task Manager (RunNow) and Test/Schedule/Heartbeat.cls waits RUNNOWSECONDS for the History row (AC9); QA mutation RUNNOWSECONDS=0 turned TestStoppedThenStarted red
 
 ### DW-378: Tagline: replace 'An OpenClaw-style assistant for InterSystems IRIS.' with 'An AI assistant for InterSystems IRIS.' in the About dialog and the tests that pin it; the not-affiliated note stays verbatim
 - source: owner decision 2026-10-29 (relayed by the Contest Planner) | severity: high | fix-risk: low | footprint: out-of-footprint
 - evidence: web/src/app/about/about-dialog.ts:26; web/e2e/frame/frame.spec.ts:250,260; web/scripts/ux-strings.test.mjs:272; planning text already amended (epics.md UX-DR16 and the About criterion, EXPERIENCE.md, prd.md, brief.md)
 - 2026-10-29T02:23:36Z status=routed owner=16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi by=owner note=owner: 'I don't want to infrenge on openClaw...' and 'Okay, let's go with A'; must be in before the 0.1.0 candidate is cut (the owner records the video on 0.1.1); docker/tests/test-readme.sh's 'OpenClaw outside the note' fixture stays (it proves the check)
+- 2026-10-31T07:31:51Z status=resolved-by:16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi by=x0 note=re-recorded: Story 16.4's adjudication trailer (2026-10-29T10:36:25Z, about-dialog.ts:26 reads 'An AI assistant for InterSystems IRIS.'; git grep finds no 'OpenClaw-style' outside test-readme.sh's negative fixture) landed under DW-415's heading in a union merge
 - 2026-10-31T20:50:43Z status=resolved-by:16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi by=burndown note=delivered by Story 16.4's commit 70350415: web/src/app/about/about-dialog.ts:26 reads 'An AI assistant for InterSystems IRIS.', pinned by web/e2e/frame/frame.spec.ts:253,263 and web/scripts/ux-strings.test.mjs:282; the entry was never adjudicated
 
 ### DW-399: Test.Fix.Stopped asserts that OrdersFromPartner starts again within WAITSECONDS - 10 (50) seconds of R1's ResentAt, which a slow CI runner could miss
@@ -2408,6 +2442,9 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-29T10:36:25Z status=resolved-by:16-4-leaving-the-page-frees-its-place-and-sign-out-ends-the-sessi by=adjudication note=about-dialog.ts:26 'An AI assistant for InterSystems IRIS.'; frame.spec.ts F6 and ux-strings.test.mjs pin it; the not-affiliated note verbatim (about-dialog.ts:42); no 'OpenClaw-style' left outside test-readme.sh's fixture (owner decision 2026-10-29)
 - 2026-10-31T04:11:24Z occurrence=29-8-the-author-s-load-run-measures-the-demo-s-capacity note=CI run 41165190685 attempt 1 (OCT-epic29 61bb996d, iris shards, live:floor): keyboard.spec.ts K2 page.goto net::ERR_NETWORK_CHANGED at sign-in/helpers.ts:44; no assertion failed
 - 2026-10-31T04:11:25Z status=routed owner=11-1-the-web-demo-path-passes-end-to-end-in-the-rel-2-test by=runner note=reopen_if fired (ERR_NETWORK_CHANGED again in an iris job log); the fix site is the shared sign-in helper, which Story 29.9's boundaries exclude; routed to the CI e2e flake owner beside DW-349 (a retry of page.goto on net::ERR_NETWORK_CHANGED only, or a Chromium launch option, is the candidate)
+- 2026-10-31T09:29:36Z owner=11-9-every-check-left-off-for-release-1-turns-on-and-the-ci-flake by=spec_gate note=Story 11.1 split at its plan (unattended ruling, decide): moved to Story 11.9 with the checks left off and the CI flakes
+- 2026-11-01T03:59:33Z status=resolved-by:11-9-every-check-left-off-for-release-1-turns-on-and-the-ci-flake by=adjudication note=2da3f0ba: web/e2e/support/navigate.ts gotoSettled retries a page.goto that hits net::ERR_NETWORK_CHANGED, used by fillSignIn (sign-in/helpers.ts:44, the site that fired), openTrace and the online helpers (AC11; goto-settled.test.mjs; QA mutation red); the other direct page.goto calls stay as declined at the spec gate; reopen_if=net::ERR_NETWORK_CHANGED fails a run at a direct page.goto call
+- 2026-11-02T00:28:56Z occurrence=11-4-the-release-gets-draft-notes-and-a-checklist note=reopen_if fired in another message shape: CI run 41364655268 (dea3f6dd) live:demo-path sign-in goto interrupted by chrome-error://chromewebdata/; the gap is filed as DW-555
 - 2026-10-31T20:23:20Z occurrence=16-11-the-splash-promises-telegram-only-when-the-release-includes note=CI run 41236053364 attempt 1 (OCT-epic16 29835de9, iris shards, live:online-session): e2e-online/session/leave.spec.ts:104 L2 page.goto net::ERR_NETWORK_CHANGED; rerun of the failed job requested
 
 ### DW-387: flake: Test.Core.SessionOpsProduction TestPageUnpairSendsTheNotice and TestRejectedPairsAreAudited fail 'one Pairing entry names the session' on a warm stack (AuditLog.Now() mark may share a stamp with the previous linked entry, so the wait returns two entries)
@@ -2442,6 +2479,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: CI run 40893085769 attempt 1 (8a89586): FAIL missing /^LOCK waiting: warm-iris is held by /; green on the unchanged rerun (attempt 2)
 - 2026-10-29T15:14:20Z status=routed owner=burndown by=ci note=flake routed to the burn-down with priority; the test's 1 s wait leaves no room for the waiting line on a slow host
 - 2026-10-30T02:55:13Z owner=11-1-the-web-demo-path-passes-end-to-end-in-the-rel-2-test by=burndown note=overflow(Epic_16_burn-down):docker/tests/test-ci-warm.sh_(Story_32.4)_waits_1_s_for_the_LOCK_waiting_line_beside_a_held_warm-iris.lock;give_it_room_on_a_slow_host;11.1_owns_the_CI_flakes_that_block_REL-2s_green_(DW-349,DW-376);the_file_is_on_Epic_7s_branch_(DW-337),so_after_Epic_7_merges
+- 2026-10-31T09:29:36Z owner=11-9-every-check-left-off-for-release-1-turns-on-and-the-ci-flake by=spec_gate note=Story 11.1 split at its plan (unattended ruling, decide): moved to Story 11.9 with the checks left off and the CI flakes
+- 2026-11-01T03:59:33Z status=resolved-by:11-9-every-check-left-off-for-release-1-turns-on-and-the-ci-flake by=adjudication note=2da3f0ba: docker/tests/test-ci-warm.sh gives the LOCK waiting line room on a slow first lock try (AC10); QA mutation with OCUTALON_LOCK_WAIT=1 turned 2 checks red
 
 ### DW-398: Core/NoticesIn.cls's class comment still calls Story 16.9's daily-cap message a sender to come; BridgeSink sends it now (comment only)
 - source: spec-16-9-allowances-cap-messages-model-cost-and-simulated-emails.md | severity: low | fix-risk: low | footprint: in-story
@@ -2509,6 +2548,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: the Planner saw a bare model-written time in a reply on the gated host; the agent's input preamble names the zone (Agent/Input.cls) but no instruction asks for the ET suffix on the online demo
 - 2026-10-30T04:25:44Z status=routed owner=burndown by=runner note=raised from the Planner's LOW: every judge reads model-written times on the online demo; the likely fix is one online-demo instruction line (Agent/Chat.cls or Agent/Input.cls, Lane A files outside Epic 29's footprint); runner C ruling 2026-10-30: not Story 29.3's goal, decided at Epic 29's burn-down gate
 - 2026-10-31T03:39:09Z owner=11-6-a-hands-on-pass-with-real-keys-finds-and-fixes-what-the-test by=burndown note=overflow: model-written times are real-model behaviour that Story 11.6's hands-on pass with real keys finds and fixes (an online-demo instruction line in Lane A's agent classes)
+- 2026-11-02T11:13:19Z owner=burndown by=load note=owner_unresolved: 11-6 was retired (its hands-on pass is Story 38.1, which this branch's tracker does not carry); kept for Epic 11 part 2's burn-down gate or the orchestrator's routing to 38.1
+- 2026-11-02T11:13:19Z owner=burndown by=burndown note=Epic 11 part 1 burn-down (owner trim): no charter (2 story-closable entries plus this repaired owner, under the cap, no repeat occurrences); kept for Epic 11 part 2's burn-down gate, as Epic 30 part 1 did; flakes with priority
 - 2026-11-02T03:00:06Z occurrence=30-5-mixed-and-unfinished-resends-say-how-far-they-got by=cr note=WatchAnswers.cls:120_since_and_:268_checked_give_the_model_ForMessage_with_no_ET_on_the_online_demo;30.5_moved_RecentActivity,Answer,Listed_to_CommandCall.TimeLabel
 
 ### DW-418: An online-demo start whose OCUTALON_CONNECTION_RESERVE is not below OCUTALON_CONNECTION_CAP leaves IRIS never ready without a clear start-up error
@@ -2587,6 +2628,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-02T07:15:31Z status=routed owner=burndown by=merge_gate note=Epic_30_part_1_decision_sheet,veto:purge_Turn,Delivery,Session_on_the_same_90-day_cut_as_their_Decision_and_Usage_rows(AD-27_retention_extension,marker+lint),one_test_that_TurnCost_and_ShownDecisionRef_never_read_a_purged_turn;Epic_30_part_2_burn-down(30.7)
 - 2026-11-02T07:16:07Z status=routed owner=burndown by=merge_gate note=veto_U-210
 - 2026-11-02T12:09:16Z owner=30-7-epic-30-burn-down by=burndown note=chartered_into_the_Epic_30_burn-down_story_30.7(part_2_gate);conditions_unchanged
+- 2026-11-02T14:56:21Z status=routed owner=burndown by=owner note=U-218_condition_2_(Planner_2026-11-02):30.7's_purge_must_cover_Delivery.Text_on_Telegram_rows_with_buttons(Story_12.7);1.0.0_has_no_Delivery_purge(accepted:redacted,no_chat_id,demo_wipes_every_4h);30.7_deferred_after_the_tag(d1)
 
 ### DW-438: The OcuTalon heartbeat task's description (Install.Step.Schedule, 124 characters) is stored cut at 100 characters, mid-sentence, in the Task Manager
 - source: spec-30-2-old-messages-and-records-are-purged-on-schedule.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -2728,6 +2770,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: 29.4 implement: the guide press got a text reply, no check row, and Break the feed answered 409; the second visitor sends [[mock:watch-start-orders]] instead (Decided in-stage 0)
 - 2026-10-30T13:10:06Z status=routed owner=burndown by=cr note=for UJ-1 step 2 under the mock (11.1's 02-watch and the online run's step 2); re-own to 11.1 at the burn-down
 - 2026-10-31T03:39:09Z owner=11-1-the-web-demo-path-passes-end-to-end-in-the-rel-2-test by=burndown note=overflow: the mock's guide-watch reply starting no watch blocks UJ-1 step 2 under the mock; Story 11.1 turns the demo path's steps 2-5 on
+- 2026-10-31T09:29:35Z owner=11-7-the-demo-path-s-failure-paths-quiet-outcomes-and-online-run by=spec_gate note=Story 11.1 split at its plan (unattended ruling, decide): moved to Story 11.7 with the failure paths, the coda and the online run
+- 2026-10-31T21:38:57Z status=resolved-by:11-7-the-demo-path-s-failure-paths-quiet-outcomes-and-online-run by=adjudication note=B/guide-watch.json (mockkey chat) calls start_watch, so the guide's own Send starts the watch and the Orders check row appears on the mock (live demo-path 02)
 
 ### DW-441: The address key and every counter row's hash are also written to the private database's journal while the instance runs
 - source: spec-29-5-the-address-counter-s-hash-is-keyed-per-reset.md | severity: low | fix-risk: high | footprint: in-story
@@ -2744,6 +2788,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: docker/probe.sh run_checks matches only daily_cap, no_key, timeout and rate_limited; Decide.Classify gives error to a failure without the cap, key, timeout or rate-limit text (a 401, a 500); H12: the host's IRIS holds a dummy key, so no_key needs a broken deploy; Story 29.6's So that: a demo whose replies are all fallbacks never reports healthy
 - 2026-10-30T19:11:36Z status=decision-pending owner=burndown by=cr note=product call: should error also be degraded (alert-only)? U-157 named three; recommended: yes, like the three
 - 2026-10-31T09:02:42Z status=routed owner=31-4-the-paired-chat-stays-isolated-under-load-too by=merge_gate note=veto_U-187:error_counts_as_degraded(alert_only,not_toward_the_reset),like_U-157's_three;with_a_probe_test
+- 2026-11-02T14:55:52Z status=routed owner=31-4-the-paired-chat-stays-isolated-under-load-too by=owner note=31.4_deferred_after_the_v1.0.0_tag(owner:Move_it_after_the_tag);first_daily_release
 
 ### DW-447: AD-25's probe bullet lists the outcomes busy, capped, auth_failed and no_decision, but the probe also has no_splash (Story 16.6) and degraded (Story 29.6, epic29_brief), and the spine does not record them
 - source: spec-29-6-the-probe-alerts-when-every-turn-falls-back.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -2800,6 +2845,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-31T07:25:04Z status=routed owner=30-1-long-conversations-are-compacted-under-the-limit by=owner note=U-185_kept(#558):a_wontfix-accepted_close_of_the_compressed/split-chunk_half_records_the_evidence(throwaway_build,message_class,what_was_stored);the_key_proof_otherwise_unchanged
 - 2026-11-02T07:30:16Z status=routed owner=burndown by=spec_gate note=re-owned_to_the_burn-down_story_30.7(chartered_at_part_2's_gate):U-185's_kept_condition_unchanged(decode_$List_elements_in_Test.Eval.KeyProof_Walk;measure_compressed/split_%Stream.Global*_chunks_on_a_throwaway;a_wontfix_close_of_that_half_records_the_evidence);reason:key-proof_work_is_outside_30.1's_compaction_intent,and_30.1_is_already_oversized
 - 2026-11-02T12:09:16Z owner=30-7-epic-30-burn-down by=burndown note=chartered_into_the_Epic_30_burn-down_story_30.7(part_2_gate);conditions_unchanged
+- 2026-11-02T16:32:22Z status=routed owner=burndown by=orchestrator note=U-184/U-185_kept_conditions_say_before_1.0.0:not_with_deferred_30.7;Epic_30_part_2_builds_it_as_fix-forward_30.8_at_the_resume
 
 ### DW-449: project_leftovers puts the eval harness's container listing (docker ps -a, docker volume ls) in docker/tests/lib-keys.sh, a third library beside ci/iris.sh and lib-live.sh that the eval-scripts rule does not cover, and repeats cmd_teardown's name listing with its own matching
 - source: spec-9-10-the-release-candidate-run-proves-the-key-leaks-nowhere-and-g.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -2815,7 +2861,17 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: orchestrator: Epic 9 decision sheet (DW-448 split, veto U-185) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Test.Web.SessionEvents.ReferenceHits mirrors Test.Eval.KeyProof Walk (DW-448's evidence)
 - 2026-10-31T07:17:56Z status=routed owner=31-4-the-paired-chat-stays-isolated-under-load-too by=merge_gate note=Lane_B_half_of_DW-448;after_Story_30.1_settles_the_decode;veto_U-185
+- 2026-11-02T14:55:52Z status=routed owner=31-4-the-paired-chat-stays-isolated-under-load-too by=owner note=31.4_deferred_after_the_v1.0.0_tag(owner:Move_it_after_the_tag);first_daily_release
 
+### DW-478: Session.Hash's doc comment names only the resume reference and a client address as forms stored with it; Pairing.HashCode now stores pairing-code hashes through it
+- source: spec-11-0-epic-10-deferred-cleanup.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: Session.cls:120-121 reads 'the form in which the resume reference and a client address are stored'; since Story 11.0 Pairing.HashCode quits Session.Hash(code)
+- 2026-10-31T08:21:19Z status=by-design owner=11-0-epic-10-deferred-cleanup by=cr note=spec Never list forbids changing Session or its doc comment; TestHashCodeVectors goes red on any change of the form
+
+### DW-479: Thirteen test classes read a method's source with their own copy of the Implementation.Rewind / Read(30000) / AtEnd loop; no shared helper exists
+- source: spec-11-0-epic-10-deferred-cleanup.md | severity: low | fix-risk: med | footprint: in-epic
+- evidence: grep -rl 'Implementation.Rewind' src/ lists 13 Test classes (WebChatMessages, PairingRows, Bridge.Approval, Core.Intake, ...); Story 11.0 added PairingRows' copy
+- 2026-10-31T08:21:23Z status=wontfix-accepted owner=11-0-epic-10-deferred-cleanup by=cr note=reopen_if=grep -rl Implementation.Rewind src/ocutalon/cls/OcuTalon/Test lists over 13 files, or one copy gets a fix the rest lack
 ### DW-483: Decide falls back on the first invalid reply; one retry on an invalid reply (with the check's own error text in the retry) could recover a correct-but-malformed diagnosis, within NFR-7's diagnosis budget
 - source: orchestrator: launch-risk hotfix Story 5.12 (Contest Planner: not now, a measured follow-up in Epic 30) | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: host Decision rows since the 11:36Z reset on fe1d81e2: diagnose 1 invalid of 9, decide 0 of 10, turn 0 of 10; Story 5.12 removes the one observed cause
@@ -2844,7 +2900,207 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: Contest Planner: demo host pass on fe1d81e2, 2026-10-31 (host filter fixed host-side: on a decoded route ending in /%csp.broker.cls it also admits ^W(ARGC|EVENT|ARG_[0-9]{1,3})$) | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: Visual Trace drew but every message click showed IRIS's 'error while loading this page' with empty Header, Body and Contents; after the host fix run 1 is 110/110 and the Header pane fills at a full house of six
 - 2026-10-31T12:04:51Z status=routed owner=31-4-the-paired-chat-stays-isolated-under-load-too by=orchestrator note=also_check_that_the_repo's_proxy_stand-in(Story_29.3)_admits_the_broker-path_hyperevent_fields,and_record_the_allowance_as_built_beside_AD-25's_sign-in_rule
+- 2026-11-02T14:55:52Z status=routed owner=31-4-the-paired-chat-stays-isolated-under-load-too by=owner note=31.4_deferred_after_the_v1.0.0_tag(owner:Move_it_after_the_tag);first_daily_release
 
+### DW-495: Test.Bridge.Gate's untrusted-turn row still calls cancel_reminder with {"reminderRef":"x"}, which now answers BADREFS before CommandCall.Run, so the row's 'its method did not run' check (CommandCount '= 0) can no longer fail for cancel_reminder
+- source: spec-11-8-the-chat-cancels-several-reminders-in-one-call-and-says-it-c.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Test/Bridge/Gate.cls:1764 passes the old key; RunDenied (Gate.cls:2235) detects a built-in tool's run only by CommandCount; ReminderTools.CancelReminder answers BADREFS for a missing reminderRefs without calling Run (TestCancelThroughTheToolManager pins {} as BADREFS with nothing recorded)
+- 2026-10-31T15:54:05Z status=escalated owner=burndown by=cr note=fix is one argument in Epic 30's contended Gate.cls:1764 -> {"reminderRefs":["x"]}; route to the Epic 30 story that next touches Gate.cls
+- 2026-11-02T13:18:40Z status=routed owner=burndown by=merge_gate note=Epic_30_part_2_burn-down(30.7):Test.Bridge.Gate_untrusted-turn_row_sends_reminderRefs(the_Gate_test_owner)
+
+### DW-496: AD-1's Rule says a tool command's IdempotencyKey is the turn's ItemId plus the tool call's position, but the build keys each command at its command position (CommandCall.Run, CommandCount + 1), and U-118's several-ref cancel_reminder gives one tool call the keys :2, :3 and :4
+- source: spec-11-8-the-chat-cancels-several-reminders-in-one-call-and-says-it-c.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: ARCHITECTURE-SPINE.md AD-1 Rule (parenthetical); src/ocutalon/cls/OcuTalon/Tools/CommandCall.cls:41-44; TestCancelAllThroughChat asserts :2, :3, :4 for one call; a literal reading would make ReminderOps refuse refs 2 and 3 as reused_key
+- 2026-10-31T15:54:12Z status=escalated owner=burndown by=cr note=as-built AD-1 wording needed: the command's position in the turn (U-118); an AD amendment is a veto item for the lead (Rule 20)
+- 2026-11-02T13:18:26Z status=resolved-by:orchestrator by=merge_gate note=AD-1_amended_as-built(command_position;marker+lint);veto_U-215
+
+### DW-509: The demo-path key guard (refuseOnRealModel) sits in the shared pointKeys/restoreKeys of web/e2e/support/devices.ts, so OCUTALON_DEMO_PATH_MODEL=real exported for a wider run makes reminder/chat.spec.ts and demo-switch/mailbox.spec.ts throw
+- source: spec-11-7-the-demo-path-s-failure-paths-quiet-outcomes-and-online-run.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: devices.ts:176-179 reads the variable for every caller; reminder/chat.spec.ts:46,75 and demo-switch/mailbox.spec.ts:36,43 call the helpers unconditionally; only live:demo-path sets it (test-demo-path.sh), and the online unit pins mock since this review. A move of the guard into the demo-path specs is about 20 lines.
+- 2026-10-31T21:36:24Z status=wontfix-accepted owner=11-7-the-demo-path-s-failure-paths-quiet-outcomes-and-online-run by=cr note=reopen_if=a unit other than live:demo-path fails with 'the specs never point the runners keys on the real model'
+
+### DW-510: The real-mode shape checks of the demo-path step functions are the spec's and unproven against the real model: the item noun is \S+, so a multi-word itemNoun fails the headline and the band, and 04's real landing check takes every button-less phone note
+- source: spec-11-7-the-demo-path-s-failure-paths-quiet-outcomes-and-online-run.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: web/e2e/support/demo-path.ts:154-156 and :247 match the noun as \S+ (DW-270: itemNoun comes from the diagnosis); web/e2e/demo-path/04-incident.spec.ts:90 filters phone notes with hasNot a button on real; the spec's Tasks fix these shapes, and real is never run in this story.
+- 2026-10-31T21:36:29Z status=by-design owner=11-7-the-demo-path-s-failure-paths-quiet-outcomes-and-online-run by=cr note=spec-bound (Tasks: real-mode shapes); reopens by amendment if Story 11.3's first real rehearsal goes red on a shape
+
+### DW-522: 07 and 08 run once per install: a second run of the demo path on one install (Story 11.12's N runs) finds 07's replay request still pending (Break the feed refused) and 08's samples already in the mailbox
+- source: spec-11-10-the-demo-path-s-failure-paths-and-quiet-outcomes-pass-in-the.md | severity: med | fix-risk: med | footprint: in-epic
+- evidence: 07's replay test leaves its incident Open with a pending request; 08 asserts toHaveCount(1) on each sample row and looks up mailOutcome by sender only, so run 2 on one install goes red
+- 2026-11-01T07:48:26Z status=routed owner=11-12-the-rehearsal-runner-repeats-the-demo-path-n-times-with-run by=cr note=11.12 decides which specs repeat: clear the replay (reject or dismiss) and key 08 to its own run, or run 07/08 once
+- 2026-11-01T21:20:37Z status=resolved-by:11-12-the-rehearsal-runner-repeats-the-demo-path-n-times-with-run by=adjudication note=69b8bdce: rehearsal run 2 rejects and dismisses the replay request 07 leaves pending and each repeat keys its counts to its own run (web/e2e-rehearsal/repeat.spec.ts); lead smoke --runs 3 on one install: runs 1-3 passed
+
+### DW-523: AC5's 'never which outcome' on the real model is not falsifiable on the CI mock: the real-mode dry run gets the mock's same Ignore and Digest answers, so an unguarded outcome check would stay green
+- source: spec-11-10-the-demo-path-s-failure-paths-and-quiet-outcomes-pass-in-the.md | severity: low | fix-risk: high | footprint: in-story
+- evidence: Every outcome and mock-reason check in 07 and 08 sits behind ON_MOCK (read at review); the dry run and the 07 count pin cannot see an unguarded one
+- 2026-11-01T07:48:26Z status=wontfix-accepted owner=11-10-the-demo-path-s-failure-paths-and-quiet-outcomes-pass-in-the by=cr note=reopen_if=a real-model REL-2 run (Story 38.1 or 38.2) goes red on an outcome or a mock-reason assertion in 07 or 08
+
+### DW-525: Upgrade harness cannot observe Install.Step.Schedule's Reminder.Reconcile: a clean in-place upgrade and docker compose restart keep every ReminderTimer waiter, so the step has nothing to re-arm (planned mutation 3 stayed green)
+- source: spec-11-2-upgrades-and-restarts-keep-every-record-working.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: Run M: Reconcile mutated to return OK; R2 kept one waiting ReminderTimer and R1 fired on time; Reconcile is pinned by Test.Schedule.Reminders TestReconcileRearmsOnlyLostWaiters
+- 2026-11-01T11:06:24Z status=wontfix-theoretical owner=11-2-upgrades-and-restarts-keep-every-record-working by=harvest note=Reconcile's re-arm is pinned by Test.Schedule.Reminders; real if an in-place upgrade or a restart ever loses a ReminderTimer waiter (then the harness's reminder rows go red)
+- 2026-11-01T11:43:48Z occurrence=11-2-upgrades-and-restarts-keep-every-record-working
+
+### DW-526: test-storage.sh release_diff reads the committed HEAD, so a rehearsal's uncommitted storage change passes release-diff (the harness's own storage compare still catches it)
+- source: spec-11-2-upgrades-and-restarts-keep-every-record-working.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Run M: renaming Eval.Data.CaseResult DecidedAt in the working tree gave storage_compare MISSING but PASS release-diff
+- 2026-11-01T11:06:24Z status=wontfix-accepted owner=11-2-upgrades-and-restarts-keep-every-record-working by=harvest note=reopen_if=a storage-slot change reaches a candidate commit with test-storage.sh release-diff green
+- 2026-11-01T11:43:48Z occurrence=11-2-upgrades-and-restarts-keep-every-record-working
+
+### DW-529: Branch protection on main is not set (404 'Branch not protected') although the repository went public on 2026-10-31: the owner sets it with the ci.yml and lane-a.yml checks required, and decides how fork pull requests are kept from merging without a demo-path run (a job skipped by its own if: shows as a successful check; a rule that only release pull requests merge into main closes the gap)
+- source: spec-11-5-one-scripted-sequence-cuts-a-release.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: gh api repos/jbrandtmse/OcuTalon/branches/main/protection -> 404 on 2026-11-01; DW-27's owner-only residual
+- 2026-11-01T12:24:37Z status=decision-pending owner=burndown by=spec_gate note=human=set branch protection on main (repository setting, owner-only); Story 11.16's merge step refuses until it is set
+- 2026-11-01T12:31:44Z status=dropped by=owner note=resolved_outside_the_build:branch_protection_set_2026-11-01T12:30Z_by_the_Contest_Planner(owner_approval_2026-10-25);12_required_checks(checks,web,install-macos,iris_(install-fresh|install-upgrade|production|browser|shards|shards-2|image),standalone-bridge,evaluation);not_an_action_item
+
+### DW-531: release/rehearse.sh tag_ok repeats lib-live's live_tag_ok and LIVE_TAG_RULE text (Rule 2 copy, weak reason: real mode sources no lib-live)
+- source: spec-11-3-the-clean-machine-rehearsal-installs-and-times-the-demo-path.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: release/rehearse.sh tag_ok (5 lines) and its refusal text equal docker/tests/lib-live.sh live_tag_ok and LIVE_TAG_RULE; the spec limits rehearse.sh to sourcing lib-release.sh, lib-keys.sh and (dry only) ci/iris.sh
+- 2026-11-01T14:31:18Z status=wontfix-accepted owner=11-3-the-clean-machine-rehearsal-installs-and-times-the-demo-path by=cr note=reopen_if=LIVE_TAG_RULE or live_tag_ok in docker/tests/lib-live.sh changes and rehearse.sh tag_ok does not
+
+### DW-532: After 1.0.0's merge back, the built web bundle in src/ocutalon/csp/ (gitignored today) is tracked on the integration branch, as Story 11.5's merge-back criterion and AD-29 require; from then on every local web build (ci/iris.sh build) rewrites tracked files and leaves the tree dirty, which trips release.sh's clean-tree check at start and bmad-build-auto's clean-tree checks in every epic worktree
+- source: spec-11-16-the-sequence-asks-before-each-outward-step-after-the-gates.md | severity: med | fix-risk: high | footprint: out-of-footprint
+- evidence: web/package.json builds into src/ocutalon/csp/; .gitignore:28 ignores it; 11.16's merge back carries the bundle onto the integration branch
+- 2026-11-01T14:59:04Z status=escalated owner=burndown by=spec_gate note=for the decision sheet: e.g. build into a separate folder and copy at the cut, or untrack the bundle after the merge back; affects every epic after 1.0.0
+- 2026-11-02T13:18:26Z status=routed owner=11-16-the-sequence-asks-before-each-outward-step-after-the-gates by=merge_gate note=build_into_a_separate_folder,copy_in_only_at_the_cut;veto_U-216
+- 2026-11-02T13:25:27Z status=routed owner=11-16-the-sequence-asks-before-each-outward-step-after-the-gates by=owner note=U-216_kept:no_interim_git_checkout;the_Planner_untracks_src/ocutalon/csp_by_hand_at_each_merge-back_(git_rm_-r_--cached;.gitignore_covers_it)_until_11.16;Epic_38_reading_note
+
+### DW-533: The rehearsal collector finds the reminder's phone message by the reminder row's text and the result message by 'went through.'; measured on the CI mock only, so a different real-model rendering makes a run fail with a missing reminder_msg mark (never a false pass)
+- source: spec-11-11-the-rehearsal-runner-times-the-demo-path-and-checks-every-bo.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: release/rehearse.sh COLLECTOR; every match measured on the mock
+- 2026-11-01T16:45:52Z status=wontfix-accepted owner=11-11-the-rehearsal-runner-times-the-demo-path-and-checks-every-bo by=harvest note=reopen_if=Story 38.2's first real run (or 11.12's dry runs) reports a missing reminder_msg or result_msg mark
+
+### DW-534: The rehearsal collector's queries and the page-mark probes (the strip's .reason count, the newest reply's .text, 'Approved from the simulated phone at') run only in the manual live dry run; no CI unit executes them, so a schema, message-body or wording change breaks the rehearsal's marks unseen until a dry run
+- source: spec-11-11-the-rehearsal-runner-times-the-demo-path-and-checks-every-bo.md | severity: med | fix-risk: med | footprint: in-epic
+- evidence: every hermetic test answers the collector with a canned file; CI browser units run with OCUTALON_E2E_MARKS unset
+- 2026-11-01T16:45:52Z status=routed owner=11-12-the-rehearsal-runner-repeats-the-demo-path-n-times-with-run by=harvest note=11.12 drives N runs through the same collector and marks: give them a check that runs where a change would show (within the CI budget), or ledger why not
+- 2026-11-01T20:58:12Z occurrence=11-12-the-rehearsal-runner-repeats-the-demo-path-n-times-with-run by=cr note=code review: the collector's tell-now query and its Fallback=1 to fallback mapping are pinned by name and source text only; first executed on Fallback=1 at 38.2
+- 2026-11-01T21:20:37Z status=resolved-by:11-12-the-rehearsal-runner-repeats-the-demo-path-n-times-with-run by=adjudication note=69b8bdce: test-rehearsal.sh rule collector-names ties every name the collector reads to src/, and rehearsal-support.test.mjs ties each page probe to its source (hosted jobs, no CI unit); residual by design: the queries' meaning runs only in live dry runs and the rehearsal gate; reopen_if=a schema or wording change passes both static checks and breaks a dry run
+
+### DW-535: docker/tests/test-rehearsal.sh takes about 36 s alone (48 s inside ci/checks.sh) against the 5 to 10 s the CI note inferred
+- source: spec-11-11-the-rehearsal-runner-times-the-demo-path-and-checks-every-bo.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: stub installs, the 20-run states and the bounds rule run twice
+- 2026-11-01T16:45:52Z status=wontfix-accepted owner=11-11-the-rehearsal-runner-times-the-demo-path-and-checks-every-bo by=harvest note=reopen_if=the hosted checks job passes 10 minutes or the self-test passes 90 s
+- 2026-11-01T20:25:12Z occurrence=11-12-the-rehearsal-runner-repeats-the-demo-path-n-times-with-run note=test-rehearsal.sh now about 77 s alone (stub-runs 19, bounds 13, timed-runs 20, run-steps 14); sharing the 20-run states is the lever
+- 2026-11-01T20:58:12Z occurrence=11-12-the-rehearsal-runner-repeats-the-demo-path-n-times-with-run by=cr note=code review: test-rehearsal.sh 83 s alone after the review's added timed-runs case (one more stub install)
+
+### DW-537: rehearse.sh run (install, runs, report and down in one process) can pass the 10-minute call cap when the Playwright run reaches its 480 s timeout
+- source: spec-11-11-the-rehearsal-runner-times-the-demo-path-and-checks-every-bo.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: A dry install takes 88 to 112 s; with a timed-out Playwright run (480 s), the exec retries and down, one run call comes to about 620 s or more; the passing dry case is about 270 s.
+- 2026-11-01T17:45:39Z status=wontfix-accepted owner=11-11-the-rehearsal-runner-times-the-demo-path-and-checks-every-bo by=cr note=reopen_if=a dry rehearse.sh run call exceeds 600 s; each phase still fits its own call
+
+### DW-538: run --dry-run --plant <id> forwards the plant to report, but no test executes that forwarding (only install_args, the filter before install, is unit-tested)
+- source: spec-11-11-the-rehearsal-runner-times-the-demo-path-and-checks-every-bo.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: A dry run needs the IRIS stack, so the self-test cannot run cmd_run end to end; t_dry_report calls report --plant directly.
+- 2026-11-01T17:45:39Z status=wontfix-accepted owner=11-11-the-rehearsal-runner-times-the-demo-path-and-checks-every-bo by=cr note=reopen_if=a dry rehearse.sh run --plant pick-up exits 3 (dry run) instead of 1
+
+### DW-545: Rehearsal run 2 posts the run_again marker instead of pressing Run again: after 07's pending replay is rejected and its incident dismissed, the guide still holds run 1's opened trace, shows no finish and no Run again button, and reads step 5 (runs 3 and later press the button)
+- source: spec-11-12-the-rehearsal-runner-repeats-the-demo-path-n-times-with-run.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: live dry run e11s12d: run 2 failed at 'Step 3, Break the feed, current' with the guide on step 5; with the marker posted, runs 2 and 3 passed
+- 2026-11-01T20:25:12Z status=wontfix-accepted owner=11-12-the-rehearsal-runner-repeats-the-demo-path-n-times-with-run by=harvest note=reopen_if=a hands-on pass (Story 38.1) or a user finds no Run again after rejecting a replay and dismissing its incident
+- 2026-11-01T20:58:12Z occurrence=11-12-the-rehearsal-runner-repeats-the-demo-path-n-times-with-run by=cr note=code review: run 2 reaches step 3 only through the posted marker; the guide's step 5 with no link after Reject and Dismiss is a product guide behaviour
+
+### DW-546: The rehearsal repeat's real-model texts are unmeasured: the composer-sent watch and reminder prompts, the reminder notice card, the phone message without buttons, and the tell-now item's outcome; only the CI mock ran
+- source: spec-11-12-the-rehearsal-runner-repeats-the-demo-path-n-times-with-run.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: web/e2e-rehearsal/repeat.spec.ts, tell-now.spec.ts; Story 38.2's first real run confirms the shapes
+- 2026-11-01T20:25:12Z status=wontfix-accepted owner=11-12-the-rehearsal-runner-repeats-the-demo-path-n-times-with-run by=harvest note=reopen_if=Story 38.2's first real run (or 11.14's candidate gate) fails on one of these shapes
+
+### DW-547: web/e2e-online/demo-path/demo-path.spec.ts imports watchThroughGuide and approveOnPhone, which Story 11.12 changed; only the type check and ci/iris.sh live demo-path ran on them, not ci/iris.sh live online-demo-path
+- source: spec-11-12-the-rehearsal-runner-repeats-the-demo-path-n-times-with-run.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: both helpers keep their arguments and, with OCUTALON_E2E_MARKS unset, their behaviour
+- 2026-11-01T20:25:12Z status=open owner=11-12-the-rehearsal-runner-repeats-the-demo-path-n-times-with-run by=harvest note=the lead runs ci/iris.sh live online-demo-path on a fresh lane-A throwaway at smoke
+- 2026-11-01T20:58:13Z occurrence=11-12-the-rehearsal-runner-repeats-the-demo-path-n-times-with-run by=cr note=code review: still not run; approveOnPhone's result count before the press is 0 on the online run's first approval
+- 2026-11-01T21:20:37Z status=resolved-by:11-12-the-rehearsal-runner-repeats-the-demo-path-n-times-with-run by=adjudication note=lead ran ci/iris.sh live online-demo-path (all checks passed) and live demo-path (8 of 8, floor 7/7) on fresh lane-A stacks after the review patches
+
+### DW-548: Story 11.14's spec and epic-11-context.md still state rehearse.sh's pre-11.12 contract: 11.14 line 103 says 11.12 is not planned and the second runs exits 2 naming it; the context says the gate calls run --version --rc and accepts exit 0, but run now needs OCUTALON_RUN_TAG, does one phase per call and exits 4 until the last
+- source: spec-11-12-the-rehearsal-runner-repeats-the-demo-path-n-times-with-run.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: spec-11-14 :103 and :124-128 (exits 0,1,2,3,75; no exit 4, no --plant <id>@<run>); epic-11-context.md Release sequence line; release/rehearse.sh header and cmd_run now differ
+- 2026-11-01T20:58:12Z status=routed owner=11-14-the-release-sequence-runs-every-gate-on-the-pushed-candidate by=cr note=11.14's plan re-reads rehearse.sh's header (runs k, refusal beyond N, run exit 4, OCUTALON_RUN_TAG) before implementing its gate
+
+### DW-550: flake: live:cards web/e2e/cards/incident-card.spec.ts:454 I10 timed out (90 s) in loadedAfter's /state wait after sign-in (support/floor.ts:141); passed on an unchanged rerun
+- source: cycle-log-epic-11.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: CI run 41351529214 attempt 1 (OCT-epic11 1b0c0d39, iris install-upgrade, live:cards): 1 failed (I10, 1.5m); attempt 2 green; the spec imports no file Story 11.12 changed
+- 2026-11-01T22:44:24Z status=routed owner=burndown by=ci note=flake routed to the burn-down with priority: a sign-in that never answers /state within 90 s on a loaded host
+- 2026-11-02T11:13:19Z owner=burndown by=burndown note=Epic 11 part 1 burn-down (owner trim): no charter (2 story-closable entries plus this repaired owner, under the cap, no repeat occurrences); kept for Epic 11 part 2's burn-down gate, as Epic 30 part 1 did; flakes with priority
+
+### DW-551: The release checklist does not check the draft notes for the inspiration's name outside the not-affiliated note (only the tracked tree's name-only-in-note row); the draft's own rules are Story 11.13's
+- source: spec-11-4-the-release-gets-draft-notes-and-a-checklist.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: release/checklist.sh row_public_text scans the draft for local paths and key-like text only
+- 2026-11-01T23:27:24Z status=routed owner=11-13-the-release-gets-draft-notes by=harvest note=11.13's draft check also refuses the name outside the note (the note verbatim, or nowhere)
+- 2026-11-01T23:52:21Z status=routed owner=11-13-the-release-gets-draft-notes by=cr note=premise corrected: name-only-in-note reads a draft at notes_path (pinned in script-rows); gap is a --notes file outside
+- 2026-11-02T02:32:25Z status=resolved-by:11-13-the-release-gets-draft-notes by=adjudication note=c1da2616 + review patch: notes.sh public-text refuses the inspiration's name outside the not-affiliated note in whichever --notes file it is given (four pinning cases, mutation recorded); 11.4's name-only-in-note already reads a draft at notes_path
+
+### DW-552: release/checklist.sh ck_rel keeps a --notes or --record path outside the checkout absolute, so the record's Notes: line (or a public-text detail) can hold a local folder
+- source: spec-11-4-the-release-gets-draft-notes-and-a-checklist.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: ck_rel prints paths outside the checkout as given; t_base asserts Notes: <tmp path>. Story 11.5 uses the default paths, and test-boundaries flags such a record on the next run and in CI
+- 2026-11-01T23:52:21Z status=wontfix-accepted owner=11-4-the-release-gets-draft-notes-and-a-checklist by=cr note=reopen_if=a record under release/records/ holds an absolute Notes: line or detail (test-boundaries paths rule flags it)
+
+### DW-553: release/checklist.sh FAIL summaries and the no-bundle licences detail are new public-facing text not in the spec's ruled set (U-200 kept the spec's texts)
+- source: spec-11-4-the-release-gets-draft-notes-and-a-checklist.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: e.g. 'a licence notice is missing or empty', 'the IRIS reference source rule is broken', 'the licences pass detail without a bundle'; none names the inspiration, a rival or IRIS Couch
+- 2026-11-01T23:52:21Z status=decision-pending owner=burndown by=cr note=veto window 5: the lead or Planner rules the FAIL summary wordings before Story 11.5 reads the record
+- 2026-11-02T13:18:26Z status=by-design by=merge_gate note=texts_kept_as_U-200;veto_U-217
+
+### DW-554: row_name_only_in_note (release/checklist.sh) repeats the name-outside-the-note line of test-readme.sh public_text_scan, a copy forced by Epic 10 owning that top-level script (Rule 2)
+- source: spec-11-4-the-release-gets-draft-notes-and-a-checklist.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: about 5 awk lines; the spec records the reason (test-readme.sh cannot be sourced and is Epic 10's); both rules drift if the name rule changes in one place
+- 2026-11-01T23:52:21Z status=escalated owner=burndown by=cr note=unify when Epic 10 next edits test-readme.sh: one shared name scanner in lib-scan.sh that both call
+- 2026-11-02T13:18:26Z status=routed owner=burndown by=merge_gate note=unify_checklist_row_name_only_in_note_with_test-readme.sh_in_Epic_10s_next_README_story_after_1.0.0(release/**_and_test-readme.sh_both_needed)
+
+### DW-555: flake: a CI-host network blip at sign-in can surface as 'page.goto: Navigation ... is interrupted by another navigation to chrome-error://chromewebdata/', which gotoSettled (web/e2e/support/navigate.ts, Story 11.9, DW-415) does not retry: it matches only net::ERR_NETWORK_CHANGED
+- source: cycle-log-epic-11.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: CI run 41364655268 attempt 1 (OCT-epic11 dea3f6dd, iris browser, live:demo-path): 01-page.spec.ts:127 failed in signInReadmeLoaded -> signInReadme -> gotoSettled with that message; Story 11.4 changed no web file
+- 2026-11-02T00:28:56Z status=routed owner=burndown by=ci note=burn-down with priority: widen gotoSettled's retry to the chrome-error interruption (one retry, same deadline), with a goto-settled.test.mjs row
+- 2026-11-02T11:13:19Z owner=burndown by=burndown note=Epic 11 part 1 burn-down (owner trim): no charter (2 story-closable entries plus this repaired owner, under the cap, no repeat occurrences); kept for Epic 11 part 2's burn-down gate, as Epic 30 part 1 did; flakes with priority
+
+### DW-557: test-release-notes.sh's real-tree rule runs notes.sh on the repository's own HEAD in the hosted checks job, so the integration branch's CI goes red for every epic as soon as a story of an epic with no line in release/notes-areas.txt (the step and personality epics) is marked done, or a v* tag leaves no new story; the areas refusal belongs at release time (notes.sh on a candidate), not in every push's CI
+- source: spec-11-13-the-release-gets-draft-notes.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: release/notes-areas.txt maps no line for Epics 17-28, 33-37, 39-41; the real-tree rule calls notes.sh on HEAD
+- 2026-11-02T01:56:39Z status=open owner=11-13-the-release-gets-draft-notes by=harvest note=patch in this story: the self-test's real tree must not fail on an unmapped epic (e.g. pin a fixed tree or tolerate unmapped epics there), while notes.sh itself still fails areas on a candidate
+- 2026-11-02T02:32:25Z status=resolved-by:11-13-the-release-gets-draft-notes by=adjudication note=review patch: test-release-notes.sh real-tree runs notes.sh on a fresh tagless repository built from HEAD's tracker and epics.md, and tolerates unmapped epics outside release 1 (0-16, 29-32, 38) while an unmapped release-1 epic still fails; notes.sh itself still fails areas on a candidate (planted 40.1 self-check)
+
+### DW-558: The not-affiliated note is spelled in two places (release/checklist.sh CK_NOTE and release/notes.sh's fragments) and nothing compares them with each other or with README.md's line
+- source: spec-11-13-the-release-gets-draft-notes.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: a wording change in one copy would fail correct notes or pass a stale one unseen
+- 2026-11-02T01:56:40Z status=open owner=11-13-the-release-gets-draft-notes by=harvest note=two-way door: a self-test case comparing the two copies and the README line
+- 2026-11-02T02:32:25Z status=resolved-by:11-13-the-release-gets-draft-notes by=adjudication note=review patch: rule static checks notes.sh's notes_note and checklist.sh's CK_NOTE against the note and README.md's line word for word
+
+### DW-560: The draft notes file (notes_path: release/records/<v>/rc<n>-notes.md) sits beside the record that Story 11.5 commits and is not git-ignored, so a record commit that stages the folder commits and pushes the unpublished draft
+- source: spec-11-13-the-release-gets-draft-notes.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: git check-ignore release/records/1.0.0/rc1-notes.md matches no rule (exit 1); epic-11-context says the notes are never committed or pushed; 11.5 commits rc<n>.md
+- 2026-11-02T02:26:59Z status=routed owner=11-5-one-scripted-sequence-cuts-a-release by=cr note=11.5's record commit stages only rc<n>.md (or ignores *-notes.md), with a pinning case that the draft stays untracked
+- 2026-11-02T05:47:19Z status=resolved-by:11-5-one-scripted-sequence-cuts-a-release by=adjudication note=aab79f1e + review patch: the record commit stages only release/records/<v>/rc<n>.md by explicit pathspec, and the record push refuses unless every commit it would add changes only an rc<n>.md record (a committed draft, an empty or a merge commit stops it); rules record and pushes pin it
+
+### DW-561: names_outside_section (docker/tests/lib-scan.sh) is a copy of test-readme.sh's dev_names with the heading as a parameter; the two can drift
+- source: spec-11-13-the-release-gets-draft-notes.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Spec Design Notes force the copy: test-readme.sh is Epic 10's read-only file; test-release-notes.sh static now runs names_outside_section on README.md
+- 2026-11-02T02:26:59Z status=wontfix-accepted owner=11-13-the-release-gets-draft-notes by=cr note=reopen_if=dev_names and names_outside_section disagree on README.md, or Epic 10 next edits test-readme.sh's dev_names
+
+### DW-562: notes_name_hits (release/notes.sh) repeats the strip-the-note awk of row_name_only_in_note (release/checklist.sh) instead of sharing one helper
+- source: spec-11-13-the-release-gets-draft-notes.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: Two 1-line strip loops over the same note text; Decided in-stage 11 gives the scan target, not the copy, as the reason; the note texts are now compared
+- 2026-11-02T02:26:59Z status=wontfix-accepted owner=11-13-the-release-gets-draft-notes by=cr note=reopen_if=a third copy of the note-strip scan appears, or one of the two scans changes its matching rule
+
+### DW-563: Story 11.5's update hook adds the online demo section with record_write, which appends it after ## For admins and developers, so public text follows the admin section
+- source: spec-11-13-the-release-gets-draft-notes.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: record_write appends a missing section at the end; the draft's last section is the developer one; dev-only still scans the added section
+- 2026-11-02T02:26:59Z status=wontfix-accepted owner=11-13-the-release-gets-draft-notes by=cr note=reopen_if=11.5's draft shows the online demo section after ## For admins and developers
+
+### DW-573: release.sh's default state root is not keyed by checkout, so next/resume/status without --version/--rc in a second checkout of the author's can pick up a sequence started in another one
+- source: spec-11-5-one-scripted-sequence-cuts-a-release.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: state_root (release.sh:61) is one folder for every checkout; load_state takes integration, remote and record from the state but runs against this script's checkout; the golden State path has no checkout key
+- 2026-11-02T05:38:58Z status=wontfix-accepted owner=11-5-one-scripted-sequence-cuts-a-release by=cr note=reopen_if=a release.sh run reports a step or writes a record for a sequence whose start ran in another checkout
+
+### DW-576: release.sh's ipm step has run the two-run install path (Epic 15's MapAndStop module: USER, then OCUTALON) only against the self-test shim and plan-time measurements, never real IPM through step_ipm; the one-run path (today's module.xml) is proved live
+- source: spec-11-17-the-release-s-ipm-artifact-carries-the-built-page.md | severity: med | fix-risk: low | footprint: out-of-epic
+- evidence: --live ipm packaged today's module.xml (19 bundle files, ocutalon 1.0.0 listed); the two-run branch is shimmed
+- 2026-11-02T10:22:06Z status=routed owner=15-3-an-ipm-install-survives-restarts-and-reinstalls-and-every-re by=harvest note=Story 15.3 installs 11.17's recorded artifact: once Epic 15's module.xml is on the candidate, run docker/tests/test-release-sequence.sh --live ipm on it before 15.3 relies on the record
+
+### DW-577: The IPM artifact record's 'Content SHA-256 is the same for every packaging' claim is shown on hand-made archives only, not on two real IPM packagings of one tree
+- source: spec-11-17-the-release-s-ipm-artifact-carries-the-built-page.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: packaging is not byte-reproducible (Task 0); the content digest strips archive metadata
+- 2026-11-02T10:22:06Z status=wontfix-accepted owner=11-17-the-release-s-ipm-artifact-carries-the-built-page by=harvest note=reopen_if=two --live ipm packagings of one cut commit print different Content SHA-256 lines
+- 2026-11-02T11:11:59Z status=resolved-by:11-17-the-release-s-ipm-artifact-carries-the-built-page by=adjudication note=lead smoke: two real --live ipm packagings (cut 3eecf1f6 and 144579a1, the same tree) gave different file SHA-256 (c69f1a4b..., bfc911b2...) and the same Content SHA-256 e7a83479...; the record's claim holds on real IPM
 ### DW-497: flake: live:cards A7 (web/e2e/cards/approval-card.spec.ts:348, another session's request answers 404) timed out at sign-in waiting for the page's first GET of the state (web/e2e/support/floor.ts:141, loadedAfter) in CI; it passed on the unchanged rerun
 - source: ci run 41215425837 attempt 1 (OCT-epic5 d103aec0, Story 5.12) | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: iris (install-upgrade) attempt 1 red only on live:cards A7 after a 2.0 min test timeout in page.waitForResponse; every other unit and group green; attempt 2 of the same job green on the same sha; Story 5.12 touched no web or cards file
@@ -2893,6 +3149,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-30-6-the-invalid-reply-warning-names-what-failed-never-the-reply.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: Test/Data/PublicSettings.cls:105 Do $$$AssertTrue(now ] $Translate(...)_"Z", ...); fix: parenthesise the right side; remove OcuTalon.Test.Data.PublicSettings:TestNextReset from ALLOW_CONCAT in docker/tests/test-class-rules.sh in the same change (its stale check fails otherwise)
 - 2026-10-31T21:42:02Z status=routed owner=31-4-the-paired-chat-stays-isolated-under-load-too by=spec_gate note=AD-33: Lane B's file, so Lane B's Story 31.4 (beside DW-474's Lane B test fix); one-line change plus the allow-list entry's removal
+- 2026-11-02T14:55:52Z status=routed owner=31-4-the-paired-chat-stays-isolated-under-load-too by=owner note=31.4_deferred_after_the_v1.0.0_tag(owner:Move_it_after_the_tag);first_daily_release
 ### DW-517: Eval.Report TOOLCLASSES omits OcuTalon.Tools.RecentActivity, so Eval.Report.ReadOnly(recent_activity) is 0 and an eval Chat turn that calls recent_activity is scored as having acted
 - source: spec-5-13-ask-ocutalon-what-happened-earlier-and-it-tells-you-from-its.md | severity: med | fix-risk: low | footprint: in-story
 - evidence: Eval/Report.cls L83 TOOLCLASSES=WatchTools,ReminderTools; ReadOnly reads READONLY<NAME> only from those classes
@@ -3021,3 +3278,17 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-30-7-epic-30-burn-down.md | severity: med | fix-risk: low | footprint: in-story
 - evidence: 30.7 implement; the OcuTalon purge task's own assertions passed in every run
 - 2026-11-02T16:28:42Z status=routed owner=30-7-epic-30-burn-down by=harvest note=travels with 30.7's set-aside patch; settle on CI over several pushes
+### DW-574: One incident card mixes time zones: the header stamp is in the viewer's zone ('11:28 PM PST') while the body's 'failed since 02:28 ET' and 'first at 02:28 ET' use the instance's zone; the chat's reminder reply says '02:27 ET' while the phone shows '11:27 PM PST'
+- source: Contest Planner host check on 01bb86fc (demo public 2026-11-02T07:33Z) | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: public demo host on 01bb86fc: incident card header vs body; reminder reply vs phone notification; every time is labelled, so nothing is wrong, but a judge sees two zones on one card
+- 2026-11-02T07:34:35Z status=routed owner=burndown by=merge_gate note=Planner: after 1.0.0 unless a cheap fix appears; one zone per card (instance zone with its label, or the viewer's zone throughout); first daily release
+
+### DW-583: Story 11.19 AC3 (sign-in unit integration evidence) has no demonstrated mutation: the overwrite it guards depends on a heartbeat tick landing inside a case, so one green run cannot show red on demand
+- source: spec-11-19-seeded-check-rows-stay-out-of-the-heartbeat-s-way-unless-a-c.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: a deterministic red needs a browser spec that waits a tick, or a mutated Test.Data.Fixture CHECKAHEAD; both are outside 11.19's footprint (spec Never list); AC1's source pins and FixtureDefaults.TestCheckIsNotDue are the falsifiable halves
+- 2026-11-02T12:35:31Z status=wontfix-accepted owner=11-19-seeded-check-rows-stay-out-of-the-heartbeat-s-way-unless-a-c by=cr note=reopen_if=a seeded browser case reads a finding or last run it was not seeded with in CI after Epic 11 part 1 merges
+
+### DW-584: No test pins that a several-ref command's IdempotencyKeys (:2, :3, :4 from one tool call) are each accepted once and refused on a repeat, the as-built AD-1 rule (U-215's condition)
+- source: Epic 11 merge decision sheet (DW-496, veto U-215 kept by the Contest Planner) | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: AD-1 amended a9a221ed; TestCancelAllThroughChat asserts the keys but not the repeat refusal per key
+- 2026-11-02T13:25:27Z status=routed owner=burndown by=merge_gate note=Epic 30 part 2 burn-down 30.7 (sent to its runner with U-215's apply)

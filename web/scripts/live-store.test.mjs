@@ -72,6 +72,28 @@ describe('the snapshot intake', () => {
     assert.equal(store.telegram.paired, false);
   });
 
+  it("adds the decision of an incident entry to the decisions after the rail's, and no ref twice", () => {
+    const diagnose = { ref: 'dec-diag', kind: 'diagnose', outcome: 'act' };
+    const repeated = { ref: 'dec-1', outcome: 'stay_quiet' };
+    const source = snapshot({
+      chat: [
+        { type: 'chat.message', payload: { ref: 'turn-1', state: 'done' } },
+        { type: 'incident', payload: { ref: 'inc-1', state: 'open', decisionRef: 'dec-diag' }, decision: diagnose },
+        { type: 'incident', payload: { ref: 'inc-2', state: 'open', decisionRef: 'dec-1' }, decision: repeated },
+        { type: 'incident', payload: { ref: 'inc-3', state: 'open', decisionRef: 'dec-diag' }, decision: diagnose },
+        { type: 'incident', payload: { ref: 'inc-4', state: 'open' } },
+      ],
+    });
+    const store = fromSnapshot(source);
+    assert.deepEqual(
+      store.decisions.map((decision) => decision.ref),
+      ['dec-2', 'dec-1', 'dec-diag'],
+      "the rail's decisions first, then the incident's own, once",
+    );
+    assert.equal(store.decisions[2], diagnose);
+    assert.equal(source.rail.decisions.length, 2, 'the snapshot is not changed');
+  });
+
   it('copies the snapshot: later events do not change it', () => {
     const source = snapshot();
     const store = fromSnapshot(source);
