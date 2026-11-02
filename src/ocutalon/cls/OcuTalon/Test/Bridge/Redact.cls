@@ -5,6 +5,14 @@
 ///     array); a key that is not in the list keeps its value, and the text is the serialized JSON;
 ///   - TestPatterns: the free-text patterns (a key followed by = or :, a quoted value, Bearer, sk-ant- and other sk- keys, a Telegram bot
 ///     token also inside a URL, a JWT, ghp_ and github_pat_ tokens, an AKIA key) are replaced, and the text around them is kept;
+///   - TestDigitalOceanToken (DW-386): a dop_v1_ token of hex digits is replaced in text and in a JSON string, and a shorter one is kept;
+///   - TestPrivateKey (DW-386): a PEM private key block is replaced from its BEGIN line through its END line, or to the end of the text when the
+///     END line is missing, with real and with escaped line breaks, in text and in a JSON string;
+///   - TestAnthropicKey (DW-386): an sk-ant- key is replaced in text and in a JSON string, in either case;
+///   - TestTelegramToken (DW-386): a bot token whose id has 6 or more digits (10 and 13 among them) is replaced in text, in a JSON string and in a URL, and a 5-digit id is kept;
+///   - TestEveryKeyLikeShape (DW-386): for each alternative of KEYLIKE, a verbatim copy of KEY_LIKE_ERE in docker/tests/lib-keys.sh (that the check
+///     script docker/tests/test-redact-shapes.sh keeps equal), a fixture that the alternative matches is replaced in text and in a JSON string, so that
+///     no alternative matches the result; the result holds [redacted] and is idempotent;
 ///   - TestJsonString: a text that is exactly one JSON string, as AI Hub gives the result of a tool that returns text, is redacted by
 ///     its content: JSON inside the string (also encoded twice) has its sensitive keys replaced, text inside it has its patterns
 ///     replaced, and a string that needs no change, or that is not alone in the text, is returned as it is or by the free-text rules;
@@ -29,6 +37,11 @@ Class OcuTalon.Test.Bridge.Redact Extends %UnitTest.TestCase
 Parameter REDACT = "OcuTalon.Bridge.Redact";
 
 Parameter MARK = "[redacted]";
+
+/// A verbatim copy of KEY_LIKE_ERE of docker/tests/lib-keys.sh, the definition of key-like text: the alternatives, joined by |. The check script
+/// docker/tests/test-redact-shapes.sh fails when this line and lib-keys.sh differ. Keep the line in this form (no other Parameter of this class
+/// is named KEYLIKE).
+Parameter KEYLIKE = "sk-ant-[A-Za-z0-9_-]{8,}|[0-9]{8,10}:[A-Za-z0-9_-]{35}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|dop_v1_[a-f0-9]{20,}|AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY";
 
 /// Each name of SENSITIVEKEYS, in four spellings, as a JSON key: the value is replaced; nested, in an array, and for values of every type.
 Method TestSensitiveKeys()
@@ -88,6 +101,90 @@ Method TestPatterns()
 	Do $$$AssertEquals(..Text("id " _ aws _ " ok"), "id " _ mark _ " ok", "an AKIA key")
 	Do $$$AssertEquals(..Text("{""note"":""the password: foo and sk-" _ "ant-zzz"",""x"":1}"), "{""note"":""the password: " _ mark _ " and " _ mark _ """,""x"":1}", "the string values of a JSON object are checked for the patterns too")
 	Do $$$AssertEquals(..Text("{""list"":[""Bearer abc"",""fine""]}"), "{""list"":[""Bearer " _ mark _ """,""fine""]}", "and so are the strings of an array")
+}
+
+/// A DigitalOcean token (DW-386): dop_v1_ and 20 or more hex digits, in text and inside a JSON string.
+Method TestDigitalOceanToken()
+{
+	Set mark = ..#MARK
+	Set token = "dop" _ "_v1_" _ $Translate($Justify("", 64), " ", "a")
+	Do ..Check("token " _ token _ " ok", "token " _ mark _ " ok", "a dop_v1_ token in text")
+	Do ..Check(token, mark, "a text that is the token")
+	Do ..Check({"note": ("made " _ token _ " today")}.%ToJSON(), {"note": ("made " _ mark _ " today")}.%ToJSON(), "and inside a JSON string")
+	Do ..Check({"outer": {"list": [(token)]}}.%ToJSON(), {"outer": {"list": [(mark)]}}.%ToJSON(), "and nested in an array")
+	Set upper = "dop" _ "_v1_" _ $Translate($Justify("", 30), " ", "F")
+	Do ..Check("t " _ upper, "t " _ mark, "with hex digits in upper case")
+	Set short = "dop" _ "_v1_" _ $Translate($Justify("", 19), " ", "a")
+	Do ..Check("t " _ short, "t " _ short, "a shorter run of hex digits is no token")
+}
+
+/// A PEM private key block (DW-386): replaced from its BEGIN line through its END line, or to the end of the text when the text has none.
+Method TestPrivateKey()
+{
+	Set mark = ..#MARK
+	Set lf = $Char(10)
+	Set begin = "-----" _ "BEGIN RSA PRIV" _ "ATE KEY-----"
+	Set end = "-----" _ "END RSA PRIV" _ "ATE KEY-----"
+	Set body = "ZmFrZWZha2VmYWtl" _ lf _ "ZmFrZWZha2VmYWtl"
+	Do ..Check("pem " _ begin _ lf _ body _ lf _ end _ " after", "pem " _ mark _ " after", "a block with an END line, with real line breaks")
+	Do ..Check("pem " _ begin _ "\n" _ $Translate(body, lf, "|") _ "\n" _ end _ " after", "pem " _ mark _ " after", "and with escaped line breaks")
+	Do ..Check("pem " _ begin _ lf _ body _ lf _ "tail text", "pem " _ mark, "a header-only block goes to the end of the text")
+	Do ..Check("pem " _ begin _ "\n" _ "ZmFrZQ==\ntail", "pem " _ mark, "also with escaped line breaks")
+	Set plain = "-----" _ "BEGIN PRIV" _ "ATE KEY-----" _ lf _ body _ lf _ "-----" _ "END PRIV" _ "ATE KEY-----"
+	Do ..Check("a " _ plain _ " b", "a " _ mark _ " b", "a block with no algorithm name")
+	Do ..Check({"pem": (begin _ lf _ body _ lf _ end _ " after")}.%ToJSON(), {"pem": (mark _ " after")}.%ToJSON(), "a block with an END line inside a JSON string")
+	Do ..Check({"pem": ("before " _ begin _ lf _ body)}.%ToJSON(), {"pem": ("before " _ mark)}.%ToJSON(), "a header-only block inside a JSON string")
+	Do ..Check(begin _ lf _ body _ lf _ end _ lf _ begin _ lf _ body _ lf _ end, mark _ lf _ mark, "two blocks are each replaced")
+	Do ..Check("-----" _ "BEGIN CERTIFI" _ "CATE-----" _ lf _ body, "-----" _ "BEGIN CERTIFI" _ "CATE-----" _ lf _ body, "a certificate is no private key")
+}
+
+/// An Anthropic key (DW-386): sk-ant- and the rest of the key, in text and inside a JSON string.
+Method TestAnthropicKey()
+{
+	Set mark = ..#MARK
+	Set key = "sk" _ "-ant-api03-" _ $Translate($Justify("", 40), " ", "x") _ "_-Z9"
+	Do ..Check("key " _ key _ " ok", "key " _ mark _ " ok", "an sk-ant- key in text")
+	Do ..Check("key " _ $ZConvert(key, "U") _ " ok", "key " _ mark _ " ok", "in upper case")
+	Do ..Check({"note": ("used " _ key _ " here")}.%ToJSON(), {"note": ("used " _ mark _ " here")}.%ToJSON(), "inside a JSON string")
+	Do ..Check({"list": [(key), "fine"]}.%ToJSON(), {"list": [(mark), "fine"]}.%ToJSON(), "inside an array")
+}
+
+/// A Telegram bot token (DW-386): the id may have 6 or more digits, in text and inside a JSON string.
+Method TestTelegramToken()
+{
+	Set mark = ..#MARK
+	Set secret = "AAH" _ $Translate($Justify("", 32), " ", "z")
+	For id = "1234567890", "1234567890123", "123456" {
+		Set token = id _ ":" _ secret
+		Do ..Check("token " _ token _ " end", "token " _ mark _ " end", "a token with a " _ $Length(id) _ "-digit id in text")
+		Do ..Check({"note": ("bot " _ token _ ".")}.%ToJSON(), {"note": ("bot " _ mark _ ".")}.%ToJSON(), "and inside a JSON string")
+	}
+	Do ..Check("https://api.example.test/bot1234567890123:" _ secret _ "/getMe", "https://api.example.test/bot" _ mark _ "/getMe", "a 13-digit id inside a URL")
+	Do ..Check("12345:" _ secret, "12345:" _ secret, "an id of 5 digits is no bot token")
+}
+
+/// Every alternative of KEYLIKE (DW-386): a fixture that it matches is replaced, in free text and inside a JSON string, so that no alternative matches
+/// the result. A fixture that the alternative does not match, and an alternative with no fixture, fail the test and name the alternative by its
+/// number and its text, never by a fixture.
+Method TestEveryKeyLikeShape()
+{
+	Set alternatives = $ListFromString(..#KEYLIKE, "|")
+	Do $$$AssertTrue($ListLength(alternatives) > 0, "KEYLIKE has alternatives: " _ $ListLength(alternatives))
+	Set tested = 0
+	For index = 1:1:$ListLength(alternatives) {
+		Set alternative = $List(alternatives, index)
+		Set fixtures = ..Fixtures(alternative)
+		Do $$$AssertTrue($ListLength(fixtures) > 0, "alternative " _ index _ " (" _ alternative _ ") has a fixture")
+		If $ListLength(fixtures) > 0 Set tested = tested + 1
+		Set position = 0
+		While $ListNext(fixtures, position, fixture) {
+			Do $$$AssertTrue(##class(%Regex.Matcher).%New(alternative, fixture).Locate(), "alternative " _ index _ " (" _ alternative _ ") matches its fixture")
+			Do ..Shape(alternatives, index, alternative, fixture, "alone")
+			Do ..Shape(alternatives, index, alternative, "before " _ fixture _ " after", "in text")
+			Do ..Shape(alternatives, index, alternative, {"note": ("before " _ fixture _ " after"), "n": 1}.%ToJSON(), "in a JSON string")
+		}
+	}
+	Do $$$AssertEquals(tested, $ListLength(alternatives), "every alternative has a fixture")
 }
 
 /// A text that is exactly one JSON string is redacted by its content, and is a JSON string again.
@@ -277,6 +374,42 @@ Method Check(text As %String, expected As %String, what As %String) [ Private ]
 	Set once = ..Text(text)
 	Do $$$AssertEquals(once, expected, what)
 	Do $$$AssertEquals(..Text(once), once, "and Text(Text(x)) is Text(x): " _ what)
+}
+
+/// The fixtures of an alternative of KEYLIKE, built from fragments at run time, as a list; an empty list for an alternative that is not known.
+ClassMethod Fixtures(alternative As %String) As %List [ Private ]
+{
+	Set lf = $Char(10)
+	Set telegram = ":AAH" _ $Translate($Justify("", 32), " ", "z")
+	Set key = $Case($Piece($Extract(alternative, 1, 12), "[", 1),
+		"sk-ant-": $ListBuild("sk" _ "-ant-api03-" _ $Translate($Justify("", 40), " ", "x"), "sk" _ "-ant-" _ "abcdefgh"),
+		"": $ListBuild("12345678" _ telegram, "1234567890" _ telegram, "1234567890123" _ telegram),
+		"gh": $ListBuild("gh" _ "p_" _ $Translate($Justify("", 30), " ", "A"), "gh" _ "s_" _ $Translate($Justify("", 20), " ", "b")),
+		"github_pat_": $ListBuild("github" _ "_pat_" _ $Translate($Justify("", 30), " ", "B") _ "_9"),
+		"dop_v1_": $ListBuild("dop" _ "_v1_" _ $Translate($Justify("", 64), " ", "a"), "dop" _ "_v1_" _ $Translate($Justify("", 20), " ", "0")),
+		"AKIA": $ListBuild("AK" _ "IA" _ "ABCDEFGH12345678"),
+		"-----BEGIN ": $ListBuild("-----" _ "BEGIN RSA PRIV" _ "ATE KEY-----" _ lf _ "ZmFrZWZha2U=" _ lf _ "-----" _ "END RSA PRIV" _ "ATE KEY-----",
+			"-----" _ "BEGIN RSA PRIV" _ "ATE KEY-----" _ lf _ "ZmFrZWZha2U=",
+			"-----" _ "BEGIN PRIV" _ "ATE KEY-----" _ lf _ "ZmFrZQ==" _ lf _ "-----" _ "END PRIV" _ "ATE KEY-----",
+			"-----" _ "BEGIN EC PRIV" _ "ATE KEY-----"),
+		: "")
+	Quit key
+}
+
+/// Asserts, for an alternative and a text with its fixture in it: the result of Text matches no alternative, holds the mark and is idempotent.
+Method Shape(alternatives As %List, index As %Integer, alternative As %String, text As %String, where As %String) [ Private ]
+{
+	Set once = ..Text(text)
+	Set label = "alternative " _ index _ " (" _ alternative _ ") " _ where
+	Do $$$AssertTrue(once [ ..#MARK, label _ ": the result holds the mark")
+	If where = "in text" Do $$$AssertTrue($Extract(once, 1, 7) = "before ", label _ ": and the text before the fixture is kept")
+	Set clean = 1
+	Set position = 0
+	While $ListNext(alternatives, position, other) {
+		If ##class(%Regex.Matcher).%New(other, once).Locate() Set clean = 0
+	}
+	Do $$$AssertTrue(clean, label _ ": no alternative of KEYLIKE matches the result")
+	Do $$$AssertEquals(..Text(once), once, label _ ": and a second pass changes nothing")
 }
 
 /// {"<key>":"[redacted]"}

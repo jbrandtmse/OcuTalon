@@ -2,7 +2,8 @@
 title: 'The redactor and the key proof catch every key shape'
 type: 'bugfix'
 created: '2026-11-02'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '528410e08f6416741b64c5147a7f5b8569e3807a'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -181,6 +182,27 @@ Extract them with `git apply --include=<path>` for each of the three paths, or `
 
 ## Review Triage Log
 
+### 2026-11-02 — Review pass
+- verdicts: 23 findings (blind 8, edge 10, verification-gap 3 plus 2 other, intent-alignment 0: descriptive only), logged in 16 rows where several layers filed the same root cause — high 0, medium 0, low 22, false 1, maybe-false 0
+- findings:
+  - `[low]` `[reject]` Blind 1: no Audit case for a PEM key that straddles the 128-character cut — Write redacts first and cuts after (pinned by the existing `TestNoSecretInAnyEntry`); a header-only block is replaced to the end of the text before the cut, so the cut cannot expose it.
+  - `[low]` `[patch]` Blind 2 / VG 1: `TestNewKeyShapesInNoEntry` asserts that the data holds no PEM header and the description no token, where neither field ever held that fixture (vacuous) — patched: the token and the PEM block are now in both the data and the description, and each field is asserted clean of both (the PEM-rule mutation turns four assertions red).
+  - `[low]` `[reject]` Blind 3 / Edge 10: the PEM fallback runs to the end of the text, and the shape test drops the trailing text — by design (Design Notes "Decided in-stage": the secret is the body; errs toward replacing more; inside JSON it stops at the string value); the doc comment states it.
+  - `[low]` `[reject]` Blind 4: `-----END ... PRIVATE KEY BLOCK-----` (PGP) is not matched as an END line — the block then runs to the end of the text, which still replaces the whole block (over-redaction, the safe side); not a `key_like` shape of its own.
+  - `[low]` `[reject]` Blind 5 / Edge 9: the stream guard checks three system base classes and does not follow persistent-class references — Task 0 measured the trace and the compiled set (46 classes, 369 properties, 0 streams) and saw no other system body class; `Ens.StreamContainer` and `Ens.StringRequest` appear only in tests under `src/ocutalon/cls/OcuTalon/Test`, not in product code. wontfix-theoretical: a product body class that holds a persistent reference to a stream-holding class does not exist; reopen_if the guard's set gains a class that does.
+  - `[low]` `[reject]` Blind 6 / Edge 7 / VG other 1: `Walk` is heavier per node, and the `LISTDEPTH` cut-off is untested — measured: `eval/key-proof.sh` globals line 18.76 s against 3.19 s on about 4.1 million nodes, far inside any cap, so a prefilter would add a branch for no user-visible gain; the depth cut-off is a safety bound that no stored value reaches (also Edge 6: a list more than 10 deep).
+  - `[low]` `[patch]` Blind 7: `>= 7` with the wording "of the day" in `TestEveryKeyLikeShape` breaks when an alternative is legitimately removed from `lib-keys.sh` — patched to `> 0`; the every-alternative-has-a-fixture assertion and the drift script keep the rest.
+  - `[low]` `[patch]` Blind 8: the class header's `TestTelegramToken` bullet omits the 6-digit bound, the URL and the 5-digit case — patched. Its other two points (lower-case hex in `KEYLIKE`, one awkward doc wrap in `Redact.cls`) are rejected: the wrap predates this story, and the upper-case `dop_v1_` superset is recorded in Design Notes.
+  - `[low]` `[reject]` Edge 1: a PEM split over several JSON string values leaves the body strings — values are scrubbed one by one by design (Design Notes), and the rule targets `key_like`'s header; wontfix-accepted, reopen_if a trace or audit entry is seen holding PEM body lines in separate members.
+  - `[low]` `[reject]` Edge 2: `doo_v1_` and `dor_v1_` DigitalOcean tokens are not replaced — `key_like` does not flag them, so they are outside the intent ("every alternative of KEY_LIKE_ERE"); the oracle script fails the moment `lib-keys.sh` adds them.
+  - `[false]` `[reject]` Edge 3: a multi-MB text with a BEGIN line and no END line could overflow ICU's backtrack stack — Measured at planning: a 3 MB header-only text is replaced in 0.03 s; `Redact.Text` is fail-closed besides.
+  - `[low]` `[patch]` Edge 4 / VG 3: the oracle test does not assert that the text around a fixture is kept (an over-redacting rule stays green) — patched: the "in text" case now asserts the text before the fixture is kept (header-only PEM eats the text after, by design).
+  - `[low]` `[reject]` Edge 5: a double quote or backslash in `KEY_LIKE_ERE` makes the verbatim copy impossible in an ObjectScript literal — none today; wontfix-theoretical, and the script fails loudly rather than passing.
+  - `[low]` `[reject]` Edge 8 / VG other 2: `Catch {}` in `TestNoMessageBodyHoldsAGlobalStream` could silently shrink the set — the compiled classes come from the dictionary query, `%IsA` does not throw for them, and the `> 10` and `IncidentCase` membership assertions bound the shrinkage.
+  - `[low]` `[patch]` VG 2 (part): no test sets a `$List` at the root node of a global, so reverting only `Walk`'s root-node line stays green (AC 5) — patched: `TestGlobalHits` sets a root-node `$List` when the root is free, asserts it is found and counts five rows, and clears it with `ZKill`; the mutation is recorded.
+  - `[low]` `[reject]` VG 2 (rest): `mutation:` lines for `TestAnthropicKey`, alternatives 1, 3, 4 and 6, the 19-hex and 5-digit negatives, the PEM fallback branch, the control lines, and the serial-object recursion of `GlobalStreams` — Rule 19 asks one demonstrated mutation per AC (AC 1 has four, AC 5 four, AC 6 one); the serial recursion would need a new stored test class for a shape no body class has, and is not a two-way door (wontfix-accepted, reopen_if a body class gains a serial property with a stream).
+  - Intent-alignment: no findings (a description: it reads the diff as the consumer-surface reading with a static guard for the stream question; the stream evidence is in Design Notes).
+
 ## Design Notes
 
 **Architecture decisions (Rule 6).**
@@ -203,6 +225,24 @@ Extract them with `git apply --include=<path>` for each of the three paths, or `
   - a certificate is kept;
   - a 3 MB header-only text is replaced in 0.03 s.
 - The widened Telegram rule replaces a 13-digit id.
+
+**Measured at implementation** (warm throwaway `e30s8iw`, fresh `e30s8i`, 2026-11-02; Task 0 and Task 0b; branch N taken):
+- **Build:** `IRIS for UNIX (Ubuntu Server LTS for ARM64 Containers) 2026.3.0AI (Build 154U) Thu Sep 24 2026 10:05:18 EDT`.
+- **Method:** a throwaway class `E30S8.Meas` (scratchpad, loaded into the warm stack and deleted after the run) ran in the iris container, in namespace OCUTALON, after `OcuTalon.Test.Bridge.Decide` had passed on the stack. It listed the namespaces and, for each Interoperability namespace (HSCUSTOM, HSLIB, HSSYS, OCUORDERS, OCUTALON, USER and the ENSLIB mapping), the distinct `Ens.MessageHeader.MessageBodyClassName`. It then enumerated the compiled classes under `OcuTalon.` that extend `Ens.Request`, `Ens.Response` or `Ens.MessageBody`, and read each one's compiled properties (inherited included). A property is a global stream when its type class is, or extends, `%Stream.GlobalCharacter`, `%Stream.GlobalBinary`, `%Library.GlobalCharacterStream` or `%Library.GlobalBinaryStream`; other streams (ClassType stream or extends `%Stream.Object`) were to be listed only; a serial-object property is read to a depth of 3.
+- **Trace:** after Decide, the trace of the stack held few product messages: only `OcuTalon.Core.Msg.RunTurns` and `OcuTalon.Msg.Tick` (both in the set below), plus headers with an empty body class name (OCUTALON and OCUORDERS). No system body class (`Ens.*`) was seen in any namespace. So `SYSTEMBODIES` lists only the three base classes.
+- **Classes:** 46 compiled `OcuTalon` classes extend `Ens.Request`, `Ens.Response` or `Ens.MessageBody` (42 product classes in the Bridge, Checks, Core, Demo, Eval, Fix, Msg, Schedule and Watch packages, `Eval.Msg.IncidentCase` among them, and four test-only body classes: `Test.Core.CommandsSubVerb`, `Test.Eval.Feed.Claim`, `Test.Eval.Feed.LabResult`, `Test.Eval.Feed.Shipment`).
+- **Properties:** 369 compiled properties in all (inherited included). **Global streams found: 0. Other streams found: 0.** Serial-object properties with a stream: none.
+- **Control:** the same check on `%AI.Agent.Session` (11 properties) finds `ContextData` as a `%Stream.GlobalCharacter`: 1 global stream.
+- **Branch:** no global stream in the set, so **branch N**. The 30.7 note ("no message-body class has a %Stream property") is now evidence: it is measured, and `TestNoMessageBodyHoldsAGlobalStream` (green on `e30s8iw`) holds it.
+- **For the ledger (DW-448, stream half):** close `wontfix-accepted` with this evidence (build 154U, tags e30s8iw/e30s8i, 46 classes, 369 properties, 0 streams, control found). `reopen_if`: `Test.Eval.KeyProof.TestNoMessageBodyHoldsAGlobalStream` goes red.
+- **Task 0b (DW-589 figures, `eval/key-proof.sh` on fresh `e30s8i`, before the KeyProof change; `KeyProof.cls` was put back to its committed form for the run):** exit 0, "eval/key-proof: all checks passed"; `PASS key proof globals: no key in 4258041 node(s) of 801 global(s) in 16 database(s) (... control found 188 time(s); 3.19 s)`.
+
+**DW-450 Walk-change record (for Story 31.4, the mirror in `Test.Web.SessionEvents.ReferenceHits`, DW-474).** `Test.Eval.KeyProof.Walk` changed how it matches a node. Nothing else in `Walk` changed (its counts, places and stats are the same; a node counts once).
+- New `Parameter LISTDEPTH = 10`.
+- New private `Holds(text, value, depth = 0)`: 1 when `text [ value`; else, when `depth < LISTDEPTH`, `$ListValid(text)` and `$ListLength(text) > 0`, it reads each element with `$ListNext` and recurses into every element that is defined (`$Data(element)`), with `depth + 1`; else 0. A 16-bit (wide-character) element is not stored as the characters, so a plain `[` misses it.
+- New private `HoldsSubscript(reference, value)`: 1 when `reference [ value`, else 1 when `Holds($QSubscript(reference, i), value)` for some subscript i of `$QLength(reference)` (a subscript can be a `$List`).
+- `Walk`: root node `data [ value` became `..Holds(data, value)` (and the same for the control); the `$Query` nodes' `(reference [ value) || (data [ value)` became `..Holds(data, value) || ..HoldsSubscript(reference, value)` (and the same for the control).
+- No stream decode (branch N). Test rows: `TestGlobalHits` (8-bit, 16-bit, nested, `$List` subscript, absent) and `TestGlobalHitsMessageBody`.
 
 **Decided in-stage.**
 - **The PEM rule replaces the whole block, not only the header.** `key_like` flags the header, but the secret is the body. Running to the end of the text when there is no END line errs toward replacing more. Inside JSON, it stops at the end of the string value, because values are scrubbed one by one.
@@ -313,7 +353,41 @@ Extract them with `git apply --include=<path>` for each of the three paths, or `
 | AC 6 (branch Y) | The stream-chunk decode removed | The branch Y test (compressed and split rows) |
 | AC 7 | none: the outer-surface run; its parts are pinned above | -- |
 
+**Pinning mutation results (implement, warm `e30s8iw`, each reverted byte for byte; the class green again on the same stack after every revert):**
+- mutation: remove the `dop_v1_` rule -> `Test.Bridge.Redact` `TestDigitalOceanToken` (5 assertions) and `TestEveryKeyLikeShape` (alternative 5) red; `Test.Bridge.Audit` `TestNewKeyShapesInNoEntry` red (data holds the token, no `[redacted]`).
+- mutation: remove the PEM rule -> `TestPrivateKey` (8 assertions) and `TestEveryKeyLikeShape` (alternative 7, 24 assertions) red.
+- mutation: Telegram back to `{6,12}` -> `TestTelegramToken` (13-digit id in text, in JSON, in a URL) and `TestEveryKeyLikeShape` (alternative 2) red.
+- mutation: the PEM rule without `PRIVATE KEY` (any BEGIN) -> `TestPrivateKey`: "a certificate is no private key" red.
+- mutation: one character of `KEYLIKE` changed (`{20,}` to `{21,}` in the dop alternative) -> `bash docker/tests/test-redact-shapes.sh` FAIL naming both files, exit 1.
+- mutation: `Walk` matches data with `data [ value` again -> `TestGlobalHits` (16-bit, nested, count) and `TestGlobalHitsMessageBody` red.
+- mutation: `Holds` does not recurse (`element [ value`) -> `TestGlobalHits` (nested, count) red.
+- mutation: `HoldsSubscript` back to a plain `[` on each subscript -> `TestGlobalHits` (list subscript, count) red.
+- mutation: the guard's stream check always 0 -> `TestNoMessageBodyHoldsAGlobalStream` red (the control not found).
+- mutation (after the review patches): `Walk`'s root-node line back to `data [ value` alone -> `TestGlobalHits` red (the root-node row and the count); the PEM rule removed again -> `Test.Bridge.Audit.TestNewKeyShapesInNoEntry` red on the PEM header and body in the data and in the description. Each reverted byte for byte; the class green again on the same stack; `Test.Eval.KeyProof` also green on a fresh stack (156 s call, 4.8 s class).
+
+**Measured at implementation (Verification runs; the machine was shared with other lanes, so wall times include contention):**
+- Loop: `test-redact-shapes.sh`, `test-boundaries.sh`, `test-ci-config.sh` pass; `Test.Bridge.Redact` 2.9 s, `Test.Eval.KeyProof` 3.9 s, `Test.Bridge.Audit` 2.6 s and `Test.Bridge.Steps` 0.9 s pass on the warm stack.
+- `bash ci/checks.sh`: "checks: all scripts passed", 14 min wall (other lanes' runs were using the machine; `redact-shapes` itself 0 s).
+- `eval/key-proof.sh` on fresh `e30s8i`, after the change: exit 0, "eval/key-proof: all checks passed"; globals line: 4,110,069 nodes of 798 globals in 16 databases, control found 188 times, 18.76 s (before: 4,258,041 nodes, 801 globals, 3.19 s). `Walk` now decodes `$List` values per node and every subscript, so the globals scan is slower per node; the node counts differ between the two stacks, so the ratio is approximate. DW-589's figures: the scan stays under 20 s.
+- Shards (fresh, one part per call; wall seconds from the call): `lane-a` 1/6 491 (20 classes), 2/6 196, 3/6 200, 4/6 540, 5/6 415, 6/6 474; `lane-b` 1/3 271, 2/3 250, 3/3 403. All passed, no failure, no flake rerun. `Test.Core.ThreadProduction` ran and passed (8.58 s). Parts 1, 4, 5, 6 of lane-a and part 3 of lane-b ran while other lanes loaded the machine.
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** `Redact.PatternList` now replaces `dop_v1_` tokens, PEM private-key blocks (BEGIN through END, or to the end of the text or JSON string value) and Telegram ids of 6 or more digits, so every alternative of `KEY_LIKE_ERE` is covered (DW-386). `Test.Eval.KeyProof.Walk` decodes `$List` values in data and in subscripts, nested lists included (DW-448), and Task 0 measured that no message-body class holds a global stream (branch N), guarded by `TestNoMessageBodyHoldsAGlobalStream`.
+
+**Files changed.**
+- `src/bridge/cls/OcuTalon/Bridge/Redact.cls`: the new rules and the doc.
+- `src/ocutalon/cls/OcuTalon/Test/Bridge/Redact.cls`: the four shape tests, `KEYLIKE`, `TestEveryKeyLikeShape` and its helpers.
+- `src/ocutalon/cls/OcuTalon/Test/Bridge/Audit.cls`: `TestNewKeyShapesInNoEntry` (the Integration AC).
+- `src/ocutalon/cls/OcuTalon/Test/Eval/KeyProof.cls`: `Holds`, `HoldsSubscript`, `LISTDEPTH`, the extended `TestGlobalHits` (root row included), `TestGlobalHitsMessageBody`, the stream guard.
+- `docker/tests/test-redact-shapes.sh` (new) and `ci/units.sh` (`CHECK_SCRIPTS`): the drift check.
+- This spec: Design Notes (the measurement and the Walk change for Story 31.4) and Verification records.
+
+**Review.** 23 findings from the layers in 16 rows: 5 rows patched (all low), 0 deferred, 11 rejected with the reasons in the Review Triage Log. Follow-up review recommended: false (patched counts: high 0, medium 0, low 5).
+
+**Verification.** `test-redact-shapes.sh`, `test-boundaries.sh`, `test-ci-config.sh` and `ci/checks.sh` pass; `Test.Bridge.Redact`, `Test.Eval.KeyProof`, `Test.Bridge.Audit` and `Test.Bridge.Steps` pass on the warm stack, `Test.Eval.KeyProof` also fresh after the patches; `eval/key-proof.sh` passes on a fresh stack; `lane-a` parts 1 to 6 and `lane-b` parts 1 to 3 pass; the mutations are recorded under Verification.
+
+**Residual risks.** `Walk` is about six times slower per node on the globals scan (18.76 s against 3.19 s on about 4.1 million nodes, the stacks differing); the saved AI session history (`%AI.Agent.Session.ContextData`, a compressed global stream) is still unreadable to `Walk` and out of U-185's scope; DW-450 reopens (Lane B's walk copy, Story 31.4, the exact change is in Design Notes).
