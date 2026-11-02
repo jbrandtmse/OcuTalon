@@ -2980,3 +2980,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: head 17c86e98 changed only Test/Web/SessionEvents.cls; browser green on 63bfe214; B15 green on attempt 2. banners.spec.ts is never edited (U-173) and does not block the 31.1 socket: check whether a socket frame right after the outage adds a reload (31.1 review's rejected 'one extra, idempotent snapshot reload')
 - 2026-11-02T10:31:21Z status=routed owner=burndown by=cr note=flake class: one rerun and an occurrence; reopen as story if it reds twice on one head
 - 2026-11-02T10:31:25Z by=ci note=filed_by_runner_C_at_the_CI_red_classification(the_new_line_says_by=cr_in_error)
+
+### DW-585: DW-473 residual: the page cannot show a still-running fix run's counts so far (result.stillResending needs completed and count): Live.Payload.Incident fills Requests[].Result only from an ended FixRun, and Fix/Run keeps no counts while executing
+- source: _bmad-output/implementation-artifacts/spec-31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv.md | severity: low | fix-risk: med | footprint: out-of-footprint
+- evidence: Incident.cls:144-147 (Lane A); spec-30-5 row 2 (FixRun has no EndedAt and no counts while executing); Watch.Notice ResultSlots needs completed/count
+- 2026-11-02T14:20:12Z status=routed owner=burndown by=harvest note=U-211 kept (Contest Planner, 2026-11-02T09:22:13Z#640): post-1.0.0 Lane A story (Fix/Run.cls, Live/Payload/Incident.cls); not 1.0.0 scope
