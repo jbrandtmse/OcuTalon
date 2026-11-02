@@ -4,6 +4,9 @@
 #   bash docker/tests/test-release-sequence.sh [<rule>...]   runs the named rules (default: all)
 #   bash docker/tests/test-release-sequence.sh --live        the one real build (IA3): the real npm and docker build of the cut and
 #                                                            the image step; never in CI, and in its own call
+#   bash docker/tests/test-release-sequence.sh --live ipm    the same, then the real ipm step (Story 11.17, IA1): IPM 0.10.10 in a
+#                                                            throwaway build 154 container with no network; never in CI, in its own call,
+#                                                            with the lane variables (OCUTALON_LOCK_DIR and OCUTALON_LOCK_OWNER)
 #
 # Every case builds a throwaway repository from `git archive HEAD` of the real tree (the paths that the scripts read, with the scripts
 # of the working tree on top), one commit
@@ -28,6 +31,15 @@
 #   first     (QA) every first version but 1.0.0 is refused with nothing written
 #   word      (QA) only the line yes proceeds; no option, variable or terminal answers in advance
 #   pushes    (QA) exactly two pushes, each to the local bare remote and named; the checkout never switched; the draft never leaves
+#   ipm       (Story 11.17) the ipm step packs the cut commit's tree in a throwaway container (docker shim): the artifact holds the bundle
+#             byte for byte, the record's section and row, the status line, one run and two runs of the package, clean-up, no second run
+#   ipmfail   every shim fault (a failed load, a dropped bundle file, a changed byte, a wrong version, an empty repository, an instance that
+#             is not running, a failed start) fails the step and deletes the file; the refusals come before any container; a leftover
+#             under the recorded name goes and a bystander stays
+#   ipmwait   a busy lane lock gives WAIT and exit 5 with nothing recorded and no container; the next call runs the step again
+#   ipmnet    the step sends nothing out (no pull, push or login; a throwaway run has no network), and the scan of the scripts finds no
+#             IPM publish form, repository URL or pull
+#   ipmlib    the shared helpers: state folder, SHA-256, content digest (one value for two packagings), the artifact check
 #   static    mode, ASCII, the main guard, the forbidden commands and push forms
 # Prints one PASS or FAIL line per rule; exits 0 only when all pass.
 set -u
@@ -36,10 +48,14 @@ root=$(cd "$(dirname "$0")/../.." && pwd -P)
 cd "$root" || exit 1
 
 live=0
+live_ipm=0
 rules=""
 for a in "$@"; do
   case $a in
     --live) live=1 ;;
+    ipm)
+      if [ "$live" -eq 1 ]; then live_ipm=1; else rules="$rules $a"; fi
+      ;;
     *) rules="$rules $a" ;;
   esac
 done
@@ -57,7 +73,7 @@ export HOME=$tmp/home
 export XDG_STATE_HOME=$tmp/xdg-state XDG_CONFIG_HOME=$tmp/xdg-config
 export GIT_CONFIG_GLOBAL=$tmp/gitconfig GIT_CONFIG_NOSYSTEM=1
 export OCUTALON_TEST_SECRET=zz-planted-value
-unset ANTHROPIC_API_KEY TELEGRAM_BOT_TOKEN OCUTALON_RELEASE_NOW
+unset ANTHROPIC_API_KEY TELEGRAM_BOT_TOKEN OCUTALON_RELEASE_NOW IRIS_IMAGE
 mkdir -p "$HOME" "$tmp/bin"
 git config -f "$GIT_CONFIG_GLOBAL" user.name "Release Test"
 git config -f "$GIT_CONFIG_GLOBAL" user.email "release-test@example.invalid"
@@ -175,6 +191,23 @@ case "$1" in
     ;;
   run)
     shift
+    if [ "$1" = "-d" ]; then
+      shift
+      name=""
+      while [ $# -gt 0 ]; do
+        case "$1" in
+          --name) name=$2; shift 2 ;;
+          --pull | --network) shift 2 ;;
+          *) break ;;
+        esac
+      done
+      [ -n "$name" ] || { echo "no container name" >&2; exit 125; }
+      [ -f "$SHIMFLAGS/ipm-run-fail" ] && { echo "planted run failure" >&2; exit 125; }
+      [ -d "$SHIMSTATE/ct.$name" ] && { echo "the name is in use" >&2; exit 125; }
+      mkdir -p "$SHIMSTATE/ct.$name/fs"
+      echo fakecontainerid
+      exit 0
+    fi
     ep=""
     while [ $# -gt 0 ]; do
       case "$1" in
@@ -195,6 +228,129 @@ case "$1" in
       *) exit 1 ;;
     esac
     exit 0
+    ;;
+  rm)
+    shift
+    for t in "$@"; do
+      case "$t" in -*) ;; *) rm -rf "${SHIMSTATE:?}/ct.$t" ;; esac
+    done
+    exit 0
+    ;;
+  cp)
+    shift
+    case "$1" in
+      /*) # into the container: <host path> <name>:<path>
+        c=${2%%:*}; p=${2#*:}; d="$SHIMSTATE/ct.$c"
+        [ -d "$d" ] && [ -d "$(dirname "$d/fs$p")" ] || { echo "no such container path" >&2; exit 1; }
+        cp -R "$1" "$d/fs$p"
+        ;;
+      *) # out of the container: <name>:<path> <host path>
+        c=${1%%:*}; p=${1#*:}; d="$SHIMSTATE/ct.$c"
+        [ -e "$d/fs$p" ] || { echo "no such file in the container" >&2; exit 1; }
+        cp -R "$d/fs$p" "$2"
+        ;;
+    esac
+    exit 0
+    ;;
+  exec)
+    shift
+    while [ $# -gt 0 ]; do
+      case "$1" in -u) shift 2 ;; -i) shift ;; *) break ;; esac
+    done
+    c=$1
+    shift
+    d="$SHIMSTATE/ct.$c"
+    [ -d "$d" ] || { echo "No such container: $c" >&2; exit 1; }
+    case "$1" in
+      mkdir)
+        shift
+        [ "$1" = -p ] && shift
+        mkdir -p "$d/fs$1"
+        exit 0
+        ;;
+      chmod) exit 0 ;;
+      iris)
+        case "$2" in
+          qlist)
+            if [ -f "$SHIMFLAGS/ipm-not-running" ]; then
+              echo "IRIS^/usr/irissys^2026.3.0AI.154.0^down^x"
+            else
+              echo "IRIS^/usr/irissys^2026.3.0AI.154.0^running, since 2026-01-01^x"
+            fi
+            exit 0
+            ;;
+          session)
+            ns=$5
+            while IFS= read -r line; do
+              case "$line" in
+                *'OBJ.Load('*) if [ -f "$SHIMFLAGS/ipm-iris-load-fail" ]; then echo "IPMLOAD FAILED"; echo "ERROR #5001: planted IPM load failure"; else echo "IPMLOAD OK"; fi ;;
+                'zpm "'*)
+                  echo "$ns $line" >> "$SHIMLOG/zpm.log"
+                  case "$line" in
+                    'zpm "load '*)
+                      dir=${line#zpm \"load }
+                      dir=${dir%\"}
+                      if [ -f "$SHIMFLAGS/ipm-load-fail" ]; then
+                        echo "ERROR! planted install failure"
+                      elif [ "$ns" != OCUTALON ] && { [ -f "$SHIMFLAGS/ipm-mapandstop" ] || grep -q MapAndStop "$d/fs$dir/module.xml"; }; then
+                        echo 'ERROR! OcuTalon created namespace OCUTALON. Now run: zn "OCUTALON" then the same install command.'
+                        : > "$d/ns-OCUTALON"
+                      else
+                        printf '[%s|ocutalon]\tActivate SUCCESS\n' "$ns"
+                        echo "$dir" > "$d/loaded-$ns"
+                      fi
+                      ;;
+                    'zpm "package '*)
+                      out=${line#*-path }
+                      out=${out%\"}
+                      src=$(cat "$d/loaded-$ns" 2> /dev/null)
+                      if [ -z "$src" ]; then
+                        echo "ERROR! ocutalon is not installed in $ns"
+                      else
+                        rm -rf "$d/pk"
+                        mkdir -p "$d/pk"
+                        cp -R "$d/fs$src/." "$d/pk/"
+                        [ -f "$SHIMFLAGS/ipm-drop-csp" ] && rm -f "$d/pk/ocutalon/csp/main-FAKE.js"
+                        [ -f "$SHIMFLAGS/ipm-byte" ] && echo x >> "$d/pk/ocutalon/csp/main-FAKE.js"
+                        if [ -f "$SHIMFLAGS/ipm-version" ]; then
+                          sed 's:<Version>[^<]*</Version>:<Version>9.9.9</Version>:' "$d/pk/module.xml" > "$d/pk/module.xml.new"
+                          mv "$d/pk/module.xml.new" "$d/pk/module.xml"
+                        fi
+                        tar -czf "$d/fs$out.tgz" -C "$d/pk" .
+                        echo "Package written to $out.tgz"
+                      fi
+                      ;;
+                    'zpm "repo '*'-list-modules'*)
+                      if [ ! -f "$SHIMFLAGS/ipm-empty-repo" ]; then
+                        rp=$(cat "$d/repopath" 2> /dev/null)
+                        for m in "$d/fs$rp"*/module.xml; do
+                          [ -f "$m" ] || continue
+                          mv_=$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' "$m" | head -n 1)
+                          md=${m%module.xml}
+                          printf 'ocutalon %s @ %s\n' "$mv_" "${md#"$d/fs"}"
+                        done
+                      fi
+                      ;;
+                    'zpm "repo '*)
+                      rp=${line#*-path }
+                      rp=${rp%\"}
+                      echo "$rp" > "$d/repopath"
+                      ;;
+                  esac
+                  ;;
+                *Config.Namespaces*)
+                  if [ -f "$d/ns-OCUTALON" ]; then echo "NSCHECK 1"; else echo "NSCHECK 0"; fi
+                  ;;
+              esac
+            done
+            echo "$ns>"
+            exit 0
+            ;;
+        esac
+        ;;
+    esac
+    echo "unexpected docker exec" >&2
+    exit 1
     ;;
   rmi)
     shift
@@ -244,7 +400,7 @@ mkseed() {
     git -C "$root" archive HEAD | tar -x -C "$s" || exit 1
   else
     # Only what the sequence, the notes script and the harness read: the whole tree adds time and no case.
-    git -C "$root" archive HEAD release ci docker/tests docker/Dockerfile .gitignore .dockerignore src/module.xml README.md \
+    git -C "$root" archive HEAD release ci docker/tests docker/Dockerfile docker/ipm .gitignore .dockerignore src/module.xml README.md \
       web/package.json web/package-lock.json _bmad-output/implementation-artifacts/sprint-status.yaml \
       _bmad-output/planning-artifacts/epics.md | tar -x -C "$s" || exit 1
   fi
@@ -275,13 +431,14 @@ newcase() {
   C=$tmp/c$case_n
   W=$C/w
   R=$C/r.git
-  mkdir -p "$C/flags" "$C/shim" "$C/shimstate"
+  mkdir -p "$C/flags" "$C/shim" "$C/shimstate" "$C/locks"
   git clone -q --bare "$tmp/seed" "$R" || exit 1
   git clone -q "$R" "$W" || exit 1
   net_check "$W" || exit 1
   export OCUTALON_RELEASE_STATE=$C/state
   export SHIMLOG=$C/shim SHIMFLAGS=$C/flags SHIMSTATE=$C/shimstate
-  unset OCUTALON_RELEASE_NOW
+  unset OCUTALON_RELEASE_NOW OCUTALON_LOCK_WAIT OCUTALON_RELEASE_IPM_WAIT
+  if [ "$live" -eq 0 ]; then export OCUTALON_LOCK_DIR=$C/locks; fi
   RS_PATH=""
   EXPECT_BASE=$(git -C "$W" rev-parse HEAD)
 }
@@ -326,6 +483,8 @@ to_step() {
   case $1 in cut) return 0 ;; esac
   rs '' next
   case $1 in image) return 0 ;; esac
+  rs '' next
+  case $1 in ipm) return 0 ;; esac
   rs '' next
   case $1 in push) return 0 ;; esac
   rs "$Y" next
@@ -619,6 +778,7 @@ t_recut() {
   rs "$N" next --version 1.0.0 --rc 2
   rs "$N" next --version 1.0.0 --rc 2
   rs "$N" next --version 1.0.0 --rc 2
+  rs "$N" next --version 1.0.0 --rc 2
   has "rc2: the record's Candidate" "$(cat "$(rec_file 2)")" "Candidate: 1.0.0 rc2, release/1.0.0-rc2 at $c2"
   has "rc2: the record's Cut from" "$(cat "$(rec_file 2)")" "Cut from: release/1.0.0-rc1 at $RC1, then $FIX1 $FIX2 cherry-picked from $INTEG"
   # a pick that is not on the integration branch
@@ -664,7 +824,7 @@ t_image() {
   rs '' next
   eq "image: exit" "$rc" 0
   has "image: the line" "$out" "PASS image 1.0.0"
-  has "image: the next step" "$out" "NEXT push"
+  has "image: the next step" "$out" "NEXT ipm"
   eq "image: built from the candidate's tree" "$(cat "$SHIMLOG/builds.log")" "build context-version=1.0.0 bundle=yes"
   eq "image: the author's checkout still says 0.1.0" "$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' "$W/src/module.xml" | head -n 1)" 0.1.0
   has "image: the version was read" "$(cat "$SHIMLOG/docker.log")" "run --rm --entrypoint cat ocutalon-release-check:1.0.0-rc1-"
@@ -703,7 +863,7 @@ t_image() {
   unflag no-bundle
   rs "$N" next
   has "the retry passes" "$out" "PASS image 1.0.0"
-  has "the retry names the push" "$out" "NEXT push"
+  has "the retry names the packaging" "$out" "NEXT ipm"
   newcase
   to_step image
   flag rmi-fail
@@ -761,6 +921,7 @@ t_push() {
   # the author's own tag and branch, which no push may carry along
   git -C "$W" tag note-to-self
   git -C "$W" branch scratch-branch
+  rs '' next
   rs '' next
   rs '' next
   rs "$Y" next
@@ -872,7 +1033,9 @@ t_record() {
   # the stop of an unanswered question, with the record question at the end of input
   unflag lie
   rs '' next
-  has "image passes" "$out" "NEXT push"
+  has "image passes" "$out" "NEXT ipm"
+  rs '' next
+  has "ipm passes" "$out" "NEXT push"
   rs '' next
   eq "an unanswered push: exit" "$rc" 4
   has "an unanswered push: the stop" "$out" "STOPPED push waiting for the author's word"
@@ -937,6 +1100,7 @@ t_hands() {
   eq "kit window: the state" "$(sed -n 's/^handson=//p' "$OCUTALON_RELEASE_STATE/1.0.0-rc1/state.env")" 100
   rs '' next
   rs '' next
+  rs '' next
   rs "$Y" next
   rs "$Y" next
   has "the sum of the windows" "$(cat "$(rec_file)")" "Hands-on time: 3 min 21 s for this candidate; 3 min 21 s for 1.0.0 so far (target at most 15 min; CI and the hands-on pass not counted)"
@@ -946,6 +1110,7 @@ t_hands() {
   clockfile 4000 4030 5000 5020 6000 6010
   rs "$Y" start --version 1.0.0
   has "rc2" "$out" "START 1.0.0 rc2 "
+  rs '' next --version 1.0.0 --rc 2
   rs '' next --version 1.0.0 --rc 2
   rs '' next --version 1.0.0 --rc 2
   rs "$Y" next --version 1.0.0 --rc 2
@@ -988,6 +1153,7 @@ t_hands() {
   rs "$Y" start --version 1.0.0
   rs '' next
   rs '' next
+  rs '' next
   rs "$Y" next
   rs "$Y" next
   has "only the question windows count" "$(cat "$(rec_file)")" "Hands-on time: 30 s for this candidate; 30 s for 1.0.0 so far"
@@ -1000,6 +1166,7 @@ t_resume() {
   local before after
   newcase
   rs "$Y" start --version 1.0.0
+  rs '' next
   rs '' next
   rs '' next
   rs "$N" next
@@ -1125,6 +1292,7 @@ t_gate() {
   rs "$Y" start --version 1.0.0
   rs '' next
   rs '' next
+  rs '' next
   rs "$Y" next
   # another gate's section is already in the record when the sequence writes its own
   mkdir -p "$W/release/records/1.0.0"
@@ -1161,6 +1329,8 @@ forbidden_scan() { # forbidden_scan <file>...: file:line of each forbidden form
       else if (line ~ /declare[ \t]+-[a-zA-Z]*p/) bad()
       else if (line ~ /docker[ \t]+compose[ \t]+config/ && line !~ /--quiet/) bad()
       else if (line ~ /docker[^|;&]*[ \t]inspect/ && line !~ /--format/) bad()
+      else if (line ~ /docker[ \t]+pull/) bad()
+      else if (line ~ /(zpm|repo)[ \t]/ && line ~ /(publish|[ \t]-r[ \t]|-url)/) bad()
       else if (line ~ /git[ \t]+push[^|;&]*(--force|--tags|--all|--mirror|--delete| -f |[ \t]\+)/) bad()
       else if (line ~ /git[^|;&]*[ \t]tag([ \t]|$)/ && line !~ /--list|--merged|--points-at/) bad()
     }' "$@"
@@ -1171,6 +1341,7 @@ t_secret() {
   newcase
   printf '' > "$tmp/alloutput"
   rs "$Y" start --version 1.0.0
+  rs '' next
   rs '' next
   rs '' next
   rs "$Y" next
@@ -1301,6 +1472,7 @@ t_pushes() {
   rs "$Y" start --version 1.0.0
   rs '' next
   rs '' next
+  rs '' next
   rs "$Y" next
   rs "$Y" next
   eq "two pushes: the last exit" "$rc" 0
@@ -1336,10 +1508,407 @@ t_pushes() {
   rs "$Y" start --version 1.0.0
   rs '' next
   rs '' next
+  rs '' next
   rs "$N" next
   rs '' next
   eq "declined and unanswered words: no push" "$(grep -cE '(^| )push( |$)' "$SHIMLOG/git.log")" 0
   RS_PATH=""
+}
+
+# --- ipm (Story 11.17: the IPM artifact carries the built page) ---
+
+# runs_d: the "docker run -d" lines of the case's shim log.
+runs_d() { grep -E '^run -d ' "$SHIMLOG/docker.log" 2> /dev/null; }
+count_runs() { runs_d | grep -c .; }
+# dlog_line <pattern>: the line number of the first shim-log line that matches.
+dlog_line() { grep -nE -e "$1" "$SHIMLOG/docker.log" | head -n 1 | cut -d: -f1; }
+# sect <file> <title>: the lines of a record section.
+sect() { awk -v t="$2" '$0 == t { f = 1; print; next } f && /^## / { exit } f { print }' "$1"; }
+# state_get <key>: a value of rc1's state.
+state_get() { sed -n "s/^$1=//p" "$OCUTALON_RELEASE_STATE/1.0.0-rc1/state.env" | tail -n 1; }
+# ipm_expect <candidate sha> <bytes> <sha256> <content digest> <files> <namespace>: the golden section of a pass.
+ipm_expect() {
+  printf '%s\n' "## IPM artifact" "Result: pass" "Candidate: 1.0.0 rc1, release/1.0.0-rc1 at $1" \
+    "Artifact: ocutalon-1.0.0.tgz, kept in the release state folder (1.0.0-rc1/ipm/), outside the repository; release.sh status prints its full path" \
+    "Size: $2 bytes" "SHA-256: $3" \
+    "Content SHA-256: $4 (over every file in the artifact; the same for every packaging of this candidate)" \
+    "Packaged by: IPM 0.10.10, zpm \"package ocutalon -only\", in namespace $6 of a throwaway build 154 instance with no network" \
+    "Web bundle: $5 files of src/ocutalon/csp/, index.html included, byte-identical to the candidate's" \
+    "Published: no; publishing to the package registry is the author's own action, outside this sequence"
+}
+# ipm_fail_expect <candidate sha>: the section of a failure.
+ipm_fail_expect() {
+  printf '%s\n' "## IPM artifact" "Result: fail" "Candidate: 1.0.0 rc1, release/1.0.0-rc1 at $1" \
+    "Published: no; publishing to the package registry is the author's own action, outside this sequence"
+}
+ZPM_ONE='%SYS zpm "enable -map -ns USER"
+USER zpm "load /tmp/ocutalon-pkg/src"
+USER zpm "package ocutalon -only -path /tmp/ocutalon-ipm/ocutalon-1.0.0"
+USER zpm "repo -name ocutalon-check -fs -depth 2 -path /tmp/ocutalon-check/"
+USER zpm "repo -name ocutalon-check -list-modules"'
+ZPM_TWO='%SYS zpm "enable -map -ns USER"
+USER zpm "load /tmp/ocutalon-pkg/src"
+OCUTALON zpm "load /tmp/ocutalon-pkg/src"
+OCUTALON zpm "package ocutalon -only -path /tmp/ocutalon-ipm/ocutalon-1.0.0"
+OCUTALON zpm "repo -name ocutalon-check -fs -depth 2 -path /tmp/ocutalon-check/"
+OCUTALON zpm "repo -name ocutalon-check -list-modules"'
+
+# bundle_diff <folder of the extracted artifact> <branch>: the bundle files of the branch that the folder lacks or holds with other bytes.
+bundle_diff() {
+  local f rel
+  for f in $(git -C "$W" ls-tree -r --name-only "$2" -- src/ocutalon/csp); do
+    rel=${f#src/ocutalon/csp/}
+    cmp -s "$1/ocutalon/csp/$rel" <(git -C "$W" cat-file blob "$2:$f") || echo "$rel"
+  done
+}
+
+# no_leftovers: no throwaway container and no lock of the run is left.
+no_leftovers() {
+  eq "$1: no throwaway container is left" "$(ls "$SHIMSTATE" | grep -c '^ct\.')" 0
+  eq "$1: the lock is released" "$(ls "$C/locks" | wc -l | tr -d ' ')" 0
+}
+
+t_ipm() {
+  local art bytes sha cdig c name x log
+  . "$root/release/lib-release.sh"
+  # the pass, with today's module.xml (one run)
+  newcase
+  to_step ipm
+  c=$(cand)
+  rs '' next
+  eq "ipm: exit" "$rc" 0
+  art=$OCUTALON_RELEASE_STATE/1.0.0-rc1/ipm/ocutalon-1.0.0.tgz
+  [ -f "$art" ] || {
+    echo "  ipm: no artifact: $out"
+    bad=1
+    return 0
+  }
+  bytes=$(wc -c < "$art" | tr -d ' ')
+  sha=$(sha256_file "$art")
+  has "ipm: the PASS line" "$out" "PASS ipm ocutalon-1.0.0.tgz $bytes bytes sha256 $sha"
+  has "ipm: the ARTIFACT line" "$out" "ARTIFACT $art"
+  has "ipm: the next step" "$out" "NEXT push"
+  x=$C/x
+  mkdir -p "$x"
+  tar -xzf "$art" -C "$x"
+  has "ipm: the module's name" "$(cat "$x/module.xml")" "<Name>ocutalon</Name>"
+  has "ipm: the module's version" "$(cat "$x/module.xml")" "<Version>1.0.0</Version>"
+  has "ipm: the FileCopy of the bundle" "$(cat "$x/module.xml")" '<FileCopy Name="ocutalon/csp/"'
+  eq "ipm: the candidate tracks three bundle files" "$(git -C "$W" ls-tree -r --name-only release/1.0.0-rc1 -- src/ocutalon/csp | wc -l | tr -d ' ')" 3
+  eq "ipm: every bundle file of the candidate is in the artifact, byte for byte" "$(bundle_diff "$x" release/1.0.0-rc1)" ""
+  cdig=$(ipm_content_digest "$art")
+  eq "ipm: the record's section" "$(sect "$(rec_file)" "## IPM artifact")" "$(ipm_expect "$c" "$bytes" "$sha" "$cdig" 3 USER)"
+  lacks "ipm: the record names no local path" "$(cat "$(rec_file)")" "$tmp"
+  name=$(state_get ipm_container)
+  case $name in
+    ocutalon-release-ipm-100-rc1-[0-9]*-[0-9]*) ;;
+    *)
+      echo "  ipm: the container's name is '$name'"
+      bad=1
+      ;;
+  esac
+  eq "ipm: one throwaway run" "$(count_runs)" 1
+  eq "ipm: the throwaway has no network and is never pulled" "$(runs_d)" "run -d --pull never --network none --name $name ocutalon-iris-base:2026.3.0AI.154.0"
+  log=$(cat "$SHIMLOG/docker.log")
+  has "ipm: the container is removed with its volumes" "$log" "rm -f -v $name"
+  [ "$(dlog_line '^run -d ')" -lt "$(dlog_line '^cp ')" ] && [ "$(dlog_line '^cp ')" -lt "$(dlog_line '^exec -u root [^ ]+ chmod -R a\+rX /tmp/ocutalon-pkg')" ] \
+    && [ "$(dlog_line '^exec -u root [^ ]+ chmod -R a\+rX /tmp/ocutalon-pkg')" -lt "$(dlog_line '^exec -i [^ ]+ iris session')" ] \
+    && [ "$(dlog_line '^exec -i [^ ]+ iris session')" -lt "$(dlog_line '^rm -f -v ')" ] || {
+    echo "  ipm: the container calls are not in the order run, cp, chmod, session, rm"
+    bad=1
+  }
+  eq "ipm: the zpm calls of a one-run package" "$(cat "$SHIMLOG/zpm.log")" "$ZPM_ONE"
+  eq "ipm: the step makes no pull, push, login, save or export" "$(grep -cE '^(pull|push|login|save|export)' "$SHIMLOG/docker.log")" 0
+  no_leftovers "ipm"
+  eq "ipm: the tree copy is gone" "$(ls "$OCUTALON_RELEASE_STATE/1.0.0-rc1" | tr '\n' ' ')" "ipm ipm-section.md rows.tsv state.env "
+  eq "ipm: the artifact is outside the repository" "$(git -C "$W" status --porcelain | grep -c 'tgz')" 0
+  rs '' status
+  has "ipm: status prints the artifact" "$out" "ARTIFACT $art $bytes $sha"
+  # the sequence goes on to push and never packs again; IA2: the real notes step and the stop routine keep the section
+  rs "$N" next
+  eq "ipm: the push question follows (exit)" "$rc" 4
+  has "ipm: the push question" "$out" "ASK push "
+  has "ipm: the step's row" "$(cat "$(rec_file)")" "| ipm | pass | ocutalon-1.0.0.tgz, $bytes bytes, SHA-256 ${sha:0:12}; carries the candidate's web bundle; not published |"
+  eq "ipm: the step does not run again" "$(count_runs)" 1
+  rs "$Y" next
+  has "ipm: push" "$out" "PASS push release/1.0.0-rc1"
+  rs "$Y" next
+  has "ipm: the real notes step ran" "$out" "PASS notes RESULT "
+  has "ipm: the record was pushed" "$out" "PASS record pushed"
+  eq "ipm: the section is byte for byte after the notes step and the stop routine" "$(sect "$(rec_file)" "## IPM artifact")" "$(ipm_expect "$c" "$bytes" "$sha" "$cdig" 3 USER)"
+  eq "ipm: the committed record holds the section" "$(git -C "$W" show "HEAD:release/records/1.0.0/rc1.md" | awk '$0 == "## IPM artifact" { f = 1; print; next } f && /^## / { exit } f { print }')" "$(sect "$(rec_file)" "## IPM artifact")"
+  rs '' status
+  has "ipm: status still prints the artifact at the end" "$out" "ARTIFACT $art $bytes $sha"
+  eq "ipm: still one throwaway run" "$(count_runs)" 1
+  # a module that stops the first run (Epic 15's): loaded in USER, then in OCUTALON, packaged there
+  newcase
+  awk '/<\/Module>/ { print "      <Invoke Class=\"OcuTalon.Install.Ipm\" Method=\"MapAndStop\" Phase=\"Initialize\" When=\"After\"/>" } { print }' "$W/src/module.xml" > "$W/src/module.xml.new"
+  mv "$W/src/module.xml.new" "$W/src/module.xml"
+  git -C "$W" commit -q -am "a module that stops the first run"
+  git -C "$W" push -q origin "$INTEG"
+  EXPECT_BASE=$(git -C "$W" rev-parse HEAD)
+  to_step ipm
+  rs '' next
+  eq "two-run: exit" "$rc" 0
+  eq "two-run: the zpm calls" "$(cat "$SHIMLOG/zpm.log")" "$ZPM_TWO"
+  has "two-run: the namespace packaged in" "$(cat "$(rec_file)")" "in namespace OCUTALON of a throwaway build 154 instance with no network"
+  has "two-run: the artifact" "$out" "PASS ipm ocutalon-1.0.0.tgz "
+  no_leftovers "two-run"
+  # the shim's flag for the same module
+  newcase
+  flag ipm-mapandstop
+  to_step ipm
+  export IRIS_IMAGE=my-base:7
+  rs '' next
+  unset IRIS_IMAGE
+  eq "two-run by flag: the zpm calls" "$(cat "$SHIMLOG/zpm.log")" "$ZPM_TWO"
+  eq "IRIS_IMAGE names the base image of the throwaway" "$(runs_d | awk '{ print $NF }')" "my-base:7"
+}
+
+t_ipmfail() {
+  local art c name i f before msg
+  . "$root/release/lib-release.sh"
+  # failures after the container started: the file is gone, the container too, no push question
+  newcase
+  to_step ipm
+  c=$(cand)
+  art=$OCUTALON_RELEASE_STATE/1.0.0-rc1/ipm/ocutalon-1.0.0.tgz
+  for i in "ipm-load-fail|the package did not install: ERROR! planted install failure" \
+    "ipm-iris-load-fail|the package did not install: IPM could not be loaded: ERROR #5001: planted IPM load failure" \
+    "ipm-drop-csp|the artifact lacks the bundle file ocutalon/csp/main-FAKE.js" \
+    "ipm-byte|the artifact holds a different ocutalon/csp/main-FAKE.js than the candidate" \
+    "ipm-version|the artifact holds a module.xml that does not read version 1.0.0" \
+    "ipm-empty-repo|the artifact is not listed by the IPM filesystem repository (it lists nothing for ocutalon 1.0.0)" \
+    "ipm-not-running|the package did not install: the throwaway instance was not running after 0 s" \
+    "ipm-run-fail|the package did not install: the throwaway instance could not be started"; do
+    f=${i%%|*}
+    msg=${i#*|}
+    flag "$f"
+    [ "$f" != ipm-not-running ] || export OCUTALON_RELEASE_IPM_WAIT=0
+    rs "$N" next
+    unset OCUTALON_RELEASE_IPM_WAIT
+    unflag "$f"
+    eq "$f: exit" "$rc" 1
+    has "$f: the line" "$out" "FAIL ipm $msg"
+    lacks "$f: no push question" "$out" "ASK push"
+    eq "$f: no artifact file" "$([ -e "$art" ] && echo yes || echo no)" no
+    name=$(state_get ipm_container)
+    has "$f: the container is removed" "$(cat "$SHIMLOG/docker.log")" "rm -f -v $name"
+    no_leftovers "$f"
+    has "$f: the record's result" "$(cat "$(rec_file)")" "Result: failed at ipm: $msg"
+    eq "$f: the record's section" "$(sect "$(rec_file)" "## IPM artifact")" "$(ipm_fail_expect "$c")"
+    lacks "$f: the record names no local path" "$(cat "$(rec_file)")" "$tmp"
+    rs '' status
+    has "$f: the sequence still waits at ipm" "$out" "STATE 1.0.0 rc1 next ipm"
+    lacks "$f: no artifact line in the status" "$out" "ARTIFACT"
+  done
+  eq "the failed packagings each ran a throwaway" "$(count_runs)" 8
+  eq "the install log is kept" "$([ -f "$OCUTALON_RELEASE_STATE/1.0.0-rc1/ipm/run.log" ] && echo yes || echo no)" yes
+  # a leftover under the recorded name goes at the next run, a bystander stays
+  name=$(state_get ipm_container)
+  mkdir -p "$SHIMSTATE/ct.$name/fs" "$SHIMSTATE/ct.bystander/fs"
+  rs "$N" next
+  eq "the re-run: exit" "$rc" 0
+  has "the re-run packs" "$out" "PASS ipm ocutalon-1.0.0.tgz "
+  eq "the recorded leftover is gone" "$([ -d "$SHIMSTATE/ct.$name" ] && echo yes || echo no)" no
+  eq "a bystander is kept" "$([ -d "$SHIMSTATE/ct.bystander" ] && echo yes || echo no)" yes
+  lacks "no removal of a bystander" "$(cat "$SHIMLOG/docker.log")" "rm -f -v bystander"
+  eq "the re-run made a fresh throwaway" "$(count_runs)" 9
+  eq "the record holds one section, from the latest attempt" "$(grep -c '^## IPM artifact' "$(rec_file)")" 1
+  has "the section reads pass" "$(sect "$(rec_file)" "## IPM artifact")" "Result: pass"
+  [ -f "$art" ] || {
+    echo "  the re-run left no artifact"
+    bad=1
+  }
+  # refusals before any container
+  newcase
+  to_step ipm
+  c=$(cand)
+  git -C "$W" checkout -q --detach release/1.0.0-rc1
+  git -C "$W" rm -rq src/ocutalon/csp
+  git -C "$W" commit -q -m "no bundle"
+  before=$(git -C "$W" rev-parse HEAD)
+  git -C "$W" checkout -q "$INTEG"
+  env_set "$OCUTALON_RELEASE_STATE/1.0.0-rc1/state.env" cand_sha "$before"
+  rs "$N" next
+  eq "no bundle: exit" "$rc" 1
+  has "no bundle: the line" "$out" "FAIL ipm the candidate has no committed web bundle (src/ocutalon/csp/index.html)"
+  eq "no bundle: no container" "$(count_runs)" 0
+  has "no bundle: the record" "$(cat "$(rec_file)")" "Result: failed at ipm: the candidate has no committed web bundle (src/ocutalon/csp/index.html)"
+  git -C "$W" checkout -q --detach release/1.0.0-rc1
+  sed 's:<Version>[^<]*</Version>:<Version>1.0.1</Version>:' "$W/src/module.xml" > "$W/src/module.xml.new"
+  mv "$W/src/module.xml.new" "$W/src/module.xml"
+  git -C "$W" commit -q -am "another version"
+  before=$(git -C "$W" rev-parse HEAD)
+  git -C "$W" checkout -q "$INTEG"
+  env_set "$OCUTALON_RELEASE_STATE/1.0.0-rc1/state.env" cand_sha "$before"
+  rs "$N" next
+  has "a wrong version: the line" "$out" "FAIL ipm src/module.xml reads 1.0.1, not 1.0.0"
+  eq "a wrong version: no container" "$(count_runs)" 0
+  git -C "$W" checkout -q --detach release/1.0.0-rc1
+  git -C "$W" rm -q docker/ipm/zpm-0.10.10.xml
+  git -C "$W" commit -q -m "no ipm release file"
+  before=$(git -C "$W" rev-parse HEAD)
+  git -C "$W" checkout -q "$INTEG"
+  env_set "$OCUTALON_RELEASE_STATE/1.0.0-rc1/state.env" cand_sha "$before"
+  rs "$N" next
+  has "no IPM release file: the line" "$out" "FAIL ipm the candidate holds no single docker/ipm/zpm-*.xml"
+  eq "no IPM release file: no container" "$(count_runs)" 0
+  env_set "$OCUTALON_RELEASE_STATE/1.0.0-rc1/state.env" cand_sha "$c"
+  flag no-base
+  rs "$N" next
+  has "no base image: the line" "$out" "FAIL ipm the IRIS base image ocutalon-iris-base:2026.3.0AI.154.0 is not on this machine"
+  eq "no base image: no container" "$(count_runs)" 0
+  eq "no base image: nothing was pulled" "$(grep -cE '^pull' "$SHIMLOG/docker.log")" 0
+  lacks "no base image: no push question" "$out" "ASK push"
+  unflag no-base
+  rs "$N" next
+  has "the retry packs" "$out" "PASS ipm ocutalon-1.0.0.tgz "
+  eq "the retry made one throwaway" "$(count_runs)" 1
+  # a sequence that is not cut: a failure with no section
+  newcase
+  rs "$Y" start --version 1.0.0
+  env_set "$OCUTALON_RELEASE_STATE/1.0.0-rc1/state.env" next ipm
+  rs "$N" next
+  has "not cut: the line" "$out" "FAIL ipm the candidate is not cut"
+  eq "not cut: no section" "$(grep -c '^## IPM artifact' "$(rec_file)")" 0
+  eq "not cut: no container" "$(count_runs)" 0
+}
+
+t_ipmwait() {
+  local lock before head
+  . "$root/release/lib-release.sh"
+  newcase
+  to_step ipm
+  lock=$C/locks/throwaway-iris.lock
+  echo "epic=99 stage=other project=other acquired_at=2026-01-01T00:00:00Z" > "$lock"
+  before=$(cat "$lock")
+  head=$(git -C "$W" rev-parse HEAD)
+  export OCUTALON_LOCK_WAIT=0
+  rs '' next
+  unset OCUTALON_LOCK_WAIT
+  eq "busy lock: exit" "$rc" 5
+  has "busy lock: the line" "$out" "WAIT ipm the lane's throwaway lock is busy"
+  lacks "busy lock: no question" "$out" "ASK "
+  lacks "busy lock: no lock line is printed" "$out" "LOCK "
+  eq "busy lock: no container was run" "$(count_runs)" 0
+  eq "busy lock: the planted lock is kept" "$(cat "$lock")" "$before"
+  eq "busy lock: no record" "$([ -e "$(rec_file)" ] && echo yes || echo no)" no
+  eq "busy lock: no commit" "$(git -C "$W" rev-parse HEAD)" "$head"
+  rs '' status
+  has "busy lock: the sequence still waits at ipm" "$out" "STATE 1.0.0 rc1 next ipm"
+  eq "busy lock: no artifact" "$([ -e "$OCUTALON_RELEASE_STATE/1.0.0-rc1/ipm/ocutalon-1.0.0.tgz" ] && echo yes || echo no)" no
+  rm -f "$lock"
+  rs '' next
+  eq "the next call runs ipm again: exit" "$rc" 0
+  has "the next call runs ipm again" "$out" "PASS ipm ocutalon-1.0.0.tgz "
+  eq "the next call made one throwaway" "$(count_runs)" 1
+  no_leftovers "after the wait"
+}
+
+t_ipmnet() {
+  local plant hits d
+  . "$root/release/lib-release.sh"
+  newcase
+  printf '' > "$tmp/alloutput"
+  rs "$Y" start --version 1.0.0
+  rs '' next
+  rs '' next
+  rs '' next
+  rs "$N" next
+  eq "net: the full run stops at the push question" "$rc" 4
+  has "net: the throwaway ran" "$(cat "$SHIMLOG/docker.log")" "run -d --pull never --network none --name "
+  eq "net: every throwaway run has no network and no pull" "$(runs_d | grep -vc -e '--pull never --network none')" 0
+  eq "net: no env, volume, mount or port flag on a throwaway run" "$(runs_d | grep -cE -e ' -e | --env| -v | --mount| -p | --publish| --volume')" 0
+  eq "net: no pull, push, login, save or export" "$(grep -cE '^(pull|push|login|save|export)' "$SHIMLOG/docker.log")" 0
+  eq "net: the bare remote is unchanged" "$(git --git-dir="$R" for-each-ref --format='%(objectname) %(refname)')" "$EXPECT_BASE refs/heads/$INTEG"
+  hits=$(grep -rl "$OCUTALON_TEST_SECRET" "$tmp/alloutput" "$C/shim" "$OCUTALON_RELEASE_STATE" "$W/release/records" 2> /dev/null)
+  eq "net: the planted value is in no output, record, log or shim log" "$hits" ""
+  eq "net: the planted value is not in the artifact" "$(tar -xzOf "$OCUTALON_RELEASE_STATE/1.0.0-rc1/ipm/ocutalon-1.0.0.tgz" 2> /dev/null | grep -c "$OCUTALON_TEST_SECRET")" 0
+  # the scan of the scripts for the forms that send something out
+  eq "net: the scan of the scripts" "$(forbidden_scan "$root/release/release.sh" "$root/release/lib-release.sh")" ""
+  d=$tmp/scan2
+  mkdir -p "$d"
+  for plant in "dock""er pull ocutalon-iris-base" "zpm \"pub""lish ocutalon\"" "zpm \"repo -""r https://x.invalid/\"" "zpm \"repo -name x -""url https://x.invalid/\"" "zpm \"repo -name x -pub""lish\""; do
+    printf '#!/bin/sh\necho ok\n%s\n' "$plant" > "$d/s.sh"
+    eq "net: the scan flags '$plant'" "$(forbidden_scan "$d/s.sh")" "$d/s.sh:3"
+  done
+  printf '#!/bin/sh\n%s\n' 'zpm "repo -name x -fs -depth 2 -path /y/"' > "$d/g.sh"
+  eq "net: the scan accepts a filesystem repository" "$(forbidden_scan "$d/g.sh")" ""
+  cp "$root/release/lib-release.sh" "$d/copy.sh"
+  printf '%s\n' "dock""er pull registry.invalid/x" >> "$d/copy.sh"
+  eq "net: a planted line in a copy of the library" "$(forbidden_scan "$d/copy.sh")" "$d/copy.sh:$(wc -l < "$d/copy.sh" | tr -d ' ')"
+}
+
+t_ipmlib() {
+  local t a b
+  . "$root/release/lib-release.sh"
+  newcase
+  t=$C/t
+  eq "release_state_dir" "$(OCUTALON_RELEASE_STATE=/s release_state_dir 1.0.0 2)" "/s/1.0.0-rc2"
+  eq "release_state_root from XDG_STATE_HOME" "$(unset OCUTALON_RELEASE_STATE; XDG_STATE_HOME=/x release_state_root)" "/x/ocutalon/release"
+  eq "ipm_artifact_path" "$(OCUTALON_RELEASE_STATE=/s ipm_artifact_path 1.0.0 2)" "/s/1.0.0-rc2/ipm/ocutalon-1.0.0.tgz"
+  printf 'abc' > "$C/abc"
+  eq "sha256_file" "$(sha256_file "$C/abc")" "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad"
+  printf 'a\nb\n\nNS>\n  \n' > "$C/sess"
+  eq "last_prompt_free_line" "$(last_prompt_free_line "$C/sess")" "b"
+  # the content digest: one value for two packagings of one tree, another for other content
+  mkdir -p "$t/a/ocutalon/csp/assets" "$t/tree/src/ocutalon/csp/assets"
+  printf '<Name>ocutalon</Name><Version>1.0.0</Version><FileCopy Name="ocutalon/csp/" Target="x"/>\n' > "$t/a/module.xml"
+  printf 'page\n' > "$t/a/ocutalon/csp/index.html"
+  printf 'asset\n' > "$t/a/ocutalon/csp/assets/a.txt"
+  cp -R "$t/a/ocutalon/csp/." "$t/tree/src/ocutalon/csp/"
+  tar -czf "$C/one.tgz" -C "$t/a" .
+  touch -t 202001010101 "$t/a/ocutalon/csp/assets/a.txt" "$t/a/module.xml"
+  tar -czf "$C/two.tgz" -C "$t/a" .
+  eq "the two packagings differ in bytes" "$(cmp -s "$C/one.tgz" "$C/two.tgz" && echo same || echo differ)" differ
+  a=$(ipm_content_digest "$C/one.tgz")
+  b=$(ipm_content_digest "$C/two.tgz")
+  eq "the content digest is a SHA-256" "$(printf '%s' "$a" | grep -cE '^[0-9a-f]{64}$')" 1
+  eq "the content digest is the same for both packagings" "$a" "$b"
+  printf 'asset2\n' > "$t/a/ocutalon/csp/assets/a.txt"
+  tar -czf "$C/three.tgz" -C "$t/a" .
+  [ "$(ipm_content_digest "$C/three.tgz")" != "$a" ] || {
+    echo "  the digest ignores a changed file"
+    bad=1
+  }
+  printf 'asset\n' > "$t/a/ocutalon/csp/assets/a.txt"
+  # the digest covers every file's path and bytes, module.xml included
+  eq "the content digest is the SHA-256 of the sorted per-file sums" "$a" "$(cd "$t/a" && find . -type f | sed 's|^\./||' | LC_ALL=C sort | while IFS= read -r f; do printf '%s  %s\n' "$(sha256_file "$f")" "$f"; done | LC_ALL=C sort | { cat > "$C/lines"; sha256_file "$C/lines"; })"
+  printf 'x\n' >> "$t/a/module.xml"
+  tar -czf "$C/mod.tgz" -C "$t/a" .
+  [ "$(ipm_content_digest "$C/mod.tgz")" != "$a" ] || {
+    echo "  the digest ignores module.xml"
+    bad=1
+  }
+  printf '<Name>ocutalon</Name><Version>1.0.0</Version><FileCopy Name="ocutalon/csp/" Target="x"/>\n' > "$t/a/module.xml"
+  mv "$t/a/ocutalon/csp/assets/a.txt" "$t/a/ocutalon/csp/assets/b.txt"
+  tar -czf "$C/ren.tgz" -C "$t/a" .
+  [ "$(ipm_content_digest "$C/ren.tgz")" != "$a" ] || {
+    echo "  the digest ignores a renamed file"
+    bad=1
+  }
+  mv "$t/a/ocutalon/csp/assets/b.txt" "$t/a/ocutalon/csp/assets/a.txt"
+  # the artifact check
+  eq "a good artifact has no problem" "$(ipm_artifact_check "$C/one.tgz" 1.0.0 "$t/tree")" ""
+  has "another version" "$(ipm_artifact_check "$C/one.tgz" 1.0.1 "$t/tree")" "does not read version 1.0.1"
+  printf 'asset\nmore\n' > "$t/tree/src/ocutalon/csp/assets/a.txt"
+  has "a changed bundle byte" "$(ipm_artifact_check "$C/one.tgz" 1.0.0 "$t/tree")" "holds a different ocutalon/csp/assets/a.txt than the candidate"
+  printf 'asset\n' > "$t/tree/src/ocutalon/csp/assets/a.txt"
+  printf 'extra\n' > "$t/tree/src/ocutalon/csp/extra.js"
+  has "a missing bundle file" "$(ipm_artifact_check "$C/one.tgz" 1.0.0 "$t/tree")" "lacks the bundle file ocutalon/csp/extra.js"
+  rm -f "$t/tree/src/ocutalon/csp/extra.js"
+  printf '<Name>ocutalon</Name><Version>1.0.0</Version>\n' > "$t/a/module.xml"
+  tar -czf "$C/nofc.tgz" -C "$t/a" .
+  has "no FileCopy" "$(ipm_artifact_check "$C/nofc.tgz" 1.0.0 "$t/tree")" "no FileCopy of ocutalon/csp/"
+  printf '<Name>other</Name><Version>1.0.0</Version><FileCopy Name="ocutalon/csp/"/>\n' > "$t/a/module.xml"
+  tar -czf "$C/name.tgz" -C "$t/a" .
+  has "another name" "$(ipm_artifact_check "$C/name.tgz" 1.0.0 "$t/tree")" "does not name ocutalon"
+  rm -f "$t/a/module.xml"
+  tar -czf "$C/nomod.tgz" -C "$t/a" .
+  has "no module.xml" "$(ipm_artifact_check "$C/nomod.tgz" 1.0.0 "$t/tree")" "has no top-level module.xml"
+  printf 'not an archive' > "$C/bad.tgz"
+  has "not an archive" "$(ipm_artifact_check "$C/bad.tgz" 1.0.0 "$t/tree")" "cannot be read"
 }
 
 # --- static ---
@@ -1354,8 +1923,12 @@ t_static() {
     eq "$f: bash -n" "$(bash -n "$root/$f" 2>&1)" ""
     eq "$f: ASCII only" "$(LC_ALL=C grep -n '[^[:print:][:space:]]' "$root/$f" | cut -d: -f1 | tr '\n' ' ')" ""
   done
+  eq "lib-release.sh: bash -n" "$(bash -n "$root/release/lib-release.sh" 2>&1)" ""
+  eq "the steps, in order" "$(sed -n 's/^STEPS="\(.*\)"$/\1/p' "$root/release/release.sh")" "cut image ipm push notes"
+  eq "no file release/ipm* is changed or added" "$(git -C "$root" status --porcelain -- 'release/ipm*' | wc -l | tr -d ' ')" 0
+  eq "the ipm step makes no ASK" "$(awk '/^step_ipm\(\)/ { f = 1 } /^step_push\(\)/ { f = 0 } f' "$root/release/release.sh" | grep -c 'ask ')" 0
   eq "lib-release.sh: ASCII only" "$(LC_ALL=C grep -n '[^[:print:][:space:]]' "$root/release/lib-release.sh" | cut -d: -f1 | tr '\n' ' ')" ""
-  eq "the tracked scripts are mode 100755" "$(git -C "$root" ls-files -s release/release.sh docker/tests/test-release-sequence.sh | awk '$1 != "100755" { print $4 }')" ""
+  eq "the tracked scripts are mode 100755" "$(git -C "$root" ls-files -s release/release.sh release/lib-release.sh docker/tests/test-release-sequence.sh | awk '$1 != "100755" { print $4 }')" ""
   newcase
   net_check "$W"
   eq "a local remote passes the network check" "$?" 0
@@ -1401,6 +1974,41 @@ live_run() {
   imgs=$(docker images --format '{{.Repository}}' | grep -c "$LIVE_TAG_PREFIX")
   eq "no check image is left" "$imgs" 0
   eq "the candidate's bundle is committed" "$(git -C "$W" ls-tree --name-only release/1.0.0-rc1 src/ocutalon/csp/index.html)" "src/ocutalon/csp/index.html"
+  [ "$live_ipm" -eq 1 ] || return 0
+  live_ipm_run
+}
+
+# live_ipm_run: IA1, the real packaging of the throwaway candidate with IPM (one call; the lane variables name the lock folder).
+live_ipm_run() {
+  local t0 art x n lockf
+  echo "LIVE the real IPM packaging of the candidate (throwaway build 154 container, no network)"
+  t0=$SECONDS
+  rs '' next
+  echo "$out" | tail -n 4
+  echo "TIME ipm $((SECONDS - t0)) s"
+  eq "ipm: exit" "$rc" 0
+  has "ipm: the step" "$out" "PASS ipm ocutalon-1.0.0.tgz "
+  [ "$bad" -eq 0 ] || return 0
+  art=$OCUTALON_RELEASE_STATE/1.0.0-rc1/ipm/ocutalon-1.0.0.tgz
+  x=$C/x
+  mkdir -p "$x"
+  tar -xzf "$art" -C "$x"
+  n=$(git -C "$W" ls-tree -r --name-only release/1.0.0-rc1 -- src/ocutalon/csp | wc -l | tr -d ' ')
+  echo "LIVE the artifact: $(wc -c < "$art" | tr -d ' ') bytes, $n bundle files"
+  grep -h -E 'Activate SUCCESS|^ocutalon ' "$OCUTALON_RELEASE_STATE"/1.0.0-rc1/ipm/*.log | sed 's/^/LIVE ipm log: /'
+  sect "$(rec_file)" "## IPM artifact" | sed 's/^/LIVE record: /'
+  [ "$n" -gt 1 ] || {
+    echo "  the candidate tracks $n bundle file(s)"
+    bad=1
+  }
+  eq "IPM's filesystem repository lists the artifact" "$(awk '$1 == "ocutalon" && $2 == "1.0.0" { print $1, $2 }' "$OCUTALON_RELEASE_STATE/1.0.0-rc1/ipm/repo-list.log" | head -n 1)" "ocutalon 1.0.0"
+  eq "the artifact holds the real bundle byte for byte" "$(bundle_diff "$x" release/1.0.0-rc1)" ""
+  has "the artifact's module.xml" "$(cat "$x/module.xml")" '<FileCopy Name="ocutalon/csp/"'
+  eq "no ipm throwaway container is left" "$(docker ps -a --format '{{.Names}}' | grep -c '^ocutalon-release-ipm-')" 0
+  lockf=${OCUTALON_LOCK_DIR:-}/throwaway-iris.lock
+  eq "the lane lock holds nothing of the run" "$(cat "$lockf" 2> /dev/null | grep -c 'project=ocutalon-release-ipm-')" 0
+  rs '' status
+  has "status prints the artifact" "$out" "ARTIFACT $art "
 }
 
 mkshims
@@ -1427,6 +2035,11 @@ rule resume t_resume
 rule notes t_notes
 rule gate t_gate
 rule secret t_secret
+rule ipm t_ipm
+rule ipmfail t_ipmfail
+rule ipmwait t_ipmwait
+rule ipmnet t_ipmnet
+rule ipmlib t_ipmlib
 rule first t_first
 rule word t_word
 rule pushes t_pushes

@@ -42,6 +42,18 @@
 #                              (1 when there is none); status 1 when the remote cannot be read
 # env_get <file> <key>, env_set <file> <key> <value>   key=value files (options, results of a run)
 # detail_clean                 a result detail on one line of printable ASCII, 300 characters at most, with no pipe (stdin to stdout)
+# release_state_root           prints the folder of the release sequences' states: ${OCUTALON_RELEASE_STATE:-${XDG_STATE_HOME:-$HOME/.local/state}/
+#                              ocutalon/release}
+# release_state_dir <v> <rc>   prints the state folder of one candidate: <state root>/<v>-rc<rc> (Story 11.17)
+# sha256_file <file>           prints the 64-hex SHA-256 of a file (sha256sum, else shasum -a 256)
+# ipm_artifact_path <v> <rc>   prints the IPM artifact of a candidate: <state folder>/ipm/ocutalon-<v>.tgz (Story 11.17; Story 15.3 reads it)
+# ipm_artifact_check <tgz> <v> <tree>
+#                              prints one line per problem of the IPM artifact, and nothing when it is good: the top-level module.xml must name
+#                              ocutalon and <v> and hold the FileCopy of ocutalon/csp/, and every file of <tree>/src/ocutalon/csp/ must be in the
+#                              artifact as ocutalon/csp/<rel> with the same bytes
+# ipm_content_digest <tgz>     prints the SHA-256 of the sorted "<sha256>  <path>" lines of every regular file of the artifact: one value for
+#                              every packaging of one tree, whatever the archive's own bytes
+# last_prompt_free_line <file> prints the last line of a session's plain output that is not blank and not a terminal prompt (NS>)
 umask 077
 
 release_lib_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)
@@ -61,6 +73,81 @@ env_set() {
 
 # detail_clean: a result detail on one line of printable ASCII, 300 characters at most, with no pipe (the record is a table).
 detail_clean() { tr -d '\r' | tr '\n' ' ' | LC_ALL=C tr -c '\040-\176' '?' | tr '|' '/' | cut -c1-300; }
+
+# --- the state and the IPM artifact (Story 11.17) ---
+
+release_state_root() { printf '%s\n' "${OCUTALON_RELEASE_STATE:-${XDG_STATE_HOME:-$HOME/.local/state}/ocutalon/release}"; }
+
+release_state_dir() { printf '%s/%s-rc%s\n' "$(release_state_root)" "$1" "$2"; }
+
+# release_sha256_tool: the command that prints "<hex>  <name>" lines.
+release_sha256_tool() {
+  if command -v sha256sum > /dev/null 2>&1; then echo sha256sum; else echo "shasum -a 256"; fi
+}
+
+sha256_file() { $(release_sha256_tool) < "$1" | awk '{ print $1 }'; }
+
+ipm_artifact_path() { printf '%s/ipm/ocutalon-%s.tgz\n' "$(release_state_dir "$1" "$2")" "$1"; }
+
+# ipm_unpack <tgz> <folder>: extracts the artifact into the folder.
+ipm_unpack() {
+  mkdir -p "$2" && tar -xzf "$1" -C "$2" < /dev/null 2> /dev/null
+}
+
+ipm_artifact_check() {
+  local tgz=$1 ver=$2 tree=$3 d f rel mx
+  d=$(mktemp -d "${TMPDIR:-/tmp}/ocutalon-ipmchk.XXXXXX") || return 1
+  if ! ipm_unpack "$tgz" "$d"; then
+    echo "cannot be read as a gzip tar archive"
+    rm -rf "$d"
+    return 0
+  fi
+  mx=$d/module.xml
+  if [ ! -f "$mx" ]; then
+    echo "has no top-level module.xml"
+  else
+    grep -qF "<Name>ocutalon</Name>" "$mx" || echo "holds a module.xml that does not name ocutalon"
+    grep -qF "<Version>$ver</Version>" "$mx" || echo "holds a module.xml that does not read version $ver"
+    grep -qF '<FileCopy Name="ocutalon/csp/"' "$mx" || echo 'holds a module.xml with no FileCopy of ocutalon/csp/'
+  fi
+  if [ -d "$tree/src/ocutalon/csp" ]; then
+    while IFS= read -r f; do
+      rel=${f#"$tree/src/ocutalon/csp/"}
+      if [ ! -f "$d/ocutalon/csp/$rel" ]; then
+        echo "lacks the bundle file ocutalon/csp/$rel"
+      elif ! cmp -s "$f" "$d/ocutalon/csp/$rel"; then
+        echo "holds a different ocutalon/csp/$rel than the candidate"
+      fi
+    done <<EOT
+$(find "$tree/src/ocutalon/csp" -type f | LC_ALL=C sort)
+EOT
+  fi
+  rm -rf "$d"
+  return 0
+}
+
+ipm_content_digest() {
+  local d sum
+  d=$(mktemp -d "${TMPDIR:-/tmp}/ocutalon-ipmdig.XXXXXX") || return 1
+  if ! ipm_unpack "$1" "$d"; then
+    rm -rf "$d"
+    return 1
+  fi
+  sum=$(
+    cd "$d" || exit 1
+    find . -type f -print0 | xargs -0 $(release_sha256_tool) | sed 's|  \./|  |' | LC_ALL=C sort | $(release_sha256_tool) | awk '{ print $1 }'
+  )
+  rm -rf "$d"
+  [ -n "$sum" ] || return 1
+  printf '%s\n' "$sum"
+}
+
+last_prompt_free_line() {
+  awk '{ line[NR] = $0 } END {
+    n = NR
+    while (n > 0 && (line[n] ~ /^[ \t]*$/ || line[n] ~ /^[%A-Za-z0-9]+>[ \t]*$/)) n--
+    if (n > 0) print line[n] }' "$1"
+}
 
 # --- the configuration ---
 

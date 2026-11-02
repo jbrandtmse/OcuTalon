@@ -2,14 +2,29 @@
 title: 'Story 11.17: The release''s IPM artifact carries the built page'
 type: 'feature'
 created: '2026-11-01'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '5ab43766f4922c74f1571fa1ef516225b4934bb1'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-11-context.md'
   - '{project-root}/_bmad-output/implementation-artifacts/spec-11-5-one-scripted-sequence-cuts-a-release.md'
 warnings: ['oversized']
-deferred: []
+deferred:
+  - summary: >-
+      The two-run install path (Epic 15's MapAndStop module) has only run against the self-test shim and plan-time measurements, never real IPM through step_ipm.
+    evidence: |-
+      --live ipm packages today's src/module.xml (one run, USER). The ns-check session (Config.Namespaces.Exists) and the load in OCUTALON are real-IRIS code that no real run has exercised under this script.
+    location: >-
+      release/release.sh ipm_pack
+    severity: medium (unverified)
+  - summary: >-
+      The record's claim that the Content SHA-256 is the same for every packaging is shown on hand-made archives only, not on two real IPM packagings of one tree.
+    evidence: |-
+      IPM's package output differs byte for byte between runs (measured at plan); whether module.xml or other entries carry a per-run value that changes the content digest is not measured. A second package run in --live ipm and a digest comparison would settle it.
+    location: >-
+      release/release.sh step_ipm (Content SHA-256 line)
+    severity: medium (unverified)
 ---
 
 <intent-contract>
@@ -173,6 +188,24 @@ Nothing goes out. The registry publish stays the author's own action. This story
 
 ## Review Triage Log
 
+### 2026-11-02 - Review pass
+- verdicts: 31 findings (blind 8, edge-case 12, verification-gap 3 plus 8 other; the intent audit is descriptive) - high 0, medium 4, low 25, false 0, maybe-false 2
+- findings:
+  - `[medium]` `[patch]` git archive failure hidden by the pipe (blind 4, edge 1) - the export now writes a tar file and tests git archive and tar separately; failure gives the export line.
+  - `[low]` `[patch]` an unchecked copied-out .tgz could stay after a kill (edge 2) - the failure branch of step_ipm removes it.
+  - `[medium]` `[patch]` content digest never pinned to what it covers (verification-gap 1) - t_ipmlib now computes the expected digest independently and checks module.xml and a rename change it (mutation: hash without the file list -> ipmlib red).
+  - `[medium]` `[patch]` IPM-load failure branch unreachable in the shim (verification-gap 2) - flag `ipm-iris-load-fail` and a case in ipmfail (mutation: the IPMLOAD OK guard replaced by true -> ipmfail red).
+  - `[maybe-false]` `[defer]` two-run path never run against real IRIS (verification-gap 3, intent audit) - deferred, run --live ipm again once Epic 15's module.xml merges.
+  - `[maybe-false]` `[defer]` "same for every packaging" untested on real IPM output (blind 2) - deferred; a second real package run would settle it.
+  - `[low]` `[reject]` build 154 text fixed by the ruled wording and the default image (blind 1) - ruled fixed text (U-206).
+  - `[low]` `[reject]` loose module.xml grep and one-way bundle compare (blind 3, edge 6, 7, other) - the tree's own version equals v before packaging and the package is made from that tree; the fix adds parsing for no reachable failure.
+  - `[low]` `[reject]` WAIT clears the previous attempt's logs (blind 5, edge 10) - diagnostics of a failure already printed; fix needs a restructure of the state folder.
+  - `[low]` `[reject]` scan fragility and evasions (blind 6, edge 12) - literal scan is the spec's AC4; evasion by variables is theoretical.
+  - `[low]` `[reject]` session status ignored, uninformative detail, hung session, dead container waits 300 s, non-numeric wait, empty checksum tool, gitattributes (blind 7, edge 3, 4, 5, 8, 9) - no reachable failure shown or a guard-only fix.
+  - `[low]` `[reject]` exit 5 callers (blind 8) - the spec introduces it for part 2's callers; next/status pinned by ipmwait.
+  - `[low]` `[reject]` argument order `ipm --live` (edge 11) - documented form is `--live ipm`.
+  - `[low]` `[reject]` release/ipm* status check, planted secret in artifact, vacuous lock grep when the lane variable is unset, readiness loop transitions, partial mutation lines, shim-versus-real surface (verification-gap other, intent audit) - the real surface is covered by --live ipm; the others cannot cause a user-reachable failure.
+
 ## Design Notes
 
 **Re-plan 2026-11-02 (orchestrator ruling, decide; owner trim: Epic 11 ends after 11.17 for 1.0.0, 11.14 to 11.16 and 11.18 move to Epic 11 part 2).** Re-plan this story on Story 11.5's base alone; 11.14, 11.15, 11.16 are NOT built and must not be pulled in. Step order: `cut image ipm push notes`. `step_ipm` reads the cut tree itself with `git archive <cut sha>` from 11.5's state clone (no 11.14 pre-push tree reader). A busy lane lock is `step_ipm`'s own exit 5 (`WAIT`, nothing recorded), a code this story introduces; part 2's 11.14 adopts it and never redefines it. The `## IPM artifact` record keeps exactly the shape Story 15.3 reads: file name, size, SHA-256, content digest, `Published: no`. No acceptance criterion changes: the re-plan touches only the Approach, the Code Map and the Tasks, plus the self-test pins for 11.5's step list. Where older text in this spec names 11.14's `stubs`, exit 5 or tree reader, or 11.15/11.16 pins, this note wins. (Applied in this re-plan; see the Spec Change Log.)
@@ -223,6 +256,12 @@ Published: no; publishing to the package registry is the author's own action, ou
 11. **Lane lock folder.** `step_ipm` sets `root=$rel_root` in its subshell, because lib-live's `live_lock_dir` reads `$root` (set only by `live_start`). The hermetic self-test pins `OCUTALON_LOCK_DIR` to a folder of its own in every case.
 12. **The Matrix's "Nothing goes out" `run` check covers the `ipm` throwaway's `run -d` lines.** 11.5's `image` step reads its locally built check image with `run --rm --entrypoint`; those lines are 11.5's, and its own AC already pins them. The scan for `docker pull` covers both scripts whole.
 13. **`--live ipm` is one call** (cut, image and ipm on one throwaway): 11.5 measured `--live` at 78 s and Task 0 the IPM flow at 97 s, so about 4 to 5 minutes with the real bundle (inference), inside the 10-minute cap. If it measures over about 8 minutes, implement splits it as 11.5's spec says for `--live`.
+14. **In-stage choices of the implementation (small, reversible, within the intent):**
+    - Extra failure line, not in the ruled list: `FAIL ipm the candidate holds no single docker/ipm/zpm-*.xml` (a candidate whose tree lacks exactly one IPM release file; it is written with the same `Result: fail` section) and `FAIL ipm the candidate's tree (src and docker/ipm) could not be exported` (no section: the tree was not read). Plain wording; the lead may rule on them.
+    - `OCUTALON_RELEASE_IPM_WAIT` (default 300) is the test seam of the start wait; no other variable or option was added.
+    - The sessions are four to six `iris session` runs (`ipm-load` with `zpm "enable -map -ns USER"`, `load-user`, optionally `ns-check` and `load-ocutalon`, `package`, `repo-add`, `repo-list`); each plain output is `<state>/ipm/<name>.log`, and `result.env` holds the namespace, the bundle's file count and the IPM file name for the record.
+    - The listing is read as a line `ocutalon <v> ...` (measured live: `ocutalon 1.0.0 @ /tmp/ocutalon-check/ocutalon-1.0.0/`).
+    - `--live ipm` stays one call; its output prints the load, listing and record lines it checked.
 - **The step's IRIS start wait** is 300 s; a timeout reports through the ruled `FAIL ipm the package did not install: <line>` form, with the line `the throwaway instance was not running after 300 s`.
 
 **New fixed texts (ruled under the veto window, U-206, 2026-11-01: kept as planned):**
@@ -299,16 +338,19 @@ Every command runs from the worktree root, in its own foreground call with `time
   - Filesystem repositories behaved as recorded under Consumed-by.
 - Re-checked at the re-plan (2026-11-02): the base image `ocutalon-iris-base:2026.3.0AI.154.0` is on this machine; 11.5 measured its `--live` at 78 s.
 
-**Mutations to demonstrate (Rule 19; one per AC, recorded as `mutation: <change> -> <test red>`):**
-- AC1: skip the bundle-file compare in `ipm_artifact_check`, so the changed-byte case passes.
-- AC2: write the size from the tree instead of the file, so the size check fails.
-- AC3: always package in USER, so the two-run case fails.
-- AC4: drop `--network none` from `step_ipm`'s `docker run`, so the shim-log case fails.
-- AC5: treat the subshell's 75 as a failure, so the WAIT case fails.
-- AC6: skip the trap's `rm -f -v`, so the clean-up case fails.
-- AC7: hash the `.tgz` bytes in `ipm_content_digest`, so the two-packagings case fails.
-- IA1: point the live check's bundle compare at a changed byte of the extracted artifact, so `--live ipm` fails (once).
-- IA2: write the section with a hand-rolled writer that rewrites the file, so the byte-identical case fails.
+**Mutations (Rule 19; applied one at a time, observed red, reverted with `cmp` against the backup; run in the self-test's own rules):**
+- AC1: mutation: `ipm_artifact_check` skips the bundle-file byte compare (`elif false`) -> `ipmfail` red (`ipm-byte: exit got 0, wanted 1`, the file is kept, no `FAIL ipm the artifact holds a different ...`).
+- AC2: mutation: the size is taken from the state file instead of the artifact -> `ipm` red (the `PASS ipm ... bytes` line, the record's section and the row).
+- AC3: mutation: the package always runs in USER -> `ipm` red (`two-run: exit got 1`, the zpm calls, the namespace packaged in; the flag case too).
+- AC4: mutation: `--network none` dropped from the throwaway's `docker run` -> `ipm` and `ipmnet` red (the exact run line; every run has no network).
+- AC5: mutation: the subshell's exit 75 is treated as a failure (the `75)` branch of `step_ipm` renamed) -> `ipmwait` red (exit 1 not 5, no `WAIT` line, a record written and a commit made).
+- AC6: mutation: the EXIT trap's `docker rm -f -v` removed -> `ipm` and `ipmfail` red (no `rm -f -v` in the shim log, a throwaway container left).
+- AC7: mutation: `ipm_content_digest` hashes the `.tgz` bytes -> `ipmlib` red (`the content digest is the same for both packagings`).
+- IA1: mutation: the shared `bundle_diff` compare (used by the hermetic `ipm` rule and by `--live ipm`) is pointed at a changed byte of the extracted file -> `ipm` red (`every bundle file of the candidate is in the artifact, byte for byte: got assets/a.txt`). Shown on the hermetic rule only; the live run was not repeated with it (about 2 minutes), and the helper is the same one.
+- Review patches: mutation: `ipm_content_digest` hashes the file list without the bytes -> `ipmlib` red (`the digest ignores module.xml`, the independent expected value); the `IPMLOAD OK` guard replaced by `true` -> `ipmfail` red (`ipm-iris-load-fail`).
+- IA2: mutation: `record_write` rewrites the whole file with its section -> `ipm` red (`the section is byte for byte after the notes step and the stop routine: got ''`).
+
+**Measured in `--live ipm` (2026-11-02, Apple silicon, Docker 29.7.2, lane A, real IPM 0.10.10, today's `src/module.xml`):** whole call 77 s (first run 1 min 43 s with a cold npm cache); the `ipm` step 43 to 48 s (the container start, the IPM load, one package run in USER, the checks, the filesystem-repository listing). The artifact was 4,763,488 bytes with the real bundle of 19 files; IPM's filesystem repository listed `ocutalon 1.0.0 @ /tmp/ocutalon-check/ocutalon-1.0.0/`. Packaged in USER (no CPF in today's module). The container and the lane lock were gone afterwards. Epic 15's module (the two-run path) was measured at plan (Task 0) and is covered here by the shim only.
 
 **Shared surfaces:**
 - 11.5's `STEPS` list and every step-order pin of its self-test (`to_step`, the `NEXT push` pins of `t_image` and `t_record`, the `rs` chains of `t_push`, `t_secret`, `t_pushes`, `t_hands`, `t_resume`, `t_notes`, `t_gate`, `t_word` and `live_run`). This story updates each for `ipm`.
@@ -320,7 +362,21 @@ Every command runs from the worktree root, in its own foreground call with `time
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-Re-plan of 2026-11-02 on Story 11.5's built base (HEAD 63936d68); halted after planning as instructed. No acceptance criterion changed; the intent block's references to 11.14 (Approach, Always, the Packaged row) were rewritten per the orchestrator's ruling and logged in the Spec Change Log.
+**Summary.** `release.sh` gains the `ipm` step (`cut image ipm push notes`): it exports the cut commit's tree with `git archive`, packages it with real IPM 0.10.10 in a `--network none --pull never` throwaway of the build 154 image under lane A's throwaway lock, copies out and verifies the `.tgz` (name, version, `FileCopy`, every bundle file byte for byte, IPM's filesystem repository listing), and writes `## IPM artifact` (Design Notes golden). A busy lock is exit 5 (`WAIT`, nothing recorded); `status` prints `ARTIFACT <path> <bytes> <sha256>`. Nothing is published or pulled.
+
+**Files changed.**
+- `release/release.sh`: `STEPS`, `base_image`, `step_ipm` and its helpers, exit 5 in `cmd_next`, the `ARTIFACT` line, header.
+- `release/lib-release.sh`: `release_state_root`, `release_state_dir`, `sha256_file`, `ipm_artifact_path`, `ipm_artifact_check`, `ipm_content_digest`, `ipm_unpack`, `last_prompt_free_line`.
+- `docker/tests/test-release-sequence.sh`: container-faking docker shim, order pins for `ipm`, rules `ipm`, `ipmfail`, `ipmwait`, `ipmnet`, `ipmlib`, the wider forbidden-form scan, `--live ipm`, a per-case lock folder.
+- This spec: mutation lines, Design Notes item 14, triage log, deferred list.
+
+**Review.** 31 findings from four layers. Patched: the git archive status hidden by the pipe; a copied-out unchecked `.tgz` left after a kill; the content digest pinned only by self-reference (now an independent expected value plus module.xml and rename sensitivity); the unreachable IPM-load failure branch (new shim flag and case). Deferred (both `medium (unverified)`): the two-run (MapAndStop) path never run against real IRIS; the "same for every packaging" claim shown only on hand-made archives. Rejected lows are listed in the triage log with reasons.
+
+**Verification.** Whole `test-release-sequence.sh` PASS all rules (2 min 13 s) after the patches; `--live ipm` PASS after the patches (75 s whole call, `ipm` step 43 to 48 s, 19-file bundle, listing `ocutalon 1.0.0`, no `ocutalon-release-ipm-*` container, lane-A lock folder empty); every other script of `CHECK_SCRIPTS` run individually, exit 0 (`ci/checks.sh` itself not run as one call: past the 10-minute cap). Mutations for AC1 to AC7, IA1, IA2 and the two review patches observed red and reverted.
+
+**Follow-up review recommended: true.** Three medium findings were patched, and the unverified risk is that the two-run path (Epic 15's `MapAndStop` module) and the cross-packaging digest equality are not yet run against real IPM; re-run `--live ipm` against a candidate that carries Epic 15's `module.xml` once it merges.
+
+**Residual risks.** Two failure lines are outside the ruled list (`the candidate holds no single docker/ipm/zpm-*.xml`, `the candidate's tree (src and docker/ipm) could not be exported`); the test seam `OCUTALON_RELEASE_IPM_WAIT` was added.

@@ -1,8 +1,9 @@
 #!/usr/bin/env bash
 # release/release.sh start --version <x.y.z> [--from release/<v>-rc<m> --pick <sha>...] [--integration <branch>] [--remote <name>] [--record <file>] [--rc <n>]
 # release/release.sh next|resume|status [--version <v> --rc <n>]   (required when more than one state has steps left)
-# Steps, in order: cut, image, push, notes  (Stories 11.14-11.18 insert their steps into STEPS)
-# Exit: 0 step done / end of steps, 1 a step failed, 2 refused (nothing written), 4 stopped for the author's word
+# Steps, in order: cut, image, ipm, push, notes  (Stories 11.14-11.16 and 11.18 insert their steps into STEPS)
+# Exit: 0 step done / end of steps, 1 a step failed, 2 refused (nothing written), 4 stopped for the author's word,
+#       5 waited: the lane's throwaway lock is busy (nothing recorded; the next call runs the step again)
 # State: ${OCUTALON_RELEASE_STATE:-${XDG_STATE_HOME:-$HOME/.local/state}/ocutalon/release}/<v>-rc<n>/
 # Test seam: OCUTALON_RELEASE_NOW names a file of epoch seconds read one per clock read (unset: date -u +%s)
 #
@@ -22,8 +23,11 @@
 # integration head (or --from's candidate plus the cherry-picked --pick commits, each an integration-branch commit), one cut commit that
 # sets src/module.xml to the version and force-adds the built web bundle, then the branch release/<v>-rc<n> in the author's repository.
 # A candidate branch is never moved, re-committed, force-pushed or deleted. image builds the candidate's own tree and reads
-# /opt/ocutalon/version in the image, which must equal the version, and removes the check image. push asks, then pushes the candidate
-# branch. notes runs release/notes.sh for the draft, which stays uncommitted.
+# /opt/ocutalon/version in the image, which must equal the version, and removes the check image. ipm packs the cut commit's tree with
+# IPM in a throwaway container with no network, keeps the .tgz in the state folder (never in the repository), checks that it carries
+# the module's name and version and every file of the committed web bundle byte for byte, and records its size and checksums in
+# "## IPM artifact"; it sends nothing out. push asks, then pushes the candidate branch. notes runs release/notes.sh for the draft,
+# which stays uncommitted.
 #
 # The author's word. Each outward step prints "ASK <id> <question> [yes/no]" and reads one line of standard input; only "yes" goes on.
 # End of input is no answer: STOPPED <id> waiting for the author's word, exit 4. No option or variable answers a question.
@@ -32,8 +36,9 @@
 #
 # Pushes: exactly two, each on the author's word: the candidate branch, and the integration branch fast-forward with the record commit.
 # Never a force, a tag, main or another ref. No value of the environment is ever printed.
-# Output: PASS|FAIL <step> <detail>, then RECORD <file> and RESULT <stopped|fail>. This script reports no pass for a release.
-# Needs bash 3.2 or later, git, awk, node, npm and docker (the base image of docker/Dockerfile for the image step).
+# Output: PASS|FAIL|WAIT <step> <detail>, then RECORD <file> and RESULT <stopped|fail>. This script reports no pass for a release.
+# Needs bash 3.2 or later, git, awk, tar, gzip, sha256sum or shasum, node, npm and docker (the base image of docker/Dockerfile for the
+# image and ipm steps).
 #
 # Sourced, it defines its functions and runs nothing.
 umask 077
@@ -44,7 +49,7 @@ rel_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)
 . "$rel_root/docker/tests/lib-upgrade.sh"
 
 # The ordered steps; step_<name> is the function of a step. A sibling story adds its name and its function.
-STEPS="cut image push notes"
+STEPS="cut image ipm push notes"
 HANDS_TARGET=900
 TAB=$(printf '\t')
 KIT_VERSION=1.0.0
@@ -58,7 +63,7 @@ refuse() {
 
 # --- the state ---
 
-state_root() { printf '%s\n' "${OCUTALON_RELEASE_STATE:-${XDG_STATE_HOME:-$HOME/.local/state}/ocutalon/release}"; }
+state_root() { release_state_root; }
 
 sget() { env_get "$sfile" "$1"; }
 sset() { env_set "$sfile" "$1" "$2"; }
@@ -438,6 +443,9 @@ step_fail() { # step_fail <step> <detail>: the detail names no local path (the s
   return 1
 }
 
+# base_image: the IRIS image that the image and ipm steps build on.
+base_image() { printf '%s\n' "${IRIS_IMAGE:-ocutalon-iris-base:2026.3.0AI.154.0}"; }
+
 # cut_clean: removes the temporary clone and the image context.
 cut_clean() { rm -rf "$sdir/clone" "$sdir/context"; }
 
@@ -535,7 +543,7 @@ step_image() {
     step_fail image "the candidate is not cut"
     return 1
   fi
-  base=${IRIS_IMAGE:-ocutalon-iris-base:2026.3.0AI.154.0}
+  base=$(base_image)
   tag="ocutalon-release-check:$version-rc$rc-$$"
   rm -rf "$ctx"
   mkdir -p "$ctx"
@@ -578,6 +586,242 @@ step_image() {
   STEP_ROW=pass
   STEP_DETAIL="/opt/ocutalon/version reads $version in the image built from the candidate"
   echo "PASS image $got"
+  return 0
+}
+
+# --- the ipm step (Story 11.17) ---
+
+# ipm_section_fail: "## IPM artifact" of a failed packaging, at step time.
+ipm_section_fail() {
+  {
+    echo "## IPM artifact"
+    echo "Result: fail"
+    echo "Candidate: $version rc$rc, $branch at $(sget cand_sha)"
+    echo "Published: no; publishing to the package registry is the author's own action, outside this sequence"
+  } > "$sdir/ipm-section.md"
+  record_write "$(record_abs)" "$sdir/ipm-section.md" "# OcuTalon $version rc$rc" > /dev/null 2>&1
+}
+
+# ipm_fail <detail>: the failure of the step after the tree was read.
+ipm_fail() {
+  sset ipm_result fail
+  ipm_section_fail
+  step_fail ipm "$1"
+}
+
+# ipm_pack_fail <kind> <line>: ends the packaging subshell with the reason (kind install or artifact) in the state folder.
+ipm_pack_fail() {
+  printf '%s|%s\n' "$1" "$2" > "$IPM_IDIR/fail.txt"
+  exit 1
+}
+
+# ipm_pack_clean: the EXIT trap of the packaging subshell: the container, the lock and the temporary folders go.
+ipm_pack_clean() {
+  if [ "$IPM_ATTEMPT" = 1 ]; then
+    docker rm -f -v "$IPM_C" < /dev/null > /dev/null 2>&1
+  fi
+  live_lock_release >> "$IPM_IDIR/run.log" 2>&1
+  rm -rf "${IPM_TREE:?}" "${IPM_TMP:-}"
+}
+
+# ipm_session <name> <namespace> <script>: runs the script in a terminal session of the throwaway; the plain output is <idir>/<name>.log.
+ipm_session() {
+  local raw="${IPM_IDIR:?}/$1.raw"
+  printf '%s\nHalt\n' "$3" | docker exec -i "$IPM_C" iris session IRIS -U "$2" > "$raw" 2>&1
+  tr -d '\r' < "$raw" | sed $'s/\033\\[[0-9;?]*[A-Za-z]//g' > "$IPM_IDIR/$1.log"
+  rm -f "$raw"
+}
+
+# ipm_load_ok <log> <namespace>: succeeds when the load reached Activate SUCCESS in the namespace.
+ipm_load_ok() {
+  grep -Eq "\\[$2\\|ocutalon\\][[:space:]]*Activate SUCCESS[[:space:]]*\$" "$1"
+}
+
+# ipm_pack <container> <tree> <state ipm folder> <zpm file name>: the whole packaging; runs in a subshell of step_ipm. Exit 75 is a busy
+# lane lock, 1 a failure (the reason in fail.txt), 0 a verified artifact in <folder>/ocutalon-<v>.tgz and result.env.
+ipm_pack() {
+  local zpmfile=$4 pkg=/tmp/ocutalon-pkg out=/tmp/ocutalon-ipm chk=/tmp/ocutalon-check
+  local ns="" art waited deadline last problems files ext
+  IPM_C=$1
+  IPM_TREE=$2
+  IPM_IDIR=$3
+  IPM_ATTEMPT=0
+  IPM_TMP=""
+  art="$IPM_IDIR/ocutalon-$version.tgz"
+  trap 'exit 130' INT TERM HUP
+  trap ipm_pack_clean EXIT
+  root=$rel_root
+  P=$IPM_C
+  live_lock_claim >> "$IPM_IDIR/run.log" 2>&1
+  IPM_ATTEMPT=1
+  docker run -d --pull never --network none --name "$IPM_C" "$(base_image)" < /dev/null >> "$IPM_IDIR/run.log" 2>&1 \
+    || ipm_pack_fail install "the throwaway instance could not be started"
+  waited=${OCUTALON_RELEASE_IPM_WAIT:-300}
+  deadline=$((SECONDS + waited))
+  until docker exec "$IPM_C" iris qlist < /dev/null 2> /dev/null | grep -q '\^running'; do
+    [ "$SECONDS" -lt "$deadline" ] || ipm_pack_fail install "the throwaway instance was not running after $waited s"
+    sleep 2
+  done
+  docker exec -u root "$IPM_C" mkdir -p "$pkg" < /dev/null > /dev/null 2>&1 \
+    && docker cp "$IPM_TREE/src" "$IPM_C:$pkg/src" < /dev/null >> "$IPM_IDIR/run.log" 2>&1 \
+    && docker cp "$IPM_TREE/docker/ipm/$zpmfile" "$IPM_C:$pkg/$zpmfile" < /dev/null >> "$IPM_IDIR/run.log" 2>&1 \
+    && docker exec -u root "$IPM_C" chmod -R a+rX "$pkg" < /dev/null > /dev/null 2>&1 \
+    && docker exec "$IPM_C" mkdir -p "$out" < /dev/null > /dev/null 2>&1 \
+    || ipm_pack_fail install "the source tree could not be copied into the throwaway instance"
+  ipm_session ipm-load %SYS "Set sc=\$SYSTEM.OBJ.Load(\"$pkg/$zpmfile\",\"ck-d\") Write !,\"IPMLOAD \",\$Select(\$SYSTEM.Status.IsError(sc):\"FAILED\",1:\"OK\")
+zpm \"enable -map -ns USER\""
+  grep -q '^IPMLOAD OK' "$IPM_IDIR/ipm-load.log" || ipm_pack_fail install "IPM could not be loaded: $(last_prompt_free_line "$IPM_IDIR/ipm-load.log")"
+  ipm_session load-user USER "zpm \"load $pkg/src\""
+  last="$IPM_IDIR/load-user.log"
+  if ipm_load_ok "$last" USER; then
+    ns=USER
+  else
+    ipm_session ns-check %SYS 'Write !,"NSCHECK ",##class(Config.Namespaces).Exists("OCUTALON")'
+    if grep -Eq '^NSCHECK 1[[:space:]]*$' "$IPM_IDIR/ns-check.log"; then
+      ipm_session load-ocutalon OCUTALON "zpm \"load $pkg/src\""
+      last="$IPM_IDIR/load-ocutalon.log"
+      ! ipm_load_ok "$last" OCUTALON || ns=OCUTALON
+    fi
+  fi
+  [ -n "$ns" ] || ipm_pack_fail install "$(last_prompt_free_line "$last")"
+  ipm_session package "$ns" "zpm \"package ocutalon -only -path $out/ocutalon-$version\""
+  docker cp "$IPM_C:$out/ocutalon-$version.tgz" "$art" < /dev/null >> "$IPM_IDIR/run.log" 2>&1 \
+    || ipm_pack_fail install "the package left no ocutalon-$version.tgz: $(last_prompt_free_line "$IPM_IDIR/package.log")"
+  problems=$(ipm_artifact_check "$art" "$version" "$IPM_TREE")
+  if [ -n "$problems" ]; then
+    rm -f "$art"
+    ipm_pack_fail artifact "$(printf '%s\n' "$problems" | head -n 1)"
+  fi
+  IPM_TMP=$(mktemp -d "${TMPDIR:-/tmp}/ocutalon-ipmrepo.XXXXXX") || ipm_pack_fail install "no temporary folder"
+  ext="$IPM_TMP/ocutalon-$version"
+  ipm_unpack "$art" "$ext"
+  docker exec "$IPM_C" mkdir -p "$chk" < /dev/null > /dev/null 2>&1 \
+    && docker cp "$ext" "$IPM_C:$chk/ocutalon-$version" < /dev/null >> "$IPM_IDIR/run.log" 2>&1 \
+    && docker exec -u root "$IPM_C" chmod -R a+rX "$chk" < /dev/null > /dev/null 2>&1 \
+    || {
+      rm -f "$art"
+      ipm_pack_fail install "the artifact could not be copied back for the repository check"
+    }
+  ipm_session repo-add "$ns" "zpm \"repo -name ocutalon-check -fs -depth 2 -path $chk/\""
+  ipm_session repo-list "$ns" 'zpm "repo -name ocutalon-check -list-modules"'
+  if ! awk -v v="$version" '$1 == "ocutalon" && $2 == v { f = 1 } END { exit !f }' "$IPM_IDIR/repo-list.log"; then
+    rm -f "$art"
+    ipm_pack_fail artifact "is not listed by the IPM filesystem repository (it lists nothing for ocutalon $version)"
+  fi
+  files=$(find "$IPM_TREE/src/ocutalon/csp" -type f | wc -l | tr -d ' ')
+  env_set "$IPM_IDIR/result.env" ns "$ns"
+  env_set "$IPM_IDIR/result.env" files "$files"
+  env_set "$IPM_IDIR/result.env" zpm "$zpmfile"
+  return 0
+}
+
+step_ipm() {
+  local cand tree="$sdir/ipm-tree" idir="$sdir/ipm" base cname zpmfile got old sub_rc fail kind line art bytes sha cdig ns files ipmver
+  cand=$(sget cand_sha)
+  if [ -z "$cand" ]; then
+    step_fail ipm "the candidate is not cut"
+    return 1
+  fi
+  rm -rf "$tree"
+  mkdir -p "$tree"
+  if ! git archive -o "$tree.tar" "$cand" -- src docker/ipm < /dev/null > /dev/null 2>&1 || ! tar -x -C "$tree" -f "$tree.tar" < /dev/null > /dev/null 2>&1; then
+    rm -rf "$tree" "$tree.tar"
+    step_fail ipm "the candidate's tree (src and docker/ipm) could not be exported"
+    return 1
+  fi
+  rm -f "$tree.tar"
+  if [ ! -f "$tree/src/ocutalon/csp/index.html" ]; then
+    rm -rf "$tree"
+    ipm_fail "the candidate has no committed web bundle (src/ocutalon/csp/index.html)"
+    return 1
+  fi
+  got=$(manifest_version "$tree/src/module.xml")
+  if [ "$got" != "$version" ]; then
+    rm -rf "$tree"
+    ipm_fail "src/module.xml reads $got, not $version"
+    return 1
+  fi
+  set -- "$tree"/docker/ipm/zpm-*.xml
+  if [ $# -ne 1 ] || [ ! -f "$1" ]; then
+    rm -rf "$tree"
+    ipm_fail "the candidate holds no single docker/ipm/zpm-*.xml"
+    return 1
+  fi
+  zpmfile=${1##*/}
+  base=$(base_image)
+  if ! docker image inspect --format '{{.Id}}' "$base" < /dev/null > /dev/null 2>&1; then
+    rm -rf "$tree"
+    ipm_fail "the IRIS base image $base is not on this machine"
+    return 1
+  fi
+  old=$(sget ipm_container)
+  [ -z "$old" ] || docker rm -f -v "$old" < /dev/null > /dev/null 2>&1
+  cname="ocutalon-release-ipm-$(printf '%s' "$version" | tr -d '.')-rc$rc-$(date -u +%s)-$$"
+  sset ipm_container "$cname"
+  rm -rf "$idir"
+  mkdir -p "$idir"
+  (ipm_pack "$cname" "$tree" "$idir" "$zpmfile")
+  sub_rc=$?
+  rm -rf "$tree"
+  case $sub_rc in
+    0) ;;
+    75)
+      echo "WAIT ipm the lane's throwaway lock is busy"
+      return 5
+      ;;
+    *)
+      rm -f "$idir/ocutalon-$version.tgz"
+      fail=$(head -n 1 "$idir/fail.txt" 2> /dev/null)
+      kind=${fail%%|*}
+      line=${fail#*|}
+      [ -n "$fail" ] || {
+        kind=install
+        line="the packaging ended without a result"
+      }
+      if [ "$kind" = artifact ]; then
+        ipm_fail "the artifact $line"
+      else
+        ipm_fail "the package did not install: $line"
+      fi
+      return 1
+      ;;
+  esac
+  art=$(ipm_artifact_path "$version" "$rc")
+  ns=$(env_get "$idir/result.env" ns)
+  files=$(env_get "$idir/result.env" files)
+  ipmver=$(env_get "$idir/result.env" zpm)
+  ipmver=${ipmver#zpm-}
+  ipmver=${ipmver%.xml}
+  bytes=$(wc -c < "$art" | tr -d ' ')
+  sha=$(sha256_file "$art")
+  if ! cdig=$(ipm_content_digest "$art"); then
+    rm -f "$art"
+    ipm_fail "the artifact content could not be hashed"
+    return 1
+  fi
+  {
+    echo "## IPM artifact"
+    echo "Result: pass"
+    echo "Candidate: $version rc$rc, $branch at $cand"
+    echo "Artifact: ocutalon-$version.tgz, kept in the release state folder ($version-rc$rc/ipm/), outside the repository; release.sh status prints its full path"
+    echo "Size: $bytes bytes"
+    echo "SHA-256: $sha"
+    echo "Content SHA-256: $cdig (over every file in the artifact; the same for every packaging of this candidate)"
+    echo "Packaged by: IPM $ipmver, zpm \"package ocutalon -only\", in namespace $ns of a throwaway build 154 instance with no network"
+    echo "Web bundle: $files files of src/ocutalon/csp/, index.html included, byte-identical to the candidate's"
+    echo "Published: no; publishing to the package registry is the author's own action, outside this sequence"
+  } > "$sdir/ipm-section.md"
+  if ! record_write "$(record_abs)" "$sdir/ipm-section.md" "# OcuTalon $version rc$rc"; then
+    rm -f "$art"
+    ipm_fail "the record section could not be written"
+    return 1
+  fi
+  sset ipm_result pass
+  sset ipm_ns "$ns"
+  STEP_ROW=pass
+  STEP_DETAIL="ocutalon-$version.tgz, $bytes bytes, SHA-256 ${sha%"${sha#????????????}"}; carries the candidate's web bundle; not published"
+  echo "PASS ipm ocutalon-$version.tgz $bytes bytes sha256 $sha"
+  echo "ARTIFACT $art"
   return 0
 }
 
@@ -669,7 +913,7 @@ need_value() {
 
 # load_state: sets sdir, sfile, rows and the variables of the state for version/rc.
 load_state() {
-  sdir="$(state_root)/$version-rc$rc"
+  sdir=$(release_state_dir "$version" "$rc")
   sfile="$sdir/state.env"
   rows="$sdir/rows.tsv"
   [ -f "$sfile" ] || return 1
@@ -717,7 +961,7 @@ find_state() {
 }
 
 cmd_status() {
-  local line
+  local line art
   find_state
   echo "STATE $version rc$rc next $(sget next)"
   echo "RECORD $(record_relpath_or_abs)"
@@ -725,6 +969,10 @@ cmd_status() {
   if [ -f "$(record_abs)" ]; then
     line=$(awk '/^## Release sequence[ \t]*$/ { in_s = 1; next } in_s && /^## / { exit } in_s && /^Result: / { print; exit }' "$(record_abs)")
     [ -z "$line" ] || echo "$line"
+  fi
+  art=$(ipm_artifact_path "$version" "$rc")
+  if [ "$(sget ipm_result)" = pass ] && [ -f "$art" ]; then
+    echo "ARTIFACT $art $(wc -c < "$art" | tr -d ' ') $(sha256_file "$art")"
   fi
   exit 0
 }
@@ -762,6 +1010,7 @@ cmd_next() {
       stop_routine stopped "$step" ""
       exit "$STOP_CODE"
       ;;
+    5) exit 5 ;;
     *)
       row_set "$step" "$STEP_ROW" "$STEP_DETAIL"
       stop_routine failed "$step" "$STEP_DETAIL"
@@ -862,7 +1111,7 @@ cmd_start() {
     code=$?
     [ "$code" -eq 0 ] || refuse "the author did not confirm the $version kit"
   fi
-  sdir="$(state_root)/$version-rc$rc"
+  sdir=$(release_state_dir "$version" "$rc")
   sfile="$sdir/state.env"
   rows="$sdir/rows.tsv"
   rm -rf "$sdir"
