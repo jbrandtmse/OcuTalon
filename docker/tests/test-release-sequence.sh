@@ -20,6 +20,12 @@
 #             re-cut keeps rc1 and names the next number; --from with --pick cherry-picks; a bad pick or a conflict gives no branch
 #   image     the image is built from the candidate's tree, its version is compared and the check image is removed; a lie, a missing
 #             base image or a failed build stops the sequence before the push question
+#   overview  (Story 14.1) the overview step runs release/security-overview.sh of the candidate (a stub in the seed repository, so no container is
+#             needed): a pass names ipm, a failure stops the release with its record and never reaches ipm, a busy lane lock waits (exit 5)
+#   overviewunit  (Story 14.1) the real release/security-overview.sh in a temporary tree with a stub ci/iris.sh: pass, busy lock, a drift in
+#             the live step, a failed class step, --write, the run tag, and the teardown that follows every case
+#   overviewdrift (Story 14.1) docker/tests/lib-security-overview.sh on small overview files: the DRIFT line for a changed tool row, for a
+#             change outside the rows, for the fix kinds and for the privileges, and nothing for equal files
 #   push      only the candidate branch goes out, on the author's word; a no or the end of input pushes nothing and asks again
 #   record    every stop writes the record section and commits only that path; the record question; a moved branch is reported
 #   hands     the hands-on time is the sum of the ASK windows, over all candidates of the version, and warns over 15 minutes
@@ -400,6 +406,36 @@ leanpath() {
 
 # --- the throwaway repository ---
 
+# stub_text <pass|fail|busy>: the text of a stub release/security-overview.sh, the callable unit of the overview step, which prints what the real
+# unit prints for that outcome and exits as it does. It makes no call outside its own folder.
+stub_text() {
+  printf '%s\n' '#!/usr/bin/env bash' 'set -u'
+  case $1 in
+    pass)
+      printf '%s\n' 'grep -q "<Version>1.0.0</Version>" src/module.xml || { echo "FAIL overview the unit did not run in the cut candidate"; exit 1; }' \
+        '[ -d web/node_modules ] || { echo "FAIL overview the web dependencies would be installed"; exit 1; }' \
+        '[ -z "${SHIMLOG:-}" ] || echo "${OCUTALON_LOCK_DIR:-}" > "$SHIMLOG/overview-lock-dir.txt"' \
+        'echo "PASS overview stub: sections equal and tests pass"' 'exit 0'
+      ;;
+    fail)
+      printf '%s\n' 'echo "DRIFT tool recent_activity"' 'echo "FAIL the generated sections of docs/security-overview.md differ from a fresh generation"' \
+        'echo "FAIL overview DRIFT tool recent_activity"' 'exit 1'
+      ;;
+    busy)
+      printf '%s\n' 'echo "LOCK busy: throwaway-iris is held by someone"' 'echo "WAIT overview the lane lock is busy"' 'exit 75'
+      ;;
+  esac
+}
+
+# set_stub <pass|fail|busy>: replaces the stub in the case's checkout, commits it on the integration branch and pushes it, before start.
+set_stub() {
+  stub_text "$1" > "$W/release/security-overview.sh"
+  git -C "$W" add release/security-overview.sh
+  git -C "$W" commit -q -m "stub $1"
+  git -C "$W" push -q origin "$INTEG"
+  EXPECT_BASE=$(git -C "$W" rev-parse HEAD)
+}
+
 mkseed() {
   local s=$tmp/seed
   mkdir -p "$s"
@@ -412,6 +448,9 @@ mkseed() {
       _bmad-output/planning-artifacts/epics.md | tar -x -C "$s" || exit 1
   fi
   cp -p "$root/release/release.sh" "$root/release/lib-release.sh" "$s/release/"
+  # The overview step runs release/security-overview.sh of the candidate; the seed holds a stub that passes, so that no case needs a container.
+  stub_text pass > "$s/release/security-overview.sh"
+  chmod 755 "$s/release/security-overview.sh"
   git init -q -b "$INTEG" "$s" || exit 1
   git -C "$s" add -A
   git -C "$s" commit -q -m seed
@@ -490,6 +529,8 @@ to_step() {
   case $1 in cut) return 0 ;; esac
   rs '' next
   case $1 in image) return 0 ;; esac
+  rs '' next
+  case $1 in overview) return 0 ;; esac
   rs '' next
   case $1 in ipm) return 0 ;; esac
   rs '' next
@@ -831,7 +872,7 @@ t_image() {
   rs '' next
   eq "image: exit" "$rc" 0
   has "image: the line" "$out" "PASS image 1.0.0"
-  has "image: the next step" "$out" "NEXT ipm"
+  has "image: the next step" "$out" "NEXT overview"
   eq "image: built from the candidate's tree" "$(cat "$SHIMLOG/builds.log")" "build context-version=1.0.0 bundle=yes"
   eq "image: the author's checkout still says 0.1.0" "$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' "$W/src/module.xml" | head -n 1)" 0.1.0
   has "image: the version was read" "$(cat "$SHIMLOG/docker.log")" "run --rm --entrypoint cat ocutalon-release-check:1.0.0-rc1-"
@@ -870,7 +911,7 @@ t_image() {
   unflag no-bundle
   rs "$N" next
   has "the retry passes" "$out" "PASS image 1.0.0"
-  has "the retry names the packaging" "$out" "NEXT ipm"
+  has "the retry names the overview" "$out" "NEXT overview"
   newcase
   to_step image
   flag rmi-fail
@@ -928,6 +969,7 @@ t_push() {
   # the author's own tag and branch, which no push may carry along
   git -C "$W" tag note-to-self
   git -C "$W" branch scratch-branch
+  rs '' next
   rs '' next
   rs '' next
   rs '' next
@@ -1040,7 +1082,9 @@ t_record() {
   # the stop of an unanswered question, with the record question at the end of input
   unflag lie
   rs '' next
-  has "image passes" "$out" "NEXT ipm"
+  has "image passes" "$out" "NEXT overview"
+  rs '' next
+  has "overview passes" "$out" "NEXT ipm"
   rs '' next
   has "ipm passes" "$out" "NEXT push"
   rs '' next
@@ -1108,6 +1152,7 @@ t_hands() {
   rs '' next
   rs '' next
   rs '' next
+  rs '' next
   rs "$Y" next
   rs "$Y" next
   has "the sum of the windows" "$(cat "$(rec_file)")" "Hands-on time: 3 min 21 s for this candidate; 3 min 21 s for 1.0.0 so far (target at most 15 min; CI and the hands-on pass not counted)"
@@ -1117,6 +1162,7 @@ t_hands() {
   clockfile 4000 4030 5000 5020 6000 6010
   rs "$Y" start --version 1.0.0
   has "rc2" "$out" "START 1.0.0 rc2 "
+  rs '' next --version 1.0.0 --rc 2
   rs '' next --version 1.0.0 --rc 2
   rs '' next --version 1.0.0 --rc 2
   rs '' next --version 1.0.0 --rc 2
@@ -1161,6 +1207,7 @@ t_hands() {
   rs '' next
   rs '' next
   rs '' next
+  rs '' next
   rs "$Y" next
   rs "$Y" next
   has "only the question windows count" "$(cat "$(rec_file)")" "Hands-on time: 30 s for this candidate; 30 s for 1.0.0 so far"
@@ -1173,6 +1220,7 @@ t_resume() {
   local before after
   newcase
   rs "$Y" start --version 1.0.0
+  rs '' next
   rs '' next
   rs '' next
   rs '' next
@@ -1300,6 +1348,7 @@ t_gate() {
   rs '' next
   rs '' next
   rs '' next
+  rs '' next
   rs "$Y" next
   # another gate's section is already in the record when the sequence writes its own
   mkdir -p "$W/release/records/1.0.0"
@@ -1348,6 +1397,7 @@ t_secret() {
   newcase
   printf '' > "$tmp/alloutput"
   rs "$Y" start --version 1.0.0
+  rs '' next
   rs '' next
   rs '' next
   rs '' next
@@ -1480,6 +1530,7 @@ t_pushes() {
   rs '' next
   rs '' next
   rs '' next
+  rs '' next
   rs "$Y" next
   rs "$Y" next
   eq "two pushes: the last exit" "$rc" 0
@@ -1516,10 +1567,220 @@ t_pushes() {
   rs '' next
   rs '' next
   rs '' next
+  rs '' next
   rs "$N" next
   rs '' next
   eq "declined and unanswered words: no push" "$(grep -cE '(^| )push( |$)' "$SHIMLOG/git.log")" 0
   RS_PATH=""
+}
+
+# --- overview ---
+
+t_overview() {
+  local before
+  # a pass: the unit ran in the cut candidate, the row is recorded and the next step is ipm
+  # The author's repository has the coordination folder, and the case has no lock folder in its environment: the unit gets the lane lock folder
+  # that the step derives from the author's repository.
+  newcase
+  to_step overview
+  mkdir -p "$W/.worktrees/.coordination/locks"
+  unset OCUTALON_LOCK_DIR
+  rs '' next
+  export OCUTALON_LOCK_DIR=$C/locks
+  eq "overview pass: exit" "$rc" 0
+  has "overview pass: the line" "$out" "PASS overview "
+  has "overview pass: the next step" "$out" "NEXT ipm"
+  eq "overview pass: the unit received the lane lock folder of the author's repository" "$(cat "$SHIMLOG/overview-lock-dir.txt" 2> /dev/null)" "$W/.worktrees/.coordination/locks"
+  eq "overview pass: the export and the log are gone" "$(ls "$OCUTALON_RELEASE_STATE/1.0.0-rc1" | tr '\n' ' ')" "rows.tsv state.env "
+  rs '' status
+  has "overview pass: the state names ipm" "$out" "STATE 1.0.0 rc1 next ipm"
+  # a drift: the release stops at overview, with the record written, and never reaches ipm
+  newcase
+  set_stub fail
+  to_step overview
+  rs "$N" next
+  eq "overview fail: exit" "$rc" 1
+  has "overview fail: the line" "$out" "FAIL overview DRIFT tool recent_activity"
+  lacks "overview fail: no next step" "$out" "NEXT ipm"
+  lacks "overview fail: the unit's own line is not repeated" "$out" "FAIL overview FAIL overview"
+  has "overview fail: the result" "$out" "RESULT fail"
+  has "overview fail: the record" "$(cat "$(rec_file)")" "Result: failed at overview: DRIFT tool recent_activity"
+  has "overview fail: the row" "$(cat "$(rec_file)")" "| overview | fail | DRIFT tool recent_activity |"
+  lacks "overview fail: ipm never ran" "$(cat "$(rec_file)")" "| ipm |"
+  lacks "overview fail: no local path in the record" "$(cat "$(rec_file)")" "$tmp"
+  eq "overview fail: nothing pushed" "$(git --git-dir="$R" for-each-ref --format='%(refname)' | tr '\n' ' ')" "refs/heads/$INTEG "
+  rs '' status
+  has "overview fail: the state still names overview" "$out" "STATE 1.0.0 rc1 next overview"
+  # a busy lane lock: WAIT, exit 5, nothing recorded, and the next call runs the step again
+  newcase
+  set_stub busy
+  to_step overview
+  before=$(snap)
+  rs '' next
+  eq "overview busy: exit" "$rc" 5
+  eq "overview busy: the line" "$out" "WAIT overview the lane's throwaway lock is busy"
+  eq "overview busy: nothing recorded" "$(snap)" "$before"
+  eq "overview busy: no record" "$([ -f "$(rec_file)" ] && echo yes || echo no)" no
+  rs '' status
+  has "overview busy: the state still names overview" "$out" "STATE 1.0.0 rc1 next overview"
+  rs '' next
+  eq "overview busy: the next call runs the step again" "$rc" 5
+}
+
+# --- overviewunit (Story 14.1: the real release/security-overview.sh against a stub ci/iris.sh) ---
+
+# ovw_tree: a temporary tree that holds the real unit, a stub docker/tests/test-security-overview.sh and a stub ci/iris.sh. The stub logs each call
+# ("<arguments> tag=<run tag> lock=<lock folder>") in calls.log, and answers a live step with live.rc and live.out and a class step with class.rc and
+# class.out; a teardown answers 0.
+ovw_tree() {
+  T=$tmp/ovwunit
+  rm -rf "$T"
+  mkdir -p "$T/release" "$T/ci" "$T/docker/tests" "$T/locks"
+  cp "$root/release/security-overview.sh" "$T/release/security-overview.sh"
+  : > "$T/docker/tests/test-security-overview.sh"
+  cat > "$T/ci/iris.sh" << 'EOF'
+#!/usr/bin/env bash
+here=$(cd "$(dirname "$0")/.." && pwd -P)
+echo "$* tag=${OCUTALON_RUN_TAG:-} lock=${OCUTALON_LOCK_DIR:-}" >> "$here/calls.log"
+case ${1:-} in
+  live | class)
+    if [ -f "$here/$1.out" ]; then cat "$here/$1.out"; fi
+    exit "$(cat "$here/$1.rc")"
+    ;;
+  teardown) exit 0 ;;
+esac
+exit 9
+EOF
+}
+
+# ovw_run <live exit> <live output> <class exit> <class output> [argument]: runs the unit with the caller's run tag "base"; sets out, rc and calls
+# (the calls of the stub in order, without their tags).
+ovw_run() {
+  local live_rc=$1 live_out=$2 class_rc=$3 class_out=$4
+  shift 4
+  rm -f "$T/calls.log"
+  printf '%s' "$live_rc" > "$T/live.rc"
+  printf '%s\n' "$live_out" > "$T/live.out"
+  printf '%s' "$class_rc" > "$T/class.rc"
+  printf '%s\n' "$class_out" > "$T/class.out"
+  out=$(cd "$T" && OCUTALON_LOCK_DIR=$T/locks OCUTALON_RUN_TAG=base "$BASH" release/security-overview.sh "$@" < /dev/null 2>&1)
+  rc=$?
+  calls=$(sed 's/ tag=.*//' "$T/calls.log" 2> /dev/null | tr '\n' '|')
+}
+
+t_overviewunit() {
+  local tags
+  ovw_tree
+  # a pass: the live step, then the class step, then the teardown; one run tag of the caller's tag and -ovw-<pid> on all three
+  ovw_run 0 "PASS the generated sections equal a fresh generation" 0 "CLASS OcuTalon.Test.Install.SecurityOverview passed"
+  eq "unit pass: exit" "$rc" 0
+  has "unit pass: the line" "$out" "PASS overview "
+  eq "unit pass: the calls" "$calls" "live security-overview|class OcuTalon.Test.Install.SecurityOverview|teardown|"
+  tags=$(sed 's/.* tag=\([^ ]*\) .*/\1/' "$T/calls.log" | sort -u)
+  eq "unit pass: one run tag for the three calls, the caller's plus -ovw-<pid>" "$(printf '%s\n' "$tags" | grep -Ec '^base-ovw-[0-9]+$')" 1
+  eq "unit pass: a single tag" "$(printf '%s\n' "$tags" | wc -l | tr -d ' ')" 1
+  eq "unit pass: the lane lock folder reaches every call" "$(sed 's/.* lock=//' "$T/calls.log" | sort -u)" "$T/locks"
+  # --write reaches the live step and no other call
+  ovw_run 0 "PASS wrote the overview" 0 "CLASS OcuTalon.Test.Install.SecurityOverview passed" --write
+  eq "unit --write: exit" "$rc" 0
+  eq "unit --write: the calls" "$calls" "live security-overview --write|class OcuTalon.Test.Install.SecurityOverview|teardown|"
+  # a bad argument is refused before any call
+  ovw_run 0 "" 0 "" --bogus
+  eq "unit bad argument: exit" "$rc" 2
+  eq "unit bad argument: no call" "$calls" ""
+  # a busy lane lock in the live step: WAIT and exit 75, the class step never runs, the teardown does
+  ovw_run 75 "LOCK busy: throwaway-iris is held by someone" 0 "CLASS OcuTalon.Test.Install.SecurityOverview passed"
+  eq "unit busy: exit" "$rc" 75
+  has "unit busy: the line" "$out" "WAIT overview "
+  lacks "unit busy: no FAIL line" "$out" "FAIL overview"
+  eq "unit busy: the calls" "$calls" "live security-overview|teardown|"
+  # a drift in the live step: FAIL with the first DRIFT line, exit 1, no class step, the teardown runs
+  ovw_run 1 "$(printf '%s\n' 'DRIFT tool recent_activity' 'FAIL the generated sections differ from a fresh generation')" 0 "CLASS OcuTalon.Test.Install.SecurityOverview passed"
+  eq "unit drift: exit" "$rc" 1
+  has "unit drift: the line" "$out" "FAIL overview DRIFT tool recent_activity"
+  eq "unit drift: the calls" "$calls" "live security-overview|teardown|"
+  # a failure in the live step with no DRIFT line: the first FAIL line
+  ovw_run 1 "FAIL the first start did not end ready within 400 s" 0 "CLASS OcuTalon.Test.Install.SecurityOverview passed"
+  eq "unit live failure: exit" "$rc" 1
+  has "unit live failure: the line" "$out" "FAIL overview FAIL the first start did not end ready within 400 s"
+  eq "unit live failure: the calls" "$calls" "live security-overview|teardown|"
+  # a failed class step: FAIL with its CLASS line, exit 1, the teardown runs
+  ovw_run 0 "PASS the generated sections equal a fresh generation" 1 "CLASS OcuTalon.Test.Install.SecurityOverview failed 6.25s"
+  eq "unit class failure: exit" "$rc" 1
+  has "unit class failure: the line" "$out" "FAIL overview CLASS OcuTalon.Test.Install.SecurityOverview failed 6.25s"
+  eq "unit class failure: the calls" "$calls" "live security-overview|class OcuTalon.Test.Install.SecurityOverview|teardown|"
+  # a failed step with no line to quote still fails with its exit code
+  ovw_run 3 "" 0 ""
+  eq "unit silent failure: exit" "$rc" 1
+  has "unit silent failure: the line" "$out" "FAIL overview a step ended with exit 3"
+  eq "unit silent failure: the calls" "$calls" "live security-overview|teardown|"
+  # without a caller tag the run tag is ovw-<pid>
+  rm -f "$T/calls.log"
+  printf '0' > "$T/live.rc"
+  printf '0' > "$T/class.rc"
+  (cd "$T" && env -u OCUTALON_RUN_TAG "$BASH" release/security-overview.sh < /dev/null > /dev/null 2>&1)
+  eq "unit without a caller tag: the run tag" "$(sed 's/.* tag=\([^ ]*\) .*/\1/' "$T/calls.log" | sort -u | grep -Ec '^ovw-[0-9]+$')" 1
+  rm -rf "$T"
+}
+
+# --- overviewdrift (Story 14.1: the readers of docker/tests/lib-security-overview.sh) ---
+
+# ovw_doc <recent_activity classification> <tools heading> <fix kind name> <privilege cell> [<extra tool row>]: an overview with hand-written lines
+# and the three marker pairs, the tools region with two tool rows (and the extra row after them).
+ovw_doc() {
+  printf '%s\n' '# OcuTalon security overview' 'Hand-written text.'
+  printf '%s\n' '<!-- BEGIN GENERATED tools: written by OcuTalon.Install.SecurityOverview, do not edit -->' "$2" '' \
+    '| Tool | Classification |' '| --- | --- |' '| `list_reminders` | safe |' "| \`recent_activity\` | $1 |"
+  if [ -n "${5:-}" ]; then printf '%s\n' "$5"; fi
+  printf '%s\n' '<!-- END GENERATED tools -->' 'More hand-written text.'
+  printf '%s\n' '<!-- BEGIN GENERATED fix-kinds: written by OcuTalon.Install.SecurityOverview, do not edit -->' '## Fix kinds' '' \
+    '| Class | Name |' '| --- | --- |' "| \`OcuTalon.Fix.Kind.RepairResend\` | \`$3\` |" '<!-- END GENERATED fix-kinds -->'
+  printf '%s\n' '<!-- BEGIN GENERATED privileges: written by OcuTalon.Install.SecurityOverview, do not edit -->' '## Privileges' '' \
+    '| Role | Resource | Permission |' '| --- | --- | --- |' "| \`OcuTalonServiceRole\` | \`%Ens_MessageResend\` | $4 |" '<!-- END GENERATED privileges -->'
+}
+
+# ovw_drift <committed file> <regenerated file>: the output of drift (DRIFT lines and diffs) for the two files.
+ovw_drift() {
+  (
+    tmp=$T/work
+    mkdir -p "$tmp"
+    . "$root/docker/tests/lib-security-overview.sh"
+    drift "$1" "$2"
+  )
+}
+
+t_overviewdrift() {
+  local result
+  T=$tmp/ovwdrift
+  rm -rf "$T"
+  mkdir -p "$T"
+  ovw_doc safe '## Built-in tools' repair_resend U > "$T/committed.md"
+  # equal files print nothing
+  ovw_doc safe '## Built-in tools' repair_resend U > "$T/same.md"
+  eq "equal files: nothing is printed" "$(ovw_drift "$T/committed.md" "$T/same.md")" ""
+  # one tool row changed: one DRIFT line that names the tool, with the diff of the region
+  ovw_doc risky '## Built-in tools' repair_resend U > "$T/row.md"
+  result=$(ovw_drift "$T/committed.md" "$T/row.md")
+  eq "a changed row: the DRIFT lines" "$(printf '%s\n' "$result" | grep '^DRIFT')" "DRIFT tool recent_activity"
+  has "a changed row: the diff names the region" "$result" "--- tools committed"
+  has "a changed row: the diff shows the old row" "$result" '-| `recent_activity` | safe |'
+  has "a changed row: the diff shows the new row" "$result" '+| `recent_activity` | risky |'
+  # a change outside the rows of the tools region
+  ovw_doc safe '## Built-in tools (changed)' repair_resend U > "$T/outside.md"
+  eq "a change outside the rows: the DRIFT lines" "$(ovw_drift "$T/committed.md" "$T/outside.md" | grep '^DRIFT')" "DRIFT tools"
+  # a row added: the new tool is named
+  ovw_doc safe '## Built-in tools' repair_resend U '| `add_note` | safe |' > "$T/added.md"
+  eq "an added row: the DRIFT lines" "$(ovw_drift "$T/committed.md" "$T/added.md" | grep '^DRIFT')" "DRIFT tool add_note"
+  # the fix kinds
+  ovw_doc safe '## Built-in tools' repair_other U > "$T/fix.md"
+  eq "a fix-kinds change: the DRIFT lines" "$(ovw_drift "$T/committed.md" "$T/fix.md" | grep '^DRIFT')" "DRIFT fix-kinds"
+  # the privileges
+  ovw_doc safe '## Built-in tools' repair_resend R > "$T/priv.md"
+  eq "a privileges change: the DRIFT lines" "$(ovw_drift "$T/committed.md" "$T/priv.md" | grep '^DRIFT')" "DRIFT privileges"
+  # a change in hand-written text only is not drift
+  ovw_doc safe '## Built-in tools' repair_resend U | sed 's/^Hand-written text\.$/Other hand-written text./' > "$T/hand.md"
+  eq "a hand-written change: nothing is printed" "$(ovw_drift "$T/committed.md" "$T/hand.md")" ""
+  rm -rf "$T"
 }
 
 # --- ipm (Story 11.17: the IPM artifact carries the built page) ---
@@ -1856,6 +2117,7 @@ t_ipmnet() {
   rs '' next
   rs '' next
   rs '' next
+  rs '' next
   rs "$N" next
   eq "net: the full run stops at the push question" "$rc" 4
   has "net: the throwaway ran" "$(cat "$SHIMLOG/docker.log")" "run -d --pull never --network none --name "
@@ -1965,11 +2227,20 @@ t_static() {
     eq "$f: bash -n" "$(bash -n "$root/$f" 2>&1)" ""
     eq "$f: ASCII only" "$(LC_ALL=C grep -n '[^[:print:][:space:]]' "$root/$f" | cut -d: -f1 | tr '\n' ' ')" ""
   done
+  eq "security-overview.sh: bash -n" "$(bash -n "$root/release/security-overview.sh" 2>&1)" ""
+  eq "security-overview.sh: ASCII only" "$(LC_ALL=C grep -n '[^[:print:][:space:]]' "$root/release/security-overview.sh" | cut -d: -f1 | tr '\n' ' ')" ""
+  eq "lib-security-overview.sh: bash -n" "$(bash -n "$root/docker/tests/lib-security-overview.sh" 2>&1)" ""
+  eq "lib-security-overview.sh: ASCII only" "$(LC_ALL=C grep -n '[^[:print:][:space:]]' "$root/docker/tests/lib-security-overview.sh" | cut -d: -f1 | tr '\n' ' ')" ""
+  [ -x "$root/release/security-overview.sh" ] || {
+    echo "  release/security-overview.sh is not executable"
+    bad=1
+  }
+  eq "the overview step makes no ASK" "$(awk '/^step_overview\(\)/ { f = 1 } /^# --- the ipm step/ { f = 0 } f' "$root/release/release.sh" | grep -c 'ask ')" 0
   eq "lib-release.sh: bash -n" "$(bash -n "$root/release/lib-release.sh" 2>&1)" ""
-  eq "the steps, in order" "$(sed -n 's/^STEPS="\(.*\)"$/\1/p' "$root/release/release.sh")" "cut image ipm push notes"
+  eq "the steps, in order" "$(sed -n 's/^STEPS="\(.*\)"$/\1/p' "$root/release/release.sh")" "cut image overview ipm push notes"
   eq "the ipm step makes no ASK" "$(awk '/^step_ipm\(\)/ { f = 1 } /^step_push\(\)/ { f = 0 } f' "$root/release/release.sh" | grep -c 'ask ')" 0
   eq "lib-release.sh: ASCII only" "$(LC_ALL=C grep -n '[^[:print:][:space:]]' "$root/release/lib-release.sh" | cut -d: -f1 | tr '\n' ' ')" ""
-  eq "the tracked scripts are mode 100755" "$(git -C "$root" ls-files -s release/release.sh release/lib-release.sh docker/tests/test-release-sequence.sh | awk '$1 != "100755" { print $4 }')" ""
+  eq "the tracked scripts are mode 100755" "$(git -C "$root" ls-files -s release/release.sh release/lib-release.sh release/security-overview.sh docker/tests/test-release-sequence.sh | awk '$1 != "100755" { print $4 }')" ""
   newcase
   net_check "$W"
   eq "a local remote passes the network check" "$?" 0
@@ -2074,6 +2345,9 @@ rule refusals t_refusals
 rule cut t_cut
 rule recut t_recut
 rule image t_image
+rule overview t_overview
+rule overviewunit t_overviewunit
+rule overviewdrift t_overviewdrift
 rule push t_push
 rule record t_record
 rule hands t_hands

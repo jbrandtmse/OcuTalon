@@ -50,7 +50,7 @@ group_units() {
   case $1 in
     install-fresh) echo "live:install-start live:bundle-folder live:online-demo live:install-script-live" ;;
     install-upgrade) echo "live:install-upgrade live:cards live:online-allowance live:online-visitors" ;;
-    production) echo "live:production live:production-restart live:reminder-restart live:audit" ;;
+    production) echo "live:production live:production-restart live:reminder-restart live:audit live:security-overview" ;;
     browser) echo "live:demo-path live:sign-in live:answers" ;;
     shards) echo "shard:lane-a@Checks,Install,Watch live:floor live:online-session" ;;
     shards-2) echo "shard:lane-a@rest live:demo-switch" ;;
@@ -132,6 +132,8 @@ NOT_BOOKKEEPING_PATTERN='^_bmad-output/planning-artifacts/ux-designs/'
 # .github/workflows/ci.yml, and the root .gitattributes and .gitignore. These are unanchored ERE alternatives, joined by
 # group_input_pattern.
 IRIS_INPUT='src/|docker/[^/]+$|docker/ipm/|docker/tests/lib-[^/]+\.sh$|release/demo-load\.sh$|docker/tests/compose\.[^/]+\.yml$|docker-compose[^/]*\.yml$|\.dockerignore$|eval/|ci/|\.github/workflows/ci\.yml$|\.gitattributes$|\.gitignore$'
+# The generated overview is read by live:security-overview, which compares it with a fresh generation (Story 14.1).
+IRIS_INPUT="$IRIS_INPUT|docs/security-overview\.md\$"
 
 # The inputs of the built web bundle, which every stack installs; a unit that reads, compares or serves the bundle's files depends on them.
 WEB_BUNDLE_INPUT='web/|logo/|_bmad-output/planning-artifacts/ux-designs/'
@@ -139,7 +141,7 @@ WEB_BUNDLE_INPUT='web/|logo/|_bmad-output/planning-artifacts/ux-designs/'
 # The units whose checks never read, compare or serve the built web bundle. A group whose units are all listed here does not run on a
 # web-only change; a unit that is not listed counts as checking the bundle. A unit or test class that starts to check the bundle
 # leaves this list (docker/tests/test-ci-config.sh, rule inputs, flags a live script that names the bundle).
-NO_WEB_BUNDLE_UNITS="live:audit live:production live:production-restart live:storage-roundtrip live:reminder-restart"
+NO_WEB_BUNDLE_UNITS="live:audit live:production live:production-restart live:storage-roundtrip live:reminder-restart live:security-overview"
 
 # The paths that no IRIS unit reads: documentation and release files, the agent settings, Lane A's workflow, the example environment,
 # the manual recording tool, and the check and web scripts. A changed path that no group pattern claims, that is not here and that is
