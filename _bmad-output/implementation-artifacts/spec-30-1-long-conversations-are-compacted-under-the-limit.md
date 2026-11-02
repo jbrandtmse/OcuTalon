@@ -2,7 +2,7 @@
 title: 'Long conversations are compacted under the limit'
 type: 'feature'
 created: '2026-10-31'
-status: 'ready-for-dev'
+status: 'draft'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -176,6 +176,8 @@ Bridge classes are under `src/bridge/cls/OcuTalon/Bridge/`, product and test cla
 - AC 6 (regression): Given this story's changes, when the existing tests run, then `Test.Agent.RequestSize`, `Test.Bridge.Conversation`, `Test.Bridge.Runner`, `Test.Bridge.Decide`, `Test.Bridge.Usage`, `Test.Bridge.Purge` and `Test.Agent.Constants` pass unchanged in intent, and `bash eval/key-proof.sh` still passes.
 
 ## Spec Change Log
+
+- 2026-11-02 (re-open, part 2 of U-207; lead spec gate): set back to `draft` for a re-plan. Reasons: (1) `Bridge/Process/Decide.cls` and its tests changed after this spec was planned (d4793d2d): Story 5.12 (3682d6b6, d103aec0), Story 30.6 (8937f0e0, 7d184ae3) and DW-544's fix-forward (3d0cabd3); every Decide.cls task, Code Map line and test reference must be re-checked against the current code (and against Story 5.7's Decide changes, already in the base). (2) DW-483 joined this story's ledger inbox (Decide's invalid-reply retry: measure first; veto item). (3) DW-386, DW-448 and DW-541 were re-owned to the burn-down story 30.7 at this gate (outside compaction's intent; this spec already declines DW-386/DW-448), so they leave this story's inbox.
 
 ## Review Triage Log
 
