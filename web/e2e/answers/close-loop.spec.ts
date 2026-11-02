@@ -9,11 +9,14 @@ import { TOMORROW_AT_1413, incidentOf, raise, refOf, today, type RequestFields }
 import { dropPhone, phoneMessage } from '../support/devices';
 import { CARD_MS, applied, composerOf, inMs, mainOf, loadedAfter } from '../support/floor';
 import {
+  chk,
   cleanFixtureRows,
   fixtureUser,
   incidentCommands,
   incidentState,
+  irisScript,
   publishIncident,
+  quoted,
   seedCheck,
   seedFixRun,
   seedIncident,
@@ -62,6 +65,29 @@ const ALL_THROUGH = { total: 50, resent: 50, completed: 50, failedAgain: 0, skip
 const ALL_TEXT = 'All 50 orders went through.';
 const REASON = "the order date still wasn't accepted";
 const AUDIT = 'Recorded in the IRIS audit log.';
+
+/**
+ * The fields that a diagnosed incident row keeps and the closed view reads: the item noun as JSON (the band reads it, else it falls back to
+ * "messages") and the cause's category and element (Show details has a Cause row from them, else a row with no failure group has no panel).
+ */
+const DIAGNOSED = { ItemNoun: '{"one":"order","other":"orders"}', CauseCategory: 'data_format_change', Element: 'order date' };
+
+/** Sets these properties (letters only) of the incident row with this Ref. */
+async function setIncidentFields(incident: string, fields: Record<string, string>): Promise<void> {
+  const sets = Object.entries(fields).map(([name, value]) => {
+    if (!/^[A-Za-z]+$/.test(name)) throw new Error('a property name is letters only');
+    return `Set r.${name}=${quoted(value)}`;
+  });
+  const lines = await irisScript(
+    [
+      `Set r=##class(OcuTalon.Data.Incident).RefIndexOpen(${quoted(incident)})`,
+      'If \'$IsObject(r) { Write !,"CHK|set|0" Halt }',
+      ...sets,
+      'Write !,"CHK|set|",$System.Status.IsOK(r.%Save())',
+    ].join('\n'),
+  );
+  if (chk(lines, 'set') !== '1') throw new Error(`the incident could not be changed (${lines.join(' ')})`);
+}
 
 /** The HH:MM of a UTC ISO time as the server writes it: the phone's lines and the server's notices. */
 const hhmm = (iso: string): string => iso.slice(11, 16);
@@ -165,6 +191,7 @@ test('C1: a finished fix shows its result band with Dismiss, the phone gets the 
     const requestRef = refOf('C1a');
     const incident = await seedIncident(user, { state: 'resolved', openVariant: '', requestRefs: requestRef });
     rows.push(incident);
+    await setIncidentFields(incident, DIAGNOSED);
     const a = await request(page, user, rows, incident, 'done', requestRef);
     await seedFixRun(incident, a.ref, ALL_THROUGH);
     await publish(page, user, payloadOf(incident, [{ ref: a.ref, state: 'executing' }], 'fixing'));

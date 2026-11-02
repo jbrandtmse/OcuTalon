@@ -2,9 +2,9 @@
 title: 'Story 31.5: a tool call''s approval request reaches the phone with Approve and Reject (notices)'
 type: 'feature'
 created: '2026-11-02'
-status: 'in-progress'
-baseline_revision: '9f10f23fb8881cd13fe0676358666aef579c47d0'
-baseline_commit: '9f10f23fb8881cd13fe0676358666aef579c47d0'
+status: 'done'
+baseline_revision: 'd8ba8b9eb783f3f77f6910049e3b16093aa73904'
+baseline_commit: 'd8ba8b9eb783f3f77f6910049e3b16093aa73904'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -199,7 +199,7 @@ Browser (Rule 3):
   4. `answerQuietly(user, ref, 'reject', 'phone')` gets 409, and `readApproval` still shows the phone approval; the request message is unchanged.
   5. Set State `done`, Result `done` and FinishedAt with the local helper, then `sinkEvent('approval.result')`. The phone gets a second message "zz_tool_x12 ran once at HH:MM." (FinishedAt in the stack's zone) with no buttons, and the request message keeps its line.
   6. In `finally`: `dropPhone` and `cleanFixtureRows`.
-- [ ] [CI] browser group, `live:answers` close-loop C1 (web/e2e/answers/close-loop.spec.ts:159, assertion :222): after Dismiss the compacted card's band reads "All 50 messages went through." instead of "All 50 orders went through." -- red twice on 6e57e259 (run 41534940990, attempts 1 and 2), green on a95624a9, red on every lane-C local stack (DW-597). Cause (inference, verify first): the real IncidentManager's closed view is built from the fixture incident row, which `seedIncident` writes with no `ItemNoun`, so the page's band falls back to "messages"; since Story 11.9 C1 uses the real IncidentManager, and this branch's WebSocket (Story 31.1) delivers that closed view in time. What the fix must do: in close-loop.spec.ts only (Lane B's Story 6.4 file; `web/e2e/support/**` stays import-only), give C1's incident row the item noun `{"one":"order","other":"orders"}` right after `seedIncident` (through the exported `irisScript` helper, as X12 sets its row's fields), and do the same for any other C-case whose closed view asserts the noun. No product change, unless the verification shows the product's closed view drops a real row's noun (then HALT `intent gap` with the evidence). Pinning: C1 passes on a fresh lane-C stack (`ci/iris.sh live answers`), and dropping the ItemNoun line turns it red again. (DW-597)
+- [x] [CI] browser group, `live:answers` close-loop C1 (web/e2e/answers/close-loop.spec.ts:159, assertion :222): after Dismiss the compacted card's band reads "All 50 messages went through." instead of "All 50 orders went through." -- red twice on 6e57e259 (run 41534940990, attempts 1 and 2), green on a95624a9, red on every lane-C local stack (DW-597). Cause (inference, verify first): the real IncidentManager's closed view is built from the fixture incident row, which `seedIncident` writes with no `ItemNoun`, so the page's band falls back to "messages"; since Story 11.9 C1 uses the real IncidentManager, and this branch's WebSocket (Story 31.1) delivers that closed view in time. What the fix must do: in close-loop.spec.ts only (Lane B's Story 6.4 file; `web/e2e/support/**` stays import-only), give C1's incident row the item noun `{"one":"order","other":"orders"}` right after `seedIncident` (through the exported `irisScript` helper, as X12 sets its row's fields), and do the same for any other C-case whose closed view asserts the noun. No product change, unless the verification shows the product's closed view drops a real row's noun (then HALT `intent gap` with the evidence). Pinning: C1 passes on a fresh lane-C stack (`ci/iris.sh live answers`), and dropping the ItemNoun line turns it red again. (DW-597)
 
 **Acceptance Criteria:**
 - Given an approval of kind `tool_call`, when the bridge reports `approval.raised`, `approval.answered` or `approval.result`, then `BridgeSink` sends `Notification`s of kinds `approval`, `answered` and `result` through `NoticesIn`, each carrying the request's `ApprovalRef` and its (empty) `IncidentRef`, so the phone gets Approve and Reject, an in-place answered line and a result message (`ToolCallNotices` with the real replay; X12).
@@ -269,6 +269,21 @@ Rejected:
   - `[false]` `[reject]` (intent-alignment) five keys against the contract's "four" -- W6 records it; the Boundaries' rule holds for five.
   - `[low]` `[reject]` (intent-alignment) no `approval` event in the raw-reason case -- W9 records the decision.
   - `[false]` `[reject]` (intent-alignment) the end-to-end delivery is asserted only for the phone -- the contract's web chat part is Story 31.6; Telegram is Epic 12's.
+
+### 2026-11-02 -- Review pass (CI rework 1)
+- verdicts: 11 findings -- high 0, medium 0, low 5, false 6, maybe-false 0
+- findings:
+  - `[low]` `[reject]` blind 1 and VG other: `setIncidentFields` is a second round trip beside `seedIncident` -- `IncidentFields` lives in `web/e2e/support/iris.ts`, which is import-only, and the item names `irisScript` as the way; the copy of `setApprovalFields`' pattern is the item's own instruction.
+  - `[low]` `[reject]` blind 2 and edge 2: a failed save reports only `CHK|set|0` -- the sibling `setApprovalFields` reports the same way; a save failure on a fresh fixture row is not a case C1 can reach, and the fix adds a branch.
+  - `[false]` `[reject]` blind 3: other cases (C3, C4, C9) have the same gap -- `live answers` ran 22 passed with the fix and C3, C4 and C9 publish their payloads directly, so no row noun is read.
+  - `[low]` `[reject]` blind 4: the noun JSON duplicates the object literals in the file -- the row column is a JSON string and the literals are slot objects; a shared constant adds a second source of truth for no reachable harm.
+  - `[false]` `[reject]` blind 5: no test of the helper -- the helper fails loudly through `CHK|set` and C1 is its test.
+  - `[low]` `[reject]` edge 1: a misspelled property name raises an ObjectScript error -- a development-time typo in a constant, found by the first run.
+  - `[false]` `[reject]` edge 3: IncidentManager may rewrite the row between `seedIncident` and the setter -- the row is `resolved` and IncidentManager acts only on the dismissal later in the case.
+  - `[false]` `[reject]` edge 4: C1 depends on two fields the spec never names -- the item calls for the noun only, and the run showed the real closed view has no Show details panel without them; a diagnosed row carries both (Decided in-stage, Verification).
+  - `[low]` `[patch]` VG: the mutation line covers `ItemNoun` only -- the noun-only run (the other two fields dropped) was observed red at "Show details stays"; the line now records it.
+  - `[false]` `[reject]` intent layer, divergence: the pass moves no tool-call notice behaviour -- the item is a test-fixture repair, as the spec's Change Log says.
+  - `[false]` `[reject]` VG other: no assertion that cannot fail and no hermeticity problem -- not a defect.
 
 ## Design Notes
 
@@ -419,6 +434,8 @@ Every test added or changed passes on a fresh environment, in either order.
 - (CR) AC 6: no mutation of this story's code turns `live demo-path` red, so AC 6 holds by construction. `Replayable` opened to every row (`Quit $IsObject(row)`): demo-path green (20 passed), because UJ-1's fix requests belong to `instance` and fail `ToolNotice`'s session gate. `SimPhoneOut.EditAnswered` made to never edit: demo-path green (20 passed), because demo-path reads the page's own answer line; X2, X3, X12 and `TestAnsweredEditsInPlace` pin the server's in-place edit. Both were reverted (md5 identical).
 - (CR) AC 2, second clause: the pinning test is Lane A's unchanged `Test.Watch.Tell.TestAnsweredToEachRecipient`. Its mutation would edit `Watch/IncidentManager.cls`, which is read-only for this lane, and no code in this story reaches IncidentManager's notifications. So no mutation was applied.
 - (CR) Re-run after the review patches. On warm `e31s5cw`: `Test.Core.BridgeSink`, `Test.Core.ToolCallNotices` (twice: the run counter now survives a run) and `Test.Core.Routing` passed. On fresh `e31s5c`: `live answers` had 21 passed, X12 among them (the server edited the request message 61 ms after the reply), and C1 was red at the baseline as before (DW-597). Both stacks are torn down.
+- (CI rework 1) mutation: the `ItemNoun` entry dropped from close-loop.spec.ts `DIAGNOSED` (C1's incident row) -> `live answers` on a fresh lane-C stack (`e31s5r`): 1 failed, 21 passed, C1 red at `bandsOf(card).locator('.text')` (expected "All 50 orders went through.", received "All 50 messages went through."); restored byte-identical (same `shasum`); with `CauseCategory` and `Element` dropped and the noun kept: 1 failed, 21 passed, C1 red at "Show details stays" (expected 1 button, received 0). With the fix: `live answers` 22 passed, C1 included.
+- (CI rework 1) Decided in-stage: the fixture row also carries `CauseCategory` and `Element` (`DIAGNOSED`), the values `incidentOf` uses, because with the noun alone the real closed view had no Show details panel and C1 failed at "Show details stays"; a diagnosed row carries both. Test-only, close-loop.spec.ts. C5, C6 and C10 assert no noun from a real closed view, and C9 publishes its payload directly, so only C1 changes.
 
 **Manual checks:**
 - `git status --short` shows no path from the Never list, and no change under `web/src/`, nor to `Channel/WebChat/Out.cls`, `Data/Ownership.cls`, `Live/Payload/Approval.cls`, `web/scripts/catalog.mjs` or `ux-strings.test.mjs`.
@@ -443,3 +460,5 @@ Blocking condition: none
 **Verification.** (loop) classes pass on the warm stack after the last patch; (once) after the last patch: `Test.Bridge.Approval` 126 s, fresh shard `lane-b@Core,Demo,Msg` forward and `--reverse` (44 classes each), `live demo-path`, `test-class-rules`, `test-boundaries`. Before the review patches (product code unchanged by them outside `HeldNotice`): `npm --prefix web test`, `catalog.mjs --check`, `payloads.mjs --check`, `live answers` (X12 passes; C1 red at the baseline too), `live sign-in` 1/3, 2/3 and 3/3, `test-storage`, `test-ci-config`.
 
 **Residual risks.** C1 of `live answers` is red on this branch without this story (deferred). The server of a live MCP call's toolref is unmeasured (inference, W7).
+
+**CI rework 1 (this pass).** The `[CI]` item is closed: `web/e2e/answers/close-loop.spec.ts` gives C1's incident row the item noun, cause category and element after `seedIncident` (`DIAGNOSED`, `setIncidentFields` through `irisScript`); the product keeps a real row's noun, so no product change. Review: 11 findings, 1 low patched (the mutation line), 0 deferred, 10 rejected with reasons in the log; patched counts high 0, medium 0 -> `followup_review_recommended: false`. Verification: `live answers` on fresh lane-C `e31s5r`: 22 passed, C1 included; mutation (noun dropped) 1 failed, C1 red; torn down. Residual risk: frontmatter `deferred:` still lists the baseline-red C1 entry, now resolved (the lead's ledger).
