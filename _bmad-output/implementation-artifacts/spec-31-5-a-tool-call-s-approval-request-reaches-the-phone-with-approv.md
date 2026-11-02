@@ -2,7 +2,8 @@
 title: 'Story 31.5: a tool call''s approval request reaches the phone with Approve and Reject (notices)'
 type: 'feature'
 created: '2026-11-02'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '9f10f23fb8881cd13fe0676358666aef579c47d0'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -17,6 +18,10 @@ deferred:
     evidence: 'U-214 (#650) and its story are set aside (cycle log 2026-11-02T14:11:59Z); the texts exist nowhere in src/'
     location: 'src/ocutalon/cls/OcuTalon/Core/BridgeSink.cls (reason allowlist), Story 30.7'
     severity: 'low'
+  - summary: 'live answers: close-loop C1 is red at the baseline (HEAD 9f10f23f without this story): the result band reads "All 50 messages went through." where the case expects "All 50 orders went through."; all other answers cases pass (X12 included)'
+    evidence: 'ci/iris.sh live answers on a fresh stack, with and without this story: 1 failed (C1), 20 passed; the incident row carries no itemNoun, so the page falls back to "messages" (inference; Epic 7 Story 7.4 / Epic 30 Story 30.5 changed the result text, commits c1f5162c and c67cdf16)'
+    location: 'web/e2e/answers/close-loop.spec.ts:159 (C1) and :62 (ALL_TEXT)'
+    severity: 'med'
 ---
 
 <intent-contract>
@@ -150,24 +155,24 @@ Line numbers are at `7d44e4bc0de4b7cb2dbd2b96654529803dc30d84`; no file under `s
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] Task 0 (measure, no code; record under Verification): on the warm stack, before any edit, run `OcuTalon.Test.Bridge.Approval` once and record its seconds, as the baseline for its (once) run. If it nears 8 minutes, that run uses a fresh `ci/iris.sh class` call instead.
+- [x] Task 0 (measure, no code; record under Verification): on the warm stack, before any edit, run `OcuTalon.Test.Bridge.Approval` once and record its seconds, as the baseline for its (once) run. If it nears 8 minutes, that run uses a fresh `ci/iris.sh class` call instead.
 
 IRIS, notices (U-212, DW-454):
-- [ ] `src/ocutalon/cls/OcuTalon/Core/BridgeSink.cls`:
+- [x] `src/ocutalon/cls/OcuTalon/Core/BridgeSink.cls`:
   - In `Approved`, after the publish loop, call a new private `ToolNotice(type, ownerRef, ref)` that applies the Boundaries' gate and table. The raised key is `toolCall.requestOnServer` {`tool`, `server`, `inputs`} when `ServerOf(row.ToolSource)` is not empty, else `toolCall.request` {`tool`, `inputs`} (Design Notes W6, W7).
   - Private `ServerOf(source)`: "" unless `source` starts, in any case, with `$Parameter("OcuTalon.Bridge.Policy.Gate", "MCPPREFIX")`; else the rest, trimmed, and when the rest is `remote:@{config:AI.MCP.OcuTalon_<name>}`, `<name>`.
   - Private `InputsOf(arguments)`: `Bridge.Redact.Text(arguments)`, control characters and every whitespace run (line breaks included) folded to one space, trimmed; "" gives `{}`; a text over `INPUTSMAX` (200) characters becomes its first 199 characters plus `$Char(8230)` (Rule 14).
   - In `Recorded`, after the publish, call a new private `HeldNotice(ownerRef, row)` for DW-454 (the Boundaries' DW-454 gate). When the first `Reasons` line is one of `HeldReasons()` (Decide's `HELDBEFOREUPDATE`, read with `$Parameter`, never copied; W8), it sends `toolCall.failedWithReason` {`tool`, `reason`} with `DecisionRef` and publishes the `approval` event with `Reason` set. Any other line sends `toolCall.failed` {`tool`, `time` = FinishedAt} with no reason slot and publishes no extra event (U-212 (3); W9).
   - Both build the Notification once with a private `Compose` like `IncidentManager`'s and send through `..Notice`. A failed read or send is one `$$$LOGWARNING` naming the type and the Ref.
   - Add the parameters `KEYREQUEST`, `KEYREQUESTON`, `KEYDONE`, `KEYFAILED`, `KEYFAILEDWHY`, `KEYAPPROVED`, `KEYREJECTED`, `KEYEXPIRED` and `INPUTSMAX`. Update the class doc.
-- [ ] `src/ocutalon/cls/OcuTalon/Msg/Catalog/Core.cls` -- append the five entries of Design Notes D2 after `audit.recorded` (slot types `text` and `time`; no `web` text; ASCII `source`).
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Msg/Catalog.cls` -- the counts become 95 → 100 (doc :3, :80, :82) and 119 → 124 (:121). Append the five keys to `Keys` "core", and their five `Fixtures` with D2's exact texts at "14:12 ET" (U-212 (4): the same labelled time as `answered.*`).
-- [ ] `src/ocutalon/cls/OcuTalon/Channel/SimPhone/Out.cls` -- in `EditAnswered`, a found message whose `ApprovalRef` differs from the request's counts as not found. Update the class doc.
-- [ ] `src/ocutalon/cls/OcuTalon/Core/NoticesIn.cls` -- doc :10-11 only (present tense).
+- [x] `src/ocutalon/cls/OcuTalon/Msg/Catalog/Core.cls` -- append the five entries of Design Notes D2 after `audit.recorded` (slot types `text` and `time`; no `web` text; ASCII `source`).
+- [x] `src/ocutalon/cls/OcuTalon/Test/Msg/Catalog.cls` -- the counts become 95 → 100 (doc :3, :80, :82) and 119 → 124 (:121). Append the five keys to `Keys` "core", and their five `Fixtures` with D2's exact texts at "14:12 ET" (U-212 (4): the same labelled time as `answered.*`).
+- [x] `src/ocutalon/cls/OcuTalon/Channel/SimPhone/Out.cls` -- in `EditAnswered`, a found message whose `ApprovalRef` differs from the request's counts as not found. Update the class doc.
+- [x] `src/ocutalon/cls/OcuTalon/Core/NoticesIn.cls` -- doc :10-11 only (present tense).
 
 IRIS tests:
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Core/BridgeSinkNoticeProbe.cls` -- also record `approvalRef`, `incidentRef` and `decisionRef`; update its doc.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Core/BridgeSink.cls` -- new probe tests, slot-safe; each seeds and removes its rows; update the class doc:
+- [x] `src/ocutalon/cls/OcuTalon/Test/Core/BridgeSinkNoticeProbe.cls` -- also record `approvalRef`, `incidentRef` and `decisionRef`; update its doc.
+- [x] `src/ocutalon/cls/OcuTalon/Test/Core/BridgeSink.cls` -- new probe tests, slot-safe; each seeds and removes its rows; update the class doc:
   - `TestToolCallNoticeKinds`: the matrix rows Raised, Answered approve (the row already `done`, so the key comes from AnsweredAction), Answered reject, Expired, the three Result values and Cancelled. Each checks kind, key, slots, ApprovalRef, IncidentRef "" and DecisionRef "", and that the approval events are still published.
   - `TestToolCallServerForm` (U-212 (1)): ToolSource `mcp:zzserver` gives `toolCall.requestOnServer` {server `zzserver`}; `MCP:zzserver` the same; `mcp:remote:@{config:AI.MCP.OcuTalon_zzdocs}` gives server `zzdocs`; a class source and `mcp:` alone give `toolCall.request` with no `server` slot.
   - `TestToolCallInputsLine` (U-212 (2)): ToolArguments with a line break, a `password` member holding `zz-secret` and 300 characters give `inputs` with no line break and no `zz-secret`, exactly 200 characters, ending with `$Char(8230)`; a 200-character text is unchanged; "" gives `{}`.
@@ -175,8 +180,8 @@ IRIS tests:
   - `TestHeldBeforeUpdateSaysWhy`: the DW-454 row in Decide's order; exactly one call, `toolCall.failedWithReason` with the sentence and the DecisionRef; the event's `reason` is the sentence.
   - `TestHeldReasonIsCatalogOnly` (U-212 (3)): the matrix row "Raw reason": one call, `toolCall.failed` with slots {tool, time} only; no slot and no published payload holds the raw line.
   - `TestToolCallNoticeFailureIsLogged`: the probe's `failNotice` and `throwNotice` give one warning each, OK, and the approval event.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Demo/SimPhoneOut.cls` -- new `TestAnsweredNeverEditsAResult`: the matrix's last row. Update the class doc.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Core/ToolCallNotices.cls` (new; the integration AC, real production and real replay, phone only):
+- [x] `src/ocutalon/cls/OcuTalon/Test/Demo/SimPhoneOut.cls` -- new `TestAnsweredNeverEditsAResult`: the matrix's last row. Update the class doc.
+- [x] `src/ocutalon/cls/OcuTalon/Test/Core/ToolCallNotices.cls` (new; the integration AC, real production and real replay, phone only):
   - `TestApprovedCallReachesThePhone`:
     1. A held call of a fixture session goes through the real gate. Within WAIT s the phone gets the `toolCall.request` message (its phone render, "Run zz_replay_send" first, the session's ApprovalRef, Answer "").
     2. `Approval.Answer(ref, "approve", "phone", ANSWERER, NewRef)`, then wait for the row to be `done`.
@@ -186,7 +191,7 @@ IRIS tests:
   - It asserts nothing about the web chat (Story 31.6 changes it). Restore ChatAgent's agent and the keys, and clean the rows (`Test.Bridge.Approval.TrackOwner`/`Clean`), also after a failure.
 
 Browser (Rule 3):
-- [ ] `web/e2e/answers/answers.spec.ts` -- new X12 and its doc line, the phone half only (no web card, no page change):
+- [x] `web/e2e/answers/answers.spec.ts` -- new X12 and its doc line, the phone half only (no web card, no page change):
   1. Seed a session `tool_call` row (`zz_tool_x12`, `dryRun: null`, requiredRole OcuTalonUser) with `seedApproval`. With a local helper over the imported `irisScript`, set ToolSource `mcp:zzx12`, Runner `ChatAgent` and ToolArguments `{"to":"ops"}` (no hold exists, so approving replays nothing). Open the page, then `sinkEvent('approval.raised')`.
   2. `phoneMessage(user, ref)` appears within `CARD_MS`, with text "Run zz_tool_x12 on zzx12\nInputs: {\"to\":\"ops\"}\nNo dry run is available for this tool. Approving runs exactly this call once." (D2e), and the phone shows it (`messageOf`) with Approve and Reject, named "Approve: run zz_tool_x12" and "Reject: run zz_tool_x12" (the page's existing names).
   3. Press Approve on the phone. The reply is 200; the local line reads "Approved from the simulated phone at HH:MM."; within 5 s of the reply the server has edited the request message: `phoneMessage(...).answer` is "Approved from the simulated phone at HH:MM." (the BridgeSink answered notice; X2 pins "" for a fix). HH:MM is the reply's AnsweredAt.
@@ -209,6 +214,34 @@ Browser (Rule 3):
 - 2026-11-02 (lead, epic-31 runner, after hold #2; re-plan): (a) U-212 applied (`apply U-212 at=2026-11-02T13:19:05Z#648`): its four conditions are written into the intent contract's Boundaries and the I/O matrix (server form of the first line, 200-character one-line inputs, catalog-only `{reason}`, labelled `{time}`); Design Notes item 6's "no `on {server}` form" is superseded. (b) The web chat tool-call approval card moves from `deferred:` into scope (the Contest Planner under the owner's delegation: "The web-chat tool-call approval gap is 1.0.0-VISIBLE: PUT IT INTO 31.5"), with an `[AMENDED 2026-11-02, Story 31.5, Contest Planner under the owner's delegation]` acceptance bullet in epics.md. Status reset to `draft` so the plan re-derives the Code Map, Tasks, Verification and size around the amended intent.
 
 ## Review Triage Log
+
+### 2026-11-02 -- Review pass
+- verdicts: 24 findings (similar findings of different layers share a row) -- high 0, medium 3, low 14, false 7, maybe-false 0
+- findings:
+  - `[medium]` `[patch]` (blind, edge) HeldNotice had no session-exists guard, unlike ToolNotice -- IsSession accepts any 22-character ref; fixed: the guard is added, with a `noSession` negative case.
+  - `[medium]` `[patch]` (blind, edge, gap) a throwing send in HeldNotice skipped the reason event -- real; fixed: the send has its own Try, so the warning is logged and the event is still published; `TestToolCallNoticeFailureIsLogged` now covers the held path (failNotice and throwNotice).
+  - `[medium]` `[patch]` (gap) the `Kind = tool_call` check of HeldNotice was unpinned -- fixed: a `fix` row case in `TestHeldBeforeUpdateSaysWhy`; mutation recorded.
+  - `[low]` `[patch]` (blind) the probe's doc named only the daily-cap message -- fixed.
+  - `[low]` `[reject]` (blind, edge) a late answered notice after the result leaves the request's buttons -- by design: the matrix row "Answered after a result" and AC 5 require the result message untouched and a Delivery row only.
+  - `[low]` `[reject]` (blind, edge) ServerOf shows the rest of a malformed attach form -- the toolref is the gate's own text; a malformed one needs a source nothing writes; the fix adds a branch.
+  - `[low]` `[reject]` (blind) InputsOf can cut a surrogate pair at the boundary -- cosmetic, needs a non-BMP character exactly at character 199.
+  - `[low]` `[reject]` (blind) a row read for approval.cancelled and for fix/setting rows -- a read is cheap and Approved already reads; the 1 s wait bound is unaffected.
+  - `[low]` `[reject]` (blind, gap) ToolCallNotices uses fixed waits and a `Kill` of its saved agent record -- the same pattern as Test.Bridge.Approval, on throwaway stacks only; the negative check reads Delivery rows after 2 s.
+  - `[false]` `[reject]` (blind) X12 might start a real replay on approve -- a seeded row has no ApprovalHold, so approving replays nothing (Approval.cls doc :17-26); X12 passed in the browser and no second result event came.
+  - `[false]` `[reject]` (blind) the expected inputs in TestApprovedCallReachesThePhone are a partial copy -- the fixture arguments are compact and short; the unit `TestToolCallInputsLine` pins the folding and the cut.
+  - `[low]` `[reject]` (blind) duplicate events are untested -- producers do not redeliver; the notice is built from the row, so a repeat would repeat the message, as for a fix.
+  - `[low]` `[reject]` (blind) no test of the unhappy Ownership.Approval read -- the read returns an error only on a storage fault; low.
+  - `[low]` `[reject]` (edge) approval.raised after the row is decided would send a live-button message -- the contract builds every notice from the row, not the event's order; raised comes first in the bridge.
+  - `[low]` `[reject]` (edge) empty ToolName, AnsweredChannel, AnsweredAt or ExpiresAt in a built slot -- the bridge sets them before it fires the event; the contract names only Result and FinishedAt as empty-skips.
+  - `[low]` `[reject]` (edge) HeldNotice's `toolCall.failed` branch sends nothing when FinishedAt is empty -- Decide sets FinishedAt before the fallback Decision.
+  - `[false]` `[reject]` (edge, claim) ToolNotice is called from OnEvent, not Approved -- recorded as a deviation in the spec; behaviour as intended.
+  - `[false]` `[reject]` (edge, claim) the test passes the session Ref where the spec says NewRef -- the signature's fifth argument is an output; the answer succeeds.
+  - `[low]` `[reject]` (gap) AC 6 and AC 2's second clause have no mutation line -- both are existing units, unchanged by this story (Rule 19 binds tests added or changed).
+  - `[low]` `[reject]` (gap) translate ranges and the server trim are not pinned by exotic characters -- cosmetic.
+  - `[false]` `[reject]` (gap) no unfalsifiable assertion found -- the layer's own result.
+  - `[false]` `[reject]` (intent-alignment) five keys against the contract's "four" -- W6 records it; the Boundaries' rule holds for five.
+  - `[low]` `[reject]` (intent-alignment) no `approval` event in the raw-reason case -- W9 records the decision.
+  - `[false]` `[reject]` (intent-alignment) the end-to-end delivery is asserted only for the phone -- the contract's web chat part is Story 31.6; Telegram is Epic 12's.
 
 ## Design Notes
 
@@ -334,11 +367,42 @@ Every test added or changed passes on a fresh environment, in either order.
 - AC 6: none (the existing unit, unchanged).
 - U-212 (1): drop `ServerOf` → `TestToolCallServerForm` goes red. (2): drop the cut → `TestToolCallInputsLine` goes red. (3): drop the allowlist check → `TestHeldReasonIsCatalogOnly` goes red. (4): `TestEveryKeyOnEveryChannel` with the " ET" fixtures.
 
+**Implement pass results (31.5, lane C):**
+- Task 0: `OcuTalon.Test.Bridge.Approval` on the warm stack before any edit: `CLASS ... passed 119.77s` (the call took 2:01 in all), far from 8 minutes, so its (once) run stays on the warm stack.
+- (loop) on the warm stack `e31s5iw`, after the last edit: `Test.Core.BridgeSink`, `Test.Demo.SimPhoneOut`, `Test.Msg.Catalog`, `Test.Core.ToolCallNotices` (15 s), `Test.Core.NoticesInProduction` and `Test.Core.WebChatOut` each printed `CLASS ... passed`. The warm stack is down. `npx tsc -p tsconfig.e2e.json` (web lint) is clean with X12. X12 itself has not run in a browser: `live answers` is a (once) command.
+- mutation: `approval.raised` branch of `ToolNoticeOf` disabled -> `BridgeSink.TestToolCallNoticeKinds` and `ToolCallNotices.TestApprovedCallReachesThePhone` red (AC 1).
+- mutation: answered key read from `State` (not `AnsweredAction`) -> `BridgeSink.TestToolCallNoticeKinds` red on the already-done answered case (AC 1).
+- mutation: `Kind = tool_call` check dropped from `Replayable` -> `BridgeSink.TestToolCallNoticesOnlyForReplayableSessionRows` red on the fix and setting rows (AC 2; the fix fixture row carries ToolSource and Runner, so only the Kind check keeps it out).
+- mutation: the `HeldNotice` call in `Recorded` removed -> `BridgeSink.TestHeldBeforeUpdateSaysWhy` red; replayable gate dropped from `ToolNotice` -> the same test red (approval.result sends a notice for the old held row) (AC 3).
+- mutation: `ApprovalRef` guard dropped from `SimPhoneOut.EditAnswered` -> `SimPhoneOut.TestAnsweredNeverEditsAResult` red (AC 5).
+- mutation: `ServerOf` made to answer "" -> `BridgeSink.TestToolCallServerForm` red (U-212 (1)); the 200-character cut removed from `InputsOf` -> `BridgeSink.TestToolCallInputsLine` red (U-212 (2)); the allowlist check replaced by 1 in `HeldNotice` -> `BridgeSink.TestHeldReasonIsCatalogOnly` red (U-212 (3)); `toolCall.done`'s `time` slot typed `text` -> `Msg.Catalog.TestEveryKeyOnEveryChannel` red (U-212 (4)). Each mutation was reverted from a backup and the three mutated product files were byte-identical to their pre-mutation copies (checksums) before the next run.
+- mutation (AC 4, X12): the `approval.answered` branch of `ToolNoticeOf` disabled -> `answers` X12 red at step 3 ("the server edited the request's message within 5 s of the reply"); `ServerOf` made to answer "" -> `answers` X12 red at step 2 ("the phone's text names the server, the inputs and the no-dry-run sentence"). Each reverted from a backup (checksum identical).
+- Shared surface found in-pass: `web/scripts/playwright-projects.test.mjs` pinned the answers project at X1 to X11 and 21 cases; it now reads X1 to X12 and 22 (`npm --prefix web test`: 1255 pass).
+- X12's result step reads the newest phone message through a local `newestPhoneMessage` helper: `support/devices.ts` `phoneMessage(user, '')` cannot match a message with no ApprovalRef (SQL `= ''` does not match the empty property).
+- (once) results, after the review patches where the product changed: `npm --prefix web test` 1255 pass; `catalog.mjs --check` and `payloads.mjs --check` current; `live answers` 21 pass and C1 red at the baseline too (deferred above); `live sign-in` parts 1/3, 2/3, 3/3 and `live demo-path` pass; `shard lane-b@Core,Demo,Msg` forward and `--reverse` pass (44 classes, fresh stack, no WARM line); `Test.Bridge.Approval` 124 s on the warm stack; `test-class-rules`, `test-boundaries`, `test-storage`, `test-ci-config` pass.
+- mutation: the `Kind = tool_call` check of `HeldNotice` dropped -> `BridgeSink.TestHeldBeforeUpdateSaysWhy` red (the `fix` row case); the nested Try around the send in `HeldNotice` removed -> `BridgeSink.TestToolCallNoticeFailureIsLogged` red ("held throwNotice: the reason event is still published"); the session-exists guard of `HeldNotice` dropped -> `BridgeSink.TestHeldBeforeUpdateSaysWhy` red (the `noSession` case). Each reverted from a backup (checksum identical).
+- Deviation: `ToolNotice` is called from `OnEvent` right after `Approved` (not inside it), so that a failed read of the recipients never suppresses the notice; behaviour is otherwise as written.
+
 **Manual checks:**
 - `git status --short` shows no path from the Never list, and no change under `web/src/`, nor to `Channel/WebChat/Out.cls`, `Data/Ownership.cls`, `Live/Payload/Approval.cls`, `web/scripts/catalog.mjs` or `ux-strings.test.mjs`.
 - `git diff` of `Msg/Catalog/Core.cls` and `Test/Msg/Catalog.cls` shows only the appended blocks, the one comma and the count lines.
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** `BridgeSink` sends a replayable session tool call's notices through `NoticesIn` (approval, in-place answered, result), with U-212's server form, redacted one-line capped inputs and catalog-only reasons; DW-454's old held row gets one result notice with its reason and an `approval` event carrying it; `SimPhoneOut.EditAnswered` never edits a result message. Five `toolCall.*` keys are appended to the Core catalog.
+
+**Files changed.**
+- `src/ocutalon/cls/OcuTalon/Core/BridgeSink.cls`: `ToolNotice`, `ToolNoticeOf`, `Compose`, `ServerOf`, `InputsOf`, `HeldNotice`, parameters, doc.
+- `src/ocutalon/cls/OcuTalon/Msg/Catalog/Core.cls`: the five appended entries.
+- `src/ocutalon/cls/OcuTalon/Channel/SimPhone/Out.cls`: the `ApprovalRef` guard in `EditAnswered`.
+- `src/ocutalon/cls/OcuTalon/Core/NoticesIn.cls`: doc line.
+- Tests: `Test/Msg/Catalog.cls` (counts, five keys and fixtures), `Test/Core/BridgeSinkNoticeProbe.cls`, `Test/Core/BridgeSink.cls` (seven tests, three extended after review), `Test/Demo/SimPhoneOut.cls`, new `Test/Core/ToolCallNotices.cls`, `web/e2e/answers/answers.spec.ts` (X12), `web/scripts/playwright-projects.test.mjs` (X1 to X12, 22 answers cases).
+
+**Review.** 24 finding rows from four layers: 4 patched (HeldNotice session guard, HeldNotice send isolated from the reason event, the unpinned Kind check and the held failure paths now tested, probe doc), 0 deferred by review, the rest rejected with reasons in the log. Frontmatter `deferred:` holds two plan items and the baseline-red C1 of `live answers`. Patched counts: medium 3, low 1, high 0 -> `followup_review_recommended: false`.
+
+**Verification.** (loop) classes pass on the warm stack after the last patch; (once) after the last patch: `Test.Bridge.Approval` 126 s, fresh shard `lane-b@Core,Demo,Msg` forward and `--reverse` (44 classes each), `live demo-path`, `test-class-rules`, `test-boundaries`. Before the review patches (product code unchanged by them outside `HeldNotice`): `npm --prefix web test`, `catalog.mjs --check`, `payloads.mjs --check`, `live answers` (X12 passes; C1 red at the baseline too), `live sign-in` 1/3, 2/3 and 3/3, `test-storage`, `test-ci-config`.
+
+**Residual risks.** C1 of `live answers` is red on this branch without this story (deferred). The server of a live MCP call's toolref is unmeasured (inference, W7).

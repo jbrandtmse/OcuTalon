@@ -17,6 +17,26 @@ Include Ensemble
 ///     (another session's request, an unnoticed incident's, any instance request with onlineDemo on) gets nothing. An empty
 ///     or unknown ref, a payload that is not an object, the owner eval and an owner that is no stream publish nothing.
 /// decision.recorded and turn.step publish only for a session: the owners eval and instance publish nothing for them.
+/// The notices of a tool call (Story 31.5, AD-31, AD-32) go through the Notice seam beside the approval event, for a request of
+/// kind tool_call that a session owns, that Ownership.Approval reads for it and that is replayable (ToolSource and Runner both set,
+/// the inverse of Decide.HeldBeforeUpdate). A fix is IncidentManager's and a setting its owner's, so neither gets one here. Each
+/// notification is built from the row as read, with SessionRef the owner, ApprovalRef the row's Ref and IncidentRef the row's:
+///   - approval.raised: kind approval, toolCall.requestOnServer {tool, server, inputs} when ServerOf(ToolSource) names the MCP
+///     server, else toolCall.request {tool, inputs}. inputs is InputsOf(ToolArguments): the bridge's redactor, one line, at most
+///     INPUTSMAX characters, ending with U+2026 when cut, or {} when there are none;
+///   - approval.answered: kind answered, answered.approved or answered.rejected {channel, time} from the row's AnsweredAction, not
+///     its State; an empty or other action sends nothing;
+///   - approval.expired: kind answered, answered.expired {time = ExpiresAt};
+///   - approval.result: kind result, toolCall.done for Result done and toolCall.failed for failed or interrupted, {tool, time =
+///     FinishedAt}; an empty Result or FinishedAt sends nothing;
+///   - approval.cancelled: nothing.
+/// A request held before ToolSource and Runner existed (either is empty) is closed failed by Decide and gets no notice from
+/// approval.result. Its fallback Decision (kind tool, Fallback 1, a first Reasons line) is the one that speaks, on
+/// decision.recorded, when the row is failed and not replayable: one kind result notice with DecisionRef set, and for a first line
+/// that is one of HeldReasons (Decide's HELDBEFOREUPDATE) it is toolCall.failedWithReason {tool, reason} and the approval event
+/// carries that line as its reason; any other line sends toolCall.failed {tool, time = FinishedAt} with no reason slot and
+/// publishes no event, so no raw error text reaches a notice or a payload. A failed read or send logs one warning that names the
+/// event type and the request's Ref and sends nothing.
 /// A cross-owner read that fails (the request's incident, the incident's watchers) is logged as a warning that names the
 /// event type, the request and the incident, and publishes nothing; a failed read never means that nobody watches, and
 /// nobody watching logs nothing (DW-68).
@@ -48,12 +68,46 @@ Parameter ERRORVISITORS = "BridgeSink could not read the sessions with activity 
 
 Parameter ERRORDAILYCAP = "BridgeSink could not send the daily-cap message: ";
 
+Parameter ERRORTOOLNOTICE = "BridgeSink could not send a tool-call notice: ";
+
+/// The kind of a tool-call request, as the bridge stores it, and of its fallback Decision.
+Parameter TOOLCALL = "tool_call";
+
+Parameter TOOLDECISION = "tool";
+
+/// The notification kinds and the catalog keys of the tool-call notices (Msg.Enum NOTIFICATIONKIND; Msg.Catalog.Core).
+Parameter APPROVALKIND = "approval";
+
+Parameter ANSWEREDKIND = "answered";
+
+Parameter RESULTKIND = "result";
+
+Parameter KEYREQUEST = "toolCall.request";
+
+Parameter KEYREQUESTON = "toolCall.requestOnServer";
+
+Parameter KEYDONE = "toolCall.done";
+
+Parameter KEYFAILED = "toolCall.failed";
+
+Parameter KEYFAILEDWHY = "toolCall.failedWithReason";
+
+Parameter KEYAPPROVED = "answered.approved";
+
+Parameter KEYREJECTED = "answered.rejected";
+
+Parameter KEYEXPIRED = "answered.expired";
+
+/// The most characters of a call's inputs in a notice, the cut mark included.
+Parameter INPUTSMAX = 200;
+
 /// Receives one event of the bridge. Always returns OK.
 ClassMethod OnEvent(type As %String, ownerRef As %String, payload As %DynamicObject) As %Status
 {
 	Try {
 		If ..IsApproval($Get(type)) {
 			Do ..Approved($Get(type), $Get(ownerRef), $Get(payload))
+			Do ..ToolNotice($Get(type), $Get(ownerRef), ..Member($Get(payload), "ref"))
 			Quit
 		}
 		If $Get(type) = ..#BUDGETCAPPED {
@@ -141,6 +195,155 @@ ClassMethod Recorded(ownerRef As %String, payload As %DynamicObject) [ Private ]
 	If '$IsObject(row) Quit
 	Do ..Publish(ownerRef, "decision", ##class(OcuTalon.Live.Payload.Decision).FromRow(row))
 	If row.Fallback && (row.FallbackReason = "daily_cap") && ..OnlineDemo() Do ..DailyCap(ownerRef, ##class(OcuTalon.Bridge.Time).LocalDate(row.RecordedAt))
+	If row.Kind = ..#TOOLDECISION Do ..HeldNotice(ownerRef, row)
+}
+
+/// The notice of a tool call for the approval.* event of type: sends the Notification that ToolNoticeOf builds from the request's
+/// row, when the owner is a session that exists, reads the row through Ownership.Approval, and the row is a replayable tool_call.
+/// A failed read or send is one warning that names the type and the Ref. It never throws.
+ClassMethod ToolNotice(type As %String, ownerRef As %String, ref As %String) [ Private ]
+{
+	Try {
+		If (ref = "") || '..IsSession(ownerRef) || '##class(OcuTalon.Data.Session).RefIndexExists(ownerRef) Quit
+		Set row = ##class(OcuTalon.Data.Ownership).Approval(ref, ownerRef, .sc)
+		If $SYSTEM.Status.IsError(sc) {
+			$$$LOGWARNING(..#ERRORTOOLNOTICE_type_", request "_ref_": "_$SYSTEM.Status.GetOneStatusText(sc))
+			Quit
+		}
+		If '..Replayable(row) Quit
+		Set notice = ..ToolNoticeOf(type, row)
+		If '$IsObject(notice) Quit
+		Set notice.SessionRef = ownerRef
+		Set sc = ..Notice(notice)
+		If $SYSTEM.Status.IsError(sc) $$$LOGWARNING(..#ERRORTOOLNOTICE_type_", request "_ref_": "_$SYSTEM.Status.GetOneStatusText(sc))
+	} Catch exception {
+		$$$LOGWARNING(..#ERRORTOOLNOTICE_type_", request "_$Get(ref)_": "_exception.DisplayString())
+	}
+}
+
+/// 1 when the row is a tool_call request that the bridge can replay once it is approved: ToolSource and Runner are both set.
+ClassMethod Replayable(row As OcuTalon.Bridge.Data.ApprovalRequest) As %Boolean [ Private ]
+{
+	Quit $IsObject(row) && (row.Kind = ..#TOOLCALL) && (row.ToolSource '= "") && (row.Runner '= "")
+}
+
+/// The Notification (no SessionRef) for the approval.* event of type from the row, or "" when that event sends nothing.
+ClassMethod ToolNoticeOf(type As %String, row As OcuTalon.Bridge.Data.ApprovalRequest) As OcuTalon.Msg.Notification [ Private ]
+{
+	If type = ..#APPROVALRAISED {
+		Set slots = {"tool": (row.ToolName)}
+		Set server = ..ServerOf(row.ToolSource)
+		If server '= "" Set slots.server = server
+		Set slots.inputs = ..InputsOf(row.ToolArguments)
+		Quit ..Compose(..#APPROVALKIND, $Select(server '= "": ..#KEYREQUESTON, 1: ..#KEYREQUEST), slots, row)
+	}
+	If type = ..#APPROVALANSWERED {
+		Set key = $Case(row.AnsweredAction, "approve": ..#KEYAPPROVED, "reject": ..#KEYREJECTED, : "")
+		If key = "" Quit ""
+		Quit ..Compose(..#ANSWEREDKIND, key, {"channel": (row.AnsweredChannel), "time": (row.AnsweredAt)}, row)
+	}
+	If type = ..#APPROVALEXPIRED Quit ..Compose(..#ANSWEREDKIND, ..#KEYEXPIRED, {"time": (row.ExpiresAt)}, row)
+	If type = ..#APPROVALRESULT {
+		Set key = $Case(row.Result, "done": ..#KEYDONE, "failed": ..#KEYFAILED, "interrupted": ..#KEYFAILED, : "")
+		If (key = "") || (row.FinishedAt = "") Quit ""
+		Quit ..Compose(..#RESULTKIND, key, {"tool": (row.ToolName), "time": (row.FinishedAt)}, row)
+	}
+	Quit ""
+}
+
+/// The Notification of the kind with the catalog key and the slots (as JSON) for the request's row: the request's Ref as ApprovalRef
+/// and its IncidentRef, and the decision's Ref when there is one. SessionRef is set by the caller.
+ClassMethod Compose(kind As %String, key As %String, slots As %DynamicObject, row As OcuTalon.Bridge.Data.ApprovalRequest, decisionRef As %String = "") As OcuTalon.Msg.Notification [ Private ]
+{
+	Set notice = ##class(OcuTalon.Msg.Notification).%New()
+	Set notice.Kind = kind
+	Set notice.CatalogKey = key
+	Set notice.Slots = slots.%ToJSON()
+	Set notice.IncidentRef = row.IncidentRef
+	Set notice.ApprovalRef = row.Ref
+	Set notice.DecisionRef = decisionRef
+	Quit notice
+}
+
+/// The MCP server that a held call's ToolSource names: "" unless the source starts, in any case, with the bridge's MCP prefix
+/// (Gate MCPPREFIX); else the text after it, trimmed, and for the attach form remote:@{config:AI.MCP.OcuTalon_<name>} the name.
+ClassMethod ServerOf(source As %String) As %String [ Private ]
+{
+	Set prefix = $Parameter("OcuTalon.Bridge.Policy.Gate", "MCPPREFIX")
+	If (prefix = "") || ($ZConvert($Extract(source, 1, $Length(prefix)), "L") '= prefix) Quit ""
+	Set rest = $ZStrip($Extract(source, $Length(prefix) + 1, *), "<>W")
+	Set head = "remote:@{config:AI.MCP.OcuTalon_"
+	If ($ZConvert($Extract(rest, 1, $Length(head)), "L") = $ZConvert(head, "L")) && ($Extract(rest, *) = "}") {
+		Quit $ZStrip($Extract(rest, $Length(head) + 1, *-1), "<>W")
+	}
+	Quit rest
+}
+
+/// The call's arguments for a notice: Bridge.Redact.Text, with every control character and whitespace run folded to one space,
+/// trimmed, and cut to INPUTSMAX characters with U+2026 as the last when it is longer; {} when there are none.
+ClassMethod InputsOf(arguments As %String) As %String [ Private ]
+{
+	If $ZStrip(arguments, "*WC") = "" Quit "{}"
+	Set text = ##class(OcuTalon.Bridge.Redact).Text(arguments)
+	Set from = "", to = ""
+	For code = 0:1:32, 127:1:160, 8232, 8233 {
+		Set from = from_$Char(code), to = to_" "
+	}
+	Set text = $Translate(text, from, to)
+	While text [ "  " {
+		Set text = $Replace(text, "  ", " ")
+	}
+	Set text = $ZStrip(text, "<>W")
+	If text = "" Quit "{}"
+	If $Length(text) > ..#INPUTSMAX Set text = $Extract(text, 1, ..#INPUTSMAX - 1)_$Char(8230)
+	Quit text
+}
+
+/// The reasons that a held call's notice may carry: the catalog sentences of the bridge, read from its parameters.
+ClassMethod HeldReasons() As %List [ Private ]
+{
+	Quit $ListBuild($Parameter("OcuTalon.Bridge.Process.Decide", "HELDBEFOREUPDATE"))
+}
+
+/// decision.recorded of a tool decision (kind tool) that closed an old held call: when the fallback Decision has a first Reasons line,
+/// its ItemId names the session's tool_call row, and that row is failed and not replayable, sends the one result notice that tells why
+/// (toolCall.failedWithReason with a reason of HeldReasons, DecisionRef set) and publishes the approval event with that reason. Any
+/// other first line sends toolCall.failed with no reason and publishes nothing. A failed read or send, from a status or a throw, is one warning, and the reason event is still published. It never throws.
+ClassMethod HeldNotice(ownerRef As %String, decision As OcuTalon.Bridge.Data.Decision) [ Private ]
+{
+	Set ref = decision.ItemId
+	Try {
+		Set line = $ZStrip($Piece(decision.Reasons, $Char(10), 1), "<>WC")
+		If 'decision.Fallback || (line = "") || (ref = "") || '##class(OcuTalon.Data.Session).RefIndexExists(ownerRef) Quit
+		Set row = ##class(OcuTalon.Data.Ownership).Approval(ref, ownerRef, .sc)
+		If $SYSTEM.Status.IsError(sc) {
+			$$$LOGWARNING(..#ERRORTOOLNOTICE_..#DECISIONRECORDED_", request "_ref_": "_$SYSTEM.Status.GetOneStatusText(sc))
+			Quit
+		}
+		If '$IsObject(row) || (row.Kind '= ..#TOOLCALL) || (row.State '= "failed") || ..Replayable(row) Quit
+		If $ListFind(..HeldReasons(), line) {
+			Set notice = ..Compose(..#RESULTKIND, ..#KEYFAILEDWHY, {"tool": (row.ToolName), "reason": (line)}, row, decision.Ref)
+		} Else {
+			If row.FinishedAt = "" Quit
+			Set notice = ..Compose(..#RESULTKIND, ..#KEYFAILED, {"tool": (row.ToolName), "time": (row.FinishedAt)}, row, decision.Ref)
+		}
+		Set notice.SessionRef = ownerRef
+		Try {
+			Set sc = ..Notice(notice)
+		} Catch sendException {
+			Set sc = sendException.AsStatus()
+		}
+		If $SYSTEM.Status.IsError(sc) {
+			$$$LOGWARNING(..#ERRORTOOLNOTICE_..#DECISIONRECORDED_", request "_ref_": "_$SYSTEM.Status.GetOneStatusText(sc))
+		}
+		If notice.CatalogKey = ..#KEYFAILEDWHY {
+			Set payload = ##class(OcuTalon.Live.Payload.Approval).FromRow(row, ownerRef)
+			Set payload.Reason = line
+			Do ..Publish(ownerRef, "approval", payload)
+		}
+	} Catch exception {
+		$$$LOGWARNING(..#ERRORTOOLNOTICE_..#DECISIONRECORDED_", request "_ref_": "_exception.DisplayString())
+	}
 }
 
 /// budget.capped: the daily cap was reached on the day in the payload. On the online demo, with owner instance and a day of the

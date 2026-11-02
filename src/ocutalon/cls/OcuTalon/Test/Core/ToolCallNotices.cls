@@ -1,0 +1,276 @@
+/// The integration tests of the tool-call notices (Story 31.5; AD-31, AD-32, U-212), over the running production and the real replay: a
+/// call that the gate holds for a fixture session reaches the simulated phone with Approve and Reject, the answer edits the request's
+/// message in place, and the result is a new message with no buttons. THEY RUN IN THROWAWAY STACKS AND IN CI ONLY (Rule 21): they put
+/// ZzReplayAgent behind ChatAgent and point the runners' keys at the CI mock's key, and put both back after the run. The phone is the
+/// only channel they read.
+///   - TestApprovedCallReachesThePhone: the request message (the phone render of toolCall.request, the session's ApprovalRef, no
+///     answer); after Approve its Answer is the render of answered.approved; a second message is the render of toolCall.done, with no
+///     ApprovalRef and no answer;
+///   - TestRejectedAndExpiredEditInPlace: a rejected call gets the render of answered.rejected and an expired one the render of
+///     answered.expired in the request's message, and neither adds a message.
+/// Each test makes its own sessions and removes its rows (Test.Bridge.Approval Clean ends the holds and deletes the requests).
+Class OcuTalon.Test.Core.ToolCallNotices Extends OcuTalon.Test.Core.InProduction
+{
+
+/// Seconds to wait for a message of the phone.
+Parameter WAIT = 40;
+
+/// The tool of the held call, and its class.
+Parameter TOOL = "zz_replay_send";
+
+Parameter TOOLCLASS = "OcuTalon.Test.Bridge.ZzReplayTool";
+
+/// The IRIS user who answers: it holds OcuTalonUser.
+Parameter ANSWERER = "ocutalon";
+
+/// 1 once ZzReplayAgent is behind ChatAgent for this run.
+Property Swapped As %Boolean [ InitialExpression = 0 ];
+
+Method OnAfterAllTests() As %Status
+{
+	Do ##class(OcuTalon.Test.Bridge.Approval).Clean()
+	Do ..Restore()
+	Quit ##super()
+}
+
+Method TestApprovedCallReachesThePhone()
+{
+	If '..Guard() Quit
+	Set user = ..Answerer()
+	If user = "" Quit
+	If '..UseReplayAgent() Quit
+	Set session = ..Session("approved")
+	Set ref = ..HeldCall(session)
+	If ref = "" Quit
+
+	Set message = ..WaitMessage(session, ref, 1)
+	Do $$$AssertTrue($IsObject(message), "the phone gets the request's message within "_..#WAIT_" seconds")
+	If '$IsObject(message) Quit
+	Set row = ..Request(ref)
+	Set expected = ..Render("toolCall.request", {"tool": (..#TOOL), "inputs": (##class(OcuTalon.Bridge.Redact).Text(row.ToolArguments))})
+	Do $$$AssertEquals(message.Text, expected, "its text is the phone render of toolCall.request")
+	Do $$$AssertEquals($Piece(message.Text, $Char(10), 1), "Run "_..#TOOL, "which starts with the tool")
+	Do $$$AssertEquals(message.ApprovalRef_"|"_message.Answer, ref_"|", "it carries the request's Ref, so that the phone draws Approve and Reject, and no answer")
+	Set messageRef = message.Ref
+
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Approval).Answer(ref, "approve", "phone", user, session, .winner), "done", "Approve is accepted")
+	Do $$$AssertEquals(..WaitState(ref, "done", 40), "done", "the replay finishes: "_..Facts(ref, session))
+	Set row = ..Request(ref)
+	Set approved = ..Render("answered.approved", {"channel": "phone", "time": (row.AnsweredAt)})
+	Set message = ..WaitAnswer(messageRef)
+	Do $$$AssertEquals(message.Answer, approved, "the request's message has the render of answered.approved as its Answer: "_..Facts(ref, session))
+	Do $$$AssertEquals(message.Text_"|"_message.ApprovalRef, expected_"|"_ref, "and keeps its text and request")
+
+	Set done = ..WaitMessage(session, "", 2)
+	Do $$$AssertTrue($IsObject(done), "a second message arrives")
+	If '$IsObject(done) Quit
+	Do $$$AssertEquals(done.Text, ..Render("toolCall.done", {"tool": (..#TOOL), "time": (row.FinishedAt)}), "it is the phone render of toolCall.done")
+	Do $$$AssertEquals(done.ApprovalRef_"|"_done.Answer, "|", "with no ApprovalRef and no answer, so no buttons")
+	Do $$$AssertEquals(..Message(messageRef).Answer, approved, "and the request's message keeps its answer")
+	Do $$$AssertEquals(..PhoneCount(session), 2, "the phone holds exactly the two messages")
+}
+
+Method TestRejectedAndExpiredEditInPlace()
+{
+	If '..Guard() Quit
+	Set user = ..Answerer()
+	If user = "" Quit
+	If '..UseReplayAgent() Quit
+
+	Set rejectedSession = ..Session("rejected")
+	Set rejectedRef = ..HeldCall(rejectedSession)
+	If rejectedRef = "" Quit
+	Set message = ..WaitMessage(rejectedSession, rejectedRef, 1)
+	Do $$$AssertTrue($IsObject(message), "the rejected call's request reaches the phone")
+	If '$IsObject(message) Quit
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Approval).Answer(rejectedRef, "reject", "phone", user, rejectedSession, .winner), "done", "Reject is accepted")
+	Set row = ..Request(rejectedRef)
+	Set rejected = ..Render("answered.rejected", {"channel": "phone", "time": (row.AnsweredAt)})
+	Set answered = ..WaitAnswer(message.Ref)
+	Do $$$AssertEquals(answered.Answer, rejected, "the request's message has the render of answered.rejected: "_..Facts(rejectedRef, rejectedSession))
+	Hang 2
+	Do $$$AssertEquals(..PhoneCount(rejectedSession), 1, "and the phone has no second message")
+
+	Set expiredSession = ..Session("expired")
+	Set expiredRef = ..HeldCall(expiredSession)
+	If expiredRef = "" Quit
+	Set message = ..WaitMessage(expiredSession, expiredRef, 1)
+	Do $$$AssertTrue($IsObject(message), "the expired call's request reaches the phone")
+	If '$IsObject(message) Quit
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Approval).Expire(expiredRef), "the request expires")
+	Set row = ..Request(expiredRef)
+	Set expired = ..Render("answered.expired", {"time": (row.ExpiresAt)})
+	Set answered = ..WaitAnswer(message.Ref)
+	Do $$$AssertEquals(answered.Answer, expired, "the request's message has the render of answered.expired")
+	Hang 2
+	Do $$$AssertEquals(..PhoneCount(expiredSession), 1, "and the phone has no second message")
+}
+
+/// --- helpers ---
+/// 1 when the production is ready for the replay (Test.Agent.RunnerFixture ReadyReason); otherwise the test fails with the reason.
+Method Ready() As %Boolean [ Private ]
+{
+	Set reason = ##class(OcuTalon.Test.Agent.RunnerFixture).ReadyReason()
+	If reason '= "" Do $$$AssertEquals(reason, "", "the production is ready")
+	Quit reason = ""
+}
+
+/// The answerer, or "" (the test fails) when the user does not hold OcuTalonUser. Also checks that the production is ready.
+Method Answerer() As %String [ Private ]
+{
+	If '..Ready() Quit ""
+	Set user = ..#ANSWERER
+	Set sc = $SYSTEM.Security.GetUserRecursedRoleSet(user, .roles)
+	Set holds = $$$ISOK(sc) && ''$ListFind($ListFromString(roles), "OcuTalonUser")
+	Do $$$AssertTrue(holds, "the answerer "_user_" holds OcuTalonUser")
+	Quit $Select(holds: user, 1: "")
+}
+
+/// Puts ZzReplayAgent behind ChatAgent and the runners' keys at the CI mock's key, once per run; Restore puts both back. 1 when done.
+Method UseReplayAgent() As %Boolean [ Private ]
+{
+	If ..Swapped Quit 1
+	Kill ^OcuTalonTest("ToolCallNotices")
+	Set sc = ##class(OcuTalon.Test.Agent.RunnerFixture).PointKeys()
+	Set ^OcuTalonTest("ToolCallNotices", "keys") = 1
+	Do $$$AssertStatusOK(sc, "the runners' entries point at the CI mock key")
+	If $$$ISERR(sc) Quit 0
+	Set sc = ##class(OcuTalon.Test.Agent.RunnerFixture).UseAgent("ChatAgent", "OcuTalon.Test.Bridge.ZzReplayAgent", .saved)
+	If $IsObject(saved) Set ^OcuTalonTest("ToolCallNotices", "agent") = saved.%ToJSON()
+	Do $$$AssertStatusOK(sc, "ChatAgent runs ZzReplayAgent")
+	Set ..Swapped = $$$ISOK(sc)
+	Quit ..Swapped
+}
+
+/// Puts ChatAgent's agent and the runners' keys back, when UseReplayAgent changed them.
+Method Restore() [ Private ]
+{
+	If $Data(^OcuTalonTest("ToolCallNotices", "agent")) {
+		Set saved = {}.%FromJSON(^OcuTalonTest("ToolCallNotices", "agent"))
+		Kill ^OcuTalonTest("ToolCallNotices", "agent")
+		Do $$$AssertStatusOK(##class(OcuTalon.Test.Agent.RunnerFixture).RestoreAgent("ChatAgent", saved), "ChatAgent's agent is put back")
+	}
+	If $Data(^OcuTalonTest("ToolCallNotices", "keys")) {
+		Kill ^OcuTalonTest("ToolCallNotices", "keys")
+		Do $$$AssertStatusOK(##class(OcuTalon.Test.Agent.RunnerFixture).RestoreKeys(), "the runners' keys are put back")
+	}
+	Set ..Swapped = 0
+}
+
+/// The gate holds a call of the tool for the session in a user's turn of a context begun with the runner ChatAgent, as the runner's job does, and
+/// raises its request through the production's own HostSinkClass (the real BridgeSink). Returns the request's Ref once its task exists, with the
+/// row tracked for Test.Bridge.Approval Clean; "" when the call is not held.
+Method HeldCall(session As %String) As %String [ Private ]
+{
+	Set request = ##class(OcuTalon.Bridge.Msg.Request).%New()
+	Set request.Kind = "turn"
+	Set request.Provenance = "user"
+	Set request.ItemId = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set request.DecisionRef = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set request.OwnerRef = session
+	Set request.TraceRef = ##class(OcuTalon.Data.Session).RefIndexOpen(session).TraceRef
+	Set request.Channel = "system"
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Context).Begin(request, "", "ChatAgent"), "a user's turn of ChatAgent begins")
+	Set arguments = {}.%FromJSON("{""b"":2,""a"":{""y"":1.0,""x"":""ops""}}")
+	Set sc = ##class(OcuTalon.Bridge.Policy.Gate).Check(..#TOOL, {"id": "call_id", "name": (..#TOOL), "arguments": (arguments)}, {"origin_class": (..#TOOLCLASS), "requires_auth": false}, "")
+	Do ##class(OcuTalon.Bridge.Context).End()
+	Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ $Parameter("OcuTalon.Bridge.Policy.Gate", "HELD"), "the gate holds the call: "_$SYSTEM.Status.GetErrorText(sc))
+	Do ##class(OcuTalon.Test.Bridge.Approval).TrackOwner(session)
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT Ref FROM OcuTalon_Bridge_Data.ApprovalRequest WHERE OwnerRef = ? ORDER BY ID DESC", session)
+	If 'result.%Next() Quit ""
+	Set ref = result.%Get("Ref")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Approval).WaitTask(ref, 10) '= "", "its task exists")
+	Quit ref
+}
+
+/// The newest phone message of the session once it has count messages, and for a non-empty ref the message that carries that ApprovalRef (for
+/// an empty ref, the newest message, which carries none); polled up to WAIT seconds. "" when it does not arrive.
+Method WaitMessage(session As %String, ref As %String, count As %Integer) As OcuTalon.Data.SimMessage [ Private ]
+{
+	Set end = $ZHorolog + ..#WAIT
+	Set found = ""
+	For {
+		Set rows = ##class(OcuTalon.Data.Ownership).RecentPhone(session, 10, .sc)
+		If rows.Count() '< count {
+			For i = 1:1:rows.Count() {
+				Set message = ..Message(rows.GetAt(i).Ref)
+				If message.ApprovalRef = ref {
+					Set found = message
+					Quit
+				}
+			}
+		}
+		If $IsObject(found) || ($ZHorolog > end) Quit
+		Hang 0.25
+	}
+	Quit found
+}
+
+/// The message once it has an Answer (polled up to WAIT seconds), else as it is.
+Method WaitAnswer(messageRef As %String) As OcuTalon.Data.SimMessage [ Private ]
+{
+	Set end = $ZHorolog + ..#WAIT
+	For {
+		Set message = ..Message(messageRef)
+		If (message.Answer '= "") || ($ZHorolog > end) Quit
+		Hang 0.25
+	}
+	Quit message
+}
+
+/// What the row and the session's Delivery rows hold, for the text of an assertion.
+Method Facts(ref As %String, session As %String) As %String [ Private ]
+{
+	Set row = ..Request(ref)
+	Set text = "state="_row.State_" action="_row.AnsweredAction_" result="_row.Result_" deliveries="
+	Set deliveries = ##class(OcuTalon.Test.Core.Observe).DeliveryRows(session)
+	For i = 1:1:deliveries.Count() Set text = text_deliveries.GetAt(i).Channel_"/"_deliveries.GetAt(i).Kind_"/"_(deliveries.GetAt(i).ChannelMessageId '= "")_" "
+	Quit text
+}
+
+/// The SimMessage of the Ref as the table holds it: an instance that this process already has open is reloaded, so that a later change
+/// by the production shows.
+Method Message(ref As %String) As OcuTalon.Data.SimMessage [ Private ]
+{
+	Set message = ##class(OcuTalon.Data.SimMessage).RefIndexOpen(ref)
+	If $IsObject(message) Do message.%Reload()
+	Quit message
+}
+
+/// The request's row as the table holds it (reloaded, like Message).
+Method Request(ref As %String) As OcuTalon.Bridge.Data.ApprovalRequest [ Private ]
+{
+	Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(ref)
+	If $IsObject(row) Do row.%Reload()
+	Quit row
+}
+
+/// The number of phone messages of the session.
+Method PhoneCount(session As %String) As %Integer [ Private ]
+{
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Data.SimMessage WHERE SessionRef = ?", session)
+	Do result.%Next()
+	Quit +result.%GetData(1)
+}
+
+/// The phone render of the key with the slots (an object), at the current time and with the online-demo flag as it is.
+Method Render(key As %String, slots As %DynamicObject) As %String [ Private ]
+{
+	Set text = ##class(OcuTalon.Msg.Catalog).RenderAt(key, slots.%ToJSON(), "phone", ##class(OcuTalon.Data.Time).NowUtc(), ##class(OcuTalon.Data.Public.Settings).Get("onlineDemo"), .sc)
+	Do $$$AssertStatusOK(sc, key_" renders")
+	Quit text
+}
+
+/// The row's State once it is the given one (polled up to the seconds), else the State at the deadline.
+Method WaitState(ref As %String, state As %String, seconds As %Integer) As %String [ Private ]
+{
+	Set deadline = $ZHorolog + seconds
+	For {
+		Set row = ..Request(ref)
+		If (row.State = state) || ($ZHorolog > deadline) Quit
+		Hang 0.1
+	}
+	Quit row.State
+}
+
+}

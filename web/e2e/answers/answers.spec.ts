@@ -4,7 +4,7 @@ import { signIn } from '../sign-in/helpers';
 import { DRY_RUN, raise, refOf, today } from '../support/approvals';
 import { dropPhone, phoneMessage } from '../support/devices';
 import { CARD_MS, composerOf, inMs, mainOf, railOf, unique, loadedAfter } from '../support/floor';
-import { answerHeaders, answerQuietly, cleanFixtureRows, fixtureUser, readApproval, seedApproval, sendNotification, sinkEvent } from '../support/iris';
+import { answerHeaders, answerQuietly, chk, cleanFixtureRows, fixtureUser, irisScript, quoted, readApproval, seedApproval, sendNotification, sinkEvent } from '../support/iris';
 import { announcedTexts, clock, plain, recordAnnouncements, scrollListTo, tokenColor } from '../support/page';
 
 /**
@@ -20,7 +20,8 @@ import { announcedTexts, clock, plain, recordAnnouncements, scrollListTo, tokenC
  * X1 is the phone's notice, X2 an Approve on the phone (the 2 s bound of NFR-9 to the card), X3 an Approve on the card and the
  * phone following within 5 s, X4 the press that lost the race, X5 the phone's busy rule and failure notices, X6 the rail row's jump,
  * X7 the phone holding its feed for a pending request and X8 an answer from elsewhere, shown within 2 s of its event and announced once by
- * the card. QA adds X9 (Reject on the phone) and X10 (a reload keeps the stored messages).
+ * the card. QA adds X9 (Reject on the phone) and X10 (a reload keeps the stored messages). X12 (Story 31.5) is a tool call's request on the
+ * phone: its server form, Approve, the server's in-place answered line, the second answer's refusal and the result message.
  */
 test.describe.configure({ timeout: 120_000 });
 test.use({ timezoneId: 'UTC', locale: 'en-GB' });
@@ -806,6 +807,106 @@ test('X11: with the Demo view off the request is answerable in the chat, and the
     await expect(message, 'the phone shows the message').toHaveCount(1, { timeout: CARD_MS });
     await expect(lineOf(message), 'with the answer given meanwhile').toHaveText(expected, { timeout: PHONE_MS });
     await expect(message.getByRole('button'), 'and no buttons').toHaveCount(0);
+  } finally {
+    await dropPhone(user, start);
+    await cleanFixtureRows(rows);
+  }
+});
+
+/**
+ * Sets the given properties of a request's row (names are letters only) and saves it, as the bridge would hold a replayable call.
+ */
+async function setApprovalFields(ref: string, fields: Record<string, string>): Promise<void> {
+  const sets = Object.entries(fields).map(([name, value]) => {
+    if (!/^[A-Za-z]+$/.test(name)) throw new Error('a property name is letters only');
+    return `Set r.${name}=${quoted(value)}`;
+  });
+  const lines = await irisScript(
+    [
+      `Set r=##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(${quoted(ref)})`,
+      'If \'$IsObject(r) { Write !,"CHK|set|0" Halt }',
+      ...sets,
+      'Write !,"CHK|set|",$System.Status.IsOK(r.%Save())',
+    ].join('\n'),
+  );
+  if (chk(lines, 'set') !== '1') throw new Error(`the request could not be changed (${lines.join(' ')})`);
+}
+
+/** The newest phone SimMessage of the user's session, whatever request it asks for (a result message asks for none), or undefined when there is none. */
+async function newestPhoneMessage(user: string): Promise<{ approvalRef: string; text: string } | undefined> {
+  const lines = await irisScript(
+    [
+      `Set s=##class(OcuTalon.Data.Session).ForUser(${quoted(user)},.sc)`,
+      'Set a=##class(%SQL.Statement).%New()',
+      'Set sc=a.%Prepare("SELECT TOP 1 ApprovalRef, Text FROM OcuTalon_Data.SimMessage WHERE SessionRef = ? AND Kind = \'phone\' ORDER BY ID DESC")',
+      'Set r=a.%Execute(s.Ref)',
+      'If r.%Next() { Write !,"CHK|approvalRef|",r.%GetData(1) Write !,"CHK|text|",$Translate(r.%GetData(2),$Char(10),"\\") } Else { Write !,"CHK|none|1" }',
+    ].join('\n'),
+  );
+  if (chk(lines, 'none') === '1') return undefined;
+  return { approvalRef: chk(lines, 'approvalRef') ?? '', text: (chk(lines, 'text') ?? '').replace(/\\/g, '\n') };
+}
+
+/**
+ * X12 (Story 31.5): a tool call's request on the phone. A replayable session tool call on an MCP server raises its notice: the phone shows
+ * "Run {tool} on {server}", the call's inputs on one line and the no-dry-run sentence, with Approve and Reject. Approve on the phone
+ * answers 200 and the server edits the request's message in place within 5 s of the reply; a second answer is refused and changes
+ * nothing; the result is a new message with no buttons, and the request's message keeps its line.
+ */
+test('X12: a tool call\'s request reaches the phone with Approve and Reject, the answer edits it in place, and the result is a new message', async ({ page }) => {
+  const { user } = fixtureUser(KIND);
+  const rows: string[] = [];
+  const start = startOf();
+  const tool = 'zz_tool_x12';
+  const text = `Run ${tool} on zzx12\nInputs: {"to":"ops"}\nNo dry run is available for this tool. Approving runs exactly this call once.`;
+  try {
+    const request = await seedApproval(user, { kind: 'tool_call', toolName: tool, dryRun: null, requiredRole: 'OcuTalonUser' });
+    rows.push(request);
+    await setApprovalFields(request, { ToolSource: 'mcp:zzx12', Runner: 'ChatAgent', ToolArguments: '{"to":"ops"}' });
+    await open(page);
+    await sinkEvent(user, 'approval.raised', { ref: request });
+
+    let ref = '';
+    await expect
+      .poll(async () => (ref = (await phoneMessage(user, request))?.ref ?? ''), { message: 'the phone message of the request exists', timeout: CARD_MS })
+      .not.toBe('');
+    const stored = await phoneMessage(user, request);
+    expect(stored?.text, "the phone's text names the server, the inputs and the no-dry-run sentence").toBe(text);
+    expect(stored?.answer, 'and has no answer yet').toBe('');
+    const message = messageOf(page, ref);
+    await expect(message, 'the phone shows it').toHaveCount(1, { timeout: CARD_MS });
+    const approve = message.getByRole('button', { name: `Approve: run ${tool}`, exact: true });
+    const reject = message.getByRole('button', { name: `Reject: run ${tool}`, exact: true });
+    await expect(approve, 'with Approve').toHaveCount(1);
+    await expect(reject, 'and Reject').toHaveCount(1);
+
+    const reply = nextReply(page);
+    await approve.click();
+    const response = await reply;
+    expect(response.status(), 'the answer is 200').toBe(200);
+    const answeredAt = (await replyBody(response)).body.approval?.answeredAt ?? '';
+    expect(answeredAt, "the reply carries the request's answer").toMatch(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/);
+    const line = `Approved from the simulated phone at ${hhmm(answeredAt)}.`;
+    await expect(lineOf(message), 'the phone replaces the buttons with the answer').toHaveText(line);
+    await expect
+      .poll(() => phoneMessage(user, request).then((one) => one?.answer), { message: "the server edited the request's message within 5 s of the reply", timeout: PHONE_MS })
+      .toBe(line);
+
+    expect(await answerQuietly(user, request, 'reject', 'phone'), 'a second answer is refused').toBe('already_answered');
+    const row = await readApproval(request);
+    expect(row.action + '|' + row.channel, 'the row still holds the phone approval').toBe('approve|phone');
+    expect(await phoneMessage(user, request).then((one) => one?.answer), "and the request's message is unchanged").toBe(line);
+
+    const finishedAt = new Date().toISOString().slice(0, 19) + 'Z';
+    await setApprovalFields(request, { State: 'done', Result: 'done', FinishedAt: finishedAt });
+    await sinkEvent(user, 'approval.result', { ref: request });
+    const ran = `${tool} ran once at ${hhmm(finishedAt)}.`;
+    await expect.poll(() => newestPhoneMessage(user).then((one) => one?.text), { message: 'the phone gets a second message', timeout: PHONE_MS }).toBe(ran);
+    expect((await newestPhoneMessage(user))?.approvalRef, 'the result message asks for no request').toBe('');
+    const result = phoneOf(page).locator('.notification').filter({ hasText: ran });
+    await expect(result, 'the phone shows the result').toHaveCount(1, { timeout: CARD_MS });
+    await expect(result.getByRole('button'), 'with no buttons').toHaveCount(0);
+    expect(await phoneMessage(user, request).then((one) => one?.answer), "the request's message keeps its line").toBe(line);
   } finally {
     await dropPhone(user, start);
     await cleanFixtureRows(rows);

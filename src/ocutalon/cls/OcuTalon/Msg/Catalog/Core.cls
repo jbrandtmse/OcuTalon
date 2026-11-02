@@ -555,6 +555,47 @@ XData Entries [ MimeType = application/json ]
   "text": "Recorded in the IRIS audit log.",
   "slots": {},
   "source": "EXPERIENCE Incidents and Approvals / Results"
+ },
+ "toolCall.request": {
+  "text": "Run {tool}\nInputs: {inputs}\nNo dry run is available for this tool. Approving runs exactly this call once.",
+  "slots": {
+   "tool": "text",
+   "inputs": "text"
+  },
+  "source": "EXPERIENCE Incidents and Approvals / Approval request states / A tool call's request"
+ },
+ "toolCall.requestOnServer": {
+  "text": "Run {tool} on {server}\nInputs: {inputs}\nNo dry run is available for this tool. Approving runs exactly this call once.",
+  "slots": {
+   "tool": "text",
+   "server": "text",
+   "inputs": "text"
+  },
+  "source": "EXPERIENCE Incidents and Approvals / Approval request states / A tool call's request, on an MCP server"
+ },
+ "toolCall.done": {
+  "text": "{tool} ran once at {time}.",
+  "slots": {
+   "tool": "text",
+   "time": "time"
+  },
+  "source": "EXPERIENCE Incidents and Approvals / Results / A tool call's result"
+ },
+ "toolCall.failed": {
+  "text": "{tool} failed at {time}. I won't run it again without a new approval.",
+  "slots": {
+   "tool": "text",
+   "time": "time"
+  },
+  "source": "EXPERIENCE Incidents and Approvals / Results / A tool call's result"
+ },
+ "toolCall.failedWithReason": {
+  "text": "{tool} didn't run. {reason}",
+  "slots": {
+   "tool": "text",
+   "reason": "text"
+  },
+  "source": "EXPERIENCE Incidents and Approvals / Results / A tool call that could not run"
  }
 }
 }
