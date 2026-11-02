@@ -14,11 +14,12 @@ Include Ensemble
 ///     command's session, whose paired chat must be the ChatRef when one is given, with the notice pairing.unpairedFromPage. The outcomes
 ///     are unpaired and not_paired (Ok 0, nothing changed, nothing audited).
 ///   - EndSession {SessionRef} ends an online-demo session (Story 16.4; AD-4): the page's Sign out, through POST /v1/session/end. In order,
-///     and each of the first four steps is tried even when an earlier one failed: Unlink of the session's chat (reason session_end, no
+///     and each of the first five steps is tried even when an earlier one failed: Unlink of the session's chat (reason session_end, no
 ///     notice); one CancelReminder for each pending reminder, sent to ReminderOps; one StopWatch for each production watch, sent to WatchOps;
-///     Approval.Cancel for each pending approval request the session owns. Only when all of them succeeded is the row's ResumeHash cleared, so
+///     Approval.Cancel for each pending approval request the session owns; SettingsOps.ForgetPerson for the session's per-person
+///     values (AD-19). Only when all of them succeeded is the row's ResumeHash cleared, so
 ///     that a resume cookie that outlives the sign-out resumes nothing; after a failed End the session stays resumable and the visitor can end
-///     it again. The outcomes are ended (Ok 1; a repeat changes nothing and also answers ended), failed (Ok 0, after the first four steps were
+///     it again. The outcomes are ended (Ok 1; a repeat changes nothing and also answers ended), failed (Ok 0, after the first five steps were
 ///     tried) and no_session (Ok 0, the session has no row). The session's conversation, orders and decisions stay with the row.
 /// Every pair outcome is audited as a Pairing entry (linked or rejected) through Bridge.Audit.Record, and every unlink as an unlinked
 /// entry, with the session's IRIS user (else the job's user), the session, the channel of the command's origin and no chat id or display
@@ -247,7 +248,7 @@ Method End(command As OcuTalon.Msg.Command.EndSession) As OcuTalon.Msg.CommandRe
 		Set failed = 1
 		Do ..Warn("the chat could not be unlinked at the end of session " _ sessionRef, exception.AsStatus())
 	}
-	Set failed = ..EndReminders(command) + ..EndWatches(command) + ..EndApprovals(sessionRef, channel) + failed
+	Set failed = ..EndReminders(command) + ..EndWatches(command) + ..EndApprovals(sessionRef, channel) + ..EndSettings(sessionRef) + failed
 	If 'failed Set failed = ..EndResume(sessionRef)
 	Quit $Select(failed: ..Result(0, "failed", ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED), 1: ..Result(1, "ended", ..#MESSAGEENDED))
 }
@@ -328,6 +329,30 @@ Method EndApprovals(sessionRef As %String, channel As %String) As %Integer [ Pri
 		Do ..Warn("the requests of session " _ sessionRef _ " could not be read", exception.AsStatus())
 	}
 	Quit failed
+}
+
+/// End's per-person settings: Forget deletes every per-person value of the session (AD-19), the persona's keys included. The
+/// result is 1 when they could not be deleted (an error status or an error thrown), 0 otherwise.
+Method EndSettings(sessionRef As %String) As %Integer [ Private ]
+{
+	Set failed = 0
+	Try {
+		Set sc = ..Forget(sessionRef)
+		If $$$ISERR(sc) {
+			Set failed = 1
+			Do ..Warn("the per-person settings of session " _ sessionRef _ " were not deleted", sc)
+		}
+	} Catch exception {
+		Set failed = 1
+		Do ..Warn("the per-person settings of session " _ sessionRef _ " were not deleted", exception.AsStatus())
+	}
+	Quit failed
+}
+
+/// The one call of End's per-person settings step, SettingsOps.ForgetPerson. Private, so that a test subclass can override it.
+Method Forget(sessionRef As %String) As %Status [ Private ]
+{
+	Quit ##class(OcuTalon.Core.SettingsOps).ForgetPerson(sessionRef)
 }
 
 /// End's last step, run only when every earlier step succeeded: the row's ResumeHash is cleared (saved only when it holds one). The result

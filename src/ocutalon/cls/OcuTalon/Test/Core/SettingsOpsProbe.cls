@@ -5,8 +5,8 @@
 /// ("data"). The answers come from ^OcuTalonTest("SettingsOpsProbe", "answer", seam): "" is OK, "error" is an error status, "throw"
 /// throws, for "audit" "record" hands the data to Bridge.Audit.Record and answers its status, and for "step" "kept" records the
 /// demoKept mark with the note in ^OcuTalonTest("SettingsOpsProbe", "note") and answers OK, and "warn" records one step warning line
-/// ("zz warning") and answers OK. The guarded write Apply answers an error status when the "apply" answer is "error" and is the real
-/// one otherwise. The product never refers to it.
+/// ("zz warning") and answers OK. The guarded write Apply answers an error status when the "apply" answer is "error", or, for "second",
+/// at its second call since ^OcuTalonTest("SettingsOpsProbe", "applies") was last killed, and is the real one otherwise. The product never refers to it.
 Class OcuTalon.Test.Core.SettingsOpsProbe Extends OcuTalon.Core.SettingsOps
 {
 
@@ -41,6 +41,7 @@ Method RunDemo() As %Status [ Private ]
 ClassMethod Apply(key As %String, value As %String) As %Status [ Private ]
 {
 	If $Get(^OcuTalonTest("SettingsOpsProbe", "answer", "apply")) = "error" Quit $SYSTEM.Status.Error(5001, "zz apply failed")
+	If $Get(^OcuTalonTest("SettingsOpsProbe", "answer", "apply")) = "second", $Increment(^OcuTalonTest("SettingsOpsProbe", "applies")) = 2 Quit $SYSTEM.Status.Error(5001, "zz apply failed")
 	Quit ##super(key, value)
 }
 

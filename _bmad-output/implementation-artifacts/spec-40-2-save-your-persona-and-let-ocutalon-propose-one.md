@@ -2,13 +2,21 @@
 title: "Story 40.2: Save your persona, and let OcuTalon propose one"
 type: 'feature'
 created: '2026-11-02'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'f8fb317493072b9302c27a15019af2331bb51bcc'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-40-context.md'
 warnings: [oversized]
-deferred: []
+deferred:
+  - summary: >-
+      ProposePersona is not bound to the bridge context's owner: CommandsIn checks SessionRef against the context's OwnerRef only for Dismiss.
+    evidence: |-
+      AD-1 allows a tool to propose a change to the session's own persona only. Today ProposePersona answers not_built and writes nothing, so no harm is reachable. Story 40.5's propose_persona tool takes SessionRef from the context like every other tool verb; whether the gate should also enforce it (as for Dismiss) changes CommandsIn's governance for a verb the matrix fixes and is for 40.5 to decide.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Core/CommandsIn.cls (Carry, the Dismiss owner check)
+    severity: medium
 ---
 
 <intent-contract>
@@ -121,6 +129,43 @@ Messages: S = "Saved. Applies from your next message. Recorded in the audit log.
 
 ## Review Triage Log
 
+### 2026-11-01 - Review pass
+- verdicts: 33 findings - high 0, medium 6, low 15, false 12, maybe-false 0
+- findings:
+  - `[false]` `[reject]` blind: `setting` is accepted by APPROVALKIND but Bridge.Approval.Validate cannot raise it - the spec's Code Map and Never list say a `setting` request stays refused until Story 40.5 changes that (contended) file
+  - `[medium]` `[defer]` blind: ProposePersona is not bound to the context's OwnerRef - harmless while the verb answers not_built; 40.5 decides the gate; deferred in the frontmatter
+  - `[low]` `[reject]` blind: language pattern refuses combining marks (native-script names, NFD) - the pattern is the spec's and EXPERIENCE says "letters"; a name in Latin letters works
+  - `[low]` `[reject]` blind: a 40-letter language name can carry an instruction - validation rule is AD-19's and the spec's; 40.3 frames the value
+  - `[low]` `[reject]` blind: audit entry stays when the key write rolls back - the matrix and AD-17 fix audit-first; SetDemoMode has the same order
+  - `[medium]` `[patch]` blind: End has no test for a failing ForgetPerson - fixed with the Forget seam, probe SettingsAnswer and TestEndKeepsTheSessionWhenSettingsCannotBeForgotten
+  - `[false]` `[reject]` blind: ForgetPerson is not atomic - a failed End keeps the resume hash and a later End deletes the rest (the new test pins it)
+  - `[low]` `[reject]` blind: refusal message inferred from the origins - the oracle in CommandsRouting.Expected pins SetDemoMode admin-only and the persona verbs not-allowed
+  - `[low]` `[reject]` blind: no end-to-end ProposePersona test - the verb is a placeholder; 40.5/40.6 own it
+  - `[low]` `[reject]` edge: language pattern and combining marks - same as the blind finding
+  - `[false]` `[reject]` edge: Validate cannot raise `setting` - same as the blind finding
+  - `[medium]` `[defer]` edge: ProposePersona owner binding and the no_session / not_built difference - same root cause as the blind finding; the session is the tool's own, so there is no leak
+  - `[low]` `[reject]` edge: no compensating audit entry after a rollback - same as the blind finding
+  - `[low]` `[reject]` edge: Cf / U+2028 characters in the custom text - the spec refuses Cc (EXPERIENCE: control characters); the text is the person's own persona
+  - `[low]` `[reject]` edge: SetPersona after EndSession recreates keys - the page's save needs the signed-in session (Story 40.8); not reachable after sign-out
+  - `[false]` `[reject]` edge: a non-Ref SessionRef makes End fail forever - every SessionRef is a 22-character NewRef (spine Conventions, Identifiers)
+  - `[low]` `[reject]` edge: Persona returns a stored custom text while the demo flag is on - the demo refuses custom at save and the flag does not change at run time
+  - `[false]` `[reject]` edge: pendingRef relies on row order - Ownership.Approvals orders by RaisedAt, ID and the test pins the newest
+  - `[medium]` `[patch]` verification-gap: End's failed-delete path is untested - the same fix as the blind finding, with its mutation line
+  - `[low]` `[reject]` verification-gap: the OwnerRef clause in Persona is not pinned - AD-11 makes setting requests session-owned proposals, so an instance-owned one has no source; the other-session row still pins isolation
+  - `[low]` `[reject]` verification-gap: the first assertion of TestNewSessionIsProfessional holds by construction - the spec says so; the second pins the first session's own read
+  - `[false]` `[reject]` verification-gap: Test.Agent.Persona still skips when PERSONAPRESET is missing - that class is read-only here, and the run shows TestPresets live (3 of 3 passed) with Contracts pinning the parameter
+  - `[false]` `[reject]` verification-gap: AC 2 and AC 5 sub-clauses lack mutation lines - one mutation per AC is the rule and each AC has one
+  - `[low]` `[reject]` verification-gap: Catch branches in SavePersona and Persona are not forced - the error-status branches are tested and share the handling
+  - `[false]` `[reject]` verification-gap: shared state between SettingsPersona and SettingsOps - one class runs per call and OnAfterAllTests restores
+  - `[false]` `[reject]` intent: the production test does not assert the audit entry - `saved` through the real Bridge.Audit.Record proves the entry was accepted, and the shape is asserted at the seam
+  - `[false]` `[reject]` intent: `setting` is not passed through Audit.Record or Approval - raising is in the Never list
+  - `[low]` `[reject]` intent: the 60 s row is simulated inside one process - the spec's own pin (CACHESECONDS 60, writer reads at once, 60 s old entry re-read)
+  - `[false]` `[reject]` intent: Pirate reason pins the renderer only - AC 5 names Catalog.Render
+  - `[medium]` `[patch]` intent: sign-out failure path not tested - same fix as the blind finding
+  - `[low]` `[reject]` intent: the request-read failure of Persona is tested only with an empty session - same code path as any failed read
+  - `[medium]` `[defer]` intent: ProposePersona is outside the bridge-context governance loop and has no owner check - the same deferred item
+  - `[false]` `[reject]` intent: literal-reading choices (letters, line feeds and CR, check order), spine marker date, spec file modified - recorded under Decided in-stage; the spec file is the stage's own artifact
+
 ## Design Notes
 
 **Architecture decisions:** AD-1 (verbs, origins, `TOOLVERBS`, governance test), AD-4 (`SessionOps.End`, SessionRef from the server session), AD-7 (presets, bends; the read feeds 40.3), AD-11 (`setting` kind), AD-17 (one audit writer, audit before write), AD-19 (per-person keys, validation, 60 s, sign-out deletion, SettingsOps the only writer), AD-29 (Epic 40's names, lanes), AD-32 (catalog keys `<prefix>.<name>`, one class per prefix, `Catalog.Render` cleaning), AD-33 (Setting table owned by Lane B; no new item or table).
@@ -164,11 +209,35 @@ All `ci/iris.sh` and `ci/warm.sh` calls run from the worktree root with `timeout
 
 **Mutations (Rule 19; the implement stage records each as `mutation: ... -> ...`):** AC 1: `SetPersona`'s origins `web_user,tool` -> `CommandsRouting.TestOriginRules` and `TestToolGovernanceRefused` red; bridge `APPROVALKIND` left `fix,tool_call` -> `Contracts.TestBridgeEnumerationsEqualOcuTalons` red. AC 2: the language pattern's `{0,39}` -> `{0,40}` -> `SettingsPersona` bad-language row red; the audit `to` built from the custom text -> the no-custom-text assertion red; keys written before the audit -> the audit-fails row red. AC 3: `customOffered` hard-coded true -> the demo read row red. AC 4: `EndSettings` dropped from `End` -> `SessionOps.TestEndForgetsPersona` red. AC 5: `Clean` stripping `$Char(55296)`-`$Char(57343)` -> `Catalog.TestPersonaReasonSurvives` red.
 
+mutation: SetPersona origins `web_user,tool` alone (TOOLVERBS unchanged) -> no test red (equivalent: CommandsIn refuses a verb outside TOOLVERBS from `tool` before it reads the origins); the effective form, SetPersona added to TOOLVERBS and its origins `web_user,tool` -> `CommandsRouting.TestOriginRules` and `TestToolGovernanceRefused` red
+mutation: bridge `APPROVALKIND` left `fix,tool_call` -> `Contracts.TestBridgeEnumerationsEqualOcuTalons` red
+mutation: language pattern `{0,39}` -> `{0,40}` -> `SettingsPersona.TestBadLanguage` red (the 41-letter name)
+mutation: audit `to` built from the custom text -> `SettingsPersona.TestSaveCustom` red (the `to` and no-custom-text assertions)
+mutation: keys written before the audit entry -> `SettingsPersona.TestAuditFails` red (no key is written)
+mutation: `customOffered` hard-coded true -> `SettingsPersona.TestPersonaRead` red (the online-demo read)
+mutation: `EndSettings` dropped from `End` -> `SessionOps.TestEndForgetsPersona` red
+mutation: `Catalog.Clean` stripping `$Char(55296)`-`$Char(57343)` -> `Catalog.TestPersonaReasonSurvives` red (all four channels)
+mutation: `SessionOps.EndSettings` setting `failed` to 0 on an error status -> `SessionOps.TestEndKeepsTheSessionWhenSettingsCannotBeForgotten` red (the Ok 0 failed and kept resume hash assertions)
+
 Shared surfaces: `Msg.Enum`'s parameter set and `APPROVALKIND` (`Test.Msg.Contracts.TestEnumerations`, `TestBridgeEnumerationsEqualOcuTalons`, `Test.Agent.Persona.TestPresets`); the bridge's `APPROVALKIND` (`Bridge.Approval.Validate`, `Bridge.Audit`); the verb list and `XData Contracts` (`Test.Msg.Contracts`); `CommandsIn`'s `Routes` table and `TOOLVERBS` (`Test.Core.CommandsRouting` counts 12 / 96, `Test.Core.CommandsInProduction` governance list; `Test.Bridge.CodeRules`' own copy unchanged); `Catalog.Core`'s key set (`Test.Msg.Catalog` Keys 98 and Fixtures; `web/scripts/catalog.mjs` output unchanged); `SettingsOps`' `CHANNELS` and writer code (`Test.Core.SettingsOps.TestOnlyRunTimeWriter`, `TestAuditAccepted`'s unknown origin `nowhere`); `SessionOps.End`'s steps (`Test.Core.SessionOps`, `Test.Core.SessionOpsProduction`); the spine's Enumerations row. Every test added or changed passes on a fresh environment, in either order.
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-Planned only (halt after planning). Ledger inbox: DW-564 and DW-565 addressed in Tasks and AC 1. Footprint extension for the lead to report: `src/bridge/cls/OcuTalon/Bridge/Msg/Enum.cls` (one value, DW-564). Spine change planned: the Conventions Enumerations row only (DW-565).
+**Summary:** both persona verbs, `PERSONAPRESET`, `setting` in both `APPROVALKIND` copies, their `CommandsIn` routes (`ProposePersona` joins `TOOLVERBS`; persona verbs get the not-allowed text, not the admin-only one), `SettingsOps` (validated, audited `SetPersona` write with the audit first and the three keys in one transaction; `ProposePersona` placeholder answering `not_built`; `Persona`, `PersonaKey`, `ForgetPerson`, `AuditForm`; `Apply` accepts the persona keys of a Ref; `CHANNELS` gains `web_user`), `SessionOps.End` forgetting the session's per-person values (through the private `Forget` seam), the three catalog keys, and the spine's Enumerations row (DW-564, DW-565).
+
+**Files changed:**
+- `src/ocutalon/cls/OcuTalon/Msg/Enum.cls`, `src/bridge/cls/OcuTalon/Bridge/Msg/Enum.cls` (footprint extension, one value): enumerations.
+- `src/ocutalon/cls/OcuTalon/Msg/Command/SetPersona.cls`, `ProposePersona.cls`: new verbs.
+- `src/ocutalon/cls/OcuTalon/Core/CommandsIn.cls`, `SettingsOps.cls`, `SessionOps.cls`: routes, persona write/read/forget, End step.
+- `src/ocutalon/cls/OcuTalon/Msg/Catalog/Core.cls`: `approval.persona`, `persona.applied`, `persona.stale`.
+- `ARCHITECTURE-SPINE.md`: line 1078 only.
+- Tests: new `Test/Core/SettingsPersona.cls` (17); updated `CommandsRouting`, `CommandsInProduction`, `SessionOps` (two new tests), `SessionOpsProbe` (`Forget` override), `SettingsOpsProbe` (`apply` answer `second`), `Msg/Contracts`, `Msg/Catalog`.
+
+**Review:** 33 findings from four layers: patches applied 1 entry (medium: End's failed-delete path untested; fixed with the `Forget` seam and `TestEndKeepsTheSessionWhenSettingsCannotBeForgotten`, mutation recorded), deferred 1 (ProposePersona owner binding, medium, for Story 40.5), rejected 27 with reasons in the Review Triage Log. Follow-up review recommended: false (one medium patched).
+
+**Verification:** slot C (`ocutalon-slot-c`): `SettingsPersona` 17/17, `CommandsRouting` 12/12, `SessionOps` 29/29, `Contracts` 6/6, `Catalog` 23/23, `Agent.Persona` 3/3. Fresh throwaway stacks: `SettingsPersona`, `CommandsInProduction`, `SettingsOps`, `Msg.Catalog` and `SessionOpsProduction` passed; teardown clean. Spine greps (line 1078; count 1; numstat 1/1) and lint equal the baseline. `catalog.mjs --check` current, `catalog.test.mjs` 52/52, `ci/checks.sh` all scripts passed. Mutations: nine `mutation:` lines recorded; the first (origins alone) is equivalent and the effective form went red.
+
+**Residual risks:** ProposePersona's owner binding (deferred); `Test.Bridge.Audit` fails on slot C where instance auditing is off (unrelated, needs a throwaway); `ci/units.sh` was not edited (contended) and may need `Test.Core.SettingsPersona` listed.

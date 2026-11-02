@@ -29,6 +29,9 @@
 ///     with one unlinked entry (session_end, on the channel of the origin) and no notice, its resume hash is cleared, and the answer is
 ///     ended, also for a repeat that changes nothing; a refused unlink is answered failed after the later steps still ran (the session's
 ///     pending request is cancelled) and keeps the resume hash; a session with no row is no_session. The reminders, watches and requests of End are TestEndThroughTheProduction's (Test.Core.SessionOpsProduction);
+///   - TestEndForgetsPersona (Story 40.2): End deletes the ended session's per-person settings (SettingsOps.ForgetPerson) and answers
+///     ended, and another session's stay; a failed or thrown delete is answered failed, the resume hash is kept, a warning is logged and a
+///     later End finishes the job (TestEndKeepsTheSessionWhenSettingsCannotBeForgotten);
 ///   - TestOtherMessagesAreRefused.
 Class OcuTalon.Test.Core.SessionOps Extends %UnitTest.TestCase
 {
@@ -647,6 +650,54 @@ Method TestEndNeedsTheSession()
 	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|no_session", "an empty session: Ok 0, no_session")
 	Do $$$AssertEquals(probe.Audits.%Size()_"|"_probe.Notices.Count(), "0|0", "nothing is audited or sent")
 	Do $$$AssertEquals(..EventSummary(other), "", "and nothing is published")
+}
+
+/// EndSession forgets the ended session's per-person settings (AD-19): a session with its three persona keys is ended (web_user), the
+/// answer is ended, and its keys are gone; another session's persona key stays (and is removed after the check).
+Method TestEndForgetsPersona()
+{
+	Set probe = ..Probe()
+	Set session = ..Session("persona")
+	Set other = ..Session("personaother")
+	For name = "preset", "language", "custom" {
+		Do $$$AssertStatusOK(##class(OcuTalon.Data.Setting).Set(##class(OcuTalon.Core.SettingsOps).PersonaKey(session, name), "zz"_name), "the "_name_" key of the session is written")
+	}
+	Do $$$AssertStatusOK(##class(OcuTalon.Data.Setting).Set(##class(OcuTalon.Core.SettingsOps).PersonaKey(other, "preset"), "pirate"), "the other session's key is written")
+	Set result = ..End(probe, "web_user", session)
+	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|ended", "Ok 1, ended")
+	For name = "preset", "language", "custom" {
+		Set row = ##class(OcuTalon.Data.Setting).KeyIndexOpen(##class(OcuTalon.Core.SettingsOps).PersonaKey(session, name))
+		Do $$$AssertEquals($IsObject(row), 0, "the "_name_" key of the ended session is gone")
+	}
+	Set row = ##class(OcuTalon.Data.Setting).KeyIndexOpen(##class(OcuTalon.Core.SettingsOps).PersonaKey(other, "preset"))
+	Do $$$AssertEquals($IsObject(row) && (row.Value = "pirate"), 1, "the other session's key stays")
+	Do $$$AssertStatusOK(##class(OcuTalon.Core.SettingsOps).ForgetPerson(other), "and is removed after the check")
+}
+
+/// When the per-person settings can't be deleted (an error status, or an error thrown), End answers failed,
+/// keeps the resume hash, logs one warning naming the session and leaves the keys; a later End, when the delete works, answers ended,
+/// deletes the keys and clears the hash.
+Method TestEndKeepsTheSessionWhenSettingsCannotBeForgotten()
+{
+	For mode = "error", "throw" {
+		Set probe = ..Probe()
+		Set probe.SettingsAnswer = mode
+		Set session = ..Session("forget"_mode)
+		Do ..SetResumeHash(session, "zzsessops"_..Number_"forget"_mode)
+		Set key = ##class(OcuTalon.Core.SettingsOps).PersonaKey(session, "preset")
+		Do $$$AssertStatusOK(##class(OcuTalon.Data.Setting).Set(key, "zzpirate"), mode_": the persona key is written")
+		Set warnings = ..Logged("the per-person settings of session "_session)
+		Set result = ..End(probe, "web_user", session)
+		Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|failed", mode_": Ok 0, failed")
+		Do $$$AssertEquals(##class(OcuTalon.Data.Session).RefIndexOpen(session).ResumeHash, ##class(OcuTalon.Data.Session).Hash("zzsessops"_..Number_"forget"_mode), mode_": the resume hash is kept")
+		Do $$$AssertEquals(..Logged("the per-person settings of session "_session), warnings + 1, mode_": one warning names the session")
+		Do $$$AssertEquals(##class(OcuTalon.Data.Setting).KeyIndexExists(key), 1, mode_": the key stays")
+		Set probe.SettingsAnswer = ""
+		Set result = ..End(probe, "web_user", session)
+		Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "1|ended", mode_": a later End answers ended")
+		Do $$$AssertEquals(##class(OcuTalon.Data.Setting).KeyIndexExists(key), 0, mode_": and the key is gone")
+		Do $$$AssertEquals(##class(OcuTalon.Data.Session).RefIndexOpen(session).ResumeHash, "", mode_": and the hash is cleared")
+	}
 }
 
 /// A message that is no command, or another command, is refused with an error status that is not code 5003.

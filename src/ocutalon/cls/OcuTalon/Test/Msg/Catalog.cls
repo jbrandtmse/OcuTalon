@@ -1,6 +1,6 @@
 /// Tests of the message catalog and its one renderer (Story 0.9; AD-29, AD-32). The XData blocks hold the expectations, typed
 /// apart from the catalog's templates:
-///   - Keys: the 95 keys of OcuTalon.Msg.Catalog.Core and the 22 of OcuTalon.Msg.Catalog.Watch;
+///   - Keys: the 98 keys of OcuTalon.Msg.Catalog.Core and the 22 of OcuTalon.Msg.Catalog.Watch;
 ///   - Gaps: the keys whose entry carries a gap field, the forms the UX does not fix (none now);
 ///   - OneForms: for each of the 8 entries with a count-of-one form, its slots with the form's slot at 1, the exact text of the
 ///     form on the message channels (and on the page where it differs), and the plural fragment that the other counts keep;
@@ -77,9 +77,9 @@ Method TestEntries()
 	Set keys = ..Read("Keys")
 	Set core = ..Read("Entries", "OcuTalon.Msg.Catalog.Core")
 	Set watch = ..Read("Entries", "OcuTalon.Msg.Catalog.Watch")
-	Do $$$AssertEquals(keys.core.%Size(), 95, "the expected Core list has 95 keys")
+	Do $$$AssertEquals(keys.core.%Size(), 98, "the expected Core list has 98 keys")
 	Do $$$AssertEquals(keys.watch.%Size(), 22, "the expected Watch list has 22 keys")
-	Do $$$AssertEquals(..SortedKeys(core), ..SortedList(keys.core), "Core holds exactly its 95 keys")
+	Do $$$AssertEquals(..SortedKeys(core), ..SortedList(keys.core), "Core holds exactly its 98 keys")
 	Do $$$AssertEquals(..SortedKeys(watch), ..SortedList(keys.watch), "Watch holds exactly its 22 keys")
 	Set corePrefixes = ..Prefixes(..SortedKeys(core))
 	Set watchPrefixes = ..Prefixes(..SortedKeys(watch))
@@ -118,7 +118,7 @@ Method TestEveryKeyOnEveryChannel()
 {
 	Set fixtures = ..Read("Fixtures")
 	Set catalogKeys = ..SortedKeys(..Read("Entries", "OcuTalon.Msg.Catalog.Core"))_","_..SortedKeys(..Read("Entries", "OcuTalon.Msg.Catalog.Watch"))
-	Do $$$AssertEquals(..SortedList($ListFromString(catalogKeys)), ..SortedKeys(fixtures), "the fixtures cover exactly the 117 keys of the catalog")
+	Do $$$AssertEquals(..SortedList($ListFromString(catalogKeys)), ..SortedKeys(fixtures), "the fixtures cover exactly the 120 keys of the catalog")
 	Set refused = ..RefusedChannels()
 	Do $$$AssertEquals(refused, "email,webhook,slack,system", "four Msg.Enum channels are refused")
 	Set iterator = fixtures.%GetIterator()
@@ -223,6 +223,20 @@ Method TestStringSlots()
 	Do $$$AssertEquals(reminder, "Reminder: Is it due? Call the vendor.", "a mark inside the value keeps the text's period")
 	Set reason = ##class(OcuTalon.Msg.Catalog).RenderAt("notice.tellNow", {"whatHappened": "Mail from Dana", "reason": "Is it due today?"}, "phone", ..#NOW, 1, .sc)
 	Do $$$AssertEquals(reason, "Mail from Dana"_$Char(10)_"Why now: Is it due today?", "a value at the end of the text keeps its mark")
+}
+
+/// A tell-now notice whose reason is a persona's own wording (a greeting, an exclamation mark, emoji) comes out as written on every
+/// message channel: the frame is exact, only a line feed becomes a space and a control character is removed.
+Method TestPersonaReasonSurvives()
+{
+	Set reason = "Ahoy, shipmate! The hold is flooding "_$Char(55357, 57250)_$Char(9875, 65039)
+	For channel = "web", "phone", "mailbox", "telegram" {
+		Set text = ##class(OcuTalon.Msg.Catalog).RenderAt("notice.tellNow", {"whatHappened": "Mail from Dana", "reason": (reason)}, channel, ..#NOW, 1, .sc)
+		Do $$$AssertStatusOK(sc, channel_": the notice renders")
+		Do $$$AssertEquals(text, "Mail from Dana"_$Char(10)_"Why now: "_reason, channel_": the reason comes out unchanged in its frame")
+		Set text = ##class(OcuTalon.Msg.Catalog).RenderAt("notice.tellNow", {"whatHappened": "Mail from Dana", "reason": ("Ahoy!"_$Char(10)_"All"_$Char(1)_" hands!")}, channel, ..#NOW, 1, .sc)
+		Do $$$AssertEquals(text, "Mail from Dana"_$Char(10)_"Why now: Ahoy! All hands!", channel_": a line feed becomes a space and a control character is removed")
+	}
 }
 
 /// Row 7: one line per group, in order, with the same time forms as any message time.
@@ -1047,7 +1061,10 @@ XData Keys [ MimeType = application/json ]
   "splash.footerNote",
   "splash.install",
   "splash.newTab",
-  "audit.recorded"
+  "audit.recorded",
+  "approval.persona",
+  "persona.applied",
+  "persona.stale"
  ],
  "watch": [
   "watch.productionStopped",
@@ -1281,6 +1298,9 @@ XData Fixtures [ MimeType = application/json ]
  "splash.install": {"slots": {}, "text": "Install it yourself (README)"},
  "splash.newTab": {"slots": {}, "text": "(opens in a new tab)"},
  "audit.recorded": {"slots": {}, "text": "Recorded in the IRIS audit log."},
+ "approval.persona": {"slots": {"old": "Professional (default)", "new": "Pirate"}, "text": "OcuTalon suggests a new persona for you. Now: Professional (default). Proposed: Pirate. Nothing changes unless you approve."},
+ "persona.applied": {"slots": {}, "text": "Persona updated. It applies from your next message."},
+ "persona.stale": {"slots": {}, "text": "Your persona changed after this was suggested. Nothing was changed."},
  "watch.productionStopped": {"slots": {"production": "Orders", "time": "2026-10-16T18:12:00Z"}, "text": "The Orders production stopped at 14:12 ET.\nWhy now: you asked me to watch the Orders production."},
  "watch.itemDisabled": {"slots": {"itemName": "order importer", "production": "Orders", "time": "2026-10-16T18:12:00Z"}, "text": "The order importer in the Orders production was disabled at 14:12 ET.\nWhy now: you asked me to watch the Orders production."},
  "watch.unknownProduction": {"slots": {"name": "Order", "list": "Orders, Billing"}, "text": "I can't find a production called 'Order'. I can see: Orders, Billing. Which one did you mean?"},
