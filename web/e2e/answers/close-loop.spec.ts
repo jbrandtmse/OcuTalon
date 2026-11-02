@@ -10,27 +10,25 @@ import { dropPhone, phoneMessage } from '../support/devices';
 import { CARD_MS, applied, composerOf, inMs, mainOf, loadedAfter } from '../support/floor';
 import {
   cleanFixtureRows,
-  doubleCommands,
   fixtureUser,
+  incidentCommands,
   incidentState,
   publishIncident,
-  restoreIncidentManager,
   seedCheck,
+  seedFixRun,
   seedIncident,
   seedOtherSession,
   sendNotification,
-  useIncidentManagerDouble,
 } from '../support/iris';
 import { announcedTexts, announcements, clock, plain, recordAnnouncements, tokenColor } from '../support/page';
 
 /**
  * Story 6.4, the endings of an incident (C1 to C10; FR-8, FR-24, AD-1, AD-4, AD-15, AD-16), in a real browser against a real stack, as
  * the answers user ANSWERS (OCUTALON_ANSWERS_USER, with the role OcuTalonUser; the stack is in demo mode, its instance zone is UTC and
- * the browser's is UTC and en-GB; the page's clock is the real one). The IncidentManager item of the production is the fixture double
- * (Test.Demo.IncidentManagerDouble, put there by useIncidentManagerDouble for the spec's run and put back after it): it answers the
- * dismissal that the page posts, as the real item will, by closing the incident's row and publishing its closed view. An incident card
- * is made as IncidentManager will make it (an `incident` event, publishIncident), with a row (seedIncident) where the case presses
- * Dismiss, because the route checks the row's visibility first; a request is a fixture row (support/approvals.ts raise, which seeds it)
+ * the browser's is UTC and en-GB; the page's clock is the real one). The IncidentManager item of the production is the real one: it
+ * answers the dismissal that the page posts by closing the incident's row and publishing the row's closed view (incidentCommands reads
+ * the commands that reached it). An incident card is made as IncidentManager makes it (an `incident` event, publishIncident), with a row
+ * (seedIncident) where the case presses Dismiss, because the route checks the row's visibility first; a request is a fixture row (support/approvals.ts raise, which seeds it)
  * whose `approval` event reaches the page through BridgeSink. A case's rows and phone messages are its own and are removed in finally.
  * C1 is a finished fix: the result band, the phone's result message and Dismiss; C2 the partial results in one band; C3 the band while
  * the fix still runs and then final; C4 two requests, a Reject and Dismiss at the end of the rejected request's row; C5 a rejection, then
@@ -70,16 +68,6 @@ const hhmm = (iso: string): string => iso.slice(11, 16);
 
 /** The HH:MM of a UTC ISO time as the page writes it (en-GB, UTC): the card's statuses, whose hour has no leading zero before ten. */
 const pageHhmm = (iso: string): string => clock(iso, 'en-GB', 'UTC');
-
-/** Once per run, the IncidentManager item takes the double; afterwards it gets its class back. */
-test.beforeAll(async () => {
-  test.setTimeout(240_000);
-  await useIncidentManagerDouble();
-});
-test.afterAll(async () => {
-  test.setTimeout(240_000);
-  await restoreIncidentManager();
-});
 
 /** The incident card of a ref, its request cards, the card of one request, and every result band of a card. */
 const cardOf = (page: Page, ref: string): Locator => page.locator(`app-chat-panel [data-part="incident"][data-key="incident:${ref}"]`);
@@ -125,17 +113,18 @@ async function publish(page: Page, user: string, payload: Record<string, unknown
  * Seeds a request of the incident in this state (answered by the user on the web a minute ago, or unanswered and expired two minutes
  * ago), with its row in `rows`, and has BridgeSink publish it to the open page. Returns the request's Ref and the time its status names.
  */
-async function request(page: Page, user: string, rows: string[], incident: string, state: 'done' | 'executing' | 'rejected' | 'expired' | 'pending'): Promise<{ ref: string; at: string }> {
+async function request(page: Page, user: string, rows: string[], incident: string, state: 'done' | 'executing' | 'rejected' | 'expired' | 'pending', ref?: string): Promise<{ ref: string; at: string }> {
   const answered = state === 'done' || state === 'executing' || state === 'rejected';
   const at = state === 'expired' ? inMs(-120_000) : inMs(-60_000);
   const over = {
+    ...(ref === undefined ? {} : { ref }),
     state,
     raisedAt: inMs(-600_000),
     expiresAt: state === 'expired' ? at : TOMORROW_AT_1413,
     ...(answered ? { answeredAction: state === 'rejected' ? 'reject' : 'approve', answeredChannel: 'web', answeredBy: user, answeredAt: at } : {}),
   };
-  const ref = await raise(page, user, rows, incident, [], over, false);
-  return { ref, at };
+  const raised = await raise(page, user, rows, incident, [], over, false);
+  return { ref: raised, at };
 }
 
 /** An incident payload of incidentOf with these requests, in this state and open variant, and these fields. */
@@ -163,7 +152,7 @@ async function expectBand(page: Page, band: Locator, tone: 'success' | 'partial'
 /**
  * C1: a finished fix. R is published fixing, then resolved with A's result: A's card gets a band in the success colours with
  * circle-check and "All 50 orders went through.", the audit line beneath it, and a ghost Dismiss at the band's right end. The text is
- * announced once. The `result` notification gives the phone a new message with the same text and no buttons, and A's request message
+ * announced once. The incident's row lists the request (done, with its ended FixRun), so that the real closed view carries the band. The `result` notification gives the phone a new message with the same text and no buttons, and A's request message
  * keeps its answer line. A press on Dismiss goes to the route: the card compacts in place to its headline and the band (chip Closed, the
  * border-strong bar, Show details, no Dismiss, no request card), focus is on the headline, and nothing is announced for the closing.
  */
@@ -173,9 +162,11 @@ test('C1: a finished fix shows its result band with Dismiss, the phone gets the 
   const start = inMs(-2000);
   try {
     await open(page);
-    const incident = await seedIncident(user, { state: 'resolved', openVariant: '' });
+    const requestRef = refOf('C1a');
+    const incident = await seedIncident(user, { state: 'resolved', openVariant: '', requestRefs: requestRef });
     rows.push(incident);
-    const a = await request(page, user, rows, incident, 'executing');
+    const a = await request(page, user, rows, incident, 'done', requestRef);
+    await seedFixRun(incident, a.ref, ALL_THROUGH);
     await publish(page, user, payloadOf(incident, [{ ref: a.ref, state: 'executing' }], 'fixing'));
     const card = cardOf(page, incident);
     await expect(card.locator('.chip-row .chip'), 'the chip follows the payload: Fixing').toHaveText('Fixing', { timeout: CARD_MS });
@@ -235,7 +226,7 @@ test('C1: a finished fix shows its result band with Dismiss, the phone gets the 
     await page.waitForTimeout(SETTLE_MS);
     expect((await announcedTexts(page)).filter((text) => text.includes('Closed')), 'nothing is announced for the closing').toEqual([]);
 
-    const commands = await doubleCommands(incident);
+    const commands = await incidentCommands(incident);
     expect(commands.map((one) => `${one.verb}|${one.origin}`), 'IncidentManager got one dismiss from the web user').toEqual(['dismiss|web_user']);
     expect(commands[0]?.session.length, 'for a session').toBe(22);
     expect(await incidentState(incident), 'the row is closed').toBe('closed');
@@ -366,11 +357,11 @@ test('C4: two requests keep their own bands, and after a rejection Dismiss is at
 });
 
 /**
- * C5: a rejection, then Dismiss through the real route and the double. S watches Orders and R is an Orders incident, open and
+ * C5: a rejection, then Dismiss through the real route and the real IncidentManager. S watches Orders and R is an Orders incident, open and
  * rejected: the Break the feed button is aria-disabled. Focus on Dismiss and Enter: Dismiss goes busy (a spinner, aria-busy and
  * aria-disabled, never disabled), then the card compacts (chip Closed, the border-strong bar, no request card, no Dismiss) with focus
  * on the headline and no announcement of the closing. The route holds the server's 200 until the page has applied the owner's closed
- * event, so this is the order in which the event comes first. The double got one dismiss from the web user, R's row is closed, Break
+ * event, so this is the order in which the event comes first. IncidentManager got one dismiss from the web user, R's row is closed, Break
  * the feed is active within one live update, and after a reload R is still compact.
  */
 test('C5: Dismiss of a rejected Orders incident closes it through the route, and Break the feed is active again', async ({ page }) => {
@@ -415,7 +406,7 @@ test('C5: Dismiss of a rejected Orders incident closes it through the route, and
     await page.waitForTimeout(SETTLE_MS);
     expect((await announcedTexts(page)).filter((text) => text.includes('Closed')), 'the closing is not announced').toEqual([]);
 
-    const commands = await doubleCommands(incident);
+    const commands = await incidentCommands(incident);
     expect(commands.map((one) => `${one.verb}|${one.origin}`), 'one dismiss from the web user').toEqual(['dismiss|web_user']);
     expect(await incidentState(incident), "R's row is closed").toBe('closed');
     await expect(feedButton(page), 'Break the feed is active again within one live update').not.toHaveAttribute('aria-disabled', 'true', { timeout: ONE_UPDATE_MS });
@@ -591,7 +582,7 @@ test('C9: an incident closed by IncidentManager compacts in place to the headlin
 
 /**
  * C10: the failures of Dismiss, and the cross-session dismissal (AC7, AD-4). The dismissal of another session's incident is 404 with the
- * not_found body, nothing is submitted (the double records nothing) and the row is unchanged. Then, through page.route: a 200 that the
+ * not_found body, nothing is submitted (IncidentManager receives no command) and the row is unchanged. Then, through page.route: a 200 that the
  * route fulfills itself (so no event follows) compacts the card and focuses its headline, the page's own path; a 409 shows its message
  * beside Dismiss, announced once, and leaves the card; a 500 shows its message; a held reply restores Dismiss after 10 s with the
  * busy notice shown and announced, and a later 200 still compacts the card; and a reply that never came (the request fails, status 0)
@@ -610,7 +601,7 @@ test('C10: another session\'s incident is 404, and Dismiss shows a refusal, an e
     expect(refused.status(), "another session's incident is 404").toBe(404);
     expect(await refused.json(), 'with the error body').toEqual({ error: { code: 'not_found', message: 'OcuTalon has nothing at this address.' } });
     expect(await incidentState(theirs), 'the row is unchanged').toBe('open');
-    expect(await doubleCommands(theirs), 'and IncidentManager got nothing').toEqual([]);
+    expect(await incidentCommands(theirs), 'and IncidentManager got nothing').toEqual([]);
 
     let mode: 'done' | '409' | '500' | 'abort' | 'held' = 'done';
     let held: Route | undefined;

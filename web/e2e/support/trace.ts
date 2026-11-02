@@ -2,6 +2,7 @@ import { expect, type APIRequestContext, type BrowserContext, type Page } from '
 
 import { MESSAGES, STATE, post, sessionEvents } from './api';
 import { chk, fixtureUser, irisScript, type FixtureKind } from './iris';
+import { gotoSettled } from './navigate';
 
 /**
  * What the specs that open Visual Trace share (Stories 2.9 and 2.13): the turn as /state and the live stream carry it, the newest turn of a
@@ -124,7 +125,7 @@ export async function signInToTrace(page: Page, kind: FixtureKind): Promise<void
 
 /** Opens a Visual Trace URL as the fixture user of the kind: the sign-in form of the trace application first, when it is shown. */
 export async function openTrace(page: Page, url: string, kind: FixtureKind): Promise<void> {
-  await page.goto(url);
+  await gotoSettled(page, url);
   await signInToTrace(page, kind);
 }
 

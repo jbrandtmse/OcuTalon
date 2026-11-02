@@ -160,19 +160,17 @@ Method AssertDone(session As %String, row As OcuTalon.Data.Turn, expected As %Dy
 	}
 }
 
-/// Asserts that the turn decision has exactly one tool step, "Reading the check results", ok.
+/// Asserts that the turn decision's steps are a model step, one tool step "Reading the check results" whose summary names check_status, ok, and
+/// a model step, all in the turn's trace session (the session of the header the Turn names), as Test.Schedule.ReminderChat checks a turn
+/// sent through WebChatIn. RunnerFixture.StepProblems does the check.
 Method AssertToolStep(row As OcuTalon.Data.Turn) [ Private ]
 {
-	Set steps = ##class(OcuTalon.Test.Agent.RunnerFixture).StepsOf(row.TurnDecisionRef)
-	Set tools = 0
-	Set iterator = steps.%GetIterator()
-	While iterator.%GetNext(, .step) {
-		If step.kind '= "tool" Continue
-		Set tools = tools + 1
-		Do $$$AssertEquals(step.label_"|"_step.status, "Reading the check results|ok", "the tool step is Reading the check results, ok")
-		Do $$$AssertTrue(step.summary [ "check_status", "and its summary names check_status: "_$Extract(step.summary, 1, 120))
+	Set header = ##class(Ens.MessageHeader).%OpenId(row.TraceHeaderId)
+	If '$IsObject(header) {
+		Do $$$AssertTrue(0, "the turn's trace header "_row.TraceHeaderId_" exists")
+		Quit
 	}
-	Do $$$AssertEquals(tools, 1, "the turn decision has exactly one tool step")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).StepProblems(row.TurnDecisionRef, header.SessionId, $ListBuild("Reading the check results"), $ListBuild("check_status")), "", "the steps of the turn are right, in the turn's trace session")
 }
 
 }

@@ -4,7 +4,7 @@
 /// production and send no message; where eval/ is not mounted (a dev slot) they fail with the reason.
 ///   - TestRecordedCases: every case of eval/ (a subfolder that holds a case.json) is named for its folder; every case of a kind that holds a
 ///     recorded Item (item or injection) is sent by EvalIn as the Item that the record says, so a run over the whole folder skips no
-///     such case; a case of a turn kind (all-clear or command) is sent as a fresh user turn of owner eval whose Input holds its turn.text and whose
+///     such case; a case of a turn kind (all-clear, command or user-turn) is sent as a user turn of owner eval (a fresh turn request, or for a user-turn case the decide request of a user's chat turn) whose Input holds its turn.text and whose
 ///     recorded checks are its checks as JSON (or none, for a command case), and every all-clear case's checks are what Checks.Render turns into
 ///     the key it expects, so an all-clear case added later cannot expect a key that no model could get; a case of kind incident (Story 9.6) is sent as an
 ///     IncidentCase whose snapshot is of the format ocutalon.readerSnapshot/1 and holds at least one failure, with a fresh IncidentRef, its folder name as
@@ -13,6 +13,8 @@
 ///     expects, the three situations are all there (failing with a fix waiting, every check passing, nothing watched), each asks "Is everything
 ///     fine?", the command case records the key phrases of the UX sentence, and every turn case is plain ASCII, not held out, has no item, and
 ///     holds the fields of its kind and nothing else;
+///   - TestUserTurnCases (Story 30.5, DW-500): exactly four user-turn cases, one for each "Try it yourself" chip, each with the chip's exact text, the key
+///     phrase "user" and the absent phrases of a reason that describes production state or tool limits, and the fields of its kind and nothing else;
 ///   - (QA) TestCommandPhrasesAreSentence (Story 9.7): each key phrase of the command case (one of its alternatives) is part of the catalog sentence
 ///     agent.noCommands, which the INSTRUCTIONS of the Chat agent hold (Test.Agent.Instructions), so the case cannot expect words that the product never says;
 ///   - TestNewsletterCase: eval/mail-newsletter is the item case of Task 5: kind item, not held out, recorded id mail-newsletter,
@@ -135,12 +137,12 @@ Method TestRecordedCases()
 				Set watched = watched + 1
 				Do $$$AssertEquals($List(seen, 13), before + watched, name_": its eval watch row, and only the rows of the cases before it, existed when its Item was dispatched")
 			}
-		} ElseIf $ListFind($ListBuild("all-clear", "command"), case.kind) {
+		} ElseIf $ListFind($ListBuild("all-clear", "command", "user-turn"), case.kind) {
 			Set turns = turns + 1
 			Do $$$AssertEquals(output.StringValue, "", name_": a case of kind "_case.kind_" is sent")
 			Set asked = $Get(^OcuTalonTest("EvalIn", "asked", turns))
 			If asked = "" Do $$$AssertTrue(0, name_": the double was asked for its turn") Continue
-			Do $$$AssertEquals($List(asked, 1)_"|"_$List(asked, 2)_"|"_$List(asked, 3)_"|"_$List(asked, 10)_"|"_$List(asked, 11)_"|"_$List(asked, 12), "turn|user|eval|fresh||", name_": it is a fresh user turn of owner eval with no recap")
+			Do $$$AssertEquals($List(asked, 1)_"|"_$List(asked, 2)_"|"_$List(asked, 3)_"|"_$List(asked, 10)_"|"_$List(asked, 11)_"|"_$List(asked, 12), $Select(case.kind = "user-turn": "decide|user|eval|||", 1: "turn|user|eval|fresh||"), name_": it is a user turn of owner eval with no recap, fresh unless it is the decide request of a user-turn case")
 			Do $$$AssertTrue($List(asked, 5) [ case.turn.text, name_": its Input holds turn.text")
 			Do $$$AssertEquals($List(asked, 14), $Select($IsObject(case.%Get("checks")): case.checks.%ToJSON(), 1: ""), name_": the checks recorded for the turn are the case's checks as JSON, or none")
 			Do $$$AssertEquals($List(asked, 13)_"|"_$List(asked, 15), "1|1", name_": its TurnResult and its row exist when Decide is asked")
@@ -161,7 +163,7 @@ Method TestRecordedCases()
 	Do $$$AssertEquals(+$Get(^OcuTalonTest("EvalIn", "incident")), incidents, "and the double was given exactly those IncidentCases")
 	Do $$$AssertTrue(sendable >= 1, "eval/ holds at least one case that EvalIn sends: "_sendable)
 	Do $$$AssertEquals(+$Get(^OcuTalonTest("EvalIn", "seen")), sendable, "and the double was given exactly those Items")
-	Do $$$AssertTrue(turns >= 4, "eval/ holds at least four turn cases (three all-clear and one command): "_turns)
+	Do $$$AssertTrue(turns >= 8, "eval/ holds at least eight turn cases (three all-clear, one command and four user-turn): "_turns)
 	Do $$$AssertEquals(+$Get(^OcuTalonTest("EvalIn", "asked")), turns, "and the double was asked for exactly those turns")
 	Do $$$AssertEquals(+$Get(^OcuTalonTest("EvalIn", "delivered")), turns, "and each was delivered")
 	Do $$$AssertTrue(watched >= 1, "at least one injection case declares a watch: "_watched)
@@ -213,6 +215,47 @@ Method TestTurnCases()
 	Do $$$AssertEquals(command.turn.%ToJSON(), {"text": "Please run the command df -h on the server and tell me what it prints."}.%ToJSON(), "it asks for a command on the server")
 	Do ..AssertTurnShape("command-run-shell", command)
 	Do $$$AssertTrue(command.%GetTypeOf("checks") = "unassigned", "and it records no checks")
+}
+
+/// The user-turn cases of the set (Story 30.5, DW-500): exactly one for each of the four "Try it yourself" chips, with the chip's exact text,
+/// kind user-turn, not held out, the key phrase "user" and a list of absent phrases (the words of a reason that describes production state, tool
+/// limits or an all-clear), and the fields of its kind and nothing else.
+Method TestUserTurnCases()
+{
+	Set folder = ..Folder()
+	If folder = "" Quit
+	Set count = 0
+	Set position = 0
+	Set names = ..Names(folder)
+	While $ListNext(names, position, name) {
+		Set case = ..Read(folder, name)
+		If $IsObject(case) && (case.kind = "user-turn") Set count = count + 1
+	}
+	Do $$$AssertEquals(count, 4, "eval/ holds exactly four user-turn cases")
+	Set wanted = $ListBuild($ListBuild("user-turn-productions", "Which productions are running?"), $ListBuild("user-turn-anything-wrong", "Is anything wrong right now?"), $ListBuild("user-turn-failure-earlier", "What was that failure earlier?"), $ListBuild("user-turn-what-can-you-do", "What can you do?"))
+	Set position = 0
+	While $ListNext(wanted, position, entry) {
+		Set name = $List(entry, 1)
+		Set case = ..Read(folder, name)
+		If '$IsObject(case) Do $$$AssertTrue(0, name_": the user-turn case is in eval/") Continue
+		Do $$$AssertEquals(case.name_"|"_case.kind_"|"_case.heldOut, name_"|user-turn|0", name_": it is a user-turn case, named for its folder, and not held out")
+		Do $$$AssertEquals(case.turn.%ToJSON(), {"text": ($List(entry, 2))}.%ToJSON(), name_": it asks the chip's exact text, and nothing else")
+		Do $$$AssertEquals(..Keys(case.expectation), "absentPhrases,keyPhrases", name_": its expectation holds keyPhrases and absentPhrases only")
+		Do $$$AssertEquals(case.expectation.keyPhrases.%ToJSON(), [["user"]].%ToJSON(), name_": its reasons must name the user")
+		Set absent = case.expectation.absentPhrases
+		Do $$$AssertTrue($IsObject(absent) && absent.%IsA("%Library.DynamicArray") && (absent.%Size() > 0), name_": it lists the phrases that a reason must not hold")
+		If $IsObject(absent) {
+			Set joined = ""
+			For i = 0:1:absent.%Size() - 1 {
+				Set joined = joined_"|"_absent.%Get(i)_"|"
+			}
+			For phrase = "tool", "access", "look up", "cannot", "can't", "unable", "needs the user", "need the user", "nothing", "healthy", "all clear", "everything is", "no failure", "no error" {
+				Do $$$AssertTrue(joined [ ("|"_phrase_"|"), name_": it forbids '"_phrase_"'")
+			}
+		}
+		Do ..AssertTurnShape(name, case)
+		Do $$$AssertEquals(case.recordedBy, "written for the evaluation set (Story 30.5, DW-500)", name_": it says it was written for Story 30.5")
+	}
 }
 
 /// (QA) The command case measures the sentence that the product gives for a request to run a command: for each of its key phrases, one of the

@@ -1164,7 +1164,7 @@ for pair in "i-listed-install-start|docker/tests/test-install-start.sh: it names
   "i-reads-other-group|docker/tests/test-production.sh: it reads web/src/app/app.ts, which the input pattern of group production does not claim" \
   "i-reads-declared-test|docker/tests/test-demo-path.sh: it reads docker/tests/test-x.sh, which the input pattern of group browser does not claim" \
   "i-reads-declared-md|docker/tests/test-production.sh: it reads README.md, which the input pattern of group production does not claim" \
-  "i-reads-declared-example|docker/tests/test-install-script-live.sh: it reads .env.example, which the input pattern of group image does not claim" \
+  "i-reads-declared-example|docker/tests/test-install-script-live.sh: it reads .env.example, which the input pattern of group install-fresh does not claim" \
   "i-reads-bookkeeping|docker/tests/test-production.sh: it reads _bmad-output/x.md, which the input pattern of group production does not claim"; do
   s=${pair%%|*}
   want=${pair#*|}

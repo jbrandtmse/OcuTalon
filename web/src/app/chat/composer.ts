@@ -8,6 +8,9 @@ import { CHAT_TEXTS } from './chat-view';
 /** The most lines the field shows before it scrolls. */
 const MAX_LINES = 5;
 
+/** The id of the reason that the field and Send are described by while the message allowance is used up; the Try it yourself chips are described by it too. */
+export const COMPOSER_REASON_ID = 'composer-allowance-reason';
+
 /**
  * The composer (UX-DR68, UX-DR125): a text area labelled "Message OcuTalon" by a visually hidden label, so the name holds while
  * text is typed, and a Send button. Enter sends, except while an IME composition is open; Shift+Enter adds a line. The text is
@@ -101,7 +104,7 @@ export class Composer {
   protected readonly texts = CHAT_TEXTS;
 
   /** The id of the reason that the field and Send are described by while the message allowance is used up. */
-  protected readonly reasonId = 'composer-allowance-reason';
+  protected readonly reasonId = COMPOSER_REASON_ID;
 
   /** The reason: the allowance banner's text while the allowance is used up, else empty. */
   protected readonly reason = computed(() => {

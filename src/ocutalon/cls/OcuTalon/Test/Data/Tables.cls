@@ -200,7 +200,9 @@ XData Contracts [ MimeType = application/json ]
    "FinishedAt": "%String(MAXLEN=20)",
    "FixKind": "%String(MAXLEN=32)",
    "FixParameters": "%String(MAXLEN=)",
-   "FixTargets": "%String(MAXLEN=)"
+   "FixTargets": "%String(MAXLEN=)",
+   "ToolSource": "%String(MAXLEN=512)",
+   "Runner": "%String(MAXLEN=128)"
   },
   "indexes": {
    "RefIndex": "Ref unique",
@@ -492,7 +494,8 @@ XData Contracts [ MimeType = application/json ]
    "LastRunAt": "%String(MAXLEN=20)",
    "Result": "%String(MAXLEN=32)",
    "Finding": "%String(MAXLEN=1000)",
-   "LastRunHeaderId": "%Integer"
+   "LastRunHeaderId": "%Integer",
+   "Reported": "%String(MAXLEN=)"
   },
   "indexes": {
    "RefIndex": "Ref unique",
@@ -590,7 +593,8 @@ XData Contracts [ MimeType = application/json ]
    "FailedAgain": "%Integer",
    "Skipped": "%Integer",
    "Interrupted": "%Integer",
-   "Reason": "%String(MAXLEN=1000)"
+   "Reason": "%String(MAXLEN=1000)",
+   "Unreached": "%Integer"
   },
   "indexes": {
    "ApprovalRefIndex": "ApprovalRef",

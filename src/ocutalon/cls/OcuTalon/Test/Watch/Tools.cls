@@ -4,8 +4,8 @@
 /// Watch.Reader and submit to Test.Tools.CommandsDouble, which sits behind the CommandsIn item and records every command. The tests call the tool
 /// methods in this process, with a bridge context begun for the turn, as Test.Tools.Reminders does.
 ///   - TestDeclarations: Chat's TOOLSETS names both toolsets; Watching offers exactly start_watch, stop_watch, list_productions, dismiss_incident and
-///     check_status of Tools.Names, each once, from WatchTools; each has its own step label and the flags of the spec (all safe and trusted output, only
-///     list_productions and check_status read-only); the inputs are name (required) and namespace for start and stop, none for list and check_status, and incident
+///     check_status of Tools.Names, each once, from WatchTools, and (Story 5.13) recent_activity from RecentActivity; each has its own step label and the flags of the spec (all safe and trusted output, only
+///     list_productions, check_status and recent_activity read-only); the inputs are name (required) and namespace for start and stop, none for list, check_status and recent_activity, and incident
 ///     and production (none required) for dismiss, and none names a session, an owner or an origin;
 ///   - TestCheckStatus, TestCheckStatusHostData and TestCheckStatusNotRead (Story 5.7; matrix "check_status", "HostData kept", "Refused"): check_status gives the
 ///     session's own production rows by ID with the time in the instance zone, copies them to HostData with the UTC time, keeps the other members of a JSON
@@ -65,17 +65,19 @@ Method TestDeclarations()
 	Set want("list_productions") = $ListBuild("safe", 1, 1, "Listing the productions", "", "")
 	Set want("dismiss_incident") = $ListBuild("safe", 0, 1, "Dismissing an incident", "incident,production", "")
 	Set want("check_status") = $ListBuild("safe", 1, 1, "Reading the check results", "", "")
-	Set expected = $ListBuild($Parameter(names, "STARTWATCH"), $Parameter(names, "STOPWATCH"), $Parameter(names, "LISTPRODUCTIONS"), $Parameter(names, "DISMISSINCIDENT"), $Parameter(names, "CHECKSTATUS"))
+	Set want("recent_activity") = $ListBuild("safe", 1, 1, "Reading recent activity", "", "")
+	Set expected = $ListBuild($Parameter(names, "STARTWATCH"), $Parameter(names, "STOPWATCH"), $Parameter(names, "LISTPRODUCTIONS"), $Parameter(names, "DISMISSINCIDENT"), $Parameter(names, "CHECKSTATUS"), $Parameter(names, "RECENTACTIVITY"))
 	Set tools = $ClassMethod(..#TOOLSET, "%New").%Discover().tools
-	Do $$$AssertEquals(tools.%Size(), 5, "the toolset offers five tools")
+	Do $$$AssertEquals(tools.%Size(), 6, "the toolset offers six tools")
 	Set found = ""
 	Set iterator = tools.%GetIterator()
 	While iterator.%GetNext(, .tool) {
 		Set found = found _ $ListBuild(tool.name)
 		Set name = tool.name
-		Do $$$AssertEquals(tool.provider, ..#TOOLS, name_" is a method of "_..#TOOLS)
+		Set provider = $Select(name = $Parameter(names, "RECENTACTIVITY"): "OcuTalon.Tools.RecentActivity", 1: ..#TOOLS)
+		Do $$$AssertEquals(tool.provider, provider, name_" is a method of "_provider)
 		If '$Data(want(name)) {
-			Do $$$AssertTrue(0, name_" is not one of the five tools")
+			Do $$$AssertTrue(0, name_" is not one of the six tools")
 			Continue
 		}
 		Set upper = $ZConvert($Translate(name, "_-"), "U")
@@ -100,7 +102,7 @@ Method TestDeclarations()
 				Do $$$AssertNotTrue($ZConvert(one, "L") [ forbidden, name_"'s input "_one_" does not name a "_forbidden)
 			}
 		}
-		Do $$$AssertEquals(tool.metadata."origin_class", ..#TOOLS, name_" says that it originates in "_..#TOOLS)
+		Do $$$AssertEquals(tool.metadata."origin_class", provider, name_" says that it originates in "_provider)
 	}
 	Set position = 0
 	While $ListNext(expected, position, name) {
@@ -123,7 +125,7 @@ Method TestDeclarations()
 	Set xml = $Select($IsObject(definition): definition.Data.Read(32000), 1: "")
 	Do $$$AssertTrue(xml '= "", "the toolset has its Definition")
 	Do $$$AssertTrue(xml '[ "Requirement", "and holds no Requirement element: the class parameters are the one declaration")
-	Do $$$AssertEquals(##class(%Dictionary.ClassDefinition).%OpenId(..#TOOLSET).DependsOn, ..#TOOLS, "and it depends on the tool class")
+	Do $$$AssertEquals(##class(%Dictionary.ClassDefinition).%OpenId(..#TOOLSET).DependsOn, ..#TOOLS_",OcuTalon.Tools.RecentActivity", "and it depends on both tool classes")
 	Do $$$AssertEquals($Parameter(..#TOOLS, "READMELINK"), "https://github.com/jbrandtmse/OcuTalon#readme", "the README link is the project's")
 }
 

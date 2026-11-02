@@ -1,0 +1,23 @@
+{
+  "name": "recent-activity",
+  "match": {
+    "marker": "recent-activity"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "text": "{\"outcome\":\"tellnow\",\"reasons\":[\"The CI mock answers the user now.\"],\"confidence\":0.9}"
+    },
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "recent_activity",
+        "input": {}
+      }
+    },
+    {
+      "status": 200,
+      "text": "Earlier, 50 orders failed on the OrdersFromPartner item because of OrderDate. You approved the fix on the web, and all 50 went through. Everything is fine now."
+    }
+  ]
+}

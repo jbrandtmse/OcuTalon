@@ -40,9 +40,9 @@
 /// OnAfterOneTest puts back the rows, the keys and the items that a test changed, also when it failed.
 /// Added by Story 1.8 (AD-6): the turn that TestRequestsUnderTheModelRules sends to ChatAgent is linked to a conversation, so it saves an AI session
 /// and a link, which OnAfterOneTest deletes (RunnerFixture.DropSince).
-/// Added by Story 5.1 (AD-7, AD-18): Chat also has the toolset OcuTalon.Tools.Watching, so its requests offer the six names of REMINDERTOOLS (seven since Story 5.9: dismiss_incident, eight since Story 5.7: check_status), its system
+/// Added by Story 5.1 (AD-7, AD-18): Chat also has the toolset OcuTalon.Tools.Watching, so its requests offer the six names of REMINDERTOOLS (seven since Story 5.9: dismiss_incident, eight since Story 5.7: check_status, nine since Story 5.13: recent_activity), its system
 /// prompt (which now holds the watch sentences) reaches min_tokens_for_cache, so AssertRequests expects Chat's system block marked (systemMarked 1), and
-/// TestToolInventory takes the provider of each tool: ReminderTools for the reminder tools, WatchTools for start_watch, stop_watch, list_productions, dismiss_incident and check_status.
+/// TestToolInventory takes the provider of each tool: ReminderTools for the reminder tools, WatchTools for start_watch, stop_watch, list_productions, dismiss_incident and check_status, and RecentActivity for recent_activity (Story 5.13).
 /// Added by Story 5.4 (AD-6, AD-7): Diagnosis's instructions now describe the evidence pack and the reply object, so its system prompt reaches min_tokens_for_cache
 /// and AssertRequests expects Diagnosis's system block marked (systemMarked 1), as Chat's is; its tools take no argument and the final text is the
 /// DiagnosisPayload object of diagnosis.json.
@@ -69,8 +69,8 @@ Parameter MODEL = "claude-haiku-5-5";
 /// The tools of the Diagnosis agent, sorted: the three read-only watch tools (AD-7).
 Parameter WATCHTOOLS = "read_event_log,read_failed_messages,read_item_settings";
 
-/// The tools of the Chat agent, sorted: the three reminder tools and, since Story 5.1, the watching tools (AD-7, AD-18), and since Stories 5.9 and 5.7 dismiss_incident and check_status among them.
-Parameter REMINDERTOOLS = "cancel_reminder,check_status,dismiss_incident,list_productions,list_reminders,set_reminder,start_watch,stop_watch";
+/// The tools of the Chat agent, sorted: the three reminder tools and, since Story 5.1, the watching tools (AD-7, AD-18), and since Stories 5.9, 5.7 and 5.13 dismiss_incident, check_status and recent_activity among them.
+Parameter REMINDERTOOLS = "cancel_reminder,check_status,dismiss_incident,list_productions,list_reminders,recent_activity,set_reminder,start_watch,stop_watch";
 
 /// The longest to wait for a refusal to show in the event log and in the jobs, in seconds. A ceiling, not a delay (the wait polls
 /// once a second), and as long as RunnerFixture's wait for the items to run.
@@ -286,7 +286,7 @@ Method TestRequestsUnderTheModelRules()
 		Do $$$AssertEquals(reply.HostData, "", "and holds no host data")
 	}
 	Do $$$AssertEquals(requests.%Size(), 1, "Triage makes one request")
-	Do ..AssertRequests(requests, "low", "OcuTalon.Agent.Triage", "", "Triage", 0)
+	Do ..AssertRequests(requests, "low", "OcuTalon.Agent.Triage", "", "Triage", 0, 1)
 
 	Set sc = $ClassMethod(fixture, "Ask", "DiagnosisAgent", "diagnose", "user", "Why did the messages of the Orders production fail?", .reply, .requests)
 	Do $$$AssertStatusOK(sc, "the diagnose Request to DiagnosisAgent is answered")
@@ -314,7 +314,7 @@ Method TestToolInventory()
 	If '..Ready() Quit
 	If '..Point() Quit
 	Set watch = $ListBuild(##class(OcuTalon.Tools.Names).#READEVENTLOG, ##class(OcuTalon.Tools.Names).#READFAILEDMESSAGES, ##class(OcuTalon.Tools.Names).#READITEMSETTINGS)
-	Set reminders = $ListBuild(##class(OcuTalon.Tools.Names).#CANCELREMINDER, ##class(OcuTalon.Tools.Names).#LISTREMINDERS, ##class(OcuTalon.Tools.Names).#SETREMINDER, ##class(OcuTalon.Tools.Names).#STARTWATCH, ##class(OcuTalon.Tools.Names).#STOPWATCH, ##class(OcuTalon.Tools.Names).#LISTPRODUCTIONS, ##class(OcuTalon.Tools.Names).#DISMISSINCIDENT, ##class(OcuTalon.Tools.Names).#CHECKSTATUS)
+	Set reminders = $ListBuild(##class(OcuTalon.Tools.Names).#CANCELREMINDER, ##class(OcuTalon.Tools.Names).#LISTREMINDERS, ##class(OcuTalon.Tools.Names).#SETREMINDER, ##class(OcuTalon.Tools.Names).#STARTWATCH, ##class(OcuTalon.Tools.Names).#STOPWATCH, ##class(OcuTalon.Tools.Names).#LISTPRODUCTIONS, ##class(OcuTalon.Tools.Names).#DISMISSINCIDENT, ##class(OcuTalon.Tools.Names).#CHECKSTATUS, ##class(OcuTalon.Tools.Names).#RECENTACTIVITY)
 	Set expected("TriageAgent") = ""
 	Set expected("DiagnosisAgent") = watch
 	Set expected("ChatAgent") = reminders
@@ -326,6 +326,7 @@ Method TestToolInventory()
 	Set providerOf("ChatAgent", ##class(OcuTalon.Tools.Names).#LISTPRODUCTIONS) = "OcuTalon.Tools.WatchTools"
 	Set providerOf("ChatAgent", ##class(OcuTalon.Tools.Names).#DISMISSINCIDENT) = "OcuTalon.Tools.WatchTools"
 	Set providerOf("ChatAgent", ##class(OcuTalon.Tools.Names).#CHECKSTATUS) = "OcuTalon.Tools.WatchTools"
+	Set providerOf("ChatAgent", ##class(OcuTalon.Tools.Names).#RECENTACTIVITY) = "OcuTalon.Tools.RecentActivity"
 	Set runners = $ListFromString(..#RUNNERS)
 	Set position = 0
 	While $ListNext(runners, position, item) {
@@ -488,11 +489,11 @@ Method Point() As %Boolean [ Private ]
 /// Asserts what the mock logged for the requests of one runner: the model of the runner, a cap of 8000, the effort (none when
 /// effort is ""), and no sampling parameter. The tools that a request offers are exactly the tools of the agent class (OfferedTools: the names that the
 /// toolsets of its TOOLSETS discover), which must also be the literal list given (names, comma-separated, sorted; "" for none), and no other. AI Hub marks
-/// a block for the cache only when the prefix up to it reaches min_tokens_for_cache (512): the system prompts of the three agents are about 190 to 310
-/// tokens, so no system block is marked, and a runner with tools has the marker on its last tool, where the prefix of system and tools reaches the
-/// threshold, while a runner without tools has none at all (measured in Story 1.2). The mock accepted each one: status 200 and nothing rejected. marked is 1
+/// a block for the cache only when the prefix up to it reaches min_tokens_for_cache (512): the system prompts of Triage, Diagnosis and Chat reach it (systemMarked 1), and a
+/// runner with tools has the marker on its last tool, where the prefix of system and tools reaches the threshold, while a runner without tools has none on a tool
+/// (measured in Story 1.2). The mock accepted each one: status 200 and nothing rejected. marked is 1
 /// when the last tool of the agent's requests carries the marker, as the measured prefix of system prompt and tools reaches the threshold (Diagnosis's three
-/// watch tools, and, measured in Story 1.10, Chat's three reminder tools), and 0 when no block is marked (an agent without tools).
+/// watch tools, and, measured in Story 1.10, Chat's three reminder tools), and 0 when no tool carries the marker (an agent without tools).
 Method AssertRequests(requests As %DynamicArray, effort As %String, agentClass As %String, literal As %String, label As %String, marked As %Boolean, systemMarked As %Boolean = 0) [ Private ]
 {
 	Set expected = ..OfferedTools(agentClass)

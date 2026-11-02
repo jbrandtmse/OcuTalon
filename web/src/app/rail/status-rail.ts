@@ -6,6 +6,7 @@ import { confidenceText, DECISION_TEXTS, formatCost, outcomeOf, reasonLines } fr
 import { countdownText, pageWhen } from '../chat/page-time';
 import type { TelegramState } from '../api/api-types';
 import { LiveState } from '../live/live-state';
+import { DemoView } from '../shared/demo-view';
 import { type FocusRule, keepFocus } from '../shared/focus-rule';
 import { Layout } from '../shared/layout';
 import { Popovers } from '../shared/popover';
@@ -235,6 +236,7 @@ function formatAt(now: number): RailFormat {
 })
 export class StatusRail {
   private readonly live = inject(LiveState);
+  private readonly demoView = inject(DemoView);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injector = inject(Injector);
   private readonly popovers = inject(Popovers);
@@ -259,7 +261,7 @@ export class StatusRail {
       return NO_VIEW;
     }
     this.clock();
-    return railView(store, formatAt(Date.now()), this.live.snapshot()?.demoMode === true);
+    return railView(store, formatAt(Date.now()), this.demoView.on());
   });
 
   constructor() {

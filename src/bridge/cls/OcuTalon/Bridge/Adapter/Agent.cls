@@ -289,7 +289,8 @@ Method OpenSession(id As %String, Output session As %AI.Agent.Session) As %Statu
 	Quit sc
 }
 
-/// Answers a request with a reply. It refuses kind tool ($$$NotImplemented), any kind that is not a request kind, an Input that is
+/// Answers a request with a reply. A request of kind tool is the replay of an approved tool call and is answered by Replay.Run (no model request,
+/// no Chat, no conversation link; the context it sets carries the runner item and a grant). It refuses any kind that is not a request kind, an Input that is
 /// empty once white space is removed, and a linked turn (IsLinked) with an empty OwnerRef, which names OwnerRef; builds the agent if
 /// needed; sets the context with the super session before Chat; and answers in one of two ways.
 ///   - A turn with provenance user is linked to its conversation (AnswerLinked): the runner holds the conversation lock, opens the AI
@@ -306,16 +307,16 @@ Method Answer(request As OcuTalon.Bridge.Msg.Request, superSession As %String = 
 {
 	Set reply = ""
 	Set kind = request.Kind
-	If kind = "tool" Quit $$$ERROR($$$NotImplemented)
 	If '$ListFind($ListFromString(##class(OcuTalon.Bridge.Msg.Enum).#REQUESTKIND), kind) {
 		Quit $$$ERROR($$$GeneralError, "The request kind '"_kind_"' is not one of "_##class(OcuTalon.Bridge.Msg.Enum).#REQUESTKIND)
 	}
+	If kind = "tool" Quit ##class(OcuTalon.Bridge.Replay).Run($this, request, superSession, .reply)
 	If $ZStrip(request.Input, "<>WC") = "" Quit $$$ERROR($$$GeneralError, "The request of kind "_kind_" has an empty Input, so nothing is sent")
 	Set linked = ..IsLinked(request)
 	If linked && (request.OwnerRef = "") Quit $$$ERROR($$$GeneralError, "The turn of the user has an empty OwnerRef, so it has no conversation to open or link, and nothing is sent")
 	Set sc = ..BuildAgent()
 	If $$$ISERR(sc) Quit sc
-	Set sc = ##class(OcuTalon.Bridge.Context).Begin(request, superSession)
+	Set sc = ##class(OcuTalon.Bridge.Context).Begin(request, superSession, ..BusinessHost.%ConfigName)
 	If $$$ISOK(sc) {
 		Try {
 			If linked {
@@ -468,6 +469,12 @@ Method ReleaseSession() [ Private ]
 	}
 }
 
+/// Drops the throwaway AI session of a replay (Replay.Run): ReleaseSession, for a caller outside the class.
+Method ReleaseThrowaway()
+{
+	Do ..ReleaseSession()
+}
+
 /// What Chat gets as its input (AD-6), for every request: the non-empty parts below, in this order, joined by a blank line
 /// ($Char(10, 10)).
 ///   - the SeedText of the request, only when seeded is 1 (the linked fresh turn: the recap that starts the new session);
@@ -524,8 +531,8 @@ Method FailureText(thrown As %Exception.AbstractException, request As OcuTalon.B
 }
 
 /// The step records of the call (StepBuffer.Records), or "" with a warning when they cannot be read. Call it after Chat, outside every
-/// callback.
-Method StepRecords() As %DynamicArray [ Private ]
+/// callback. Replay.Run calls it too.
+Method StepRecords() As %DynamicArray
 {
 	Set records = ""
 	Try {
@@ -537,8 +544,8 @@ Method StepRecords() As %DynamicArray [ Private ]
 	Quit records
 }
 
-/// The step records as a JSON array, or "" for records that could not be read (StepRecords).
-ClassMethod StepsJson(records As %DynamicArray) As %String [ Private ]
+/// The step records as a JSON array, or "" for records that could not be read (StepRecords). Replay.Run calls it too.
+ClassMethod StepsJson(records As %DynamicArray) As %String
 {
 	Quit $Select($IsObject(records): records.%ToJSON(), 1: "")
 }

@@ -174,8 +174,9 @@ ClassMethod Entries(matched As %DynamicArray) As %DynamicArray [ Private ]
 	Quit entries
 }
 
-/// The display names of the session's own watches of productions: names(namespace, production) is the display name. A read that fails gives none.
-ClassMethod WatchNames(sessionRef As %String, ByRef names) [ Private ]
+/// The display names of the session's own watches of productions: names(namespace, production) is the display name. A read that fails gives none. Shared with
+/// Tools.RecentActivity, so that its display names are the watch cards' (DW-519).
+ClassMethod WatchNames(sessionRef As %String, ByRef names)
 {
 	Kill names
 	Set checks = ##class(OcuTalon.Data.Ownership).Checks(sessionRef, .sc)

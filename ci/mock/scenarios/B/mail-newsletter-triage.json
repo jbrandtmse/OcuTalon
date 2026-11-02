@@ -1,0 +1,13 @@
+{
+  "name": "mail-newsletter-triage",
+  "match": {
+    "prompt": "on integration engines: tuning transforms, naming production items, and testing routing rules.",
+    "mockkey": "triage"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "text": "{\"outcome\":\"ignore\",\"reasons\":[\"The CI mock ignores the newsletter: nothing in it needs you.\"],\"confidence\":0.9}"
+    }
+  ]
+}

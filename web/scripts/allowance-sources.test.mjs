@@ -93,7 +93,8 @@ describe('the composer (UX-DR68)', () => {
     assert.equal((composer.code.match(/\[attr\.aria-disabled\]="reason\(\) \? 'true' : null"/g) ?? []).length, 2, 'the field and Send');
     assert.equal((composer.code.match(/\[attr\.aria-describedby\]="reason\(\) \? reasonId : null"/g) ?? []).length, 2, 'both described by the reason');
     assert.doesNotMatch(composer.code, /\[(?:attr\.)?disabled\]|\sdisabled(?:=|\s|>)/, 'neither is disabled, so both keep their place in the tab order');
-    assert.match(composer.code, /protected readonly reasonId = 'composer-allowance-reason';/);
+    assert.match(composer.code, /export const COMPOSER_REASON_ID = 'composer-allowance-reason';/);
+    assert.match(composer.code, /protected readonly reasonId = COMPOSER_REASON_ID;/);
     assert.match(composer.code, /<p class="reason" \[id\]="reasonId">\{\{ text \}\}<\/p>/, 'and the reason is a visible paragraph with that id');
   });
 
@@ -156,14 +157,14 @@ describe('the simulated mailbox', () => {
 });
 
 describe('who reads the allowance (the Always list: Break the feed, Approve and Reject are never disabled by it)', () => {
-  it('AllowanceState is injected by the banner stack, the composer, the guide and the outbox and by nothing else', () => {
+  it('AllowanceState is injected by the banner stack, the composer, the guide, the outbox and the Try it yourself row and by nothing else', () => {
     const injecting = files.filter((one) => /inject\(\s*AllowanceState\s*\)/.test(one.code)).map((one) => one.name);
-    assert.deepEqual(injecting, ['banners/banner-stack.ts', 'chat/chat-outbox.ts', 'chat/composer.ts', 'guide/demo-guide.ts']);
+    assert.deepEqual(injecting, ['banners/banner-stack.ts', 'chat/chat-outbox.ts', 'chat/composer.ts', 'chat/try-it-row.ts', 'guide/demo-guide.ts']);
   });
 
   it('so Break the feed\'s box and the approval and incident cards never name it', () => {
     const naming = files.filter((one) => /\bAllowanceState\b|allowance-state|allowance-view/.test(one.code)).map((one) => one.name);
-    assert.deepEqual(naming, ['banners/banner-stack.ts', 'chat/chat-outbox.ts', 'chat/composer.ts', 'guide/demo-guide.ts', 'live/allowance-state.ts', 'mailbox/simulated-mailbox.ts']);
+    assert.deepEqual(naming, ['banners/banner-stack.ts', 'chat/chat-outbox.ts', 'chat/composer.ts', 'chat/try-it-row.ts', 'guide/demo-guide.ts', 'live/allowance-state.ts', 'mailbox/simulated-mailbox.ts']);
     assert.ok(!naming.some((name) => /^(?:feed|approval|incident)\//.test(name)));
   });
 });

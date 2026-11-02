@@ -1,7 +1,7 @@
-/// The stand-in for the Decide process in the tests of the turn pipeline (Story 2.4; reused by Stories 2.7 and 2.9). It has no
-/// Test methods, and the product never refers to it. It extends Ens.BusinessProcess so that a test production can also
-/// carry it under the name Decide (Test.Core.ThreadProduction swaps it in on a throwaway, until Epic 11 removes the swap; the real
-/// Decide on a keyless stack answers every turn no_key); Test.Core.ConversationProbe hands it a request directly, with no production.
+/// The stand-in for the Decide process in the unit tests of the turn pipeline (Story 2.4; Test.Core.Intake and Test.Core.ConversationTurns
+/// script its answers, and Test.Core.ConversationProbe hands it a request directly, with no production, to a shadow instance). It has no
+/// Test methods, and the product never refers to it. It runs in no production: the tests that drive the running production use the real Decide
+/// against the CI mock.
 /// OnRequest records each request under ^OcuTalonTest("DecideDouble", OwnerRef, "seen", n), with n counted in
 /// ^OcuTalonTest("DecideDouble", OwnerRef, "seen"): kind, provenance, input, itemId, summary, ownerRef, traceRef, channel,
 /// threadSessionId, sessionMode, seedText, systemNote, and the sessionId and superSession of the double itself. It then
@@ -11,12 +11,9 @@
 /// Test.Data.Fixture, with one Usage row (Story 2.6): the owner, kind and item of the request, the outcome or fallback as
 /// answered, the reasons "zz reason one" and "zz reason two" (one per line), the confidence 0.9, the model claude-haiku-5-5, a
 /// usage cost of $0.0003 for a decide request and $0.0005 for a turn request, and, when the double has a session of its own
-/// (a production item answering in a trace thread), that session as TraceSessionId. As Decide does (AD-20), a turn request
+/// (it has none as a shadow instance), that session as TraceSessionId. As Decide does (AD-20), a turn request
 /// whose item already has a turn row is answered with an error status and writes nothing. Written gives the Refs of the
 /// rows written, for the test that removes them with Fixture.Clean.
-/// As a production item (its configuration name is a name; a shadow instance of the probes has the name 0) every answer that carries
-/// a DecisionRef is preceded by two OcuTalon.Bridge.Msg.AgentStep messages for that DecisionRef, sent asynchronously to AgentSteps
-/// with no answer required: positions 1 and 2, step kind model, label "zz step", status ok.
 ///   - decide: tellnow, act, ignore or digest (a DecisionResponse with that Outcome), fallback:<reason> (a DecisionResponse
 ///     with Fallback 1 and the reason), error (an error status), wrong (an Ens.StringResponse) or reply (a Reply with a
 ///     DecisionRef), the last two being answers that are not a DecisionResponse;
@@ -123,26 +120,9 @@ Method OnRequest(request As %Library.Persistent, Output response As %Library.Per
 		}
 	}
 	If $IsObject(response) && response.%Extends("OcuTalon.Bridge.Msg.Result") && (response.DecisionRef '= "") {
-		If (..%ConfigName '= "") && (..%ConfigName '= 0) Do ..Step(response.DecisionRef)
 		If $Get(^OcuTalonTest("DecideDouble", owner, "record")) Do ..Write(request, response)
 	}
 	Quit $SYSTEM.Status.OK()
-}
-
-/// The two agent steps of the decision, sent to AgentSteps with no answer required. A send that fails is logged and never
-/// changes the answer.
-Method Step(decisionRef As %String) [ Private ]
-{
-	For position = 1, 2 {
-		Set step = ##class(OcuTalon.Bridge.Msg.AgentStep).%New()
-		Set step.DecisionRef = decisionRef
-		Set step.Position = position
-		Set step.StepKind = "model"
-		Set step.Label = "zz step"
-		Set step.Status = "ok"
-		Set sc = ..SendRequestAsync("AgentSteps", step, 0)
-		If $SYSTEM.Status.IsError(sc) $$$LOGSTATUS(sc)
-	}
 }
 
 /// The Decision row, and its Usage row, of the answer that carries a DecisionRef. Nothing when the item already has a decision of the
