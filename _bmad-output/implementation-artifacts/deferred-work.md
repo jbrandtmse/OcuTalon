@@ -2928,3 +2928,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: CI run 41350877752 (install-fresh), head 3728ccee | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: job 124980538561: R1 expected Math.floor(nextReset/1000)=1793575980, cookie expires 1793575981; passed on the unchanged rerun
 - 2026-11-01T22:22:51Z status=routed owner=burndown by=harvest note=flake class: one rerun; fix: compare within one second, or derive both from one clock read (Lane B web/e2e-online; Epic 11 currently changes resume.spec.ts)
+
+### DW-559: The reminders list answer (CommandCall.Listed) shows each due time without the zone label on the online demo, while the set reply (Answer) now carries ' ET'
+- source: _bmad-output/implementation-artifacts/spec-30-5-mixed-and-unfinished-resends-say-how-far-they-got.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: CommandCall.cls:120 Listed builds due with Data.Time.ForMessage; Answer uses TimeLabel; G-DW484 limits 30.5 to the set reply; Test.Tools.Reminders (Epic 11's) pins the list's due with the online demo off only
+- 2026-11-02T02:15:27Z status=open owner=30-5-mixed-and-unfinished-resends-say-how-far-they-got by=harvest note=in-story LOW; adjudicate at 30.5's gate (fix-pack-sized, or wontfix-accepted with a probe)
