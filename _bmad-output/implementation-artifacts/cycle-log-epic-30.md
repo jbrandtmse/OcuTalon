@@ -246,3 +246,5 @@
 2026-11-02T12:07:56Z	Story 30.1	story_cycle	plan_to_commit_min=274 implement_passes=1 reviews=1 rework=0 first_ci=pending models=plan:claude-opus-5-5,implement:claude-sonnet-5-5,qa:claude-sonnet-5-5,cr:claude-opus-5-5
 2026-11-02T12:09:26Z	Epic 30	ledger_burndown_chartered	story=30-7-epic-30-burn-down chartered_size=8(DW-437+U-210,DW-444,DW-470,DW-462,DW-386,DW-448,DW-371_Lane_A_part,DW-541_no_date_cost) overflow=2(DW-453,DW-549->31-3:Lane_B_classes/contended) to_decision_sheet=4(DW-483,DW-575,DW-579,DW-580) note=gate_completes_after_30.7s_adjudication;30.7_independent_of_30.1(U-210_message)
 2026-11-02T12:09:26Z	Epic 30	deps_hash_note	reason=burndown_inserted(30.7) note=orchestrator_re-records_epics_md_hash_at_merge
+2026-11-02T12:11:04Z	Epic 30	epic_context_compiled	reason=burndown_inserted(30.7) model=claude-opus-5-5 spawn_at=2026-11-02T12:09:35Z agent=a9c6cbf96117c34d6 lines=53
+2026-11-02T12:11:04Z	Story 30.7	stage_spawned	stage=plan spawn_at=2026-11-02T12:11:04Z model=claude-opus-5-5 agent_name=30-7-plan-1 cycle_iteration=1

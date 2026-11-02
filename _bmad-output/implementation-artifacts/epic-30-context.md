@@ -4,48 +4,50 @@
 
 ## Goal
 
-Epic 30 finishes the Lane A parts of the demo-path stories that were moved past the demo, each landing before 1.0.0. Part 1 (Stories 30.2 to 30.6) is merged. This re-open is part 2. Story 30.1 makes long conversations keep working: a flagged turn is compacted through AI Hub's guarded fork-and-summarize path, or rotated to a seeded fresh session, so no request goes over the size limit and a conversation whose history has outgrown the limit is no longer stuck answering `too_large`. A burn-down story (30.7) then clears the ledger entries kept for this epic. Both merge together.
+Epic 30 holds the Lane A parts of the demo-path stories that were moved after the demo path: compaction of long conversations, scheduled purges, exactly-once replay of an approved tool call, once-only stopped-production and disabled-item findings, and honest mixed or unfinished resend results. Every part lands before 1.0.0. Stories 30.1 to 30.6 are done. What remains is Story 30.7, a burn-down of the ledger entries the epic still owns. It makes sure old conversations are purged whole, approvals and replays always finish, keys are redacted in every shape, and the tests that flaked now hold.
 
 ## Stories
 
-- Story 30.1: Long conversations are compacted under the limit (backlog; spec re-planned as draft)
+- Story 30.1: Long conversations are compacted under the limit (done)
 - Story 30.2: Old messages and records are purged on schedule (done)
 - Story 30.3: An approved tool call runs exactly once, with no model (done)
 - Story 30.4: A stopped production or a disabled item is reported once (done)
 - Story 30.5: Mixed and unfinished resends say how far they got (done)
 - Story 30.6: The invalid-reply warning names what failed, never the reply (done)
-- Story 30.7: Burn-down of the ledger entries kept for Epic 30 (chartered at part 2's gate, after 30.1)
+- Story 30.7: Epic 30 burn-down (backlog)
 
 ## Requirements & Constraints
 
-- **Request size.** No request the runner shapes is sent above the request-size limit: not the summarizer's, not the turn's first. A mock conversation long enough to compact keeps its largest request under 100,000 tokens. With turns above 40,000 tokens compacted, a 4-iteration tool loop stays near 94,000 (40,000 + 3 x 10,000 tool results + 3 x 8,000 output). A first request between 40,000 and the limit can still exceed 100,000 later in its loop. That residual is open and goes to the lead/owner (refuse in favour of the seed, refuse such turns as `too_large`, or accept with a `reopen_if`).
-- **Failures stay internal.** A compaction failure is one redacted warning (runner item, OwnerRef, DecisionRef, failed step). It never becomes the turn's fallback reason or the reply's failure text.
-- **Time budget.** A flagged turn that continues a linked conversation gets 20 more seconds on its timer, never above 110 seconds in total.
-- **Cost honesty.** Every summarizer call, including one that throws, writes one `Usage` row with agent `compaction` and `Estimated` true, priced at about 4 characters per token at the summarizer model's rate. It must count in the turn, run and day totals.
-- **Release-candidate smoke.** A live thinking-history smoke runs only in release-candidate runs on the real model: three turns across jobs, a compaction and a tool change, with Claude 5.5's thinking-history rule forced. Push and `--on-mock` runs report it as not run. This run never uses a real key.
-- **Burn-down conditions (30.7), each kept unchanged.**
-  - DW-386 (U-184): `Bridge.Redact` replaces every key-like shape (DigitalOcean `dop_v1_`, PEM private-key headers, `sk-ant-` keys, Telegram bot tokens), one test per shape, before 1.0.0.
-  - DW-448 (U-185): the key proof's globals walk decodes `$List` elements. Measure on a throwaway whether a message body can store a key in a compressed or split `%Stream.Global*` chunk. If it can, decode it. If not, close that half wontfix-accepted with the evidence.
-  - DW-541: chip 1 ("Which productions are running?") gets a code-built running or stopped state from `list_productions` (trusted fields only), or the chip's text becomes "Which productions can you watch?". Only at no date cost: if it would push this merge past Epic 13 (the critical path to rc1), re-own it to the first daily release after 1.0.0.
-  - Also: DW-444 (a crashed mid-replay `tool_call` stays executing with no result), DW-470 (a replay failed for a missing key or an unreachable provider says so in catalog words, and that nothing was changed; no public text claims a replay works offline), DW-462 and DW-549 (flakes), DW-371 (the remaining `Purge` copies adopt the shared day cutoff).
-- **Stored data.** 30.1 makes no stored-data change. Any new column in 30.7 is append-only, a veto item of its own, and gets its own `Test.Data.Tables` entry.
-- **Tests** run on throwaway stacks. New mock scenarios go only under `ci/mock/scenarios/A/`. Fixtures use only the existing fixture names (the repository is public).
+Story 30.7 must resolve these entries. Each kept condition stays exactly as ruled.
+
+- **DW-437, whole-turn purge (veto U-210, kept with two conditions).** Purge `Turn`, `Delivery` and `Session` rows on the same 90-day cut as their `Decision` and `Usage` rows. Today the purge leaves them behind, so `Ownership.TurnCost` reads 0 and `ShownDecisionRef` names a missing decision. One test proves those two never read a purged turn. Each condition below gets its own test beside it:
+  1. A `Session` row is purged only when the session has no `Turn`, `Delivery` or `Decision` newer than the cut AND it is not current. Current means signed in, or holding an open approval request, a watch or a reminder. Age alone never qualifies.
+  2. The purge touches only OcuTalon's own tables. IRIS audit-log entries for approvals and actions are never purged.
+- **DW-444, interrupted replay.** A `tool_call` request left `executing` by a crash or restart must not stay that way. Candidate fix: `Reconcile` at instance start (never from a test's own call) closes such rows through `FinishExecution` with result `interrupted`. The call is still never re-run (NFR-13).
+- **DW-470 (U-172's conditions).** A replay that fails because no provider key is set, or because the provider can't be reached, says so in its failed row, in catalog words, and says that nothing was changed. No public text claims a replay works without a provider connection.
+- **DW-462, flake.** `OcuTalon.Test.Bridge.Approval` `TestAnswerBeforeTheTaskExists` went red once in CI: the task appeared, `OcuTalonWorkflow` never completed it with Approve, the hold never ended and no single outcome was sent. Find the race and make the test, or the hold, deterministic.
+- **DW-386 (U-184).** Extend `OcuTalon.Bridge.Redact` to every shape that `key_like` in `docker/tests/test-boundaries.sh` flags, including DigitalOcean `dop_v1_...` tokens and PEM private-key headers. Also cover `sk-ant-...` keys and Telegram bot tokens (digits, a colon, 35 characters) if `key_like` lacks them. One test per shape, before 1.0.0.
+- **DW-448 (U-185).** Make `Test.Eval.KeyProof` `Walk` decode `$List` elements. Then measure on a throwaway whether a message body can store a key in a compressed or split `%Stream.Global*` chunk:
+  - If it can, decode those chunks.
+  - If it can't, close that half wontfix-accepted, with the evidence: the throwaway build, the message class and what was stored.
+
+  The key proof is otherwise unchanged. Lane B's copy in `Test.Web.SessionEvents` has its own entry.
+- **DW-371.** `IncidentManager.Purge` adopts the shared `Bridge.Time.DaysCutoff`, as `Digest` already does. `Data.Pairing.Purge` belongs to Lane B and stays with its own entry.
+- **DW-541, only at no date cost.** Chip 1 ("Which productions are running?") gets a real answer. Either `list_productions` returns a code-built running or stopped state for each production (trusted fields only), or, the cheaper option, the chip text becomes "Which productions can you watch?" (the web text plus its `ci/mock/scenarios/B/` scenario). If this would merge the re-open later than Epic 13, the critical path to rc1, move it to the first daily release after 1.0.0.
+- **Deferral.** Story 30.7 is built independently of 30.1 and lands in commits of its own. If the rc1 forecast slips past 2026-11-03 18:00Z, the Contest Planner may move it after the tag.
 
 ## Technical Decisions
 
-- **Where compaction runs.** Only in the runner's job, in the adapter's linked path, under the conversation lock, after the session is opened and before `Chat`. It never runs in a callback, and no AI Hub call runs inside one. Only a `Compact` turn that continues a linked conversation is compacted. Untrusted, fresh, `decide`/`diagnose` and first turns never are.
-- **The guarded path.** `ForkAndSummarize(summarizerProvider, "", k, <compaction prompt>, 0)`. `k` keeps the last user turn whole and is computed from `GetContext()` outside callbacks. With nothing older, there is no compaction. The prompt is the existing Epic 0 constant starting `OCUTALON-COMPACTION-V1`, asking for AI Hub's summary schema with every tool result in `facts_learned`. Don't change its text. Never use `Summarize` in place, and never `Fork` without summarizing.
-- **The switch.** Check the fork first: the first non-system message must be a user message (not a tool result), and every tool result must follow its call. Then save the fork, release the original, reopen the fork with `OpenSession` (a freshly composed config, so cap, effort and `timeout_ms` apply), and point the link at it. Saving the fork before `Chat` is the one exception to "save only after a completed `Chat`". A tainted turn is never saved.
-- **Seeded fallback.** Any `ForkAndSummarize` exception (it arrives as `<%AICore>InternalError`), a failed check, a failed save or reopen, or a request still over the limit gives a fresh session seeded with a code-written summary of the stored user and assistant texts (the shape of Lane B's recap, bounded in size, no tool text). It is saved and linked after a completed, untainted `Chat`. The over-limit and save/reopen triggers go beyond AD-20's two named triggers. They need a spine amendment, which is a veto item for the lead.
-- **Summarizer provider.** The runner's own provider settings plus `extra_config.output_config.effort` `low`, a 20-second request timeout and a full retry block with `max_retries` 0 (never a partial block). It is built in memory only: never logged, stored or put in a warning. No sampling parameter.
-- **Decide.** For a flagged turn that continues a linked conversation, `too_large` is judged on the most the runner will send after compaction or rotation. The flag itself still uses the full estimate. The runner reads the same limit through one shared method, not a copy.
-- **Boundaries.** Bridge classes name no other OcuTalon package. Pure compaction helpers (cut, check, seed, settings) take dynamic objects and make no `%AI` call. The session-call allow-list gains `forkandsummarize`. Old sessions and unlinked forks are removed by Story 30.2's `Bridge.Purge`.
-- **Keep part 1 consistent.** Warnings name IDs and counts, go through `Bridge.Redact`, and never quote reply content (30.6). An approved call replays once with no model request, and the row is the truth (30.3). `Bridge.Time.DaysCutoff` is the shared day rule (30.2).
+- **Retention.** Day counts are purge-task properties: `OcuTalon.Install.Task.Purge` has `DaysToKeep` 90. The installer writes them only when it creates a task, and no purge reads `OcuTalon.Data.Setting`. That task calls `OcuTalon.Bridge.Purge(daysToKeep)` and then each area's `Purge(daysToKeep)` declaration. History reads OcuTalon's and the bridge's tables, never messages. DW-437 extends this retention rule. Record it in the spine as an amendment marked `[AMENDED <date>, Story 30.7, orchestrator ruling U-210]`. The spine-lint baseline is `ok: false` with 8 low findings, and that must not get worse.
+- **Table ownership.** `Turn`, `Delivery` and `Session` belong to Lane B, as do `Ownership` and the `Pairing` purge. `Decision`, `Usage`, `ApprovalRequest` and the other `OcuTalon.Bridge.Data` classes belong to Lane A. `Data/Session.cls` is Epic 31's file: any change to it is one self-contained block appended at its end.
+- **Stored data is append-only.** Never rename, retype or remove a stored property, and never hand-edit a `Storage` block. Commit the compiler-generated block. CI diffs every storage block against the last release tag.
+- **Approval rows are the truth.** State changes only through the `OcuTalon.Bridge.Approval` API (`Answer`, `Expire`, `Cancel`, `StartExecution`, `FinishExecution`), each under `LOCK ^OcuTalon.Bridge.Approval(Ref)`. `FinishExecution` takes `done`, `failed` or `interrupted`, and `interrupted` leaves the row `failed`. Every change is audited and reported through the HostSink. The startup reconciler re-arms any pending row whose process is gone and cancels orphaned Workflow tasks. A replay runs from the stored row with no model request. The gate consumes the grant on the first match of name, canonical-argument hash and source.
+- **Redaction and audit.** `OcuTalon.Bridge.Redact` is the one redactor, used by agent steps, audit, logs and error details. Structural rules come first, and the redactor is the backstop. `OcuTalon.Bridge.Audit` is the only audit writer, and OcuTalon keeps no audit table of its own.
+- **Text.** Text a person sees renders from catalog keys. Lane A adds its keys to `OcuTalon.Msg.Catalog.Watch`, and the page's catalog is generated from the catalog classes.
+- **Part 1 conventions to keep.** Warnings name IDs, counts and failing properties, go through `Bridge.Redact`, and never quote reply content (30.6). `Bridge.Time.DaysCutoff` is the shared day rule (30.2).
 
 ## Cross-Story Dependencies
 
-- **Order.** 30.1, then 30.7. Both merge in part 2. Story 31.2 (Lane B) waits on this epic's merge.
-- **30.1 consumes** Story 1.9 (`Request.Compact`, the estimate and the limit), Story 1.8 (the link, the lock, `OpenSession` with a composed config), Story 30.2 (purging unlinked sessions) and Story 9.5 (`eval/run.sh`, `Eval.Gate`, the release-candidate run that reads the smoke). Lane B's `Core.Conversation` and `Data.Ownership` totals benefit with no change.
-- **30.1's own ledger entries:** DW-125 (stuck conversation), DW-130 (in-loop size), DW-93 (`Precheck` cost of `Budget.State` over unindexed Usage) and DW-483 (one retry on an invalid reply). The spec predates later `Decide.cls` changes (Stories 5.12 and 30.6, DW-544), so re-plan against today's code.
-- **Lane ownership.** Lane B's `Core.Conversation`, `Data.Ownership`, `Msg.Catalog`, `Data.Time` and `web/**` are read-only. Never touch `.github/workflows/lane-a.yml` or `ci/units.sh`. `eval/run.sh` and `docker/tests/test-eval-set.sh` are Lane A's (Epic 9's). Before editing a shared file, check what Epic 11's branch has changed.
-- **Environment.** This run uses runner B's slot `ocutalon-slot-b` (lane-b locks), for load and compile only. Production-bound tests run on throwaways.
+- Story 30.7 builds on 30.2 (`Bridge.Purge`, `DaysCutoff`, the purge task) and 30.3 (replay, `StartExecution` and `FinishExecution`). Nothing in it depends on 30.1's changes.
+- DW-437 changes Lane B tables, and a `Session.cls` edit must not collide with Epic 31's work on that file. DW-541's cheaper option changes web text and a Lane B mock scenario.
+- Epic 13 is the critical path to rc1. DW-541 and the deferral of the whole story are both judged against it.
