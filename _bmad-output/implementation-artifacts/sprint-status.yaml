@@ -210,9 +210,8 @@ development_status:
   13-3-the-bridge-developer-guide-proved-on-a-clean-instance: backlog
   epic-13-retrospective: optional
 
-  epic-14: backlog
-  14-1-the-overview-s-tool-and-privilege-lists-are-generated-from-t: 
-    ready-for-dev
+  epic-14: in-progress
+  14-1-the-overview-s-tool-and-privilege-lists-are-generated-from-t: in-progress
   14-2-the-security-overview-says-what-ocutalon-can-do-and-what-sto: backlog
   epic-14-retrospective: optional
 
