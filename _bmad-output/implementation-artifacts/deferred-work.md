@@ -2315,6 +2315,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-02T07:30:15Z status=routed owner=burndown by=spec_gate note=re-owned_to_the_burn-down_story_30.7(chartered_at_part_2's_gate):U-184's_kept_condition_unchanged(every_key_like_shape_incl_dop_v1_,PEM_private-key_headers,sk-ant-,Telegram_bot_token,one_test_each,before_1.0.0);reason:Bridge.Redact_work_is_outside_30.1's_compaction_intent(its_spec_declines_it),and_30.1_is_already_oversized
 - 2026-11-02T12:09:16Z owner=30-7-epic-30-burn-down by=burndown note=chartered_into_the_Epic_30_burn-down_story_30.7(part_2_gate);conditions_unchanged
 - 2026-11-02T16:32:22Z status=routed owner=burndown by=orchestrator note=U-184/U-185_kept_conditions_say_before_1.0.0:not_with_deferred_30.7;Epic_30_part_2_builds_it_as_fix-forward_30.8_at_the_resume
+- 2026-11-02T17:54:38Z owner=30-8-the-redactor-and-the-key-proof-catch-every-key-shape by=spec_gate note=fix-forward_30.8(U-184/U-185_before_1.0.0;30.7_deferred_after_tag)
 
 ### DW-392: Ownership.Watchers (Lane B) does not skip a watch row of owner eval, so while an evaluation run's watch of a production exists, an instance incident of that production caused by another session's watch would list eval as a recipient (a Notification with SessionRef eval reaches Notify, which refuses it with a warning)
 - source: spec-9-8-a-stop-watching-injection-leaves-the-watch-unchanged.md | severity: low | fix-risk: med | footprint: out-of-footprint
@@ -2846,6 +2847,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-02T07:30:16Z status=routed owner=burndown by=spec_gate note=re-owned_to_the_burn-down_story_30.7(chartered_at_part_2's_gate):U-185's_kept_condition_unchanged(decode_$List_elements_in_Test.Eval.KeyProof_Walk;measure_compressed/split_%Stream.Global*_chunks_on_a_throwaway;a_wontfix_close_of_that_half_records_the_evidence);reason:key-proof_work_is_outside_30.1's_compaction_intent,and_30.1_is_already_oversized
 - 2026-11-02T12:09:16Z owner=30-7-epic-30-burn-down by=burndown note=chartered_into_the_Epic_30_burn-down_story_30.7(part_2_gate);conditions_unchanged
 - 2026-11-02T16:32:22Z status=routed owner=burndown by=orchestrator note=U-184/U-185_kept_conditions_say_before_1.0.0:not_with_deferred_30.7;Epic_30_part_2_builds_it_as_fix-forward_30.8_at_the_resume
+- 2026-11-02T17:54:38Z owner=30-8-the-redactor-and-the-key-proof-catch-every-key-shape by=spec_gate note=fix-forward_30.8(U-184/U-185_before_1.0.0;30.7_deferred_after_tag)
 
 ### DW-449: project_leftovers puts the eval harness's container listing (docker ps -a, docker volume ls) in docker/tests/lib-keys.sh, a third library beside ci/iris.sh and lib-live.sh that the eval-scripts rule does not cover, and repeats cmd_teardown's name listing with its own matching
 - source: spec-9-10-the-release-candidate-run-proves-the-key-leaks-nowhere-and-g.md | severity: low | fix-risk: low | footprint: out-of-footprint
