@@ -2902,3 +2902,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-11-5-one-scripted-sequence-cuts-a-release.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: state_root (release.sh:61) is one folder for every checkout; load_state takes integration, remote and record from the state but runs against this script's checkout; the golden State path has no checkout key
 - 2026-11-02T05:38:58Z status=wontfix-accepted owner=11-5-one-scripted-sequence-cuts-a-release by=cr note=reopen_if=a release.sh run reports a step or writes a record for a sequence whose start ran in another checkout
+
+### DW-576: release.sh's ipm step has run the two-run install path (Epic 15's MapAndStop module: USER, then OCUTALON) only against the self-test shim and plan-time measurements, never real IPM through step_ipm; the one-run path (today's module.xml) is proved live
+- source: spec-11-17-the-release-s-ipm-artifact-carries-the-built-page.md | severity: med | fix-risk: low | footprint: out-of-epic
+- evidence: --live ipm packaged today's module.xml (19 bundle files, ocutalon 1.0.0 listed); the two-run branch is shimmed
+- 2026-11-02T10:22:06Z status=routed owner=15-3-an-ipm-install-survives-restarts-and-reinstalls-and-every-re by=harvest note=Story 15.3 installs 11.17's recorded artifact: once Epic 15's module.xml is on the candidate, run docker/tests/test-release-sequence.sh --live ipm on it before 15.3 relies on the record
+
+### DW-577: The IPM artifact record's 'Content SHA-256 is the same for every packaging' claim is shown on hand-made archives only, not on two real IPM packagings of one tree
+- source: spec-11-17-the-release-s-ipm-artifact-carries-the-built-page.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: packaging is not byte-reproducible (Task 0); the content digest strips archive metadata
+- 2026-11-02T10:22:06Z status=wontfix-accepted owner=11-17-the-release-s-ipm-artifact-carries-the-built-page by=harvest note=reopen_if=two --live ipm packagings of one cut commit print different Content SHA-256 lines
