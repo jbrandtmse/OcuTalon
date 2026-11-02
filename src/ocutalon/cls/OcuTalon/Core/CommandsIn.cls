@@ -6,8 +6,8 @@
 ///   - the origin is "tool" whenever a bridge context is active in this process, whatever the command says, and otherwise the
 ///     command's Origin. A tool may send only the verbs of TOOLVERBS, and Dismiss only for an incident that
 ///     Ownership.Incident returns for the command's SessionRef, which inside a bridge context must be the context's OwnerRef;
-///     any other origin must be one the table names for the verb (a refusal of a settings verb says "admin only" unless the verb
-///     is one of the persona verbs, whose origins are web_user or tool);
+///     any other origin must be one the table names for the verb (a refusal of a settings verb says "admin only" unless the verb's
+///     origins include web_user or tool, as the persona verbs' do);
 ///   - a refusal changes nothing: nothing is sent, and the caller gets a CommandResult with Ok 0, an Outcome (not_allowed,
 ///     not_found or unknown_command) and a plain-English Message;
 ///   - an accepted command is sent synchronously to its owner in the right trace session (AD-26): inside a turn the session
@@ -162,6 +162,7 @@ ClassMethod Result(outcome As %String, message As %String) As OcuTalon.Msg.Comma
 /// The verbs, one entry each: the owner item that carries the verb out, and the origins that may send it (Msg.Enum ORIGIN).
 /// A verb that is not here is not routed. Every settings verb goes to SettingsOps with the origins system and web_admin,
 /// except the persona verbs (AD-1): SetPersona from web_user only, the person's own page, and ProposePersona from tool only.
+/// A settings verb whose origins include web_user or tool is refused with the plain not-allowed text, not the admin-only one.
 XData Routes [ MimeType = application/json ]
 {
 [

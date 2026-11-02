@@ -1,6 +1,6 @@
 /// SettingsOps, the business operation that carries out the settings commands SetDemoMode, SetPersona and ProposePersona (AD-1,
-/// AD-19). It is the only run-time writer of OcuTalon.Data.Setting, and it writes only the keys of ALLOWLIST and the per-person keys
-/// of PERSONKEYS. For every accepted SetDemoMode it:
+/// AD-19). It is the only run-time writer of OcuTalon.Data.Setting: it writes only the keys of ALLOWLIST and the per-person keys
+/// of PERSONKEYS, and at sign-out deletes every per-person key of the ended session. For every accepted SetDemoMode it:
 ///   - writes the Settings audit entry first (AD-17), through Bridge.Audit.Record, so that no change is unaudited and the entry has the
 ///     one shape of its type;
 ///   - then writes the value of demo.mode, "1" or "0";
@@ -45,7 +45,7 @@ Parameter MESSAGECUSTOMNOTOFFERED = "On the online demo you can choose a preset 
 
 Parameter MESSAGENOTSAVED = "Couldn't save. Nothing was changed.";
 
-/// The audit event data's channel for each origin: system is the terminal, web_admin the web page.
+/// The audit event data's channel for each origin: system is the terminal, web_admin and web_user the web page.
 Parameter CHANNELS = "system:system,web_admin:web,web_user:web";
 
 /// The Message of an answer. {v} is on or off, and {error} the plain text of an error.

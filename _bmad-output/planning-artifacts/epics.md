@@ -8047,6 +8047,7 @@ So that I stay in charge of how OcuTalon talks to me.
 **Then** the first answer wins, the others show who answered and where, and the audit holds one entry per answer (FR-8, FR-9)
 
 - DW-570: bind `ProposePersona`'s `SessionRef` to the bridge context's owner (as `CommandsIn` does for `Dismiss`) before it raises a request (AD-1) (ledger; routed by harvest 2026-11-02)
+- DW-571: a refused `setting` approval answered from the page must not get the tool-call approver text in `OcuTalon.Web.Api` (ledger; routed by cr 2026-11-02)
 
 ### Story 40.7: Evaluation cases for the persona
 

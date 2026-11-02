@@ -38,6 +38,13 @@ Method OnBeforeAllTests() As %Status
 	Quit $SYSTEM.Status.OK()
 }
 
+/// Every test starts off the online demo, so a test that threw while the flag was set does not change the next one.
+Method OnBeforeOneTest(testname As %String) As %Status
+{
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
+	Quit $SYSTEM.Status.OK()
+}
+
 Method OnAfterAllTests() As %Status
 {
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", ..SavedOnline)

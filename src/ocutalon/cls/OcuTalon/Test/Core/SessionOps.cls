@@ -70,6 +70,10 @@ Method OnAfterAllTests() As %Status
 	} Else {
 		Set ^OcuTalonTest("TelegramIncluded") = ..SavedIncluded
 	}
+	Set position = 0, refs = $ListFromString(..Refs)
+	While $ListNext(refs, position, ref) {
+		If ##class(OcuTalon.Bridge.Approval).IsRef(ref) Do ##class(OcuTalon.Core.SettingsOps).ForgetPerson(ref)
+	}
 	If ..Refs '= "" Do ##class(OcuTalon.Test.Data.Fixture).Clean(..Refs)
 	Quit $SYSTEM.Status.OK()
 }
@@ -599,7 +603,7 @@ Method TestUnlinkStandsWhenTheSideEffectsFail()
 /// unlinked through Unlink with one unlinked entry, reason session_end, on the channel of the origin, and no notice; the pairing event
 /// is published; the resume hash is "" afterwards; the answer is Ok 1, ended. A repeat answers ended again and changes nothing: no new
 /// entry, no new event. An origin with no audit channel makes the unlink fail, and the answer is failed and the resume hash is kept, so
-/// that the session stays resumable.
+/// that the session stays resumable; the later steps still run (the pending request is cancelled, the per-person settings forgotten).
 Method TestEndUnlinksWithoutNotice()
 {
 	Set probe = ..Probe()
@@ -630,11 +634,14 @@ Method TestEndUnlinksWithoutNotice()
 	Do ..SetResumeHash(second, "zzsessops"_..Number_"endfail")
 	Set request = ##class(OcuTalon.Test.Data.Fixture).Approval(second)
 	Set ..Refs = ..Refs_$Select(..Refs = "": "", 1: ",")_request
+	Set personaKey = ##class(OcuTalon.Core.SettingsOps).PersonaKey(second, "preset")
+	Do $$$AssertStatusOK(##class(OcuTalon.Data.Setting).Set(personaKey, "zzpirate"), "the session's persona key is written")
 	Set warnings = ..Logged("the chat could not be unlinked at the end of session "_second)
 	Set result = ..End(probe, "bogus", second)
 	Do $$$AssertEquals(result.Ok_"|"_result.Outcome, "0|failed", "an origin with no audit channel: Ok 0, failed")
 	Do $$$AssertEquals(##class(OcuTalon.Data.Pairing).Chat(chat2).SessionRef, second, "the chat stays, because the unlink was refused")
 	Do $$$AssertEquals(##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(request).State, "cancelled", "a later step still ran: the session's pending request is cancelled")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Setting).KeyIndexExists(personaKey), 0, "and the session's per-person settings are forgotten")
 	Do $$$AssertEquals(##class(OcuTalon.Data.Session).RefIndexOpen(second).ResumeHash, ##class(OcuTalon.Data.Session).Hash("zzsessops"_..Number_"endfail"), "the resume hash is kept: a failed End leaves the session resumable")
 	Do $$$AssertEquals(..Logged("the chat could not be unlinked at the end of session "_second), warnings + 1, "and one warning names the session")
 }

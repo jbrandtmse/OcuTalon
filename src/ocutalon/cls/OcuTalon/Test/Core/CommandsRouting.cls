@@ -9,6 +9,8 @@
 ///     sends nothing;
 ///   - TestToolGovernanceRefused: SetDemoMode, SetPersona, Pair, Unpair, EndSession and an IncidentCommand from tool send nothing;
 ///   - TestContextMeansTool: a bridge context makes the origin tool, whatever the command says;
+///   - TestPersonaVerbsInsideAContext: inside a context SetPersona that says web_user is refused and ProposePersona that says
+///     web_user is routed; outside it the origin rules apply;
 ///   - TestToolDismissOwnIncident: a tool dismisses only an incident that Ownership.Incident returns for its session;
 ///   - TestContextDismissSeesOwnIncidentOnly: the same limit holds for a Dismiss that says web_user while a context is active,
 ///     and a Dismiss whose SessionRef is not the context's OwnerRef is refused;
@@ -176,6 +178,45 @@ Method TestContextMeansTool()
 	Do $$$AssertEquals(output.Ok, 1, "SetDemoMode from web_admin is routed once the context has ended")
 	Do $$$AssertEquals(..Calls(), before + 1, "and it is sent")
 	Do $$$AssertEquals(..Call(before + 1, "target"), "SettingsOps", "to SettingsOps")
+}
+
+/// The persona verbs inside a bridge context (Story 40.2; AD-1): the context makes the origin tool whatever the command says, so a
+/// SetPersona that says web_user is refused as from the chat and nothing is sent, and a ProposePersona that says web_user (an origin
+/// that refuses it outside a context) is routed to SettingsOps. Once the context has ended, the same two commands are as the
+/// origin rules say: SetPersona from web_user is routed, ProposePersona from web_user is refused.
+Method TestPersonaVerbsInsideAContext()
+{
+	Set session = ..Session("personactx")
+	Set probe = ..NewProbe("ok")
+	Set request = ##class(OcuTalon.Bridge.Msg.Request).%New()
+	Set request.OwnerRef = session
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Context).Begin(request, "zzss"_..Number), "a context of the session begins")
+	Try {
+		Set command = ..NewCommand("SetPersona", "web_user", session, "zzkey"_..Number)
+		Set command.Preset = "pirate"
+		Do probe.OnProcessInput(command, .output)
+		Do $$$AssertEquals(output.Ok_"|"_output.Outcome, "0|not_allowed", "SetPersona that says web_user is refused inside a context")
+		Do $$$AssertEquals(output.Message, "That can't be done from the chat. Nothing was changed.", "as from the chat")
+		Do $$$AssertEquals(..Calls(), 0, "and nothing is sent")
+		Set command = ..NewCommand("ProposePersona", "web_user", session, "zzkey"_..Number)
+		Set command.Preset = "pirate"
+		Do probe.OnProcessInput(command, .output)
+		Do $$$AssertEquals(output.Ok, 1, "ProposePersona that says web_user is routed inside a context")
+		Do $$$AssertEquals(..Calls(), 1, "and sent once")
+		Do $$$AssertEquals(..Call(1, "target"), "SettingsOps", "to SettingsOps")
+	} Catch exception {
+		Do $$$AssertTrue(0, "a call inside a context threw: "_exception.DisplayString())
+	}
+	Do ##class(OcuTalon.Bridge.Context).End()
+	Set before = ..Calls()
+	Set command = ..NewCommand("SetPersona", "web_user", session, "zzkey"_..Number)
+	Do probe.OnProcessInput(command, .output)
+	Do $$$AssertEquals(output.Ok, 1, "SetPersona from web_user is routed once the context has ended")
+	Do $$$AssertEquals(..Calls(), before + 1, "and it is sent")
+	Set command = ..NewCommand("ProposePersona", "web_user", session, "zzkey"_..Number)
+	Do probe.OnProcessInput(command, .output)
+	Do $$$AssertEquals(output.Ok_"|"_output.Outcome, "0|not_allowed", "ProposePersona from web_user is refused once the context has ended")
+	Do $$$AssertEquals(..Calls(), before + 1, "and nothing more is sent")
 }
 
 /// A tool dismisses only an incident that the session can see: its own noticed incident, or on a local install an instance

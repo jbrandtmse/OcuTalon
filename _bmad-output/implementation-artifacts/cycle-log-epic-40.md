@@ -46,3 +46,10 @@
 2026-11-02T05:00:05Z	Epic 40	ledger_routed_planned	story=40-6-answer-a-proposed-persona-from-the-page-the-phone-or-telegra entries=1 excess=0 by=harvest ids=DW-570
 2026-11-02T05:00:05Z	Story 40.2	adr_verifications_complete	tool=none acs= result=none_required evidence= mutations=none model=claude-opus-5-5
 2026-11-02T05:00:05Z	Story 40.2	stage_spawned	stage=qa spawn_at=2026-11-02T05:00:05Z model=sonnet agent_name=40-2-save-your-persona-and-let-ocutalon-propose-one-qa-1 cycle_iteration=1
+2026-11-02T05:15:00Z	Story 40.2	qa_complete	spawn_at=2026-11-02T05:00:05Z model=sonnet tests_added=1 mutations_demonstrated=6 first_run_failures=0 clarifications=0 closing_sections_present=true cycle_iteration=1
+2026-11-02T05:15:00Z	Story 40.2	stage_spawned	stage=code-review spawn_at=2026-11-02T05:15:00Z model=opus agent_name=40-2-save-your-persona-and-let-ocutalon-propose-one-code-review-1 cycle_iteration=1
+2026-11-02T05:47:29Z	Story 40.2	cr_complete	spawn_at=2026-11-02T05:15:00Z model=opus resolved=7 fixed_at_source=7 by_design=0 wontfix_theoretical=1 routed=2 escalated=0 decision_pending=0 deferred=3 dismissed=8 high=0 med=3 low=7 rows=10 unresolved_high_med=0 clarifications=0 closing_sections_present=true review_tier=full-opus cycle_iteration=1
+2026-11-02T05:47:29Z	Epic 40	ledger_routed_planned	story=40-6-answer-a-proposed-persona-from-the-page-the-phone-or-telegra entries=1 excess=0 by=cr ids=DW-571
+2026-11-02T05:47:29Z	Story 40.2	ledger_adjudicated	owned=2 resolved=2 reowned=0 terminal=0 ids=DW-564,DW-565 model=claude-opus-5-5
+2026-11-02T05:47:29Z	Story 40.2	smoke_complete	method=cli result=pass iterations=1 defects_caught=0 evidence=slot-c_SettingsOps.Persona(no_session)=professional_defaults,customOffered=true;PersonaKey=person.zzS1.persona.preset;AuditForm_never_holds_custom_text;PERSONAPRESET_six_ids model=claude-opus-5-5
+2026-11-02T05:47:29Z	Story 40.2	fresh_check	env=recipe(warm_stack_started_fresh_e40s2fresh) tests=8 result=pass order=forward,reverse classes=Core.SettingsPersona,Core.CommandsRouting,Core.SessionOps,Core.CommandsInProduction,Core.SettingsOps,Core.SessionOpsProduction,Msg.Catalog,Msg.Contracts model=claude-opus-5-5

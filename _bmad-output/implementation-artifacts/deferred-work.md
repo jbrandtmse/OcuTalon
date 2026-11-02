@@ -2792,11 +2792,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-40-1-fix-the-persona-s-names-contracts-and-preset-texts.md | severity: med | fix-risk: med | footprint: in-epic
 - evidence: Test/Msg/Contracts.cls:85-92 asserts each Bridge.Msg.Enum value equals OcuTalon's; AD-33 puts OcuTalon.Bridge in Lane A; Bridge/Approval.cls:179 validates the kind against the bridge copy (Story 40.5)
 - 2026-11-02T02:29:01Z status=routed owner=40-2-save-your-persona-and-let-ocutalon-propose-one by=cr note=40.2's plan settles which story changes the bridge copy so both enums land in one merge without a cross-lane edit left unrecorded (escalate if it needs a lane exception)
+- 2026-11-02T05:40:54Z status=resolved-by:40-2-save-your-persona-and-let-ocutalon-propose-one by=adjudication note=both_APPROVALKIND_copies_list_setting_(Msg/Enum.cls,Bridge/Msg/Enum.cls)_commit_dc9af0d8;Test.Msg.Contracts_bridge_equals_check_green
 
 ### DW-565: The spine's Conventions table Enumerations row (line 1078) still lists ApprovalKind fix, tool_call and no PersonaPreset, against AD-11 as amended and the Epic 40 names sub-bullet; Test.Msg.Contracts says the enumerations equal that row
 - source: spec-40-1-fix-the-persona-s-names-contracts-and-preset-texts.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: ARCHITECTURE-SPINE.md:1078 'ApprovalKind `fix, tool_call`'; the 40.1 sub-bullet (line 948) now states the row gains both values
 - 2026-11-02T02:29:01Z status=routed owner=40-2-save-your-persona-and-let-ocutalon-propose-one by=cr note=40.2 creates PERSONAPRESET and setting in Msg.Enum and updates the Enumerations row in the same change
+- 2026-11-02T05:40:54Z status=resolved-by:40-2-save-your-persona-and-let-ocutalon-propose-one by=adjudication note=spine_Conventions_Enumerations_row_lists_ApprovalKind_setting_and_PersonaPreset_values_commit_dc9af0d8
 
 ### DW-566: AD-22's as-built line ('the 12 built-in tool names are defined once in OcuTalon.Tools.Names') and the Tools/Names.cls class comment (release-1 tools) predate PROPOSEPERSONA, a 13th parameter that is not a release-1 tool
 - source: spec-40-1-fix-the-persona-s-names-contracts-and-preset-texts.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -2812,3 +2814,14 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-40-2-save-your-persona-and-let-ocutalon-propose-one.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: Core/CommandsIn.cls Carry: owner check only for Dismiss; ProposePersona answers not_built today so nothing is reachable (AD-1: a tool proposes only for the session's own persona)
 - 2026-11-02T04:59:55Z status=routed owner=40-6-answer-a-proposed-persona-from-the-page-the-phone-or-telegra by=harvest note=40.6 makes ProposePersona raise a setting request; bind SessionRef to the context owner there (or in 40.5's tool) before it is reachable
+- 2026-11-02T05:38:55Z occurrence=40-2-save-your-persona-and-let-ocutalon-propose-one by=cr note=re-raised by three review layers; CommandsRouting.TestPersonaVerbsInsideAContext now begins its context with OwnerRef = the command's session, so the binding keeps it green; the fix adds a row for a ProposePersona whose SessionRef is not the context's OwnerRef (expected not_found, nothing sent)
+
+### DW-571: Web.Api AnswerResponse gives a not_allowed answer for an approval request of the new kind setting the tool-call approver text (its $Select knows only fix)
+- source: spec-40-2-save-your-persona-and-let-ocutalon-propose-one.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: Web/Api.cls:523 $Select(kind = "fix": MESSAGENOTAPPROVER, 1: MESSAGENOTAPPROVERTOOL); APPROVALKIND gains setting in 40.2; unreachable until a setting request can be answered on the page
+- 2026-11-02T05:38:56Z status=routed owner=40-6-answer-a-proposed-persona-from-the-page-the-phone-or-telegra by=cr note=fix-risk low: one $Select arm plus its text (from EXPERIENCE.md if it names one, else the plain approver sentence) and a 403 row in Test.Web.Api; Web/Api.cls is contended for 40.2, and 40.6 is the story that lets the page answer a setting request
+
+### DW-572: A SetPersona carried out after SessionOps.End's ForgetPerson for the same SessionRef recreates per-person keys of an ended session, which nothing deletes later
+- source: spec-40-2-save-your-persona-and-let-ocutalon-propose-one.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: SettingsOps.SavePersona checks only that the Session row exists; SessionOps.End deletes the person.<ref>. rows in another job; no lock between them
+- 2026-11-02T05:38:56Z status=wontfix-theoretical owner=40-2-save-your-persona-and-let-ocutalon-propose-one by=cr note=real if a save can still be submitted for a SessionRef after its sign-out: 40.8's PUT takes SessionRef from the signed-in CSP session (AD-4), which sign-out ends, so a save and a sign-out would have to race inside one page; the online-demo reset removes any leftover

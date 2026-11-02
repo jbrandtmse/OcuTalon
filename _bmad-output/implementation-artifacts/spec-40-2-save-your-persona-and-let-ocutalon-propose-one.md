@@ -126,6 +126,31 @@ Messages: S = "Saved. Applies from your next message. Recorded in the audit log.
 4. Given an online-demo session that signs out, or a new visitor, when `SessionOps.End` runs or a new session is created, then the ended session's `person.<SessionRef>.` keys are deleted, another session's keys stay, and the new session reads as Professional.
 5. Given a tell-now notice whose reason holds a greeting, an exclamation mark and emoji, when `Catalog.Render` renders it on `web`, `phone`, `mailbox` and `telegram` in `Test.Msg.Catalog`, then those come out unchanged, the frame is exact, only control characters and line breaks are cleaned; and the three persona keys render their EXPERIENCE.md texts exactly.
 
+### Review Findings
+
+Code review 2026-11-02 (stage code-review; layers blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor; 18 normalized findings: 7 patch, 3 defer, 8 rejected).
+
+- [x] [Review][Patch] (med, fix-risk low: one test row) End's per-person-settings step after an earlier failed step had no pinning test: a mutation running `EndSettings` only when nothing failed before it stayed green. `TestEndUnlinksWithoutNotice`'s bogus-origin row now writes a persona key and asserts it is gone [src/ocutalon/cls/OcuTalon/Test/Core/SessionOps.cls:637]
+- [x] [Review][Patch] (low, fix-risk low) `Test.Core.SessionOps` could leave `person.<ref>.` Setting rows behind when an End test failed (`Fixture.Clean` does not touch Setting rows): `OnAfterAllTests` now calls `SettingsOps.ForgetPerson` for every fixture Ref [src/ocutalon/cls/OcuTalon/Test/Core/SessionOps.cls:66]
+- [x] [Review][Patch] (low, fix-risk low) `SettingsPersona.TestPersonaRead` and `TestProposePlaceholder` set `onlineDemo` to 1 without a Try, so a throw would leave the later tests on the online demo: `OnBeforeOneTest` now clears the flag [src/ocutalon/cls/OcuTalon/Test/Core/SettingsPersona.cls:42]
+- [x] [Review][Patch] (low, fix-risk low) `TestPersonaVerbsInsideAContext` began an owner-less context, so it pinned the unbound behaviour DW-570 will remove: the context now has `OwnerRef` = the command's session [src/ocutalon/cls/OcuTalon/Test/Core/CommandsRouting.cls:192]
+- [x] [Review][Patch] (low, fix-risk low: comment) `CommandsIn`'s class and `Routes` comments named only "the persona verbs" while the refusal rule is "a settings verb whose origins include web_user or tool" [src/ocutalon/cls/OcuTalon/Core/CommandsIn.cls:9]
+- [x] [Review][Patch] (low, fix-risk low: comment) `SettingsOps`' class comment said it writes only ALLOWLIST and PERSONKEYS keys, but `ForgetPerson` deletes the whole `person.<ref>.` prefix [src/ocutalon/cls/OcuTalon/Core/SettingsOps.cls:2]
+- [x] [Review][Patch] (low, fix-risk low: comment) the `CHANNELS` comment did not name `web_user` [src/ocutalon/cls/OcuTalon/Core/SettingsOps.cls:49]
+- [x] [Review][Defer] (med) ProposePersona not bound to the context's OwnerRef [src/ocutalon/cls/OcuTalon/Core/CommandsIn.cls:76] — deferred: existing DW-570 (routed owner=40-6), occurrence appended; harmless while the verb answers not_built
+- [x] [Review][Defer] (med, fix-risk low) `Web.Api.AnswerResponse` would give a `setting` request's not_allowed answer the tool-call approver text [src/ocutalon/cls/OcuTalon/Web/Api.cls:523] — deferred: DW-571 routed owner=40-6 (contended file here; unreachable until 40.6 lets the page answer a setting request)
+- [x] [Review][Defer] (low) a SetPersona carried out after End's ForgetPerson for the same SessionRef would recreate an ended session's keys [src/ocutalon/cls/OcuTalon/Core/SettingsOps.cls:187] — deferred: DW-572 wontfix-theoretical (real only if a save can be submitted for a SessionRef after its sign-out; 40.8 takes it from the signed-in CSP session)
+
+Rejected:
+- `false` blind+edge: `Setting.Get`'s 60 s cache "breaks at midnight" because `$ZHorolog` wraps - measured on slot C: `$ZHorolog` = 835792 while `$Piece($Horolog, ",", 2)` = 19512; it counts seconds since the instance started, not since midnight.
+- `low` blind: DW-570's owner is named as 40.5 in the spec and 40.6 in the ledger - the ledger (40.6, with a note naming 40.5's tool) and epics.md's 40.6 bullet agree; the fix would edit the spec under review.
+- `low` blind: `Test.Bridge.CodeRules`' TOOLVERBS copy lacks ProposePersona - by-design: the Code Map keeps it unchanged until 40.5's tool exists and Consumed-by gives 40.5 the edit; the scan turns red on the first tool that names the verb.
+- `low` blind: the sign-out deletion writes no Settings audit entry - by-design: AD-19 states the sign-out deletion as its own rule apart from a person's audited change, and the matrix row "Sign-out" specifies it without an entry.
+- `low` blind+verification-gap: the Auto Run Result is stale after QA (counts, the moot `ci/units.sh` residual risk) - the fix edits the spec under review; `ci/units.sh` shards by area, so the class runs in lane-b.
+- `low` edge: `Bridge.Approval.Validate` accepts a fix-shaped `setting` request - by-design: the Code Map records it, no code raises kind `setting`, and 40.5's first AC adds the `setting` branch.
+- `low` edge: a language name with trailing or repeated spaces is accepted - by-design: the pattern is AD-19's `^\p{L}[\p{L} ()-]{0,39}$`.
+- `false` verification-gap: AC sub-clauses (Integration test, 60 s, pendingRef, new session, contracts) have no mutation line - every AC has at least one recorded mutation (Rule 19 is per AC); the same ruling as the implement-stage review.
+
 ## Spec Change Log
 
 ## Review Triage Log
@@ -219,6 +244,15 @@ mutation: `customOffered` hard-coded true -> `SettingsPersona.TestPersonaRead` r
 mutation: `EndSettings` dropped from `End` -> `SessionOps.TestEndForgetsPersona` red
 mutation: `Catalog.Clean` stripping `$Char(55296)`-`$Char(57343)` -> `Catalog.TestPersonaReasonSurvives` red (all four channels)
 mutation: `SessionOps.EndSettings` setting `failed` to 0 on an error status -> `SessionOps.TestEndKeepsTheSessionWhenSettingsCannotBeForgotten` red (the Ok 0 failed and kept resume hash assertions)
+mutation (QA): `CommandsIn.Carry` taking the origin from the command even inside a bridge context -> `CommandsRouting.TestPersonaVerbsInsideAContext` red (AC 1; the matrix row "Governance: inside a bridge context saying web_user", which had no pinning test)
+mutation (QA): `CommandsIn` refusal text `$Select(owner = "SettingsOps": MESSAGEADMINONLY ...` without the persona exception -> `CommandsRouting.TestOriginRules` red (13 persona pairs say the wrong refusal) (AC 1)
+mutation (QA): `SettingsOps.ForgetPerson` no longer killing this process's cache entries -> `SettingsPersona.TestForgetPerson` red (AC 4)
+mutation (QA): `SettingsOps.Persona` reading the preset with the cached `Setting.Get` instead of the row -> `SettingsPersona.TestPersonaRead` red (AC 3)
+mutation (QA): `SettingsOps.SavePersona` passing the unused custom value to validation and storage for a non-custom preset -> `SettingsPersona.TestUnusedFields` red (AC 2)
+mutation (QA): `persona.stale` text changed in `Catalog.Core` -> `Catalog.TestEveryKeyOnEveryChannel` red (all four channels and the JSON slots) (AC 5, the persona-text half)
+mutation (CR): `SessionOps.End` running `EndSettings` only when no earlier step failed (`If 'failed Set failed = ..EndSettings(sessionRef)`) -> `SessionOps.TestEndUnlinksWithoutNotice` red ("and the session's per-person settings are forgotten") (AC 4); applied, loaded to slot C, observed red, reverted with `git checkout --`, reloaded
+QA audit: each mutation above was applied to one file, loaded to slot C, observed red, then reverted with `git checkout -- <file>` and reloaded; `git status --short` afterwards lists only the QA test file below. Slot C after the QA changes: `CommandsRouting` 13/13, `SettingsPersona` 17/17.
+Test files changed (QA): `src/ocutalon/cls/OcuTalon/Test/Core/CommandsRouting.cls` (new `TestPersonaVerbsInsideAContext`, header bullet; the class was already in the default suite, `ci/iris.sh classes` lists it and `SettingsPersona`). No new test class.
 
 Shared surfaces: `Msg.Enum`'s parameter set and `APPROVALKIND` (`Test.Msg.Contracts.TestEnumerations`, `TestBridgeEnumerationsEqualOcuTalons`, `Test.Agent.Persona.TestPresets`); the bridge's `APPROVALKIND` (`Bridge.Approval.Validate`, `Bridge.Audit`); the verb list and `XData Contracts` (`Test.Msg.Contracts`); `CommandsIn`'s `Routes` table and `TOOLVERBS` (`Test.Core.CommandsRouting` counts 12 / 96, `Test.Core.CommandsInProduction` governance list; `Test.Bridge.CodeRules`' own copy unchanged); `Catalog.Core`'s key set (`Test.Msg.Catalog` Keys 98 and Fixtures; `web/scripts/catalog.mjs` output unchanged); `SettingsOps`' `CHANNELS` and writer code (`Test.Core.SettingsOps.TestOnlyRunTimeWriter`, `TestAuditAccepted`'s unknown origin `nowhere`); `SessionOps.End`'s steps (`Test.Core.SessionOps`, `Test.Core.SessionOpsProduction`); the spine's Enumerations row. Every test added or changed passes on a fresh environment, in either order.
 
