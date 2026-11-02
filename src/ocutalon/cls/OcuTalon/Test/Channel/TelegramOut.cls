@@ -24,6 +24,19 @@
 ///     one with a time and no finding, one with no entry, and CheckRows that are not a JSON array give the literal forms of the Boundaries;
 ///     checks.notEverything with a failed row names it with nothing after, and checks.everythingElsePassed gives its catalog text;
 ///   - TestOtherKinds: a Notification of kind status, digest or fallback sends nothing and records no row, where one of kind tellnow does;
+///   - TestButtons (Story 12.7; AC1): an incident notice and a later approval request with an ApprovalRef go as one sendMessage whose
+///     reply_markup holds the Approve and Reject buttons with callback data approve:<Ref> and reject:<Ref>; a 5,000-character request notice
+///     goes in parts of at most 3,840 units with the buttons on the last part only; the Delivery row records the Ref and the last part's
+///     text, the redacted text with no chat id, name or Telegram user name (a stored text that the redactor cannot check is "");
+///   - TestNoButtons: an incident with no ApprovalRef, and the kinds tellnow, result (also with a Ref), reminder and an Outbound, go with
+///     no reply_markup and a Delivery row with no text;
+///   - TestEditApproved, TestEditOnlineDemo (AC3): an answered notification edits the request's message in place: editMessageText with
+///     the chat, the message_id, the stored text, a blank line and the status, and no reply_markup; the row of the kind answered holds the
+///     same id and Ref and no text; on the online demo the status ends " ET.";
+///   - TestEditOnce: a second answered notification edits nothing (the first answer stays), and an answered notification for a request with
+///     no telegram row, or a row with no text, edits nothing and logs one warning;
+///   - TestRejectedFollowUp: a rejection from Telegram of a fix edits the message and then sends the follow-up as a new message, whose
+///     row is of the kind answered with no Ref; a rejection from the web chat, or one with no IncidentRef, only edits;
 ///   - TestNoChat: a ChatRef with no chat row, or none, sends nothing, logs one warning that names neither, and is OK. It first sends one
 ///     message of its own and waits for it, so that messages queued before the test have been handled before it counts.
 Class OcuTalon.Test.Channel.TelegramOut Extends OcuTalon.Test.Channel.LiveCase
@@ -587,6 +600,346 @@ Method TestOtherKinds()
 		Do $$$AssertEquals(..Rows(session), row, "and none records a row")
 	} Catch ex {
 		Do $$$AssertTrue(0, "the other-kinds test failed: "_..Safe(ex))
+	}
+	Do ..Cleanup()
+}
+
+/// The Ref of a new approval request (22 characters).
+ClassMethod NewRef() As %String [ Private ]
+{
+	Quit ##class(OcuTalon.Bridge.Ids).NewRef()
+}
+
+/// The telegram Delivery rows of the session, oldest first, as a list of Delivery objects.
+Method TelegramRows(session As %String) As %ListOfObjects [ Private ]
+{
+	Set found = ##class(%ListOfObjects).%New()
+	Set rows = ##class(OcuTalon.Test.Core.Observe).DeliveryRows(session)
+	For i = 1:1:rows.Count() {
+		If rows.GetAt(i).Channel = "telegram" Do found.Insert(rows.GetAt(i))
+	}
+	Quit found
+}
+
+/// An incident Notification for the session with the incident.withFix slots, the Ref of its request and the kind.
+ClassMethod Request(session As %String, approvalRef As %String, kind As %String = "incident", key As %String = "incident.withFix") As OcuTalon.Msg.Notification [ Private ]
+{
+	Quit ..Notification(session, kind, key, ..FixtureSlots(key), approvalRef)
+}
+
+/// An answered Notification for the request: the catalog key and slots, with the incident Ref when given.
+ClassMethod Answered(session As %String, approvalRef As %String, key As %String, slots As %DynamicObject, incidentRef As %String = "") As OcuTalon.Msg.Notification [ Private ]
+{
+	Quit ..Notification(session, "answered", key, slots, approvalRef, incidentRef)
+}
+
+/// AC1, U-218: the buttons go on the last part of a request notice, and its Delivery row keeps the Ref and the redacted last part.
+Method TestButtons()
+{
+	If '..ReadyLive() Quit
+	Try {
+		Set chatId = 8620
+		Set session = ..NewSessionRef()
+		Set ref = ..PairedChat(chatId, session)
+		Set result = ##class(%SQL.Statement).%ExecDirect(, "UPDATE OcuTalon_Data.Pairing SET DisplayName = ? WHERE Ref = ?", "Zqbuttonname", ref)
+		Do $$$AssertEquals(result.%SQLCODE, 0, "the fixture chat has a name")
+		Do $$$AssertStatusOK(..StartItems("TelegramOut"), "TelegramOut is enabled")
+		Set fixture = "OcuTalon.Test.Agent.RunnerFixture"
+		Set first = ..NewRef(), later = ..NewRef(), long = ..NewRef()
+
+		Set notice = ..Request(session, first)
+		Set expected = ##class(OcuTalon.Msg.Catalog).Render("incident.withFix", notice.Slots, "telegram")
+		Do $$$AssertStatusOK($ClassMethod(fixture, "Send", "TelegramOut", notice, .response), "(a) an incident notice with an ApprovalRef is sent")
+		Set calls = ..SentTo(chatId)
+		Do $$$AssertEquals(calls.%Size(), 1, "as one sendMessage")
+		Set id1 = ..LastId(chatId)
+		If calls.%Size() = 1 {
+			Do $$$AssertEquals(calls.%Get(0).params.text, expected, "with the catalog text")
+			Do $$$AssertEquals(calls.%Get(0).params."reply_markup".%ToJSON(), {"inline_keyboard": [[{"text": "Approve", "callback_data": ("approve:"_first)}, {"text": "Reject", "callback_data": ("reject:"_first)}]]}.%ToJSON(), "and exactly the Approve and Reject buttons, whose data is the action and the request's Ref")
+		}
+
+		Set notice = ..Request(session, later, "approval", "incident.laterRequest")
+		Set expectedLater = ##class(OcuTalon.Msg.Catalog).Render("incident.laterRequest", notice.Slots, "telegram")
+		Do $$$AssertStatusOK($ClassMethod(fixture, "Send", "TelegramOut", notice, .response), "(b) a later request of kind approval is sent")
+		Set calls = ..SentTo(chatId)
+		Do $$$AssertEquals(calls.%Size(), 2, "as one more sendMessage")
+		Set id2 = ..LastId(chatId)
+		If calls.%Size() = 2 Do $$$AssertEquals(calls.%Get(1).params."reply_markup".%ToJSON(), {"inline_keyboard": [[{"text": "Approve", "callback_data": ("approve:"_later)}, {"text": "Reject", "callback_data": ("reject:"_later)}]]}.%ToJSON(), "with its own buttons")
+
+		Set words = ""
+		While $Length(words) < 5000 {
+			Set words = words _ "word" _ $Length(words) _ " "
+		}
+		Set words = $Extract(words, 1, 4999) _ "x"
+		Set notice = ..Notification(session, "approval", "notice.tellNow", {"whatHappened": (words), "reason": "you asked to hear about disk space"}, long)
+		Set expectedLong = ##class(OcuTalon.Msg.Catalog).Render("notice.tellNow", notice.Slots, "telegram", .sc)
+		Do $$$AssertStatusOK(sc, "(c) the 5,000-character notice renders")
+		Do $$$AssertStatusOK($ClassMethod(fixture, "Send", "TelegramOut", notice, .response), "the 5,000-character request notice is sent")
+		Set all = ..SentTo(chatId)
+		Set parts = [], count = 0
+		For i = 2:1:all.%Size() - 1 {
+			Do parts.%Push(all.%Get(i))
+		}
+		Set count = parts.%Size()
+		Do $$$AssertTrue(count >= 2, "it goes in two parts or more")
+		Set joined = "", longest = 0, marked = 0, lastMarked = 0
+		For i = 0:1:count - 1 {
+			Set params = parts.%Get(i).params
+			Set joined = joined _ params.text
+			If $Length(params.text) > longest Set longest = $Length(params.text)
+			If params.%IsDefined("reply_markup") {
+				Set marked = marked + 1
+				If i = (count - 1) Set lastMarked = 1
+			}
+		}
+		Do $$$AssertTrue(longest <= 3840, "each part is 3,840 UTF-16 units or fewer")
+		Do $$$AssertEquals(joined, expectedLong, "and the parts together are the rendered text")
+		Do $$$AssertEquals(marked_"|"_lastMarked, "1|1", "only the last part has the buttons")
+		Set lastText = $Select(count: parts.%Get(count - 1).params.text, 1: "")
+
+		Set rows = ..TelegramRows(session)
+		Do $$$AssertEquals(rows.Count(), 3, "(d) three telegram Delivery rows, one for each notice")
+		If rows.Count() = 3 {
+			Do $$$AssertEquals(rows.GetAt(1).Kind_"|"_rows.GetAt(1).ApprovalRef_"|"_rows.GetAt(1).ChannelMessageId, "incident|"_first_"|"_ref_":"_id1, "the first row has the Ref and the message id")
+			Do $$$AssertEquals(rows.GetAt(2).Kind_"|"_rows.GetAt(2).ApprovalRef_"|"_rows.GetAt(2).ChannelMessageId, "approval|"_later_"|"_ref_":"_id2, "the second too, of kind approval")
+			Do $$$AssertEquals(rows.GetAt(3).ApprovalRef, long, "the third has the Ref of the long notice")
+			Do $$$AssertEquals(rows.GetAt(1).Text, ##class(OcuTalon.Bridge.Redact).Text(expected), "the first row's Text is the redacted text that was sent")
+			Do $$$AssertEquals(rows.GetAt(2).Text, ##class(OcuTalon.Bridge.Redact).Text(expectedLater), "the second row's too")
+			Do $$$AssertEquals(rows.GetAt(3).Text, ##class(OcuTalon.Bridge.Redact).Text(lastText), "the third row's Text is the redacted text of the last part only")
+			For i = 1:1:3 {
+				Set text = rows.GetAt(i).Text
+				Do $$$AssertTrue(text '= "", "row "_i_" has a stored text")
+				Do $$$AssertEquals(($Find(text, chatId) > 0)_"|"_($Find(text, "Zqbuttonname") > 0)_"|"_($Find(text, "Zqfrom") > 0)_"|"_($Find(text, "zqfromuser") > 0), "0|0|0|0", "row "_i_"'s text holds no chat id, no chat name and no Telegram user name")
+			}
+		}
+	} Catch ex {
+		Do $$$AssertTrue(0, "the buttons test failed: "_..Safe(ex))
+	}
+	Do ..Cleanup()
+}
+
+/// AC1: only a request notice with an ApprovalRef has buttons; the other notices keep a row with no text.
+Method TestNoButtons()
+{
+	If '..ReadyLive() Quit
+	Try {
+		Set chatId = 8621
+		Set session = ..NewSessionRef()
+		Set ref = ..PairedChat(chatId, session)
+		Do $$$AssertStatusOK(..StartItems("TelegramOut"), "TelegramOut is enabled")
+		Set fixture = "OcuTalon.Test.Agent.RunnerFixture"
+		Set requests(1) = ..Request(session, "")
+		Set requests(2) = ..TellNow(session, "zz Disk almost full")
+		Set requests(3) = ..Notification(session, "result", "result.allThrough", ..FixtureSlots("result.allThrough"), ..NewRef())
+		Set requests(4) = ..Notification(session, "reminder", "reminder.due", ..FixtureSlots("reminder.due"))
+		For n = 1:1:4 {
+			Do $$$AssertStatusOK($ClassMethod(fixture, "Send", "TelegramOut", requests(n), .response), "a "_requests(n).Kind_" notification is sent ("_requests(n).CatalogKey_$Select(requests(n).ApprovalRef = "": ", no Ref", 1: ", with a Ref")_")")
+		}
+		Do $$$AssertStatusOK($ClassMethod(fixture, "Send", "TelegramOut", ..Outbound(ref, "zz reply"), .response), "an Outbound is sent")
+		Set calls = ..SentTo(chatId)
+		Do $$$AssertEquals(calls.%Size(), 5, "five sendMessage calls")
+		Set marked = 0
+		Set iterator = calls.%GetIterator()
+		While iterator.%GetNext(, .call) {
+			If call.params.%IsDefined("reply_markup") Set marked = marked + 1
+		}
+		Do $$$AssertEquals(marked, 0, "none has a reply_markup")
+		Set rows = ..TelegramRows(session)
+		Do $$$AssertEquals(rows.Count(), 4, "the four notifications have a Delivery row")
+		Set texts = ""
+		For i = 1:1:rows.Count() Set texts = texts _ rows.GetAt(i).Text
+		Do $$$AssertEquals(texts, "", "and none keeps a text")
+	} Catch ex {
+		Do $$$AssertTrue(0, "the no-buttons test failed: "_..Safe(ex))
+	}
+	Do ..Cleanup()
+}
+
+/// Sends the request notice for the Ref and returns its message id ("" when the send failed).
+Method SendRequest(chatId As %String, session As %String, approvalRef As %String) As %String [ Private ]
+{
+	Set sc = $ClassMethod("OcuTalon.Test.Agent.RunnerFixture", "Send", "TelegramOut", ..Request(session, approvalRef), .response)
+	Do $$$AssertStatusOK(sc, "the request notice is sent")
+	Quit $Select($$$ISOK(sc): ..LastId(chatId), 1: "")
+}
+
+/// AC3: an answered notification edits the request's message in place.
+Method TestEditApproved()
+{
+	If '..ReadyLive() Quit
+	Try {
+		Set chatId = 8622
+		Set session = ..NewSessionRef()
+		Set ref = ..PairedChat(chatId, session)
+		Do $$$AssertStatusOK(..StartItems("TelegramOut"), "TelegramOut is enabled")
+		Set approval = ..NewRef()
+		Set messageId = ..SendRequest(chatId, session, approval)
+		Set sent = ..SentTo(chatId).%Get(0).params.text
+		Set time = ##class(OcuTalon.Data.Time).NowUtc()
+		Set status = "Approved from Telegram at "_..Shown(time)_"."
+		Do $$$AssertStatusOK(##class(OcuTalon.Test.Agent.RunnerFixture).Send("TelegramOut", ..Answered(session, approval, "answered.approved", {"channel": "telegram", "time": (time)}), .response), "an answered.approved notification is sent")
+		Set edits = ..EditsTo(chatId)
+		Do $$$AssertEquals(edits.%Size(), 1, "one editMessageText")
+		If edits.%Size() = 1 {
+			Set params = edits.%Get(0)
+			Do $$$AssertEquals(params."chat_id"_"|"_params."message_id"_"|"_params.%GetTypeOf("chat_id")_"|"_params.%GetTypeOf("message_id"), chatId_"|"_messageId_"|number|number", "of the message in its chat, with numeric ids")
+			Do $$$AssertEquals(params.text, sent_$Char(10, 10)_status, "the text is the notice, a blank line and the status")
+			Do $$$AssertEquals(params.%IsDefined("reply_markup"), 0, "with no reply_markup, which removes the buttons")
+		}
+		Do $$$AssertEquals(..SentTo(chatId).%Size(), 1, "and nothing else is sent")
+		Set rows = ..TelegramRows(session)
+		Do $$$AssertEquals(rows.Count(), 2, "the request's row and one more")
+		If rows.Count() = 2 {
+			Do $$$AssertEquals(rows.GetAt(2).Kind_"|"_rows.GetAt(2).ApprovalRef_"|"_rows.GetAt(2).ChannelMessageId, "answered|"_approval_"|"_ref_":"_messageId, "the new row is of kind answered, with the same id and Ref")
+			Do $$$AssertEquals(rows.GetAt(2).Text, "", "and keeps no text")
+		}
+	} Catch ex {
+		Do $$$AssertTrue(0, "the edit test failed: "_..Safe(ex))
+	}
+	Do ..Cleanup()
+}
+
+/// AC3: on the online demo the status ends with ET.
+Method TestEditOnlineDemo()
+{
+	If '..ReadyLive() Quit
+	Set settings = "OcuTalon.Data.Public.Settings"
+	Set savedDemo = $ClassMethod(settings, "Get", "onlineDemo")
+	Try {
+		Set chatId = 8623
+		Set session = ..NewSessionRef()
+		Set ref = ..PairedChat(chatId, session)
+		Do $$$AssertStatusOK(..StartItems("TelegramOut"), "TelegramOut is enabled")
+		Set approval = ..NewRef()
+		Do $ClassMethod(settings, "Set", "onlineDemo", 1)
+		Set messageId = ..SendRequest(chatId, session, approval)
+		Set sent = ..SentTo(chatId).%Get(0).params.text
+		Set time = ##class(OcuTalon.Data.Time).NowUtc()
+		Do $$$AssertStatusOK(##class(OcuTalon.Test.Agent.RunnerFixture).Send("TelegramOut", ..Answered(session, approval, "answered.approved", {"channel": "telegram", "time": (time)}), .response), "an answered.approved notification is sent")
+		Do $ClassMethod(settings, "Set", "onlineDemo", savedDemo)
+		Set edits = ..EditsTo(chatId)
+		Do $$$AssertEquals(edits.%Size(), 1, "one editMessageText")
+		If edits.%Size() = 1 Do $$$AssertEquals(edits.%Get(0).text, sent_$Char(10, 10)_"Approved from Telegram at "_##class(OcuTalon.Data.Time).ForMessage(time)_" ET.", "the status ends with ET")
+	} Catch ex {
+		Do $$$AssertTrue(0, "the online-demo edit test failed: "_..Safe(ex))
+	}
+	Do $ClassMethod(settings, "Set", "onlineDemo", savedDemo)
+	Do ..Cleanup()
+}
+
+/// AC3: the first answer stays; a request with nothing to edit logs one warning.
+Method TestEditOnce()
+{
+	If '..ReadyLive() Quit
+	Try {
+		Set chatId = 8624
+		Set session = ..NewSessionRef()
+		Set ref = ..PairedChat(chatId, session)
+		Do $$$AssertStatusOK(..StartItems("TelegramOut"), "TelegramOut is enabled")
+		Set fixture = "OcuTalon.Test.Agent.RunnerFixture"
+		Set approval = ..NewRef()
+		Set messageId = ..SendRequest(chatId, session, approval)
+		Set time = ##class(OcuTalon.Data.Time).NowUtc()
+		Do $$$AssertStatusOK($ClassMethod(fixture, "Send", "TelegramOut", ..Answered(session, approval, "answered.approved", {"channel": "telegram", "time": (time)}), .response), "the first answered notification is sent")
+		Do $$$AssertEquals(..EditsTo(chatId).%Size(), 1, "it edits the message")
+		Set log = $ClassMethod(fixture, "EventMark")
+		Do $$$AssertStatusOK($ClassMethod(fixture, "Send", "TelegramOut", ..Answered(session, approval, "answered.expired", {"time": (time)}), .response), "(a) a second answered notification for the Ref is sent")
+		Do $$$AssertEquals(..EditsTo(chatId).%Size(), 1, "it edits nothing: the first answer stays")
+		Do $$$AssertEquals(..Warned(log, "did not edit an answered request"), 0, "and logs no warning")
+		Do $$$AssertEquals(..TelegramRows(session).Count(), 2, "and records no row")
+
+		Set other = ..NewRef()
+		Set log = $ClassMethod(fixture, "EventMark")
+		Do $$$AssertStatusOK($ClassMethod(fixture, "Send", "TelegramOut", ..Answered(session, other, "answered.approved", {"channel": "telegram", "time": (time)}), .response), "(b) an answered notification for a Ref with no telegram row is sent")
+		Do $$$AssertEquals(..EditsTo(chatId).%Size(), 1, "it edits nothing")
+		Do $$$AssertEquals(..Warned(log, "did not edit an answered request"), 1, "with one warning")
+
+		Set bare = ..NewRef()
+		Do $$$AssertStatusOK(##class(OcuTalon.Data.Delivery).Record(session, "telegram", ref_":999", bare, "incident"), "(c) a telegram row with no stored text is recorded")
+		Set log = $ClassMethod(fixture, "EventMark")
+		Do $$$AssertStatusOK($ClassMethod(fixture, "Send", "TelegramOut", ..Answered(session, bare, "answered.approved", {"channel": "telegram", "time": (time)}), .response), "an answered notification for its Ref is sent")
+		Do $$$AssertEquals(..EditsTo(chatId).%Size(), 1, "it edits nothing")
+		Do $$$AssertEquals(..Warned(log, "did not edit an answered request"), 1, "with one warning")
+	} Catch ex {
+		Do $$$AssertTrue(0, "the edit-once test failed: "_..Safe(ex))
+	}
+	Do ..Cleanup()
+}
+
+/// AC2: a rejection from Telegram of a fix gets the follow-up; any other rejection only edits.
+Method TestRejectedFollowUp()
+{
+	If '..ReadyLive() Quit
+	Try {
+		Set session = ..NewSessionRef()
+		Set ref = ..PairedChat(8625, session)
+		Do $$$AssertStatusOK(..StartItems("TelegramOut"), "TelegramOut is enabled")
+		Set fixture = "OcuTalon.Test.Agent.RunnerFixture"
+		Set time = ##class(OcuTalon.Data.Time).NowUtc()
+		Set shown = ..Shown(time)
+		Set incident = ##class(OcuTalon.Bridge.Ids).NewRef()
+		Set cases = $ListBuild($ListBuild("telegram", incident, "Rejected from Telegram at "_shown_". Nothing was changed.", 1, "answered.rejected", ""), $ListBuild("web", incident, "Rejected from the web chat at "_shown_". Nothing was changed.", 0, "answered.rejected", ""), $ListBuild("telegram", "", "Rejected from Telegram at "_shown_". Nothing was changed.", 0, "answered.rejected", ""), $ListBuild("telegram", incident, "Rejected by sam from Telegram at "_shown_". Nothing was changed.", 1, "answered.rejectedBy", "sam"))
+		For n = 1:1:4 {
+			Set case = $List(cases, n)
+			Set approval = ..NewRef()
+			Set messageId = ..SendRequest(8625, session, approval)
+			Set sent = ..SentTo(8625).%Get(..SentTo(8625).%Size() - 1).params.text
+			Set before = ..SentTo(8625).%Size()
+			Set edits = ..EditsTo(8625).%Size()
+			Set slots = {"channel": ($List(case, 1)), "time": (time)}
+			If $List(case, 6) '= "" Do slots.%Set("user", $List(case, 6))
+			Do $$$AssertStatusOK($ClassMethod(fixture, "Send", "TelegramOut", ..Answered(session, approval, $List(case, 5), slots, $List(case, 2)), .response), "(case "_n_") a "_$List(case, 5)_" notification from "_$List(case, 1)_$Select($List(case, 2) = "": " with no incident", 1: "")_" is sent")
+			Set all = ..EditsTo(8625)
+			Do $$$AssertEquals(all.%Size(), edits + 1, "it edits the message once")
+			If all.%Size() = (edits + 1) Do $$$AssertEquals(all.%Get(edits).text, sent_$Char(10, 10)_$List(case, 3), "with the rejected status")
+			Set after = ..SentTo(8625)
+			Do $$$AssertEquals(after.%Size(), before + $List(case, 4), "and "_$Select($List(case, 4): "sends one new message", 1: "sends nothing"))
+			If $List(case, 4) && (after.%Size() = (before + 1)) Do $$$AssertEquals(after.%Get(before).params.text, "Fix rejected. Nothing was changed. The incident stays open on your OcuTalon page.", "the follow-up")
+		}
+		Set rows = ..TelegramRows(session)
+		Set followUps = 0, answered = 0
+		For i = 1:1:rows.Count() {
+			If (rows.GetAt(i).Kind = "answered") && (rows.GetAt(i).ApprovalRef = "") Set followUps = followUps + 1
+			If (rows.GetAt(i).Kind = "answered") && (rows.GetAt(i).ApprovalRef '= "") Set answered = answered + 1
+			If rows.GetAt(i).Kind = "answered" Do $$$AssertEquals(rows.GetAt(i).Text, "", "an answered row keeps no text")
+		}
+		Do $$$AssertEquals(followUps_"|"_answered, "2|4", "two follow-up rows with no Ref, and four answered rows with theirs")
+	} Catch ex {
+		Do $$$AssertTrue(0, "the follow-up test failed: "_..Safe(ex))
+	}
+	Do ..Cleanup()
+}
+
+/// AC3: a failed edit is one warning and records no row; a rejection from Telegram of a fix still gets the follow-up.
+Method TestEditFails()
+{
+	If '..ReadyLive() Quit
+	Try {
+		Set chatId = 8626
+		Set session = ..NewSessionRef()
+		Set ref = ..PairedChat(chatId, session)
+		Do $$$AssertStatusOK(..StartItems("TelegramOut"), "TelegramOut is enabled")
+		Set fixture = "OcuTalon.Test.Agent.RunnerFixture"
+		Set time = ##class(OcuTalon.Data.Time).NowUtc()
+		Set failed = {"status": 400, "body": {"ok": false, "error_code": 400, "description": "Bad Request: message to edit not found"}}
+		Set incident = ##class(OcuTalon.Bridge.Ids).NewRef()
+		For n = 1:1:2 {
+			Set approval = ..NewRef()
+			Set messageId = ..SendRequest(chatId, session, approval)
+			Set before = ..SentTo(chatId).%Size()
+			Set edits = ..EditsTo(chatId).%Size()
+			Set rowsBefore = ..TelegramRows(session).Count()
+			Do $$$AssertTrue(##class(OcuTalon.Test.Contract.Mock).Control("replies", {"method": "editMessageText", "replies": [(failed)]}), "(case "_n_") a 400 for the edit is queued")
+			Set log = $ClassMethod(fixture, "EventMark")
+			Set key = $Select(n = 1: "answered.approved", 1: "answered.rejected")
+			Do $$$AssertStatusOK($ClassMethod(fixture, "Send", "TelegramOut", ..Answered(session, approval, key, {"channel": "telegram", "time": (time)}, $Select(n = 1: "", 1: incident)), .response), "the "_key_" notification returns OK")
+			Do $$$AssertEquals(..EditsTo(chatId).%Size(), edits + 1, "the edit was tried once")
+			Do $$$AssertEquals(..Warned(log, "could not edit a message"), 1, "with one warning")
+			Do $$$AssertEquals(..SentTo(chatId).%Size(), before + (n = 2), $Select(n = 1: "and nothing is sent", 1: "and only the rejected follow-up is sent"))
+			Do $$$AssertEquals(..TelegramRows(session).Count(), rowsBefore + (n = 2), $Select(n = 1: "and no row is recorded", 1: "and only the follow-up's row is recorded"))
+		}
+	} Catch ex {
+		Do $$$AssertTrue(0, "the failed-edit test failed: "_..Safe(ex))
 	}
 	Do ..Cleanup()
 }

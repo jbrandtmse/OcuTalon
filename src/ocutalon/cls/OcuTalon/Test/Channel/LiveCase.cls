@@ -32,6 +32,11 @@ Include Ensemble
 ///     OnAfterAllTests, where an assertion records nothing) reports a failed ending in its own status.
 ///     NewSession, NewCode, Send, Handled, ChatRow, WaitLinked and PairChat, which pair a fixture chat through the real /start path, move
 ///     there with them. DropSessions also deletes the Turn, Delivery and SimMessage rows of the fixture sessions (zztg...).
+///   - ButtonPress (a callback_query update of a private chat), EditsTo (the editMessageText params for a chat), PressAnswers and WaitAnswers
+///     (the answerCallbackQuery params after a mark) and KeyboardTo (the newest reply_markup sent to a chat) are the public class methods
+///     for the approval tests (Story 12.7); OcuTalon.Test.Channel.TelegramPageFixture calls them. Notification and ToNotify (a Notification
+///     sent to Notify through a host service, under a trace) and FixtureSlots (the slots of a key's fixture in Test.Msg.Catalog) are shared by
+///     TelegramChat, TelegramOut and TelegramApproval.
 ///   - Items, Notifications and TextsAfter read what a pairing test checks: the Items that TelegramIn sent to Conversation after a header
 ///     mark (with the header's SessionId and SuperSession), the Notifications it sent to Notify, and the texts the mock got for a chat.
 ///   - The scans of the token search are public class methods too: HeaderMark and HeadersFrom (the message headers), RowsText (every text
@@ -574,6 +579,77 @@ ClassMethod PrivateMessage(chatId As %Integer, name As %String = "", text As %St
 	Quit {"message": {"message_id": 1, "from": {"id": (+chatId), "first_name": "Zqfrom", "username": "zqfromuser"}, "chat": (chat), "text": (text)}}
 }
 
+/// A callback_query update: the press of the button whose data is data, under the message of the chat id, from a private chat. The id is
+/// the press's own (Telegram's callback_query id); first_name is the chat's name when it is not empty, and then the update also has a from
+/// object whose names differ from it (TelegramIn reads the chat's name only).
+ClassMethod ButtonPress(chatId As %Integer, name As %String = "", messageId As %Integer = 1, data As %String = "", id As %String = "zzpress") As %DynamicObject
+{
+	Set chat = {"type": "private"}
+	Do chat.%Set("id", +chatId, "number")
+	If name '= "" Do chat.%Set("first_name", name)
+	Set message = {"chat": (chat)}
+	Do message.%Set("message_id", +messageId, "number")
+	Set query = {"id": (id), "data": (data), "message": (message)}
+	If name '= "" Do query.%Set("from", {"id": (+chatId), "first_name": "Zqfrom", "username": "zqfromuser"})
+	Quit {"callback_query": (query)}
+}
+
+/// The slots of a catalog key's fixture in OcuTalon.Test.Msg.Catalog (XData Fixtures), as a dynamic object; {} for a key with none.
+ClassMethod FixtureSlots(key As %String) As %DynamicObject
+{
+	Set definition = ##class(%Dictionary.XDataDefinition).%OpenId("OcuTalon.Test.Msg.Catalog||Fixtures")
+	If '$IsObject(definition) Quit {}
+	Set fixture = {}.%FromJSON(definition.Data).%Get(key)
+	Quit $Select($IsObject(fixture): fixture.slots, 1: {})
+}
+
+/// The params of every editMessageText to the chat id, in order, as a dynamic array.
+ClassMethod EditsTo(chatId As %Integer) As %DynamicArray
+{
+	Set found = []
+	Set iterator = ..CallsOf("editMessageText").%GetIterator()
+	While iterator.%GetNext(, .call) {
+		If call.params."chat_id" = chatId Do found.%Push(call.params)
+	}
+	Quit found
+}
+
+/// The params of the answerCallbackQuery calls after the first mark of them (the number of such calls when the mark was taken), in order.
+ClassMethod PressAnswers(mark As %Integer = 0) As %DynamicArray
+{
+	Set found = []
+	Set count = 0
+	Set iterator = ..CallsOf("answerCallbackQuery").%GetIterator()
+	While iterator.%GetNext(, .call) {
+		Set count = count + 1
+		If count > mark Do found.%Push(call.params)
+	}
+	Quit found
+}
+
+/// The answerCallbackQuery calls after the mark, once there are count of them or after seconds.
+ClassMethod WaitAnswers(mark As %Integer, count As %Integer, seconds As %Numeric = 20) As %DynamicArray
+{
+	Set deadline = $ZHorolog + seconds
+	For {
+		Set found = ..PressAnswers(mark)
+		If (found.%Size() >= count) || ($ZHorolog >= deadline) Quit
+		Hang 0.25
+	}
+	Quit found
+}
+
+/// The reply_markup of the newest sendMessage to the chat id that has one, as a dynamic object; "" when none has.
+ClassMethod KeyboardTo(chatId As %Integer) As %DynamicObject
+{
+	Set markup = ""
+	Set iterator = ..CallsOf("sendMessage").%GetIterator()
+	While iterator.%GetNext(, .call) {
+		If (call.params."chat_id" = chatId) && (call.params.%GetTypeOf("reply_markup") = "object") Set markup = call.params."reply_markup"
+	}
+	Quit markup
+}
+
 /// The text of every sendMessage to the chat id, in order, as a dynamic array.
 ClassMethod TextsTo(chatId As %Integer) As %DynamicArray
 {
@@ -747,6 +823,32 @@ Method PairChat(chatId As %String, name As %String, session As %String) As %Bool
 	Set linked = ..WaitLinked(chatId, session)
 	Do $$$AssertTrue(linked, "the chat "_chatId_" is paired with its session")
 	Quit linked
+}
+
+
+/// A Notification of the kind for the session: the catalog key, the slots (a dynamic object), the approval Ref and the incident Ref.
+ClassMethod Notification(session As %String, kind As %String, key As %String, slots As %DynamicObject, approvalRef As %String = "", incidentRef As %String = "") As OcuTalon.Msg.Notification [ Private ]
+{
+	Set notification = ##class(OcuTalon.Msg.Notification).%New()
+	Set notification.SessionRef = session
+	Set notification.Kind = kind
+	Set notification.CatalogKey = key
+	Set notification.Slots = slots.%ToJSON()
+	Set notification.ApprovalRef = approvalRef
+	Set notification.IncidentRef = incidentRef
+	Quit notification
+}
+
+/// Sends the Notification to Notify through a host service, under the session's TraceRef (the pattern of Test.Demo.SimPhoneOut.TestThroughNotify).
+Method ToNotify(notification As OcuTalon.Msg.Notification, trace As %String) As %Boolean [ Private ]
+{
+	Set sc = ##class(Ens.Director).CreateBusinessService("SimMailboxIn", .service)
+	If $$$ISOK(sc) {
+		Set service.%SuperSession = trace
+		Set sc = service.SendRequestAsync("Notify", notification)
+	}
+	Do $$$AssertStatusOK(sc, "the "_notification.CatalogKey_" Notification is sent to Notify")
+	Quit $$$ISOK(sc)
 }
 
 

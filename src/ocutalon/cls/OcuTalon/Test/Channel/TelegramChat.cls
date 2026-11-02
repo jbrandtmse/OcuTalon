@@ -25,7 +25,7 @@ Include Ensemble
 ///   - TestNotices: one notification at a time for every Watch incident and result key and six Core keys: the chat's text is the simulated
 ///     phone's (or the phone-channel rendering for the two allowance keys, which the phone does not get), each has its telegram Delivery row
 ///     with the kind, the approval Ref and <ChatRef>:<message_id>, and an answered notification, once TelegramOut has handled it, has sent
-///     nothing;
+///     no message but edited the incident.withFix message once and recorded one answered row;
 ///   - TestEmptyTurn: a paired chat's messages with no text (a sticker, a photo with a caption) and one of white space only make no Item to
 ///     Conversation, no Turn, no Notification and no text to the chat;
 ///   - TestNoIdentity: after a Telegram turn, a pairing and two notices, no header, body, agent step, event-log row or audit entry holds the
@@ -153,15 +153,16 @@ Method WaitTurn(itemId As %String, session As %String, state As %String, seconds
 	Quit turn
 }
 
-/// The position of the last sendMessage to the chat with this text among all the sendMessage calls: the message_id that the mock gave it.
-/// "" when there is none.
+/// The position of the last sendMessage to the chat with this text among all the sendMessage and editMessageText calls: the message_id that
+/// the mock gave it (the mock counts an edit's answer too). "" when there is none.
 Method IdOf(chatId As %String, text As %String) As %String [ Private ]
 {
 	Set id = "", count = 0
-	Set iterator = ..CallsOf("sendMessage").%GetIterator()
+	Set iterator = ##class(OcuTalon.Test.Contract.Mock).Calls().%GetIterator()
 	While iterator.%GetNext(, .call) {
+		If (call.method '= "sendMessage") && (call.method '= "editMessageText") Continue
 		Set count = count + 1
-		If (call.params."chat_id" = chatId) && (call.params.text = text) Set id = count
+		If (call.method = "sendMessage") && (call.params."chat_id" = chatId) && (call.params.text = text) Set id = count
 	}
 	Quit id
 }
@@ -224,30 +225,6 @@ Method OutboundIds(mark As %Integer, session As %String) As %List [ Private ]
 		If $IsObject(body) && (body.SessionRef = session) Set ids = ids _ $ListBuild(id)
 	}
 	Quit ids
-}
-
-/// A Notification of the kind for the session: the catalog key, the slots (a dynamic object) and the approval Ref.
-ClassMethod Notification(session As %String, kind As %String, key As %String, slots As %DynamicObject, approvalRef As %String = "") As OcuTalon.Msg.Notification [ Private ]
-{
-	Set notification = ##class(OcuTalon.Msg.Notification).%New()
-	Set notification.SessionRef = session
-	Set notification.Kind = kind
-	Set notification.CatalogKey = key
-	Set notification.Slots = slots.%ToJSON()
-	Set notification.ApprovalRef = approvalRef
-	Quit notification
-}
-
-/// Sends the Notification to Notify through a host service, under the session's TraceRef (the pattern of Test.Demo.SimPhoneOut.TestThroughNotify).
-Method ToNotify(notification As OcuTalon.Msg.Notification, trace As %String) As %Boolean [ Private ]
-{
-	Set sc = ##class(Ens.Director).CreateBusinessService("SimMailboxIn", .service)
-	If $$$ISOK(sc) {
-		Set service.%SuperSession = trace
-		Set sc = service.SendRequestAsync("Notify", notification)
-	}
-	Do $$$AssertStatusOK(sc, "the "_notification.CatalogKey_" Notification is sent to Notify")
-	Quit $$$ISOK(sc)
 }
 
 /// The JSON XData block of a class, as a dynamic object (Test.Msg.Catalog's Fixtures, or the Entries of a catalog class).
@@ -481,7 +458,7 @@ Method TestNotices()
 		}
 		Do $$$AssertEquals($ListLength(keys), 13, "there are 13 Watch notice keys")
 		For core = "notice.tellNow", "notice.tellNowFallback", "reminder.due", "reminder.late", "conversation.sessionAllowance", "conversation.dailyCap" Set keys = keys _ $ListBuild(core)
-		Set expectedRows = "", approvals = 0, position = 0, phones = 0
+		Set expectedRows = "", approvals = 0, position = 0, phones = 0, withFixRow = "", withFixText = ""
 		While $ListNext(keys, position, key) {
 			Set fixture = fixtures.%Get(key)
 			If '$IsObject(fixture) {
@@ -520,6 +497,7 @@ Method TestNotices()
 				If rows.Count() > phoneBefore Do $$$AssertEquals(text, rows.GetAt(1).Text, key_": the chat's text is the phone's")
 			}
 			If key = "incident.withFix" {
+				Set withFixRow = chatRef_":"_(before + 1), withFixText = text
 				Do $$$AssertTrue($Find(text, ##class(OcuTalon.Data.Time).ForMessage(fixture.slots.time)) && '$Find(text, fixture.slots.time), "incident.withFix shows its time in the instance zone, not as UTC")
 				Do $$$AssertTrue($Find(text, "Approve?"), "and asks Approve?")
 			}
@@ -530,11 +508,16 @@ Method TestNotices()
 
 		Set before = ..CallsOf("sendMessage").%Size()
 		Set answered = fixtures.%Get("answered.approved")
+		Do $$$AssertEquals(..EditsTo(chatId).%Size(), 0, "no message has been edited yet")
 		If ..ToNotify(..Notification(session, "answered", "answered.approved", answered.slots, "zzappr1"), trace) {
-			Do $$$AssertTrue(##class(OcuTalon.Test.Core.Observe).WaitProcessed(trace, "Notify", "TelegramOut", 19, 30), "TelegramOut has handled all 19 notifications, the answered one included")
+			Do $$$AssertTrue(##class(OcuTalon.Test.Core.Observe).WaitProcessed(trace, "Notify", "TelegramOut", 20, 30), "TelegramOut has handled all 19 notifications and the answered one")
 			Do $$$AssertEquals(..CallsOf("sendMessage").%Size(), before, "an answered Notification sends no sendMessage")
 		}
-		Do $$$AssertEquals(..Rows(session, "telegram", "pairing"), expectedRows, "and records no telegram row")
+		Set status = ##class(OcuTalon.Msg.Catalog).Render("answered.approved", answered.slots.%ToJSON(), "telegram")
+		Set edits = ..EditsTo(chatId)
+		Do $$$AssertEquals(edits.%Size(), 1, "but edits the message once")
+		If edits.%Size() = 1 Do $$$AssertEquals(edits.%Get(0).text, withFixText_$Char(10, 10)_status, "the incident.withFix message, with the status as its last line")
+		Do $$$AssertEquals(..Rows(session, "telegram", "pairing"), expectedRows_",answered|zzappr1|"_withFixRow, "and records one answered telegram row, with the message's id")
 		Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).RecentPhone(session, 100).Count(), phones, "the phone got none of the allowance notices")
 		Do $$$AssertTrue(..WaitRows(session, "web", "*", 19, 30) >= 19, "WebChatOut has handled all 19 notifications, so that nothing is left to write when the test ends")
 	} Catch ex {

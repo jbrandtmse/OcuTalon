@@ -1,6 +1,6 @@
 Include Ensemble
 
-/// TelegramIn, the inbound service of the Telegram channel (Stories 12.2 to 12.5; AD-14, AD-18, AD-19, AD-5). An Ens.InboundAdapter service whose
+/// TelegramIn, the inbound service of the Telegram channel (Stories 12.2 to 12.5 and 12.7; AD-14, AD-18, AD-19, AD-5). An Ens.InboundAdapter service whose
 /// CallInterval is 1 second in the production: each run makes at most one Bot API call, so a 5-second long poll follows the one before it.
 /// Included() is the switch that the Telegram installer step reads (AD-23); the step also writes the ApiBase row from
 /// OCUTALON_TELEGRAM_API_BASE at every start, and the SSL step makes the client SSL configuration that SSLConfig names.
@@ -19,7 +19,7 @@ Include Ensemble
 ///   - The chat's name is the update's chat.first_name (the from object is never read) and is kept only while the chat is paired
 ///     (DW-486, AD-4): a later update of a paired chat keeps the stored name when it has none of its own, and a chat that is not paired
 ///     is recorded with no name, so its next update clears a name that an unpair left on its row (SessionOps.Unlink keeps it, DW-520).
-///   - The command of a private message is its text up to the first white space (a button press has none and is not answered, Story 12.7).
+///   - The command of a private message is its text up to the first white space (a button press has none).
 ///     Each reply is one pairing Notification by the chat row's Ref, with a catalog key and no slots, sent to Notify; this class never
 ///     calls sendMessage (AD-1). The chat is recorded first, with the name rule above, and the command then runs with the row's Ref:
 ///       - pair: the text is "/start " and a code (Story 12.4). The code is hashed with Pairing.HashCode and Msg.Command.Pair
@@ -34,6 +34,15 @@ Include Ensemble
 ///         gets the slot (once a minute), is answered pairing.notPaired. A paired chat's text, when it is not empty once trimmed, is the
 ///         user's turn (Story 12.6, below); a paired chat's message with no text gets no turn and no reply.
 ///     A reply to a chat that is not paired has no SessionRef: such a chat reaches no session and no model.
+///   - A button press of a private chat (Story 12.7; AD-11, AD-32) is recorded like a message, and its data is split at the first ":" into
+///     the action and the request's Ref. AnswersIn.FromTelegram(Ref, action, the chat row's Ref) is called synchronously with the chat's
+///     Ref, never its id, and the press is then answered once with answerCallbackQuery {callback_query_id, text, show_alert}, the text
+///     being Catalog.Render for the channel telegram (the one render outside an *Out operation, AD-32) of the code it gave:
+///       - approved: press.approved, or no text when the answer has no count slot (a request with no dry run); rejected: press.rejected;
+///       - already_answered: answered.alreadyApproved, or answered.alreadyRejected when the winner rejected, and expired: answered.expired,
+///         both with show_alert, as are not_paired and not_visible (press.notPairedChat) and unknown (press.unavailable);
+///       - not_allowed, an error status of FromTelegram and a render error answer with no text and show_alert false, with one warning.
+///     A press makes no Turn, calls no model and sends no chat message, and a failed answerCallbackQuery is one warning.
 ///   - A turn takes the steps of WebChatIn.Accept (AD-20, AD-26, AD-30) for the session that the chat was paired with when its row was
 ///     read: the session's row must exist (else one warning and nothing sent); Allowance.TryConsume is asked with the channel telegram.
 ///     A refusal queues nothing and calls no model: with a retryAt, and on the first refusal of the window only, Notify gets the
@@ -113,6 +122,14 @@ Parameter LOGJOIN = "TelegramIn could not join the session's trace thread, so th
 Parameter LOGSTARTED = "TelegramIn could not record the session's trace thread, so the next turn starts another: ";
 
 Parameter LOGSEND = "TelegramIn could not send a paired chat's message to Conversation, and gave its allowance entry back: ";
+
+Parameter LOGPRESS = "TelegramIn could not hand a button press to the answer rule, so it answered the press with no text: ";
+
+Parameter LOGPRESSANSWER = "TelegramIn could not answer a button press: ";
+
+Parameter LOGPRESSTEXT = "TelegramIn could not render the answer to a button press, so it answered with no text: ";
+
+Parameter LOGNOTALLOWED = "TelegramIn's chat may not answer this kind of request, so the button press was answered with no text.";
 
 /// The item that takes every turn's Item.
 Parameter TARGET = "Conversation";
@@ -310,16 +327,18 @@ Method Handle(updates As %DynamicArray) [ Private ]
 }
 
 /// Only a message or a button press of a private chat is handled. The chat is recorded with the name that the Boundaries of Story 12.4
-/// give it; the command of a message then goes on to its branch (a button press has none).
+/// give it; the command of a message then goes on to its branch, and a button press is answered (Press).
 Method HandleUpdate(update As %DynamicObject) [ Private ]
 {
 	Set chat = ""
 	Set message = ""
+	Set query = ""
 	If update.%GetTypeOf("message") = "object" {
 		Set message = update.message
 		Set chat = message.chat
 	} ElseIf update.%GetTypeOf("callback_query") = "object" {
-		If update."callback_query".%GetTypeOf("message") = "object" Set chat = update."callback_query".message.chat
+		Set query = update."callback_query"
+		If query.%GetTypeOf("message") = "object" Set chat = query.message.chat
 	}
 	If '$IsObject(chat) || (chat.%GetTypeOf("type") '= "string") || (chat.type '= "private") Quit
 	Set command = ..Command(message, .payload)
@@ -340,7 +359,9 @@ Method HandleUpdate(update As %DynamicObject) [ Private ]
 		$$$LOGWARNING(..#LOGCHAT_##class(OcuTalon.Channel.Telegram.Api).Safe($SYSTEM.Status.GetErrorText(sc)))
 		Quit
 	}
-	If command = "pair" {
+	If $IsObject(query) {
+		Do ..Press(ref, query)
+	} ElseIf command = "pair" {
 		Do ..Pair(ref, chat.id, payload)
 	} ElseIf command = "start" {
 		Do ..Reply(ref, "pairing.start", "")
@@ -349,6 +370,89 @@ Method HandleUpdate(update As %DynamicObject) [ Private ]
 	} ElseIf command = "other" {
 		Do ..Other(ref, sessionRef, text)
 	}
+}
+
+/// The answer to a button press of a private chat (the Boundaries of Story 12.7): the press's data is split at the first ":" into the
+/// action and the request's Ref, FromTelegram answers the request for the chat row's Ref, and the press is answered once. A hand-over
+/// that fails, a code with no text to show and a text that cannot be rendered answer with no text and show_alert false.
+Method Press(chatRef As %String, query As %DynamicObject) [ Private ]
+{
+	Set data = $Select(query.%GetTypeOf("data") = "string": query.data, 1: "")
+	Set action = $Piece(data, ":", 1)
+	Set approvalRef = $Piece(data, ":", 2, *)
+	Set code = "unknown", slots = {}
+	Set sc = $$$OK
+	Try {
+		Set sc = ##class(OcuTalon.Core.AnswersIn).FromTelegram(approvalRef, action, chatRef, .code, .slots)
+	} Catch exception {
+		Set sc = exception.AsStatus()
+	}
+	Set text = "", alert = 0
+	If $SYSTEM.Status.IsError(sc) {
+		$$$LOGWARNING(..#LOGPRESS_##class(OcuTalon.Channel.Telegram.Api).Safe($SYSTEM.Status.GetErrorText(sc)))
+	} Else {
+		Set text = ..PressText(code, slots, .alert)
+	}
+	Set id = $Select((query.%GetTypeOf("id") = "string") || (query.%GetTypeOf("id") = "number"): query.id, 1: "")
+	If id = "" {
+		$$$LOGWARNING(..#LOGPRESSANSWER_"the press has no id.")
+		Quit
+	}
+	Set params = {}
+	Do params.%Set("callback_query_id", id, "string")
+	If text '= "" Do params.%Set("text", text, "string")
+	Do params.%Set("show_alert", alert, "boolean")
+	Set answer = ..Call("answerCallbackQuery", params, .httpStatus, .sc)
+	If $SYSTEM.Status.IsError(sc) {
+		$$$LOGWARNING(..#LOGPRESSANSWER_##class(OcuTalon.Channel.Telegram.Api).Safe($SYSTEM.Status.GetErrorText(sc)))
+	} ElseIf '((httpStatus = 200) && +answer.ok) {
+		$$$LOGWARNING(..#LOGPRESSANSWER_##class(OcuTalon.Channel.Telegram.Api).Failure("answerCallbackQuery", httpStatus, answer))
+	}
+}
+
+/// The text of the answer to a press, from the code and slots that FromTelegram gave; alert is 1 for a refusal, which stays until it is
+/// dismissed. "" (with alert 0) when the code shows no text: approved with no count, not_allowed (one warning) and a render error (one warning).
+Method PressText(code As %String, slots As %DynamicObject, Output alert As %Boolean) As %String [ Private ]
+{
+	Set alert = 0
+	Set key = ""
+	Set use = {}
+	If code = "approved" {
+		If slots.%GetTypeOf("count") '= "number" Quit ""
+		Set key = "press.approved", use = slots
+	} ElseIf code = "rejected" {
+		Set key = "press.rejected"
+	} ElseIf code = "already_answered" {
+		Set key = $Select(slots.action = "reject": "answered.alreadyRejected", 1: "answered.alreadyApproved")
+		Set use = {"channel": (slots.channel), "time": (slots.time)}
+		Set alert = 1
+	} ElseIf code = "expired" {
+		Set key = "answered.expired"
+		Set use = {"time": (slots.time)}
+		Set alert = 1
+	} ElseIf (code = "not_paired") || (code = "not_visible") {
+		Set key = "press.notPairedChat"
+		Set alert = 1
+	} ElseIf code = "not_allowed" {
+		$$$LOGWARNING(..#LOGNOTALLOWED)
+		Quit ""
+	} Else {
+		Set key = "press.unavailable"
+		Set alert = 1
+	}
+	Set text = ""
+	Set sc = $$$OK
+	Try {
+		Set text = ##class(OcuTalon.Msg.Catalog).Render(key, use.%ToJSON(), "telegram", .sc)
+	} Catch exception {
+		Set sc = exception.AsStatus()
+	}
+	If $SYSTEM.Status.IsError(sc) || (text = "") {
+		$$$LOGWARNING(..#LOGPRESSTEXT_##class(OcuTalon.Channel.Telegram.Api).Safe($SYSTEM.Status.GetErrorText(sc)))
+		Set alert = 0
+		Quit ""
+	}
+	Quit text
 }
 
 /// The command of a private message, by its text up to the first white space: "pair" for "/start " and a code (payload is the code, once

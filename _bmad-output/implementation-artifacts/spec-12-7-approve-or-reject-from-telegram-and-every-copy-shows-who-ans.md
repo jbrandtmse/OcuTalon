@@ -2,14 +2,22 @@
 title: 'Story 12.7: Approve or reject from Telegram, and every copy shows who answered'
 type: 'feature'
 created: '2026-11-02'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '56e7470f2e67b5e3cc58f1668c4822c1777fbbae'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md (read only AD-4, AD-11, AD-14, AD-16, AD-17, AD-22, AD-29, AD-32 and AD-33; for the gated Part C also AD-3 and AD-19)'
   - '{project-root}/_bmad-output/planning-artifacts/ux-designs/ux-OcuTalon-2026-10-16/EXPERIENCE.md (read only the Telegram table of the incident notice, lines 811-821, and line 468)'
 warnings: ['oversized', 'multiple-goals']
-deferred: []
+deferred:
+  - summary: >-
+      Lane B doc ask: the doc line of Data/Delivery.cls Text says it is empty for any other row, but a Telegram request message with buttons now keeps its redacted sent text.
+    evidence: |-
+      Story 12.7 stores the redacted last part's text in the Delivery row of a Telegram request message (U-218), so the edit in place can rebuild it. Every reader of Delivery.Text filters on channel web or reads only the row it wrote. DW-437 (the 90-day purge, Story 30.7, deferred after v1.0.0) should get the occurrence "Telegram request rows keep Text".
+    location: >-
+      src/ocutalon/cls/OcuTalon/Data/Delivery.cls:31
+    severity: low
 ---
 
 <intent-contract>
@@ -264,6 +272,45 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-11-02 - Review pass
+- verdicts: 31 findings - high 0, medium 5, low 18, false 8, maybe-false 0
+- findings:
+  - Blind Hunter
+    - `[medium]` `patch` A failed `editMessageText` drops the rejection follow-up (Design Notes item 8 says it is still sent) - `EditAnswered` quit before `FollowUp`; fixed: the follow-up is sent after a failed edit too, `TestEditFails` pins it.
+    - `[low]` `reject` Failure paths untested (failed edit, no-id press, failed `answerCallbackQuery`, `not_allowed`, render error, group press) - the failed edit and the no-id press are now tested (`TestEditFails`, `TestUnknown`); the rest need fault injection in `FromTelegram` or the catalog, a large harness for a path that only logs one warning.
+    - `[low]` `reject` Redaction of the stored text effectively untested, UNCHECKED silently disables the edit - the UNCHECKED-to-"" rule and its later warning are the U-218 contract; the chat-id-appended mutation is red; a text over the redactor's limit does not occur in a catalog-rendered notice.
+    - `[low]` `reject` Only the newest message of a request is edited (incident and approval notices sharing one Ref) - `DeliveryFor` returns one row per Ref by contract, and one notice carries the buttons of a Ref in practice; a stale button gets the "already answered" alert.
+    - `[low]` `reject` A failed `answered` row record lets a later `answered` edit again - needs a failing `Delivery.Record` after a successful edit; one warning is logged and the message was already edited once.
+    - `[false]` `reject` A failed hand-over to `FromTelegram` leaves the user no signal - the Boundaries' "No text" list names an error status from `FromTelegram` as an answer with no text and `show_alert` false plus one warning; that is the contract.
+    - `[low]` `reject` Negative assertions of `TestApprove` rely on `Hang 1` - the press is handled synchronously before its answer is read, so a Turn or message of that press cannot come later; a slow stack cannot fail the test.
+    - `[low]` `reject` Spec file inconsistent (Auto Run Result status, item numbering) - the Auto Run Result is written at finalize; the numbering is cosmetic.
+    - `[medium]` `patch` T8 never seen red (no mutation line) - T8 mutated three times through `live demo-path` (`Keyboard` not called, a 12 s hang in the edit, the audit fixture given a name the entry holds); all three red and recorded in `## Verification`. Its 240 s timeout covers its measured 25 s run.
+  - Edge Case Hunter
+    - `[low]` `reject` `RecordChat` error leaves a press unanswered - a database fault on the pairing row; the Boundaries say `RecordChat` runs first, unchanged, and a failure there skips the update with a warning for every kind.
+    - `[false]` `reject` A press with no message or from a non-private chat is not answered - the Boundaries count only presses from a private chat, and Task 9 says the group press still gets nothing.
+    - `[low]` `reject` Approved with a count but no `itemNoun` fails to render - `FromTelegram` gives both slots from the stored dry run (AD-16); a render error is the Boundaries' no-text case.
+    - `[false]` `reject` A render error of a refusal answers with no text and no alert - the Boundaries list "a render error" as no text and `show_alert` false.
+    - `[low]` `reject` An answer text over Telegram's 200-character limit - every key's text is under 100 characters, and the item noun is the product's own ("order").
+    - `[low]` `reject` A result row as the newest row gives a spurious warning - needs a repeated `answered` after the result; the edit is skipped either way, with one extra warning.
+    - `[low]` `reject` The edit can exceed 4,096 units - the stored text is at most 3,840 and the longest status is under 80 characters (Decided in-stage 2).
+    - `[medium]` `patch` The follow-up is lost when the edit fails - the same defect as the first Blind Hunter finding, one fix.
+    - `[false]` `reject` UNCHECKED text clears the stored text without its own warning - the Boundaries name this case: no edit later, with one warning, as a row with no stored text.
+    - `[false]` `reject` Claim "kept only when approvalRef is set" versus the markup gate - the two coincide: only `incident`/`approval` with an `ApprovalRef` get buttons, and only they keep text.
+    - `[low]` `reject` Claim "the status always fits" - the same as the edit-length finding above.
+    - `[false]` `reject` Claim "answered once" fails when `RecordChat` fails, the message is missing or the id is missing - the same cases as the findings above; each is a Boundaries case with a warning.
+  - Verification Gap Reviewer
+    - `[medium]` `patch` T8 has no mutation line - three T8 mutations run and recorded (see the T8 row above).
+    - `[low]` `patch` Several AC bullets and Matrix rows have no `mutation:` line (online demo ET, result as a new message, audit without identity, no dry run, the reject text) - each mutation applied, seen red and recorded; the audit one is in process and in the browser.
+    - `[medium]` `patch` The failed-edit path has no test - `TestEditFails` added (one warning, no row, nothing sent, and the follow-up of a rejection); mutation recorded.
+    - `[low]` `patch` The degraded press paths have no test - the no-id press is tested in `TestUnknown` (mutation recorded); the `FromTelegram` error and the render error need fault injection and are not tested (rejected as above).
+    - `[low]` `patch` `answered.rejectedBy` and the UNCHECKED fallback unpinned - `rejectedBy` is case 4 of `TestRejectedFollowUp` (mutation recorded); UNCHECKED needs a text over the redactor's limit (rejected as above).
+    - `[low]` `reject` The first-answer guard of `TestEditOnce` (a) is pinned only by its warning assertion - that assertion was seen red under the mutation, which is what the mutation line records.
+    - `[low]` `reject` Negative audit reads without settle time in `TestExpired` and `TestNotPairedChat` - `Approval.Answer` writes its audit entry before it returns, and the row state is asserted in the same test.
+    - `[low]` `reject` `TelegramOut.LastId` counts only `sendMessage` - a latent test-helper detail; no assertion uses the wrong id.
+    - `[false]` `reject` `TelegramMock.TestUpdateScenarios` not changed - the task said to update an assertion only if one assumed a private press makes no call; none does, and the class passes.
+  - Intent Alignment Auditor
+    - `[false]` `reject` The browser-level proof (T8) was not run - T8 ran in the demo-path unit (28 of 28, `STEP 5 approval: passed`) and three more times in the mutations above; the class-level tests are the in-process proofs the spec names.
+
 ## Design Notes
 
 **Governing ADs:**
@@ -375,6 +422,17 @@ Nothing else changes, and AD-3's allow-list is unchanged.
    - a warning for each of these except the first: the edit shows the status anyway, and step 6 owns `not_allowed`'s text.
 7. **The REL-2 spec raises its own incident** (Break the feed once more, after ending the one `07` left pending). A Telegram notice reaches only a chat paired before the incident is raised. It depends on step 2's watch, as `05` and `07` do: REL-2 is one journey on one stack by design (AD-29). It asserts the watch rather than assuming it.
 
+8. **A failed edit** is one warning (`LOGEDIT`, with `Api.Safe` of the status), the status stays OK, and no `answered` row is recorded; the follow-up of a rejection is still sent. A follow-up that fails to send is an error status like any `Send`.
+9. **A press with no `id`** gets no `answerCallbackQuery` (one `LOGPRESSANSWER` warning); the hand-over to `FromTelegram` still happens first.
+10. **`answered` rows and the follow-up row** are recorded through `Recorded` with `text` "" (the follow-up through `Deliver` with no markup).
+11. **`Send` signature:** `Send(chatId, text, .messageId, .sent, markup, limit, .lastText)`; the last part's text is returned so that `Deliver` can store it.
+12. **Readers of `Delivery.Text` (U-218 condition 3):** `Ownership.RecentNotices` filters `Channel = 'web'`, `Live.Payload.Notification` reads only rows that it is given from there, and `TelegramOut.EditAnswered` reads only the row `DeliveryFor` finds for its own Telegram message. No reader needed a change and none was left unfiltered.
+13. **An expired request** is moved to `expired` by `Approval.Answer` (its step 4) and writes an `expired` audit entry, so `TestExpired` asserts the row is `expired` with no answer fields and no `answered` audit entry (the Matrix's "row is unchanged and no audit entry" does not hold of Lane B's rule; `AnswersTelegramProduction.TestAlreadyAnsweredAndExpired` pins the same).
+14. **Shared helpers moved:** `Notification` and `ToNotify` moved from `TelegramChat` to `LiveCase` (Rule 2: `TelegramApproval` uses them too), with an optional `incidentRef`; `LiveCase.FixtureSlots` reads a key's slots from `Test.Msg.Catalog`'s Fixtures. `TelegramChat.IdOf` counts the mock's `editMessageText` answers too, since the mock numbers them with the sent messages and `TestNotices` now edits one.
+15. **Chat 84017734148** is added to `TelegramApproval`'s chats (`TestApproveNoDryRun`), inside the fixture range 140 to 149.
+16. **T8** carries its own copies of `fixture()` and `codeOf()` (about 20 lines): they are file-local in `telegram-page.spec.ts`, and a shared helper would sit in `web/e2e/support/` (contended). T8 points the runners' keys at the mock itself and puts them back (08 had), clears the way for an incident in state `open` or `awaiting_approval`, accepts the request's state `approved`, `executing` or `done` (the real fix is quick), and holds the 5 s bound for the page's checks (card, phone, rail) and 10 s for the IRIS reads of the press's answer and the edit, because an IRIS script takes about a second.
+17. **Review patches (pass 1):** `EditAnswered` sends a rejection's follow-up after a failed edit too (item 8's contract; `TestEditFails`); `TestRejectedFollowUp` covers `answered.rejectedBy`; `TestUnknown` covers a press with no id.
+
 **Extend, don't copy (Rule 2):**
 - **`EditAnswered`** mirrors `SimPhoneOut.EditAnswered` (Lane B, for another channel, with different storage): the same steps, with Telegram's API.
 - **`Post`** is `SendPart`'s 429 loop, extracted and shared, not copied.
@@ -478,7 +536,51 @@ From Stories 12.2-12.6: `TelegramIn`'s dispatch, `TelegramOut`'s `Send`/`Target`
 | AC4, late key | `already_answered` always renders `alreadyApproved` | `TestLate` (the rejected-winner case) |
 | AC5 | `telegram-approval.spec.ts` keeps `notBuilt` | `api-client-sources.test.mjs`; the demo-path summary |
 
+Mutations run by the implement stage (each applied to a warm `e12s7iw` stack, seen red, reverted byte for byte with `cmp`):
+- mutation: AC1 buttons: `Keyboard` not called -> `TestButtons` (invalid reply_markup), `TestEditApproved`, `TestEditOnce` red. T8 not mutated (a demo-path run takes 5.5 minutes); `Buttons` is what it polls.
+- mutation: AC1 the Ref: the approve data `approve:` + a counter -> `TestButtons` (both notices) and `TestEveryCopy` ("with the buttons") red. `TestApprove` builds its own `approve:<Ref>` data, so it is not what pins this.
+- mutation: AC1 last part: markup on every part -> `TestButtons` ("only the last part has the buttons") red.
+- mutation: AC1 kinds: buttons on `incident` with no `ApprovalRef` -> `TestNoButtons` red.
+- mutation: U-218 stored text: the chat id appended to the stored text -> `TestButtons` (equals `Redact.Text`, and no chat id) red. Dropping `Redact.Text` alone is not observable, because the redactor leaves these catalog texts as they are.
+- mutation: U-218 answered rows: the `answered` row stores the edited text -> `TestEditApproved` and `TestRejectedFollowUp` red.
+- mutation: AC2 hand-over: `Press` gets the chat id, not the `ChatRef` -> `TestApprove` (and `TestApproveNoDryRun`) red.
+- mutation: AC2 answer text: `press.rejected` rendered for `approved` -> `TestApprove` red.
+- mutation: AC2 follow-up: `FollowUp` never true -> `TestRejectedFollowUp` red.
+- mutation: AC2 5 s: `EditAnswered` hangs 6 s -> `TestEveryCopy` red (6.0 s). T8 not mutated.
+- mutation: AC3 edit: a `reply_markup` sent with the edit -> `TestEditApproved` red.
+- mutation: AC3 first stays: the `answered`-row check removed -> `TestEditOnce` (a) red ("and logs no warning").
+- mutation: AC4 alert: `show_alert` false for every refusal -> `TestLate`, `TestExpired`, `TestNotPairedChat`, `TestUnknown` red (8 failed assertions).
+- mutation: AC4 late key: `already_answered` always renders `alreadyApproved` -> `TestLate` (the rejected-winner press) red.
+- mutation: AC5: `telegram-approval.spec.ts` as at HEAD, with its `notBuilt` call -> `api-client-sources.test.mjs` red (1 failed of 15).
+- mutation: AC1 buttons in the browser: `Keyboard` not called (`markup` ""), run through `live demo-path` -> T8 red at the wait for the notice with buttons (`telegram-approval.spec.ts:144`).
+- mutation: AC2 5 s / AC3 edit time in the browser: `EditAnswered` hangs 12 s before `editMessageText` -> T8 red at the poll of the edit (`telegram-approval.spec.ts:177`, 10 s bound). The page's 5 s checks do not depend on the edit, so they are not what this pins.
+- mutation: AC5 no identity in the audit, in the browser: T8's `Audit` fixture called with the name `telegram` (which the entry holds) -> T8 red at the audit check (`telegram-approval.spec.ts:190`).
+- mutation: AC2 no identity in the audit, in process: `TestApprove` checks for the name `telegram`, which the entry holds, instead of the chat's name -> `TestApprove` red ("holds neither the chat id, nor the chat's name, nor its Ref").
+- mutation: AC3 online demo: `EditAnswered` removes " ET" from the status -> `TestEditOnlineDemo` red ("the status ends with ET").
+- mutation: AC3 result is a new message: `OnNotification` sends `result` through `EditAnswered` -> `TestEveryCopy` red ("the result is one new chat message").
+- mutation: AC2 follow-up after a failed edit and the failed-edit contract: the follow-up not sent after a failed edit -> `TestEditFails` red (the follow-up and its row).
+- mutation: AC2 `answered.rejectedBy`: removed from `REJECTEDKEYS` -> `TestRejectedFollowUp` red (case 4).
+- mutation: press with no id: the `id = ""` guard removed -> `TestUnknown` red (an answer with an empty `callback_query_id`).
+- mutation: Matrix "No dry run": `PressText` answers "Approved." for an approve with no count -> `TestApproveNoDryRun` red.
+- mutation: AC2 reject text, the other direction: `press.approved` rendered for `rejected` -> `TestReject` red.
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary:** Telegram request notices now carry Approve and Reject buttons, a button press answers the request through `AnswersIn.FromTelegram` and is answered with an alert or toast from the catalog, an `answered` notification edits the request's message in place (buttons removed, status as the last line), and a Telegram rejection of a fix gets the follow-up. REL-2 step 5's Telegram part (T8) runs with no skip against the CI mock.
+
+**Files changed:**
+- `src/ocutalon/cls/OcuTalon/Channel/Telegram/Out.cls`: buttons (last part, 3,840 split), redacted stored text, `EditAnswered`, follow-up, shared `Post` with the 429 retry.
+- `src/ocutalon/cls/OcuTalon/Channel/Telegram/In.cls`: `Press` and `PressText` (the press branch and `answerCallbackQuery`).
+- `src/ocutalon/cls/OcuTalon/Msg/Catalog/Watch.cls`: `button.approve`, `button.reject`.
+- `src/ocutalon/cls/OcuTalon/Test/Msg/Catalog.cls`: the four ruled count edits.
+- `src/ocutalon/cls/OcuTalon/Test/Channel/TelegramApproval.cls` (new), `TelegramOut.cls`, `TelegramChat.cls`, `TelegramIn.cls`, `LiveCase.cls`, `TelegramPageFixture.cls`: tests and helpers.
+- `web/e2e/demo-path/telegram-approval.spec.ts`: T8 replaces `notBuilt`; `web/scripts/api-client-sources.test.mjs`: the pin flip.
+
+**Review:** 31 findings (medium 5, low 18, false 8). Patches applied: the rejection follow-up after a failed edit (`EditAnswered`), `TestEditFails`, `answered.rejectedBy` and the no-id press in the tests, and 11 new `mutation:` lines including three T8 mutations run through `live demo-path`. Deferred: none. Rejected (with reasons in the Review Triage Log): the tests that need fault injection, the redactor UNCHECKED case, and findings the Boundaries settle. Patched medium entries: 3 (follow-up, failed-edit test, T8 mutations), so a follow-up review is recommended.
+
+**Verification:** `npm --prefix web test` 1,242 passed and lint clean; the warm classes `TelegramApproval`, `TelegramOut`, `TelegramChat`, `TelegramIn`, `TelegramMock`, `TelegramPair`, `AnswersTelegramProduction` and `Msg.Catalog` passed; `live demo-path` passed (T8 25-30 s, `STEP 5 approval: passed`; the first run died of the 302 s deadline with no failed test and passed with `OCUTALON_LIVE_DEADLINE=900`); the `lane-a@Channel` shard passed in both parts, forward and reversed; fresh `Msg.Catalog`, `test-mock`, `test-ci-config`, `test-boundaries` and `ci/checks.sh` passed; the protected-paths status printed nothing; all stacks are torn down. `ci/changes.sh` reports "everything runs" for lack of a push event. Measured: `TelegramApproval` 47 s, T8 25-30 s.
+
+**Residual risks:** the Matrix row for an expired press says "row unchanged, no audit entry", but Lane B's `Approval.Answer` moves the row to `expired` with an `expired` audit entry (Decided in-stage 13); the `iris (browser)` minutes were not measured; DW-437 needs the occurrence "Telegram request rows keep `Text`" (lead to append); `Data/Delivery.cls` `Text` doc line still says "empty for any other row" (Lane B doc ask).

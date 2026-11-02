@@ -29,6 +29,12 @@
 ///     "/start <code>" from the chat, so that the chat pairs with a session of its own and leaves the session the page shows. Finish also
 ///     removes the fixture sessions (LiveCase.DropSessions) after it has dropped the Pairing rows, which removes the move's code row.
 ///     Every new method returns "" or a reason that holds no token.
+///   - Story 12.7 (FR-8, FR-20, AD-4, AD-32): Press(chatId, name, data, queuedAt) waits for an open long poll and queues one callback_query
+///     update for the newest message with buttons that the chat got, as Send does; Buttons lists the callback data of the newest keyboard
+///     sent to a chat as a JSON array, Edits the text of every editMessageText to a chat as a JSON array, and PressAnswers the answers of
+///     every press as a JSON array of {"text", "show_alert"}; Audit reads the Approval audit entry that answered a request and gives
+///     {"channel", "holdsChatId", "holdsName"}, the last two as 0 or 1, so that the spec can check that the entry names the channel and
+///     holds neither the chat id nor the chat's name.
 Class OcuTalon.Test.Channel.TelegramPageFixture Extends %RegisteredObject
 {
 
@@ -383,6 +389,112 @@ ClassMethod Replies(chatId As %String, Output texts As %String) As %String
 		Return "Replies failed: "_..Safe(ex)
 	}
 	Quit ""
+}
+
+/// Waits for an open long poll, then queues one callback_query update from the private chat: the press of the button whose data is data
+/// under the newest message with buttons that the chat got (message id 1 when it got none), with the name as the chat's first_name unless
+/// it is empty. queuedAt is Now() taken just before the update is queued. Returns "" when it was queued, or the reason it was not.
+ClassMethod Press(chatId As %String, name As %String, data As %String, Output queuedAt As %Integer) As %String
+{
+	Set queuedAt = 0
+	Try {
+		If $ClassMethod(..#CASE, "WaitCalls", "getUpdates", 1, ..#WAITPOLL).%Size() < 1 Return "no long poll is open within "_..#WAITPOLL_" s"
+		Set messageId = 0, newest = 1
+		Set all = ##class(OcuTalon.Test.Contract.Mock).Calls().%GetIterator()
+		While all.%GetNext(, .call) {
+			If (call.method '= "sendMessage") && (call.method '= "editMessageText") Continue
+			Set messageId = messageId + 1
+			If (call.method = "sendMessage") && (call.params."chat_id" = chatId) && (call.params.%GetTypeOf("reply_markup") = "object") Set newest = messageId
+		}
+		Set update = $ClassMethod(..#CASE, "ButtonPress", chatId, name, newest, data, "zzpage"_$Increment(^OcuTalonTest("TelegramLive", "press")))
+		Set batch = []
+		Do batch.%Push(update)
+		Set queuedAt = ..Now()
+		If '##class(OcuTalon.Test.Contract.Mock).Control("updates", batch) Return "the mock did not accept the update"
+	} Catch ex {
+		Return "Press failed: "_..Safe(ex)
+	}
+	Quit ""
+}
+
+/// The callback data of the buttons of the newest keyboard that the chat got, as a JSON array in data ("[]" when it got none). Returns ""
+/// or the reason it could not be read.
+ClassMethod Buttons(chatId As %String, Output data As %String) As %String
+{
+	Set data = "[]"
+	Try {
+		Set keyboard = $ClassMethod(..#CASE, "KeyboardTo", chatId)
+		Set found = []
+		If $IsObject(keyboard) && (keyboard.%GetTypeOf("inline_keyboard") = "array") {
+			Set rows = keyboard."inline_keyboard".%GetIterator()
+			While rows.%GetNext(, .row) {
+				Set buttons = row.%GetIterator()
+				While buttons.%GetNext(, .button) {
+					Do found.%Push(button."callback_data")
+				}
+			}
+		}
+		Set data = found.%ToJSON()
+	} Catch ex {
+		Return "Buttons failed: "_..Safe(ex)
+	}
+	Quit ""
+}
+
+/// The text of every editMessageText to the chat, in order, as a JSON array in texts. Returns "" or the reason it could not be read.
+ClassMethod Edits(chatId As %String, Output texts As %String) As %String
+{
+	Set texts = "[]"
+	Try {
+		Set found = []
+		Set iterator = $ClassMethod(..#CASE, "EditsTo", chatId).%GetIterator()
+		While iterator.%GetNext(, .params) {
+			Do found.%Push(params.text)
+		}
+		Set texts = found.%ToJSON()
+	} Catch ex {
+		Return "Edits failed: "_..Safe(ex)
+	}
+	Quit ""
+}
+
+/// The answer of every press (answerCallbackQuery), in order, as a JSON array of {"text", "show_alert"} in answers ("text" is "" for an
+/// answer with none). Returns "" or the reason it could not be read.
+ClassMethod PressAnswers(Output answers As %String) As %String
+{
+	Set answers = "[]"
+	Try {
+		Set found = []
+		Set iterator = $ClassMethod(..#CASE, "PressAnswers", 0).%GetIterator()
+		While iterator.%GetNext(, .params) {
+			Do found.%Push({"text": ($Select(params.%GetTypeOf("text") = "string": params.text, 1: "")), "show_alert": (+params."show_alert")})
+		}
+		Set answers = found.%ToJSON()
+	} Catch ex {
+		Return "PressAnswers failed: "_..Safe(ex)
+	}
+	Quit ""
+}
+
+/// The Approval audit entry that answered the request, as {"channel", "holdsChatId", "holdsName"} in found: the channel it names, and 1 or
+/// 0 for whether its data or description holds the chat id or the chat's name. Returns "" or the reason: no such entry, or the audit log
+/// could not be read.
+ClassMethod Audit(ref As %String, chatId As %String, name As %String, Output found As %String) As %String
+{
+	Set found = "{}"
+	Try {
+		Set entries = ##class(OcuTalon.Test.Bridge.AuditLog).Entries("2000-01-01 00:00:00", "OcuTalon", "Approval", "Approval", ref)
+		Set iterator = entries.%GetIterator()
+		While iterator.%GetNext(, .entry) {
+			If '$IsObject(entry.data) || (entry.data.change '= "answered") Continue
+			Set text = entry.data.%ToJSON()_entry.description
+			Set found = {"channel": (entry.data.channel), "holdsChatId": (''$Find(text, chatId)), "holdsName": (''$Select(name = "": 0, 1: $Find(text, name)))}.%ToJSON()
+			Return ""
+		}
+	} Catch ex {
+		Return "Audit failed: "_..Safe(ex)
+	}
+	Quit "no Approval audit entry of an answer names the request"
 }
 
 /// The Bot API token of this stack (the CI dummy), read from the environment (AD-19). For the spec's search of the page only.

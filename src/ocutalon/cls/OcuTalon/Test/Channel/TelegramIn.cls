@@ -13,7 +13,8 @@ Include Ensemble
 ///   - TestAlreadyHandled: an update below the kept offset is skipped and the offset stays;
 ///   - TestPrivateOnly (FR-19; Story 12.5): only the private message and the private press make a chat row, with no session and no name;
 ///     the message makes exactly one pairing.notPaired Notification from TelegramIn to Notify (by the row's Ref, with no session) and the
-///     press none; with the seam 0 nothing is sent, and no audit entry is written;
+///     press none; the private press (Story 12.7) is answered with one answerCallbackQuery, the alert press.unavailable, and the group
+///     press with none; with the seam 0 nothing is sent, and no audit entry is written;
 ///   - TestRejected (FR-21): a 401 for getMe records rejected with no name, makes no other call (also past the retry time of a
 ///     failure), logs it without the token, and the state stays rejected after a stop;
 ///   - TestRejectedWhilePolling: a 404 for getUpdates once the item polls is a rejection too: the state becomes rejected, no poll
@@ -192,6 +193,9 @@ Method TestPrivateOnly()
 			Do $$$AssertEquals(result.%GetData(1)_"|"_result.%GetData(2), "|", "the row of "_id_" holds no session and no name")
 		}
 		Do $$$AssertEquals(..CallsOf("sendMessage").%Size(), 0, "no reply is sent (the seam is 0, so Notify routes nothing)")
+		Set answers = ..PressAnswers(0)
+		Do $$$AssertEquals(answers.%Size(), 1, "the private press gets one answerCallbackQuery and the group press none")
+		If answers.%Size() = 1 Do $$$AssertEquals(answers.%Get(0).%ToJSON(), {"callback_query_id": "zz2", "text": "That request is no longer available.", "show_alert": true}.%ToJSON(), "an alert that the request is no longer available, since the press names none")
 		Do $$$AssertEquals(..HeadersFrom(headers, "TelegramIn"), 1, "TelegramIn sends exactly one message, for the private message and not for the press")
 		Set notice = ##class(%SQL.Statement).%ExecDirect(, "SELECT MessageBodyId FROM Ens.MessageHeader WHERE ID > ? AND SourceConfigName = 'TelegramIn' AND TargetConfigName = 'Notify' AND MessageBodyClassName = 'OcuTalon.Msg.Notification'", headers)
 		Set found = notice.%Next()

@@ -1,12 +1,13 @@
-/// TelegramOut, the outbound operation of the Telegram channel (Stories 12.2 and 12.6; AD-14, AD-19, AD-28, AD-32, UX-DR108, UX-DR136). It
+/// TelegramOut, the outbound operation of the Telegram channel (Stories 12.2, 12.6 and 12.7; AD-14, AD-19, AD-28, AD-32, UX-DR108, UX-DR136). It
 /// sends the text of an OcuTalon.Msg.Outbound or an OcuTalon.Msg.Notification to a chat through OcuTalon.Channel.Telegram.Api:
 ///   - the chat is the Pairing chat row of the message's ChatRef when it has one (every pairing notice), else the session's live pairing
 ///     (Ownership.Pairing of the SessionRef). An owner that is not a session is dropped with one warning. No chat sends nothing: one
 ///     warning that names neither a Ref nor an id, and the status is OK;
 ///   - an Outbound's text is its Text, else the catalog rendering of its CatalogKey for the channel telegram. When it has a CheckKey
 ///     whose sentence is not "", the text is followed by a blank line and the sentence (below). A Notification of the kinds tellnow,
-///     incident, approval, result, reminder, allowance and pairing is sent as the rendering of its CatalogKey; any other kind (answered,
-///     status, digest, fallback) sends nothing and records no row. A render error is returned and nothing is sent;
+///     incident, approval, result, reminder, allowance and pairing is sent as the rendering of its CatalogKey; the kind answered is the
+///     edit in place (below); any other kind (status, digest, fallback) sends nothing and records no row. A render error is returned
+///     and nothing is sent;
 ///   - the check sentence mirrors web/src/app/shared/check-sentence.ts (AD-28): checks.allPassed, checks.everythingElsePassed and
 ///     checks.nothingWatched give the catalog text, and checks.notEverything and checks.notEverythingRestPassed are rendered with
 ///     whatFailed, built from the CheckRows (result, entry, finding, checkedAt): every row that did not pass and has an entry, the failed
@@ -21,9 +22,24 @@
 ///     parts already sent stay sent;
 ///   - a message with a SessionRef, once every part is sent, records one Delivery row of channel telegram (Delivery.Record) whose
 ///     message id is "<ChatRef>:<message_id of the last part>" (just "<ChatRef>:" when that answer had no message_id). A message with
-///     no SessionRef records none. A failed Record is one warning and the status stays OK, because the message is never sent again.
-/// Buttons and the edit in place of an answered request come with Story 12.7. The token is never held here (AD-19), and no log text holds
-/// a chat id, a name or a message text.
+///     no SessionRef records none. A failed Record is one warning and the status stays OK, because the message is never sent again;
+///   - buttons (AD-32): a Notification of the kind incident or approval whose ApprovalRef is not "" is sent with the inline buttons
+///     "Approve" and "Reject" (the catalog keys button.approve and button.reject) in the reply_markup of its last part only, whose
+///     callback data is "approve:<ApprovalRef>" and "reject:<ApprovalRef>". Such a message is split at BUTTONLIMIT units, so that the
+///     status of an edit always fits. A label that cannot be rendered is an error and nothing is sent. Its Delivery row also records
+///     the ApprovalRef and the last part's text, which the edit needs: OcuTalon.Bridge.Redact.Text of it, or "" when the redactor
+///     returns UNCHECKED. The text holds no chat id and no name, because a notice is rendered from the catalog and the notification's
+///     slots. A row with no ApprovalRef and every row of kind answered keep the text "";
+///   - the edit in place: a Notification of the kind answered finds the session's newest telegram Delivery row of its ApprovalRef
+///     (Ownership.DeliveryFor). With no row, or a row with no stored text or no message id, nothing is sent and there is one warning.
+///     When that row is of the kind answered, nothing is sent: the first answer stays. Otherwise editMessageText replaces the message
+///     in its own chat with the stored text, a blank line and the rendering of the notification's CatalogKey, and sends no
+///     reply_markup, which removes the buttons; a 429 is retried as a sendMessage part is. The edit records a Delivery row of the kind
+///     answered with the same message id and ApprovalRef and the text "". A failed edit is one warning, the status stays OK and no
+///     row is recorded. After the edit (or the failed edit) of a rejection from Telegram (answered.rejected or answered.rejectedBy, the slot channel
+///     telegram, an IncidentRef) press.rejectedFollowUp goes to the same chat as a new message, whose row is of the kind answered with
+///     no ApprovalRef. A result is a new message like any other.
+/// The token is never held here (AD-19), and no log text holds a chat id, a name or a message text.
 Class OcuTalon.Channel.Telegram.Out Extends OcuTalon.Channel.Operation
 {
 
@@ -54,8 +70,28 @@ Parameter LOGRECORD = "TelegramOut sent a message but could not record its deliv
 
 Parameter LOGCHECK = "TelegramOut sent a reply without its check sentence: ";
 
+Parameter LOGNOEDIT = "TelegramOut did not edit an answered request's message: no stored message with its text was found.";
+
+Parameter LOGEDIT = "TelegramOut could not edit a message: ";
+
 /// The notification kinds that the chat gets (the kinds that the simulated phone shows, and allowance and pairing).
 Parameter KINDS = "tellnow,incident,approval,result,reminder,allowance,pairing";
+
+/// The notification kinds whose message carries the Approve and Reject buttons when it has an approval Ref.
+Parameter BUTTONKINDS = "incident,approval";
+
+/// The most UTF-16 units of a message with buttons: the Bot API's 4,096 less a reserve, so that the edited text always fits.
+Parameter BUTTONLIMIT = 3840;
+
+/// The catalog keys of the button labels.
+Parameter APPROVEKEY = "button.approve";
+
+Parameter REJECTKEY = "button.reject";
+
+/// The catalog keys of a rejection whose follow-up the chat gets, and the follow-up's key.
+Parameter REJECTEDKEYS = "answered.rejected,answered.rejectedBy";
+
+Parameter FOLLOWUPKEY = "press.rejectedFollowUp";
 
 /// The check keys whose catalog text is the whole sentence.
 Parameter PLAINKEYS = "checks.allPassed,checks.everythingElsePassed,checks.nothingWatched";
@@ -94,16 +130,34 @@ Method OnOutbound(request As OcuTalon.Msg.Outbound, Output response As Ens.Respo
 	Quit ..Deliver(request.SessionRef, chatRef, chatId, text, "", "", request.DecisionRef)
 }
 
-/// A notification of a kind the chat gets: the rendering of its catalog key goes to the chat. Any other kind sends nothing.
+/// A notification of a kind the chat gets: the rendering of its catalog key goes to the chat, with the buttons for a request. An
+/// answered notification edits the request's message. Any other kind sends nothing.
 Method OnNotification(request As OcuTalon.Msg.Notification, Output response As Ens.Response) As %Status
 {
 	Set response = ""
+	If request.Kind = "answered" Quit ..EditAnswered(request)
 	If '$ListFind($ListFromString(..#KINDS), request.Kind) Quit $$$OK
 	Set sc = ..Target(request.ChatRef, request.SessionRef, .chatRef, .chatId)
 	If (chatId = "") || $SYSTEM.Status.IsError(sc) Quit sc
 	Set text = ##class(OcuTalon.Msg.Catalog).Render(request.CatalogKey, request.Slots, ..#TEXTCHANNEL, .sc)
 	If $SYSTEM.Status.IsError(sc) Quit sc
-	Quit ..Deliver(request.SessionRef, chatRef, chatId, text, request.ApprovalRef, request.Kind, request.DecisionRef)
+	Set markup = ""
+	If $ListFind($ListFromString(..#BUTTONKINDS), request.Kind) && (request.ApprovalRef '= "") {
+		Set markup = ..Keyboard(request.ApprovalRef, .sc)
+		If $SYSTEM.Status.IsError(sc) Quit sc
+	}
+	Quit ..Deliver(request.SessionRef, chatRef, chatId, text, request.ApprovalRef, request.Kind, request.DecisionRef, markup)
+}
+
+/// The inline keyboard of a request's notice: one row with the Approve and Reject buttons, whose callback data is the action and the
+/// request's Ref (never a sequential number). The status is an error when a label cannot be rendered.
+Method Keyboard(approvalRef As %String, Output sc As %Status) As %DynamicObject [ Private ]
+{
+	Set approve = ##class(OcuTalon.Msg.Catalog).Render(..#APPROVEKEY, "", ..#TEXTCHANNEL, .sc)
+	If $SYSTEM.Status.IsError(sc) Quit ""
+	Set reject = ##class(OcuTalon.Msg.Catalog).Render(..#REJECTKEY, "", ..#TEXTCHANNEL, .sc)
+	If $SYSTEM.Status.IsError(sc) Quit ""
+	Quit {"inline_keyboard": [[{"text": (approve), "callback_data": ("approve:"_approvalRef)}, {"text": (reject), "callback_data": ("reject:"_approvalRef)}]]}
 }
 
 /// The chat of a message: the chat row of its ChatRef when it has one, else the live pairing of its SessionRef (an owner that is not a
@@ -128,25 +182,86 @@ Method Target(ownerChatRef As %String, sessionRef As %String, Output chatRef As 
 	Quit $$$OK
 }
 
-/// Sends the text to the chat and, for a message with a SessionRef, records its Delivery row. A failed Record is one warning only.
-Method Deliver(sessionRef As %String, chatRef As %String, chatId As %String, text As %String, approvalRef As %String, kind As %String, decisionRef As %String) As %Status [ Private ]
+/// Sends the text to the chat and, for a message with a SessionRef, records its Delivery row. A message with buttons (markup is an object)
+/// keeps the last part's text in its row. A failed Record is one warning only.
+Method Deliver(sessionRef As %String, chatRef As %String, chatId As %String, text As %String, approvalRef As %String, kind As %String, decisionRef As %String, markup As %DynamicObject = "") As %Status [ Private ]
 {
-	Set sc = ..Send(chatId, text, .messageId, .sent)
+	Set sc = ..Send(chatId, text, .messageId, .sent, markup, $Select($IsObject(markup): ..#BUTTONLIMIT, 1: ""), .lastText)
 	If $SYSTEM.Status.IsError(sc) || 'sent || (sessionRef = "") Quit sc
-	Do ..Recorded(sessionRef, chatRef_":"_messageId, approvalRef, kind, decisionRef)
+	Set kept = ""
+	If $IsObject(markup) {
+		Set kept = ##class(OcuTalon.Bridge.Redact).Text(lastText)
+		If kept = ##class(OcuTalon.Bridge.Redact).#UNCHECKED Set kept = ""
+	}
+	Do ..Recorded(sessionRef, chatRef_":"_messageId, approvalRef, kind, decisionRef, kept)
 	Quit $$$OK
 }
 
 /// The Delivery row of a message that was sent. A failure is one warning, since the message is never sent again.
-Method Recorded(sessionRef As %String, channelMessageId As %String, approvalRef As %String, kind As %String, decisionRef As %String) [ Private ]
+Method Recorded(sessionRef As %String, channelMessageId As %String, approvalRef As %String, kind As %String, decisionRef As %String, text As %String = "") As %Status [ Private ]
 {
 	Set sc = $$$OK
 	Try {
-		Set sc = ##class(OcuTalon.Data.Delivery).Record(sessionRef, "telegram", channelMessageId, approvalRef, kind, "", decisionRef)
+		Set sc = ##class(OcuTalon.Data.Delivery).Record(sessionRef, "telegram", channelMessageId, approvalRef, kind, text, decisionRef)
 	} Catch exception {
 		Set sc = exception.AsStatus()
 	}
 	If $SYSTEM.Status.IsError(sc) $$$LOGWARNING(..#LOGRECORD_##class(OcuTalon.Channel.Telegram.Api).Safe($SYSTEM.Status.GetErrorText(sc)))
+	Quit sc
+}
+
+/// An answered notification: the request's message is edited in place (see the class comment). The status is an error only when the
+/// status text cannot be rendered or the follow-up cannot be sent.
+Method EditAnswered(request As OcuTalon.Msg.Notification) As %Status [ Private ]
+{
+	If '..IsSession(request.SessionRef) Quit $$$OK
+	Set row = ##class(OcuTalon.Data.Ownership).DeliveryFor(request.ApprovalRef, "telegram", request.SessionRef, .sc)
+	If $SYSTEM.Status.IsError(sc) Quit sc
+	If $IsObject(row) && (row.Kind = "answered") Quit $$$OK
+	Set chatRef = $Piece($Select($IsObject(row): row.ChannelMessageId, 1: ""), ":", 1)
+	Set messageId = $Piece($Select($IsObject(row): row.ChannelMessageId, 1: ""), ":", 2, *)
+	Set chat = $Select(chatRef '= "": ##class(OcuTalon.Data.Pairing).Chat(chatRef), 1: "")
+	If '$IsObject(row) || (row.Text = "") || (messageId '? 1.N) || '$IsObject(chat) {
+		$$$LOGWARNING(..#LOGNOEDIT)
+		Quit $$$OK
+	}
+	Set status = ##class(OcuTalon.Msg.Catalog).Render(request.CatalogKey, request.Slots, ..#TEXTCHANNEL, .sc)
+	If $SYSTEM.Status.IsError(sc) Quit sc
+	Set chatId = chat.ChatId
+	Set params = {}
+	Do params.%Set("chat_id", chatId, "number")
+	Do params.%Set("message_id", messageId, "number")
+	Do params.%Set("text", row.Text_$Char(10, 10)_status, "string")
+	Set sc = ..Post("editMessageText", params, .answer)
+	If $SYSTEM.Status.IsError(sc) {
+		$$$LOGWARNING(..#LOGEDIT_##class(OcuTalon.Channel.Telegram.Api).Safe($SYSTEM.Status.GetErrorText(sc)))
+		If ..FollowUp(request) Quit ..SendFollowUp(request.SessionRef, chatRef, chatId, request.DecisionRef)
+		Quit $$$OK
+	}
+	Do ..Recorded(request.SessionRef, row.ChannelMessageId, request.ApprovalRef, "answered", request.DecisionRef)
+	If ..FollowUp(request) Quit ..SendFollowUp(request.SessionRef, chatRef, chatId, request.DecisionRef)
+	Quit $$$OK
+}
+
+/// 1 when the answered notification is a rejection from Telegram of a fix (an incident is set): the chat then gets a follow-up.
+Method FollowUp(request As OcuTalon.Msg.Notification) As %Boolean [ Private ]
+{
+	If '$ListFind($ListFromString(..#REJECTEDKEYS), request.CatalogKey) || (request.IncidentRef = "") Quit 0
+	Set slots = ""
+	Try {
+		Set slots = ##class(%DynamicAbstractObject).%FromJSON(request.Slots)
+	} Catch {
+		Set slots = ""
+	}
+	Quit $IsObject(slots) && (slots.%GetTypeOf("channel") = "string") && (slots.channel = "telegram")
+}
+
+/// The rejected follow-up as a new message to the chat; its row is of the kind answered with no ApprovalRef.
+Method SendFollowUp(sessionRef As %String, chatRef As %String, chatId As %String, decisionRef As %String) As %Status [ Private ]
+{
+	Set text = ##class(OcuTalon.Msg.Catalog).Render(..#FOLLOWUPKEY, "", ..#TEXTCHANNEL, .sc)
+	If $SYSTEM.Status.IsError(sc) Quit sc
+	Quit ..Deliver(sessionRef, chatRef, chatId, text, "", "answered", decisionRef)
 }
 
 /// The check sentence of a reply (see the class comment): "" for no key, for no row to name and, with one warning, for any other key or
@@ -232,38 +347,53 @@ Method Field(row As %DynamicObject, name As %String) As %String [ Private ]
 }
 
 /// The text to the chat as sendMessage parts, in order. The status is the first failure. messageId is the Bot API message_id of the last
-/// part that was sent ("" when its answer had none), and sent is the number of parts that were sent.
-Method Send(chatId As %String, text As %String, Output messageId As %String, Output sent As %Integer) As %Status
+/// part that was sent ("" when its answer had none), and sent is the number of parts that were sent. markup (a dynamic object, or "")
+/// is the reply_markup of the last part only, limit the most units of a part ("" for the Bot API's), and lastText the text of the last
+/// part that was sent.
+Method Send(chatId As %String, text As %String, Output messageId As %String, Output sent As %Integer, markup As %DynamicObject = "", limit As %Integer = "", Output lastText As %String) As %Status
 {
-	Set messageId = "", sent = 0
-	Set parts = ##class(OcuTalon.Channel.Telegram.Api).Split(text)
+	Set messageId = "", sent = 0, lastText = ""
+	Set parts = $Select(limit = "": ##class(OcuTalon.Channel.Telegram.Api).Split(text), 1: ##class(OcuTalon.Channel.Telegram.Api).Split(text, limit))
 	Set sc = $$$OK
 	Set position = 0
+	Set number = 0
+	Set count = $ListLength(parts)
 	While $ListNext(parts, position, part) {
+		Set number = number + 1
 		If part = "" Continue
-		Set sc = ..SendPart(chatId, part, .messageId)
+		Set sc = ..SendPart(chatId, part, .messageId, $Select(number = count: markup, 1: ""))
 		If $SYSTEM.Status.IsError(sc) Quit
 		Set sent = sent + 1
+		Set lastText = part
 	}
 	Quit sc
 }
 
-/// One part, as a numeric chat_id and plain text. A 429 waits and sends the same part again, TRIES tries at most.
-Method SendPart(chatId As %String, part As %String, Output messageId As %String) As %Status [ Private ]
+/// One part, as a numeric chat_id and plain text, with the reply_markup when markup is an object.
+Method SendPart(chatId As %String, part As %String, Output messageId As %String, markup As %DynamicObject = "") As %Status [ Private ]
 {
 	Set messageId = ""
+	Set params = {}
+	Do params.%Set("chat_id", chatId, "number")
+	Do params.%Set("text", part, "string")
+	If $IsObject(markup) Do params.%Set("reply_markup", markup)
+	Set sc = ..Post("sendMessage", params, .answer)
+	If $SYSTEM.Status.IsOK(sc) && $IsObject(answer.result) && (answer.result.%GetTypeOf("message_id") = "number") Set messageId = answer.result."message_id"
+	Quit sc
+}
+
+/// One Bot API call (sendMessage or editMessageText). A 429 waits and makes the same call again, TRIES tries at most. answer is the
+/// parsed answer of the last try.
+Method Post(method As %String, params As %DynamicObject, Output answer As %DynamicObject) As %Status [ Private ]
+{
 	For try = 1:1:..#TRIES {
-		Set params = {}
-		Do params.%Set("chat_id", chatId, "number")
-		Do params.%Set("text", part, "string")
-		Set answer = ##class(OcuTalon.Channel.Telegram.Api).Call(..ApiBase, ..SSLConfig, "sendMessage", params, ..#SENDSECONDS, .httpStatus, .sc)
+		Set answer = ##class(OcuTalon.Channel.Telegram.Api).Call(..ApiBase, ..SSLConfig, method, params, ..#SENDSECONDS, .httpStatus, .sc)
 		If $SYSTEM.Status.IsError(sc) Quit
 		If (httpStatus = 200) && +answer.ok {
 			Set sc = $$$OK
-			If $IsObject(answer.result) && (answer.result.%GetTypeOf("message_id") = "number") Set messageId = answer.result."message_id"
 			Quit
 		}
-		Set sc = $SYSTEM.Status.Error(5001, ##class(OcuTalon.Channel.Telegram.Api).Failure("sendMessage", httpStatus, answer))
+		Set sc = $SYSTEM.Status.Error(5001, ##class(OcuTalon.Channel.Telegram.Api).Failure(method, httpStatus, answer))
 		If (httpStatus '= 429) || (try = ..#TRIES) Quit
 		Set wait = 1
 		If $IsObject(answer.parameters) && (answer.parameters.%GetTypeOf("retry_after") = "number") && (answer.parameters."retry_after" > 1) Set wait = answer.parameters."retry_after"

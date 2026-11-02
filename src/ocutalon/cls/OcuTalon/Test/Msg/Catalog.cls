@@ -1,6 +1,6 @@
 /// Tests of the message catalog and its one renderer (Story 0.9; AD-29, AD-32). The XData blocks hold the expectations, typed
 /// apart from the catalog's templates:
-///   - Keys: the 95 keys of OcuTalon.Msg.Catalog.Core and the 24 of OcuTalon.Msg.Catalog.Watch;
+///   - Keys: the 95 keys of OcuTalon.Msg.Catalog.Core and the 26 of OcuTalon.Msg.Catalog.Watch;
 ///   - Gaps: the keys whose entry carries a gap field, the forms the UX does not fix (none now);
 ///   - OneForms: for each of the 9 entries with a count-of-one form, its slots with the form's slot at 1, the exact text of the
 ///     form on the message channels (and on the page where it differs), and the plural fragment that the other counts keep;
@@ -78,9 +78,9 @@ Method TestEntries()
 	Set core = ..Read("Entries", "OcuTalon.Msg.Catalog.Core")
 	Set watch = ..Read("Entries", "OcuTalon.Msg.Catalog.Watch")
 	Do $$$AssertEquals(keys.core.%Size(), 95, "the expected Core list has 95 keys")
-	Do $$$AssertEquals(keys.watch.%Size(), 24, "the expected Watch list has 24 keys")
+	Do $$$AssertEquals(keys.watch.%Size(), 26, "the expected Watch list has 26 keys")
 	Do $$$AssertEquals(..SortedKeys(core), ..SortedList(keys.core), "Core holds exactly its 95 keys")
-	Do $$$AssertEquals(..SortedKeys(watch), ..SortedList(keys.watch), "Watch holds exactly its 24 keys")
+	Do $$$AssertEquals(..SortedKeys(watch), ..SortedList(keys.watch), "Watch holds exactly its 26 keys")
 	Set corePrefixes = ..Prefixes(..SortedKeys(core))
 	Set watchPrefixes = ..Prefixes(..SortedKeys(watch))
 	Set shared = ""
@@ -118,7 +118,7 @@ Method TestEveryKeyOnEveryChannel()
 {
 	Set fixtures = ..Read("Fixtures")
 	Set catalogKeys = ..SortedKeys(..Read("Entries", "OcuTalon.Msg.Catalog.Core"))_","_..SortedKeys(..Read("Entries", "OcuTalon.Msg.Catalog.Watch"))
-	Do $$$AssertEquals(..SortedList($ListFromString(catalogKeys)), ..SortedKeys(fixtures), "the fixtures cover exactly the 119 keys of the catalog")
+	Do $$$AssertEquals(..SortedList($ListFromString(catalogKeys)), ..SortedKeys(fixtures), "the fixtures cover exactly the 121 keys of the catalog")
 	Set refused = ..RefusedChannels()
 	Do $$$AssertEquals(refused, "email,webhook,slack,system", "four Msg.Enum channels are refused")
 	Set iterator = fixtures.%GetIterator()
@@ -1073,7 +1073,9 @@ XData Keys [ MimeType = application/json ]
   "result.interrupted",
   "result.stoppedPartway",
   "result.couldNotStart",
-  "watch.time"
+  "watch.time",
+  "button.approve",
+  "button.reject"
  ]
 }
 }
@@ -1313,7 +1315,9 @@ XData Fixtures [ MimeType = application/json ]
  "result.interrupted": {"slots": {"count": 50, "itemNoun": {"one": "order", "other": "orders"}, "completed": 30, "remaining": 20}, "text": "The resend stopped when OcuTalon restarted: 30 of 50 orders went through. The other 20 need a new approval."},
  "result.stoppedPartway": {"slots": {"count": 50, "itemNoun": {"one": "order", "other": "orders"}, "resent": 47, "completed": 45, "notTried": 2}, "text": "The resend stopped partway: I resent 47 of the 50 orders (45 went through), the next one couldn't be resent, and 2 more weren't tried. Nothing else was changed, and I won't resend the rest without a new approval."},
  "result.couldNotStart": {"slots": {"reason": "OcuTalon isn't allowed to resend messages in that production"}, "text": "Nothing was resent: OcuTalon isn't allowed to resend messages in that production. Nothing was changed."},
- "watch.time": {"slots": {"time": "2026-10-16T18:12:00Z"}, "text": "14:12 ET"}
+ "watch.time": {"slots": {"time": "2026-10-16T18:12:00Z"}, "text": "14:12 ET"},
+ "button.approve": {"slots": {}, "text": "Approve"},
+ "button.reject": {"slots": {}, "text": "Reject"}
 }
 }
 

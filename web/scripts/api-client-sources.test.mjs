@@ -4,9 +4,8 @@
 // ApiClient.breakFeed(). The browser envelope (Content-Type and X-OcuTalon-Request) is added by the one interceptor to every POST, PUT, PATCH
 // and DELETE, so a client that built its own requests would lose it; this keeps the page to one client. The browser cases (e2e/api/pairing.spec.ts
 // and the demo path) pin what the running routes do; this reads the sources. It also pins the two Telegram parts of the demo path
-// (e2e/demo-path/telegram-page.spec.ts and telegram-approval.spec.ts): each exists, declares one not-built part that names the Lane A story
-// that replaces it, and is a part that demo-path-summary.mjs accepts for its step. telegram-page.spec.ts also holds the tests of Story 12.8
-// (the paused card), so it must have a test of its own; telegram-approval.spec.ts has none yet.
+// (e2e/demo-path/telegram-page.spec.ts and telegram-approval.spec.ts): each exists, has no not-built part, has tests of its own, skips none,
+// and is a part that demo-path-summary.mjs accepts for its step (Lane A built both: Stories 12.4 and 12.8 the page's, Story 12.7 the approval's).
 // Run with: node --test web/scripts/
 import assert from 'node:assert/strict';
 import { existsSync, readFileSync } from 'node:fs';
@@ -111,26 +110,18 @@ describe('one typed client (DW-231)', () => {
 
 describe('the Telegram parts of the demo path', () => {
   const e2e = join(here, '..', 'e2e', 'demo-path');
-  const parts = [['telegram-approval.spec.ts', 'approval', 4, '12.7', false]];
+  const parts = [
+    ['telegram-page.spec.ts', 'page', 0, '12.4'],
+    ['telegram-approval.spec.ts', 'approval', 4, '12.7'],
+  ];
 
-  it('telegram-page.spec.ts has no not-built part, has tests of its own, skips none, and is a part of the page step (Story 12.4)', () => {
-    const code = readFileSync(join(e2e, 'telegram-page.spec.ts'), 'utf8');
-    assert.doesNotMatch(code, /\bnotBuilt\(/, 'no notBuilt call: T5 replaced it');
-    assert.doesNotMatch(code, /not-built/, 'no not-built import');
-    assert.equal(/\btest\(/.test(code), true, 'tests of its own');
-    assert.doesNotMatch(code, /\btest\.(?:describe\.)?(?:skip|only|fixme)\(/, 'no skipped, fixme or focused test or describe');
-    assert.deepEqual(stepOfFile('telegram-page.spec.ts'), { index: 0, numbered: false });
-  });
-
-  for (const [name, step, index, story, ownTests] of parts) {
-    it(`${name} declares one not-built part, owned by Story ${story}, ${ownTests ? 'has tests of its own' : 'has no test of its own yet'}, and is a part of the ${step} step`, () => {
+  for (const [name, step, index, story] of parts) {
+    it(`${name} has no not-built part, has tests of its own, skips none, and is a part of the ${step} step (Story ${story})`, () => {
       const code = readFileSync(join(e2e, name), 'utf8');
-      assert.match(code, /import \{ notBuilt \} from '\.\/not-built';/);
-      assert.equal((code.match(/\bnotBuilt\(/g) ?? []).length, 1, 'one declaration');
-      assert.match(code, new RegExp(`^notBuilt\\('[^']+', '${story.replace('.', '\\.')}'\\);$`, 'm'));
-      assert.doesNotMatch(code, /\btest\.(?:describe\.)?(?:skip|only|fixme)\(/, 'no skipped, fixme or focused test or describe: only notBuilt skips');
-      // The approval file has no test yet.
-      assert.equal(/\btest\(/.test(code), ownTests, 'no test of its own yet: Lane A replaces the call');
+      assert.doesNotMatch(code, /\bnotBuilt\(/, 'no notBuilt call: the story replaced it');
+      assert.doesNotMatch(code, /not-built/, 'no not-built import');
+      assert.equal(/\btest\(/.test(code), true, 'tests of its own');
+      assert.doesNotMatch(code, /\btest\.(?:describe\.)?(?:skip|only|fixme)\(/, 'no skipped, fixme or focused test or describe');
       assert.deepEqual(stepOfFile(name), { index, numbered: false });
     });
   }
