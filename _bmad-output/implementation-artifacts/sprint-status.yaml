@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 11-02-2026 21:02
+last_updated: 11-02-2026 14:47
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -462,4 +462,28 @@ action_items:
       on the Planner's own Docker install of the feature head (DW-159; replaces epic-2-retro-item-4)"
     owner: "Contest Planner"
     status: done
+    ref: ""
+  - id: "epic-30-decision-item-1-dw-483-measure-decide-invalid-rate"
+    epic: 30
+    action: "DW-483: measure diagnose/Decide invalid-reply rate after Story 5.12 on
+      host Decision rows and in the real-key release-candidate run (Story 9.5); build
+      the one retry only above about 1 in 50 (U-191 condition)"
+    owner: "user"
+    status: open
+    ref: ""
+  - id: "epic-30-decision-item-2-dw-580-summarizer-latency-real-model"
+    epic: 30
+    action: "DW-580: in the release-candidate run, measure a ~100k-token summarizer
+      request latency on the real model against AD-20 20 s timeout (30.1 measured
+      it only on the mock)"
+    owner: "user"
+    status: open
+    ref: ""
+  - id: "epic-30-decision-item-3-dw-575-ad-20-fallback-spine-notes"
+    epic: 30
+    action: "DW-575: attended bmad-architecture Update after the run writes (or declines)
+      the 30.1 Spine notes for AD-20 fallback cases (AD-20/AD-8/AD-6/AD-22 text is
+      silent; no code change)"
+    owner: "user"
+    status: open
     ref: ""

@@ -1420,3 +1420,8 @@
 2026-11-02T22:45:42Z	Epic 30	ci_green_verified	runs=41537424187,41537424158 head=fb74f6f1 result=success via=ci-gate
 2026-11-02T22:45:42Z	Epic 30	amendments_verified	amendments=4 extensions=6 ok=true note=30.8_ADDED_marker_epics.md:7302;30.7_DEFERRED;30.1/30.7_RE-OWNED;extensions_ci/units.sh+ci.yml+test-ci-config/changes/warm(plain_union_with_12/14_new_units_per_precedent)+test-redact-shapes(new)
 2026-11-02T22:45:42Z	Epic 30	runner_report_error	field=integrated_forward.feature reported=024d8504 actual=1c9952c4 impact=none note=runner_self-corrected_with_report_error;final_integrate_no-op
+2026-11-02T22:46:18Z	Epic 30	epic_merge_started	branch=OCT-epic30 head=fb74f6f1 feature_local=af4f8f15 origin_feature=1c9952c4(ancestor_of_head)
+2026-11-02T22:48:05Z	Epic 30	epic_merged_to_feature	merge=7107aa77 head=fb74f6f1 stories=2(30.1,30.8) partial=30.7_deferred_after_tag verified_on_origin=yes
+2026-11-02T22:48:05Z	Epic 30	decision_sheet_recorded	decided=1 to_action_items=3(DW-483,DW-580,DW-575) to_x0=0 by=unattended DW-579=wontfix-accepted(veto_U-226,reopen_if>100k_tokens)
+2026-11-02T22:48:05Z	Epic 30	ledger_routed_planned	entries=DW-453,DW-549,DW-599->31.3(bullets=6),DW-450,DW-511->31.4(deferred;bullets=6),DW-532->11.16 excess=0 by=merge_gate
+2026-11-02T22:48:05Z	Epic 30	deps_hash_rerecorded	reason=fix_forward+ledger_routed hash=cce4ad75655b note=30.8_inserted_inside_epic_30;AC_bullets_only

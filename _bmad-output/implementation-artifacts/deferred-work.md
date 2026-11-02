@@ -2884,6 +2884,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: host Decision rows since the 11:36Z reset on fe1d81e2: diagnose 1 invalid of 9, decide 0 of 10, turn 0 of 10; Story 5.12 removes the one observed cause
 - 2026-10-31T11:55:11Z status=routed owner=30-1-long-conversations-are-compacted-under-the-limit by=orchestrator note=measure first:_the_invalid_rate_after_5.12_and_the_retry's_cost_and_time;veto_item
 - 2026-11-02T07:40:01Z status=decision-pending owner=burndown by=spec_gate note=human=measure_diagnose's_invalid_rate_after_5.12_on_host_Decision_rows_and_Story_9.5's_real-key_release-candidate_run;build_the_one_retry_only_if_above_about_1_in_50(U-191's_kept_condition);this_unattended_run_has_neither_host_access_nor_a_real_key(30.1_spec_declined_it)
+- 2026-11-02T22:47:05Z status=decision-pending owner=burndown by=merge_gate note=action_item:epic-30-decision-item-1-dw-483-measure-decide-invalid-rate(owner;decided_unattended_U9:human-only_entry_to_action_items)
 
 ### DW-492: No test pins AC2's floor: a model-written text property of a reply class capped at 32 characters or fewer would pass CI (TestDiagnosisLengths checks only prompt and class agreement)
 - source: spec-5-12-a-correct-diagnosis-is-never-refused-for-an-over-long-eviden.md | severity: low | fix-risk: low | footprint: in-story
@@ -3249,16 +3250,19 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-30-1-long-conversations-are-compacted-under-the-limit.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: 30.1 Design Notes V1 and Spine notes; the ADs allow the behaviour as written, but their text is silent; AD-20/AD-8/AD-6/AD-22 are cited by merged stories, so a runner may not amend them unattended (U7, U14)
 - 2026-11-02T07:40:01Z status=decision-pending owner=burndown by=spec_gate note=human=an attended bmad-architecture Update after the run writes these lines (or declines them); no code change
+- 2026-11-02T22:47:05Z status=decision-pending owner=burndown by=merge_gate note=action_item:epic-30-decision-item-3-dw-575-ad-20-fallback-spine-notes(owner;decided_unattended_U9:human-only_entry_to_action_items)
 
 ### DW-579: NFR-3 in the tool loop after 30.1: compaction keeps the last user turn whole and guards each request the runner shapes at the request-size limit, not at 40,000, so a fork whose kept turn was tool-heavy (about 62,000 tokens), a flagged turn with nothing older, or a large input can start between 40,000 and the limit, and its later tool-loop requests can pass 100,000
 - source: spec-30-1-long-conversations-are-compacted-under-the-limit.md | severity: med | fix-risk: med | footprint: in-story
 - evidence: AD-20 Rule's 40,000 + 3 x 10,000 + 3 x 8,000 arithmetic holds only for a first request at most 40,000; 30.1 Design Notes R1 options (a) refuse such a fork or as-is session above 40,000 in favour of the seed, (b) Decide refuses a tool-capable turn whose non-history part is above about 46,000, (c) accept
 - 2026-11-02T10:55:33Z status=escalated owner=burndown by=harvest note=for the decision sheet: (a) and (b) change what the product does; recommended (c) accept with reopen_if=the mock or a recorded run logs a request above 100,000 tokens
+- 2026-11-02T22:47:05Z status=wontfix-accepted owner=burndown by=merge_gate note=veto_U-226(decided_unattended_U9:(c)_accept;reopen_if=the_mock_or_a_recorded_run_logs_a_request_above_100,000_tokens)
 
 ### DW-580: The compaction summarizer's 20 s request timeout (AD-20, no retries) is measured only on the CI mock (0.02 s); a real summarizer request near the request-size limit may exceed it, so large real compactions may always take the seeded fallback
 - source: spec-30-1-long-conversations-are-compacted-under-the-limit.md | severity: med | fix-risk: med | footprint: in-story
 - evidence: Task 0 (c) timed the summarizer only on the mock; the release-candidate smoke compacts three short turns, so no run measures a large transcript on the real model (unverified)
 - 2026-11-02T11:32:06Z status=decision-pending owner=burndown by=cr note=human=measure a ~100k-token summarizer request's latency on the real model (RC run); 20 s is AD-20's
+- 2026-11-02T22:47:05Z status=decision-pending owner=burndown by=merge_gate note=action_item:epic-30-decision-item-2-dw-580-summarizer-latency-real-model(owner;decided_unattended_U9:human-only_entry_to_action_items)
 
 ### DW-581: After Story 30.7's session purge, a purged session's other rows stay: GuideState, SimMessage, finished Reminder and BreakFeedRun rows and the ConversationLink, whose AI sessions the bridge's purge then keeps alive (they are linked)
 - source: spec-30-7-epic-30-burn-down.md | severity: med | fix-risk: med | footprint: out-of-footprint
