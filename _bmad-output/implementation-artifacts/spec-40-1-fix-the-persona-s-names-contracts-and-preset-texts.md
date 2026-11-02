@@ -2,7 +2,8 @@
 title: "Story 40.1: Fix the persona's names, contracts and preset texts"
 type: 'feature'
 created: '2026-11-01'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '3be1c8d908d1c67f9271a9850d29ec30a06950c5'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -85,6 +86,33 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-11-01 - Review pass
+- verdicts: 23 findings - high 0, medium 1, low 19, false 3, maybe-false 0
+- findings:
+  - `[medium]` `[patch]` Blind: the spine bullet names `Msg.Enum` `APPROVALKIND` without saying that `OcuTalon.Bridge.Msg.Enum` has its own `APPROVALKIND` (validated in `Bridge/Approval.cls`, pinned in `Test/Msg/Contracts.cls`) - verified: both enums exist; patched in the same added line (`OcuTalon.Msg.Enum` qualified, "in both `OcuTalon.Msg.Enum` and `OcuTalon.Bridge.Msg.Enum`"); numstat stays 3/0, lint unchanged.
+  - `[low]` `[reject]` Blind: `Tools/Names.cls` class comment says release-1 tools only - the spec forbids any change to the top comment of this contended file; the appended `///` line states the exception.
+  - `[low]` `[reject]` Blind: the persona test compares two repo copies, not EXPERIENCE.md - spec-defined design (test-held `UX` copy); the (once) UX comparison command reads EXPERIENCE.md itself and was run green and red-on-mutation.
+  - `[low]` `[reject]` Blind: `TestNoTemplates` skips non-string values and assumes object entries - no PRESETS value is nested or non-string today; a malformed block fails the test run loudly.
+  - `[low]` `[patch]` Blind, verification-gap, edge-case: the `TestBlock` header claims `Block()` "reads nothing" but only the return value is asserted - header reworded to what the test asserts.
+  - `[low]` `[reject]` Blind: `Presets()` re-parses on each call, and its throw is undocumented - no caller exists until 40.3; caching is premature and the compiled class always has the block.
+  - `[low]` `[reject]` Edge: nested values unscanned - same claim as the Blind row on `TestNoTemplates`; theoretical.
+  - `[low]` `[reject]` Edge: non-string values not scanned - same root cause as above.
+  - `[low]` `[reject]` Edge: `Preset(id)` returning "" then `.bends` on it aborts the test method - the abort is a red test either way.
+  - `[false]` `[reject]` Edge: `Preset("Pirate")` / padded ids give "" - the matrix says unknown id gives ""; ids are lower-case constants.
+  - `[false]` `[reject]` Edge: duplicate ids make later entries unreachable - `TestPresets` pins the six ids in exact order against the UX copy, so a duplicate fails.
+  - `[low]` `[reject]` Edge: `Block` has no input validation - the stub is fixed by the spec; Story 40.3 owns its behaviour.
+  - `[false]` `[reject]` Edge: the spine line's `<SessionRef>` may add a lint finding - lint was run: only the expected `placeholder low` lines, `{new}` and `{old}` included.
+  - `[low]` `[reject]` Verification-gap: AC 1 and AC 4 have no mutation line - the spec states AC 1 is a document check (grep, numstat, lint) that fails on absence; AC 4 was verified at plan time; fix would edit this build's spec.
+  - `[low]` `[reject]` Verification-gap: PRESETS vs EXPERIENCE.md is checked only by a hand-run command - the epic constraint allows exactly one appended mock test, so a second would break the constraint; the command is a (once) Verification line and was run.
+  - `[low]` `[reject]` Verification-gap: the mock test only checks the regex read of `Names.cls` - it is the story's Integration AC; the runtime pin is `TestToolNames`.
+  - `[low]` `[reject]` Verification-gap (other): `TestToolNames` hard-codes 13 - the old test hard-coded 12; same maintenance cost.
+  - `[low]` `[reject]` Intent: a parity check against a copy, not the document (divergence note) - same as the spec-defined design above.
+  - `[low]` `[reject]` Intent: `Test/Agent/Constants.cls` edited beyond the intent's list - the spec's Code Map and Tasks list this edit (shared surface).
+  - `[low]` `[reject]` Intent: ASCII is not asserted by a test - Rule 14 is source discipline; the diff was checked for non-ASCII bytes (none).
+  - `[low]` `[reject]` Intent: `HasBadToken` is a parallel scanner rather than an extension of the old one - spec Design Notes record the reason (private, contended file).
+  - `[low]` `[reject]` Intent: the text and bends values for professional/language/custom are interpretations of the table - recorded under "Decided in-stage".
+  - `[low]` `[reject]` Intent: `TestNoTemplates` depends on compiled classes in the namespace - same environment assumption as the class under test.
+
 ## Design Notes
 
 **Architecture decisions:** AD-7 (persona block; PRESETS constants; the `{{` check reads PRESETS), AD-1 (verbs and origins), AD-11 (`setting` kind), AD-19 (per-person keys), AD-22 (tool names, the mock), AD-29 (contract-naming story; names), AD-32 (catalog keys `<prefix>.<name>`, one class per prefix), AD-33 (ownership-table rows).
@@ -129,7 +157,23 @@ Shared surfaces: the tool-name count of `OcuTalon.Tools.Names` (asserted by `Tes
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-Re-plan (cycle iteration 2) with the AD-32 key names `approval.persona`, `persona.applied`, `persona.stale`; halted after planning as directed. For the lead: (1) the intent contract's `Tools/Names.cls` bullet was narrowed to the dispatch's one-block-at-the-end rule (Spec Change Log, 2026-11-01); (2) AD-22's as-built tool count (spine line 743) is left at 12 for the merge gate, as with U-199.
+**Summary.** Epic 40's names are fixed in the spine (one AD-29 sub-bullet, two cross-area rows; 3 lines added, 0 deleted) and in code: `OcuTalon.Agent.Persona` with `XData PRESETS` (the six UX presets), `Presets()`, `Preset(id)` and the `Block()` stub; `PROPOSEPERSONA` appended to `OcuTalon.Tools.Names` (not in `RELEASE1`); the new test class `OcuTalon.Test.Agent.Persona`; `TestToolNames` updated to 13 names (`RELEASE1` still 12); one mock test appended.
+
+**Files changed.**
+- `_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md`: the "Epic 40's names" sub-bullet and two ownership rows.
+- `src/ocutalon/cls/OcuTalon/Agent/Persona.cls`: new; presets, accessors, `Block` stub.
+- `src/ocutalon/cls/OcuTalon/Tools/Names.cls`: appended `PROPOSEPERSONA` block.
+- `src/ocutalon/cls/OcuTalon/Test/Agent/Persona.cls`: new; `TestPresets`, `TestNoTemplates`, `TestBlock`.
+- `src/ocutalon/cls/OcuTalon/Test/Agent/Constants.cls`: `TestToolNames` for 13 names.
+- `ci/mock/test/constants.test.mjs`: one appended test.
+
+**Review.** 23 findings from four layers: 2 patched (the `Msg.Enum` qualification in the spine bullet, a medium, and the `TestBlock` header wording, a low), 0 deferred, 21 rejected with reasons in the triage log. No high.
+
+**Follow-up review recommended:** false (no high patched, one medium patched).
+
+**Verification.** On slot C (`ocutalon-slot-c`, OCUTALON): `OcuTalon.Test.Agent.Persona` 3/3 and `OcuTalon.Test.Agent.Constants` 3/3; `node --test ci/mock/test/constants.test.mjs` 6/6; spine lint shows only the expected `placeholder low` lines (`{new}`, `{old}` added); spine numstat `3 0`; `grep -c 'result\.persona'` 0; the UX comparison prints `PRESETS match EXPERIENCE.md: 6`. Fresh throwaway stacks: `ci/iris.sh class` passed for Persona, Constants and Instructions; `ci/iris.sh teardown` left nothing; `docker/tests/test-mock.sh` 119/119; `bash ci/checks.sh` all scripts passed. Mutations observed red and reverted (tree matched the backups): `PROPOSEPERSONA` line removed (mock test red), one word of the pirate text changed (UX comparison red), `Block` returning "x" (`TestBlock` red), `{{x}}` in the kind friend text (`TestNoTemplates` and `TestPresets` red). Not run: `PROPOSEPERSONA` added to `RELEASE1`.
+
+**Residual risks.** Story 40.2 must add `setting` to both `APPROVALKIND` enums and update the `Test.Msg.Contracts` pins (named in the spine bullet). AD-22's as-built count of 12 tool names is left for the merge gate (Design Notes).
