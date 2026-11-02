@@ -119,14 +119,7 @@ ClassMethod FromStats(request As OcuTalon.Bridge.Msg.Request, agent As %String, 
 	Set output = ..Delta(before, after, "total_completion_tokens")
 	Set requests = ..Delta(before, after, "total_interactions")
 	Set largest = ..Largest(last, estimates)
-	Set row = ..%New()
-	Set row.DecisionRef = request.DecisionRef
-	Set row.ItemId = request.ItemId
-	Set row.Kind = request.Kind
-	Set row.OwnerRef = request.OwnerRef
-	Set row.Channel = request.Channel
-	Set row.Agent = agent
-	Set row.Model = model
+	Set row = ..NewRow(request, agent, model)
 	Set row.RequestCount = requests
 	Set row.InputTokens = prompt + cacheRead + cacheWrite
 	Set row.OutputTokens = output
@@ -135,7 +128,6 @@ ClassMethod FromStats(request As OcuTalon.Bridge.Msg.Request, agent As %String, 
 	Set row.LargestRequestTokens = largest
 	Set row.CostUSD = ##class(OcuTalon.Bridge.Data.Price).CostFor(model, prompt, cacheRead, cacheWrite, output, largest, requests)
 	Set row.Estimated = 0
-	Set row.RecordedAt = ##class(OcuTalon.Bridge.Time).NowUtc()
 	Quit $$$OK
 }
 
@@ -151,14 +143,7 @@ ClassMethod FromEstimate(request As OcuTalon.Bridge.Msg.Request, model As %Strin
 	If '$IsObject(request) Quit $$$ERROR($$$GeneralError, "No request, so no compaction usage row can be built")
 	Set input = ##class(OcuTalon.Bridge.Adapter.StepBuffer).Tokens(inputChars)
 	Set output = ##class(OcuTalon.Bridge.Adapter.StepBuffer).Tokens(outputChars)
-	Set row = ..%New()
-	Set row.DecisionRef = request.DecisionRef
-	Set row.ItemId = request.ItemId
-	Set row.Kind = request.Kind
-	Set row.OwnerRef = request.OwnerRef
-	Set row.Channel = request.Channel
-	Set row.Agent = "compaction"
-	Set row.Model = model
+	Set row = ..NewRow(request, "compaction", model)
 	Set row.RequestCount = 1
 	Set row.InputTokens = input
 	Set row.OutputTokens = output
@@ -167,8 +152,23 @@ ClassMethod FromEstimate(request As OcuTalon.Bridge.Msg.Request, model As %Strin
 	Set row.LargestRequestTokens = input
 	Set row.CostUSD = ##class(OcuTalon.Bridge.Data.Price).CostFor(model, input, 0, 0, output, input, 1)
 	Set row.Estimated = 1
-	Set row.RecordedAt = ##class(OcuTalon.Bridge.Time).NowUtc()
 	Quit $$$OK
+}
+
+/// A new, unsaved row with the fields that FromStats and FromEstimate take alike: DecisionRef, ItemId, Kind, OwnerRef and Channel from the
+/// request, the agent and the model as given, and RecordedAt the current UTC time.
+ClassMethod NewRow(request As OcuTalon.Bridge.Msg.Request, agent As %String, model As %String) As OcuTalon.Bridge.Data.Usage [ Private ]
+{
+	Set row = ..%New()
+	Set row.DecisionRef = request.DecisionRef
+	Set row.ItemId = request.ItemId
+	Set row.Kind = request.Kind
+	Set row.OwnerRef = request.OwnerRef
+	Set row.Channel = request.Channel
+	Set row.Agent = agent
+	Set row.Model = model
+	Set row.RecordedAt = ##class(OcuTalon.Bridge.Time).NowUtc()
+	Quit row
 }
 
 /// The totals of the rows of a decision as {"inputTokens","outputTokens","cacheReadTokens","cacheWriteTokens","costUSD","model","rows"}

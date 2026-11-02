@@ -11,7 +11,7 @@
 ///   - TestNothingOlder (row 2), TestNotCompactable (row 8): no summarizer request, no compaction row;
 ///   - TestSummarizerOffSchema, TestCheckFails, TestReopenFails, TestSummarizerRateLimited (rows 3 to 5): the seeded fallback, one warning, never a
 ///     FailureText;
-///   - TestSummarizerOverLimit, TestHistoryOverLimit (rows 6 and 7): the over-the-limit guards;
+///   - TestSummarizerOverLimit, TestHistoryOverLimit, TestFirstRequestOverLimit (rows 6 and 7): the over-the-limit guards;
 ///   - TestAfterTheSwitch (row 9): a tainted Chat, a Chat that fails and an exception after the link moved to the fork;
 ///   - TestFourIterations (row 10): the fourth request of a tool loop after a compaction stays under 100,000 tokens;
 ///   - TestCutRules, TestCheckRules, TestSeedRules, TestSettingsRules, TestSizes, TestUsageEstimate (row 11): the pure rules.
@@ -159,8 +159,7 @@ Method TestSummarizerOffSchema()
 	Do $$$AssertStatusOK(..Go(host, request, .reply, .entries), "the flagged turn is answered")
 	Do $$$AssertEquals(..Summarizers(entries).%Size(), 1, "one summarizer request is logged")
 	Do ..AssertSeeded(host, owner, request, reply, entries, old, eventMark, "step: the summarizer's request")
-	Set row = ..CompactionRow(request)
-	If $IsObject(row) Do $$$AssertEquals(row.OutputTokens_"|"_row.Estimated_"|"_row.RequestCount, "0|1|1", "the thrown request got its row, with no output")
+	Do ..AssertThrownRow(request)
 }
 
 /// Row 4: a fork whose history starts at a tool result is refused (Compaction.Check), never saved or linked. The seam (ZzCutAdapter) asks for
@@ -213,6 +212,7 @@ Method TestSummarizerRateLimited()
 	Do $$$AssertStatusOK(..Go(host, request, .reply, .entries), "the flagged turn is answered")
 	Do $$$AssertEquals(..Summarizers(entries).%Size(), 1, "exactly one summarizer request is logged: no retry")
 	Do ..AssertSeeded(host, owner, request, reply, entries, old, eventMark, "step: the summarizer's request")
+	Do ..AssertThrownRow(request)
 }
 
 /// Row 6: a summarizer request that, by estimate, would pass the request-size limit is not made (AD-8, NFR-3): no call, no row, the seed.
@@ -251,6 +251,30 @@ Method TestHistoryOverLimit()
 	Do $$$AssertStatusOK(..Go(host, request, .reply, .entries), "the short flagged turn is answered")
 	Do $$$AssertEquals(..Summarizers(entries).%Size(), 0, "no summarizer request: there is nothing older")
 	Do ..AssertSeeded(host, owner, request, reply, entries, old, eventMark, "step: the size of the request")
+	Set chat = ##class(OcuTalon.Test.Agent.RunnerFixture).FindRequests(entries, request.ItemId)
+	For i = 0:1:chat.%Size() - 1 {
+		Do $$$AssertTrue(..RequestTokens(chat.%Get(i), ..#CHAT) '> 41000, "every logged request is at most 41,000 tokens")
+	}
+}
+
+/// Row 7 (the fork): a fork whose first request would still pass the limit is never linked. Turn 1 is short and turn 2, the kept turn, is
+/// long: the summarizer's request fits, the fork that keeps turn 2 does not, so the turn is seeded and no request passes the limit.
+Method TestFirstRequestOverLimit()
+{
+	If ..Guard() Quit
+	Set host = ..NewHost()
+	Set owner = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Do $$$AssertStatusOK(..Go(host, ..Plain("[[mock:recall-tell]] "_..Filler("FILLERONE", 3000), owner), .first, .e1), "turn 1 is answered")
+	Do $$$AssertStatusOK(..Go(host, ..Plain("[[mock:recall-tell]] "_..Filler("FILLERTWO", ..#LONG), owner), .second, .e2), "turn 2 is answered")
+	Set old = ..LinkOf(owner)
+	Do ..PutLimit(41000)
+	Set sessions = ##class(OcuTalon.Test.Agent.RunnerFixture).SessionMark()
+	Set eventMark = ##class(OcuTalon.Test.Agent.RunnerFixture).EventMark()
+	Set request = ..Flagged("[[mock:recall-tell]] A short question.", owner)
+	Do $$$AssertStatusOK(..Go(host, request, .reply, .entries), "the flagged turn is answered")
+	Do $$$AssertEquals(..Summarizers(entries).%Size(), 1, "the summarizer was asked once: its request fits")
+	Do ..AssertSeeded(host, owner, request, reply, entries, old, eventMark, "step: the size of the first request")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).SessionMark() - sessions, 1, "one AI session was saved: the seeded one, and never the fork")
 	Set chat = ##class(OcuTalon.Test.Agent.RunnerFixture).FindRequests(entries, request.ItemId)
 	For i = 0:1:chat.%Size() - 1 {
 		Do $$$AssertTrue(..RequestTokens(chat.%Get(i), ..#CHAT) '> 41000, "every logged request is at most 41,000 tokens")
@@ -541,6 +565,14 @@ Method AssertSeeded(host As OcuTalon.Bridge.Operation.AgentRunner, owner As %Str
 	For i = 0:1:chat.%Size() - 1 {
 		Do $$$AssertTrue(..RequestTokens(chat.%Get(i), ..#CHAT) < 100000, "every logged request is under 100,000 tokens")
 	}
+}
+
+/// The asserts of a summarizer request that threw (rows 3 and 5): its compaction Usage row exists, an estimate of one request with no output.
+Method AssertThrownRow(request As OcuTalon.Bridge.Msg.Request)
+{
+	Set row = ..CompactionRow(request)
+	Do $$$AssertTrue($IsObject(row), "the thrown request got its compaction row")
+	If $IsObject(row) Do $$$AssertEquals(row.OutputTokens_"|"_row.Estimated_"|"_row.RequestCount, "0|1|1", "an estimate of one request, with no output")
 }
 
 /// The number of warnings that the compaction logged after the event-log mark (the method CompactWarning of the adapter, whatever the

@@ -18,7 +18,8 @@ Include Ensemble
 ///     no timer. Otherwise Decide sends the request that SentRequest builds, a clone that carries the DecisionRef, to the runner of the
 ///     kind (RUNNERS) and sets the timer of TimerSeconds (TimerFor), a whole number of seconds from MINTIMER to MAXTIMER (Timeouts.Check, AD-5).
 ///     A flagged turn that continues its conversation (below) gets Compaction.#SUMMARIZERSECONDS more, so that the runner's compaction has its
-///     time (AD-20), and never more than MAXTIMER. RemainingMs and the re-send count from the same total.
+///     time (AD-20), and never more than MAXTIMER. RemainingMs and the re-send count from TimerFor of the request as it stands when they weigh
+///     it: after a compaction the stored history is short, so a re-send is no longer flagged and counts from TimerSeconds.
 ///     Besides the runner requests, the timers and the agent steps (below), Decide sends nothing; it answers only its caller.
 ///   - The estimate and the size limit (AD-8, AD-20, NFR-3): EstimateTokens works out the first model request of the runner of the request
 ///     in tokens, at StepBuffer.CHARSPERTOKEN characters a token. It adds the system prompt and the tool schemas of the runner's agent
@@ -28,8 +29,9 @@ Include Ensemble
 ///     MAXREQUESTTOKENS, and so does any other value, with one warning, so that the limit is never off and never above MAXREQUESTTOKENS. A
 ///     request whose estimate is above the limit takes the fallback reason too_large, after budget, for every kind and on every re-send,
 ///     except a turn that is flagged (below) and continues its conversation: the runner compacts such a turn, or starts a fresh session
-///     with a seed of at most Compaction.#SEEDCHARS characters in place of the history, so it is judged on the most that the runner will
-///     send, the estimate with the history counted as the least of itself and Compaction.#SEEDCHARS (Precheck). Decide never changes the
+///     with a seed of at most Compaction.#SEEDCHARS characters in place of the history, so it is judged on the request of the seeded path,
+///     the estimate with the history counted as the least of itself and Compaction.#SEEDCHARS (Precheck); the runner itself checks the
+///     session as it stands and the fork against the limit and seeds in their place when they pass it. Decide never changes the
 ///     conversation link; it only reads it.
 ///   - The flag (AD-6, AD-20): SentRequest sets Request.Compact to 1 on the clone of a turn whose estimate is above COMPACTTOKENS, and to 0
 ///     on every other request, whatever the caller set. The runner compacts a flagged turn that continues its conversation before
@@ -859,9 +861,10 @@ ClassMethod Unfenced(text As %String) As %String
 /// MAXREQUESTTOKENS is the limit; an empty one counts as MAXREQUESTTOKENS, and any other one counts as MAXREQUESTTOKENS and is logged as
 /// one warning that names RequestTokenLimit, so the limit is never off and never above MAXREQUESTTOKENS (RequestLimit). One more warning
 /// names the runner when the system prompt or the tool schemas of its agent could not be read in full (a part that could not be read counts
-/// 0). A turn that is flagged for compaction (Flagged) and continues its conversation is judged for too_large on the most the runner will
-/// send: its characters with the stored history counted as the least of the history and Compaction.#SEEDCHARS (AD-8, AD-20); the token
-/// budget and the estimate that it gives back keep the full estimate. Nothing is sent or recorded here.
+/// 0). A turn that is flagged for compaction (Flagged) and continues its conversation is judged for too_large on the request of the
+/// runner's seeded path: its characters with the stored history counted as the least of the history and Compaction.#SEEDCHARS (AD-8,
+/// AD-20); the runner checks the session as it stands and the fork against the limit itself. The token budget and the estimate that it
+/// gives back keep the full estimate. Nothing is sent or recorded here.
 ClassMethod Precheck(request As OcuTalon.Bridge.Msg.Request, runner As %String, tokenBudget As %String, requestLimit As %String = "", Output estimate As %Integer) As %String
 {
 	Set facts = {}

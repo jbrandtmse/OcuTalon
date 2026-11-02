@@ -20,7 +20,10 @@
 /// THIS CLASS RUNS IN THROWAWAY STACKS AND IN CI ONLY (Rule 21): TestOnTheMock needs the CI override's environment and the mock's log. eval/run.sh
 /// --release-candidate calls Print(Run(.problems)) on the real model, after the attempts. A failed smoke is recorded in the result and does not change the verdict.
 ///   - TestOnTheMock: the smoke passes on the mock;
-///   - TestPrint: the CHK line for a pass and for a failure.
+///   - TestPrint: the CHK line for a pass and for a failure;
+///   - TestChecksCanFail (QA): the beta header in the smoke's provider settings (on the mock and from ChatAgent's Config Store entry, the key kept a
+///     placeholder) and in its runners, the turns that must run a tool, and the scanners of the log (a thinking block, one turn's own requests), whose
+///     checks the mock cannot make fail by itself.
 Class OcuTalon.Test.Eval.ThinkingSmoke Extends %UnitTest.TestCase
 {
 
@@ -76,6 +79,67 @@ Method TestPrint()
 	Do $$$AssertEquals(..Line(0), "CHK|smoke|failed|3", "a failure with the number of its problems")
 	Kill ^||OcuTalonSmoke
 	Do $$$AssertEquals(..Line(0), "CHK|smoke|failed|0", "and a failure that left no count")
+}
+
+/// (QA, Story 30.1 AC 5) The checks of the smoke that the CI mock cannot make fail by itself. The mock never answers with a thinking block, and its log keeps
+/// the names of the headers of every request, anthropic-beta included, whether or not the provider settings carry it (Task 0 fact (e)). So TestOnTheMock
+/// cannot go red for a thinking block that comes back or for a dropped beta header. This test pins the two pieces on their own inputs: the beta header is in
+/// the provider settings that the smoke builds (it reaches every request of every runner of the smoke), HasThinkingBlock finds a thinking or a redacted_thinking
+/// block of an assistant message and nothing else, and OwnRequests keeps the chat requests of one turn and no summarizer request or earlier turn.
+Method TestChecksCanFail()
+{
+	// the beta header is in the settings of the smoke, and the settings keep the rest of the runner's
+	Set config = ..ProviderConfigText(1, .why)
+	Set settings = {}.%FromJSON(config)
+	Do $$$AssertEquals(why, "", "the provider settings of the smoke on the mock are built")
+	Do $$$AssertEquals(settings."http_config"."custom_headers".%Get(..#BETAHEADER), ..#BETAVALUE, "they carry the beta header of the thinking-binding controls")
+	Do $$$AssertEquals(settings."model_provider", "anthropic", "and keep the runner's provider")
+	Do $$$AssertEquals(..NewHost(..#CHAT, config).Adapter.ProviderConfig, config, "and the smoke's runners get them")
+
+	// on the real model they are ChatAgent's Config Store entry as stored: the key stays a placeholder, and the beta header is added
+	Set real = ..ProviderConfigText(0, .why)
+	Do $$$AssertEquals(why, "", "the Config Store entry of ChatAgent is read")
+	Set stored = $Select(real '= "": {}.%FromJSON(real), 1: {})
+	Do $$$AssertEquals($Extract(stored."api_key", 1, 6), "@{env:", "its key is the placeholder, never expanded")
+	Do $$$AssertEquals(stored."http_config"."custom_headers".%Get(..#BETAHEADER), ..#BETAVALUE, "and it carries the beta header")
+
+	// turns 1 and 2 must run a tool (the tool change needs tool calls); turn 3 need not
+	Set ran = {"job": 1, "status": 1, "text": "t", "failure": "", "rotated": 0, "tainted": 0, "error": "", "tools": 1}
+	Set none = {"job": 1, "status": 1, "text": "t", "failure": "", "rotated": 0, "tainted": 0, "error": "", "tools": 0}
+	Set problems = []
+	Do ..CheckTurn(problems, 1, ran)
+	Do ..CheckTurn(problems, 3, none)
+	Do $$$AssertEquals(problems.%Size(), 0, "turn 1 that ran a tool and turn 3 that ran none are usable")
+	Do ..CheckTurn(problems, 2, none)
+	Do $$$AssertEquals(problems.%Size(), 1, "turn 2 that ran no tool is a problem")
+
+	// a thinking block that is sent back is found, in either form, and only in an assistant message
+	Set clean = [{"role":"user","content":"u"},{"role":"assistant","content":[{"type":"text","text":"a"},{"type":"tool_use","id":"t1","name":"x","input":{}}]},{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":"r"}]},{"role":"assistant","content":"plain"}]
+	Do $$$AssertEquals(..HasThinkingBlock(clean), 0, "text, tool_use and tool_result blocks are no thinking block")
+	Set thinking = [{"role":"user","content":"u"},{"role":"assistant","content":[{"type":"thinking","thinking":"hm","signature":"s"},{"type":"text","text":"a"}]}]
+	Do $$$AssertEquals(..HasThinkingBlock(thinking), 1, "a thinking block of an assistant message is found")
+	Set redacted = [{"role":"user","content":"u"},{"role":"assistant","content":[{"type":"redacted_thinking","data":"d"}]}]
+	Do $$$AssertEquals(..HasThinkingBlock(redacted), 1, "and so is a redacted_thinking block")
+	Set late = [{"role":"user","content":"u"},{"role":"assistant","content":"a"},{"role":"user","content":"u2"},{"role":"assistant","content":[{"type":"text","text":"b"},{"type":"thinking","thinking":"hm"}]}]
+	Do $$$AssertEquals(..HasThinkingBlock(late), 1, "also in a later message than the first")
+	Do $$$AssertEquals(..HasThinkingBlock(""), 0, "no messages, no block")
+
+	// OwnRequests: the chat requests of one turn, found by the newest user text, without a summarizer request or an earlier turn's request
+	Set one = ..LoggedRequest("", [{"role":"user","content":"REFONE first"}])
+	Set two = ..LoggedRequest("", [{"role":"user","content":"REFONE first"},{"role":"assistant","content":"a"},{"role":"user","content":"REFTWO second"}])
+	Set twoAgain = ..LoggedRequest("", [{"role":"user","content":"REFONE first"},{"role":"assistant","content":"a"},{"role":"user","content":"REFTWO second"},{"role":"assistant","content":[{"type":"tool_use","id":"t1","name":"x","input":{}}]},{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":"r"}]}])
+	Set summary = ..LoggedRequest("summary", [{"role":"user","content":[{"type":"text","text":"Transcript: REFTWO second"}]}])
+	Set entries = [(one), (two), (twoAgain), (summary)]
+	Set found = ..OwnRequests(entries, "REFTWO")
+	Do $$$AssertEquals(found.%Size(), 2, "the two chat requests of turn 2 are found, one of them after a tool result")
+	Do $$$AssertEquals(..OwnRequests(entries, "REFONE").%Size(), 1, "turn 1 has one request: a later turn's history does not count as the turn's own")
+	Do $$$AssertEquals(..OwnRequests(entries, "REFTHREE").%Size(), 0, "a turn with no request has none")
+}
+
+/// A logged request of the mock's log, as the smoke reads it: a POST of /v1/messages with the scenario and the messages.
+ClassMethod LoggedRequest(scenario As %String, messages As %DynamicArray) As %DynamicObject [ Private ]
+{
+	Quit {"method": "POST", "path": "/v1/messages", "scenario": (scenario), "request": {"messages": (messages)}}
 }
 
 /// The CHK line of a result, as Print writes it.
@@ -214,10 +278,10 @@ ClassMethod NewHost(agentClass As %String, config As %String) As OcuTalon.Bridge
 
 /// The job of one turn: answers the request (the item, the decision, the input and the flag, which were made by NewTurn) on a host of its own and
 /// leaves the result in the temporary global for the token and the number, last (it is the sign that the job is done): {job, status, text, failure,
-/// rotated, tainted, error}.
+/// rotated, tainted, error, tools}.
 ClassMethod TurnJob(token As %Integer, number As %Integer, agentClass As %String, itemId As %String, decisionRef As %String, input As %String, flagged As %Boolean, config As %String)
 {
-	Set out = {"job": ($Job), "status": 0, "text": "", "failure": "", "rotated": 0, "tainted": 0, "error": ""}
+	Set out = {"job": ($Job), "status": 0, "text": "", "failure": "", "rotated": 0, "tainted": 0, "error": "", "tools": 0}
 	Try {
 		Set request = ..NewTurn(input, flagged, itemId, decisionRef)
 		Set host = ..NewHost(agentClass, config)
@@ -229,6 +293,7 @@ ClassMethod TurnJob(token As %Integer, number As %Integer, agentClass As %String
 			Set out.failure = reply.FailureText
 			Do out.%Set("rotated", +reply.SessionRotated, "number")
 			Do out.%Set("tainted", +reply.Tainted, "number")
+			Do out.%Set("tools", +reply.ToolsRun, "number")
 		}
 	} Catch exception {
 		Set out.error = $Piece(exception.Name, " ", 1)_" "_exception.Code
@@ -246,9 +311,11 @@ ClassMethod Wait(token As %Integer, number As %Integer) As %Boolean [ Private ]
 	Quit $Data(@(..#RESULTS)@(token, number)) > 0
 }
 
-/// A turn is usable: its job ran and answered, with a text and no failure.
+/// A turn is usable: its job ran and answered, with a text and no failure; turns 1 and 2 ran a tool, so that the history holds tool calls before
+/// the tool change.
 ClassMethod CheckTurn(problems As %DynamicArray, turn As %Integer, result As %DynamicObject) [ Private ]
 {
+	If (turn < 3) && 'result.tools Do problems.%Push("turn "_turn_" ran no tool")
 	If result.error '= "" Do problems.%Push("turn "_turn_" failed: "_result.error)
 	If 'result.status Do problems.%Push("turn "_turn_" was refused")
 	If result.failure '= "" Do problems.%Push("turn "_turn_" came back as a failure")

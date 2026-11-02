@@ -407,6 +407,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Usage indexes DecisionRef and OwnerRef only (Lane B's Test.Data.Tables pins the indexes); UsageSpent selects by RecordedAt and UnpricedModels scans again when a cap is set; settle by timing Precheck with about 100,000 Usage rows
 - 2026-10-22T23:49:35Z status=escalated owner=burndown by=harvest note=for the decision sheet: measure Precheck at 100,000 Usage rows; if it is slow, add a RecordedAt index to Usage with the change to Lane B's pin (an orchestrator call), or cache the day's spend
 - 2026-10-24T12:14:24Z status=routed owner=30-1-long-conversations-are-compacted-under-the-limit by=merge_gate note=measure_the_precheck_at_~100k_Usage_rows,then_index(Lane_B's_pin)_or_cache_the_day's_spend;veto_U-50
+- 2026-11-02T11:33:42Z status=wontfix-accepted by=adjudication note=measured_in_30.1_Task_0(d)_on_a_fresh_throwaway:median_Precheck_~28ms_at_100,000_Usage_rows(threshold_250ms);no_code_change;reopen_if=a_Precheck_median_above_250ms_on_a_field_instance,or_a_Usage_table_above_100,000_rows
 
 ### DW-94: The gateway's HTTP 403 is measured only in Anthropic's error-JSON shape, and Story 29.3 fixes its status and text but not its body, so a body that AI Hub's error text drops would make a reached cap an error fallback
 - source: spec-1-6-an-unusable-reply-takes-the-fallback-route-and-ocutalon-star.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -506,12 +507,14 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-1-9-no-model-request-goes-over-100-000-tokens.md | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: Story 1.9 Decide.Precheck too_large on the estimate (history + prompt + schemas + input); Story 1.8 resumes the linked history
 - 2026-10-23T18:29:11Z status=routed owner=30-1-long-conversations-are-compacted-under-the-limit by=spec_gate note=30.1 compacts (or rotates to a fresh seeded session) a flagged turn whose history alone passes the limit, and adds its summarizer time only to flagged turns it can compact
+- 2026-11-02T11:33:42Z status=resolved-by:30-1-long-conversations-are-compacted-under-the-limit by=adjudication note=30.1_compacts_or_rotates_to_a_seeded_session_a_flagged_linked_turn_and_judges_too_large_on_the_post-compaction_bound:AC2(Test.Agent.Compaction,history_over_a_41,000_limit_answered,every_request_<=41,000)+matrix_rows_6-7(Test.Bridge.Compaction);commit_08decf39
 
 ### DW-130: Until Story 30.1 compacts, a turn that passes the request-size check can still send a later model request above 100,000 tokens inside AI Hub's tool loop (a 99,000-token first request could reach about 153,000 on its fourth); AD-20's arithmetic bound holds only once turns above 40,000 are compacted
 - source: spec-1-9-no-model-request-goes-over-100-000-tokens.md | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: Story 1.9 checks the first request only; the AC's amendment sends a flagged turn as it is until 30.1 merges; AD-20 bounds the loop by compaction at 40,000
 - 2026-10-23T21:02:46Z status=routed owner=30-1-long-conversations-are-compacted-under-the-limit by=harvest note=30.1's compaction of every flagged turn closes it; its tests should show a four-iteration turn staying under 100,000
 - 2026-10-23T22:00:43Z occurrence=1-9-no-model-request-goes-over-100-000-tokens by=cr note=cr: Chat has no tools until 1.10, so the loop opens there (and with 22.x MCP), not before; 30.1 still closes it
+- 2026-11-02T11:33:42Z status=resolved-by:30-1-long-conversations-are-compacted-under-the-limit by=adjudication note=compacted_case_closed:matrix_row_10(Test.Bridge.Compaction,four_requests_after_compaction_each_under_100,000;mutation_control_without_compaction_passes_100,000)+AC1(Test.Agent.Compaction);residual_first-request-between-40k-and-the-limit_case_restated_as_DW-579(escalated,decision_sheet);commit_08decf39
 
 ### DW-131: The tool-result cap counts a result's characters before AI Hub encodes a string result again as a JSON string, so a cut result reaches the model slightly larger than the room (10,006 tokens against 10,000 measured)
 - source: spec-1-9-no-model-request-goes-over-100-000-tokens.md | severity: low | fix-risk: low | footprint: in-story
@@ -2974,3 +2977,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-30-1-long-conversations-are-compacted-under-the-limit.md | severity: med | fix-risk: med | footprint: in-story
 - evidence: AD-20 Rule's 40,000 + 3 x 10,000 + 3 x 8,000 arithmetic holds only for a first request at most 40,000; 30.1 Design Notes R1 options (a) refuse such a fork or as-is session above 40,000 in favour of the seed, (b) Decide refuses a tool-capable turn whose non-history part is above about 46,000, (c) accept
 - 2026-11-02T10:55:33Z status=escalated owner=burndown by=harvest note=for the decision sheet: (a) and (b) change what the product does; recommended (c) accept with reopen_if=the mock or a recorded run logs a request above 100,000 tokens
+
+### DW-580: The compaction summarizer's 20 s request timeout (AD-20, no retries) is measured only on the CI mock (0.02 s); a real summarizer request near the request-size limit may exceed it, so large real compactions may always take the seeded fallback
+- source: spec-30-1-long-conversations-are-compacted-under-the-limit.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: Task 0 (c) timed the summarizer only on the mock; the release-candidate smoke compacts three short turns, so no run measures a large transcript on the real model (unverified)
+- 2026-11-02T11:32:06Z status=decision-pending owner=burndown by=cr note=human=measure a ~100k-token summarizer request's latency on the real model (RC run); 20 s is AD-20's

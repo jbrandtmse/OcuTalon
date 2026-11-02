@@ -632,44 +632,41 @@ Method SwitchTo(request As OcuTalon.Bridge.Msg.Request, ByRef session As %AI.Age
 
 /// The provider of the summarizer's request (AD-7, AD-8, AD-19, AD-20): AI Hub's Create with the provider settings of this runner as AI
 /// Hub's own adapter expands them (EnsLib.AI.Agent.OutboundAdapter setupProviderFromSettings: ProviderConfig expanded through the
-/// setting store, else the agent's PROVIDERCONFIG; the agent's APIKEY when the settings hold none; the name from ProviderName, else the
-/// settings' model_provider, else the agent's PROVIDER), changed by Compaction.SummarizerSettings. The settings live in this method alone: they
+/// setting store, else the agent's PROVIDERCONFIG, which is also the agent's own provider when the runner names none; the agent's APIKEY when
+/// the settings hold none; the name from ProviderName, else the settings' model_provider, else the agent's PROVIDER), changed by
+/// Compaction.SummarizerSettings. The settings live in this method alone: they
 /// are never logged, stored or put in a message, and an error says nothing of them. The agent is built.
 Method SummarizerProvider(Output provider As %AI.Provider) As %Status [ Private ]
 {
 	Set provider = ""
 	Set sc = $$$OK
 	Try {
-		If (..ProviderConfig '= "") || (..ProviderName '= "") {
-			If ..ProviderConfig '= "" {
-				Set settings = {}.%FromJSON(##class(%AI.Utils.SettingStore).Expand(..ProviderConfig))
-			} Else {
-				Set configured = $Parameter(..Agent, "PROVIDERCONFIG")
-				If $IsObject(configured) {
-					Set settings = configured
-				} ElseIf configured '= "" {
-					Set settings = {}.%FromJSON(##class(%AI.Utils.SettingStore).Expand(configured))
-				} Else {
-					Set settings = {}
-				}
-			}
-			Set apiKey = $Parameter(..Agent, "APIKEY")
-			If 'settings.%IsDefined("api_key") && (apiKey '= "") Do settings.%Set("api_key", ##class(%AI.Utils.SettingStore).Expand(apiKey))
-			Set name = ..ProviderName
-			If name = "" {
-				If settings.%IsDefined("model_provider") {
-					Set name = settings.%Get("model_provider")
-				} Else {
-					Set name = $Parameter(..Agent, "PROVIDER")
-				}
-			}
-			If name = "" {
-				Set sc = $$$ERROR($$$GeneralError, "No provider is named")
-			} Else {
-				Set provider = ##class(%AI.Provider).Create(name, ##class(OcuTalon.Bridge.Compaction).SummarizerSettings(settings))
-			}
+		If ..ProviderConfig '= "" {
+			Set settings = {}.%FromJSON(##class(%AI.Utils.SettingStore).Expand(..ProviderConfig))
 		} Else {
-			Set sc = $$$ERROR($$$GeneralError, "The runner has no provider settings")
+			Set configured = $Parameter(..Agent, "PROVIDERCONFIG")
+			If $IsObject(configured) {
+				Set settings = configured
+			} ElseIf configured '= "" {
+				Set settings = {}.%FromJSON(##class(%AI.Utils.SettingStore).Expand(configured))
+			} Else {
+				Set settings = {}
+			}
+		}
+		Set apiKey = $Parameter(..Agent, "APIKEY")
+		If 'settings.%IsDefined("api_key") && (apiKey '= "") Do settings.%Set("api_key", ##class(%AI.Utils.SettingStore).Expand(apiKey))
+		Set name = ..ProviderName
+		If name = "" {
+			If settings.%IsDefined("model_provider") {
+				Set name = settings.%Get("model_provider")
+			} Else {
+				Set name = $Parameter(..Agent, "PROVIDER")
+			}
+		}
+		If name = "" {
+			Set sc = $$$ERROR($$$GeneralError, "No provider is named")
+		} Else {
+			Set provider = ##class(%AI.Provider).Create(name, ##class(OcuTalon.Bridge.Compaction).SummarizerSettings(settings))
 		}
 	} Catch {
 		Set provider = ""
