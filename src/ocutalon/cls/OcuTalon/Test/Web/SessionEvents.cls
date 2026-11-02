@@ -956,13 +956,14 @@ Method TestSignOutMark()
 		Do $$$AssertNotEquals(epochBefore, "", "the session has an Epoch to compare")
 		Do $$$AssertTrue(before [ resumeHash, "the row text holds the resume hash")
 		Do $$$AssertTrue(before [ cspSessionId, "and the CSP session id")
-		Do $$$AssertTrue(before [ "|AllowanceTimes=2026-11-02T00:00:01Z~2026-11-02T00:00:02Z", "and the allowance list by its elements")
+		Do $$$AssertTrue(before [ "|AllowanceTimes=2001-01-01T00:00:01Z~2001-01-01T00:00:02Z", "and the allowance list by its elements")
 		Do $$$AssertEquals($Data(@markGlobal@(fresh)), 0, "a session that never signed out has no mark node to begin with")
 		Do $$$AssertEquals(##class(OcuTalon.Data.Session).SignOuts(ref), 0, "the session has no mark to begin with")
 		Do $$$AssertStatusOK(##class(OcuTalon.Web.SessionEvents).OnLogout(), "OnLogout answers OK")
 		Do $$$AssertEquals(##class(OcuTalon.Data.Session).SignOuts(ref), 1, "and raises the mark by 1")
 		Do $$$AssertStatusOK(##class(OcuTalon.Web.SessionEvents).OnLogout(), "a second sign-out answers OK")
 		Do $$$AssertEquals(##class(OcuTalon.Data.Session).SignOuts(ref), 2, "and raises it by 1 again")
+		Do $$$AssertEquals($Get(@markGlobal@(ref)), 2, "and the mark is the node that MARKGLOBAL names")
 		Do $$$AssertEquals(..RowText(ref), before, "the row's fields are unchanged")
 		Do $$$AssertEquals(##class(OcuTalon.Data.Session).RefIndexOpen(ref).Epoch, epochBefore, "and the Epoch is unchanged")
 		Do $$$AssertEquals(##class(OcuTalon.Data.Session).SignOuts(other), otherBefore, "another session's mark is unchanged")
@@ -975,7 +976,6 @@ Method TestSignOutMark()
 		Do $$$AssertEquals($Data(@markGlobal@(fresh)), 0, "and sets no mark node")
 		Do $$$AssertEquals(..RowText(fresh), freshBefore, "and its row's fields are unchanged")
 		Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
-		Set %session.Data(##class(OcuTalon.Data.Ownership).#SESSIONKEY) = ref
 
 		Kill %session.Data(##class(OcuTalon.Data.Ownership).#SESSIONKEY)
 		Do $$$AssertStatusOK(##class(OcuTalon.Web.SessionEvents).OnLogout(), "with no ref in the CSP session it answers OK")
@@ -1034,18 +1034,19 @@ Method TestSignOutWakesTheSocket()
 }
 
 /// A session row of the running user with every stored field set to a value of its own (including the resume hash, the CSP
-/// session id and the allowance list), so that a comparison of the fields can fail on each; its Ref.
+/// session id and the allowance list), so that a comparison of the fields can fail on each; its Ref. The days and times are in
+/// 2001, a date that no writer of these fields stores (they store today's), so a write of today's values changes the row.
 ClassMethod MarkedFixture() As %String [ Private ]
 {
 	Set ref = ##class(OcuTalon.Test.Data.Fixture).Session($Username)
 	Set row = ##class(OcuTalon.Data.Session).RefIndexOpen(ref)
 	Set row.ThreadSessionId = 7
-	Set row.ThreadDay = "2026-11-02"
+	Set row.ThreadDay = "2001-01-01"
 	Set row.ResumeHash = ##class(OcuTalon.Data.Session).Hash(ref)
 	Set row.CspSessionId = "zz"_ref
-	Set row.AllowanceTimes = $ListBuild("2026-11-02T00:00:01Z", "2026-11-02T00:00:02Z")
-	Set row.AllowanceUntil = "2026-11-02T01:00:00Z"
-	Set row.DailyCapDay = "2026-11-02"
+	Set row.AllowanceTimes = $ListBuild("2001-01-01T00:00:01Z", "2001-01-01T00:00:02Z")
+	Set row.AllowanceUntil = "2001-01-01T01:00:00Z"
+	Set row.DailyCapDay = "2001-01-01"
 	Set sc = row.%Save()
 	If $SYSTEM.Status.IsError(sc) Throw ##class(%Exception.StatusException).CreateFromStatus(sc)
 	Quit ref
