@@ -2807,3 +2807,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-40-1-fix-the-persona-s-names-contracts-and-preset-texts.md | severity: low | fix-risk: med | footprint: out-of-footprint
 - evidence: Test/Agent/Persona.cls TestPresets compares with XData UX; the node comparison is in the spec's Verification only, not in ci/checks.sh or docker/tests/test-mock.sh (ci/ is Lane B's)
 - 2026-11-02T02:29:01Z status=wontfix-accepted owner=40-1-fix-the-persona-s-names-contracts-and-preset-texts by=cr note=reopen_if=EXPERIENCE.md's Personality preset table changes after Story 40.1 while XData PRESETS does not
+
+### DW-570: ProposePersona is not bound to the bridge context's owner: CommandsIn checks SessionRef against the context's OwnerRef only for Dismiss
+- source: spec-40-2-save-your-persona-and-let-ocutalon-propose-one.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: Core/CommandsIn.cls Carry: owner check only for Dismiss; ProposePersona answers not_built today so nothing is reachable (AD-1: a tool proposes only for the session's own persona)
+- 2026-11-02T04:59:55Z status=routed owner=40-6-answer-a-proposed-persona-from-the-page-the-phone-or-telegra by=harvest note=40.6 makes ProposePersona raise a setting request; bind SessionRef to the context owner there (or in 40.5's tool) before it is reachable

@@ -8046,6 +8046,8 @@ So that I stay in charge of how OcuTalon talks to me.
 **When** a proposal is answered from the web chat, the simulated phone and the paired chat
 **Then** the first answer wins, the others show who answered and where, and the audit holds one entry per answer (FR-8, FR-9)
 
+- DW-570: bind `ProposePersona`'s `SessionRef` to the bridge context's owner (as `CommandsIn` does for `Dismiss`) before it raises a request (AD-1) (ledger; routed by harvest 2026-11-02)
+
 ### Story 40.7: Evaluation cases for the persona
 
 *Home lane: A.*
