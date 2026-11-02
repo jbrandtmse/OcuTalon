@@ -16,3 +16,5 @@
 2026-11-02T01:39:16Z	Story 40.1	amendment	files=epics.md:7864,epics.md:8036,epics.md:8037,EXPERIENCE.md:891,EXPERIENCE.md:892 tier=1 what=catalog_key_rename
 2026-11-02T01:39:16Z	Epic 40	epic_context_compiled	sha=4aae82a2 reason=nfr_amendment model=opus
 2026-11-02T01:39:16Z	Story 40.1	stage_spawned	stage=plan spawn_at=2026-11-02T01:39:16Z model=opus agent_name=40-1-fix-the-persona-s-names-contracts-and-preset-texts-plan-2 cycle_iteration=2
+2026-11-02T01:46:49Z	Story 40.1	story_created	spawn_at=2026-11-02T01:39:16Z model=opus path=_bmad-output/implementation-artifacts/spec-40-1-fix-the-persona-s-names-contracts-and-preset-texts.md build_status=ready-for-dev epic_context=reused cycle_iteration=2
+2026-11-02T01:46:49Z	Story 40.1	spec_validated	service_introducing=true integration_ac=present adr_constrained_acs=AD-7,AD-1,AD-11,AD-19,AD-22,AD-29,AD-32,AD-33 decision_dependency=none sections_created=none owned_ledger=none addressed=0 declined=0 mutates_shared_runtime=false model=claude-opus-5-5 note=intent_contract_narrowed_names_cls_to_append_block_accepted
