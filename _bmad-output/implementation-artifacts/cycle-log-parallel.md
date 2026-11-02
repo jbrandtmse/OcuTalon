@@ -1361,3 +1361,6 @@
 2026-11-02T13:18:57Z	Epic 11	planning_amended	epics.md=15.3_wording(Story_11.17_builds_it)+DW-576_bullet_under_15.3
 2026-11-02T13:18:57Z	Epic 11	deps_hash_rerecorded	reason=split(11.11-11.18)+fix_forward(11.19)+prose hash=788aaeccbb47
 2026-11-02T13:19:01Z	Epic 11	worktree_removed	worktree=.worktrees/epic-11 branch=OCT-epic11_deleted(local+remote) part_2=fresh_worktree_at_reopen
+2026-11-02T13:25:45Z	Epic 12	runner_dispatched	agent=a5301d186f8f9c64f model=opus runner=A slot=ocutalon-slot-a mode=redispatch(12.7,close) base=a9a221ed prompt=prompts/dispatch-epic-12-127.md
+2026-11-02T13:25:45Z	Epic 1-37	owner_decision	via=contest_planner(delegation) items=U-212(#648,keep+4_conditions->Epic_31),U-213(#649,keep;resolved),U-214(#650,keep_if_names_what_failed->Epic_30),U-215(#651,keep+test_keys_2_3_4->30.7;DW-584),U-216(#652,keep;Planner_untracks_bundle_at_merge-back;Epic_38_note;resolved),U-217(#653,keep;provision_checked;resolved)
+2026-11-02T13:25:45Z	Epic 1-37	deps_hash_rerecorded	reason=prose(Epic_38_reading_note_U-216) hash=8f43ce4df4a5

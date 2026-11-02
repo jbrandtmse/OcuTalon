@@ -2939,6 +2939,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: web/package.json builds into src/ocutalon/csp/; .gitignore:28 ignores it; 11.16's merge back carries the bundle onto the integration branch
 - 2026-11-01T14:59:04Z status=escalated owner=burndown by=spec_gate note=for the decision sheet: e.g. build into a separate folder and copy at the cut, or untrack the bundle after the merge back; affects every epic after 1.0.0
 - 2026-11-02T13:18:26Z status=routed owner=11-16-the-sequence-asks-before-each-outward-step-after-the-gates by=merge_gate note=build_into_a_separate_folder,copy_in_only_at_the_cut;veto_U-216
+- 2026-11-02T13:25:27Z status=routed owner=11-16-the-sequence-asks-before-each-outward-step-after-the-gates by=owner note=U-216_kept:no_interim_git_checkout;the_Planner_untracks_src/ocutalon/csp_by_hand_at_each_merge-back_(git_rm_-r_--cached;.gitignore_covers_it)_until_11.16;Epic_38_reading_note
 
 ### DW-533: The rehearsal collector finds the reminder's phone message by the reminder row's text and the result message by 'went through.'; measured on the CI mock only, so a different real-model rendering makes a run fail with a missing reminder_msg mark (never a false pass)
 - source: spec-11-11-the-rehearsal-runner-times-the-demo-path-and-checks-every-bo.md | severity: low | fix-risk: low | footprint: in-story
@@ -3217,3 +3218,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-11-19-seeded-check-rows-stay-out-of-the-heartbeat-s-way-unless-a-c.md | severity: low | fix-risk: med | footprint: in-story
 - evidence: a deterministic red needs a browser spec that waits a tick, or a mutated Test.Data.Fixture CHECKAHEAD; both are outside 11.19's footprint (spec Never list); AC1's source pins and FixtureDefaults.TestCheckIsNotDue are the falsifiable halves
 - 2026-11-02T12:35:31Z status=wontfix-accepted owner=11-19-seeded-check-rows-stay-out-of-the-heartbeat-s-way-unless-a-c by=cr note=reopen_if=a seeded browser case reads a finding or last run it was not seeded with in CI after Epic 11 part 1 merges
+
+### DW-584: No test pins that a several-ref command's IdempotencyKeys (:2, :3, :4 from one tool call) are each accepted once and refused on a repeat, the as-built AD-1 rule (U-215's condition)
+- source: Epic 11 merge decision sheet (DW-496, veto U-215 kept by the Contest Planner) | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: AD-1 amended a9a221ed; TestCancelAllThroughChat asserts the keys but not the repeat refusal per key
+- 2026-11-02T13:25:27Z status=routed owner=burndown by=merge_gate note=Epic 30 part 2 burn-down 30.7 (sent to its runner with U-215's apply)

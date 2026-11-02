@@ -7859,6 +7859,8 @@ Epic 38 depends on every 1.0.0-scope epic and gates the v1.0.0 tag. Once those e
 
 [AMENDED 2026-11-02, owner decision via the Contest Planner (Epic 11 trimmed to 11.17)] Until Epic 11 part 2 merges, read "Story 11.5's sequence stopped at the hands-on gate" in Stories 38.1 and 38.3 as: the candidate cut and pushed by Story 11.5's sequence, with the Contest Planner's hand run of Story 11.14's gate list recorded in its record (the full CI run, the release-candidate evaluation with the demo incident gate, the upgrade harness, the rehearsal, the checklist and the REL-7 hands-on pass, the refusal of any enabled item that answers "not implemented" included); read "resumed after the recorded pass and it finishes" as the Contest Planner's hand steps under REL-11's standing go (the PRD amendment is written on the feature branch). The demo host is updated by the Contest Planner's update-ref path; U-208 and H19 move with Story 11.18 to Epic 11 part 2. No acceptance criterion changes; Story 15.3 still reads Story 11.17's artifact record.
 
+[AMENDED 2026-11-02, U-216 kept by the Contest Planner (DW-532)] At 1.0.0's merge-back of `main` into the integration branch, the Contest Planner untracks the built web bundle by hand in the same merge-back commit (`git rm -r --cached src/ocutalon/csp`; the integration branch's `.gitignore` already covers it), so local web builds stay clean; any daily release's merge-back before Epic 11 part 2 (Story 11.16) resolves the bundle's modify/delete the same way. Story 11.16 then builds into a separate folder and copies the bundle in only at the cut.
+
 ### Story 38.1: A hands-on pass with real keys finds and fixes what the tests missed before 1.0.0
 
 As the author,
