@@ -94,6 +94,31 @@ It also writes the opt-in rule into `CheckFields.nextDueAt`'s doc comment. The f
   - Any red is recorded with its spec and case. A red outside DW-349's class (for example DW-578) is not this story's.
 - Given the story's diff since `story_base`, when listed, then it holds only `web/scripts/check-seeds.test.mjs`, `web/e2e/support/iris.ts` and this spec: no spec file is edited.
 
+### Review Findings
+
+Code review (epic-cycle stage, 2026-11-02; base 2a6f1677, head b16d8338): 4 layers, 25 rows, 7 entries kept (medium 3, low 4, high 0), 11 rejected. Every patch carries a demonstrated mutation under Verification.
+
+- [x] [Review][Patch] `[medium]` the `properties()` pin matched the filter anywhere in the function, so a statement before the return that drops `''` stayed green - the regex now anchors the whole body as the one return [web/scripts/check-seeds.test.mjs:77] (edge-case + verification-gap; fix-risk low: test-only)
+- [x] [Review][Patch] `[medium]` the guard that keeps `real watch` in code (a string) from counting as the comment had no sample, so removing it stayed green - sample `displayName: 'real watch'` added [web/scripts/check-seeds.test.mjs:120] (verification-gap + blind; fix-risk low: test-only)
+- [x] [Review][Patch] `[medium]` `codeLines` copied `code()`'s comment stripping (Rule 2) and diverged from it (no HTML comments, no `m` flag, so a CRLF line kept its `// real watch`) - `codeLines` now delegates to `code()` and only empties each block comment down to its line breaks first, with the reason in its doc comment [web/scripts/check-seeds.test.mjs:25] (blind + verification-gap + acceptance + edge-case; fix-risk low: same output on the tree, 11 of 11)
+- [x] [Review][Patch] `[low]` a plain block comment above an opt-in (inner lines with no leading `*`) read as unmarked, and the `*` branch had no sample - a comment-only line is now one whose code is empty and whose text is not; samples for a JSDoc block, a plain block, a code line with a trailing comment and a marked direct call [web/scripts/check-seeds.test.mjs:32] (blind + edge-case)
+- [x] [Review][Patch] `[low]` no developer-facing comment stated the rule for a direct `Fixture.Check` call - one sentence added to `CheckFields.nextDueAt` [web/e2e/support/iris.ts:851] (blind)
+- [x] [Review][Patch] `[low]` AC4 had no recorded check or mutation (Rule 19) - closed in-pass: the listing command and its mutation are under Verification (verification-gap)
+- [x] [Review][Defer] `[low]` AC3 (sign-in unit) has no demonstrated mutation: the overwrite needs a tick inside a case, so a single green run cannot go red on demand [spec AC3] - deferred: DW-583 `wontfix-accepted` (a deterministic red needs a browser-spec or `Test.Data.Fixture` edit, both on the Never list); reopen_if a seeded case reads a finding it was not seeded with in CI after Epic 11 part 1 merges
+
+Rejected:
+- (edge-case + verification-gap) a writer built as `OcuTalon_Data.${table}` escapes (c) - spec-bound: the matrix names three literal patterns, and the one interpolated use (`rowCount`) is a SELECT; by-design.
+- (edge-case) a direct `Fixture.Check` with a future `NextDueAt` must also say `real watch` - spec-bound: task (b) covers every direct call whose code mentions `NextDueAt`; by-design.
+- (edge-case) an empty `nextDueAt` split across lines, or `' '` - Decided in-stage 2 limits the pin to a literal empty value on the line; no source writes either; wontfix-theoretical (real if a spec formats seeds one key per line).
+- (blind + acceptance) the implement-stage results say 10 tests and 1231 - those lines record that stage; this review's results are recorded separately below; a spec edit, not a code fix.
+- (blind) the spec's iris.ts task bullet says "on the call's line" - the normative task (b) says "on that line or the contiguous comment lines directly above it", which the pin follows; a spec edit.
+- (blind) `source-files.mjs`'s header names two consumers - already stale before this story (floor-fixtures, demo-view-sources import it), and the file is outside the story's edit set.
+- (acceptance) the pin reads source text, not runtime values - Decided in-stage 3; by-design.
+- (acceptance) demo-path specs that rely on the real watch do not say `real watch` - they seed no row; the matrix scopes the marker to the `""` opt-in; by-design.
+- (acceptance) AC3's evidence is not itemised per case - false: both parts passed with no red, and the chromium project holds every named case.
+- (acceptance) spec frontmatter says done while sprint-status says review - false: the frontmatter is build-auto's state; this review sets sprint-status.
+- (acceptance) AC4's range holds bookkeeping files - false: excluding `_bmad-output`, the listing is exactly the two source files (below).
+
 ## Spec Change Log
 
 ## Review Triage Log
@@ -185,6 +210,13 @@ Run every command from the worktree root, each in its own foreground call with `
 - `(once)` `bash docker/tests/test-boundaries.sh`: exit 0, "all rules passed".
 - `(once)` `ci/iris.sh build`: ok. `ci/iris.sh live sign-in --part 1/2`: exit 0, 119 passed (3.8m in Playwright, 5m32s wall). `--part 2/2`: exit 0, 114 passed (4.0m, 5m49s wall). No red; no seeded row showed a finding it was not seeded with. The lane-A lock folder was empty at the end.
 
+**QA re-demonstration (QA stage):** `node --test web/scripts/check-seeds.test.mjs` 11 of 11. Each mutation backed up, applied, observed red, restored (`cmp` identical; `git status --short` and `git diff --stat` unchanged). No test file created (QA).
+- mutation: `NextDueAt: fields.nextDueAt ?? '',` in `seedCheck` -> "passes NextDueAt as fields.nextDueAt alone" red.
+- mutation: `nextDueAt: ''` added to rail R4's `seedCheck` (no comment) -> "has a real watch comment on every empty nextDueAt" red.
+- mutation: `{"NextDueAt":""}` added to session S1's direct `Fixture.Check` -> "...every direct Fixture.Check call that passes NextDueAt" red at session.spec.ts:69.
+- mutation: `##class(OcuTalon.Data.BackgroundCheck).%New()` added to `support/floor.ts` -> "holds in every e2e and e2e-online source" red, names floor.ts.
+- IRIS pin: `OcuTalon.Test.Data.FixtureDefaults:TestCheckIsNotDue` read and run on slot A (OCUTALON): 1 of 1 passed.
+
 **Mutation results (Rule 19), review pass:**
 - mutation: `&& entry[1] !== ''` added to the filter in `properties()` (web/e2e/support/iris.ts): "keeps an empty nextDueAt, because properties() drops undefined only" red; reverted (cmp identical).
 - mutation: `{ NextDueAt: "", ...properties }` in `fieldsObject()`: "adds no key in fieldsObject" and "seedCheck adds no due time of its own" red; reverted (cmp identical).
@@ -194,6 +226,13 @@ Run every command from the worktree root, each in its own foreground call with `
 - mutation: `nextDueAt: ''` added to rail R4's `seedCheck` (web/e2e/rail/rail.spec.ts:200), no comment: (b) red, names `e2e/rail/rail.spec.ts:200`; reverted.
 - mutation: `,"ZZNS","Zz.Production",{"NextDueAt":""}` added to session S1's direct `Fixture.Check` call (web/e2e/session/session.spec.ts:69): (b) red, names `e2e/session/session.spec.ts:69`; reverted.
 - mutation: `##class(OcuTalon.Data.BackgroundCheck).%New()` added to an irisScript line in web/e2e/support/floor.ts: (c) red, names `e2e/support/floor.ts`; reverted.
+
+**Code review (epic-cycle stage), after its patches:** `node --test web/scripts/check-seeds.test.mjs` 11 of 11; `npm --prefix web test` 1232 of 1232; `npm --prefix web run lint` exit 0; `bash docker/tests/test-boundaries.sh` all rules passed. Each mutation backed up, applied, observed red, restored (`cmp` identical; `git status --short` and `git diff --stat` unchanged).
+- mutation: `for (const key of Object.keys(values)) if (values[key] === '') values[key] = undefined;` added before the return of `properties()` (web/e2e/support/iris.ts) -> "keeps an empty nextDueAt, because properties() drops undefined only" red (green before this review's anchor).
+- mutation: `&& !mark.test(lineCode[index])` removed from `saysRealWatch` -> "finds the opt-in test on a marked and an unmarked sample" red.
+- mutation: the comment-only test in `saysRealWatch` put back to the old `^\s*(//|/?\*)` prefix -> "finds the opt-in test on a marked and an unmarked sample" red (the plain block comment sample).
+- AC4: `git diff --name-only d8a7b493 -- . ':(exclude)_bmad-output'` lists `web/e2e/support/iris.ts` and `web/scripts/check-seeds.test.mjs` only. mutation: a blank line appended to web/e2e/rail/rail.spec.ts -> the listing names `web/e2e/rail/rail.spec.ts`; reverted.
+- AC3: mutation: none demonstrable deterministically (the overwrite needs a tick inside a case; a red on demand needs a browser-spec or `Test.Data.Fixture` edit, both on the Never list). Its falsifiable halves are AC1's pins above and `FixtureDefaults.TestCheckIsNotDue`; DW-583 records it.
 
 ## Auto Run Result
 

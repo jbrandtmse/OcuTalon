@@ -12,7 +12,7 @@ import { dirname, join } from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath } from 'node:url';
 
-import { sourceFiles } from './source-files.mjs';
+import { code, sourceFiles } from './source-files.mjs';
 
 const web = join(dirname(fileURLToPath(import.meta.url)), '..');
 const files = ['e2e', 'e2e-online'].flatMap((folder) => sourceFiles(join(web, folder), ['.ts']).map((file) => ({ ...file, name: `${folder}/${file.name}` })));
@@ -22,18 +22,17 @@ const file = (name) => {
   return found;
 };
 
-/** The lines of a source with its comments removed, one entry per original line (block comments keep their line breaks). */
-const codeLines = (text) =>
-  text
-    .replace(/\/\*[\s\S]*?\*\//g, (block) => block.replace(/[^\n]/g, ''))
-    .split('\n')
-    .map((line) => line.replace(/(^|\s)\/\/.*$/, '$1'));
+/**
+ * The lines of a source as code() leaves them, one entry per original line: each block comment is first emptied down to its line
+ * breaks, because code() removes a block comment whole and the opt-in checks report a line.
+ */
+const codeLines = (text) => code(text.replace(/\/\*[\s\S]*?\*\//g, (block) => block.replace(/[^\n]/g, ''))).split('\n');
 
-/** Whether a comment says `real watch`: on the line itself, or in the unbroken run of comment lines directly above it. */
+/** Whether a comment says `real watch`: on the line itself, or in the unbroken run of comment-only lines directly above it. */
 function saysRealWatch(lines, index, lineCode) {
   const mark = /real watch/i;
   if (mark.test(lines[index]) && !mark.test(lineCode[index])) return true;
-  for (let above = index - 1; above >= 0 && /^\s*(\/\/|\/?\*)/.test(lines[above]); above -= 1) {
+  for (let above = index - 1; above >= 0 && lines[above].trim() !== '' && lineCode[above].trim() === ''; above -= 1) {
     if (mark.test(lines[above])) return true;
   }
   return false;
@@ -75,8 +74,8 @@ describe('seedCheck adds no due time of its own', () => {
     const properties = iris.code.slice(start, iris.code.indexOf('\n}', start));
     assert.match(
       properties,
-      /return Object\.fromEntries\(Object\.entries\(values\)\.filter\(\(entry\): entry is \[string, string\] => entry\[1\] !== undefined\)\);/,
-      'e2e/support/iris.ts: properties() filters on `entry[1] !== undefined` and nothing more',
+      /^function properties\([^)]*\)[^{]*\{\s*return Object\.fromEntries\(Object\.entries\(values\)\.filter\(\(entry\): entry is \[string, string\] => entry\[1\] !== undefined\)\);\s*$/,
+      'e2e/support/iris.ts: properties() is the one return that filters on `entry[1] !== undefined`, and nothing more',
     );
   });
 
@@ -118,6 +117,11 @@ describe('an opt-in to the real watch says so', () => {
     assert.deepEqual(sample('Write Fixture).Check(s.Ref,"ZZNS","P",{"NextDueAt":""})'), ['sample.ts:1']);
     assert.deepEqual(sample("await seedCheck(u, { nextDueAt: inMs(1) });"), []);
     assert.deepEqual(sample("await seedCheck(u, { 'nextDueAt': '' });"), ['sample.ts:1']);
+    assert.deepEqual(sample("await seedCheck(u, { displayName: 'real watch', nextDueAt: '' });"), ['sample.ts:1']);
+    assert.deepEqual(sample("/**\n * A case for the real watch.\n */\nawait seedCheck(u, { nextDueAt: '' });"), []);
+    assert.deepEqual(sample("/*\n  A case for the real watch.\n*/\nawait seedCheck(u, { nextDueAt: '' });"), []);
+    assert.deepEqual(sample("const a = 1; // real watch\nawait seedCheck(u, { nextDueAt: '' });"), ['sample.ts:2']);
+    assert.deepEqual(sample('// The real watch runs it.\nWrite Fixture).Check(s.Ref,"ZZNS","P",{"NextDueAt":""})'), []);
   });
 
   it('has a real watch comment on every empty nextDueAt', () => {

@@ -848,7 +848,8 @@ export interface CheckFields {
    * Test.Data.Fixture.Check defaults it to an hour ahead (DW-349), so that no heartbeat tick runs the row while a spec asserts its seeded
    * last run. "" is the opt-in for a case that wants the real watch to run the row: the row is due at the next tick (Checks runs it,
    * overwrites its last run and makes it due again a minute later), and that case says `real watch` in a comment on the `nextDueAt` line
-   * or directly above it. web/scripts/check-seeds.test.mjs pins this.
+   * or directly above it. A direct Test.Data.Fixture.Check call that passes NextDueAt carries the same comment.
+   * web/scripts/check-seeds.test.mjs pins this.
    */
   nextDueAt?: string;
   /** The header of the check's latest run, where its trace link opens (the namespace should have a trace application, as OCUTALON has). */
