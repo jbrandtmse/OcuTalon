@@ -4,7 +4,7 @@
 
 ## Goal
 
-Epic 30 holds the Lane A parts of the demo-path stories that were moved after the demo path: compaction of long conversations, scheduled purges, exactly-once replay of an approved tool call, once-only stopped-production and disabled-item findings, and honest mixed or unfinished resend results. Every part lands before 1.0.0. Stories 30.1 to 30.6 are done. What remains is Story 30.7, a burn-down of the ledger entries the epic still owns. It makes sure old conversations are purged whole, approvals and replays always finish, keys are redacted in every shape, and the tests that flaked now hold.
+Epic 30 holds the Lane A parts of the demo-path stories that were moved after the demo path: compaction of long conversations, scheduled purges, exactly-once replay of an approved tool call, once-only stopped-production and disabled-item findings, and honest mixed or unfinished resend results. Every part lands before 1.0.0. Stories 30.1 to 30.6 are done. Story 30.7, the burn-down, is deferred until after the v1.0.0 tag. The remaining work for 1.0.0 is Story 30.8, a fix-forward that pulls two owner-kept conditions out of 30.7. The product redactor must replace every key shape the boundary scan flags. The release candidate's key proof must find a key stored inside a `$List`. Together these mean no key can reach a trace or log in a shape the redactor misses, and the key proof can't pass over a key stored in a list.
 
 ## Stories
 
@@ -14,40 +14,43 @@ Epic 30 holds the Lane A parts of the demo-path stories that were moved after th
 - Story 30.4: A stopped production or a disabled item is reported once (done)
 - Story 30.5: Mixed and unfinished resends say how far they got (done)
 - Story 30.6: The invalid-reply warning names what failed, never the reply (done)
-- Story 30.7: Epic 30 burn-down (backlog)
+- Story 30.7: Epic 30 burn-down (deferred after the v1.0.0 tag, set aside as one patch)
+- Story 30.8: The redactor and the key proof catch every key shape (backlog, next)
 
 ## Requirements & Constraints
 
-Story 30.7 must resolve these entries. Each kept condition stays exactly as ruled.
+**Story 30.8 (fix-forward before 1.0.0, full QA and code review).** The owner-kept conditions are unchanged and must be met exactly.
 
-- **DW-437, whole-turn purge (veto U-210, kept with two conditions).** Purge `Turn`, `Delivery` and `Session` rows on the same 90-day cut as their `Decision` and `Usage` rows. Today the purge leaves them behind, so `Ownership.TurnCost` reads 0 and `ShownDecisionRef` names a missing decision. One test proves those two never read a purged turn. Each condition below gets its own test beside it:
-  1. A `Session` row is purged only when the session has no `Turn`, `Delivery` or `Decision` newer than the cut AND it is not current. Current means signed in, or holding an open approval request, a watch or a reminder. Age alone never qualifies.
-  2. The purge touches only OcuTalon's own tables. IRIS audit-log entries for approvals and actions are never purged.
-- **DW-444, interrupted replay.** A `tool_call` request left `executing` by a crash or restart must not stay that way. Candidate fix: `Reconcile` at instance start (never from a test's own call) closes such rows through `FinishExecution` with result `interrupted`. The call is still never re-run (NFR-13).
-- **DW-470 (U-172's conditions).** A replay that fails because no provider key is set, or because the provider can't be reached, says so in its failed row, in catalog words, and says that nothing was changed. No public text claims a replay works without a provider connection.
-- **DW-462, flake.** `OcuTalon.Test.Bridge.Approval` `TestAnswerBeforeTheTaskExists` went red once in CI: the task appeared, `OcuTalonWorkflow` never completed it with Approve, the hold never ended and no single outcome was sent. Find the race and make the test, or the hold, deterministic.
-- **DW-386 (U-184).** Extend `OcuTalon.Bridge.Redact` to every shape that `key_like` in `docker/tests/test-boundaries.sh` flags, including DigitalOcean `dop_v1_...` tokens and PEM private-key headers. Also cover `sk-ant-...` keys and Telegram bot tokens (digits, a colon, 35 characters) if `key_like` lacks them. One test per shape, before 1.0.0.
-- **DW-448 (U-185).** Make `Test.Eval.KeyProof` `Walk` decode `$List` elements. Then measure on a throwaway whether a message body can store a key in a compressed or split `%Stream.Global*` chunk:
-  - If it can, decode those chunks.
-  - If it can't, close that half wontfix-accepted, with the evidence: the throwaway build, the message class and what was stored.
+- **DW-386 (U-184), the redactor.**
+  - `OcuTalon.Bridge.Redact` replaces every shape that `key_like` flags. That includes DigitalOcean `dop_v1_...` tokens and PEM private-key headers (`-----BEGIN ... PRIVATE KEY`).
+  - It also replaces the Anthropic key (`sk-ant-...`) and the Telegram bot token (digits, a colon, then 35 characters), even where `key_like` lacks them.
+  - Each shape gets its own test.
+  - `key_like` is defined once, in `docker/tests/lib-keys.sh`. `test-boundaries.sh` and the eval run both read it from there. Read the definition on the current tree: Epic 11 part 1 changed `test-boundaries.sh`, and that is why the branch was integrated forward before 30.8.
+- **DW-448 (U-185), the key proof.**
+  - `Test.Eval.KeyProof`'s `Walk` decodes `$List` elements, nested lists included, so a key stored as one element is found. Today `Walk` matches only contiguous 8-bit bytes within a single node.
+  - Measure on a throwaway whether a message body can store a key in a compressed or split `%Stream.Global*` chunk. Background: `%Stream.GlobalCharacter` compresses, and a block of 1 KB or more is zstd-compressed.
+    - If it can, `Walk` decodes those chunks too.
+    - If it can't, that half closes `wontfix-accepted`, and the ledger entry records the evidence: the throwaway's build, the message class and what was stored.
+  - The release candidate's key proof is otherwise unchanged.
+  - Lane B's copy of the walk (`Test.Web.SessionEvents.ReferenceHits`, DW-474) stays with its own entry. Don't edit it here.
 
-  The key proof is otherwise unchanged. Lane B's copy in `Test.Web.SessionEvents` has its own entry.
-- **DW-371.** `IncidentManager.Purge` adopts the shared `Bridge.Time.DaysCutoff`, as `Digest` already does. `Data.Pairing.Purge` belongs to Lane B and stays with its own entry.
-- **DW-541, only at no date cost.** Chip 1 ("Which productions are running?") gets a real answer. Either `list_productions` returns a code-built running or stopped state for each production (trusted fields only), or, the cheaper option, the chip text becomes "Which productions can you watch?" (the web text plus its `ci/mock/scenarios/B/` scenario). If this would merge the re-open later than Epic 13, the critical path to rc1, move it to the first daily release after 1.0.0.
-- **Deferral.** Story 30.7 is built independently of 30.1 and lands in commits of its own. If the rc1 forecast slips past 2026-11-03 18:00Z, the Contest Planner may move it after the tag.
+**Story 30.7 (deferred, not in 1.0.0).** It keeps owner `30-7` for DW-437 (whole-turn purge, U-210), DW-444 (interrupted replay), DW-470 (provider-unreachable replay text, U-214), DW-462 (approval flake), DW-371, DW-541 and DW-581/582/588/589/590. DW-495 and DW-584 join it at integrate-forward. None of these is in scope for 30.8.
 
 ## Technical Decisions
 
-- **Retention.** Day counts are purge-task properties: `OcuTalon.Install.Task.Purge` has `DaysToKeep` 90. The installer writes them only when it creates a task, and no purge reads `OcuTalon.Data.Setting`. That task calls `OcuTalon.Bridge.Purge(daysToKeep)` and then each area's `Purge(daysToKeep)` declaration. History reads OcuTalon's and the bridge's tables, never messages. DW-437 extends this retention rule. Record it in the spine as an amendment marked `[AMENDED <date>, Story 30.7, orchestrator ruling U-210]`. The spine-lint baseline is `ok: false` with 8 low findings, and that must not get worse.
-- **Table ownership.** `Turn`, `Delivery` and `Session` belong to Lane B, as do `Ownership` and the `Pairing` purge. `Decision`, `Usage`, `ApprovalRequest` and the other `OcuTalon.Bridge.Data` classes belong to Lane A. `Data/Session.cls` is Epic 31's file: any change to it is one self-contained block appended at its end.
-- **Stored data is append-only.** Never rename, retype or remove a stored property, and never hand-edit a `Storage` block. Commit the compiler-generated block. CI diffs every storage block against the last release tag.
-- **Approval rows are the truth.** State changes only through the `OcuTalon.Bridge.Approval` API (`Answer`, `Expire`, `Cancel`, `StartExecution`, `FinishExecution`), each under `LOCK ^OcuTalon.Bridge.Approval(Ref)`. `FinishExecution` takes `done`, `failed` or `interrupted`, and `interrupted` leaves the row `failed`. Every change is audited and reported through the HostSink. The startup reconciler re-arms any pending row whose process is gone and cancels orphaned Workflow tasks. A replay runs from the stored row with no model request. The gate consumes the grant on the first match of name, canonical-argument hash and source.
-- **Redaction and audit.** `OcuTalon.Bridge.Redact` is the one redactor, used by agent steps, audit, logs and error details. Structural rules come first, and the redactor is the backstop. `OcuTalon.Bridge.Audit` is the only audit writer, and OcuTalon keeps no audit table of its own.
-- **Text.** Text a person sees renders from catalog keys. Lane A adds its keys to `OcuTalon.Msg.Catalog.Watch`, and the page's catalog is generated from the catalog classes.
-- **Part 1 conventions to keep.** Warnings name IDs, counts and failing properties, go through `Bridge.Redact`, and never quote reply content (30.6). `Bridge.Time.DaysCutoff` is the shared day rule (30.2).
+- **One redactor.** `OcuTalon.Bridge.Redact` is used by agent steps, audit, logs and error details. Structural rules come first, and the redactor is the backstop. It belongs to the bridge (`src/bridge`, Lane A), and both the bridge and OcuTalon call it.
+- **The key proof.**
+  - `bash eval/key-proof.sh` builds a fake key at run time. It feeds the key into a `--release-candidate --on-mock` run whose requests reach only the CI mock.
+  - The run must prove the key appears in no global, store, trace message, log, container file, output or file under `eval/`, and that its throwaway is gone.
+  - The result pair is scanned with `lib-keys.sh`'s patterns, and a match exits 4.
+- **Throwaways only.** Do the measurement on a throwaway stack. Never touch shared runtime. Never load anything from `irislib/` or `irissys/`; read them only for reference.
+- **Stored data is append-only.** Never rename, retype or remove a stored property, and never hand-edit a `Storage` block. CI diffs storage blocks against the last release tag.
+- **Spine lint.** The baseline is `ok: false` with 8 low findings, and it must not get worse.
 
 ## Cross-Story Dependencies
 
-- Story 30.7 builds on 30.2 (`Bridge.Purge`, `DaysCutoff`, the purge task) and 30.3 (replay, `StartExecution` and `FinishExecution`). Nothing in it depends on 30.1's changes.
-- DW-437 changes Lane B tables, and a `Session.cls` edit must not collide with Epic 31's work on that file. DW-541's cheaper option changes web text and a Lane B mock scenario.
-- Epic 13 is the critical path to rc1. DW-541 and the deferral of the whole story are both judged against it.
+- **The set-aside patch.** 30.8's implement starts from the parts of `_bmad-output/implementation-artifacts/set-aside/30-7-epic-30-burn-down-1.patch` that cover these two entries: the hunks in `Bridge/Redact.cls`, `Test/Bridge/Redact.cls` and `Test/Eval/KeyProof.cls`.
+  - That build was never QA'd or code-reviewed. Its note says no message-body class has a `%Stream` property. Treat that as a lead to re-measure, not as evidence.
+  - Take only those hunks. The rest of the patch stays with 30.7.
+- **Lane B's copy of the walk.** Changing how `Walk` matches a node reopens DW-450 (the duplicated walk) until Lane B's copy gets the same decode. That copy is DW-474, owned by Story 31.4 (Epic 31). Name the change so 31.4 can mirror it.
+- **Final steps.** The epic finishes with the final integrate-forward and the CI repack (an eighth group, `shards-3`). Then it completes as partial, with 30.7 held out. Epic 13 is the critical path to rc1.
