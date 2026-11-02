@@ -353,3 +353,8 @@
 2026-11-02T11:11:59Z	Story 11.17	fresh_check	env=recipe(hermetic_self-tests;live_ipm_fresh) tests=test-release-sequence.sh(all_rules,137s),test-boundaries.sh,test-upgrade-harness.sh,test-release-notes.sh result=pass order=forward
 2026-11-02T11:12:25Z	Story 11.17	committed	sha=c62c60cf submodules= ci=pending runs=41434875881,41434875879 amendments=none pushed=verified_on_origin
 2026-11-02T11:12:25Z	Story 11.17	story_cycle	plan_to_commit_min=1213 implement_passes=1 reviews=1 rework=0 first_ci=pending models=plan:claude-opus,implement:claude-sonnet,qa:claude-sonnet,cr:claude-opus
+2026-11-02T11:13:19Z	Epic 11	ledger_owner_repaired	repaired=1(DW-417:11-6_retired->burndown,owner_unresolved) halted=0
+2026-11-02T11:13:19Z	Epic 11	ledger_burndown_complete	part=1(owner_trim) open_before=10 resolved=0 terminal=0 chartered=0 chartered_size=0 overflow=3(DW-550,DW-555,DW-417:kept_owner=burndown_for_part_2s_gate) reowned=1(DW-417) to_decision_sheet=5(DW-495,DW-496,DW-532,DW-553,DW-554) held_out=2(DW-548:11-14,DW-27:11-16) open_after=10 cap=8 story_max=12 filed_this_epic=64 closed_this_epic=77 drain_ratio=1.20 ci_resolved_at_burndown=pending(c62c60cf)
+2026-11-02T11:13:19Z	Epic 11	epic_status_kept	status=in-progress reason=part_2(11.14,11.15,11.16,11.18_backlog;owner_trim) note=as_Epic_30_part_1
+2026-11-02T11:13:19Z	Epic 11	model_tier_checkpoint	armed=false stack_risk=none review_tier=full-opus implement_model=claude-sonnet unresolved_high_med_avg=0.2 metric=unresolved rework_stories=1(11.8_ci) review_loop_thrash=0 rework_lang_defects=0 review_high=2(11.5,patched_in-pass) result=hold applied=false(record_only)
+2026-11-02T11:13:19Z	Epic 11	epic_retro_skipped	reason=policy
