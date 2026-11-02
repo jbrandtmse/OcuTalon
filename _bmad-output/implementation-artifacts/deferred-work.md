@@ -2557,6 +2557,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Plan Task 0 M5 on build 154U: after POST /v1/session/end or ?IRISLogout=end the next HTTP request is 401 but the open socket's %CSP.Session stays unchanged for at least 10 s; orchestrator ruling U-174 keeps the 60 s lifetime as the known cost
 - 2026-10-30T22:42:13Z status=routed owner=31-1-push-live-events-over-a-websocket-on-local-installs by=spec_gate note=orchestrator_ruling_U-174: needs Data/Session.cls (contended with Epic 29); do it after Epic 29 merges, at 31.1's re-plan or a follow-up story
 - 2026-10-30T22:44:54Z status=routed owner=31-1-push-live-events-over-a-websocket-on-local-installs by=owner note=owner_answer_U-174_at=2026-10-30T22:43:15Z#527:build_the_sign-out_mark_in_31.1_itself(test:no_further_frame_within_one_loop_after_sign-out;60s_lifetime_backstop);kept_as_31.1's_tracking_anchor,resolved-by_31.1_at_adjudication;only_if_another_open_epic_holds_Data/Session.cls_at_the_re-plan:re-own_due_before_1.0.0
+- 2026-11-02T00:32:30Z status=resolved-by:31-1-push-live-events-over-a-websocket-on-local-installs by=adjudication note=3010f5a7:Data.Session.MarkSignedOut(^OcuTalonP.SessionM)_set_in_Web.SessionEvents.OnLogout(local_only)+read_each_Web.Live_loop;tests_TestSignOutMark,TestSignOutWakesTheSocket,TestServer,W8(no_frame_after_204,close<1s);60s_lifetime_kept(W12,TestNext)
 ### DW-480: README opening (owner text) 'Every decision is in Visual Trace with its reasons and cost' may read as an overclaim for a fixed-rules decision, which keeps only its fallback reason (Reasons empty, FallbackReason set)
 - source: _bmad-output/implementation-artifacts/spec-10-4-the-readme-opens-with-what-ocutalon-is-for-and-what-a-model.md | severity: low | fix-risk: high | footprint: in-story
 - evidence: Decide.cls RecordFallback sets Reasons='' and FallbackReason=reason; Result carries Fallback, FallbackReason, tokens and CostUSD; README.md:3 opening, README.md:34 Story 10.2 line
@@ -2793,3 +2794,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: Contest Planner: Epic 4 host check on 374f958e, 2026-11-01 | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: host browser check at 1280x800
 - 2026-11-01T20:13:34Z status=routed owner=31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=merge_gate note=cosmetic; the empty chat opens at its top; only if cheap, with DW-530's no-date-cost rule
+
+### DW-556: Web.Live copies Api.IsCursor (?1.15N) and Api.CurrentSession's SessionRef+RefIndexOpen pair, both Private in the contended Web/Api.cls (Rule 2 spec-forced copy)
+- source: spec-31-1-push-live-events-over-a-websocket-on-local-installs.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Web/Live.cls Refusal :74 and Admit/Frame :90,:163 repeat Api.cls :1017-1019 and :900-909; the spec names the copy (Api private, Epic 11 contended). If the cursor rule changes in Api only, the socket refuses valid cursors and the page silently falls back to polling.
+- 2026-11-02T00:30:45Z status=wontfix-accepted owner=31-1-push-live-events-over-a-websocket-on-local-installs by=cr note=reopen_if=git log 3010f5a7.. -L1017,1020:src/ocutalon/cls/OcuTalon/Web/Api.cls (or :900,910) shows a change, or either becomes public

@@ -9,10 +9,10 @@ import { recordAnnouncements, announcementCount } from '../support/page';
 import { blockLiveSocket, proxyLiveSocket, rawUpgrade, socketFrames, type RawUpgrade } from '../support/socket';
 
 /**
- * Story 31.1, the live-events WebSocket (W1 to W9), in a real browser against a real stack, signed in as the live fixture user
+ * Story 31.1, the live-events WebSocket (W1 to W12), in a real browser against a real stack, signed in as the live fixture user
  * (OCUTALON_LIVE_USER). The polling stays the contract and runs beside the socket; where a case needs the socket to be the only
  * path that brings an event, the page's polls are answered with their events stripped. A case publishes only on the live user's own
- * stream and reads the page's cursor fresh. W5 to W8 open sockets by hand (rawUpgrade) to send the Origin and the cookie of their own.
+ * stream and reads the page's cursor fresh. W5, W6, W8, W11 and W12 open sockets by hand (rawUpgrade) to send the Origin and the cookie of their own.
  */
 const POLLS = /\/ocutalon\/api\/v1\/events\?/;
 const END = '/ocutalon/api/v1/session/end';
@@ -185,7 +185,10 @@ test('W4: a closed socket is reopened in the background with the current cursors
   expect(await announcementCount(page), 'no new live-region text').toBe(spoken);
 });
 
-/** W5 (U-174 (a)): an upgrade with the right cookie and the wrong Origin, or with none, gets no data frame. */
+/**
+ * W5 (U-174 (a)): an upgrade with the right cookie and the wrong Origin, or with none, gets no data frame, and the server closes it
+ * (a refused socket ends at once, T6), so nothing can come later; the right Origin is the control.
+ */
 test('W5: a wrong or missing Origin gets no frame', async ({ playwright, baseURL }) => {
   await publish('w5');
   const { context, cookie } = await signedIn(playwright, baseURL!);
@@ -195,6 +198,8 @@ test('W5: a wrong or missing Origin gets no frame', async ({ playwright, baseURL
   try {
     await within(3000, () => right.frames.length > 0);
     expect(right.frames.length, 'control: the right Origin gets the events after cursor 0').toBeGreaterThan(0);
+    const closed = (one: RawUpgrade): boolean => one.closeFrameAt > 0 || one.ended;
+    expect(await within(3000, () => closed(wrong) && closed(none)), 'the refused upgrades are closed').toBe(true);
     expect(wrong.frames, 'the wrong Origin gets no frame').toEqual([]);
     expect(none.frames, 'no Origin gets no frame').toEqual([]);
   } finally {
@@ -205,15 +210,20 @@ test('W5: a wrong or missing Origin gets no frame', async ({ playwright, baseURL
   }
 });
 
-/** W6 (U-174 (a)): an upgrade with no cookie gets no data frame. */
-test('W6: an upgrade with no session gets no frame', async ({ baseURL }) => {
+/** W6 (U-174 (a)): an upgrade with no cookie gets no data frame; the same upgrade with the session's cookie is the control. */
+test('W6: an upgrade with no session gets no frame', async ({ playwright, baseURL }) => {
   await publish('w6');
+  const { context, cookie } = await signedIn(playwright, baseURL!);
   const bare = await rawUpgrade({ baseURL: baseURL!, path: `${SOCKET}?after=0&afterInstance=0`, origin: stackOrigin(), wait: 1500 });
+  const right = await rawUpgrade({ baseURL: baseURL!, path: `${SOCKET}?after=0&afterInstance=0`, origin: stackOrigin(), cookie, wait: 1500 });
   try {
+    expect(await within(5000, () => right.frames.length > 0), 'control: with the cookie the same upgrade gets the events after cursor 0').toBe(true);
     await new Promise((resolve) => setTimeout(resolve, 3000));
     expect(bare.frames, 'no cookie, no frame').toEqual([]);
   } finally {
     bare.close();
+    right.close();
+    await context.dispose();
   }
 });
 
@@ -399,9 +409,8 @@ async function eventually(ms: number, condition: () => Promise<boolean>): Promis
 }
 
 /**
- * W11 (the Client-closes row): a close frame from the client ends the server's loop, which ends the IRIS process of the socket at once
- * (a process that the gateway's closed connection reaches instead stays for the 5 seconds of the platform's read-error path), and the
- * connection ends within a second.
+ * W11 (the Client-closes row): a close frame from the client ends the socket: the connection ends within a second and the IRIS
+ * process of the socket within two. It pins the observable; the loop's own close branch (Read's 7951) is Test.Web.Live TestServer's.
  */
 test('W11: a close frame from the client ends the socket and its server process within two seconds', async ({ playwright, baseURL }) => {
   const { context, cookie } = await signedIn(playwright, baseURL!);
@@ -432,8 +441,9 @@ test('W11: a close frame from the client ends the socket and its server process 
 });
 
 /**
- * W12 (the Quiet-socket row, and AC 5's lifetime): a socket with nothing to send gets a heartbeat frame {epoch, events: []} after
- * about 25 s, and the server ends it with a close frame at its 60 s lifetime.
+ * W12 (the Quiet-socket row, and AC 5's lifetime): a socket with nothing to send gets a heartbeat frame {epoch, events: []} about
+ * 25 s after its last frame, and the server ends it with a close frame at its 60 s lifetime. The socket also serves the real instance
+ * stream, which the status monitor may publish on, so a frame that holds events is allowed and the quiet time counts from it.
  */
 test('W12: a quiet socket gets a heartbeat, and the server ends it at its lifetime', async ({ playwright, baseURL }) => {
   test.setTimeout(150_000);
@@ -443,19 +453,18 @@ test('W12: a quiet socket gets a heartbeat, and the server ends it at its lifeti
   const upgrade: RawUpgrade = await rawUpgrade({ baseURL: baseURL!, path: `${SOCKET}?${query}`, origin: stackOrigin(), cookie, wait: 5000 });
   try {
     expect(upgrade.status, 'the upgrade is accepted').toContain('101');
-    expect(await within(35_000, () => upgrade.frames.length > 0), 'a heartbeat frame comes').toBe(true);
-    const first = upgrade.frames[0]!;
-    expect(first.at - startedAt, 'after about 25 seconds of quiet').toBeGreaterThan(20_000);
-    const body = JSON.parse(first.text) as { epoch?: unknown; events?: unknown[] };
+    const isBeat = (frame: { text: string }): boolean => ((JSON.parse(frame.text) as { events?: unknown[] }).events ?? [1]).length === 0;
+    expect(await within(55_000, () => upgrade.frames.some(isBeat)), 'a heartbeat frame comes').toBe(true);
+    const index = upgrade.frames.findIndex(isBeat);
+    const beat = upgrade.frames[index]!;
+    const quietSince = index > 0 ? upgrade.frames[index - 1]!.at : startedAt;
+    expect(beat.at - quietSince, 'after about 25 seconds of quiet').toBeGreaterThan(20_000);
+    const body = JSON.parse(beat.text) as { epoch?: unknown; events?: unknown[] };
     expect(typeof body.epoch, 'it holds the epoch').toBe('string');
-    expect(body.events, 'and no event').toEqual([]);
 
     expect(await within(50_000, () => upgrade.closeFrameAt > 0), 'the server ends the socket with a close frame').toBe(true);
     expect(upgrade.closeFrameAt - startedAt, 'at the 60 second lifetime').toBeGreaterThan(55_000);
     expect(upgrade.closeFrameAt - startedAt, 'and not much after it').toBeLessThan(70_000);
-    for (const frame of upgrade.frames) {
-      expect((JSON.parse(frame.text) as { events: unknown[] }).events, 'every frame of the quiet socket is a heartbeat').toEqual([]);
-    }
   } finally {
     upgrade.close();
     await context.dispose();

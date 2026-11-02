@@ -965,6 +965,46 @@ Method TestSignOutMark()
 	Kill ^OcuTalonP.SessionM(ref), ^OcuTalonP.SessionM(other)
 }
 
+/// OnLogout wakes the session's WebSocket (Story 31.1, U-174: "so that its socket wakes at once"): after a sign-out a wait on the
+/// session's wake resource returns signalled, and it does not when the online demo is on, when the CSP session names no ref, or
+/// when another session signs out. The resource is created and cleared here and deleted after, also after a failure.
+Method TestSignOutWakesTheSocket()
+{
+	New %session
+	Set ref = ##class(OcuTalon.Test.Data.Fixture).Session($Username)
+	Set other = ##class(OcuTalon.Test.Data.Fixture).Session($Username)
+	Set name = ##class(OcuTalon.Live.Publish).WakeName(ref)
+	Set key = ##class(OcuTalon.Data.Ownership).#SESSIONKEY
+	Set %session = ##class(%CSP.Session).%New("ZzSignOutWake", 0)
+	Try {
+		Do $SYSTEM.Event.Create(name)
+		Do $SYSTEM.Event.Clear(name)
+		Do $$$AssertEquals($SYSTEM.Event.Wait(name, 0.1), 0, "nothing is queued to begin with")
+
+		Set %session.Data(key) = other
+		Do $$$AssertStatusOK(##class(OcuTalon.Web.SessionEvents).OnLogout(), "another session signs out")
+		Do $$$AssertEquals($SYSTEM.Event.Wait(name, 0.1), 0, "and does not wake this session's socket")
+
+		Set %session.Data(key) = ref
+		Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "1")
+		Do $$$AssertStatusOK(##class(OcuTalon.Web.SessionEvents).OnLogout(), "on the online demo it answers OK")
+		Do $$$AssertEquals($SYSTEM.Event.Wait(name, 0.1), 0, "and wakes nothing")
+		Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
+
+		Kill %session.Data(key)
+		Do $$$AssertStatusOK(##class(OcuTalon.Web.SessionEvents).OnLogout(), "with no ref it answers OK")
+		Do $$$AssertEquals($SYSTEM.Event.Wait(name, 0.1), 0, "and wakes nothing")
+
+		Set %session.Data(key) = ref
+		Do $$$AssertStatusOK(##class(OcuTalon.Web.SessionEvents).OnLogout(), "the session signs out")
+		Do $$$AssertEquals($SYSTEM.Event.Wait(name, 0.1), 1, "and its socket's wake resource is signalled")
+	} Catch exception {
+		Do $$$AssertEquals(exception.DisplayString(), "", "the checks ran without an error")
+	}
+	Do $SYSTEM.Event.Delete(name)
+	Kill ^OcuTalonP.SessionM(ref), ^OcuTalonP.SessionM(other)
+}
+
 /// The fields of a session row as one text, to see that nothing changed.
 ClassMethod RowText(ref As %String) As %String [ Private ]
 {

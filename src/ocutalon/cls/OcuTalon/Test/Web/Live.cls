@@ -1,6 +1,6 @@
 /// Tests of the live-events WebSocket (Story 31.1; AD-12, AD-13): the checks that run before Server() (Refusal and OnPreServer),
-/// the loop's decision (Next), the frames (Frame), and the shell's non-upgrade answer (Accept). The socket itself is covered
-/// end to end by web/e2e/live/socket.spec.ts. Each test makes its own session rows and streams (fresh references), records the
+/// the loop's decision (Next), the frames (Frame), the loop itself run in process (Server), and the shell's non-upgrade answer
+/// (Accept). The socket is covered end to end by web/e2e/live/socket.spec.ts. Each test makes its own session rows and streams (fresh references), records the
 /// streams in ^OcuTalonTest("LiveSocket","streams") and removes them, and the wake resources they create, after the test, also
 /// after a failure; onlineDemo is saved and put back.
 Class OcuTalon.Test.Web.Live Extends %UnitTest.TestCase
@@ -63,8 +63,8 @@ Method TestRefusals()
 }
 
 /// OnPreServer's checks on a stand-in request and CSP session: a good upgrade keeps the cursors, the ref and the sign-out mark and
-/// creates the wake resources; a wrong or empty Origin, a missing session, a bad cursor and the online demo each return an error
-/// status and keep nothing.
+/// creates the wake resources; no role, a wrong or empty Origin, a bad or missing cursor and the online demo each return an error
+/// status, and a wrong Origin keeps nothing. The missing session is TestRefusals' case: the shell answers a request without one first.
 Method TestOnPreServer()
 {
 	New %request, %session
@@ -200,6 +200,41 @@ Method TestFrames()
 	Do $$$AssertEquals(live.After, total, "and the cursor moves to the head that was read, so the loop cannot spin")
 }
 
+/// Server's loop, run in process on a socket object whose connection is a shared one to a gateway that is not there, so that its first
+/// Write fails and the loop ends there (Send's error status). What a loop does is read off the cursors: Send moves a cursor to the
+/// highest Seq of a stream in the frame before it writes, and nothing else moves one. An event on the session's stream only, or on
+/// the instance stream only, makes it send (each stream is compared with its own cursor); a quiet socket waits on both wake
+/// resources and writes no frame, not even a heartbeat (SentAt stays), and its Read then finds the client gone (7951), which ends
+/// the loop at once (the lifetime is TestNext's); a changed sign-out mark ends it before it sends what is ahead.
+Method TestServer()
+{
+	Set ref = ##class(OcuTalon.Test.Data.Fixture).Session($Username)
+	Set ^OcuTalonTest("LiveSocket", "streams", ref) = ""
+	Set instance = ..NewStream()
+	Set reminder = ##class(OcuTalon.Live.Payload.Reminder).%New()
+	Set reminder.Ref = "ZzLiveSrv"
+
+	Set live = ..Served(ref, instance)
+	Set began = $ZHorolog
+	Do $$$AssertEquals(..Run(live), "0|0", "a quiet socket sends nothing")
+	Do $$$AssertEquals(live.SentAt, live.StartedAt, "and writes no frame, not even a heartbeat")
+	Do $$$AssertTrue(($ZHorolog - began) < 5, "a client that is gone (Read's 7951) ends the quiet loop at once")
+
+	Do $$$AssertStatusOK(##class(OcuTalon.Live.Publish).Publish(instance, "reminder", reminder), "an instance event")
+	Do $$$AssertStatusOK(##class(OcuTalon.Live.Publish).Publish(instance, "reminder", reminder), "and a second")
+	Set live = ..Served(ref, instance)
+	Do $$$AssertEquals(..Run(live), "0|2", "an event on the instance stream only is sent, and moves the instance cursor only")
+
+	Set live = ..Served(ref, instance)
+	Set live.AfterInstance = 2
+	Do $$$AssertStatusOK(##class(OcuTalon.Live.Publish).Publish(ref, "reminder", reminder), "a session event")
+	Do $$$AssertEquals(..Run(live), "1|2", "an event on the session's stream only is sent, and moves the session cursor only")
+
+	Set live = ..Served(ref, instance)
+	Do ##class(OcuTalon.Data.Session).MarkSignedOut(ref)
+	Do $$$AssertEquals(..Run(live), "0|0", "a sign-out since the open ends the socket before it sends what is ahead")
+}
+
 /// A request that is no upgrade (no WebSocket id) is answered 404 with no body, and Accept answers OK.
 Method TestAccept()
 {
@@ -246,6 +281,35 @@ ClassMethod Request(origin As %String, host As %String, after As %String, afterI
 	If after '= "" Set request.Data("after", 1) = after
 	If afterInstance '= "" Set request.Data("afterInstance", 1) = afterInstance
 	Quit request
+}
+
+/// A socket object as the open leaves it, for the session ref and the instance seam stream, with the cursors at 0, the sign-out
+/// mark and times of now, the default lifetime, the two wake resources created as Admit creates them, and a shared connection to a
+/// gateway address that nothing listens on.
+Method Served(ref As %String, instance As %String) As OcuTalon.Web.Live [ Private ]
+{
+	For name = ##class(OcuTalon.Live.Publish).WakeName(ref), ##class(OcuTalon.Live.Publish).WakeName(instance) {
+		Do $SYSTEM.Event.Create(name)
+		Do $SYSTEM.Event.Clear(name)
+	}
+	Set live = ..Socket(instance)
+	Set live.SessionRef = ref
+	Set live.After = 0
+	Set live.AfterInstance = 0
+	Set live.Mark = ##class(OcuTalon.Data.Session).SignOuts(ref)
+	Set live.StartedAt = $ZHorolog
+	Set live.SentAt = live.StartedAt
+	Set live.SharedConnection = 1
+	Set live.GWClientAddress = "127.0.0.1:1"
+	Set live.WebSocketID = "ZzLiveSocketTest"
+	Quit live
+}
+
+/// Runs the socket's loop and answers "<session cursor>|<instance cursor>".
+Method Run(live As OcuTalon.Web.Live) As %String [ Private ]
+{
+	Do live.Server()
+	Quit live.After_"|"_live.AfterInstance
 }
 
 /// A socket object that serves the instance seam stream.

@@ -292,6 +292,36 @@ Line numbers are at the worktree head (feature 416b0f64) unless marked "feature"
   - when they run with this change,
   - then all pass with their assertions unchanged.
 
+### Review Findings
+
+Epic-cycle code review, 2026-11-01 (layers: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor; full-opus tier). 31 raw findings, 8 entries after grouping (high 0, medium 4, low 4); every patch applied, re-run green; 15 rejected (below).
+
+- [x] [Review][Patch] (medium) `TestServer`'s quiet case could not fail: `Served()` created no wake resources, so the loop ended on `Wait`'s ERUNDEF inside `Server`'s catch, and the `"0|0"` cursors read the same whether a heartbeat was written or not -- `Served` now creates and clears both resources as `Admit` does, and the quiet case asserts `SentAt` unchanged and an end within 5 s [src/ocutalon/cls/OcuTalon/Test/Web/Live.cls:208]
+- [x] [Review][Patch] (medium) W5 checked the refused sockets about 150 ms in, as soon as the control had a frame, and never checked that they close (matrix row "the connection closes") -- it now waits until both refused upgrades are closed (close frame or ended) before asserting no frame [web/e2e/live/socket.spec.ts:192]
+- [x] [Review][Patch] (medium) W6 had no positive control, so a broken upgrade path or route also passed -- the same upgrade with the live user's cookie must get a frame [web/e2e/live/socket.spec.ts:214]
+- [x] [Review][Patch] (medium) W12 relied on the real instance stream (StatusMonitor publishes there) staying quiet for 60 s (Rule 19 hermeticity) -- only frames with no events count as heartbeats, the quiet time counts from the previous frame, and an event frame is allowed [web/e2e/live/socket.spec.ts:448]
+- [x] [Review][Patch] (low) The Client-closes branch (`Pause` on Read's 7951) had no falsifiable pin, and W11's doc said the opposite of the recorded mutation run -- pinned by `TestServer`'s quiet case (mutation below); W11's doc corrected [web/e2e/live/socket.spec.ts:415]
+- [x] [Review][Patch] (low) Stale test docs: `TestOnPreServer` claimed a missing-session case it does not run, `Test.Web.Live`'s header omitted `TestServer`, `socket.spec.ts`'s header said W1 to W9 and "W5 to W8" use `rawUpgrade` -- corrected [src/ocutalon/cls/OcuTalon/Test/Web/Live.cls:65]
+- [x] [Review][Patch] (low) AC 1's role and cursor clauses of `Refusal` had no `mutation:` line -- both applied, observed red, reverted; lines added under ## Verification [src/ocutalon/cls/OcuTalon/Web/Live.cls:70]
+- [x] [Review][Defer] (low) Rule 2: `Web.Live` repeats `Api.IsCursor` and `Api.CurrentSession`'s pair, both Private in the contended `Web/Api.cls` [src/ocutalon/cls/OcuTalon/Web/Live.cls:74] -- deferred: DW-556 `wontfix-accepted` (spec-forced copy, out-of-footprint fix; reopen_if a change to either Api method)
+
+Rejected:
+- `low` blind + edge: frames dropped while contact is not `ok` leave the server's cursors ahead, so a later frame can trigger one extra, idempotent snapshot reload; the proposed fix (close on every dropped frame) adds reconnect churn during an outage.
+- `low` edge + auditor: `Admit` calls `SessionRef` (which may attach) before `Refusal`; unreachable through the shell, which ends a no-role session and answers a no-session request first; adjudicated in the build's triage.
+- `low` blind + edge: `Wait` throws ERUNDEF on a resource deleted before the wait; no product code deletes a WakeName resource, and the socket would simply end and reconnect (real only if product code ever calls `$SYSTEM.Event.Delete` on one).
+- `low` edge: `Read(, , 0)` may drop a partial frame header; the page never sends data frames, and a close frame is a few bytes.
+- `low` edge: a frame of 2 x MAXEVENTS large events could exceed the string limit; polling carries the same bodies, and the page reconnects with current cursors.
+- `low` edge: several skipping frames can start parallel reloads; `fetchSnapshot` orders answers by request number (adjudicated in the build's triage).
+- `low` edge: `rawUpgrade` would parse a non-101 body as frames; T6 measured 101 for every refusal, and the effect would be a false red, never a false green.
+- `low` edge: `rawUpgrade` is plain TCP, so an https baseURL breaks it; the e2e stack is http.
+- `by-design` verification-gap: the client-side online-demo rule is pinned on `LiveSocket` (node) and not through `LiveState` in a browser; D8 places the online-demo cases in a node test and a unit test.
+- `false` verification-gap: "planned mutations not run" for W4 and W8; the planned list is a plan, and the recorded results state what went red (the Refusal clauses part is the patch row above).
+- `low` verification-gap: `applyPushed`'s `stopped` guard is untested; a one-turn window, and there is no node host for `LiveState`.
+- `low` verification-gap + auditor: W8's close bound starts after the publish returns and accepts an ended connection; adjudicated in the build's triage (W8 pins the mark by its recorded mutation).
+- `low` verification-gap: the route's `Url` is a regex with unescaped dots; harmless (a non-upgrade gets 404 and every check still runs).
+- `low` auditor: the "Page stops" row is tested for Sign out only; every cause goes through the one `halted()` effect that W7 pins.
+- `low` auditor: a socket-triggered reload runs `accept()`, which feeds the watch; the spec prescribes that call, and a real answered snapshot is contact (adjudicated in the build's triage).
+
 ## Spec Change Log
 
 - 2026-10-30, lead (runner B): the plan HALTed `blocked` on Q1 and Q2 (with A1/A2). Rulings written under ## Design Notes: Q1 → U-174 (orchestrator, veto: checks before `Server()`, page close in `stop()`, 60 s lifetime; conditions (a)–(d) as tests; DW-457 for the server-side sign-out check), A2 → U-175 (orchestrator, veto: no AD-13 amendment; the shell forwards the socket at the AC's URL; A1 withdrawn; the story waits on Epic 29), Q2 → U-173 (runner, veto: polling unchanged beside the socket; specs block it with a helper that never edits `web/e2e/support/floor.ts` or `web/e2e/banners/banners.spec.ts`). Status reset to `draft`, so the spec is re-planned for the shell route once Epic 29 merges (re-measure M2 in the shell application). Ledger inbox at the re-plan: DW-457.
@@ -517,6 +547,20 @@ Every test added or changed passes on a fresh environment, in either order.
 - mutation: remove `blockLiveSocket` from C8 -> C8 red.
 - mutation: remove the shell's `/OcuTalon.Web.Live.cls` route -> `Test.Web.Shell` `TestForwardsTheSocket` red.
 - mutation: rename `OnLogout` in `SessionEvents` -> `Test.Web.LeavingThePage` `TestNoProductClassEndsASessionOnTimeout` red.
+
+**QA-stage additions (QA)** (warm throwaway, tag e31s1qw; no browser or node test added, so the `browser` group's time is unchanged):
+- (QA) `src/ocutalon/cls/OcuTalon/Test/Web/Live.cls` `TestServer` (new method, 0.08 s): runs `Server()` in process on a socket object with a shared connection to a dead gateway address, so its first `Write` or `Read` fails and the loop ends; the cursors show what the loop did. It pins the matrix's "Instance event" row at the loop (an event on the instance stream alone is sent and moves only the instance cursor; the session's alone moves only the session cursor; a quiet socket sends nothing) and the sign-out mark read by `Server` itself before a send. Before this, only `Frame` and `Next` were tested apart, and nothing failed if `Server` ignored the instance stream.
+- (QA) `src/ocutalon/cls/OcuTalon/Test/Web/SessionEvents.cls` `TestSignOutWakesTheSocket` (new method, about 0.5 s): after `OnLogout` the session's wake resource is signalled; it is not for another session, on the online demo, or with no ref. Before this, W8's "closes within 1 s" passed without the wake, because the loop reads the mark every 0.25 s.
+- mutation: `Server` compares only the session stream's head (`ahead` drops `instanceHead`) -> `Test.Web.Live` `TestServer` red ("an event on the instance stream only is sent"). (QA)
+- mutation: `Server` passes its open-time mark as the current mark to `Next` (`Next(..Mark, ..Mark, ...)`) -> `TestServer` red ("a sign-out since the open ends the socket before it sends what is ahead"). (QA)
+- mutation: drop `Publish.Wake(ref)` from `OnLogout` -> `Test.Web.SessionEvents` `TestSignOutWakesTheSocket` red ("its socket's wake resource is signalled"); `TestSignOutMark` and W8 stay green, which is why the test was added. (QA)
+- Each was applied from a backup in the scratch folder and restored from it; `git diff | md5` was identical before and after (e29ef3ec...). `Test.Web.Live` and `Test.Web.SessionEvents` pass on the restored tree.
+- mutation: `Pause` ignores the client's close (`Quit 0` for every Read status) -> `Test.Web.Live` `TestServer` red ("and writes no frame, not even a heartbeat", "a client that is gone (Read's 7951) ends the quiet loop at once"; the loop ran to the 25 s heartbeat). (CR)
+- mutation: `Server` writes a heartbeat on a `wait` -> `TestServer` red ("and writes no frame, not even a heartbeat"). (CR)
+- mutation: drop the `no_role` clause from `Refusal` -> `TestRefusals` ("no role", "with every check failing, the role is first") and `TestOnPreServer` red. (CR)
+- mutation: drop the `bad_cursor` clause from `Refusal` -> `TestRefusals` (every bad cursor case) and `TestOnPreServer` red. (CR)
+- Code-review results (CR; lane-c throwaways e31s1cw warm, e31s1c fresh): `Test.Web.Live` passed 0.62 to 0.91 s with the patches; each mutation above was applied to `Web/Live.cls`, observed red and restored from a scratch backup (`git diff --quiet 3010f5a7` on the file after each). `npm --prefix web run lint`: exit 0. `ci/iris.sh live sign-in --part 9/14` (socket.spec.ts alone, 13 tests): passed, 245 s in all, W5 0.17 s, W6 3.2 s, W12 60 s.
+- Not added, with the reason: the heartbeat and lifetime of the loop (W12 and `TestNext` pin them; an in-process loop cannot wait without a gateway), the page-stop rows for 401, idle cap and reset (the one `halted()` effect that W7 pins covers them; a browser test per row would cost CI minutes), and an epoch change from a frame (the socket never runs on the online demo, the only place the epoch changes).
 
 ## Auto Run Result
 
