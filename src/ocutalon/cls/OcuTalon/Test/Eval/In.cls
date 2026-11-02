@@ -19,7 +19,7 @@
 ///     characters); its TurnResult holds the case's checks as JSON and its row is open when the request is asked; the delivered TurnResult holds the Reply's
 ///     DecisionRef, ToolsRun and text and the catalog key and rows that Checks.Render gives its HostData checks; a HostData without checks adds none;
 ///   - TestSendsCommand: a command case keeps no recorded checks, and with no HostData the key and rows stay empty;
-///   - TestSendsUserTurn (Story 30.5, DW-500): a user-turn case is the decide request of a user (no SessionMode), answered with a DecisionResponse whose DecisionRef and fallback the TurnResult keeps; a Reply is no answer;
+///   - TestSendsUserTurn (Story 30.5, DW-500): a user-turn case is the decide request of a user (no SessionMode), answered with a DecisionResponse whose DecisionRef and fallback the TurnResult keeps; an answer that is not a DecisionResponse is no answer;
 ///   - TestTurnBusy: a Busy reply is asked again, BUSYWAIT seconds later, with the same ItemId (the numbers are Core.Conversation's); after BUSYMAX + 1
 ///     asks the case ends as a fallback with the reason rate_limited, with no DecisionRef, and is still delivered; a fallback Reply is delivered as it is, and
 ///     a TurnResult that cannot be delivered is logged and leaves its row sent;
@@ -507,8 +507,8 @@ Method TestSendsCommand()
 }
 
 /// A user-turn case (Story 30.5, DW-500) is the decide request of a user's chat turn: Kind decide, Provenance user, no SessionMode, the same Input as a turn. Decide answers it with a
-/// DecisionResponse, whose DecisionRef, Fallback and FallbackReason the TurnResult keeps, with no reply text, no tool run and no key or rows; a reply that is not a DecisionResponse (a Reply, an
-/// answer for a turn) is no answer, and the case is skipped with no row.
+/// DecisionResponse, whose DecisionRef, Fallback and FallbackReason the TurnResult keeps, with no reply text, no tool run and no key or rows; an answer that is not a DecisionResponse is no
+/// answer, and the case is skipped with no row.
 Method TestSendsUserTurn()
 {
 	Set service = ..Service()
@@ -524,7 +524,7 @@ Method TestSendsUserTurn()
 	Set delivered = ..DeliveredAt(1)
 	Do $$$AssertEquals($List(delivered, 2)_"|"_$List(delivered, 4)_"|"_$List(delivered, 5)_"|"_$List(delivered, 6)_"|"_$List(delivered, 7)_"|"_$List(delivered, 8)_"|"_$List(delivered, 9)_"|"_$List(delivered, 10), "zz-userturn|zzDecisionRef000000007|0||||1|invalid", "the TurnResult keeps the DecisionRef and the fallback of the answer, with no text, tool run, key or rows")
 
-	// a Reply is no answer to a decide request
+	// an answer that is not a DecisionResponse is no answer to a decide request
 	Do ..Reset()
 	Do ..WriteCase("zz-userturn2", {"name": "zz-userturn2", "kind": "user-turn", "turn": {"text": "What can you do?"}, "expectation": {"keyPhrases": [["user"]]}}.%ToJSON())
 	Set ^OcuTalonTest("EvalIn", "reply", 1) = "nonreply"

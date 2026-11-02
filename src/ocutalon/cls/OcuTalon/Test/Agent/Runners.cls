@@ -493,7 +493,7 @@ Method Point() As %Boolean [ Private ]
 /// runner with tools has the marker on its last tool, where the prefix of system and tools reaches the threshold, while a runner without tools has none on a tool
 /// (measured in Story 1.2). The mock accepted each one: status 200 and nothing rejected. marked is 1
 /// when the last tool of the agent's requests carries the marker, as the measured prefix of system prompt and tools reaches the threshold (Diagnosis's three
-/// watch tools, and, measured in Story 1.10, Chat's three reminder tools), and 0 when no block is marked (an agent without tools).
+/// watch tools, and, measured in Story 1.10, Chat's three reminder tools), and 0 when no tool carries the marker (an agent without tools).
 Method AssertRequests(requests As %DynamicArray, effort As %String, agentClass As %String, literal As %String, label As %String, marked As %Boolean, systemMarked As %Boolean = 0) [ Private ]
 {
 	Set expected = ..OfferedTools(agentClass)

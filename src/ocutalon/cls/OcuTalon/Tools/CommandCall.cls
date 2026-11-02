@@ -73,8 +73,8 @@ ClassMethod Session(Output context As OcuTalon.Bridge.Context) As %DynamicObject
 }
 
 /// The time of a UTC stamp as the catalog shows it in a message: Data.Time.ForMessage of it, and " ET" after it on the online demo (online 1), rendered through the
-/// catalog's own time slot (key watch.time) so that the rule is the catalog's. "" for an empty time and for one that does not render. A tool's answer to the model
-/// uses it (Answer's due, Tools.RecentActivity's times), so that every time the model repeats carries the clock it is in (DW-519, DW-484).
+/// catalog's own time slot (key watch.time) so that the rule is the catalog's. "" for an empty time and for one that does not render. Answer's due, Listed's due
+/// and Tools.RecentActivity's times use it, so that the times of those answers carry the clock they are in (DW-519, DW-484).
 ClassMethod TimeLabel(utc As %String, online As %Boolean) As %String
 {
 	If $Get(utc) = "" Quit ""
@@ -101,14 +101,15 @@ ClassMethod Answer(result As OcuTalon.Msg.CommandResult) As %DynamicObject
 }
 
 /// The answer of ListReminders for the model. A refusal (Ok 0) is Answer. Otherwise it reads result.Data, the list contract
-/// {"reminders": [{"ref", "text", "dueAt"}, ...]}, and gives {"ok": true, "zone": the instance zone, "reminders": [{"ref", "text", "due",
-/// "dueLocal"}, ...]} in the order of Data. A Data that cannot be read (not JSON, no reminders array, a reminder with no ref or with a due
+/// {"reminders": [{"ref", "text", "dueAt"}, ...]}, and gives {"ok": true, "zone": the instance zone, "reminders": [{"ref", "text", "due" (TimeLabel
+/// of dueAt: ForMessage, with " ET" on the online demo), "dueLocal"}, ...]} in the order of Data. A Data that cannot be read (not JSON, no reminders array, a reminder with no ref or with a due
 /// time that is not UTC to the second) logs one Type 3 warning and gives {"ok": false, "message": NOTREAD}.
 ClassMethod Listed(result As OcuTalon.Msg.CommandResult) As %DynamicObject
 {
 	If 'result.Ok Quit ..Answer(result)
 	Set reminders = []
 	Set problem = ""
+	Set online = ##class(OcuTalon.Watch.Reader).OnlineDemo()
 	Try {
 		Set data = {}.%FromJSON(result.Data)
 		If data.%GetTypeOf("reminders") '= "array" {
@@ -117,7 +118,7 @@ ClassMethod Listed(result As OcuTalon.Msg.CommandResult) As %DynamicObject
 			Set iterator = data.reminders.%GetIterator()
 			While iterator.%GetNext(, .item) {
 				If $IsObject(item) && (item.%GetTypeOf("ref") = "string") && (item.ref '= "") && (item.%GetTypeOf("text") = "string") && (item.%GetTypeOf("dueAt") = "string") {
-					Set due = ##class(OcuTalon.Data.Time).ForMessage(item.dueAt)
+					Set due = ..TimeLabel(item.dueAt, online)
 					Set local = ##class(OcuTalon.Data.Time).ToLocal(item.dueAt)
 				} Else {
 					Set due = "", local = ""

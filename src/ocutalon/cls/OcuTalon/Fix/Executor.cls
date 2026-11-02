@@ -50,7 +50,8 @@ Include (EnsConstants, EnsErrors)
 ///         done. No final result ever goes out with a copy uncounted. A run whose ResentAt cannot be saved (LOGRUN) is not waited for either, and its request stays executing
 ///         in the same way.
 ///   - One writer of a run's end (AD-33). End and Mark, class methods of this class, are the only code that writes the end fields of a FixRun (EndedAt, Total, Resent,
-///     Completed, FailedAgain, Skipped, Unreached, Interrupted and Reason), each under the run's lock (RUNLOCK, TakeRun and FreeRun; at most RUNLOCKSECONDS to take it), and the stored
+///     Completed, FailedAgain, Skipped, Unreached, Interrupted and Reason; Run alone also writes Unreached, in the same save as ResentAt, before the run can be waited for or
+///     swept), each under the run's lock (RUNLOCK, TakeRun and FreeRun; at most RUNLOCKSECONDS to take it), and the stored
 ///     EndedAt and Interrupted decide whether a run may end. Three callers end runs: Finish (every end of Story 7.4); Fix.Run.Interrupt, which the Fix area's Reconcile() calls at a
 ///     start and which marks (Mark) each run that was cut short by the restart and closes its request; and Fix.Run.Sweep, which Checks calls on each heartbeat Tick, and which
 ///     ends a marked run with its counts as interrupted and a run that no waiter ended (below). Only the job whose End wrote closes the request, writes the entry and builds the
@@ -84,8 +85,8 @@ Parameter NOREAD = "OcuTalon couldn't read the failed messages in that productio
 Parameter NOSTART = "OcuTalon couldn't start the resend";
 
 /// The reason of a run whose target production is not running when the run starts: stopped, suspended or network_stopped (public text, veto U-180, DW-368). It
-/// renders as "Nothing was resent: the production isn't running. Nothing was changed." These are the words of the per-copy skip reason of a copy that finds the
-/// production stopped when its first copy was tried (Resend, code "stopped"), which is the mid-run case.
+/// renders as "Nothing was resent: the production isn't running. Nothing was changed." It is also the reason of a run whose resend found the production stopped at
+/// its first copy (Resend, code "stopped"), so that no copy was made; a stop after a copy was made reads result.stoppedPartway instead.
 Parameter NOTRUNNING = "the production isn't running";
 
 /// How long a run waits for its copies, in seconds from ResentAt (AD-16), the pause between two passes of the waiter, in seconds, and the lock that makes one job

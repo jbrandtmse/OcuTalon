@@ -78,8 +78,8 @@ Include Ensemble
 ///     logs one Type 3 warning (LOGFINISH), and its counts and EndedAt are stored, its entry written and its FixResult sent all the same;
 ///   - TestWaitLastsWaitSecondsFromResentAt (AC 1): on the long probe, a run whose ResentAt is 10 seconds inside the wait waits, though it started long before, and one whose
 ///     ResentAt is 2 seconds past the wait does not: the wait lasts WAITSECONDS from ResentAt;
-///   - TestPastExpiryCannotStart (AC 4; DW-384): an approved request past its ExpiresAt ends as could not start with the reason NOSTART, before the kind is read, with or without a
-///     StartExecution that fails: one FixRun with no copy, the request failed, one final FixResult of Total the number of targets and every other count 0, one Action entry failed,
+///   - TestPastExpiryCannotStart (AC 4; DW-384): an approved request past its ExpiresAt ends as could not start with the reason NOSTART, before the kind is read (a request of an
+///     unregistered kind ends NOSTART too, not UNUSABLE): one FixRun with no copy, the request failed, one final FixResult of Total the number of targets and every other count 0, one Action entry failed,
 ///     and the text "Nothing was resent: OcuTalon couldn't start the resend. Nothing was changed."; a pending, rejected, expired, cancelled and executing request past its ExpiresAt is still refused;
 ///   - TestStartExecutionFailsForAnApprovedRequest (AC 11; DW-380): an approved request, not past its expiry, whose StartExecution fails ends as could not start: one FixRun, the
 ///     request failed, one FixResult with Total the number of targets, every other count 0 and the reason "OcuTalon couldn't start the resend", one Action entry, and
@@ -877,6 +877,7 @@ Method TestStillRunningAfterTheWait()
 	Set warned = ##class(OcuTalon.Test.Core.Observe).Warnings(mark, .text, "Pass", $Parameter(..#PROBE, "LOGLOOK")_ref)
 	Do $$$AssertEquals(warned, 1, "one Type 3 warning names the request, however many passes threw: "_text)
 	Do $$$AssertTrue($Find(text, "The read threw") > 0, "and says why the copies could not be read")
+	Do $$$AssertEquals($Select($IsObject(host.Results): host.Results.%Size(), 1: 0), 1, "and no FixResult is sent: a read that throws keeps no tally, so the one result is still the first run's")
 	Set host.StatusOutcome = ""
 }
 
@@ -919,7 +920,7 @@ Method TestProgressReportCarriesTheCountsSoFar()
 
 	// the report goes only for a run that is not marked as interrupted, whose request is executing and whose time is up (Progress, called as the drop calls it)
 	Set tally = {"completed": 1, "failedAgain": 0, "running": 2, "failed": ""}
-	Set cases = $ListBuild($ListBuild("an unmarked run past its wait of an executing request", "executing", -100, 0, 1), $ListBuild("a marked run", "executing", -100, 3, 0), $ListBuild("a run of a request that is no longer executing", "failed", -100, 0, 0), $ListBuild("a run still inside its wait", "executing", -1, 0, 0))
+	Set cases = $ListBuild($ListBuild("an unmarked run past its wait of an executing request", "executing", -100, 0, 1), $ListBuild("a marked run", "executing", -100, 3, 0), $ListBuild("a run of a request that is no longer executing", "failed", -100, 0, 0), $ListBuild("a run still inside its wait", "executing", 0, 0, 0))
 	Set position = 0
 	While $ListNext(cases, position, case) {
 		Set incident = ..Incident(owner)
@@ -1292,20 +1293,18 @@ Method TestPastExpiryCannotStart()
 	Set host.MissingIs = "none"
 	Set owner = ..Owner("expired")
 
-	// an approved request past its ExpiresAt ends as could not start; the kind is never read, and a StartExecution that fails changes nothing
-	For startIs = "", "the lock could not be taken" {
-		Set host.StartIs = startIs
+	// an approved request past its ExpiresAt ends as could not start before the kind is read: an unregistered kind ends NOSTART too, never UNUSABLE
+	For kind = "repair_resend", "zz_fix" {
 		Set incident = ..Incident(owner)
-		Set ref = ..Request(owner, incident, "approved", {"ExpiresAt": "2020-01-01T00:00:00Z"})
-		Do $$$AssertStatusOK(..Send(host, ref), "an approved request past its expiry is handled")
-		Do ..AssertEnded(host, ref, incident, "failed|failed|finished", 3, ..#NOSTART, "past expiry")
-		Do $$$AssertEquals(..Calls(host), 0, "past expiry: neither the re-check nor the resend was called")
-		Do $$$AssertEquals(..Runs(incident).%Size(), 1, "past expiry: the request has exactly one FixRun")
-		Do $$$AssertEquals(..Infos(), 0, "past expiry: nothing was refused")
+		Set ref = ..Request(owner, incident, "approved", {"ExpiresAt": "2020-01-01T00:00:00Z", "FixKind": (kind)})
+		Do $$$AssertStatusOK(..Send(host, ref), kind_": an approved request past its expiry is handled")
+		Do ..AssertEnded(host, ref, incident, "failed|failed|finished", 3, ..#NOSTART, kind_": past expiry")
+		Do $$$AssertEquals(..Calls(host), 0, kind_": past expiry: neither the re-check nor the resend was called")
+		Do $$$AssertEquals(..Runs(incident).%Size(), 1, kind_": past expiry: the request has exactly one FixRun")
+		Do $$$AssertEquals(..Infos(), 0, kind_": past expiry: nothing was refused")
 		Set last = ..LastResult(host)
-		If $IsObject(last) Do $$$AssertEquals(..Render(last, "failed"), "Nothing was resent: OcuTalon couldn't start the resend. Nothing was changed.", "past expiry: it reads as Nothing was resent: OcuTalon couldn't start the resend. Nothing was changed.")
+		If $IsObject(last) Do $$$AssertEquals(..Render(last, "failed"), "Nothing was resent: OcuTalon couldn't start the resend. Nothing was changed.", kind_": past expiry: it reads as Nothing was resent: OcuTalon couldn't start the resend. Nothing was changed.")
 	}
-	Set host.StartIs = ""
 
 	// every other state, past its expiry as well, is still refused with one info line
 	Set before = host.Results.%Size()

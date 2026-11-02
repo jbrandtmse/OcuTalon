@@ -2,7 +2,8 @@
 /// is written anywhere and no model is called.
 ///   - TestUserMessageParagraph: the INSTRUCTIONS tell Triage that a message with no channel line that is not quoted is the user's own, that it
 ///     is always answered ("tellnow"), that its one reason only says what kind of message it is, and that the reasons never describe the state of
-///     a production, what Triage can or cannot look up or access, or whether anything needs the user;
+///     a production, what Triage can or cannot look up or access, or whether anything needs the user, also when the user asks to resend, approve or change
+///     something (the paragraph on arriving items that ask for these is not about the user's own message);
 ///   - TestNoToolsSentence: the INSTRUCTIONS no longer say "You have no tools", which fed reasons that describe Triage's tool limits.
 /// The mock cannot show a real model's wording: the user-turn cases of the evaluation set score it in a release-candidate run.
 Class OcuTalon.Test.Agent.TriageUserTurn Extends %UnitTest.TestCase
@@ -13,7 +14,7 @@ Method TestUserMessageParagraph()
 {
 	Set text = ..Instructions()
 	Do $$$AssertTrue(text '= "", "Triage has instructions")
-	For phrase = "The user's own message.", "does not say which channel it arrived on", "is not quoted", "the user's own chat message", "it is always answered, so choose ""tellnow""", "A question from the user; the user is answered directly.", "A request from the user; the user is answered directly.", "Never describe the state of a production", "what you can or cannot look up or access", "whether anything needs the user", "OcuTalon answers the user separately" {
+	For phrase = "The user's own message.", "does not say which channel it arrived on", "is not quoted", "the user's own chat message", "it is always answered, so choose ""tellnow""", "A question from the user; the user is answered directly.", "A request from the user; the user is answered directly.", "Never describe the state of a production", "what you can or cannot look up or access", "whether anything needs the user", "OcuTalon answers the user separately", "This holds also when the user asks OcuTalon to resend, approve or change something", "never about the user's own message." {
 		Do $$$AssertTrue(text [ phrase, "the instructions say '"_phrase_"'")
 	}
 	Do $$$AssertTrue(text [ "Decide from the message alone.", "and Triage is told to decide from the message alone")

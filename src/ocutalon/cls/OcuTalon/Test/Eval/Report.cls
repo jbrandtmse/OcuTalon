@@ -26,6 +26,8 @@
 ///   - (Story 30.5, DW-500) TestUserTurn: a user-turn case is scored from its decision row, apart from the other scores, in userTurns with no target: right for
 ///     tell now with a reason that names the user and holds no absent phrase, wrong for an all-clear reason, a tool-limit reason, outcome digest, a fallback
 ///     or a reason without the user; unscored with no key phrases; the score line and the section User-turn cases;
+///   - (QA, Story 30.5) TestShippedChipCasesScoreTheHostReasons: the four shipped eval/user-turn-* cases (their own absentPhrases) score the host's all-clear and tool-limit reasons wrong
+///     and Triage's own example reasons right;
 ///   - (QA) TestAllClearKeys (an all-clear case is right only when the rendered key is the expected one, for every pair of the four keys of
 ///     Checks.Render, and wording in the reply is right only with the key allPassed, for every key) and TestCommandSteps (a command case is wrong
 ///     for any tool step whatever its status, a denied or failed call included, and right with only the model's own steps);
@@ -1540,6 +1542,47 @@ Method TestUserTurn()
 	Do $$$AssertTrue(text [ (nl_"- "_allClear_": not right, outcome tellnow; missing phrases: none; absent phrases found: needs the user; nothing"_nl), "and the all-clear case's bullet names the absent phrases found")
 	Set empty = ##class(OcuTalon.Eval.Report).Text(##class(OcuTalon.Eval.Report).Build(..NewRun(), ..Folder), "Empty")
 	Do $$$AssertTrue(empty [ (nl_"## User-turn cases"_nl_nl_"none"_nl), "a run with no user-turn case says none")
+}
+
+/// (QA, Story 30.5, DW-500) The four SHIPPED chip cases, not a copy of their lists, score the reasons that real Haiku gave on the host: the model-written all-clear and
+/// the three kinds of tool-limit reason are wrong, and the two example reasons of Triage's own instructions are right. Every reason names the user, so the key phrase is
+/// met and only the case's absentPhrases decide. TestUserTurn scores a list written in the test; this reads eval/user-turn-*/case.json, so a shipped list that loses a
+/// phrase (or a case whose list is dropped) lets a host reason score right here.
+Method TestShippedChipCasesScoreTheHostReasons()
+{
+	Set folder = ##class(%File).NormalizeDirectory(##class(OcuTalon.Eval.In).#FOLDER)
+	Do $$$AssertTrue(##class(%File).DirectoryExists(folder), "the repository's eval/ is mounted at "_folder_" (a throwaway or CI stack)")
+	If '##class(%File).DirectoryExists(folder) Quit
+	// each: label, right (1/0), the reasons of the decision
+	Set reasons = $ListBuild($ListBuild("example question", 1, "A question from the user; the user is answered directly."), $ListBuild("example request", 1, "A request from the user; the user is answered directly."), $ListBuild("all-clear", 0, "The user asked, and there is nothing that needs the user at this moment."), $ListBuild("no tools", 0, "I have no tools in this context and cannot look up production status, so this is a question from the user."), $ListBuild("no access", 0, "I have no access to earlier items or failure logs; this is a message from the user."), $ListBuild("only classify", 0, "I have no tools, so I can only classify an item; this is a message from the user."), $ListBuild("production state", 0, "The user asks about the productions; everything is running and no failure is open."))
+	Set run = ..NewRun()
+	Set total = 0, rightTotal = 0
+	For chip = "user-turn-productions", "user-turn-anything-wrong", "user-turn-failure-earlier", "user-turn-what-can-you-do" {
+		Set shipped = ##class(OcuTalon.Test.Eval.Cases).Read(folder, chip)
+		Do $$$AssertTrue($IsObject(shipped), chip_": the shipped case is read")
+		If '$IsObject(shipped) Continue
+		Set position = 0, j = 0
+		While $ListNext(reasons, position, one) {
+			Set j = j + 1
+			Set name = ..N($Extract($Translate(chip, "-", ""), 9, 14)_j)
+			Do ..TurnCase(name, "user-turn", shipped.expectation)
+			Do ..TurnRow(run, name, {}, {"DecisionRef": (..Decision("decide", "claude-haiku-5-5", $List(one, 3)))})
+			Set expect(name) = $List(one, 2)_"|"_chip_": "_$List(one, 1)
+			Set total = total + 1, rightTotal = rightTotal + $List(one, 2)
+		}
+	}
+	Set report = ##class(OcuTalon.Eval.Report).Build(run, ..Folder)
+	Do $$$AssertEquals(report.scores.userTurns.right_" of "_report.scores.userTurns.total, rightTotal_" of "_total, "only the example reasons are right, for each of the four shipped cases")
+	Set iterator = report.userTurnChecks.%GetIterator()
+	Set seen = 0
+	While iterator.%GetNext(, .check) {
+		If '$Data(expect(check.case)) Continue
+		Set seen = seen + 1
+		Do $$$AssertEquals(+check.right, +$Piece(expect(check.case), "|", 1), $Piece(expect(check.case), "|", 2)_": scored "_$Select(check.right: "right", 1: "wrong"))
+		Do $$$AssertEquals(check.missing.%Size(), 0, $Piece(expect(check.case), "|", 2)_": its reason names the user, so the key phrase is never what decides")
+		Do $$$AssertEquals(check.found.%Size() > 0, '(+$Piece(expect(check.case), "|", 1)), $Piece(expect(check.case), "|", 2)_": and the absent phrases found are the reason it is wrong")
+	}
+	Do $$$AssertEquals(seen, total, "every case of the test was scored")
 }
 
 /// (QA) The catalog key is compared whole, for every pair of the four keys of Checks.Render: a case is right only when the rendered key is the
