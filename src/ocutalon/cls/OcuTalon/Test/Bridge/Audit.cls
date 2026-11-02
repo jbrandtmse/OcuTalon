@@ -13,7 +13,10 @@
 ///   - TestNoSecretInAnyEntry (row 3): a model key, an access token, a password, a Telegram chat id and display name, a bearer token and URL
 ///     credentials, in Write's data and description and in the free text of Record's entries, are in no entry read back, also when a key in a long
 ///     description would straddle the 128-character cut (the description is redacted first, then cut); a sensitive setting's values are blanked, and
-///     the caller's object is not changed.
+///     the caller's object is not changed;
+///   - TestNewKeyShapesInNoEntry (DW-386, the integration of the redactor's new shapes): a DigitalOcean token (dop_v1_) and a PEM private key
+///     block, each written in a data value and in the description by Write, are in neither the data nor the description of the entry read back from
+///     the IRIS audit log; [redacted] stands in their place and the marker remains.
 Class OcuTalon.Test.Bridge.Audit Extends %UnitTest.TestCase
 {
 
@@ -272,6 +275,37 @@ Method TestNoSecretInAnyEntry()
 	If $IsObject(pairingEntry) {
 		Do $$$AssertEquals(pairingEntry.data.change_"|"_pairingEntry.data.channel, "linked|telegram", "and its non-secret members remain")
 	}
+}
+
+/// DW-386, row 11: the audit writer passes a dop_v1_ token and a PEM private key (each in a non-sensitive data member and in the description)
+/// through the redactor, so neither is in the entry that the IRIS audit log holds. The fixtures are built from fragments at run time.
+Method TestNewKeyShapesInNoEntry()
+{
+	Set marker = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set token = "dop" _ "_v1_" _ $Translate($Justify("", 64), " ", "a")
+	Set shortToken = "dop" _ "_v1_" _ $Translate($Justify("", 20), " ", "b")
+	Set header = "-----" _ "BEGIN RSA PRIV" _ "ATE KEY-----"
+	Set pem = header _ $Char(10) _ "ZmFrZWZha2U="
+	Set mark = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
+	Set description = "zzpem " _ marker _ " " _ shortToken _ " " _ pem
+	Do $$$AssertTrue($Length(description) < 128, "the description is under the cut before redaction")
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Audit).Write("Action", {"marker": (marker), "note": (token), "extra": (pem)}, description), "Write writes an entry with a dop_v1_ token and a PEM header")
+	Set entries = ##class(OcuTalon.Test.Bridge.AuditLog).Wait(mark, "OcuTalon", "", "", marker, "", 1)
+	Do $$$AssertEquals(entries.%Size(), 1, "the entry is read back by its marker")
+	If entries.%Size() '= 1 Quit
+	Set entry = entries.%Get(0)
+	Set redacted = ##class(OcuTalon.Bridge.Redact).#REDACTED
+	Set data = $Select($IsObject(entry.data): entry.data.%ToJSON(), 1: entry.data)
+	Do $$$AssertTrue(data '[ token, "the data holds no token")
+	Do $$$AssertTrue(data '[ "PRIVATE KEY", "and no PEM header")
+	Do $$$AssertTrue(data '[ "ZmFrZWZha2U=", "and no PEM body")
+	Do $$$AssertTrue(data [ redacted, "and holds "_redacted)
+	Do $$$AssertTrue(data [ marker, "and the marker")
+	Do $$$AssertTrue(entry.description '[ "PRIVATE KEY", "the description holds no PEM header")
+	Do $$$AssertTrue(entry.description '[ shortToken, "and no token")
+	Do $$$AssertTrue(entry.description '[ "ZmFrZWZha2U=", "and no PEM body")
+	Do $$$AssertTrue(entry.description [ redacted, "and holds "_redacted)
+	Do $$$AssertTrue(entry.description [ marker, "and the marker")
 }
 
 /// A valid entry of the type: every member of Shape(type), the marker in sessionRef and in one free member.

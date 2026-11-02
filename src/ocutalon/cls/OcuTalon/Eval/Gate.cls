@@ -28,7 +28,9 @@
 ///     attentionCost{gated "maxUSD", maxUSD, maxCase, flagUSD, flagged[], unpriced[], met, meanUSD, priced, informationOnly ["meanUSD"]} (NFR-4, taken from
 ///     targets.nfr4),
 ///     size{largestTokens, largestCase}, demoGate{runs, passed, pass}, diagnosisTime{meanMs, maxMs, overShare, shareMs, typicalNoticeS,
-///     diagnosisBudgetS}}. override is null.
+///     diagnosisBudgetS}}. override is null. thinkingHistorySmoke is the context's value when it is passed or failed (the result of Story 30.1's
+///     smoke test, Test.Eval.ThinkingSmoke, which eval/run.sh --release-candidate runs on the real model), else SMOKE, not run: the push run and a
+///     --on-mock run never run it. A failed smoke is recorded and does not change the verdict.
 ///   - Text writes the result as Markdown with exactly one line "Verdict: <verdict>", and Save writes both through Report.WriteFiles.
 /// RunOnce is the seam that tests replace (Test.Eval.ZzGate).
 Class OcuTalon.Eval.Gate
@@ -61,7 +63,8 @@ Parameter OF = 3;
 /// The format of the result document.
 Parameter FORMAT = "ocutalon.evalResult/1";
 
-/// The value of the result's thinkingHistorySmoke until Story 30.1 runs the test.
+/// The value of the result's thinkingHistorySmoke when no smoke test ran (the context holds no passed or failed): not run. The values are passed,
+/// failed and not run.
 Parameter SMOKE = "not run";
 
 /// The names of the scores that a summary carries, comma-separated.
@@ -304,7 +307,8 @@ ClassMethod Verdict(attempts As %DynamicArray) As %DynamicObject
 	Quit {"verdict": "blocked", "attemptsRun": (run), "attemptsMet": (count), "decidedBy": (count_" of "_run_" attempts met every target")}
 }
 
-/// The result document of the attempts. context is {commit, branch, treeClean, onMock}. See the class description.
+/// The result document of the attempts. context is {commit, branch, treeClean, onMock} and, after a release-candidate run on the real model,
+/// thinkingHistorySmoke (passed or failed). See the class description.
 ClassMethod Result(attempts As %DynamicArray, context As %DynamicObject) As %DynamicObject
 {
 	If '$IsObject(attempts) Set attempts = []
@@ -330,7 +334,8 @@ ClassMethod Result(attempts As %DynamicArray, context As %DynamicObject) As %Dyn
 	Set result.summary = ..Summary(source)
 	Set result.attempts = attempts
 	Do result.%Set("override", "", "null")
-	Set result.thinkingHistorySmoke = ..#SMOKE
+	Set smoke = context.%Get("thinkingHistorySmoke")
+	Set result.thinkingHistorySmoke = $Select((smoke = "passed") || (smoke = "failed"): smoke, 1: ..#SMOKE)
 	Quit result
 }
 

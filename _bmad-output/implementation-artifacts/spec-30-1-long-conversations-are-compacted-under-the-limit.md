@@ -2,7 +2,9 @@
 title: 'Long conversations are compacted under the limit'
 type: 'feature'
 created: '2026-10-31'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '662af722025263d2fcb02291433064c43c306e95'
+baseline_commit: '662af722025263d2fcb02291433064c43c306e95'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -80,11 +82,12 @@ Bridge classes are under `src/bridge/cls/OcuTalon/Bridge/`, product and test cla
   - `BaseChars` (:498-516): the first request's size (prompt, tool catalog, input, `GetContext()` JSON). Reuse it for the fork's and the as-is size.
   - `RecordUsage` (:590-605): the warning pattern for a Usage row. `TimeoutMs` (:242-247): how the adapter reads a Decide setting (`Ext.Accessor ValueFor`).
 - `Bridge/Compaction.cls` (:1-39) -- `PREFIX` (:8), `XData Prompt` (:11-22: the seven keys, every tool result in `facts_learned`), `Prompt()` (:26). It gains the constants and the pure helpers. `Test.Contract.Ac` pins only `Prompt`'s signature (:353).
-- `Bridge/Process/Decide.cls` -- (ours).
-  - `MAXTIMER` (:105), `MAXREQUESTTOKENS` (:112), `COMPACTTOKENS` (:115), `TimerSeconds` (:169).
-  - `OnRequest`'s send and timer (:273-279). `OnResponse`'s re-send delay with `RemainingMs` (:340-351, :347). `Resend` (:366-380). `SentRequest` (:394-400, unchanged rule). `RemainingMs` (:404-409).
-  - `Precheck` (:648-681): limit normalization (:665-672, to become the shared `RequestLimit`) and `tooLarge` (:679). `EstimateTokens` (:693-704): it adds the history at :701. It gains an Output with the history's characters.
-  - The class doc on the estimate and the flag (:18-30) says "The runner ignores it until Story 30.1". Update it.
+- `Bridge/Process/Decide.cls` -- (ours; lines as of `60eedf07`).
+  - `MAXTIMER` (:107), `MAXREQUESTTOKENS` (:114), `COMPACTTOKENS` (:117), `TimerSeconds` (:171).
+  - `OnRequest`'s precheck, send and timer (:274-281, `SetTimer` :281). `OnResponse`'s re-send delay with `RemainingMs` (:344-354, :349). `Resend` (:368-382: `RemainingMs` :373, `SetTimer` :381). `SentRequest` (:396-402, unchanged rule). `RemainingMs` (:406-411).
+  - `Precheck` (:835-868): limit normalization (:853-860, to become the shared `RequestLimit`) and `tooLarge` (:866). `EstimateTokens` (:880-891): it adds the history at :888. It gains an Output with the history's characters.
+  - The class doc on the estimate and the flag (:21-31) says "The runner ignores it until Story 30.1" (:30). Update it.
+  - Read only for this story: the reply check of Stories 5.12 and 30.6 and DW-544 (`CheckReply` :607, `RefusalText` and its helpers :640-806, the invalid-reply warning in `Conclude` :1021, `Interpret`/`Judge` :1101-1194, class doc :52-54). The timer, the precheck bound and `RequestLimit` touch none of it.
 - `Bridge/RequestSize.cls` -- `HistoryChars` (:67-85): the stored `ContextData` size, read without a native call.
 - `Bridge/Data/Usage.cls` -- `Agent` (:23, "or compaction"), `Estimated` (:56). `FromStats` (:110-138) is the sibling of the new `FromEstimate`. `Totals` (:144). No storage change.
 - `Bridge/Data/Price.cls` -- `CostFor(model, prompt, cacheRead, cacheWrite, completion, largest, requestCount)` (:58-64). `Bridge/Adapter/StepBuffer.cls` -- `Tokens` (:146-149), `CHARSPERTOKEN` 4 (:19).
@@ -101,8 +104,9 @@ Bridge classes are under `src/bridge/cls/OcuTalon/Bridge/`, product and test cla
 - `Test/Agent/RequestSize.cls` -- the live pattern: `Prepare`, `Put` of a Decide setting and restart, `OverTurn` (:217), `SentCompact` (:225). `TestCompactFlag` (:146-178) stays valid: its owner is new, so there is nothing to compact.
 - `Test/Agent/RunnerFixture.cls` -- `Run`, `NewRequest`, `UsageIds`, `FindRequests`, `Messages`, `Headers`, `AddUsage` (:1066). `Test/Contract/Mock.cls` -- `LogMark`, `LogSince`.
 - `Test/Bridge/CodeRules.cls` -- `CHATCALLS` (:113), `CHATTERS` (:140), `SESSIONCALLS` (:146), `SESSIONMAKERS` (:149), `LINKNAMERS` (:163), `TestSessionsOnlyThroughTheComposer` (:370). `Offenders` (:1054) skips `OcuTalon.Test.*`.
-- `Test/Bridge/Decide.cls` -- `TestCompactFlag` (:2097), `TestTimerFallback` (:2273), and the precheck tests (`TestPrecheckOrder` :1766, `TestResendTooLargeSendsNothing` :2430).
-- `Test/Agent/Constants.cls` (:54-68) -- `TestCompactionPrompt` pins the prompt.
+- `Test/Bridge/Decide.cls` -- `TestCompactFlag` (:2097), `TestTimerFallback` (:2273), and the precheck tests (`TestPrecheckOrder` :1766, `TestResendTooLargeSendsNothing` :2430). No test asserts that the runner ignores the flag (the text is only in `Decide.cls` :30, `Msg/Request.cls` :53, `Eval/Gate.cls` :64 and `eval/run.sh` :84).
+- `Test/Bridge/ReplyCheck.cls` -- the reply-check tests of 5.12, 30.6 and DW-544 (regression only). `Test/Agent/Decide.cls` -- the live timer and re-send tests on `decide` requests (`TestTimer`, about 105 s for the class; regression only: `TimerFor` keeps `TimerSeconds` for them).
+- `Test/Agent/Constants.cls` (:55-73) -- `TestCompactionPrompt` pins the prompt.
 - `Eval/Gate.cls` -- `SMOKE` "not run" (:64-65), `Result` sets `thinkingHistorySmoke` (:333), `Text` (:415). `Test/Eval/Gate.cls` pins it (:463, :524).
 - `Test/Eval/KeyProof.cls` -- the sibling pattern: a `%UnitTest` class that is also the helper `eval/run.sh` calls (`Scan` :182, `Print` :231).
 - `eval/run.sh` -- the header note (:83-84), modes (:121-134), `verdict_run` and its context `cx` (:339-354, :345), the release-candidate sequence (:656-740).
@@ -112,45 +116,45 @@ Bridge classes are under `src/bridge/cls/OcuTalon/Bridge/`, product and test cla
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] Task 0: `src/ocutalon/cls/OcuTalon/Test/Bridge/ZzTask0.cls` (temporary; deleted before the finalize commit, or its useful parts moved into the new tests) -- measure first, with `<lane> OCUTALON_RUN_TAG=e30s1i ci/iris.sh class OcuTalon.Test.Bridge.ZzTask0` on a fresh throwaway on the mock (lane B's variables, never the slot). Record the facts in this spec's `## Verification`, "Task 0 facts".
+- [x] Task 0: `src/ocutalon/cls/OcuTalon/Test/Bridge/ZzTask0.cls` (temporary; deleted before the finalize commit, or its useful parts moved into the new tests) -- measure first, with `<lane> OCUTALON_RUN_TAG=e30s1i ci/iris.sh class OcuTalon.Test.Bridge.ZzTask0` on a fresh throwaway on the mock (lane B's variables, never the slot). Record the facts in this spec's `## Verification`, "Task 0 facts".
   - (a) `GetContext()` after a text turn and after a tool-call turn (`chat.json`): the roles, how content, tool calls, tool results and their ids are keyed, and whether a system message is in the array.
   - (b) `ForkAndSummarize(provider, "", k, Prompt(), 0)` with `summary`: the fork's `GetContext()` (the summary and action-log messages, their role and place); that the last `k` messages are kept; that the original is unchanged. After `%Save` and release, `OpenSession(forkId)`'s next request carries `max_tokens` 8000 (mock log). The mock's summarizer request: system text, transcript form, `output_config`, and its size against `TranscriptChars`.
   - (c) `summary-off-schema` throws (`<%AICore>InternalError`). `summary-rate-limited` with the summarizer settings: one request, then a throw.
   - (d) DW-93: with 100,000 Usage rows (about 1,100 recorded today, the rest over 90 days; `AddUsage` or one SQL insert loop), the median of 5 calls of `Budget.State()` and of `Decide.Precheck` for a short turn. Then delete the rows.
   - (e) The mock answers a chat request that carries `thinking.block_binding` and the `anthropic-beta` header (the smoke's shape). If it refuses one, stop that part with `## Clarification Needed`: new mock behaviour is Lane B's (AD-22).
   - If (a)-(c) contradict this spec's rules, adapt only within them: every failure goes to the seeded path. If an off-schema reply does not throw and its fork passes `Check`, HALT `intent gap` naming AD-20 (S18's finding no longer holds).
-- [ ] `src/bridge/cls/OcuTalon/Bridge/Compaction.cls` -- add `SUMMARIZERSECONDS` 20, `SEEDTURNS` 20, `SEEDPART` 2000, `SEEDCHARS` 80000, `SEEDHEAD`, and these pure helpers -- the rules of rows 1-7 and 11:
+- [x] `src/bridge/cls/OcuTalon/Bridge/Compaction.cls` -- add `SUMMARIZERSECONDS` 20, `SEEDTURNS` 20, `SEEDPART` 2000, `SEEDCHARS` 80000, `SEEDHEAD`, and these pure helpers -- the rules of rows 1-7 and 11:
   - `Cut(context, Output older) As %Integer` (`k`, 0 when nothing older);
   - `Check(context) As %Boolean`;
   - `Seed(context) As %String`;
   - `TranscriptChars(older) As %Integer` (the JSON length of the summarized messages);
   - `SummaryChars(context) As %Integer` (the fork's head system messages);
   - `SummarizerSettings(settings) As %DynamicObject` (a copy with the overrides).
-- [ ] `src/bridge/cls/OcuTalon/Bridge/Data/Usage.cls` -- `FromEstimate(request, model, inputChars, outputChars, Output row) As %Status` beside `FromStats`. It reuses `StepBuffer.Tokens` and `Price.CostFor`. No storage change.
-- [ ] `src/bridge/cls/OcuTalon/Bridge/Process/Decide.cls` -- these changes, and the docs (:18-30 and the methods):
+- [x] `src/bridge/cls/OcuTalon/Bridge/Data/Usage.cls` -- `FromEstimate(request, model, inputChars, outputChars, Output row) As %Status` beside `FromStats`. It reuses `StepBuffer.Tokens` and `Price.CostFor`. No storage change.
+- [x] `src/bridge/cls/OcuTalon/Bridge/Process/Decide.cls` -- these changes, and the docs (:21-31 and the methods), leaving the reply check (5.12, 30.6, DW-544) as it is:
   - `RequestLimit(text, Output warning)`, taken out of `Precheck` and used by the adapter too;
   - `EstimateTokens` gives the history's characters;
   - `Precheck` uses the post-compaction bound for a turn that will be flagged and continues a linked conversation;
   - `TimerFor(request, compact)`, used by `OnRequest`, `RemainingMs` and `Resend`.
-- [ ] `src/bridge/cls/OcuTalon/Bridge/Adapter/Agent.cls` -- the compaction step in `AnswerLinked` (one private method, for example `Compact`), with its warning and its usage row. Also:
+- [x] `src/bridge/cls/OcuTalon/Bridge/Adapter/Agent.cls` -- the compaction step in `AnswerLinked` (one private method, for example `Compact`), with its warning and its usage row. Also:
   - `ChatInput` takes an optional seed that replaces `request.SeedText`;
   - `SessionRotated` is set to 1 when compaction moved the link;
   - a private `CutOf(context)` calls `Compaction.Cut`, so that the seam can override it;
   - the class doc is updated.
   - Rationale: AD-6, AD-20.
-- [ ] `src/bridge/cls/OcuTalon/Bridge/Msg/Request.cls` -- the `Compact` doc: the runner now compacts a flagged turn that continues its conversation. Doc only.
-- [ ] `ci/mock/scenarios/A/summary-rate-limited.json` (new: 429, `Retry-After` 1) and `ci/mock/scenarios/A/compaction-loop.json` (new: three `zz_result_text` steps of 40,000 characters, then text) -- rows 5 and 10.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Bridge/Compaction.cls` (new) -- rows 1-11, one method each or grouped, on the mock with a shadow `ZzRunner`. It is self-contained: owners, links, sessions, Usage rows and settings rows are put back in `OnAfterOneTest`, also after a failure. `ZzCutAdapter.cls` and `ZzCutRunner.cls` (new, the `ZzThrow*` pattern): `CutOf` returns a cut that starts at a tool result.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Agent/Compaction.cls` (new, through the running production; the `RequestSize` pattern) -- AC 1 to AC 3 and row 12.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Bridge/Decide.cls` -- `TimerFor` (row 12's cases, `MAXTIMER` cap) and the precheck bound (with and without a link, history below and above `SEEDCHARS`, a `fresh` turn). Update every existing assertion and doc that says the runner ignores the flag.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Bridge/CodeRules.cls` -- `SESSIONCALLS` also flags `forkandsummarize`; a new test flags `.summarize(` in every non-test class (none allowed), with its scanner checks -- AC 4.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Eval/ThinkingSmoke.cls` (new; the `KeyProof` pattern), with `ZzSmokeAdapter`, `ZzSmokeRunner` and `ZzSmokeChat` (new; `OcuTalon.Agent.Chat` with `TOOLSETS` `OcuTalon.Tools.Reminders` only) -- AC 5. The class has:
+- [x] `src/bridge/cls/OcuTalon/Bridge/Msg/Request.cls` -- the `Compact` doc: the runner now compacts a flagged turn that continues its conversation. Doc only.
+- [x] `ci/mock/scenarios/A/summary-rate-limited.json` (new: 429, `Retry-After` 1) and `ci/mock/scenarios/A/compaction-loop.json` (new: three `zz_result_text` steps of 40,000 characters, then text) -- rows 5 and 10.
+- [x] `src/ocutalon/cls/OcuTalon/Test/Bridge/Compaction.cls` (new) -- rows 1-11, one method each or grouped, on the mock with a shadow `ZzRunner`. It is self-contained: owners, links, sessions, Usage rows and settings rows are put back in `OnAfterOneTest`, also after a failure. `ZzCutAdapter.cls` and `ZzCutRunner.cls` (new, the `ZzThrow*` pattern): `CutOf` returns a cut that starts at a tool result.
+- [x] `src/ocutalon/cls/OcuTalon/Test/Agent/Compaction.cls` (new, through the running production; the `RequestSize` pattern) -- AC 1 to AC 3 and row 12.
+- [x] `src/ocutalon/cls/OcuTalon/Test/Bridge/Decide.cls` -- `TimerFor` (row 12's cases, `MAXTIMER` cap) and the precheck bound (with and without a link, history below and above `SEEDCHARS`, a `fresh` turn). Update any test doc that says the runner ignores the flag (none found at `60eedf07`).
+- [x] `src/ocutalon/cls/OcuTalon/Test/Bridge/CodeRules.cls` -- `SESSIONCALLS` also flags `forkandsummarize`; a new test flags `.summarize(` in every non-test class (none allowed), with its scanner checks -- AC 4.
+- [x] `src/ocutalon/cls/OcuTalon/Test/Eval/ThinkingSmoke.cls` (new; the `KeyProof` pattern), with `ZzSmokeAdapter`, `ZzSmokeRunner` and `ZzSmokeChat` (new; `OcuTalon.Agent.Chat` with `TOOLSETS` `OcuTalon.Tools.Reminders` only) -- AC 5. The class has:
   - `Run(Output problems) As %Boolean`;
   - `Print`, which writes `CHK|smoke|passed|failed` and problem counts, never reply text or settings;
   - `TestOnTheMock`.
-- [ ] `src/ocutalon/cls/OcuTalon/Eval/Gate.cls` -- `Result` takes `context.thinkingHistorySmoke` when it is set, else `SMOKE`, and documents the values passed, failed and not run. The verdict is unchanged. `src/ocutalon/cls/OcuTalon/Test/Eval/Gate.cls` -- a context value reaches the JSON and the Markdown line; none gives "not run".
-- [ ] `eval/run.sh` -- in `--release-candidate` without `--on-mock` only, once after the attempts: run `ThinkingSmoke.Print(ThinkingSmoke.Run(.p))` through `iris_script` and pass the value in `cx`. The push run and `--on-mock` keep "not run". Update the header note (:83-84). `docker/tests/test-eval-set.sh` -- pin that branch, that it is skipped for `--on-mock` and the push run, and the new note.
-- [ ] `_bmad-output/implementation-artifacts/spec-30-1-long-conversations-are-compacted-under-the-limit.md` `## Verification` "Task 0 facts" (d) -- DW-93, for the lead, from the measurement: at 250 ms or less (median `Precheck`), no code change, and the lead writes `wontfix-accepted` with the measurement and `reopen_if=a Precheck median above 250 ms on a field instance, or a Usage table above 100,000 rows`. Above 250 ms, the implement stage stops that part with `## Clarification Needed`: an index is a stored-data change plus Lane B's pin, and a cache changes when the cap engages.
+- [x] `src/ocutalon/cls/OcuTalon/Eval/Gate.cls` -- `Result` takes `context.thinkingHistorySmoke` when it is set, else `SMOKE`, and documents the values passed, failed and not run. The verdict is unchanged. `src/ocutalon/cls/OcuTalon/Test/Eval/Gate.cls` -- a context value reaches the JSON and the Markdown line; none gives "not run".
+- [x] `eval/run.sh` -- in `--release-candidate` without `--on-mock` only, once after the attempts: run `ThinkingSmoke.Print(ThinkingSmoke.Run(.p))` through `iris_script` and pass the value in `cx`. The push run and `--on-mock` keep "not run". Update the header note (:83-84). `docker/tests/test-eval-set.sh` -- pin that branch, that it is skipped for `--on-mock` and the push run, and the new note.
+- [x] `_bmad-output/implementation-artifacts/spec-30-1-long-conversations-are-compacted-under-the-limit.md` `## Verification` "Task 0 facts" (d) -- DW-93, for the lead, from the measurement: at 250 ms or less (median `Precheck`), no code change, and the lead writes `wontfix-accepted` with the measurement and `reopen_if=a Precheck median above 250 ms on a field instance, or a Usage table above 100,000 rows`. Above 250 ms, the implement stage stops that part with `## Clarification Needed`: an index is a stored-data change plus Lane B's pin, and a cache changes when the cap engages.
 
 **Acceptance Criteria:**
 - AC 1 (Integration, NFR-3): Given the running production on the mock, when an owner's conversation grows over three or more turns through Decide until a turn is flagged with older history (turn 1 about 170,000 characters), then:
@@ -173,11 +177,81 @@ Bridge classes are under `src/bridge/cls/OcuTalon/Bridge/`, product and test cla
   - no logged assistant message holds a thinking block;
   - every turn is usable, and `Run` returns 1.
   And `eval/run.sh --release-candidate` (real model) records `thinkingHistorySmoke` passed or failed, while the push run and `--on-mock` record "not run" (`test-eval-set.sh`).
-- AC 6 (regression): Given this story's changes, when the existing tests run, then `Test.Agent.RequestSize`, `Test.Bridge.Conversation`, `Test.Bridge.Runner`, `Test.Bridge.Decide`, `Test.Bridge.Usage`, `Test.Bridge.Purge` and `Test.Agent.Constants` pass unchanged in intent, and `bash eval/key-proof.sh` still passes.
+- AC 6 (regression): Given this story's changes, when the existing tests run, then `Test.Agent.RequestSize`, `Test.Bridge.Conversation`, `Test.Bridge.Runner`, `Test.Bridge.Decide`, `Test.Bridge.ReplyCheck`, `Test.Agent.Decide`, `Test.Bridge.Usage`, `Test.Bridge.Purge` and `Test.Agent.Constants` pass unchanged in intent, and `bash eval/key-proof.sh` still passes.
+
+### Review Findings
+
+Code review 2026-11-02 (`bmad-code-review`, four layers: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor; plus the reviewer's own Rule 2 check). 33 raw findings (32 from the layers), 10 entries after grouping (high 0, med 3, low 7); 22 raw findings rejected in 18 lines.
+
+- [x] [Review][Patch] (med, Rule 19; fix-risk low: test only) Row 3/5: a thrown summarizer request's compaction row was asserted only when it existed, so a missing row passed [src/ocutalon/cls/OcuTalon/Test/Bridge/Compaction.cls:149] — `AssertThrownRow` asserts the row exists in `TestSummarizerOffSchema` and `TestSummarizerRateLimited`.
+- [x] [Review][Patch] (med, Rule 19; fix-risk low: test only) The fork's first-request size guard (`Condense`, "the size of the first request") had no test of its own: removing it alone left every test green [src/bridge/cls/OcuTalon/Bridge/Adapter/Agent.cls:601] — new `TestFirstRequestOverLimit` (short turn 1, long kept turn 2, limit 41,000: the summarizer is asked, the fork is refused and the turn is seeded).
+- [x] [Review][Patch] (low; fix-risk low: doc only) Decide's class doc and `Precheck` doc said a flagged continuing turn is judged on "the most that the runner will send"; on the fork path the runner can send more (a kept turn above `SEEDCHARS`), bounded by its own guards at the limit [src/bridge/cls/OcuTalon/Bridge/Process/Decide.cls:30] — both docs now say the bound is the seeded path's and the runner guards the as-is session and the fork.
+- [x] [Review][Patch] (low; fix-risk low: doc only) Decide's class doc said `RemainingMs` and the re-send count "from the same total" as the first timer; they recompute `TimerFor` from the history as it stands [src/bridge/cls/OcuTalon/Bridge/Process/Decide.cls:21] — doc corrected.
+- [x] [Review][Patch] (low, Always line "the provider name resolved as AI Hub resolves it"; fix-risk low) `SummarizerProvider` refused a runner with neither `ProviderConfig` nor `ProviderName`, where AI Hub keeps the agent's own provider [src/bridge/cls/OcuTalon/Bridge/Adapter/Agent.cls:643] — the outer gate is removed, so such a runner builds from the agent's `PROVIDERCONFIG`, `APIKEY` and `PROVIDER`.
+- [x] [Review][Patch] (low; fix-risk low) The smoke recorded `passed` on the real model even when turns 1 and 2 ran no tool, so the tool change it exists to cover never happened [src/ocutalon/cls/OcuTalon/Test/Eval/ThinkingSmoke.cls:294] — `TurnJob` records `ToolsRun`, `CheckTurn` requires a tool in turns 1 and 2, pinned in `TestChecksCanFail`.
+- [x] [Review][Patch] (low; fix-risk low: test only) Nothing checked that the smoke's runners get its provider settings (on the mock `NewRunner` replaces an empty config with the mock's) [src/ocutalon/cls/OcuTalon/Test/Eval/ThinkingSmoke.cls:254] — `TestChecksCanFail` asserts `NewHost(...).Adapter.ProviderConfig`.
+- [x] [Review][Patch] (low, AD-19; fix-risk low: test only) The real-model branch of `ProviderConfigText` (ChatAgent's Config Store entry) ran in no test, though it needs no key [src/ocutalon/cls/OcuTalon/Test/Eval/ThinkingSmoke.cls:225] — `TestChecksCanFail` reads it on the throwaway: no reason, the key an `@{env:` placeholder, the beta header added.
+- [x] [Review][Patch] (low, Rule 2; fix-risk low) `Usage.FromEstimate` repeated `FromStats`' block of request, agent, model and time fields [src/bridge/cls/OcuTalon/Bridge/Data/Usage.cls:139] — both now call a private `NewRow`.
+- [x] [Review][Defer] (med, unverified; fix-risk med: 20 s is AD-20's, a change amends it and the timer budget) The summarizer's 20 s request timeout is measured only on the mock; a real request near the limit may exceed it, and every large real compaction would then take the seeded fallback [src/bridge/cls/OcuTalon/Bridge/Compaction.cls] — deferred: DW-580 `decision-pending owner=burndown note=human=` (a real-model latency measurement settles it).
+
+Rejected (22 raw findings, 18 lines):
+- low — compaction runs when a large input, not the history, crosses 40,000 (blind): AD-20 and the Never line fix the trigger (`Request.Compact`'s rule); the summarizer request is then small.
+- low — a failed real-model smoke reports only a problem count (blind): rare and non-gating; the fix adds print lines in the class, `eval/run.sh` and its pins and changes `Print`'s specified form.
+- low — `RemainingMs` recomputes the flag at re-send time, both the shrinking (edge) and the growing case (blind): already adjudicated (needs a stored Decide property, a veto item); the growing case needs another turn of the same owner saved inside a back-off, and stays within MAXTIMER. Its doc claim is fixed above.
+- false — the timer is capped at 110 when `TimerSeconds` is above 90 (edge, twice): the spec and AD-20 say "at most MAXTIMER".
+- low — `GetContext` throwing runs the turn on the history as it is (edge, twice): Design Note 17; a session whose history cannot be read cannot be chatted.
+- low — a `RequestTokenLimit` below 40,000 leaves an unflagged history stuck at `too_large` (edge): the default is 100,000, and the flag rule is fixed by the Never line.
+- low — the seeded request is not size-checked by the runner (edge, auditor): Decide's precheck bounds it to within about 25 tokens of the limit; the fix adds a guard and a trim.
+- low — an empty seed moves the link to a session with no memory (edge): every stored history starts with a user message with text (Check, Cut).
+- false — the runner and Decide read the limit at different times (edge): already adjudicated (Intent 3); both normalize through `RequestLimit`.
+- low — a smoke job past its wait is not stopped before cleanup (edge): already adjudicated (Blind 4 / Edge 9).
+- low — an aborted smoke leaves owner-`eval` compaction rows (edge): only on a throwaway, and no cap counts owner `eval` (AD-20).
+- low — AC 1's "under 100,000" assertions in `Test.Agent.Compaction` cannot fail in that fixture (gap): Rule 19 pins one mutation per AC (AC 1's is recorded), and row 10's `TestFourIterations` pins the bound with its control.
+- low — `TestNotCompactable`'s first-turn case cannot fail (gap): QA already noted it; the fresh case carries row 8's mutation.
+- false — `OnAfterOneTest` cleans up broadly (gap): it deletes only rows above its own mark and the shadow runner's links, and relies on no foreign state.
+- low — the summarizer request's size is not asserted against 100,000 (auditor): it would be another assertion that cannot fail here; row 6 pins the summarizer guard at the limit.
+- false — AC 3's short-turn 60 s is not asserted through the production (auditor): it is pinned through Decide's `OnRequest` in `Test.Bridge.Decide` `TestTimerFor` (mutation recorded).
+- false — row 9's thrown-Chat case differs from the row (auditor): the provider-error case gives the failure reply with `SessionRotated` 1; the exception case is "As today".
+- false — the smoke deletes its own real-model Usage rows (auditor): the release-candidate run is on a throwaway (AD-22) and owner `eval` counts for no cap.
 
 ## Spec Change Log
 
+- 2026-11-02 (re-open, part 2 of U-207; lead spec gate): set back to `draft` for a re-plan. Reasons: (1) `Bridge/Process/Decide.cls` and its tests changed after this spec was planned (d4793d2d): Story 5.12 (3682d6b6, d103aec0), Story 30.6 (8937f0e0, 7d184ae3) and DW-544's fix-forward (3d0cabd3); every Decide.cls task, Code Map line and test reference must be re-checked against the current code (and against Story 5.7's Decide changes, already in the base). (2) DW-483 joined this story's ledger inbox (Decide's invalid-reply retry: measure first; veto item). (3) DW-386, DW-448 and DW-541 were re-owned to the burn-down story 30.7 at this gate (outside compaction's intent; this spec already declines DW-386/DW-448), so they leave this story's inbox.
+
 ## Review Triage Log
+
+### 2026-11-02 — Review pass
+- verdicts: 29 findings — high 0, medium 1, low 24, false 4, maybe-false 0
+- findings:
+  - `[low]` `[reject]` Blind 1 / Edge 1 / Gap 1: after a compaction, `OnResponse` and `Resend` recompute the flag from the smaller history, so the re-send window counts from `TimerSeconds` (60 s) while the alarm of the first send was 80 s — conservative (never a re-send past the alarm), met only by a 429 or similar failure in the last 20 s of a compacted turn; the fix needs a new Decide context property (a stored-data change on a persistent class, excluded by the intent), so it is more than a direct correction. reopen_if: a compacted turn's re-send is refused with time left on the alarm in a recorded run. Named under residual risks.
+  - `[low]` `[patch]` Blind 2 / Edge 5: `Check`/`CallIds` raise a subscript error on a tool_use block with no id or a tool_result block with no tool_use_id — fixed in `Compaction.Check` (empty ids are skipped on the call side and fail on the result side) and pinned by two new `TestCheckRules` cases.
+  - `[low]` `[reject]` Blind 3: the thinking-history smoke checks little on the real model (the forcing shape is the spec's labelled inference, and the mock cannot tell the header apart) — Design Notes 9 and Task 0 (e) accept this; a failed or silent smoke is recorded, not a gate.
+  - `[low]` `[reject]` Blind 4 / Edge 9: `TurnJob` start is unchecked and a timed-out job is not stopped before cleanup — a job that fails to start or hangs is not seen in everyday use, the smoke only records `failed`, and the guards add branches.
+  - `[false]` `[reject]` Blind 5: a literal api_key would travel as a Job argument — AD-19 puts only an `@{env:...}` placeholder in a Config Store entry and `ConfigStore.Details` returns it as stored, so the argument holds the placeholder, never a key.
+  - `[low]` `[reject]` Blind 6: `SummarizerProvider` copies AI Hub's provider setup and its branches are untested — the copy is justified in Design Notes (AI Hub's method is Internal and Private); the branch it takes in the product (ProviderConfig) is the one under test.
+  - `[low]` `[patch]` Blind 7: test helpers `Summarizers` and `RequestTokens` are copied in `Test.Agent.Compaction` — it now calls the public ones of `Test.Bridge.Compaction` (design note 26). The inline variants in `ThinkingSmoke.CheckLog` (a different return shape) stay.
+  - `[false]` `[reject]` Blind 8: Decide extends the alarm even when no summarizer call will happen — decided in-stage 4: Decide cannot see the history's turns, and the 20 s are slack at worst.
+  - `[low]` `[reject]` Blind 9: `SUMMARIZECALLS` misses `$method` dispatch — theoretical; the scanner pins literal dotted calls like the sibling scans.
+  - `[low]` `[reject]` Edge 2 / Edge 3 / Intent 4: when `GetContext` throws the turn runs on the history as it is (one warning) — a stored session whose history cannot be read cannot be chatted either, so the over-the-limit send is not reachable; recorded as design note 17.
+  - `[low]` `[reject]` Edge 4: a seed after an already compacted history leaves out the earlier summary — row 11 defines the seed as the stored user and assistant texts only; two failed compactions in a row are rare and the newest 20 exchanges are kept.
+  - `[low]` `[reject]` Edge 6: the seed drops leading assistant lines when it holds exactly 20 exchanges — a history starts with a user message (Check/Cut rely on it), so no leading assistant text exists.
+  - `[low]` `[reject]` Edge 7: `Compaction.Seed` is outside the Try — it is pure over arrays of strings and raises nothing for any stored history.
+  - `[low]` `[reject]` Edge 8: a re-send after a seeded fallback whose Chat failed attempts the compaction again, with another summarizer request — bounded by the re-send count, and the guarded path moves the link first, so only the seeded path repeats.
+  - `[low]` `[reject]` Gap 2 (part): the untested fallback seams (fork save fails, `Point` fails, `GetContext` throws, provider error) — each ends on the same fallback line as the pinned ones; a seam for each adds classes for no new behaviour.
+  - `[medium]` `[patch]` Gap 2 (reopen): the failed reopen after the fork was saved had no test — `ZzReopenAdapter`/`ZzReopenRunner` and `TestReopenFails` added, mutation red (design note 25).
+  - `[low]` `[reject]` Gap 1: no test sends a reply-failure through `OnResponse` for a flagged continuing turn — pins the recompute of the first finding, which is rejected.
+  - `[low]` `[reject]` Gap 3: `ThinkingSmoke.Print` is never run by a test — it is one `Write` of `Line`, which `TestPrint` pins; the shell side reads the line and records `failed` for a missing one.
+  - `[low]` `[reject]` Gap 4: the `anthropic-beta` header assertion is vacuous on the mock — Task 0 (e) measured that the mock logs the header name for every request; the `block_binding` field carries the pin (its mutation is red).
+  - `[low]` `[reject]` Gap 5: `TestUsageEstimate` could pass with an empty price on both sides — `TestGuardedCompaction` asserts a non-empty cost in the same class.
+  - `[low]` `[patch]` Gap 6: no mutation line for AC 2's input clause and AC 4's `ForkAndSummarize` scan — both demonstrated red and recorded.
+  - `[low]` `[reject]` Gap 7: the non-mock branch of the smoke is first executed on the real model — it cannot run here (no real key, ever); a failure is recorded as `failed`.
+  - `[low]` `[reject]` Gap 8: hermeticity notes (a day-mark kill, deletes by mark, seeded price rows) — the same pattern as `Test.Agent.RequestSize`; no cross-test dependence found.
+  - `[low]` `[reject]` Intent 2: the day's spend including the compaction row is not asserted — `Usage.Totals` is asserted, and the spend scan sums every Usage row by time.
+  - `[false]` `[reject]` Intent 3: the runner and Decide read the limit at different times — the tests restart Decide after changing the row (the RequestSize pattern); the shared method normalizes both.
+  - `[low]` `[reject]` Intent 1: the guarded path is not exercised through Decide's own flag in-process — `Test.Agent.Compaction` runs it through the production.
+  - `[false]` `[reject]` Intent 5: row 12 asserted at `TimerFor` only — `OnRequest` and the running production's alarm (60, 80, 80) are asserted too.
+  - `[low]` `[reject]` Edge 4b / Gap (assertion): `CheckLog` `HasThinkingBlock` is close to vacuous on the mock because mock replies carry no thinking block — recorded as inference in Design Notes 9; on the real model it is the check that bites.
+  - `[low]` `[reject]` Gap 2 (`RecordCompaction` warning branches) — a warning-only path that never changes the compaction.
 
 ## Design Notes
 
@@ -206,6 +280,7 @@ Bridge classes are under `src/bridge/cls/OcuTalon/Bridge/`, product and test cla
   - Story 9.5's release-candidate run reads `thinkingHistorySmoke`, wired here;
   - Lane B's `Core.Conversation` (Epic 2), with no change: its long conversations now keep working;
   - `Data.Ownership.TurnCost` and `RunCost` (Lane B) sum the `compaction` row by DecisionRef, with no change.
+  - Epic 41's optional Stories 41.10 and 41.11 (AD-21 "At compaction") may later report a guarded compaction's summary through a HostSink event. That needs an AD-31 amendment decided at Epic 41's re-open; this story adds no hook for it.
 
 **Extend, don't copy (Rule 2).**
 - `Usage.FromEstimate` sits beside `FromStats` and shares `Price.CostFor` and `StepBuffer.Tokens`.
@@ -215,7 +290,7 @@ Bridge classes are under `src/bridge/cls/OcuTalon/Bridge/`, product and test cla
 - The seams follow `ZzThrowAdapter`/`ZzThrowRunner`. The smoke follows `Test.Eval.KeyProof`.
 
 **Decided in-stage.**
-1. DW-386 and DW-448 are declined together, for size (see Declined). The compaction core, its tests and the smoke already make the spec oversized and one long implement pass.
+1. Redact and key-proof work stays out (the intent's Never line). The lead re-owned DW-386 and DW-448 (and DW-541) to Story 30.7 at the 2026-11-02 spec gate. This spec does no work for any of the three.
 2. Compaction runs inside the adapter and puts its pure rules in `Bridge.Compaction`. So `CHATTERS`, `SESSIONMAKERS` and `LINKNAMERS` stay as they are, and `SESSIONCALLS` gains `forkandsummarize`, so that a later class outside the adapter is flagged.
 3. The fork is reopened with `OpenSession` before `Chat`, so that the composed config (cap, effort, `timeout_ms`) applies (S2: a session resumed without it loses them). `Point` follows a successful reopen. A fork saved but not reopened stays unlinked, and the purge removes it.
 4. "Can compact", for the 20 s and the precheck bound, means a flagged turn that continues a linked conversation (Decide cannot see the history's turns). A conversation with one earlier turn gets the 20 s and no summarizer call. That is harmless.
@@ -229,6 +304,22 @@ Bridge classes are under `src/bridge/cls/OcuTalon/Bridge/`, product and test cla
    - A failed smoke is recorded and does not change the verdict: making it a release gate is the owner's call.
 10. DW-93's threshold is 250 ms (median `Precheck` at 100,000 rows). A turn's model call takes seconds, and Decide's timer is 60 s.
 11. Test hint: a seeded turn's first mock marker is the oldest one the seed quotes, so give older turns the marker that the seeded turn expects (`recall-tell`).
+12. Re-plan against `60eedf07`: since `d4793d2d`, Decide changed only in its reply check (5.12's evidence-reference rule, 30.6's invalid-reply warning, DW-544's "an unexpected property"). `OnRequest`, `OnResponse`, `Resend`, `SentRequest`, `RemainingMs`, `Precheck` and `EstimateTokens` are unchanged, apart from line moves. So `TimerFor`, the precheck bound and `RequestLimit` compose with them as planned. A `too_large` or `daily_cap` precheck fallback still logs no reply-check warning. The `diagnose` timer (NFR-7) is unchanged, because `TimerFor` changes only flagged `turn`s. No other Code Map file changed, except `Test.Agent.Constants` (its tool-name count; the prompt test moved to :55-73).
+
+13. (implement stage) The mock's log keeps the size of a request's system text and not the text, so "the summarizer request's system text starts `OCUTALON-COMPACTION-V1`" is pinned by the log line itself: `selectedBy` `summarizer` (or a `summary-*` scenario) and `system.chars` equal to `Length(Prompt())` (948), which the mock reads the prefix from. Likewise "turn 3's request starts with the summary" is pinned by the first message being turn 2's user message and the system text being 595 characters longer than before: the summary rides in the system text (Task 0 (b)).
+14. (implement stage) `compaction-loop.json` asks for `zz_result_text` with 40,000, 39,990 and 39,980 characters, not three times 40,000: AI Hub's loop detection answers a repeated identical call with a user message of its own ("You appear to be repeating tool calls..."), which carries no mock marker, so the mock answers 500 on the fourth request. The three results are still about 10,000 tokens each, the cap of one step.
+15. (implement stage) `Decide.TimerFor(request, compact)` is an instance method (it reads `TimerSeconds`). `Decide.Flagged(request, estimate)` is the rule that `SentRequest` already had (a turn above `COMPACTTOKENS`), moved into a method that `SentRequest`, `Precheck` and the timer share; the rule is unchanged. `RemainingMs(request, estimate)` takes the estimate that `Resend`'s precheck just worked out, or works it out when `OnResponse` weighs a re-send. After a compaction moved the link the history is short, so a re-send is no longer flagged and counts from `TimerSeconds`: its timer is never longer than the first one.
+16. (implement stage) `Decide.EstimateTokens` gained two trailing Output arguments, `history` and `chars` (the history's characters and the whole sum), so that `Precheck` weighs the post-compaction bound without a second read; `RequestLimit(text, Output warning)` returns the warning text and `Precheck` logs it through `Redact.Text`, as before.
+17. (implement stage) When the stored history cannot be read (`GetContext()` throws), the adapter logs one warning and runs the turn on the session as it is: no cut and no seed can be made without the history.
+18. (implement stage) The seed's head line (`SEEDHEAD`) is "This conversation so far, as recorded (the user's messages and the assistant's replies, the oldest left out when it is long):", the lines start `User: ` and `Assistant: `, and a seed over `SEEDCHARS` loses its oldest lines (not whole exchanges) until it fits. The text is for the model, never shown to a person.
+19. (implement stage) The provider of the summarizer gets a fixed warning text when it cannot be built ("the provider cannot be built from the settings of the runner"): the error of `Expand`, `%FromJSON` or `Create` may name the settings, which the spec forbids in a warning. A failed `ForkAndSummarize` keeps AI Hub's error text, cut and redacted by `StepBuffer.Part`.
+20. (implement stage) The adapter now calls `ConversationLink.Point` in two places (`SaveLinked` and the switch to a fork); `Test.Bridge.CodeRules` pinned one and now pins two. `Test.Bridge.Conversation`'s `NewHost`, `NewTurn`, `Send` (now a class method) and `LinkOf` are public so that `Test.Bridge.Compaction` reuses them (Rule 2); its tests are unchanged.
+21. (implement stage) `Gate.Result` takes the context's `thinkingHistorySmoke` only when it is `passed` or `failed` (anything else gives `not run`), so the result document never holds another value. `eval/run.sh` records a smoke that printed no figure as `failed` with a NOTE line, and a failed smoke changes neither the verdict nor the exit code. `Print` writes `CHK|smoke|passed|<problems>` or `CHK|smoke|failed|<problems>`, the number of problems being the second figure.
+22. (implement stage) The smoke's classes `ZzSmokeAdapter`, `ZzSmokeRunner` and `ZzSmokeChat` are in the package `OcuTalon.Test.Eval` with `Test.Eval.ThinkingSmoke`. Each turn runs in a job started with `Job` from `Run` (the test classes are outside the runner-and-adapter rule `TestRunnerStartsNoJob`). The mock is detected by `RunnerFixture.GuardReason()` being empty (the CI override's environment); otherwise the run uses the Config Store entry of ChatAgent. Task 0 was measured on a warm throwaway, not a fresh one: the base image, build and mock are the same.
+23. (implement stage) `Compaction.Check` also fails a history whose first non-system message is not a user message (a tool or assistant message), a result with no call id, and a result whose call is missing or comes later, so a tool result first fails twice; the first-message test is pinned by the assistant-first case.
+24. (review patch) `Compaction.Check` returns 0 for a tool_use block with no id or a tool_result block with no tool_use_id, instead of raising a subscript error that the fallback would have caught and reported under the wrong step. The block forms are pinned in `TestCheckRules`.
+25. (review patch) The reopen of a saved fork is pinned by a seam like `ZzCutAdapter`: `ZzReopenAdapter`/`ZzReopenRunner` refuse to open any AI session other than the one named in the process-private global `^||ZzReopenOnly`, and `TestReopenFails` (row 4's reopen case) asserts the seeded fallback, the warning step "opening the fork again", the original link until the Chat completes, and a fork that stays saved and unlinked. Failures of the fork's save, of `Point`, of `GetContext` and of `SummarizerProvider` take the same fallback line and have no seam of their own.
+26. (review patch) `Test.Agent.Compaction` reuses `Test.Bridge.Compaction`'s `Summarizers` and `RequestTokens` instead of its own copies.
 
 **V1. An addition to AD-20's fallback triggers (veto window: amending an AD, U7). For the lead.**
 - AD-20 names two triggers: an exception from `ForkAndSummarize` and a failed check.
@@ -238,6 +329,8 @@ Bridge classes are under `src/bridge/cls/OcuTalon/Bridge/`, product and test cla
   - a failed save or reopen of the fork.
 - Recommendation: keep. Spine line (Rule 20, light path), in AD-20's Fallback bullet: "…or a summarizer request or first request that would pass the request-size limit, or a fork that cannot be saved and reopened…".
 
+- **Lead ruling (spec gate 2026-11-02, U7 step 1: comply, no AD amendment).** Implement the three over-the-limit guards exactly as planned: each takes AD-20's seeded fallback. AD-20 is silent on these cases and does not limit the seed to its two named triggers; AD-8 and NFR-3 require that no request over the limit is sent. So the guards comply with both ADs as written, and the spine text is NOT changed in this story (AD-20 is cited by merged stories' specs, so under the unattended doctrine any change to its text is the owner's, through an attended `bmad-architecture` Update after the run). The proposed AD-20 sentence above and the spine notes below are recorded in the ledger for that Update. Reviewers: these guards are not an AD-20 violation.
+
 **R1. NFR-3 residual (for the lead; the frontmatter's `deferred` item; not planned around).**
 - AD-20's 94,000 bound needs a first request of at most 40,000 tokens. This spec guards at the limit. A fork whose kept turn was tool-heavy, a flagged turn with nothing older, or a large input can therefore start between 40,000 and the limit, and its loop can pass 100,000.
 - Options:
@@ -246,15 +339,16 @@ Bridge classes are under `src/bridge/cls/OcuTalon/Bridge/`, product and test cla
   - (c) Accept, with `reopen_if`: the mock or a recorded run logs a request above 100,000.
 - (a) and (b) change what the product does: they are for the owner. DW-130 is addressed for the compacted case (row 10).
 
-**Declined.**
-- Declined DW-386: moved to the Epic 30 burn-down story (size). The lead re-owns it with U-184's condition (every `key_like` shape of `docker/tests/lib-keys.sh` in `Bridge.Redact`, one test per shape).
-- Declined DW-448: moved to the Epic 30 burn-down story (size). The lead re-owns it with U-185's condition. Investigation notes for it:
+**Declined and re-owned.**
+- DW-386 and DW-448: re-owned to Story 30.7 (the lead, 2026-11-02), with U-184's and U-185's conditions. Notes for 30.7 on DW-448:
   - No OcuTalon class has a `%Stream.Global*` property.
   - `%AI.Agent.Session.ContextData` is a `%Stream.GlobalCharacter` with `COMPRESS` 1: zstd for a first block of 1,024 characters or more, flagged in the header node, not in the chunk.
   - User text sits in `$List` elements of `%String(MAXLEN="")` properties, and an element with any character above 255 is stored as 16-bit.
-- DW-93, DW-125 and DW-130 are addressed: DW-93 by Task 0 (d) and the lead item, DW-125 by rows 6-7 and AC 2, DW-130 by rows 1 and 10 and AC 1, with R1.
+- Declined DW-483 (lead, spec gate 2026-11-02: accepted; the entry becomes `decision-pending` for the decision sheet, `note=human=`: the measurement needs host Decision rows and a real-key run): its kept condition (U-191) builds the retry only if `diagnose` still falls back on `invalid` in more than about 1 in 50 after 5.12, measured on host Decision rows and Story 9.5's real-key run. This run has neither: no real key, ever, and the demo host is off limits. The CI mock's invalid rate is whatever its scenarios script, so a Task 0 here would measure nothing. A retry is also a behaviour change in Decide's reply path, outside compaction. The lead re-owns it (for example to the first real-key release-candidate run's evidence) or closes it.
+- Addressed: DW-93 by Task 0 (d) and the lead item, DW-125 by rows 6-7 and AC 2, DW-130 by rows 1 and 10 and AC 1, with R1.
 
 **Spine notes for the lead (Rule 20).**
+- Lead (spec gate 2026-11-02): none of these is written into the spine in this unattended run (U7, U14: a runner never amends an AD; AD-20, AD-8, AD-6 and AD-22 are cited by merged stories). They describe behaviour the ADs allow as written, and they go to the ledger for an attended spine Update after the run.
 - AD-20: V1's text. The fork is reopened through `OpenSession` before `Chat`. A compaction sets `SessionRotated`. The seed's bound (`SEEDCHARS`, 80,000 characters). The 20 s go only to a flagged turn that continues a linked conversation.
 - AD-8: `too_large` for such a turn is judged on the post-compaction bound.
 - AD-6: the adapter bullet "`%Save`s an AI session only after a completed `Chat`" gains "or a compaction fork, after its check (AD-20)".
@@ -267,8 +361,7 @@ Bridge classes are under `src/bridge/cls/OcuTalon/Bridge/`, product and test cla
 `<lane>` stands for `env OCUTALON_LOCK_DIR="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")/.worktrees/.coordination/locks/lane-b" OCUTALON_TEST_WEB_PORT=52802 OCUTALON_LOCK_OWNER='epic=30 stage=implement'`, run from the worktree root. The fresh tag is `e30s1i`, the warm tag `e30s1iw`.
 
 How to run:
-- One command per tool call, in the foreground, with `timeout: 600000`. Never two IRIS test runs in one message.
-- The harness moves a call to the background after about 180 s. Poll it in loops of under 170 s, and never start a second copy.
+- One command per tool call, in the foreground, with `timeout: 600000`; never in the background. Each command below finishes inside one call. Never two IRIS test runs in one message.
 
 Where to run:
 - Throwaway stacks only.
@@ -282,6 +375,7 @@ Where to run:
 - (loop) `<lane> OCUTALON_WARM=1 OCUTALON_RUN_TAG=e30s1iw ci/iris.sh class <Class>`, one call per class. Expected: `CLASS … passed`.
   - `OcuTalon.Test.Bridge.Compaction`
   - `OcuTalon.Test.Bridge.Decide`
+  - `OcuTalon.Test.Bridge.ReplyCheck`
   - `OcuTalon.Test.Bridge.CodeRules`
   - `OcuTalon.Test.Bridge.Conversation`
   - `OcuTalon.Test.Bridge.Runner`
@@ -293,6 +387,7 @@ Where to run:
 - (loop) `<lane> OCUTALON_RUN_TAG=e30s1i ci/iris.sh class <Class>`, fresh, one call per class. Expected: `CLASS … passed`.
   - `OcuTalon.Test.Agent.Compaction`
   - `OcuTalon.Test.Agent.RequestSize`
+  - `OcuTalon.Test.Agent.Decide` (about 105 s; the timer and re-send paths that `TimerFor` rewires)
 - (once) `bash ci/checks.sh`. Expected: every script passes (boundaries, storage, class rules).
 - (once) `bash docker/tests/test-mock.sh`. Expected: passes with the two new scenarios.
 - (once) `bash docker/tests/test-eval-set.sh`. Expected: passes.
@@ -302,17 +397,23 @@ Where to run:
 - (once) `<lane> OCUTALON_RUN_TAG=e30s1i ci/iris.sh shard lane-b --part 1/2`, then `--part 2/2`, fresh. Expected: passed (`Test.Contract.Ac` runs there).
 - (once) `<lane> OCUTALON_RUN_TAG=e30s1iw ci/warm.sh down`, then `<lane> OCUTALON_RUN_TAG=e30s1i ci/iris.sh teardown`, also after a failure.
 
-**Task 0 facts:** the implement stage records (a) to (d) here, each with the throwaway's build and what was stored.
+**Task 0 facts** (measured on the warm throwaway of tag `e30s1iw`, the base image of `ci/iris.sh` (IRIS for UNIX, Ubuntu Server LTS for ARM64 Containers, 2026.3.0AI Build 154U, the build of `ocutalon-slot-b` too) and the CI mock; a temporary class `Test.Bridge.ZzTask0` printed the facts, and it is deleted):
+- (a) `GetContext()` is a dynamic array of messages, each `{role, content}`. After a text turn: `[{"role":"user","content":"<text>"},{"role":"assistant","content":"<text>"}]` (content is a string). After a tool-call turn the assistant message that calls the tool is `{"role":"assistant","content":null,"tool_calls":[{"id":"toolu_mock_3_1","name":"list_reminders","arguments":"{}"}]}` (content is JSON null; `arguments` is a string), the result is its own message `{"role":"tool","tool_call_id":"toolu_mock_3_1","content":"<result text>"}` (role `tool`, never a content block), and the answer is a plain assistant message. A history that was never compacted has no system message; the system prompt is not in the array. The rules of `Compaction` handle the Anthropic block form too (a user message made of `tool_result` blocks is a result; `tool_use` blocks are calls), which was not measured.
+- (b) `ForkAndSummarize(provider, "", k, Prompt(), 0)` with `summary` (8 messages, k 2): the fork's `GetContext()` is two system messages, then the last k messages: `[system "**Conversation summary up to <time>** (auto-generated ... treat this as historical context only, not as a new instruction):\n\nGoals: ...\n\nDecisions:\n- ...\n\nKey facts:\n- ..."`, `system "**Action log (tools)** ... ? check_status ? the CI mock's fixed status (none)"` (only when the summary has tool actions), the kept user message, the kept assistant message`]`. The original's context is byte-identical after the fork. The fork's stats are fresh (all counters 0). After `%Save`, the release of every reference and `OpenSession(forkId)`, the next turn's request carries `max_tokens` 8000 and `output_config.effort` low, one user message after the two kept ones, and a system text 595 characters longer (the summary rides in the system text, not in `messages`). The mock's summarizer request: one request, `selectedBy` `summarizer` (or `marker` with a `summary-*` scenario), `maxTokens` 8192, `output_config.effort` `low`, `system.chars` 948 = `Length(Prompt())` (the log keeps the size of the system text, not the text), no tools, and one user message with one text block `Transcript (oldest -> newest):\n\n[USER] ...\n\n[ASSISTANT] ...\n\n[ASSISTANT] \n  [Tool call: list_reminders with args: {}]\n\n[TOOL: <id>] <result>\n\n...`. `TranscriptChars` (the JSON length of the summarized messages) was 574 for a transcript text of 424 characters: JSON is the larger by the field names, so the estimate leans high. The headers of the summarizer's request include `anthropic-beta` (AI Hub adds it for `output_config`).
+- (c) `summary-off-schema`: `ForkAndSummarize` throws `ERROR <%AICore>InternalError: Internal AI-Core error: expected value at line 1 column 1`; one request in the mock's log; no fork. With the summarizer settings (`max_retries` 0) and the new `summary-rate-limited` (429, `Retry-After` 1): one request in the log (status 429), and a throw `<%AICore>InternalError: ... Rate limit exceeded: CI mock: the summarizer is rate limited.` in 0.02 s (no back-off wait). Both throw, so every failure goes to the seeded path and the AD-20 HALT does not apply.
+- (d) DW-93: 100,000 Usage rows (1,100 with today's `RecordedAt`, 98,900 about 80 days old; one transaction of 100,000 inserts took 1.4 s), then 5 calls each: `Budget.State()` 27.3, 27.8, 26.6, 26.6, 26.5 ms (median 26.6 ms); `Decide.Precheck` of a short turn 28.3, 27.7, 28.3, 27.4, 27.6 ms (median 27.7 ms). The median `Precheck` is about 28 ms, far under the 250 ms threshold: no code change. For the lead: `wontfix-accepted` with this measurement and `reopen_if=a Precheck median above 250 ms on a field instance, or a Usage table above 100,000 rows`. The rows were deleted afterwards, and the table counted 0 rows.
+- (e) The mock accepts a chat request with `thinking` `{"type":"adaptive","block_binding":{"prefix_mismatch_behavior":"error"}}` (from `extra_params.thinking` of the session config; AI Hub puts it at the top level of the request body, which the mock's log keeps in full) and a provider `anthropic-beta` header (`http_config.custom_headers`): status 200, the scenario's reply. The header name is in the log's `headerNames` of every request, with or without the custom header, so the header check cannot tell the forcing apart on the mock; the `thinking.block_binding` field can, and the smoke's mutation (the adapter drops it) is red.
+
 
 **Shared surfaces:**
-- **Decide's timer and precheck for a flagged turn that continues its conversation:** `Test.Bridge.Decide` (the precheck and timer tests) and `Test.Agent.RequestSize` `TestTooLarge`. Its history of about 8,000 characters is below `SEEDCHARS`, so its full estimate still applies (inference: check it).
+- **Decide's timer and precheck for a flagged turn that continues its conversation:** `Test.Bridge.Decide` (the precheck and timer tests), `Test.Agent.Decide` (`decide` requests: unchanged) and `Test.Agent.RequestSize` `TestTooLarge`. Its history of about 8,000 characters is below `SEEDCHARS`, so its full estimate still applies (inference: check it).
 - **The runner's linked path:** `Test.Bridge.Conversation` and `Test.Bridge.Runner` (`Compact` 0 by default: no change).
 - **`SessionRotated` on a compaction:** the Decide carry tests (unchanged), and `Test.Eval.Run`'s rotation count (eval cases are `fresh`: no compaction).
 - **Usage rows per item:** any test that counts one row for a flagged continuing turn (only the new tests).
 - **`SESSIONCALLS` (+`forkandsummarize`) and the no-`Summarize` rule:** `Test.Bridge.CodeRules` itself.
 - **`Eval.Gate.Result`'s context:** `Test.Eval.Gate`. **`eval/run.sh`'s release-candidate branch:** `docker/tests/test-eval-set.sh`.
 - **Mock scenarios (+2):** `ci/mock/test/scenarios.test.mjs` (a required-name list, unchanged).
-- **CI time:** the new classes run in `shards-2` (`lane-a@rest`, 30.9 minutes on the feature head). Record their times. If `shards-2` would pass 33 minutes, report it to the lead for a rebalance. Do not edit `ci/units.sh`.
+- **CI time:** the new classes (`Test.Bridge.Compaction`, `Test.Agent.Compaction`, `Test.Eval.ThinkingSmoke`) run in `shards-2` (`lane-a@rest`), already 36.6 minutes on part 1's head `81f230eb`, where the CI trigger fired. Record each new class's time for the lead, who owns the split. Do not edit `ci/units.sh` or `docker/tests/test-ci-config.sh` (contended, Epic 11).
 - Every test added or changed passes on a fresh environment, in either order. Each one creates and removes its owners, links, sessions, Usage rows, settings rows and restarts, also after a failure.
 
 **Pinning mutations (Rule 19).** Apply each mutation, observe red, revert byte-identically (`git status --short` and `git diff --stat` unchanged), and record `mutation: … → …` here.
@@ -337,20 +438,77 @@ Where to run:
 | AC 5 | `ZzSmokeAdapter` drops `block_binding` | ThinkingSmoke (the forcing field missing) |
 | AC 5 | `Result` ignores the context value | Test.Eval.Gate |
 
+**Pinning mutations, recorded (implement stage; each applied from a backup of my own, the red observed on the class named, then restored byte-identically: the md5 of the file and `git diff --stat` were the same as before).**
+- mutation: row 1 / row 10 / AC 1: `Adapter.Agent` `AnswerLinked` `request.Compact && 0` (the adapter ignores `Compact`) -> red in `Test.Bridge.Compaction` (`TestGuardedCompaction`: no summarizer request; `TestFourIterations`: the first request 77,876 tokens and the fourth 108,057; the seeded and switch rows), and in `Test.Agent.Compaction` (`TestGrowsIntoCompaction`: no summarizer request, two Usage rows missing, turn 1's filler in the request)
+- mutation: row 1: `Compaction.Cut` returns `k` + 1 -> red in `Test.Bridge.Compaction` (`TestGuardedCompaction`: the cut keeps four messages, the request holds more; `TestCutRules`; `TestAfterTheSwitch`)
+- mutation: row 2: `Compaction.Cut` no longer returns 0 when only system messages come before the last user turn (`If 0 Quit 0` for the nothing-older test) -> red in `Test.Bridge.Compaction` (`TestNothingOlder`: a compaction row and a moved link; `TestCutRules`)
+- mutation: rows 3 and 5: a throw of `ForkAndSummarize` propagates (`Condense` and `Compact` rethrow instead of falling back) -> red in `Test.Bridge.Compaction` (`TestSummarizerOffSchema` and `TestSummarizerRateLimited`: the turn is answered with the AI Hub error status and no reply). With only `Compact`'s catch changed the class stays green, because `Condense` catches the throw first (the fallback has two layers)
+- mutation: row 4: the fork check is skipped (`If 0 Quit` in place of `If '..ForkIsSafe(fork) Quit`) -> red in `Test.Bridge.Compaction` (`TestCheckFails`: the turn is not seeded and logs no warning)
+- mutation: row 5: `max_retries` 1 in `SummarizerSettings` -> red in `Test.Bridge.Compaction` (`TestSummarizerRateLimited`: not exactly one summarizer request; `TestSettingsRules`)
+- mutation: rows 6 and 7: the three over-the-limit guards removed (`If 0` for the as-is size, the summarizer's size and the first-request size) -> red in `Test.Bridge.Compaction` (`TestSummarizerOverLimit` and `TestHistoryOverLimit`: a summarizer request, no seed, a request above 41,000 tokens)
+- mutation: row 8: a fresh turn opens the linked session (`AnswerLinked` reads the link whatever the mode) -> red in `Test.Bridge.Compaction` (`TestNotCompactable`: a fresh turn makes a summarizer request and a compaction row)
+- mutation: row 9: `Point` only after `Chat` (the `Point` of `SwitchTo` removed) -> red in `Test.Bridge.Compaction` (`TestAfterTheSwitch`: the link still names the old session after a tainted, a failed and a thrown turn)
+- mutation: row 11: `Check` skips the first-message test (`If 0 Return 0`) -> red in `Test.Bridge.Compaction` (`TestCheckRules`: an assistant message first passes). A tool result first still fails through the orphan rule, so the first-message rule is pinned by the assistant-first case
+- mutation: AC 2: `Precheck` uses the full estimate (`If 0 && ...` before the post-compaction bound) -> red in `Test.Bridge.Decide` (`TestFlaggedBound`: a history of 170,000 characters is too_large) and in `Test.Agent.Compaction` (`TestHistoryOverTheLimit`: the short turn is a too_large fallback)
+- mutation: AC 3 / row 12: `TimerFor` returns `TimerSeconds` -> red in `Test.Bridge.Decide` (`TestTimerFor`: 60, not 80, and 100, not 110; the OnRequest and re-send timers) and in `Test.Agent.Compaction` (`TestGrowsIntoCompaction`: the alarm of turns 2 and 3 is 60)
+- mutation: AC 1: the `compaction` Usage row is not saved (the `%Save` of `RecordCompaction` removed) -> red in `Test.Bridge.Compaction` (`TestGuardedCompaction`: one row, not two) and in `Test.Agent.Compaction` (`TestGrowsIntoCompaction`: no compaction row, three Usage rows)
+- mutation: AC 4: a line `session.Summarize(provider, 10)` in `Bridge.Compaction` -> red in `Test.Bridge.CodeRules` (`TestNoSummarizeInPlace`: a class calls Summarize on a session)
+- mutation: AC 5: `ZzSmokeAdapter` sends `{"type":"adaptive"}` (drops `block_binding`) -> red in `Test.Eval.ThinkingSmoke` (`TestOnTheMock`: every chat request lacks `thinking.block_binding.prefix_mismatch_behavior` error)
+- mutation: AC 5: `Gate.Result` ignores the context value (`Set smoke = ""`) -> red in `Test.Eval.Gate` (`TestSmokeInTheResult`: passed and failed do not reach the JSON or the Markdown line)
+- mutation: row 4 (reopen): `SwitchTo` ignores the error of `OpenSession` (`If 0 Quit` in place of `If $$$ISERR(sc) Quit`) -> red in `Test.Bridge.Compaction` (`TestReopenFails`: the seeded turn makes no model request, and one session is saved, not two)
+- mutation: AC 2 (the input alone passes the limit): `Precheck`'s bound drops the non-history part (`Tokens(0 + $Select(...))` in place of `Tokens(chars - history + $Select(...))`) -> red in `Test.Bridge.Decide` (`TestFlaggedBound`: a history of 60,000 characters with an input of 110,000, and 100,000 with 170,000, are not too_large)
+- mutation: AC 4 (only the adapter calls `ForkAndSummarize`): a line `older.ForkAndSummarize(provider, "", 1, "", 0)` in `Bridge.Compaction` -> red in `Test.Bridge.CodeRules` (`TestSessionsOnlyThroughTheComposer`: a class but the adapter calls ForkAndSummarize)
+- mutation (test-eval-set.sh, rc-flow, in the script's own variants): `bad-smoke-on-mock`, `bad-smoke-not-recorded`, `bad-smoke-failure-fails`, `bad-smoke-before-attempts` and `bad-smoke-in-push-run` are each flagged for their reason by `bash docker/tests/test-eval-set.sh`.
+
+**QA stage additions (Rule 19; each mutation applied from a backup of my own, the red observed, then restored byte-identically: the md5 of the file and `git status --short` were the same as before).**
+- (QA) `src/ocutalon/cls/OcuTalon/Test/Eval/ThinkingSmoke.cls`: new method `TestChecksCanFail` (AC 5). Gap found: on the CI mock two checks of `TestOnTheMock` cannot fail. The mock never answers with a thinking block (so `HasThinkingBlock` is always 0), and its log keeps the header names of every request, `anthropic-beta` included, whether or not the smoke's provider settings carry it (Task 0 fact (e)). The new test pins both on their own inputs: the beta header is in `ProviderConfigText`'s settings; `HasThinkingBlock` finds a `thinking` and a `redacted_thinking` block of an assistant message (also late in the history) and not text, `tool_use` or `tool_result` blocks; `OwnRequests` keeps one turn's chat requests and neither a summarizer request nor an earlier turn's. No new class, so no new place in `ci/units.sh`.
+- mutation: AC 5 (the beta header): `ProviderConfigText` no longer sets `anthropic-beta` (the `headers.%Set` line removed) -> `TestOnTheMock` stays GREEN (the vacuity), `Test.Eval.ThinkingSmoke` `TestChecksCanFail` red ("they carry the beta header of the thinking-binding controls")
+- mutation: AC 5 (the thinking-block scan): `HasThinkingBlock` tests `redacted_thinking_x` in place of `redacted_thinking` -> red in `Test.Eval.ThinkingSmoke` `TestChecksCanFail` ("and so is a redacted_thinking block")
+- mutation: AC 6 (regression of the linked path through this story's `ChatInput` change): `ChatInput` takes `$Get(seed)` in place of `$Select($Data(seed): seed, 1: request.SeedText)` (a fresh turn's recap is lost) -> red in `Test.Bridge.Conversation` (`TestChatInput`, `TestFresh`, `TestFreshFailsOrTainted`, `TestQuarantineAfterTaint`). AC 6 is a regression criterion with no new test of its own; its pin is the named existing suites.
+- Review of the other ACs and rows 1 to 12 against the tests: every AC and row has a pinning test with an observable red from the implement stage's mutation list (AC 1 to AC 5, rows 1 to 12); no further assertion found that cannot fail. Row 8's untrusted, decide and first-turn cases never reach the compaction code (they take the throwaway or no-link path), so their only possible mutation is the fresh one already recorded.
+
+**Code review additions (Rule 19; each mutation applied from a backup of my own on the warm throwaway `e30s1cw`, the red observed, then restored byte-identically (md5), and the class green again on the same stack).**
+- mutation: row 3 / row 5 (a thrown summarizer request gets its row): `Condense` writes the row only when nothing threw (`If thrown = "" Do ..RecordCompaction(...)`) -> red in `Test.Bridge.Compaction` (`TestSummarizerOffSchema` and `TestSummarizerRateLimited`: "the thrown request got its compaction row")
+- mutation: row 7 (the fork's first request over the limit): `Condense`'s last guard off (`If 0 && ..Over(input, fork, limit)`) -> red in `Test.Bridge.Compaction` (`TestFirstRequestOverLimit`: not seeded, no warning, a request above 41,000 tokens)
+- mutation: AC 5 (turns 1 and 2 run a tool): `CheckTurn`'s tool check off -> red in `Test.Eval.ThinkingSmoke` (`TestChecksCanFail`: "turn 2 that ran no tool is a problem")
+- mutation: AC 5 (the smoke's runners get its settings): `NewHost` passes "" as the provider config -> red in `Test.Eval.ThinkingSmoke` (`TestChecksCanFail`: "and the smoke's runners get them")
+- mutation: AC 5 / AD-19 (the real-model settings keep the key placeholder): `ProviderConfigText` sets `api_key` to a literal in its real branch -> red in `Test.Eval.ThinkingSmoke` (`TestChecksCanFail`: "its key is the placeholder, never expanded")
+- after the patches: warm `Test.Bridge.Compaction` 2.70 to 7.00 s, `Test.Eval.ThinkingSmoke` 1.76 s, `Test.Bridge.Usage`, `CodeRules`, `Decide`, `Conversation`, `Runner` passed; fresh `Test.Agent.Compaction` 9.02 s (stack 97 s); `bash ci/checks.sh` passed.
+
+**Run times of the new and changed test classes** (on a fresh throwaway of tag `e30s1i` unless noted; the figure is the `CLASS ... passed <s>s` line, the start of the stack not counted; for the lead's CI repack):
+- `Test.Bridge.Compaction` (new): 3.15 s (2 to 10 s on the warm throwaway)
+- `Test.Agent.Compaction` (new): 9.20 s (the stack start took 121 s)
+- `Test.Eval.ThinkingSmoke` (new): 1.72 s
+- `Test.Bridge.Decide` (changed, three tests added): 8.69 s
+- `Test.Agent.RequestSize` (regression): 13.46 s; `Test.Agent.Decide` (regression): 108.34 s
+- warm throwaway (tag `e30s1iw`): `Test.Bridge.CodeRules` 2.75 s, `Test.Eval.Gate` 3.64 s, `Test.Bridge.Conversation` 7.27 s, `Test.Bridge.Runner` 15.54 s, `Test.Bridge.ReplyCheck` 0.16 s, `Test.Bridge.Usage` 0.10 s, `Test.Bridge.Purge` 0.19 s, `Test.Agent.Constants` 0.04 s
+- after the review patches (fresh `e30s1i` unless noted): `Test.Agent.Compaction` 9.08 s; warm `Test.Bridge.Compaction` 4.08 s to 7.44 s (one test added), `Test.Bridge.Decide` 7.73 s.
+- shards on the fresh throwaway (wall time with the stack start): lane-a parts 1 to 8: 452 s, 163 s, 155 s, 174 s, 395 s, 448 s, 296 s, 358 s; lane-b part 1/2: 292 s. Lane-b part 2/2 failed twice (544 s, 546 s) on `Test.Web.GuideApi` `TestRunAgain` alone ("steps 3 to 5 reset; the watch still counts"), and the class passes by itself on a fresh throwaway (0.97 s). This is DW-453, a known flake in Lane B's web class that this story does not touch (its `reopen_if` in the ledger is met by these two runs, for the lead). No class of this story is in lane-b.
+- the three new classes run in `shards-2` (`lane-a@rest`) in about 14 s of test time together; the stack start is the shard's once. `eval/key-proof.sh`: passed (the `--release-candidate --on-mock --key-path` rehearsal runs the new `eval/run.sh`).
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-**Plan stage (halted after planning, as dispatched).**
-- The spec covers Story 30.1's three ACs (with the live smoke and the NFR-3 check), DW-125, DW-130 and DW-93.
-- DW-386 and DW-448 are declined together for size, to the Epic 30 burn-down story; the lead re-owns them with U-184's and U-185's conditions.
-- Items for the lead's spec gate:
-  - **V1:** the over-the-limit guards added to AD-20's fallback triggers (an AD amendment within U7), with its spine line.
-  - **R1:** the NFR-3 residual in the loop (a first request between 40,000 and the limit). It is for the owner, with options (a) to (c). It is also the frontmatter's `deferred` item: a decision, not routed work.
-  - **DW-93:** the lead writes the trailer from Task 0 (d), by the 250 ms rule.
-  - **Spine notes (Rule 20):** AD-20, AD-8, AD-6 and AD-22, as listed under Design Notes.
-  - **CI time:** the new classes run in `shards-2` (30.9 minutes on the feature head). The implement stage records their times. A rebalance in `ci/units.sh`, if one is needed, is the lead's.
-  - **Lane B needs:** none. If Task 0 (e) shows that the mock refuses the smoke's request shape, that becomes one.
-- Files outside "Ours": `eval/run.sh` and `docker/tests/test-eval-set.sh` (Lane A's, from Epic 9; not contended). No contended file is planned.
-- Planning used no IRIS instance and no throwaway stack. Nothing was committed.
+**Summary.** The runner compacts a flagged turn that continues its conversation (`Adapter.Agent.Compact`, in `AnswerLinked` before `Converse`): the older messages are summarized with `ForkAndSummarize` (low-effort summarizer, no retries), the link moves to the fork only after `Compaction.Check`, the save and the reopen, and any failure or over-the-limit request falls back to a fresh session with a code-written seed. Decide gives such a turn 20 more seconds (`TimerFor`) and judges `too_large` on the post-compaction bound (`Precheck`, `RequestLimit`). A `compaction` Usage row prices the summarizer's request. The thinking-history smoke test runs in `eval/run.sh --release-candidate` on the real model only and its figure reaches `Gate.Result`.
+
+**Files changed.**
+- `src/bridge/cls/OcuTalon/Bridge/Adapter/Agent.cls`: the compaction step and its pieces; `ChatInput` takes a seed; `CutOf` seam.
+- `src/bridge/cls/OcuTalon/Bridge/Compaction.cls`: constants and the pure helpers `Cut`, `Check`, `Seed`, `TranscriptChars`, `SummaryChars`, `SummarizerSettings`.
+- `src/bridge/cls/OcuTalon/Bridge/Data/Usage.cls`: `FromEstimate`.
+- `src/bridge/cls/OcuTalon/Bridge/Process/Decide.cls`: `RequestLimit`, `Flagged`, `TimerFor`, `RemainingMs`, `EstimateTokens` outputs, the `Precheck` bound.
+- `src/bridge/cls/OcuTalon/Bridge/Msg/Request.cls`: `Compact` doc.
+- `src/ocutalon/cls/OcuTalon/Eval/Gate.cls`, `eval/run.sh`, `docker/tests/test-eval-set.sh`: the smoke figure and its pins.
+- `ci/mock/scenarios/A/summary-rate-limited.json`, `compaction-loop.json`: two new mock scenarios.
+- Tests: new `Test.Bridge.Compaction`, `Test.Agent.Compaction`, `Test.Eval.ThinkingSmoke` and the seams `ZzCutAdapter/Runner`, `ZzReopenAdapter/Runner`, `ZzSmokeAdapter/Runner/Chat`; changed `Test.Bridge.Decide`, `CodeRules`, `Conversation` (helpers made public), `Test.Eval.Gate`.
+
+**Review.** 29 findings: patches applied 4 (1 medium: the failed-reopen test and seam; 3 low: `Check` with an empty id, the shared test helpers, the two missing mutation lines), items deferred 0 (the frontmatter's R1 item stands), rejected 25 with their reasons in the triage log (4 false, 21 low). Follow-up review recommended: false (no high patched, one medium patched).
+
+**Verification.** Warm and fresh classes of `## Verification` all passed after the patches (`Test.Bridge.Compaction/Decide/ReplyCheck/CodeRules/Conversation/Runner/Usage/Purge`, `Test.Eval.ThinkingSmoke/Gate`, `Test.Agent.Constants`, fresh `Test.Agent.Compaction/RequestSize/Decide`). Once-lines: `bash ci/checks.sh` passed, `test-mock.sh` (118 pass, 0 fail) and `test-eval-set.sh` passed, the push run `eval/run.sh` passed, `eval/key-proof.sh` passed, lane-a parts 1 to 8 passed, lane-b part 1/2 passed. Lane-b part 2/2 failed twice on `Test.Web.GuideApi` `TestRunAgain` (DW-453, Lane B's web class, untouched here; it passes alone on a fresh throwaway; none of this story's classes are in lane-b): the lead decides whether DW-453's `reopen_if` is met. Task 0 measured DW-93 at about 28 ms median `Precheck` at 100,000 Usage rows, under the 250 ms threshold.
+
+**Residual risks.**
+- Re-send window after a compaction: the flag is recomputed from the smaller history, so a re-send counts from `TimerSeconds` and not from the 80 s alarm (conservative; fix needs a stored Decide property, a veto-window item).
+- R1 (the NFR-3 residual) and V1 (AD-20 fallback triggers) stand as the spec records them; no spine change was made.
+- The real-model smoke is untried on a real provider (no key); the forcing shape is labelled inference.
+- `compaction-loop` uses 40,000, 39,990 and 39,980 characters because identical repeated tool calls trigger AI Hub's loop nudge, which the mock does not answer.

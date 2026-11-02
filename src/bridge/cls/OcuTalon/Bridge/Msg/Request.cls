@@ -50,7 +50,8 @@ Property SystemNote As %String(MAXLEN = "");
 
 /// 1 when Decide flags the turn for compaction (AD-6, AD-20): the request is a turn whose estimated first model request is above
 /// Decide's COMPACTTOKENS. Decide sets it on every request it sends to a runner, the first send and every re-send, and a value the
-/// caller sets is replaced. The runner ignores it until Story 30.1 reads it, so a flagged turn is sent as it is.
+/// caller sets is replaced. The runner compacts a flagged turn that continues its conversation (a linked turn that opens a saved AI session,
+/// not a fresh one) before it chats, in its own job (Adapter.Agent, AD-20); it ignores the flag on every other request.
 Property Compact As %Boolean [ InitialExpression = 0 ];
 
 Storage Default

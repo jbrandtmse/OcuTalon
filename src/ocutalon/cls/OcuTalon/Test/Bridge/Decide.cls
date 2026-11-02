@@ -142,6 +142,10 @@
 ///     and send nothing, no runner request and no timer;
 ///   - TestCompactFlag: the request that Decide sends carries Compact 1 exactly for a turn estimated above 40,000 tokens (a user turn and an untrusted
 ///     turn, any SessionMode), also on the re-send, and 0 for a turn at 40,000, a decide, a diagnose and a turn whose caller set the flag;
+///   - Added by Story 30.1 (AD-6, AD-8, AD-20): TestTimerFor (the timer of a flagged turn that continues its conversation is TimerSeconds plus 20, at most
+///     110, in OnRequest and the re-send; every other request keeps TimerSeconds), TestFlaggedBound (a flagged turn that continues is judged too_large on
+///     the characters the runner will send after compaction, the stored history counted as the least of itself and 80,000) and TestRequestLimit (the
+///     shared normalization of RequestTokenLimit);
 ///   - TestResendTooLargeSendsNothing: the key resend of a decide and of a user turn whose estimate is above the limit sends no request and sets no timer
 ///     (the recorder shows it), leaves Resends at 0 and records a too_large fallback with one decision.recorded; at the limit it sends;
 ///   - TestRequestLimitThroughOnRequest: the limit that OnRequest and the key resend apply is the one the setting row gives (an empty row, 5000 and the
@@ -2323,6 +2327,139 @@ Method TestTimerFallback()
 	Do $$$AssertEquals($Select($IsObject(response): response.DecisionRef_"|"_response.Outcome, 1: "none"), first.Ref_"|act", "with the row that won")
 	Do $$$AssertEquals(+$Get(^||ZzProbeSink)_"|"_..Rows(request.ItemId), "0|1", "and no second row and no event")
 	Do $$$AssertStatusNotOK(process.OnResponse(request, .response, request.%ConstructClone(), "", "zz"), "any other key but timer, resend and reply is an error")
+}
+
+/// TimerFor (Story 30.1; AD-5, AD-20, NFR-3): the timer of an attempt is TimerSeconds, and TimerSeconds plus 20 seconds, at most 110, for a request that is
+/// flagged and continues its conversation (a user turn that is not fresh and whose owner has a link that names a session). An unflagged turn, a first turn,
+/// a fresh turn, an untrusted turn and a decide keep TimerSeconds. OnRequest sets that timer, and the key resend counts the time left from the same total.
+Method TestTimerFor()
+{
+	Set id = ..NewSession(1000)
+	Set owner = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Data.ConversationLink).Point(owner, "ChatAgent", id), "a link names a session for (owner, ChatAgent)")
+	Set continues = ..NewRequest("turn", "user")
+	Set continues.OwnerRef = owner
+	Set first = ..NewRequest("turn", "user")
+	Set first.OwnerRef = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set fresh = ..NewRequest("turn", "user")
+	Set fresh.OwnerRef = owner
+	Set fresh.SessionMode = "fresh"
+	Set untrusted = ..NewRequest("turn", "untrusted")
+	Set untrusted.OwnerRef = owner
+	Set decide = ..NewRequest("decide", "user")
+	Set decide.OwnerRef = owner
+	Set process = ..NewRecorder()
+	For timer = 60, 100, 110 {
+		Set process.TimerSeconds = timer
+		Set grown = $Select(timer + 20 > 110: 110, 1: timer + 20)
+		Do $$$AssertEquals(process.TimerFor(continues, 1), grown, "TimerSeconds "_timer_": a flagged turn that continues gets "_grown_" seconds")
+		Do $$$AssertEquals(process.TimerFor(continues, 0), timer, "TimerSeconds "_timer_": an unflagged turn that continues keeps "_timer)
+		Do $$$AssertEquals(process.TimerFor(first, 1), timer, "TimerSeconds "_timer_": a flagged first turn keeps "_timer)
+		Do $$$AssertEquals(process.TimerFor(fresh, 1), timer, "TimerSeconds "_timer_": a flagged fresh turn keeps "_timer)
+		Do $$$AssertEquals(process.TimerFor(untrusted, 1), timer, "TimerSeconds "_timer_": a flagged untrusted turn keeps "_timer)
+		Do $$$AssertEquals(process.TimerFor(decide, 1), timer, "TimerSeconds "_timer_": a decide keeps "_timer)
+	}
+	Do $$$AssertEquals($Parameter("OcuTalon.Bridge.Compaction", "SUMMARIZERSECONDS"), 20, "the summarizer's seconds are 20")
+
+	// OnRequest sets the timer of the flagged turn that continues, and the re-send counts from the same total
+	Do ..PutKey("ChatAgent")
+	Do ..Unmark()
+	Do ..Put("Decide", "DailyCostCapUSD", 0)
+	Do ..Put("Decide", "GatewaySpendUSD", "")
+	Do ..Put("Decide", "GatewaySpendDate", "")
+	Set long = ..NewSession(170000)
+	Set longOwner = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Data.ConversationLink).Point(longOwner, "ChatAgent", long), "a link names a session of 170,000 characters")
+	Set cases = $ListBuild($ListBuild("a flagged turn that continues", longOwner, 80), $ListBuild("an unflagged turn that continues", owner, 60), $ListBuild("a flagged first turn", "", 60))
+	Set position = 0
+	While $ListNext(cases, position, case) {
+		Set label = $List(case, 1)_": "
+		Set request = ..NewRequest("turn", "user")
+		Set request.OwnerRef = $Select($List(case, 2) = "": ##class(OcuTalon.Bridge.Ids).NewRef(), 1: $List(case, 2))
+		If $List(case, 1) [ "first" Set request.Input = $Translate($Justify("", 170000), " ", "a")
+		Kill ^||ZzDecideCalls, ^||ZzProbeSink
+		Set process = ..NewRecorder()
+		Set process.ReplyFilterClass = "OcuTalon.Bridge.Ext.ReplyFilter"
+		Set process.HostSinkClass = ..#SINK
+		Set process.TimerSeconds = 60
+		Set process.DecisionTokenBudget = 0
+		Set process.RequestTokenLimit = 100000
+		Set process.%SessionId = 4254
+		Do $$$AssertStatusOK(process.OnRequest(request, .response), label_"OnRequest sends the request")
+		Do $$$AssertEquals(..Calls("send")_"|"_..Calls("timer"), "1|1", label_"one send and one timer")
+		Do $$$AssertEquals($ListGet($Get(^||ZzDecideCalls("send", 1)), 7), +(($List(case, 3) = 80) || ($List(case, 1) [ "first")), label_"the sent request's Compact")
+		Do $$$AssertEquals($List(^||ZzDecideCalls("timer", 1), 1)_"|"_$List(^||ZzDecideCalls("timer", 1), 2), $List(case, 3)_"|timer", label_"the timer is "_$List(case, 3)_" seconds")
+
+		// the key resend: the seconds left are counted from the same total
+		Kill ^||ZzDecideCalls
+		Set process.%TimeCreated = ..Ago(3)
+		Set process.DecisionRef = request.DecisionRef
+		Set response = ""
+		Do $$$AssertStatusOK(process.OnResponse(request, .response, "", "", "resend"), label_"the key resend is answered")
+		Set left = $List($Get(^||ZzDecideCalls("timer", 1)), 1)
+		Do $$$AssertTrue((left '> ($List(case, 3) - 3)) && (left '< ($List(case, 3) - 4)), label_"it sets the timer for the seconds left of "_$List(case, 3)_": "_left)
+	}
+}
+
+/// The limit that a flagged turn is judged on (Story 30.1; AD-8, AD-20, NFR-3): a turn that is flagged (its estimate is above 40,000 tokens) and continues
+/// a linked conversation is too_large only when the request that the runner will send after compaction would pass the limit: its characters with the stored
+/// history counted as the least of the history and 80,000 characters. Every other request keeps the full estimate, and the estimate that Precheck gives
+/// back (the flag and the token budget) is the full one.
+Method TestFlaggedBound()
+{
+	Set decide = "OcuTalon.Bridge.Process.Decide"
+	Set agent = $ClassMethod("OcuTalon.Bridge.RequestSize", "AgentChars", "OcuTalon.Agent.Chat")
+	Set seedChars = $Parameter("OcuTalon.Bridge.Compaction", "SEEDCHARS")
+	Do ..PutKey("ChatAgent")
+	Do ..Unmark()
+	Do ..Put("Decide", "DailyCostCapUSD", 0)
+	Do ..Put("Decide", "GatewaySpendUSD", "")
+	Do ..Put("Decide", "GatewaySpendDate", "")
+	// $ListBuild(label, history characters (0 for no link), input characters, session mode, limit, reason expected)
+	Set cases = $ListBuild(
+		$ListBuild("a history of 170,000 characters and a short input", 170000, 100, "", 41000, ""),
+		$ListBuild("the same with the limit below the bound", 170000, 100, "", 21000, "too_large"),
+		$ListBuild("a history of 60,000 characters (below the seed) and an input of 110,000", 60000, 110000, "", 41000, "too_large"),
+		$ListBuild("the same with a limit that holds the full estimate", 60000, 110000, "", 60000, ""),
+		$ListBuild("a history of 100,000 and an input of 170,000: the seed and the input pass", 100000, 170000, "", 41000, "too_large"),
+		$ListBuild("an owner with no link and an input of 170,000", 0, 170000, "", 41000, "too_large"),
+		$ListBuild("a fresh turn of an owner with a history of 170,000, short", 170000, 100, "fresh", 41000, ""),
+		$ListBuild("a fresh turn of an owner with a history of 170,000 and an input of 170,000", 170000, 170000, "fresh", 41000, "too_large"),
+		$ListBuild("a turn that is not flagged (a short history and input) under a small limit", 8000, 100, "", 1000, "too_large"))
+	Set position = 0
+	While $ListNext(cases, position, case) {
+		Set label = $List(case, 1)_": "
+		Set request = ..NewRequest("turn", "user")
+		Set request.OwnerRef = ##class(OcuTalon.Bridge.Ids).NewRef()
+		If $List(case, 2) Do ##class(OcuTalon.Bridge.Data.ConversationLink).Point(request.OwnerRef, "ChatAgent", ..NewSession($List(case, 2)))
+		Set request.Input = $Translate($Justify("", $List(case, 3)), " ", "a")
+		Set request.SessionMode = $List(case, 4)
+		Set full = $ClassMethod(decide, "EstimateTokens", request, "ChatAgent", , .sc, .history, .chars)
+		Set reason = $ClassMethod(decide, "Precheck", request, "ChatAgent", 0, $List(case, 5), .estimate)
+		Do $$$AssertEquals(estimate, full, label_"the estimate that Precheck gives back is the full one: "_full)
+		Set flagged = full > 40000
+		Set bound = $Select(flagged: ##class(OcuTalon.Bridge.Adapter.StepBuffer).Tokens(chars - history + $Select(history < seedChars: history, 1: seedChars)), 1: full)
+		Do $$$AssertEquals(reason, $Select(bound > $List(case, 5): "too_large", 1: ""), label_"too_large exactly when the bound, "_bound_" tokens, passes the limit "_$List(case, 5))
+		Do $$$AssertEquals(reason, $List(case, 6), label_"the reason is '"_$List(case, 6)_"'")
+	}
+	Do $$$AssertEquals($ClassMethod(decide, "EstimateTokens", ..NewRequest("decide"), "TriageAgent", , , .none, .noneChars), $ClassMethod("OcuTalon.Bridge.Adapter.StepBuffer", "Tokens", noneChars), "EstimateTokens gives the characters of the whole estimate")
+	Do $$$AssertEquals(none, 0, "and no history for a decide")
+}
+
+/// RequestLimit (Story 30.1) is the one normalization of the RequestTokenLimit text, for Precheck and the runner: a whole number from 1 to 100000 is the
+/// limit, an empty text is 100000 with no warning, any other text is 100000 with a warning that names the setting. It is pure.
+Method TestRequestLimit()
+{
+	Set decide = "OcuTalon.Bridge.Process.Decide"
+	Set cases = $ListBuild($ListBuild("", 100000, 0), $ListBuild("5000", 5000, 0), $ListBuild("100000", 100000, 0), $ListBuild("1", 1, 0), $ListBuild("0", 100000, 1), $ListBuild("-1", 100000, 1), $ListBuild("abc", 100000, 1), $ListBuild("100001", 100000, 1), $ListBuild("1.5", 100000, 1))
+	Set position = 0
+	While $ListNext(cases, position, case) {
+		Set limit = $ClassMethod(decide, "RequestLimit", $List(case, 1), .warning)
+		Do $$$AssertEquals(limit, $List(case, 2), "RequestLimit '"_$List(case, 1)_"' is "_$List(case, 2))
+		Do $$$AssertEquals(warning '= "", $List(case, 3), "with "_$Select($List(case, 3): "a warning", 1: "no warning"))
+		If $List(case, 3) Do $$$AssertTrue(warning [ "RequestTokenLimit", "that names the setting")
+	}
+	Do $$$AssertEquals($ClassMethod(decide, "RequestLimit"), 100000, "no argument is 100000")
 }
 
 /// ResendDelay is pure (AD-8, FR-4, NFR-23). For rate_limited with no tool run: 1, 2, 4 and 8 seconds for 0, 1, 2 and 3 re-sends so far, and 8
