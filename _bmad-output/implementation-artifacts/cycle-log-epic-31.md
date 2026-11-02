@@ -197,3 +197,5 @@
 2026-11-02T22:26:57Z	Story 31.6	size_estimate	story=31.6 hours=5(4.5-5.5) note=part_B_size_accepted_by_the_orchestrators_split_ruling
 2026-11-02T22:50:20Z	Story 31.5	ci_red_classified	run=41534940990 workflow=.github/workflows/ci.yml class=flake(pending_rerun) test=web/e2e/answers/close-loop.spec.ts:159_C1(line_222:after_Dismiss_the_band_reads_All_50_messages) job=browser(live:answers) evidence=C1_green_in_CI_on_a95624a9(run_41495452746);red_locally_at_baseline_9f10f23f_x3;root_cause(inference):the_real_IncidentManagers_closed_view_from_a_fixture_row_without_ItemNoun_replaces_the_tests_payload;race_since_11.9(real_IncidentManager)+31.1(WebSocket) ledger=DW-597
 2026-11-02T22:50:20Z	Story 31.5	ci_rerun	run=41534940990 jobs=failed(browser)
+2026-11-02T23:15:16Z	Story 31.5	ci_red_classified	run=41534940990 workflow=.github/workflows/ci.yml class=story test=web/e2e/answers/close-loop.spec.ts:159_C1 attempt=2 note=same_test_red_twice_on_the_same_head
+2026-11-02T23:15:16Z	Story 31.5	rework_opened	cycle_iteration=2 iteration=1 trigger=ci items=CI-C1,DW-597 scope_baseline=48720f6c

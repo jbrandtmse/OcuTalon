@@ -3296,6 +3296,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: ci/iris.sh live answers fresh, with and without 31.5: 1 failed (C1), 20 passed; web/e2e/answers/close-loop.spec.ts:62,:159
 - 2026-11-02T20:59:30Z status=open owner=31-5-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=harvest note=investigate at 31.5 smoke: reproduce, compare with CI's live:answers, classify
 - 2026-11-02T21:50:55Z status=wontfix-accepted by=adjudication note=local lane-C only: CI ran live:answers on the merged head a95624a9 (run 41495452746, iris browser) and C1 passed; reopen_if=C1 goes red in CI's live:answers
+- 2026-11-02T23:15:15Z status=open owner=31-5-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=adjudication note=reopen_if fired: C1 red twice in CI on 6e57e259 (run 41534940990 attempts 1-2, line 222); 31.5 rework iteration 1 [CI] item
 
 ### DW-601: Story 31.6's web card must take its first line and inputs from BridgeSink.ServerOf/InputsOf (private today), not a re-implementation, so U-212 (1)(2) phone and card texts cannot drift
 - source: spec-31-5-a-tool-call-s-approval-request-reaches-the-phone-with-approv.md | severity: med | fix-risk: low | footprint: in-epic
