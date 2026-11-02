@@ -351,3 +351,5 @@
 2026-11-02T11:11:59Z	Story 11.17	ledger_adjudicated	owned=1 resolved=1 reowned=0 terminal=0 entries=DW-577:resolved-by(two_real_packagings_same_content_digest) routed_out=DW-576(15-3) model=claude-opus-5-5
 2026-11-02T11:11:59Z	Story 11.17	smoke_complete	method=cli(docker/tests/test-release-sequence.sh_--live_ipm_x2;real_IPM_0.10.10_in_a_network-none_throwaway;lane-A_lock) result=pass iterations=1 defects_caught=0 evidence=PASS_cut,image_1.0.0,ipm(4763472_bytes);two_packagings:different_file_sha,same_content_digest_e7a83479;no_container_left;lane-A_lock_empty model=claude-opus-5-5
 2026-11-02T11:11:59Z	Story 11.17	fresh_check	env=recipe(hermetic_self-tests;live_ipm_fresh) tests=test-release-sequence.sh(all_rules,137s),test-boundaries.sh,test-upgrade-harness.sh,test-release-notes.sh result=pass order=forward
+2026-11-02T11:12:25Z	Story 11.17	committed	sha=c62c60cf submodules= ci=pending runs=41434875881,41434875879 amendments=none pushed=verified_on_origin
+2026-11-02T11:12:25Z	Story 11.17	story_cycle	plan_to_commit_min=1213 implement_passes=1 reviews=1 rework=0 first_ci=pending models=plan:claude-opus,implement:claude-sonnet,qa:claude-sonnet,cr:claude-opus
