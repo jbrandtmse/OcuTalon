@@ -1293,3 +1293,6 @@
 2026-11-01T20:13:35Z	Epic 1-37	ledger_routed_planned	entries=DW-541->30.1,DW-542->31.2,DW-543->31.2,DW-500(4_chip_evals)->30.5 by=orchestrator deps_hash=rerecorded(ledger_routed)
 2026-11-01T20:13:53Z	Epic 30	runner_message	agent=a717a931bacaed0b8 note=DW-500_eval_cases_all_four_chips;DW-541_to_30.1(not_part_1)
 2026-11-01T20:13:53Z	Epic 31	runner_message	agent=a64655230fb684ae7 note=DW-542,DW-543_on_31.2(DW-530_rule)
+2026-11-02T01:20:07Z	Epic 31	runner_ended	agent=a64655230fb684ae7 reason=waiting waiting_on=30 head=b4f713cd(=origin) story_done=31.1(3010f5a7,922a14c1;CI_green_41368867537,41368867709) inbox=U-209(veto) ci_groups(922a14c1)=install-fresh_31.9,install-upgrade_29.7,shards-2_30.3,image_27.6,shards_27.6,browser_25.2,production_22.1 notes=stage-block_owner-fixed_(3)_stale(fixed_by_orchestrator);slot_C_reload_needed
+2026-11-02T01:20:07Z	Epic 1-37	owner_decision	id=U-208 at=2026-11-02T00:43:58Z#632 via=inbox by=Contest_Planner answer=keep
+2026-11-02T01:20:07Z	Epic 1-37	owner_decision	id=U-209 at=2026-11-02T00:43:58Z#633 via=inbox by=Contest_Planner answer=keep
