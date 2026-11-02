@@ -36,3 +36,5 @@
 2026-11-02T02:39:11Z	Epic 40	deps_hash_note	reason=split note=Story_40.8_split_from_40.2_orchestrator_re-records_epics_md_hash
 2026-11-02T02:39:11Z	Epic 40	epic_context_compiled	sha=4556eeae reason=planning_artifact_newer model=opus
 2026-11-02T02:39:32Z	Story 40.2	stage_spawned	stage=plan spawn_at=2026-11-02T02:39:32Z model=opus agent_name=40-2-save-your-persona-and-let-ocutalon-propose-one-plan-1 cycle_iteration=1
+2026-11-02T02:53:00Z	Story 40.2	story_created	spawn_at=2026-11-02T02:39:32Z model=opus path=_bmad-output/implementation-artifacts/spec-40-2-save-your-persona-and-let-ocutalon-propose-one.md build_status=ready-for-dev epic_context=reused cycle_iteration=1
+2026-11-02T02:53:00Z	Story 40.2	spec_validated	service_introducing=true integration_ac=present adr_constrained_acs=AD-1,AD-4,AD-7,AD-11,AD-17,AD-19,AD-29,AD-32,AD-33 decision_dependency=none sections_created=none owned_ledger=DW-564,DW-565 addressed=2 declined=0 mutates_shared_runtime=false model=claude-opus-5-5 note=production_tests_throwaway_only;footprint_extension_Bridge/Msg/Enum.cls
