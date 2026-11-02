@@ -131,7 +131,7 @@
 #   - No whole-epic soft-serialization edge: every estimated overlap above footprint_overlap_threshold (0.20) is
 #     resolved by a story wait that puts the overlapping story after the other epic's merge (8 vs 4: 8.3, 8.4;
 #     31 vs 16: 31.1, 31.2; 14 vs 11: 14.1, 14.2).
-epics_md_hash: "188a2e991ed062ddca434725a20d5607715b88af55932d359675137199c0b107"
+epics_md_hash: "7f81c44d87b14e89977e36bc5a01ece11c489140bb2edb6dc0d1bbba00a9b96c"
 analyzed_by: "claude-opus-5-5 (orchestrator), from the Contest Planner's proposal"
 approved: true
 approved_at: "2026-10-26T15:19:25Z"
@@ -227,6 +227,7 @@ epics:
   epic-9:  {lane: B, depends_on: [epic-2, epic-5], submodules: [],                  # epic-2: Intake to EvalSink; epic-5: 9.1, 9.3, 9.4 use IncidentManager, EvidencePack, WatchOps, Checks (Lane A's files)
             paths_hint: ["src/ocutalon/cls/OcuTalon/Eval/**", "src/ocutalon/cls/OcuTalon/Test/Eval/**", "eval/**", ".github/workflows/lane-a.yml"],
             story_waits: {"9.5": epic-7}}                   # the repair-and-resend kind's validation, Story 7.1 (2704, 3110)
+  # Changed 2026-11-02T07:2xZ (owner decision via the Contest Planner, "Trim to 11.17"): Epic 11's 1.0.0 merge comes after Story 11.17, with 11.14, 11.15, 11.16 and 11.18 in backlog (the U-207 pattern; their ledger items stay open). Those four re-open as Epic 11 PART 2 under SC-5, merge_gate {branch: release/1.0.0-rc1}, in time for the daily releases. Their 1.0.0 role is done by hand under Epic 38 (the Contest Planner's gate list, update-ref demo path; standing go, PRD REL-11). No edge change: epic-38 and the 1.0.0 scope read epic-11 as part 1.
   epic-11: {lane: A, depends_on: [epic-1, epic-2, epic-3, epic-4, epic-5, epic-6, epic-7, epic-8, epic-9, epic-10], submodules: [], paths_hint: ["either lane's files", "AD-29"]}
   epic-38: {lane: pool, depends_on: [epic-0, epic-1, epic-2, epic-3, epic-4, epic-5, epic-6, epic-7, epic-8, epic-9, epic-10, epic-11, epic-12, epic-13, epic-14, epic-15, epic-16, epic-29, epic-30, epic-31, epic-32], submodules: [],   # 1.0.0 is checked by hand and cut (U-189; owner 2026-10-31: 'One check, at 1.0.0'); gates the v1.0.0 tag
             paths_hint: ["release/records/1.0.0/**", "the fixes its passes find, in either lane's files (as Epic 11's exception)"],

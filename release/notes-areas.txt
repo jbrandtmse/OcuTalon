@@ -1,0 +1,61 @@
+# The area of each story in the draft release notes (Story 11.13; release/notes.sh reads this file; NFR-24, REL-8).
+# The areas appear in the notes in the order they first appear below, each as a "## " heading with its stories under it.
+# Lines (blank lines and lines that start with # are ignored; any other form is a mistake that the notes script reports as file:line):
+#   epic <n> <area>          the area of every story of epic <n>
+#   story <n>.<n> <area>     the area of one story; it wins over its epic's line
+# The area "developer" puts a story under "For admins and developers" instead of an area. A story is also a developer story when its
+# number is 0 (Epic <n> deferred cleanup) or its title is "Epic <n> burn-down", unless a story line says otherwise; a story that has no
+# heading in epics.md is a developer story too. A story whose epic has no line here fails the notes script's areas row, naming the epic:
+# add the line when the first release that ships the epic is drafted. The step epics and the personality epics have no line yet.
+epic 0 Install, upgrade and sign in
+epic 10 Install, upgrade and sign in
+epic 15 Install, upgrade and sign in
+epic 2 The page and the chat
+epic 4 The demo
+epic 5 Watching productions and incidents
+epic 3 Approvals and the audit log
+epic 6 Approvals and the audit log
+epic 7 Approvals and the audit log
+epic 1 Attention decisions and the model
+epic 8 Heartbeat and reminders
+epic 12 Telegram
+epic 13 The bridge for your own productions
+epic 14 Security
+epic 16 The online demo
+epic 29 The online demo
+epic 30 Fixes and hardening
+epic 31 Fixes and hardening
+epic 9 developer
+epic 11 developer
+epic 32 developer
+epic 38 developer
+story 0.4 developer
+story 0.5 developer
+story 0.6 developer
+story 0.7 developer
+story 0.8 developer
+story 0.9 developer
+story 0.10 The demo
+story 0.11 developer
+story 1.2 developer
+story 1.10 Heartbeat and reminders
+story 1.12 developer
+story 2.3 developer
+story 2.4 developer
+story 2.16 developer
+story 2.17 developer
+story 3.8 The online demo
+story 5.11 developer
+story 10.3 developer
+story 11.2 Install, upgrade and sign in
+story 11.8 Heartbeat and reminders
+story 12.1 developer
+story 16.6 developer
+story 29.3 developer
+story 29.5 developer
+story 29.6 developer
+story 29.8 developer
+story 31.1 The page and the chat
+story 31.2 Approvals and the audit log
+story 31.3 The online demo
+story 31.4 Telegram

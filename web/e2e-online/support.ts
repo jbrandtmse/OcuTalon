@@ -6,6 +6,7 @@ import { STATE } from '../e2e/support/api';
 import { pageNow, runUntil } from '../e2e/support/clock';
 import { chk, fixtureUser, irisScript, quoted } from '../e2e/support/iris';
 import { loadedAfter } from '../e2e/support/floor';
+import { gotoSettled } from '../e2e/support/navigate';
 import { drawnMessages, TRACE_PAGE, type Turn } from '../e2e/support/trace';
 import { signInOverHttp } from '../e2e/sign-in/helpers';
 
@@ -51,7 +52,7 @@ const probedSplash = (): string => probed('/ocutalon/');
  * for it.
  */
 export async function signInFromSplash(page: Page, user?: string, password?: string, path = probedSplash()): Promise<Response> {
-  await page.goto(path);
+  await gotoSettled(page, path);
   if (user !== undefined) await page.getByLabel('User name', { exact: true }).fill(user);
   if (password !== undefined) await page.getByLabel('Password', { exact: true }).fill(password);
   const answered = page.waitForResponse((response) => response.request().method() === 'POST');
@@ -109,7 +110,7 @@ export async function advance(page: Page, ms: number): Promise<void> {
  */
 export async function openTraceTab(context: BrowserContext): Promise<void> {
   const tab = await context.newPage();
-  const response = await tab.goto(probed(`${TRACE_PAGE}1`), { waitUntil: 'domcontentloaded' });
+  const response = await gotoSettled(tab, probed(`${TRACE_PAGE}1`), { waitUntil: 'domcontentloaded' });
   expect(response?.status(), 'the trace page is served').toBe(200);
   await expect(tab.locator('input[name=IRISUsername]'), 'with no sign-in form: the context holds a trace session').toHaveCount(0);
   await tab.close();
@@ -118,7 +119,7 @@ export async function openTraceTab(context: BrowserContext): Promise<void> {
 /** Opens the trace address in a new tab of the context, at a fresh probe, and checks that it shows the trace sign-in form. */
 export async function expectTraceSignIn(context: BrowserContext, message: string): Promise<void> {
   const tab = await context.newPage();
-  await tab.goto(probed(`${TRACE_PAGE}1`), { waitUntil: 'domcontentloaded' });
+  await gotoSettled(tab, probed(`${TRACE_PAGE}1`), { waitUntil: 'domcontentloaded' });
   await expect(tab.locator('input[name=IRISUsername]'), message).toBeVisible();
   await tab.close();
 }
@@ -224,12 +225,14 @@ export interface Visitor {
 /**
  * Opens a new browser context on the stack, signs the demo account in from the splash and waits for the page's snapshot (loadedAfter), and
  * returns the visitor with its session row's Ref and TraceRef. With an address, every request of the context carries it as X-Forwarded-For,
- * so that a proxied stack counts the visitor under it (Story 29.7). A visitor that cannot be opened is signed out and closed before the
+ * so that a proxied stack counts the visitor under it (Story 29.7). With pageOptions the context takes that time zone and locale, which
+ * the page writes its times in (the steps 2 to 5 of the online run use UTC and en-GB, as the web run does). A visitor that cannot be opened is signed out and closed before the
  * error goes on. The caller ends it with leaveVisitor.
  */
-export async function openVisitor(browser: Browser, address?: string): Promise<Visitor> {
+export async function openVisitor(browser: Browser, address?: string, pageOptions: { timezoneId?: string; locale?: string } = {}): Promise<Visitor> {
   const context = await browser.newContext({
     baseURL: process.env['OCUTALON_URL'],
+    ...pageOptions,
     ...(address === undefined ? {} : { extraHTTPHeaders: { 'X-Forwarded-For': address } }),
   });
   try {
