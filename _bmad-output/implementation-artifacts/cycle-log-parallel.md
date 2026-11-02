@@ -1425,3 +1425,10 @@
 2026-11-02T22:48:05Z	Epic 30	decision_sheet_recorded	decided=1 to_action_items=3(DW-483,DW-580,DW-575) to_x0=0 by=unattended DW-579=wontfix-accepted(veto_U-226,reopen_if>100k_tokens)
 2026-11-02T22:48:05Z	Epic 30	ledger_routed_planned	entries=DW-453,DW-549,DW-599->31.3(bullets=6),DW-450,DW-511->31.4(deferred;bullets=6),DW-532->11.16 excess=0 by=merge_gate
 2026-11-02T22:48:05Z	Epic 30	deps_hash_rerecorded	reason=fix_forward+ledger_routed hash=cce4ad75655b note=30.8_inserted_inside_epic_30;AC_bullets_only
+2026-11-02T22:53:06Z	Epic 14	owner_decision	id=U-223 at=2026-11-02T22:49:20Z#676 via=inbox by=Contest_Planner_1(delegated) answer=keep_as-built_no-purge_sentence;cond1_30.7_rewrites_it;cond2_every_this-release_statement_in_docs/security-overview.md_true_at_rc1;Epics_12/13/31_fix_any_they_make_untrue_in_own_merge route=live_runner_14+told_12,31,13
+2026-11-02T22:53:06Z	Epic 14	owner_decision	id=U-224 at=2026-11-02T22:49:20Z#677 via=inbox by=Contest_Planner_1(delegated) answer=keep;H10,H12,H23_pass_2026-11-02_by_hand_Contest_Planner(evidence_outside_repo,never_committed) route=live_runner_14
+2026-11-02T22:53:06Z	Epic 31	owner_decision	id=U-225 at=2026-11-02T22:49:20Z#678 via=inbox by=Contest_Planner_1(delegated) answer=keep(no_change) applied=resolved_by_orchestrator(veto_kept)
+2026-11-02T23:01:23Z	Epic 30	worktree_removed	epic=30
+2026-11-02T23:01:23Z	Epic 30	epic_branches_deleted	OCT-epic30 local+remote
+2026-11-02T23:01:23Z	Epic 1-37	ci_green_verified	runs=41540291727,41540291669 head=368ea9bc result=success via=ci-gate (feature)
+2026-11-02T23:01:39Z	Epic 13	runner_dispatched	runner=a71817ff3166d3528 name=epic-runner-13 model=opus lane=B slot=ocutalon-slot-b prompt=prompts/dispatch-epic-13-h2.md base=feature_368ea9bc(green) note=redispatch_after_epic30_merge;13.2+13.3;critical_chain;INFO_stop_if_story>3h
