@@ -2916,6 +2916,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-30-6-the-invalid-reply-warning-names-what-failed-never-the-reply.md | severity: med | fix-risk: med | footprint: in-story
 - evidence: the generated %JSONImport passes the nested class's #9406 up naming the inner field (irislib/%JSON/Generator.cls GenImportObject); the spec's Tasks give 'ERROR #9406' for a field that names no property of the reply class, and its Always lists only that class's own property names, so naming ItemNoun.One needs a ruling; no reply content leaks
 - 2026-11-01T20:22:06Z status=decision-pending owner=burndown by=cr note=product call: may the warning name a nested class's property (rec: '<Parent>.<Child>: <len> > <limit>', class-definition names only)?
+- 2026-11-02T04:43:43Z status=resolved-by:30-6-the-invalid-reply-warning-names-what-failed-never-the-reply by=owner note=Contest_Planner_2026-11-02:schema_paths_and_limit_allowed;never_a_reply_value_or_an_invented_key(an_unexpected_property);fix-forward_3d0cabd3
 ### DW-541: Chip 1 ('Which productions are running?') asks something list_productions cannot answer: it has no running state, so real Haiku replies '...it does not tell me whether it is running right now'
 - source: Contest Planner: Epic 4 host check on 374f958e, 2026-11-01 | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: host, real Haiku, chip 1 reply; Tools/WatchTools list_productions returns names only
