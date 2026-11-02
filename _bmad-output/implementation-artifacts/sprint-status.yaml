@@ -370,8 +370,8 @@ development_status:
   39-6-evaluation-cases-for-the-heartbeat: backlog
   epic-39-retrospective: optional
 
-  epic-40: backlog
-  40-1-fix-the-persona-s-names-contracts-and-preset-texts: ready-for-dev
+  epic-40: in-progress
+  40-1-fix-the-persona-s-names-contracts-and-preset-texts: in-progress
   40-2-save-your-persona-and-let-ocutalon-propose-one: backlog
   40-3-the-persona-reaches-chat-and-triage-as-a-data-block: backlog
   40-4-the-persona-card: backlog
