@@ -2336,6 +2336,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-29T00:23:31Z status=routed owner=burndown by=fresh_check note=flake class like DW-349: a fixed wait on the Task Manager's RunNow; a rerun clears it; route to the release-1 flake story at the burn-down gate
 - 2026-10-29T01:11:55Z owner=11-1-the-web-demo-path-passes-end-to-end-in-the-rel-2-test by=burndown note=Epic 10 burn-down overflow: the release-1 flake class beside DW-349 (a fixed wait on a heartbeat-driven run); 11.1 gates REL-2 on a green CI, so it fixes the RunNow wait or ledgers the rerun rule
 - 2026-10-30T16:58:58Z occurrence=29-5-the-address-counter-s-hash-is-keyed-per-reset note=CI run 41088697760 (OCT-epic29 511f1b03, iris image, shard lane-b): Test.Schedule.Heartbeat TestStoppedThenStarted 'the task ran while the production was stopped' (197 s); flake class, one rerun
+- 2026-11-02T00:00:24Z occurrence=31-1-push-live-events-over-a-websocket-on-local-installs note=local_fresh_lane-b_forward_run_at_31.1_implement:Test.Schedule.Heartbeat_75s_wall-clock_assertion_failed_under_load;passed_alone_on_a_fresh_stack_in_177s
 
 ### DW-378: Tagline: replace 'An OpenClaw-style assistant for InterSystems IRIS.' with 'An AI assistant for InterSystems IRIS.' in the About dialog and the tests that pin it; the not-affiliated note stays verbatim
 - source: owner decision 2026-10-29 (relayed by the Contest Planner) | severity: high | fix-risk: low | footprint: out-of-footprint

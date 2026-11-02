@@ -47,3 +47,6 @@
 2026-11-01T20:27:21Z	Story 31.1	ci_resolved	story=epic-start sha=9f11808d runs=41342750205,41342750175 result=success failed=none via=none resolved_at=next_plan
 2026-11-01T20:39:06Z	Story 31.1	ci_resolved	story=integrate-forward sha=88cb8828 runs=41346913315,41346913237 result=success failed=none via=none resolved_at=next_implement
 2026-11-01T20:39:06Z	Story 31.1	stage_spawned	stage=implement spawn_at=2026-11-01T20:39:06Z model=claude-sonnet-5 agent_name=31-1-implement-1 cycle_iteration=1 story_base=88cb8828
+2026-11-02T00:00:24Z	Story 31.1	dev_complete	spawn_at=2026-11-01T20:39:06Z model=claude-sonnet-5 build_sha=3010f5a7 baseline_revision=1c972cc8 story_base=1c972cc8 review_loop_iteration=0 followup_review_recommended=false deferred=0 files=22 loc_added=2010 loc_removed=14 nfr_tripwires=0 adr_violations_surfaced=0 cycle_iteration=1 local_flake=DW-376(occurrence)
+2026-11-02T00:00:24Z	Story 31.1	adr_verifications_complete	tool=none acs=none result=none_required evidence=none mutations=none note=no_AD_commits_agent-time_tooling_for_31.1s_ACs(AD-22_throwaways_covered_by_the_stages_tests) model=claude-opus-5-5
+2026-11-02T00:00:24Z	Story 31.1	stage_spawned	stage=qa spawn_at=2026-11-02T00:00:24Z model=claude-sonnet-5 agent_name=31-1-qa-1 cycle_iteration=1

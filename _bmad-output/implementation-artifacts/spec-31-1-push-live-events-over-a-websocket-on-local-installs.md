@@ -4,6 +4,7 @@ type: 'feature'
 created: '2026-10-30'
 status: 'done'
 baseline_revision: '1c972cc8e3619d3cb727b8bcb1a7b4d7f7fd67c4'
+baseline_commit: '1c972cc8e3619d3cb727b8bcb1a7b4d7f7fd67c4'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: ['{project-root}/_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md']
