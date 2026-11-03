@@ -1488,3 +1488,6 @@
 2026-11-03T04:26:39Z	Epic 13	runner_resumed	ruling=continue_whole
 2026-11-03T04:27:43Z	Epic 13	owner_decision	id=U-233 at=2026-11-03T04:27:26Z#698 via=inbox by=Contest_Planner_1(delegated) answer=keep_1.3/13.1_recipe;Planner_adds_rc1_hand_gate(guide_followed_literally_on_bare_154,no_OcuTalon,no_OCUTALON);condition:guide_relies_on_nothing_OcuTalons_install_creates_instance-wide(audit_events,Workflow_role/user);bridge_installer_creates_what_it_needs routed=Epic_13_runner_B_live
 2026-11-03T04:27:43Z	Epic 1-37	planner_note	AD-2_default_settings_wording->DW-575_attended_architecture_update_after_run(trailer_written);13.3_no_split_agreed;09:30Z_flag_stands
+2026-11-03T05:00:20Z	Epic 10	worktree_provisioned	worktree=.worktrees/epic-10 branch=OCT-epic10 from=c9d201e5 submodules=none reason=SC-5_re-open_10.5
+2026-11-03T05:00:20Z	Epic 10	worktree_bootstrapped	epic=10 result=ok
+2026-11-03T05:00:20Z	Epic 1-37	planner_note	suggests_10.5_on_runner_C_now(C_free_~5h_until_12+13_merge);ruling:10.5_dispatches_on_C_at_Epic_31s_Ended(waiting);prompt_refreshed(policy_5086036,h2-common,U-228_cond_2_on_Telegram_row,README_contenders_12/13/15/31);merge_after_epic-12_if_Telegram_row_written_first
