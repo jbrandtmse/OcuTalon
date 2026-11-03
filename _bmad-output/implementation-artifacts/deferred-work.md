@@ -2722,6 +2722,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-02T10:55:33Z status=routed owner=burndown by=lead occurrence=30-1-long-conversations-are-compacted-under-the-limit note=reopened(reopen_if_met):30.1_implement_fresh_shard_lane-b_part_2/2_red_twice_on_TestRunAgain;passed_alone_on_a_fresh_throwaway;30.1_touches_no_Web/Guide_code;Lane_B_class(AD-33):route_to_a_Lane_B_story_at_the_burn-down_gate
 - 2026-11-02T12:09:17Z owner=31-3-the-readme-leads-to-the-demo-and-the-launched-demo-is-measur by=burndown note=overflow:Lane_B_class_Test.Web.GuideApi(AD-33:off_limits_to_Lane_A_epic_30);flake_reopened_by_30.1's_fresh_shard_lane-b_2/2(red_twice,passes_alone):find_the_order_or_timing_dependence_of_TestRunAgain
 - 2026-11-03T02:38:20Z occurrence=13-2-the-example-s-own-tools-wait-for-approval-when-they-are-risk by=harvest note=failed_once_in_13.2_implement_fresh_shard_lane-b_part_2/2;passed_alone_and_on_rerun
+- 2026-11-03T12:55:18Z occurrence=0-13-a-start-retries-the-cpf-merge-when-iris-cannot-quiesce note=CI run 41629601732 iris (image) shard:lane-b on OCT-epic0 032a25c0 (integrate-forward head): TestRunAgain and TestOnlyTheMarkerChanges failed; passed on the unchanged rerun of the failed jobs
 
 ### DW-454: U-170's plain-English reason for an old held tool call reaches a person only through the decision live event (decision strip, rail decision row, trace); the approval card and notices do not show it: Live.Payload.Approval.reason stays empty, approval.result is {ref}, Core.Rule.Notice reads only the fallback reason
 - source: spec-30-3-an-approved-tool-call-runs-exactly-once-with-no-model.md | severity: med | fix-risk: med | footprint: out-of-footprint
@@ -3420,3 +3421,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-0-13-a-start-retries-the-cpf-merge-when-iris-cannot-quiesce.md | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: U-235 (veto, kept by the Contest Planner 2026-11-03T09:22:15Z#706): the larger rework is out of 1.0.0; Story 0.13 retries once on #453 instead; the DW-612 check found #453 on a fresh first start (41419787515) and install-start row 2 (41577358713, 41577710442)
 - 2026-11-03T11:09:29Z status=routed owner=burndown by=burndown note=first daily release after 1.0.0 (U-235); keeps AD-23's merge-at-every-start promise (repair a mapping removed by hand) through a cheaper check
+
+### DW-632: flake: live:floor web/e2e/floor/guide.spec.ts:740 M12 (Show me with no pending notification focuses the phone feed; a jump to step 3 hands focus to an inactive box) hit the 120 s test timeout in the floor project in CI
+- source: cycle-log-epic-0.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: CI run 41629601732 iris (shards-3) attempt 1 on OCT-epic0 032a25c0, 105 of 106 floor specs passed; passed on the unchanged rerun (attempt 2); Epic 0's head changes no web or guide code
+- 2026-11-03T12:55:18Z status=routed owner=burndown by=burndown note=flake class; one rerun and an occurrence= trailer on a recurrence; first daily release after 1.0.0 unless it recurs

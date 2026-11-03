@@ -397,3 +397,6 @@
 2026-11-03T11:31:51Z	Epic 0	model_tier_checkpoint	armed=false stack_risk=none review_tier=full-opus implement_model=claude-sonnet-5-5 high_med_avg=1.00 unresolved_high_med_avg=0.00 metric=unresolved rework_stories=0 review_loop_thrash=0 rework_lang_defects=0 review_high=0 review_med=1 result=hold applied=false scope=reopen_story_0.13_only
 2026-11-03T11:41:44Z	Epic 0	integrated_forward	feature=2dd7aa8f head=582f224b conflicts_resolved=_bmad-output/implementation-artifacts/sprint-status.yaml(SC-4-P_step_4:ours+regenerate+re-set_epic-13,13-1..13-3=done) checks=after-start,compose-file,cpf,boundaries,readme,ci-config,ci-changes:pass smoke=live_install-start(e0s13m):pass
 2026-11-03T11:41:44Z	Epic 0	epic_runner_complete	stories_completed=1
+2026-11-03T12:55:18Z	Epic 0	ci_red_classified	run=41629601732 workflow=.github/workflows/ci.yml class=flake test=OcuTalon.Test.Web.GuideApi(TestRunAgain,TestOnlyTheMarkerChanges) ledger=DW-453(occurrence) job=iris(image)
+2026-11-03T12:55:18Z	Epic 0	ci_red_classified	run=41629601732 workflow=.github/workflows/ci.yml class=flake test=e2e/floor/guide.spec.ts:740_M12 ledger=DW-632(new) job=iris(shards-3)
+2026-11-03T12:55:18Z	Epic 0	ci_green_verified	runs=41629601732(attempt_2),41629601721 head=032a25c0 note=rerun_of_failed_jobs_green
