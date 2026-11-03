@@ -370,8 +370,8 @@ test('L6: a paired Telegram chat keeps working while no CSP session is open', as
     const question = 'zz L6 a question from the paired chat';
     await sendFromChat(CHAT_A, question);
     await expect
-      .poll(async () => (await chatTurnsOf(row!.ref, question)).map((turn) => turn.split(':')[1]), { message: "the chat's text is a Turn of the channel telegram in the session", timeout: MOCK_MS, intervals: [2000] })
-      .toEqual(['telegram']);
+      .poll(() => chatTurnsOf(row!.ref, question), { message: "the chat's text is a Turn of the channel telegram in the session, answered (done), not refused", timeout: MOCK_MS, intervals: [2000] })
+      .toEqual(['done:telegram']);
     await expect
       .poll(async () => (await repliesOf(CHAT_A)).filter((text) => text.trim() !== '').length, { message: "the chat gets OcuTalon's reply", timeout: MOCK_MS, intervals: [2000] })
       .toBeGreaterThan(0);

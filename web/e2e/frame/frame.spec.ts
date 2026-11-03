@@ -292,7 +292,8 @@ test('F6: the About dialog', async ({ page }) => {
   }
 
   await expect(dialog.getByRole('heading', { level: 2 }), 'focus starts on the heading').toBeFocused();
-  for (const key of ['Tab', 'Tab', 'Tab', 'Tab', 'Shift+Tab', 'Shift+Tab', 'Shift+Tab', 'Shift+Tab']) {
+  // Five presses each way: the dialog has four stops (three links, then Close), so focus wraps past both ends.
+  for (const key of [...Array<string>(5).fill('Tab'), ...Array<string>(5).fill('Shift+Tab')]) {
     await page.keyboard.press(key);
     await expect(dialog.locator(':focus'), `${key} keeps focus inside the dialog`).toHaveCount(1);
   }

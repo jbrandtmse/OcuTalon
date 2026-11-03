@@ -4,6 +4,7 @@ type: 'feature'
 created: '2026-11-03'
 status: 'done'
 baseline_revision: '9849b256c32f182581b35b90bd394cffb80b96c8'
+baseline_commit: '9849b256c32f182581b35b90bd394cffb80b96c8'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -253,7 +254,38 @@ deferred: []
 - Given the CI stacks with the mock bot, when `live:online-session` and `live:online-allowance` run, then L6, row 4 (Telegram part), A5 and AT pass with no SKIP or `notBuilt` left for 31.3 (`rg -n "'31\.3'|Story 31\.3 turns" web docker` finds none).
 - Given every public file this story touches, when read, then none claims Telegram, pairing or phone approvals on the online demo, or paired-chat isolation under load (U-239). `docker/tests/test-readme.sh`, `bash ci/checks.sh` and CI on every workflow are green.
 
+### Review Findings
+
+Code review (stage code-review, 2026-11-03, run tag e31s3cr; four layers: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor, no model override). 22 rows: high 0, medium 4, low 18; 0 decision-needed left, 9 patches applied, 0 deferred, 13 closed without a change (5 by-design or accepted, 8 rejected).
+
+- [x] [Review][Patch] L6 accepted a refused Turn: the poll kept only the channel (`split(':')[1]`), so a refused message plus its allowance notice passed as "keeps working" (medium, fix-risk low: one assertion) [web/e2e-online/session/leave.spec.ts:373] -- it now expects `['done:telegram']`; `live online-session` green, and the refusal mutation below turns L6 red ("refused:telegram").
+- [x] [Review][Patch] F6's focus-trap loop no longer wrapped: four Tabs and four Shift+Tabs over four stops never pass Close or the first link, so the old trap check went vacuous (medium, Rule 19 shared surface; fix-risk low) [web/e2e/frame/frame.spec.ts:294] -- five presses each way; `live sign-in --part 2/3` 76 passed.
+- [x] [Review][Patch] The DW-360 steps miss the portal's own step: on an existing user's page the Password choice shows with "Leave as is" selected and both password fields hidden (`%CSP.UI.Portal.User` :109, :203, :369-378, :855-857), so "enter a new password in Password and Password (confirm)" cannot be followed as written (medium, fix-risk low: three words) [README.md:317] -- "select Enter new password, " inserted before it (Decided in-stage 26, veto-window text for the lead), pinned in `lan`.
+- [x] [Review][Patch] AC 1's "every build-109 item word for word" was pinned only in fragments: items 1, 2 and 4 could be reworded with every rule green (medium, Rule 19; fix-risk low: data lines only) [docker/tests/test-readme.sh:430,621] -- steps 1-2 joined `TRY_FACTS`; the two "Get the image" paragraphs, item 4's two paragraphs and its `.env` line joined `INSTALL_FACTS`, each with its broken copy through `st_facts`.
+- [x] [Review][Patch] Row 4 never checked that C's first chat id was put back (`set_chat ... > /dev/null`) (low, mechanical) [docker/tests/test-online-session.sh:391] -- a failed restore is now a FAIL line; `live online-session` green.
+- [x] [Review][Patch] `interesting` did not pin the ruled order (hero, then the Chat bullet's image) (low, mechanical) [docker/tests/test-readme.sh:chk_interesting] -- order check plus the broken copy "the two image lines swapped".
+- [x] [Review][Patch] `ipm` left the repositories warning (Decided in-stage 23) and the second run in OCUTALON unpinned (low, mechanical) [docker/tests/test-readme.sh:chk_ipm] -- both checked, each with a broken copy.
+- [x] [Review][Patch] `lan` checked only the default-accounts heading, not its steps (low, mechanical) [docker/tests/test-readme.sh:chk_lan] -- the portal address, the menu path, the password step and the CSPSystem line are pinned (`ACCOUNTS_FACTS`, each with a broken copy).
+- [x] [Review][Patch] `licence` skipped the MIT condition paragraph, the licence's only condition (low, mechanical) [docker/tests/test-readme.sh:chk_licence] -- checked, with the broken copy "no condition paragraph".
+- [x] [Review][Resolved] AT asserts the Approve press's answer, not `done` directly nor an edit of the chat's message (low; Decided in-stage 19 and 25) -- accepted as by-design: the press text "Approved. Repairing and resending N orders." is shown only for the verdict `done` with a dry-run count (`Core/AnswersIn.cls:90-100`, `Channel/Telegram/In.cls:420-423`), so completion is pinned; the edit is sent only for an incident's request (`Watch/IncidentManager.cls:178,1187`) and stays pinned by demo-path T8. A real incident under both caps would duplicate T8. The lead may still rule otherwise.
+- [x] [Review][Resolved] "Password (confirm)" departs from ruled text 4's "Confirm Password" -- by-design: TRUE (`%CSP.UI.Portal.User` :111 `label="Password (confirm)"`); Decided in-stage 14, a veto-window item for the lead.
+- [x] [Review][Resolved] The IPM repositories sentence goes beyond ruled text 3 -- by-design: TRUE (`docs/install-ipm.md:22` "first deletes the repositories configured in %SYS", :28-31 `repo -delete-all`); Decided in-stage 23, a veto-window item for the lead.
+- [x] [Review][Resolved] The `vt-decision.png` alt text describes only the first half of the re-shot image (rows [1]-[13]); rows [14]-[33] (the approval start, the Workflow task, the approval outcome, the fix run and the notices) go unmentioned (low) -- spec-bound (text 10: implement may only drop clauses); everything it says is shown. Relayed to the Planner's image vetting, with one cosmetic note: row [1]'s "[1]" index overlaps its own icon (Visual Trace's drawing). The image was not changed.
+- [x] [Review][Resolved] The IPM section points to no model-key or sign-in steps for an IPM install (low) -- by-design: ruled text 3 (U-242); it links `docs/install-ipm.md`, which carries them.
+
+Rejected:
+- low: "How you talk to it"'s lead-in does not mention the Telegram row -- the table row says "on your own install"; a fix adds unruled public text.
+- low: the spec's bookkeeping (status `done` vs `review`, "29 rules" vs QA's 30) -- the fix edits the spec under review (tracking prose, not behaviour).
+- low: the Code Map names L179 for the MCP framing sentence, which is L178 -- the fix edits the spec; the edited lines are right.
+- low: the capture's header count is not checked as numeric -- a non-numeric count fails the capture closed (manual tool).
+- low: the Chat image target parse assumes the line ends with ")" -- it would fail loud, and no README line has a trailing space or title.
+- low: the commit message's "finish state link the ... security overview" -- the About dialog links both and the finish state the bridge guide, as the spec rules; the message is history.
+- low: the capture tool has no executed test host (shrink path, exit 2, refusals) -- `wontfix-accepted`, reopen_if a re-shoot's first capture is 300,000 B or more (the untested shrink path then runs); a manual tool (Decided in-stage 11).
+- low: A5's fixed 6 s wait for "no second notice" -- a bounded negative check, after the second Turn is awaited (as the self-review found).
+
 ## Spec Change Log
+
+- 2026-11-03 (lead, after code review): the vt-decision.png alt text, in both README places, now describes the whole re-shot image (the review found it covered rows 1-13 only): "... and each of the agent's model requests and tool calls shows as an agent step of its own; then come the dry run, the approval request held as a Workflow task and its answer, the fix run, and the notices to the web chat and the phone, each a production message." It goes to the Contest Planner's image vet with the image (U-242 condition 4).
 
 - 2026-11-03 (lead, re-plan after the plan halt): the orchestrator ruled Q1 and Q2 under veto U-242 (kept by the Contest Planner, 2026-11-03T15:07:51Z#727): L111 alternative with the MCP server clause; L187 as proposed; screenshots option C with the Planner's image conditions; texts 1 to 6 kept; one story. Written into the intent block and `## Rulings`; epics.md AC 1's last "And" gained the U-242 marker (Rule 5 tier 1). Status reset to `draft` for a re-plan.
 
@@ -366,6 +398,8 @@ deferred: []
 23. (review) The IPM section warns that `zpm "enable -community"` first removes the repositories already set up in %SYS (veto-window text; the lead classifies): "This command first removes the package repositories that are already set up in %SYS, so note any you use before you run it." Evidence: `docs/install-ipm.md:22` and :28-31 show `repo -delete-all` in its output. No other IPM wording changed.
 24. (review) L6 now also pins that the chat's text became a Turn of the channel telegram in the session (`chatTurnsOf`, moved to `web/e2e-online/telegram.ts` and shared with A5); the fixture readers (`repliesOf`, `buttonsOf`, `pressAnswers`) throw the fixture's reason instead of returning an empty list; `startTelegram` puts back a partial start before it throws. Row 4's check counts only a sendMessage to C's chat that carries the reminder's text, and the unit fails when C's chat id cannot be read.
 25. (review) AT keeps the Approve press's answer text as the pin for the run's completion: TelegramIn shows "Approved. Repairing and resending N orders." only when `AnswersIn.TelegramCode` got the verdict `done` (`Core/AnswersIn.cls:90-100`, `Channel/Telegram/In.cls:420-423`), which is the verdict AP reads from `Approval.Answer`. The edit of the chat's message stays with demo-path T8 (Decided in-stage 19); the lead rules whether AT should raise a real incident instead.
+
+26. (code review) DW-360 text, three words added from the portal source (veto-window text; the lead classifies): on an existing user's page the Password choice shows with "Leave as is" selected and the two password fields hidden (`%CSP.UI.Portal.User` :109 `radioSet id="passwordChoice"` with "Enter new password,Leave as is", :855-857 value 1 when editing, :203 and :369-378 hiding Password and Password (confirm)). The README now says "choose its name, select Enter new password, enter a new password in Password and Password (confirm), and press Save." To restore the earlier wording, remove "select Enter new password, " and nothing else.
 
 **Security-overview L111: clause-by-clause evidence.**
 - (a) "fixed to exact targets": TRUE.
@@ -534,6 +568,30 @@ Self-check against the four conditions: (1) the whole decision: 30 drawn message
   - Drop the "What's interesting" `vt-decision.png` line → `interesting` red.
 - Capture spec: temporarily add the literal `localhost` to the text that the forbidden-name check (d) reads → the spec fails, and `record-screenshot.sh` writes nothing (the PNG is byte-identical to before). Revert.
 - T1 to T4: make `TelegramIn` drop updates for an online-demo session (a temporary guard) → L6, A5 and AT red. Leave C's chat id off the reminder notice → row 4 red.
+
+### QA results (2026-11-03, stage qa, run tag e31s3q; no live unit run)
+
+The gap found: AC 2 (the two item-7 sentences) and AC 7 (only L111 and L187 of the security overview changed, to the ruled sentences, under the MCP framing sentence) had no pinning test (the review pass rejected a pin as brittle; the sentences are ruled public text, so a word-for-word pin is the right guard). Every other AC already has a pin and a mutation line above.
+- (QA) `docker/tests/test-readme.sh` (changed, no new file): new rule `docs` (`rule_docs`, `chk_docs`, added to `RULES`; header updated). It pins the build 109 sentence at the end of the bridge guide's and the IPM page's build 154 bullets (substring on the bullet, so Story 13.4's union with the bullet stays green), the two ruled security-overview lines word for word (once each), no remaining "the exact call", and the MCP rules line under the framing sentence with no heading between. 12 broken copies, each of which must flag. `docker/tests/test-bridge-guide.sh` is unchanged and passes.
+- mutation (QA): remove the build 109 sentence from `docs/bridge-guide.md` -> test-readme `docs` red.
+- mutation (QA): remove the build 109 sentence from `docs/install-ipm.md` -> test-readme `docs` red.
+- mutation (QA): put L111 back to "or the exact call (a tool call)" -> test-readme `docs` red.
+- mutation (QA): drop "its server" from L187 -> test-readme `docs` red (and the framing check).
+- mutation (QA): change the LICENSE holder -> test-readme `licence` red.
+- mutation (QA): drop "on your own install" from the Telegram row -> test-readme `telegram-demo` red.
+- All files restored byte-identical (shasum against the pre-run sums; `git status --short` shows only test-readme.sh from this stage); `docs/images/vt-decision.png` byte-identical; `test-readme.sh` all 30 rules pass, `test-bridge-guide.sh` and `test-boundaries.sh` pass.
+
+### Code review results (2026-11-03, stage code-review, run tag e31s3cr, lane A)
+
+- `bash docker/tests/test-readme.sh` -- all 30 rules pass with the new pins; `npm --prefix web run lint` -- clean; `test-boundaries.sh` -- pass.
+- `live online-session` -- 13 passed, L6 (`done:telegram`) and every row 4 line PASS, the restore check silent; `live sign-in --part 2/3` -- 76 passed (`frame.spec.ts` F6 with five presses each way). Each stack removed by its run (`LOCK released`).
+- mutation (code review): seed the L6 session's allowance at 50 just before the chat's message (a refused message gets a refusal notice, the case the old poll let through) -> `live online-session` L6 red ("refused:telegram", wanted "done:telegram"); the spec restored byte-identical (shasum).
+- mutation (code review): drop "select Enter new password, " from the README -> test-readme `lan` red.
+- mutation (code review): reword "also runs unchanged on build 109" -> `install` red; reword step 1's "which the download portal now offers" -> `try-it` red.
+- mutation (code review): swap the two "What's interesting" image lines -> `interesting` red.
+- mutation (code review): drop the IPM repositories warning -> `ipm` red.
+- mutation (code review): drop the MIT condition paragraph from LICENSE -> `licence` red.
+- README and LICENSE restored byte-identical after each (shasum); `docs/images/vt-decision.png` untouched.
 
 ## Auto Run Result
 

@@ -2386,6 +2386,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: README.md ## Sign in: reachable from the LAN until the default IRIS accounts' and the README account's passwords are changed; only the README account has a how-to (DW-3 wording, author's decision 2026-10-18)
 - 2026-10-28T18:29:41Z status=decision-pending owner=burndown by=harvest note=product and security-posture call: add how to change the default IRIS accounts' passwords, or say how to publish the port on 127.0.0.1 only, or keep the wording
 - 2026-10-29T02:22:28Z status=routed owner=31-3-the-readme-leads-to-the-demo-and-the-launched-demo-is-measur by=merge_gate note=Epic 10 decision sheet (veto U-145): the 1.0.0 README adds how to change the default IRIS accounts' passwords in the Management Portal, next to the README account's how-to; the private 0.1.x README keeps its wording
+- 2026-11-03T23:19:08Z status=resolved-by:31-3-the-readme-leads-to-the-demo-and-the-launched-demo-is-measur by=adjudication note=README_LAN_section_gives_the_Management_Portal_steps_for_SuperUser,_SYSTEM,Admin(Enter_new_password,Password_and_Password_(confirm),Save);pinned_by_test-readme_lan_rule;Task_0_checked_the_portal_labels(%CSP.UI.Portal.User:111)
 
 ### DW-361: The page's How to set a key and Install it yourself links open the README's top (#readme), not the Set a model key and Install it yourself sections
 - source: spec-10-2-the-readme-gets-a-judge-from-download-to-sign-in.md | severity: med | fix-risk: med | footprint: out-of-footprint
@@ -3747,6 +3748,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: 10.5 plan: overlap found by the planner; 31.3 is backlog (Epic 31's README pass, after Epic 10)
 - 2026-11-03T06:19:13Z status=routed owner=31-3-the-readme-leads-to-the-demo-and-the-launched-demo-is-measur by=spec_gate note=plan 31.3 against the 10.5 README: reuse the hero and the Visual Trace image
 - 2026-11-03T08:20:37Z status=routed owner=31-3-the-readme-leads-to-the-demo-and-the-launched-demo-is-measur by=merge_gate note=bullet_planned_under_31.3_at_Epic_10_merge_9ffac64e
+- 2026-11-03T23:19:08Z status=resolved-by:31-3-the-readme-leads-to-the-demo-and-the-launched-demo-is-measur by=adjudication note=U-242_option_C:page-incident.png_reused(unchanged),vt-decision.png_re-shot_in_place_by_web/e2e-capture/vt-decision.spec.ts;no_new_or_duplicate_PNG;test-readme_images_and_interesting_rules
 
 ### DW-618: README 'How you talk to it' quotes UI strings (Simulated phone, Simulated mailbox, Demo view, Break the feed) that test-readme.sh pins only on the README side, never against web/src, so a later UI rename leaves the README stale with CI green
 - source: spec-10-5-the-readme-shows-the-product-and-says-how-you-talk-to-it.md | severity: low | fix-risk: low | footprint: in-story

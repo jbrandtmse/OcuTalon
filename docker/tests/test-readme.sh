@@ -9,9 +9,10 @@
 #                  heading and no header row of its table
 #   try-it         the online demo link comes before ./install.sh, with "nothing to install, and no Early Access image needed"
 #                  beside it, the splash screen and its read-only Visual Trace account; the local path is four numbered steps
-#                  and leads to the build 109 section
+#                  and leads to the build 109 section; steps 1 and 2 are the ruled build 109 steps, word for word (U-241 item 1)
 #   interesting    "What's interesting" has at most 120 words (its image lines are not counted) and names Interoperability, Visual
-#                  Trace, AI Hub, a dry run and the audit log; it shows two image lines, the hero's image and the Chat bullet's image
+#                  Trace, AI Hub, a dry run and the audit log; it shows two image lines, the hero's image and then the Chat bullet's
+#                  image
 #   use-cases      "What you can use it for" holds exactly the three items, word for word (the third links docs/bridge-guide.md)
 #   how-you-talk   "How you talk to it" holds its facts (the web chat page on every install, the demo-only parts, the Telegram row
 #                  for your own install with your own bot token, email in a later release, the link to "Demo mode"), a table and an
@@ -26,12 +27,20 @@
 #   outcomes       the four outcomes, with the meanings that web/src/app/chat/chat-view.ts shows
 #   install        the facts of the install sections: Compose 2.24 (DW-2), both image names, load and retag, the portal, the CPUs,
 #                  and the build 109 facts (U-241): its image name, IRIS_IMAGE=, its section between "Start it by hand" and "The IRIS
-#                  (non-Health) image", and the sentence that its plain IRIS image has not been tested
+#                  (non-Health) image", and the sentence that its plain IRIS image has not been tested; the ruled build 109 paragraphs
+#                  of "Get the image" and "Start it with build 109" and its .env line, word for word (U-241 items 2 and 4)
 #   ipm            the section "Install it with IPM" is there after "Check that it is ready": the community-registry line comes before
 #                  the first install command, which is said to run in USER; docs/install-ipm.md is linked and itself gives the registry
-#                  install before the folder install; the section never says "any namespace" (AD-23, U-231)
-#   licence        LICENSE holds the MIT grant and warranty paragraphs and exactly the holder line "Copyright (c) 2026 jbrandtmse", and
+#                  install before the folder install; the section never says "any namespace" (AD-23, U-231); it warns that the
+#                  registry line removes the repositories already set up, and gives the second run in OCUTALON
+#   licence        LICENSE holds the MIT grant, condition and warranty paragraphs and exactly the holder line "Copyright (c) 2026
+#                  jbrandtmse", and
 #                  "Credits and licences" holds the README's LICENSE line
+#   docs           the sentences this story added to other public files, word for word: the build 109 sentence at the end of the
+#                  bridge guide's build 154 bullet and of the IPM page's build 154 bullet (U-241 item 7), and the two ruled lines of
+#                  the security overview (U-242): what an approval request shows for a tool call, in the approval section and in the
+#                  MCP rules, which still sit under "This release can't connect to MCP servers." with no heading between; the old
+#                  "exact call" wording is gone
 #   install-pointer  every README section that install.sh names ("The Troubleshooting section of README.md") is an H2 heading
 #   commands       every `docker compose` command that install.sh prints after "run:" is in the README (DW-134), and the README
 #                  has no `docker compose restart`, `docker-compose restart`, `docker restart`, "install.sh again", "the install
@@ -40,7 +49,8 @@
 #                  model paragraph and three-row table at the end of "What OcuTalon does", with an empty line above, the README
 #                  account and "Sign in to Visual Trace"; no "No key, still works." bullet; no key-shaped example
 #   lan            "Sign in" warns that the Management Portal is reachable from the LAN and links to the password steps of the README
-#                  account and of the default IRIS accounts (DW-3, DW-360), and the second one's section follows the first's
+#                  account and of the default IRIS accounts (DW-3, DW-360), and the second one's section follows the first's and
+#                  holds its steps: the portal address, the menu path, Enter new password, the two password fields, and CSPSystem
 #   sign-in-address  the README's ready block is the one install.sh prints, with the compose file's default web port, and "Try it
 #                  in two minutes" and "Sign in" give its address ("Try it" its account too)
 #   demo-mode      the SetDemoMode line, its roles, and the kept-OCUORDERS sentence word for word from EXPERIENCE.md (DW-45)
@@ -69,7 +79,7 @@
 #                  never drop out of that scan
 #
 # What it reads, all from files that git tracks or has not ignored (lib-scan.sh's scan_files; never .env): README.md, LICENSE,
-# docs/install-ipm.md, the sizes of the linked files of docs/images/, install.sh,
+# docs/install-ipm.md, docs/bridge-guide.md, docs/security-overview.md, the sizes of the linked files of docs/images/, install.sh,
 # the tree's file list (for the files of docs/images/), src/ocutalon/cls/OcuTalon/Core/Admin.cls, src/ocutalon/cls/OcuTalon/Channel/Telegram/In.cls, the UX design's EXPERIENCE.md,
 # docker/after-start.sh, docker/tests/test-boundaries.sh, docker-compose.yml, web/src/app/**/*.ts (not *.spec.ts) and src/**/*.cls
 # (not /Test/).
@@ -116,6 +126,8 @@ LAYOUTVIEW=web/src/app/shared/layout-view.ts
 ENVEXAMPLE=.env.example
 LICENSE_FILE=LICENSE
 IPM_DOC=docs/install-ipm.md
+BRIDGE_DOC=docs/bridge-guide.md
+SECOV_DOC=docs/security-overview.md
 
 listing=$(scan_files)
 if [ -z "$listing" ]; then
@@ -145,6 +157,8 @@ layoutview_p=$(of "$LAYOUTVIEW")
 envexample_p=$(of "$ENVEXAMPLE")
 license_p=$(of "$LICENSE_FILE")
 ipmdoc_p=$(of "$IPM_DOC")
+bridgedoc_p=$(of "$BRIDGE_DOC")
+secov_p=$(of "$SECOV_DOC")
 
 # product_files: from a list of paths on standard input, the files whose README anchors the product can show: the page's sources
 # and the server's classes, none of the tests.
@@ -418,6 +432,13 @@ $DEMO_PHRASE
 splash
 #start-it-with-build-109
 read-only Visual Trace account"
+# The ruled build 109 steps (U-241 item 1), word for word; a heredoc, because the lines hold backticks.
+IFS= read -r -d '' TRY_B109 <<'B109' || true
+1. Load the IRIS for Health AI Hub Early Access image into Docker: build 154, or build 109, which the download portal now offers ([where to get it](#get-the-image)).
+2. Clone this repository and run `./install.sh` in its folder ([what it does](#start-it-with-the-install-script)). With build 109, follow [Start it with build 109](#start-it-with-build-109) instead.
+B109
+TRY_FACTS="$TRY_FACTS
+$TRY_B109"
 chk_try_it() {
   local sec="$tmp/sec.try" demo install n
   section "$1" "$H_TRY" > "$sec"
@@ -447,7 +468,7 @@ AI Hub
 dry run
 audit log'
 chk_interesting() {
-  local sec="$tmp/sec.int" n hero chat
+  local sec="$tmp/sec.int" n hero chat hero_at chat_at
   section "$1" "$H_INT" > "$sec"
   if [ ! -s "$sec" ]; then
     echo "$1: no section '$H_INT'"
@@ -463,6 +484,10 @@ chk_interesting() {
   image_links "$sec" | cut -f3 > "$tmp/int.targets"
   if [ -z "$hero" ] || ! grep -qxF -- "$hero" "$tmp/int.targets"; then echo "interesting: '$H_INT' has no image line with the hero's image"; fi
   if [ -z "$chat" ] || ! grep -qxF -- "$chat" "$tmp/int.targets"; then echo "interesting: '$H_INT' has no image line with the Chat bullet's image"; fi
+  # The hero's image comes first, then the Chat bullet's (U-242 option C).
+  hero_at=$(grep -n '^!\[' "$sec" | grep -F -m 1 -- "]($hero)" | cut -d: -f1)
+  chat_at=$(grep -n '^!\[' "$sec" | grep -F -m 1 -- "]($chat)" | cut -d: -f1)
+  if [ -n "$hero_at" ] && [ -n "$chat_at" ] && [ "$hero_at" -ge "$chat_at" ]; then echo "interesting: the hero's image line does not come before the Chat bullet's"; fi
   if [ "$(grep -c '^!\[' "$sec")" -lt 2 ]; then echo "interesting: '$H_INT' has fewer than two image lines"; fi
 }
 
@@ -609,6 +634,16 @@ IRIS_IMAGE=
 INSTALL_FACTS="$INSTALL_FACTS
 Build 109's plain IRIS image has not been tested.
 The install script needs build 154. With build 109, see [Start it with build 109](#start-it-with-build-109)."
+# The ruled build 109 paragraphs (U-241 items 2 and 4) and the .env line of its code block, word for word.
+IFS= read -r -d '' INSTALL_B109 <<'B109' || true
+OcuTalon 1.0.0 is built and tested on IRIS for Health AI Hub Early Access build 154 (`irishealth-community:2026.3.0AI.154.0`). The InterSystems Early Access Program portal now offers build 109 (`irishealth-community:2027.1.0AI.109.0`) in its place: https://evaluation.intersystems.com/Eval/early-access/AIHub
+OcuTalon 1.0.0 also runs unchanged on build 109: its install, production and test checks and the demo guide pass on it. In this release, `./install.sh` looks only for build 154, so with build 109, start OcuTalon as [Start it with build 109](#start-it-with-build-109) shows.
+`docker load` printed the loaded image's name; for the IRIS for Health archive it is `docker.iscinternal.com/docker-intersystems/intersystems/irishealth-community:2027.1.0AI.109.0`. Name it in `.env` as `IRIS_IMAGE`, so that OcuTalon builds from it, then start OcuTalon:
+echo 'IRIS_IMAGE=<the name docker load printed>' >> .env
+Skip the `cp` step when `.env` already exists. Keep the `IRIS_IMAGE` line in `.env`, because every `docker compose up -d` reads it, an update included. Then [check that it is ready](#check-that-it-is-ready) and [sign in](#sign-in).
+B109
+INSTALL_FACTS="$INSTALL_FACTS
+$INSTALL_B109"
 T_B109='With build 109, follow [Start it with build 109](#start-it-with-build-109) instead of running `./install.sh`.'
 H_B109='### Start it with build 109'
 chk_install() {
@@ -695,6 +730,13 @@ Management Portal
 ](#change-the-default-iris-accounts-passwords)
 Change the README account'"'"'s password after your first sign-in'
 H_ACCOUNTS="### Change the default IRIS accounts' passwords"
+# The steps of that section (DW-360), as measured against the portal (spec 31.3, Decided in-stage 14 and 26).
+IFS= read -r -d '' ACCOUNTS_FACTS <<'DW360' || true
+http://localhost:52773/csp/sys/UtilHome.csp
+System Administration, then Security, then Users
+select Enter new password, enter a new password in Password and Password (confirm), and press Save.
+Leave `CSPSystem`, the web gateway's account
+DW360
 chk_lan() {
   local sec="$tmp/sec.lan" readme accounts
   section "$1" 'Sign in' > "$sec"
@@ -706,6 +748,9 @@ chk_lan() {
     echo "lan: no section '$H_ACCOUNTS'"
   elif [ -z "$readme" ] || [ "$accounts" -le "$readme" ]; then
     echo "lan: '$H_ACCOUNTS' does not follow the README account's password section"
+  else
+    awk -v h="$H_ACCOUNTS" '/^#+ / { on = ($0 == h); next } on { print }' "$1" > "$tmp/sec.accounts"
+    chk_facts lan "$tmp/sec.accounts" "$ACCOUNTS_FACTS"
   fi
 }
 
@@ -968,6 +1013,7 @@ chk_telegram_facts() {
 
 # ipm (Story 31.3; AD-23, U-231): chk_ipm <readme> <docs/install-ipm.md>
 H_IPM='### Install it with IPM'
+IPM_WARNING='This command first removes the package repositories that are already set up in %SYS, so note any you use before you run it.'
 chk_ipm() {
   local sec="$tmp/sec.ipm" at ready next enable first load folder registry
   awk '/^```/ { fence = !fence } !fence && /^#+ / { on = ($0 == "'"$H_IPM"'"); next } on { print }' "$1" > "$sec"
@@ -994,6 +1040,8 @@ chk_ipm() {
   fi
   if ! grep -qF '](docs/install-ipm.md)' "$sec"; then echo 'ipm: the section does not link docs/install-ipm.md'; fi
   if grep -qi 'any namespace' "$sec"; then echo 'ipm: the section says "any namespace"'; fi
+  if ! grep -qF "$IPM_WARNING" "$sec"; then echo 'ipm: the section does not warn that the registry line removes the repositories already set up'; fi
+  if ! grep -qxF 'zn "OCUTALON"' "$sec" || [ "$(grep -cxF 'zpm "install ocutalon"' "$sec")" -lt 2 ]; then echo 'ipm: the section does not give the second run in OCUTALON'; fi
   load=$(grep -nF -m 1 'zpm "load' "$sec" | cut -d: -f1)
   if [ -n "$load" ] && { [ -z "$first" ] || [ "$load" -le "$first" ]; }; then echo 'ipm: the folder install (zpm "load) comes before the registry install'; fi
   # The linked page gives the registry install first and the folder install second.
@@ -1010,10 +1058,34 @@ HOLDER_LINE='Copyright (c) 2026 jbrandtmse'
 chk_licence() {
   local sec="$tmp/sec.licence"
   if ! grep -qF 'Permission is hereby granted, free of charge, to any person obtaining a copy' "$2"; then echo "licence: $LICENSE_FILE has no MIT grant paragraph"; fi
+  if ! grep -qF 'The above copyright notice and this permission notice shall be included in all' "$2"; then echo "licence: $LICENSE_FILE has no MIT condition paragraph"; fi
   if ! grep -qF 'THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND' "$2"; then echo "licence: $LICENSE_FILE has no MIT warranty paragraph"; fi
   if [ "$(grep -c '^Copyright' "$2")" -ne 1 ] || ! grep -qxF -- "$HOLDER_LINE" "$2"; then echo "licence: $LICENSE_FILE does not hold exactly the line '$HOLDER_LINE'"; fi
   section "$1" 'Credits and licences' > "$sec"
   if ! grep -qxF -- "$LICENCE_LINE" "$sec"; then echo "licence: 'Credits and licences' does not hold the line '$LICENCE_LINE'"; fi
+}
+
+# docs (Story 31.3, AC 2 and AC 7): chk_docs <docs/bridge-guide.md> <docs/install-ipm.md> <docs/security-overview.md>
+BRIDGE_BULLET_START='- InterSystems AI Hub, build 154, '
+BRIDGE_SENTENCE='Build 109, which the Early Access portal now offers in place of build 154, has not been tested with this guide yet.'
+IPM_BULLET_START='- An InterSystems IRIS for AI Hub instance, build 154, '
+IPM_SENTENCE='Build 109, which the Early Access portal now offers in place of build 154, has not been tested with the IPM install yet.'
+L111='- It is fixed to exact targets and shows its dry run (a fix), or the tool, its MCP server when it has one, and its inputs through the redactor, cut to 200 characters, with the full call kept in the approval record (a tool call).'
+L187="- Every call passes the gate, an approval request when needed (showing the tool, its server and its inputs through the redactor, cut to 200 characters, with the full call kept in the approval record), an audit entry (read-only calls included) and an agent step."
+MCP_FRAME="This release can't connect to MCP servers. When a release adds MCP support, these rules apply:"
+chk_docs() {
+  if ! grep -F -- "$BRIDGE_BULLET_START" "$1" | grep -q -F -- "$BRIDGE_SENTENCE"; then
+    echo "docs: $BRIDGE_DOC has no build 154 bullet that holds the build 109 sentence"
+  fi
+  if ! grep -F -- "$IPM_BULLET_START" "$2" | grep -q -F -- "$IPM_SENTENCE"; then
+    echo "docs: $IPM_DOC has no build 154 bullet that holds the build 109 sentence"
+  fi
+  if [ "$(grep -c -x -F -- "$L111" "$3")" -ne 1 ]; then echo "docs: $SECOV_DOC does not hold the ruled line about a tool call's approval request once"; fi
+  if [ "$(grep -c -x -F -- "$L187" "$3")" -ne 1 ]; then echo "docs: $SECOV_DOC does not hold the ruled line of the MCP rules about the approval request once"; fi
+  if grep -q -F -- 'the exact call' "$3"; then echo "docs: $SECOV_DOC still promises 'the exact call'"; fi
+  if ! awk -v f="$MCP_FRAME" -v l="$L187" '$0 == f { a = NR } $0 == l { b = NR } /^#/ && a && !b { h = 1 } END { exit !(a && b && a < b && !h) }' "$3"; then
+    echo "docs: the MCP rules line is not under \"$MCP_FRAME\" with no heading between"
+  fi
 }
 
 # telegram-demo (U-228 condition 2): sentence by sentence, outside code fences.
@@ -1165,6 +1237,7 @@ rule_interesting() {
   st 'the hero image line dropped from the section' 1 "$README" '/^## / { s = ($0 ~ /^## What.s interesting$/) } s && index($0, "![") == 1 && index($0, "]('"$hero"')") > 0 { next } { print }' chk_interesting
   st 'the Chat bullet image line dropped from the section' 1 "$README" '/^## / { s = ($0 ~ /^## What.s interesting$/) } s && index($0, "![") == 1 && index($0, "]('"$chat"')") > 0 { next } { print }' chk_interesting
   st 'both image lines dropped from the section' 1 "$README" '/^## / { s = ($0 ~ /^## What.s interesting$/) } s && index($0, "![") == 1 { next } { print }' chk_interesting
+  st 'the two image lines swapped' 1 "$README" '/^## / { s = ($0 ~ /^## What.s interesting$/) } s && index($0, "![") == 1 && index($0, "]('"$hero"')") > 0 { held = $0; next } s && index($0, "![") == 1 && index($0, "]('"$chat"')") > 0 { print; if (held != "") print held; next } { print }' chk_interesting
   st 'an image line that is not the two' 1 "$README" '/^## / { s = ($0 ~ /^## What.s interesting$/) } s && index($0, "![") == 1 && index($0, "]('"$chat"')") > 0 { sub(/\]\([^)]*\)/, "](docs/images/other.png)") } { print }' chk_interesting
   if [ "$n" -le 120 ]; then
     # The limit itself: the section padded to exactly 121 words is flagged, and padded to exactly 120 it is not.
@@ -1361,6 +1434,7 @@ rule_key_account() {
 rule_lan() {
   rule_begin lan "$README" || return
   st_facts chk_lan "$LAN_FACTS"
+  st_facts chk_lan "$ACCOUNTS_FACTS"
   st_move 'the warning moved out of the section' 'Sign in' '**Change the README account' chk_lan
   st 'the default accounts section removed' 1 "$README" '$0 == "### Change the default IRIS accounts\047 passwords" { next } { print }' chk_lan
   st 'the default accounts section renamed' 1 "$README" '$0 == "### Change the default IRIS accounts\047 passwords" { print "### Change the default passwords"; next } { print }' chk_lan
@@ -1666,6 +1740,8 @@ rule_ipm() {
   st 'the link to docs/install-ipm.md changed' 1 "$README" '{ gsub(/\]\(docs\/install-ipm\.md\)/, "](docs/other.md)") } { print }' chk_ipm
   st 'any namespace said' 1 "$README" '{ print } /^This second run installs/ { print ""; print "Run it in any namespace." }' chk_ipm
   st 'the folder install before the registry install' 1 "$README" '{ print } /^### Install it with IPM$/ { print ""; print "```"; print "zpm \"load /x\""; print "```" }' chk_ipm
+  st 'the repositories warning removed' 1 "$README" '!/^This command first removes the package repositories/' chk_ipm
+  st 'the second run removed' 1 "$README" '!/^zn "OCUTALON"$/' chk_ipm
   st 'the page gives the folder install first' 2 "$ipmdoc_p" '/^zpm "enable -community"$/ { print; print "zpm \"load /x\""; next } { print }' chk_ipm
   st 'the page without the folder install' 2 "$ipmdoc_p" '!/^zpm "load/' chk_ipm
   finish ipm 'the IPM section follows the image sections: registry line, then the first install in USER, a link to the page, no "any namespace"' chk_ipm
@@ -1678,6 +1754,7 @@ rule_licence() {
   st 'a second copyright line' 2 "$license_p" '{ print } /^Copyright/ { print "Copyright (c) 2026 someone else" }' chk_licence
   st 'no holder line' 2 "$license_p" '!/^Copyright/' chk_licence
   st 'no grant paragraph' 2 "$license_p" '!/^Permission is hereby granted/' chk_licence
+  st 'no condition paragraph' 2 "$license_p" '!/^The above copyright notice and this permission notice/' chk_licence
   st 'no warranty paragraph' 2 "$license_p" '!/^THE SOFTWARE IS PROVIDED/' chk_licence
   st 'the README line removed' 1 "$README" '!/^OcuTalon is under the MIT License: /' chk_licence
   st 'the README line changed' 1 "$README" '/^OcuTalon is under the MIT License: / { sub(/MIT/, "Apache") } { print }' chk_licence
@@ -1685,7 +1762,24 @@ rule_licence() {
   finish licence 'LICENSE holds the MIT grant, the warranty and the holder line, and Credits and licences links it' chk_licence
 }
 
-RULES='top try_it interesting use_cases how_you_talk teaser images outcomes install install_pointer commands key_account lan sign_in_address demo_mode admin_commands after_start_log dev_only public_text telegram_section telegram_strings telegram_facts telegram_demo no_telegram product_links readme_links must_scan ipm licence'
+rule_docs() {
+  rule_begin docs "$bridgedoc_p" "$ipmdoc_p" "$secov_p" || return
+  st 'the bridge guide without the build 109 sentence' 1 "$bridgedoc_p" '{ sub(/ Build 109, which the Early Access portal now offers in place of build 154, has not been tested with this guide yet\./, "") } { print }' chk_docs
+  st 'the bridge guide sentence changed' 1 "$bridgedoc_p" '{ sub(/has not been tested with this guide yet/, "has been tested with this guide") } { print }' chk_docs
+  st 'the bridge guide sentence on a line of its own' 1 "$bridgedoc_p" '{ if (sub(/ Build 109, which the Early Access portal now offers in place of build 154, has not been tested with this guide yet\./, "")) { print; print ""; print "Build 109, which the Early Access portal now offers in place of build 154, has not been tested with this guide yet." } else print }' chk_docs
+  st 'the IPM page without the build 109 sentence' 2 "$ipmdoc_p" '{ sub(/ Build 109, which the Early Access portal now offers in place of build 154, has not been tested with the IPM install yet\./, "") } { print }' chk_docs
+  st 'the IPM page sentence changed' 2 "$ipmdoc_p" '{ sub(/has not been tested with the IPM install yet/, "has been tested with the IPM install") } { print }' chk_docs
+  st 'the approval section back to the exact call' 3 "$secov_p" 'index($0, "- It is fixed to exact targets and shows its dry run (a fix), or the tool") == 1 { print "- It is fixed to exact targets and shows its dry run (a fix) or the exact call (a tool call)."; next } { print }' chk_docs
+  st 'the approval section line without the 200 characters' 3 "$secov_p" '{ sub(/, cut to 200 characters/, "") } { print }' chk_docs
+  st 'the MCP rules back to the exact call' 3 "$secov_p" 'index($0, "- Every call passes the gate, an approval request when needed (showing the tool") == 1 { print "- Every call passes the gate, an approval request when needed (showing the exact call), an audit entry (read-only calls included) and an agent step."; next } { print }' chk_docs
+  st 'the MCP rules line without the full call kept' 3 "$secov_p" '{ sub(/, with the full call kept in the approval record\), an audit entry/, "), an audit entry") } { print }' chk_docs
+  st 'the MCP framing sentence removed' 3 "$secov_p" '!/^This release can.t connect to MCP servers\./' chk_docs
+  st 'a heading between the framing sentence and the rules line' 3 "$secov_p" '/^- An MCP tool that runs commands must be classified risky\./ { print "## Other"; print "" } { print }' chk_docs
+  st 'the exact call promised elsewhere' 3 "$secov_p" '{ print } END { print ""; print "- It shows the exact call." }' chk_docs
+  finish docs 'the build 109 sentences of the bridge guide and the IPM page and the two ruled lines of the security overview are there, word for word' chk_docs
+}
+
+RULES='top try_it interesting use_cases how_you_talk teaser images outcomes install install_pointer commands key_account lan sign_in_address demo_mode admin_commands after_start_log dev_only public_text telegram_section telegram_strings telegram_facts telegram_demo no_telegram product_links readme_links must_scan ipm licence docs'
 
 # unlisted <rule names>: each rule_* function of this script but rule_begin that the list does not name, one per line.
 unlisted() {

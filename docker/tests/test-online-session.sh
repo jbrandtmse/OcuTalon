@@ -388,7 +388,9 @@ fi
 if [ -n "$tg_saved" ] && [ -n "$tg_finish" ]; then
   fail "row 4: the Telegram fixture did not put everything back: $tg_finish"
 fi
-if [ -n "$tg_saved" ] && [ -n "$chat_c_was" ]; then set_chat "$chat_c_was" > /dev/null; fi
+if [ -n "$tg_saved" ] && [ -n "$chat_c_was" ] && [ "$(set_chat "$chat_c_was")" != 1 ]; then
+  fail "row 4: C's pairing did not get its first chat id back"
+fi
 
 # The splash with C's jar says the place was freed; a sign-in with the jar resumes C's epoch with the rows still there.
 next_probe

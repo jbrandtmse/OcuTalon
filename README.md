@@ -23,7 +23,7 @@ OcuTalon runs as an IRIS Interoperability production, so the agent is an Interop
 
 ![The OcuTalon page on the online demo: an incident card for 50 failed orders names the cause and shows a dry run of the fix waiting for approval; the simulated phone shows the same approval request.](docs/images/page-incident.png)
 
-![Visual Trace of one whole decision: the incident manager hands the incident to the decision process, which calls the diagnosis agent; each of the agent's model requests and tool calls shows as an agent step of its own, and the dry run follows, each a production message.](docs/images/vt-decision.png)
+![Visual Trace of one whole decision: the incident manager hands the incident to the decision process, which calls the diagnosis agent, and each of the agent's model requests and tool calls shows as an agent step of its own; then come the dry run, the approval request held as a Workflow task and its answer, the fix run, and the notices to the web chat and the simulated phone, each a production message.](docs/images/vt-decision.png)
 
 ## What you can use it for
 
@@ -61,7 +61,7 @@ Each decision shows its reasons, its confidence and its cost.
 
 - **Chat on a live page.** You talk to OcuTalon in a web page that updates as things happen. A reply shows its decision and a link that opens it in Visual Trace.
 
-  ![Visual Trace of one whole decision: the incident manager hands the incident to the decision process, which calls the diagnosis agent; each of the agent's model requests and tool calls shows as an agent step of its own, and the dry run follows, each a production message.](docs/images/vt-decision.png)
+  ![Visual Trace of one whole decision: the incident manager hands the incident to the decision process, which calls the diagnosis agent, and each of the agent's model requests and tool calls shows as an agent step of its own; then come the dry run, the approval request held as a Workflow task and its answer, the fix run, and the notices to the web chat and the simulated phone, each a production message.](docs/images/vt-decision.png)
 
 - **Break the feed.** In demo mode the page has a Break the feed button. It makes a simulated partner send 50 orders in a changed date format into the Orders production, where they fail for real. OcuTalon groups the failures into one incident, explains the cause in plain English and proposes a fix with a dry run: how many orders it would resend, with an example. Nothing is resent until you press Approve in the chat or on the page's Simulated phone. Reject leaves everything as it was. After an approval, OcuTalon reports how many orders went through.
 
@@ -314,7 +314,7 @@ It prints `1` when the password was changed; if it prints anything else, the pas
 
 IRIS also comes with predefined accounts, among them `SuperUser` and `_SYSTEM`, which hold every right, and `Admin`. Change their passwords in the Management Portal: open http://localhost:52773/csp/sys/UtilHome.csp and sign in as `SuperUser` (its first sign-in asks for a new password).
 
-Then open System Administration, then Security, then Users. For `_SYSTEM`, `Admin` and any other enabled account you don't use, choose its name, enter a new password in Password and Password (confirm), and press Save.
+Then open System Administration, then Security, then Users. For `_SYSTEM`, `Admin` and any other enabled account you don't use, choose its name, select Enter new password, enter a new password in Password and Password (confirm), and press Save.
 
 Leave `CSPSystem`, the web gateway's account, and the accounts marked for internal use as they are.
 
