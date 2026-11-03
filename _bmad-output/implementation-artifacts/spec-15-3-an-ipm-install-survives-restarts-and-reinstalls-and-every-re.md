@@ -2,11 +2,11 @@
 title: 'Story 15.3: An IPM install survives restarts and reinstalls, and every release proves it'
 type: 'feature'
 created: '2026-11-02'
-status: 'draft'
+status: 'ready-for-dev'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
-warnings: ['oversized', 'multiple-goals']
+warnings: ['oversized']
 deferred: []
 ---
 
@@ -68,150 +68,62 @@ The release-proof criteria (part `p`, the repository mapping (U-232), the `ipmch
 
 ## Code Map
 
-- `release/ipm-install.sh` (Lane A, Epic 15):
-  - :1-66 the header and check list;
-  - :71-79 the modes `all|a|r|b`;
-  - :101 `run`;
-  - :188 `take_snapshot`; :221 `chk`; :224 `registry_order`; :230 `step_names`;
-  - :276-281 `reconcile_rows` and `reconcile_rows_above`;
-  - :310-345 `check_second_run [<run> <label>]`, the pattern for a labelled re-check;
-  - :507-520 `check_start_outside`, the DW-80 shape: stop and start from a session, +1 row, no second row after 15 s;
-  - :523-534 `check_start_by_step`;
-  - :553 `scratch_copy`; :560 `module_version`; :565 `seed_mark_value`; :571 `same_config`; :582 `command_failed`;
-  - :636-657 `check_recovery`, which gets this story's reinstall checks;
-  - :695-738 `reinstall_failures`, where the next-version copy follows the compile copy's `sed` of `<Version>`;
-  - :749-765 the stack. `live_web_port` comes before `dc up`, so path B's re-up keeps the port;
-  - :862-883 the mode dispatch;
-  - :885-979 path B, which ends at `same_services "path B second run"` (:979). The durability checks go after it.
-- `docker/tests/lib-live.sh` (read only, contended):
-  - :94 `live_lock_dir`; :244 `dc`; :287 `wait_until`; :315 `iris_script`; :485 `check_session`; :493 `session_value`;
-  - :622 `item_jobs <file>`; :636 `check_items_run <label>`;
-  - :130 exit 75 on a busy lock.
-  - Not usable on IPM, because they read the after-start log or the ready marker: `start_log`, `wait_started_ready`, `log_steps`, `check_log`.
-- **Restart patterns, read only.**
-  - `docker/tests/test-reminder-restart.sh` (Lane B):
-    - :56-63 `rem_state` (`state|late|traceHeaderId|waiting|starts|source|...`);
-    - :93-138 `fired_lines` and `await_fired`;
-    - :159-174 the seeding;
-    - :25-26: a clean restart keeps a live waiter, and only lost waiters are re-armed.
-  - `release/upgrade-harness.sh` (Lane A): :605-610 the one-line probes `reminder_waiting` and `approval_hold`; :1346-1424 `phase_restart` (`dc restart iris`).
-  - `docker/tests/test-production-restart.sh:50-66` `check_eval` (the EvalIn default setting and the "is disabled" refusal), and `docker/tests/test-production.sh:102-104` (row 14).
-- **Fixtures,** installed with the package (`module.xml:12` loads `OcuTalon.PKG`):
-  - `Test/Data/Fixture.cls`: :22 `Session`, :35 `Turn`, :53 `Reminder`;
-  - `Test/Schedule/ReminderFixture.cls`: :65 `Set`, :197 `WaitingCount`, :209 `StartHeaders`, :221 `WaitEnded`;
-  - `Test/Bridge/ApprovalRows.cls`: :12 `NewRow`, :37 `Save` (`RequiredRole` `OcuTalonUser`);
-  - `Test/Bridge/Approval.cls:2294` `HoldCount`.
-- `src/bridge/cls/OcuTalon/Bridge/Approval.cls` (Lane A, read only):
-  - :277 `Answer(ref,action,channel,irisUser,sessionRef)`; :313 the actions `approve` and `reject`;
-  - :752 `LiveHold`; :779-814 `Reconcile`.
-  - Use `reject`: an approve replays the tool call to Decide.
-- `src/ocutalon/cls/OcuTalon/Schedule/Reminder.cls:217-247` `Reconcile` (Lane B, read only). It re-arms through `HeartbeatIn`.
-- `src/ocutalon/cls/OcuTalon/Install/ReconcileIn.cls` (read only): :23 and :120 `LOGTEXT`, one Info row per reconciled start.
-- `src/preload/cls/OcuTalon/Install/Ipm.cls:16-27` `MapAndStop`, which runs `%IPM.Main.Shell("enable -map -ns OCUTALON -q")` with transactions suspended [held: intent gap 2].
-- `src/module.xml:4-16` [held: intent gap 1 for `SystemRequirements`].
-- `release/release.sh`:
-  - :4 the header's step line; :56 `STEPS="cut image overview ipm push notes"`;
-  - :439 `step_fail`; :451 `base_image`;
-  - :596-653 `step_overview`. Its export, run and exit mapping become a shared helper;
-  - :706-780 `ipm_pack`. :738 shows the `zpm "package ocutalon -only -path ..."` form, and :769 the repository form `repo -name ... -fs -depth 2 -path <dir>/`;
-  - :782-890 `step_ipm`. :866-877 is the `## IPM artifact` record, with `Size:`;
-  - :1044-1085 `cmd_next`: exit 0 records the step, 4 is stopped, 5 is wait.
-- `release/lib-release.sh`: :92 `ipm_artifact_path <v> <rc>` ("Story 15.3 reads it"); :95 `ipm_unpack`; :99-133 `ipm_artifact_check`, which needs only the three module.xml strings.
-- `release/security-overview.sh:2-15,61`: the callable-unit contract to follow. Exit 0 is pass, 75 busy, 1 fail and 2 a bad argument. It ends with one `PASS|FAIL|WAIT <unit>` line.
-- `release/checklist.sh`:
-  - :30-35 the author-row grammar; :57 `CK_AUTHOR_IDS`; :85-94 `ck_author_text`;
-  - :423-448 `author_rows`;
-  - :44-46 Result `not confirmed` exits 1;
-  - :359-366 `outward_hits`. A script naming `community.intersystems.com` after a non-dot character fails `no-outward`.
-- `release/notes.sh`: :330-368 `notes_record_part`, which today requires `Mode:`; :370-378 `notes_rehearsal` and `notes_upgrade`; :384-400 `notes_draft` ("How this release was checked").
-- `docker/tests/test-release-sequence.sh`:
-  - :7-9 the `--live ipm` header;
-  - :470-542 `live_run` and `live_ipm_run`, which use local bare repositories only;
-  - :1096-1098, :1601, :2069 `NEXT push` after ipm; :2453 the `STEPS` pin;
-  - `to_step`, the step chain at about :530-545;
-  - :2043-2133 `t_ipm`.
-- `docker/tests/test-release-checklist.sh` and `docker/tests/test-release-notes.sh`: the hermetic tests of the two scripts above.
-- `docker/tests/test-cpf.sh`:
-  - :114-120 rule 6, the exact `run:` line; :123-136 rule 7, deadline < timeout x 60;
-  - :264-307 rule 9, the guide. Its awk counts every `STEP` line of every `Configure` block into one total, so a second block of STEP lines fails today.
-- `docs/install-ipm.md`:
-  - :5 What you need; :19 The first command; :49 The second command; :109 The `iris merge` alternative; :128 Demo mode; :142 The model key; :146 The README account;
-  - :47 "Running the first command again in USER or %SYS gives the same stop" [held: intent gap 1].
-- `docs/security-overview.md`: no IPM, package or install-path sentence (the investigation's grep). This story makes none of its "this release" sentences untrue, so U-223 condition 2 needs no edit.
-- `.github/workflows/lane-a.yml:67-86`: job `ipm-install`, unchanged.
+Anchors were taken at `12fe53a1`; no source file changed since the first plan.
+
+- `release/ipm-install.sh` (Epic 15; the only script this story extends):
+  - :1-66 the header and check list (check 5 is :20-22; the mode paragraph :63-64). Checks 19-25 and check 5's new text go here; the modes stay `all|a|r|b` (:71-79).
+  - :101 `run`; :121 `snapshot`; :137 `residue`; :171 `check_no_residue <label> [ns...]`; :188 `take_snapshot`; :205 `stops_with_next_command`; :221 `chk`.
+  - :276-281 `reconcile_rows`, `reconcile_rows_above`.
+  - :310-345 `check_second_run [<run> <label>]`. Its first half (phases, STEP order, production running, autostart, module) is generic; its second half compares with path A's references (`same_services base`, `same_config first`, `PasswordValidationRoutine` empty), which do not hold on path B (foreign routine `ZzOther^ZzForeign`, base `base-b`).
+  - :507-520 `check_start_outside`: stop and start from a session, one new row within 60 s, none after 15 s more. The DW-80 row and both restarts reuse its counting.
+  - :553 `scratch_copy`; :560 `module_version`; :571 `same_config`.
+  - :636-657 `check_recovery` (check 17); :695-741 `reinstall_failures` (`REAL_VERSION` and `RAISED_VERSION` at :697-698, the version `sed` at :725-726, the forced failure run at :716, the recovery run at :719).
+  - :749-766 the stack (`live_web_port` before `dc up`).
+  - :770-785 the precondition and `take_snapshot base`; :787 `run first-user`; :823-832 the repeat in USER; :834-843 `run again-sys %SYS` (today it expects the stop line: replaced by U-231's refusal case, moved before :787); :845 the Shell() case.
+  - :862-874 path A's second run per mode; :876-884 the `a`/`r` exit; :887-985 path B; :950 `run second-merge`; :979 `same_services "path B second run"`, after which the durability checks go.
+- `docker/tests/lib-live.sh` (read only, contended): :244 `dc`; :287 `wait_until`; :315 `iris_script`; :460 `compare_chk`; :485 `check_session`; :493 `session_value`; :622 `item_jobs <file> [ns]` (Alive jobs per item, `name<TAB>jobs`).
+- Restart patterns (read only):
+  - `docker/tests/test-reminder-restart.sh` (Lane B): :20-26 (a clean restart keeps a live waiter; Reconcile re-arms only a lost one; a waiter that is waking when Reconcile runs can look lost, so that script never asserts the start headers of a due reminder); :56-63 `rem_state`; :93-138 `fired_lines` (the `ReminderTimer`-to-`Notify` header query).
+  - `release/upgrade-harness.sh:605-610` the one-line probes `reminder_waiting`, `approval_hold`; :1346-1424 `phase_restart` (`dc restart iris`).
+  - `docker/tests/test-production-restart.sh:50-66` `check_eval` (EvalIn's default row and the `is disabled` refusal).
+- Fixtures, installed with the package (`module.xml` loads `OcuTalon.PKG`), called only:
+  - `Test/Data/Fixture.cls`: :22 `Session(user)`, :35 `Turn(sessionRef,...)`, :53 `Reminder(sessionRef,dueAt,state,fields)` (a row with no waiter);
+  - `Test/Schedule/ReminderFixture.cls` (Lane B): :65 `Set(sessionRef,text,seconds)` (a live waiter), :197 `WaitingCount`, :209 `StartHeaders`, :221 `WaitEnded(ref,seconds)`;
+  - `Test/Bridge/ApprovalRows.cls`: :12 `NewRow(kind)`, :37 `Save(row,state,expiresIn,answerer,.ref)` (no hold);
+  - `Test/Bridge/Approval.cls:2294` `HoldCount(ref)`.
+- `src/bridge/cls/OcuTalon/Bridge/Approval.cls` (read only): :277 `Answer(ref,action,channel,irisUser,sessionRef)` (use `reject`; `approve` replays the tool call); :752 `LiveHold(ref)`; :779-814 `Reconcile`.
+- `src/ocutalon/cls/OcuTalon/Schedule/Reminder.cls:217-247` `Reconcile` (Lane B, read only; re-arms through `HeartbeatIn`).
+- `src/ocutalon/cls/OcuTalon/Install/ReconcileIn.cls` (read only): :23 `LOGTEXT`; :50 `OnProcessInput`; :120 the Info row.
+- `src/ocutalon/cls/OcuTalon/Install/Step/Production.cls` (read only): :110 `RestartProduction` (a running production's items restart); :296-299 `EvalEnabled`; :303-306 `SetEval` (EvalIn's default row).
+- `src/module.xml:4-16`: the new line goes right after `<SourcesRoot>.</SourcesRoot>` (:8).
+- IPM 0.10.10 (the first plan's extracts, `%IPM.Utils.Module` about :1180-1213, `%IPM.Main:2546`): `CheckSystemRequirements` runs after the module record is opened and before `LoadDependencies` and every phase; `load` without `-dev` sets `DeveloperMode` 0, so the transaction holding the record is rolled back on the refusal (inference from source; the %SYS case measures it).
+- `docs/install-ipm.md`: :7 the requirement line ("enabled for the namespace you start from"); :21 "Open an IRIS terminal in any namespace (USER here)"; :25-45 the first run's output block; :47 "Running the first command again in USER or %SYS gives the same stop and changes nothing." `test-cpf.sh` rule 9 (:264-307) pins none of these sentences.
+- `.github/workflows/lane-a.yml:67-86`: job `ipm-install` (fork guard :68, `timeout-minutes: 35`, `OCUTALON_LIVE_DEADLINE: "1980"`, `run: bash release/ipm-install.sh`). Unchanged: it already runs the whole script.
 
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] **Task 0, measurements** (lane-D throwaways, tag `e15s3i`). Record each result under Design Notes, "Measured in implement".
-  - (a) `zpm "enable -community"` in %SYS on a fresh instance with IPM 0.10.10 loaded, in a container with network, run by hand once with `docker run --pull never`. Keep its exact output for the guide. The plan's offline output is in Design Notes.
-  - (b) After the ruling on gap 2: the first and second `zpm "install ocutalon"` from the local repository. Confirm that the second run finds the repository in OCUTALON, and that a registry left configured but unreachable doesn't block the local install.
-  - (c) The `TIME` lines of `a`, `r`, `b` and `p`, and the job projection (see Verification).
-  - (d) That `dc restart iris` keeps a live `ApprovalHold` and a live `ReminderTimer` on the IPM stack, as `test-reminder-restart.sh:25-26` measured on Docker.
-- [ ] `release/ipm-install.sh`: extend the functions; don't copy them. Add the header's checks 19-27 and the argument `p`, and add `p` to the usage line.
-  - **`check_ipm_case <label>`** (check 19): matrix row "Story 9.1's IPM case", as one `check_session`. Call it in `check_second_run`'s callers: the second run, `check_recovery`, path B's second run, and the next-version reinstall.
-  - **`seed_durable <tag>` and the probes.** `seed_durable` writes the session and turn, `RL`, `RX` and `AX` (and `RY` and `AY` when asked) through the fixtures in one session, and keeps their refs in shell variables. The probes `rem_probe <ref>` (`waiting|starts|lastsource`), `hold_probe <ref>` (`liveHold|holdCount`) and `conv_probe` copy only the one-line probe pattern of `upgrade-harness.sh:605-610`. The reason goes under Design Notes.
-  - **`check_restart_alone`** (check 21, DW-80): matrix row "Production alone". It reuses `check_start_outside`'s stop/start and row counting: factor the counting into a helper that both call.
-  - **`instance_restart <name>`**: `dc restart iris`, `wait_until` the ready query of `check_second_run:331-336`, then the row wait. **`check_restart <n>`** (checks 22 and 23): matrix rows "Instance restart 1" and "Instance restart 2". Restart 2 follows restart 1 with no other action between them.
-  - **`check_after_restarts`** (check 24): matrix row "After the restarts". Wait for `RL` with `wait_until` against `WaitEnded`.
-  - **`reinstall_next`** (check 25): matrix row "Reinstall, next version". `scratch_copy` of the real folder with only `<Version>` raised (the compile copy's `sed`). `run reinstall-next OCUTALON "zpm \"load <copy>\""`, then `check_second_run reinstall-next "next version"` with the raised version expected, then `item_jobs` before and after.
-  - **`check_recovery`** (check 20): matrix row "Recovery run passes 15.3's checks". `reinstall_failures` seeds before the forced failure, and `check_recovery` adds the reinstall checks.
-  - **`package_artifact`** (check 26): matrix row "Artifact". It runs after the second run's checks in modes `all` and `p`, before `reinstall_failures`. It is skipped when `OCUTALON_IPM_ARTIFACT` names a file. Source `release/lib-release.sh` for `ipm_artifact_check` and `ipm_unpack`.
-  - **Part `p`** (check 27): matrix row "Repository install". Run it at the end of `all`, and after path A's first and second run for `p`. [held: intent gap 2 for the second command's success]
-  - **Never named in the script:** the registry host name.
-- [ ] `release/release.sh`:
-  - **The step.** `STEPS="cut image overview ipm ipmcheck push notes"`, and the header's step line and step paragraph.
-  - **The shared helper.** Extract `step_overview`'s export, `node_modules` stub, lock-folder handoff, run and exit mapping into `candidate_unit <step> <script> [VAR=value...]`. `step_overview` calls it, and its behaviour and texts are unchanged.
-  - **`step_ipmcheck`** calls `candidate_unit ipmcheck release/ipm-install.sh OCUTALON_IPM_ARTIFACT=<the state's artifact>`. On a pass it writes `## FR-57 job` through `record_write`, with these lines:
-    - `Result: pass`
-    - `Candidate: <v> rc<n>, <branch> at <sha>`
-    - `Artifact: ocutalon-<v>.tgz <bytes> bytes`
-    - `Run: release/ipm-install.sh on the candidate's tree, its artifact installed through a local IPM repository`
-    - `Checks: <n> passed`
-    - `Time: <s> s`
-  - **The behaviour:** matrix row "Release gate". It makes no ASK.
-  - **`step_ipm`** prints `WARN ipm the artifact is <bytes> bytes, over 5 MB: report it to the Contest Planner` when the artifact is over 5,000,000 bytes, and adds the same note to its `Size:` line.
-- [ ] `release/notes.sh`:
-  - **`notes_record_part`:** an empty `<real mode>` means a section without `Mode:` is accepted. The existing callers are unchanged.
-  - **`notes_ipm`** copies `## IPM artifact`'s `Result:`, `Size:` and `SHA-256:` under `### IPM package`.
-  - **`notes_registry`** adds `### Registry install`, with the record's `registry-install` confirmation text and date. With no confirmation it adds `Not run yet: it runs once, after the author publishes the package, and its result is added here.`
-  - Both go in "How this release was checked".
-- [ ] `release/checklist.sh`: the after-publish author row `registry-install`, in the same line grammar.
-  - Unconfirmed, it prints `LATER registry-install: after publishing <v>, run the registry commands of docs/install-ipm.md once on a clean build 154 instance, then add the line "- registry-install: confirmed <YYYY-MM-DD> <result>" under "## Author confirmations" in <record>`.
-  - It reads `later` in the table and never makes the result `not confirmed`. Confirmed, it reads `confirmed`.
-  - The header documents the row kind.
-- [ ] `docker/tests/test-release-sequence.sh`:
-  - Pin the new `STEPS`. The chain and every "ipm passes" case now expect `NEXT ipmcheck`.
-  - Add a rule `ipmcheck` whose seed stub `release/ipm-install.sh` reads a flag: pass (`NEXT push`, the `## FR-57 job` section, the artifact variable handed over), fail (a stop before push, with the record), and exit 75 (WAIT, exit 5, nothing recorded).
-  - Cover the `step_overview` cases unchanged through the helper, and the 5 MB warning.
-  - Pin the header text of the new rule.
-- [ ] `docker/tests/test-release-notes.sh`: cases for `### IPM package` and `### Registry install`, confirmed and unconfirmed.
-- [ ] `docker/tests/test-release-checklist.sh`: `registry-install` is unconfirmed (`LATER`, and the result is still `pass` when every other row passes), then confirmed, then malformed (as the other rows treat it).
-- [ ] `docs/install-ipm.md`, rewritten in the AC's order:
-  1. **What you need.**
-  2. **"Install from the package registry":** `zpm "enable -community"` in %SYS with the Task 0 (a) output, then in USER `zpm "install ocutalon"` and its stop, `zn "OCUTALON"`, and `zpm "install ocutalon"` with its STEP lines.
-     - Until the author publishes, it shows part `p`'s real output and says that it comes from a local repository holding the same package (`zpm "repo -name ocutalon-local -fs -depth 2 -path <folder>/"`). [held: intent gap 2]
-  3. **"Install from the source folder (developers; needs Node.js)":** today's first-command and second-command sections.
-  4. Then the `iris merge` alternative, Demo mode, the model key, the README account and the step-failure paragraph, unchanged.
-- [ ] `docker/tests/test-cpf.sh`, rule 9:
-  - Count STEP lines per `Configure START`/`SUCCESS` block. Each block holds every step of the order, in order, and there is at least one block.
-  - Add the phrases `zpm "enable -community"` and `zpm "install ocutalon"`.
-  - The registry heading comes before the source-folder heading.
-  - Add one sample that keeps the rule and one that breaks it.
-- [ ] [held: intent gap 1] `src/module.xml`: `<SystemRequirements Version=">=2026.3" Interoperability="enabled"/>` after `<SourcesRoot>`. Also: `release/ipm-install.sh` check 5's %SYS case, and `docs/install-ipm.md:47`, as the ruling says.
-- [ ] [held: intent gap 2] `src/preload/cls/OcuTalon/Install/Ipm.cls` `MapAndStop`: also map IPM's repository globals into OCUTALON, as the ruling says. Then update `release/ipm-install.sh` check 3's expected mappings (`$tmp/expected.chk`).
-- [ ] **DW-576** (measured task): after the release.sh changes, run `docker/tests/test-release-sequence.sh --live ipm` once, in its own call, on HEAD, which carries the two-run `MapAndStop` `module.xml`. Record its `TIME ipm`, its result and the namespace that it packaged in (it must be OCUTALON) under Design Notes, "Measured in implement".
+- [ ] `src/module.xml` -- add `<SystemRequirements Version=">=2026.3" Interoperability="enabled"/>` after `<SourcesRoot>.</SourcesRoot>`, exactly as written -- the staff-requested bullet (U-231 keeps it).
+- [ ] `release/ipm-install.sh`, path A (check 5, U-231) -- after `check_no_residue "precondition"` (:785) and before `run first-user`, run the install in %SYS on the fresh instance (`run first-sys %SYS "$INSTALL"`): pass only when the final line is exactly `ERROR! This module requires an interoperability-enabled namespace. %SYS is not interoperability-enabled.`, no `Initialize START` line, the new snapshot equals `base` byte for byte (no OCUTALON, databases, resources or mappings; USER's mappings and services unchanged), and `check_no_residue` (no OcuTalon class, routine, module record or global in USER and %SYS, no role, user or web application); each failure names what it found. Delete the old %SYS repeat (:834-843). The USER first run and the USER repeat stay as they are -- matrix rows "First run in %SYS refused" and "First run in USER".
+- [ ] `release/ipm-install.sh`, shared helpers (Rule 2, extend) --
+  - factor `check_second_run`'s first half into `check_run_ok <run> <label>` (phases, STEP order, production running with nothing missing, autostart, module with 0 dependencies), then `check_ipm_case <label>`; `check_second_run` calls it and keeps its texts and its path-A comparisons;
+  - factor `check_start_outside`'s counting into `one_new_row <before> <label>` (wait up to 60 s for `before+1`, settle 15 s, pass only on exactly one); `check_start_outside` calls it and keeps its texts;
+  - `check_ipm_case <label>` (check 19): one `check_session` in OCUTALON for matrix row "Story 9.1's IPM case" (EvalIn's default row 0, `CreateBusinessService("EvalIn")` refused with `is disabled`, `TestingEnabled` 0, EvalIn has no Alive job). It runs from `check_run_ok` (path A's second run, the recovery run, the next-version reinstall) and once after path B's second run.
+- [ ] `release/ipm-install.sh`, probes and seeding -- `rem_probe <ref>` (`state|waiting|starts`), `hold_probe <ref>` (`liveHold|holdCount`) and `conv_probe` (the session and turn read back by value), each a one-line `session_value` probe like `upgrade-harness.sh:605-610`; `seed_durable <tags>` writes, in one OCUTALON session, the session `ZzIpmDurable` with one done turn, `RL` (`ReminderFixture.Set`, 180 s), `RX` (`Fixture.Reminder`, pending, due in one day), `AX` (`ApprovalRows.Save(NewRow("tool_call"),"pending",86400,,.ref)`), and on request `RY`/`AY` the same way; refs go to shell variables and print as `SEED` lines.
+- [ ] `release/ipm-install.sh`, path B after :979 -- in this order, each a function with `TIME` lines:
+  - `check_restart_alone` (check 21, DW-80): row "Production alone": `StopProduction(30,0)` and `StartProduction` from a session, `one_new_row`, then the probes;
+  - `instance_restart <n>`: `dc restart iris`, `wait_until` (within the run's deadline) the production runs with nothing missing, `TIME restart-<n>`; `check_restart <n>` (checks 22 and 23): rows "Instance restart 1" (after seeding `RY`, `AY`) and "Instance restart 2" (no action between the two restarts), each with `one_new_row`, `^Ens.AutoStart`, no `/opt/ocutalon/version` in the container, and every probe against the value recorded after the step before;
+  - `check_after_restarts` (check 24): row "After the restarts": wait for `RL` with `WaitEnded`, then its state, `WaitingCount` 0 and one `ReminderTimer`-to-`Notify` header (the header query copied from `fired_lines`), `Answer(AX,"reject","web","ocutalon","")` = `done`, the row `rejected`, `LiveHold` ""; `RX`, `RY`, `AY` still pending with one waiter or hold; `conv_probe` unchanged;
+  - `reinstall_next` (check 25): row "Reinstall, next version": `item_jobs` before; `scratch_copy` of `$SRC` with only `<Version>` raised (the :725-726 `sed`); `run reinstall-next OCUTALON "zpm \"load <copy>\""`; `check_run_ok reinstall-next "next version"`; the raised `module_version`; every item's jobs differ from before; `reconcile_rows` unchanged; `same_services base-b`, `same_config second-merge`; the foreign setting unchanged; `conv_probe`, `RX`, `RY`, `AY` intact with one waiter or hold.
+- [ ] `release/ipm-install.sh`, part `r` (check 20) -- in `reinstall_failures`, before the forced failure: seed a session with a turn, a live reminder (`ReminderFixture.Set`, 86400 s) and a lost approval, and save `item_jobs`; in `check_recovery`, right after `check_second_run reinstall-recover`: row "Recovery run passes 15.3's checks" (session intact, reminder 1 waiter, approval `HoldCount` 1 with a `LiveHold`, every item's jobs differ from before the failed reinstall).
+- [ ] `release/ipm-install.sh`, header -- check 5's new text, checks 19-25, and the mode paragraph (`b` now also runs checks 21-25). The registry host name is never named.
+- [ ] `docs/install-ipm.md` -- :7 becomes "enabled for USER"; :21 says to open a terminal in USER, that OcuTalon needs an Interoperability-enabled namespace, that USER is one on both IRIS for Health and IRIS build 154, and that in a namespace without Interoperability, such as %SYS, IPM refuses the package before it changes anything, quoting its line `ERROR! This module requires an interoperability-enabled namespace. %SYS is not interoperability-enabled.`, and to run the command in USER instead; :47 keeps only "Running the first command again in USER gives the same stop and changes nothing." Nothing else changes, unless the first run's output (:25-45) differs from a passing run's `first-user` block beyond times and the banner, in which case the block is replaced with it -- U-231's guide conditions.
 
 **Acceptance Criteria:**
-- Given an IPM install holding a conversation, a pending reminder and a pending approval request, when the production restarts alone and then the instance restarts twice in a row, then the rows "Production alone", "Instance restart 1", "Instance restart 2" and "After the restarts" hold, and `release/ipm-install.sh b` passes. This is the Integration AC: its consumer is the instance's autostart, and its effect is `ReconcileIn` re-arming each lost waiter exactly once.
-- Given an IPM install holding data, when the install command runs again with the same version (part `r`'s recovery run) or the next one (path B), then the rows "Recovery run passes 15.3's checks" and "Reinstall, next version" hold. The forced step failure and the failed compile of Story 15.2 still pass (U-176), and `release/ipm-install.sh r` passes.
-- Given any full IPM install, when Story 9.1's IPM case is checked, then the row "Story 9.1's IPM case" holds at each of its four points.
-- Given a push or pull request, when the `ipm-install` job runs `bash release/ipm-install.sh` with no argument, then it runs paths A, `r`, B with its durability checks, and `p`, and fails unless every check passes. `test-cpf.sh` rules 6 and 7 still pass, and the fork guard is unchanged.
-- Given a release candidate, when `release.sh next` reaches `ipmcheck`, then the row "Release gate" holds (`test-release-sequence.sh` rule `ipmcheck`). This is the Integration AC: its consumer is the release sequence, and its effect is a stop before `push`.
-- Given the artifact the release would publish, when part `p` installs it through a local filesystem repository on a fresh instance with no Node.js, then the rows "Artifact" and "Repository install" hold [held: intent gap 2], and `step_ipm`'s record and the notes give its size (`test-release-notes.sh`).
-- Given the registry check after publishing, when the author confirms `registry-install`, then the checklist reads it as confirmed and the notes carry its result. Before that, the row reads `later` and never blocks the checklist (`test-release-checklist.sh`).
-- Given `docs/install-ipm.md`, when it is read, then it opens with the registry install, its output blocks are a passing run's, and `test-cpf.sh` rule 9 and `test-boundaries.sh` pass.
-- Given `src/module.xml` with `SystemRequirements` [held: intent gap 1], when the package loads on build 154, then IPM's version check passes ("2026.3"), `release/lib-release.sh`'s artifact checks pass, and the first run behaves as the ruling says.
+- Given an IPM install (path B) holding a conversation, a pending reminder and pending approval requests, when the production restarts alone and then the instance restarts twice in a row, then the rows "Production alone", "Instance restart 1", "Instance restart 2" and "After the restarts" hold and `release/ipm-install.sh b` passes. This is the Integration AC: the consumer is the instance's autostart, and its observable effect is `ReconcileIn` re-arming each lost waiter exactly once.
+- Given an IPM install holding data, when the install command runs again with the same version (part `r`'s recovery run after the forced Audit failure) or the next one (path B), then the rows "Recovery run passes 15.3's checks" and "Reinstall, next version" hold, the failed compile still rolls back with the previous version running (check 18), and `release/ipm-install.sh r` and `b` pass.
+- Given a push or pull request, when the `ipm-install` job runs `bash release/ipm-install.sh` with no argument, then it runs path A, the reinstalls and path B with checks 1-25, fails unless every check passes, and the row "Story 9.1's IPM case" holds at each of its four points; `lane-a.yml` is unchanged (fork guard, `timeout-minutes: 35`), and `test-cpf.sh` rules 6 and 7 pass.
+- Given `src/module.xml` with the `SystemRequirements` line, when the package loads on build 154, then the version check passes (every USER and OCUTALON run of `a`, `r`, `b` and `live install-start`), the rows "First run in %SYS refused" and "First run in USER" hold, and `docs/install-ipm.md` advises USER on both images, quotes IPM's refusal and says to run the command in USER instead, with `test-cpf.sh` rule 9 and `test-boundaries.sh` passing.
 
 ## Spec Change Log
 
@@ -295,158 +207,113 @@ These matrix rows were planned here at iteration 1 and moved with the split. Sto
    - `release/ipm-install.sh` already has the unit contract that `security-overview.sh` has: exit 0 pass, 75 busy (lib-live), 1 fail, 2 usage.
    - This is not a set-aside or a deferral.
 
-### Decided in-stage
-1. **`ipmcheck` comes after `ipm`, not beside `overview`.** The exact artifact exists only after `ipm`, and the AC installs that artifact before any publish. It is still before `push`.
-2. **The restarts and the next-version reinstall run on path B's stack, and the same-version checks on part `r`'s recovery run.** This adds no stack, and "the forced-failure re-run also passes this story's checks" becomes the recovery run's reinstall checks plus Story 9.1's case. The two instance restarts run once, on path B.
-3. **"Re-armed once" uses lost waiters.** A clean restart keeps a live waiter (Lane B's measurement; Task 0 (d) confirms it on IPM), so the check seeds pending rows with no waiter and asserts one re-arm each, and no new start on restart 2. The live waiters (`RL`, and `AX` after DW-80's re-arm) must stay the same process.
-4. **The approval is answered with `reject`.** An approve replays the fixture's tool call to Decide.
-5. **Part `p` packages from path A's installed module in CI.** It uses `zpm "package ocutalon -only"`, as `ipm_pack` does, plus `ipm_artifact_check`. The release step passes the release's own artifact. Packing in a new container would cost about 40-90 s more (inference).
-6. **The size threshold is 5,000,000 bytes** ("a few MB"; an implementation detail).
-7. **`registry-install` is an after-publish row.** A checklist that gates a candidate can't require an act done after publishing, so the row reports `later` until the author confirms it.
-8. **Story 9.1's "IPM case"** exists only as criteria text (`epics.md:3672`, spec 9.1). No disabled or skipped test was left in the code. "Turn it on" means adding `check_ipm_case` to the job's script.
+The decisions taken at iteration 1 for the moved work, for Story 15.4's plan to reuse or revisit: `ipmcheck` comes after `ipm` (the exact artifact exists only then) and before `push`; part `p` packages from path A's installed module with `zpm "package ocutalon -only"` plus `ipm_artifact_check` in CI, and the release step passes the release's own artifact; the size threshold is 5,000,000 bytes; `registry-install` is an after-publish checklist row that reads `later` until the author confirms it. The intent block's words "Part `p` reuses the compose project" and "repository install" describe Story 15.4's part `p`: this story adds no part `p` and no repository install.
 
-### Size estimate
-About 7 hours from implement to commit:
-- implement about 3.5 h;
-- QA and review about 1.5 h;
-- smoke and CI about 1.5 h, plus a re-run for each held item after the rulings.
-
-What drives it:
-- each `ipm-install.sh` part is a 3-6 minute live run, and each of about 12 mutations needs one;
-- the release, notes and checklist hermetic suites, `test-release-sequence.sh` at 170 s each;
-- the guide rewrite from captured output.
-
-**Proposed split** (the lead decides; both before rc1, and the release gate and FR-57 checks stay in the release):
-- **15.3,** the durability in the FR-57 job (about 3.5 h): restarts, DW-80, reinstalls, the recovery run's checks, Story 9.1's case and `SystemRequirements` (gap 1). ACs 1-4 and the last.
-- **15.4,** the release proof (about 3.5 h): part `p` and `MapAndStop`'s repository mapping (gap 2), `ipmcheck`, the notes, the checklist row, the guide rewrite and DW-576. ACs 5-8.
-
-### CI budget (the 35-minute job)
-- **Measured:** the job took 15.9 min of steps on `3dd30fc`. Locally, `a` takes 166 s, `r` 272 s and `b` 142 s (lane D). The full run was 433 s locally in Story 15.2, about 2.2 times faster than the runner.
-- **Added, all inference:**
-  - path B's checks: about 200 s locally (two restarts at about 30 s each, two row waits of 15 s, the reinstall about 40 s, probes about 30 s; the reminder's 180 s due time overlaps the restarts);
-  - the recovery run: about 40 s;
-  - part `p`: about 120 s (packaging about 10 s, one fresh cycle about 15 s, two installs about 65 s, the web checks).
-  - That is about 360 s locally, or about 13 min on the runner, so about 29 min of 35.
-- **How the margin is kept:** no new compose project, no repeated restarts, and the waits overlap.
-- **Rule for the implement stage:** compute the projection as (the sum of the job's `TIME` lines from `a`, `r`, `b` and `p`, minus the repeated path-A runs of `b` and `p`) x 2.2. If it is over 30 min, stop with `## Clarification Needed` before committing. The remedy then is a second fork-guarded lane-a job for part `p`, a lead decision that adds a job and renames none. Never raise the timeout.
-
-### Measured at plan (2026-11-02)
-- Slot D: build 154 (`2026.3.0AI`, `GetMajor` 2026, `GetMinor` 3, `GetPoint` "0AI"). Slot D has no `%IPM`.
-- **The base image ships `zpm 0.10.5-SNAPSHOT` in HSLIB.** `enable -community` skips it ("IPM already installed"), so the guide's "IPM 0.10.10 loaded in %SYS" stays.
-- **`zpm "enable -community"`, offline:**
-  - It prints `Version of IPM in current namespace:` and `%SYS> zpm 0.10.10`, then three `RUNNING command:` blocks:
-    - `repo -delete-all`;
-    - `repo -reset-defaults`, which prints a `WARNING: Using -password via the CLI is insecure...` line and the `registry` repository, `Source: https://pm.community.intersystems.com`;
-    - `enable -map -repos -globally`, which maps `%IPM` into HSCUSTOM, HSSYS, HSSYSLOCALTEMP and USER, and the repositories into USER.
-  - Each ends `Command "..." finished successfull`.
-  - Offline, the registry shows `Available? No` and `currently unavailable`. Task 0 (a) measures the online form for the guide.
-- **A filesystem repository** lists a module only from an unpacked `<name>-<version>/` folder, not from a `.tgz` in the folder (`-list-modules` printed nothing). `install` from the unpacked folder took 6 s for the test module.
-- The plan's throwaways (`e15s3plan-*`) were removed.
+### Decided in-stage (re-plan)
+1. **Where things run.** The restarts and the next-version reinstall run on path B's stack after its own checks, and the same-version checks on part `r`'s recovery run (iteration 1's decision 2, kept). The two instance restarts run once, on path B. No compose project, mode or job is added.
+2. **"Re-armed once" uses lost waiters** (iteration 1's decision 3, kept): a clean restart keeps a live waiter (`test-reminder-restart.sh:20-26`), so the checks seed pending rows with no waiter (`RX`, `AX`, `RY`, `AY`) and assert one re-arm each and no new start on the next restart; the live ones (`RL`, and `AX` after DW-80) must stay the same process.
+3. **`RL` may come due during the restarts on a slow runner.** Its 180 s due time (the matrix's input) fits the local run (the restarts end about 150 s after seeding), but on the runner the DW-80 step and two restarts take about 300-450 s (inference, x2.2-3). So each restart check asserts the matrix's "1 waiter, the same start count" for `RL` only while `RL` is not yet due (its due time from the seeding, minus 5 s); once due, it accepts either that or `fired` with `WaitingCount` 0 and exactly one `ReminderTimer`-to-`Notify` header, never two, and it does not assert the start headers of a due `RL` (the same reason `test-reminder-restart.sh:24-25` gives: a waking waiter can look lost to a Reconcile). Every other assertion of the rows is unchanged, and check 24 still requires `RL` fired exactly once. Reversible inside this story.
+4. **The approval is answered with `reject`** (iteration 1's decision 4): an approve replays the fixture's tool call to Decide.
+5. **Story 9.1's IPM case** exists only as criteria text (`epics.md`, spec 9.1); no disabled test was left in the code. "Turn it on" means `check_ipm_case` in the job's script (iteration 1's decision 8). It also runs at path A's second run in mode `r`, which is harmless.
+6. **The %SYS case moves before the first USER run.** The matrix row needs "a fresh instance" and "no OCUTALON namespace or databases", which cannot hold after the USER run created them; the old %SYS repeat after the first run is removed with the guide's matching sentence (U-231's "the first run repeated in %SYS, and its pair").
+7. **`check_second_run` is split, not copied.** Its path-A comparisons (`base`, `first`, the empty password-validation routine) are wrong on path B, so `reinstall_next` uses the generic half (`check_run_ok`) and path B's own references (`base-b`, `second-merge`, the foreign setting).
+8. **`multiple-goals` is dropped from `warnings`.** The split left one goal: the IPM install's durability in the FR-57 job.
 
 ### Governing ADs (Rule 6)
-- AD-2: one package, no dependency.
-- AD-3: OCUTALON's mappings, which gap 2 extends.
-- AD-5: waiters re-armed from rows, only `ApprovalHold` and `ReminderTimer` as long timers, append-only storage, and settings kept across reinstall.
+- AD-2: one package, no dependency (the module stays with 0 dependencies).
+- AD-3: OCUTALON's databases and mappings; the %SYS refusal leaves none behind, and check 3's expected mappings are unchanged.
+- AD-5: waiters re-armed from rows; only `ApprovalHold` and `ReminderTimer` hold long timers; settings and data kept across reinstall.
 - AD-16: EvalIn off on the judges' install (Story 9.1's case).
-- AD-22: throwaways, mocks only in CI, fork pull requests never on the runner.
-- AD-23: the IPM install runs the same steps, autostart, every start reconciled, and "A restart test on an IPM install proves the waiters are re-armed".
+- AD-22: throwaways only, the CI mock, fork pull requests never on the runner.
+- AD-23: the IPM install runs the same steps, marks autostart, reconciles every start once, and "A restart test on an IPM install proves the waiters are re-armed". Its sentence "first in any namespace" is known to the orchestrator (the lead's report); this story implements the narrowed U-231 promise and never edits the spine.
 - AD-33: `ReconcileIn` is Lane A's.
-- The conventions "IPM early step" (gap 2 would amend it) and "IPM steps".
 
-No other AC contradicts an AD.
+No AC contradicts an AD's Rule.
 
 ### Ledger inbox (Rule 17)
-- **DW-80** is addressed by check 21 and the matrix row "Production alone".
-- **DW-576** is addressed by the DW-576 task, a live `--live ipm` run on HEAD's two-run `module.xml`.
-- **Declined DW-306:** this story doesn't edit `docker/tests/test-production.sh`, which is contended, so its row 21 wait is left for the next story that edits that file.
+- **DW-80** is addressed by check 21 and the matrix row "Production alone" (Execution: `check_restart_alone`).
+- **Declined DW-306:** its bullet applies only when this story edits `docker/tests/test-production.sh`; that file is contended (Epic 12 and others) and this story never edits it, so row 21's wait is left to the next story that edits the file.
+- DW-576 moved to Story 15.4 with the split (re-owned by the lead).
 
 ### Integration ACs, Consumed-by and Consumes (Rules 1 and 2)
-- **Integration ACs:** the instance autostart, through `ReconcileIn` (AC 1), and the release sequence's `ipmcheck` (AC 5).
-- **Consumed-by:**
-  - Story 11.14 calls `step_ipmcheck`, or reads the `ipm-install` job;
-  - Story 31.3 builds the README's IPM section from the guide's order;
-  - Stories 19.2 and 34.1 and Epic 38's 1.0.0 checks run on this install path.
-- **Consumes:**
-  - Stories 15.1 and 15.2's harness and checks;
-  - Story 11.17's artifact (`ipm_artifact_path`, `ipm_artifact_check`, `ipm_unpack`);
-  - `Test.Data.Fixture`, `Test.Schedule.ReminderFixture` (Lane B, called only), `Test.Bridge.ApprovalRows` and `HoldCount`;
-  - `ReconcileIn`;
-  - the CI model mock (unused by the new checks).
+- **Integration AC:** AC 1. The instance's autostart is the consumer; the observable effect is one `ReconcileIn` row per start and each lost waiter re-armed exactly once, read from the rows and the fixtures' probes on a real IPM install.
+- **Consumed-by:** Story 15.4 (extends `release/ipm-install.sh` with part `p` and keeps the U-231 guide advice in its registry-first rewrite); Story 31.3 (the README's IPM section from the guide); Stories 19.2 and 34.1 and Epic 38's 1.0.0 checks (run on this install path).
+- **Consumes:** Stories 15.1 and 15.2's harness and checks; `Test.Data.Fixture`, `Test.Schedule.ReminderFixture` (Lane B, called only), `Test.Bridge.ApprovalRows` and `HoldCount`; `ReconcileIn`; the areas' `Reconcile()` declarations; the CI model mock (not used by the new checks).
 
 ### Extend, don't copy (Rule 2)
-- `step_ipmcheck` and `step_overview` share `candidate_unit`.
-- `check_restart_alone` shares the row counting of `check_start_outside`.
-- `reinstall_next` reuses `scratch_copy` and `check_second_run`.
-- `notes_ipm` extends `notes_record_part`.
-- `registry-install` is an author row of `checklist.sh`'s grammar.
+- `check_restart_alone` and both restart checks share `one_new_row`, factored out of `check_start_outside`.
+- `reinstall_next` and `check_second_run` share `check_run_ok`; `reinstall_next` reuses `scratch_copy`, `module_version`, `same_config` and lib-live's `item_jobs`.
+- The %SYS case reuses `run`, `final_line`, `take_snapshot`, the snapshot diff and `check_no_residue`.
 - **Copies, with their reasons:**
-  - The three one-line probes copy `upgrade-harness.sh:605-610`, a script that runs when it is sourced.
-  - The reminder wait copies about 10 lines of `test-reminder-restart.sh`'s `await_fired`, a Lane B script's local function (U-177; `lib-live.sh` is contended).
+  - The three one-line probes follow `upgrade-harness.sh:605-610`, a script that runs when sourced.
+  - The `Notify` header query copies a few lines of `test-reminder-restart.sh`'s `fired_lines`, a Lane B script's local function (U-177; `lib-live.sh` is contended).
+  - `check_ipm_case` copies `test-production-restart.sh:50-66`'s refusal branch (about 8 lines), a local function of another live script that runs when sourced.
 
 ### Footprint, for the lead
-Inside Epic 15's files: `release/**`, `docker/tests/test-release-*.sh`, `docker/tests/test-cpf.sh`, `docs/install-ipm.md` and `src/module.xml`. Footprint extension, held by gap 2: `src/preload/cls/OcuTalon/Install/Ipm.cls`, Story 15.1's class, which no contended epic owns. `lane-a.yml` and `ci/units.sh` are unchanged.
+Edited: `release/ipm-install.sh`, `src/module.xml`, `docs/install-ipm.md`, all Epic 15's files. Mutations touch `src/ocutalon/cls/OcuTalon/Install/ReconcileIn.cls`, `Install/Step/Production.cls` and `src/module.xml` only while applied, and are restored byte-identical. `lane-a.yml`, `ci/units.sh`, `MapAndStop`, the spine, `epics.md`, `docs/security-overview.md`, every Lane B class and test and `docker/tests/test-production.sh` are unchanged. No footprint extension.
+
+### Size estimate (this story alone)
+About 3.75 hours from implement to commit, under the lead's 4-hour stop:
+- implement about 2 h: the script about 1 h; live loops of `a`, `r`, `b` (about 3, 5 and 7 min) two or three times; four mutation runs (about 18 min); the once-checks (about 10 min);
+- QA and review about 1 h (each re-run mutation is a 3-7 min live call);
+- smoke and CI about 0.75 h (the `ipm-install` job about 28 min).
+
+What drives it: every pinning test is a live `ipm-install.sh` part, and `b` grows from 142 s to about 400 s. No hermetic suite changes.
+
+### CI budget (the 35-minute job)
+- **Measured:** the job ran 15.9 min of steps on `3dd30fc`. Locally on lane D: `a` 166 s, `r` 272 s, `b` 142 s.
+- **Added, inference:** `a` about +5 s (the %SYS case replaces the %SYS repeat; the IPM case); `r` about +25 s (seeding, probes, item jobs, the IPM case); `b` about +260 s (seeding 10, DW-80 35, two restarts about 65 each, the remaining `RL` wait and the answer 40, the next-version reinstall 60, the IPM case 5). On the runner: the non-restart part (about 160 s) x2.2 = about 350 s, and the restarts (about 130 s) x3 = about 390 s, so about 12.3 min more: about 28 min of 35, a 7-minute margin. Part `p`'s former 120 s is gone.
+- **Rule for the implement stage:** let `added` = the wall seconds of the new `a`, `r` and `b` calls minus 580 (166 + 272 + 142), and `restarts` = the sum of `b`'s `TIME restart-<n>` lines; projected minutes = 15.9 + ((`added` - `restarts`) x 2.2 + `restarts` x 3) / 60. Over 30 min: stop with `## Clarification Needed` before committing (a second fork-guarded job is a lead decision). A local `b` over 570 s also stops (it would not fit one 10-minute call with its teardown). Never raise the timeout.
+
+### Measured at plan (2026-11-02, kept from iteration 1)
+- Slot D: build 154 (`2026.3.0AI`, `GetMajor` 2026, `GetMinor` 3, `GetPoint` "0AI"); `CheckVersion` compares "2026.3", so `>=2026.3` passes (a USER load of a test module with the line: all phases SUCCESS). Slot D has no `%IPM`.
+- In %SYS the same test module gave `ERROR! This module requires an interoperability-enabled namespace. %SYS is not interoperability-enabled.` and no phase.
+- The base image ships `zpm 0.10.5-SNAPSHOT` in HSLIB; the script loads IPM 0.10.10 into %SYS itself (the precondition).
+- The plan's throwaways (`e15s3plan-*`) were removed. This re-plan started no runtime.
 
 ## Verification
 
-Run every `[L]` command from the epic-15 worktree root, in the foreground, one per call, with `timeout: 600000`. Prefix each with:
+Run every command from the epic-15 worktree root (verify `git rev-parse --show-toplevel` first), in the foreground, one per call, with `timeout: 600000`. Prefix every `[L]` command with:
 
 `OCUTALON_LOCK_DIR="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")/.worktrees/.coordination/locks/lane-d" OCUTALON_TEST_WEB_PORT=52804 OCUTALON_LOCK_OWNER='epic=15 stage=implement' OCUTALON_RUN_TAG=e15s3i`
 
-Fresh throwaways only. End with `[L] bash ci/iris.sh teardown`, also after a failure.
+Fresh throwaways only (the `module.xml` change refuses a warm reload, and `live` is never warm). One lane-D stack at a time. End with `[L] bash ci/iris.sh teardown`, also after a failure. Never a slot for any of these.
 
 **Commands:**
-- `bash docker/tests/test-cpf.sh` (loop). Expected: every PASS, exit 0.
+- `bash docker/tests/test-cpf.sh` (loop). Expected: every PASS, exit 0 (rules 6, 7 and 9).
 - `bash docker/tests/test-pinned-sources.sh` (loop). Expected: `all checks passed`.
-- `bash docker/tests/test-boundaries.sh` (loop). Expected: exit 0.
-- `bash docker/tests/test-release-sequence.sh` (loop, about 170 s). Expected: no FAIL.
-- `bash docker/tests/test-release-notes.sh` (loop). Expected: no FAIL.
-- `bash docker/tests/test-release-checklist.sh` (loop). Expected: no FAIL.
-- `[L] bash ci/iris.sh build` (loop; first on every pass that runs IRIS). Expected: `BUILD the web bundle is built`.
-- `[L] bash release/ipm-install.sh a` (loop). Expected: `ipm-install: all checks passed`.
-- `[L] bash release/ipm-install.sh r` (loop). Expected: all checks passed.
-- `[L] bash release/ipm-install.sh b` (loop). Expected: all checks passed.
-- `[L] bash release/ipm-install.sh p` (loop). Expected: all checks passed.
-- (once) Each remaining script of `CHECK_SCRIPTS` in `ci/units.sh`, one `bash docker/tests/test-<name>.sh` per call (`ci/checks.sh` takes 16 min). Expected: no failure.
-- `[L] bash ci/iris.sh shard lane-a@Install` (once, 222 s). Expected: every class passed.
-- `[L] bash ci/iris.sh live install-start` (once). Expected: pass. The image loads the changed `module.xml` in OCUTALON.
-- `[L] bash ci/iris.sh live reminder-restart` (once). Expected: pass.
-- `[L] bash ci/iris.sh live production-restart` (once). Expected: pass.
-- `[L] bash docker/tests/test-release-sequence.sh --live ipm` (once, DW-576; in its own call). Expected: `PASS ipm`, packaged in OCUTALON. Record its time.
-- The full `release/ipm-install.sh` with no argument doesn't fit one 10-minute call locally (about 13 min, inference), so CI's `ipm-install` job is its first full run.
+- `bash docker/tests/test-boundaries.sh` (loop). Expected: exit 0 (no local path, no non-ASCII byte).
+- `[L] bash ci/iris.sh build` (loop; first on each pass that runs IRIS). Expected: `BUILD the web bundle is built`.
+- `bash -c '. release/lib-release.sh; d=$(mktemp -d); tar -czf "$d/a.tgz" -C src module.xml ocutalon/csp; ipm_artifact_check "$d/a.tgz" 0.1.0 "$PWD"; rm -rf "$d"'` (once, after the build). Expected: no output (the artifact checks pass with the changed `module.xml`).
+- `[L] bash release/ipm-install.sh a` (loop, about 170 s). Expected: `ipm-install: all checks passed`; check 5's %SYS case and check 19 PASS.
+- `[L] bash release/ipm-install.sh r` (loop, about 300 s). Expected: all checks passed; check 20 PASS.
+- `[L] bash release/ipm-install.sh b` (loop, about 400 s; over 570 s is a stop, see CI budget). Expected: all checks passed; checks 19 and 21-25 PASS; `TIME restart-1` and `TIME restart-2` printed.
+- `bash docker/tests/test-readme.sh` (once). Expected: no failure (the guide's links and text).
+- `[L] bash ci/iris.sh live install-start` (once). Expected: pass; the image's after-start loads the changed `module.xml` in OCUTALON.
+- The full `release/ipm-install.sh` with no argument does not fit one 10-minute call locally (about 14 min, inference), so CI's `ipm-install` job is its first full run; record its job minutes against the projection.
 - `[L] bash ci/iris.sh teardown` (once, last). Expected: a `TEARDOWN tag e15s3i` line.
 
-**Planned mutations (Rule 19).** Apply each, see red, revert, and confirm that `git status --short` and `git diff --stat` are unchanged. Then write the `mutation:` lines here.
+**Planned mutations (Rule 19, one per AC).** Back up the file into the stage's own scratch folder, apply, run the one call, see red, restore from the backup, and confirm `git status --short` and `git diff --stat` are unchanged. Then write the `mutation:` lines here.
 
-| Mutation | Test that goes red | Pins |
+| AC | Mutation | Test that goes red |
 |---|---|---|
-| `ReconcileIn` never reaches its run branch | `ipm-install.sh b`, checks 21-22 | restart re-arms |
-| `Approval.Reconcile` starts a hold even when `LiveHold` is set (a seeded state in the script: a second `StartHold` before restart 2) | `ipm-install.sh b`, check 23 ("no duplicate") | exactly once |
-| The script's restart 2 is skipped | `ipm-install.sh b`, check 23 | two restarts |
-| `Production.AutoStart` never marks | `ipm-install.sh b`, check 22 (production not running) | autostart |
-| The next-version copy keeps the version | `ipm-install.sh b`, check 25 (version) | next version |
-| The Production step doesn't restart a running production (a script seam: stop the items' restart) | `ipm-install.sh b`, check 25 (job ids) | new code |
-| The recovery run's seeded approval is deleted | `ipm-install.sh r`, check 20 | reinstall keeps data |
-| The EvalIn default setting is seeded to 1 before the check | `ipm-install.sh a`, check 19 | Story 9.1's case |
-| `step_ipmcheck` ignores the unit's exit code | `test-release-sequence.sh` rule `ipmcheck` | release gate |
-| `notes_ipm` drops the `Size:` line | `test-release-notes.sh` | artifact size |
-| `registry-install` counts as `not confirmed` | `test-release-checklist.sh` | after-publish row |
-| The guide without `zpm "enable -community"`, or with the registry section after the folder section | `test-cpf.sh` rule 9 | guide order |
+| 1 restarts | `ReconcileIn.OnProcessInput` (:50) quits before its run branch | `ipm-install.sh b`, checks 21 and 22 (no new row, `RX`/`RY`/`AY` not re-armed) |
+| 2 reinstalls | `Install/Step/Production.cls` :110 skips `RestartProduction` for a running production | `ipm-install.sh r`, check 20 (every item's job unchanged after the recovery run) |
+| 3 FR-57 job and 9.1 | `Install/Step/Production.cls` `EvalEnabled` (:296-299) returns 1 | `ipm-install.sh a`, check 19 (row 1, EvalIn not refused) |
+| 4 SystemRequirements and U-231 | the `SystemRequirements` line removed from `src/module.xml` | `ipm-install.sh a`, check 5's %SYS case (no refusal line, OCUTALON created) |
 
 **Shared surfaces:**
-- **`release.sh`'s `STEPS` and the step after `ipm`:** `test-release-sequence.sh` (:1098, :2069, :2453, `to_step`), and later Story 11.14.
-- **`checklist.sh`'s author ids and its section table:** `test-release-checklist.sh`.
-- **`notes.sh`'s "How this release was checked":** `test-release-notes.sh`.
-- **`docs/install-ipm.md`:** `test-cpf.sh` rule 9.
-- **`release/ipm-install.sh`'s check list and modes:** lane-a's `ipm-install` job and `test-cpf.sh` rules 6 and 7.
-- **`src/module.xml`** [held]: `test-cpf.sh`, `test-pinned-sources.sh`, `ci/warm.sh`'s manifest (a change refuses a warm reload) and `test-build-inputs.sh`.
-- **Check 3's expected OCUTALON mappings** [held]: `release/ipm-install.sh`.
+- `release/ipm-install.sh`'s check list, functions and modes: lane-a's `ipm-install` job and `test-cpf.sh` rules 6 and 7 (the `run:` line and deadline are unchanged); Story 15.4 extends it.
+- `src/module.xml`: `test-pinned-sources.sh`, `test-cpf.sh` rule 8, `release/lib-release.sh`'s artifact checks, `ci/warm.sh`'s manifest (a change refuses a warm reload) and every image start (`docker/after-start.cos` loads it in OCUTALON).
+- `docs/install-ipm.md`: `test-cpf.sh` rule 9, `test-boundaries.sh`, `test-readme.sh`, and Story 31.3's README section.
 
-Standing criterion: every test added or changed passes on a fresh environment, in either order.
+Standing criterion: every test added or changed passes on a fresh environment, in either order (each `ipm-install.sh` part starts its own fresh stack, and its checks seed and read only their own rows).
 
 **Manual checks:**
-- The guide's output blocks equal those of the run it cites, with ANSI codes and the banner removed.
+- The guide's first-run block (:25-45) matches a passing `a` run's `OUTPUT begin first-user` block apart from times, compile durations, ANSI codes and the `Node: ... Instance:` banner; if it does not, it is replaced with that block.
+- The guide's new sentences name USER for both images, quote IPM's refusal exactly, and name no host, path or rival.
 
 ## Auto Run Result
 
-Status: draft (re-plan after the lead rulings of 2026-11-03)
-Blocking condition: none (previous: intent gap: (1) Story 15.3's SystemRequirements bullet: `Interoperability="enabled"` makes IPM 0.10.10 refuse the package in %SYS before any phase ("ERROR! This module requires an interoperability-enabled namespace. %SYS is not interoperability-enabled.", measured on build 154), but Story 15.1's criteria, `release/ipm-install.sh` check 5 and `docs/install-ipm.md:47` run or promise the first run in %SYS. The bullet makes this a clarification. Recommended: narrow 15.1's "any namespace" to "any Interoperability-enabled namespace (USER on build 154)", make check 5's %SYS case assert IPM's refusal with no residue, and change the guide's two sentences. The version half passes ("2026.3"). (2) The registry and local-repository installs: after the first `zpm "install ocutalon"` in USER, the second in OCUTALON prints "ERROR! No repositories are configured and enabled in this namespace." (measured with the real package from a filesystem repository, also after `zpm "enable -community"`), because MapAndStop maps only the %IPM package and routines. So "the README's two commands" with "the two-step namespace message" can't hold. Recommended: option A, MapAndStop also maps IPM's repository globals into OCUTALON (`enable -map -repos -ns OCUTALON -q`, or `MapGlobalEquivalently` for `^IPM.Repo.Definition{D,S,I}`), with a spine amendment to the "IPM early step" row. Everything else is planned and ready; the tasks these two rulings affect are marked [held].)
+Status: ready-for-dev
+Blocking condition: none
