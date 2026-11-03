@@ -17,9 +17,13 @@
 #      of the baseline;
 #   4. nothing of OcuTalon is left: no OcuTalon class, routine or module record in USER, %SYS or OCUTALON, no ^OcuTalon global
 #      in USER or %SYS, no OcuTalon role, no user ocutalon and no /ocutalon web application;
-#   5. the same command again in USER, and in %SYS, gives the same stop, the same configuration and no residue, and the same
-#      install through %IPM.Main.Shell() in USER returns the stop sentence as an error status (the stop is not reported as a
-#      success), leaves transactions neither suspended nor open in the session, and leaves no residue;
+#   5. a first run in %SYS, made on the fresh instance before check 2, is refused by IPM because src/module.xml declares
+#      SystemRequirements with Interoperability enabled (U-231): the last line is exactly `ERROR! This module requires an
+#      interoperability-enabled namespace. %SYS is not interoperability-enabled.`, no Initialize START line is printed, and the
+#      configuration, the services and the residue are those of the precondition (nothing is created or left behind). Then the same
+#      command again in USER gives the same stop, the same configuration and no residue, and the same install through
+#      %IPM.Main.Shell() in USER returns the stop sentence as an error status (the stop is not reported as a success), leaves
+#      transactions neither suspended nor open in the session, and leaves no residue;
 #   6. IPM answers in OCUTALON (%IPM.Main.Shell("version") returns OK), so the next command can start there;
 #   Path B, `iris merge`:
 #   7. on a fresh instance from the same image, `iris merge IRIS /opt/ocutalon-ipm/src/cpf/ocutalon.cpf` exits 0 and gives the same
@@ -59,8 +63,31 @@
 #   18. a reinstall whose Compile fails (a scratch copy with a class that does not compile and a changed Registry.Order()): IPM reports the
 #      failure and no step runs, and the previous version keeps running: the production runs with nothing missing, Registry.Order() answers as
 #      before, the module version is unchanged, the scratch class is absent, the mark is kept and the configuration is unchanged.
-# The argument chooses the paths: none runs A, the reinstalls (checks 16 to 18) and B (the job), `a` path A (checks 1 to 6 and 8 to 14) only, `r` path A's
-# first and second run and the reinstalls (checks 16 to 18), `b` path A's first run (the reference of path B's comparison) and path B.
+# Story 15.3 adds the durability checks and Story 9.1's IPM case:
+#   19. Story 9.1's IPM case, after every full install (path A's second run, the recovery run of check 20, path B's second run and
+#       the reinstall of check 25): the default setting OcuTalon.Production||EvalIn||*||Enabled is 0, CreateBusinessService("EvalIn")
+#       fails with a text containing `is disabled`, the production's TestingEnabled is 0 and EvalIn has no Alive job;
+#   20. part r seeds a session with a turn, a live reminder (due in one day) and a lost approval before the forced failure; after the
+#       recovery run the session and its turn are read back unchanged, the reminder has one waiter, the approval has one hold, and
+#       every item's job differs from before the failed reinstall;
+#   Path B, after check 15's install and Story 9.1's case, on the same stack, in this order:
+#   21. a production stop and start alone from a session (DW-80), with no installer run: ReconcileIn logs exactly one new Info row,
+#       a lost reminder has one waiter and one more start header, from HeartbeatIn, a lost approval has one hold, and the live reminder
+#       keeps its waiter and its one start from ReminderOps;
+#   22. a first instance restart (docker compose restart iris) with a second lost pair seeded: the production runs with nothing
+#       missing, ^Ens.AutoStart is OcuTalon.Production, the container has no /opt/ocutalon/version (no after-start script), ReconcileIn
+#       logs exactly one new row, the new pair is re-armed once and the other rows are unchanged;
+#   23. a second instance restart: the same, and every row has exactly one waiter or hold with the start counts and hold ids of
+#       check 22, so nothing was re-armed twice;
+#   24. after the restarts: the session and its turn are unchanged, the live reminder fires once (state fired, no waiter, one
+#       ReminderTimer to Notify header), the approval is rejected through Approval.Answer and its hold ends, and the other lost
+#       rows are still pending with one waiter or hold;
+#   25. the install command with the next version (a scratch copy of the package folder with the patch number raised, loaded in
+#       OCUTALON): Initialize to Activate SUCCESS and one STEP OK per step in order, the raised module version, a new job id for
+#       every item, no new ReconcileIn row, the configuration and the foreign setting unchanged, and the data and the waiters intact.
+# The argument chooses the paths: none runs A, the reinstalls (checks 16 to 18, 20) and B (the job), `a` path A (checks 1 to 6, 8 to 14 and 19)
+# only, `r` path A's first and second run and the reinstalls (checks 16 to 18, 20), `b` path A's first run (the reference of path B's
+# comparison) and path B (checks 7, 15, 19 and 21 to 25).
 # Every run's and the merge's full output is printed between `OUTPUT begin <name>` and `OUTPUT end <name>`, ANSI codes kept; the
 # checks read it with the codes removed. `TIME <step> <s>s` lines give the durations. Prints one PASS or FAIL line per check, and
 # exits 1 when any fails. The trap of live_start removes the project, its volume and its images, and releases the lock.
@@ -83,6 +110,7 @@ SCRIPT=release/ipm-install.sh
 SRC=/opt/ocutalon-ipm/src
 INSTALL="zpm \"load $SRC\""
 STOP='OcuTalon created namespace OCUTALON. Now run: zn "OCUTALON" then the same install command.'
+REFUSAL='This module requires an interoperability-enabled namespace. %SYS is not interoperability-enabled.'
 
 # --- the functions that Stories 15.2 and 15.3 extend ---
 
@@ -305,10 +333,27 @@ orders_running() {
 }
 orders_up() { [ "$(orders_running)" = 1 ]; }
 
-# check_second_run [<run name> [<label>]]: matrix row "Second run, path A". The output is in $tmp/<run name>.txt (default
-# second-ocutalon, label "second run"); the snapshot it takes is $tmp/<run name>.snap.
-check_second_run() {
-  local name="${1:-second-ocutalon}" label="${2:-second run}" f order got phase ok=1
+# check_ipm_case <label>: Story 9.1's IPM case (check 19) on the running production: EvalIn's default setting row is 0, EvalIn is refused as
+# disabled, the production's TestingEnabled is 0 and EvalIn has no Alive job.
+check_ipm_case() {
+  check_session "$1: Story 9.1's IPM case: EvalIn's default row is 0, EvalIn is refused as disabled, TestingEnabled is 0 and EvalIn has no job" OCUTALON \
+    "CHK|row|0
+CHK|refused|1
+CHK|testing|0
+CHK|jobs|0
+CHK|others|1" \
+    'Write !,"CHK|row|",##class(Ens.Config.DefaultSettings).%OpenId("OcuTalon.Production||EvalIn||*||Enabled").SettingValue' \
+    'Set sc=##class(Ens.Director).CreateBusinessService("EvalIn",.svc) Write !,"CHK|refused|",($SYSTEM.Status.IsError(sc)&&($SYSTEM.Status.GetErrorText(sc)["is disabled"))' \
+    'Write !,"CHK|testing|",+##class(Ens.Config.Production).%OpenId("OcuTalon.Production").TestingEnabled' \
+    'Set n=0,o=0,rs=##class(%ResultSet).%New("Ens.Job:Enumerate") Set sc=rs.Execute() While rs.Next() { If rs.Get("State")="Alive" { If rs.Get("ConfigName")="EvalIn" { Set n=n+1 } Else { Set o=1 } } } Write !,"CHK|jobs|",n,!,"CHK|others|",+$Get(o)' \
+    'Halt'
+}
+
+# check_run_ok <run name> <label>: the install command's output $tmp/<run name>.txt is Initialize to Activate SUCCESS with one STEP OK line
+# per step of Registry.Order(), in that order; the production runs with nothing missing, is the autostart production, and the module has no
+# dependency; Story 9.1's IPM case holds. Nothing here compares with a reference configuration.
+check_run_ok() {
+  local name=$1 label=$2 f order got phase ok=1
   f="$tmp/$name.txt"
   order=$(registry_order)
   got=$(step_names "$f")
@@ -335,6 +380,14 @@ CHK|module|ocutalon|0" \
     'Write !,"CHK|autostart|",$Get(^Ens.AutoStart)' \
     'Set m=##class(%IPM.Storage.Module).NameOpen("ocutalon") Write !,"CHK|module|",$Select($IsObject(m):m.Name_"|"_m.Dependencies.Count(),1:"<none>")' \
     'Halt'
+  check_ipm_case "$label"
+}
+
+# check_second_run [<run name> [<label>]]: matrix row "Second run, path A". The output is in $tmp/<run name>.txt (default
+# second-ocutalon, label "second run"); the snapshot it takes is $tmp/<run name>.snap.
+check_second_run() {
+  local name="${1:-second-ocutalon}" label="${2:-second run}"
+  check_run_ok "$name" "$label"
   take_snapshot "$name" "$label"
   same_services "$label" base "$name"
   same_config "$label" first "$name"
@@ -503,20 +556,33 @@ CHK|run|1" \
   fi
 }
 
-# check_start_outside: matrix row "Start outside the step".
-check_start_outside() {
-  local before after n
-  before=$(reconcile_rows)
-  run stop-start OCUTALON "$(printf '%s\n' 'Do ##class(Ens.Director).StopProduction(30,0)' 'Set sc=##class(Ens.Director).StartProduction("OcuTalon.Production") Write !,"CHK|start|",$SYSTEM.Status.IsOK(sc)')"
+# one_new_row <before> <label> <what>: ReconcileIn's Info rows, <before> of them when <what> began, rise to exactly <before>+1 within 60 s and
+# stay there for 15 s more (the shared count of the checks that start the production outside the Production step). Prints the PASS or FAIL
+# line; returns 0 on a pass.
+one_new_row() {
+  local before=$1 after n
   wait_until 60 reconcile_rows_above "$before" || true
   after=$(reconcile_rows)
   sleep 15
   n=$(reconcile_rows)
   if [ "$after" = "$((before + 1))" ] && [ "$n" = "$after" ]; then
-    pass "start outside the step: ReconcileIn logged one new Info row after a session's start, and no second one after three more polls ($before -> $after -> $n)"
+    pass "$2: ReconcileIn logged one new Info row after $3, and no second one after three more polls ($before -> $after -> $n)"
   else
-    fail "start outside the step: ReconcileIn's Info rows went $before -> $after, then $n; wanted one more and then no more"
+    fail "$2: ReconcileIn's Info rows went $before -> $after, then $n; wanted one more and then no more"
   fi
+}
+
+# stop_start: stops the production and starts it again from a terminal session of OCUTALON (no installer run), printed as run <name>.
+stop_start() {
+  run "$1" OCUTALON "$(printf '%s\n' 'Do ##class(Ens.Director).StopProduction(30,0)' 'Set sc=##class(Ens.Director).StartProduction("OcuTalon.Production") Write !,"CHK|start|",$SYSTEM.Status.IsOK(sc)')"
+}
+
+# check_start_outside: matrix row "Start outside the step".
+check_start_outside() {
+  local before
+  before=$(reconcile_rows)
+  stop_start stop-start
+  one_new_row "$before" "start outside the step" "a session's start" || true
 }
 
 # check_start_by_step: matrix row "Start by the step".
@@ -635,6 +701,7 @@ check_failed_step() {
 # check_recovery: the real folder again. The same checks as the second run, then the module and the seeded data.
 check_recovery() {
   check_second_run reinstall-recover "recovery run"
+  check_durable_recovery
   check_install reinstall-recover "recovery run: install checks"
   check_web
   check_package
@@ -704,6 +771,8 @@ reinstall_failures() {
   order=$(registry_order)
   check_session "reinstall: the status mark is seeded" OCUTALON "CHK|seed|1" \
     'Write !,"CHK|seed|",$SYSTEM.Status.IsOK(##class(OcuTalon.Data.StatusMark).Record("'"$SEED_MARK"'","'"$SEED_VALUE"'"))' 'Halt'
+  seed_durable 86400
+  item_jobs "$tmp/jobs-recover-before.tsv"
 
   scratch_copy "$SCRATCH_STEP" \
     "sed -i 's|^\\tSet sc = ##class(OcuTalon.Bridge.Installer).CheckAudit()\$|\\tQuit \$SYSTEM.Status.Error(5001, \"$FORCED_TEXT\")\\n&|' $SCRATCH_STEP/ocutalon/cls/OcuTalon/Install/Step/Audit.cls" \
@@ -746,6 +815,363 @@ foreign_orders() {
     'Halt' | session_value %SYS foreign
 }
 
+# --- durability and reinstalls of an installed package (Story 15.3; AD-5, AD-23; FR-6, NFR-16, NFR-17) ---
+#
+# "Re-armed exactly once" is read from state, with the test methods of the fixtures called and never edited: a reminder's waiters
+# (ReminderFixture WaitingCount) and its ReminderStart headers (StartHeaders), an approval's live hold (Approval.LiveHold) and its hold
+# instances (Test.Bridge.Approval HoldCount), and ReconcileIn's Info rows (reconcile_rows). Rows with no waiter (RX, AX, RY, AY) are
+# seeded directly, so that the one re-arm of each is countable: a clean restart keeps a live waiter, and Reconcile re-arms only a lost one.
+#   RL  a live reminder (set through the product), RX and RY lost reminders, AX and AY lost approvals, all in one session with a turn.
+
+SEED_USER=ZzIpmDurable
+SESS_REF=
+TURN_REF=
+RL=
+RX=
+AX=
+RY=
+AY=
+CONV0=
+P_RL=
+P_RX=
+P_AX=
+P_RY=
+P_AY=
+rl_due_s=0
+rows_bad=
+restart_rows_before=0
+
+# rem_probe <ref>: "<state>|<waiting ReminderTimers>|<ReminderStart headers>|<source of the last start header, - for none>".
+rem_probe() {
+  printf '%s\n' \
+    'Set ref="'"$1"'",RF="OcuTalon.Test.Schedule.ReminderFixture",row=##class(OcuTalon.Data.Reminder).RefIndexOpen(ref),h=$ClassMethod(RF,"StartHeaders",ref),n=h.%Size(),l=$Select(n:h.%Get(n-1),1:{}) Write !,"CHK|rem|",$Select($IsObject(row):row.State,1:"<no row>"),"|",$ClassMethod(RF,"WaitingCount",ref),"|",n,"|",$Select(n:l.source,1:"-")' \
+    'Halt' | chk rem
+}
+
+# hold_probe <ref>: "<id of the live ApprovalHold or nothing>|<ApprovalHold instances of the ref>".
+hold_probe() {
+  printf '%s\n' \
+    'Set ref="'"$1"'" Write !,"CHK|hold|",##class(OcuTalon.Bridge.Approval).LiveHold(ref),"|",##class(OcuTalon.Test.Bridge.Approval).HoldCount(ref)' \
+    'Halt' | chk hold
+}
+
+# notify_count <ref>: the ReminderTimer-to-Notify request headers in the trace sessions of the reminder's start headers.
+notify_count() {
+  printf '%s\n' \
+    'Set F="OcuTalon.Test.Data.Fixture",RF="OcuTalon.Test.Schedule.ReminderFixture",h=$ClassMethod(RF,"StartHeaders","'"$1"'"),k=0' \
+    'For i=0:1:h.%Size()-1 { Set b=$ClassMethod(F,"Between",$ClassMethod(F,"SessionHeaders",h.%Get(i).sessionId),1,"ReminderTimer","Notify") Set k=k+b.%Size() } Write !,"CHK|notify|",k' \
+    'Halt' | chk notify
+}
+
+# approval_state <ref>: the State of the approval row.
+approval_state() {
+  printf '%s\n' 'Write !,"CHK|astate|",##class(OcuTalon.Test.Bridge.ApprovalRows).Prop("'"$1"'","State")' 'Halt' | chk astate
+}
+
+# conv_probe: the seeded session and its turn, read back by value.
+conv_probe() {
+  printf '%s\n' \
+    'Set s=##class(OcuTalon.Data.Session).RefIndexOpen("'"$SESS_REF"'"),t=##class(OcuTalon.Data.Turn).RefIndexOpen("'"$TURN_REF"'") Write !,"CHK|conv|",s.IrisUser,"|",s.TraceRef,"|",s.CreatedAt,"|",t.SessionRef,"|",t.State,"|",t.CreatedAt,"|",t.ItemId,"|",t.Text' \
+    'Halt' | chk conv
+}
+
+# seed_val <name>: the value of the CHK|<name>| line of the last seeding.
+seed_val() { sed -n "s/^CHK|$1|//p" "$tmp/seed.chk" | head -n 1; }
+
+# seed_durable <seconds until RL is due>: the session ZzIpmDurable with one done turn, RL, RX and AX; the probes are recorded.
+seed_durable() {
+  local started=$SECONDS
+  rl_due_s=$((SECONDS + $1 - 10))
+  printf '%s\n' \
+    'Set s=##class(OcuTalon.Test.Data.Fixture).Session("'"$SEED_USER"'"),t=##class(OcuTalon.Test.Data.Fixture).Turn(s,##class(OcuTalon.Data.Time).NowUtc(),"done","zz ipm durable turn") Write !,"CHK|session|",s,!,"CHK|turn|",t' \
+    'Set o=##class(OcuTalon.Test.Schedule.ReminderFixture).Set(s,"zz ipm live reminder",'"$1"') Write !,"CHK|rl|",o.ref,"|",+o.ok' \
+    'Set x=##class(OcuTalon.Test.Data.Fixture).Reminder(s,##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(),86400),"pending") Write !,"CHK|rx|",x' \
+    'Set sc=##class(OcuTalon.Test.Bridge.ApprovalRows).Save(##class(OcuTalon.Test.Bridge.ApprovalRows).NewRow("tool_call"),"pending",86400,,.a) Write !,"CHK|ax|",a,"|",+$SYSTEM.Status.IsOK(sc)' \
+    'Halt' | iris_script OCUTALON > "$tmp/seed.chk"
+  SESS_REF=$(seed_val session)
+  TURN_REF=$(seed_val turn)
+  RL=$(seed_val rl | cut -d'|' -f1)
+  RX=$(seed_val rx)
+  AX=$(seed_val ax | cut -d'|' -f1)
+  echo "SEED session $SESS_REF turn $TURN_REF RL $RL RX $RX AX $AX"
+  P_RL=$(rem_probe "$RL")
+  P_RX=$(rem_probe "$RX")
+  P_AX=$(hold_probe "$AX")
+  CONV0=$(conv_probe)
+  echo "TIME seed $((SECONDS - started))s"
+  if [ -n "$SESS_REF" ] && [ -n "$TURN_REF" ] && [ -n "$RL" ] && [ -n "$RX" ] && [ -n "$AX" ] && [ "$(seed_val rl | cut -d'|' -f2)" = 1 ] \
+    && [ "$(seed_val ax | cut -d'|' -f2)" = 1 ] && [ "$P_RL" = "pending|1|1|ReminderOps" ] && [ "$P_RX" = "pending|0|0|-" ] && [ "$P_AX" = "|0" ] \
+    && [ "$(approval_state "$AX")" = pending ] && [ "${CONV0#*|}" != "$CONV0" ] && [ "$(printf '%s' "$CONV0" | cut -d'|' -f4)" = "$SESS_REF" ]; then
+    pass "seed: a session with a done turn, a live reminder (one waiter, one start from ReminderOps), a lost reminder and a lost approval (no waiter, no hold)"
+  else
+    echo "  RL '$P_RL' RX '$P_RX' AX '$P_AX' conv '$CONV0'"
+    fail "seed: the session, the turn, RL, RX or AX could not be seeded as planned"
+  fi
+}
+
+# seed_pair: the second lost pair, RY and AY, in the seeded session; the probes are recorded.
+seed_pair() {
+  printf '%s\n' \
+    'Set s="'"$SESS_REF"'",y=##class(OcuTalon.Test.Data.Fixture).Reminder(s,##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(),86400),"pending") Write !,"CHK|ry|",y' \
+    'Set sc=##class(OcuTalon.Test.Bridge.ApprovalRows).Save(##class(OcuTalon.Test.Bridge.ApprovalRows).NewRow("tool_call"),"pending",86400,,.a) Write !,"CHK|ay|",a,"|",+$SYSTEM.Status.IsOK(sc)' \
+    'Halt' | iris_script OCUTALON > "$tmp/seed.chk"
+  RY=$(seed_val ry)
+  AY=$(seed_val ay | cut -d'|' -f1)
+  echo "SEED RY $RY AY $AY"
+  P_RY=$(rem_probe "$RY")
+  P_AY=$(hold_probe "$AY")
+  if [ -n "$RY" ] && [ -n "$AY" ] && [ "$P_RY" = "pending|0|0|-" ] && [ "$P_AY" = "|0" ]; then
+    pass "seed: a second lost pair, RY and AY, with no waiter and no hold"
+  else
+    echo "  RY '$P_RY' AY '$P_AY'"
+    fail "seed: RY or AY could not be seeded as planned"
+  fi
+}
+
+# --- comparing rows: each want_* adds a line to rows_bad, report_rows prints one PASS or FAIL ---
+
+want_eq() { # want_eq <what> <got> <wanted>
+  if [ "$2" != "$3" ]; then rows_bad="${rows_bad}
+  $1: got '$2', wanted '$3'"; fi
+}
+report_rows() { # report_rows <label> <what held>
+  if [ -z "$rows_bad" ]; then
+    pass "$1: $2"
+  else
+    printf '%s\n' "${rows_bad#?}"
+    fail "$1: a row differs (the lines above name it with its waiting|starts|source or hold|count)"
+  fi
+  rows_bad=
+}
+want_same_rem() { # a row compared with an empty record is a failure: the record itself could not be read
+  if [ -z "$3" ]; then want_eq "$1 (the recorded state|waiting|starts|source)" "" "a value"; else want_eq "$1 (state|waiting|starts|source)" "$(rem_probe "$2")" "$3"; fi
+}
+want_same_hold() {
+  if [ -z "$3" ]; then want_eq "$1 (the recorded hold|count)" "" "a value"; else want_eq "$1 (hold|count)" "$(hold_probe "$2")" "$3"; fi
+}
+want_rearmed_rem() { # want_rearmed_rem <name> <ref> <probe before>: one waiter and one more start, from HeartbeatIn
+  want_eq "$1 (state|waiting|starts|source)" "$(rem_probe "$2")" "$(printf '%s' "$3" | awk -F'|' '{ printf "%s|1|%d|HeartbeatIn", $1, $3 + 1 }')"
+}
+want_rearmed_hold() { # want_rearmed_hold <name> <ref> <probe before>: a live hold and one more hold instance
+  local got
+  got=$(hold_probe "$2")
+  if [ -z "${got%%|*}" ] || [ "${got#*|}" != "$(printf '%s' "$3" | awk -F'|' '{ print $2 + 1 }')" ]; then
+    rows_bad="${rows_bad}
+  $1 (hold|count): got '$got', wanted a live hold and $(printf '%s' "$3" | awk -F'|' '{ print $2 + 1 }') hold instance(s)"
+  fi
+}
+want_alive_rem() { want_eq "$1 (state|waiting)" "$(rem_probe "$2" | cut -d'|' -f1,2)" "pending|1"; }
+want_alive_hold() { # a live hold and exactly one hold instance
+  local got
+  got=$(hold_probe "$2")
+  if [ -z "${got%%|*}" ] || [ "${got#*|}" != 1 ]; then rows_bad="${rows_bad}
+  $1 (hold|count): got '$got', wanted a live hold and 1 hold instance"; fi
+}
+
+# rl_due_ok: RL, when it is due, still waits or has fired exactly once (a waiter that is waking may look lost to a Reconcile, so its start
+# headers are not read once it is due).
+rl_due_ok() {
+  local got
+  got=$(rem_probe "$RL")
+  case $got in
+    pending\|1\|*) return 0 ;;
+    fired\|0\|*) [ "$(notify_count "$RL")" = 1 ] ;;
+    *) return 1 ;;
+  esac
+}
+# want_rl: RL is what it was after the seeding while it is not due; once due, rl_due_ok.
+want_rl() {
+  if [ "$SECONDS" -lt "$rl_due_s" ]; then
+    want_same_rem RL "$RL" "$P_RL"
+  elif ! wait_until 30 rl_due_ok; then
+    rows_bad="${rows_bad}
+  RL (state|waiting|starts|source, due): got '$(rem_probe "$RL")', wanted a waiter or one fired notification"
+  fi
+}
+
+# jobs_changed <label> <jobs before> <jobs after>: item_jobs files; every item that had jobs has other jobs now.
+jobs_changed() {
+  local same
+  same=$(awk -F'\t' 'NR == FNR { a[$1] = $2; next } !($1 in a) { print $1 " (no job after)"; next } a[$1] == $2 { print $1 " (job " $2 ")" }' "$3" "$2")
+  if [ -s "$2" ] && [ -z "$same" ]; then
+    pass "$1: every item has new jobs ($(grep -c . "$2") items)"
+  else
+    printf '%s\n' "$same" | sed 's/^/  unchanged: /'
+    fail "$1: an item kept its jobs (or no item had a job before)"
+  fi
+}
+
+# prod_ready: the production runs and nothing is missing.
+prod_ready() {
+  [ "$(printf '%s\n' 'Set r=##class(Ens.Director).IsProductionRunning(.n) Write !,"CHK|ready|",+r,"|",$Get(n),"|",##class(OcuTalon.Install.Step.Production).NotRunning()' 'Halt' | chk ready)" = "1|OcuTalon.Production|" ]
+}
+
+# --- path B: the checks 21 to 25 ---
+
+# check_restart_alone (check 21, DW-80): the production stops and starts from a session, with no installer run.
+check_restart_alone() {
+  local before started=$SECONDS
+  before=$(reconcile_rows)
+  stop_start prod-alone
+  one_new_row "$before" "production alone" "a stop and start from a session" || true
+  rows_bad=
+  want_rl
+  want_rearmed_rem RX "$RX" "$P_RX"
+  want_rearmed_hold AX "$AX" "$P_AX"
+  report_rows "production alone" "RX has one waiter and one more start from HeartbeatIn, AX has one live hold, and RL keeps its waiter"
+  P_RX=$(rem_probe "$RX")
+  P_AX=$(hold_probe "$AX")
+  echo "TIME restart-alone $((SECONDS - started))s"
+}
+
+# instance_restart <n>: docker compose restart of the instance; waits until the production runs with nothing missing, within the run's
+# deadline, and records the count of ReconcileIn's rows before it.
+instance_restart() {
+  local started=$SECONDS
+  restart_rows_before=$(reconcile_rows)
+  if ! dc restart iris > "$tmp/restart-$1.log" 2>&1; then
+    tail -n 20 "$tmp/restart-$1.log"
+    die "instance restart $1: docker compose restart iris failed"
+  fi
+  if ! wait_until "$((deadline - SECONDS))" prod_ready; then
+    die "instance restart $1: the production does not run with nothing missing before the run's deadline"
+  fi
+  echo "TIME restart-$1 $((SECONDS - started))s"
+}
+
+# check_restart <n> (checks 22 and 23): after instance_restart <n>. The first restart re-arms the pair seeded before it (RY, AY) once; the
+# second changes no row. RX and AX keep what the step before recorded, and RL is as want_rl says.
+check_restart() {
+  local label="instance restart $1"
+  one_new_row "$restart_rows_before" "$label" "the restart of the instance" || true
+  check_session "$label: ^Ens.AutoStart is OcuTalon.Production" OCUTALON "CHK|autostart|OcuTalon.Production" \
+    'Write !,"CHK|autostart|",$Get(^Ens.AutoStart)' 'Halt'
+  if dc exec -T iris test ! -e /opt/ocutalon/version; then
+    pass "$label: the container has no /opt/ocutalon/version, so there is no after-start script"
+  else
+    fail "$label: the container has /opt/ocutalon/version"
+  fi
+  rows_bad=
+  want_rl
+  want_same_rem RX "$RX" "$P_RX"
+  want_same_hold AX "$AX" "$P_AX"
+  if [ "$1" = 1 ]; then
+    want_rearmed_rem RY "$RY" "$P_RY"
+    want_rearmed_hold AY "$AY" "$P_AY"
+    report_rows "$label" "RY and AY are re-armed once (one waiter and one more start from HeartbeatIn; one live hold), and RL, RX and AX are unchanged"
+  else
+    want_same_rem RY "$RY" "$P_RY"
+    want_same_hold AY "$AY" "$P_AY"
+    report_rows "$label" "every row has the one waiter or hold of the step before, with the same start counts and hold ids"
+  fi
+  P_RY=$(rem_probe "$RY")
+  P_AY=$(hold_probe "$AY")
+}
+
+# rl_ended: RL's waiter has ended and the reminder is fired.
+rl_ended() {
+  [ "$(printf '%s\n' 'Set ref="'"$RL"'",ok=##class(OcuTalon.Test.Schedule.ReminderFixture).WaitEnded(ref,2),row=##class(OcuTalon.Data.Reminder).RefIndexOpen(ref) Write !,"CHK|ended|",ok,"|",row.State' 'Halt' | chk ended)" = "1|fired" ]
+}
+rl_notified() { [ "$(notify_count "$RL")" -ge 1 ] 2> /dev/null; }
+hold_ended() { [ -z "$(hold_probe "$AX" | cut -d'|' -f1)" ]; }
+
+# check_after_restarts (check 24): after the restarts the conversation is unchanged, RL fires once, AX is rejected, and the other lost
+# rows are still armed.
+check_after_restarts() {
+  local started=$SECONDS max answer
+  max=$((rl_due_s - SECONDS + 150))
+  if [ "$max" -lt 30 ]; then max=30; fi
+  wait_until "$max" rl_ended || true
+  wait_until 30 rl_notified || true
+  answer=$(printf '%s\n' 'Set r=##class(OcuTalon.Bridge.Approval).Answer("'"$AX"'","reject","web","ocutalon","",.w) Write !,"CHK|answer|",r' 'Halt' | chk answer)
+  wait_until 30 hold_ended || true
+  rows_bad=
+  want_eq "RL (state|waiting)" "$(rem_probe "$RL" | cut -d'|' -f1,2)" "fired|0"
+  want_eq "RL (ReminderTimer to Notify headers)" "$(notify_count "$RL")" 1
+  want_eq "AX (Answer)" "$answer" done
+  want_eq "AX (state)" "$(approval_state "$AX")" rejected
+  want_eq "AX (live hold)" "$(hold_probe "$AX" | cut -d'|' -f1)" ""
+  want_same_rem RX "$RX" "$P_RX"
+  want_same_rem RY "$RY" "$P_RY"
+  want_alive_rem RX "$RX"
+  want_alive_rem RY "$RY"
+  want_alive_hold AY "$AY"
+  want_eq "AY (state)" "$(approval_state "$AY")" pending
+  want_same_hold AY "$AY" "$P_AY"
+  want_eq "the session and its turn" "$(conv_probe)" "$CONV0"
+  report_rows "after the restarts" "RL fired once, AX is answered done and rejected and its hold has ended, RX, RY and AY are still armed, and the session and its turn are unchanged"
+  echo "TIME after-restarts $((SECONDS - started))s"
+}
+
+# check_foreign <label>: the foreign password-validation setting and routine of path B are unchanged.
+check_foreign() {
+  check_session "$1: the foreign password-validation setting and routine are unchanged" %SYS \
+    "CHK|setting|ZzOther^ZzForeign
+CHK|routine|1" \
+    'Do ##class(Security.System).Get(,.p) Write !,"CHK|setting|",$Get(p("PasswordValidationRoutine"))' \
+    'Write !,"CHK|routine|",+##class(%Routine).Exists("ZzForeign.mac")' \
+    'Halt'
+}
+
+# reinstall_next (check 25): the install command with the next version, from a scratch copy of the package folder with only <Version>
+# raised, on the stack of path B after the restart checks.
+reinstall_next() {
+  local copy=/tmp/ocutalon-scratch-next ver raised rows started=$SECONDS label="reinstall, next version"
+  ver=$(module_version)
+  raised=$(printf '%s' "$ver" | awk -F. 'NF == 3 { print $1 "." $2 "." $3 + 1 }')
+  if [ -z "$raised" ]; then
+    fail "$label: the module version '$ver' is not major.minor.patch"
+    return
+  fi
+  item_jobs "$tmp/jobs-next-before.tsv"
+  rows=$(reconcile_rows)
+  scratch_copy "$copy" \
+    "sed -i 's|<Version>$ver</Version>|<Version>$raised</Version>|' $copy/module.xml" \
+    "grep -c '<Version>$raised</Version>' $copy/module.xml" > "$tmp/scratch-next.out" 2>&1
+  if [ "$(grep -v '^$' "$tmp/scratch-next.out" | tail -n 1 | tr -d '\r')" != 1 ]; then
+    cat "$tmp/scratch-next.out"
+    fail "$label: the scratch copy with the next version could not be made"
+    return
+  fi
+  run reinstall-next OCUTALON "zpm \"load $copy\""
+  check_run_ok reinstall-next "$label"
+  if [ "$(module_version)" = "$raised" ]; then
+    pass "$label: the module is recorded with version $raised"
+  else
+    fail "$label: the module version is '$(module_version)', wanted $raised"
+  fi
+  item_jobs "$tmp/jobs-next-after.tsv"
+  jobs_changed "$label" "$tmp/jobs-next-before.tsv" "$tmp/jobs-next-after.tsv"
+  sleep 15
+  if [ -n "$rows" ] && [ "$(reconcile_rows)" = "$rows" ]; then
+    pass "$label: ReconcileIn logged no new Info row, because the Production step made the start ($rows)"
+  else
+    fail "$label: ReconcileIn's Info rows went $rows -> $(reconcile_rows)"
+  fi
+  take_snapshot reinstall-next "$label"
+  same_services "$label" base-b reinstall-next
+  same_config "$label" second-merge reinstall-next
+  check_foreign "$label"
+  rows_bad=
+  want_eq "the session and its turn" "$(conv_probe)" "$CONV0"
+  want_alive_rem RX "$RX"
+  want_alive_rem RY "$RY"
+  want_alive_hold AY "$AY"
+  report_rows "$label" "the session and its turn are intact, and RX, RY and AY each have one waiter or hold"
+  echo "TIME check-reinstall-next $((SECONDS - started))s"
+}
+
+# check_durable_recovery (check 20): after part r's recovery run, the data seeded before the forced failure is intact and armed once.
+check_durable_recovery() {
+  rows_bad=
+  want_eq "the session and its turn" "$(conv_probe)" "$CONV0"
+  want_alive_rem RL "$RL"
+  want_alive_hold AX "$AX"
+  report_rows "recovery run passes 15.3's checks" "the session and its turn are intact, RL has one waiter and AX one live hold"
+  item_jobs "$tmp/jobs-recover-after.tsv"
+  jobs_changed "recovery run" "$tmp/jobs-recover-before.tsv" "$tmp/jobs-recover-after.tsv"
+}
+
 # --- the stack ---
 
 setup_tag
@@ -783,6 +1209,23 @@ fi
 ipm_db=$(sed -n 's/^CHK|umap-MapPackages|%IPM|//p' "$tmp/base.snap" | head -n 1)
 if [ -z "$ipm_db" ]; then die "precondition: IPM is not mapped into USER"; fi
 check_no_residue "precondition"
+
+run first-sys %SYS "$INSTALL"
+take_snapshot first-sys "first run in %SYS"
+if [ "$(final_line "$tmp/first-sys.txt")" = "ERROR! $REFUSAL" ] && ! grep -q 'Initialize START' "$tmp/first-sys.txt"; then
+  pass "first run in %SYS: IPM refuses the package with its interoperability line before any phase (no Initialize START line)"
+else
+  echo "  last line: '$(final_line "$tmp/first-sys.txt")'"
+  grep -n 'Initialize START' "$tmp/first-sys.txt" | sed 's/^/  found: /'
+  fail "first run in %SYS: the last line is not IPM's refusal ERROR! line, or a phase started"
+fi
+if diff "$tmp/base.snap" "$tmp/first-sys.snap" > "$tmp/snap.diff"; then
+  pass "first run in %SYS: OCUTALON, its databases, resources and mappings, USER's mappings and the services are those of the precondition: nothing was created"
+else
+  sed 's/^/  snapshot: /' "$tmp/snap.diff"
+  fail "first run in %SYS: the configuration changed (the refusal left something behind)"
+fi
+check_no_residue "first run in %SYS"
 
 run first-user USER "$INSTALL"
 take_snapshot first "first run in USER"
@@ -830,17 +1273,6 @@ else
   fail "the repeat in USER: the configuration changed"
 fi
 check_no_residue "the repeat in USER"
-
-run again-sys %SYS "$INSTALL"
-take_snapshot again-sys "the run in %SYS"
-stops_with_next_command again-sys "the run in %SYS"
-if diff "$tmp/first.snap" "$tmp/again-sys.snap" > "$tmp/snap.diff"; then
-  pass "the run in %SYS: the configuration and the services are those of the first run"
-else
-  sed 's/^/  snapshot: /' "$tmp/snap.diff"
-  fail "the run in %SYS: the configuration changed"
-fi
-check_no_residue "the run in %SYS"
 
 run shell-user USER 'Set sc=##class(%IPM.Main).Shell("load '"$SRC"'") Write !,"CHK|shell|",$SYSTEM.Status.IsOK(sc),"|",$SYSTEM.Process.TransactionsSuspended(),"|",$TLevel,"|",$SYSTEM.Status.GetOneStatusText(sc)'
 shell_chk=$(sed -n 's/.*\(CHK|shell|.*\)$/\1/p' "$tmp/shell-user.txt" | tail -n 1)
@@ -964,12 +1396,7 @@ else
   grep '^WARN ' "$tmp/second-merge.txt" | sed 's/^/  /'
   fail "path B: no single WARN Demo line that names OCUORDERS"
 fi
-check_session "path B: the foreign password-validation setting and routine are unchanged" %SYS \
-  "CHK|setting|ZzOther^ZzForeign
-CHK|routine|1" \
-  'Do ##class(Security.System).Get(,.p) Write !,"CHK|setting|",$Get(p("PasswordValidationRoutine"))' \
-  'Write !,"CHK|routine|",+##class(%Routine).Exists("ZzForeign.mac")' \
-  'Halt'
+check_foreign "path B"
 foreign_after=$(foreign_orders)
 if [ -n "$foreign_before" ] && [ "$foreign_before" = "$foreign_after" ]; then
   pass "path B: the foreign OCUORDERS and its databases are unchanged ($foreign_after)"
@@ -977,6 +1404,19 @@ else
   fail "path B: the foreign OCUORDERS changed, from '$foreign_before' to '$foreign_after'"
 fi
 same_services "path B second run" base-b second-merge
+check_ipm_case "path B second run"
+
+# --- path B: the production restarts alone, two instance restarts and the next version (checks 21 to 25) ---
+
+seed_durable 180
+check_restart_alone
+seed_pair
+instance_restart 1
+check_restart 1
+instance_restart 2
+check_restart 2
+check_after_restarts
+reinstall_next
 
 if [ "$fails" -ne 0 ]; then
   echo "$(basename "$SCRIPT" .sh): $fails check(s) failed (project $P)"

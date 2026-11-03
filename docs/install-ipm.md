@@ -4,7 +4,7 @@ This page installs OcuTalon into an IRIS instance you already run, with the Inte
 
 ## What you need
 
-- An InterSystems IRIS for AI Hub instance, build 154, with IPM 0.10.10 loaded in %SYS and enabled for the namespace you start from (the examples use USER).
+- An InterSystems IRIS for AI Hub instance, build 154, with IPM 0.10.10 loaded in %SYS and enabled for USER (the examples start there).
 - The OcuTalon package folder. That is the `src` folder of the OcuTalon repository, with the web page built once on any machine that has Node.js 24.15 or later:
 
   ```
@@ -18,13 +18,21 @@ OcuTalon needs no other package: the one package `ocutalon` holds the bridge too
 
 ## The first command
 
-Open an IRIS terminal in any namespace (USER here) and load the package:
+Open an IRIS terminal in USER and load the package:
 
 ```
 zpm "load /opt/ocutalon-ipm/src"
 ```
 
-This run ends early by design. It creates the namespace OCUTALON with its four databases and the mappings OcuTalon needs, maps IPM into it, and then stops with an error that is the next instruction. It leaves no OcuTalon code installed: IPM removes the one class it compiles for this run when the run stops. This is the output of that run on a new instance, with the terminal's colour codes removed:
+OcuTalon needs an Interoperability-enabled namespace to start from, and USER is one on both IRIS for Health and IRIS build 154. In a namespace without Interoperability, such as %SYS, IPM refuses the package before it changes anything and prints this line:
+
+```
+ERROR! This module requires an interoperability-enabled namespace. %SYS is not interoperability-enabled.
+```
+
+If you see it, run the command in USER instead.
+
+The run in USER ends early by design. It creates the namespace OCUTALON with its four databases and the mappings OcuTalon needs, maps IPM into it, and then stops with an error that is the next instruction. It leaves no OcuTalon code installed: IPM removes the one class it compiles for this run when the run stops. This is the output of that run on a new instance, with the terminal's colour codes removed:
 
 ```
 
@@ -44,7 +52,7 @@ ERROR! OcuTalon created namespace OCUTALON. Now run: zn "OCUTALON" then the same
 USER>
 ```
 
-The last line, `ERROR! OcuTalon created namespace OCUTALON. Now run: zn "OCUTALON" then the same install command.`, is not a failure to fix. It is the stop of this first run. Running the first command again in USER or %SYS gives the same stop and changes nothing. In OCUTALON the same command is the second run.
+The last line, `ERROR! OcuTalon created namespace OCUTALON. Now run: zn "OCUTALON" then the same install command.`, is not a failure to fix. It is the stop of this first run. Running the first command again in USER gives the same stop and changes nothing. In OCUTALON the same command is the second run.
 
 ## The second command
 

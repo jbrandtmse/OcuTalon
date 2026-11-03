@@ -2,7 +2,8 @@
 title: 'Story 15.3: An IPM install survives restarts and reinstalls, and every release proves it'
 type: 'feature'
 created: '2026-11-02'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '215eeffe8c876562aecbc4462d4d622375cdf120'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -130,6 +131,34 @@ Anchors were taken at `12fe53a1`; no source file changed since the first plan.
 - 2026-11-03, plan iteration 1 -> re-plan (lead, after the orchestrator's rulings on the plan's two intent gaps and its 7 h size estimate): (a) split, decide (split_children 1 of 6): this story keeps ACs 1-3 (restarts and DW-80; reinstalls with the rollback reading and the U-176 forced-failure re-run; the FR-57 job with Story 9.1's IPM case), DW-80, DW-306 and the `SystemRequirements` bullet; the release gate, the registry install, the guide and local-repository criteria and DW-576 moved to Story 15.4 (`epics.md`, marker `[SPLIT 2026-11-03 from Story 15.3, orchestrator ruling (decide)]`; DW-576 re-owned to 15.4); (b) U-231 (veto, kept with conditions by the owner's delegate, answer 2026-11-03T03:57:20Z#695): the first run's promise narrows to any Interoperability-enabled namespace; `epics.md` L265 and Story 15.1's three lines amended with `[AMENDED 2026-11-03, Story 15.3, unattended ruling U-231]`, and a U-231 bullet added to this story; the PRD states no first-run namespace (nothing to amend); the spine's AD-23 sentence "first in any namespace" is NOT amended by this story (a runner never amends an AD, U14) and is reported to the orchestrator; (c) U-232 (veto, kept with conditions, answer #696): MapAndStop also maps IPM's repository definitions into OCUTALON, in Story 15.4 (this story's tests use the load-from-folder paths, never a repository); (d) the intent block narrowed to this story, the three release-proof matrix rows moved to Design Notes ("Moved to Story 15.4"), and two U-231 rows added. The previous status was `blocked` (two intent gaps); reset to `draft` for the re-plan.
 
 ## Review Triage Log
+
+### 2026-11-02 - Review pass
+- verdicts: 24 findings - high 0, medium 1, low 23, false 0, maybe-false 0 (4 patched; the 20 low rejections below carry their reasons: by design, covered elsewhere, or not worth the change)
+- findings:
+  - `[medium]` `patch` check 19's "EvalIn has no Alive job" cannot fail (EvalIn is PoolSize 0) - fixed: `check_ipm_case` also prints `CHK|others|1` (some other item has an Alive job), so the enumeration has a positive control; the AC 3 mutation re-run is red with "3 of 5 values differ".
+  - `[low]` `patch` `reinstall_next`'s "no new ReconcileIn row" waits 5 s and passes on an empty read (blind-hunter, edge-case-hunter, verification-gap) - fixed: it waits 15 s like `one_new_row` and requires a non-empty row count.
+  - `[low]` `patch` check 24 compares RX, RY and AY with the last recorded probe only - fixed: it also asserts `want_alive_rem` (RX, RY) and `want_alive_hold` (AY).
+  - `[low]` `patch` `one_new_row`'s `return 1` is unused (all callers end with `|| true`) - removed.
+  - `[low]` `reject` the lead's `RL` due time (180 s) is short, so on a slow runner restarts 1 and 2 accept a fired `RL` (blind-hunter, edge-case-hunter, verification-gap `want_rl`) - by design: Design Notes "Decided in-stage" 3 and the matrix's 180 s; measured locally the restarts end about 100 s after seeding, so the exact-equality branch runs there.
+  - `[low]` `reject` `dc exec test ! -e` cannot tell a failed exec from a present file - the container is up (`prod_ready` passed just before); a failed exec fails the row, which is the safe direction.
+  - `[low]` `reject` the guide does not say how to check a namespace for Interoperability, that other such namespaces refuse alike, the `>=2026.3` gate or IRIS for Health as a requirement (blind-hunter; edge-case-hunter's USER-not-enabled case) - the lead's U-231 ruling says to claim nothing else new; Story 15.4 rewrites the guide; USER was measured Interoperability-enabled on both images.
+  - `[low]` `reject` RX is seeded in part `r` but not asserted after the recovery run - the matrix row names the session, the reminder (RL) and the approval; RX is incidental to the shared seeding helper.
+  - `[low]` `reject` `check_durable_recovery` reads once with no wait (edge-case-hunter) - the installer's `Reconcile` step is synchronous and ends before the run's output does; part `r` passed twice and the AC 2 mutation is red on the jobs check.
+  - `[low]` `reject` empty probe output could satisfy "AX live hold is empty" (edge-case-hunter) - `Answer` = `done` and `approval_state` = `rejected` are asserted in the same row and fail on an empty read.
+  - `[low]` `reject` a failed %SYS refusal leaves a polluted instance and a cascade of failures (edge-case-hunter) - the first FAIL line names the refusal; the cascade is cosmetic.
+  - `[low]` `reject` `jobs_changed` compares whole job-id lists, so one surviving job of a pooled item would pass (edge-case-hunter) - a restart replaces all of an item's jobs; the mutations show the check fails when the restart is skipped.
+  - `[low]` `reject` the deadline 1980 / 35 min may not hold the added waits (edge-case-hunter) - measured: the projection is 23.5 min (above), under the spec's 30-minute stop.
+  - `[low]` `reject` a USER that is not Interoperability-enabled leaves the reader stuck (edge-case-hunter) - measured enabled on both images (lead, 2026-11-03).
+  - `[low]` `reject` `want_rl` past the due time does not check a double re-arm of RL (edge-case-hunter, low confidence) - the same by-design decision as above; check 24 still requires exactly one fired notification.
+  - `[low]` `reject` the AC 3 mutation pins only the path A point; the no-argument run's mode gating has no test (verification-gap) - the spec states the full run is first measured in CI (over the 10-minute cap locally); `test-cpf.sh` rules 6 and 7 pin the job; a mode-gating mutation would cost a full run. Reopen if the CI `ipm-install` job misses a check.
+  - `[low]` `reject` `wait_until` stops waiting past the deadline (verification-gap) - `instance_restart` dies loudly and later asserts fail; no false green.
+  - `[low]` `reject` the IRIS for Health claim in the guide is not exercised by a check (verification-gap; intent-alignment divergence 1) - measured by the lead on both images (Design Notes, lead ruling 2); a check on the second image is not in this story.
+  - `[low]` `reject` RX/RY/AX/AY are seeded rows, not waiters that a restart destroyed (intent-alignment divergence 2) - Design Notes "Decided in-stage" 2 (a clean restart keeps a live waiter); only a row with no waiter shows a countable re-arm.
+  - `[low]` `reject` the `SystemRequirements` line has no static test (intent-alignment divergence 4) - the behaviour is pinned by the %SYS refusal and the USER/OCUTALON loads, and the mutation removing the line is red.
+  - `[low]` `reject` the 35-minute fit is not shown in the diff (intent-alignment divergence 5) - the measured projection is in the CI budget notes.
+  - `[low]` `reject` the %SYS refusal is read from the script's captured output (intent-alignment divergence 3, descriptive) - the output, snapshot diff and residue check together cover it; nothing to change.
+  - `[low]` `reject` the intent-alignment auditor's divergence 6 (RL 86400 s in part `r`, `same_config` against `second-merge`) - descriptive; both follow the matrix.
+  - `[low]` `reject` the intent-alignment auditor's reading D (the added waits against the budget) - same as the deadline finding.
 
 ## Design Notes
 
@@ -265,6 +294,13 @@ What drives it: every pinning test is a live `ipm-install.sh` part, and `b` grow
 - **Added, inference:** `a` about +5 s (the %SYS case replaces the %SYS repeat; the IPM case); `r` about +25 s (seeding, probes, item jobs, the IPM case); `b` about +260 s (seeding 10, DW-80 35, two restarts about 65 each, the remaining `RL` wait and the answer 40, the next-version reinstall 60, the IPM case 5). On the runner: the non-restart part (about 160 s) x2.2 = about 350 s, and the restarts (about 130 s) x3 = about 390 s, so about 12.3 min more: about 28 min of 35, a 7-minute margin. Part `p`'s former 120 s is gone.
 - **Rule for the implement stage:** let `added` = the wall seconds of the new `a`, `r` and `b` calls minus 580 (166 + 272 + 142), and `restarts` = the sum of `b`'s `TIME restart-<n>` lines; projected minutes = 15.9 + ((`added` - `restarts`) x 2.2 + `restarts` x 3) / 60. Over 30 min: stop with `## Clarification Needed` before committing (a second fork-guarded job is a lead decision). A local `b` over 570 s also stops (it would not fit one 10-minute call with its teardown). Never raise the timeout.
 
+**Measured at implement (lane D, local, `OCUTALON_LIVE_DEADLINE=570`; all three parts green):**
+- Wall seconds per part: `a` 152, `r` 249, `b` 363 (an earlier green `b` run: 370). Sum 764, so `added` = 764 - 580 = 184.
+- `b`'s step times: `seed` 0-1 s, DW-80 `restart-alone` 22 s, `TIME restart-1` 7 s, `TIME restart-2` 7 s (so `restarts` = 14), `after-restarts` 108 s (it waits for `RL`, due 180 s after its seeding), `check-reinstall-next` 42 s (the `reinstall-next` run itself 39 s).
+- Projection by the rule: 15.9 + ((184 - 14) x 2.2 + 14 x 3) / 60 = about 22.8 min of 35, under the 30-minute stop. A local `b` at 363 s is under the 570 s stop.
+- Final pass after the review patches (tags e15s3i2a/r/b): `a` 150 s, `r` 257 s, `b` 374 s (`TIME restart-alone` 23 s, `restart-1` 8 s, `restart-2` 7 s, `after-restarts` 106 s, `check-reinstall-next` 53 s); `added` = 201, `restarts` = 15, projection 15.9 + ((201 - 15) x 2.2 + 15 x 3) / 60 = about 23.5 min of 35, under the 30-minute stop; local `b` 374 s is under 570 s. The first verification pass (before the patches) measured `a` 147 s, `r` 253 s, `b` 355 s, about 22.5 min. The mutation runs took `b` 435 s (red, with the extra waits), `r` 262 s, `a` 146 s and 163 s. `live install-start` 336 s, passed.
+- The restarts are far shorter than the plan's inference (about 65 s each) because `TIME restart-<n>` covers only `docker compose restart` and the wait for the production; the larger cost is the wait for `RL`, which grows with the runner's slowness only through the restarts that precede it.
+
 ### Measured at plan (2026-11-02, kept from iteration 1)
 - Slot D: build 154 (`2026.3.0AI`, `GetMajor` 2026, `GetMinor` 3, `GetPoint` "0AI"); `CheckVersion` compares "2026.3", so `>=2026.3` passes (a USER load of a test module with the line: all phases SUCCESS). Slot D has no `%IPM`.
 - In %SYS the same test module gave `ERROR! This module requires an interoperability-enabled namespace. %SYS is not interoperability-enabled.` and no phase.
@@ -302,6 +338,12 @@ Fresh throwaways only (the `module.xml` change refuses a warm reload, and `live`
 | 3 FR-57 job and 9.1 | `Install/Step/Production.cls` `EvalEnabled` (:296-299) returns 1 | `ipm-install.sh a`, check 19 (row 1, EvalIn not refused) |
 | 4 SystemRequirements and U-231 | the `SystemRequirements` line removed from `src/module.xml` | `ipm-install.sh a`, check 5's %SYS case (no refusal line, OCUTALON created) |
 
+Mutation results (applied one at a time, restored byte-identical; each target file's sha checked after):
+- mutation: `ReconcileIn.OnProcessInput` quits before its run branch -> red: `ipm-install.sh b`: "production alone", "instance restart 1", "instance restart 2" and their row checks FAIL (`ReconcileIn's Info rows went 0 -> 0`; AC 1).
+- mutation: `Install/Step/Production.cls` `StartLocked` skips `RestartProduction` for a running production -> red: `ipm-install.sh r`: FAIL "recovery run: an item kept its jobs" (check 20; AC 2).
+- mutation: `Step.Production.EvalEnabled` returns 1 -> red: `ipm-install.sh a`: FAIL "second run: Story 9.1's IPM case ... (3 of 5 values differ)" (check 19; AC 3; re-run after the review patch added the positive control).
+- mutation: the `SystemRequirements` line removed from `src/module.xml` -> red: `ipm-install.sh a`: FAIL "first run in %SYS: the last line is not IPM's refusal ERROR! line, or a phase started" and "the configuration changed" (AC 4).
+
 **Shared surfaces:**
 - `release/ipm-install.sh`'s check list, functions and modes: lane-a's `ipm-install` job and `test-cpf.sh` rules 6 and 7 (the `run:` line and deadline are unchanged); Story 15.4 extends it.
 - `src/module.xml`: `test-pinned-sources.sh`, `test-cpf.sh` rule 8, `release/lib-release.sh`'s artifact checks, `ci/warm.sh`'s manifest (a change refuses a warm reload) and every image start (`docker/after-start.cos` loads it in OCUTALON).
@@ -315,5 +357,19 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** An IPM install now has live proof that it survives restarts and reinstalls, and `src/module.xml` declares the staff-requested `SystemRequirements`. `release/ipm-install.sh` (extended, not copied) gained: check 5's %SYS case before the first USER run (IPM's refusal line, nothing left behind); `check_run_ok` and `check_ipm_case` (Story 9.1's IPM case, check 19, at path A's second run, the recovery run, path B's second run and the next-version reinstall); `one_new_row`; probes and `seed_durable`; path B's checks 21-25 (production restart alone, two instance restarts, after the restarts, reinstall with the next version); and part `r`'s check 20. `docs/install-ipm.md` advises USER on both images, quotes IPM's refusal and says to run the command in USER instead.
+
+**Files changed.**
+- `src/module.xml`: the `SystemRequirements` line.
+- `release/ipm-install.sh`: the checks above, the header and mode paragraph.
+- `docs/install-ipm.md`: the U-231 namespace sentences.
+- This spec: timings, mutation lines and the triage log.
+
+**Review.** 4 patches applied (check 19's positive control, `reinstall_next`'s 15 s window and non-empty guard, check 24's absolute assertions, a dead `return 1`), 0 deferred, 20 rejected with reasons in the Review Triage Log. Follow-up review recommended: false (one medium patched, no high).
+
+**Verification performed.** `test-cpf.sh`, `test-pinned-sources.sh`, `test-boundaries.sh`, `test-readme.sh` pass; `ci/iris.sh build` ok; the artifact check prints nothing; `ipm-install.sh a` (150 s), `r` (257 s) and `b` (374 s) pass on lane-D throwaways after the patches; `live install-start` passes (336 s); four mutations red and restored byte-identical (lines in `## Verification`). CI projection about 23.5 min of 35.
+
+**Residual risks.** The full no-argument `ipm-install.sh` run has not run end to end locally (about 14 min); the CI `ipm-install` job is its first run, and its minutes should be compared with the 23.5 projection. On a slow runner `RL` may come due during the restarts (Design Notes decision 3). The spine's AD-23 sentence "first in any namespace" is not amended (reported to the lead).

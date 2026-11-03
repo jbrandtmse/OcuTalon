@@ -6,6 +6,7 @@
       <Version>0.1.0</Version>
       <Packaging>module</Packaging>
       <SourcesRoot>.</SourcesRoot>
+      <SystemRequirements Version=">=2026.3" Interoperability="enabled"/>
       <CPF Name="ocutalon.cpf" Directory="cpf" Phase="Initialize" When="Before"/>
       <Resource Name="OcuTalon.Bridge.PKG" Directory="bridge/cls"/>
       <Resource Name="OcuTalon.BridgeExample.PKG" Directory="bridge/cls"/>
