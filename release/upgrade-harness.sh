@@ -21,7 +21,8 @@
 #   upgrade    the candidate on the same volume, and the checks of every record
 #   restart    a clean container restart, and the checks of every record
 #   storage    the storage snapshots against each other, and the release-diff rule against the previous commit
-#   report     writes the record section (--record, or release/records/<version>/rc<n>.md) and prints RESULT pass|fail|not run
+#   report     writes the record section (--record, or release/records/<version>/rc<n>.md) and prints MERGE-RETRIES <n>, RECORD and
+#              RESULT pass|fail|not run
 #   down       removes the tag's projects, releases the lock when its content is this harness's, and deletes the state folder
 # Options are taken by plan, run and build, and stored in the state. --rc is a positive whole number, required unless --record is given.
 # Phase commands need OCUTALON_RUN_TAG; run defaults it to upg-<epoch>. Every phase ends within OCUTALON_LIVE_DEADLINE seconds (default
@@ -35,6 +36,11 @@
 # notification sent through Notify reaches it as a mock sendMessage within 10 s. When the previous build reports Included() 1, the seed pairs
 # a chat on it as well and the upgrade phase checks that one the same way; otherwise the row carries the note that its upgrade part joins from
 # the release after 1.0.0.
+# Merge retries (Story 0.14): a start whose CPF merge hit ERROR #453 retries once (STEP merge RETRY 1 after #453 in the start's log). The
+# harness counts those lines in the log of each of its five starts (settings previous and candidate, records previous, candidate and
+# restart), ready or not, as MERGE-RETRIES <n> <start> lines of the phase's results; the record section gets "Merge retries: <total>"
+# right after the Run: line (0 when no start retried, and for a dry run) and report prints MERGE-RETRIES <total>, so the retry of every start
+# that reaches its wait is seen (a start that dies before its wait, its compose command failing, is not counted).
 # Exit codes: 0 pass (or a dry run), 1 a failed check or phase, 2 a refusal (bad option, phase out of order, no previous build),
 # 75 the lane lock is busy. Needs bash 3.2 or later, git, jq, docker compose, node and npm (the previous tree's web bundle, and the
 # demo-switch page project), and the IRIS base image (ci/iris.sh). The model is the CI mock, never a key; every stack is a throwaway
@@ -391,6 +397,13 @@ record_result() {
     END { if (f > 0) print "fail"; else if (n > 0 && p == n) print "pass"; else if (n > 0 && nr == n) print "not run"; else print "fail" }'
 }
 
+# merge_retries_total <results file>: the sum of the MERGE-RETRIES lines (MERGE-RETRIES <n> <start>), 0 when there are none.
+merge_retries_total() {
+  local results=${1:-/dev/null}
+  [ -f "$results" ] || results=/dev/null
+  awk '$1 == "MERGE-RETRIES" { t += $2 } END { print t + 0 }' "$results"
+}
+
 # record_section <results file> <options file>: the "## Upgrade harness" section of the record, on stdout.
 record_section() {
   local results=${1:-/dev/null} options=$2 kind ref sha pv stamp built note ended
@@ -418,6 +431,7 @@ record_section() {
     echo "Note: $note"
   fi
   echo "Run: $(env_get "$options" started) to $ended, tag $(env_get "$options" tag)"
+  echo "Merge retries: $(merge_retries_total "$results")"
   echo
   echo "| Record | Result | Detail |"
   echo "| --- | --- | --- |"
@@ -698,9 +712,22 @@ build_up() {
   [ -n "$cid" ] || die "$1: no iris container in project $P"
 }
 
-# ready_or_die <label> <seconds>: the start's log ends ready and Docker reports healthy, else the log's tail and a die.
+# count_merge_retries <start label>: appends MERGE-RETRIES <n> <start label> to the results, n being the number of STEP merge RETRY lines
+# in the current start's log (the log holds one start). Called right after a start's wait, ready or not, before any die.
+count_merge_retries() {
+  local n
+  n=$(start_log | grep -c '^STEP merge RETRY')
+  if [ -n "${results:-}" ]; then printf 'MERGE-RETRIES %s %s\n' "$n" "$1" >> "$results"; fi
+  return 0
+}
+
+# ready_or_die <label> <seconds>: the start's log ends ready and Docker reports healthy, else the log's tail and a die. The start's
+# merge retries are counted first.
 ready_or_die() {
-  if ! wait_started_ready "$2"; then
+  local ready=0
+  wait_started_ready "$2" || ready=1
+  count_merge_retries "$1"
+  if [ "$ready" -ne 0 ]; then
     start_log | tail -n 30 | cut -c1-200
     die "$1: the start did not end ready within $2 s"
   fi
@@ -1442,7 +1469,7 @@ load_seed() {
 phase_upgrade() {
   LIVE_TELEGRAM=started
   row upgrade
-  local cand=$(opt version) began last r1_set
+  local cand=$(opt version) began last r1_set ready
   attach_stack
   preflight
   load_seed
@@ -1464,7 +1491,10 @@ phase_upgrade() {
   fi
   cid=$(dc ps -q iris)
   [ -n "$cid" ] || die "upgrade: no iris container in project $P"
-  if ! wait_started_ready 400; then
+  ready=0
+  wait_started_ready 400 || ready=1
+  count_merge_retries "records project, candidate"
+  if [ "$ready" -ne 0 ]; then
     start_log | tail -n 30 | cut -c1-200
     die "upgrade: the candidate did not end ready within 400 s"
   fi
@@ -1510,7 +1540,7 @@ phase_upgrade() {
 phase_restart() {
   LIVE_TELEGRAM=started
   row restart
-  local cand=$(opt version) now
+  local cand=$(opt version) now ready
   attach_stack
   load_seed
   ref2=$(env_get "$state/upgrade.env" ref2)
@@ -1520,7 +1550,10 @@ phase_restart() {
     tail -n 20 "$tmp/restart.log"
     die "restart: docker compose restart iris failed"
   fi
-  if ! wait_started_ready 300; then
+  ready=0
+  wait_started_ready 300 || ready=1
+  count_merge_retries "records project, restart"
+  if [ "$ready" -ne 0 ]; then
     start_log | tail -n 30 | cut -c1-200
     die "restart: the container was not ready within 300 s"
   fi
@@ -1650,6 +1683,7 @@ phase_report() {
   case $file in /*) ;; *) file=$harness_root/$file ;; esac
   record_write "$file" "$state/section.md" "$(record_title)"
   n=$(record_result "$state/results")
+  echo "MERGE-RETRIES $(merge_retries_total "$state/results")"
   echo "RECORD $record"
   echo "RESULT $n"
   if [ "$n" != pass ]; then fails=$((${fails:-0} + 1)); fi

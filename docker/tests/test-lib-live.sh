@@ -7,6 +7,10 @@
 #     Docker reports healthy for the same start, so a previous start's log or health is never taken for this one;
 #   - copy_build_context: exactly the files the Dockerfile's COPY lines name, a directory expanded to its files;
 #   - log_steps, bump_patch, manifest_version: the reductions the live tests compare;
+#   - check_log (Story 0.14): the one sanctioned recovery, `STEP merge RETRY 1 after #453` straight before `STEP merge OK`, passes
+#     with the label adding "(after one merge retry on #453)" and nothing else is loosened (a RETRY line with no OK after it, a
+#     repeated or other RETRY, a near miss, a second retry line in any case, a FAILED merge line, another STEP or RESULT difference),
+#     and every refused log is diffed exactly as log_steps printed it; log_steps itself still prints the RETRY line;
 #   - live_web_port: the first free port of 52800-52819 on 127.0.0.1, the OCUTALON_TEST_WEB_PORT override, a refusal
 #     of the ports of the judges' stack, the slots and the other instances, and a clear failure when no port is free
 #     (the ports in use are stubbed, nothing listens);
@@ -271,6 +275,103 @@ STEP SSL FAILED boom 3s" ]; then
   pass "log_steps: only STEP and RESULT lines, the seconds of an OK line dropped, a FAILED line kept whole"
 else
   fail "log_steps: the reduced log differs ($(log_steps | tr '\n' '|'))"
+fi
+
+# --- check_log: a start that recovered through the merge retry (Story 0.14) ---
+
+retry_line='STEP merge RETRY 1 after #453'
+expected_run readiness-ok ipm-ok ipm-map-ok public-ok package-ok 0.1.0 > "$tmp/expected.log"
+sed 's/ OK$/ OK 9s/' "$tmp/expected.log" > "$tmp/run.log" # the run as after-start writes it: OK lines carry seconds
+retry_log() { # retry_log <extra line before the run>... : a log of the extra lines, then the run
+  : > "$log_fixture"
+  local l
+  for l in "$@"; do printf '%s\n' "$l" >> "$log_fixture"; done
+  cat "$tmp/run.log" >> "$log_fixture"
+}
+# log_verdict: check_log's verdict and label, over the fixture, with pass and fail overridden to print them.
+log_verdict() { ( pass() { echo "VERDICT PASS $*"; }; fail() { echo "VERDICT FAIL $*"; }; check_log probe "$tmp/expected.log" ) 2>&1; }
+plain_label='VERDICT PASS probe: the log lists every phase and step in order, ending in RESULT OK'
+retry_label="$plain_label (after one merge retry on #453)"
+fail_label='VERDICT FAIL probe: the log differs from the expected phases and steps'
+# refused <row> <fixture description>: the verdict is a fail, and the diffed log is log_steps' output byte for byte.
+refused() {
+  local out
+  out=$(log_verdict)
+  if [ "$(printf '%s\n' "$out" | tail -n 1)" = "$fail_label" ] && [ "$(log_steps | cmp - "$tmp/actual.log" 2>&1; echo $?)" = 0 ]; then
+    pass "check_log row $1: $2 fails as today, with the log diffed as log_steps printed it"
+  else
+    fail "check_log row $1: $2 does not fail as today ($(printf '%s' "$out" | tr '\n' '|'))"
+  fi
+}
+
+retry_log
+out=$(log_verdict)
+if [ "$out" = "$plain_label" ]; then pass "check_log row 1: a first-try merge passes with today's label"; else fail "check_log row 1: ($out)"; fi
+
+retry_log "$retry_line"
+out=$(log_verdict)
+if [ "$out" = "$retry_label" ] && cmp -s "$tmp/expected.log" "$tmp/actual.log"; then
+  pass "check_log row 2: RETRY 1 straight before the merge's OK passes, the label names the retry, and the RETRY line is out of the diffed log"
+else
+  fail "check_log row 2: ($out)"
+fi
+retry_log "$retry_line"
+if [ "$(log_steps | sed -n 1p)" = "$retry_line" ] && [ "$(log_steps | wc -l | tr -d ' ')" -eq "$(($(wc -l < "$tmp/expected.log") + 1))" ]; then
+  pass "check_log row 11: log_steps still prints the RETRY line"
+else
+  fail "check_log row 11: log_steps no longer prints the RETRY line"
+fi
+
+: > "$log_fixture"
+printf '%s\n' "$retry_line" 'STEP merge FAILED exit 7' >> "$log_fixture"
+refused 3 "RETRY 1 then a failed merge with no RESULT"
+
+printf '%s\n' "$retry_line" > "$log_fixture"
+refused 4 "RETRY 1 as the last STEP line"
+
+retry_log "$retry_line" 'STEP install OK'
+refused 4 "RETRY 1 then another STEP line before the merge's OK"
+
+{ sed -n 1p "$tmp/run.log"; printf '%s\n' "$retry_line"; sed -n '2,$p' "$tmp/run.log"; } > "$log_fixture"
+refused 4 "RETRY 1 in the middle of the run, not straight before the merge's OK"
+
+retry_log "$retry_line" "$retry_line"
+refused 5 "RETRY 1 twice, then the run"
+
+retry_log "$retry_line" 'STEP merge RETRY 2 after #453'
+refused 6 "RETRY 1 then RETRY 2, then the run"
+
+# A STEP line in another case is a near miss too: the sanctioned line is matched case for case.
+for near in 'STEP merge RETRY 2 after #453' 'STEP merge RETRY 1 after #4530' 'STEP merge RETRY 1 after #453 x' \
+  'STEP merge retry 1 after #453' 'STEP MERGE RETRY 1 AFTER #453'; do
+  retry_log "$near"
+  refused 7 "the near miss '$near'"
+done
+# A line that is all in another case is not a STEP line to log_steps, so today's verdict (a pass, nothing removed) stands.
+retry_log 'step merge retry 1 after #453'
+out=$(log_verdict)
+if [ "$out" = "$plain_label" ] && [ "$(log_steps | cmp - "$tmp/actual.log" 2>&1; echo $?)" = 0 ]; then
+  pass "check_log row 7: the near miss in another case is unseen by log_steps, so the verdict stays today's plain pass"
+else
+  fail "check_log row 7: the other-case near miss changed the verdict ($out)"
+fi
+
+retry_log "$retry_line"
+echo 'STEP merge retry 1 after #453' >> "$log_fixture"
+refused 8 "RETRY 1, the run and a later lower-case retry line"
+
+retry_log "$retry_line"
+echo 'STEP merge FAILED exit 7' >> "$log_fixture"
+refused 9 "RETRY 1, the run and a later failed merge line"
+
+retry_log "$retry_line"
+sed 's/^RESULT OK 0.1.0$/RESULT OK 0.0.9/' "$log_fixture" > "$tmp/other.log"
+cat "$tmp/other.log" > "$log_fixture"
+out=$(log_verdict)
+if [ "$(printf '%s\n' "$out" | tail -n 1)" = "$fail_label" ]; then
+  pass "check_log row 10: RETRY 1 then a run ending in another RESULT still fails"
+else
+  fail "check_log row 10: another RESULT is loosened ($out)"
 fi
 
 printf '<Module>\n<Version>1.2.3</Version>\n<Version>9.9.9</Version>\n</Module>\n' > "$tmp/module.xml"
