@@ -1686,3 +1686,4 @@
 2026-11-03T21:25:48Z	Epic 12	decision_sheet_skipped	decided=0 to_action_items=0 to_x0=0 note=no_decisions_for_user;DW-642_burndown(born_routed);DW-503_untouched(U-238);U-238+U-244_resolved
 2026-11-03T21:25:51Z	Epic 12	worktree_removed	worktree=.worktrees/epic-12
 2026-11-03T21:25:51Z	Epic 12	epic_branches_deleted	branch=OCT-epic12 local+origin(after_push)
+2026-11-03T21:26:47Z	Epic 12	epic_merged_to_feature	merge=4576b1f4 head=b4161594 feature_head=e660faef verified=merge-base_is-ancestor story=12.10 rc1=included
