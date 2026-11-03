@@ -3240,6 +3240,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: CI run 41351529214 attempt 1 (OCT-epic11 1b0c0d39, iris install-upgrade, live:cards): 1 failed (I10, 1.5m); attempt 2 green; the spec imports no file Story 11.12 changed
 - 2026-11-01T22:44:24Z status=routed owner=burndown by=ci note=flake routed to the burn-down with priority: a sign-in that never answers /state within 90 s on a loaded host
 - 2026-11-02T11:13:19Z owner=burndown by=burndown note=Epic 11 part 1 burn-down (owner trim): no charter (2 story-closable entries plus this repaired owner, under the cap, no repeat occurrences); kept for Epic 11 part 2's burn-down gate, as Epic 30 part 1 did; flakes with priority
+- 2026-11-03T16:12:51Z status=routed owner=burndown by=merge_gate note=occurrence:035be7d2_run_41659785594_iris(shards)_live:cards_I8_incident-card.spec.ts:396_loadedAfter_/state_wait_at_sign-in;green_on_rerun
 
 ### DW-551: The release checklist does not check the draft notes for the inspiration's name outside the not-affiliated note (only the tracked tree's name-only-in-note row); the draft's own rules are Story 11.13's
 - source: spec-11-4-the-release-gets-draft-notes-and-a-checklist.md | severity: low | fix-risk: low | footprint: in-epic
@@ -3645,6 +3646,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: log_steps (docker/tests/lib-live.sh L590) greps '^(STEP|RESULT) ' and check_log diffs it against expected_run, which has only 'STEP merge OK'; callers: test-install-start rows 1-4, test-install-upgrade row 6, test-online-demo, test-audit, release/upgrade-harness.sh; the CI #453 hits (runs 41419787515, 41577358713, 41577710442) were in these tests
 - 2026-11-03T10:41:25Z status=routed owner=burndown by=cr note=fix: drop '^STEP merge RETRY ' lines in log_steps plus a test-lib-live fixture; Epic 12/15 files, outside 0.13
 - 2026-11-03T11:09:29Z status=routed owner=burndown by=burndown note=first daily release after 1.0.0; not a 1.0.0 blocker: a start that meets #453 failed these live tests before Story 0.13 too, so nothing regresses; flag to the Planner: release/upgrade-harness.sh (L934, L1213) uses the same log_steps, so a hand-gate start that recovers through the retry would read as a harness failure, and Epic 15 owns release/** and docker/tests/**
+- 2026-11-03T16:12:51Z status=routed owner=0-14-a-start-that-recovers-through-the-merge-retry-passes-the-liv by=merge_gate note=U-240:Story_0.14_re-opens_Epic_0
 
 ### DW-625: after-start.sh re-merges merge.cpf at every start, so even an unchanged start runs about five namespace activations, each able to wait about 120 s for a quiesce and fail with ERROR #453; skip the merge on an unchanged start and re-create only the missing CPF items
 - source: spec-0-13-a-start-retries-the-cpf-merge-when-iris-cannot-quiesce.md | severity: med | fix-risk: med | footprint: out-of-footprint

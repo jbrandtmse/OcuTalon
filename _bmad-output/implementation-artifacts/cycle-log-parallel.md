@@ -1630,3 +1630,7 @@
 2026-11-03T16:12:15Z	Epic 0	ci_green_verified	runs=41659785594,41659785532 head=035be7d2 result=success via=none note=shards_live:cards_I8_flake_rerun(DW-550/DW-497_class)
 2026-11-03T16:12:15Z	Epic 0	amendments_verified	amendments=1 extensions=0 ok=true detail=as_verified_at_c3d264c5;after-start.sh_only_product_change;merge.cpf_unchanged
 2026-11-03T16:12:15Z	Epic 0	epic_merge_started	branch=OCT-epic0 head=035be7d2 feature=04d028f8
+2026-11-03T16:12:53Z	Epic 0	decision_sheet_skipped	decided=0 reason=decisions_for_user_none
+2026-11-03T16:12:53Z	Epic 0	ledger_routed_planned	story=0-14 entries=1(DW-624) excess=0 by=merge_gate note=U-240
+2026-11-03T16:12:53Z	Epic 0	deps_hash_rerecorded	reason=fix_forward hash=e723b005 note=Story_0.14_inserted(U-240)
+2026-11-03T16:12:53Z	Epic 0	worktree_removed	path=.worktrees/epic-0

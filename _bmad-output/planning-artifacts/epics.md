@@ -1359,6 +1359,31 @@ So that a rare timing collision never leaves my install not ready.
 **When** this story merges
 **Then** a test with a stubbed `iris merge` pins the three cases (#453 then success: ready, the retry logged; #453 on every attempt: `STEP merge FAILED`, not ready; another error: no retry), in an existing CI group other than `production`, `browser`, `install-fresh` and `install-upgrade`; `docker/merge.cpf` is unchanged; `docker/tests/test-install-start.sh` and `test-install-upgrade.sh` pass; CI is green on every workflow
 
+### Story 0.14: A start that recovers through the merge retry passes the live checks and the upgrade harness
+
+[ADDED 2026-11-03, fix-forward from DW-624 (orchestrator unattended ruling, veto U-240, scoped by the Contest Planner; re-opens Epic 0 under SC-5 after Story 0.13 merged): Story 0.13 lets a start recover from ERROR #453 with one `STEP merge RETRY 1 after #453` line, but `docker/tests/lib-live.sh`'s `log_steps` keeps every STEP line, so `check_log` (used by the live tests and by `release/upgrade-harness.sh`) still reads a recovered start as a failure. rc1 takes this story only if it has merged when Story 31.3 merges; otherwise it ships in the first daily release after 1.0.0, and it never becomes rc1's last item.]
+
+As the author running the live tests, the rehearsal and the upgrade harness,
+I want a start that recovers through the one sanctioned merge retry to count as a pass, with its retry counted,
+So that a rare #453 no longer fails a check whose start became healthy, and every retry stays visible.
+
+**Acceptance Criteria:**
+
+**Given** `docker/tests/lib-live.sh`'s `check_log`, used by the live tests and `release/upgrade-harness.sh`
+**When** a start log carries exactly one `STEP merge RETRY 1 after #453` line and a `STEP merge OK` line follows it in the same start log
+**Then** `check_log` treats the start as matching its expected STEP and RESULT lines, as if the merge had succeeded on its first try
+**And** a start log with any `STEP merge FAILED` line, a second `RETRY` line (any number), a `RETRY` line with no `STEP merge OK` after it, or a `RETRY` line in any other form still fails `check_log` exactly as today
+**And** no other STEP or RESULT line is ignored or loosened
+
+**Given** `release/upgrade-harness.sh`
+**When** it reports its result
+**Then** the result names how many `STEP merge RETRY` lines its starts carried (0 when none)
+
+**Given** the change
+**When** this story merges
+**Then** `docker/tests/test-lib-live.sh` (and `docker/tests/test-upgrade-harness.sh` for the count) pin it with fixtures: one RETRY followed by OK passes; a RETRY with no OK, two RETRY lines, a RETRY followed by FAILED, and a near-miss RETRY line each fail; the harness count reads 0 and 1 in its fixtures; `docker/after-start.sh` and `docker/merge.cpf` are unchanged; CI is green on every workflow
+- DW-624: lib-live.sh's log_steps keeps every STEP line, so a live-test or upgrade-harness start that recovers through Story 0.13's retry still fails check_log on the RETRY line (ledger; routed by Story 0.13's review, 2026-11-03)
+
 ## Epic 1: Every item gets an attention decision you can audit and afford
 
 Every item OcuTalon receives gets exactly one attention decision from an AI Hub agent, recorded as a decision message with its outcome, reasons, confidence, tokens and cost, with every model request and tool call as an agent step in Visual Trace; an unusable reply takes the fallback route and never acts; conversations survive restarts; OcuTalon runs on Claude Haiku 5.5 with only a key in `.env`, and starts safely with none.
