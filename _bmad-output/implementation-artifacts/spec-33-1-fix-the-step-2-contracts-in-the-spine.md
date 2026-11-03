@@ -2,8 +2,9 @@
 title: 'Story 33.1: Fix the step 2 contracts in the spine'
 type: 'feature'
 created: '2026-11-03'
-status: 'done'
+status: 'in-progress'
 baseline_revision: '6fe91568dde94f0ad82449494bfb6605cdedb491'
+baseline_commit: '6fe91568dde94f0ad82449494bfb6605cdedb491'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -129,6 +130,10 @@ deferred:
 - [x] After the author's acceptance (lead records it in Design Notes): `src/ocutalon/cls/OcuTalon/Msg/Catalog/Watch.cls` -- add each accepted `digest.*` key except `digest.cost` (which waits for the `dailyCost` slot type, S16) with its text, slots and `"source": "EXPERIENCE Message Catalog / Daily digest / <case>"`; class doc names the digest texts.
 - [x] After the author's acceptance (lead records it in Design Notes): `src/ocutalon/cls/OcuTalon/Test/Msg/Catalog.cls` -- appends only: the new keys to `XData Keys` "watch", one `XData Fixtures` entry per new key (UJ-1 fixture context), the Watch count (26 plus the keys added) at :3, :81, :83 and the total at :121.
 
+- [ ] [Owner] U-245 (Planner, at=2026-11-03T21:05:48Z#739): `digest.savedNoSummary` must read exactly 'Saved for later ({count}): I couldn't summarize them this time ({fallbackReason}). The most recent are under Recent decisions on your OcuTalon page.' (Recent decisions lists only the latest 20, `DECISIONS_SHOWN`, rail-view.ts:61). Change it together in: this spec's `### Proposed digest texts` table, `EXPERIENCE.md`'s Daily digest block (~L817), `Msg/Catalog/Watch.cls` (~L420) and its fixed-strings pin/fixture in `Test/Msg/Catalog.cls` (~L1365). The other 21 keys stay as they are.
+- [ ] [Owner] U-246 (Planner, at=2026-11-03T21:05:48Z#740), spine text: extend the AD-6 retry sub-bullet (~L216) and the Conventions "Retried turns" row (~L1106), additively and with the U-246 marker: only the server's AD-8 second-model retry path (`Decide`) sets `RetryOf`; no client-facing entry can carry or set it (not the web API, Telegram, mail, the bridge's entry points or MCP), so the `Held` skip can never be used to jump the conversation lock; a retry skips `Held` only when `RetryOf` names a runner of the same conversation and the request has the same `ItemId`, otherwise it waits like any new turn. Record the full behavioural test as an acceptance note for Story 17.2 in both places: (a) a retry with `RetryOf` for the same conversation and `ItemId` skips `Held`; (b) a request without `RetryOf` waits; (c) a request arriving through the web API carrying a `RetryOf` value still waits (the field is ignored); (d) a `RetryOf` naming another conversation or `ItemId` waits. `lint_spine.py` must add no finding beyond the 8 pre-existing `placeholder` ones.
+- [ ] [Owner] U-246, the 33.1 pin (what the stub state can show): `RetryOf` does not exist yet, so add a static test in a Lane A test class (extend `OcuTalon.Test.Bridge.CodeRules` if it already scans class source; otherwise a new method in `Test.Bridge.SettingsStubs`) that fails if any class outside an allow-list mentions `RetryOf` in code (comments excluded): allowed only `OcuTalon.Bridge.Process.Decide`, `OcuTalon.Bridge.Msg.Request`, `OcuTalon.Bridge.Operation.AgentRunner`, `OcuTalon.Bridge.Adapter.Agent`, `OcuTalon.Bridge.Data.ConversationLink` and `OcuTalon.Test.*`; so no `OcuTalon.Web.*`, `OcuTalon.Channel.*`, `OcuTalon.Core.*`, `OcuTalon.Tools.*` or `OcuTalon.Mcp.*` class (the web API's request-to-message mapping included) can set it. Demonstrate its mutation (a `RetryOf` reference added to a web or channel class -> red, reverted) and write the `mutation:` line. Do not edit any Lane B class to do it.
+
 **Acceptance Criteria:**
 - Given Task 0's evidence file, when the spine update is written, then AD-18's new zone bullet names the single run-time source (S5) by that measurement, the "process zone with a restart" fallback appears nowhere, and no veto item is raised for it.
 - Given the spine after the edits, when the reviewer reads it against `### Spine edits`, then each of S1 to S18 is present at its anchor with its marker, no pre-existing sentence of a Rule, Binds, Prevents or convention row is changed, the three Deferred rows are gone, and `lint_spine.py` prints `"ok": true`.
@@ -140,6 +145,7 @@ deferred:
 
 ## Spec Change Log
 
+- 2026-11-03 (lead, rework iteration 1, trigger owner_decision): the Planner answered vetoes U-245 and U-246 after the implement pass (d10ff688): U-245 kept with one wording change to `digest.savedNoSummary`; U-246 kept with an added condition (only Decide's AD-8 retry path sets `RetryOf`; same conversation and `ItemId` only; a static pin now, the behavioural test as a 17.2 note). Three `[Owner]` items added under Tasks & Acceptance; status re-opened to in-progress.
 - 2026-11-03 (lead, before implement): orchestrator rulings recorded under `### Orchestrator rulings` -- U-245 digest texts accepted (the "after the author's acceptance" tasks are in scope; `digest.cost` stays with 33.2); U-246 spine retry case allowed on the additive-S2 condition (S2 and S13 reworded to scope the lock skip to `RetryOf` and carry the 17.2 test note; marker text fixed); U-247 zone storage accepted; `dailyCost` decided as a 33.2 contract.
 
 ## Review Triage Log
