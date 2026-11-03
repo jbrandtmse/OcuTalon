@@ -83,6 +83,27 @@ deferred: []
 - AC 2. Given the guide, when a reader follows it, then: the `AgentAllowList` default cell says "the default is empty, which refuses every class"; step 6 gives the row, Trace tab and View Full Trace path, or the Session number, says that the header id is not a link, and names the `Ens.AlarmRequest` to `Ens.Alarm`; the reference states the user rule with `Decide`'s exact reason; and the Govern section has the one Portal-notice sentence. `reference` passes, and it fails when any one of these is removed.
 - AC 3. Given the push, when CI runs, then every workflow is green, lane-a's standalone-bridge job included (no marked block changed), and `bash docker/tests/test-bridge-guide.sh` exits 0.
 
+### Review Findings
+
+Code review 2026-11-03 (bmad-code-review, full mode; layers blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor; 19 rows, 3 entries after grouping). U-229 clause check: all four clauses true of the code today (acceptance-auditor and reviewer: `Audit.cls:188`, `SettingsOps.cls:21,106`, `Decide.cls:331-339,44,71`, `StepAudit.cls:18-39`, `Approval.cls:507`, `Replay.cls:88,153`); no clarification needed.
+
+- [x] [Review][Patch] AC 2 sub-claims not pinned: "Click the row", the `Ens.` of `Ens.AlarmRequest`, and the user rule's condition "for a `decide` request whose provenance is `user`" can each be changed with `reference` still green [docker/tests/test-bridge-guide.sh:46] (medium, verification-gap; fix-risk low: three phrases and three break samples in the existing list; in-story)
+- [x] [Review][Patch] Real-guide mutation lines missing for the "then the Trace tab", "Session number" and step-5 `untrusted` pins and for the new pins [spec ## Verification] (low, blind-hunter+verification-gap; fix-risk low: tracking lines; in-story; Rule 19 close-in-pass)
+- [x] [Review][Patch] The script header is stale: `reference` now pins phrases outside the reference sections and reads `USERANSWERED` from `Decide.cls`; `u229` needs one line in both files, not only the overview [docker/tests/test-bridge-guide.sh:10] (low, blind-hunter+acceptance-auditor; fix-risk low: comment only; in-story; Rule 14)
+
+Rejected (each with its disposition):
+- by-design: the spec's Task (d) and Decided in-stage 2 still say "steps 4 to 6" while the guide says step 5, and the Tasks list five phrases (blind-hunter, verification-gap, acceptance-auditor) -- the fix edits the spec's intent sections; the change is logged in the Review Triage Log and the guide is the accurate text.
+- by-design: the clauses on an approval and an approved call's run hold only while instance auditing is on (acceptance-auditor) -- the ruled wording (U-237) is never reworded; the guide (L52, "IRIS writes an audit entry only while instance-wide auditing is on") and the overview (L174) state the condition.
+- by-design: most of the step 6 click path and the Portal notice are not backed by code (acceptance-auditor, blind-hunter) -- ruling (c) and gap (e) are the Planner's observation; the platform does carry a needs-update reason (`EnsPortal/ProductionConfig.cls:1490`), and the guide hedges with "may show".
+- by-design: the `AgentAllowList` row says "refuses every class" twice (blind-hunter) -- the Default cell is fixed by AC 2 and Decided in-stage 1 keeps the description.
+- low: the user-rule paragraph's second sentence repeats steps 4-5 and the Govern section and sits under "Messages and enumerations" (blind-hunter) -- placement fixed by Task (d); a reworded claim would be new public text; style only.
+- low: the Portal-notice sentence repeats the Govern intro's "read live" (blind-hunter) -- the sentence is AC 2 (e)'s content; style only.
+- low: the timer sentence is unconditional, but a precheck fallback sets no timer and a re-send sets a second (edge-case-hunter, `Decide.cls:282-288`) -- step 6 describes the example's normal decision through `TriageAgent`, which the whole paragraph assumes; a fallback has no runner request either.
+- false: the residual risks omit other unverified claims (blind-hunter) -- the fix edits the spec's Auto Run Result; both are covered by the rulings above.
+- false: the spec says `status: 'done'` while under review (edge-case-hunter, verification-gap) -- the frontmatter `status` is build-auto's machine state; review sets the story status in sprint-status.yaml.
+- low: the cycle log's `loc_added=45 loc_removed=15` does not match `git show --stat 99044f68` (49/11 excluding the spec) (edge-case-hunter) -- a runner-owned append-only log this stage may not write; a metric with no consumer harm.
+- false: AC 3 has no `mutation:` line (verification-gap) -- AC 3 is a CI outcome; its script-exit part fails under every AC 1 and AC 2 mutation recorded below.
+
 ## Spec Change Log
 
 - 2026-11-03, runner (lead): the plan HALTed (intent gap, U-229 clause 2). Applied the orchestrator's rulings: Q1 U-237 (provisional sentence, then replaced by the Planner's answer, option (c), 10:46:10Z#712), Q2 decide (the guide says nothing about `Reconcile`), (c) the Planner's click path as given. Status reset to `ready-for-dev`: the rest of the plan was complete and only the sentence changed.
@@ -209,6 +230,23 @@ No AC contradicts an AD's Rule. Q1 is a gap between the sentence's clause 2 and 
 - the hand-written Approval and audit paragraph of `docs/security-overview.md` (`overviewdoc`, `live:security-overview`). It is an input of every iris group, so this push runs every group.
 
 Standing criterion: every test added or changed passes on a fresh environment, in either order.
+
+**QA audit (QA, stage qa, tag e13s4q; static only, no IRIS run):** no test file created or changed by QA. `docker/tests/test-bridge-guide.sh` (changed by the implement stage) audited: all four rules pass, and every AC pin has a demonstrated red on the real files (backup in the scratchpad, restored from it, `git status --short` and `git diff --stat` identical, shasum identical after each).
+- mutation (QA): AC 1, overview "writes no OcuTalon audit entry" -> "writes an OcuTalon audit entry" => u229 FAIL ("the Approval and audit section of docs/security-overview.md lacks the U-229 sentence").
+- mutation (QA): AC 1, guide sentence split over two lines (". Each" -> ".\nEach") => u229 FAIL ("docs/bridge-guide.md lacks the U-229 sentence").
+- mutation (QA): AC 1, overview ruled sentence -> the old "; each tool call is still audited." => u229 FAIL (overview section lacks the sentence).
+- mutation (QA): AC 2 (b), guide Default cell "the default is empty, which refuses every class" -> "see below" => reference FAIL (lacks that prose phrase).
+- mutation (QA): AC 2 (c), guide "`Ens.Alarm`" -> "`Ens.Alarmx`" => reference FAIL (lacks "AlarmRequest` to `Ens.Alarm`"); "View Full Trace" -> "the trace" => reference FAIL; "The header id is not a link" -> "The header id is a link" => reference FAIL.
+- mutation (QA): AC 2 (d), guide "is always answered" -> "is answered" => reference FAIL ("the guide lacks the USERANSWERED reason of Decide").
+- mutation (QA): AC 2 (e), guide "needs an update. You can ignore it" -> "is shown." => reference FAIL (lacks "needs an update" and "You can ignore it, because the bridge reads both settings live").
+
+**Code review (stage code-review, tag e13s4r; static only, no IRIS run):** `PROSE_PHRASES` gains "Click the row" and "for a `decide` request whose provenance is `user`", and "AlarmRequest` to `Ens.Alarm`" becomes "`Ens.AlarmRequest` to `Ens.Alarm`", each with one break sample. Each mutation below was applied to the real `docs/bridge-guide.md`, observed red, and restored from the reviewer's backup (`cmp` identical; `git status --short` unchanged).
+- mutation (CR): AC 2 (c), guide "Click the row" -> "Click its header id" => reference FAIL ("the guide lacks the prose phrase 'Click the row'").
+- mutation (CR): AC 2 (c), guide "`Ens.AlarmRequest`" -> "`AlarmRequest`" => reference FAIL (lacks "`Ens.AlarmRequest` to `Ens.Alarm`").
+- mutation (CR): AC 2 (c), guide "then the Trace tab" -> "then the page" => reference FAIL (lacks "then the Trace tab").
+- mutation (CR): AC 2 (c), guide "Session number" -> "Session link" => reference FAIL (lacks "Session number").
+- mutation (CR): AC 2 (d), guide "for a `decide` request whose provenance is `user`" -> "... `untrusted`" => reference FAIL (lacks that prose phrase).
+- mutation (CR): AC 2 (d), guide "The item of step 5 is sent as `untrusted`" -> "The item is sent" => reference FAIL (lacks that prose phrase).
 
 ## Auto Run Result
 

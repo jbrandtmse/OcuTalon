@@ -10,11 +10,13 @@
 #   - reference  the guide names every setting of Decide, Adapter.Agent and AgentRunner, every refused setting, the four settings of AI Hub's
 #                runner, every property of the message classes, the three fields of the decision payload, every enum value, every event of
 #                the host sink, the five results
-#                of Approval.Answer, the timer limits as "<n> seconds", and the fixed phrases of the reference sections (Timeouts.Derive,
+#                of Approval.Answer, the timer limits as "<n> seconds", the fixed phrases of the reference sections (Timeouts.Derive,
 #                Timeouts.Apply, @{config:, @{env:ANTHROPIC_API_KEY}, embedded Python, the experimental marks, the package sentence and
-#                the follow-on sentence)
+#                the follow-on sentence), the fixed phrases of PROSE_PHRASES in any section (step 6's Visual Trace path and timer, the
+#                Govern section's Portal notice, the user rule), and the USERANSWERED reason, read from Process/Decide.cls (a change
+#                to that parameter fails this rule until the guide follows it)
 #   - u229       the sentence of the owner's answers U-229 and U-237 (what is audited: no entry for a setting change; a tool call is a step unless
-#                the decision times out; an approval and an approved call's run each write an entry) is in the guide and, on one line, in the
+#                the decision times out; an approval and an approved call's run each write an entry) is, on one line, in the guide and in the
 #                "Approval and audit" section of docs/security-overview.md
 #   - public     the guide is ASCII and holds no local path, key-like string, URL, IP address, instance name, or name of the project that the
 #                README's note says OcuTalon is not affiliated with (public-text rules; it prints file:line only, never the text)
@@ -43,8 +45,9 @@ PKG_SENTENCE='OcuTalon installs this same bridge as part of its own package.'
 FOLLOW_SENTENCE='A separate bridge package and listing are a follow-on.'
 AIHUB_SETTINGS="AgentClass ProviderName ProviderConfig Model"
 ANSWER_RESULTS="done already_answered expired not_found not_allowed"
-# The fixed phrases of the install and reference prose (AC 1 and AC 2): the requirements, the load without IPM, what the installer sets up,
-# the instance-auditing check, the Visual Trace step, the Workflow approvals and the developer-tool rules.
+# The fixed phrases of the guide's prose (AC 1 and AC 2): the requirements, the load without IPM, what the installer sets up, the
+# instance-auditing check, the Visual Trace step and its timer, the Portal notice, the Workflow approvals, the developer-tool rules and the
+# user rule.
 PROSE_PHRASES='build 154
 IRIS for Health
 Interoperability namespace
@@ -61,11 +64,13 @@ makes no `%AI` call
 the default is empty, which refuses every class
 View Full Trace
 The header id is not a link
-AlarmRequest` to `Ens.Alarm`
+`Ens.AlarmRequest` to `Ens.Alarm`
 needs an update
 You can ignore it, because the bridge reads both settings live
+Click the row
 then the Trace tab
 Session number
+for a `decide` request whose provenance is `user`
 changes an `ignore` or `digest` outcome to `tellnow`
 The item of step 5 is sent as `untrusted`'
 
@@ -399,6 +404,9 @@ if [ "$ref_samples_ok" -eq 1 ]; then
   break_ref "the Portal advice changed" 's/You can ignore it, because the bridge reads both settings live/Restart the production/'
   break_ref "the Trace tab removed" 's/then the Trace tab/then the page/'
   break_ref "the Session number removed" 's/Session number/Session link/g'
+  break_ref "the row step removed" 's/Click the row/Click its header id/'
+  break_ref "the Ens. prefix removed" 's/`Ens\.AlarmRequest`/`AlarmRequest`/'
+  break_ref "the user-rule condition changed" 's/whose provenance is `user`/whose provenance is `untrusted`/'
   break_ref "the user-rule outcome removed" 's/changes an `ignore` or `digest` outcome to `tellnow`/leaves the outcome alone/'
   break_ref "the untrusted item note removed" 's/The item of step 5 is sent as `untrusted`/The item is sent/'
   break_ref "the user-rule reason changed" 's/a message the user writes is always answered/a message the user writes is answered/'
