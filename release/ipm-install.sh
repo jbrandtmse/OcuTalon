@@ -66,7 +66,8 @@
 # Story 15.3 adds the durability checks and Story 9.1's IPM case:
 #   19. Story 9.1's IPM case, after every full install (path A's second run, the recovery run of check 20, path B's second run and
 #       the reinstall of check 25): the default setting OcuTalon.Production||EvalIn||*||Enabled is 0, CreateBusinessService("EvalIn")
-#       fails with a text containing `is disabled`, the production's TestingEnabled is 0 and EvalIn has no Alive job;
+#       fails with a text containing `is disabled`, the production's TestingEnabled is 0, and EvalIn has no Alive job while other
+#       items have theirs;
 #   20. part r seeds a session with a turn, a live reminder (due in one day) and a lost approval before the forced failure; after the
 #       recovery run the session and its turn are read back unchanged, the reminder has one waiter, the approval has one hold, and
 #       every item's job differs from before the failed reinstall;
@@ -85,8 +86,8 @@
 #   25. the install command with the next version (a scratch copy of the package folder with the patch number raised, loaded in
 #       OCUTALON): Initialize to Activate SUCCESS and one STEP OK per step in order, the raised module version, a new job id for
 #       every item, no new ReconcileIn row, the configuration and the foreign setting unchanged, and the data and the waiters intact.
-# The argument chooses the paths: none runs A, the reinstalls (checks 16 to 18, 20) and B (the job), `a` path A (checks 1 to 6, 8 to 14 and 19)
-# only, `r` path A's first and second run and the reinstalls (checks 16 to 18, 20), `b` path A's first run (the reference of path B's
+# The argument chooses the paths: none runs A, the reinstalls (checks 16 to 20) and B (the job), `a` path A (checks 1 to 6, 8 to 14 and 19)
+# only, `r` path A's first and second run and the reinstalls (checks 16 to 20), `b` path A's first run (the reference of path B's
 # comparison) and path B (checks 7, 15, 19 and 21 to 25).
 # Every run's and the merge's full output is printed between `OUTPUT begin <name>` and `OUTPUT end <name>`, ANSI codes kept; the
 # checks read it with the codes removed. `TIME <step> <s>s` lines give the durations. Prints one PASS or FAIL line per check, and
@@ -334,19 +335,22 @@ orders_running() {
 orders_up() { [ "$(orders_running)" = 1 ]; }
 
 # check_ipm_case <label>: Story 9.1's IPM case (check 19) on the running production: EvalIn's default setting row is 0, EvalIn is refused as
-# disabled, the production's TestingEnabled is 0 and EvalIn has no Alive job.
+# disabled, the production's TestingEnabled is 0, and EvalIn (pool size 0) has no Alive job while other items have theirs (lib-live item_jobs).
 check_ipm_case() {
-  check_session "$1: Story 9.1's IPM case: EvalIn's default row is 0, EvalIn is refused as disabled, TestingEnabled is 0 and EvalIn has no job" OCUTALON \
+  check_session "$1: Story 9.1's IPM case: EvalIn's default row is 0, EvalIn is refused as disabled and TestingEnabled is 0" OCUTALON \
     "CHK|row|0
 CHK|refused|1
-CHK|testing|0
-CHK|jobs|0
-CHK|others|1" \
+CHK|testing|0" \
     'Write !,"CHK|row|",##class(Ens.Config.DefaultSettings).%OpenId("OcuTalon.Production||EvalIn||*||Enabled").SettingValue' \
     'Set sc=##class(Ens.Director).CreateBusinessService("EvalIn",.svc) Write !,"CHK|refused|",($SYSTEM.Status.IsError(sc)&&($SYSTEM.Status.GetErrorText(sc)["is disabled"))' \
     'Write !,"CHK|testing|",+##class(Ens.Config.Production).%OpenId("OcuTalon.Production").TestingEnabled' \
-    'Set n=0,o=0,rs=##class(%ResultSet).%New("Ens.Job:Enumerate") Set sc=rs.Execute() While rs.Next() { If rs.Get("State")="Alive" { If rs.Get("ConfigName")="EvalIn" { Set n=n+1 } Else { Set o=1 } } } Write !,"CHK|jobs|",n,!,"CHK|others|",+$Get(o)' \
     'Halt'
+  item_jobs "$tmp/jobs-ipm-case.tsv"
+  if [ -s "$tmp/jobs-ipm-case.tsv" ] && ! cut -f1 "$tmp/jobs-ipm-case.tsv" | grep -qx EvalIn; then
+    pass "$1: Story 9.1's IPM case: EvalIn has no Alive job, and $(grep -c . "$tmp/jobs-ipm-case.tsv") other items have theirs"
+  else
+    fail "$1: Story 9.1's IPM case: EvalIn has an Alive job, or no item has one (items with jobs: $(cut -f1 "$tmp/jobs-ipm-case.tsv" | tr '\n' ' '))"
+  fi
 }
 
 # check_run_ok <run name> <label>: the install command's output $tmp/<run name>.txt is Initialize to Activate SUCCESS with one STEP OK line
@@ -558,7 +562,7 @@ CHK|run|1" \
 
 # one_new_row <before> <label> <what>: ReconcileIn's Info rows, <before> of them when <what> began, rise to exactly <before>+1 within 60 s and
 # stay there for 15 s more (the shared count of the checks that start the production outside the Production step). Prints the PASS or FAIL
-# line; returns 0 on a pass.
+# line.
 one_new_row() {
   local before=$1 after n
   wait_until 60 reconcile_rows_above "$before" || true
@@ -582,7 +586,7 @@ check_start_outside() {
   local before
   before=$(reconcile_rows)
   stop_start stop-start
-  one_new_row "$before" "start outside the step" "a session's start" || true
+  one_new_row "$before" "start outside the step" "a session's start"
 }
 
 # check_start_by_step: matrix row "Start by the step".
@@ -821,7 +825,8 @@ foreign_orders() {
 # (ReminderFixture WaitingCount) and its ReminderStart headers (StartHeaders), an approval's live hold (Approval.LiveHold) and its hold
 # instances (Test.Bridge.Approval HoldCount), and ReconcileIn's Info rows (reconcile_rows). Rows with no waiter (RX, AX, RY, AY) are
 # seeded directly, so that the one re-arm of each is countable: a clean restart keeps a live waiter, and Reconcile re-arms only a lost one.
-#   RL  a live reminder (set through the product), RX and RY lost reminders, AX and AY lost approvals, all in one session with a turn.
+#   RL  a live reminder (set through the product), RX and RY lost reminders, all in one session with a turn; AX and AY lost approvals,
+#   fixture rows with an owner of their own.
 
 SEED_USER=ZzIpmDurable
 SESS_REF=
@@ -993,11 +998,11 @@ want_rl() {
 jobs_changed() {
   local same
   same=$(awk -F'\t' 'NR == FNR { a[$1] = $2; next } !($1 in a) { print $1 " (no job after)"; next } a[$1] == $2 { print $1 " (job " $2 ")" }' "$3" "$2")
-  if [ -s "$2" ] && [ -z "$same" ]; then
+  if [ -s "$2" ] && [ -s "$3" ] && [ -z "$same" ]; then
     pass "$1: every item has new jobs ($(grep -c . "$2") items)"
   else
     printf '%s\n' "$same" | sed 's/^/  unchanged: /'
-    fail "$1: an item kept its jobs (or no item had a job before)"
+    fail "$1: an item kept its jobs (or the jobs before or after could not be read)"
   fi
 }
 
@@ -1013,7 +1018,7 @@ check_restart_alone() {
   local before started=$SECONDS
   before=$(reconcile_rows)
   stop_start prod-alone
-  one_new_row "$before" "production alone" "a stop and start from a session" || true
+  one_new_row "$before" "production alone" "a stop and start from a session"
   rows_bad=
   want_rl
   want_rearmed_rem RX "$RX" "$P_RX"
@@ -1043,7 +1048,7 @@ instance_restart() {
 # second changes no row. RX and AX keep what the step before recorded, and RL is as want_rl says.
 check_restart() {
   local label="instance restart $1"
-  one_new_row "$restart_rows_before" "$label" "the restart of the instance" || true
+  one_new_row "$restart_rows_before" "$label" "the restart of the instance"
   check_session "$label: ^Ens.AutoStart is OcuTalon.Production" OCUTALON "CHK|autostart|OcuTalon.Production" \
     'Write !,"CHK|autostart|",$Get(^Ens.AutoStart)' 'Halt'
   if dc exec -T iris test ! -e /opt/ocutalon/version; then

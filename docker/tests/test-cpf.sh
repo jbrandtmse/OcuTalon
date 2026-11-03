@@ -19,6 +19,10 @@
 #      sentence of OcuTalon.Install.Ipm after `ERROR! `, the install command and the iris merge commands, the demo-mode, model-key and
 #      README-account lines, the line of Registry FailureLine, and the STEP lines inside Configure START and SUCCESS (each OK, and
 #      every name of Registry.Order() once, in its order).
+#  10. src/module.xml (QA of Story 15.3) declares the exact SystemRequirements element, once, so IPM refuses a first run in a namespace
+#      without Interoperability (U-231);
+#  11. docs/install-ipm.md (QA of Story 15.3) starts in USER, quotes that refusal line exactly as release/ipm-install.sh asserts it,
+#      says to run the command in USER instead, and promises no first run in any namespace or in %SYS.
 # Each rule first runs on synthetic files, one that keeps it and one that breaks it, so a rule that can no longer fail makes the
 # test fail. Prints one PASS or FAIL line per check; exits 0 only when all pass.
 set -u
@@ -403,6 +407,66 @@ else
   fail "rule 7 on samples: the checker accepts a mis-wired job ipm-install, or rejects the right one"
 fi
 
+# 10. The staff-requested system requirement (Story 15.3, U-231): src/module.xml declares the exact SystemRequirements element, once, on
+# a line of its own. Without it IPM no longer refuses a first run in a namespace without Interoperability (such as %SYS).
+SYSREQ_ELEMENT='<SystemRequirements Version=">=2026.3" Interoperability="enabled"/>'
+sysreq_declared() {
+  awk -v want="$SYSREQ_ELEMENT" '
+    { line = $0; sub(/^[ \t]+/, "", line); sub(/[ \t\r]+$/, "", line) }
+    line == want { n++ }
+    line ~ /SystemRequirements/ && line != want { bad = 1 }
+    END { exit (n == 1 && !bad) ? 0 : 1 }' "$1"
+}
+{ echo '<Module>'; echo "  $CPF_ELEMENT"; echo "  $SYSREQ_ELEMENT"; echo '</Module>'; } > "$tmp/manifest.sysreq"
+grep -v 'SystemRequirements' "$tmp/manifest.sysreq" > "$tmp/manifest.sysreq-none"
+{ cat "$tmp/manifest.sysreq"; echo "  $SYSREQ_ELEMENT"; } > "$tmp/manifest.sysreq-twice"
+sed 's/Interoperability="enabled"/Interoperability="disabled"/' "$tmp/manifest.sysreq" > "$tmp/manifest.sysreq-interop"
+sed 's/>=2026.3/>=2024.1/' "$tmp/manifest.sysreq" > "$tmp/manifest.sysreq-version"
+sed '/SystemRequirements/ s/^\(.*\)$/<!-- \1 -->/' "$tmp/manifest.sysreq" > "$tmp/manifest.sysreq-commented"
+if sysreq_declared "$tmp/manifest.sysreq" && ! sysreq_declared "$tmp/manifest.sysreq-none" && ! sysreq_declared "$tmp/manifest.sysreq-twice" \
+  && ! sysreq_declared "$tmp/manifest.sysreq-interop" && ! sysreq_declared "$tmp/manifest.sysreq-version" && ! sysreq_declared "$tmp/manifest.sysreq-commented"; then
+  pass "rule 10 on samples: the exact SystemRequirements element once passes; none, two, another Interoperability value, another version or a commented one fails"
+else
+  fail "rule 10 on samples: the checker accepts a manifest without the exact SystemRequirements element, or rejects the right one"
+fi
+
+# 11. The install document follows U-231 (Story 15.3): the first run starts in USER, IPM's refusal in a namespace without Interoperability
+# is quoted exactly as release/ipm-install.sh asserts it (the line alone, once), the reader is sent back to USER, and no sentence promises
+# a first run in any namespace or in %SYS.
+script_refusal=$(sed -n "s/^REFUSAL='\(.*\)'$/\1/p" release/ipm-install.sh)
+ns_doc_ok() { # ns_doc_ok <doc> <refusal text>
+  local doc=$1 refusal=$2
+  [ -n "$refusal" ] || return 1
+  [ "$(grep -cxF -- "ERROR! $refusal" "$doc")" -eq 1 ] || return 1
+  grep -qF -- 'Open an IRIS terminal in USER and load the package' "$doc" || return 1
+  grep -qF -- 'USER is one on both IRIS for Health and IRIS build 154' "$doc" || return 1
+  grep -qF -- 'run the command in USER instead' "$doc" || return 1
+  ! grep -qiE 'in any namespace|USER or %SYS|namespace you start from' "$doc" || return 1
+}
+cat > "$tmp/nsdoc.good" <<EOM
+Open an IRIS terminal in USER and load the package:
+OcuTalon needs an Interoperability-enabled namespace, and USER is one on both IRIS for Health and IRIS build 154. IPM refuses it in %SYS:
+ERROR! $script_refusal
+If you see it, run the command in USER instead.
+Running the first command again in USER gives the same stop and changes nothing.
+EOM
+grep -v '^ERROR!' "$tmp/nsdoc.good" > "$tmp/nsdoc.no-refusal"
+sed 's/is not interoperability-enabled\./is not enabled./' "$tmp/nsdoc.good" > "$tmp/nsdoc.changed-refusal"
+{ cat "$tmp/nsdoc.good"; echo "ERROR! $script_refusal"; } > "$tmp/nsdoc.twice"
+sed 's/^ERROR! \(.*\)$/Note: \1/' "$tmp/nsdoc.good" > "$tmp/nsdoc.inline"
+sed 's/terminal in USER and/terminal in any namespace (USER here) and/' "$tmp/nsdoc.good" > "$tmp/nsdoc.any-namespace"
+sed 's/in USER gives the same/in USER or %SYS gives the same/' "$tmp/nsdoc.good" > "$tmp/nsdoc.sys-repeat"
+sed 's/run the command in USER instead/try again/' "$tmp/nsdoc.good" > "$tmp/nsdoc.no-advice"
+sed 's/ and USER is one on both IRIS for Health and IRIS build 154//' "$tmp/nsdoc.good" > "$tmp/nsdoc.no-images"
+if ns_doc_ok "$tmp/nsdoc.good" "$script_refusal" && ! ns_doc_ok "$tmp/nsdoc.no-refusal" "$script_refusal" && ! ns_doc_ok "$tmp/nsdoc.changed-refusal" "$script_refusal" \
+  && ! ns_doc_ok "$tmp/nsdoc.twice" "$script_refusal" && ! ns_doc_ok "$tmp/nsdoc.inline" "$script_refusal" && ! ns_doc_ok "$tmp/nsdoc.any-namespace" "$script_refusal" \
+  && ! ns_doc_ok "$tmp/nsdoc.sys-repeat" "$script_refusal" && ! ns_doc_ok "$tmp/nsdoc.no-advice" "$script_refusal" && ! ns_doc_ok "$tmp/nsdoc.no-images" "$script_refusal" \
+  && ! ns_doc_ok "$tmp/nsdoc.good" ""; then
+  pass "rule 11 on samples: a document with the USER start, the exact refusal line once, both images and the advice passes; a missing, changed, doubled or inline refusal, a first run promised in any namespace or %SYS, no advice or no image note fails"
+else
+  fail "rule 11 on samples: the checker accepts a document that lost a point of U-231, or rejects the right one"
+fi
+
 # --- the real files ---
 
 check "rule 1: $cpf_file has no line that names %Service_CallIn or %IPM" no_service_or_ipm "$cpf_file"
@@ -414,6 +478,8 @@ check "rule 6: .github/workflows/lane-a.yml defines job ipm-install, which runs 
 check "rule 7: job ipm-install has the base image, the -ipm tag, the bundle build before the script and a deadline inside the timeout" ipm_job_wired .github/workflows/lane-a.yml
 check "rule 8: $manifest invokes OcuTalon.Install.Registry Ipm once, at Configure, After, after MapAndStop" ipm_entry_declared "$manifest"
 check "rule 9: $install_doc keeps its points and agrees with the stop sentence of Install.Ipm, the failure line and the order of Registry" install_doc_ok "$install_doc" "$stop_text" "$fail_tail" "$order_text"
+check "rule 10: $manifest declares the exact SystemRequirements element once" sysreq_declared "$manifest"
+check "rule 11: $install_doc starts in USER, quotes IPM's refusal exactly as release/ipm-install.sh asserts it and sends the reader back to USER" ns_doc_ok "$install_doc" "$script_refusal"
 
 if [ "$fails" -ne 0 ]; then
   echo "test-cpf: $fails check(s) failed"

@@ -771,6 +771,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-22T13:35:56Z status=routed owner=burndown by=harvest note=a production-start hook calls the Reconcile declarations (AD-23), with a test that restarts the production alone
 - 2026-10-25T06:36:24Z status=routed owner=15-3-an-ipm-install-survives-restarts-and-reinstalls-and-every-re by=burndown note=Story 15.3's criterion that every area's Reconcile() runs once the autostarted production's items run is this entry: a production started on its own (IPM autostart, or a stop and start with no installer run) must run the Reconcile declarations (AD-23), so a turn left running is picked up; test a restart of the production alone
 - 2026-10-28T00:45:43Z occurrence=8-5-reminders-survive-restarts-and-upgrades-and-late-ones-say-so
+- 2026-11-03T06:12:52Z status=resolved-by:15-3-an-ipm-install-survives-restarts-and-reinstalls-and-every-re by=adjudication note=check_21_check_restart_alone(release/ipm-install.sh_part_b):production_stop+start_from_a_session_with_no_installer_run_logs_exactly_one_ReconcileIn_row_and_re-arms_the_lost_reminder_RX_and_approval_AX_once;mutation_ReconcileIn_skip->b_red;build_297ad6f4
 
 ### DW-81: Conversation's Busy wait and resend run end to end only against a probe replacing SetTimer, never through the real Ens.Alarm and the reopened instance
 - source: spec-2-4-answer-every-chat-message-through-the-turn-pipeline.md | severity: med | fix-risk: low | footprint: in-story

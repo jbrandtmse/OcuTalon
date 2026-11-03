@@ -127,6 +127,39 @@ Anchors were taken at `12fe53a1`; no source file changed since the first plan.
 - Given a push or pull request, when the `ipm-install` job runs `bash release/ipm-install.sh` with no argument, then it runs path A, the reinstalls and path B with checks 1-25, fails unless every check passes, and the row "Story 9.1's IPM case" holds at each of its four points; `lane-a.yml` is unchanged (fork guard, `timeout-minutes: 35`), and `test-cpf.sh` rules 6 and 7 pass.
 - Given `src/module.xml` with the `SystemRequirements` line, when the package loads on build 154, then the version check passes (every USER and OCUTALON run of `a`, `r`, `b` and `live install-start`), the rows "First run in %SYS refused" and "First run in USER" hold, and `docs/install-ipm.md` advises USER on both images, quotes IPM's refusal and says to run the command in USER instead, with `test-cpf.sh` rule 9 and `test-boundaries.sh` passing.
 
+### Review Findings
+
+Code review 2026-11-03 (layers: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor; tier full-opus). 27 raw findings, 6 entries after grouping (med 1, low 5), all patched; 0 deferred; 20 rejected (18 lines below; two pairs share a line).
+
+- [x] [Review][Patch] `check_ipm_case` copied lib-live `item_jobs`' Alive-job enumeration with no stated reason (Rule 2, med, fix-risk low): it now calls `item_jobs` and reads EvalIn's absence and the other items' presence from that file [release/ipm-install.sh:339]
+- [x] [Review][Patch] check 19's positive control (other items have Alive jobs) was undocumented in the header, the function comment and the label (low) [release/ipm-install.sh:67]
+- [x] [Review][Patch] the mode paragraph left check 19 out of the reinstalls' and `r`'s lists (low): both now read "checks 16 to 20" [release/ipm-install.sh:89]
+- [x] [Review][Patch] `jobs_changed` passed on an empty "after" read (low; checks 20 and 25): it now also requires the after file to be non-empty (hermetic sample: old version PASS, new version FAIL on an empty after file) [release/ipm-install.sh:998]
+- [x] [Review][Patch] `one_new_row`'s comment promised a return contract and its four callers kept a dead `|| true` (low) [release/ipm-install.sh:566]
+- [x] [Review][Patch] the seeding comment put AX and AY in the seeded session; `ApprovalRows.NewRow` gives them an owner of their own (low) [release/ipm-install.sh:829]
+
+Verification of the patches: `bash -n`, `test-cpf.sh` and `test-boundaries.sh` pass; `ipm-install.sh a` with the AC 3 mutation (tag e15s3cra, 150 s) fails only check 19's settings row ("2 of 3 values differ") while the new `item_jobs` reading, check 5's %SYS case and `start outside the step` pass; the AC 3 `mutation:` line is updated under `## Verification`.
+
+Rejected:
+- `false` "Instance restart 2" does not check that no item process is duplicated (blind-hunter) - the matrix row defines it by the equal start counts and hold ids, which check 23 asserts; an instance restart ends every process.
+- `false` the guide's first-run block was never compared with a passing run (acceptance-auditor) - compared with the review's `a` run's `first-user` block: only the `Node:` banner and the compile time differ; IPM prints nothing when `SystemRequirements` pass (`%IPM.Storage.Module.CheckSystemRequirements`).
+- `false` `want_rearmed_rem` passes on an empty before-probe (edge-case-hunter) - every before-probe is asserted exact by `seed_durable`/`seed_pair`, which fail the run first.
+- `false` check 20's header claims session-owned approvals (edge-case-hunter, low confidence) - it lists what part `r` seeds and claims no ownership.
+- `false` spec `status: done` before review (edge-case-hunter, acceptance-auditor) - build-auto's machine state; the review status lives in sprint-status; QA's uncommitted test is the protocol.
+- `low` `one_new_row` with an unreadable before count could pass when the real count is exactly 1 (edge-case-hunter) - needs a failed read plus that exact count; a guard adds complexity.
+- `low` `rl_due_s` uses a 10 s margin where Decided in-stage 3 says 5 s; a probe longer than 10 s could fail (acceptance-auditor, edge-case-hunter) - the safe direction; a probe is one 1-2 s session.
+- `low` test-cpf rule 10 misses the element inside a multi-line comment (edge-case-hunter) - unlikely edit; the live check 5 would still go red.
+- `low` check 19's EvalIn job count holds by construction (pool size 0) (verification-gap) - by design: the matrix row asks for it; the row's falsifiable points (row, refused, testing) carry AC 3 and the positive control now comes from `item_jobs`.
+- `low` the `/opt/ocutalon/version` row checks the test image (verification-gap) - by design: the matrix row asks for it as the no-after-start guard.
+- `low` no mutation shows a double re-arm or the `b` reinstall row red (verification-gap) - Rule 19 asks one mutation per AC; all four ACs have one.
+- `false` the full no-argument run has never run (verification-gap) - CI lane-a run 41586114408 on `f2d8faba`: job `ipm-install` printed `ipm-install: all checks passed` in 21.8 min (05:49:13Z to 06:11:03Z), under the 23.5 min projection and the 35 min limit (before this review's patches).
+- `low` the quoted refusal names %SYS while the sentence says "such as %SYS" (blind-hunter) - spec-bound wording (the guide task) and U-231's condition; the reader in %SYS sees it verbatim.
+- `low` "IRIS for Health and IRIS build 154" image naming (blind-hunter) - spec-bound wording, pinned by test-cpf rule 11.
+- `low` "The run in USER ends early" is an unlisted sentence edit (acceptance-auditor) - accurate and required by the new paragraph before it; it claims nothing new.
+- `low` spec Verification command and Shared surfaces do not name rules 10 and 11 (blind-hunter) - a spec edit; a changed `REFUSAL` line fails rule 11 loudly.
+- `low` Tasks boxes unchecked (blind-hunter) - a spec edit; build-auto's format.
+- `low` the AD-23 "first in any namespace" sentence has no ledger entry (blind-hunter) - lead ruling: known to the orchestrator, not this story's.
+
 ## Spec Change Log
 
 - 2026-11-03, plan iteration 1 -> re-plan (lead, after the orchestrator's rulings on the plan's two intent gaps and its 7 h size estimate): (a) split, decide (split_children 1 of 6): this story keeps ACs 1-3 (restarts and DW-80; reinstalls with the rollback reading and the U-176 forced-failure re-run; the FR-57 job with Story 9.1's IPM case), DW-80, DW-306 and the `SystemRequirements` bullet; the release gate, the registry install, the guide and local-repository criteria and DW-576 moved to Story 15.4 (`epics.md`, marker `[SPLIT 2026-11-03 from Story 15.3, orchestrator ruling (decide)]`; DW-576 re-owned to 15.4); (b) U-231 (veto, kept with conditions by the owner's delegate, answer 2026-11-03T03:57:20Z#695): the first run's promise narrows to any Interoperability-enabled namespace; `epics.md` L265 and Story 15.1's three lines amended with `[AMENDED 2026-11-03, Story 15.3, unattended ruling U-231]`, and a U-231 bullet added to this story; the PRD states no first-run namespace (nothing to amend); the spine's AD-23 sentence "first in any namespace" is NOT amended by this story (a runner never amends an AD, U14) and is reported to the orchestrator; (c) U-232 (veto, kept with conditions, answer #696): MapAndStop also maps IPM's repository definitions into OCUTALON, in Story 15.4 (this story's tests use the load-from-folder paths, never a repository); (d) the intent block narrowed to this story, the three release-proof matrix rows moved to Design Notes ("Moved to Story 15.4"), and two U-231 rows added. The previous status was `blocked` (two intent gaps); reset to `draft` for the re-plan.
@@ -342,8 +375,14 @@ Fresh throwaways only (the `module.xml` change refuses a warm reload, and `live`
 Mutation results (applied one at a time, restored byte-identical; each target file's sha checked after):
 - mutation: `ReconcileIn.OnProcessInput` quits before its run branch -> red: `ipm-install.sh b`: "production alone", "instance restart 1", "instance restart 2" and their row checks FAIL (`ReconcileIn's Info rows went 0 -> 0`; AC 1).
 - mutation: `Install/Step/Production.cls` `StartLocked` skips `RestartProduction` for a running production -> red: `ipm-install.sh r`: FAIL "recovery run: an item kept its jobs" (check 20; AC 2).
-- mutation: `Step.Production.EvalEnabled` returns 1 -> red: `ipm-install.sh a`: FAIL "second run: Story 9.1's IPM case ... (3 of 5 values differ)" (check 19; AC 3; re-run after the review patch added the positive control).
+- mutation: `Step.Production.EvalEnabled` returns 1 -> red: `ipm-install.sh a`: FAIL "second run: Story 9.1's IPM case: EvalIn's default row is 0, EvalIn is refused as disabled and TestingEnabled is 0 (2 of 3 values differ)" (check 19; AC 3; re-run by code review 2026-11-03 after `check_ipm_case` moved its job reading to lib-live `item_jobs`, tag e15s3cra, 150 s, the only FAIL of the run; restored byte-identical, sha checked).
 - mutation: the `SystemRequirements` line removed from `src/module.xml` -> red: `ipm-install.sh a`: FAIL "first run in %SYS: the last line is not IPM's refusal ERROR! line, or a phase started" and "the configuration changed" (AC 4).
+
+QA additions (Rule 19; hermetic, `bash docker/tests/test-cpf.sh`, no live run needed because no `ipm-install.sh` part changed):
+- (QA) `docker/tests/test-cpf.sh` rule 10 (`src/module.xml` carries the exact `SystemRequirements` element once) and rule 11 (`docs/install-ipm.md` starts in USER, quotes IPM's refusal line exactly as `release/ipm-install.sh` `REFUSAL` asserts it, says to run the command in USER instead, and promises no first run in any namespace or %SYS). Each rule runs first on synthetic samples (rule 10: none, two, other value, other version, commented; rule 11: missing, changed, doubled or inline refusal, any-namespace or %SYS promise, no advice, no image note). `test-cpf` is already in `ci/units.sh` `CHECK_SCRIPTS`; no change there.
+- mutation: the `SystemRequirements` line removed from `src/module.xml` -> red: `test-cpf.sh` rule 10 (AC 4; hermetic twin of the live `a` check 5).
+- mutation: `docs/install-ipm.md` "Open an IRIS terminal in USER" changed to "in any namespace" -> red: `test-cpf.sh` rule 11 (AC 4).
+- mutation: the `ERROR! This module requires an interoperability-enabled namespace...` line removed from `docs/install-ipm.md` -> red: `test-cpf.sh` rule 11 (AC 4).
 
 **Shared surfaces:**
 - `release/ipm-install.sh`'s check list, functions and modes: lane-a's `ipm-install` job and `test-cpf.sh` rules 6 and 7 (the `run:` line and deadline are unchanged); Story 15.4 extends it.
