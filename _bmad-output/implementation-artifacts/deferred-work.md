@@ -2717,6 +2717,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-02T05:39:25Z status=wontfix-accepted by=burndown note=a_burndown-owned_LOW_flake(Rule_15)_with_no_charter_in_part_1;not_seen_again_in_Epic_30_part_1_fresh_runs;reopen_if=GuideApi_TestRunAgain_goes_red_again_in_CI_or_a_fresh_shard
 - 2026-11-02T10:55:33Z status=routed owner=burndown by=lead occurrence=30-1-long-conversations-are-compacted-under-the-limit note=reopened(reopen_if_met):30.1_implement_fresh_shard_lane-b_part_2/2_red_twice_on_TestRunAgain;passed_alone_on_a_fresh_throwaway;30.1_touches_no_Web/Guide_code;Lane_B_class(AD-33):route_to_a_Lane_B_story_at_the_burn-down_gate
 - 2026-11-02T12:09:17Z owner=31-3-the-readme-leads-to-the-demo-and-the-launched-demo-is-measur by=burndown note=overflow:Lane_B_class_Test.Web.GuideApi(AD-33:off_limits_to_Lane_A_epic_30);flake_reopened_by_30.1's_fresh_shard_lane-b_2/2(red_twice,passes_alone):find_the_order_or_timing_dependence_of_TestRunAgain
+- 2026-11-03T05:33:44Z occurrence=31-6-a-tool-call-s-approval-request-appears-in-the-web-chat-with
+- 2026-11-03T05:33:44Z status=routed owner=31-3-the-readme-leads-to-the-demo-and-the-launched-demo-is-measur by=harvest note=CI occurrence on 510ddbc9 (run 41577710442 image shard lane-b: TestOnlyTheMarkerChanges and TestRunAgain, 1 of 88 classes; green on rerun; passes alone on slot C)
 
 ### DW-454: U-170's plain-English reason for an old held tool call reaches a person only through the decision live event (decision strip, rail decision row, trace); the approval card and notices do not show it: Live.Payload.Approval.reason stays empty, approval.result is {ref}, Core.Rule.Notice reads only the fallback reason
 - source: spec-30-3-an-approved-tool-call-runs-exactly-once-with-no-model.md | severity: med | fix-risk: med | footprint: out-of-footprint
@@ -3481,3 +3483,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-30-8-the-redactor-and-the-key-proof-catch-every-key-shape.md | severity: low | fix-risk: med | footprint: out-of-footprint
 - evidence: 30.8 Task 0 control: ContextData is the one global stream found; U-185 scopes the stream question to message bodies (0 streams there); the provider key travels in a request header and never in session content (inference)
 - 2026-11-02T21:03:47Z status=wontfix-accepted owner=30-8-the-redactor-and-the-key-proof-catch-every-key-shape by=adjudication note=reopen_if=a_product_path_puts_the_provider_key_or_a_request_header_into_an_AI_session's_messages,or_the_key_proof_is_asked_to_cover_session_history
+
+### DW-612: flake: live:install-start row 2 (install-fresh): the restart's CPF merge fails with ERROR #453 Cannot quiesce the system for namespace reactivation, so the restart is not ready within 200 s
+- source: _bmad-output/implementation-artifacts/cycle-log-epic-31.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: OCT-epic31 runs 41419787515 (17c86e98 attempt 1), 41577358713 (f7cc68ab), 41577710442 (510ddbc9); each green on one unchanged rerun; feature and other epic branches green in the same window
+- 2026-11-03T05:33:43Z status=routed owner=burndown by=harvest note=flake class (one rerun and an occurrence); priority at Epic 31's burn-down: find what holds the namespace at the restart (inference: none of Epic 31's code runs a background job; 31.1's WebSocket needs a browser)
