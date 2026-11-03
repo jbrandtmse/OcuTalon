@@ -11,10 +11,13 @@ Include Ensemble
 ///   - TestStopAsksAgain, TestStopWithoutAskingStays, TestStopThatNeverEnds, TestNoAskWhenGone and TestParkWaitsLonger: the wait of the
 ///     park (LiveCase.AwaitStop) against a stub that stands for the production: a job that the first stop lost goes when the update is
 ///     asked for again (red without the retry, as the old single wait of 30 s had none), a wait without a retry asks for no update, a job
-///     that never goes still fails at the bound with the updates counted, a job that is gone costs no update, and the park waits longer
-///     than a test does;
+///     that never goes still fails at the bound with the updates counted, a job that is gone costs no update, and the park asks
+///     LiveCase.Disable for the wait of PARKSECONDS with the retry for each Telegram item, longer than a test's wait;
+///   - TestStopErrorRetried and TestStopFailsLoudly: LiveCase.Disable against the same stub: with a retry, a disable whose own stop
+///     failed still succeeds when the job goes within the wait, and a job that never goes fails with a text that names the item, the
+///     bound, the updates asked for and the disable's error; without a retry the disable's error is the failure;
 ///   - TestRealUpdateAndJobText: the same wait against the real production, whose update is asked for while TelegramIn runs, and the
-///     text that names a job.
+///     text that names the job.
 /// The Enabled rows, the runtime flag of TelegramIn and the Telegram mark are saved before each test and put back after it.
 Class OcuTalon.Test.Channel.TelegramParked Extends %UnitTest.TestCase
 {
@@ -137,12 +140,19 @@ ClassMethod Update()
 	Set ^||TelegramParked("calls") = $Get(^||TelegramParked("calls")) + 1
 }
 
-/// Sets the stub: the job goes once the update has been asked for need times.
-ClassMethod Stub(need As %Integer)
+/// The stub's disable of an item: an error when the stub was set with stopError, as a stop that did not end in time returns.
+ClassMethod Stop(item As %String) As %Status
+{
+	Quit $Select($Get(^||TelegramParked("stopError")): $SYSTEM.Status.Error(5001, "stub stop not ended"), 1: $$$OK)
+}
+
+/// Sets the stub: the job goes once the update has been asked for need times; with stopError, its disable returns an error.
+ClassMethod Stub(need As %Integer, stopError As %Boolean = 0)
 {
 	Kill ^||TelegramParked
 	Set ^||TelegramParked("need") = need
 	Set ^||TelegramParked("calls") = 0
+	Set ^||TelegramParked("stopError") = stopError
 }
 
 /// A job whose first stop was lost goes when the disable asks the production to update again.
@@ -185,22 +195,58 @@ Method TestNoAskWhenGone()
 	Kill ^||TelegramParked
 }
 
-/// The park waits longer than a test does, and updates again within the wait.
+/// The park asks for the wait of PARKSECONDS with the retry for each Telegram item, longer than a test's wait, with the retry inside it.
 Method TestParkWaitsLonger()
 {
-	Do $$$AssertTrue($Parameter(..#BOTAPI, "PARKSECONDS") > $Parameter(..#CASE, "WAITJOB"), "the park waits longer than the "_$Parameter(..#CASE, "WAITJOB")_" s of a test")
-	Do $$$AssertTrue(($Parameter(..#CASE, "RETRYSECONDS") > 0) && ($Parameter(..#CASE, "RETRYSECONDS") < $Parameter(..#CASE, "WAITJOB")), "and a disable asks again within a test's wait")
+	If '..Ready() Quit
+	Set park = $Parameter(..#BOTAPI, "PARKSECONDS"), retry = $Parameter(..#CASE, "RETRYSECONDS")
+	Do $$$AssertTrue(park > $Parameter(..#CASE, "WAITJOB"), "the park waits longer than the "_$Parameter(..#CASE, "WAITJOB")_" s of a test")
+	Do $$$AssertTrue((retry > 0) && (retry < park), "and asks again within its wait")
+	Kill ^||LiveCaseAwaitStop
+	Do $$$AssertStatusOK($ClassMethod(..#BOTAPI, "Park"), "the stack is parked")
+	Set items = ##class(OcuTalon.Install.Step.Telegram).#ITEMS
+	For i = 1:1:$Length(items, ",") {
+		Set item = $Piece(items, ",", i)
+		Do $$$AssertEquals($ListToString($Get(^||LiveCaseAwaitStop(item))), park_","_retry, "the park waited for "_item_" with "_park_" s and a retry every "_retry_" s")
+	}
+	Kill ^||LiveCaseAwaitStop
 }
 
-/// The wait against the real production: while TelegramIn runs, the wait to see it gone ends at the bound, the production update was asked
-/// for and the failure text names the job. A park puts the stack back.
+/// With a retry, a disable whose own stop returned an error succeeds when the job goes within the wait.
+Method TestStopErrorRetried()
+{
+	Do ..Stub(1, 1)
+	Do $$$AssertStatusOK($ClassMethod(..#CASE, "Disable", "Stub", "", 5, 1, $ClassName()), "the job goes after the update that the retry asked for")
+	Do $$$AssertEquals(^||TelegramParked("calls"), 1, "one update was asked for")
+	Kill ^||TelegramParked
+}
+
+/// A job that never goes fails the disable with a text naming the item, the bound, the updates and the disable's error; without a
+/// retry, the disable's own error is the failure.
+Method TestStopFailsLoudly()
+{
+	Do ..Stub(1000, 1)
+	Set sc = $ClassMethod(..#CASE, "Disable", "Stub", "", 3, 1, $ClassName())
+	Set text = $SYSTEM.Status.GetErrorText(sc)
+	Do $$$AssertStatusNotOK(sc, "a job that never goes fails the disable")
+	Do $$$AssertTrue(text [ "Stub still has a job 3 s after it was disabled", "the text names the item and the bound ("_text_")")
+	Do $$$AssertTrue((text [ "updates asked for") && (text [ "the disable: ") && (text [ "stub stop not ended"), "and the updates and the disable's error")
+	Set sc = $ClassMethod(..#CASE, "Disable", "Stub", "", 1, 0, $ClassName())
+	Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ "stub stop not ended", "without a retry the disable's error is the failure")
+	Kill ^||TelegramParked
+}
+
+/// The wait against the real production: from a parked stack, while TelegramIn runs, the wait to see it gone ends at the bound, the
+/// production update was asked for and the failure text names the job. A park puts the stack back.
 Method TestRealUpdateAndJobText()
 {
 	If '..Ready() Quit
+	Do $$$AssertStatusOK($ClassMethod(..#BOTAPI, "Park"), "the stack is parked first")
 	Set rows = ""
 	Do $$$AssertStatusOK($ClassMethod(..#CASE, "Enable", "TelegramIn", .rows), "TelegramIn is enabled and has a job against the mock")
 	Set text = $ClassMethod(..#CASE, "JobText", "TelegramIn")
-	Do $$$AssertTrue(text [ "job ", "the text names the running job ("_text_")")
+	Set job = $ListGet($ClassMethod(..#FIXTURE, "Jobs", "TelegramIn"))
+	Do $$$AssertTrue((text '= "no job now") && (job '= "") && (text [ ("job "_job)), "the text names the running job "_job_" ("_text_")")
 	Set ok = $ClassMethod(..#CASE, "AwaitStop", "TelegramIn", 3, 1, "", .retries, .why)
 	Do $$$AssertNotTrue(ok, "a running item is not gone at the bound")
 	Do $$$AssertTrue(retries >= 1, "and the real production was asked to update ("_retries_")")

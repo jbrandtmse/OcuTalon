@@ -323,6 +323,29 @@ Owned ledger entries at this review: DW-501 and DW-506 resolved-by this story (B
   - `low` `patch` vgap other: the update's returned status is dropped -- same fix as the status row
   - `false` `reject` vgap other: the failure text changed from the old wording -- no consumer matches the old text: `test-lib-live.sh` passes a literal through a stub, and the text still begins `<item> still has a job <n> s after it was disabled`
 
+### Review Findings (rework 1 re-review, run e12s9cr2)
+
+Code review (2026-11-03, run e12s9cr2; scoped to the rework, 4e8fede7..7c11abff; four layers, full-opus): 0 decision-needed, 7 patch (all applied), 0 defer, 9 rejected; high 0, medium 5, low 2. The previous round's open item (`[Smoke]` park reliability) is confirmed fixed, with G7 below closing the stop-timeout path it had missed.
+
+- [x] [Review][Patch] G7: a disable whose own stop did not end within the production's update timeout (`Ens.Job.StopJobs` returns `<Ens>ErrJobNotStopped`, which `EnableConfigItem` passes on) or whose runtime lock was busy failed the park at once, before any retry; the rework's inference that such a timeout "quits OK" misreads `irislib/Ens/Job.cls` StopJobs [src/ocutalon/cls/OcuTalon/Test/Channel/LiveCase.cls:Disable] -- with a retry, the disable's error is kept for the text and the wait decides; the tests' stops (no retry) still fail on it; `TestStopErrorRetried` (medium; acceptance-auditor+verification-gap)
+- [x] [Review][Patch] G1: nothing pinned that `BotApi.Park` passes `PARKSECONDS` and the retry through `Disable` to `AwaitStop` (reverting the two arguments kept every test green); `TestParkWaitsLonger` compared constants, the retry against `WAITJOB` instead of `PARKSECONDS` [src/ocutalon/cls/OcuTalon/Test/Channel/TelegramParked.cls:TestParkWaitsLonger] -- `AwaitStop` keeps its last seconds and retry per item in the process-private `^||LiveCaseAwaitStop`; the test parks and asserts 90 and 10 for both items (medium; blind-hunter+verification-gap+acceptance-auditor)
+- [x] [Review][Patch] G2: `TestRealUpdateAndJobText` asserted `text [ "job "`, which "no job now" also satisfies [src/ocutalon/cls/OcuTalon/Test/Channel/TelegramParked.cls:TestRealUpdateAndJobText] -- asserts the text is not "no job now" and names the running job's id (medium; blind-hunter+verification-gap)
+- [x] [Review][Patch] G5: the park's failure text was produced by no test [src/ocutalon/cls/OcuTalon/Test/Channel/TelegramParked.cls:TestStopFailsLoudly] -- `Disable` takes the stub (its `Stop(item)` stands for the disable); the test asserts the item, the bound, the updates and the disable's error, and that without a retry the disable's error is the failure (medium; verification-gap)
+- [x] [Review][Patch] G6: `TestRealUpdateAndJobText` relied on the stack having been parked before it (Enable fails on a live TelegramIn) [src/ocutalon/cls/OcuTalon/Test/Channel/TelegramParked.cls:TestRealUpdateAndJobText] -- it parks first, as `TestReadinessFollowsTheRow` does (medium; verification-gap)
+- [x] [Review][Patch] G3: the failure text could not tell the two inferred causes apart (a production that is not Running makes `UpdateProduction` quit OK, so `why` stays empty) and dropped the updates count [src/ocutalon/cls/OcuTalon/Test/Channel/LiveCase.cls:Disable] -- the text adds the production state and the updates asked for (low; blind-hunter+edge-case-hunter+verification-gap)
+- [x] [Review][Patch] G4: `Await`'s doc promised no run past the bound, but `UpdateProduction` first waits up to 30 s for `$$$EnsRuntime` whatever its timeout [src/ocutalon/cls/OcuTalon/Test/Channel/LiveCase.cls:Await] -- the doc says so; the wait still ends (low; all four layers)
+
+**Rejected:**
+- `reject` (edits the spec under review) The rework's review counts, `followup_review_recommended` rule, and the two counts of the five fresh starts disagree; the five green starts do not discriminate (the stub tests are the proof).
+- `false` The rework's Auto Run Result dropped the first pass's record (residual risks, DW-453) -- Rule 14: a rework pass's Auto Run Result covers only that pass; the first pass's record is in git and the round-1 Review Findings above; DW-453 is in the ledger.
+- `reject` (edits the spec under review) The item's `Measured` note says a stop timeout quits OK -- false per the IRIS source; the code consequence is G7, fixed; the note stays as the rework wrote it, corrected here.
+- `low` A job in the `Starting` state is not counted by the wait or by `JobText` -- the Alive filter is `RunnerFixture.Jobs`'s, unchanged by the rework; `TestPark` asserts no job after a park; no observed case.
+- `low` A Park that fails inside `TestRealUpdateAndJobText` leaves TelegramIn running -- the test is already red; same verdict as round 1's TestPark row.
+- `low` `AssertNotTrue(ok)` in `TestRealUpdateAndJobText` can fail only if TelegramIn dies -- a precondition; the pin is `retries >= 1`, with a mutation.
+- `false` `$ZHorolog` wraps at midnight, so the wait could hang -- `$ZHOROLOG` counts seconds since the instance started; it does not reset at midnight.
+- `low` The retry cannot help while the production is not Running -- true for that state; the park still fails loudly at the bound, and the text now names the state (G3).
+- `false` (merged) The edge layer's duplicate rows of the deleted residual-risk and review lines -- same as the Auto Run Result row.
+
 ## Spec Change Log
 
 - 2026-11-03, lead, rework iteration 1 (trigger smoke/fresh check): the intermittent park failure on a fresh start (TelegramOut still has a job 30 s after it was disabled) re-opens the story; the open item is under Tasks & Acceptance.
@@ -564,6 +587,10 @@ Owned ledger entries at this review: DW-501 and DW-506 resolved-by this story (B
 - mutation: rework 1 (park wait): the retry branch of `LiveCase.Await` made unreachable (`If 0 && retry && ...`) -> `TelegramParked` red on `TestStopAsksAgain` (job still there; two updates) and `TestStopThatNeverEnds` (no update asked for).
 - mutation: rework 1 (no retry asked for): `retry &&` dropped from that condition -> red on `TestStopWithoutAskingStays` (the wait without a retry updated and ended). The real update renamed (`UpdateProductionX`) -> red on `TestRealUpdateAndJobText` (`<METHOD DOES NOT EXIST>`).
 - mutation: rework 1 (gone costs no update): the `has = running` exit removed from the wait -> red on `TestNoAskWhenGone` (an update after the job was gone) and `TestStopAsksAgain`. Each mutation applied, seen red, reverted; `LiveCase.cls` byte-identical to its backup (`cmp`).
+- mutation: rework 1 re-review G1 (the park's wait): `BotApi.Park` back to `Disable(items, "")` -> `TelegramParked.TestParkWaitsLonger` red (TelegramIn and TelegramOut waited 30 s with no retry).
+- mutation: rework 1 re-review G7 (a failed stop is retried): `'retry &&` dropped from `Disable`'s first-failure line -> red on `TestStopErrorRetried` (`ERROR #5001: stub stop not ended`) and `TestStopFailsLoudly`.
+- mutation: rework 1 re-review G2 (the text names the job): `JobText`'s filter `"Alive"` -> `"alive"` -> red on `TestRealUpdateAndJobText` (`no job now` for running job 3354).
+- mutation: rework 1 re-review G5 (the failure text): the disable's error dropped from `Disable`'s failure text -> red on `TestStopFailsLoudly`. Each applied on the warm lane-A stack e12s9cr2w, seen red, reverted from the reviewer's backup (`cmp` byte-identical), and the class green again on the same stack; then green on a fresh stack (e12s9cr2, `PARK done 5s`).
 
 **Measured at implement:** A0, `PARK done` 0 to 5 s on fresh and warm stacks (2 s on the first fresh class stack, 1 s in `production-restart`); a fresh stack's READY took 106 to 132 s. The parked state (rows 0, no job of either item, mark off, no mock call, no kept offset) is proved by `production-restart`'s "first start, parked" row and by `Test.Channel.TelegramParked.TestPark`.
 

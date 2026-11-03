@@ -219,22 +219,32 @@ Method StopItems() As %Status [ Private ]
 
 /// Disables the items (comma-separated), waits until each has no job, and puts back the Enabled rows of rows, as Enable collected them.
 /// The wait is seconds long for each item (WAITJOB when empty). With retry not 0, a job that is still there is asked to stop again every
-/// retry seconds (AwaitStop); the park does this and the stops of the tests do not. The status is the first failure; an item that is
-/// already disabled is not a failure. A job that is not gone when the time is up is a failure whose text names the job, its status and
-/// the last production update's error.
-ClassMethod Disable(items As %String, rows As %List, seconds As %Integer = {..#WAITJOB}, retry As %Integer = 0) As %Status
+/// retry seconds (AwaitStop), and an error of the disable itself (a stop that did not end within the production's update timeout, or a
+/// runtime lock that was busy) is not a failure while the job goes within the wait; the park does this and the stops of the tests do
+/// not. stub, when not empty, stands for the director as in AwaitStop, and its class method Stop(item) for the disable. The status is the
+/// first failure; an item that is already disabled is not a failure. A job that is not gone when the time is up is a failure whose text
+/// names the job and its status, the production's state, the updates asked for, the disable's error and the last update's error.
+ClassMethod Disable(items As %String, rows As %List, seconds As %Integer = {..#WAITJOB}, retry As %Integer = 0, stub As %String = "") As %Status
 {
 	If seconds = "" Set seconds = ..#WAITJOB
 	Set first = $$$OK
 	For i = 1:1:$Length(items, ",") {
 		Set item = $Piece(items, ",", i)
 		If item = "" Continue
-		Set row = $ClassMethod(..#FIXTURE, "SnapshotDefault", item, "Enabled")
-		If $List(row, 3) && ($List(row, 4) '= 0) {
-			Set sc = ##class(Ens.Director).EnableConfigItem(item, 0, 1)
-			If $$$ISERR(sc) && $$$ISOK(first) Set first = sc
+		Set sc = $$$OK
+		If stub '= "" {
+			Set sc = $ClassMethod(stub, "Stop", item)
+		} Else {
+			Set row = $ClassMethod(..#FIXTURE, "SnapshotDefault", item, "Enabled")
+			If $List(row, 3) && ($List(row, 4) '= 0) Set sc = ##class(Ens.Director).EnableConfigItem(item, 0, 1)
 		}
-		If '..AwaitStop(item, seconds, retry, "", , .why) && $$$ISOK(first) Set first = $SYSTEM.Status.Error(5001, item_" still has a job "_seconds_" s after it was disabled ("_..JobText(item)_$Select(why = "": "", 1: "; the last production update: "_why)_")")
+		Set lost = $Select($$$ISOK(sc): "", 1: $Translate($SYSTEM.Status.GetErrorText(sc), $Char(13, 10), "  "))
+		If $$$ISERR(sc) && 'retry && $$$ISOK(first) Set first = sc
+		If '..AwaitStop(item, seconds, retry, stub, .retries, .why) && $$$ISOK(first) {
+			Set state = ""
+			Do ##class(Ens.Director).GetProductionStatus(, .state)
+			Set first = $SYSTEM.Status.Error(5001, item_" still has a job "_seconds_" s after it was disabled ("_..JobText(item)_"; production state "_state_", "_retries_" updates asked for"_$Select(lost = "": "", 1: "; the disable: "_lost)_$Select(why = "": "", 1: "; the last production update: "_why)_")")
+		}
 	}
 	Set sc = $ClassMethod(..#FIXTURE, "RestoreDefaults", $Get(rows))
 	If $$$ISERR(sc) && $$$ISOK(first) Set first = sc
@@ -251,8 +261,11 @@ ClassMethod WaitJobs(item As %String, running As %Boolean) As %Boolean
 /// the production to update again, which stops a job whose first stop was slow or lost. stub, when not empty, is a class that stands for
 /// the director and the fixture in a test: its class method Jobs(item) gives the alive jobs of an item and its class method Update()
 /// stands for the production update. retries counts the updates asked for, and why is the error text of the last update that failed.
+/// The seconds and retry of the last call for an item are kept in the process-private ^||LiveCaseAwaitStop(item), which a test reads to
+/// see the wait that the park asked for.
 ClassMethod AwaitStop(item As %String, seconds As %Integer, retry As %Integer = 0, stub As %String = "", Output retries As %Integer, Output why As %String) As %Boolean
 {
+	Set ^||LiveCaseAwaitStop(item) = $ListBuild(seconds, retry)
 	Set retries = 0
 	Set why = ""
 	Quit ..Await(item, 0, seconds, retry, stub, .retries, .why)
@@ -260,7 +273,8 @@ ClassMethod AwaitStop(item As %String, seconds As %Integer, retry As %Integer = 
 
 /// The wait of WaitJobs and AwaitStop: 1 when the item has a job (running = 1) or has none (running = 0) within seconds, with the
 /// production updates of AwaitStop when retry is not 0 and the item should have none. An update waits for the jobs at most as long as
-/// the wait has left (10 s at most), so the wait does not run past its bound by more than a moment.
+/// the wait has left (10 s at most); before that it can wait up to 30 s for the production's runtime lock (Ens.Director.UpdateProduction),
+/// so a wait with a retry can end up to about 30 s after its bound, and still ends.
 ClassMethod Await(item As %String, running As %Boolean, seconds As %Integer, retry As %Integer, stub As %String, ByRef retries As %Integer = 0, ByRef why As %String = "") As %Boolean
 {
 	Set begun = $ZHorolog
