@@ -3326,6 +3326,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-14-2-the-security-overview-says-what-ocutalon-can-do-and-what-sto.md | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: Gate.cls EntryFor reads Decide's ToolClassification (Decide.cls:202); git grep finds no Record("Tool" in src; FR-9 (epics.md:51) names 'tool classified'; the spine (AD-10, conventions 1095) assigns no Tool writer for the setting.
 - 2026-11-02T23:27:32Z status=decision-pending owner=burndown by=cr note=product call: audit developer-tool classification changes or narrow FR-9 to MCP classification; overview now says 'classify an MCP tool'
+- 2026-11-03T01:20:33Z status=routed owner=burndown by=unattended note=veto_U-229 kept (a) at 2026-11-03T01:19:45Z#690: FR-9 tool classified = MCP classification for 1.0.0; Tool audit entry for the bridge ToolClassification setting in the first daily release after 1.0.0; overview + 13.3 guide sentence routed to Epic 13 (13.3)
 
 ### DW-607: ovw_doc_problems (test-release-sequence.sh) repeats chk_demo_mode's kept-OCUORDERS sed extraction (test-readme.sh:551), a copy the spec states because test-readme.sh runs on load (Rule 2)
 - source: spec-14-2-the-security-overview-says-what-ocutalon-can-do-and-what-sto.md | severity: low | fix-risk: low | footprint: out-of-footprint

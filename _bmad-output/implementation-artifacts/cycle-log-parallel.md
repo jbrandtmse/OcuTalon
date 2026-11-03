@@ -1444,3 +1444,17 @@
 2026-11-03T00:02:03Z	Epic 12	owner_decision	id=U-227 at=2026-11-03T00:01:41Z#684 via=inbox by=Contest_Planner_1(delegated) answer=keep_both_texts applied=resolved_by_orchestrator(veto_kept)
 2026-11-03T00:02:03Z	Epic 12	owner_decision	id=U-228 at=2026-11-03T00:01:41Z#685 via=inbox by=Contest_Planner_1(delegated) answer=keep_with_3_conditions(quoted_UI_strings_match_built_page;no_online-demo_README_claim_of_Telegram/pairing/phone_approvals_until_31.4;38.3_pass_follows_5_steps_literally) route=live_runner_12
 2026-11-03T00:02:03Z	Epic 1-37	planner_note	demo_host_token_removed_at_1.0.0_deploy(Planner_runbook);ci_queue:18/18_busy_at_00:01Z;no_capacity_added;flag_if_waits>30min_more_than_once
+2026-11-03T01:17:14Z	Epic 14	runner_complete	runner=a67a62f471d18e12a head=92f35724 stories=2 ready_for_merge=true model=opus tokens=469134 tool_uses=199 duration_ms=26776035 applied=U-223,U-224
+2026-11-03T01:17:14Z	Epic 14	merge_enqueued	head=92f35724 policy=when_green
+2026-11-03T01:18:32Z	Epic 14	ruling	question=DW-606_FR-9_tool_classified_scope choice=(a)_MCP_classification_for_1.0.0;_setting_audit_routed_burndown_post-1.0.0 rejected=(b)_new_audit_story_before_rc1(outside_epic_files,_rc1_critical_chain) category=veto reversal=fix_story_for_(b)_before_rc1 inbox=U-229 policy=5086036
+2026-11-03T01:18:39Z	Epic 14	ci_green_verified	runs=41555361883,41555361869 head=92f35724 result=success via=none
+2026-11-03T01:18:39Z	Epic 14	amendments_verified	amendments=1 extensions=7 ok=true note=amendment_is_DW-598_ledger_routed_AC_bullet_in_14.2(tier-1);ci/units.sh_production+NO_WEB_BUNDLE_UNITS_lines_shared_with_Epic_12(append-only_plain_union_at_second_merge);no_other_overlap;integrated_forward_feature=4324e0c3(origin_feature_unchanged)
+2026-11-03T01:18:39Z	Epic 14	epic_merge_started	branch=OCT-epic14 head=92f35724 feature=c9e28985
+2026-11-03T01:18:57Z	Epic 14	epic_merged_to_feature	merge=cbf6bb7d head=92f35724 pushed=true verified_on_origin=true
+2026-11-03T01:20:16Z	Epic 14	owner_decision	id=U-229 at=2026-11-03T01:19:45Z#690 via=inbox by=Contest_Planner_1(delegated) answer=keep_(a)+condition:one_sentence_in_docs/security-overview.md_Approval_and_audit_section_(L100,_classification_setting)_and_13.3_guide:_changing_the_setting_writes_no_OcuTalon_audit_entry;_each_tool_call_still_audited;_no_future-release_promise routed=Epic_13_(13.3;_runner_B_live)
+2026-11-03T01:20:44Z	Epic 14	decision_sheet_recorded	decided=1 to_action_items=0 to_x0=0 by=unattended items=DW-606(veto_U-229,kept_(a)_with_condition->Epic_13/13.3)
+2026-11-03T01:20:44Z	Epic 14	ledger_routed_planned	entries=none excess=0 by=merge_gate note=Epic_14_routed_no_new_entries;unbulleted_routed_entries_unchanged_since_Epic_30_merge(12.7x2,31.2x4_done_stories_of_open_epics->their_runners_burndown;30.7x6_set-aside_deferred)
+2026-11-03T01:20:44Z	Epic 14	deps_hash_rerecorded	reason=ledger_routed hash=4b49ab17 note=only_DW-598_bullet_under_14.2;headings_unchanged
+2026-11-03T01:20:52Z	Epic 14	worktree_removed	path=.worktrees/epic-14
+2026-11-03T01:20:52Z	Epic 14	epic_branches_deleted	branch=OCT-epic14 local=deleted remote=deleted
+2026-11-03T01:21:35Z	Epic 15	ruling	question=Epic_15_part-1_merge_(15.1,15.2)_with_15.3_backlog choice=(a)_two-part_merge_(U9_every-story-done_released_for_part_1;_15.3_re-opened_SC-5_on_runner_D,_before_rc1) rejected=(b)_wait_for_15.3(delays_31.3s_Epic_15_wait) category=veto reversal=hold_part_1_merge_until_15.3_done inbox=U-230 policy=5086036 authorized=Planner_(b)_2026-11-02T07:33Z
