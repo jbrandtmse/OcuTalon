@@ -14,3 +14,8 @@
 2026-11-03T13:13:50Z	Story 39.1	spec_validated	service_introducing=true integration_ac=present adr_constrained_acs=AD-18,AD-19,AD-29,AD-33,AD-3,AD-5,AD-28 decision_dependency=none sections_created=none owned_ledger=none addressed=0 declined=0 mutates_shared_runtime=false lead_edits=checks_sh_split_into_capped_calls footprint_extension=src/ocutalon/cls/OcuTalon/Test/Data/Tables.cls model=claude-opus-5-5
 2026-11-03T13:15:18Z	Epic 39	slot_loaded	server=ocutalon-slot-d ns=OCUTALON bridge=56 ocutalon=571 compile=ok stale=none id=FE850E91
 2026-11-03T13:15:18Z	Story 39.1	stage_spawned	stage=implement spawn_at=2026-11-03T13:15:18Z model=sonnet agent_name=39-1-implement-1 cycle_iteration=1 story_base=5ca76ca8
+2026-11-03T14:19:08Z	Story 39.1	dev_complete	spawn_at=2026-11-03T13:15:18Z model=sonnet build_sha=29426992 baseline_revision=3f5f7b3e story_base=5ca76ca8 review_loop_iteration=0 followup_review_recommended=false deferred=2 files=12 loc_added=574 loc_removed=8 nfr_tripwires=0 adr_violations_surfaced=0 cycle_iteration=1 spine_lint=no_new_findings_8_preexisting_placeholder
+2026-11-03T14:19:08Z	Story 39.1	ledger_routed_planned	story=39-3-beats-fall-due-on-the-tick-and-skip-without-a-model-call-whe entries=1 excess=0 by=harvest
+2026-11-03T14:19:08Z	Story 39.1	ledger_routed_planned	story=39-5-the-heartbeat-checklist-card-and-run-the-heartbeat-now entries=1 excess=0 by=harvest
+2026-11-03T14:19:16Z	Story 39.1	adr_verifications_complete	tool=none acs=none result=none_required evidence=none mutations=none model=claude-opus-5-5
+2026-11-03T14:19:16Z	Story 39.1	stage_spawned	stage=qa spawn_at=2026-11-03T14:19:16Z model=sonnet agent_name=39-1-qa-1 cycle_iteration=1

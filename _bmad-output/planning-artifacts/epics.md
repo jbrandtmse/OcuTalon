@@ -8190,6 +8190,8 @@ So that it costs a few cents a day, never calls the model every minute, and surv
 **When** `OcuTalon.Test.Checks` drives an hour of ticks with fixed clocks for a person on a 30-minute interval
 **Then** a tick that isn't a due beat makes no model request, a due beat whose snapshot is unchanged since the last Ignore makes none, a due beat whose snapshot changed makes exactly one, and the hour holds at most two (FR-64, NFR-28)
 
+- DW-633: OcuTalon.Live.Payload.Heartbeat not yet created; the class, the Live.Publish TYPES pair, the Test.Live.Payloads counts and web/src/app/live/payloads.ts land together before this story publishes the heartbeat event (ledger; routed by harvest 2026-11-03)
+
 ### Story 39.4: Each beat carries your checklist and a status snapshot built by code
 
 *Home lane: A.*
@@ -8264,6 +8266,8 @@ So that the heartbeat is easy to trust and to try.
 **Given** Playwright specs `web/e2e/heartbeat-card.spec.ts`, on fixtures and the CI mock
 **When** they run
 **Then** they cover the states above, the refusal, the cooldown and the demo variant, and they don't change the demo-path specs (REL-2)
+
+- DW-634: the UX lists no text for the run button while it is unavailable (cap reached or no key); reuse an accepted text or escalate (ledger; routed by harvest 2026-11-03)
 
 ### Story 39.6: Evaluation cases for the heartbeat
 

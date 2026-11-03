@@ -3439,3 +3439,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: Epic 15 merge gate (Contest Planner, 2026-11-03) | severity: low | fix-risk: low | footprint: small
 - evidence: 15.4 measured the artifact at 4,940,685 bytes; src/module.xml resource OcuTalon.PKG
 - 2026-11-03T12:12:51Z status=routed owner=burndown by=merge_gate note=first daily release after 1.0.0
+
+### DW-633: OcuTalon.Live.Payload.Heartbeat not yet created: the class, the heartbeat:Heartbeat pair in Live.Publish TYPES, the two Test.Live.Payloads counts and a regenerated web/src/app/live/payloads.ts must land together before Story 39.3 publishes the heartbeat event
+- source: _bmad-output/implementation-artifacts/spec-39-1-fix-the-heartbeat-s-names-and-contracts.md | severity: med | fix-risk: med | footprint: in-epic
+- evidence: web/scripts/payloads.mjs fails closed on a payload class not in TYPES; Test.Live.Payloads pins 16 types and 30 classes; Live/Publish.cls and web/src/app/live are Epic 31-contended Lane B files (U-177); spine ownership row names Story 39.1
+- 2026-11-03T14:18:41Z status=routed owner=39-3-beats-fall-due-on-the-tick-and-skip-without-a-model-call-whe by=harvest note=39.3 plan: arrange the Lane B append (a ruling, or wait on Epic 31's merge for Publish.cls/payloads.ts); correct the spine Built-in cell for Live.Payload.Heartbeat
+
+### DW-634: UX lists no text for the Run the heartbeat now button while it is unavailable (daily cost cap reached or no model key)
+- source: _bmad-output/implementation-artifacts/spec-39-1-fix-the-heartbeat-s-names-and-contracts.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: EXPERIENCE.md Later Steps > Personality gives only the cooldown text and the skip texts; epics 39.5 asks for unavailable with the reason
+- 2026-11-03T14:18:41Z status=routed owner=39-5-the-heartbeat-checklist-card-and-run-the-heartbeat-now by=harvest note=39.5 reuses an accepted text (e.g. the skip reasons) or escalates as veto-window public text; never invents one (UX-DR117)
