@@ -1663,3 +1663,5 @@
 2026-11-03T19:58:13Z	Epic 0	runner_report_error	field=dev_complete.story_base reported=2cc47ab5 actual=50569b41 impact=none(runner_self_reported,cycle-log_line_only)
 2026-11-03T19:58:13Z	Epic 0	merge_enqueued	merge_order=0.14_before_31.3(rc1_takes_it,U-240_condition) push=single_batched_with_local_1f80d109,a43d99b3,f69b9f47
 2026-11-03T19:58:41Z	Epic 0	decision_sheet_skipped	decided=0 to_action_items=0 to_x0=0 note=no_decisions_for_user;DW-453_occurrence_trailer(3cd25ab0);deps_hash_current(0.14_recorded_at_insert)
+2026-11-03T19:58:50Z	Epic 0	worktree_removed	worktree=.worktrees/epic-0
+2026-11-03T19:58:50Z	Epic 0	epic_branches_deleted	branch=OCT-epic0 local+origin(after_push)
