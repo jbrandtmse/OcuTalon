@@ -1694,3 +1694,7 @@
 2026-11-03T21:34:10Z	Epic 7	worktree_provisioned	worktree=.worktrees/epic-7 branch=OCT-epic7 base=d721cdf9 dup_ci_cancelled=41722751612,41722751477 reason=story_7.7_U-248
 2026-11-03T21:34:10Z	Epic 7	worktree_bootstrapped	epic=7 result=ok
 2026-11-03T21:34:10Z	Epic 7	runner_dispatched	runner=a295c9eae710cc297 model=opus slot=ocutalon-slot-b lane=B base=d721cdf9 prompt=prompts/dispatch-epic-7-77.md story=7.7 push_hold=rc1 yield=on_message
+2026-11-03T21:34:59Z	Epic 7	owner_decision	id=U-248 at=2026-11-03T21:34:43Z#747 via=inbox by=Contest_Planner_1(delegated) answer=keep resolved=now(placement_in_effect)
+2026-11-03T21:34:59Z	Epic 7	owner_decision	id=U-249 at=2026-11-03T21:34:43Z#748 via=inbox by=Contest_Planner_1(delegated) answer=keep_rule+new_wording(whether_read...Read_{reading},_they_match_the_day_each_{item}_arrived)+cond1(arrival_day_+-1)+cond2(test_instance_vs_UTC_date_differ) apply=runner_B_live
+2026-11-03T21:35:14Z	Epic 7	ruling	question=7.7_both_readings_within_+-1_day_of_arrival choice=no_evidence:no_repair_resend_and_no_line;test_pins_it rejected=prefer_month_first(silent_pick) category=decide policy=508603671b9598f59d04750db6b6cdad2d396167
+2026-11-03T21:35:14Z	Epic 7	runner_resumed	agent=a295c9eae710cc297 with=apply_U-249(#748)+tie_rule note=queued
