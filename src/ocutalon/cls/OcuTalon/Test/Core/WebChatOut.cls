@@ -12,6 +12,10 @@
 ///     the incident card is their web form;
 ///   - TestAllowanceCards (Story 16.9): the kind allowance is a card: the session allowance notice and the daily-cap message are
 ///     rendered for the web, with " ET" on the online demo, recorded with no fallback reason and published as one notification event;
+///   - TestToolCallCards (Story 31.6): a tool call's request, result and held-call reason (the five Core.BridgeSink keys, kind approval or
+///     result, with an ApprovalRef) are cards: rendered for the web, recorded with a ChannelMessageId and the ApprovalRef, published as
+///     one notification event and in RecentNotices; a toolCall key with no ApprovalRef, the kind answered and a fix's request
+///     (incident.laterRequest) record their Delivery row only;
 ///   - TestOtherKindsRecordOnly: any other kind records its Delivery row, with no text and no event;
 ///   - TestReplyRecordsItsDeliveryOnly: a reply records its Delivery row for the web, with its DecisionRef and no event;
 ///   - TestRenderErrorRecordsNothing: a text that cannot be rendered is an error with no row and no event;
@@ -170,6 +174,69 @@ Method TestIncidentKindsRecordOnly()
 {
 	Do $$$AssertEquals(##class(OcuTalon.Channel.WebChat.Out).#INCIDENTKINDS, "incident,approval,answered,result", "the kinds whose web form is the incident card")
 	Do ..AssertRecordOnly(..Session("incident"), $ListFromString(##class(OcuTalon.Channel.WebChat.Out).#INCIDENTKINDS), "the incident kinds")
+}
+
+/// A tool call's notices (Story 31.6) are cards of the web chat: each of the five keys of Core.BridgeSink, sent with its kind
+/// (approval for the two request keys, result for the others), an ApprovalRef and its slots (and a DecisionRef for the held-call
+/// reason), is rendered for the web, recorded with a new ChannelMessageId, the ApprovalRef, the kind and the DecisionRef, published
+/// as one notification event whose payload carries the approvalRef and the text, and listed in RecentNotices. These record their
+/// Delivery row only, with no text, no message id and no event, and are not in RecentNotices: a toolCall.request with no
+/// ApprovalRef, the kind answered with answered.approved and an ApprovalRef, and a fix's request (kind approval, incident.laterRequest,
+/// an ApprovalRef). The times are the catalog's HH:MM on the local date, with the online demo off.
+Method TestToolCallCards()
+{
+	Set session = ..Session("toolcall")
+	Set now = ##class(OcuTalon.Data.Time).NowUtc()
+	Set clock = ##class(OcuTalon.Data.Time).ForMessage(now, now)
+	Set inputs = "{""to"":""ops""}"
+	Set cases = $ListBuild($ListBuild("approval", "toolCall.request", ({"tool": "zz_send", "inputs": (inputs)}).%ToJSON(), "Run zz_send"_$Char(10)_"Inputs: "_inputs_$Char(10)_"No dry run is available for this tool. Approving runs exactly this call once.", ""))
+	Set cases = cases_$ListBuild($ListBuild("approval", "toolCall.requestOnServer", ({"tool": "zz_send", "server": "ops-mcp", "inputs": (inputs)}).%ToJSON(), "Run zz_send on ops-mcp"_$Char(10)_"Inputs: "_inputs_$Char(10)_"No dry run is available for this tool. Approving runs exactly this call once.", ""))
+	Set cases = cases_$ListBuild($ListBuild("result", "toolCall.done", ({"tool": "zz_send", "time": (now)}).%ToJSON(), "zz_send ran once at "_clock_".", ""))
+	Set cases = cases_$ListBuild($ListBuild("result", "toolCall.failed", ({"tool": "zz_send", "time": (now)}).%ToJSON(), "zz_send failed at "_clock_". I won't run it again without a new approval.", ""))
+	Set cases = cases_$ListBuild($ListBuild("result", "toolCall.failedWithReason", ({"tool": "zz_send", "reason": "This request was held before an update and cannot be run again safely, so please ask again."}).%ToJSON(), "zz_send didn't run. This request was held before an update and cannot be run again safely, so please ask again.", "ZzToolDecision"))
+	Set position = 0, n = 0
+	While $ListNext(cases, position, case) {
+		Set n = n + 1
+		Set kind = $List(case, 1), key = $List(case, 2), expected = $List(case, 4), decisionRef = $List(case, 5)
+		Set notification = ..Notification(session, kind, key, {}.%FromJSON($List(case, 3)))
+		Set notification.ApprovalRef = "ZzToolApproval"_n
+		Set notification.DecisionRef = decisionRef
+		Do $$$AssertStatusOK(..Out().OnNotification(notification, .response), key_": the notification is delivered")
+		Set row = ..Newest(session)
+		Do $$$AssertEquals(..Rows(session), n, key_": one row more")
+		Do $$$AssertTrue($IsObject(row), key_": the newest card of the session exists")
+		If '$IsObject(row) Continue
+		Do $$$AssertEquals(row.Channel_"|"_row.Kind_"|"_row.ApprovalRef_"|"_row.DecisionRef, "web|"_kind_"|ZzToolApproval"_n_"|"_decisionRef, key_": its channel, kind, ApprovalRef and DecisionRef")
+		Do $$$AssertEquals(row.Text, expected, key_": the text rendered for the web")
+		Do $$$AssertTrue(row.ChannelMessageId ? 22(1AN,1"-",1"_"), key_": a new message id: "_row.ChannelMessageId)
+		Do $$$AssertEquals(row.DueAt_"|"_row.FallbackReason, "|", key_": no due time and no reason")
+		Set events = ..Notifications(session)
+		Do $$$AssertEquals(events.%Size(), n, key_": one more notification event")
+		If events.%Size() = n {
+			Set payload = events.%Get(n - 1).payload
+			Do $$$AssertEquals(payload.ref_"|"_payload.kind_"|"_payload.approvalRef_"|"_payload.decisionRef_"|"_payload.text, row.ChannelMessageId_"|"_kind_"|ZzToolApproval"_n_"|"_decisionRef_"|"_expected, key_": the payload carries the Ref, kind, approvalRef, decisionRef and text")
+		}
+		Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).RecentNotices(session, 10).Count(), n, key_": and the card is in RecentNotices")
+	}
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).RecentNotices(session, 10).Count(), 5, "five cards")
+
+	Set quiet = ..Session("toolcallquiet")
+	Set noRef = ..Notification(quiet, "approval", "toolCall.request", {"tool": "zz_send", "inputs": (inputs)})
+	Set answered = ..Notification(quiet, "answered", "answered.approved", {"channel": "web", "time": (now)})
+	Set answered.ApprovalRef = "ZzToolAnswered"
+	Set fix = ..Notification(quiet, "approval", "incident.laterRequest", {"zz": "slot"})
+	Set fix.ApprovalRef = "ZzToolFix"
+	Set resultNoRef = ..Notification(quiet, "result", "toolCall.done", {"tool": "zz_send", "time": (now)})
+	For notification = noRef, answered, fix, resultNoRef {
+		Set before = ..Rows(quiet)
+		Do $$$AssertStatusOK(..Out().OnNotification(notification, .response), notification.CatalogKey_" (kind "_notification.Kind_"): delivered")
+		Do $$$AssertEquals(..Rows(quiet), before + 1, notification.CatalogKey_": one row is recorded")
+		Set row = ..LastRow(quiet)
+		Do $$$AssertEquals(row.Kind_"|"_row.ApprovalRef, notification.Kind_"|"_notification.ApprovalRef, notification.CatalogKey_": its kind and ApprovalRef")
+		Do $$$AssertEquals(row.Text_"|"_row.ChannelMessageId, "|", notification.CatalogKey_": no text and no message id")
+	}
+	Do $$$AssertEquals(..Notifications(quiet).%Size(), 0, "none publishes an event")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).RecentNotices(quiet, 10).Count(), 0, "and none is a card of the chat")
 }
 
 /// Any other kind records its Delivery row only: the kind, the DecisionRef and the ApprovalRef, with no text, no ChannelMessageId

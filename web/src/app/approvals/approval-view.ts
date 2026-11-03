@@ -236,11 +236,14 @@ function statusOf(approval: ApprovalPayload, ctx: ApprovalContext): AnswerStatus
   }
 }
 
-/** Everything the card draws for one approval payload. */
-export function approvalView(approval: ApprovalPayload, ctx: ApprovalContext): ApprovalView {
+/**
+ * Everything the card draws for one approval payload. A request text (a tool call's, as the notice carried it) is the action as it
+ * stands, and its first line, with a lower-case first letter, names the Approve and Reject buttons.
+ */
+export function approvalView(approval: ApprovalPayload, ctx: ApprovalContext, request = ''): ApprovalView {
   const ref = approval.ref ?? '';
   const pending = approval.state === 'pending';
-  const title = ctx.title(approval);
+  const title = request === '' ? ctx.title(approval) : request.split('\n', 1)[0] ?? '';
   const dry = dryRunOf(approval);
   const expires = pending ? ctx.whenBeside(approval.expiresAt ?? '', ctx.nowMs) : '';
   let fixedTargets = '';
@@ -258,7 +261,7 @@ export function approvalView(approval: ApprovalPayload, ctx: ApprovalContext): A
     pending,
     label: pending ? APPROVAL_TEXTS.labelPending : APPROVAL_TEXTS.labelAnswered,
     bar: barOf(approval.state),
-    action: fill(APPROVAL_TEXTS.action, { title }),
+    action: request === '' ? fill(APPROVAL_TEXTS.action, { title }) : request,
     approveName: fill(APPROVAL_TEXTS.approveName, { action: lowerFirst(title) }),
     rejectName: fill(APPROVAL_TEXTS.rejectName, { action: lowerFirst(title) }),
     fixedTargets,

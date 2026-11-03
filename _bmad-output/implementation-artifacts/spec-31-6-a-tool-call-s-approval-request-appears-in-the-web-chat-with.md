@@ -2,13 +2,21 @@
 title: 'Story 31.6: a tool call''s approval request appears in the web chat with Approve and Reject (card)'
 type: 'feature'
 created: '2026-11-02'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'fe6d6ed585ae1599ad17d355f896f3c47469ec73'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
   - '{project-root}/_bmad/custom/skill-rules.md'
 warnings: ['oversized']
-deferred: []
+deferred:
+  - summary: >-
+      The chat announces a tool-call request or result notice through the generic notice branch (its full multi-line text), and no test pins what is spoken or that it is spoken once next to the request card's own announcements.
+    evidence: |-
+      chat-announcements.ts announces every unheard notice that is not a tell now as entry.text.trim(); Story 31.6 lets kinds approval and result into that list. No chat-announcements unit case names either kind, and X13 asserts no announcement. Whether a request is spoken twice (chat plus card) is unverified; a screen-reader pass or a unit case on the announcement list would settle it.
+    location: >-
+      web/src/app/chat/chat-announcements.ts:107
+    severity: low (unverified)
 ---
 
 <intent-contract>
@@ -194,6 +202,30 @@ Browser (Rule 3):
 
 ## Review Triage Log
 
+### 2026-11-02 - Review pass
+- verdicts: 20 findings - high 0, medium 1, low 12, false 6, maybe-false 1
+- findings:
+  - `[medium]` `[patch]` (verification-gap) matrix row "Reload while pending" had no test -- X13 got a step 7: a third pending request, a reload, a live card with Approve and Reject by name; passed in `live answers` (23 passed)
+  - `[low]` `[patch]` (blind) the `ToolCallNotices` header said the web request and result rows are not cards while the test asserts they are -- header rewritten as its own bullet
+  - `[maybe-false]` `[defer]` (blind, edge, verification-gap) the chat's generic notice announcement speaks a request or result in full and may double the card's own announcement; nothing pins it -- recorded in `deferred:`
+  - `[low]` `[reject]` (blind, edge) `.action` CSS (`pre-line`, `overflow-wrap`) is shared by fix cards -- fix cards' actions have no newline and a long token now wraps instead of overflowing; no harm named
+  - `[false]` `[reject]` (blind, intent) the dry-run block or "Nothing has changed yet." may double the request text -- a tool call's dryRun is null, `dryRunOf` returns undefined and no block is drawn (X13 passes with the stated texts)
+  - `[false]` `[reject]` (edge) a held-reason result keeps decision and fallbackReason on the view -- `notice-card.ts` reads them only inside the decision strip, which `noticeOf` forces off for a tool call
+  - `[false]` `[reject]` (edge) `ChannelMessageId` stored as an empty string would make fix rows cards -- the fixture rows set "" and `TestRecentNoticesIncludeToolCallCards` passes with them excluded
+  - `[false]` `[reject]` (edge, blind) a render error now records no row for these kinds -- the spec's matrix row "Render fails" requires exactly that (existing `TestRenderErrorRecordsNothing`)
+  - `[low]` `[reject]` (blind, edge) an empty CatalogKey would match a missing `$Parameter` -- the five parameters exist and a notification always carries a key; theoretical
+  - `[low]` `[reject]` (edge, blind) first line empty gives an empty button name, and a non-tool_call payload with a request text -- only the chat panel passes `request`, only for the five keys, and the text always starts with "Run"
+  - `[low]` `[reject]` (edge) the card may swap from a plain notice to the card if the notification event precedes `approval.raised` -- the store holds the payload from the same event stream; a one-frame order effect with no wrong final state
+  - `[low]` `[reject]` (blind, edge) the wrapper `tabindex -1` nests a focus target -- the panel's New messages lookup is by `[data-part]`, which the wrapper carries by design; no wrong focus shown
+  - `[low]` `[reject]` (edge) a pending request older than 100 newer notices has no card after a reload -- the 100 cap is the existing RecentNotices bound; theoretical
+  - `[low]` `[reject]` (edge, intent) the page filters by kind and approvalRef only -- the page cannot see the catalog key; the server filter and the ChannelMessageId rule keep fix notices out (spec: nothing on the page derives)
+  - `[low]` `[reject]` (blind) the `ChannelMessageId IS NOT NULL` discriminator is implicit -- it is the spec's rule ("recorded with a new Ref as ChannelMessageId"), pinned by `TestRecentNoticesIncludeToolCallCards`
+  - `[low]` `[reject]` (blind, verification-gap) tests hard-code catalog text; `as NoticeKind` cast; no unit case for `requestOf`, the icon or the CSS class; no web case for Reject, expiry or the held reason in the DOM -- the wording is pinned on purpose, the rest is presentation or covered at the server (`TestHeldReasonReachesTheWebChat`)
+  - `[low]` `[reject]` (verification-gap) AC 7 has no mutation line, the AC 5 held-reason test cannot see a one-key mutation on a warm stack, the X13 text equality maps non-ASCII to `?` -- the spec names AC 7's unit as unchanged, the stack limit and the helper limit are recorded in the Verification section, and the ellipsis is asserted separately
+  - `[low]` `[reject]` (edge) result and held-reason texts may differ from the phone's on the online demo (" ET") -- the spec requires equality for the request only
+  - `[false]` `[reject]` (verification-gap) WaitWebRow ignores ApprovalRef -- each test uses its own fresh session
+  - `[false]` `[reject]` (intent-alignment) a descriptive report with no defect claim; its uncovered-surface notes are the rows above
+
 ## Design Notes
 
 **U-212 (owner decision; verbatim, as in Story 31.5).** Veto U-212, kept by the Contest Planner under the owner's delegation with four conditions (`at=2026-11-02T13:19:05Z#648`): "Keep, with four conditions. (1) Match the card: the first line is 'Run {tool} on {server}' when the server is known, and 'Run {tool}' only when it isn't. (2) {inputs} stays on one line through the bridge's redactor, and is capped at 200 characters, ending with '…' when cut; the phone and paired chat never get more of a call's inputs than the card shows. (3) {reason} in toolCall.failedWithReason is only ever a catalog reason (such as U-214's), never raw error or exception text; a test pins it. (4) {time} uses the same labelled form as the other catalog times (DW-574 will unify zones later). The Q3 reading (answer edits the request in place; the result is a new message with no buttons, as for a fix in Story 6.4) is kept."
@@ -314,18 +346,19 @@ Use these variables on every `ci/iris.sh` and `ci/warm.sh` call: `OCUTALON_LOCK_
 
 Every test added or changed passes on a fresh environment, in either order.
 
-**Pinning tests and the mutations to apply** (the implement stage writes `mutation: <change> → <red test>` next to each):
+**Pinning tests and the mutations applied** (observed red, reverted, `git diff --stat` unchanged; X13 runs used the answers project with X1 to X12 skipped in a temporary copy of the spec, restored after):
 - **AC 1:**
-  - drop `ToolCallCard` from `OnNotification` → `TestToolCallCards`, `ToolCallNotices.TestApprovedCallReachesThePhone` (web row) and X13 step 2 go red;
-  - drop the card's `[request]` binding → X13 step 2 goes red (the action reads "Run zz_tool_x13.");
-  - render the request as `toolCall.request` whatever the notice's key (a drifted second text) → X13 step 2 (card text = phone text) and `TestToolCallCards` go red.
-- **AC 2:** bind the card's `[approval]` to a fixed `{ref, kind: 'tool_call', state: 'pending'}` instead of the store's payload → X13 step 4b goes red (the phone's answer never reaches the card). Steps 3 and 4 rest on the existing answer API and Story 31.5's edit (their mutations are 31.5's).
-- **AC 3:** take kind `result` out of `ToolCallCard` → `TestToolCallCards` and X13 step 5 go red.
+  - mutation: drop `ToolCallCard` from `OnNotification` → `TestToolCallCards` red (the five cards missing) and, on a fresh stack, `ToolCallNotices.TestApprovedCallReachesThePhone` (the web `approval` and `result` rows, the two cards) and `TestHeldReasonReachesTheWebChat` red;
+  - mutation: drop the card's `[request]="entry.text"` binding → X13 step 2 red (the action reads "Run zz_tool_x13.");
+  - mutation: render a request notice as `toolCall.request` whatever its key → `TestToolCallCards` red (`toolCall.requestOnServer` text and payload).
+- **AC 2:** mutation: bind the card's `[approval]` to a fixed `{ref, kind: 'tool_call', state: 'pending'}` → X13 step 4b red (the second card never shows the phone's answer); steps 3 and 4 passed under it, as the spec says (the answer API and Story 31.5's edit are theirs).
+- **AC 3:** mutation: take kind `result` out of `ToolCallCard` → `TestToolCallCards` red (`toolCall.done`, `toolCall.failed`, `toolCall.failedWithReason`) and X13 step 5 red (no result notice).
 - **AC 4 (U-222):**
-  - make `liveRequest` return a pending stand-in when the store has no payload → the `chat-view.test.mjs` `liveRequest` case and X13 step 6 go red;
-  - drop the `RecentNotices` change → `TestRecentNoticesIncludeToolCallCards` and X13 step 6 go red (the request is gone after the reload).
-- **AC 5:** take `KEYFAILEDWHY` out of `ToolCallCard` → `TestToolCallCards` and `ToolCallNotices.TestHeldReasonReachesTheWebChat` go red.
-- **AC 6:** drop the key check of `ToolCallCard` → `TestToolCallCards` goes red on the fix's `incident.laterRequest` case (kind `approval` with an ApprovalRef).
+  - mutation: `liveRequest` returns a pending stand-in when the store has no payload → `chat-view.test.mjs` `liveRequest` "gives undefined for a request the store does not hold" red and X13 step 6 red (`requestCard` count is not 0 after the reload);
+  - mutation: drop the `RecentNotices` change → `TestRecentNoticesIncludeToolCallCards` red and X13 step 6 red (no plain notice after the reload).
+  - X13 step 7 (a pending request is a live card again after a reload, matrix row "Reload while pending") shares both mutations above: either turns the test red at an earlier step, so no mutation isolates step 7 alone; it passed on a fresh stack.
+- **AC 5:** mutation: take `KEYFAILEDWHY` out of `ToolCallCard` → `TestToolCallCards` red (`toolCall.failedWithReason`). `ToolCallNotices.TestHeldReasonReachesTheWebChat` went red under the fresh-stack mutation of AC 1; a mutation of this one key is not seen by it on a warm stack, because the production's running hosts keep the code they started with.
+- **AC 6:** mutation: replace the key check of `ToolCallCard` with `Quit 1` → `TestToolCallCards` red on the fix's `incident.laterRequest` (kind `approval` with an ApprovalRef; the existing `TestIncidentKindsRecordOnly` goes red too).
 - **AC 7:** none (the existing unit, unchanged).
 
 **Manual checks:**
@@ -333,5 +366,22 @@ Every test added or changed passes on a fresh environment, in either order.
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** A tool call's request, result and held-call reason (the five `toolCall.*` keys of `BridgeSink`) are now cards of the web chat. `WebChatOut` renders them for the web and publishes them as `notification` events; `Ownership.RecentNotices` keeps them across a reload; the chat panel draws a request as `ApprovalRequestCard` while the store holds its `approval` payload and as a plain notice otherwise (U-222). The card's text is the phone's (DW-601).
+
+**Files changed.**
+- `src/ocutalon/cls/OcuTalon/Channel/WebChat/Out.cls`: `ToolCallCard` and the card path for it.
+- `src/ocutalon/cls/OcuTalon/Data/Ownership.cls`: `RecentNotices` includes web rows of kind approval or result with a ChannelMessageId.
+- `web/src/app/chat/chat-view.ts`, `chat-panel.ts`, `notice-card.ts`: the notice kinds, `liveRequest`, the card branch, the plain form.
+- `web/src/app/approvals/approval-view.ts`, `approval-request-card.ts`: optional `request` text as the action and the button names.
+- Tests: `Test/Core/WebChatOut.cls`, `Test/Core/ToolCallNotices.cls`, `Test/Data/Ownership.cls`, `web/scripts/{chat-view,approval-view,playwright-projects}.test.mjs`, `web/e2e/answers/answers.spec.ts` (X13).
+
+**Review.** 20 triaged findings (grouped by claim) from four layers: patches applied 2 (one medium: X13 step 7, "Reload while pending"; one low: the `ToolCallNotices` header), deferred 1 (the announcement of the new notices, unverified), rejected the rest with the reasons in the triage log.
+
+**Follow-up review recommended:** false (no high patched; one medium patched).
+
+**Verification.** `npm --prefix web test` 1262 pass, `npm --prefix web run lint`, `catalog.mjs --check` and `payloads.mjs --check` current; warm classes `WebChatOut`, `Data.Ownership`, `ToolCallNotices`, `BridgeSink`, `RoutingProduction` passed on the lead's own run; after the review patches, `ci/iris.sh build` and `live answers` (23 passed: X1-X13, C1-C10) and `test-class-rules.sh` passed. The implement stage's own runs of `cards` (20), `floor` (107), `sign-in` parts 1-3, `demo-path`, fresh shards `lane-b@Core,Data` and `lane-b@Demo,Schedule` (forward and reverse; one `Schedule.Heartbeat` flake on the first reverse run, green on the rerun), and the `test-boundaries`, `test-storage` and `test-ci-config` scripts passed before the patches; the patches touched only X13 and a class header comment, so those were not repeated.
+
+**Residual risks.** Announcement of the new notices unpinned (deferred). The held-reason notice is proved at the server and by unit tests, not in the browser DOM. `Schedule.Heartbeat.TestStubSkipped` showed one order-dependent flake in a reverse shard run, unrelated to this change.

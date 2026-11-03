@@ -10,7 +10,7 @@ import { describe, it } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const { CHAT_TEXTS, NOTICE_TEXTS, chatView, indicatorOf, isFreshChat, newClientId, noticeOf } = await import(pathToFileURL(join(here, '..', 'src', 'app', 'chat', 'chat-view.ts')).href);
+const { CHAT_TEXTS, NOTICE_TEXTS, chatView, indicatorOf, isFreshChat, liveRequest, newClientId, noticeOf } = await import(pathToFileURL(join(here, '..', 'src', 'app', 'chat', 'chat-view.ts')).href);
 
 const NOW = 1_000_000;
 const NO_RUNNING = new Map();
@@ -62,6 +62,17 @@ describe('the order of the entries', () => {
   it('leaves out a notification of the incident kinds: the incident card is their web form', () => {
     const chat = [notice('K1', { kind: 'incident' }), notice('K2', { kind: 'approval' }), notice('K3', { kind: 'answered' }), notice('K4', { kind: 'result' })];
     assert.deepEqual(chatView(chat, [], NO_RUNNING, NOW), []);
+  });
+
+  it('shows a tool call\'s request and result (kinds approval and result with an approvalRef) as notices, and no such kind without one', () => {
+    const request = notice('K1', { kind: 'approval', approvalRef: 'A1', text: 'Run zz_send on ops-mcp\nInputs: {}' });
+    const result = notice('K2', { kind: 'result', approvalRef: 'A1', text: 'zz_send ran once at 14:12.' });
+    const views = chatView([request, result], [], NO_RUNNING, NOW);
+    assert.deepEqual(keys(views), ['notification:K1', 'notification:K2']);
+    assert.deepEqual(views.map((view) => [view.entry, view.kind, view.approvalRef, view.strip]), [['notice', 'approval', 'A1', false], ['notice', 'result', 'A1', false]]);
+    assert.equal(views[0].text, 'Run zz_send on ops-mcp\nInputs: {}');
+    assert.equal(noticeOf(notice('K3', { kind: 'approval', approvalRef: '' })), undefined);
+    assert.equal(noticeOf(notice('K4', { kind: 'result' })), undefined);
   });
 
   it('puts a card between the turns around it, as the server held it, and the page\'s own messages after them', () => {
@@ -499,5 +510,24 @@ describe('the fixed strings', () => {
     assert.equal(CHAT_TEXTS.workingElapsed.replace('{n}', '12'), 'Working \u00B7 12 s');
     assert.equal(CHAT_TEXTS.workingElapsedSpoken.replace('{n}', '12'), 'Working \u00B7 12 seconds');
     assert.equal(CHAT_TEXTS.seconds.replace('{n}', '12'), '12 seconds');
+  });
+});
+
+describe('liveRequest', () => {
+  const request = noticeOf(notice('K1', { kind: 'approval', approvalRef: 'A1', text: 'Run zz_send' }));
+  const result = noticeOf(notice('K2', { kind: 'result', approvalRef: 'A1', text: 'zz_send ran once.' }));
+  const pendingPayload = { ref: 'A1', kind: 'tool_call', state: 'pending' };
+
+  it('gives the store\'s payload of a request that the store holds', () => {
+    assert.equal(liveRequest(request, { A1: pendingPayload }), pendingPayload);
+  });
+
+  it('gives undefined for a request the store does not hold: an answered or finished one after a reload is a plain notice', () => {
+    assert.equal(liveRequest(request, {}), undefined);
+    assert.equal(liveRequest(request, { B2: pendingPayload }), undefined);
+  });
+
+  it('gives undefined for a result, even when the store holds the request', () => {
+    assert.equal(liveRequest(result, { A1: pendingPayload }), undefined);
   });
 });

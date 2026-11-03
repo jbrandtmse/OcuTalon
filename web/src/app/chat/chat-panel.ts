@@ -14,10 +14,12 @@ import {
 } from '@angular/core';
 
 import { Icon } from '../icon/icon';
+import { ApprovalRequestCard, approvalContext } from '../approvals/approval-request-card';
 import { IncidentCard, incidentContext } from '../incidents/incident-card';
 import { Dismissals } from '../incidents/dismissals';
 import { announcementOf, bandTexts, incidentView } from '../incidents/incident-view';
 import { LiveState } from '../live/live-state';
+import type { ApprovalPayload } from '../live/payloads';
 import { Announcer } from '../shared/announcer';
 import { DemoView } from '../shared/demo-view';
 import { type FocusRule, keepFocus, type LostFocus } from '../shared/focus-rule';
@@ -27,7 +29,7 @@ import { Popovers } from '../shared/popover';
 import { revealRing } from '../shared/reveal-ring';
 import { type ChatAnnounceFormat, chatAnnouncements, type ChatHeard, landed } from './chat-announcements';
 import { ChatOutbox } from './chat-outbox';
-import { CHAT_TEXTS, chatView, isFreshChat, type ChatEntryView } from './chat-view';
+import { CHAT_TEXTS, chatView, isFreshChat, liveRequest, type ChatEntryView } from './chat-view';
 import { Composer } from './composer';
 import { EmptyChat } from './empty-chat';
 import { NoticeCard } from './notice-card';
@@ -100,6 +102,10 @@ const ANNOUNCE_FORMAT: Omit<ChatAnnounceFormat, 'incidentText' | 'bandTexts' | '
  * (or "No fix proposed.", or its state) and a known one says its state when that changes and then each result band text that is new or changed (once). The user's messages, Deciding and Working, the
  * seconds and a card updated in place are silent.
  *
+ * A tool call's request notice (Story 31.6) is drawn as the approval request card (approvals/approval-request-card.ts) while the live
+ * store holds its `approval` payload (chat-view.ts liveRequest), inside a wrapper that carries the notice's part and key; any other
+ * notice of a tool call (an answered or finished request after a reload, a result) is a plain notice card.
+ *
  * The list is a tab stop (DW-89, Story 2.16): a region named by the hidden "Chat" heading of the main page, with its ring inside its own edge, so
  * that the keyboard scrolls it; a focusin in it keeps the ring of a control at its edge inside it (shared/reveal-ring.ts).
  *
@@ -126,7 +132,7 @@ const ANNOUNCE_FORMAT: Omit<ChatAnnounceFormat, 'incidentText' | 'bandTexts' | '
  */
 @Component({
   selector: 'app-chat-panel',
-  imports: [Composer, EmptyChat, Icon, IncidentCard, NoticeCard, OcutalonReply, UserMessage],
+  imports: [ApprovalRequestCard, Composer, EmptyChat, Icon, IncidentCard, NoticeCard, OcutalonReply, UserMessage],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <div
@@ -158,6 +164,10 @@ const ANNOUNCE_FORMAT: Omit<ChatAnnounceFormat, 'incidentText' | 'bandTexts' | '
                   [approvals]="live.store()?.approvals"
                   [user]="user()"
                 />
+              } @else if (requestOf(entry); as request) {
+                <div class="tool-call" data-part="notice" [attr.data-key]="entry.key" tabindex="-1">
+                  <app-approval-request-card [approval]="request" [ctx]="approvalCtx()" [request]="entry.text" />
+                </div>
               } @else {
                 <app-notice-card [notice]="entry" [instanceZone]="instanceZone()" />
               }
@@ -302,6 +312,14 @@ export class ChatPanel {
 
   /** The signed-in user, from the snapshot: an incident card's request cards name another user's answer on a local install. */
   protected readonly user = computed(() => this.live.snapshot()?.user ?? '');
+
+  /** The context of a tool call's request card: the page's clock, zone and user (as an incident card's). */
+  protected readonly approvalCtx = computed(() => approvalContext(Date.now(), this.instanceZone(), this.onlineDemo(), this.user()));
+
+  /** The store's approval payload of a notice that is a live tool-call request, else undefined (it is then a plain notice). */
+  protected requestOf(entry: ChatEntryView): ApprovalPayload | undefined {
+    return entry.entry === 'notice' ? liveRequest(entry, this.live.store()?.approvals ?? {}) : undefined;
+  }
 
   /** The live store's decisions, among which an incident card's footer decision is looked for. */
   protected readonly decisions = computed(() => this.live.store()?.decisions ?? []);

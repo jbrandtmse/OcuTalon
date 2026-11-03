@@ -313,7 +313,8 @@ ClassMethod Pairing(sessionRef As %String, Output sc As %Status) As OcuTalon.Dat
 	Quit rows.GetAt(1)
 }
 
-/// The session's newest web notice cards: the Delivery rows of channel web and kind tellnow, reminder or allowance, newest
+/// The session's newest web notice cards: the Delivery rows of channel web and kind tellnow, reminder or allowance, and those of
+/// kind approval or result that have a ChannelMessageId (only WebChatOut's tool-call cards have one), newest
 /// RecordedAt first and then newest ID first, at most max. sc is an error status when the read failed.
 ClassMethod RecentNotices(sessionRef As %String, max As %Integer = 100, Output sc As %Status) As %ListOfObjects
 {
@@ -779,7 +780,7 @@ ClassMethod Statement(kind As %String, Output class As %String, Output binds As 
 	}
 	If kind = "recentNotices" {
 		Set class = "OcuTalon.Data.Delivery", binds = "ao"
-		Quit "SELECT TOP ? ID FROM OcuTalon_Data.Delivery WHERE OwnerRef = ? AND Channel = 'web' AND Kind IN ('tellnow', 'reminder', 'allowance') ORDER BY RecordedAt DESC, ID DESC"
+		Quit "SELECT TOP ? ID FROM OcuTalon_Data.Delivery WHERE OwnerRef = ? AND Channel = 'web' AND (Kind IN ('tellnow', 'reminder', 'allowance') OR (Kind IN ('approval', 'result') AND ChannelMessageId IS NOT NULL)) ORDER BY RecordedAt DESC, ID DESC"
 	}
 	If kind = "recentPhone" {
 		Set class = "OcuTalon.Data.SimMessage", binds = "ao"

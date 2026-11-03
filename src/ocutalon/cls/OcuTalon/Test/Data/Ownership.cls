@@ -968,6 +968,24 @@ Method TestRecentNoticesIncludeAllowanceCards()
 	Do $$$AssertEquals(..Refs(##class(OcuTalon.Data.Ownership).RecentNotices(a)), card_","_tell, "the allowance card is a notice card, newest first, and a telegram copy is not")
 }
 
+/// RecentNotices includes a tool call's cards (Story 31.6): the web rows of kind approval and result that have a ChannelMessageId
+/// (only WebChatOut's tool-call cards have one), newest first, with the other cards. The same kinds with no ChannelMessageId (the
+/// record-only rows of a fix) and the phone's copies are not cards.
+Method TestRecentNoticesIncludeToolCallCards()
+{
+	Set fixture = "OcuTalon.Test.Data.Fixture"
+	Set a = $ClassMethod(fixture, "Session", "zzown"_..Number_"tcca")
+	Set request = $ClassMethod(fixture, "Delivery", a, {"RecordedAt": "2030-01-01T10:00:01Z", "Kind": "approval", "ApprovalRef": "ZzOwnTc"})
+	Set result = $ClassMethod(fixture, "Delivery", a, {"RecordedAt": "2030-01-01T10:00:03Z", "Kind": "result", "ApprovalRef": "ZzOwnTc"})
+	Set tell = $ClassMethod(fixture, "Delivery", a, {"RecordedAt": "2030-01-01T10:00:02Z"})
+	Do $ClassMethod(fixture, "Delivery", a, {"RecordedAt": "2030-01-01T10:00:04Z", "Kind": "approval", "ApprovalRef": "ZzOwnFix", "ChannelMessageId": "", "Text": ""})
+	Do $ClassMethod(fixture, "Delivery", a, {"RecordedAt": "2030-01-01T10:00:05Z", "Kind": "result", "ApprovalRef": "ZzOwnFix", "ChannelMessageId": "", "Text": ""})
+	Do $ClassMethod(fixture, "Delivery", a, {"RecordedAt": "2030-01-01T10:00:06Z", "Kind": "approval", "ApprovalRef": "ZzOwnTc", "Channel": "phone"})
+	Do $ClassMethod(fixture, "Delivery", a, {"RecordedAt": "2030-01-01T10:00:07Z", "Kind": "result", "ApprovalRef": "ZzOwnTc", "Channel": "phone"})
+	Do $ClassMethod(fixture, "Delivery", a, {"RecordedAt": "2030-01-01T10:00:08Z", "Kind": "answered", "ApprovalRef": "ZzOwnTc"})
+	Do $$$AssertEquals(..Refs(##class(OcuTalon.Data.Ownership).RecentNotices(a)), result_","_tell_","_request, "the tool-call cards are notice cards, newest first, and a row with no ChannelMessageId, a phone copy and an answered row are not")
+}
+
 /// ActiveVisitors lists the open sessions (they have a ResumeHash) that have a Turn (a refused one too), a Break the feed run or an
 /// approval request of their own that they answered with approve or reject, in Ref order; an ended session, a session with no activity,
 /// an unanswered or expired request and another session's request count for nothing. The fixture sessions are picked out of the list,

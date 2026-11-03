@@ -1,13 +1,19 @@
-/// The integration tests of the tool-call notices (Story 31.5; AD-31, AD-32, U-212), over the running production and the real replay: a
-/// call that the gate holds for a fixture session reaches the simulated phone with Approve and Reject, the answer edits the request's
-/// message in place, and the result is a new message with no buttons. THEY RUN IN THROWAWAY STACKS AND IN CI ONLY (Rule 21): they put
-/// ZzReplayAgent behind ChatAgent and point the runners' keys at the CI mock's key, and put both back after the run. The phone is the
-/// only channel they read.
+/// The integration tests of the tool-call notices (Story 31.5, and Story 31.6 for the web chat; AD-31, AD-32, U-212, DW-601), over the
+/// running production and the real replay: a call that the gate holds for a fixture session reaches the simulated phone with Approve
+/// and Reject, the answer edits the request's message in place, and the result is a new message with no buttons. The web chat gets the
+/// same Notification as cards: the request with the phone's text, and the result. THEY RUN IN THROWAWAY STACKS AND IN CI ONLY
+/// (Rule 21): they put ZzReplayAgent behind ChatAgent and point the runners' keys at the CI mock's key, and put both back after the
+/// run. They read the phone, and the session's web Delivery rows and RecentNotices.
 ///   - TestApprovedCallReachesThePhone: the request message (the phone render of toolCall.request, the session's ApprovalRef, no
 ///     answer); after Approve its Answer is the render of answered.approved; a second message is the render of toolCall.done, with no
 ///     ApprovalRef and no answer;
+///   - the same test, for the web chat: a row of kind approval with the same text as the phone's, a row of kind result with the web
+///     render of toolCall.done (these two are the chat's cards, in RecentNotices), and the answered notice's row with no
+///     ChannelMessageId, which is not a card;
 ///   - TestRejectedAndExpiredEditInPlace: a rejected call gets the render of answered.rejected and an expired one the render of
 ///     answered.expired in the request's message, and neither adds a message.
+///   - TestHeldReasonReachesTheWebChat (DW-454): an old held call closed by Decide with the bridge's sentence reaches the web chat as
+///     a result card with the sentence, the Decision's Ref as DecisionRef and no request.
 /// Each test makes its own sessions and removes its rows (Test.Bridge.Approval Clean ends the holds and deletes the requests).
 Class OcuTalon.Test.Core.ToolCallNotices Extends OcuTalon.Test.Core.InProduction
 {
@@ -52,6 +58,13 @@ Method TestApprovedCallReachesThePhone()
 	Do $$$AssertEquals($Piece(message.Text, $Char(10), 1), "Run "_..#TOOL, "which starts with the tool")
 	Do $$$AssertEquals(message.ApprovalRef_"|"_message.Answer, ref_"|", "it carries the request's Ref, so that the phone draws Approve and Reject, and no answer")
 	Set messageRef = message.Ref
+	Set webRequest = ..WaitWebRow(session, "approval", 1)
+	Do $$$AssertTrue($IsObject(webRequest), "the web chat gets a row of kind approval")
+	If $IsObject(webRequest) {
+		Do $$$AssertEquals(webRequest.ApprovalRef, ref, "with the request's Ref as ApprovalRef")
+		Do $$$AssertEquals(webRequest.Text, message.Text, "and the phone's text: one Notification, one text (DW-601)")
+		Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).RecentNotices(session, 10).Count(), 1, "it is a card of the web chat")
+	}
 
 	Do $$$AssertEquals(##class(OcuTalon.Bridge.Approval).Answer(ref, "approve", "phone", user, session, .winner), "done", "Approve is accepted")
 	Do $$$AssertEquals(..WaitState(ref, "done", 40), "done", "the replay finishes: "_..Facts(ref, session))
@@ -68,6 +81,38 @@ Method TestApprovedCallReachesThePhone()
 	Do $$$AssertEquals(done.ApprovalRef_"|"_done.Answer, "|", "with no ApprovalRef and no answer, so no buttons")
 	Do $$$AssertEquals(..Message(messageRef).Answer, approved, "and the request's message keeps its answer")
 	Do $$$AssertEquals(..PhoneCount(session), 2, "the phone holds exactly the two messages")
+	Set webResult = ..WaitWebRow(session, "result", 1)
+	Do $$$AssertTrue($IsObject(webResult), "the web chat gets a second row, of kind result")
+	If $IsObject(webResult) {
+		Do $$$AssertEquals(webResult.Text, ..Render("toolCall.done", {"tool": (..#TOOL), "time": (row.FinishedAt)}, "web"), "with the web render of toolCall.done")
+		Do $$$AssertEquals(webResult.ApprovalRef, ref, "and the request's Ref")
+	}
+	Set webAnswered = ..WaitWebRow(session, "answered", 0)
+	Do $$$AssertTrue($IsObject(webAnswered), "the answered notice has a row in the web chat")
+	If $IsObject(webAnswered) Do $$$AssertEquals(webAnswered.ChannelMessageId_"|"_webAnswered.Text, "|", "with no message id and no text")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).RecentNotices(session, 10).Count(), 2, "so the request and the result are the web chat's two cards")
+}
+
+/// DW-454, the web half: an old held call (failed, with no ToolSource) that Decide closed with the bridge's sentence gets, from its
+/// decision.recorded event, one result card in the web chat: the sentence of toolCall.failedWithReason, the Decision's Ref as
+/// DecisionRef and the request's Ref as ApprovalRef, with no request before it.
+Method TestHeldReasonReachesTheWebChat()
+{
+	If '..Ready() Quit
+	Set session = ..Session("heldweb")
+	Set sentence = $Parameter("OcuTalon.Bridge.Process.Decide", "HELDBEFOREUPDATE")
+	Set finishedAt = ##class(OcuTalon.Data.Time).NowUtc()
+	Set row = ##class(OcuTalon.Test.Data.Fixture).Approval(session, , "failed", , {"Kind": "tool_call", "ToolName": "zz_send", "ToolArguments": ("{""to"":""ops""}"), "ToolSource": "", "Runner": "ChatAgent", "DryRun": "", "Result": "failed", "FinishedAt": (finishedAt)})
+	Set decision = ##class(OcuTalon.Test.Data.Fixture).Decision(session, "tool", , {"ItemId": (row), "Fallback": 1, "FallbackReason": "error", "Reasons": (sentence)})
+	Set ..Refs = ..Refs_","_row_","_decision
+	Do $$$AssertStatusOK(##class(OcuTalon.Core.BridgeSink).OnEvent("decision.recorded", session, {"ref": (decision)}), "decision.recorded is handled")
+	Set web = ..WaitWebRow(session, "result", 1)
+	Do $$$AssertTrue($IsObject(web), "the web chat gets a row of kind result within "_..#WAIT_" seconds: "_..Facts(row, session))
+	If '$IsObject(web) Quit
+	Do $$$AssertEquals(web.DecisionRef_"|"_web.ApprovalRef, decision_"|"_row, "it carries the Decision's Ref and the request's Ref")
+	Do $$$AssertEquals(web.Text, ..Render("toolCall.failedWithReason", {"tool": "zz_send", "reason": (sentence)}, "web"), "and the web render of toolCall.failedWithReason")
+	Do $$$AssertEquals(web.Text, "zz_send didn't run. "_sentence, "which is the tool and the bridge's sentence")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).RecentNotices(session, 10).Count(), 1, "it is the one card of the web chat")
 }
 
 Method TestRejectedAndExpiredEditInPlace()
@@ -252,10 +297,31 @@ Method PhoneCount(session As %String) As %Integer [ Private ]
 	Quit +result.%GetData(1)
 }
 
-/// The phone render of the key with the slots (an object), at the current time and with the online-demo flag as it is.
-Method Render(key As %String, slots As %DynamicObject) As %String [ Private ]
+/// The newest web Delivery row of the session of the kind that has a ChannelMessageId (card 1) or none (card 0), polled up to WAIT
+/// seconds; "" when none arrives.
+Method WaitWebRow(session As %String, kind As %String, card As %Boolean) As OcuTalon.Data.Delivery [ Private ]
 {
-	Set text = ##class(OcuTalon.Msg.Catalog).RenderAt(key, slots.%ToJSON(), "phone", ##class(OcuTalon.Data.Time).NowUtc(), ##class(OcuTalon.Data.Public.Settings).Get("onlineDemo"), .sc)
+	Set end = $ZHorolog + ..#WAIT
+	Set found = ""
+	For {
+		Set rows = ##class(OcuTalon.Test.Core.Observe).DeliveryRows(session)
+		For i = rows.Count():-1:1 {
+			Set candidate = rows.GetAt(i)
+			If (candidate.Channel = "web") && (candidate.Kind = kind) && ((candidate.ChannelMessageId '= "") = card) {
+				Set found = candidate
+				Quit
+			}
+		}
+		If $IsObject(found) || ($ZHorolog > end) Quit
+		Hang 0.25
+	}
+	Quit found
+}
+
+/// The render of the key with the slots (an object) for the channel (the phone by default), at the current time and with the online-demo flag as it is.
+Method Render(key As %String, slots As %DynamicObject, channel As %String = "phone") As %String [ Private ]
+{
+	Set text = ##class(OcuTalon.Msg.Catalog).RenderAt(key, slots.%ToJSON(), channel, ##class(OcuTalon.Data.Time).NowUtc(), ##class(OcuTalon.Data.Public.Settings).Get("onlineDemo"), .sc)
 	Do $$$AssertStatusOK(sc, key_" renders")
 	Quit text
 }

@@ -135,6 +135,29 @@ describe('the pending card', () => {
   });
 });
 
+describe('a tool call\'s request text', () => {
+  const REQUEST = 'Run zz_send on ops-mcp\nInputs: {"to":"ops"}\nNo dry run is available for this tool. Approving runs exactly this call once.';
+  const tool = { ref: 'T', kind: 'tool_call', state: 'pending', toolName: 'zz_send', expiresAt: '2026-10-28T14:13:00Z' };
+
+  it('is the action, and its first line names both buttons, while pending', () => {
+    const view = approvalView(tool, ctx(), REQUEST);
+    assert.equal(view.action, REQUEST);
+    assert.equal(view.approveName, 'Approve: run zz_send on ops-mcp');
+    assert.equal(view.rejectName, 'Reject: run zz_send on ops-mcp');
+  });
+
+  it('keeps the action and the names once answered', () => {
+    const view = approvalView({ ...tool, state: 'approved', answeredBy: 'dana', answeredChannel: 'web', answeredAt: '2026-10-28T14:00:00Z' }, ctx(), REQUEST);
+    assert.equal(view.action, REQUEST);
+    assert.equal(view.approveName, 'Approve: run zz_send on ops-mcp');
+    assert.notEqual(view.status, undefined);
+  });
+
+  it('is ignored when empty: the title of the rail', () => {
+    assert.equal(approvalView(tool, ctx(), '').action, 'Run zz_send.');
+  });
+});
+
 describe('an answered card', () => {
   it('reads "Approval request", puts the status in the buttons\' place and drops the fixed-targets line, the expiry and "Nothing has changed yet.", keeping the dry run', () => {
     const view = approvalView(answered('approved'), ctx());
