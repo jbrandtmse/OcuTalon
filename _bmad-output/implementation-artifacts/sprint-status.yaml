@@ -49,8 +49,7 @@ development_status:
   0-11-the-ci-model-mock-answers-every-scenario-the-stories-need: done
   0-12-epic-0-burn-down: done
   0-13-a-start-retries-the-cpf-merge-when-iris-cannot-quiesce: done
-  0-14-a-start-that-recovers-through-the-merge-retry-passes-the-liv: 
-    ready-for-dev
+  0-14-a-start-that-recovers-through-the-merge-retry-passes-the-liv: in-progress
   epic-0-retrospective: optional
 
   epic-1: done
