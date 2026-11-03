@@ -1348,6 +1348,13 @@ So that a rare timing collision never leaves my install not ready.
 **And** any other merge failure fails at once, as today, with no retry
 **And** the retry count and wait are chosen so that a start that succeeds on its first retry stays inside the ready limits the live tests use (row 1's 400 s, row 2's 200 s); the choice and its reason are in the spec's Design Notes
 
+[AMENDED 2026-11-03, Contest Planner under the owner's delegation, U-235 conditions] The Contest Planner kept veto U-235 with five binding conditions (answer 2026-11-03T09:22:15Z#706); they refine the acceptance criteria above, and where they differ they win:
+- **Retry only on #453.** The merge is retried only when its output carries ERROR #453; any other failure, or a #453 after the last try, ends not ready exactly as today. A short pause separates the tries, so the blocking job can finish. Each retry writes exactly one log line of the form `STEP merge RETRY <n> after #453`, so the retries can be counted (the Planner's 38.2 rehearsal counts these lines across 20 starts).
+- **Size the bound against `start_period`.** One #453 (about 122 s), the pause, a successful retry and the slowest measured first start (IPM and package install) still end healthy inside `docker-compose.yml`'s `start_period: 600s`; the slowest first start is measured or cited and the arithmetic is in the spec's Design Notes. If it does not fit, this story raises `start_period` and says so. The live tests' ready limits (row 1's 400 s, row 2's 200 s) apply only to their own runs, where no #453 is injected; they are not the retry bound, and they are loosened only if the plan finds they must be, with the reason recorded. This replaces the third criterion above.
+- **The stubbed test** pins all three cases with their log lines: #453 then success (ready, one `RETRY` line); #453 on every try (`STEP merge FAILED`, not ready, one `RETRY` line per retry); another failure (no retry, no `RETRY` line). It runs in an existing CI group, never `production`, `browser`, `install-fresh` or `install-upgrade`.
+- **`docker/merge.cpf` stays unchanged,** and this story is `docker/after-start.sh`'s only change before the 1.0.0 tag.
+- **rc1 includes this story:** the Planner's hand gates must run the `after-start.sh` that ships.
+
 **Given** the change
 **When** this story merges
 **Then** a test with a stubbed `iris merge` pins the three cases (#453 then success: ready, the retry logged; #453 on every attempt: `STEP merge FAILED`, not ready; another error: no retry), in an existing CI group other than `production`, `browser`, `install-fresh` and `install-upgrade`; `docker/merge.cpf` is unchanged; `docker/tests/test-install-start.sh` and `test-install-upgrade.sh` pass; CI is green on every workflow
