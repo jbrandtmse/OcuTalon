@@ -3611,3 +3611,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-10-5-the-readme-shows-the-product-and-says-how-you-talk-to-it.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: chk_how_you_talk greps TALK_FACTS in the README section only; no read of device-view.ts or demo-view-texts.ts (outcomes reads chat-view.ts, the precedent). AC2 is a recorded check at the plan base by spec.
 - 2026-11-03T07:35:37Z status=by-design owner=10-5-the-readme-shows-the-product-and-says-how-you-talk-to-it by=cr note=AC2 is specified as a recorded check; reopen via spec amendment if a UI story renames a quoted product term
+
+### DW-627: Shorten the waits of the lane-a Channel test classes: shard:lane-a@Channel took 704 s in CI (run 41618490851), mostly waits (TelegramIn about 98 s, TelegramPause about 82 s, TelegramPair about 63 s, TelegramApproval about 60 s locally), which needed its own iris group shards-4
+- source: orchestrator ruling at Epic 12's close (option d) | severity: med | fix-risk: med | footprint: src/ocutalon/cls/OcuTalon/Test/Channel/
+- evidence: CI run 41618490851 production group 38 min with the Channel unit 704 s; local one-stack shard 535-567 s
+- 2026-11-03T11:57:11Z status=routed owner=burndown by=lead note=first daily release after 1.0.0 (orchestrator ruling); goal: Channel well under 10 min so shards-4 has room or the unit fits an existing group again

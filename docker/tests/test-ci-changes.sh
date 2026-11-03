@@ -6,8 +6,8 @@
 # that runs this test never leaks in.
 #   - row 9, the web classifier: web is true for each web input and false for other paths, so a change to DESIGN.md runs web;
 #   - the group classifier: the script of each live unit (group_units) runs exactly its own group; the web-only set runs every group
-#     but production; a change to ci/ or the workflow runs all eight, and each product source is claimed by a pattern; each declared
-#     non-input and each bookkeeping path runs no group; a path that nothing claims or declares runs all eight, naming the path;
+#     but production; a change to ci/ or the workflow runs all nine, and each product source is claimed by a pattern; each declared
+#     non-input and each bookkeeping path runs no group; a path that nothing claims or declares runs all nine, naming the path;
 #   - row 10, the base: the first commit of the history with a green push run (HEAD itself on a re-run of a green run); no
 #     base, web true and every group running, on a pull request, with no run, with no green run in the history, with a run that is not
 #     a push, and when the answer cannot be read or holds no run list;

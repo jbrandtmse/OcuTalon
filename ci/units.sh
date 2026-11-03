@@ -20,8 +20,8 @@ shard_areas() {
   esac
 }
 
-# The IRIS groups, in the order of the matrix of .github/workflows/ci.yml (eight since Epic 30's CI step).
-IRIS_GROUPS="install-fresh install-upgrade production browser shards shards-2 image shards-3"
+# The IRIS groups, in the order of the matrix of .github/workflows/ci.yml (eight since Epic 30's CI step, nine since Epic 12's close).
+IRIS_GROUPS="install-fresh install-upgrade production browser shards shards-2 image shards-3 shards-4"
 
 # group_units <group>: the units of a group in the order they run. live:<name> is docker/tests/test-<name>.sh and
 # shard:<name> is a %UnitTest shard. Every docker/tests/test-*.sh is in exactly one of CHECK_SCRIPTS, WEB_SCRIPTS or a group.
@@ -59,16 +59,21 @@ IRIS_GROUPS="install-fresh install-upgrade production browser shards shards-2 im
 # and Watch 902, online-session 530, cards 402), shards-2 about 1,820 (lane-a's other areas alone; any area added to lane-a later
 # lands here), image about 1,740 (lane-b 1,013, online-demo-path 389, storage-roundtrip 325, build-inputs 13), and shards-3 about
 # 1,890 (floor 734, demo-switch 524, bundle-folder 320, audit 310).
+# Epic 12's close (2026-11-03, an orchestrator ruling, carried to the Contest Planner for main's required checks) added the ninth
+# group shards-4 for shard:lane-a@Channel alone: that unit took 704 s in CI (ci run 41618490851), and on feature run 41612880963 the
+# eight groups' steps took 24 to 31 minutes, so it fitted under 33 minutes in none of them; beside production-restart and
+# reminder-restart it had also met the 40-minute job timeout (DW-591).
 group_units() {
   case $1 in
     install-fresh) echo "live:install-start live:online-demo live:install-script-live" ;;
     install-upgrade) echo "live:install-upgrade live:online-allowance live:online-visitors live:compose-start" ;;
-    production) echo "live:production live:production-restart live:reminder-restart live:security-overview shard:lane-a@Channel" ;;
+    production) echo "live:production live:production-restart live:reminder-restart live:security-overview" ;;
     browser) echo "live:demo-path live:sign-in live:answers" ;;
     shards) echo "shard:lane-a@Checks,Install,Watch live:online-session live:cards" ;;
     shards-2) echo "shard:lane-a@rest" ;;
     image) echo "live:storage-roundtrip live:build-inputs shard:lane-b live:online-demo-path" ;;
     shards-3) echo "live:floor live:demo-switch live:bundle-folder live:audit" ;;
+    shards-4) echo "shard:lane-a@Channel" ;;
     *) return 1 ;;
   esac
 }
