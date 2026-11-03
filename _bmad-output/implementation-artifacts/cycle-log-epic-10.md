@@ -153,3 +153,19 @@
 2026-10-31T10:17:28Z	Epic 10	epic_runner_complete	stories_completed=1 run_stories=10.4(reopen) inbox=none applied=none decisions_for_user=none
 2026-10-31T11:20:46Z	Epic 10	ci_red_classified	run=41192152812 workflow=.github/workflows/ci.yml class=flake test=web/e2e/floor/focus.spec.ts:209_P4(live:floor,iris_shards) sha=192f60c3 ledger=DW-349(occurrence) action=gh_run_rerun_--failed(attempt_2)
 2026-10-31T11:20:46Z	Epic 10	ci_resolved	story=integrate_forward_final sha=192f60c3 runs=41192152812(attempt_2),41192152814 result=success failed=none via=none resolved_at=runner_complete note=attempt_1_iris_shards_flake_DW-349_rerun_green;the_next_commit_carries_only_this_flake_bookkeeping ci_groups=checks_8.0min,install-macos_0.6min,web_0.9min,iris_groups_ran(shards_27min_attempt_1,rerun_~27min),lane-a_green
+2026-11-03T05:54:23Z	Epic 10	lead_model_gate	model=claude-opus-5-5 action=proceed runner=C
+2026-11-03T05:54:23Z	Epic 10	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh
+2026-11-03T05:54:23Z	Epic 10	launch_env	depth=default watchdog=0 bash_max_ms=default
+2026-11-03T05:54:23Z	Epic 10	telemetry_gate	pending=1 action=none note=record_only(gates.model_tier)
+2026-11-03T05:54:23Z	Epic 10	runner_unattended_start	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec note=reopen_for_story_10.5;dispatch_log_line_named_ff1bd1a_which_h2-common_marks_stale;verified_hash-object=508603671b98_matches_args
+2026-11-03T05:54:23Z	Epic 10	ruling	question=which_policy_hash_to_log choice=5086036(verified_git_hash-object,matches_args) rejected=ff1bd1a(dispatch_log_template;stale_per_h2-common) why=the_log_records_the_verified_hash category=decide policy=5086036
+2026-11-03T05:54:23Z	Epic 10	epic_branch_reopened	reason=story_10.5_owner_decision from=c9d201e5
+2026-11-03T05:54:23Z	Epic 10	epic_branch_checked_out	repos=. head=c9d201e5 ci=gh workflows=ci,lane-a bootstrap_check=pass
+2026-11-03T05:54:23Z	Epic 10	spine_resolved	path=_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md ads=33 status=final
+2026-11-03T05:54:23Z	Epic 10	ledger_load	total=555 open=0 routed=66 escalated=0 decision_pending=3 terminal=486 owner_unknown=0 burndown=10 reowned_none=0 owned_by_epic10=0
+2026-11-03T05:54:57Z	Epic 10	sprint_planning_complete	gate=PASS model=claude-opus-5-5 in_sync=true new_entries=0 dropped_orphans=0 note=readiness_recheck(U8)
+2026-11-03T05:54:57Z	Epic 10	retro_review_skipped	reason=dispatch(no_X.0_input;reopen_for_10.5)
+2026-11-03T05:58:21Z	Epic 10	ruling	question=telegram_row_while_epic12_unmerged(dispatch_pre-ruled_write_anyway+merge_after_epic-12) choice=split:10.5_now(section_without_Telegram_row,images,test)+10.6_Telegram_row_waiting_on_epic_12 rejected=write_row_now(test-readme_no-telegram_rule(AD-29)_refuses_the_word_while_Included()_is_test-only_on_this_branch->CI_red;the_row_must_point_to_Story_12.9s_section_which_does_not_exist_yet),weaken_no-telegram_check(AD-29_guard;cross-epic),end_waiting_now(wastes_the_pre-rc1_window) why=U5_split_into_siblings_planned_next_in_same_epic_is_decide;U14_story_waiting_mechanism;merge_timing_unchanged_vs_merge_after_epic-12 category=decide policy=5086036 amendments=epics.md:Story_10.5_AC([AMENDED_2026-11-03]),epics.md:Story_10.6_added
+2026-11-03T05:58:21Z	Epic 10	deps_hash_note	reason=split note=Story_10.6_inserted_inside_Epic_10;no_boundary_or_dependency_statement_changed(orchestrator_re-records)
+2026-11-03T05:58:21Z	Story 10.6	story_waiting	story=10-6-the-readme-s-how-you-talk-to-it-section-adds-telegram on=12
+2026-11-03T06:00:30Z	Epic 10	epic_context_compiled	sha=pending reason=planning_artifact_newer(story_10.5_amended,10.6_added) model=claude-opus-5-5 note=compiled_twice(before_and_after_split);a_one-phrase_wording_fix_in_the_10.5_amendment(12.9->Epic_12)_followed,context_already_avoids_the_number
