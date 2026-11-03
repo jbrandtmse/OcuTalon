@@ -3097,6 +3097,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: about 5 awk lines; the spec records the reason (test-readme.sh cannot be sourced and is Epic 10's); both rules drift if the name rule changes in one place
 - 2026-11-01T23:52:21Z status=escalated owner=burndown by=cr note=unify when Epic 10 next edits test-readme.sh: one shared name scanner in lib-scan.sh that both call
 - 2026-11-02T13:18:26Z status=routed owner=burndown by=merge_gate note=unify_checklist_row_name_only_in_note_with_test-readme.sh_in_Epic_10s_next_README_story_after_1.0.0(release/**_and_test-readme.sh_both_needed)
+- 2026-11-03T08:00:25Z status=routed owner=burndown by=burndown note=first daily release after 1.0.0 (orchestrator ruling U-234 close: not a 1.0.0 blocker; Epic 10's next README story)
 
 ### DW-555: flake: a CI-host network blip at sign-in can surface as 'page.goto: Navigation ... is interrupted by another navigation to chrome-error://chromewebdata/', which gotoSettled (web/e2e/support/navigate.ts, Story 11.9, DW-415) does not retry: it matches only net::ERR_NETWORK_CHANGED
 - source: cycle-log-epic-11.md | severity: med | fix-risk: low | footprint: in-epic
@@ -3398,3 +3399,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: ci run 41598497924 (OCT-epic13 d642b11a) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: job 125791394066 attempt 1: FAIL the load phase; attempt 2 green
 - 2026-11-03T08:42:50Z status=routed owner=burndown by=ci note=first daily release after 1.0.0; not a 1.0.0 blocker (flake, green on rerun)
+### DW-613: Story 31.3's README AC adds 'the page on the demo path' and 'a Visual Trace of one decision' under What's interesting; Story 10.5 already puts docs/images/page-incident.png (hero) and docs/images/vt-decision.png in the README, so 31.3 should reuse or move them rather than add duplicates; its new images also need git add -f (the .gitignore line images/ matches docs/images/)
+- source: spec-10-5-the-readme-shows-the-product-and-says-how-you-talk-to-it.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: 10.5 plan: overlap found by the planner; 31.3 is backlog (Epic 31's README pass, after Epic 10)
+- 2026-11-03T06:19:13Z status=routed owner=31-3-the-readme-leads-to-the-demo-and-the-launched-demo-is-measur by=spec_gate note=plan 31.3 against the 10.5 README: reuse the hero and the Visual Trace image
+- 2026-11-03T08:20:37Z status=routed owner=31-3-the-readme-leads-to-the-demo-and-the-launched-demo-is-measur by=merge_gate note=bullet_planned_under_31.3_at_Epic_10_merge_9ffac64e
+
+### DW-618: README 'How you talk to it' quotes UI strings (Simulated phone, Simulated mailbox, Demo view, Break the feed) that test-readme.sh pins only on the README side, never against web/src, so a later UI rename leaves the README stale with CI green
+- source: spec-10-5-the-readme-shows-the-product-and-says-how-you-talk-to-it.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: chk_how_you_talk greps TALK_FACTS in the README section only; no read of device-view.ts or demo-view-texts.ts (outcomes reads chat-view.ts, the precedent). AC2 is a recorded check at the plan base by spec.
+- 2026-11-03T07:35:37Z status=by-design owner=10-5-the-readme-shows-the-product-and-says-how-you-talk-to-it by=cr note=AC2 is specified as a recorded check; reopen via spec amendment if a UI story renames a quoted product term
