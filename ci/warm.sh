@@ -137,6 +137,12 @@ warm_start_result() {
   return 1
 }
 
+# warm_ready_check <title>: the check of warm_up after the project is up: the start's result (warm_start_result), then the park of the
+# Telegram items (live_park_telegram), so that every run on the warm stack finds no live poller. Returns 1 when either fails.
+warm_ready_check() {
+  warm_start_result "$1" && live_park_telegram
+}
+
 warm_up() {
   local tag=$OCUTALON_RUN_TAG state started=$SECONDS held
   state=$(warm_state_dir "$tag")
@@ -159,7 +165,7 @@ warm_up() {
   printf 'services:\n  iris:\n    volumes:\n      - ./src:/opt/ocutalon/warm-src:ro\n' > "$state/warm.yml"
   LIVE_FILES=("${LIVE_FILES[0]}" "$state/decoy.yml" "${LIVE_FILES[@]:2}" "$state/warm.yml")
   warm_manifest > "$state/manifest" || exit 1
-  stack_ready warm "$started" warm_start_result
+  stack_ready warm "$started" warm_ready_check
   printf '%s\n' "$root" > "$state/root"
   date -u +%Y-%m-%dT%H:%M:%SZ > "$state/since"
   printf '%s\n' "${LIVE_FILES[@]}" > "$state/files"

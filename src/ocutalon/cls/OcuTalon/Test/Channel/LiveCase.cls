@@ -34,8 +34,8 @@ Include Ensemble
 ///     there with them. DropSessions also deletes the Turn, Delivery and SimMessage rows of the fixture sessions (zztg...).
 ///   - ButtonPress (a callback_query update of a private chat), EditsTo (the editMessageText params for a chat), PressAnswers and WaitAnswers
 ///     (the answerCallbackQuery params after a mark) and KeyboardTo (the newest reply_markup sent to a chat) are the public class methods
-///     for the approval tests (Story 12.7); OcuTalon.Test.Channel.TelegramPageFixture calls them. Notification and ToNotify (a Notification
-///     sent to Notify through a host service, under a trace) and FixtureSlots (the slots of a key's fixture in Test.Msg.Catalog) are shared by
+///     for the approval tests (Story 12.7); OcuTalon.Test.Channel.TelegramPageFixture calls them. Notification and SendToNotify (class methods; a
+///     Notification sent to Notify through a host service, under a trace; ToNotify is the asserted form) and FixtureSlots (the slots of a key's fixture in Test.Msg.Catalog) are shared by
 ///     TelegramChat, TelegramOut and TelegramApproval.
 ///   - Items, Notifications and TextsAfter read what a pairing test checks: the Items that TelegramIn sent to Conversation after a header
 ///     mark (with the header's SessionId and SuperSession), the Notifications it sent to Notify, and the texts the mock got for a chat.
@@ -827,7 +827,7 @@ Method PairChat(chatId As %String, name As %String, session As %String) As %Bool
 
 
 /// A Notification of the kind for the session: the catalog key, the slots (a dynamic object), the approval Ref and the incident Ref.
-ClassMethod Notification(session As %String, kind As %String, key As %String, slots As %DynamicObject, approvalRef As %String = "", incidentRef As %String = "") As OcuTalon.Msg.Notification [ Private ]
+ClassMethod Notification(session As %String, kind As %String, key As %String, slots As %DynamicObject, approvalRef As %String = "", incidentRef As %String = "") As OcuTalon.Msg.Notification
 {
 	Set notification = ##class(OcuTalon.Msg.Notification).%New()
 	Set notification.SessionRef = session
@@ -840,13 +840,21 @@ ClassMethod Notification(session As %String, kind As %String, key As %String, sl
 }
 
 /// Sends the Notification to Notify through a host service, under the session's TraceRef (the pattern of Test.Demo.SimPhoneOut.TestThroughNotify).
-Method ToNotify(notification As OcuTalon.Msg.Notification, trace As %String) As %Boolean [ Private ]
+/// The status is the first failure. It asserts nothing, so that a caller that is no test (TelegramPageFixture.Notify) calls it too.
+ClassMethod SendToNotify(notification As OcuTalon.Msg.Notification, trace As %String) As %Status
 {
 	Set sc = ##class(Ens.Director).CreateBusinessService("SimMailboxIn", .service)
 	If $$$ISOK(sc) {
 		Set service.%SuperSession = trace
 		Set sc = service.SendRequestAsync("Notify", notification)
 	}
+	Quit sc
+}
+
+/// SendToNotify, asserted: 1 when the Notification was sent.
+Method ToNotify(notification As OcuTalon.Msg.Notification, trace As %String) As %Boolean [ Private ]
+{
+	Set sc = ..SendToNotify(notification, trace)
 	Do $$$AssertStatusOK(sc, "the "_notification.CatalogKey_" Notification is sent to Notify")
 	Quit $$$ISOK(sc)
 }

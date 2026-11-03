@@ -2,14 +2,24 @@
 title: 'Story 12.9: Telegram is included'
 type: 'feature'
 created: '2026-11-02'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '6e92b70a4b5e241ce1d1f05999ef06bdcacd564e'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md (read only AD-3, AD-19 with its telegramIncluded sub-bullet, AD-22, AD-23, AD-29, AD-32 and AD-33)'
   - '{project-root}/_bmad-output/planning-artifacts/ux-designs/ux-OcuTalon-2026-10-16/EXPERIENCE.md (read only lines 118, 174, 369, 874 and 881)'
 warnings: ['multiple-goals', 'oversized']
-deferred: []
+deferred:
+  - 'DW-591 root cause not reproduced: lane-a@Channel in one stack passed forward (508 s) and reversed (499 s) before the fix and again after it. The fix removes the one state that reproduces the symptom (RunnerFixture.NotRunningNow: an item whose Enabled row is 0 but whose runtime flag says enabled and has no job); if CI shows the flake again, the new failure text (StateOf) names the row, the flag and the jobs of the item.'
+  - 'docker/tests/test-boundaries.sh rule keys fails on a line of the orchestrator ledger, _bmad-output/implementation-artifacts/deferred-work.md:3379 (the routed DW-591 note: "evidence_attempt1_41545446452" reads as a key). It is in HEAD, not in this change; the owner of that file shortens the token.'
+  - summary: >-
+      Test.Web.GuideApi TestRunAgain ("steps 3 to 5 reset; the watch still counts") failed in two fresh runs of shard lane-b part 2/2 in this stage (DW-453, wontfix-accepted, reopen_if red again in a fresh shard).
+    evidence: |-
+      Both failing runs were at the end of the implement stage on unchanged code: the class passes alone on a fresh stack and on a warm stack after its three Web predecessors; the lane-b parts passed earlier in the stage. Test.Web.GuideApi, Demo.Guide and Data.GuideState are not in this diff. The cause is unknown (a state left by one of the earlier classes of part 2 is the open question). Settling it takes a bisect of part 2's classes, or the same part run on the baseline commit.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Test/Web/GuideApi.cls TestRunAgain
+    severity: medium (unverified)
 ---
 
 <intent-contract>
@@ -244,6 +254,56 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-11-02 - Review pass
+- verdicts: 42 findings - high 0, medium 9, low 25, false 7, maybe-false 1 (including the one the run found itself; plus the intent-alignment layer, which reports readings and no findings: it found the diff implements Part A plus Part B, the ruled reading, and nothing diverges that the spec did not rule)
+- findings:
+  - Blind Hunter
+    - `[low]` `[patch]` AllowanceState.active recomputes on every store update - the flag now comes from its own computed, so `active` changes only with the condition, the refusal, the clock or the flag (`allowance-state.ts`, `allowance-sources.test.mjs`).
+    - `[low]` `[reject]` Two definitions of "Telegram on" (the splash key, `Included() && TokenSet()`, against the banners' `included && state !== 'off'`) - Design Notes "Decided in-stage" item 7 and the Contest Planner's U-227 rule the banner condition; they differ only before the first getMe of a start; fixing it edits the spec.
+    - `[low]` `[reject]` The harness counts any message to the chat, not the notice - the spec's own check is "a mock sendMessage to that chat within 10 s"; the notice is the only send in that window after a restart.
+    - `[low]` `[reject]` Empty or missing session answers read as success in `pairing_move` and `pairing_notify` - the 30 s and 10 s waits that follow fail without a result, so no false pass; a stricter read adds branches.
+    - `[false]` `[reject]` DW-591 is fixed only in the test fixture - the routed task names Lane A's test code; the product's `NotRunning()` is unchanged by design.
+    - `[low]` `[patch]` Restart, ReadyReason and ChangeSettings read `NotRunningNow` twice for one message - `RunnerFixture.NotRunningText` reads it once.
+    - `[medium]` `[patch]` `LiveCase.Disable` matches the English text "already disabled" and its test cannot show the flag cleared - measured: the director answers "already disabled" for a row of 0 and leaves the flag; removing the branch turned no test red. The branch and its test were dropped, `Disable` is as before.
+    - `[medium]` `[patch]` The Telegram-on allowance text and composer reason are checked end to end nowhere - `banners.spec.ts` B8 (state on) and B5 (state off) now read `#composer-allowance-reason`; sign-in parts 1 and 2 passed.
+    - `[low]` `[reject]` `telegram-strings` matches a literal anywhere in the source file - each string's removal from its source is flagged (recorded mutations); a stricter parse of the views adds complexity for a sentence-level check.
+    - `[low]` `[patch]` `writeMark` mixes two meanings - split into `markOn` and `restoreMark`; R2c green on `live online-demo`.
+    - `[low]` `[patch]` The `test-readme.sh` header paragraph about `Included()` was garbled - rewritten as before and after.
+    - `[low]` `[reject]` The splash and banners name Telegram while the README says the online demo has no bot - host configuration, reported by the runner's observation (the demo host sets no token until Story 31.4); nothing in the repository sets one.
+  - Edge Case Hunter
+    - `[low]` `[patch]` A failed park with an empty reason passes silently - `live_park_telegram` now gives it a reason; a row in `test-lib-live.sh` pins it.
+    - `[low]` `[reject]` `iris_script` has no timeout - every caller shares it and the stack's own deadline bounds it.
+    - `[low]` `[reject]` An unreadable `Included()` on the previous build is taken as 0 - an older build without the class has no answer by design; the INFO line names it.
+    - `[false]` `[reject]` `seed.env` with no `prev_telegram` key - the harness refuses a phase out of order, so the seed phase has run.
+    - `[low]` `[reject]` An unreadable message count before the notice is taken as 0 - the later read fails the same way; same root as the any-message finding.
+    - `[low]` `[reject]` A late reply other than the notice satisfies the check - same as the Blind Hunter's finding.
+    - `[low]` `[reject]` `phase_settings` and `phase_storage` do not set `LIVE_TELEGRAM=started` - Design Notes at implement item 2: they read no pairing, and the settings project's checks assume a parked stack.
+    - `[false]` `[reject]` `SnapshotDefault` reads only the item-specific row - the Telegram step writes that row, as `LiveCase` and `Production.Runners` read it for these items.
+    - `[low]` `[patch]` `NotRunningNow` read twice for a message - same fix as above.
+    - `[false]` `[reject]` Other tests assert raw `Production.NotRunning()` after a restart - after a park the flag is 0 (`TestPark`); lane-b parts 1 and 2 ran the Agent classes that assert it, and they passed.
+    - `[medium]` `[patch]` `Disable` text match - dropped with the branch (see above).
+    - `[low]` `[reject]` A late `sendMessage` before `Reset` in `Park` - `TelegramOut` sends only when notified; nothing notifies on a start.
+    - `[low]` `[reject]` Same as the two-definitions finding.
+    - `[false]` `[reject]` The seam as "0.0" or "00" - the form `'= 0` is the one `test-boundaries.sh` exempts, and the seam is a test switch set to 0.
+    - `[false]` `[reject]` `chk_telegram_demo` and sentences that span lines - the README holds one sentence run per line; the rule flags its broken copies.
+    - `[low]` `[reject]` `HARNESS_OFF` is dead code with a generic text - kept for the next held-back family; its test is the `held` case.
+    - `[low]` `[reject]` Claim: the whole run sets `LIVE_TELEGRAM=started` - same as the phases finding (decided at implement item 2).
+    - `[low]` `[reject]` Claim: item 1's sentence differs from A10's text - the Contest Planner's U-228 allows tightening, and the sentence adds "On your own install".
+  - Verification Gap
+    - `[medium]` `[patch]` Nothing asserts `SetTelegramIncluded` returns 1 for an absent seam - `TelegramSwitch.TestIncluded` asserts it; mutation recorded.
+    - `[medium]` `[patch]` `TestDisableTakesALeftoverFlag` cannot fail without the leftover branch - dropped with the branch (measured, see above).
+    - `[medium]` `[patch]` The composer and guide reason are pinned only by source regexes - B5 and B8 read the composer's reason in a browser (same root as the Blind Hunter's coverage finding).
+    - `[low]` `[patch]` The harness phases' wiring has no offline check - `test-upgrade-harness.sh` rule `pairing` gains four static rows; both mutations recorded red.
+    - `[medium]` `[patch]` `TestPark` asserts "no offset" without seeding one, and `TestReadinessFollowsTheRow` relies on the stack's earlier state - `TestPark` seeds an offset, both tests park first.
+    - `[medium]` `[patch]` No recorded mutation for AC5, Part B or A7, and no `mutation:` marker - all recorded with `mutation:` lines, each applied, seen red and reverted.
+    - `[low]` `[patch]` The park ordering is pinned for only one early exit of `wait_started_ready` - a row for a log that ends not ready joins the one for an unhealthy start; the restarted-container path is not added (low, same ordering).
+    - `[maybe-false]` `[defer]` DW-591 is unverified against the real failure - already in `deferred:` (the root cause did not reproduce); what would settle it is a CI recurrence with the new `StateOf` text.
+    - `[low]` `[reject]` `PARK skipped` returns success on a build without `Park` - it is the spec's matrix row for an older build.
+    - `[low]` `[patch]` Same as the NotRunningNow double read.
+    - `[false]` `[reject]` A restored seam stays defined after `SetTelegramIncluded` pairs - `Included()` reads 1 either way, and no test depends on the seam being absent after a restore.
+  - Found by the run, not by a layer
+    - `[medium]` `[defer]` Test.Web.GuideApi TestRunAgain failed in two fresh lane-b part 2/2 runs at the end of the stage (DW-453, wontfix-accepted, reopen condition met); the class and its code are not in this diff, and it passes alone and on a warm stack - deferred with what would settle it.
+
 ## Design Notes
 
 **Governing ADs:**
@@ -348,6 +408,16 @@ deferred: []
 - **Part A:** the rail card and the banner (consumers) link to the README's `#telegram` (the `product-links` rule). The harness consumes `TelegramIn`/`TelegramOut` through a real restart (AC4).
 - **Part B:** `OcuTalon.Web.Public.Splash` (consumer) reads `telegramIncluded` and shows its two lines (the B4 splash tests and S2b).
 
+**Decided at implement (small ambiguities, unattended):**
+1. **`ToNotify` is split.** `LiveCase.Notification` is a public class method, and `ToNotify` (an instance method with an assertion, which a class method cannot make) is now `SendToNotify` (a class method, no assertion) plus a thin asserted `ToNotify`. `TelegramPageFixture.Notify(sessionRef)` calls the two class methods.
+2. **The harness sets `LIVE_TELEGRAM=started` in the seed, upgrade and restart phases**, not in the settings phase: that project's checks (and the demo-switch page project) assume the stack is parked, and its previous build has no `Park` anyway. The settings phase therefore parks the candidate after its upgrade.
+3. **Part B's second splash case is S2c**, not S2b: S2b already names the singular-countdown case of `splash.spec.ts`.
+4. **R2c is its own test**, with its own session and fixture pairing (a `test.step` inside R2 would not give it a report line); it reads and restores the raw mark through a file-local writer.
+5. **`allowanceReason(window)` keeps its signature.** The composer's and the guide's call sites (`demo-guide.ts` is contended) are not touched: `AllowanceState.active()` adds `telegram: telegramOn(store.telegram)` to the window, and `allowanceReason` reads it. This edits `live/allowance-state.ts` and `live/allowance-view.ts`, which no open epic touches.
+6. **Other repairs found by the runs** (Lane B files no open epic touches): `Test/Data/Setting.cls` (15 keys with ready), `Test/Msg/Catalog.cls` (Core holds 97 keys), `web/e2e/frame/frame.spec.ts` F1 (five rail headings), `web/scripts/allowance-sources.test.mjs` (the reason's source pattern).
+7. **README wording.** The `## Telegram` text is the proposed one, tightened: it says it is for the reader's own install and does not name the online demo; it quotes "Telegram not set up", "Telegram paired", "Unpair", "Approve" and "Reject", which `test-readme.sh` pins to the built page; step 3 says to copy `.env.example` to `.env` first when there is no `.env`; step 5 names the page address and what the card shows after Start, and what to do when it still says "Telegram not set up". Item 1's appended sentence reads "On your own install you can also approve it in Telegram on your phone, without a laptop or the Management Portal ([how to set up Telegram](#telegram))."; the README's online-demo passages say nothing about Telegram.
+8. **DW-591 fix.** `RunnerFixture.NotRunningNow` (used by `WaitAllRun`, `Restart`, `ReadyReason` and the change wait) leaves out an item whose System Default Settings Enabled row is 0, because that row overrides the production's flag (AD-3); its failure text (`NotRunningText`, one reading of the item list) adds `StateOf` (row, runtime flag, jobs). `LiveCase.Disable` is as it was: a measurement at review showed that the director answers "already disabled" for an item whose row is 0 and leaves a leftover runtime flag as it is, and that removing a leftover-flag branch turned no test red, so that branch and its test were dropped.
+
 **Consumes:**
 - `Install.Step.Telegram` (`Apply`, `TokenSet`), `Data.Public.Settings`, `/state`'s `telegram` block (Lane B);
 - `TelegramPageFixture`, `LiveCase` and `BotApi` (12.1-12.7);
@@ -404,6 +474,21 @@ deferred: []
 - AC4: `check_pairing_restart` skips the notification -> the `test-upgrade-harness.sh` case with a missing `sendMessage` goes red.
 - AC5: the mark is not set -> R2c goes red.
 
+**Recorded at implement (Rule 19, each applied, seen red, reverted, tree byte-identical):**
+- mutation: AC1: `Included()` set back to `= 1` -> `TelegramSwitch` red (`TestIncluded` absent and 2; `TestRun` absent seam rows and mark). A6's "Telegram on" row is the live pin: it passed on the real change in `ci/iris.sh live production-restart` (re-run after the review patches: green).
+- mutation: AC2: `## Telegram` renamed `## Phones` -> `test-readme.sh` red on `telegram-section`, `telegram-strings`, `telegram-demo`, `product-links` and `readme-links`. The rule's own broken copies (heading renamed, section removed, each fact, each step, a sixth step, the section above Sign in) are flagged by it.
+- mutation: AC2 (U-228 condition 1): each quoted string reworded in a copy of the README (`Telegram not set up`, `Telegram paired`, `Unpair`, `Approve`), a new quoted string added, a quoted string unquoted, and each of the five strings removed from its source (`rail-view.ts`, `telegram-card-view.ts`, `Msg/Catalog/Watch.cls`) -> `telegram-strings` flags every one.
+- mutation: AC2 (condition 2): a sentence about the online demo that names Telegram or pairing, one that names a paired phone beside the demo address, a Telegram sentence outside the section without "your own install", and the item-1 sentence without it -> `telegram-demo` flags every one.
+- mutation: AC3: `wait_started_ready` no longer calls `live_park_telegram` -> `test-lib-live.sh` red on "parks the Telegram items once" and "a park that fails fails the wait"; `ci/iris.sh run_classes` without the park check -> `test-ci-warm.sh` red on the three fresh-branch rows.
+- mutation: AC4: `pairing_check` no longer waits for the `sendMessage` -> `test-upgrade-harness.sh` rule `pairing` red ("a notice that never reaches the mock fails", "after the restart a notice with no sendMessage at the mock fails"). The phases' wiring: `LIVE_TELEGRAM=started` deleted from `phase_upgrade`, and separately `pair_candidate` deleted from it -> the same rule red on its new static rows.
+- mutation: AC5: the `markOn()` call of R2c deleted -> `ci/iris.sh live online-demo` red on R2c alone (`toContainText` of "Telegram paired" fails; 51 passed, 1 skipped); restored -> green (the skip is `address-limit.spec.ts`'s own proxied-phase skip).
+- mutation: A7: `SetTelegramIncluded`'s default (`, 1`) removed -> `TelegramSwitch.TestIncluded` red on "the fixture reports the effective value, 1, for an absent seam".
+- mutation: DW-591: `RunnerFixture.NotRunningNow` made to skip nothing (`If 0 Continue`) -> `TelegramParked.TestReadinessFollowsTheRow` red (after a 121 s wait). `TestPark` now seeds an offset before the park and asserts it is gone, and both tests park the stack first, so they do not rely on the stack's earlier state.
+- mutation: Part B AC1: `Public.SetTelegramIncluded` ignoring `TokenSet()` -> `Test.Install.Public.TestTelegramIncludedKey` red (token not set, both paths); the splash ignoring the key (`Set telegram = 0`) -> `Test.Web.Splash.TestTelegramLines` red on the five-line, order and allowance rows.
+- mutation: Part B AC2: `keyOf` ignoring the flag (always the Telegram key) -> `banner-view.test.mjs` red (1 fail of 36). The page-side wiring is pinned in a browser: `banners.spec.ts` B5 (state off: banner and composer reason chat-only) and B8 (state on: banner and composer reason name Telegram); the sign-in unit passed both parts after the patches.
+
+**Measured at implement:** A0, `PARK done` 0 to 5 s on fresh and warm stacks (2 s on the first fresh class stack, 1 s in `production-restart`); a fresh stack's READY took 106 to 132 s. The parked state (rows 0, no job of either item, mark off, no mock call, no kept offset) is proved by `production-restart`'s "first start, parked" row and by `Test.Channel.TelegramParked.TestPark`.
+
 **Shared surfaces:**
 - the rail's section list (five, with Telegram first);
 - `/state`'s `telegram.included`;
@@ -418,5 +503,29 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** Telegram is included in the release: `Channel.Telegram.In.Included()` is `Quit $Get(^OcuTalonTest("TelegramIncluded")) '= 0`. Both Part A and Part B (the split was rejected at the spec gate) and the routed DW-591 task are built.
+- Part A: the README `## Telegram` section and item-1 sentence with three new `test-readme.sh` rules (U-228's three conditions); parking of every CI and throwaway stack after its ready start (`BotApi.Park`, `live_park_telegram`, `ci/iris.sh`, `ci/warm.sh`); the repairs of every test that assumed "not included"; the harness's pairing family turned on (restart check now, upgrade check once the previous build includes Telegram); R2c real.
+- Part B: the public key `telegramIncluded` (14 keys), the splash's Telegram and allowance lines, and the chat-only forms of the allowance and reset-soon banners and of the composer's reason (DW-501, DW-506).
+- DW-591: `RunnerFixture.NotRunningNow` follows the Enabled row, the failure text names row, runtime flag and jobs, and `TelegramParked` pins the parked state and the check.
+
+**Files changed (52 plus the spec).**
+- `src/ocutalon/cls/OcuTalon/Channel/Telegram/In.cls`: the switch. `Install/Step/Public.cls`, `Data/Public/Settings.cls`, `Web/Public/Splash.cls`, `Msg/Catalog/Core.cls`: Part B's key, splash and catalog texts.
+- `src/ocutalon/cls/OcuTalon/Test/**`: `Channel/BotApi`, `LiveCase`, `TelegramPageFixture`, `TelegramSwitch`, new `Channel/TelegramParked`, `Agent/RunnerFixture`, `Data/Fixture`, `Data/PublicSettings`, `Data/Setting`, `Install/Public`, `Msg/Catalog`, `Msg/Contracts`, `Web/PublicTexts`, `Web/Splash`.
+- `docker/tests/` (`lib-live.sh`, `test-lib-live.sh`, `test-ci-warm.sh`, `test-production-restart.sh`, `test-readme.sh`, `test-upgrade-harness.sh`, `test-online-demo.sh`), `ci/iris.sh`, `ci/warm.sh`, `release/upgrade-harness.sh`, `README.md`.
+- `web/src/app/banners/**`, `web/src/app/live/allowance-*.ts`, `web/src/app/msg/catalog.ts`, `web/scripts/*` (catalog generator and its tests) and the specs `web/e2e/**` and `web/e2e-online/**` named in A9, A13 and B4-B5.
+
+**Review.** 42 findings: high 0, medium 9, low 25, false 7, maybe-false 1. Patched 17 rows (8 medium, 9 low; the medium rows share 5 causes: the Disable leftover branch and its test, the Telegram-on composer coverage, the A7 assertion, the park and readiness tests' self-containment, the missing mutation records). Deferred: DW-453's recurrence (`Test.Web.GuideApi TestRunAgain`), and, already in the list, the unreproduced DW-591 root cause and the `test-boundaries.sh` `keys` failure on the orchestrator ledger line `deferred-work.md:3379`. The rejected findings and their reasons are in the Review Triage Log.
+
+**Follow-up review recommended: true.** Two or more medium entries were patched. The unverified risk: the patches after the first verification (the `AllowanceState` flag computed, the B5 and B8 composer assertions, the dropped `Disable` branch, the harness static rows) were verified by the sign-in unit, `live online-demo`, `live production-restart`, the Channel shard forward and reversed, lane-b and the offline tests, but `live demo-path`, `live floor` and the harness's live phases were not run again after them. Patched counts: medium 8 rows (5 causes), low 9.
+
+**Verification performed.**
+- Offline: `test-readme.sh`, `test-upgrade-harness.sh`, `test-lib-live.sh`, `test-ci-warm.sh`, `test-ci-config.sh` pass; the web `npm run lint` and `npm test` (1245) pass; `ci/checks.sh` ends with `failed: boundaries` alone, and that rule is the ledger line above (in HEAD, not in this change).
+- Classes on a warm stack: `TelegramSwitch`, `Contracts`, `TelegramMock`, `TelegramParked`, `Install.Public`, `Data.PublicSettings`, `Web.PublicTexts`, `Msg.Catalog`, `Data.Setting`, `Web.Splash` pass.
+- Fresh stacks: `shard lane-a@Channel` in one stack, 13 classes, passes forward (`PARK done 4s`) and reversed, both with the final code. `shard lane-b` part 1/2 passes; part 2/2 fails twice on `Web.GuideApi TestRunAgain` (DW-453, deferred), every other class of it passes.
+- Live: `sign-in` parts 1/2 and 2/2, `online-demo` (R2c green; red under its mutation), `production-restart` ("Telegram on", then "parked" rows) pass. Before the patches, `demo-path` (8 of 8, 0 skipped), `floor`, `online-allowance`, `demo-switch` and the harness's seven phases (`RESULT pass`, the `pairing` row passing with the upgrade note) passed.
+- The `ci/changes.sh` form of the plain path file is not supported; the groups were computed by hand from `ci/units.sh` (every iris group's input pattern matches).
+
+**Residual risks.** The pre-patch live results above; DW-453; the README `## Telegram` steps are pinned to the built strings but the owner's real-bot pass (Story 38.3) is the only run of them against a real bot; the online demo host must set no `TELEGRAM_BOT_TOKEN` (not even a dummy) until Story 31.4, or the key turns "1" with no gateway behind it.

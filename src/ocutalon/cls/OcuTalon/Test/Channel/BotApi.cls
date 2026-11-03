@@ -14,6 +14,10 @@ Include Ensemble
 ///     Otherwise, in the one call, it kills the kept offset and resets the mock's Bot API side, and fails when the mock did not answer 200.
 ///     A scripted getUpdates reply (the telegram-*-update scenarios) is sent as written, with update_id 1, and moves neither the mock's
 ///     update ids nor its offset filter, so a test queues one update source (a scenario or /updates) per Reset.
+///   - Park(): puts the stack into the state that a start with no token leaves: both Telegram items disabled with no job, their Enabled
+///     rows 0, the Telegram mark off, and the mock's Bot API side reset with the kept offset. A CI or throwaway stack is parked after
+///     its ready start, because Included() is 1 and the CI override sets a dummy token, so that every test finds no live poller.
+///     The first failure is the status, and the token is in none of its texts.
 ///   - BotReply(token, method, body, .statusCode): the Bot API call of Mock.BotCall that returns the parsed body and the status
 ///     whatever the status is, so that a test can read a 409 or a 429. It throws when the mock cannot be reached, with a text that
 ///     names the method and never the token, and when the answer is not JSON (the mock answers JSON on every path).
@@ -64,6 +68,18 @@ ClassMethod Reset(poller As %String = {..#POLLER}) As %Status
 	Do ..SetOffset("")
 	If '##class(OcuTalon.Test.Contract.Mock).Control("reset") Quit $SYSTEM.Status.Error(5001, "the mock did not answer 200 to the reset of its Bot API side")
 	Quit $$$OK
+}
+
+/// Parks the Telegram items: disables TelegramIn and TelegramOut and waits until neither has a job, writes the rows and the mark
+/// the way a start with no token leaves them, and resets the mock's Bot API side. The first failure is the status.
+ClassMethod Park() As %Status
+{
+	Set items = ##class(OcuTalon.Install.Step.Telegram).#ITEMS
+	Set sc = ##class(OcuTalon.Test.Channel.LiveCase).Disable(items, "")
+	If $$$ISERR(sc) Quit sc
+	Set sc = ##class(OcuTalon.Install.Step.Telegram).Apply(##class(OcuTalon.Channel.Telegram.In).Included(), 0)
+	If $$$ISERR(sc) Quit sc
+	Quit ..Reset()
 }
 
 /// A Bot API call to the mock: POST /bot<token>/<method> with the JSON body (none when ""). Returns the parsed body, and the status in

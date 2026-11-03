@@ -24,8 +24,10 @@
 #     each with both decision Refs set, the first turn's triage row and the second turn's turn row the fallback (tellnow,
 #     Fallback, no_key), and the session's stream holds exactly one done chat.message for each, the first turn's Seq below
 #     the second's. The rows are removed afterwards.
-#     Story 12.1 adds the Telegram switch to row 19: the first start (the seam off, the CI dummy token) leaves both Telegram rows
-#     0 and the mark off, with no job for TelegramIn and TelegramOut and no Bot API call at the mock. The OCUTALON_EVAL=1 start
+#     Story 12.1 adds the Telegram switch to row 19, and Story 12.9 turns it on at the first start. The first start (the seam absent,
+#     as in the judges' image, with the CI dummy token) runs with LIVE_TELEGRAM=started: both Telegram rows are 1, TelegramIn and
+#     TelegramOut each have a job, the mark is on with ocutalon_ci_bot, and the mock recorded a getMe. Then live_park_telegram parks
+#     the stack, and it leaves both rows 0 and the mark off, with no job for either item and no Bot API call at the mock. The OCUTALON_EVAL=1 start
 #     runs with the seam at 1, the mark on and TELEGRAM_BOT_TOKEN set and empty (live_no_bot_token, which is what a .env copied
 #     from .env.example holds): it ends ready, the no-key check passes, both rows are 0, the mark is off, and every enabled item
 #     runs. The last start has the seam off, the mark on and the dummy token again, and leaves the rows 0 and the mark off.
@@ -91,6 +93,36 @@ CHK|calls|200|0" \
     'Halt'
 }
 
+# telegram_is_on: the Telegram mark says on (the poller has called getMe).
+telegram_is_on() {
+  printf '%s\n' 'Write !,"CHK|mark|",##class(OcuTalon.Data.StatusMark).TelegramState()' 'Halt' | iris_script OCUTALON | grep -qx 'CHK|mark|on'
+}
+
+# check_telegram_on <label>: after a start with the seam absent and the dummy bot token, in one session, both Telegram rows are 1,
+# TelegramIn and TelegramOut each have a job, the mark is on with the CI mock's bot, and the mock's list of Bot API calls holds a
+# getMe. The poller records the mark a moment after the start, so it waits up to 60 s for it. It prints no token value.
+check_telegram_on() {
+  wait_until 60 telegram_is_on
+  check_session "$1: Telegram is on: both rows 1, a job of each item, the mark on with the bot, a getMe at the mock" OCUTALON \
+    "CHK|seam|1
+CHK|rows|1|1
+CHK|mark|on|ocutalon_ci_bot
+CHK|tokenset|1
+CHK|jobs|1|1
+CHK|getme|200|1" \
+    'Write !,"CHK|seam|",(+$Data(^OcuTalonTest("TelegramIncluded"))=0)' \
+    'Set pf="OcuTalon.Production||",sf="||*||Enabled"' \
+    'Write !,"CHK|rows|",##class(Ens.Config.DefaultSettings).%OpenId(pf_"TelegramIn"_sf).SettingValue,"|",##class(Ens.Config.DefaultSettings).%OpenId(pf_"TelegramOut"_sf).SettingValue' \
+    'Set st=##class(OcuTalon.Data.StatusMark).TelegramState(.bot) Write !,"CHK|mark|",st,"|",bot' \
+    'Write !,"CHK|tokenset|",##class(OcuTalon.Install.Step.Telegram).TokenSet()' \
+    'Set rs=##class(%ResultSet).%New("Ens.Job:Enumerate") Set sc=rs.Execute(),(ni,no)=0 While rs.Next() { If rs.Get("State")="Alive" { If rs.Get("ConfigName")="TelegramIn" { Set ni=ni+1 } If rs.Get("ConfigName")="TelegramOut" { Set no=no+1 } } }' \
+    'Write !,"CHK|jobs|",(ni>0),"|",(no>0)' \
+    'Set rq=##class(%Net.HttpRequest).%New(),rq.Server="mock",rq.Port=8080,rq.Timeout=10 Set sc=rq.Get("/_mock/telegram/calls") Set calls=$Select(rq.HttpResponse.StatusCode=200:{}.%FromJSON(rq.HttpResponse.Data).calls,1:"") Set g=0' \
+    'If $IsObject(calls) { For i=0:1:calls.%Size()-1 { If calls.%Get(i).method="getMe" Set g=1 } }' \
+    'Write !,"CHK|getme|",rq.HttpResponse.StatusCode,"|",g' \
+    'Halt'
+}
+
 # check_token_empty <label>: the iris container's TELEGRAM_BOT_TOKEN is set and empty. Prints no value.
 check_token_empty() {
   # shellcheck disable=SC2016 # the script is the container shell's, which expands its own variables
@@ -120,7 +152,7 @@ fi
 live_track_image
 cid=$(dc ps -q iris)
 [ -n "$cid" ] || die "no iris container in project $P"
-if ! wait_started_ready 400; then
+if ! LIVE_TELEGRAM=started wait_started_ready 400; then
   start_log | tail -n 30 | cut -c1-200
   die "the first start did not end ready within 400 s"
 fi
@@ -129,7 +161,13 @@ check_start "first start"
 check_no_key "first start"
 check_clean_start "first start"
 check_eval "first start, no variable" 0
-check_telegram_off "first start" 1
+check_telegram_on "first start"
+if live_park_telegram; then
+  pass "first start: the stack is parked"
+else
+  fail "first start: the stack could not be parked"
+fi
+check_telegram_off "first start, parked" 1
 
 # --- row 19: OCUTALON_EVAL=1, then without it ---
 

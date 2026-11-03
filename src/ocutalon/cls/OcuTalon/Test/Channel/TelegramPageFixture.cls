@@ -35,6 +35,8 @@
 ///     every press as a JSON array of {"text", "show_alert"}; Audit reads the Approval audit entry that answered a request and gives
 ///     {"channel", "holdsChatId", "holdsName"}, the last two as 0 or 1, so that the spec can check that the entry names the channel and
 ///     holds neither the chat id nor the chat's name.
+///   - Story 12.9 (FR-60): Notify(sessionRef) sends one tell-now Notification for the session through Notify, with LiveCase's Notification
+///     and SendToNotify, so that the upgrade harness can show that a paired chat still gets a notice after a restart.
 Class OcuTalon.Test.Channel.TelegramPageFixture Extends %RegisteredObject
 {
 
@@ -413,6 +415,23 @@ ClassMethod Press(chatId As %String, name As %String, data As %String, Output qu
 		If '##class(OcuTalon.Test.Contract.Mock).Control("updates", batch) Return "the mock did not accept the update"
 	} Catch ex {
 		Return "Press failed: "_..Safe(ex)
+	}
+	Quit ""
+}
+
+/// Sends one tell-now Notification for the session through Notify, as the product's own notices go, so that a paired session's chat gets
+/// it (the upgrade harness, Story 12.9). It reuses LiveCase's Notification and SendToNotify. Returns "" when it was sent, or the reason it
+/// was not; the reason holds no token.
+ClassMethod Notify(sessionRef As %String) As %String
+{
+	Try {
+		Set row = ##class(OcuTalon.Data.Session).RefIndexOpen(sessionRef)
+		If '$IsObject(row) Return "the session has no row"
+		Set notification = $ClassMethod(..#CASE, "Notification", sessionRef, "tellnow", "notice.tellNow", {"whatHappened": "zz harness notice", "reason": "it was sent after the restart."})
+		Set sc = $ClassMethod(..#CASE, "SendToNotify", notification, row.TraceRef)
+		If $$$ISERR(sc) Return "the notification was not sent: "_$ClassMethod(..#CASE, "Cut", $SYSTEM.Status.GetErrorText(sc), ..Token())
+	} Catch ex {
+		Return "Notify failed: "_..Safe(ex)
 	}
 	Quit ""
 }

@@ -10,11 +10,16 @@
 #   - state-readers: the readers of a /state answer, on canned JSON;
 #   - chat-request: the mock-log reader that finds the fact in the chat agent's request after a mark;
 #   - storage-compare: the compiled-storage comparison (appended is clean; renamed, retyped, removed and moved slots are flagged);
-#   - record: the record section (the result, the mode, the pre-release note, the rows, pairing off) and its write (another section
+#   - record: the record section (the result, the mode, the pre-release note, the rows, pairing as a pass row) and its write (another section
 #     kept, a section replaced and not duplicated);
 #   - record-contract: what Stories 11.4 and 11.5 read from a record file: the section's lines in their fixed order, one Result:,
 #     Mode: and Required: line from the closed set of values, read as a consumer reads them with other sections around, and a table of
 #     three-cell ASCII rows;
+#   - pairing (Story 12.9): the pairing family over stubs of its five readings of the stack: the seed pairs a chat on the previous build
+#     only when that build reports Included() 1; the upgrade check passes on a seeded chat that still names its session and gets a
+#     notification, fails on a changed Pairing row or on a missing sendMessage, and writes the note that its upgrade part joins later when
+#     the previous build did not include Telegram; the candidate's chat is paired at the end of the upgrade phase, and the restart check
+#     passes only with the row intact and the notification delivered, and fails with no paired chat left;
 #   - run: the run command chained over a stub of the harness: the phases in order, the options only on build, the tag shared, report and
 #     down after any failed phase, and only down after a refused build;
 #   - static: the harness holds no docker push, login, save or export, no compose config without --quiet and no inspect without
@@ -428,7 +433,7 @@ write_results() {
   : > "$f"
   case $2 in
     pass | fail | partial)
-      for id in previous-build upgrade conversation reminder approval watch settings restart storage private-globals; do
+      for id in previous-build upgrade conversation reminder approval watch settings restart storage private-globals pairing; do
         if [ "$2" = partial ] && [ "$id" = restart ]; then continue; fi
         if [ "$2" = partial ] && [ "$id" = storage ]; then continue; fi
         printf 'RECORD %s pass the first check of %s\nRECORD %s pass the second | check\n' "$id" "$id" "$id" >> "$f"
@@ -436,7 +441,7 @@ write_results() {
       printf 'RECORD reminder note R1 fired late\n' >> "$f"
       if [ "$2" = fail ]; then printf 'RECORD watch fail Orders is not listed | really\nRECORD watch fail the press answered 409\n' >> "$f"; fi
       ;;
-    pairing) printf 'RECORD pairing off held back\n' >> "$f" ;;
+    held) printf 'RECORD pairing off held back\n' >> "$f" ;;
   esac
 }
 
@@ -473,7 +478,8 @@ t_record() {
   eq "the heading is the first line" "$(printf '%s\n' "$sec" | head -n 1)" "## Upgrade harness"
   eq "the table has a header, a separator and eleven rows" "$(printf '%s\n' "$sec" | grep -c '^| ')" 13
   eq "the rows are in order, pairing last" "$(printf '%s\n' "$sec" | sed -n 's/^| \([a-z ]*\) | [a-z ]* | .*/\1/p' | tr '\n' ',')" "previous build,upgrade,conversation,reminder,approval,watch,settings,restart,storage,private globals,pairing,"
-  has "pairing is off in the table" "$sec" "| pairing | off | joins from the release after 1.0.0 (Story 12.7) |"
+  has "pairing is a pass row in the table" "$sec" "| pairing | pass | 2 checks passed |"
+  lacks "no row is off" "$sec" "| off |"
   has "a note adds to a pass detail" "$sec" "| reminder | pass | 2 checks passed; R1 fired late |"
 
   write_options "$o" pre-release aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa "rehearsal (uncommitted changes)"
@@ -490,7 +496,7 @@ t_record() {
   sec=$(record_section /dev/null "$o")
   eq "no results is not run" "$(printf '%s\n' "$sec" | sed -n 's/^Result: //p')" "not run"
   eq "a dry run's mode" "$(printf '%s\n' "$sec" | sed -n 's/^Mode: //p')" "dry run"
-  eq "every row is not run but pairing" "$(printf '%s\n' "$sec" | grep -c '| not run | not run |')" 10
+  eq "every row is not run, pairing too" "$(printf '%s\n' "$sec" | grep -c '| not run | not run |')" 11
 
   write_results "$r" fail
   sec=$(record_section "$r" "$o")
@@ -506,10 +512,16 @@ t_record() {
   eq "the seed lines are no checks of the upgrade" "$(record_rows "$tmp/results-seed" | awk -F'\t' '$1 == "conversation" || $1 == "approval" { print $3 "," $4 }' | tr '\n' ' ')" "not run,not run (seeded only) not run,not run (seeded only) "
   printf 'RECORD conversation pass after the upgrade\n' >> "$tmp/results-seed"
   eq "a seed line and a check make a pass of one check" "$(record_rows "$tmp/results-seed" | awk -F'\t' '$1 == "conversation" { print $3 "," $4 }')" "pass,1 checks passed"
-  printf 'RECORD pairing off held back\n' >> "$r"
-  eq "pairing off is not counted" "$(record_result "$r")" pass
-  printf 'RECORD pairing fail never\n' >> "$r"
-  eq "a pairing failure line is not counted either" "$(record_result "$r")" pass
+  eq "pairing is counted: all its rows pass" "$(record_result "$r")" pass
+  printf 'RECORD pairing fail the restart lost the chat\n' >> "$r"
+  eq "a pairing failure line fails the result" "$(record_result "$r")" fail
+  has "and its row shows the failure" "$(record_section "$r" "$o")" "| pairing | fail | the restart lost the chat |"
+  write_results "$r" pass
+  printf 'RECORD pairing note the upgrade part joins from the release after 1.0.0\n' >> "$r"
+  has "the note adds to the pairing pass detail" "$(record_section "$r" "$o")" "| pairing | pass | 2 checks passed; the upgrade part joins from the release after 1.0.0 |"
+  write_results "$r" held
+  eq "a held-back row is not counted (HARNESS_OFF)" "$(HARNESS_OFF=pairing record_result "$r")" "not run"
+  write_results "$r" pass
 
   # record_write: a missing file, another section kept, the section replaced and not duplicated.
   rec=$tmp/record.md
@@ -706,6 +718,137 @@ b_record_contract() {
   record_section() { orig_record_section "$@" | sed 's/^Mode: /Mode:/'; }
 }
 
+# --- pairing (Story 12.9) ---
+
+# The family over stubs of its five readings of the stack. STUB_* say what the stack answers: the previous build's Included(), the reason
+# a move failed, the session a chat's Pairing row names, the number of messages the mock got for the chat before and after the
+# notification, and the reason a notification was not sent.
+pairing_stubs() {
+  wait_until() { shift; "$@"; }
+  PAIR_WAIT=1
+  pairing_build_included() { echo "${STUB_INC-}"; }
+  pairing_move() { echo "${STUB_MOVE_WHY-}"; }
+  pairing_session_of() { echo "${STUB_SESSION-}"; }
+  pairing_replies() {
+    local n
+    n=$(cat "$state/replies.n" 2> /dev/null || echo 0)
+    echo "$((n + 1))" > "$state/replies.n"
+    if [ "$n" -eq 0 ]; then echo "${STUB_BEFORE-3}"; else echo "${STUB_AFTER-4}"; fi
+  }
+  pairing_notify() { echo "${STUB_NOTIFY_WHY-}"; }
+}
+pairing_fresh() { # pairing_fresh: an empty state and results
+  state=$tmp/pairing-state
+  rm -rf "$state"
+  mkdir -p "$state"
+  results=$state/results
+  : > "$results"
+  : > "$state/seed.env"
+  : > "$state/upgrade.env"
+  fails=0
+  seeding=0
+  cur_row=""
+}
+pairing_lines() { grep -c "^RECORD pairing $1 " "$results" 2> /dev/null; }
+
+t_pairing() {
+  local bad=0
+  pairing_stubs
+
+  # The seed: nothing on a previous build that does not include Telegram, a paired chat on one that does.
+  pairing_fresh
+  seeding=1
+  STUB_INC=0 seed_pairing > /dev/null
+  eq "a previous build without Telegram: no chat is seeded" "$(env_get "$state/seed.env" pair_chat)" ""
+  eq "and the seed remembers that it did not include Telegram" "$(env_get "$state/seed.env" prev_telegram)" 0
+  eq "and writes no seed line" "$(pairing_lines seed)" 0
+  pairing_fresh
+  seeding=1
+  STUB_INC=1 STUB_SESSION=zzsession1 seed_pairing > /dev/null
+  eq "a previous build with Telegram: the chat is seeded" "$(env_get "$state/seed.env" pair_chat)" 84017734150
+  eq "with its session" "$(env_get "$state/seed.env" pair_session)" zzsession1
+  eq "and a seed line, which is no check" "$(pairing_lines seed)" 1
+  pairing_fresh
+  seeding=1
+  STUB_INC=1 STUB_MOVE_WHY="no long poll is open" seed_pairing > /dev/null
+  eq "a move that fails fails the seed" "$(pairing_lines fail)" 1
+
+  # The upgrade part: a note without a seeded chat, the checks with one.
+  pairing_fresh
+  env_set "$state/seed.env" prev_telegram 0
+  check_pairing_upgrade > /dev/null
+  eq "an older previous build: the note says the upgrade part joins later" "$(grep -c "^RECORD pairing note $PAIRING_UPGRADE_NOTE\$" "$results")" 1
+  eq "and nothing is checked" "$(pairing_lines pass)$(pairing_lines fail)" 00
+  pairing_fresh
+  env_set "$state/seed.env" prev_telegram 1
+  env_set "$state/seed.env" pair_chat 84017734150
+  env_set "$state/seed.env" pair_session zzsession1
+  STUB_SESSION=zzsession1 check_pairing_upgrade > /dev/null
+  eq "a seeded chat that still names its session and gets the notice: two passes" "$(pairing_lines pass)" 2
+  eq "and no failure" "$(pairing_lines fail)" 0
+  pairing_fresh
+  env_set "$state/seed.env" prev_telegram 1
+  env_set "$state/seed.env" pair_chat 84017734150
+  env_set "$state/seed.env" pair_session zzsession1
+  STUB_SESSION=zzother check_pairing_upgrade > /dev/null
+  eq "a Pairing row that names another session fails" "$(pairing_lines fail)" 1
+  pairing_fresh
+  env_set "$state/seed.env" prev_telegram 1
+  env_set "$state/seed.env" pair_chat 84017734150
+  env_set "$state/seed.env" pair_session zzsession1
+  STUB_SESSION=zzsession1 STUB_AFTER=3 check_pairing_upgrade > /dev/null
+  eq "a notice that never reaches the mock fails" "$(pairing_lines fail)" 1
+  pairing_fresh
+  env_set "$state/seed.env" prev_telegram 1
+  check_pairing_upgrade > /dev/null
+  eq "a previous build with Telegram and no seeded chat fails" "$(pairing_lines fail)" 1
+
+  # The candidate's chat, paired at the end of the upgrade phase.
+  pairing_fresh
+  STUB_SESSION=zzsession2 pair_candidate > /dev/null
+  eq "the candidate's chat is kept for the restart" "$(env_get "$state/upgrade.env" pair_chat)" 84017734151
+  eq "with its session" "$(env_get "$state/upgrade.env" pair_session)" zzsession2
+  pairing_fresh
+  STUB_MOVE_WHY="the mock did not accept the update" pair_candidate > /dev/null
+  eq "a candidate chat that cannot be paired fails and keeps nothing" "$(pairing_lines fail)$(env_get "$state/upgrade.env" pair_chat)" 1
+
+  # The restart part.
+  pairing_fresh
+  env_set "$state/upgrade.env" pair_chat 84017734151
+  env_set "$state/upgrade.env" pair_session zzsession2
+  STUB_SESSION=zzsession2 check_pairing_restart > /dev/null
+  eq "after the restart the chat is paired and the notice arrives: two passes" "$(pairing_lines pass)" 2
+  pairing_fresh
+  env_set "$state/upgrade.env" pair_chat 84017734151
+  env_set "$state/upgrade.env" pair_session zzsession2
+  STUB_SESSION=zzsession2 STUB_AFTER=3 check_pairing_restart > /dev/null
+  eq "after the restart a notice with no sendMessage at the mock fails" "$(pairing_lines fail)" 1
+  pairing_fresh
+  env_set "$state/upgrade.env" pair_chat 84017734151
+  env_set "$state/upgrade.env" pair_session zzsession2
+  STUB_SESSION="" check_pairing_restart > /dev/null
+  eq "after the restart a chat that lost its pairing fails" "$(pairing_lines fail)" 1
+  pairing_fresh
+  env_set "$state/upgrade.env" pair_chat 84017734151
+  env_set "$state/upgrade.env" pair_session zzsession2
+  STUB_SESSION=zzsession2 STUB_NOTIFY_WHY="the session has no row" check_pairing_restart > /dev/null
+  eq "a notification that cannot be sent fails" "$(pairing_lines fail)" 1
+  pairing_fresh
+  check_pairing_restart > /dev/null
+  eq "no paired chat left by the upgrade fails" "$(pairing_lines fail)" 1
+
+  # The phases' wiring: the three phases that read the pairing keep Telegram on from their first statement, and the upgrade phase pairs
+  # the candidate's chat after its own check.
+  for fn in phase_seed phase_upgrade phase_restart; do
+    eq "$fn keeps Telegram on (LIVE_TELEGRAM=started) as its first statement" "$(declare -f "$fn" | sed -n 3p | tr -d ' ;')" "LIVE_TELEGRAM=started"
+  done
+  eq "phase_upgrade pairs the candidate's chat right after the upgrade check" "$(declare -f phase_upgrade | tr -s ' \t\n' ' ' | grep -c 'check_pairing_upgrade; pair_candidate;')" 1
+  eq "phase_restart checks the pairing after the restart" "$(declare -f phase_restart | tr -s ' \t\n' ' ' | grep -c 'check_pairing_restart')" 1
+  eq "phase_seed seeds the pairing" "$(declare -f phase_seed | tr -s ' \t\n' ' ' | grep -c 'seed_pairing')" 1
+  [ "$bad" -eq 0 ]
+}
+b_pairing() { pairing_reached() { return 0; }; }
+
 # --- run ---
 
 # The harness's run command chains its phases as processes of itself. Here harness_root points at a folder whose release/upgrade-harness.sh
@@ -862,6 +1005,7 @@ rule static t_static b_static
 rule real-tree t_real b_real
 rule storage-base t_storage_base b_storage_base
 rule record-contract t_record_contract b_record_contract
+rule pairing t_pairing b_pairing
 rule run t_run b_run
 rule report t_report b_report
 

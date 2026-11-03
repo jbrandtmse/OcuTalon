@@ -21,7 +21,7 @@ OcuTalon runs as an IRIS Interoperability production, so the agent is an Interop
 
 ## What you can use it for
 
-- **The partner feed that breaks at 2am.** A trading partner changes a date format, and 50 orders fail. Instead of 50 alerts, you get one notice: the cause in plain English, the fix, and a dry run that shows what it would resend. Nothing is resent until you approve, and then OcuTalon reports how many orders went through. Break the feed in the online demo plays this out in two minutes.
+- **The partner feed that breaks at 2am.** A trading partner changes a date format, and 50 orders fail. Instead of 50 alerts, you get one notice: the cause in plain English, the fix, and a dry run that shows what it would resend. Nothing is resent until you approve, and then OcuTalon reports how many orders went through. Break the feed in the online demo plays this out in two minutes. On your own install you can also approve it in Telegram on your phone, without a laptop or the Management Portal ([how to set up Telegram](#telegram)).
 - **"Only tell me if something needs me."** Ask OcuTalon in plain words to watch a production, and it stays quiet until something needs you. Failures with one cause become one incident, not a flood, and when you ask whether everything is fine, it never gives a false all-clear. It also tells you once when a production stops or one of its items is disabled.
 
 ## What OcuTalon does
@@ -147,6 +147,18 @@ OcuTalon does not ask you to change the password when you first sign in.
 **Change the README account's password after your first sign-in.** OcuTalon publishes its web port on every network interface of your machine, so the IRIS Management Portal can be reached from your LAN until the passwords of the default IRIS accounts and of the README account are changed. [How to change the README account's password](#change-the-readme-accounts-password). The user name stays `ocutalon`.
 
 **Visual Trace.** A trace link on the page opens the IRIS Management Portal in a new tab. The first time, the page shows "Sign in to Visual Trace", and the portal may ask you to sign in with the same account, which holds the trace role.
+
+## Telegram
+
+Telegram is optional, and these steps are for your own install. With a bot of your own, OcuTalon sends its notices, reminders and approval requests to your phone, and you can approve or reject a fix with the "Approve" and "Reject" buttons in the Telegram chat. Without a bot token, everything else works and the page shows "Telegram not set up".
+
+1. In Telegram, open @BotFather, send `/newbot` and follow its steps. It gives you the bot's token.
+2. Turn groups off for the bot: send `/setjoingroups` to @BotFather, choose your bot, then Disable. OcuTalon answers only private chats.
+3. In `.env`, set `TELEGRAM_BOT_TOKEN=<your token>`. Copy `.env.example` to `.env` first if there is no `.env` (`./install.sh` already did). Git ignores `.env`, so the token is never committed.
+4. Restart OcuTalon, from the OcuTalon folder: `docker compose up -d --force-recreate`.
+5. Open http://localhost:52773/ocutalon/ again. In the Status section, the Telegram card shows a QR code. Scan it with your phone's camera, then tap Start in Telegram. The card then shows "Telegram paired" with your Telegram name, and an "Unpair" button. If it still says "Telegram not set up", check the token in `.env` and repeat step 4.
+
+Each OcuTalon needs its own bot. If another process polls the same bot, OcuTalon pauses Telegram and tries again after 5 minutes.
 
 ## Stop, start and update
 

@@ -221,7 +221,7 @@ test('A4: two banners that appear in one update are announced as one text, in st
     await release();
 
     const [stalled, reset] = await stalledAndReset(page);
-    expect(reset, 'Reset soon says what the catalog says').toBe('The demo resets in 5 minutes. Your session and Telegram pairing will be cleared.');
+    expect(reset, 'Reset soon says what the catalog says').toBe('The demo resets in 5 minutes. Your session will be cleared.');
     await heard(page, [`${stalled} ${reset}`]);
   } finally {
     await conditionsOff(user);

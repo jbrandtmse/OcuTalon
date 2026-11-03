@@ -28,6 +28,9 @@
 #   - live_key_count (Story 10.3, Story 12.1): the CI dummy bot token and an empty one count 0, a model key and any other bot token
 #     count 1, an empty bot token counts 0 whether or not a model key or a CI dummy is present; live_no_bot_token adds the compose file
 #     that sets the token to the empty value, last, and dc passes it after the CI override.
+#   - live_park_telegram (Story 12.9): wait_started_ready parks the Telegram items once after a ready start, not with
+#     LIVE_TELEGRAM=started and not after a start that is not ready, and a failed park fails the wait; the park prints PARK done <s>s,
+#     PARK skipped on a build without BotApi.Park, and a FAIL line with the reason (returning 1) on a failure or a silent session.
 # Prints one PASS or FAIL line per check; exits 0 only when all pass. Takes about 15 s: the waits sleep 3 s each.
 set -u
 
@@ -86,6 +89,8 @@ rejects() { # rejects <label> <command...>
 }
 
 deadline=$((SECONDS + 100))
+# The rows below that exercise the waits on their own leave Telegram as the start made it; the park rows unset this.
+LIVE_TELEGRAM=started
 container_started "2026-10-18T10:00:00.123456789Z"
 set_health healthy
 
@@ -136,6 +141,98 @@ set_health healthy
 rejects "wait for readiness: a container that started again meanwhile is not accepted" wait_started_ready 60
 rm -f "$tmp/restart-on-health"
 container_started "2026-10-18T10:00:00.123456789Z"
+
+# --- live_park_telegram and its place in wait_started_ready (Story 12.9) ---
+
+park_calls="$tmp/park-calls"
+park_wait() { # park_wait <LIVE_TELEGRAM value> <park stub result>: the wait with the park stubbed, then the calls and the exit code
+  (
+    LIVE_TELEGRAM=$1
+    park_rc=$2
+    live_park_telegram() { echo "park" >> "$park_calls"; return "$park_rc"; }
+    : > "$park_calls"
+    wait_started_ready 60 >/dev/null 2>&1
+    echo "RC=$? CALLS=$(tr '\n' ',' < "$park_calls")"
+  )
+}
+set_health healthy
+write_log 2026-10-18T10:00:07Z yes
+if [ "$(park_wait "" 0)" = "RC=0 CALLS=park," ]; then
+  pass "park: wait_started_ready parks the Telegram items once, after a ready start"
+else
+  fail "park: wait_started_ready did not call live_park_telegram once after a ready start ($(park_wait "" 0))"
+fi
+if [ "$(park_wait started 0)" = "RC=0 CALLS=" ]; then
+  pass "park: with LIVE_TELEGRAM=started the wait does not park"
+else
+  fail "park: the wait parked although LIVE_TELEGRAM=started ($(park_wait started 0))"
+fi
+if [ "$(park_wait "" 1)" = "RC=1 CALLS=park," ]; then
+  pass "park: a park that fails fails the wait"
+else
+  fail "park: a failed park did not fail the wait ($(park_wait "" 1))"
+fi
+set_health starting
+if [ "$( (deadline=$((SECONDS + 2)); park_wait "" 0) )" = "RC=1 CALLS=" ]; then
+  pass "park: a start that is not ready is not parked"
+else
+  fail "park: a start that is not ready was parked"
+fi
+set_health healthy
+write_log 2026-10-18T10:00:07Z no
+if [ "$( (deadline=$((SECONDS + 2)); park_wait "" 0) )" = "RC=1 CALLS=" ]; then
+  pass "park: a start whose log ends not ready is not parked"
+else
+  fail "park: a start whose log ends not ready was parked"
+fi
+write_log 2026-10-18T10:00:07Z yes
+
+# live_park_telegram itself, with the session stubbed: the script it sends and what it prints for each answer.
+park_probe_with() { # park_probe_with <answer>: runs live_park_telegram with iris_script answering <answer>
+  local answer=$1
+  (
+    # shellcheck disable=SC2317 # called by live_park_telegram
+    iris_script() { cat > "$tmp/park-script"; printf '%s\n' "$answer"; }
+    out=$(live_park_telegram)
+    echo "RC=$? OUT=$out"
+  )
+}
+r=$(park_probe_with 'CHK|park|done')
+if printf '%s' "$r" | grep -Eq '^RC=0 OUT=PARK done [0-9]+s$'; then
+  pass "park: a session that parks prints PARK done with the seconds"
+else
+  fail "park: expected PARK done <s>s ($r)"
+fi
+if grep -q 'OcuTalon.Test.Channel.BotApi).Park()' "$tmp/park-script" && grep -q 'BotApi||Park' "$tmp/park-script"; then
+  pass "park: the script checks that BotApi.Park is compiled and then calls it"
+else
+  fail "park: the script does not check for and call BotApi.Park"
+fi
+r=$(park_probe_with 'CHK|park|skipped')
+if [ "$r" = "RC=0 OUT=PARK skipped" ]; then
+  pass "park: a build without BotApi.Park prints PARK skipped and succeeds"
+else
+  fail "park: expected PARK skipped with RC=0 ($r)"
+fi
+r=$(park_probe_with 'CHK|park|failed|TelegramIn still has a job 30 s after it was disabled')
+if [ "$r" = "RC=1 OUT=FAIL Telegram could not be parked: TelegramIn still has a job 30 s after it was disabled" ]; then
+  pass "park: a failed park prints FAIL with the reason and returns 1"
+else
+  fail "park: expected the FAIL line with the reason and RC=1 ($r)"
+fi
+r=$(park_probe_with 'CHK|park|failed|')
+if [ "$r" = "RC=1 OUT=FAIL Telegram could not be parked: the park failed and gave no reason" ]; then
+  pass "park: a failed park with an empty reason still fails"
+else
+  fail "park: a failed park with an empty reason did not fail ($r)"
+fi
+r=$(park_probe_with '')
+if [ "$r" = "RC=1 OUT=FAIL Telegram could not be parked: the session answered nothing" ]; then
+  pass "park: a session that answers nothing fails the park"
+else
+  fail "park: a silent session did not fail the park ($r)"
+fi
+LIVE_TELEGRAM=started
 
 # --- the build context ---
 

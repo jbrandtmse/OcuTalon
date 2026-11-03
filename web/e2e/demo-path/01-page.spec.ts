@@ -87,8 +87,9 @@ test('shows the empty chat panel and the composer', { tag: '@floor' }, async ({ 
 });
 
 /**
- * The floor of the status rail (REL-2, UX-DR51): on a fresh install the README account sees the rail as the region Status with its four
- * sections in order, each with its count and its empty state, both hints, no Telegram section and no live region in the rail.
+ * The floor of the status rail (REL-2, UX-DR51): on a fresh install the README account sees the rail as the region Status with its five
+ * sections in order, the Telegram card first (not set up, with its README link) and then the four lists, each with its count and its empty
+ * state, both hints, and no live region in the rail.
  */
 test('shows the status rail with its sections, counts and empty states', { tag: '@floor' }, async ({ page }) => {
   const violations = watchViolations(page);
@@ -99,10 +100,11 @@ test('shows the status rail with its sections, counts and empty states', { tag: 
   const rail = page.getByRole('region', { name: 'Status', exact: true });
   await expect(rail, 'the rail is the region Status').toHaveCount(1);
   const headings = rail.getByRole('heading', { level: 3 });
-  await expect(headings, 'four sections in order').toHaveCount(4);
+  await expect(headings, 'five sections in order, Telegram first').toHaveCount(5);
+  await expect(headings.first(), 'the first section is Telegram, with no count').toHaveAccessibleName('Telegram');
   const names = ['Approval requests', 'Background checks', 'Reminders', 'Recent decisions'];
   for (const [i, label] of names.entries()) {
-    await expect(headings.nth(i), `heading ${i + 1} is named with its count`).toHaveAccessibleName(`${label}, 0`);
+    await expect(headings.nth(i + 1), `heading ${i + 2} is named with its count`).toHaveAccessibleName(`${label}, 0`);
   }
   await expect(rail.locator('h3 > [aria-hidden="true"]'), 'and shows it').toHaveText(names.map((label) => `${label} (0)`));
   await expect(rail.locator('.empty'), 'each list shows its empty text').toHaveText([
@@ -115,7 +117,8 @@ test('shows the status rail with its sections, counts and empty states', { tag: 
     'To stop, ask: "Stop watching Orders."',
     'To cancel, ask: "Cancel my reminder to stretch."',
   ]);
-  await expect(rail.getByRole('heading', { name: 'Telegram' }), 'a release without Telegram has no Telegram section').toHaveCount(0);
+  await expect(rail.locator('app-telegram-card'), 'a README account that has set up no bot sees Telegram not set up').toContainText('Telegram not set up');
+  await expect(rail.getByRole('link', { name: 'How to set it up (opens in a new tab)', exact: true }), 'with the way to set it up').toHaveCount(1);
   await expect(rail.locator('[aria-live], [role="log"], [role="status"], [role="alert"]'), 'nothing in the rail is a live region').toHaveCount(0);
   expect(violations, 'no Content-Security-Policy violation and no page error').toEqual([]);
 });

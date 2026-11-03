@@ -8,7 +8,7 @@
 ///   - TestStartValuesReachTheUsersStep: the chain from the keys to the accounts and the guard (row 6);
 ///   - TestDecisionAtTheCap: a decision at the cap falls back with daily_cap and sends nothing (row 7);
 ///   - TestReadyPinsThePublicAccounts: the last phase pins the page size, then sets readiness (row 8, DW-160).
-/// Before each test it saves the 16 variables (present and value), the 13 keys and readiness, the three Decide rows, the guard (setting and
+/// Before each test it saves the 16 variables (present and value), the 14 keys and readiness, the three Decide rows, the guard (setting and
 /// routine) and the runners' state, and after it puts them back, with the fixture accounts and their pins removed. The fixture accounts are
 /// ZzPublic<n>Demo and ZzPublic<n>Ro, n from ^OcuTalonTest("Public","n"), which is never reset.
 Class OcuTalon.Test.Install.Public Extends %UnitTest.TestCase
@@ -279,6 +279,9 @@ Method TestFlagOffWritesOnlyTheFlag()
 	While $ListNext(keys, position, key) {
 		If key = "onlineDemo" {
 			Do $$$AssertEquals($ClassMethod(..#ACCESSOR, "Get", key), 0, "onlineDemo is 0")
+		} ElseIf key = "telegramIncluded" {
+			Set want = $Select(##class(OcuTalon.Channel.Telegram.In).Included() && ##class(OcuTalon.Install.Step.Telegram).TokenSet(): 1, 1: 0)
+			Do $$$AssertEquals($ClassMethod(..#ACCESSOR, "Get", key), want, "telegramIncluded is written on a local install too: "_want)
 		} Else {
 			Do $$$AssertEquals($ClassMethod(..#ACCESSOR, "Get", key), "stale-"_key, key_" is as it was")
 		}
@@ -294,6 +297,57 @@ Method TestFlagOffWritesOnlyTheFlag()
 	Do $$$AssertStatusOK($ClassMethod(..#STEP, "Run"), "Run is OK again")
 	Do $$$AssertEquals(..Row("DailyCostCapUSD"), 7, "an existing cap row of 7 is kept")
 	Do $$$AssertEquals(..Row("GatewaySpendUSD"), "<none>", "and still no gateway row")
+}
+
+/// Story 12.9 (AD-19, U-219 (a')): telegramIncluded is "1" when Included() and a bot token are both 1, else "0", on both paths (the online
+/// demo and a local install), at every start; the seam absent (the judges' install) and 0 are tried with the token set and not set. The
+/// token variable and the seam are put back.
+Method TestTelegramIncludedKey()
+{
+	Set tokenWas = $SYSTEM.Util.GetEnviron("TELEGRAM_BOT_TOKEN")
+	Set tokenHad = ##class(OcuTalon.Test.Agent.KeyScan).HasEnv("TELEGRAM_BOT_TOKEN")
+	Set seamHad = $Data(^OcuTalonTest("TelegramIncluded"), seamWas)
+	Try {
+		For online = 1, 0 {
+			For token = 1, 0 {
+				For seam = "absent", 0 {
+					Set label = $Select(online: "online demo", 1: "local install")_", token "_$Select(token: "set", 1: "not set")_", seam "_seam
+					If online {
+						Do ..Use({"OCUTALON_ONLINE_DEMO": "1"})
+					} Else {
+						Do ..Use({})
+					}
+					If token {
+						Do ##class(OcuTalon.Test.Agent.KeyScan).SetEnv("TELEGRAM_BOT_TOKEN", "zz-dummy-token")
+					} Else {
+						Do ##class(OcuTalon.Test.Agent.KeyScan).UnsetEnv("TELEGRAM_BOT_TOKEN")
+					}
+					If seam = 0 {
+						Set ^OcuTalonTest("TelegramIncluded") = 0
+					} Else {
+						Kill ^OcuTalonTest("TelegramIncluded")
+					}
+					Do $ClassMethod(..#ACCESSOR, "Set", "telegramIncluded", "stale")
+					Do $$$AssertStatusOK($ClassMethod(..#STEP, "Run"), label_": Run is OK")
+					Set want = $Select((seam '= 0) && token: 1, 1: 0)
+					Do $$$AssertEquals($ClassMethod(..#ACCESSOR, "Get", "telegramIncluded"), want, label_": telegramIncluded is "_want)
+					Do $$$AssertEquals($ClassMethod(..#ACCESSOR, "Get", "onlineDemo"), +online, label_": onlineDemo is "_+online)
+				}
+			}
+		}
+	} Catch exception {
+		Do $$$AssertTrue(0, "the key matrix threw "_exception.DisplayString())
+	}
+	If tokenHad {
+		Do ##class(OcuTalon.Test.Agent.KeyScan).SetEnv("TELEGRAM_BOT_TOKEN", tokenWas)
+	} Else {
+		Do ##class(OcuTalon.Test.Agent.KeyScan).UnsetEnv("TELEGRAM_BOT_TOKEN")
+	}
+	If seamHad {
+		Set ^OcuTalonTest("TelegramIncluded") = seamWas
+	} Else {
+		Kill ^OcuTalonTest("TelegramIncluded")
+	}
 }
 
 /// The flag is exactly 1: a near miss (01, 1.0, true, 0, 1 with a space, or empty) is a local install, which changes onlineDemo to 0 and
@@ -508,7 +562,7 @@ Method Use(values As %DynamicObject) [ Private ]
 	}
 }
 
-/// The 13 public keys as one text.
+/// The 14 public keys as one text.
 ClassMethod KeyState() As %String [ Private ]
 {
 	Set text = ""

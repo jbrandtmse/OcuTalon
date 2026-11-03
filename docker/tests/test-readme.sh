@@ -32,6 +32,13 @@
 #   dev-only       no ##class(, class name or error code outside the section "For admins and developers"
 #   public-text    the not-affiliated note, the BMAD Method and Claude Code credit, the licence pointers; OpenClaw only in the
 #                  note; no other model provider, "from your phone", "per step", private infrastructure or IPv4 address
+#   telegram-section  the section "Telegram" is there after "Sign in" and before "Stop, start and update", with its five numbered steps and
+#                  the facts a person needs to follow them (@BotFather, /newbot, /setjoingroups, TELEGRAM_BOT_TOKEN=, the restart
+#                  command, "its own bot", and that the steps are for "your own install")
+#   telegram-strings  every UI string the section quotes is one the built page shows: "Telegram not set up", "Telegram paired" and
+#                  "Unpair" are in the rail and card sources, "Approve" and "Reject" are the catalog's button texts (U-228)
+#   telegram-demo  no sentence about the online demo mentions Telegram or pairing, and every other sentence outside the section that
+#                  mentions Telegram says "your own install" (U-228: the online demo has no bot)
 #   no-telegram    no "Telegram" while Included() has its test-only body
 #   product-links  every README anchor the page or the server text can show reaches a heading (#readme while README.md exists)
 #   readme-links   every link of the README reaches a heading, a file or folder of the repository, or an allow-listed host;
@@ -44,10 +51,11 @@
 # docker/after-start.sh, docker/tests/test-boundaries.sh, docker-compose.yml, web/src/app/**/*.ts (not *.spec.ts) and src/**/*.cls
 # (not /Test/).
 #
-# The Included() rule (AD-29): while Included() has its test-only body, Quit $Get(^OcuTalonTest("TelegramIncluded")) = 1,
-# the page never shows the link to a README Telegram section. Then the check prints one "SKIP #telegram" line, leaves #telegram
-# out of product-links and refuses the word Telegram. Any other body, or no In.cls, covers #telegram (the README needs a heading
-# with that slug) and allows the word, so the change that turns Telegram on edits the README, not this check.
+# The Included() rule (AD-29): while Included() has its test-only body, Quit $Get(^OcuTalonTest("TelegramIncluded")) = 1, the page
+# never shows the link to a README Telegram section, so the check prints one "SKIP #telegram" line, leaves #telegram out of
+# product-links and refuses the word Telegram. Any other body, or no In.cls, covers #telegram (the README needs a heading with that
+# slug) and allows the word, so the change that turns Telegram on edits the README, not this check. Since Story 12.9 Included() is
+# Quit $Get(...) '= 0: #telegram is covered and no SKIP line prints; the rule keeps its test for a test-only body.
 #
 # Each rule first runs on copies of its input that are broken for that rule, each of which it must flag (a rule that can no
 # longer flag anything fails), and only then on the real files. With no README.md every rule fails closed, which is checked first
@@ -78,6 +86,9 @@ CHATVIEW=web/src/app/chat/chat-view.ts
 AFTER_START=docker/after-start.sh
 BOUNDARIES=docker/tests/test-boundaries.sh
 COMPOSE=docker-compose.yml
+RAILVIEW=web/src/app/rail/rail-view.ts
+CARDVIEW=web/src/app/rail/telegram-card/telegram-card-view.ts
+BUTTONS=src/ocutalon/cls/OcuTalon/Msg/Catalog/Watch.cls
 
 listing=$(scan_files)
 if [ -z "$listing" ]; then
@@ -100,6 +111,9 @@ chatview_p=$(of "$CHATVIEW")
 after_start_p=$(of "$AFTER_START")
 boundaries_p=$(of "$BOUNDARIES")
 compose_p=$(of "$COMPOSE")
+railview_p=$(of "$RAILVIEW")
+cardview_p=$(of "$CARDVIEW")
+buttons_p=$(of "$BUTTONS")
 
 # product_files: from a list of paths on standard input, the files whose README anchors the product can show: the page's sources
 # and the server's classes, none of the tests.
@@ -113,7 +127,7 @@ H_USE='What you can use it for'
 # The owner's text of Story 10.4 (epics.md), word for word: the opening paragraph, the two use cases, and the model paragraph
 # and table of "What OcuTalon does".
 OPENING="Your integrations already tell you when something breaks, usually fifty times. OcuTalon reads the failures, works out the one cause, proposes the fix with a dry run, and only interrupts you when something needs you. Nothing risky runs without your yes: fixed rules that the model can't change decide what is risky, and every approval lands in the IRIS audit log. Every decision is in Visual Trace with its reasons and cost. Without a model it fails safe: it tells you everything and claims nothing."
-ITEM1='- **The partner feed that breaks at 2am.** A trading partner changes a date format, and 50 orders fail. Instead of 50 alerts, you get one notice: the cause in plain English, the fix, and a dry run that shows what it would resend. Nothing is resent until you approve, and then OcuTalon reports how many orders went through. Break the feed in the online demo plays this out in two minutes.'
+ITEM1='- **The partner feed that breaks at 2am.** A trading partner changes a date format, and 50 orders fail. Instead of 50 alerts, you get one notice: the cause in plain English, the fix, and a dry run that shows what it would resend. Nothing is resent until you approve, and then OcuTalon reports how many orders went through. Break the feed in the online demo plays this out in two minutes. On your own install you can also approve it in Telegram on your phone, without a laptop or the Management Portal ([how to set up Telegram](#telegram)).'
 ITEM2='- **"Only tell me if something needs me."** Ask OcuTalon in plain words to watch a production, and it stays quiet until something needs you. Failures with one cause become one incident, not a flood, and when you ask whether everything is fine, it never gives a false all-clear. It also tells you once when a production stops or one of its items is disabled.'
 MODEL_PARA="**With a model, and without one.** OcuTalon uses Claude Haiku 5.5 by default. With no model key, or when the model can't give a usable answer, it falls back to fixed rules and says so on the page and in Visual Trace."
 T_HEAD='| | With a model | With fixed rules only |'
@@ -667,6 +681,86 @@ telegram_mode() {
   if [ "$body" = '{ Quit $Get(^OcuTalonTest("TelegramIncluded")) = 1' ]; then echo testonly; else echo included; fi
 }
 
+# telegram-section (Story 12.9)
+H_TG='Telegram'
+TG_FACTS='@BotFather
+/newbot
+/setjoingroups
+TELEGRAM_BOT_TOKEN=
+docker compose up -d --force-recreate
+its own bot
+your own install'
+chk_telegram_section() {
+  local f=$1 sec="$tmp/sec.tg" n order
+  section "$f" "$H_TG" > "$sec"
+  if [ ! -s "$sec" ]; then
+    echo "telegram-section: no section '$H_TG'"
+    return
+  fi
+  chk_facts telegram-section "$sec" "$TG_FACTS"
+  for n in 1 2 3 4 5; do
+    if ! grep -q "^$n\. " "$sec"; then echo "telegram-section: no step $n"; fi
+  done
+  if grep -q '^6\. ' "$sec"; then echo "telegram-section: more than five steps"; fi
+  order=$(headings "$f" | awk -F'\t' '$1 == 2 { print $3 }' | grep -xF -e 'Sign in' -e "$H_TG" -e 'Stop, start and update' | tr '\n' '|')
+  if [ "$order" != "Sign in|$H_TG|Stop, start and update|" ]; then echo "telegram-section: the section is not between 'Sign in' and 'Stop, start and update'"; fi
+}
+
+# telegram-strings (U-228 condition 1): the UI strings the section quotes. Each row is <string>|<source>|<ts, or the catalog key>.
+TG_UI='Telegram not set up|RAIL|ts
+Telegram paired|CARD|ts
+Unpair|CARD|ts
+Approve|BUTTONS|button.approve
+Reject|BUTTONS|button.reject'
+# ui_in_source <string> <source name> <kind> <rail-view.ts> <telegram-card-view.ts> <catalog class>: the string is what the source shows.
+ui_in_source() {
+  local file
+  case $2 in RAIL) file=$4 ;; CARD) file=$5 ;; *) file=$6 ;; esac
+  if [ "$3" = ts ]; then
+    grep -qF -e "'$1'" "$file"
+  else
+    awk -v key="\"$3\": {" -v text="\"text\": \"$1\"," '
+      index($0, key) { on = 1; next }
+      on && index($0, text) { found = 1 }
+      on && /^ }/ { exit }
+      END { exit !found }
+    ' "$file"
+  fi
+}
+# chk_telegram_strings <readme> <rail-view.ts> <telegram-card-view.ts> <catalog class>
+chk_telegram_strings() {
+  local sec="$tmp/sec.tgs" str src kind
+  section "$1" "$H_TG" > "$sec"
+  if [ ! -s "$sec" ]; then
+    echo "telegram-strings: no section '$H_TG'"
+    return
+  fi
+  grep -o '"[^"]*"' "$sec" | sed 's/^"//; s/"$//' | while IFS= read -r str; do
+    if ! printf '%s\n' "$TG_UI" | cut -d'|' -f1 | grep -qxF -e "$str"; then echo "telegram-strings: the section quotes \"$str\", which no pinned UI string is"; fi
+  done
+  printf '%s\n' "$TG_UI" | while IFS='|' read -r str src kind; do
+    if ! grep -qF -e "\"$str\"" "$sec"; then echo "telegram-strings: the section does not quote \"$str\""; fi
+    if ! ui_in_source "$str" "$src" "$kind" "$2" "$3" "$4"; then echo "telegram-strings: the built page does not show \"$str\" ($src)"; fi
+  done
+}
+
+# telegram-demo (U-228 condition 2): sentence by sentence, outside code fences.
+chk_telegram_demo() {
+  awk '
+    /^```/ { fence = !fence; next }
+    fence { next }
+    /^## / { sec = ($0 == "## Telegram"); next }
+    {
+      line = $0; gsub(/\. /, ".\n", line); n = split(line, parts, "\n")
+      for (i = 1; i <= n; i++) {
+        s = parts[i]
+        if (s ~ /online demo|demo\.ocutalon\.com/ && s ~ /Telegram|[Pp]air(ing|ed)?([^a-z]|$)/) print "telegram-demo: " FILENAME ":" FNR ": a sentence about the online demo mentions Telegram or pairing"
+        else if (!sec && s ~ /Telegram/ && s !~ /your own install/) print "telegram-demo: " FILENAME ":" FNR ": a sentence outside the Telegram section mentions Telegram without \"your own install\""
+      }
+    }
+  ' "$1"
+}
+
 # inventory <list file>: the README anchors that the files of the list can link to, one per line, sorted: the part after # of a
 # jbrandtmse/OcuTalon# address, the section argument of a readmeSection(..., '<x>') call, and the value of a *_ANCHOR constant of
 # a TypeScript file.
@@ -1086,6 +1180,61 @@ rule_product_links() {
   fi
 }
 
+rule_telegram_section() {
+  local n
+  rule_begin telegram-section "$README" || return
+  st 'the heading renamed' 1 "$README" '/^## Telegram$/ { print "## Phones"; next } { print }' chk_telegram_section
+  st 'the section removed' 1 "$README" '/^## Telegram$/ { skip = 1; next } skip && /^## / { skip = 0 } !skip' chk_telegram_section
+  st_facts chk_telegram_section "$TG_FACTS"
+  for n in 1 2 3 4 5; do
+    st "step $n removed" 1 "$README" "/^## / { s = (\$0 == \"## Telegram\") } !(s && /^$n\\. /)" chk_telegram_section
+  done
+  st 'a sixth step' 1 "$README" '/^5\. / { print; print "6. One more."; next } { print }' chk_telegram_section
+  st 'the section above Sign in' 1 "$README" '/^## Telegram$/ { skip = 1; next } skip && /^## / { skip = 0 } skip { held = held $0 ORS; next } /^## Sign in$/ { printf "## Telegram\n%s", held } { print } END { }' chk_telegram_section
+  finish telegram-section 'the Telegram section sits after Sign in with five steps and the facts a person needs to follow them' chk_telegram_section
+}
+
+rule_telegram_strings() {
+  local str src kind file out
+  rule_begin telegram-strings "$README" || return
+  chk_telegram_strings_real() { chk_telegram_strings "$1" "$railview_p" "$cardview_p" "$buttons_p"; }
+  st 'Telegram not set up reworded' 1 "$README" '{ sub(/"Telegram not set up"/, "\"Telegram is not set up\"") } { print }' chk_telegram_strings_real
+  st 'Telegram paired reworded' 1 "$README" '{ sub(/"Telegram paired"/, "\"Paired with Telegram\"") } { print }' chk_telegram_strings_real
+  st 'Unpair reworded' 1 "$README" '{ sub(/"Unpair"/, "\"Disconnect\"") } { print }' chk_telegram_strings_real
+  st 'Approve reworded' 1 "$README" '{ sub(/"Approve"/, "\"Yes\"") } { print }' chk_telegram_strings_real
+  st 'a new quoted string' 1 "$README" '/^1\. In Telegram/ { $0 = $0 " Tap \"Pair now\"." } { print }' chk_telegram_strings_real
+  st 'a quoted string unquoted' 1 "$README" '{ sub(/"Reject"/, "Reject") } { print }' chk_telegram_strings_real
+  # The source side: a built page that no longer shows a string is flagged.
+  while IFS='|' read -r str src kind; do
+    [ -n "$str" ] || continue
+    case $src in RAIL) file=$railview_p ;; CARD) file=$cardview_p ;; *) file=$buttons_p ;; esac
+    if [ "$kind" = ts ]; then
+      strip_str "$file" "'$str'" || { st_note "the source without '$str': the edit changed nothing"; continue; }
+    else
+      strip_str "$file" "\"text\": \"$str\"," || { st_note "the catalog without \"$str\": the edit changed nothing"; continue; }
+    fi
+    case $src in
+      RAIL) out=$(chk_telegram_strings "$README" "$tmp/m" "$cardview_p" "$buttons_p") ;;
+      CARD) out=$(chk_telegram_strings "$README" "$railview_p" "$tmp/m" "$buttons_p") ;;
+      *) out=$(chk_telegram_strings "$README" "$railview_p" "$cardview_p" "$tmp/m") ;;
+    esac
+    if [ -z "$out" ]; then st_note "the built page without \"$str\" is not flagged"; fi
+  done <<EOT
+$TG_UI
+EOT
+  finish telegram-strings 'every UI string the Telegram section quotes is shown by the built page' chk_telegram_strings_real
+}
+
+rule_telegram_demo() {
+  rule_begin telegram-demo "$README" || return
+  st_append 'a sentence about the online demo that mentions Telegram' 'The online demo also sends Telegram notices.' chk_telegram_demo
+  st_append 'a sentence about the online demo that mentions pairing' 'Pairing works in the online demo.' chk_telegram_demo
+  st_append 'a sentence about the demo address that mentions a paired phone' 'Visit https://demo.ocutalon.com with your paired phone.' chk_telegram_demo
+  st_append 'a Telegram sentence outside the section that does not say your own install' 'You can approve it in Telegram too.' chk_telegram_demo
+  st 'the use case without your own install' 1 "$README" '/^- \*\*The partner feed/ { sub(/On your own install you/, "You") } { print }' chk_telegram_demo
+  finish telegram-demo 'no sentence about the online demo mentions Telegram, and the other mentions say your own install' chk_telegram_demo
+}
+
 rule_readme_links() {
   rule_begin readme-links "$README" || return
   st_append 'a link to a heading that is not there' '[x](#nowhere)' chk_readme_links
@@ -1119,7 +1268,7 @@ rule_must_scan() {
   finish must-scan "the must-scan list for paths and keys in $BOUNDARIES names $README" chk_must_scan
 }
 
-RULES='top try_it interesting use_cases teaser outcomes install install_pointer commands key_account lan sign_in_address demo_mode admin_commands after_start_log dev_only public_text no_telegram product_links readme_links must_scan'
+RULES='top try_it interesting use_cases teaser outcomes install install_pointer commands key_account lan sign_in_address demo_mode admin_commands after_start_log dev_only public_text telegram_section telegram_strings telegram_demo no_telegram product_links readme_links must_scan'
 
 # unlisted <rule names>: each rule_* function of this script but rule_begin that the list does not name, one per line.
 unlisted() {

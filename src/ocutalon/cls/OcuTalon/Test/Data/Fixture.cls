@@ -196,10 +196,10 @@ ClassMethod GuideState(sessionRef As %String, runEpoch As %Integer = 1, runStart
 }
 
 /// Sets the test seam that says whether this release includes Telegram (what Channel.Telegram.In's Included() reads) to
-/// value, 1 or 0, and returns the value it had, 0 when it was not set, so that a test can put it back.
+/// value, 1 or 0, and returns the value it had, 1 when it was not set (Included() is 1 unless the seam is 0), so that a test can put it back.
 ClassMethod SetTelegramIncluded(value As %Boolean) As %Boolean
 {
-	Set was = +$Get(^OcuTalonTest("TelegramIncluded"))
+	Set was = +$Get(^OcuTalonTest("TelegramIncluded"), 1)
 	Set ^OcuTalonTest("TelegramIncluded") = +value
 	Quit was
 }

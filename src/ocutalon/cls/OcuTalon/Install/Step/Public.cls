@@ -4,10 +4,10 @@
 ///   - The online demo (OCUTALON_ONLINE_DEMO is exactly 1): the start values of VARIABLES are read with $SYSTEM.Util.GetEnviron, a variable
 ///     that is set but empty counting as unset, and all of them are checked before anything is written. A value that is not accepted
 ///     refuses the step with an error that names the variable and the rule, never the value, and nothing is written. Then onlineDemo 1 and
-///     the twelve other public keys are written through OcuTalon.Data.Public.Settings (the value, the default, or "" which removes the
-///     key), and the three budget settings of Decide (DailyCostCapUSD, GatewaySpendUSD, GatewaySpendDate) are written as System Default
+///     the thirteen other public keys are written through OcuTalon.Data.Public.Settings (the value, the default, or "" which removes the
+///     key; telegramIncluded is "1" when the release includes Telegram and a bot token is set, else "0": it is structural, read only by the splash), and the three budget settings of Decide (DailyCostCapUSD, GatewaySpendUSD, GatewaySpendDate) are written as System Default
 ///     Settings rows of OcuTalon.Production. Every key and row is rewritten at every start (structural, AD-19).
-///   - Any other value of the flag is a local install: onlineDemo 0 and no other public key. No gateway row is written, and the
+///   - Any other value of the flag is a local install: onlineDemo 0, telegramIncluded as above, and no other public key. No gateway row is written, and the
 ///     DailyCostCapUSD row is seeded with 0 (off) only when no System Default Settings row of any specificity resolves it, because
 ///     OcuTalon.Core.SettingsOps owns an existing row from step 2.
 ///   - Ready() pins the page size of both public accounts (Users.PinTrace; OCUORDERS can come after the Users step, DW-160) and then
@@ -45,6 +45,8 @@ ClassMethod Run() As %Status
 	If $$$ISERR(sc) Quit sc
 	Set sc = ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
 	If $$$ISERR(sc) Quit sc
+	Set sc = ..SetTelegramIncluded()
+	If $$$ISERR(sc) Quit sc
 	Set position = 0
 	Set pairs = $ListFromString(..#VARIABLES)
 	While $ListNext(pairs, position, pair) {
@@ -61,10 +63,20 @@ ClassMethod Run() As %Status
 	Quit sc
 }
 
+/// Writes telegramIncluded: "1" when Channel.Telegram.In.Included() and the Telegram step's TokenSet() are both 1, else "0". Both paths
+/// write it at every start (structural, AD-19, U-219 (a')); the splash reads it, and nothing else does.
+ClassMethod SetTelegramIncluded() As %Status [ Private ]
+{
+	Set included = ##class(OcuTalon.Channel.Telegram.In).Included() && ##class(OcuTalon.Install.Step.Telegram).TokenSet()
+	Quit ##class(OcuTalon.Data.Public.Settings).Set("telegramIncluded", $Select(included: 1, 1: 0))
+}
+
 /// A local install: the flag 0 and nothing else of the public keys, no gateway row, and the seed of the cap.
 ClassMethod RunLocal() As %Status [ Private ]
 {
 	Set sc = ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 0)
+	If $$$ISERR(sc) Quit sc
+	Set sc = ..SetTelegramIncluded()
 	If $$$ISERR(sc) Quit sc
 	If ##class(Ens.Config.DefaultSettings).%GetSetting(..#PRODUCTION, ..#ITEM, ..#HOSTCLASS, "Host", "DailyCostCapUSD") Quit sc
 	Quit ##class(OcuTalon.Install.Step.Production).WriteDefault(..#PRODUCTION, ..#ITEM, "DailyCostCapUSD", 0, "Seeded by the Public install step with 0 (off) on a local install; the settings page owns it from then on.")

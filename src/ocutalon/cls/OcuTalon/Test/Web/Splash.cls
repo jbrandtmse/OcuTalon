@@ -26,6 +26,8 @@ Method TestTexts()
 	Set texts = texts_$ListBuild($ListBuild("BEFOREHEADING", "Before you start"))
 	Set texts = texts_$ListBuild($ListBuild("RESETLINE", "The demo resets every {interval}. Next reset: {time} ({countdown})."))
 	Set texts = texts_$ListBuild($ListBuild("OWNLINE", "Your chat, phone, mailbox and orders are yours alone."))
+	Set texts = texts_$ListBuild($ListBuild("TELEGRAMLINE", "Have Telegram? You can scan a QR code inside to get the notices on your own phone."))
+	Set texts = texts_$ListBuild($ListBuild("LIMITLINE", "Each session can send {limit} messages an hour in the chat or Telegram."))
 	Set texts = texts_$ListBuild($ListBuild("LIMITLINECHAT", "Each session can send {limit} messages an hour in the chat."))
 	Set texts = texts_$ListBuild($ListBuild("PLACEFREED", "You were away for a while, so your place was freed for other visitors. Sign in again to pick up where you left off."))
 	Set texts = texts_$ListBuild($ListBuild("RESETNOTICE", "The demo was reset at {time}, which cleared your session. Sign in again for a fresh one."))
@@ -52,6 +54,35 @@ Method TestTexts()
 	Do $$$AssertEquals($Parameter(splash, "USERLABEL"), "User name", "the user name label is Login's")
 	Do $$$AssertEquals($Parameter(splash, "PASSWORDLABEL"), "Password", "the password label is Login's")
 	Do $$$AssertEquals($Parameter(splash, "LOGOALT"), "OcuTalon", "the logo's alt is Login's")
+}
+
+/// The Before you start list follows the public key telegramIncluded (Story 12.9; AD-19, U-219 (a')): with "1" it holds the reset line, the
+/// own line, the Telegram line, the allowance line that names Telegram, and the shell line, in that order; with "0", or no key, it is the
+/// list without Telegram and the allowance line reads chat-only. With "1" and no allowance there is no allowance line.
+Method TestTelegramLines()
+{
+	Set settings = "OcuTalon.Data.Public.Settings"
+	Set telegramLine = "<li>Have Telegram? You can scan a QR code inside to get the notices on your own phone.</li>"
+	Set both = "<li>Your chat, phone, mailbox and orders are yours alone.</li>"_$Char(10)_telegramLine_$Char(10)_"<li>Each session can send 50 messages an hour in the chat or Telegram.</li>"_$Char(10)_"<li>OcuTalon can't run shell commands, and every action it takes is recorded in the IRIS audit log.</li>"
+	Do $ClassMethod(settings, "Set", "telegramIncluded", 1)
+	Set facts = $Piece($Piece(..Page("", "", ""), "<ul class=""facts"">", 2), "</ul>", 1)
+	Do $$$AssertEquals(..Count(facts, "<li>"), 5, "key 1: the list holds five lines")
+	Do $$$AssertTrue(facts [ both, "key 1: the own line, the Telegram line, the allowance line that names Telegram and the shell line, in that order")
+	Do $$$AssertTrue(facts '[ "an hour in the chat.", "key 1: no chat-only allowance line")
+	Do $ClassMethod(settings, "Set", "messageAllowance", "")
+	Set facts = $Piece($Piece(..Page("", "", ""), "<ul class=""facts"">", 2), "</ul>", 1)
+	Do $$$AssertEquals(..Count(facts, "<li>"), 4, "key 1 and no allowance: four lines")
+	Do $$$AssertTrue(facts [ telegramLine, "key 1 and no allowance: the Telegram line stays")
+	Do $$$AssertTrue(facts '[ "messages an hour", "key 1 and no allowance: no allowance line")
+	Do $ClassMethod(settings, "Set", "messageAllowance", 50)
+	For value = 0, "" {
+		Do $ClassMethod(settings, "Set", "telegramIncluded", value)
+		Set facts = $Piece($Piece(..Page("", "", ""), "<ul class=""facts"">", 2), "</ul>", 1)
+		Set label = "key "_$Select(value = "": "removed", 1: value)
+		Do $$$AssertEquals(..Count(facts, "<li>"), 4, label_": the list holds four lines")
+		Do $$$AssertTrue(facts '[ "Telegram", label_": no line says Telegram")
+		Do $$$AssertTrue(facts [ "<li>Each session can send 50 messages an hour in the chat.</li>", label_": the allowance line reads chat-only")
+	}
 }
 
 /// The policy is AD-13's template over the hashes of SplashAssets' blocks, which Splash's inherited generators compute, and the
@@ -615,7 +646,7 @@ Method OnBeforeOneTest(testname As %String) As %Status
 	While $ListNext(keys, position, key) {
 		Set ^||SplashSaved(key) = $ClassMethod(settings, "Get", key)
 	}
-	Set values = $ListBuild($ListBuild("onlineDemo", "1"), $ListBuild("demoUser", "DemoVisitor"), $ListBuild("demoPassword", "demo-secret"), $ListBuild("readonlyUser", "TraceReader"), $ListBuild("readonlyPassword", "trace-secret"), $ListBuild("resetIntervalHours", 4), $ListBuild("resetAnchor", "2026-10-18T00:00:00Z"), $ListBuild("messageAllowance", 50), $ListBuild("connectionCap", ""))
+	Set values = $ListBuild($ListBuild("onlineDemo", "1"), $ListBuild("demoUser", "DemoVisitor"), $ListBuild("demoPassword", "demo-secret"), $ListBuild("readonlyUser", "TraceReader"), $ListBuild("readonlyPassword", "trace-secret"), $ListBuild("resetIntervalHours", 4), $ListBuild("resetAnchor", "2026-10-18T00:00:00Z"), $ListBuild("messageAllowance", 50), $ListBuild("connectionCap", ""), $ListBuild("telegramIncluded", ""))
 	Set position = 0
 	While $ListNext(values, position, pair) {
 		Do $ClassMethod(settings, "Set", $List(pair, 1), $List(pair, 2))

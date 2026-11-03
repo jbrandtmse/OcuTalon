@@ -37,6 +37,10 @@
 #                first_start_report with the engine's architecture (docker info). Returns 1, saying which step failed and
 #                after how many seconds, when one does.
 #
+# Telegram on a throwaway stack (Story 12.9): live_park_telegram runs after every ready start of wait_started_ready, because this release
+# includes Telegram and the CI override sets a dummy bot token, so TelegramIn would poll the CI mock and take another test's updates.
+# LIVE_TELEGRAM=started, set by the caller for its call of wait_started_ready, leaves the items as the start made them.
+#
 # The throwaway lock (Rule 12) serializes throwaway stacks across the epic worktrees of one machine. It exists only when the
 # main checkout has the folder <worktree_base>/.coordination/locks (worktree_base from _bmad/custom/parallel.yaml, default
 # .worktrees); CI and a sequential run have none and take no lock. live_start claims throwaway-iris.lock there by an atomic
@@ -374,7 +378,8 @@ wait_started_log() {
 
 # wait_started_ready <max seconds>: waits for this start's log to end with `ready`, then for Docker to report
 # `healthy`. Returns 1 when either does not happen in time, when the start ended `not ready`, or when the
-# container started again in between.
+# container started again in between. After a ready start it parks the Telegram items (live_park_telegram) unless the caller sets
+# LIVE_TELEGRAM=started, which a check of a running Telegram sets for its start; a failed park fails the wait.
 wait_started_ready() {
   local before after
   before=$(started_at)
@@ -382,7 +387,30 @@ wait_started_ready() {
   start_log | tail -n 1 | grep -q '^AFTER-START end [0-9T:Z-]* ready ' || return 1
   wait_until 60 health_is_healthy || return 1
   after=$(started_at)
-  [ "$before" = "$after" ]
+  [ "$before" = "$after" ] || return 1
+  [ "${LIVE_TELEGRAM:-}" = started ] || live_park_telegram
+}
+
+# live_park_telegram: parks the Telegram items of the running stack (Story 12.9), so that no test finds a live poller. This release
+# includes Telegram and the CI override sets a dummy bot token, so every start runs TelegramIn and TelegramOut; OcuTalon.Test.Channel.
+# BotApi.Park disables them, writes the state of a start with no token (rows 0, the mark off) and resets the mock's Bot API side.
+# Prints "PARK done <s>s" and returns 0; prints "PARK skipped" and returns 0 when the build has no compiled BotApi.Park (an older
+# build); prints "FAIL Telegram could not be parked: <reason>" and returns 1 when the park fails or the session answers nothing.
+live_park_telegram() {
+  local begun=$SECONDS out line reason=""
+  out=$(printf '%s\n' \
+    'If ##class(%Dictionary.CompiledMethod).%ExistsId("OcuTalon.Test.Channel.BotApi||Park")=0 { Write !,"CHK|park|skipped" Halt }' \
+    'Set sc=##class(OcuTalon.Test.Channel.BotApi).Park()' \
+    'If $SYSTEM.Status.IsOK(sc) { Write !,"CHK|park|done" } Else { Write !,"CHK|park|failed|",$Translate($SYSTEM.Status.GetErrorText(sc),$Char(10,13),"  ") }' \
+    'Halt' | iris_script OCUTALON)
+  line=$(printf '%s\n' "$out" | grep '^CHK|park|' | tail -n 1)
+  case $line in
+    CHK\|park\|done) echo "PARK done $((SECONDS - begun))s" ;;
+    CHK\|park\|skipped) echo "PARK skipped" ;;
+    CHK\|park\|failed\|*) reason=${line#CHK|park|failed|}; reason=${reason:-the park failed and gave no reason} ;;
+    *) reason="the session answered nothing" ;;
+  esac
+  [ -z "$reason" ] || { echo "FAIL Telegram could not be parked: $reason"; return 1; }
 }
 
 # live_first_start <max s>: see the header. Needs live_start. The ready time starts when the built image is started and ends

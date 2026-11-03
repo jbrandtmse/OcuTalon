@@ -1,10 +1,11 @@
 /// Tests of the Telegram install step (Story 12.1; AD-23, AD-14, AD-19). Nothing here starts or stops a production and nothing calls
 /// Ens.Director: the tests pin the enable branch at the System Default Setting rows that a start reads, with the same
 /// Ens.Config.DefaultSettings.%GetSetting call that OcuTalon.Install.Step.Production.Runners() uses. They run anywhere.
+///   - TestIncluded: Included() is 1 with the seam absent, at 1 and at 2, and 0 only at 0; Fixture.SetTelegramIncluded returns 1 for an absent seam;
 ///   - TestApply: the four combinations of Included() and a token being set. The rows of TelegramIn and TelegramOut are 1 only for
 ///     (1, 1), the mark is off for the other three, and it is left as it was for (1, 1);
-///   - TestRun: Run() reads the seam and the environment of the stack it runs in: both rows are 1 exactly when the seam is 1 and
-///     TELEGRAM_BOT_TOKEN is not empty, and no row value, row description or status text holds the token;
+///   - TestRun: Run() reads the seam and the environment of the stack it runs in: both rows are 1 exactly when the seam is not 0 (at 1
+///     or absent, as in the judges' install) and TELEGRAM_BOT_TOKEN is not empty, and no row value, row description or status text holds the token;
 ///   - TestStructural: a row set to 1 by hand is 0 again after Run() with the seam at 0;
 ///   - TestRowDescription: each row's description says that the step writes it at every start, from the release and the token variable;
 ///   - TestPrintsNothing: Apply() and Run() write nothing to the current device (no WARN line, no user-facing text); a probe shows
@@ -94,18 +95,39 @@ Method TestApply()
 	Do $$$AssertTrue(##class(OcuTalon.Data.StatusMark).Get(##class(OcuTalon.Data.StatusMark).#TELEGRAMMARK) '= "", "as a row, so that the mark exists")
 }
 
-/// Run() with the seam at 0 and at 1, in the environment of this stack.
+/// Included() is 1 unless the seam is 0: absent, 1 and 2 give 1, and 0 gives 0. The seam is put back after the tests.
+Method TestIncluded()
+{
+	Kill ^OcuTalonTest("TelegramIncluded")
+	Do $$$AssertEquals(##class(OcuTalon.Channel.Telegram.In).Included(), 1, "an absent seam gives 1")
+	Set ^OcuTalonTest("TelegramIncluded") = 0
+	Do $$$AssertEquals(##class(OcuTalon.Channel.Telegram.In).Included(), 0, "0 gives 0")
+	Set ^OcuTalonTest("TelegramIncluded") = 2
+	Do $$$AssertEquals(##class(OcuTalon.Channel.Telegram.In).Included(), 1, "2 gives 1")
+	Set ^OcuTalonTest("TelegramIncluded") = 1
+	Do $$$AssertEquals(##class(OcuTalon.Channel.Telegram.In).Included(), 1, "1 gives 1")
+	Kill ^OcuTalonTest("TelegramIncluded")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).SetTelegramIncluded(0), 1, "the fixture reports the effective value, 1, for an absent seam")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).SetTelegramIncluded(1), 0, "and the value it was set to, 0, after that")
+	Do $$$AssertEquals(##class(OcuTalon.Channel.Telegram.In).Included(), 1, "putting back what the fixture returned leaves Included() at 1")
+}
+
+/// Run() with the seam at 0, at 1 and absent, in the environment of this stack.
 Method TestRun()
 {
 	Set token = $SYSTEM.Util.GetEnviron("TELEGRAM_BOT_TOKEN")
 	Do $$$AssertEquals(##class(OcuTalon.Install.Step.Telegram).TokenSet(), (token '= ""), "TokenSet() says whether the environment holds a token")
-	For seam = 0, 1 {
-		Set label = "Run() with the seam at "_seam
-		Do ##class(OcuTalon.Test.Data.Fixture).SetTelegramIncluded(seam)
+	For seam = 0, 1, "absent" {
+		Set label = "Run() with the seam "_$Select(seam = "absent": "absent", 1: "at "_seam)
+		If seam = "absent" {
+			Kill ^OcuTalonTest("TelegramIncluded")
+		} Else {
+			Do ##class(OcuTalon.Test.Data.Fixture).SetTelegramIncluded(seam)
+		}
 		Do ##class(OcuTalon.Data.StatusMark).RecordTelegram("on", "ocutalon_ci_bot")
 		Set status = ##class(OcuTalon.Install.Step.Telegram).Run()
 		Do $$$AssertStatusOK(status, label_" succeeds")
-		Set want = seam && (token '= "")
+		Set want = (seam '= 0) && (token '= "")
 		Do $$$AssertEquals(..Resolved("TelegramIn"), want, label_": TelegramIn's row is "_want)
 		Do $$$AssertEquals(..Resolved("TelegramOut"), want, label_": TelegramOut's row is "_want)
 		Set state = ##class(OcuTalon.Data.StatusMark).TelegramState(.bot)

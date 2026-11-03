@@ -2,8 +2,8 @@ Include Ensemble
 
 /// TelegramIn, the inbound service of the Telegram channel (Stories 12.2 to 12.5 and 12.7; AD-14, AD-18, AD-19, AD-5). An Ens.InboundAdapter service whose
 /// CallInterval is 1 second in the production: each run makes at most one Bot API call, so a 5-second long poll follows the one before it.
-/// Included() is the switch that the Telegram installer step reads (AD-23); the step also writes the ApiBase row from
-/// OCUTALON_TELEGRAM_API_BASE at every start, and the SSL step makes the client SSL configuration that SSLConfig names.
+/// Included() is the switch that the Telegram installer step reads (AD-23): this release includes Telegram, and only a test can turn
+/// that off. The step also writes the ApiBase row from OCUTALON_TELEGRAM_API_BASE at every start, and the SSL step makes the client SSL configuration that SSLConfig names.
 ///   - The token comes only from the environment, through OcuTalon.Channel.Telegram.Api, on every call. This class never holds, logs or
 ///     records it.
 ///   - OnInit makes no network call and records the Telegram state off. A run that has not started yet calls getMe: the answer's user
@@ -687,11 +687,11 @@ Method Keep(offset As %Integer) [ Private ]
 	Set $$$EnsStaticAppData("TelegramIn", "offset") = offset
 }
 
-/// 1 when this release includes Telegram: only when the test-only global ^OcuTalonTest("TelegramIncluded") is 1,
-/// which OcuTalon.Test classes set and the judges' install never does. Otherwise 0.
+/// 1: this release includes Telegram. The test-only global ^OcuTalonTest("TelegramIncluded") can turn it off, and only when it is 0;
+/// OcuTalon.Test classes set it and the judges' install never does. Any other value, or none, leaves it 1.
 ClassMethod Included() As %Boolean
 {
-	Quit $Get(^OcuTalonTest("TelegramIncluded")) = 1
+	Quit $Get(^OcuTalonTest("TelegramIncluded")) '= 0
 }
 
 }

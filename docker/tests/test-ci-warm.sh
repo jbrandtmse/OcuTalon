@@ -495,6 +495,7 @@ fresh_class_run() { # fresh_class_run <unset | the value of OCUTALON_WARM>: cmd_
     live_start() { echo "live_start $1" >> "$calls"; P=ocutalon-class-cw-f-1700000000-1; tmp=$work/fresh-tmp; mkdir -p "$tmp"; deadline=$((SECONDS + 100)); }
     dc() { echo "dc $1 $2 $3 $4" >> "$calls"; return 0; }
     live_track_image() { :; }
+    live_park_telegram() { echo park >> "$calls"; }
     iris_script() { cat > /dev/null; printf '%s\n' 'CHK|compiled|1' 'CHK|new|1' 'CHK|case|OcuTalon.Test.Agent.Constants|1|0.01|1'; }
     cmd_class OcuTalon.Test.Agent.Constants
   )
@@ -504,8 +505,8 @@ fresh_class_run unset
 check "the fresh branch of run_classes prints the STACK and READY lines of a fresh stack" "$out" "$rc" 0 \
   '^STACK OcuTalon.Test.Agent.Constants: project ocutalon-class-cw-f-1700000000-1$' '^READY OcuTalon.Test.Agent.Constants [0-9]+s$' \
   '^CLASS OcuTalon.Test.Agent.Constants passed' '^RUN OcuTalon.Test.Agent.Constants passed \(1 classes\)' '!WARM' '!warm'
-if [ "$(tr '\n' '|' < "$calls")" = "preflight|live_start class|dc up -d --build --wait|" ]; then
-  pass "the fresh branch calls preflight, live_start and dc up, in that order"
+if [ "$(tr '\n' '|' < "$calls")" = "preflight|live_start class|dc up -d --build --wait|park|" ]; then
+  pass "the fresh branch calls preflight, live_start, dc up and then parks the Telegram items, in that order"
 else
   fail "the fresh branch made the calls '$(tr '\n' '|' < "$calls")'"
 fi
@@ -514,8 +515,8 @@ for v in 0 ""; do
   check "class with OCUTALON_WARM='$v' takes the fresh branch: the same STACK and READY lines, and no WARM line" "$out" "$rc" 0 \
     '^STACK OcuTalon.Test.Agent.Constants: project ocutalon-class-cw-f-1700000000-1$' '^READY OcuTalon.Test.Agent.Constants [0-9]+s$' \
     '^CLASS OcuTalon.Test.Agent.Constants passed' '!WARM' '!warm'
-  if [ "$(tr '\n' '|' < "$calls")" = "preflight|live_start class|dc up -d --build --wait|" ]; then
-    pass "class with OCUTALON_WARM='$v' calls preflight, live_start and dc up, in that order"
+  if [ "$(tr '\n' '|' < "$calls")" = "preflight|live_start class|dc up -d --build --wait|park|" ]; then
+    pass "class with OCUTALON_WARM='$v' calls preflight, live_start, dc up and the park, in that order"
   else
     fail "class with OCUTALON_WARM='$v' made the calls '$(tr '\n' '|' < "$calls")'"
   fi
@@ -1191,6 +1192,7 @@ up_run() {
   : > "$work/dc.calls"
   : > "$work/live.calls"
   : > "$work/order.calls"
+  : > "$work/park.calls"
   up_out=$(
     {
       export OCUTALON_RUN_TAG=$tag OCUTALON_LOCK_DIR=$lockd OCUTALON_LOCK_OWNER='epic=0 stage=qa'
@@ -1201,6 +1203,7 @@ up_run() {
         return 0
       }
       docker() { docker_stub "$@"; }
+      live_park_telegram() { echo park >> "$work/park.calls"; }
       dc() {
         echo "dc $*" >> "$work/dc.calls"
         if [ "$1" = up ]; then
@@ -1235,6 +1238,12 @@ else
   fail "up: the state folder is incomplete: $(ls "$sd" | tr '\n' ' ')"
 fi
 if grep -q '^dc up -d --build --wait' "$work/dc.calls" && ! grep -q '^dc down' "$work/dc.calls"; then pass "up: the project is built and started, and not torn down"; else fail "up: the dc calls were '$(tr '\n' '|' < "$work/dc.calls")'"; fi
+# The Telegram items are parked once, after the project is up (Story 12.9).
+if [ "$(tr '\n' '|' < "$work/park.calls")" = "park|" ]; then
+  pass "up: the Telegram items are parked once, after the project is up"
+else
+  fail "up: the park calls were '$(tr '\n' '|' < "$work/park.calls")', wanted one"
+fi
 # The manifest is taken after the web bundle is ensured and before the build, so a class edited during the build is reloaded later.
 if [ "$(tr '\n' '|' < "$work/order.calls")" = "bundle: no manifest|up: manifest|" ]; then
   pass "up: the manifest is taken after the web bundle is ensured and before the build"
@@ -1482,6 +1491,7 @@ dw164_run() {
       preflight() { :; }
       ensure_web_bundle() { return 0; }
       docker() { docker_stub "$@"; }
+      live_park_telegram() { :; }
       dc() {
         echo "dc $*" >> "$work/dw164.calls"
         if [ "$1" = exec ]; then printf '%b' "$dw164_text"; return "$dw164_exec_rc"; fi
