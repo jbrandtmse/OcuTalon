@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
 import { post, MESSAGES } from '../../e2e/support/api';
+import { readApproval } from '../../e2e/support/iris';
 import {
   allowanceRow,
   answerApproval,
@@ -21,6 +22,7 @@ import {
   type Populated,
   type Visitor,
 } from '../support';
+import { CHAT_A, MOCK_MS, buttonsOf, finishTelegram, pairChat, pressAnswers, pressFromChat, repliesOf, sendApprovalNotice, startTelegram, unpairChat } from '../telegram';
 
 /**
  * Story 16.9, the online demo's daily cost cap (D1, D2 and AP; matrix rows 13 to 16; AC 5 and 8). The project runs on its own online-demo
@@ -37,6 +39,11 @@ import {
  *   such request, the day is marked, the banner shows and one card follows.
  * - AP (both caps hold): S1 is capped and has an allowance window (a seeded hour and one 429), a real Orders watch and a fixture approval:
  *   Approval.Answer answers the approval with done, and pressing Break the feed in the page answers 200.
+ * - AT (Story 31.3, AP's setup with a paired chat of the CI mock bot): the chat gets the approval's request notice with the buttons approve:<Ref> and
+ *   reject:<Ref>; its Approve press, a callback_query through the mock, answers the request from the channel telegram while both caps hold, and the
+ *   press gets the answer of a request that was approved: "Approved. Repairing and resending 4 orders." (the fixture request's dry run; TelegramIn shows it only
+ *   when the answer's verdict is done, so the text pins the run's completion). The edit of the
+ *   chat's message belongs to an incident's request (IncidentManager sends it), which the demo-path run's T8 checks; a fixture request has no incident.
  * - D0 (DW-413, browserless): clearOfMidnight waits past instance midnight and reads the day again when a case's budget does not fit in what is
  *   left of the day, and returns at once when it does.
  * D1, D2 and AP call clearOfMidnight first and use its day for every mark, check and cleanup, so that the day cannot turn inside a case.
@@ -55,6 +62,7 @@ const MARKER = '[[mock:daily-cap]]';
 const D1_BUDGET_S = 240;
 const D2_BUDGET_S = 150;
 const AP_BUDGET_S = 200;
+const AT_BUDGET_S = 220;
 
 const mainOf = (page: Page): Locator => page.locator('main.main');
 const composer = (page: Page): Locator => page.getByRole('textbox', { name: 'Message OcuTalon' });
@@ -216,5 +224,57 @@ test('AP: an approval is answered and Break the feed is pressed while both caps 
     if (rows !== undefined) await cleanPopulated(rows);
     await leaveVisitor(s1);
     await restore(day, usage);
+  }
+});
+
+test('AT: an approval answered from the paired chat completes while both caps hold', async ({ browser }) => {
+  let s1: Visitor | undefined;
+  let usage: string | undefined;
+  let rows: Populated | undefined;
+  let day: string | undefined;
+  let saved = '';
+  let pairing = '';
+  test.setTimeout(300_000 + AT_BUDGET_S * 1000);
+  try {
+    day = await clearOfMidnight(AT_BUDGET_S);
+    expect(await cappedMarked(day), 'the clean state: the day is not marked').toBe(false);
+    await settleMonitor();
+    s1 = await openVisitor(browser);
+    usage = await seedUsage(20);
+    await send(s1, 'zz S1 under the cap', 'atcap');
+    await expect(cappedCards(s1.page), 'the daily cap holds for S1').toHaveCount(1, { timeout: 90_000 });
+    await seedAllowance(s1.epoch, 50, 100);
+    await composer(s1.page).fill('zz refused');
+    const refused = s1.page.waitForResponse((response) => response.url().includes('/api/v1/messages') && response.status() === 429);
+    await s1.page.locator('app-composer').getByRole('button', { name: 'Send', exact: true }).click();
+    await refused;
+    await expect(s1.page.locator('[data-banner="allowance"]'), 'and so does its allowance window').toBeVisible();
+
+    const ref = (await allowanceRow(s1.epoch)).ref;
+    rows = await populate(ref, { pairing: false });
+    saved = await startTelegram();
+    pairing = await pairChat(ref, CHAT_A);
+    await sendApprovalNotice(ref, rows.approval);
+    await expect
+      .poll(() => buttonsOf(CHAT_A), { message: "the chat's request notice has the buttons approve:<Ref> and reject:<Ref>", timeout: MOCK_MS, intervals: [1000] })
+      .toEqual([`approve:${rows.approval}`, `reject:${rows.approval}`]);
+    const notice = (await repliesOf(CHAT_A)).find((text) => text.includes('zz an approval waits')) ?? '';
+    expect(notice, "the chat got the request's notice").not.toBe('');
+
+    await pressFromChat(CHAT_A, `approve:${rows.approval}`);
+    await expect.poll(async () => (await readApproval(rows!.approval)).channel, { message: 'the request is answered from the channel telegram', timeout: MOCK_MS, intervals: [1000] }).toBe('telegram');
+    const answered = await readApproval(rows.approval);
+    expect(answered.action, 'it is approved').toBe('approve');
+    await expect.poll(async () => (await pressAnswers()).length, { message: 'the press got its answer', timeout: MOCK_MS, intervals: [1000] }).toBe(1);
+    expect((await pressAnswers())[0], 'a request approved, with no alert').toEqual({ text: 'Approved. Repairing and resending 4 orders.', show_alert: 0 });
+  } finally {
+    try {
+      if (saved !== '') await finishTelegram(saved);
+    } finally {
+      if (pairing !== '') await unpairChat(pairing);
+      if (rows !== undefined) await cleanPopulated(rows);
+      await leaveVisitor(s1);
+      await restore(day, usage);
+    }
   }
 });

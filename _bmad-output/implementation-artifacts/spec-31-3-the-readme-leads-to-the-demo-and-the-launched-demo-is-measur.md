@@ -2,8 +2,8 @@
 title: 'Story 31.3: the README leads to the demo (build 109, IPM, Telegram row, licence), the About and finish-state links, two security-overview lines, and the Telegram cases of Stories 16.4 and 16.9 turned on'
 type: 'feature'
 created: '2026-11-03'
-status: 'ready-for-dev'
-baseline_revision: 'a401f37be6f6221e3621d3522d6d46abf506109f'
+status: 'done'
+baseline_revision: '9849b256c32f182581b35b90bd394cffb80b96c8'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -257,7 +257,47 @@ deferred: []
 
 - 2026-11-03 (lead, re-plan after the plan halt): the orchestrator ruled Q1 and Q2 under veto U-242 (kept by the Contest Planner, 2026-11-03T15:07:51Z#727): L111 alternative with the MCP server clause; L187 as proposed; screenshots option C with the Planner's image conditions; texts 1 to 6 kept; one story. Written into the intent block and `## Rulings`; epics.md AC 1's last "And" gained the U-242 marker (Rule 5 tier 1). Status reset to `draft` for a re-plan.
 
+- 2026-11-03 (implement): Task 1 first. `docs/images/vt-decision.png` re-shot by `docker/tests/record-screenshot.sh vt-decision`; Tasks 2 and the rest follow; see Verification, "Implement results". Decided in-stage 14 to 22 are the implement stage's.
+
 ## Review Triage Log
+
+### 2026-11-03 - Review pass
+- verdicts: 31 findings - high 0, medium 1, low 30, false 0, maybe-false 0. Routes: 15 `patch` rows (8 root causes; the one medium is the IPM repository warning), 16 `reject`, no `defer`, no `bad_spec`, no `intent_gap`. The Intent Alignment Auditor reported no findings (descriptive; its table of divergences is carried in the rows below).
+- findings:
+  - Blind Hunter
+    - `[low]` `reject` README says build 109 "runs unchanged" but the diff shows no build 109 run, and two docs say "has not been tested" -- the sentence is build-109 item 2, ruled word for word (U-241); items 7's two sentences are ruled too. Not editable here.
+    - `[low]` `reject` the internal registry host `docker.iscinternal.com/...` in the build 109 section -- ruled word for word (item 4).
+    - `[low]` `patch` a failed or partial `startTelegram` left TelegramIn/TelegramOut changed (callers skip `finishTelegram` when `saved` is empty) -- `startTelegram` now calls `finishTelegram` with the partial `saved` before it throws (`web/e2e-online/telegram.ts`).
+    - `[low]` `patch` row 4: `chat_c_was` empty skips the restore and a legitimately empty `saved` skips the wait -- the unit now fails with a reason when Start gives nothing to put back or C's chat id cannot be read (`docker/tests/test-online-session.sh`).
+    - `[low]` `patch` L6 passes on any non-empty reply -- L6 now also requires the text to be a Turn of the channel telegram in the session; `repliesOf` throws on a fixture reason.
+    - `[low]` `reject` AT covers less than the task line (no edit, no run to `done`) -- Decided in-stage 19 and 25: the press text is shown only for verdict `done` (`AnswersIn.cls:90-100`); the edit is T8's. Reported to the lead as a ruling item.
+    - `[low]` `reject` no MIT licence in `src/module.xml` or `web/package.json` -- the AC names LICENSE and the README line only; package metadata is outside the spec and the release (owner-only) path.
+    - `[low]` `reject` default-accounts steps give no first-sign-in password, a hard-coded port, and omit `_Ensemble`/`irisowner` -- in-stage text 4, ruled "kept as proposed" under U-242 ("No default password is printed"); the README hard-codes localhost:52773 everywhere.
+    - `[low]` `reject` the same screenshot twice and legibility at README width -- both placements are ruled (U-242 option C); the Planner vets the image.
+    - `[low]` `patch` the capture spec settles on two equal reads -- it now reads until the drawn count equals the session's `Ens.MessageHeader` rows, for 15 s at most (`web/e2e-capture/vt-decision.spec.ts`; the capture ran again green).
+  - Edge Case Hunter
+    - `[low]` `reject` `echo ... >> .env` with no trailing newline or run twice -- item 4's block is ruled word for word.
+    - `[medium]` `patch` the README's IPM section does not say that `zpm "enable -community"` removes the repositories already set up (`docs/install-ipm.md:22,28-31` says so) -- one sentence added, recorded as Decided in-stage 23.
+    - `[low]` `reject` no SuperUser password and a fixed port in the default-accounts steps -- as above (ruled text 4).
+    - `[low]` `reject` the portal address assumes port 52773 -- as above; the README's other addresses do the same.
+    - `[low]` `patch` check (c) did not require the Services lane -- the three lane titles are required (`vt-decision.spec.ts`).
+    - `[low]` `patch` same settle loop as the Blind Hunter's -- same fix.
+    - `[low]` `reject` `record-screenshot.sh` default 540 s deadline against a 900 s first start -- the spec says "with the default deadline"; the run took well under it; a slower machine sets `OCUTALON_LIVE_DEADLINE` as `live` units do.
+    - `[low]` `patch` L6's non-empty reply is not tied to the sent text -- as above (Turn check).
+    - `[low]` `reject` A5's fixed 6 s wait before "no second notice" -- a negative check is bounded in time by nature; the Turn of the second message is awaited first.
+    - `[low]` `patch` row 4's empty `chat_c_was` -- as above.
+    - `[low]` `reject` claim: AT does not assert an edit or `done` -- as above (Decided in-stage 25).
+    - `[low]` `patch` claim: check (c) requires only some lane titles -- as above (Services added).
+    - `[low]` `patch` claim: L6 accepts any message to the chat -- as above.
+  - Verification Gap Reviewer
+    - `[low]` `patch` row 4 counts any sendMessage to C's chat -- it now counts only one that carries the reminder's text (`online session fire`); the unit passed.
+    - `[low]` `patch` L6's precondition `toEqual([])` was vacuous when the fixture call failed, and the reply was not content-checked -- `repliesOf` throws on a reason; Turn check added (same patch as above).
+    - `[low]` `patch` A5 has no mutation for its allowance assertions -- mutation line added: `Allowed` made to `Quit 1` turns A5 red (11 other cases green).
+    - `[low]` `reject` AC 2 (item-7 sentences) and AC 7 (L111/L187 only) have no pinning test -- the spec states `git diff` evidence for both; `test-security-overview.sh` is generated sections only; a prose pin would be brittle and the ruled sentences are in the diff.
+    - `[low]` `patch` new README pins have no mutation lines, and items 3 and 6 have no pin -- item 3's note joined `INSTALL_FACTS`, a new Troubleshooting check pins item 6 (with a broken copy in `st`), and the mutation lines are written (each went red, README restored).
+    - `[low]` `reject` the About "Bridge developer guide" link has no mutation line -- F6 asserts the exact three-link list and hrefs; the Security overview mutation shows the list check is falsifiable.
+    - `[low]` `reject` the capture tooling has no executed test host (shrink path, exit 2, non-PNG refusal) -- a manual tool by Decided in-stage 11; it fails closed on the `CAPTURE` line and ran twice green.
+    - `[low]` `reject` self-containment notes (silent skip without `OCUTALON_URL`; `chat_c_was` restore) -- the script dies without a CAPTURE line; the restore case is patched above.
 
 ## Design Notes
 
@@ -313,6 +353,19 @@ deferred: []
     - The README's checks stay in CI through `test-readme.sh`.
 12. "Under 300 KB" is read as under 300,000 B, the stricter reading. Every image file passes it today.
 13. "What's interesting" keeps its 120-word cap for prose, with image lines left out of the count. The ruling's two image lines would otherwise push it over the cap with their alt text alone.
+14. (implement) DW-360 text, one word corrected from the measurement (veto-window text; the lead classifies): the portal's field is labelled "Password (confirm)" (`%CSP.UI.Portal.User`, line 111), not "Confirm Password". The README says "enter a new password in Password and Password (confirm), and press Save." Everything else in text 4 is as measured (Task 2 below). To restore the ruled wording, change that one phrase and nothing else.
+15. (implement) A5 and AT use the paired chat's own numeric id (`CHAT_A`, 84017734151, an 11-digit fixture id): the fixture pairing's `zz<n>` chat id reaches the Bot API as `chat_id 0` (measured on a warm stack), so no message would reach the mock under it. T2 (the shell) gives C's fixture pairing the id 84017734152 after the Telegram fixture has started (its Start deletes the rows of such chats) and puts C's first id back after Finish.
+16. (implement) The Telegram cases share one new helper module, `web/e2e-online/telegram.ts` (import only; no edit of `web/e2e-online/support.ts` or `web/e2e/support/*`). It wraps `OcuTalon.Test.Channel.TelegramPageFixture` as `web/e2e/demo-path/telegram-approval.spec.ts` does, and adds the paired-chat helpers (a fixture pairing with a numeric chat id, `Send`, `Press`, the replies and buttons, the approval notice). Rule 2: a third copy in each of three specs was the alternative.
+17. (implement) The mock's calls are read through the fixture (`Replies`, `Buttons`, `PressAnswers`; in the shell `Test.Contract.Mock.Calls()`), not through `/_mock/telegram/replies` (a POST that queues replies): the calls list is `/_mock/telegram/calls`, and the throwaway publishes no mock port.
+18. (implement) L6 ends the CSP sessions with the group sign-out and closes the page, then checks that the session's CSP session no longer exists (a 120 s timeout would add minutes to the unit). The chat's text then gets a reply, which is any non-empty message to the chat.
+19. (implement) AT asserts the Approve press, not an edit of the chat's message: the edit is sent by `IncidentManager` for an incident's request (`ANSWEREDKIND`), and AP's fixture request has no incident (measured: the row is approved from telegram, the press is answered "Approved. Repairing and resending 4 orders.", the answered Notification never comes). The request notice (a Notification of kind approval through Notify) is what puts the buttons in the chat. The edit stays pinned by `telegram-approval.spec.ts` T8 on the demo-path stack. This differs from the task line "Expect `done` and the chat's message edited"; the lead decides whether AT should raise a real incident instead.
+20. (implement) `frame.spec.ts` F7 presses Tab four times (README, bridge guide, security overview, then Close) where it pressed twice; the About dialog gained two links before Close.
+21. (implement) `ux-strings.test.mjs` holds "Bridge developer guide" and "Security overview" as a ruled entry for this story (EXPERIENCE.md About item 5 names the links, but not these two labels); "Use the same bridge in your own production" is in EXPERIENCE.md :614 and sits with the UX strings.
+22. (implement) Check (d) of the capture kept the ruled expression whole (`/mock|test|\bci\b|.../i`): no narrowing was needed, the SVG text had no hit. Check (c) is split: the lane titles Processes and Operations and the host `AgentSteps` must be drawn, and every lane title, host rectangle and host title must lie inside the diagram extent (`traceCanvas`'s width and height); the spec also checks that the shot is exactly that extent, and that nothing of the page lies over the diagram (the contents pane and its expanders are hidden, then `elementFromPoint` finds only the embed on an 11 x 11 grid; the first shot had the pane over the right-most column). The embed screenshot is one capture of the SVG embed sized to the extent (2040 x 1420), so the diagram is not cropped.
+
+23. (review) The IPM section warns that `zpm "enable -community"` first removes the repositories already set up in %SYS (veto-window text; the lead classifies): "This command first removes the package repositories that are already set up in %SYS, so note any you use before you run it." Evidence: `docs/install-ipm.md:22` and :28-31 show `repo -delete-all` in its output. No other IPM wording changed.
+24. (review) L6 now also pins that the chat's text became a Turn of the channel telegram in the session (`chatTurnsOf`, moved to `web/e2e-online/telegram.ts` and shared with A5); the fixture readers (`repliesOf`, `buttonsOf`, `pressAnswers`) throw the fixture's reason instead of returning an empty list; `startTelegram` puts back a partial start before it throws. Row 4's check counts only a sendMessage to C's chat that carries the reminder's text, and the unit fails when C's chat id cannot be read.
+25. (review) AT keeps the Approve press's answer text as the pin for the run's completion: TelegramIn shows "Approved. Repairing and resending N orders." only when `AnswersIn.TelegramCode` got the verdict `done` (`Core/AnswersIn.cls:90-100`, `Channel/Telegram/In.cls:420-423`), which is the verdict AP reads from `Approval.Answer`. The edit of the chat's message stays with demo-path T8 (Decided in-stage 19); the lead rules whether AT should raise a real incident instead.
 
 **Security-overview L111: clause-by-clause evidence.**
 - (a) "fixed to exact targets": TRUE.
@@ -436,6 +489,38 @@ Use these variables on every `ci/iris.sh`, `ci/warm.sh` and `docker/tests` live 
 
 Every test added or changed passes on a fresh environment, in either order.
 
+### Implement results (2026-11-03, tags e31s3i fresh and e31s3iw warm)
+
+**Task 1, the image.** `OCUTALON_RUN_TAG=e31s3i bash docker/tests/record-screenshot.sh vt-decision`: `CAPTURE agent-steps=3 messages=30 size=2040x1420`, `record-screenshot: docs/images/vt-decision.png written (231535 B)`, exit 0, project removed by the trap. `file`: PNG image data, 2040 x 1420, 8-bit/color RGB, non-interlaced. Copy: scratch `e31s3impl/vt-decision.png`; the original (196,280 B, 2513 x 1055, sha1 21e15f3a...) is backed up there as `vt-decision.orig.png`. The first run showed the portal's contents pane over the right-most column; the capture spec now hides the page's other elements and checks that nothing lies over the diagram, and the second run is the image.
+Self-check against the four conditions: (1) the whole decision: 30 drawn messages = the 30 `Ens.MessageHeader` rows of the session, all three lanes (Services, Processes, Operations with `AgentSteps`) inside the shot, 3 AgentStep messages (rows [8] to [10]); (2) the SVG text matches none of `mock|test|\bci\b|localhost|127.0.0.1|:5xxxx|password|secret|api key|sk-ant`, and the Read of the PNG shows only product hosts (ApprovalStartIn, IncidentManager, Decide, ApprovalHold, Notify, Ens Alarm, DiagnosisAgent, AgentSteps, FixExecutor, OcuTalonApprovals, WebChatOut, SimPhoneOut), message classes and UTC times; no URL, port or portal header; (3) 231,535 B, under 300,000; (4) both README alt texts are the draft text 10, kept whole: the image shows the incident manager's request to Decide, Decide's request to DiagnosisAgent, the three AgentStep messages and the DryRun after them (it also shows the approval and the fix below).
+
+**Task 2, DW-360 (read-only, fresh throwaway `e31s3i`, first start).** Enabled accounts: `SuperUser` (%All, change flag 1), `_SYSTEM` (%All, 1), `_Ensemble` (%All, 1), `Admin` (%Manager and the Ensemble and HealthShare roles, 1), `irisowner` (%All, 0), `CSPSystem` (no role, 0), `UnknownUser` (no role, 0), and the README account `ocutalon`. `SuperUser` with the default password gets the page "Password change" (its first sign-in asks for a new password). The README account gets 302 on `/csp/sys/UtilHome.csp` and 403 on the Users pages; `SuperUser` gets 200. Portal labels (irissys sources): the home page's "System Administration", the tile "Security", "Users"; the user page's fields "Password" and "Password (confirm)", the command "Save". One word of the proposed text was false ("Confirm Password"); see Decided in-stage 14. No default password is printed.
+
+**Commands (once each, after the last edit unless noted).**
+- `ci/iris.sh build` x3 (the last after the mutation runs) -- built; `npx --prefix web playwright install chromium` -- done.
+- (loop) `bash docker/tests/test-readme.sh` -- all 29 rules pass, `ipm` and `licence` included, no SKIP; `test-bridge-guide.sh` and `test-cpf.sh` -- pass; `npm --prefix web test` -- 1302 pass; `npm --prefix web run lint` -- clean; `test-boundaries.sh` -- pass.
+- `bash ci/checks.sh` -- all scripts passed (it takes about 12 minutes; the harness moved it to the background and it was polled).
+- `live online-session` -- all checks passed, L6 (8 s) and row 4's Telegram line PASS; `live online-allowance` -- 12 passed, A5 and AT pass; `live floor` -- 107 passed; `live sign-in --part 1/3`, `2/3`, `3/3` -- pass (part 2 first failed F7's Tab count, fixed, then passed); `live demo-path` -- 8 of 8 steps, audit checks pass; `live security-overview` -- no DRIFT; `ci/iris.sh teardown` -- nothing left (tags e31s3i, e31s3iw).
+- `rg -n "'31\.3'|Story 31\.3 turns" web docker` -- no hit.
+- `git diff --stat docs/bridge-guide.md docs/install-ipm.md docs/security-overview.md`: 1 + 1, 1 + 1, 2 + 2.
+
+**Mutations (each applied, observed red, reverted with the file's checksum identical; `git status --short` shows no stray change).**
+- mutation: remove `### Start it with build 109` from the README -> test-readme `install` red ("no section"), `readme-links` red (the `#start-it-with-build-109` links reach no heading).
+- mutation: drop U-238's phrase from step 5 -> test-readme `telegram-facts` red.
+- mutation: drop "your own install" from the Telegram row -> test-readme `telegram-demo` red.
+- mutation: swap the README's `zpm "enable -community"` and its first `zpm "install ocutalon"` -> test-readme `ipm` red.
+- mutation: change the LICENSE holder -> test-readme `licence` red.
+- mutation: drop the `### Change the default IRIS accounts' passwords` heading -> test-readme `lan` red (and `readme-links`).
+- mutation: remove the Security overview link from `about-dialog.ts` -> `frame.spec.ts` F6 red (and F7), in `live sign-in --part 2/3`.
+- mutation: point the bridge link at `README_URL` in `demo-guide.ts` -> `guide.spec.ts` M9 red, in `live floor`.
+- mutation: overwrite `docs/images/vt-decision.png` with 300,000 zero bytes (copy kept in the scratch folder) -> test-readme `images` red ("300000 bytes, not under 300000"); restored, checksum identical.
+- mutation: drop the "What's interesting" `vt-decision.png` line -> test-readme `interesting` red.
+- mutation: add the literal `localhost` to the text that check (d) reads -> `vt-decision.spec.ts` fails on (d), `record-screenshot.sh` prints "nothing was written", exit 1, and the PNG is byte-identical to before.
+- mutation: `TelegramIn.Other` and `TelegramIn.Press` made to `Quit` first (a guard that drops a paired chat's messages and presses) -> L6 red (`live online-session`), A5 and AT red (`live online-allowance`).
+- mutation: `TelegramOut.Target` made to leave the chat id empty (C's chat id off the reminder notice) -> `live online-session` row 4 "C's chat got no sendMessage" FAIL. Both Telegram files restored byte-identical (checksums).
+- mutation (review pass): `Channel/Telegram/In.cls` `Allowed` made to `Quit 1` (a telegram message is never refused) -> `live online-allowance` A5 red, the other 11 cases green; file restored byte-identical (checksum).
+- mutation (review pass): drop "your own bot token" from the Telegram row -> test-readme `how-you-talk` red. Drop "read-only Visual Trace account" from Try it -> `try-it` red. Drop "Build 109's plain IRIS image has not been tested." -> `install` red. Drop item 3's note ("The install script needs build 154. ...") -> `install` red. Drop item 6's sentence from the Troubleshooting entry -> `install` red (new check). README restored byte-identical (checksum).
+
 **Pinning tests and mutations** (the implement stage writes `mutation: <change> → <red test>`):
 - Build 109: remove `### Start it with build 109` → `test-readme` `install`/`readme-links` red.
 - U-238: drop the phrase → `telegram-facts` red.
@@ -452,5 +537,26 @@ Every test added or changed passes on a fresh environment, in either order.
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** The README leads to the demo and carries the build 109 path (items 1-6), the Telegram row, the IPM section, the default-accounts steps (DW-360), U-238's phrase and the LICENSE line; `LICENSE` is added; the two item-7 sentences and the two ruled security-overview lines (L111, L187) are in; the About dialog and the guide's finish state link the bridge guide and the security overview; `docs/images/vt-decision.png` is re-shot by a Playwright capture (`docker/tests/record-screenshot.sh vt-decision`); the Telegram cases L6, row 4, A5 and AT run through the CI mock bot.
+
+**The re-shot image.** 2040x1420 px, 231,535 B, `docs/images/vt-decision.png` (copy in the scratch folder `e31s3impl/vt-decision.png`); 30 drawn messages = the session's 30 headers, three `AgentStep` messages, the Services, Processes and Operations lanes (`AgentSteps` included), no forbidden name. The review pass re-ran the capture (30 messages, 3 agent steps, 230,004 B) and the vetted file was kept byte for byte. Both README alt texts are draft text 10.
+
+**Files changed.**
+- `README.md`, `LICENSE`, `docs/bridge-guide.md`, `docs/install-ipm.md`, `docs/security-overview.md` (L111, L187), `docs/images/vt-decision.png`: the public text and image.
+- `docker/tests/test-readme.sh`: the new pins and rules (`ipm`, `licence`), the size check, the Troubleshooting check.
+- `web/src/app/links.ts`, `about/about-dialog.ts`, `guide/guide-view.ts`, `guide/demo-guide.ts`: the three links.
+- `web/scripts/guide-view.test.mjs`, `ux-strings.test.mjs`, `web/e2e/floor/guide.spec.ts`, `floor/words.spec.ts`, `frame/frame.spec.ts`: the shared-surface tests.
+- `web/e2e-online/telegram.ts` (new), `session/leave.spec.ts`, `allowance/messages.spec.ts`, `allowance/daily-cap.spec.ts`, `docker/tests/test-online-session.sh`: the Telegram cases.
+- `web/e2e-capture/vt-decision.spec.ts`, `web/playwright.capture.config.ts`, `docker/tests/record-screenshot.sh`, `web/package.json`, `web/tsconfig.e2e.json`: the capture tool.
+
+**Review.** 31 findings from three layers (the intent-alignment layer reported none): 15 patch rows, 16 rejected with their reasons in the triage log, none deferred. Patched: the IPM repository warning (Decided in-stage 23), the Telegram helper's partial-start cleanup and throwing readers, L6's Turn check, row 4's text match and chat-id guards, the capture's settle wait and the Services lane check, the item 3 and item 6 pins, and the A5 allowance mutation line. Patched counts by verdict: medium 1, low 14. Follow-up review recommended: false (one medium patched; every patch was run live afterwards).
+
+**Verification.** After the last patch: `test-readme` all 29 rules, `npm --prefix web run lint` clean, `npm --prefix web test` 1302 passed, `ci/checks.sh` all scripts passed, `live online-session` passed (L6 and row 4's Telegram line PASS), `live online-allowance` 12 passed (A5, AT), the capture re-run green, and one A5 mutation red then restored. `live floor`, `live sign-in --part 1/3..3/3`, `live demo-path`, `live security-overview` and `ci/iris.sh build` ran once before the review pass (the Verification section's Implement results); the patches touch no file they read.
+
+**Residual risks / for the lead.**
+- AT deviates from the task line (no message edit; Decided in-stage 19 and 25): the lead rules whether AT should raise a real incident.
+- DW-360 text says "Password (confirm)" (Decided in-stage 14) and the IPM warning (23) are veto-window public text.
+- The Contest Planner vets the re-shot image before the story commit's push.
