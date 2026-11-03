@@ -3,7 +3,7 @@
 # a clean build 154 instance, an instance like an admin's with IPM 0.10.10 in %SYS and enabled for USER only, that the package's
 # first run creates OCUTALON and gives the next command, and that `iris merge` of the package's CPF file is the alternative. It is
 # the ipm-install job of .github/workflows/lane-a.yml and runs the same way on a developer machine:
-#   OCUTALON_RUN_TAG=<tag> bash release/ipm-install.sh [a|r|b]
+#   OCUTALON_RUN_TAG=<tag> bash release/ipm-install.sh [a|r|b|p]
 # It sources ci/iris.sh (which sources ci/units.sh and docker/tests/lib-live.sh) and runs nothing of them but the throwaway recipe:
 # a project of its own from release/ipm/Dockerfile (no merge file, after-start script or version file; release/ipm/compose.ipm.yml),
 # the CI override, the throwaway lock and the teardown on exit. Stories 15.2 and 15.3 extend the functions snapshot, residue and
@@ -13,18 +13,23 @@
 #   2. `zpm "load /opt/ocutalon-ipm/src"` in USER stops after Initialize: the output shows Initialize FAILURE, no Reload START and no
 #      STEP line, and its last line, with ANSI codes removed, is exactly the stop sentence after `ERROR! `;
 #   3. the run created the four OCUTALON databases (public Read on %DB_OCUTALON_PUBLIC only), OCUTALON with Interoperability and
-#      AD-3's seven mappings, and mapped %IPM into OCUTALON from the database where %IPM resolves in USER; the services are those
-#      of the baseline;
+#      AD-3's seven mappings, mapped %IPM into OCUTALON from the database where %IPM resolves in USER, and mapped IPM's repository
+#      definitions (^IPM.Repo.DefinitionD, S and I) into OCUTALON from the database where each resolves in USER (U-232), as they are;
+#      OCUTALON_DATA holds no ^IPM.Repo.Definition* node; the services are those of the baseline;
 #   4. nothing of OcuTalon is left: no OcuTalon class, routine or module record in USER, %SYS or OCUTALON, no ^OcuTalon global
 #      in USER or %SYS, no OcuTalon role, no user ocutalon and no /ocutalon web application;
-#   5. the same command again in USER, and in %SYS, gives the same stop, the same configuration and no residue, and the same
-#      install through %IPM.Main.Shell() in USER returns the stop sentence as an error status (the stop is not reported as a
-#      success), leaves transactions neither suspended nor open in the session, and leaves no residue;
+#   5. a first run in %SYS, made on the fresh instance before check 2, is refused by IPM because src/module.xml declares
+#      SystemRequirements with Interoperability enabled (U-231): the last line is exactly `ERROR! This module requires an
+#      interoperability-enabled namespace. %SYS is not interoperability-enabled.`, no Initialize START line is printed, and the
+#      configuration, the services and the residue are those of the precondition (nothing is created or left behind). Then the same
+#      command again in USER gives the same stop, the same configuration and no residue, and the same install through
+#      %IPM.Main.Shell() in USER returns the stop sentence as an error status (the stop is not reported as a success), leaves
+#      transactions neither suspended nor open in the session, and leaves no residue;
 #   6. IPM answers in OCUTALON (%IPM.Main.Shell("version") returns OK), so the next command can start there;
 #   Path B, `iris merge`:
 #   7. on a fresh instance from the same image, `iris merge IRIS /opt/ocutalon-ipm/src/cpf/ocutalon.cpf` exits 0 and gives the same
-#      OCUTALON namespace, Interoperability flag, databases, resources and OCUTALON mappings as path A, minus the %IPM mappings,
-#      and the services are unchanged.
+#      OCUTALON namespace, Interoperability flag, databases, resources and OCUTALON mappings as path A, minus the %IPM mappings
+#      and the repository mappings, and the services are unchanged.
 # Story 15.2 adds the second run:
 #   Path A, after check 6, the same install command in OCUTALON:
 #   8. the output shows Initialize to Activate SUCCESS and, between Configure START and Configure SUCCESS, one `STEP <name> OK` line
@@ -59,8 +64,46 @@
 #   18. a reinstall whose Compile fails (a scratch copy with a class that does not compile and a changed Registry.Order()): IPM reports the
 #      failure and no step runs, and the previous version keeps running: the production runs with nothing missing, Registry.Order() answers as
 #      before, the module version is unchanged, the scratch class is absent, the mark is kept and the configuration is unchanged.
-# The argument chooses the paths: none runs A, the reinstalls (checks 16 to 18) and B (the job), `a` path A (checks 1 to 6 and 8 to 14) only, `r` path A's
-# first and second run and the reinstalls (checks 16 to 18), `b` path A's first run (the reference of path B's comparison) and path B.
+# Story 15.3 adds the durability checks and Story 9.1's IPM case:
+#   19. Story 9.1's IPM case, after every full install (path A's second run, the recovery run of check 20, path B's second run and
+#       the reinstall of check 25): the default setting OcuTalon.Production||EvalIn||*||Enabled is 0, CreateBusinessService("EvalIn")
+#       fails with a text containing `is disabled`, the production's TestingEnabled is 0, and EvalIn has no Alive job while other
+#       items have theirs;
+#   20. part r seeds a session with a turn, a live reminder (due in one day) and a lost approval before the forced failure; after the
+#       recovery run the session and its turn are read back unchanged, the reminder has one waiter, the approval has one hold, and
+#       every item's job differs from before the failed reinstall;
+#   Path B, after check 15's install and Story 9.1's case, on the same stack, in this order:
+#   21. a production stop and start alone from a session (DW-80), with no installer run: ReconcileIn logs exactly one new Info row,
+#       a lost reminder has one waiter and one more start header, from HeartbeatIn, a lost approval has one hold, and the live reminder
+#       keeps its waiter and its one start from ReminderOps;
+#   22. a first instance restart (docker compose restart iris) with a second lost pair seeded: the production runs with nothing
+#       missing, ^Ens.AutoStart is OcuTalon.Production, the container has no /opt/ocutalon/version (no after-start script), ReconcileIn
+#       logs exactly one new row, the new pair is re-armed once and the other rows are unchanged;
+#   23. a second instance restart: the same, and every row has exactly one waiter or hold with the start counts and hold ids of
+#       check 22, so nothing was re-armed twice;
+#   24. after the restarts: the session and its turn are unchanged, the live reminder fires once (state fired, no waiter, one
+#       ReminderTimer to Notify header), the approval is rejected through Approval.Answer and its hold ends, and the other lost
+#       rows are still pending with one waiter or hold;
+#   25. the install command with the next version (a scratch copy of the package folder with the patch number raised, loaded in
+#       OCUTALON): Initialize to Activate SUCCESS and one STEP OK per step in order, the raised module version, a new job id for
+#       every item, no new ReconcileIn row, the configuration and the foreign setting unchanged, and the data and the waiters intact.
+# Story 15.4 adds part p, the exact release artifact installed from an IPM repository on a fresh instance with no Node.js:
+#   The artifact is OCUTALON_IPM_ARTIFACT (the .tgz that the release sequence's ipm step made), or, when that is unset, the module that
+#   path A's second run installed, packaged with `zpm "package ocutalon -only"` (TIME package) and checked with lib-release's
+#   ipm_artifact_check; ARTIFACT <name> <bytes> bytes is printed and a problem line fails the part.
+#   26. the container has no node and no npm;
+#   27. the artifact is unpacked into a local filesystem repository (a repository added in USER with its output discarded), and
+#       `zpm "install ocutalon"` in USER ends with the stop line and the snapshot of check 3, repository mappings included;
+#   28. the same command in OCUTALON passes the checks of the second run (Initialize to Activate SUCCESS, every STEP OK in order, the
+#       production running, autostart, 0 dependencies, Story 9.1's IPM case), /ocutalon/ serves the sign-in page and ocutalon/ocutalon
+#       signs in;
+#   29. `zpm "uninstall ocutalon"` in OCUTALON removes OCUTALON's three repository mappings and nothing else of the configuration, and a
+#       hash of USER's three definition globals, taken inside the container and never printed, is the same right after the uninstall
+#       as right before it and as before the first command (U-232).
+# The argument chooses the paths: none runs A, the reinstalls (checks 16 to 20), B and part p (the job), `a` path A (checks 1 to 6, 8 to 14
+# and 19) only, `r` path A's first and second run and the reinstalls (checks 16 to 20), `b` path A's first run (the reference of path B's
+# comparison) and path B (checks 7, 15, 19 and 21 to 25), `p` part p alone (checks 26 to 29; with no OCUTALON_IPM_ARTIFACT it first
+# installs the package from the folder and packages it).
 # Every run's and the merge's full output is printed between `OUTPUT begin <name>` and `OUTPUT end <name>`, ANSI codes kept; the
 # checks read it with the codes removed. `TIME <step> <s>s` lines give the durations. Prints one PASS or FAIL line per check, and
 # exits 1 when any fails. The trap of live_start removes the project, its volume and its images, and releases the lock.
@@ -70,19 +113,24 @@ root=$(cd "$(dirname "$0")/.." && pwd)
 cd "$root" || exit 1
 mode=${1:-all}
 case $mode in
-  all | a | r | b) ;;
+  all | a | r | b | p) ;;
   *)
-    echo "usage: bash release/ipm-install.sh [a|r|b]"
+    echo "usage: bash release/ipm-install.sh [a|r|b|p]"
     exit 2
     ;;
 esac
 . "$root/ci/iris.sh"
 . "$root/docker/tests/lib-online.sh"
+# lib-release.sh (ipm_unpack, ipm_artifact_check) sets umask 077 when sourced; this script keeps the caller's.
+umask_before=$(umask)
+. "$root/release/lib-release.sh"
+umask "$umask_before"
 
 SCRIPT=release/ipm-install.sh
 SRC=/opt/ocutalon-ipm/src
 INSTALL="zpm \"load $SRC\""
 STOP='OcuTalon created namespace OCUTALON. Now run: zn "OCUTALON" then the same install command.'
+REFUSAL='This module requires an interoperability-enabled namespace. %SYS is not interoperability-enabled.'
 
 # --- the functions that Stories 15.2 and 15.3 extend ---
 
@@ -305,10 +353,30 @@ orders_running() {
 }
 orders_up() { [ "$(orders_running)" = 1 ]; }
 
-# check_second_run [<run name> [<label>]]: matrix row "Second run, path A". The output is in $tmp/<run name>.txt (default
-# second-ocutalon, label "second run"); the snapshot it takes is $tmp/<run name>.snap.
-check_second_run() {
-  local name="${1:-second-ocutalon}" label="${2:-second run}" f order got phase ok=1
+# check_ipm_case <label>: Story 9.1's IPM case (check 19) on the running production: EvalIn's default setting row is 0, EvalIn is refused as
+# disabled, the production's TestingEnabled is 0, and EvalIn (pool size 0) has no Alive job while other items have theirs (lib-live item_jobs).
+check_ipm_case() {
+  check_session "$1: Story 9.1's IPM case: EvalIn's default row is 0, EvalIn is refused as disabled and TestingEnabled is 0" OCUTALON \
+    "CHK|row|0
+CHK|refused|1
+CHK|testing|0" \
+    'Write !,"CHK|row|",##class(Ens.Config.DefaultSettings).%OpenId("OcuTalon.Production||EvalIn||*||Enabled").SettingValue' \
+    'Set sc=##class(Ens.Director).CreateBusinessService("EvalIn",.svc) Write !,"CHK|refused|",($SYSTEM.Status.IsError(sc)&&($SYSTEM.Status.GetErrorText(sc)["is disabled"))' \
+    'Write !,"CHK|testing|",+##class(Ens.Config.Production).%OpenId("OcuTalon.Production").TestingEnabled' \
+    'Halt'
+  item_jobs "$tmp/jobs-ipm-case.tsv"
+  if [ -s "$tmp/jobs-ipm-case.tsv" ] && ! cut -f1 "$tmp/jobs-ipm-case.tsv" | grep -qx EvalIn; then
+    pass "$1: Story 9.1's IPM case: EvalIn has no Alive job, and $(grep -c . "$tmp/jobs-ipm-case.tsv") other items have theirs"
+  else
+    fail "$1: Story 9.1's IPM case: EvalIn has an Alive job, or no item has one (items with jobs: $(cut -f1 "$tmp/jobs-ipm-case.tsv" | tr '\n' ' '))"
+  fi
+}
+
+# check_run_ok <run name> <label>: the install command's output $tmp/<run name>.txt is Initialize to Activate SUCCESS with one STEP OK line
+# per step of Registry.Order(), in that order; the production runs with nothing missing, is the autostart production, and the module has no
+# dependency; Story 9.1's IPM case holds. Nothing here compares with a reference configuration.
+check_run_ok() {
+  local name=$1 label=$2 f order got phase ok=1
   f="$tmp/$name.txt"
   order=$(registry_order)
   got=$(step_names "$f")
@@ -335,6 +403,14 @@ CHK|module|ocutalon|0" \
     'Write !,"CHK|autostart|",$Get(^Ens.AutoStart)' \
     'Set m=##class(%IPM.Storage.Module).NameOpen("ocutalon") Write !,"CHK|module|",$Select($IsObject(m):m.Name_"|"_m.Dependencies.Count(),1:"<none>")' \
     'Halt'
+  check_ipm_case "$label"
+}
+
+# check_second_run [<run name> [<label>]]: matrix row "Second run, path A". The output is in $tmp/<run name>.txt (default
+# second-ocutalon, label "second run"); the snapshot it takes is $tmp/<run name>.snap.
+check_second_run() {
+  local name="${1:-second-ocutalon}" label="${2:-second run}"
+  check_run_ok "$name" "$label"
   take_snapshot "$name" "$label"
   same_services "$label" base "$name"
   same_config "$label" first "$name"
@@ -379,25 +455,33 @@ CHK|settings-dest|ocutalon_public" \
     'Halt'
 }
 
-# check_web: matrix row "Web and REST". The chat check points the keys at the CI mock before and back after, also on a failure.
-check_web() {
-  local code facts turn
+# check_signin <label> [logout]: the sign-in page is served and not the online demo's, and ocutalon/ocutalon signs in; the session stays
+# in the jar $ocu_jar unless the second argument is logout.
+check_signin() {
+  local code
   ocu_jar="$tmp/jar.ocu"
   : > "$ocu_jar"
   next_probe
   rm -f "$tmp/signin.page"
   curl -s --max-time 30 -b "$ocu_jar" -c "$ocu_jar" -o "$tmp/signin.page" "$base/ocutalon/?probe=$probes"
   if grep -q 'Sign in to OcuTalon' "$tmp/signin.page" && ! grep -q 'Try OcuTalon in two minutes' "$tmp/signin.page"; then
-    pass "web: GET /ocutalon/ serves the sign-in page and not the online demo's"
+    pass "$1: GET /ocutalon/ serves the sign-in page and not the online demo's"
   else
-    fail "web: GET /ocutalon/ does not serve 'Sign in to OcuTalon' (or serves the online demo's page)"
+    fail "$1: GET /ocutalon/ does not serve 'Sign in to OcuTalon' (or serves the online demo's page)"
   fi
   code=$(online_signin "$ocu_jar" "" "" ocutalon ocutalon)
   if grep -q '<app-root' "$ocu_jar.b"; then
-    pass "web: ocutalon/ocutalon signs in (the app root is served, sign-in status $code)"
+    pass "$1: ocutalon/ocutalon signs in (the app root is served, sign-in status $code)"
   else
-    fail "web: ocutalon/ocutalon does not sign in (status $code)"
+    fail "$1: ocutalon/ocutalon does not sign in (status $code)"
   fi
+  if [ "${2:-}" = logout ]; then logout_all "$ocu_jar" /ocutalon/; fi
+}
+
+# check_web: matrix row "Web and REST". The chat check points the keys at the CI mock before and back after, also on a failure.
+check_web() {
+  local code facts turn
+  check_signin web
   facts=$(state_facts)
   if [ "$facts" = "false|false|" ]; then
     pass "web: /state has onlineDemo false and demoMode false, and no guide, phone or mailbox"
@@ -503,20 +587,33 @@ CHK|run|1" \
   fi
 }
 
-# check_start_outside: matrix row "Start outside the step".
-check_start_outside() {
-  local before after n
-  before=$(reconcile_rows)
-  run stop-start OCUTALON "$(printf '%s\n' 'Do ##class(Ens.Director).StopProduction(30,0)' 'Set sc=##class(Ens.Director).StartProduction("OcuTalon.Production") Write !,"CHK|start|",$SYSTEM.Status.IsOK(sc)')"
+# one_new_row <before> <label> <what>: ReconcileIn's Info rows, <before> of them when <what> began, rise to exactly <before>+1 within 60 s and
+# stay there for 15 s more (the shared count of the checks that start the production outside the Production step). Prints the PASS or FAIL
+# line.
+one_new_row() {
+  local before=$1 after n
   wait_until 60 reconcile_rows_above "$before" || true
   after=$(reconcile_rows)
   sleep 15
   n=$(reconcile_rows)
   if [ "$after" = "$((before + 1))" ] && [ "$n" = "$after" ]; then
-    pass "start outside the step: ReconcileIn logged one new Info row after a session's start, and no second one after three more polls ($before -> $after -> $n)"
+    pass "$2: ReconcileIn logged one new Info row after $3, and no second one after three more polls ($before -> $after -> $n)"
   else
-    fail "start outside the step: ReconcileIn's Info rows went $before -> $after, then $n; wanted one more and then no more"
+    fail "$2: ReconcileIn's Info rows went $before -> $after, then $n; wanted one more and then no more"
   fi
+}
+
+# stop_start: stops the production and starts it again from a terminal session of OCUTALON (no installer run), printed as run <name>.
+stop_start() {
+  run "$1" OCUTALON "$(printf '%s\n' 'Do ##class(Ens.Director).StopProduction(30,0)' 'Set sc=##class(Ens.Director).StartProduction("OcuTalon.Production") Write !,"CHK|start|",$SYSTEM.Status.IsOK(sc)')"
+}
+
+# check_start_outside: matrix row "Start outside the step".
+check_start_outside() {
+  local before
+  before=$(reconcile_rows)
+  stop_start stop-start
+  one_new_row "$before" "start outside the step" "a session's start"
 }
 
 # check_start_by_step: matrix row "Start by the step".
@@ -635,6 +732,7 @@ check_failed_step() {
 # check_recovery: the real folder again. The same checks as the second run, then the module and the seeded data.
 check_recovery() {
   check_second_run reinstall-recover "recovery run"
+  check_durable_recovery
   check_install reinstall-recover "recovery run: install checks"
   check_web
   check_package
@@ -704,6 +802,8 @@ reinstall_failures() {
   order=$(registry_order)
   check_session "reinstall: the status mark is seeded" OCUTALON "CHK|seed|1" \
     'Write !,"CHK|seed|",$SYSTEM.Status.IsOK(##class(OcuTalon.Data.StatusMark).Record("'"$SEED_MARK"'","'"$SEED_VALUE"'"))' 'Halt'
+  seed_durable 86400
+  item_jobs "$tmp/jobs-recover-before.tsv"
 
   scratch_copy "$SCRATCH_STEP" \
     "sed -i 's|^\\tSet sc = ##class(OcuTalon.Bridge.Installer).CheckAudit()\$|\\tQuit \$SYSTEM.Status.Error(5001, \"$FORCED_TEXT\")\\n&|' $SCRATCH_STEP/ocutalon/cls/OcuTalon/Install/Step/Audit.cls" \
@@ -746,6 +846,575 @@ foreign_orders() {
     'Halt' | session_value %SYS foreign
 }
 
+# --- durability and reinstalls of an installed package (Story 15.3; AD-5, AD-23; FR-6, NFR-16, NFR-17) ---
+#
+# "Re-armed exactly once" is read from state, with the test methods of the fixtures called and never edited: a reminder's waiters
+# (ReminderFixture WaitingCount) and its ReminderStart headers (StartHeaders), an approval's live hold (Approval.LiveHold) and its hold
+# instances (Test.Bridge.Approval HoldCount), and ReconcileIn's Info rows (reconcile_rows). Rows with no waiter (RX, AX, RY, AY) are
+# seeded directly, so that the one re-arm of each is countable: a clean restart keeps a live waiter, and Reconcile re-arms only a lost one.
+#   RL  a live reminder (set through the product), RX and RY lost reminders, all in one session with a turn; AX and AY lost approvals,
+#   fixture rows with an owner of their own.
+
+SEED_USER=ZzIpmDurable
+SESS_REF=
+TURN_REF=
+RL=
+RX=
+AX=
+RY=
+AY=
+CONV0=
+P_RL=
+P_RX=
+P_AX=
+P_RY=
+P_AY=
+rl_due_s=0
+rows_bad=
+restart_rows_before=0
+
+# rem_probe <ref>: "<state>|<waiting ReminderTimers>|<ReminderStart headers>|<source of the last start header, - for none>".
+rem_probe() {
+  printf '%s\n' \
+    'Set ref="'"$1"'",RF="OcuTalon.Test.Schedule.ReminderFixture",row=##class(OcuTalon.Data.Reminder).RefIndexOpen(ref),h=$ClassMethod(RF,"StartHeaders",ref),n=h.%Size(),l=$Select(n:h.%Get(n-1),1:{}) Write !,"CHK|rem|",$Select($IsObject(row):row.State,1:"<no row>"),"|",$ClassMethod(RF,"WaitingCount",ref),"|",n,"|",$Select(n:l.source,1:"-")' \
+    'Halt' | chk rem
+}
+
+# hold_probe <ref>: "<id of the live ApprovalHold or nothing>|<ApprovalHold instances of the ref>".
+hold_probe() {
+  printf '%s\n' \
+    'Set ref="'"$1"'" Write !,"CHK|hold|",##class(OcuTalon.Bridge.Approval).LiveHold(ref),"|",##class(OcuTalon.Test.Bridge.Approval).HoldCount(ref)' \
+    'Halt' | chk hold
+}
+
+# notify_count <ref>: the ReminderTimer-to-Notify request headers in the trace sessions of the reminder's start headers.
+notify_count() {
+  printf '%s\n' \
+    'Set F="OcuTalon.Test.Data.Fixture",RF="OcuTalon.Test.Schedule.ReminderFixture",h=$ClassMethod(RF,"StartHeaders","'"$1"'"),k=0' \
+    'For i=0:1:h.%Size()-1 { Set b=$ClassMethod(F,"Between",$ClassMethod(F,"SessionHeaders",h.%Get(i).sessionId),1,"ReminderTimer","Notify") Set k=k+b.%Size() } Write !,"CHK|notify|",k' \
+    'Halt' | chk notify
+}
+
+# approval_state <ref>: the State of the approval row.
+approval_state() {
+  printf '%s\n' 'Write !,"CHK|astate|",##class(OcuTalon.Test.Bridge.ApprovalRows).Prop("'"$1"'","State")' 'Halt' | chk astate
+}
+
+# conv_probe: the seeded session and its turn, read back by value.
+conv_probe() {
+  printf '%s\n' \
+    'Set s=##class(OcuTalon.Data.Session).RefIndexOpen("'"$SESS_REF"'"),t=##class(OcuTalon.Data.Turn).RefIndexOpen("'"$TURN_REF"'") Write !,"CHK|conv|",s.IrisUser,"|",s.TraceRef,"|",s.CreatedAt,"|",t.SessionRef,"|",t.State,"|",t.CreatedAt,"|",t.ItemId,"|",t.Text' \
+    'Halt' | chk conv
+}
+
+# seed_val <name>: the value of the CHK|<name>| line of the last seeding.
+seed_val() { sed -n "s/^CHK|$1|//p" "$tmp/seed.chk" | head -n 1; }
+
+# seed_durable <seconds until RL is due>: the session ZzIpmDurable with one done turn, RL, RX and AX; the probes are recorded.
+seed_durable() {
+  local started=$SECONDS
+  rl_due_s=$((SECONDS + $1 - 10))
+  printf '%s\n' \
+    'Set s=##class(OcuTalon.Test.Data.Fixture).Session("'"$SEED_USER"'"),t=##class(OcuTalon.Test.Data.Fixture).Turn(s,##class(OcuTalon.Data.Time).NowUtc(),"done","zz ipm durable turn") Write !,"CHK|session|",s,!,"CHK|turn|",t' \
+    'Set o=##class(OcuTalon.Test.Schedule.ReminderFixture).Set(s,"zz ipm live reminder",'"$1"') Write !,"CHK|rl|",o.ref,"|",+o.ok' \
+    'Set x=##class(OcuTalon.Test.Data.Fixture).Reminder(s,##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(),86400),"pending") Write !,"CHK|rx|",x' \
+    'Set sc=##class(OcuTalon.Test.Bridge.ApprovalRows).Save(##class(OcuTalon.Test.Bridge.ApprovalRows).NewRow("tool_call"),"pending",86400,,.a) Write !,"CHK|ax|",a,"|",+$SYSTEM.Status.IsOK(sc)' \
+    'Halt' | iris_script OCUTALON > "$tmp/seed.chk"
+  SESS_REF=$(seed_val session)
+  TURN_REF=$(seed_val turn)
+  RL=$(seed_val rl | cut -d'|' -f1)
+  RX=$(seed_val rx)
+  AX=$(seed_val ax | cut -d'|' -f1)
+  echo "SEED session $SESS_REF turn $TURN_REF RL $RL RX $RX AX $AX"
+  P_RL=$(rem_probe "$RL")
+  P_RX=$(rem_probe "$RX")
+  P_AX=$(hold_probe "$AX")
+  CONV0=$(conv_probe)
+  echo "TIME seed $((SECONDS - started))s"
+  if [ -n "$SESS_REF" ] && [ -n "$TURN_REF" ] && [ -n "$RL" ] && [ -n "$RX" ] && [ -n "$AX" ] && [ "$(seed_val rl | cut -d'|' -f2)" = 1 ] \
+    && [ "$(seed_val ax | cut -d'|' -f2)" = 1 ] && [ "$P_RL" = "pending|1|1|ReminderOps" ] && [ "$P_RX" = "pending|0|0|-" ] && [ "$P_AX" = "|0" ] \
+    && [ "$(approval_state "$AX")" = pending ] && [ "${CONV0#*|}" != "$CONV0" ] && [ "$(printf '%s' "$CONV0" | cut -d'|' -f4)" = "$SESS_REF" ]; then
+    pass "seed: a session with a done turn, a live reminder (one waiter, one start from ReminderOps), a lost reminder and a lost approval (no waiter, no hold)"
+  else
+    echo "  RL '$P_RL' RX '$P_RX' AX '$P_AX' conv '$CONV0'"
+    fail "seed: the session, the turn, RL, RX or AX could not be seeded as planned"
+  fi
+}
+
+# seed_pair: the second lost pair, RY and AY, in the seeded session; the probes are recorded.
+seed_pair() {
+  printf '%s\n' \
+    'Set s="'"$SESS_REF"'",y=##class(OcuTalon.Test.Data.Fixture).Reminder(s,##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(),86400),"pending") Write !,"CHK|ry|",y' \
+    'Set sc=##class(OcuTalon.Test.Bridge.ApprovalRows).Save(##class(OcuTalon.Test.Bridge.ApprovalRows).NewRow("tool_call"),"pending",86400,,.a) Write !,"CHK|ay|",a,"|",+$SYSTEM.Status.IsOK(sc)' \
+    'Halt' | iris_script OCUTALON > "$tmp/seed.chk"
+  RY=$(seed_val ry)
+  AY=$(seed_val ay | cut -d'|' -f1)
+  echo "SEED RY $RY AY $AY"
+  P_RY=$(rem_probe "$RY")
+  P_AY=$(hold_probe "$AY")
+  if [ -n "$RY" ] && [ -n "$AY" ] && [ "$P_RY" = "pending|0|0|-" ] && [ "$P_AY" = "|0" ]; then
+    pass "seed: a second lost pair, RY and AY, with no waiter and no hold"
+  else
+    echo "  RY '$P_RY' AY '$P_AY'"
+    fail "seed: RY or AY could not be seeded as planned"
+  fi
+}
+
+# --- comparing rows: each want_* adds a line to rows_bad, report_rows prints one PASS or FAIL ---
+
+want_eq() { # want_eq <what> <got> <wanted>
+  if [ "$2" != "$3" ]; then rows_bad="${rows_bad}
+  $1: got '$2', wanted '$3'"; fi
+}
+report_rows() { # report_rows <label> <what held>
+  if [ -z "$rows_bad" ]; then
+    pass "$1: $2"
+  else
+    printf '%s\n' "${rows_bad#?}"
+    fail "$1: a row differs (the lines above name it with its waiting|starts|source or hold|count)"
+  fi
+  rows_bad=
+}
+want_same_rem() { # a row compared with an empty record is a failure: the record itself could not be read
+  if [ -z "$3" ]; then want_eq "$1 (the recorded state|waiting|starts|source)" "" "a value"; else want_eq "$1 (state|waiting|starts|source)" "$(rem_probe "$2")" "$3"; fi
+}
+want_same_hold() {
+  if [ -z "$3" ]; then want_eq "$1 (the recorded hold|count)" "" "a value"; else want_eq "$1 (hold|count)" "$(hold_probe "$2")" "$3"; fi
+}
+want_rearmed_rem() { # want_rearmed_rem <name> <ref> <probe before>: one waiter and one more start, from HeartbeatIn
+  want_eq "$1 (state|waiting|starts|source)" "$(rem_probe "$2")" "$(printf '%s' "$3" | awk -F'|' '{ printf "%s|1|%d|HeartbeatIn", $1, $3 + 1 }')"
+}
+want_rearmed_hold() { # want_rearmed_hold <name> <ref> <probe before>: a live hold and one more hold instance
+  local got
+  got=$(hold_probe "$2")
+  if [ -z "${got%%|*}" ] || [ "${got#*|}" != "$(printf '%s' "$3" | awk -F'|' '{ print $2 + 1 }')" ]; then
+    rows_bad="${rows_bad}
+  $1 (hold|count): got '$got', wanted a live hold and $(printf '%s' "$3" | awk -F'|' '{ print $2 + 1 }') hold instance(s)"
+  fi
+}
+want_alive_rem() { want_eq "$1 (state|waiting)" "$(rem_probe "$2" | cut -d'|' -f1,2)" "pending|1"; }
+want_alive_hold() { # a live hold and exactly one hold instance
+  local got
+  got=$(hold_probe "$2")
+  if [ -z "${got%%|*}" ] || [ "${got#*|}" != 1 ]; then rows_bad="${rows_bad}
+  $1 (hold|count): got '$got', wanted a live hold and 1 hold instance"; fi
+}
+
+# rl_due_ok: RL, when it is due, still waits or has fired exactly once (a waiter that is waking may look lost to a Reconcile, so its start
+# headers are not read once it is due).
+rl_due_ok() {
+  local got
+  got=$(rem_probe "$RL")
+  case $got in
+    pending\|1\|*) return 0 ;;
+    fired\|0\|*) [ "$(notify_count "$RL")" = 1 ] ;;
+    *) return 1 ;;
+  esac
+}
+# want_rl: RL is what it was after the seeding while it is not due; once due, rl_due_ok.
+want_rl() {
+  if [ "$SECONDS" -lt "$rl_due_s" ]; then
+    want_same_rem RL "$RL" "$P_RL"
+  elif ! wait_until 30 rl_due_ok; then
+    rows_bad="${rows_bad}
+  RL (state|waiting|starts|source, due): got '$(rem_probe "$RL")', wanted a waiter or one fired notification"
+  fi
+}
+
+# jobs_changed <label> <jobs before> <jobs after>: item_jobs files; every item that had jobs has other jobs now.
+jobs_changed() {
+  local same
+  same=$(awk -F'\t' 'NR == FNR { a[$1] = $2; next } !($1 in a) { print $1 " (no job after)"; next } a[$1] == $2 { print $1 " (job " $2 ")" }' "$3" "$2")
+  if [ -s "$2" ] && [ -s "$3" ] && [ -z "$same" ]; then
+    pass "$1: every item has new jobs ($(grep -c . "$2") items)"
+  else
+    printf '%s\n' "$same" | sed 's/^/  unchanged: /'
+    fail "$1: an item kept its jobs (or the jobs before or after could not be read)"
+  fi
+}
+
+# prod_ready: the production runs and nothing is missing.
+prod_ready() {
+  [ "$(printf '%s\n' 'Set r=##class(Ens.Director).IsProductionRunning(.n) Write !,"CHK|ready|",+r,"|",$Get(n),"|",##class(OcuTalon.Install.Step.Production).NotRunning()' 'Halt' | chk ready)" = "1|OcuTalon.Production|" ]
+}
+
+# --- path B: the checks 21 to 25 ---
+
+# check_restart_alone (check 21, DW-80): the production stops and starts from a session, with no installer run.
+check_restart_alone() {
+  local before started=$SECONDS
+  before=$(reconcile_rows)
+  stop_start prod-alone
+  one_new_row "$before" "production alone" "a stop and start from a session"
+  rows_bad=
+  want_rl
+  want_rearmed_rem RX "$RX" "$P_RX"
+  want_rearmed_hold AX "$AX" "$P_AX"
+  report_rows "production alone" "RX has one waiter and one more start from HeartbeatIn, AX has one live hold, and RL keeps its waiter"
+  P_RX=$(rem_probe "$RX")
+  P_AX=$(hold_probe "$AX")
+  echo "TIME restart-alone $((SECONDS - started))s"
+}
+
+# instance_restart <n>: docker compose restart of the instance; waits until the production runs with nothing missing, within the run's
+# deadline, and records the count of ReconcileIn's rows before it.
+instance_restart() {
+  local started=$SECONDS
+  restart_rows_before=$(reconcile_rows)
+  if ! dc restart iris > "$tmp/restart-$1.log" 2>&1; then
+    tail -n 20 "$tmp/restart-$1.log"
+    die "instance restart $1: docker compose restart iris failed"
+  fi
+  if ! wait_until "$((deadline - SECONDS))" prod_ready; then
+    die "instance restart $1: the production does not run with nothing missing before the run's deadline"
+  fi
+  echo "TIME restart-$1 $((SECONDS - started))s"
+}
+
+# check_restart <n> (checks 22 and 23): after instance_restart <n>. The first restart re-arms the pair seeded before it (RY, AY) once; the
+# second changes no row. RX and AX keep what the step before recorded, and RL is as want_rl says.
+check_restart() {
+  local label="instance restart $1"
+  one_new_row "$restart_rows_before" "$label" "the restart of the instance"
+  check_session "$label: ^Ens.AutoStart is OcuTalon.Production" OCUTALON "CHK|autostart|OcuTalon.Production" \
+    'Write !,"CHK|autostart|",$Get(^Ens.AutoStart)' 'Halt'
+  if dc exec -T iris test ! -e /opt/ocutalon/version; then
+    pass "$label: the container has no /opt/ocutalon/version, so there is no after-start script"
+  else
+    fail "$label: the container has /opt/ocutalon/version"
+  fi
+  rows_bad=
+  want_rl
+  want_same_rem RX "$RX" "$P_RX"
+  want_same_hold AX "$AX" "$P_AX"
+  if [ "$1" = 1 ]; then
+    want_rearmed_rem RY "$RY" "$P_RY"
+    want_rearmed_hold AY "$AY" "$P_AY"
+    report_rows "$label" "RY and AY are re-armed once (one waiter and one more start from HeartbeatIn; one live hold), and RL, RX and AX are unchanged"
+  else
+    want_same_rem RY "$RY" "$P_RY"
+    want_same_hold AY "$AY" "$P_AY"
+    report_rows "$label" "every row has the one waiter or hold of the step before, with the same start counts and hold ids"
+  fi
+  P_RY=$(rem_probe "$RY")
+  P_AY=$(hold_probe "$AY")
+}
+
+# rl_ended: RL's waiter has ended and the reminder is fired.
+rl_ended() {
+  [ "$(printf '%s\n' 'Set ref="'"$RL"'",ok=##class(OcuTalon.Test.Schedule.ReminderFixture).WaitEnded(ref,2),row=##class(OcuTalon.Data.Reminder).RefIndexOpen(ref) Write !,"CHK|ended|",ok,"|",row.State' 'Halt' | chk ended)" = "1|fired" ]
+}
+rl_notified() { [ "$(notify_count "$RL")" -ge 1 ] 2> /dev/null; }
+hold_ended() { [ -z "$(hold_probe "$AX" | cut -d'|' -f1)" ]; }
+
+# check_after_restarts (check 24): after the restarts the conversation is unchanged, RL fires once, AX is rejected, and the other lost
+# rows are still armed.
+check_after_restarts() {
+  local started=$SECONDS max answer
+  max=$((rl_due_s - SECONDS + 150))
+  if [ "$max" -lt 30 ]; then max=30; fi
+  wait_until "$max" rl_ended || true
+  wait_until 30 rl_notified || true
+  answer=$(printf '%s\n' 'Set r=##class(OcuTalon.Bridge.Approval).Answer("'"$AX"'","reject","web","ocutalon","",.w) Write !,"CHK|answer|",r' 'Halt' | chk answer)
+  wait_until 30 hold_ended || true
+  rows_bad=
+  want_eq "RL (state|waiting)" "$(rem_probe "$RL" | cut -d'|' -f1,2)" "fired|0"
+  want_eq "RL (ReminderTimer to Notify headers)" "$(notify_count "$RL")" 1
+  want_eq "AX (Answer)" "$answer" done
+  want_eq "AX (state)" "$(approval_state "$AX")" rejected
+  want_eq "AX (live hold)" "$(hold_probe "$AX" | cut -d'|' -f1)" ""
+  want_same_rem RX "$RX" "$P_RX"
+  want_same_rem RY "$RY" "$P_RY"
+  want_alive_rem RX "$RX"
+  want_alive_rem RY "$RY"
+  want_alive_hold AY "$AY"
+  want_eq "AY (state)" "$(approval_state "$AY")" pending
+  want_same_hold AY "$AY" "$P_AY"
+  want_eq "the session and its turn" "$(conv_probe)" "$CONV0"
+  report_rows "after the restarts" "RL fired once, AX is answered done and rejected and its hold has ended, RX, RY and AY are still armed, and the session and its turn are unchanged"
+  echo "TIME after-restarts $((SECONDS - started))s"
+}
+
+# check_foreign <label>: the foreign password-validation setting and routine of path B are unchanged.
+check_foreign() {
+  check_session "$1: the foreign password-validation setting and routine are unchanged" %SYS \
+    "CHK|setting|ZzOther^ZzForeign
+CHK|routine|1" \
+    'Do ##class(Security.System).Get(,.p) Write !,"CHK|setting|",$Get(p("PasswordValidationRoutine"))' \
+    'Write !,"CHK|routine|",+##class(%Routine).Exists("ZzForeign.mac")' \
+    'Halt'
+}
+
+# reinstall_next (check 25): the install command with the next version, from a scratch copy of the package folder with only <Version>
+# raised, on the stack of path B after the restart checks.
+reinstall_next() {
+  local copy=/tmp/ocutalon-scratch-next ver raised rows started=$SECONDS label="reinstall, next version"
+  ver=$(module_version)
+  raised=$(printf '%s' "$ver" | awk -F. 'NF == 3 { print $1 "." $2 "." $3 + 1 }')
+  if [ -z "$raised" ]; then
+    fail "$label: the module version '$ver' is not major.minor.patch"
+    return
+  fi
+  item_jobs "$tmp/jobs-next-before.tsv"
+  rows=$(reconcile_rows)
+  scratch_copy "$copy" \
+    "sed -i 's|<Version>$ver</Version>|<Version>$raised</Version>|' $copy/module.xml" \
+    "grep -c '<Version>$raised</Version>' $copy/module.xml" > "$tmp/scratch-next.out" 2>&1
+  if [ "$(grep -v '^$' "$tmp/scratch-next.out" | tail -n 1 | tr -d '\r')" != 1 ]; then
+    cat "$tmp/scratch-next.out"
+    fail "$label: the scratch copy with the next version could not be made"
+    return
+  fi
+  run reinstall-next OCUTALON "zpm \"load $copy\""
+  check_run_ok reinstall-next "$label"
+  if [ "$(module_version)" = "$raised" ]; then
+    pass "$label: the module is recorded with version $raised"
+  else
+    fail "$label: the module version is '$(module_version)', wanted $raised"
+  fi
+  item_jobs "$tmp/jobs-next-after.tsv"
+  jobs_changed "$label" "$tmp/jobs-next-before.tsv" "$tmp/jobs-next-after.tsv"
+  sleep 15
+  if [ -n "$rows" ] && [ "$(reconcile_rows)" = "$rows" ]; then
+    pass "$label: ReconcileIn logged no new Info row, because the Production step made the start ($rows)"
+  else
+    fail "$label: ReconcileIn's Info rows went $rows -> $(reconcile_rows)"
+  fi
+  take_snapshot reinstall-next "$label"
+  same_services "$label" base-b reinstall-next
+  same_config "$label" second-merge reinstall-next
+  check_foreign "$label"
+  rows_bad=
+  want_eq "the session and its turn" "$(conv_probe)" "$CONV0"
+  want_alive_rem RX "$RX"
+  want_alive_rem RY "$RY"
+  want_alive_hold AY "$AY"
+  report_rows "$label" "the session and its turn are intact, and RX, RY and AY each have one waiter or hold"
+  echo "TIME check-reinstall-next $((SECONDS - started))s"
+}
+
+# check_durable_recovery (check 20): after part r's recovery run, the data seeded before the forced failure is intact and armed once.
+check_durable_recovery() {
+  rows_bad=
+  want_eq "the session and its turn" "$(conv_probe)" "$CONV0"
+  want_alive_rem RL "$RL"
+  want_alive_hold AX "$AX"
+  report_rows "recovery run passes 15.3's checks" "the session and its turn are intact, RL has one waiter and AX one live hold"
+  item_jobs "$tmp/jobs-recover-after.tsv"
+  jobs_changed "recovery run" "$tmp/jobs-recover-before.tsv" "$tmp/jobs-recover-after.tsv"
+}
+
+# --- part p (Story 15.4): the exact release artifact, installed from an IPM repository ---
+
+# ipm_precondition <label>: IPM 0.10.10 is loaded in %SYS and enabled for USER only (check 1); a failure stops the run.
+ipm_precondition() {
+  local before=$fails
+  check_session "$1: IPM 0.10.10 is loaded in %SYS and enabled for USER only" %SYS \
+    "CHK|load|1
+CHK|enable|1" \
+    'Set sc=$SYSTEM.OBJ.Load("/opt/ocutalon-ipm/zpm-0.10.10.xml","ck-d") Write !,"CHK|load|",$SYSTEM.Status.IsOK(sc)' \
+    'Set sc=##class(%IPM.Main).Shell("enable -map -ns USER -q") Write !,"CHK|enable|",$SYSTEM.Status.IsOK(sc)' \
+    'Halt'
+  if [ "$fails" -ne "$before" ]; then die "IPM could not be loaded and enabled for USER"; fi
+}
+
+# derive_dbs <base snapshot>: ipm_db, the database where %IPM resolves in USER (from the snapshot's mapping), and repo_db, the database
+# where USER resolves ^IPM.Repo.DefinitionD (a probe of GetGlobalDest, resolved to the database name).
+derive_dbs() {
+  ipm_db=$(sed -n 's/^CHK|umap-MapPackages|%IPM|//p' "$1" | head -n 1)
+  if [ -z "$ipm_db" ]; then die "precondition: IPM is not mapped into USER"; fi
+  repo_db=$(printf '%s\n' \
+    'Set d=##class(%SYS.Namespace).GetGlobalDest("USER","^IPM.Repo.DefinitionD") Set sc=##class(Config.Databases).DatabasesByDirectory($Piece(d,"^"),$Piece(d,"^",2),.l) Write !,"CHK|repodb|",$ListGet($Get(l))' \
+    'Halt' | session_value %SYS repodb)
+  if [ -z "$repo_db" ]; then die "precondition: the database of IPM's repository definitions could not be read"; fi
+}
+
+# expect_first_config <label> <snapshot>: the snapshot of a first run in USER (check 3): the Interoperability flag, the four databases, AD-3's
+# seven mappings, the %IPM mappings and the three repository mappings.
+expect_first_config() {
+  cat > "$tmp/expected.chk" <<EOE
+CHK|interop|1
+CHK|db|OCUTALON_CODE|ocutalon_code
+CHK|db|OCUTALON_DATA|ocutalon_data
+CHK|db|OCUTALON_PRIVATE|ocutalon_private
+CHK|db|OCUTALON_PUBLIC|ocutalon_public
+CHK|omap-MapGlobals|OcuTalonP.*|OCUTALON_PRIVATE
+CHK|omap-MapGlobals|OcuTalonBP.*|OCUTALON_PRIVATE
+CHK|omap-MapGlobals|AI.Agent.Session*|OCUTALON_PRIVATE
+CHK|omap-MapGlobals|IRIS.IF.*|OCUTALON_PRIVATE
+CHK|omap-MapGlobals|OcuTalonPublic|OCUTALON_PUBLIC
+CHK|omap-MapGlobals|IPM.Repo.DefinitionD|$repo_db
+CHK|omap-MapGlobals|IPM.Repo.DefinitionI|$repo_db
+CHK|omap-MapGlobals|IPM.Repo.DefinitionS|$repo_db
+CHK|omap-MapPackages|OcuTalon.Web.Public|OCUTALON_PUBLIC
+CHK|omap-MapPackages|OcuTalon.Data.Public|OCUTALON_PUBLIC
+CHK|omap-MapPackages|%IPM|$ipm_db
+CHK|omap-MapRoutines|%IPM.*|$ipm_db
+EOE
+  compare_chk "$1: the databases, the Interoperability flag, AD-3's seven mappings, the %IPM mappings and the repository mappings" "$2" "$tmp/expected.chk"
+}
+
+# check_no_repo_data <label>: OCUTALON_DATA, read by its directory, holds no ^IPM.Repo.Definition* node (the mapping moved nothing into it).
+check_no_repo_data() {
+  check_session "$1: OCUTALON_DATA holds no ^IPM.Repo.Definition* node" %SYS "CHK|repodata|0" \
+    'Do ##class(Config.Databases).Get("OCUTALON_DATA",.p) Set dir=p("Directory"),n=0' \
+    'For g="IPM.Repo.DefinitionD","IPM.Repo.DefinitionS","IPM.Repo.DefinitionI" { Set r="^|""^^"_dir_"""|"_g Set:$Data(@r) n=n+1 }' \
+    'Write !,"CHK|repodata|",n' \
+    'Halt'
+}
+
+# defs_hash: "<nodes>|<hash>" of USER's three repository definition globals, computed in the container. A caller keeps it in a variable
+# and never prints it: the definitions' fields stay in the container.
+defs_hash() {
+  printf '%s\n' \
+    'Set h="",n=0 For g="^IPM.Repo.DefinitionD","^IPM.Repo.DefinitionS","^IPM.Repo.DefinitionI" { Set r=g If $Data(@r)#2 { Set n=n+1,h=$SYSTEM.Encryption.SHAHash(256,h_r_@r) } For { Set r=$Query(@r) Quit:r=""  Quit:$Piece(r,"(")'"'"'=g  Set n=n+1,h=$SYSTEM.Encryption.SHAHash(256,h_r_@r) } }' \
+    'Write !,"CHK|defs|",n,"|",$SYSTEM.Encryption.Base64Encode(h)' \
+    'Halt' | session_value USER defs
+}
+
+# artifact_prepare: sets $art to the checked artifact ocutalon-<version>.tgz, or to nothing after a failure. It is OCUTALON_IPM_ARTIFACT
+# when that is set; otherwise the module that path A's second run installed in OCUTALON, packaged with `zpm "package ocutalon -only"`
+# (TIME package) and copied out. ipm_artifact_check reads it (module name and version, FileCopy, the web bundle byte for byte).
+artifact_prepare() {
+  local ver problems bytes
+  art=""
+  ver=$(manifest_version "$root/src/module.xml")
+  if [ -n "${OCUTALON_IPM_ARTIFACT:-}" ]; then
+    if [ -f "$OCUTALON_IPM_ARTIFACT" ]; then
+      art="$(cd "$(dirname "$OCUTALON_IPM_ARTIFACT")" && pwd)/$(basename "$OCUTALON_IPM_ARTIFACT")"
+    else
+      fail "artifact: OCUTALON_IPM_ARTIFACT names no file"
+      return
+    fi
+  else
+    dc exec -T iris mkdir -p /tmp/ocutalon-pkg > /dev/null 2>&1
+    run package OCUTALON "zpm \"package ocutalon -only -path /tmp/ocutalon-pkg/ocutalon-$ver\""
+    if dc cp "iris:/tmp/ocutalon-pkg/ocutalon-$ver.tgz" "$tmp/ocutalon-$ver.tgz" > /dev/null 2>&1; then
+      art="$tmp/ocutalon-$ver.tgz"
+    else
+      fail "artifact: zpm \"package ocutalon -only\" left no ocutalon-$ver.tgz"
+      return
+    fi
+  fi
+  bytes=$(wc -c < "$art" | tr -d ' ')
+  echo "ARTIFACT ocutalon-$ver.tgz $bytes bytes"
+  problems=$(ipm_artifact_check "$art" "$ver" "$root")
+  if [ -n "$problems" ]; then
+    printf '%s\n' "$problems" | sed 's/^/  artifact: /'
+    fail "artifact: ocutalon-$ver.tgz does not carry the module and the web bundle ($(printf '%s\n' "$problems" | head -n 1))"
+    art=""
+    return
+  fi
+  pass "artifact: ocutalon-$ver.tgz ($bytes bytes) carries the module's name and version and every file of the web bundle"
+}
+
+# part_p (checks 26 to 29): on a fresh instance with IPM and no Node.js, the artifact in a local filesystem repository is installed with
+# `zpm "install ocutalon"` in USER and in OCUTALON, signed in to, then uninstalled; the definitions are unchanged (U-232 condition 1).
+part_p() {
+  local started=$SECONDS ver ext h0 h1 h2 n
+  if [ -z "${art:-}" ]; then
+    fail "part p: there is no checked artifact to install"
+    return
+  fi
+  ver=$(manifest_version "$root/src/module.xml")
+  echo "PART p: ocutalon-$ver.tgz from a local IPM repository on a fresh instance"
+  dc down -v > "$tmp/down.log" 2>&1
+  if ! dc up -d --wait --wait-timeout "$((deadline - SECONDS))" > "$tmp/up.log" 2>&1; then
+    tail -n 30 "$tmp/up.log"
+    die "the part p stack did not become ready"
+  fi
+  echo "TIME ready-p $((SECONDS - started))s"
+  ipm_precondition "part p"
+  take_snapshot p-base "part p"
+  derive_dbs "$tmp/p-base.snap"
+  if dc exec -T iris sh -c '! command -v node > /dev/null 2>&1 && ! command -v npm > /dev/null 2>&1'; then
+    pass "part p: the container has no node and no npm"
+  else
+    fail "part p: the container has node or npm"
+  fi
+  ext="$tmp/p-repo/ocutalon-$ver"
+  rm -rf "$tmp/p-repo"
+  mkdir -p "$tmp/p-repo"
+  if ipm_unpack "$art" "$ext" \
+    && dc exec -T -u root iris mkdir -p /tmp/ocutalon-repo > /dev/null 2>&1 \
+    && dc cp "$ext" "iris:/tmp/ocutalon-repo/ocutalon-$ver" > /dev/null 2>&1 \
+    && dc exec -T -u root iris chmod -R a+rX /tmp/ocutalon-repo > /dev/null 2>&1; then
+    pass "part p: the artifact is unpacked into /tmp/ocutalon-repo/ocutalon-$ver of the container"
+  else
+    die "part p: the artifact could not be unpacked into the container"
+  fi
+  # The repository is added in a session whose output is discarded: the repository definitions are never printed.
+  printf '%s\nHalt\n' 'zpm "repo -name ocutalon-local -fs -depth 2 -path /tmp/ocutalon-repo/"' | dc exec -T iris iris session IRIS -U USER > /dev/null 2>&1
+  h0=$(defs_hash)
+  run p-first USER 'zpm "install ocutalon"'
+  take_snapshot p-first "part p first command"
+  stops_with_next_command p-first "part p, the install command in USER"
+  expect_first_config "part p, the install command in USER" "$tmp/p-first.snap"
+  check_no_repo_data "part p, the install command in USER"
+  # A filesystem repository keeps the list of its modules (a cache, ^IPM.Repo.Filesystem.Cache*) apart from its definition, in each
+  # namespace. The definition that OCUTALON sees is the mapped one, opened by name and left as it is; only the module list of OCUTALON is built.
+  check_session "part p, before the same command in OCUTALON: the mapped repository is found there and its module list is built" OCUTALON "CHK|cache|1" \
+    'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT ID FROM %IPM_Repo.Definition WHERE Name = ?","ocutalon-local") Set ok=0' \
+    'If rs.%Next() { Set repo=##class(%IPM.Repo.Definition).%OpenId(rs.%GetData(1)) Set ok=$SYSTEM.Status.IsOK(repo.BuildCache(1,0,0)) }' \
+    'Write !,"CHK|cache|",ok' \
+    'Halt'
+  check_no_repo_data "part p, before the same command in OCUTALON"
+  run p-second OCUTALON 'zpm "install ocutalon"'
+  check_run_ok p-second "part p, the same command in OCUTALON"
+  check_signin "part p" logout
+  take_snapshot p-second "part p second command"
+  same_config "part p, the same command in OCUTALON" p-first p-second
+  h1=$(defs_hash)
+  run p-uninstall OCUTALON 'zpm "uninstall ocutalon"'
+  take_snapshot p-uninstall "part p uninstall"
+  h2=$(defs_hash)
+  uninstall_checks "$h0" "$h1" "$h2"
+  echo "TIME p-fresh $((SECONDS - started))s"
+}
+
+# uninstall_checks <hash before the first command> <hash before the uninstall> <hash after it> (U-232 condition 1; the hashes are
+# "<nodes>|<hash>" and are never printed): the uninstall ended without an error, OCUTALON's three repository mappings are gone and the
+# rest of the configuration is that of the second command, and USER's definitions are unchanged.
+uninstall_checks() {
+  local n=${3%%|*} f="$tmp/p-uninstall.txt"
+  if ! grep -q 'FAILURE' "$f" && ! grep -q '^ERROR!' "$f"; then
+    pass "part p uninstall: zpm \"uninstall ocutalon\" in OCUTALON ends without a FAILURE or ERROR! line"
+  else
+    grep -e 'FAILURE' -e '^ERROR!' "$f" | sed 's/^/  uninstall: /'
+    fail "part p uninstall: the uninstall reported a FAILURE or an ERROR! line"
+  fi
+  : > "$tmp/snap.diff"
+  if [ "$(grep -c '^CHK|omap-MapGlobals|IPM.Repo.Definition' "$tmp/p-second.snap")" = 3 ] \
+    && ! grep -q '^CHK|omap-MapGlobals|IPM.Repo.Definition' "$tmp/p-uninstall.snap" \
+    && diff <(grep -v '^CHK|omap-MapGlobals|IPM.Repo.Definition' "$tmp/p-second.snap") "$tmp/p-uninstall.snap" > "$tmp/snap.diff"; then
+    pass "part p uninstall: OCUTALON's three repository mappings are gone; every other OCUTALON mapping, USER's mappings and the services are unchanged"
+  else
+    sed 's/^/  snapshot: /' "$tmp/snap.diff"
+    grep '^CHK|omap-MapGlobals|IPM.Repo.Definition' "$tmp/p-uninstall.snap" | sed 's/^/  kept: /'
+    fail "part p uninstall: the uninstall changed more than OCUTALON's three repository mappings, or left one"
+  fi
+  if [ "$n" -gt 0 ] 2> /dev/null && [ "$2" = "$3" ] && [ "$1" = "$3" ]; then
+    pass "part p uninstall: USER's repository definitions are unchanged: same|$n"
+  else
+    if [ "$2" != "$3" ]; then
+      echo "  definitions: differs|${n:-0} (after the uninstall, against before it)"
+    elif [ "$1" != "$3" ]; then
+      echo "  definitions: differs|${n:-0} (after the uninstall, against before the first command)"
+    fi
+    fail "part p uninstall: USER's repository definitions differ, or there are none (differs, or 0 nodes)"
+  fi
+}
+
+# finish: the result lines and the exit code.
+finish() {
+  if [ "$fails" -ne 0 ]; then
+    echo "$(basename "$SCRIPT" .sh): $fails check(s) failed (project $P)"
+    exit 1
+  fi
+  echo "$(basename "$SCRIPT" .sh): all checks passed"
+  exit 0
+}
+
 # --- the stack ---
 
 setup_tag
@@ -765,45 +1434,59 @@ fi
 live_track_image
 echo "TIME ready $((SECONDS - started))s"
 
+# --- part p alone: the package is installed from the folder and packaged first when there is no OCUTALON_IPM_ARTIFACT ---
+
+art=""
+if [ "$mode" = p ]; then
+  if [ -n "${OCUTALON_IPM_ARTIFACT:-}" ]; then
+    artifact_prepare
+  else
+    ipm_precondition "packaging stack"
+    run pkg-first USER "$INSTALL"
+    run pkg-second OCUTALON "$INSTALL"
+    check_session "packaging stack: the package is installed in OCUTALON" OCUTALON "CHK|module|ocutalon" \
+      'Set m=##class(%IPM.Storage.Module).NameOpen("ocutalon") Write !,"CHK|module|",$Select($IsObject(m):m.Name,1:"<none>")' \
+      'Halt'
+    artifact_prepare
+  fi
+  part_p
+  finish
+fi
+
 # --- path A: two package runs ---
 
-check_session "precondition: IPM 0.10.10 is loaded in %SYS and enabled for USER only" %SYS \
-  "CHK|load|1
-CHK|enable|1" \
-  'Set sc=$SYSTEM.OBJ.Load("/opt/ocutalon-ipm/zpm-0.10.10.xml","ck-d") Write !,"CHK|load|",$SYSTEM.Status.IsOK(sc)' \
-  'Set sc=##class(%IPM.Main).Shell("enable -map -ns USER -q") Write !,"CHK|enable|",$SYSTEM.Status.IsOK(sc)' \
-  'Halt'
-if [ "$fails" -ne 0 ]; then die "IPM could not be loaded and enabled for USER"; fi
+ipm_precondition precondition
 take_snapshot base "precondition"
 if ! grep -q '^CHK|ns|' "$tmp/base.snap" && ! grep -q '^CHK|db|' "$tmp/base.snap"; then
   pass "precondition: OCUTALON and its databases do not exist yet"
 else
   die "precondition: OCUTALON or its databases exist before the first run"
 fi
-ipm_db=$(sed -n 's/^CHK|umap-MapPackages|%IPM|//p' "$tmp/base.snap" | head -n 1)
-if [ -z "$ipm_db" ]; then die "precondition: IPM is not mapped into USER"; fi
+derive_dbs "$tmp/base.snap"
 check_no_residue "precondition"
+
+run first-sys %SYS "$INSTALL"
+take_snapshot first-sys "first run in %SYS"
+if [ "$(final_line "$tmp/first-sys.txt")" = "ERROR! $REFUSAL" ] && ! grep -q 'Initialize START' "$tmp/first-sys.txt"; then
+  pass "first run in %SYS: IPM refuses the package with its interoperability line before any phase (no Initialize START line)"
+else
+  echo "  last line: '$(final_line "$tmp/first-sys.txt")'"
+  grep -n 'Initialize START' "$tmp/first-sys.txt" | sed 's/^/  found: /'
+  fail "first run in %SYS: the last line is not IPM's refusal ERROR! line, or a phase started"
+fi
+if diff "$tmp/base.snap" "$tmp/first-sys.snap" > "$tmp/snap.diff"; then
+  pass "first run in %SYS: OCUTALON, its databases, resources and mappings, USER's mappings and the services are those of the precondition: nothing was created"
+else
+  sed 's/^/  snapshot: /' "$tmp/snap.diff"
+  fail "first run in %SYS: the configuration changed (the refusal left something behind)"
+fi
+check_no_residue "first run in %SYS"
 
 run first-user USER "$INSTALL"
 take_snapshot first "first run in USER"
 stops_with_next_command first-user "first run in USER"
-cat > "$tmp/expected.chk" <<EOE
-CHK|interop|1
-CHK|db|OCUTALON_CODE|ocutalon_code
-CHK|db|OCUTALON_DATA|ocutalon_data
-CHK|db|OCUTALON_PRIVATE|ocutalon_private
-CHK|db|OCUTALON_PUBLIC|ocutalon_public
-CHK|omap-MapGlobals|OcuTalonP.*|OCUTALON_PRIVATE
-CHK|omap-MapGlobals|OcuTalonBP.*|OCUTALON_PRIVATE
-CHK|omap-MapGlobals|AI.Agent.Session*|OCUTALON_PRIVATE
-CHK|omap-MapGlobals|IRIS.IF.*|OCUTALON_PRIVATE
-CHK|omap-MapGlobals|OcuTalonPublic|OCUTALON_PUBLIC
-CHK|omap-MapPackages|OcuTalon.Web.Public|OCUTALON_PUBLIC
-CHK|omap-MapPackages|OcuTalon.Data.Public|OCUTALON_PUBLIC
-CHK|omap-MapPackages|%IPM|$ipm_db
-CHK|omap-MapRoutines|%IPM.*|$ipm_db
-EOE
-compare_chk "first run in USER: the databases, the Interoperability flag, AD-3's seven mappings and the %IPM mappings" "$tmp/first.snap" "$tmp/expected.chk"
+expect_first_config "first run in USER" "$tmp/first.snap"
+check_no_repo_data "first run in USER"
 grep '^CHK|ns|' "$tmp/first.snap" | head -n 1 | sed 's/^/  namespace row: /'
 if grep -q '^CHK|ns|OCUTALON|OCUTALON_DATA|OCUTALON_CODE|' "$tmp/first.snap"; then
   pass "first run in USER: OCUTALON has the globals database OCUTALON_DATA and the routines database OCUTALON_CODE"
@@ -831,17 +1514,6 @@ else
 fi
 check_no_residue "the repeat in USER"
 
-run again-sys %SYS "$INSTALL"
-take_snapshot again-sys "the run in %SYS"
-stops_with_next_command again-sys "the run in %SYS"
-if diff "$tmp/first.snap" "$tmp/again-sys.snap" > "$tmp/snap.diff"; then
-  pass "the run in %SYS: the configuration and the services are those of the first run"
-else
-  sed 's/^/  snapshot: /' "$tmp/snap.diff"
-  fail "the run in %SYS: the configuration changed"
-fi
-check_no_residue "the run in %SYS"
-
 run shell-user USER 'Set sc=##class(%IPM.Main).Shell("load '"$SRC"'") Write !,"CHK|shell|",$SYSTEM.Status.IsOK(sc),"|",$SYSTEM.Process.TransactionsSuspended(),"|",$TLevel,"|",$SYSTEM.Status.GetOneStatusText(sc)'
 shell_chk=$(sed -n 's/.*\(CHK|shell|.*\)$/\1/p' "$tmp/shell-user.txt" | tail -n 1)
 if [ "$shell_chk" = "CHK|shell|0|0|0|$STOP" ]; then
@@ -862,6 +1534,7 @@ check_session "IPM answers in OCUTALON, so the next command can start there" OCU
 if [ "$mode" != b ]; then
   run second-ocutalon OCUTALON "$INSTALL"
   check_second_run
+  if [ "$mode" = all ]; then artifact_prepare; fi
   if [ "$mode" != r ]; then
     check_install
     check_web
@@ -873,14 +1546,7 @@ if [ "$mode" != b ]; then
   if [ "$mode" != a ]; then reinstall_failures; fi
 fi
 
-if [ "$mode" = a ] || [ "$mode" = r ]; then
-  if [ "$fails" -ne 0 ]; then
-    echo "$(basename "$SCRIPT" .sh): $fails check(s) failed (project $P)"
-    exit 1
-  fi
-  echo "$(basename "$SCRIPT" .sh): all checks passed"
-  exit 0
-fi
+if [ "$mode" = a ] || [ "$mode" = r ]; then finish; fi
 
 # --- path B: iris merge on a fresh instance ---
 
@@ -914,12 +1580,12 @@ echo "OUTPUT end merge"
 if [ "$merge_rc" -eq 0 ]; then pass "path B: iris merge exits 0"; else fail "path B: iris merge exits $merge_rc"; fi
 take_snapshot merge "path B"
 same_services "path B" base-b merge
-# The OCUTALON view of path B is that of path A without the two %IPM mappings, and holds none; USER's mappings and the services are
-# not part of the view.
-view() { grep -v -e '^CHK|service|' -e '^CHK|umap-' -e '%IPM' "$1"; }
+# The OCUTALON view of path B is that of path A without the two %IPM mappings and the three repository mappings, and holds none; USER's
+# mappings and the services are not part of the view.
+view() { grep -v -e '^CHK|service|' -e '^CHK|umap-' -e '%IPM' -e 'IPM.Repo.Definition' "$1"; }
 if view "$tmp/first.snap" > "$tmp/view-a" && view "$tmp/merge.snap" > "$tmp/view-b" && [ -s "$tmp/view-b" ] \
-  && diff "$tmp/view-a" "$tmp/view-b" > "$tmp/snap.diff" && ! grep -q '%IPM' "$tmp/merge.snap"; then
-  pass "path B: OCUTALON's namespace row, Interoperability flag, databases, resources and mappings are path A's, without the %IPM mappings ($(grep -c . "$tmp/view-b") lines)"
+  && diff "$tmp/view-a" "$tmp/view-b" > "$tmp/snap.diff" && ! grep -q -e '%IPM' -e 'IPM.Repo.Definition' "$tmp/merge.snap"; then
+  pass "path B: OCUTALON's namespace row, Interoperability flag, databases, resources and mappings are path A's, without the %IPM and repository mappings ($(grep -c . "$tmp/view-b") lines)"
 else
   sed 's/^/  view: /' "$tmp/snap.diff"
   fail "path B: the OCUTALON view differs from path A's"
@@ -964,12 +1630,7 @@ else
   grep '^WARN ' "$tmp/second-merge.txt" | sed 's/^/  /'
   fail "path B: no single WARN Demo line that names OCUORDERS"
 fi
-check_session "path B: the foreign password-validation setting and routine are unchanged" %SYS \
-  "CHK|setting|ZzOther^ZzForeign
-CHK|routine|1" \
-  'Do ##class(Security.System).Get(,.p) Write !,"CHK|setting|",$Get(p("PasswordValidationRoutine"))' \
-  'Write !,"CHK|routine|",+##class(%Routine).Exists("ZzForeign.mac")' \
-  'Halt'
+check_foreign "path B"
 foreign_after=$(foreign_orders)
 if [ -n "$foreign_before" ] && [ "$foreign_before" = "$foreign_after" ]; then
   pass "path B: the foreign OCUORDERS and its databases are unchanged ($foreign_after)"
@@ -977,9 +1638,21 @@ else
   fail "path B: the foreign OCUORDERS changed, from '$foreign_before' to '$foreign_after'"
 fi
 same_services "path B second run" base-b second-merge
+check_ipm_case "path B second run"
 
-if [ "$fails" -ne 0 ]; then
-  echo "$(basename "$SCRIPT" .sh): $fails check(s) failed (project $P)"
-  exit 1
-fi
-echo "$(basename "$SCRIPT" .sh): all checks passed"
+# --- path B: the production restarts alone, two instance restarts and the next version (checks 21 to 25) ---
+
+seed_durable 180
+check_restart_alone
+seed_pair
+instance_restart 1
+check_restart 1
+instance_restart 2
+check_restart 2
+check_after_restarts
+reinstall_next
+
+# --- part p: the artifact from a local IPM repository, on a fresh instance ---
+
+if [ "$mode" = all ]; then part_p; fi
+finish

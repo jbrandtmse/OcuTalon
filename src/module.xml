@@ -6,6 +6,7 @@
       <Version>0.1.0</Version>
       <Packaging>module</Packaging>
       <SourcesRoot>.</SourcesRoot>
+      <SystemRequirements Version=">=2026.3" Interoperability="enabled"/>
       <CPF Name="ocutalon.cpf" Directory="cpf" Phase="Initialize" When="Before"/>
       <Resource Name="OcuTalon.Bridge.PKG" Directory="bridge/cls"/>
       <Resource Name="OcuTalon.BridgeExample.PKG" Directory="bridge/cls"/>
@@ -14,6 +15,7 @@
       <FileCopy Name="ocutalon/csp/" Target="${dataDir}csp/ocutalon-web/"/>
       <Invoke Class="OcuTalon.Install.Ipm" Method="MapAndStop" Phase="Initialize" When="After"/>
       <Invoke Class="OcuTalon.Install.Registry" Method="Ipm" Phase="Configure" When="After"/>
+      <Invoke Class="OcuTalon.Install.Ipm" Method="UnmapRepos" Phase="Unconfigure" When="Before"/>
     </Module>
   </Document>
 </Export>

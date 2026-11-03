@@ -7,6 +7,8 @@
 #   - base: real-mode inputs give RESULT draft and exit 0; the intro, the areas in the mapping's order with titles in epics.md order,
 #     developer stories only in the developer section, the eight scores, the cost and size lines, the rehearsal and upgrade lines and
 #     tables, the runs and upgrade tables in the developer section; the record and the result stay byte for byte; nothing else is written;
+#   - ipm: ### IPM package and ### Registry install follow ### Upgrade in place in the public part: the record's IPM artifact size line and
+#     the result of its FR-57 job are copied (as "IPM install check"), a section the record lacks is said to be not in it, and the registry slot is the not-run-yet text;
 #   - later: with a v1.0.0 tag, only the new stories and "Changes since v1.0.0."; with no new story, FAIL stories;
 #   - areas: the areas follow the mapping's order; a story line moves a story into another named area;
 #   - epics: no or an empty epics.md at the candidate fails stories, naming the file;
@@ -303,6 +305,8 @@ t_base() {
   has "base: driver host" "$pub" "Driver host: macOS 15, 8 CPU, 16 GiB memory"
   has "base: rehearsal table" "$pub" "| Install | pass | first start 41 s, install included |"
   lacks "base: the runs table is not public" "$pub" "| 1 | 4 s | 2 s |"
+  has "base: IPM package heading" "$pub" "### IPM package"
+  has "base: registry install heading" "$pub" "### Registry install"
   has "base: upgrade heading" "$pub" "### Upgrade in place"
   has "base: upgrade mode" "$pub" "Mode: release"
   has "base: upgrade previous" "$pub" "Previous: pre-release c9f1288 at c9f1288, version 0.1.0, built as 0.1.0"
@@ -318,6 +322,49 @@ t_base() {
   lacks "base: no Run: line is copied" "$d" "Run: 2026-11-01"
   lacks "base: the upgrade's Required: line is not copied" "$d" "Required: yes"
   lacks "base: the upgrade's Candidate: line is not copied" "$d" "Candidate: 1.0.0 at"
+}
+
+# The IPM package and the registry install (Story 15.4): copied lines, the slot, and a record without the sections.
+t_ipm() {
+  local pub slot="Not run yet. After this version is published to the package registry, the README's two commands are run once against the registry on a clean build 154 instance, and the result is recorded here."
+  newcase
+  {
+    cat "$rec"
+    printf '\n## IPM artifact\nResult: pass\nCandidate: 1.0.0 rc1, branch release/1.0.0-rc1 at %s\nSize: 4940070 bytes\nSHA-256: abc\n' "$sha"
+    printf '\n## FR-57 job\nResult: pass\nCandidate: 1.0.0 rc1\nArtifact: ocutalon-1.0.0.tgz, 4940070 bytes\n'
+  } > "$rec.new"
+  mv "$rec.new" "$rec"
+  run_std
+  expect_only "with the sections" 0 draft ""
+  pub=$(pub_part)
+  has "with the sections: the size" "$pub" "IPM artifact size: 4940070 bytes"
+  has "with the sections: the job result" "$pub" "IPM install check: pass"
+  lacks "with the sections: no other line of the artifact section" "$pub" "SHA-256"
+  has "with the sections: the slot" "$pub" "$slot"
+  [ "$(lineno "$notes" '### Upgrade in place')" -lt "$(lineno "$notes" '### IPM package')" ] || { echo "  the IPM package follows the upgrade"; bad=1; }
+  [ "$(lineno "$notes" '### IPM package')" -lt "$(lineno "$notes" '### Registry install')" ] || { echo "  the registry install follows the IPM package"; bad=1; }
+  [ "$(lineno "$notes" '### Registry install')" -lt "$(lineno "$notes" '## For admins and developers')" ] || { echo "  the registry install is in the public part"; bad=1; }
+  eq "with the sections: the slot appears once" "$(grep -cF "$slot" "$notes")" 1
+  # a failed job and a failed artifact section are copied as they stand
+  newcase
+  { cat "$rec"; printf '\n## FR-57 job\nResult: fail\n'; } > "$rec.new"
+  mv "$rec.new" "$rec"
+  run_std
+  has "a failed job: the result" "$(draft)" "IPM install check: fail"
+  # a record without the sections says so, and still has the slot
+  newcase
+  run_std
+  expect_only "without the sections" 0 draft ""
+  pub=$(pub_part)
+  has "without the sections: the size" "$pub" "IPM artifact size: not in the record."
+  has "without the sections: the job result" "$pub" "IPM install check: not in the record."
+  has "without the sections: the slot" "$pub" "$slot"
+  # no record at all: the same, and the other inputs fail as they did
+  newcase
+  rm -f "$rec"
+  run_std
+  has "no record: the size" "$(draft)" "IPM artifact size: not in the record."
+  has "no record: the slot" "$(draft)" "$slot"
 }
 
 t_later() {
@@ -957,6 +1004,7 @@ t_real() {
 
 mkbase
 rule base t_base
+rule ipm t_ipm
 rule later t_later
 rule areas t_areas
 rule epics t_epics
