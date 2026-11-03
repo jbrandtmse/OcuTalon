@@ -4,7 +4,7 @@
 
 ## Goal
 
-Epic 0 is the walking skeleton: one image build and `docker compose up` give OcuTalon in its own OCUTALON namespace, installed and upgraded by its one IPM package at every start, with a branded page behind sign-in, the Orders demo production in OCUORDERS (demo mode), every cross-lane contract and production stub in place, and CI with the model mock. Stories 0.1 to 0.12 are done and merged. Epic 0 is re-opened for one fix-forward, Story 0.13, before the 1.0.0 tag: the after-start script re-runs `iris merge` at every start, and even an unchanged merge performs several namespace reactivations, each of which waits up to about 120 s for a system quiesce and fails with ERROR #453 when it cannot get one. CI hit this on a fresh first start and on the install-start test's restart row, so a user's first start, restart or image update (the online demo's 1.0.0 update recreates the container) can end not ready. A bounded retry on #453 alone closes that gap; the larger rework (no re-merge on an unchanged start) is routed to the first daily release after 1.0.0 and is out of scope.
+Epic 0 is the walking skeleton: one image build and `docker compose up` give OcuTalon in its own OCUTALON namespace, installed and upgraded by its one IPM package at every start, with a branded page behind sign-in, the Orders demo production in OCUORDERS, every cross-lane contract and production stub in place, and CI with the model mock. Stories 0.1 to 0.13 are done and merged; Story 0.13 made a start retry the CPF merge when IRIS answers ERROR #453 ("cannot quiesce"). Epic 0 is re-opened again for one fix-forward, Story 0.14: the live-test library's log check still keeps every STEP line, so a start that recovered through that retry and became healthy is still read as a failure by the live tests, the clean-machine rehearsal and the release upgrade harness. Story 0.14 makes exactly that one sanctioned recovery count as a pass, and makes the upgrade harness report how many retries its starts carried, so a rare #453 stops failing healthy starts while every retry stays visible.
 
 ## Stories
 
@@ -20,47 +20,30 @@ Epic 0 is the walking skeleton: one image build and `docker compose up` give Ocu
 - Story 0.10: The Orders demo production runs in OCUORDERS (done)
 - Story 0.11: The CI model mock answers every scenario the stories need (done)
 - Story 0.12: Epic 0 burn-down (done)
-- Story 0.13: A start retries the CPF merge when IRIS cannot quiesce (backlog; the only open story)
+- Story 0.13: A start retries the CPF merge when IRIS cannot quiesce (done)
+- Story 0.14: A start that recovers through the merge retry passes the live checks and the upgrade harness (backlog; the only open story)
 
 ## Requirements & Constraints
 
-Story 0.13's acceptance criteria carry five binding conditions added on November 3 under the owner's delegation; where they differ from the original criteria, they win:
-
-- **Retry only on #453.** Retry the merge only when its output carries ERROR #453 ("Cannot quiesce the system for namespace reactivation"). Any other merge failure fails at once with no retry, exactly as today. A #453 on the last try ends the start not ready with the existing `STEP merge FAILED` report and no ready marker. A short pause separates the tries so the blocking job can finish. A merge that succeeds on a retry continues the start exactly as a first-try success does.
-- **One countable line per retry:** exactly `STEP merge RETRY <n> after #453`, written to the start's log. The Contest Planner's pre-release rehearsal counts these lines across 20 starts, so the form is fixed.
-- **Size the bound against `start_period`, not the live tests.** One #453 (about 122 s), the pause, a successful retry and the slowest measured first start (IPM and package install) must still reach healthy inside `docker-compose.yml`'s `start_period: 600s`. The spec's Design Notes must cite or measure the slowest first start and show the arithmetic. If it doesn't fit, this story raises `start_period` and says so. The live tests' ready limits (install-start row 1's 400 s, row 2's 200 s) apply only to their own runs, where no #453 is injected. They are not the retry bound and are loosened only if the plan finds they must be, with the reason recorded.
-- **The stubbed test** uses a fake `iris merge` and pins three cases with their log lines: #453 then success (ready, one `RETRY` line); #453 on every try (`STEP merge FAILED`, not ready, one `RETRY` line per retry); any other failure (no retry, no `RETRY` line). It runs in an existing CI group or list, never `production`, `browser`, `install-fresh` or `install-upgrade`.
-- **Scope lock:** `docker/merge.cpf` stays byte-for-byte unchanged, and this story is `docker/after-start.sh`'s only change before the 1.0.0 tag. The 1.0.0 release candidate branch includes this story, so the Planner's hand checks run the `after-start.sh` that ships.
-- **Done when:** the three stubbed cases pass, `merge.cpf` is unchanged, `test-install-start.sh` and `test-install-upgrade.sh` pass, and CI is green on every workflow (`ci` and `lane-a`).
+- **The one sanctioned recovery passes.** When a start log carries exactly one `STEP merge RETRY 1 after #453` line and a `STEP merge OK` line follows it in the same start log, `check_log` treats the start as matching its expected STEP and RESULT lines, as if the merge had succeeded first time.
+- **Everything else fails exactly as today:** any `STEP merge FAILED` line; a second `RETRY` line (any number); a `RETRY` line with no `STEP merge OK` after it; a `RETRY` line in any other form (a near-miss of the exact text). No other STEP or RESULT line is ignored or loosened.
+- **Retries stay visible.** The upgrade harness's result names how many `STEP merge RETRY` lines its starts carried, 0 when none.
+- **Tests:** the live-library test pins one RETRY then OK (pass), and RETRY with no OK, two RETRY lines, RETRY then FAILED and a near-miss RETRY line (each fails); the harness test's fixtures read a count of 0 and of 1.
+- **Scope lock:** `docker/after-start.sh` and `docker/merge.cpf` stay unchanged. Done when the fixtures pass and CI is green on every workflow (`ci` and `lane-a`).
+- **Release placement:** the 1.0.0 release candidate takes this story only if it has merged by the time Story 31.3 merges; otherwise it ships in the first daily release after 1.0.0. It must never become rc1's last item.
 
 ## Technical Decisions
 
-- **The start sequence (AD-23):**
-  - The image's `CMD` deletes the ready marker before IRIS starts.
-  - `iris-main` applies `ISC_CPF_MERGE_FILE` only at the first start or when the file changes. So the after-start script re-runs `iris merge` at every start, before any session or install step, on a fresh temporary copy of the image's merge file, because `iris merge` skips a path whose `*.last_merge` record is unchanged. This keeps the merge idempotent and repairs a mapping removed by hand.
-  - After the merge, the script installs IPM and the package (version-gated), runs the registry's steps in their fixed order and writes the ready marker atomically, only after every step succeeds.
-- **Reporting:**
-  - The script logs `STEP <name> OK|FAILED` per step and a final `RESULT OK <version>` to `/durable/ocutalon-after-start.log`, rewritten every start. A non-fatal condition is a `WARN <step> <text>` line after the step's line, and never changes the result.
-  - The script always exits 0 and reports failure only through the missing ready marker. A non-zero exit stops IRIS and the restart policy loops the container.
-- **Health check:** a shell script that opens no IRIS session. It passes only when `iris qlist` shows IRIS running and the ready marker equals the image's version. `start_period` is at least 10 minutes (600 s today), and the install script waits 15 minutes. Changing `start_period` keeps that floor.
-- **First-start figures for the bound's arithmetic:**
-  - The x64 IRIS runner's `FIRST-START` lines run from `docker compose up` to ready. They read 150 s, 177 s and 160 s across Epic 0; 160 s at Epic 0's merge head is the README's figure.
-  - The early spike measured about 1 minute on Apple silicon, and about 20 s for the non-Health image.
-  - An earlier first start of the same image took 5 to 8 minutes. That is why `start_period` stays at 10 minutes.
-  - Check later epics' figures before choosing the slowest one.
-- **Platform:** the script runs under the host's bash in hermetic tests (3.2 on macOS), so the retry logic must stay portable shell.
-- **Ownership:** `docker/merge.cpf` is Lane A's and the rest of `docker/` (the after-start script included) is Lane B's. Only Epic 0 edits both lanes' files together.
-- **CI rules:**
-  - Every `docker/tests/test-*.sh` belongs to exactly one of `CHECK_SCRIPTS`, `WEB_SCRIPTS` or an IRIS group in `ci/units.sh`, or `test-ci-config.sh` fails.
-  - A full CI run must stay within 35 minutes.
-  - Scripts never run `docker compose config` without `--quiet` or `docker inspect` without `--format`.
+- **Start log format (fixed by the start sequence):** the after-start script writes `STEP <name> OK|FAILED` per step and a final `RESULT OK <version>` to `/durable/ocutalon-after-start.log`, rewritten every start; a non-fatal condition is a `WARN <step> <text>` line that never changes the result. Story 0.13 added exactly one line per merge retry, `STEP merge RETRY <n> after #453`, before the merge's final OK or FAILED line. That text is fixed: the Contest Planner's rehearsal counts it across 20 starts.
+- **Where the check lives:** `docker/tests/lib-live.sh`'s `log_steps` extracts the STEP lines and `check_log` compares them with the expected list. Both the live install tests and `release/upgrade-harness.sh` use them, so one change covers both.
+- **Readiness is unchanged:** a start is ready only when the ready marker equals the image's version; the health check opens no IRIS session. Story 0.14 changes only how test tooling reads the log, not what makes a start ready.
+- **Platform:** the scripts also run under the host's bash in hermetic tests (3.2 on macOS), so keep the matching logic in portable shell.
+- **CI rules:** every `docker/tests/test-*.sh` belongs to exactly one of `CHECK_SCRIPTS`, `WEB_SCRIPTS` or an IRIS group in `ci/units.sh`, or `test-ci-config.sh` fails. A full CI run stays within 35 minutes. Scripts never run `docker compose config` without `--quiet` or `docker inspect` without `--format`.
+- **Ownership:** `docker/` is Lane B's apart from Lane A's `merge.cpf`, and `release/` is Lane A's release work. Only Epic 0 edits both lanes' files together.
 
 ## Cross-Story Dependencies
 
-- **Builds on Story 0.2's after-start script and its merge step.** The existing hermetic test `docker/tests/test-after-start.sh` (in `CHECK_SCRIPTS`, the hosted checks job) already puts a fake `iris` on `PATH` that answers `merge` from the environment. It is the natural home for the three stubbed cases and sits in an allowed list.
-- **The live install tests** `docker/tests/test-install-start.sh` (group `install-fresh`) and `test-install-upgrade.sh` (group `install-upgrade`) must keep passing unchanged within their 400 s and 200 s limits. They get no new #453 cases.
-- **Downstream consumers:**
-  - The 1.0.0 release candidate and the Planner's timed rehearsal on a clean Linux droplet (Story 38.2) count the `RETRY` lines across 20 starts, a restart check included.
-  - The online demo's 1.0.0 update relies on the retry on its container recreate.
-  - The README's first-start figure and Story 10.2's wording stay as they are unless `start_period` changes.
-- **Reversal:** if the owner reverses the decision behind this story, Story 0.13 is dropped, or its merge is reverted.
+- **Builds on Story 0.13's retry and its log line.** The exact form `STEP merge RETRY <n> after #453` and the bound of one retry that leads to OK are what `check_log` must recognise; nothing else should match.
+- **Existing tests to extend:** `docker/tests/test-lib-live.sh` and `docker/tests/test-upgrade-harness.sh`, both already in `CHECK_SCRIPTS` (the hosted checks job). The live install tests (`test-install-start.sh`, `test-install-upgrade.sh`) inherit the change through `lib-live.sh`.
+- **Downstream consumers:** the release upgrade harness (one check at 1.0.0, run on a new Linux droplet), the Planner's clean-machine rehearsal (Story 38.2), which counts retry lines across 20 starts, and the 1.0.0 candidate's gates. Story 31.3's merge decides whether this story is in rc1.
+- **Out of scope:** the larger rework that stops re-merging on an unchanged start belongs to the first daily release after 1.0.0.
