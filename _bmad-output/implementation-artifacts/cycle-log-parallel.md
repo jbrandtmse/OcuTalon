@@ -1653,3 +1653,6 @@
 2026-11-03T16:56:30Z	Epic 12	worktree_bootstrapped	epic=12 result=ok
 2026-11-03T16:56:30Z	Epic 12	ruling	question=dispatch_12.10_onto_feature_679955b1_while_its_CI_is_pending choice=dispatch_now:non-bookkeeping_tree_identical_to_66f98c6a(green_every_workflow) category=decide policy=508603671b9598f59d04750db6b6cdad2d396167
 2026-11-03T16:56:30Z	Epic 12	runner_dispatched	runner=a97e4111acaf71f8b model=opus slot=ocutalon-slot-b lane=B base=1f80d109 prompt=prompts/dispatch-epic-12-1210.md story=12.10 decision=U-238
+2026-11-03T17:21:30Z	Epic 12	runner_clarification	story=12.10 kind=public_text(drawer-band_Telegram_hint) shas=12e697b1(verified)
+2026-11-03T17:21:30Z	Epic 12	ruling	question=12.10_hint_wording+gate_decisions(ux-strings_entry,new_spec_file) choice=recommended:"Optional:_press_Status_at_the_top_of_the_page,_then_scan_the_QR_code_in_the_Telegram_card_to_get_the_notice_on_your_own_phone."+Show_me;gate_decisions_kept rejected=open_variant(guide_never_uses_open_as_a_verb) category=veto reversal=change_one_string_and_its_three_pins inbox=U-244 policy=508603671b9598f59d04750db6b6cdad2d396167
+2026-11-03T17:21:48Z	Epic 12	runner_resumed	agent=a97e4111acaf71f8b with=U-244_hint_wording+gate_decisions_kept
