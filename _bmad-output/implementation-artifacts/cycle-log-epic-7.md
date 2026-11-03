@@ -232,3 +232,4 @@
 2026-11-03T21:37:32Z	Epic 7	epic_status_reopened	epic-7=done->in-progress reason=SC-5_reopen_story_7.7(sanctioned_by_dispatch) story=7-7-a-date-repair-that-could-read-either-way-names-its-evidence(backlog)
 2026-11-03T21:37:32Z	Epic 7	owner_decision	id=U-249 at=2026-11-03T21:34:43Z#748 via=orchestrator by=Contest_Planner(owner_delegate) note=new_wording(arrived_day,{item}),one_day_tolerance_both_ways,both-readings-match=no_evidence,instance_vs_UTC_date_test;to_spec_at_plan_gate
 2026-11-03T21:39:59Z	Epic 7	slot_loaded	slot=ocutalon-slot-b id=62AB8833 namespace=OCUTALON from=d721cdf9 bridge=56 ocutalon=589 compile=ok(ck-d,errors=0) stale=none(687=645+42_BPL_message_classes)
+2026-11-03T21:43:10Z	Epic 7	epic_context_compiled	reason=planning_artifact_newer(story_7.7_added) model=claude-opus-5-5 header=ok ascii=ok
