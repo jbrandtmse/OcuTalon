@@ -1687,3 +1687,4 @@
 2026-11-03T21:25:51Z	Epic 12	worktree_removed	worktree=.worktrees/epic-12
 2026-11-03T21:25:51Z	Epic 12	epic_branches_deleted	branch=OCT-epic12 local+origin(after_push)
 2026-11-03T21:26:47Z	Epic 12	epic_merged_to_feature	merge=4576b1f4 head=b4161594 feature_head=e660faef verified=merge-base_is-ancestor story=12.10 rc1=included
+2026-11-03T21:27:07Z	Epic 33	runner_resumed	agent=ac8d6e27567bb096b with=33.2_unblocked(12.10_merged_4576b1f4);integrate_forward_first;stack_limit_unchanged note=queued
