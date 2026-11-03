@@ -2373,6 +2373,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: src/ocutalon/cls/OcuTalon/Data/Pairing.cls:217 Purge vs src/ocutalon/cls/OcuTalon/Digest/Data/Item.cls:64 Purge; Task A says the validation and cutoff follow Digest/Data/Item.cls:64-87; Digest is Lane A's (AD-29)
 - 2026-10-28T23:35:43Z status=routed owner=30-2-old-messages-and-records-are-purged-on-schedule by=cr note=Rule 2 forced copy: one day-count check and cutoff helper (e.g. in Data.Time) for Bridge.Purge, Pairing.Purge, Digest
 - 2026-10-30T15:56:40Z status=routed owner=burndown by=cr note=Lane A side done in 30.2 (Bridge.Time.DaysCutoff, used by Digest); left: Data.Pairing.Purge (Lane B), IncidentManager.Purge
+- 2026-11-03T11:05:55Z status=routed owner=burndown by=burndown note=Epic_12_burn-down:not_a_1.0.0_blocker(single_occurrence_or_forced_copy);first_daily_release_after_1.0.0(orchestrator_ruling_with_the_Contest_Planner)
 
 ### DW-372: The Story 10.3 Pairing test classes each carry their own NewChat, Code, Submit, Hops and WaitHops helpers (SessionOps, SessionOpsProduction, AnswersTelegramProduction, PairingApi, beside RoutingProduction.WaitHops)
 - source: spec-10-3-the-session-side-of-telegram-is-ready-and-stays-off.md | severity: low | fix-risk: med | footprint: in-story
@@ -2953,6 +2954,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-12-2-ocutalon-polls-and-writes-to-its-own-bot-and-pauses-when-ano.md | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: CI run 41207682542 attempt 1 (OCT-epic12 ec468c81, Story 12.2, no Fix change), iris shards-2: 5 asserts of TestCopiesFailAgain failed (57.4 s); attempt 2 green; the class passed on a fresh lane-C throwaway in 41 s; af47ff3c green on the same unit
 - 2026-10-31T15:28:23Z status=routed owner=burndown by=ci note=flake class from now: one rerun with occurrence=; likely a wait in Fix.Partial under CI load (inference); Fix is Lane A, Epic 7's area (Fix/Executor.cls is contended with Epic 30)
+- 2026-11-03T11:05:55Z status=routed owner=burndown by=burndown note=Epic_12_burn-down:not_a_1.0.0_blocker(single_occurrence_or_forced_copy);first_daily_release_after_1.0.0(orchestrator_ruling_with_the_Contest_Planner)
 
 ### DW-499: The Telegram card's view module web/src/app/rail/telegram-card/telegram-card-view.ts has no Node unit test; its branches (missing status, missing or non-string time slot, state on) are pinned only by the browser tests T1 and T2
 - source: spec-12-8-the-page-shows-when-telegram-is-paused-and-when-it-will-try.md | severity: low | fix-risk: low | footprint: in-epic
@@ -2978,6 +2980,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-12-8-the-page-shows-when-telegram-is-paused-and-when-it-will-try.md | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: CI run 41230579974 attempt 1 (OCT-epic12 a634857d, Story 12.8; no guide, rail or watch change), iris shards, live:floor M4; attempt 2 green; live:floor passed locally 105/105 on a fresh lane-C stack
 - 2026-10-31T19:42:02Z status=routed owner=burndown by=ci note=flake class from now: one rerun with occurrence=; guide.spec.ts and the Status region are Lane B's (Epic 4/8 area); possibly a real tick or watch.progress ordering under CI load (inference)
+- 2026-11-03T11:05:55Z status=routed owner=burndown by=burndown note=Epic_12_burn-down:not_a_1.0.0_blocker(single_occurrence_or_forced_copy);first_daily_release_after_1.0.0(orchestrator_ruling_with_the_Contest_Planner)
 
 ### DW-512: A browser clock ahead of the server's by ten minutes or more makes the Telegram card replace its pairing code every 10 s, captioned 'New code in 1 min'
 - source: spec-12-3-the-telegram-card-shows-a-fresh-pairing-code-as-a-qr-code.md | severity: low | fix-risk: med | footprint: in-story
@@ -3025,11 +3028,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: _bmad-output/implementation-artifacts/spec-12-5-bad-codes-a-bare-start-command-and-unpairing-get-polite-answ.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: runner smoke of 12.6 (tag e12s6smk, 2026-11-01T17:30Z): 1 failed telegram-page.spec.ts:925 expect.poll repliesOf(STRANGER_CHAT) toEqual([BAD]) timeout 10000ms; rerun 19 passed
 - 2026-11-01T17:35:48Z status=routed owner=burndown by=smoke note=flake class: one rerun with occurrence=; a second red on the same head takes the rework path; probe whether TelegramIn's poll plus Notify->TelegramOut can exceed 10 s under load, or the reply list read races the send
+- 2026-11-03T11:05:55Z status=routed owner=burndown by=burndown note=Epic_12_burn-down:not_a_1.0.0_blocker(single_occurrence_or_forced_copy);first_daily_release_after_1.0.0(orchestrator_ruling_with_the_Contest_Planner)
 
 ### DW-540: flake: web/e2e/demo-switch/mailbox.spec.ts:425 MB9 (a refused chip press shows the server message; page.waitForResponse hit the 120 s test timeout) red once in CI shards-2 live:demo-switch on OCT-epic12 b14f7527; the unchanged rerun passed
 - source: _bmad-output/implementation-artifacts/cycle-log-epic-12.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: run 41334145441 job iris (shards-2) attempt 1: 1 failed (MB9, 2.0m); attempt 2 green; Epic 12 changed no mailbox or demo-switch code
 - 2026-11-01T19:32:33Z status=routed owner=burndown by=ci note=flake class: one rerun with occurrence=; Lane B's (Epic 4 / Story 4.6) test; a second red on the same head takes the rework path
+- 2026-11-03T11:05:55Z status=routed owner=burndown by=burndown note=Epic_12_burn-down:not_a_1.0.0_blocker(single_occurrence_or_forced_copy);first_daily_release_after_1.0.0(orchestrator_ruling_with_the_Contest_Planner)
 ### DW-495: Test.Bridge.Gate's untrusted-turn row still calls cancel_reminder with {"reminderRef":"x"}, which now answers BADREFS before CommandCall.Run, so the row's 'its method did not run' check (CommandCount '= 0) can no longer fail for cancel_reminder
 - source: spec-11-8-the-chat-cancels-several-reminders-in-one-call-and-says-it-c.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Test/Bridge/Gate.cls:1764 passes the old key; RunDenied (Gate.cls:2235) detects a built-in tool's run only by CommandCount; ReminderTools.CancelReminder answers BADREFS for a missing reminderRefs without calling Run (TestCancelThroughTheToolManager pins {} as BADREFS with nothing recorded)
@@ -3388,11 +3393,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: CI run 41545446452 (OCT-epic12 e9bfda24), iris (browser) live:answers | severity: med | fix-risk: low | footprint: web/e2e/answers/close-loop.spec.ts
 - evidence: run 41545446452 attempt 1 at 2026-11-03T00:02Z; the answered slot time 23:58 the previous day
 - 2026-11-03T00:09:06Z status=routed owner=burndown by=ci note=time-of-day flake (only when a run crosses midnight); Lane B test; fix: build the expected line with the page's own day rule or pin the clock
+- 2026-11-03T11:05:55Z status=routed owner=burndown by=burndown note=Epic_12_burn-down:not_a_1.0.0_blocker(single_occurrence_or_forced_copy);first_daily_release_after_1.0.0(orchestrator_ruling_with_the_Contest_Planner)
 
 ### DW-609: flake: web/e2e/demo-path/telegram-page.spec.ts:1002 T7 (Story 12.6) hit the 120 s test timeout in CI iris (browser) live:demo-path, running right after the new T8 (Story 12.7); green on the unchanged rerun and in the local smoke (T8 then T7)
 - source: CI run 41545446452 (OCT-epic12 e9bfda24) attempt 1 | severity: med | fix-risk: low | footprint: web/e2e/demo-path/telegram-page.spec.ts
 - evidence: attempt 1 at 23:38Z: 27 passed, T7 timed out (2.0 m), no assertion message; attempt 2 green
 - 2026-11-03T00:44:48Z status=routed owner=burndown by=ci note=unknown cause (no assertion message); watch for T8 leftovers (a pairing or an incident) slowing T7 on a loaded host
+- 2026-11-03T11:05:55Z status=routed owner=burndown by=burndown note=Epic_12_burn-down:not_a_1.0.0_blocker(single_occurrence_or_forced_copy);first_daily_release_after_1.0.0(orchestrator_ruling_with_the_Contest_Planner)
 
 ### DW-614: TelegramPageFixture.Notify and the upgrade harness's pairing readings (Move, session, replies, notify) run only in the release harness's live phases, never in CI
 - source: spec-12-9-telegram-is-included.md | severity: low | fix-risk: med | footprint: in-story
