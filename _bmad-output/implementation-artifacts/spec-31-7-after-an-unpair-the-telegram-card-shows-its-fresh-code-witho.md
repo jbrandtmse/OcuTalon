@@ -2,7 +2,8 @@
 title: 'Story 31.7: after an unpair, the Telegram card shows its fresh code without a gap'
 type: 'bugfix'
 created: '2026-11-03'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '9436ea4f614d8395f6750dadfeaea82ead6cc73e'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -108,6 +109,21 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-11-03 -- Review pass
+- verdicts: 17 findings from the layers (the intent audit is descriptive and files none) -- high 0, medium 5, low 7, false 5, maybe-false 0; grouped rows below name their members
+- findings:
+  - `[medium]` `patch` Blind 1, Edge 3, Gap 2: the refusal test never refuses, so the 409 half of AC3 has no unit pin -- renamed the test to what it shows; added a source pin that the 409 branch returns before `reply.failed()`, with a mutation line.
+  - `[low]` `patch` Blind 2, Gap 3: "the first value grants nothing" cannot fail (the first request is at once either way) -- rewrote it so the first value (unpaired) arrives after an earlier request and must still wait out the spacing; mutation line added.
+  - `[medium]` `patch` Blind 6, Gap 1: the AC4 pin slices on comment markers and passes when the call sits below the early returns -- the pin now asserts the call comes before `if (key === '')`, and the slice is bounded from its own start; mutation line added.
+  - `[low]` `patch` Blind 5, Edge 5: "the code is held before the 5 seconds end" over-claims and the line is unwrapped -- reworded to "normally held when the 5 seconds end" and re-wrapped.
+  - `[low]` `patch` Edge 4: the module doc and `CODE_SPACING_MS` doc say nothing of the exemption -- added a paragraph to the module doc and the exception to the constant's doc.
+  - `[false]` `reject` Blind 3, Edge 1, Edge 2 (an unpair seen late, or never, during a pause; an exemption that does not expire) -- the spec's D2 and D3 name this: the grant lands when asking next starts and costs one request; an unpair inside a pause is "the first request after an unpair" when the pause ends.
+  - `[false]` `reject` Blind 4: `CodeReply` called twice leaves a stray timer -- the component calls it once per request (an HTTP observable emits once); not reachable.
+  - `[false]` `reject` Blind 7: no case with an exempt request and a future due time -- the exemption is used up by the request it covers, so `later` never sees it set with a due time; unreachable.
+  - `[low]` `reject` Gap (mutation lines are not literally `mutation:`; AC5 has none; no post-fix green in the diff) -- the Verification section's mutation lines are the project's form; AC5 is D4; the post-fix green of `live demo-path` is in the Auto Run Result.
+  - `[low]` `reject` Gap other (component wiring has no executed host outside e2e) -- the spec chose source pins plus T3 to T6 (D4); the live run passed.
+  - `[low]` `reject` Intent alignment (descriptive: R2 and R3 readings of the unpair as a store event, the grant without an expiry) -- the diff implements the spec's stated reading (D2, D3); no divergence from the intent contract.
+
 ## Design Notes
 
 **Task 0 (code reading at 121c0185; the analysis is confirmed).**
@@ -167,13 +183,30 @@ Run rules:
 - (once) `OCUTALON_RUN_TAG=e31s7i ci/iris.sh teardown` -- expected: only the `e31s7i` projects are removed.
 
 **Mutations (Rule 19; apply one, observe red, revert, then confirm `git status --short` and `git diff --stat` are unchanged):**
-- AC1: make the exemption grant a no-op. Expected red: the unit case "after an unpair, the request goes out at once".
-- AC2: never use up the exemption after a request. Expected red: the unit case "after the exempt request, a code that is due at once waits until 10 s after it".
-- AC3: retry after a failure with the spacing in place of `CODE_RETRY_MS`. Expected red: the unit case "a failure asks again exactly 30 000 ms later".
-- AC4: delete the component's call that passes `paired` to the schedule. Expected red: the source pin.
+- AC1: make the exemption grant a no-op (`CodeSchedule.paired` sets `exempt = false` on a true-to-false change). Observed red (6 cases), among them "after an unpair, the request goes out at once". Reverted; tree byte-identical.
+- AC2: never use up the exemption after a request (delete `this.exempt = false` in `send`). Observed red (3 cases), among them "after the exempt request, a code that is due at once waits until 10 s after it". Reverted; tree byte-identical.
+- AC3: retry after a failure with the spacing in place of `CODE_RETRY_MS` (`later(now())`). Observed red (1 case): "a failure asks again exactly 30 000 ms later, the exempt request included, with no second exemption". Reverted; tree byte-identical.
+- AC4: delete the component's call that passes `paired` to the schedule. Observed red (1 case): the source pin "tells it the paired value inside the asking effect, untracked, before it starts asking". Reverted; tree byte-identical.
+- AC3 (409 half): make the component's 409 branch call `reply.failed()` before it returns. Observed red (1 case): the source pin "a 409 shows the not-set-up view and returns without a reply, so the schedule stops asking". Reverted; tree byte-identical.
+- First value: let the first `paired` value grant (`this.before !== false` in `CodeSchedule.paired`). Observed red (1 case): "the first value grants nothing: a card whose first value is unpaired still waits out the spacing". Reverted; tree byte-identical.
+- AC4 (placement): move the component's `paired` call below the asking effect's early returns. Observed red (1 case): the source pin "tells it the paired value inside the asking effect, untracked, before it starts asking". Reverted; tree byte-identical.
 - AC5: the pre-fix head e75b90bc, where T6 was seen red twice on CI runner 20. A local red is not required (D4).
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** The Telegram card's request timing moved into the framework-free `CodeSchedule` (`telegram-card-view.ts`). The first request after an unpair (the store's `paired` turning true to false) goes out at once; every other request keeps the 10 s spacing, and a failure retries after 30 s. A 409 stops the asking. The card builds one schedule and tells it `paired` (untracked) at the start of each run of its asking effect, before the early returns. Doc comments were replaced to state the new contract.
+
+**Files changed** (`footprint_extensions:` web/src/app/rail/telegram-card/telegram-card.ts, web/src/app/rail/telegram-card/telegram-card-view.ts, web/scripts/telegram-card-view.test.mjs, ruled under U-243):
+- `web/src/app/rail/telegram-card/telegram-card-view.ts`: `CodeSchedule`, `CodeScheduleOptions`, `CodeReply`; module and constant docs.
+- `web/src/app/rail/telegram-card/telegram-card.ts`: `lastRequest`, `later` and the timing in `ask` replaced by the schedule; class docs.
+- `web/scripts/telegram-card-view.test.mjs`: schedule cases on `fakeClock()` for every Matrix row, and three source pins on the wiring.
+- This spec: mutation lines, triage log.
+
+**Review.** 17 findings from the layers: 10 of them in 5 entries patched (the refusal case now has a 409 source pin and an honest name; the first-value case now discriminates; the AC4 pin now requires the call before the early returns; the "held before 5 s" claim was softened and wrapped; the module and constant docs now state the exemption), 0 deferred, 7 rejected with reasons in the triage log (design notes D2 and D3, unreachable calls, and non-defects). Patched entries by verdict: medium 2, low 3. `followup_review_recommended: false`: each patched test was mutation-checked (red observed, reverted).
+
+**Verification.** `node --test web/scripts/telegram-card-view.test.mjs` 26 of 26. `npm --prefix web test` 1301 of 1301. `bash ci/checks.sh` all scripts passed (run after the last patch). `OCUTALON_RUN_TAG=e31s7i ci/iris.sh build` built the bundle. `ci/iris.sh live demo-path` 28 of 28 passed, T1 to T7 green (T3 to T6 unchanged), run before and again after the last patch. Teardown of `e31s7i` done. Mutations for AC1 to AC4, the 409 half, the first value and the AC4 placement each went red and were reverted.
+
+**Residual risks.** The component's wiring has no Node test host: it is pinned by source text and by T3 to T6 on the real stack. T6's pre-fix red was seen only on CI (D4). An unpair inside a pause grants its exemption when asking next starts (D2).

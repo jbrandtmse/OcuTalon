@@ -1,6 +1,5 @@
 import { HttpErrorResponse } from '@angular/common/http';
 import { ChangeDetectionStrategy, Component, computed, DestroyRef, effect, inject, input, signal, untracked } from '@angular/core';
-import type { Subscription } from 'rxjs';
 
 import { ApiClient } from '../../api/api-client';
 import type { PairingCode, TelegramState } from '../../api/api-types';
@@ -14,8 +13,7 @@ import { ServerButton } from '../../shared/server-button';
 import { RAIL_TEXTS, readmeSection, TELEGRAM_ANCHOR } from '../rail-view';
 import {
   asksForCode,
-  CODE_RETRY_MS,
-  CODE_SPACING_MS,
+  CodeSchedule,
   dueTime,
   JUST_UNPAIRED_MS,
   qrSymbol,
@@ -39,7 +37,8 @@ import {
  * template), the scan line, and a foot with the "Open in Telegram" link and "New code in {n} min". The code lives only in this
  * component's memory and in the link and QR code it renders: it is written to no log, store, URL or announcement.
  *   - A code is due at the earlier of its expiry and ten minutes after it arrived; at that time the card asks again, never sooner than
- *     ten seconds after its previous request, so a browser clock ahead of the server's asks at most once every ten seconds. The new
+ *     ten seconds after its previous request, so a browser clock ahead of the server's asks at most once every ten seconds. The one
+ *     exception is the first request after an unpair (the store's `paired` turning from true to false): it goes out at once. The new
  *     code is bound into the same link and SVG elements, so a focused link keeps its focus and nothing the user typed moves. The card
  *     moves focus nowhere and announces nothing.
  *   - A 409 (the server's state is not `on`) shows the not-set-up view and stops asking until the Telegram block's state, bot name or
@@ -56,8 +55,8 @@ import {
  * It is just unpaired (Story 12.5; UX-DR14, UX-DR56, UX-DR131) for `JUST_UNPAIRED_MS` (5 seconds) whenever the store's `paired` changes from
  *   true to false while the card exists: the `circle-slash` icon and "Telegram unpaired", with no button, link, QR code or code. The first
  *   value the card sees never starts it, so a page loaded while unpaired shows the unpaired view at once. The card asks for its code from
- *   the change on, so the code is usually held when the 5 seconds end. Paused, not set up and paired come ahead of it, so a pairing during
- *   the window shows the paired view. The card announces "Telegram unpaired" once for each change that starts the view.
+ *   the change on, and that first request is not held back by the spacing, so the code is normally held when the 5 seconds end. Paused,
+ *   not set up and paired come ahead of it, so a pairing during the window shows the paired view. The card announces "Telegram unpaired" once for each change that starts the view.
  * The root's `data-state` is `paused`, `not-set-up`, `paired`, `just-unpaired` or `unpaired`.
  */
 @Component({
@@ -206,8 +205,12 @@ export class TelegramCard {
   private readonly refusedAt = signal<string | undefined>(undefined);
   /** True for JUST_UNPAIRED_MS after the store's paired turned from true to false. */
   private readonly justUnpaired = signal(false);
-  /** When the latest request started, in browser milliseconds; it outlives the asking so that two requests are never closer than the spacing. */
-  private lastRequest = Number.NEGATIVE_INFINITY;
+  /** When the card asks for a code (telegram-card-view.ts); it outlives one asking, so that the spacing counts across askings. */
+  private readonly schedule = new CodeSchedule({
+    setTimeout: (handler, ms) => globalThis.setTimeout(handler, ms),
+    clearTimeout: (handle) => globalThis.clearTimeout(handle as ReturnType<typeof setTimeout>),
+    now: () => Date.now(),
+  });
 
   /** The key under which the card asks: the values of the Telegram block that a refusal depends on, or "" while it does not ask. */
   private readonly askKey = computed(() => {
@@ -269,6 +272,7 @@ export class TelegramCard {
     effect((onCleanup) => {
       const key = this.askKey();
       untracked(() => {
+        this.schedule.paired(this.telegram().paired);
         this.held.set(undefined);
         if (key === '') {
           this.refusedAt.set(undefined);
@@ -288,24 +292,16 @@ export class TelegramCard {
     });
   }
 
-  /** Asks for a code now (or as soon as the spacing allows), and again at each due time; returns the function that ends it all. */
+  /** Asks for a code when the schedule says, and again at each due time; returns the function that ends it all. */
   private ask(key: string): () => void {
-    let timer: ReturnType<typeof setTimeout> | undefined;
-    let request: Subscription | undefined;
-    let ended = false;
-    const later = (at: number): void => {
-      timer = setTimeout(send, Math.max(0, Math.max(at, this.lastRequest + CODE_SPACING_MS) - Date.now()));
-    };
-    const send = (): void => {
-      if (ended) return;
-      this.lastRequest = Date.now();
-      request = this.api.pairingCode().subscribe({
+    return this.schedule.start((reply) => {
+      const request = this.api.pairingCode().subscribe({
         next: (answer: PairingCode) => {
           const received = Date.now();
           const due = dueTime(answer.expiresAt, received);
           this.now.set(received);
           this.held.set({ code: answer.code, due });
-          later(due);
+          reply.code(due);
         },
         error: (error: unknown) => {
           this.held.set(undefined);
@@ -313,15 +309,10 @@ export class TelegramCard {
             this.refusedAt.set(key);
             return;
           }
-          later(Date.now() + CODE_RETRY_MS);
+          reply.failed();
         },
       });
-    };
-    later(0);
-    return () => {
-      ended = true;
-      if (timer !== undefined) clearTimeout(timer);
-      request?.unsubscribe();
-    };
+      return () => request.unsubscribe();
+    });
   }
 }

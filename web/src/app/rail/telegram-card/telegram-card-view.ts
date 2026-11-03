@@ -25,6 +25,10 @@
  * The code's lifetime on the page: a code that arrives at browser time `receivedAt` is due at the earlier of its `expiresAt` and ten
  * minutes after `receivedAt` (FR-18), so a browser clock behind the server's does not keep a dead code, and a delay never exceeds the
  * ten minutes. `{n}` is the whole minutes left, rounded down and never below 1.
+ *
+ * When the card asks for a code (`CodeSchedule`): at once for the first request after an unpair (the store's `paired` turning from true to
+ * false), and otherwise never sooner than `CODE_SPACING_MS` after its previous request, which outlives one asking. After a code it asks again
+ * at the code's due time, after a failure `CODE_RETRY_MS` later, and after a 409 not at all.
  */
 import qrcode from 'qrcode-generator';
 
@@ -53,11 +57,86 @@ export const JUST_UNPAIRED_MS = 5_000;
 /** How long a code lives on the page at most, in milliseconds: FR-18's ten minutes. */
 export const CODE_LIFETIME_MS = 600_000;
 
-/** The least time between two requests for a code, in milliseconds. */
+/** The least time between two requests for a code, in milliseconds; only the first request after an unpair is exempt (CodeSchedule). */
 export const CODE_SPACING_MS = 10_000;
 
 /** How long the card waits after a failed request before it asks again, in milliseconds. */
 export const CODE_RETRY_MS = 30_000;
+
+/** What a CodeSchedule needs: the timer functions and the clock, injected so a test can run them on a fake clock. */
+export interface CodeScheduleOptions {
+  /** Arms a timer and returns its handle (the card passes globalThis.setTimeout). */
+  setTimeout: (handler: () => void, ms: number) => unknown;
+  /** Clears a timer that setTimeout armed, by its handle. */
+  clearTimeout: (handle: unknown) => void;
+  /** The time now in milliseconds, on the clock that setTimeout counts (the card passes Date.now). */
+  now: () => number;
+}
+
+/** How a request tells the schedule what came of it. A 409 is no call at all: the asking stops. */
+export interface CodeReply {
+  /** The request answered with a code that is due at `due` (browser milliseconds); the schedule asks again then. */
+  code(due: number): void;
+  /** The request failed, other than with a 409; the schedule asks again CODE_RETRY_MS later. */
+  failed(): void;
+}
+
+/**
+ * Decides when the card asks for a pairing code, as the module doc says; the card owns one. The request itself is the card's: the
+ * schedule only calls it. The time of the latest request outlives one asking.
+ */
+export class CodeSchedule {
+  private readonly options: CodeScheduleOptions;
+  private lastRequest = Number.NEGATIVE_INFINITY;
+  private exempt = false;
+  private before: boolean | undefined = undefined;
+
+  constructor(options: CodeScheduleOptions) {
+    this.options = options;
+  }
+
+  /** The store's `paired` now: a change from true to false exempts the next request from the spacing, once. The first value counts for nothing. */
+  paired(value: boolean): void {
+    if (this.before === true && !value) this.exempt = true;
+    this.before = value;
+  }
+
+  /**
+   * Starts an asking: `request` is called now (or as soon as the spacing allows) and at each time the reply says, and gets the
+   * reply to call; it returns the function that cancels that request. Returns the function that ends the asking.
+   */
+  start(request: (reply: CodeReply) => () => void): () => void {
+    let timer: unknown = undefined;
+    let cancel: (() => void) | undefined;
+    let ended = false;
+    const later = (at: number): void => {
+      const earliest = this.exempt ? at : Math.max(at, this.lastRequest + CODE_SPACING_MS);
+      timer = this.options.setTimeout(send, Math.max(0, earliest - this.options.now()));
+    };
+    const reply: CodeReply = {
+      code: (due) => {
+        if (!ended) later(due);
+      },
+      failed: () => {
+        if (!ended) later(this.options.now() + CODE_RETRY_MS);
+      },
+    };
+    const send = (): void => {
+      timer = undefined;
+      if (ended) return;
+      this.lastRequest = this.options.now();
+      this.exempt = false;
+      cancel = request(reply);
+    };
+    later(0);
+    return () => {
+      ended = true;
+      if (timer !== undefined) this.options.clearTimeout(timer);
+      timer = undefined;
+      cancel?.();
+    };
+  }
+}
 
 /** The condition that pauses the card. */
 const PAUSED_CONDITION = 'telegramPaused';
