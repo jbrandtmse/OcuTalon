@@ -3388,3 +3388,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-30-8-the-redactor-and-the-key-proof-catch-every-key-shape.md | severity: low | fix-risk: med | footprint: out-of-footprint
 - evidence: 30.8 Task 0 control: ContextData is the one global stream found; U-185 scopes the stream question to message bodies (0 streams there); the provider key travels in a request header and never in session content (inference)
 - 2026-11-02T21:03:47Z status=wontfix-accepted owner=30-8-the-redactor-and-the-key-proof-catch-every-key-shape by=adjudication note=reopen_if=a_product_path_puts_the_provider_key_or_a_request_header_into_an_AI_session's_messages,or_the_key_proof_is_asked_to_cover_session_history
+
+### DW-619: flake: live:demo-switch web/e2e/demo-switch/view.spec.ts:360 V8 (no snapshot, no switch) timed out at 120 s in page.waitForResponse in CI group shards-3; passed on an unchanged rerun
+- source: ci run 41598497924 (OCT-epic13 d642b11a) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: job 125791393924 attempt 1: Test timeout of 120000ms exceeded; attempt 2 green
+- 2026-11-03T08:42:50Z status=routed owner=burndown by=ci note=first daily release after 1.0.0; not a 1.0.0 blocker (flake, green on rerun)
+
+### DW-620: flake: live:online-demo-path load phase read status 'false none 200' and units '1 1' after 150 s (start '3 2') in CI group image; passed on an unchanged rerun
+- source: ci run 41598497924 (OCT-epic13 d642b11a) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: job 125791394066 attempt 1: FAIL the load phase; attempt 2 green
+- 2026-11-03T08:42:50Z status=routed owner=burndown by=ci note=first daily release after 1.0.0; not a 1.0.0 blocker (flake, green on rerun)
