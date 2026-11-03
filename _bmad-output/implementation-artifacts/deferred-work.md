@@ -3135,6 +3135,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-11-17-the-release-s-ipm-artifact-carries-the-built-page.md | severity: med | fix-risk: low | footprint: out-of-epic
 - evidence: --live ipm packaged today's module.xml (19 bundle files, ocutalon 1.0.0 listed); the two-run branch is shimmed
 - 2026-11-02T10:22:06Z status=routed owner=15-3-an-ipm-install-survives-restarts-and-reinstalls-and-every-re by=harvest note=Story 15.3 installs 11.17's recorded artifact: once Epic 15's module.xml is on the candidate, run docker/tests/test-release-sequence.sh --live ipm on it before 15.3 relies on the record
+- 2026-11-03T04:04:52Z status=routed owner=15-4-every-release-proves-the-ipm-package-and-the-guide-opens-wit by=spec_gate note=moved_with_the_15.3/15.4_split(orchestrator_ruling_decide_2026-11-03);its_DW-576_bullet_moved_to_Story_15.4_in_epics.md
 
 ### DW-577: The IPM artifact record's 'Content SHA-256 is the same for every packaging' claim is shown on hand-made archives only, not on two real IPM packagings of one tree
 - source: spec-11-17-the-release-s-ipm-artifact-carries-the-built-page.md | severity: low | fix-risk: low | footprint: in-story

@@ -2,7 +2,7 @@
 title: 'Story 15.3: An IPM install survives restarts and reinstalls, and every release proves it'
 type: 'feature'
 created: '2026-11-02'
-status: 'blocked'
+status: 'draft'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -14,15 +14,15 @@ deferred: []
 
 ## Intent
 
-**Problem:** After Story 15.2, an IPM install gives a running OcuTalon, but no check proves that it survives an instance restart, a production restart or a reinstall with the next version (FR-6, NFR-16, NFR-17, AD-5, AD-23). Story 9.1's IPM case is not checked. The release sequence doesn't stop a candidate whose FR-57 job did not pass. No check installs the exact release artifact through an IPM repository with no Node.js. `docs/install-ipm.md` doesn't open with the registry install.
+**Problem:** After Story 15.2, an IPM install gives a running OcuTalon, but no check proves that it survives an instance restart, a production restart or a reinstall with the same or the next version (FR-6, NFR-16, NFR-17, AD-5, AD-23). Story 9.1's IPM case is not checked. `src/module.xml` doesn't declare the staff-requested `SystemRequirements`, and with it IPM refuses a first run in a namespace without Interoperability (such as %SYS), which `release/ipm-install.sh` check 5 and `docs/install-ipm.md` still expect to work (U-231).
 
 **Approach:** Extend `release/ipm-install.sh`; don't copy it.
 - **Path B's stack** takes the restart checks after its own checks: a production restart alone (DW-80), then two instance restarts. It then takes a reinstall with the next version.
-- **The forced-failure recovery run** (part `r`) also passes the reinstall checks of this story.
+- **The forced-failure recovery run** (part `r`) also passes the reinstall checks of this story (U-176).
 - **The Story 9.1 IPM case** runs after every full install.
-- **A new part `p`** installs the packaged artifact through a local filesystem IPM repository on a fresh instance.
+- **`SystemRequirements`** is added to `src/module.xml` as the bullet gives it. Check 5's %SYS case asserts IPM's refusal with nothing left behind, and `docs/install-ipm.md`'s namespace sentences follow U-231 (first run in an Interoperability-enabled namespace such as USER, on both supported images; IPM's refusal described with what to do instead).
 
-The release sequence gains the step `ipmcheck`. It runs the FR-57 job's own script on the candidate's tree, with the candidate's artifact, and stops the release unless the script passes. The guide opens with the registry install. The checklist gets an after-publish author row, and the notes get its slot and the artifact's size.
+The release-proof criteria (part `p`, the repository mapping (U-232), the `ipmcheck` release step, the notes, the checklist row, the registry-first guide rewrite and DW-576) moved to Story 15.4 by the orchestrator's split ruling of 2026-11-03; they are not part of this story.
 
 ## Boundaries & Constraints
 
@@ -61,9 +61,8 @@ The release sequence gains the step `ipmcheck`. It runs the FR-57 job's own scri
 | Reinstall, next version | Path B's stack. A scratch copy of the real folder with the patch number raised, loaded with `zpm "load <copy>"` in OCUTALON | Initialize to Activate `SUCCESS`, one `STEP OK` per step in order, no `FAILURE` or `ERROR!`. The module version is the raised one. Every item's job id differs from before (lib-live `item_jobs`), so every item restarted on the new code. No new `ReconcileIn` row, because the step made the start. The session, `RX`, `RY` and `AY` are intact with one waiter each. The configuration is unchanged | - |
 | Recovery run passes 15.3's checks | Part `r`. Before the forced Audit failure, seed a session with a turn, a live reminder (due in one day) and a lost approval. After the real folder's recovery run | The 15.2 checks pass as today. The session is intact, the reminder has exactly 1 waiter, and the approval has `HoldCount` 1, re-armed once by the installer's `Reconcile` step. Every item's job differs from before the failed reinstall. Story 9.1's IPM case holds | - |
 | Story 9.1's IPM case | After the second run (path A), the recovery run, path B's second run and the reinstall with the next version | The default setting `OcuTalon.Production||EvalIn||*||Enabled` is 0. `CreateBusinessService("EvalIn")` fails with a text containing `is disabled`. `Ens.Config.Production.%OpenId("OcuTalon.Production").TestingEnabled` is 0. EvalIn has no job | - |
-| Artifact (part `p`) | `OCUTALON_IPM_ARTIFACT=<.tgz>`, set by the release step. When it is unset, the module installed by path A's second run is packaged with `zpm "package ocutalon -only -path ..."` in OCUTALON and checked with lib-release's `ipm_artifact_check` | One line, `ARTIFACT ocutalon-<v>.tgz <bytes> bytes`. The artifact check finds no problem | A check problem fails the part |
-| Repository install (part `p`) [held: intent gap 2] | A fresh instance (`dc down -v`, `dc up`): IPM 0.10.10 in %SYS, enabled for USER. `command -v node` in the container prints nothing. The artifact is unpacked to `/tmp/ocutalon-repo/ocutalon-<v>/` (lib-release `ipm_unpack`), then `zpm "repo -name ocutalon-local -fs -depth 2 -path /tmp/ocutalon-repo/"` in USER, then `zpm "install ocutalon"` in USER, then `zpm "install ocutalon"` in OCUTALON | The first command ends with the stop line. The second gives Initialize to Activate `SUCCESS` and one `STEP OK` per step. The production runs. `/ocutalon/` serves `Sign in to OcuTalon`, and `ocutalon`/`ocutalon` signs in | Measured at plan, today's code: the second command prints `ERROR! No repositories are configured and enabled in this namespace.` |
-| Release gate | `release.sh next` at step `ipmcheck` | The step exports the candidate's tree and runs `bash release/ipm-install.sh` there, with `OCUTALON_IPM_ARTIFACT` set to the candidate's artifact. Exit 0 gives `PASS ipmcheck ...`, a `## FR-57 job` record section and `NEXT push`. Exit 75 gives `WAIT ipmcheck ...` and exit 5 | Any other exit gives `FAIL ipmcheck <first FAIL line>`, the release stops before `push`, and the record is written |
+| First run in %SYS refused (U-231) | Check 5: a fresh instance, IPM 0.10.10 in %SYS; the first command run in %SYS against the real folder with `SystemRequirements` declared | IPM prints `ERROR! This module requires an interoperability-enabled namespace. %SYS is not interoperability-enabled.` and no phase runs. Nothing is left behind: no OCUTALON namespace, none of its four databases, no OCUTALON mapping, no OcuTalon global in %SYS, no `ocutalon` module record | Any residue, or a missing refusal line, is a FAIL naming it |
+| First run in USER (U-231) | The same instance; the first command in USER | The stop line, as in Story 15.1 (USER is Interoperability-enabled on both build 154 images) | - |
 
 </intent-contract>
 
@@ -216,11 +215,24 @@ The release sequence gains the step `ipmcheck`. It runs the FR-57 job's own scri
 
 ## Spec Change Log
 
+- 2026-11-03, plan iteration 1 -> re-plan (lead, after the orchestrator's rulings on the plan's two intent gaps and its 7 h size estimate): (a) split, decide (split_children 1 of 6): this story keeps ACs 1-3 (restarts and DW-80; reinstalls with the rollback reading and the U-176 forced-failure re-run; the FR-57 job with Story 9.1's IPM case), DW-80, DW-306 and the `SystemRequirements` bullet; the release gate, the registry install, the guide and local-repository criteria and DW-576 moved to Story 15.4 (`epics.md`, marker `[SPLIT 2026-11-03 from Story 15.3, orchestrator ruling (decide)]`; DW-576 re-owned to 15.4); (b) U-231 (veto, kept with conditions by the owner's delegate, answer 2026-11-03T03:57:20Z#695): the first run's promise narrows to any Interoperability-enabled namespace; `epics.md` L265 and Story 15.1's three lines amended with `[AMENDED 2026-11-03, Story 15.3, unattended ruling U-231]`, and a U-231 bullet added to this story; the PRD states no first-run namespace (nothing to amend); the spine's AD-23 sentence "first in any namespace" is NOT amended by this story (a runner never amends an AD, U14) and is reported to the orchestrator; (c) U-232 (veto, kept with conditions, answer #696): MapAndStop also maps IPM's repository definitions into OCUTALON, in Story 15.4 (this story's tests use the load-from-folder paths, never a repository); (d) the intent block narrowed to this story, the three release-proof matrix rows moved to Design Notes ("Moved to Story 15.4"), and two U-231 rows added. The previous status was `blocked` (two intent gaps); reset to `draft` for the re-plan.
+
 ## Review Triage Log
 
 ## Design Notes
 
-### Intent gaps (blocking)
+### Lead rulings (2026-11-03; supersede the intent gaps below)
+
+1. **Split (orchestrator ruling, decide; split_children 1 of 6).** This story: ACs 1-3 (restarts and DW-80; reinstalls, the rollback reading and the U-176 forced-failure re-run; the FR-57 job and Story 9.1's IPM case) and the `SystemRequirements` bullet, plus the U-231 bullet. Story 15.4 (`15-4-every-release-proves-the-ipm-package-and-the-guide-opens-wit`): part `p`, the repository mapping (U-232), the `ipmcheck` release step (the FR-57-passed check Story 11.14 can call), the release notes, the checklist row, the registry-first guide rewrite and DW-576. Both stories ship before rc1. Re-estimate this story's size at the spec gate; over about 4 h is a new stop.
+2. **U-231 (veto ruling, orchestrator; kept with conditions by the owner's delegate, answer 2026-11-03T03:57:20Z#695).** Owner's words: "Keep (a). The staff-requested Interoperability="enabled" stays, and the promise narrows to 'any Interoperability-enabled namespace'. Two conditions. (1) The guide's namespace advice must hold on both supported images, IRIS for Health and the plain IRIS build 154 image. Check that USER is Interoperability-enabled on the plain image too, or name the right namespace for each image. (2) The guide quotes, or plainly describes, IPM's refusal for a namespace without Interoperability, and says what to do instead (run the first command in USER). The %SYS test asserting the refusal with nothing left behind is good." So:
+   - Keep `<SystemRequirements Version=">=2026.3" Interoperability="enabled"/>` exactly as written.
+   - Check 5's %SYS case asserts IPM's refusal message with nothing left behind (no OCUTALON namespace or databases, no mappings, no globals, no module record); the USER first run still stops with the stop line.
+   - **Measured by the lead (2026-11-03):** on the plain `iris-community:2026.3.0AI.154.0` image, USER is Interoperability-enabled (`%EnsembleMgr.IsEnsembleNamespace("USER")` = 1) and %SYS is not (0); on `irishealth-community:2026.3.0AI.154.0`, USER = 1 and %SYS = 0 (also HSLIB and HSCUSTOM = 1), measured the same way on a lane-D throwaway (and at plan). So USER is the right namespace on both supported images.
+   - `docs/install-ipm.md`: replace its two any-namespace sentences (the requirement line near :7/:21 and the "in USER or %SYS gives the same stop" sentence at :47) so the guide says to run the first command in USER (Interoperability-enabled on both supported images), and quotes or plainly describes IPM's refusal in a namespace without Interoperability, such as %SYS, and that the fix is to run it in USER. Keep the rest of the guide; Story 15.4 rewrites it registry-first and must keep this advice.
+   - The spine's AD-23 text still says "first in any namespace" (ARCHITECTURE-SPINE.md, the IPM install bullet). A stage never amends the spine; the lead reports it to the orchestrator. Implement to the narrowed promise.
+3. **U-232 (veto ruling, orchestrator; kept with conditions, answer #696)** lands in Story 15.4 with MapAndStop's change: this story's tests run the load-from-folder paths only and never need the second run from a repository. Do not change MapAndStop in this story.
+
+### Intent gaps (resolved 2026-11-03 by the lead rulings above; kept for the record)
 
 **Intent gap 1, the `SystemRequirements` bullet.** `Interoperability="enabled"` refuses the first run in %SYS, where Story 15.1's flow runs it.
 - **Measured at plan** (2026-11-02, the build 154 base image, a throwaway with no network, a test module that has only this `SystemRequirements` line):
@@ -261,7 +273,17 @@ The release sequence gains the step `ipmcheck`. It runs the FR-57 job's own scri
   - It keeps "the same install command", changes only OCUTALON's own mappings, and amends the spine's "IPM early step" row ("the IPM mapping into OCUTALON" becomes "the IPM and IPM repository mappings"). A stage may not make that spine amendment.
   - Check 3's expected mappings gain three `omap-MapGlobals|IPM.Repo.Definition?|<db>` lines. `docs/install-ipm.md` and the README order are unchanged by (A).
 
-### Lead pre-rulings (both `decide`, by the orchestrator's dispatch)
+### Moved to Story 15.4 (for its plan; not this story's scope)
+
+These matrix rows were planned here at iteration 1 and moved with the split. Story 15.4's plan may reuse them; gap 2's measurement and option (A) above apply to its part `p`.
+
+| Scenario | Input / State | Expected Output / Behavior | Error Handling |
+|----------|--------------|---------------------------|----------------|
+| Artifact (part `p`) | `OCUTALON_IPM_ARTIFACT=<.tgz>`, set by the release step. When it is unset, the module installed by path A's second run is packaged with `zpm "package ocutalon -only -path ..."` in OCUTALON and checked with lib-release's `ipm_artifact_check` | One line, `ARTIFACT ocutalon-<v>.tgz <bytes> bytes`. The artifact check finds no problem | A check problem fails the part |
+| Repository install (part `p`) [held: intent gap 2] | A fresh instance (`dc down -v`, `dc up`): IPM 0.10.10 in %SYS, enabled for USER. `command -v node` in the container prints nothing. The artifact is unpacked to `/tmp/ocutalon-repo/ocutalon-<v>/` (lib-release `ipm_unpack`), then `zpm "repo -name ocutalon-local -fs -depth 2 -path /tmp/ocutalon-repo/"` in USER, then `zpm "install ocutalon"` in USER, then `zpm "install ocutalon"` in OCUTALON | The first command ends with the stop line. The second gives Initialize to Activate `SUCCESS` and one `STEP OK` per step. The production runs. `/ocutalon/` serves `Sign in to OcuTalon`, and `ocutalon`/`ocutalon` signs in | Measured at plan, today's code: the second command prints `ERROR! No repositories are configured and enabled in this namespace.` |
+| Release gate | `release.sh next` at step `ipmcheck` | The step exports the candidate's tree and runs `bash release/ipm-install.sh` there, with `OCUTALON_IPM_ARTIFACT` set to the candidate's artifact. Exit 0 gives `PASS ipmcheck ...`, a `## FR-57 job` record section and `NEXT push`. Exit 75 gives `WAIT ipmcheck ...` and exit 5 | Any other exit gives `FAIL ipmcheck <first FAIL line>`, the release stops before `push`, and the record is written |
+
+### Lead pre-rulings (both `decide`, by the orchestrator's dispatch; both now apply to Story 15.4)
 1. **The registry-install AC.** This run never publishes. It delivers:
    - the guide's registry section, measured on a clean build 154 throwaway up to the point that needs the published package: `zpm "enable -community"`, its exact IPM 0.10.10 form, and its real output (Task 0 (a));
    - the after-publish checklist row `registry-install`;
@@ -426,5 +448,5 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 
 ## Auto Run Result
 
-Status: blocked
-Blocking condition: intent gap: (1) Story 15.3's SystemRequirements bullet: `Interoperability="enabled"` makes IPM 0.10.10 refuse the package in %SYS before any phase ("ERROR! This module requires an interoperability-enabled namespace. %SYS is not interoperability-enabled.", measured on build 154), but Story 15.1's criteria, `release/ipm-install.sh` check 5 and `docs/install-ipm.md:47` run or promise the first run in %SYS. The bullet makes this a clarification. Recommended: narrow 15.1's "any namespace" to "any Interoperability-enabled namespace (USER on build 154)", make check 5's %SYS case assert IPM's refusal with no residue, and change the guide's two sentences. The version half passes ("2026.3"). (2) The registry and local-repository installs: after the first `zpm "install ocutalon"` in USER, the second in OCUTALON prints "ERROR! No repositories are configured and enabled in this namespace." (measured with the real package from a filesystem repository, also after `zpm "enable -community"`), because MapAndStop maps only the %IPM package and routines. So "the README's two commands" with "the two-step namespace message" can't hold. Recommended: option A, MapAndStop also maps IPM's repository globals into OCUTALON (`enable -map -repos -ns OCUTALON -q`, or `MapGlobalEquivalently` for `^IPM.Repo.Definition{D,S,I}`), with a spine amendment to the "IPM early step" row. Everything else is planned and ready; the tasks these two rulings affect are marked [held].
+Status: draft (re-plan after the lead rulings of 2026-11-03)
+Blocking condition: none (previous: intent gap: (1) Story 15.3's SystemRequirements bullet: `Interoperability="enabled"` makes IPM 0.10.10 refuse the package in %SYS before any phase ("ERROR! This module requires an interoperability-enabled namespace. %SYS is not interoperability-enabled.", measured on build 154), but Story 15.1's criteria, `release/ipm-install.sh` check 5 and `docs/install-ipm.md:47` run or promise the first run in %SYS. The bullet makes this a clarification. Recommended: narrow 15.1's "any namespace" to "any Interoperability-enabled namespace (USER on build 154)", make check 5's %SYS case assert IPM's refusal with no residue, and change the guide's two sentences. The version half passes ("2026.3"). (2) The registry and local-repository installs: after the first `zpm "install ocutalon"` in USER, the second in OCUTALON prints "ERROR! No repositories are configured and enabled in this namespace." (measured with the real package from a filesystem repository, also after `zpm "enable -community"`), because MapAndStop maps only the %IPM package and routines. So "the README's two commands" with "the two-step namespace message" can't hold. Recommended: option A, MapAndStop also maps IPM's repository globals into OCUTALON (`enable -map -repos -ns OCUTALON -q`, or `MapGlobalEquivalently` for `^IPM.Repo.Definition{D,S,I}`), with a spine amendment to the "IPM early step" row. Everything else is planned and ready; the tasks these two rulings affect are marked [held].)
