@@ -2,7 +2,7 @@
 title: 'Story 31.3: the README leads to the demo (build 109, IPM, Telegram row, licence), the About and finish-state links, two security-overview lines, and the Telegram cases of Stories 16.4 and 16.9 turned on'
 type: 'feature'
 created: '2026-11-03'
-status: 'blocked'
+status: 'draft'
 baseline_revision: 'a401f37be6f6221e3621d3522d6d46abf506109f'
 review_loop_iteration: 0
 followup_review_recommended: false
@@ -18,12 +18,20 @@ deferred: []
 
 **Problem:** The README still shows only build 154, which the Early Access portal no longer offers. It also has no IPM section, no Telegram row in "How you talk to it", no project licence, and no steps for the default IRIS accounts' passwords (DW-360). The About dialog and the guide's finish state do not link the bridge guide or the security overview. Security-overview L111 says a tool call's request "shows the exact call", which this release does not do. The Telegram cases of Stories 16.4 and 16.9 are still switched off, although Epic 12 has merged.
 
-**Approach:** Apply the ruled wording word for word: build 109 items 1-7, U-238's phrase, the LICENSE line, and the IPM order of `docs/install-ipm.md`. Pin each change in `docker/tests/test-readme.sh`. Add the three links through `web/src/app/links.ts`. Narrow L111 and L187 to what is actually shown, as ruled (pending, see `## Clarification Needed`). Replace each Telegram hold-off with a real case that runs through the CI mock bot. The online demo's own claims do not change.
+**Approach:** Apply the ruled wording word for word: build 109 items 1-7, U-238's phrase, the LICENSE line, and the IPM order of `docs/install-ipm.md`. Pin each change in `docker/tests/test-readme.sh`. Add the three links through `web/src/app/links.ts`. Narrow L111 and L187 to what is actually shown, with the sentences ruled under veto U-242 (orchestrator, 2026-11-03; kept by the Contest Planner 2026-11-03T15:07:51Z#727). Reuse Story 10.5's vetted `docs/images/page-incident.png` as image 1 and re-shoot only `docs/images/vt-decision.png` with a Playwright spec (U-242, option C). Replace each Telegram hold-off with a real case that runs through the CI mock bot. The online demo's own claims do not change.
 
 ## Boundaries & Constraints
 
 **Always:**
-- Insert ruled text exactly as given: build-109 items 1-7, U-238's phrase, the LICENSE holder line and README line, and the L111/L187 sentences once ruled.
+- Insert ruled text exactly as given: build-109 items 1-7, U-238's phrase, the LICENSE holder line and README line, and the L111/L187 sentences.
+- **Ruled under veto U-242 (orchestrator, 2026-11-03; kept by the Contest Planner, 2026-11-03T15:07:51Z#727):**
+  - `docs/security-overview.md` L111 becomes exactly: "It is fixed to exact targets and shows its dry run (a fix), or the tool, its MCP server when it has one, and its inputs through the redactor, cut to 200 characters, with the full call kept in the approval record (a tool call)."
+  - L187 becomes exactly: "Every call passes the gate, an approval request when needed (showing the tool, its server and its inputs through the redactor, cut to 200 characters, with the full call kept in the approval record), an audit entry (read-only calls included) and an agent step."
+  - Leave the MCP block's framing sentence (L179, "This release can't connect to MCP servers. When a release adds MCP support, these rules apply:") and every other line of that file untouched.
+  - Screenshots (option C): keep Story 10.5's vetted `docs/images/page-incident.png` as image 1 (the page on the demo path, with the incident card, the dry run with counts and the approval request) and reference it again under "What's interesting". Re-shoot only `docs/images/vt-decision.png`, into the same file name, with a Playwright spec on a throwaway stack with the mocked model (the way `web/e2e/trace` opens real Visual Trace pages), and reference it under "What's interesting" too. No other new PNG; `.gitignore` unchanged (use `git add -f` for the re-shot file if needed). DW-613 closes with this story.
+  - The re-shot `vt-decision.png` (the Planner's conditions, binding before the story commit): (1) it shows the WHOLE decision with its Operations lanes, and more than one agent step (the decision's model requests and tool calls as steps); (2) it shows no mock, test, CI or host names, no localhost or port, and nothing secret -- check the trace's own labels: if a session, host, production item or prompt text shows such a name, change the capture (crop, fixture naming) so it does not; (3) under 300 KB, no key, secret or password other than the README account's; (4) the README alt text, wherever `vt-decision.png` appears (Story 10.5's Chat bullet and this story's placement), describes the new image. The image is vetted by the Planner before the story commit (the lead handles that gate).
+  - The in-stage public texts 1 to 6 under Design Notes are kept as proposed, ruled under U-242.
+  - One story, despite the `oversized` and `multiple-goals` warnings.
 - Keep every other build 154 fact: bridge-guide L322, install-ipm L96, security-overview L87, `release/notes.sh` L79, and install.sh's messages.
 - README rules: plain English; no class name or error code outside "For admins and developers"; no "from your phone"; never 'IRIS Couch'.
 - Keep the not-affiliated note and the credits word for word. Every link must resolve.
@@ -56,6 +64,7 @@ deferred: []
 | 16.4 row 4 (T2) | C has a fixture pairing and is seen gone | C's reminder notice reaches C's chat (`sendMessage` in the mock's calls) | FAIL line instead of SKIP |
 | 16.9 hourly (T3) | Paired chat at 50 messages in the hour | The 51st message through TelegramIn is refused: a Turn with channel telegram, and one allowance notice in the chat | the test fails |
 | 16.9 both caps (T4) | Both caps hold; pending approval; paired chat | The chat's Approve button (a callback through the mock) answers it, and the run completes `done` | the test fails |
+| Screenshot 2 (U-242 C) | The capture spec runs on a throwaway with the mocked model | `docs/images/vt-decision.png` is rewritten: one whole decision with its Operations lanes and several agent steps (model requests and tool calls), no mock/test/CI/host name, no localhost or port, nothing secret, under 300 KB; README alt texts describe it | test-readme `images` fails on a missing file, a missing link or a file over 300 KB |
 
 </intent-contract>
 
@@ -178,6 +187,8 @@ deferred: []
 
 ## Spec Change Log
 
+- 2026-11-03 (lead, re-plan after the plan halt): the orchestrator ruled Q1 and Q2 under veto U-242 (kept by the Contest Planner, 2026-11-03T15:07:51Z#727): L111 alternative with the MCP server clause; L187 as proposed; screenshots option C with the Planner's image conditions; texts 1 to 6 kept; one story. Written into the intent block and `## Rulings`; epics.md AC 1's last "And" gained the U-242 marker (Rule 5 tier 1). Status reset to `draft` for a re-plan.
+
 ## Review Triage Log
 
 ## Design Notes
@@ -286,18 +297,12 @@ deferred: []
 
 **Size:** one story. The work is documentation plus pins, three links and four turned-on cases.
 
-## Clarification Needed
+## Rulings (orchestrator, veto U-242, 2026-11-03; kept 2026-11-03T15:07:51Z#727)
 
-**Q1 (intent gap, security overview L111; the bindings' HALT condition).** A true L111 needs more than the "what is shown" narrowing as ruled ("the tool, the server, and the inputs through the redactor, cut to 200 characters, with the full call kept in the approval record"). "The server" is shown only when the held call's source starts `mcp:` (`BridgeSink.cls:236-237,271-281`). For every other tool call there is no server: the source is a class name, and the text is "Run {tool}" (`Catalog/Core.cls:573`). OcuTalon's own agent makes no MCP call in this release (L179), and its built-in tools are all safe (L100). A server can appear only for a developer's own AI Hub MCP tool that the bridge's gate holds (`Gate.cls:12`).
-- Recommended L111: "It is fixed to exact targets and shows its dry run (a fix), or the tool and its inputs through the redactor, cut to 200 characters, with the full call kept in the approval record (a tool call)."
-- Alternative: "...or the tool, its MCP server when it has one, and its inputs through the redactor, cut to 200 characters, with the full call kept in the approval record (a tool call)."
-- L187 as proposed under Design Notes is unaffected: an MCP call always has a server.
-
-**Q2 (intent gap, screenshots; AC 1's last "And" and DW-613).** The bindings say the AC's Playwright capture "is met by the existing captures of Story 10.5, if they were produced that way". They were not: Story 10.5 copied the lead's vetted shots byte for byte, with no capture spec (spec-10-5 :21, :27, :197-200). Also, `vt-decision.png` shows one `AgentStep`, with the Operations lanes cut off, not "the agent's model requests and tool calls as steps". And "What's interesting" holds no image today. The hero sits above "Try it", and `vt-decision.png` sits under the Chat bullet, which the `images` rule pins. Options:
-- (A) A Playwright capture spec on a throwaway with the mocked model re-shoots both images into the same file names. Both are placed under What's interesting (the hero keeps the file, re-shot), and the alt texts are updated.
-- (B) Keep both vetted files, reference them again under What's interesting (no new file), and amend the AC to accept them as captured (narrowing the AC: ask-first).
-- (C) Keep `page-incident.png` (vetted), and reference it again under What's interesting. A Playwright capture re-shoots only `vt-decision.png`, from a decision with model requests and tool calls as separate AgentSteps, moves it there, and updates the `images` pin.
-- Recommended: (C), with the AC noted for image (1).
+- **Q1 (security-overview L111/L187):** the alternative L111 with "its MCP server when it has one" (a bridge-held MCP tool does show its server, `BridgeSink.cls:236-237,271-281`, so the sentence stays true for every call), and the proposed L187, both exactly as in the intent block. The framing sentence (L179) and the rest of the block stay untouched.
+- **Q2 (screenshots):** option (C), as in the intent block, with the Planner's image conditions. AC 1's last "And" carries the marker "[AMENDED 2026-11-03, orchestrator unattended ruling, veto U-242: image 1 is Story 10.5's vetted docs/images/page-incident.png, reused per DW-613; image 2 is re-shot by this story's Playwright spec]" in epics.md (Rule 5 tier 1). DW-613 closes with this story.
+- **In-stage public texts 1 to 6** (Design Notes, "Decided in-stage"): kept as proposed, ruled under U-242.
+- **One story**, despite the warnings.
 
 ## Verification
 
@@ -344,5 +349,5 @@ Every test added or changed passes on a fresh environment, in either order.
 
 ## Auto Run Result
 
-Status: blocked
-Blocking condition: intent gap: (Q1) security-overview L111's true sentence needs more than the ruled "what is shown" narrowing, because "the server" is shown only for an `mcp:`-sourced tool call (BridgeSink.cls:236-237,271-281), which OcuTalon's own agent never makes in this release (L179); proposed L111 and L187 are under ## Clarification Needed; (Q2) the AC's Playwright-captured screenshots are not met by Story 10.5's images (lead-delivered vetted shots, spec-10-5 :21,:27,:197-200), and vt-decision.png shows one AgentStep rather than the model requests and tool calls as steps; options A/B/C with recommendation C are under ## Clarification Needed. The rest of the spec is planned and ready once both are ruled.
+Status: draft
+Blocking condition: none (re-plan after the U-242 rulings)
