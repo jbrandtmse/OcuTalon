@@ -1636,3 +1636,14 @@
 2026-11-03T16:12:53Z	Epic 0	worktree_removed	path=.worktrees/epic-0
 2026-11-03T16:13:04Z	Epic 0	epic_merged_to_feature	merge=1457eccb head=035be7d2 pushed=true verified_on_origin=true record=f41e1be0
 2026-11-03T16:13:04Z	Epic 0	epic_branches_deleted	branch=OCT-epic0 local=true remote=true
+2026-11-03T16:22:42Z	Epic 0	worktree_provisioned	path=.worktrees/epic-0 branch=OCT-epic0 base=67b28aba note=SC-5_re-open_0.14;branch_push_runs_41672021318,41672021309_cancelled(bookkeeping-only_duplicate_of_feature)
+2026-11-03T16:22:42Z	Epic 0	worktree_bootstrapped	epic=0 result=ok
+2026-11-03T16:22:42Z	Epic 0	ruling	question=dispatch_0.14_onto_feature_f41e1be0_while_its_CI_is_pending choice=dispatch_now:f41e1be0/67b28aba_non-bookkeeping_tree_identical_to_035be7d2(green_every_workflow) category=decide policy=508603671b9598f59d04750db6b6cdad2d396167
+2026-11-03T16:22:42Z	Epic 0	runner_dispatched	runner=abc200f2c60ede140 model=opus slot=ocutalon-slot-c lane=C base=67b28aba prompt=prompts/dispatch-epic-0-014.md story=0.14 veto=U-240 rc1=conditional
+2026-11-03T16:55:26Z	Epic 13	runner_complete	runner=a6e144300449e4db0 head=66f98c6a note=final_integrate_forward(f41e1be0) ready_for_merge=true tokens=358373 tool_uses=24 duration_ms=2490823
+2026-11-03T16:55:26Z	Epic 13	ci_green_verified	runs=41673027056,41673027092 head=66f98c6a result=success via=none
+2026-11-03T16:55:26Z	Epic 13	amendments_verified	amendments=0 extensions=0 ok=true detail=U-237_sentence_exact_x3_on_66f98c6a;watch_unchanged;merge_tree=clean
+2026-11-03T16:55:26Z	Epic 13	epic_merge_started	branch=OCT-epic13 head=66f98c6a feature=c9d1846b
+2026-11-03T16:55:28Z	Epic 13	decision_sheet_skipped	decided=0 reason=decisions_for_user_none
+2026-11-03T16:55:28Z	Epic 13	ledger_routed_planned	story=none entries=0 excess=0 by=merge_gate note=overflow_DW-629,630,631_burndown
+2026-11-03T16:55:28Z	Epic 13	worktree_removed	path=.worktrees/epic-13

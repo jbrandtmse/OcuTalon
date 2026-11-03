@@ -96,7 +96,7 @@ A good result prints `1`, a space and the item's reference. `Send` takes a subje
 
 ### 6. Open the decision in Visual Trace
 
-In the Management Portal, open the message viewer of the Interoperability menu, and find the newest message from `ExampleItemIn` to `ExampleTriage`. Click its header id, then open the Trace. Visual Trace draws the whole decision as one session: the item, the request to `Decide`, the request to `TriageAgent` and its reply, one `OcuTalon.Bridge.Msg.AgentStep` message for each step of the agent to `AgentSteps`, the `OcuTalon.Bridge.Msg.DecisionResponse` that answers the request, and, unless the outcome is `ignore`, the routed message to an output. Open the `DecisionResponse` to read the outcome, the reasons, the confidence, the four token counts and the cost.
+In the Management Portal, open the message viewer of the Interoperability menu, and find the newest message from `ExampleItemIn` to `ExampleTriage`. Click the row, then the Trace tab, then View Full Trace, or click the row's Session number. The header id is not a link. Visual Trace draws the whole decision as one session: the item, the request to `Decide`, the request to `TriageAgent` and its reply, one `OcuTalon.Bridge.Msg.AgentStep` message for each step of the agent to `AgentSteps`, the `OcuTalon.Bridge.Msg.DecisionResponse` that answers the request, and, unless the outcome is `ignore`, the routed message to an output. The trace's list also shows the bridge timer, which `Decide` sets as an `Ens.AlarmRequest` to `Ens.Alarm`. Open the `DecisionResponse` to read the outcome, the reasons, the confidence, the four token counts and the cost.
 
 ## Govern the example's tools
 
@@ -121,7 +121,7 @@ Set sc=r.%Save()
 Write $SYSTEM.Status.IsOK(sc)
 ```
 
-A good result of each block prints `1`. The bridge then applies fixed rules to every call (see "Tool classification" for the rules). In a turn whose provenance is `user`:
+A good result of each block prints `1`. After the two rows are written, the Portal may show a notice that `Decide` needs an update. You can ignore it, because the bridge reads both settings live. The bridge then applies fixed rules to every call (see "Tool classification" for the rules). In a turn whose provenance is `user`:
 
 - `example_count_items` is `safe` and read-only, so it runs.
 - `example_forward_item` is `risky`, so a call is held for approval.
@@ -174,7 +174,7 @@ The settings of a runner item (the example's `TriageAgent`, which is an `OcuTalo
 | Setting | Default | What it does |
 |---|---|---|
 | `AgentClass` | none | The agent class the runner runs, a subclass of `%AI.Agent`. This is an AI Hub setting. |
-| `AgentAllowList` | see below | The agent classes the runner may run, comma-separated, each an exact class name. An empty list refuses every class. |
+| `AgentAllowList` | the default is empty, which refuses every class | The agent classes the runner may run, comma-separated, each an exact class name. An empty list refuses every class. |
 | `ProviderName` | none | The name of an AI Hub provider to use. Set it or `ProviderConfig`. This is an AI Hub setting. |
 | `ProviderConfig` | none | The provider, the key placeholder and the timeouts, as inline JSON or as `@{config:<name>}`. This is an AI Hub setting. The example writes it in step 3. |
 | `Model` | the agent's `MODEL` | The model of this runner. A row for it replaces the agent's `MODEL` for that runner (`claude-haiku-5-5` for the example). This is an AI Hub setting. |
@@ -265,6 +265,8 @@ The enumerations (`OcuTalon.Bridge.Msg.Enum`):
 - Approval kinds: `fix`, `tool_call`.
 - Channels: `web`, `phone`, `mailbox`, `telegram`, `email`, `webhook`, `slack`, `system`.
 
+The user rule: for a `decide` request whose provenance is `user`, `Decide` changes an `ignore` or `digest` outcome to `tellnow` and puts first the reason "The outcome was changed because a message the user writes is always answered." The item of step 5 is sent as `untrusted`, so there an `ignore` decision goes to no output.
+
 ### The fallback route
 
 When the model cannot give a usable answer, `Decide` does not guess. It records one decision with the outcome `tellnow`, `Fallback` 1 and the reason, keeps no model text, and answers with it, so that the person is told. A fallback starts no tool, fix or approval. The reasons:
@@ -288,7 +290,7 @@ The example routes a fallback to `ExampleFallbackOut`, and it is in the decision
 
 The bridge's gate decides every tool call, outside the model, before the tool runs. Its fixed rules, in order:
 
-1. Classification. A tool is read-only (`safe` and `readOnly`), `safe`, or `risky`. Anything unclassified counts as risky. A tool is identified by its source class and its name, nothing in the call or the model's text changes it. The class's own code decides first (an `[ Internal ]` class method `Classify<NAME>` or `Classify`, or a class parameter `CLASSIFICATION<NAME>` or `CLASSIFICATION`, where NAME is the tool's name in upper case with `_` and `-` removed; what code declares is final). Then the `ToolClassification` setting of `Decide`: a JSON array of entries `{"class","tool","classification"}` with the optional flags `readOnly` and `trustedOutput` (each 1 or 0). Then the `ClassificationClass` extension. The setting never changes a classification that code gives. In this release, changing this setting writes no OcuTalon audit entry; each tool call is still audited.
+1. Classification. A tool is read-only (`safe` and `readOnly`), `safe`, or `risky`. Anything unclassified counts as risky. A tool is identified by its source class and its name, nothing in the call or the model's text changes it. The class's own code decides first (an `[ Internal ]` class method `Classify<NAME>` or `Classify`, or a class parameter `CLASSIFICATION<NAME>` or `CLASSIFICATION`, where NAME is the tool's name in upper case with `_` and `-` removed; what code declares is final). Then the `ToolClassification` setting of `Decide`: a JSON array of entries `{"class","tool","classification"}` with the optional flags `readOnly` and `trustedOutput` (each 1 or 0). Then the `ClassificationClass` extension. The setting never changes a classification that code gives. In this release, changing this setting writes no OcuTalon audit entry. Each tool call is recorded as a step of its decision unless the decision times out, and an approval and an approved call's run each write an audit entry.
 2. Permissions. For a tool that declares `RESOURCES`, the `ServiceUser` must hold each privilege, or the call is denied.
 3. Untrusted content and taint. A turn is untrusted when its provenance is not `user`, and tainted once a tool result that the bridge does not trust has reached the model. In an untrusted or tainted turn only a read-only tool runs; every other call is denied with the sentence "this turn holds content that did not come from the user, so only read-only tools can run in it and nothing was run; describe the action to the user as an offer they can ask for in their own turn.", and no approval request is raised.
 4. The result. A safe call runs. Every other call is held: the bridge raises one approval request of kind `tool_call` and denies the call with "held for your approval; nothing was run."
