@@ -164,12 +164,12 @@ development_status:
   9-10-the-release-candidate-run-proves-the-key-leaks-nowhere-and-g: done
   epic-9-retrospective: optional
 
-  epic-10: done
+  epic-10: in-progress
   10-1-one-script-finds-the-image-starts-ocutalon-and-says-where-to: done
   10-2-the-readme-gets-a-judge-from-download-to-sign-in: done
   10-3-the-session-side-of-telegram-is-ready-and-stays-off: done
   10-4-the-readme-opens-with-what-ocutalon-is-for-and-what-a-model: done
-  10-5-the-readme-shows-the-product-and-says-how-you-talk-to-it: ready-for-dev
+  10-5-the-readme-shows-the-product-and-says-how-you-talk-to-it: in-progress
   10-6-the-readme-s-how-you-talk-to-it-section-adds-telegram: backlog
   epic-10-retrospective: optional
 
