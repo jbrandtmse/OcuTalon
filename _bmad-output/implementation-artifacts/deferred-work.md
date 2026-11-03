@@ -3375,3 +3375,9 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: run 41456056242 attempt 1 production group 2369 s, TelegramChat setup red; attempt 2 (gh run rerun --failed) green; lane-a 41456056000 green
 - 2026-11-02T17:51:56Z status=routed owner=burndown by=harvest note=CI flake (one unchanged rerun green); setup restart wait likely too short on a loaded CI host; not a 1.0.0 blocker unless it recurs
 - 2026-11-02T22:14:54Z occurrence=12-7-approve-or-reject-from-telegram-and-every-copy-shows-who-ans by=harvest note=QA_warm_stack_reversed_lane-a@Channel_part2/2:TelegramChat_setup_production_items_not_running_after_120s;passed_alone(36s)_and_fresh_reversed
+- 2026-11-03T00:09:06Z occurrence=12-7-approve-or-reject-from-telegram-and-every-copy-shows-who-ans by=ci note=CI_run_41545446452_head_e9bfda24_iris(production)_shard:lane-a@Channel_TelegramChat_failed_398s(same_setup_pattern);the_40-min_job_timeout_then_cancelled_the_group;second_CI_occurrence_on_a_second_head;rerun_started
+
+### DW-608: flake: web/e2e/answers/close-loop.spec.ts:207 C1 expected 'Approved from the web chat at 23:58.' but the page said 'Approved from the web chat on Monday at 23:58.': the run crossed midnight UTC, and the test builds its expected answer line with hhmm() only while the page names the day for a time before today
+- source: CI run 41545446452 (OCT-epic12 e9bfda24), iris (browser) live:answers | severity: med | fix-risk: low | footprint: web/e2e/answers/close-loop.spec.ts
+- evidence: run 41545446452 attempt 1 at 2026-11-03T00:02Z; the answered slot time 23:58 the previous day
+- 2026-11-03T00:09:06Z status=routed owner=burndown by=ci note=time-of-day flake (only when a run crosses midnight); Lane B test; fix: build the expected line with the page's own day rule or pin the clock
