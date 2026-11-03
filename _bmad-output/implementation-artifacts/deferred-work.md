@@ -2809,12 +2809,14 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: spine AD-22 'CI as built' lists lane-a: Agent, Bridge, Checks, Fix, Install, Tools, Digest and Watch; Story 12.1 appends Channel to ci/units.sh lane-a (Epic 9 appends Eval to the same line)
 - 2026-10-30T06:30:51Z status=escalated owner=burndown by=spec_gate note=AD-22 as-built: lane-a gains Channel; orchestrator writes it at the merge gate (ruling 2026-10-30, Q3)
 - 2026-10-31T13:34:35Z occurrence=12-2-ocutalon-polls-and-writes-to-its-own-bot-and-pauses-when-ano
+- 2026-11-03T14:32:55Z status=resolved-by:12-9-telegram-is-included owner=burndown by=unattended note=decision_sheet_Epic_12_merge:AD-22_CI-as-built_line_rewritten_as_built_by_the_orchestrator(lane-a_list+Eval,Channel;nine_groups_incl_shards-3,shards-4;lane-a_three_pieces),checked_against_ci/units.sh;no_rule_change
 
 ### DW-421: The CI mock's Bot API side keeps one global state (updates, replies, calls, counters) for every client, so once TelegramIn polls in CI a direct-call test such as Test.Contract.Mock.TestTelegramBotApi shares its queue and call list with the live poller
 - source: spec-12-1-telegram-stays-off-without-a-token-and-ci-mocks-the-telegram.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: ci/mock/mock.mjs one tg state; Test/Contract/Mock.cls TestTelegramBotApi resets then expects update_id 1 and its own 3 calls; Lane A's Test.Channel.BotApi.Reset clears TelegramIn's kept offset with its own resets only (Story 12.1 re-plan); reachable from Story 12.7 (Included() 1 at every CI start)
 - 2026-10-30T06:46:50Z status=escalated owner=burndown by=spec_gate note=Lane B mock ask under AD-33 (AD-22): keep the Bot API state per token (keyed by the /bot<token>/ segment, control routes naming the token), or have TestTelegramBotApi stop TelegramIn around itself and read its ids from updateIds; optional: a status output on BotCall so Lane A's BotReply copy can go; DW-370 residual (orchestrator ruling 2026-10-30, Q2)
 - 2026-10-30T08:35:22Z occurrence=12-1-telegram-stays-off-without-a-token-and-ci-mocks-the-telegram
+- 2026-11-03T14:32:55Z status=wontfix-accepted owner=burndown by=unattended note=decision_sheet_Epic_12_merge:12.9_stops_the_Telegram_items_after_every_CI_and_throwaway_stack_start;reopen_if_a_direct-call_test_and_a_live_poller_share_one_stack
 
 ### DW-422: TelegramIn's kept update offset ($$$EnsStaticAppData("TelegramIn", "offset")) is pinned only against Test.Channel.BotApi, so a Story 12.2 poller that kept its offset elsewhere would leave DW-370's Lane A half doing nothing
 - source: spec-12-1-telegram-stays-off-without-a-token-and-ci-mocks-the-telegram.md | severity: med | fix-risk: low | footprint: in-epic
@@ -3047,6 +3049,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-12-3-the-telegram-card-shows-a-fresh-pairing-code-as-a-qr-code.md | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: found by Story 12.3's plan: the card's unpaired state is built in Lane A's telegram-card/, but its position in the device column at 1024-1279 px is the rail layout's (Lane B's web files); no story in epics.md names UX-DR137
 - 2026-10-31T19:18:18Z status=escalated owner=burndown by=spec_gate note=for the decision sheet: route to a Lane B story (layout) or accept; not Epic 12's files
+- 2026-11-03T14:32:55Z status=decision-pending owner=burndown by=unattended note=inbox=U-238
 
 ### DW-504: Lane B's web/scripts/qr-pin.test.mjs header says nothing in web/src uses qrcode-generator yet, which Story 12.3's card makes untrue
 - source: spec-12-3-the-telegram-card-shows-a-fresh-pairing-code-as-a-qr-code.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -3073,6 +3076,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-12-3-the-telegram-card-shows-a-fresh-pairing-code-as-a-qr-code.md | severity: med | fix-risk: med | footprint: in-story
 - evidence: Pairing.StoreCode keeps one code row per session (CodeSessionRefIndex unique) and each card asks on its own; scanning the older tab's code gets Story 12.5's 'That code didn't work'
 - 2026-10-31T23:27:33Z status=decision-pending owner=burndown by=cr note=product call: accept (AD-4, the code never leaves the card), only the visible tab asks, or another rule; a cross-tab share breaches the spec's 'sends it nowhere'
+- 2026-11-03T14:32:55Z status=by-design owner=burndown by=unattended note=decision_sheet_Epic_12_merge:AD-4_one_code_per_session;refreshing_the_other_tab_gets_a_fresh_code
 
 ### DW-515: The Telegram card's long-timer and refusal-reset rules are pinned by no test: the 30 s retry after a non-409 failure, the 409 stop beyond T4's 3 s window (the 10 s spacing makes that window unable to fail), and the refusal forgotten when a pause starts and ends
 - source: spec-12-3-the-telegram-card-shows-a-fresh-pairing-code-as-a-qr-code.md | severity: low | fix-risk: low | footprint: in-story

@@ -1601,3 +1601,8 @@
 2026-11-03T14:31:46Z	Epic 12	ci_green_verified	runs=41641638277,41641638041 head=65beb93c result=success via=none note=image_job_infra_429_rerun;queue_9.9-26.1_min_iris
 2026-11-03T14:31:46Z	Epic 12	amendments_verified	amendments=3 extensions=~45 ok=true detail=epics.md_12.7/12.9_split+U-219_note;spine_AD-19_sub-bullet_L629_[AMENDED_2026-11-02,Story_12.9,U-219];lint_8_low_baseline;extensions_ruled(12.9_cross-epic_allowed;close:ci.yml,ci/units.sh_shards-4,test-ci-config,test-ci-changes,security-overview_U-223_cond_2);watch_merge.cpf,after-start.sh,install.sh_unchanged merge_tree=clean
 2026-11-03T14:31:46Z	Epic 12	epic_merge_started	branch=OCT-epic12 head=65beb93c feature=ec460a89
+2026-11-03T14:33:08Z	Epic 12	decision_sheet_recorded	decided=4 to_action_items=0 to_x0=0 by=unattended detail=DW-420_resolved(AD-22_as-built_written),DW-421_wontfix-accepted,DW-503_parked_U-238,DW-514_by-design
+2026-11-03T14:33:08Z	Epic 12	spine_updated	reason=as_built_DW-420 ad=AD-22 change=CI-as-built:lane-a+Eval,Channel;nine_groups;three_lane-a_pieces lint=8_low_baseline,no_ad_findings
+2026-11-03T14:33:08Z	Epic 12	ledger_routed_planned	story=none entries=0 excess=0 by=merge_gate note=overflow_all_burndown
+2026-11-03T14:33:08Z	Epic 12	deps_hash_rerecorded	reason=split hash=00aa3aa5 note=12.9_split_from_12.7
+2026-11-03T14:33:08Z	Epic 12	worktree_removed	path=.worktrees/epic-12
