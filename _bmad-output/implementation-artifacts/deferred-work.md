@@ -3434,6 +3434,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-13-4-the-guide-and-the-overview-say-exactly-what-is-audited-and-t.md | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: Decide.cls:331-337 (timer branch, no EmitSteps), :44 and :69-71 (a timer that fired and a late reply send no steps); Timeouts.cls:7-10 (reachable: a request in flight is not stopped)
 - 2026-11-03T12:13:10Z status=routed owner=burndown by=burndown note=first daily release after 1.0.0; U-237 answer (Contest Planner, 2026-11-03T10:46:10Z#712); not a 1.0.0 blocker (the docs state the timeout case)
+- 2026-11-03T13:25:42Z status=routed owner=burndown by=burndown note=prerequisite for MCP support: docs/security-overview.md's MCP rules (under 'When a release adds MCP support, these rules apply:') promise an agent step for every MCP call (spine 'Every MCP tool call is audited, read-only ones included'; FR-49), so this must land before or with the release that adds MCP support
 
 ### DW-630: The bridge guide has no runnable block that reaches a held call: a user item that leads to a forward, reading the pending approval Ref, and calling OcuTalon.Bridge.Approval.Answer; add those blocks and run them in the standalone-bridge job (Story 13.4 gap (f))
 - source: spec-13-4-the-guide-and-the-overview-say-exactly-what-is-audited-and-t.md | severity: med | fix-risk: low | footprint: out-of-footprint
