@@ -300,6 +300,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-0-12-epic-0-burn-down.md | severity: low | fix-risk: low | footprint: out-of-epic
 - evidence: 0.12 rework deferred item
 - 2026-10-21T02:41:40Z status=routed owner=14-2-the-security-overview-says-what-ocutalon-can-do-and-what-sto by=harvest note=14.2 quotes the sentence where it describes what demo mode off leaves in place
+- 2026-11-02T23:29:46Z status=resolved-by:14-2-the-security-overview-says-what-ocutalon-can-do-and-what-sto by=adjudication note=docs/security-overview.md Data section quotes the kept-OCUORDERS how-to-remove sentence word for word; pinned by test-release-sequence.sh overviewdoc (read from EXPERIENCE.md)
 
 ### DW-47: flake: web/e2e/sign-in/sign-in.spec.ts row 13 (sign-in at a deep link) ended at /ocutalon/#/ instead of /ocutalon/index.html?x=1 once on the runner, then passed on an unchanged rerun
 - source: ci run 39534434817 attempt 1 (head 811102f) | severity: med | fix-risk: low | footprint: in-epic
@@ -1439,6 +1440,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-5-1-ask-ocutalon-to-watch-a-production-and-to-stop.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Orchestrator ruling 2026-10-25 on Story 5.1 (veto U-79): Install/Step/Demo.cls grants OcuTalonServiceRole %DB_OCUORDERS_DATA:R only with demo mode on (AD-3 readable-namespace rule; AD-24 Prevents: a role that grants more than the security overview says)
 - 2026-10-25T18:12:36Z status=routed owner=14-1-the-overview-s-tool-and-privilege-lists-are-generated-from-t by=spec_gate note=orchestrator_ruling:the_generated_overview_marks_this_grant_demo-mode-only;its_DW_bullet_is_the_orchestrator's_after_Epic_5's_merge
+- 2026-11-02T21:02:17Z status=resolved-by:14-1-the-overview-s-tool-and-privilege-lists-are-generated-from-t by=adjudication note=docs/security-overview.md 'With demo mode on' lists OcuTalonServiceRole %DB_OCUORDERS_DATA R (Demo.WithOrdersData); pinned by Test.Install.SecurityOverview TestDemoOnlyGrantsListed and TestPrivilegesMatchSecurityRecords
 
 ### DW-218: WatchOps' failure answers (session lock timeout, a failed save or delete) and the per-session lock's serialisation of one session's commands have no test
 - source: spec-5-1-ask-ocutalon-to-watch-a-production-and-to-stop.md | severity: med | fix-risk: low | footprint: in-story
@@ -2020,6 +2022,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-28T04:48:55Z status=routed owner=15-3-an-ipm-install-survives-restarts-and-reinstalls-and-every-re by=orchestrator note=flake occurrence=2: CI run 40629178094 (iris production, row 21 wanted CHK|start-fails|1|1, got '') on feature dc44a8c, a bookkeeping-only commit whose code head 6151327 passed; rerun --failed; owner as Epic 7's X.0 re-own (15-3)
 - 2026-11-01T12:38:07Z occurrence=11-2-upgrades-and-restarts-keep-every-record-working note=CI run 41304700491 attempt 1 (OCT-epic11 4bb3d59c, iris production, live:production): FAIL row 21 'the step fails naming WatchOps while it cannot start, and succeeds once it can (1 of 5 values differ)'; the story changed no product or test-production.sh line; one rerun
 - 2026-11-02T03:08:23Z occurrence=11-13-the-release-gets-draft-notes note=CI run 41378276955 attempt 1 (OCT-epic11 7e1e4582, iris production): FAIL row 21 (1 of 5 values differ) again; the second Epic 11 occurrence on 2026-11-01/02; one rerun
+- 2026-11-02T21:59:05Z occurrence=14-1-the-overview-s-tool-and-privilege-lists-are-generated-from-t note=CI run 41527568504 iris (production) live:production row 21 'start-fails' printed nothing on 461a663b (Story 14.1 touched no production path); rerun
 
 ### DW-309: Test.Data.Fixture.Check rows carry no CreatedAt, so with no WatchMark the FailurePoller starts each reading at its poll time and a batch that lands between two polls is never read: a test that expects its failures to be noticed can pass or fail by timing
 - source: spec-5-11-the-demo-guide-s-tests-hold-now-that-incidents-are-real.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -3184,6 +3187,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: inbox U-199 (#603), Story 5.13 merge 5fb79853 | severity: med | fix-risk: low | footprint: in-epic
 - evidence: Tools/RecentActivity.cls declares READONLY=1 and TRUSTEDOUTPUT=1; Epic 14 has not started, so no overview exists yet and 5.13 regenerated nothing
 - 2026-11-01T07:05:35Z status=routed owner=14-1-the-overview-s-tool-and-privilege-lists-are-generated-from-t by=merge_gate note=U-199 condition: 14.1's generated tool section shows recent_activity read-only and trusted output; its drift test pins it
+- 2026-11-02T21:02:17Z status=resolved-by:14-1-the-overview-s-tool-and-privilege-lists-are-generated-from-t by=adjudication note=recent_activity row reads OcuTalon.Tools.RecentActivity safe read-only yes trusted yes; pinned by TestRecentActivityRow and live:security-overview drift (DRIFT tool recent_activity)
 
 ### DW-524: No test pins the negative cell of 4.8 matrix row 4: after Run again the prompt bar comes back at step 1 or 2 and focus should go to Send, not the box button (FOCUS_RULE.whenGone keys on data-guide-step=3)
 - source: spec-4-8-step-3-of-the-guide-points-to-break-the-feed-without-a-secon.md | severity: med | fix-risk: low | footprint: in-story
@@ -3305,6 +3309,28 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: Epic 11 merge decision sheet (DW-496, veto U-215 kept by the Contest Planner) | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: AD-1 amended a9a221ed; TestCancelAllThroughChat asserts the keys but not the repeat refusal per key
 - 2026-11-02T13:25:27Z status=routed owner=burndown by=merge_gate note=Epic 30 part 2 burn-down 30.7 (sent to its runner with U-215's apply)
+
+### DW-593: Test.Install.SecurityOverview reads Security.Roles, Security.Users and Security.SQLPrivileges with its own small readers, a copy of Test.Install.Registry's private ReadRole/UserResources/SqlPrivileges (that class is contended by Epic 15)
+- source: _bmad-output/implementation-artifacts/spec-14-1-the-overview-s-tool-and-privilege-lists-are-generated-from-t.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: src/ocutalon/cls/OcuTalon/Test/Install/SecurityOverview.cls; Test/Install/Registry.cls:1047,1103 private
+- 2026-11-02T20:16:46Z status=open owner=14-1-the-overview-s-tool-and-privilege-lists-are-generated-from-t by=harvest note=copy forced by contention (Rule 2)
+- 2026-11-02T21:02:18Z status=wontfix-accepted by=adjudication note=reopen_if=Test.Install.Registry's ReadRole/UserResources/SqlPrivileges become public after Epic 15 merges, or a third copy of a security-record reader appears
+
+### DW-598: The generated overview shows the service role's narrow grants while the AD-24 Limits paragraph (production runs as the Interoperability system user, which holds %All) is still a Story 14.2 placeholder, so a candidate cut before 14.2 overstates least privilege
+- source: spec-14-1-the-overview-s-tool-and-privilege-lists-are-generated-from-t.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: docs/security-overview.md 'Limits of the privilege check' holds only the HAND-WRITTEN (Story 14.2) placeholder; step_overview and overviewdoc pass with it; spec 14.1 Never forbids writing that text
+- 2026-11-02T21:00:29Z status=routed owner=14-2-the-security-overview-says-what-ocutalon-can-do-and-what-sto by=cr note=14.2 writes AD-24 Limits word for word and adds an overviewdoc check that no HAND-WRITTEN placeholder remains
+- 2026-11-02T23:29:46Z status=resolved-by:14-2-the-security-overview-says-what-ocutalon-can-do-and-what-sto by=adjudication note=Limits of the privilege check carries the AD-24 paragraph word for word; overviewdoc fails while any HAND-WRITTEN placeholder remains and pins the paragraph
+
+### DW-606: FR-9 lists 'tool classified' as audited, but a change to Decide's ToolClassification setting (a developer's own tools) writes no Tool entry; decide whether FR-9 covers the bridge setting
+- source: spec-14-2-the-security-overview-says-what-ocutalon-can-do-and-what-sto.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: Gate.cls EntryFor reads Decide's ToolClassification (Decide.cls:202); git grep finds no Record("Tool" in src; FR-9 (epics.md:51) names 'tool classified'; the spine (AD-10, conventions 1095) assigns no Tool writer for the setting.
+- 2026-11-02T23:27:32Z status=decision-pending owner=burndown by=cr note=product call: audit developer-tool classification changes or narrow FR-9 to MCP classification; overview now says 'classify an MCP tool'
+
+### DW-607: ovw_doc_problems (test-release-sequence.sh) repeats chk_demo_mode's kept-OCUORDERS sed extraction (test-readme.sh:551), a copy the spec states because test-readme.sh runs on load (Rule 2)
+- source: spec-14-2-the-security-overview-says-what-ocutalon-can-do-and-what-sto.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Both files hold the same sed line for the sentence in EXPERIENCE.md; unifying means a shared lib that test-readme.sh sources, an edit outside Epic 14's footprint. Either copy that no longer matches fails loudly (empty extraction).
+- 2026-11-02T23:27:39Z status=wontfix-accepted owner=14-2-the-security-overview-says-what-ocutalon-can-do-and-what-sto by=cr note=reopen_if=the two kept-OCUORDERS extractions print different text for the same EXPERIENCE.md
 - 2026-11-02T21:12:36Z owner=30-7-epic-30-burn-down by=burndown note=ruling_d1(Contest_Planner,2026-11-02):30.7_entries_keep_owner_30-7;30.7_deferred_after_the_v1.0.0_tag(first_daily_release);conditions_unchanged(U-210/U-218_for_DW-437,U-215_for_DW-584)
 
 ### DW-594: eval/key-proof's globals control is satisfied by subscript hits alone, so a Walk that stops matching node data still passes the outer surface
