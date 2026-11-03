@@ -2043,8 +2043,15 @@ no_leftovers() {
 t_ipm() {
   local art bytes sha cdig c name x log
   . "$root/release/lib-release.sh"
-  # the pass, with today's module.xml (one run)
+  # the pass, with a module that runs once: today's module.xml without its MapAndStop invoke (Epic 15's two-run module is the next case)
   newcase
+  if grep -q MapAndStop "$W/src/module.xml"; then
+    grep -v MapAndStop "$W/src/module.xml" > "$W/src/module.xml.new"
+    mv "$W/src/module.xml.new" "$W/src/module.xml"
+    git -C "$W" commit -q -am "a module that runs once"
+    git -C "$W" push -q origin "$INTEG"
+    EXPECT_BASE=$(git -C "$W" rev-parse HEAD)
+  fi
   to_step ipm
   c=$(cand)
   rs '' next
@@ -2112,13 +2119,15 @@ t_ipm() {
   rs '' status
   has "ipm: status still prints the artifact at the end" "$out" "ARTIFACT $art $bytes $sha"
   eq "ipm: still one throwaway run" "$(count_runs)" 1
-  # a module that stops the first run (Epic 15's): loaded in USER, then in OCUTALON, packaged there
+  # a module that stops the first run (Epic 15's, today's module.xml): loaded in USER, then in OCUTALON, packaged there
   newcase
-  awk '/<\/Module>/ { print "      <Invoke Class=\"OcuTalon.Install.Ipm\" Method=\"MapAndStop\" Phase=\"Initialize\" When=\"After\"/>" } { print }' "$W/src/module.xml" > "$W/src/module.xml.new"
-  mv "$W/src/module.xml.new" "$W/src/module.xml"
-  git -C "$W" commit -q -am "a module that stops the first run"
-  git -C "$W" push -q origin "$INTEG"
-  EXPECT_BASE=$(git -C "$W" rev-parse HEAD)
+  if ! grep -q MapAndStop "$W/src/module.xml"; then
+    awk '/<\/Module>/ { print "      <Invoke Class=\"OcuTalon.Install.Ipm\" Method=\"MapAndStop\" Phase=\"Initialize\" When=\"After\"/>" } { print }' "$W/src/module.xml" > "$W/src/module.xml.new"
+    mv "$W/src/module.xml.new" "$W/src/module.xml"
+    git -C "$W" commit -q -am "a module that stops the first run"
+    git -C "$W" push -q origin "$INTEG"
+    EXPECT_BASE=$(git -C "$W" rev-parse HEAD)
+  fi
   to_step ipm
   rs '' next
   eq "two-run: exit" "$rc" 0
