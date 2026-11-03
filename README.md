@@ -4,6 +4,8 @@ Your integrations already tell you when something breaks, usually fifty times. O
 
 Watch the 35-second teaser: https://youtu.be/wycbyfnXFMU
 
+![The OcuTalon page on the online demo: an incident card for 50 failed orders names the cause and shows a dry run of the fix waiting for approval; the simulated phone shows the same approval request.](docs/images/page-incident.png)
+
 ## Try it in two minutes
 
 Start with the online demo, at https://demo.ocutalon.com (nothing to install, and no Early Access image needed). Its sign-in details are on the splash screen.
@@ -23,6 +25,23 @@ OcuTalon runs as an IRIS Interoperability production, so the agent is an Interop
 
 - **The partner feed that breaks at 2am.** A trading partner changes a date format, and 50 orders fail. Instead of 50 alerts, you get one notice: the cause in plain English, the fix, and a dry run that shows what it would resend. Nothing is resent until you approve, and then OcuTalon reports how many orders went through. Break the feed in the online demo plays this out in two minutes. On your own install you can also approve it in Telegram on your phone, without a laptop or the Management Portal ([how to set up Telegram](#telegram)).
 - **"Only tell me if something needs me."** Ask OcuTalon in plain words to watch a production, and it stays quiet until something needs you. Failures with one cause become one incident, not a flood, and when you ask whether everything is fine, it never gives a false all-clear. It also tells you once when a production stops or one of its items is disabled.
+- **[An AI decision step you can audit, in your own production.](docs/bridge-guide.md)**
+
+## How you talk to it
+
+The web chat page is OcuTalon on every install. Demo mode adds four parts to it for trying OcuTalon out: the demo guide, Break the feed, the Simulated phone and the Simulated mailbox.
+
+| Part | What you do there | Where you have it |
+| --- | --- | --- |
+| The web chat page | Chat with OcuTalon, answer its approval requests, and follow its decisions, background checks and reminders as they happen | Every install |
+| The demo guide and Break the feed | Follow one incident in about two minutes: Break the feed makes a simulated partner's orders fail for real | Demo mode |
+| The Simulated phone and the Simulated mailbox | See OcuTalon's notices, reminders and approval requests on a phone simulated on the page, and simulate an incoming email to see what OcuTalon decides | Demo mode |
+
+Demo mode is on in the online demo, and on the Docker install until an admin switches it off ([Demo mode](#demo-mode)). Email comes in a later release.
+
+In demo mode, the Demo view switch in the header hides those four parts. With it off, you see what the page has on your own install:
+
+![The online demo's page with Demo view off: the chat, approval requests, background checks and recent decisions that the page has on your own install, with no demo guide and no simulated devices.](docs/images/page-demo-view-off.png)
 
 ## What OcuTalon does
 
@@ -36,7 +55,15 @@ OcuTalon is a personal assistant that runs inside InterSystems IRIS. For every i
 Each decision shows its reasons, its confidence and its cost.
 
 - **Chat on a live page.** You talk to OcuTalon in a web page that updates as things happen. A reply shows its decision and a link that opens it in Visual Trace.
+
+  ![Visual Trace of the decision: the incident goes to the decision process, which calls the diagnosis agent; each agent step and the dry run is a production message.](docs/images/vt-decision.png)
+
 - **Break the feed.** In demo mode the page has a Break the feed button. It makes a simulated partner send 50 orders in a changed date format into the Orders production, where they fail for real. OcuTalon groups the failures into one incident, explains the cause in plain English and proposes a fix with a dry run: how many orders it would resend, with an example. Nothing is resent until you press Approve in the chat or on the page's Simulated phone. Reject leaves everything as it was. After an approval, OcuTalon reports how many orders went through.
+
+  ![An incident card: the partner changed the order date format, so 50 orders failed; OcuTalon shows the fix's dry run and waits for Approve or Reject.](docs/images/incident-card.png)
+
+  ![The same incident resolved: approved from the web chat, all 50 orders went through, and the approval is recorded in the IRIS audit log.](docs/images/incident-resolved.png)
+
 - **Watching a production.** Ask in plain words, for example "Watch the Orders production and only tell me if something needs me." To stop, say "Stop watching Orders."
 - **Reminders.** Ask in plain words, for example "Remind me in 1 minute to stretch." A reminder arrives on time, survives a restart, and can be listed and cancelled in the chat.
 

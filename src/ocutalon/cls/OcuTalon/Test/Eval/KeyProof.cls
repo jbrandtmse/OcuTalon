@@ -15,8 +15,15 @@
 ///     mock's log, each with a positive control (the demo case's name must be found in the globals, a stored placeholder in the stores, the demo case's
 ///     name in the trace), and Print writes the CHK lines that eval/run.sh reads. A scan that finds nothing and whose control finds nothing fails there.
 /// The tests are warm-safe: each writes a fresh control value and removes what it made.
-///   - TestGlobalHits: a value is found as data and as a subscript when the scan is scoped to the database that holds the global, a value nobody holds
+///   - TestGlobalHits: a value in an element of a $List value (8-bit, 16-bit or nested, in data or in a subscript) is found too (DW-448); a value is found as data and as a subscript when the scan is scoped to the database that holds the global, a value nobody holds
 ///     gives 0, an empty value gives -1 and a database that does not exist gives -1, and the database can be named by its name or its directory;
+///   - TestGlobalHitsMessageBody: a saved message body (Eval.Msg.IncidentCase) whose text sits next to a wide character is found by a scan of the
+///     database that holds its data global (DW-448);
+///   - TestNoMessageBodyHoldsAGlobalStream: no message-body class of OcuTalon (and no system base class of one) has a property that is a global
+///     stream (a %Stream.GlobalCharacter or %Stream.GlobalBinary, or a subclass, or an abstract stream type that is stored as one), also inside
+///     a serial object to a depth of 3, with a positive
+///     control that finds the one in %AI.Agent.Session. A body that stores its text in a global stream would hold it in chunks (compressed or
+///     not) that the global walk does not join, so the key proof could not see it: this test is the guard of that blind spot (DW-448);
 ///   - TestTraceHits: a message body and its header that hold a value are found after a mark and not before it, a value nobody holds gives 0, and an
 ///     empty value gives -1, in the test's own namespace (the messages of the others are not the test's);
 ///   - TestTraceHitsUnreadableBody: a header whose body cannot be opened gives -1 and is named, in the test's own namespace;
@@ -28,8 +35,18 @@ Class OcuTalon.Test.Eval.KeyProof Extends %UnitTest.TestCase
 /// The characters read at a time from an exported message.
 Parameter CHUNK = 32000;
 
+/// The deepest level of lists inside lists that the global scan reads.
+Parameter LISTDEPTH = 10;
+
 /// The most places that a result names.
 Parameter MAXPLACES = 20;
+
+/// The system message-body classes that the guard TestNoMessageBodyHoldsAGlobalStream checks besides every OcuTalon message-body class: the base
+/// classes, and the system body classes that OcuTalon code sends (Bridge.Operation.AgentRunner, Schedule.ReminderOps, Bridge.Approval).
+Parameter SYSTEMBODIES = "Ens.Request,Ens.Response,Ens.MessageBody,Ens.StringResponse,Ens.AlarmTriggerRequest,EnsLib.Workflow.TaskRequest,EnsLib.Workflow.TaskResponse";
+
+/// The class that holds a global stream in the AI Hub, the guard's positive control (its property ContextData is a %Stream.GlobalCharacter).
+Parameter STREAMCONTROL = "%AI.Agent.Session";
 
 /// The test-only global of the tests.
 Parameter TESTGLOBAL = "^OcuTalonTest";
@@ -40,6 +57,9 @@ Method TestGlobalHits()
 {
 	Set value = "keyproof-control-"_##class(OcuTalon.Bridge.Ids).NewRef()
 	Kill ^OcuTalonTest("KeyProof")
+	// A root that holds this test's own root row (a run that was stopped before its cleanup) is cleared; any other root is left as it is.
+	If ($Data(^OcuTalonTest) # 2) && $ListValid(^OcuTalonTest) && ($ListGet(^OcuTalonTest, 2) [ "keyproof-list-") ZKill ^OcuTalonTest
+	Set rootSet = 0
 	Try {
 		Set ^OcuTalonTest("KeyProof", "data") = "before "_value_" after"
 		Set ^OcuTalonTest("KeyProof", "sub-"_value) = ""
@@ -59,10 +79,86 @@ Method TestGlobalHits()
 		Do $$$AssertEquals(..GlobalHits(value_"-nobody", directory), 0, "a value nobody holds gives 0")
 		Do $$$AssertEquals(..GlobalHits("", directory), -1, "an empty value gives -1")
 		Do $$$AssertEquals(..GlobalHits(value, "zz-no-such-database"), -1, "a database that does not exist gives -1")
+		// DW-448: a value inside a $List element of a node's data or subscript is found. Each row has a value of its own (the rows above keep theirs).
+		Set listed = "keyproof-list-"_##class(OcuTalon.Bridge.Ids).NewRef()
+		Set wide = $Char(8364)
+		Set ^OcuTalonTest("KeyProof", "list8") = $ListBuild("a", "x"_listed_"-8bit"_"y", "b")
+		Set ^OcuTalonTest("KeyProof", "list16") = $ListBuild("a", wide_listed_"-16bit"_wide)
+		Set ^OcuTalonTest("KeyProof", "nested") = $ListBuild("a", $ListBuild("b", $ListBuild("c", wide_listed_"-nested")))
+		Set ^OcuTalonTest("KeyProof", $ListBuild("s", wide_listed_"-subscript")) = ""
+		If '($Data(^OcuTalonTest)#2) {
+			Set ^OcuTalonTest = $ListBuild("a", wide_listed_"-root")
+			Set rootSet = 1
+		}
+		Do $$$AssertEquals(..GlobalHits(listed_"-8bit", directory), 1, "a value in an 8-bit element of a $List is found (a control: a plain match finds it too)")
+		Do $$$AssertEquals(..GlobalHits(listed_"-16bit", directory), 1, "a value in a 16-bit element of a $List is found")
+		Do $$$AssertEquals(..GlobalHits(listed_"-nested", directory), 1, "a value in a $List inside a $List inside a $List is found")
+		Do $$$AssertEquals(..GlobalHits(listed_"-subscript", directory), 1, "a value in a $List subscript is found")
+		Do $$$AssertTrue(rootSet, "the root node of the test global was free for the root row")
+		Do $$$AssertEquals(..GlobalHits(listed_"-root", directory), 1, "a value in a $List at the root node of a global is found")
+		Do $$$AssertEquals(..GlobalHits(listed, directory), 5, "each node counts once: the five rows are five hits")
+		Do $$$AssertEquals(..GlobalHits(listed_"-nobody", directory), 0, "and a value that is in none of them gives 0")
 	} Catch exception {
 		Do $$$AssertStatusOK(exception.AsStatus(), "the global scan runs without an exception")
 	}
 	Kill ^OcuTalonTest("KeyProof")
+	If rootSet ZKill ^OcuTalonTest
+}
+
+/// A message body row whose Snapshot holds the value next to a wide character (stored 16-bit) is found by a scan of the database that holds the
+/// body class's data global (DW-448). The row is deleted after the test.
+Method TestGlobalHitsMessageBody()
+{
+	Set value = "keyproof-body-"_##class(OcuTalon.Bridge.Ids).NewRef()
+	Set bodyId = ""
+	Try {
+		Set body = ##class(OcuTalon.Eval.Msg.IncidentCase).%New()
+		Set body.IncidentRef = "zzkeyproof"
+		Set body.SourceItemId = "zz-keyproof"
+		Set body.Snapshot = $Char(8364)_value
+		Do $$$AssertStatusOK(body.%Save(), "the body is saved")
+		Set bodyId = body.%Id()
+		Set location = ##class(%Dictionary.CompiledStorage).%OpenId("OcuTalon.Eval.Msg.IncidentCase||Default").DataLocation
+		Do $$$AssertTrue(location '= "", "the data global of the body class is found")
+		Set directory = $Piece(##class(%SYS.Namespace).GetGlobalDest($Namespace, location), "^", 2)
+		Do $$$AssertTrue(directory '= "", "and its database")
+		Do $$$AssertTrue(..GlobalHits(value, directory) >= 1, "the value next to a wide character in the body is found")
+		Do $$$AssertEquals(..GlobalHits(value_"-nobody", directory), 0, "a value that is not in it gives 0")
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the scan of the body runs without an exception")
+	}
+	If bodyId '= "" Do ##class(OcuTalon.Eval.Msg.IncidentCase).%DeleteId(bodyId)
+}
+
+/// DW-448, the stream question: no message-body class holds a global stream, so the global walk needs no decoder for stream chunks. The set is every
+/// compiled OcuTalon class that extends Ens.Request, Ens.Response or Ens.MessageBody, and the classes of SYSTEMBODIES (GlobalStreams says what
+/// counts). The control is the global
+/// stream of STREAMCONTROL, which the same check must find. It reads compiled classes only (no trace, no data).
+Method TestNoMessageBodyHoldsAGlobalStream()
+{
+	Set classes = ""
+	Set rows = ##class(%SQL.Statement).%ExecDirect(, "SELECT Name FROM %Dictionary.CompiledClass WHERE Name %STARTSWITH 'OcuTalon.'")
+	While rows.%Next() {
+		Set name = rows.%Get("Name")
+		Try {
+			If $ClassMethod(name, "%IsA", "Ens.Request") || $ClassMethod(name, "%IsA", "Ens.Response") || $ClassMethod(name, "%IsA", "Ens.MessageBody") {
+				Set classes = classes_$ListBuild(name)
+			}
+		} Catch {
+		}
+	}
+	Set classes = classes_$ListFromString(..#SYSTEMBODIES)
+	Do $$$AssertTrue($ListLength(classes) > 10, "the set of message-body classes is not empty: "_$ListLength(classes))
+	Do $$$AssertTrue($ListFind(classes, "OcuTalon.Eval.Msg.IncidentCase") > 0, "and holds the IncidentCase body")
+	Set found = ""
+	Set position = 0
+	While $ListNext(classes, position, name) {
+		Do ..GlobalStreams(name, 0, name, .found)
+	}
+	Do $$$AssertEquals(found, "", "no message-body class has a global stream: "_$ListToString(found, ", "))
+	Set control = ""
+	Do ..GlobalStreams(..#STREAMCONTROL, 0, ..#STREAMCONTROL, .control)
+	Do $$$AssertTrue($ListFind(control, ..#STREAMCONTROL_".ContextData") > 0, "the control finds the global stream of "_..#STREAMCONTROL_": "_$ListToString(control, ", "))
 }
 
 /// An IncidentCase body that holds a control value and a header that points at it are found after a mark and not before it.
@@ -273,15 +369,15 @@ ClassMethod Walk(value As %String, control As %String, databases As %String, Out
 				Set data = ""
 				If $Data(@reference, data) # 2 {
 					Set nodes = 1
-					If data [ value Set found = found + 1
-					If (control '= "") && (data [ control) Set controlFound = controlFound + 1
+					If ..Holds(data, value) Set found = found + 1
+					If (control '= "") && ..Holds(data, control) Set controlFound = controlFound + 1
 				}
 				For {
 					Set reference = $Query(@reference, 1, data)
 					Quit:reference=""
 					Set nodes = nodes + 1
-					If (reference [ value) || (data [ value) Set found = found + 1
-					If (control '= "") && ((reference [ control) || (data [ control)) Set controlFound = controlFound + 1
+					If ..Holds(data, value) || ..HoldsSubscript(reference, value) Set found = found + 1
+					If (control '= "") && (..Holds(data, control) || ..HoldsSubscript(reference, control)) Set controlFound = controlFound + 1
 				}
 			} Catch exception {
 				Set readable = 0
@@ -299,6 +395,35 @@ ClassMethod Walk(value As %String, control As %String, databases As %String, Out
 	Set stats.seconds = $Number($ZHorolog - begun, 2)
 	If stats.unreadable.%Size() Quit -1
 	Quit hits
+}
+
+/// 1 when the text holds the value, as a substring or inside an element of a $List value in it (an element that is itself a $List is read the same
+/// way, to a depth of LISTDEPTH). The elements of a list are stored with length marks, and a wide-character element is not stored as the characters,
+/// so a plain substring match misses them.
+ClassMethod Holds(text As %String, value As %String, depth As %Integer = 0) As %Boolean [ Private ]
+{
+	If text [ value Quit 1
+	If (depth >= ..#LISTDEPTH) || '$ListValid(text) || ($ListLength(text) = 0) Quit 0
+	Set position = 0, holds = 0
+	While 'holds && $ListNext(text, position, element) {
+		If $Data(element) Set holds = ..Holds(element, value, depth + 1)
+		Kill element
+	}
+	Quit holds
+}
+
+/// 1 when the global reference holds the value in the text of a subscript, or inside a subscript that is a $List value (Holds).
+ClassMethod HoldsSubscript(reference As %String, value As %String) As %Boolean [ Private ]
+{
+	If reference [ value Quit 1
+	Set holds = 0
+	For i = 1:1:$QLength(reference) {
+		If ..Holds($QSubscript(reference, i), value) {
+			Set holds = 1
+			Quit
+		}
+	}
+	Quit holds
 }
 
 /// The local databases to scan, as {name, directory} in list, and in stats the databases that were skipped as read-only or not mounted (stats.skipped) and
@@ -447,6 +572,32 @@ ClassMethod HeaderMark() As %Integer [ Private ]
 	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT MAX(ID) FROM Ens.MessageHeader")
 	Do result.%Next()
 	Quit +result.%GetData(1)
+}
+
+/// The properties of the class (inherited ones included) that are global streams, added to found as "<path>.<property>"; the properties of serial
+/// objects are read too, to a depth of 3. A global stream is a %Stream.GlobalCharacter or %Stream.GlobalBinary, a subclass of one, or a
+/// %Library.GlobalCharacterStream or %Library.GlobalBinaryStream; a property typed by an abstract stream class (%Stream.Object,
+/// %Library.CharacterStream, %Library.BinaryStream) counts too, because a persistent class stores it as a global stream.
+ClassMethod GlobalStreams(class As %String, depth As %Integer, path As %String, ByRef found As %List) [ Private ]
+{
+	Set rows = ##class(%SQL.Statement).%ExecDirect(, "SELECT Name, Type FROM %Dictionary.CompiledProperty WHERE parent = ?", class)
+	While rows.%Next() {
+		Set type = rows.%Get("Type")
+		If ($Extract(type) = "%") && ($Length(type, ".") = 1) Set type = "%Library."_$Extract(type, 2, *)
+		If (type = "") || '##class(%Dictionary.CompiledClass).%ExistsId(type) Continue
+		Set compiled = ##class(%Dictionary.CompiledClass).%OpenId(type)
+		Set classType = compiled.ClassType
+		If classType = "datatype" Continue
+		Set isStream = (classType = "stream") && compiled.Abstract
+		For global = "%Stream.GlobalCharacter", "%Stream.GlobalBinary", "%Library.GlobalCharacterStream", "%Library.GlobalBinaryStream" {
+			If $ClassMethod(type, "%IsA", global) Set isStream = 1
+		}
+		If isStream {
+			Set found = found_$ListBuild(path_"."_rows.%Get("Name"))
+		} ElseIf (classType = "serial") && (depth < 3) {
+			Do ..GlobalStreams(type, depth + 1, path_"."_rows.%Get("Name"), .found)
+		}
+	}
 }
 
 /// 1 when the dynamic array of strings holds the string.

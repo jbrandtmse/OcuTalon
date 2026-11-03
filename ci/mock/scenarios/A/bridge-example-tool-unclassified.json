@@ -1,0 +1,19 @@
+{
+  "name": "bridge-example-tool-unclassified",
+  "match": {
+    "marker": "bridge-example-tool-unclassified"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "example_archive_item",
+        "input": {}
+      }
+    },
+    {
+      "status": 200,
+      "text": "{\"outcome\": \"act\", \"reasons\": [\"The CI mock asked to archive the item, which waits for approval.\"], \"confidence\": 0.8}"
+    }
+  ]
+}

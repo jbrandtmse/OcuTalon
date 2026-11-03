@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # release/release.sh start --version <x.y.z> [--from release/<v>-rc<m> --pick <sha>...] [--integration <branch>] [--remote <name>] [--record <file>] [--rc <n>]
 # release/release.sh next|resume|status [--version <v> --rc <n>]   (required when more than one state has steps left)
-# Steps, in order: cut, image, ipm, push, notes  (Stories 11.14-11.16 and 11.18 insert their steps into STEPS)
+# Steps, in order: cut, image, overview, ipm, push, notes  (Stories 11.14-11.16 and 11.18 insert their steps into STEPS)
 # Exit: 0 step done / end of steps, 1 a step failed, 2 refused (nothing written), 4 stopped for the author's word,
 #       5 waited: the lane's throwaway lock is busy (nothing recorded; the next call runs the step again)
 # State: ${OCUTALON_RELEASE_STATE:-${XDG_STATE_HOME:-$HOME/.local/state}/ocutalon/release}/<v>-rc<n>/
@@ -24,7 +24,9 @@
 # integration head (or --from's candidate plus the cherry-picked --pick commits, each an integration-branch commit), one cut commit that
 # sets src/module.xml to the version and force-adds the built web bundle, then the branch release/<v>-rc<n> in the author's repository.
 # A candidate branch is never moved, re-committed, force-pushed or deleted. image builds the candidate's own tree and reads
-# /opt/ocutalon/version in the image, which must equal the version, and removes the check image. ipm packs the cut commit's tree with
+# /opt/ocutalon/version in the image, which must equal the version, and removes the check image. overview runs release/security-overview.sh on an
+# export of the candidate's tree: a fresh generation of docs/security-overview.md against the committed sections, and the overview tests; a drift or a failure
+# stops the release (the author runs the unit with --write on the integration branch, commits, and cuts the next candidate). ipm packs the cut commit's tree with
 # IPM in a throwaway container with no network, keeps the .tgz in the state folder (never in the repository), checks that it carries
 # the module's name and version and every file of the committed web bundle byte for byte, and records its size and checksums in
 # "## IPM artifact"; it sends nothing out. push asks, then pushes the candidate branch. notes runs release/notes.sh for the draft,
@@ -51,7 +53,7 @@ rel_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)
 . "$rel_root/docker/tests/lib-upgrade.sh"
 
 # The ordered steps; step_<name> is the function of a step. A sibling story adds its name and its function.
-STEPS="cut image ipm push notes"
+STEPS="cut image overview ipm push notes"
 HANDS_TARGET=900
 TAB=$(printf '\t')
 KIT_VERSION=1.0.0
@@ -589,6 +591,66 @@ step_image() {
   STEP_DETAIL="/opt/ocutalon/version reads $version in the image built from the candidate"
   echo "PASS image $got"
   return 0
+}
+
+# --- the overview step (Story 14.1) ---
+
+# step_overview: runs release/security-overview.sh in an export of the candidate's tree, so that the candidate's own code and its own
+# docs/security-overview.md are the ones checked. An empty web/node_modules folder keeps the unit from installing the web dependencies, which it never
+# reads. The lane's throwaway lock folder, when the author's repository has one, is handed to the unit. Exit 0 of the unit is PASS, exit 75 is
+# WAIT (nothing is recorded; the next call runs the step again), anything else fails the step with the first DRIFT or FAIL line of the unit,
+# and the release stops. "Regenerates" means a fresh generation from the candidate's code compared with the candidate's committed sections;
+# the author runs the unit with --write on the integration branch, commits, and cuts the next candidate.
+step_overview() {
+  local ctx="$sdir/overview" log="$sdir/overview.log" cand lockdir code line
+  cand=$(sget cand_sha)
+  if [ -z "$cand" ]; then
+    step_fail overview "the candidate is not cut"
+    return 1
+  fi
+  rm -rf "$ctx"
+  mkdir -p "$ctx"
+  if ! (set -o pipefail; git archive "$cand" < /dev/null | tar -x -C "$ctx"); then
+    rm -rf "$ctx"
+    step_fail overview "the candidate's tree could not be exported"
+    return 1
+  fi
+  if [ ! -f "$ctx/release/security-overview.sh" ]; then
+    rm -rf "$ctx"
+    step_fail overview "the candidate has no release/security-overview.sh"
+    return 1
+  fi
+  mkdir -p "$ctx/web/node_modules"
+  lockdir=$(
+    root=$rel_root
+    live_lock_dir
+  )
+  (
+    cd "$ctx" || exit 1
+    if [ -n "$lockdir" ]; then export OCUTALON_LOCK_DIR="$lockdir"; fi
+    bash release/security-overview.sh
+  ) < /dev/null > "$log" 2>&1
+  code=$?
+  rm -rf "$ctx"
+  case $code in
+    0)
+      rm -f "$log"
+      STEP_ROW=pass
+      STEP_DETAIL="the generated sections equal a fresh generation from the candidate, and the overview tests pass"
+      echo "PASS overview $STEP_DETAIL"
+      return 0
+      ;;
+    75)
+      rm -f "$log"
+      echo "WAIT overview the lane's throwaway lock is busy"
+      return 5
+      ;;
+  esac
+  line=$(grep -m 1 -E '^(DRIFT |FAIL |CLASS .* failed)' "$log" 2> /dev/null)
+  line=${line#FAIL overview }
+  rm -f "$log"
+  step_fail overview "${line:-the overview unit ended with exit $code}"
+  return 1
 }
 
 # --- the ipm step (Story 11.17) ---

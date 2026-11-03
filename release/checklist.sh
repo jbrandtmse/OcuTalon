@@ -21,6 +21,9 @@
 #                      assets/licenses/ holds the same non-empty files as the source folder
 #   web-bundle         src/ocutalon/csp/index.html exists (Story 11.5 commits the built page on the candidate branch)
 #   readme             docker/tests/test-readme.sh exits 0 (its note, links, anchors and heading slugs are checked offline)
+#   bridge-guide       docker/tests/test-bridge-guide.sh exits 0 (docs/bridge-guide.md names every setting, field and value of the bridge,
+#                      holds the U-229 sentence, follows the public-text rules, and matches the commands that the standalone-bridge job runs;
+#                      the live proof of those commands is that job on the candidate)
 #   public-text        docker/tests/test-boundaries.sh exits 0 (Epic 0's public-text check of the tree), and local_path and key_like find
 #                      nothing in the draft notes; a missing notes file fails
 #   iris-source        irislib/ and irissys/ are ignored, and no tracked path has an irislib/ or irissys/ component or a component that
@@ -30,8 +33,9 @@
 # The author's rows, which only the author's own line confirms. They are read from the record's "## Author confirmations" section, one
 # line each, in this form and no other (the date is a real calendar date; the text after it is optional):
 #   - <id>: confirmed <YYYY-MM-DD>[ <text>]
-# with <id> one of no-copied-code, no-artwork, no-ai-hub-copy, public-review and public-links. A row that the record does not confirm
-# reads "not confirmed", and a CONFIRM line prints the line to add. This script never writes that section and never confirms a row.
+# with <id> one of no-copied-code, no-artwork, no-ai-hub-copy, public-review, public-links, overview-review and demo-protections. A row
+# that the record does not confirm reads "not confirmed", and a CONFIRM line prints the line to add. This script never writes that section
+# and never confirms a row.
 #
 # It writes the section "## Release checklist" into the record through record_write (replacing its own section, or appending it) and
 # prints RECORD <file> and RESULT <result>. The section holds Result:, Candidate: (the version, the rc and the full sha of HEAD),
@@ -54,7 +58,7 @@ CK_NOTE='OcuTalon is inspired by OpenClaw and is not affiliated with or endorsed
 CK_NAME_ERE='[o]pen[c]law'
 CK_CSP=src/ocutalon/csp
 CK_LICENSES=web/public/assets/licenses
-CK_AUTHOR_IDS="no-copied-code no-artwork no-ai-hub-copy public-review public-links"
+CK_AUTHOR_IDS="no-copied-code no-artwork no-ai-hub-copy public-review public-links overview-review demo-protections"
 CK_AUTHOR_ACTIONS="Posts, articles, the video and bonus claims are the author's actions, done by hand. No script or workflow posts anything or claims a bonus."
 
 # --- the results ---
@@ -75,6 +79,7 @@ ck_pass_text() {
     licences) echo "every font, icon and package licence notice is present" ;;
     web-bundle) echo "the built web bundle is in the checkout" ;;
     readme) echo "docker/tests/test-readme.sh passed: README links, anchors and headings checked offline" ;;
+    bridge-guide) echo "docker/tests/test-bridge-guide.sh passed: the bridge guide matches the code of this release" ;;
     public-text) echo "docker/tests/test-boundaries.sh passed, and the draft notes hold no local path or key-like text" ;;
     iris-source) echo "irislib/ and irissys/ are ignored, and none of their files is tracked" ;;
     no-outward) echo "no script or workflow publishes a release, changes the repository's settings or posts to a public site" ;;
@@ -88,6 +93,8 @@ ck_author_text() {
     no-ai-hub-copy) echo "Nothing is copied from InterSystems' published AI Hub examples." ;;
     public-review) echo "Before the repository went public, the author reviewed every planning file under _bmad-output/ and the agent instructions (CLAUDE.md and the .claude/ and _bmad/ folders) for keys, local machine paths, private infrastructure details and names of other contest entrants." ;;
     public-links) echo "On the public repository page, every README link and section link opens, and the README's clone command works." ;;
+    overview-review) echo "The hand-written sections of docs/security-overview.md were reviewed against this release, and each statement is true of it; the public-text row passed on the overview." ;;
+    demo-protections) echo "Each online-demo protection that docs/security-overview.md states was checked against the running online demo for this release." ;;
   esac
 }
 
@@ -276,21 +283,27 @@ row_web_bundle() {
   fi
 }
 
-row_readme() {
-  local out rc
-  out=$(mktemp "${ck_tmp:-${TMPDIR:-/tmp}}/readme.XXXXXX") || {
-    ck_fail readme "no temporary file to run docker/tests/test-readme.sh in"
+# row_script <id> <script>: the row <id> passes when the script exits 0; a failure lists its FAIL lines. With no temporary file the row
+# still writes its FAIL line.
+row_script() {
+  local id=$1 script=$2 out rc
+  out=$(mktemp "${ck_tmp:-${TMPDIR:-/tmp}}/$id.XXXXXX") || {
+    ck_fail "$id" "no temporary file to run $script in"
     return 0
   }
-  bash docker/tests/test-readme.sh > "$out" 2>&1 < /dev/null
+  bash "$script" > "$out" 2>&1 < /dev/null
   rc=$?
   if [ "$rc" -eq 0 ]; then
-    ck_pass readme
+    ck_pass "$id"
   else
-    ck_fail readme "docker/tests/test-readme.sh failed (exit $rc)" "$(grep '^FAIL' "$out" | head -n 10)"
+    ck_fail "$id" "$script failed (exit $rc)" "$(grep '^FAIL' "$out" | head -n 10)"
   fi
   rm -f "$out"
 }
+
+row_readme() { row_script readme docker/tests/test-readme.sh; }
+
+row_bridge_guide() { row_script bridge-guide docker/tests/test-bridge-guide.sh; }
 
 # row_public_text [<notes file>]: from the repository root; the notes file defaults to the one of the run (ck_notes).
 row_public_text() {
@@ -566,6 +579,7 @@ checklist_main() {
   row_licences
   row_web_bundle
   row_readme
+  row_bridge_guide
   row_public_text
   row_iris_source
   row_no_outward

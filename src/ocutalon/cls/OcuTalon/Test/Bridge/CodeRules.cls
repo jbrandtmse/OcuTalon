@@ -29,6 +29,8 @@
 ///   - TestSessionsOnlyThroughTheComposer: no OcuTalon class outside the Test package, except the adapter, creates, resumes or opens
 ///     an AI session on an agent, or calls AI Hub's adapter methods that create one from its SessionConfig setting, so that every
 ///     session gets the config that the adapter composes (AD-7);
+///   - TestNoSummarizeInPlace (Story 30.1; AD-20): no OcuTalon class outside the Test package calls Summarize on a session. The scanner is first shown to flag
+///     the call and to pass ForkAndSummarize, look-alike words and comment lines. TestSessionsOnlyThroughTheComposer also flags ForkAndSummarize outside the adapter;
 ///   - TestReplayOpensTheThrowawaySession (Story 30.3, DW-452; AD-6): Replay.Run, the replay of an approved tool call, calls the adapter's NewSession once
 ///     before it calls ExecuteTool and its ReleaseThrowaway once after, and ReleaseThrowaway drops the session (ReleaseSession), so that the throwaway AI
 ///     session that AD-6 asks for cannot be deleted without this test failing. The scanner is first shown to flag the order and to ignore comment lines;
@@ -142,8 +144,13 @@ Parameter CHATTERS = "OcuTalon.Bridge.Operation.AgentRunner,OcuTalon.Bridge.Adap
 /// The calls that create, resume or open an AI session on an agent: CreateSession, ResumeSession and %InitWithSession of any object,
 /// OpenSession of any object but the adapter, %AI.Agent.Session's Create, and SendChat, SendChatWithContent and RunAgent of AI Hub's
 /// adapter, which create a session from its SessionConfig setting. The adapter's own methods NewSession and OpenSession are not
-/// these calls.
-Parameter SESSIONCALLS = "\.(createsession|resumesession|%initwithsession|sendchat|sendchatwithcontent|runagent)\(|(?<!adapter)\.opensession\(|%ai\.agent\.session\)\.create\(";
+/// these calls. ForkAndSummarize (Story 30.1) makes a session too, from a session: only the adapter, which guards the cut, checks the fork
+/// and composes its config, may call it.
+Parameter SESSIONCALLS = "\.(createsession|resumesession|%initwithsession|sendchat|sendchatwithcontent|runagent|forkandsummarize)\(|(?<!adapter)\.opensession\(|%ai\.agent\.session\)\.create\(";
+
+/// A call of Summarize on a session, which cuts the history in place by message count and can split a tool call from its result (AD-20,
+/// S2): no product class may call it. ForkAndSummarize is a different call (SESSIONCALLS).
+Parameter SUMMARIZECALLS = "\.summarize\(";
 
 /// The class that may make sessions: the adapter, which composes their config.
 Parameter SESSIONMAKERS = "OcuTalon.Bridge.Adapter.Agent";
@@ -381,6 +388,7 @@ Method TestSessionsOnlyThroughTheComposer()
 	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(tab_"Set sc = ..Adapter.SendChatWithContent(c, .r)", pattern), "and SendChatWithContent")
 	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(tab_"Set sc = ..Adapter.RunAgent(goal, .r)", pattern), "and RunAgent")
 	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(tab_"SET S = AGENT.CREATESESSION({})", pattern), "in any case")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(tab_"Set fork = session.ForkAndSummarize(provider, """", 2, prompt, 0)", pattern), "and ForkAndSummarize, which makes a session from a session")
 	Do $$$AssertTrue('##class(OcuTalon.Test.Bridge.Source).Matches(tab_"Set sc = ..Adapter.NewSession(.session)"_$Char(10)_tab_"Set sc = ..Adapter.OpenSession(id, .session)"_$Char(10)_tab_"Set createsession = 1"_$Char(10)_"/// Calls agent.CreateSession( in a comment"_$Char(10)_tab_"; ..Agent.OpenSession(id, c)", pattern), "and passes the adapter's own methods, a variable and comment lines")
 
 	Set offending = ..Offenders(pattern, ..#SESSIONMAKERS, .scanned, .unreadable)
@@ -389,6 +397,22 @@ Method TestSessionsOnlyThroughTheComposer()
 	Do $$$AssertEquals(offending, "", "no class but the adapter creates, resumes or opens an AI session on an agent")
 	Do $$$AssertStatusOK(##class(OcuTalon.Test.Bridge.Source).Text(..#SESSIONMAKERS, .text), ..#SESSIONMAKERS_" has source")
 	Do $$$AssertTrue($ListLength(##class(OcuTalon.Test.Bridge.Source).Lines(text, pattern)) > 0, "and the scan sees the calls of the adapter, the one class that makes sessions")
+}
+
+/// No class outside the Test package calls Summarize on a session (Story 30.1; AD-20): the cut by message count can split a tool call from its result and
+/// leave the session invalid for good. The compaction goes through ForkAndSummarize, in the adapter alone. The scanner is first shown to flag the call and
+/// to pass ForkAndSummarize, a look-alike method and comment lines.
+Method TestNoSummarizeInPlace()
+{
+	Set pattern = ..#SUMMARIZECALLS
+	Set tab = $Char(9)
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(tab_"Set sc = session.Summarize(provider, 10)", pattern), "the scanner flags Summarize")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(tab_"SET SC = ..AGENT.SESSION.SUMMARIZE(P)", pattern), "in any case")
+	Do $$$AssertTrue('##class(OcuTalon.Test.Bridge.Source).Matches(tab_"Set fork = session.ForkAndSummarize(provider, """", 2, prompt, 0)"_$Char(10)_tab_"Set text = ..Summarizer(x)"_$Char(10)_tab_"Set sc = ..Condense(a, b)"_$Char(10)_"/// Never session.Summarize( in place"_$Char(10)_tab_"; session.Summarize(p)", pattern), "and passes ForkAndSummarize, look-alike methods and comment lines")
+	Set offending = ..Offenders(pattern, "", .scanned, .unreadable)
+	Do $$$AssertTrue(scanned > 50, "the scan read the source of the OcuTalon classes: "_scanned)
+	Do $$$AssertEquals(unreadable, "", "and every class of the scan has source, except the generated stub classes of the process message tracking, which hold no code")
+	Do $$$AssertEquals(offending, "", "no class calls Summarize on a session")
 }
 
 /// The replay of an approved tool call opens a throwaway AI session and releases it (AD-6 read literally; Story 30.3, DW-452). The test reads the code
@@ -493,7 +517,7 @@ Method TestOnlyTheRunnerWritesLinks()
 	For method = "Point", "SessionOf", "Lock", "Unlock" {
 		Do $$$AssertTrue($ListFind(used, method), "the adapter calls "_method)
 	}
-	Do $$$AssertEquals($ListLength($ClassMethod(source, "Lines", adapter, "conversationlink\)\.point\(")), 1, "and it calls Point in one place, the save of a linked turn")
+	Do $$$AssertEquals($ListLength($ClassMethod(source, "Lines", adapter, "conversationlink\)\.point\(")), 2, "and it calls Point in two places: the save of a linked turn and the switch to a compaction fork (Story 30.1)")
 	Do $$$AssertEquals(..LinkMentions(adapter, calls), 0, "and its code names the link class nowhere but in those calls")
 	Do $$$AssertEquals($ClassMethod(source, "Matches", adapter, "ocutalonbp\.conv"), 0, "nor the globals of its rows and its lock")
 	Do $$$AssertStatusOK($ClassMethod(source, "Text", "OcuTalon.Bridge.Purge", .purge), "the bridge purge has source")

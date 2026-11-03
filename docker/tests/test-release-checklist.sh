@@ -1,9 +1,9 @@
 #!/usr/bin/env bash
 # Hermetic self-test of the release checklist (Story 11.4; release/checklist.sh, notes_path of release/lib-release.sh, local_path of
 # docker/tests/lib-scan.sh), with no container, no network call and no model. It builds one synthetic git repository in a temporary
-# folder (copies of the checklist and its three libraries, fixture files, a fixture bundle, and stubs for test-readme.sh and
-# test-boundaries.sh that fail only when a marker file exists), copies it for each case and pins:
-#   - base: a record with a rehearsal section and all five confirmations gives RESULT pass and exit 0; both other sections stay byte for
+# folder (copies of the checklist and its three libraries, fixture files, a fixture bundle, and stubs for test-readme.sh,
+# test-bridge-guide.sh and test-boundaries.sh that fail only when a marker file exists), copies it for each case and pins:
+#   - base: a record with a rehearsal section and all seven confirmations gives RESULT pass and exit 0; both other sections stay byte for
 #     byte; the checklist section appears once and is replaced by a second run;
 #   - rows: each automated row, mutated in a fresh copy, fails with file:line (or a count) and without the planted text, and with no other
 #     row failing but the ones that must (a name outside the note fails name-only-in-note as well);
@@ -13,7 +13,7 @@
 #   - no-network: stubs for curl, wget, gh, ssh and nc leave no marker after any case (it runs after the cases and fails when no stubbed
 #     run happened);
 #   - sourcing: sourcing the checklist runs nothing, and lib-scan.sh defines local_path;
-#   - tmpfail: with no temporary file (mktemp fails), readme, public-text and the author rows each still write a FAIL or CONFIRM line and a
+#   - tmpfail: with no temporary file (mktemp fails), readme, bridge-guide, public-text and the author rows each still write a FAIL or CONFIRM line and a
 #     result line, so the result cannot be a pass; and a run with no temporary folder refuses with one line;
 #   - static: mode 100755, umask 077, ASCII, the main guard, no network command, and no line that holds the inspiration's name without
 #     the note (first run on a synthetic file that breaks each rule).
@@ -96,6 +96,7 @@ mkbase() {
   cp -p "$root/release/checklist.sh" "$root/release/lib-release.sh" "$b/release/"
   cp -p "$root/docker/tests/lib-scan.sh" "$root/docker/tests/lib-keys.sh" "$b/docker/tests/"
   stub "$b/docker/tests/test-readme.sh" readme
+  stub "$b/docker/tests/test-bridge-guide.sh" bridge-guide
   stub "$b/docker/tests/test-boundaries.sh" boundaries
   printf '# OcuTalon\n\n%s\n' "$NOTE" > "$b/README.md"
   printf '<div>\n  <p>%s</p>\n</div>\n' "$NOTE" > "$b/web/src/app/about/about-dialog.ts"
@@ -131,8 +132,8 @@ commit_all() {
   git -C "$W" commit -q -m mutation
 }
 
-CONF_IDS="no-copied-code no-artwork no-ai-hub-copy public-review public-links"
-mkrec() { # mkrec <file> [<ids to confirm>]: the default confirms all five
+CONF_IDS="no-copied-code no-artwork no-ai-hub-copy public-review public-links overview-review demo-protections"
+mkrec() { # mkrec <file> [<ids to confirm>]: the default confirms all seven
   local f=$1 ids id
   shift
   ids=${*:-$CONF_IDS}
@@ -189,7 +190,7 @@ t_base() {
   eq "the record's earlier bytes are kept" "$(head -c "$size" "$rec" | cksum)" "$prefix"
   has "result" "$out" "RESULT pass"
   has "record line" "$out" "RECORD $rec"
-  eq "PASS lines" "$(printf '%s\n' "$out" | grep -c '^PASS ')" 16
+  eq "PASS lines" "$(printf '%s\n' "$out" | grep -c '^PASS ')" 19
   eq "no FAIL or CONFIRM line" "$(printf '%s\n' "$out" | grep -c -e '^FAIL ' -e '^CONFIRM ')" 0
   eq "rehearsal section kept" "$(sect "$rec" "## Clean-machine rehearsal")" "$before_r"
   eq "confirmations kept" "$(sect "$rec" "## Author confirmations")" "$before_a"
@@ -359,6 +360,9 @@ t_script_rows() {
   : > "$marks/readme"
   expect_fail "test-readme.sh fails" "readme "
   newcase
+  : > "$marks/bridge-guide"
+  expect_fail "test-bridge-guide.sh fails" "bridge-guide "
+  newcase
   : > "$marks/boundaries"
   expect_fail "test-boundaries.sh fails" "public-text "
   newcase
@@ -513,12 +517,31 @@ t_author() {
   std
   eq "no section: exit" "$rc" 1
   has "no section: result" "$out" "RESULT not confirmed"
-  eq "no section: five CONFIRM lines" "$(printf '%s\n' "$out" | grep -c '^CONFIRM ')" 5
+  eq "no section: seven CONFIRM lines" "$(printf '%s\n' "$out" | grep -c '^CONFIRM ')" 7
   for id in $CONF_IDS; do
     has "CONFIRM $id" "$out" "CONFIRM $id: add the line \"- $id: confirmed <YYYY-MM-DD>\" under \"## Author confirmations\" in $rec"
   done
   eq "no section: none written" "$(grep -c 'Author confirmations' "$rec")" 0
   has "no section: the table" "$(sect "$rec" "## Release checklist")" "| no-artwork | not confirmed | None of that project's logo or artwork is used. |"
+  has "no section: the overview-review row" "$(sect "$rec" "## Release checklist")" "| overview-review | not confirmed | The hand-written sections of docs/security-overview.md were reviewed against this release, and each statement is true of it; the public-text row passed on the overview. |"
+  has "no section: the demo-protections row" "$(sect "$rec" "## Release checklist")" "| demo-protections | not confirmed | Each online-demo protection that docs/security-overview.md states was checked against the running online demo for this release. |"
+  # Story 14.2 (QA), AC 3: a record that confirms the five older rows but not the two new ones is not confirmed, with exactly the two CONFIRM
+  # lines; and a record that lacks only one of the two names that one alone.
+  newcase
+  mkrec "$rec" no-copied-code no-artwork no-ai-hub-copy public-review public-links
+  std
+  eq "only the two new rows missing: exit" "$rc" 1
+  has "only the two new rows missing: result" "$out" "RESULT not confirmed"
+  eq "only the two new rows missing: the CONFIRM ids" "$(printf '%s\n' "$out" | sed -n 's/^CONFIRM \([a-z-]*\):.*$/\1/p' | tr '\n' ' ')" "overview-review demo-protections "
+  has "only the two new rows missing: the record" "$(sect "$rec" "## Release checklist")" "Result: not confirmed"
+  for id in overview-review demo-protections; do
+    newcase
+    mkrec "$rec" $(printf '%s\n' $CONF_IDS | grep -vx "$id")
+    std
+    eq "only $id missing: exit" "$rc" 1
+    has "only $id missing: result" "$out" "RESULT not confirmed"
+    eq "only $id missing: the CONFIRM ids" "$(printf '%s\n' "$out" | sed -n 's/^CONFIRM \([a-z-]*\):.*$/\1/p' | tr '\n' ' ')" "$id "
+  done
   # A malformed line, an impossible date, another word: each row stays not confirmed, and the rest are confirmed.
   newcase
   {
@@ -533,7 +556,7 @@ t_author() {
   before=$(cat "$rec")
   std
   eq "malformed: exit" "$rc" 1
-  eq "malformed: five CONFIRM lines" "$(printf '%s\n' "$out" | grep -c '^CONFIRM ')" 5
+  eq "malformed: seven CONFIRM lines" "$(printf '%s\n' "$out" | grep -c '^CONFIRM ')" 7
   eq "malformed: the record's own section is unchanged" "$(sect "$rec" "## Author confirmations")" "$(printf '%s\n' "$before" | sed -n '/^## Author confirmations/,$p')"
   # A leap day and a date with no text are confirmed; the heading must be exact; a section further down is not read.
   newcase
@@ -543,6 +566,8 @@ t_author() {
     printf -- '- no-artwork: confirmed 2026-11-02\n'
     printf -- '- no-ai-hub-copy: confirmed 2026-11-02 text with: colons - and dashes\n'
     printf -- '- public-review: confirmed 2026-11-03 reviewed\n'
+    printf -- '- overview-review: confirmed 2026-11-03\n'
+    printf -- '- demo-protections: confirmed 2026-11-03\n'
     printf '\n## Other\n\n- public-links: confirmed 2026-11-02\n'
   } > "$rec"
   std
@@ -557,7 +582,7 @@ t_author() {
     printf '\n## author confirmations\n\n- no-artwork: confirmed 2026-11-02\n'
   } > "$rec"
   std
-  eq "look-alike headings: five CONFIRM lines" "$(printf '%s\n' "$out" | grep -c '^CONFIRM ')" 5
+  eq "look-alike headings: seven CONFIRM lines" "$(printf '%s\n' "$out" | grep -c '^CONFIRM ')" 7
   # Not confirmed rows never turn a failing result into not confirmed.
   newcase
   mkrec_plain "$rec"
@@ -654,16 +679,18 @@ t_tmpfail() {
     : > "$ck_results"
     ck_tmp=
     row_readme
+    row_bridge_guide
     row_public_text "$2"
     author_rows "$3"
     echo "RESULT $(checklist_result "$ck_results")"
     echo "LINES $(wc -l < "$ck_results" | tr -d " ")"' _ "$res" "$notes" "$rec" 2>&1)
   has "readme: a FAIL line" "$o" "FAIL readme no temporary file"
+  has "bridge-guide: a FAIL line" "$o" "FAIL bridge-guide no temporary file"
   has "public-text: a FAIL line" "$o" "FAIL public-text no temporary file"
-  eq "author rows: five CONFIRM lines" "$(printf '%s\n' "$o" | grep -c '^CONFIRM .*no temporary file')" 5
+  eq "author rows: seven CONFIRM lines" "$(printf '%s\n' "$o" | grep -c '^CONFIRM .*no temporary file')" 7
   has "result" "$o" "RESULT fail"
-  has "every row has a result line (2 rows and 5 author rows)" "$o" "LINES 7"
-  # The author rows alone: a record that confirms all five still reads not confirmed when it cannot be read.
+  has "every row has a result line (3 rows and 7 author rows)" "$o" "LINES 10"
+  # The author rows alone: a record that confirms all seven still reads not confirmed when it cannot be read.
   o=$(cd "$W" && TMPDIR="$tmp/no-such-dir" bash -c '
     . release/checklist.sh
     ck_results=$1
@@ -673,7 +700,7 @@ t_tmpfail() {
     echo "RESULT $(checklist_result "$ck_results")"
     echo "LINES $(wc -l < "$ck_results" | tr -d " ")"' _ "$res" "$rec" 2>&1)
   has "author rows alone: not confirmed" "$o" "RESULT not confirmed"
-  has "author rows alone: five result lines" "$o" "LINES 5"
+  has "author rows alone: seven result lines" "$o" "LINES 7"
   # The run itself: no temporary folder is a refusal, with one line, and the record is unchanged.
   local sum
   sum=$(cksum < "$rec")

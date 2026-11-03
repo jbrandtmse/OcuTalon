@@ -46,7 +46,7 @@ Method TestLanesFollowThePackageSplit()
 		Set class = item.ClassName
 		Set expected = ..LaneOfClass(class)
 		If expected = "" {
-			Set expected = $Case(name, "OcuTalonApprovals": "A", "OutcomeRouter": "B", "Notify": "B", : "")
+			Set expected = $Case(name, "OcuTalonApprovals": "A", "ReconcileIn": "A", "OutcomeRouter": "B", "Notify": "B", : "")
 		}
 		Do $$$AssertTrue(expected '= "", name_": the lane of "_class_" is known from the package split or the ownership table")
 		Do $$$AssertEquals($Get(laneOf(name)), expected, name_" sits in the region of lane "_expected)

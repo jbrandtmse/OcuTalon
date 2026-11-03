@@ -86,7 +86,7 @@ in_scope() {
   return 0
 }
 
-files=$(scan_files docker docker-compose.yml docker-compose.dev.yml .dockerignore .env.example .gitattributes install.sh src web .github ci 'release/*.sh' | while IFS= read -r f; do
+files=$(scan_files docker docker-compose.yml docker-compose.dev.yml .dockerignore .env.example .gitattributes install.sh src web .github ci 'release/*.sh' docs/security-overview.md | while IFS= read -r f; do
   if in_scope "$f"; then echo "$f"; fi
 done)
 all_files=$(scan_files)
@@ -102,7 +102,8 @@ for f in src/module.xml src/bridge/cls/OcuTalon/Bridge/Installer.cls src/ocutalo
   web/package.json web/package-lock.json web/angular.json web/src/index.html web/src/app/app.ts web/src/styles/tokens.css web/src/signin/signin.css \
   web/scripts/tokens.mjs web/e2e/sign-in/helpers.ts web/src/signin/signin.js src/ocutalon/cls/OcuTalon/Web/Public/SignInAssets.cls \
   .github/workflows/ci.yml .github/workflows/lane-a.yml ci/iris.sh ci/compose.ci.yml install.sh \
-  release/lib-release.sh release/rehearse.sh release/upgrade-harness.sh release/standalone-bridge.sh release/demo-host-check.sh release/demo-load.sh; do
+  release/lib-release.sh release/rehearse.sh release/upgrade-harness.sh release/standalone-bridge.sh release/demo-host-check.sh release/demo-load.sh \
+  docs/security-overview.md; do
   if ! grep -qxF -- "$f" <<< "$files"; then
     echo "  not scanned: $f"
     scope_ok=0
@@ -116,7 +117,7 @@ for f in README.md CLAUDE.md _bmad/custom/skill-rules.md _bmad-output/implementa
   fi
 done
 if [ "$scope_ok" -eq 1 ]; then
-  echo "PASS scope: src/, the text sources of web/, the dev compose file, the scripts, install.sh, .github/, ci/, release/*.sh and the IPM release are scanned; every tracked or new file is scanned for paths and keys, README.md among them"
+  echo "PASS scope: src/, the text sources of web/, the dev compose file, the scripts, install.sh, .github/, ci/, release/*.sh, docs/security-overview.md and the IPM release are scanned; every tracked or new file is scanned for paths and keys, README.md among them"
 else
   echo "FAIL scope: a file that must be scanned is not"
   fails=$((fails + 1))
