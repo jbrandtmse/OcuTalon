@@ -438,3 +438,4 @@
 2026-11-03T17:51:08Z	Story 0.14	fresh_check	env=clean-checkout(local_clone_of_OCT-epic0_at_cc1f8d3f+uncommitted_docker_release_patch) tests=2(test-lib-live,test-upgrade-harness) result=pass order=forward,reverse note=git_archive_copy_failed_real-tree,storage-base_only(they_need_history;env_not_story) leftovers=none
 2026-11-03T17:51:36Z	Story 0.14	committed	sha=9dd16cdc submodules= ci=pending runs=41688225535,41688225414 pushed_at=2026-11-03T17:51:15Z amendments=none build_sha=ec9828a1
 2026-11-03T17:51:36Z	Story 0.14	story_cycle	plan_to_commit_min=84 implement_passes=1 reviews=1 rework=0 first_ci=pending models=plan:claude-opus-5-5,implement:claude-sonnet-5-5,qa:claude-sonnet-5-5,cr:claude-opus-5-5
+2026-11-03T18:26:01Z	Story 0.14	ci_red_classified	run=41688225535 workflow=.github/workflows/ci.yml class=flake test=OcuTalon.Test.Web.GuideApi(TestRunAgain,TestOnlyTheMarkerChanges) ledger=DW-453(occurrence) job=iris(image) head=9dd16cdc action=rerun_failed
