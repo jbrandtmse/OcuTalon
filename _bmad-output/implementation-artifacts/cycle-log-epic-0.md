@@ -373,3 +373,5 @@
 2026-11-03T09:46:01Z	Epic 0	sprint_planning_complete	gate=PASS model=claude-opus-5-5 note=readiness_recheck_for_reopen;story_0.13_AC_amended_first(U-235_conditions,Rule_5_tier_1,epics.md)
 2026-11-03T09:46:01Z	Epic 0	epic_status_reopened	epic-0=in-progress via=SC-5_reopen(epic_branch_reopened) story=0.13
 2026-11-03T09:46:01Z	Epic 0	retro_review_skipped	reason=skip(no_X.0_input) note=reopen_for_one_story;epic0_owned_ledger=0
+2026-11-03T09:47:58Z	Epic 0	epic_context_compiled	reason=planning_artifact_newer(story_0.13_amended) model=claude-opus-5-5
+2026-11-03T09:48:14Z	Story 0.13	stage_spawned	stage=plan spawn_at=2026-11-03T09:48:14Z model=claude-opus-5-5 agent_name=0-13-plan-1 cycle_iteration=1
