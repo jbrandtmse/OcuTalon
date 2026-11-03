@@ -80,3 +80,8 @@
 2026-10-31T08:39:04Z	Story 15.3	story_waiting	story=15-3-an-ipm-install-survives-restarts-and-reinstalls-and-every-re on=11 note=Epic_9_merged(037e91d3,feature_c9f1288c);Epic_11(release_sequence)_running_on_runner_A;not_started(no_code)
 2026-10-31T08:39:04Z	Epic 15	ruling	question=independent_work_while_15.3_waits_on_11 choice=no_gap-fill;end_waiting rejected=charter_gap-fill_from_DW-80,DW-306 why=DW-80_is_15.3_own_AC(ReconcileIn_now_delivers_its_mechanism;15.3_proves_it_on_a_restart);DW-306_edits_docker/tests/test-production.sh_with_15.3;taking_either_early_splits_15.3 category=decide policy=6df0676e97fcb5bfd0171fab25c2ff7cfb0ab264
 2026-10-31T08:39:04Z	Epic 15	epic_runner_ended	reason=waiting waiting_on=11(15.3) stories_done=2(15.1,15.2) applied=U-176_at=2026-10-31T00:05:17Z#534,U-177_at=2026-10-31T00:05:17Z#535 note=resume_prompt_refreshed;epic-15-context_older_than_epics.md_and_spine(re-pre-warm_before_15.3_plan);slot_B_holds_integrate-forward_classes(reload_on_re-dispatch)
+2026-11-03T01:36:03Z	Epic 15	runner_unattended_start	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec note=redispatch_part1_merge_runner_D lane=D slot=ocutalon-slot-d
+2026-11-03T01:36:03Z	Epic 15	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-11-03T01:36:03Z	Epic 15	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh
+2026-11-03T01:36:03Z	Epic 15	launch_env	depth=4 watchdog=default bash_max_ms=default
+2026-11-03T01:36:12Z	Epic 15	ci_resolved	story=bookkeeping_head sha=22a0970 runs=41185470164,41185470154 result=success failed=none via=none resolved_at=resume
