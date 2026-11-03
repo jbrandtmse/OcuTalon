@@ -18,7 +18,7 @@ Include Ensemble
 ///   - WaitMonitor, InstanceSeq, Events, WaitEvent and WaitClear read the telegramPaused status events that the production's own
 ///     StatusMonitor publishes on the instance stream (the pattern of OcuTalon.Test.Schedule.Stalled): the monitor's silent first run must be
 ///     over, and a test that caused a pause waits for its clear, so that no event of it lands in a later test's window.
-///   - The helpers that keep no state of the test are public class methods (BaseReason, WaitJobs, CallsOf, WaitCalls, WaitState, WaitMark,
+///   - The helpers that keep no state of the test are public class methods (BaseReason, WaitJobs, AwaitStop, JobText, CallsOf, WaitCalls, WaitState, WaitMark,
 ///     WaitMonitor, MonitorSettled, MonitorAge, InstanceSeq, Events, WaitEvent, WaitClear, EpochNow, Cut), and so are Enable, Disable, Marks
 ///     and PutMarks, which hold the bodies of StartItems, StopItems, SaveMarks and RestoreMarks. The second user of them is
 ///     OcuTalon.Test.Channel.TelegramPageFixture (Story 12.8), which the page's browser test calls from an IRIS script.
@@ -57,6 +57,11 @@ Property Ended As %Status [ InitialExpression = 1, Private ];
 
 /// The longest, in seconds, that StartItems and StopItems wait for the jobs of an item.
 Parameter WAITJOB = 30;
+
+/// How often, in seconds, a disable that was asked to retry (the park) and still sees a job of the item asks the production to update
+/// again (AwaitStop). The first update of a disable stops the job; one that was slow or lost leaves the job running until another
+/// update is asked for.
+Parameter RETRYSECONDS = 10;
 
 /// The longest, in seconds, to wait for an effect of a handled update.
 Parameter WAIT = 10;
@@ -213,9 +218,13 @@ Method StopItems() As %Status [ Private ]
 }
 
 /// Disables the items (comma-separated), waits until each has no job, and puts back the Enabled rows of rows, as Enable collected them.
-/// The status is the first failure; an item that is already disabled is not a failure.
-ClassMethod Disable(items As %String, rows As %List) As %Status
+/// The wait is seconds long for each item (WAITJOB when empty). With retry not 0, a job that is still there is asked to stop again every
+/// retry seconds (AwaitStop); the park does this and the stops of the tests do not. The status is the first failure; an item that is
+/// already disabled is not a failure. A job that is not gone when the time is up is a failure whose text names the job, its status and
+/// the last production update's error.
+ClassMethod Disable(items As %String, rows As %List, seconds As %Integer = {..#WAITJOB}, retry As %Integer = 0) As %Status
 {
+	If seconds = "" Set seconds = ..#WAITJOB
 	Set first = $$$OK
 	For i = 1:1:$Length(items, ",") {
 		Set item = $Piece(items, ",", i)
@@ -225,7 +234,7 @@ ClassMethod Disable(items As %String, rows As %List) As %Status
 			Set sc = ##class(Ens.Director).EnableConfigItem(item, 0, 1)
 			If $$$ISERR(sc) && $$$ISOK(first) Set first = sc
 		}
-		If '..WaitJobs(item, 0) && $$$ISOK(first) Set first = $SYSTEM.Status.Error(5001, item_" still has a job "_..#WAITJOB_" s after it was disabled")
+		If '..AwaitStop(item, seconds, retry, "", , .why) && $$$ISOK(first) Set first = $SYSTEM.Status.Error(5001, item_" still has a job "_seconds_" s after it was disabled ("_..JobText(item)_$Select(why = "": "", 1: "; the last production update: "_why)_")")
 	}
 	Set sc = $ClassMethod(..#FIXTURE, "RestoreDefaults", $Get(rows))
 	If $$$ISERR(sc) && $$$ISOK(first) Set first = sc
@@ -235,13 +244,57 @@ ClassMethod Disable(items As %String, rows As %List) As %Status
 /// 1 when the item has a job (running = 1) or has none (running = 0) within WAITJOB seconds.
 ClassMethod WaitJobs(item As %String, running As %Boolean) As %Boolean
 {
-	Set deadline = $ZHorolog + ..#WAITJOB
+	Quit ..Await(item, running, ..#WAITJOB, 0, "")
+}
+
+/// 1 when the item, which has been disabled, has no job within seconds. While it has one, every retry seconds (none for 0) it asks
+/// the production to update again, which stops a job whose first stop was slow or lost. stub, when not empty, is a class that stands for
+/// the director and the fixture in a test: its class method Jobs(item) gives the alive jobs of an item and its class method Update()
+/// stands for the production update. retries counts the updates asked for, and why is the error text of the last update that failed.
+ClassMethod AwaitStop(item As %String, seconds As %Integer, retry As %Integer = 0, stub As %String = "", Output retries As %Integer, Output why As %String) As %Boolean
+{
+	Set retries = 0
+	Set why = ""
+	Quit ..Await(item, 0, seconds, retry, stub, .retries, .why)
+}
+
+/// The wait of WaitJobs and AwaitStop: 1 when the item has a job (running = 1) or has none (running = 0) within seconds, with the
+/// production updates of AwaitStop when retry is not 0 and the item should have none. An update waits for the jobs at most as long as
+/// the wait has left (10 s at most), so the wait does not run past its bound by more than a moment.
+ClassMethod Await(item As %String, running As %Boolean, seconds As %Integer, retry As %Integer, stub As %String, ByRef retries As %Integer = 0, ByRef why As %String = "") As %Boolean
+{
+	Set begun = $ZHorolog
+	Set deadline = begun + seconds
+	Set nextRetry = begun + retry
 	For {
-		Set has = ($ListLength($ClassMethod(..#FIXTURE, "Jobs", item)) > 0)
+		Set has = ($ListLength($ClassMethod($Select(stub = "": ..#FIXTURE, 1: stub), "Jobs", item)) > 0)
 		If (has = running) || ($ZHorolog >= deadline) Quit
-		Hang 0.5
+		If retry && 'running && ($ZHorolog >= nextRetry) {
+			Set retries = retries + 1
+			If stub = "" {
+				Set now = $ZHorolog
+				Set sc = ##class(Ens.Director).UpdateProduction($Select(deadline - now < 1: 1, deadline - now > 10: 10, 1: deadline - now))
+				If $$$ISERR(sc) Set why = $Translate($SYSTEM.Status.GetErrorText(sc), $Char(13, 10), "  ")
+			} Else {
+				Do $ClassMethod(stub, "Update")
+			}
+			Set nextRetry = $ZHorolog + retry
+		}
+		Hang $Select(stub = "": 0.5, 1: 0.1)
 	}
 	Quit has = running
+}
+
+/// What a failure text says about the jobs of the item: each alive job with its status, or that it has none now.
+ClassMethod JobText(item As %String) As %String
+{
+	Set text = ""
+	Set result = ##class(%ResultSet).%New("Ens.Job:Enumerate")
+	If $$$ISERR(result.Execute()) Quit "the jobs cannot be listed"
+	While result.Next() {
+		If (result.Get("ConfigName") = item) && (result.Get("State") = "Alive") Set text = text _ $Select(text = "": "", 1: ", ") _ "job " _ result.Get("Job") _ " " _ result.Get("Status")
+	}
+	Quit $Select(text = "": "no job now", 1: text)
 }
 
 /// Saves the two Telegram marks as found.

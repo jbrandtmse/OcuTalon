@@ -14,7 +14,7 @@ Include Ensemble
 ///     Otherwise, in the one call, it kills the kept offset and resets the mock's Bot API side, and fails when the mock did not answer 200.
 ///     A scripted getUpdates reply (the telegram-*-update scenarios) is sent as written, with update_id 1, and moves neither the mock's
 ///     update ids nor its offset filter, so a test queues one update source (a scenario or /updates) per Reset.
-///   - Park(): puts the stack into the state that a start with no token leaves: both Telegram items disabled with no job, their Enabled
+///   - Park(): puts the stack into the state that a start with no token leaves: both Telegram items disabled with no job (PARKSECONDS), their Enabled
 ///     rows 0, the Telegram mark off, and the mock's Bot API side reset with the kept offset; the public key telegramIncluded keeps the
 ///     value the start wrote. A CI or throwaway stack is parked after its ready start, because Included() is 1 and the CI override sets
 ///     a dummy token, so that every test finds no live poller.
@@ -30,6 +30,12 @@ Parameter POLLER = "TelegramIn";
 
 /// The job statuses that mean a job does not run.
 Parameter DEADSTATUSES = "error,halted,terminated";
+
+/// The longest, in seconds, that Park waits for the job of an item to be gone. A stack that has just started on a slow host can take far
+/// longer than the 30 s that a test waits for an item it stops, and a park that gives up early fails every test of the stack. While
+/// a job is there the wait asks the production to update again every LiveCase.RETRYSECONDS (the park only), and an item that cannot be stopped in
+/// this time still fails the park, with the job named in the text.
+Parameter PARKSECONDS = 90;
 
 /// The offset that the poller item keeps, or "" when there is none.
 ClassMethod Offset() As %String
@@ -76,7 +82,7 @@ ClassMethod Reset(poller As %String = {..#POLLER}) As %Status
 ClassMethod Park() As %Status
 {
 	Set items = ##class(OcuTalon.Install.Step.Telegram).#ITEMS
-	Set sc = ##class(OcuTalon.Test.Channel.LiveCase).Disable(items, "")
+	Set sc = ##class(OcuTalon.Test.Channel.LiveCase).Disable(items, "", ..#PARKSECONDS, ##class(OcuTalon.Test.Channel.LiveCase).#RETRYSECONDS)
 	If $$$ISERR(sc) Quit sc
 	Set sc = ##class(OcuTalon.Install.Step.Telegram).Apply(##class(OcuTalon.Channel.Telegram.In).Included(), 0)
 	If $$$ISERR(sc) Quit sc
