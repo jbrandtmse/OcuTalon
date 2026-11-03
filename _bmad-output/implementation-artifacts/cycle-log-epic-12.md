@@ -314,3 +314,4 @@
 2026-11-03T17:01:27Z	Epic 12	ledger_load	total=610 open=0 routed=80 escalated=0 decision_pending=3 terminal=527 owner_unknown=0 burndown=32 reowned_none=0 epic12_owned=0
 2026-11-03T17:01:27Z	Epic 12	sprint_planning_complete	gate=PASS model=claude-opus-5-5 in_sync=true key=12-10-in-a-narrower-window-the-telegram-step-leads-to-the-status-d status=backlog epic_status=in-progress(SC-5_reopen,was_done) note=hint_wording_not_in_UX_routed_as_pre-implement_veto_clarification
 2026-11-03T17:01:27Z	Epic 12	retro_review_skipped	reason=skip(no_X.0_input;reopen_dispatch)
+2026-11-03T17:03:17Z	Epic 12	epic_context_compiled	reason=planning_artifact_newer(epics.md:12.10_U-238) model=claude-opus-5-5 lines=49 agent=a9b4ac9c1d903994e
