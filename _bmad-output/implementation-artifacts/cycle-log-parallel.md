@@ -1460,3 +1460,14 @@
 2026-11-03T01:21:35Z	Epic 15	ruling	question=Epic_15_part-1_merge_(15.1,15.2)_with_15.3_backlog choice=(a)_two-part_merge_(U9_every-story-done_released_for_part_1;_15.3_re-opened_SC-5_on_runner_D,_before_rc1) rejected=(b)_wait_for_15.3(delays_31.3s_Epic_15_wait) category=veto reversal=hold_part_1_merge_until_15.3_done inbox=U-230 policy=5086036 authorized=Planner_(b)_2026-11-02T07:33Z
 2026-11-03T01:34:48Z	Epic 1-37	ci_green_verified	runs=41559338918,41559338908 head=55b1ade4 result=success via=none note=feature_head;merge_cbf6bb7d_green_41558917696,41558917653
 2026-11-03T01:35:17Z	Epic 15	runner_dispatched	runner=a2d304b5418833434 model=opus lane=D slot=ocutalon-slot-d prompt=prompts/dispatch-epic-15-p1.md base=feature_55b1ade4(green) note=part-1_merge_run(integrate_forward;15.3_backlog_under_U-230;re-open_for_15.3_on_D_after_merge)
+2026-11-03T03:02:59Z	Epic 15	runner_complete	runner=a2d304b5418833434 head=6b40e000 stories=2(15.1,15.2;15.3_backlog_U-230) ready_for_merge=true model=opus tokens=305969 tool_uses=101 duration_ms=5258372 applied=none
+2026-11-03T03:02:59Z	Epic 15	merge_enqueued	head=6b40e000 policy=when_green ruling=U-230(part_1)
+2026-11-03T03:03:40Z	Epic 15	ci_green_verified	runs=41568215713,41568215741 head=6b40e000 result=success via=none note=code_head_3dd30fc_green_41565177564,41565177563
+2026-11-03T03:03:40Z	Epic 15	amendments_verified	amendments=0 extensions=0 ok=true note=epics.md_diff_is_U-176_owner-decided_15.3_amendments(2026-10-31);shared_with_open_branches:ci/units.sh_CHECK_SCRIPTS(13:+bridge-example,15:+cpf;union),Test/Install/Production.cls(15_block_after_L443_adjacent_to_13s_L445/455_counts;union),Production.cls(12_L16_vs_15_L47;disjoint),lane-a.yml(13_header_vs_15_job_append;disjoint);integrated_forward_feature=55b1ade4(origin_unchanged)
+2026-11-03T03:03:40Z	Epic 15	epic_merge_started	branch=OCT-epic15 head=6b40e000 feature=cffef03b part=1 ruling=U-230
+2026-11-03T03:03:48Z	Epic 15	epic_merged_to_feature	merge=950542a0 head=6b40e000 part=1 pushed=true verified_on_origin=true
+2026-11-03T03:04:13Z	Epic 15	decision_sheet_skipped	decided=0 to_action_items=0 to_x0=0 reason=no_decisions_for_user part=1
+2026-11-03T03:04:13Z	Epic 15	ledger_routed_planned	entries=none excess=0 by=merge_gate note=no_new_routed_entries(15.3_owns_DW-80,DW-306,DW-576;bullets_present)
+2026-11-03T03:04:13Z	Epic 15	deps_hash_rerecorded	reason=rule5_amendment hash=702e1a35 note=U-176_15.3_AC_amendment_and_addition(owner-decided_2026-10-31);headings_unchanged
+2026-11-03T03:04:23Z	Epic 15	worktree_removed	path=.worktrees/epic-15 part=1
+2026-11-03T03:04:23Z	Epic 15	epic_branches_deleted	branch=OCT-epic15 local=deleted remote=deleted note=SC-5_re-open_for_15.3_next
