@@ -3324,3 +3324,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-31-5-a-tool-call-s-approval-request-reaches-the-phone-with-approv.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: Core/BridgeSink.cls Compose (9 lines) vs Watch/IncidentManager.cls Compose :1192-1201; the spec records the reason
 - 2026-11-02T21:46:12Z status=wontfix-accepted owner=31-5-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=cr note=reopen_if=a third Notification Compose copy appears or Msg.Notification gains a constructor
+
+### DW-610: Web chat: a tool-call request or result notice is announced through the generic notice branch (its full multi-line text) and no test pins what is spoken or that it is spoken once beside the request card's own announcements
+- source: _bmad-output/implementation-artifacts/spec-31-6-a-tool-call-s-approval-request-appears-in-the-web-chat-with.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: web/src/app/chat/chat-announcements.ts:107 announces every unheard notice that is not a tell-now as entry.text; 31.6 lets kinds approval and result into that list; no unit case names either kind
+- 2026-11-03T03:21:47Z status=open owner=31-6-a-tool-call-s-approval-request-appears-in-the-web-chat-with by=harvest note=31.6 QA/CR: pin it (or fix a double announcement) as a two-way door
