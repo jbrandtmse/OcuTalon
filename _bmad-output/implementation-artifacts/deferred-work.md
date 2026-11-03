@@ -3379,3 +3379,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-30-8-the-redactor-and-the-key-proof-catch-every-key-shape.md | severity: low | fix-risk: med | footprint: out-of-footprint
 - evidence: 30.8 Task 0 control: ContextData is the one global stream found; U-185 scopes the stream question to message bodies (0 streams there); the provider key travels in a request header and never in session content (inference)
 - 2026-11-02T21:03:47Z status=wontfix-accepted owner=30-8-the-redactor-and-the-key-proof-catch-every-key-shape by=adjudication note=reopen_if=a_product_path_puts_the_provider_key_or_a_request_header_into_an_AI_session's_messages,or_the_key_proof_is_asked_to_cover_session_history
+
+### DW-621: The Unconfigure Invoke (UnmapRepos) may remove OCUTALON's IPM repository-definition mapping during an upgrade or same-version reinstall of ocutalon in OCUTALON, and nothing maps it again, so a later install from a repository in OCUTALON finds none
+- source: _bmad-output/implementation-artifacts/spec-15-4-every-release-proves-the-ipm-package-and-the-guide-opens-wit.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: unmeasured: UnmapRepos runs at Unconfigure Before; MapAndStop maps only outside OCUTALON; settle by installing twice in OCUTALON from a local repository with a version bump, then reading OCUTALON's three IPM.Repo.Definition mappings
+- 2026-11-03T08:46:25Z status=open owner=15-4-every-release-proves-the-ipm-package-and-the-guide-opens-wit by=harvest note=in-story MED for 15.4's code review: measure, then patch or close with evidence
