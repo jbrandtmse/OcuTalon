@@ -38,6 +38,26 @@ case "$1" in
         echo "IRIS Merge failed"
         exit 7
         ;;
+      453crlf)
+        printf 'IRIS Merge of %s into /durable/iris/iris.cpf\r\n' "$3"
+        printf 'ERROR #453: Cannot quiesce the system for namespace reactivation\r\n'
+        printf 'IRIS Merge failed\r\n'
+        exit 7
+        ;;
+      453long)
+        echo "IRIS Merge of $3 into /durable/iris/iris.cpf"
+        echo "Activating namespace A"
+        echo "Activating namespace B"
+        echo "ERROR #453: Cannot quiesce the system for namespace reactivation"
+        echo "Activating namespace C"
+        echo "Details follow on the next lines"
+        echo "IRIS Merge failed"
+        exit 1
+        ;;
+      453ok)
+        echo "ERROR #453: Cannot quiesce the system for namespace reactivation"
+        exit 0
+        ;;
       E5001)
         echo "ERROR #5001: merge failed on purpose"
         exit 7
@@ -78,6 +98,11 @@ cat > "$tmp/bin/sleep" <<'FAKE'
 #!/bin/sh
 echo "sleep $*" >> "$FAKE_CALLS"
 echo "FAKE-SLEEP $*"
+if [ -f "$FAKE_MERGE_ARG" ]; then
+  while read -r p; do
+    if [ -e "$p" ]; then echo "sleep-saw-copy" >> "$FAKE_CALLS"; fi
+  done < "$FAKE_MERGE_ARG"
+fi
 exit 0
 FAKE
 chmod 755 "$tmp/bin/iris" "$tmp/bin/mv" "$tmp/bin/sleep"
@@ -138,7 +163,8 @@ check() { # check <label> <command...>: passes when the command succeeds
 
 # run_script <transcript> <merge results> <session exit> <old marker text or NONE> [source directory] [merge file]
 # <merge results> is a space-separated list, one token per merge call: 453 (the real three-line #453 output, exit 7),
-# E5001 and E4530 (one ERROR line, exit 7), or a plain exit code with no output.
+# 453crlf (the same with CRLF line ends), 453long (the #453 line inside seven lines, exit 1), 453ok (a #453 line,
+# exit 0), E5001 and E4530 (one ERROR line, exit 7), or a plain exit code with no output.
 # Runs the script once. Leaves its exit status in $rc, its output in $tmp/stdout.
 run_script() {
   local src=${5:-$tmp/image/src}
@@ -198,6 +224,22 @@ copies_ok() { # copies_ok <n>: n merges, each of its own copy, and no copy is le
 no_retry() { # no RETRY line in the log or on stdout, and no sleep
   ! grep -q '^STEP merge RETRY' "$log" "$tmp/stdout" && count_is "$tmp/calls" '^sleep ' 0
 }
+ends_not_ready() { [ "$(tail -n 1 "$log" | sed -n 's/^AFTER-START end [0-9T:Z-]* not ready$/ok/p')" = ok ]; }
+ends_ready() { [ "$(tail -n 1 "$log" | sed -n 's/^AFTER-START end [0-9T:Z-]* ready 0.1.0$/ok/p')" = ok ]; }
+failed_cleanly() { # failed_cleanly <n>: exit 0, n merges, FAILED exit <code> as the last STEP line, no OK line, no session, no marker, not ready
+  [ "$rc" -eq 0 ] && count_is "$tmp/calls" '^merge ' "$1" && count_is "$log" '^STEP merge FAILED exit [0-9]*$' 1 \
+    && ! grep -q '^STEP merge OK' "$log" "$tmp/stdout" && [ "$(grep '^STEP merge ' "$log" | tail -n 1 | cut -c1-17)" = 'STEP merge FAILED' ] \
+    && ! grep -q '^session ' "$tmp/calls" && [ ! -e "$marker" ] && ends_not_ready
+}
+retried_once_ready() { # a #453 first try, a retry that merged: the whole row-A outcome in one check
+  [ "$rc" -eq 0 ] && count_is "$tmp/calls" '^merge ' 2 && copies_ok 2 \
+    && count_is "$log" '^STEP merge RETRY' 1 && count_is "$log" '^STEP merge RETRY 1 after #453$' 1 \
+    && count_is "$tmp/stdout" '^STEP merge RETRY 1 after #453$' 1 \
+    && count_is "$tmp/calls" '^sleep ' 1 && count_is "$tmp/calls" '^sleep 10$' 1 && calls_lack '^sleep-saw-copy$' \
+    && count_is "$log" '^STEP merge OK [0-9]*s$' 1 && count_is "$tmp/stdout" '^STEP merge OK [0-9]*s$' 1 \
+    && ! grep -q '^STEP merge FAILED' "$log" && calls_have '^session ' \
+    && [ "$(cat "$marker" 2>/dev/null)" = 0.1.0 ] && ends_ready
+}
 no_secret_printed() { ! grep -q 'canary-' "$tmp/stdout" "$log"; }
 
 # --- the success path ---
@@ -246,7 +288,7 @@ check "row 8 merge fails: no session is started" calls_lack '^session '
 check "row 8 merge fails: the log names the merge and its exit status" log_has '^STEP merge FAILED exit 7$'
 check "row 8 merge fails: the log ends with the end line" test "$(tail -n 1 "$log" | sed -n 's/^AFTER-START end [0-9T:Z-]* not ready$/ok/p')" = ok
 
-check "row 8 merge fails: one merge, no retry and no sleep" bash -c "[ \"\$(grep -c '^merge ' '$tmp/calls')\" -eq 1 ]"
+check "row 8 merge fails: one merge" bash -c "[ \"\$(grep -c '^merge ' '$tmp/calls')\" -eq 1 ]"
 check "row 8 merge fails: no RETRY line and no sleep" no_retry
 
 # The merge file of the image cannot be read, so the copy that is merged cannot be made: the same outcome.
@@ -257,6 +299,7 @@ check "row 8 merge file missing: no merge and no session is started" bash -c "! 
 check "row 8 merge file missing: the log names the merge" log_has '^STEP merge FAILED exit 1$'
 check "row 8 merge file missing: the log says which file could not be copied" log_has "could not copy $tmp/image/no-such-merge.cpf"
 check "row G merge file missing: no RETRY line and no sleep" no_retry
+check "row G merge file missing: no merge, one FAILED line, no OK line, not ready" failed_cleanly 0
 
 # No temporary directory can be made for the copy: the same outcome, and the log names the directory.
 run_tmpdir="$tmp/no-such-tmp"
@@ -267,6 +310,14 @@ check "row 8 no temporary directory: exit 0, the old marker removed, no merge an
 check "row 8 no temporary directory: the log names the merge and the directory" \
   bash -c "grep -q '^STEP merge FAILED exit 1\$' '$log' && grep -q 'could not create a temporary directory in $tmp/no-such-tmp' '$log'"
 check "row G no temporary directory: no RETRY line and no sleep" no_retry
+check "row G no temporary directory: no merge, one FAILED line, no OK line, not ready" failed_cleanly 0
+
+# A copy failure whose message carries ERROR #453: (through the path) is still not retried: only a merge that ran is.
+mkdir -p "$tmp/image/ERROR #453: dir"
+run_script "$tmp/transcript.ok" 0 0 0.1.0 "$tmp/image/src" "$tmp/image/ERROR #453: dir/missing.cpf"
+check "row G copy failure naming ERROR #453: the message carries the string" log_has "could not copy $tmp/image/ERROR #453: dir/missing.cpf"
+check "row G copy failure naming ERROR #453: no RETRY line and no sleep" no_retry
+check "row G copy failure naming ERROR #453: no merge, one FAILED line, no OK line, not ready" failed_cleanly 0
 
 # --- the merge retry ---
 
@@ -275,7 +326,7 @@ run_script "$tmp/transcript.ok" "453 0" 0 0.0.9
 check "row A #453 then OK: exit 0" test "$rc" -eq 0
 check "row A #453 then OK: two merges" count_is "$tmp/calls" '^merge ' 2
 check "row A #453 then OK: each merge has its own copy and every copy is removed" copies_ok 2
-check "row A #453 then OK: exactly one RETRY line in the log, in the exact form" count_is "$log" '^STEP merge RETRY' 1
+check "row A #453 then OK: exactly one RETRY line in the log" count_is "$log" '^STEP merge RETRY' 1
 check "row A #453 then OK: the RETRY line reads RETRY 1 after #453" count_is "$log" '^STEP merge RETRY 1 after #453$' 1
 check "row A #453 then OK: the RETRY line is on stdout" count_is "$tmp/stdout" '^STEP merge RETRY 1 after #453$' 1
 check "row A #453 then OK: the log has the failed output, then RETRY, then OK" \
@@ -293,6 +344,9 @@ check "row A #453 then OK: the session runs" calls_have '^session '
 check "row A #453 then OK: the marker holds the version" test "$(cat "$marker" 2>/dev/null)" = 0.1.0
 check "row A #453 then OK: the log ends ready" test "$(tail -n 1 "$log" | sed -n 's/^AFTER-START end [0-9T:Z-]* ready 0.1.0$/ok/p')" = ok
 check "row A #453 then OK: the failed merge saw no marker either" calls_lack '^merge-saw-marker$'
+check "row A #453 then OK: the failed attempt's copy is removed before the pause" calls_lack '^sleep-saw-copy$'
+check "row A #453 then OK: the OK line is on stdout once, and the first line of the log is the begin stamp" \
+  bash -c "$(declare -f count_is); count_is '$tmp/stdout' '^STEP merge OK [0-9]*s\$' 1 && [ \"\$(head -n 1 '$log' | cut -c1-17)\" = 'AFTER-START begin' ]"
 
 # Row B: #453 on every try.
 run_script "$tmp/transcript.ok" "453 453" 0 0.1.0
@@ -306,24 +360,30 @@ check "row B #453 twice: the merge failed with exit 7, after the RETRY line" \
 check "row B #453 twice: both merges got the merge file's content" count_is "$tmp/calls" '^merge-file-matches$' 2
 check "row B #453 twice: both #453 outputs are in the log" count_is "$log" '^ERROR #453:' 2
 check "row B #453 twice: no session and no marker" bash -c "[ ! -e '$marker' ] && ! grep -q '^session ' '$tmp/calls'"
+check "row B #453 twice: exit 0, FAILED exit 7 is the last STEP merge line, no OK line, no session, no marker" failed_cleanly 2
+check "row B #453 twice: the failed attempt's copy is removed before the pause" calls_lack '^sleep-saw-copy$'
 check "row B #453 twice: the log ends not ready" test "$(tail -n 1 "$log" | sed -n 's/^AFTER-START end [0-9T:Z-]* not ready$/ok/p')" = ok
 
 # Row C: another failure, with no output and with an error line.
 run_script "$tmp/transcript.ok" "7 0" 0 0.1.0
-check "row C exit 7 without output: one merge, no retry, no sleep, FAILED exit 7, not ready" \
+check "row C exit 7 without output: one merge, FAILED exit 7, no marker" \
   bash -c "$(declare -f count_is); count_is '$tmp/calls' '^merge ' 1 && grep -q '^STEP merge FAILED exit 7\$' '$log' && [ ! -e '$marker' ]"
 check "row C exit 7 without output: no RETRY line and no sleep" no_retry
+check "row C exit 7 without output: exit 0, one FAILED line, no OK line, no session, not ready" failed_cleanly 1
 run_script "$tmp/transcript.ok" "E5001 0" 0 0.1.0
 check "row C ERROR #5001: one merge, FAILED exit 7, not ready, exit 0" \
   bash -c "$(declare -f count_is); [ $rc -eq 0 ] && count_is '$tmp/calls' '^merge ' 1 && grep -q '^STEP merge FAILED exit 7\$' '$log' && [ ! -e '$marker' ]"
 check "row C ERROR #5001: no RETRY line and no sleep" no_retry
 check "row C ERROR #5001: the copy is removed" copies_ok 1
+check "row C ERROR #5001: exit 0, one FAILED line, no OK line, no session, not ready" failed_cleanly 1
 
 # Row D: a near-miss number.
 run_script "$tmp/transcript.ok" "E4530 0" 0 0.1.0
 check "row D ERROR #4530: one merge, FAILED exit 7, not ready, exit 0" \
   bash -c "$(declare -f count_is); [ $rc -eq 0 ] && count_is '$tmp/calls' '^merge ' 1 && grep -q '^STEP merge FAILED exit 7\$' '$log' && [ ! -e '$marker' ]"
 check "row D ERROR #4530: no RETRY line and no sleep" no_retry
+check "row D ERROR #4530: exit 0, one FAILED line, no OK line, no session, not ready" failed_cleanly 1
+check "row D ERROR #4530: the copy is removed" copies_ok 1
 
 # Row E: #453, then another failure.
 run_script "$tmp/transcript.ok" "453 E5001" 0 0.1.0
@@ -333,6 +393,10 @@ check "row E #453 then ERROR #5001: one RETRY line, RETRY 1, in the log and on s
   bash -c "$(declare -f count_is); count_is '$log' '^STEP merge RETRY' 1 && count_is '$log' '^STEP merge RETRY 1 after #453\$' 1 && count_is '$tmp/stdout' '^STEP merge RETRY 1 after #453\$' 1"
 check "row E #453 then ERROR #5001: one pause of 10 s, then FAILED exit 7, not ready" \
   bash -c "$(declare -f count_is); count_is '$tmp/calls' '^sleep 10\$' 1 && count_is '$tmp/calls' '^sleep ' 1 && grep -q '^STEP merge FAILED exit 7\$' '$log' && [ ! -e '$marker' ] && ! grep -q '^session ' '$tmp/calls'"
+check "row E #453 then ERROR #5001: exit 0, the last STEP merge line is FAILED, no OK line, no session, not ready" failed_cleanly 2
+check "row E #453 then ERROR #5001: both outputs are in the log, in order, with RETRY between" \
+  bash -c "$(declare -f before line_of); before \$(line_of '$log' '^ERROR #453:') \$(line_of '$log' '^STEP merge RETRY') && before \$(line_of '$log' '^STEP merge RETRY') \$(line_of '$log' '^ERROR #5001:') && before \$(line_of '$log' '^ERROR #5001:') \$(line_of '$log' '^STEP merge FAILED')"
+check "row E #453 then ERROR #5001: the failed attempt's copy is removed before the pause" calls_lack '^sleep-saw-copy$'
 
 # Row F: a first-try success.
 run_script "$tmp/transcript.ok" "0 7" 0 0.0.9
@@ -340,6 +404,23 @@ check "row F first-try success: exit 0, one merge of its own removed copy, the m
   bash -c "$(declare -f count_is copies_ok); tmp='$tmp'; [ $rc -eq 0 ] && count_is '$tmp/calls' '^merge ' 1 && copies_ok 1 && [ \"\$(cat '$marker')\" = 0.1.0 ]"
 check "row F first-try success: no RETRY line and no sleep" no_retry
 check "row F first-try success: one OK line" count_is "$log" '^STEP merge OK [0-9]*s$' 1
+check "row F first-try success: one OK line on stdout, no FAILED line, the log ends ready" \
+  bash -c "$(declare -f count_is ends_ready); log='$log'; tmp='$tmp'; count_is '$tmp/stdout' '^STEP merge OK [0-9]*s\$' 1 && ! grep -q '^STEP merge FAILED' '$log' && ends_ready"
+
+# The #453 match is a substring match on the whole output, whatever its line ends, its length or the exit status.
+run_script "$tmp/transcript.ok" "453crlf 0" 0 0.0.9
+check "row A with CRLF line ends: the fake did print CR bytes into the log" bash -c "grep -q \"\$(printf '\r')\" '$log'"
+check "row A with CRLF line ends: one retry, one pause of 10 s, a merge on the retry, ready" retried_once_ready
+run_script "$tmp/transcript.ok" "453long 0" 0 0.0.9
+check "row A with the #453 line inside a longer output (exit 1): one retry, one pause of 10 s, ready" retried_once_ready
+check "row A with the #453 line inside a longer output: the other six lines are in the log" count_is "$log" '^Activating namespace\|^Details follow\|^IRIS Merge' 6
+run_script "$tmp/transcript.ok" "453crlf 453long" 0 0.1.0
+check "row B with CRLF then a longer output: one RETRY line, one pause, FAILED exit 1, not ready" \
+  bash -c "$(declare -f count_is ends_not_ready); log='$log'; tmp='$tmp'; count_is '$log' '^STEP merge RETRY 1 after #453\$' 1 && count_is '$log' '^STEP merge RETRY' 1 && count_is '$tmp/calls' '^sleep 10\$' 1 && count_is '$tmp/calls' '^sleep ' 1 && grep -q '^STEP merge FAILED exit 1\$' '$log' && ends_not_ready"
+check "row B with CRLF then a longer output: failed cleanly after two merges" failed_cleanly 2
+run_script "$tmp/transcript.ok" "453ok 0" 0 0.0.9
+check "a #453 line with exit 0 is a success: one merge, no RETRY line, no sleep, ready" \
+  bash -c "$(declare -f count_is ends_ready); log='$log'; tmp='$tmp'; [ $rc -eq 0 ] && count_is '$tmp/calls' '^merge ' 1 && count_is '$log' '^STEP merge OK [0-9]*s\$' 1 && ! grep -q '^STEP merge RETRY' '$log' '$tmp/stdout' && count_is '$tmp/calls' '^sleep ' 0 && ends_ready"
 
 # --- row 9: the session gives no result ---
 

@@ -103,6 +103,28 @@ IRIS Merge failed
 - Given a start where no #453 occurs, when the lead runs `docker/tests/test-install-start.sh` and `docker/tests/test-install-upgrade.sh` on fresh throwaways (lane C), then both pass unchanged within their existing limits, because the STEP sequence of a start without #453 is unchanged.
 - Given the pushed head, when CI runs, then `ci` and `lane-a` are green (the lead's gate).
 
+### Review Findings
+
+Code review, 2026-11-03 (four layers: blind, edge, verification-gap, acceptance). 23 raw findings, 15 entries after grouping: high 0, med 1, low 12, false 1, maybe-false 1. Rule 3: the script itself is run (stdout, log file and exit code asserted) with `iris` faked; the real runtime is the lead's live smoke and CI (AC3, AC4). Rule 6: AD-23 (merge at every start on a fresh copy, before the steps; always exit 0; log rewritten per start; one `STEP merge OK|FAILED` line still ends the merge phase), AD-22 and AD-29 hold. Rule 2: no sibling copied. The bound's arithmetic checks out against the CI logs (326 s in run 41495452746; 127 s per #453 attempt in all three runs; 473 s and 610 s).
+
+- [x] [Review][Patch] The `merge_ran` guard could be dropped with no check going red (a copy or temporary-directory failure is never retried) - added a row G run whose merge-file path carries `ERROR #453:`; mutation recorded. low, fix-risk low (test-only, 6 lines) [docker/tests/test-after-start.sh:315]
+- [x] [Review][Patch] Four check labels claimed more than they checked (row 8 "no retry and no sleep", row A "in the exact form", row C "no retry, no sleep ... not ready"), and row B CRLF declared `ends_not_ready` without calling it - labels narrowed to what each check tests, `ends_not_ready` now called; the row C mutation line re-run and corrected. low, fix-risk low (labels plus one call) [docker/tests/test-after-start.sh:291]
+- [x] [Review][Patch] AC1's clause "its place before the final `STEP merge` line" had no mutation of its own (Rule 19) - applied, seen red, reverted; mutation line added. low, fix-risk low (tracking only) [docker/after-start.sh:69]
+- [x] [Review][Patch] AC2 (protected files byte-unchanged, only two source files changed) had no `mutation:` line (Rule 19) - demonstrated on history (no tree edit to the watched `merge.cpf`) and a name-only command added under Verification. low, fix-risk low (tracking only) [spec Verification]
+- [x] [Review][Defer] `lib-live.sh`'s `log_steps` keeps every `^STEP ` line, so a live start that recovers from #453 still fails `check_log` on the RETRY line - deferred: out-of-footprint (Epic 12's `lib-live.sh`, Epic 15's `release/**`); med, fix-risk low; `DW-624 routed owner=burndown by=cr` [docker/tests/lib-live.sh:590]
+
+Rejected (Rule 15 disposition in brackets):
+- low: AC3 and AC4 have no `mutation:` line - they are the lead's live smoke and CI gates by the spec's own wording [by-design].
+- low: the Auto Run Result's counts are stale after QA ("95+ checks", "Ten mutations") - a fix edits the spec outside `## Verification`; the Verification section holds the accurate record [wontfix-accepted, reopen_if=a gate reads check or mutation counts from Auto Run Result].
+- low: the new checks repeat properties and inline helpers - over-pinning, no wrong result; a refactor is not a two-way door [wontfix-accepted, reopen_if=a STEP-grammar change needs edits in more than 3 places of test-after-start.sh].
+- low: the bound treats the successful retry as fast and the retry merge has no time bound - a slow-but-successful retry (about 600 s at the slowest start) only shows a transient unhealthy status that the next probe after the marker clears; `install.sh` waits 900 s; a `timeout` would kill a merge mid-apply [wontfix-theoretical, real if a CI start log shows a retried merge taking over 100 s].
+- low: `SECONDS` covering all attempts is not pinned - a log annotation no consumer reads (`log_steps` strips it); a pin needs a real wait [wontfix-accepted, reopen_if=a tool parses the STEP merge OK figure].
+- low: `copies_ok` splits on whitespace in `TMPDIR` - test hosts use `/var/folders/...` and `/tmp` [wontfix-theoretical, real if a CI host's TMPDIR holds a space].
+- low: a non-numeric fake-iris token exits like a real failure - test-author typo only [wontfix-theoretical, real if a row passes by a mistyped token].
+- low: Design Notes "For the lead (1)" (skip-merge rework) has no ledger entry - the spec assigns filing it to the lead; noted in the review's closing summary.
+- maybe-false: "31 FIRST-START lines from 60 runs" not re-countable from the four runs read - the maximum (326 s) is confirmed, which is the only figure the bound uses.
+- false: spec `status: done` while sprint-status says `review` - build-auto's machine state; the review sets sprint status.
+
 ## Spec Change Log
 
 - **2026-11-03, before planning (lead; Rule 5 tier 1, intent kept).** Story 0.13's block in `epics.md` carries `[AMENDED 2026-11-03, Contest Planner under the owner's delegation, U-235 conditions]` (answer 2026-11-03T09:22:15Z#706). Its five binding conditions refine the criteria and win where they differ:
@@ -202,7 +224,7 @@ Worst case for one #453: the slowest first start, which already includes one suc
 
 mutation: attempts set to 1 -> row A "two merges" (and the rest of rows A, B and E) went red
 mutation: match `#453` instead of `ERROR #453:` -> row D "ERROR #4530: one merge, FAILED exit 7, not ready, exit 0" went red
-mutation: retry on any non-zero exit -> row C "exit 7 without output: one merge, no retry, no sleep" went red
+mutation: retry on any non-zero exit -> row C "exit 7 without output: one merge, FAILED exit 7, no marker" and "no RETRY line and no sleep" (and rows 8, C ERROR #5001 and D) went red (re-run at code review)
 mutation: pause changed from 10 to 11 -> "one pause of 10 s" checks of rows A, B and E went red
 mutation: sleep 10 added before the FAILED line (a pause after the last attempt) -> row B "one pause of 10 s, none after the last try" and the rows 8, C, D, E, G no-sleep checks went red
 mutation: one copy reused for both attempts -> row A "each merge has its own copy and every copy is removed" went red
@@ -211,6 +233,20 @@ mutation: sleep 10 moved before the RETRY `say` -> row A "the RETRY line is writ
 mutation: `rm -rf` of the copy dropped -> the copy-removed checks (success, rows A, B, C, E, F) went red
 mutation: the retry attempt merges an empty file instead of the copy -> rows A and B "both merges got the merge file's content" went red
 mutation: `log "$merge_out"` dropped -> row A "the log has the failed output, then RETRY, then OK" and row B "both #453 outputs are in the log" went red
+
+**QA stage (Rule 19; `docker/tests/test-after-start.sh` extended, `(QA)`):** the fake `iris` gained the tokens `453crlf` (CRLF line ends), `453long` (the #453 line inside a seven-line output, exit 1) and `453ok` (a #453 line, exit 0); the fake `sleep` records `sleep-saw-copy` when a merge copy still exists at the pause. New checks pin: exit 0, exactly one `FAILED exit <n>` as the last `STEP merge` line, no `STEP merge OK` line, no session, no marker and a log that ends `not ready`, in rows B, C (both forms), D, E and G (both); the log's last line in rows A and F; one `STEP merge OK` on stdout in rows A and F; the failed attempt's copy removed before the pause (rows A, B, E); the retry on CRLF output and on a long output; no retry on a #453 line with exit 0; both outputs in the log, in order, in row E. 119 checks, all pass under /bin/bash 3.2.
+
+mutation (QA): #453 text with exit 0 also retried -> "a #453 line with exit 0 is a success" went red
+mutation (QA): #453 matched only as a whole line ending in a letter (breaks on CR) -> "row A with CRLF line ends: one retry ..." and both "row B with CRLF then a longer output" checks went red
+mutation (QA): the failed attempt's copy removed only after the pause -> the "copy is removed before the pause" checks of rows A, B and E, and the CRLF and long-output rows went red
+mutation (QA): a `STEP merge OK` line written before `STEP merge FAILED` -> the "no OK line" checks of rows B, C, D, E and G went red
+mutation (QA): `exit "$merge_rc"` instead of `finish "not ready"` after FAILED -> the exit-0 and log-ends-not-ready checks of rows 8, B, C, D, E and G went red
+
+**Code review (Rule 19):** 122 checks, all pass under /bin/bash 3.2. Added command `(once)` `git diff --name-only 1889d8f6 -- . ':(exclude)_bmad-output'`. Expected: exactly `docker/after-start.sh` and `docker/tests/test-after-start.sh`.
+
+mutation (CR): the `merge_ran` guard dropped from the retry condition -> "row G copy failure naming ERROR #453: no RETRY line and no sleep" went red
+mutation (CR, AC1 place): the RETRY `say` moved after `STEP merge OK` -> row A "the RETRY line comes before the last STEP merge line" (and the order checks of rows A, B, E) went red
+mutation (CR, AC2): `git diff --exit-code 7f15d9b0^ 7f15d9b0 -- docker/merge.cpf docker-compose.yml docker/after-start.cos` (a commit that changed `merge.cpf`) -> exit 1, against exit 0 for `1889d8f6` vs the tree; history stands in for a tree edit because the orchestrator watches `merge.cpf`
 
 **Shared surfaces:** The after-start log's STEP grammar gains one line kind, written only on a #453 retry. No list, menu, roster, schema or count that another test asserts on changes in a run without #453 (see Design Notes, For the lead (2)). `CHECK_SCRIPTS` is unchanged.
 

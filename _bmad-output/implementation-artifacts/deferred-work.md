@@ -3389,3 +3389,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-10-5-the-readme-shows-the-product-and-says-how-you-talk-to-it.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: chk_how_you_talk greps TALK_FACTS in the README section only; no read of device-view.ts or demo-view-texts.ts (outcomes reads chat-view.ts, the precedent). AC2 is a recorded check at the plan base by spec.
 - 2026-11-03T07:35:37Z status=by-design owner=10-5-the-readme-shows-the-product-and-says-how-you-talk-to-it by=cr note=AC2 is specified as a recorded check; reopen via spec amendment if a UI story renames a quoted product term
+
+### DW-624: lib-live.sh log_steps keeps every ^STEP line, so a live start that recovers from #453 through Story 0.13's retry still fails check_log on a 'STEP merge RETRY 1 after #453' diff
+- source: spec-0-13-a-start-retries-the-cpf-merge-when-iris-cannot-quiesce.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: log_steps (docker/tests/lib-live.sh L590) greps '^(STEP|RESULT) ' and check_log diffs it against expected_run, which has only 'STEP merge OK'; callers: test-install-start rows 1-4, test-install-upgrade row 6, test-online-demo, test-audit, release/upgrade-harness.sh; the CI #453 hits (runs 41419787515, 41577358713, 41577710442) were in these tests
+- 2026-11-03T10:41:25Z status=routed owner=burndown by=cr note=fix: drop '^STEP merge RETRY ' lines in log_steps plus a test-lib-live fixture; Epic 12/15 files, outside 0.13
