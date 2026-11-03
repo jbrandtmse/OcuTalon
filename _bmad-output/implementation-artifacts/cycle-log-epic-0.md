@@ -375,3 +375,7 @@
 2026-11-03T09:46:01Z	Epic 0	retro_review_skipped	reason=skip(no_X.0_input) note=reopen_for_one_story;epic0_owned_ledger=0
 2026-11-03T09:47:58Z	Epic 0	epic_context_compiled	reason=planning_artifact_newer(story_0.13_amended) model=claude-opus-5-5
 2026-11-03T09:48:14Z	Story 0.13	stage_spawned	stage=plan spawn_at=2026-11-03T09:48:14Z model=claude-opus-5-5 agent_name=0-13-plan-1 cycle_iteration=1
+2026-11-03T10:17:33Z	Story 0.13	story_created	spawn_at=2026-11-03T09:48:14Z model=claude-opus-5-5 path=_bmad-output/implementation-artifacts/spec-0-13-a-start-retries-the-cpf-merge-when-iris-cannot-quiesce.md build_status=ready-for-dev epic_context=reused
+2026-11-03T10:17:33Z	Story 0.13	spec_validated	service_introducing=false integration_ac=declared-none(consumed_log_line_pinned) adr_constrained_acs=AD-23,AD-22,AD-29 decision_dependency=none sections_created=none owned_ledger=none addressed=0 declined=0 mutates_shared_runtime=false retries=1 pause=10s worst_case=326+127+10+10=473s<=600s start_period=unchanged model=claude-opus-5-5
+2026-11-03T10:17:33Z	Story 0.13	ci_resolved	story=0.13 sha=f26d0f6b runs=41610467751,41610467800 result=success failed=none via=none resolved_at=next_plan note=base_head_before_first_implement
+2026-11-03T10:17:33Z	Story 0.13	stage_spawned	stage=implement spawn_at=2026-11-03T10:17:33Z model=claude-sonnet-5-5 agent_name=0-13-implement-1 cycle_iteration=1 story_base=353ea15b
