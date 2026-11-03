@@ -3429,3 +3429,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-10-5-the-readme-shows-the-product-and-says-how-you-talk-to-it.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: chk_how_you_talk greps TALK_FACTS in the README section only; no read of device-view.ts or demo-view-texts.ts (outcomes reads chat-view.ts, the precedent). AC2 is a recorded check at the plan base by spec.
 - 2026-11-03T07:35:37Z status=by-design owner=10-5-the-readme-shows-the-product-and-says-how-you-talk-to-it by=cr note=AC2 is specified as a recorded check; reopen via spec amendment if a UI story renames a quoted product term
+
+### DW-626: flake: OcuTalon.Test.Watch.Reader TestDisabledItemsInStoredOrderAcrossAStopAndAStart failed in CI shard lane-a@Checks,Install,Watch (stopped, with the disabled items: suspended) and passed on an unchanged rerun
+- source: ci run 41619944438 (OCT-epic15 head 6a18ed4c) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: attempt 1 red (1 of 38 classes, 5.00s), attempt 2 green on the same head; Epic 15 changed nothing under Watch since 082ac043
+- 2026-11-03T11:43:10Z status=routed owner=burndown by=cr note=flake class: one rerun and an occurrence trailer; Lane A Watch test (Story 30.4's area); first daily release after 1.0.0
