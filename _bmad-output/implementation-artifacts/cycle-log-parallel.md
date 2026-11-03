@@ -1647,3 +1647,5 @@
 2026-11-03T16:55:28Z	Epic 13	decision_sheet_skipped	decided=0 reason=decisions_for_user_none
 2026-11-03T16:55:28Z	Epic 13	ledger_routed_planned	story=none entries=0 excess=0 by=merge_gate note=overflow_DW-629,630,631_burndown
 2026-11-03T16:55:28Z	Epic 13	worktree_removed	path=.worktrees/epic-13
+2026-11-03T16:55:32Z	Epic 13	epic_merged_to_feature	merge=c7d1c4d6 head=66f98c6a pushed=true verified_on_origin=true record=679955b1
+2026-11-03T16:55:32Z	Epic 13	epic_branches_deleted	branch=OCT-epic13 local=true remote=true
