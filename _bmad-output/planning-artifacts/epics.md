@@ -3561,6 +3561,29 @@ So that a plausible conversion is never the only reason I approve a resend.
 - DW-644: date repairs from an ambiguous MM/DD vs DD/MM source rest on the model alone; the diagnosis must name the evidence and the dry run must count ambiguous values (ledger; Contest Planner field watch 2026-11-03)
 
 
+### Story 7.8: The web incident card shows the either-way date line too
+
+[ADDED 2026-11-03, follow-on to Story 7.7 under the owner's delegation (veto U-252, partly kept by the Contest Planner): on the demo path people approve on the web incident card, so the evidence for a date repair's source format must show there as well as in the notice's Dry run paragraph. Footprint exception by U-252: Lane B's `Live/Payload` approval payload and `web/src/app/approvals/approval-view.ts`. That view is Epic 31's file until Epic 31 merges, so the story is dispatched once Epic 31 has merged (a contended-path wait, not a graph edge). Post-1.0.0: same daily release as 7.7 if it makes the cut; 7.7 never waits for it. No new public text.]
+
+As a user approving a date repair on the web page,
+I want the incident card's dry run to show the same either-way line the notice shows,
+So that I see why the dates were read month first or day first wherever I approve.
+
+**Acceptance Criteria:**
+
+**Given** an approval whose date repair's dry run found every value valid both ways (Story 7.7's either-way case)
+**When** the approval payload is built
+**Then** it carries the ambiguity flag and the reading (month first or day first) with the dry run's other fields (FR-25, AD-16)
+
+**Given** that approval on the web incident card
+**When** the card shows its dry-run block
+**Then** one row shows U-249's catalog line, word for word as the notice shows it, and the row is absent whenever the notice's line is absent (a day above 12, same-date values only, or no either-way case) (FR-25)
+
+**Given** the tests
+**When** they run
+**Then** a payload test and a web test pin the row's presence for the either-way case and its absence for a day above 12; any new label comes back as a veto item (FR-25)
+- DW-645: the web incident card's dry-run block does not show U-249's either-way line; needs the ambiguity flag and reading on the approval payload and one card row (ledger; routed by veto U-252 2026-11-03)
+
 ## Epic 8: Heartbeat and reminders, on time and surviving restarts
 
 A heartbeat runs every minute and runs the due background checks, each visible with its schedule, last run and result; a user asks for a reminder in plain words and it fires within 10 seconds on every channel, survives restarts (marked late if it fires more than 10 seconds after its due time), and can be listed and cancelled in the chat.
