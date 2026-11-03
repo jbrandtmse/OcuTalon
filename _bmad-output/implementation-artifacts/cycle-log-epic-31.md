@@ -268,3 +268,5 @@
 2026-11-03T15:59:45Z	Epic 31	deps_hash_rerecorded	reason=fix_forward note=orchestrator_records_the_graph_hash
 2026-11-03T15:59:45Z	Epic 31	epic_context_compiled	reason=planning_artifact_newer(31.7_added) model=claude-opus-5-5
 2026-11-03T15:59:45Z	Story 31.7	stage_spawned	stage=plan spawn_at=2026-11-03T15:59:45Z model=claude-opus-5-5 agent_name=31-7-plan-1 cycle_iteration=1
+2026-11-03T16:09:22Z	Story 31.7	story_created	spawn_at=2026-11-03T15:59:45Z model=claude-opus-5-5 path=_bmad-output/implementation-artifacts/spec-31-7-after-an-unpair-the-telegram-card-shows-its-fresh-code-witho.md build_status=ready-for-dev epic_context=reused
+2026-11-03T16:09:22Z	Story 31.7	spec_validated	service_introducing=false integration_ac=declared-none adr_constrained_acs=AD-4,AD-12,AD-14,AD-29 decision_dependency=none sections_created=none owned_ledger=none addressed=0 declined=0 mutates_shared_runtime=false footprint_extension=web/src/app/rail/telegram-card/telegram-card.ts,web/src/app/rail/telegram-card/telegram-card-view.ts,web/scripts/telegram-card-view.test.mjs(U-243) model=claude-opus-5-5
