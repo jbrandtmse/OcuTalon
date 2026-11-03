@@ -2,7 +2,8 @@
 title: 'Story 0.14: A start that recovers through the merge retry passes the live checks and the upgrade harness'
 type: 'bugfix'
 created: '2026-11-03'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '2cc47ab5fe3f292d5b5d4d58cedc3268e98146b0'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -115,6 +116,24 @@ Rows 1-11 run `check_log` on one start log against `expected_run ... 0.1.0` (OK 
 
 ## Review Triage Log
 
+### 2026-11-03 — Review pass
+- verdicts: 23 findings — high 0, medium 0, low 8, false 0, maybe-false 0 (15 rejected as spec-bound, theoretical or duplicate)
+- findings:
+  - `[low]` `[patch]` `ready` assigned without `local` in `phase_upgrade` and `phase_restart` (Blind, VG) — declared `local`.
+  - `[low]` `[patch]` Call-site pins are source greps; no behavioural test of `ready_or_die` before its die (Blind, Edge, VG) — added a stubbed `ready_or_die` pin (ready and not-ready start) and its mutation line.
+  - `[low]` `[patch]` Total's sum not pinned by values that tell sum from last/max (VG) — section and report fixtures use 0, 1 and 2 and expect 3; mutation line added.
+  - `[low]` `[patch]` Row 11 relied on row 2's fixture (VG) — it builds its own fixture.
+  - `[low]` `[patch]` `check_verdict` defined twice in `test-lib-live.sh` (VG) — the new helper is `log_verdict`.
+  - `[low]` `[patch]` No row for RETRY followed by another STEP line, or RETRY mid-log (Blind) — two rows added under row 4.
+  - `[low]` `[reject]` Failure diff after a valid RETRY plus another difference hides the retry (Blind) — spec-bound: the spec diffs the rest of the log, and the pass label is the only marker.
+  - `[low]` `[reject]` Two definitions of a retry (check_log any-case on reduced log, count on `^STEP merge RETRY`) (Blind, Edge, Intent) — decided in the spec (visibility isn't acceptance, near misses are counted).
+  - `[low]` `[reject]` Unreadable `start_log` records 0, stale restart log, discarded try's lines, awk tool error, report stdout parsers, completeness claim (Edge) — theoretical or spec-bound (the log holds one start; a phase re-run empties its results; `run` passes unchanged).
+  - `[low]` `[reject]` No consumer flags a nonzero total (Blind) — by design, the record line is the visibility surface.
+  - `[low]` `[reject]` AC 3 and AC 4 have no `mutation:` line (VG) — run-and-observe checks, not pinning tests.
+  - `[low]` `[reject]` Row 7's other-case line asserts a pass while the matrix says "as today" (VG, Intent) — `log_steps` drops it, so today's verdict is a pass; the test pins that, and the diffed log is byte-identical.
+  - `[low]` `[reject]` Row 10 asserts the verdict only; `count_merge_retries` unset-results branch untested (VG) — row 10 is a verdict row by the matrix; the branch is unreachable in the phases.
+  - `[low]` `[reject]` The upgrade and restart call-site pins stay source greps (VG) — they need a live stack to execute; the restart pin has a mutation line and `ready_or_die` is now behavioural.
+
 ## Design Notes
 
 **Governing ADs.**
@@ -168,6 +187,18 @@ All timings were measured on the base at plan time. The live throwaway tests are
 - Leave the restart's count out, or hard-code 0: row 12/13's count of 1 goes red.
 - Remove the `Merge retries:` line: row 13's count of 0 goes red.
 
+**Mutation results (Rule 19):**
+- mutation: AC rows 1-11 (`test-lib-live.sh`), RETRY line dropped whatever follows (the `STEP merge OK` condition removed): red on row 4; reverted.
+- mutation: AC rows 1-11, every `^STEP merge RETRY ` line dropped (`grep -v`): red on rows 1, 3, 5, 6, 7 (three near misses and the other-case one), 8 and 9; reverted.
+- mutation: AC rows 1-11, condition (a) skipped (no single-retry count, the first retry line taken): red on row 8; with the count loosened to `retries < 1`, red on row 5; reverted.
+- mutation: AC rows 1-11, condition (d) skipped: red on row 9; reverted.
+- mutation: AC rows 1-11, filter in `log_steps` instead of `check_log`: red on rows 2, 5 and 11; reverted.
+- mutation: AC rows 12-13 (`test-upgrade-harness.sh`, rule `merge-retries`), `count_merge_retries` hard-coded to 0: red on the helper's count of 1 and 2; reverted.
+- mutation: AC rows 12-13, the restart's `count_merge_retries` call removed: red on the restart-call pin; reverted.
+- mutation: AC rows 12-13, the total's sum changed to the last line's count (`t = $2`): red on `Merge retries: 3` and on the report's `MERGE-RETRIES 3` (rule `merge-retries`); reverted.
+- mutation: AC rows 12-13, `ready_or_die` counting after its die branch: red on the not-ready start's line in the `ready_or_die` pin; reverted.
+- mutation: AC rows 12-13, the `Merge retries:` line removed from `record_section`: rules `merge-retries` and `record-contract` red; reverted.
+
 **Shared surfaces:**
 - `check_log`'s verdict for its callers, loosened only for the sanctioned shape.
 - The harness record section gains `Merge retries:` after `Run:`. Its readers are notes.sh (by prefix) and the record-contract order rule, which is updated.
@@ -179,5 +210,21 @@ Every test added or changed passes on a fresh environment, in either order.
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** `check_log` accepts exactly one recovery shape (`STEP merge RETRY 1 after #453` straight before `STEP merge OK`, all four conditions) and labels the pass; every other log is diffed as `log_steps` printed it. The upgrade harness counts `STEP merge RETRY` lines of its five starts, writes `Merge retries: <total>` after `Run:` and prints `MERGE-RETRIES <total>` before `RECORD` and `RESULT`.
+
+**Files changed.**
+- `docker/tests/lib-live.sh`: `check_log` only.
+- `docker/tests/test-lib-live.sh`: matrix rows 1-11 and the header.
+- `release/upgrade-harness.sh`: `count_merge_retries`, `merge_retries_total`, five call sites, `record_section`, `phase_report`, header.
+- `docker/tests/test-upgrade-harness.sh`: rule `merge-retries`, the record-contract order, header.
+
+**Review.** 6 patches applied (all low), 0 deferred, 13 rejected with reasons in the Review Triage Log. Follow-up review recommended: false.
+
+**Verification.** `test-lib-live.sh` all checks passed; `test-upgrade-harness.sh` all rules passed; `docker/after-start.sh` and `docker/merge.cpf` diff empty; name-only diff lists exactly the four files; `test-boundaries.sh`, `test-ci-config.sh`, `test-ci-warm.sh`, `test-rehearsal.sh` and `test-release-sequence.sh` pass. Live tests not run (the lead's smoke).
+
+**Decided in-stage.** Row 7's other-case near miss is pinned as unchanged (a plain pass today, since `log_steps` drops it).
+
+**Residual risk.** The upgrade and restart count call sites are pinned by source text only; they run only in the live harness.
