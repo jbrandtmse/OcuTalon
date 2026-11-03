@@ -2,6 +2,8 @@ import { createHash } from 'node:crypto';
 
 import { expect, type APIRequestContext, type APIResponse, type Page, type Response } from '@playwright/test';
 
+import { gotoSettled } from '../support/navigate';
+
 /** The README account of a local install. */
 export const README_ACCOUNT = { user: 'ocutalon', password: 'ocutalon' } as const;
 
@@ -41,7 +43,7 @@ export function watchViolations(page: Page): string[] {
 
 /** Opens the sign-in page at path (or follows the page that the server answers with) and fills the form in. */
 export async function fillSignIn(page: Page, user: string, password: string, path = '/ocutalon/'): Promise<void> {
-  await page.goto(path);
+  await gotoSettled(page, path);
   await page.getByLabel('User name').fill(user);
   await page.getByLabel('Password', { exact: true }).fill(password);
 }

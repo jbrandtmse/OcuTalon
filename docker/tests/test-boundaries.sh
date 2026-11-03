@@ -1,6 +1,6 @@
 #!/usr/bin/env bash
 # Scans the files of docker/, the compose files, src/, the text sources of web/, the repository-root files of the image,
-# install.sh (the install script, Story 10.1), .github/ and ci/ for the boundaries that no other test pins:
+# install.sh (the install script, Story 10.1), .github/, ci/ and the release scripts (release/*.sh, Story 11.3) for the boundaries that no other test pins:
 #   - ASCII only;
 #   - no image push, save or export, no registry sign-in and no --cache-to (CON-1, REL-4);
 #   - `docker compose config` only with --quiet and `docker inspect` only with --format, because
@@ -12,7 +12,7 @@
 # .env and .env.<x> other than .env.example never read), CON-5:
 #   - no local machine path: a home or volume folder with a name below it, a /private/tmp, /private/var or /private/etc path,
 #     a macOS per-user temporary folder (/var/folders/<x>, the form TMPDIR takes), or a Windows user folder with a name below it;
-#   - no key-like string.
+#   - no key-like string (the patterns are those of docker/tests/lib-keys.sh).
 # Starts nothing. Each scanner first runs on a synthetic file that breaks its rule and on one that
 # keeps it, so a scanner that can no longer flag anything fails. A failing scan prints file:line only,
 # never the text of the line. Prints one PASS or FAIL line per rule; exits 0 only when all pass.
@@ -21,6 +21,7 @@ set -u
 root=$(cd "$(dirname "$0")/../.." && pwd)
 cd "$root" || exit 1
 . "$root/docker/tests/lib-scan.sh"
+. "$root/docker/tests/lib-keys.sh"
 
 fails=0
 tmp=$(mktemp -d "${TMPDIR:-/tmp}/ocutalon-bd.XXXXXX") || exit 1
@@ -30,15 +31,7 @@ trap 'rm -rf "$tmp"' EXIT
 
 non_ascii() { LC_ALL=C grep -nH '[^[:print:][:space:]]' "$@" | cut -d: -f1,2; }
 
-local_path() {
-  { grep -nHIE '/Use[r]s/[A-Za-z0-9]|/Volume[s]/[A-Za-z0-9]|/privat[e]/(tmp|var|etc)/|(^|[^A-Za-z0-9_.])/va[r]/folders/[A-Za-z0-9_]|[A-Za-z]:\\Use[r]s\\[A-Za-z0-9]' "$@"
-    grep -nHIE '/hom[e]/[A-Za-z]' "$@" | grep -v '/home/irisowner'
-  } | cut -d: -f1,2
-}
-
-key_like() {
-  grep -nHIE -e 'sk-ant-[A-Za-z0-9_-]{8,}|[0-9]{8,10}:[A-Za-z0-9_-]{35}|gh[pousr]_[A-Za-z0-9]{20,}|github_pat_[A-Za-z0-9_]{20,}|dop_v1_[a-f0-9]{20,}|AKIA[0-9A-Z]{16}|-----BEGIN [A-Z ]*PRIVATE KEY' "$@" | cut -d: -f1,2
-}
+# key_like (the key-like patterns) comes from docker/tests/lib-keys.sh, the one definition that eval/run.sh also reads.
 
 # Non-comment logical lines (a trailing backslash joins the next line).
 risky_docker_calls() {
@@ -93,7 +86,7 @@ in_scope() {
   return 0
 }
 
-files=$(scan_files docker docker-compose.yml docker-compose.dev.yml .dockerignore .env.example .gitattributes install.sh src web .github ci | while IFS= read -r f; do
+files=$(scan_files docker docker-compose.yml docker-compose.dev.yml .dockerignore .env.example .gitattributes install.sh src web .github ci 'release/*.sh' docs/security-overview.md | while IFS= read -r f; do
   if in_scope "$f"; then echo "$f"; fi
 done)
 all_files=$(scan_files)
@@ -108,21 +101,23 @@ for f in src/module.xml src/bridge/cls/OcuTalon/Bridge/Installer.cls src/ocutalo
   docker-compose.dev.yml docker/after-start.sh docker/after-start.cos docker/ipm/zpm-0.10.10.xml docker/ipm/LICENSE docker/tests/lib-live.sh \
   web/package.json web/package-lock.json web/angular.json web/src/index.html web/src/app/app.ts web/src/styles/tokens.css web/src/signin/signin.css \
   web/scripts/tokens.mjs web/e2e/sign-in/helpers.ts web/src/signin/signin.js src/ocutalon/cls/OcuTalon/Web/Public/SignInAssets.cls \
-  .github/workflows/ci.yml .github/workflows/lane-a.yml ci/iris.sh ci/compose.ci.yml install.sh; do
-  if ! printf '%s\n' "$files" | grep -qx -- "$f"; then
+  .github/workflows/ci.yml .github/workflows/lane-a.yml ci/iris.sh ci/compose.ci.yml install.sh \
+  release/lib-release.sh release/rehearse.sh release/upgrade-harness.sh release/standalone-bridge.sh release/demo-host-check.sh release/demo-load.sh \
+  docs/security-overview.md; do
+  if ! grep -qxF -- "$f" <<< "$files"; then
     echo "  not scanned: $f"
     scope_ok=0
   fi
 done
 for f in README.md CLAUDE.md _bmad/custom/skill-rules.md _bmad-output/implementation-artifacts/sprint-status.yaml \
   eval/orders-date-format/case.json eval/orders-date-format/snapshot.json; do
-  if ! printf '%s\n' "$all_files" | grep -qx -- "$f"; then
+  if ! grep -qxF -- "$f" <<< "$all_files"; then
     echo "  not scanned for paths and keys: $f"
     scope_ok=0
   fi
 done
 if [ "$scope_ok" -eq 1 ]; then
-  echo "PASS scope: src/, the text sources of web/, the dev compose file, the scripts, install.sh, .github/, ci/ and the IPM release are scanned; every tracked or new file is scanned for paths and keys, README.md among them"
+  echo "PASS scope: src/, the text sources of web/, the dev compose file, the scripts, install.sh, .github/, ci/, release/*.sh, docs/security-overview.md and the IPM release are scanned; every tracked or new file is scanned for paths and keys, README.md among them"
 else
   echo "FAIL scope: a file that must be scanned is not"
   fails=$((fails + 1))

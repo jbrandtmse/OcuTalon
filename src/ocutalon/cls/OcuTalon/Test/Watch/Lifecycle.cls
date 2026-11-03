@@ -21,10 +21,11 @@
 ///     also while the incident is fixing and no Execute goes out;
 ///   - TestFixResults: a final (or interrupted) run resolves the incident, or returns it to awaiting approval while a request is pending, or starts the earliest
 ///     waiting request; the run's own request never waits for itself, even while its row still reads approved; a progress report changes nothing but the event;
-///   - TestResultNotices (Story 7.3; AC 5): each accepted final or interrupted FixResult sends each recipient of the incident one Notification of kind result, with the
-///     key that Notice.ResultKey picks for the row's state and the counts (couldNotStart, skipped, allThrough, interrupted, and stillResending for a row that still
-///     reads executing), the slots that the key declares, the request's Ref and the incident's and no
-///     decision; a progress report, a result that the table refuses and a result whose slots cannot be built send none (one Type 3 warning for the last);
+///   - TestResultNotices (Story 7.3, 30.5; AC 5): each accepted FixResult sends each recipient of the incident one Notification of kind result, with the
+///     key that Notice.ResultKey picks for the row's state and the counts (couldNotStart, skipped, allThrough, interrupted, stoppedPartway for Unreached above 0, failedAndSkipped
+///     with the copies made as resent, and stillResending for a row that still reads executing and for a progress report, also when its row is done already),
+///     the slots that the key declares, the request's Ref and the incident's and no
+///     decision; a progress report on an incident that is not fixing, a result that the table refuses and a result whose slots cannot be built send none (one Type 3 warning for the last);
 ///   - TestLaterRequestWhileFixing (Story 7.6; AC 4): a later request R2 raised while the incident is fixing with R1 (the probe's LaterDried) leaves it fixing and
 ///     sends the owner one approval Notification; R2 approved sends no Execute; R1's final result sends exactly one Execute, for R2, in the incident's trace
 ///     session; R2's final result resolves the incident;
@@ -508,14 +509,49 @@ Method TestResultNotices()
 	Do ..Finish(host, r1, incident, {"Final": 1, "Total": 3, "Skipped": 3, "Reason": "message 101 is no longer in the error status"})
 	Do ..AssertSent(host, before, "result.stillResending", "completed=0,count=3,itemNoun="_..#NOUN, r1, incident, both, "the row still executing")
 
-	// a progress report sends none
+	// a resend that stopped partway: the resent, completed and not-tried counts
+	Set incident = ..Incident("instance", "fixing", {"TraceHeaderId": 6868}, 1, production)
+	Set r1 = ..Request("instance", incident, "done")
+	Do ..Link(incident, r1)
+	Set before = ..Results(host).%Size()
+	Do ..Finish(host, r1, incident, {"Final": 1, "Total": 3, "Resent": 2, "Completed": 2, "Skipped": 1, "Unreached": 1})
+	Do ..AssertSent(host, before, "result.stoppedPartway", "completed=2,count=3,itemNoun="_..#NOUN_",notTried=0,resent=2", r1, incident, both, "stopped partway")
+	Do $$$AssertEquals(..Row(incident).state, "resolved", "a run that stopped partway resolves the incident")
+
+	// a mixed result carries the copies made, which its text ignores
+	Set incident = ..Incident("instance", "fixing", {"TraceHeaderId": 6969}, 1, production)
+	Set r1 = ..Request("instance", incident, "done")
+	Do ..Link(incident, r1)
+	Set before = ..Results(host).%Size()
+	Do ..Finish(host, r1, incident, {"Final": 1, "Total": 5, "Resent": 3, "Completed": 0, "FailedAgain": 3, "Skipped": 2, "Reason": "the order date still wasn't accepted"})
+	Do ..AssertSent(host, before, "result.failedAndSkipped", "completed=0,count=5,failReason=the order date still wasn't accepted,failedAgain=3,itemNoun="_..#NOUN_",resent=3,skipped=2", r1, incident, both, "failed again and skipped")
+
+	// a progress report sends one result.stillResending, and the incident stays fixing
 	Set incident = ..Incident("instance", "fixing", {"TraceHeaderId": 6666}, 1, production)
 	Set r1 = ..Request("instance", incident, "executing")
 	Do ..Link(incident, r1)
 	Set before = ..Results(host).%Size()
 	Do $$$AssertStatusOK(..Finish(host, r1, incident, {"Total": 50, "Resent": 50, "Completed": 10}), "a progress report is handled")
-	Do $$$AssertEquals(..Results(host).%Size(), before, "it sends no result notification")
+	Do ..AssertSent(host, before, "result.stillResending", "completed=10,count=50,itemNoun="_..#NOUN, r1, incident, both, "a progress report")
 	Do $$$AssertEquals(..Row(incident).state, "fixing", "and the incident stays fixing")
+
+	// and still does when the request's row is done already by the time it is handled
+	Set incident = ..Incident("instance", "fixing", {"TraceHeaderId": 6677}, 1, production)
+	Set r1 = ..Request("instance", incident, "done")
+	Do ..Link(incident, r1)
+	Set before = ..Results(host).%Size()
+	Do ..Finish(host, r1, incident, {"Total": 50, "Resent": 50, "Completed": 10})
+	Do ..AssertSent(host, before, "result.stillResending", "completed=10,count=50,itemNoun="_..#NOUN, r1, incident, both, "a progress report of a request that is done")
+	Do $$$AssertEquals(..Row(incident).state, "fixing", "the incident stays fixing")
+
+	// a progress report outside fixing is refused and sends none
+	Set incident = ..Incident("instance", "awaiting_approval", {"TraceHeaderId": 6688}, 1, production)
+	Set r1 = ..Request("instance", incident, "executing")
+	Do ..Link(incident, r1)
+	Set before = ..Results(host).%Size()
+	Do ..Finish(host, r1, incident, {"Total": 50, "Resent": 50, "Completed": 10})
+	Do $$$AssertEquals(..Results(host).%Size(), before, "a progress report outside fixing sends no result notification")
+	Do $$$AssertEquals(..Row(incident).state, "awaiting_approval", "and the incident is as it was")
 
 	// a result that the table refuses sends none, and logs one info line
 	Set incident = ..Incident("instance", "awaiting_approval", {"TraceHeaderId": 6767}, 1, production)
@@ -951,7 +987,7 @@ Method TestFixMessages()
 	Do $$$AssertEquals($SYSTEM.SQL.IsReservedWord("FixExecute"), 0, "which is not a reserved word")
 	Do $$$AssertEquals($SYSTEM.SQL.IsReservedWord("Execute"), 1, "as Execute is")
 	Do $$$AssertEquals(..Properties("OcuTalon.Fix.Msg.Execute"), "ApprovalRef:%Library.String:22", "Execute carries only the Ref of the request")
-	Do $$$AssertEquals(..Properties("OcuTalon.Fix.Msg.FixResult"), "ApprovalRef:%Library.String:22,Completed:%Library.Integer:,FailedAgain:%Library.Integer:,Final:%Library.Boolean:,IncidentRef:%Library.String:22,Interrupted:%Library.Boolean:,Reason:%Library.String:1000,Resent:%Library.Integer:,Skipped:%Library.Integer:,Total:%Library.Integer:", "FixResult has the Refs, the two flags, the five counts and the reason")
+	Do $$$AssertEquals(..Properties("OcuTalon.Fix.Msg.FixResult"), "ApprovalRef:%Library.String:22,Completed:%Library.Integer:,FailedAgain:%Library.Integer:,Final:%Library.Boolean:,IncidentRef:%Library.String:22,Interrupted:%Library.Boolean:,Reason:%Library.String:1000,Resent:%Library.Integer:,Skipped:%Library.Integer:,Total:%Library.Integer:,Unreached:%Library.Integer:", "FixResult has the Refs, the two flags, the five counts, Unreached and the reason")
 	For class = "OcuTalon.Fix.Msg.Execute", "OcuTalon.Fix.Msg.FixResult" {
 		Do $$$AssertTrue($ClassMethod(class, "%Extends", "Ens.Request"), class_" is an Ens.Request")
 		Do $$$AssertEquals($ClassMethod(class, "%Extends", "OcuTalon.Msg.Command"), 0, class_" is no command")

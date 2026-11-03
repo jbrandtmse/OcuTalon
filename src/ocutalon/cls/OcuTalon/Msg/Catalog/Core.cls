@@ -506,6 +506,11 @@ XData Entries [ MimeType = application/json ]
   "slots": {"limit": "count"},
   "source": "EXPERIENCE Pages / The splash screen (online demo) / Before you start"
  },
+ "splash.limitLineChat": {
+  "text": "Each session can send {limit} messages an hour in the chat.",
+  "slots": {"limit": "count"},
+  "source": "EXPERIENCE Pages / The splash screen (online demo) / Before you start"
+ },
  "splash.tooManySessions": {
   "text": "Too many new sessions from your network this hour. You can start another at {time}.",
   "slots": {"time": "text"},

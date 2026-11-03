@@ -1,0 +1,13 @@
+{
+  "name": "guide-reminder-triage",
+  "match": {
+    "prompt": "Remind me in 1 minute to stretch.",
+    "mockkey": "triage"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "text": "{\"outcome\":\"act\",\"reasons\":[\"The CI mock acts on the request to set a reminder.\"],\"confidence\":0.9}"
+    }
+  ]
+}

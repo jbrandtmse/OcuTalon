@@ -1,5 +1,9 @@
+Include %cspBuild
+
 /// Tests of the public status class (matrix row 19, the slot A part): the body for the public settings that are set
-/// and for none, the busy formula, the route and the authorisation, an error's answer, and the classes of both public packages
+/// and for none, the busy formula and its visitor clause (TestIsBusy), the count of live visitors over a process-private
+/// store (TestVisitorCount), the plain and the trace form (TestTraceForm), a store that cannot be read (TestBusyStoreFailure), the route and the authorisation, an error's answer,
+/// and the classes of both public packages
 /// (OcuTalon.Web.Public and OcuTalon.Data.Public, read from the class dictionary), which may reference only what AD-3 allows. The tests set the public settings that the body reads. OnBeforeAllTests saves them and
 /// OnAfterAllTests restores each one, so the slot's settings are as they were. The HTTP half is test-sign-in.sh's.
 Class OcuTalon.Test.Web.Status Extends %UnitTest.TestCase
@@ -83,6 +87,130 @@ Method TestIsBusy()
 	Do $$$AssertEquals($ClassMethod(status, "IsBusy", 1, 1, ""), 1, "no reserve counts as 0")
 	Do $$$AssertEquals($ClassMethod(status, "IsBusy", 0, 1, "x"), 0, "a reserve that isn't a number counts as 0")
 	Do $$$AssertEquals($ClassMethod(status, "IsBusy", 8, 8, 8), 1, "a reserve as large as the cap is always busy")
+	Do $$$AssertEquals($ClassMethod(status, "IsBusy", 0, 8, 2, 5), 0, "5 visitors are not busy")
+	Do $$$AssertEquals($ClassMethod(status, "IsBusy", 0, 8, 2, 6), 1, "6 visitors are busy")
+	Do $$$AssertEquals($ClassMethod(status, "IsBusy", 0, 8, 2, 7), 1, "7 visitors are busy")
+	Do $$$AssertEquals($ClassMethod(status, "IsBusy", 0, 8, 2, ""), 0, "no visitor count leaves the clause out")
+	Do $$$AssertEquals($ClassMethod(status, "IsBusy", 6, 8, 2, 0), 1, "the connection rule holds at 0 visitors")
+	Do $$$AssertEquals($ClassMethod(status, "IsBusy", 5, 8, 2, 5), 0, "neither clause holds")
+	Do $$$AssertEquals($ClassMethod(status, "IsBusy", 0, "", 2, 6), 0, "no cap is never busy, at 6 visitors")
+	Do $$$AssertEquals($ClassMethod(status, "IsBusy", 0, 0, 2, 9), 0, "a cap of 0 is never busy, at 9 visitors")
+	Do $$$AssertEquals($ClassMethod(status, "IsBusy", 0, "x", 2, 9), 0, "a cap that isn't a number is never busy, at 9 visitors")
+	Do $$$AssertEquals($Parameter(status, "VISITORCAP"), 6, "the visitor cap is 6")
+	Do $$$AssertEquals($Parameter("OcuTalon.Web.SessionEvents", "OWNCONNECTIONS"), 0, "the new session leaves no own connection out")
+}
+
+/// Story 29.7, row 11: Visitors counts exactly the sessions of the store that hold the visitor marker and whose stored timeout is
+/// ahead. The fixture is a process-private store with the index nodes -2, -1 and 0 (the first two and the third hold a marker and
+/// a future timeout, so only skipping them keeps the count right), a marked session ahead, a marked one past, an unmarked one
+/// ahead and a marked one with other data keys. The default store is never written.
+Method TestVisitorCount()
+{
+	Set status = "OcuTalon.Web.Public.Status"
+	Set key = ##class(OcuTalon.Web.Public.Shell).#VISITORKEY
+	Set store = "^||ZzVisitorStore"
+	Kill @store
+	Set stamp = $ZTimeStamp
+	Set now = ($Piece(stamp, ",") * 86400 + $Piece(stamp, ",", 2)) \ 1
+	Set ahead = ..StoredSession(now + 60)
+	Set past = ..StoredSession(now - 5)
+	For node = -2, -1, 0 {
+		Set @store@(node) = ahead
+		Set @store@(node, 0, key) = 1
+	}
+	Set @store@(0, now + 60, "ZzMarkedAhead") = ""
+	Set @store@("ZzMarkedAhead") = ahead
+	Set @store@("ZzMarkedAhead", 0, key) = 1
+	Set @store@("ZzMarkedPast") = past
+	Set @store@("ZzMarkedPast", 0, key) = 1
+	Set @store@("ZzUnmarkedAhead") = ahead
+	Set @store@("ZzUnmarkedAhead", 0, "OcuTalon.Other") = 1
+	Set @store@("ZzMarkedOther") = ahead
+	Set @store@("ZzMarkedOther", 0, "OcuTalon.Other") = 1
+	Set @store@("ZzMarkedOther", 0, key) = 1
+	Set @store@("ZzMarkedOther", 0, "OcuTalon.Another") = "x"
+	Do $$$AssertEquals($ClassMethod(status, "Visitors", store), 2, "the marked sessions whose timeout is ahead are counted, and nothing else")
+	Set @store@("ZzMarkedPast") = ahead
+	Do $$$AssertEquals($ClassMethod(status, "Visitors", store), 3, "the same session counts once its timeout is ahead")
+	Kill @store
+	Do $$$AssertEquals($ClassMethod(status, "Visitors", store), 0, "an empty store counts 0")
+}
+
+/// Story 29.7, rows 9 and 12: Form is "trace" only for exactly one for whose value is exactly trace; every other form answers the
+/// plain one. Both forms have exactly the five keys. With the connection settings busy, both forms are busy and Show sets the
+/// marker header; with a high cap neither is busy and there is no header.
+Method TestTraceForm()
+{
+	Set status = "OcuTalon.Web.Public.Status"
+	New %request, %response
+	Set %request = ##class(OcuTalon.Test.Web.StubRequest).Make("/ocutalon/public/")
+	Do $$$AssertEquals($ClassMethod(status, "Form"), "", "no for is the plain form")
+	Set %request.Data("for", 1) = "trace"
+	Do $$$AssertEquals($ClassMethod(status, "Form"), "trace", "for=trace is the trace form")
+	Set %request.Data("t", 1) = "1761800000000"
+	Do $$$AssertEquals($ClassMethod(status, "Form"), "trace", "other query names are ignored")
+	Kill %request.Data
+	Set %request.Data("for", 1) = ""
+	Do $$$AssertEquals($ClassMethod(status, "Form"), "", "for= is the plain form")
+	Kill %request.Data
+	Set %request.Data("for", 1) = "Trace"
+	Do $$$AssertEquals($ClassMethod(status, "Form"), "", "for=Trace is the plain form")
+	Kill %request.Data
+	Set %request.Data("for", 1) = "trace "
+	Do $$$AssertEquals($ClassMethod(status, "Form"), "", "for=trace%20 is the plain form")
+	Kill %request.Data
+	Set %request.Data("for", 1) = "other"
+	Do $$$AssertEquals($ClassMethod(status, "Form"), "", "for=other is the plain form")
+	Kill %request.Data
+	Set %request.Data("for", 1) = "trace", %request.Data("for", 2) = "trace"
+	Do $$$AssertEquals($ClassMethod(status, "Form"), "", "a repeated for is the plain form")
+	Kill %request.Data
+	Set %request.Data("FOR", 1) = "trace"
+	Do $$$AssertEquals($ClassMethod(status, "Form"), "", "FOR=trace is the plain form")
+	Kill %request.Data
+
+	Do ##class(OcuTalon.Data.Public.Settings).ClearReady()
+	Do ..SetAll("", "", "", "", 100000, 2)
+	For form = "", "trace" {
+		Set body = $ClassMethod(status, "Body", form)
+		Do $$$AssertEquals(..Keys(body), "ready,nextReset,busy,lastReset,lastResetKind", "exactly the five keys in the form '"_form_"'")
+	}
+	For query = "", "trace" {
+		Kill %request.Data
+		If query '= "" Set %request.Data("for", 1) = query
+		Do ..SetAll("", "", "", "", 1, 9)
+		Set %response = ##class(%CSP.Response).%New()
+		Set written = ##class(OcuTalon.Test.Web.Api).Written(.sc, status, "Show")
+		Do $$$AssertEquals({}.%FromJSON(written).busy, 1, "the form '"_query_"' is busy from the connections")
+		Do $$$AssertEquals(%response.GetHeader($Parameter(status, "BUSYHEADER")), "1", "and carries the marker header")
+		Do $$$AssertEquals(%response.Status, "200 OK", "with the status code 200")
+		Do ..SetAll("", "", "", "", 100000, 2)
+		Set %response = ##class(%CSP.Response).%New()
+		Set written = ##class(OcuTalon.Test.Web.Api).Written(.sc, status, "Show")
+		Do $$$AssertEquals({}.%FromJSON(written).busy, 0, "the form '"_query_"' is not busy with a high cap")
+		Do $$$AssertEquals(%response.GetHeader($Parameter(status, "BUSYHEADER")), "", "and carries no marker header")
+	}
+}
+
+/// A store that cannot be read counts as busy in the plain form, the trace form never reads it, and without a valid cap it is not
+/// read at all (Busy). The fixture is one node of the instance's own CSP session store whose stored list cannot be parsed; it is
+/// removed again, also when an assertion throws.
+Method TestBusyStoreFailure()
+{
+	Set status = "OcuTalon.Web.Public.Status"
+	Set bad = 987654321012
+	Try {
+		Set ^%cspSession(bad) = "notalist"
+		Do ..SetAll("", "", "", "", 100000, 2)
+		Do $$$AssertEquals($ClassMethod(status, "Busy"), 1, "a store that cannot be read counts as busy")
+		Do $$$AssertEquals($ClassMethod(status, "Busy", 0, "trace"), 0, "the trace form never reads the store")
+		Do ..SetAll("", "", "", "", "", "")
+		Do $$$AssertEquals($ClassMethod(status, "Busy"), 0, "without a valid cap the store is not read")
+	} Catch exception {
+		Kill ^%cspSession(bad)
+		Throw exception
+	}
+	Kill ^%cspSession(bad)
 }
 
 /// One route, GET /status; no session; JSON; everyone is authorised; Show writes the body with no-store.
@@ -458,6 +586,16 @@ Method SetAll(anchor As %String, interval As %String, lastReset As %String, kind
 	Do $$$AssertStatusOK(##class(OcuTalon.Data.Public.Settings).Set("lastResetKind", kind), "lastResetKind is set")
 	Do $$$AssertStatusOK(##class(OcuTalon.Data.Public.Settings).Set("connectionCap", cap), "connectionCap is set")
 	Do $$$AssertStatusOK(##class(OcuTalon.Data.Public.Settings).Set("connectionReserve", reserve), "connectionReserve is set")
+}
+
+/// The stored list of a CSP session, as the store keeps it, with timeout at the position $$$sesOldTimeout.
+ClassMethod StoredSession(timeout As %Integer) As %List [ Private ]
+{
+	Set stored = ""
+	For position = 1:1:$$$sesOldTimeout - 1 {
+		Set stored = stored_$ListBuild("")
+	}
+	Quit stored_$ListBuild(timeout)
 }
 
 /// Puts every setting back as OnBeforeAllTests found it.

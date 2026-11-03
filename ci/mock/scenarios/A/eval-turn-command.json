@@ -1,0 +1,12 @@
+{
+  "name": "eval-turn-command",
+  "match": {
+    "marker": "eval-turn-command"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "text": "I can't run commands. I can check productions, read failed messages and propose fixes that wait for your approval."
+    }
+  ]
+}

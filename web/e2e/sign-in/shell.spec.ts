@@ -1,5 +1,6 @@
 import { expect, test, type Page } from '@playwright/test';
 
+import { loadedAfter } from '../support/floor';
 import { signOutTrace } from '../support/trace';
 import { README_ACCOUNT, signInReadme, watchViolations } from './helpers';
 
@@ -13,7 +14,7 @@ test('row 8: the README sign-in loads the shell', async ({ page }) => {
   await page.goto('/ocutalon/');
   await page.getByLabel('User name').fill(README_ACCOUNT.user);
   await page.getByLabel('Password', { exact: true }).fill(README_ACCOUNT.password);
-  await page.getByRole('button', { name: 'Sign in', exact: true }).click();
+  await loadedAfter(page, () => page.getByRole('button', { name: 'Sign in', exact: true }).click());
   await expect(page).toHaveTitle('OcuTalon');
 
   const mark = page.locator('app-header img.mark');

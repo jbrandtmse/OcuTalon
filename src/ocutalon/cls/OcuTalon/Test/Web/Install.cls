@@ -138,7 +138,7 @@ Method TestPurgeDeclaration()
 Method TestPurgeAddressCounter()
 {
 	Set address = "zz-webinstall-"_..Number_"-counter"
-	Set hash = ##class(OcuTalon.Data.Session).Hash(address)
+	Set hash = ##class(OcuTalon.Data.AddressCounter).AddressHash(address)
 	Set stream = ##class(OcuTalon.Bridge.Ids).NewRef()
 	Set ^OcuTalonTest("WebInstall", "streams", stream) = ""
 	For days = 90, 0 {

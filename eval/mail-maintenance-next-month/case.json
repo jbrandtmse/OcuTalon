@@ -1,0 +1,18 @@
+{
+  "name": "mail-maintenance-next-month",
+  "kind": "item",
+  "heldOut": false,
+  "description": "A partner's maintenance window next month: informational, with no deadline this week and nothing to do now, so it is kept for the digest.",
+  "expectation": {
+    "outcome": "digest"
+  },
+  "recordedBy": "written for the evaluation set (Story 9.3)",
+  "item": {
+    "itemId": "mail-maintenance-next-month",
+    "channel": "mailbox",
+    "provenance": "untrusted",
+    "sender": "Results Partner IT <it@results-partner.example>",
+    "subject": "Planned maintenance next month",
+    "text": "Hello, we will run planned maintenance on our results endpoint on the first Saturday of next month between 02:00 and 04:00 UTC. The endpoint will be unavailable during that time. No action is needed now, and we will confirm the date again a week before. Thanks, Results Partner IT"
+  }
+}

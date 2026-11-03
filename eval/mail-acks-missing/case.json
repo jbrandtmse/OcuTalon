@@ -1,0 +1,18 @@
+{
+  "name": "mail-acks-missing",
+  "kind": "item",
+  "heldOut": false,
+  "description": "A partner sent 12 orders and got no acknowledgements and asks for a check of the Orders production: a current failure that OcuTalon can look into with its read-only tools, so it acts.",
+  "expectation": {
+    "outcome": "act"
+  },
+  "recordedBy": "written for the evaluation set (Story 9.3)",
+  "item": {
+    "itemId": "mail-acks-missing",
+    "channel": "mailbox",
+    "provenance": "untrusted",
+    "sender": "Order Partner Operations <operations@order-partner.example>",
+    "subject": "12 orders sent, no acknowledgements",
+    "text": "Hello, we sent 12 orders to your Orders production in the last hour and have received no acknowledgements. Please check the Orders production for errors. Thanks, Order Partner Operations"
+  }
+}

@@ -5,7 +5,8 @@
 /// Shell.HasRole(). The session row that the test may create for the running user is removed by Test.Data.Fixture.Clean.
 /// Story 16.3 adds the online demo's branch (TestFirstSignIn, TestResume, TestUnknownCookie, TestLimit, TestLimitIsTheSetting,
 /// TestExempt, TestClientAddress, TestFlagOff, TestNoRoleOnTheOnlineDemo, and QA's TestTamperedCookie,
-/// TestFlagOffIgnoresTheCookie and TestClientAddressEdges): each test starts with the flag off, saves and restores onlineDemo, proxyAddress,
+/// TestFlagOffIgnoresTheCookie and TestClientAddressEdges) and Story 29.7's TestVisitorMarker (the counted visitor's marker, set only on a
+/// proxied attach, and OWNCONNECTIONS = 0): each test starts with the flag off, saves and restores onlineDemo, proxyAddress,
 /// resetAnchor, resetIntervalHours and the address limit's row, and removes its session rows and counter rows after, also
 /// when it failed. The sign-ins are in process, with a stand-in request and response, as the user that runs the tests.
 Class OcuTalon.Test.Web.SessionEvents Extends %UnitTest.TestCase
@@ -357,6 +358,67 @@ Method TestFlagOffIgnoresBusy()
 	Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).SessionCount($Username), $Select(before = 0: 1, 1: before), "the user keeps one row")
 }
 
+/// The visitor marker (Story 29.7, matrix row 10): a proxied create and a proxied resume set Shell.VISITORKEY to 1 in the CSP session's
+/// data. It is not set on a sign-in that is not proxied, a busy refusal, an address-limit refusal, with the flag off, or for a user without
+/// the role. The new session leaves no own connection out (OWNCONNECTIONS is 0).
+Method TestVisitorMarker()
+{
+	Set key = ##class(OcuTalon.Web.Public.Shell).#VISITORKEY
+	Set sessionKey = ##class(OcuTalon.Data.Ownership).#SESSIONKEY
+	Do $$$AssertEquals(##class(OcuTalon.Web.SessionEvents).#OWNCONNECTIONS, 0, "the busy check leaves no own connection out")
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "1")
+	Do ##class(OcuTalon.Data.Public.Settings).Set("proxyAddress", "192.0.2.10")
+	Set address = ..Address("marker")
+	Do $$$AssertStatusOK(..SignIn("", "ZzMarkerCreate", "192.0.2.10", address, .created, .response), "a proxied create answers OK")
+	Set ref = $Get(created.Data(sessionKey))
+	Do ..AdoptRef(ref)
+	Do $$$AssertTrue(ref '= "", "it attaches a row")
+	Do $$$AssertEquals($Get(created.Data(key)), 1, "a proxied create sets the marker to 1")
+	Set cookie = $Get(response.Cookies(1, "v"))
+	Do $$$AssertStatusOK(..SignIn(cookie, "ZzMarkerResume", "192.0.2.10", address, .resumed, .response), "a proxied resume answers OK")
+	Do $$$AssertEquals($Get(resumed.Data(sessionKey)), ref, "it attaches the cookie's row")
+	Do $$$AssertEquals($Get(resumed.Data(key)), 1, "a proxied resume sets the marker to 1")
+
+	Do $$$AssertStatusOK(..SignIn("", "ZzMarkerOther", "192.0.2.77", ..Address("markerother"), .other, .response), "a request from a remote other than the proxy answers OK")
+	Do ..AdoptRef($Get(other.Data(sessionKey)))
+	Do $$$AssertTrue($Get(other.Data(sessionKey)) '= "", "it is let in")
+	Do $$$AssertEquals($Data(other.Data(key)), 0, "a sign-in that is not proxied is not marked")
+	Do $$$AssertStatusOK(..SignIn(cookie, "ZzMarkerResumeDirect", "192.0.2.77", address, .direct, .response), "a resume that is not proxied answers OK")
+	Do $$$AssertEquals($Get(direct.Data(sessionKey)), ref, "it attaches the cookie's row")
+	Do $$$AssertEquals($Data(direct.Data(key)), 0, "a resume that is not proxied is not marked")
+	Do ##class(OcuTalon.Data.Public.Settings).Set("proxyAddress", "")
+	Do $$$AssertStatusOK(..SignIn("", "ZzMarkerNoProxy", "192.0.2.10", ..Address("markernoproxy"), .noproxy, .response), "a sign-in with no proxy set answers OK")
+	Do ..AdoptRef($Get(noproxy.Data(sessionKey)))
+	Do $$$AssertTrue($Get(noproxy.Data(sessionKey)) '= "", "it is let in")
+	Do $$$AssertEquals($Data(noproxy.Data(key)), 0, "and is not marked either")
+	Do ##class(OcuTalon.Data.Public.Settings).Set("proxyAddress", "192.0.2.10")
+
+	Do ..ForceBusy()
+	Do $$$AssertStatusOK(..SignIn("", "ZzMarkerBusy", "192.0.2.10", ..Address("markerbusy"), .busy, .response), "a busy refusal answers OK")
+	Do $$$AssertEquals($Get(busy.Data(##class(OcuTalon.Web.Public.Shell).#REFUSALKEY)), $ListBuild("busy"), "it records the busy refusal")
+	Do $$$AssertEquals($Data(busy.Data(key)), 0, "a busy refusal is not marked")
+	Do ##class(OcuTalon.Data.Public.Settings).Set("connectionCap", "")
+
+	Do ..SetLimit(1)
+	Set limited = ..Address("markerlimit")
+	Do $$$AssertStatusOK(..SignIn("", "ZzMarkerLimitOne", "192.0.2.10", limited, .first, .response), "the first creation of a limited address answers OK")
+	Do ..AdoptRef($Get(first.Data(sessionKey)))
+	Do $$$AssertEquals($Get(first.Data(key)), 1, "and is marked")
+	Do $$$AssertStatusOK(..SignIn("", "ZzMarkerLimitTwo", "192.0.2.10", limited, .second, .response), "the second answers OK")
+	Do $$$AssertEquals($List($Get(second.Data(##class(OcuTalon.Web.Public.Shell).#REFUSALKEY)), 1), "addressLimit", "it records the address-limit refusal")
+	Do $$$AssertEquals($Data(second.Data(key)), 0, "an address-limit refusal is not marked")
+
+	Do $$$AssertStatusOK(..SignIn("", "ZzMarkerNoRole", "192.0.2.10", ..Address("markernorole"), .norole, .response, 0), "a user without the role answers OK")
+	Do $$$AssertEquals($Data(norole.Data(key)), 0, "a user without the role is not marked")
+
+	Set before = ##class(OcuTalon.Test.Data.Fixture).SessionCount($Username)
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
+	Do $$$AssertStatusOK(..SignIn("", "ZzMarkerFlagOff", "192.0.2.10", ..Address("markeroff"), .off, .response), "with the flag off a proxied sign-in answers OK")
+	Set row = ##class(OcuTalon.Data.Session).RefIndexOpen($Get(off.Data(sessionKey)))
+	If $IsObject(row), before = 0 Do ##class(OcuTalon.Test.Data.Fixture).Adopt(row)
+	Do $$$AssertEquals($Data(off.Data(key)), 0, "with the flag off nothing is marked")
+}
+
 /// Forces the busy state: a reserve larger than the cap is always busy, whatever the connections are.
 Method ForceBusy() [ Private ]
 {
@@ -628,6 +690,91 @@ Method TestNoRoleOnTheOnlineDemo()
 	Do $$$AssertEquals(##class(OcuTalon.Data.Session).RefIndexOpen(visitorRef).CspSessionId, "ZzNoRoleVisitor", "and the visitor's row is not touched")
 }
 
+/// (QA) No key can be made (Story 29.5, matrix row 8, integration): while another job holds the address key's lock and no valid key
+/// exists, a proxied creation is refused as the counter's "busy" error (logged by code only) and creates no session row, no Ref, no
+/// cookie, no counter row and no key; once the lock is free, the next creation is let in and counted. The test sets the limit to 5,
+/// waits for the holder's signal before it signs in, deletes its counter row while the key it was counted under is in place, and
+/// puts the key node back whatever happens.
+Method TestNoKeyRefusesTheCreation()
+{
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "1")
+	Do ##class(OcuTalon.Data.Public.Settings).Set("proxyAddress", "192.0.2.10")
+	Do ..SetLimit(5)
+	Set node = ##class(OcuTalon.Data.AddressCounter).#KEYGLOBAL
+	Set savedNode = $Data(@node)
+	Set savedValue = $Get(@node)
+	Set address = ..Address("nokey")
+	Set flag = $Name(^OcuTalonTest("SessionEvents", "keyholder"))
+	Kill @flag
+	Try {
+		Kill @node
+		Job ..KeyHolder(node, flag)
+		Set deadline = $ZHorolog + 20
+		While ($Get(@flag) = "") && ($ZHorolog < deadline) {
+			Hang 0.05
+		}
+		Do $$$AssertEquals($Get(@flag), "held", "another job holds the key lock")
+		Set rows = ##class(OcuTalon.Test.Data.Fixture).SessionCount($Username)
+		Set total = ..CounterTotal()
+		Set log = $System.Util.ManagerDirectory()_"messages.log"
+		Do ##class(%SYS.System).WriteToConsoleLog("OcuTalon.Test.Web.SessionEvents: a line that the attach's is not a repeat of", 0, 0)
+		Set mark = ##class(%File).GetFileSize(log)
+		Do $$$AssertStatusOK(..SignIn("", "ZzNoKey", "192.0.2.10", address, .refused, .response), "the creation answers OK")
+		Do $$$AssertEquals($Get(refused.Data(##class(OcuTalon.Data.Ownership).#SESSIONKEY)), "", "it attaches nothing")
+		Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).SessionCount($Username), rows, "it creates no row")
+		Do $$$AssertEquals($Order(response.Cookies("")), "", "it sets no cookie")
+		Do $$$AssertEquals(..CounterTotal(), total, "it writes no counter row")
+		Do $$$AssertEquals($Data(@node), 0, "it makes no key")
+		Do $$$AssertEquals($Data(refused.Data(##class(OcuTalon.Web.Public.Shell).#REFUSALKEY)), 0, "it records no refusal marker")
+		Set lines = ..LinesSince(log, mark)
+		Do $$$AssertEquals($ListLength(lines), 1, "it logs one line")
+		If $ListLength(lines) = 1 Do $$$AssertEquals($Piece($List(lines, 1), "OcuTalon.Web.SessionEvents: ", 2), "the session could not be attached, error 5001", "the line holds the sentence and the error code only")
+		Set @flag = "release"
+		Set deadline = $ZHorolog + 20
+		While ($Get(@flag) '= "done") && ($ZHorolog < deadline) {
+			Hang 0.05
+		}
+		Do $$$AssertEquals($Get(@flag), "done", "the holder released the key lock")
+		Do $$$AssertStatusOK(..SignIn("", "ZzNoKeyAfter", "192.0.2.10", address, .after, .response), "once the lock is free the creation answers OK")
+		Do ..AdoptRef($Get(after.Data(##class(OcuTalon.Data.Ownership).#SESSIONKEY)))
+		Do $$$AssertTrue($Get(after.Data(##class(OcuTalon.Data.Ownership).#SESSIONKEY)) '= "", "and is let in")
+		Do $$$AssertEquals(..CounterRows(address), 1, "and counted")
+		Do ..DropCounter(address)
+		Do $$$AssertEquals(..CounterTotal(), total, "and its counter row is deleted under the key it was counted with")
+	} Catch exception {
+		Do $$$AssertFailure("the test raised an error: "_exception.Name)
+	}
+	If ($Get(@flag) '= "") && ($Get(@flag) '= "done") {
+		Set @flag = "release"
+		Set deadline = $ZHorolog + 20
+		While ($Get(@flag) '= "done") && ($ZHorolog < deadline) {
+			Hang 0.05
+		}
+	}
+	Kill @flag
+	Do ..DropCounter(address)
+	If savedNode {
+		Set @node = savedValue
+	} Else {
+		Kill @node
+	}
+}
+
+/// The job of TestNoKeyRefusesTheCreation: holds the key lock, signals "held" (or "failed"), keeps it until the flag says "release" (at
+/// most 30 seconds), releases it and signals "done".
+ClassMethod KeyHolder(node As %String, flag As %String)
+{
+	Lock +@node:10
+	Set held = $Test
+	Set @flag = $Select(held: "held", 1: "failed")
+	Set deadline = $ZHorolog + 30
+	While ($Get(@flag) '= "release") && ($ZHorolog < deadline) {
+		Hang 0.05
+	}
+	If held Lock -@node
+	Set @flag = "done"
+}
+
 /// The OnLogin work for a sign-in in process: a CSP session with the id, a stand-in request with the cookie, the remote address,
 /// the forwarded list and a response; the CSP session and the response come back in session and response. hasRole is AttachFor's
 /// argument (the user holds the OcuTalon user role by default). The status is AttachFor's.
@@ -657,7 +804,7 @@ Method Address(case As %String) As %String [ Private ]
 /// The number of counter rows of an address.
 ClassMethod CounterRows(address As %String) As %Integer [ Private ]
 {
-	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Data.AddressCounter WHERE AddressHash = ?", ##class(OcuTalon.Data.Session).Hash(address))
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Data.AddressCounter WHERE AddressHash = ?", ##class(OcuTalon.Data.AddressCounter).AddressHash(address))
 	Do result.%Next()
 	Quit result.%GetData(1)
 }
@@ -673,7 +820,7 @@ ClassMethod CounterTotal() As %Integer [ Private ]
 /// The earliest CreatedAt among the counter rows of an address.
 ClassMethod OldestCounter(address As %String) As %String [ Private ]
 {
-	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT MIN(CreatedAt) FROM OcuTalon_Data.AddressCounter WHERE AddressHash = ?", ##class(OcuTalon.Data.Session).Hash(address))
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT MIN(CreatedAt) FROM OcuTalon_Data.AddressCounter WHERE AddressHash = ?", ##class(OcuTalon.Data.AddressCounter).AddressHash(address))
 	Do result.%Next()
 	Quit result.%GetData(1)
 }
@@ -681,7 +828,7 @@ ClassMethod OldestCounter(address As %String) As %String [ Private ]
 /// Deletes the counter rows of an address.
 ClassMethod DropCounter(address As %String) [ Private ]
 {
-	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.AddressCounter WHERE AddressHash = ?", ##class(OcuTalon.Data.Session).Hash(address))
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.AddressCounter WHERE AddressHash = ?", ##class(OcuTalon.Data.AddressCounter).AddressHash(address))
 }
 
 /// Deletes the visitor rows (those with a resume hash) of the user that runs the tests: what an earlier run that failed may have left, which

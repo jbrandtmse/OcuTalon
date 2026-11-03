@@ -3,7 +3,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 import { signIn } from '../sign-in/helpers';
 import { STATE, changeSnapshot } from '../support/api';
 import { dropPhone } from '../support/devices';
-import { CARD_MS, HEADER, applied, composerOf, mainOf, unique } from '../support/floor';
+import { CARD_MS, HEADER, applied, composerOf, mainOf, unique, loadedAfter } from '../support/floor';
 import { cleanFixtureRows, fixtureUser, publishIncident, seedDecision, seedIncident, sendNotification } from '../support/iris';
 import { announcedTexts, fromBottom, recordAnnouncements, scrollListTo, tokenColor } from '../support/page';
 
@@ -96,7 +96,7 @@ const cards = (page: Page): Locator => page.locator('app-chat-panel [data-part="
 async function open(page: Page): Promise<void> {
   const { user, password } = fixtureUser(KIND);
   await recordAnnouncements(page);
-  await signIn(page, user, password);
+  await loadedAfter(page, () => signIn(page, user, password));
   await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
   await expect(composerOf(page)).toBeVisible();
   const state = (await (await page.request.get(STATE)).json()) as { demoMode: boolean; instanceZone: string };

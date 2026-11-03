@@ -1,12 +1,12 @@
-import { expect, test, type BrowserContext, type Locator, type Page, type Response } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '@playwright/test';
 
 import { STATE } from '../e2e/support/api';
-import { settled } from '../e2e/support/floor';
+import { loadedAfter, settled } from '../e2e/support/floor';
 import { fixtureUser } from '../e2e/support/iris';
 import { announcements, recordAnnouncements } from '../e2e/support/page';
 import { scanPage } from '../e2e/support/scan';
-import { drawnMessages, postTurn, type Cursor, type Turn } from '../e2e/support/trace';
-import { signInFromSplash, signOutGroup } from './support';
+import { postTurn, type Cursor } from '../e2e/support/trace';
+import { expectOpenedDirectly, opensTabStrict, signInFromSplash, signOutGroup } from './support';
 
 /**
  * Story 16.1, the demo account on the page of the online-demo throwaway (O4 to O6; matrix rows 10 to 12). Every case is the DEMOACCOUNT
@@ -34,7 +34,6 @@ const COPY_USER = 'Copy Visual Trace user name';
 const COPY_PASSWORD = 'Copy Visual Trace password';
 const COPY_FAILED = "Couldn't copy. Select the text and copy it yourself.";
 
-const mainOf = (page: Page): Locator => page.locator('main.main');
 const traceMenu = (page: Page): Locator => page.getByRole('button', { name: 'Visual Trace', exact: true });
 
 /**
@@ -44,40 +43,13 @@ const traceMenu = (page: Page): Locator => page.getByRole('button', { name: 'Vis
 async function open(page: Page): Promise<Cursor> {
   await recordAnnouncements(page);
   const { user, password } = fixtureUser(KIND);
-  await signInFromSplash(page, user, password);
-  await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
+  await loadedAfter(page, () => signInFromSplash(page, user, password));
   const state = (await (await page.request.get(STATE)).json()) as { streams: { session: number } };
   return { seq: state.streams.session };
 }
 
 /** The read-only account that the unit published: the values of its test start values. */
 const published = (): { user: string; password: string } => fixtureUser('READONLYACCOUNT');
-
-/** The tab that the action opens, with the answers of every trace document recorded: a sign-in field in any of them is a failure. */
-async function opensTabStrict(context: BrowserContext, action: () => Promise<unknown>): Promise<{ popup: Page; signInPages: string[] }> {
-  const signInPages: string[] = [];
-  const watch = async (response: Response): Promise<void> => {
-    if (response.request().resourceType() !== 'document' || !response.url().includes('/ocutalon/trace/')) return;
-    const body = await response.text().catch(() => '');
-    if (/name=["']?IRISPassword/.test(body)) signInPages.push(response.url());
-  };
-  context.on('response', (response) => void watch(response));
-  const [popup] = await Promise.all([context.waitForEvent('page'), action()]);
-  await popup.waitForLoadState('domcontentloaded');
-  return { popup, signInPages };
-}
-
-/** The tab is at the link's traceUrl (its path and session), shows no sign-in field and draws the turn. */
-async function expectOpenedDirectly(opened: { popup: Page; signInPages: string[] }, turn: Turn, label: string): Promise<void> {
-  const { popup, signInPages } = opened;
-  const want = new URL(turn.traceUrl, 'http://stack.invalid');
-  await expect.poll(() => new URL(popup.url()).pathname, { message: `${label}: the tab is at the link's page`, timeout: 30_000 }).toBe(want.pathname);
-  expect(new URL(popup.url()).searchParams.get('SESSIONID'), `${label}: and at the link's session`).toBe(want.searchParams.get('SESSIONID'));
-  const drawn = await drawnMessages(popup);
-  expect(drawn.ids, `${label}: Visual Trace draws the turn`).toContain(String(turn.traceHeaderId));
-  await expect(popup.locator('input[name=IRISPassword]'), `${label}: no sign-in field`).toHaveCount(0);
-  expect(signInPages, `${label}: no document of the tab was a sign-in page`).toEqual([]);
-}
 
 /** O4: a trace link and "Open my conversation in Visual Trace" open Visual Trace with no second sign-in. */
 test('O4: the demo account presses a trace link and Open my conversation, and Visual Trace opens signed in', async ({ page, context }) => {

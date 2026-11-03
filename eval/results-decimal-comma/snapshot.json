@@ -1,0 +1,126 @@
+{
+  "format": "ocutalon.readerSnapshot/1",
+  "source": {
+    "namespace": "EVALFEED",
+    "production": "OcuTalon.Test.Eval.Feed",
+    "item": "ResultsToChart"
+  },
+  "failures": [
+    {
+      "headerId": 20,
+      "sessionId": 20,
+      "superSession": "4ZdZOK91K98tLSra_zapkA",
+      "timeCreated": "2026-10-29T16:12:57Z",
+      "timeProcessed": "2026-10-29T16:12:57Z",
+      "sourceConfigName": "FeedIn",
+      "targetConfigName": "ResultsToChart",
+      "bodyClass": "OcuTalon.Test.Eval.Feed.LabResult",
+      "bodyId": "19",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR #7207: Datatype value '7,5' is not a valid number\r\n  > ERROR #5802: Datatype validation failed on property 'OcuTalon.Test.Eval.Feed.ChartResult:ResultValue', with value equal to \"7,5\"",
+      "body": {
+        "ResultId": "LR-1001",
+        "PatientRef": "PT-1001",
+        "TestCode": "GLU",
+        "ResultValue": "7,5",
+        "Units": "mmol/L"
+      }
+    },
+    {
+      "headerId": 21,
+      "sessionId": 21,
+      "superSession": "4ZdZOK91K98tLSra_zapkA",
+      "timeCreated": "2026-10-29T16:12:57Z",
+      "timeProcessed": "2026-10-29T16:12:57Z",
+      "sourceConfigName": "FeedIn",
+      "targetConfigName": "ResultsToChart",
+      "bodyClass": "OcuTalon.Test.Eval.Feed.LabResult",
+      "bodyId": "20",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR #7207: Datatype value '12,1' is not a valid number\r\n  > ERROR #5802: Datatype validation failed on property 'OcuTalon.Test.Eval.Feed.ChartResult:ResultValue', with value equal to \"12,1\"",
+      "body": {
+        "ResultId": "LR-1002",
+        "PatientRef": "PT-1002",
+        "TestCode": "GLU",
+        "ResultValue": "12,1",
+        "Units": "mmol/L"
+      }
+    },
+    {
+      "headerId": 22,
+      "sessionId": 22,
+      "superSession": "4ZdZOK91K98tLSra_zapkA",
+      "timeCreated": "2026-10-29T16:12:57Z",
+      "timeProcessed": "2026-10-29T16:12:57Z",
+      "sourceConfigName": "FeedIn",
+      "targetConfigName": "ResultsToChart",
+      "bodyClass": "OcuTalon.Test.Eval.Feed.LabResult",
+      "bodyId": "21",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR #7207: Datatype value '4,0' is not a valid number\r\n  > ERROR #5802: Datatype validation failed on property 'OcuTalon.Test.Eval.Feed.ChartResult:ResultValue', with value equal to \"4,0\"",
+      "body": {
+        "ResultId": "LR-1003",
+        "PatientRef": "PT-1003",
+        "TestCode": "HBA",
+        "ResultValue": "4,0",
+        "Units": "percent"
+      }
+    }
+  ],
+  "eventLog": [
+    {
+      "id": "39",
+      "timeLogged": "2026-10-29T16:12:57Z",
+      "type": "Error",
+      "configName": "ResultsToChart",
+      "sourceClass": "OcuTalon.Test.Eval.Feed.Intake",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 20,
+      "text": "ERROR #7207: Datatype value '7,5' is not a valid number\r\n  > ERROR #5802: Datatype validation failed on property 'OcuTalon.Test.Eval.Feed.ChartResult:ResultValue', with value equal to \"7,5\""
+    },
+    {
+      "id": "45",
+      "timeLogged": "2026-10-29T16:12:57Z",
+      "type": "Error",
+      "configName": "ResultsToChart",
+      "sourceClass": "OcuTalon.Test.Eval.Feed.Intake",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 21,
+      "text": "ERROR #7207: Datatype value '12,1' is not a valid number\r\n  > ERROR #5802: Datatype validation failed on property 'OcuTalon.Test.Eval.Feed.ChartResult:ResultValue', with value equal to \"12,1\""
+    },
+    {
+      "id": "51",
+      "timeLogged": "2026-10-29T16:12:57Z",
+      "type": "Error",
+      "configName": "ResultsToChart",
+      "sourceClass": "OcuTalon.Test.Eval.Feed.Intake",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 22,
+      "text": "ERROR #7207: Datatype value '4,0' is not a valid number\r\n  > ERROR #5802: Datatype validation failed on property 'OcuTalon.Test.Eval.Feed.ChartResult:ResultValue', with value equal to \"4,0\""
+    }
+  ],
+  "items": [
+    {
+      "name": "ResultsToChart",
+      "className": "OcuTalon.Test.Eval.Feed.Intake",
+      "enabled": 1,
+      "poolSize": 1,
+      "settings": {}
+    }
+  ],
+  "trace": [
+    {
+      "headerId": "20",
+      "type": "Request",
+      "sourceConfigName": "FeedIn",
+      "targetConfigName": "ResultsToChart",
+      "bodyClass": "OcuTalon.Test.Eval.Feed.LabResult",
+      "status": "Error",
+      "timeCreated": "2026-10-29T16:12:57Z",
+      "isError": false
+    }
+  ]
+}

@@ -464,7 +464,7 @@ unit_env_run() { # unit_env_run <function and arguments...>: OCUTALON_WARM is $U
 out=$(unit_env_run cmd_group shards)
 rc=$?
 check "group with OCUTALON_WARM=1: one WARM ignored line, and each unit sees no OCUTALON_WARM" "$out" "$rc" 0 \
-  '^WARM ignored: group shards runs every unit on a fresh stack$' '^UNIT-PROCESS shard lane-a@[A-Za-z,]+ warm=unset$' '^UNIT-PROCESS live floor warm=unset$' '!warm=1'
+  '^WARM ignored: group shards runs every unit on a fresh stack$' '^UNIT-PROCESS shard lane-a@[A-Za-z,]+ warm=unset$' '^UNIT-PROCESS live [a-z-]+ warm=unset$' '!warm=1'
 if [ "$(printf '%s\n' "$out" | grep -c '^WARM ignored')" -eq 1 ]; then pass "group prints its WARM ignored line once"; else fail "group printed WARM ignored more than once"; fi
 out=$(unit_env_run cmd_all)
 rc=$?
@@ -476,7 +476,7 @@ for v in 0 ""; do
   out=$(UNIT_WARM=$v unit_env_run cmd_group shards)
   rc=$?
   check "group with OCUTALON_WARM='$v' (fresh): no WARM ignored line, and each unit sees no OCUTALON_WARM" "$out" "$rc" 0 \
-    '!^WARM' '^UNIT-PROCESS shard lane-a@[A-Za-z,]+ warm=unset$' '^UNIT-PROCESS live floor warm=unset$' '!warm=[01]'
+    '!^WARM' '^UNIT-PROCESS shard lane-a@[A-Za-z,]+ warm=unset$' '^UNIT-PROCESS live [a-z-]+ warm=unset$' '!warm=[01]'
   out=$(UNIT_WARM=$v unit_env_run cmd_all)
   rc=$?
   check "all with OCUTALON_WARM='$v' (fresh): no WARM ignored line, and every group's process sees no OCUTALON_WARM" "$out" "$rc" 0 \
@@ -1106,7 +1106,7 @@ else
 fi
 holder=$(cat "$locks/warm-iris.lock")
 [ -n "$holder" ] || fail "lock: the first claim made no warm-iris.lock"
-out=$(claim_run ocutalon-warm-cw-l-1700000000-2 OCUTALON_LOCK_WAIT=1 OCUTALON_LOCK_SLEEP_MIN=1 OCUTALON_LOCK_SLEEP_MAX=1)
+out=$(claim_run ocutalon-warm-cw-l-1700000000-2 OCUTALON_LOCK_WAIT=3 OCUTALON_LOCK_SLEEP_MIN=1 OCUTALON_LOCK_SLEEP_MAX=1)
 rc=$?
 check "lock: while warm-iris.lock is held the claim waits, then exits 75 naming the holder" "$out" "$rc" 75 \
   '^LOCK waiting: warm-iris is held by ' "^LOCK busy: warm-iris is held by 'epic=0 stage=qa project=ocutalon-warm-cw-l-1700000000-1 " '!^LOCK acquired'
@@ -1257,13 +1257,39 @@ check "up with no lock folder: no LOCK line, and the stack starts" "$up_out" "$u
 [ -f "$(state_of cw-u2)/project" ] || fail "up with no lock folder: no state"
 rm -rf "$(state_of cw-u2)"
 echo "$foreign" > "$locku/warm-iris.lock"
-up_run cw-u3 "$locku" OCUTALON_LOCK_WAIT=1 OCUTALON_LOCK_SLEEP_MIN=1 OCUTALON_LOCK_SLEEP_MAX=1
+up_run cw-u3 "$locku" OCUTALON_LOCK_WAIT=3 OCUTALON_LOCK_SLEEP_MIN=1 OCUTALON_LOCK_SLEEP_MAX=1
 check "up beside a held warm-iris.lock: LOCK waiting, LOCK busy, exit 75, nothing starts" "$up_out" "$up_rc" 75 \
   '^LOCK waiting: warm-iris is held by ' "^LOCK busy: warm-iris is held by '$foreign'" '!^STACK' '!^WARM up'
 if [ ! -s "$work/dc.calls" ] && [ ! -e "$(state_of cw-u3)" ] && [ "$(cat "$locku/warm-iris.lock")" = "$foreign" ]; then
   pass "up beside a held lock: no dc call, no state, and the lock is untouched"
 else
   fail "up beside a held lock: dc was called, a state was made, or the lock changed"
+fi
+rm -f "$locku"/*
+# A first lock try that takes 1.2 s (its date fork is slow) must still print LOCK waiting before LOCK busy: with a wait of 3 s a try that crosses
+# a whole second cannot be the last. A date on the PATH sleeps 1.2 s on its first -u call (the one in the lock's content), then runs /bin/date.
+slowbin=$work/slow-date-bin
+mkdir -p "$slowbin"
+cat > "$slowbin/date" << 'DATE'
+#!/bin/bash
+if [ "$1" = -u ] && [ ! -e "${SLOW_DATE_MARK:?}" ]; then
+  : > "$SLOW_DATE_MARK"
+  sleep 1.2
+fi
+exec /bin/date "$@"
+DATE
+chmod +x "$slowbin/date"
+rm -f "$work/slow-date.mark"
+echo "$foreign" > "$locku/warm-iris.lock"
+up_run cw-u3s "$locku" OCUTALON_LOCK_WAIT=3 OCUTALON_LOCK_SLEEP_MIN=1 OCUTALON_LOCK_SLEEP_MAX=1 PATH="$slowbin:$PATH" SLOW_DATE_MARK="$work/slow-date.mark"
+check "up beside a held warm-iris.lock, slow first try: LOCK waiting, LOCK busy, exit 75, nothing starts" "$up_out" "$up_rc" 75 \
+  '^LOCK waiting: warm-iris is held by ' "^LOCK busy: warm-iris is held by '$foreign'" '!^STACK' '!^WARM up'
+waiting_at=$(printf '%s\n' "$up_out" | grep -n '^LOCK waiting' | head -n 1 | cut -d: -f1)
+busy_at=$(printf '%s\n' "$up_out" | grep -n '^LOCK busy' | head -n 1 | cut -d: -f1)
+if [ -e "$work/slow-date.mark" ] && [ -n "$waiting_at" ] && [ -n "$busy_at" ] && [ "$waiting_at" -lt "$busy_at" ] && [ ! -s "$work/dc.calls" ] && [ ! -e "$(state_of cw-u3s)" ]; then
+  pass "up beside a held lock, slow first try: the slow date ran, LOCK waiting comes before LOCK busy, and nothing was started"
+else
+  fail "up beside a held lock, slow first try: the slow date ran '$([ -e "$work/slow-date.mark" ] && echo yes || echo no)', waiting at '$waiting_at', busy at '$busy_at', dc calls '$(tr '\n' '|' < "$work/dc.calls")'"
 fi
 rm -f "$locku"/*
 # A throwaway-iris.lock held by a fresh stack does not stop the warm up.

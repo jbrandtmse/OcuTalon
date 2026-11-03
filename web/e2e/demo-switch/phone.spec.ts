@@ -3,7 +3,8 @@ import { expect, test } from '@playwright/test';
 import { STATE } from '../support/api';
 import { dropPhone, phoneRows } from '../support/devices';
 import { sendNotification } from '../support/iris';
-import { signInReadme, README_ACCOUNT } from '../sign-in/helpers';
+import { README_ACCOUNT } from '../sign-in/helpers';
+import { signInReadmeLoaded } from '../support/floor';
 
 /**
  * The simulated phone follows the demo mode of the stack (Story 4.5, matrix row 17, on a real switch). The README account signs in and
@@ -31,7 +32,7 @@ test('a tell-now notification and a reminder are on the phone in demo mode, and 
   const reminderText = `Reminder: ${reminder}.`;
 
   const start = new Date(Date.now() - 2000).toISOString().replace(/\.\d{3}Z$/, 'Z');
-  await signInReadme(page);
+  await signInReadmeLoaded(page);
   await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
   const before = await phoneRows(README_ACCOUNT.user);
   try {

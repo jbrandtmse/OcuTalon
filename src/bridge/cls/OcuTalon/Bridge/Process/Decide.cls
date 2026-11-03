@@ -1,29 +1,41 @@
 Include Ensemble
 
 /// Decide, the business process that every model use passes through (AD-6, AD-30).
-///   - A Request is admitted (Admit): a message of another class, and kind tool (the replay of an approved call), get "not
-///     implemented", and a kind, provenance, ItemId, OwnerRef or Input that is missing or unknown gets an error that names the
-///     field, before anything is sent.
-///   - One decision per item (AD-6): a decide or diagnose request for an item that has a Decision row is answered from the
+///   - A Request is admitted (Admit): a message of another class gets "not implemented", and a kind, provenance, ItemId, OwnerRef or
+///     Input that is missing or unknown gets an error that names the field, before anything is sent. A request of kind tool is the replay
+///     of an approved tool call (Approval.HoldResponse sends it): its provenance is user, its ItemId the Ref of the approval request, and it
+///     has no Input. It goes to the runner that the approval row names (RunnerFor), with no ReplyClass, no Held probe and no Precheck, because
+///     the runner makes no model request for it. The reply of the runner is Conclude's: no FailureText records the outcome act with no
+///     reasons, and a FailureText records a fallback with the reason error (none while the approval row is still approved: the run never started). The runner is never sent a tool request again for an item that
+///     has a Decision row (below), and a row that names no runner or no source is answered with a fallback (FailUnroutable); the fallback Decision row
+///     of an approved row that was closed failed for that reason carries the plain-English reason HELDBEFOREUPDATE as its Reasons.
+///   - One decision per item (AD-6): a decide, diagnose or tool request for an item that has a Decision row is answered from the
 ///     row, and a turn for an item that has one is refused, because the row keeps no reply text.
 ///   - Otherwise Decide checks its settings (CheckSettings), allocates the DecisionRef, keeps it in the stored property DecisionRef and
 ///     prechecks the request (Precheck, AD-8, AD-20): no model key (Keys.Absent), the daily cost cap reached (Budget.State), an
 ///     estimate over DecisionTokenBudget or an estimate over the request-size limit (RequestTokenLimit). A request that fails a precheck
 ///     is never sent: RecordFallback records it as a fallback decision and the answer is given from OnRequest, with no runner request and
 ///     no timer. Otherwise Decide sends the request that SentRequest builds, a clone that carries the DecisionRef, to the runner of the
-///     kind (RUNNERS) and sets the timer of TimerSeconds, a whole number of seconds from MINTIMER to MAXTIMER (Timeouts.Check, AD-5).
+///     kind (RUNNERS) and sets the timer of TimerSeconds (TimerFor), a whole number of seconds from MINTIMER to MAXTIMER (Timeouts.Check, AD-5).
+///     A flagged turn that continues its conversation (below) gets Compaction.#SUMMARIZERSECONDS more, so that the runner's compaction has its
+///     time (AD-20), and never more than MAXTIMER. RemainingMs and the re-send count from TimerFor of the request as it stands when they weigh
+///     it: after a compaction the stored history is short, so a re-send is no longer flagged and counts from TimerSeconds.
 ///     Besides the runner requests, the timers and the agent steps (below), Decide sends nothing; it answers only its caller.
 ///   - The estimate and the size limit (AD-8, AD-20, NFR-3): EstimateTokens works out the first model request of the runner of the request
 ///     in tokens, at StepBuffer.CHARSPERTOKEN characters a token. It adds the system prompt and the tool schemas of the runner's agent
 ///     class (RequestSize.AgentChars), the stored history of a linked turn that continues its conversation (RequestSize.HistoryChars of the
 ///     session that the link names, Data.ConversationLink SessionOf) and the input that the runner sends (Adapter.Agent ChatInput). The
-///     limit is the RequestTokenLimit setting, a whole number from 1 to MAXREQUESTTOKENS; an empty value counts as MAXREQUESTTOKENS, and so
-///     does any other value, with one warning, so that the limit is never off and never above MAXREQUESTTOKENS. A request whose estimate
-///     is above the limit takes the fallback reason too_large, after budget, for every kind and on every re-send. Decide never changes the
+///     limit is the RequestTokenLimit setting, a whole number from 1 to MAXREQUESTTOKENS (RequestLimit); an empty value counts as
+///     MAXREQUESTTOKENS, and so does any other value, with one warning, so that the limit is never off and never above MAXREQUESTTOKENS. A
+///     request whose estimate is above the limit takes the fallback reason too_large, after budget, for every kind and on every re-send,
+///     except a turn that is flagged (below) and continues its conversation: the runner compacts such a turn, or starts a fresh session
+///     with a seed of at most Compaction.#SEEDCHARS characters in place of the history, so it is judged on the request of the seeded path,
+///     the estimate with the history counted as the least of itself and Compaction.#SEEDCHARS (Precheck); the runner itself checks the
+///     session as it stands and the fork against the limit and seeds in their place when they pass it. Decide never changes the
 ///     conversation link; it only reads it.
 ///   - The flag (AD-6, AD-20): SentRequest sets Request.Compact to 1 on the clone of a turn whose estimate is above COMPACTTOKENS, and to 0
-///     on every other request, whatever the caller set. The runner ignores it until Story 30.1, so a flagged turn within the limit is
-///     sent as it is.
+///     on every other request, whatever the caller set. The runner compacts a flagged turn that continues its conversation before
+///     it chats (Adapter.Agent, Story 30.1); every other flagged turn is sent as it is.
 ///   - The steps (AD-9, AD-30): when the runner's reply arrives in time, and before anything reads it, EmitSteps sends each step record of
 ///     the reply's Steps to the AgentSteps operation (STEPSITEM) as an OcuTalon.Bridge.Msg.AgentStep, in order, so that the steps sit in
 ///     the caller's trace session after the runner's reply and before Decide's answer (StepMessages builds the messages). The Positions
@@ -44,7 +56,9 @@ Include Ensemble
 ///     properties that the reply class names in a FILTERED parameter, a dotted name for a property of an object property and a list item by item,
 ///     which are then checked again; the request is exposed to both checks through ReplyCheck, ended on every exit), the user
 ///     rule is applied, one Decision row is recorded, the event decision.recorded is fired after the commit (FireEvent) and the answer
-///     is built. For a user's decide request an ignore or digest becomes tellnow.
+///     is built. For a user's decide request an ignore or digest becomes tellnow. A decide or diagnose reply that is invalid because of its check
+///     gets one trace warning that names what failed and never the reply (RefusalText: the error code, the reply class's property, the element,
+///     the limit and the computed length; no value, no IRIS message text and no field name of the reply).
 ///   - Any other reply is a fallback (RecordFallback): one Decision row with the outcome tellnow, Fallback true and the reason, and no
 ///     reasons, confidence or payload, so that no model text is kept; decision.recorded after the commit; and, for daily_cap, the day is
 ///     marked as capped once (Budget.MarkCapped). A decide or diagnose request is answered with the row's DecisionResponse, and a turn
@@ -120,6 +134,10 @@ Parameter STEPSITEM = "AgentSteps";
 
 /// The first reason line of a user's decide request whose outcome was ignore or digest (AD-6).
 Parameter USERANSWERED = "The outcome was changed because a message the user writes is always answered.";
+
+/// The reason line of the fallback Decision row of an approved tool call that was held before ToolSource and Runner existed (either one is
+/// empty), which is closed failed instead of replayed (FailUnroutable). It is plain English for the person: no class name, no code, no status text.
+Parameter HELDBEFOREUPDATE = "This request was held before an update and cannot be run again safely, so please ask again.";
 
 /// The words of the online demo gateway's HTTP 403 for a reached daily cost cap, which Classify finds in a failure text: daily_cap
 /// (source: AD-8; Story 1.6 Task 0 (b) measured the text that AI Hub raises for it). Matched without regard to case.
@@ -241,27 +259,33 @@ Method OnRequest(request As %Library.Persistent, Output response As %Library.Per
 	If ##class(OcuTalon.Bridge.Data.Decision).ItemIdKindIndexExists(request.ItemId, kind, .id) {
 		Quit ..ResponseFromId(id, .response)
 	}
-	Set runner = ..RunnerFor(kind)
+	Set runner = ..RunnerFor(kind, request)
 	Set replyClass = ""
-	If kind '= "turn" {
+	Set tool = (kind = "tool")
+	If (kind '= "turn") && 'tool {
 		Set replyClass = ..ReplyClassOf(runner, .sc)
 		If $$$ISERR(sc) Quit sc
 	}
 	Set sc = ..CheckSettings(kind, runner, replyClass, ..ReplyFilterClass, ..TimerSeconds)
 	If $$$ISERR(sc) Quit sc
-	If ..Held(request, runner) {
+	If 'tool && ..Held(request, runner) {
 		Set response = ##class(OcuTalon.Bridge.Msg.Reply).NewBusy()
 		Quit $$$OK
 	}
 	Set decisionRef = ##class(OcuTalon.Bridge.Ids).NewRef()
 	Set ..DecisionRef = decisionRef
-	Set reason = ..Precheck(request, runner, ..SettingText("DecisionTokenBudget"), ..SettingText("RequestTokenLimit"), .estimate)
+	If tool && ((runner = "") || ..HeldBeforeUpdate(request)) {
+		Set closed = ..FailUnroutable(request)
+		Quit ..RecordFallback(request, decisionRef, "error", "", ..HostSinkClass, ..%SessionId, .response, ##class(OcuTalon.Bridge.Time).MsSince(..%TimeCreated), 0, 0, $Select(closed: ..#HELDBEFOREUPDATE, 1: ""))
+	}
+	Set estimate = 0
+	Set reason = $Select(tool: "", 1: ..Precheck(request, runner, ..SettingText("DecisionTokenBudget"), ..SettingText("RequestTokenLimit"), .estimate))
 	If reason '= "" {
 		Quit ..RecordFallback(request, decisionRef, reason, "", ..HostSinkClass, ..%SessionId, .response, ##class(OcuTalon.Bridge.Time).MsSince(..%TimeCreated))
 	}
 	Set sc = ..SendRequestAsync(runner, ..SentRequest(request, decisionRef, estimate), 1, "reply")
 	If $$$ISERR(sc) Quit sc
-	Quit ..SetTimer(+..TimerSeconds, "timer")
+	Quit ..SetTimer(..TimerFor(request, ..Flagged(request, estimate)), "timer")
 }
 
 /// 1 when the request is linked to a conversation by the runner's own rule (Adapter.Agent IsLinked: a turn with provenance user) and its
@@ -303,7 +327,7 @@ Method OnError(request As %Library.Persistent, ByRef response As %Library.Persis
 Method OnResponse(request As %Library.Persistent, ByRef response As %Library.Persistent, callrequest As %Library.Persistent, callresponse As %Library.Persistent, pCompletionKey As %String) As %Status
 {
 	Set kind = request.Kind
-	Set runner = ..RunnerFor(kind)
+	Set runner = ..RunnerFor(kind, request)
 	If pCompletionKey = "timer" {
 		Set facts = {}
 		Do facts.%Set("timedOut", 1, "boolean")
@@ -326,17 +350,17 @@ Method OnResponse(request As %Library.Persistent, ByRef response As %Library.Per
 		Set failure = callresponse.FailureText
 		Set answered = 1
 	}
-	If answered && (failure '= "") {
+	If answered && (failure '= "") && (kind '= "tool") {
 		Set facts = {}
 		Do facts.%Set("failure", failure)
-		Set delay = ..ResendDelay(..Classify(facts), callresponse.ToolsRun, ..Resends, ..RemainingMs())
+		Set delay = ..ResendDelay(..Classify(facts), callresponse.ToolsRun, ..Resends, ..RemainingMs(request))
 		If delay > 0 {
 			Set ..StepCount = ..StepCount + callresponse.AgentStepCount
 			Quit ..SetTimer(delay, "resend", "")
 		}
 	}
 	Set replyClass = ""
-	If kind '= "turn" {
+	If (kind '= "turn") && (kind '= "tool") {
 		Set replyClass = ..ReplyClassOf(runner, .sc)
 		If $$$ISERR(sc) Quit sc
 	}
@@ -353,7 +377,7 @@ Method Resend(request As OcuTalon.Bridge.Msg.Request, runner As %String, Output 
 	Set response = ""
 	Set elapsed = ##class(OcuTalon.Bridge.Time).MsSince(..%TimeCreated)
 	Set reason = ..Precheck(request, runner, ..SettingText("DecisionTokenBudget"), ..SettingText("RequestTokenLimit"), .estimate)
-	Set seconds = ..RemainingMs() \ 1000
+	Set seconds = ..RemainingMs(request, estimate) \ 1000
 	If (reason = "") && (seconds < 1) Set reason = "rate_limited"
 	If reason '= "" {
 		Quit ..RecordFallback(request, ..DecisionRef, reason, "", ..HostSinkClass, ..%SessionId, .response, elapsed, ..StepCount)
@@ -380,17 +404,40 @@ ClassMethod SentRequest(request As OcuTalon.Bridge.Msg.Request, decisionRef As %
 {
 	Set clone = request.%ConstructClone()
 	Set clone.DecisionRef = decisionRef
-	Set clone.Compact = (request.Kind = "turn") && (+$Get(estimate) > ..#COMPACTTOKENS)
+	Set clone.Compact = ..Flagged(request, estimate)
 	Quit clone
 }
 
-/// The milliseconds of TimerSeconds that are left: TimerSeconds x 1000 minus the milliseconds since Decide began (0 at least, and 0 when
-/// the start cannot be read).
-Method RemainingMs() As %Integer [ Private ]
+/// 1 when the request is flagged for compaction (AD-6, AD-20): a turn, of any provenance and any SessionMode, whose estimate (EstimateTokens)
+/// is above COMPACTTOKENS. It is pure.
+ClassMethod Flagged(request As OcuTalon.Bridge.Msg.Request, estimate As %Integer) As %Boolean
+{
+	Quit $IsObject(request) && (request.Kind = "turn") && (+$Get(estimate) > ..#COMPACTTOKENS)
+}
+
+/// The timer of an attempt in whole seconds (AD-5, AD-20): TimerSeconds, plus Compaction.#SUMMARIZERSECONDS (and at most MAXTIMER) for a
+/// request that is flagged (compact is 1, see Flagged) and continues its conversation: a linked turn (Adapter.Agent IsLinked) whose
+/// SessionMode is not fresh and whose conversation link names an AI session, so that the runner may compact it before it chats. Every
+/// other request keeps TimerSeconds. It reads the link and changes nothing.
+Method TimerFor(request As OcuTalon.Bridge.Msg.Request, compact As %Boolean) As %Integer
+{
+	Set seconds = +..TimerSeconds
+	If '$Get(compact) || '$IsObject(request) || '##class(OcuTalon.Bridge.Adapter.Agent).IsLinked(request) || (request.SessionMode = "fresh") Quit seconds
+	If ##class(OcuTalon.Bridge.Data.ConversationLink).SessionOf(request.OwnerRef, ..RunnerFor(request.Kind, request)) = "" Quit seconds
+	Set seconds = seconds + ##class(OcuTalon.Bridge.Compaction).#SUMMARIZERSECONDS
+	Quit $Select(seconds > ..#MAXTIMER: ..#MAXTIMER, 1: seconds)
+}
+
+/// The milliseconds of the attempt's timer (TimerFor) that are left: the timer x 1000 minus the milliseconds since Decide began (0 at least,
+/// and 0 when the start cannot be read). The request is flagged when its estimate is above COMPACTTOKENS; estimate is the one that the
+/// precheck just worked out, or "" to work it out here (only a turn has one). Called for a request that is not a tool replay.
+Method RemainingMs(request As OcuTalon.Bridge.Msg.Request, estimate As %Integer = "") As %Integer [ Private ]
 {
 	Set elapsed = ##class(OcuTalon.Bridge.Time).MsSince(..%TimeCreated)
 	If elapsed = "" Quit 0
-	Quit $Select(..TimerSeconds * 1000 > elapsed: ..TimerSeconds * 1000 - elapsed, 1: 0)
+	If (estimate = "") && (request.Kind = "turn") Set estimate = ..EstimateTokens(request, ..RunnerFor(request.Kind, request))
+	Set total = ..TimerFor(request, ..Flagged(request, estimate)) * 1000
+	Quit $Select(total > elapsed: total - elapsed, 1: 0)
 }
 
 /// The seconds of back-off before the next re-send, or 0 for no re-send (AD-8, FR-4, NFR-23). It is pure. A re-send needs all of:
@@ -474,29 +521,42 @@ ClassMethod StepMessages(decisionRef As %String, reply As OcuTalon.Bridge.Msg.Re
 	Quit messages
 }
 
-/// OK when the message is a Request that Decide serves. A message of another class, and a request of kind tool, give "not
-/// implemented"; any other problem is an error that names the field: Kind (not one of Msg.Enum REQUESTKIND), Provenance (not
-/// one of PROVENANCE), ItemId, OwnerRef, Input (empty once white space and control characters are removed), or SessionMode (not
-/// empty, which means continue, and not one of Request SESSIONMODES; the match is exact, so Fresh is refused).
+/// OK when the message is a Request that Decide serves. A message of another class gives "not implemented"; any other problem is an
+/// error that names the field: Kind (not one of Msg.Enum REQUESTKIND), Provenance (not one of PROVENANCE, and for kind tool not user),
+/// ItemId (empty, and for kind tool not the Ref of an approval request), OwnerRef, Input (empty once white space and control characters are
+/// removed; a request of kind tool needs none), or SessionMode (not empty, which means continue, and not one of Request SESSIONMODES; the
+/// match is exact, so Fresh is refused).
 ClassMethod Admit(request As %Library.Persistent) As %Status
 {
 	If '$IsObject(request) || 'request.%IsA("OcuTalon.Bridge.Msg.Request") Quit $$$ERROR($$$NotImplemented)
 	Set kinds = ##class(OcuTalon.Bridge.Msg.Enum).#REQUESTKIND
 	If '$ListFind($ListFromString(kinds), request.Kind) Quit $$$ERROR($$$GeneralError, "The Kind '"_request.Kind_"' of the request is not one of "_kinds)
-	If request.Kind = "tool" Quit $$$ERROR($$$NotImplemented)
 	Set provenances = ##class(OcuTalon.Bridge.Msg.Enum).#PROVENANCE
 	If '$ListFind($ListFromString(provenances), request.Provenance) Quit $$$ERROR($$$GeneralError, "The Provenance '"_request.Provenance_"' of the request is not one of "_provenances)
 	If request.ItemId = "" Quit $$$ERROR($$$GeneralError, "The ItemId of the request is empty")
 	If request.OwnerRef = "" Quit $$$ERROR($$$GeneralError, "The OwnerRef of the request is empty")
-	If $ZStrip(request.Input, "*WC") = "" Quit $$$ERROR($$$GeneralError, "The Input of the request is empty, so nothing is sent")
+	If request.Kind = "tool" {
+		If request.Provenance '= "user" Quit $$$ERROR($$$GeneralError, "The Provenance '"_request.Provenance_"' of the tool request is not user: only a call that a user approved is replayed")
+		If '##class(OcuTalon.Bridge.Approval).IsRef(request.ItemId) Quit $$$ERROR($$$GeneralError, "The ItemId of the tool request is not the Ref of an approval request")
+	} ElseIf $ZStrip(request.Input, "*WC") = "" {
+		Quit $$$ERROR($$$GeneralError, "The Input of the request is empty, so nothing is sent")
+	}
 	Set modes = ##class(OcuTalon.Bridge.Msg.Request).#SESSIONMODES
 	If (request.SessionMode '= "") && '$ListFind($ListFromString(modes), request.SessionMode) Quit $$$ERROR($$$GeneralError, "The SessionMode '"_request.SessionMode_"' of the request is not empty or one of "_modes)
 	Quit $$$OK
 }
 
-/// The runner item of the request kind (RUNNERS), or "".
-ClassMethod RunnerFor(kind As %String) As %String
+/// The runner item of the request kind (RUNNERS), or "". For kind tool it is the Runner of the tool_call approval request that the ItemId of the
+/// request names (the runner whose job held the call, DW-194), or "" when there is no such row or it names none; a developer's runner item
+/// is not in RUNNERS.
+ClassMethod RunnerFor(kind As %String, request As OcuTalon.Bridge.Msg.Request = "") As %String
 {
+	If kind = "tool" {
+		If '$IsObject(request) Quit ""
+		Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(request.ItemId)
+		If '$IsObject(row) || (row.Kind '= "tool_call") Quit ""
+		Quit row.Runner
+	}
 	Set runner = ""
 	Set pairs = $ListFromString(..#RUNNERS)
 	Set position = 0
@@ -504,6 +564,37 @@ ClassMethod RunnerFor(kind As %String) As %String
 		If $Piece(pair, ":", 1) = kind Set runner = $Piece(pair, ":", 2)
 	}
 	Quit runner
+}
+
+/// 1 when the Ref names an approved tool_call approval request whose ToolSource or Runner is empty: a row held before those columns existed, which
+/// names no runner (or no source) that can be trusted to replay it. RunnerFor gives "" only for an empty Runner, so this also catches a row with
+/// a Runner and no ToolSource, which must never be sent to a runner.
+ClassMethod HeldBeforeUpdate(request As OcuTalon.Bridge.Msg.Request) As %Boolean
+{
+	Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(request.ItemId)
+	Quit $IsObject(row) && (row.Kind = "tool_call") && (row.State = "approved") && ((row.ToolSource = "") || (row.Runner = ""))
+}
+
+/// A tool request that no runner can take (RunnerFor gave "", or HeldBeforeUpdate): an approved tool_call row with an empty ToolSource or Runner
+/// (a row held before those columns existed) is closed failed through FinishExecution, so that it does not stay approved for ever, and 1 is
+/// returned. A missing row, a fix row and a row in any other state are never changed, and 0 is returned for them and for a close that failed
+/// (a warning that names the Ref).
+ClassMethod FailUnroutable(request As OcuTalon.Bridge.Msg.Request) As %Boolean
+{
+	Set closed = 0
+	Try {
+		If ..HeldBeforeUpdate(request) {
+			Set sc = ##class(OcuTalon.Bridge.Approval).FinishExecution(request.ItemId, "failed")
+			If $$$ISERR(sc) {
+				$$$LOGWARNING("The approved tool call "_request.ItemId_" was held before an update and was not closed as failed: "_$SYSTEM.Status.GetErrorText(sc))
+			} Else {
+				Set closed = 1
+			}
+		}
+	} Catch exception {
+		$$$LOGWARNING("The approved tool call "_request.ItemId_" was held before an update and was not closed as failed: "_exception.DisplayString())
+	}
+	Quit closed
 }
 
 /// The ReplyClass setting of the runner item in the active production (OcuTalon.Bridge.Ext.Accessor.ValueFor), or "" with an error
@@ -522,14 +613,14 @@ ClassMethod ReplyClassOf(runner As %String, Output sc As %Status) As %String
 ///   - timer (TimerSeconds): a whole number from MINTIMER to MAXTIMER (Timeouts.Check);
 ///   - filterClass (ReplyFilterClass): passes OcuTalon.Bridge.Ext.Accessor.Check, so that no text is ever recorded unfiltered;
 ///   - replyClass (the ReplyClass setting of the runner), for kind decide and diagnose: a compiled %JSON.Adaptor class. A
-///     runner with no ReplyClass cannot answer these kinds. A turn needs no ReplyClass.
+///     runner with no ReplyClass cannot answer these kinds. A turn and a tool request need no ReplyClass.
 ClassMethod CheckSettings(kind As %String, runner As %String, replyClass As %String, filterClass As %String, timer As %String) As %Status
 {
 	Set sc = ##class(OcuTalon.Bridge.Timeouts).Check(timer)
 	If $$$ISERR(sc) Quit sc
 	Set sc = ##class(OcuTalon.Bridge.Ext.Accessor).Check("ReplyFilterClass", filterClass)
 	If $$$ISERR(sc) Quit sc
-	If kind = "turn" Quit $$$OK
+	If (kind = "turn") || (kind = "tool") Quit $$$OK
 	If replyClass = "" {
 		Quit $$$ERROR($$$GeneralError, "The runner "_runner_" has no ReplyClass setting, so a "_kind_" request cannot be sent: ReplyClass names the %JSON.Adaptor class that the reply is checked against")
 	}
@@ -541,10 +632,12 @@ ClassMethod CheckSettings(kind As %String, runner As %String, replyClass As %Str
 
 /// Checks the reply text against the class: one JSON object that the class imports (%JSONImport, with exceptions caught) and
 /// validates (%ValidateObject). A reply class's %OnValidateObject may read the request through OcuTalon.Bridge.ReplyCheck, which Interpret begins. Only surrounding white space, or one surrounding Markdown code fence, is removed first.
-/// payload is the validated object, or "" with an error that names the reply check.
-ClassMethod CheckReply(text As %String, replyClass As %String, Output payload As %RegisteredObject) As %Status
+/// payload is the validated object, or "" with an error that names the reply check. cause is the status of the import or the validation before it is
+/// wrapped ($$$OK when the reply passes): RefusalText turns it into words that quote nothing of the reply.
+ClassMethod CheckReply(text As %String, replyClass As %String, Output payload As %RegisteredObject, Output cause As %Status) As %Status
 {
 	Set payload = ""
+	Set cause = $$$OK
 	Try {
 		Set object = $ClassMethod(replyClass, "%New")
 		Set sc = object.%JSONImport(..Unfenced(text))
@@ -553,10 +646,193 @@ ClassMethod CheckReply(text As %String, replyClass As %String, Output payload As
 		Set sc = exception.AsStatus()
 	}
 	If $$$ISERR(sc) {
-		Quit $$$ERROR($$$GeneralError, "The reply check failed: the reply is not one JSON object that "_replyClass_" accepts: "_$Extract($SYSTEM.Status.GetErrorText(sc), 1, 400))
+		Set cause = sc
+		Quit $$$ERROR($$$GeneralError, ..#CHECKFAILED_replyClass_" accepts: "_$Extract($SYSTEM.Status.GetErrorText(sc), 1, 400))
 	}
 	Set payload = object
 	Quit $$$OK
+}
+
+/// The words of the errors of a failed reply check (cause, from CheckReply, or the status of the second check), for the warning that Conclude logs. Each part is
+/// made only of fixed words, an error code, the name of a compiled property of replyClass, an element position, a numeric limit and a computed length: never a
+/// value of the reply, an IRIS message text or a field name taken from the reply. The parts, in DecomposeStatus order and without repeats:
+///   - a text over or under its limit (#7201, #7202) and a value outside its limits (#7203, #7204), with a property and a numeric limit, give
+///     "<Property>[ element <n>]: <length> > <limit>" (the length of the value, never the value) and "<Property>[ element <n>]: value > <limit>"; the property and
+///     the position come from the embedded #5802 (or a #5659) as "<class>:<Property>[(<n>)]", and only a name that replyClass compiles is used;
+///   - an import error that names a JSON field (#9406) is traced to the property of replyClass with that field name, and the reply text (a JSON object) is
+///     checked the way the property would be: every element of a list, or the value, by the property's own <Property>IsValid check, which gives the forms above;
+///     an element of a list that is an object or an array gives "ERROR #9406 on <Property> element <n>"; with no failing check, or a value of another shape (an
+///     object or an array for a scalar, no array for a list, a reply that is not a JSON object), "ERROR #9406 on <Property>"; with no such property, "ERROR #9406";
+///   - a field that replyClass does not have (#9404) is "ERROR #9404: an unexpected property": the field's name came from the reply, so it is never given;
+///   - any other error is "ERROR #<code>" (or "ERROR <code>" for a code of the form "<Domain>Name", else "ERROR"), and " on <Property>[ element <n>]" when a
+///     property is known.
+/// At most 5 parts are given, then "; and <k> more". With no part, or if anything throws, the text is "an error". text is the reply text that CheckReply checked.
+ClassMethod RefusalText(cause As %Status, replyClass As %String, text As %String = "") As %String
+{
+	Set result = "an error"
+	Try {
+		Set count = 0
+		If $$$ISERR(cause) {
+			Do $SYSTEM.Status.DecomposeStatus(cause, .errors)
+			For i = 1:1:+$Get(errors) {
+				Set code = $Get(errors(i, "code"))
+				Set property = ""
+				Set position = ""
+				If (code = 5659) || (code = 5802) Do ..RefusalProperty(replyClass, $Get(errors(i, "param", 1)), .property, .position)
+				If $Data(errors(i, "embeddedstatus")) {
+					Kill inner
+					Do $SYSTEM.Status.DecomposeStatus(errors(i, "embeddedstatus"), .inner)
+					For j = 1:1:+$Get(inner) {
+						If $Get(inner(j, "code")) = 5802 {
+							Do ..RefusalProperty(replyClass, $Get(inner(j, "param", 1)), .property, .position)
+							Quit
+						}
+					}
+				}
+				If code = 9406 {
+					Do ..RefusalImport(replyClass, $Get(errors(i, "param", 1)), text, .parts, .count)
+				} Else {
+					Do ..RefusalAdd(..RefusalPart(code, $Get(errors(i, "param", 1)), $Get(errors(i, "param", 2)), property, position), .parts, .count)
+				}
+			}
+		}
+		If count > 0 {
+			Set shown = $Select(count > ..#MAXREFUSALPARTS: ..#MAXREFUSALPARTS, 1: count)
+			Set result = ""
+			For i = 1:1:shown Set result = result _ $Select(i > 1: "; ", 1: "") _ parts(i)
+			If count > shown Set result = result_"; and "_(count - shown)_" more"
+		}
+	} Catch exception {
+		Set result = "an error"
+	}
+	Quit result
+}
+
+/// The words that begin the message of a failed reply check, before the reply class: CheckReply's error and Judge's problem share them.
+Parameter CHECKFAILED = "The reply check failed: the reply is not one JSON object that ";
+
+/// The most parts that RefusalText names before "and <k> more".
+Parameter MAXREFUSALPARTS = 5;
+
+/// Adds the part to parts(1..count) unless it is there already.
+ClassMethod RefusalAdd(part As %String, ByRef parts, ByRef count) [ Private ]
+{
+	If $Data(parts("seen", part)) Quit
+	Set parts("seen", part) = ""
+	Set count = count + 1
+	Set parts(count) = part
+}
+
+/// The property and the position of "<class>:<Property>" or "<class>:<Property>(<n>)" (the first parameter of #5802 and #5659), each "" unless the
+/// property is compiled in replyClass and the position is a whole number.
+ClassMethod RefusalProperty(replyClass As %String, field As %String, Output property As %String, Output position As %String) [ Private ]
+{
+	Set property = ""
+	Set position = ""
+	Set name = $Piece(field, ":", 2, *)
+	If name = "" Quit
+	If ($Extract(name, *) = ")") && (name [ "(") {
+		Set inner = $Piece($Piece(name, "(", 2, *), ")", 1)
+		Set name = $Piece(name, "(", 1)
+		If inner '? 1.N Quit
+		Set position = +inner
+	}
+	If '##class(%Dictionary.CompiledProperty).%ExistsId(replyClass_"||"_name) {
+		Set position = ""
+		Quit
+	}
+	Set property = name
+}
+
+/// 1 when the text is a plain number: digits, with an optional sign and decimal part.
+ClassMethod RefusalNumber(value As %String) As %Boolean [ Private ]
+{
+	Quit value ? .1"-"1.N.1(1".".N)
+}
+
+/// The words of one error: see RefusalText.
+ClassMethod RefusalPart(code As %String, value As %String, limit As %String, property As %String, position As %String) As %String [ Private ]
+{
+	Set label = property
+	If (label '= "") && (position '= "") Set label = label_" element "_position
+	If (label '= "") && ..RefusalNumber(limit) {
+		If (code = 7201) || (code = 7202) Quit label_": "_$Length(value)_$Select(code = 7201: " > ", 1: " < ")_limit
+		If (code = 7203) || (code = 7204) Quit label_": value"_$Select(code = 7203: " > ", 1: " < ")_limit
+	}
+	Set text = "ERROR"
+	If code ? 1.N {
+		Set text = text_" #"_code
+		If code = 9404 Quit text_": an unexpected property"
+	} ElseIf code ? 1"<"1.AN1">"1.AN {
+		Set text = text_" "_code
+	}
+	If label '= "" Set text = text_" on "_label
+	Quit text
+}
+
+/// The parts of an import error (#9406) that names the JSON field: see RefusalText.
+ClassMethod RefusalImport(replyClass As %String, field As %String, text As %String, ByRef parts, ByRef count) [ Private ]
+{
+	Set property = ""
+	Set collection = ""
+	Set type = ""
+	Set class = ##class(%Dictionary.CompiledClass).%OpenId(replyClass)
+	If $IsObject(class) {
+		For i = 1:1:class.Properties.Count() {
+			Set candidate = class.Properties.GetAt(i)
+			Set name = candidate.Name
+			If ($Extract(name) = "%") || candidate.Private || candidate.Internal Continue
+			Set included = $ZConvert(candidate.Parameters.GetAt("%JSONINCLUDE"), "L")
+			If (included = "none") || (included = "outputonly") Continue
+			Set json = candidate.Parameters.GetAt("%JSONFIELDNAME")
+			If json = "" Set json = name
+			If json = field {
+				Set property = name
+				Set collection = candidate.Collection
+				Set type = candidate.Type
+				Quit
+			}
+		}
+	}
+	If property = "" {
+		Do ..RefusalAdd("ERROR #9406", .parts, .count)
+		Quit
+	}
+	Set found = 0
+	Try {
+		Set object = {}.%FromJSON(..Unfenced(text))
+		If $ClassMethod(type, "%Extends", "%Library.DataType") && object.%IsA("%Library.DynamicObject") {
+			Set kind = object.%GetTypeOf(field)
+			If (collection = "list") && (kind = "array") {
+				Set array = object.%Get(field)
+				For k = 1:1:array.%Size() {
+					Set elementKind = array.%GetTypeOf(k - 1)
+					If (elementKind = "object") || (elementKind = "array") {
+						Do ..RefusalAdd("ERROR #9406 on "_property_" element "_k, .parts, .count)
+						Set found = found + 1
+					} Else {
+						Set found = found + ..RefusalCheck(replyClass, property, array.%Get(k - 1), k, .parts, .count)
+					}
+				}
+			} ElseIf (collection = "") && (kind '= "object") && (kind '= "array") && (kind '= "unassigned") {
+				Set found = found + ..RefusalCheck(replyClass, property, object.%Get(field), "", .parts, .count)
+			}
+		}
+	} Catch exception {
+	}
+	If 'found Do ..RefusalAdd("ERROR #9406 on "_property, .parts, .count)
+}
+
+/// Checks one value with the property's own <Property>IsValid and adds the parts of its errors; the number of errors.
+ClassMethod RefusalCheck(replyClass As %String, property As %String, value As %String, position As %String, ByRef parts, ByRef count) As %Integer [ Private ]
+{
+	Set sc = $ClassMethod(replyClass, property_"IsValid", value)
+	If $$$ISOK(sc) Quit 0
+	Do $SYSTEM.Status.DecomposeStatus(sc, .errors)
+	For i = 1:1:+$Get(errors) {
+		Do ..RefusalAdd(..RefusalPart($Get(errors(i, "code")), $Get(errors(i, "param", 1)), $Get(errors(i, "param", 2)), property, position), .parts, .count)
+	}
+	Quit +$Get(errors)
 }
 
 /// The text without surrounding white space, and without one surrounding Markdown code fence: three backticks and an optional
@@ -583,9 +859,12 @@ ClassMethod Unfenced(text As %String) As %String
 /// reason. Each fault that State names (DW-76) is logged as one warning, and so is a tokenBudget that is not
 /// a whole number of 0 or more, which counts as 0 (off; empty is 0 too). A requestLimit that is a whole number from 1 to
 /// MAXREQUESTTOKENS is the limit; an empty one counts as MAXREQUESTTOKENS, and any other one counts as MAXREQUESTTOKENS and is logged as
-/// one warning that names RequestTokenLimit, so the limit is never off and never above MAXREQUESTTOKENS. One more warning names the runner
-/// when the system prompt or the tool schemas of its agent could not be read in full (a part that could not be read counts 0). Nothing is sent or
-/// recorded here.
+/// one warning that names RequestTokenLimit, so the limit is never off and never above MAXREQUESTTOKENS (RequestLimit). One more warning
+/// names the runner when the system prompt or the tool schemas of its agent could not be read in full (a part that could not be read counts
+/// 0). A turn that is flagged for compaction (Flagged) and continues its conversation is judged for too_large on the request of the
+/// runner's seeded path: its characters with the stored history counted as the least of the history and Compaction.#SEEDCHARS (AD-8,
+/// AD-20); the runner checks the session as it stands and the fork against the limit itself. The token budget and the estimate that it
+/// gives back keep the full estimate. Nothing is sent or recorded here.
 ClassMethod Precheck(request As OcuTalon.Bridge.Msg.Request, runner As %String, tokenBudget As %String, requestLimit As %String = "", Output estimate As %Integer) As %String
 {
 	Set facts = {}
@@ -604,21 +883,35 @@ ClassMethod Precheck(request As OcuTalon.Bridge.Msg.Request, runner As %String, 
 			$$$LOGWARNING(##class(OcuTalon.Bridge.Redact).Text("The setting DecisionTokenBudget of Decide is '"_$Extract(tokenBudget, 1, 40)_"'; it must be a whole number of 0 or more, so the token budget counts as 0 (off)"))
 		}
 	}
-	Set limit = ..#MAXREQUESTTOKENS
-	If requestLimit '= "" {
-		If (requestLimit ? 1.N) && (+requestLimit > 0) && (+requestLimit '> ..#MAXREQUESTTOKENS) {
-			Set limit = +requestLimit
-		} Else {
-			$$$LOGWARNING(##class(OcuTalon.Bridge.Redact).Text("The setting RequestTokenLimit of Decide is '"_$Extract(requestLimit, 1, 40)_"'; it must be a whole number from 1 to "_..#MAXREQUESTTOKENS_", so the request-size limit counts as "_..#MAXREQUESTTOKENS))
-		}
-	}
-	Set estimate = ..EstimateTokens(request, runner, , .sc)
+	Set limit = ..RequestLimit(requestLimit, .limitWarning)
+	If limitWarning '= "" $$$LOGWARNING(##class(OcuTalon.Bridge.Redact).Text(limitWarning))
+	Set estimate = ..EstimateTokens(request, runner, , .sc, .history, .chars)
 	If $$$ISERR(sc) {
 		$$$LOGWARNING(##class(OcuTalon.Bridge.Redact).Text("The system prompt or the tool schemas of "_runner_" could not be read in full, so the estimate of the request may count too few tokens: "_$SYSTEM.Status.GetErrorText(sc)))
 	}
 	Do facts.%Set("overBudget", (budget > 0) && (estimate > budget), "boolean")
-	Do facts.%Set("tooLarge", estimate > limit, "boolean")
+	Set bound = estimate
+	If ..Flagged(request, estimate) && (history > 0) Set bound = ##class(OcuTalon.Bridge.Adapter.StepBuffer).Tokens(chars - history + $Select(history < ##class(OcuTalon.Bridge.Compaction).#SEEDCHARS: history, 1: ##class(OcuTalon.Bridge.Compaction).#SEEDCHARS))
+	Do facts.%Set("tooLarge", bound > limit, "boolean")
 	Quit ..Classify(facts)
+}
+
+/// The request-size limit in tokens that the text of the RequestTokenLimit setting gives (AD-8, AD-20), for Precheck and for the runner's
+/// compaction (Adapter.Agent), so that both read it alike: a whole number from 1 to MAXREQUESTTOKENS is the limit; an empty text counts as
+/// MAXREQUESTTOKENS; any other text counts as MAXREQUESTTOKENS too, and warning then holds the text of the warning that names the setting
+/// (cut to 40 characters, not redacted: the caller logs it through Redact.Text), otherwise warning is "". It is pure.
+ClassMethod RequestLimit(text As %String = "", Output warning As %String) As %Integer
+{
+	Set warning = ""
+	Set limit = ..#MAXREQUESTTOKENS
+	If text '= "" {
+		If (text ? 1.N) && (+text > 0) && (+text '> ..#MAXREQUESTTOKENS) {
+			Set limit = +text
+		} Else {
+			Set warning = "The setting RequestTokenLimit of Decide is '"_$Extract(text, 1, 40)_"'; it must be a whole number from 1 to "_..#MAXREQUESTTOKENS_", so the request-size limit counts as "_..#MAXREQUESTTOKENS
+		}
+	}
+	Quit limit
 }
 
 /// The estimated size in tokens of the first model request that the runner makes for the request (AD-6, AD-20): StepBuffer.Tokens of the
@@ -629,17 +922,20 @@ ClassMethod Precheck(request As OcuTalon.Bridge.Msg.Request, runner As %String, 
 ///      (Data.ConversationLink SessionOf), only for a linked turn (Adapter.Agent IsLinked) whose SessionMode is not fresh. It is 0 for
 ///      every other request, and for a turn with no link.
 ///   3. The input: the length of what the runner sends (Adapter.Agent ChatInput), with the seed only on a linked fresh turn.
-/// sc is an error when the agent part could not be read in full: the setting cannot be read or the class is unknown (the part counts 0), or its
+/// history is the characters of part 2 and chars the characters of the whole sum, which Precheck weighs for a flagged turn. sc is an error
+/// when the agent part could not be read in full: the setting cannot be read or the class is unknown (the part counts 0), or its
 /// INSTRUCTIONS or a toolset cannot be read (that piece counts 0 and the rest is counted, RequestSize.AgentChars).
-ClassMethod EstimateTokens(request As OcuTalon.Bridge.Msg.Request, runner As %String, agentClass As %String = "", Output sc As %Status) As %Integer
+ClassMethod EstimateTokens(request As OcuTalon.Bridge.Msg.Request, runner As %String, agentClass As %String = "", Output sc As %Status, Output history As %Integer, Output chars As %Integer) As %Integer
 {
 	Set sc = $$$OK
 	Set chars = 0
+	Set history = 0
 	If agentClass = "" Set agentClass = ##class(OcuTalon.Bridge.Ext.Accessor).ValueFor("AgentClass", "", runner, .sc, "Adapter")
 	If $$$ISOK(sc) Set chars = ##class(OcuTalon.Bridge.RequestSize).AgentChars(agentClass, .sc)
 	Set linked = ##class(OcuTalon.Bridge.Adapter.Agent).IsLinked(request)
 	Set fresh = linked && (request.SessionMode = "fresh")
-	If linked && 'fresh Set chars = chars + ##class(OcuTalon.Bridge.RequestSize).HistoryChars(##class(OcuTalon.Bridge.Data.ConversationLink).SessionOf(request.OwnerRef, runner))
+	If linked && 'fresh Set history = ##class(OcuTalon.Bridge.RequestSize).HistoryChars(##class(OcuTalon.Bridge.Data.ConversationLink).SessionOf(request.OwnerRef, runner))
+	Set chars = chars + history
 	Set chars = chars + $Length(##class(OcuTalon.Bridge.Adapter.Agent).ChatInput(request, fresh))
 	Quit ##class(OcuTalon.Bridge.Adapter.StepBuffer).Tokens(chars)
 }
@@ -718,7 +1014,8 @@ ClassMethod HoldsAll(text As %String, pieces As %String) As %Boolean [ Private ]
 ///      failure "The runner gave no Reply"), the reply's finishReason and text, and invalid, which is true when the reply fails its check
 ///      or nothing is left of it once the filter has run. For decide and diagnose, the check is CheckReply against replyClass; for a
 ///      turn, the text itself;
-///   2. calls Classify once. A reason goes to RecordFallback, which records the fallback and answers (below);
+///   2. calls Classify once. A reason goes to RecordFallback, which records the fallback and answers (below); for an invalid decide or diagnose
+///      reply, what the check refused (problem, see Interpret: RefusalText's words, never the reply) is first logged, redacted, as one warning in the decision's trace session;
 ///   3. otherwise, the reply is usable and each model-written text was filtered once with filterClass (each reason; each property that
 ///      the reply class names in its FILTERED parameter that is not empty, each item of a list, after which the payload is validated again; a
 ///      turn's reply text),
@@ -745,6 +1042,7 @@ ClassMethod Conclude(request As OcuTalon.Bridge.Msg.Request, decisionRef As %Str
 	If $$$ISERR(sc) Quit sc
 	Set isReply = $IsObject(reply) && reply.%IsA("OcuTalon.Bridge.Msg.Reply")
 	If (failure = "") && 'isReply Set failure = "The runner gave no Reply"
+	If kind = "tool" Quit ..ConcludeTool(request, decisionRef, reply, sinkClass, traceSessionId, .response, durationMs, failure, stepCount)
 	Set facts = {}
 	Do facts.%Set("failure", failure)
 	Set text = ""
@@ -752,6 +1050,7 @@ ClassMethod Conclude(request As OcuTalon.Bridge.Msg.Request, decisionRef As %Str
 	Set reasons = ""
 	Set confidence = ""
 	Set json = ""
+	Set problem = ""
 	If isReply {
 		Do facts.%Set("finishReason", reply.FinishReason)
 		Do facts.%Set("text", reply.Text)
@@ -761,7 +1060,7 @@ ClassMethod Conclude(request As OcuTalon.Bridge.Msg.Request, decisionRef As %Str
 				Set text = $ClassMethod(filterClass, "Filter", reply.Text)
 				If $ZStrip(text, "*WC") = "" Set invalid = 1
 			} Else {
-				Set invalid = '..Interpret(request, reply.Text, replyClass, filterClass, .outcome, .reasons, .confidence, .json, .sc)
+				Set invalid = '..Interpret(request, reply.Text, replyClass, filterClass, .outcome, .reasons, .confidence, .json, .sc, .problem)
 			}
 		}
 		Do facts.%Set("invalid", invalid, "boolean")
@@ -769,6 +1068,7 @@ ClassMethod Conclude(request As OcuTalon.Bridge.Msg.Request, decisionRef As %Str
 	If $$$ISERR(sc) Quit sc
 	Set reason = ..Classify(facts)
 	If reason '= "" {
+		If (reason = "invalid") && (problem '= "") $$$LOGWARNING(##class(OcuTalon.Bridge.Redact).Text("The reply check refused the reply of the decision "_decisionRef_": "_problem))
 		Quit ..RecordFallback(request, decisionRef, reason, reply, sinkClass, traceSessionId, .response, durationMs, stepCount, ..Broken(request, failure))
 	}
 	If ##class(OcuTalon.Bridge.Data.Decision).ItemIdKindIndexExists(request.ItemId, kind, .id) {
@@ -797,6 +1097,47 @@ ClassMethod Conclude(request As OcuTalon.Bridge.Msg.Request, decisionRef As %Str
 	Quit ..ResponseFromRow(row, .response)
 }
 
+/// Conclude for kind tool: the reply of a replay holds no model text, so nothing is classified, filtered or checked. A failure (the text of the
+/// runner's failure, or of a Reply whose FailureText is set) is a fallback with the reason error (RecordFallback), whatever the text says, so
+/// that a tool's own error text never marks the day as capped. A failure while the approval row is still approved means the run never started
+/// (the row's lock was not taken): no Decision row is recorded, so that a later replay of the row is not answered from a fallback, and the answer
+/// is a Reply that holds only the FailureText. Otherwise one Decision row is saved with the outcome act, no reasons, no
+/// confidence and no payload, decision.recorded is fired after the save (FireEvent), and the answer is the row's Reply (ResponseFromRow). A
+/// row that another call saved first for the item is answered instead and fires nothing.
+ClassMethod ConcludeTool(request As OcuTalon.Bridge.Msg.Request, decisionRef As %String, reply As OcuTalon.Bridge.Msg.Reply, sinkClass As %String, traceSessionId As %Integer, Output response As %Persistent, durationMs As %Integer, failure As %String, stepCount As %Integer) As %Status [ Private ]
+{
+	Set response = ""
+	If failure '= "" {
+		If ..StillApproved(request.ItemId) {
+			Set response = ##class(OcuTalon.Bridge.Msg.Reply).%New()
+			Set response.FailureText = ##class(OcuTalon.Bridge.Adapter.StepBuffer).Part(failure, ##class(OcuTalon.Bridge.Msg.Reply).#MAXFAILURE)
+			Quit $$$OK
+		}
+		Quit ..RecordFallback(request, decisionRef, "error", reply, sinkClass, traceSessionId, .response, durationMs, stepCount)
+	}
+	If ##class(OcuTalon.Bridge.Data.Decision).ItemIdKindIndexExists(request.ItemId, request.Kind, .id) {
+		Quit ..ResponseFromId(id, .response)
+	}
+	Set row = ..NewRow(request, decisionRef, reply, traceSessionId, durationMs, stepCount)
+	Set row.Outcome = "act"
+	Set row.Reasons = ""
+	Set row.Confidence = ""
+	Set row.Fallback = 0
+	Set row.FallbackReason = ""
+	Set row.Payload = ""
+	Set sc = ..Record(row, .saved, .response)
+	If $$$ISERR(sc) || 'saved Quit sc
+	Do ..FireEvent(sinkClass, request.OwnerRef, decisionRef)
+	Quit ..ResponseFromRow(row, .response)
+}
+
+/// 1 when the Ref names a tool_call approval request that is still approved: no run has started it (StartExecution makes it executing).
+ClassMethod StillApproved(ref As %String) As %Boolean [ Private ]
+{
+	Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(ref)
+	Quit $IsObject(row) && $$$ISOK(row.%Reload()) && (row.Kind = "tool_call") && (row.State = "approved")
+}
+
 /// Checks the text of a decide or diagnose reply against the replyClass (CheckReply) and filters each reason once with filterClass, and
 /// then each string property that the reply class names in its FILTERED parameter (comma-separated; none when the parameter is absent; a dotted
 /// name such as ItemNoun.One is a property of an object property, skipped when that object is absent; a list of strings is filtered item by item;
@@ -804,18 +1145,20 @@ ClassMethod Conclude(request As OcuTalon.Bridge.Msg.Request, decisionRef As %Str
 /// when the reply is a decision: outcome, reasons (one line each, with the code-written line first when the user rule changed the
 /// outcome), confidence (two decimals) and json (the payload as JSON, with the filtered properties) are set. 0 when it fails the check,
 /// no reason is left of it once filtered, or the payload fails its check again after filtering (invalid). sc is an error only when the payload cannot be exported.
+/// problem is "" unless the result is 0; then it says why, in words that quote no content of the reply (RefusalText): "The reply check failed: the reply is not one JSON object that <replyClass> accepts: " and what the first check refused, "No reason is left once the reply filter has run", or "After the reply filter ran: <replyClass> refused the filtered payload: " and what the second check refused. Conclude logs it, redacted, as a warning in the decision's trace session when the fallback is invalid.
 /// Both checks run with OcuTalon.Bridge.ReplyCheck begun from the request, so a reply class's %OnValidateObject can read what the request carried; it is ended on every
 /// exit, an exception included, and an exception is thrown on.
-ClassMethod Interpret(request As OcuTalon.Bridge.Msg.Request, text As %String, replyClass As %String, filterClass As %String, Output outcome As %String, Output reasons As %String, Output confidence As %String, Output json As %String, Output sc As %Status) As %Boolean [ Private ]
+ClassMethod Interpret(request As OcuTalon.Bridge.Msg.Request, text As %String, replyClass As %String, filterClass As %String, Output outcome As %String, Output reasons As %String, Output confidence As %String, Output json As %String, Output sc As %Status, Output problem As %String) As %Boolean [ Private ]
 {
 	Set sc = $$$OK
 	Set outcome = "tellnow"
 	Set reasons = ""
 	Set confidence = ""
 	Set json = ""
+	Set problem = ""
 	Do ##class(OcuTalon.Bridge.ReplyCheck).Begin(request)
 	Try {
-		Set valid = ..Judge(request, text, replyClass, filterClass, .outcome, .reasons, .confidence, .json, .sc)
+		Set valid = ..Judge(request, text, replyClass, filterClass, .outcome, .reasons, .confidence, .json, .sc, .problem)
 	} Catch exception {
 		Do ##class(OcuTalon.Bridge.ReplyCheck).End()
 		Throw exception
@@ -824,15 +1167,21 @@ ClassMethod Interpret(request As OcuTalon.Bridge.Msg.Request, text As %String, r
 	Quit valid
 }
 
-/// The work of Interpret, run while the ReplyCheck of the request is begun: the reply check, the filtering and the check again, with the same results.
-ClassMethod Judge(request As OcuTalon.Bridge.Msg.Request, text As %String, replyClass As %String, filterClass As %String, Output outcome As %String, Output reasons As %String, Output confidence As %String, Output json As %String, Output sc As %Status) As %Boolean [ Private ]
+/// The work of Interpret, run while the ReplyCheck of the request is begun: the reply check, the filtering and the check again, with the same results. A check
+/// that fails gives problem the words of RefusalText for the status of the check (CheckReply's cause, or the second check's status), never IRIS's error text.
+ClassMethod Judge(request As OcuTalon.Bridge.Msg.Request, text As %String, replyClass As %String, filterClass As %String, Output outcome As %String, Output reasons As %String, Output confidence As %String, Output json As %String, Output sc As %Status, Output problem As %String) As %Boolean [ Private ]
 {
 	Set sc = $$$OK
 	Set outcome = "tellnow"
 	Set reasons = ""
 	Set confidence = ""
 	Set json = ""
-	If $$$ISERR(..CheckReply(text, replyClass, .payload)) Quit 0
+	Set problem = ""
+	Set checked = ..CheckReply(text, replyClass, .payload, .cause)
+	If $$$ISERR(checked) {
+		Set problem = ..#CHECKFAILED_replyClass_" accepts: "_..RefusalText(cause, replyClass, text)
+		Quit 0
+	}
 	Set lines = ""
 	For i = 1:1:payload.Reasons.Count() {
 		Set filtered = $ClassMethod(filterClass, "Filter", payload.Reasons.GetAt(i))
@@ -840,7 +1189,10 @@ ClassMethod Judge(request As OcuTalon.Bridge.Msg.Request, text As %String, reply
 		Set line = $ZStrip($Translate($Replace(filtered, $Char(13, 10), " "), $Char(10, 11, 12, 13, 133, 8232, 8233), "       "), "<>WC")
 		If line '= "" Set lines = lines _ $ListBuild(line)
 	}
-	If lines = "" Quit 0
+	If lines = "" {
+		Set problem = "No reason is left once the reply filter has run"
+		Quit 0
+	}
 	Set named = $Parameter(payload, "FILTERED")
 	For i = 1:1:$Length(named, ",") {
 		Set name = $ZStrip($Piece(named, ",", i), "<>W")
@@ -860,7 +1212,13 @@ ClassMethod Judge(request As OcuTalon.Bridge.Msg.Request, text As %String, reply
 			Set $Property(holder, leaf) = $ClassMethod(filterClass, "Filter", value)
 		}
 	}
-	If (named '= "") && $$$ISERR(payload.%ValidateObject()) Quit 0
+	If named '= "" {
+		Set checked = payload.%ValidateObject()
+		If $$$ISERR(checked) {
+			Set problem = "After the reply filter ran: "_replyClass_" refused the filtered payload: "_..RefusalText(checked, replyClass)
+			Quit 0
+		}
+	}
 	Set outcome = payload.Outcome
 	If (request.Kind = "decide") && (request.Provenance = "user") && ((outcome = "ignore") || (outcome = "digest")) {
 		Set outcome = "tellnow"
@@ -875,7 +1233,8 @@ ClassMethod Judge(request As OcuTalon.Bridge.Msg.Request, text As %String, reply
 /// Records an unusable request or reply as a fallback decision and answers it (AD-8, AD-20, AD-26, AD-31). reason is one value of
 /// Msg.Enum FALLBACKREASON, and reply is the runner's Reply, or "" when nothing was sent or the runner has not answered (a timer).
 /// stepCount is the AgentStepCount of the earlier attempts, which the row adds to the reply's. The Decision row is NewRow with the outcome
-/// tellnow, Fallback true and the reason; Reasons, Confidence and Payload stay empty, so that no model text is kept. A row that another
+/// tellnow, Fallback true and the reason; Confidence and Payload stay empty, and so does Reasons unless the caller passes reasons, a sentence written in code
+/// (HELDBEFOREUPDATE) and never model text, so that no model text is kept. A row that another
 /// call saved first for the item and kind is answered instead (the row of a turn is refused as ResponseFromRow says), and fires nothing.
 /// When this call saved the row, decision.recorded is fired after the save (FireEvent) and, for daily_cap only, the day is marked as
 /// capped (Budget.MarkCapped), outside any transaction. The answer to a decide or diagnose request is the DecisionResponse of the row;
@@ -884,7 +1243,7 @@ ClassMethod Judge(request As OcuTalon.Bridge.Msg.Request, text As %String, reply
 /// a fresh turn whose reply is refused did move the link, and the caller must know), SessionBroken when broken is 1 (Broken: the
 /// provider rejected the stored history of a user's turn), and no text, host data, steps, failure text or finish reason. Nothing else is
 /// sent: a fallback triggers no tool, fix or approval request.
-ClassMethod RecordFallback(request As OcuTalon.Bridge.Msg.Request, decisionRef As %String, reason As %String, reply As %RegisteredObject, sinkClass As %String, traceSessionId As %Integer, Output response As %Persistent, durationMs As %Integer = "", stepCount As %Integer = 0, broken As %Boolean = 0) As %Status
+ClassMethod RecordFallback(request As OcuTalon.Bridge.Msg.Request, decisionRef As %String, reason As %String, reply As %RegisteredObject, sinkClass As %String, traceSessionId As %Integer, Output response As %Persistent, durationMs As %Integer = "", stepCount As %Integer = 0, broken As %Boolean = 0, reasons As %String = "") As %Status
 {
 	Set response = ""
 	If ##class(OcuTalon.Bridge.Data.Decision).ItemIdKindIndexExists(request.ItemId, request.Kind, .id) {
@@ -892,7 +1251,7 @@ ClassMethod RecordFallback(request As OcuTalon.Bridge.Msg.Request, decisionRef A
 	}
 	Set row = ..NewRow(request, decisionRef, reply, traceSessionId, durationMs, stepCount)
 	Set row.Outcome = "tellnow"
-	Set row.Reasons = ""
+	Set row.Reasons = reasons
 	Set row.Confidence = ""
 	Set row.Fallback = 1
 	Set row.FallbackReason = reason
@@ -1004,13 +1363,24 @@ ClassMethod ResponseFromId(id As %String, Output response As %Persistent) As %St
 }
 
 /// The DecisionResponse for a recorded decide or diagnose row: its Ref as DecisionRef, outcome, reasons, confidence,
-/// fallback flag and reason, payload and totals (CarryTotals). The row of a turn keeps no reply text, so a turn is refused with an
-/// error that names the item and the Ref.
+/// fallback flag and reason, payload and totals (CarryTotals). The row of a tool request is answered with a Reply instead: DecisionRef, Outcome,
+/// Reasons (code-written only, such as HELDBEFOREUPDATE), Fallback, FallbackReason and the totals, and no text, steps or failure text. The row of a
+/// turn keeps no reply text, so a turn is refused with an error that names the item and the Ref.
 ClassMethod ResponseFromRow(row As OcuTalon.Bridge.Data.Decision, Output response As %Persistent) As %Status
 {
 	Set response = ""
 	If row.Kind = "turn" {
 		Quit $$$ERROR($$$GeneralError, "The item "_row.ItemId_" already has the turn decision "_row.Ref_"; the row keeps no reply text, and a second answer would answer the message twice")
+	}
+	If row.Kind = "tool" {
+		Set response = ##class(OcuTalon.Bridge.Msg.Reply).%New()
+		Set response.DecisionRef = row.Ref
+		Set response.Outcome = row.Outcome
+		Set response.Reasons = row.Reasons
+		Set response.Fallback = row.Fallback
+		Set response.FallbackReason = row.FallbackReason
+		Do ..CarryTotals(row, response)
+		Quit $$$OK
 	}
 	Set response = ##class(OcuTalon.Bridge.Msg.DecisionResponse).%New()
 	Set response.DecisionRef = row.Ref

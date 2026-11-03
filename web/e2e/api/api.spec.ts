@@ -1,6 +1,7 @@
 import { expect, test, type APIRequestContext, type APIResponse, type Response } from '@playwright/test';
 
 import { EVENTS, MESSAGES, STATE, post, sessionEvents } from '../support/api';
+import { loadedAfter } from '../support/floor';
 import { fixtureUser } from '../support/iris';
 import { signOutTrace } from '../support/trace';
 import { README_ACCOUNT, envelope, signInOverHttp, signInReadme, stackOrigin } from '../sign-in/helpers';
@@ -120,8 +121,11 @@ test('row 13: the page loads /state and marks the snapshot loaded', async ({ pag
   page.on('response', (response) => {
     if (new URL(response.url()).pathname === STATE) answered.push(response);
   });
-  await signInReadme(page);
-  const baseline = await instanceBaseline(page.request);
+  let baseline: string[] = [];
+  await loadedAfter(page, async () => {
+    await signInReadme(page);
+    baseline = await instanceBaseline(page.request);
+  });
   await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
   expect(answered.map((response) => response.status()), 'the page asked for /state once and got 200').toEqual([200]);
 

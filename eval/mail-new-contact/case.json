@@ -1,0 +1,18 @@
+{
+  "name": "mail-new-contact",
+  "kind": "item",
+  "heldOut": false,
+  "description": "A partner names a new integration contact by role from next month: worth keeping on record, with no deadline this week, so it is kept for the digest.",
+  "expectation": {
+    "outcome": "digest"
+  },
+  "recordedBy": "written for the evaluation set (Story 9.3)",
+  "item": {
+    "itemId": "mail-new-contact",
+    "channel": "mailbox",
+    "provenance": "untrusted",
+    "sender": "Results Partner IT <it@results-partner.example>",
+    "subject": "New integration contact",
+    "text": "Hello, from next month your integration questions go to the integration lead of our results team. The shared mailbox address stays the same. Please keep this for your records. Thanks, Results Partner IT"
+  }
+}

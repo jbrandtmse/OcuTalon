@@ -114,11 +114,12 @@ export class ApiClient {
   }
 
   /**
-   * The online demo's public status (Story 16.5; AD-13, AD-25): a GET of /ocutalon/public/status, which needs no session, with a unique
-   * query so that no cache answers. DemoBusyState's trace check and its quiet re-check read it.
+   * The online demo's public status in its trace form (Story 16.5, 29.7; AD-13, AD-25): a GET of /ocutalon/public/status?for=trace, which
+   * needs no session and whose busy comes from the connection check alone, with a unique query so that no cache answers.
+   * DemoBusyState's trace check and its quiet re-check read it.
    */
   publicStatus(): Observable<PublicStatus> {
-    return this.http.get<PublicStatus>(`${PUBLIC_STATUS}?t=${Date.now()}`);
+    return this.http.get<PublicStatus>(`${PUBLIC_STATUS}?for=trace&t=${Date.now()}`);
   }
 
   /** A POST whose only success is the answer 202 with a body; any other status, a 2xx included, fails as an error. */

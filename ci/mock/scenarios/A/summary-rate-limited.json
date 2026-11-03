@@ -1,0 +1,15 @@
+{
+  "name": "summary-rate-limited",
+  "match": {
+    "marker": "summary-rate-limited"
+  },
+  "replies": [
+    {
+      "status": 429,
+      "headers": {
+        "Retry-After": "1"
+      },
+      "text": "CI mock: the summarizer is rate limited."
+    }
+  ]
+}

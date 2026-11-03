@@ -2,6 +2,7 @@ import { expect, test, type Page, type Route } from '@playwright/test';
 
 import { holdState } from '../support/api';
 import { signIn } from '../sign-in/helpers';
+import { loadedAfter } from '../support/floor';
 import { freeze, lastAnswerAt, pollStarts, recordTraffic, runUntil } from '../support/clock';
 import { fixtureUser, publishReminder } from '../support/iris';
 import { announcements, recordAnnouncements } from '../support/page';
@@ -25,7 +26,7 @@ const isPath = (url: string, path: string): boolean => new URL(url).pathname ===
 /** Signs the live user in and waits until the page has loaded its snapshot. */
 async function open(page: Page): Promise<void> {
   const { user, password } = fixtureUser('LIVE');
-  await signIn(page, user, password);
+  await loadedAfter(page, () => signIn(page, user, password));
   await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
 }
 

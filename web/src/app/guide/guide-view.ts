@@ -33,7 +33,6 @@ export const GUIDE_TEXTS = {
   promptReminder: 'Remind me in 1 minute to stretch.',
   promptBreakFeed: 'Press Break the feed. The partner will send 50 orders in a new date format.',
   waiting: 'Waiting for OcuTalon. The reminder may arrive first.',
-  goToBreakFeed: 'Go to Break the feed',
   approvePaired: 'Approve the fix in Telegram on your phone, or on the simulated phone.',
   approveUnpaired: 'Approve the fix on the simulated phone, or in the chat.',
   rejected: 'Rejected. Nothing was changed. Dismiss the incident in the chat, then press Break the feed again.',
@@ -112,8 +111,8 @@ export interface StepView {
   selected: boolean;
 }
 
-/** What the prompt bar's button does: sends the prompt, focuses Break the feed, shows the phone, opens the trace, or nothing (no button). */
-export type PromptAction = 'send' | 'goToBreakFeed' | 'showMe' | 'openTrace' | 'none';
+/** What the prompt bar's button does: sends the prompt, shows the phone, opens the trace, or nothing (no button). */
+export type PromptAction = 'send' | 'showMe' | 'openTrace' | 'none';
 
 /** What the prompt bar holds for the selected step. */
 export interface PromptView {
@@ -159,8 +158,8 @@ const WAITING_STAGES: readonly string[] = ['sending', 'waiting', 'still_waiting'
 
 /**
  * The prompt bar's entry for a step and the server's view (AD-12: the page chooses only what to render). Steps 1 and 2 send their prompt.
- * Step 3 waits while the batch is sending or waiting, else sends the user to Break the feed. Step 4 shows the view's variant, with Show me
- * only for a pair that can approve. Step 5 opens the run's trace when the view carries its URL.
+ * Step 3 waits while the batch is sending or waiting, else names Break the feed with no button (the box beside it carries the action).
+ * Step 4 shows the view's variant, with Show me only for a pair that can approve. Step 5 opens the run's trace when the view carries its URL.
  */
 export function promptOf(step: number, view: GuideStatePayload): PromptView | undefined {
   const shown = (text: string, action: PromptAction): PromptView => ({ text, quoted: fill(GUIDE_TEXTS.quoted, { text }), action });
@@ -173,7 +172,7 @@ export function promptOf(step: number, view: GuideStatePayload): PromptView | un
       if (WAITING_STAGES.includes(view.breakFeed?.stage ?? '')) {
         return { text: GUIDE_TEXTS.waiting, quoted: GUIDE_TEXTS.waiting, action: 'none', waiting: true };
       }
-      return shown(GUIDE_TEXTS.promptBreakFeed, 'goToBreakFeed');
+      return shown(GUIDE_TEXTS.promptBreakFeed, 'none');
     case 4:
       switch (view.step4Variant) {
         case 'rejected':

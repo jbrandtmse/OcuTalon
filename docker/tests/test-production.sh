@@ -14,7 +14,8 @@
 #     is not a command with an error status of code 5001, Intake (built in Story 2.7) refuses a message that is
 #     not an Item with a warning and answers OK with nothing, the router answers OK with nothing and sends nothing on, and
 #     every target keeps the job it had; then the same for every enabled stub with a pool, so that no stub kills its job on a
-#     request;
+#     request (once every item with a pool is built, the oracle names no such stub and the sweep has nothing to try: the row
+#     then requires only that the oracle was read, its item count above 0);
 #   - row 17, Submit: it reaches CommandsIn with the origin web_user, and with the origin tool inside a bridge context, and
 #     CommandsIn answers both with ReminderOps' plain-English refusal (the command names no session) (status OK, Ok 0) after sending the command from
 #     CommandsIn to ReminderOps; an origin outside the enumeration is refused naming it;
@@ -163,11 +164,13 @@ fi
 # --- row 16, every stub with a pool ---
 
 iris_script OCUTALON > "$tmp/stubs.chk" <<'EOS'
-Set it=##class(OcuTalon.Test.Install.Production).Items().%GetIterator() While it.%GetNext(,.x) { If x.stub,x.pool,x.enabled { Write !,"CHK|stub|",x.name } }
+Set items=0,it=##class(OcuTalon.Test.Install.Production).Items().%GetIterator() While it.%GetNext(,.x) { Set items=items+1 If x.stub,x.pool,x.enabled { Write !,"CHK|stub|",x.name } }
+Write !,"CHK|items|",items
 Halt
 EOS
 sed -n 's/^CHK|stub|//p' "$tmp/stubs.chk" > "$tmp/stubs.names"
 stub_count=$(grep -c . "$tmp/stubs.names")
+item_count=$(sed -n 's/^CHK|items|\([0-9][0-9]*\)$/\1/p' "$tmp/stubs.chk" | head -n 1)
 item_jobs "$tmp/jobs.16s.before"
 check_session "row 16: every enabled stub with a pool ($stub_count) answers 'not implemented' and sends no response" OCUTALON \
   "CHK|sweep|$stub_count|bad=" \
@@ -186,8 +189,10 @@ while IFS= read -r name; do
 done < "$tmp/stubs.names"
 if [ "$stub_count" -gt 0 ] && [ -z "$moved" ]; then
   pass "row 16: each of the $stub_count stubs keeps the job it had"
+elif [ "$stub_count" -eq 0 ] && [ "${item_count:-0}" -gt 0 ]; then
+  pass "row 16: the oracle's $item_count items name no enabled stub with a pool, so no stub was left to try"
 else
-  fail "row 16: $stub_count stubs were tried; no job, or a different job, for:$moved"
+  fail "row 16: $stub_count stubs were tried (the oracle read ${item_count:-no} items); no job, or a different job, for:$moved"
 fi
 
 # --- row 17: Submit, live ---

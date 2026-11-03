@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
 import { STATE } from '../../e2e/support/api';
+import { loadedAfter } from '../../e2e/support/floor';
 import {
   accountTrigger,
   auditCount,
@@ -48,7 +49,7 @@ test('O1: Sign out opens a modal dialog named by its sentence, with Cancel focus
   let epoch = '';
   try {
     const log = recordRequests(context);
-    await signInFromSplash(page);
+    await loadedAfter(page, () => signInFromSplash(page));
     await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
     epoch = await epochOf(page);
     const mark = log.mark();
@@ -95,11 +96,11 @@ test('O2: confirming Sign out ends the session through SessionOps.End and leaves
   const epochs: string[] = [];
   const populated: Populated[] = [];
   try {
-    await signInFromSplash(pageA);
+    await loadedAfter(pageA, () => signInFromSplash(pageA));
     await expect(mainOf(pageA)).toHaveAttribute('data-snapshot', 'loaded');
     const epochA = await epochOf(pageA);
     epochs.push(epochA);
-    await signInFromSplash(pageB);
+    await loadedAfter(pageB, () => signInFromSplash(pageB));
     await expect(mainOf(pageB)).toHaveAttribute('data-snapshot', 'loaded');
     const epochB = await epochOf(pageB);
     epochs.push(epochB);
@@ -150,7 +151,7 @@ test('O2: confirming Sign out ends the session through SessionOps.End and leaves
     expect(stateB.resumeHash, "B's resume hash is kept").not.toBe('');
     expect(await auditCount(mark, 'Approval', rowsB.approval, 'cancelled//web'), 'no entry names B').toBe(0);
 
-    await signInFromSplash(pageA);
+    await loadedAfter(pageA, () => signInFromSplash(pageA));
     await expect(mainOf(pageA)).toHaveAttribute('data-snapshot', 'loaded');
     const next = await epochOf(pageA);
     epochs.push(next);
@@ -170,7 +171,7 @@ test('O3: when /session/end fails, the page signs the group out, shows the plain
   let epoch = '';
   try {
     const log = recordRequests(context);
-    await signInFromSplash(page);
+    await loadedAfter(page, () => signInFromSplash(page));
     await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
     epoch = await epochOf(page);
     await page.route('**/ocutalon/api/v1/session/end', (route) => route.fulfill({ status: 500, json: { error: 'server_error' } }));
@@ -184,7 +185,7 @@ test('O3: when /session/end fails, the page signs the group out, shows the plain
     expect((await context.request.get(STATE)).status(), "the context's CSP session is gone").toBe(401);
     expect(await resumeCookie(context), 'the resume cookie is kept').toBeDefined();
     await page.unroute('**/ocutalon/api/v1/session/end');
-    await signInFromSplash(page);
+    await loadedAfter(page, () => signInFromSplash(page));
     await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
     expect(await epochOf(page), 'and signing in resumes the same epoch').toBe(epoch);
   } finally {

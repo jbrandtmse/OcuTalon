@@ -1,7 +1,7 @@
 # Parallel epic execution — read by /epic-cycle (orchestrator mode).
 # Safe defaults; tune per project.
 
-max_parallel_epics: 3            # 2026-10-22, owner: "Okay, we'll start with 3 slots." (was 2); lanes A, B and C, one dev slot each (Rule 21)
+max_parallel_epics: 4            # 2026-11-02, owner: "Yes, set it up now" (was 3 from 2026-10-22, 2 before); four runners, one dev slot each (Rule 21: slots A-D)
 worktree_base: .worktrees        # short path under repo root; use e.g. C:\wt\<proj> if MAX_PATH bites
 runner_isolation: subagent       # subagent (supported) | headless (designed, Phase 3 — not yet implemented)
 submodule_mode: gitlink-worktree # gitlink-worktree (default; shared objects, teardown-safe)

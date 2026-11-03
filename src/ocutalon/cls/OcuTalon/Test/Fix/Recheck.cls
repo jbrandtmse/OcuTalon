@@ -1,4 +1,4 @@
-Include Ensemble
+Include (Ensemble, EnsErrors)
 
 /// Tests of the re-check of an approved repair (Story 7.3; AD-3, AD-4, AD-16). THEY RUN IN THROWAWAY STACKS AND IN CI ONLY (Rule 21), fresh, with demo mode on, through
 /// Test.Watch.Case: real failed orders of OCUORDERS and the real Watch.Reader. They fail with the reason where the production, OCUORDERS or demo mode is missing.
@@ -11,6 +11,9 @@ Include Ensemble
 ///     only the flag gives the ids that resent a message, in both description forms; reads a production that is not the namespace's own, which is an error with no target
 ///     passed; and shows that Execute, which reads the targets again, resends none of the five, and that the resend itself skips a plan entry whose header, status,
 ///     field or value has gone stale;
+///   - TestResendStopsWhereItErrs (DW-419, U-182; the matrix row "Resend stops where it errs"): with Orders stopped a plan of a gone header and two valid ones makes no copy, skips the gone
+///     one and leaves the others unreached (stopped, after), and OCUORDERS is unchanged; with Orders running and the second header's target set to a name that is no item, the first
+///     valid entry is resent and the refused one and the one after it are unreached (refused, after); and with a namespace that cannot be entered the first copy throws and every entry is unreached (error, after);
 ///   - TestUnreadableNamespaceIsAnError (AC 6; the matrix row "Unreadable"): the same read passes a failed order while the service role holds Read on the Orders data
 ///     database, and once the role no longer holds it the Reader's outcome is unreadable, which Recheck and Execute turn into an error that says the service user
 ///     cannot read the namespace: no target passes, none is skipped as gone, no copy is made and nothing in OCUORDERS changes.
@@ -174,6 +177,67 @@ Method TestUnreadableNamespaceIsAnError()
 	Do $$$AssertEquals(lines.%Size(), 0, "nothing in OCUORDERS changed: "_lines.%ToJSON())
 }
 
+/// A resend stops at the first copy that errs (DW-419, U-182; the matrix row "Resend stops where it errs"): with the Orders production stopped, a plan of a header that is gone and two
+/// valid ones resends nothing, skips the gone header (a real skip) and reaches neither valid one, which come back as unreached: the first as stopped, the second as after (it is never
+/// tried), and no header is made, so OCUORDERS is unchanged. With Orders running again, a plan of a valid entry, one whose header's target is no item of the production (Ens refuses
+/// that copy with an error and makes no header) and another valid entry resends the first, and the refused one and the one after it are unreached: refused and after. The test
+/// shows first what Ens gives: ErrProductionNotRunning with no new id for a stopped production, and an error with no new id for a target that is no item.
+Method TestResendStopsWhereItErrs()
+{
+	If '..Ready() Quit
+	Set a = ..Session("recheckstops")
+	Set trace = ##class(OcuTalon.Data.Session).RefIndexOpen(a).TraceRef
+	If '..Fail(4, trace) Quit
+	Set failed = ..WaitFailed(4)
+	If failed.%Size() '= 4 Quit
+	Set ids = ..Ascending(..HeaderIds(failed))
+	Set gone = $Piece(ids, ",", 1), second = $Piece(ids, ",", 2), third = $Piece(ids, ",", 3), fourth = $Piece(ids, ",", 4)
+	Do $$$AssertStatusOK(..Lose(gone), "one order has lost its header and its body")
+	Set namespaces = $ListBuild(..#ORDERS)
+	Set plan = []
+	For id = gone, second, third {
+		Do plan.%Push({"id": (id), "field": "OrderDate", "value": "10/16/2026", "repaired": "2026-10-16"})
+	}
+
+	// Orders stopped: what Ens gives, then what Resend does with it
+	If '..StopOrders() Quit
+	Do ##class(OcuTalon.Test.Fix.Snapshot).Take(namespaces, .before)
+	Set sc = ..Ens(second, .newId)
+	Do $$$AssertEquals($SYSTEM.Status.Equals(sc, $$$EnsErrProductionNotRunning)_"|"_newId, "1|", "Ens answers ErrProductionNotRunning for a copy while the production is stopped, with no new id")
+	Do ##class(OcuTalon.Fix.Executor).Resend(..#ORDERS, plan, "", .resent, .skipped, .unreached)
+	Do $$$AssertEquals(resent, 0, "no copy is made")
+	Do $$$AssertEquals(skipped.%Size()_"|"_skipped.%Get(0).id, "1|"_gone, "the order that is gone is skipped, and it is the only skip")
+	Do $$$AssertEquals(unreached.%Size()_"|"_unreached.%Get(0).id_"|"_unreached.%Get(0).code_"|"_unreached.%Get(1).id_"|"_unreached.%Get(1).code, "2|"_second_"|stopped|"_third_"|after", "the first valid entry is unreached as stopped, and the next one as after: it is never tried")
+	Do ##class(OcuTalon.Test.Fix.Snapshot).Take(namespaces, .after)
+	Set lines = ##class(OcuTalon.Test.Fix.Snapshot).Diff(before, after)
+	Do $$$AssertEquals(lines.%Size(), 0, "nothing in OCUORDERS changed: "_lines.%ToJSON())
+	If '..StartOrders() Quit
+
+	// Orders running, one entry whose target is no item: the production refuses that copy
+	Do $$$AssertStatusOK(..Retarget(third, "ZzNoSuchItem"), "the target of one header is set to a name that is no item")
+	Set sc = ..Ens(third, .newId)
+	Do $$$AssertEquals($$$ISERR(sc)_"|"_$SYSTEM.Status.Equals(sc, $$$EnsErrProductionNotRunning)_"|"_newId, "1|0|", "Ens refuses a copy to a target that is no item with an error that is not ErrProductionNotRunning, and no new id")
+	Set plan = []
+	For id = second, third, fourth {
+		Do plan.%Push({"id": (id), "field": "OrderDate", "value": "10/16/2026", "repaired": "2026-10-16"})
+	}
+	Set mark = ##class(OcuTalon.Test.Core.Observe).LastLog()
+	Do ##class(OcuTalon.Fix.Executor).Resend(..#ORDERS, plan, "", .resent, .skipped, .unreached)
+	Do $$$AssertEquals(resent, 1, "the first valid entry is resent")
+	Do $$$AssertEquals(skipped.%Size(), 0, "and nothing is skipped")
+	Do $$$AssertEquals(unreached.%Size()_"|"_unreached.%Get(0).id_"|"_unreached.%Get(0).code_"|"_unreached.%Get(1).id_"|"_unreached.%Get(1).code, "2|"_third_"|refused|"_fourth_"|after", "the refused entry is unreached as refused, and the entry after it as after")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Warnings(mark, , "Resend", $Parameter("OcuTalon.Fix.Executor", "LOGCOPY")), 1, "and the refusal logs one Type 3 warning")
+	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(mark, "Resend", $Parameter("OcuTalon.Fix.Executor", "LOGCOPY"))
+
+	// a copy that throws: the namespace of the production cannot be entered
+	Set mark = ##class(OcuTalon.Test.Core.Observe).LastLog()
+	Do ##class(OcuTalon.Fix.Executor).Resend("ZZNOSUCHNAMESPACE", plan, "", .resent, .skipped, .unreached)
+	Do $$$AssertEquals(resent_"|"_skipped.%Size(), "0|0", "nothing is resent and nothing is skipped when the first copy throws")
+	Do $$$AssertEquals(unreached.%Size()_"|"_unreached.%Get(0).id_"|"_unreached.%Get(0).code_"|"_unreached.%Get(2).id_"|"_unreached.%Get(2).code, "3|"_second_"|error|"_fourth_"|after", "the entry that threw is unreached as error, and every entry after it as after")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Core.Observe).Warnings(mark, , "Resend", $Parameter("OcuTalon.Fix.Executor", "LOGCOPY")), 1, "and the error logs one Type 3 warning")
+	Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(mark, "Resend", $Parameter("OcuTalon.Fix.Executor", "LOGCOPY"))
+}
+
 /// --- helpers ---
 /// The ids (comma-separated) in ascending order.
 ClassMethod Ascending(ids As %String) As %String [ Private ]
@@ -220,6 +284,27 @@ ClassMethod Describe(id As %String, text As %String) As %Status [ Private ]
 	If '$IsObject(header) Quit $SYSTEM.Status.Error(5001, "No header "_id)
 	Set header.Description = text
 	Quit header.%Save()
+}
+
+/// Asks Ens for a copy of the header's message, with its body cloned, to the header's own target, in OCUORDERS: the status, and newId is the new header's id ("" when none).
+ClassMethod Ens(id As %String, Output newId As %String) As %Status [ Private ]
+{
+	New $NAMESPACE
+	Set $NAMESPACE = ..#ORDERS
+	Set newId = ""
+	Set header = ##class(Ens.MessageHeader).%OpenId(id)
+	If '$IsObject(header) Quit $SYSTEM.Status.Error(5001, "No header "_id)
+	Set body = $ClassMethod(header.MessageBodyClassName, "%OpenId", header.MessageBodyId)
+	Quit ##class(Ens.MessageHeader).ResendDuplicatedMessage(id, .newId, header.TargetConfigName, body.%ConstructClone(0))
+}
+
+/// Sets the target of the header in OCUORDERS (a header that the test made).
+ClassMethod Retarget(id As %String, target As %String) As %Status [ Private ]
+{
+	New $NAMESPACE
+	Set $NAMESPACE = ..#ORDERS
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "UPDATE Ens.MessageHeader SET TargetConfigName = ? WHERE ID = ?", target, id)
+	Quit $Select(rs.%SQLCODE < 0: $SYSTEM.Status.Error(5001, rs.%Message), 1: $$$OK)
 }
 
 /// Deletes the header and its body in OCUORDERS.

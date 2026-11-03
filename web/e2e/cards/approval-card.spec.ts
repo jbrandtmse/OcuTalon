@@ -2,7 +2,7 @@ import { expect, test, type Locator, type Page, type Route } from '@playwright/t
 
 import { signIn } from '../sign-in/helpers';
 import { changeSnapshot, post } from '../support/api';
-import { CARD_MS, HEADER, applied, composerOf, mainOf, unique } from '../support/floor';
+import { CARD_MS, HEADER, applied, composerOf, mainOf, unique, loadedAfter } from '../support/floor';
 import {
   answerHeaders,
   answerQuietly,
@@ -96,7 +96,7 @@ const rejectOf = (card: Locator): Locator => card.getByRole('button', { name: 'R
 async function open(page: Page): Promise<void> {
   const { user, password } = fixtureUser(KIND);
   await recordAnnouncements(page);
-  await signIn(page, user, password);
+  await loadedAfter(page, () => signIn(page, user, password));
   await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
   await expect(composerOf(page)).toBeVisible();
 }

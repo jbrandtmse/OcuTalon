@@ -60,6 +60,9 @@
 ///     Decide started again) count as off: a decide is sent and answered as usual, and Precheck logs one warning for each (AC8);
 ///   - TestDailyCapBothPaths: the gateway's 403 and the precheck both give daily_cap, the day is marked once, and the host sink got one
 ///     budget.capped and three decision.recorded;
+///   - TestDailyCapPlainText (Story 29.6, DW-94): a plain-text 403 whose body is "daily cost cap reached" gives daily_cap too, with the same
+///     guarantees as the gateway step of TestDailyCapBothPaths (GatewayCap), one request sent, the day marked and decision.recorded then one
+///     budget.capped;
 ///   - OnAfterOneTest puts back every System Default Settings row, item setting and model family that a test changed, kills today's
 ///     day mark and ^OcuTalonTest("ProbeSink"), and starts Decide and ChatAgent again where the test changed them.
 /// Added by the QA stage of Story 1.6 (AD-8, AD-20, AD-26, AD-30):
@@ -1380,24 +1383,7 @@ Method TestDailyCapBothPaths()
 	Set fixture = "OcuTalon.Test.Agent.RunnerFixture"
 	Set mock = "OcuTalon.Test.Contract.Mock"
 	Set today = ##class(OcuTalon.Bridge.Time).LocalDate(##class(OcuTalon.Bridge.Time).NowUtc())
-	Do ..Put("Decide", "DailyCostCapUSD", 0)
-	Do ..SwapSink()
-	Do $$$AssertEquals($Data(^OcuTalonBP.UsageCapped(today)), 0, "the day is not marked")
-	Do $$$AssertEquals(..EventTypes($ClassMethod(fixture, "SinkCalls")), "", "and the sink has had no call")
-
-	// the gateway's 403
-	Set request = $ClassMethod(fixture, "NewRequest", "decide", "untrusted", "[[mock:daily-cap]] Triage this item.", .first)
-	Set ..ItemIds = ..ItemIds _ $ListBuild(first)
-	Set mark = $ClassMethod(mock, "LogMark")
-	Set sc = ..Run(request, .answer, .session)
-	Do $$$AssertStatusOK(sc, "the decide that the gateway refuses is answered")
-	Set row = $ClassMethod(fixture, "DecisionOf", first, "decide")
-	Do $$$AssertEquals($ClassMethod(fixture, "FallbackProblems", answer, row, "decide", "daily_cap"), "", "with a tellnow fallback with the reason daily_cap, in the answer, its XML and the row")
-	Do $$$AssertStatusOK($ClassMethod(mock, "LogSince", mark, .entries), "the mock's log is read")
-	Do $$$AssertEquals($ClassMethod(fixture, "FindRequests", entries, first).%Size(), 1, "the runner called the gateway once, and AI Hub did not send the refused request again")
-	Do $$$AssertTrue($Data(^OcuTalonBP.UsageCapped(today)) > 0, "and the day is marked")
-	Do $$$AssertEquals(..Targets($ClassMethod(fixture, "Headers", session, "Decide")), "ApprovalStartIn,Ens.Alarm,TriageAgent", "Decide sent the runner request and the timer, and no step: the call failed at its first request")
-	Do $$$AssertEquals(..EventTypes($ClassMethod(fixture, "SinkCalls")), "decision.recorded,budget.capped", "the 403's fallback alone fired decision.recorded and then one budget.capped")
+	Do ..GatewayCap("daily-cap")
 
 	// the precheck, for a decide and for a turn
 	Set request = $ClassMethod(fixture, "NewRequest", "decide", "untrusted", "Triage this item.", .second)
@@ -1430,7 +1416,44 @@ Method TestDailyCapBothPaths()
 	Do $$$AssertEquals(##class(OcuTalon.Bridge.Budget).State().capped, 1, "and Budget.State reports the cap reached")
 }
 
+/// The plain-text 403 of DW-94: the gateway answers HTTP 403 with Content-Type text/plain and the body "daily cost cap reached"
+/// (the mock scenario daily-cap-text), and AI Hub puts that body after "(HTTP 403): " in the failure text, so the decide gets daily_cap
+/// exactly as it does for Anthropic's error JSON. The same steps and assertions as the gateway step of TestDailyCapBothPaths (GatewayCap).
+Method TestDailyCapPlainText()
+{
+	If '..Prepare() Quit
+	Do ..GatewayCap("daily-cap-text")
+}
+
 /// --- helpers ---
+/// The gateway's HTTP 403 for the mock scenario <var>marker</var>, with the cap off, the day unmarked and Decide's host sink swapped to the probe
+/// sink: a decide gets a daily_cap fallback with every guarantee after one call of the runner, the day is marked, Decide sent the runner request
+/// and the timer and no step, and the sink got decision.recorded and then one budget.capped. The caller has run Prepare. The sink stays swapped.
+Method GatewayCap(marker As %String) [ Private ]
+{
+	Set fixture = "OcuTalon.Test.Agent.RunnerFixture"
+	Set mock = "OcuTalon.Test.Contract.Mock"
+	Set today = ##class(OcuTalon.Bridge.Time).LocalDate(##class(OcuTalon.Bridge.Time).NowUtc())
+	Do ..Put("Decide", "DailyCostCapUSD", 0)
+	Do ..SwapSink()
+	Do $$$AssertEquals($Data(^OcuTalonBP.UsageCapped(today)), 0, "the day is not marked")
+	Do $$$AssertEquals(..EventTypes($ClassMethod(fixture, "SinkCalls")), "", "and the sink has had no call")
+
+	// the gateway's 403
+	Set request = $ClassMethod(fixture, "NewRequest", "decide", "untrusted", "[[mock:"_marker_"]] Triage this item.", .first)
+	Set ..ItemIds = ..ItemIds _ $ListBuild(first)
+	Set mark = $ClassMethod(mock, "LogMark")
+	Set sc = ..Run(request, .answer, .session)
+	Do $$$AssertStatusOK(sc, "the decide that the gateway refuses is answered")
+	Set row = $ClassMethod(fixture, "DecisionOf", first, "decide")
+	Do $$$AssertEquals($ClassMethod(fixture, "FallbackProblems", answer, row, "decide", "daily_cap"), "", "with a tellnow fallback with the reason daily_cap, in the answer, its XML and the row")
+	Do $$$AssertStatusOK($ClassMethod(mock, "LogSince", mark, .entries), "the mock's log is read")
+	Do $$$AssertEquals($ClassMethod(fixture, "FindRequests", entries, first).%Size(), 1, "the runner called the gateway once, and AI Hub did not send the refused request again")
+	Do $$$AssertTrue($Data(^OcuTalonBP.UsageCapped(today)) > 0, "and the day is marked")
+	Do $$$AssertEquals(..Targets($ClassMethod(fixture, "Headers", session, "Decide")), "ApprovalStartIn,Ens.Alarm,TriageAgent", "Decide sent the runner request and the timer, and no step: the call failed at its first request")
+	Do $$$AssertEquals(..EventTypes($ClassMethod(fixture, "SinkCalls")), "decision.recorded,budget.capped", "the 403's fallback alone fired decision.recorded and then one budget.capped")
+}
+
 /// 1 when the production runs with every item in the CI override's environment and the entries of the runners are pointed at the
 /// mock key variable. Otherwise the test fails with the reason, and quits. The entries are put back by OnAfterAllTests. Today's day
 /// mark is removed first, so that no earlier class leaves the day capped.

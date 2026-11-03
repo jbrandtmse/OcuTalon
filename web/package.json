@@ -13,6 +13,7 @@
     "build": "node scripts/tokens.mjs --check && node scripts/payloads.mjs --check && node scripts/catalog.mjs --check && node scripts/brand.mjs && ng build",
     "e2e": "playwright test --project=chromium",
     "e2e:demo-path": "playwright test --project=demo-path",
+    "e2e:rehearsal": "playwright test --config=playwright.rehearsal.config.ts",
     "e2e:demo-switch": "playwright test --project=demo-switch",
     "e2e:answers": "playwright test --project=answers",
     "e2e:cards": "playwright test --project=cards",
@@ -20,6 +21,8 @@
     "e2e:online-demo": "playwright test --project=online-demo",
     "e2e:online-session": "playwright test --project=online-session",
     "e2e:online-allowance": "playwright test --project=online-allowance",
+    "e2e:online-demo-path": "playwright test --project=online-demo-path",
+    "e2e:online-visitors": "playwright test --project=online-visitors",
     "lint": "tsc -p tsconfig.e2e.json && for f in scripts/*.mjs; do node --check \"$f\" || exit 1; done",
     "test": "node --test scripts/*.test.mjs"
   },

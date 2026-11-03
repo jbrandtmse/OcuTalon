@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 
 import { STATE } from '../../e2e/support/api';
+import { loadedAfter } from '../../e2e/support/floor';
 import { chk, irisScript, quoted } from '../../e2e/support/iris';
 import {
   cleanPopulated,
@@ -77,7 +78,7 @@ test('O4: a Sign out that fails for real keeps the session resumable, and the re
   let release = (): void => undefined;
   try {
     const log = recordRequests(context);
-    await signInFromSplash(page);
+    await loadedAfter(page, () => signInFromSplash(page));
     await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
     const epoch = await epochOf(page);
     epochs.push(epoch);
@@ -123,7 +124,7 @@ test('O4: a Sign out that fails for real keeps the session resumable, and the re
 
     expect(await releaseReminder(rows.reminder), 'the row is let go').toBe(true);
     held = '';
-    await signInFromSplash(page);
+    await loadedAfter(page, () => signInFromSplash(page));
     await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
     expect(await epochOf(page), 'signing in resumes the same session').toBe(epoch);
 
@@ -140,7 +141,7 @@ test('O4: a Sign out that fails for real keeps the session resumable, and the re
     await expect.poll(async () => (await stateOf(rows!)).reminder, { message: 'the reminder is cancelled', timeout: 30_000 }).toBe('cancelled');
     expect((await stateOf(rows)).resumeHash, 'and the resume hash is cleared').toBe('');
 
-    await signInFromSplash(page);
+    await loadedAfter(page, () => signInFromSplash(page));
     await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
     const next = await epochOf(page);
     epochs.push(next);

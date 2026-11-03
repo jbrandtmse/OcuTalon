@@ -1,7 +1,8 @@
 /// The methods behind OcuTalon.Tools.Watch (AD-7): the read tools of the Diagnosis agent. Each takes no argument, so the model chooses nothing: it
 /// reads the incident whose Ref is the ItemId of the bridge context and whose OwnerRef is the context's (OcuTalon.Watch.EvidencePack.Scope), and
-/// answers {"items": []} when there is none. The reads go through OcuTalon.Watch.EvidencePack, so the namespace, the production and the messages
-/// are the incident's, never the model's. It extends OcuTalon.Tools.Result and returns only through Return, so that the model reads the answer as a
+/// answers {"items": []} when there is none. When there is none and the context's owner is eval, the tools answer from the recorded snapshot of the evaluation
+/// incident whose Ref is the ItemId (EvidencePack.EvalSnapshot), so that an evaluation diagnosis reads the recorded failures. The reads go through OcuTalon.Watch.EvidencePack, so the namespace, the production and the messages
+/// are the incident's or the recording's, never the model's. It extends OcuTalon.Tools.Result and returns only through Return, so that the model reads the answer as a
 /// JSON object and the results of a model step are bounded (AD-10). A tool method runs inside AI Hub's callback, so it writes nothing and makes no
 /// %AI call and no Python call (AD-6).
 Class OcuTalon.Tools.WatchReads Extends OcuTalon.Tools.Result
@@ -38,25 +39,28 @@ Parameter TRUSTEDOUTPUTREADITEMSETTINGS = 0;
 /// The oldest failed messages of the incident, at most five: {count, items}, each item {headerId | logRef, item, at, bodyClass, body, error}.
 ClassMethod ReadFailedMessages() As %DynamicObject
 {
-	Set incident = ##class(OcuTalon.Watch.EvidencePack).Scope()
-	If '$IsObject(incident) Quit ..Return({"items": []})
-	Quit ..Return(##class(OcuTalon.Watch.EvidencePack).FailedMessages(incident))
+	Set source = ##class(OcuTalon.Watch.EvidencePack).Scope()
+	If '$IsObject(source) Set source = ##class(OcuTalon.Watch.EvidencePack).EvalSnapshot()
+	If '$IsObject(source) Quit ..Return({"items": []})
+	Quit ..Return(##class(OcuTalon.Watch.EvidencePack).FailedMessages(source))
 }
 
 /// The event log of the sessions of those messages, at most twenty rows: {items}, each {logRef, at, type, item, text}.
 ClassMethod ReadEventLog() As %DynamicObject
 {
-	Set incident = ##class(OcuTalon.Watch.EvidencePack).Scope()
-	If '$IsObject(incident) Quit ..Return({"items": []})
-	Quit ..Return(##class(OcuTalon.Watch.EvidencePack).EventLog(incident))
+	Set source = ##class(OcuTalon.Watch.EvidencePack).Scope()
+	If '$IsObject(source) Set source = ##class(OcuTalon.Watch.EvidencePack).EvalSnapshot()
+	If '$IsObject(source) Quit ..Return({"items": []})
+	Quit ..Return(##class(OcuTalon.Watch.EvidencePack).EventLog(source))
 }
 
 /// The settings of the failing item: {item, settings}.
 ClassMethod ReadItemSettings() As %DynamicObject
 {
-	Set incident = ##class(OcuTalon.Watch.EvidencePack).Scope()
-	If '$IsObject(incident) Quit ..Return({"items": []})
-	Quit ..Return(##class(OcuTalon.Watch.EvidencePack).ItemSettings(incident))
+	Set source = ##class(OcuTalon.Watch.EvidencePack).Scope()
+	If '$IsObject(source) Set source = ##class(OcuTalon.Watch.EvidencePack).EvalSnapshot()
+	If '$IsObject(source) Quit ..Return({"items": []})
+	Quit ..Return(##class(OcuTalon.Watch.EvidencePack).ItemSettings(source))
 }
 
 }

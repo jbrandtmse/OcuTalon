@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
 import { post, sessionEvents, MESSAGES } from '../../e2e/support/api';
+import { loadedAfter } from '../../e2e/support/floor';
 import { allowanceRow, epochOf, mailCounts, removeSession, seedAllowance, seedIncomingMail, signInFromSplash, signOutGroup, turnRowsOf } from '../support';
 
 /**
@@ -36,7 +37,6 @@ const USED_UP = /^You've used this session's 50 messages for the hour \(messages
 const CARD_TEXT = /You've used this session's 50 messages for the hour\. You can send more (?:at|on (?:(?:Sun|Mon|Tues|Wednes|Thurs|Fri|Satur)day|(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) \d{1,2}(?:, \d{4})?) at) \d{2}:\d{2} ET, or install OcuTalon yourself to keep going: /;
 const EMAIL_LIMIT = /^You've simulated 20 emails this hour\. You can send more at (.+)\.$/;
 
-const mainOf = (page: Page): Locator => page.locator('main.main');
 const composer = (page: Page): Locator => page.getByRole('textbox', { name: 'Message OcuTalon' });
 const sendButton = (page: Page): Locator => page.locator('app-composer').getByRole('button', { name: 'Send', exact: true });
 const guideSend = (page: Page): Locator => page.locator('app-demo-guide [data-guide-focus="action"]');
@@ -48,8 +48,7 @@ const formSend = (page: Page): Locator => page.locator('app-simulated-mailbox .a
 
 /** Signs the demo account in at the page and returns its epoch, once the snapshot has loaded. */
 async function open(page: Page): Promise<string> {
-  await signInFromSplash(page);
-  await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
+  await loadedAfter(page, () => signInFromSplash(page));
   return epochOf(page);
 }
 

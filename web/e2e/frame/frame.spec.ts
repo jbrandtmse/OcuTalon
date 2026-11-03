@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page, type Response } from '@playwright/test';
 
 import { README_ACCOUNT, signInReadme, watchViolations } from '../sign-in/helpers';
+import { signInReadmeLoaded } from '../support/floor';
 import { changeSnapshot } from '../support/api';
 
 /**
@@ -26,6 +27,8 @@ async function realSnapshot(page: Page): Promise<Snapshot> {
 const themeButton = (page: Page, name = 'Theme: System'): Locator => page.getByRole('button', { name, exact: true });
 const accountButton = (page: Page): Locator => page.getByRole('button', { name: README_ACCOUNT.user, exact: true });
 const traceButton = (page: Page): Locator => page.getByRole('button', { name: 'Visual Trace', exact: true });
+/** The header's Demo view switch (Story 4.9). */
+const demoViewSwitch = (page: Page): Locator => page.getByRole('switch', { name: 'Demo view', exact: true });
 
 /** The heading that the About dialog names itself with, for a snapshot's version. */
 const aboutTitle = (version: unknown): string => (typeof version === 'string' && version !== '' ? `OcuTalon ${version}` : 'OcuTalon');
@@ -60,7 +63,7 @@ function tokenColor(page: Page, token: string): Promise<string> {
 
 /** F1: the landmarks, the headings and the order of the page. */
 test('F1: landmarks, headings and order', async ({ page }) => {
-  await signInReadme(page);
+  await signInReadmeLoaded(page);
   await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
   await expect(page).toHaveTitle('OcuTalon');
 
@@ -106,7 +109,7 @@ test('F2: demo mode off', async ({ page }) => {
     snapshot['onlineDemo'] = false;
     snapshot['nextReset'] = '2099-01-01T00:00:00Z';
   });
-  await signInReadme(page);
+  await signInReadmeLoaded(page);
   await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
 
   await expect(page.locator('.context-badge')).toHaveCount(0);
@@ -121,9 +124,9 @@ test('F2: demo mode off', async ({ page }) => {
   expect(main.x + main.width, "main ends at the viewport's right edge").toBeCloseTo(viewport, 0);
 });
 
-/** F3: the header, left to right, on the real stack (demo mode on): the Visual Trace button sits between the badge and the theme button. */
+/** F3: the header, left to right, on the real stack (demo mode on): the Demo view switch follows the badge, and the Visual Trace button sits between the switch and the theme button. */
 test('F3: the header', async ({ page }) => {
-  await signInReadme(page);
+  await signInReadmeLoaded(page);
   await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
 
   const home = page.locator('app-header a[href="#/"]');
@@ -139,13 +142,15 @@ test('F3: the header', async ({ page }) => {
     mark: (await mark.boundingBox())!,
     wordmark: (await wordmark.boundingBox())!,
     badge: (await badge.boundingBox())!,
+    demoView: (await demoViewSwitch(page).boundingBox())!,
     trace: (await traceButton(page).boundingBox())!,
     theme: (await themeButton(page).boundingBox())!,
     account: (await accountButton(page).boundingBox())!,
   };
   expect(boxes.mark.x + boxes.mark.width, 'the mark, then the wordmark').toBeLessThanOrEqual(boxes.wordmark.x + 2);
   expect(boxes.wordmark.x + boxes.wordmark.width, 'then the badge').toBeLessThanOrEqual(boxes.badge.x);
-  expect(boxes.badge.x + boxes.badge.width, 'then the Visual Trace, theme and account buttons at the right').toBeLessThanOrEqual(boxes.trace.x);
+  expect(boxes.badge.x + boxes.badge.width, 'then the Demo view switch').toBeLessThanOrEqual(boxes.demoView.x);
+  expect(boxes.demoView.x + boxes.demoView.width, 'then the Visual Trace, theme and account buttons at the right').toBeLessThanOrEqual(boxes.trace.x);
   expect(boxes.trace.x + boxes.trace.width, 'the Visual Trace button comes before the theme button').toBeLessThanOrEqual(boxes.theme.x);
   expect(boxes.theme.x + boxes.theme.width).toBeLessThanOrEqual(boxes.account.x);
   const viewport = await page.evaluate(() => document.documentElement.clientWidth);
@@ -154,7 +159,9 @@ test('F3: the header', async ({ page }) => {
   expect(await badge.evaluate((el) => (el as HTMLElement).tabIndex), 'the badge takes no focus').toBe(-1);
   await home.focus();
   await page.keyboard.press('Tab');
-  await expect(traceButton(page), 'Tab goes from the home link to the Visual Trace button, past the badge').toBeFocused();
+  await expect(demoViewSwitch(page), 'Tab goes from the home link to the Demo view switch, past the badge').toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(traceButton(page), 'then to the Visual Trace button').toBeFocused();
   await page.keyboard.press('Tab');
   await expect(themeButton(page), 'and then to the theme button').toBeFocused();
 });
@@ -166,7 +173,7 @@ for (const demoMode of [true, false]) {
       snapshot['onlineDemo'] = true;
       snapshot['demoMode'] = demoMode;
     });
-    await signInReadme(page);
+    await signInReadmeLoaded(page);
     await expect(page.locator('app-header .context-badge')).toHaveText('Online demo');
   });
 }
@@ -228,7 +235,7 @@ test('F4: a storage that throws reads System, and a choice still applies', async
 
 /** F5: the account menu. */
 test('F5: the account menu holds About OcuTalon and Sign out', async ({ page }) => {
-  await signInReadme(page);
+  await signInReadmeLoaded(page);
   await expect(accountButton(page)).toBeVisible();
   await accountButton(page).click();
   await expect(page.getByRole('menuitem')).toHaveText(['About OcuTalon', 'Sign out']);
@@ -236,7 +243,7 @@ test('F5: the account menu holds About OcuTalon and Sign out', async ({ page }) 
 
 /** F6: the About dialog. */
 test('F6: the About dialog', async ({ page }) => {
-  await signInReadme(page);
+  await signInReadmeLoaded(page);
   const snapshot = await realSnapshot(page);
   const title = aboutTitle(snapshot['version']);
   await expect(accountButton(page)).toBeVisible();
@@ -303,7 +310,7 @@ test('F6: no version and no model', async ({ page }) => {
     snapshot['version'] = '';
     snapshot['models'] = { triage: '', diagnosis: '', chat: '' };
   });
-  await signInReadme(page);
+  await signInReadmeLoaded(page);
   await expect(accountButton(page)).toBeVisible();
   const dialog = await openAbout(page, 'OcuTalon');
   await expect(dialog.getByRole('heading', { level: 2 })).toHaveText('OcuTalon');
@@ -320,7 +327,7 @@ test("F6: About names the snapshot's version and the Triage model, an unknown id
     snapshot['version'] = '9.8.7-qa';
     snapshot['models'] = { triage: 'claude-opus-9-9', diagnosis: 'Diagnosis QA model', chat: 'Chat QA model' };
   });
-  await signInReadme(page);
+  await signInReadmeLoaded(page);
   await expect(accountButton(page)).toBeVisible();
   const dialog = await openAbout(page, 'OcuTalon 9.8.7-qa');
   await expect(dialog.getByText('Default model: claude-opus-9-9.', { exact: true })).toBeVisible();
@@ -333,7 +340,7 @@ test('F6: an empty Triage model leaves the Default model line out, whatever the 
     snapshot['version'] = '9.8.7-qa';
     snapshot['models'] = { triage: '', diagnosis: 'Diagnosis QA model', chat: 'Chat QA model' };
   });
-  await signInReadme(page);
+  await signInReadmeLoaded(page);
   await expect(accountButton(page)).toBeVisible();
   const dialog = await openAbout(page, 'OcuTalon 9.8.7-qa');
   await expect(dialog.getByText('Default model')).toHaveCount(0);
@@ -379,7 +386,7 @@ test('a failed snapshot: Account, no badge, and About without a model', async ({
 
 /** F7: the ghost buttons are tall enough and round enough, and the keyboard focus ring comes from the base rule. */
 test('F7: ghost buttons and the focus ring', async ({ page }) => {
-  await signInReadme(page);
+  await signInReadmeLoaded(page);
   await expect(accountButton(page)).toBeVisible();
   const focus = await tokenColor(page, '--focus');
   const surface = await tokenColor(page, '--surface');
@@ -396,6 +403,8 @@ test('F7: ghost buttons and the focus ring', async ({ page }) => {
   };
 
   await page.locator('app-header a.home').focus();
+  await page.keyboard.press('Tab');
+  await expect(demoViewSwitch(page), 'the Demo view switch follows the home link').toBeFocused();
   await page.keyboard.press('Tab');
   await expect(traceButton(page)).toBeFocused();
   await expectRing(traceButton(page), 'the Visual Trace button');
@@ -420,7 +429,7 @@ test('F7: ghost buttons and the focus ring', async ({ page }) => {
 
 /** F8: the tooltip, for the pointer only. */
 test('F8: the tooltip shows after 300 ms for the pointer, never for focus, and Escape hides it', async ({ page }) => {
-  await signInReadme(page);
+  await signInReadmeLoaded(page);
   await expect(accountButton(page)).toBeVisible();
   const tooltip = page.locator('app-tooltip');
   const theme = themeButton(page);
@@ -462,7 +471,7 @@ test('F8: the tooltip shows after 300 ms for the pointer, never for focus, and E
 
 /** F8: the tooltip is for a pointer resting on the button; one that leaves within the 300 ms shows nothing. */
 test('F8: a pointer that leaves the theme button within 300 ms shows no tooltip', async ({ page }) => {
-  await signInReadme(page);
+  await signInReadmeLoaded(page);
   await expect(accountButton(page)).toBeVisible();
   // The page drives the pointer's enter and leave itself, 250 ms apart, so that the runner's speed cannot move the gap.
   const appeared = await themeButton(page).evaluate(async (button) => {
@@ -483,7 +492,7 @@ test('F8: a pointer that leaves the theme button within 300 ms shows no tooltip'
 
 /** F8: no tooltip covers the theme menu while it is open, when the pointer comes back onto the button. */
 test('F8: the tooltip stays away while the theme menu is open', async ({ page }) => {
-  await signInReadme(page);
+  await signInReadmeLoaded(page);
   await expect(accountButton(page)).toBeVisible();
   await themeButton(page).click();
   const dark = page.getByRole('menuitemradio', { name: 'Dark' });
@@ -501,7 +510,7 @@ test('F9: /state is requested once and answers the new keys', async ({ page }) =
   page.on('response', (response) => {
     if (new URL(response.url()).pathname === STATE) answered.push(response);
   });
-  await signInReadme(page);
+  await signInReadmeLoaded(page);
   await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
   const body = (await answered[0]!.json()) as Snapshot;
   expect(Object.keys(body)).toEqual(['version', 'instanceZone', 'epoch', 'streams', 'chat', 'rail', 'user', 'onlineDemo', 'demoMode', 'models', 'telegram', 'status', 'phone', 'mailbox', 'guide']);

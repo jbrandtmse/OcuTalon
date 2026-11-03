@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
 import { signIn } from '../sign-in/helpers';
+import { loadedAfter } from '../support/floor';
 import { fixtureUser, seedDecision, seedTurns, sendItem, sendItemDecision, sendNotification } from '../support/iris';
 import { countFocusins, fromBottom, plain, scrollListTo, tokenColor } from '../support/page';
 
@@ -47,7 +48,7 @@ const cardOf = (page: Page, marker: string): Locator => page.locator('app-chat-p
 /** Signs the notice user in and waits for the loaded page with its composer. */
 async function open(page: Page): Promise<void> {
   const { user, password } = fixtureUser('NOTICE');
-  await signIn(page, user, password);
+  await loadedAfter(page, () => signIn(page, user, password));
   await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
   await expect(page.getByRole('textbox', { name: 'Message OcuTalon' })).toBeVisible();
 }

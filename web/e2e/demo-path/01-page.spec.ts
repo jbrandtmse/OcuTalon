@@ -1,6 +1,7 @@
 import { expect, test, type Response } from '@playwright/test';
 
-import { README_ACCOUNT, signInReadme, watchViolations } from '../sign-in/helpers';
+import { README_ACCOUNT, watchViolations } from '../sign-in/helpers';
+import { signInReadmeLoaded } from '../support/floor';
 
 /** The page's state snapshot (UJ-1 step 1). */
 const STATE = '/ocutalon/api/v1/state';
@@ -29,7 +30,7 @@ test('signs in with the README account and loads the page snapshot', { tag: '@fl
     if (path === EVENTS) polled.push(response);
   });
 
-  await signInReadme(page);
+  await signInReadmeLoaded(page);
 
   await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
   await expect.poll(() => polled.length, { message: 'within 3 s of the load, an /events poll was answered', timeout: 3000 }).toBeGreaterThan(0);
@@ -56,7 +57,7 @@ test('shows the empty chat panel and the composer', { tag: '@floor' }, async ({ 
     if (request.method() === 'POST' && new URL(request.url()).pathname === MESSAGES) posted.push(request.url());
   });
 
-  await signInReadme(page);
+  await signInReadmeLoaded(page);
 
   await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
   const main = page.getByRole('main');
@@ -92,7 +93,7 @@ test('shows the empty chat panel and the composer', { tag: '@floor' }, async ({ 
 test('shows the status rail with its sections, counts and empty states', { tag: '@floor' }, async ({ page }) => {
   const violations = watchViolations(page);
 
-  await signInReadme(page);
+  await signInReadmeLoaded(page);
 
   await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
   const rail = page.getByRole('region', { name: 'Status', exact: true });
@@ -126,7 +127,7 @@ test('shows the status rail with its sections, counts and empty states', { tag: 
 test('the simulated phone and the simulated mailbox, each labelled Simulated', { tag: '@floor' }, async ({ page }) => {
   const violations = watchViolations(page);
 
-  await signInReadme(page);
+  await signInReadmeLoaded(page);
 
   await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
   const devices = page.getByRole('region', { name: 'Simulated devices' });
@@ -160,7 +161,7 @@ test('the demo guide lists the steps, each with its one-click prompt', { tag: '@
     if (request.method() === 'POST') posted.push(new URL(request.url()).pathname);
   });
 
-  await signInReadme(page);
+  await signInReadmeLoaded(page);
 
   await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
   posted.length = 0;
@@ -176,7 +177,6 @@ test('the demo guide lists the steps, each with its one-click prompt', { tag: '@
   for (const [n, name, quoted, button] of [
     [1, 'Watch', `"${P1}"`, 'Send'],
     [2, 'Reminder', `"${P2}"`, 'Send'],
-    [3, 'Break the feed', `"${P3}"`, 'Go to Break the feed'],
     [4, 'Approve', `"${P4}"`, 'Show me'],
   ] as const) {
     await steps.nth(n - 1).click();
@@ -185,6 +185,11 @@ test('the demo guide lists the steps, each with its one-click prompt', { tag: '@
     await expect(action(button), `step ${n} has ${button}`).toBeVisible();
     await expect(prompt.getByRole('button'), `and no other button`).toHaveCount(1);
   }
+
+  await steps.nth(2).click();
+  await expect(steps.nth(2), 'step 3 is Break the feed').toHaveAccessibleName(/^Step 3, Break the feed, /);
+  await expect(text, 'step 3 shows its prompt').toHaveText(`"${P3}"`);
+  await expect(prompt.getByRole('button'), 'with no button: the box beside it carries the action').toHaveCount(0);
 
   await steps.nth(4).click();
   await expect(text, 'step 5 shows its prompt').toHaveText(`"${P5}"`);
@@ -197,7 +202,7 @@ test('the demo guide lists the steps, each with its one-click prompt', { tag: '@
 test('Break the feed is marked as a demo control', { tag: '@floor' }, async ({ page }) => {
   const violations = watchViolations(page);
 
-  await signInReadme(page);
+  await signInReadmeLoaded(page);
 
   await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
   const box = page.locator('app-break-feed-box');

@@ -1,9 +1,10 @@
 import { expect, test, type BrowserContext, type Locator, type Page } from '@playwright/test';
 
 import { EVENTS, MESSAGES, STATE } from '../e2e/support/api';
+import { loadedAfter } from '../e2e/support/floor';
 import { announcements, recordAnnouncements } from '../e2e/support/page';
 import { postTurn, type Cursor, type Turn } from '../e2e/support/trace';
-import { BUSY_HEADER, DEMO_BUSY_TEXT, httpConnections, publicValue, readStatus, removeSession, setPublic, signInFromSplash, signInOverHttpFrom, signOutGroup, SIGN_OUT } from './support';
+import { BUSY_HEADER, DEMO_BUSY_TEXT, expectTraceQuery, httpConnections, publicValue, readStatus, removeSession, setPublic, signInFromSplash, signInOverHttpFrom, signOutGroup, SIGN_OUT } from './support';
 
 /**
  * Story 16.5, the demo's busy state on the page (B1 to B3; matrix rows 7 and 9 to 12). The project runs on the online-demo throwaway, with
@@ -13,7 +14,8 @@ import { BUSY_HEADER, DEMO_BUSY_TEXT, httpConnections, publicValue, readStatus, 
  * - B1: page P signs in from the splash and makes a turn, session S2 signs in over HTTP, and B1 sets the cap from a reading of the HTTP
  *   view of the connections so that the status is busy with these two sessions signed in. A CSP session is not counted in the connections
  *   on build 154 (Task 0 (b)), so the cap alone carries the state and "a place is free" is a cap one higher, set after S2 signs out. The
- *   status says busy with the marker header; a
+ *   status says busy with the marker header, in its plain and in its trace form (Story 29.7: fewer than 6 visitors, so the
+ *   connections alone make both busy; with the cap one higher both are free); a
  *   third sign-in over HTTP is let in (row 7) and signed out at once; a fresh splash shows the busy error with the link, focused, with
  *   the button enabled; P types "draft text" and presses "Open my conversation in Visual Trace": no tab opens, the "Demo busy" banner
  *   shows with the README action and the composer keeps the text. When S2 signs out the banner clears within 15 s, and the next press
@@ -21,8 +23,11 @@ import { BUSY_HEADER, DEMO_BUSY_TEXT, httpConnections, publicValue, readStatus, 
  * - B2: a message that the server refuses with 503 comes back to an empty composer with no "Not sent" and no announcement, the banner shows
  *   while the 503s last and clears at the first 2xx poll, and Send then posts the text; with other text already in the composer the message
  *   stays as "Not sent" with Retry sending (today's failure).
- * - B3: a reply's Trace link, pressed while the status says busy, opens nothing and shows the banner; the check asks the status with a
- *   unique ?t= query; a quiet re-check that fails keeps the banner, and the real status clears it.
+ * - B2b (DW-252): the guide's prompt button, pressed while the server refuses its post with 503, leaves no entry behind: no bubble, no "Not
+ *   sent", no Retry sending, an empty composer and no announcement, and the "Demo busy" banner shows, as in B2.
+ * - B3: a reply's Trace link, pressed while the status says busy, opens nothing and shows the banner; the check asks the status in its
+ *   trace form, with exactly the keys for (trace) and t (a unique time), and so does every quiet re-check; a quiet re-check that fails
+ *   keeps the banner, and the real status clears it.
  * - B3b: the same press while the status check fails (an answer that is not JSON) opens the tab and shows no banner.
  * - B3c: the same press while the status never answers opens the tab within the click's activation, and shows no banner.
  * The file runs in full Chromium with its popup blocker on (Playwright's default launch turns the blocker off, and its headless shell has
@@ -39,15 +44,14 @@ const CONVERSATION_NAME = 'Open my conversation in Visual Trace (opens in a new 
 const TRACE_NAME = 'Trace (opens in a new tab)';
 const BANNER = '[data-banner="demoBusy"]';
 
-const mainOf = (page: Page): Locator => page.locator('main.main');
 const composer = (page: Page): Locator => page.getByRole('textbox', { name: 'Message OcuTalon' });
+const guideSend = (page: Page): Locator => page.locator('app-demo-guide [data-guide-focus="action"]');
 const traceMenu = (page: Page): Locator => page.getByRole('button', { name: 'Visual Trace', exact: true });
 const refusal = { error: { code: 'busy', message: 'Something went wrong inside OcuTalon. Try again.' } };
 
-/** Signs the demo account in at the page and waits for the loaded snapshot; its epoch and a cursor at the end of its session stream. */
+/** Signs the demo account in at the page and waits for the loaded snapshot (loadedAfter); its epoch and a cursor at the end of its session stream. */
 async function open(page: Page): Promise<{ epoch: string; cursor: Cursor }> {
-  await signInFromSplash(page);
-  await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
+  await loadedAfter(page, () => signInFromSplash(page));
   const state = (await (await page.request.get(STATE)).json()) as { epoch: string; streams: { session: number } };
   return { epoch: state.epoch, cursor: { seq: state.streams.session } };
 }
@@ -101,10 +105,11 @@ test('B1: with the demo busy, a trace press shows the banner and opens nothing, 
     await setPublic('connectionCap', String(view + reserve));
     const busy = await readStatus(status);
     expect(busy, 'the status is busy with exactly P and S2, with the marker header and the status code 200').toEqual({ busy: true, header: '1', code: 200 });
+    // Story 29.7, row 8: the trace form is busy from the connections too, with fewer than 6 visitors, and has the same header and code.
+    expect(await readStatus(status, 'trace'), 'the trace form is busy as well, with the marker header and the status code 200').toEqual({ busy: true, header: '1', code: 200 });
 
-    // Row 7: a request that is not proxied is exempt. The cap goes one lower first, where a proxied sign-in is refused (the unit's row 5),
-    // so only the exemption lets the third sign-in in; it is signed out at once and the cap goes back to the view plus the reserve.
-    await setPublic('connectionCap', String(view + reserve - 1));
+    // Row 7: a request that is not proxied is exempt. The status is busy, where a proxied sign-in is refused (the unit's row 5), so only the
+    // exemption lets the third sign-in in; it is signed out at once.
     const third = await signInOverHttpFrom(playwright, '203.0.113.212');
     others.push(third.api);
     try {
@@ -115,7 +120,6 @@ test('B1: with the demo busy, a trace press shows the banner and opens nothing, 
       epochs.push(((await stateThree.json()) as { epoch: string }).epoch);
     } finally {
       await third.api.get(SIGN_OUT).catch(() => undefined);
-      await setPublic('connectionCap', String(view + reserve));
     }
     await expect.poll(async () => (await readStatus(status)).busy, { message: 'the demo is busy again with P and S2 once S3 has signed out', timeout: 30_000 }).toBe(true);
 
@@ -155,6 +159,7 @@ test('B1: with the demo busy, a trace press shows the banner and opens nothing, 
     await second.api.get(SIGN_OUT);
     await setPublic('connectionCap', String(view + reserve + 1));
     expect((await readStatus(status)).busy, 'the status is no longer busy').toBe(false);
+    expect((await readStatus(status, 'trace')).busy, 'nor is the trace form').toBe(false);
     await expect(page.locator(BANNER), 'the banner clears within 15 s of a place being free').toHaveCount(0, { timeout: 15_000 });
     await traceMenu(page).click();
     const [popup] = await Promise.all([context.waitForEvent('page'), conversation.click()]);
@@ -245,6 +250,43 @@ test('B2: a message refused with 503 comes back to the composer, and stays as No
   }
 });
 
+test('B2b: the guide prompt refused with 503 leaves the chat with no Not sent, an empty composer and the busy banner', async ({ page }) => {
+  let epoch = '';
+  try {
+    await recordAnnouncements(page);
+    ({ epoch } = await open(page));
+    await expect(guideSend(page), "the guide's prompt button is usable").not.toHaveAttribute('aria-disabled', 'true');
+    const bubbles = page.locator('app-chat-panel .bubble');
+    const before = await bubbles.count();
+
+    await page.route(`**${EVENTS}*`, async (route) => {
+      await route.fulfill({ status: 503, json: refusal });
+    });
+    let refused = 0;
+    const post = async (route: import('@playwright/test').Route): Promise<void> => {
+      if (refused === 0) {
+        refused += 1;
+        await route.fulfill({ status: 503, json: refusal });
+        return;
+      }
+      await route.continue();
+    };
+    await page.route(`**${MESSAGES}`, post);
+    await guideSend(page).click();
+    await expect.poll(() => refused, { message: "the prompt's post was answered with 503" }).toBe(1);
+    await expectBanner(page, 'after the 503');
+    await expect(bubbles, "the prompt's entry has left the chat").toHaveCount(before);
+    await expect(page.locator('app-chat-panel .failed'), 'with no "Not sent"').toHaveCount(0);
+    await expect(page.getByRole('button', { name: 'Retry sending' }), 'and no Retry sending').toHaveCount(0);
+    await expect(composer(page), "the composer holds nothing: the prompt's text did not move into it").toHaveValue('');
+    expect(await announcements(page, 'Message not sent'), 'nothing says "Message not sent"').toBe(0);
+  } finally {
+    await page.unrouteAll({ behavior: 'ignoreErrors' });
+    await signOutGroup(page);
+    if (epoch) await removeSession(epoch);
+  }
+});
+
 test('B3: a reply\'s Trace link pressed while the status says busy opens nothing and shows the banner', async ({ context, page }) => {
   let epoch = '';
   try {
@@ -264,19 +306,19 @@ test('B3: a reply\'s Trace link pressed while the status says busy opens nothing
     await expectBanner(page, 'after the press');
     const check = new URL(asked[0] ?? 'http://stack.invalid/none');
     expect(check.pathname, 'the press asks the public status').toBe('/ocutalon/public/status');
-    expect([...check.searchParams.keys()], 'with one query, t').toEqual(['t']);
-    expect(check.searchParams.get('t'), 'a time in milliseconds, so that no cache answers').toMatch(/^\d{13}$/);
+    expectTraceQuery(check, 'the press');
     await page.waitForTimeout(3000);
     expect(opened().length, 'no new page opens within 3 s of the press').toBe(0);
 
     // A quiet re-check that fails (no answer it can read) does not say the demo is free: the banner stays and the next re-check is armed.
     await page.unroute('**/ocutalon/public/status*');
-    let failed = 0;
+    const rechecks: string[] = [];
     await page.route('**/ocutalon/public/status*', async (route) => {
-      failed += 1;
+      rechecks.push(route.request().url());
       await route.abort();
     });
-    await expect.poll(() => failed, { message: 'two quiet re-checks fail, the second armed by the first', timeout: 30_000 }).toBeGreaterThanOrEqual(2);
+    await expect.poll(() => rechecks.length, { message: 'two quiet re-checks fail, the second armed by the first', timeout: 30_000 }).toBeGreaterThanOrEqual(2);
+    for (const url of rechecks) expectTraceQuery(new URL(url), 'a quiet re-check');
     await expect(page.locator(BANNER), 'the banner stays through a failed re-check').toHaveCount(1);
     await page.unroute('**/ocutalon/public/status*');
     await expect(page.locator(BANNER), 'with the real status, the quiet re-check clears the banner').toHaveCount(0, { timeout: 25_000 });

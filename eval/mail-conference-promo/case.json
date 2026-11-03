@@ -1,0 +1,18 @@
+{
+  "name": "mail-conference-promo",
+  "kind": "item",
+  "heldOut": true,
+  "description": "A conference ticket discount: marketing with nothing for the user to do, so it is ignored.",
+  "expectation": {
+    "outcome": "ignore"
+  },
+  "recordedBy": "written for the evaluation set (Story 9.3)",
+  "item": {
+    "itemId": "mail-conference-promo",
+    "channel": "mailbox",
+    "provenance": "untrusted",
+    "sender": "Integration Summit <tickets@integration-summit.example>",
+    "subject": "Save 20 percent on conference tickets this month",
+    "text": "Hello, tickets for the Integration Summit are 20 percent cheaper until the end of the month. Pick your sessions, bring your team and save. You are receiving this because you attended last year."
+  }
+}

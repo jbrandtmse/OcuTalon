@@ -63,10 +63,10 @@
 ///     send logs one Type 3 warning and the row stays as saved. An accepted approved, rejected or expired outcome also sends one Notification of kind answered
 ///     (answered.approved and answered.rejected with the channel and time of the answer, answered.expired with the request's ExpiresAt; the request's Ref and the
 ///     incident's; no DecisionRef) to each recipient, through the same Move and Tell as the event, even when the state stays awaiting_approval or fixing, and an
-///     approved one before the Execute goes out (Story 7.3). An accepted final or interrupted FixResult (Story 7.3) sends each recipient one Notification of
+///     approved one before the Execute goes out (Story 7.3). An accepted FixResult, final, interrupted or in progress (Story 7.3, 30.5), sends each recipient one Notification of
 ///     kind result the same way (Notice.ResultKey picks the catalog key by the Result texts convention from the request's state and the result's counts, and
 ///     Notice.ResultSlots builds the slots, with the item noun of the request's dry run, else the incident's, else the code noun; the request's Ref and the
-///     incident's; no DecisionRef); a progress FixResult, a refused one, and one whose slots cannot be built (one Type 3 warning, LOGRESULT) send none. A refused
+///     incident's; no DecisionRef); a progress FixResult sends the one notification result.stillResending (the incident stays fixing), and a refused one, and one whose slots cannot be built (one Type 3 warning, LOGRESULT) send none. A refused
 ///     ApprovalOutcome or FixResult writes, sends and publishes nothing and logs one Type 4
 ///     line; a repeat of an outcome is refused because the request's row does not show it any more.
 ///   - An IncidentCommand is answered synchronously with a CommandResult (AD-1): unknown_command, not_found (also for a dismiss from a session that is not a
@@ -95,6 +95,13 @@
 ///     of the windows and the round's time), then publishes the incident event. A save that fails cancels the request. Execute goes out for one approved request
 ///     at a time (the table's rows, Apply).
 ///   - Purge deletes the incidents closed before a cutoff, with their groups and their fix runs (AD-27).
+///   - An evaluation incident (Story 9.6; AD-22, AD-30): an OcuTalon.Eval.Msg.IncidentCase from EvalIn, with a Ref that EvalIn minted and the text of a recorded
+///     reader snapshot, goes to EvalCase and nowhere else in this class. It builds the pack with EvidencePack.Build, sends Decide the request that Diagnose
+///     sends (DiagnoseRequest), with owner eval and the case's Ref as ItemId, and, when Decide answers, sends EvalSink one OcuTalon.Msg.ItemDecision (ItemId the
+///     Ref, SourceItemId the case's name, OwnerRef eval, no Channel, and the answer's DecisionRef, Outcome, Fallback and FallbackReason). Every failure (a snapshot
+///     that does not build a pack, a send to Decide that fails, an error answer, an answer that is not a DecisionResponse) ends the case as a fallback
+///     ItemDecision (Fallback 1, reason error, outcome tellnow, no DecisionRef) with one Type 3 warning (EvalRefused). It writes no Incident and no
+///     FailureGroup row, starts no waiter, asks for no dry run, raises no request, sends no notice, publishes no event and tells nobody.
 ///   - Any other request class is an error that names the class.
 Class OcuTalon.Watch.IncidentManager Extends Ens.BusinessProcess
 {
@@ -184,6 +191,14 @@ Parameter INCIDENTEVENT = "incident";
 
 Parameter LOGDIAGNOSE = "IncidentManager could not diagnose incident ";
 
+/// The item that receives the decision of an evaluation incident (AD-22), and the start of the warning for an evaluation incident that ended as a fallback.
+Parameter EVALSINK = "EvalSink";
+
+Parameter LOGEVAL = "IncidentManager could not diagnose the evaluation incident ";
+
+/// The outcome of a fallback decision (Msg.Enum OUTCOME).
+Parameter REFUSEDOUTCOME = "tellnow";
+
 Parameter LOGNOTICE = "IncidentManager could not notice incident ";
 
 Parameter LOGPROPOSE = "IncidentManager could not propose the fix of incident ";
@@ -215,6 +230,7 @@ Method OnRequest(request As %Library.Persistent, Output response As %Library.Per
 		If request.%IsA("OcuTalon.Msg.IncidentCommand") Quit ..Command(request, .response)
 		If request.%IsA("OcuTalon.Bridge.Msg.ApprovalOutcome") Quit ..Outcome(request)
 		If request.%IsA("OcuTalon.Fix.Msg.FixResult") Quit ..Result(request)
+		If request.%IsA("OcuTalon.Eval.Msg.IncidentCase") Quit ..EvalCase(request)
 	}
 	Quit $SYSTEM.Status.Error(5001, "IncidentManager does not handle a request of the class '"_$Select($IsObject(request): $ClassName(request), 1: "none")_"'")
 }
@@ -225,6 +241,7 @@ Method OnRequest(request As %Library.Persistent, Output response As %Library.Per
 /// handled by OnError, so no answer comes with it.
 Method OnResponse(request As %Library.Persistent, ByRef response As %Library.Persistent, callrequest As %Library.Persistent, callresponse As %Library.Persistent, pCompletionKey As %String) As %Status
 {
+	If $IsObject(request) && request.%IsA("OcuTalon.Eval.Msg.IncidentCase") Quit ..EvalAnswered(request, $Get(callresponse), pCompletionKey)
 	If '$IsObject(request) || 'request.%IsA("OcuTalon.Watch.Msg.Settle") Quit $$$OK
 	If pCompletionKey = ..#DIAGNOSEKEY {
 		If $IsObject($Get(callresponse)) && callresponse.%IsA("OcuTalon.Bridge.Msg.DecisionResponse") Quit ..Answered(request.IncidentRef, callresponse)
@@ -247,6 +264,10 @@ Method OnResponse(request As %Library.Persistent, ByRef response As %Library.Per
 /// (Unproposed with later 1). An error with any other key stays an error, so that the framework logs it.
 Method OnError(request As %Library.Persistent, ByRef response As %Library.Persistent, callrequest As %Library.Persistent, pErrorStatus As %Status, pCompletionKey As %String) As %Status
 {
+	If $IsObject(request) && request.%IsA("OcuTalon.Eval.Msg.IncidentCase") {
+		If pCompletionKey = ..#DIAGNOSEKEY Do ..EvalRefused(request, pErrorStatus)
+		Quit $$$OK
+	}
 	If '$IsObject(request) || 'request.%IsA("OcuTalon.Watch.Msg.Settle") Quit pErrorStatus
 	If pCompletionKey = ..#DRYRUNKEY {
 		Do ..Unproposed(request.IncidentRef, $SYSTEM.Status.GetErrorText(pErrorStatus))
@@ -629,18 +650,38 @@ Method Diagnose(incident As OcuTalon.Data.Incident) As %Status [ Private ]
 	Set payload.Ref = incident.Ref
 	Set payload.Stage = "diagnosing"
 	Do ..Tell(incident, "watch.progress", payload)
+	Set request = ..DiagnoseRequest(incident.Ref, incident.OwnerRef, incident.NoticeCount, pack)
+	Set sc = ..SendDiagnose(request)
+	If $$$ISERR(sc) Do ..Refused(incident.Ref, sc)
+	Quit $$$OK
+}
+
+/// The request to Decide for a diagnosis, built for a live incident and for an evaluation incident alike: kind diagnose, provenance untrusted, itemId as ItemId,
+/// owner as OwnerRef, the SuperSession as TraceRef, this process's own session as ThreadSessionId, the code-written Summary and the pack as Input.
+Method DiagnoseRequest(itemId As %String, owner As %String, count As %Integer, pack As %DynamicObject) As OcuTalon.Bridge.Msg.Request [ Private ]
+{
 	Set request = ##class(OcuTalon.Bridge.Msg.Request).%New()
 	Set request.Kind = ..#KIND
 	Set request.Provenance = ..#PROVENANCE
-	Set request.ItemId = incident.Ref
-	Set request.OwnerRef = incident.OwnerRef
+	Set request.ItemId = itemId
+	Set request.OwnerRef = owner
 	Set request.TraceRef = ..%SuperSession
 	Set request.ThreadSessionId = ..%SessionId
-	Set request.Summary = $Extract(incident.NoticeCount_" failures at "_pack.item, 1, ..#SUMMARYMAX)
+	Set request.Summary = ..SummaryOf(count, pack)
 	Set request.Input = ##class(OcuTalon.Watch.EvidencePack).Input(pack)
-	Set sc = ..SendRequestAsync(..#DECIDE, request, 1, ..#DIAGNOSEKEY)
-	If $$$ISERR(sc) Do ..Refused(incident.Ref, sc)
-	Quit $$$OK
+	Quit request
+}
+
+/// The Summary of a diagnose request: "<count> failures at <item>", cut to SUMMARYMAX.
+ClassMethod SummaryOf(count As %Integer, pack As %DynamicObject) As %String [ Private ]
+{
+	Quit $Extract(count_" failures at "_pack.item, 1, ..#SUMMARYMAX)
+}
+
+/// Sends the diagnose request to Decide, asynchronously, with a response required and the completion key DIAGNOSEKEY (a seam for the tests).
+Method SendDiagnose(request As OcuTalon.Bridge.Msg.Request) As %Status [ Private ]
+{
+	Quit ..SendRequestAsync(..#DECIDE, request, 1, ..#DIAGNOSEKEY)
 }
 
 /// The answer of Decide to the diagnose request of the incident: DecisionRef, Fallback and FallbackReason go on the row, and, for a usable answer, the
@@ -1159,8 +1200,8 @@ Method Compose(incident As OcuTalon.Data.Incident, kind As %String, key As %Stri
 	Quit notice
 }
 
-/// A FixResult from FixExecutor or from Checks (the runs that Fix.Run Sweep ends): finished when the run ended or was interrupted, progress otherwise, of one of the incident's requests. A finished one carries the
-/// result notice (ResultNotice), which goes out with the accepted move.
+/// A FixResult from FixExecutor or from Checks (the runs that Fix.Run Sweep ends): finished when the run ended or was interrupted, progress otherwise, of one of the incident's requests. Every
+/// result carries its result notice (ResultNotice; a progress report's is result.stillResending), which goes out with the accepted move.
 Method Result(result As OcuTalon.Fix.Msg.FixResult) As %Status [ Private ]
 {
 	Set final = result.Final || result.Interrupted
@@ -1170,10 +1211,10 @@ Method Result(result As OcuTalon.Fix.Msg.FixResult) As %Status [ Private ]
 		Do ..Drop(result.IncidentRef, event, $Select($IsObject(incident): incident.State, 1: "none"))
 		Quit $$$OK
 	}
-	Quit ..Event(incident, event, result.ApprovalRef, $Select(final: ..ResultNotice(incident, row, result), 1: ""))
+	Quit ..Event(incident, event, result.ApprovalRef, ..ResultNotice(incident, row, result))
 }
 
-/// The notification of kind result for a final or interrupted FixResult of the request (row): the key from Notice.ResultKey, the slots from Notice.ResultSlots with
+/// The notification of kind result for a FixResult of the request (row), final, interrupted or in progress: the key from Notice.ResultKey, the slots from Notice.ResultSlots with
 /// the item noun of the request's dry run, else the incident's, else the code noun, the request's Ref and the incident's, no DecisionRef. "" with one Type 3
 /// warning (LOGRESULT) when the slots cannot be built.
 Method ResultNotice(incident As OcuTalon.Data.Incident, row As OcuTalon.Bridge.Data.ApprovalRequest, result As OcuTalon.Fix.Msg.FixResult) As OcuTalon.Msg.Notification [ Private ]
@@ -1328,6 +1369,99 @@ Method Tell(incident As OcuTalon.Data.Incident, type As %String, payload As %Reg
 	If failed '= "" {
 		$$$LOGWARNING(..#LOGPUBLISH_incident.Ref_" ("_type_"): "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(failed)))
 	}
+}
+
+/// An evaluation incident (see the class description): the pack of the case's snapshot (EvalPack) goes to Decide in the request that Diagnose sends, with owner eval
+/// and the case's Ref as ItemId. Nothing is written, started, raised, noticed or published. A case without a Ref is an error status that names it and sends nothing.
+/// A snapshot that builds no pack, or a send that fails, ends the case as a fallback (EvalRefused); the answer is EvalAnswered.
+Method EvalCase(case As OcuTalon.Eval.Msg.IncidentCase) As %Status [ Private ]
+{
+	If case.IncidentRef = "" Quit $SYSTEM.Status.Error(5001, "The evaluation incident case has no IncidentRef, so nothing was diagnosed")
+	Try {
+		Set sc = ..EvalPack(case, .pack)
+		If $$$ISOK(sc) Set sc = ..SendDiagnose(..DiagnoseRequest(case.IncidentRef, ##class(OcuTalon.Data.Ownership).#EVAL, pack.count, pack))
+	} Catch exception {
+		Set sc = exception.AsStatus()
+	}
+	If $$$ISERR(sc) Do ..EvalRefused(case, sc)
+	Quit $$$OK
+}
+
+/// The pack of the case's snapshot text into pack; an error status when the text is not a reader snapshot that holds a failure.
+ClassMethod EvalPack(case As OcuTalon.Eval.Msg.IncidentCase, Output pack As %DynamicObject) As %Status [ Private ]
+{
+	Set pack = ""
+	Try {
+		Set sc = ##class(OcuTalon.Watch.EvidencePack).Build(##class(%Library.DynamicAbstractObject).%FromJSON(case.Snapshot), .pack)
+	} Catch exception {
+		Set pack = ""
+		Set sc = exception.AsStatus()
+	}
+	Quit sc
+}
+
+/// The answer of Decide to the diagnose request of an evaluation incident: one ItemDecision to EvalSink with DecisionRef, Outcome, Fallback and
+/// FallbackReason as Decide gave them. An answer that is not a DecisionResponse is a refused request (EvalRefused). An error answer was ended by OnError, so the
+/// call that the framework makes after an error OnError handled (no answer, and an error as the current response header) sends nothing. Any other completion
+/// key is ignored.
+Method EvalAnswered(case As OcuTalon.Eval.Msg.IncidentCase, answer As %Library.Persistent, key As %String) As %Status [ Private ]
+{
+	If key '= ..#DIAGNOSEKEY Quit $$$OK
+	If '$IsObject(answer) && $IsObject(..%CurrentResponseHeader) && ..%CurrentResponseHeader.IsError Quit $$$OK
+	If '$IsObject(answer) || 'answer.%IsA("OcuTalon.Bridge.Msg.DecisionResponse") {
+		Do ..EvalRefused(case, $SYSTEM.Status.Error(5001, "Decide answered with something that is not a DecisionResponse"))
+		Quit $$$OK
+	}
+	Set decision = ..EvalDecision(case)
+	Set decision.DecisionRef = answer.DecisionRef
+	Set decision.Outcome = answer.Outcome
+	Set decision.Fallback = +answer.Fallback
+	Set decision.FallbackReason = answer.FallbackReason
+	Do ..EvalDeliver(case, decision)
+	Quit $$$OK
+}
+
+/// An evaluation incident ended as a fallback: one Type 3 warning with the error (through the redactor) and one ItemDecision to EvalSink with Fallback 1,
+/// the reason error, the outcome tellnow and no DecisionRef.
+Method EvalRefused(case As OcuTalon.Eval.Msg.IncidentCase, error As %Status) [ Private ]
+{
+	$$$LOGWARNING(..#LOGEVAL_case.IncidentRef_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(error)))
+	Set decision = ..EvalDecision(case)
+	Set decision.Outcome = ..#REFUSEDOUTCOME
+	Set decision.Fallback = 1
+	Set decision.FallbackReason = ..#REFUSEDREASON
+	Do ..EvalDeliver(case, decision)
+}
+
+/// The ItemDecision of an evaluation incident before the answer is put on it: the case's Ref as ItemId, its name as SourceItemId, owner eval, the Summary of the
+/// diagnose request (empty when the snapshot builds no pack) and no Channel.
+Method EvalDecision(case As OcuTalon.Eval.Msg.IncidentCase) As OcuTalon.Msg.ItemDecision [ Private ]
+{
+	Set decision = ##class(OcuTalon.Msg.ItemDecision).%New()
+	Set decision.ItemId = case.IncidentRef
+	Set decision.SourceItemId = case.SourceItemId
+	Set decision.OwnerRef = ##class(OcuTalon.Data.Ownership).#EVAL
+	If $$$ISOK(..EvalPack(case, .pack)) Set decision.Summary = ..SummaryOf(pack.count, pack)
+	Quit decision
+}
+
+/// Sends the ItemDecision to EvalSink. A send that fails or throws logs one Type 3 warning.
+Method EvalDeliver(case As OcuTalon.Eval.Msg.IncidentCase, decision As OcuTalon.Msg.ItemDecision) [ Private ]
+{
+	Try {
+		Set sc = ..SendEval(decision)
+	} Catch exception {
+		Set sc = exception.AsStatus()
+	}
+	If $$$ISERR(sc) {
+		$$$LOGWARNING(..#LOGEVAL_case.IncidentRef_": the decision could not be sent: "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
+	}
+}
+
+/// Sends the ItemDecision of an evaluation incident to the EvalSink item, asynchronously, with no answer wanted (a seam for the tests).
+Method SendEval(decision As OcuTalon.Msg.ItemDecision) As %Status [ Private ]
+{
+	Quit ..SendRequestAsync(..#EVALSINK, decision, 0)
 }
 
 Storage Default
