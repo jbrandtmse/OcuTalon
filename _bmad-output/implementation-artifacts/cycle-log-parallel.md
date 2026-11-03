@@ -1679,3 +1679,7 @@
 2026-11-03T21:05:59Z	Epic 33	owner_decision	id=U-246 at=2026-11-03T21:05:48Z#740 via=inbox by=Contest_Planner_1(delegated) answer=keep+condition(RetryOf_server-only;same_conversation+ItemId_else_waits;test_web_API_RetryOf_still_waits_or_ignored) apply=runner_C_live
 2026-11-03T21:05:59Z	Epic 33	owner_decision	id=U-247 at=2026-11-03T21:05:48Z#741 via=inbox by=Contest_Planner_1(delegated) answer=keep resolved=now
 2026-11-03T21:06:11Z	Epic 33	runner_resumed	agent=ac8d6e27567bb096b with=apply_U-245(#739),apply_U-246(#740) note=queued_to_live_runner
+2026-11-03T21:25:28Z	Epic 12	runner_complete	runner=a97e4111acaf71f8b story=12.10 head=b4161594 stories_completed=1 ready_for_merge=true applied=U-244(orchestrator_item) tokens=394585 tool_uses=127 duration_ms=16101701
+2026-11-03T21:25:28Z	Epic 12	ci_green_verified	runs=41716277722,41716277637 head=b4161594 result=success via=ci-gate
+2026-11-03T21:25:28Z	Epic 12	amendments_verified	amendments=0 extensions=3 ok=true note=integrated_forward(feature=75c23f0e,head=f2d99d1a);extensions_guide-view.ts+demo-guide.ts(Telegram_row_only),layout.ts(RAIL_REGION_export),ux-strings.test.mjs(ruled_entry)=plain_unions_with_Epic31;hint_text_matches_U-244;merge.cpf+after-start.sh+install.sh_unchanged;feature_75c23f0e_green(41708296988,41708296963)
+2026-11-03T21:25:28Z	Epic 12	merge_enqueued	story=12.10 rc1=yes(U-238)
