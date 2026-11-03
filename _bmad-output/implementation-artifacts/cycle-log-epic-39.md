@@ -9,3 +9,6 @@
 2026-11-03T12:56:52Z	Epic 39	retro_review_skipped	reason=no_x0_input_per_dispatch
 2026-11-03T12:59:11Z	Epic 39	epic_context_compiled	reason=initial model=claude-opus-5-5 spawn_at=2026-11-03T12:58:30Z
 2026-11-03T13:00:10Z	Story 39.1	stage_spawned	stage=plan spawn_at=2026-11-03T13:00:10Z model=opus agent_name=39-1-plan-1 cycle_iteration=1
+2026-11-03T13:13:50Z	Story 39.1	story_created	spawn_at=2026-11-03T13:00:10Z model=opus path=_bmad-output/implementation-artifacts/spec-39-1-fix-the-heartbeat-s-names-and-contracts.md build_status=ready-for-dev epic_context=reused warnings=oversized
+2026-11-03T13:13:50Z	Story 39.1	ruling	question=create_Live.Payload.Heartbeat_in_39.1 choice=defer_to_39.3_with_lane_B_append rejected=create_stub_now(needs_Live/Publish.cls_TYPES_epic31-contended,web/src/app/live/payloads.ts,Lane_B_Test.Live.Payloads) why=no_AC_asks_for_the_class;U-177;contended_paths category=decide policy=5086036
+2026-11-03T13:13:50Z	Story 39.1	spec_validated	service_introducing=true integration_ac=present adr_constrained_acs=AD-18,AD-19,AD-29,AD-33,AD-3,AD-5,AD-28 decision_dependency=none sections_created=none owned_ledger=none addressed=0 declined=0 mutates_shared_runtime=false lead_edits=checks_sh_split_into_capped_calls footprint_extension=src/ocutalon/cls/OcuTalon/Test/Data/Tables.cls model=claude-opus-5-5
