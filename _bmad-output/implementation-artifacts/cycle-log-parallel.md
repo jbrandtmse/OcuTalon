@@ -1563,3 +1563,8 @@
 2026-11-03T12:11:28Z	Epic 15	ci_green_verified	runs=41629786896,41629786945 head=2353a1a7 result=success via=none
 2026-11-03T12:11:28Z	Epic 15	amendments_verified	amendments=6 extensions=2 ok=true detail=epics.md:265,5019,5040,5079_U-231_markers;15.4_heading_[SPLIT_2026-11-03_from_Story_15.3];spine_Conventions_IPM_early_step_U-232_marker(L1110);head_2353a1a7_after_integrated_forward_c5a655e7=bookkeeping_only(cycle-log,deferred-work,sprint-status);watch:merge.cpf,after-start.sh,README_unchanged extensions=src/preload/cls/OcuTalon/Install/Ipm.cls(own),docs/security-overview.md(U-232_cond_3_Data_bullet;no_other_open_epic_line) merge_tree=clean
 2026-11-03T12:11:28Z	Epic 15	epic_merge_started	branch=OCT-epic15 head=2353a1a7 feature=b6fc6f36
+2026-11-03T12:11:49Z	Epic 15	epic_merged_to_feature	merge=af5970a7 head=2353a1a7 pushed=true verified_on_origin=true
+2026-11-03T12:12:24Z	Epic 15	decision_sheet_skipped	decided=0 to_action_items=0 to_x0=0 reason=decisions_for_user_none
+2026-11-03T12:12:24Z	Epic 15	ledger_routed_planned	story=none entries=0 excess=0 by=merge_gate note=Epic_15_reowned_none(overflow=0)
+2026-11-03T12:12:24Z	Epic 15	spine_updated	reason=owner_answer_U-231 ad=AD-23 line=802 change=first_in_any_namespace->any_Interoperability-enabled_namespace(as_built,no_rule_change) lint=8_low_baseline,no_ad_findings
+2026-11-03T12:12:24Z	Epic 15	deps_hash_rerecorded	reason=split hash=89adffc2 note=15.4_split_from_15.3+U-231_prose
