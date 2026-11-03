@@ -195,3 +195,5 @@
 2026-11-03T08:00:25Z	Epic 10	epic_status_done	stories=5 reopened_story=10.5 dropped=10.6(U-234)
 2026-11-03T08:00:25Z	Epic 10	model_tier_checkpoint	armed=false stack_risk=none review_tier=full-opus implement_model=claude-sonnet high_med_avg=4(10.5:med=4) unresolved_high_med_avg=0 metric=unresolved rework_stories=0 review_loop_thrash=0 rework_lang_defects=0 review_high=0 review_med=4 result=hold applied=false policy=record_only scope=reopen_run(10.5)
 2026-11-03T08:00:25Z	Epic 10	epic_retro_skipped	reason=policy(gates.retrospective:skip)
+2026-11-03T08:01:39Z	Epic 10	integrated_forward	feature=c9d201e5 head=af54358a conflicts_resolved=none kind=final(skeleton_item_9),no-op(origin_feature_already_ancestor;orchestrator_local_feature_bookkeeping_not_on_origin) code_diff_since_story_commit=none(bookkeeping_only) checks=test-readme_23_PASS+SKIP_telegram;test-boundaries_pass;test-release-notes_pass;smoke_unchanged(README_identical_to_d0bc3848) merge_cpf_diff_vs_feature=none
+2026-11-03T08:01:39Z	Epic 10	epic_runner_complete	stories_completed=1 run_stories=10.5(reopen) dropped=10.6(U-234) inbox=none_added applied=none decisions_for_user=none
