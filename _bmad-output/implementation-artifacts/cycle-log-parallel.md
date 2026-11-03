@@ -1582,3 +1582,4 @@
 2026-11-03T12:43:23Z	Epic 12	runner_reported	item=U-238(DW-503_parked;owner_only:deferring_UX-DR137_R1_scope) notify=push
 2026-11-03T12:54:39Z	Epic 39	ci_green_verified	runs=41633835560,41633835551 head=138d0066 result=success via=none scope=feature
 2026-11-03T12:54:39Z	Epic 39	runner_dispatched	runner=a20b3e9ae5cc3d472 model=opus slot=ocutalon-slot-d lane=D base=138d0066 prompt=prompts/dispatch-epic-39.md note=rc1_push_hold(no_push_until_rc1_cut)
+2026-11-03T12:55:21Z	Epic 31	ruling	question=Epic_31_merge_with_31.4_backlog(U-219_deferred_31.4_after_tag;U-234_rc1_waits_31.3) choice=part_merge_after_31.3(every-story-done_released_for_31.4_only;31.4_re-opens_Epic_31_after_the_tag,SC-5) rejected=hold_merge_until_31.4(holds_rc1_against_U-219) why=applies_owner_answers_U-219+U-234;precedent_U-230(Epic_15_part_1) category=veto reversal=hold_Epic_31_merge_until_31.4 inbox=U-239 policy=508603671b9598f59d04750db6b6cdad2d396167
