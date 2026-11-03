@@ -3,7 +3,7 @@
 # a clean build 154 instance, an instance like an admin's with IPM 0.10.10 in %SYS and enabled for USER only, that the package's
 # first run creates OCUTALON and gives the next command, and that `iris merge` of the package's CPF file is the alternative. It is
 # the ipm-install job of .github/workflows/lane-a.yml and runs the same way on a developer machine:
-#   OCUTALON_RUN_TAG=<tag> bash release/ipm-install.sh [a|r|b]
+#   OCUTALON_RUN_TAG=<tag> bash release/ipm-install.sh [a|r|b|p]
 # It sources ci/iris.sh (which sources ci/units.sh and docker/tests/lib-live.sh) and runs nothing of them but the throwaway recipe:
 # a project of its own from release/ipm/Dockerfile (no merge file, after-start script or version file; release/ipm/compose.ipm.yml),
 # the CI override, the throwaway lock and the teardown on exit. Stories 15.2 and 15.3 extend the functions snapshot, residue and
@@ -13,8 +13,9 @@
 #   2. `zpm "load /opt/ocutalon-ipm/src"` in USER stops after Initialize: the output shows Initialize FAILURE, no Reload START and no
 #      STEP line, and its last line, with ANSI codes removed, is exactly the stop sentence after `ERROR! `;
 #   3. the run created the four OCUTALON databases (public Read on %DB_OCUTALON_PUBLIC only), OCUTALON with Interoperability and
-#      AD-3's seven mappings, and mapped %IPM into OCUTALON from the database where %IPM resolves in USER; the services are those
-#      of the baseline;
+#      AD-3's seven mappings, mapped %IPM into OCUTALON from the database where %IPM resolves in USER, and mapped IPM's repository
+#      definitions (^IPM.Repo.DefinitionD, S and I) into OCUTALON from the database where each resolves in USER (U-232), as they are;
+#      OCUTALON_DATA holds no ^IPM.Repo.Definition* node; the services are those of the baseline;
 #   4. nothing of OcuTalon is left: no OcuTalon class, routine or module record in USER, %SYS or OCUTALON, no ^OcuTalon global
 #      in USER or %SYS, no OcuTalon role, no user ocutalon and no /ocutalon web application;
 #   5. a first run in %SYS, made on the fresh instance before check 2, is refused by IPM because src/module.xml declares
@@ -27,8 +28,8 @@
 #   6. IPM answers in OCUTALON (%IPM.Main.Shell("version") returns OK), so the next command can start there;
 #   Path B, `iris merge`:
 #   7. on a fresh instance from the same image, `iris merge IRIS /opt/ocutalon-ipm/src/cpf/ocutalon.cpf` exits 0 and gives the same
-#      OCUTALON namespace, Interoperability flag, databases, resources and OCUTALON mappings as path A, minus the %IPM mappings,
-#      and the services are unchanged.
+#      OCUTALON namespace, Interoperability flag, databases, resources and OCUTALON mappings as path A, minus the %IPM mappings
+#      and the repository mappings, and the services are unchanged.
 # Story 15.2 adds the second run:
 #   Path A, after check 6, the same install command in OCUTALON:
 #   8. the output shows Initialize to Activate SUCCESS and, between Configure START and Configure SUCCESS, one `STEP <name> OK` line
@@ -86,9 +87,23 @@
 #   25. the install command with the next version (a scratch copy of the package folder with the patch number raised, loaded in
 #       OCUTALON): Initialize to Activate SUCCESS and one STEP OK per step in order, the raised module version, a new job id for
 #       every item, no new ReconcileIn row, the configuration and the foreign setting unchanged, and the data and the waiters intact.
-# The argument chooses the paths: none runs A, the reinstalls (checks 16 to 20) and B (the job), `a` path A (checks 1 to 6, 8 to 14 and 19)
-# only, `r` path A's first and second run and the reinstalls (checks 16 to 20), `b` path A's first run (the reference of path B's
-# comparison) and path B (checks 7, 15, 19 and 21 to 25).
+# Story 15.4 adds part p, the exact release artifact installed from an IPM repository on a fresh instance with no Node.js:
+#   The artifact is OCUTALON_IPM_ARTIFACT (the .tgz that the release sequence's ipm step made), or, when that is unset, the module that
+#   path A's second run installed, packaged with `zpm "package ocutalon -only"` (TIME package) and checked with lib-release's
+#   ipm_artifact_check; ARTIFACT <name> <bytes> bytes is printed and a problem line fails the part.
+#   26. the container has no node and no npm;
+#   27. the artifact is unpacked into a local filesystem repository (a repository added in USER with its output discarded), and
+#       `zpm "install ocutalon"` in USER ends with the stop line and the snapshot of check 3, repository mappings included;
+#   28. the same command in OCUTALON passes the checks of the second run (Initialize to Activate SUCCESS, every STEP OK in order, the
+#       production running, autostart, 0 dependencies, Story 9.1's IPM case), /ocutalon/ serves the sign-in page and ocutalon/ocutalon
+#       signs in;
+#   29. `zpm "uninstall ocutalon"` in OCUTALON removes OCUTALON's three repository mappings and nothing else of the configuration, and a
+#       hash of USER's three definition globals, taken inside the container and never printed, is the same right after the uninstall
+#       as right before it and as before the first command (U-232).
+# The argument chooses the paths: none runs A, the reinstalls (checks 16 to 20), B and part p (the job), `a` path A (checks 1 to 6, 8 to 14
+# and 19) only, `r` path A's first and second run and the reinstalls (checks 16 to 20), `b` path A's first run (the reference of path B's
+# comparison) and path B (checks 7, 15, 19 and 21 to 25), `p` part p alone (checks 26 to 29; with no OCUTALON_IPM_ARTIFACT it first
+# installs the package from the folder and packages it).
 # Every run's and the merge's full output is printed between `OUTPUT begin <name>` and `OUTPUT end <name>`, ANSI codes kept; the
 # checks read it with the codes removed. `TIME <step> <s>s` lines give the durations. Prints one PASS or FAIL line per check, and
 # exits 1 when any fails. The trap of live_start removes the project, its volume and its images, and releases the lock.
@@ -98,14 +113,18 @@ root=$(cd "$(dirname "$0")/.." && pwd)
 cd "$root" || exit 1
 mode=${1:-all}
 case $mode in
-  all | a | r | b) ;;
+  all | a | r | b | p) ;;
   *)
-    echo "usage: bash release/ipm-install.sh [a|r|b]"
+    echo "usage: bash release/ipm-install.sh [a|r|b|p]"
     exit 2
     ;;
 esac
 . "$root/ci/iris.sh"
 . "$root/docker/tests/lib-online.sh"
+# lib-release.sh (ipm_unpack, ipm_artifact_check) sets umask 077 when sourced; this script keeps the caller's.
+umask_before=$(umask)
+. "$root/release/lib-release.sh"
+umask "$umask_before"
 
 SCRIPT=release/ipm-install.sh
 SRC=/opt/ocutalon-ipm/src
@@ -436,25 +455,33 @@ CHK|settings-dest|ocutalon_public" \
     'Halt'
 }
 
-# check_web: matrix row "Web and REST". The chat check points the keys at the CI mock before and back after, also on a failure.
-check_web() {
-  local code facts turn
+# check_signin <label> [logout]: the sign-in page is served and not the online demo's, and ocutalon/ocutalon signs in; the session stays
+# in the jar $ocu_jar unless the second argument is logout.
+check_signin() {
+  local code
   ocu_jar="$tmp/jar.ocu"
   : > "$ocu_jar"
   next_probe
   rm -f "$tmp/signin.page"
   curl -s --max-time 30 -b "$ocu_jar" -c "$ocu_jar" -o "$tmp/signin.page" "$base/ocutalon/?probe=$probes"
   if grep -q 'Sign in to OcuTalon' "$tmp/signin.page" && ! grep -q 'Try OcuTalon in two minutes' "$tmp/signin.page"; then
-    pass "web: GET /ocutalon/ serves the sign-in page and not the online demo's"
+    pass "$1: GET /ocutalon/ serves the sign-in page and not the online demo's"
   else
-    fail "web: GET /ocutalon/ does not serve 'Sign in to OcuTalon' (or serves the online demo's page)"
+    fail "$1: GET /ocutalon/ does not serve 'Sign in to OcuTalon' (or serves the online demo's page)"
   fi
   code=$(online_signin "$ocu_jar" "" "" ocutalon ocutalon)
   if grep -q '<app-root' "$ocu_jar.b"; then
-    pass "web: ocutalon/ocutalon signs in (the app root is served, sign-in status $code)"
+    pass "$1: ocutalon/ocutalon signs in (the app root is served, sign-in status $code)"
   else
-    fail "web: ocutalon/ocutalon does not sign in (status $code)"
+    fail "$1: ocutalon/ocutalon does not sign in (status $code)"
   fi
+  if [ "${2:-}" = logout ]; then logout_all "$ocu_jar" /ocutalon/; fi
+}
+
+# check_web: matrix row "Web and REST". The chat check points the keys at the CI mock before and back after, also on a failure.
+check_web() {
+  local code facts turn
+  check_signin web
   facts=$(state_facts)
   if [ "$facts" = "false|false|" ]; then
     pass "web: /state has onlineDemo false and demoMode false, and no guide, phone or mailbox"
@@ -1177,6 +1204,215 @@ check_durable_recovery() {
   jobs_changed "recovery run" "$tmp/jobs-recover-before.tsv" "$tmp/jobs-recover-after.tsv"
 }
 
+# --- part p (Story 15.4): the exact release artifact, installed from an IPM repository ---
+
+# ipm_precondition <label>: IPM 0.10.10 is loaded in %SYS and enabled for USER only (check 1); a failure stops the run.
+ipm_precondition() {
+  local before=$fails
+  check_session "$1: IPM 0.10.10 is loaded in %SYS and enabled for USER only" %SYS \
+    "CHK|load|1
+CHK|enable|1" \
+    'Set sc=$SYSTEM.OBJ.Load("/opt/ocutalon-ipm/zpm-0.10.10.xml","ck-d") Write !,"CHK|load|",$SYSTEM.Status.IsOK(sc)' \
+    'Set sc=##class(%IPM.Main).Shell("enable -map -ns USER -q") Write !,"CHK|enable|",$SYSTEM.Status.IsOK(sc)' \
+    'Halt'
+  if [ "$fails" -ne "$before" ]; then die "IPM could not be loaded and enabled for USER"; fi
+}
+
+# derive_dbs <base snapshot>: ipm_db, the database where %IPM resolves in USER (from the snapshot's mapping), and repo_db, the database
+# where USER resolves ^IPM.Repo.DefinitionD (a probe of GetGlobalDest, resolved to the database name).
+derive_dbs() {
+  ipm_db=$(sed -n 's/^CHK|umap-MapPackages|%IPM|//p' "$1" | head -n 1)
+  if [ -z "$ipm_db" ]; then die "precondition: IPM is not mapped into USER"; fi
+  repo_db=$(printf '%s\n' \
+    'Set d=##class(%SYS.Namespace).GetGlobalDest("USER","^IPM.Repo.DefinitionD") Set sc=##class(Config.Databases).DatabasesByDirectory($Piece(d,"^"),$Piece(d,"^",2),.l) Write !,"CHK|repodb|",$ListGet($Get(l))' \
+    'Halt' | session_value %SYS repodb)
+  if [ -z "$repo_db" ]; then die "precondition: the database of IPM's repository definitions could not be read"; fi
+}
+
+# expect_first_config <label> <snapshot>: the snapshot of a first run in USER (check 3): the Interoperability flag, the four databases, AD-3's
+# seven mappings, the %IPM mappings and the three repository mappings.
+expect_first_config() {
+  cat > "$tmp/expected.chk" <<EOE
+CHK|interop|1
+CHK|db|OCUTALON_CODE|ocutalon_code
+CHK|db|OCUTALON_DATA|ocutalon_data
+CHK|db|OCUTALON_PRIVATE|ocutalon_private
+CHK|db|OCUTALON_PUBLIC|ocutalon_public
+CHK|omap-MapGlobals|OcuTalonP.*|OCUTALON_PRIVATE
+CHK|omap-MapGlobals|OcuTalonBP.*|OCUTALON_PRIVATE
+CHK|omap-MapGlobals|AI.Agent.Session*|OCUTALON_PRIVATE
+CHK|omap-MapGlobals|IRIS.IF.*|OCUTALON_PRIVATE
+CHK|omap-MapGlobals|OcuTalonPublic|OCUTALON_PUBLIC
+CHK|omap-MapGlobals|IPM.Repo.DefinitionD|$repo_db
+CHK|omap-MapGlobals|IPM.Repo.DefinitionI|$repo_db
+CHK|omap-MapGlobals|IPM.Repo.DefinitionS|$repo_db
+CHK|omap-MapPackages|OcuTalon.Web.Public|OCUTALON_PUBLIC
+CHK|omap-MapPackages|OcuTalon.Data.Public|OCUTALON_PUBLIC
+CHK|omap-MapPackages|%IPM|$ipm_db
+CHK|omap-MapRoutines|%IPM.*|$ipm_db
+EOE
+  compare_chk "$1: the databases, the Interoperability flag, AD-3's seven mappings, the %IPM mappings and the repository mappings" "$2" "$tmp/expected.chk"
+}
+
+# check_no_repo_data <label>: OCUTALON_DATA, read by its directory, holds no ^IPM.Repo.Definition* node (the mapping moved nothing into it).
+check_no_repo_data() {
+  check_session "$1: OCUTALON_DATA holds no ^IPM.Repo.Definition* node" %SYS "CHK|repodata|0" \
+    'Do ##class(Config.Databases).Get("OCUTALON_DATA",.p) Set dir=p("Directory"),n=0' \
+    'For g="IPM.Repo.DefinitionD","IPM.Repo.DefinitionS","IPM.Repo.DefinitionI" { Set r="^|""^^"_dir_"""|"_g Set:$Data(@r) n=n+1 }' \
+    'Write !,"CHK|repodata|",n' \
+    'Halt'
+}
+
+# defs_hash: "<nodes>|<hash>" of USER's three repository definition globals, computed in the container. A caller keeps it in a variable
+# and never prints it: the definitions' fields stay in the container.
+defs_hash() {
+  printf '%s\n' \
+    'Set h="",n=0 For g="^IPM.Repo.DefinitionD","^IPM.Repo.DefinitionS","^IPM.Repo.DefinitionI" { Set r=g If $Data(@r)#2 { Set n=n+1,h=$SYSTEM.Encryption.SHAHash(256,h_r_@r) } For { Set r=$Query(@r) Quit:r=""  Quit:$Piece(r,"(")'"'"'=g  Set n=n+1,h=$SYSTEM.Encryption.SHAHash(256,h_r_@r) } }' \
+    'Write !,"CHK|defs|",n,"|",$SYSTEM.Encryption.Base64Encode(h)' \
+    'Halt' | session_value USER defs
+}
+
+# artifact_prepare: sets $art to the checked artifact ocutalon-<version>.tgz, or to nothing after a failure. It is OCUTALON_IPM_ARTIFACT
+# when that is set; otherwise the module that path A's second run installed in OCUTALON, packaged with `zpm "package ocutalon -only"`
+# (TIME package) and copied out. ipm_artifact_check reads it (module name and version, FileCopy, the web bundle byte for byte).
+artifact_prepare() {
+  local ver problems bytes
+  art=""
+  ver=$(manifest_version "$root/src/module.xml")
+  if [ -n "${OCUTALON_IPM_ARTIFACT:-}" ]; then
+    if [ -f "$OCUTALON_IPM_ARTIFACT" ]; then
+      art="$(cd "$(dirname "$OCUTALON_IPM_ARTIFACT")" && pwd)/$(basename "$OCUTALON_IPM_ARTIFACT")"
+    else
+      fail "artifact: OCUTALON_IPM_ARTIFACT names no file"
+      return
+    fi
+  else
+    dc exec -T iris mkdir -p /tmp/ocutalon-pkg > /dev/null 2>&1
+    run package OCUTALON "zpm \"package ocutalon -only -path /tmp/ocutalon-pkg/ocutalon-$ver\""
+    if dc cp "iris:/tmp/ocutalon-pkg/ocutalon-$ver.tgz" "$tmp/ocutalon-$ver.tgz" > /dev/null 2>&1; then
+      art="$tmp/ocutalon-$ver.tgz"
+    else
+      fail "artifact: zpm \"package ocutalon -only\" left no ocutalon-$ver.tgz"
+      return
+    fi
+  fi
+  bytes=$(wc -c < "$art" | tr -d ' ')
+  echo "ARTIFACT ocutalon-$ver.tgz $bytes bytes"
+  problems=$(ipm_artifact_check "$art" "$ver" "$root")
+  if [ -n "$problems" ]; then
+    printf '%s\n' "$problems" | sed 's/^/  artifact: /'
+    fail "artifact: ocutalon-$ver.tgz does not carry the module and the web bundle ($(printf '%s\n' "$problems" | head -n 1))"
+    art=""
+    return
+  fi
+  pass "artifact: ocutalon-$ver.tgz ($bytes bytes) carries the module's name and version and every file of the web bundle"
+}
+
+# part_p (checks 26 to 29): on a fresh instance with IPM and no Node.js, the artifact in a local filesystem repository is installed with
+# `zpm "install ocutalon"` in USER and in OCUTALON, signed in to, then uninstalled; the definitions are unchanged (U-232 condition 1).
+part_p() {
+  local started=$SECONDS ver ext h0 h1 h2 n
+  if [ -z "${art:-}" ]; then
+    fail "part p: there is no checked artifact to install"
+    return
+  fi
+  ver=$(manifest_version "$root/src/module.xml")
+  echo "PART p: ocutalon-$ver.tgz from a local IPM repository on a fresh instance"
+  dc down -v > "$tmp/down.log" 2>&1
+  if ! dc up -d --wait --wait-timeout "$((deadline - SECONDS))" > "$tmp/up.log" 2>&1; then
+    tail -n 30 "$tmp/up.log"
+    die "the part p stack did not become ready"
+  fi
+  echo "TIME ready-p $((SECONDS - started))s"
+  ipm_precondition "part p"
+  take_snapshot p-base "part p"
+  derive_dbs "$tmp/p-base.snap"
+  if dc exec -T iris sh -c '! command -v node > /dev/null 2>&1 && ! command -v npm > /dev/null 2>&1'; then
+    pass "part p: the container has no node and no npm"
+  else
+    fail "part p: the container has node or npm"
+  fi
+  ext="$tmp/p-repo/ocutalon-$ver"
+  rm -rf "$tmp/p-repo"
+  mkdir -p "$tmp/p-repo"
+  if ipm_unpack "$art" "$ext" \
+    && dc exec -T -u root iris mkdir -p /tmp/ocutalon-repo > /dev/null 2>&1 \
+    && dc cp "$ext" "iris:/tmp/ocutalon-repo/ocutalon-$ver" > /dev/null 2>&1 \
+    && dc exec -T -u root iris chmod -R a+rX /tmp/ocutalon-repo > /dev/null 2>&1; then
+    pass "part p: the artifact is unpacked into /tmp/ocutalon-repo/ocutalon-$ver of the container"
+  else
+    die "part p: the artifact could not be unpacked into the container"
+  fi
+  # The repository is added in a session whose output is discarded: the repository definitions are never printed.
+  printf '%s\nHalt\n' 'zpm "repo -name ocutalon-local -fs -depth 2 -path /tmp/ocutalon-repo/"' | dc exec -T iris iris session IRIS -U USER > /dev/null 2>&1
+  h0=$(defs_hash)
+  run p-first USER 'zpm "install ocutalon"'
+  take_snapshot p-first "part p first command"
+  stops_with_next_command p-first "part p, the install command in USER"
+  expect_first_config "part p, the install command in USER" "$tmp/p-first.snap"
+  check_no_repo_data "part p, the install command in USER"
+  # A filesystem repository keeps the list of its modules (a cache, ^IPM.Repo.Filesystem.Cache*) apart from its definition, in each
+  # namespace. The definition that OCUTALON sees is the mapped one, opened by name and left as it is; only the module list of OCUTALON is built.
+  check_session "part p, before the same command in OCUTALON: the mapped repository is found there and its module list is built" OCUTALON "CHK|cache|1" \
+    'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT ID FROM %IPM_Repo.Definition WHERE Name = ?","ocutalon-local") Set ok=0' \
+    'If rs.%Next() { Set repo=##class(%IPM.Repo.Definition).%OpenId(rs.%GetData(1)) Set ok=$SYSTEM.Status.IsOK(repo.BuildCache(1,0,0)) }' \
+    'Write !,"CHK|cache|",ok' \
+    'Halt'
+  check_no_repo_data "part p, before the same command in OCUTALON"
+  run p-second OCUTALON 'zpm "install ocutalon"'
+  check_run_ok p-second "part p, the same command in OCUTALON"
+  check_signin "part p" logout
+  take_snapshot p-second "part p second command"
+  same_config "part p, the same command in OCUTALON" p-first p-second
+  h1=$(defs_hash)
+  run p-uninstall OCUTALON 'zpm "uninstall ocutalon"'
+  take_snapshot p-uninstall "part p uninstall"
+  h2=$(defs_hash)
+  uninstall_checks "$h0" "$h1" "$h2"
+  echo "TIME p-fresh $((SECONDS - started))s"
+}
+
+# uninstall_checks <hash before the first command> <hash before the uninstall> <hash after it> (U-232 condition 1; the hashes are
+# "<nodes>|<hash>" and are never printed): the uninstall ended without an error, OCUTALON's three repository mappings are gone and the
+# rest of the configuration is that of the second command, and USER's definitions are unchanged.
+uninstall_checks() {
+  local n=${3%%|*} f="$tmp/p-uninstall.txt"
+  if ! grep -q 'FAILURE' "$f" && ! grep -q '^ERROR!' "$f"; then
+    pass "part p uninstall: zpm \"uninstall ocutalon\" in OCUTALON ends without a FAILURE or ERROR! line"
+  else
+    grep -e 'FAILURE' -e '^ERROR!' "$f" | sed 's/^/  uninstall: /'
+    fail "part p uninstall: the uninstall reported a FAILURE or an ERROR! line"
+  fi
+  if [ "$(grep -c '^CHK|omap-MapGlobals|IPM.Repo.Definition' "$tmp/p-second.snap")" = 3 ] \
+    && ! grep -q '^CHK|omap-MapGlobals|IPM.Repo.Definition' "$tmp/p-uninstall.snap" \
+    && diff <(grep -v '^CHK|omap-MapGlobals|IPM.Repo.Definition' "$tmp/p-second.snap") "$tmp/p-uninstall.snap" > "$tmp/snap.diff"; then
+    pass "part p uninstall: OCUTALON's three repository mappings are gone; every other OCUTALON mapping, USER's mappings and the services are unchanged"
+  else
+    sed 's/^/  snapshot: /' "$tmp/snap.diff"
+    fail "part p uninstall: the uninstall changed more than OCUTALON's three repository mappings, or left one"
+  fi
+  if [ "$n" -gt 0 ] 2> /dev/null && [ "$2" = "$3" ] && [ "$1" = "$3" ]; then
+    pass "part p uninstall: USER's repository definitions are unchanged: same|$n"
+  else
+    if [ "$2" != "$3" ]; then
+      echo "  definitions: differs|${n:-0} (after the uninstall, against before it)"
+    elif [ "$1" != "$3" ]; then
+      echo "  definitions: differs|${n:-0} (after the uninstall, against before the first command)"
+    fi
+    fail "part p uninstall: USER's repository definitions differ, or there are none (differs, or 0 nodes)"
+  fi
+}
+
+# finish: the result lines and the exit code.
+finish() {
+  if [ "$fails" -ne 0 ]; then
+    echo "$(basename "$SCRIPT" .sh): $fails check(s) failed (project $P)"
+    exit 1
+  fi
+  echo "$(basename "$SCRIPT" .sh): all checks passed"
+  exit 0
+}
+
 # --- the stack ---
 
 setup_tag
@@ -1196,23 +1432,35 @@ fi
 live_track_image
 echo "TIME ready $((SECONDS - started))s"
 
+# --- part p alone: the package is installed from the folder and packaged first when there is no OCUTALON_IPM_ARTIFACT ---
+
+art=""
+if [ "$mode" = p ]; then
+  if [ -n "${OCUTALON_IPM_ARTIFACT:-}" ]; then
+    artifact_prepare
+  else
+    ipm_precondition "packaging stack"
+    run pkg-first USER "$INSTALL"
+    run pkg-second OCUTALON "$INSTALL"
+    check_session "packaging stack: the package is installed in OCUTALON" OCUTALON "CHK|module|ocutalon" \
+      'Set m=##class(%IPM.Storage.Module).NameOpen("ocutalon") Write !,"CHK|module|",$Select($IsObject(m):m.Name,1:"<none>")' \
+      'Halt'
+    artifact_prepare
+  fi
+  part_p
+  finish
+fi
+
 # --- path A: two package runs ---
 
-check_session "precondition: IPM 0.10.10 is loaded in %SYS and enabled for USER only" %SYS \
-  "CHK|load|1
-CHK|enable|1" \
-  'Set sc=$SYSTEM.OBJ.Load("/opt/ocutalon-ipm/zpm-0.10.10.xml","ck-d") Write !,"CHK|load|",$SYSTEM.Status.IsOK(sc)' \
-  'Set sc=##class(%IPM.Main).Shell("enable -map -ns USER -q") Write !,"CHK|enable|",$SYSTEM.Status.IsOK(sc)' \
-  'Halt'
-if [ "$fails" -ne 0 ]; then die "IPM could not be loaded and enabled for USER"; fi
+ipm_precondition precondition
 take_snapshot base "precondition"
 if ! grep -q '^CHK|ns|' "$tmp/base.snap" && ! grep -q '^CHK|db|' "$tmp/base.snap"; then
   pass "precondition: OCUTALON and its databases do not exist yet"
 else
   die "precondition: OCUTALON or its databases exist before the first run"
 fi
-ipm_db=$(sed -n 's/^CHK|umap-MapPackages|%IPM|//p' "$tmp/base.snap" | head -n 1)
-if [ -z "$ipm_db" ]; then die "precondition: IPM is not mapped into USER"; fi
+derive_dbs "$tmp/base.snap"
 check_no_residue "precondition"
 
 run first-sys %SYS "$INSTALL"
@@ -1235,23 +1483,8 @@ check_no_residue "first run in %SYS"
 run first-user USER "$INSTALL"
 take_snapshot first "first run in USER"
 stops_with_next_command first-user "first run in USER"
-cat > "$tmp/expected.chk" <<EOE
-CHK|interop|1
-CHK|db|OCUTALON_CODE|ocutalon_code
-CHK|db|OCUTALON_DATA|ocutalon_data
-CHK|db|OCUTALON_PRIVATE|ocutalon_private
-CHK|db|OCUTALON_PUBLIC|ocutalon_public
-CHK|omap-MapGlobals|OcuTalonP.*|OCUTALON_PRIVATE
-CHK|omap-MapGlobals|OcuTalonBP.*|OCUTALON_PRIVATE
-CHK|omap-MapGlobals|AI.Agent.Session*|OCUTALON_PRIVATE
-CHK|omap-MapGlobals|IRIS.IF.*|OCUTALON_PRIVATE
-CHK|omap-MapGlobals|OcuTalonPublic|OCUTALON_PUBLIC
-CHK|omap-MapPackages|OcuTalon.Web.Public|OCUTALON_PUBLIC
-CHK|omap-MapPackages|OcuTalon.Data.Public|OCUTALON_PUBLIC
-CHK|omap-MapPackages|%IPM|$ipm_db
-CHK|omap-MapRoutines|%IPM.*|$ipm_db
-EOE
-compare_chk "first run in USER: the databases, the Interoperability flag, AD-3's seven mappings and the %IPM mappings" "$tmp/first.snap" "$tmp/expected.chk"
+expect_first_config "first run in USER" "$tmp/first.snap"
+check_no_repo_data "first run in USER"
 grep '^CHK|ns|' "$tmp/first.snap" | head -n 1 | sed 's/^/  namespace row: /'
 if grep -q '^CHK|ns|OCUTALON|OCUTALON_DATA|OCUTALON_CODE|' "$tmp/first.snap"; then
   pass "first run in USER: OCUTALON has the globals database OCUTALON_DATA and the routines database OCUTALON_CODE"
@@ -1299,6 +1532,7 @@ check_session "IPM answers in OCUTALON, so the next command can start there" OCU
 if [ "$mode" != b ]; then
   run second-ocutalon OCUTALON "$INSTALL"
   check_second_run
+  if [ "$mode" = all ]; then artifact_prepare; fi
   if [ "$mode" != r ]; then
     check_install
     check_web
@@ -1310,14 +1544,7 @@ if [ "$mode" != b ]; then
   if [ "$mode" != a ]; then reinstall_failures; fi
 fi
 
-if [ "$mode" = a ] || [ "$mode" = r ]; then
-  if [ "$fails" -ne 0 ]; then
-    echo "$(basename "$SCRIPT" .sh): $fails check(s) failed (project $P)"
-    exit 1
-  fi
-  echo "$(basename "$SCRIPT" .sh): all checks passed"
-  exit 0
-fi
+if [ "$mode" = a ] || [ "$mode" = r ]; then finish; fi
 
 # --- path B: iris merge on a fresh instance ---
 
@@ -1351,12 +1578,12 @@ echo "OUTPUT end merge"
 if [ "$merge_rc" -eq 0 ]; then pass "path B: iris merge exits 0"; else fail "path B: iris merge exits $merge_rc"; fi
 take_snapshot merge "path B"
 same_services "path B" base-b merge
-# The OCUTALON view of path B is that of path A without the two %IPM mappings, and holds none; USER's mappings and the services are
-# not part of the view.
-view() { grep -v -e '^CHK|service|' -e '^CHK|umap-' -e '%IPM' "$1"; }
+# The OCUTALON view of path B is that of path A without the two %IPM mappings and the three repository mappings, and holds none; USER's
+# mappings and the services are not part of the view.
+view() { grep -v -e '^CHK|service|' -e '^CHK|umap-' -e '%IPM' -e 'IPM.Repo.Definition' "$1"; }
 if view "$tmp/first.snap" > "$tmp/view-a" && view "$tmp/merge.snap" > "$tmp/view-b" && [ -s "$tmp/view-b" ] \
-  && diff "$tmp/view-a" "$tmp/view-b" > "$tmp/snap.diff" && ! grep -q '%IPM' "$tmp/merge.snap"; then
-  pass "path B: OCUTALON's namespace row, Interoperability flag, databases, resources and mappings are path A's, without the %IPM mappings ($(grep -c . "$tmp/view-b") lines)"
+  && diff "$tmp/view-a" "$tmp/view-b" > "$tmp/snap.diff" && ! grep -q -e '%IPM' -e 'IPM.Repo.Definition' "$tmp/merge.snap"; then
+  pass "path B: OCUTALON's namespace row, Interoperability flag, databases, resources and mappings are path A's, without the %IPM and repository mappings ($(grep -c . "$tmp/view-b") lines)"
 else
   sed 's/^/  view: /' "$tmp/snap.diff"
   fail "path B: the OCUTALON view differs from path A's"
@@ -1423,8 +1650,7 @@ check_restart 2
 check_after_restarts
 reinstall_next
 
-if [ "$fails" -ne 0 ]; then
-  echo "$(basename "$SCRIPT" .sh): $fails check(s) failed (project $P)"
-  exit 1
-fi
-echo "$(basename "$SCRIPT" .sh): all checks passed"
+# --- part p: the artifact from a local IPM repository, on a fresh instance ---
+
+if [ "$mode" = all ]; then part_p; fi
+finish

@@ -2,13 +2,20 @@
 title: 'Story 15.4: Every release proves the IPM package, and the guide opens with the registry install'
 type: 'feature'
 created: '2026-11-02'
-status: 'ready-for-dev'
-baseline_revision: '8d6ce22da5f21c72fc18ffda4cd43f199628d1ee'
+status: 'done'
+baseline_revision: 'c93e62bf678962afb301739e50ac5de770f45e72'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
 warnings: ['oversized']
-deferred: []
+deferred:
+  - summary: >-
+      The Unconfigure Invoke may remove OCUTALON's repository mapping during an IPM upgrade or same-version reinstall of ocutalon, and nothing maps it again.
+    evidence: |-
+      MapAndStop maps the repository definitions only outside OCUTALON, and UnmapRepos runs at Unconfigure, Before. If IPM runs Unconfigure of the installed version when a newer ocutalon is installed over it in OCUTALON, the three IPM.Repo.Definition mappings of OCUTALON are gone afterwards. Not measured; what would settle it: install ocutalon twice in OCUTALON from a local repository with a version bump, then read OCUTALON's three IPM.Repo.Definition mappings.
+    location: >-
+      src/preload/cls/OcuTalon/Install/Ipm.cls:UnmapRepos, src/module.xml:18
+    severity: medium (unverified)
 ---
 
 <intent-contract>
@@ -126,23 +133,23 @@ The anchors are taken at `8d6ce22d`.
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] Task 0 (the first `p` loop is the measurement): (a) does `module.xml` load with the Unconfigure Invoke, and does `zpm "uninstall ocutalon"` in OCUTALON run `UnmapRepos`? Record what the uninstall prints and how it ends. If the Invoke is rejected or never runs, HALT with `intent gap` (the recommendation: a module lifecycle class, or a documented `zpm "unmap -repos-only -ns OCUTALON"` line). (b) Copy the guide's registry-section output blocks from a passing `p` run's `p-first` and `p-second` OUTPUT blocks. (c) If IPM's own install changes USER's definitions between the hash before the first command (H0) and the hash before the uninstall (H1), assert only H1 = H2 and record that.
-- [ ] `src/preload/cls/OcuTalon/Install/Ipm.cls`, `MapAndStop`:
+- [x] Task 0 (the first `p` loop is the measurement): (a) does `module.xml` load with the Unconfigure Invoke, and does `zpm "uninstall ocutalon"` in OCUTALON run `UnmapRepos`? Record what the uninstall prints and how it ends. If the Invoke is rejected or never runs, HALT with `intent gap` (the recommendation: a module lifecycle class, or a documented `zpm "unmap -repos-only -ns OCUTALON"` line). (b) Copy the guide's registry-section output blocks from a passing `p` run's `p-first` and `p-second` OUTPUT blocks. (c) If IPM's own install changes USER's definitions between the hash before the first command (H0) and the hash before the uninstall (H1), assert only H1 = H2 and record that.
+- [x] `src/preload/cls/OcuTalon/Install/Ipm.cls`, `MapAndStop`:
   - Outside OCUTALON only, and inside the existing suspension: unless OCUTALON already sees `$Data(^IPM.Repo.DefinitionD)\2` (IPM's own skip rule), call `MapGlobalEquivalently` from `$Namespace` to OCUTALON for each of D, S and I. The first error is returned unchanged.
   - `UnmapRepos()`: `%IPM.Main.Shell("unmap -repos-only -ns OCUTALON -q")` with transactions suspended and restored, returning its status. It kills and sets no global.
   - This covers U-232 and the matrix rows "First run maps the definitions" and "Uninstall keeps the definitions".
-- [ ] `src/module.xml`: the Unconfigure Invoke, after the Configure Invoke, on a line of its own.
-- [ ] `release/ipm-install.sh`:
+- [x] `src/module.xml`: the Unconfigure Invoke, after the Configure Invoke, on a line of its own.
+- [x] `release/ipm-install.sh`:
   - Check 3's three lines with `repo_db`, plus "OCUTALON_DATA holds no `^IPM.Repo.Definition*` node".
   - Path B's view leaves out the repository lines.
   - The helpers `ipm_precondition` and `check_signin`.
   - Packaging (`TIME package`), with the artifact check.
   - Mode `p` and part `p` (checks 26+), in this order: `TIME p-fresh` begins at `dc down -v`; `ipm_precondition`; no Node; unpack and copy; the repository; H0; `run p-first USER 'zpm "install ocutalon"'` with `stops_with_next_command` and the snapshot; `run p-second OCUTALON 'zpm "install ocutalon"'` with `check_run_ok` and `check_signin`; H1; `run p-uninstall OCUTALON 'zpm "uninstall ocutalon"'`; H2 and the snapshot comparison.
   - The header, the checks and the modes paragraph. The registry host is never named.
-- [ ] `release/release.sh`: `step_ipmcheck`, `ipmcheck_section` and the shared export helper. STEPS and the header. This covers the matrix rows "Gate passes", "Gate fails", "Gate busy", "Gate refusals" and "Large artifact".
-- [ ] `release/notes.sh`: `notes_ipm` and its place in `notes_draft`. The header's draft order. The slot text: "Not run yet. After this version is published to the package registry, the README's two commands are run once against the registry on a clean build 154 instance, and the result is recorded here."
-- [ ] `release/checklist.sh`: `registry_row` (`later` or `confirmed`, through `ck_confirmed_date`) and its header paragraph. The text: "After this version was published to the package registry, the README's two commands ran once against the registry on a clean build 154 instance and gave the same working OcuTalon; the result is in the release notes, and docs/install-ipm.md shows that run's output."
-- [ ] `docs/install-ipm.md`, in this order:
+- [x] `release/release.sh`: `step_ipmcheck`, `ipmcheck_section` and the shared export helper. STEPS and the header. This covers the matrix rows "Gate passes", "Gate fails", "Gate busy", "Gate refusals" and "Large artifact".
+- [x] `release/notes.sh`: `notes_ipm` and its place in `notes_draft`. The header's draft order. The slot text: "Not run yet. After this version is published to the package registry, the README's two commands are run once against the registry on a clean build 154 instance, and the result is recorded here."
+- [x] `release/checklist.sh`: `registry_row` (`later` or `confirmed`, through `ck_confirmed_date`) and its header paragraph. The text: "After this version was published to the package registry, the README's two commands ran once against the registry on a clean build 154 instance and gave the same working OcuTalon; the result is in the release notes, and docs/install-ipm.md shows that run's output."
+- [x] `docs/install-ipm.md`, in this order:
   - **The intro.**
   - **`## What you need`:** IPM 0.10.10 in %SYS and enabled for USER, and, for the registry, an instance that can reach the community package registry.
   - **`## Install from the package registry`:**
@@ -154,13 +161,13 @@ The anchors are taken at `8d6ce22d`.
   - **`## Install from the package folder (for developers)`:** the Node.js build, and `Open an IRIS terminal in USER and load the package` with both existing output blocks. It refers to the namespace advice above rather than repeating the refusal line.
   - **Then, unchanged:** `iris merge`, demo mode, the model key and the README account.
   - Real output only, with ANSI codes and the `Node:` banner removed.
-- [ ] `docs/security-overview.md`, a Data bullet: "On an IPM install, OCUTALON also maps IPM's repository definitions (the globals `^IPM.Repo.Definition*`) from the namespace where the first install command ran, as they are, so the two namespaces share one list of repositories; uninstalling OcuTalon removes only that mapping." This is U-232 condition 3, a ruled cross-epic edit: list it under `footprint_extensions:`.
-- [ ] Tests:
+- [x] `docs/security-overview.md`, a Data bullet: "On an IPM install, OCUTALON also maps IPM's repository definitions (the globals `^IPM.Repo.Definition*`) from the namespace where the first install command ran, as they are, so the two namespaces share one list of repositories; uninstalling OcuTalon removes only that mapping." This is U-232 condition 3, a ruled cross-epic edit: list it under `footprint_extensions:`.
+- [x] Tests:
   - `test-release-sequence.sh` `t_ipmcheck`: pass, fail, busy, refusals, the artifact path and the lock folder handed to the stub, `## FR-57 job`, no push question on a fail, and WARN over 5,000,000 bytes (the docker shim's artifact padded). Also the existing pins and `to_step`.
   - `test-release-checklist.sh` `t_registry_row`: absent, malformed, valid, and a result that stays pass or fail.
   - `test-release-notes.sh`: the subsections, and the record without the sections.
   - `test-cpf.sh`: rules 8, 9 and 12, each first on samples. Rule 12: the registry `## ` section comes before the developers' section; `zpm "enable -community"` comes before the first `zpm "install ocutalon"`; the U-232 sentence; `RUNNING command: "enable -map -repos -globally"` inside a code block; no `Node.js` before the developers' heading.
-- [ ] DW-576: measured at plan (see Design Notes). The implement stage runs `--live ipm` once after the `release.sh` change (the new STEPS on the live path). After the commit, the lead's smoke runs it once more, so that the repository mapping rides in the live candidate (the live seed is `git archive HEAD`).
+- [x] DW-576: measured at plan (see Design Notes). The implement stage runs `--live ipm` once after the `release.sh` change (the new STEPS on the live path). After the commit, the lead's smoke runs it once more, so that the repository mapping rides in the live candidate (the live seed is `git archive HEAD`).
 
 **Acceptance Criteria:**
 - Given a candidate from 1.0.0 on, when `release.sh next` reaches `ipmcheck`, then it runs the FR-57 job's command on the candidate with its artifact and stops the release before `push` unless that run passes. This is the integration AC: the consumer is the release sequence, and the effect is no `NEXT push`, plus the record. The matrix rows "Gate passes" to "Large artifact" hold in `test-release-sequence.sh` `ipmcheck`.
@@ -172,6 +179,36 @@ The anchors are taken at `8d6ce22d`.
 ## Spec Change Log
 
 ## Review Triage Log
+
+### 2026-11-03 -- Review pass
+- verdicts: 26 findings (the layers' 29 reports, merged where one root cause) -- high 0, medium 1, low 19, false 5, maybe-false 1
+- findings:
+  - `[low]` `[reject]` Blind: `enable -community` has no warning about lost private repositories or the WARNING line -- the guide's sentence and the verbatim output are the spec's and the ruling's text; public text beyond them is a veto item.
+  - `[low]` `[reject]` Blind: the registry section's output shows a local path and 0.1.0, and the page says nothing of what uninstall does -- the spec's one disclaimer line covers the source of the outputs; text on uninstall is not in the spec.
+  - `[low]` `[reject]` Blind: the shared definitions may hold credentials, and the overview bullet does not say so -- the bullet is the ruled text (U-232 condition 3); the owner checked the exposure; no tool reads globals.
+  - `[low]` `[reject]` Blind and Edge: `MapRepos` guards on `DefinitionD` only, so a failure on S or I leaves a half mapping -- the guard is IPM's own skip rule that the spec names; a `MapGlobalEquivalently` error on a mapping it just resolved is theoretical (wontfix-theoretical; the first error is returned and the run stops).
+  - `[maybe-false]` `[defer]` Blind and Edge: the new Unconfigure Invoke may remove the mapping on an upgrade or same-version reinstall that runs Unconfigure of the old version, and nothing restores it -- unverified; what would settle it is `zpm "install ocutalon"` twice in OCUTALON from a repository with a version bump, then reading OCUTALON's three `IPM.Repo.Definition` mappings. Recorded in `deferred:`.
+  - `[low]` `[reject]` Blind: `step_ipmcheck` deletes the unit's log on a failure -- the first FAIL line is kept in the record and the output, as `step_overview` does; the full log is on the throwaway only for the run.
+  - `[low]` `[reject]` Blind: `step_ipmcheck` runs the whole unit in the foreground past the 10-minute cap -- the spec ruled it (deadline 1980, "the full unit takes about 14 to 25 min"); the author's release run is a hand run, and Story 11.14 calls the step.
+  - `[false]` `[reject]` Blind and Edge and Gap: `part_p`'s `--wait-timeout "$((deadline - SECONDS))"` can be zero or negative -- paths A and B use the same expression at their `dc up`; in the job the deadline is 1980 s against a measured 21.8 to 25.7 min run, and a negative value makes `dc up` fail loudly.
+  - `[low]` `[reject]` Blind: the repository add in part `p` is never checked -- the spec has its output discarded (U-232: no definition fields in any log); a failed add shows as the install's own failure.
+  - `[low]` `[patch]` Blind and Edge: rule 9's awk lets an unclosed Configure block followed by a complete one pass -- fixed (`if (on) bad = 1;`) with a `first-unclosed` sample; mutation line written and observed red.
+  - `[low]` `[patch]` Blind and Gap: the public notes print the internal id "FR-57 job result" -- label changed to "IPM install check" in `notes_ipm`, in `test-release-notes.sh` and its header.
+  - `[false]` `[reject]` Edge: `UnmapRepos` removes an admin's mapping when `MapRepos` skipped -- Decided in-stage 2 states exactly this (OCUTALON is OcuTalon's namespace; data is never touched).
+  - `[false]` `[reject]` Edge and Gap: `UnmapRepos` fails when nothing is mapped (merge path, first command in OCUTALON, admin removed it) -- IPM's `UnmapIPM` skips a namespace with no mapping, and `RemoveGlobalMapping` does nothing and returns OK when `Config.MapGlobals` has no such row (read in IPM's source).
+  - `[low]` `[reject]` Edge: rule 8's `Phase="Configure"` match misses other spellings of the attribute -- the manifest is written in one style and rules 5, 8, 10 and 13 pin it; the old `/Configure/` test was looser, and no other spelling is reachable.
+  - `[low]` `[reject]` Blind and Edge: `notes_ipm` says "not in the record" for a failed section -- a failed `ipmcheck` stops the release before `notes`, so the failed-record case is only a test input; the failed result is printed (test line "a failed job: the result").
+  - `[low]` `[reject]` Edge: `ipmcheck` differs from the CI job (no `ci/iris.sh build`, another run tag) -- the candidate commit carries the built web bundle (`ensure_web_bundle`), so no build is needed; the tag follows `security-overview.sh`; Decided in-stage 4.
+  - `[false]` `[reject]` Edge: requiring H0 = H2 contradicts Task 0 (c) -- the spec requires H0 = H2 unless Task 0 (c) measures a change, and it measured none (H0 = H1 = H2).
+  - `[false]` `[reject]` Gap: the uninstall is tested only on a mapped install -- same claim as the false row above; `RemoveGlobalMapping` is idempotent, so the unmapped case cannot fail in `UnmapRepos`.
+  - `[low]` `[patch]` Gap: mutation lines missing for the notes subsections, rule 9's multi-block logic and rule 13 -- three hermetic mutations run (red, restored byte-identical) and their lines written.
+  - `[low]` `[reject]` Gap: the `ipm_precondition`/`check_signin`/`derive_dbs` refactor has no mutation line -- the refactor is covered by the `a`, `r`, `b` and `p` runs that call them; no AC pins it alone.
+  - `[medium]` `[reject]` Gap and Intent: part `p` pre-builds the filesystem module list in OCUTALON (`BuildCache`), so the bare mapping is not shown to suffice for a filesystem repository -- by design: the cache is not a definition, U-232 covers the definitions only, a remote repository has no such list, and the mapping is still necessary (mutation 4 goes red); recorded under "Found while measuring". The registry run is the author's hand gate.
+  - `[low]` `[patch]` Gap: `t_ipmcheck` unsets `OCUTALON_RUN_TAG` and `OCUTALON_LIVE_DEADLINE` for the rest of the file -- saved and restored around the case.
+  - `[low]` `[reject]` Gap: the exact call `ipmcheck` makes (mode all with the artifact set) is run nowhere before the release -- Decided in-stage 7: the env branch is proved by hand in `p`, and the release's own live proof is the author's release run.
+  - `[low]` `[reject]` Gap: the `ipmcheck busy: no FR-57 section` assertion also passes with no record -- the `snap` equality on the line before it is the real guard.
+  - `[low]` `[reject]` Intent: readings 4 to 6 (what "first command" means; the artifact; local repository as proxy) -- descriptive; the diff takes the spec's readings, and the guide says the outputs come from a local repository.
+  - `[low]` `[reject]` Intent: the guide contains the registry's definition fields in the `enable -community` output, and rule 8 was tightened -- the output is the ruled guide content (the fields are the registry's public ones, printed by IPM in the guide only); rule 8's change is the spec's plan.
 
 ## Design Notes
 
@@ -232,6 +269,16 @@ The anchors are taken at `8d6ce22d`.
 5. **The guide keeps both output pairs.** The registry section shows the local-repository install's real output, and the developers' section keeps its load-from-folder output. Rule 9 therefore checks each Configure block.
 6. **The guide's sentence about `enable -community`.** It states only what the measured output shows (`repo -delete-all`), and it shows IPM's own WARNING line verbatim, without comment.
 7. **The env-set branch of part `p` is proved by hand.** It runs once with a hand-made artifact (`tar -czf ... -C src .` after `ci/iris.sh build`, which has the same layout). The release's own artifact gets its live proof at the author's release run (`ipmcheck`).
+
+### Measured at implement (2026-11-03, lane-D throwaways, build 154 base image, IPM 0.10.10)
+- **Task 0 (a), the Unconfigure Invoke.** `module.xml` loads with it, and `zpm "uninstall ocutalon"` in OCUTALON runs `UnmapRepos`: the output is `Clean START`, `Unconfigure START`, `Unconfigure SUCCESS`, eight `WARNING: Skipping mapped resource ...CLS` lines (the mapped public classes), `Clean SUCCESS`, and no `ERROR!` or `FAILURE` line. OCUTALON's three `IPM.Repo.Definition*` mappings are gone afterwards and every other OCUTALON mapping, USER's mappings and the services equal the snapshot taken before the uninstall.
+- **Task 0 (c).** The hash of USER's three definition globals is the same before the first command (H0), before the uninstall (H1) and after it (H2): IPM's own install does not change the definitions, so `uninstall_checks` asserts H0 = H1 = H2 (it prints only `same|<nodes>`, 5 nodes).
+- **Task 0 (b).** The registry section's `p-first` and `p-second` blocks and the `enable -community` block of the guide are the outputs of passing runs (`zpm "enable -community"` re-measured on its own throwaway with the guide's precondition; lines from `Version of IPM in current namespace:` to `Command "enable -map -repos -globally" finished successfull`).
+- **Found while measuring: a filesystem repository's module list is per namespace.** The definitions are mapped, and OCUTALON found the repository by name, but `zpm "install ocutalon"` in OCUTALON gave `ERROR! 'ocutalon' not found in any repository.` because the list of a filesystem repository's modules (`%IPM.Repo.Filesystem.Cache`, the globals `^IPM.Repo.Filesystem.Cache{D,I,S}`) is kept apart from the definition and is empty in OCUTALON. A remote repository (the registry) has no such list. Part `p` therefore builds the module list in OCUTALON before the second command (`BuildCache` of the mapped definition opened by name, which saves nothing new), and asserts again that OCUTALON_DATA holds no `^IPM.Repo.Definition*` node. The mapping itself still carries the proof: without it OCUTALON finds no repository (mutation 4). Nothing in the product maps the cache.
+- **The repository database.** On the part `p` stack (IPM enabled for USER with `enable -map -ns USER -q`) the definitions live in USER's own database, so `repo_db` reads `USER`; after the guide's `enable -community` they resolve to IRISSYS. `repo_db` is read by a probe either way.
+- **Times (local, one fresh stack per part).** `TIME package` 2 s; `TIME p-fresh` 105 s (first command 33 s, second 41 s, uninstall 0 s); `release/ipm-install.sh p` takes about 4 min in one call (under 540 s). Mode `a` 186 s, `r` 300 s, `b` 404 s (path B and the part p guard), `p` with a hand-made artifact 101 s for `p-fresh`; `--live ipm` PASS in 154 s (the ipm step 95 s); `ci/iris.sh live install-start` passed.
+- **CI projection.** 21.8 + (`TIME package` 2 + `TIME p-fresh` 105) x 2.2 / 60 = 25.7 min, under 30 (the job's timeout is 35). The unit's full no-argument run was not run locally (about 16 min); the `ipm-install` job is its first full run.
+- **Artifact sizes.** The packaged artifact is 4,940,685 bytes (98.8% of the 5,000,000-byte threshold; the hand-made `tar` of `src` is 5,039,626 and trips the WARN in `ipmcheck`).
 
 ### Proposed spine row (the lead writes it; a stage never edits the spine)
 "IPM early step" becomes: ... "Configuration such a step must keep when the run stops is made with transactions suspended (`$SYSTEM.Process.TransactionsSuspended(1)`), restoring the previous state on every path. That configuration is the IPM mapping into OCUTALON and, outside OCUTALON, the mapping of IPM's repository definitions `^IPM.Repo.Definition{D,S,I}` into OCUTALON from the database where they resolve in the run namespace (`%IPM.Utils.Build.MapGlobalEquivalently`; IPM's own `enable -map -repos` skips a namespace whose IPM is mapped from another namespace, measured), so the second command finds the first namespace's repositories. The definitions are mapped as they are: never copied, created, edited or printed. The package's Unconfigure Invoke (`UnmapRepos`, IPM's `unmap -repos-only -ns OCUTALON`) removes only that mapping on uninstall (U-232)." ... The rest of the row is unchanged. Also for the lead: AD-23's bullet "A second early step maps IPM into OCUTALON" now does slightly more. This plan reads that as a wording note, not a contradiction.
@@ -331,6 +378,16 @@ Run everything from the epic-15 worktree root, after verifying `git rev-parse --
 | 4 repository install | `MapAndStop`'s repository mapping removed | `ipm-install.sh p` (the second command: `No repositories are configured`), and check 3 |
 | 5 uninstall | `UnmapRepos` also runs `Kill ^IPM.Repo.DefinitionI` (in OCUTALON, which resolves to USER's database) before unmapping | `ipm-install.sh p` (the hash `differs`) |
 
+**Mutations run (Rule 19).** Each was applied to a backup-protected file, the one call was run, it went red, and the file was restored from the backup (`cmp` equal; `git status --short` and `git diff --stat` unchanged).
+- mutation: AC 1 gate -- `step_ipmcheck` fails only on exit codes above 1 (exit 1 treated like 0): `bash docker/tests/test-release-sequence.sh ipmcheck` red (`ipmcheck fail: exit: got '0', wanted '1'`, `PASS ipmcheck` and `NEXT push` after the failing unit).
+- mutation: AC 2 registry hand gate -- `registry_row` reads `confirmed` with no line (`|| true` on the date lookup): `bash docker/tests/test-release-checklist.sh` red in `registry-row` (no LATER line, no `later` row, a `confirmed` row without a line) and in `base` (its pinned PASS-line count, 19 for 18).
+- mutation: AC 3 guide -- the developers' section moved above the registry section in `docs/install-ipm.md`: `bash docker/tests/test-cpf.sh` red in rule 12 (only).
+- mutation: AC 4 repository install -- the repository mapping removed from `MapAndStop`: `[L] bash release/ipm-install.sh p` red (check 3's repository lines, the module-list step, and the second command `ERROR! No repositories are configured and enabled in this namespace.`).
+- mutation: AC 5 uninstall -- `UnmapRepos` runs `Kill ^IPM.Repo.DefinitionI` in OCUTALON (which resolves to USER's database) before unmapping: `[L] bash release/ipm-install.sh p` red with exactly one failure, `part p uninstall: USER's repository definitions differ` (`differs|3`, the hash not printed).
+- mutation: AC 3 guide, rule 9 -- the awk in `install_doc_ok` no longer flags a `Configure START` that follows an unclosed one (`if (on) bad = 1;` removed): `bash docker/tests/test-cpf.sh` red (`rule 9 on samples`, the `first-unclosed` sample); restored.
+- mutation: AC 5 uninstall, manifest -- the Unconfigure Invoke line removed from `src/module.xml`: `bash docker/tests/test-cpf.sh` red in rule 13 (only); restored.
+- mutation: AC 2 notes slot -- `notes_draft` no longer prints `ipm.md` (`cat "$w/ipm.md"` removed): `bash docker/tests/test-release-notes.sh` red in `base` and `ipm`; restored. The tree was byte-identical (`git diff`) after each of these three.
+
 **Shared surfaces:**
 - `release.sh`'s STEPS and `to_step` (and every `NEXT push` or `next push` pin after ipm);
 - the checklist's rows and result (the counts pinned in `test-release-checklist.sh` call `author_rows` alone and stay as they are);
@@ -347,5 +404,22 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** Outside OCUTALON, `MapAndStop` now also maps IPM's repository definitions (`^IPM.Repo.Definition{D,S,I}`) into OCUTALON as they are, so the second `zpm "install ocutalon"` finds the first namespace's repositories. An Unconfigure Invoke (`UnmapRepos`) removes only that mapping on uninstall. `release/ipm-install.sh` has a new part `p`: the exact artifact (or one packaged from path A's module) is installed twice from a local filesystem repository on a fresh instance with no Node.js, signs in, is uninstalled, and the definitions' hash is shown unchanged. `release.sh` has a new step `ipmcheck` after `ipm` that runs the FR-57 job's command on the candidate and blocks `push` unless it passes. The release notes record the artifact size and the FR-57 result and hold a registry-install slot; the checklist has the hand row `registry-install`; `docs/install-ipm.md` opens with the registry install; `docs/security-overview.md` lists the mapping.
+
+**Files changed.**
+- `src/preload/cls/OcuTalon/Install/Ipm.cls`: `MapRepos` (private), `UnmapRepos`, the `MapAndStop` call.
+- `src/module.xml`: the Unconfigure Invoke.
+- `release/ipm-install.sh`: part `p` (checks 26-29), check 3's repository lines, helpers, path B's view.
+- `release/release.sh`: `step_ipmcheck`, `ipmcheck_section`, `candidate_export` and `candidate_lock_dir` (shared with `step_overview`), STEPS.
+- `release/notes.sh`, `release/checklist.sh`: `notes_ipm`, `registry_row`.
+- `docs/install-ipm.md`, `docs/security-overview.md`: the registry-first guide and the one Data bullet.
+- `docker/tests/test-cpf.sh` (rules 8, 9, 12, 13), `test-release-sequence.sh` (`ipmcheck`), `test-release-checklist.sh` (`registry-row`), `test-release-notes.sh` (`ipm`).
+
+**Review findings.** 26 findings from four layers, none high. Patches applied (4, all low): rule 9's unclosed-first-block hole with a sample, the internal id "FR-57" removed from the public notes label, `t_ipmcheck`'s environment restore, and three missing mutation lines. Deferred (1): the Unconfigure Invoke on an upgrade or reinstall (medium, unverified). All other findings are rejected with their reasons in the Review Triage Log. Follow-up review recommended: false (no patched high or medium).
+
+**Verification performed.** Handoff stage, all green: `test-cpf.sh`, `test-release-checklist.sh`, `test-release-notes.sh`, `test-release-sequence.sh`, `test-boundaries.sh`, `test-pinned-sources.sh`; lane-D throwaways: `ipm-install.sh p` (TIME package 2 s, TIME p-fresh 105 s, projection 25.7 min), `p` with a hand-made artifact, `a`, `r`, `b`, `--live ipm` (PASS), `ci/iris.sh live install-start`; five planned mutations red and restored. After the review patches (no change to any IRIS-run code): the five hermetic suites again green (`test-release-sequence.sh` in 3 min 20 s) and three more mutations red and restored byte-identical. The full no-argument `ipm-install.sh` run was not made locally; CI's `ipm-install` job is its first full run. No container is left behind.
+
+**Residual risks.** The registry install itself is the author's hand gate (`registry-install`); the artifact is 98.8% of the 5,000,000-byte threshold. Part `p` builds the filesystem repository's module list in OCUTALON itself (a registry has none). The `--live ipm` seed is `git archive HEAD`, so the lead's post-commit smoke is what carries the repository mapping into the live candidate. Footprint extensions: `src/preload/cls/OcuTalon/Install/Ipm.cls` and `docs/security-overview.md` (one bullet).

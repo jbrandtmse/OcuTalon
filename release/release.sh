@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # release/release.sh start --version <x.y.z> [--from release/<v>-rc<m> --pick <sha>...] [--integration <branch>] [--remote <name>] [--record <file>] [--rc <n>]
 # release/release.sh next|resume|status [--version <v> --rc <n>]   (required when more than one state has steps left)
-# Steps, in order: cut, image, overview, ipm, push, notes  (Stories 11.14-11.16 and 11.18 insert their steps into STEPS)
+# Steps, in order: cut, image, overview, ipm, ipmcheck, push, notes  (Stories 11.14-11.16 and 11.18 insert their steps into STEPS)
 # Exit: 0 step done / end of steps, 1 a step failed, 2 refused (nothing written), 4 stopped for the author's word,
 #       5 waited: the lane's throwaway lock is busy (nothing recorded; the next call runs the step again)
 # State: ${OCUTALON_RELEASE_STATE:-${XDG_STATE_HOME:-$HOME/.local/state}/ocutalon/release}/<v>-rc<n>/
@@ -29,7 +29,10 @@
 # stops the release (the author runs the unit with --write on the integration branch, commits, and cuts the next candidate). ipm packs the cut commit's tree with
 # IPM in a throwaway container with no network, keeps the .tgz in the state folder (never in the repository), checks that it carries
 # the module's name and version and every file of the committed web bundle byte for byte, and records its size and checksums in
-# "## IPM artifact"; it sends nothing out. push asks, then pushes the candidate branch. notes runs release/notes.sh for the draft,
+# "## IPM artifact"; it sends nothing out. ipmcheck runs the FR-57 job's own command, release/ipm-install.sh, on an export of the candidate's
+# tree with that artifact (OCUTALON_IPM_ARTIFACT): the exact artifact is installed from a local IPM repository on a fresh instance with no
+# Node.js, signed in to and uninstalled, with USER's repository definitions unchanged; a failure stops the release before push, and the
+# result is recorded in "## FR-57 job" (a WARN line and a Size: note when the artifact is over 5000000 bytes). push asks, then pushes the candidate branch. notes runs release/notes.sh for the draft,
 # which stays uncommitted.
 #
 # The author's word. Each outward step prints "ASK <id> <question> [yes/no]" and reads one line of standard input; only "yes" goes on.
@@ -53,7 +56,7 @@ rel_root=$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd -P)
 . "$rel_root/docker/tests/lib-upgrade.sh"
 
 # The ordered steps; step_<name> is the function of a step. A sibling story adds its name and its function.
-STEPS="cut image overview ipm push notes"
+STEPS="cut image overview ipm ipmcheck push notes"
 HANDS_TARGET=900
 TAB=$(printf '\t')
 KIT_VERSION=1.0.0
@@ -595,6 +598,33 @@ step_image() {
 
 # --- the overview step (Story 14.1) ---
 
+# candidate_export <step> <folder>: exports the candidate's tree into the folder (emptied first). On a failure it prints the step's FAIL line,
+# removes the folder and returns 1.
+candidate_export() {
+  local cand
+  cand=$(sget cand_sha)
+  if [ -z "$cand" ]; then
+    step_fail "$1" "the candidate is not cut"
+    return 1
+  fi
+  rm -rf "$2"
+  mkdir -p "$2"
+  if ! (set -o pipefail; git archive "$cand" < /dev/null | tar -x -C "$2"); then
+    rm -rf "$2"
+    step_fail "$1" "the candidate's tree could not be exported"
+    return 1
+  fi
+  return 0
+}
+
+# candidate_lock_dir: the lane's throwaway lock folder of the author's repository, or nothing.
+candidate_lock_dir() {
+  (
+    root=$rel_root
+    live_lock_dir
+  )
+}
+
 # step_overview: runs release/security-overview.sh in an export of the candidate's tree, so that the candidate's own code and its own
 # docs/security-overview.md are the ones checked. An empty web/node_modules folder keeps the unit from installing the web dependencies, which it never
 # reads. The lane's throwaway lock folder, when the author's repository has one, is handed to the unit. Exit 0 of the unit is PASS, exit 75 is
@@ -602,29 +632,15 @@ step_image() {
 # and the release stops. "Regenerates" means a fresh generation from the candidate's code compared with the candidate's committed sections;
 # the author runs the unit with --write on the integration branch, commits, and cuts the next candidate.
 step_overview() {
-  local ctx="$sdir/overview" log="$sdir/overview.log" cand lockdir code line
-  cand=$(sget cand_sha)
-  if [ -z "$cand" ]; then
-    step_fail overview "the candidate is not cut"
-    return 1
-  fi
-  rm -rf "$ctx"
-  mkdir -p "$ctx"
-  if ! (set -o pipefail; git archive "$cand" < /dev/null | tar -x -C "$ctx"); then
-    rm -rf "$ctx"
-    step_fail overview "the candidate's tree could not be exported"
-    return 1
-  fi
+  local ctx="$sdir/overview" log="$sdir/overview.log" lockdir code line
+  candidate_export overview "$ctx" || return 1
   if [ ! -f "$ctx/release/security-overview.sh" ]; then
     rm -rf "$ctx"
     step_fail overview "the candidate has no release/security-overview.sh"
     return 1
   fi
   mkdir -p "$ctx/web/node_modules"
-  lockdir=$(
-    root=$rel_root
-    live_lock_dir
-  )
+  lockdir=$(candidate_lock_dir)
   (
     cd "$ctx" || exit 1
     if [ -n "$lockdir" ]; then export OCUTALON_LOCK_DIR="$lockdir"; fi
@@ -886,6 +902,96 @@ step_ipm() {
   STEP_DETAIL="ocutalon-$version.tgz, $bytes bytes, SHA-256 ${sha%"${sha#????????????}"}; carries the candidate's web bundle; not published"
   echo "PASS ipm ocutalon-$version.tgz $bytes bytes sha256 $sha"
   echo "ARTIFACT $art"
+  return 0
+}
+
+# --- the ipmcheck step (Story 15.4) ---
+
+IPM_SIZE_WARN=5000000
+
+# ipmcheck_section <pass|fail> <bytes> <detail>: "## FR-57 job" in the record. The detail is the first FAIL line of the unit on a failure.
+ipmcheck_section() {
+  {
+    echo "## FR-57 job"
+    echo "Result: $1"
+    echo "Candidate: $version rc$rc, $branch at $(sget cand_sha)"
+    echo "Command: bash release/ipm-install.sh on an export of the candidate's tree, with the IPM artifact ocutalon-$version.tgz of this candidate as OCUTALON_IPM_ARTIFACT; the CI job ipm-install runs the same command"
+    echo "Artifact: ocutalon-$version.tgz, $2 bytes"
+    if [ "$2" -gt "$IPM_SIZE_WARN" ] 2> /dev/null; then
+      echo "Size: $2 bytes, over $IPM_SIZE_WARN; reported to the Contest Planner"
+    fi
+    if [ "$1" = pass ]; then
+      echo "Checks: the exact artifact installed from a local IPM repository on a fresh build 154 instance with no Node.js, in USER and then in OCUTALON; OCUTALON served the sign-in page and the README account signed in; the uninstall left USER's repository definitions unchanged"
+    else
+      echo "First failure: $3"
+    fi
+  } > "$sdir/ipmcheck-section.md"
+  record_write "$(record_abs)" "$sdir/ipmcheck-section.md" "# OcuTalon $version rc$rc"
+}
+
+# step_ipmcheck: runs release/ipm-install.sh, the FR-57 job's own command, in an export of the candidate's tree with the artifact of the ipm
+# step as OCUTALON_IPM_ARTIFACT, on the lane's throwaway lock (the folder of the author's repository), with the job's live deadline (1980 s,
+# unless the caller set one) and a run tag of its own; ci/iris.sh teardown always runs after it. Exit 0 of the unit is PASS, 75 is WAIT
+# (nothing is recorded; the next call runs the step again), anything else fails the step with the unit's first FAIL line, and the release
+# stops before push. It asks nothing. An artifact over 5000000 bytes prints a WARN line and a Size: note, and fails nothing.
+step_ipmcheck() {
+  local ctx="$sdir/ipmcheck" log="$sdir/ipmcheck.log" art lockdir code line bytes
+  if [ "$(sget ipm_result)" != pass ]; then
+    step_fail ipmcheck "the ipm step has not passed"
+    return 1
+  fi
+  art=$(ipm_artifact_path "$version" "$rc")
+  if [ ! -f "$art" ]; then
+    step_fail ipmcheck "the IPM artifact ocutalon-$version.tgz is missing"
+    return 1
+  fi
+  bytes=$(wc -c < "$art" | tr -d ' ')
+  candidate_export ipmcheck "$ctx" || return 1
+  if [ ! -f "$ctx/release/ipm-install.sh" ]; then
+    rm -rf "$ctx"
+    step_fail ipmcheck "the candidate has no release/ipm-install.sh"
+    return 1
+  fi
+  mkdir -p "$ctx/web/node_modules"
+  lockdir=$(candidate_lock_dir)
+  (
+    cd "$ctx" || exit 1
+    if [ -n "$lockdir" ]; then export OCUTALON_LOCK_DIR="$lockdir"; fi
+    export OCUTALON_IPM_ARTIFACT="$art"
+    export OCUTALON_RUN_TAG="${OCUTALON_RUN_TAG:+$OCUTALON_RUN_TAG-}ipmchk-$$"
+    export OCUTALON_LIVE_DEADLINE="${OCUTALON_LIVE_DEADLINE:-1980}"
+    bash release/ipm-install.sh
+    code=$?
+    bash ci/iris.sh teardown < /dev/null > /dev/null 2>&1
+    exit "$code"
+  ) < /dev/null > "$log" 2>&1
+  code=$?
+  rm -rf "$ctx"
+  if [ "$code" -eq 75 ]; then
+    rm -f "$log"
+    echo "WAIT ipmcheck the lane's throwaway lock is busy"
+    return 5
+  fi
+  if [ "$code" -ne 0 ]; then
+    line=$(grep -m 1 '^FAIL ' "$log" 2> /dev/null)
+    line=${line#FAIL }
+    rm -f "$log"
+    line=${line:-release/ipm-install.sh ended with exit $code}
+    ipmcheck_section fail "$bytes" "$(printf '%s' "$line" | detail_clean)" > /dev/null 2>&1
+    step_fail ipmcheck "$line"
+    return 1
+  fi
+  rm -f "$log"
+  if ! ipmcheck_section pass "$bytes" ""; then
+    step_fail ipmcheck "the result could not be written into the record"
+    return 1
+  fi
+  if [ "$bytes" -gt "$IPM_SIZE_WARN" ]; then
+    echo "WARN ipmcheck the artifact is $bytes bytes, over $IPM_SIZE_WARN; report it to the Contest Planner"
+  fi
+  STEP_ROW=pass
+  STEP_DETAIL="ocutalon-$version.tgz ($bytes bytes) installs from a local IPM repository on a fresh instance with no Node.js and uninstalls leaving the repository definitions unchanged"
+  echo "PASS ipmcheck $STEP_DETAIL"
   return 0
 }
 

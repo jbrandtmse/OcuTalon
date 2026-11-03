@@ -14,15 +14,21 @@
 #   7. the job is wired the way the script needs: the base image in IRIS_IMAGE, a run tag that ends in -ipm, the web bundle built
 #      before the script runs, and a live deadline that ends before the job's timeout.
 #   8. src/module.xml declares the IPM entry point once: the exact Configure, After Invoke of OcuTalon.Install.Registry Ipm, on a line
-#      of its own after the MapAndStop Invoke;
+#      of its own after the MapAndStop Invoke, and no other Invoke at Configure (the Unconfigure Invoke of rule 13 is not one);
 #   9. docs/install-ipm.md (QA of Story 15.2) keeps the points of its task and agrees with the code it quotes: no ANSI code, the stop
 #      sentence of OcuTalon.Install.Ipm after `ERROR! `, the install command and the iris merge commands, the demo-mode, model-key and
 #      README-account lines, the line of Registry FailureLine, and the STEP lines inside Configure START and SUCCESS (each OK, and
-#      every name of Registry.Order() once, in its order).
+#      every name of Registry.Order() once, in its order), in each Configure block of the document (at least one).
 #  10. src/module.xml (QA of Story 15.3) declares the exact SystemRequirements element, once, so IPM refuses a first run in a namespace
 #      without Interoperability (U-231);
 #  11. docs/install-ipm.md (QA of Story 15.3) starts in USER, quotes that refusal line exactly as release/ipm-install.sh asserts it,
 #      says to run the command in USER instead, and promises no first run in any namespace or in %SYS.
+#  12. docs/install-ipm.md (Story 15.4) opens with the registry install: its `## ` section comes before the developers' section,
+#      `zpm "enable -community"` comes before the first `zpm "install ocutalon"`, the U-232 sentence is present, the output of
+#      `enable -community` (RUNNING command: "enable -map -repos -globally") is inside a code block, and the page does not mention
+#      Node.js before the developers' section;
+#  13. src/module.xml declares the Unconfigure Invoke of OcuTalon.Install.Ipm UnmapRepos once, on a line of its own after the
+#      Configure Invoke (U-232: uninstalling removes only the repository mapping).
 # Each rule first runs on synthetic files, one that keeps it and one that breaks it, so a rule that can no longer fail makes the
 # test fail. Prints one PASS or FAIL line per check; exits 0 only when all pass.
 set -u
@@ -141,12 +147,13 @@ ipm_job_wired() {
 
 # 8. The Configure Invoke of the IPM entry point: exactly one Invoke at Configure, the exact one, after the MapAndStop line.
 IPM_ELEMENT='<Invoke Class="OcuTalon.Install.Registry" Method="Ipm" Phase="Configure" When="After"/>'
+UNMAP_ELEMENT='<Invoke Class="OcuTalon.Install.Ipm" Method="UnmapRepos" Phase="Unconfigure" When="Before"/>'
 ipm_entry_declared() {
   awk -v inv="$INVOKE_ELEMENT" -v ipm="$IPM_ELEMENT" '
     { line = $0; sub(/^[ \t]+/, "", line); sub(/[ \t\r]+$/, "", line) }
     line == inv { if (!seen) seen = NR }
     line == ipm { nipm++; if (!seen) before = 1 }
-    line ~ /^<Invoke[ \/>]/ && line ~ /Configure/ && line != ipm { bad = 1 }
+    line ~ /^<Invoke[ \/>]/ && line ~ /Phase="Configure"/ && line != ipm { bad = 1 }
     line ~ /Registry/ && line ~ /Method="Ipm"/ && line != ipm { bad = 1 }
     END { exit (nipm == 1 && !before && !bad) ? 0 : 1 }' "$1"
 }
@@ -258,9 +265,10 @@ grep -v 'Method="Ipm"' "$tmp/manifest.ipm" > "$tmp/manifest.ipm-none"
 awk -v ipm="  $IPM_ELEMENT" -v inv="  $INVOKE_ELEMENT" '$0 == inv { held = $0; next } $0 == ipm { print; print held; next } { print }' "$tmp/manifest.ipm" > "$tmp/manifest.ipm-first"
 sed 's/Phase="Configure"/Phase="Activate"/' "$tmp/manifest.ipm" > "$tmp/manifest.ipm-phase"
 { cat "$tmp/manifest.ipm"; echo '  <Invoke Class="OcuTalon.Install.Registry" Method="Run" Phase="Configure" When="After"/>'; } > "$tmp/manifest.ipm-other"
-if ipm_entry_declared "$tmp/manifest.ipm" && ! ipm_entry_declared "$tmp/manifest.ipm-none" && ! ipm_entry_declared "$tmp/manifest.ipm-twice" \
+{ cat "$tmp/manifest.ipm"; echo "  $UNMAP_ELEMENT"; } > "$tmp/manifest.ipm-unconfigure"
+if ipm_entry_declared "$tmp/manifest.ipm" && ipm_entry_declared "$tmp/manifest.ipm-unconfigure" && ! ipm_entry_declared "$tmp/manifest.ipm-none" && ! ipm_entry_declared "$tmp/manifest.ipm-twice" \
   && ! ipm_entry_declared "$tmp/manifest.ipm-first" && ! ipm_entry_declared "$tmp/manifest.ipm-phase" && ! ipm_entry_declared "$tmp/manifest.ipm-other"; then
-  pass "rule 8 on samples: the Configure Invoke of Ipm after MapAndStop passes; none, two, one before MapAndStop, another phase or another Invoke at Configure fails"
+  pass "rule 8 on samples: the Configure Invoke of Ipm after MapAndStop passes, also beside the Unconfigure Invoke; none, two, one before MapAndStop, another phase or another Invoke at Configure fails"
 else
   fail "rule 8 on samples: the checker accepts a manifest without the exact Configure Invoke of Ipm after MapAndStop, or rejects the right one"
 fi
@@ -301,13 +309,13 @@ install_doc_ok() {
   grep -qF -- "STEP <name> FAILED: $tail" "$doc" || return 1
   awk -v order="$order" '
     BEGIN { n = split(order, names, " "); for (i = 1; i <= n; i++) pos[names[i]] = i }
-    /Configure START/ { on = 1; next }
-    /Configure SUCCESS/ { on = 0; closed = 1 }
+    /Configure START/ { if (on) bad = 1; on = 1; last = 0; count = 0; next }
+    /Configure SUCCESS/ { if (on && count != n) bad = 1; on = 0; closed++ }
     on && /^STEP / {
       if ($3 != "OK" || !($2 in pos) || pos[$2] <= last) bad = 1
       last = pos[$2]; count++
     }
-    END { exit (closed && !bad && count == n) ? 0 : 1 }' "$doc"
+    END { exit (closed >= 1 && !on && !bad) ? 0 : 1 }' "$doc"
 }
 
 stop_text=$(stop_sentence "$ipm_class")
@@ -333,7 +341,17 @@ sed 's/^STEP Web OK/STEP Browser OK/' "$tmp/doc.good" > "$tmp/doc.renamed-step"
 sed 's/^STEP Roles OK 0.0s$/STEP Roles FAILED boom/' "$tmp/doc.good" > "$tmp/doc.failed-step"
 awk '/^STEP Public OK/ { held = $0; next } /^STEP Roles OK/ { print; print held; next } { print }' "$tmp/doc.good" > "$tmp/doc.misordered"
 grep -v 'Configure SUCCESS' "$tmp/doc.good" > "$tmp/doc.unclosed"
+{ cat "$tmp/doc.good"; echo '[OCUTALON|ocutalon]	Configure START'; for name in $order_text; do echo "STEP $name OK 0.0s"; done; echo '[OCUTALON|ocutalon]	Configure SUCCESS'; } > "$tmp/doc.two-blocks"
+{ cat "$tmp/doc.good"; echo '[OCUTALON|ocutalon]	Configure START'; for name in $order_text; do echo "STEP $name OK 0.0s"; done | awk '/^STEP Public OK/ { held = $0; next } /^STEP Roles OK/ { print; print held; next } { print }'; echo '[OCUTALON|ocutalon]	Configure SUCCESS'; } > "$tmp/doc.second-misordered"
+{ cat "$tmp/doc.good"; echo '[OCUTALON|ocutalon]	Configure START'; for name in $order_text; do echo "STEP $name OK 0.0s"; done | grep -v '^STEP Production OK'; echo '[OCUTALON|ocutalon]	Configure SUCCESS'; } > "$tmp/doc.second-short"
+{ cat "$tmp/doc.good"; echo '[OCUTALON|ocutalon]	Configure START'; } > "$tmp/doc.second-unclosed"
+{ grep -v 'Configure SUCCESS' "$tmp/doc.good"; cat "$tmp/doc.good"; } > "$tmp/doc.first-unclosed"
 if install_doc_ok "$tmp/doc.good" "$stop_text" "$fail_tail" "$order_text" \
+  && install_doc_ok "$tmp/doc.two-blocks" "$stop_text" "$fail_tail" "$order_text" \
+  && ! install_doc_ok "$tmp/doc.second-misordered" "$stop_text" "$fail_tail" "$order_text" \
+  && ! install_doc_ok "$tmp/doc.second-short" "$stop_text" "$fail_tail" "$order_text" \
+  && ! install_doc_ok "$tmp/doc.second-unclosed" "$stop_text" "$fail_tail" "$order_text" \
+  && ! install_doc_ok "$tmp/doc.first-unclosed" "$stop_text" "$fail_tail" "$order_text" \
   && ! install_doc_ok "$tmp/doc.ansi" "$stop_text" "$fail_tail" "$order_text" \
   && ! install_doc_ok "$tmp/doc.stop" "$stop_text" "$fail_tail" "$order_text" \
   && ! install_doc_ok "$tmp/doc.no-merge" "$stop_text" "$fail_tail" "$order_text" \
@@ -348,7 +366,7 @@ if install_doc_ok "$tmp/doc.good" "$stop_text" "$fail_tail" "$order_text" \
   && ! install_doc_ok "$tmp/doc.unclosed" "$stop_text" "$fail_tail" "$order_text" \
   && ! install_doc_ok "$tmp/doc.good" "$stop_text" "$fail_tail" "$order_text ZzAddedStep" \
   && ! install_doc_ok "$tmp/doc.good" "" "$fail_tail" "$order_text"; then
-  pass "rule 9 on samples: a document with every point passes; an ANSI code, another stop sentence, a missing command, key or failure line, a changed failure line, a missing, renamed, failed or misordered STEP, a step the order gained, no Configure SUCCESS or no source text fails"
+  pass "rule 9 on samples: a document with every point passes, also with two Configure blocks; a second block that is misordered, short or unclosed fails; an ANSI code, another stop sentence, a missing command, key or failure line, a changed failure line, a missing, renamed, failed or misordered STEP, a step the order gained, no Configure SUCCESS or no source text fails"
 else
   fail "rule 9 on samples: the checker accepts a document that lost a point or disagrees with the code, or rejects the right one"
 fi
@@ -467,6 +485,94 @@ else
   fail "rule 11 on samples: the checker accepts a document that lost a point of U-231, or rejects the right one"
 fi
 
+# 12. The install document opens with the registry install (Story 15.4, U-232): the registry section comes before the developers' section,
+# `enable -community` comes before the first install command, the U-232 sentence is there, the output of `enable -community` stands
+# inside a code block, and Node.js is not mentioned before the developers' section.
+REGISTRY_HEADING='## Install from the package registry'
+DEVELOPERS_HEADING='## Install from the package folder (for developers)'
+SHARED_SENTENCE='OCUTALON shares the repositories of the namespace where you ran the first command, so a repository added or removed in either namespace changes both.'
+registry_doc_ok() { # registry_doc_ok <doc>
+  local doc=$1
+  awk -v reg="$REGISTRY_HEADING" -v dev="$DEVELOPERS_HEADING" -v shared="$SHARED_SENTENCE" '
+    $0 == reg { if (!r) r = NR }
+    $0 == dev { if (!d) d = NR }
+    /^```/ { fence = !fence }
+    index($0, "zpm \"enable -community\"") && !e { e = NR }
+    index($0, "zpm \"install ocutalon\"") && !i { i = NR }
+    index($0, shared) { s = NR }
+    index($0, "RUNNING command: \"enable -map -repos -globally\"") && fence { o = NR }
+    index($0, "Node.js") && !n { n = NR }
+    END { exit (r && d && r < d && e && i && r < e && e < i && i < d && s > r && s < d && o > e && o < i && (!n || n > d)) ? 0 : 1 }' "$doc"
+}
+cat > "$tmp/regdoc.good" <<'EOM'
+# Install
+
+## What you need
+
+IPM 0.10.10.
+
+## Install from the package registry
+
+```
+zpm "enable -community"
+```
+
+```
+RUNNING command: "enable -map -repos -globally"
+```
+
+```
+zpm "install ocutalon"
+```
+
+OCUTALON shares the repositories of the namespace where you ran the first command, so a repository added or removed in either namespace changes both.
+
+## Install from the package folder (for developers)
+
+Build with Node.js 24.15.
+
+## Demo mode
+EOM
+awk '$0 == "## Install from the package registry" { hold = 1 } hold && $0 == "## Install from the package folder (for developers)" { hold = 0 } !hold' "$tmp/regdoc.good" > "$tmp/regdoc.no-registry"
+awk '/^## Install from the package registry$/ { sec = 1 } /^## Install from the package folder/ { sec = 2 } sec == 1 { a = a $0 "\n"; next } sec == 2 && /^## Demo mode$/ { sec = 3 } sec == 2 { b = b $0 "\n"; next } { if (sec == 3 && !done) { printf "%s%s", b, a; done = 1 } print }' "$tmp/regdoc.good" > "$tmp/regdoc.swapped"
+sed 's/zpm "enable -community"/zpm "enable -map"/' "$tmp/regdoc.good" > "$tmp/regdoc.no-enable"
+{ echo 'zpm "install ocutalon"'; cat "$tmp/regdoc.good"; } > "$tmp/regdoc.install-first"
+grep -v 'OCUTALON shares' "$tmp/regdoc.good" > "$tmp/regdoc.no-sentence"
+sed 's/^RUNNING command: .*$/Some output./' "$tmp/regdoc.good" > "$tmp/regdoc.no-output"
+sed 's/^IPM 0.10.10\.$/IPM 0.10.10 and Node.js 24.15./' "$tmp/regdoc.good" > "$tmp/regdoc.node-early"
+sed 's/^```$/~~~/' "$tmp/regdoc.good" > "$tmp/regdoc.no-fence"
+if registry_doc_ok "$tmp/regdoc.good" && ! registry_doc_ok "$tmp/regdoc.no-registry" && ! registry_doc_ok "$tmp/regdoc.swapped" \
+  && ! registry_doc_ok "$tmp/regdoc.no-enable" && ! registry_doc_ok "$tmp/regdoc.install-first" && ! registry_doc_ok "$tmp/regdoc.no-sentence" \
+  && ! registry_doc_ok "$tmp/regdoc.no-output" && ! registry_doc_ok "$tmp/regdoc.node-early" && ! registry_doc_ok "$tmp/regdoc.no-fence"; then
+  pass "rule 12 on samples: a registry-first document passes; no registry section, the developers' section first, no enable -community, an install command before it, no shared-repositories sentence, no enable output in a code block or Node.js before the developers' section fails"
+else
+  fail "rule 12 on samples: the checker accepts a document that is not registry-first, or rejects the right one"
+fi
+
+# 13. The Unconfigure Invoke (Story 15.4, U-232): src/module.xml declares OcuTalon.Install.Ipm UnmapRepos at Unconfigure, Before, once, on a
+# line of its own after the Configure Invoke of the IPM entry point; uninstalling OcuTalon then removes only the repository mapping.
+unmap_declared() {
+  awk -v unmap="$UNMAP_ELEMENT" -v ipm="$IPM_ELEMENT" '
+    { line = $0; sub(/^[ \t]+/, "", line); sub(/[ \t\r]+$/, "", line) }
+    line == ipm { if (!unm) seen = 1 }
+    line == unmap { n++; if (seen) after = 1; unm = 1 }
+    line ~ /UnmapRepos/ && line != unmap { bad = 1 }
+    line ~ /^<Invoke[ \/>]/ && line ~ /Phase="Unconfigure"/ && line != unmap { bad = 1 }
+    END { exit (n == 1 && after && !bad) ? 0 : 1 }' "$1"
+}
+grep -v 'UnmapRepos' "$tmp/manifest.ipm-unconfigure" > "$tmp/manifest.unmap-none"
+{ cat "$tmp/manifest.ipm-unconfigure"; echo "  $UNMAP_ELEMENT"; } > "$tmp/manifest.unmap-twice"
+awk -v unmap="  $UNMAP_ELEMENT" -v ipm="  $IPM_ELEMENT" '$0 == ipm { held = 1; next } $0 == unmap { print; if (held) print ipm; next } { print }' "$tmp/manifest.ipm-unconfigure" > "$tmp/manifest.unmap-first"
+sed '/UnmapRepos/ s/When="Before"/When="After"/' "$tmp/manifest.ipm-unconfigure" > "$tmp/manifest.unmap-after"
+sed '/UnmapRepos/ s/Phase="Unconfigure"/Phase="Clean"/' "$tmp/manifest.ipm-unconfigure" > "$tmp/manifest.unmap-phase"
+sed '/UnmapRepos/ s/UnmapRepos/Unmap/' "$tmp/manifest.ipm-unconfigure" > "$tmp/manifest.unmap-method"
+if unmap_declared "$tmp/manifest.ipm-unconfigure" && ! unmap_declared "$tmp/manifest.unmap-none" && ! unmap_declared "$tmp/manifest.unmap-twice" \
+  && ! unmap_declared "$tmp/manifest.unmap-first" && ! unmap_declared "$tmp/manifest.unmap-after" && ! unmap_declared "$tmp/manifest.unmap-phase" && ! unmap_declared "$tmp/manifest.unmap-method"; then
+  pass "rule 13 on samples: the Unconfigure Invoke once after the Configure Invoke passes; none, two, one before it, When=After, another phase or another method fails"
+else
+  fail "rule 13 on samples: the checker accepts a manifest without the exact Unconfigure Invoke after the Configure Invoke, or rejects the right one"
+fi
+
 # --- the real files ---
 
 check "rule 1: $cpf_file has no line that names %Service_CallIn or %IPM" no_service_or_ipm "$cpf_file"
@@ -480,6 +586,8 @@ check "rule 8: $manifest invokes OcuTalon.Install.Registry Ipm once, at Configur
 check "rule 9: $install_doc keeps its points and agrees with the stop sentence of Install.Ipm, the failure line and the order of Registry" install_doc_ok "$install_doc" "$stop_text" "$fail_tail" "$order_text"
 check "rule 10: $manifest declares the exact SystemRequirements element once" sysreq_declared "$manifest"
 check "rule 11: $install_doc starts in USER, quotes IPM's refusal exactly as release/ipm-install.sh asserts it and sends the reader back to USER" ns_doc_ok "$install_doc" "$script_refusal"
+check "rule 12: $install_doc opens with the registry install: enable -community before the first install command, the shared-repositories sentence, and no Node.js before the developers' section" registry_doc_ok "$install_doc"
+check "rule 13: $manifest invokes OcuTalon.Install.Ipm UnmapRepos once, at Unconfigure, Before, after the Configure Invoke" unmap_declared "$manifest"
 
 if [ "$fails" -ne 0 ]; then
   echo "test-cpf: $fails check(s) failed"

@@ -735,6 +735,67 @@ t_static() {
 }
 
 mkbase
+# --- the registry-install row (Story 15.4) ---
+
+# The hand row registry-install: read from the author's own line, "later" until it is there, and never a failure or a missing confirmation.
+t_registry_row() {
+  local line="LATER registry-install: after the package is published, add the line \"- registry-install: confirmed <YYYY-MM-DD>\" under \"## Author confirmations\" in"
+  # no line: the row reads later, a LATER line names the line to add, and a pass stays a pass
+  newcase
+  std
+  eq "absent: exit" "$rc" 0
+  has "absent: result" "$out" "RESULT pass"
+  has "absent: the LATER line" "$out" "$line $rec"
+  eq "absent: one LATER line" "$(printf '%s\n' "$out" | grep -c '^LATER ')" 1
+  has "absent: the table row" "$(sect "$rec" "## Release checklist")" "| registry-install | later | After this version was published to the package registry, the README's two commands ran once against the registry on a clean build 154 instance and gave the same working OcuTalon; the result is in the release notes, and docs/install-ipm.md shows that run's output. |"
+  has "absent: the section's result" "$(sect "$rec" "## Release checklist")" "Result: pass"
+  lacks "absent: no confirmed row" "$(sect "$rec" "## Release checklist")" "| registry-install | confirmed |"
+  eq "absent: the seven author rows are unchanged" "$(printf '%s\n' "$out" | grep -c '^PASS .* the record says the author confirmed this on ')" 7
+  # malformed lines: each stays later, and the record's own section is not written
+  newcase
+  {
+    printf '# OcuTalon 1.0.0 rc1\n\n## Author confirmations\n\n'
+    printf -- '- registry-install: confirmed yesterday\n'
+    printf -- '- registry-install: confirmed 2026-13-40\n'
+    printf -- '- registry-install: confirmed 2027-02-29\n'
+    printf -- '- registry-install: done\n'
+    printf -- '- registry-install: confirmed\n'
+    printf -- 'registry-install: confirmed 2026-11-02\n'
+    printf -- '- registry-installed: confirmed 2026-11-02\n'
+    for id in $CONF_IDS; do printf -- '- %s: confirmed 2026-11-02\n' "$id"; done
+  } > "$rec"
+  std
+  eq "malformed: exit" "$rc" 0
+  has "malformed: result" "$out" "RESULT pass"
+  has "malformed: the LATER line" "$out" "$line $rec"
+  has "malformed: the table row" "$(sect "$rec" "## Release checklist")" "| registry-install | later |"
+  # a valid line: confirmed with its date, no LATER line
+  newcase
+  mkrec "$rec"
+  printf -- '- registry-install: confirmed 2026-11-03 published and run once\n' >> "$rec"
+  std
+  eq "valid: exit" "$rc" 0
+  has "valid: result" "$out" "RESULT pass"
+  has "valid: the PASS line" "$out" "PASS registry-install the record says the author confirmed this on 2026-11-03"
+  lacks "valid: no LATER line" "$out" "LATER registry-install"
+  has "valid: the table row" "$(sect "$rec" "## Release checklist")" "| registry-install | confirmed | the record says the author confirmed this on 2026-11-03 |"
+  lacks "valid: the text of the line is not copied" "$(sect "$rec" "## Release checklist")" "published and run once"
+  # the result: a later row neither fails nor blocks, an automated failure still fails, a missing author row still is not confirmed
+  newcase
+  : > "$marks/readme"
+  std
+  eq "later with a failing row: exit" "$rc" 1
+  has "later with a failing row: result" "$out" "RESULT fail"
+  has "later with a failing row: still later" "$out" "LATER registry-install"
+  newcase
+  mkrec "$rec" no-copied-code no-artwork no-ai-hub-copy public-review public-links overview-review
+  printf -- '- registry-install: confirmed 2026-11-03\n' >> "$rec"
+  std
+  eq "confirmed with a missing author row: exit" "$rc" 1
+  has "confirmed with a missing author row: result" "$out" "RESULT not confirmed"
+  eq "confirmed with a missing author row: the CONFIRM ids" "$(printf '%s\n' "$out" | sed -n 's/^CONFIRM \([a-z-]*\):.*$/\1/p' | tr '\n' ' ')" "demo-protections "
+}
+
 rule base t_base
 rule note-rows t_note_rows
 rule name-rows t_name_rows
@@ -749,6 +810,7 @@ rule no-network t_nonetwork
 rule sourcing t_sourcing
 rule tmpfail t_tmpfail
 rule static t_static
+rule registry-row t_registry_row
 
 if [ "$fails_total" -ne 0 ]; then
   echo "test-release-checklist: $fails_total rule(s) failed"

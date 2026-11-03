@@ -15,6 +15,7 @@
       <FileCopy Name="ocutalon/csp/" Target="${dataDir}csp/ocutalon-web/"/>
       <Invoke Class="OcuTalon.Install.Ipm" Method="MapAndStop" Phase="Initialize" When="After"/>
       <Invoke Class="OcuTalon.Install.Registry" Method="Ipm" Phase="Configure" When="After"/>
+      <Invoke Class="OcuTalon.Install.Ipm" Method="UnmapRepos" Phase="Unconfigure" When="Before"/>
     </Module>
   </Document>
 </Export>
