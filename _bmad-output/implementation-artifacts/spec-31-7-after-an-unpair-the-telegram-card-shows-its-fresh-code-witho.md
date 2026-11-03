@@ -4,6 +4,7 @@ type: 'bugfix'
 created: '2026-11-03'
 status: 'done'
 baseline_revision: '9436ea4f614d8395f6750dadfeaea82ead6cc73e'
+baseline_commit: '9436ea4f614d8395f6750dadfeaea82ead6cc73e'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -105,6 +106,31 @@ deferred: []
 - AC4: Given the card component, when its asking effect starts an asking, then it has told the schedule the current `paired` value first, and the component keeps no spacing of its own (source pin in the card's spec).
 - AC5: Given the real stack (`ci/iris.sh live demo-path`, after `ci/iris.sh build`), when T6 runs /stop and the move, then each `watchWindow` sees the unpaired view between 4500 and 8000 ms after "Telegram unpaired" appeared, and T1 to T7 all pass (UX-DR14).
 
+### Review Findings
+
+Code review (2026-11-03, review_mode full; layers blind-hunter, edge-case-hunter, verification-gap and acceptance-auditor). 0 decision-needed, 9 patch (all applied), 1 defer, 8 rejected.
+
+- [x] [Review][Patch] (medium; fix-risk low: one stronger regex in the source pin; in-story) The AC4 pin let a guarded call through: `if (key !== '') this.schedule.paired(...)` kept every position check green, while a paired card (key "") would never tell the schedule `true`, so no exemption would ever be granted [web/scripts/telegram-card-view.test.mjs:345]. The pin now requires the call as the first, unconditional statement of the untracked block; mutation line below.
+- [x] [Review][Patch] (medium; fix-risk low: the pin's slice is bounded and one count assertion added; in-story) The 409 pin let `reply.failed()` at the top of the error handler through, so a refused card could ask every 30 s with T4 (3 s window) still green [web/scripts/telegram-card-view.test.mjs:356]. The pin now bounds the error handler and requires exactly one reply call, after the 409 return; mutation line below.
+- [x] [Review][Patch] (low; fix-risk low: one added case; in-story) No case for the Matrix row "Unpair long after" [web/scripts/telegram-card-view.test.mjs:167]. Added: an unpair 12 s after the last request asks at once, and the next request is spaced 10 s after it.
+- [x] [Review][Patch] (low; fix-risk low: comment re-wrap) The class doc's last just-unpaired line was 180 characters [web/src/app/rail/telegram-card/telegram-card.ts:59]. Re-wrapped.
+- [x] [Review][Patch] (low; fix-risk low: one doc sentence) `CodeSchedule.start` did not state its one-asking-at-a-time rule [web/src/app/rail/telegram-card/telegram-card-view.ts:106]. Added: the caller ends the previous asking first (the card does so through the effect's cleanup).
+- [x] [Review][Patch] (low; fix-risk low: one guard) The asking-effect slice ran to the end of the file if its end marker went missing [web/scripts/telegram-card-view.test.mjs:330]. The slice is now empty, and the pin red, unless both markers are found.
+- [x] [Review][Patch] (low; fix-risk low: a rename) The AC3 case's name claimed "with no second exemption", which cannot fail there (the 30 s retry is later than the 10 s spacing either way; the AC2 mutation pins that property) [web/scripts/telegram-card-view.test.mjs:230]. Renamed.
+- [x] [Review][Patch] (low; fix-risk low: a rename) "cancels the request in flight" over-claimed: `stop` runs after the second request was answered [web/scripts/telegram-card-view.test.mjs:298]. Renamed to "cancels the latest request".
+- [x] [Review][Patch] (low; fix-risk low: tracking lines) The Verification mutation lines were not in Rule 19's `mutation: <change> -> <red test>` form (the form sibling specs use). Every pinning mutation was re-applied on the patched tree, seen red, reverted (byte-identical), and written below in that form.
+- [x] [Review][Defer] (low; fix-risk low; out-of-footprint) `web/scripts/fake-clock.mjs`'s header lists the modules whose tests use it and leaves out `telegram-card-view.ts` [web/scripts/fake-clock.mjs:1] -- deferred: outside the U-243 footprint; DW-641 `wontfix-accepted`, reopen_if a story edits fake-clock.mjs and leaves the card's module out of its list.
+
+**Rejected:**
+- (low) The cycle log's `dev_complete` line records `story_base=9436ea4f` while its `stage_spawned` line records `9cd97066`: the runner's bookkeeping, which this stage may not write; passed to the runner.
+- (false) The spec frontmatter says `done` while sprint status says `review`: the pipeline's normal state during review; this stage sets sprint status.
+- (low) AC5 records no T6 `watchWindow` timings: the fix is an edit of the Auto Run Result; the evidence is T6 green under its unchanged 8000 ms bound.
+- (low) The earlier triage log's counts and its "Intent alignment" tag disagree: the fix is an edit of a past triage record, not of the code.
+- (false) A pair and unpair inside one stretch where the key is "" for another reason (paused, off, no bot name) never reach the schedule: pairing needs an inbound /start, and no update is processed while paused (the getUpdates 409 pause in `Channel/Telegram/In.cls`), off, or with no bot name. `wontfix-theoretical`: real if a pairing could land during a pause.
+- (low) `Date.now` stepping backward holds the next request for the size of the step: unchanged from before this story (the old `lastRequest` used the same clock); a guard adds complexity for an NTP step.
+- (false) The `now` option's doc ("on the clock that setTimeout counts") against `Date.now`: it states what the schedule needs of the injected clock, which `Date.now` meets apart from the clock steps above.
+- (by-design) AC5 has no mutation demonstrated on this tree: D4 (T6's red on the defect was seen on CI at e75b90bc; a local red depends on machine timing).
+
 ## Spec Change Log
 
 ## Review Triage Log
@@ -190,7 +216,21 @@ Run rules:
 - AC3 (409 half): make the component's 409 branch call `reply.failed()` before it returns. Observed red (1 case): the source pin "a 409 shows the not-set-up view and returns without a reply, so the schedule stops asking". Reverted; tree byte-identical.
 - First value: let the first `paired` value grant (`this.before !== false` in `CodeSchedule.paired`). Observed red (1 case): "the first value grants nothing: a card whose first value is unpaired still waits out the spacing". Reverted; tree byte-identical.
 - AC4 (placement): move the component's `paired` call below the asking effect's early returns. Observed red (1 case): the source pin "tells it the paired value inside the asking effect, untracked, before it starts asking". Reverted; tree byte-identical.
+- (QA) Spacing half of AC2: drop the spacing (`const earliest = at` in `CodeSchedule.start`). Observed red (5 cases), among them "a new round with no unpair waits until exactly 10 s after the last request". Reverted; tree byte-identical.
+- (QA) Re-run of every line above at the QA stage (AC1 6 red, AC2 3 red, AC3 1 red, AC4 1 red, 409 half 1 red, first value 1 red, AC4 placement 1 red): all still accurate; each reverted from a backup, tree byte-identical. mutations_demonstrated=8. No test file was added in QA: the existing cases cover both halves of the Planner's condition (the immediate first request after an unpair; the unchanged 10 s spacing and 30 s retry for every later request).
 - AC5: the pre-fix head e75b90bc, where T6 was seen red twice on CI runner 20. A local red is not required (D4).
+
+Pinning mutations in Rule 19's form, re-applied on the tree after code review's patches (27 cases); each was seen red, reverted from a backup, and the file confirmed byte-identical:
+- mutation: `CodeSchedule.paired` sets `exempt = false` on a true-to-false change -> 6 red, among them "after an unpair, the request goes out at once, even 2 s after the last one" (AC1).
+- mutation: `this.exempt = false` deleted from `send` -> 4 red, among them "after the exempt request, a code that is due at once waits until 10 s after it" and "an unpair long after the last request asks at once, and the request after it is spaced again" (AC2).
+- mutation: `const earliest = at` in `start` (no spacing) -> 6 red, among them "a new round with no unpair waits until exactly 10 s after the last request" (AC2, spacing half).
+- mutation: the failure retry scheduled at `now()` in place of `now() + CODE_RETRY_MS` -> "a failure asks again exactly 30 000 ms later, the exempt request included" red (AC3).
+- mutation: the 409 branch calls `reply.failed()` before it returns -> "a 409 shows the not-set-up view and returns without a reply, so the schedule stops asking" red (AC3, 409 half).
+- mutation: `reply.failed();` added as the error handler's first statement -> the same 409 pin red (AC3, 409 half).
+- mutation: `this.before !== false` in `CodeSchedule.paired` -> "the first value grants nothing: a card whose first value is unpaired still waits out the spacing" red (first value).
+- mutation: the component's `this.schedule.paired(...)` call deleted -> "tells it the paired value inside the asking effect, untracked, before it starts asking" red (AC4).
+- mutation: that call moved below the early returns, just before `onCleanup(this.ask(key))` -> the same AC4 pin red (AC4, placement).
+- mutation: that call guarded as `if (key !== '') this.schedule.paired(...)` -> the same AC4 pin red (AC4, unconditional).
 
 ## Auto Run Result
 

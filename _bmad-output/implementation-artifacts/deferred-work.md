@@ -3774,3 +3774,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: cycle-log-epic-31 (ci run 41656484374) | severity: low | fix-risk: low | footprint: in-epic
 - evidence: run 41656484374 attempt 1 browser live:sign-in on runner 20; green on the unchanged rerun
 - 2026-11-03T15:56:29Z status=routed owner=burndown by=lead note=flake: first occurrence; a two-way-door test fix in 31.1's file
+
+### DW-641: web/scripts/fake-clock.mjs header lists the modules whose tests use it and omits telegram-card-view.ts, which Story 31.7's card spec now drives on it
+- source: spec-31-7-after-an-unpair-the-telegram-card-shows-its-fresh-code-witho.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: telegram-card-view.test.mjs imports fakeClock for CodeSchedule; the fake-clock.mjs header (lines 1-3) names busy-state, contact-watch and announce-queue only. Outside the U-243 footprint.
+- 2026-11-03T17:45:14Z status=wontfix-accepted owner=31-7-after-an-unpair-the-telegram-card-shows-its-fresh-code-witho by=cr note=cosmetic list; reopen_if=a story edits web/scripts/fake-clock.mjs and leaves telegram-card-view.ts out of its header list

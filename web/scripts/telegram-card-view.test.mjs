@@ -164,6 +164,23 @@ describe('when the card asks for a code', () => {
     assert.deepEqual(t.sent, [0, 2_000]);
   });
 
+  it('an unpair long after the last request asks at once, and the request after it is spaced again', () => {
+    const t = scheduled();
+    const stop = firstRequest(t);
+    t.clock.advance(12_000);
+    stop();
+    t.schedule.paired(true);
+    t.schedule.paired(false);
+    t.schedule.start(t.request);
+    t.clock.advance(0);
+    assert.deepEqual(t.sent, [0, 12_000]);
+    t.reply().code(t.clock.now);
+    t.clock.advance(CODE_SPACING_MS - 1);
+    assert.deepEqual(t.sent, [0, 12_000]);
+    t.clock.advance(1);
+    assert.deepEqual(t.sent, [0, 12_000, 12_000 + CODE_SPACING_MS]);
+  });
+
   it('a new round with no unpair waits until exactly 10 s after the last request', () => {
     const t = scheduled();
     const stop = firstRequest(t);
@@ -210,7 +227,7 @@ describe('when the card asks for a code', () => {
     assert.deepEqual(t.sent, [0, 2_000, 2_000 + CODE_SPACING_MS]);
   });
 
-  it('a failure asks again exactly 30 000 ms later, the exempt request included, with no second exemption', () => {
+  it('a failure asks again exactly 30 000 ms later, the exempt request included', () => {
     const t = scheduled();
     const stop = firstRequest(t);
     t.clock.advance(2_000);
@@ -278,7 +295,7 @@ describe('when the card asks for a code', () => {
     assert.deepEqual(t.sent, [0, 1_000, 1_000 + CODE_SPACING_MS]);
   });
 
-  it('asks again at the code\'s due time, and stop clears the timer and cancels the request in flight', () => {
+  it('asks again at the code\'s due time, and stop clears the timer and cancels the latest request', () => {
     const t = scheduled();
     const stop = firstRequest(t, 40_000);
     assert.equal(t.clock.pending, 1);
@@ -310,7 +327,8 @@ describe('when the card asks for a code', () => {
 describe('the card hands its schedule the pairing', () => {
   const source = readFileSync(join(here, '..', 'src', 'app', 'rail', 'telegram-card', 'telegram-card.ts'), 'utf8');
   const askingFrom = source.indexOf('// The asking:');
-  const asking = source.slice(askingFrom, source.indexOf("// The countdown's tick", askingFrom));
+  const askingTo = source.indexOf("// The countdown's tick", askingFrom);
+  const asking = askingFrom >= 0 && askingTo > askingFrom ? source.slice(askingFrom, askingTo) : '';
 
   it('builds the schedule, and keeps no spacing of its own', () => {
     assert.match(source, /new CodeSchedule\(/);
@@ -324,12 +342,17 @@ describe('the card hands its schedule the pairing', () => {
     const emptyKeyAt = asking.indexOf("if (key === '')");
     const askingAt = asking.indexOf('this.ask(');
     assert.ok(untrackedAt >= 0 && toldAt > untrackedAt, 'the value is read untracked');
+    assert.match(asking, /untracked\(\(\) => \{\s*this\.schedule\.paired\(this\.telegram\(\)\.paired\);/, 'the call is the first statement, with no condition');
     assert.ok(emptyKeyAt > toldAt, 'the schedule is told on every run, before the early returns');
     assert.ok(askingAt > emptyKeyAt, 'the schedule is told before the asking starts');
   });
 
   it('a 409 shows the not-set-up view and returns without a reply, so the schedule stops asking', () => {
-    const errorBranch = source.slice(source.indexOf('error: (error: unknown)'));
+    const errorFrom = source.indexOf('error: (error: unknown)');
+    const errorTo = source.indexOf('return () => request.unsubscribe();', errorFrom);
+    assert.ok(errorFrom >= 0 && errorTo > errorFrom, 'the error handler is found');
+    const errorBranch = source.slice(errorFrom, errorTo);
     assert.match(errorBranch, /status === 409\) \{\s*this\.refusedAt\.set\(key\);\s*return;\s*\}\s*reply\.failed\(\);/);
+    assert.equal(errorBranch.match(/reply\./g)?.length, 1, 'the error handler replies only after the 409 branch');
   });
 });

@@ -56,7 +56,8 @@ import {
  *   true to false while the card exists: the `circle-slash` icon and "Telegram unpaired", with no button, link, QR code or code. The first
  *   value the card sees never starts it, so a page loaded while unpaired shows the unpaired view at once. The card asks for its code from
  *   the change on, and that first request is not held back by the spacing, so the code is normally held when the 5 seconds end. Paused,
- *   not set up and paired come ahead of it, so a pairing during the window shows the paired view. The card announces "Telegram unpaired" once for each change that starts the view.
+ *   not set up and paired come ahead of it, so a pairing during the window shows the paired view. The card announces "Telegram unpaired"
+ *   once for each change that starts the view.
  * The root's `data-state` is `paused`, `not-set-up`, `paired`, `just-unpaired` or `unpaired`.
  */
 @Component({

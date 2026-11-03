@@ -103,7 +103,8 @@ export class CodeSchedule {
 
   /**
    * Starts an asking: `request` is called now (or as soon as the spacing allows) and at each time the reply says, and gets the
-   * reply to call; it returns the function that cancels that request. Returns the function that ends the asking.
+   * reply to call; it returns the function that cancels that request. Returns the function that ends the asking. One asking at a
+   * time: the caller ends the previous asking before it starts the next (the card does so through the effect's cleanup).
    */
   start(request: (reply: CodeReply) => () => void): () => void {
     let timer: unknown = undefined;
