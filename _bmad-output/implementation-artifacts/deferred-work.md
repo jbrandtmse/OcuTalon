@@ -3708,3 +3708,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Rule 2: near-copies (14-line fixture(), 9-line guideOf, 25-line poll router) forced by the footprint (siblings in Lane A or contended files, support/ outside it); a change to TelegramPageFixture or the events envelope must be made in every copy
 - 2026-11-03T19:57:30Z status=routed owner=burndown by=cr note=forced copy (Rule 2): unify all copies in web/e2e/support/ when the siblings' owners can edit them
 - 2026-11-03T20:50:08Z status=routed owner=burndown by=burndown note=not_a_1.0.0_blocker(test-helper_copies);first_daily_release_after_1.0.0
+
+### DW-644: Date repairs from a source that reads either way (MM/DD/YYYY or DD/MM/YYYY) rest on the model alone: Fix.Reformat ParseDate accepts both readings, and neither the incident card nor the dry run says why one was chosen
+- source: Contest Planner field watch 2026-11-03 (relay) | severity: med | fix-risk: low | footprint: in-footprint
+- evidence: Demo partner (PartnerTrigger) sends today's date as MM/DD/YYYY; until Nov 13 every value has day <= 12, so 11/03/2026 also parses as 11 March; Reformat.cls:62,67,88 ParseDate accepts the given format only, so the format choice is the model's
+- 2026-11-03T21:31:48Z status=routed owner=7-7-a-date-repair-that-could-read-either-way-names-its-evidence by=orchestrator note=Story 7.7 (veto U-248); first daily release after 1.0.0; not rc1 scope

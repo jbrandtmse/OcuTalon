@@ -3537,6 +3537,30 @@ So that I never think a fix finished when it didn't, and nothing is resent behin
 
 - DW-395: A FixExecutor waiter that stops on a quiesce or terminate request while the production keeps running (the item restarted or its settings changed) leaves every run still in its 60-second wait executing and its incident fixing with no result; the Sweep (or a waiter restart) must end them (ledger; routed by cr 2026-10-29)
 
+### Story 7.7: A date repair that could read either way names its evidence
+
+[ADDED 2026-11-03, the Contest Planner's field watch, under the owner's delegation (veto U-248, scope as the Planner gave it): the demo partner sends today's date as MM/DD/YYYY, and until Nov 13 every value has a day of 12 or less, so "11/03/2026" also reads as DD/MM (March 11). `OcuTalon.Fix.Reformat`'s `ParseDate` accepts both readings, so the choice of source format rests on the model alone, and neither the incident card nor the dry run says why. Post-1.0.0: first daily release; not rc1 scope.]
+
+As a user approving a date repair,
+I want OcuTalon to say why it read the dates month first or day first,
+So that a plausible conversion is never the only reason I approve a resend.
+
+**Acceptance Criteria:**
+
+**Given** an incident whose failed values could be read as MM/DD/YYYY or as DD/MM/YYYY
+**When** the diagnosis proposes a date repair
+**Then** a `repair_resend` is proposed only if a reason names the evidence for the source format: a value with a day above 12, or the month-first reading matching each failed message's own date; without such evidence the reply does not propose `repair_resend` (FR-5, FR-25, AD-16)
+
+**Given** a date repair's dry run
+**When** it counts the values
+**Then** it counts the values that read as valid dates both ways, and when every value is ambiguous the dry run shows one line saying so and naming the evidence (wording: veto U-249) (FR-25, AD-16)
+
+**Given** the tests
+**When** they run
+**Then** one case has only ambiguous dates and one has a day above 12; each checks the proposal rule and the dry-run line or its absence (FR-5, FR-25)
+- DW-644: date repairs from an ambiguous MM/DD vs DD/MM source rest on the model alone; the diagnosis must name the evidence and the dry run must count ambiguous values (ledger; Contest Planner field watch 2026-11-03)
+
+
 ## Epic 8: Heartbeat and reminders, on time and surviving restarts
 
 A heartbeat runs every minute and runs the due background checks, each visible with its schedule, last run and result; a user asks for a reminder in plain words and it fires within 10 seconds on every channel, survives restarts (marked late if it fires more than 10 seconds after its due time), and can be listed and cancelled in the chat.

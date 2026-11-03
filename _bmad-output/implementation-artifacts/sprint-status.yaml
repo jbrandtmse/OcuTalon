@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 11-03-2026 20:50
+last_updated: 11-03-2026 21:31
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -141,6 +141,7 @@ development_status:
   7-3-approved-repairs-are-re-checked-and-resent: done
   7-4-ocutalon-reports-how-many-orders-went-through: done
   7-5-a-resend-cut-short-by-a-restart-says-how-far-it-got: done
+  7-7-a-date-repair-that-could-read-either-way-names-its-evidence: backlog
   epic-7-retrospective: optional
 
   epic-8: done

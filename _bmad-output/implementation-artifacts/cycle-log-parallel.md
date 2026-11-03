@@ -1688,3 +1688,6 @@
 2026-11-03T21:25:51Z	Epic 12	epic_branches_deleted	branch=OCT-epic12 local+origin(after_push)
 2026-11-03T21:26:47Z	Epic 12	epic_merged_to_feature	merge=4576b1f4 head=b4161594 feature_head=e660faef verified=merge-base_is-ancestor story=12.10 rc1=included
 2026-11-03T21:27:07Z	Epic 33	runner_resumed	agent=ac8d6e27567bb096b with=33.2_unblocked(12.10_merged_4576b1f4);integrate_forward_first;stack_limit_unchanged note=queued
+2026-11-03T21:32:17Z	Epic 7	ruling	question=placement_of_Planner_field-watch_item(date-order_evidence) choice=DW-644_routed_to_new_Story_7.7(Epic_7_re-open,first_daily_release,runner_B_now_local_under_rc1_hold,yield_on_rc1_fix) rejected=after_rc1_first_free_runner(B_idle_reserve_can_build_it_now) category=veto reversal=move_story_or_vehicle inbox=U-248 policy=508603671b9598f59d04750db6b6cdad2d396167
+2026-11-03T21:32:17Z	Epic 7	ruling	question=7.7_dry-run_ambiguous-dates_line choice="All_{count}_dates_are_valid_read_month_first_or_day_first;_{reading}_matches_the_day_each_order_was_sent."+one-value_form rejected=Planner_draft_"read_the_same_either_way"(inaccurate) category=veto inbox=U-249 policy=508603671b9598f59d04750db6b6cdad2d396167
+2026-11-03T21:32:17Z	Epic 7	deps_hash_rerecorded	reason=fix_forward note=Story_7.7_inserted(DW-644),one_story_inside_epic_7,no_dependency_change
