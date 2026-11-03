@@ -24,3 +24,5 @@
 2026-11-03T14:54:26Z	Story 39.1	cr_complete	spawn_at=2026-11-03T14:27:51Z model=opus resolved=7 fixed_at_source=7 by_design=1 wontfix_theoretical=0 routed=0 escalated=0 decision_pending=0 deferred=1 dismissed=13 high=0 med=3 low=21 rows=33 unresolved_high_med=0 clarifications=0 closing_sections_present=true review_tier=full-opus
 2026-11-03T14:54:27Z	Story 39.1	rework_opened	cycle_iteration=2 iteration=1 trigger=smoke items=boundaries_key_like_Runs.cls:1035 scope_baseline=3ffdc2f8 smoke_direct=pass fresh_check_checks_fwd_rev=pass
 2026-11-03T14:54:32Z	Story 39.1	stage_spawned	stage=implement spawn_at=2026-11-03T14:54:32Z model=sonnet agent_name=39-1-implement-2 cycle_iteration=2
+2026-11-03T14:59:23Z	Story 39.1	dev_complete	spawn_at=2026-11-03T14:54:32Z model=sonnet build_sha=20a61666 baseline_revision=34bbf984 review_loop_iteration=0 followup_review_recommended=false deferred=0 files=2 cycle_iteration=2 note=build_auto_skipped_its_review_layers_for_one_line_fixture_and_left_baseline_revision_unset_lead_set_it
+2026-11-03T14:59:23Z	Story 39.1	stage_spawned	stage=code-review spawn_at=2026-11-03T14:59:23Z model=opus agent_name=39-1-code-review-2 cycle_iteration=2

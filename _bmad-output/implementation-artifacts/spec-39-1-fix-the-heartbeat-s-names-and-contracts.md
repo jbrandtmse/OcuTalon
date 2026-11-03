@@ -3,8 +3,8 @@ title: 'Story 39.1: Fix the heartbeat''s names and contracts'
 type: 'feature'
 created: '2026-11-03'
 status: 'done'
-baseline_revision: '3f5f7b3ee2a056f2ec2c0411012a41845e324454'
-baseline_commit: '3f5f7b3ee2a056f2ec2c0411012a41845e324454'
+baseline_revision: '34bbf984e0d00cb44a35dc4cc758781629732c9f'
+baseline_commit: '34bbf984e0d00cb44a35dc4cc758781629732c9f'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
