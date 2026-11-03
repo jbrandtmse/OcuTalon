@@ -1507,3 +1507,8 @@
 2026-11-03T08:19:32Z	Epic 10	ci_green_verified	runs=41600261357,41600261253 head=7e973fc3 result=success
 2026-11-03T08:19:32Z	Epic 10	amendments_verified	amendments=2(epics.md:4110_marker_veto_U-234;10.6_block_removed) extensions=0 ok=true note=integrated_forward_af54358a_then_cycle-log_only;merge.cpf_unchanged
 2026-11-03T08:19:32Z	Epic 10	epic_merge_started	head=7e973fc3
+2026-11-03T08:19:41Z	Epic 10	epic_merged_to_feature	merge=9ffac64e head=7e973fc3
+2026-11-03T08:20:37Z	Epic 10	decision_sheet_skipped	reason=decisions_for_user_none
+2026-11-03T08:20:37Z	Epic 10	ledger_routed_planned	story=31-3 entries=1(DW-613) excess=0 by=merge_gate
+2026-11-03T08:20:37Z	Epic 10	veto_applied	id=U-234 story=31.3 ac=added_verbatim_from_10.6(marker_veto_U-234) note=31.3_placed_only_after_Epic_12_merged;rc1_not_cut_until_31.3_merged
+2026-11-03T08:20:37Z	Epic 10	deps_hash_rerecorded	reason=rule5_amendment(31.3_AC_U-234;10.6_removed=split_reversed;DW-613_ledger_routed) hash=0585a7ac
