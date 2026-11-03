@@ -25,6 +25,7 @@ OcuTalon runs as an IRIS Interoperability production, so the agent is an Interop
 
 - **The partner feed that breaks at 2am.** A trading partner changes a date format, and 50 orders fail. Instead of 50 alerts, you get one notice: the cause in plain English, the fix, and a dry run that shows what it would resend. Nothing is resent until you approve, and then OcuTalon reports how many orders went through. Break the feed in the online demo plays this out in two minutes.
 - **"Only tell me if something needs me."** Ask OcuTalon in plain words to watch a production, and it stays quiet until something needs you. Failures with one cause become one incident, not a flood, and when you ask whether everything is fine, it never gives a false all-clear. It also tells you once when a production stops or one of its items is disabled.
+- **[An AI decision step you can audit, in your own production.](docs/bridge-guide.md)**
 
 ## How you talk to it
 
