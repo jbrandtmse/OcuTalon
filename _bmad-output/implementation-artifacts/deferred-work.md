@@ -3641,6 +3641,21 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: chk_how_you_talk greps TALK_FACTS in the README section only; no read of device-view.ts or demo-view-texts.ts (outcomes reads chat-view.ts, the precedent). AC2 is a recorded check at the plan base by spec.
 - 2026-11-03T07:35:37Z status=by-design owner=10-5-the-readme-shows-the-product-and-says-how-you-talk-to-it by=cr note=AC2 is specified as a recorded check; reopen via spec amendment if a UI story renames a quoted product term
 
+### DW-629: The tool calls of a timed-out decision, and of a late runner reply, are written to no AgentStep: Decide's timer branch records the fallback and sends no step; record them as AgentSteps, then drop 'unless the decision times out' from docs/bridge-guide.md and docs/security-overview.md L100 (U-237's answer)
+- source: spec-13-4-the-guide-and-the-overview-say-exactly-what-is-audited-and-t.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: Decide.cls:331-337 (timer branch, no EmitSteps), :44 and :69-71 (a timer that fired and a late reply send no steps); Timeouts.cls:7-10 (reachable: a request in flight is not stopped)
+- 2026-11-03T12:13:10Z status=routed owner=burndown by=burndown note=first daily release after 1.0.0; U-237 answer (Contest Planner, 2026-11-03T10:46:10Z#712); not a 1.0.0 blocker (the docs state the timeout case)
+- 2026-11-03T13:25:42Z status=routed owner=burndown by=burndown note=prerequisite for MCP support: docs/security-overview.md's MCP rules (under 'When a release adds MCP support, these rules apply:') promise an agent step for every MCP call (spine 'Every MCP tool call is audited, read-only ones included'; FR-49), so this must land before or with the release that adds MCP support
+
+### DW-630: The bridge guide has no runnable block that reaches a held call: a user item that leads to a forward, reading the pending approval Ref, and calling OcuTalon.Bridge.Approval.Answer; add those blocks and run them in the standalone-bridge job (Story 13.4 gap (f))
+- source: spec-13-4-the-guide-and-the-overview-say-exactly-what-is-audited-and-t.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: U-233 bare-container run of docs/bridge-guide.md (Contest Planner); release/standalone-bridge.sh:787,933-937 reach the held call only through the job's own code, not through guide blocks
+- 2026-11-03T12:13:10Z status=routed owner=burndown by=burndown note=first daily release after 1.0.0; veto U-236 item (f); not a 1.0.0 blocker
+
+### DW-631: A bare-bridge production has no self re-arm at production start: after an abnormal end (killed jobs, a cleaned production) only Approval.Reconcile re-arms a lost approval hold and resends an approved call whose replay never started, and only OcuTalon's own install calls it; a lost hold fails safe but never expires
+- source: spec-13-4-the-guide-and-the-overview-say-exactly-what-is-audited-and-t.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: Approval.cls:769-813 (Reconcile; pass 2 L798-811 re-arm, pass 3 resend); Install/Step/Approvals.cls is the only non-test caller; a clean stop and start restores the alarm (irislib Ens/Director.cls:470-477, Ens/Alarm.cls:228-233,383-400)
+- 2026-11-03T12:13:10Z status=routed owner=burndown by=burndown note=first daily release after 1.0.0; Story 13.4 (g) finding, orchestrator ruling (decide): the guide says nothing; not a 1.0.0 blocker (fails safe)
 ### DW-624: lib-live.sh log_steps keeps every ^STEP line, so a live start that recovers from #453 through Story 0.13's retry still fails check_log on a 'STEP merge RETRY 1 after #453' diff
 - source: spec-0-13-a-start-retries-the-cpf-merge-when-iris-cannot-quiesce.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: log_steps (docker/tests/lib-live.sh L590) greps '^(STEP|RESULT) ' and check_log diffs it against expected_run, which has only 'STEP merge OK'; callers: test-install-start rows 1-4, test-install-upgrade row 6, test-online-demo, test-audit, release/upgrade-harness.sh; the CI #453 hits (runs 41419787515, 41577358713, 41577710442) were in these tests
