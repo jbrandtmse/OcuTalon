@@ -1523,3 +1523,30 @@
 2026-11-03T09:22:04Z	Epic 0	ruling	question=DW-612_not_CI-only:fix_before_1.0.0_tag? choice=Story_0.13_retry_iris_merge_on_#453_(bounded;other_failures_fail_at_once;stubbed_test),re-open_Epic_0_on_runner_C_now(free_until_12,13_merge;off_rc1_chain) rejected=ship_as_is(rare_first_start_or_restart_not_ready_on_user_and_demo_path),larger_rework_before_tag(re-create_only_missing_items;bigger,touches_AD-23_as_built) category=veto reversal=drop_Story_0.13_(or_revert_its_merge) inbox=U-235 policy=508603671b9598f59d04750db6b6cdad2d396167
 2026-11-03T09:22:04Z	Epic 0	story_inserted	story=0.13 key=0-13-a-start-retries-the-cpf-merge-when-iris-cannot-quiesce reason=fix_forward(DW-612) by=orchestrator
 2026-11-03T09:22:04Z	Epic 0	deps_hash_rerecorded	reason=fix_forward hash=431f130e
+2026-11-03T09:22:40Z	Epic 0	owner_decision	id=U-235 at=2026-11-03T09:22:15Z#706 via=inbox by=Contest_Planner_1(delegated) answer=keep;0.13_before_tag_on_C_now;rework_to_burndown;conditions:(1)retry_only_on_#453,short_pause,one_log_line_per_retry(STEP_merge_RETRY_n_after_#453);(2)bound_fits_start_period_600s_with_one_#453+pause+retry+slowest_first_start_else_raise_start_period_in_story;(3)stub_test_pins_3_cases+log_lines;(4)merge.cpf_unchanged;watch_extended_to_docker/after-start.sh_until_tag(0.13_only_change);(5)rc1_includes_0.13;if_last_missing_rc1_waits_and_tell_Planner note=applied_via_Epic_0_dispatch_prompt;resolve_at_Epic_0_merge
+2026-11-03T09:38:47Z	Epic 1-37	ci_green_verified	branch=feature head=f26d0f6b runs=41610447424,41610447347 result=success
+2026-11-03T09:38:47Z	Epic 0	worktree_provisioned	path=.worktrees/epic-0 branch=OCT-epic0 base=f26d0f6b reason=SC-5_reopen_0.13
+2026-11-03T09:38:47Z	Epic 0	worktree_bootstrapped	epic=0 result=ok
+2026-11-03T09:38:47Z	Epic 0	runner_dispatched	agent=ade3f6200bce18dda model=opus lane=C slot=ocutalon-slot-c prompt=prompts/dispatch-epic-0-013.md story=0.13
+2026-11-03T09:38:47Z	Epic 13	runner_complete	agent=a71817ff3166d3528 head=7f43cdbb stories=3 ci=success runs=41607995811,41607995733 applied=U-229,U-233
+2026-11-03T09:38:47Z	Epic 13	merge_enqueued	head=7f43cdbb
+2026-11-03T09:39:37Z	Epic 13	ci_green_verified	runs=41607995811,41607995733 head=7f43cdbb result=success
+2026-11-03T09:39:37Z	Epic 13	amendments_verified	amendments=0 extensions=6 ok=true note=overlaps:epic-15(release/checklist.sh,test-release-checklist.sh,security-overview.md)_auto-merge_clean_in_trial;epic-12(Test/Install/Production.cls_auto-merge;ci/units.sh_append_conflict=plain_union_for_Epic_12s_integrate-forward);watch_merge.cpf+after-start.sh=unchanged
+2026-11-03T09:39:37Z	Epic 13	ruling	question=feature_moved_after_runner_integrate-forward(3a52b923->f26d0f6b) choice=merge_in_orchestrator_with_SC-4-P_step4_bookkeeping_resolution rejected=resume_runner_B_for_another_integrate-forward(~40min_CI_on_rc1_chain;feature_delta_is_bookkeeping_only:cycle-log,sprint-status,epics.md_0.13_block,deps_hash;trial_merge_conflicts_only_sprint-status.yaml) category=decide policy=508603671b9598f59d04750db6b6cdad2d396167
+2026-11-03T09:39:37Z	Epic 13	epic_merge_started	head=7f43cdbb
+2026-11-03T09:40:06Z	Epic 13	epic_merged_to_feature	merge=ac3f9c58 head=7f43cdbb conflicts=sprint-status.yaml(step4:ours+generate+set_epic13_done)
+2026-11-03T09:40:36Z	Epic 13	decision_sheet_skipped	reason=decisions_for_user_none
+2026-11-03T09:40:36Z	Epic 13	ledger_routed_planned	story=none entries=0 note=DW-619,DW-620_burndown;no_story-routed_entries_from_Epic_13
+2026-11-03T09:40:36Z	Epic 13	deps_hash_rerecorded	reason=ledger_routed(DW-181_bullet_from_Epic_13) hash=5cbe45b1
+2026-11-03T09:40:42Z	Epic 13	worktree_removed	path=.worktrees/epic-13
+2026-11-03T09:40:42Z	Epic 13	epic_branches_deleted	branch=OCT-epic13 local+remote
+2026-11-03T09:54:31Z	Epic 1-37	planner_note	runner_B_on_Epic_39_accepted(merge_held_for_rc1;story_heads_only;yield_to_1.0.0);Epic_39_touching_after-start.sh/merge.cpf/install_path=clarification_before_commit(added_to_prompt);33_plan_D_after_15_else_A_after_31.3_noted;15.4_split_not_needed(15.3+15.4_done)
+2026-11-03T10:05:05Z	Epic 1-37	planner_note	U-233_bare-container_bridge-guide_gate_PASS_on_ac3f9c58(steps1-6,classification,approval-role,Answer;nothing_instance-wide_from_OcuTalon_needed);MUST_FIX_before_rc1:U-229_sentence_false(each_tool_call_still_audited);amended_wording_given_in_chat;guide_gaps_b,c,d,e,g;f_to_burndown
+2026-11-03T10:05:05Z	Epic 13	ruling	question=U-229_sentence_false+guide_gaps:where_and_when choice=Story_13.4(re-open_Epic_13_on_runner_B_now;Planner_exact_wording_verified_against_code;gaps_b,c,d,e,g;f_to_burndown);Epic_39_waits rejected=carry_in_31.3(lengthens_rc1_chain),sentence_only(gaps_left_in_rc1_guide_the_hand_gate_follows) category=veto reversal=drop_Story_13.4 inbox=U-236 policy=508603671b9598f59d04750db6b6cdad2d396167 note=amended_U-229_wording_awaits_inbox_confirmation
+2026-11-03T10:05:05Z	Epic 13	story_inserted	story=13.4 key=13-4-the-guide-and-the-overview-say-exactly-what-is-audited-and-t reason=fix_forward by=orchestrator
+2026-11-03T10:05:05Z	Epic 13	deps_hash_rerecorded	reason=fix_forward hash=e63916ee
+2026-11-03T10:06:15Z	Epic 13	worktree_provisioned	path=.worktrees/epic-13 branch=OCT-epic13 base=37e0087a reason=SC-5_reopen_13.4
+2026-11-03T10:06:15Z	Epic 13	worktree_bootstrapped	epic=13 result=ok
+2026-11-03T10:22:24Z	Epic 13	owner_decision	id=U-236 at=2026-11-03T10:06:23Z#710 via=inbox by=Contest_Planner_1(delegated) answer=keep(a);13.4_on_B_before_39;U-229_amended(this_answer_is_the_record);exact_sentence;clause_check_with_file:line;untrue->stop_unreworded;rc1_needs_0.13_and_13.4 note=resolve_at_Epic_13_merge
+2026-11-03T10:27:01Z	Epic 1-37	ci_green_verified	branch=feature head=37e0087a runs=41616278360,41616278349 result=success (merge ac3f9c58 green 41612880963,41612880823)
+2026-11-03T10:27:01Z	Epic 13	runner_dispatched	agent=a6e144300449e4db0 model=opus lane=B slot=ocutalon-slot-b prompt=prompts/dispatch-epic-13-134.md story=13.4

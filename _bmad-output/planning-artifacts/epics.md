@@ -4909,6 +4909,34 @@ So that I can add the bridge to my own production without OcuTalon and without r
 **When** the public-text check and the release checklist run
 **Then** it is in plain English, holds no key, local machine path, instance name or private infrastructure detail, and the release checklist confirms it matches the release (FR-5, NFR-26, CON-5)
 
+- DW-181: The example's inline `ProviderConfig` carries no `Timeouts.Derive` `http_config`, so AI Hub's 30 s Retry-After cap and default request timeout apply under the bridge timer; the guide tells a developer to write `Derive(timer).http_config` into an inline config, or to use `@{config:}` with `Timeouts.Apply` (AD-8), and keeps Story 13.1's timer row working (ledger; routed by cr 2026-10-24)
+
+### Story 13.4: The guide and the overview say exactly what is audited, and the guide's gaps are closed
+
+[ADDED 2026-11-03, fix-forward from the Contest Planner's U-233 bare-container run of `docs/bridge-guide.md` (PASS on ac3f9c58), orchestrator unattended ruling, veto U-236; re-opens Epic 13 under SC-5, before rc1. U-229's sentence "each tool call is still audited" is false as written: by the overview's own audit section, "audited" means an IRIS audit entry, and the bridge writes one only for Approval, Action (Replay, Executor, PartnerTrigger), Pairing and Settings. The Planner amended U-229's wording. Docs and their test pins only. In 1.0.0's scope; must merge before rc1 (U-223 condition (2): every "this release" statement is true when rc1 is cut).]
+
+As a developer or a security reviewer reading the bridge guide and the security overview,
+I want them to say exactly what is audited, and the guide's steps to match what I see,
+So that I can follow the guide literally and trust its claims.
+
+**Acceptance Criteria:**
+
+**Given** U-229's sentence in `docs/security-overview.md` (L100), in `docs/bridge-guide.md` (L291) and pinned in `docker/tests/test-bridge-guide.sh` (`U229=`, L39, and its negative fixture)
+**When** this story merges
+**Then** all three read exactly: "In this release, changing this setting writes no OcuTalon audit entry. Each tool call is recorded as a step of its decision, and an approval and an approved call's run each write an audit entry." (the Contest Planner's amended U-229 wording)
+**And** each clause is checked against the code before it lands (where a tool call is recorded as a decision step; which `Bridge.Audit.Record` calls an approval and an approved call's replay write), with the file:line evidence in the spec's Design Notes; if any clause is not true, the story stops with a clarification to the orchestrator and never rewords it
+**And** the overview's generated lists and `overviewdoc` pins still pass, and every other "this release" statement in both files stays true
+
+**Given** the guide gaps the Planner's run found
+**When** this story merges
+**Then** (b) the settings table's `AgentAllowList` default cell says the default is empty, which refuses every class (replacing "see below")
+**And** (c) Step 6 gives the real path to a trace: in the message viewer, click the row, then the Trace tab, then View Full Trace (or click the Session number); the header id is not a link; and the trace's list names the bridge timer's `AlarmRequest` to `Ens.Alarm`
+**And** (d) the reference states Decide's rule that for a `user` request an ignore or digest decision becomes tellnow, with the reason the trace shows ("The outcome was changed because a message the user writes is always answered."), since steps 4 to 6 say an ignore decision goes to no output
+**And** (e) the Govern section says in one sentence that the Portal's notice that Decide needs an update, after the two settings rows are written, can be ignored, because the settings are read live
+**And** (g) the story finds whether a bare-bridge production needs `Approval.Reconcile` (re-arming pending approvals after a production start; today only OcuTalon's own install calls it): if it does, one sentence tells bridge users to run it after a production start; if it does not, the guide says nothing; the finding and its evidence are in Design Notes
+**And** every changed guide block still passes the standalone-bridge job's block-by-block guide run, `docker/tests/test-bridge-guide.sh` passes, and CI is green on every workflow
+**And** the story touches only `docs/bridge-guide.md`, `docs/security-overview.md` (L100's sentence only) and `docker/tests/test-bridge-guide.sh`; runnable guide blocks that reach a held call, and any bridge self re-arm at production start, go to the ledger `owner=burndown` with the note "first daily release after 1.0.0"
+
 ## Epic 14: A security reviewer can approve OcuTalon
 
 A security reviewer reads one overview, generated in part from the product, listing every built-in tool with its classification, the service user's privileges and the limits of that check, the approval and audit rules, what data leaves the instance, how MCP tools are classified and the online demo's protections; a test fails if the tool list drifts.
