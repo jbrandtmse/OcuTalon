@@ -4,89 +4,87 @@
 
 ## Goal
 
-An IRIS user installs OcuTalon into an existing AI Hub build 154 instance with its one IPM package, `ocutalon`, which also installs the bridge. The install is the same package run twice: the first run (any namespace) creates OCUTALON and stops with the next command, and the second (in OCUTALON) gives a working OcuTalon with demo mode off. `iris merge` plus `zpm "enable -map -ns OCUTALON"` can replace the first run. Stories 15.1 and 15.2 are done and merged. The remaining work, Story 15.3, makes the IPM install as durable as the Docker one: it survives instance restarts, reinstalls and upgrades in place, CI proves this on every push, and every release from 1.0.0 on ships a working, Node-free IPM package with a judge-ready install guide.
+An IRIS user installs OcuTalon into an existing AI Hub build 154 instance with its one IPM package, `ocutalon`, which also installs the bridge. The install is the same package run twice. The first run, in any Interoperability-enabled namespace (USER on build 154), creates OCUTALON and stops with the next command. The second run, in OCUTALON, gives a working OcuTalon with demo mode off. `iris merge` plus `zpm "enable -map -ns OCUTALON"` can replace the first run. Stories 15.1-15.3 are done: the two-run install, demo mode off, restart and reinstall durability, and the FR-57 CI job. The remaining story, 15.4, makes every release from 1.0.0 on prove its IPM package. That means a release gate on the FR-57 job, a Node-free install of the exact artifact from a local IPM repository (which needs OCUTALON to see the first namespace's repositories), and a judge-facing guide that opens with the registry install.
 
 ## Stories
 
 - Story 15.1: The first install run creates OCUTALON and gives the next command (done)
 - Story 15.2: The second install run gives a working OcuTalon with demo mode off (done)
-- Story 15.3: An IPM install survives restarts and reinstalls, and every release proves it
+- Story 15.3: An IPM install survives restarts and reinstalls (done)
+- Story 15.4: Every release proves the IPM package, and the guide opens with the registry install
 
 ## Requirements & Constraints
 
-**Restart durability.** Start with an IPM install holding a conversation, a pending reminder and a pending approval request, then restart the instance. `OcuTalon.Production` comes back through autostart, and every area's `Reconcile()` runs once its items run, with no after-start script. Lane A's `Reconcile()` re-arms `ApprovalHold` and Lane B's re-arms `ReminderTimer`. All three records stay intact, the reminder fires and the request can still be answered. The test restarts the instance twice in a row, and each waiter must be re-armed exactly once, with no duplicate process. DW-80 adds a test of restarting the production alone, with no instance restart and no installer run.
+**Release gate.** From 1.0.0 on, the release sequence stops any candidate on which the FR-57 job did not pass. The candidate is pushed only at the `push` step, and `lane-a` doesn't run on `release/*` branches. So the gate is a release step that runs the job's own command, `bash release/ipm-install.sh`, on the candidate's exported tree with the candidate's artifact, after `ipm` and before `push`. The script's exit contract is already defined: 0 pass, 75 busy, 1 fail, 2 usage. The step writes a record section for the FR-57 job, and any failure stops the release before `push`. Story 11.14 will later call this step, or read the `ipm-install` job of its full CI run.
 
-**Reinstall and upgrade.** Running the install command again in OCUTALON, with the same version or the next one, completes with no errors and no data loss, and restarts every item on the new code.
-- "The load" means IPM's Reload, Validate and Compile phases. A failure there is rolled back by IPM: the previous version keeps running, and the namespace and databases stay.
-- An installer step that fails after those phases is recovered by running the same command again (U-176).
-- The FR-57 job's forced step failure on a reinstall, which Story 15.2 built, must re-run to completion and also pass 15.3's checks.
-
-**The FR-57 job** (the `ipm-install` job in `.github/workflows/lane-a.yml`, which runs `release/ipm-install.sh`):
-- It runs both install paths on clean build 154 containers: two runs of the package, and `iris merge`, then `zpm "enable -map -ns OCUTALON"`, then one run.
-- It restarts the instance, runs the install command again, and fails unless every check of 15.1, 15.2 and 15.3 passes.
-- Fork pull requests never run it on the IRIS runner, and it stays within the 35-minute CI budget.
-- It turns on Story 9.1's IPM case: on an IPM install, `EvalIn` (`OcuTalon.Eval.In`) is disabled and the production's testing switch is off.
-
-**Release gate.** From 1.0.0 on, the release sequence stops any candidate on which the FR-57 job did not pass.
-
-**Package artifact proof, before any publish.**
-- Install the exact artifact the release would publish (Story 11.17 builds the web page into it and records it) on a clean build 154 throwaway with no Node.js.
-- Install through a local filesystem IPM repository: `zpm "repo"` pointing at the artifact's folder, then `zpm "install ocutalon"` and its two steps.
+**Exact-artifact install, before any publish.**
+- Install the exact artifact the release would publish on a clean build 154 throwaway with no Node.js. Story 11.17 builds the web page into that artifact and records it.
+- Install it through a local filesystem IPM repository: `zpm "repo"` pointing at the artifact's folder, then `zpm "install ocutalon"` and its two steps.
 - Prove that `/ocutalon/` serves the branded sign-in page and that the README account signs in.
-- The release notes record the artifact's size; a size over a few MB is reported to the Contest Planner.
-- DW-576: first run `docker/tests/test-release-sequence.sh --live ipm` on a candidate that carries Epic 15's two-run (`MapAndStop`) `module.xml`. Only the one-run path has been proved live.
+- The release notes record the artifact's size. A size over a few MB is reported to the Contest Planner (iteration-1 threshold: 5,000,000 bytes).
+- In CI, when no artifact is given, package the module installed by the first install path and check it with lib-release's artifact check.
+- Measured on today's code: the second command in OCUTALON fails with "No repositories are configured and enabled in this namespace", because IPM keeps repositories per namespace. The repository mapping below fixes this.
 
-**Registry check.** Only after the author has published 1.0.0, and on the author's word, run the README's two commands once against the registry on a clean build 154 instance, and record the result in the release notes. The story itself never publishes.
+**Repository mapping (U-232, kept with conditions).**
+- The first run's map-and-stop step also maps IPM's repository definitions (`^IPM.Repo.Definition` D/S/I) from the run namespace into OCUTALON. Use IPM's own `enable -map -repos -ns OCUTALON -q` if IPM 0.10.10 supports it, otherwise the equivalent global mapping; measure which on a throwaway.
+- The definitions are mapped as they are, never copied, created, edited or printed. No test or log prints a definition's fields.
+- Uninstall removes only the mapping, never the first namespace's repository data. A test compares a hash of the definitions' global before and after uninstall, and never prints the hash.
+- The guide says plainly that OCUTALON shares the first namespace's repositories, so adding or removing one in either namespace changes both.
+- If the security overview or its generated lists describe OCUTALON's mappings, list this mapping there too.
 
-**`docs/install-ipm.md` order.**
-1. The registry install comes first. It starts with the line that enables the community registry on a fresh IPM 0.10.10, in its exact form and with its output, both measured on the throwaway (`zpm "enable -community"` is only an example). Then comes `zpm "install ocutalon"`, with the two-step namespace message.
-2. The load-from-folder path, which needs Node.js, comes second, for developers.
+**Registry install.** This story never publishes. It delivers:
+- the guide's registry section, measured on a clean build 154 throwaway up to the point that needs the published package;
+- an after-publish checklist row, `registry-install`, that reads `later` until the author confirms;
+- a release-notes slot, `### Registry install`.
 
-Until the author publishes, the guide shows the real output of the local-repository install. The registry's own output replaces it after the publish.
+After the author publishes 1.0.0, and on the author's word, the README's two commands run once against the registry on a clean instance, and the result goes into the release notes.
 
-**`SystemRequirements`.** `src/module.xml` declares `<SystemRequirements Version=">=2026.3" Interoperability="enabled"/>`.
-- Measure that build 154 ("2026.3.0AI.154.0") still passes IPM's version comparison.
-- Measure that the first run still works wherever Epic 15's flow runs it.
-- `release/lib-release.sh`'s artifact checks must still pass.
-- If the "AI" suffix or the Interoperability check gets in the way, raise a clarification. Never work around it.
+**`docs/install-ipm.md` rewrite, registry first.**
+1. The registry install comes first. It opens with the line that enables the community registry on a fresh IPM 0.10.10: its exact form and its output, both measured (`zpm "enable -community"` is only an example). Then comes `zpm "install ocutalon"` with the two-step namespace message.
+2. The load-from-folder path, which needs Node.js to build the page, comes second, for developers.
 
-**DW-306.** When this story edits `docker/tests/test-production.sh`, give row 21 ("Start(15) with a WatchOps whose OnInit fails") a longer wait or a retry. It is a recurring CI flake.
+Until the publish, the guide shows the real output of the local-repository install; the registry's own output replaces it afterwards. The rewrite must keep U-231's advice: run the first command in USER, and quote IPM's refusal in a namespace without Interoperability, such as %SYS. Keep the existing content as well: `iris merge`, demo mode, the model key, the README account and the U-176 re-run line.
 
-**Throughout.** An IPM install never changes the instance's services and never runs installer steps outside OCUTALON. Keys come only from environment variables, and the CI model mock stands in for the model.
+**DW-576.** Run `docker/tests/test-release-sequence.sh --live ipm` on a candidate that carries Epic 15's two-run `module.xml` before relying on 11.17's artifact record. So far only the one-run path has been proved live.
+
+**Throughout.**
+- An IPM install never changes the instance's services and never runs installer steps outside OCUTALON.
+- `SystemRequirements` (`>=2026.3`, Interoperability enabled) stays as written.
+- Keys come only from the environment, and the CI model mock stands in for the model.
+- The FR-57 job must stay within its 35-minute budget; 15.3 projected about 23.5 minutes.
+- Each local live call must fit the 10-minute command cap: split the run, and never raise the timeout.
 
 ## Technical Decisions
 
-- **Install sequence (already built).** `module.xml` lists the CPF resource `src/cpf/ocutalon.cpf` first (Initialize, before), then the preload `OcuTalon.Install.Ipm.MapAndStop` (Initialize, After), then `OcuTalon.Install.Registry.Ipm` (Configure, After).
-  - `Ipm()` does nothing on the image (when `/opt/ocutalon/version` exists).
-  - Elsewhere, `Ipm()` commits IPM's transaction to level 0, runs `Registry.Run("ipm")`, and reopens the same transaction levels on every path. The production cannot start inside IPM's transaction.
-  - On the IPM path, the `STEP`/`WARN` lines print to the command's output. A step that fails after the commit adds `STEP <name> FAILED: the new OcuTalon code is installed. Run the same install command again.`
-- **Exactly one reconcile per production start.** Only the `ipm` caller marks `OcuTalon.Production` autostart (`Ens.Director.SetAutoStart`, after a successful start); the Docker path never marks or clears it.
-  - A start made by the `Production` step holds the lock `^OcuTalon.Install.Start` and is reconciled by the installer's `Reconcile` step.
-  - Any other start (instance autostart, the portal, a session) is reconciled by the Lane A item `OcuTalon.Install.ReconcileIn` once its items run.
-  - The `Reconcile()` declarations are idempotent.
-- **Waiters and upgrades.** `ApprovalHold` and `ReminderTimer` are the only long-timer processes. Their rows (`ApprovalRequest`, `Reminder`) are the source of truth, and the reconciler re-arms a pending row whose process is gone, timed from the row's times, and cancels orphaned Workflow tasks.
-  - Storage is append-only, and upgrade code never assumes a new property has a value on old rows.
-  - The production class holds structure only, so a reinstall keeps settings.
-  - Running jobs keep the old code until their item restarts.
-- **Durability of the install.** The CPF merge runs outside IPM's transaction, so a failed install leaves the namespace and databases in place for the next run. The web bundle lives under the instance data directory's `csp/ocutalon-web/`.
-- **Release sequence.** `release/release.sh` runs the steps `cut image overview ipm push notes`. `step_ipm` packages and records the artifact (Story 11.17, done).
-- **CI hygiene.** No CI step pushes an image or signs in to a registry, and the AI Hub image never enters a cache or an artifact. `docker compose config` runs only with `--quiet`, and `docker inspect` only with `--format`. Restarts and destructive tests run only in throwaway stacks, never on the developer instance.
-- **Ownership.** Lane A owns the installer core, `lane-a.yml`, `release/` and `docs/install-ipm.md`. `docker/tests/` is in Epic 15's footprint for this story's edits.
+- **Install sequence.** `module.xml` lists, in order:
+  1. the CPF resource `src/cpf/ocutalon.cpf` (Initialize, before);
+  2. the preload map-and-stop step (`OcuTalon.Install.Ipm`, under `src/preload/cls/`, Initialize, After);
+  3. `OcuTalon.Install.Registry.Ipm` (Configure, After).
+- **Map-and-stop rules.** Configuration it keeps when the run stops is made with transactions suspended, restoring the previous state on every path. The repository mapping follows the same rule. The stop keeps IPM's `ERROR! ` prefix: IPM 0.10.10 has no honest unprefixed stop.
+- **Spine edits.** Adding the repository mapping changes the spine's "IPM early step" wording, and the AD-23 sentence still says "first in any namespace". A runner never amends an AD, so report both to the orchestrator.
+- **Release tooling.**
+  - `release/release.sh` runs the steps `cut image overview ipm push notes`, and the new step slots in after `ipm`.
+  - `release/lib-release.sh` already has the artifact path, unpack and check helpers.
+  - `release/ipm-install.sh` has the modes `a` (two runs), `r` (forced failure and recovery) and `b` (`iris merge`, restarts, next-version reinstall); the repository install is a new part of that script.
+- **CI and live hygiene.**
+  - No CI step pushes an image or signs in to a registry, and the AI Hub image never enters a cache or an artifact.
+  - Fork pull requests never run on the IRIS runner.
+  - Installs run only in throwaway stacks (`release/ipm/Dockerfile`: no after-start script and no version file), one fresh stack at a time.
+  - `docker compose config` runs only with `--quiet`, and `docker inspect` only with `--format`.
+- **Ownership.** Lane A owns the installer core, `release/`, `lane-a.yml` and `docs/install-ipm.md`. The README is Lane B's.
 
 ## UX & Interaction Patterns
 
-- With demo mode off, an IPM install shows the branded sign-in page at `/ocutalon/`. The README account is `ocutalon`/`ocutalon`, with no forced password change.
-- There is no demo guide, simulated phone or mailbox, or Break the feed. Trace links use the local-and-IPM sign-in popover.
+- The guide is the judge's path to the IPM bonus. Show real measured output, plain words, and the two commands first.
+- With demo mode off, an IPM install shows the branded sign-in page at `/ocutalon/`. The README account is `ocutalon`/`ocutalon`, with no demo guide, simulated devices or Break the feed.
 
 ## Cross-Story Dependencies
 
-- **Already merged:**
-  - 15.1 and 15.2, which give the CPF resource, `MapAndStop`, the IPM steps, `ReconcileIn`, autostart, the U-176 forced-failure path, and `release/ipm-install.sh` paths a, r and b;
-  - Epic 9, which supplies Story 9.1's IPM case;
-  - Story 11.17, which supplies the IPM artifact and its record.
-- **Not built yet:** Story 11.14, the release sequence's full gate list, is in Epic 11 part 2 (backlog, after rc1). The FR-57 release gate must work with `release/release.sh` as it stands.
-- **Lane B's waiters:** `ReminderTimer` and its `Reconcile()` are Lane B's. The restart test exercises them but does not change them.
+- **Consumed from done work:**
+  - Stories 15.1-15.3 give the CPF resource, map-and-stop, the IPM steps, autostart and `ReconcileIn`, the U-176 forced-failure path, the %SYS refusal check, and `release/ipm-install.sh` with modes `a`, `r` and `b`.
+  - Story 11.17 builds the IPM artifact (with the built page) and records it.
+- **Story 11.14** (backlog, after rc1) builds the pushed-candidate gate list and will call the FR-57 release step. The gate must work with `release/release.sh` as it stands today.
 - **Downstream:**
-  - Story 31.3 builds the README's IPM section in the order this guide uses;
-  - Stories 19.2 and 34.1 wait for Epic 15 to merge;
-  - Epic 38's 1.0.0 checks rely on a working IPM package.
+  - Story 31.3 (Lane B) builds the README's IPM section from this guide, in the same registry-first order.
+  - Stories 19.2 and 34.1, and Epic 38's 1.0.0 checks, rely on this install path.
+  - Story 15.4 must ship before rc1.
