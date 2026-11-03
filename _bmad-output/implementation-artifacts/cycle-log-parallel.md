@@ -1491,3 +1491,7 @@
 2026-11-03T05:00:20Z	Epic 10	worktree_provisioned	worktree=.worktrees/epic-10 branch=OCT-epic10 from=c9d201e5 submodules=none reason=SC-5_re-open_10.5
 2026-11-03T05:00:20Z	Epic 10	worktree_bootstrapped	epic=10 result=ok
 2026-11-03T05:00:20Z	Epic 1-37	planner_note	suggests_10.5_on_runner_C_now(C_free_~5h_until_12+13_merge);ruling:10.5_dispatches_on_C_at_Epic_31s_Ended(waiting);prompt_refreshed(policy_5086036,h2-common,U-228_cond_2_on_Telegram_row,README_contenders_12/13/15/31);merge_after_epic-12_if_Telegram_row_written_first
+2026-11-03T05:52:22Z	Epic 15	owner_decision	id=U-230 at=2026-11-03T03:04:11Z#692 via=inbox by=Contest_Planner_1(delegated) answer=keep;15.3_before_rc1;rc1_carries_SystemRequirements effect_in_place=part_1_merged_950542a0,15.3_re-opened
+2026-11-03T05:52:22Z	Epic 31	runner_ended	reason=waiting waiting_on=12,13 head=20fbca72(green_41584667050,41584666964) applied=U-212,U-222(resolved) stories_done=31.5(6e57e259,e29693be),31.6(f7cc68ab) new_flake=DW-612(install-start_row2_ERROR_453) note=overview_L111_exact_call_vs_200-char_cap->route_to_31.3
+2026-11-03T05:52:22Z	Epic 1-37	ci_green_verified	runs=41581274646,41581274658 head=c9d201e5 result=success via=none note=feature_head
+2026-11-03T05:52:42Z	Epic 10	runner_dispatched	runner=af27c8480f6ed1408 model=opus lane=C slot=ocutalon-slot-c prompt=prompts/dispatch-epic-10-105.md base=feature_c9d201e5(green) note=SC-5_re-open_10.5_docs-only;U-228_cond_2_on_Telegram_row;merge_after_epic-12_if_row_written_first
