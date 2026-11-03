@@ -3050,6 +3050,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: found by Story 12.3's plan: the card's unpaired state is built in Lane A's telegram-card/, but its position in the device column at 1024-1279 px is the rail layout's (Lane B's web files); no story in epics.md names UX-DR137
 - 2026-10-31T19:18:18Z status=escalated owner=burndown by=spec_gate note=for the decision sheet: route to a Lane B story (layout) or accept; not Epic 12's files
 - 2026-11-03T14:32:55Z status=decision-pending owner=burndown by=unattended note=inbox=U-238
+- 2026-11-03T14:37:22Z status=routed owner=burndown by=owner note=U-238:UX-DR137_device-column_placement_to_first_daily_release;the_narrow_fix(guide_hint_and_Show_me_open_the_Status_drawer_at_1024-1279)_is_Story_12.10_before_the_tag
 
 ### DW-504: Lane B's web/scripts/qr-pin.test.mjs header says nothing in web/src uses qrcode-generator yet, which Story 12.3's card makes untrue
 - source: spec-12-3-the-telegram-card-shows-a-fresh-pairing-code-as-a-qr-code.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -3649,3 +3650,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: Epic 15 merge gate (Contest Planner, 2026-11-03) | severity: low | fix-risk: low | footprint: small
 - evidence: 15.4 measured the artifact at 4,940,685 bytes; src/module.xml resource OcuTalon.PKG
 - 2026-11-03T12:12:51Z status=routed owner=burndown by=merge_gate note=first daily release after 1.0.0
+
+### DW-636: install.sh looks only for build 154 (install.sh:29, :179, :285): make it find a build 109 image (irishealth-community:2027.1.0AI.109.0) too, then drop the README's separate 'Start it with build 109' path (U-241)
+- source: Contest Planner build 109 spike, 2026-11-03 | severity: low | fix-risk: low | footprint: small
+- evidence: spike-109: OcuTalon at 138d0066 runs unchanged on 109 (build, first start 91 s, restart 15 s, install-fresh/production/shards groups, real-model demo walk); only install.sh refuses the tag
+- 2026-11-03T14:37:22Z status=routed owner=burndown by=merge_gate note=first daily release after 1.0.0
+
+### DW-637: Build 109 changes to watch: %AI.Tool.%DecodeScalar rejects an array or object for a scalar tool argument (a malformed call becomes a tool error), and %AI.System, %AI.Utils.SettingStore, %AI.Shell.StreamRenderer, EnsLib.AI.Agent.OutboundAdapter and %AI.Policy.Audit/Authorization are now Hidden, Internal or EXPERIMENTAL; nothing changes at runtime today
+- source: Contest Planner build 109 spike, 2026-11-03 | severity: low | fix-risk: low | footprint: small
+- evidence: API diff of 145 referenced system classes: no removed member, no changed signature; these two notes only
+- 2026-11-03T14:37:22Z status=routed owner=burndown by=merge_gate note=first daily release after 1.0.0; note for any move to 109

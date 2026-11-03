@@ -4857,6 +4857,34 @@ So that I can pair my own phone and approve from it in a release.
 
 **On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the owner's Telegram pass on the 1.0.0 candidate (Story 38.3) [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0": it read "a real bot only in the Contest Planner's hands-on pass"]. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
 
+### Story 12.10: In a narrower window, the Telegram step leads to the Status drawer
+
+[ADDED 2026-11-03, fix-forward from DW-503 (owner decision U-238, answered by the Contest Planner under the owner's delegation, 2026-11-03T14:34:23Z#723; re-opens Epic 12 under SC-5 after Epic 12 merged, before the 1.0.0 tag): at 1024 to 1279 px the status rail is a drawer that starts closed, so the unpaired Telegram card is not on the page while the demo guide's hint says "scan the QR code in the Telegram card". The narrow fix is before the tag; UX-DR137's placement of the card at the top of the device column goes to the first daily release after 1.0.0 (DW-503).]
+
+As a person pairing Telegram in a narrower browser window,
+I want the guide's Telegram step to send me to the Status button and open the drawer with the card in view,
+So that I can find the QR code without hunting for a card I cannot see.
+
+**Acceptance Criteria:**
+
+**Given** a page 1024 to 1279 px wide (the status rail is a closed drawer), Telegram configured and the session unpaired
+**When** the demo guide reaches its Telegram step
+**Then** the step's hint tells the user to open the Status button in the page header, naming the button exactly as it is labelled, instead of pointing at a card they cannot see
+**And** the step's Show me opens the Status drawer with the Telegram card in view (not clipped, not hidden, not overlapping anything; the QR code and "Open in Telegram" visible and enabled)
+
+**Given** a page 1280 px wide or wider, or Telegram not configured, or the session paired
+**When** the demo guide reaches its Telegram step
+**Then** nothing changes from today
+
+**Given** the online demo, where Telegram is off at 1.0.0
+**When** a visitor opens the page at any width
+**Then** neither the Telegram hint nor the card shows, as today
+
+**Given** the change
+**When** this story merges
+**Then** a browser test at 1100 px pins the hint and the Show me drawer, a control at 1400 px shows nothing changed there, and CI is green on every workflow
+- DW-503: UX-DR137 (the unpaired Telegram card at the top of the device column at 1024 to 1279 px) is carried by no story; the narrow fix is this story (U-238), and the device-column placement goes to the first daily release after 1.0.0 (ledger; routed by owner decision U-238, 2026-11-03)
+
 ## Epic 13: Any production can use the bridge
 
 A production developer follows the bridge developer guide to install the bridge into another production without OcuTalon (its classes load without IPM), configure it entirely through production settings, and run the example production, whose decisions, agent steps and approvals appear in Visual Trace.

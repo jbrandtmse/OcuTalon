@@ -1606,3 +1606,11 @@
 2026-11-03T14:33:08Z	Epic 12	ledger_routed_planned	story=none entries=0 excess=0 by=merge_gate note=overflow_all_burndown
 2026-11-03T14:33:08Z	Epic 12	deps_hash_rerecorded	reason=split hash=00aa3aa5 note=12.9_split_from_12.7
 2026-11-03T14:33:08Z	Epic 12	worktree_removed	path=.worktrees/epic-12
+2026-11-03T14:33:13Z	Epic 12	epic_merged_to_feature	merge=55b1dfed head=65beb93c pushed=true verified_on_origin=true record=6093ed5b
+2026-11-03T14:33:13Z	Epic 12	epic_branches_deleted	branch=OCT-epic12 local=true remote=true
+2026-11-03T14:36:14Z	Epic 31	ruling	question=README_build_109_path(EAP_portal_dropped_154;Planner_spike:runs_unchanged_on_109) choice=31.3_applies_the_Planner_s_wording_verbatim(prompts/readme-build-109-wording.md,sha256:664be5f50be85356) rejected=leave_154-only(untrue_for_new_downloaders) category=veto reversal=revert_the_six_README_items inbox=U-241 policy=508603671b9598f59d04750db6b6cdad2d396167
+2026-11-03T14:36:57Z	Epic 31	ruling	question=dispatch_31.3_onto_feature_6093ed5b_while_its_CI_is_pending(runs_41654820345,41654820326) choice=dispatch_now:6093ed5b_non-bookkeeping_tree_identical_to_65beb93c(green_every_workflow;git_diff_name-only_outside__bmad*_empty);a_red_6093ed5b_stops_the_dispatch_per_the_rule rejected=wait_~30_min(on_the_rc1_critical_path_with_no_new_code_to_verify) category=decide policy=508603671b9598f59d04750db6b6cdad2d396167
+2026-11-03T14:36:57Z	Epic 31	owner_decision	id=U-238 at=2026-11-03T14:34:23Z#723 via=inbox by=Contest_Planner_1(delegated) answer=fix_before_tag_narrow(guide_hint->Status_button_at_1024-1279;Show_me_opens_drawer;1100px_test+1400px_control;UX-DR137_placement_burndown);README_step_5_phrase_in_31.3;vehicle=Epic_12_re-open_on_runner_B_after_13.4_merges;rc1_waits apply=31.3_prompt(README)+Story_12.10(re-open)
+2026-11-03T14:37:22Z	Epic 31	runner_dispatched	runner=a253617cd5fcd9dc8 model=opus slot=ocutalon-slot-a lane=A base=20fbca72 feature=6093ed5b prompt=prompts/dispatch-epic-31-313.md story=31.3 vetoes=U-239(kept),U-241
+2026-11-03T14:37:22Z	Epic 31	ledger_filed	ids=DW-636,DW-637 owner=burndown note=build_109(install.sh;minor_changes)
+2026-11-03T14:38:10Z	Epic 12	deps_hash_rerecorded	reason=fix_forward hash=b3846822 note=Story_12.10_inserted(U-238;re-opens_Epic_12_on_runner_B_after_13.4_merges)
