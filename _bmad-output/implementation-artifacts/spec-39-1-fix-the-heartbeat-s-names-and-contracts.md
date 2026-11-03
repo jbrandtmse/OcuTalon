@@ -2,7 +2,8 @@
 title: 'Story 39.1: Fix the heartbeat''s names and contracts'
 type: 'feature'
 created: '2026-11-03'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '3f5f7b3ee2a056f2ec2c0411012a41845e324454'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -156,6 +157,28 @@ deferred:
 
 ## Review Triage Log
 
+### 2026-11-03 - Review pass
+- verdicts: 22 findings - high 0, medium 2, low 18, false 2, maybe-false 0 (the intent-alignment layer reported readings only, no finding: it found the diff implements the narrow wiring-and-names reading, with the production-level Tick to real `RunDue` link not exercised because `RunDue` is a stub)
+- findings:
+  - `[low]` `[patch]` (blind-hunter, edge-case-hunter x2, verification-gap other) `Probe.BeatRunDue` read `..Order.%Size()` through a non-short-circuit `*`, which raises `<INVALID OREF>` when no send has created `Order` - fixed with `$Select($IsObject(..Order): ..Order.%Size(), 1: 0)`; the Tick's catch had been logging the OREF error instead of the injected marker on a send-free Tick
+  - `[medium]` `[patch]` (blind-hunter, verification-gap) `BeatNow`'s error-status path was untested and the probe had no knob for it - added `BeatNowError` to the probe and a third case in `Runs.TestBeatNow`; mutation line written
+  - `[low]` `[reject]` (blind-hunter, edge-case-hunter) a `RunNow`/`RunDue` error text that names the SessionRef is not scrubbed from the log - the text comes from `Beat`, which Story 39.3 fills; `Redact.Text` is the only filter and nothing in this story can put a Ref in it (theoretical here)
+  - `[low]` `[patch]` (blind-hunter, verification-gap) `TestStubsDoNothing` compared a never-used fixture ref with itself - now compares the whole table's row count before and after, uses no counter global
+  - `[low]` `[reject]` (blind-hunter) `Heartbeat.TestBeatNowIsAnswered` hard-codes `'Intake'` - the spec's matrix row names it; the response assertion was added with the control below
+  - `[low]` `[reject]` (blind-hunter, edge-case-hunter) `Beat.SettingKey` accepts an empty or dotted `sessionRef` - the spec fixes it as `person.<sessionRef>.heartbeat.<name>` for a name in KEYS, the Ref comes from the server-side session, and 39.2 owns the caller (spec-bound)
+  - `[low]` `[reject]` (blind-hunter, edge-case-hunter) `HeartbeatBeat.SessionRef` not Required and no `NextDueAt` index - the spec fixes AD-18's 15 fields and the one unique index; the due-scan index is 39.3's call when it writes `RunDue` (spec-bound)
+  - `[low]` `[reject]` (blind-hunter) the spine "Names" insert omits `Beat`, `RequestedAt` and the seams - the spec gives the two inserts verbatim and forbids other spine edits (spec-bound)
+  - `[low]` `[reject]` (edge-case-hunter) a `BeatNow` with an empty SessionRef reaches `Beat.RunNow` - `CommandsIn` sets it from the server-side session; `RunNow` is a stub, and its validation is Story 39.3's
+  - `[medium]` `[patch]` (verification-gap) same root as the second row above (the unlogged `RunNow` error status)
+  - `[low]` `[reject]` (verification-gap) the real `BeatRunDue`/`BeatRunNow` seams are not pinned to the right `Beat` method - the stubs have no observable effect to assert on; Story 39.3 pins the wiring when it fills them (reopen_if: `RunDue` or `RunNow` gains an effect)
+  - `[low]` `[patch]` (verification-gap) the Intake/Checks counts in `TestBeatNowIsAnswered` had no positive control - added the count of requests to Checks (1) and an empty-response assertion; the no-send mutation went red on the Intake assertions
+  - `[low]` `[patch]` (verification-gap) same root as `TestStubsDoNothing` above
+  - `[low]` `[reject]` (verification-gap) two of the five grep needles (`SetHeartbeat`, `RunHeartbeat`) were already in the baseline spine - the fix is to edit the spec's Verification commands; the edit was read in the diff instead
+  - `[low]` `[reject]` (verification-gap) AC 6 and AC 7 have no mutation line - both are diff or text checks, not tests
+  - `[false]` `[reject]` (verification-gap) `TestSettingNames` pins literals against the same literals - the names, defaults and caps are the contract being pinned; the KEYS loop reads the parameter by design
+  - `[false]` `[reject]` (verification-gap) `TestBeatsThatFailAreLogged` counts cumulatively - the count is asserted after each Tick (1, then 2), so a double log in one Tick fails the first check
+  - `[low]` `[patch]` (verification-gap other) the Probe `Order` evaluation - same root as the first row
+
 ## Design Notes
 
 **Governing ADs:**
@@ -226,6 +249,15 @@ Pinning mutations to apply, observe red, revert and record (Rule 19):
 - drop its Try/Catch → `Runs.TestBeatsThatFailAreLogged`;
 - drop the `BeatNow` branch → `Heartbeat.TestBeatNowIsAnswered`.
 
+Recorded mutations (Rule 19; each applied, observed red, reverted byte-identical):
+- AC 2 (the 15 fields): mutation: removing the `LastQuietKey` property from `Data.HeartbeatBeat` made `Test.Data.Tables.TestContracts` fail ("property LastQuietKey is missing"); reverted, green.
+- AC 3 (the stubs do nothing): mutation: `Beat.Snapshot` returning "x" made `Test.Checks.Beat.TestStubsDoNothing` fail ("Snapshot is empty"); reverted, green.
+- AC 4 (RunDue after the due checks): mutation: moving the beat block before the due checks made `Runs.TestTickRunsTheBeatsLast` fail ("after the due row's read"); reverted, green.
+- AC 4 (a failing RunDue is logged, the Tick answers OK): mutation: dropping the beat block's Try/Catch made `Runs.TestBeatsThatFailAreLogged` fail (the Tick threw the marker error); reverted, green.
+- AC 5 (a BeatNow is answered OK): mutation: dropping the `BeatNow` branch of `OnRequest` made `Heartbeat.TestBeatNowIsAnswered` fail (error 5001 naming `OcuTalon.Checks.Msg.BeatNow`); reverted, green.
+- AC 5 (nothing reaches Intake): mutation: `Process.BeatRunNow` sending an `Ens.StringRequest` to `Intake` made `Heartbeat.TestBeatNowIsAnswered` fail ("no message of the session is for Intake" and "and Checks sent no request"); reverted byte-identical, green.
+- Matrix row 5, error-status path (a RunNow that answers an error status is logged, the answer is OK): mutation: dropping the `$$$ISERR` block of `Process.BeatNow` made `Runs.TestBeatNow` fail ("and logs one more warning"); reverted byte-identical, green.
+
 **Shared surfaces:**
 - `src/short-names.tsv`: +1 row, under test-storage.sh's registry rules.
 - `Test.Data.Tables` Registry and Contracts: +1 each. The floors (`>= 23`, `>= 22`, `>= 45`) still hold.
@@ -237,7 +269,24 @@ Pinning mutations to apply, observe red, revert and record (Rule 19):
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-Planned and halted after planning, as the dispatch asked. Not implemented. Only this spec is uncommitted. Footprint extension to report: `src/ocutalon/cls/OcuTalon/Test/Data/Tables.cls` (not contended). Two items are deferred for the lead to harvest (frontmatter `deferred`): `Live.Payload.Heartbeat` (med, needs a Lane B append) and the UX text for the run button when it is unavailable (low, 39.5).
+**Implemented.** The heartbeat's names and contracts are in place and the Tick and `BeatNow` are wired as the spec lists them.
+- `src/ocutalon/cls/OcuTalon/Data/HeartbeatBeat.cls` (new): AD-18's 15 fields, the unique `SessionRefIndex`, `DEFAULTGLOBAL ^OcuTalonP.HeartbeatBeat`, the storage block exported from slot D. `src/short-names.tsv` has its row.
+- `src/ocutalon/cls/OcuTalon/Checks/Msg/BeatNow.cls` (new): `SessionRef` and `RequestedAt`, storage block committed.
+- `src/ocutalon/cls/OcuTalon/Checks/Beat.cls` (new): do-nothing `RunDue`, `RunNow`, `Snapshot`, `Key`; the settings names, defaults and caps as parameters; `SettingKey`.
+- `src/ocutalon/cls/OcuTalon/Checks/Process.cls`: `BeatNow` routed in `OnRequest`; `Tick` runs `BeatRunDue` last in a fourth Try/Catch (`LOGBEAT`); `BeatNow` logs `LOGBEATNOW` and answers OK; the two private seams.
+- `ARCHITECTURE-SPINE.md`: the "Names" line in AD-18 and the defaults sentence in AD-19 (additive only). The "Names" line spells the five keys out in full, so that the spec's own grep for `heartbeat.checklist` passes.
+- Tests: `Test/Checks/Probe.cls` (seam overrides), `Test/Checks/Runs.cls` (3 tests), `Test/Checks/Heartbeat.cls` (`TestBeatNowIsAnswered`), `Test/Checks/Beat.cls` (new, 3 tests), `Test/Data/Tables.cls` (contract and registry entry).
+
+**Review.** 22 findings from three layers (the intent-alignment layer reported readings only): high 0, medium 2, low 18, false 2. Patches applied: the probe's `Order` read (low), the `RunNow` error-status test and the probe knob `BeatNowError` (medium), `TestStubsDoNothing` compared a never-used ref (low), the positive control and empty-response assertion in `TestBeatNowIsAnswered` (low). Deferred: none new (the two planned entries stay). Rejected, with reasons in the triage log: log leak of a Ref from a stub's error text, `SettingKey` validation, `Required`/`NextDueAt` index, more spine names, empty-SessionRef guard, seam wiring pin, grep needles and AC 6/7 mutation lines (spec-bound or no test to mutate), two false claims. Follow-up review recommended: false (one medium patched, test-only, mutation-verified).
+
+**Decided in-stage.**
+- Spine lint: `lint_spine.py` reports `"ok": false` for 8 low "unfilled template token" findings at lines 454, 1010, 1023, 1086 and 1091 (brace placeholders in the spine's own examples). The same 8 are in the baseline spine, and this story adds none. The Verification line "`"ok": true`" cannot be met without editing lines this story does not own, so the check was taken as "no new finding". The lead may want to clear those placeholders or relax the check.
+
+**Verification.** The (loop) lines passed after the last patch: `Test.Checks.Beat`, `Runs`, `Data.Tables`, `Contract.Ac` (warm), `Test.Checks.Heartbeat` (fresh), `test-storage.sh`, the grep loop. The (once) lines passed: the scoped diff against `origin/feature/OCT_OcuTalon_MVP` is empty, all 28 hosted `checks` scripts (no FAIL line; parts took 1:51, 11:28 and 7:50), `shard lane-a@Checks` (6 classes, 137 s), `shard lane-b@Data` (12 classes, 151 s), `shard lane-b@Contract,Live` (7 classes, 139 s; `Test.Live.Payloads` unchanged). Warm stack down and tag teardown done. Slot D ran no test. The mutations (7 lines above) were applied, observed red and reverted byte-identical.
+
+**Footprint extension (report):** `src/ocutalon/cls/OcuTalon/Test/Data/Tables.cls` (one contract and one registry entry; not contended).
+
+**Residual risks.** `RunDue` and `RunNow` are stubs, so the real `Process` to `Beat` wiring has no observable effect to assert on; Story 39.3 should pin it when it fills them. Test time added: about 2 s warm, about 3 s in `Checks.Heartbeat`; `shard lane-a@Checks` took 137 s fresh. The two deferred entries (`Live.Payload.Heartbeat`, and the UX text for the unavailable run button) are for the lead to harvest.

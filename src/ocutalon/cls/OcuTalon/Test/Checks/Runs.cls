@@ -39,6 +39,11 @@
 ///     stopped true and the message's name, on the message's session stream; a failed publish logs one warning;
 ///   - TestPublishes: exactly one check event per run, equal to FromRow of the row after the run;
 ///   - TestRanLine: one Type 4 line per run, naming the check's Ref, its name, the result and the finding;
+///   - TestTickRunsTheBeatsLast (Story 39.1; matrix row 1): the probe's BeatRunDue is called once with the Tick's time, after the quiet sweep's send and the due row's read, and the
+///     row still runs (passed); nothing is added to the probe's Order;
+///   - TestBeatsThatFailAreLogged (rows 2 and 3): a RunDue that throws, and one that answers an error status, each log one warning (LOGBEAT) that holds the test's marker, and the Tick still answers OK;
+///   - TestBeatNow (rows 4 and 5): a BeatNow is answered OK with no response, RunNow is called once with the request's SessionRef, and no send, no row read and no RunDue is made; a RunNow that throws
+///     logs one warning (LOGBEATNOW) that holds the marker and not the SessionRef, and so does a RunNow that answers an error status; the answer is OK;
 ///   - TestUnknownRequest ("Unknown request"): a request of another class is an error 5001 that names the class.
 /// The fixture rows, streams and the log lines that the tests made are removed after each test.
 Class OcuTalon.Test.Checks.Runs Extends %UnitTest.TestCase
@@ -888,6 +893,95 @@ Method TestRanLine()
 	Do $$$AssertEquals(..Ran(one)_"|"_..Ran(two), "2|2", "each run adds one")
 }
 
+Method TestTickRunsTheBeatsLast()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set a = ..Owner("beatlast")
+	Set long = ##class(OcuTalon.Bridge.Time).PlusSeconds(..#TICK, -960)
+	Set quiet = ..Incident(a, "resolved", "Zz.BeatLast", {"LastAt": (long)})
+	Set production = "Zz.BeatLastDue"
+	Set ref = ..Watch(a, production)
+	Do ..Feed(production, "read", "running")
+	Set host.QuietAt = ..#TICK
+	Do ..Tick(host, ..#TICK)
+	Do $$$AssertEquals(..Row(ref).Result, "passed", "the due row still runs")
+	Do $$$AssertEquals($Select($IsObject(host.Beats): host.Beats.%Size(), 1: 0), 1, "RunDue is called once")
+	If $IsObject(host.Beats) && (host.Beats.%Size() = 1) {
+		Set beat = host.Beats.%Get(0)
+		Do $$$AssertEquals(beat.tickAt, ..#TICK, "with the Tick's time")
+		Do $$$AssertEquals(beat.reads, 1, "after the due row's read")
+		Do $$$AssertEquals(beat.sends, 1, "and after every send (the quiet sweep's)")
+	}
+	Do $$$AssertEquals(host.Order.%Size(), 1, "the beat adds nothing to Order")
+	Do $$$AssertEquals(..Reads(), production, "and the row was read once")
+}
+
+Method TestBeatsThatFailAreLogged()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set a = ..Owner("beatfail")
+	Set production = "Zz.BeatFailDue"
+	Set ref = ..Watch(a, production)
+	Do ..Feed(production, "read", "running")
+
+	// RunDue throws
+	Set marker = "zzchk"_..Number_" beat refused"
+	Set host.BeatThrows = marker
+	Do ..Tick(host, ..#TICK)
+	Do $$$AssertEquals(..Beaten(marker, .text), 1, "a RunDue that throws logs one warning that holds the marker")
+	Do $$$AssertEquals(..Row(ref).Result, "passed", "the due row ran before it")
+
+	// RunDue answers an error status
+	Set host.BeatThrows = ""
+	Set host.BeatError = marker
+	Do ..Tick(host, ..At(1))
+	Do $$$AssertEquals(..Beaten(marker, .text), 2, "a RunDue that answers an error status logs one more")
+	Do $$$AssertEquals(host.Beats.%Size(), 2, "RunDue was called on each Tick")
+}
+
+Method TestBeatNow()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set a = ..Owner("beatnow")
+	Set production = "Zz.BeatNowDue"
+	Set ref = ..Watch(a, production)
+	Do ..Feed(production, "read", "running")
+	Set request = ##class(OcuTalon.Checks.Msg.BeatNow).%New()
+	Set request.SessionRef = a
+	Set request.RequestedAt = ..#TICK
+	Set response = "x"
+	Set sc = host.OnRequest(request, .response)
+	Do $$$AssertStatusOK(sc, "a BeatNow is answered OK")
+	Do $$$AssertEquals(response, "", "with no response object")
+	Do $$$AssertEquals($Select($IsObject(host.BeatNows): host.BeatNows.%Size(), 1: 0), 1, "RunNow is called once")
+	If $IsObject(host.BeatNows) && (host.BeatNows.%Size() = 1) Do $$$AssertEquals(host.BeatNows.%Get(0).sessionRef, a, "with the request's SessionRef")
+	Do $$$AssertEquals($Select($IsObject(host.Beats): host.Beats.%Size(), 1: 0), 0, "RunDue is not called")
+	Do $$$AssertEquals($Select($IsObject(host.Order): host.Order.%Size(), 1: 0), 0, "nothing is sent")
+	Do $$$AssertEquals(..Reads(), "", "and no row is read")
+
+	// RunNow throws
+	Set marker = "zzchk"_..Number_" beatnow refused"
+	Set host.BeatNowThrows = marker
+	Set sc = host.OnRequest(request, .response)
+	Do $$$AssertStatusOK(sc, "a RunNow that throws still answers OK")
+	Do $$$AssertEquals(..Warnings("BeatNow", $Parameter(..#PROBE, "LOGBEATNOW"), .text), 1, "and logs one warning")
+	Do $$$AssertTrue(text [ marker, "which holds the marker: "_text)
+	Do $$$AssertNotTrue(text [ a,"and not the SessionRef")
+
+	// RunNow answers an error status
+	Set host.BeatNowThrows = ""
+	Set marker = "zzchk"_..Number_" beatnow failed"
+	Set host.BeatNowError = marker
+	Set sc = host.OnRequest(request, .response)
+	Do $$$AssertStatusOK(sc, "a RunNow that answers an error status still answers OK")
+	Do $$$AssertEquals(..Warnings("BeatNow", $Parameter(..#PROBE, "LOGBEATNOW"), .text), 2, "and logs one more warning")
+	Do $$$AssertTrue(text [ marker, "which holds the marker: "_text)
+	Do $$$AssertNotTrue(text [ a,"and not the SessionRef")
+}
+
 Method TestUnknownRequest()
 {
 	Set host = ..Host()
@@ -1058,6 +1152,19 @@ ClassMethod Result(approvalRef As %String, incidentRef As %String) As OcuTalon.F
 	Quit result
 }
 
+/// The number of warnings (LOGBEAT) since the test began that Tick logged for a beat that failed with the marker; text is the newest one's.
+Method Beaten(marker As %String, Output text As %String) As %Integer
+{
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT Text FROM Ens_Util.Log WHERE ID > ? AND Type = 3 AND SourceMethod = 'Tick' AND Text %STARTSWITH ? AND Text [ ? ORDER BY ID", ..LogMark, $Parameter(..#PROBE, "LOGBEAT"), marker)
+	Set count = 0
+	Set text = ""
+	While result.%Next() {
+		Set count = count + 1
+		Set text = result.%Get("Text")
+	}
+	Quit count
+}
+
 /// The number of warnings since the test began that Tick logged for a Sweep that threw this test's own text.
 Method Fixed() As %Integer
 {
@@ -1161,6 +1268,8 @@ Method RemoveLogs()
 		Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "Fixes", $Parameter(..#PROBE, "LOGFIX")_ref)
 	}
 	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE ID > ? AND Type = 3 AND SourceMethod = 'Tick' AND Text %STARTSWITH ? AND Text [ ?", ..LogMark, $Parameter(..#PROBE, "LOGFIXES"), "zzchk"_..Number_" sweep refused")
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE ID > ? AND Type = 3 AND SourceMethod = 'Tick' AND Text %STARTSWITH ? AND Text [ ?", ..LogMark, $Parameter(..#PROBE, "LOGBEAT"), "zzchk"_..Number_" beat refused")
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE ID > ? AND Type = 3 AND SourceMethod = 'BeatNow' AND Text %STARTSWITH ? AND Text [ ?", ..LogMark, $Parameter(..#PROBE, "LOGBEATNOW"), "zzchk"_..Number_" beatnow ")
 }
 
 }

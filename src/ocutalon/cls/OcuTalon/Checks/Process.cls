@@ -1,5 +1,5 @@
-/// Checks, the business process that runs the background checks on every heartbeat (AD-18, AD-28, AD-33). Its item keeps PoolSize 1. It handles two
-/// requests, and answers OK to both (any other request class is an error 5001 that names the class):
+/// Checks, the business process that runs the background checks on every heartbeat (AD-18, AD-28, AD-33). Its item keeps PoolSize 1. It handles three
+/// requests, and answers OK to all of them (any other request class is an error 5001 that names the class):
 ///   - An OcuTalon.Msg.Tick (HeartbeatIn sends one every minute). now is Data.Time.NowUtc(), and the tick time is TickAt when that is a UTC stamp
 ///     (YYYY-MM-DDTHH:MM:SSZ), else now. First the quiet sweep: every Incident row that is not closed and whose LastAt is more than
 ///     IncidentManager.QUIETSECONDS before now (Watch.Settle.Quiet) gets one OcuTalon.Msg.IncidentCommand, verb closeQuiet, origin timer and no
@@ -12,10 +12,15 @@
 ///     and SuperSession being put back after each send. A Sweep that throws logs one Type 3 warning (LOGFIXES), a failed send one Type 3 warning (LOGFIX, with
 ///     the request's Ref), and the other results still go. Then the checks: every row of Kind production is due when its NextDueAt is empty or at most
 ///     DUESLACKSECONDS after the tick time, and each due row runs once however many ticks were missed. An exception in one row's run logs one Type 3
-///     warning (LOGRUN), and the next row still runs. The quiet sweep, the fixes and the due checks each have their own Try/Catch.
+///     warning (LOGRUN), and the next row still runs. Last, the agent heartbeat's due beats: OcuTalon.Checks.Beat.RunDue(tickAt) (the seam BeatRunDue). An error
+///     status or an exception from it logs one Type 3 warning (LOGBEAT), and the Tick still answers OK. The quiet sweep, the fixes, the due checks and
+///     the beats each have their own Try/Catch. A beat is no background check (AD-28): it adds no row, check result or coverage entry.
 ///   - An OcuTalon.Checks.Msg.CheckChanged (WatchOps sends one after a watch is started or stopped): Checks publishes the change as a check event
 ///     on the owner's stream, FromRow of the row it opens by Ref for a start (nothing when the row is gone), and for a stop a payload of the message's
 ///     fields with stopped true. A failed publish logs one Type 3 warning (LOGPUBLISH).
+///   - An OcuTalon.Checks.Msg.BeatNow (CommandsIn sends one for the RunHeartbeat command): Checks calls OcuTalon.Checks.Beat.RunNow(SessionRef) (the seam
+///     BeatRunNow) and answers OK with no response object. An error status or an exception logs one Type 3 warning (LOGBEATNOW). No log line names a
+///     SessionRef, and nothing is sent to Intake or any other item.
 /// One run of a row:
 ///   - Read: Watch.Reader.Failures (the seam Read) from Watch.Mark.Start(LastRunAt, CreatedAt, now), the previous run less Mark.OVERLAP seconds, else
 ///     the watch's creation, at most Mark.MAXFAILURES failures, with the production's running state. The incidents come from the rows.
@@ -133,6 +138,10 @@ Parameter LOGRAN = "Checks ran check ";
 
 Parameter LOGFINDING = "Checks could not send a finding of check ";
 
+Parameter LOGBEAT = "Checks could not run the heartbeat's due beats: ";
+
+Parameter LOGBEATNOW = "Checks could not run a requested heartbeat: ";
+
 /// The text of a finding Item (public text, veto U-180; the first line becomes the item summary): {production} is the display name, {itemName} the item's name.
 Parameter TEXTSTOPPED = "The {production} production stopped.";
 
@@ -151,11 +160,12 @@ Method OnRequest(request As %Library.Persistent, Output response As %Library.Per
 	If $IsObject(request) {
 		If request.%IsA("OcuTalon.Msg.Tick") Quit ..Tick(request)
 		If request.%IsA("OcuTalon.Checks.Msg.CheckChanged") Quit ..Changed(request)
+		If request.%IsA("OcuTalon.Checks.Msg.BeatNow") Quit ..BeatNow(request)
 	}
 	Quit $SYSTEM.Status.Error(5001, "Checks does not handle a request of the class '"_$Select($IsObject(request): $ClassName(request), 1: "none")_"'")
 }
 
-/// A Tick: the quiet sweep, then the fixes (Fixes), then the checks that are due (see the class description). Always OK.
+/// A Tick: the quiet sweep, then the fixes (Fixes), then the checks that are due, then the heartbeat's due beats (see the class description). Always OK.
 Method Tick(tick As OcuTalon.Msg.Tick) As %Status [ Private ]
 {
 	Set now = ##class(OcuTalon.Data.Time).NowUtc()
@@ -183,7 +193,41 @@ Method Tick(tick As OcuTalon.Msg.Tick) As %Status [ Private ]
 	} Catch exception {
 		$$$LOGWARNING(..#LOGDUE_##class(OcuTalon.Bridge.Redact).Text(exception.DisplayString()))
 	}
+	Try {
+		Set sc = ..BeatRunDue(tickAt)
+		If $$$ISERR(sc) {
+			$$$LOGWARNING(..#LOGBEAT_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
+		}
+	} Catch exception {
+		$$$LOGWARNING(..#LOGBEAT_##class(OcuTalon.Bridge.Redact).Text(exception.DisplayString()))
+	}
 	Quit $$$OK
+}
+
+/// A BeatNow: Beat.RunNow for the request's session (see the class description). Always OK.
+Method BeatNow(request As OcuTalon.Checks.Msg.BeatNow) As %Status [ Private ]
+{
+	Try {
+		Set sc = ..BeatRunNow(request.SessionRef)
+		If $$$ISERR(sc) {
+			$$$LOGWARNING(..#LOGBEATNOW_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
+		}
+	} Catch exception {
+		$$$LOGWARNING(..#LOGBEATNOW_##class(OcuTalon.Bridge.Redact).Text(exception.DisplayString()))
+	}
+	Quit $$$OK
+}
+
+/// The heartbeat's due beats at the tick time: OcuTalon.Checks.Beat.RunDue (a seam for the tests).
+Method BeatRunDue(tickAt As %String) As %Status [ Private ]
+{
+	Quit ##class(OcuTalon.Checks.Beat).RunDue(tickAt)
+}
+
+/// The requested beat of the session: OcuTalon.Checks.Beat.RunNow (a seam for the tests).
+Method BeatRunNow(sessionRef As %String) As %Status [ Private ]
+{
+	Quit ##class(OcuTalon.Checks.Beat).RunNow(sessionRef)
 }
 
 /// The fixes: each final FixResult that Fix.Run Sweep returns goes to IncidentManager (see the class description). A send that fails or throws logs one Type 3 warning (LOGFIX), and the

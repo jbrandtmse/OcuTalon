@@ -21,6 +21,9 @@
 ///     catalogKey, slots, sessionId, superSession} in ^||ChecksProbe("findings", n) (FindingItems reads them) and answers OK, or an error for an item whose Text holds one of
 ///     the texts that FailFindings set (comma-separated; the finding of one display name or item name), or throws when FailFindings asked for it. Reset clears them.
 ///   - Order lists each send in order, "quiet:<incident Ref>" for SendQuiet and "fix:<approval Ref>" for SendFixResult and "finding:<catalog key>" for SendFinding, so that a test can tell that the quiet sweep came first. Quieted keeps its shape.
+///   - BeatRunDue and BeatRunNow (Story 39.1) never call the real Beat. BeatRunDue records {tickAt, reads, sends} in Beats (the Read calls and the Order entries so far), then
+///     throws the text in BeatThrows, or answers an error status with the text in BeatError, else OK. BeatRunNow records {sessionRef} in BeatNows, then throws the text
+///     in BeatNowThrows, or answers an error status with the text in BeatNowError, else OK. Neither adds to Order.
 Class OcuTalon.Test.Checks.Probe Extends OcuTalon.Checks.Process
 {
 
@@ -63,6 +66,21 @@ Property FailFix As %String(MAXLEN = "") [ Transient ];
 
 /// Each send in order, as text.
 Property Order As %DynamicArray [ Transient ];
+
+/// The calls of BeatRunDue in order, each {tickAt, reads, sends}.
+Property Beats As %DynamicArray [ Transient ];
+
+/// The text of the error that BeatRunDue throws, and the text of the error status that it answers, when not empty.
+Property BeatThrows As %String(MAXLEN = "") [ Transient ];
+
+Property BeatError As %String(MAXLEN = "") [ Transient ];
+
+/// The calls of BeatRunNow in order, each {sessionRef}, the text of the error that it throws when not empty, and the text of the error status that it answers when not empty.
+Property BeatNows As %DynamicArray [ Transient ];
+
+Property BeatNowThrows As %String(MAXLEN = "") [ Transient ];
+
+Property BeatNowError As %String(MAXLEN = "") [ Transient ];
 
 Method Read(namespace As %String, production As %String, from As %String, limit As %Integer, Output rows As %DynamicArray, Output state As %String, Output disabled As %DynamicArray, Output stoppedAt As %String) As %String [ Private ]
 {
@@ -128,6 +146,26 @@ Method SendFinding(item As OcuTalon.Msg.Item) As %Status [ Private ]
 			Return $SYSTEM.Status.Error(5001, "The send of the finding is refused")
 		}
 	}
+	Quit $$$OK
+}
+
+/// Records the call with the reads and sends made so far, then throws BeatThrows, or answers an error status with BeatError, else OK.
+Method BeatRunDue(tickAt As %String) As %Status [ Private ]
+{
+	If '$IsObject(..Beats) Set ..Beats = []
+	Do ..Beats.%Push({"tickAt": (tickAt), "reads": (+$Get(^||ChecksProbe("calls"))), "sends": ($Select($IsObject(..Order): ..Order.%Size(), 1: 0))})
+	If ..BeatThrows '= "" $$$ThrowStatus($SYSTEM.Status.Error(5001, ..BeatThrows))
+	If ..BeatError '= "" Quit $SYSTEM.Status.Error(5001, ..BeatError)
+	Quit $$$OK
+}
+
+/// Records the call, then throws BeatNowThrows, or answers an error status with BeatNowError, else OK.
+Method BeatRunNow(sessionRef As %String) As %Status [ Private ]
+{
+	If '$IsObject(..BeatNows) Set ..BeatNows = []
+	Do ..BeatNows.%Push({"sessionRef": (sessionRef)})
+	If ..BeatNowThrows '= "" $$$ThrowStatus($SYSTEM.Status.Error(5001, ..BeatNowThrows))
+	If ..BeatNowError '= "" Quit $SYSTEM.Status.Error(5001, ..BeatNowError)
 	Quit $$$OK
 }
 

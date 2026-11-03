@@ -26,6 +26,8 @@
 ///   - TestStartAndStop (AC 4): a StartWatch and a StopWatch through the WatchOps item put check events on the session's stream, in order: FromRow of the new
 ///     row with no run, then the same Ref with stopped true. WatchOps makes the row due at once, so a real Tick may run it between the two: where an event
 ///     carries lastRunAt, the first event names the row, each middle event is a run of it and the last is the stop.
+///   - TestBeatNowIsAnswered (Story 39.1; Integration AC; AD-18): a BeatNow that HeartbeatIn sends Checks synchronously is answered OK, and the service's session holds no
+///     message whose target is Intake and no request whose source is Checks: a beat sends nothing.
 Class OcuTalon.Test.Checks.Heartbeat Extends OcuTalon.Test.Watch.Case
 {
 
@@ -349,6 +351,29 @@ Method WaitStopped(session As %String) As %DynamicArray [ Private ]
 		Hang 0.25
 	}
 	Quit events
+}
+
+Method TestBeatNowIsAnswered()
+{
+	If '..Ready() Quit
+	Set session = ..Session("beatnow")
+	Do $$$AssertStatusOK(##class(Ens.Director).CreateBusinessService(..#HEARTBEAT, .service), "the "_..#HEARTBEAT_" service is created")
+	If '$IsObject(service) Quit
+	Set request = ##class(OcuTalon.Checks.Msg.BeatNow).%New()
+	Set request.SessionRef = session
+	Set request.RequestedAt = ##class(OcuTalon.Data.Time).NowUtc()
+	Do $$$AssertStatusOK(service.SendRequestSync(..#CHECKS, request, .response, ..#TICKWAIT), "Checks answers the BeatNow OK")
+	Do $$$AssertEquals($Get(response), "", "with no response object")
+	Set id = service.%SessionId
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens.MessageHeader WHERE SessionId = ? AND TargetConfigName = ?", id, ..#CHECKS)
+	Do rs.%Next()
+	Do $$$AssertEquals(rs.%GetData(1), 1, "the session holds the one request to Checks")
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens.MessageHeader WHERE SessionId = ? AND TargetConfigName = 'Intake'", id)
+	Do rs.%Next()
+	Do $$$AssertEquals(rs.%GetData(1), 0, "no message of the session is for Intake")
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM Ens.MessageHeader WHERE SessionId = ? AND Type = 1 AND SourceConfigName = ?", id, ..#CHECKS)
+	Do rs.%Next()
+	Do $$$AssertEquals(rs.%GetData(1), 0, "and Checks sent no request")
 }
 
 /// The closeQuiet requests from Checks to IncidentManager whose IncidentCommand names the incident, in any session, as a dynamic array of {sessionId,
