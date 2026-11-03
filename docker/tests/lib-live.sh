@@ -630,11 +630,27 @@ expected_run() { # expected_run <readiness> <ipm> <ipm-map> <public-classes> <pa
 }
 
 # check_log <label> <expected file>: the log's STEP and RESULT lines are exactly the expected ones, in order.
+# One shape of recovery is also accepted: the line `STEP merge RETRY 1 after #453` (a start that retried the CPF merge
+# once, after-start.sh) is removed before the diff, only when all four hold for the reduced log: exactly one line
+# contains `retry` in any case, that line is exactly the RETRY line, the next line is exactly `STEP merge OK`, and no
+# line starts with `STEP merge FAILED`. Any other log is diffed as log_steps printed it, so its verdict and diff are
+# unchanged.
 check_log() {
-  local label=$1
+  local label=$1 note=""
   log_steps > "$tmp/actual.log"
+  if awk '
+    { line[NR] = $0; if (tolower($0) ~ /retry/) { retries++; at = NR } }
+    index($0, "STEP merge FAILED") == 1 { failed = 1 }
+    END {
+      if (retries != 1 || failed || line[at] != "STEP merge RETRY 1 after #453" || line[at + 1] != "STEP merge OK") exit 1
+      for (i = 1; i <= NR; i++) if (i != at) print line[i]
+    }' "$tmp/actual.log" > "$tmp/stripped.log"; then
+    mv "$tmp/stripped.log" "$tmp/actual.log"
+    note=" (after one merge retry on #453)"
+  fi
+  rm -f "$tmp/stripped.log"
   if diff "$2" "$tmp/actual.log" > "$tmp/log.diff" 2>&1; then
-    pass "$label: the log lists every phase and step in order, ending in RESULT OK"
+    pass "$label: the log lists every phase and step in order, ending in RESULT OK$note"
   else
     sed 's/^/  /' "$tmp/log.diff" | head -n 20
     fail "$label: the log differs from the expected phases and steps"

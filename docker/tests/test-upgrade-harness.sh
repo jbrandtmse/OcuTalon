@@ -27,6 +27,11 @@
 #   - real-tree: plan on this checkout writes a dry-run record, a version that is not the candidate's and a phase with no tag exit 2;
 #   - storage-base: test-storage.sh judges this checkout's storage blocks against the pinned pre-release commit, so a non-appending
 #     storage change since that commit fails this rule (a gate on the real tree), and the storage phase accepts only that verdict;
+#   - merge-retries (Story 0.14): count_merge_retries over a stubbed start_log appends MERGE-RETRIES <n> (0, 1 or 2) and the start's label to the
+#     results (a near miss counts too); the five starts each call it right after their wait, before any die
+#     (phase_upgrade, phase_restart and ready_or_die run over stubs, ready or not); the record section reads
+#     "Merge retries: 0" with no such line and the sum otherwise, right after Run:, with Result: and the table unchanged; report prints
+#     MERGE-RETRIES <total> before RECORD and RESULT;
 #   - report: report and upgrade over a fabricated state folder: every phase's results joined, the row of a phase that started and did
 #     not end failed, exit 1 on any failure, and upgrade refused while seed is not done.
 # Each rule first runs on a synthetic break (the rule pattern of test-storage.sh): a check that can no longer fail makes its rule fail.
@@ -668,14 +673,14 @@ consumer_read() { # consumer_read <record file> <Key>: the value of the key in t
 t_record_contract() {
   local bad=0 r=$tmp/rc-results o=$tmp/rc-options sec rec=$tmp/rc-record.md kind mode res want want_order got_order v rows
 
-  want_order="## Upgrade harness,Result,Mode,Required,Candidate,Previous,Note,Run,| Record"
+  want_order="## Upgrade harness,Result,Mode,Required,Candidate,Previous,Note,Run,Merge retries,| Record"
   write_results "$r" pass
   write_options "$o" pre-release aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa release
-  got_order=$(record_section "$r" "$o" | grep -E '^(## Upgrade harness|Result:|Mode:|Required:|Candidate:|Previous:|Note:|Run:|\| Record )' | sed 's/:.*//; s/ |.*$//' | tr '\n' ',')
+  got_order=$(record_section "$r" "$o" | grep -E '^(## Upgrade harness|Result:|Mode:|Required:|Candidate:|Previous:|Note:|Run:|Merge retries:|\| Record )' | sed 's/:.*//; s/ |.*$//' | tr '\n' ',')
   eq "the lines of a pre-release section are in the fixed order" "$got_order" "$want_order,"
   write_options "$o" tag v1.0.0 release
-  got_order=$(record_section "$r" "$o" | grep -E '^(## Upgrade harness|Result:|Mode:|Required:|Candidate:|Previous:|Note:|Run:|\| Record )' | sed 's/:.*//; s/ |.*$//' | tr '\n' ',')
-  eq "a tag section has the same order with no Note" "$got_order" "## Upgrade harness,Result,Mode,Required,Candidate,Previous,Run,| Record,"
+  got_order=$(record_section "$r" "$o" | grep -E '^(## Upgrade harness|Result:|Mode:|Required:|Candidate:|Previous:|Note:|Run:|Merge retries:|\| Record )' | sed 's/:.*//; s/ |.*$//' | tr '\n' ',')
+  eq "a tag section has the same order with no Note" "$got_order" "## Upgrade harness,Result,Mode,Required,Candidate,Previous,Run,Merge retries,| Record,"
 
   # Every value a consumer can meet is one of the words it matches on, once, in a file that holds other sections around it.
   for kind in pass fail partial; do
@@ -993,6 +998,112 @@ t_report() {
 }
 b_report() { unfinished_phase_lines() { :; }; }
 
+# --- merge-retries ---
+
+t_merge_retries() {
+  local bad=0 r=$tmp/mr-results o=$tmp/mr-options sec out s want
+
+  # The helper: the count of the current start's STEP merge RETRY lines, with the start's label, appended to the results.
+  : > "$r"
+  (
+    results=$r
+    start_log() { printf 'AFTER-START begin x\nSTEP merge OK 9s\nRESULT OK 0.1.0\n'; }
+    count_merge_retries "settings project, previous build"
+    start_log() { printf 'STEP merge RETRY 1 after #453\nSTEP merge OK 9s\n'; }
+    count_merge_retries "records project, restart"
+    start_log() { printf 'STEP merge RETRY 1 after #453\nSTEP merge RETRY 2 after #453\n'; }
+    count_merge_retries "records project, candidate"
+  )
+  eq "the helper appends one line per start, with its count and label" "$(cat "$r")" "MERGE-RETRIES 0 settings project, previous build
+MERGE-RETRIES 1 records project, restart
+MERGE-RETRIES 2 records project, candidate"
+  eq "the helper's lines are no record row" "$(record_rows "$r" | awk -F'\t' '$3 != "not run" { n++ } END { print n + 0 }')" 0
+
+  # ready_or_die counts a start's retries whether or not it ended ready, and before its die.
+  : > "$r"
+  (
+    results=$r
+    start_log() { printf 'STEP merge RETRY 1 after #453\nSTEP merge OK 9s\n'; }
+    wait_started_ready() { return 0; }
+    die() { echo "die: $1" >> "$r"; }
+    ready_or_die "records project, previous build" 400
+    wait_started_ready() { return 1; }
+    ready_or_die "settings project, candidate" 400
+  ) > /dev/null
+  eq "ready_or_die counts a ready start, and a start that was not ready before its die" "$(cat "$r")" "MERGE-RETRIES 1 records project, previous build
+MERGE-RETRIES 1 settings project, candidate
+die: settings project, candidate: the start did not end ready within 400 s"
+
+  # The upgrade's and the restart's own waits (phase_upgrade and phase_restart run over stubs, no Docker): the start's retries are
+  # counted whether the start ended ready or not, and in the not-ready case before the die. The stubbed die and the stubbed step that
+  # follows the wait (the upgrade's env_set; the restart's keys check, after its marker check, which the stubs let through) both leave the
+  # subshell, so a count placed after them, or left out, shows as a missing results line. Straight after the wait is the source pins' part.
+  mkdir -p "$tmp/mr-state/p1"
+  printf '%s\n' 'x/context.yml' > "$tmp/mr-state/p1/files"
+  mr_phase() { # mr_phase <phase> <wait status>: the phase over stubs, its results file on stdout
+    : > "$r"
+    (
+      results=$r state=$tmp/mr-state
+      row() { :; }; attach_stack() { :; }; preflight() { :; }; load_seed() { :; }; opt() { echo 9.9.9; }
+      env_get() { :; }; env_set() { echo "past: env_set" >> "$r"; exit 3; }; marker() { :; }; fail() { :; }; pass() { :; }; keys_point() { echo 0; }
+      dc() { case $* in "ps -q iris") echo cid ;; esac; }
+      live_pop_file() { :; }; live_track_image() { :; }
+      start_log() { printf 'STEP merge RETRY 1 after #453\nSTEP merge OK 9s\n'; }
+      wait_started_ready() { return "$waited"; }
+      die() { echo "die: $1" >> "$r"; exit 1; }
+      waited=$2
+      "phase_$1"
+    ) > /dev/null 2>&1
+    cat "$r"
+  }
+  eq "the restart counts a ready start before its next step" "$(mr_phase restart 0)" "MERGE-RETRIES 1 records project, restart
+die: restart: the runners' keys could not be pointed at the mock"
+  eq "the restart counts a start that was not ready before its die" "$(mr_phase restart 1)" "MERGE-RETRIES 1 records project, restart
+die: restart: the container was not ready within 300 s"
+  eq "the upgrade counts a ready start before its next step" "$(mr_phase upgrade 0)" "MERGE-RETRIES 1 records project, candidate
+past: env_set"
+  eq "the upgrade counts a start that was not ready before its die" "$(mr_phase upgrade 1)" "MERGE-RETRIES 1 records project, candidate
+die: upgrade: the candidate did not end ready within 400 s"
+
+  # The five starts each count right after their wait, before any die.
+  eq "ready_or_die serves three starts" "$(grep -c '^  ready_or_die "' release/upgrade-harness.sh)" 3
+  eq "the upgrade's wait is followed by its count" "$(grep -A1 'wait_started_ready 400 || ready=1' release/upgrade-harness.sh | tail -n 1)" '  count_merge_retries "records project, candidate"'
+  eq "the restart's wait is followed by its count" "$(grep -A1 'wait_started_ready 300 || ready=1' release/upgrade-harness.sh | tail -n 1)" '  count_merge_retries "records project, restart"'
+  eq "ready_or_die counts straight after its wait" "$(grep -A1 'wait_started_ready "\$2" || ready=1' release/upgrade-harness.sh | tail -n 1)" '  count_merge_retries "$1"'
+
+  # The section: Merge retries: right after Run:, 0 with no line (a dry run included), the sum otherwise; nothing else changes.
+  write_options "$o" tag v1.0.0 release
+  write_results "$r" pass
+  sec=$(record_section "$r" "$o")
+  has "no MERGE-RETRIES line reads 0" "$sec" "Merge retries: 0"
+  eq "the line follows Run:" "$(printf '%s\n' "$sec" | grep -A1 '^Run: ' | tail -n 1)" "Merge retries: 0"
+  want=$(printf '%s\n' "$sec" | grep -v '^Merge retries: ')
+  printf 'MERGE-RETRIES 0 settings project, candidate\nMERGE-RETRIES 1 records project, restart\nMERGE-RETRIES 2 records project, candidate\n' >> "$r"
+  sec=$(record_section "$r" "$o")
+  has "lines of 0, 1 and 2 read 3" "$sec" "Merge retries: 3"
+  lacks "the total is no longer 0" "$sec" "Merge retries: 0"
+  eq "the section is otherwise unchanged" "$(printf '%s\n' "$sec" | grep -v '^Merge retries: ')" "$want"
+  has "Result: is unchanged" "$sec" "Result: pass"
+  has "a dry run reads 0" "$(record_section /dev/null "$o")" "Merge retries: 0"
+
+  # The report: the total before RECORD and RESULT, which stays last.
+  mkdir -p "$tmp/rs"
+  report_state rs-mr
+  s=$(TMPDIR=$tmp/rs state_dir rs-mr)
+  printf 'MERGE-RETRIES 0 settings project, candidate\n' > "$s/results.settings"
+  printf 'MERGE-RETRIES 1 records project, restart\nMERGE-RETRIES 2 records project, candidate\n' > "$s/results.restart"
+  rm -f "$tmp/rs-rs-mr.md" # the break run's record is no evidence for this run
+  out=$(run_cmd_phase rs-mr report)
+  eq "report prints the total before RECORD and RESULT" "$(printf '%s\n' "$out" | grep -v '^PHASE' | awk '{ if ($1 == "MERGE-RETRIES") print $1 " " $2; else print $1 }')" "MERGE-RETRIES 3
+RECORD
+RESULT
+status"
+  has "report's record holds the total" "$(cat "$tmp/rs-rs-mr.md" 2> /dev/null)" "Merge retries: 3"
+  has "its Result: is unchanged" "$(cat "$tmp/rs-rs-mr.md" 2> /dev/null)" "Result: pass"
+  [ "$bad" -eq 0 ]
+}
+b_merge_retries() { count_merge_retries() { printf 'MERGE-RETRIES 0 %s\n' "$1" >> "${results:-/dev/null}"; }; }
+
 rule resolve-previous t_resolve b_resolve
 rule stamp-mode t_stamp_mode b_stamp_mode
 rule phase-ready t_phase_ready b_phase_ready
@@ -1008,6 +1119,7 @@ rule record-contract t_record_contract b_record_contract
 rule pairing t_pairing b_pairing
 rule run t_run b_run
 rule report t_report b_report
+rule merge-retries t_merge_retries b_merge_retries
 
 if [ "$fails_total" -ne 0 ]; then
   echo "test-upgrade-harness: $fails_total rule(s) failed"
