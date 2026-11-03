@@ -3764,3 +3764,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: Epic 15 merge gate (Contest Planner, 2026-11-03) | severity: low | fix-risk: low | footprint: small
 - evidence: 15.4 measured the artifact at 4,940,685 bytes; src/module.xml resource OcuTalon.PKG
 - 2026-11-03T12:12:51Z status=routed owner=burndown by=merge_gate note=first daily release after 1.0.0
+
+### DW-639: flake: OcuTalon.Test.Schedule.Heartbeat TestAfterAllTestsNothingSaved ('and the production runs every item': Install.Step.Production.NotRunning() not empty) red once in CI image shard lane-b (1 of 88) on the integrate-forward head e75b90bc; green on the unchanged rerun
+- source: cycle-log-epic-31 (ci run 41656484374) | severity: low | fix-risk: low | footprint: in-epic
+- evidence: run 41656484374 attempt 1 image shard:lane-b; attempt 2 green; passes alone on a fresh lane-A throwaway with the merged tree (84.6 s)
+- 2026-11-03T15:56:29Z status=routed owner=burndown by=lead note=flake: first occurrence; order or timing dependence in the shard
+
+### DW-640: flake: web/e2e/live/live.spec.ts L9 reported 'route.fetch: Test ended' from L8's events route callback (live.spec.ts:349): L8 ends with a route callback in flight; fix: await page.unrouteAll({ behavior: 'ignoreErrors' }) at the end of L8
+- source: cycle-log-epic-31 (ci run 41656484374) | severity: low | fix-risk: low | footprint: in-epic
+- evidence: run 41656484374 attempt 1 browser live:sign-in on runner 20; green on the unchanged rerun
+- 2026-11-03T15:56:29Z status=routed owner=burndown by=lead note=flake: first occurrence; a two-way-door test fix in 31.1's file
