@@ -1649,3 +1649,7 @@
 2026-11-03T16:55:28Z	Epic 13	worktree_removed	path=.worktrees/epic-13
 2026-11-03T16:55:32Z	Epic 13	epic_merged_to_feature	merge=c7d1c4d6 head=66f98c6a pushed=true verified_on_origin=true record=679955b1
 2026-11-03T16:55:32Z	Epic 13	epic_branches_deleted	branch=OCT-epic13 local=true remote=true
+2026-11-03T16:56:30Z	Epic 12	worktree_provisioned	path=.worktrees/epic-12 branch=OCT-epic12 base=1f80d109 note=SC-5_re-open_12.10;branch_push_runs_41679154879,41679154770_cancelled(bookkeeping-only_duplicate)
+2026-11-03T16:56:30Z	Epic 12	worktree_bootstrapped	epic=12 result=ok
+2026-11-03T16:56:30Z	Epic 12	ruling	question=dispatch_12.10_onto_feature_679955b1_while_its_CI_is_pending choice=dispatch_now:non-bookkeeping_tree_identical_to_66f98c6a(green_every_workflow) category=decide policy=508603671b9598f59d04750db6b6cdad2d396167
+2026-11-03T16:56:30Z	Epic 12	runner_dispatched	runner=a97e4111acaf71f8b model=opus slot=ocutalon-slot-b lane=B base=1f80d109 prompt=prompts/dispatch-epic-12-1210.md story=12.10 decision=U-238
