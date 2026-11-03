@@ -1571,3 +1571,6 @@
 2026-11-03T12:12:33Z	Epic 15	worktree_removed	path=.worktrees/epic-15
 2026-11-03T12:12:33Z	Epic 15	epic_branches_deleted	branch=OCT-epic15 local=true remote=true
 2026-11-03T12:12:51Z	Epic 15	ledger_filed	id=DW-628 owner=burndown by=merge_gate note=Planner:IPM_artifact_test_classes,first_daily_release
+2026-11-03T12:23:54Z	Epic 39	worktree_provisioned	path=.worktrees/epic-39 branch=OCT-epic39 base=138d0066
+2026-11-03T12:23:54Z	Epic 39	worktree_bootstrapped	epic=39 result=ok
+2026-11-03T12:23:54Z	Epic 39	dispatch_blocked	reason=feature_pending runs=41633835560,41633835551 head=138d0066 note=queue_full(18/18_busy;OCT-epic0_ci_41629601732_queued_since_11:41Z);cancelled_superseded_feature_runs_af5970a7,67406a72_and_duplicate_OCT-epic39_runs_(same_sha)
