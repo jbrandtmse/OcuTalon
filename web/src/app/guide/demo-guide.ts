@@ -39,7 +39,7 @@ const STEP_MARK = 'data-guide-step';
 /** The prompt bar's action, its text and the bar itself, which take focus in that order when an advance replaces what held it. */
 const PROMPT_KEYS = ['action', 'text', 'bar'] as const;
 
-/** The Telegram row's Show me, which hands focus to the prompt bar when it leaves. */
+/** The Telegram row's Show me, which hands focus to the prompt bar (else the finish's first line) when it leaves. */
 const TELEGRAM_KEY = 'telegram';
 
 /** The id of the Telegram row's text, which its Show me is described by. */
@@ -63,7 +63,8 @@ const phoneMessage = (ref: string) => `app-simulated-phone .notification[data-ke
  * else the bar), else to the finish's first line. While the prompt bar shows step 3 (data-guide-step), a lost prompt part or finish
  * part hands focus to the box's Break the feed button instead, active or inactive; nothing is pressed. The finish's parts (its first
  * line, its links, the Try it yourself row and Run again) hand it to the prompt bar's parts in the same order when Run again brings the prompt bar back. Focus
- * anywhere else is never moved. The Telegram row's Show me hands it to the prompt bar when the band or the row takes the button away.
+ * anywhere else is never moved. The Telegram row's Show me hands it to the prompt bar, else to the finish's first line, when the band or the
+ * row takes the button away.
  */
 const FOCUS_RULE: FocusRule = {
   item: `[${FOCUS_KEY}]`,
@@ -121,7 +122,8 @@ const FOCUS_RULE: FocusRule = {
  * The Telegram row (guide-view.ts telegramRowOf) shows only while the server's view says so. In the drawer band (1024 to 1279px, where the
  * status rail starts closed) its hint names the header's Status button and a Show me follows it: it opens the drawer and focuses the
  * rail, which holds the Telegram card (Layout.focusRegion; a second press keeps the drawer open). Elsewhere the row is the original
- * line with no button. When that Show me leaves while it holds focus, focus goes to the prompt bar.
+ * line with no button. When that Show me leaves while it holds focus, focus goes to the prompt bar, or to the finish's first line when the
+ * finish replaced the bar.
  */
 @Component({
   selector: 'app-demo-guide',

@@ -12,7 +12,8 @@ import { chk, irisScript, quoted, setTelegramIncluded } from '../support/iris';
  *   unpaired card in view; a second press keeps it open; Esc closes it with focus on the Status button; a resize to 1400 takes the
  *   button away and focus goes to the prompt bar.
  * - D2 (1400x720): the original line, no button in the row, no Status button, and the card in the visible rail.
- * - D3 (900x720, then 1500x720): the stacked and the wide band keep the original line with no button in the row.
+ * - D3 (900x720, then 1100 and 1500 wide): the stacked and the wide band keep the original line with no button in the row; the drawer
+ *   band between them shows Show me, so the 1500 check can pass only on the row rendered for that width.
  */
 const FIXTURE = '##class(OcuTalon.Test.Channel.TelegramPageFixture)';
 const BOT = 'ocutalon_drawer_bot';
@@ -170,6 +171,8 @@ test.describe('the guide\'s Telegram row and the status drawer', () => {
       await expect(row, 'the row shows').toHaveCount(1);
       await expect(row, 'the stacked band reads the original line').toHaveText(ORIGINAL);
       await expect(row.getByRole('button'), 'with no button').toHaveCount(0);
+      await page.setViewportSize({ width: 1100, height: 720 });
+      await expect(row.getByRole('button'), 'the drawer band between them has Show me, so the next check reads a re-rendered row').toHaveCount(1);
       await page.setViewportSize({ width: 1500, height: 720 });
       await expect(row, 'the wide band reads the original line').toHaveText(ORIGINAL);
       await expect(row.getByRole('button'), 'with no button').toHaveCount(0);
