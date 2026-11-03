@@ -219,8 +219,7 @@ development_status:
   15-1-the-first-install-run-creates-ocutalon-and-gives-the-next-co: done
   15-2-the-second-install-run-gives-a-working-ocutalon-with-demo-mo: done
   15-3-an-ipm-install-survives-restarts-and-reinstalls-and-every-re: done
-  15-4-every-release-proves-the-ipm-package-and-the-guide-opens-wit: 
-    ready-for-dev
+  15-4-every-release-proves-the-ipm-package-and-the-guide-opens-wit: in-progress
   epic-15-retrospective: optional
 
   epic-16: done
