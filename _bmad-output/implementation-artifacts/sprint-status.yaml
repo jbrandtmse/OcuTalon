@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 11-03-2026 10:46
+last_updated: 11-03-2026 11:10
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -209,8 +209,7 @@ development_status:
   13-1-the-example-production-makes-its-own-decision-through-the-br: done
   13-2-the-example-s-own-tools-wait-for-approval-when-they-are-risk: done
   13-3-the-bridge-developer-guide-proved-on-a-clean-instance: done
-  13-4-the-guide-and-the-overview-say-exactly-what-is-audited-and-t: 
-    ready-for-dev
+  13-4-the-guide-and-the-overview-say-exactly-what-is-audited-and-t: in-progress
   epic-13-retrospective: optional
 
   epic-14: done
