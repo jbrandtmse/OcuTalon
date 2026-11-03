@@ -265,3 +265,4 @@
 2026-11-03T00:09:15Z	Story 12.7	ci_red_classified	run=41545446452 workflow=.github/workflows/ci.yml class=flake test=web/e2e/answers/close-loop.spec.ts:C1(midnight_UTC_crossing:on_Monday_at_23:58) job=iris(browser)/live:answers head=e9bfda24 ledger=DW-608 story_touches=none(Lane_B_answers)
 2026-11-03T00:09:15Z	Story 12.7	ci_red_classified	run=41545446452 workflow=.github/workflows/ci.yml class=flake_candidate(unknown;one_unchanged_rerun) test=web/e2e/demo-path/telegram-page.spec.ts:T7(Story_12.6;120s_test_timeout;ran_after_new_T8) job=iris(browser)/live:demo-path head=e9bfda24 note=local_smoke_28/28_with_T8_then_T7;red_again_on_rerun=story_path
 2026-11-03T00:09:15Z	Story 12.7	ci_rerun	run=41545446452 attempt=2 jobs=iris(production),iris(browser) started=2026-11-03T00:09:15Z
+2026-11-03T00:10:04Z	Story 12.9	ledger_routed_planned	story=12-9-telegram-is-included entries=1(DW-591) excess=0 by=lead(ci_classification)
