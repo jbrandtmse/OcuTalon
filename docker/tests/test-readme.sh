@@ -18,8 +18,9 @@
 #                  them and above the first H2 section; no HTML media tag, no image inside a link, and no image that is not an
 #                  inline docs/images/<name>.png image
 #   images         every Markdown image link of the README has non-empty alt text and a target that is a file directly in
-#                  docs/images/ which the tree lists, there is at least one, and "What OcuTalon does" holds at least three; it names
-#                  no image file
+#                  docs/images/ which the tree lists, there is at least one, and "What OcuTalon does" holds at least three, with at
+#                  least one under the Chat bullet and two under the Break the feed bullet; each image line has an empty line
+#                  before and after it; it names no image file
 #   outcomes       the four outcomes, with the meanings that web/src/app/chat/chat-view.ts shows
 #   install        the facts of the install sections: Compose 2.24 (DW-2), both image names, load and retag, the portal, the CPUs
 #   install-pointer  every README section that install.sh names ("The Troubleshooting section of README.md") is an H2 heading
@@ -345,7 +346,7 @@ chk_top() {
     state == 1 && /^## / { state = 2 }
     state == 1 && $0 ~ /[^ \t]/ {
       if ($0 == teaser) seen = 1
-      else if ($0 ~ /^!\[.*\]\(.*\)$/ && index(substr($0, 3), "![") == 0) {
+      else if (index($0, "![") == 1 && (k = index($0, "](")) > 0 && index(substr($0, k + 2), ")") == length($0) - k - 1) {
         imgs++
         if (!seen) print FILENAME ":" FNR ": the image line is above the teaser"
       } else if ($0 != opening) print FILENAME ":" FNR ": a line between the title and the first H2 section that is neither the opening paragraph, the teaser nor the image line"
@@ -455,12 +456,26 @@ chk_images() {
       if ($3 !~ /^docs\/images\/[^\/]+$/ || index($3, "..") > 0) print "images: " readme ":" $1 ": the target " $3 " is not a file directly in docs/images/"
       else if (!($3 in have)) print "images: " readme ":" $1 ": the target " $3 " is not a file the tree lists"
     }
-    END { if (n == 0) print "images: " readme " has no image link" }
   '
+  # Each image line is a paragraph of its own (an empty line before and after it), so that GFM does not join it to a text line.
+  image_links "$1" | cut -f1 | uniq | awk -v readme="$1" '
+    BEGIN { while ((getline l < readme) > 0) { nl++; blank[nl] = (l !~ /[^ \t]/) } }
+    ($1 > 1 && !blank[$1 - 1]) || ($1 < nl && !blank[$1 + 1]) { print "images: " readme ":" $1 ": the image line has no empty line before or after it" }
+  '
+  # "At least one image link" (AC5) is implied by the count of three below, which is why it has no check of its own.
   local sec="$tmp/sec.what" n
   section "$1" 'What OcuTalon does' > "$sec"
   n=$(image_links "$sec" | wc -l | tr -d ' ')
   if [ "$n" -lt 3 ]; then echo "images: $1: 'What OcuTalon does' holds $n image links, not at least three"; fi
+  # Placement (AC4), by bullet and not by file name: the Chat bullet owns at least one image paragraph, the Break the feed bullet at least two.
+  awk -v readme="$1" '
+    /^- \*\*/ { cur = (index($0, "- **Chat on a live page.**") == 1) ? "chat" : (index($0, "- **Break the feed.**") == 1) ? "break" : "" }
+    /^  !\[/ && cur != "" { got[cur]++ }
+    END {
+      if (got["chat"] < 1) print "images: " readme ": the bullet Chat on a live page. has no image under it"
+      if (got["break"] < 2) print "images: " readme ": the bullet Break the feed. has " got["break"] + 0 " images under it, not at least two"
+    }
+  ' "$sec"
 }
 
 # teaser
@@ -849,6 +864,8 @@ rule_top() {
   st 'a line between the teaser and the first H2 section' 1 "$README" '{ print } /^Watch the 35-second teaser: / { print ""; print "A stray line." }' chk_top
   st 'the hero image line removed' 1 "$README" '!/^!\[The OcuTalon page on the online demo/' chk_top
   st 'a second image line' 1 "$README" '{ print } /^!\[The OcuTalon page on the online demo/ { print ""; print "![Second.](docs/images/page-incident.png)" }' chk_top
+  st 'a second image on the hero line' 1 "$README" '/^!\[The OcuTalon page on the online demo/ { $0 = $0 " ![Second.](docs/images/page-incident.png)" } { print }' chk_top
+  st 'text after the hero image' 1 "$README" '/^!\[The OcuTalon page on the online demo/ { $0 = $0 " on the demo (live)" } { print }' chk_top
   st 'the hero above the teaser' 1 "$README" '/^!\[The OcuTalon page on the online demo/ { next } /^Watch the 35-second teaser: / { print "![Hero.](docs/images/page-incident.png)"; print "" } { print }' chk_top
   st 'the hero moved under the first H2 section' 1 "$README" '/^!\[The OcuTalon page on the online demo/ { hero = $0; next } { print } /^## Try it in two minutes$/ { print ""; print hero }' chk_top
   st 'the How you talk to it section removed' 1 "$README" '!/^## How you talk to it$/' chk_top
@@ -915,6 +932,7 @@ rule_how_you_talk() {
   st_facts chk_how_you_talk "$TALK_FACTS"
   st_move 'the Demo mode paragraph moved out of the section' "$H_TALK" 'Demo mode is on in the online demo' chk_how_you_talk
   st 'the table rows removed' 1 "$README" '/^## / { s = ($0 == "## How you talk to it") } s && /^\|/ { next } { print }' chk_how_you_talk
+  st 'the table separator line removed' 1 "$README" '/^## / { s = ($0 == "## How you talk to it") } s && /^\| --- \|/ { next } { print }' chk_how_you_talk
   st 'the image line removed' 1 "$README" '/^## / { s = ($0 == "## How you talk to it") } s && /^!\[/ { next } { print }' chk_how_you_talk
   st 'Slack named in the section' 1 "$README" '{ print } /^## How you talk to it$/ { print ""; print "It also works in Slack." }' chk_how_you_talk
   finish how-you-talk 'the web chat page on every install, the demo-only parts, email in a later release, a table and an image' chk_how_you_talk
@@ -947,6 +965,11 @@ rule_images() {
   st 'a second image on the line with no alt text' 1 "$README" '!done && index($0, "]('"$first"')") > 0 { $0 = $0 " ![]('"$first"')"; done = 1 } { print }' chk_images
   st 'every image line removed' 1 "$README" 'index($0, "![") == 0' chk_images
   st 'the images of What OcuTalon does removed' 1 "$README" '/^## / { s = ($0 == "## What OcuTalon does") } s && /^  !\[/ { next } { print }' chk_images
+  st 'the Chat bullet image moved under the Break the feed bullet' 1 "$README" '/^## / { s = ($0 == "## What OcuTalon does") } s && /^  !\[/ && !held { held = $0; next } s && /^  !\[/ && held && !put { print held; print ""; put = 1 } { print }' chk_images
+  st 'the images of What OcuTalon does made reference-style' 1 "$README" '/^## / { s = ($0 == "## What OcuTalon does") } s && /^  !\[/ { sub(/\]\(/, "][") } { print }' chk_images
+  st 'the last Break the feed image moved under the Chat bullet' 1 "$README" '/^## / { s = ($0 == "## What OcuTalon does") } /^- \*\*/ { b = (index($0, "- **Break the feed.**") == 1) } s && b && /^  !\[/ { last = $0 } { line[NR] = $0 } END { for (i = 1; i <= NR; i++) { if (line[i] == last) continue; print line[i]; if (index(line[i], "- **Chat on a live page.**") == 1) { print ""; print last } } }' chk_images
+  st 'no empty line between the text and an image line' 1 "$README" 'held { held = 0; if ($0 == "") next } { print } /^Watch the 35-second teaser: / { held = 1 }' chk_images
+  st 'the images under the Break the feed bullet removed' 1 "$README" '/^## / { s = ($0 == "## What OcuTalon does") } /^- \*\*/ { b = (index($0, "- **Break the feed.**") == 1) } s && b && /^  !\[/ { next } { print }' chk_images
   st 'the first image file dropped from the list' 2 "$tmp/files.list" '$0 != "'"$first"'"' chk_images
   # A newly listed and linked docs/images file is not flagged: the rule names no file.
   mkdir -p "$tmp/imgs"

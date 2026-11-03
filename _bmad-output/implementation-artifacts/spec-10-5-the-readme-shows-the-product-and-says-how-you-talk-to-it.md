@@ -125,6 +125,31 @@ deferred: []
   - it adds no Mermaid diagram, evaluation line or CI badge;
   - `git diff <baseline> -- README.md` shows only added lines.
 
+### Review Findings
+
+Epic-cycle code review, 2026-11-02 (first review of this story). Layers: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor, all at the session tier (`_bmad/custom/model-overrides.yaml` absent, so full-opus). 21 raw findings, 18 entries after grouping: high 0, medium 4, low 12, false 2. Every patch was applied in this pass; nothing is left for a rework iteration.
+
+- [x] [Review][Patch] `top`: the one-image-per-line clause had no self-test of its own (Rule 19), so removing it left every self-test green [docker/tests/test-readme.sh:349] - medium, fix-risk low (one condition and two `st` rows in the rule's own style), in-story. Applied: the hero-line test is now "starts with `![`, and the first `)` after `](` is the line's last character", which also rejects a second image on the line; new self-tests 'a second image on the hero line' and 'text after the hero image'.
+- [x] [Review][Patch] `top` counted a hero line with text after the link that ends in `)` (for example `... .png) on the demo (live)`) as the bare image line; the greedy `^!\[.*\]\(.*\)$` did not hold decision (j) [docker/tests/test-readme.sh:349] - low, fix-risk low, in-story, two-way door. Applied by the same condition change; self-test 'text after the hero image'.
+- [x] [Review][Patch] `images`: the END clause "has no image link" could never fire alone (the "What OcuTalon does" count of three implies it), and the count of three itself had become unfalsifiable after QA added the per-bullet checks; the AC4 implement `mutation:` line ("the new count check disabled -> ... not flagged") was stale [docker/tests/test-readme.sh:465] - medium, fix-risk low, in-story. Applied: the dead END clause is removed with a contract comment saying the count of three covers AC5's "at least one image link"; new self-test 'the images of What OcuTalon does made reference-style' fails only the count; corrected `mutation:` line under AC4 in Verification.
+- [x] [Review][Patch] `images`: no self-test told `got["break"] < 2` apart from `< 1`; weakening the threshold stayed green [docker/tests/test-readme.sh:476] - medium, fix-risk low, in-story. Applied: self-test 'the last Break the feed image moved under the Chat bullet' (chat 2, break 1, total three).
+- [x] [Review][Patch] `how-you-talk`: the table check (`^| --- |`) had no self-test of its own; 'the table rows removed' was caught by `chk_facts` either way [docker/tests/test-readme.sh:442] - medium, fix-risk low, in-story. Applied: self-test 'the table separator line removed'.
+- [x] [Review][Patch] No check kept an empty line before and after each image line; with the blank line under the teaser deleted the hero joins the teaser's paragraph in the GFM render and every rule stayed green [docker/tests/test-readme.sh:463] - low, fix-risk low (five lines plus one `st` row), in-story, two-way door, Rule 3 (the rendered README is the runtime). Applied: `images` flags an image line with a non-blank neighbour; self-test 'no empty line between the text and an image line'; header updated.
+- [x] [Review][Defer] AC2's quoted UI strings are pinned only on the README side (`TALK_FACTS`), never against `web/src`; QA's audit sentence "AC2 is pinned by how-you-talk's facts" covers the README half only [docker/tests/test-readme.sh:434] - deferred: low, fix-risk low, in-story, spec-bound (AC2 is a recorded check at the plan base). DW-618 `by-design` owner=this story.
+
+Rejected:
+- blind 1 + acceptance 3 (low, `by-design`): the lead-in "With it off, you see what the page has on your own install" sits above a screenshot that still shows the Online demo pill and the reset countdown. The sentence is Design Note 1's exact text and repeats the page's own help text (`demo-view-texts.ts`: "Off shows the page as it looks on your own install."); the alt text says "The online demo's page" and never claims a local install. Fix-risk low, but it rewords specified public text.
+- blind 2 (low, `by-design`): "Email comes in a later release." beside the Simulated mailbox row. The epic context and Design Note 1 fix the sentence; the row says "simulate an incoming email", so the two do not contradict each other.
+- blind 3 (low): the "Demo mode" section does not mention the Demo view switch. The new section already separates the admin switch ("until an admin switches it off") from the header switch; adding a sentence is public text that no spec gives (veto-window category). Not worth it.
+- blind 4 (low, `by-design`): `incident-card.png` repeats the hero, and the mailbox has no picture. The five images are the delivered set (Boundaries).
+- blind 5 (low, `by-design`): `.gitignore`'s `images/` traps future `docs/images/` files. Design Note 4 chose `git add -f` and left the guard alone; `images` and `readme-links` go red on an unstaged image; DW-613 already carries the 31.3 hazard.
+- blind 6 (low): `images` does not flag a tracked `docs/images/` file that no link uses. An unused file harms no reader; AC5 lists the checks. Not worth a reverse check.
+- blind 8 + acceptance 2 (low): the Auto Run Result repeats the "For the lead" paragraph. The fix edits the spec under review.
+- blind 9 (false): the 180-character header line is not out of style; the script already has lines of 158 to 508 characters (lines 2, 123-126, 262).
+- edge 2 (low): the placement awk resets its bullet only on `- **` lines, so an indented image after a later paragraph would count for the last bullet. No README shape reaches it today, and the fix adds a branch.
+- edge 3 (low, `by-design`): `teaser` does not refuse `<audio>`, `<svg>` or a bare `<source>`. Design Note 2 (i) lists the six tags; none of these renders an image player on GitHub.
+- acceptance 1 (false): the frontmatter `status: done` is build-auto's machine state; the review must not change it.
+
 ## Spec Change Log
 
 ## Review Triage Log
@@ -355,16 +380,19 @@ Every test added or changed passes on a fresh environment, in either order: `tes
 Mutations (Rule 19; the implement stage writes one `mutation:` line per AC, each on `<tree>`, reverted and compared byte for byte):
 - AC1: `Email comes in a later release.` removed -> `FAIL how-you-talk`.
   - mutation: ran on `<tree>`; `FAIL how-you-talk` and nothing else; reverted, byte-identical. Also `It also works in Slack.` under the heading -> `FAIL how-you-talk`.
+  - mutation (code review, the table check): ran on `<tree>`; the `has no table` line deleted -> `self-test: the table separator line removed: not flagged`, then `FAIL how-you-talk: a broken copy was not flagged`; reverted, byte-identical.
 - AC2: none, because it is a recorded check (Design Note 3). Confirm `git diff --stat <baseline> -- src web ci` is empty.
   - mutation: none (recorded check). `git diff --stat <baseline> -- src web ci` is empty. The four quoted UI strings match `device-view.ts` (`Simulated phone`, `Simulated mailbox`), `demo-view-texts.ts` (`Demo view`) and `guide-view.ts` / `demo-guide.ts` (`Break the feed`) exactly; the rail, catalog and guide strings of Design Note 3 match alt texts 2, 3 and 5.
 - AC3: one byte appended to `<tree>/docs/images/vt-decision.png` -> the image-pin command shows a different size and prefix.
   - mutation: ran on `<tree>`; the file became 196281 bytes with prefix `d9eb0ccf90c43fcf` instead of 196280 and `f9c28d8959be1fac`; restored, byte-identical.
 - AC4: the hero line moved under the first H2 -> `FAIL top`.
+  - mutation (code review, supersedes the "count check disabled" record below, which QA's bullet checks made stale): ran on `<tree>`; the `-lt 3` count line deleted -> `self-test: the images of What OcuTalon does made reference-style: not flagged`, then `FAIL images: a broken copy was not flagged`; `got["break"] < 2` weakened to `< 1` -> `self-test: the last Break the feed image moved under the Chat bullet: not flagged`, then `FAIL images: a broken copy was not flagged`; the blank-line check disabled -> `self-test: no empty line between the text and an image line: not flagged`, then `FAIL images: a broken copy was not flagged`; the README with the empty line under the teaser deleted -> `images: README.md:6: the image line has no empty line before or after it`, `FAIL images` and nothing else; each reverted, byte-identical. Also run under GNU-family tools (`ubuntu:24.04`, mawk 1.3.4, `git` stand-in): 23 PASS and the SKIP.
   - mutation: ran on `<tree>`; `FAIL top` and nothing else; reverted, byte-identical. Review patch: the three images of "What OcuTalon does" removed -> `FAIL images` and nothing else; the new count check disabled -> `self-test: the images of What OcuTalon does removed: not flagged`, then `FAIL images: a broken copy was not flagged`; each reverted, byte-identical.
 - AC5: `chk_images`'s alt test replaced by `true` -> `FAIL images: a broken copy was not flagged`. Also: `chk_images` made to accept only the five current names -> the generality self-test is flagged.
   - mutation: ran on `<tree>`; the alt test replaced by a never-true condition -> the empty-alt, blank-alt and second-image self-tests not flagged, then `FAIL images: a broken copy was not flagged`; the target pattern limited to the five current names -> `self-test: a newly listed and linked docs/images file is flagged`, then `FAIL images: a broken copy was not flagged`; each reverted, byte-identical.
 - AC6: the new teaser refusal (ii) removed -> `FAIL teaser: a broken copy was not flagged` (the linked-image self-test).
   - mutation: ran on `<tree>`; `self-test: a linked image: not flagged`, then `FAIL teaser: a broken copy was not flagged`; reverted, byte-identical.
+  - mutation (code review, `top`'s one hero line): ran on `<tree>`; the hero-line condition put back to the greedy `$0 ~ /^!\[.*\]\(.*\)$/` -> `self-test: a second image on the hero line: not flagged` and `self-test: text after the hero image: not flagged`, then `FAIL top: a broken copy was not flagged`; the README with ` (live)` after the hero link -> `FAIL top` (a stray line, 0 image lines); each reverted, byte-identical.
 - AC7: `images` dropped from `RULES` -> `FAIL rules: rule_images is not in RULES`.
   - mutation: ran on `<tree>`; `FAIL rules: rule_images is not in RULES`; reverted, byte-identical.
 - AC8: `![badge](https://example.org/b.svg)` appended -> `FAIL teaser` and `FAIL images`.
@@ -377,6 +405,22 @@ Matrix rows run on `<tree>` (each reverted, byte-identical, exit 1 unless noted)
 - `teaser`: the linked image appended -> `FAIL teaser`; `<img src=docs/images/page-incident.png>` appended -> `FAIL teaser`.
 - `no-telegram`: `Telegram` added to the section's first paragraph -> `FAIL no-telegram`.
 - No README: all 23 rules print `FAIL <rule>: README.md is missing`, exit 1.
+
+## QA Verification (QA)
+
+- `docker/tests/test-readme.sh` (QA, existing file extended, no new CI unit): `images` now also pins AC4's bullet placement by bullet, naming no file: at least one image paragraph under the "Chat on a live page." bullet and at least two under "Break the feed." Two new self-tests (the Chat image moved under the Break the feed bullet while the total stays three; the Break the feed images removed). Runs in the default `bash docker/tests/test-readme.sh` (rule `images`, still 23 PASS names).
+- Audit: AC1, AC4 (hero, count, bullets), AC5, AC6, AC7, AC8 each have a script check that can fail. AC2 (UI strings) is pinned by `how-you-talk`'s facts for the quoted strings; the rest of Design Note 3 is a recorded check. AC3 (byte size and sha256) stays the one-time image-pin command by design: the `images` rule names no file (decision k), so a later byte edit of a PNG is not caught by the script (accepted).
+- QA mutations, each on a scratch tree, reverted, tree hash identical before and after:
+  - mutation: AC1 `Email comes in a later release.` removed -> `FAIL how-you-talk`.
+  - mutation: AC2 `Simulated phone` renamed in the README -> `FAIL how-you-talk` (`missing 'Simulated phone'`).
+  - mutation: AC3 one byte appended to `docs/images/vt-decision.png` -> image-pin command shows 196281 bytes, prefix `e111a6237ce324dd`, instead of 196280, `f9c28d8959be1fac`.
+  - mutation: AC4 the Chat bullet image moved under the next bullet (total still three) -> `FAIL images` (`Chat on a live page. has no image under it`); the hero moved under the first H2 -> `FAIL top`; the new check disabled -> `self-test: the Chat bullet image moved under the Break the feed bullet: not flagged`, then `FAIL images: a broken copy was not flagged`.
+  - mutation: AC5 alt text of `vt-decision.png` emptied -> `FAIL images`.
+  - mutation: AC6 `<img src=docs/images/page-incident.png>` appended -> `FAIL teaser`.
+  - mutation: AC7 `images` removed from `RULES` -> `FAIL rules: rule_images is not in RULES`.
+  - mutation: AC8 `![badge](https://example.org/b.svg)` appended -> `FAIL teaser`, `FAIL images`, `FAIL readme-links`; a local absolute path appended -> `test-boundaries.sh` exit 1 (README.md:276).
+  - mutations_demonstrated=8 (AC2 and AC3 by their recorded-check commands).
+- After the change: `test-readme.sh` 23 PASS plus `SKIP #telegram`, exit 0; shellcheck 0.9.0.6 clean; ASCII scan clean; `test-boundaries.sh` and `test-release-notes.sh` pass.
 
 ## Implementation Verification Results
 
