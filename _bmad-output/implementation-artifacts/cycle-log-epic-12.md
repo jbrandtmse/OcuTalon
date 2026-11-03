@@ -304,3 +304,13 @@
 2026-11-03T13:08:04Z	Epic 12	integrate_checks	merge=c09bea7f feature=138d0066 ci_checks=all_scripts_passed(951s;ci-config,readme,cpf,release-sequence,boundaries) web_test=1245/1245 shard=lane-a@Install(15_classes;211s;fresh) class=Msg.Catalog_pass live=demo-path(28_passed;8/8_steps;floor_15/15;PARK_4s) channel_shard=not_rerun(merge_touched_no_Channel_or_Telegram_file) tag=e12int2 lane=A teardown=clean
 2026-11-03T13:08:04Z	Epic 12	integrated_forward	feature=138d0066 head=c09bea7f conflicts_resolved=_bmad-output/implementation-artifacts/sprint-status.yaml(feature_side;regenerated;Epic_12_statuses_re-applied;valid),ARCHITECTURE-SPINE.md(frontmatter_updated:2026-11-03;AD-23_and_AD-19_merged_clean;lint_baseline_8_low) overview=U-223_sentences_and_Epic_15_U-232_bullet_both_present
 2026-11-03T13:08:04Z	Epic 12	epic_runner_complete	stories_completed=2_this_dispatch(12.7,12.9);epic_total=9 applied=U-218,U-219,U-228 note=second_integrate_forward
+2026-11-03T17:00:45Z	Epic 12	runner_unattended_start	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec note=reopen_for_story_12.10_runner_B lane=B slot=ocutalon-slot-b runner=B web_port=52802 head=1f80d109 model=claude-opus-5-5
+2026-11-03T17:00:45Z	Epic 12	epic_branch_reopened	reason=story_12.10_U-238 from=1f80d109
+2026-11-03T17:00:45Z	Epic 12	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-11-03T17:00:45Z	Epic 12	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh bootstrap_check=ok
+2026-11-03T17:00:45Z	Epic 12	launch_env	depth=4 watchdog=unset bash_max_ms=default
+2026-11-03T17:00:45Z	Epic 12	epic_branch_checked_out	repos=. head=1f80d109 feature_now=679955b1 ci_expected=ci,lane-a
+2026-11-03T17:00:45Z	Epic 12	spine_resolved	path=_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md ads=33 status=final
+2026-11-03T17:01:27Z	Epic 12	ledger_load	total=610 open=0 routed=80 escalated=0 decision_pending=3 terminal=527 owner_unknown=0 burndown=32 reowned_none=0 epic12_owned=0
+2026-11-03T17:01:27Z	Epic 12	sprint_planning_complete	gate=PASS model=claude-opus-5-5 in_sync=true key=12-10-in-a-narrower-window-the-telegram-step-leads-to-the-status-d status=backlog epic_status=in-progress(SC-5_reopen,was_done) note=hint_wording_not_in_UX_routed_as_pre-implement_veto_clarification
+2026-11-03T17:01:27Z	Epic 12	retro_review_skipped	reason=skip(no_X.0_input;reopen_dispatch)
