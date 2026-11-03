@@ -2,7 +2,7 @@
 title: 'Story 13.4: The guide and the overview say exactly what is audited, and the guide''s gaps are closed'
 type: 'chore'
 created: '2026-11-03'
-status: 'blocked'
+status: 'ready-for-dev'
 baseline_revision: '53582ba1a452039d5f9dce5f03cce514226e338e'
 review_loop_iteration: 0
 followup_review_recommended: false
@@ -22,7 +22,7 @@ deferred: []
 ## Boundaries & Constraints
 
 **Always:**
-- The sentence is exactly the Planner's amended U-229 (veto U-236): "In this release, changing this setting writes no OcuTalon audit entry. Each tool call is recorded as a step of its decision, and an approval and an approved call's run each write an audit entry." It sits on one line in each file. Each clause is checked against the code first; a clause that is not true stops the story with a clarification and is never reworded.
+- The sentence is exactly the orchestrator's provisional wording (veto U-237, on the Planner's amended U-229 of veto U-236; `Decide` is plain text, with no backticks): "In this release, changing this setting writes no OcuTalon audit entry. Each tool call whose reply reaches Decide in time is recorded as a step of its decision, and an approval and an approved call's run each write an audit entry." It sits on one line in each file. If the orchestrator sends different wording before the story commit, that wording replaces this one, exactly, in the same three places (overview L100, guide L291, the `U229=` pin and its negative fixtures). A clause that is not true stops the story with a clarification and is never reworded.
 - Plain English and ASCII only. No key, local path, URL, IP address, instance name, "IRIS Couch" or OpenClaw. Each new sentence states only what the code does today.
 - Every other "this release" statement in both files stays true. The overview's generated regions (L5-L81) and the `overviewdoc` pins stay unchanged.
 
@@ -73,16 +73,18 @@ deferred: []
 ## Tasks & Acceptance
 
 **Execution:**
-- `docs/security-overview.md` -- On L100, replace "In this release, changing this setting writes no OcuTalon audit entry; each tool call is still audited." with the amended U-229 sentence. Change nothing else -- AC 1.
-- `docs/bridge-guide.md` -- (a) On L291, make the same replacement. (b) L177: set the `AgentAllowList` Default cell to "the default is empty, which refuses every class". (c) Step 6 (L99): replace "Click its header id, then open the Trace." with the real path: click the row, then the Trace tab, then View Full Trace, or click the row's Session number; the header id is not a link. Add that the trace's list also shows the bridge timer, the `Ens.AlarmRequest` that `Decide` sends to `Ens.Alarm`. (d) In "Messages and enumerations", after the enumerations, add one paragraph on the user rule: for a `decide` request whose provenance is `user`, `Decide` changes an `ignore` or `digest` outcome to `tellnow` and puts first the reason "The outcome was changed because a message the user writes is always answered."; steps 4 to 6 send the item as `untrusted`, so there an `ignore` decision goes to no output. (e) In the paragraph after the two governance blocks (L124), add one sentence: the Portal's notice that `Decide` needs an update, shown after the two rows are written, can be ignored, because the bridge reads both settings live. (g) As the ruling on Clarification Needed Q2 says: either nothing, or one sentence naming `Do ##class(OcuTalon.Bridge.Approval).Reconcile()`. No marked block changes -- AC 1, AC 2.
-- `docker/tests/test-bridge-guide.sh` -- Set `U229=` to the amended sentence (one line). In `u229`: keep `over-bad`; replace `guide-bad` with three break samples, each of which must be flagged: the old 13.3 sentence, the amended sentence with "writes no" changed to "writes an" (made from `$U229` with sed), and the two sentences on two lines. In `reference`: add to `PROSE_PHRASES` "the default is empty, which refuses every class", "View Full Trace", "The header id is not a link", "AlarmRequest\` to \`Ens.Alarm\`" (with its backticks) and "needs an update". Read `USERANSWERED` from `Decide.cls` with sed, and fail when it cannot be read or when the guide lacks it. Add each new item to the keep sample and give it one break sample. Update header line 16 to say what the pin holds -- AC 1, AC 2; Rule 19.
+- `docs/security-overview.md` -- On L100, replace "In this release, changing this setting writes no OcuTalon audit entry; each tool call is still audited." with the ruled U-229 sentence (U-237; Boundaries). Change nothing else -- AC 1.
+- `docs/bridge-guide.md` -- (a) On L291, make the same replacement. (b) L177: set the `AgentAllowList` Default cell to "the default is empty, which refuses every class". (c) Step 6 (L99): replace "Click its header id, then open the Trace." with the real path: click the row, then the Trace tab, then View Full Trace, or click the row's Session number; the header id is not a link. Add that the trace's list also shows the bridge timer, the `Ens.AlarmRequest` that `Decide` sends to `Ens.Alarm`. (d) In "Messages and enumerations", after the enumerations, add one paragraph on the user rule: for a `decide` request whose provenance is `user`, `Decide` changes an `ignore` or `digest` outcome to `tellnow` and puts first the reason "The outcome was changed because a message the user writes is always answered."; steps 4 to 6 send the item as `untrusted`, so there an `ignore` decision goes to no output. (e) In the paragraph after the two governance blocks (L124), add one sentence: the Portal's notice that `Decide` needs an update, shown after the two rows are written, can be ignored, because the bridge reads both settings live. (g) Nothing: the guide says nothing about `Approval.Reconcile` (orchestrator ruling on Q2, decide). No marked block changes -- AC 1, AC 2.
+- `docker/tests/test-bridge-guide.sh` -- Set `U229=` to the ruled sentence (one line; U-237). In `u229`: keep `over-bad`; replace `guide-bad` with three break samples, each of which must be flagged: the old 13.3 sentence, the amended sentence with "writes no" changed to "writes an" (made from `$U229` with sed), and the two sentences on two lines. In `reference`: add to `PROSE_PHRASES` "the default is empty, which refuses every class", "View Full Trace", "The header id is not a link", "AlarmRequest\` to \`Ens.Alarm\`" (with its backticks) and "needs an update". Read `USERANSWERED` from `Decide.cls` with sed, and fail when it cannot be read or when the guide lacks it. Add each new item to the keep sample and give it one break sample. Update header line 16 to say what the pin holds -- AC 1, AC 2; Rule 19.
 
 **Acceptance Criteria:**
-- AC 1. Given `docs/security-overview.md`, `docs/bridge-guide.md` and `test-bridge-guide.sh`, when the story merges, then all three hold the amended U-229 sentence exactly. `u229` passes, and it fails on the old sentence, on a one-word change and on a sentence split over two lines. `git diff` of the overview shows one changed line (L100). `overviewdoc` (`test-release-sequence.sh`) passes, and `live:security-overview` shows no DRIFT.
+- AC 1. Given `docs/security-overview.md`, `docs/bridge-guide.md` and `test-bridge-guide.sh`, when the story merges, then all three hold the ruled U-229 sentence (U-237, Boundaries) exactly. `u229` passes, and it fails on the old sentence, on a one-word change and on a sentence split over two lines. `git diff` of the overview shows one changed line (L100). `overviewdoc` (`test-release-sequence.sh`) passes, and `live:security-overview` shows no DRIFT.
 - AC 2. Given the guide, when a reader follows it, then: the `AgentAllowList` default cell says "the default is empty, which refuses every class"; step 6 gives the row, Trace tab and View Full Trace path, or the Session number, says that the header id is not a link, and names the `Ens.AlarmRequest` to `Ens.Alarm`; the reference states the user rule with `Decide`'s exact reason; and the Govern section has the one Portal-notice sentence. `reference` passes, and it fails when any one of these is removed.
 - AC 3. Given the push, when CI runs, then every workflow is green, lane-a's standalone-bridge job included (no marked block changed), and `bash docker/tests/test-bridge-guide.sh` exits 0.
 
 ## Spec Change Log
+
+- 2026-11-03, runner (lead): the plan HALTed (intent gap, U-229 clause 2). Applied the orchestrator's rulings: Q1 veto U-237 (provisional sentence in Boundaries, Tasks and Design Notes), Q2 decide (the guide says nothing about `Reconcile`), (c) the Planner's click path as given. Status reset to `ready-for-dev`: the rest of the plan was complete and only the sentence changed.
 
 ## Review Triage Log
 
@@ -105,7 +107,7 @@ No AC contradicts an AD's Rule. Q1 is a gap between the sentence's clause 2 and 
 
 **U-229 clause check (the HALT reason is clause 2):**
 1. "Changing this setting writes no OcuTalon audit entry": **true**. The setting is a System Default Settings row or an item setting, written by the platform. No OcuTalon code observes the write. The only audit writer is `Audit.cls:188` through `Record`. The only `Settings` caller outside the tests is `SettingsOps.cls:106`, limited to `demo.mode` (L21). No code writes `Record("Tool"|"MCP", ...)`.
-2. "Each tool call is recorded as a step of its decision": **not true as worded**.
+2. "Each tool call is recorded as a step of its decision": **not true as worded** (the plan HALTed on it; the orchestrator ruled the provisional wording, veto U-237, below). The ruled clause "Each tool call whose reply reaches Decide in time is recorded as a step of its decision" is **true**: every reply that reaches `Decide` before its timer goes through `EmitSteps` first (`Decide.cls:339`, before the busy check and before any re-send weighing), whichever outcome follows; the timeout case is exactly the excluded one (below). A step whose `Steps` value does not parse, or whose send fails, is a logged warning (`Decide.cls:42-43`): an IRIS-side failure, not a design path (wontfix-theoretical for the sentence). A recorded-row answer and a precheck fallback ran no runner, so no tool call exists to record.
    - What holds: every call, including a held or denied one, reaches the step buffer (`StepAudit.cls:18-39`). When the runner's reply arrives before the timer, `Decide` sends each step as an `AgentStep` (`Decide.cls:339`, `:459-530`). Live proof: `standalone-bridge.sh:787,857`.
    - What does not: when the bridge timer fires first, `OnResponse` takes the timer branch (`Decide.cls:331-337`), records the fallback and sends no step. The framework discards the late reply, and "no step is sent for it" (`Decide.cls:44`, `:69-71`). Its steps are not counted in the decision's `AgentStepCount` either.
    - It is reachable with shipped values. `timeout_ms` "bounds the tool loop (it does not stop a request in flight)" (`Timeouts.cls:7`). One Chat request can take up to 52 s for a 60 s timer (`Timeouts.cls:8-10`), so a fast first request, a tool call and a slow second request end after the timer. A request that waits in a busy runner's queue past the timer still runs its tools (`AgentRunner.cls:24-31` has no staleness check).
@@ -148,14 +150,10 @@ No AC contradicts an AD's Rule. Q1 is a gap between the sentence's clause 2 and 
 
 **Public-facing text:** items (a) to (e), and (g)'s sentence if Q2 rules it, are fixed by the ACs and U-236. No other new claim.
 
-## Clarification Needed
-
-**Q1 (blocking).** The U-229 clause "Each tool call is recorded as a step of its decision" is not true for a tool call whose runner reply reaches `Decide` after the bridge timer: `Decide` sends no `AgentStep` for a late reply (evidence under "U-229 clause check", clause 2). Following the instruction, the sentence is not reworded here.
-- Recommended amendment for the Planner: "In this release, changing this setting writes no OcuTalon audit entry. Each tool call whose reply reaches `Decide` in time is recorded as a step of its decision, and an approval and an approved call's run each write an audit entry."
-- Alternative: rule that clause 2 stands as written, accepting the timeout case.
-- Once ruled, the spec needs only the sentence in the Intent and AC 1. Everything else here is planned.
-
-**Q2 (decide with Q1).** (g) "needs `Reconcile` after a production start": not needed after a clean stop and start (measured), but the only re-arm after an abnormal end (code). Recommended: the guide says nothing (per the AC's "if not needed"), and the runner files the abnormal-end re-arm as the burn-down "bridge self re-arm" entry with this evidence. Alternative: one sentence, "After each production start, run `Do ##class(OcuTalon.Bridge.Approval).Reconcile()` once in the namespace.", with the Task 0 above.
+**Rulings (orchestrator, 2026-11-03, after the plan's HALT on d151eafb):**
+- **Q1, veto U-237 (provisional, the orchestrator's; never under `applied:`):** the sentence in all three places is "In this release, changing this setting writes no OcuTalon audit entry. Each tool call whose reply reaches Decide in time is recorded as a step of its decision, and an approval and an approved call's run each write an audit entry." The clause-by-clause evidence is above (clause 2 with the timeout case: `Decide.cls:331-337`, `:44`, `:69-71`, `Timeouts.cls:7-10`). The Planner may still answer; the runner checks for a message before the story commit and, if different wording arrives, uses it exactly in the same three places.
+- **Q2, decide:** the guide says nothing about `Approval.Reconcile`. A clean stop and start restores the hold's alarm. The abnormal-end case (killed jobs or a cleaned production: `Reconcile` is the only re-arm of a lost hold and the only resend of an approved call whose replay never started; it fails safe) is filed by the runner at its burn-down gate as the "bridge self re-arm" entry, `owner=burndown`, note "first daily release after 1.0.0", alongside (f).
+- **(c):** the click path (the row, the Trace tab, View Full Trace, or the Session number; the header id is not a link) is the Planner's, from the U-233 run on a real Portal, used as given. The code confirms only the caption "View Full Trace" (`irislib/EnsPortal/Template/filteredViewer.cls:64`) and the bridge timer's `Ens.AlarmRequest` to `Ens.Alarm` (`irislib/Ens/BusinessProcess.cls:189-196`, `Decide.cls:288`).
 
 ## Verification
 
@@ -189,5 +187,7 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 
 ## Auto Run Result
 
-Status: blocked
-Blocking condition: intent gap: U-229 clause not true: "Each tool call is recorded as a step of its decision" -- src/bridge/cls/OcuTalon/Bridge/Process/Decide.cls:331-337 (the timer branch records the fallback and sends no step), :44 and :69-71 ("a timer that fired and a late reply send no steps"; "no step is sent for it"); reachable with shipped values per Timeouts.cls:7-10 (timeout_ms does not stop a request in flight; one Chat request up to 52 s for a 60 s timer) and AgentRunner.cls:24-31 (no staleness check). Recommended amendment and the related (g) question are under ## Clarification Needed.
+Status: ready-for-dev
+Blocking condition: none
+
+(The plan's first run HALTed on U-229 clause 2; the orchestrator's rulings are applied above.)
