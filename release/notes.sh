@@ -18,7 +18,9 @@
 #   # OcuTalon <v>
 #   the intro line: "This is the first release of OcuTalon." or "Changes since <tag>."
 #   one `## <area>` section for each area that has a story, in the order of release/notes-areas.txt, with `- <title>` lines
-#   ## How this release was checked   with ### Evaluation, ### Clean-machine rehearsal and ### Upgrade in place
+#   ## How this release was checked   with ### Evaluation, ### Clean-machine rehearsal, ### Upgrade in place, ### IPM package (the size
+#                                     line of the record's "## IPM artifact" and the result of its "## FR-57 job", copied; a section that is
+#                                     not in the record is said so) and ### Registry install (the slot the author fills after publishing)
 #   ## For admins and developers      with ### Stories about how OcuTalon is built and tested, ### Rehearsal runs (the record's
 #                                     ### Runs table) and ### Upgrade checks (the upgrade table); a subsection with nothing is left out
 # A class name, ##class( call or error code appears only in the "## For admins and developers" section.
@@ -74,6 +76,7 @@ NOTES_TRACKER=_bmad-output/implementation-artifacts/sprint-status.yaml
 NOTES_EPICS=_bmad-output/planning-artifacts/epics.md
 NOTES_DEV_HEADING='## For admins and developers'
 NOTES_FORMAT='ocutalon.evalResult/1'
+NOTES_REGISTRY_SLOT="Not run yet. After this version is published to the package registry, the README's two commands are run once against the registry on a clean build 154 instance, and the result is recorded here."
 NOTES_ROWS="stories areas eval rehearsal upgrade dev-only public-text"
 
 # The inspiration's name and its not-affiliated note, assembled here so that this file never spells the name.
@@ -377,6 +380,19 @@ notes_upgrade() {
     "${3:-}" 0 'Result:' 'Mode:' 'Previous:' 'Note:'
 }
 
+# notes_ipm <record>: "### IPM package" (the size line of the record's "## IPM artifact" and the result line of its "## FR-57 job", copied; a
+# section or line that is not in the record says so) and "### Registry install", whose slot the author fills after publishing the package.
+notes_ipm() {
+  local size result
+  size=$(notes_section "$1" '## IPM artifact' | sed -n 's/^Size:[[:space:]]*//p' | head -n 1)
+  result=$(notes_section "$1" '## FR-57 job' | sed -n 's/^Result:[[:space:]]*//p' | head -n 1)
+  printf '### IPM package\n\n'
+  if [ -n "$size" ]; then printf 'IPM artifact size: %s\n' "$size"; else printf 'IPM artifact size: not in the record.\n'; fi
+  printf '\n'
+  if [ -n "$result" ]; then printf 'IPM install check: %s\n' "$result"; else printf 'IPM install check: not in the record.\n'; fi
+  printf '\n### Registry install\n\n%s\n' "$NOTES_REGISTRY_SLOT"
+}
+
 # notes_rehearsal_runs <record> / notes_upgrade_rows <record>: the developer tables, verbatim.
 notes_rehearsal_runs() { notes_section "$1" '## Clean-machine rehearsal' | notes_table runs; }
 notes_upgrade_rows() { notes_section "$1" '## Upgrade harness' | notes_table first; }
@@ -398,6 +414,8 @@ notes_draft() {
   cat "$w/rehearsal.md"
   printf '\n'
   cat "$w/upgrade.md"
+  printf '\n'
+  cat "$w/ipm.md"
   printf '\n%s\n' "$NOTES_DEV_HEADING"
   if awk -F'|' '$1 == "developer" { f = 1 } END { exit !f }' "$w/areas.txt"; then
     printf '\n### Stories about how OcuTalon is built and tested\n\n'
@@ -644,6 +662,7 @@ notes_main() {
   esac
   : > "$nt_work/rows.md"
   [ "$rc" -eq 1 ] || notes_upgrade_rows "$record" > "$nt_work/rows.md"
+  notes_ipm "$record" > "$nt_work/ipm.md"
 
   # the draft, then its two checks
   if ! mkdir -p "$dir" || ! tmpdraft=$(mktemp "$dir/.notes-draft.XXXXXX" 2> /dev/null); then

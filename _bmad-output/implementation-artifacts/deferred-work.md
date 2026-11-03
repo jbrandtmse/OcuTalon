@@ -772,6 +772,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-22T13:35:56Z status=routed owner=burndown by=harvest note=a production-start hook calls the Reconcile declarations (AD-23), with a test that restarts the production alone
 - 2026-10-25T06:36:24Z status=routed owner=15-3-an-ipm-install-survives-restarts-and-reinstalls-and-every-re by=burndown note=Story 15.3's criterion that every area's Reconcile() runs once the autostarted production's items run is this entry: a production started on its own (IPM autostart, or a stop and start with no installer run) must run the Reconcile declarations (AD-23), so a turn left running is picked up; test a restart of the production alone
 - 2026-10-28T00:45:43Z occurrence=8-5-reminders-survive-restarts-and-upgrades-and-late-ones-say-so
+- 2026-11-03T06:12:52Z status=resolved-by:15-3-an-ipm-install-survives-restarts-and-reinstalls-and-every-re by=adjudication note=check_21_check_restart_alone(release/ipm-install.sh_part_b):production_stop+start_from_a_session_with_no_installer_run_logs_exactly_one_ReconcileIn_row_and_re-arms_the_lost_reminder_RX_and_approval_AX_once;mutation_ReconcileIn_skip->b_red;build_297ad6f4
 
 ### DW-81: Conversation's Busy wait and resend run end to end only against a probe replacing SetTimer, never through the real Ens.Alarm and the reopened instance
 - source: spec-2-4-answer-every-chat-message-through-the-turn-pipeline.md | severity: med | fix-risk: low | footprint: in-story
@@ -2043,6 +2044,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-01T12:38:07Z occurrence=11-2-upgrades-and-restarts-keep-every-record-working note=CI run 41304700491 attempt 1 (OCT-epic11 4bb3d59c, iris production, live:production): FAIL row 21 'the step fails naming WatchOps while it cannot start, and succeeds once it can (1 of 5 values differ)'; the story changed no product or test-production.sh line; one rerun
 - 2026-11-02T03:08:23Z occurrence=11-13-the-release-gets-draft-notes note=CI run 41378276955 attempt 1 (OCT-epic11 7e1e4582, iris production): FAIL row 21 (1 of 5 values differ) again; the second Epic 11 occurrence on 2026-11-01/02; one rerun
 - 2026-11-02T21:59:05Z occurrence=14-1-the-overview-s-tool-and-privilege-lists-are-generated-from-t note=CI run 41527568504 iris (production) live:production row 21 'start-fails' printed nothing on 461a663b (Story 14.1 touched no production path); rerun
+- 2026-11-03T04:20:55Z status=routed owner=burndown by=spec_gate note=declined_by_15.3(never_edits_the_contended_docker/tests/test-production.sh);residual:give_row_21_a_longer_wait_or_a_retry_when_a_story_next_edits_that_file
+- 2026-11-03T09:49:32Z status=routed owner=burndown by=burndown note=not_a_1.0.0_blocker(test_flake_in_contended_test-production.sh);first_daily_release_after_1.0.0
 
 ### DW-309: Test.Data.Fixture.Check rows carry no CreatedAt, so with no WatchMark the FailurePoller starts each reading at its poll time and a batch that lands between two polls is never read: a test that expects its failures to be noticed can pass or fail by timing
 - source: spec-5-11-the-demo-guide-s-tests-hold-now-that-incidents-are-real.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -3304,6 +3307,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-11-17-the-release-s-ipm-artifact-carries-the-built-page.md | severity: med | fix-risk: low | footprint: out-of-epic
 - evidence: --live ipm packaged today's module.xml (19 bundle files, ocutalon 1.0.0 listed); the two-run branch is shimmed
 - 2026-11-02T10:22:06Z status=routed owner=15-3-an-ipm-install-survives-restarts-and-reinstalls-and-every-re by=harvest note=Story 15.3 installs 11.17's recorded artifact: once Epic 15's module.xml is on the candidate, run docker/tests/test-release-sequence.sh --live ipm on it before 15.3 relies on the record
+- 2026-11-03T04:04:52Z status=routed owner=15-4-every-release-proves-the-ipm-package-and-the-guide-opens-wit by=spec_gate note=moved_with_the_15.3/15.4_split(orchestrator_ruling_decide_2026-11-03);its_DW-576_bullet_moved_to_Story_15.4_in_epics.md
+- 2026-11-03T09:35:33Z status=resolved-by:15-4-every-release-proves-the-ipm-package-and-the-guide-opens-wit by=adjudication note=docker/tests/test-release-sequence.sh_--live_ipm_passed_194s_at_head_8d6ce22d(two-run_MapAndStop_module.xml,install_ran_in_OCUTALON);implement_re-ran_it_after_the_release.sh_change;CI_ipm-install_87d34be0_green
 
 ### DW-577: The IPM artifact record's 'Content SHA-256 is the same for every packaging' claim is shown on hand-made archives only, not on two real IPM packagings of one tree
 - source: spec-11-17-the-release-s-ipm-artifact-carries-the-built-page.md | severity: low | fix-risk: low | footprint: in-story
@@ -3592,6 +3597,21 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: 30.8 Task 0 control: ContextData is the one global stream found; U-185 scopes the stream question to message bodies (0 streams there); the provider key travels in a request header and never in session content (inference)
 - 2026-11-02T21:03:47Z status=wontfix-accepted owner=30-8-the-redactor-and-the-key-proof-catch-every-key-shape by=adjudication note=reopen_if=a_product_path_puts_the_provider_key_or_a_request_header_into_an_AI_session's_messages,or_the_key_proof_is_asked_to_cover_session_history
 
+### DW-621: The Unconfigure Invoke (UnmapRepos) may remove OCUTALON's IPM repository-definition mapping during an upgrade or same-version reinstall of ocutalon in OCUTALON, and nothing maps it again, so a later install from a repository in OCUTALON finds none
+- source: _bmad-output/implementation-artifacts/spec-15-4-every-release-proves-the-ipm-package-and-the-guide-opens-wit.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: unmeasured: UnmapRepos runs at Unconfigure Before; MapAndStop maps only outside OCUTALON; settle by installing twice in OCUTALON from a local repository with a version bump, then reading OCUTALON's three IPM.Repo.Definition mappings
+- 2026-11-03T08:46:25Z status=open owner=15-4-every-release-proves-the-ipm-package-and-the-guide-opens-wit by=harvest note=in-story MED for 15.4's code review: measure, then patch or close with evidence
+- 2026-11-03T09:33:15Z status=resolved-by:15-4-every-release-proves-the-ipm-package-and-the-guide-opens-wit by=cr note=measured lane-D e15s4crm: OCUTALON's 3 IPM.Repo.Definition maps kept after same-version, -force, 0.1.0->0.1.1 installs; no Unconfigure ran
+
+### DW-622: artifact_prepare's ARTIFACT line and its problem branch (an artifact ipm_artifact_check rejects fails part p) have no hermetic pin; only the live p run and the ipm-install job show them
+- source: spec-15-4-every-release-proves-the-ipm-package-and-the-guide-opens-wit.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: verification-gap: no hermetic suite runs artifact_prepare; AC 4's mutation pins the mapping clause; ipm_artifact_check itself is tested in lib-release's suites
+- 2026-11-03T09:33:15Z status=wontfix-accepted owner=15-4-every-release-proves-the-ipm-package-and-the-guide-opens-wit by=cr note=reopen_if=an ipm-install job or ipmcheck log passes without an ARTIFACT line, or with an artifact ipm_artifact_check rejects
+
+### DW-623: Part p enables IPM with enable -map -ns USER (definitions in USER's database), while the guide's enable -community maps them from IRISSYS; the IRISSYS-mapped MapGlobalEquivalently and unmap are measured by hand at plan only
+- source: spec-15-4-every-release-proves-the-ipm-package-and-the-guide-opens-wit.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: blind-hunter: the guide's setup state is not the committed test's; plan measured MapGlobalEquivalently and unmap -repos-only from an IRISSYS-mapped USER (Design Notes); a committed test may not run enable -community
+- 2026-11-03T09:33:15Z status=wontfix-accepted owner=15-4-every-release-proves-the-ipm-package-and-the-guide-opens-wit by=cr note=reopen_if=the registry-install hand gate's second command in OCUTALON finds no repository while USER's first command found the package
 ### DW-619: flake: live:demo-switch web/e2e/demo-switch/view.spec.ts:360 V8 (no snapshot, no switch) timed out at 120 s in page.waitForResponse in CI group shards-3; passed on an unchanged rerun
 - source: ci run 41598497924 (OCT-epic13 d642b11a) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: job 125791393924 attempt 1: Test timeout of 120000ms exceeded; attempt 2 green
@@ -3616,3 +3636,12 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: orchestrator ruling at Epic 12's close (option d) | severity: med | fix-risk: med | footprint: src/ocutalon/cls/OcuTalon/Test/Channel/
 - evidence: CI run 41618490851 production group 38 min with the Channel unit 704 s; local one-stack shard 535-567 s
 - 2026-11-03T11:57:11Z status=routed owner=burndown by=lead note=first daily release after 1.0.0 (orchestrator ruling); goal: Channel well under 10 min so shards-4 has room or the unit fits an existing group again
+### DW-626: flake: OcuTalon.Test.Watch.Reader TestDisabledItemsInStoredOrderAcrossAStopAndAStart failed in CI shard lane-a@Checks,Install,Watch (stopped, with the disabled items: suspended) and passed on an unchanged rerun
+- source: ci run 41619944438 (OCT-epic15 head 6a18ed4c) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: attempt 1 red (1 of 38 classes, 5.00s), attempt 2 green on the same head; Epic 15 changed nothing under Watch since 082ac043
+- 2026-11-03T11:43:10Z status=routed owner=burndown by=cr note=flake class: one rerun and an occurrence trailer; Lane A Watch test (Story 30.4's area); first daily release after 1.0.0
+
+### DW-628: The IPM artifact may ship the OcuTalon.Test.* classes: check whether module.xml's OcuTalon.PKG resource (ocutalon/cls) includes them and, if so, leave them out, so the artifact is smaller (4,940,685 bytes at 15.4, 98.8% of the release's soft 5,000,000-byte warning) and no test code reaches users' instances
+- source: Epic 15 merge gate (Contest Planner, 2026-11-03) | severity: low | fix-risk: low | footprint: small
+- evidence: 15.4 measured the artifact at 4,940,685 bytes; src/module.xml resource OcuTalon.PKG
+- 2026-11-03T12:12:51Z status=routed owner=burndown by=merge_gate note=first daily release after 1.0.0
