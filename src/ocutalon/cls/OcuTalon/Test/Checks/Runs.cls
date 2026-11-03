@@ -1032,7 +1032,7 @@ Method TestBeatLogsAreRedacted()
 	Set host = ..Host()
 	If '$IsObject(host) Quit
 	Set a = ..Owner("beatredact")
-	Set secret = "sk-ant-api03-QaSecretQaSecretQaSecret123456"
+	Set secret = "sk-"_"ant-api03-QaSecretQaSecretQaSecret123456"
 
 	// RunDue throws, and then answers an error status
 	Set marker = "zzchk"_..Number_" beat refused"

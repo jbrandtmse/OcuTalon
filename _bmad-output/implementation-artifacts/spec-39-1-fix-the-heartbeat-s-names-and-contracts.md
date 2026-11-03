@@ -2,7 +2,7 @@
 title: 'Story 39.1: Fix the heartbeat''s names and contracts'
 type: 'feature'
 created: '2026-11-03'
-status: 'in-progress'
+status: 'done'
 baseline_revision: '3f5f7b3ee2a056f2ec2c0411012a41845e324454'
 baseline_commit: '3f5f7b3ee2a056f2ec2c0411012a41845e324454'
 review_loop_iteration: 0
@@ -152,7 +152,7 @@ deferred:
 - Given the story's diff against `origin/feature/OCT_OcuTalon_MVP`, when it is compared, then `Production.cls`, `docker/tests/test-production.sh`, `Live/**`, `Test/Live/**` and `web/**` are unchanged.
 - Given EXPERIENCE.md › Later Steps › Personality, when this story begins, then the heartbeat card's texts are recorded there under the marker `[ADDED 2026-10-31, owner decision, relayed by the Contest Planner (U-195) ...]`. Checked at planning (EXPERIENCE.md lines 963-979): **pass**. This story ships no user-facing text (UX-DR117).
 
-- [ ] [Smoke] `docker/tests/test-boundaries.sh` fails its rule "keys: nothing key-like" on `src/ocutalon/cls/OcuTalon/Test/Checks/Runs.cls:1035` (`TestBeatLogsAreRedacted`'s fixture secret is one key-shaped literal) -- build the fixture by concatenation, as `Test/Watch/NoticeText.cls:581` and `Test/Watch/Evidence.cls:193` do (`"sk-"_"ant-..."`), keep the test's assertions unchanged, and re-run `bash docker/tests/test-boundaries.sh` (no FAIL) plus `OcuTalon.Test.Checks.Runs` on a lane-D warm throwaway.
+- [x] [Smoke] `docker/tests/test-boundaries.sh` fails its rule "keys: nothing key-like" on `src/ocutalon/cls/OcuTalon/Test/Checks/Runs.cls:1035` (`TestBeatLogsAreRedacted`'s fixture secret is one key-shaped literal) -- build the fixture by concatenation, as `Test/Watch/NoticeText.cls:581` and `Test/Watch/Evidence.cls:193` do (`"sk-"_"ant-..."`), keep the test's assertions unchanged, and re-run `bash docker/tests/test-boundaries.sh` (no FAIL) plus `OcuTalon.Test.Checks.Runs` on a lane-D warm throwaway.
 
 ### Review Findings
 
@@ -310,6 +310,9 @@ Code review additions (run tag `e39s1crw`, warm; each mutation applied, observed
 - AC 7 (the UX texts are recorded): no mutation; a planning-time reading of EXPERIENCE.md, recorded pass, with no code or test to mutate.
 - Runs after the patches, warm: `Test.Checks.Beat`, `Test.Checks.Runs`, `Test.Contract.Ac` passed.
 
+Rework 1 (run tags `e39s1rw1`/`e39s1rw1w`; applied, observed red, reverted byte-identical):
+- Smoke (no key-like literal in the story's files): mutation: writing `TestBeatLogsAreRedacted`'s fixture secret back as one literal made `bash docker/tests/test-boundaries.sh` print `FAIL keys: nothing key-like`; reverted, no FAIL.
+
 **Shared surfaces:**
 - `src/short-names.tsv`: +1 row, under test-storage.sh's registry rules.
 - `Test.Data.Tables` Registry and Contracts: +1 each. The floors (`>= 23`, `>= 22`, `>= 45`) still hold.
@@ -342,3 +345,5 @@ Blocking condition: none
 **Footprint extension (report):** `src/ocutalon/cls/OcuTalon/Test/Data/Tables.cls` (one contract and one registry entry; not contended).
 
 **Residual risks.** `RunDue` and `RunNow` are stubs, so the real `Process` to `Beat` wiring has no observable effect to assert on; Story 39.3 should pin it when it fills them. Test time added: about 2 s warm, about 3 s in `Checks.Heartbeat`; `shard lane-a@Checks` took 137 s fresh. The two deferred entries (`Live.Payload.Heartbeat`, and the UX text for the unavailable run button) are for the lead to harvest.
+
+**Rework 1 (smoke).** `TestBeatLogsAreRedacted`'s fixture secret is built as `"sk-"_"ant-api03-..."` in `src/ocutalon/cls/OcuTalon/Test/Checks/Runs.cls` (assertions unchanged). `bash docker/tests/test-boundaries.sh` prints no FAIL (every file, so no other key-like literal remains); `OcuTalon.Test.Checks.Runs` passed on a warm stack. No review layers were run for this one-line test fixture change; follow-up review recommended: false (no patch at `high`). Warm stack and tags torn down.
