@@ -27,8 +27,9 @@
 #   - real-tree: plan on this checkout writes a dry-run record, a version that is not the candidate's and a phase with no tag exit 2;
 #   - storage-base: test-storage.sh judges this checkout's storage blocks against the pinned pre-release commit, so a non-appending
 #     storage change since that commit fails this rule (a gate on the real tree), and the storage phase accepts only that verdict;
-#   - merge-retries (Story 0.14): count_merge_retries over a stubbed start_log appends MERGE-RETRIES 0 or 1 and the start's label to the
-#     results (a near miss counts too); the five starts each call it right after their wait, before any die; the record section reads
+#   - merge-retries (Story 0.14): count_merge_retries over a stubbed start_log appends MERGE-RETRIES <n> (0, 1 or 2) and the start's label to the
+#     results (a near miss counts too); the five starts each call it right after their wait, before any die
+#     (phase_upgrade, phase_restart and ready_or_die run over stubs, ready or not); the record section reads
 #     "Merge retries: 0" with no such line and the sum otherwise, right after Run:, with Result: and the table unchanged; report prints
 #     MERGE-RETRIES <total> before RECORD and RESULT;
 #   - report: report and upgrade over a fabricated state folder: every phase's results joined, the row of a phase that started and did
@@ -1033,6 +1034,37 @@ MERGE-RETRIES 2 records project, candidate"
 MERGE-RETRIES 1 settings project, candidate
 die: settings project, candidate: the start did not end ready within 400 s"
 
+  # The upgrade's and the restart's own waits (phase_upgrade and phase_restart run over stubs, no Docker): the start's retries are
+  # counted whether the start ended ready or not, and in the not-ready case before the die. The stubbed die and the stubbed step that
+  # follows the wait (the upgrade's env_set; the restart's keys check, after its marker check, which the stubs let through) both leave the
+  # subshell, so a count placed after them, or left out, shows as a missing results line. Straight after the wait is the source pins' part.
+  mkdir -p "$tmp/mr-state/p1"
+  printf '%s\n' 'x/context.yml' > "$tmp/mr-state/p1/files"
+  mr_phase() { # mr_phase <phase> <wait status>: the phase over stubs, its results file on stdout
+    : > "$r"
+    (
+      results=$r state=$tmp/mr-state
+      row() { :; }; attach_stack() { :; }; preflight() { :; }; load_seed() { :; }; opt() { echo 9.9.9; }
+      env_get() { :; }; env_set() { echo "past: env_set" >> "$r"; exit 3; }; marker() { :; }; fail() { :; }; pass() { :; }; keys_point() { echo 0; }
+      dc() { case $* in "ps -q iris") echo cid ;; esac; }
+      live_pop_file() { :; }; live_track_image() { :; }
+      start_log() { printf 'STEP merge RETRY 1 after #453\nSTEP merge OK 9s\n'; }
+      wait_started_ready() { return "$waited"; }
+      die() { echo "die: $1" >> "$r"; exit 1; }
+      waited=$2
+      "phase_$1"
+    ) > /dev/null 2>&1
+    cat "$r"
+  }
+  eq "the restart counts a ready start before its next step" "$(mr_phase restart 0)" "MERGE-RETRIES 1 records project, restart
+die: restart: the runners' keys could not be pointed at the mock"
+  eq "the restart counts a start that was not ready before its die" "$(mr_phase restart 1)" "MERGE-RETRIES 1 records project, restart
+die: restart: the container was not ready within 300 s"
+  eq "the upgrade counts a ready start before its next step" "$(mr_phase upgrade 0)" "MERGE-RETRIES 1 records project, candidate
+past: env_set"
+  eq "the upgrade counts a start that was not ready before its die" "$(mr_phase upgrade 1)" "MERGE-RETRIES 1 records project, candidate
+die: upgrade: the candidate did not end ready within 400 s"
+
   # The five starts each count right after their wait, before any die.
   eq "ready_or_die serves three starts" "$(grep -c '^  ready_or_die "' release/upgrade-harness.sh)" 3
   eq "the upgrade's wait is followed by its count" "$(grep -A1 'wait_started_ready 400 || ready=1' release/upgrade-harness.sh | tail -n 1)" '  count_merge_retries "records project, candidate"'
@@ -1060,6 +1092,7 @@ die: settings project, candidate: the start did not end ready within 400 s"
   s=$(TMPDIR=$tmp/rs state_dir rs-mr)
   printf 'MERGE-RETRIES 0 settings project, candidate\n' > "$s/results.settings"
   printf 'MERGE-RETRIES 1 records project, restart\nMERGE-RETRIES 2 records project, candidate\n' > "$s/results.restart"
+  rm -f "$tmp/rs-rs-mr.md" # the break run's record is no evidence for this run
   out=$(run_cmd_phase rs-mr report)
   eq "report prints the total before RECORD and RESULT" "$(printf '%s\n' "$out" | grep -v '^PHASE' | awk '{ if ($1 == "MERGE-RETRIES") print $1 " " $2; else print $1 }')" "MERGE-RETRIES 3
 RECORD

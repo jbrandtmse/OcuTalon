@@ -113,7 +113,31 @@ Rows 1-11 run `check_log` on one start log against `expected_run ... 0.1.0` (OK 
 - Given the change, when `git diff --name-only "$(git merge-base HEAD feature/OCT_OcuTalon_MVP)" -- . ':(exclude)_bmad-output'` runs, then it lists only the four files above, and `docker/after-start.sh` and `docker/merge.cpf` aren't among them. The merge base keeps the check true when the feature branch moves on.
 - Given the hermetic scripts that source `lib-live.sh` or the harness (Verification, `(once)`), when each runs, then it passes unchanged.
 
+### Review Findings
+
+Code review 2026-11-03 (bmad-code-review, review_mode full, layers blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor, plus the reviewer's own check). 23 rows, 6 entries after grouping (high 0, medium 1, low 5); all 6 patched in this pass; 0 deferred; 17 rows rejected (below).
+
+- [x] [Review][Patch] `[medium]` A real STEP line in another case was not pinned to fail (scope item 2, "a RETRY in any other form"; matrix row 7). Mutating condition (b) to compare case-insensitively stayed green: `STEP merge retry 1 after #453` alone before the run would have been stripped and passed with the retry label. Fix: row 7's near-miss loop gains `STEP merge retry 1 after #453` and `STEP MERGE RETRY 1 AFTER #453`; the mutation now goes red on both [docker/tests/test-lib-live.sh:344] (reviewer; fix-risk low: two fixtures, no code change).
+- [x] [Review][Patch] `[low]` The `merge-retries` rule's report assertions read a record file that the rule's break run had already written (Rule 19 hygiene). Mutating `record_write` showed nothing is masked, because both runs share the code, but the file is now removed before the real run [docker/tests/test-upgrade-harness.sh:1095] (verification-gap; fix-risk low: one `rm -f`).
+- [x] [Review][Patch] `[low]` The rule header said the helper appends "MERGE-RETRIES 0 or 1"; the rule also pins 2 [docker/tests/test-upgrade-harness.sh:30] (blind-hunter+edge-case-hunter; fix-risk low: comment).
+- [x] [Review][Patch] `[low]` The harness header claimed "no retry goes unseen", but a start whose compose command fails dies before its wait and is not counted; the comment now says the retry of every start that reaches its wait is seen [release/upgrade-harness.sh:42] (edge-case-hunter; fix-risk low: comment).
+- [x] [Review][Patch] `[low]` The `mr_phase` comment named the restart's keys check as the step after its wait; the marker check comes first and its stubs let it through, so straight-after-the-wait adjacency is the source pins' part [docker/tests/test-upgrade-harness.sh:1037] (verification-gap; fix-risk low: comment).
+- [x] [Review][Patch] `[low]` AC 3 and AC 4 had no `mutation:` line (Rule 19). Both were applied, seen red and reverted; the lines are under Verification, "Code review" (verification-gap; fix-risk low: tracking doc).
+
+Rejected (verdict and reason):
+- Stale "Residual risk" and Review Triage Log text saying the upgrade and restart counts are pinned by source text only; review counts in the triage log that don't add up; `status: 'done'` in the frontmatter while sprint-status reads `review` (blind-hunter, edge-case-hunter, acceptance-auditor): low or false; the fix edits build-auto's own record in the spec under review.
+- Matrix row 7 says "as today" (a fail) for the all-lower-case line, which passes; Spec Change Log empty (blind-hunter, acceptance-auditor): by-design. Decided: `step merge retry 1 after #453` is no STEP line (`log_steps` keeps `^(STEP|RESULT) ` case for case, and after-start writes `STEP`), so check_log never sees it and its verdict is today's, which honours scope item 2. A RETRY-shaped real STEP line in another form fails, now pinned (entry 1).
+- The record shows only the total, not which start retried (blind-hunter): by-design; the spec fixes `Merge retries: <total>`, and scope item 3 asks for the number.
+- A not-ready start's count may read the previous start's log or an unreadable log; a start whose compose command fails dies uncounted (edge-case-hunter): low, rejected; each happens only on a start that already fails the phase and the run, and a guard would add branches. The header claim is corrected (entry 4).
+- The pre-existing leftover record files of `t_report` (verification-gap): false; the break and real runs share the code, so a leftover can't mask a code mutation (shown by the `record_write` mutation, red on `report`).
+- "Follows it" read as the very next line (acceptance-auditor): false; it is stricter than the veto's wording, matches after-start.sh, and the spec decided it.
+- The retry label reaching the record table's Detail cell (acceptance-auditor): false; `record_rows` prints "N checks passed" for a pass row, so pass labels never reach the table.
+- The cycle log's `story_base` differs between implement's spawn and dev_complete lines (blind-hunter): low, rejected here; the cycle log is the lead's (noted in the closing summary).
+- The QA edits are uncommitted (verification-gap): false; this is a state, not a defect (the lead commits).
+
 ## Spec Change Log
+
+- 2026-11-03, lead (after code review): the Auto Run Result's "Residual risk" line (count call sites pinned by source text only) is superseded: QA's `mr_phase` runs `phase_upgrade` and `phase_restart` over stubs, ready and not ready. Code review added two other-case STEP RETRY near misses to row 7.
 
 ## Review Triage Log
 
@@ -199,6 +223,19 @@ All timings were measured on the base at plan time. The live throwaway tests are
 - mutation: AC rows 12-13, the total's sum changed to the last line's count (`t = $2`): red on `Merge retries: 3` and on the report's `MERGE-RETRIES 3` (rule `merge-retries`); reverted.
 - mutation: AC rows 12-13, `ready_or_die` counting after its die branch: red on the not-ready start's line in the `ready_or_die` pin; reverted.
 - mutation: AC rows 12-13, the `Merge retries:` line removed from `record_section`: rules `merge-retries` and `record-contract` red; reverted.
+
+**QA (2026-11-03):**
+- (QA) `docker/tests/test-upgrade-harness.sh`: rule `merge-retries` now runs `phase_restart` and `phase_upgrade` over stubs (no Docker), ready and not ready, and pins that the count line is written before the die or the next step. The earlier source-text pins stay.
+- (QA) `docker/tests/test-lib-live.sh`: audited against matrix rows 1-11, no change. Every "as today" row compares `$tmp/actual.log` with `log_steps` output byte for byte; row 7's lower-case near miss is unseen by `log_steps` and is pinned as today's plain pass.
+- mutation: AC rows 1-11, condition (d) skipped in `check_log` -> `test-lib-live.sh` red on row 9; reverted.
+- mutation: AC rows 12-13, the restart's `count_merge_retries` call removed -> `merge-retries` red on both new `phase_restart` pins and the source pin; reverted.
+- mutation: AC rows 12-13, the upgrade's `count_merge_retries` moved after its die branch -> `merge-retries` red on the new not-ready `phase_upgrade` pin and the source pin; reverted.
+
+**Code review (2026-11-03):**
+- mutation: AC rows 1-11, condition (b) compared case-insensitively in `check_log` (`tolower(line[at]) != tolower(...)`) -> `test-lib-live.sh` red on row 7's two STEP lines in another case (`STEP merge retry 1 after #453`, `STEP MERGE RETRY 1 AFTER #453`), which passed with the retry label before the review's fixtures; reverted.
+- mutation: AC rows 12-13, `phase_report`'s `record_write` skipped -> rules `report` and `merge-retries` red; reverted.
+- mutation: AC 3 (name-only diff), a comment line appended to `ci/units.sh` -> the name-only diff lists five files, `ci/units.sh` among them; reverted.
+- mutation: AC 4 (hermetic scripts pass unchanged), a non-ASCII byte appended to `docker/tests/lib-live.sh` -> `test-boundaries.sh` red on rule `ascii`; reverted.
 
 **Shared surfaces:**
 - `check_log`'s verdict for its callers, loosened only for the sanctioned shape.

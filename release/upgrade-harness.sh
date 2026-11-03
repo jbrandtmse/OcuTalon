@@ -39,7 +39,8 @@
 # Merge retries (Story 0.14): a start whose CPF merge hit ERROR #453 retries once (STEP merge RETRY 1 after #453 in the start's log). The
 # harness counts those lines in the log of each of its five starts (settings previous and candidate, records previous, candidate and
 # restart), ready or not, as MERGE-RETRIES <n> <start> lines of the phase's results; the record section gets "Merge retries: <total>"
-# right after the Run: line (0 when no start retried, and for a dry run) and report prints MERGE-RETRIES <total>, so no retry goes unseen.
+# right after the Run: line (0 when no start retried, and for a dry run) and report prints MERGE-RETRIES <total>, so the retry of every start
+# that reaches its wait is seen (a start that dies before its wait, its compose command failing, is not counted).
 # Exit codes: 0 pass (or a dry run), 1 a failed check or phase, 2 a refusal (bad option, phase out of order, no previous build),
 # 75 the lane lock is busy. Needs bash 3.2 or later, git, jq, docker compose, node and npm (the previous tree's web bundle, and the
 # demo-switch page project), and the IRIS base image (ci/iris.sh). The model is the CI mock, never a key; every stack is a throwaway

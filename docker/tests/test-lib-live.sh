@@ -341,11 +341,13 @@ refused 5 "RETRY 1 twice, then the run"
 retry_log "$retry_line" 'STEP merge RETRY 2 after #453'
 refused 6 "RETRY 1 then RETRY 2, then the run"
 
-for near in 'STEP merge RETRY 2 after #453' 'STEP merge RETRY 1 after #4530' 'STEP merge RETRY 1 after #453 x'; do
+# A STEP line in another case is a near miss too: the sanctioned line is matched case for case.
+for near in 'STEP merge RETRY 2 after #453' 'STEP merge RETRY 1 after #4530' 'STEP merge RETRY 1 after #453 x' \
+  'STEP merge retry 1 after #453' 'STEP MERGE RETRY 1 AFTER #453'; do
   retry_log "$near"
   refused 7 "the near miss '$near'"
 done
-# A line in another case is not a STEP line to log_steps, so today's verdict (a pass, nothing removed) stands.
+# A line that is all in another case is not a STEP line to log_steps, so today's verdict (a pass, nothing removed) stands.
 retry_log 'step merge retry 1 after #453'
 out=$(log_verdict)
 if [ "$out" = "$plain_label" ] && [ "$(log_steps | cmp - "$tmp/actual.log" 2>&1; echo $?)" = 0 ]; then
