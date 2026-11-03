@@ -1568,3 +1568,6 @@
 2026-11-03T12:12:24Z	Epic 15	ledger_routed_planned	story=none entries=0 excess=0 by=merge_gate note=Epic_15_reowned_none(overflow=0)
 2026-11-03T12:12:24Z	Epic 15	spine_updated	reason=owner_answer_U-231 ad=AD-23 line=802 change=first_in_any_namespace->any_Interoperability-enabled_namespace(as_built,no_rule_change) lint=8_low_baseline,no_ad_findings
 2026-11-03T12:12:24Z	Epic 15	deps_hash_rerecorded	reason=split hash=89adffc2 note=15.4_split_from_15.3+U-231_prose
+2026-11-03T12:12:33Z	Epic 15	worktree_removed	path=.worktrees/epic-15
+2026-11-03T12:12:33Z	Epic 15	epic_branches_deleted	branch=OCT-epic15 local=true remote=true
+2026-11-03T12:12:51Z	Epic 15	ledger_filed	id=DW-628 owner=burndown by=merge_gate note=Planner:IPM_artifact_test_classes,first_daily_release
