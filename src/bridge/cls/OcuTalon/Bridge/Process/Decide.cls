@@ -16,19 +16,26 @@ Include Ensemble
 ///     estimate over DecisionTokenBudget or an estimate over the request-size limit (RequestTokenLimit). A request that fails a precheck
 ///     is never sent: RecordFallback records it as a fallback decision and the answer is given from OnRequest, with no runner request and
 ///     no timer. Otherwise Decide sends the request that SentRequest builds, a clone that carries the DecisionRef, to the runner of the
-///     kind (RUNNERS) and sets the timer of TimerSeconds, a whole number of seconds from MINTIMER to MAXTIMER (Timeouts.Check, AD-5).
+///     kind (RUNNERS) and sets the timer of TimerSeconds (TimerFor), a whole number of seconds from MINTIMER to MAXTIMER (Timeouts.Check, AD-5).
+///     A flagged turn that continues its conversation (below) gets Compaction.#SUMMARIZERSECONDS more, so that the runner's compaction has its
+///     time (AD-20), and never more than MAXTIMER. RemainingMs and the re-send count from TimerFor of the request as it stands when they weigh
+///     it: after a compaction the stored history is short, so a re-send is no longer flagged and counts from TimerSeconds.
 ///     Besides the runner requests, the timers and the agent steps (below), Decide sends nothing; it answers only its caller.
 ///   - The estimate and the size limit (AD-8, AD-20, NFR-3): EstimateTokens works out the first model request of the runner of the request
 ///     in tokens, at StepBuffer.CHARSPERTOKEN characters a token. It adds the system prompt and the tool schemas of the runner's agent
 ///     class (RequestSize.AgentChars), the stored history of a linked turn that continues its conversation (RequestSize.HistoryChars of the
 ///     session that the link names, Data.ConversationLink SessionOf) and the input that the runner sends (Adapter.Agent ChatInput). The
-///     limit is the RequestTokenLimit setting, a whole number from 1 to MAXREQUESTTOKENS; an empty value counts as MAXREQUESTTOKENS, and so
-///     does any other value, with one warning, so that the limit is never off and never above MAXREQUESTTOKENS. A request whose estimate
-///     is above the limit takes the fallback reason too_large, after budget, for every kind and on every re-send. Decide never changes the
+///     limit is the RequestTokenLimit setting, a whole number from 1 to MAXREQUESTTOKENS (RequestLimit); an empty value counts as
+///     MAXREQUESTTOKENS, and so does any other value, with one warning, so that the limit is never off and never above MAXREQUESTTOKENS. A
+///     request whose estimate is above the limit takes the fallback reason too_large, after budget, for every kind and on every re-send,
+///     except a turn that is flagged (below) and continues its conversation: the runner compacts such a turn, or starts a fresh session
+///     with a seed of at most Compaction.#SEEDCHARS characters in place of the history, so it is judged on the request of the seeded path,
+///     the estimate with the history counted as the least of itself and Compaction.#SEEDCHARS (Precheck); the runner itself checks the
+///     session as it stands and the fork against the limit and seeds in their place when they pass it. Decide never changes the
 ///     conversation link; it only reads it.
 ///   - The flag (AD-6, AD-20): SentRequest sets Request.Compact to 1 on the clone of a turn whose estimate is above COMPACTTOKENS, and to 0
-///     on every other request, whatever the caller set. The runner ignores it until Story 30.1, so a flagged turn within the limit is
-///     sent as it is.
+///     on every other request, whatever the caller set. The runner compacts a flagged turn that continues its conversation before
+///     it chats (Adapter.Agent, Story 30.1); every other flagged turn is sent as it is.
 ///   - The steps (AD-9, AD-30): when the runner's reply arrives in time, and before anything reads it, EmitSteps sends each step record of
 ///     the reply's Steps to the AgentSteps operation (STEPSITEM) as an OcuTalon.Bridge.Msg.AgentStep, in order, so that the steps sit in
 ///     the caller's trace session after the runner's reply and before Decide's answer (StepMessages builds the messages). The Positions
@@ -278,7 +285,7 @@ Method OnRequest(request As %Library.Persistent, Output response As %Library.Per
 	}
 	Set sc = ..SendRequestAsync(runner, ..SentRequest(request, decisionRef, estimate), 1, "reply")
 	If $$$ISERR(sc) Quit sc
-	Quit ..SetTimer(+..TimerSeconds, "timer")
+	Quit ..SetTimer(..TimerFor(request, ..Flagged(request, estimate)), "timer")
 }
 
 /// 1 when the request is linked to a conversation by the runner's own rule (Adapter.Agent IsLinked: a turn with provenance user) and its
@@ -346,7 +353,7 @@ Method OnResponse(request As %Library.Persistent, ByRef response As %Library.Per
 	If answered && (failure '= "") && (kind '= "tool") {
 		Set facts = {}
 		Do facts.%Set("failure", failure)
-		Set delay = ..ResendDelay(..Classify(facts), callresponse.ToolsRun, ..Resends, ..RemainingMs())
+		Set delay = ..ResendDelay(..Classify(facts), callresponse.ToolsRun, ..Resends, ..RemainingMs(request))
 		If delay > 0 {
 			Set ..StepCount = ..StepCount + callresponse.AgentStepCount
 			Quit ..SetTimer(delay, "resend", "")
@@ -370,7 +377,7 @@ Method Resend(request As OcuTalon.Bridge.Msg.Request, runner As %String, Output 
 	Set response = ""
 	Set elapsed = ##class(OcuTalon.Bridge.Time).MsSince(..%TimeCreated)
 	Set reason = ..Precheck(request, runner, ..SettingText("DecisionTokenBudget"), ..SettingText("RequestTokenLimit"), .estimate)
-	Set seconds = ..RemainingMs() \ 1000
+	Set seconds = ..RemainingMs(request, estimate) \ 1000
 	If (reason = "") && (seconds < 1) Set reason = "rate_limited"
 	If reason '= "" {
 		Quit ..RecordFallback(request, ..DecisionRef, reason, "", ..HostSinkClass, ..%SessionId, .response, elapsed, ..StepCount)
@@ -397,17 +404,40 @@ ClassMethod SentRequest(request As OcuTalon.Bridge.Msg.Request, decisionRef As %
 {
 	Set clone = request.%ConstructClone()
 	Set clone.DecisionRef = decisionRef
-	Set clone.Compact = (request.Kind = "turn") && (+$Get(estimate) > ..#COMPACTTOKENS)
+	Set clone.Compact = ..Flagged(request, estimate)
 	Quit clone
 }
 
-/// The milliseconds of TimerSeconds that are left: TimerSeconds x 1000 minus the milliseconds since Decide began (0 at least, and 0 when
-/// the start cannot be read).
-Method RemainingMs() As %Integer [ Private ]
+/// 1 when the request is flagged for compaction (AD-6, AD-20): a turn, of any provenance and any SessionMode, whose estimate (EstimateTokens)
+/// is above COMPACTTOKENS. It is pure.
+ClassMethod Flagged(request As OcuTalon.Bridge.Msg.Request, estimate As %Integer) As %Boolean
+{
+	Quit $IsObject(request) && (request.Kind = "turn") && (+$Get(estimate) > ..#COMPACTTOKENS)
+}
+
+/// The timer of an attempt in whole seconds (AD-5, AD-20): TimerSeconds, plus Compaction.#SUMMARIZERSECONDS (and at most MAXTIMER) for a
+/// request that is flagged (compact is 1, see Flagged) and continues its conversation: a linked turn (Adapter.Agent IsLinked) whose
+/// SessionMode is not fresh and whose conversation link names an AI session, so that the runner may compact it before it chats. Every
+/// other request keeps TimerSeconds. It reads the link and changes nothing.
+Method TimerFor(request As OcuTalon.Bridge.Msg.Request, compact As %Boolean) As %Integer
+{
+	Set seconds = +..TimerSeconds
+	If '$Get(compact) || '$IsObject(request) || '##class(OcuTalon.Bridge.Adapter.Agent).IsLinked(request) || (request.SessionMode = "fresh") Quit seconds
+	If ##class(OcuTalon.Bridge.Data.ConversationLink).SessionOf(request.OwnerRef, ..RunnerFor(request.Kind, request)) = "" Quit seconds
+	Set seconds = seconds + ##class(OcuTalon.Bridge.Compaction).#SUMMARIZERSECONDS
+	Quit $Select(seconds > ..#MAXTIMER: ..#MAXTIMER, 1: seconds)
+}
+
+/// The milliseconds of the attempt's timer (TimerFor) that are left: the timer x 1000 minus the milliseconds since Decide began (0 at least,
+/// and 0 when the start cannot be read). The request is flagged when its estimate is above COMPACTTOKENS; estimate is the one that the
+/// precheck just worked out, or "" to work it out here (only a turn has one). Called for a request that is not a tool replay.
+Method RemainingMs(request As OcuTalon.Bridge.Msg.Request, estimate As %Integer = "") As %Integer [ Private ]
 {
 	Set elapsed = ##class(OcuTalon.Bridge.Time).MsSince(..%TimeCreated)
 	If elapsed = "" Quit 0
-	Quit $Select(..TimerSeconds * 1000 > elapsed: ..TimerSeconds * 1000 - elapsed, 1: 0)
+	If (estimate = "") && (request.Kind = "turn") Set estimate = ..EstimateTokens(request, ..RunnerFor(request.Kind, request))
+	Set total = ..TimerFor(request, ..Flagged(request, estimate)) * 1000
+	Quit $Select(total > elapsed: total - elapsed, 1: 0)
 }
 
 /// The seconds of back-off before the next re-send, or 0 for no re-send (AD-8, FR-4, NFR-23). It is pure. A re-send needs all of:
@@ -829,9 +859,12 @@ ClassMethod Unfenced(text As %String) As %String
 /// reason. Each fault that State names (DW-76) is logged as one warning, and so is a tokenBudget that is not
 /// a whole number of 0 or more, which counts as 0 (off; empty is 0 too). A requestLimit that is a whole number from 1 to
 /// MAXREQUESTTOKENS is the limit; an empty one counts as MAXREQUESTTOKENS, and any other one counts as MAXREQUESTTOKENS and is logged as
-/// one warning that names RequestTokenLimit, so the limit is never off and never above MAXREQUESTTOKENS. One more warning names the runner
-/// when the system prompt or the tool schemas of its agent could not be read in full (a part that could not be read counts 0). Nothing is sent or
-/// recorded here.
+/// one warning that names RequestTokenLimit, so the limit is never off and never above MAXREQUESTTOKENS (RequestLimit). One more warning
+/// names the runner when the system prompt or the tool schemas of its agent could not be read in full (a part that could not be read counts
+/// 0). A turn that is flagged for compaction (Flagged) and continues its conversation is judged for too_large on the request of the
+/// runner's seeded path: its characters with the stored history counted as the least of the history and Compaction.#SEEDCHARS (AD-8,
+/// AD-20); the runner checks the session as it stands and the fork against the limit itself. The token budget and the estimate that it
+/// gives back keep the full estimate. Nothing is sent or recorded here.
 ClassMethod Precheck(request As OcuTalon.Bridge.Msg.Request, runner As %String, tokenBudget As %String, requestLimit As %String = "", Output estimate As %Integer) As %String
 {
 	Set facts = {}
@@ -850,21 +883,35 @@ ClassMethod Precheck(request As OcuTalon.Bridge.Msg.Request, runner As %String, 
 			$$$LOGWARNING(##class(OcuTalon.Bridge.Redact).Text("The setting DecisionTokenBudget of Decide is '"_$Extract(tokenBudget, 1, 40)_"'; it must be a whole number of 0 or more, so the token budget counts as 0 (off)"))
 		}
 	}
-	Set limit = ..#MAXREQUESTTOKENS
-	If requestLimit '= "" {
-		If (requestLimit ? 1.N) && (+requestLimit > 0) && (+requestLimit '> ..#MAXREQUESTTOKENS) {
-			Set limit = +requestLimit
-		} Else {
-			$$$LOGWARNING(##class(OcuTalon.Bridge.Redact).Text("The setting RequestTokenLimit of Decide is '"_$Extract(requestLimit, 1, 40)_"'; it must be a whole number from 1 to "_..#MAXREQUESTTOKENS_", so the request-size limit counts as "_..#MAXREQUESTTOKENS))
-		}
-	}
-	Set estimate = ..EstimateTokens(request, runner, , .sc)
+	Set limit = ..RequestLimit(requestLimit, .limitWarning)
+	If limitWarning '= "" $$$LOGWARNING(##class(OcuTalon.Bridge.Redact).Text(limitWarning))
+	Set estimate = ..EstimateTokens(request, runner, , .sc, .history, .chars)
 	If $$$ISERR(sc) {
 		$$$LOGWARNING(##class(OcuTalon.Bridge.Redact).Text("The system prompt or the tool schemas of "_runner_" could not be read in full, so the estimate of the request may count too few tokens: "_$SYSTEM.Status.GetErrorText(sc)))
 	}
 	Do facts.%Set("overBudget", (budget > 0) && (estimate > budget), "boolean")
-	Do facts.%Set("tooLarge", estimate > limit, "boolean")
+	Set bound = estimate
+	If ..Flagged(request, estimate) && (history > 0) Set bound = ##class(OcuTalon.Bridge.Adapter.StepBuffer).Tokens(chars - history + $Select(history < ##class(OcuTalon.Bridge.Compaction).#SEEDCHARS: history, 1: ##class(OcuTalon.Bridge.Compaction).#SEEDCHARS))
+	Do facts.%Set("tooLarge", bound > limit, "boolean")
 	Quit ..Classify(facts)
+}
+
+/// The request-size limit in tokens that the text of the RequestTokenLimit setting gives (AD-8, AD-20), for Precheck and for the runner's
+/// compaction (Adapter.Agent), so that both read it alike: a whole number from 1 to MAXREQUESTTOKENS is the limit; an empty text counts as
+/// MAXREQUESTTOKENS; any other text counts as MAXREQUESTTOKENS too, and warning then holds the text of the warning that names the setting
+/// (cut to 40 characters, not redacted: the caller logs it through Redact.Text), otherwise warning is "". It is pure.
+ClassMethod RequestLimit(text As %String = "", Output warning As %String) As %Integer
+{
+	Set warning = ""
+	Set limit = ..#MAXREQUESTTOKENS
+	If text '= "" {
+		If (text ? 1.N) && (+text > 0) && (+text '> ..#MAXREQUESTTOKENS) {
+			Set limit = +text
+		} Else {
+			Set warning = "The setting RequestTokenLimit of Decide is '"_$Extract(text, 1, 40)_"'; it must be a whole number from 1 to "_..#MAXREQUESTTOKENS_", so the request-size limit counts as "_..#MAXREQUESTTOKENS
+		}
+	}
+	Quit limit
 }
 
 /// The estimated size in tokens of the first model request that the runner makes for the request (AD-6, AD-20): StepBuffer.Tokens of the
@@ -875,17 +922,20 @@ ClassMethod Precheck(request As OcuTalon.Bridge.Msg.Request, runner As %String, 
 ///      (Data.ConversationLink SessionOf), only for a linked turn (Adapter.Agent IsLinked) whose SessionMode is not fresh. It is 0 for
 ///      every other request, and for a turn with no link.
 ///   3. The input: the length of what the runner sends (Adapter.Agent ChatInput), with the seed only on a linked fresh turn.
-/// sc is an error when the agent part could not be read in full: the setting cannot be read or the class is unknown (the part counts 0), or its
+/// history is the characters of part 2 and chars the characters of the whole sum, which Precheck weighs for a flagged turn. sc is an error
+/// when the agent part could not be read in full: the setting cannot be read or the class is unknown (the part counts 0), or its
 /// INSTRUCTIONS or a toolset cannot be read (that piece counts 0 and the rest is counted, RequestSize.AgentChars).
-ClassMethod EstimateTokens(request As OcuTalon.Bridge.Msg.Request, runner As %String, agentClass As %String = "", Output sc As %Status) As %Integer
+ClassMethod EstimateTokens(request As OcuTalon.Bridge.Msg.Request, runner As %String, agentClass As %String = "", Output sc As %Status, Output history As %Integer, Output chars As %Integer) As %Integer
 {
 	Set sc = $$$OK
 	Set chars = 0
+	Set history = 0
 	If agentClass = "" Set agentClass = ##class(OcuTalon.Bridge.Ext.Accessor).ValueFor("AgentClass", "", runner, .sc, "Adapter")
 	If $$$ISOK(sc) Set chars = ##class(OcuTalon.Bridge.RequestSize).AgentChars(agentClass, .sc)
 	Set linked = ##class(OcuTalon.Bridge.Adapter.Agent).IsLinked(request)
 	Set fresh = linked && (request.SessionMode = "fresh")
-	If linked && 'fresh Set chars = chars + ##class(OcuTalon.Bridge.RequestSize).HistoryChars(##class(OcuTalon.Bridge.Data.ConversationLink).SessionOf(request.OwnerRef, runner))
+	If linked && 'fresh Set history = ##class(OcuTalon.Bridge.RequestSize).HistoryChars(##class(OcuTalon.Bridge.Data.ConversationLink).SessionOf(request.OwnerRef, runner))
+	Set chars = chars + history
 	Set chars = chars + $Length(##class(OcuTalon.Bridge.Adapter.Agent).ChatInput(request, fresh))
 	Quit ##class(OcuTalon.Bridge.Adapter.StepBuffer).Tokens(chars)
 }

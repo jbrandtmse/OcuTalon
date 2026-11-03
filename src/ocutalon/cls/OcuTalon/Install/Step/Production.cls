@@ -1,8 +1,11 @@
 Include Ensemble
 
 /// The Production step (AD-23): starts OcuTalon.Production, or restarts every item when it is already running, and
-/// waits until every enabled item runs and every agent runner resolves a model. Never marks the production autostart:
-/// on the Docker path this step is what starts it (AD-3), and an IPM install marks it in Story 15.2.
+/// waits until every enabled item runs and every agent runner resolves a model. After a successful start on the IPM path
+/// (the caller "ipm" of OcuTalon.Install.Registry.Run) it marks the production autostart, so that the instance starts it again
+/// (AD-3, AD-23). On the Docker path it neither marks nor clears the mark: this step is what starts the production there.
+/// A start holds the start lock STARTLOCK, which tells OcuTalon.Install.ReconcileIn that the installer's Reconcile step reconciles
+/// this start, so every production start is reconciled exactly once (AD-23).
 /// At every start the step first writes the System Default Setting row that enables or disables the EvalIn item from the
 /// OCUTALON_EVAL environment variable (AD-22). A System Default Setting overrides the Enabled flag of the production
 /// definition, so the definition stays as the class says and a recompile drops nothing. It then seeds the Model row of
@@ -32,6 +35,10 @@ Parameter EVALITEM = "EvalIn";
 /// The longest the step waits for every item to run, in seconds.
 Parameter WAITSECONDS = 60;
 
+/// The lock that every start of the production holds while it starts and waits for its items (Start), and that OcuTalon.Install.ReconcileIn
+/// holds while it reconciles. A process that finds it taken knows that a start, or a reconcile, is under way.
+Parameter STARTLOCK = "^OcuTalon.Install.Start";
+
 /// The longest a restart waits for the jobs to stop, in seconds.
 Parameter STOPSECONDS = 30;
 
@@ -53,12 +60,48 @@ ClassMethod Run() As %Status
 	If $$$ISERR(sc) Quit sc
 	Set sc = ..SeedAllowList(..#PRODUCTION)
 	If $$$ISERR(sc) Quit sc
-	Quit ..Start(..#WAITSECONDS)
+	Set sc = ..Start(..#WAITSECONDS)
+	If $$$ISERR(sc) Quit sc
+	Quit ..AutoStart(..Caller())
+}
+
+/// Marks the production autostart (Ens.Director SetAutoStart) when the caller is "ipm", and does nothing for any other caller, so the
+/// Docker path neither marks nor clears the mark.
+ClassMethod AutoStart(caller As %String) As %Status
+{
+	If caller '= "ipm" Quit $SYSTEM.Status.OK()
+	Quit ##class(Ens.Director).SetAutoStart(..#PRODUCTION)
+}
+
+/// 1 when another process holds the start lock: a start of the production, or the reconcile of one, is under way. The probe takes the
+/// lock with timeout 0 and releases it at once.
+ClassMethod Starting() As %Boolean
+{
+	Lock +@..#STARTLOCK:0
+	If '$Test Quit 1
+	Lock -@..#STARTLOCK
+	Quit 0
 }
 
 /// Starts, recovers or restarts the production by the state the director reports, then polls once a second, up to wait
 /// seconds, until NotRunning() is empty. Fails naming the items that do not run, or the runners that resolve no model.
 ClassMethod Start(wait As %Integer = {..#WAITSECONDS}) As %Status
+{
+	Lock +@..#STARTLOCK:..#WAITSECONDS
+	If '$Test {
+		Quit $SYSTEM.Status.Error(5001, ..#PRODUCTION_" cannot start: another start of OcuTalon.Production, or its reconcile, holds the start lock")
+	}
+	Try {
+		Set sc = ..StartLocked(wait)
+	} Catch exception {
+		Set sc = exception.AsStatus()
+	}
+	Lock -@..#STARTLOCK
+	Quit sc
+}
+
+/// Start, with the start lock held.
+ClassMethod StartLocked(wait As %Integer) As %Status [ Private ]
 {
 	Set sc = ##class(Ens.Director).GetProductionStatus(.name, .state)
 	If $$$ISERR(sc) Quit sc

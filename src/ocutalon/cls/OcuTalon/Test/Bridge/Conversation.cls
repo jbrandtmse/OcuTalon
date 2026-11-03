@@ -792,9 +792,10 @@ ClassMethod Stored(id As %String, property As %String) As %String [ Private ]
 }
 
 /// --- helpers ---
+/// NewHost, NewTurn, Send and LinkOf are public: Test.Bridge.Compaction and Test.Agent.Compaction reuse them.
 /// A runner host (Test.Bridge.Runner NewRunner) named ZzRunner for the agent class, with the effort low and the provider of the CI mock. The
 /// scenario of a request is picked by the marker in its input.
-ClassMethod NewHost(agentClass As %String = "OcuTalon.Agent.Chat") As OcuTalon.Bridge.Operation.AgentRunner [ Private ]
+ClassMethod NewHost(agentClass As %String = "OcuTalon.Agent.Chat") As OcuTalon.Bridge.Operation.AgentRunner
 {
 	Quit $ClassMethod(..#RUNNERTEST, "NewRunner", agentClass, "low")
 }
@@ -802,7 +803,7 @@ ClassMethod NewHost(agentClass As %String = "OcuTalon.Agent.Chat") As OcuTalon.B
 /// A request for the runner: the kind (a turn) with the provenance (user), the input with " (test <ref>)" appended, so that the mock's log finds it
 /// by the reference (ItemId), the owner, the session mode, the seed and the note. ref is the reference. It has a DecisionRef of its own, because
 /// Decide allocates it before the runner is asked.
-ClassMethod NewTurn(input As %String, owner As %String, Output ref As %String, kind As %String = "turn", provenance As %String = "user", mode As %String = "", seed As %String = "", note As %String = "") As OcuTalon.Bridge.Msg.Request [ Private ]
+ClassMethod NewTurn(input As %String, owner As %String, Output ref As %String, kind As %String = "turn", provenance As %String = "user", mode As %String = "", seed As %String = "", note As %String = "") As OcuTalon.Bridge.Msg.Request
 {
 	Set ref = ##class(OcuTalon.Bridge.Ids).NewRef()
 	Set request = ##class(OcuTalon.Bridge.Msg.Request).%New()
@@ -822,7 +823,7 @@ ClassMethod NewTurn(input As %String, owner As %String, Output ref As %String, k
 
 /// Sends the request through the host's OnMessage and returns the status; reply is the runner's Reply (or ""), and logged holds the entries of the
 /// mock's log for the requests that carry the reference of the request.
-Method Send(host As OcuTalon.Bridge.Operation.AgentRunner, request As OcuTalon.Bridge.Msg.Request, Output reply As OcuTalon.Bridge.Msg.Reply, Output logged As %DynamicArray) As %Status [ Private ]
+ClassMethod Send(host As OcuTalon.Bridge.Operation.AgentRunner, request As OcuTalon.Bridge.Msg.Request, Output reply As OcuTalon.Bridge.Msg.Reply, Output logged As %DynamicArray) As %Status
 {
 	Set logged = []
 	Set mark = ##class(OcuTalon.Test.Contract.Mock).LogMark()
@@ -877,7 +878,7 @@ Method SessionStats(host As OcuTalon.Bridge.Operation.AgentRunner, id As %String
 }
 
 /// The id of the AI session that the link of the owner and ZzRunner names, or "".
-ClassMethod LinkOf(owner As %String) As %String [ Private ]
+ClassMethod LinkOf(owner As %String) As %String
 {
 	Quit ##class(OcuTalon.Bridge.Data.ConversationLink).SessionOf(owner, ..#AGENT)
 }
