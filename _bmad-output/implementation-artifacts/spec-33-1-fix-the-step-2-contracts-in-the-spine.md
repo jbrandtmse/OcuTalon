@@ -2,7 +2,8 @@
 title: 'Story 33.1: Fix the step 2 contracts in the spine'
 type: 'feature'
 created: '2026-11-03'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '6fe91568dde94f0ad82449494bfb6605cdedb491'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -10,7 +11,35 @@ context:
   - '{project-root}/_bmad-output/implementation-artifacts/evidence/33-1-task0-zone-measurement.md'
   - '{project-root}/_bmad-output/planning-artifacts/ux-designs/ux-OcuTalon-2026-10-16/EXPERIENCE.md'
 warnings: [oversized]
-deferred: []
+deferred:
+  - summary: >-
+      The two new Digest tables have no purge: nothing deletes CheckRun or Sent rows, although their class docs and the spine say they are purged with the digest area's rows (AD-27).
+    evidence: |-
+      Install.Step.Digest.Purge calls only Digest.Data.Item.Purge and Test.Install.Retention asserts Item rows only; both tables are empty until Stories 17.5 and 17.6 write them, and Install/** is on the stability watch.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Install/Step/Digest.cls, src/ocutalon/cls/OcuTalon/Digest/Data/CheckRun.cls
+    severity: medium
+  - summary: >-
+      The retry timer text derives the retry runners' entries from 110 - TimerSeconds while the wait is min(TimerSeconds, 110 - T1), and a TimerSeconds above 98 leaves less than MINTIMER (12) for the retry.
+    evidence: |-
+      AD-8's retry timer bullet (S4): Timeouts.Apply would derive an empty timeout set for the retry entries when 110 - TimerSeconds < 12, so the retry could never be sent; Story 17.2 must state which timer wins and whether TimerSeconds is capped at 98 when RetryItem is set.
+    location: >-
+      ARCHITECTURE-SPINE.md, AD-8 "The retry timer"
+    severity: medium (unverified)
+  - summary: >-
+      Coverage and digest edge cases the spine text leaves to Story 17.5: a check with no run at all in the window, the key for a not_checked run whose Reason is empty or unknown, and percentages that are not whole numbers for the count slots of digest.healthy.
+    evidence: |-
+      AD-18 "The daily digest" fixes missed, stale, paused and the three reasons, and digest.healthy declares count slots for databasesFull and licenseUse; Coverage.Build must map Reason to a key through a fixed table, treat "no run since the span start" as missed, and round the percentages.
+    location: >-
+      ARCHITECTURE-SPINE.md, AD-18 "The daily digest"; src/ocutalon/cls/OcuTalon/Msg/Catalog/Watch.cls
+    severity: low
+  - summary: >-
+      Sent's due lookup reads the newest scheduled row's DueAt, but SessionRefDueAtIndex has no Kind and the spine does not say what DueAt holds for a requested row.
+    evidence: |-
+      A requested row with a DueAt set could be taken for the newest scheduled row; Story 17.6 should store an empty DueAt for a requested digest or append an index on (SessionRef, Kind, DueAt) with its storage.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Digest/Data/Sent.cls
+    severity: low
 ---
 
 <intent-contract>
@@ -82,23 +111,23 @@ deferred: []
 
 **Execution:**
 - [x] Task 0 (done lead-side before this plan) -- measured on slot C, build 154: `$SYSTEM.Process.TimeZone(<IANA name>)` makes the conversions of `Bridge.Time` and `Data.Time` follow a named zone at once, DST included (12/12 instants), picked up by a running job in 0.07-0.36 s and a running host in 0.25-1.16 s with no restart; `$ZTIMEZONE` fails; the restart fallback and its veto item are not needed. Evidence: `_bmad-output/implementation-artifacts/evidence/33-1-task0-zone-measurement.md`.
-- [ ] `_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md` -- apply edits S1 to S18 of `### Spine edits` with the content of `### Spine content`, each at the anchor named, each a new bullet, row, clause or name with its marker; remove the three Deferred rows (S18); then run `lint_spine.py` until `"ok": true` -- the AC's spine update (Rules 6, 20).
-- [ ] `_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/.memlog.md` -- one `memlog.py append --type decision` line naming each AD extended and the new rows (Rule 20 light path).
-- [ ] `src/ocutalon/cls/OcuTalon/Digest/Process.cls` -- new stub business process (copy `Test/Schedule/ChecksStub.cls`'s pattern; doc comment states the contract per S6) -- the `Digest` item's class.
-- [ ] `src/ocutalon/cls/OcuTalon/Digest/Data/CheckRun.cls` -- new `%Persistent`, `DEFAULTGLOBAL "^OcuTalonP.CheckRun"`: `CheckRef` and `SessionRef` `%String(COLLATION="EXACT", MAXLEN=22)`, `RanAt` `%String(MAXLEN=20)`, `Result` `%String(MAXLEN=32)`, `Reason` `%String(MAXLEN=32)`, `Finding` `%String(MAXLEN=1000)`, `HeaderId` `%Integer`; `Index CheckRefRanAtIndex On (CheckRef, RanAt)`, `Index SessionRefRanAtIndex On (SessionRef, RanAt)`; compile, commit the generated Storage block -- coverage storage (S6).
-- [ ] `src/ocutalon/cls/OcuTalon/Digest/Data/Sent.cls` -- new `%Persistent`, `DEFAULTGLOBAL "^OcuTalonP.DigestSent"`: `Ref`, `SessionRef`, `ItemId`, `DecisionRef` `%String(COLLATION="EXACT", MAXLEN=22)`, `Kind` `%String(MAXLEN=32)`, `DueAt`, `WindowStart`, `SentAt` `%String(MAXLEN=20)`, `CatalogKey` `%String(MAXLEN=128)`, `Slots` `%String(MAXLEN="")`, `AllClear` `%Boolean [InitialExpression = 0]`; `Index RefIndex On Ref [Unique]`, `Index SessionRefSentAtIndex On (SessionRef, SentAt)`, `Index SessionRefDueAtIndex On (SessionRef, DueAt)`; commit Storage -- the per-session digest record (S6).
-- [ ] `src/short-names.tsv` -- append `CheckRun	^OcuTalonP.CheckRun	OcuTalon.Digest.Data.CheckRun	A` and `DigestSent	^OcuTalonP.DigestSent	OcuTalon.Digest.Data.Sent	A` (tabs) -- registry (AD-3).
-- [ ] `src/ocutalon/cls/OcuTalon/Production.cls` -- in Lane A's region only: after `ChatAgent` add `TriageAgentRetry`, `DiagnosisAgentRetry`, `ChatAgentRetry` (`OcuTalon.Bridge.Operation.AgentRunner`, `PoolSize="1" Enabled="false"`, no settings: no AgentClass, so the Provider step skips them); after `DigestStore` add `Digest` (`OcuTalon.Digest.Process`, `PoolSize="1" Enabled="false"`) -- AC "new Lane A items ... disabled".
-- [ ] `src/bridge/cls/OcuTalon/Bridge/Settings.cls` -- new class, the one bridge entry point for `SettingsOps` (S7), stub bodies: `Providers() As %DynamicArray`; `Values() As %DynamicObject`; `Check(name As %String, value As %String) As %Status`; `Set(name As %String, value As %String, Output old As %String) As %Status`; `CheckModel(agent As %String, provider As %String, model As %String, second As %Boolean = 0) As %Status`; `SetModel(agent As %String, provider As %String, model As %String, second As %Boolean = 0, Output old As %DynamicObject) As %Status`; `SetPrice(model As %String, prices As %DynamicObject, Output old As %DynamicObject) As %Status`; `TestRequest(agent As %String, Output request As OcuTalon.Bridge.Msg.Request) As %Status`; `TestAnswer(response As %Persistent, durationMs As %Integer) As %DynamicObject`. Doc comment states each contract (S7) and that each body is a stub until Stories 17.3/17.4; references no OcuTalon package outside the bridge.
-- [ ] `src/bridge/cls/OcuTalon/Bridge/Time.cls` -- add stubs `Zone() As %String` (returns ""), `SetZone(name As %String) As %Status` (5003), `Apply()` (no-op); class doc gains their contract per S5; existing methods untouched.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Contract/Ac.cls` -- append 12 `Signatures` entries (the 9 `Bridge.Settings` methods and `Bridge.Time.Zone`, `.SetZone`, `.Apply`), output args as `*old` / `*request`; raise the floor to the new count and its doc line.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Install/Production.cls` -- lane A oracle rows in production order: the three retry items (`"enabled": 0, "stub": 0, "settings": []`) after `ChatAgent`, `Digest` (`"enabled": 0, "stub": 1`) after `DigestStore`; doc line for the new items.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Install/Provider.cls` -- `TestEntries`: count and check only runners with an agent class (3), and assert the three retry items have no ProviderConfig row and no entry of their own (footprint extension, Test/Install).
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Digest/Contracts.cls` -- new, extends `OcuTalon.Test.Contract`: `XData Contracts` for `CheckRun` and `Sent` (`AssertContract`); `TestRegistry`: each class's `DEFAULTGLOBAL` equals its `src/short-names.tsv` row, data location is the global plus D, and data and index globals resolve to the private database (copy of `Test.Data.Tables.TestPrivateRecords`'s check for two rows: that test is Lane B's, contended, and scoped to `Data`/`Live`/`Bridge.Data`); `TestDigestStub`: `Digest.Process` carries STUB 1 and a shadow instance answers 5003.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Bridge/SettingsStubs.cls` -- new: every `Bridge.Settings` `%Status` method returns 5003, `Providers()` is `[]`, `Values()` and `TestAnswer` are `{}`, `old` comes back ""; `Bridge.Time.Zone()` is "", `SetZone` returns 5003, `Apply()` leaves `ToLocal` of a fixed UTC time unchanged under the process zone the test sets and restores (extend `OcuTalon.Test.Bridge.ZoneCase`); no System Default Settings row named `InstanceZone` or `RetryItem` exists after the calls.
-- [ ] After the author's acceptance (lead records it in Design Notes): `_bmad-output/planning-artifacts/ux-designs/ux-OcuTalon-2026-10-16/EXPERIENCE.md` -- insert one self-contained block `### Daily digest (FR-35 to FR-37)` right after the "Notifications and reminders" table (before "### Incident notice with approval request"), marked `[ADDED 2026-11-03, Story 33.1, author's acceptance ...]`, holding exactly the accepted rows of `### Proposed digest texts (for the author)`; touch nothing near line 891.
-- [ ] After the author's acceptance (lead records it in Design Notes): `src/ocutalon/cls/OcuTalon/Msg/Catalog/Watch.cls` -- add each accepted `digest.*` key except `digest.cost` (which waits for the `dailyCost` slot type, S16) with its text, slots and `"source": "EXPERIENCE Message Catalog / Daily digest / <case>"`; class doc names the digest texts.
-- [ ] After the author's acceptance (lead records it in Design Notes): `src/ocutalon/cls/OcuTalon/Test/Msg/Catalog.cls` -- appends only: the new keys to `XData Keys` "watch", one `XData Fixtures` entry per new key (UJ-1 fixture context), the Watch count (26 plus the keys added) at :3, :81, :83 and the total at :121.
+- [x] `_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md` -- apply edits S1 to S18 of `### Spine edits` with the content of `### Spine content`, each at the anchor named, each a new bullet, row, clause or name with its marker; remove the three Deferred rows (S18); then run `lint_spine.py` until `"ok": true` -- the AC's spine update (Rules 6, 20).
+- [x] `_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/.memlog.md` -- one `memlog.py append --type decision` line naming each AD extended and the new rows (Rule 20 light path).
+- [x] `src/ocutalon/cls/OcuTalon/Digest/Process.cls` -- new stub business process (copy `Test/Schedule/ChecksStub.cls`'s pattern; doc comment states the contract per S6) -- the `Digest` item's class.
+- [x] `src/ocutalon/cls/OcuTalon/Digest/Data/CheckRun.cls` -- new `%Persistent`, `DEFAULTGLOBAL "^OcuTalonP.CheckRun"`: `CheckRef` and `SessionRef` `%String(COLLATION="EXACT", MAXLEN=22)`, `RanAt` `%String(MAXLEN=20)`, `Result` `%String(MAXLEN=32)`, `Reason` `%String(MAXLEN=32)`, `Finding` `%String(MAXLEN=1000)`, `HeaderId` `%Integer`; `Index CheckRefRanAtIndex On (CheckRef, RanAt)`, `Index SessionRefRanAtIndex On (SessionRef, RanAt)`; compile, commit the generated Storage block -- coverage storage (S6).
+- [x] `src/ocutalon/cls/OcuTalon/Digest/Data/Sent.cls` -- new `%Persistent`, `DEFAULTGLOBAL "^OcuTalonP.DigestSent"`: `Ref`, `SessionRef`, `ItemId`, `DecisionRef` `%String(COLLATION="EXACT", MAXLEN=22)`, `Kind` `%String(MAXLEN=32)`, `DueAt`, `WindowStart`, `SentAt` `%String(MAXLEN=20)`, `CatalogKey` `%String(MAXLEN=128)`, `Slots` `%String(MAXLEN="")`, `AllClear` `%Boolean [InitialExpression = 0]`; `Index RefIndex On Ref [Unique]`, `Index SessionRefSentAtIndex On (SessionRef, SentAt)`, `Index SessionRefDueAtIndex On (SessionRef, DueAt)`; commit Storage -- the per-session digest record (S6).
+- [x] `src/short-names.tsv` -- append `CheckRun	^OcuTalonP.CheckRun	OcuTalon.Digest.Data.CheckRun	A` and `DigestSent	^OcuTalonP.DigestSent	OcuTalon.Digest.Data.Sent	A` (tabs) -- registry (AD-3).
+- [x] `src/ocutalon/cls/OcuTalon/Production.cls` -- in Lane A's region only: after `ChatAgent` add `TriageAgentRetry`, `DiagnosisAgentRetry`, `ChatAgentRetry` (`OcuTalon.Bridge.Operation.AgentRunner`, `PoolSize="1" Enabled="false"`, no settings: no AgentClass, so the Provider step skips them); after `DigestStore` add `Digest` (`OcuTalon.Digest.Process`, `PoolSize="1" Enabled="false"`) -- AC "new Lane A items ... disabled".
+- [x] `src/bridge/cls/OcuTalon/Bridge/Settings.cls` -- new class, the one bridge entry point for `SettingsOps` (S7), stub bodies: `Providers() As %DynamicArray`; `Values() As %DynamicObject`; `Check(name As %String, value As %String) As %Status`; `Set(name As %String, value As %String, Output old As %String) As %Status`; `CheckModel(agent As %String, provider As %String, model As %String, second As %Boolean = 0) As %Status`; `SetModel(agent As %String, provider As %String, model As %String, second As %Boolean = 0, Output old As %DynamicObject) As %Status`; `SetPrice(model As %String, prices As %DynamicObject, Output old As %DynamicObject) As %Status`; `TestRequest(agent As %String, Output request As OcuTalon.Bridge.Msg.Request) As %Status`; `TestAnswer(response As %Persistent, durationMs As %Integer) As %DynamicObject`. Doc comment states each contract (S7) and that each body is a stub until Stories 17.3/17.4; references no OcuTalon package outside the bridge.
+- [x] `src/bridge/cls/OcuTalon/Bridge/Time.cls` -- add stubs `Zone() As %String` (returns ""), `SetZone(name As %String) As %Status` (5003), `Apply()` (no-op); class doc gains their contract per S5; existing methods untouched.
+- [x] `src/ocutalon/cls/OcuTalon/Test/Contract/Ac.cls` -- append 12 `Signatures` entries (the 9 `Bridge.Settings` methods and `Bridge.Time.Zone`, `.SetZone`, `.Apply`), output args as `*old` / `*request`; raise the floor to the new count and its doc line.
+- [x] `src/ocutalon/cls/OcuTalon/Test/Install/Production.cls` -- lane A oracle rows in production order: the three retry items (`"enabled": 0, "stub": 0, "settings": []`) after `ChatAgent`, `Digest` (`"enabled": 0, "stub": 1`) after `DigestStore`; doc line for the new items.
+- [x] `src/ocutalon/cls/OcuTalon/Test/Install/Provider.cls` -- `TestEntries`: count and check only runners with an agent class (3), and assert the three retry items have no ProviderConfig row and no entry of their own (footprint extension, Test/Install).
+- [x] `src/ocutalon/cls/OcuTalon/Test/Digest/Contracts.cls` -- new, extends `OcuTalon.Test.Contract`: `XData Contracts` for `CheckRun` and `Sent` (`AssertContract`); `TestRegistry`: each class's `DEFAULTGLOBAL` equals its `src/short-names.tsv` row, data location is the global plus D, and data and index globals resolve to the private database (copy of `Test.Data.Tables.TestPrivateRecords`'s check for two rows: that test is Lane B's, contended, and scoped to `Data`/`Live`/`Bridge.Data`); `TestDigestStub`: `Digest.Process` carries STUB 1 and a shadow instance answers 5003.
+- [x] `src/ocutalon/cls/OcuTalon/Test/Bridge/SettingsStubs.cls` -- new: every `Bridge.Settings` `%Status` method returns 5003, `Providers()` is `[]`, `Values()` and `TestAnswer` are `{}`, `old` comes back ""; `Bridge.Time.Zone()` is "", `SetZone` returns 5003, `Apply()` leaves `ToLocal` of a fixed UTC time unchanged under the process zone the test sets and restores (extend `OcuTalon.Test.Bridge.ZoneCase`); no System Default Settings row named `InstanceZone` or `RetryItem` exists after the calls.
+- [x] After the author's acceptance (lead records it in Design Notes): `_bmad-output/planning-artifacts/ux-designs/ux-OcuTalon-2026-10-16/EXPERIENCE.md` -- insert one self-contained block `### Daily digest (FR-35 to FR-37)` right after the "Notifications and reminders" table (before "### Incident notice with approval request"), marked `[ADDED 2026-11-03, Story 33.1, author's acceptance ...]`, holding exactly the accepted rows of `### Proposed digest texts (for the author)`; touch nothing near line 891.
+- [x] After the author's acceptance (lead records it in Design Notes): `src/ocutalon/cls/OcuTalon/Msg/Catalog/Watch.cls` -- add each accepted `digest.*` key except `digest.cost` (which waits for the `dailyCost` slot type, S16) with its text, slots and `"source": "EXPERIENCE Message Catalog / Daily digest / <case>"`; class doc names the digest texts.
+- [x] After the author's acceptance (lead records it in Design Notes): `src/ocutalon/cls/OcuTalon/Test/Msg/Catalog.cls` -- appends only: the new keys to `XData Keys` "watch", one `XData Fixtures` entry per new key (UJ-1 fixture context), the Watch count (26 plus the keys added) at :3, :81, :83 and the total at :121.
 
 **Acceptance Criteria:**
 - Given Task 0's evidence file, when the spine update is written, then AD-18's new zone bullet names the single run-time source (S5) by that measurement, the "process zone with a restart" fallback appears nowhere, and no veto item is raised for it.
@@ -114,6 +143,30 @@ deferred: []
 - 2026-11-03 (lead, before implement): orchestrator rulings recorded under `### Orchestrator rulings` -- U-245 digest texts accepted (the "after the author's acceptance" tasks are in scope; `digest.cost` stays with 33.2); U-246 spine retry case allowed on the additive-S2 condition (S2 and S13 reworded to scope the lock skip to `RetryOf` and carry the 17.2 test note; marker text fixed); U-247 zone storage accepted; `dailyCost` decided as a 33.2 contract.
 
 ## Review Triage Log
+
+### 2026-11-03 -- Review pass
+- verdicts: 20 findings -- high 0, medium 4, low 14, false 2, maybe-false 0 (one row per root-cause group of the layers' reports: Blind Hunter 10, Edge Case Hunter 9 and Verification Gap 4 report items, merged where they name the same defect; the Intent Alignment Auditor reported divergence notes and no finding, its digest.cost note is the row above)
+- findings:
+  - `[low]` `[reject]` Blind: digest.nothingWatched in the catalog vs checks.nothingWatched in the spine -- the spine uses checks.nothingWatched as Sent.CatalogKey and digest.nothingWatched as the part text; both are the spec's own wording (S9, S11) and the proposal table, so changing either alters specified behavior.
+  - `[low]` `[reject]` Blind: "Yesterday's cost" vs the window -- the accepted text is fixed by U-245 and the cost span is Story 17.6's to build; no behavior ships here.
+  - `[false]` `[reject]` Blind: digest.cost missing -- ruling 4 and the spec put it with Story 33.2 (needs the dailyCost slot type, Lane B).
+  - `[low]` `[reject]` Blind/Intent: {days} in EXPERIENCE vs {itemNoun} in the catalog -- the test allows a noun only under that name; recorded as Decided in-stage 16, rendered sentence identical.
+  - `[low]` `[reject]` Blind: EXPERIENCE table merges two cases and has no not-checked vital sign row -- the table is the accepted U-245 proposal verbatim.
+  - `[medium]` `[defer]` Blind/Verification: no purge for CheckRun and Sent -- deferred, Install/** is on the stability watch and the writers are 17.5/17.6.
+  - `[low]` `[defer]` Blind/Edge: Sent due lookup needs Kind -- deferred to Story 17.6 (see deferred list).
+  - `[low]` `[reject]` Blind/Edge/Verification: no VALUELIST on Kind, Result and Reason -- the task fixes the property types; adding value lists changes specified storage types.
+  - `[low]` `[reject]` Blind: stubs not marked consistently -- only Digest.Process is an item class; the settings and time stubs are pinned by Test.Contract.Ac and Test.Bridge.SettingsStubs, and the spec says stub bodies.
+  - `[low]` `[reject]` Blind: RetryOf, RetryItem and Point not pinned in Ac -- the story adds no Request property and no Decide behavior (ruling 2); Story 17.2 owns the pins.
+  - `[medium]` `[defer]` Blind/Edge: retry timer text -- see deferred list (Story 17.2).
+  - `[low]` `[defer]` Edge: coverage rules for a check with no run, Reason-to-key mapping, fractional percentages -- see deferred list (Story 17.5).
+  - `[false]` `[reject]` Edge: Provider.TestEntries must assert Runners() returns an empty class -- it does (class = "" branch asserts the retry items before skipping them).
+  - `[low]` `[reject]` Edge: the task text says "no settings" for the retry items -- the spec's own reasoning was wrong and is corrected by Decided in-stage 14; editing the task text is not a code fix.
+  - `[low]` `[patch]` Edge/Verification: Provider.TestEntries asserted EntryJson(item), a name the step never writes, so it could not fail -- removed the line; the lookup under the agent's name remains.
+  - `[medium]` `[patch]` Verification: COLLATION EXACT on the five ref columns pinned by no test -- added Test.Digest.Contracts.TestRefCollation and a mutation line.
+  - `[medium]` `[patch]` Verification: TestNothingWritten read only the Price count and not the retry entries -- State() now reads the Price rows by value and the three retry entries (absent or present), with a mutation line.
+  - `[low]` `[reject]` Verification: absolute-absence assertions on InstanceZone and RetryItem rows -- they are the spec's stated check; State() carries the before/after comparison.
+  - `[low]` `[reject]` Verification: redundant last Zone assertion, missing mutation lines for the document ACs and the ProductionRules relaxation, oracle copy in TestRegistry -- the document ACs have no automated falsifier (planned mutations say so), the relaxation is pinned by the oracle row, and test-storage.sh is the real registry check.
+  - `[low]` `[reject]` Verification/Intent: stub tests turn red when 17.3/17.4 build the classes, and no test ties catalog text to EXPERIENCE -- both are by design of a stub story.
 
 ## Design Notes
 
@@ -135,6 +188,11 @@ deferred: []
 11. **Model test** is two calls (`TestRequest`, `TestAnswer`) because a class method cannot send to `Decide`; `SettingsOps` sends the request synchronously. It tests an agent's first model (FR-39's Test checks "the chosen model").
 12. **Greetings:** 00:00-11:59 morning, 12:00-17:59 afternoon, 18:00-23:59 evening, instance zone.
 13. **`digest.channels`** default `web,phone,telegram`, each used only where the session has it (phone in demo mode, Telegram when paired).
+14. **Retry items carry an empty `AgentClass` setting (implement).** Measured: an unset `AgentClass` defaults to `%AI.Agent` on the AI Hub adapter, so `Install.Step.Provider` wrote an entry and a ProviderConfig row for each disabled retry item. `<Setting Target="Adapter" Name="AgentClass"></Setting>` makes `Runners()` return an empty class, which the step skips (no `Install/**` edit). The oracle rows in `Test.Install.Production` carry that setting, and `Test.Install.ProductionRules` (Lane A, outside the footprint list) skips the lane-of-agent-class check for an empty value. S4 and S14 in the spine say "empty `AgentClass`".
+15. **Catalog keys have one dot (implement).** `Test.Msg.Catalog` (contended; only counts, key list and fixtures may change) requires `<prefix>.<name>`, so the nine accepted two-dot keys are `digest.greetingMorning`, `digest.greetingAfternoon`, `digest.greetingEvening` and `digest.notChecked` plus `Unreachable`, `Error`, `Timeout`, `Missed`, `Paused` or `Stale`; the texts are unchanged and S6 names the coverage keys that way. Stories 17.5 to 17.7 use these names.
+16. **Noun slot name (implement).** The catalog test allows a noun slot only as `itemNoun`, so `digest.healthy` declares `{itemNoun}` where the accepted text shows `{days}`; the rendered sentence is identical.
+17. **`lint_spine.py` and `"ok": true` (implement).** The linter reports 8 `placeholder` findings (severity low) on lines 462, 1024, 1037, 1101 and 1107, which are existing text (catalog-style `{time}`, `{day}`, `{reason}` tokens); `HEAD` before this story has the same 8, so `"ok": true` cannot be reached without rewriting existing sentences, which the story forbids. This story adds no finding (no `ad_id`, `ad_fields` or `placeholder` finding of its own); removing AD-28's Rule line turns it red with `ad_fields`.
+18. **Memlog.** `.memlog.md` is gitignored and absent from the worktree's tracked files; the decision line was appended to the worktree's own copy through `_bmad/scripts/memlog.py` (the lead replays it onto the main checkout's log).
 
 **DW-643** (Lane B, Story 18.2): not fixed here (U-177). Its expected behaviour is named in S5: `Data.Time.FromLocal` reads a time in the repeated fall-back hour at its first instant (fold 0), whatever the process converted before.
 
@@ -272,6 +330,18 @@ Every IRIS line runs with the lane prefix `P` = `OCUTALON_LOCK_DIR="$(dirname "$
 
 **Planned mutations (Rule 19), one per AC's pinning test:** the zone, spine-content and retried-reasons ACs are document ACs, pinned by the reviewer's read of the spine diff against `### Spine content` and the evidence file (no automated falsifier exists for prose); their structural pin is `lint_spine`: remove the `**Rule:**` line of an AD -> `lint_spine` red; items AC: set `Digest` `Enabled="true"` -> `Test.Install.Production` red; give `TriageAgentRetry` an AgentClass -> `Test.Install.Provider` red; tables AC: delete the `CheckRun` registry row -> `test-storage.sh` red, change `Sent.Kind` MAXLEN -> `Test.Digest.Contracts` red; APIs AC: rename `Settings.Set`'s `old` -> `Test.Contract.Ac` red, make `SetZone` write the `InstanceZone` row -> `Test.Bridge.SettingsStubs` red; texts AC: remove one added `digest.*` key -> `Test.Msg.Catalog` red. Record each as `mutation: <change> -> <test went red>` here.
 
+**Observed mutations (stage implement, each reverted; `git diff --stat` and `cmp` against a saved copy showed the tree byte-identical):**
+- mutation: `Digest` `Enabled="false"` -> `"true"` in `Production.cls` -> `Test.Install.Production` red (TestDefinition: item 22 is Digest as the ownership table says).
+- mutation: `AgentClass` of `TriageAgentRetry` set to `OcuTalon.Agent.Triage` -> `Test.Install.Provider` red (TestEntries: three runners have an agent class: 4).
+- mutation: the `CheckRun` row removed from `src/short-names.tsv` -> `test-storage.sh` red (registry-row).
+- mutation: `Sent.Kind` `MAXLEN` 32 -> 16 -> `Test.Digest.Contracts` red (Kind has MAXLEN '16', not '32').
+- mutation: `Settings.Set`'s `old` renamed `previous` -> `Test.Contract.Ac` red (Settings.Set takes (name,value,*old) in that order).
+- mutation: `Bridge.Time.SetZone` writes the `InstanceZone` System Default Settings row -> `Test.Bridge.SettingsStubs` red (TestNothingWritten: both assertions).
+- mutation: the `digest.savedNone` entry removed from `Catalog.Watch` -> `Test.Msg.Catalog` red (TestEveryKeyOnEveryChannel and others).
+- mutation: the `**Rule:**` line of AD-28 removed -> `lint_spine.py` red (`ad_fields`: AD-28 missing required field rule).
+- mutation: `COLLATION = "EXACT"` removed from `Sent.Ref` -> `Test.Digest.Contracts` red (TestRefCollation; the compared type parameters of `AssertContract` do not include COLLATION).
+- mutation: `Settings.SetModel` stub creates the Config Store entry `AI.LLM.OcuTalonChatRetry` (copy of the Chat entry) -> `Test.Bridge.SettingsStubs` red (TestNothingWritten: the snapshot now reads the retry entries and the Price rows by value); the warm stack was rebuilt afterwards.
+
 **Shared surfaces:** the production's item list (`Test.Install.Production` oracle; `Test.Install.Provider` runner count; `live:production`); `src/short-names.tsv` (`test-storage.sh`); `Test.Contract.Ac`'s signature list and floor; after acceptance, the `Catalog.Watch` key count, Keys list and Fixtures (`Test.Msg.Catalog`); the spine's ownership tables and Deferred list. Standing criterion: every test added or changed passes on a fresh environment, in either order.
 
 **Manual checks:**
@@ -280,5 +350,24 @@ Every IRIS line runs with the lane prefix `P` = `OCUTALON_LOCK_DIR="$(dirname "$
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** Story 33.1 writes the step 2 Lane A contracts into the spine as additive, marked unions (S1 to S18, three Deferred rows removed), records the digest texts in EXPERIENCE.md and Catalog.Watch (21 keys; `digest.cost` stays with Story 33.2), and lands the Lane A stubs: the disabled `Digest` item and three disabled retry runner items, the `Digest.Data.CheckRun` and `Digest.Data.Sent` tables with registry rows and committed storage, and `Bridge.Settings` plus `Bridge.Time.Zone/SetZone/Apply` as pinned stubs. The zone source is Task 0's `InstanceZone` setting; the process-zone-with-restart fallback appears nowhere.
+
+**Files changed.**
+- `_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md`: S1 to S18, each with its marker.
+- `_bmad-output/planning-artifacts/ux-designs/ux-OcuTalon-2026-10-16/EXPERIENCE.md`: the `Daily digest (FR-35 to FR-37)` block after the Notifications table.
+- `src/ocutalon/cls/OcuTalon/Digest/Process.cls`, `Digest/Data/CheckRun.cls`, `Digest/Data/Sent.cls`: stub item and two tables.
+- `src/bridge/cls/OcuTalon/Bridge/Settings.cls` (new) and `Bridge/Time.cls`: stub APIs.
+- `src/ocutalon/cls/OcuTalon/Production.cls`: three disabled retry items (empty `AgentClass`) and the disabled `Digest`.
+- `src/ocutalon/cls/OcuTalon/Msg/Catalog/Watch.cls`, `src/short-names.tsv`: 21 digest keys; two registry rows.
+- Tests: `Test/Digest/Contracts.cls`, `Test/Bridge/SettingsStubs.cls` (new); `Test/Contract/Ac.cls`, `Test/Install/Production.cls`, `Test/Install/ProductionRules.cls`, `Test/Install/Provider.cls`, `Test/Msg/Catalog.cls` (edited).
+
+**Review.** 3 patches applied (a vacuous Provider assertion removed, COLLATION pinned, the nothing-written snapshot widened), 4 items deferred (see frontmatter `deferred:`), the rest rejected with the reasons in the triage log.
+
+**Verification.** `test-storage.sh`, `test-class-rules.sh`, `test-boundaries.sh`, `test-ci-config.sh` pass; the nine loop classes pass on a warm stack; the (once) lines pass: `shard lane-a` parts 1 to 4 (136 classes), `shard lane-b` parts 1 and 2 (86 classes), `live production` and `live install-start`. `lint_spine.py` prints `"ok": false` with the same 8 low `placeholder` findings that `HEAD` has (Decided in-stage 17); no `ad_id` or `ad_fields` finding. The memlog line sits in the worktree's gitignored `.memlog.md` (Decided in-stage 18).
+
+**Residual risks.** The four deferred items; the deviations in Decided in-stage 14 to 18 (empty `AgentClass` on the retry items, one-dot digest key names, `itemNoun`, the lint baseline, the memlog); `Test.Install.ProductionRules` and `Test.Install.Provider` are Lane A tests outside the hint, edited for the retry items.
+
+Follow-up review recommended: false (no high patched, one medium-level group of two patches applied).

@@ -24,3 +24,5 @@ FixRun	^OcuTalonP.FixRun	OcuTalon.Data.FixRun	A
 LiveEvent	^OcuTalonP.LiveEvent	OcuTalon.Live.Event	B
 DigestItem	^OcuTalonP.DigestItem	OcuTalon.Digest.Data.Item	A
 EvalCaseResult	^OcuTalonP.EvalCaseResult	OcuTalon.Eval.Data.CaseResult	A
+CheckRun	^OcuTalonP.CheckRun	OcuTalon.Digest.Data.CheckRun	A
+DigestSent	^OcuTalonP.DigestSent	OcuTalon.Digest.Data.Sent	A

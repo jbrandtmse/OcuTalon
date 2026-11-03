@@ -1,6 +1,10 @@
 /// The catalog of the texts that OcuTalon sends or shows and that Lane A produces (AD-29, AD-32): the production state
 /// changes, the watch tool's answers, the agent's no-commands answer, the checks' reserved sentences (AD-28), the incident
 /// notices and the results of a resend. Epic 0 created every release-1 and 0.1.1 key; after Epic 0, Lane A adds its keys here.
+/// The digest texts (Story 33.1; EXPERIENCE, Daily digest) are the keys under digest.: the three greetings, the vital signs, what was checked,
+/// the nothing-watched sentence, the coverage lines (passed, failed and the six not-checked reasons), what needs the person, and what was saved
+/// for later. digest.cost waits for the dailyCost slot type of the renderer (Story 33.2). The slot named itemNoun of digest.healthy is the
+/// noun of the days, as the catalog test allows a noun under that name only.
 /// The XData block Entries has the shape that OcuTalon.Msg.Catalog.Core describes, and OcuTalon.Msg.Catalog is the only
 /// renderer. Each key prefix lives in one catalog class.
 Class OcuTalon.Msg.Catalog.Watch
@@ -270,6 +274,160 @@ XData Entries [ MimeType = application/json ]
   "text": "Reject",
   "slots": {},
   "source": "EXPERIENCE Message Catalog / Telegram / word-labeled buttons"
+ },
+ "digest.greetingMorning": {
+  "text": "Good morning.",
+  "slots": {},
+  "source": "EXPERIENCE Message Catalog / Daily digest / Greeting, morning"
+ },
+ "digest.greetingAfternoon": {
+  "text": "Good afternoon.",
+  "slots": {},
+  "source": "EXPERIENCE Message Catalog / Daily digest / Greeting, afternoon"
+ },
+ "digest.greetingEvening": {
+  "text": "Good evening.",
+  "slots": {},
+  "source": "EXPERIENCE Message Catalog / Daily digest / Greeting, evening"
+ },
+ "digest.healthy": {
+  "text": "Your IRIS system is healthy: up {count} {itemNoun}, databases {databasesFull}% full, journal space fine, license use {licenseUse}%.",
+  "slots": {
+   "count": "count",
+   "itemNoun": "noun",
+   "databasesFull": "count",
+   "licenseUse": "count"
+  },
+  "source": "EXPERIENCE Message Catalog / Daily digest / Vital signs, all passed"
+ },
+ "digest.vitalsNotAll": {
+  "text": "Not every vital sign passed: {whatFailed}.",
+  "slots": {
+   "whatFailed": "text"
+  },
+  "source": "EXPERIENCE Message Catalog / Daily digest / Vital signs, not all passed"
+ },
+ "digest.checkedQuiet": {
+  "text": "I checked {checked} (all running, no errors, no backlog).",
+  "slots": {
+   "checked": "text"
+  },
+  "source": "EXPERIENCE Message Catalog / Daily digest / Checked, every production entry passed"
+ },
+ "digest.checked": {
+  "text": "I checked {checked}.",
+  "slots": {
+   "checked": "text"
+  },
+  "source": "EXPERIENCE Message Catalog / Daily digest / Checked, some entry failed or was not checked"
+ },
+ "digest.nothingWatched": {
+  "text": "I'm not watching any productions yet, so this digest covers the vital signs only. Ask me to watch one.",
+  "slots": {},
+  "source": "EXPERIENCE Message Catalog / Daily digest / Nothing watched"
+ },
+ "digest.passed": {
+  "text": "Passed: {entry} (at {time}).",
+  "slots": {
+   "entry": "text",
+   "time": "time"
+  },
+  "source": "EXPERIENCE Message Catalog / Daily digest / Coverage line, passed"
+ },
+ "digest.failed": {
+  "text": "Failed: {entry} ({finding}, at {time}).",
+  "slots": {
+   "entry": "text",
+   "finding": "text",
+   "time": "time"
+  },
+  "source": "EXPERIENCE Message Catalog / Daily digest / Coverage line, failed"
+ },
+ "digest.notCheckedUnreachable": {
+  "text": "Not checked: {entry} (unreachable since {time}).",
+  "slots": {
+   "entry": "text",
+   "time": "time"
+  },
+  "source": "EXPERIENCE Message Catalog / Daily digest / Coverage line, not checked: unreachable"
+ },
+ "digest.notCheckedError": {
+  "text": "Not checked: {entry} (the check stopped with an error at {time}).",
+  "slots": {
+   "entry": "text",
+   "time": "time"
+  },
+  "source": "EXPERIENCE Message Catalog / Daily digest / Coverage line, not checked: error"
+ },
+ "digest.notCheckedTimeout": {
+  "text": "Not checked: {entry} (the check timed out at {time}).",
+  "slots": {
+   "entry": "text",
+   "time": "time"
+  },
+  "source": "EXPERIENCE Message Catalog / Daily digest / Coverage line, not checked: timeout"
+ },
+ "digest.notCheckedMissed": {
+  "text": "Not checked: {entry} (the check didn't run between {from} and {to}).",
+  "slots": {
+   "entry": "text",
+   "from": "time",
+   "to": "time"
+  },
+  "source": "EXPERIENCE Message Catalog / Daily digest / Coverage line, not checked: missed"
+ },
+ "digest.notCheckedPaused": {
+  "text": "Not checked: {entry} (background checks were paused between {from} and {to}).",
+  "slots": {
+   "entry": "text",
+   "from": "time",
+   "to": "time"
+  },
+  "source": "EXPERIENCE Message Catalog / Daily digest / Coverage line, not checked: paused"
+ },
+ "digest.notCheckedStale": {
+  "text": "Not checked: {entry} (its last check was at {time}, too long ago to count).",
+  "slots": {
+   "entry": "text",
+   "time": "time"
+  },
+  "source": "EXPERIENCE Message Catalog / Daily digest / Coverage line, not checked: stale"
+ },
+ "digest.needsYouOne": {
+  "text": "One thing needs you: {what}.",
+  "slots": {
+   "what": "text"
+  },
+  "source": "EXPERIENCE Message Catalog / Daily digest / Needs you, one thing"
+ },
+ "digest.needsYou": {
+  "text": "{count} things need you: {what}.",
+  "slots": {
+   "count": "count",
+   "what": "text"
+  },
+  "source": "EXPERIENCE Message Catalog / Daily digest / Needs you, several things"
+ },
+ "digest.saved": {
+  "text": "Saved for later ({count}): {summary}",
+  "slots": {
+   "count": "count",
+   "summary": "sentence"
+  },
+  "source": "EXPERIENCE Message Catalog / Daily digest / Saved for later, with a summary"
+ },
+ "digest.savedNoSummary": {
+  "text": "Saved for later ({count}): I couldn't summarize them this time ({fallbackReason}). They're under Recent decisions on your OcuTalon page.",
+  "slots": {
+   "count": "count",
+   "fallbackReason": "fallbackReason"
+  },
+  "source": "EXPERIENCE Message Catalog / Daily digest / Saved for later, no summary"
+ },
+ "digest.savedNone": {
+  "text": "Nothing was saved for later.",
+  "slots": {},
+  "source": "EXPERIENCE Message Catalog / Daily digest / Saved for later, nothing saved"
  }
 }
 }

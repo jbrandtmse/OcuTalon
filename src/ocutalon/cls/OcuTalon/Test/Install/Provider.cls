@@ -11,7 +11,7 @@
 ///     run from the environment puts the entries back;
 ///   - TestEntries: after the start, each runner of OcuTalon.Production has the entry that Details gives for this environment,
 ///     with the default read and edit resources, and its ProviderConfig row is @{config:OcuTalon<Agent>}, which expands to
-///     the entry with the key still a placeholder;
+///     the entry with the key still a placeholder; the three disabled retry items, which have no agent class, get no entry and no row (Story 33.1);
 ///   - TestRerun: stale fields in an entry (a model, a base URL, a header, a typed key) are gone after Run(), which modifies
 ///     the entry where a create would fail, and empty read and edit resources are the default ones again;
 ///   - TestEntryBeforeSetting: with an entry and its row deleted, Run() writes both, and the row can only be written after the
@@ -216,12 +216,21 @@ Method TestEntries()
 {
 	Set sc = ##class(OcuTalon.Install.Step.Production).Runners(..#PRODUCTION, .runners)
 	Do $$$AssertStatusOK(sc, "the runners are read")
-	Do $$$AssertEquals(runners, 3, "there are three runners")
+	Do $$$AssertEquals(runners, 6, "there are six runner items: the three agents and the three disabled retry items")
 	Do $$$AssertStatusOK(##class(%AI.Utils.SettingStore).RegisterDefaults(), "the setting stores are registered")
 	Set names = ""
+	Set withClass = 0
 	For i = 1:1:runners {
 		Set item = $List(runners(i), 1)
 		Set class = $List(runners(i), 2)
+		If class = "" {
+			Do $$$AssertEquals($List(runners(i), 3), 0, item_" has no agent class and is disabled")
+			Do $$$AssertEquals($Extract(item, $Length(item) - 4, *), "Retry", item_" is a retry item")
+			Do $$$AssertEquals(..Row(item), "", item_" has no ProviderConfig row")
+			Do $$$AssertEquals(..EntryJson("OcuTalon"_$Extract(item, 1, $Length(item) - 10)_"Retry"), "", item_" has no entry under its agent's name either")
+			Continue
+		}
+		Set withClass = withClass + 1
 		Set name = "OcuTalon"_$Piece(class, ".", $Length(class, "."))
 		Set names = names _ $Select(names = "": "", 1: ",") _ name
 		Set fqn = "AI.LLM."_name
@@ -245,7 +254,8 @@ Method TestEntries()
 		Set expanded = {}.%FromJSON(##class(%AI.Utils.SettingStore).Expand(row))
 		Do $$$AssertEquals(expanded."api_key", ..#PLACEHOLDER, "and expands to the entry with the key still a placeholder")
 	}
-	Do $$$AssertEquals(names, "OcuTalonTriage,OcuTalonDiagnosis,OcuTalonChat", "the entries are those of the three agents, in the order of the runners")
+	Do $$$AssertEquals(withClass, 3, "three runners have an agent class: "_withClass)
+	Do $$$AssertEquals(names, "OcuTalonTriage,OcuTalonDiagnosis,OcuTalonChat", "the entries are those of the three agents, in the order of the runners: "_names)
 }
 
 /// Stale fields in the Triage entry are gone after Run(): the entry is modified, where a create would fail, and gets the
