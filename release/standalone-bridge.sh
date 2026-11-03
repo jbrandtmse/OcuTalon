@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# The bridge alone (Story 1.3, grown by Stories 13.1 and 13.2; AD-2, AD-29; FR-5, REL-4): proves in a throwaway stack that src/bridge/ loads into
+# The bridge alone (Story 1.3, grown by Stories 13.1, 13.2 and 13.3; AD-2, AD-29; FR-5, REL-4): proves in a throwaway stack that src/bridge/ loads into
 # a clean Interoperability namespace with no Foundation and no IPM, that OcuTalon.Bridge.Installer sets it up, and that
 # OcuTalon.BridgeExample.Production, a small production of its own, makes a decision through the bridge, routes on it and takes each
 # fallback, configured only by settings, and whose own tools the bridge governs: a read-only tool runs, a risky or unclassified tool waits for
@@ -7,27 +7,38 @@
 # developer machine:
 #   OCUTALON_RUN_TAG=<tag> bash release/standalone-bridge.sh
 # It sources ci/iris.sh (which sources ci/units.sh and docker/tests/lib-live.sh) and runs nothing of them but the throwaway
-# recipe: a project of its own, the CI override with the model mock, the throwaway lock and the teardown on exit. The checks:
+# recipe: a project of its own, the CI override with the model mock, the throwaway lock and the teardown on exit.
+# The job follows the bridge developer guide, docs/bridge-guide.md (Story 13.3, AD-2): the commands of the guide's install section and of its
+# two governance blocks are marked blocks (<!-- guide-run: <name> -->, then an objectscript fence), and this script reads each one from the
+# guide at run time and runs its lines verbatim, so no guide line is kept here and the guide cannot drift from the job. The blocks are load,
+# install, provider, tool-classification, approval-role, start and send. Between them the script adds only the CI environment's lines (the
+# mock's base URL and header in the provider row) and its own checks. A block that is missing, repeated or empty stops the script before any
+# IRIS work, and a guide command that raises an error or leaves sc not OK fails its check. The checks:
 #   1. the namespace OCUBRIDGE is created without Interoperability (it is no Interoperability namespace until it is enabled) and
 #      enabled for it with no Foundation installer (it is no HealthShare namespace after);
-#   2. LoadDir of /opt/ocutalon/src/bridge/cls and OcuTalon.Bridge.Installer.Run() give 1, OcuTalon.Bridge.Installer.CheckAudit() is
-#      OK, and no OcuTalon class outside OcuTalon.Bridge and OcuTalon.BridgeExample is there; no production runs before the example
+#   2. the guide's load and install blocks (LoadDir of the bridge source, OcuTalon.Bridge.Installer.Run()) run without an error and leave
+#      sc OK, OcuTalon.Bridge.Installer.CheckAudit() is OK, instance-wide auditing is on (a fact of the platform, which the installer never
+#      changes), and no OcuTalon class outside OcuTalon.Bridge and OcuTalon.BridgeExample is there; no production runs before the example
 #      starts;
 #   3. the CI override's environment is there (OCUTALON_MOCK_KEY_HEADER is 1 and OCUTALON_MODEL_BASE_URL is set), the container's
 #      ANTHROPIC_API_KEY is this run's dummy key (a compose file generated at run time inside the run's temporary folder, never
-#      committed and never printed; the check prints 1 or 0), and the inline ProviderConfig of the TriageAgent runner is written as a
-#      System Default Settings row, as a developer sets it for a namespace of their own (AD-19): the mock's base URL, the key
-#      placeholder @{env:ANTHROPIC_API_KEY} and the mock key header of the example agent. The example's definition holds no
-#      provider setting, and nothing writes the $Production TestingEnabled row: items enter through the example's own service. Two
-#      more rows of Decide govern the example's tools: ToolClassification (example_count_items is safe and read-only,
-#      example_forward_item is risky, and example_archive_item has no entry) and ApprovalRole (ExampleApprovers). In %SYS the check
-#      creates the role ExampleApprovers and the login-disabled users ExampleApprover (with the role) and ExampleViewer (without it):
-#      fixtures of the throwaway, since the product creates no role or user;
-#   4. the example production starts: ten jobs are Alive (its twelve items, two of them services) and ExampleItemIn is enabled; the runner resolves the example agent as its
+#      committed and never printed; the check prints 1 or 0), and the guide's provider block writes the inline ProviderConfig of the
+#      TriageAgent runner as a System Default Settings row, as a developer sets it for a namespace of their own (AD-19, DW-181): the key
+#      placeholder @{env:ANTHROPIC_API_KEY} and the http_config of Timeouts.Derive(60). Only after the mock-flag check has passed, one
+#      CI-only line adds the mock's base URL and its key header to that row, and the row is read back: the key is still the placeholder and
+#      the http_config, without the header, equals Derive(60)'s. The example's definition holds no provider setting, and nothing writes
+#      the $Production TestingEnabled row: items enter through the example's own service. The guide's tool-classification and
+#      approval-role blocks write two more rows of Decide that govern the example's tools: ToolClassification (example_count_items is
+#      safe and read-only, example_forward_item is risky, and example_archive_item has no entry) and ApprovalRole (ExampleApprovers). In
+#      %SYS the check creates the role ExampleApprovers and the login-disabled users ExampleApprover (with the role) and ExampleViewer
+#      (without it): fixtures of the throwaway, since the guide creates the role in prose and the product creates no user;
+#   4. the guide's start block starts the example production: ten jobs are Alive (its twelve items, two of them services) and ExampleItemIn is enabled; the runner resolves the example agent as its
 #      AgentClass and AgentAllowList and DecisionPayload as its ReplyClass; the three extension settings of Decide give the three base
 #      classes; the director reads both governance rows live, the gate classifies the three tools from the ToolClassification row alone
 #      (safe:1:setting, risky:0:setting, unclassified) and the agent has its toolset; one Action entry with a run-unique marker, the
 #      acting user, the SessionRef and the channel (AD-17) is written through OcuTalon.Bridge.Audit;
+#   5-guide. the guide's send block sends an item, and within 60 s its session holds one DecisionResponse header and at least one AgentStep
+#      header to AgentSteps;
 #   5. each row of the matrix of Story 13.1 sends an item through ExampleItemIn (OcuTalon.BridgeExample.ItemIn Send) and polls, with a
 #      deadline, until the router has routed it; every decision that reached the model has a CostUSD equal to Price.CostFor and to
 #      its one Usage row, and its Decision row holds the same model and cost:
@@ -78,6 +89,76 @@ cd "$root" || exit 1
 NS=OCUBRIDGE
 PRODUCTION=OcuTalon.BridgeExample.Production
 SCRIPT=release/standalone-bridge.sh
+GUIDE=docs/bridge-guide.md
+# The blocks of the guide that this job runs: guide_check names one of them, and the static check of docker/tests/test-bridge-guide.sh
+# compares this list, the names that guide_check gets and the guide's markers.
+GUIDE_BLOCKS="load install provider tool-classification approval-role start send"
+
+# guide_block <name>: prints the lines of the guide's block between its fence lines. The marker `<!-- guide-run: <name> -->` must be there
+# once, the next line must open an objectscript fence, and the block must not be empty. A problem is printed to the standard error and
+# returns 1.
+guide_block() {
+  local marker="<!-- guide-run: $1 -->" n out rc
+  n=$(grep -cxF -- "$marker" "$GUIDE" 2> /dev/null)
+  if [ "${n:-0}" -ne 1 ]; then
+    echo "the guide block $1: its marker is there ${n:-0} times, not once" >&2
+    return 1
+  fi
+  out=$(awk -v m="$marker" '
+    state == 0 && $0 == m { state = 1; next }
+    state == 1 { if ($0 == "```objectscript") { state = 2; next } state = -1; exit }
+    state == 2 { if ($0 == "```") { state = 3; exit } print }
+    END { exit (state == 3 ? 0 : (state == -1 ? 3 : 4)) }
+  ' "$GUIDE")
+  rc=$?
+  if [ "$rc" -eq 3 ]; then
+    echo "the guide block $1: the line after its marker is not an objectscript fence" >&2
+    return 1
+  elif [ "$rc" -ne 0 ]; then
+    echo "the guide block $1: its fence is not closed" >&2
+    return 1
+  fi
+  if [ -z "$(printf '%s' "$out" | tr -d '[:space:]')" ]; then
+    echo "the guide block $1: it is empty" >&2
+    return 1
+  fi
+  printf '%s\n' "$out"
+}
+
+# The blocks are checked before any IRIS work.
+for g in $GUIDE_BLOCKS; do
+  guide_block "$g" > /dev/null || { echo "FAIL the guide $GUIDE cannot be run by $SCRIPT"; exit 1; }
+done
+
+# guide_check <label> <block name> <expected CHK lines> [<script line>...]: runs the lines of the guide's block, verbatim and one by one, in
+# one IRIS session of $NS (check_session). Each line runs as the argument of Xecute inside Try, so that an error it raises is counted in
+# errs (a $ETRAP set in a terminal session is not honoured; measured on build 154) and the next line still runs. The session then prints
+# guide-errors (expected 0) and guide-sc (1 when the block left sc an OK status), and then runs the script lines given after the
+# expected lines, which share the session's variables with the block (for example sc and iid). The expected lines are added to the two.
+guide_check() {
+  local label=$1 name=$2 expected=$3 lines line esc before=$fails
+  local body=()
+  shift 3
+  case " $GUIDE_BLOCKS " in
+    *" $name "*) ;;
+    *) die "$SCRIPT has no guide block $name in GUIDE_BLOCKS" ;;
+  esac
+  lines=$(guide_block "$name") || die "the guide block $name cannot be read"
+  while IFS= read -r line; do
+    esc=${line//\"/\"\"}
+    body+=("$(printf 'Try { Xecute "%s" } Catch e { Set errs=errs+1 Write !,"CHK|guide-error|%s|",e.Name }' "$esc" "$name")")
+  done <<< "$lines"
+  check_session "$label" $NS "CHK|guide-errors|0
+CHK|guide-sc|1${expected:+
+$expected}" \
+    'Set errs=0' "${body[@]}" \
+    'Write !,"CHK|guide-errors|",errs' \
+    'Write !,"CHK|guide-sc|",$Select($Data(sc):$SYSTEM.Status.IsOK(sc),1:0)' \
+    ${1+"$@"} 'Halt'
+  if [ "$fails" -ne "$before" ]; then
+    sed -n 's/^CHK|\(guide-error|.*\)$/  \1/p' "$tmp/actual.chk"
+  fi
+}
 
 setup_tag
 preflight
@@ -126,20 +207,18 @@ if [ "$fails" -ne 0 ]; then die "the namespace $NS could not be enabled for Inte
 
 # --- 2. the bridge alone ---
 
-check_session "the bridge loads and installs alone: its audit events are registered, no other OcuTalon class is there, and no production runs" $NS \
-  "CHK|load|1
-CHK|run|1
-CHK|audit|1
+guide_check "the guide's load block loads src/bridge/ alone" load ""
+guide_check "the guide's install block sets the bridge up: its audit events are registered, instance-wide auditing is on, no other OcuTalon class is there, and no production runs" install \
+  "CHK|audit|1
+CHK|auditing|1
 CHK|other-classes|0
 CHK|running-before|0
 CHK|active-before|" \
-  'Write !,"CHK|load|",$SYSTEM.OBJ.LoadDir("/opt/ocutalon/src/bridge/cls","ck-d",.errors,1)' \
-  'Write !,"CHK|run|",##class(OcuTalon.Bridge.Installer).Run()' \
   'Write !,"CHK|audit|",$SYSTEM.Status.IsOK(##class(OcuTalon.Bridge.Installer).CheckAudit())' \
+  'Set sa=##class(OcuTalon.Bridge.Installer).InstanceAuditing(.on) Write !,"CHK|auditing|",$Select($SYSTEM.Status.IsOK(sa):on,1:"?")' \
   'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM %Dictionary.ClassDefinition WHERE Name %STARTSWITH ? AND NOT (Name %STARTSWITH ? OR Name %STARTSWITH ?)","OcuTalon.","OcuTalon.Bridge.","OcuTalon.BridgeExample.") Do rs.%Next() Write !,"CHK|other-classes|",rs.%GetData(1)' \
   'Write !,"CHK|running-before|",##class(Ens.Director).IsProductionRunning()' \
-  'Write !,"CHK|active-before|",##class(Ens.Director).GetActiveProductionName()' \
-  'Halt'
+  'Write !,"CHK|active-before|",##class(Ens.Director).GetActiveProductionName()'
 if [ "$fails" -ne 0 ]; then die "the bridge did not load and install alone"; fi
 
 # --- 3. the settings of the example, as System Default Settings rows of this namespace ---
@@ -156,6 +235,16 @@ row_del() {
     "Set rid=\"\" Set rs=##class(%SQL.Statement).%ExecDirect(,\"SELECT ID FROM Ens_Config.DefaultSettings WHERE ProductionName = ? AND ItemName = ? AND SettingName = ?\",\"$PRODUCTION\",\"$1\",\"$2\") If rs.%Next() { Set rid=rs.%GetData(1) }" \
     "Write !,\"CHK|row-del|\",\$Select(rid=\"\":0,1:\$SYSTEM.Status.IsOK(##class(Ens.Config.DefaultSettings).%DeleteId(rid)))"
 }
+# provider_edit <statements>: edits the ProviderConfig row of TriageAgent. The statements are ObjectScript that change cfg, the row's JSON as
+# a dynamic object. The row is updated with SQL and %NOCHECK because the object save validates the setting by expanding its @{env:}
+# placeholders, which refuses a variable that is not set. It leaves rid (the row's ID) set and prints CHK|row-set|1 when the update worked.
+provider_edit() {
+  printf '%s\n' \
+    "Set rid=\"\" Set rs=##class(%SQL.Statement).%ExecDirect(,\"SELECT ID FROM Ens_Config.DefaultSettings WHERE ProductionName = ? AND ItemName = ? AND SettingName = ?\",\"$PRODUCTION\",\"TriageAgent\",\"ProviderConfig\") If rs.%Next() { Set rid=rs.%GetData(1) }" \
+    "Set r=##class(Ens.Config.DefaultSettings).%OpenId(rid) Set cfg={}.%FromJSON(r.SettingValue) $1 Set up=##class(%SQL.Statement).%ExecDirect(,\"UPDATE %NOCHECK Ens_Config.DefaultSettings SET SettingValue = ? WHERE ID = ?\",cfg.%ToJSON(),rid) Write !,\"CHK|row-set|\",(up.%SQLCODE=0)"
+}
+# provider_key <value>: sets the api_key of that row.
+provider_key() { provider_edit "Do cfg.%Set(\"api_key\",\"$1\")"; }
 before=$fails
 check_session "the environment is the CI override's: the mock key switch is 1 and the model base URL is set" $NS \
   "CHK|mock-flag|1
@@ -168,27 +257,38 @@ check_session "the container's ANTHROPIC_API_KEY is this run's dummy key" $NS \
   "CHK|key-env|1" \
   "Write !,\"CHK|key-env|\",(\$SYSTEM.Util.GetEnviron(\"ANTHROPIC_API_KEY\")=\"$dummy\")" \
   'Halt'
-check_session "the runner's inline ProviderConfig is written as a System Default Settings row: the key is the placeholder of ANTHROPIC_API_KEY" $NS \
-  "CHK|row-provider|1" \
-  'Set pc={"model_provider":"anthropic","api_key":"@{env:ANTHROPIC_API_KEY}","base_url":($SYSTEM.Util.GetEnviron("OCUTALON_MODEL_BASE_URL")),"http_config":{"custom_headers":{"x-ocutalon-mockkey":"bridge-example"}}}.%ToJSON()' \
-  'Set r=##class(Ens.Config.DefaultSettings).%New() Set r.ProductionName="OcuTalon.BridgeExample.Production",r.ItemName="TriageAgent",r.HostClassName="*",r.SettingName="ProviderConfig",r.SettingValue=pc,r.Description="Written by release/standalone-bridge.sh in a throwaway namespace." Write !,"CHK|row-provider|",r.%Save()' \
+guide_check "the guide's provider block writes the inline ProviderConfig of the TriageAgent runner as a System Default Settings row" provider ""
+# The CI-only edit of the row (the mock is the CI environment, not part of the guide), after the mock-flag check has passed: the mock's base
+# URL and its key header go into the row, and the row is read back. Its key is still the placeholder and its http_config, without the header,
+# is the one of Timeouts.Derive(60) (DW-181).
+ci_row='Do cfg.%Set("base_url",$SYSTEM.Util.GetEnviron("OCUTALON_MODEL_BASE_URL")) Set hc=cfg.%Get("http_config") If '"'"'$IsObject(hc) { Set hc={} Do cfg.%Set("http_config",hc) } Do hc.%Set("custom_headers",{"x-ocutalon-mockkey":"bridge-example"})'
+check_session "the provider row keeps the key placeholder and the http_config of Derive(60), with the mock's base URL and key header added" $NS \
+  "CHK|row-set|1
+CHK|api-key|1
+CHK|request-timeout|1
+CHK|retry|1
+CHK|base-url-row|1
+CHK|header-row|1
+CHK|http-config|1" \
+  "$(provider_edit "$ci_row")" \
+  'Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT SettingValue FROM Ens_Config.DefaultSettings WHERE ID = ?",rid) Do rs.%Next() Set cfg={}.%FromJSON(rs.%GetData(1)) Set hc=cfg.%Get("http_config") Set d=##class(OcuTalon.Bridge.Timeouts).Derive(60).%Get("http_config")' \
+  'Write !,"CHK|api-key|",(cfg.%Get("api_key")="@{env:ANTHROPIC_API_KEY}")' \
+  'Write !,"CHK|request-timeout|",($IsObject(hc)&&(hc.%Get("request_timeout_secs")=d.%Get("request_timeout_secs")))' \
+  'Write !,"CHK|retry|",($IsObject(hc)&&$IsObject(hc.%Get("retry"))&&(hc.%Get("retry").%ToJSON()=d.%Get("retry").%ToJSON()))' \
+  'Write !,"CHK|base-url-row|",((cfg.%Get("base_url")=$SYSTEM.Util.GetEnviron("OCUTALON_MODEL_BASE_URL"))&&(cfg.%Get("base_url")'"'"'=""))' \
+  'Write !,"CHK|header-row|",($IsObject(hc)&&$IsObject(hc.%Get("custom_headers"))&&(hc.%Get("custom_headers").%Get("x-ocutalon-mockkey")="bridge-example"))' \
+  'If $IsObject(hc) Do hc.%Remove("custom_headers") Write !,"CHK|http-config|",($IsObject(hc)&&(hc.%ToJSON()=d.%ToJSON()))' \
   'Halt'
-# The governance of the example's tools is two more System Default Settings rows of Decide, as a developer writes them (AD-5, AD-10, AD-19,
-# AD-31), read live, so no apply follows: ToolClassification classifies two of the three tools by their class and name (example_count_items is
-# safe and read-only, example_forward_item is risky; example_archive_item has no entry, so it is unclassified), and ApprovalRole names the
-# role whose members may answer. The classification is the one place that classifies the tools: they declare none in code. The value is
-# written into an ObjectScript string, so its quotes are doubled.
+# The governance of the example's tools is two more System Default Settings rows of Decide, written by the guide's blocks as a developer
+# writes them (AD-5, AD-10, AD-19, AD-31) and read live, so no apply follows: ToolClassification classifies two of the three tools by their
+# class and name (example_count_items is safe and read-only, example_forward_item is risky; example_archive_item has no entry, so it is
+# unclassified), and ApprovalRole names the role whose members may answer. The classification is the one place that classifies the tools:
+# they declare none in code. Check 4 compares the value of the first row with tool_json.
 tools_class=OcuTalon.BridgeExample.Tools
 tool_json='[{"class":"'$tools_class'","tool":"example_count_items","classification":"safe","readOnly":1},{"class":"'$tools_class'","tool":"example_forward_item","classification":"risky"}]'
-check_session "the ToolClassification row of Decide classifies example_count_items safe and read-only and example_forward_item risky" $NS \
-  "CHK|row-set|1" \
-  "$(row_set Decide ToolClassification "${tool_json//\"/\"\"}")" \
-  'Halt'
-check_session "the ApprovalRole row of Decide names the role ExampleApprovers, which is not OcuTalon's" $NS \
-  "CHK|row-set|1" \
-  "$(row_set Decide ApprovalRole ExampleApprovers)" \
-  'Halt'
-# The role and its two users are fixtures of this throwaway namespace's instance, and nothing of the product creates a role or a user. The
+guide_check "the guide's tool-classification block writes the ToolClassification row of Decide" tool-classification ""
+guide_check "the guide's approval-role block writes the ApprovalRole row of Decide" approval-role ""
+# The role and its two users are fixtures of this throwaway namespace's instance: the guide creates the role in prose, and nothing of the product creates a user. The
 # users cannot sign in (disabled, with a random password that is generated in the session and printed nowhere); ExampleApprover holds the
 # role (IRIS refuses a user and a role of one name, so the role is ExampleApprovers) and ExampleViewer holds none, so Approval.Answer, which reads the answerer's recursed role set, lets the first answer and refuses the second.
 check_session "the role ExampleApprovers is created, with the user ExampleApprover that holds it and the user ExampleViewer that does not" %SYS \
@@ -236,16 +336,13 @@ diagnose() {
   sed -n 's/^CHK|row|/  event log: /p' "$tmp/actual.chk" | sed "s/$dummy/<dummy key>/g"
 }
 
-check_session "the example production starts: ten jobs are Alive and ExampleItemIn is enabled" $NS \
-  "CHK|start|1
-CHK|jobs|10
+guide_check "the guide's start block starts the example production: ten jobs are Alive and ExampleItemIn is enabled" start \
+  "CHK|jobs|10
 CHK|itemin-enabled|1
 CHK|active|$PRODUCTION" \
-  'Set sc=##class(Ens.Director).StartProduction("OcuTalon.BridgeExample.Production") Write !,"CHK|start|",$SYSTEM.Status.IsOK(sc) Write:$SYSTEM.Status.IsError(sc) !,"CHK|start-error|",$SYSTEM.Status.GetErrorText(sc)' \
   "$F_ALIVE" \
   'Set p=##class(Ens.Config.Production).%OpenId("OcuTalon.BridgeExample.Production") Set en=0 For i=1:1:p.Items.Count() { Set it=p.Items.GetAt(i) If it.Name="ExampleItemIn" Set en=it.Enabled } Write !,"CHK|itemin-enabled|",en' \
-  'Write !,"CHK|active|",##class(Ens.Director).GetActiveProductionName()' \
-  'Halt'
+  'Write !,"CHK|active|",##class(Ens.Director).GetActiveProductionName()'
 if [ "$fails" -ne 0 ]; then
   diagnose
   die "the example production did not start with its ten jobs"
@@ -334,13 +431,17 @@ item_check() {
   check_session "$label" $NS "$expected" "$send" "Set wait=$wait,target=\"$target\"" "$F_FIND" "$F_AWAIT" "$F_DECISION" "$@" 'Halt'
 }
 
-# provider_key <value>: sets the api_key of the ProviderConfig row of TriageAgent. The row is updated with SQL and %NOCHECK because
-# the object save validates the setting by expanding its @{env:} placeholders, which refuses a variable that is not set.
-provider_key() {
-  printf '%s\n' \
-    "Set rid=\"\" Set rs=##class(%SQL.Statement).%ExecDirect(,\"SELECT ID FROM Ens_Config.DefaultSettings WHERE ProductionName = ? AND ItemName = ? AND SettingName = ?\",\"$PRODUCTION\",\"TriageAgent\",\"ProviderConfig\") If rs.%Next() { Set rid=rs.%GetData(1) }" \
-    "Set r=##class(Ens.Config.DefaultSettings).%OpenId(rid) Set cfg={}.%FromJSON(r.SettingValue) Do cfg.%Set(\"api_key\",\"$1\") Set up=##class(%SQL.Statement).%ExecDirect(,\"UPDATE %NOCHECK Ens_Config.DefaultSettings SET SettingValue = ? WHERE ID = ?\",cfg.%ToJSON(),rid) Write !,\"CHK|row-set|\",(up.%SQLCODE=0)"
-}
+# 5-guide. the guide's send block: the item it sends, found by the Ref that Send leaves in iid, has one DecisionResponse header and at least
+# one AgentStep header to AgentSteps in its session within 60 s.
+frag F_GUIDE_HEADERS <<'EOF'
+Set rsp=0,stp=0 For k=1:1:120 { Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM Ens.MessageHeader WHERE SessionId = ? AND MessageBodyClassName = ?",sid,"OcuTalon.Bridge.Msg.DecisionResponse") Do rs.%Next() Set rsp=rs.%GetData(1) Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT COUNT(*) FROM Ens.MessageHeader WHERE SessionId = ? AND MessageBodyClassName = ? AND TargetConfigName = ?",sid,"OcuTalon.Bridge.Msg.AgentStep","AgentSteps") Do rs.%Next() Set stp=rs.%GetData(1) Quit:(rsp=1)&&(stp>0)  Hang 0.5 }
+Write !,"CHK|guide-headers|",rsp,":",(stp>0)
+EOF
+guide_check "the guide's send block: its item has one DecisionResponse header and an AgentStep header to AgentSteps in its session within 60 s" send \
+  "CHK|session|1
+CHK|guide-headers|1:1" \
+  "$F_FIND" "$F_GUIDE_HEADERS"
+if [ "$fails" -ne 0 ]; then die "the item that the guide's send block sends did not get its decision and steps"; fi
 
 # 5a. the happy path
 frag F_HAPPY <<'EOF'

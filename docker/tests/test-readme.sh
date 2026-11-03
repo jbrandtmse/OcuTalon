@@ -10,7 +10,7 @@
 #                  beside it and the splash screen; the local path is four numbered steps
 #   interesting    "What's interesting" has at most 120 words and names Interoperability, Visual Trace, AI Hub, a dry run and the
 #                  audit log
-#   use-cases      "What you can use it for" holds exactly the two use cases, word for word
+#   use-cases      "What you can use it for" holds exactly the three items, word for word (the third links docs/bridge-guide.md)
 #   teaser         the teaser line is there once, word for word, two lines below the opening paragraph with an empty line between
 #                  them and above the first H2 section, with no embed
 #   outcomes       the four outcomes, with the meanings that web/src/app/chat/chat-view.ts shows
@@ -115,6 +115,7 @@ H_USE='What you can use it for'
 OPENING="Your integrations already tell you when something breaks, usually fifty times. OcuTalon reads the failures, works out the one cause, proposes the fix with a dry run, and only interrupts you when something needs you. Nothing risky runs without your yes: fixed rules that the model can't change decide what is risky, and every approval lands in the IRIS audit log. Every decision is in Visual Trace with its reasons and cost. Without a model it fails safe: it tells you everything and claims nothing."
 ITEM1='- **The partner feed that breaks at 2am.** A trading partner changes a date format, and 50 orders fail. Instead of 50 alerts, you get one notice: the cause in plain English, the fix, and a dry run that shows what it would resend. Nothing is resent until you approve, and then OcuTalon reports how many orders went through. Break the feed in the online demo plays this out in two minutes.'
 ITEM2='- **"Only tell me if something needs me."** Ask OcuTalon in plain words to watch a production, and it stays quiet until something needs you. Failures with one cause become one incident, not a flood, and when you ask whether everything is fine, it never gives a false all-clear. It also tells you once when a production stops or one of its items is disabled.'
+ITEM3='- **[An AI decision step you can audit, in your own production.](docs/bridge-guide.md)**'
 MODEL_PARA="**With a model, and without one.** OcuTalon uses Claude Haiku 5.5 by default. With no model key, or when the model can't give a usable answer, it falls back to fixed rules and says so on the page and in Visual Trace."
 T_HEAD='| | With a model | With fixed rules only |'
 T_SEP='| --- | --- | --- |'
@@ -376,9 +377,10 @@ chk_use_cases() {
     return
   fi
   chk_block use-cases "$sec" "$ITEM1
-$ITEM2"
+$ITEM2
+$ITEM3"
   n=$(grep -c '[^[:space:]]' "$sec")
-  if [ "$n" -ne 2 ]; then echo "use-cases: '$H_USE' has $n lines, not exactly the two items"; fi
+  if [ "$n" -ne 3 ]; then echo "use-cases: '$H_USE' has $n lines, not exactly the three items"; fi
 }
 
 # teaser
@@ -803,12 +805,14 @@ rule_use_cases() {
   st 'item 1 removed' 1 "$README" '!/^- \*\*The partner feed/' chk_use_cases
   st 'item 2 removed' 1 "$README" '!/^- \*\*"Only tell me/' chk_use_cases
   st 'the items swapped' 1 "$README" '/^- \*\*The partner feed/ { held = $0; next } { print } /^- \*\*"Only tell me/ { print held }' chk_use_cases
-  st 'a third item' 1 "$README" '{ print } /^- \*\*"Only tell me/ { print "- **A third item.** More." }' chk_use_cases
+  st 'a fourth item' 1 "$README" '{ print } /^- \*\*\[An AI decision step/ { print "- **A fourth item.** More." }' chk_use_cases
   st 'the production-stopped sentence appended to item 2' 1 "$README" '/^- \*\*"Only tell me/ { $0 = $0 " It also tells you once when a production stops or one of its items is disabled." } { print }' chk_use_cases
   st 'the production-stopped sentence on a line of its own' 1 "$README" '{ print } /^- \*\*"Only tell me/ { print "It also tells you once when a production stops or one of its items is disabled." }' chk_use_cases
-  st 'an audit item appended' 1 "$README" '{ print } /^- \*\*"Only tell me/ { print "- **An AI decision step you can audit, in your own production.**" }' chk_use_cases
+  st 'the audit item without its link' 1 "$README" '/^- \*\*\[An AI decision step/ { $0 = "- **An AI decision step you can audit, in your own production.**" } { print }' chk_use_cases
+  st 'the audit item linking another file' 1 "$README" '/^- \*\*\[An AI decision step/ { sub(/docs\/bridge-guide\.md/, "docs/install-ipm.md") } { print }' chk_use_cases
+  st 'the audit item removed' 1 "$README" '!/^- \*\*\[An AI decision step/' chk_use_cases
   st 'the section heading removed' 1 "$README" '!/^## What you can use it for$/' chk_use_cases
-  finish use-cases 'What you can use it for holds exactly the two items, word for word' chk_use_cases
+  finish use-cases 'What you can use it for holds exactly the three items, word for word' chk_use_cases
 }
 
 rule_teaser() {

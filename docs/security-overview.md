@@ -97,7 +97,7 @@ OcuTalon reads a namespace only when the service user may read that namespace's 
 
 ## Approval and audit
 
-Classification uses fixed rules outside the model: a class parameter or a per-call rule in code, and, for a developer's own tools, the bridge's classification setting, which never changes a classification that code gives. Anything unclassified counts as risky. Every built-in tool is safe. Repair and resend, the one risky built-in action, goes through a fix kind with a dry run.
+Classification uses fixed rules outside the model: a class parameter or a per-call rule in code, and, for a developer's own tools, the bridge's classification setting, which never changes a classification that code gives. In this release, changing this setting writes no OcuTalon audit entry; each tool call is still audited. Anything unclassified counts as risky. Every built-in tool is safe. Repair and resend, the one risky built-in action, goes through a fix kind with a dry run.
 
 Content that didn't come from the user (for example a simulated email, or a failed message's body):
 

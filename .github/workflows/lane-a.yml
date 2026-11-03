@@ -1,6 +1,8 @@
-# CI of Lane A (AD-29; Story 0.7, Story 1.3, Stories 13.1 and 13.2): the standalone-bridge job runs on the self-hosted IRIS runner, behind the
+# CI of Lane A (AD-29; Story 0.7, Story 1.3, Stories 13.1, 13.2 and 13.3): the standalone-bridge job runs on the self-hosted IRIS runner, behind the
 # fork guard. It loads src/bridge/ alone into a clean Interoperability namespace of a throwaway stack and runs the whole example
-# there (release/standalone-bridge.sh, AD-2): OcuTalon.BridgeExample.Production takes items through its own service, makes each
+# there (release/standalone-bridge.sh, AD-2). The job follows docs/bridge-guide.md: it reads the marked blocks of the guide's install section
+# and governance steps and runs their commands verbatim, so the guide and the job cannot drift apart.
+# OcuTalon.BridgeExample.Production takes items through its own service, makes each
 # decision through the bridge against the model mock, routes on it, takes the four fallbacks, applies a model, a budget and a timer
 # change as settings rows, proves that the example's own tools are governed (a read-only tool runs, a risky or unclassified tool is held
 # as an approval request, an approved call is replayed once, a rejected or expired one never runs, an untrusted turn runs only the

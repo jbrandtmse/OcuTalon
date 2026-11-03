@@ -2,9 +2,10 @@
 title: 'Story 13.3: The bridge developer guide, proved on a clean instance'
 type: 'feature'
 created: '2026-11-02'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '59704f3b8fd9cb8e3bb5b1257a353af3c0143955'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context: []
 warnings: [oversized]
 deferred: []
@@ -195,6 +196,36 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-11-02 - Review pass
+- verdicts: 26 findings - high 0, medium 5, low 13, false 7, maybe-false 1
+- findings:
+  - `[medium]` `[patch]` Blind: the `provider` block fails with the key unset and the guide does not say so - patched: "The key" and step 3 say to set the variable first and that the block prints 0 and writes no row otherwise (the 13.1 comment on `provider_edit` records that the save expands the placeholder)
+  - `[low]` `[reject]` Blind: no step shows a governed tool call or the audit entries - the ACs fix the install section's steps (send an item, open it in Visual Trace); a larger walkthrough is beyond them and the fix is new guide content
+  - `[low]` `[reject]` Blind: no troubleshooting for a `0` or a fallback decision - beyond the ACs; the key-unset case is covered by the patch above
+  - `[low]` `[patch]` Blind: the `provider` block is not marked run-once - patched: one sentence in step 3
+  - `[low]` `[reject]` Blind: `reference` pools names across classes - the spec's Matrix and Tasks define the rule as a name check over the Code Map's lists; a per-table check is new parsing for a drift that needs a deleted row whose name stays elsewhere
+  - `[false]` `[reject]` Blind: Decided 11 stays beside Decided 12 - Decided 12 says in its first words that it replaces the inference of Decided 11
+  - `[false]` `[reject]` Blind: the "U-233 audit" heading date 2026-11-03 - the spec's own Spec Change Log and runner rulings carry the same date
+  - `[low]` `[reject]` Blind: one long comment line in `release/standalone-bridge.sh` - style only
+  - `[low]` `[reject]` Blind: `guide_block` message when the marker is the last line of the file - the top-level loop still stops the script, and `blocks` names the real fault
+  - `[medium]` `[patch]` Edge: `provider` with the key unset (same root cause as the first row) - patched with it
+  - `[low]` `[patch]` Edge: `provider` pasted twice (same root cause as the run-once row) - patched with it
+  - `[medium]` `[patch]` Edge: "creates what is missing and leaves the rest" is not true of `Installer.Run` (it rewrites the model families, re-enables audit events, resets the Workflow user's login state) - patched: the guide says what is written back each time and that price rows are left alone
+  - `[maybe-false]` `[reject]` Edge: the 5-guide poll ends before routing completes and may overlap 5a - would settle: a run where 5a counts rows the guide item changes late; two full runs and the final run passed, and if true it would be low
+  - `[low]` `[reject]` Edge: the old `CHK|start-error` text line is gone - `diagnose` prints the production's event log when the start check fails, which names the reason
+  - `[false]` `[reject]` Edge: leading whitespace or a backslash in a block line is changed - `guide_check` reads with `IFS= read -r`, and no block line has either
+  - `[low]` `[reject]` Edge: `grep -qF` of a short block line anywhere in the job - the rule means "no guide command line in the script"; every block line is a full statement and an empty line is skipped
+  - `[low]` `[reject]` Edge: a source parameter that changes format drops its names while the total stays above 60 - speculative; the fix adds a guard per source
+  - `[false]` `[reject]` Edge: fences of the governance section are not checked for markers - a mistyped marker changes the guide's marker set, which `blocks` compares with `GUIDE_BLOCKS` and the job's names; the one unmarked fence is the deliberate illustration
+  - `[low]` `[reject]` Edge: the `InstanceAuditing` check should be a marked block - the guide gives it as prose by Decided 7 and the U-233 audit; the job's check 2 reads it
+  - `[false]` `[reject]` Edge: the claim that `guide_block` dies naming the block - `guide_block` prints the block's name to the standard error and the script's log holds it (the rename mutation shows it)
+  - `[medium]` `[patch]` VG: the `blocks` break samples overlap, so the once-only and empty-block checks could be deleted unnoticed - patched: each sample names the phrase of the check that must flag it and isolates one check; both checks were then disabled in turn and went red
+  - `[low]` `[reject]` VG: `reference` pins names and not defaults or the output cap - the Matrix lists the pinned surface (names, `MAXTIMER`, enum values, `Answer` results); defaults change rarely and a default parser is new surface
+  - `[medium]` `[patch]` VG (other): no `mutation:` line for the governance blocks, the `api-key` placeholder line and the `blocks` once-only and empty checks - patched: four mutation lines added and observed red (two IRIS runs, two static)
+  - `[false]` `[reject]` VG (other): `CHK|auditing|1` relies on an image default - nothing of OcuTalon sets instance-wide auditing (searched `src`, `docker`, `ci`, `release`); the check names the platform fact and fails loudly if it changes
+  - `[false]` `[reject]` Intent: the bare-container proof (U-233) is a written audit and not a run - the owner's answer U-233 keeps the 1.3/13.1 recipe for the job and puts the bare-container run in the Planner's rc1 hand gate, with no new overlay
+  - `[low]` `[reject]` Intent: stated defaults and counts in the guide are not pinned - same as the `reference` defaults row above
+
 ## Design Notes
 
 **Governing ADs (Rule 6):**
@@ -252,6 +283,16 @@ The example's tools make no MCP call, and the guide documents no MCP. "Every bui
 10. The release checklist confirms the guide through a new automated row, which runs a hermetic script. No author row is added (that would change the seven confirmations). `release/checklist.sh` and `test-release-checklist.sh` are edited by no open branch (checked against OCT-epic12, 15, 31 and 40; there is no Epic 10 or 11 branch).
 11. Errors inside a block are counted through an error trap set before the block. This is an inference: `$ZERROR` alone would also count errors that system code catches. The first script run measures it.
 
+12. (implement) Counting errors of a block (replaces the inference of Decided 11). A `$ETRAP` set in an `iris session` terminal is not honoured: a probe on slot B (local variables only; errors stayed uncounted and the session went on) printed `errs` 0 after two failing lines. `guide_check` therefore runs each block line, verbatim, as the argument of `Xecute` inside `Try { ... } Catch e { Set errs=errs+1 }`; the locals the block sets (`sc`, `iid`) stay visible to the lines after it (measured: `x` set inside `Xecute` was readable afterwards). The block lines are unchanged; only the way the job runs them differs from a reader pasting them.
+13. (implement) Where the two governance blocks sit. The spec's Tasks put `tool-classification` and `approval-role` in "## Govern the example's tools" (section 3). The install section holds exactly `load`, `install`, `provider`, `start` and `send`, so `blocks` pins that order there, and pins the guide's whole marker set (seven names) against `GUIDE_BLOCKS` and the names that `guide_check` gets. The job runs the governance blocks before `start`, because their rows are read live.
+14. (implement) The first run measured Decided 6: AI Hub accepted the inline row with `request_timeout_secs`, `retry` and `custom_headers` together in `http_config`; the timer row (12 s) and 5d passed with `Derive(60).http_config` in place. No DW-181 intent gap.
+15. (implement) `guide_check` prints `guide-sc` through `$Select($Data(sc):$SYSTEM.Status.IsOK(sc),1:0)`, so a block that never sets `sc` reads as 0, not as an error. A failing 5-guide check and a failing check 3 both `die`: the later checks cannot run without the item or the rows.
+16. (implement) The `send` block sends provenance `untrusted` explicitly (the honest value for an example item, and the one `Send` defaults to). The block checks the `DecisionResponse` and `AgentStep` headers of the sent item itself, in the session that the `Item` row of its `iid` names.
+17. (implement) Check 2 adds `CHK|auditing|1` (`Installer.InstanceAuditing`), so the job names instance-wide auditing as a fact of the platform that the audit read-back depends on, not as something OcuTalon's install did. It passed on the first run (U-233 audit, row 2).
+18. (implement) `test-bridge-guide.sh` `reference` runs its break samples on the synthetic keep sample (every name, phrase and sentence between backticks), not on the real guide, so a real guide that lacks an item shows the missing names instead of a "sample changed nothing" failure. It reads the settings, properties and enum values from the source files; the four AI Hub names and the five `Answer` results are fixed lists. It also requires `MINTIMER` as "12 seconds".
+19. (implement) `test-readme.sh`: sample "a third item" became "a fourth item" (appended after the audit item), and "an audit item appended" became three samples (the audit item without its link, linking another file, and removed).
+20. (review patches) The guide says to set `ANTHROPIC_API_KEY` before the `provider` block and that the block is run once; it describes `Installer.Run` as creating what is missing and writing its structural rows (model families, audit events, the Workflow user's login-disabled state) back each time, with price rows left alone (read from `Installer.cls`: `SeedModelFamilies`, `SeedPrices`, `RegisterAudit`, `SetUpApprovals`). `test-bridge-guide.sh` `blocks` break samples now name the phrase of the check that must flag them, and each sample isolates one check.
+
 **Public-facing text for the runner's veto window:**
 - the whole guide (content fixed by the ACs; wording drafted here);
 - the README item (the ordered sentence, bold and linked, no other words);
@@ -272,6 +313,24 @@ The example's tools make no MCP call, and the guide documents no MCP. "Every bui
 - U-229 (owner answer via the Contest Planner, at=2026-11-03T01:19:45Z#690) is applied by this story: the guide's `ToolClassification` text and the one `docs/security-overview.md` sentence, as Tasks state. The overview edit is the orchestrator's decided cross-epic edit; reported under `footprint_extensions:`.
 - Public text (the guide, the README item, the checklist row text): drafted within the ACs' content; the README item is `epics.md` L4075's ordered sentence; the overview sentence is the owner's answer. The guide's wording is reviewed at code review against the public-text rules; category decide within the AC-fixed content.
 - Footprint extensions `README.md` (one appended item), `docker/tests/test-readme.sh`, `release/checklist.sh`, `docker/tests/test-release-checklist.sh`: no open epic branch edits them (checked by the plan stage against OCT-epic12, 15, 31, 40); allowed under Rule 11 (b), reported.
+
+**U-233 audit (implement stage, 2026-11-03).** Every instance-wide item that the guide's steps and the example rely on, and who creates it:
+
+| Item | Who creates it | Does a guide step or the example rely on it |
+|---|---|---|
+| Audit events of `OcuTalon.Bridge.Audit.Events()` | `Installer.Run` -> `RegisterAudit` -> `InSystem("audit")` (creates each missing event enabled, enables a disabled one, idempotent) | Yes (audit entries). Closed by the installer already; the guide says so |
+| Instance-wide auditing (`Security.System` `AuditEnabled`) | The platform / an administrator. `Installer.InstanceAuditing` reads it; the installer never changes it (AD-17) | Yes (IRIS writes no entry while it is off). The guide says how to read it (`InstanceAuditing`) and how to turn it on (Management Portal). The job does not set it; check 2 reads it as a CHK line and fails, naming it, when it is off |
+| Workflow role `OcuTalonApprovals` and Workflow user `OcuTalonWorkflow` (namespace) | `Installer.Run` -> `SetUpApprovals` (creates the role and the user when missing, activates the user, makes it the role's only member) | Yes (the hold's task). Closed by the installer already |
+| Security user `OcuTalonWorkflow` (login disabled, no roles) | `Installer.SetUpApprovals` -> `InSystem("login")` (creates it when missing, else sets Enabled 0 and no roles) | Yes (no person can answer as the Workflow user). Closed by the installer already |
+| Model family and price rows | `Installer.Run` -> `SeedModelFamilies`, `SeedPrices` | Yes (cap key, effort key, cost). Closed by the installer already |
+| `Decide` `ServiceUser` default `OcuTalonService` | OcuTalon's own install only (not the bridge installer) | No. The gate reads it only for a tool that declares `RESOURCES`; the example's tools declare none. A user that does not exist holds no permission, so a tool that declares resources is denied (fails closed). The guide's reference says a developer sets `ServiceUser` to an IRIS user of their own |
+| `Decide` `ApprovalRole` default `OcuTalonUser` (a role) | OcuTalon's own install only | No. The guide's `approval-role` block sets `ExampleApprovers`, and the guide's own prose step creates that role and gives it to the people who answer. The reference says the default is OcuTalon's and a developer sets their own |
+| Interoperability namespace | The reader (guide prose, Management Portal); the job's check 1 | Yes. A requirement of the guide |
+| SSL configuration | Nobody: neither the bridge nor the example names one (`rg SSL` over `src/bridge` is empty); AI Hub's outbound call to the provider is the platform's | No |
+| AI Hub (`%AI`, build 154), the account that runs the production | The platform; the reader | Requirements in the guide's prose |
+| What OcuTalon's after-start install creates that the job's checks then use | In the job's container the install ran in `OCUTALON` before the job begins, so the audit events, the Workflow user and the Security user already exist before `install` runs; the job cannot prove the creation path of those items on a bare instance | Covered by the Planner's rc1 hand gate (U-233); no new overlay |
+
+Result: no gap that needs a change to `Installer.cls`. Every instance-wide item that a guide step relies on is created by `Installer.Run`, by the guide's own prose step (the approval role and the Interoperability namespace) or by the platform; the two OcuTalon-only defaults (`OcuTalonService`, `OcuTalonUser`) are relied on by no step and are described as OcuTalon's in the reference. `Installer.cls` is unchanged and no Bridge unit test is added.
 
 **Size and split.** The estimate is about 3.5 to 4 hours: the guide about 1.5 h, the script about 1 h with a 6-minute run, and the checks, checklist and README about 1 to 1.5 h. If the runner wants about 3 hours, the split I propose is:
 - 13.3: AC 1, 3, 4, 5 and 7, plus the `blocks` and `u229` rules;
@@ -315,9 +374,49 @@ The split is the runner's decision.
 - the hand-written Approval and audit section of the overview (`overviewdoc`, `live:security-overview`);
 - the bridge's `SETTINGS`, `REFUSED`, message properties and `Msg.Enum` values. From now on `reference` asserts these, so an epic that adds one updates the guide (Epic 40 owns `Enum.cls`).
 
+**Mutations applied (implement stage; each reverted, byte-identical by `cmp` against a backup, and `git status --short` / `git diff --stat` unchanged):**
+- mutation: guide `load` path `/opt/ocutalon/src/bridge` -> `/opt/ocutalon/src/bridgeX` -> red: `standalone-bridge.sh` "the guide's load block loads src/bridge/ alone" (`guide-sc` 0), then "the bridge did not load and install alone", exit 1
+- mutation: guide `send` `Send(` -> `SendX(` -> red: the 5-guide check (`guide-errors` 2, `guide-sc` 0, `guide-headers` 0:0, with `guide-error|send|<METHOD DOES NOT EXIST>`), exit 1
+- mutation: script poll `OcuTalon.Bridge.Msg.AgentStep` -> `OcuTalon.Bridge.Msg.AgentStepX` -> red: the 5-guide check (`guide-headers` wanted 1:1, got 1:0), exit 1
+- mutation: script gets a comment line holding the guide's `start` line -> red: `test-bridge-guide.sh` `blocks` ("the block start, command 1, is also in release/standalone-bridge.sh")
+- mutation: guide marker `start` -> `begin` -> red: `blocks` (five lines naming the install order, the marker set, `GUIDE_BLOCKS` and `guide_check`), and `standalone-bridge.sh` stops before any IRIS work with "the guide block start: its marker is there 0 times, not once"
+- mutation: drop `Do pc.%Set("http_config",...)` from the guide's `provider` block -> red: check 3 "the provider row keeps the key placeholder and the http_config of Derive(60)..." (`request-timeout`, `retry` and `http-config` 0), then "the settings of the example could not be written", exit 1
+- mutation: guide `RequestTokenLimit` -> `RequestLimitX` and every lowercase `experimental` removed -> red: `reference` ("does not name `RequestTokenLimit`", and the StreamRenderer and policy-setter lines lack "experimental")
+- mutation: overview sentence "writes no" -> "writes an" -> red: `u229` (names the Approval and audit section of `docs/security-overview.md`)
+- mutation: `release/checklist.sh` run order `row_bridge_guide` -> `: row_bridge_guide` -> red: `test-release-checklist.sh` `base` (PASS lines 18, wanted 19) and `script-rows` ("test-bridge-guide.sh fails": exit 0, wanted 1)
+- mutation: README item without its link -> red: `test-readme.sh` `use-cases`
+- mutation: a non-ASCII byte appended to the guide -> red: `public` (`docs/bridge-guide.md:330`, no text)
+- mutation: `test-bridge-guide.sh` `blocks` once-only count disabled (`if [ "$n" -ne 1 ]` -> `if false`) -> red: `blocks` "the rule does not flag a break (a marker twice)"; reverted byte-identical (cmp against a backup)
+- mutation: `test-bridge-guide.sh` `blocks` empty-block check disabled (`if [ -z ... ]` -> `if false`) -> red: `blocks` "a break (an empty block) is not flagged by the check that names 'it is empty'" and the same for "a marker not followed by a fence"; reverted byte-identical
+- mutation: guide `tool-classification` block `example_forward_item` `risky` -> `safe` -> red: check 4 "the rows of check 3 are read live ... (2 of 7 values differ)" (the guide's governance row differs from `tool_json`), exit 1; reverted byte-identical (cmp against a backup)
+- mutation: guide `provider` block `api_key` `@{env:ANTHROPIC_API_KEY}` -> `literal-not-a-placeholder` -> red: check 3 "wanted 'CHK|api-key|1', got 'CHK|api-key|0'", exit 1; reverted byte-identical
+
 Standing criterion: every test added or changed passes on a fresh environment, in either order.
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** `docs/bridge-guide.md` is the bridge developer guide: an install section of five marked ObjectScript blocks (`load`, `install`, `provider`, `start`, `send`) and a governance section of two (`tool-classification`, `approval-role`), then the reference sections. `release/standalone-bridge.sh` reads each block from the guide at run time and runs its lines verbatim (`guide_block`, `guide_check`), so the lane-a standalone-bridge job follows the guide. `docker/tests/test-bridge-guide.sh` pins the guide to the code (`blocks`, `reference`, `u229`, `public`). The release checklist has the row `bridge-guide`, the README has its third item, and the security overview has the U-229 sentence. The U-233 audit found no gap, so `Installer.cls` is unchanged.
+
+**Files changed.**
+- `docs/bridge-guide.md` (new): the guide.
+- `docker/tests/test-bridge-guide.sh` (new): the static pins.
+- `release/standalone-bridge.sh`: runs the guide's blocks; the new 5-guide check; header.
+- `.github/workflows/lane-a.yml`: header comment only.
+- `ci/units.sh`: `bridge-guide` appended to `CHECK_SCRIPTS`.
+- `README.md`: the one appended use item (footprint extension).
+- `docs/security-overview.md`: the one U-229 sentence (footprint extension).
+- `docker/tests/test-readme.sh`: `ITEM3` and three items (footprint extension).
+- `release/checklist.sh`: `row_script` shared by `readme` and `bridge-guide`; the `bridge-guide` row (footprint extension).
+- `docker/tests/test-release-checklist.sh`: stub, case, tmpfail and header (footprint extension).
+- this spec: Design Notes, mutation lines, triage log.
+
+**Review.** 26 findings: high 0, medium 5, low 13, false 7, maybe-false 1. Patched (4 medium entries, 2 low): the guide's key and run-once text and its `Installer.Run` description, the `blocks` break samples, and the missing mutation lines. Deferred: none. Rejected rows and their reasons are in the Review Triage Log.
+
+**Follow-up review recommended: true.** Four medium entries were patched. The unverified risk: the guide's sentence that the `provider` block prints `0` and writes no row when `ANTHROPIC_API_KEY` is unset rests on the 13.1 comment about the object save expanding `@{env:}`; this run did not re-measure it with the variable unset.
+
+**Verification.** `test-bridge-guide.sh`, `test-readme.sh`, `test-release-checklist.sh`: all rules pass. `release/standalone-bridge.sh` (lane B throwaway `e13s3i`) passed twice, the last time on the patched tree: `standalone-bridge: all checks passed`, 0 FAIL lines, with the guide checks, the timer row and 5d. `ci/iris.sh live security-overview`: PASS, no DRIFT. `test-release-sequence.sh`: `overviewdoc` and all rules PASS. `ci/checks.sh`: `checks: all scripts passed` (ci-config, boundaries, bridge-example, bridge-guide, readme, release-checklist included). `git diff --stat -- src ci/mock ci/compose.ci.yml docker/tests/lib-live.sh .github/workflows/ci.yml docs/install-ipm.md` is empty; the overview has one changed line and the README one added line. Pinning mutations: all in the Verification section, each observed red and reverted byte-identical. Teardown of tag `e13s3i` left no container, volume or network.
+
+**Residual risks.** The job's container has OcuTalon's after-start install in `OCUTALON` before the guide runs, so the creation path of the audit events and the Workflow users on a bare instance is covered by the Planner's rc1 hand gate (U-233), not by the job. Instance-wide auditing is a platform fact that check 2 reads and does not set. The `reference` rule pins names, not defaults.
