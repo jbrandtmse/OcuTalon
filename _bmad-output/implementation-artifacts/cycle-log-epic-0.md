@@ -362,3 +362,14 @@
 2026-10-21T05:32:22Z	Epic 0	epic_status_done	stories=12 note=set_on_the_feature_branch_after_the_merge
 2026-10-21T05:33:48Z	Epic 0	epic_merged_to_feature	merge=67989bb feature=feature/OCT_OcuTalon_MVP head=5c4b48e ci=success(run=39550130633,lane-a=39550130642) verified=origin_merge-base epic_branch=deleted(local_and_remote)
 2026-10-21T05:33:48Z	Epic 0	hold_complete	reason=owner_decision_4(hold_after_the_Epic_0_merge_until_the_kit_upgrade) items_1_2=5ef07b7 item_3=c9abce4 ci_gate_fix=80e8f46 merge=67989bb feature_green=5c4b48e throwaways_up=none lanes_dispatched=none prompt=.worktrees/.coordination/prompts/lanes-dispatch-resume-2026-10-21-prompt.md
+2026-11-03T09:44:59Z	Epic 0	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-11-03T09:44:59Z	Epic 0	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh
+2026-11-03T09:44:59Z	Epic 0	launch_env	depth=4 watchdog=default bash_max_ms=default
+2026-11-03T09:44:59Z	Epic 0	runner_unattended_start	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec note=reopen_for_story_0.13_runner_C lane=C slot=ocutalon-slot-c
+2026-11-03T09:44:59Z	Epic 0	epic_branch_reopened	reason=story_0.13_veto_U-235 from=f26d0f6b
+2026-11-03T09:44:59Z	Epic 0	epic_branch_checked_out	repos=. head=f26d0f6b ci=gh workflows=ci,lane-a bootstrap_check=ok
+2026-11-03T09:45:04Z	Epic 0	spine_resolved	path=_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md ads=33 status=final
+2026-11-03T09:45:04Z	Epic 0	ledger_load	total=557 open=0 routed=67 escalated=0 decision_pending=3 terminal=487 owner_unknown=0 burndown=10 reowned_none=0 epic0_owned=0
+2026-11-03T09:46:01Z	Epic 0	sprint_planning_complete	gate=PASS model=claude-opus-5-5 note=readiness_recheck_for_reopen;story_0.13_AC_amended_first(U-235_conditions,Rule_5_tier_1,epics.md)
+2026-11-03T09:46:01Z	Epic 0	epic_status_reopened	epic-0=in-progress via=SC-5_reopen(epic_branch_reopened) story=0.13
+2026-11-03T09:46:01Z	Epic 0	retro_review_skipped	reason=skip(no_X.0_input) note=reopen_for_one_story;epic0_owned_ledger=0
