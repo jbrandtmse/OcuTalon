@@ -1512,3 +1512,8 @@
 2026-11-03T08:20:37Z	Epic 10	ledger_routed_planned	story=31-3 entries=1(DW-613) excess=0 by=merge_gate
 2026-11-03T08:20:37Z	Epic 10	veto_applied	id=U-234 story=31.3 ac=added_verbatim_from_10.6(marker_veto_U-234) note=31.3_placed_only_after_Epic_12_merged;rc1_not_cut_until_31.3_merged
 2026-11-03T08:20:37Z	Epic 10	deps_hash_rerecorded	reason=rule5_amendment(31.3_AC_U-234;10.6_removed=split_reversed;DW-613_ledger_routed) hash=0585a7ac
+2026-11-03T08:21:00Z	Epic 10	worktree_removed	path=.worktrees/epic-10
+2026-11-03T08:21:00Z	Epic 10	epic_branches_deleted	branch=OCT-epic10 local+remote
+2026-11-03T08:37:33Z	Epic 1-37	ci_green_verified	branch=feature head=285d7608 runs=41602587569,41602587409 result=success
+2026-11-03T08:37:33Z	Epic 1-37	ruling	question=runner_C_after_Epic_10_merge choice=DW-612_timeboxed_check(about_1h,CI-only_or_not)_now rejected=idle_until_31.3(no_rc1-chain_work_eligible_for_C:31.3_waits_12,13;11p2_after_rc1;40_waits_11;38_people) category=decide policy=508603671b9598f59d04750db6b6cdad2d396167 note=Planner_suggestion_08:2xZ
+2026-11-03T08:37:33Z	Epic 1-37	investigation_dispatched	id=dw-612 agent=a0dff513a94cc30da lane=C worktree=.worktrees/dw-612(detached_285d7608,bootstrap_ok) prompt=prompts/dw-612-check.md timebox=60-75min
