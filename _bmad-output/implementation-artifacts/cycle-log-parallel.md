@@ -1471,3 +1471,7 @@
 2026-11-03T03:04:13Z	Epic 15	deps_hash_rerecorded	reason=rule5_amendment hash=702e1a35 note=U-176_15.3_AC_amendment_and_addition(owner-decided_2026-10-31);headings_unchanged
 2026-11-03T03:04:23Z	Epic 15	worktree_removed	path=.worktrees/epic-15 part=1
 2026-11-03T03:04:23Z	Epic 15	epic_branches_deleted	branch=OCT-epic15 local=deleted remote=deleted note=SC-5_re-open_for_15.3_next
+2026-11-03T03:21:08Z	Epic 1-37	ci_green_verified	runs=41569965948,41569965918 head=082ac043 result=success via=none note=feature_head;merge_950542a0_green_41569903108,41569903272
+2026-11-03T03:21:08Z	Epic 15	worktree_provisioned	worktree=.worktrees/epic-15 branch=OCT-epic15 from=082ac043 submodules=none reason=SC-5_re-open_15.3
+2026-11-03T03:21:08Z	Epic 15	worktree_bootstrapped	epic=15 result=ok
+2026-11-03T03:21:08Z	Epic 15	runner_dispatched	runner=acd5fd4083a65c3e8 model=opus lane=D slot=ocutalon-slot-d prompt=prompts/dispatch-epic-15-153.md base=feature_082ac043(green) note=SC-5_re-open_for_15.3(pre-rulings:registry_AC=hand_row+procedure;release_gate=callable_step_for_11.14);INFO_stop_if>3h
