@@ -2,7 +2,9 @@
 title: 'The README shows the product and says how you talk to it'
 type: 'feature'
 created: '2026-11-02'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '59065f6f93ceaf598c85a2674c4584cc8271cb82'
+baseline_commit: '59065f6f93ceaf598c85a2674c4584cc8271cb82'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: ['{project-root}/_bmad-output/implementation-artifacts/epic-10-context.md']
@@ -126,6 +128,38 @@ deferred: []
 ## Spec Change Log
 
 ## Review Triage Log
+
+### 2026-11-02 - Review pass
+- verdicts: 27 findings - high 0, medium 1, low 21, false 5, maybe-false 0
+- findings:
+  - `[low]` `[reject]` blind 1: Demo-view-off image still shows the Online demo pill, the reset countdown and the demo account label, and is cropped mid-card - the alt text says "The online demo's page" and never says it is a local install (Design Note 3); the image is lead-delivered and never re-shot or cropped.
+  - `[low]` `[reject]` blind 2: the Visual Trace image is wide and cropped at its right edge - lead-delivered, never edited (spec Boundaries); the alt text claims only what the visible rows show.
+  - `[low]` `[reject]` blind 3: incident-card.png repeats the card of page-incident.png - a spec decision (Design Note 1, Decided in-stage (b)); fixing it edits the spec.
+  - `[low]` `[reject]` blind 4: the Simulated mailbox is not shown in an image - the images are the five delivered files; the spec fixes them.
+  - `[low]` `[reject]` blind 5: the `teaser` counter ignores code fences where `image_links` skips them - the README has no fenced `![`; Decided in-stage (i) takes the stricter reading on purpose; no user-reachable failure.
+  - `[low]` `[reject]` blind 6: `images` does not check that a linked file is a valid PNG - AC5 lists exactly its checks; the byte pin is AC3's one-time check. `wontfix-accepted`, reopen_if: a linked `docs/images/` file is found empty or not a PNG.
+  - `[low]` `[reject]` blind 7: `images` self-tests depend on the README's first image link, and `top` self-tests name the hero's alt prefix - both fail loudly through `st_note` when the README drifts; no silent pass.
+  - `[false]` `[reject]` blind 8: alt text accuracy is not tested - no test can judge that; the implement stage looked at each image against its alt text and the alt texts are fixed by Design Note 1.
+  - `[low]` `[reject]` edge 1: `[ ![t](...)](url)` (a space after the bracket) passes the `[![` refusal - a contrived shape; the video-thumbnail shape the AC names is `[![`, which is flagged.
+  - `[low]` `[reject]` edge 2: `teaser` counter vs `image_links` and code fences - same as blind 5.
+  - `[low]` `[reject]` edge 3: an empty or non-PNG file passes `images` - same as blind 6.
+  - `[false]` `[reject]` edge 4: an untracked, unignored image is listed by `-co` - `docs/images/` is ignored, so an unstaged file is not listed, and the matrix row "Images not staged" goes red (run in the matrix).
+  - `[low]` `[reject]` edge 5: alt text holding `]` or a target holding `)` is not listed by `image_links` - Design Note 1 states no alt text holds `[`, `]`, `(` or `)`; `teaser` counts any `![` it cannot parse, so it is still flagged there.
+  - `[low]` `[reject]` edge 6: a trailing space on the hero line makes `top` report a stray line - the failure is still flagged, only worded as a stray line.
+  - `[low]` `[reject]` edge 7: `rule_images` needs a tracked `logo/*.png` for its outside-folder case - it fails loudly through `st_note`, and `logo/web/*.png` are tracked.
+  - `[low]` `[reject]` edge 8: `swap_target` and `set_alt` do not escape quotes, backslashes or `&` - they are fed the README's own image path; no such path exists.
+  - `[low]` `[reject]` edge 9: the table row count is not pinned - by design: Design Note 6 keeps the facts free of a row count so Story 10.6 adds its row cleanly.
+  - `[low]` `[reject]` edge 10: a second heading with the same name is merged by `section` - `top` pins the H2 order and no duplicate has a user-reachable cause.
+  - `[false]` `[reject]` edge 11: the old teaser rule refused every `![` anywhere and the new one allows images in every section - that is the intent (the hero and four images); each is still checked by `images`.
+  - `[medium]` `[patch]` vgap 1: AC4 puts three images in "What OcuTalon does", and no test pins them - applied: `chk_images` counts the image links of that section (at least three, no file named) with a self-test that removes them, and the AC4 `mutation:` line is extended.
+  - `[low]` `[reject]` vgap 2: the three-row table and the cells of rows 2 and 3 are not pinned - same as edge 9.
+  - `[low]` `[reject]` vgap 3: the image content (size, PNG signature) is not pinned in a test - same as blind 6; AC3 pins it at verification.
+  - `[low]` `[reject]` vgap 4: in `chk_images` the `..` clause is dead for `docs/images/../x` - harmless; it also covers `docs/images/..x`; the dot-segments self-test is red-capable.
+  - `[low]` `[reject]` vgap 5: `rule_images` and `rule_top` self-tests depend on the real tree and the hero alt prefix - same as blind 7.
+  - `[false]` `[reject]` vgap 6: `printf: write error: Broken pipe` on stderr - it comes from the existing `in_tree` helper and the baseline script prints it too; not caused by this change.
+  - `[false]` `[reject]` intent 1: the spec file is not in the reviewed diff - it is staged for the finalize commit and read by the edge layer as the claims file; no defect.
+  - `[low]` `[reject]` intent 2: no rule opens a PNG or judges alt-text truth - same as blind 6 and blind 8.
+- no `high` finding; no `intent_gap`, no `bad_spec`, nothing deferred.
 
 ## Design Notes
 
@@ -320,17 +354,61 @@ Every test added or changed passes on a fresh environment, in either order: `tes
 
 Mutations (Rule 19; the implement stage writes one `mutation:` line per AC, each on `<tree>`, reverted and compared byte for byte):
 - AC1: `Email comes in a later release.` removed -> `FAIL how-you-talk`.
+  - mutation: ran on `<tree>`; `FAIL how-you-talk` and nothing else; reverted, byte-identical. Also `It also works in Slack.` under the heading -> `FAIL how-you-talk`.
 - AC2: none, because it is a recorded check (Design Note 3). Confirm `git diff --stat <baseline> -- src web ci` is empty.
+  - mutation: none (recorded check). `git diff --stat <baseline> -- src web ci` is empty. The four quoted UI strings match `device-view.ts` (`Simulated phone`, `Simulated mailbox`), `demo-view-texts.ts` (`Demo view`) and `guide-view.ts` / `demo-guide.ts` (`Break the feed`) exactly; the rail, catalog and guide strings of Design Note 3 match alt texts 2, 3 and 5.
 - AC3: one byte appended to `<tree>/docs/images/vt-decision.png` -> the image-pin command shows a different size and prefix.
+  - mutation: ran on `<tree>`; the file became 196281 bytes with prefix `d9eb0ccf90c43fcf` instead of 196280 and `f9c28d8959be1fac`; restored, byte-identical.
 - AC4: the hero line moved under the first H2 -> `FAIL top`.
+  - mutation: ran on `<tree>`; `FAIL top` and nothing else; reverted, byte-identical. Review patch: the three images of "What OcuTalon does" removed -> `FAIL images` and nothing else; the new count check disabled -> `self-test: the images of What OcuTalon does removed: not flagged`, then `FAIL images: a broken copy was not flagged`; each reverted, byte-identical.
 - AC5: `chk_images`'s alt test replaced by `true` -> `FAIL images: a broken copy was not flagged`. Also: `chk_images` made to accept only the five current names -> the generality self-test is flagged.
+  - mutation: ran on `<tree>`; the alt test replaced by a never-true condition -> the empty-alt, blank-alt and second-image self-tests not flagged, then `FAIL images: a broken copy was not flagged`; the target pattern limited to the five current names -> `self-test: a newly listed and linked docs/images file is flagged`, then `FAIL images: a broken copy was not flagged`; each reverted, byte-identical.
 - AC6: the new teaser refusal (ii) removed -> `FAIL teaser: a broken copy was not flagged` (the linked-image self-test).
+  - mutation: ran on `<tree>`; `self-test: a linked image: not flagged`, then `FAIL teaser: a broken copy was not flagged`; reverted, byte-identical.
 - AC7: `images` dropped from `RULES` -> `FAIL rules: rule_images is not in RULES`.
+  - mutation: ran on `<tree>`; `FAIL rules: rule_images is not in RULES`; reverted, byte-identical.
 - AC8: `![badge](https://example.org/b.svg)` appended -> `FAIL teaser` and `FAIL images`.
+  - mutation: ran on `<tree>`; `FAIL teaser`, `FAIL images` and `FAIL readme-links` (the badge target is a remote address, which `readme-links` also pins); reverted, byte-identical.
+
+Matrix rows run on `<tree>` (each reverted, byte-identical, exit 1 unless noted):
+- `how-you-talk`: the table rows removed -> `FAIL how-you-talk`.
+- `top`: the heading renamed -> `FAIL top` and `FAIL how-you-talk`; a second image line under the teaser -> `FAIL top`.
+- `images`: the alt of `vt-decision.png` emptied -> `FAIL images`; `incident-card.png` renamed in its link -> `FAIL images` and `FAIL readme-links`; `page-incident.png` removed from the index -> `FAIL images` and `FAIL readme-links`, and green again once re-added.
+- `teaser`: the linked image appended -> `FAIL teaser`; `<img src=docs/images/page-incident.png>` appended -> `FAIL teaser`.
+- `no-telegram`: `Telegram` added to the section's first paragraph -> `FAIL no-telegram`.
+- No README: all 23 rules print `FAIL <rule>: README.md is missing`, exit 1.
+
+## Implementation Verification Results
+
+- `bash docker/tests/test-readme.sh`: the 23 PASS names in the expected order, `SKIP #telegram`, `test-readme: all rules passed`, exit 0. It also prints one `printf: write error: Broken pipe` line on standard error from the existing `in_tree` helper (`printf | grep -q`); the baseline script prints the same line, so it is not new.
+- Image pin: the five rows match Design Note 1's table (sizes 297920, 265772, 248087, 196280, 206381; prefixes as listed); `git ls-files docs/images` lists exactly the five.
+- Placement: the five lines of the Verification command, in order, as expected.
+- Owner text kept: `git diff <baseline> -- README.md | grep -c '^-[^-]'` is 0.
+- ASCII scan of README.md, `docker/tests/test-readme.sh` and this spec: no output.
+- shellcheck 0.9.0.6 on `docker/tests/test-readme.sh`: no findings.
+- `test-boundaries.sh` and `test-release-notes.sh`: each exit 0.
+- GNU tools: the scratch tree in the local `ubuntu:24.04` image (present; tree mounted read-only, a `git ls-files` stand-in filtering the tree's list by the pathspec prefix): the same 23 PASS lines, `SKIP #telegram`, `test-readme: all rules passed`.
+- `bash ci/checks.sh`: `checks: all scripts passed` (it ran past the 10-minute cap on a loaded machine and was finished in the background of that tool call).
+- `git diff --stat <baseline> -- src web ci` is empty.
+
+Image look (implement stage, with the Read tool): all five looked at; nothing from the stop list; the header shows the generic public demo account label `demo` only (the only host-like text is the `Online demo` pill; no IP address, credential, token, session id, cookie, gate user name or personal detail). The pictures agree with the alt texts: image 1 shows the incident approval on the page and the same request on the Simulated phone; 2 the awaiting-approval card with the dry run; 3 the resolved card ("Approved from the web chat", "All 50 orders went through.", "Recorded in the IRIS audit log."); 4 the Visual Trace sequence IncidentManager, Decide, DiagnosisAgent, AgentStep, DryRun; 5 the page with Demo view off, with the `Online demo` pill and reset countdown still showing, no guide and no simulated devices. No claim of Design Note 1 contradicted the build or an image, so no wording was tightened.
+
+**Decided in-stage (implement).**
+- (i) `image_links` lists an image only when `![alt]` is directly followed by `(`; alt text holds no `]`. A reference-style `![alt][t]` is not listed, so `teaser` refusal (iii) flags it (it counts `![` over the whole file, code fences included, which is the stricter reading).
+- (j) `top`'s image line is `^!\[.*\]\(.*\)$` with a second `![` on the line refused, so a line is made of one image link only.
+- (k) `images` self-tests use the README's own first image link through two small helpers (`swap_target`, `set_alt`) that build the awk programs, so no image file is named in the rule's checks.
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-Planned only (halt after planning). For the lead: Design Note "For the lead" items (1) and (2): the Story 31.3 screenshot overlap, and the `.gitignore` `images/` line that ignores `docs/images/`, which this story handles in-footprint with `git add -f`.
+Implemented and reviewed in one pass; one review patch (medium). Summary: five screenshots in `docs/images/` (byte-checked, looked at, force-added), the hero, three bullet images and the new "How you talk to it" section in `README.md` (added lines only), and `docker/tests/test-readme.sh` reworked (`top`, `teaser`, new `images` and `how-you-talk`, `RULES` of 23).
+
+Files changed: `README.md` (added lines); `docs/images/` (five PNG files); `docker/tests/test-readme.sh` (rules and self-tests); this spec.
+
+Review breakdown: patches applied 1 (medium: `images` also pins at least three image links in "What OcuTalon does"); deferred 0; every other finding rejected with its reason in the Review Triage Log. Follow-up review recommended: false (one medium patched, no high).
+
+Verification after the patch: `test-readme.sh` 23 PASS names in order and `SKIP #telegram`, exit 0; image pin, placement and owner-text commands as expected; ASCII scan, shellcheck, `test-boundaries.sh` and `test-release-notes.sh` clean; GNU run in `ubuntu:24.04` 23 PASS; `bash ci/checks.sh` printed `checks: all scripts passed`.
+
+Residual risk: no test opens a PNG or pins an image's alt text beyond non-empty (`wontfix-accepted`, reopen_if: a linked `docs/images/` file is found empty or not a PNG). Design Note "For the lead" items (1) and (2) stand: the Story 31.3 screenshot overlap, and the `.gitignore` `images/` line that ignores `docs/images/`, which this story handles in-footprint with `git add -f`. Earlier note: For the lead: Design Note "For the lead" items (1) and (2): the Story 31.3 screenshot overlap, and the `.gitignore` `images/` line that ignores `docs/images/`, which this story handles in-footprint with `git add -f`.
