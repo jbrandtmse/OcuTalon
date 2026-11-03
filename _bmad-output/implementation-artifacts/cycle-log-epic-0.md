@@ -421,3 +421,5 @@
 2026-11-03T16:24:41Z	Epic 0	retro_review_skipped	reason=skip(no_X.0_input) note=reopen_for_one_story;epic0_owned_ledger=1(DW-624_routed_to_0.14)
 2026-11-03T16:26:16Z	Epic 0	epic_context_compiled	reason=planning_artifact_newer(story_0.14_added) model=claude-opus-5-5
 2026-11-03T16:27:26Z	Story 0.14	stage_spawned	stage=plan spawn_at=2026-11-03T16:27:26Z model=claude-opus-5-5 agent_name=0-14-plan-1 cycle_iteration=1
+2026-11-03T16:42:27Z	Story 0.14	story_created	spawn_at=2026-11-03T16:27:26Z model=claude-opus-5-5 path=_bmad-output/implementation-artifacts/spec-0-14-a-start-that-recovers-through-the-merge-retry-passes-the-liv.md build_status=ready-for-dev epic_context=reused
+2026-11-03T16:42:27Z	Story 0.14	spec_validated	service_introducing=false integration_ac=declared-none(consumers_exist:check_log_callers,harness_record_readers) adr_constrained_acs=AD-23,AD-22,AD-29 decision_dependency=none sections_created=none owned_ledger=DW-624 addressed=1 declined=0 mutates_shared_runtime=false check_log_only=true log_steps_unchanged=true count=record_line(Merge_retries)+stdout(MERGE-RETRIES) model=claude-opus-5-5
