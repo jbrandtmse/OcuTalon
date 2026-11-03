@@ -238,3 +238,7 @@
 2026-11-03T05:34:07Z	Epic 31	ci_groups	head=510ddbc9 run=41577710442 step_min=install-fresh:25.3(a2),install-upgrade:28.7,production:23.9,browser:30.2,image:25.1(a2),shards:26.3,shards-2:27.4,shards-3:26.0;checks:12.0,web:1.0,install-macos:0.5
 2026-11-03T05:34:07Z	Epic 31	ci_queue	pushes=a95624a9:0,11d8d89f:0,6e57e259:0,e29693be:0,f7cc68ab:0,510ddbc9:0(min,run_created_to_first_job)
 2026-11-03T05:34:07Z	Epic 31	runner_ended	reason=waiting waiting_on=12,13 note=31.1,31.2,31.5,31.6_done;31.3_waits_on_Epics_12_and_13(14_and_15_part_1_merged);31.4_deferred_after_the_v1.0.0_tag applied=U-212,U-222
+2026-11-03T14:38:25Z	Epic 31	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-11-03T14:38:25Z	Epic 31	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh
+2026-11-03T14:38:25Z	Epic 31	launch_env	depth=4 watchdog=default bash_max_ms=default
+2026-11-03T14:38:25Z	Epic 31	runner_unattended_start	run=20261026T1518Z-1-37 policy=508603671b9598f59d04750db6b6cdad2d396167 doctrine=3d11cec98d91c1d4d9c225fe3b265e1af418abe4 lane=A slot=ocutalon-slot-a note=redispatch_after_12_13_31.3
