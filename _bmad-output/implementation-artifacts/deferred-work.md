@@ -3707,3 +3707,4 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-12-10-in-a-narrower-window-the-telegram-step-leads-to-the-status-d.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Rule 2: near-copies (14-line fixture(), 9-line guideOf, 25-line poll router) forced by the footprint (siblings in Lane A or contended files, support/ outside it); a change to TelegramPageFixture or the events envelope must be made in every copy
 - 2026-11-03T19:57:30Z status=routed owner=burndown by=cr note=forced copy (Rule 2): unify all copies in web/e2e/support/ when the siblings' owners can edit them
+- 2026-11-03T20:50:08Z status=routed owner=burndown by=burndown note=not_a_1.0.0_blocker(test-helper_copies);first_daily_release_after_1.0.0
