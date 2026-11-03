@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 11-03-2026 01:37
+last_updated: 11-03-2026 08:00
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -169,7 +169,7 @@ development_status:
   10-2-the-readme-gets-a-judge-from-download-to-sign-in: done
   10-3-the-session-side-of-telegram-is-ready-and-stays-off: done
   10-4-the-readme-opens-with-what-ocutalon-is-for-and-what-a-model: done
-  10-5-the-readme-shows-the-product-and-says-how-you-talk-to-it: backlog
+  10-5-the-readme-shows-the-product-and-says-how-you-talk-to-it: done
   epic-10-retrospective: optional
 
   epic-11: in-progress
