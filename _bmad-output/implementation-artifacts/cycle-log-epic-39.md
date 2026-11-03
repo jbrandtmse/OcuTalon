@@ -26,3 +26,9 @@
 2026-11-03T14:54:32Z	Story 39.1	stage_spawned	stage=implement spawn_at=2026-11-03T14:54:32Z model=sonnet agent_name=39-1-implement-2 cycle_iteration=2
 2026-11-03T14:59:23Z	Story 39.1	dev_complete	spawn_at=2026-11-03T14:54:32Z model=sonnet build_sha=20a61666 baseline_revision=34bbf984 review_loop_iteration=0 followup_review_recommended=false deferred=0 files=2 cycle_iteration=2 note=build_auto_skipped_its_review_layers_for_one_line_fixture_and_left_baseline_revision_unset_lead_set_it
 2026-11-03T14:59:23Z	Story 39.1	stage_spawned	stage=code-review spawn_at=2026-11-03T14:59:23Z model=opus agent_name=39-1-code-review-2 cycle_iteration=2
+2026-11-03T15:25:18Z	Story 39.1	cr_complete	spawn_at=2026-11-03T14:59:23Z model=opus resolved=1 fixed_at_source=0 by_design=0 routed=0 escalated=0 decision_pending=0 deferred=0 dismissed=9 high=0 med=0 low=0 rows=9 unresolved_high_med=0 clarifications=0 closing_sections_present=true cycle_iteration=2 scope=34bbf984..HEAD
+2026-11-03T15:25:18Z	Story 39.1	report_error	fault=lead field=rework_opened.scope_baseline reported=3ffdc2f8 actual=34bbf984 impact=none
+2026-11-03T15:25:18Z	Story 39.1	report_error	fault=lead field=dev_complete.note reported=baseline_revision_unset actual=baseline_revision_left_at_3f5f7b3e_by_build_auto impact=none
+2026-11-03T15:25:18Z	Story 39.1	ledger_adjudicated	owned=0 resolved=0 reowned=0 terminal=0 note=DW-638_terminal_at_cr;DW-633_DW-634_owned_by_39.3_39.5 model=claude-opus-5-5
+2026-11-03T15:25:18Z	Story 39.1	smoke_complete	method=other result=pass iterations=2 defects_caught=1 evidence=slot-d_direct_Beat_stubs_SettingKey_HeartbeatBeat_global;fresh_throwaway_TestBeatNowIsAnswered_running_production;checks_28_of_28_pass_after_rework model=claude-opus-5-5
+2026-11-03T15:25:18Z	Story 39.1	fresh_check	env=recipe tests=21 result=pass order=forward,reverse shards=lane-a@Checks_fwd_155s,lane-a@Checks_rev_147s,lane-b@Data,Contract_rev_162s post_rework=Checks.Runs_fresh_pass

@@ -182,6 +182,21 @@ Rejected:
 - (low) AC 3's "send nothing" has no assertion on the stubs: Beat's class methods hold no business host, so they cannot send; `TestBeatNowIsAnswered` pins the `RunNow` path.
 - (low) the spine's Built-in cell still names Story 39.1 for `Live.Payload.Heartbeat`: already DW-633 (routed 39-3).
 
+#### Code review 2026-11-03 (re-review of rework 1, baseline 34bbf984)
+
+Layers blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor; 9 rows (7 after joining two same-root pairs), 0 entries (high 0, medium 0, low 0). Clean review. Rule 3: exempt (a test fixture). Rule 6: no AD touched.
+
+- Previous round's open item, `[Smoke]` key-like fixture: **fixed**. `TestBeatLogsAreRedacted` builds its secret as `"sk-"_"ant-api03-..."` (the same runtime string, so the test still redacts a key-shaped value); only the `Set secret` line changed, so the four `[ "QaSecret"` assertions are unchanged; `bash docker/tests/test-boundaries.sh` exits 0 with `PASS keys: nothing key-like` and no FAIL; `OcuTalon.Test.Checks.Runs` passed on a fresh lane-D throwaway (run tag `e39s1cr2`, 3.78 s, stack start 109 s). The rework's `mutation:` line is present and current.
+
+Rejected:
+- (false) the re-review should start from `3ffdc2f8`, leaving `f0e7943d`'s changes unreviewed: that commit is the sanctioned rework commit holding QA's tests, which the first review covered, and the first review's own patches, listed above and run warm after patching; the boundaries scan now passes on every file and `Checks.Runs` passes fresh.
+- (low) the spec's frontmatter baseline now names the rework's baseline instead of the story's `3f5f7b3e`: the fix edits the spec's frontmatter, which the lead owns; the first review's baseline is recorded in this section and the cycle log.
+- (low) the cycle log's `dev_complete` note says the build left `baseline_revision` unset, and the row lacks cycle 1's `nfr_tripwires=`/`loc_*` fields: lead-owned telemetry, outside this review's authority; no product effect.
+- (low) the Rework 1 note does not say where the literal came from, and the cycle-1 Auto Run Result's "no FAIL line" claim predates QA's literal: the fix edits the spec's build-auto record; the claim was true for its pass.
+- (false) frontmatter `status: done` while sprint-status says `review`: build-auto's machine state, by process (as at the first review).
+- (false) the rework's warm run does not name its lane: its tags `e39s1rw1`/`e39s1rw1w` are lane-D tags, and this review ran the class again on lane D.
+- (false) no review layers ran for the rework: this review is that review.
+
 ## Spec Change Log
 
 - 2026-11-03, lead, rework iteration 1 (trigger smoke): the lead's pre-commit check run found one key-like literal in a QA test; one [Smoke] item added under Tasks & Acceptance.
