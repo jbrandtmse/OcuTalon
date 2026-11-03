@@ -2,7 +2,8 @@
 title: 'Story 12.10: In a narrower window, the Telegram step leads to the Status drawer'
 type: 'bugfix'
 created: '2026-11-03'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'fbc88942998bfd5f67dccf34ed794cbc9aafa9df'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -94,6 +95,26 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-11-03 - Review pass
+- verdicts: 16 findings - high 0, medium 1, low 10, false 5, maybe-false 0
+- findings:
+  - `[false]` `[reject]` Show me may not bring the card into view (blind) - the card is the rail's first section and D1 measures its box inside the viewport and rail after the press; Decided in-stage 1 chose the rail as the target.
+  - `[low]` `[reject]` Hint stays after the drawer opens (blind, edge-case) - spec-bound: Decided in-stage 2 makes the row depend on the band only, so the bar does not change under the user; closed by-design.
+  - `[low]` `[reject]` Wiring (aria-describedby, FOCUS_RULE key) has only e2e pins; the row-leaves path is untested (blind) - D1 drives the band path through the same branch and the describedby is asserted; a source guard is more code than its risk.
+  - `[low]` `[patch]` Layout doc says focusRegion is only a skip link or the Status button (blind) - doc line in layout.ts now names the guide's Telegram Show me.
+  - `[false]` `[reject]` guideView still returns telegramRow while the template reads telegram (blind) - the spec says to keep `GuideView.telegramRow` as it is.
+  - `[low]` `[patch]` hitsCard comment misdescribes the check (blind) - comment corrected.
+  - `[low]` `[reject]` FOCUS_CALLS description in announce-focus-sources.test.mjs is stale (blind) - a pinned shared test owned by other work; the count is unchanged and the text is not a claim the product makes.
+  - `[medium]` `[patch]` Stacked and wide bands untested; the band mapping is only exercised at 1100 and 1400 (blind, verification-gap, intent-alignment) - D3 added (900 then 1500: the original line, no button) with a mutation line, red observed.
+  - `[low]` `[patch]` Show me lost with no prompt bar (finish state) sends focus to main (edge-case) - the telegram branch now falls back to the finish's first line like the other keys.
+  - `[low]` `[reject]` Lost Show me at step 3 goes to the bar, not Break the feed (edge-case) - the matrix says the prompt bar; the box button is for prompt parts.
+  - `[false]` `[reject]` Row is a span-wrapped DOM outside the drawer band (edge-case, claim) - guide Q4 pins the row's children and stays green; the visible line is identical.
+  - `[low]` `[reject]` Compact height (under 680px) row with a button is untested (edge-case) - the row wraps in a flex line with a gap; not user-reachable breakage shown; a fix is a new test and styles.
+  - `[low]` `[reject]` Mutation record thinner than the D1 assertions; the toggleStatus variant not run (verification-gap) - Rule 19 asks one demonstrated mutation per AC; each AC has one.
+  - `[false]` `[reject]` Mutation numbering differs from the AC list (verification-gap) - it follows the spec's own Mutations list.
+  - `[false]` `[reject]` D1/D2 rely on the README session being unpaired and unwatched (verification-gap) - D1/D2 assert the precondition (row count 1) and fail loudly otherwise.
+  - `[low]` `[reject]` Overflow assertion is weak; Finish('') after a script-level Start failure restores nothing (verification-gap, blind) - the clipping check is the real pin; Start's own failure paths return a partial saved value.
+
 ## Design Notes
 
 **Hint (ruled: orchestrator veto U-244, 2026-11-03; the Planner may reverse before the tag):** "Optional: press Status at the top of the page, then scan the QR code in the Telegram card to get the notice on your own phone."
@@ -140,11 +161,32 @@ This is the exact wording to implement (the plan's proposal, unchanged). The Sho
 - AC3: `telegramRowOf` ignores `view.telegramRow` -> `guide-view.test.mjs`'s `undefined` rows go red.
 - AC4: `telegramRowOf` gives the drawer row at every band -> D2 goes red. The `FOCUS_RULE` `telegram` branch removed -> D1's resize step goes red.
 
+**Mutation record (implement stage; each applied, observed red, reverted, and `git status --short`/`git diff --stat` byte-identical to before):**
+- mutation: AC1 `telegramRowOf` ignores `drawer` (`return false && drawer ? ...`) -> red: `guide-view.test.mjs` (2 `telegramRowOf` tests) and, on the sign-in part 3/4 stack, D1's hint assertion (expected the hint, received the original line).
+- mutation: AC2 `showTelegram` does nothing (the `focusRegion(RAIL_REGION)` call removed) -> red: D1 (`aria-expanded` expected "true", received "false" after Show me).
+- mutation: AC3 `telegramRowOf` ignores `view.telegramRow` (`if (false)`) -> red: `guide-view.test.mjs` "is undefined unless the server's view says telegramRow, at every band".
+- mutation: AC4 `telegramRowOf` gives the drawer row at every band (`return true ? ...`) -> red: D2 (original line expected), D1's resize step (Show me still there at 1400) and guide Q4 at 1280.
+- mutation: AC4 the `FOCUS_RULE` `telegram` branch removed (`if (false)`) -> red: D1's resize step ("focus goes to the prompt bar": expected focused, received inactive).
+- mutation: AC3 (stacked band) the component maps the band with `['drawer', 'stacked'].includes(this.layout.band())` instead of `=== 'drawer'` -> red: D3 (`toHaveText` of the original line failed at 900px); D1, D2 and Q4 stay green, so D3 alone pins the mapping.
+
 **Shared surfaces:** the `GUIDE_TEXTS` key set (`guide-view.test.mjs`); the `ux-strings.test.mjs` inventory and `ruled` table; the chromium project's spec files and the sign-in parts' cut (`e2e-part.mjs`); the sign-in stack's TelegramIn, mock Bot API and code rows while D1/D2 run (`Start`/`Finish` restores them); `layout.ts`'s exports; the `.focus(` and `afterNextRender` pins (unchanged). Standing criterion: every test added or changed passes on a fresh environment, in either order.
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-Plan stage only, halted after planning as instructed. Before implement, the lead raises the proposed hint (Design Notes) as the veto item and confirms Decided in-stage 9 (the `ux-strings.test.mjs` entry as within the footprint).
+**Summary.** In the drawer band (1024 to 1279 px), while the server's guide view says `telegramRow`, the guide's Telegram row now reads the ruled hint (U-244) naming the header's Status button and carries a Show me that calls `Layout.focusRegion(RAIL_REGION)`: the drawer opens, the rail takes focus and the unpaired card is in view. Every other band and state keeps the original line or no row.
+
+**Files changed.**
+- `web/src/app/guide/guide-view.ts`: `GUIDE_TEXTS.telegramDrawer` and the pure `telegramRowOf(view, drawer, status)`.
+- `web/src/app/guide/demo-guide.ts`: injects `Layout`; the row renders the text and, in the drawer band, a secondary Show me; `showTelegram()`; a `FOCUS_RULE` branch for the `telegram` key (prompt bar, else the finish's first line).
+- `web/src/app/shared/layout.ts`: `RAIL_REGION` exported; doc line names the new caller.
+- `web/scripts/guide-view.test.mjs`, `web/scripts/ux-strings.test.mjs`: unit pins and the U-244 `ruled` entry.
+- `web/e2e/guide/telegram-drawer.spec.ts` (new): D1 (1100 px), D2 (1400 px), D3 (900 and 1500 px), in the chromium sign-in unit.
+
+**Review.** One pass, 16 findings: patches applied 4 (D3 for the stacked and wide bands, the finish-state focus fallback, the Layout doc line, the `hitsCard` comment); deferred 0; the other 12 rejected with their reasons in the triage log (spec-bound, false, or low with no user-reachable harm). Follow-up review recommended: false (one medium patched, no high).
+
+**Verification.** Node tests (`npm --prefix web test`, 1249) pass; lint exits 0; bundle builds; `live sign-in` parts 1/2 and 2/2 pass (guide Q4, D1, D2, D3 included) and part 3/4 passes; `OcuTalon.Test.Demo.Guide` passes; `ci/checks.sh` passes twice (before and after the patches); the guarded-path `git status` prints nothing. Mutations for every AC are recorded under Verification, each red then reverted byte-identical.
+
+**Residual risks.** The row and Show me depend on the band only, so they stay while the drawer is open (Decided in-stage 2). Epic 31 edits `demo-guide.ts` and the `ruled` table too: expect a plain union at merge. `ux-strings.test.mjs` is the one footprint extension.

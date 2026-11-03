@@ -458,6 +458,9 @@ const SOURCES = {
     'Story 16.8: The page counts down to the reset (the reset countdown reads "Next reset {time} \u00b7 in {countdown}")': ['Next reset {time} \u00b7 in {countdown}'],
   },
   ruled: {
+    'Story 12.10 veto item (U-244, orchestrator veto: the hint of the Telegram row in the drawer band, which names the header\'s Status button; EXPERIENCE.md gives only the line for the other bands)': [
+      'Optional: press {status} at the top of the page, then scan the QR code in the Telegram card to get the notice on your own phone.',
+    ],
     'Story 12.9 (DW-501, DW-506; the chat-only forms of the allowance and reset-soon banners, shown while Telegram is not on: EXPERIENCE.md:174 gives the allowance form with its slots, and the Contest Planner kept both texts as U-227)': [
       "You've used this session's {limit} messages for the hour. You can send more at {time}.",
       'The demo resets in 5 minutes. Your session will be cleared.',
