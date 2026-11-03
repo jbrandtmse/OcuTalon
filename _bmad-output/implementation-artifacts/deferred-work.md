@@ -2681,6 +2681,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-31T00:41:46Z note=U-178_kept:31.2_tests_prove_the_approval_card_and_the_notice_both_show_the_sentence_and_offer_no_Approve_for_an_old_held_tool_call_row;read_from_the_existing_fallback_Decision_row;a_new_stored_column_is_its_own_veto_at_31.2's_spec_gate;U-170_checked_at_Epic_31's_merge
 - 2026-11-02T07:57:37Z status=routed owner=31-5-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=spec_gate note=Story_31.2_split:DW-454_needs_part_2s_tool-call_notice_keys(declined_in_31.2_part_1)
 - 2026-11-02T21:50:55Z status=routed owner=31-6-a-tool-call-s-approval-request-appears-in-the-web-chat-with by=adjudication note=31.5 delivered the notice and event half (BridgeSink.HeldNotice: toolCall.failedWithReason to the phone and paired chat, the approval event's reason; TestHeldBeforeUpdateSaysWhy, TestHeldReasonIsCatalogOnly, commit 4c0c0eb8); residual: the same result notice in the web chat (W10), Story 31.6's card path
+- 2026-11-03T04:02:13Z status=resolved-by:31-6-a-tool-call-s-approval-request-appears-in-the-web-chat-with by=adjudication note=web half delivered: WebChatOut renders toolCall.failedWithReason as a web chat notice with no Approve (ToolCallNotices.TestHeldReasonReachesTheWebChat, TestHeldRawReasonIsNeverShownInTheWebChat); phone, paired chat and event half by 31.5 (4c0c0eb8)
 
 ### DW-455: When FinishExecution is refused (row lock not taken) for an old approved tool_call row with ToolSource or Runner empty, Decide records a fallback Decision row with no reason, answers a repeat from it, and the row stays approved; untested
 - source: spec-30-3-an-approved-tool-call-runs-exactly-once-with-no-model.md | severity: low | fix-risk: med | footprint: in-story
@@ -3303,6 +3304,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-31-5-a-tool-call-s-approval-request-reaches-the-phone-with-approv.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: BridgeSink.cls ServerOf/InputsOf are [ Private ]; U-212 binds the card and the phone to one rule and one 200-char string; nothing pins the two equal yet
 - 2026-11-02T21:46:03Z status=routed owner=31-6-a-tool-call-s-approval-request-appears-in-the-web-chat-with by=cr note=make ServerOf/InputsOf one shared public helper the card calls; pin card text = phone text in a test
+- 2026-11-03T04:02:13Z status=resolved-by:31-6-a-tool-call-s-approval-request-appears-in-the-web-chat-with by=adjudication note=the web card renders the very Notification BridgeSink built with ServerOf/InputsOf (WebChatOut ToolCallCard); X13 compares card and phone text with inputs over 200 characters
 
 ### DW-602: X12 (answers.spec.ts) near-copies support/devices.ts phoneMessage as newestPhoneMessage and works around seedApproval's missing ToolSource/Runner/ToolArguments with a local setApprovalFields, forced by support/* being import-only
 - source: spec-31-5-a-tool-call-s-approval-request-reaches-the-phone-with-approv.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -3329,3 +3331,9 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: _bmad-output/implementation-artifacts/spec-31-6-a-tool-call-s-approval-request-appears-in-the-web-chat-with.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: web/src/app/chat/chat-announcements.ts:107 announces every unheard notice that is not a tell-now as entry.text; 31.6 lets kinds approval and result into that list; no unit case names either kind
 - 2026-11-03T03:21:47Z status=open owner=31-6-a-tool-call-s-approval-request-appears-in-the-web-chat-with by=harvest note=31.6 QA/CR: pin it (or fix a double announcement) as a two-way door
+- 2026-11-03T04:02:13Z status=resolved-by:31-6-a-tool-call-s-approval-request-appears-in-the-web-chat-with by=adjudication note=pinned by web/scripts/chat-announcements.test.mjs (6 cases): a tool-call request or result is spoken once, in full, like the other notices; no double announcement
+
+### DW-611: Status rail: a tool call's rail row is titled 'Run {tool}' (no server) and has no Show in chat jump, while its web chat card reads 'Run {tool} on {server}'
+- source: spec-31-6-a-tool-call-s-approval-request-appears-in-the-web-chat-with.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: rail-view.ts approvalTitle gives 'Run {toolName}' and sets the chat jump only with an incidentRef; X13 shows 'Run zz_tool_x13' in the rail beside the card 'Run zz_tool_x13 on zzx13'. Cosmetic: both name the same tool and the card carries the full text.
+- 2026-11-03T04:00:25Z status=wontfix-accepted owner=31-6-a-tool-call-s-approval-request-appears-in-the-web-chat-with by=cr note=reopen_if=an owner or UX pass asks the rail row of a tool call to name its server or to jump to its chat card
