@@ -1332,6 +1332,26 @@ So that each lane starts from a catalog, a Demo step and a test suite that need 
 - DW-42: With demo mode off, an OCUORDERS that OcuTalon didn't create, or that holds any production other than the Orders demo, is left in place: the `Demo` step logs a warning naming what it kept, records a status note saying how to remove it by hand, and the start finishes normally with the ready marker written; `test-install-start.sh`'s stopped-foreign and foreign-namespace fixtures assert the warning, the note and the ready marker (AD-3 as amended; owner decision 2) (ledger; routed by burndown 2026-10-20)
 - DW-9: `OcuTalon.Test.Install.Users:TestEnsureCreates` no longer reads an empty password hash after the create (a unique fixture name per run, and a read that waits for the committed object), or the flake is closed on evidence of a fresh-environment run of `lane-a` forward and reversed with no recurrence (Rule 19) (ledger; routed by burndown 2026-10-20)
 
+### Story 0.13: A start retries the CPF merge when IRIS cannot quiesce
+
+[ADDED 2026-11-03, fix-forward from DW-612 (orchestrator unattended ruling, veto U-235; re-opens Epic 0 under SC-5, before the 1.0.0 tag): `docker/after-start.sh` runs `iris merge` on a fresh copy of `merge.cpf` at every start, and even an unchanged merge runs about five full namespace activations, each of which waits up to about 120 s for a system quiesce and returns ERROR #453 when it cannot get one; CI hit it on a fresh first start (run 41419787515) and at install-start row 2, so a user's first start, restart or image update can end not ready. The larger rework (no re-merge on an unchanged start) is routed to the first daily release after 1.0.0. In 1.0.0's scope.]
+
+As a person starting OcuTalon (a first start, a restart or an image update),
+I want a start that meets IRIS's momentary "cannot quiesce" refusal during the CPF merge to try the merge again,
+So that a rare timing collision never leaves my install not ready.
+
+**Acceptance Criteria:**
+
+**Given** `docker/after-start.sh`'s merge step
+**When** `iris merge` fails and its output names ERROR #453 (Cannot quiesce the system for namespace reactivation)
+**Then** the step waits briefly and runs the merge again, a bounded number of times; each retry is written to the start's log with the attempt number; a merge that succeeds on a retry continues the start exactly as a first-try success does; after the last failed attempt the start ends not ready with the existing `STEP merge FAILED` report
+**And** any other merge failure fails at once, as today, with no retry
+**And** the retry count and wait are chosen so that a start that succeeds on its first retry stays inside the ready limits the live tests use (row 1's 400 s, row 2's 200 s); the choice and its reason are in the spec's Design Notes
+
+**Given** the change
+**When** this story merges
+**Then** a test with a stubbed `iris merge` pins the three cases (#453 then success: ready, the retry logged; #453 on every attempt: `STEP merge FAILED`, not ready; another error: no retry), in an existing CI group other than `production`, `browser`, `install-fresh` and `install-upgrade`; `docker/merge.cpf` is unchanged; `docker/tests/test-install-start.sh` and `test-install-upgrade.sh` pass; CI is green on every workflow
+
 ## Epic 1: Every item gets an attention decision you can audit and afford
 
 Every item OcuTalon receives gets exactly one attention decision from an AI Hub agent, recorded as a decision message with its outcome, reasons, confidence, tokens and cost, with every model request and tool call as an agent step in Visual Trace; an unusable reply takes the fallback route and never acts; conversations survive restarts; OcuTalon runs on Claude Haiku 5.5 with only a key in `.env`, and starts safely with none.
