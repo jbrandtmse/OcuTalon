@@ -1,7 +1,8 @@
 /// Tests of the bridge example's process and service (Story 13.1; AD-2, AD-6, FR-5). Nothing is started, sent or written: the tests
 /// build items in memory and read what the example's own class methods make of them. The whole path through a running production is
 /// proved by release/standalone-bridge.sh.
-///   - TestRequestFor: the decide request of an item holds every field of AD-6, and Decide.Admit accepts it;
+///   - TestRequestFor: the decide request of an item holds every field of AD-6 and, for a given session, the item's own ThreadSessionId (AD-26),
+///     and Decide.Admit accepts it;
 ///   - TestSummaryOf: the summary is one line of at most 80 characters, from the subject or, with none, the first line of the body;
 ///   - TestRender: the rendered text keeps the subject, a blank line and the body, so a marker in the body reaches the model;
 ///   - TestCheck: an item with neither subject nor body is refused, and one with either is accepted;
@@ -25,7 +26,13 @@ Method TestRequestFor()
 	Do $$$AssertEquals(request.ItemId, item.ItemId, "its ItemId is the item's")
 	Do $$$AssertEquals(request.Summary, "Printer on fire", "its Summary is the code-written line")
 	Do $$$AssertEquals(request.Input, $ClassMethod(..#TRIAGE, "Render", item), "its Input is the rendered text, never the item")
+	Do $$$AssertEquals(request.ThreadSessionId, "", "its ThreadSessionId is empty when no session is given")
 	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Process.Decide).Admit(request), "Decide admits the request")
+	Set threaded = $ClassMethod(..#TRIAGE, "RequestFor", item, 4711)
+	Do $$$AssertEquals(threaded.ThreadSessionId, 4711, "its ThreadSessionId is the item's own session when one is given (AD-26)")
+	Do $$$AssertEquals($ClassMethod(..#TRIAGE, "RequestFor", item, 0).ThreadSessionId, "", "and empty for a session of 0")
+	Do $$$AssertEquals(threaded.Provenance_"|"_threaded.Kind_"|"_threaded.ItemId, "user|decide|"_item.ItemId, "while its other fields are the same")
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Process.Decide).Admit(threaded), "and Decide admits it")
 	Set plain = ..Item("Plain", "Body")
 	Set plain.ItemId = ##class(OcuTalon.Bridge.Ids).NewRef()
 	Set plain.Provenance = ""

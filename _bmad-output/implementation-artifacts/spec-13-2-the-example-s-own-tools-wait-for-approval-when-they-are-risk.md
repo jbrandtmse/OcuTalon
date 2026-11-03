@@ -2,7 +2,8 @@
 title: "Story 13.2: The example's own tools wait for approval when they are risky"
 type: 'feature'
 created: '2026-11-02'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'fbd1b31f117a17769d2189a4610d58f5999b733a'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -175,6 +176,35 @@ The tools, all in `OcuTalon.BridgeExample.Tools`:
 
 ## Review Triage Log
 
+### 2026-11-02 - Review pass
+- verdicts: 25 findings - high 0, medium 1, low 18, false 6, maybe-false 0 (routes: patch 4, reject 21)
+- findings:
+  - `[low]` `patch` Blind: the agent prompt change is not pinned by any test - added `ExampleTools.TestAgentInstructions` (the three tool names, "held for a person's approval or denied", "Never repeat a call that was held or denied", "the one JSON object", no "You have no tools", no template token); mutation recorded.
+  - `[false]` `reject` Blind: `ForwardItem` ignores `team` - the Task fixes that ("It ignores the team's text"); the held arguments are pinned on the `ApprovalRequest` row.
+  - `[low]` `reject` Blind: the "never ran" checks follow a fixed `Hang 3` - every such row first reads the row's final state, which `Answer` sets before it returns (`rejected`, `expired`, `already_answered`); the sleep is margin, and the fix (more polling) is more than a direct correction.
+  - `[false]` `reject` Blind: the audit read-back checks the UTC time only for presence, and hard-codes `irisUser` - `%SYS.Audit.UTCTimeStamp` is always set by the audit writer, and the measured run shows `ExampleApprover` on all six entries (mutation: channel `web` -> red).
+  - `[low]` `reject` Blind: the dummy-key search covers only `ApprovalRequest.ToolArguments` among the approval stores - the Task names exactly that table, and no scenario can plant a key in an argument (no new mock behaviour allowed).
+  - `[low]` `reject` Blind: `TestTools` cleanup runs after the asserts and deletes by text prefix - only this test writes "ExampleTools: " lines in the unit shard's namespace, and a failure leaves two harmless log rows.
+  - `[low]` `reject` Blind: `TestToolSet` discovers the tools class again - a different class from the toolset's, so it checks the tool class offers exactly three methods; cosmetic.
+  - `[false]` `reject` Blind: runtime growth unchecked against the 25-minute limit - Design Notes 14 records the measured 5 min 43 s against deadline 1200 and `timeout-minutes` 25.
+  - `[low]` `reject` Blind: the spine class column lacks `ToolSet` and `Tools` - the Task changes only the item parenthetical and says no AD text changes; cosmetic.
+  - `[low]` `reject` Blind: no error text when the role creation fails - a failed role fails the `role` check and then the `approver-holds` check; the cause is one line away.
+  - `[low]` `reject` Edge: `F_STATE` on an empty `aref` aborts the session - only reachable after an earlier row already failed; the run fails either way.
+  - `[low]` `reject` Edge: an empty row ref makes the audit read-back match any entry - only reachable after an earlier row failed, which already fails the script.
+  - `[false]` `reject` Edge: `F_TRACE` reads the replay once without a poll - `F_STATE` (final) waits for `done`, which `Replay` sets after the reply; the measured runs are stable.
+  - `[low]` `reject` Edge/Intent: the role is `ExampleApprovers`, not `ExampleApprover` as the matrix says - IRIS refuses a user and a role of one name (measured); Design Notes 9 records the decision. The intent-contract text is left as it is (read-only) and the lead may amend it.
+  - `[medium]` `patch` Gap: AC 8 (the spine row names) has no pinning check - `spine-rows` now requires the example row to name each approval item that the production holds, with two broken samples; mutation recorded.
+  - `[low]` `reject` Gap: the dummy-key search of `ApprovalRequest.ToolArguments` cannot fail - the same shape as the file's other searches; a positive control needs a key in a tool argument, which needs new mock behaviour.
+  - `[low]` `patch` Gap: mutation lines are missing for the Rejected row, the Second answer row, the "no model request" count, the audit triple, and the unit tests - each applied, observed red, reverted byte-identical, and recorded below.
+  - `[low]` `patch` Gap: the `tool_scenario` cross-check against the ToolSet's tool names and the name and status checks are not pinned - added three samples (`tool-risky-name`, `tool-untrusted-status`, a ToolSet without one tool); mutation recorded.
+  - `[low]` `reject` Gap: the rows of 5e depend on order, on absolute log counts and on `Hang 3` - one script in a fresh throwaway namespace by design; each row names its own preconditions in the expected lines.
+  - `[low]` `reject` Gap: the audit time is checked for presence only - same as the Blind row above.
+  - `[false]` `reject` Intent: reading B (live-behaviour tests in the unit shard) - the intent names the standalone-bridge job and the script as the proof; reading A is the spec's.
+  - `[false]` `reject` Intent: `irisUser` for the non-answer entries - measured: all six entries show `ExampleApprover`.
+  - `[low]` `reject` Intent: the shard has no test that asserts a hold - the script does, as the intent says.
+  - `[low]` `reject` Intent: the collateral edits (prompt, spine, header comments, `RequestFor`) follow from the intent; no divergence.
+  - `[low]` `reject` Intent: matrix details are checked by count or substring - they are exact in the script's expected lines.
+
 ## Design Notes
 
 **Governing ADs (Rule 6):**
@@ -214,6 +244,15 @@ No AC contradicts an AD's Rule.
 7. Expiry is made by moving the row's `ExpiresAt` 1 s into the past (the fixture of `Test.Bridge.Approval:2274`), then calling `Answer`. Waiting 24 hours is not possible in CI, and the state still changes only through the API.
 8. Answers use channel `system`. A production developer answers from their own code, and `system` is in `Msg.Enum` `CHANNEL`.
 
+9. The approval role is `ExampleApprovers`, not `ExampleApprover` (measured on build 154: `Security.Users.Create` refuses a user and a role of one name, ERROR #942). The users stay `ExampleApprover` (holds the role) and `ExampleViewer` (holds none); the `ApprovalRole` row and the held rows' `RequiredRole` are `ExampleApprovers`. The matrix text `RequiredRole ExampleApprover` reads as the role that the user `ExampleApprover` holds; the answers, the audit `irisUser` and `Answer`'s user are `ExampleApprover` as written.
+10. Login-disabled users work (measured on build 154): `GetUserRecursedRoleSet` gives a disabled user its roles, so neither user is enabled and no password file exists. The password that `Users.Create` needs is generated inside the IRIS session and printed nowhere.
+11. `item_check` takes the provenance from the variable `ITEM_PROVENANCE` set on the call (`ITEM_PROVENANCE=user item_check ...`), default untrusted, so its positional arguments stay as they were.
+12. A row reads its session's tool steps by polling for up to 60 s until the session holds the count the row expects (`wantSteps`), because the replay's step reaches AgentSteps after the row is `done`. The held rows' `ToolArguments` are exactly `{"team":"operations"}` and `{}` (measured).
+13. The replay's request, steps and reply are in the item's own session (measured), so the Approve row reads them from `sid`.
+14. Run time (developer machine, ARM): a full run of `release/standalone-bridge.sh` took 5 min 43 s (the run with three mutations; a green run is shorter); under the 7 minutes of the Task, so the deadline (1200) and `timeout-minutes` (25) stay.
+15. The spine lint reports 8 placeholder findings (4 lines carry the tokens) on the base tree and on this tree alike (DW-180): no new finding.
+16. `OcuTalon.Test.Web.GuideApi` `TestRunAgain` (Lane B, `Demo.Guide`) failed once in `shard lane-b --part 2/2`, passed alone on a fresh stack and passed in the same shard on a second run: a flake that does not touch this story.
+
 **Runner rulings (2026-11-02, Epic 13 lead):**
 - Footprint, `src/ocutalon/cls/OcuTalon/Test/Bridge/Example.cls`: besides `TestProduction`'s item-list lines (orchestrator ruling), `TestAgent`'s toolset assertion (line 36, now `OcuTalon.BridgeExample.ToolSet`, "it has its toolset") and the header's "no toolset" may change. No live or waiting epic branch changes this file (checked against origin/OCT-epic12, 14, 15, 31 and 40), it is outside Epic 13's paths_hint and uncontended, so it is a reported footprint extension (Rule 11 (b)); category decide. Rejected: a second example agent (the production would stop running the agent `TestAgent` pins, and `TestProduction`'s `AgentClass` line would change anyway).
 
@@ -249,6 +288,23 @@ The split is the runner's decision.
 - AC 7: remove the `OcuTalonApprovals` item. Expected red: the script's start check (`jobs` 9 of 10) and `Example.TestProduction`, and the script exits 1.
 - AC 8: remove the three names from the spine row. Expected red: none of the commands above sees it, so the lead checks it by review.
 
+17. (review pass) The role-name deviation of item 9 is kept: the matrix and Task text name the role `ExampleApprover`, but IRIS refuses a role and a user of one name, so the code keeps the role `ExampleApprovers`. The intent-contract text is read-only and is reported to the lead.
+
+**Pinning mutations recorded (Rule 19).** Each was applied, observed red and reverted; every file was then byte-identical to its backup (`cksum`).
+- mutation: `Parameter CLASSIFICATIONEXAMPLECOUNTITEMS = "risky";` in `Tools.cls` -> red: `ExampleTools.TestNoCodeClassification` (2 asserts: "declares no CLASSIFICATION", "declares no parameter of that kind"), and in the script the `ClassificationOf` line (`risky:0:code`, wanted `safe:1:setting`) and the read-only row (step `denied`, wanted `ok`; `untrusted-steps` 1)
+- mutation: `Triage.OnRequest` stops passing `..%SessionId` -> red: the risky held, unclassified held and expired rows (`approval-trace` `0:0`, wanted `1:1`) and the Approve row (the replay is not in the item's session: `replay-request` `0:`, the step list lacks the ok step)
+- mutation: `ForwardItem` raises an error after its line -> red: the Approve row (`state` `failed`, `result` `failed`, the replay's step `error`, `replay-reply` `1:0`), and the rows after it
+- mutation: the fixture also gives `ExampleViewer` the role `ExampleApprovers` -> red: first the fixture check (`viewer-holds` 1, wanted 0; the script aborts); with that expectation flipped as well, the Not allowed row (`answer` `done`, wanted `not_allowed`; `state` `executing`) and the Approve row (`already_answered`), and the audit read-back (`irisUser` `ExampleViewer`)
+- mutation: the `ExpiresAt` move is skipped -> red: the Expired row (`answer` `done`, wanted `expired`; `state` `failed` here with the forward mutation, and `forward-runs` 2, wanted 1)
+- mutation: the audit read-back matches `outcome` `approvedX` -> red: the six-entry read-back after 180 s (`audit-answered-approved` `none`)
+- mutation: `RequestFor` always sets `Provenance` `user` -> red: `ExampleTriage.TestRequestFor` ("an item with no Provenance is untrusted"), and in the script the Untrusted row (`rows-added` 2, `held-steps` 2, `untrusted-steps` 0) and every earlier row that sends an untrusted item
+- mutation: the `OcuTalonApprovals` item removed from the production -> red: `Example.TestProduction` ("it has twelve items", "the items are the twelve of the example, in that order") and the script's start check (`jobs` 9, wanted 10), which aborts the run with exit 1
+- mutation: the three names removed from the spine row (AC 8) -> red: `test-bridge-example.sh` `spine-rows` ("does not name the approval item ApprovalStartIn / ApprovalHold / OcuTalonApprovals"); reverted (cksum identical). The review pass added this check.
+- mutation: the tool-name cross-check of `tool_scenario` replaced by `true` -> red: `scenarios` ("the rule does not flag a tool name that the ToolSet does not hold"); reverted
+- mutation: `Agent.cls` INSTRUCTIONS lose "Never repeat a call that was held or denied"; `ToolSet.cls` loses `example_archive_item`; `Tools.cls` gets the label "Forwarding" and `CountItems` answers `count` instead of `items` -> red, one run: `ExampleTools.TestAgentInstructions`, `TestToolSet` (3 tools, each once), `TestLabels` and `TestTools` ("whose items is a number"); reverted (cksum identical)
+- mutation: Second answer is given by `ExampleViewer`; the Rejected row sends `approve`; `posts_after` counts one more request -> red, one script run: the Second answer row (2 of 5 values), the Rejected row (3 of 5 values; the archive tool ran) and "the mock's log gained model requests across the approval (14 before, 15 after)"; reverted (cksum identical)
+- mutation: the audit read-back expects channel `web` -> red: the six-entry read-back after 46 s (6 of 6 values differ); reverted (cksum identical)
+
 **Shared surfaces:**
 - the example production's item list, which `Test.Bridge.Example:TestProduction`, `Test.Install.Production:TestExampleInstalledNotStarted` and the script's `F_ALIVE` assert;
 - the example agent's `TOOLSETS` (`Test.Bridge.Example:TestAgent`);
@@ -260,5 +316,24 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 
 ## Auto Run Result
 
-Status: ready-for-dev
-Blocking condition: none (plan round 1 halted on an intent gap about one line of `Test/Bridge/Example.cls`; the runner ruled the recommended option (a) and applied it, Spec Change Log 2026-11-02)
+Status: done
+Blocking condition: none
+
+**Summary.** The bridge example gets its own toolset (`Tools`, `ToolSet`): a read-only tool, a risky one and an unclassified one, each with a step label and no classification in code. The agent has the toolset and new instructions. `Triage` sets `ThreadSessionId` to the item's session. The example production gains `ApprovalStartIn`, `ApprovalHold` and `OcuTalonApprovals` (twelve items, four settings). Four marker scenarios drive the tools. `release/standalone-bridge.sh` writes the `ToolClassification` and `ApprovalRole` rows, creates the throwaway approval role and users, and proves the nine matrix rows and the six audit entries in section 5e and 6.
+
+**Files changed.**
+- `src/bridge/cls/OcuTalon/BridgeExample/Tools.cls`, `ToolSet.cls` (new): the three tools and their toolset.
+- `src/bridge/cls/OcuTalon/BridgeExample/Agent.cls`, `Triage.cls`, `Production.cls`: toolset and instructions; `RequestFor(item, sessionId)`; the three approval items.
+- `ci/mock/scenarios/A/bridge-example-tool-{read,risky,unclassified,untrusted}.json` (new): marker scenarios.
+- `release/standalone-bridge.sh`: rows, fixtures, ten jobs, section 5e, audit read-back; `.github/workflows/lane-a.yml`: header comment only.
+- `docker/tests/test-bridge-example.sh`: tool scenarios, spine-row check of the approval items, break samples.
+- `src/ocutalon/cls/OcuTalon/Test/Bridge/ExampleTools.cls` (new), `ExampleTriage.cls`; `Example.cls` and `Test/Install/Production.cls` (footprint extensions, the lines of the rulings only).
+- `ARCHITECTURE-SPINE.md`: the example row names the three approval items.
+
+**Review findings.** 25 findings: 4 patched (agent prompt pin; AC 8 spine-row check; missing mutation lines; tool-scenario cross-check pin), 21 rejected with reasons in the triage log, 0 deferred, 0 intent gaps.
+
+**Follow-up review recommended:** false (one medium patched; no high).
+
+**Verification.** `test-class-rules`, `test-mock`, `test-bridge-example`, `test-storage`, `test-ci-config` and `ci/checks.sh` pass. Warm classes `ExampleTools` (also after the patch), `ExampleTriage`, `Example`, `ExampleRouting`, `CodeRules` and `Install.Production` pass. `release/standalone-bridge.sh` passed all checks on the implementation pass (the patch pass changed no file it reads); the lane-a shards 1 to 6 and lane-b shards 1 and 2 passed (a `GuideApi.TestRunAgain` flake in lane-b part 2, passed on a second run and alone). The forbidden-path `git diff --stat` is empty. Every pinning mutation is recorded under Verification.
+
+**Residual risks.** The matrix and Task text name the approval role `ExampleApprover`; the code uses the role `ExampleApprovers` because IRIS refuses a role and a user of one name (Design Notes 9 and 17). The intent-contract text may be amended by the lead. The lint of the spine shows 8 placeholder findings, as on the base tree (DW-180).

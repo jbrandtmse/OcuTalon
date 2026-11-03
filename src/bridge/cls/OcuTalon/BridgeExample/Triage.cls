@@ -12,11 +12,12 @@ Parameter SETTINGS = "RouterName:Basic";
 /// The longest summary, in characters (OcuTalon.Bridge.Msg.Request Summary).
 Parameter MAXSUMMARY = 80;
 
-/// Sends Decide the request of the item, asynchronously, and waits for its answer.
+/// Sends Decide the request of the item, asynchronously, and waits for its answer. The request names this process's own session as its
+/// ThreadSessionId (AD-26), so that an approval request that a held tool call raises, its hold and its Workflow task are in the item's trace session.
 Method OnRequest(request As OcuTalon.BridgeExample.Msg.Item, Output response As Ens.Response) As %Status
 {
 	Set response = ""
-	Quit ..SendRequestAsync("Decide", ..RequestFor(request), 1, "decide")
+	Quit ..SendRequestAsync("Decide", ..RequestFor(request, ..%SessionId), 1, "decide")
 }
 
 /// Sends the router the decision that Decide answered with, and wants no response.
@@ -29,8 +30,9 @@ Method OnResponse(request As OcuTalon.BridgeExample.Msg.Item, ByRef response As 
 }
 
 /// The decide request of an item (AD-6): kind decide, owner instance, channel system, the item's provenance (untrusted when it has
-/// none), its ItemId, the code-written one-line summary and the rendered text. It never carries the item object.
-ClassMethod RequestFor(item As OcuTalon.BridgeExample.Msg.Item) As OcuTalon.Bridge.Msg.Request
+/// none), its ItemId, the code-written one-line summary and the rendered text. It never carries the item object. ThreadSessionId is sessionId
+/// (the item's own trace session) when that is above 0, and empty otherwise (AD-26).
+ClassMethod RequestFor(item As OcuTalon.BridgeExample.Msg.Item, sessionId As %Integer = "") As OcuTalon.Bridge.Msg.Request
 {
 	Set request = ##class(OcuTalon.Bridge.Msg.Request).%New()
 	Set request.Kind = "decide"
@@ -40,6 +42,7 @@ ClassMethod RequestFor(item As OcuTalon.BridgeExample.Msg.Item) As OcuTalon.Brid
 	Set request.ItemId = item.ItemId
 	Set request.Summary = ..SummaryOf(item)
 	Set request.Input = ..Render(item)
+	If sessionId > 0 Set request.ThreadSessionId = sessionId
 	Quit request
 }
 

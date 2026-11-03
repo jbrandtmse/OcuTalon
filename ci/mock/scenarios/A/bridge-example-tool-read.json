@@ -1,0 +1,19 @@
+{
+  "name": "bridge-example-tool-read",
+  "match": {
+    "marker": "bridge-example-tool-read"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "example_count_items",
+        "input": {}
+      }
+    },
+    {
+      "status": 200,
+      "text": "{\"outcome\": \"tellnow\", \"reasons\": [\"The CI mock counted the example's items and found the item worth telling the user.\"], \"confidence\": 0.8}"
+    }
+  ]
+}

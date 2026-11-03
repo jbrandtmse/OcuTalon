@@ -6,10 +6,15 @@
 ///     AgentSteps records each step;
 ///   - ExampleRouter routes the decision by the rule OcuTalon.BridgeExample.Rule: a fallback to ExampleFallbackOut, tellnow and act to
 ///     ExampleNotifyOut, digest to ExampleDigestOut, and ignore nowhere. The three operations are of one class that logs the decision.
-/// The definition holds the structure and the settings that wire it: the three settings of TriageAgent and the rule of the router. It
-/// holds no Model, ProviderConfig, TimerSeconds or DecisionTokenBudget (AD-5, AD-19): a developer writes those as System Default
-/// Settings of their own namespace, and a value in this definition would hide them. It does not enable the testing service. The
-/// production is never started by an install, and it is never an autostart production.
+///   - the agent has a toolset of its own, OcuTalon.BridgeExample.ToolSet, and the bridge governs its tools: a call that is risky, or that
+///     no ToolClassification entry classifies, is held as an approval request. ApprovalStartIn, ApprovalHold and OcuTalonApprovals (a
+///     Workflow operation) are the bridge's three approval items, which every hold needs; a person with the approval role answers through
+///     OcuTalon.Bridge.Approval Answer, and ApprovalHold then replays the approved call.
+/// The definition holds the structure and the settings that wire it: twelve items and four settings, the three settings of TriageAgent and
+/// the rule of the router. It holds no Model, ProviderConfig, TimerSeconds, DecisionTokenBudget, ToolClassification or ApprovalRole (AD-5,
+/// AD-19): a developer writes those as System Default Settings of their own namespace, and a value in this definition would hide them.
+/// ToolClassification (which tool is safe, read-only or risky) and ApprovalRole (the role whose members may answer) are rows of Decide.
+/// It does not enable the testing service. The production is never started by an install, and it is never an autostart production.
 Class OcuTalon.BridgeExample.Production Extends Ens.Production
 {
 
@@ -32,6 +37,9 @@ XData ProductionDefinition
   <Item Name="ExampleNotifyOut" ClassName="OcuTalon.BridgeExample.Outcome" PoolSize="1" Enabled="true"/>
   <Item Name="ExampleDigestOut" ClassName="OcuTalon.BridgeExample.Outcome" PoolSize="1" Enabled="true"/>
   <Item Name="ExampleFallbackOut" ClassName="OcuTalon.BridgeExample.Outcome" PoolSize="1" Enabled="true"/>
+  <Item Name="ApprovalStartIn" ClassName="OcuTalon.Bridge.Service.ApprovalStart" PoolSize="0" Enabled="true"/>
+  <Item Name="ApprovalHold" ClassName="OcuTalon.Bridge.Process.ApprovalHold" PoolSize="1" Enabled="true"/>
+  <Item Name="OcuTalonApprovals" ClassName="EnsLib.Workflow.Operation" PoolSize="1" Enabled="true"/>
 </Production>
 }
 

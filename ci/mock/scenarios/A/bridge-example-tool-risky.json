@@ -1,0 +1,21 @@
+{
+  "name": "bridge-example-tool-risky",
+  "match": {
+    "marker": "bridge-example-tool-risky"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "example_forward_item",
+        "input": {
+          "team": "operations"
+        }
+      }
+    },
+    {
+      "status": 200,
+      "text": "{\"outcome\": \"act\", \"reasons\": [\"The CI mock asked to forward the item to operations, which waits for approval.\"], \"confidence\": 0.8}"
+    }
+  ]
+}
