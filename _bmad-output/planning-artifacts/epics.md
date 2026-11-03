@@ -262,7 +262,7 @@ From the architecture spine (`ARCHITECTURE-SPINE.md`, final, updated 2026-10-17)
 - Namespace OCUTALON with code, data, private and public databases; OCUORDERS (demo mode) with code and data databases, created or removed by `OcuTalon.Install.Step.Demo`. The public database holds only `OcuTalon.Web.Public`, `OcuTalon.Data.Public` and `^OcuTalonPublic`. Every non-message persistent class sets `DEFAULTGLOBAL` to `^OcuTalonP.<Short>` (`^OcuTalonBP.<Short>` in the bridge); mappings `OcuTalonP.*`, `OcuTalonBP.*`, `AI.Agent.Session*` and `IRIS.IF.*` go to the private database, with an install check on where `^OcuTalonPublic` resolves.
 - Image: one Dockerfile `FROM` the retagged build 154 image, a build argument for the non-Health image, IPM's release file, the committed web bundle and, by step, the baked FastEmbed model and pinned Python packages. Durable `%SYS` and databases on a named volume; every install replaces only code.
 - The after-start script (OS authentication, always exits 0) first deletes the ready marker and clears readiness through `OcuTalon.Data.Public.Settings` when that class exists, installs or upgrades the package (version-gated; a developer compose file sets `OCUTALON_DEV=1`), runs the installer steps in order (bridge installer; `Public`, which writes the public settings from AD-19's variables with readiness still cleared and copies the budget values into `Decide`'s host settings, so every later step reads the online-demo flag through the accessor; roles and users with the README account's non-expiring password; web applications, SSL and tasks; `Demo`, which creates or removes OCUORDERS, its trace application and its grants as demo mode says; Config Store entries; audit events; the Telegram items, enabled only when `Included()` returns 1 and `TELEGRAM_BOT_TOKEN` is set), then `Production`, `Reconcile`, then `Public` again to set readiness last, and writes the ready marker. The compose health check opens no IRIS session and passes when IRIS runs and the marker equals the image version; `start_period` at least 10 minutes; `stop_grace_period: 60s`; each compose file sets its own `name:`.
-- An IPM install into an existing instance takes two runs of the same package (first in any namespace, then in OCUTALON) or `iris merge`, then `zpm "enable -map -ns OCUTALON"`, then one run; demo mode off.
+- An IPM install into an existing instance takes two runs of the same package (first in any Interoperability-enabled namespace (USER on build 154), then in OCUTALON) or `iris merge`, then `zpm "enable -map -ns OCUTALON"`, then one run; demo mode off. [AMENDED 2026-11-03, Story 15.3, unattended ruling U-231 (veto), kept with conditions by the owner's delegate (answer 2026-11-03T03:57:20Z#695): IPM 0.10.10 refuses the package in a namespace without Interoperability (`SystemRequirements Interoperability="enabled"`), so %SYS cannot run the first command; USER is Interoperability-enabled on both the IRIS for Health and the plain IRIS build 154 images (measured 2026-11-03); it read "first in any namespace" - see the story change log (spec-15-3, Spec Change Log)]
 - Storage is append-only; every persistent class commits its compiler-generated `Storage` block; CI diffs storage against the previous release tag (a no-op until the first tag exists). Only `ApprovalHold` and `ReminderTimer` hold long timers; each mirrors a row that is the truth, and the startup reconciler re-arms them.
 - Settings: bridge values in host settings and bridge tables; product values in `OcuTalon.Data.Setting` through `Setting.Get` (60-second cache); model and provider through the Config Store (`AI.LLM.OcuTalon<Agent>`); secrets only from environment variables. `OcuTalon.Core.SettingsOps` is the only run-time settings writer and ships in release 1; there an admin switches demo mode with `do ##class(OcuTalon.Core.Admin).SetDemoMode(<0 or 1>)`; the settings page arrives in step 2.
 
@@ -1331,6 +1331,26 @@ So that each lane starts from a catalog, a Demo step and a test suite that need 
 - DW-41: The catalog holds the owner's count-of-one, late-press and sign-in-label texts from EXPERIENCE.md ("Forms for a count of one, the late press, and the sign-in labels", October 20): `Catalog.Render` picks the count-of-one form by its count slot, the matching `gap` fields and `Gaps` entries are removed, `answered.*` gains the rejected and by-user late-press keys, and the sign-in labels "User name", "Password" and "Show password" are catalog texts that `Test.Web.PublicTexts` compares with the public package's copies (AD-3, AD-32; owner decision 1) (ledger; routed by burndown 2026-10-20)
 - DW-42: With demo mode off, an OCUORDERS that OcuTalon didn't create, or that holds any production other than the Orders demo, is left in place: the `Demo` step logs a warning naming what it kept, records a status note saying how to remove it by hand, and the start finishes normally with the ready marker written; `test-install-start.sh`'s stopped-foreign and foreign-namespace fixtures assert the warning, the note and the ready marker (AD-3 as amended; owner decision 2) (ledger; routed by burndown 2026-10-20)
 - DW-9: `OcuTalon.Test.Install.Users:TestEnsureCreates` no longer reads an empty password hash after the create (a unique fixture name per run, and a read that waits for the committed object), or the flake is closed on evidence of a fresh-environment run of `lane-a` forward and reversed with no recurrence (Rule 19) (ledger; routed by burndown 2026-10-20)
+
+### Story 0.13: A start retries the CPF merge when IRIS cannot quiesce
+
+[ADDED 2026-11-03, fix-forward from DW-612 (orchestrator unattended ruling, veto U-235; re-opens Epic 0 under SC-5, before the 1.0.0 tag): `docker/after-start.sh` runs `iris merge` on a fresh copy of `merge.cpf` at every start, and even an unchanged merge runs about five full namespace activations, each of which waits up to about 120 s for a system quiesce and returns ERROR #453 when it cannot get one; CI hit it on a fresh first start (run 41419787515) and at install-start row 2, so a user's first start, restart or image update can end not ready. The larger rework (no re-merge on an unchanged start) is routed to the first daily release after 1.0.0. In 1.0.0's scope.]
+
+As a person starting OcuTalon (a first start, a restart or an image update),
+I want a start that meets IRIS's momentary "cannot quiesce" refusal during the CPF merge to try the merge again,
+So that a rare timing collision never leaves my install not ready.
+
+**Acceptance Criteria:**
+
+**Given** `docker/after-start.sh`'s merge step
+**When** `iris merge` fails and its output names ERROR #453 (Cannot quiesce the system for namespace reactivation)
+**Then** the step waits briefly and runs the merge again, a bounded number of times; each retry is written to the start's log with the attempt number; a merge that succeeds on a retry continues the start exactly as a first-try success does; after the last failed attempt the start ends not ready with the existing `STEP merge FAILED` report
+**And** any other merge failure fails at once, as today, with no retry
+**And** the retry count and wait are chosen so that a start that succeeds on its first retry stays inside the ready limits the live tests use (row 1's 400 s, row 2's 200 s); the choice and its reason are in the spec's Design Notes
+
+**Given** the change
+**When** this story merges
+**Then** a test with a stubbed `iris merge` pins the three cases (#453 then success: ready, the retry logged; #453 on every attempt: `STEP merge FAILED`, not ready; another error: no retry), in an existing CI group other than `production`, `browser`, `install-fresh` and `install-upgrade`; `docker/merge.cpf` is unchanged; `docker/tests/test-install-start.sh` and `test-install-upgrade.sh` pass; CI is green on every workflow
 
 ## Epic 1: Every item gets an attention decision you can audit and afford
 
@@ -4106,8 +4126,8 @@ So that I understand what OcuTalon is before I install it.
 
 **Given** the README
 **When** this story merges
-**Then** it has a "How you talk to it" section, after "What you can use it for": the web chat page is the product on every install, and the demo adds only the demo guide, Break the feed, and the simulated phone and simulated mailbox; Telegram, to chat and approve from your phone, is in 1.0.0; email comes in a later release (step 4); a small table is fine; Slack is not named (FR-12, FR-18)
-**And** every claim matches what 1.0.0 ships: if Epic 12 (Telegram) has not merged when this story starts, the Telegram row is a clarification for the orchestrator, never a promise
+**Then** it has a "How you talk to it" section, after "What you can use it for": the web chat page is the product on every install, and the demo adds only the demo guide, Break the feed, and the simulated phone and simulated mailbox; email comes in a later release (step 4); a small table is fine; Slack is not named (FR-12, FR-18)
+**And** every claim matches what 1.0.0 ships; the section names no Telegram row yet: that row is Story 31.3's [AMENDED 2026-11-03, Story 10.5 plan, unattended ruling (split, decide): Epic 12 has not merged, and on this branch `OcuTalon.Channel.Telegram.In.Included()` still has its test-only body, so `docker/tests/test-readme.sh`'s no-telegram rule (AD-29) refuses the word Telegram in the README and Epic 12's README Telegram section (added with the Included() switch) that the row must point to does not exist yet; the Telegram row moved to Story 31.3 (the 1.0.0 README pass, after Epic 12), orchestrator ruling, veto U-234. It read: "Telegram, to chat and approve from your phone, is in 1.0.0; [...] **And** every claim matches what 1.0.0 ships: if Epic 12 (Telegram) has not merged when this story starts, the Telegram row is a clarification for the orchestrator, never a promise"]
 
 **Given** the images the Contest Planner hands over (vetted by the Contest Planner before delivery; drafts in `contest-49/readme-shots`; exactly these five: the page with an incident as the hero, the incident card, the resolved incident, a Visual Trace of the decision, and the page with Demo view off; the draft-vt-watch-* shots are not used)
 **When** this story adds them
@@ -4538,7 +4558,7 @@ So that no heartbeat tick overwrites a seeded last run while a spec asserts it, 
 
 ## Epic 12: Approve from your own phone with Telegram
 
-A user scans the page's QR code to pair their Telegram private chat with their session, then chats, gets notifications and reminders, and answers approval requests with inline buttons from Telegram; unknown codes and a bare `/start` get polite instructions and link nothing; OcuTalon runs fully without a bot token, and pauses politely if another process polls the same bot. Built in Lane A after Epic 11 and shipped as 0.1.1, the release right after 0.1.0 and before the online demo goes public (PRD §7.2). [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation (inbox U-67): built alongside Epic 11 by the first free runner once Epic 10 has merged, and merged only after the `v0.1.0` tag exists; still shipped as 0.1.1.]
+A user scans the page's QR code to pair their Telegram private chat with their session, then chats, gets notifications and reminders, and answers approval requests with inline buttons from Telegram; unknown codes and a bare `/start` get polite instructions and link nothing; OcuTalon runs fully without a bot token, and pauses politely if another process polls the same bot. Built in Lane A after Epic 11 and shipped in 1.0.0, the first release; it merges into the integration branch when done, with no tag gate [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0": 0.1.0 and 0.1.1 are not cut; it read "shipped as 0.1.1, the release right after 0.1.0 and before the online demo goes public (PRD §7.2)", and the merge gate on the `v0.1.0` tag below is dropped]. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation (inbox U-67): built alongside Epic 11 by the first free runner once Epic 10 has merged, and merged only after the `v0.1.0` tag exists; still shipped as 0.1.1.]
 
 ### Story 12.1: Telegram stays off without a token, and CI mocks the Telegram API
 
@@ -4568,7 +4588,7 @@ So that Telegram is optional and the web demo path never waits on it.
 - DW-367: The CI override sets the dummy TELEGRAM_BOT_TOKEN for every CI and throwaway start, so once Included() can be 1 a start with no bot token (FR-21: no token, so Telegram off) has no way to be expressed in CI (ledger; routed by merge_gate 2026-10-29)
 - DW-370: The CI mock's Bot API state is one global queue, call list and counter for one client: reset restarts update_id at 1, so a poller that keeps its offset drops new updates as confirmed, and Test.Contract.Mock.TestTelegramBotApi expects only its own three calls (ledger; routed by merge_gate 2026-10-29)
 
-**On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the Contest Planner's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
+**On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the owner's Telegram pass on the 1.0.0 candidate (Story 38.3) [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0": it read "a real bot only in the Contest Planner's hands-on pass"]. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
 
 ### Story 12.2: OcuTalon polls and writes to its own bot, and pauses when another process polls it
 
@@ -4591,17 +4611,51 @@ So that no message is lost or repeated and two installs never fight over one bot
 **Given** Telegram answers `getUpdates` with 409 Conflict because another process polls the same token
 **When** `TelegramIn` receives it
 **Then** it stops polling for 5 minutes, logs the event without the token, and records the pause and its retry time through `OcuTalon.Data.StatusMark.Record` (Lane B's API from Story 10.3), from which `StatusMonitor` and `/state` turn on the `telegramPaused` condition with that time (FR-22, AD-12, AD-18)
-**And** the page shows the warning banner "Telegram is paused: this bot is in use by another OcuTalon. OcuTalon will try again at {time}. Each OcuTalon needs its own bot." with the "Set up a bot" README link, and the card shows "Telegram paused" and "Trying again at {time}" with the QR code withdrawn (FR-22, UX-DR56, UX-DR116)
 
 **Given** the pause has lasted 5 minutes
 **When** `TelegramIn` polls again
-**Then** on success the condition clears and the banner leaves within one live update, and on another 409 it pauses again for 5 minutes (FR-22, UX-DR34)
+**Then** on success the condition clears, and on another 409 it pauses again for 5 minutes (FR-22)
 
 **Given** a Telegram test run against the mock
-**When** a test searches every production setting, `%Status` text, event-log entry, trace message, audit entry, live event and the page for the dummy token
+**When** a test searches every production setting, `%Status` text, event-log entry, trace message, audit entry and live event for the dummy token
 **Then** it finds none (NFR-11, AD-14)
 
-**On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the Contest Planner's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
+**Given** the installer's client SSL configuration `OcuTalonClient`, which `TelegramIn` and `TelegramOut` name in their SSL configuration host setting
+**When** a test runs against the shipped image
+**Then** the CA file the configuration names exists in that image, and a request through the configuration to a disposable TLS server with a bad certificate (self-signed or for another host, never a real external host) is refused (NFR-11, AD-19, AD-23)
+**And** with an `http://` endpoint override (AD-19: the CI mock, the demo host's gateway), `TelegramIn` and `TelegramOut` stay plain HTTP and work, with no SSL configuration in the way, which the CI mock tests show (AD-19, AD-22)
+
+[AMENDED 2026-10-30, Story 12.2 spec gate, Epic 12 runner: the criterion above is the owner's U-164 conditions (1) and (2), answered 2026-10-30T09:39:29Z on the veto item for the client SSL configuration.]
+
+[AMENDED 2026-10-30, Story 12.2 spec gate, Epic 12 runner, unattended ruling (split, decide): the page side moved verbatim to Story 12.8, planned next: the third criterion's And clause (the banner and the card's paused state), "the banner leaves within one live update" from the fourth, and "the page" from the fifth's search; the server side stays here.]
+
+- DW-422: TelegramIn's kept update offset (`$$$EnsStaticAppData("TelegramIn", "offset")`, Story 12.1's `Test.Channel.BotApi`) is pinned only against that helper; this story's tests prove its poller keeps its offset in that node (ledger; routed by harvest 2026-10-30)
+
+**On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the owner's Telegram pass on the 1.0.0 candidate (Story 38.3) [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0": it read "a real bot only in the Contest Planner's hands-on pass"]. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
+
+### Story 12.8: The page shows when Telegram is paused, and when it will try again
+
+[ADDED 2026-10-30, Story 12.2 spec gate, Epic 12 runner, unattended ruling (split, decide): split from Story 12.2, whose page-side clauses are moved here verbatim; planned next in Epic 12, after 12.2 and before 12.3.]
+
+As a user,
+I want the page to tell me when Telegram is paused because another process polls my bot, and when OcuTalon will try again,
+So that I know why Telegram is quiet and what to do about it.
+
+**Acceptance Criteria:**
+
+**Given** `TelegramIn` has stopped polling after a 409 Conflict and recorded the pause and its retry time (Story 12.2), so that `/state` carries the `telegramPaused` condition with that time
+**When** the page shows it
+**Then** the page shows the warning banner "Telegram is paused: this bot is in use by another OcuTalon. OcuTalon will try again at {time}. Each OcuTalon needs its own bot." with the "Set up a bot" README link, and the card shows "Telegram paused" and "Trying again at {time}" with the QR code withdrawn (FR-22, UX-DR56, UX-DR116)
+
+**Given** the pause has lasted 5 minutes and `TelegramIn` polls again with success, so the condition clears (Story 12.2)
+**When** the page receives the next live update
+**Then** the banner leaves within one live update (FR-22, UX-DR34)
+
+**Given** a Telegram test run against the mock
+**When** a test searches the page for the dummy token
+**Then** it finds none (NFR-11, AD-14)
+
+**On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the owner's Telegram pass on the 1.0.0 candidate (Story 38.3) [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0": it read "a real bot only in the Contest Planner's hands-on pass"]. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
 
 ### Story 12.3: The Telegram card shows a fresh pairing code as a QR code
 
@@ -4628,7 +4682,7 @@ So that I can pair my phone in one scan without typing anything.
 **When** a test searches the production messages, headers, event log, live events and audit entries
 **Then** no code appears in any of them (FR-18, AD-4)
 
-**On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the Contest Planner's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
+**On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the owner's Telegram pass on the 1.0.0 candidate (Story 38.3) [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0": it read "a real bot only in the Contest Planner's hands-on pass"]. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
 
 ### Story 12.4: A valid code pairs the chat with the session
 
@@ -4662,7 +4716,9 @@ So that I know my phone will get OcuTalon's notices.
 **When** the REL-2 spec for UJ-1's page step reaches its Telegram pairing part, in its `web/e2e/demo-path/telegram-*.spec.ts` file that Story 10.3 created skipped
 **Then** that part is turned on once it passes on the integration branch with the CI mock: it reads the code from the page's "Open in Telegram" link, injects `/start <code>` from a private chat, and sees "Telegram paired" on the card and the confirmation sent to the chat (REL-2, AD-29, UX-DR101)
 
-**On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the Contest Planner's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
+**On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the owner's Telegram pass on the 1.0.0 candidate (Story 38.3) [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0": it read "a real bot only in the Contest Planner's hands-on pass"]. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
+
+- DW-486: `TelegramIn` (Story 12.2) calls `Pairing.RecordChat(chatId, "")` for every private update, and `RecordChat` sets `DisplayName` unconditionally, so the name this story stores would be blanked by the chat's next message; this story keeps a stored name (on Epic 12's side if possible: `TelegramIn` passes the update's own name, or skips an empty one; `Data/Pairing.cls` is Lane B's and contended with Epic 11) (ledger; routed by harvest 2026-10-31)
 
 ### Story 12.5: Bad codes, a bare start command and unpairing get polite answers
 
@@ -4693,7 +4749,7 @@ So that nobody pairs with my session by accident or learns anything about it.
 **When** a chat paired with A pairs with B, or A pairs a second chat
 **Then** a chat keeps at most one live pairing: in the first case A's card shows "Telegram unpaired" and then a new code, from the `pairing` event `SessionOps` publishes to every session whose state changed; in the second the first chat gets "Another Telegram chat was paired with this OcuTalon session, so this chat is no longer paired." from the `pairing` `Notification` that `SessionOps` sends (Story 10.3), and no more of A's messages; and each change is audited (FR-18, FR-9, AD-4, UX-DR56, UX-DR109)
 
-**On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the Contest Planner's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
+**On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the owner's Telegram pass on the 1.0.0 candidate (Story 38.3) [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0": it read "a real bot only in the Contest Planner's hands-on pass"]. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
 
 ### Story 12.6: Chat and get notifications in the paired Telegram chat
 
@@ -4725,10 +4781,10 @@ So that I can follow and steer it from my own phone.
 **When** a test searches the production messages, Visual Trace, the agent steps, the event log and the IRIS audit log
 **Then** none holds the chat's Telegram id or display name; only the `Pairing` row does (FR-15, FR-3, FR-9, AD-4)
 
-**On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the Contest Planner's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
+**On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the owner's Telegram pass on the 1.0.0 candidate (Story 38.3) [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0": it read "a real bot only in the Contest Planner's hands-on pass"]. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
 
 - DW-30: `TelegramOut` keeps every message within the Bot API's 4,096-character limit, because `Catalog.Render` caps no length and a model-written slot can be long (ledger; routed by harvest 2026-10-20)
-- DW-295: On a channel that shows no check rows (Telegram from 0.1.1) the Chat agent is no longer told that OcuTalon shows the check results under its reply and not to repeat them, so 'is everything OK?' gets a status there (ledger; routed by merge_gate 2026-10-27)
+- DW-295: On a channel that shows no check rows (Telegram from 1.0.0 [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0": it read "from 0.1.1"]) the Chat agent is no longer told that OcuTalon shows the check results under its reply and not to repeat them, so 'is everything OK?' gets a status there (ledger; routed by merge_gate 2026-10-27)
 
 ### Story 12.7: Approve or reject from Telegram, and every copy shows who answered
 
@@ -4760,24 +4816,46 @@ So that I can approve the fix from my own phone and see the result there.
 **When** the REL-2 spec for UJ-1's approval step reaches its Telegram part, in its `web/e2e/demo-path/telegram-*.spec.ts` file that Story 10.3 created skipped
 **Then** that part is turned on once it passes on the integration branch with the CI mock: it presses Approve on the notice's button, sees the answered status on the chat card and the phone, the edited Telegram message and "All 50 orders went through." in the paired chat, and finds the approval in the IRIS audit log with channel Telegram and no Telegram identity (FR-8, FR-9, REL-1, REL-2, UX-DR101, UX-DR103)
 
-**Given** this epic's stories are merged and Story 11.5's sequence stopped at the hands-on gate for the 0.1.1 candidate `release/0.1.1-rc<n>`
-**When** the Contest Planner installs that candidate from the README with Docker, a real model key and a real bot (the author provides a bot token for the rehearsal, and Telegram Web runs in the browser the Contest Planner drives, logged in once by the author), and runs the step's hands-on pass
-**Then** pairing, a reminder, the incident notice and Approve work in Telegram Web, and the author's optional look at one notice and one approval on a phone is recorded, or noted as skipped, without blocking the release (REL-7's amendment of 2026-10-25); each finding goes into the candidate's record (`release/records/0.1.1/rc<n>.md`) with its fix or the Contest Planner's decision to defer it, and the pass is recorded against the candidate by its version and commit SHA (REL-7, P29, UX-DR136, UX-DR138)
+**Moved to Story 38.3** [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0": Story 12.7's real-device Telegram pass moves to Story 38.3, "the owner's Telegram pass on the 1.0.0 candidate", in Epic 38, which runs on `release/1.0.0-rc1`; this story keeps everything that is built and proved on the CI mock. The criterion moved verbatim, with its U-164 condition (3) line: it read "**Given** this epic's stories are merged and Story 11.5's sequence stopped at the hands-on gate for the 0.1.1 candidate `release/0.1.1-rc<n>` / **When** the Contest Planner installs that candidate from the README with Docker, a real model key and a real bot (the author provides a bot token for the rehearsal, and Telegram Web runs in the browser the Contest Planner drives, logged in once by the author), and runs the step's hands-on pass / **Then** pairing, a reminder, the incident notice and Approve work in Telegram Web, and the author's optional look at one notice and one approval on a phone is recorded, or noted as skipped, without blocking the release (REL-7's amendment of 2026-10-25); each finding goes into the candidate's record (`release/records/0.1.1/rc<n>.md`) with its fix or the Contest Planner's decision to defer it, and the pass is recorded against the candidate by its version and commit SHA (REL-7, P29, UX-DR136, UX-DR138) / **And** the hands-on pass records a verified TLS handshake with `api.telegram.org` through the installer's client SSL configuration `OcuTalonClient` (peer verification on), in the candidate's record (REL-7, AD-19) [AMENDED 2026-10-30, Story 12.2 spec gate, Epic 12 runner: the owner's U-164 condition (3)]"]
+
+**Moved to Story 12.9** [AMENDED 2026-11-02, Story 12.7 spec gate, Epic 12 runner: split (U5 decide; orchestrator accepted). The criteria from Story 11.2's harness to the splash moved verbatim from Story 12.7 to the new sibling Story 12.9, because AD-32 forbids a released Telegram notice without Approve and Reject, so the switch follows the buttons.]
+
+**Moved to Story 38.3** [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0": the 20 timed pairings and approvals with a real bot are part of Story 12.7's real-device pass, which Story 38.3 now carries on the 1.0.0 candidate; this story keeps the CI mock's 5-second checks. The criterion moved verbatim (read 0.1.1 as 1.0.0, and its record as `release/records/1.0.0/rc<n>.md`): it read "**Given** the 0.1.1 candidate's hands-on gate above, on a clean-machine rehearsal host with a real bot / **When** the Contest Planner runs pairing and an approval answered from Telegram Web 20 times each (the Bot API can't act as a user, so a user client is driven), with the timings taken from server-side timestamps: from the update's arrival at `TelegramIn` to the page's `pairing` event, and to each other copy's delivery / **Then** the page shows "Telegram paired" within 5 seconds of the valid code, and every other copy shows the approval's result within 5 seconds, in at least 19 of 20 runs; the 20 pairings and 20 approvals are recorded once, in the 0.1.1 candidate's record (`release/records/0.1.1/rc<n>.md`), as part of the hands-on gate, not as a merge criterion of this story and not for each later release, and the 0.1.1 release notes report them (FR-8, FR-18, NFR-9, P30, REL-7)"]
+
+**On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the owner's Telegram pass on the 1.0.0 candidate (Story 38.3) [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0": it read "a real bot only in the Contest Planner's hands-on pass"]. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
+
+### Story 12.9: Telegram is included
+
+As a user,
+I want OcuTalon to turn Telegram on once approvals work there, with the README telling me how to set up my bot,
+So that I can pair my own phone and approve from it in a release.
+
+**Depends on:** Story 12.7 (the buttons, the presses and the edit in place). [AMENDED 2026-11-02, Story 12.7 spec gate, Epic 12 runner: split (U5 decide; orchestrator accepted). The criteria from Story 11.2's harness to the splash moved verbatim from Story 12.7 to the new sibling Story 12.9, because AD-32 forbids a released Telegram notice without Approve and Reject, so the switch follows the buttons.]
+
+**Acceptance Criteria:**
 
 **Given** Story 11.2's upgrade and restart harness
 **When** this story merges
-**Then** it extends the harness so the restart check includes a pairing through the Telegram mock from 0.1.1 and the upgrade check from 0.1.2, once the previous release includes Telegram, and the pairing still receives notifications afterwards (FR-60, NFR-16, NFR-17)
-
-**Given** the 0.1.1 candidate's hands-on gate above, on a clean-machine rehearsal host with a real bot
-**When** the Contest Planner runs pairing and an approval answered from Telegram Web 20 times each (the Bot API can't act as a user, so a user client is driven), with the timings taken from server-side timestamps: from the update's arrival at `TelegramIn` to the page's `pairing` event, and to each other copy's delivery
-**Then** the page shows "Telegram paired" within 5 seconds of the valid code, and every other copy shows the approval's result within 5 seconds, in at least 19 of 20 runs; the 20 pairings and 20 approvals are recorded once, in the 0.1.1 candidate's record (`release/records/0.1.1/rc<n>.md`), as part of the hands-on gate, not as a merge criterion of this story and not for each later release, and the 0.1.1 release notes report them (FR-8, FR-18, NFR-9, P30, REL-7)
+**Then** it extends the harness so the restart check includes a pairing through the Telegram mock from 1.0.0 and the upgrade check from the first release after 1.0.0, once the previous release includes Telegram [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0": it read "from 0.1.1 and the upgrade check from 0.1.2"], and the pairing still receives notifications afterwards (FR-60, NFR-16, NFR-17)
 
 **Given** every Telegram story merged
 **When** this story merges
 **Then** `OcuTalon.Channel.Telegram.In.Included()` returns 1, so `/state` shows the rail's Telegram card (Story 2.8), the pairing endpoints answer, and with a token set the Telegram installer step enables `TelegramIn` and `TelegramOut` (Story 12.1's one switch), in the same change that adds the README's Telegram section (creating a bot with BotFather, turning groups off for it, setting `TELEGRAM_BOT_TOKEN` in `.env` and restarting OcuTalon, and that each OcuTalon needs its own bot), which the card's "How to set it up" link and the "Set up a bot" banner link open, so the link never points at a missing section and Story 10.2's README link check covers it from this change on (FR-21, FR-22, FR-58, UX-DR98)
 **And** [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: moved from Story 16.10, because Lane A's Epic 29 now runs before this epic] this story also turns on the online demo's Telegram case that Epic 16 leaves off: Story 16.3's check that the rail's Telegram card shows a resumed session's pairing (FR-14, FR-15, FR-20, AD-29) [AMENDED 2026-10-21, owner decision at the unattended launch, worked out with the Contest Planner: Story 29.2 is Story 16.3 again; Story 29.4's paired-chat cases moved to Story 31.4]
 
-**On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the Contest Planner's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
+**Given** a release that includes Telegram (`OcuTalon.Channel.Telegram.In.Included()` returns 1, from this story)
+**When** the online demo's splash renders
+**Then** it shows "Have Telegram? You can scan a QR code inside to get the notices on your own phone." and the allowance line "Each session can send {limit} messages an hour in the chat or Telegram." (catalog key `splash.limitLine`), and the allowance banner `banner.allowance` says "chat or Telegram" only then; with `Included()` 0 neither text mentions Telegram (FR-14, FR-20, AD-3, AD-19)
+**And** the splash learns it through a public key `telegramIncluded` in `Data.Public.Settings`, written from `Included()` by Lane A's `Install.Step.Public` at every online-demo start, because the public pages may read only `Data.Public.Settings`' fixed keys (AD-3, AD-19); that key needs the owner's amendment of AD-19, so it is not built before this story's spec gate brings the mechanism to the orchestrator as a `## Clarification Needed` [ADDED 2026-10-31, orchestrator ruling U-197, from Story 16.11]
+
+**Note on the splash criterion above** [ADDED 2026-11-02, orchestrator ruling at Story 12.7's spec gate]: the mechanism (the public key `telegramIncluded`, option (a) or (a'), or no key with the splash lines shown unconditionally once `Included()` is a constant 1, option (b)) waits on the Contest Planner's answer to the U-197 follow-up; this story's spec gate reads that answer. Only this story's splash and banner part waits on it.
+
+**U-219 answered: option (a')** [AMENDED 2026-11-02, Story 12.9, U-219; the Contest Planner under the owner's delegation, after the owner deferred Story 31.4 to after the v1.0.0 tag]: the public key `telegramIncluded` is `1` only when `Included()` returns 1 and a bot token is set on that start, otherwise `0`; Lane A's `Install.Step.Public` writes it on every start and only the splash reads it (AD-19's dated sub-bullet). The splash line, the allowance line's "or Telegram" and `banner.allowance`'s "chat or Telegram" follow that key, not `Included()` alone, so the online demo keeps Telegram off by host configuration (no bot token in its IRIS container) until Story 31.4 lands, with a truthful splash; when 31.4 merges, no code change is needed. This story does not depend on Story 31.4.
+
+- DW-501: The allowance banner (catalog banner.allowance) promises Telegram on the online demo while the release has no Telegram (ledger; routed by spec_gate 2026-11-02)
+- DW-506: The reset-soon banner (catalog banner.resetSoon) names Telegram pairing on the online demo while the release has no Telegram (ledger; routed by spec_gate 2026-11-02)
+
+**On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the owner's Telegram pass on the 1.0.0 candidate (Story 38.3) [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0": it read "a real bot only in the Contest Planner's hands-on pass"]. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
 
 ## Epic 13: Any production can use the bridge
 
@@ -4882,6 +4960,34 @@ So that I can add the bridge to my own production without OcuTalon and without r
 **When** the public-text check and the release checklist run
 **Then** it is in plain English, holds no key, local machine path, instance name or private infrastructure detail, and the release checklist confirms it matches the release (FR-5, NFR-26, CON-5)
 
+- DW-181: The example's inline `ProviderConfig` carries no `Timeouts.Derive` `http_config`, so AI Hub's 30 s Retry-After cap and default request timeout apply under the bridge timer; the guide tells a developer to write `Derive(timer).http_config` into an inline config, or to use `@{config:}` with `Timeouts.Apply` (AD-8), and keeps Story 13.1's timer row working (ledger; routed by cr 2026-10-24)
+
+### Story 13.4: The guide and the overview say exactly what is audited, and the guide's gaps are closed
+
+[ADDED 2026-11-03, fix-forward from the Contest Planner's U-233 bare-container run of `docs/bridge-guide.md` (PASS on ac3f9c58), orchestrator unattended ruling, veto U-236; re-opens Epic 13 under SC-5, before rc1. U-229's sentence "each tool call is still audited" is false as written: by the overview's own audit section, "audited" means an IRIS audit entry, and the bridge writes one only for Approval, Action (Replay, Executor, PartnerTrigger), Pairing and Settings. The Planner amended U-229's wording. Docs and their test pins only. In 1.0.0's scope; must merge before rc1 (U-223 condition (2): every "this release" statement is true when rc1 is cut).]
+
+As a developer or a security reviewer reading the bridge guide and the security overview,
+I want them to say exactly what is audited, and the guide's steps to match what I see,
+So that I can follow the guide literally and trust its claims.
+
+**Acceptance Criteria:**
+
+**Given** U-229's sentence in `docs/security-overview.md` (L100), in `docs/bridge-guide.md` (L291) and pinned in `docker/tests/test-bridge-guide.sh` (`U229=`, L39, and its negative fixture)
+**When** this story merges
+**Then** all three read exactly: "In this release, changing this setting writes no OcuTalon audit entry. Each tool call is recorded as a step of its decision, and an approval and an approved call's run each write an audit entry." (the Contest Planner's amended U-229 wording)
+**And** each clause is checked against the code before it lands (where a tool call is recorded as a decision step; which `Bridge.Audit.Record` calls an approval and an approved call's replay write), with the file:line evidence in the spec's Design Notes; if any clause is not true, the story stops with a clarification to the orchestrator and never rewords it
+**And** the overview's generated lists and `overviewdoc` pins still pass, and every other "this release" statement in both files stays true
+
+**Given** the guide gaps the Planner's run found
+**When** this story merges
+**Then** (b) the settings table's `AgentAllowList` default cell says the default is empty, which refuses every class (replacing "see below")
+**And** (c) Step 6 gives the real path to a trace: in the message viewer, click the row, then the Trace tab, then View Full Trace (or click the Session number); the header id is not a link; and the trace's list names the bridge timer's `AlarmRequest` to `Ens.Alarm`
+**And** (d) the reference states Decide's rule that for a `user` request an ignore or digest decision becomes tellnow, with the reason the trace shows ("The outcome was changed because a message the user writes is always answered."), since steps 4 to 6 say an ignore decision goes to no output
+**And** (e) the Govern section says in one sentence that the Portal's notice that Decide needs an update, after the two settings rows are written, can be ignored, because the settings are read live
+**And** (g) the story finds whether a bare-bridge production needs `Approval.Reconcile` (re-arming pending approvals after a production start; today only OcuTalon's own install calls it): if it does, one sentence tells bridge users to run it after a production start; if it does not, the guide says nothing; the finding and its evidence are in Design Notes
+**And** every changed guide block still passes the standalone-bridge job's block-by-block guide run, `docker/tests/test-bridge-guide.sh` passes, and CI is green on every workflow
+**And** the story touches only `docs/bridge-guide.md`, `docs/security-overview.md` (L100's sentence only) and `docker/tests/test-bridge-guide.sh`; runnable guide blocks that reach a held call, and any bridge self re-arm at production start, go to the ledger `owner=burndown` with the note "first daily release after 1.0.0"
+
 ## Epic 14: A security reviewer can approve OcuTalon
 
 A security reviewer reads one overview, generated in part from the product, listing every built-in tool with its classification, the service user's privileges and the limits of that check, the approval and audit rules, what data leaves the instance, how MCP tools are classified and the online demo's protections; a test fails if the tool list drifts.
@@ -4968,7 +5074,7 @@ An IRIS user installs OcuTalon into an existing AI Hub build 154 instance with i
 ### Story 15.1: The first install run creates OCUTALON and gives the next command
 
 As an admin,
-I want the first run of OcuTalon's IPM package, in any namespace, to create OCUTALON with its databases and mappings and then stop with the exact next command,
+I want the first run of OcuTalon's IPM package, in any Interoperability-enabled namespace (USER on build 154), to create OCUTALON with its databases and mappings and then stop with the exact next command, [AMENDED 2026-11-03, Story 15.3, unattended ruling U-231 (veto), kept with conditions by the owner's delegate (answer 2026-11-03T03:57:20Z#695): IPM 0.10.10 refuses the package in a namespace without Interoperability (`SystemRequirements Interoperability="enabled"`), so %SYS cannot run the first command; USER is Interoperability-enabled on both the IRIS for Health and the plain IRIS build 154 images (measured 2026-11-03); it read "first in any namespace" - see the story change log (spec-15-3, Spec Change Log)]
 So that I can install into my existing instance without preparing IRIS by hand.
 
 **Acceptance Criteria:**
@@ -4988,8 +5094,8 @@ So that I can install into my existing instance without preparing IRIS by hand.
 **And** the stop shows without IPM's error prefix if IPM allows it, the instance's services are unchanged, and the job keeps the run's full output (AD-23)
 
 **Given** the first run has stopped
-**When** the same command runs again in any namespace other than OCUTALON
-**Then** the CPF resource and the IPM mapping change nothing, the run stops with the same message, and no installer step runs outside OCUTALON (AD-23)
+**When** the same command runs again in any Interoperability-enabled namespace other than OCUTALON
+**Then** the CPF resource and the IPM mapping change nothing, the run stops with the same message, and no installer step runs outside OCUTALON (AD-23) [AMENDED 2026-11-03, Story 15.3, unattended ruling U-231: "any namespace" became "any Interoperability-enabled namespace" - see the story change log (spec-15-3, Spec Change Log)]
 
 **Given** an admin with a shell on the instance
 **When** they run `iris merge` with the release's `ocutalon.cpf` instead of the first command
@@ -5028,7 +5134,7 @@ So that one package gives me a working OcuTalon in my existing instance.
 
 **Given** the FR-57 job's captured output of both commands
 **When** this story writes the README's IPM text
-**Then** it writes `docs/install-ipm.md` with: the two commands (first in any namespace, then in OCUTALON) with their expected output; that the first run ends early by design; the `iris merge` alternative, followed by `zpm "enable -map -ns OCUTALON"` and then the install command in OCUTALON; that demo mode is off, with the command to switch it on; that the model key comes from `ANTHROPIC_API_KEY` in the instance's environment and that without it decisions use fixed rules; and the README account with how to change its password (FR-14, FR-38, FR-57, FR-58, AD-23)
+**Then** it writes `docs/install-ipm.md` with: the two commands (first in any Interoperability-enabled namespace (USER on build 154), then in OCUTALON) with their expected output; that the first run ends early by design; the `iris merge` alternative, followed by `zpm "enable -map -ns OCUTALON"` and then the install command in OCUTALON; that demo mode is off, with the command to switch it on; that the model key comes from `ANTHROPIC_API_KEY` in the instance's environment and that without it decisions use fixed rules; and the README account with how to change its password (FR-14, FR-38, FR-57, FR-58, AD-23) [AMENDED 2026-11-03, Story 15.3, unattended ruling U-231: "any namespace" became "any Interoperability-enabled namespace" - see the story change log (spec-15-3, Spec Change Log)]
 **And** this story needs no Lane B action: Lane B's Story 31.3 (was Story 16.10) adds the README's IPM section from that file (FR-58, AD-29)
 
 - DW-34: On an IPM install outside the image, `Data.Time.Zone()` and `ToLocal` agree on the instance zone even when `TZ` is unset on a non-UTC host, and a test checks it (AD-18) (ledger; routed by adjudication 2026-10-20) (moved to Lane B, U-177)
@@ -5061,6 +5167,20 @@ So that the IPM install is as durable as the Docker one.
 **Then** it runs both install paths on clean build 154 containers (two runs of the same package, and `iris merge`, then `zpm "enable -map -ns OCUTALON"`, then one run), restarts the instance and runs the install command again, and fails the build unless every check of Stories 15.1, 15.2 and this story passes; fork pull requests never run it on the IRIS runner (FR-57, REL-4, CON-1)
 **And** it turns on Story 9.1's IPM case: on an IPM install, `EvalIn` (`OcuTalon.Eval.In`) is disabled and the production's testing switch is off (FR-57, AD-16, AD-22, CON-3)
 
+- DW-80: Nothing runs the Reconcile declarations when the production starts on its own (an IPM install's autostart, or a stop and start without an installer run), so a turn left running waits for the next installer run. This story's criterion that every area's Reconcile() runs once the autostarted production's items run covers it (AD-23): test a restart of the production alone (ledger; routed by burndown 2026-10-25)
+- DW-306: flake: test-production.sh row 21 (an item that cannot start) printed nothing for 'Start(15) with a WatchOps whose OnInit fails' in CI after Epic 5's merge (two occurrences); give row 21 a longer wait or a retry when this story next edits docker/tests/test-production.sh (ledger; routed by orchestrator 2026-10-28)
+- `src/module.xml` declares `<SystemRequirements Version=">=2026.3" Interoperability="enabled"/>` so IPM refuses earlier IRIS versions (contest staff's request in the Developer Community announcement thread, 2026-11-02): the IPM install still succeeds on build 154, whose version IPM compares as "2026.3.0AI.154.0" (measure that the "AI" suffix doesn't fail the comparison; a failure is a clarification, never a workaround); the first install run still works wherever Epic 15's flow runs it (Interoperability="enabled" refuses a namespace without Interoperability: if the first run's namespace isn't Interoperability-enabled, that is a clarification, never a silent workaround); and `release/lib-release.sh`'s artifact checks still pass with the changed module.xml [AMENDED 2026-11-02, Contest Planner 1 under the owner's delegation, routed by the orchestrator]
+- U-231: the first run works in any Interoperability-enabled namespace (USER on build 154; USER is Interoperability-enabled on both the IRIS for Health and the plain IRIS build 154 images, measured 2026-11-03), and `SystemRequirements` stays as written. `release/ipm-install.sh` check 5's %SYS case asserts IPM's refusal message with nothing left behind (no OCUTALON namespace or databases, no mappings, no globals). `docs/install-ipm.md` drops its two any-namespace sentences (the first run repeated in %SYS, and its pair), quotes or plainly describes IPM's refusal for a namespace without Interoperability, and says to run the first command in USER instead; that namespace advice holds on both supported images. [ADDED 2026-11-03, Story 15.3, unattended ruling U-231 (veto), kept with conditions by the owner's delegate (answer 2026-11-03T03:57:20Z#695) - see the story change log (spec-15-3, Spec Change Log)]
+- Split note: the release-proof criteria (the release gate, the registry install, `docs/install-ipm.md` and the local-repository artifact install) and DW-576 moved to Story 15.4 [SPLIT 2026-11-03 from Story 15.3, orchestrator ruling (decide)] - see the story change log (spec-15-3, Spec Change Log). This story keeps its title, so its sprint key is unchanged; both stories ship before rc1.
+
+### Story 15.4: Every release proves the IPM package, and the guide opens with the registry install
+
+As an admin,
+I want every release to stop unless the IPM package passed its FR-57 job, and the IPM guide to open with the registry install,
+So that 1.0.0 and every later release include a working IPM package that a judge can install from the registry. [SPLIT 2026-11-03 from Story 15.3, orchestrator ruling (decide)]
+
+**Acceptance Criteria:**
+
 **Given** a release candidate from 1.0.0 on
 **When** the release sequence runs
 **Then** it stops the release unless the FR-57 job passed on that candidate, so 1.0.0 and every later release include a working IPM package (FR-57, REL-6, REL-9)
@@ -5073,10 +5193,9 @@ So that the IPM install is as durable as the Docker one.
 **When** a judge reads it
 **Then** it opens with the registry install, the path a judge takes for the IPM bonus: the line that enables the community registry on a fresh IPM (its exact IPM 0.10.10 form, such as `zpm "enable -community"`, and its output, both measured on this story's clean build 154 throwaway), then `zpm "install ocutalon"` with the two-step namespace message; the load-from-folder path, which needs Node.js to build the web page, comes second, for developers [ADDED 2026-10-31, decided by the Contest Planner under the owner's delegation, relayed to the orchestrator]
 **And** before any publish, it installs the exact artifact the release would publish, which carries the built web page (Story 11.17 builds it into the package's resources) [AMENDED 2026-11-02, Epic 11 merge, orchestrator (as built: the IPM artifact step moved from Story 11.5 to Story 11.17 at 11.5's plan); it read "Story 11.5 builds it"], on a clean build 154 throwaway with no Node.js, through a local filesystem IPM repository (`zpm "repo"` pointing at the artifact's folder, then `zpm "install ocutalon"` and its two steps); it proves that `/ocutalon/` serves the branded sign-in page and that the README account signs in, and the guide shows that real output until the author's publish, after which the registry's own output replaces it, as the criterion above says; the release notes record the artifact's size, and a size over a few MB is reported to the Contest Planner [ADDED 2026-10-31, decided by the Contest Planner under the owner's delegation: the published IPM package carries the built web page, so a registry install needs no Node.js]
-- DW-80: Nothing runs the Reconcile declarations when the production starts on its own (an IPM install's autostart, or a stop and start without an installer run), so a turn left running waits for the next installer run. This story's criterion that every area's Reconcile() runs once the autostarted production's items run covers it (AD-23): test a restart of the production alone (ledger; routed by burndown 2026-10-25)
-- DW-306: flake: test-production.sh row 21 (an item that cannot start) printed nothing for 'Start(15) with a WatchOps whose OnInit fails' in CI after Epic 5's merge (two occurrences); give row 21 a longer wait or a retry when this story next edits docker/tests/test-production.sh (ledger; routed by orchestrator 2026-10-28)
 - DW-576: release.sh's ipm step has proved only the one-run install path live; before 15.3 relies on 11.17's artifact record, run `docker/tests/test-release-sequence.sh --live ipm` on a candidate that carries Epic 15's `module.xml` (the two-run MapAndStop path) (ledger; routed by harvest 2026-11-02)
-- `src/module.xml` declares `<SystemRequirements Version=">=2026.3" Interoperability="enabled"/>` so IPM refuses earlier IRIS versions (contest staff's request in the Developer Community announcement thread, 2026-11-02): the IPM install still succeeds on build 154, whose version IPM compares as "2026.3.0AI.154.0" (measure that the "AI" suffix doesn't fail the comparison; a failure is a clarification, never a workaround); the first install run still works wherever Epic 15's flow runs it (Interoperability="enabled" refuses a namespace without Interoperability: if the first run's namespace isn't Interoperability-enabled, that is a clarification, never a silent workaround); and `release/lib-release.sh`'s artifact checks still pass with the changed module.xml [AMENDED 2026-11-02, Contest Planner 1 under the owner's delegation, routed by the orchestrator]
+- MapAndStop also maps IPM's repository definitions into OCUTALON (IPM's own `enable -map -repos -ns OCUTALON -q` form if IPM 0.10.10 supports it, else the equivalent `^IPM.Repo.Definition*` global mapping, measured on a throwaway), so the second command in OCUTALON finds the repositories of the namespace where the first command ran and the README keeps its two commands. The definitions are mapped as they are, never copied, created, edited or printed, and no test or log prints a definition's fields. Removing or uninstalling OcuTalon removes the mapping only, never the first namespace's repository data, and a test asserts the definitions are unchanged after uninstall (it compares a hash of the definitions' global and never prints it). The guide says in plain words that OCUTALON shares the first namespace's repositories, so a repository added or removed in either namespace changes both. If the security overview or its generated lists describe OCUTALON's mappings, this mapping is listed there. [ADDED 2026-11-03, Story 15.3, unattended ruling U-232 (veto), kept with conditions by the owner's delegate (answer 2026-11-03T03:57:20Z#696) - see the story change log (spec-15-3, Spec Change Log)]
+
 
 ## Epic 16: Anyone can try the online demo
 
@@ -7394,12 +7513,19 @@ So that I can try OcuTalon in two minutes from the README.
 **Given** the README's IPM install section, which this story adds from `docs/install-ipm.md`
 **When** a judge reads it
 **Then** it opens with the registry install (the community-registry line and `zpm "install ocutalon"`) and gives the load-from-folder path second, for developers, in the order Story 15.3's guide uses [ADDED 2026-10-31, decided by the Contest Planner under the owner's delegation, relayed to the orchestrator]
+
+**Given** Epic 12 merged to the feature branch and integrated into this epic's branch (so `Included()` no longer has its test-only body and the README has Epic 12's Telegram section)
+**When** this story merges
+**Then** the "How you talk to it" section that Story 10.5 added has a Telegram row: Telegram, to chat and approve on your phone, is in 1.0.0, on your own install with your own bot token; it points to the README's Telegram section (Epic 12's setup steps) and never duplicates or edits those steps (FR-12, FR-18)
+**And** no README text about the online demo claims Telegram, pairing or phone approvals while the demo has no bot (until Story 31.4; U-228 condition (2)); any quoted UI string matches the built page exactly (U-228 condition (1)); the README's public-text rule holds (no "from your phone")
+**And** `docker/tests/test-readme.sh` passes, CI is green on every workflow, and the Telegram row's change touches only `README.md` and `docker/tests/test-readme.sh` [AMENDED 2026-11-03, orchestrator unattended ruling, veto U-234, kept by the Contest Planner under the owner's delegation (2026-11-03T07:59:58Z): moved verbatim from Story 10.6 (split from Story 10.5, then removed), because AD-29's no-telegram README guard blocks the row until Epic 12 merges; this story is placed only after Epic 12 has merged, and rc1 is not cut until this story has merged. Its last line read "**Given** the change **When** this story merges **Then** `docker/tests/test-readme.sh` passes, CI is green on every workflow, and the story touches only `README.md` and `docker/tests/test-readme.sh`"; "the story" now names the row's change, since this story touches more]
 - DW-360: The README's LAN warning names the default IRIS accounts' passwords but gives steps only for the README account; the 1.0.0 README adds how to change the default IRIS accounts' passwords in the Management Portal, next to the README account's how-to (Epic 10's decision sheet, veto U-145) (ledger; routed by merge_gate 2026-10-29)
 - DW-416: Behind a TLS-terminating proxy every online-demo API POST fails the origin check (403 wrong_origin): IRIS expects an http:// origin and the browser sends https://; the demo host maps that exact origin on /ocutalon/api/* as a workaround (ledger; routed by merge_gate 2026-10-31)
 - DW-432: flake: live:online-allowance D1 missed S1's daily-cap banner: StatusMonitor (counts the Usage spend) can publish dailyCap before S1's /state, which a web process computes from the day's mark alone, and the later mark is no change to the monitor (ledger; routed by merge_gate 2026-10-31)
 - DW-453: flake: OcuTalon.Test.Web.GuideApi TestRunAgain ('steps 3 to 5 reset; the watch still counts') failed once in a local fresh shard lane-b part 2/2 and passed on the warm stack and on the rerun of the part (ledger; routed by merge_gate 2026-11-02, Epic 30 merge)
 - DW-549: flake: live:online-demo web/e2e-online/resume.spec.ts:84 R1 'it expires at the next reset' was one second off (expected 1793575980, received 1793575981): the cookie's expiry and the test's computed next reset are taken at different seconds (ledger; routed by merge_gate 2026-11-02, Epic 30 merge)
 - DW-599: flake: OcuTalon.Test.Core.ThreadProduction TestNewThreadAfterMidnight went red once in CI (mixed headers: a header of one turn counted in the other thread) and passed on the unchanged rerun (ledger; routed by merge_gate 2026-11-02, Epic 30 merge)
+- DW-613: Story 31.3's README AC adds 'the page on the demo path' and 'a Visual Trace of one decision' under What's interesting; Story 10.5 already puts docs/images/page-incident.png (hero) and docs/images/vt-decision.png in the README, so 31.3 should reuse or move them rather than add duplicates; its new images also need git add -f (the .gitignore line images/ matches docs/images/) (ledger; routed by merge_gate 2026-11-03, Epic 10 merge)
 
 **Release check:** measured on the public online demo host serving the 1.0.0 candidate, at the 1.0.0 release, the author's [AMENDED 2026-10-30, owner decision, relayed by the Contest Planner; the owner: "Yes, that should be our plan.": the online demo goes public on its own this weekend (about Nov 1), ahead of 1.0.0, while the repository, the Open Exchange listing and the contest entry wait for 1.0.0; so Story 31.3 measures on the public host (see the Epic List's step release checks); it read "measured on the online demo host serving the 1.0.0 candidate, behind the access gate before the public flip, at the 1.0.0 release, the author's"] [AMENDED 2026-10-29, owner decision, relayed by the Contest Planner (one public release at 1.0.0; see the Epic List's step release checks); it read "measured on the launched online demo at the 1.0.0 release"] [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." step readiness review M11: this criterion moved, verbatim, to the Epic List's step release checks as a 1.0.0 release check, so this story keeps the README work, never parks on the launch, and Epic 31 merges once `v0.1.1` is tagged (its merge gate); the title is kept so the story's tracker key stays the same]
 

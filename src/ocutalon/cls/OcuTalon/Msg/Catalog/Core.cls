@@ -272,6 +272,14 @@ XData Entries [ MimeType = application/json ]
   },
   "source": "EXPERIENCE Message Catalog / Status banners (web) / Allowance used up: session"
  },
+ "banner.allowanceChat": {
+  "text": "You've used this session's {limit} messages for the hour. You can send more at {time}.",
+  "slots": {
+   "limit": "count",
+   "time": "time"
+  },
+  "source": "EXPERIENCE Message Catalog / Status banners (web) / Allowance used up: session, the form while Telegram is not on (Story 12.9, DW-501, U-227)"
+ },
  "banner.dailyCap": {
   "text": "The online demo has used today's model allowance. Decisions use fixed rules until {time}.",
   "slots": {
@@ -315,6 +323,11 @@ XData Entries [ MimeType = application/json ]
   "text": "The demo resets in 5 minutes. Your session and Telegram pairing will be cleared.",
   "slots": {},
   "source": "EXPERIENCE Message Catalog / Status banners (web) / Reset soon"
+ },
+ "banner.resetSoonChat": {
+  "text": "The demo resets in 5 minutes. Your session will be cleared.",
+  "slots": {},
+  "source": "EXPERIENCE Message Catalog / Status banners (web) / Reset soon, the form while Telegram is not on (Story 12.9, DW-506, U-227)"
  },
  "banner.reconnecting": {
   "text": "Reconnecting\u2026 New messages may be delayed.",

@@ -1,8 +1,8 @@
 #!/usr/bin/env bash
 # Hermetic self-test of the release checklist (Story 11.4; release/checklist.sh, notes_path of release/lib-release.sh, local_path of
 # docker/tests/lib-scan.sh), with no container, no network call and no model. It builds one synthetic git repository in a temporary
-# folder (copies of the checklist and its three libraries, fixture files, a fixture bundle, and stubs for test-readme.sh and
-# test-boundaries.sh that fail only when a marker file exists), copies it for each case and pins:
+# folder (copies of the checklist and its three libraries, fixture files, a fixture bundle, and stubs for test-readme.sh,
+# test-bridge-guide.sh and test-boundaries.sh that fail only when a marker file exists), copies it for each case and pins:
 #   - base: a record with a rehearsal section and all seven confirmations gives RESULT pass and exit 0; both other sections stay byte for
 #     byte; the checklist section appears once and is replaced by a second run;
 #   - rows: each automated row, mutated in a fresh copy, fails with file:line (or a count) and without the planted text, and with no other
@@ -13,7 +13,7 @@
 #   - no-network: stubs for curl, wget, gh, ssh and nc leave no marker after any case (it runs after the cases and fails when no stubbed
 #     run happened);
 #   - sourcing: sourcing the checklist runs nothing, and lib-scan.sh defines local_path;
-#   - tmpfail: with no temporary file (mktemp fails), readme, public-text and the author rows each still write a FAIL or CONFIRM line and a
+#   - tmpfail: with no temporary file (mktemp fails), readme, bridge-guide, public-text and the author rows each still write a FAIL or CONFIRM line and a
 #     result line, so the result cannot be a pass; and a run with no temporary folder refuses with one line;
 #   - static: mode 100755, umask 077, ASCII, the main guard, no network command, and no line that holds the inspiration's name without
 #     the note (first run on a synthetic file that breaks each rule).
@@ -96,6 +96,7 @@ mkbase() {
   cp -p "$root/release/checklist.sh" "$root/release/lib-release.sh" "$b/release/"
   cp -p "$root/docker/tests/lib-scan.sh" "$root/docker/tests/lib-keys.sh" "$b/docker/tests/"
   stub "$b/docker/tests/test-readme.sh" readme
+  stub "$b/docker/tests/test-bridge-guide.sh" bridge-guide
   stub "$b/docker/tests/test-boundaries.sh" boundaries
   printf '# OcuTalon\n\n%s\n' "$NOTE" > "$b/README.md"
   printf '<div>\n  <p>%s</p>\n</div>\n' "$NOTE" > "$b/web/src/app/about/about-dialog.ts"
@@ -189,7 +190,7 @@ t_base() {
   eq "the record's earlier bytes are kept" "$(head -c "$size" "$rec" | cksum)" "$prefix"
   has "result" "$out" "RESULT pass"
   has "record line" "$out" "RECORD $rec"
-  eq "PASS lines" "$(printf '%s\n' "$out" | grep -c '^PASS ')" 18
+  eq "PASS lines" "$(printf '%s\n' "$out" | grep -c '^PASS ')" 19
   eq "no FAIL or CONFIRM line" "$(printf '%s\n' "$out" | grep -c -e '^FAIL ' -e '^CONFIRM ')" 0
   eq "rehearsal section kept" "$(sect "$rec" "## Clean-machine rehearsal")" "$before_r"
   eq "confirmations kept" "$(sect "$rec" "## Author confirmations")" "$before_a"
@@ -358,6 +359,9 @@ t_script_rows() {
   newcase
   : > "$marks/readme"
   expect_fail "test-readme.sh fails" "readme "
+  newcase
+  : > "$marks/bridge-guide"
+  expect_fail "test-bridge-guide.sh fails" "bridge-guide "
   newcase
   : > "$marks/boundaries"
   expect_fail "test-boundaries.sh fails" "public-text "
@@ -675,15 +679,17 @@ t_tmpfail() {
     : > "$ck_results"
     ck_tmp=
     row_readme
+    row_bridge_guide
     row_public_text "$2"
     author_rows "$3"
     echo "RESULT $(checklist_result "$ck_results")"
     echo "LINES $(wc -l < "$ck_results" | tr -d " ")"' _ "$res" "$notes" "$rec" 2>&1)
   has "readme: a FAIL line" "$o" "FAIL readme no temporary file"
+  has "bridge-guide: a FAIL line" "$o" "FAIL bridge-guide no temporary file"
   has "public-text: a FAIL line" "$o" "FAIL public-text no temporary file"
   eq "author rows: seven CONFIRM lines" "$(printf '%s\n' "$o" | grep -c '^CONFIRM .*no temporary file')" 7
   has "result" "$o" "RESULT fail"
-  has "every row has a result line (2 rows and 7 author rows)" "$o" "LINES 9"
+  has "every row has a result line (3 rows and 7 author rows)" "$o" "LINES 10"
   # The author rows alone: a record that confirms all seven still reads not confirmed when it cannot be read.
   o=$(cd "$W" && TMPDIR="$tmp/no-such-dir" bash -c '
     . release/checklist.sh
@@ -735,6 +741,67 @@ t_static() {
 }
 
 mkbase
+# --- the registry-install row (Story 15.4) ---
+
+# The hand row registry-install: read from the author's own line, "later" until it is there, and never a failure or a missing confirmation.
+t_registry_row() {
+  local line="LATER registry-install: after the package is published, add the line \"- registry-install: confirmed <YYYY-MM-DD>\" under \"## Author confirmations\" in"
+  # no line: the row reads later, a LATER line names the line to add, and a pass stays a pass
+  newcase
+  std
+  eq "absent: exit" "$rc" 0
+  has "absent: result" "$out" "RESULT pass"
+  has "absent: the LATER line" "$out" "$line $rec"
+  eq "absent: one LATER line" "$(printf '%s\n' "$out" | grep -c '^LATER ')" 1
+  has "absent: the table row" "$(sect "$rec" "## Release checklist")" "| registry-install | later | After this version was published to the package registry, the README's two commands ran once against the registry on a clean build 154 instance and gave the same working OcuTalon; the result is in the release notes, and docs/install-ipm.md shows that run's output. |"
+  has "absent: the section's result" "$(sect "$rec" "## Release checklist")" "Result: pass"
+  lacks "absent: no confirmed row" "$(sect "$rec" "## Release checklist")" "| registry-install | confirmed |"
+  eq "absent: the seven author rows are unchanged" "$(printf '%s\n' "$out" | grep -c '^PASS .* the record says the author confirmed this on ')" 7
+  # malformed lines: each stays later, and the record's own section is not written
+  newcase
+  {
+    printf '# OcuTalon 1.0.0 rc1\n\n## Author confirmations\n\n'
+    printf -- '- registry-install: confirmed yesterday\n'
+    printf -- '- registry-install: confirmed 2026-13-40\n'
+    printf -- '- registry-install: confirmed 2027-02-29\n'
+    printf -- '- registry-install: done\n'
+    printf -- '- registry-install: confirmed\n'
+    printf -- 'registry-install: confirmed 2026-11-02\n'
+    printf -- '- registry-installed: confirmed 2026-11-02\n'
+    for id in $CONF_IDS; do printf -- '- %s: confirmed 2026-11-02\n' "$id"; done
+  } > "$rec"
+  std
+  eq "malformed: exit" "$rc" 0
+  has "malformed: result" "$out" "RESULT pass"
+  has "malformed: the LATER line" "$out" "$line $rec"
+  has "malformed: the table row" "$(sect "$rec" "## Release checklist")" "| registry-install | later |"
+  # a valid line: confirmed with its date, no LATER line
+  newcase
+  mkrec "$rec"
+  printf -- '- registry-install: confirmed 2026-11-03 published and run once\n' >> "$rec"
+  std
+  eq "valid: exit" "$rc" 0
+  has "valid: result" "$out" "RESULT pass"
+  has "valid: the PASS line" "$out" "PASS registry-install the record says the author confirmed this on 2026-11-03"
+  lacks "valid: no LATER line" "$out" "LATER registry-install"
+  has "valid: the table row" "$(sect "$rec" "## Release checklist")" "| registry-install | confirmed | the record says the author confirmed this on 2026-11-03 |"
+  lacks "valid: the text of the line is not copied" "$(sect "$rec" "## Release checklist")" "published and run once"
+  # the result: a later row neither fails nor blocks, an automated failure still fails, a missing author row still is not confirmed
+  newcase
+  : > "$marks/readme"
+  std
+  eq "later with a failing row: exit" "$rc" 1
+  has "later with a failing row: result" "$out" "RESULT fail"
+  has "later with a failing row: still later" "$out" "LATER registry-install"
+  newcase
+  mkrec "$rec" no-copied-code no-artwork no-ai-hub-copy public-review public-links overview-review
+  printf -- '- registry-install: confirmed 2026-11-03\n' >> "$rec"
+  std
+  eq "confirmed with a missing author row: exit" "$rc" 1
+  has "confirmed with a missing author row: result" "$out" "RESULT not confirmed"
+  eq "confirmed with a missing author row: the CONFIRM ids" "$(printf '%s\n' "$out" | sed -n 's/^CONFIRM \([a-z-]*\):.*$/\1/p' | tr '\n' ' ')" "demo-protections "
+}
+
 rule base t_base
 rule note-rows t_note_rows
 rule name-rows t_name_rows
@@ -749,6 +816,7 @@ rule no-network t_nonetwork
 rule sourcing t_sourcing
 rule tmpfail t_tmpfail
 rule static t_static
+rule registry-row t_registry_row
 
 if [ "$fails_total" -ne 0 ]; then
   echo "test-release-checklist: $fails_total rule(s) failed"

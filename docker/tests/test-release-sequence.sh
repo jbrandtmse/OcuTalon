@@ -32,6 +32,11 @@
 #             can't-connect sentence; the numbers and the audit types of the code in their sections; the five headings once each and in order, the
 #             no-scheduled-purge sentence, the MCP rules sentence and the demo section's closing sentence (QA); and the CI claims of the file and of the live
 #             unit in ci/units.sh (every group runs on the file, production holds the unit)
+#   ipmcheck  (Story 15.4) the ipmcheck step runs release/ipm-install.sh of the candidate (a stub in the seed repository, so no container is needed)
+#             on an export of the candidate's tree with the ipm step's artifact, the lane lock folder, a run tag and the job's deadline, and
+#             tears down after it: a pass records "## FR-57 job" and names push; a failure (exit 1 or any code but 0 and 75) stops the release before
+#             push with the unit's first FAIL line and no push question; a busy lock waits (exit 5, nothing recorded); the refusals come before any
+#             run; an artifact over 5000000 bytes warns and fails nothing
 #   push      only the candidate branch goes out, on the author's word; a no or the end of input pushes nothing and asks again
 #   record    every stop writes the record section and commits only that path; the record question; a moved branch is reported
 #   hands     the hands-on time is the sum of the ASK windows, over all candidates of the version, and warns over 15 minutes
@@ -436,6 +441,41 @@ stub_text() {
   esac
 }
 
+# ipm_stub_text <pass|fail|busy|silent>: the text of a stub release/ipm-install.sh, the unit of the ipmcheck step, which prints what the real unit
+# prints for that outcome and exits as it does. It makes no call outside its own folder; the pass notes what it received.
+ipm_stub_text() {
+  printf '%s\n' '#!/usr/bin/env bash' 'set -u'
+  case $1 in
+    pass)
+      printf '%s\n' 'grep -q "<Version>1.0.0</Version>" src/module.xml || { echo "FAIL the unit did not run in the cut candidate"; exit 1; }' \
+        '[ -d web/node_modules ] || { echo "FAIL the web dependencies would be installed"; exit 1; }' \
+        '[ -f "${OCUTALON_IPM_ARTIFACT:-}" ] || { echo "FAIL the artifact is not a file"; exit 1; }' \
+        '[ -z "${SHIMLOG:-}" ] || { echo "artifact=$OCUTALON_IPM_ARTIFACT"; echo "lock=${OCUTALON_LOCK_DIR:-}"; echo "tag=${OCUTALON_RUN_TAG:-}"; echo "deadline=${OCUTALON_LIVE_DEADLINE:-}"; echo "args=$*"; } > "$SHIMLOG/ipmcheck-env.txt"' \
+        'echo "PASS part p uninstall: stub"' 'echo "ipm-install: all checks passed"' 'exit 0'
+      ;;
+    fail)
+      printf '%s\n' 'echo "PASS part p: stub"' 'echo "FAIL part p uninstall: USER'"'"'s repository definitions differ, or there are none (differs, or 0 nodes)"' \
+        'echo "FAIL part p: a second failure"' 'echo "ipm-install: 2 check(s) failed (project stub)"' 'exit 1'
+      ;;
+    busy)
+      printf '%s\n' 'echo "LOCK busy: throwaway-iris is held by someone"' 'exit 75'
+      ;;
+    silent)
+      printf '%s\n' 'echo "no FAIL line here"' 'exit 3'
+      ;;
+  esac
+}
+
+# set_ipm_stub <pass|fail|busy|silent>: replaces the stub unit of the ipmcheck step in the case's checkout, commits it on the integration branch
+# and pushes it, before start.
+set_ipm_stub() {
+  ipm_stub_text "$1" > "$W/release/ipm-install.sh"
+  git -C "$W" add release/ipm-install.sh
+  git -C "$W" commit -q -m "ipm stub $1"
+  git -C "$W" push -q origin "$INTEG"
+  EXPECT_BASE=$(git -C "$W" rev-parse HEAD)
+}
+
 # set_stub <pass|fail|busy|silent>: replaces the stub in the case's checkout, commits it on the integration branch and pushes it, before start.
 set_stub() {
   stub_text "$1" > "$W/release/security-overview.sh"
@@ -460,6 +500,17 @@ mkseed() {
   # The overview step runs release/security-overview.sh of the candidate; the seed holds a stub that passes, so that no case needs a container.
   stub_text pass > "$s/release/security-overview.sh"
   chmod 755 "$s/release/security-overview.sh"
+  # The ipmcheck step runs release/ipm-install.sh of the candidate and then ci/iris.sh teardown; the seed holds a passing stub unit and a stub
+  # ci/iris.sh that only logs its call when run (sourced, it is the real one: the upgrade harness sources it), so that no case needs a container (the live run stops after the ipm step and keeps the real files).
+  if [ "$live" -eq 0 ]; then
+    ipm_stub_text pass > "$s/release/ipm-install.sh"
+    chmod 755 "$s/release/ipm-install.sh"
+    mv "$s/ci/iris.sh" "$s/ci/iris-real.sh"
+    printf '%s\n' '#!/usr/bin/env bash' \
+      'if [ "${BASH_SOURCE[0]}" != "$0" ]; then . "$(dirname "${BASH_SOURCE[0]}")/iris-real.sh"; return 0; fi' \
+      '[ -z "${SHIMLOG:-}" ] || echo "$* tag=${OCUTALON_RUN_TAG:-}" >> "$SHIMLOG/iris-calls.txt"' 'exit 0' > "$s/ci/iris.sh"
+    chmod 755 "$s/ci/iris.sh"
+  fi
   git init -q -b "$INTEG" "$s" || exit 1
   git -C "$s" add -A
   git -C "$s" commit -q -m seed
@@ -542,6 +593,8 @@ to_step() {
   case $1 in overview) return 0 ;; esac
   rs '' next
   case $1 in ipm) return 0 ;; esac
+  rs '' next
+  case $1 in ipmcheck) return 0 ;; esac
   rs '' next
   case $1 in push) return 0 ;; esac
   rs "$Y" next
@@ -836,6 +889,7 @@ t_recut() {
   rs "$N" next --version 1.0.0 --rc 2
   rs "$N" next --version 1.0.0 --rc 2
   rs "$N" next --version 1.0.0 --rc 2
+  rs "$N" next --version 1.0.0 --rc 2
   has "rc2: the record's Candidate" "$(cat "$(rec_file 2)")" "Candidate: 1.0.0 rc2, release/1.0.0-rc2 at $c2"
   has "rc2: the record's Cut from" "$(cat "$(rec_file 2)")" "Cut from: release/1.0.0-rc1 at $RC1, then $FIX1 $FIX2 cherry-picked from $INTEG"
   # a pick that is not on the integration branch
@@ -982,6 +1036,7 @@ t_push() {
   rs '' next
   rs '' next
   rs '' next
+  rs '' next
   rs "$Y" next
   rs "$Y" next
   eq "full run: the last exit" "$rc" 0
@@ -1095,7 +1150,9 @@ t_record() {
   rs '' next
   has "overview passes" "$out" "NEXT ipm"
   rs '' next
-  has "ipm passes" "$out" "NEXT push"
+  has "ipm passes" "$out" "NEXT ipmcheck"
+  rs '' next
+  has "ipmcheck passes" "$out" "NEXT push"
   rs '' next
   eq "an unanswered push: exit" "$rc" 4
   has "an unanswered push: the stop" "$out" "STOPPED push waiting for the author's word"
@@ -1162,6 +1219,7 @@ t_hands() {
   rs '' next
   rs '' next
   rs '' next
+  rs '' next
   rs "$Y" next
   rs "$Y" next
   has "the sum of the windows" "$(cat "$(rec_file)")" "Hands-on time: 3 min 21 s for this candidate; 3 min 21 s for 1.0.0 so far (target at most 15 min; CI and the hands-on pass not counted)"
@@ -1171,6 +1229,7 @@ t_hands() {
   clockfile 4000 4030 5000 5020 6000 6010
   rs "$Y" start --version 1.0.0
   has "rc2" "$out" "START 1.0.0 rc2 "
+  rs '' next --version 1.0.0 --rc 2
   rs '' next --version 1.0.0 --rc 2
   rs '' next --version 1.0.0 --rc 2
   rs '' next --version 1.0.0 --rc 2
@@ -1217,6 +1276,7 @@ t_hands() {
   rs '' next
   rs '' next
   rs '' next
+  rs '' next
   rs "$Y" next
   rs "$Y" next
   has "only the question windows count" "$(cat "$(rec_file)")" "Hands-on time: 30 s for this candidate; 30 s for 1.0.0 so far"
@@ -1229,6 +1289,7 @@ t_resume() {
   local before after
   newcase
   rs "$Y" start --version 1.0.0
+  rs '' next
   rs '' next
   rs '' next
   rs '' next
@@ -1358,6 +1419,7 @@ t_gate() {
   rs '' next
   rs '' next
   rs '' next
+  rs '' next
   rs "$Y" next
   # another gate's section is already in the record when the sequence writes its own
   mkdir -p "$W/release/records/1.0.0"
@@ -1406,6 +1468,7 @@ t_secret() {
   newcase
   printf '' > "$tmp/alloutput"
   rs "$Y" start --version 1.0.0
+  rs '' next
   rs '' next
   rs '' next
   rs '' next
@@ -1540,6 +1603,7 @@ t_pushes() {
   rs '' next
   rs '' next
   rs '' next
+  rs '' next
   rs "$Y" next
   rs "$Y" next
   eq "two pushes: the last exit" "$rc" 0
@@ -1573,6 +1637,7 @@ t_pushes() {
   cp "$shimdir/git" "$C/gitshim/git"
   RS_PATH="$C/gitshim:$PATH"
   rs "$Y" start --version 1.0.0
+  rs '' next
   rs '' next
   rs '' next
   rs '' next
@@ -1643,6 +1708,154 @@ t_overview() {
   has "overview busy: the state still names overview" "$out" "STATE 1.0.0 rc1 next overview"
   rs '' next
   eq "overview busy: the next call runs the step again" "$rc" 5
+}
+
+# --- ipmcheck (Story 15.4) ---
+
+# ipmcheck_to: a fresh case with the unit's stub (pass, fail, busy or silent) committed, run up to the ipmcheck step.
+ipmcheck_to() {
+  newcase
+  if [ "$1" != pass ]; then set_ipm_stub "$1"; fi
+  to_step ipmcheck
+}
+
+t_ipmcheck() {
+  local art bytes before size
+  . "$root/release/lib-release.sh"
+  # a pass: the unit ran in the cut candidate with the artifact, the lane lock folder, a run tag and the job's deadline; teardown followed
+  ipmcheck_to pass
+  art=$OCUTALON_RELEASE_STATE/1.0.0-rc1/ipm/ocutalon-1.0.0.tgz
+  bytes=$(wc -c < "$art" | tr -d ' ')
+  mkdir -p "$W/.worktrees/.coordination/locks"
+  saved_tag=${OCUTALON_RUN_TAG-}
+  saved_deadline=${OCUTALON_LIVE_DEADLINE-}
+  unset OCUTALON_LOCK_DIR OCUTALON_RUN_TAG OCUTALON_LIVE_DEADLINE
+  rs '' next
+  export OCUTALON_LOCK_DIR=$C/locks
+  if [ -n "$saved_tag" ]; then export OCUTALON_RUN_TAG=$saved_tag; fi
+  if [ -n "$saved_deadline" ]; then export OCUTALON_LIVE_DEADLINE=$saved_deadline; fi
+  eq "ipmcheck pass: exit" "$rc" 0
+  has "ipmcheck pass: the line" "$out" "PASS ipmcheck ocutalon-1.0.0.tgz ($bytes bytes) installs from a local IPM repository"
+  has "ipmcheck pass: the next step" "$out" "NEXT push"
+  lacks "ipmcheck pass: no question is asked" "$out" "ASK "
+  lacks "ipmcheck pass: no warning" "$out" "WARN"
+  eq "ipmcheck pass: the artifact handed to the unit" "$(sed -n 's/^artifact=//p' "$SHIMLOG/ipmcheck-env.txt")" "$art"
+  eq "ipmcheck pass: the lane lock folder of the author's repository" "$(sed -n 's/^lock=//p' "$SHIMLOG/ipmcheck-env.txt")" "$W/.worktrees/.coordination/locks"
+  eq "ipmcheck pass: the unit has no argument" "$(sed -n 's/^args=//p' "$SHIMLOG/ipmcheck-env.txt")" ""
+  eq "ipmcheck pass: the job's deadline" "$(sed -n 's/^deadline=//p' "$SHIMLOG/ipmcheck-env.txt")" 1980
+  case $(sed -n 's/^tag=//p' "$SHIMLOG/ipmcheck-env.txt") in
+    ipmchk-[0-9]*) ;;
+    *)
+      echo "  ipmcheck pass: the run tag is '$(sed -n 's/^tag=//p' "$SHIMLOG/ipmcheck-env.txt")'"
+      bad=1
+      ;;
+  esac
+  eq "ipmcheck pass: teardown ran once, with the unit's tag" "$(cat "$SHIMLOG/iris-calls.txt")" "teardown tag=$(sed -n 's/^tag=//p' "$SHIMLOG/ipmcheck-env.txt")"
+  eq "ipmcheck pass: the export and the log are gone" "$(ls "$OCUTALON_RELEASE_STATE/1.0.0-rc1" | grep -c -e '^ipmcheck$' -e '^ipmcheck[.]log$')" 0
+  rs '' status
+  has "ipmcheck pass: the state names push" "$out" "STATE 1.0.0 rc1 next push"
+  has "ipmcheck pass: the record section" "$(sect "$(rec_file)" "## FR-57 job")" "Result: pass"
+  has "ipmcheck pass: the artifact line" "$(sect "$(rec_file)" "## FR-57 job")" "Artifact: ocutalon-1.0.0.tgz, $bytes bytes"
+  has "ipmcheck pass: the command line" "$(sect "$(rec_file)" "## FR-57 job")" "Command: bash release/ipm-install.sh on an export of the candidate's tree"
+  lacks "ipmcheck pass: no size note under the threshold" "$(sect "$(rec_file)" "## FR-57 job")" "Size:"
+  lacks "ipmcheck pass: no local path in the record" "$(cat "$(rec_file)")" "$tmp"
+  has "ipmcheck pass: the IPM artifact section is still there" "$(cat "$(rec_file)")" "## IPM artifact"
+  # the caller's run tag and deadline are kept; the unit still gets the tag of its own
+  ipmcheck_to pass
+  OCUTALON_RUN_TAG=abc OCUTALON_LIVE_DEADLINE=900 rs '' next
+  eq "ipmcheck tag: exit" "$rc" 0
+  case $(sed -n 's/^tag=//p' "$SHIMLOG/ipmcheck-env.txt") in
+    abc-ipmchk-[0-9]*) ;;
+    *)
+      echo "  ipmcheck tag: the run tag is '$(sed -n 's/^tag=//p' "$SHIMLOG/ipmcheck-env.txt")'"
+      bad=1
+      ;;
+  esac
+  eq "ipmcheck tag: the caller's deadline" "$(sed -n 's/^deadline=//p' "$SHIMLOG/ipmcheck-env.txt")" 900
+  # a large artifact: a WARN line and a Size: note, and nothing fails
+  ipmcheck_to pass
+  art=$OCUTALON_RELEASE_STATE/1.0.0-rc1/ipm/ocutalon-1.0.0.tgz
+  head -c 5100000 /dev/zero >> "$art"
+  size=$(wc -c < "$art" | tr -d ' ')
+  rs '' next
+  eq "ipmcheck large: exit" "$rc" 0
+  has "ipmcheck large: the WARN line" "$out" "WARN ipmcheck the artifact is $size bytes, over 5000000; report it to the Contest Planner"
+  has "ipmcheck large: still a pass" "$out" "PASS ipmcheck "
+  has "ipmcheck large: the next step" "$out" "NEXT push"
+  has "ipmcheck large: the Size: note" "$(sect "$(rec_file)" "## FR-57 job")" "Size: $size bytes, over 5000000"
+  has "ipmcheck large: the result" "$(sect "$(rec_file)" "## FR-57 job")" "Result: pass"
+  # a failure: the unit's first FAIL line, the record, no push question, and the release stops
+  ipmcheck_to fail
+  rs '' next
+  eq "ipmcheck fail: exit" "$rc" 1
+  has "ipmcheck fail: the line" "$out" "FAIL ipmcheck part p uninstall: USER's repository definitions differ, or there are none (differs, or 0 nodes)"
+  lacks "ipmcheck fail: no PASS line" "$out" "PASS ipmcheck"
+  lacks "ipmcheck fail: no next step" "$out" "NEXT push"
+  lacks "ipmcheck fail: no push question" "$out" "ASK push"
+  lacks "ipmcheck fail: the unit's second FAIL line is not the detail" "$out" "a second failure"
+  has "ipmcheck fail: the result" "$out" "RESULT fail"
+  has "ipmcheck fail: the record" "$(cat "$(rec_file)")" "Result: failed at ipmcheck: part p uninstall: USER's repository definitions differ"
+  has "ipmcheck fail: the row" "$(cat "$(rec_file)")" "| ipmcheck | fail | part p uninstall: USER's repository definitions differ"
+  has "ipmcheck fail: the FR-57 section" "$(sect "$(rec_file)" "## FR-57 job")" "Result: fail"
+  has "ipmcheck fail: the first failure" "$(sect "$(rec_file)" "## FR-57 job")" "First failure: part p uninstall: USER's repository definitions differ"
+  # a large artifact on a failure: the WARN line too, beside the FAIL line
+  ipmcheck_to fail
+  head -c 5100000 /dev/zero >> "$OCUTALON_RELEASE_STATE/1.0.0-rc1/ipm/ocutalon-1.0.0.tgz"
+  rs '' next
+  eq "ipmcheck large fail: exit" "$rc" 1
+  has "ipmcheck large fail: the WARN line" "$out" "WARN ipmcheck the artifact is "
+  lacks "ipmcheck fail: push never ran" "$(cat "$(rec_file)")" "| push |"
+  lacks "ipmcheck fail: no local path in the record" "$(cat "$(rec_file)")" "$tmp"
+  eq "ipmcheck fail: nothing pushed" "$(git --git-dir="$R" for-each-ref --format='%(refname)' | tr '\n' ' ')" "refs/heads/$INTEG "
+  eq "ipmcheck fail: teardown ran" "$(grep -c '^teardown ' "$SHIMLOG/iris-calls.txt")" 1
+  rs '' status
+  has "ipmcheck fail: the state still names ipmcheck" "$out" "STATE 1.0.0 rc1 next ipmcheck"
+  # a unit that fails without a FAIL line, and an exit that is neither 0, 1 nor 75
+  ipmcheck_to silent
+  rs '' next
+  eq "ipmcheck silent: exit" "$rc" 1
+  has "ipmcheck silent: the line" "$out" "FAIL ipmcheck release/ipm-install.sh ended with exit 3"
+  lacks "ipmcheck silent: no next step" "$out" "NEXT push"
+  has "ipmcheck silent: the FR-57 section" "$(sect "$(rec_file)" "## FR-57 job")" "Result: fail"
+  # busy: WAIT, exit 5, nothing recorded, and the next call runs the step again
+  ipmcheck_to busy
+  before=$(snap)
+  rs '' next
+  eq "ipmcheck busy: exit" "$rc" 5
+  eq "ipmcheck busy: the line" "$out" "WAIT ipmcheck the lane's throwaway lock is busy"
+  eq "ipmcheck busy: nothing recorded" "$(snap)" "$before"
+  eq "ipmcheck busy: no FR-57 section" "$(cat "$(rec_file)" 2> /dev/null | grep -c 'FR-57 job' || true)" 0
+  eq "ipmcheck busy: teardown ran" "$(grep -c '^teardown ' "$SHIMLOG/iris-calls.txt")" 1
+  rs '' status
+  has "ipmcheck busy: the state still names ipmcheck" "$out" "STATE 1.0.0 rc1 next ipmcheck"
+  rs '' next
+  eq "ipmcheck busy: the next call runs the step again" "$rc" 5
+  eq "ipmcheck busy: teardown ran again" "$(grep -c '^teardown ' "$SHIMLOG/iris-calls.txt")" 2
+  # refusals, before any run of the unit: the ipm step did not pass, the artifact is gone, the candidate has no unit
+  ipmcheck_to pass
+  sed -i.bak '/^ipm_result=/d' "$OCUTALON_RELEASE_STATE/1.0.0-rc1/state.env"
+  rm -f "$OCUTALON_RELEASE_STATE/1.0.0-rc1/state.env.bak"
+  rs '' next
+  eq "ipmcheck refusal (ipm not passed): exit" "$rc" 1
+  has "ipmcheck refusal (ipm not passed): the line" "$out" "FAIL ipmcheck the ipm step has not passed"
+  eq "ipmcheck refusal (ipm not passed): the unit never ran" "$(ls "$SHIMLOG" | grep -c -e ipmcheck-env -e iris-calls)" 0
+  ipmcheck_to pass
+  rm -f "$OCUTALON_RELEASE_STATE/1.0.0-rc1/ipm/ocutalon-1.0.0.tgz"
+  rs '' next
+  eq "ipmcheck refusal (no artifact): exit" "$rc" 1
+  has "ipmcheck refusal (no artifact): the line" "$out" "FAIL ipmcheck the IPM artifact ocutalon-1.0.0.tgz is missing"
+  eq "ipmcheck refusal (no artifact): the unit never ran" "$(ls "$SHIMLOG" | grep -c -e ipmcheck-env -e iris-calls)" 0
+  newcase
+  git -C "$W" rm -q release/ipm-install.sh
+  git -C "$W" commit -q -m "no unit"
+  git -C "$W" push -q origin "$INTEG"
+  EXPECT_BASE=$(git -C "$W" rev-parse HEAD)
+  to_step ipmcheck
+  rs '' next
+  eq "ipmcheck refusal (no unit): exit" "$rc" 1
+  has "ipmcheck refusal (no unit): the line" "$out" "FAIL ipmcheck the candidate has no release/ipm-install.sh"
+  eq "ipmcheck refusal (no unit): nothing ran" "$(ls "$SHIMLOG" | grep -c -e ipmcheck-env -e iris-calls)" 0
+  eq "ipmcheck refusal (no unit): the export is gone" "$(ls "$OCUTALON_RELEASE_STATE/1.0.0-rc1" | grep -c ipmcheck)" 0
 }
 
 # --- overviewunit (Story 14.1: the real release/security-overview.sh against a stub ci/iris.sh) ---
@@ -2066,7 +2279,7 @@ t_ipm() {
   sha=$(sha256_file "$art")
   has "ipm: the PASS line" "$out" "PASS ipm ocutalon-1.0.0.tgz $bytes bytes sha256 $sha"
   has "ipm: the ARTIFACT line" "$out" "ARTIFACT $art"
-  has "ipm: the next step" "$out" "NEXT push"
+  has "ipm: the next step" "$out" "NEXT ipmcheck"
   x=$C/x
   mkdir -p "$x"
   tar -xzf "$art" -C "$x"
@@ -2103,7 +2316,9 @@ t_ipm() {
   eq "ipm: the artifact is outside the repository" "$(git -C "$W" status --porcelain | grep -c 'tgz')" 0
   rs '' status
   has "ipm: status prints the artifact" "$out" "ARTIFACT $art $bytes $sha"
-  # the sequence goes on to push and never packs again; IA2: the real notes step and the stop routine keep the section
+  # the sequence goes on to ipmcheck (the seed's stub unit) and push and never packs again; IA2: the real notes step and the stop routine keep the section
+  rs '' next
+  has "ipm: the ipmcheck step follows" "$out" "PASS ipmcheck "
   rs "$N" next
   eq "ipm: the push question follows (exit)" "$rc" 4
   has "ipm: the push question" "$out" "ASK push "
@@ -2331,6 +2546,7 @@ t_ipmnet() {
   rs '' next
   rs '' next
   rs '' next
+  rs '' next
   rs "$N" next
   eq "net: the full run stops at the push question" "$rc" 4
   has "net: the throwaway ran" "$(cat "$SHIMLOG/docker.log")" "run -d --pull never --network none --name "
@@ -2450,8 +2666,9 @@ t_static() {
   }
   eq "the overview step makes no ASK" "$(awk '/^step_overview\(\)/ { f = 1 } /^# --- the ipm step/ { f = 0 } f' "$root/release/release.sh" | grep -c 'ask ')" 0
   eq "lib-release.sh: bash -n" "$(bash -n "$root/release/lib-release.sh" 2>&1)" ""
-  eq "the steps, in order" "$(sed -n 's/^STEPS="\(.*\)"$/\1/p' "$root/release/release.sh")" "cut image overview ipm push notes"
-  eq "the ipm step makes no ASK" "$(awk '/^step_ipm\(\)/ { f = 1 } /^step_push\(\)/ { f = 0 } f' "$root/release/release.sh" | grep -c 'ask ')" 0
+  eq "the steps, in order" "$(sed -n 's/^STEPS="\(.*\)"$/\1/p' "$root/release/release.sh")" "cut image overview ipm ipmcheck push notes"
+  eq "the ipm step makes no ASK" "$(awk '/^step_ipm\(\)/ { f = 1 } /^step_ipmcheck\(\)/ { f = 0 } f' "$root/release/release.sh" | grep -c 'ask ')" 0
+  eq "the ipmcheck step makes no ASK" "$(awk '/^step_ipmcheck\(\)/ { f = 1 } /^step_push\(\)/ { f = 0 } f' "$root/release/release.sh" | grep -c 'ask ')" 0
   eq "lib-release.sh: ASCII only" "$(LC_ALL=C grep -n '[^[:print:][:space:]]' "$root/release/lib-release.sh" | cut -d: -f1 | tr '\n' ' ')" ""
   eq "the tracked scripts are mode 100755" "$(git -C "$root" ls-files -s release/release.sh release/lib-release.sh release/security-overview.sh docker/tests/test-release-sequence.sh | awk '$1 != "100755" { print $4 }')" ""
   newcase
@@ -2563,6 +2780,7 @@ rule cut t_cut
 rule recut t_recut
 rule image t_image
 rule overview t_overview
+rule ipmcheck t_ipmcheck
 rule overviewunit t_overviewunit
 rule overviewdrift t_overviewdrift
 rule overviewdoc t_overviewdoc

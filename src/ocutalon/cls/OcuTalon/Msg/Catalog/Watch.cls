@@ -260,6 +260,16 @@ XData Entries [ MimeType = application/json ]
    "time": "time"
   },
   "source": "Story 30.5 (DW-519, DW-484): the catalog's time label alone, for a tool's answer to the model"
+ },
+ "button.approve": {
+  "text": "Approve",
+  "slots": {},
+  "source": "EXPERIENCE Message Catalog / Telegram / word-labeled buttons"
+ },
+ "button.reject": {
+  "text": "Reject",
+  "slots": {},
+  "source": "EXPERIENCE Message Catalog / Telegram / word-labeled buttons"
  }
 }
 }

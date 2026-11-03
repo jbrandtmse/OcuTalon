@@ -1,0 +1,31 @@
+{
+  "name": "bridge-example-tool-untrusted",
+  "match": {
+    "marker": "bridge-example-tool-untrusted"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": [
+        {
+          "name": "example_forward_item",
+          "input": {
+            "team": "operations"
+          }
+        },
+        {
+          "name": "example_archive_item",
+          "input": {}
+        },
+        {
+          "name": "example_count_items",
+          "input": {}
+        }
+      ]
+    },
+    {
+      "status": 200,
+      "text": "{\"outcome\": \"tellnow\", \"reasons\": [\"The CI mock tried three tools in an untrusted turn and only the read-only one could run.\"], \"confidence\": 0.8}"
+    }
+  ]
+}

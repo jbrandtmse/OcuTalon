@@ -1072,7 +1072,7 @@ export async function incidentState(ref: string): Promise<string> {
 
 /**
  * Sets the test seam that says whether this release includes Telegram (Test.Data.Fixture.SetTelegramIncluded, which Channel.Telegram.In's
- * Included() reads) and returns the value it had, 0 when it was not set, so that the caller can put it back.
+ * Included() reads) and returns the value it had, 1 when it was not set, so that the caller can put it back.
  */
 export async function setTelegramIncluded(value: 0 | 1): Promise<0 | 1> {
   const lines = await irisScript([`Set was=##class(OcuTalon.Test.Data.Fixture).SetTelegramIncluded(${value})`, 'Write !,"CHK|telegram|",was'].join('\n'));

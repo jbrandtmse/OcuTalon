@@ -30,6 +30,11 @@
 # the pinned pre-release commit (UPGRADE_PRE_RELEASE_COMMIT), which is the case while 1.0.0 has no previous release. A previous build
 # whose version equals the candidate's is stamped <version>-pre.1. Run from a stage, pass --record <file> in a temporary folder, never
 # the committed record.
+# The pairing family (Story 12.9): the records project runs with Telegram on (LIVE_TELEGRAM=started, so that wait_started_ready does not park it).
+# The upgrade phase pairs a chat on the candidate through the CI mock; the restart phase checks that the chat is still paired and that one
+# notification sent through Notify reaches it as a mock sendMessage within 10 s. When the previous build reports Included() 1, the seed pairs
+# a chat on it as well and the upgrade phase checks that one the same way; otherwise the row carries the note that its upgrade part joins from
+# the release after 1.0.0.
 # Exit codes: 0 pass (or a dry run), 1 a failed check or phase, 2 a refusal (bad option, phase out of order, no previous build),
 # 75 the lane lock is busy. Needs bash 3.2 or later, git, jq, docker compose, node and npm (the previous tree's web bundle, and the
 # demo-switch page project), and the IRIS base image (ci/iris.sh). The model is the CI mock, never a key; every stack is a throwaway
@@ -49,12 +54,13 @@ cd "$harness_root" || exit 1
 # no v* tag is merged into HEAD.
 UPGRADE_PRE_RELEASE_COMMIT=c9f1288c7a735f1ee3aa14a4f5289de794ce5257
 
-# The record families the harness runs, and the ones it holds back (pairings join from the release after 1.0.0, Story 12.7).
-HARNESS_ON="conversation reminder approval watch settings"
-HARNESS_OFF="pairing"
+# The record families the harness runs, and the ones it holds back (none since Story 12.9 turned the pairing family on).
+HARNESS_ON="conversation reminder approval watch settings pairing"
+HARNESS_OFF=""
 # The rows of the record, in order. A row id has no space.
 HARNESS_ROWS="previous-build upgrade conversation reminder approval watch settings restart storage private-globals pairing"
-PAIRING_OFF_TEXT="joins from the release after 1.0.0 (Story 12.7)"
+# The pairing row's note while the previous build does not include Telegram: its upgrade part has nothing to start from.
+PAIRING_UPGRADE_NOTE="the upgrade part joins from the release after 1.0.0"
 
 # The seed's texts, as the CI mock scenarios answer them.
 REPLY_WATCH="I'll watch the Orders production and stay quiet unless something needs you."
@@ -348,7 +354,7 @@ storage_compare() {
 record_rows() {
   local results=${1:-/dev/null}
   [ -f "$results" ] || results=/dev/null
-  awk -v rows="$HARNESS_ROWS" -v offrows="$HARNESS_OFF" -v offtext="$PAIRING_OFF_TEXT" '
+  awk -v rows="$HARNESS_ROWS" -v offrows="$HARNESS_OFF" '
     function title(id) { return id == "previous-build" ? "previous build" : (id == "private-globals" ? "private globals" : id) }
     $1 == "RECORD" {
       id = $2; kind = $3; d = $0
@@ -365,7 +371,7 @@ record_rows() {
       for (i = 1; i <= n; i++) {
         id = ids[i]
         if (index(" " offrows " ", " " id " ")) {
-          printf "%s\t%s\toff\t%s\n", id, title(id), (no[id] > 0 ? offd[id] : offtext)
+          printf "%s\t%s\toff\t%s\n", id, title(id), (no[id] > 0 ? offd[id] : "held back")
         } else if (nf[id] > 0) {
           printf "%s\t%s\tfail\t%s%s\n", id, title(id), firstfail[id], (nf[id] > 1 ? " (and " (nf[id] - 1) " more failed)" : "")
         } else if (np[id] > 0) {
@@ -765,10 +771,163 @@ attach_stack() {
 
 family_on() { case " $HARNESS_ON " in *" $1 "*) return 0 ;; esac; return 1; }
 
-# The pairing family is built as an off hook (Story 12.7 turns it on): it only writes its off row.
-seed_pairing() { printf 'RECORD pairing off %s\n' "$PAIRING_OFF_TEXT" >> "$results"; }
-check_pairing_upgrade() { printf 'RECORD pairing off %s\n' "$PAIRING_OFF_TEXT" >> "$results"; }
-check_pairing_restart() { printf 'RECORD pairing off %s\n' "$PAIRING_OFF_TEXT" >> "$results"; }
+# The pairing family (Story 12.9; FR-60, NFR-16, NFR-17). A chat is paired through the CI mock and the product's own /start path
+# (TelegramPageFixture.Move), and a record passes when, after the upgrade or the restart, the chat's Pairing row still names the session
+# and one notification sent through Notify reaches the chat as a mock sendMessage within PAIR_WAIT seconds. The seed pairs a chat on the
+# previous build only when that build includes Telegram (Included() 1); an older build is not asked to, and the row says so.
+PAIR_WAIT=10
+PAIR_CHAT_SEED=84017734150
+PAIR_CHAT_CAND=84017734151
+
+# The five readings of the running stack's IRIS session. Each prints one value; the tests of the family replace them.
+
+# pairing_build_included: 1 or 0, the running build's Channel.Telegram.In.Included(); "" when the build cannot say.
+pairing_build_included() {
+  printf '%s\n' \
+    'Try { Write !,"CHK|inc|",+##class(OcuTalon.Channel.Telegram.In).Included() } Catch e { Write !,"CHK|inc|" }' \
+    'Halt' | session_value OCUTALON inc
+}
+
+# pairing_move <chat> <name>: queues "/start <code>" from the chat for a session of its own; prints "" or the reason it did not work.
+pairing_move() {
+  printf '%s\n' \
+    "Set r=##class(OcuTalon.Test.Channel.TelegramPageFixture).Move($1,\"$2\",.q)" \
+    'Write !,"CHK|move|",$Select(r="":"ok",1:r)' \
+    'Halt' | session_value OCUTALON move | sed 's/^ok$//'
+}
+
+# pairing_session_of <chat>: the SessionRef of the chat's Pairing row, or "".
+pairing_session_of() {
+  printf '%s\n' \
+    "Set rs=##class(%SQL.Statement).%ExecDirect(,\"SELECT TOP 1 SessionRef FROM OcuTalon_Data.Pairing WHERE ChatId = ? ORDER BY ID\",\"$1\")" \
+    'Write !,"CHK|session|",$Select(rs.%Next():rs.%GetData(1),1:"")' \
+    'Halt' | session_value OCUTALON session
+}
+
+# pairing_replies <chat>: the number of messages the mock got for the chat, or "x" when it could not be read.
+pairing_replies() {
+  printf '%s\n' \
+    "Set r=##class(OcuTalon.Test.Channel.TelegramPageFixture).Replies($1,.t)" \
+    'If r="" { Set a={}.%FromJSON(t) Write !,"CHK|replies|",a.%Size() } Else { Write !,"CHK|replies|x" }' \
+    'Halt' | session_value OCUTALON replies
+}
+
+# pairing_notify <session>: sends one notification for the session through Notify; prints "" or the reason it was not sent.
+pairing_notify() {
+  printf '%s\n' \
+    "Set r=##class(OcuTalon.Test.Channel.TelegramPageFixture).Notify(\"$1\")" \
+    'Write !,"CHK|notify|",$Select(r="":"ok",1:r)' \
+    'Halt' | session_value OCUTALON notify | sed 's/^ok$//'
+}
+
+# pairing_linked <chat> <session>: the chat's Pairing row names the session.
+pairing_linked() { [ "$(pairing_session_of "$1")" = "$2" ]; }
+
+# pairing_reached <chat> <count before>: the mock got more messages for the chat than before.
+pairing_reached() {
+  local now
+  now=$(pairing_replies "$1")
+  case $now in '' | *[!0-9]*) return 1 ;; esac
+  [ "$now" -gt "$2" ]
+}
+
+# pairing_make <label> <chat> <name>: pairs the chat through the mock and sets pair_made to the session its Pairing row names. Returns 1,
+# after a FAIL line, when the chat could not be paired.
+pairing_make() {
+  local why
+  pair_made=""
+  why=$(pairing_move "$2" "$3")
+  if [ -n "$why" ]; then
+    fail "$1: the chat could not be paired through the mock ($why)"
+    return 1
+  fi
+  if ! wait_until 30 pairing_linked_any "$2"; then
+    fail "$1: within 30 s the chat $2 has no Pairing row"
+    return 1
+  fi
+  pair_made=$(pairing_session_of "$2")
+}
+pairing_linked_any() { [ -n "$(pairing_session_of "$1")" ]; }
+
+# pairing_check <label> <chat> <session>: the Pairing row of the chat still names the session, and one notification for the session
+# reaches the chat as a mock sendMessage within PAIR_WAIT seconds.
+pairing_check() {
+  local label=$1 chat=$2 session=$3 before why
+  if pairing_linked "$chat" "$session"; then
+    pass "$label: the chat's Pairing row still names its session"
+  else
+    fail "$label: the chat's Pairing row names '$(pairing_session_of "$chat")', wanted its session $session"
+    return
+  fi
+  before=$(pairing_replies "$chat")
+  case $before in '' | *[!0-9]*) before=0 ;; esac
+  why=$(pairing_notify "$session")
+  if [ -n "$why" ]; then
+    fail "$label: the notification was not sent ($why)"
+    return
+  fi
+  if wait_until "$PAIR_WAIT" pairing_reached "$chat" "$before"; then
+    pass "$label: a notification sent through Notify reached the chat as a sendMessage within $PAIR_WAIT s"
+  else
+    fail "$label: no sendMessage to the chat reached the mock within $PAIR_WAIT s of the notification"
+  fi
+}
+
+# seed_pairing: on the previous build, when it includes Telegram, pairs a chat and keeps it in seed.env. Otherwise it does nothing but
+# remember that the build did not include Telegram.
+seed_pairing() {
+  row pairing
+  local inc
+  inc=$(pairing_build_included)
+  env_set "$state/seed.env" prev_telegram "${inc:-0}"
+  if [ "$inc" != 1 ]; then
+    echo "INFO pairing: the previous build reports Included() '${inc:-unknown}', so no chat is paired in the seed"
+    return
+  fi
+  if pairing_make "pairing: the previous build" "$PAIR_CHAT_SEED" "Zz Seed"; then
+    env_set "$state/seed.env" pair_chat "$PAIR_CHAT_SEED"
+    env_set "$state/seed.env" pair_session "$pair_made"
+    pass "pairing: the chat $PAIR_CHAT_SEED is paired with session $pair_made on the previous build"
+  fi
+}
+
+# check_pairing_upgrade: the seeded pairing after the upgrade, when the previous build included Telegram; otherwise a note that the
+# upgrade part joins later.
+check_pairing_upgrade() {
+  row pairing
+  if [ "$(env_get "$state/seed.env" prev_telegram)" != 1 ]; then
+    note_row "$PAIRING_UPGRADE_NOTE"
+    return
+  fi
+  if [ -z "$(env_get "$state/seed.env" pair_session)" ]; then
+    fail "pairing: the previous build included Telegram, but the seed paired no chat, so there is nothing to check"
+    return
+  fi
+  pairing_check "pairing after the upgrade" "$(env_get "$state/seed.env" pair_chat)" "$(env_get "$state/seed.env" pair_session)"
+}
+
+# pair_candidate: pairs a chat on the candidate, at the end of the upgrade phase, and keeps it in upgrade.env for the restart.
+pair_candidate() {
+  row pairing
+  if pairing_make "pairing: the candidate" "$PAIR_CHAT_CAND" "Zz Candidate"; then
+    env_set "$state/upgrade.env" pair_chat "$PAIR_CHAT_CAND"
+    env_set "$state/upgrade.env" pair_session "$pair_made"
+    pass "pairing: the chat $PAIR_CHAT_CAND is paired with session $pair_made on the candidate"
+  fi
+}
+
+# check_pairing_restart: the pairing made on the candidate, after the restart.
+check_pairing_restart() {
+  row pairing
+  local chat session
+  chat=$(env_get "$state/upgrade.env" pair_chat)
+  session=$(env_get "$state/upgrade.env" pair_session)
+  if [ -z "$session" ]; then
+    fail "pairing: the upgrade left no paired chat to check after the restart"
+    return
+  fi
+  pairing_check "pairing after the restart" "$chat" "$session"
+}
 
 seed_watch() {
   row watch
@@ -981,6 +1140,7 @@ e2e_demo_off() {
 # --- seed: project 2 ---
 
 phase_seed() {
+  LIVE_TELEGRAM=started
   row previous-build
   seeding=1
   local installed_prev=$(prev_installed)
@@ -1280,6 +1440,7 @@ load_seed() {
 }
 
 phase_upgrade() {
+  LIVE_TELEGRAM=started
   row upgrade
   local cand=$(opt version) began last r1_set
   attach_stack
@@ -1337,13 +1498,17 @@ phase_upgrade() {
   if family_on approval; then check_approval_upgrade; fi
   if family_on watch; then check_watch_upgrade; fi
   if family_on reminder; then check_reminder_upgrade; fi
-  if family_on pairing; then check_pairing_upgrade; fi
+  if family_on pairing; then
+    check_pairing_upgrade
+    pair_candidate
+  fi
   logout_all "$jar" /ocutalon/api/
 }
 
 # --- restart ---
 
 phase_restart() {
+  LIVE_TELEGRAM=started
   row restart
   local cand=$(opt version) now
   attach_stack
@@ -1521,7 +1686,7 @@ cmd_plan() {
   echo "PLAN candidate $pl_cand_version at $pl_cand_sha"
   echo "PLAN previous $pl_prev_kind $pl_prev_ref at $pl_prev_sha, version $pl_prev_version, built as ${pl_stamp:-$pl_prev_version}"
   echo "PLAN mode dry run (a run would be: $(mode_for 0 "$opt_rehearsal" "$pl_dirty")); required $pl_required"
-  echo "PLAN phases build settings seed upgrade restart storage report down; families $HARNESS_ON; held back $HARNESS_OFF"
+  echo "PLAN phases build settings seed upgrade restart storage report down; families $HARNESS_ON; held back ${HARNESS_OFF:-none}"
   echo "PLAN record $pl_record"
   d=$(mktemp -d "${TMPDIR:-/tmp}/ocutalon-plan.XXXXXX") || exit 1
   options_write "$d/options"

@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 11-02-2026 20:20
+last_updated: 11-03-2026 12:43
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -48,6 +48,7 @@ development_status:
   0-10-the-orders-demo-production-runs-in-ocuorders: done
   0-11-the-ci-model-mock-answers-every-scenario-the-stories-need: done
   0-12-epic-0-burn-down: done
+  0-13-a-start-retries-the-cpf-merge-when-iris-cannot-quiesce: backlog
   epic-0-retrospective: optional
 
   epic-1: done
@@ -169,7 +170,7 @@ development_status:
   10-2-the-readme-gets-a-judge-from-download-to-sign-in: done
   10-3-the-session-side-of-telegram-is-ready-and-stays-off: done
   10-4-the-readme-opens-with-what-ocutalon-is-for-and-what-a-model: done
-  10-5-the-readme-shows-the-product-and-says-how-you-talk-to-it: backlog
+  10-5-the-readme-shows-the-product-and-says-how-you-talk-to-it: done
   epic-10-retrospective: optional
 
   epic-11: in-progress
@@ -194,20 +195,23 @@ development_status:
   11-19-seeded-check-rows-stay-out-of-the-heartbeat-s-way-unless-a-c: done
   epic-11-retrospective: optional
 
-  epic-12: backlog
-  12-1-telegram-stays-off-without-a-token-and-ci-mocks-the-telegram: backlog
-  12-2-ocutalon-polls-and-writes-to-its-own-bot-and-pauses-when-ano: backlog
-  12-3-the-telegram-card-shows-a-fresh-pairing-code-as-a-qr-code: backlog
-  12-4-a-valid-code-pairs-the-chat-with-the-session: backlog
-  12-5-bad-codes-a-bare-start-command-and-unpairing-get-polite-answ: backlog
-  12-6-chat-and-get-notifications-in-the-paired-telegram-chat: backlog
-  12-7-approve-or-reject-from-telegram-and-every-copy-shows-who-ans: backlog
+  epic-12: done
+  12-1-telegram-stays-off-without-a-token-and-ci-mocks-the-telegram: done
+  12-2-ocutalon-polls-and-writes-to-its-own-bot-and-pauses-when-ano: done
+  12-8-the-page-shows-when-telegram-is-paused-and-when-it-will-try: done
+  12-3-the-telegram-card-shows-a-fresh-pairing-code-as-a-qr-code: done
+  12-4-a-valid-code-pairs-the-chat-with-the-session: done
+  12-5-bad-codes-a-bare-start-command-and-unpairing-get-polite-answ: done
+  12-6-chat-and-get-notifications-in-the-paired-telegram-chat: done
+  12-7-approve-or-reject-from-telegram-and-every-copy-shows-who-ans: done
+  12-9-telegram-is-included: done
   epic-12-retrospective: optional
 
-  epic-13: backlog
-  13-1-the-example-production-makes-its-own-decision-through-the-br: backlog
-  13-2-the-example-s-own-tools-wait-for-approval-when-they-are-risk: backlog
-  13-3-the-bridge-developer-guide-proved-on-a-clean-instance: backlog
+  epic-13: done
+  13-1-the-example-production-makes-its-own-decision-through-the-br: done
+  13-2-the-example-s-own-tools-wait-for-approval-when-they-are-risk: done
+  13-3-the-bridge-developer-guide-proved-on-a-clean-instance: done
+  13-4-the-guide-and-the-overview-say-exactly-what-is-audited-and-t: backlog
   epic-13-retrospective: optional
 
   epic-14: done
@@ -215,10 +219,11 @@ development_status:
   14-2-the-security-overview-says-what-ocutalon-can-do-and-what-sto: done
   epic-14-retrospective: optional
 
-  epic-15: in-progress
+  epic-15: done
   15-1-the-first-install-run-creates-ocutalon-and-gives-the-next-co: done
   15-2-the-second-install-run-gives-a-working-ocutalon-with-demo-mo: done
-  15-3-an-ipm-install-survives-restarts-and-reinstalls-and-every-re: backlog
+  15-3-an-ipm-install-survives-restarts-and-reinstalls-and-every-re: done
+  15-4-every-release-proves-the-ipm-package-and-the-guide-opens-wit: done
   epic-15-retrospective: optional
 
   epic-16: done

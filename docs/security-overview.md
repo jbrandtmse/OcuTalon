@@ -97,7 +97,7 @@ OcuTalon reads a namespace only when the service user may read that namespace's 
 
 ## Approval and audit
 
-Classification uses fixed rules outside the model: a class parameter or a per-call rule in code, and, for a developer's own tools, the bridge's classification setting, which never changes a classification that code gives. Anything unclassified counts as risky. Every built-in tool is safe. Repair and resend, the one risky built-in action, goes through a fix kind with a dry run.
+Classification uses fixed rules outside the model: a class parameter or a per-call rule in code, and, for a developer's own tools, the bridge's classification setting, which never changes a classification that code gives. In this release, changing this setting writes no OcuTalon audit entry; each tool call is still audited. Anything unclassified counts as risky. Every built-in tool is safe. Repair and resend, the one risky built-in action, goes through a fix kind with a dry run.
 
 Content that didn't come from the user (for example a simulated email, or a failed message's body):
 
@@ -148,11 +148,12 @@ Storage:
 
 - All data stays in OcuTalon's own IRIS databases: code, data (messages and Interoperability state), private, and a small public database (the sign-in page, the public status and the public settings only).
 - Private records go to the private database through global mappings: conversations, sessions, decisions, incidents and AI sessions. A start check fails if one would land elsewhere.
+- On an IPM install, OCUTALON also maps IPM's repository definitions (the globals `^IPM.Repo.Definition*`) from the namespace where the first install command ran, as they are, so the two namespaces share one list of repositories; uninstalling OcuTalon removes only that mapping.
 
 Data leaves the instance only:
 
 - In model requests to the configured provider (Anthropic; Claude Haiku 5.5 by default). A request carries the agent's fixed instructions, the local time, the user's message or the arriving item (quoted as data), the conversation's history or a recap written by code, the tool definitions and the tool results. For a diagnosis, the results are the failed messages, the event-log rows and the item settings, with credential settings left out and every value taken from the watched production passed through the redactor.
-- In messages on configured channels, such as OcuTalon's own web page, which IRIS serves to signed-in users.
+- In messages on configured channels: OcuTalon's own web page, which IRIS serves to signed-in users, and, on an install with a Telegram bot token, the chat paired with a session, through the Telegram Bot API (its notices, reminders and approval requests, and the answers to them).
 - In calls to configured MCP servers, which this release can't make.
 
 Model keys and bot tokens come only from environment variables. They are never stored in IRIS or shown. OcuTalon reports only whether a key is present.
@@ -197,7 +198,7 @@ The protections:
 - A daily cost cap. Over it, decisions use fixed rules until the next day.
 - The read-only account opens only Visual Trace and the message viewer.
 - Public accounts can't change their own passwords: a password-validation routine, a proxy that admits only the sign-in fields, and the probe's sign-in check.
-- The IRIS container has no general internet. Model traffic, and Telegram and allow-listed MCP traffic in a release that has them, leave only through an outbound gateway that holds the real model key and the demo bot's token. The demo's IRIS holds only dummy values.
+- The IRIS container has no general internet. Model traffic, and Telegram and allow-listed MCP traffic when the demo has them, leave only through an outbound gateway that holds the real model key and, when the demo has a bot, its token. The demo's IRIS holds only dummy values.
 - Only the Orders production can be watched.
 - OcuTalon puts no names, user names or phone numbers in production messages, which carry opaque references. The splash warns visitors not to type personal information, because Visual Trace is shared.
 - Scheduled resets (every 4 hours by default) restore a clean copy with no visitor data.
