@@ -199,6 +199,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: 0.9 implement report; Msg.Catalog.Render has no length cap; Bot API sendMessage limit
 - 2026-10-20T05:25:07Z status=routed owner=12-6-chat-and-get-notifications-in-the-paired-telegram-chat by=harvest note=TelegramOut truncates or splits per the UX before sendMessage
 - 2026-10-20T06:51:54Z occurrence=0-9-the-message-catalog-and-its-one-renderer by=cr note=code review sighting (edge-case hunter): incident.fallback/noFix groups and slots have no length cap
+- 2026-11-01T17:23:37Z status=resolved-by:12-6-chat-and-get-notifications-in-the-paired-telegram-chat by=adjudication note=TelegramOut_sends_every_message_through_Api.Split(<=4096_per_part);pinned_by_Test.Channel.TelegramOut.TestLongNotice(5000-char_whatHappened_goes_in_parts;mutation_Send_without_Split_red)
 
 ### DW-31: AD-32's older sentence can read as putting the Results keys in Catalog.Core, while its Story 0.9 bullet and the code put result.* in Catalog.Watch
 - source: spec-0-9-the-message-catalog-and-its-one-renderer.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -1708,6 +1709,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-5-7-asked-whether-everything-is-fine-ocutalon-never-gives-a-fals.md | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: Agent/Chat.cls's check block and the CheckStatus description say OcuTalon shows the results under the reply; spec 5.7's Never keeps every *Out operation from rendering a check key; AD-28 says the *Out operations render the check sentences; Story 12.6 carries chat replies to Telegram
 - 2026-10-27T09:14:54Z status=routed owner=12-6-chat-and-get-notifications-in-the-paired-telegram-chat by=cr note=12.6 renders the reply's check key and rows on Telegram (AD-28, the HostData row's whatFailed rule)
+- 2026-10-31T13:34:35Z occurrence=12-2-ocutalon-polls-and-writes-to-its-own-bot-and-pauses-when-ano
+- 2026-11-01T17:23:37Z status=resolved-by:12-6-chat-and-get-notifications-in-the-paired-telegram-chat by=adjudication note=TelegramOut_appends_OcuTalons_own_check_sentence_under_a_reply(mirrors_web_checkSentence/whatFailed;never_an_all-clear_unless_Checks.Render_chose_it),so_the_Chat_agents_shown-under-your-reply_instruction_holds_on_Telegram;Agent/Chat.cls_untouched;pinned_by_TelegramOut.TestCheckSentence(a-j)
 
 ### DW-300: Contended tests (Test.Core.BridgeSink: four methods; Test.Web.Api.TestStateSections) make check rows due at once or count stream events, so a real HeartbeatIn Tick (once Epic 8's heartbeat ticks) can run their rows or add check events mid-test: the DW-289 root cause outside Epic 5's footprint
 - source: spec-5-10-epic-5-burn-down.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -2245,6 +2248,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-29T21:42:13Z occurrence=16-9-allowances-cap-messages-model-cost-and-simulated-emails by=ci note=status_unchanged:routed_owner=11-1-the-web-demo-path-passes-end-to-end-in-the-rel-2-test;CI_run_40945229992_attempt_1_(ba6856d,16.9s_implement_20cc3f9),iris_(browser),web/e2e/banners/banners.spec.ts_B2_got_'Last_run_tomorrow_at_1:40_·_No_read_access_to_its_namespace'(a_real_heartbeat_tick_ran_the_seeded_check_row);B2_untouched_by_16.9;attempt_2_green
 - 2026-10-30T00:24:16Z occurrence=16-9-allowances-cap-messages-model-cost-and-simulated-emails by=ci note=status_unchanged:routed_owner=11-1;CI_run_40975637263_attempt_1_(75d731a),iris_(browser),live:sign-in,web/e2e/session/session.spec.ts_S1:the_seeded_Zz.Production_check_row_got_lastRunAt,finding_'No_read_access_to_its_namespace'_from_a_real_tick(session.spec.ts:68_is_on_DW-349s_list);rerun_requested
 - 2026-10-30T02:20:58Z occurrence=16-9-allowances-cap-messages-model-cost-and-simulated-emails by=ci note=status_unchanged:routed_owner=11-1;CI_run_40987940151_attempt_1_(0990fbe),iris_(browser),live:sign-in,web/e2e/rail/rail.spec.ts_R5:'Last_run_2:02_·_No_read_access_to_its_namespace'_(a_real_tick_ran_the_seeded_row;rail_is_on_DW-349s_list);rerun_requested
+- 2026-10-30T09:34:20Z occurrence=12-1-telegram-stays-off-without-a-token-and-ci-mocks-the-telegram by=ci note=flake: OcuTalon.Test.Live.GuideRefresh.TestHeldLock 'the counter moved' red in CI run 41028771985 attempt 1, iris (image), shard:lane-b, on 6ca6563 (Story 12.1 touches no Live, Demo or Checks code); the same class as run 40713989310; one rerun
+- 2026-10-30T10:05:51Z occurrence=12-1-telegram-stays-off-without-a-token-and-ci-mocks-the-telegram by=ci note=CI run 41028771985 attempt 1 and its rerun (attempt 2), iris (image), shard:lane-b, on 6ca6563: OcuTalon.Test.Live.GuideRefresh.TestHeldLock 'the counter moved' both times (the class ran across a minute boundary; Fixture.Check seeds its check with no NextDueAt); fix routed to Lane B (Epic 9): TestHeldLock sets NextDueAt one hour ahead through Fixture.Check's fields argument; general fix stays 11-1
 - 2026-10-30T17:52:52Z occurrence=30-2-old-messages-and-records-are-purged-on-schedule by=ci note=status_unchanged:routed_owner=11-1;CI_run_41090217751_attempt_1(bb79c2f):iris(browser)_live:sign-in_banners.spec.ts:439_B7(heartbeat_stalled_late_marks:'and_the_late_mark')+iris(shards)_live:floor_guide.spec.ts:253_M4('the_page_holds_the_earlier_progress_event');both_listed_unfixed_seeds(banners,floor/guide);attempt_2_green(one_rerun_per_the_flake_rule)
 - 2026-10-30T17:28:53Z occurrence=29-5-the-address-counter-s-hash-is-keyed-per-reset note=CI run 41088697760 attempt 2 (OCT-epic29 511f1b03, iris image, shard lane-b): Test.Live.GuideRefresh.TestHeldLock 'the counter moved' (Fixture.Check seeds a check row with no NextDueAt; a real minute tick published between Publish and LastSeq); flake class, one rerun
 - 2026-10-31T00:50:24Z occurrence=29-7-demo-busy-counts-the-live-visitors note=CI run 41149604870 (OCT-epic29 3f5b3cbe, iris image, shard lane-b): Test.Live.GuideRefresh.TestHeldLock 'the counter moved' again; flake class, one rerun
@@ -2255,6 +2260,9 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-30T10:50:46Z occurrence=9-6-incident-cases-are-diagnosed-through-incidentmanager-and-rea by=cr note=sibling Test.Live.GuideRefresh.TestHeldLockCallerWait seeds Fixture.Check with no NextDueAt, asserts seq=1; status_unchanged
 - 2026-10-31T07:36:27Z occurrence=29-9-epic-29-burn-down note=CI run 41178903176 attempt 1 (OCT-epic29 b8090784, bookkeeping over e7a5bb94's green code): iris image shard:lane-b Test.Web.GuideApi TestOnlyTheMarkerChanges (Fixture.Check's seeded row run by a real tick between the two fingerprints) and iris browser live:sign-in session.spec.ts S1 (the rail row gained a finding); superseded by the Epic 9 integrate-forward head, not rerun
 - 2026-10-31T08:07:39Z occurrence=29-9-epic-29-burn-down note=CI run 41181446111 attempt 1 (OCT-epic29 13e56475, Epic 9 integrate-forward): iris browser live:sign-in banners.spec.ts B2 'Last run 13:19 · No read access to its namespace' (seeded check row run by a real tick); flake class, one rerun
+- 2026-10-31T09:54:07Z occurrence=12-1-telegram-stays-off-without-a-token-and-ci-mocks-the-telegram by=ci note=CI run 41188445340 attempt 1 (OCT-epic12 af47ff3c, Epic 12 integrate-forward onto 366a79ab), iris image, shard:lane-b: Test.Web.GuideApi TestOnlyTheMarkerChanges 'run_again changes none of the session data rows' (Fixture.Check seeded row run by a real tick between the two fingerprints; same as run 41178903176); flake class, one rerun; status_unchanged
+- 2026-10-31T11:20:46Z occurrence=10-4-the-readme-opens-with-what-ocutalon-is-for-and-what-a-model by=ci note=CI run 41192152812 attempt 1 (OCT-epic10 192f60c3, Epic 10's final integrate-forward of feature 366a79ab; code = feature + README/test-readme only), iris (shards), live:floor web/e2e/floor/focus.spec.ts:209 P4: the seeded check row read 'No read access to its namespace' (run by a real heartbeat tick) before the republish assertion; floor/focus is on DW-349's list; flake class, one rerun (attempt 2 green); status_unchanged routed owner=11-1
+- 2026-10-31T19:14:32Z occurrence=12-8-the-page-shows-when-telegram-is-paused-and-when-it-will-try by=ci note=CI run 41230579974 attempt 1 (OCT-epic12 a634857d, Story 12.8), iris browser, live:sign-in: web/e2e/rail/rail.spec.ts R5 'Last run 18:57 · No read access to its namespace' (a real tick ran the seeded check row; rail R5 is on DW-349's list); flake class, one rerun; status_unchanged
 - 2026-10-31T13:32:52Z status=resolved-by:11-1-the-web-demo-path-passes-end-to-end-in-the-rel-2-test by=adjudication note=AC9: Test.Data.Fixture.Check seeds NextDueAt an hour ahead when the caller passes none, so a heartbeat tick never runs a seeded row; Test.Data.FixtureDefaults pins it
 - 2026-10-31T11:20:46Z occurrence=10-4-the-readme-opens-with-what-ocutalon-is-for-and-what-a-model by=ci note=CI run 41192152812 attempt 1 (OCT-epic10 192f60c3, Epic 10's final integrate-forward of feature 366a79ab; code = feature + README/test-readme only), iris (shards), live:floor web/e2e/floor/focus.spec.ts:209 P4: the seeded check row read 'No read access to its namespace' (run by a real heartbeat tick) before the republish assertion; floor/focus is on DW-349's list; flake class, one rerun (attempt 2 green); status_unchanged routed owner=11-1
 - 2026-11-01T08:53:30Z occurrence=4-8-step-3-of-the-guide-points-to-break-the-feed-without-a-secon note=implement_live_sign-in_part1_B2_red_then_unchanged_rerun_green
@@ -2386,17 +2394,20 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-10-3-the-session-side-of-telegram-is-ready-and-stays-off.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: ci/compose.ci.yml sets TELEGRAM_BOT_TOKEN unconditionally and live_key_count counts an empty token as a key; unverified until Story 12.1 enables the Telegram items
 - 2026-10-28T22:30:49Z status=routed owner=12-1-telegram-stays-off-without-a-token-and-ci-mocks-the-telegram by=harvest note=Story 12.1 decides how a no-token start is made in CI (a start without the override, or an explicit empty value) when it turns the items on
+- 2026-10-30T08:38:01Z status=resolved-by:12-1-telegram-stays-off-without-a-token-and-ci-mocks-the-telegram by=adjudication note=213ea71+review_patches: docker/tests/lib-live.sh live_key_count counts an empty TELEGRAM_BOT_TOKEN as no key and live_no_bot_token layers TELEGRAM_BOT_TOKEN='' last; test-production-restart.sh row 19 starts with the seam at 1 and an empty token (check_token_empty, check_no_key, check_items_run, check_telegram_off: rows 0, mark off, no Bot API call); test-lib-live.sh rows pin both
 
 ### DW-370: The CI mock's Bot API state is one global queue, call list and counter for one client: reset restarts update_id at 1, so a poller that keeps its offset drops new updates as confirmed, and Test.Contract.Mock.TestTelegramBotApi expects only its own three calls
 - source: spec-10-3-the-session-side-of-telegram-is-ready-and-stays-off.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: ci/mock/mock.mjs telegramControl reset sets tg.nextUpdateId = 1 and pendingUpdates drops update_id < offset (Decided 23); Test/Contract/Mock.cls:358-372 resets, then expects update_id 1 and 3 calls; reachable once Story 12.1 runs an enabled TelegramIn poller in CI
 - 2026-10-28T23:35:43Z status=routed owner=12-1-telegram-stays-off-without-a-token-and-ci-mocks-the-telegram by=cr note=12.1 decides how a live poller and the tests share the mock: keep update_id counting over reset, or reset the offset
+- 2026-10-30T08:38:01Z status=resolved-by:12-1-telegram-stays-off-without-a-token-and-ci-mocks-the-telegram by=adjudication note=Lane A half (orchestrator ruling Q2, comply with AD-22/AD-33): Test.Channel.BotApi.Reset clears TelegramIn's kept offset ($$$EnsStaticAppData TelegramIn offset) in the same call as the mock reset and refuses under a live TelegramIn job (TelegramMock TestResetClearsKeptOffset, TestPollerCheck, mutations in the spec); the mock's one-client state and TestTelegramBotApi's own-calls assumption are DW-421 (escalated, Lane B mock ask); the poller's use of the node is DW-422 (12.2)
 
 ### DW-371: Data.Pairing.Purge repeats about 20 of the 22 lines of Lane A's Digest.Data.Item.Purge (the day-count check and the UTC cutoff), a copy forced by AD-29; the purges drift when the day rule changes
 - source: spec-10-3-the-session-side-of-telegram-is-ready-and-stays-off.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: src/ocutalon/cls/OcuTalon/Data/Pairing.cls:217 Purge vs src/ocutalon/cls/OcuTalon/Digest/Data/Item.cls:64 Purge; Task A says the validation and cutoff follow Digest/Data/Item.cls:64-87; Digest is Lane A's (AD-29)
 - 2026-10-28T23:35:43Z status=routed owner=30-2-old-messages-and-records-are-purged-on-schedule by=cr note=Rule 2 forced copy: one day-count check and cutoff helper (e.g. in Data.Time) for Bridge.Purge, Pairing.Purge, Digest
 - 2026-10-30T15:56:40Z status=routed owner=burndown by=cr note=Lane A side done in 30.2 (Bridge.Time.DaysCutoff, used by Digest); left: Data.Pairing.Purge (Lane B), IncidentManager.Purge
+- 2026-11-03T11:05:55Z status=routed owner=burndown by=burndown note=Epic_12_burn-down:not_a_1.0.0_blocker(single_occurrence_or_forced_copy);first_daily_release_after_1.0.0(orchestrator_ruling_with_the_Contest_Planner)
 - 2026-11-02T12:09:16Z owner=30-7-epic-30-burn-down by=burndown note=chartered_into_the_Epic_30_burn-down_story_30.7(part_2_gate);conditions_unchanged
 
 ### DW-372: The Story 10.3 Pairing test classes each carry their own NewChat, Code, Submit, Hops and WaitHops helpers (SessionOps, SessionOpsProduction, AnswersTelegramProduction, PairingApi, beside RoutingProduction.WaitHops)
@@ -2673,6 +2684,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-30T15:56:40Z status=decision-pending owner=burndown by=cr note=product call: purge turns and sessions with their decisions, or keep usage as long as turns; AD-27 weight (Rule 20 Deferred)
 - 2026-11-02T07:15:31Z status=routed owner=burndown by=merge_gate note=Epic_30_part_1_decision_sheet,veto:purge_Turn,Delivery,Session_on_the_same_90-day_cut_as_their_Decision_and_Usage_rows(AD-27_retention_extension,marker+lint),one_test_that_TurnCost_and_ShownDecisionRef_never_read_a_purged_turn;Epic_30_part_2_burn-down(30.7)
 - 2026-11-02T07:16:07Z status=routed owner=burndown by=merge_gate note=veto_U-210
+- 2026-11-02T14:15:18Z occurrence=12-7-approve-or-reject-from-telegram-and-every-copy-shows-who-ans note=U-218(owner_KEPT):from_Story_12.7_Telegram_Delivery_rows_of_request_messages_hold_redacted_sent_Text;the_purge_of_Delivery_rows_on_the_90-day_cut(30.7)_is_the_owner's_condition_2_for_it;its_test_should_cover_a_telegram_row_with_Text
+- 2026-11-02T21:34:22Z occurrence=12-7-approve-or-reject-from-telegram-and-every-copy-shows-who-ans by=harvest note=built_in_4ff30f5b:Telegram_request_rows_keep_redacted_Text(and_the_Approval_Ref);answered_rows_store_empty_Text;also_Lane_B_doc_ask:Data/Delivery.cls_Text_doc_line(line_31)_still_says_empty_for_any_other_row-fix_it_with_the_purge(Story_30.7,deferred_after_v1.0.0)
 - 2026-11-02T12:09:16Z owner=30-7-epic-30-burn-down by=burndown note=chartered_into_the_Epic_30_burn-down_story_30.7(part_2_gate);conditions_unchanged
 - 2026-11-02T14:56:21Z status=routed owner=burndown by=owner note=U-218_condition_2_(Planner_2026-11-02):30.7's_purge_must_cover_Delivery.Text_on_Telegram_rows_with_buttons(Story_12.7);1.0.0_has_no_Delivery_purge(accepted:redacted,no_chat_id,demo_wipes_every_4h);30.7_deferred_after_the_tag(d1)
 - 2026-11-02T21:12:36Z owner=30-7-epic-30-burn-down by=burndown note=ruling_d1(Contest_Planner,2026-11-02):30.7_entries_keep_owner_30-7;30.7_deferred_after_the_v1.0.0_tag(first_daily_release);conditions_unchanged(U-210/U-218_for_DW-437,U-215_for_DW-584)
@@ -2722,9 +2735,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-30T21:56:21Z status=routed owner=burndown by=harvest note=flake: first occurrence (local, not CI); watch for a CI recurrence
 - 2026-10-31T03:37:20Z occurrence=30-4-a-stopped-production-or-a-disabled-item-is-reported-once by=lead note=second_local_occurrence:30.4_implement_fresh_shard_lane-b_part_2/2_first_run;passed_alone_and_on_one_rerun_of_the_part(558s);code_untouched_by_30.4
 - 2026-11-02T05:39:25Z status=wontfix-accepted by=burndown note=a_burndown-owned_LOW_flake(Rule_15)_with_no_charter_in_part_1;not_seen_again_in_Epic_30_part_1_fresh_runs;reopen_if=GuideApi_TestRunAgain_goes_red_again_in_CI_or_a_fresh_shard
+- 2026-11-03T05:37:19Z occurrence=12-9-telegram-is-included status=routed owner=12-9-telegram-is-included by=harvest note=reopen_if_met:Test.Web.GuideApi_TestRunAgain_red_in_two_fresh_shard_lane-b_part_2/2_runs_at_the_end_of_12.9's_implement(8bead6ac);passes_alone_and_warm;12.9_changes_every_stack(Included()=1,parking),so_12.9's_QA_settles_whether_it_causes_it
+- 2026-11-03T07:11:40Z status=wontfix-accepted owner=12-9-telegram-is-included by=cr note=no_link_to_12.9_(QA_fresh_lane-b_part_2/2_green);reopen_if=GuideApi_TestRunAgain_red_again_in_CI
 - 2026-11-02T10:55:33Z status=routed owner=burndown by=lead occurrence=30-1-long-conversations-are-compacted-under-the-limit note=reopened(reopen_if_met):30.1_implement_fresh_shard_lane-b_part_2/2_red_twice_on_TestRunAgain;passed_alone_on_a_fresh_throwaway;30.1_touches_no_Web/Guide_code;Lane_B_class(AD-33):route_to_a_Lane_B_story_at_the_burn-down_gate
 - 2026-11-02T12:09:17Z owner=31-3-the-readme-leads-to-the-demo-and-the-launched-demo-is-measur by=burndown note=overflow:Lane_B_class_Test.Web.GuideApi(AD-33:off_limits_to_Lane_A_epic_30);flake_reopened_by_30.1's_fresh_shard_lane-b_2/2(red_twice,passes_alone):find_the_order_or_timing_dependence_of_TestRunAgain
 - 2026-11-03T02:38:20Z occurrence=13-2-the-example-s-own-tools-wait-for-approval-when-they-are-risk by=harvest note=failed_once_in_13.2_implement_fresh_shard_lane-b_part_2/2;passed_alone_and_on_rerun
+- 2026-11-03T12:55:18Z occurrence=0-13-a-start-retries-the-cpf-merge-when-iris-cannot-quiesce note=CI run 41629601732 iris (image) shard:lane-b on OCT-epic0 032a25c0 (integrate-forward head): TestRunAgain and TestOnlyTheMarkerChanges failed; passed on the unchanged rerun of the failed jobs
+- 2026-11-03T14:35:03Z occurrence=0-13-a-start-retries-the-cpf-merge-when-iris-cannot-quiesce note=CI run 41641201023 attempt 1, iris (image) shard:lane-b on OCT-epic0 c3d264c5: TestRunAgain and TestOnlyTheMarkerChanges (run_again and trace_opened) failed; green on the unchanged rerun of the failed jobs
 
 ### DW-454: U-170's plain-English reason for an old held tool call reaches a person only through the decision live event (decision strip, rail decision row, trace); the approval card and notices do not show it: Live.Payload.Approval.reason stays empty, approval.result is {ref}, Core.Rule.Notice reads only the fallback reason
 - source: spec-30-3-an-approved-tool-call-runs-exactly-once-with-no-model.md | severity: med | fix-risk: med | footprint: out-of-footprint
@@ -2789,6 +2806,30 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: 30.5 plan, Lane B need 2: Live.Payload.Incident fills a request's result only from an ended run; the chat notice uses result.stillResending (30.5)
 - 2026-10-31T06:20:20Z status=routed owner=31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=orchestrator note=U-183: Lane B display part (the still-resending band)
 
+### DW-420: AD-22's as-built shard list does not name the lane-a area Channel that Story 12.1 adds to ci/units.sh
+- source: spec-12-1-telegram-stays-off-without-a-token-and-ci-mocks-the-telegram.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: spine AD-22 'CI as built' lists lane-a: Agent, Bridge, Checks, Fix, Install, Tools, Digest and Watch; Story 12.1 appends Channel to ci/units.sh lane-a (Epic 9 appends Eval to the same line)
+- 2026-10-30T06:30:51Z status=escalated owner=burndown by=spec_gate note=AD-22 as-built: lane-a gains Channel; orchestrator writes it at the merge gate (ruling 2026-10-30, Q3)
+- 2026-10-31T13:34:35Z occurrence=12-2-ocutalon-polls-and-writes-to-its-own-bot-and-pauses-when-ano
+- 2026-11-03T14:32:55Z status=resolved-by:12-9-telegram-is-included owner=burndown by=unattended note=decision_sheet_Epic_12_merge:AD-22_CI-as-built_line_rewritten_as_built_by_the_orchestrator(lane-a_list+Eval,Channel;nine_groups_incl_shards-3,shards-4;lane-a_three_pieces),checked_against_ci/units.sh;no_rule_change
+
+### DW-421: The CI mock's Bot API side keeps one global state (updates, replies, calls, counters) for every client, so once TelegramIn polls in CI a direct-call test such as Test.Contract.Mock.TestTelegramBotApi shares its queue and call list with the live poller
+- source: spec-12-1-telegram-stays-off-without-a-token-and-ci-mocks-the-telegram.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: ci/mock/mock.mjs one tg state; Test/Contract/Mock.cls TestTelegramBotApi resets then expects update_id 1 and its own 3 calls; Lane A's Test.Channel.BotApi.Reset clears TelegramIn's kept offset with its own resets only (Story 12.1 re-plan); reachable from Story 12.7 (Included() 1 at every CI start)
+- 2026-10-30T06:46:50Z status=escalated owner=burndown by=spec_gate note=Lane B mock ask under AD-33 (AD-22): keep the Bot API state per token (keyed by the /bot<token>/ segment, control routes naming the token), or have TestTelegramBotApi stop TelegramIn around itself and read its ids from updateIds; optional: a status output on BotCall so Lane A's BotReply copy can go; DW-370 residual (orchestrator ruling 2026-10-30, Q2)
+- 2026-10-30T08:35:22Z occurrence=12-1-telegram-stays-off-without-a-token-and-ci-mocks-the-telegram
+- 2026-11-03T14:32:55Z status=wontfix-accepted owner=burndown by=unattended note=decision_sheet_Epic_12_merge:12.9_stops_the_Telegram_items_after_every_CI_and_throwaway_stack_start;reopen_if_a_direct-call_test_and_a_live_poller_share_one_stack
+
+### DW-422: TelegramIn's kept update offset ($$$EnsStaticAppData("TelegramIn", "offset")) is pinned only against Test.Channel.BotApi, so a Story 12.2 poller that kept its offset elsewhere would leave DW-370's Lane A half doing nothing
+- source: spec-12-1-telegram-stays-off-without-a-token-and-ci-mocks-the-telegram.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: Test.Channel.TelegramMock.TestResetClearsKeptOffset sets, reads and clears the node through BotApi alone; TelegramIn is still the stub (12.1 build-auto deferred)
+- 2026-10-30T07:40:55Z status=routed owner=12-2-ocutalon-polls-and-writes-to-its-own-bot-and-pauses-when-ano by=harvest note=Story 12.2's tests prove its poller's offset node is BotApi.Offset()'s node (Test.Channel.BotApi.Reset clears it with each mock reset)
+- 2026-10-31T13:36:45Z status=resolved-by:12-2-ocutalon-polls-and-writes-to-its-own-bot-and-pauses-when-ano by=adjudication note=Test.Channel.TelegramIn.TestOffsetNode (dd849271 plus review patches): the offset BotApi.SetOffset sets is carried by the first getUpdates (offset 3), only the update at it is handled, and the node moves to 4; mutation keeping the offset at EnsStaticAppData(TelegramIn,next) turns it red (spec Verification)
+
+### DW-428: Test.Channel.TelegramMock calls Test.Contract.Mock and Test.Channel.BotApi through $ClassMethod string names in three tests (##class in the other two), so a renamed helper shows only when the class runs
+- source: spec-12-1-telegram-stays-off-without-a-token-and-ci-mocks-the-telegram.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: TelegramMock.cls TestCallsAndLog, TestResetClearsKeptOffset, TestPollerCheck use $ClassMethod(mock|helper, "<name>", ...); TestUpdateScenarios and TestReplyScenarios use ##class; about 29 mechanical lines to align
+- 2026-10-30T08:35:22Z status=wontfix-accepted owner=12-1-telegram-stays-off-without-a-token-and-ci-mocks-the-telegram by=cr note=reopen_if=a renamed Mock or BotApi helper first shows as a TelegramMock red in CI, not at compile (not a two-way door)
 ### DW-480: README opening (owner text) 'Every decision is in Visual Trace with its reasons and cost' may read as an overclaim for a fixed-rules decision, which keeps only its fallback reason (Reasons empty, FallbackReason set)
 - source: _bmad-output/implementation-artifacts/spec-10-4-the-readme-opens-with-what-ocutalon-is-for-and-what-a-model.md | severity: low | fix-risk: high | footprint: in-story
 - evidence: Decide.cls RecordFallback sets Reasons='' and FallbackReason=reason; Result carries Fallback, FallbackReason, tokens and CostUSD; README.md:3 opening, README.md:34 Story 10.2 line
@@ -2915,6 +2956,41 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-02T14:55:52Z status=routed owner=31-4-the-paired-chat-stays-isolated-under-load-too by=owner note=31.4_deferred_after_the_v1.0.0_tag(owner:Move_it_after_the_tag);first_daily_release
 - 2026-11-02T20:59:27Z occurrence=30-8-the-redactor-and-the-key-proof-catch-every-key-shape
 
+### DW-482: Test.Install.Production class doc (line 10): its list of items that carry no STUB (so the oracle marks them stub 0) does not yet name TelegramIn and TelegramOut, which Story 12.2 builds
+- source: spec-12-2-ocutalon-polls-and-writes-to-its-own-bot-and-pauses-when-ano.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Story 12.2 sets the TelegramIn and TelegramOut oracle rows to stub 0 (orchestrator ruling 2026-10-31, file-level extension); the doc line 10 edit was dropped because Epic 15 also changes line 10 of src/ocutalon/cls/OcuTalon/Test/Install/Production.cls
+- 2026-10-31T11:52:15Z status=routed owner=15-3-an-ipm-install-survives-restarts-and-reinstalls-and-every-re by=orchestrator note=doc only: append TelegramIn and TelegramOut (built in Story 12.2) to the class doc's list of items without STUB, in the same edit as Epic 15's own line-10 change; no behaviour
+
+### DW-486: TelegramIn calls Pairing.RecordChat(chatId, "") for every private update, and RecordChat sets DisplayName unconditionally, so once Story 12.4 stores a paired chat's name every later message would blank it
+- source: spec-12-2-ocutalon-polls-and-writes-to-its-own-bot-and-pauses-when-ano.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: Data/Pairing.cls RecordChat sets row.DisplayName = name unconditionally; Channel/Telegram/In.cls HandleUpdate passes an empty name (as 12.2's spec fixes it); no story stores a name yet, so nothing is lost today (dd849271)
+- 2026-10-31T12:13:11Z status=routed owner=12-4-a-valid-code-pairs-the-chat-with-the-session by=harvest note=fix on Epic 12's side if possible (TelegramIn passes the update's own name, or skips the name when it is empty); Data/Pairing.cls is Lane B's (AD-33) and contended with Epic 11, so a change there is a Lane B ask
+- 2026-11-01T07:40:52Z status=resolved-by:12-4-a-valid-code-pairs-the-chat-with-the-session by=adjudication note=TelegramIn_keeps_chat.first_name_only_while_paired(never_blanks_a_paired_name;clears_an_unpaired_row);pinned_by_Test.Channel.TelegramPair.TestNameOnlyWhilePaired(a-d);Data/Pairing.cls_untouched;commit_72017ebd+review_patches
+
+### DW-487: A Bot API call can outlast the 10-second item stop on a slow network: OpenTimeout inherits the read Timeout, and sendMessage reads 15 s
+- source: spec-12-2-ocutalon-polls-and-writes-to-its-own-bot-and-pauses-when-ano.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Api.Call sets only Timeout, which %Net.HttpRequest also uses for the connect (HttpRequest.cls:1257,1664): up to 8+8 s for getUpdates, 15+15 s for sendMessage; CI's local mock never shows it
+- 2026-10-31T13:34:35Z status=wontfix-accepted owner=12-2-ocutalon-polls-and-writes-to-its-own-bot-and-pauses-when-ano by=cr note=reopen_if=a TelegramIn or TelegramOut stop over 10 s is logged on a real network (12.7 hands-on pass or the demo host)
+
+### DW-488: A TELEGRAM_BOT_TOKEN with surrounding white space or a CR (an env file with CRLF) counts as set and goes into the /bot<token>/ path unchanged
+- source: spec-12-2-ocutalon-polls-and-writes-to-its-own-bot-and-pauses-when-ano.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Install.Step.Telegram.TokenSet only tests for an empty value and Api.Call uses GetEnviron as is; trimming is token handling (a veto area), so it was not changed in review
+- 2026-10-31T13:34:35Z status=wontfix-accepted owner=12-2-ocutalon-polls-and-writes-to-its-own-bot-and-pauses-when-ano by=cr note=reopen_if=an install with a right token shows Telegram rejected or failing, and the variable holds white space or a CR
+
+### DW-489: Two names are written twice: the client SSL configuration (Api.SSLCONFIG and Install.Step.SSL.NAME) and the token variable (Api.TOKENVAR and Install.Step.Telegram.TOKENVAR)
+- source: spec-12-2-ocutalon-polls-and-writes-to-its-own-bot-and-pauses-when-ano.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: a rename in one class only turns TelegramSettings (SSLConfig resolves to OcuTalonClient, which exists) or TelegramSwitch and the live tests red; unifying needs a cross-class parameter in a contended Install file
+- 2026-10-31T13:34:35Z status=wontfix-accepted owner=12-2-ocutalon-polls-and-writes-to-its-own-bot-and-pauses-when-ano by=cr note=reopen_if=either name changes in one place, or a second client of OcuTalonClient (the email story) adds a third copy
+
+### DW-490: test-ci-config.sh scans only the live:* entries of NO_WEB_BUNDLE_UNITS for bundle markers, so shard:lane-a@Channel, the first shard unit there, has no ongoing guard
+- source: spec-12-2-ocutalon-polls-and-writes-to-its-own-bot-and-pauses-when-ano.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: docker/tests/test-ci-config.sh:1045-1055 greps the bundle markers under case live:*); Story 12.2 recorded a one-time grep of Test/Channel in its Verification; the check script is not Epic 12's
+- 2026-10-31T13:34:35Z status=wontfix-accepted owner=12-2-ocutalon-polls-and-writes-to-its-own-bot-and-pauses-when-ano by=cr note=reopen_if=a Test.Channel class reads a file of the built bundle (a grep of Test/Channel for csp/, index.html or ensure_web_bundle hits)
+
+### DW-491: Test.Contract.Ac (TestTelegramStubHasAnAdapter) and Test.Msg.Contracts (line 136) still call TelegramIn the stub, and Ac.cls says that the Telegram epic replaces the value
+- source: spec-12-2-ocutalon-polls-and-writes-to-its-own-bot-and-pauses-when-ano.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Story 12.2 built TelegramIn and TelegramOut, which carry no STUB; the two docs are outside Epic 12's footprint and their assertions still hold
+- 2026-10-31T13:34:35Z status=wontfix-accepted owner=12-2-ocutalon-polls-and-writes-to-its-own-bot-and-pauses-when-ano by=cr note=reopen_if=either class is edited, or a later plan cites TelegramIn as a stub from those docs
 ### DW-478: Session.Hash's doc comment names only the resume reference and a client address as forms stored with it; Pairing.HashCode now stores pairing-code hashes through it
 - source: spec-11-0-epic-10-deferred-cleanup.md | severity: low | fix-risk: low | footprint: in-epic
 - evidence: Session.cls:120-121 reads 'the form in which the resume reference and a client address are stored'; since Story 11.0 Pairing.HashCode quits Session.Hash(code)
@@ -2955,6 +3031,94 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-31T12:04:51Z status=routed owner=31-4-the-paired-chat-stays-isolated-under-load-too by=orchestrator note=also_check_that_the_repo's_proxy_stand-in(Story_29.3)_admits_the_broker-path_hyperevent_fields,and_record_the_allowance_as_built_beside_AD-25's_sign-in_rule
 - 2026-11-02T14:55:52Z status=routed owner=31-4-the-paired-chat-stays-isolated-under-load-too by=owner note=31.4_deferred_after_the_v1.0.0_tag(owner:Move_it_after_the_tag);first_daily_release
 
+### DW-494: flake: OcuTalon.Test.Fix.Partial TestCopiesFailAgain ('and stores 3/3/0/3/0 with the reason the order date still wasn't accepted' and four more asserts) red in CI shards-2 (shard:lane-a@rest), green on an unchanged rerun
+- source: spec-12-2-ocutalon-polls-and-writes-to-its-own-bot-and-pauses-when-ano.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: CI run 41207682542 attempt 1 (OCT-epic12 ec468c81, Story 12.2, no Fix change), iris shards-2: 5 asserts of TestCopiesFailAgain failed (57.4 s); attempt 2 green; the class passed on a fresh lane-C throwaway in 41 s; af47ff3c green on the same unit
+- 2026-10-31T15:28:23Z status=routed owner=burndown by=ci note=flake class from now: one rerun with occurrence=; likely a wait in Fix.Partial under CI load (inference); Fix is Lane A, Epic 7's area (Fix/Executor.cls is contended with Epic 30)
+- 2026-11-03T11:05:55Z status=routed owner=burndown by=burndown note=Epic_12_burn-down:not_a_1.0.0_blocker(single_occurrence_or_forced_copy);first_daily_release_after_1.0.0(orchestrator_ruling_with_the_Contest_Planner)
+
+### DW-499: The Telegram card's view module web/src/app/rail/telegram-card/telegram-card-view.ts has no Node unit test; its branches (missing status, missing or non-string time slot, state on) are pinned only by the browser tests T1 and T2
+- source: spec-12-8-the-page-shows-when-telegram-is-paused-and-when-it-will-try.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: Sibling view modules (banner-view, rail-view) have web/scripts/*-view.test.mjs; a new file under web/scripts/ is Lane B's (AD-29) and Story 12.8's ruling allows only three named entries; T1 and T2 cover paused, off, rejected and not paused (750cc54e)
+- 2026-10-31T17:44:56Z status=wontfix-accepted owner=12-8-the-page-shows-when-telegram-is-paused-and-when-it-will-try by=harvest note=reopen_if=a card-state defect reaches CI or the page that T1/T2 did not catch, or Lane A gains its own web unit-test file for telegram-card (then add telegram-card-view.test.mjs there)
+
+### DW-502: The Telegram card's paused predicate (telegram-card-view.ts holds() and the condition name telegramPaused) is a copy of banner-view.ts's private holds(), so a later change to the banner's rule would leave the card and the banner out of step
+- source: spec-12-8-the-page-shows-when-telegram-is-paused-and-when-it-will-try.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: A one-expression copy that the spec forces (Decided 1; banners/* is on the Never list, Lane B's under AD-29); T1 pins both together for today's rule; the unifying fix exports holds() from banner-view.ts, a Lane B file
+- 2026-10-31T18:23:40Z status=wontfix-accepted owner=12-8-the-page-shows-when-telegram-is-paused-and-when-it-will-try by=cr note=reopen_if=banner-view.ts's holds() or its telegramPaused row changes, or a Lane B story exports holds(): then import it
+
+### DW-503: UX-DR137 (the unpaired Telegram card at the top of the device column at 1024 to 1279 px) is carried by no story's acceptance criteria, and the column layout is Lane B's (AD-29)
+- source: spec-12-3-the-telegram-card-shows-a-fresh-pairing-code-as-a-qr-code.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: found by Story 12.3's plan: the card's unpaired state is built in Lane A's telegram-card/, but its position in the device column at 1024-1279 px is the rail layout's (Lane B's web files); no story in epics.md names UX-DR137
+- 2026-10-31T19:18:18Z status=escalated owner=burndown by=spec_gate note=for the decision sheet: route to a Lane B story (layout) or accept; not Epic 12's files
+- 2026-11-03T14:32:55Z status=decision-pending owner=burndown by=unattended note=inbox=U-238
+- 2026-11-03T14:37:22Z status=routed owner=burndown by=owner note=U-238:UX-DR137_device-column_placement_to_first_daily_release;the_narrow_fix(guide_hint_and_Show_me_open_the_Status_drawer_at_1024-1279)_is_Story_12.10_before_the_tag
+
+### DW-504: Lane B's web/scripts/qr-pin.test.mjs header says nothing in web/src uses qrcode-generator yet, which Story 12.3's card makes untrue
+- source: spec-12-3-the-telegram-card-shows-a-fresh-pairing-code-as-a-qr-code.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Story 12.3 draws the pairing QR code with the vendored qrcode-generator 2.0.4 in web/src/app/rail/telegram-card/; the comment is Lane B's file
+- 2026-10-31T19:18:18Z status=wontfix-accepted owner=12-3-the-telegram-card-shows-a-fresh-pairing-code-as-a-qr-code by=spec_gate note=reopen_if=Lane B next edits qr-pin.test.mjs (update the header then), or the comment misleads a reviewer
+
+### DW-508: flake: web/e2e/floor/guide.spec.ts:253 M4 ('the page holds the earlier progress event': 'zz M Orders again' not visible in the Status region within 15 s) red in CI shards live:floor, green on an unchanged rerun
+- source: spec-12-8-the-page-shows-when-telegram-is-paused-and-when-it-will-try.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: CI run 41230579974 attempt 1 (OCT-epic12 a634857d, Story 12.8; no guide, rail or watch change), iris shards, live:floor M4; attempt 2 green; live:floor passed locally 105/105 on a fresh lane-C stack
+- 2026-10-31T19:42:02Z status=routed owner=burndown by=ci note=flake class from now: one rerun with occurrence=; guide.spec.ts and the Status region are Lane B's (Epic 4/8 area); possibly a real tick or watch.progress ordering under CI load (inference)
+- 2026-11-03T11:05:55Z status=routed owner=burndown by=burndown note=Epic_12_burn-down:not_a_1.0.0_blocker(single_occurrence_or_forced_copy);first_daily_release_after_1.0.0(orchestrator_ruling_with_the_Contest_Planner)
+
+### DW-512: A browser clock ahead of the server's by ten minutes or more makes the Telegram card replace its pairing code every 10 s, captioned 'New code in 1 min'
+- source: spec-12-3-the-telegram-card-shows-a-fresh-pairing-code-as-a-qr-code.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: telegram-card-view.ts dueTime compares the server's expiresAt with the browser clock; the 10 s spacing bounds the requests (Boundaries 'The spacing', Decided 4; matrix row 2 expects '1 min' for a past expiry)
+- 2026-10-31T23:27:23Z status=by-design owner=12-3-the-telegram-card-shows-a-fresh-pairing-code-as-a-qr-code by=cr note=spec-bound: the spacing rule is the specified guard; a server-relative lifetime would change the Boundaries' due-time formula
+
+### DW-513: A 409 that the code route gives only briefly (TelegramIn restarting) keeps the Telegram card on 'Telegram not set up' until /state's Telegram values or the pause change
+- source: spec-12-3-the-telegram-card-shows-a-fresh-pairing-code-as-a-qr-code.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: telegram-card.ts records refusedAt under the asking key and never re-asks for that key; no live event carries the server's state (Decided 2)
+- 2026-10-31T23:27:23Z status=by-design owner=12-3-the-telegram-card-shows-a-fresh-pairing-code-as-a-qr-code by=cr note=spec-bound: Decided 2 (a stale page never polls a refusing route); a reload shows the real state
+
+### DW-514: Two tabs of one session each show an unpaired Telegram card, and each code request replaces the session's one code (AD-4), so the other tab's QR code is dead until its own refresh
+- source: spec-12-3-the-telegram-card-shows-a-fresh-pairing-code-as-a-qr-code.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: Pairing.StoreCode keeps one code row per session (CodeSessionRefIndex unique) and each card asks on its own; scanning the older tab's code gets Story 12.5's 'That code didn't work'
+- 2026-10-31T23:27:33Z status=decision-pending owner=burndown by=cr note=product call: accept (AD-4, the code never leaves the card), only the visible tab asks, or another rule; a cross-tab share breaches the spec's 'sends it nowhere'
+- 2026-11-03T14:32:55Z status=by-design owner=burndown by=unattended note=decision_sheet_Epic_12_merge:AD-4_one_code_per_session;refreshing_the_other_tab_gets_a_fresh_code
+
+### DW-515: The Telegram card's long-timer and refusal-reset rules are pinned by no test: the 30 s retry after a non-409 failure, the 409 stop beyond T4's 3 s window (the 10 s spacing makes that window unable to fail), and the refusal forgotten when a pause starts and ends
+- source: spec-12-3-the-telegram-card-shows-a-fresh-pairing-code-as-a-qr-code.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: telegram-card.ts ask()/later() and the askKey effect; pinning needs a 31 s wait or a live-event route on a refused page, and page.clock is excluded (Decided 9) while the browser group runs about 25 min
+- 2026-10-31T23:27:33Z status=wontfix-accepted owner=12-3-the-telegram-card-shows-a-fresh-pairing-code-as-a-qr-code by=cr note=reopen_if=a card asks after a 409, never retries after a 5xx, or stays not set up after a pause clears, in CI or on a page; or Lane A gains a web unit-test host
+
+### DW-516: TelegramPageFixture.Finish keeps a code row that existed at Start, so when an earlier Finish failed and left the README session's code row, the page's codes overwrite that row and it stays with the test's last code hash
+- source: spec-12-3-the-telegram-card-shows-a-fresh-pairing-code-as-a-qr-code.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Pairing.StoreCode reuses the session's row (CodeSessionRefIndexOpen), and DropCodes keeps every Ref Start saved; mutation M5 showed it (T1's leftover row survived T3's Finish)
+- 2026-10-31T23:27:33Z status=wontfix-accepted owner=12-3-the-telegram-card-shows-a-fresh-pairing-code-as-a-qr-code by=cr note=reopen_if=Start finds a code row of the test's own session, or a later test reads the README session's code row
+
+### DW-520: SessionOps.Unlink keeps DisplayName in a row it unpairs, so an unpaired Pairing row holds a name until that chat writes again (Lane B ask: clear DisplayName on unlink)
+- source: _bmad-output/implementation-artifacts/spec-12-4-a-valid-code-pairs-the-chat-with-the-session.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Core/SessionOps.cls Unlink clears SessionRef and SeenAt only; TelegramIn (12.4) clears the name on the chat's next update; the name never reaches a production message, /state of another session or the trace
+- 2026-11-01T06:58:27Z status=wontfix-accepted owner=12-4-a-valid-code-pairs-the-chat-with-the-session by=harvest note=reopen_if=a test or audit finds a DisplayName on a Pairing row with no SessionRef older than one update, or a Lane B story edits SessionOps.Unlink (then add the one-line clear)
+- 2026-11-01T07:39:08Z occurrence=12-4-a-valid-code-pairs-the-chat-with-the-session
+
+### DW-527: The Telegram card's state order (paused, not set up and paired ahead of just-unpaired) has no unit test: moving the justUnpaired branch above paired or paused keeps T5 and T6 green
+- source: _bmad-output/implementation-artifacts/spec-12-5-bad-codes-a-bare-start-command-and-unpairing-get-polite-answ.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: telegram-card-view.ts:169 telegramCardView is framework-free; no web/scripts/*.test.mjs calls it; only T5/T6 run the just-unpaired view
+- 2026-11-01T11:13:27Z status=open owner=12-5-bad-codes-a-bare-start-command-and-unpairing-get-polite-answ by=harvest note=runner ruling: a NEW test file web/scripts/telegram-card-view.test.mjs (Epic 12's own card view; not contended) is allowed and reported as a footprint extension; or pin it with a T6 case (a pairing during the 5 s window shows the paired row)
+- 2026-11-01T12:06:25Z status=resolved-by:12-5-bad-codes-a-bare-start-command-and-unpairing-get-polite-answ by=adjudication note=web/scripts/telegram-card-view.test.mjs(10_cases;QA)_pins_paused,not-set-up,paired_ahead_of_just-unpaired_and_the_5000ms_window;mutations_moving_justUnpaired_above_paired(3_red)/paused(4_red)
+
+### DW-528: A pairing that removes the focused Open in Telegram link sends focus to the main region, not the Telegram heading
+- source: spec-12-5-bad-codes-a-bare-start-command-and-unpairing-get-polite-answ.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: The unpaired root of telegram-card.ts carries no data-row-key/data-section, so keepFocus finds no item and falls back to the main region when the paired view replaces it. EXPERIENCE Focus replacement says nearest container. Neither 12.4 nor 12.5 specifies focus on pairing, and it needs a T6 step plus a live run.
+- 2026-11-01T12:04:51Z status=wontfix-accepted owner=12-5-bad-codes-a-bare-start-command-and-unpairing-get-polite-answ by=cr note=reopen_if=a keyboard pass (38.3 real-device or an a11y audit) finds focus outside the Telegram section after pairing
+
+### DW-536: flake: web/e2e/demo-path/telegram-page.spec.ts T6 (Story 12.5): 'chat 113 is told that the code did not work' timed out (10 s poll for the bad-code reply) once on a fresh lane-C live:demo-path; the unchanged rerun passed
+- source: _bmad-output/implementation-artifacts/spec-12-5-bad-codes-a-bare-start-command-and-unpairing-get-polite-answ.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: runner smoke of 12.6 (tag e12s6smk, 2026-11-01T17:30Z): 1 failed telegram-page.spec.ts:925 expect.poll repliesOf(STRANGER_CHAT) toEqual([BAD]) timeout 10000ms; rerun 19 passed
+- 2026-11-01T17:35:48Z status=routed owner=burndown by=smoke note=flake class: one rerun with occurrence=; a second red on the same head takes the rework path; probe whether TelegramIn's poll plus Notify->TelegramOut can exceed 10 s under load, or the reply list read races the send
+- 2026-11-03T11:05:55Z status=routed owner=burndown by=burndown note=Epic_12_burn-down:not_a_1.0.0_blocker(single_occurrence_or_forced_copy);first_daily_release_after_1.0.0(orchestrator_ruling_with_the_Contest_Planner)
+
+### DW-540: flake: web/e2e/demo-switch/mailbox.spec.ts:425 MB9 (a refused chip press shows the server message; page.waitForResponse hit the 120 s test timeout) red once in CI shards-2 live:demo-switch on OCT-epic12 b14f7527; the unchanged rerun passed
+- source: _bmad-output/implementation-artifacts/cycle-log-epic-12.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: run 41334145441 job iris (shards-2) attempt 1: 1 failed (MB9, 2.0m); attempt 2 green; Epic 12 changed no mailbox or demo-switch code
+- 2026-11-01T19:32:33Z status=routed owner=burndown by=ci note=flake class: one rerun with occurrence=; Lane B's (Epic 4 / Story 4.6) test; a second red on the same head takes the rework path
+- 2026-11-03T11:05:55Z status=routed owner=burndown by=burndown note=Epic_12_burn-down:not_a_1.0.0_blocker(single_occurrence_or_forced_copy);first_daily_release_after_1.0.0(orchestrator_ruling_with_the_Contest_Planner)
 ### DW-495: Test.Bridge.Gate's untrusted-turn row still calls cancel_reminder with {"reminderRef":"x"}, which now answers BADREFS before CommandCall.Run, so the row's 'its method did not run' check (CommandCount '= 0) can no longer fail for cancel_reminder
 - source: spec-11-8-the-chat-cancels-several-reminders-in-one-call-and-says-it-c.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Test/Bridge/Gate.cls:1764 passes the old key; RunDenied (Gate.cls:2235) detects a built-in tool's run only by CommandCount; ReminderTools.CancelReminder answers BADREFS for a missing reminderRefs without calling Run (TestCancelThroughTheToolManager pins {} as BADREFS with nothing recorded)
@@ -3076,6 +3240,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: CI run 41351529214 attempt 1 (OCT-epic11 1b0c0d39, iris install-upgrade, live:cards): 1 failed (I10, 1.5m); attempt 2 green; the spec imports no file Story 11.12 changed
 - 2026-11-01T22:44:24Z status=routed owner=burndown by=ci note=flake routed to the burn-down with priority: a sign-in that never answers /state within 90 s on a loaded host
 - 2026-11-02T11:13:19Z owner=burndown by=burndown note=Epic 11 part 1 burn-down (owner trim): no charter (2 story-closable entries plus this repaired owner, under the cap, no repeat occurrences); kept for Epic 11 part 2's burn-down gate, as Epic 30 part 1 did; flakes with priority
+- 2026-11-03T16:12:51Z status=routed owner=burndown by=merge_gate note=occurrence:035be7d2_run_41659785594_iris(shards)_live:cards_I8_incident-card.spec.ts:396_loadedAfter_/state_wait_at_sign-in;green_on_rerun
 
 ### DW-551: The release checklist does not check the draft notes for the inspiration's name outside the not-affiliated note (only the tracked tree's name-only-in-note row); the draft's own rules are Story 11.13's
 - source: spec-11-4-the-release-gets-draft-notes-and-a-checklist.md | severity: low | fix-risk: low | footprint: in-epic
@@ -3163,6 +3328,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: iris (install-upgrade) attempt 1 red only on live:cards A7 after a 2.0 min test timeout in page.waitForResponse; every other unit and group green; attempt 2 of the same job green on the same sha; Story 5.12 touched no web or cards file
 - 2026-10-31T16:42:54Z status=routed owner=burndown by=ci note=flake class, filed at CI resolution point 1 (Story 5.12); fix: find why the first state GET can miss the 120 s window under the install-upgrade group's load (sign-in wait or the response predicate)
 - 2026-10-31T16:43:23Z owner=31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=burndown note=overflow at Epic 5's burn-down gate (re-open for Story 5.12): the approval-card spec is Lane B's (Epic 6); Story 31.2, Lane B's hardening story on approval requests, is the next story to touch that path; one occurrence, under the cap, so no burn-down story was chartered
+- 2026-11-03T14:35:03Z occurrence=0-13-a-start-retries-the-cpf-merge-when-iris-cannot-quiesce note=CI run 41641201023 attempt 1, iris (browser) live:sign-in on OCT-epic0 c3d264c5: web/e2e/chat/chat.spec.ts:693 C7 timed out (45 s) in loadedAfter's /state wait at sign-in (support/floor.ts:141); green on the unchanged rerun
 
 ### DW-498: Story 5.12's invalid-reply warning logs $SYSTEM.Status.GetErrorText of the reply check, and for a MAXLEN or datatype failure that text quotes the offending value (the model's own reply content), which U-193's condition forbids: the warning must name the failing property and the limit (for example 'Evidence element 6: 42 > 32') and quote none of the reply
 - source: orchestrator: U-193's condition (#581) checked against Story 5.12's merged code (14de8018) | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -3183,6 +3349,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-16-11-the-splash-promises-telegram-only-when-the-release-includes.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: Msg/Catalog/Core.cls:268 and web/src/app/msg/catalog.ts carry the text unconditionally; web/e2e-online/allowance/messages.spec.ts:35 and web/e2e/banners/banners.spec.ts:359,501 pin it; a visitor who uses up the 50 messages reads 'or Telegram' while the release has none
 - 2026-10-31T17:45:09Z status=routed owner=12-7-approve-or-reject-from-telegram-and-every-copy-shows-who-ans by=harvest note=orchestrator ruling U-197: keep it out of 16.11, route it to Story 12.7 with the splash's included case
+- 2026-11-02T14:10:41Z status=routed owner=12-9-telegram-is-included by=spec_gate note=split_at_12.7_spec_gate:the_splash_and_banner_part_moved_to_12.9;mechanism_waits_on_U-219(U-197_follow-up)
+- 2026-11-03T07:11:40Z status=resolved-by:12-9-telegram-is-included owner=12-9-telegram-is-included by=cr note=B5_banner.allowanceChat_shown_while_telegramOn_is_false;banner-view.test.mjs_and_banners.spec_B5_B8_pin_both_forms
 
 ### DW-505: An assertion written x [ "a"_y tests only x [ "a" (ObjectScript evaluates left to right), so it can pass whatever y is: Test.Agent.KeyScan:123 can never fail, and no check rejects the form
 - source: spec-16-11-the-splash-promises-telegram-only-when-the-release-includes.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -3196,6 +3364,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-16-11-the-splash-promises-telegram-only-when-the-release-includes.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: Msg/Catalog/Core.cls:315 and web/src/app/msg/catalog.ts:18 carry it unconditionally; banner-view.ts shows it 5 minutes before each reset; web/e2e-online/reset.spec.ts:48 pins it
 - 2026-10-31T19:24:43Z status=routed owner=12-7-approve-or-reject-from-telegram-and-every-copy-shows-who-ans by=cr note=same ruling as DW-501 (U-197: no other wording change in 16.11); 12.7 gates it with the allowance banner
+- 2026-11-02T14:10:41Z status=routed owner=12-9-telegram-is-included by=spec_gate note=split_at_12.7_spec_gate:the_splash_and_banner_part_moved_to_12.9;mechanism_waits_on_U-219(U-197_follow-up)
+- 2026-11-03T07:11:40Z status=resolved-by:12-9-telegram-is-included owner=12-9-telegram-is-included by=cr note=B5_banner.resetSoonChat_shown_while_telegramOn_is_false;reset.spec_and_announcements.spec_pin_the_chat_form
 
 ### DW-507: live:online-demo prints 'jar.busy.s3.g: No such file or directory' on every run: set_cookie_value reads the redirect-GET headers file that a refused (200) sign-in never writes
 - source: spec-16-11-the-splash-promises-telegram-only-when-the-release-includes.md | severity: low | fix-risk: low | footprint: in-epic
@@ -3351,6 +3521,47 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: a deterministic red needs a browser spec that waits a tick, or a mutated Test.Data.Fixture CHECKAHEAD; both are outside 11.19's footprint (spec Never list); AC1's source pins and FixtureDefaults.TestCheckIsNotDue are the falsifiable halves
 - 2026-11-02T12:35:31Z status=wontfix-accepted owner=11-19-seeded-check-rows-stay-out-of-the-heartbeat-s-way-unless-a-c by=cr note=reopen_if=a seeded browser case reads a finding or last run it was not seeded with in CI after Epic 11 part 1 merges
 
+### DW-591: flake: OcuTalon.Test.Channel.TelegramChat setup (RunnerFixture) failed with ERROR 5001 'not every item runs 120 s after the TriageAgent restart' in CI iris (production) shard:lane-a@Channel (399 s vs 38 s locally); the unchanged rerun of the failed jobs was green
+- source: cycle-log-epic-12.md (integrate-forward head 404351eb, run 41456056242) | severity: med | fix-risk: low | footprint: src/ocutalon/cls/OcuTalon/Test/Channel/TelegramChat.cls
+- evidence: run 41456056242 attempt 1 production group 2369 s, TelegramChat setup red; attempt 2 (gh run rerun --failed) green; lane-a 41456056000 green
+- 2026-11-02T17:51:56Z status=routed owner=burndown by=harvest note=CI flake (one unchanged rerun green); setup restart wait likely too short on a loaded CI host; not a 1.0.0 blocker unless it recurs
+- 2026-11-02T22:14:54Z occurrence=12-7-approve-or-reject-from-telegram-and-every-copy-shows-who-ans by=harvest note=QA_warm_stack_reversed_lane-a@Channel_part2/2:TelegramChat_setup_production_items_not_running_after_120s;passed_alone(36s)_and_fresh_reversed
+- 2026-11-03T00:09:06Z occurrence=12-7-approve-or-reject-from-telegram-and-every-copy-shows-who-ans by=ci note=CI_run_41545446452_head_e9bfda24_iris(production)_shard:lane-a@Channel_TelegramChat_failed_398s(same_setup_pattern);the_40-min_job_timeout_then_cancelled_the_group;second_CI_occurrence_on_a_second_head;rerun_started
+- 2026-11-03T00:10:04Z status=routed owner=12-9-telegram-is-included by=lead note=evidence_attempt1_41545446452;ERROR_5001_Not_every_item_of_OcuTalon.Production_runs_120_seconds_after_TriageAgent/DiagnosisAgent/ChatAgent_was_started_again:TelegramIn(the_only_item_not_running);2_CI_heads(404351eb,e9bfda24),green_on_reruns_and_locally;12.9_changes_TelegramIn's_state_on_every_stack(parking),so_it_owns_making_the_restart_readiness_check_hold_for_TelegramIn
+- 2026-11-03T05:37:19Z occurrence=12-9-telegram-is-included by=harvest note=fix_in_8bead6ac:RunnerFixture.NotRunningNow_skips_an_item_whose_Enabled_row_is_0;failure_text_StateOf_names_row,flag,jobs;not_reproduced_locally(one-stack_shard_forward_508s,reversed_499s,before_and_after)
+- 2026-11-03T07:11:40Z status=resolved-by:12-9-telegram-is-included owner=12-9-telegram-is-included by=cr note=RunnerFixture.NotRunningNow_skips_row-0_items_(TelegramParked_pins_it);root_cause_unreproduced;a_CI_recurrence_shows_StateOf
+
+### DW-608: flake: web/e2e/answers/close-loop.spec.ts:207 C1 expected 'Approved from the web chat at 23:58.' but the page said 'Approved from the web chat on Monday at 23:58.': the run crossed midnight UTC, and the test builds its expected answer line with hhmm() only while the page names the day for a time before today
+- source: CI run 41545446452 (OCT-epic12 e9bfda24), iris (browser) live:answers | severity: med | fix-risk: low | footprint: web/e2e/answers/close-loop.spec.ts
+- evidence: run 41545446452 attempt 1 at 2026-11-03T00:02Z; the answered slot time 23:58 the previous day
+- 2026-11-03T00:09:06Z status=routed owner=burndown by=ci note=time-of-day flake (only when a run crosses midnight); Lane B test; fix: build the expected line with the page's own day rule or pin the clock
+- 2026-11-03T11:05:55Z status=routed owner=burndown by=burndown note=Epic_12_burn-down:not_a_1.0.0_blocker(single_occurrence_or_forced_copy);first_daily_release_after_1.0.0(orchestrator_ruling_with_the_Contest_Planner)
+
+### DW-609: flake: web/e2e/demo-path/telegram-page.spec.ts:1002 T7 (Story 12.6) hit the 120 s test timeout in CI iris (browser) live:demo-path, running right after the new T8 (Story 12.7); green on the unchanged rerun and in the local smoke (T8 then T7)
+- source: CI run 41545446452 (OCT-epic12 e9bfda24) attempt 1 | severity: med | fix-risk: low | footprint: web/e2e/demo-path/telegram-page.spec.ts
+- evidence: attempt 1 at 23:38Z: 27 passed, T7 timed out (2.0 m), no assertion message; attempt 2 green
+- 2026-11-03T00:44:48Z status=routed owner=burndown by=ci note=unknown cause (no assertion message); watch for T8 leftovers (a pairing or an incident) slowing T7 on a loaded host
+- 2026-11-03T11:05:55Z status=routed owner=burndown by=burndown note=Epic_12_burn-down:not_a_1.0.0_blocker(single_occurrence_or_forced_copy);first_daily_release_after_1.0.0(orchestrator_ruling_with_the_Contest_Planner)
+
+### DW-614: TelegramPageFixture.Notify and the upgrade harness's pairing readings (Move, session, replies, notify) run only in the release harness's live phases, never in CI
+- source: spec-12-9-telegram-is-included.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: test-upgrade-harness.sh stubs all five readings; no Test class or spec calls Notify; QA ran the harness live once (pairing row pass)
+- 2026-11-03T07:11:31Z status=wontfix-accepted owner=12-9-telegram-is-included by=cr note=reopen_if=the harness pairing row fails with a Notify or reading error at a release run
+
+### DW-615: eval/run.sh starts a CI stack with the dummy bot token and no park (stack_ready with no check), so TelegramIn polls the mock during eval runs
+- source: spec-12-9-telegram-is-included.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: eval/run.sh calls stack_ready evaluation with no check and layers ci/compose.ci.yml; eval/run.sh is Epic 30's contended path; no eval case uses Telegram
+- 2026-11-03T07:11:31Z status=wontfix-accepted owner=12-9-telegram-is-included by=cr note=reopen_if=an eval run fails or flakes on TelegramIn, TelegramOut or a Bot API call at the mock
+
+### DW-616: resume.spec.ts R2c keeps a file-local telegramState mark reader and writer that repeats pairing.spec.ts's (about 10 lines), a copy the spec forces (A13; web/e2e/support is Lane B)
+- source: spec-12-9-telegram-is-included.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: web/e2e-online/resume.spec.ts readMark/writeMark/restoreMark vs web/e2e/api/pairing.spec.ts readMark/setState/restoreMark
+- 2026-11-03T07:11:31Z status=wontfix-accepted owner=12-9-telegram-is-included by=cr note=reopen_if=a third file-local telegramState writer appears under web/e2e or web/e2e-online; then unify in support/iris.ts
+
+### DW-617: README Telegram step 5 says In the Status section, but at 1280 px and wider no visible label reads Status (the rail h2 is visually hidden; the Status drawer button shows only at 1024-1279 px)
+- source: spec-12-9-telegram-is-included.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: main-page.ts rail-title is visually-hidden; header.ts drawer button only at 1024-1279; telegram-facts pins layout-view.ts status label; the card itself has the visible heading Telegram
+- 2026-11-03T07:11:31Z status=wontfix-accepted owner=12-9-telegram-is-included by=cr note=reopen_if=the owner's REL-7 Telegram pass (Story 38.3) cannot find the card from step 5's wording
 ### DW-584: No test pins that a several-ref command's IdempotencyKeys (:2, :3, :4 from one tool call) are each accepted once and refused on a repeat, the as-built AD-1 rule (U-215's condition)
 - source: Epic 11 merge decision sheet (DW-496, veto U-215 kept by the Contest Planner) | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: AD-1 amended a9a221ed; TestCancelAllThroughChat asserts the keys but not the repeat refusal per key
@@ -3445,6 +3656,26 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-13-4-the-guide-and-the-overview-say-exactly-what-is-audited-and-t.md | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: Approval.cls:769-813 (Reconcile; pass 2 L798-811 re-arm, pass 3 resend); Install/Step/Approvals.cls is the only non-test caller; a clean stop and start restores the alarm (irislib Ens/Director.cls:470-477, Ens/Alarm.cls:228-233,383-400)
 - 2026-11-03T12:13:10Z status=routed owner=burndown by=burndown note=first daily release after 1.0.0; Story 13.4 (g) finding, orchestrator ruling (decide): the guide says nothing; not a 1.0.0 blocker (fails safe)
+### DW-624: lib-live.sh log_steps keeps every ^STEP line, so a live start that recovers from #453 through Story 0.13's retry still fails check_log on a 'STEP merge RETRY 1 after #453' diff
+- source: spec-0-13-a-start-retries-the-cpf-merge-when-iris-cannot-quiesce.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: log_steps (docker/tests/lib-live.sh L590) greps '^(STEP|RESULT) ' and check_log diffs it against expected_run, which has only 'STEP merge OK'; callers: test-install-start rows 1-4, test-install-upgrade row 6, test-online-demo, test-audit, release/upgrade-harness.sh; the CI #453 hits (runs 41419787515, 41577358713, 41577710442) were in these tests
+- 2026-11-03T10:41:25Z status=routed owner=burndown by=cr note=fix: drop '^STEP merge RETRY ' lines in log_steps plus a test-lib-live fixture; Epic 12/15 files, outside 0.13
+- 2026-11-03T11:09:29Z status=routed owner=burndown by=burndown note=first daily release after 1.0.0; not a 1.0.0 blocker: a start that meets #453 failed these live tests before Story 0.13 too, so nothing regresses; flag to the Planner: release/upgrade-harness.sh (L934, L1213) uses the same log_steps, so a hand-gate start that recovers through the retry would read as a harness failure, and Epic 15 owns release/** and docker/tests/**
+- 2026-11-03T16:12:51Z status=routed owner=0-14-a-start-that-recovers-through-the-merge-retry-passes-the-liv by=merge_gate note=U-240:Story_0.14_re-opens_Epic_0
+
+### DW-625: after-start.sh re-merges merge.cpf at every start, so even an unchanged start runs about five namespace activations, each able to wait about 120 s for a quiesce and fail with ERROR #453; skip the merge on an unchanged start and re-create only the missing CPF items
+- source: spec-0-13-a-start-retries-the-cpf-merge-when-iris-cannot-quiesce.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: U-235 (veto, kept by the Contest Planner 2026-11-03T09:22:15Z#706): the larger rework is out of 1.0.0; Story 0.13 retries once on #453 instead; the DW-612 check found #453 on a fresh first start (41419787515) and install-start row 2 (41577358713, 41577710442)
+- 2026-11-03T11:09:29Z status=routed owner=burndown by=burndown note=first daily release after 1.0.0 (U-235); keeps AD-23's merge-at-every-start promise (repair a mapping removed by hand) through a cheaper check
+
+### DW-632: flake: live:floor web/e2e/floor/guide.spec.ts:740 M12 (Show me with no pending notification focuses the phone feed; a jump to step 3 hands focus to an inactive box) hit the 120 s test timeout in the floor project in CI
+- source: cycle-log-epic-0.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: CI run 41629601732 iris (shards-3) attempt 1 on OCT-epic0 032a25c0, 105 of 106 floor specs passed; passed on the unchanged rerun (attempt 2); Epic 0's head changes no web or guide code
+- 2026-11-03T12:55:18Z status=routed owner=burndown by=burndown note=flake class; one rerun and an occurrence= trailer on a recurrence; first daily release after 1.0.0 unless it recurs
+### DW-627: Shorten the waits of the lane-a Channel test classes: shard:lane-a@Channel took 704 s in CI (run 41618490851), mostly waits (TelegramIn about 98 s, TelegramPause about 82 s, TelegramPair about 63 s, TelegramApproval about 60 s locally), which needed its own iris group shards-4
+- source: orchestrator ruling at Epic 12's close (option d) | severity: med | fix-risk: med | footprint: src/ocutalon/cls/OcuTalon/Test/Channel/
+- evidence: CI run 41618490851 production group 38 min with the Channel unit 704 s; local one-stack shard 535-567 s
+- 2026-11-03T11:57:11Z status=routed owner=burndown by=lead note=first daily release after 1.0.0 (orchestrator ruling); goal: Channel well under 10 min so shards-4 has room or the unit fits an existing group again
 ### DW-626: flake: OcuTalon.Test.Watch.Reader TestDisabledItemsInStoredOrderAcrossAStopAndAStart failed in CI shard lane-a@Checks,Install,Watch (stopped, with the disabled items: suspended) and passed on an unchanged rerun
 - source: ci run 41619944438 (OCT-epic15 head 6a18ed4c) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: attempt 1 red (1 of 38 classes, 5.00s), attempt 2 green on the same head; Epic 15 changed nothing under Watch since 082ac043
@@ -3454,3 +3685,17 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: Epic 15 merge gate (Contest Planner, 2026-11-03) | severity: low | fix-risk: low | footprint: small
 - evidence: 15.4 measured the artifact at 4,940,685 bytes; src/module.xml resource OcuTalon.PKG
 - 2026-11-03T12:12:51Z status=routed owner=burndown by=merge_gate note=first daily release after 1.0.0
+
+### DW-636: install.sh looks only for build 154 (install.sh:29, :179, :285): make it find a build 109 image (irishealth-community:2027.1.0AI.109.0) too, then drop the README's separate 'Start it with build 109' path (U-241)
+- source: Contest Planner build 109 spike, 2026-11-03 | severity: low | fix-risk: low | footprint: small
+- evidence: spike-109: OcuTalon at 138d0066 runs unchanged on 109 (build, first start 91 s, restart 15 s, install-fresh/production/shards groups, real-model demo walk); only install.sh refuses the tag
+- 2026-11-03T14:37:22Z status=routed owner=burndown by=merge_gate note=first daily release after 1.0.0
+
+### DW-637: Build 109 changes to watch: %AI.Tool.%DecodeScalar rejects an array or object for a scalar tool argument (a malformed call becomes a tool error), and %AI.System, %AI.Utils.SettingStore, %AI.Shell.StreamRenderer, EnsLib.AI.Agent.OutboundAdapter and %AI.Policy.Audit/Authorization are now Hidden, Internal or EXPERIMENTAL; nothing changes at runtime today
+- source: Contest Planner build 109 spike, 2026-11-03 | severity: low | fix-risk: low | footprint: small
+- evidence: API diff of 145 referenced system classes: no removed member, no changed signature; these two notes only
+- 2026-11-03T14:37:22Z status=routed owner=burndown by=merge_gate note=first daily release after 1.0.0; note for any move to 109
+### DW-635: flake: live:floor web/e2e/floor/layout.spec.ts:483 G4 (at 1000x800 the page is one column with the rail after main, and only the header sticks) hit the 150 s test timeout in the floor project in CI
+- source: cycle-log-epic-0.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: CI run 41641201023 attempt 1, iris (shards-3) on OCT-epic0 c3d264c5: 105 of 106 floor specs passed; green on the unchanged rerun (attempt 2); Epic 0's head changes no web code
+- 2026-11-03T14:35:03Z status=routed owner=burndown by=burndown note=first daily release after 1.0.0

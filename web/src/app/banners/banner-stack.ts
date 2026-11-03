@@ -15,7 +15,7 @@ import { readmeSection, TELEGRAM_ANCHOR } from '../rail/rail-view';
 import { Announcer } from '../shared/announcer';
 import { type FocusRule, keepFocus } from '../shared/focus-rule';
 import { Popovers } from '../shared/popover';
-import { activeBanners, type BannerFormat, type BannerId, type BannerInput, bannersView, bannerText, type BannerView, closeBanner, closeName, type OwnCondition, REPLACED_BY, retainClosed } from './banner-view';
+import { activeBanners, type BannerFormat, type BannerId, type BannerInput, bannersView, bannerText, type BannerView, closeBanner, closeName, type OwnCondition, REPLACED_BY, retainClosed, telegramOn } from './banner-view';
 
 /** The anchors of the README sections that "Install it yourself" and "How to set a key" open (DW-361). */
 const INSTALL_ANCHOR = 'install-it-yourself';
@@ -31,9 +31,12 @@ const FORMAT: BannerFormat = {
   telegramUrl: readmeSection(README_URL, TELEGRAM_ANCHOR),
 };
 
-/** The allowance banner's own text for a window: the reason that the composer and the demo guide show beside their disabled controls (Story 16.9). */
+/**
+ * The allowance banner's own text for a window: the reason that the composer and the demo guide show beside their disabled controls (Story 16.9).
+ * It names Telegram only while the window says so (AllowanceState sets `telegram` from telegramOn of the store's Telegram block).
+ */
 export function allowanceReason(window: AllowanceWindow): string {
-  return bannerText('banner.allowance', { limit: window.limit, time: window.time }, FORMAT);
+  return bannerText(window.telegram === true ? 'banner.allowance' : 'banner.allowanceChat', { limit: window.limit, time: window.time }, FORMAT);
 }
 
 /** The attribute that marks a banner's element with its id. */
@@ -194,7 +197,7 @@ export class BannerStack {
     if (this.demoBusy.busy()) {
       own.push('demoBusy');
     }
-    return { status: this.withAllowance(store.status), own, onlineDemo: this.live.snapshot()?.onlineDemo === true } satisfies Omit<BannerInput, 'closed'>;
+    return { status: this.withAllowance(store.status), own, onlineDemo: this.live.snapshot()?.onlineDemo === true, telegram: telegramOn(store.telegram) } satisfies Omit<BannerInput, 'closed'>;
   });
 
   /** Every banner whose condition holds, closed or not. */

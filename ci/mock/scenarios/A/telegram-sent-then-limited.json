@@ -1,0 +1,29 @@
+{
+  "name": "telegram-sent-then-limited",
+  "match": {
+    "telegram": "sendMessage"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "body": {
+        "ok": true,
+        "result": {
+          "message_id": 1,
+          "date": 0,
+          "chat": { "id": 8601, "type": "private" },
+          "text": "part"
+        }
+      }
+    },
+    {
+      "status": 429,
+      "body": {
+        "ok": false,
+        "error_code": 429,
+        "description": "Too Many Requests: retry after 1",
+        "parameters": { "retry_after": 1 }
+      }
+    }
+  ]
+}

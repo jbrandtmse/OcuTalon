@@ -495,6 +495,7 @@ fresh_class_run() { # fresh_class_run <unset | the value of OCUTALON_WARM>: cmd_
     live_start() { echo "live_start $1" >> "$calls"; P=ocutalon-class-cw-f-1700000000-1; tmp=$work/fresh-tmp; mkdir -p "$tmp"; deadline=$((SECONDS + 100)); }
     dc() { echo "dc $1 $2 $3 $4" >> "$calls"; return 0; }
     live_track_image() { :; }
+    live_park_telegram() { echo park >> "$calls"; }
     iris_script() { cat > /dev/null; printf '%s\n' 'CHK|compiled|1' 'CHK|new|1' 'CHK|case|OcuTalon.Test.Agent.Constants|1|0.01|1'; }
     cmd_class OcuTalon.Test.Agent.Constants
   )
@@ -504,8 +505,8 @@ fresh_class_run unset
 check "the fresh branch of run_classes prints the STACK and READY lines of a fresh stack" "$out" "$rc" 0 \
   '^STACK OcuTalon.Test.Agent.Constants: project ocutalon-class-cw-f-1700000000-1$' '^READY OcuTalon.Test.Agent.Constants [0-9]+s$' \
   '^CLASS OcuTalon.Test.Agent.Constants passed' '^RUN OcuTalon.Test.Agent.Constants passed \(1 classes\)' '!WARM' '!warm'
-if [ "$(tr '\n' '|' < "$calls")" = "preflight|live_start class|dc up -d --build --wait|" ]; then
-  pass "the fresh branch calls preflight, live_start and dc up, in that order"
+if [ "$(tr '\n' '|' < "$calls")" = "preflight|live_start class|dc up -d --build --wait|park|" ]; then
+  pass "the fresh branch calls preflight, live_start, dc up and then parks the Telegram items, in that order"
 else
   fail "the fresh branch made the calls '$(tr '\n' '|' < "$calls")'"
 fi
@@ -514,8 +515,8 @@ for v in 0 ""; do
   check "class with OCUTALON_WARM='$v' takes the fresh branch: the same STACK and READY lines, and no WARM line" "$out" "$rc" 0 \
     '^STACK OcuTalon.Test.Agent.Constants: project ocutalon-class-cw-f-1700000000-1$' '^READY OcuTalon.Test.Agent.Constants [0-9]+s$' \
     '^CLASS OcuTalon.Test.Agent.Constants passed' '!WARM' '!warm'
-  if [ "$(tr '\n' '|' < "$calls")" = "preflight|live_start class|dc up -d --build --wait|" ]; then
-    pass "class with OCUTALON_WARM='$v' calls preflight, live_start and dc up, in that order"
+  if [ "$(tr '\n' '|' < "$calls")" = "preflight|live_start class|dc up -d --build --wait|park|" ]; then
+    pass "class with OCUTALON_WARM='$v' calls preflight, live_start, dc up and the park, in that order"
   else
     fail "class with OCUTALON_WARM='$v' made the calls '$(tr '\n' '|' < "$calls")'"
   fi
@@ -1191,6 +1192,7 @@ up_run() {
   : > "$work/dc.calls"
   : > "$work/live.calls"
   : > "$work/order.calls"
+  : > "$work/park.calls"
   up_out=$(
     {
       export OCUTALON_RUN_TAG=$tag OCUTALON_LOCK_DIR=$lockd OCUTALON_LOCK_OWNER='epic=0 stage=qa'
@@ -1201,6 +1203,7 @@ up_run() {
         return 0
       }
       docker() { docker_stub "$@"; }
+      live_park_telegram() { echo park >> "$work/park.calls"; }
       dc() {
         echo "dc $*" >> "$work/dc.calls"
         if [ "$1" = up ]; then
@@ -1235,6 +1238,12 @@ else
   fail "up: the state folder is incomplete: $(ls "$sd" | tr '\n' ' ')"
 fi
 if grep -q '^dc up -d --build --wait' "$work/dc.calls" && ! grep -q '^dc down' "$work/dc.calls"; then pass "up: the project is built and started, and not torn down"; else fail "up: the dc calls were '$(tr '\n' '|' < "$work/dc.calls")'"; fi
+# The Telegram items are parked once, after the project is up (Story 12.9).
+if [ "$(tr '\n' '|' < "$work/park.calls")" = "park|" ]; then
+  pass "up: the Telegram items are parked once, after the project is up"
+else
+  fail "up: the park calls were '$(tr '\n' '|' < "$work/park.calls")', wanted one"
+fi
 # The manifest is taken after the web bundle is ensured and before the build, so a class edited during the build is reloaded later.
 if [ "$(tr '\n' '|' < "$work/order.calls")" = "bundle: no manifest|up: manifest|" ]; then
   pass "up: the manifest is taken after the web bundle is ensured and before the build"
@@ -1468,20 +1477,25 @@ echo "test-ci-warm: all checks passed"
 # This block is self-contained: it runs after the summary above and ends with a summary of its own.
 
 # dw164_run <tag> <log text, with \n for a line break> [<exit status of dc exec>]: warm_up with the start stubbed and the after-start log
-# given to `dc exec ... cat`, which exits with the status given (0 when none). Sets dw164_out, dw164_rc, and the dc calls in
-# $work/dw164.calls. The lane folder is $work/locks-dw164.
+# given to `dc exec ... cat`, which exits with the status given (0 when none). Sets dw164_out, dw164_rc, the dc calls in
+# $work/dw164.calls and the park calls in $work/dw164.park (STUB_PARK_RC=1 makes the park fail). The lane folder is $work/locks-dw164.
 dw164_run() {
   local tag=$1
   dw164_text=$2
   dw164_exec_rc=${3:-0}
   mkdir -p "$work/locks-dw164"
   : > "$work/dw164.calls"
+  : > "$work/dw164.park"
   dw164_out=$(
     {
       export OCUTALON_RUN_TAG=$tag OCUTALON_LOCK_DIR=$work/locks-dw164 OCUTALON_LOCK_OWNER='epic=0 stage=qa' OCUTALON_LOCK_WAIT=1 OCUTALON_LOCK_SLEEP_MIN=1 OCUTALON_LOCK_SLEEP_MAX=1
       preflight() { :; }
       ensure_web_bundle() { return 0; }
       docker() { docker_stub "$@"; }
+      live_park_telegram() {
+        echo park >> "$work/dw164.park"
+        [ "${STUB_PARK_RC:-0}" = 0 ] || { echo "FAIL Telegram could not be parked: stub"; return 1; }
+      }
       dc() {
         echo "dc $*" >> "$work/dw164.calls"
         if [ "$1" = exec ]; then printf '%b' "$dw164_text"; return "$dw164_exec_rc"; fi
@@ -1503,6 +1517,7 @@ if grep -q '^dc down -v --rmi local' "$work/dw164.calls" && [ -z "$(ls "$work/lo
 else
   fail "DW-164: the failed up left '$(ls "$work/locks-dw164" | tr '\n' ' ')' in the lane folder, the state '$(ls "$(state_of cw-d1)" 2> /dev/null | tr '\n' ' ')', dc calls '$(tr '\n' '|' < "$work/dw164.calls")'"
 fi
+if [ ! -s "$work/dw164.park" ]; then pass "DW-164: a start that failed is not parked"; else fail "DW-164: a start that failed was parked"; fi
 
 dw164_run cw-d2 "${dw164_begin}RESULT FAILED 1.0.0\nSTEP late OK 1.0s\nRESULT OK 1.0.0\n${dw164_end}"
 check "DW-164: it is the last RESULT line that counts (a later RESULT OK passes)" "$dw164_out" "$dw164_rc" 0 '^READY warm [0-9]+s$' '^WARM up project ocutalon-warm-cw-d2-.* ready [0-9]+s$' '!^FAIL'
@@ -1523,6 +1538,13 @@ rm -f "$work/locks-dw164"/*
 dw164_run cw-d5 "" 1
 check "DW-164: a log that cannot be read fails the up and says so" "$dw164_out" "$dw164_rc" 1 '^FAIL warm: the after-start log could not be read$' '!^READY' '!^WARM up'
 rm -rf "$(state_of cw-d5)"
+rm -f "$work/locks-dw164"/*
+
+# Story 12.9: a ready start whose park fails fails the up, after one park call.
+STUB_PARK_RC=1 dw164_run cw-d6 "${dw164_begin}RESULT OK 1.0.0\n${dw164_end}"
+check "park: a park that fails fails the up with exit 1 and prints no READY and no WARM up line" "$dw164_out" "$dw164_rc" 1 '^FAIL Telegram could not be parked' '!^READY' '!^WARM up'
+if [ "$(tr '\n' '|' < "$work/dw164.park")" = "park|" ]; then pass "park: the failed park was called once"; else fail "park: the park calls were '$(tr '\n' '|' < "$work/dw164.park")'"; fi
+rm -rf "$(state_of cw-d6)"
 rm -f "$work/locks-dw164"/*
 
 if [ "$fails" -ne 0 ]; then

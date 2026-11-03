@@ -362,3 +362,49 @@
 2026-10-21T05:32:22Z	Epic 0	epic_status_done	stories=12 note=set_on_the_feature_branch_after_the_merge
 2026-10-21T05:33:48Z	Epic 0	epic_merged_to_feature	merge=67989bb feature=feature/OCT_OcuTalon_MVP head=5c4b48e ci=success(run=39550130633,lane-a=39550130642) verified=origin_merge-base epic_branch=deleted(local_and_remote)
 2026-10-21T05:33:48Z	Epic 0	hold_complete	reason=owner_decision_4(hold_after_the_Epic_0_merge_until_the_kit_upgrade) items_1_2=5ef07b7 item_3=c9abce4 ci_gate_fix=80e8f46 merge=67989bb feature_green=5c4b48e throwaways_up=none lanes_dispatched=none prompt=.worktrees/.coordination/prompts/lanes-dispatch-resume-2026-10-21-prompt.md
+2026-11-03T09:44:59Z	Epic 0	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-11-03T09:44:59Z	Epic 0	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh
+2026-11-03T09:44:59Z	Epic 0	launch_env	depth=4 watchdog=default bash_max_ms=default
+2026-11-03T09:44:59Z	Epic 0	runner_unattended_start	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec note=reopen_for_story_0.13_runner_C lane=C slot=ocutalon-slot-c
+2026-11-03T09:44:59Z	Epic 0	epic_branch_reopened	reason=story_0.13_veto_U-235 from=f26d0f6b
+2026-11-03T09:44:59Z	Epic 0	epic_branch_checked_out	repos=. head=f26d0f6b ci=gh workflows=ci,lane-a bootstrap_check=ok
+2026-11-03T09:45:04Z	Epic 0	spine_resolved	path=_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md ads=33 status=final
+2026-11-03T09:45:04Z	Epic 0	ledger_load	total=557 open=0 routed=67 escalated=0 decision_pending=3 terminal=487 owner_unknown=0 burndown=10 reowned_none=0 epic0_owned=0
+2026-11-03T09:46:01Z	Epic 0	sprint_planning_complete	gate=PASS model=claude-opus-5-5 note=readiness_recheck_for_reopen;story_0.13_AC_amended_first(U-235_conditions,Rule_5_tier_1,epics.md)
+2026-11-03T09:46:01Z	Epic 0	epic_status_reopened	epic-0=in-progress via=SC-5_reopen(epic_branch_reopened) story=0.13
+2026-11-03T09:46:01Z	Epic 0	retro_review_skipped	reason=skip(no_X.0_input) note=reopen_for_one_story;epic0_owned_ledger=0
+2026-11-03T09:47:58Z	Epic 0	epic_context_compiled	reason=planning_artifact_newer(story_0.13_amended) model=claude-opus-5-5
+2026-11-03T09:48:14Z	Story 0.13	stage_spawned	stage=plan spawn_at=2026-11-03T09:48:14Z model=claude-opus-5-5 agent_name=0-13-plan-1 cycle_iteration=1
+2026-11-03T10:17:33Z	Story 0.13	story_created	spawn_at=2026-11-03T09:48:14Z model=claude-opus-5-5 path=_bmad-output/implementation-artifacts/spec-0-13-a-start-retries-the-cpf-merge-when-iris-cannot-quiesce.md build_status=ready-for-dev epic_context=reused
+2026-11-03T10:17:33Z	Story 0.13	spec_validated	service_introducing=false integration_ac=declared-none(consumed_log_line_pinned) adr_constrained_acs=AD-23,AD-22,AD-29 decision_dependency=none sections_created=none owned_ledger=none addressed=0 declined=0 mutates_shared_runtime=false retries=1 pause=10s worst_case=326+127+10+10=473s<=600s start_period=unchanged model=claude-opus-5-5
+2026-11-03T10:17:33Z	Story 0.13	ci_resolved	story=0.13 sha=f26d0f6b runs=41610467751,41610467800 result=success failed=none via=none resolved_at=next_plan note=base_head_before_first_implement
+2026-11-03T10:17:33Z	Story 0.13	stage_spawned	stage=implement spawn_at=2026-11-03T10:17:33Z model=claude-sonnet-5-5 agent_name=0-13-implement-1 cycle_iteration=1 story_base=353ea15b
+2026-11-03T10:28:50Z	Story 0.13	dev_complete	spawn_at=2026-11-03T10:17:33Z model=claude-sonnet-5-5 build_sha=601d9987 baseline_revision=1889d8f6 story_base=353ea15b review_loop_iteration=0 followup_review_recommended=false deferred=0 files=2 loc_added=180 loc_removed=27 nfr_tripwires=0 adr_violations_surfaced=0 cycle_iteration=1
+2026-11-03T10:28:50Z	Story 0.13	adr_verifications_complete	tool=none acs=none result=none_required evidence= mutations=none note=AD-23_commits_no_agent-time_tool;its_retry_contract_is_pinned_by_test-after-start model=claude-opus-5-5
+2026-11-03T10:28:56Z	Story 0.13	stage_spawned	stage=qa spawn_at=2026-11-03T10:28:56Z model=claude-sonnet-5-5 agent_name=0-13-qa-1 cycle_iteration=1
+2026-11-03T10:32:57Z	Story 0.13	qa_complete	spawn_at=2026-11-03T10:28:56Z model=claude-sonnet-5-5 tests=docker/tests/test-after-start.sh tests_added=1(extended;119_checks) mutations_demonstrated=5 first_run_failures=1(own_miscount) clarifications=0 closing_sections_present=true
+2026-11-03T10:32:57Z	Story 0.13	stage_spawned	stage=code-review spawn_at=2026-11-03T10:32:57Z model=claude-opus-5-5 agent_name=0-13-code-review-1 cycle_iteration=1
+2026-11-03T10:43:24Z	Story 0.13	cr_complete	spawn_at=2026-11-03T10:32:57Z model=claude-opus-5-5 resolved=4 fixed_at_source=4 by_design=0 wontfix_theoretical=1 routed=1 escalated=0 decision_pending=0 deferred=1 dismissed=10 high=0 med=1 low=12 rows=23 unresolved_high_med=0 clarifications=0 closing_sections_present=true review_tier=full-opus ledger=DW-624(routed,burndown)
+2026-11-03T10:43:24Z	Story 0.13	ledger_adjudicated	owned=0 resolved=0 reowned=0 terminal=0 model=claude-opus-5-5
+2026-11-03T10:56:56Z	Story 0.13	smoke_complete	method=cli result=pass iterations=1 defects_caught=0 evidence=live_install-start(95_PASS;rows_1-4_healthy;check_log_STEP_lines_incl_merge_OK_no_RETRY;tag_e0s13s)+live_install-upgrade(all_passed;tag_e0s13u);throwaways_torn_down_by_lib-live;in-container_stubbed_453_not_run(optional;hermetic_test_runs_the_real_script) model=claude-opus-5-5
+2026-11-03T10:56:56Z	Story 0.13	fresh_check	env=clean-checkout(git_archive_HEAD+uncommitted_docker_patch) tests=1(test-after-start,122_checks) result=pass order=forward,repeat note=single_hermetic_script;test-cpf_pass;test-compose-file_needs_a_git_repo(passes_in_worktree) leftovers=none
+2026-11-03T10:57:32Z	Story 0.13	committed	sha=a9b2a3c4 submodules= ci=pending runs=41623476367,41623476555 pushed_at=2026-11-03T10:56:58Z amendments=_bmad-output/planning-artifacts/epics.md:1347(Story_0.13_U-235_conditions_block)
+2026-11-03T10:57:32Z	Story 0.13	story_cycle	plan_to_commit_min=69 implement_passes=1 reviews=1 rework=0 first_ci=pending models=plan:claude-opus-5-5,implement:claude-sonnet-5-5,qa:claude-sonnet-5-5,cr:claude-opus-5-5
+2026-11-03T11:31:51Z	Story 0.13	ci_resolved	story=0.13 sha=a9b2a3c4 runs=41623476367,41623476555 result=success failed=none via=none resolved_at=burndown first_ci=success
+2026-11-03T11:31:51Z	Epic 0	ledger_burndown_complete	open_before=1 resolved=0 terminal=0 chartered=0 chartered_size=0 overflow=0 reowned=0 to_decision_sheet=0 open_after=2 cap=8 story_max=12 filed_this_epic=2 closed_this_epic=0 drain_ratio=0.00 note=reopen_scope:1.0.0_blockers_only(dispatch);DW-624_and_new_DW-625(the_larger_rework)_routed_owner=burndown_note=first_daily_release_after_1.0.0;no_1.0.0_blocker
+2026-11-03T11:31:51Z	Epic 0	epic_retro_skipped	reason=policy
+2026-11-03T11:31:51Z	Epic 0	epic_status_done	stories=13 note=reopen_story_0.13_done
+2026-11-03T11:31:51Z	Epic 0	model_tier_checkpoint	armed=false stack_risk=none review_tier=full-opus implement_model=claude-sonnet-5-5 high_med_avg=1.00 unresolved_high_med_avg=0.00 metric=unresolved rework_stories=0 review_loop_thrash=0 rework_lang_defects=0 review_high=0 review_med=1 result=hold applied=false scope=reopen_story_0.13_only
+2026-11-03T11:41:44Z	Epic 0	integrated_forward	feature=2dd7aa8f head=582f224b conflicts_resolved=_bmad-output/implementation-artifacts/sprint-status.yaml(SC-4-P_step_4:ours+regenerate+re-set_epic-13,13-1..13-3=done) checks=after-start,compose-file,cpf,boundaries,readme,ci-config,ci-changes:pass smoke=live_install-start(e0s13m):pass
+2026-11-03T11:41:44Z	Epic 0	epic_runner_complete	stories_completed=1
+2026-11-03T12:55:18Z	Epic 0	ci_red_classified	run=41629601732 workflow=.github/workflows/ci.yml class=flake test=OcuTalon.Test.Web.GuideApi(TestRunAgain,TestOnlyTheMarkerChanges) ledger=DW-453(occurrence) job=iris(image)
+2026-11-03T12:55:18Z	Epic 0	ci_red_classified	run=41629601732 workflow=.github/workflows/ci.yml class=flake test=e2e/floor/guide.spec.ts:740_M12 ledger=DW-632(new) job=iris(shards-3)
+2026-11-03T12:55:18Z	Epic 0	ci_green_verified	runs=41629601732(attempt_2),41629601721 head=032a25c0 note=rerun_of_failed_jobs_green
+2026-11-03T13:05:11Z	Epic 0	integrated_forward	feature=138d0066 head=d759b7db conflicts_resolved=_bmad-output/implementation-artifacts/sprint-status.yaml(SC-4-P_step_4:ours+regenerate+re-set_epic-15,15-3,15-4=done) checks=after-start,compose-file,cpf,boundaries,readme:pass smoke=live_install-start(e0s13n):pass note=second_integrate_forward(Epic_15_merged_after_the_first);AD-23_amendment_(IPM_first-run_namespace)_does_not_touch_the_merge_retry
+2026-11-03T13:05:11Z	Epic 0	epic_runner_complete	stories_completed=1
+2026-11-03T14:35:03Z	Epic 0	ci_red_classified	run=41641201023 workflow=.github/workflows/ci.yml class=flake test=OcuTalon.Test.Web.GuideApi(TestRunAgain,TestOnlyTheMarkerChanges) ledger=DW-453(occurrence) job=iris(image) head=c3d264c5
+2026-11-03T14:35:03Z	Epic 0	ci_red_classified	run=41641201023 workflow=.github/workflows/ci.yml class=flake test=e2e/chat/chat.spec.ts:693_C7(loadedAfter) ledger=DW-497(occurrence) job=iris(browser) head=c3d264c5
+2026-11-03T14:35:03Z	Epic 0	ci_red_classified	run=41641201023 workflow=.github/workflows/ci.yml class=flake test=e2e/floor/layout.spec.ts:483_G4 ledger=DW-635(new) job=iris(shards-3) head=c3d264c5
+2026-11-03T14:35:03Z	Epic 0	ci_green_verified	runs=41641201023(attempt_2),41641201273 head=c3d264c5
+2026-11-03T15:02:53Z	Epic 0	integrated_forward	feature=6093ed5b head=955e4652 conflicts_resolved=_bmad-output/implementation-artifacts/sprint-status.yaml(SC-4-P_step_4:ours+regenerate+re-set_epic-12_and_12-1..12-9=done) checks=CHECK_SCRIPTS(28_of_28):pass smoke=live_install-start(e0s13p):pass flakes_recorded=DW-453(occurrence),DW-497(occurrence),DW-635(new) note=third_integrate_forward(Epic_12_merged);orchestrator_message
+2026-11-03T15:02:53Z	Epic 0	epic_runner_complete	stories_completed=1

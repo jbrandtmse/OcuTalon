@@ -116,8 +116,12 @@ async function clear(user: string, conditions: string[]): Promise<void> {
 /** The text of the no-key banner. */
 const NO_KEY = 'OcuTalon has no model key, so every decision uses fixed rules. Add ANTHROPIC_API_KEY to the .env file and restart OcuTalon.';
 
-/** The text of the Reset soon banner. */
-const RESET = 'The demo resets in 5 minutes. Your session and Telegram pairing will be cleared.';
+/**
+ * The text of the Reset soon banner. The stack is parked (Telegram included, state off), so the page reads the chat-only form
+ * (Story 12.9; DW-506); RESET_TELEGRAM is the form while Telegram is on, which B8 gets from a snapshot that says so.
+ */
+const RESET = 'The demo resets in 5 minutes. Your session will be cleared.';
+const RESET_TELEGRAM = 'The demo resets in 5 minutes. Your session and Telegram pairing will be cleared.';
 
 /** The text of the banner for the heartbeat that last ran at 16:30 in the page's zone. */
 const STALLED = 'Background checks have paused: the heartbeat last ran at 16:30. Watches and reminders may be late until it recovers.';
@@ -355,9 +359,10 @@ test('B5: the stack orders its banners, only Reset soon closes, and focus follow
     await look('heartbeatStalled', 'warning');
     await look('telegramPaused', 'warning', ['Set up a bot', TELEGRAM]);
     await look('resetSoon', 'warning');
-    await expect(banner(page, 'allowance').locator('.text'), 'the allowance text names the limit and the page time').toHaveText(
-      "You've used this session's 20 messages for the hour (messages you send in the chat or Telegram). You can send more at 17:30.",
+    await expect(banner(page, 'allowance').locator('.text'), 'the allowance text names the limit and the page time, and not Telegram while it is not on').toHaveText(
+      "You've used this session's 20 messages for the hour. You can send more at 17:30.",
     );
+    await expect(page.locator('#composer-allowance-reason'), 'and the composer gives the same chat-only text').toHaveText("You've used this session's 20 messages for the hour. You can send more at 17:30.");
     await expect(banner(page, 'telegramPaused').locator('.text')).toHaveText(
       'Telegram is paused: this bot is in use by another OcuTalon. OcuTalon will try again at 17:30. Each OcuTalon needs its own bot.',
     );
@@ -492,6 +497,7 @@ test.describe('B8: a 12-hour browser in New York', () => {
     await changeSnapshot(page, (snapshot) => {
       snapshot['onlineDemo'] = true;
       snapshot['status'] = sixConditions();
+      snapshot['telegram'] = { ...(snapshot['telegram'] as object), included: true, state: 'on' };
     });
     await open(page);
     await expect.poll(() => stack(page), { message: 'the online demo\'s order of the catalog', timeout: ONE_UPDATE_MS }).toEqual(ONLINE_ORDER);
@@ -503,12 +509,13 @@ test.describe('B8: a 12-hour browser in New York', () => {
       noModelKey: NO_KEY,
       heartbeatStalled: 'Background checks have paused: the heartbeat last ran at 7:00 AM. Watches and reminders may be late until it recovers.',
       telegramPaused: 'Telegram is paused: this bot is in use by another OcuTalon. OcuTalon will try again at 8:00 AM. Each OcuTalon needs its own bot.',
-      resetSoon: RESET,
+      resetSoon: RESET_TELEGRAM,
     };
     for (const id of ONLINE_ORDER) {
       expect(await textOf(id), `${id} reads as the catalog words it, with the browser's 12-hour time`).toBe(texts[id as keyof typeof texts]);
       expect(await textOf(id), `${id} names no zone`).not.toMatch(/\b(ET|EDT|EST|UTC|GMT)\b|New York|America/);
     }
+    await expect(page.locator('#composer-allowance-reason'), 'the composer gives the allowance banner\'s own text, which names Telegram while it is on').toHaveText(texts.allowance);
     await expect(banner(page, 'allowance')).toHaveAttribute('data-variant', 'danger');
     await expect(banner(page, 'dailyCap')).toHaveAttribute('data-variant', 'danger');
     for (const id of ['noModelKey', 'heartbeatStalled', 'telegramPaused', 'resetSoon']) await expect(banner(page, id)).toHaveAttribute('data-variant', 'warning');

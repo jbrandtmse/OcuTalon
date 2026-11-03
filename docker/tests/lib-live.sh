@@ -18,7 +18,8 @@
 # the temporary directory.
 # The project receives no keys (the decoy key file is dropped by the override) and publishes no host port,
 # unless a test that drives a browser calls live_web_port to publish the web port on 127.0.0.1 in 52800-52819. The only bot token
-# in the container is the dummy of ci/compose.ci.yml, which is no key (live_key_count, check_no_key).
+# in the container is the dummy of ci/compose.ci.yml, or the empty value that live_no_bot_token layers after it; neither is a key
+# (live_key_count, check_no_key).
 # live_start also makes sure that the web bundle (src/ocutalon/csp/) exists, because the image refuses to build
 # without it: see ensure_web_bundle.
 #
@@ -35,6 +36,10 @@
 #                machine's layer cache) and first_ready_s (from the start until Docker reports healthy), and prints
 #                first_start_report with the engine's architecture (docker info). Returns 1, saying which step failed and
 #                after how many seconds, when one does.
+#
+# Telegram on a throwaway stack (Story 12.9): live_park_telegram runs after every ready start of wait_started_ready, because this release
+# includes Telegram and the CI override sets a dummy bot token, so TelegramIn would poll the CI mock and take another test's updates.
+# LIVE_TELEGRAM=started, set by the caller for its call of wait_started_ready, leaves the items as the start made them.
 #
 # The throwaway lock (Rule 12) serializes throwaway stacks across the epic worktrees of one machine. It exists only when the
 # main checkout has the folder <worktree_base>/.coordination/locks (worktree_base from _bmad/custom/parallel.yaml, default
@@ -373,7 +378,8 @@ wait_started_log() {
 
 # wait_started_ready <max seconds>: waits for this start's log to end with `ready`, then for Docker to report
 # `healthy`. Returns 1 when either does not happen in time, when the start ended `not ready`, or when the
-# container started again in between.
+# container started again in between. After a ready start it parks the Telegram items (live_park_telegram) unless the caller sets
+# LIVE_TELEGRAM=started, which a check of a running Telegram sets for its start; a failed park fails the wait.
 wait_started_ready() {
   local before after
   before=$(started_at)
@@ -381,7 +387,30 @@ wait_started_ready() {
   start_log | tail -n 1 | grep -q '^AFTER-START end [0-9T:Z-]* ready ' || return 1
   wait_until 60 health_is_healthy || return 1
   after=$(started_at)
-  [ "$before" = "$after" ]
+  [ "$before" = "$after" ] || return 1
+  [ "${LIVE_TELEGRAM:-}" = started ] || live_park_telegram
+}
+
+# live_park_telegram: parks the Telegram items of the running stack (Story 12.9), so that no test finds a live poller. This release
+# includes Telegram and the CI override sets a dummy bot token, so every start runs TelegramIn and TelegramOut; OcuTalon.Test.Channel.
+# BotApi.Park disables them, writes the state of a start with no token (rows 0, the mark off) and resets the mock's Bot API side.
+# Prints "PARK done <s>s" and returns 0; prints "PARK skipped" and returns 0 when the build has no compiled BotApi.Park (an older
+# build); prints "FAIL Telegram could not be parked: <reason>" and returns 1 when the park fails or the session answers nothing.
+live_park_telegram() {
+  local begun=$SECONDS out line reason=""
+  out=$(printf '%s\n' \
+    'If ##class(%Dictionary.CompiledMethod).%ExistsId("OcuTalon.Test.Channel.BotApi||Park")=0 { Write !,"CHK|park|skipped" Halt }' \
+    'Set sc=##class(OcuTalon.Test.Channel.BotApi).Park()' \
+    'If $SYSTEM.Status.IsOK(sc) { Write !,"CHK|park|done" } Else { Write !,"CHK|park|failed|",$Translate($SYSTEM.Status.GetErrorText(sc),$Char(10,13),"  ") }' \
+    'Halt' | iris_script OCUTALON)
+  line=$(printf '%s\n' "$out" | grep '^CHK|park|' | tail -n 1)
+  case $line in
+    CHK\|park\|done) echo "PARK done $((SECONDS - begun))s" ;;
+    CHK\|park\|skipped) echo "PARK skipped" ;;
+    CHK\|park\|failed\|*) reason=${line#CHK|park|failed|}; reason=${reason:-the park failed and gave no reason} ;;
+    *) reason="the session answered nothing" ;;
+  esac
+  [ -z "$reason" ] || { echo "FAIL Telegram could not be parked: $reason"; return 1; }
 }
 
 # live_first_start <max s>: see the header. Needs live_start. The ready time starts when the built image is started and ends
@@ -615,6 +644,14 @@ check_log() {
 # live_pop_file removes the compose file that live_add_file added last.
 live_pop_file() { unset 'LIVE_FILES[${#LIVE_FILES[@]}-1]'; }
 
+# live_no_bot_token: adds the compose file that leaves TELEGRAM_BOT_TOKEN set and empty in the iris service, which is what a
+# .env copied from .env.example holds: the CI override's other settings (the mock, the endpoint overrides) stay, so a start under
+# it shows every other feature working with no bot token. The file is added last, after the CI override; live_pop_file removes it.
+live_no_bot_token() {
+  printf '%s\n' 'services:' '  iris:' '    environment:' '      TELEGRAM_BOT_TOKEN: ""' > "$tmp/no-bot-token.yml"
+  live_add_file "$tmp/no-bot-token.yml"
+}
+
 # --- the production's items (Story 0.6) ---
 
 # item_jobs <file> [<namespace>]: the alive jobs of the running production of the namespace (default OCUTALON), one line per item
@@ -655,21 +692,23 @@ live_ci_bot_token() {
   awk '/^      TELEGRAM_BOT_TOKEN:/ { print $2; exit }' "$root/ci/compose.ci.yml" 2>/dev/null
 }
 
-# live_key_count: how many key variables the iris container's environment holds: ANTHROPIC_API_KEY, and TELEGRAM_BOT_TOKEN unless it is
-# exactly the CI dummy (live_ci_bot_token), which the CI override sets so that the Telegram service can call the mock. The dummy is
-# compared inside the container, and only the count is printed.
+# live_key_count: how many key variables the iris container's environment holds: ANTHROPIC_API_KEY, and TELEGRAM_BOT_TOKEN when it is
+# not empty and is not exactly the CI dummy (live_ci_bot_token), which the CI override sets so that the Telegram service can call the
+# mock. An empty token holds no secret and counts 0 (live_no_bot_token sets one). The dummy is compared inside the container, and only
+# the count is printed.
 live_key_count() {
   # shellcheck disable=SC2016 # the script is the container shell's, which expands its own variables
   dc exec -T iris env CHECK_DUMMY="$(live_ci_bot_token)" sh -c 'n=0
     if [ -n "${ANTHROPIC_API_KEY+x}" ]; then n=$((n + 1)); fi
-    if [ -n "${TELEGRAM_BOT_TOKEN+x}" ]; then
+    if [ -n "${TELEGRAM_BOT_TOKEN:-}" ]; then
       if [ -z "$CHECK_DUMMY" ] || [ "$TELEGRAM_BOT_TOKEN" != "$CHECK_DUMMY" ]; then n=$((n + 1)); fi
     fi
     echo "$n"' 2>/dev/null | tr -d '\r'
 }
 
-# check_no_key <label>: the iris container's environment holds no model key and no bot token but the CI dummy. A start that succeeds in
-# it is a start with no key (FR-38, AD-6); with a key in the environment it would prove nothing. Only a count is printed.
+# check_no_key <label>: the iris container's environment holds no model key and no bot token but the CI dummy (an empty token is no
+# token). A start that succeeds in it is a start with no key (FR-38, AD-6); with a key in the environment it would prove nothing. Only a
+# count is printed.
 check_no_key() {
   local n
   n=$(live_key_count)

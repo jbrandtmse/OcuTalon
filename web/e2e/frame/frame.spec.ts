@@ -73,9 +73,10 @@ test('F1: landmarks, headings and order', async ({ page }) => {
   await expectVisuallyHidden(h1, 'the h1');
   await expect(page.getByRole('heading', { level: 2 })).toHaveText(['Status', 'Chat']);
   const rail = page.getByRole('heading', { level: 3 });
-  await expect(rail, 'the rail has four headings').toHaveCount(RAIL_LABELS.length);
+  await expect(rail, 'the rail has five headings: Telegram first, then the four lists').toHaveCount(RAIL_LABELS.length + 1);
+  await expect(rail.first(), 'the first is the Telegram section').toHaveAccessibleName('Telegram');
   for (const [i, name] of RAIL_SPOKEN.entries()) {
-    await expect(rail.nth(i), `heading ${i + 1} is named "${name}"`).toHaveAccessibleName(name);
+    await expect(rail.nth(i + 1), `heading ${i + 2} is named "${name}"`).toHaveAccessibleName(name);
   }
   await expect(page.locator('section.rail h3 > [aria-hidden="true"]'), 'each shows its count').toHaveText(RAIL_VISIBLE);
 
