@@ -1574,3 +1574,11 @@
 2026-11-03T12:23:54Z	Epic 39	worktree_provisioned	path=.worktrees/epic-39 branch=OCT-epic39 base=138d0066
 2026-11-03T12:23:54Z	Epic 39	worktree_bootstrapped	epic=39 result=ok
 2026-11-03T12:23:54Z	Epic 39	dispatch_blocked	reason=feature_pending runs=41633835560,41633835551 head=138d0066 note=queue_full(18/18_busy;OCT-epic0_ci_41629601732_queued_since_11:41Z);cancelled_superseded_feature_runs_af5970a7,67406a72_and_duplicate_OCT-epic39_runs_(same_sha)
+2026-11-03T12:42:12Z	Epic 12	runner_complete	runner=a1ae441d358a81053 head=25328ded stories=2(12.7,12.9) ready_for_merge=true model=opus tokens=566345 tool_uses=29 duration_ms=2611391 applied=U-218,U-219,U-228
+2026-11-03T12:42:12Z	Epic 12	merge_enqueued	head=25328ded policy=when_green
+2026-11-03T12:43:01Z	Epic 12	ci_green_verified	runs=41631685886,41631685936 head=25328ded result=success via=none note=superseded_by_feature_move
+2026-11-03T12:43:01Z	Epic 12	merge_gate_blocked	reason=feature_moved feature=138d0066 integrated=2dd7aa8f dry_run_conflicts=sprint-status.yaml,ARCHITECTURE-SPINE.md(updated:_only)
+2026-11-03T12:43:01Z	Epic 12	runner_resumed	agent=a1ae441d358a81053 with=integrate_forward_138d0066+checks+push+CI+Complete
+2026-11-03T12:43:23Z	Epic 12	runner_reported	item=U-238(DW-503_parked;owner_only:deferring_UX-DR137_R1_scope) notify=push
+2026-11-03T12:54:39Z	Epic 39	ci_green_verified	runs=41633835560,41633835551 head=138d0066 result=success via=none scope=feature
+2026-11-03T12:54:39Z	Epic 39	runner_dispatched	runner=a20b3e9ae5cc3d472 model=opus slot=ocutalon-slot-d lane=D base=138d0066 prompt=prompts/dispatch-epic-39.md note=rc1_push_hold(no_push_until_rc1_cut)
