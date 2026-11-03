@@ -219,3 +219,16 @@
 2026-10-30T03:44:56Z	Epic 7	epic_retro_skipped	reason=policy(gates.retrospective:skip)
 2026-10-30T04:37:10Z	Epic 7	integrated_forward	feature=1637719 head=fe462bb conflicts_resolved=ci/units.sh(plain_union:Epic_16_online_units_and_probe_beside_Epic_7_shards-2_pieces;live:cards_install-upgrade->install-fresh_by_ruling),_bmad-output/implementation-artifacts/sprint-status.yaml(last_updated;regenerated,validate_ok) code_conflicts=none merges=fb38e0e(feature_5d9abd1,Epic_16_merged),fe462bb(feature_1637719,bookkeeping_only) brought_in=Epic_16(c70a0f4:online_demo,allowances,probe,busy_and_maintenance_pages) env=npm_ci(web/package.json_changed);web_bundle_rebuilt;payloads_current suite_on_merged_tree=web_test_1125_pass,lint_pass,ci/checks.sh_pass(shard_pieces:174_classes_once),shard_lane-a_89(4_parts:381s,224s,531s,424s),shard_lane-b_85(3_parts:255s,206s,413s) smoke=pass(real_restart_driver_on_fresh_e7ifsmk:Reconcile_marked,real_heartbeat_swept,All_4_orders_went_through.,no_second_result) group_patterns=test-cards.sh_claimed_by_install-fresh_only teardown=clean
 2026-10-30T04:37:10Z	Epic 7	epic_runner_complete	stories_completed=6(7.1,7.2,7.6,7.3,7.4,7.5) fix_forward=DW-337(3308237) reworks=1(7.5_ci)
+2026-11-03T21:36:58Z	Epic 7	runner_unattended_start	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec note=reopen_for_story_7.7_runner_B lane=B slot=ocutalon-slot-b
+2026-11-03T21:36:58Z	Epic 7	epic_branch_reopened	reason=story_7.7_DW-644_U-248 from=d721cdf9 branch=OCT-epic7 by=orchestrator(SC-5) bootstrap=pass
+2026-11-03T21:36:58Z	Epic 7	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-11-03T21:36:58Z	Epic 7	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh note=rc1_push_hold(no_push_until_released)
+2026-11-03T21:36:58Z	Epic 7	launch_env	depth=4 watchdog=default bash_max_ms=default
+2026-11-03T21:36:58Z	Epic 7	epic_branch_checked_out	repos=. head=d721cdf9
+2026-11-03T21:36:58Z	Epic 7	spine_resolved	path=_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md ads=33 status=final
+2026-11-03T21:36:58Z	Epic 7	ledger_load	total=612 open=0 routed=81 escalated=0 decision_pending=3 terminal=528 owner_unknown=0 burndown=33 reowned_none=0 owned_by_7-7=1(DW-644)
+2026-11-03T21:37:32Z	Epic 7	sprint_planning_complete	gate=PASS mode=headless in_sync=true warnings=standing_title_headings model=claude-opus-5-5
+2026-11-03T21:37:32Z	Epic 7	retro_review_skipped	reason=skip(no_X.0_input:reopen_for_story_7.7;retro_skipped_by_policy;DW-644_routed_to_7.7)
+2026-11-03T21:37:32Z	Epic 7	epic_status_reopened	epic-7=done->in-progress reason=SC-5_reopen_story_7.7(sanctioned_by_dispatch) story=7-7-a-date-repair-that-could-read-either-way-names-its-evidence(backlog)
+2026-11-03T21:37:32Z	Epic 7	owner_decision	id=U-249 at=2026-11-03T21:34:43Z#748 via=orchestrator by=Contest_Planner(owner_delegate) note=new_wording(arrived_day,{item}),one_day_tolerance_both_ways,both-readings-match=no_evidence,instance_vs_UTC_date_test;to_spec_at_plan_gate
+2026-11-03T21:39:59Z	Epic 7	slot_loaded	slot=ocutalon-slot-b id=62AB8833 namespace=OCUTALON from=d721cdf9 bridge=56 ocutalon=589 compile=ok(ck-d,errors=0) stale=none(687=645+42_BPL_message_classes)
