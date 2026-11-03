@@ -19,3 +19,7 @@
 2026-11-03T14:19:08Z	Story 39.1	ledger_routed_planned	story=39-5-the-heartbeat-checklist-card-and-run-the-heartbeat-now entries=1 excess=0 by=harvest
 2026-11-03T14:19:16Z	Story 39.1	adr_verifications_complete	tool=none acs=none result=none_required evidence=none mutations=none model=claude-opus-5-5
 2026-11-03T14:19:16Z	Story 39.1	stage_spawned	stage=qa spawn_at=2026-11-03T14:19:16Z model=sonnet agent_name=39-1-qa-1 cycle_iteration=1
+2026-11-03T14:27:51Z	Story 39.1	qa_complete	spawn_at=2026-11-03T14:19:16Z model=sonnet tests=Test/Checks/Beat.cls,Test/Checks/Runs.cls tests_added=4 mutations_demonstrated=8 first_run_failures=0 clarifications=0 closing_sections_present=true
+2026-11-03T14:27:51Z	Story 39.1	stage_spawned	stage=code-review spawn_at=2026-11-03T14:27:51Z model=opus agent_name=39-1-code-review-1 cycle_iteration=1
+2026-11-03T14:54:26Z	Story 39.1	cr_complete	spawn_at=2026-11-03T14:27:51Z model=opus resolved=7 fixed_at_source=7 by_design=1 wontfix_theoretical=0 routed=0 escalated=0 decision_pending=0 deferred=1 dismissed=13 high=0 med=3 low=21 rows=33 unresolved_high_med=0 clarifications=0 closing_sections_present=true review_tier=full-opus
+2026-11-03T14:54:27Z	Story 39.1	rework_opened	cycle_iteration=2 iteration=1 trigger=smoke items=boundaries_key_like_Runs.cls:1035 scope_baseline=3ffdc2f8 smoke_direct=pass fresh_check_checks_fwd_rev=pass

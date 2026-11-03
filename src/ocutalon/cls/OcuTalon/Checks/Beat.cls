@@ -1,7 +1,7 @@
 /// The agent heartbeat's beats and the names of its settings (AD-18, AD-19). Lane A. Checks calls RunDue on every Tick, after the due checks, and RunNow
 /// for a BeatNow. A beat is no background check (AD-28). RunDue, RunNow, Snapshot and Key do nothing yet: they return OK or "", write no row and send
 /// nothing.
-Class OcuTalon.Checks.Beat Extends %RegisteredObject
+Class OcuTalon.Checks.Beat
 {
 
 /// The setting names of a person's heartbeat: person.<SessionRef>.heartbeat.<name> (AD-19).

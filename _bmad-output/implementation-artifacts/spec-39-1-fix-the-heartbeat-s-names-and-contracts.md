@@ -2,7 +2,7 @@
 title: 'Story 39.1: Fix the heartbeat''s names and contracts'
 type: 'feature'
 created: '2026-11-03'
-status: 'done'
+status: 'in-progress'
 baseline_revision: '3f5f7b3ee2a056f2ec2c0411012a41845e324454'
 baseline_commit: '3f5f7b3ee2a056f2ec2c0411012a41845e324454'
 review_loop_iteration: 0
@@ -152,7 +152,39 @@ deferred:
 - Given the story's diff against `origin/feature/OCT_OcuTalon_MVP`, when it is compared, then `Production.cls`, `docker/tests/test-production.sh`, `Live/**`, `Test/Live/**` and `web/**` are unchanged.
 - Given EXPERIENCE.md › Later Steps › Personality, when this story begins, then the heartbeat card's texts are recorded there under the marker `[ADDED 2026-10-31, owner decision, relayed by the Contest Planner (U-195) ...]`. Checked at planning (EXPERIENCE.md lines 963-979): **pass**. This story ships no user-facing text (UX-DR117).
 
+- [ ] [Smoke] `docker/tests/test-boundaries.sh` fails its rule "keys: nothing key-like" on `src/ocutalon/cls/OcuTalon/Test/Checks/Runs.cls:1035` (`TestBeatLogsAreRedacted`'s fixture secret is one key-shaped literal) -- build the fixture by concatenation, as `Test/Watch/NoticeText.cls:581` and `Test/Watch/Evidence.cls:193` do (`"sk-"_"ant-..."`), keep the test's assertions unchanged, and re-run `bash docker/tests/test-boundaries.sh` (no FAIL) plus `OcuTalon.Test.Checks.Runs` on a lane-D warm throwaway.
+
+### Review Findings
+
+Code review 2026-11-03 (first review; layers blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor; 33 rows, 23 entries: high 0, medium 3, low 20). Rule 3: exempt (no user-facing surface). Rule 6: the spine edit is the two additive inserts and changes no AD Rule; AD-18 (fields, RunDue last in its own Try/Catch, BeatNow), AD-3, AD-5, AD-28, AD-29 and AD-33 hold.
+
+- [x] [Review][Patch] (med; fix-risk low: test-only) `TestStubsDoNothing` could not fail on a row write: `Rows("")` bound "" as SQL NULL so it always counted 0, and the fixture ref was longer than `SessionRef` MAXLEN 22 so no row of it could be saved; now a `NewRef()` ref, a separate whole-table count and a cleanup of the ref's rows [src/ocutalon/cls/OcuTalon/Test/Checks/Beat.cls:17]
+- [x] [Review][Patch] (med; fix-risk low: test-only) the `LOGBEATNOW` counts in `Runs.TestBeatNow` and `TestBeatLogsAreRedacted` counted any job's lines (not hermetic); `Beaten` now takes the method and counts only lines holding the test's marker [src/ocutalon/cls/OcuTalon/Test/Checks/Runs.cls:1255]
+- [x] [Review][Patch] (med; fix-risk low: tracking doc) AC 1's grep loop could not fail for `SetHeartbeat`/`RunHeartbeat` (both already in the baseline spine); the needles now occur only in this story's inserts, mutation recorded [spec ## Verification]
+- [x] [Review][Patch] (low; fix-risk low) AC 6's `git diff origin/...` form compares the merge base with HEAD and cannot see an uncommitted change, and AC 6/7 had no mutation line; command corrected, mutation recorded, AC 7 recorded as a planning-time reading [spec ## Verification]
+- [x] [Review][Patch] (low; fix-risk low) `CHECKLISTMAX` copied the 1,000 that AD-19 defines as the length of `Setting.Value` with no link; `TestSettingNames` now compares it with `Setting.Value`'s MAXLEN [src/ocutalon/cls/OcuTalon/Test/Checks/Beat.cls:53]
+- [x] [Review][Patch] (low; fix-risk low) `Checks.Beat` extended `%RegisteredObject`; the spec says a plain class, as its siblings `Checks.Render` and `Watch.Settle` are [src/ocutalon/cls/OcuTalon/Checks/Beat.cls:4]
+- [x] [Review][Patch] (low; fix-risk low) test doc lines narrated history ("QA additions (Story 39.1)", "(QA)"), Rule 14 [src/ocutalon/cls/OcuTalon/Test/Checks/Beat.cls:4, Runs.cls:47]
+- [x] [Review][Defer] (low; fix-risk med; out-of-footprint) `lint_spine.py` reports `"ok": false` for 8 placeholder findings that are deliberate catalog slot syntax, pre-existing at baseline (lines 454, 1010, 1023, 1086, 1091), so AC 1's `"ok": true` reads as "no new finding" [ARCHITECTURE-SPINE.md] - deferred: pre-existing; DW-638 wontfix-accepted, reopen_if a new lint finding or a Rule 20 halt on them
+
+Rejected:
+- (low, by-design) `Heartbeat.TestBeatNowIsAnswered` counts Intake messages only in the service's session, while AD-18 sends a beat's Item in a session of its own: matrix row 6 fixes the session scope; in 39.1 nothing is sent; Story 39.3 makes `RunNow` send to Intake by design, and real Ticks send findings to Intake, so a namespace-wide count would be flaky now and inverted then.
+- (low) the AD-18 "Names" line spells the five keys in full instead of the spec's short form: same meaning, additive, no AD Rule changed, and the spec's own needle `heartbeat.checklist` needs the long form; the fix would edit the spec. Accepted under the Rule 6 check.
+- (low) the Auto Run Result is stale after QA (test counts, mutation count, test time): the fix edits the spec's build-auto record.
+- (low) the earlier triage header's counts (22) differ from its rows (18, with same-root rows): the fix edits the spec's record.
+- (false) the spec frontmatter says `done` while sprint-status says `review`: frontmatter `status` is build-auto's machine state, by process.
+- (low) the DW-633 bullet in `epics.md` omits the spine Built-in cell and the Lane B arrangement: the 39.3 plan spawn receives the full ledger slice (Rule 17 1b), which carries both.
+- (low) no story deletes a session's `HeartbeatBeat` row at sign-out: AD-19 deletes the values (Story 39.2's `SessionOps.End` AC), the row holds refs and times only, the demo reset removes it, and with the keys gone a demo session's `on` is 0, so `RunDue` skips it.
+- (low, spec-bound) AD-19's defaults sentence and `Beat` give no demo sample checklist: the sentence is the spec's verbatim text, and the sample is UX text that 39.2's GET shows unstored.
+- (low, theoretical) a `RunNow`/`RunDue` error text naming a SessionRef would reach the log, and the class doc's "No log line names a SessionRef" is not enforced: the text comes from Beat's stubs; Story 39.3 owns the text when it fills them.
+- (low, theoretical) `Redact.Text` or `$$$LOGWARNING` throwing inside a Catch: the same shape as every sibling block of `Tick`.
+- (low, spec-bound) an empty `BeatNow.SessionRef`, a dotted ref in `SettingKey`, `SessionRef` not Required: the Ref comes from the server-side session (`CommandsIn`, 39.2); the spec fixes the 15 fields and the one index.
+- (low) AC 3's "send nothing" has no assertion on the stubs: Beat's class methods hold no business host, so they cannot send; `TestBeatNowIsAnswered` pins the `RunNow` path.
+- (low) the spine's Built-in cell still names Story 39.1 for `Live.Payload.Heartbeat`: already DW-633 (routed 39-3).
+
 ## Spec Change Log
+
+- 2026-11-03, lead, rework iteration 1 (trigger smoke): the lead's pre-commit check run found one key-like literal in a QA test; one [Smoke] item added under Tasks & Acceptance.
 
 - 2026-11-03, lead at spec validation: the (once) `bash ci/checks.sh` line split into three capped calls (the 10-minute foreground cap).
 
@@ -236,8 +268,8 @@ Slot D (`server: ocutalon-slot-d`, `namespace: OCUTALON`; check it with `iris_se
 - (loop) `<lane> OCUTALON_RUN_TAG=e39s1impl ci/iris.sh class OcuTalon.Test.Checks.Heartbeat`, fresh (production code). Expected: passed.
 - (loop) `bash docker/tests/test-storage.sh`. Expected: every rule passes, including the `HeartbeatBeat` row.
 - (loop) `uv run --no-cache .claude/skills/bmad-architecture/scripts/lint_spine.py --workspace _bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16`. Expected: `"ok": true`.
-- (loop) `for n in SetHeartbeat RunHeartbeat 'Msg.Enum` CHANNEL' 'heartbeat.checklist' '`08:00`, `20:00`'; do grep -qF "$n" _bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md || echo "MISSING $n"; done`. Expected: no output.
-- (once) `git diff --exit-code origin/feature/OCT_OcuTalon_MVP... -- src/ocutalon/cls/OcuTalon/Production.cls docker/tests/test-production.sh src/ocutalon/cls/OcuTalon/Live src/ocutalon/cls/OcuTalon/Test/Live web`. Expected: exit 0.
+- (loop) `for n in '`SetHeartbeat` (`On`, `Interval`, `From`, `To` and `Checklist`, plus the common command fields `Origin`, `IdempotencyKey` and `SessionRef`)' '`RunHeartbeat`, which it routes to `Checks` as a `BeatNow`' 'Msg.Enum` CHANNEL' 'heartbeat.checklist' '`08:00`, `20:00`'; do grep -qF "$n" _bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md || echo "MISSING $n"; done`. Expected: no output. [code review: the bare `SetHeartbeat` and `RunHeartbeat` needles were already in the baseline spine; each needle now occurs only in this story's inserts]
+- (once) `git diff --exit-code "$(git merge-base origin/feature/OCT_OcuTalon_MVP HEAD)" -- src/ocutalon/cls/OcuTalon/Production.cls docker/tests/test-production.sh src/ocutalon/cls/OcuTalon/Live src/ocutalon/cls/OcuTalon/Test/Live web`. Expected: exit 0. [code review: the earlier `origin/feature/OCT_OcuTalon_MVP...` form compares the merge base with HEAD and cannot see an uncommitted change]
 - (once) The hosted `checks` scripts, in parts (the whole `bash ci/checks.sh` takes about 16 minutes locally, over the 10-minute cap): list them with `. ci/units.sh; echo $CHECK_SCRIPTS`, then run them in three foreground calls of about a third of the list each, `for n in <part>; do bash docker/tests/test-$n.sh >/dev/null 2>&1 || echo "FAIL $n"; done` (each call under 8 minutes). Expected: no FAIL line. [lead edit at spec validation]
 - (once) `<lane> OCUTALON_RUN_TAG=e39s1impl ci/iris.sh shard lane-a@Checks`, fresh. Expected: passed; record the time.
 - (once) `<lane> OCUTALON_RUN_TAG=e39s1impl ci/iris.sh shard lane-b@Data`, then `shard lane-b@Contract,Live`, fresh, one call each. Expected: passed (`Test.Live.Payloads` unchanged at 16 types and 30 classes).
@@ -257,7 +289,26 @@ Recorded mutations (Rule 19; each applied, observed red, reverted byte-identical
 - AC 4 (a failing RunDue is logged, the Tick answers OK): mutation: dropping the beat block's Try/Catch made `Runs.TestBeatsThatFailAreLogged` fail (the Tick threw the marker error); reverted, green.
 - AC 5 (a BeatNow is answered OK): mutation: dropping the `BeatNow` branch of `OnRequest` made `Heartbeat.TestBeatNowIsAnswered` fail (error 5001 naming `OcuTalon.Checks.Msg.BeatNow`); reverted, green.
 - AC 5 (nothing reaches Intake): mutation: `Process.BeatRunNow` sending an `Ens.StringRequest` to `Intake` made `Heartbeat.TestBeatNowIsAnswered` fail ("no message of the session is for Intake" and "and Checks sent no request"); reverted byte-identical, green.
-- Matrix row 5, error-status path (a RunNow that answers an error status is logged, the answer is OK): mutation: dropping the `$$$ISERR` block of `Process.BeatNow` made `Runs.TestBeatNow` fail ("and logs one more warning"); reverted byte-identical, green.
+- Matrix row 5, error-status path (a RunNow that answers an error status is logged, the answer is OK): mutation: dropping the `$$$ISERR` block of `Process.BeatNow` made `Runs.TestBeatNow` and `Runs.TestBeatLogsAreRedacted` fail ("and logs one more warning", counted by `Beaten(marker, .text, "BeatNow")`); reverted byte-identical, green. [re-observed at code review after the count was scoped to the test's marker]
+
+QA additions (QA stage, run tags `e39s1qa`/`e39s1qaw`; every mutation applied, observed red, reverted byte-identical, green again):
+- (QA) Files extended, no new file: `src/ocutalon/cls/OcuTalon/Test/Checks/Beat.cls` (`TestHeartbeatBeatRowAndUniqueness`: all 15 fields survive a save and reopen, the row sits in `^OcuTalonP.HeartbeatBeatD` and in no default global, a second row of the same SessionRef is refused, an empty row has `LastFallback` 0; more `TestSettingNames` edges: case, part of a name, trailing space or comma, a second session) and `src/ocutalon/cls/OcuTalon/Test/Checks/Runs.cls` (`TestBeatsRunWhateverEarlierStepsDo`, `TestBeatLogsAreRedacted`, `TestBeatNowKeepsEachSession`).
+- AC 1 (the spine's names): mutation: deleting the AD-18 "Names" line made the Verification grep loop print `MISSING Msg.Enum` CHANNEL` and `MISSING heartbeat.checklist`; reverted. Limit: `SetHeartbeat` and `RunHeartbeat` also occur elsewhere in the spine, so those two needles stay green without the line; no bash unit is added (docker/tests/** is contended and under the stability watch, and a throwaway has no spine).
+- AC 2 (SessionRefIndex is unique): mutation: dropping `[ Unique ]` from `Data.HeartbeatBeat` made `Test.Checks.Beat.TestHeartbeatBeatRowAndUniqueness` fail ("a second row of the same SessionRef is refused", "so the session still has one row").
+- AC 2 (the registry row): mutation: the global `^OcuTalonP.HeartbeatBeats` in the `src/short-names.tsv` row made `bash docker/tests/test-storage.sh` fail (`registry-class`).
+- AC 3 (SettingKey takes exact names only): mutation: `$ListFind` replaced by a substring test (`..#KEYS [ name`) made `Test.Checks.Beat.TestSettingNames` fail ("and a list of names", "so is a part of a name", "and with a comma after it").
+- AC 4 (RunDue gets the Tick's time, a UTC stamp): mutation: `BeatRunDue(tick.TickAt)` instead of `tickAt` made `Runs.TestBeatsRunWhateverEarlierStepsDo` fail ("it gets a UTC stamp: not a stamp").
+- AC 4 (the log line is redacted): mutation: dropping `Redact.Text` from the `LOGBEAT` error-status line made `Runs.TestBeatLogsAreRedacted` fail ("without the secret: ...").
+- AC 4 (RunDue runs after an earlier step fails): mutation: a `Return $$$OK` in the Fixes catch of `Tick` made `Runs.TestBeatsRunWhateverEarlierStepsDo` fail ("RunDue is still called once").
+- AC 5 (the BeatNow contract): mutation: `RequestedAt` as `%String(MAXLEN = 30)` in `Checks.Msg.BeatNow` made `Test.Checks.Beat.TestBeatNowContract` fail ("RequestedAt has MAXLEN '30', not '20'").
+- QA runs, warm: `Test.Checks.Beat`, `Runs`, `Data.Tables` passed after the last revert. Added test time: under 1 s warm.
+
+Code review additions (run tag `e39s1crw`, warm; each mutation applied, observed red, reverted byte-identical, green again):
+- AC 3 (the stubs write no row): mutation: `Beat.RunNow` saving a `HeartbeatBeat` row for its `sessionRef` (status ignored) made `Test.Checks.Beat.TestStubsDoNothing` fail ("no HeartbeatBeat row is made for the fixture ref", "and the table holds as many rows as before"). Before the review patch the same mutation stayed green: the fixture ref was longer than `SessionRef`'s MAXLEN 22, and `Rows("")` bound "" as SQL NULL, so it always counted 0.
+- AC 1 (the spine's names): mutation: deleting the AD-18 "Names" line made the loop above print `MISSING` for the `SetHeartbeat` (fields), `RunHeartbeat` (routing), `Msg.Enum` CHANNEL and `heartbeat.checklist` needles; the baseline spine misses all five needles; reverted byte-identical.
+- AC 6 (the scoped paths are unchanged): mutation: a newline appended to `src/ocutalon/cls/OcuTalon/Live/Publish.cls` made the merge-base `git diff --exit-code` above exit 1; reverted byte-identical, exit 0.
+- AC 7 (the UX texts are recorded): no mutation; a planning-time reading of EXPERIENCE.md, recorded pass, with no code or test to mutate.
+- Runs after the patches, warm: `Test.Checks.Beat`, `Test.Checks.Runs`, `Test.Contract.Ac` passed.
 
 **Shared surfaces:**
 - `src/short-names.tsv`: +1 row, under test-storage.sh's registry rules.

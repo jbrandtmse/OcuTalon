@@ -3449,3 +3449,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: _bmad-output/implementation-artifacts/spec-39-1-fix-the-heartbeat-s-names-and-contracts.md | severity: low | fix-risk: low | footprint: in-epic
 - evidence: EXPERIENCE.md Later Steps > Personality gives only the cooldown text and the skip texts; epics 39.5 asks for unavailable with the reason
 - 2026-11-03T14:18:41Z status=routed owner=39-5-the-heartbeat-checklist-card-and-run-the-heartbeat-now by=harvest note=39.5 reuses an accepted text (e.g. the skip reasons) or escalates as veto-window public text; never invents one (UX-DR117)
+
+### DW-638: lint_spine.py reports ok:false on the spine for 8 low placeholder findings that are deliberate catalog slot syntax ({time}, {day}, {reason} ...), so an AC or Rule 20 gate requiring "ok": true cannot pass
+- source: spec-39-1-fix-the-heartbeat-s-names-and-contracts.md | severity: low | fix-risk: med | footprint: out-of-footprint
+- evidence: Pre-existing in baseline 3f5f7b3e at spine lines 454, 1010, 1023, 1086, 1091; Story 39.1 adds none; stages read the check as no new finding. Fix needs the kit lint (.claude/, owner-only) or spine prose edits outside any story's ACs.
+- 2026-11-03T14:41:53Z status=wontfix-accepted owner=39-1-fix-the-heartbeat-s-names-and-contracts by=cr note=reopen_if=lint_spine reports a finding other than these 8 baseline placeholders, or a Rule 20 spine update halts on them
