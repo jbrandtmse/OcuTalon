@@ -1538,3 +1538,5 @@
 2026-11-03T09:40:36Z	Epic 13	decision_sheet_skipped	reason=decisions_for_user_none
 2026-11-03T09:40:36Z	Epic 13	ledger_routed_planned	story=none entries=0 note=DW-619,DW-620_burndown;no_story-routed_entries_from_Epic_13
 2026-11-03T09:40:36Z	Epic 13	deps_hash_rerecorded	reason=ledger_routed(DW-181_bullet_from_Epic_13) hash=5cbe45b1
+2026-11-03T09:40:42Z	Epic 13	worktree_removed	path=.worktrees/epic-13
+2026-11-03T09:40:42Z	Epic 13	epic_branches_deleted	branch=OCT-epic13 local+remote
