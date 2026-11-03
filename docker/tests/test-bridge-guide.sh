@@ -4,11 +4,12 @@
 # run them. The commands of the guide are proved live by the standalone-bridge job (release/standalone-bridge.sh), which reads the marked
 # blocks from the guide; this script keeps the guide, the job and the code from drifting apart.
 #   - blocks     the install section holds the blocks load, install, provider, start and send, in that order, and every objectscript fence
-#                in it has a marker (<!-- guide-run: <name> -->); each marker is in the guide once and has a non-empty block with exactly
-#                one `Set sc=`; the set of names that release/standalone-bridge.sh passes to guide_block and guide_check, and its
+#                in it has a marker (<!-- guide-run: <name> -->); each marker is in the guide once and has a non-empty block, closed by its
+#                own fence, with exactly one `Set sc=`; the set of names that release/standalone-bridge.sh passes to guide_block and guide_check, and its
 #                GUIDE_BLOCKS list, equal the guide's marker set; and no command line of a block is also a line or a literal of the script
 #   - reference  the guide names every setting of Decide, Adapter.Agent and AgentRunner, every refused setting, the four settings of AI Hub's
-#                runner, every property of the message classes, the three fields of the decision payload, every enum value, the five results
+#                runner, every property of the message classes, the three fields of the decision payload, every enum value, every event of
+#                the host sink, the five results
 #                of Approval.Answer, the timer limits as "<n> seconds", and the fixed phrases of the reference sections (Timeouts.Derive,
 #                Timeouts.Apply, @{config:, @{env:ANTHROPIC_API_KEY}, embedded Python, the experimental marks, the package sentence and
 #                the follow-on sentence)
@@ -40,6 +41,21 @@ PKG_SENTENCE='OcuTalon installs this same bridge as part of its own package.'
 FOLLOW_SENTENCE='A separate bridge package and listing are a follow-on.'
 AIHUB_SETTINGS="AgentClass ProviderName ProviderConfig Model"
 ANSWER_RESULTS="done already_answered expired not_found not_allowed"
+# The fixed phrases of the install and reference prose (AC 1 and AC 2): the requirements, the load without IPM, what the installer sets up,
+# the instance-auditing check, the Visual Trace step, the Workflow approvals and the developer-tool rules.
+PROSE_PHRASES='build 154
+IRIS for Health
+Interoperability namespace
+$SYSTEM.OBJ.LoadDir
+It needs no IPM
+Visual Trace
+OcuTalon.Bridge.Installer.InstanceAuditing
+`OcuTalonApprovals`
+`OcuTalonWorkflow`
+No person is a Workflow
+OcuTalon.Bridge.Approval.Answer
+STEPLABEL
+makes no `%AI` call'
 
 # --- helpers ---
 
@@ -54,6 +70,17 @@ block_lines() {
     state == 0 && $0 == m { state = 1; next }
     state == 1 { if ($0 == "```objectscript") { state = 2; next } exit }
     state == 2 { if ($0 == "```") exit; print }
+  ' "$2"
+}
+
+# block_closed <name> <file>: exits 0 when the marked block's fence is closed by a fence line of its own before any other fence line or the
+# end of the file, as release/standalone-bridge.sh guide_block requires.
+block_closed() {
+  awk -v m="<!-- guide-run: $1 -->" '
+    state == 0 && $0 == m { state = 1; next }
+    state == 1 { if ($0 == "```objectscript") { state = 2; next } exit }
+    state == 2 && /^```/ { if ($0 == "```") state = 3; exit }
+    END { exit (state == 3 ? 0 : 1) }
   ' "$2"
 }
 
@@ -88,6 +115,7 @@ blocks_problems() {
     if [ "$n" -ne 1 ]; then echo "the block $name: its marker is in the guide $n times, not once"; continue; fi
     lines=$(block_lines "$name" "$guide")
     if [ -z "$(printf '%s' "$lines" | tr -d '[:space:]')" ]; then echo "the block $name: it is empty, or its marker is not followed by an objectscript fence"; continue; fi
+    block_closed "$name" "$guide" || echo "the block $name: its fence is not closed before the next fence or the end of the file"
     n=$(printf '%s\n' "$lines" | grep -c 'Set sc=')
     if [ "$n" -ne 1 ]; then echo "the block $name: it has $n commands that set sc, wanted 1"; fi
   done
@@ -223,6 +251,10 @@ Set sc=33' -
   break_blocks "a name the job lacks" "does not run the block" - '/ send "z"$/d'
   break_blocks "a name the guide lacks" "which the guide has no block for" - 's/send "z"/sendx "z"/'
   break_blocks "a block that the job does not run" "does not run the block" - '/approval-role ""$/d'
+  break_blocks "a block whose fence is not closed before the next fence" "is not closed" '/^Set sc=7$/{n;d;}' -
+  break_blocks "a block whose fence is not closed before the end of the file" "is not closed" '/^Set sc=7$/{n;d;};$d' -
+  break_blocks "a name missing from GUIDE_BLOCKS" "is not in GUIDE_BLOCKS" - 's/^\(GUIDE_BLOCKS=.*\) send"$/\1"/'
+  break_blocks "a name in GUIDE_BLOCKS that the guide lacks" "names sendx, which the guide has no block for" - 's/^\(GUIDE_BLOCKS=.*\) send"$/\1 send sendx"/'
   break_blocks "a command copied into the job" "is also in" - '$ a\
 Set sc=4'
   break_blocks "a command copied as a literal" "is also in" - '$ a\
@@ -264,6 +296,7 @@ reference_names() {
     for c in Request Result DecisionResponse AgentStep; do properties_of "$BRIDGE/Msg/$c.cls"; done
     sed -n 's/.*%JSONFIELDNAME = "\([a-z]*\)".*/\1/p' "$BRIDGE/Msg/DecisionPayload.cls"
     enum_values "$BRIDGE/Msg/Enum.cls"
+    sed -n 's/^Parameter [A-Z]* = "\([a-z]*\.[a-z]*\)";$/\1/p' "$BRIDGE/Ext/HostSink.cls"
     printf '%s\n' $ANSWER_RESULTS
   } | sort -u
 }
@@ -276,11 +309,15 @@ reference_problems() {
   done
   max=$(sed -n 's/^Parameter MAXTIMER = \([0-9][0-9]*\);$/\1/p' "$BRIDGE/Process/Decide.cls")
   min=$(sed -n 's/^Parameter MINTIMER = \([0-9][0-9]*\);$/\1/p' "$BRIDGE/Process/Decide.cls")
+  if [ -z "$max" ] || [ -z "$min" ]; then echo "MAXTIMER or MINTIMER of Decide.cls could not be read"; fi
   grep -qF -- "$max seconds" "$guide" || echo "the guide does not give the timer ceiling as '$max seconds'"
   grep -qF -- "$min seconds" "$guide" || echo "the guide does not give the timer floor as '$min seconds'"
   for name in 'Timeouts.Derive' 'Timeouts.Apply' '@{config:' '@{env:ANTHROPIC_API_KEY}' 'embedded Python' "$PKG_SENTENCE" "$FOLLOW_SENTENCE"; do
     grep -qF -- "$name" "$guide" || echo "the guide lacks '$name'"
   done
+  while IFS= read -r name; do
+    grep -qF -- "$name" "$guide" || echo "the guide lacks the prose phrase '$name'"
+  done <<< "$PROSE_PHRASES"
   grep -F 'StreamRenderer' "$guide" | grep -q 'experimental' || echo "no line of the guide holds both StreamRenderer and 'experimental'"
   grep -F 'SetAuthPolicy' "$guide" | grep -F 'SetAuditPolicy' | grep -q 'experimental' || echo "no line of the guide holds both policy setters and 'experimental'"
 }
@@ -306,6 +343,7 @@ fi
   reference_names | sed 's/.*/`&`/'
   echo "110 seconds 12 seconds Timeouts.Derive Timeouts.Apply @{config: @{env:ANTHROPIC_API_KEY} embedded Python"
   echo "$PKG_SENTENCE $FOLLOW_SENTENCE"
+  printf '%s\n' "$PROSE_PHRASES"
   echo "StreamRenderer is experimental."
   echo "SetAuthPolicy and SetAuditPolicy are experimental."
 } > "$tmp/r/keep.md"
@@ -325,10 +363,18 @@ if [ "$ref_samples_ok" -eq 1 ]; then
   break_ref "a channel removed" 's/`webhook`/`Gone`/g'
   break_ref "an Answer result removed" 's/`already_answered`/`Gone`/g'
   break_ref "the timer ceiling removed" 's/110 seconds/110 s/g'
+  break_ref "the timer floor removed" 's/12 seconds/12 s/g'
+  break_ref "a host-sink event removed" 's/`budget\.capped`/`Gone`/g'
   break_ref "Timeouts.Apply removed" 's/Timeouts\.Apply/Timeouts/g'
   break_ref "the config placeholder removed" 's/@{config:/@{cfg:/g'
   break_ref "the embedded Python rule removed" 's/embedded Python/a scripting language/g'
   break_ref "the experimental marks removed" 's/experimental//g'
+  break_ref "the build requirement removed" 's/build 154/a build/g'
+  break_ref "the Visual Trace step removed" 's/Visual Trace/the viewer/g'
+  break_ref "the instance-auditing check removed" 's/OcuTalon\.Bridge\.Installer\.InstanceAuditing/Installer/g'
+  break_ref "the Workflow role removed" 's/`OcuTalonApprovals`/`Gone`/g'
+  break_ref "the no-Workflow-user statement removed" 's/No person is a Workflow/Some person is a Workflow/g'
+  break_ref "the developer-tool %AI rule removed" 's/makes no `%AI` call/may call AI/g'
   break_ref "the package sentence removed" 's/OcuTalon installs this same bridge as part of its own package\.//'
   break_ref "the follow-on sentence removed" 's/A separate bridge package and listing are a follow-on\.//'
 fi

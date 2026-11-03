@@ -189,6 +189,42 @@ deferred: []
 6. Given the release checklist on a candidate, when it runs, then its row `bridge-guide` passes only when `test-bridge-guide.sh` passes (the guide matches the code, and the public-text rules hold), and `test-release-checklist.sh` pins the row's failure.
 7. Given `docs/security-overview.md`, when `overviewdoc`, `live:security-overview` and `test-bridge-guide.sh` `u229` run, then the U-229 sentence is in its Approval and audit section and everything else is unchanged.
 
+### Review Findings
+
+Code review, 2026-11-02 (four layers: blind, edge-case, verification-gap, acceptance). 20 patched (9 medium, 11 low), 0 deferred, 9 rejected, 0 high. Every patch was applied in this pass; Rule 15 fields are severity / fix-risk / footprint (all in-story, spec-clear).
+
+- [x] [Review][Patch] (med; fix-risk low, one sentence) The guide said a second run of `provider`, `tool-classification` or `approval-role` writes a second row; `Ens.Config.DefaultSettings` has an IdKey on (production, item, class, setting), so a second `%New()`+`%Save()` prints `0` and changes nothing. The text now says so [docs/bridge-guide.md:62,103]
+- [x] [Review][Patch] (med; fix-risk low, prose) The governance bullets said risky calls are held, but step 5 sends `untrusted`, and `Gate` (L142) denies every call except a safe read-only one in an untrusted turn, with no request. The bullets now apply to a turn whose provenance is `user`, and a paragraph says what happens to the step-5 item [docs/bridge-guide.md:124-131]
+- [x] [Review][Patch] (med; fix-risk low, prose) The approval text suggested a person answers as themselves; `Approval.Answer` checks the role of the `irisUser` it is given and never compares it with the caller's user (AD-11). The guide now says the calling code passes the signed-in user and limits who can call `Answer`, and explains the fifth argument [docs/bridge-guide.md:139,147,300]
+- [x] [Review][Patch] (med; fix-risk low, two sentences) The guide never said that a settings row takes effect only after the production is updated. The job header records this as measured: `UpdateProduction()` restarts the items whose setting changed. Its timer advice also left out the update (AD-8: a timer change restarts the runners). The Settings intro and the Timeouts text now say to update the production, and that `ToolClassification` and `ApprovalRole` are read live [docs/bridge-guide.md:151,199]
+- [x] [Review][Patch] (med; fix-risk low) "each with ... the key that carries the effort" is false: `Installer.ModelFamilies` gives an effort key only to anthropic [docs/bridge-guide.md:39]
+- [x] [Review][Patch] (med; fix-risk low) `EstimatedTokens` was described as "the step's estimated token count", which reads as tokens per step (public-text rule; AD-9: an estimated request size from callback data). The text now says it is an estimate of the step's request size, not tokens used, which are counted per turn [docs/bridge-guide.md:252]
+- [x] [Review][Patch] (med; fix-risk low) "The reasons, in the order `Decide` checks them" was false. `Decide.Classify` checks unusable before error, and gives empty or unusable from one test. The heading is now "The reasons:" [docs/bridge-guide.md:268]
+- [x] [Review][Patch] (med; fix-risk low) "the router has sent it to one of the outputs" is false for `ignore`, which `BridgeExample.Rule` sends nowhere. Steps 4, 5 and 6 now say so [docs/bridge-guide.md:85,95,99]
+- [x] [Review][Patch] (med; fix-risk low, test-only) `reference`: the timer-floor check had no break sample, and an unreadable `MINTIMER` would make it `grep " seconds"`, which cannot fail. Added a guard for an empty `MAXTIMER`/`MINTIMER` and the sample "the timer floor removed" [docker/tests/test-bridge-guide.sh:reference_problems]
+- [x] [Review][Patch] (low) The opening overstated what the check proves ("word for word ... on a fresh instance"). It now says "line by line, as written, ... in a clean namespace of a newly built test instance" (Decided 9) [docs/bridge-guide.md:7]
+- [x] [Review][Patch] (low) The MCP sentence contradicted the spec's U-223 check ("the guide documents no MCP") and the overview's "This release can't connect to MCP servers". Removed [docs/bridge-guide.md:294]
+- [x] [Review][Patch] (low) Classification in code now names the gate's real hooks (`[ Internal ]` `Classify<NAME>`/`Classify`, `CLASSIFICATION<NAME>`/`CLASSIFICATION`), which matches the guide's rule that every public method becomes a tool [docs/bridge-guide.md:289]
+- [x] [Review][Patch] (low) `Classification.Classify` signature is `(source, name, arguments)` [docs/bridge-guide.md:308]
+- [x] [Review][Patch] (low) The UNTRUSTED denial is now quoted in full (`Gate.UNTRUSTED`) [docs/bridge-guide.md:291]
+- [x] [Review][Patch] (low) Tool names come from the `%AI.ToolSet` XData named in `TOOLSETS`, and are the names that `ToolClassification` and `STEPLABEL<NAME>` use [docs/bridge-guide.md:312]
+- [x] [Review][Patch] (low) `Installer.Run` also keeps the Workflow user as its role's only member at each run (`SetUpApprovals`) [docs/bridge-guide.md:35]
+- [x] [Review][Patch] (low, test-only) `blocks`: the two `GUIDE_BLOCKS` loops were never broken by a sample. Added "a name missing from GUIDE_BLOCKS" and "a name in GUIDE_BLOCKS that the guide lacks" [docker/tests/test-bridge-guide.sh:break_blocks]
+- [x] [Review][Patch] (low, test-only) `block_lines` read past a missing closing fence, while the job's `guide_block` requires one. Added `block_closed`, which matches `guide_block` and also catches a block that runs into the next fence, plus two samples [docker/tests/test-bridge-guide.sh:block_closed]
+- [x] [Review][Patch] (low, test-only) The guide's opening says that a value the guide does not name is a failing check, but the eight `HostSink` events were not pinned. `reference` now reads them from `Ext/HostSink.cls`, with the sample "a host-sink event removed" [docker/tests/test-bridge-guide.sh:reference_names]
+- [x] [Review][Patch] (low, Rule 19) The guide side of `u229` had no `mutation:` line. It is recorded under Verification (code review)
+
+**Rejected:**
+- false: the `approval-role` block has no `mutation:` line. Rule 19 asks for one per AC, and AC 3's governance pin is the recorded `tool-classification` mutation; "Governance rows" is a Matrix row
+- false: "the `provider` block prints 0 with the key unset" is unevidenced. Story 13.1 measured that the object save of this row refuses an unset `@{env:}` variable, which is why `provider_edit` uses SQL `%NOCHECK`. The code path is the same: `Ens.Config.DefaultSettings.%OnValidateObject` -> `isSettingValueValid` -> `Ens.DataType.AI.ExpandableJSON.IsValid` -> `%AI.Utils.SettingStore.Expand`. The wording is kept
+- low (by-design): 5-guide checks only the `DecisionResponse` and `AgentStep` headers, not the routed send or a non-fallback outcome. The Matrix row "Guide followed" defines exactly that check
+- low (by-design): the guide does not walk through wiring the bridge into your own production. ACs 1 and 2 fix its content (the install steps on the example, and the reference)
+- low: the job's `guide_block` fault branches have no hermetic test. The static `blocks` rule now covers the same four guide states (repeated, wrong fence, empty, unclosed) before lane A runs, and a harness for an unsourceable script is new surface. reopen_if: a lane-a run where `guide_block` passes a block that `blocks` flagged, or the reverse
+- low (wontfix-theoretical): an `iris_script` retry could re-run a row-writing block. A re-run now prints `0` (IdKey), so it fails loudly. This would become real if a session died after `%Save` and before its first output line
+- low: `reference` has no per-source count guard. Already rejected in the implement review; same reason
+- low (by-design): U-229's "each tool call is still audited" can be misread. The wording is the owner's, verbatim
+- rejected (edits the spec): the Auto Run Result's count of patched medium findings (4 against 5 rows) and the order of the stage dates
+
 ## Spec Change Log
 
 - 2026-11-03, runner: U-233 applied (Design Notes, Runner rulings) and a U-233 instance-wide audit Task added under Tasks & Acceptance.
@@ -391,6 +427,21 @@ The split is the runner's decision.
 - mutation: `test-bridge-guide.sh` `blocks` empty-block check disabled (`if [ -z ... ]` -> `if false`) -> red: `blocks` "a break (an empty block) is not flagged by the check that names 'it is empty'" and the same for "a marker not followed by a fence"; reverted byte-identical
 - mutation: guide `tool-classification` block `example_forward_item` `risky` -> `safe` -> red: check 4 "the rows of check 3 are read live ... (2 of 7 values differ)" (the guide's governance row differs from `tool_json`), exit 1; reverted byte-identical (cmp against a backup)
 - mutation: guide `provider` block `api_key` `@{env:ANTHROPIC_API_KEY}` -> `literal-not-a-placeholder` -> red: check 3 "wanted 'CHK|api-key|1', got 'CHK|api-key|0'", exit 1; reverted byte-identical
+
+**QA stage (2026-11-02):**
+- Gap closed (AC 1 and AC 2 prose): nothing pinned the install and reference prose beyond the names (requirements, Visual Trace step, installer contents, instance-auditing check, Workflow role and user, no-Workflow-user statement, `STEPLABEL`, the `%AI` rule). `test-bridge-guide.sh` `reference` now checks 13 fixed phrases (`PROSE_PHRASES`), with six new break samples.
+- mutation: guide `Visual Trace` -> `the viewer` (every occurrence) -> red: `test-bridge-guide.sh` `reference` ("the guide lacks the prose phrase 'Visual Trace'"); reverted byte-identical (cmp against a backup; `git status --short` unchanged)
+- Test files changed (QA): `docker/tests/test-bridge-guide.sh`
+- Re-run after the change: `test-bridge-guide.sh`, `test-ci-config.sh`, `test-boundaries.sh`, `test-readme.sh`, `test-release-checklist.sh` all pass. `release/standalone-bridge.sh` not re-run (nothing it reads changed).
+
+**Code review (2026-11-02):** each mutation applied to the working tree, observed red with `bash docker/tests/test-bridge-guide.sh` (exit 1), and restored from a backup (`cmp` byte-identical; `git status --short` unchanged):
+- mutation: `reference` floor check `grep -qF -- "$min seconds" ... ||` -> `true ||` -> red: `reference` "the rule does not flag a break (the timer floor removed)"
+- mutation: `blocks` `GUIDE_BLOCKS` missing-name check disabled (`printf ... "$gb" | grep -qx ... ||` -> `true ||`) -> red: `blocks` "does not flag a break (a name missing from GUIDE_BLOCKS)"
+- mutation: `blocks` `GUIDE_BLOCKS` extra-name check disabled -> red: `blocks` "does not flag a break (a name in GUIDE_BLOCKS that the guide lacks)"
+- mutation: `blocks` `block_closed ... ||` -> `true ||` -> red: `blocks` both unclosed-fence samples not flagged
+- mutation: guide U-229 sentence "writes no" -> "writes an" -> red: `u229` "docs/bridge-guide.md lacks the U-229 sentence" (AC 2, guide side)
+- mutation: guide `budget.capped` -> `budget` -> red: `reference` "the guide does not name `budget.capped`"
+- Test files changed (code review): `docker/tests/test-bridge-guide.sh`. `release/standalone-bridge.sh` not re-run: no marked block of the guide changed, and the job reads only the blocks.
 
 Standing criterion: every test added or changed passes on a fresh environment, in either order.
 
