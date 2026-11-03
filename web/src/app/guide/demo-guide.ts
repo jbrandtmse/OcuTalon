@@ -18,13 +18,14 @@ import { pendingRef, phoneOf, type PhoneSnapshot } from '../phone/phone-view';
 import { Announcer } from '../shared/announcer';
 import { DemoView } from '../shared/demo-view';
 import { type FocusRule, keepFocus } from '../shared/focus-rule';
-import { HEIGHT_QUERIES, LAYOUT_QUERIES } from '../shared/layout-view';
+import { Layout, RAIL_REGION } from '../shared/layout';
+import { HEIGHT_QUERIES, LAYOUT_QUERIES, LAYOUT_TEXTS } from '../shared/layout-view';
 import { Popovers } from '../shared/popover';
 import { ServerButton } from '../shared/server-button';
 import { readFlag, writeFlag } from '../shared/stored-flag';
 import { TraceLink } from '../shared/trace-link';
 import { conversationUrl, TRACE_TEXTS } from '../shared/trace-view';
-import { advance, followSelection, GUIDE_HIDDEN_FLAG, GUIDE_HIDDEN_KEY, GUIDE_SHOWN_FLAG, GUIDE_TEXTS, guideOf, guideView, type GuideSnapshot, type RunFormat } from './guide-view';
+import { advance, followSelection, GUIDE_HIDDEN_FLAG, GUIDE_HIDDEN_KEY, GUIDE_SHOWN_FLAG, GUIDE_TEXTS, guideOf, guideView, telegramRowOf, type GuideSnapshot, type RunFormat } from './guide-view';
 
 /** The attribute that marks the elements that focus may need to find again: the prompt bar's parts, the Hide and Show buttons and the box's Do step 1. */
 const FOCUS_KEY = 'data-guide-focus';
@@ -37,6 +38,12 @@ const STEP_MARK = 'data-guide-step';
 
 /** The prompt bar's action, its text and the bar itself, which take focus in that order when an advance replaces what held it. */
 const PROMPT_KEYS = ['action', 'text', 'bar'] as const;
+
+/** The Telegram row's Show me, which hands focus to the prompt bar (else the finish's first line) when it leaves. */
+const TELEGRAM_KEY = 'telegram';
+
+/** The id of the Telegram row's text, which its Show me is described by. */
+const TELEGRAM_TEXT_ID = 'guide-telegram-text';
 
 /** The finish state's first line and the parts that hand focus back to the prompt bar when the prompt bar replaces the finish. */
 const FINISH_KEY = 'finish';
@@ -56,7 +63,8 @@ const phoneMessage = (ref: string) => `app-simulated-phone .notification[data-ke
  * else the bar), else to the finish's first line. While the prompt bar shows step 3 (data-guide-step), a lost prompt part or finish
  * part hands focus to the box's Break the feed button instead, active or inactive; nothing is pressed. The finish's parts (its first
  * line, its links, the Try it yourself row and Run again) hand it to the prompt bar's parts in the same order when Run again brings the prompt bar back. Focus
- * anywhere else is never moved.
+ * anywhere else is never moved. The Telegram row's Show me hands it to the prompt bar, else to the finish's first line, when the band or the
+ * row takes the button away.
  */
 const FOCUS_RULE: FocusRule = {
   item: `[${FOCUS_KEY}]`,
@@ -68,6 +76,9 @@ const FOCUS_RULE: FocusRule = {
     }
     if (key === 'step1') {
       return host.querySelector<HTMLElement>(BREAK_FEED_BUTTON);
+    }
+    if (key === TELEGRAM_KEY) {
+      return find('bar') ?? find(FINISH_KEY);
     }
     if ((PROMPT_KEYS as readonly string[]).includes(key) || FINISH_PARTS.includes(key)) {
       const box = find('bar')?.getAttribute(STEP_MARK) === '3' ? host.querySelector<HTMLElement>(BREAK_FEED_BUTTON) : null;
@@ -107,6 +118,12 @@ const FOCUS_RULE: FocusRule = {
  * The selection follows the current step when it changes. Focus moves only when an update removed the element that held it
  * (shared/focus-rule.ts; step 3 has no button of its own, so the box's Break the feed button takes the focus that Send or Run again held)
  * or by the user's own action (Show me).
+ *
+ * The Telegram row (guide-view.ts telegramRowOf) shows only while the server's view says so. In the drawer band (1024 to 1279px, where the
+ * status rail starts closed) its hint names the header's Status button and a Show me follows it: it opens the drawer and focuses the
+ * rail, which holds the Telegram card (Layout.focusRegion; a second press keeps the drawer open). Elsewhere the row is the original
+ * line with no button. When that Show me leaves while it holds focus, focus goes to the prompt bar, or to the finish's first line when the
+ * finish replaced the bar.
  */
 @Component({
   selector: 'app-demo-guide',
@@ -181,8 +198,13 @@ const FOCUS_RULE: FocusRule = {
               </div>
             } @else {
               <div class="prompt" tabindex="-1" data-guide-focus="bar" [attr.data-guide-step]="guide.selected === 3 ? '3' : null">
-                @if (guide.telegramRow) {
-                  <p class="telegram">{{ texts.telegram }}</p>
+                @if (guide.telegram; as telegram) {
+                  <p class="telegram" [class.with-button]="telegram.showMe">
+                    <span [id]="telegramTextId">{{ telegram.text }}</span>
+                    @if (telegram.showMe) {
+                      <button type="button" class="button button-secondary" data-guide-focus="telegram" [attr.aria-describedby]="telegramTextId" (click)="showTelegram()">{{ texts.showMe }}</button>
+                    }
+                  </p>
                 }
                 @if (guide.prompt; as prompt) {
                   <div class="prompt-line">
@@ -374,6 +396,14 @@ const FOCUS_RULE: FocusRule = {
       font-size: var(--type-body-sm-font-size);
       line-height: var(--type-body-sm-line-height);
     }
+    .telegram.with-button {
+      display: flex;
+      align-items: center;
+      gap: var(--space-2);
+    }
+    .telegram .button {
+      flex: none;
+    }
     .next {
       flex: none;
       color: var(--ink-muted);
@@ -508,10 +538,12 @@ export class DemoGuide {
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injector = inject(Injector);
   private readonly popovers = inject(Popovers);
+  private readonly layout = inject(Layout);
 
   protected readonly texts = GUIDE_TEXTS;
   protected readonly trace = TRACE_TEXTS;
   protected readonly readme = README_URL;
+  protected readonly telegramTextId = TELEGRAM_TEXT_ID;
 
   /** The id of the reason that a Send prompt is described by while the message allowance is used up. */
   protected readonly reasonId = 'guide-allowance-reason';
@@ -549,7 +581,8 @@ export class DemoGuide {
     if (view === undefined || selected === undefined) {
       return undefined;
     }
-    return { ...guideView(view, selected, RUN_FORMAT), view, conversation: this.conversation() };
+    const telegram = telegramRowOf(view, this.layout.band() === 'drawer', LAYOUT_TEXTS.status);
+    return { ...guideView(view, selected, RUN_FORMAT), view, telegram, conversation: this.conversation() };
   });
 
   private last: GuideStatePayload | undefined;
@@ -608,6 +641,11 @@ export class DemoGuide {
       },
       { injector: this.injector },
     );
+  }
+
+  /** Telegram row's Show me: opens the status drawer when it is closed and focuses the rail, which holds the Telegram card. */
+  protected showTelegram(): void {
+    this.layout.focusRegion(RAIL_REGION);
   }
 
   /** Writes a marker and keeps its 200 answer as the guide view. A failure adds no text: a press of Open the trace writes it again. */

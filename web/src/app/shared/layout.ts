@@ -7,7 +7,7 @@ import { Popovers } from './popover';
 export type Band = 'wide' | 'reference' | 'drawer' | 'stacked';
 
 /** The status region, which is the rail, and the header's button that shows it in the drawer band. */
-const RAIL_REGION = 'section.rail';
+export const RAIL_REGION = 'section.rail';
 const STATUS_BUTTON = 'button.status-button';
 
 /**
@@ -18,7 +18,7 @@ const STATUS_BUTTON = 'button.status-button';
  *   inside the rail (a popover whose trigger is inside the rail counts), where it is open, so that focus survives the change.
  * - `focusRegion(selector)` focuses the region at once when it shows, and scrolls its top into view (below the sticky header, in the
  *   column). The rail in a closed drawer is opened first and focused after the next render, since it is not displayed until then. This
- *   is the user's own move: a skip link or the Status button.
+ *   is the user's own move: a skip link, the Status button or the demo guide's Telegram Show me.
  * - `toggleStatus()` opens the drawer and focuses the rail, or closes it. `closeDrawer()` closes it, and moves focus to the Status
  *   button when focus was inside the rail, so that it does not fall to the page.
  * The drawer pushes the chat aside; it is no overlay and no modal.

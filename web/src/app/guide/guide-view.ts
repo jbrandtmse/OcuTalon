@@ -11,6 +11,9 @@
  *   (promptOf: steps 1 and 2 send their prompt, step 3 sends the user to Break the feed or waits, step 4 shows the variant's text with
  *   Show me for a pair that can approve, step 5 opens the run's trace), the finish state that replaces the prompt bar once the view says
  *   `finished`, and the Telegram row.
+ * - telegramRowOf(view, drawer, status) is the Telegram row: undefined unless the server's view says `telegramRow`, else its text and
+ *   whether it carries a Show me. In the drawer band (where the status rail starts closed) the text names the header's Status button
+ *   and Show me opens the drawer; in every other band it is the original line with no button.
  * - runTotalText(run, format) is the finish state's run line; format hands in the page's token and cost formats (chat/decision-view.ts).
  * - advance(previous, next) is the announcement of an advance, or null; followSelection(previous, next, selected) is the selected step
  *   after an update.
@@ -58,6 +61,7 @@ export const GUIDE_TEXTS = {
   quoted: '"{text}"',
   send: 'Send',
   telegram: 'Optional: scan the QR code in the Telegram card to get the notice on your own phone.',
+  telegramDrawer: 'Optional: press {status} at the top of the page, then scan the QR code in the Telegram card to get the notice on your own phone.',
   stepCurrent: 'Step {n}, {label}, current',
   stepDone: 'Step {n}, {label}, done',
   stepUpcoming: 'Step {n}, {label}, upcoming',
@@ -191,6 +195,24 @@ export function promptOf(step: number, view: GuideStatePayload): PromptView | un
     default:
       return undefined;
   }
+}
+
+/** The Telegram row of the prompt bar: its text, and whether a Show me follows it. */
+export interface TelegramRowView {
+  text: string;
+  showMe: boolean;
+}
+
+/**
+ * The Telegram row for the server's view (AD-12: the row is the server's `telegramRow`; the page chooses only its wording). In the
+ * drawer band the text names the header's Status button, whose word `status` is handed in, and Show me follows it. Elsewhere the
+ * row is the original line with no button.
+ */
+export function telegramRowOf(view: { telegramRow?: boolean } | undefined, drawer: boolean, status: string): TelegramRowView | undefined {
+  if (view?.telegramRow !== true) {
+    return undefined;
+  }
+  return drawer ? { text: fill(GUIDE_TEXTS.telegramDrawer, { status }), showMe: true } : { text: GUIDE_TEXTS.telegram, showMe: false };
 }
 
 /** "{n} decision(s)" or "{n} token(s)": the singular at exactly 1. */
