@@ -1683,3 +1683,4 @@
 2026-11-03T21:25:28Z	Epic 12	ci_green_verified	runs=41716277722,41716277637 head=b4161594 result=success via=ci-gate
 2026-11-03T21:25:28Z	Epic 12	amendments_verified	amendments=0 extensions=3 ok=true note=integrated_forward(feature=75c23f0e,head=f2d99d1a);extensions_guide-view.ts+demo-guide.ts(Telegram_row_only),layout.ts(RAIL_REGION_export),ux-strings.test.mjs(ruled_entry)=plain_unions_with_Epic31;hint_text_matches_U-244;merge.cpf+after-start.sh+install.sh_unchanged;feature_75c23f0e_green(41708296988,41708296963)
 2026-11-03T21:25:28Z	Epic 12	merge_enqueued	story=12.10 rc1=yes(U-238)
+2026-11-03T21:25:48Z	Epic 12	decision_sheet_skipped	decided=0 to_action_items=0 to_x0=0 note=no_decisions_for_user;DW-642_burndown(born_routed);DW-503_untouched(U-238);U-238+U-244_resolved
