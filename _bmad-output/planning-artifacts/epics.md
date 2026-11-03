@@ -7583,6 +7583,23 @@ So that a tool call is answered in the web chat the same way as a fix.
 - DW-454: the web chat half: an old held tool call's result notice with its plain-English reason shows in the web chat too (W10; Story 31.5 delivered the phone, paired-chat and event half) (ledger; routed by adjudication 2026-11-02)
 - DW-601: the web card takes its first line and inputs from BridgeSink's ServerOf/InputsOf (made reachable), never a second implementation, so the phone and card texts cannot drift (ledger; routed by cr 2026-11-02)
 
+### Story 31.7: After an unpair, the Telegram card shows its fresh code without a gap
+
+[ADDED 2026-11-03, fix-forward from e75b90bc's T6 red, orchestrator unattended ruling, veto U-243: on the integrate-forward head e75b90bc (Epic 12 merged into Epic 31), web/e2e/demo-path/telegram-page.spec.ts T6 saw the unpaired view 8169 ms and 8063 ms after "Telegram unpaired" (bound 8000 ms), because Story 31.1's WebSocket delivers the pair and move events at once and the card's next code request waited for CODE_SPACING_MS (10 s) after the previous one; it runs before Story 31.3. web/src/app/rail/telegram-card/** (Epic 12's, Lane A) is a footprint extension for this story only]
+
+As a user who has just unpaired Telegram,
+I want the card's fresh pairing code ready when the five-second "Telegram unpaired" view ends,
+So that the card never goes blank between the two.
+
+**Acceptance Criteria:**
+
+**Given** a session whose Telegram pairing has just ended (an unpair, a /stop or a move to another session), and the card's previous code request less than CODE_SPACING_MS (10 s) ago
+**When** the card starts its new pairing round
+**Then** that round's first code request goes out at once, not after CODE_SPACING_MS, so the fresh code is ready when the 5 s "Telegram unpaired" view ends, with no blank card between them (UX-DR14)
+**And** only that one request is exempt, once per unpair: every other request keeps the 10 s spacing and the 30 s retry after a failure, unchanged
+**And** the card's own unit tests pin both: an unpair followed at once by a new round requests immediately; any other request inside 10 s still waits
+**And** T6 in `web/e2e/demo-path/telegram-page.spec.ts` passes with its bound unchanged (8000 ms, line 891); that spec is not edited, and nothing else in the card or the server changes
+
 ## Epic 32: CI gives a verdict in about ten minutes, even with both lanes pushing
 
 [AMENDED 2026-10-21, owner decision, relayed by the Contest Planner: a new epic, first in Lane B's order.] Each push's IRIS work is about 46 runner-minutes in five groups, and the `install` group alone takes about 14 minutes. With both lanes pushing, two runner services queue the jobs for up to 28 minutes, past REL-4's 35-minute budget. This epic shortens the longest job, and skips the IRIS groups a push can't affect. Together with the owner's larger CI host, a typical push gets its verdict in about ten minutes.

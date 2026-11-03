@@ -4,19 +4,24 @@
 
 ## Goal
 
-Finish the Lane B pieces that were moved off the demo path so that they ship in 1.0.0. Stories 31.1, 31.2, 31.5 and 31.6 are done: live events over a WebSocket on local installs, and tool-call approvals with Approve and Reject on the phone, the paired chat and the web chat. The remaining work in this dispatch is Story 31.3. It brings the README up to 1.0.0 so that a judge goes straight to the online demo or installs without help. It also adds the MIT licence and the screenshots, adds the About and finish-state links, adds a Telegram row for your own install, and turns on the Telegram test cases left switched off in Epic 16. Epic 31 merges for the first 1.0.0 candidate once 31.3 is done, with only 31.4 still in backlog. The candidate is not cut until 31.3 has merged.
+Finish the Lane B pieces that were moved off the demo path so that they ship in 1.0.0. Stories 31.1, 31.2, 31.5 and 31.6 are done: live events over a WebSocket on local installs, and tool-call approvals with Approve and Reject on the phone, the paired chat and the web chat. Two stories remain, in this order. Story 31.7 runs first: a fix-forward so that, after an unpair, the Telegram card's fresh pairing code is ready when the five-second "Telegram unpaired" view ends. Story 31.1's WebSocket now delivers the pair and move events at once, so the card's next code request waited out its 10 s spacing and the card went blank, which turned the demo-path spec's T6 red on the integrate-forward head. Story 31.3 follows. It brings the README up to 1.0.0 so that a judge goes straight to the online demo or installs without help. It also adds the MIT licence and the screenshots, adds the About and finish-state links, adds a Telegram row for your own install, and turns on the Telegram test cases left switched off in Epic 16. Epic 31 merges for the first 1.0.0 candidate once 31.7 and 31.3 are done, with only 31.4 still in backlog. The candidate is not cut until 31.3 has merged.
 
 ## Stories
 
 - Story 31.1: Push live events over a WebSocket on local installs (done)
 - Story 31.2: A tool call's approval request reaches the phone with Approve and Reject (part 1) (done)
-- Story 31.3: The README leads to the demo, and the launched demo is measured (this dispatch)
+- Story 31.3: The README leads to the demo, and the launched demo is measured (after 31.7)
 - Story 31.4: The paired chat stays isolated under load too (backlog until after the v1.0.0 tag)
 - Story 31.5: A tool call's approval request reaches the phone with Approve and Reject (notices) (done)
 - Story 31.6: A tool call's approval request appears in the web chat with Approve and Reject (card) (done)
+- Story 31.7: After an unpair, the Telegram card shows its fresh code without a gap (runs first)
 
 ## Requirements & Constraints
 
+- **Story 31.7, the unpair code request:** when a session's Telegram pairing has just ended (an unpair from the page, a /stop, or a move to another session) and the card's previous code request was less than `CODE_SPACING_MS` (10 s) ago, the new pairing round's first code request goes out at once. The fresh code must be ready when the 5 s "Telegram unpaired" view ends, with no blank card between them.
+- **Only that one request is exempt, once per unpair.** Every other code request keeps the 10 s spacing and the 30 s retry after a failure, unchanged.
+- **31.7 tests:** the card's own unit tests pin both cases: an unpair followed at once by a new round requests immediately, and any other request inside 10 s still waits. T6 in `web/e2e/demo-path/telegram-page.spec.ts` passes with its 8000 ms bound unchanged; that spec is not edited. Nothing else in the card or the server changes.
+- **Pairing codes (unchanged by 31.7):** a code works once, expires 10 minutes after it is shown, and is replaced on the page when it expires or is used. The plaintext appears only in the HTTP response, never in a log, live event or audit entry.
 - **Top of the README:** "Try it in two minutes" comes first. It has the online demo link and a note that the sign-in details are on the splash screen. It names the read-only Visual Trace account and says that trace links on the demo open Visual Trace without a second sign-in. Keep release 1's top section (What's interesting, the contest-task table and the video link) and update it for what 1.0.0 adds.
 - **Full README list:** the attention decision and its four outcomes; the early-access image and build, where to get it, and which file to pick for your CPU; the load and retag steps; `ANTHROPIC_API_KEY` and the other providers; the commands to start OcuTalon and check it; the web app and read-only accounts; optional Telegram. Claim only what 1.0.0 ships.
 - **IPM install section,** taken from `docs/install-ipm.md`: the registry install comes first (the community-registry line, then `zpm "install ocutalon"`), and load-from-folder second, for developers, in the same order as the IPM guide.
@@ -34,6 +39,7 @@ Finish the Lane B pieces that were moved off the demo path so that they ship in 
 
 ## Technical Decisions
 
+- **31.7 footprint:** `web/src/app/rail/telegram-card/**` belongs to Epic 12 (Lane A); it is a footprint extension for Story 31.7 only, ruled under veto U-243. Story 31.3 does not touch the card.
 - **Lane ownership:** the README, `docker/`, `ci/` and the install script are Lane B's. The README's Telegram section (`#telegram`), `docs/bridge-guide.md`, `docs/security-overview.md`, `docs/install-ipm.md`, the rail's Telegram card and the `telegram-*.spec.ts` files are Lane A's. Link to them and don't rewrite them. There are two exceptions: the two build-109 sentences, and the two ruled lines in `docs/security-overview.md` that say what an approval request shows (U-242; the exact text is in the story spec). Leave every other line of those files untouched.
 - **README links:** there is one address, `https://github.com/jbrandtmse/OcuTalon#readme`, defined once as `README_URL` in `web/src/app/links.ts`. A link to a section replaces `#readme` with that section's anchor.
 - **Telegram switch:** `Telegram.In.Included()` is on since Epic 12, so the README test's guard that refused the word "Telegram" no longer fires, and `#telegram` must resolve. The test also checks the Telegram section, its strings, its facts and the demo-text rule.
@@ -41,12 +47,14 @@ Finish the Lane B pieces that were moved off the demo path so that they ship in 
 
 ## UX & Interaction Patterns
 
+- **Telegram card, just unpaired:** after Unpair, /stop, the paired chat pairing with another session, or another chat pairing with this session, the card shows "Telegram unpaired" for 5 seconds, then a fresh QR code. Updates reach the page within 2 s.
 - **About dialog:** gains the bridge developer guide and security overview links, which go after the README link and before the credits and the not-affiliated note.
 - **Demo guide finish state:** gains "Use the same bridge in your own production ↗". The ↗ is hidden from screen readers, and the link's name says it opens a new tab. Both use the paths from Stories 13.3 and 14.2, which have merged.
 
 ## Cross-Story Dependencies
 
+- Story 31.7 runs before Story 31.3. It fixes a red caused by Story 31.1's WebSocket meeting Epic 12's Telegram card on the integrate-forward head (Epic 12 merged into Epic 31).
 - Epics 10, 12, 13, 14 and 15 have merged and been integrated into this branch, so Telegram, the guide paths and `docs/install-ipm.md` are all present.
 - Story 12.10, the Telegram step in narrower windows, re-opens Epic 12 on another runner. Story 31.3 does not build it.
 - Story 31.4 stays in backlog. It re-opens Epic 31 after the v1.0.0 tag, along with its ledger items. Until then, host configuration keeps Telegram pairing off on the public demo.
-- The epic merge requires 31.1, 31.2, 31.3, 31.5 and 31.6 to be done. Stories 39.5 and 41.5 wait for Epic 31 to merge.
+- The epic merge requires 31.1, 31.2, 31.3, 31.5, 31.6 and 31.7 to be done. Stories 39.5 and 41.5 wait for Epic 31 to merge.
