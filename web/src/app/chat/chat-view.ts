@@ -7,7 +7,7 @@
  * - chatView lists the store's chat.message entries (turns), its incident entries (incident cards, one per Ref) and its notification
  *   entries of the kinds tellnow, reminder, allowance, and approval or result with an approvalRef (notices) in store order, then the page's own messages that the store does not hold
  *   yet, in send order. A local message is gone as soon as the store holds a chat.message with its clientId, whatever its status
- *   was. A notification of any other kind renders nothing (Stories 6.x and 16.x); the incident kinds with no approvalRef are the incident card's.
+ *   was. A notification of any other kind renders nothing (Stories 6.x and 16.x): the kinds incident and answered, and approval or result with no approvalRef, are the incident card's.
  *   liveRequest says which notice of a tool call's request is drawn as a live approval request card.
  * - An incident entry carries the store's payload as it is, keyed incident:<ref>, the store's key of the entry; the card
  *   (incidents/incident-view.ts) turns it into what it draws.

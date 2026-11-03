@@ -14,8 +14,8 @@
 ///     rendered for the web, with " ET" on the online demo, recorded with no fallback reason and published as one notification event;
 ///   - TestToolCallCards (Story 31.6): a tool call's request, result and held-call reason (the five Core.BridgeSink keys, kind approval or
 ///     result, with an ApprovalRef) are cards: rendered for the web, recorded with a ChannelMessageId and the ApprovalRef, published as
-///     one notification event and in RecentNotices; a toolCall key with no ApprovalRef, the kind answered and a fix's request
-///     (incident.laterRequest) record their Delivery row only;
+///     one notification event and in RecentNotices; a toolCall key with no ApprovalRef, the kind answered, a fix's request
+///     (incident.laterRequest) and a fix's result (result.allThrough) record their Delivery row only;
 ///   - TestOtherKindsRecordOnly: any other kind records its Delivery row, with no text and no event;
 ///   - TestReplyRecordsItsDeliveryOnly: a reply records its Delivery row for the web, with its DecisionRef and no event;
 ///   - TestRenderErrorRecordsNothing: a text that cannot be rendered is an error with no row and no event;
@@ -181,8 +181,9 @@ Method TestIncidentKindsRecordOnly()
 /// reason), is rendered for the web, recorded with a new ChannelMessageId, the ApprovalRef, the kind and the DecisionRef, published
 /// as one notification event whose payload carries the approvalRef and the text, and listed in RecentNotices. These record their
 /// Delivery row only, with no text, no message id and no event, and are not in RecentNotices: a toolCall.request with no
-/// ApprovalRef, the kind answered with answered.approved and an ApprovalRef, and a fix's request (kind approval, incident.laterRequest,
-/// an ApprovalRef). The times are the catalog's HH:MM on the local date, with the online demo off.
+/// ApprovalRef, the kind answered with answered.approved and an ApprovalRef, a fix's request (kind approval, incident.laterRequest,
+/// an ApprovalRef), a toolCall.done with no ApprovalRef, and a fix's result (kind result, result.allThrough, an ApprovalRef). The
+/// times are the catalog's HH:MM on the local date, with the online demo off.
 Method TestToolCallCards()
 {
 	Set session = ..Session("toolcall")
@@ -227,7 +228,9 @@ Method TestToolCallCards()
 	Set fix = ..Notification(quiet, "approval", "incident.laterRequest", {"zz": "slot"})
 	Set fix.ApprovalRef = "ZzToolFix"
 	Set resultNoRef = ..Notification(quiet, "result", "toolCall.done", {"tool": "zz_send", "time": (now)})
-	For notification = noRef, answered, fix, resultNoRef {
+	Set fixResult = ..Notification(quiet, "result", "result.allThrough", {"zz": "slot"})
+	Set fixResult.ApprovalRef = "ZzToolFixResult"
+	For notification = noRef, answered, fix, resultNoRef, fixResult {
 		Set before = ..Rows(quiet)
 		Do $$$AssertStatusOK(..Out().OnNotification(notification, .response), notification.CatalogKey_" (kind "_notification.Kind_"): delivered")
 		Do $$$AssertEquals(..Rows(quiet), before + 1, notification.CatalogKey_": one row is recorded")

@@ -150,7 +150,8 @@ describe('a tool call\'s request text', () => {
     const view = approvalView({ ...tool, state: 'approved', answeredBy: 'dana', answeredChannel: 'web', answeredAt: '2026-10-28T14:00:00Z' }, ctx(), REQUEST);
     assert.equal(view.action, REQUEST);
     assert.equal(view.approveName, 'Approve: run zz_send on ops-mcp');
-    assert.notEqual(view.status, undefined);
+    assert.deepEqual(view.status, { text: 'Approved by dana from the web chat at 14:00', tone: 'approved', icon: 'circle-check' });
+    assert.equal(view.pending, false);
   });
 
   it('is ignored when empty: the title of the rail', () => {

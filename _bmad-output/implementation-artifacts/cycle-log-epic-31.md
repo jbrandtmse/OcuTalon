@@ -218,3 +218,6 @@
 2026-11-03T03:33:29Z	Story 31.6	stage_spawned	stage=code-review spawn_at=2026-11-03T03:33:29Z model=claude-opus-5-5 agent_name=31-6-code-review-1 cycle_iteration=1
 2026-11-03T04:02:23Z	Story 31.6	cr_complete	spawn_at=2026-11-03T03:33:29Z model=claude-opus-5-5 resolved=9(7_patched,1_mutation_line) wontfix_accepted=1(DW-611) routed=0 escalated=0 decision_pending=0 dismissed=11 high=0 med=2 low=14 rows=22 unresolved_high_med=0 clarifications=0 closing_sections_present=true review_tier=full-opus status=done cycle_iteration=1 note=med:card_clock_frozen(patched),X13_step4_late-change(patched)
 2026-11-03T04:02:23Z	Story 31.6	ledger_adjudicated	owned=3 resolved=3(DW-454_web_half,DW-601,DW-610) reowned=0 terminal=0 model=claude-opus-5-5
+2026-11-03T04:18:31Z	Story 31.6	smoke_complete	method=browser result=pass iterations=1 defects_caught=0 env=throwaway(tag=e31s6smk,lane-c,fresh,port_52803) evidence=live_answers_23/23(X13_web_card,C1-C10,X1-X12) model=claude-opus-5-5
+2026-11-03T04:18:31Z	Story 31.6	fresh_check	env=recipe(ci/iris.sh_shard_lane-b@Core,Data_fresh) tests=43_classes_fwd(312s)+43_reversed(312s) result=pass order=forward,reverse teardown=clean note=web_units_1272_in_CR
+2026-11-03T04:18:31Z	Epic 31	slot_loaded	server=ocutalon-slot-c namespace=OCUTALON files=5(31.6_classes) compile=ok

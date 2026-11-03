@@ -313,8 +313,14 @@ export class ChatPanel {
   /** The signed-in user, from the snapshot: an incident card's request cards name another user's answer on a local install. */
   protected readonly user = computed(() => this.live.snapshot()?.user ?? '');
 
-  /** The context of a tool call's request card: the page's clock, zone and user (as an incident card's). */
-  protected readonly approvalCtx = computed(() => approvalContext(Date.now(), this.instanceZone(), this.onlineDemo(), this.user()));
+  /**
+   * The context of a tool call's request card: the page's clock as of the live store's last change (so a card raised hours after the
+   * page opened reads its expiry against the time it arrived), and the zone and user, as an incident card's.
+   */
+  protected readonly approvalCtx = computed(() => {
+    this.live.store();
+    return approvalContext(Date.now(), this.instanceZone(), this.onlineDemo(), this.user());
+  });
 
   /** The store's approval payload of a notice that is a live tool-call request, else undefined (it is then a plain notice). */
   protected requestOf(entry: ChatEntryView): ApprovalPayload | undefined {

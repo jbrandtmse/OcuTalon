@@ -13,7 +13,9 @@
 ///   - TestRejectedAndExpiredEditInPlace: a rejected call gets the render of answered.rejected and an expired one the render of
 ///     answered.expired in the request's message, and neither adds a message.
 ///   - TestHeldReasonReachesTheWebChat (DW-454): an old held call closed by Decide with the bridge's sentence reaches the web chat as
-///     a result card with the sentence, the Decision's Ref as DecisionRef and no request.
+///     a result card with the sentence, the Decision's Ref as DecisionRef and no request;
+///   - TestHeldRawReasonIsNeverShownInTheWebChat (QA): the same for a Decision whose first line is not the bridge's sentence: the
+///     toolCall.failed card with the Decision's Ref, and none of the raw line.
 /// Each test makes its own sessions and removes its rows (Test.Bridge.Approval Clean ends the holds and deletes the requests).
 Class OcuTalon.Test.Core.ToolCallNotices Extends OcuTalon.Test.Core.InProduction
 {
@@ -101,17 +103,26 @@ Method TestHeldReasonReachesTheWebChat()
 	If '..Ready() Quit
 	Set session = ..Session("heldweb")
 	Set sentence = $Parameter("OcuTalon.Bridge.Process.Decide", "HELDBEFOREUPDATE")
-	Set finishedAt = ##class(OcuTalon.Data.Time).NowUtc()
-	Set row = ##class(OcuTalon.Test.Data.Fixture).Approval(session, , "failed", , {"Kind": "tool_call", "ToolName": "zz_send", "ToolArguments": ("{""to"":""ops""}"), "ToolSource": "", "Runner": "ChatAgent", "DryRun": "", "Result": "failed", "FinishedAt": (finishedAt)})
-	Set decision = ##class(OcuTalon.Test.Data.Fixture).Decision(session, "tool", , {"ItemId": (row), "Fallback": 1, "FallbackReason": "error", "Reasons": (sentence)})
-	Set ..Refs = ..Refs_","_row_","_decision
-	Do $$$AssertStatusOK(##class(OcuTalon.Core.BridgeSink).OnEvent("decision.recorded", session, {"ref": (decision)}), "decision.recorded is handled")
-	Set web = ..WaitWebRow(session, "result", 1)
-	Do $$$AssertTrue($IsObject(web), "the web chat gets a row of kind result within "_..#WAIT_" seconds: "_..Facts(row, session))
+	Set web = ..HeldWebRow(session, sentence, .row, .decision, .finishedAt)
 	If '$IsObject(web) Quit
 	Do $$$AssertEquals(web.DecisionRef_"|"_web.ApprovalRef, decision_"|"_row, "it carries the Decision's Ref and the request's Ref")
 	Do $$$AssertEquals(web.Text, ..Render("toolCall.failedWithReason", {"tool": "zz_send", "reason": (sentence)}, "web"), "and the web render of toolCall.failedWithReason")
 	Do $$$AssertEquals(web.Text, "zz_send didn't run. "_sentence, "which is the tool and the bridge's sentence")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).RecentNotices(session, 10).Count(), 1, "it is the one card of the web chat")
+}
+
+/// DW-454, the web half, raw-reason case (QA): an old held call closed with a first Reasons line that is not one of the bridge's
+/// sentences gets the one toolCall.failed result card in the web chat, with the Decision's Ref as DecisionRef, and never the raw line.
+Method TestHeldRawReasonIsNeverShownInTheWebChat()
+{
+	If '..Ready() Quit
+	Set session = ..Session("heldraw")
+	Set raw = "zzraw <UNDEFINED> ^ZzSecret(1) at line 7"
+	Set web = ..HeldWebRow(session, raw, .row, .decision, .finishedAt)
+	If '$IsObject(web) Quit
+	Do $$$AssertEquals(web.DecisionRef_"|"_web.ApprovalRef, decision_"|"_row, "it carries the Decision's Ref and the request's Ref")
+	Do $$$AssertEquals(web.Text, ..Render("toolCall.failed", {"tool": "zz_send", "time": (finishedAt)}, "web"), "and the web render of toolCall.failed")
+	Do $$$AssertEquals($Find(web.Text, "zzraw")_"|"_$Find(web.Text, "ZzSecret")_"|"_$Find(web.Text, "UNDEFINED"), "0|0|0", "with none of the raw line")
 	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).RecentNotices(session, 10).Count(), 1, "it is the one card of the web chat")
 }
 
@@ -295,6 +306,22 @@ Method PhoneCount(session As %String) As %Integer [ Private ]
 	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Data.SimMessage WHERE SessionRef = ?", session)
 	Do result.%Next()
 	Quit +result.%GetData(1)
+}
+
+/// An old held call of the session (a failed tool_call row with no ToolSource) and a fallback Decision of it whose Reasons are reasons,
+/// both kept for the clean-up; sends their decision.recorded to the bridge sink and returns the web chat's result card of it, polled
+/// up to WAIT seconds, or "" (the test fails) when none arrives. row, decision and finishedAt are the request's Ref, the Decision's
+/// Ref and the request's FinishedAt.
+Method HeldWebRow(session As %String, reasons As %String, Output row As %String, Output decision As %String, Output finishedAt As %String) As OcuTalon.Data.Delivery [ Private ]
+{
+	Set finishedAt = ##class(OcuTalon.Data.Time).NowUtc()
+	Set row = ##class(OcuTalon.Test.Data.Fixture).Approval(session, , "failed", , {"Kind": "tool_call", "ToolName": "zz_send", "ToolArguments": ("{""to"":""ops""}"), "ToolSource": "", "Runner": "ChatAgent", "DryRun": "", "Result": "failed", "FinishedAt": (finishedAt)})
+	Set decision = ##class(OcuTalon.Test.Data.Fixture).Decision(session, "tool", , {"ItemId": (row), "Fallback": 1, "FallbackReason": "error", "Reasons": (reasons)})
+	Set ..Refs = ..Refs_","_row_","_decision
+	Do $$$AssertStatusOK(##class(OcuTalon.Core.BridgeSink).OnEvent("decision.recorded", session, {"ref": (decision)}), "decision.recorded is handled")
+	Set web = ..WaitWebRow(session, "result", 1)
+	Do $$$AssertTrue($IsObject(web), "the web chat gets a row of kind result within "_..#WAIT_" seconds: "_..Facts(row, session))
+	Quit web
 }
 
 /// The newest web Delivery row of the session of the kind that has a ChannelMessageId (card 1) or none (card 0), polled up to WAIT

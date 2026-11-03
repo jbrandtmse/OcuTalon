@@ -993,6 +993,12 @@ test("X13: a tool call's request is a card in the web chat with the phone's text
     await sinkEvent(user, 'approval.raised', { ref: second });
     const secondCard = requestCard(page, second);
     await expect(secondCard, 'a second request is a card too').toHaveCount(1, { timeout: CARD_MS });
+    await expect
+      .poll(async () => (await phoneMessage(user, second))?.text ?? '', { message: 'the phone has the second request', timeout: CARD_MS })
+      .not.toBe('');
+    // Both copies have now taken an event sent after the refused answer, so a change that the refusal set off would show here.
+    await expect(card.locator('p.status'), "the first card's status is still the first answer's").toHaveText(`Approved from the web chat at ${pageHhmm(answeredAt)}`);
+    expect(await phoneMessage(user, request).then((one) => one?.answer), "and so is the phone's line").toBe(`Approved from the web chat at ${hhmm(answeredAt)}.`);
     expect(await answerQuietly(user, second, 'approve', 'phone'), 'the phone answers it first').toBe('done');
     await sinkEvent(user, 'approval.answered', { ref: second });
     const answeredSecond = await readApproval(second);
@@ -1004,14 +1010,17 @@ test("X13: a tool call's request is a card in the web chat with the phone's text
     await sinkEvent(user, 'approval.result', { ref: request });
     const ran = `${tool} ran once at ${hhmm(finishedAt)}.`;
     const chat = page.locator('app-chat-panel');
+    /** The places of the request and of its result among the chat's notices, -1 when absent. */
+    const orderOf = (): Promise<number[]> =>
+      chat.locator('[data-part="notice"]').evaluateAll((nodes, args) => {
+        const at = (needle: string): number => nodes.findIndex((node) => (node.textContent ?? '').includes(needle));
+        return [at(args.first), at(args.last)];
+      }, { first: `Run ${tool} on zzx13`, last: ran });
     const result = chat.locator('[data-part="notice"]').filter({ hasText: ran });
     await expect(result, 'the result is a new notice').toHaveCount(1, { timeout: CARD_MS });
     await expect(result.getByRole('button'), 'with no button').toHaveCount(0);
     await expect(card.locator('p.status'), 'and the card keeps its status').toHaveText(`Approved from the web chat at ${pageHhmm(answeredAt)}`);
-    const order = await chat.locator('[data-part="notice"]').evaluateAll((nodes, args) => {
-      const at = (needle: string): number => nodes.findIndex((node) => (node.textContent ?? '').includes(needle));
-      return [at(args.first), at(args.last)];
-    }, { first: `Run ${tool} on zzx13`, last: ran });
+    const order = await orderOf();
     expect(order[0], 'the card is in the list').toBeGreaterThanOrEqual(0);
     expect(order[1], 'and the result follows it').toBeGreaterThan(order[0] ?? 0);
 
@@ -1038,7 +1047,10 @@ test("X13: a tool call's request is a card in the web chat with the phone's text
     const bar = await plain.locator('.notice').evaluate((node) => getComputedStyle(node).borderInlineStartColor);
     expect(bar, "its bar is not the request card's pending colour").not.toBe(colours.pending);
     expect(bar, "and not the tell-now bar's").not.toBe(colours.tellNow);
-    await expect(chat.locator('app-notice-card').filter({ hasText: ran }), 'its result notice follows it').toHaveCount(1);
+    await expect(chat.locator('app-notice-card').filter({ hasText: ran }), 'its result notice is there').toHaveCount(1);
+    const reloaded = await orderOf();
+    expect(reloaded[0], 'the request is in the list after the reload').toBeGreaterThanOrEqual(0);
+    expect(reloaded[1], 'and its result follows it').toBeGreaterThan(reloaded[0] ?? 0);
 
     const third = await seedRequest(`${tool}c`);
     await sinkEvent(user, 'approval.raised', { ref: third });

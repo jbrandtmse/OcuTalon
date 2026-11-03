@@ -199,6 +199,33 @@ Browser (Rule 3):
 - Given a fix's request, or any notice outside the five tool-call keys, when it reaches WebChatOut, then nothing changes: the fix keeps its card inside the incident card (`TestIncidentKindsRecordOnly`, `live cards` and `live floor` unchanged).
 - Given the demo path, when `live:demo-path` runs, then it passes unchanged: UJ-1 has no tool call.
 
+### Review Findings
+
+Code review of 2026-11-02 (four layers, full-opus; 22 layer rows, one reviewer check; 20 entries: high 0, medium 2, low 14, false 4).
+
+- [x] [Review][Patch] The chat panel's tool-call card context kept the page-load clock, so a card raised hours later read its expiry ("Monday at ...") against a stale now [web/src/app/chat/chat-panel.ts:316] (medium; blind-hunter+verification-gap) -- `approvalCtx` now re-reads `Date.now()` at every live-store change; pinned in `approval-sources.test.mjs`
+- [x] [Review][Patch] X13 step 4's "no copy changes" checks resolved at once and could not see a change that lands after the refused answer [web/e2e/answers/answers.spec.ts:996] (medium; verification-gap) -- both copies are re-checked after the second request's card and phone message, an event sent after the refusal
+- [x] [Review][Patch] `TestToolCallCards` had no fix result in its record-only set, so a key check skipped for kind result went unseen [src/ocutalon/cls/OcuTalon/Test/Core/WebChatOut.cls:230] (low; blind-hunter) -- a fix's result (kind result, `result.allThrough`, an ApprovalRef) added
+- [x] [Review][Patch] The answered request-text case in `approval-view.test.mjs` only asserted that a status exists [web/scripts/approval-view.test.mjs:153] (low; blind-hunter) -- asserts the status text, tone, icon and `pending` false
+- [x] [Review][Patch] `chat-view.ts`'s header said the incident kinds with no approvalRef are the incident card's, implying incident and answered notices with one are shown [web/src/app/chat/chat-view.ts:10] (low; blind-hunter) -- corrected
+- [x] [Review][Patch] X13 step 6 did not assert that the result follows the request after the reload (AC 4, matrix row) [web/e2e/answers/answers.spec.ts:1051] (low; acceptance-auditor) -- the order is asserted after the reload with the step 5 helper, now shared (`orderOf`)
+- [x] [Review][Patch] `TestHeldRawReasonIsNeverShownInTheWebChat` repeated nine setup lines of `TestHeldReasonReachesTheWebChat` (Rule 2) [src/ocutalon/cls/OcuTalon/Test/Core/ToolCallNotices.cls:101] (low; reviewer) -- both call one private `HeldWebRow`
+- [x] [Review][Patch] AC 7 had no `mutation:` line [spec ## Verification] (low; verification-gap) -- applied and recorded below (demo-path stayed green; AC 7 is a non-regression check)
+- [x] [Review][Defer] The rail row of a tool call is titled "Run {tool}" with no server and has no Show in chat jump, beside the card's "Run {tool} on {server}" [web/src/app/rail/rail-view.ts:174] -- deferred: out of footprint, cosmetic; DW-611 `wontfix-accepted` with `reopen_if`
+
+**Rejected**
+- low (blind, edge): `ToolCallCard` does not pair request keys with kind approval and result keys with kind result -- `BridgeSink` is the only sender and always pairs them (`Compose(..#APPROVALKIND, ...)`, `Compose(..#RESULTKIND, ...)`); the spec's rule is exactly kind-or-kind plus key; theoretical.
+- false (blind): the two held-call tests skip `..Guard()` -- `Ready()` calls `RunnerFixture.ReadyReason`, whose `RunningReason` fails unless `OcuTalon.Production` itself runs, plus the CI guard and every item running; a superset of `Guard`.
+- low (blind): no web-side test for a rejected or expired tool call -- the answered notice's record-only row is pinned in `TestToolCallCards` and `TestApprovedCallReachesThePhone`; Reject and expiry on the card are the existing card's (Story 6.2).
+- low (blind, acceptance): the request is announced as its whole text, inputs line included, and DW-610's records disagree -- spoken once, as every reminder and allowance notice is, and a screen-reader user hears what a sighted user reads before approving; the records are tracking (DW-610 is adjudicated at `ledger_adjudicated` with QA's six cases as evidence).
+- spec-bound (blind): X13 checks the plain notice's bar only against the pending and tell-now colours -- that is step 6's wording; the info bar is pinned in the styles by `approval-sources.test.mjs`.
+- low (edge): focus inside an answered card falls to the page when a skipped Seq rebuilds the store -- needs a snapshot reload while focus sits in an answered card; the fix is new focus logic.
+- false (edge): an empty first line names the buttons "Approve: " -- every request key's text starts with "Run" (catalog `text`, no `web` form).
+- false (edge): the result texts are claimed equal to the phone's -- the code and spec claim equality for the request only.
+- false (verification-gap): AC 2's clauses each need a mutation -- Rule 19 asks one per AC; AC 2's (step 4b) is recorded.
+- low (acceptance): `overflow-wrap: anywhere` on the shared `.action` reaches fix cards -- only a long unbroken token wraps instead of overflowing; `live cards` passed.
+- low (acceptance): QA's `chat-announcements.test.mjs` is outside the declared footprint and the Auto Run Result's file list omits QA's files -- tracking for the lead's completion contract; no contended epic owns the file.
+
 ## Spec Change Log
 
 ## Review Triage Log
@@ -361,6 +388,23 @@ Every test added or changed passes on a fresh environment, in either order.
 - **AC 5:** mutation: take `KEYFAILEDWHY` out of `ToolCallCard` → `TestToolCallCards` red (`toolCall.failedWithReason`). `ToolCallNotices.TestHeldReasonReachesTheWebChat` went red under the fresh-stack mutation of AC 1; a mutation of this one key is not seen by it on a warm stack, because the production's running hosts keep the code they started with.
 - **AC 6:** mutation: replace the key check of `ToolCallCard` with `Quit 1` → `TestToolCallCards` red on the fix's `incident.laterRequest` (kind `approval` with an ApprovalRef; the existing `TestIncidentKindsRecordOnly` goes red too).
 - **AC 7:** none (the existing unit, unchanged).
+
+**QA additions (QA)** (gap-filling tests; each mutation observed red, reverted byte-identical, `git diff --stat` unchanged):
+- Files created or extended by QA (no new file; all join their area's default run): `web/scripts/chat-announcements.test.mjs` (new `describe` for DW-610), `web/scripts/approval-sources.test.mjs` (new `describe` pinning the chat panel's request branch and the plain notice's lack of pending cues), `src/ocutalon/cls/OcuTalon/Test/Data/Ownership.cls` (`TestRecentNoticesToolCallCardsStayWithTheirSession`), `src/ocutalon/cls/OcuTalon/Test/Core/ToolCallNotices.cls` (`TestHeldRawReasonIsNeverShownInTheWebChat`).
+- **AC 1 (QA):** mutation: `approvalView` ignores the request text (action back to 'Run {tool}.') -> `approval-view.test.mjs` "is the action, and its first line names both buttons, while pending" red; mutation: drop the card's `[request]="entry.text"` binding -> `approval-sources.test.mjs` "draws the request card for a notice the store holds a payload for" red (the browser X13 step 2 was the only pin before).
+- **AC 3 (QA):** mutation: `noticeOf` takes kind `approval` only (not `result`) -> `chat-view.test.mjs` "shows a tool call's request and result ... as notices" red.
+- **AC 4 / U-222 (QA):** mutation: `liveRequest` returns a pending stand-in for a payload the store lacks -> `chat-view.test.mjs` `liveRequest` "gives undefined for a request the store does not hold" red; mutation: add `[class.pending]` to the plain notice card -> `approval-sources.test.mjs` "gives the plain notice no pending cue" red.
+- **Reload while pending (QA, matrix row, no longer shared with the mutations above):** mutation: the panel passes `{}` instead of the live store's approvals to `liveRequest` -> `approval-sources.test.mjs` "asks the store for the payload" red.
+- **Other-session rows (QA):** mutation: `recentNotices` statement `OwnerRef = ?` becomes `(OwnerRef = ? OR 1 = 1)` -> `Test.Data.Ownership.TestRecentNoticesToolCallCardsStayWithTheirSession` red (and `TestRecentNotices`, `TestIsolationEveryRowKind`).
+- **AC 5 / DW-454, raw-reason row (QA):** mutation: take `KEYFAILED` out of `ToolCallCard` -> `Test.Core.ToolCallNotices.TestHeldRawReasonIsNeverShownInTheWebChat` red on a fresh stack ("the web chat gets a row of kind result"); it asserts the web render of `toolCall.failed`, the DecisionRef and none of the raw line. Warm stack: the production hosts keep started code, so this class runs fresh only.
+- **DW-610 (QA, closed):** `chat-announcements.test.mjs` pins that a tool call's request notice is announced as its whole text (trimmed, line breaks kept, no "Tell now:"), a result as its text, each once (not at the next look, not when edited in place, not at the first look or reload), in the chat's order, and nothing for a notice with no approvalRef. mutation: the generic branch speaks `firstSentence(entry.text)` -> four cases red. Finding: the request is spoken once (the request card announces nothing when it appears, only its status when the store answers it), but it is spoken in full (inputs line and "Approving runs exactly this call once." included); see the QA report.
+
+**Code review additions (CR)** (each mutation observed red unless stated, reverted byte-identical with `cmp` against a saved copy):
+- **AC 7:** mutation: `ToolCallCard` returns 1 for any kind approval or result with an ApprovalRef (a fix's notices become chat cards) -> `live demo-path` stayed green (20 passed, 8 of 8 steps). AC 7 is a non-regression check: nothing this story changed is reachable from UJ-1, which has no tool call; the fix-notice leak is pinned by AC 6's `TestToolCallCards` and `TestIncidentKindsRecordOnly`.
+- **AC 6 (CR):** mutation: `ToolCallCard` returns 1 for kind result before the key check -> `Test.Core.WebChatOut.TestToolCallCards` red on `result.allThrough` (and `TestIncidentKindsRecordOnly`).
+- **Card clock (CR):** mutation: `approvalCtx` no longer reads the live store -> `approval-sources.test.mjs` "reads the clock of the card's context again at every change of the live store" red.
+- **X13 step 4 re-check (CR):** no mutation applied: a refused answer that still changes a copy would have to come from the answer API (`Web/Api.cls`, Never list) or `Bridge.Approval` (Lane A, read only). AC 2 keeps its mutation (step 4b).
+- Runs after the patches: `npm --prefix web test` 1272 pass, `npm --prefix web run lint` exit 0; warm `Test.Core.WebChatOut` and `Test.Core.ToolCallNotices` passed; `ci/iris.sh build` and `live answers` 23 passed (X1-X13, C1-C10).
 
 **Manual checks:**
 - `git status --short` shows no path from the Never list, and no change to `BridgeSink.cls`, `Msg/Catalog/Core.cls`, `Test/Msg/Catalog.cls`, `web/src/app/live/**`, `api-types.ts`, `catalog.ts` or `ux-strings.test.mjs`.
