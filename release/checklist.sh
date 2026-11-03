@@ -36,6 +36,9 @@
 # with <id> one of no-copied-code, no-artwork, no-ai-hub-copy, public-review, public-links, overview-review and demo-protections. A row
 # that the record does not confirm reads "not confirmed", and a CONFIRM line prints the line to add. This script never writes that section
 # and never confirms a row.
+# One more hand row, registry-install (Story 15.4), is read the same way from the same section (- registry-install: confirmed <YYYY-MM-DD>[ <text>]).
+# It is confirmed only after the version is published to the package registry, so until the author's line is there its result is "later": a
+# LATER line names the line to add, and the row blocks nothing (the checklist's result is the same with it as without it).
 #
 # It writes the section "## Release checklist" into the record through record_write (replacing its own section, or appending it) and
 # prints RECORD <file> and RESULT <result>. The section holds Result:, Candidate: (the version, the rc and the full sha of HEAD),
@@ -457,6 +460,33 @@ author_rows() {
   rm -f "$lines"
 }
 
+CK_REGISTRY_TEXT="After this version was published to the package registry, the README's two commands ran once against the registry on a clean build 154 instance and gave the same working OcuTalon; the result is in the release notes, and docs/install-ipm.md shows that run's output."
+
+# registry_row <record>: the row registry-install, "confirmed" with the date from the author's own line in the record's "## Author confirmations"
+# section, otherwise "later" with a LATER line that names the line to add. A "later" row is neither a failure nor a missing confirmation.
+registry_row() {
+  local record=$1 lines d
+  lines=$(mktemp "${ck_tmp:-${TMPDIR:-/tmp}}/registry.XXXXXX") || {
+    echo "LATER registry-install: the record could not be read (no temporary file)"
+    ck_add registry-install later "$CK_REGISTRY_TEXT"
+    return 0
+  }
+  if [ -f "$record" ]; then
+    awk '{ t = $0; sub(/[ \t\r]+$/, "", t) }
+      t == "## Author confirmations" { on = 1; next }
+      on && /^##? / { on = 0 }
+      on { print }' "$record" > "$lines"
+  fi
+  if d=$(ck_confirmed_date "$lines" registry-install); then
+    echo "PASS registry-install the record says the author confirmed this on $d"
+    ck_add registry-install confirmed "the record says the author confirmed this on $d"
+  else
+    echo "LATER registry-install: after the package is published, add the line \"- registry-install: confirmed <YYYY-MM-DD>\" under \"## Author confirmations\" in $(ck_rel "$record")"
+    ck_add registry-install later "$CK_REGISTRY_TEXT"
+  fi
+  rm -f "$lines"
+}
+
 # --- the result and the section ---
 
 # checklist_result <results>: fail, not confirmed or pass.
@@ -584,6 +614,7 @@ checklist_main() {
   row_iris_source
   row_no_outward
   author_rows "$record"
+  registry_row "$record"
   result=$(checklist_result "$ck_results")
   opts=$ck_tmp/options
   : > "$opts"
