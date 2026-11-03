@@ -13,7 +13,9 @@
 #                of Approval.Answer, the timer limits as "<n> seconds", and the fixed phrases of the reference sections (Timeouts.Derive,
 #                Timeouts.Apply, @{config:, @{env:ANTHROPIC_API_KEY}, embedded Python, the experimental marks, the package sentence and
 #                the follow-on sentence)
-#   - u229       the sentence of the owner's answer U-229 is in the guide and in the "Approval and audit" section of docs/security-overview.md
+#   - u229       the sentence of the owner's answers U-229 and U-237 (what is audited: no entry for a setting change; a tool call is a step unless
+#                the decision times out; an approval and an approved call's run each write an entry) is in the guide and, on one line, in the
+#                "Approval and audit" section of docs/security-overview.md
 #   - public     the guide is ASCII and holds no local path, key-like string, URL, IP address, instance name, or name of the project that the
 #                README's note says OcuTalon is not affiliated with (public-text rules; it prints file:line only, never the text)
 # Each rule first runs on a synthetic sample that breaks it and on one that keeps it, so a rule that can no longer flag anything fails.
@@ -36,7 +38,7 @@ OVERVIEW=docs/security-overview.md
 BRIDGE=src/bridge/cls/OcuTalon/Bridge
 INSTALL_ORDER="load install provider start send"
 ALL_BLOCKS="approval-role install load provider send start tool-classification"
-U229='In this release, changing this setting writes no OcuTalon audit entry; each tool call is still audited.'
+U229="In this release, changing this setting writes no OcuTalon audit entry. Each tool call is recorded as a step of its decision unless the decision times out, and an approval and an approved call's run each write an audit entry."
 PKG_SENTENCE='OcuTalon installs this same bridge as part of its own package.'
 FOLLOW_SENTENCE='A separate bridge package and listing are a follow-on.'
 AIHUB_SETTINGS="AgentClass ProviderName ProviderConfig Model"
@@ -55,7 +57,17 @@ OcuTalon.Bridge.Installer.InstanceAuditing
 No person is a Workflow
 OcuTalon.Bridge.Approval.Answer
 STEPLABEL
-makes no `%AI` call'
+makes no `%AI` call
+the default is empty, which refuses every class
+View Full Trace
+The header id is not a link
+AlarmRequest` to `Ens.Alarm`
+needs an update
+You can ignore it, because the bridge reads both settings live
+then the Trace tab
+Session number
+changes an `ignore` or `digest` outcome to `tellnow`
+The item of step 5 is sent as `untrusted`'
 
 # --- helpers ---
 
@@ -303,7 +315,7 @@ reference_names() {
 
 # reference_problems <guide>: one line per problem.
 reference_problems() {
-  local guide=$1 name max min
+  local guide=$1 name max min ua
   for name in $(reference_names); do
     grep -qF -- "\`$name\`" "$guide" || echo "the guide does not name \`$name\`"
   done
@@ -318,6 +330,9 @@ reference_problems() {
   while IFS= read -r name; do
     grep -qF -- "$name" "$guide" || echo "the guide lacks the prose phrase '$name'"
   done <<< "$PROSE_PHRASES"
+  ua=$(sed -n 's/^Parameter USERANSWERED = "\(.*\)";$/\1/p' "$BRIDGE/Process/Decide.cls")
+  if [ -z "$ua" ]; then echo "USERANSWERED of Decide.cls could not be read"; fi
+  if [ -n "$ua" ]; then grep -qF -- "$ua" "$guide" || echo "the guide lacks the USERANSWERED reason of Decide"; fi
   grep -F 'StreamRenderer' "$guide" | grep -q 'experimental' || echo "no line of the guide holds both StreamRenderer and 'experimental'"
   grep -F 'SetAuthPolicy' "$guide" | grep -F 'SetAuditPolicy' | grep -q 'experimental' || echo "no line of the guide holds both policy setters and 'experimental'"
 }
@@ -346,6 +361,7 @@ fi
   printf '%s\n' "$PROSE_PHRASES"
   echo "StreamRenderer is experimental."
   echo "SetAuthPolicy and SetAuditPolicy are experimental."
+  sed -n 's/^Parameter USERANSWERED = "\(.*\)";$/\1/p' "$BRIDGE/Process/Decide.cls"
 } > "$tmp/r/keep.md"
 if [ "$ref_samples_ok" -eq 1 ] && [ -n "$(reference_problems "$tmp/r/keep.md")" ]; then
   echo "FAIL reference: the rule flags a guide that names every item"
@@ -375,6 +391,17 @@ if [ "$ref_samples_ok" -eq 1 ]; then
   break_ref "the Workflow role removed" 's/`OcuTalonApprovals`/`Gone`/g'
   break_ref "the no-Workflow-user statement removed" 's/No person is a Workflow/Some person is a Workflow/g'
   break_ref "the developer-tool %AI rule removed" 's/makes no `%AI` call/may call AI/g'
+  break_ref "the allow-list default removed" 's/the default is empty, which refuses every class/see below/'
+  break_ref "View Full Trace removed" 's/View Full Trace/the trace/g'
+  break_ref "the header-id note removed" 's/The header id is not a link/The header id is a link/'
+  break_ref "the alarm request removed" 's/AlarmRequest` to `Ens.Alarm`/AlarmRequest` to the timer/'
+  break_ref "the Portal notice removed" 's/needs an update/is fine/g'
+  break_ref "the Portal advice changed" 's/You can ignore it, because the bridge reads both settings live/Restart the production/'
+  break_ref "the Trace tab removed" 's/then the Trace tab/then the page/'
+  break_ref "the Session number removed" 's/Session number/Session link/g'
+  break_ref "the user-rule outcome removed" 's/changes an `ignore` or `digest` outcome to `tellnow`/leaves the outcome alone/'
+  break_ref "the untrusted item note removed" 's/The item of step 5 is sent as `untrusted`/The item is sent/'
+  break_ref "the user-rule reason changed" 's/a message the user writes is always answered/a message the user writes is answered/'
   break_ref "the package sentence removed" 's/OcuTalon installs this same bridge as part of its own package\.//'
   break_ref "the follow-on sentence removed" 's/A separate bridge package and listing are a follow-on\.//'
 fi
@@ -399,11 +426,20 @@ u229_problems() {
 mkdir -p "$tmp/u"
 printf 'Guide.\n%s\n' "$U229" > "$tmp/u/guide-good.md"
 printf '# Overview\n\n## Approval and audit\n\nFirst sentence. %s Next.\n\n## Other\n\nText.\n' "$U229" > "$tmp/u/over-good.md"
-printf 'Guide.\nIn this release, changing this setting writes an OcuTalon audit entry; each tool call is still audited.\n' > "$tmp/u/guide-bad.md"
+printf 'Guide.\nIn this release, changing this setting writes no OcuTalon audit entry; each tool call is still audited.\n' > "$tmp/u/guide-old.md"
+printf 'Guide.\n%s\n' "$(printf '%s' "$U229" | sed 's/writes no OcuTalon/writes an OcuTalon/')" > "$tmp/u/guide-word.md"
+printf 'Guide.\n%s\n' "$(printf '%s' "$U229" | sed 's/ entry\. Each/ entry.\
+Each/')" > "$tmp/u/guide-split.md"
 printf '# Overview\n\n## Approval and audit\n\nFirst sentence. Next.\n\n## Other\n\n%s\n' "$U229" > "$tmp/u/over-bad.md"
+printf '# Overview\n\n## Approval and audit\n\nFirst sentence. In this release, changing this setting writes no OcuTalon audit entry; each tool call is still audited. Next.\n' > "$tmp/u/over-old.md"
 u_ok=1
 [ -z "$(u229_problems "$tmp/u/guide-good.md" "$tmp/u/over-good.md")" ] || { echo "FAIL u229: the rule flags files that keep it"; fails=$((fails + 1)); u_ok=0; }
-[ -n "$(u229_problems "$tmp/u/guide-bad.md" "$tmp/u/over-good.md")" ] || { echo "FAIL u229: the rule does not flag a changed sentence in the guide"; fails=$((fails + 1)); u_ok=0; }
+for f in old word split; do
+  [ -n "$(u229_problems "$tmp/u/guide-$f.md" "$tmp/u/over-good.md")" ] || { echo "FAIL u229: the rule does not flag a bad sentence in the guide ($f)"; fails=$((fails + 1)); u_ok=0; }
+done
+cmp -s "$tmp/u/guide-good.md" "$tmp/u/guide-word.md" && { echo "FAIL u229: the one-word break sample changed nothing"; fails=$((fails + 1)); u_ok=0; }
+[ "$(wc -l < "$tmp/u/guide-split.md")" -eq 3 ] || { echo "FAIL u229: the split-line break sample is not on two lines"; fails=$((fails + 1)); u_ok=0; }
+[ -n "$(u229_problems "$tmp/u/guide-good.md" "$tmp/u/over-old.md")" ] || { echo "FAIL u229: the rule does not flag the old sentence in the overview"; fails=$((fails + 1)); u_ok=0; }
 [ -n "$(u229_problems "$tmp/u/guide-good.md" "$tmp/u/over-bad.md")" ] || { echo "FAIL u229: the rule does not flag a sentence outside the Approval and audit section"; fails=$((fails + 1)); u_ok=0; }
 if [ "$u_ok" -eq 1 ]; then
   hits=$(u229_problems "$GUIDE" "$OVERVIEW")

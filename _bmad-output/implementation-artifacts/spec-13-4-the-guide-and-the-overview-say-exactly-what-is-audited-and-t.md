@@ -2,8 +2,8 @@
 title: 'Story 13.4: The guide and the overview say exactly what is audited, and the guide''s gaps are closed'
 type: 'chore'
 created: '2026-11-03'
-status: 'ready-for-dev'
-baseline_revision: '53582ba1a452039d5f9dce5f03cce514226e338e'
+status: 'done'
+baseline_revision: '1642a21ac2842c44ba1a2c4bc4d98afe8260490c'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -87,6 +87,22 @@ deferred: []
 - 2026-11-03, runner (lead): the plan HALTed (intent gap, U-229 clause 2). Applied the orchestrator's rulings: Q1 U-237 (provisional sentence, then replaced by the Planner's answer, option (c), 10:46:10Z#712), Q2 decide (the guide says nothing about `Reconcile`), (c) the Planner's click path as given. Status reset to `ready-for-dev`: the rest of the plan was complete and only the sentence changed.
 
 ## Review Triage Log
+
+### 2026-11-03 - Review pass
+- verdicts: 12 findings (layer reports grouped by root cause) - high 0, medium 2, low 9, false 1, maybe-false 0
+- findings:
+  - `[medium]` `[patch]` (verification-gap, edge-case) the user rule, the click path's Trace tab and Session number, and the Portal advice are pinned only by a generic phrase or not at all -- six phrases added to `PROSE_PHRASES` with one break sample each; two mutations run on the real guide and recorded in `## Verification`.
+  - `[low]` `[patch]` (blind-hunter, verification-gap) "Steps 4 to 6 send the item as `untrusted`" is inaccurate; only step 5 sends an item -- reworded to "The item of step 5 is sent as `untrusted`" (matches the guide's Govern section) and pinned.
+  - `[medium]` `[patch]` (verification-gap) mutation lines missing for the new pins -- two added; the other break samples are the script's own fixtures.
+  - `[low]` `[reject]` (blind-hunter) the audit sentence omits the audit-off case and says "an approval" -- the sentence is the Planner's exact wording (U-237), never reworded; the guide's own Installer section states the auditing condition.
+  - `[low]` `[reject]` (blind-hunter) the `AgentAllowList` Default cell is a sentence -- the cell wording is fixed by AC 2.
+  - `[low]` `[reject]` (blind-hunter) the bridge timer is not explained, and the Portal sentence gives no action and sits mid-paragraph -- a new claim would need a veto item; AC 2 fixes the content.
+  - `[low]` `[reject]` (blind-hunter, edge-case) phrase pins match anywhere in the guide, not inside one section; `u229` matches anywhere in the guide -- the existing design of `reference` and `u229`; the whole phrases now pinned are specific enough, and no stale copy of the old sentence exists in docs.
+  - `[false]` `[reject]` (edge-case) an escaped quote in `USERANSWERED` would be compared doubled -- the value holds no quote today; theoretical.
+  - `[low]` `[reject]` (edge-case) a call can be unrecorded without a timeout (unparseable Steps, failed send) -- logged as an IRIS-side warning, ruled wontfix-theoretical for the sentence in the spec's Design Notes.
+  - `[low]` `[reject]` (edge-case) the click path rests on the Planner's observation -- ruled and used as given.
+  - `[low]` `[reject]` (verification-gap) `break_ref` accepts any problem; `(g)` has no negative pin; the CI-green criterion has no mutation -- the keep sample is proven clean first; (g) is the absence of text; AC 3 is a CI outcome.
+  - `[low]` `[reject]` (intent-alignment, descriptive) readings R1 to R4; the diff implements R1 plus the USERANSWERED code link and R4 "say nothing"; a live Portal check is outside the footprint.
 
 ## Design Notes
 
@@ -172,11 +188,19 @@ No AC contradicts an AD's Rule. Q1 is a gap between the sentence's clause 2 and 
 
 **Pinning mutations (Rule 19; apply, observe red, revert, confirm `git status --short` and `git diff --stat` unchanged; record each as `mutation: ... -> ...`):**
 - AC 1: in the overview, "writes no" becomes "writes an". Expected red: `u229` naming the Approval and audit section. Repeat in the guide: `u229` naming the guide.
+  mutation: overview "writes no OcuTalon" -> "writes an OcuTalon" => u229 FAIL ("the Approval and audit section of docs/security-overview.md lacks the U-229 sentence"); same in the guide => u229 FAIL ("docs/bridge-guide.md lacks the U-229 sentence"); restored, git status and diff identical.
 - AC 1: restore the old 13.3 sentence in the guide. Expected red: `u229`.
+  mutation: guide ruled sentence -> "...writes no OcuTalon audit entry; each tool call is still audited." => u229 FAIL (guide lacks the sentence); restored.
 - AC 2 (b): the Default cell goes back to "see below". Expected red: `reference`, naming the allow-list phrase.
+  mutation: guide AgentAllowList Default "the default is empty, which refuses every class" -> "see below" => reference FAIL ("the guide lacks the prose phrase 'the default is empty, which refuses every class'"); restored.
 - AC 2 (c): "View Full Trace" is removed. Expected red: `reference`.
+  mutation: guide "View Full Trace" -> "the trace" => reference FAIL ("the guide lacks the prose phrase 'View Full Trace'"); restored.
 - AC 2 (d): one word of the user-rule reason changes in the guide. Expected red: `reference`, naming USERANSWERED.
+  mutation: guide "is always answered" -> "is answered" => reference FAIL ("the guide lacks the USERANSWERED reason of Decide"); restored.
 - AC 2 (e): the Portal-notice sentence is removed. Expected red: `reference`.
+  mutation: guide Portal-notice sentence removed => reference FAIL ("the guide lacks the prose phrase 'needs an update'"); restored.
+- AC 2 (d, e): the user rule's outcome change and the Portal advice are pinned as whole sentences.
+  mutation: guide "changes an `ignore` or `digest` outcome to `tellnow`" -> "leaves the outcome alone" => reference FAIL (lacks that prose phrase); guide "You can ignore it, because the bridge reads both settings live" -> "Restart the production" => reference FAIL; restored from backup, git status and diff identical.
 
 **Shared surfaces:**
 - the `U229` pin and its fixtures;
@@ -187,7 +211,18 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-(The plan's first run HALTed on U-229 clause 2; the orchestrator's rulings are applied above.)
+**Summary:** The U-237 sentence is in the overview (L100, one changed line), the guide's Classification item and the `U229=` pin. The guide closes gaps (b) to (e): the allow-list default, the click path with the header-id note and the bridge timer's `Ens.AlarmRequest` to `Ens.Alarm`, the user rule with `Decide`'s exact reason, and the Portal-notice sentence. (g): nothing about `Approval.Reconcile`. `test-bridge-guide.sh` pins each statement and flags a wrong text.
+
+**Files changed:**
+- `docs/security-overview.md`: L100's U-229 sentence only.
+- `docs/bridge-guide.md`: Classification item, allow-list Default cell, step 6, the Govern paragraph, the user-rule paragraph. No marked block changed.
+- `docker/tests/test-bridge-guide.sh`: `U229`, header, `PROSE_PHRASES`, the `USERANSWERED` read, keep sample and break samples, `u229` fixtures (old sentence, one word, split line, old sentence in the overview).
+
+**Review:** 12 findings; 3 patched (pins for the user rule, Trace tab, Session number and Portal advice; "Steps 4 to 6" corrected to step 5; two mutation lines), 0 deferred, 9 rejected with reasons in the Review Triage Log. Follow-up review not recommended.
+
+**Verification:** `test-bridge-guide.sh` all rules passed (blocks, reference, u229, public); `test-release-sequence.sh` all rules (overviewdoc PASS); `test-boundaries.sh` and `test-ci-config.sh` passed; `ci/iris.sh live security-overview` passed (no DRIFT); `release/standalone-bridge.sh` "all checks passed" (lane B, tag e13s4i, torn down). Overview diff: one hunk.
+
+**Residual risks:** the click path rests on the Contest Planner's observation (only the caption is confirmed in code). The burn-down ledger entries (steps for a timed-out decision, runnable guide blocks that reach a held call, bridge self re-arm) are for the runner to file at its gate.
