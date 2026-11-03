@@ -1614,3 +1614,4 @@
 2026-11-03T14:37:22Z	Epic 31	runner_dispatched	runner=a253617cd5fcd9dc8 model=opus slot=ocutalon-slot-a lane=A base=20fbca72 feature=6093ed5b prompt=prompts/dispatch-epic-31-313.md story=31.3 vetoes=U-239(kept),U-241
 2026-11-03T14:37:22Z	Epic 31	ledger_filed	ids=DW-636,DW-637 owner=burndown note=build_109(install.sh;minor_changes)
 2026-11-03T14:38:10Z	Epic 12	deps_hash_rerecorded	reason=fix_forward hash=b3846822 note=Story_12.10_inserted(U-238;re-opens_Epic_12_on_runner_B_after_13.4_merges)
+2026-11-03T14:39:12Z	Epic 31	owner_decision	id=U-241 at=2026-11-03T14:38:52Z#725 via=inbox by=Contest_Planner_1(delegated) answer=keep(wording_file_sha256_664be5f50be85356_verified)+two_doc_sentences(bridge-guide_What_you_need_bullet;install-ipm_L7)_verbatim;other_154_mentions_stay apply=31.3(sent_to_live_runner;wording_file_section_7) resolve=at_Epic_31_merge
