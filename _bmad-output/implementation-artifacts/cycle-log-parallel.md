@@ -1698,3 +1698,5 @@
 2026-11-03T21:34:59Z	Epic 7	owner_decision	id=U-249 at=2026-11-03T21:34:43Z#748 via=inbox by=Contest_Planner_1(delegated) answer=keep_rule+new_wording(whether_read...Read_{reading},_they_match_the_day_each_{item}_arrived)+cond1(arrival_day_+-1)+cond2(test_instance_vs_UTC_date_differ) apply=runner_B_live
 2026-11-03T21:35:14Z	Epic 7	ruling	question=7.7_both_readings_within_+-1_day_of_arrival choice=no_evidence:no_repair_resend_and_no_line;test_pins_it rejected=prefer_month_first(silent_pick) category=decide policy=508603671b9598f59d04750db6b6cdad2d396167
 2026-11-03T21:35:14Z	Epic 7	runner_resumed	agent=a295c9eae710cc297 with=apply_U-249(#748)+tie_rule note=queued
+2026-11-03T23:27:07Z	Epic 31	runner_clarification	agent=a253617cd5fcd9dc8 kind=IMAGE_VET(U-242_cond3) image=docs/images/vt-decision.png sha256=ed781360 size=231535B 2040x1420 shas_verified=a1cd96a1,32f4955f orchestrator_viewed=meets_4_conditions also_for_ruling=README_L317_DW-360_field_label+Enter_new_password,IPM_enable-community_sentence
+2026-11-03T23:27:07Z	Epic 31	runner_interim_status	forwarded_to=Contest_Planner_1 msg=30e6171b answer_via=inbox runner_waits=story_commit_and_push
