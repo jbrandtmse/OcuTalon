@@ -107,3 +107,14 @@
 2026-11-03T08:43:14Z	Epic 13	model_tier_checkpoint	armed=false stack_risk=none review_tier=full-opus implement_model=claude-sonnet-5 high_med_avg=4.0 unresolved_high_med_avg=0.33 metric=unresolved rework_stories=0 review_loop_thrash=0 rework_lang_defects=0 review_high=0 review_med=12 result=hold applied=false gate=record_only
 2026-11-03T09:03:58Z	Epic 13	integrated_forward	feature=3a52b923 head=413896c4 conflicts_resolved=docker/tests/test-readme.sh(header_plain_union:three_use-cases_items+Epic_10_how-you-talk),sprint-status.yaml(regenerated;epic-13_and_13-1..3=done;validate_ok) note=earlier_merges_2ef9d7fd(082ac043),0820d49b(c9d201e5,bookkeeping_only);checks=ci/checks.sh_all_passed(1114s) smoke=release/standalone-bridge.sh_lane_B_fresh_pass(53_checks,241s,tag=e13clsmk) full_suite=CI_d642b11a_every_group_green(attempt_2_after_2_flakes)+this_head_CI u223=overview_this_release_statements_still_true(no_MCP_in_13.2/13.3) u229_sentence_present=1
 2026-11-03T09:03:58Z	Epic 13	epic_runner_complete	stories_completed=3(13.1,13.2,13.3;this_dispatch:13.2,13.3) applied=U-229,U-233
+2026-11-03T10:28:24Z	Epic 13	runner_unattended_start	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec note=reopen_for_story_13.4_runner_B lane=B slot=ocutalon-slot-b
+2026-11-03T10:28:24Z	Epic 13	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-11-03T10:28:24Z	Epic 13	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh
+2026-11-03T10:28:24Z	Epic 13	launch_env	depth=4 watchdog=default bash_max_ms=default
+2026-11-03T10:28:24Z	Epic 13	epic_branch_reopened	reason=story_13.4_veto_U-236 from=37e0087a
+2026-11-03T10:28:24Z	Epic 13	epic_branch_checked_out	repos=. head=37e0087a bootstrap_check=ok ci_expected=ci.yml,lane-a.yml
+2026-11-03T10:28:24Z	Epic 13	spine_resolved	path=_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md ads=33 status=final
+2026-11-03T10:28:24Z	Epic 13	ledger_load	total=561 open=0 routed=69 escalated=0 decision_pending=3 terminal=489 owner_unknown=0 burndown=12 reowned_none=0 story_13.4_slice=empty
+2026-11-03T10:28:24Z	Epic 13	retro_review_skipped	reason=no_X.0_input(reopen;retro_skipped_by_policy)
+2026-11-03T10:28:49Z	Epic 13	sprint_planning_complete	gate=PASS model=claude-opus-5-5 note=readiness_recheck_headless
+2026-11-03T10:28:49Z	Epic 13	epic_status_reopened	epic-13=in-progress(from=done) via=SC-5_epic_branch_reopened
