@@ -2583,6 +2583,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: the Planner's API POSTs through the gated proxy got 403 wrong_origin until the host mapped the origin; a foreign or missing Origin still gets 403 with the workaround
 - 2026-10-30T04:25:44Z status=routed owner=burndown by=runner note=repository option the Planner prefers: trust X-Forwarded-Proto only from the trusted proxy address (the one trusted for X-Forwarded-For), or a configured public origin; a veto-window change to the origin check (security posture); not needed for the launch while the host workaround stands; runner C ruling 2026-10-30: no repository change in Story 29.3
 - 2026-10-31T03:39:09Z owner=31-3-the-readme-leads-to-the-demo-and-the-launched-demo-is-measur by=burndown note=overflow: Lane B hardening on the launched demo; the host workaround (exact-origin mapping) stands until then; trusting X-Forwarded-Proto from the trusted proxy is a veto-window change for that story
+- 2026-11-03T15:21:47Z status=escalated owner=burndown by=spec_gate note=declined_by_31.3_plan:changing_how_the_origin_check(Web/Api.cls:965-973,Web/Live.cls:72)_trusts_a_TLS-terminating_proxy_is_security_posture(veto_window);the_demo_host_workaround_holds;for_the_decision_sheet
 
 ### DW-417: Times the model writes itself on the online demo carry no ET (for example 'due at 23:39'), against UX-DR108 and UX-DR123; the catalog's message times do carry it
 - source: host facts measured on the gated host by the Contest Planner 2026-10-30 (Epic 16 deploy c70a0f4) | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -2870,6 +2871,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-30T13:09:59Z status=routed owner=burndown by=cr note=pre-existing, not 29.4's D1 edits (cappedMarked(day) passed first); fix: align the counts or sign S1 in before the seed
 - 2026-10-31T03:39:09Z owner=29-9-epic-29-burn-down by=burndown note=chartered into Story 29.9 (Epic 29 burn-down) at the burn-down gate
 - 2026-10-31T04:03:11Z owner=31-3-the-readme-leads-to-the-demo-and-the-launched-demo-is-measur by=burndown note=overflow (declined by Story 29.9's plan): not a test flake but a product gap: a web process cannot read the day's Usage rows (no SQL privilege), so its /state misses the counted spend StatusMonitor sees; a visitor arriving between the spend reaching the cap and the day being marked never gets the daily-cap banner live; a story that makes /state and StatusMonitor agree owns it; until then D1 stays under the one-rerun flake rule
+- 2026-11-03T15:21:47Z status=routed owner=burndown by=spec_gate note=flake_class_kept;declined_by_31.3_plan(fix_in_web/e2e-online/allowance/daily-cap.spec.ts_D1_racing_Core/StatusMonitor.cls:47-75,not_an_AC-named_case)
 
 ### DW-433: The CI mock's guide-watch scenario (ci/mock/scenarios/B/guide-watch.json) answers the guide's watch prompt with text only and calls no start_watch, so under the mock the guide's watch button starts no watch and makes no Orders check (UJ-1 step 2)
 - source: spec-29-4-sessions-stay-isolated-under-load.md | severity: med | fix-risk: med | footprint: out-of-footprint
@@ -3469,6 +3471,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: job 124980538561: R1 expected Math.floor(nextReset/1000)=1793575980, cookie expires 1793575981; passed on the unchanged rerun
 - 2026-11-01T22:22:51Z status=routed owner=burndown by=harvest note=flake class: one rerun; fix: compare within one second, or derive both from one clock read (Lane B web/e2e-online; Epic 11 currently changes resume.spec.ts)
 - 2026-11-02T12:09:17Z owner=31-3-the-readme-leads-to-the-demo-and-the-launched-demo-is-measur by=burndown note=overflow:Lane_B_web/e2e-online/resume.spec.ts(contended:Epic_11_changes_it;AD-33);fix:compare_within_one_second_or_derive_both_from_one_clock_read
+- 2026-11-03T15:21:47Z status=routed owner=burndown by=spec_gate note=flake_class_kept;declined_by_31.3_plan(fix_in_web/e2e-online/resume.spec.ts:84,not_AC-named,standing_ruling_forbids_the_edit)
 
 ### DW-559: The reminders list answer (CommandCall.Listed) shows each due time without the zone label on the online demo, while the set reply (Answer) now carries ' ET'
 - source: _bmad-output/implementation-artifacts/spec-30-5-mixed-and-unfinished-resends-say-how-far-they-got.md | severity: low | fix-risk: low | footprint: in-story
@@ -3702,6 +3705,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: ci run 41495443713 (OCT-epic30 8b2f15f9) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: iris (image) attempt 1 red, attempt 2 green on the same head; the assertion counts headers by id against the second thread's first Item id, so a late header of the first turn trips it (inference)
 - 2026-11-02T21:03:11Z status=routed owner=31-3-the-readme-leads-to-the-demo-and-the-launched-demo-is-measur by=ci note=Lane_B_test(Epic_11_part_1);first_seen_on_Epic_30_integrate-forward;make_the_mixed_count_wait_for_the_first_turn's_last_header_or_scope_it
+- 2026-11-03T15:21:47Z status=routed owner=burndown by=spec_gate note=flake_class_kept;declined_by_31.3_plan(root_cause_unknown,passed_on_rerun;nothing_in_31.3_touches_ThreadProduction)
 
 ### DW-600: The key proof's globals walk cannot read the saved AI session history (%AI.Agent.Session.ContextData, a compressed %Stream.GlobalCharacter), so a key stored there would read as clean
 - source: spec-30-8-the-redactor-and-the-key-proof-catch-every-key-shape.md | severity: low | fix-risk: med | footprint: out-of-footprint

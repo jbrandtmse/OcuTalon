@@ -2,7 +2,7 @@
 title: 'Story 31.3: the README leads to the demo (build 109, IPM, Telegram row, licence), the About and finish-state links, two security-overview lines, and the Telegram cases of Stories 16.4 and 16.9 turned on'
 type: 'feature'
 created: '2026-11-03'
-status: 'draft'
+status: 'ready-for-dev'
 baseline_revision: 'a401f37be6f6221e3621d3522d6d46abf506109f'
 review_loop_iteration: 0
 followup_review_recommended: false
@@ -116,14 +116,65 @@ deferred: []
   - Fix side: `Watch/IncidentManager.cls:917`, `Bridge/Approval.cls:221`, `Fix/Executor.cls:274,333`.
   - Workflow task: `Bridge/Approval.cls:585-586,622-633` (subject and actions only).
   - Card: `web/src/app/approvals/approval-request-card.ts:111`, `Channel/WebChat/Out.cls:12-14`, `Channel/Telegram/Out.cls:6-8,78`.
-- Screenshots: `docs/images/page-incident.png` (297,920 B) and `vt-decision.png` (196,280 B) are tracked.
-  - Story 10.5 copied them byte for byte from the lead's vetted shots (spec-10-5 :21, :27, :197-200). No Playwright spec produced them.
-  - `vt-decision.png` shows one `AgentStep` and the cut-off Operations lanes, not model requests and tool calls as separate steps.
+- Screenshots (U-242 option C):
+  - Tracked, not gitignored: `docs/images/page-incident.png` (297,920 B), `vt-decision.png` (196,280 B), `incident-card.png` (265,772), `incident-resolved.png` (248,087), `page-demo-view-off.png` (206,381). All are under 300,000 B.
+  - Story 10.5 copied the first two byte for byte from the lead's vetted shots (spec-10-5 :21, :27, :197-200). No Playwright spec produced them. So the AC's Playwright capture is met only by this story's re-shoot of `vt-decision.png`.
+  - Today's `vt-decision.png` (2513x1055) is cropped on two sides. On the right, the Operations lanes stop after `Ens Alarm` and `DiagnosisAgent`; the third lane (`AgentSteps`, `Bridge/Process/Decide.cls:133` `STEPSITEM`) is cut. At the bottom it stops at row [11], with only one `AgentStep` ([8]) visible.
+  - README: hero `page-incident.png` at :7. "What's interesting" at :20-24 (one paragraph, no image). `vt-decision.png` under the Chat bullet at :59 (alt "Visual Trace of the decision: ...").
+- The capture's siblings (Rule 2):
+  - `web/playwright.rehearsal.config.ts`: a config of its own that spreads the base config and has one project on a folder outside `e2e/`, so CI's units never see it. `web/package.json:16` `e2e:rehearsal`. `web/tsconfig.e2e.json` `include` lists `e2e-rehearsal/**/*.ts` and the config (`npm run lint` typechecks it).
+  - `docker/tests/record-eval.sh`: the manual recording tool. "Not a CI unit and not a check", named outside `test-*`. Exit 2 on an unknown argument; `live_start` with its own label; an EXIT trap; writes only after every check passes.
+  - `docker/tests/test-demo-path.sh`:
+    - :43-56: a first-start stack (`live_start`, `live_web_port`, `live_first_start 900`).
+    - :74-77: the Playwright call with `OCUTALON_URL="http://127.0.0.1:$web_port"`. The demo-path specs need only that variable: `support/iris.ts:29-45` finds the container by the web port.
+  - `web/e2e/demo-path/01..05-*.spec.ts`: the journey up to an approved, resolved incident.
+  - `06-trace.spec.ts:26-29`: reads the incident's diagnosis header (`/state` chat item `incident`, `payload.traceTargets.diagnosis.traceHeaderId`) and opens `${TRACE_PAGE}${header}`. The tab is already signed in with the README account (its header, :16).
+  - `web/e2e/support/trace.ts`, import only:
+    - `TRACE_PAGE` :15;
+    - `signOutTrace` :45 (a trace page holds one of the stack's 8 licence connections until it is signed out);
+    - `drawnMessages` :144 (the `embed[type="image/svg+xml"]` SVG document; message groups are `g` with an all-digit id).
+  - `support/floor.ts`: `signInReadmeLoaded`, import only. `support/demo-path.ts:562-588`: `openTraceFromGuide`, which closes its tab, so it cannot be used to take the shot.
+- Agent steps in the decision:
+  - `Decide.cls:459-505` sends one `AgentStep` per step record of the runner's reply to `AgentSteps`, without waiting.
+  - The mock's `ci/mock/scenarios/A/diagnosis.json` answers with a `read_failed_messages` tool use, then the final text. So the decision holds two model steps and one tool step, three `AgentStep` messages (inference, measured in Task 1).
+- `docker/tests/test-readme.sh` images and interesting:
+  - `chk_interesting` :429-440: `wc -w` over the whole section, at most 120 words, alt text counted.
+  - `chk_images` :471-500: alt text, the target in `docs/images/` and listed by the tree, image paragraphs, three images in "What OcuTalon does", Chat ≥1 and Break the feed ≥2. No size check today.
+  - `rule_images` :1088-1115: the self-tests name no image file; they use the README's first image link.
+- `ci/changes.sh` classes a new `docker/tests/<helper>.sh` as unclassified, so a change to it runs every group (pinned: `test-ci-changes.sh:264`). `record-eval.sh` alone is declared (`ci/units.sh` `NOT_IRIS_INPUT_PATTERN`).
 
 ## Tasks & Acceptance
 
-**Execution:**
-- Task 0 (measure, read-only; a fresh throwaway `e31s3i`, never a slot write). For DW-360, confirm on a first-start stack:
+**Execution** (in this order; lane A runs one fresh throwaway at a time):
+- Task 1 (FIRST: the image, so the Planner can vet it early). Re-shoot `docs/images/vt-decision.png` with a Playwright spec, on a throwaway with the mocked model.
+  - Before you start: run `ci/iris.sh build` once, then install Chromium (Verification), and back up today's PNG to the stage scratch folder.
+  - `web/e2e-capture/vt-decision.spec.ts` (new; header: what it captures and what it needs).
+    - Sign in with `signInReadmeLoaded` and read the diagnosis header from `/state`, as `06-trace.spec.ts:26-29` does.
+    - Open `${TRACE_PAGE}${header}` in a new page of the same signed-in context. If that page asks for a sign-in, use the guide's link flow instead (Open the trace, then the help's "Open Visual Trace"), copied locally from `openTraceFromGuide` without its `popup.close()`. The reason for the copy: `web/e2e/support/*` is import-only for this epic.
+    - Wait for `drawnMessages` to list the header.
+    - Then check, and fail with the reason (writing nothing) when a check does not hold:
+      - (a) Whole decision: the drawn message count equals the session's `Ens.MessageHeader` rows (`irisScript`, `SessionId` = the header's session), so there is no second page.
+      - (b) More than one agent step: at least 2 drawn messages labelled `AgentStep`.
+      - (c) Every lane fits in the clip: every host column label of Services, Processes and Operations (the `AgentSteps` lane included) lies inside the shot.
+      - (d) No forbidden name: the SVG document's whole text matches none of `/mock|test|\bci\b|localhost|127\.0\.0\.1|:5\d{4}\b|password|secret|api[_ ]?key|sk-ant/i`. If a session, host, production-item or prompt label matches, change the crop or the fixture naming, never the product. If the hit is an ordinary word that is not a name (for example `test` inside another word), narrow only that alternative to a whole word and record it in the spec.
+    - Shoot the diagram element only: the SVG embed, sized to the SVG's full extent, `scale: 'css'` at device scale factor 1. That keeps out the portal header, the server or namespace line and the URL.
+    - If the PNG is 300,000 B or more, shrink it in the page through a canvas, in 10 % width steps, to no less than 60 % of its width. Fail if it still does not fit.
+    - Write the PNG to `OCUTALON_CAPTURE_OUT`. Fail when that variable is unset (fail, not skip).
+    - In `finally`, call `signOutTrace(page.request)`.
+  - `web/playwright.capture.config.ts` (new). Extend `playwright.rehearsal.config.ts`'s pattern: `{...base, projects: [...]}`. It has two projects, both Desktop Chrome:
+    - `capture-setup`: `testDir: './e2e/demo-path'`, `testMatch: /0[1-5]-[^/]*\.spec\.ts$/`;
+    - `capture`: `testDir: './e2e-capture'`, `dependencies: ['capture-setup']`.
+    - Its header says why CI never sees it: the folder is outside `e2e/` and `e2e-online/`, and no unit names the config.
+  - `web/package.json`: add `"e2e:capture": "playwright test --config=playwright.capture.config.ts"`. `web/tsconfig.e2e.json`: add `e2e-capture/**/*.ts` and `playwright.capture.config.ts` to `include`.
+  - `docker/tests/record-screenshot.sh` (new; extends `record-eval.sh`'s pattern). The header says: "Not a CI unit and not a check". Its usage is `record-screenshot.sh vt-decision`; any other argument exits 2.
+    - Start: `live_start r31v`, `live_web_port`, `live_first_start 900`, with the default deadline.
+    - Run `OCUTALON_URL=http://127.0.0.1:$web_port OCUTALON_CAPTURE_OUT=$tmp/vt-decision.png npm --prefix web run e2e:capture`.
+    - Then check that the file starts with the PNG signature and is under 300,000 B (`wc -c`).
+    - Only then copy it over `docs/images/vt-decision.png`. Print `record-screenshot: docs/images/vt-decision.png written (<bytes> B)` and the spec's `CAPTURE agent-steps=<n> messages=<m> size=<w>x<h>` line. Exit 0 only when written.
+    - The EXIT trap removes the project.
+    - `ci/units.sh` is not changed. The path is unclassified, so a change to it runs every group, the safe direction.
+  - Look at the written PNG (Read tool) against the four conditions of the intent block before you go on. If a condition cannot be met without a product change, or the decision holds fewer than 2 `AgentStep` messages, HALT with `## Clarification Needed`. Never change the mock, the scenario or the product for the shot.
+- Task 2 (measure, read-only; a fresh throwaway `e31s3i`, never a slot write). For DW-360, confirm on a first-start stack:
   - which predefined accounts are enabled and hold `%All` or `%Manager`;
   - their change-password-on-next-login flag;
   - the portal's menu labels (System Administration > Security > Users), and the Password / Confirm Password / Save fields;
@@ -138,11 +189,18 @@ deferred: []
   5. **IPM section:** add `### Install it with IPM` at the end of "Install it yourself", after "Check that it is ready". Text in Design Notes.
   6. **DW-360:** add `### Change the default IRIS accounts' passwords` right after the README-account how-to. Text in Design Notes. Also extend the LAN warning at :174 with `[How to change the default IRIS accounts' passwords](#change-the-default-iris-accounts-passwords).`
   7. **LICENSE line:** under "Credits and licences", after the not-affiliated note: `OcuTalon is under the MIT License: [LICENSE](LICENSE).`
-  8. **Screenshots:** per the ruling on Clarification Q2. Default if ruled "reuse": no new PNG and no `.gitignore` change.
+  8. **Screenshots (U-242 option C):** under "What's interesting", after its paragraph, add two image lines, each a paragraph of its own (an empty line before and after it):
+     - first, the hero's line again, with :7's alt text word for word and `docs/images/page-incident.png`;
+     - then `![<text 10>](docs/images/vt-decision.png)`.
+     - Replace the Chat bullet's alt text at :59 with the same text 10. Both alt texts for `vt-decision.png` must match the re-shot image.
+     - No other PNG; `.gitignore` unchanged. The files are tracked, so no `git add -f` is needed.
 - `LICENSE` (new) -- the standard MIT License text, holder line `Copyright (c) 2026 jbrandtmse`, ASCII.
 - `docs/bridge-guide.md:13` -- append ` Build 109, which the Early Access portal now offers in place of build 154, has not been tested with this guide yet.` to the bullet. Nothing else.
 - `docs/install-ipm.md:7` -- append ` Build 109, which the Early Access portal now offers in place of build 154, has not been tested with the IPM install yet.` to the line. Nothing else.
-- `docs/security-overview.md` -- replace L111 and L187 with the ruled sentences (Clarification Q1). No other line.
+- `docs/security-overview.md` -- change exactly two lines, keeping each line's `- ` bullet prefix:
+  - L111: `- It is fixed to exact targets and shows its dry run (a fix), or the tool, its MCP server when it has one, and its inputs through the redactor, cut to 200 characters, with the full call kept in the approval record (a tool call).`
+  - L187: `- Every call passes the gate, an approval request when needed (showing the tool, its server and its inputs through the redactor, cut to 200 characters, with the full call kept in the approval record), an audit entry (read-only calls included) and an agent step.`
+  - No other line. L179's framing sentence and L100 stay as they are; `git diff --stat` shows 2 insertions and 2 deletions.
 - `docker/tests/test-readme.sh` -- update the header and add pins, each with a broken copy that must flag:
   - `INSTALL_FACTS` gains `irishealth-community:2027.1.0AI.109.0`, `IRIS_IMAGE=`, `#start-it-with-build-109` and `Build 109's plain IRIS image has not been tested.`
   - `TRY_FACTS` gains `#start-it-with-build-109` and `read-only Visual Trace account`.
@@ -153,7 +211,10 @@ deferred: []
   - `lan` gains the default-accounts heading and its link.
   - A new rule `licence`: `LICENSE` holds the MIT grant and warranty paragraphs and exactly `Copyright (c) 2026 jbrandtmse`, and the README holds the exact LICENSE line under "Credits and licences".
   - Add both new rules to `RULES`.
-  - Images per Q2. If image lines are added to "What's interesting", `chk_interesting` counts words with image lines left out.
+  - `chk_interesting` counts words with the image lines (`^!\[`) left out. It also requires at least two image lines in "What's interesting": one with the hero's target (the first image link of the README) and one with the Chat bullet's target. The rule names no file, as `rule_images` does.
+    - Broken copies: drop either image line; prose over 120 words with the image lines left out still flags.
+  - `chk_images` gains a size check: every linked `docs/images/` file must be under 300,000 B in the tree. It reads `wc -c` from a root it is passed, defaulting to the repository.
+    - Broken copy: a temp root whose linked file is exactly 300,000 B (`head -c 300000 /dev/zero`) must flag.
 - `web/src/app/links.ts` -- add `BRIDGE_GUIDE_URL = 'https://github.com/jbrandtmse/OcuTalon/blob/HEAD/docs/bridge-guide.md'` and `SECURITY_OVERVIEW_URL` (same form, `docs/security-overview.md`), each with a doc comment.
 - `web/src/app/about/about-dialog.ts` -- after the README link, add "Bridge developer guide" and "Security overview" in the README link's pattern (icon + visually hidden "(opens in a new tab)"), each in its own `<p>`, before the credits (EXPERIENCE.md :145).
 - `web/src/app/guide/guide-view.ts` + `demo-guide.ts` -- add `bridgeLink: 'Use the same bridge in your own production'` to `GUIDE_TEXTS`, and the link after the install link at :176 in the same pattern (`data-guide-focus="finishLink"`, aria-hidden `trace.arrow`, visually hidden `trace.opensInNewTab`). `[href]` is `BRIDGE_GUIDE_URL` (EXPERIENCE.md :614).
@@ -180,6 +241,13 @@ deferred: []
 - Given `docs/bridge-guide.md` and `docs/install-ipm.md`, when read, then each carries its item-7 sentence verbatim, and every other build 154 mention is unchanged (`git diff` shows exactly two added sentences in these files).
 - Given the README's IPM section, when read, then the registry install comes first (the community-registry line, then `zpm "install ocutalon"` in USER, an Interoperability-enabled namespace), the folder install is second via `docs/install-ipm.md`, and it never says "any namespace" (AD-23 / U-231).
 - Given the repository root, when listed, then `LICENSE` holds the MIT text with "Copyright (c) 2026 jbrandtmse", and the README carries the ruled LICENSE line (`test-readme.sh` pins both).
+- Given the README, when a judge reads "What's interesting":
+  - then it shows `docs/images/page-incident.png` (Story 10.5's vetted file, unchanged), then `docs/images/vt-decision.png`, each with plain-English alt text;
+  - `vt-decision.png` is the file that `docker/tests/record-screenshot.sh vt-decision` wrote with the Playwright spec on a throwaway with the mocked model;
+  - it shows one whole decision, with every Operations lane and at least two agent steps; it shows no mock, test, CI or host name, no localhost or port, and nothing secret; it is under 300,000 B;
+  - every alt text for it describes it;
+  - no docs/images file is added or duplicated (DW-613);
+  - `test-readme.sh` `images` and `interesting` pin the links, the placement and the size.
 - Given the built page, when the About dialog opens, then its links are README, Bridge developer guide and Security overview, in that order, each opening in a new tab. When the guide reaches its finish state, then "Use the same bridge in your own production ↗" opens the bridge guide in a new tab, with the arrow hidden from screen readers.
 - Given `docs/security-overview.md`, when diffed, then only L111 and L187 changed, to the ruled sentences, and the MCP block still opens with L179's sentence.
 - Given the CI stacks with the mock bot, when `live:online-session` and `live:online-allowance` run, then L6, row 4 (Telegram part), A5 and AT pass with no SKIP or `notBuilt` left for 31.3 (`rg -n "'31\.3'|Story 31\.3 turns" web docker` finds none).
@@ -226,7 +294,7 @@ deferred: []
    - "This first run ends early by design: it creates the namespace OCUTALON and stops with a line that says what to do next. Switch to OCUTALON and run the same command:" + `zn "OCUTALON"` / `zpm "install ocutalon"`.
    - "This second run installs OcuTalon with demo mode off. [Install OcuTalon with IPM](docs/install-ipm.md) shows the output of both runs, and the install from the package folder, for developers."
    - AD-23's "Presenting the stop" is met by the link to the outputs.
-4. The DW-360 section text (Task 0 confirms each fact):
+4. The DW-360 section text (Task 2 confirms each fact):
    - "IRIS also comes with predefined accounts, among them `SuperUser` and `_SYSTEM`, which hold every right, and `Admin`. Change their passwords in the Management Portal: open http://localhost:52773/csp/sys/UtilHome.csp and sign in as `SuperUser` (its first sign-in asks for a new password)."
    - "Then open System Administration, then Security, then Users. For `_SYSTEM`, `Admin` and any other enabled account you don't use, choose its name, enter a new password in Password and Confirm Password, and press Save."
    - "Leave `CSPSystem`, the web gateway's account, and the accounts marked for internal use as they are."
@@ -236,6 +304,15 @@ deferred: []
 7. FR-58's "other providers": the README names Anthropic only (public-text bans other provider names). That is as built, so it is not a gap.
 8. The edits to `web/e2e-online/**` are limited to the four AC-named Telegram cases (L6, A5, AT; T2 is in `docker/tests`), under the bindings' exception "except what 31.3's AC itself names".
 9. In T1 to T4, the pairing is a fixture (`Test.Data.Fixture.Pairing`, as row 4 already uses); the message path is the real `TelegramIn`/`TelegramOut` through the mock. The mock calls follow `web/e2e/demo-path/telegram-approval.spec.ts` (Rule 2: that file is a Lane A spec with no exported helper, so a small local helper is the reason for the copy).
+10. The alt text for `vt-decision.png`, in both places (veto-window text; a draft that Task 1 checks against the shot): "Visual Trace of one whole decision: the incident manager hands the incident to the decision process, which calls the diagnosis agent; each of the agent's model requests and tool calls shows as an agent step of its own, and the dry run follows, each a production message."
+    - Implement may only drop a clause the image does not show. Any other change is a Clarification.
+    - Under "What's interesting", the `page-incident.png` line reuses the hero's vetted alt text word for word, so it adds no new public text.
+11. Where the capture lives, and why it is not in CI:
+    - It lives in `web/e2e-capture/vt-decision.spec.ts`, `web/playwright.capture.config.ts` and `docker/tests/record-screenshot.sh`, following the rehearsal config and `record-eval.sh`.
+    - It is neither cheap nor hermetic: it needs a first-start stack plus demo steps 1-5 (about 3-5 min), and it writes a tracked file. So no CI unit, group or job runs it, and it adds no new test unit.
+    - The README's checks stay in CI through `test-readme.sh`.
+12. "Under 300 KB" is read as under 300,000 B, the stricter reading. Every image file passes it today.
+13. "What's interesting" keeps its 120-word cap for prose, with image lines left out of the count. The ruling's two image lines would otherwise push it over the cap with their alt text alone.
 
 **Security-overview L111: clause-by-clause evidence.**
 - (a) "fixed to exact targets": TRUE.
@@ -249,13 +326,13 @@ deferred: []
   - The full call is kept in the approval record (`ApprovalRequest.cls:30,33,78`).
   - OcuTalon's own agent makes no MCP call in this release (L179), and every built-in tool is safe (L100). So a server appears only for a developer's own AI Hub MCP tool held by the bridge's gate (`Gate.cls:12`).
 - (d) The parent line (one request, one Workflow task): TRUE (`Approval.cls:622-633`).
-- **Proposed L111 (one sentence; recommended):** "It is fixed to exact targets and shows its dry run (a fix), or the tool and its inputs through the redactor, cut to 200 characters, with the full call kept in the approval record (a tool call)."
-  - Alternative keeping the server: "...or the tool, its MCP server when it has one, and its inputs through the redactor, cut to 200 characters, with the full call kept in the approval record (a tool call)."
+- **Ruled L111 (U-242; the first plan's alternative):** "It is fixed to exact targets and shows its dry run (a fix), or the tool, its MCP server when it has one, and its inputs through the redactor, cut to 200 characters, with the full call kept in the approval record (a tool call)."
+  - The first plan's other proposal (without the server clause) was not taken.
 - **L187 checks:** the block still opens with L179's sentence ("This release can't connect to MCP servers. When a release adds MCP support, these rules apply:"; L178 is blank). The narrowing is accurate for an MCP call, where a server always exists.
-  - **Proposed L187:** "Every call passes the gate, an approval request when needed (showing the tool, its server and its inputs through the redactor, cut to 200 characters, with the full call kept in the approval record), an audit entry (read-only calls included) and an agent step."
-  - Both proposals stay consistent with 13.4's L100 sentence. Neither touches the audit claims.
+  - **Ruled L187 (U-242, as proposed):** "Every call passes the gate, an approval request when needed (showing the tool, its server and its inputs through the redactor, cut to 200 characters, with the full call kept in the approval record), an audit entry (read-only calls included) and an agent step."
+  - Both ruled sentences stay consistent with 13.4's L100 sentence. Neither touches the audit claims.
 
-**Public files touched (U-239 check: none claims Telegram on the online demo, or isolation under load):** `README.md`, `LICENSE`, `docs/bridge-guide.md`, `docs/install-ipm.md`, `docs/security-overview.md`, `web/src/app/about/about-dialog.ts`, `web/src/app/guide/guide-view.ts`, `web/src/app/guide/demo-guide.ts`, `web/src/app/links.ts`. The release notes and splash are untouched.
+**Public files touched (U-239 check: none claims Telegram on the online demo, or isolation under load):** `README.md`, `LICENSE`, `docs/bridge-guide.md`, `docs/install-ipm.md`, `docs/security-overview.md`, `web/src/app/about/about-dialog.ts`, `web/src/app/guide/guide-view.ts`, `web/src/app/guide/demo-guide.ts`, `web/src/app/links.ts`, `docs/images/vt-decision.png` (re-shot; the Planner vets it before the story commit). The release notes and splash are untouched.
 
 **Architecture decisions:**
 - AD-29: lanes; Telegram's files are Lane A's; Epic 31 keeps Lane B's.
@@ -270,17 +347,26 @@ deferred: []
 
 **Integration ACs:** no service or shared component is introduced. The new `links.ts` constants are consumed in this story by `about-dialog.ts` and `demo-guide.ts`, and the frame, words and guide e2e tests observe them.
 - Consumed-by: About dialog and guide finish state (this story).
-- Consumes: `README_URL`'s file `web/src/app/links.ts`; `TRACE_TEXTS` (`shared/trace-view.ts`); the CI mock bot (`ci/mock`); `Test.Data.Fixture.Pairing`.
+- Consumes: `README_URL`'s file `web/src/app/links.ts`; `TRACE_TEXTS` (`shared/trace-view.ts`); the CI mock bot (`ci/mock`); `Test.Data.Fixture.Pairing`; for the capture, the real Visual Trace page (`TRACE_PAGE`, `drawnMessages`, `signOutTrace`), the demo-path steps 01-05 and the mock's `diagnosis` scenario, on a real throwaway.
 
 **Extend, don't copy:**
 - The About links extend the README link's markup.
 - The finish link copies the install link's pattern at `demo-guide.ts:174-176`.
 - `links.ts` extends `README_URL`.
 - T1 to T4 extend L1-L5, row 4, A1 and AP respectively.
+- The capture extends three siblings:
+  - `web/playwright.capture.config.ts` extends `playwright.rehearsal.config.ts`'s pattern (base spread, own projects, a folder outside `e2e/`).
+  - `docker/tests/record-screenshot.sh` extends `record-eval.sh` (the manual-tool shape) and `test-demo-path.sh` :43-77 (the first start and the `OCUTALON_URL` call).
+  - `vt-decision.spec.ts` imports `support/trace.ts` and `support/floor.ts` and reads the header as `06-trace.spec.ts` does.
+  - The one copy is the guide's link flow from `openTraceFromGuide`, and only if the direct open needs a sign-in. The reason: that helper closes the tab before a shot can be taken, and `web/e2e/support/*` is import-only.
 
 **Ledger inbox (Rule 17):**
 - DW-360: addressed (task 6, `lan` pin).
-- DW-613: addressed through Clarification Q2. Whatever the ruling, no duplicate file is added. Evidence: both files exist, are tracked and are under 300 KB, and Story 10.5 copied them from the lead's vetted shots, not from Playwright.
+- DW-613: addressed; it closes with this story (U-242).
+  - No docs/images file is added or duplicated.
+  - `page-incident.png` is reused unchanged: the hero, and again under "What's interesting".
+  - `vt-decision.png` is re-shot in place, under the same name, by the Task 1 capture, and stays linked under the Chat bullet and under "What's interesting".
+  - Evidence for the binding's "confirm and record": Story 10.5 copied both files from the lead's vetted shots, not from Playwright (spec-10-5 :21, :27, :197-200). So the AC's Playwright capture is met by this re-shoot, as U-242 rules.
 - Declined DW-416: the fix would change how the origin check (`Web/Api.cls:965-973`, `Web/Live.cls:72`) trusts a TLS-terminating proxy. That is a security-posture change (a veto item), and the setting lives on the demo host (owner-only). The host's mapping works today. Route it to the decision sheet or to Story 31.4 (the demo host's isolation).
 - Declined DW-432: a flake in `web/e2e-online/allowance/daily-cap.spec.ts` D1 (:105-139), racing with `Core/StatusMonitor.cls:47-75`. It is not one of the AC-named cases, the test side is in a path this epic must not edit, and a server-side fix changes StatusMonitor's publish timing, outside this story. It keeps its flake status.
 - Declined DW-549: the fix is in `web/e2e-online/resume.spec.ts:84`, a path this epic must not edit (not AC-named). Flake.
@@ -293,9 +379,10 @@ deferred: []
 - `live:online-allowance` is in `install-upgrade`;
 - `live:floor` is in `shards-3`;
 - `live:sign-in` is in `browser`;
-- the web `node --test` scripts run in the hosted `web` job.
+- the web `node --test` scripts run in the hosted `web` job;
+- the capture (`record-screenshot.sh`, `web/e2e-capture/`) is a manual recording tool, not a test unit (Decided in-stage 11).
 
-**Size:** one story. The work is documentation plus pins, three links and four turned-on cases.
+**Size:** one story. The work is documentation plus pins, three links, four turned-on cases and one re-shot image with its capture tool.
 
 ## Rulings (orchestrator, veto U-242, 2026-11-03; kept 2026-11-03T15:07:51Z#727)
 
@@ -306,17 +393,26 @@ deferred: []
 
 ## Verification
 
-Use these variables on every `ci/iris.sh` and `ci/warm.sh` call: `OCUTALON_LOCK_DIR="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")/.worktrees/.coordination/locks/lane-a" OCUTALON_TEST_WEB_PORT=52801 OCUTALON_LOCK_OWNER='epic=31 stage=implement'`, with tags `e31s3i` (fresh) and `e31s3iw` (warm).
+Use these variables on every `ci/iris.sh`, `ci/warm.sh` and `docker/tests` live call (`record-screenshot.sh` included): `OCUTALON_LOCK_DIR="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")/.worktrees/.coordination/locks/lane-a" OCUTALON_TEST_WEB_PORT=52801 OCUTALON_LOCK_OWNER='epic=31 stage=implement'`, with tags `e31s3i` (fresh) and `e31s3iw` (warm).
 - Pass `timeout: 600000` on every call. Make one test-runner call per message, and never re-submit a call.
 - Run `ci/iris.sh build` before any browser unit.
 - No real model key and no real bot, ever.
 
 **Commands:**
+- Task 1, first, in this order:
+  - (once) `OCUTALON_RUN_TAG=e31s3i ci/iris.sh build` -- expected: the bundle is built from the current tree.
+  - (once) `npx --prefix web playwright install chromium` -- expected: done.
+  - (once) `OCUTALON_RUN_TAG=e31s3i bash docker/tests/record-screenshot.sh vt-decision`, with the lane variables -- expected:
+    - `CAPTURE agent-steps=<n≥2> messages=<m> size=<w>x<h>`, then `record-screenshot: docs/images/vt-decision.png written (<bytes> B)`, with fewer than 300,000 bytes, and exit 0;
+    - its EXIT trap removes the project;
+    - about 3-5 min locally, with the default 540 s deadline.
+  - (once) `wc -c < docs/images/vt-decision.png && file docs/images/vt-decision.png` -- expected: under 300000; PNG image data.
+  - Then view the PNG (Read tool) against the four conditions.
 - (loop) `bash docker/tests/test-readme.sh` -- expected: every rule PASS, `ipm` and `licence` included; no SKIP.
 - (loop) `bash docker/tests/test-bridge-guide.sh` and `bash docker/tests/test-cpf.sh`, one per call -- expected: PASS (item-7 sentences tolerated, pins unchanged).
 - (loop) `npm --prefix web test` and `npm --prefix web run lint`, one per call -- expected: pass (`guide-view`, `ux-strings` and `host-pages` included).
 - (once) `bash ci/checks.sh` -- expected: every script passes (`boundaries`: ASCII, no local path).
-- (once) `OCUTALON_RUN_TAG=e31s3i ci/iris.sh build` -- expected: the bundle is rebuilt with the links.
+- (once) `OCUTALON_RUN_TAG=e31s3i ci/iris.sh build`, again after the web edits -- expected: the bundle is rebuilt with the links.
 - (once) `OCUTALON_RUN_TAG=e31s3i ci/iris.sh live online-session` -- expected: passes, with L6 and row 4's Telegram line as PASS.
 - (once) `OCUTALON_RUN_TAG=e31s3i ci/iris.sh live online-allowance` -- expected: passes with A5 and AT (about 400 s in CI).
 - (once) `OCUTALON_RUN_TAG=e31s3i ci/iris.sh live floor` -- expected: passes (`guide.spec.ts`, `words.spec.ts`).
@@ -334,6 +430,9 @@ Use these variables on every `ci/iris.sh` and `ci/warm.sh` call: `OCUTALON_LOCK_
 - The README sections and table that `test-readme.sh` pins: `try-it`, `how-you-talk`, `install`, `images`, `interesting`, `lan`, `public-text` and `telegram-*`.
 - The online-session row 4 output (SKIP → PASS).
 - The mock's Telegram state: each case resets its own chat.
+- `docs/images/vt-decision.png`: linked under the Chat bullet and under "What's interesting"; `test-readme` `images` (now with the size check) and `interesting` (image lines left out of the word count, plus the hero and Chat image lines).
+- `web/tsconfig.e2e.json` `include` (`npm run lint` typechecks the capture spec and config). `web/package.json` scripts.
+- The capture project's dependency `capture-setup` reuses demo-path 01-05 unchanged, on its own throwaway. No CI unit runs it, so no CI shared state changes.
 
 Every test added or changed passes on a fresh environment, in either order.
 
@@ -345,9 +444,13 @@ Every test added or changed passes on a fresh environment, in either order.
 - LICENSE: change the holder line → `licence` red.
 - DW-360: drop the new heading → `lan` red.
 - Links: drop the Security overview link → `frame.spec.ts` red. Point the bridge link at `README_URL` → `guide.spec.ts` red.
+- Screenshots:
+  - Copy `vt-decision.png` to the stage scratch folder, then overwrite it with 300,000 zero bytes → `images` red. Restore it from that copy and confirm with `git status --short` and `git diff --stat`.
+  - Drop the "What's interesting" `vt-decision.png` line → `interesting` red.
+- Capture spec: temporarily add the literal `localhost` to the text that the forbidden-name check (d) reads → the spec fails, and `record-screenshot.sh` writes nothing (the PNG is byte-identical to before). Revert.
 - T1 to T4: make `TelegramIn` drop updates for an online-demo session (a temporary guard) → L6, A5 and AT red. Leave C's chat id off the reminder notice → row 4 red.
 
 ## Auto Run Result
 
-Status: draft
-Blocking condition: none (re-plan after the U-242 rulings)
+Status: ready-for-dev
+Blocking condition: none
