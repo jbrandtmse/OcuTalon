@@ -34,3 +34,6 @@
 2026-11-03T15:25:18Z	Story 39.1	fresh_check	env=recipe tests=21 result=pass order=forward,reverse shards=lane-a@Checks_fwd_155s,lane-a@Checks_rev_147s,lane-b@Data,Contract_rev_162s post_rework=Checks.Runs_fresh_pass
 2026-11-03T15:25:18Z	Story 39.1	committed	sha=667c1845 submodules= pushed=false ci=unpushed reason=rc1_push_hold_until_orchestrator_says_rc1_cut amendments=ARCHITECTURE-SPINE.md:AD-18_Names_line,AD-19_defaults_sentence footprint_extensions=src/ocutalon/cls/OcuTalon/Test/Data/Tables.cls
 2026-11-03T15:25:18Z	Story 39.1	story_cycle	plan_to_commit_min=124 implement_passes=2 reviews=2 rework=1 first_ci=pending models=plan:opus,implement:sonnet,qa:sonnet,cr:opus
+2026-11-03T15:26:39Z	Story 39.2	ruling	question=can_39.2_build_now_beside_epic40 choice=wait_on_epic40 rejected=build_now(duplicates_and_collides_with_epic40_per-person_machinery_in_SettingsOps:PERSONKEYS,IsPersonKey,ForgetPerson;SessionOps.End;CommandsIn) why=standing_precedent_contended_path_change_beyond_append_waits_on_its_epic category=decide policy=5086036
+2026-11-03T15:26:39Z	Story 39.2	story_waiting	story=39-2-save-your-heartbeat-settings-and-ask-for-a-beat on=40 code=none tracker=backlog
+2026-11-03T15:26:39Z	Story 39.3	stage_spawned	stage=plan spawn_at=2026-11-03T15:26:39Z model=opus agent_name=39-3-plan-1 cycle_iteration=1
