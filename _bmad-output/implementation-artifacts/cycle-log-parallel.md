@@ -1534,3 +1534,7 @@
 2026-11-03T09:39:37Z	Epic 13	amendments_verified	amendments=0 extensions=6 ok=true note=overlaps:epic-15(release/checklist.sh,test-release-checklist.sh,security-overview.md)_auto-merge_clean_in_trial;epic-12(Test/Install/Production.cls_auto-merge;ci/units.sh_append_conflict=plain_union_for_Epic_12s_integrate-forward);watch_merge.cpf+after-start.sh=unchanged
 2026-11-03T09:39:37Z	Epic 13	ruling	question=feature_moved_after_runner_integrate-forward(3a52b923->f26d0f6b) choice=merge_in_orchestrator_with_SC-4-P_step4_bookkeeping_resolution rejected=resume_runner_B_for_another_integrate-forward(~40min_CI_on_rc1_chain;feature_delta_is_bookkeeping_only:cycle-log,sprint-status,epics.md_0.13_block,deps_hash;trial_merge_conflicts_only_sprint-status.yaml) category=decide policy=508603671b9598f59d04750db6b6cdad2d396167
 2026-11-03T09:39:37Z	Epic 13	epic_merge_started	head=7f43cdbb
+2026-11-03T09:40:06Z	Epic 13	epic_merged_to_feature	merge=ac3f9c58 head=7f43cdbb conflicts=sprint-status.yaml(step4:ours+generate+set_epic13_done)
+2026-11-03T09:40:36Z	Epic 13	decision_sheet_skipped	reason=decisions_for_user_none
+2026-11-03T09:40:36Z	Epic 13	ledger_routed_planned	story=none entries=0 note=DW-619,DW-620_burndown;no_story-routed_entries_from_Epic_13
+2026-11-03T09:40:36Z	Epic 13	deps_hash_rerecorded	reason=ledger_routed(DW-181_bullet_from_Epic_13) hash=5cbe45b1
