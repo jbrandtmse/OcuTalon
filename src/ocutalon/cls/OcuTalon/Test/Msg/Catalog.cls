@@ -1,6 +1,6 @@
 /// Tests of the message catalog and its one renderer (Story 0.9; AD-29, AD-32). The XData blocks hold the expectations, typed
 /// apart from the catalog's templates:
-///   - Keys: the 95 keys of OcuTalon.Msg.Catalog.Core and the 24 of OcuTalon.Msg.Catalog.Watch;
+///   - Keys: the 97 keys of OcuTalon.Msg.Catalog.Core and the 26 of OcuTalon.Msg.Catalog.Watch;
 ///   - Gaps: the keys whose entry carries a gap field, the forms the UX does not fix (none now);
 ///   - OneForms: for each of the 9 entries with a count-of-one form, its slots with the form's slot at 1, the exact text of the
 ///     form on the message channels (and on the page where it differs), and the plural fragment that the other counts keep;
@@ -77,10 +77,10 @@ Method TestEntries()
 	Set keys = ..Read("Keys")
 	Set core = ..Read("Entries", "OcuTalon.Msg.Catalog.Core")
 	Set watch = ..Read("Entries", "OcuTalon.Msg.Catalog.Watch")
-	Do $$$AssertEquals(keys.core.%Size(), 95, "the expected Core list has 95 keys")
-	Do $$$AssertEquals(keys.watch.%Size(), 24, "the expected Watch list has 24 keys")
-	Do $$$AssertEquals(..SortedKeys(core), ..SortedList(keys.core), "Core holds exactly its 95 keys")
-	Do $$$AssertEquals(..SortedKeys(watch), ..SortedList(keys.watch), "Watch holds exactly its 24 keys")
+	Do $$$AssertEquals(keys.core.%Size(), 97, "the expected Core list has 97 keys")
+	Do $$$AssertEquals(keys.watch.%Size(), 26, "the expected Watch list has 26 keys")
+	Do $$$AssertEquals(..SortedKeys(core), ..SortedList(keys.core), "Core holds exactly its 97 keys")
+	Do $$$AssertEquals(..SortedKeys(watch), ..SortedList(keys.watch), "Watch holds exactly its 26 keys")
 	Set corePrefixes = ..Prefixes(..SortedKeys(core))
 	Set watchPrefixes = ..Prefixes(..SortedKeys(watch))
 	Set shared = ""
@@ -118,7 +118,7 @@ Method TestEveryKeyOnEveryChannel()
 {
 	Set fixtures = ..Read("Fixtures")
 	Set catalogKeys = ..SortedKeys(..Read("Entries", "OcuTalon.Msg.Catalog.Core"))_","_..SortedKeys(..Read("Entries", "OcuTalon.Msg.Catalog.Watch"))
-	Do $$$AssertEquals(..SortedList($ListFromString(catalogKeys)), ..SortedKeys(fixtures), "the fixtures cover exactly the 119 keys of the catalog")
+	Do $$$AssertEquals(..SortedList($ListFromString(catalogKeys)), ..SortedKeys(fixtures), "the fixtures cover exactly the 123 keys of the catalog")
 	Set refused = ..RefusedChannels()
 	Do $$$AssertEquals(refused, "email,webhook,slack,system", "four Msg.Enum channels are refused")
 	Set iterator = fixtures.%GetIterator()
@@ -993,6 +993,7 @@ XData Keys [ MimeType = application/json ]
   "reminder.due",
   "reminder.late",
   "banner.allowance",
+  "banner.allowanceChat",
   "banner.dailyCap",
   "banner.unreachable",
   "banner.noModelKey",
@@ -1000,6 +1001,7 @@ XData Keys [ MimeType = application/json ]
   "banner.heartbeatStalled",
   "banner.telegramPaused",
   "banner.resetSoon",
+  "banner.resetSoonChat",
   "banner.reconnecting",
   "banner.demoBusy",
   "bannerAction.installYourself",
@@ -1073,7 +1075,9 @@ XData Keys [ MimeType = application/json ]
   "result.interrupted",
   "result.stoppedPartway",
   "result.couldNotStart",
-  "watch.time"
+  "watch.time",
+  "button.approve",
+  "button.reject"
  ]
 }
 }
@@ -1235,6 +1239,7 @@ XData Fixtures [ MimeType = application/json ]
  "reminder.due": {"slots": {"text": "Call the vendor."}, "text": "Reminder: Call the vendor."},
  "reminder.late": {"slots": {"time": "2026-10-15T14:00:00Z", "text": "Call the vendor."}, "text": "Reminder (late; it was due on Thursday at 10:00 ET): Call the vendor."},
  "banner.allowance": {"slots": {"limit": 50, "time": "2026-10-16T19:02:00Z"}, "text": "You've used this session's 50 messages for the hour (messages you send in the chat or Telegram). You can send more at 15:02 ET."},
+ "banner.allowanceChat": {"slots": {"limit": 50, "time": "2026-10-16T19:02:00Z"}, "text": "You've used this session's 50 messages for the hour. You can send more at 15:02 ET."},
  "banner.dailyCap": {"slots": {"time": "2026-10-17T04:00:00Z"}, "text": "The online demo has used today's model allowance. Decisions use fixed rules until Saturday at 00:00 ET."},
  "banner.unreachable": {"slots": {}, "text": "Can't reach OcuTalon. Retrying every 10 seconds."},
  "banner.noModelKey": {"slots": {}, "text": "OcuTalon has no model key, so every decision uses fixed rules. Add ANTHROPIC_API_KEY to the .env file and restart OcuTalon."},
@@ -1242,6 +1247,7 @@ XData Fixtures [ MimeType = application/json ]
  "banner.heartbeatStalled": {"slots": {"time": "2026-10-16T18:15:00Z"}, "text": "Background checks have paused: the heartbeat last ran at 14:15 ET. Watches and reminders may be late until it recovers."},
  "banner.telegramPaused": {"slots": {"time": "2026-10-16T18:30:00Z"}, "text": "Telegram is paused: this bot is in use by another OcuTalon. OcuTalon will try again at 14:30 ET. Each OcuTalon needs its own bot."},
  "banner.resetSoon": {"slots": {}, "text": "The demo resets in 5 minutes. Your session and Telegram pairing will be cleared."},
+ "banner.resetSoonChat": {"slots": {}, "text": "The demo resets in 5 minutes. Your session will be cleared."},
  "banner.reconnecting": {"slots": {}, "text": "Reconnecting\u2026 New messages may be delayed."},
  "banner.demoBusy": {"slots": {}, "text": "The demo is busy right now. Try again in a few minutes, or install it yourself."},
  "bannerAction.installYourself": {"slots": {}, "text": "Install it yourself"},
@@ -1313,7 +1319,9 @@ XData Fixtures [ MimeType = application/json ]
  "result.interrupted": {"slots": {"count": 50, "itemNoun": {"one": "order", "other": "orders"}, "completed": 30, "remaining": 20}, "text": "The resend stopped when OcuTalon restarted: 30 of 50 orders went through. The other 20 need a new approval."},
  "result.stoppedPartway": {"slots": {"count": 50, "itemNoun": {"one": "order", "other": "orders"}, "resent": 47, "completed": 45, "notTried": 2}, "text": "The resend stopped partway: I resent 47 of the 50 orders (45 went through), the next one couldn't be resent, and 2 more weren't tried. Nothing else was changed, and I won't resend the rest without a new approval."},
  "result.couldNotStart": {"slots": {"reason": "OcuTalon isn't allowed to resend messages in that production"}, "text": "Nothing was resent: OcuTalon isn't allowed to resend messages in that production. Nothing was changed."},
- "watch.time": {"slots": {"time": "2026-10-16T18:12:00Z"}, "text": "14:12 ET"}
+ "watch.time": {"slots": {"time": "2026-10-16T18:12:00Z"}, "text": "14:12 ET"},
+ "button.approve": {"slots": {}, "text": "Approve"},
+ "button.reject": {"slots": {}, "text": "Reject"}
 }
 }
 

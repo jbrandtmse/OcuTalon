@@ -45,7 +45,7 @@ test.describe.configure({ timeout: 240_000 });
 test.skip(process.env['OCUTALON_ONLINE_PROXIED'] === '1', 'runs in the browser step, where nothing is proxied');
 test.use({ timezoneId: 'Asia/Kolkata', locale: 'en-GB' });
 
-const RESET_BANNER = 'The demo resets in 5 minutes. Your session and Telegram pairing will be cleared.';
+const RESET_BANNER = 'The demo resets in 5 minutes. Your session will be cleared.';
 const HEADING = 'The demo is resetting.';
 const BODY = 'It usually takes a few minutes. This page returns to the sign-in screen by itself.';
 const TITLE = 'Resetting \u00b7 OcuTalon';

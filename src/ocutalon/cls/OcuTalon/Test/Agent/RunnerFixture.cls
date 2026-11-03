@@ -1,3 +1,5 @@
+Include Ensemble
+
 /// What the tests that drive the agent runners share (Story 1.2; AD-6, AD-7, AD-19). THESE HELPERS RUN IN THROWAWAY STACKS AND IN
 /// CI ONLY (Rule 21): they act on the running OcuTalon.Production and read the CI mock's log.
 ///   - Running, RunningReason, Restart and Jobs: the state of the production and of the jobs of its items;
@@ -56,6 +58,8 @@
 ///   - StepProblems (Story 11.8): the one check of a turn's Visual Trace steps, which Test.Tools.Reminders, Test.Schedule.ReminderChat and Test.Watch.Turns share.
 ///     It waits for the steps of a decision, then names, joined by "; " like FallbackProblems, whatever is not as a turn with n tool calls leaves: the kinds,
 ///     each tool step's label, summary and status, a step with no header in the trace session or with one outside it, and, for a runner, its replies to Decide.
+///   - NotRunningNow, StateOf and NotRunningText (Story 12.9, DW-591): the readiness check of the restarts: the items that should run and have no job, leaving
+///     out an item whose System Default Settings row of Enabled is 0, and the row, runtime flag and jobs of those items for a failure text.
 /// No literal key is written anywhere.
 Class OcuTalon.Test.Agent.RunnerFixture
 {
@@ -112,7 +116,7 @@ ClassMethod Restart(name As %String, wait As %Boolean = 1) As %Status
 {
 	Set sc = ##class(Ens.Director).TempStopConfigItem(name, 1)
 	If $$$ISOK(sc) Set sc = ##class(Ens.Director).TempStopConfigItem(name, 0)
-	If $$$ISOK(sc) && wait && '..WaitAllRun() Set sc = $SYSTEM.Status.Error(5001, "Not every item of "_..#PRODUCTION_" runs "_..#WAITSECONDS_" seconds after "_name_" was started again: "_##class(OcuTalon.Install.Step.Production).NotRunning())
+	If $$$ISOK(sc) && wait && '..WaitAllRun() Set sc = $SYSTEM.Status.Error(5001, "Not every item of "_..#PRODUCTION_" runs "_..#WAITSECONDS_" seconds after "_name_" was started again: "_..NotRunningText())
 	Quit sc
 }
 
@@ -120,10 +124,57 @@ ClassMethod Restart(name As %String, wait As %Boolean = 1) As %Status
 ClassMethod WaitAllRun() As %Boolean
 {
 	Set deadline = $ZHorolog + ..#WAITSECONDS
-	While (##class(OcuTalon.Install.Step.Production).NotRunning() '= "") && ($ZHorolog < deadline) {
+	While (..NotRunningNow() '= "") && ($ZHorolog < deadline) {
 		Hang 1
 	}
-	Quit ##class(OcuTalon.Install.Step.Production).NotRunning() = ""
+	Quit ..NotRunningNow() = ""
+}
+
+/// The enabled items of the running production that have a pool and no live job (Install.Step.Production.NotRunning), without the items
+/// whose System Default Settings row of Enabled is 0: that row overrides the production's own flag (AD-3, Production.Runners), so such an
+/// item is not meant to run, whatever the runtime flag of the production still says after a test has stopped it (Story 12.9, DW-591:
+/// TelegramIn, which the Telegram tests enable and disable, was the item that this check kept waiting for). An item with no row, or a row
+/// of 1, is reported as before. "" when every item that should run has its job.
+ClassMethod NotRunningNow() As %String
+{
+	Set missing = ##class(OcuTalon.Install.Step.Production).NotRunning()
+	If (missing = "") || (missing = (..#PRODUCTION_" is not running")) Quit missing
+	Set kept = ""
+	For i = 1:1:$Length(missing, ",") {
+		Set item = $Piece(missing, ",", i)
+		Set row = ..SnapshotDefault(item, "Enabled")
+		If $List(row, 3) && ($List(row, 4) = 0) Continue
+		Set kept = kept _ $Select(kept = "": "", 1: ",") _ item
+	}
+	Quit kept
+}
+
+/// What a readiness failure names: the items from one reading of NotRunningNow, then their state in parentheses (StateOf).
+ClassMethod NotRunningText() As %String
+{
+	Set missing = ..NotRunningNow()
+	Quit missing_" ("_..StateOf(missing)_")"
+}
+
+/// What a failure message says about the items (comma-separated): for each, its Enabled row ("-" when there is none), its runtime flag and
+/// its jobs as status words. "" for no item.
+ClassMethod StateOf(items As %String) As %String
+{
+	Set text = ""
+	For i = 1:1:$Length(items, ",") {
+		Set item = $Piece(items, ",", i)
+		If item = "" Continue
+		Set row = ..SnapshotDefault(item, "Enabled")
+		Set jobs = ""
+		Set result = ##class(%ResultSet).%New("Ens.Job:Enumerate")
+		If $$$ISOK(result.Execute()) {
+			While result.Next() {
+				If result.Get("ConfigName") = item Set jobs = jobs _ $Select(jobs = "": "", 1: "/") _ result.Get("State")_":"_result.Get("Status")
+			}
+		}
+		Set text = text _ $Select(text = "": "", 1: "; ") _ item_" row "_$Select($List(row, 3): $List(row, 4), 1: "-")_", runtime flag "_+$Get($$$ConfigIsEnabled(item))_", jobs "_$Select(jobs = "": "none", 1: jobs)
+	}
+	Quit text
 }
 
 /// The alive jobs of an item, as a list of job ids.
@@ -310,7 +361,7 @@ ClassMethod ReadyReason() As %String
 {
 	Set reason = ..RunningReason()
 	If reason = "" Set reason = ..GuardReason()
-	If (reason = "") && '..WaitAllRun() Set reason = "not every item of "_..#PRODUCTION_" runs "_..#WAITSECONDS_" seconds after the test began: "_##class(OcuTalon.Install.Step.Production).NotRunning()
+	If (reason = "") && '..WaitAllRun() Set reason = "not every item of "_..#PRODUCTION_" runs "_..#WAITSECONDS_" seconds after the test began: "_..NotRunningText()
 	Quit reason
 }
 
@@ -579,7 +630,7 @@ ClassMethod ChangeSettings(item As %String, changes As %List, saved As %DynamicO
 			Set sc = production.%Save()
 		}
 		If $$$ISOK(sc) Set sc = ##class(Ens.Director).UpdateProduction(60)
-		If $$$ISOK(sc) && '..WaitAllRun() Set sc = $SYSTEM.Status.Error(5001, "Not every item of "_..#PRODUCTION_" runs "_..#WAITSECONDS_" seconds after "_item_" was changed: "_##class(OcuTalon.Install.Step.Production).NotRunning())
+		If $$$ISOK(sc) && '..WaitAllRun() Set sc = $SYSTEM.Status.Error(5001, "Not every item of "_..#PRODUCTION_" runs "_..#WAITSECONDS_" seconds after "_item_" was changed: "_..NotRunningText())
 	} Catch exception {
 		Set sc = exception.AsStatus()
 	}

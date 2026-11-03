@@ -2,7 +2,7 @@
 # Live test of the online demo's real start (Story 16.1; AD-13, AD-19, AD-23, AD-24, AD-25): builds the image and starts it in one
 # throwaway compose project with the online-demo flag on and test start values, and checks, in this order:
 #   - the start (rows 1 to 3): the log's STEP lines are the expected run (Bridge.Installer, Public, Roles, Users, Web, ... Ready), every step
-#     OK, RESULT OK and readiness 1; each of the 13 public keys reads back as its start value through Public.Settings and through
+#     OK, RESULT OK and readiness 1; each of the 14 public keys reads back as its start value through Public.Settings and through
 #     Setting.Get (a password is compared inside IRIS and printed as 1 or 0); /ocutalon/public/status reports the next reset that NextReset
 #     computes, on a 4-hour step of the anchor, with busy false and the last reset as given; Decide's three budget rows;
 #   - the public accounts and the password guard (row 4): the roles, the flags, the README account disabled, the guard setting and routine
@@ -160,13 +160,13 @@ check_no_key "row 1"
 
 # The lines that print each key through the accessor and through Setting.Get; a password is compared inside IRIS with the start variable.
 keys_lines=()
-for k in onlineDemo demoUser readonlyUser resetIntervalHours resetAnchor lastReset lastResetKind proxyAddress connectionCap connectionReserve messageAllowance ready; do
+for k in onlineDemo demoUser readonlyUser resetIntervalHours resetAnchor lastReset lastResetKind proxyAddress connectionCap connectionReserve messageAllowance telegramIncluded ready; do
   keys_lines+=("Write !,\"CHK|$k|\",##class(OcuTalon.Data.Public.Settings).Get(\"$k\"),\"|\",##class(OcuTalon.Data.Setting).Get(\"$k\")")
 done
 for pair in demoPassword:OCUTALON_DEMO_PASSWORD readonlyPassword:OCUTALON_READONLY_PASSWORD; do
   keys_lines+=("Set e=\$SYSTEM.Util.GetEnviron(\"${pair#*:}\") Write !,\"CHK|${pair%%:*}|\",((e'=\"\")&&(##class(OcuTalon.Data.Public.Settings).Get(\"${pair%%:*}\")=e)),\"|\",((e'=\"\")&&(##class(OcuTalon.Data.Setting).Get(\"${pair%%:*}\")=e))")
 done
-check_session "row 2: all 13 keys and readiness read back as their start values through the accessor and through Setting.Get" OCUTALON \
+check_session "row 2: all 14 keys and readiness read back as their start values through the accessor and through Setting.Get" OCUTALON \
   "CHK|onlineDemo|1|1
 CHK|demoUser|$demo_user|$demo_user
 CHK|readonlyUser|$readonly_user|$readonly_user
@@ -178,6 +178,7 @@ CHK|proxyAddress|$proxy_start|$proxy_start
 CHK|connectionCap|8|8
 CHK|connectionReserve|2|2
 CHK|messageAllowance|50|50
+CHK|telegramIncluded|1|1
 CHK|ready|1|1
 CHK|demoPassword|1|1
 CHK|readonlyPassword|1|1" \

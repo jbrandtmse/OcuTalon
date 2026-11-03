@@ -402,3 +402,7 @@
 2026-11-03T12:55:18Z	Epic 0	ci_green_verified	runs=41629601732(attempt_2),41629601721 head=032a25c0 note=rerun_of_failed_jobs_green
 2026-11-03T13:05:11Z	Epic 0	integrated_forward	feature=138d0066 head=d759b7db conflicts_resolved=_bmad-output/implementation-artifacts/sprint-status.yaml(SC-4-P_step_4:ours+regenerate+re-set_epic-15,15-3,15-4=done) checks=after-start,compose-file,cpf,boundaries,readme:pass smoke=live_install-start(e0s13n):pass note=second_integrate_forward(Epic_15_merged_after_the_first);AD-23_amendment_(IPM_first-run_namespace)_does_not_touch_the_merge_retry
 2026-11-03T13:05:11Z	Epic 0	epic_runner_complete	stories_completed=1
+2026-11-03T14:35:03Z	Epic 0	ci_red_classified	run=41641201023 workflow=.github/workflows/ci.yml class=flake test=OcuTalon.Test.Web.GuideApi(TestRunAgain,TestOnlyTheMarkerChanges) ledger=DW-453(occurrence) job=iris(image) head=c3d264c5
+2026-11-03T14:35:03Z	Epic 0	ci_red_classified	run=41641201023 workflow=.github/workflows/ci.yml class=flake test=e2e/chat/chat.spec.ts:693_C7(loadedAfter) ledger=DW-497(occurrence) job=iris(browser) head=c3d264c5
+2026-11-03T14:35:03Z	Epic 0	ci_red_classified	run=41641201023 workflow=.github/workflows/ci.yml class=flake test=e2e/floor/layout.spec.ts:483_G4 ledger=DW-635(new) job=iris(shards-3) head=c3d264c5
+2026-11-03T14:35:03Z	Epic 0	ci_green_verified	runs=41641201023(attempt_2),41641201273 head=c3d264c5

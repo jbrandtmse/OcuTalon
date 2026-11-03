@@ -11,6 +11,7 @@ export type IconName =
   | 'circle-alert'
   | 'circle-check'
   | 'circle-dashed'
+  | 'circle-pause'
   | 'circle-slash'
   | 'circle-x'
   | 'clock'
@@ -99,6 +100,11 @@ export type IconName =
           <circle cx="12" cy="12" r="10" />
           <path d="m15 9-6 6" />
           <path d="m9 9 6 6" />
+        }
+        @case ('circle-pause') {
+          <circle cx="12" cy="12" r="10" />
+          <line x1="10" x2="10" y1="15" y2="9" />
+          <line x1="14" x2="14" y1="15" y2="9" />
         }
         @case ('clock') {
           <circle cx="12" cy="12" r="10" />

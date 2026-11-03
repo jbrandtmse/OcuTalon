@@ -122,15 +122,15 @@ Method TestDecisionPayloadKeys()
 	Do $$$AssertEquals(exported.traceItemIndex_"|"_exported.traceItemIndexNoEvents, "8|9", "the two item indexes are the turn's positions")
 }
 
-/// Included() is 1 only when the test-only global is 1: absent, 0, 2 and 1.
+/// Included() is 1 unless the test-only global is 0: absent, 0, 2 and 1.
 Method TestTelegramIncluded()
 {
 	Kill ^OcuTalonTest("TelegramIncluded")
-	Do $$$AssertEquals(##class(OcuTalon.Channel.Telegram.In).Included(), 0, "an absent global gives 0")
+	Do $$$AssertEquals(##class(OcuTalon.Channel.Telegram.In).Included(), 1, "an absent global gives 1")
 	Set ^OcuTalonTest("TelegramIncluded") = 0
 	Do $$$AssertEquals(##class(OcuTalon.Channel.Telegram.In).Included(), 0, "0 gives 0")
 	Set ^OcuTalonTest("TelegramIncluded") = 2
-	Do $$$AssertEquals(##class(OcuTalon.Channel.Telegram.In).Included(), 0, "2 gives 0")
+	Do $$$AssertEquals(##class(OcuTalon.Channel.Telegram.In).Included(), 1, "2 gives 1")
 	Set ^OcuTalonTest("TelegramIncluded") = 1
 	Do $$$AssertEquals(##class(OcuTalon.Channel.Telegram.In).Included(), 1, "1 gives 1")
 	Do $$$AssertTrue(##class(OcuTalon.Channel.Telegram.In).%Extends("Ens.BusinessService"), "the stub is a business service")

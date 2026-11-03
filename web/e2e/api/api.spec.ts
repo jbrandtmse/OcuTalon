@@ -66,6 +66,7 @@ const ENVELOPE_TEXT = {
 
 const NOT_WATCHING = 'Ask OcuTalon to watch the Orders production first (step 1).';
 const NOT_FOUND = 'OcuTalon has nothing at this address.';
+const TELEGRAM_OFF = "Telegram isn't on in this OcuTalon, so no pairing code was made.";
 const SIGNED_OUT = 'You were signed out. Sign in again to continue.';
 
 /** The routes that name a record: a ref the session can't see answers 404 not_found, before the 501 of an unbuilt route. */
@@ -141,8 +142,8 @@ test('row 13: the page loads /state and marks the snapshot loaded', async ({ pag
   expect(body['onlineDemo'], 'a local install is not the online demo').toBe(false);
   expect(body['demoMode'], 'every Docker throwaway runs in demo mode').toBe(true);
   expect(body['models']).toEqual({ triage: 'Claude Haiku 5.5', diagnosis: 'Claude Haiku 5.5', chat: 'Claude Haiku 5.5' });
-  expect(body['telegram'], 'Telegram is not included in this release and nobody is paired').toEqual({
-    included: false,
+  expect(body['telegram'], 'this release includes Telegram, the stack is parked (no poller) and nobody is paired').toEqual({
+    included: true,
     state: 'off',
     botUserName: '',
     paired: false,
@@ -321,10 +322,11 @@ test.describe('row 15: the browser envelope', () => {
 
 /**
  * Row 16: the mailbox routes are built (Story 4.6): an empty email is 400 bad_email and an unknown sample is 404 not_found, each in the
- * error shape; the pairing routes answer 404, and the two routes that name a record answer 404 for a ref the session can't see (a
+ * error shape; the pairing routes answer instead of 404 now that the release includes Telegram (Story 12.9): the code route is 409
+ * not_available while the state is off, and the unpair route is 200 done for a session with nothing paired; and the two routes that name a record answer 404 for a ref the session can't see (a
  * random ref, here) with the error shape (AD-4).
  */
-test('row 16: the mailbox routes answer 400 for an empty email and 404 for an unknown sample, the pairing routes 404, and a ref the session cannot see 404', async ({ request }) => {
+test('row 16: the mailbox routes answer 400 for an empty email and 404 for an unknown sample, the pairing routes answer and are not 404, and a ref the session cannot see 404', async ({ request }) => {
   await signInOverHttp(request, README_ACCOUNT.user, README_ACCOUNT.password);
   await expectError(await call(request, 'POST', '/ocutalon/api/v1/mailbox/incoming'), 400, 'bad_email', 'Enter a subject.');
   await expectError(await call(request, 'POST', '/ocutalon/api/v1/mailbox/samples/zz'), 404, 'not_found', NOT_FOUND);
@@ -332,8 +334,10 @@ test('row 16: the mailbox routes answer 400 for an empty email and 404 for an un
     await expectError(await call(request, 'POST', path('ZzNoSuchRef0123456789')), 404, 'not_found', NOT_FOUND);
     await expectError(await call(request, 'POST', path('zz')), 404, 'not_found', NOT_FOUND);
   }
-  await expectError(await call(request, 'POST', `${PAIRING}/code`), 404, 'not_found', NOT_FOUND);
-  await expectError(await call(request, 'DELETE', PAIRING), 404, 'not_found', NOT_FOUND);
+  await expectError(await call(request, 'POST', `${PAIRING}/code`), 409, 'not_available', TELEGRAM_OFF);
+  const unpaired = await call(request, 'DELETE', PAIRING);
+  expect(unpaired.status(), await unpaired.text()).toBe(200);
+  expect(await unpaired.json(), 'nothing is paired, and that is no error').toEqual({ result: 'done' });
 });
 
 /** Row 17: the other errors, signed in and signed out. */
