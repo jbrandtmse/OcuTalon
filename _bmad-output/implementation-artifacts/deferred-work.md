@@ -409,6 +409,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Usage indexes DecisionRef and OwnerRef only (Lane B's Test.Data.Tables pins the indexes); UsageSpent selects by RecordedAt and UnpricedModels scans again when a cap is set; settle by timing Precheck with about 100,000 Usage rows
 - 2026-10-22T23:49:35Z status=escalated owner=burndown by=harvest note=for the decision sheet: measure Precheck at 100,000 Usage rows; if it is slow, add a RecordedAt index to Usage with the change to Lane B's pin (an orchestrator call), or cache the day's spend
 - 2026-10-24T12:14:24Z status=routed owner=30-1-long-conversations-are-compacted-under-the-limit by=merge_gate note=measure_the_precheck_at_~100k_Usage_rows,then_index(Lane_B's_pin)_or_cache_the_day's_spend;veto_U-50
+- 2026-11-02T11:33:42Z status=wontfix-accepted by=adjudication note=measured_in_30.1_Task_0(d)_on_a_fresh_throwaway:median_Precheck_~28ms_at_100,000_Usage_rows(threshold_250ms);no_code_change;reopen_if=a_Precheck_median_above_250ms_on_a_field_instance,or_a_Usage_table_above_100,000_rows
 
 ### DW-94: The gateway's HTTP 403 is measured only in Anthropic's error-JSON shape, and Story 29.3 fixes its status and text but not its body, so a body that AI Hub's error text drops would make a reached cap an error fallback
 - source: spec-1-6-an-unusable-reply-takes-the-fallback-route-and-ocutalon-star.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -508,12 +509,14 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-1-9-no-model-request-goes-over-100-000-tokens.md | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: Story 1.9 Decide.Precheck too_large on the estimate (history + prompt + schemas + input); Story 1.8 resumes the linked history
 - 2026-10-23T18:29:11Z status=routed owner=30-1-long-conversations-are-compacted-under-the-limit by=spec_gate note=30.1 compacts (or rotates to a fresh seeded session) a flagged turn whose history alone passes the limit, and adds its summarizer time only to flagged turns it can compact
+- 2026-11-02T11:33:42Z status=resolved-by:30-1-long-conversations-are-compacted-under-the-limit by=adjudication note=30.1_compacts_or_rotates_to_a_seeded_session_a_flagged_linked_turn_and_judges_too_large_on_the_post-compaction_bound:AC2(Test.Agent.Compaction,history_over_a_41,000_limit_answered,every_request_<=41,000)+matrix_rows_6-7(Test.Bridge.Compaction);commit_08decf39
 
 ### DW-130: Until Story 30.1 compacts, a turn that passes the request-size check can still send a later model request above 100,000 tokens inside AI Hub's tool loop (a 99,000-token first request could reach about 153,000 on its fourth); AD-20's arithmetic bound holds only once turns above 40,000 are compacted
 - source: spec-1-9-no-model-request-goes-over-100-000-tokens.md | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: Story 1.9 checks the first request only; the AC's amendment sends a flagged turn as it is until 30.1 merges; AD-20 bounds the loop by compaction at 40,000
 - 2026-10-23T21:02:46Z status=routed owner=30-1-long-conversations-are-compacted-under-the-limit by=harvest note=30.1's compaction of every flagged turn closes it; its tests should show a four-iteration turn staying under 100,000
 - 2026-10-23T22:00:43Z occurrence=1-9-no-model-request-goes-over-100-000-tokens by=cr note=cr: Chat has no tools until 1.10, so the loop opens there (and with 22.x MCP), not before; 30.1 still closes it
+- 2026-11-02T11:33:42Z status=resolved-by:30-1-long-conversations-are-compacted-under-the-limit by=adjudication note=compacted_case_closed:matrix_row_10(Test.Bridge.Compaction,four_requests_after_compaction_each_under_100,000;mutation_control_without_compaction_passes_100,000)+AC1(Test.Agent.Compaction);residual_first-request-between-40k-and-the-limit_case_restated_as_DW-579(escalated,decision_sheet);commit_08decf39
 
 ### DW-131: The tool-result cap counts a result's characters before AI Hub encodes a string result again as a JSON string, so a cut result reaches the model slightly larger than the room (10,006 tokens against 10,000 measured)
 - source: spec-1-9-no-model-request-goes-over-100-000-tokens.md | severity: low | fix-risk: low | footprint: in-story
@@ -2238,6 +2241,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-02T05:12:28Z occurrence=30-5-mixed-and-unfinished-resends-say-how-far-they-got note=CI_run_41389356450_head_dd8ccfd4:live:sign-in_banners.spec.ts:439_B7_late_mark_overwritten(Last_run_10:17_No_read_access)_also_seen_at_a0a32cf9(sign-in_heartbeat-stalled_mark);one_rerun
 - 2026-11-02T07:15:31Z status=open owner=burndown by=merge_gate note=occurrence:81f230eb(Epic_30_part_1_final_head)_browser_banners_B2,one_rerun_green(41395335549)
 - 2026-11-02T07:15:49Z status=routed owner=11-1-the-web-demo-path-passes-end-to-end-in-the-rel-2-test by=merge_gate note=correction:previous_trailer's_status/owner_were_an_error;routing_to_11.1_unchanged(occurrence_81f230eb_recorded_above)
+- 2026-11-02T12:40:53Z occurrence=30-1-long-conversations-are-compacted-under-the-limit by=ci note=CI_run_41442099518_job_125266219466(iris_browser,live:sign-in):banners.spec.ts:439_B7_expected_'Last_run_15:30_(late)_·_Passed'_received_'Last_run_17:49_(late)_·_No_read_access_to_its_namespace';head_9cb51f7e;30.1_touches_no_Checks_or_web_code;one_rerun
+- 2026-11-02T13:11:45Z occurrence=30-1-long-conversations-are-compacted-under-the-limit by=ci note=rerun_attempt_2_of_41442099518(job_125282252713):banners.spec.ts:215_B2_expected_'Last_run_15:30_·_Passed'_received_'Last_run_18:23_·_No_read_access_to_its_namespace';same_root_cause(seeded_check_runs_for_real);orchestrator_ruling_2026-11-02T11:26Z:DW-349_reds_are_flake_occurrences;fix_in_Epic_11_part_1
 - 2026-11-02T11:31:04Z owner=11-19-seeded-check-rows-stay-out-of-the-heartbeat-s-way-unless-a-c by=runner note=fix-forward story 11.19 (orchestrator ruling with the Contest Planner, 2026-11-02): lands the not-due seed default with Epic 11 part 1
 - 2026-11-02T12:36:57Z status=resolved-by:11-19-seeded-check-rows-stay-out-of-the-heartbeat-s-way-unless-a-c by=adjudication note=Story 11.1's Fixture.Check default (NextDueAt now+CHECKAHEAD, pinned by Test.Data.FixtureDefaults.TestCheckIsNotDue) covers every seeding path (11.19 Task 0: seedCheck callers, seedFullPage, session's direct calls; no bypass); 11.19 pins the web side (web/scripts/check-seeds.test.mjs: seedCheck adds no due time, empty nextDueAt only with a real-watch comment, no other row store); sign-in unit green in two parts; the integration branch gets the default when Epic 11 part 1 merges; residual: DW-583 (the overwrite cannot be made red on demand)
 
@@ -2310,7 +2315,11 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-29T08:51:48Z status=escalated owner=burndown by=cr note=for the decision sheet: extend Bridge.Redact's key patterns to every key_like shape (security posture; a story of the bridge's owner once Epic 7 merges), or accept with reopen_if a recording or trace shows one
 - 2026-10-31T07:17:56Z status=routed owner=30-1-long-conversations-are-compacted-under-the-limit by=merge_gate note=Epic_9_decision_sheet,veto_U-184:extend_Bridge.Redact_to_every_key_like_shape(dop_v1_,PEM_private-key_headers),one_test_per_shape,before_1.0.0
 - 2026-10-31T07:25:04Z status=routed owner=30-1-long-conversations-are-compacted-under-the-limit by=owner note=U-184_kept(#557):also_the_Anthropic_key(sk-ant-...)_and_the_Telegram_bot_token(digits:35-char),each_with_a_test,if_key_like_lacks_them
+- 2026-11-02T07:30:15Z status=routed owner=burndown by=spec_gate note=re-owned_to_the_burn-down_story_30.7(chartered_at_part_2's_gate):U-184's_kept_condition_unchanged(every_key_like_shape_incl_dop_v1_,PEM_private-key_headers,sk-ant-,Telegram_bot_token,one_test_each,before_1.0.0);reason:Bridge.Redact_work_is_outside_30.1's_compaction_intent(its_spec_declines_it),and_30.1_is_already_oversized
+- 2026-11-02T12:09:16Z owner=30-7-epic-30-burn-down by=burndown note=chartered_into_the_Epic_30_burn-down_story_30.7(part_2_gate);conditions_unchanged
 - 2026-11-02T16:32:22Z status=routed owner=burndown by=orchestrator note=U-184/U-185_kept_conditions_say_before_1.0.0:not_with_deferred_30.7;Epic_30_part_2_builds_it_as_fix-forward_30.8_at_the_resume
+- 2026-11-02T17:54:38Z owner=30-8-the-redactor-and-the-key-proof-catch-every-key-shape by=spec_gate note=fix-forward_30.8(U-184/U-185_before_1.0.0;30.7_deferred_after_tag)
+- 2026-11-02T21:03:32Z status=resolved-by:30-8-the-redactor-and-the-key-proof-catch-every-key-shape by=adjudication note=build_134e0a11+review_patches:Bridge.Redact.PatternList_adds_dop_v1_(hex_either_case)+PEM_private-key_block(BEGIN..END_or_to_end_of_text/JSON_value)+Telegram_ids_6+_digits;sk-ant-,ghp_,github_pat_,AKIA_already_covered;one_test_per_shape(TestDigitalOceanToken,TestPrivateKey,TestAnthropicKey,TestTelegramToken,TestPatterns)+TestEveryKeyLikeShape_oracle_over_a_verbatim_KEY_LIKE_ERE_copy+docker/tests/test-redact-shapes.sh_drift_check(CHECK_SCRIPTS)+Integration_AC_Test.Bridge.Audit.TestNewKeyShapesInNoEntry(IRIS_audit_log_read_back);U-184_met
 
 ### DW-392: Ownership.Watchers (Lane B) does not skip a watch row of owner eval, so while an evaluation run's watch of a production exists, an instance incident of that production caused by another session's watch would list eval as a recipient (a Notification with SessionRef eval reaches Notify, which refuses it with a warning)
 - source: spec-9-8-a-stop-watching-injection-leaves-the-watch-unchanged.md | severity: low | fix-risk: med | footprint: out-of-footprint
@@ -2368,6 +2377,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: src/ocutalon/cls/OcuTalon/Data/Pairing.cls:217 Purge vs src/ocutalon/cls/OcuTalon/Digest/Data/Item.cls:64 Purge; Task A says the validation and cutoff follow Digest/Data/Item.cls:64-87; Digest is Lane A's (AD-29)
 - 2026-10-28T23:35:43Z status=routed owner=30-2-old-messages-and-records-are-purged-on-schedule by=cr note=Rule 2 forced copy: one day-count check and cutoff helper (e.g. in Data.Time) for Bridge.Purge, Pairing.Purge, Digest
 - 2026-10-30T15:56:40Z status=routed owner=burndown by=cr note=Lane A side done in 30.2 (Bridge.Time.DaysCutoff, used by Digest); left: Data.Pairing.Purge (Lane B), IncidentManager.Purge
+- 2026-11-02T12:09:16Z owner=30-7-epic-30-burn-down by=burndown note=chartered_into_the_Epic_30_burn-down_story_30.7(part_2_gate);conditions_unchanged
 
 ### DW-372: The Story 10.3 Pairing test classes each carry their own NewChat, Code, Submit, Hops and WaitHops helpers (SessionOps, SessionOpsProduction, AnswersTelegramProduction, PairingApi, beside RoutingProduction.WaitHops)
 - source: spec-10-3-the-session-side-of-telegram-is-ready-and-stays-off.md | severity: low | fix-risk: med | footprint: in-story
@@ -2622,7 +2632,9 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-30T15:56:40Z status=decision-pending owner=burndown by=cr note=product call: purge turns and sessions with their decisions, or keep usage as long as turns; AD-27 weight (Rule 20 Deferred)
 - 2026-11-02T07:15:31Z status=routed owner=burndown by=merge_gate note=Epic_30_part_1_decision_sheet,veto:purge_Turn,Delivery,Session_on_the_same_90-day_cut_as_their_Decision_and_Usage_rows(AD-27_retention_extension,marker+lint),one_test_that_TurnCost_and_ShownDecisionRef_never_read_a_purged_turn;Epic_30_part_2_burn-down(30.7)
 - 2026-11-02T07:16:07Z status=routed owner=burndown by=merge_gate note=veto_U-210
+- 2026-11-02T12:09:16Z owner=30-7-epic-30-burn-down by=burndown note=chartered_into_the_Epic_30_burn-down_story_30.7(part_2_gate);conditions_unchanged
 - 2026-11-02T14:56:21Z status=routed owner=burndown by=owner note=U-218_condition_2_(Planner_2026-11-02):30.7's_purge_must_cover_Delivery.Text_on_Telegram_rows_with_buttons(Story_12.7);1.0.0_has_no_Delivery_purge(accepted:redacted,no_chat_id,demo_wipes_every_4h);30.7_deferred_after_the_tag(d1)
+- 2026-11-02T21:12:36Z owner=30-7-epic-30-burn-down by=burndown note=ruling_d1(Contest_Planner,2026-11-02):30.7_entries_keep_owner_30-7;30.7_deferred_after_the_v1.0.0_tag(first_daily_release);conditions_unchanged(U-210/U-218_for_DW-437,U-215_for_DW-584)
 
 ### DW-438: The OcuTalon heartbeat task's description (Install.Step.Schedule, 124 characters) is stored cut at 100 characters, mid-sentence, in the Task Manager
 - source: spec-30-2-old-messages-and-records-are-purged-on-schedule.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -2650,6 +2662,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-30-3-an-approved-tool-call-runs-exactly-once-with-no-model.md | severity: med | fix-risk: med | footprint: in-epic
 - evidence: 30.3 spec Design Notes residual: closing it as interrupted at start (as AD-16's Reconcile does for a FixRun) would also hit a live replay when tests call Reconcile; needs a start-only path
 - 2026-10-30T17:04:59Z status=routed owner=burndown by=spec_gate note=not in 30.3's ACs; candidate fix: Reconcile at instance start (not test calls) closes executing tool_call rows through FinishExecution with result interrupted
+- 2026-11-02T12:09:16Z owner=30-7-epic-30-burn-down by=burndown note=chartered_into_the_Epic_30_burn-down_story_30.7(part_2_gate);conditions_unchanged
 
 ### DW-451: The replay touches the model provider: AI Hub makes one tokenless GET /v1/models/<model> at a runner's first ExecuteTool, and BuildAgent needs a provider key, so an approved call fails (row failed, never retried) when the key is unset or the provider unreachable at replay time
 - source: spec-30-3-an-approved-tool-call-runs-exactly-once-with-no-model.md | severity: med | fix-risk: high | footprint: in-story
@@ -2668,6 +2681,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-30T21:56:21Z status=routed owner=burndown by=harvest note=flake: first occurrence (local, not CI); watch for a CI recurrence
 - 2026-10-31T03:37:20Z occurrence=30-4-a-stopped-production-or-a-disabled-item-is-reported-once by=lead note=second_local_occurrence:30.4_implement_fresh_shard_lane-b_part_2/2_first_run;passed_alone_and_on_one_rerun_of_the_part(558s);code_untouched_by_30.4
 - 2026-11-02T05:39:25Z status=wontfix-accepted by=burndown note=a_burndown-owned_LOW_flake(Rule_15)_with_no_charter_in_part_1;not_seen_again_in_Epic_30_part_1_fresh_runs;reopen_if=GuideApi_TestRunAgain_goes_red_again_in_CI_or_a_fresh_shard
+- 2026-11-02T10:55:33Z status=routed owner=burndown by=lead occurrence=30-1-long-conversations-are-compacted-under-the-limit note=reopened(reopen_if_met):30.1_implement_fresh_shard_lane-b_part_2/2_red_twice_on_TestRunAgain;passed_alone_on_a_fresh_throwaway;30.1_touches_no_Web/Guide_code;Lane_B_class(AD-33):route_to_a_Lane_B_story_at_the_burn-down_gate
+- 2026-11-02T12:09:17Z owner=31-3-the-readme-leads-to-the-demo-and-the-launched-demo-is-measur by=burndown note=overflow:Lane_B_class_Test.Web.GuideApi(AD-33:off_limits_to_Lane_A_epic_30);flake_reopened_by_30.1's_fresh_shard_lane-b_2/2(red_twice,passes_alone):find_the_order_or_timing_dependence_of_TestRunAgain
 
 ### DW-454: U-170's plain-English reason for an old held tool call reaches a person only through the decision live event (decision strip, rail decision row, trace); the approval card and notices do not show it: Live.Payload.Approval.reason stays empty, approval.result is {ref}, Core.Rule.Notice reads only the fallback reason
 - source: spec-30-3-an-approved-tool-call-runs-exactly-once-with-no-model.md | severity: med | fix-risk: med | footprint: out-of-footprint
@@ -2708,6 +2723,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: CI run 41150628107 attempt 1 (578d253, Story 30.3), iris (shards-2) | severity: med | fix-risk: low | footprint: in-epic
 - evidence: shard:lane-a@rest 1 of 57 classes failed (Approval 166.75s); 30.3 reworked the hold's delivery (re-arm, retry, Reconcile pass 3); passed locally fresh forward and reversed and warm; attempt 2 green
 - 2026-10-31T01:39:09Z status=routed owner=burndown by=ci note=flake: first occurrence; priority for Epic 30's burn-down (the hold timing on the x64 runner under 30.3's re-arm/retry)
+- 2026-11-02T12:09:16Z owner=30-7-epic-30-burn-down by=burndown note=chartered_into_the_Epic_30_burn-down_story_30.7(part_2_gate);conditions_unchanged
 
 ### DW-469: U-180's condition on V4: the {time} of a watch.productionStopped or watch.itemDisabled notice renders through the catalog's time format with the zone label (for example '14:12 ET' on the online demo), for both time sources (IRIS's stop time and the check's detection time); the code does so by construction (a UTC 'time' slot rendered by Msg.Catalog.Render via Data.Time.ForMessage) but no test pins it
 - source: inbox U-180 (owner decision via the Contest Planner, 2026-10-31T05:42:45Z#545) | severity: med | fix-risk: low | footprint: in-epic
@@ -2719,6 +2735,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: inbox U-172 (owner decision via the Contest Planner, 2026-10-31T05:42:45Z#546) | severity: med | fix-risk: low | footprint: in-epic
 - evidence: 30.3's Replay closes such a row failed with no reason the person reads (ProviderCreateFailed); DW-451 recorded the provider dependency
 - 2026-10-31T06:16:18Z status=routed owner=burndown by=lead note=for Epic 30's burn-down story with DW-444 and DW-462 (the replay and approval path); the lead checks the public texts now
+- 2026-11-02T12:09:16Z owner=30-7-epic-30-burn-down by=burndown note=chartered_into_the_Epic_30_burn-down_story_30.7(part_2_gate);conditions_unchanged
 
 ### DW-472: The page's result band picks no key for a fix run that stopped partway: web/src/app/approvals resultView must pick result.stoppedPartway when Live.Payload.Incident's Requests[].Result unreached is above 0 (Story 30.5 adds unreached and the catalog key), and the web catalog key lists (web/scripts/catalog.mjs, web/src/app/msg/catalog.ts) gain the key and its count-of-one form; until then the page shows such a run as 'had changed since the dry run'
 - source: spec-30-5-mixed-and-unfinished-resends-say-how-far-they-got.md (orchestrator ruling U-183) | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -2832,7 +2849,11 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-30T20:42:31Z status=escalated owner=burndown by=cr note=for the user: decode $List elements (cheap) and compressed stream chunks (needs a measurement of the storage on a throwaway); the same walk is copied in Test.Web.SessionEvents.ReferenceHits
 - 2026-10-31T07:17:56Z status=routed owner=30-1-long-conversations-are-compacted-under-the-limit by=merge_gate note=Epic_9_decision_sheet,veto_U-185:decode_$List_elements_in_Test.Eval.KeyProof_Walk;measure_on_a_throwaway_whether_a_message_body_can_store_a_key_in_a_compressed_or_split_%Stream.Global*_chunk(yes:decode;no:that_half_wontfix-accepted_with_the_measurement);Lane_B's_copy_is_its_own_entry_for_31.4
 - 2026-10-31T07:25:04Z status=routed owner=30-1-long-conversations-are-compacted-under-the-limit by=owner note=U-185_kept(#558):a_wontfix-accepted_close_of_the_compressed/split-chunk_half_records_the_evidence(throwaway_build,message_class,what_was_stored);the_key_proof_otherwise_unchanged
+- 2026-11-02T07:30:16Z status=routed owner=burndown by=spec_gate note=re-owned_to_the_burn-down_story_30.7(chartered_at_part_2's_gate):U-185's_kept_condition_unchanged(decode_$List_elements_in_Test.Eval.KeyProof_Walk;measure_compressed/split_%Stream.Global*_chunks_on_a_throwaway;a_wontfix_close_of_that_half_records_the_evidence);reason:key-proof_work_is_outside_30.1's_compaction_intent,and_30.1_is_already_oversized
+- 2026-11-02T12:09:16Z owner=30-7-epic-30-burn-down by=burndown note=chartered_into_the_Epic_30_burn-down_story_30.7(part_2_gate);conditions_unchanged
 - 2026-11-02T16:32:22Z status=routed owner=burndown by=orchestrator note=U-184/U-185_kept_conditions_say_before_1.0.0:not_with_deferred_30.7;Epic_30_part_2_builds_it_as_fix-forward_30.8_at_the_resume
+- 2026-11-02T17:54:38Z owner=30-8-the-redactor-and-the-key-proof-catch-every-key-shape by=spec_gate note=fix-forward_30.8(U-184/U-185_before_1.0.0;30.7_deferred_after_tag)
+- 2026-11-02T21:03:32Z status=resolved-by:30-8-the-redactor-and-the-key-proof-catch-every-key-shape by=adjudication note=$List_half:Test.Eval.KeyProof.Walk_decodes_$List_values_in_data_and_subscripts(Holds,HoldsSubscript,LISTDEPTH_10;nested_lists)_pinned_by_TestGlobalHits(8-bit,16-bit,nested,subscript,root_rows)+TestGlobalHitsMessageBody(IncidentCase_beside_a_wide_char);stream_half=wontfix-accepted_per_U-185:measured_on_throwaway_e30s8iw/e30s8i,build_2026.3.0AI_154U:46_compiled_OcuTalon_message-body_classes(Ens.Request/Response/MessageBody_subclasses,IncidentCase_included),369_properties,0_global_streams,0_streams_of_any_kind(abstract_stream_types_counted_after_review),control_%AI.Agent.Session.ContextData_found;nothing_stored_(no_body_class_can_hold_a_stream);reopen_if=Test.Eval.KeyProof.TestNoMessageBodyHoldsAGlobalStream_goes_red;key_proof_otherwise_unchanged;Lane_B_copy_DW-474_untouched(occurrence_appended)
 
 ### DW-449: project_leftovers puts the eval harness's container listing (docker ps -a, docker volume ls) in docker/tests/lib-keys.sh, a third library beside ci/iris.sh and lib-live.sh that the eval-scripts rule does not cover, and repeats cmd_teardown's name listing with its own matching
 - source: spec-9-10-the-release-candidate-run-proves-the-key-leaks-nowhere-and-g.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -2843,12 +2864,14 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-9-10-the-release-candidate-run-proves-the-key-leaks-nowhere-and-g.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: KeyProof.cls Walk vs SessionEvents.cls ReferenceHits :590-598; the spec records the reason (Test/Web is contended by Epic 29, and the sibling walks one namespace by location); no story in Epic 9 touches Test/Web; found by code review (Rule 2)
 - 2026-10-30T20:42:31Z status=wontfix-accepted owner=9-10-the-release-candidate-run-proves-the-key-leaks-nowhere-and-g by=cr note=reopen_if=either walk changes how it matches a node (for example the decoding of the escalated globals-scan entry) and the other does not
+- 2026-11-02T21:03:47Z status=routed owner=31-4-the-paired-chat-stays-isolated-under-load-too by=adjudication note=reopen_if_fired:30.8_changed_KeyProof.Walk's_node_match(Holds,HoldsSubscript,LISTDEPTH);Lane_B_ReferenceHits_mirrors_it_with_DW-474(same_story);exact_change_recorded_in_spec-30-8_Design_Notes(DW-450_Walk-change_record)
 
 ### DW-474: Test.Web.SessionEvents.ReferenceHits copies the release candidate's key-proof walk (DW-448); apply Story 30.1's $List decode, and any stream-chunk decode its measurement calls for, to this Lane B copy too
 - source: orchestrator: Epic 9 decision sheet (DW-448 split, veto U-185) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Test.Web.SessionEvents.ReferenceHits mirrors Test.Eval.KeyProof Walk (DW-448's evidence)
 - 2026-10-31T07:17:56Z status=routed owner=31-4-the-paired-chat-stays-isolated-under-load-too by=merge_gate note=Lane_B_half_of_DW-448;after_Story_30.1_settles_the_decode;veto_U-185
 - 2026-11-02T14:55:52Z status=routed owner=31-4-the-paired-chat-stays-isolated-under-load-too by=owner note=31.4_deferred_after_the_v1.0.0_tag(owner:Move_it_after_the_tag);first_daily_release
+- 2026-11-02T20:59:27Z occurrence=30-8-the-redactor-and-the-key-proof-catch-every-key-shape
 
 ### DW-478: Session.Hash's doc comment names only the resume reference and a client address as forms stored with it; Pairing.HashCode now stores pairing-code hashes through it
 - source: spec-11-0-epic-10-deferred-cleanup.md | severity: low | fix-risk: low | footprint: in-epic
@@ -2863,6 +2886,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: orchestrator: launch-risk hotfix Story 5.12 (Contest Planner: not now, a measured follow-up in Epic 30) | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: host Decision rows since the 11:36Z reset on fe1d81e2: diagnose 1 invalid of 9, decide 0 of 10, turn 0 of 10; Story 5.12 removes the one observed cause
 - 2026-10-31T11:55:11Z status=routed owner=30-1-long-conversations-are-compacted-under-the-limit by=orchestrator note=measure first:_the_invalid_rate_after_5.12_and_the_retry's_cost_and_time;veto_item
+- 2026-11-02T07:40:01Z status=decision-pending owner=burndown by=spec_gate note=human=measure_diagnose's_invalid_rate_after_5.12_on_host_Decision_rows_and_Story_9.5's_real-key_release-candidate_run;build_the_one_retry_only_if_above_about_1_in_50(U-191's_kept_condition);this_unattended_run_has_neither_host_access_nor_a_real_key(30.1_spec_declined_it)
+- 2026-11-02T22:47:05Z status=decision-pending owner=burndown by=merge_gate note=action_item:epic-30-decision-item-1-dw-483-measure-decide-invalid-rate(owner;decided_unattended_U9:human-only_entry_to_action_items)
 
 ### DW-492: No test pins AC2's floor: a model-written text property of a reply class capped at 32 characters or fewer would pass CI (TestDiagnosisLengths checks only prompt and class agreement)
 - source: spec-5-12-a-correct-diagnosis-is-never-refused-for-an-over-long-eviden.md | severity: low | fix-risk: low | footprint: in-story
@@ -2893,6 +2918,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Test/Bridge/Gate.cls:1764 passes the old key; RunDenied (Gate.cls:2235) detects a built-in tool's run only by CommandCount; ReminderTools.CancelReminder answers BADREFS for a missing reminderRefs without calling Run (TestCancelThroughTheToolManager pins {} as BADREFS with nothing recorded)
 - 2026-10-31T15:54:05Z status=escalated owner=burndown by=cr note=fix is one argument in Epic 30's contended Gate.cls:1764 -> {"reminderRefs":["x"]}; route to the Epic 30 story that next touches Gate.cls
 - 2026-11-02T13:18:40Z status=routed owner=burndown by=merge_gate note=Epic_30_part_2_burn-down(30.7):Test.Bridge.Gate_untrusted-turn_row_sends_reminderRefs(the_Gate_test_owner)
+- 2026-11-02T21:12:36Z owner=30-7-epic-30-burn-down by=burndown note=ruling_d1(Contest_Planner,2026-11-02):30.7_entries_keep_owner_30-7;30.7_deferred_after_the_v1.0.0_tag(first_daily_release);conditions_unchanged(U-210/U-218_for_DW-437,U-215_for_DW-584)
 
 ### DW-496: AD-1's Rule says a tool command's IdempotencyKey is the turn's ItemId plus the tool call's position, but the build keys each command at its command position (CommandCall.Run, CommandCount + 1), and U-118's several-ref cancel_reminder gives one tool call the keys :2, :3 and :4
 - source: spec-11-8-the-chat-cancels-several-reminders-in-one-call-and-says-it-c.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -3188,6 +3214,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: Contest Planner: Epic 4 host check on 374f958e, 2026-11-01 | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: host, real Haiku, chip 1 reply; Tools/WatchTools list_productions returns names only
 - 2026-11-01T20:13:34Z status=routed owner=30-1-long-conversations-are-compacted-under-the-limit by=merge_gate note=preferred: list_productions returns a code-built running/stopped state (trusted fields only); fallback: chip text 'Which productions can you watch?' (web, plus its B/ mock scenario); 1.0.0 only at no date cost
+- 2026-11-02T07:30:16Z status=routed owner=burndown by=spec_gate note=re-owned_to_the_burn-down_story_30.7_at_no_date_cost(preferred:list_productions_returns_a_code-built_running/stopped_state_from_trusted_fields;fallback_chip_text):Tools.WatchTools_is_outside_30.1's_compaction_intent;if_30.7_would_push_the_merge_past_Epic_13's_or_threaten_rc1,it_stays_owner=burndown_with_a_note(dispatch_rule)
+- 2026-11-02T12:09:16Z owner=30-7-epic-30-burn-down by=burndown note=chartered_into_the_Epic_30_burn-down_story_30.7(part_2_gate);conditions_unchanged
 
 ### DW-542: At 640px wide (200% zoom) the guide's finish state puts .finish in a 321px right column (.main is flex row wrap) and leaves the left half empty, with the step bar bottom-left; the guide is 630px tall in a 360px window
 - source: Contest Planner: Epic 4 host check on 374f958e, 2026-11-01 | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -3203,6 +3231,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: CI run 41350877752 (install-fresh), head 3728ccee | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: job 124980538561: R1 expected Math.floor(nextReset/1000)=1793575980, cookie expires 1793575981; passed on the unchanged rerun
 - 2026-11-01T22:22:51Z status=routed owner=burndown by=harvest note=flake class: one rerun; fix: compare within one second, or derive both from one clock read (Lane B web/e2e-online; Epic 11 currently changes resume.spec.ts)
+- 2026-11-02T12:09:17Z owner=31-3-the-readme-leads-to-the-demo-and-the-launched-demo-is-measur by=burndown note=overflow:Lane_B_web/e2e-online/resume.spec.ts(contended:Epic_11_changes_it;AD-33);fix:compare_within_one_second_or_derive_both_from_one_clock_read
 
 ### DW-559: The reminders list answer (CommandCall.Listed) shows each due time without the zone label on the online demo, while the set reply (Answer) now carries ' ET'
 - source: _bmad-output/implementation-artifacts/spec-30-5-mixed-and-unfinished-resends-say-how-far-they-got.md | severity: low | fix-risk: low | footprint: in-story
@@ -3221,6 +3250,51 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Contest Planner note on DW-484 (2026-11-01T07:18:36Z): the wider mixed-clock issue stays post-1.0.0
 - 2026-11-02T03:02:29Z status=wontfix-accepted owner=30-5-mixed-and-unfinished-resends-say-how-far-they-got by=adjudication note=post-1.0.0 by the Planner's decision; reopen_if=a_1.x_step_or_the_Planner_schedules_the_mixed-clock_fix
 
+### DW-575: Spine notes from Story 30.1 for an attended bmad-architecture Update: AD-20 fallback also covers a summarizer request or first request over the request-size limit and a fork that cannot be saved and reopened; the fork is reopened through OpenSession before Chat; a compaction sets SessionRotated; the seed is bounded by SEEDCHARS (80,000); the 20 s go only to a flagged turn that continues a linked conversation; AD-8 judges too_large for such a turn on the post-compaction bound; AD-6's adapter save rule gains the compaction fork after its check; AD-22 names Test.Eval.ThinkingSmoke's home
+- source: spec-30-1-long-conversations-are-compacted-under-the-limit.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: 30.1 Design Notes V1 and Spine notes; the ADs allow the behaviour as written, but their text is silent; AD-20/AD-8/AD-6/AD-22 are cited by merged stories, so a runner may not amend them unattended (U7, U14)
+- 2026-11-02T07:40:01Z status=decision-pending owner=burndown by=spec_gate note=human=an attended bmad-architecture Update after the run writes these lines (or declines them); no code change
+- 2026-11-02T22:47:05Z status=decision-pending owner=burndown by=merge_gate note=action_item:epic-30-decision-item-3-dw-575-ad-20-fallback-spine-notes(owner;decided_unattended_U9:human-only_entry_to_action_items)
+
+### DW-579: NFR-3 in the tool loop after 30.1: compaction keeps the last user turn whole and guards each request the runner shapes at the request-size limit, not at 40,000, so a fork whose kept turn was tool-heavy (about 62,000 tokens), a flagged turn with nothing older, or a large input can start between 40,000 and the limit, and its later tool-loop requests can pass 100,000
+- source: spec-30-1-long-conversations-are-compacted-under-the-limit.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: AD-20 Rule's 40,000 + 3 x 10,000 + 3 x 8,000 arithmetic holds only for a first request at most 40,000; 30.1 Design Notes R1 options (a) refuse such a fork or as-is session above 40,000 in favour of the seed, (b) Decide refuses a tool-capable turn whose non-history part is above about 46,000, (c) accept
+- 2026-11-02T10:55:33Z status=escalated owner=burndown by=harvest note=for the decision sheet: (a) and (b) change what the product does; recommended (c) accept with reopen_if=the mock or a recorded run logs a request above 100,000 tokens
+- 2026-11-02T22:47:05Z status=wontfix-accepted owner=burndown by=merge_gate note=veto_U-226(decided_unattended_U9:(c)_accept;reopen_if=the_mock_or_a_recorded_run_logs_a_request_above_100,000_tokens)
+
+### DW-580: The compaction summarizer's 20 s request timeout (AD-20, no retries) is measured only on the CI mock (0.02 s); a real summarizer request near the request-size limit may exceed it, so large real compactions may always take the seeded fallback
+- source: spec-30-1-long-conversations-are-compacted-under-the-limit.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: Task 0 (c) timed the summarizer only on the mock; the release-candidate smoke compacts three short turns, so no run measures a large transcript on the real model (unverified)
+- 2026-11-02T11:32:06Z status=decision-pending owner=burndown by=cr note=human=measure a ~100k-token summarizer request's latency on the real model (RC run); 20 s is AD-20's
+- 2026-11-02T22:47:05Z status=decision-pending owner=burndown by=merge_gate note=action_item:epic-30-decision-item-2-dw-580-summarizer-latency-real-model(owner;decided_unattended_U9:human-only_entry_to_action_items)
+
+### DW-581: After Story 30.7's session purge, a purged session's other rows stay: GuideState, SimMessage, finished Reminder and BreakFeedRun rows and the ConversationLink, whose AI sessions the bridge's purge then keeps alive (they are linked)
+- source: spec-30-7-epic-30-burn-down.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: 30.7 plan residual (inference): Data.Purge.Run deletes Turn, Delivery and Session only (U-210's scope); the other session-keyed rows are Lane B's and no area purges them
+- 2026-11-02T12:34:12Z status=escalated owner=burndown by=spec_gate note=for the decision sheet: a stored-data retention change (veto category); recommended: route to a Lane B story after 1.0.0 that purges every row keyed by a purged session, the link first
+- 2026-11-02T16:29:07Z status=routed owner=30-7-epic-30-burn-down by=lead note=Contest_Planner_ruling_(reserve_lever_d1):30.7_moves_after_the_v1.0.0_tag;its_residuals_travel_with_it
+
+### DW-582: An approval hold whose replay was lost to a crash is never cleared: 30.7's Reconcile pass closes the executing tool_call row as interrupted, but the hold waiting on that replay's result is not ended
+- source: spec-30-7-epic-30-burn-down.md | severity: med | fix-risk: med | footprint: in-epic
+- evidence: 30.7 plan residual (inference), DW-444's neighbour: the hold's end is driven by the replay's result message, which a crash never sends
+- 2026-11-02T12:34:12Z status=escalated owner=burndown by=spec_gate note=for the decision sheet: recommended: have the same Reconcile pass end the hold with the interrupted result (a bridge change) in a fix story after 1.0.0, or accept with reopen_if a stuck hold is seen
+- 2026-11-02T16:29:07Z status=routed owner=30-7-epic-30-burn-down by=lead note=Contest_Planner_ruling_(reserve_lever_d1):30.7_moves_after_the_v1.0.0_tag;its_residuals_travel_with_it
+
+### DW-588: 30.7 (set aside): an answer that outlives TASKSECONDS before its approval task exists leaves the hold waiting on its 24-hour timer: Reconcile pass 1 discards the late task and sends the hold no deferred response
+- source: spec-30-7-epic-30-burn-down.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: measured at 30.7's implement on build 154U: EnsLib.Workflow.Engine.%CancelRequest discards the task without a deferred response; Bridge/Approval.cls CompleteHoldTask, Reconcile pass 1
+- 2026-11-02T16:28:42Z status=routed owner=30-7-epic-30-burn-down by=harvest note=travels with 30.7's set-aside patch (planner reserve lever d1)
+
+### DW-589: 30.7 (set aside): Test.Eval.KeyProof.Walk's per-node list check and subscript decode may slow the key-proof global scan on large databases (unmeasured)
+- source: spec-30-7-epic-30-burn-down.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: settle by timing eval/key-proof.sh's global scan before and after 30.7's patch on a throwaway
+- 2026-11-02T16:28:42Z status=routed owner=30-7-epic-30-burn-down by=harvest note=travels with 30.7's set-aside patch
+- 2026-11-02T20:59:27Z occurrence=30-8-the-redactor-and-the-key-proof-catch-every-key-shape
+
+### DW-590: 30.7 (set aside): Test.Install.Retention failed twice locally because the stock Ens purge tasks did not start inside the test's wait (once beside a second IRIS stack); four other fresh runs passed (unverified)
+- source: spec-30-7-epic-30-burn-down.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: 30.7 implement; the OcuTalon purge task's own assertions passed in every run
+- 2026-11-02T16:28:42Z status=routed owner=30-7-epic-30-burn-down by=harvest note=travels with 30.7's set-aside patch; settle on CI over several pushes
 ### DW-574: One incident card mixes time zones: the header stamp is in the viewer's zone ('11:28 PM PST') while the body's 'failed since 02:28 ET' and 'first at 02:28 ET' use the instance's zone; the chat's reminder reply says '02:27 ET' while the phone shows '11:27 PM PST'
 - source: Contest Planner host check on 01bb86fc (demo public 2026-11-02T07:33Z) | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: public demo host on 01bb86fc: incident card header vs body; reminder reply vs phone notification; every time is labelled, so nothing is wrong, but a judge sees two zones on one card
@@ -3257,3 +3331,19 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-14-2-the-security-overview-says-what-ocutalon-can-do-and-what-sto.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: Both files hold the same sed line for the sentence in EXPERIENCE.md; unifying means a shared lib that test-readme.sh sources, an edit outside Epic 14's footprint. Either copy that no longer matches fails loudly (empty extraction).
 - 2026-11-02T23:27:39Z status=wontfix-accepted owner=14-2-the-security-overview-says-what-ocutalon-can-do-and-what-sto by=cr note=reopen_if=the two kept-OCUORDERS extractions print different text for the same EXPERIENCE.md
+- 2026-11-02T21:12:36Z owner=30-7-epic-30-burn-down by=burndown note=ruling_d1(Contest_Planner,2026-11-02):30.7_entries_keep_owner_30-7;30.7_deferred_after_the_v1.0.0_tag(first_daily_release);conditions_unchanged(U-210/U-218_for_DW-437,U-215_for_DW-584)
+
+### DW-594: eval/key-proof's globals control is satisfied by subscript hits alone, so a Walk that stops matching node data still passes the outer surface
+- source: spec-30-8-the-redactor-and-the-key-proof-catch-every-key-shape.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: 30.8 code review: Holds Quit 0 first kept eval/key-proof.sh green on fresh e30s8r (control found 33 of 188 times, via subscripts); only TestGlobalHits pins the data match
+- 2026-11-02T20:59:27Z status=wontfix-accepted owner=30-8-the-redactor-and-the-key-proof-catch-every-key-shape by=cr note=reopen_if=TestGlobalHits loses its data-row assertions, or a Walk change lands without TestGlobalHits run (CHK lines spec-frozen)
+
+### DW-599: flake: OcuTalon.Test.Core.ThreadProduction TestNewThreadAfterMidnight went red once in CI (mixed headers: a header of one turn counted in the other thread) and passed on the unchanged rerun
+- source: ci run 41495443713 (OCT-epic30 8b2f15f9) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: iris (image) attempt 1 red, attempt 2 green on the same head; the assertion counts headers by id against the second thread's first Item id, so a late header of the first turn trips it (inference)
+- 2026-11-02T21:03:11Z status=routed owner=31-3-the-readme-leads-to-the-demo-and-the-launched-demo-is-measur by=ci note=Lane_B_test(Epic_11_part_1);first_seen_on_Epic_30_integrate-forward;make_the_mixed_count_wait_for_the_first_turn's_last_header_or_scope_it
+
+### DW-600: The key proof's globals walk cannot read the saved AI session history (%AI.Agent.Session.ContextData, a compressed %Stream.GlobalCharacter), so a key stored there would read as clean
+- source: spec-30-8-the-redactor-and-the-key-proof-catch-every-key-shape.md | severity: low | fix-risk: med | footprint: out-of-footprint
+- evidence: 30.8 Task 0 control: ContextData is the one global stream found; U-185 scopes the stream question to message bodies (0 streams there); the provider key travels in a request header and never in session content (inference)
+- 2026-11-02T21:03:47Z status=wontfix-accepted owner=30-8-the-redactor-and-the-key-proof-catch-every-key-shape by=adjudication note=reopen_if=a_product_path_puts_the_provider_key_or_a_request_header_into_an_AI_session's_messages,or_the_key_proof_is_asked_to_cover_session_history

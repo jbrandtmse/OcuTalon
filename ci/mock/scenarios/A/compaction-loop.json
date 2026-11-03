@@ -1,0 +1,39 @@
+{
+  "name": "compaction-loop",
+  "match": {
+    "marker": "compaction-loop"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "zz_result_text",
+        "input": {
+          "chars": 40000
+        }
+      }
+    },
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "zz_result_text",
+        "input": {
+          "chars": 39990
+        }
+      }
+    },
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "zz_result_text",
+        "input": {
+          "chars": 39980
+        }
+      }
+    },
+    {
+      "status": 200,
+      "text": "The CI mock read three long results."
+    }
+  ]
+}
