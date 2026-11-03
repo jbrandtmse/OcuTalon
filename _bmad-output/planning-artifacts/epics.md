@@ -1332,6 +1332,26 @@ So that each lane starts from a catalog, a Demo step and a test suite that need 
 - DW-42: With demo mode off, an OCUORDERS that OcuTalon didn't create, or that holds any production other than the Orders demo, is left in place: the `Demo` step logs a warning naming what it kept, records a status note saying how to remove it by hand, and the start finishes normally with the ready marker written; `test-install-start.sh`'s stopped-foreign and foreign-namespace fixtures assert the warning, the note and the ready marker (AD-3 as amended; owner decision 2) (ledger; routed by burndown 2026-10-20)
 - DW-9: `OcuTalon.Test.Install.Users:TestEnsureCreates` no longer reads an empty password hash after the create (a unique fixture name per run, and a read that waits for the committed object), or the flake is closed on evidence of a fresh-environment run of `lane-a` forward and reversed with no recurrence (Rule 19) (ledger; routed by burndown 2026-10-20)
 
+### Story 0.13: A start retries the CPF merge when IRIS cannot quiesce
+
+[ADDED 2026-11-03, fix-forward from DW-612 (orchestrator unattended ruling, veto U-235; re-opens Epic 0 under SC-5, before the 1.0.0 tag): `docker/after-start.sh` runs `iris merge` on a fresh copy of `merge.cpf` at every start, and even an unchanged merge runs about five full namespace activations, each of which waits up to about 120 s for a system quiesce and returns ERROR #453 when it cannot get one; CI hit it on a fresh first start (run 41419787515) and at install-start row 2, so a user's first start, restart or image update can end not ready. The larger rework (no re-merge on an unchanged start) is routed to the first daily release after 1.0.0. In 1.0.0's scope.]
+
+As a person starting OcuTalon (a first start, a restart or an image update),
+I want a start that meets IRIS's momentary "cannot quiesce" refusal during the CPF merge to try the merge again,
+So that a rare timing collision never leaves my install not ready.
+
+**Acceptance Criteria:**
+
+**Given** `docker/after-start.sh`'s merge step
+**When** `iris merge` fails and its output names ERROR #453 (Cannot quiesce the system for namespace reactivation)
+**Then** the step waits briefly and runs the merge again, a bounded number of times; each retry is written to the start's log with the attempt number; a merge that succeeds on a retry continues the start exactly as a first-try success does; after the last failed attempt the start ends not ready with the existing `STEP merge FAILED` report
+**And** any other merge failure fails at once, as today, with no retry
+**And** the retry count and wait are chosen so that a start that succeeds on its first retry stays inside the ready limits the live tests use (row 1's 400 s, row 2's 200 s); the choice and its reason are in the spec's Design Notes
+
+**Given** the change
+**When** this story merges
+**Then** a test with a stubbed `iris merge` pins the three cases (#453 then success: ready, the retry logged; #453 on every attempt: `STEP merge FAILED`, not ready; another error: no retry), in an existing CI group other than `production`, `browser`, `install-fresh` and `install-upgrade`; `docker/merge.cpf` is unchanged; `docker/tests/test-install-start.sh` and `test-install-upgrade.sh` pass; CI is green on every workflow
+
 ## Epic 1: Every item gets an attention decision you can audit and afford
 
 Every item OcuTalon receives gets exactly one attention decision from an AI Hub agent, recorded as a decision message with its outcome, reasons, confidence, tokens and cost, with every model request and tool call as an agent step in Visual Trace; an unusable reply takes the fallback route and never acts; conversations survive restarts; OcuTalon runs on Claude Haiku 5.5 with only a key in `.env`, and starts safely with none.
@@ -4106,8 +4126,8 @@ So that I understand what OcuTalon is before I install it.
 
 **Given** the README
 **When** this story merges
-**Then** it has a "How you talk to it" section, after "What you can use it for": the web chat page is the product on every install, and the demo adds only the demo guide, Break the feed, and the simulated phone and simulated mailbox; Telegram, to chat and approve from your phone, is in 1.0.0; email comes in a later release (step 4); a small table is fine; Slack is not named (FR-12, FR-18)
-**And** every claim matches what 1.0.0 ships: if Epic 12 (Telegram) has not merged when this story starts, the Telegram row is a clarification for the orchestrator, never a promise
+**Then** it has a "How you talk to it" section, after "What you can use it for": the web chat page is the product on every install, and the demo adds only the demo guide, Break the feed, and the simulated phone and simulated mailbox; email comes in a later release (step 4); a small table is fine; Slack is not named (FR-12, FR-18)
+**And** every claim matches what 1.0.0 ships; the section names no Telegram row yet: that row is Story 31.3's [AMENDED 2026-11-03, Story 10.5 plan, unattended ruling (split, decide): Epic 12 has not merged, and on this branch `OcuTalon.Channel.Telegram.In.Included()` still has its test-only body, so `docker/tests/test-readme.sh`'s no-telegram rule (AD-29) refuses the word Telegram in the README and Epic 12's README Telegram section (added with the Included() switch) that the row must point to does not exist yet; the Telegram row moved to Story 31.3 (the 1.0.0 README pass, after Epic 12), orchestrator ruling, veto U-234. It read: "Telegram, to chat and approve from your phone, is in 1.0.0; [...] **And** every claim matches what 1.0.0 ships: if Epic 12 (Telegram) has not merged when this story starts, the Telegram row is a clarification for the orchestrator, never a promise"]
 
 **Given** the images the Contest Planner hands over (vetted by the Contest Planner before delivery; drafts in `contest-49/readme-shots`; exactly these five: the page with an incident as the hero, the incident card, the resolved incident, a Visual Trace of the decision, and the page with Demo view off; the draft-vt-watch-* shots are not used)
 **When** this story adds them
@@ -4881,6 +4901,8 @@ So that I can add the bridge to my own production without OcuTalon and without r
 **Given** the guide
 **When** the public-text check and the release checklist run
 **Then** it is in plain English, holds no key, local machine path, instance name or private infrastructure detail, and the release checklist confirms it matches the release (FR-5, NFR-26, CON-5)
+
+- DW-181: The example's inline `ProviderConfig` carries no `Timeouts.Derive` `http_config`, so AI Hub's 30 s Retry-After cap and default request timeout apply under the bridge timer; the guide tells a developer to write `Derive(timer).http_config` into an inline config, or to use `@{config:}` with `Timeouts.Apply` (AD-8), and keeps Story 13.1's timer row working (ledger; routed by cr 2026-10-24)
 
 ## Epic 14: A security reviewer can approve OcuTalon
 
@@ -7402,12 +7424,19 @@ So that I can try OcuTalon in two minutes from the README.
 **Given** the README's IPM install section, which this story adds from `docs/install-ipm.md`
 **When** a judge reads it
 **Then** it opens with the registry install (the community-registry line and `zpm "install ocutalon"`) and gives the load-from-folder path second, for developers, in the order Story 15.3's guide uses [ADDED 2026-10-31, decided by the Contest Planner under the owner's delegation, relayed to the orchestrator]
+
+**Given** Epic 12 merged to the feature branch and integrated into this epic's branch (so `Included()` no longer has its test-only body and the README has Epic 12's Telegram section)
+**When** this story merges
+**Then** the "How you talk to it" section that Story 10.5 added has a Telegram row: Telegram, to chat and approve on your phone, is in 1.0.0, on your own install with your own bot token; it points to the README's Telegram section (Epic 12's setup steps) and never duplicates or edits those steps (FR-12, FR-18)
+**And** no README text about the online demo claims Telegram, pairing or phone approvals while the demo has no bot (until Story 31.4; U-228 condition (2)); any quoted UI string matches the built page exactly (U-228 condition (1)); the README's public-text rule holds (no "from your phone")
+**And** `docker/tests/test-readme.sh` passes, CI is green on every workflow, and the Telegram row's change touches only `README.md` and `docker/tests/test-readme.sh` [AMENDED 2026-11-03, orchestrator unattended ruling, veto U-234, kept by the Contest Planner under the owner's delegation (2026-11-03T07:59:58Z): moved verbatim from Story 10.6 (split from Story 10.5, then removed), because AD-29's no-telegram README guard blocks the row until Epic 12 merges; this story is placed only after Epic 12 has merged, and rc1 is not cut until this story has merged. Its last line read "**Given** the change **When** this story merges **Then** `docker/tests/test-readme.sh` passes, CI is green on every workflow, and the story touches only `README.md` and `docker/tests/test-readme.sh`"; "the story" now names the row's change, since this story touches more]
 - DW-360: The README's LAN warning names the default IRIS accounts' passwords but gives steps only for the README account; the 1.0.0 README adds how to change the default IRIS accounts' passwords in the Management Portal, next to the README account's how-to (Epic 10's decision sheet, veto U-145) (ledger; routed by merge_gate 2026-10-29)
 - DW-416: Behind a TLS-terminating proxy every online-demo API POST fails the origin check (403 wrong_origin): IRIS expects an http:// origin and the browser sends https://; the demo host maps that exact origin on /ocutalon/api/* as a workaround (ledger; routed by merge_gate 2026-10-31)
 - DW-432: flake: live:online-allowance D1 missed S1's daily-cap banner: StatusMonitor (counts the Usage spend) can publish dailyCap before S1's /state, which a web process computes from the day's mark alone, and the later mark is no change to the monitor (ledger; routed by merge_gate 2026-10-31)
 - DW-453: flake: OcuTalon.Test.Web.GuideApi TestRunAgain ('steps 3 to 5 reset; the watch still counts') failed once in a local fresh shard lane-b part 2/2 and passed on the warm stack and on the rerun of the part (ledger; routed by merge_gate 2026-11-02, Epic 30 merge)
 - DW-549: flake: live:online-demo web/e2e-online/resume.spec.ts:84 R1 'it expires at the next reset' was one second off (expected 1793575980, received 1793575981): the cookie's expiry and the test's computed next reset are taken at different seconds (ledger; routed by merge_gate 2026-11-02, Epic 30 merge)
 - DW-599: flake: OcuTalon.Test.Core.ThreadProduction TestNewThreadAfterMidnight went red once in CI (mixed headers: a header of one turn counted in the other thread) and passed on the unchanged rerun (ledger; routed by merge_gate 2026-11-02, Epic 30 merge)
+- DW-613: Story 31.3's README AC adds 'the page on the demo path' and 'a Visual Trace of one decision' under What's interesting; Story 10.5 already puts docs/images/page-incident.png (hero) and docs/images/vt-decision.png in the README, so 31.3 should reuse or move them rather than add duplicates; its new images also need git add -f (the .gitignore line images/ matches docs/images/) (ledger; routed by merge_gate 2026-11-03, Epic 10 merge)
 
 **Release check:** measured on the public online demo host serving the 1.0.0 candidate, at the 1.0.0 release, the author's [AMENDED 2026-10-30, owner decision, relayed by the Contest Planner; the owner: "Yes, that should be our plan.": the online demo goes public on its own this weekend (about Nov 1), ahead of 1.0.0, while the repository, the Open Exchange listing and the contest entry wait for 1.0.0; so Story 31.3 measures on the public host (see the Epic List's step release checks); it read "measured on the online demo host serving the 1.0.0 candidate, behind the access gate before the public flip, at the 1.0.0 release, the author's"] [AMENDED 2026-10-29, owner decision, relayed by the Contest Planner (one public release at 1.0.0; see the Epic List's step release checks); it read "measured on the launched online demo at the 1.0.0 release"] [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." step readiness review M11: this criterion moved, verbatim, to the Epic List's step release checks as a 1.0.0 release check, so this story keeps the README work, never parks on the launch, and Epic 31 merges once `v0.1.1` is tagged (its merge gate); the title is kept so the story's tracker key stays the same]
 

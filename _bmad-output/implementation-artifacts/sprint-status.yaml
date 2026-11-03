@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 11-03-2026 09:34
+last_updated: 11-03-2026 09:50
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -48,6 +48,7 @@ development_status:
   0-10-the-orders-demo-production-runs-in-ocuorders: done
   0-11-the-ci-model-mock-answers-every-scenario-the-stories-need: done
   0-12-epic-0-burn-down: done
+  0-13-a-start-retries-the-cpf-merge-when-iris-cannot-quiesce: backlog
   epic-0-retrospective: optional
 
   epic-1: done
@@ -169,7 +170,7 @@ development_status:
   10-2-the-readme-gets-a-judge-from-download-to-sign-in: done
   10-3-the-session-side-of-telegram-is-ready-and-stays-off: done
   10-4-the-readme-opens-with-what-ocutalon-is-for-and-what-a-model: done
-  10-5-the-readme-shows-the-product-and-says-how-you-talk-to-it: backlog
+  10-5-the-readme-shows-the-product-and-says-how-you-talk-to-it: done
   epic-10-retrospective: optional
 
   epic-11: in-progress
@@ -204,10 +205,10 @@ development_status:
   12-7-approve-or-reject-from-telegram-and-every-copy-shows-who-ans: backlog
   epic-12-retrospective: optional
 
-  epic-13: backlog
-  13-1-the-example-production-makes-its-own-decision-through-the-br: backlog
-  13-2-the-example-s-own-tools-wait-for-approval-when-they-are-risk: backlog
-  13-3-the-bridge-developer-guide-proved-on-a-clean-instance: backlog
+  epic-13: done
+  13-1-the-example-production-makes-its-own-decision-through-the-br: done
+  13-2-the-example-s-own-tools-wait-for-approval-when-they-are-risk: done
+  13-3-the-bridge-developer-guide-proved-on-a-clean-instance: done
   epic-13-retrospective: optional
 
   epic-14: done

@@ -1026,6 +1026,16 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: maybe-false (unverified medium): the source of %apiOBJ is not exported, so whether SYSTEM.OBJ Load or Delete can throw instead of returning a status was not settled
 - 2026-10-23T16:14:20Z status=wontfix-theoretical owner=32-4-the-developer-loop-reuses-one-warm-throwaway-per-lane by=cr note=real if a warm session's output lacks a CHK row for a listed import or delete
 
+### DW-180: Spine lint reports ok:false from four pre-existing LOW placeholder findings that are template text in the spine's examples ({time} :393, {day} :831, {what happened}/{reason} :844)
+- source: spec-13-1-the-example-production-makes-its-own-decision-through-the-br.md | severity: low | fix-risk: med | footprint: out-of-footprint
+- evidence: lint_spine.py on the base tree (fb66ec9) and after Story 13.1 gives the same four findings; Story 13.1's two AD-33 rows add none
+- 2026-10-24T22:03:43Z status=wontfix-accepted owner=13-1-the-example-production-makes-its-own-decision-through-the-br by=harvest note=reopen_if=lint_spine.py reports a placeholder, ad_id or ad_fields finding other than these four tokens, or a gate starts requiring ok:true; fixing them means editing AD text (amendment), out of Epic 13's footprint
+
+### DW-181: The example's inline ProviderConfig carries no Timeouts.Derive http_config, so AI Hub's 30 s Retry-After cap and default request timeout apply under the bridge timer
+- source: spec-13-1-the-example-production-makes-its-own-decision-through-the-br.md | severity: med | fix-risk: med | footprint: in-epic
+- evidence: AD-8 asks for Derive's request_timeout_secs and full retry block (S18: a missing block caps back-off at 30 s). Check 3 of release/standalone-bridge.sh writes http_config.custom_headers only; Timeouts.Apply refuses inline configs (Test.Bridge.Timeouts:181); a TimerSeconds row reaches timeout_ms live (Adapter.Agent.TimeoutMs) and UpdateProduction restarts Decide only.
+- 2026-10-24T23:08:35Z status=routed owner=13-3-the-bridge-developer-guide-proved-on-a-clean-instance by=cr note=13.3 guide: inline ProviderConfig needs Derive(timer).http_config, or @{config:} with Timeouts.Apply; keep 13.1's timer row
+- 2026-11-03T07:45:29Z status=resolved-by:13-3-the-bridge-developer-guide-proved-on-a-clean-instance by=adjudication note=docs/bridge-guide.md_provider_block_writes_Timeouts.Derive(60).http_config_into_the_inline_ProviderConfig_and_the_timeout_section_gives_@{config:}+Timeouts.Apply(AD-8);release/standalone-bridge.sh_runs_that_block_and_13.1s_timer_row_and_5d_pass(smoke_e13s3smk)
 ### DW-127: live:install-script-live joins the image group with no x64 time on record, so Story 32.3's balance rule (no IRIS job over about 1.25x the six-job mean) is unchecked for it
 - source: spec-10-1-one-script-finds-the-image-starts-ocutalon-and-says-where-to.md | severity: med | fix-risk: low | footprint: in-story
 - evidence: lane C ARM runs 95 s and 83 s (two IRIS starts); image was 552 s on ci-b (run 39675383146); at compose-start's ARM-to-x64 ratio (80 to 246 s) image is about 810-920 s against a mean near 710-730, at or under the limit (inference)
@@ -2714,6 +2724,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-02T05:39:25Z status=wontfix-accepted by=burndown note=a_burndown-owned_LOW_flake(Rule_15)_with_no_charter_in_part_1;not_seen_again_in_Epic_30_part_1_fresh_runs;reopen_if=GuideApi_TestRunAgain_goes_red_again_in_CI_or_a_fresh_shard
 - 2026-11-02T10:55:33Z status=routed owner=burndown by=lead occurrence=30-1-long-conversations-are-compacted-under-the-limit note=reopened(reopen_if_met):30.1_implement_fresh_shard_lane-b_part_2/2_red_twice_on_TestRunAgain;passed_alone_on_a_fresh_throwaway;30.1_touches_no_Web/Guide_code;Lane_B_class(AD-33):route_to_a_Lane_B_story_at_the_burn-down_gate
 - 2026-11-02T12:09:17Z owner=31-3-the-readme-leads-to-the-demo-and-the-launched-demo-is-measur by=burndown note=overflow:Lane_B_class_Test.Web.GuideApi(AD-33:off_limits_to_Lane_A_epic_30);flake_reopened_by_30.1's_fresh_shard_lane-b_2/2(red_twice,passes_alone):find_the_order_or_timing_dependence_of_TestRunAgain
+- 2026-11-03T02:38:20Z occurrence=13-2-the-example-s-own-tools-wait-for-approval-when-they-are-risk by=harvest note=failed_once_in_13.2_implement_fresh_shard_lane-b_part_2/2;passed_alone_and_on_rerun
 
 ### DW-454: U-170's plain-English reason for an old held tool call reaches a person only through the decision live event (decision strip, rail decision row, trace); the approval card and notices do not show it: Live.Payload.Approval.reason stays empty, approval.result is {ref}, Core.Rule.Notice reads only the fallback reason
 - source: spec-30-3-an-approved-tool-call-runs-exactly-once-with-no-model.md | severity: med | fix-risk: med | footprint: out-of-footprint
@@ -3089,6 +3100,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: about 5 awk lines; the spec records the reason (test-readme.sh cannot be sourced and is Epic 10's); both rules drift if the name rule changes in one place
 - 2026-11-01T23:52:21Z status=escalated owner=burndown by=cr note=unify when Epic 10 next edits test-readme.sh: one shared name scanner in lib-scan.sh that both call
 - 2026-11-02T13:18:26Z status=routed owner=burndown by=merge_gate note=unify_checklist_row_name_only_in_note_with_test-readme.sh_in_Epic_10s_next_README_story_after_1.0.0(release/**_and_test-readme.sh_both_needed)
+- 2026-11-03T08:00:25Z status=routed owner=burndown by=burndown note=first daily release after 1.0.0 (orchestrator ruling U-234 close: not a 1.0.0 blocker; Epic 10's next README story)
 
 ### DW-555: flake: a CI-host network blip at sign-in can surface as 'page.goto: Navigation ... is interrupted by another navigation to chrome-error://chromewebdata/', which gotoSettled (web/e2e/support/navigate.ts, Story 11.9, DW-415) does not retry: it matches only net::ERR_NETWORK_CHANGED
 - source: cycle-log-epic-11.md | severity: med | fix-risk: low | footprint: in-epic
@@ -3288,6 +3300,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: 30.1 Design Notes V1 and Spine notes; the ADs allow the behaviour as written, but their text is silent; AD-20/AD-8/AD-6/AD-22 are cited by merged stories, so a runner may not amend them unattended (U7, U14)
 - 2026-11-02T07:40:01Z status=decision-pending owner=burndown by=spec_gate note=human=an attended bmad-architecture Update after the run writes these lines (or declines them); no code change
 - 2026-11-02T22:47:05Z status=decision-pending owner=burndown by=merge_gate note=action_item:epic-30-decision-item-3-dw-575-ad-20-fallback-spine-notes(owner;decided_unattended_U9:human-only_entry_to_action_items)
+- 2026-11-03T04:27:43Z status=decision-pending owner=burndown by=orchestrator note=action_item:epic-30-decision-item-3-dw-575-ad-20-fallback-spine-notes; also AD-2 'default settings' wording (Installer.Run writes no System Default Settings row; the bridge guide states what it sets up), added at the Planner's word 2026-11-03 ~04:3xZ for the attended architecture update after the run
 
 ### DW-579: NFR-3 in the tool loop after 30.1: compaction keeps the last user turn whole and guards each request the runner shapes at the request-size limit, not at 40,000, so a fork whose kept turn was tool-heavy (about 62,000 tokens), a flagged turn with nothing older, or a large input can start between 40,000 and the limit, and its later tool-loop requests can pass 100,000
 - source: spec-30-1-long-conversations-are-compacted-under-the-limit.md | severity: med | fix-risk: med | footprint: in-story
@@ -3397,3 +3410,22 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-15-4-every-release-proves-the-ipm-package-and-the-guide-opens-wit.md | severity: low | fix-risk: med | footprint: in-story
 - evidence: blind-hunter: the guide's setup state is not the committed test's; plan measured MapGlobalEquivalently and unmap -repos-only from an IRISSYS-mapped USER (Design Notes); a committed test may not run enable -community
 - 2026-11-03T09:33:15Z status=wontfix-accepted owner=15-4-every-release-proves-the-ipm-package-and-the-guide-opens-wit by=cr note=reopen_if=the registry-install hand gate's second command in OCUTALON finds no repository while USER's first command found the package
+### DW-619: flake: live:demo-switch web/e2e/demo-switch/view.spec.ts:360 V8 (no snapshot, no switch) timed out at 120 s in page.waitForResponse in CI group shards-3; passed on an unchanged rerun
+- source: ci run 41598497924 (OCT-epic13 d642b11a) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: job 125791393924 attempt 1: Test timeout of 120000ms exceeded; attempt 2 green
+- 2026-11-03T08:42:50Z status=routed owner=burndown by=ci note=first daily release after 1.0.0; not a 1.0.0 blocker (flake, green on rerun)
+
+### DW-620: flake: live:online-demo-path load phase read status 'false none 200' and units '1 1' after 150 s (start '3 2') in CI group image; passed on an unchanged rerun
+- source: ci run 41598497924 (OCT-epic13 d642b11a) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: job 125791394066 attempt 1: FAIL the load phase; attempt 2 green
+- 2026-11-03T08:42:50Z status=routed owner=burndown by=ci note=first daily release after 1.0.0; not a 1.0.0 blocker (flake, green on rerun)
+### DW-613: Story 31.3's README AC adds 'the page on the demo path' and 'a Visual Trace of one decision' under What's interesting; Story 10.5 already puts docs/images/page-incident.png (hero) and docs/images/vt-decision.png in the README, so 31.3 should reuse or move them rather than add duplicates; its new images also need git add -f (the .gitignore line images/ matches docs/images/)
+- source: spec-10-5-the-readme-shows-the-product-and-says-how-you-talk-to-it.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: 10.5 plan: overlap found by the planner; 31.3 is backlog (Epic 31's README pass, after Epic 10)
+- 2026-11-03T06:19:13Z status=routed owner=31-3-the-readme-leads-to-the-demo-and-the-launched-demo-is-measur by=spec_gate note=plan 31.3 against the 10.5 README: reuse the hero and the Visual Trace image
+- 2026-11-03T08:20:37Z status=routed owner=31-3-the-readme-leads-to-the-demo-and-the-launched-demo-is-measur by=merge_gate note=bullet_planned_under_31.3_at_Epic_10_merge_9ffac64e
+
+### DW-618: README 'How you talk to it' quotes UI strings (Simulated phone, Simulated mailbox, Demo view, Break the feed) that test-readme.sh pins only on the README side, never against web/src, so a later UI rename leaves the README stale with CI green
+- source: spec-10-5-the-readme-shows-the-product-and-says-how-you-talk-to-it.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: chk_how_you_talk greps TALK_FACTS in the README section only; no read of device-view.ts or demo-view-texts.ts (outcomes reads chat-view.ts, the precedent). AC2 is a recorded check at the plan base by spec.
+- 2026-11-03T07:35:37Z status=by-design owner=10-5-the-readme-shows-the-product-and-says-how-you-talk-to-it by=cr note=AC2 is specified as a recorded check; reopen via spec amendment if a UI story renames a quoted product term
