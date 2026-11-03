@@ -32,3 +32,5 @@
 2026-11-03T15:25:18Z	Story 39.1	ledger_adjudicated	owned=0 resolved=0 reowned=0 terminal=0 note=DW-638_terminal_at_cr;DW-633_DW-634_owned_by_39.3_39.5 model=claude-opus-5-5
 2026-11-03T15:25:18Z	Story 39.1	smoke_complete	method=other result=pass iterations=2 defects_caught=1 evidence=slot-d_direct_Beat_stubs_SettingKey_HeartbeatBeat_global;fresh_throwaway_TestBeatNowIsAnswered_running_production;checks_28_of_28_pass_after_rework model=claude-opus-5-5
 2026-11-03T15:25:18Z	Story 39.1	fresh_check	env=recipe tests=21 result=pass order=forward,reverse shards=lane-a@Checks_fwd_155s,lane-a@Checks_rev_147s,lane-b@Data,Contract_rev_162s post_rework=Checks.Runs_fresh_pass
+2026-11-03T15:25:18Z	Story 39.1	committed	sha=667c1845 submodules= pushed=false ci=unpushed reason=rc1_push_hold_until_orchestrator_says_rc1_cut amendments=ARCHITECTURE-SPINE.md:AD-18_Names_line,AD-19_defaults_sentence footprint_extensions=src/ocutalon/cls/OcuTalon/Test/Data/Tables.cls
+2026-11-03T15:25:18Z	Story 39.1	story_cycle	plan_to_commit_min=124 implement_passes=2 reviews=2 rework=1 first_ci=pending models=plan:opus,implement:sonnet,qa:sonnet,cr:opus
