@@ -1634,3 +1634,5 @@
 2026-11-03T16:12:53Z	Epic 0	ledger_routed_planned	story=0-14 entries=1(DW-624) excess=0 by=merge_gate note=U-240
 2026-11-03T16:12:53Z	Epic 0	deps_hash_rerecorded	reason=fix_forward hash=e723b005 note=Story_0.14_inserted(U-240)
 2026-11-03T16:12:53Z	Epic 0	worktree_removed	path=.worktrees/epic-0
+2026-11-03T16:13:04Z	Epic 0	epic_merged_to_feature	merge=1457eccb head=035be7d2 pushed=true verified_on_origin=true record=f41e1be0
+2026-11-03T16:13:04Z	Epic 0	epic_branches_deleted	branch=OCT-epic0 local=true remote=true
