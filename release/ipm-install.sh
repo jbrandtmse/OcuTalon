@@ -1383,12 +1383,14 @@ uninstall_checks() {
     grep -e 'FAILURE' -e '^ERROR!' "$f" | sed 's/^/  uninstall: /'
     fail "part p uninstall: the uninstall reported a FAILURE or an ERROR! line"
   fi
+  : > "$tmp/snap.diff"
   if [ "$(grep -c '^CHK|omap-MapGlobals|IPM.Repo.Definition' "$tmp/p-second.snap")" = 3 ] \
     && ! grep -q '^CHK|omap-MapGlobals|IPM.Repo.Definition' "$tmp/p-uninstall.snap" \
     && diff <(grep -v '^CHK|omap-MapGlobals|IPM.Repo.Definition' "$tmp/p-second.snap") "$tmp/p-uninstall.snap" > "$tmp/snap.diff"; then
     pass "part p uninstall: OCUTALON's three repository mappings are gone; every other OCUTALON mapping, USER's mappings and the services are unchanged"
   else
     sed 's/^/  snapshot: /' "$tmp/snap.diff"
+    grep '^CHK|omap-MapGlobals|IPM.Repo.Definition' "$tmp/p-uninstall.snap" | sed 's/^/  kept: /'
     fail "part p uninstall: the uninstall changed more than OCUTALON's three repository mappings, or left one"
   fi
   if [ "$n" -gt 0 ] 2> /dev/null && [ "$2" = "$3" ] && [ "$1" = "$3" ]; then

@@ -3138,6 +3138,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: --live ipm packaged today's module.xml (19 bundle files, ocutalon 1.0.0 listed); the two-run branch is shimmed
 - 2026-11-02T10:22:06Z status=routed owner=15-3-an-ipm-install-survives-restarts-and-reinstalls-and-every-re by=harvest note=Story 15.3 installs 11.17's recorded artifact: once Epic 15's module.xml is on the candidate, run docker/tests/test-release-sequence.sh --live ipm on it before 15.3 relies on the record
 - 2026-11-03T04:04:52Z status=routed owner=15-4-every-release-proves-the-ipm-package-and-the-guide-opens-wit by=spec_gate note=moved_with_the_15.3/15.4_split(orchestrator_ruling_decide_2026-11-03);its_DW-576_bullet_moved_to_Story_15.4_in_epics.md
+- 2026-11-03T09:35:33Z status=resolved-by:15-4-every-release-proves-the-ipm-package-and-the-guide-opens-wit by=adjudication note=docker/tests/test-release-sequence.sh_--live_ipm_passed_194s_at_head_8d6ce22d(two-run_MapAndStop_module.xml,install_ran_in_OCUTALON);implement_re-ran_it_after_the_release.sh_change;CI_ipm-install_87d34be0_green
 
 ### DW-577: The IPM artifact record's 'Content SHA-256 is the same for every packaging' claim is shown on hand-made archives only, not on two real IPM packagings of one tree
 - source: spec-11-17-the-release-s-ipm-artifact-carries-the-built-page.md | severity: low | fix-risk: low | footprint: in-story
@@ -3384,3 +3385,14 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: _bmad-output/implementation-artifacts/spec-15-4-every-release-proves-the-ipm-package-and-the-guide-opens-wit.md | severity: med | fix-risk: med | footprint: in-story
 - evidence: unmeasured: UnmapRepos runs at Unconfigure Before; MapAndStop maps only outside OCUTALON; settle by installing twice in OCUTALON from a local repository with a version bump, then reading OCUTALON's three IPM.Repo.Definition mappings
 - 2026-11-03T08:46:25Z status=open owner=15-4-every-release-proves-the-ipm-package-and-the-guide-opens-wit by=harvest note=in-story MED for 15.4's code review: measure, then patch or close with evidence
+- 2026-11-03T09:33:15Z status=resolved-by:15-4-every-release-proves-the-ipm-package-and-the-guide-opens-wit by=cr note=measured lane-D e15s4crm: OCUTALON's 3 IPM.Repo.Definition maps kept after same-version, -force, 0.1.0->0.1.1 installs; no Unconfigure ran
+
+### DW-622: artifact_prepare's ARTIFACT line and its problem branch (an artifact ipm_artifact_check rejects fails part p) have no hermetic pin; only the live p run and the ipm-install job show them
+- source: spec-15-4-every-release-proves-the-ipm-package-and-the-guide-opens-wit.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: verification-gap: no hermetic suite runs artifact_prepare; AC 4's mutation pins the mapping clause; ipm_artifact_check itself is tested in lib-release's suites
+- 2026-11-03T09:33:15Z status=wontfix-accepted owner=15-4-every-release-proves-the-ipm-package-and-the-guide-opens-wit by=cr note=reopen_if=an ipm-install job or ipmcheck log passes without an ARTIFACT line, or with an artifact ipm_artifact_check rejects
+
+### DW-623: Part p enables IPM with enable -map -ns USER (definitions in USER's database), while the guide's enable -community maps them from IRISSYS; the IRISSYS-mapped MapGlobalEquivalently and unmap are measured by hand at plan only
+- source: spec-15-4-every-release-proves-the-ipm-package-and-the-guide-opens-wit.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: blind-hunter: the guide's setup state is not the committed test's; plan measured MapGlobalEquivalently and unmap -repos-only from an IRISSYS-mapped USER (Design Notes); a committed test may not run enable -community
+- 2026-11-03T09:33:15Z status=wontfix-accepted owner=15-4-every-release-proves-the-ipm-package-and-the-guide-opens-wit by=cr note=reopen_if=the registry-install hand gate's second command in OCUTALON finds no repository while USER's first command found the package

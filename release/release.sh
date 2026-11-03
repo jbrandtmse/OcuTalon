@@ -918,7 +918,7 @@ ipmcheck_section() {
     echo "Command: bash release/ipm-install.sh on an export of the candidate's tree, with the IPM artifact ocutalon-$version.tgz of this candidate as OCUTALON_IPM_ARTIFACT; the CI job ipm-install runs the same command"
     echo "Artifact: ocutalon-$version.tgz, $2 bytes"
     if [ "$2" -gt "$IPM_SIZE_WARN" ] 2> /dev/null; then
-      echo "Size: $2 bytes, over $IPM_SIZE_WARN; reported to the Contest Planner"
+      echo "Size: $2 bytes, over $IPM_SIZE_WARN"
     fi
     if [ "$1" = pass ]; then
       echo "Checks: the exact artifact installed from a local IPM repository on a fresh build 154 instance with no Node.js, in USER and then in OCUTALON; OCUTALON served the sign-in page and the README account signed in; the uninstall left USER's repository definitions unchanged"
@@ -945,6 +945,7 @@ step_ipmcheck() {
     step_fail ipmcheck "the IPM artifact ocutalon-$version.tgz is missing"
     return 1
   fi
+  case $art in /*) ;; *) art="$PWD/$art" ;; esac
   bytes=$(wc -c < "$art" | tr -d ' ')
   candidate_export ipmcheck "$ctx" || return 1
   if [ ! -f "$ctx/release/ipm-install.sh" ]; then
@@ -972,22 +973,21 @@ step_ipmcheck() {
     echo "WAIT ipmcheck the lane's throwaway lock is busy"
     return 5
   fi
+  if [ "$bytes" -gt "$IPM_SIZE_WARN" ]; then
+    echo "WARN ipmcheck the artifact is $bytes bytes, over $IPM_SIZE_WARN; report it to the Contest Planner"
+  fi
   if [ "$code" -ne 0 ]; then
     line=$(grep -m 1 '^FAIL ' "$log" 2> /dev/null)
     line=${line#FAIL }
     rm -f "$log"
-    line=${line:-release/ipm-install.sh ended with exit $code}
-    ipmcheck_section fail "$bytes" "$(printf '%s' "$line" | detail_clean)" > /dev/null 2>&1
-    step_fail ipmcheck "$line"
+    step_fail ipmcheck "${line:-release/ipm-install.sh ended with exit $code}"
+    ipmcheck_section fail "$bytes" "$STEP_DETAIL" > /dev/null 2>&1
     return 1
   fi
   rm -f "$log"
   if ! ipmcheck_section pass "$bytes" ""; then
     step_fail ipmcheck "the result could not be written into the record"
     return 1
-  fi
-  if [ "$bytes" -gt "$IPM_SIZE_WARN" ]; then
-    echo "WARN ipmcheck the artifact is $bytes bytes, over $IPM_SIZE_WARN; report it to the Contest Planner"
   fi
   STEP_ROW=pass
   STEP_DETAIL="ocutalon-$version.tgz ($bytes bytes) installs from a local IPM repository on a fresh instance with no Node.js and uninstalls leaving the repository definitions unchanged"

@@ -29,6 +29,11 @@
 #      Node.js before the developers' section;
 #  13. src/module.xml declares the Unconfigure Invoke of OcuTalon.Install.Ipm UnmapRepos once, on a line of its own after the
 #      Configure Invoke (U-232: uninstalling removes only the repository mapping).
+#  14. (QA of Story 15.4) release/ipm-install.sh never prints USER's repository definitions: the repository is added with its output
+#      discarded, nothing lists repositories, each hash is kept in a variable and never echoed; and the real uninstall_checks passes only
+#      for equal hashes with at least one node, and prints none (U-232 condition 1);
+#  15. (QA of Story 15.4) docs/security-overview.md holds the ruled Data bullet on the repository mapping (U-232 condition 3).
+#  16. (Story 15.4) release/ipm-install.sh with no argument, the job's run, ends with part p (AC 5).
 # Each rule first runs on synthetic files, one that keeps it and one that breaks it, so a rule that can no longer fail makes the
 # test fail. Prints one PASS or FAIL line per check; exits 0 only when all pass.
 set -u
@@ -310,7 +315,7 @@ install_doc_ok() {
   awk -v order="$order" '
     BEGIN { n = split(order, names, " "); for (i = 1; i <= n; i++) pos[names[i]] = i }
     /Configure START/ { if (on) bad = 1; on = 1; last = 0; count = 0; next }
-    /Configure SUCCESS/ { if (on && count != n) bad = 1; on = 0; closed++ }
+    /Configure SUCCESS/ { if (!on || count != n) bad = 1; on = 0; closed++ }
     on && /^STEP / {
       if ($3 != "OK" || !($2 in pos) || pos[$2] <= last) bad = 1
       last = pos[$2]; count++
@@ -346,12 +351,14 @@ grep -v 'Configure SUCCESS' "$tmp/doc.good" > "$tmp/doc.unclosed"
 { cat "$tmp/doc.good"; echo '[OCUTALON|ocutalon]	Configure START'; for name in $order_text; do echo "STEP $name OK 0.0s"; done | grep -v '^STEP Production OK'; echo '[OCUTALON|ocutalon]	Configure SUCCESS'; } > "$tmp/doc.second-short"
 { cat "$tmp/doc.good"; echo '[OCUTALON|ocutalon]	Configure START'; } > "$tmp/doc.second-unclosed"
 { grep -v 'Configure SUCCESS' "$tmp/doc.good"; cat "$tmp/doc.good"; } > "$tmp/doc.first-unclosed"
+grep -v 'Configure START' "$tmp/doc.good" > "$tmp/doc.no-start"
 if install_doc_ok "$tmp/doc.good" "$stop_text" "$fail_tail" "$order_text" \
   && install_doc_ok "$tmp/doc.two-blocks" "$stop_text" "$fail_tail" "$order_text" \
   && ! install_doc_ok "$tmp/doc.second-misordered" "$stop_text" "$fail_tail" "$order_text" \
   && ! install_doc_ok "$tmp/doc.second-short" "$stop_text" "$fail_tail" "$order_text" \
   && ! install_doc_ok "$tmp/doc.second-unclosed" "$stop_text" "$fail_tail" "$order_text" \
   && ! install_doc_ok "$tmp/doc.first-unclosed" "$stop_text" "$fail_tail" "$order_text" \
+  && ! install_doc_ok "$tmp/doc.no-start" "$stop_text" "$fail_tail" "$order_text" \
   && ! install_doc_ok "$tmp/doc.ansi" "$stop_text" "$fail_tail" "$order_text" \
   && ! install_doc_ok "$tmp/doc.stop" "$stop_text" "$fail_tail" "$order_text" \
   && ! install_doc_ok "$tmp/doc.no-merge" "$stop_text" "$fail_tail" "$order_text" \
@@ -366,7 +373,7 @@ if install_doc_ok "$tmp/doc.good" "$stop_text" "$fail_tail" "$order_text" \
   && ! install_doc_ok "$tmp/doc.unclosed" "$stop_text" "$fail_tail" "$order_text" \
   && ! install_doc_ok "$tmp/doc.good" "$stop_text" "$fail_tail" "$order_text ZzAddedStep" \
   && ! install_doc_ok "$tmp/doc.good" "" "$fail_tail" "$order_text"; then
-  pass "rule 9 on samples: a document with every point passes, also with two Configure blocks; a second block that is misordered, short or unclosed fails; an ANSI code, another stop sentence, a missing command, key or failure line, a changed failure line, a missing, renamed, failed or misordered STEP, a step the order gained, no Configure SUCCESS or no source text fails"
+  pass "rule 9 on samples: a document with every point passes, also with two Configure blocks; a second block that is misordered, short or unclosed, or a SUCCESS line with no START line fails; an ANSI code, another stop sentence, a missing command, key or failure line, a changed failure line, a missing, renamed, failed or misordered STEP, a step the order gained, no Configure SUCCESS or no source text fails"
 else
   fail "rule 9 on samples: the checker accepts a document that lost a point or disagrees with the code, or rejects the right one"
 fi
@@ -573,6 +580,127 @@ else
   fail "rule 13 on samples: the checker accepts a manifest without the exact Unconfigure Invoke after the Configure Invoke, or rejects the right one"
 fi
 
+# 14. The repository definitions stay private (Story 15.4, QA; U-232 condition 1 and the Boundaries): release/ipm-install.sh adds its
+# repository in a session whose output is discarded, never lists repositories, keeps each hash of USER's definitions in a variable and never
+# prints it; and uninstall_checks passes only when the hash after the uninstall equals the hash before it and the one before the first
+# command, with at least one node, and prints neither.
+defs_private() {
+  awk '
+    { line = $0; sub(/^[ \t]+/, "", line) }
+    line ~ /^#/ { next }
+    line ~ /zpm "repo / && line ~ /-list/ { bad = 1 }
+    line ~ /zpm "repo / { adds++; if (line !~ /> \/dev\/null 2>&1$/) bad = 1 }
+    line ~ /defs_hash/ && line !~ /^defs_hash\(\) \{/ { if (line ~ /^h[012]=\$\(defs_hash\)$/) keeps++; else bad = 1 }
+    line ~ /^(part_p|uninstall_checks)\(\) \{/ { fn = 1 }
+    fn && line ~ /(echo|printf|cat|tee|pass|fail|die)/ && line ~ /\$\{?(h[012]|[123])([^0-9A-Za-z_]|$)/ { bad = 1 }
+    line ~ /^\}/ { fn = 0 }
+    END { exit (adds >= 1 && keeps >= 3 && !bad) ? 0 : 1 }' "$1"
+}
+cat > "$tmp/defs.good" <<'EOM'
+part_p() {
+  echo "PART p: ocutalon-$ver.tgz from a local IPM repository on a fresh instance"
+  printf '%s\nHalt\n' 'zpm "repo -name ocutalon-local -fs -depth 2 -path /tmp/ocutalon-repo/"' | dc exec -T iris iris session IRIS -U USER > /dev/null 2>&1
+  h0=$(defs_hash)
+  h1=$(defs_hash)
+  h2=$(defs_hash)
+  uninstall_checks "$h0" "$h1" "$h2"
+}
+uninstall_checks() {
+  local n=${3%%|*}
+  if [ "$n" -gt 0 ] 2> /dev/null && [ "$2" = "$3" ] && [ "$1" = "$3" ]; then
+    pass "same|$n"
+  else
+    echo "  definitions: differs|${n:-0}"
+  fi
+}
+EOM
+sed 's/-name ocutalon-local -fs/-name ocutalon-local -list/' "$tmp/defs.good" > "$tmp/defs.list"
+sed 's/ > \/dev\/null 2>&1$//' "$tmp/defs.good" > "$tmp/defs.shown"
+sed 's/^  h1=\$(defs_hash)$/  defs_hash/' "$tmp/defs.good" > "$tmp/defs.bare"
+sed 's/^  h1=\$(defs_hash)$/  h1=$(defs_hash); echo "$h1"/' "$tmp/defs.good" > "$tmp/defs.echo-var"
+sed 's/echo "  definitions: differs|${n:-0}"/echo "  definitions: differs|${n:-0} $2"/' "$tmp/defs.good" > "$tmp/defs.echo-arg"
+sed 's/pass "same|$n"/pass "same|$n $3"/' "$tmp/defs.good" > "$tmp/defs.pass-arg"
+sed '/zpm "repo /d' "$tmp/defs.good" > "$tmp/defs.no-add"
+if defs_private "$tmp/defs.good" && ! defs_private "$tmp/defs.list" && ! defs_private "$tmp/defs.shown" && ! defs_private "$tmp/defs.bare" \
+  && ! defs_private "$tmp/defs.echo-var" && ! defs_private "$tmp/defs.echo-arg" && ! defs_private "$tmp/defs.pass-arg" && ! defs_private "$tmp/defs.no-add"; then
+  pass "rule 14 on samples: discarded add and hashes kept in variables pass; a repo -list, an add whose output is shown, a bare defs_hash, a hash echoed or passed to pass from a variable or an argument, or no add fails"
+else
+  fail "rule 14 on samples: the checker accepts a script that prints repository definitions, or rejects the right one"
+fi
+
+# uninstall_checks_run <hash before the first command> <hash before the uninstall> <hash after it> [snapshot flaw]: the real function of
+# release/ipm-install.sh on a synthetic uninstall; prints its pass and fail lines.
+sed -n '/^uninstall_checks() {$/,/^}$/p' release/ipm-install.sh > "$tmp/uninstall.fn"
+uninstall_checks_run() {
+  (
+    tmp=$tmp/un
+    rm -rf "$tmp"
+    mkdir -p "$tmp"
+    pass() { echo "PASS $*"; }
+    fail() { echo "FAIL $*"; }
+    printf 'Uninstall done.\n' > "$tmp/p-uninstall.txt"
+    for g in D I S; do echo "CHK|omap-MapGlobals|IPM.Repo.Definition$g|USER_DATA"; done > "$tmp/repo.lines"
+    { echo 'CHK|service|%Service_Telnet|1|32'; cat "$tmp/repo.lines"; } > "$tmp/p-second.snap"
+    echo 'CHK|service|%Service_Telnet|1|32' > "$tmp/p-uninstall.snap"
+    case ${4:-} in
+      kept-mapping) cat "$tmp/repo.lines" >> "$tmp/p-uninstall.snap" ;;
+      other-change) echo 'CHK|service|%Service_Other|1|32' >> "$tmp/p-uninstall.snap" ;;
+      failure-line) echo 'FAILURE: Unconfigure' >> "$tmp/p-uninstall.txt" ;;
+    esac
+    . "$tmp/../uninstall.fn"
+    uninstall_checks "$1" "$2" "$3"
+  )
+}
+same="3|SENTINELAAA"
+uc_run_ok="$(uninstall_checks_run "$same" "$same" "$same" 2>&1)"
+# uc_expect_fail <needle> <hash0> <hash1> <hash2> [flaw]: a FAIL line, the needle, and no hash in the output
+uc_expect_fail() {
+  local o
+  o=$(uninstall_checks_run "$2" "$3" "$4" "${5:-}" 2>&1)
+  case $o in *FAIL*) ;; *) return 1 ;; esac
+  case $o in *"$1"*) ;; *) return 1 ;; esac
+  case $o in *SENTINEL*) return 1 ;; esac
+  return 0
+}
+if [ "$(printf '%s\n' "$uc_run_ok" | grep -c '^PASS')" = 3 ] && ! printf '%s\n' "$uc_run_ok" | grep -q -e '^FAIL' -e SENTINEL \
+  && printf '%s\n' "$uc_run_ok" | grep -q 'same|3$' \
+  && uc_expect_fail "differs|3 (after the uninstall, against before it)" "$same" "$same" "3|SENTINELBBB" \
+  && uc_expect_fail "differs|3 (after the uninstall, against before it)" "$same" "3|SENTINELBBB" "$same" \
+  && uc_expect_fail "differs|3 (after the uninstall, against before the first command)" "3|SENTINELCCC" "$same" "$same" \
+  && uc_expect_fail "0 nodes" "0|SENTINELAAA" "0|SENTINELAAA" "0|SENTINELAAA" \
+  && uc_expect_fail "0 nodes" "" "" "" \
+  && uc_expect_fail "changed more than" "$same" "$same" "$same" kept-mapping \
+  && uc_expect_fail "changed more than" "$same" "$same" "$same" other-change \
+  && uc_expect_fail "FAILURE" "$same" "$same" "$same" failure-line; then
+  pass "rule 14 on the real function: equal hashes with nodes pass and print same|<nodes>; a hash that changed at the uninstall or since the first command, no nodes, no hash, a kept mapping, another change or a FAILURE line fails, and no hash is printed"
+else
+  fail "rule 14 on the real function: uninstall_checks passes definitions that changed, accepts 0 nodes, misses a kept mapping, or prints a hash"
+fi
+
+# 15. The Data bullet of docs/security-overview.md (Story 15.4, U-232 condition 3, a ruled sentence outside the generated markers): the
+# overview says that an IPM install maps the repository definitions, from which namespace, and that uninstalling removes only that mapping.
+OVERVIEW_BULLET='- On an IPM install, OCUTALON also maps IPM'"'"'s repository definitions (the globals `^IPM.Repo.Definition*`) from the namespace where the first install command ran, as they are, so the two namespaces share one list of repositories; uninstalling OcuTalon removes only that mapping.'
+overview_bullet_ok() { grep -F -x -q -e "$OVERVIEW_BULLET" "$1"; }
+printf '## Data\n\n%s\n\nData leaves the instance only:\n' "$OVERVIEW_BULLET" > "$tmp/overview.good"
+grep -v 'IPM.Repo.Definition' "$tmp/overview.good" > "$tmp/overview.none"
+sed 's/removes only that mapping/removes the mapping/' "$tmp/overview.good" > "$tmp/overview.altered"
+if overview_bullet_ok "$tmp/overview.good" && ! overview_bullet_ok "$tmp/overview.none" && ! overview_bullet_ok "$tmp/overview.altered"; then
+  pass "rule 15 on samples: the overview with the ruled bullet passes; without it or with its last clause changed fails"
+else
+  fail "rule 15 on samples: the checker accepts an overview without the ruled bullet, or rejects the right one"
+fi
+
+# 16. The job's run includes part p (Story 15.4, AC 5): release/ipm-install.sh runs part_p when the mode is all.
+part_p_in_job() { grep -qxF 'if [ "$mode" = all ]; then part_p; fi' "$1"; }
+printf 'finish() { :; }\nif [ "$mode" = all ]; then part_p; fi\nfinish\n' > "$tmp/job.part-p"
+sed 's/= all ]/= p ]/' "$tmp/job.part-p" > "$tmp/job.other-mode"
+grep -v part_p "$tmp/job.part-p" > "$tmp/job.no-part-p"
+if part_p_in_job "$tmp/job.part-p" && ! part_p_in_job "$tmp/job.other-mode" && ! part_p_in_job "$tmp/job.no-part-p"; then
+  pass "rule 16 on samples: part_p run in mode all passes; another mode or no part_p call fails"
+else
+  fail "rule 16 on samples: the checker accepts a script whose no-argument run skips part p, or rejects the right one"
+fi
+
 # --- the real files ---
 
 check "rule 1: $cpf_file has no line that names %Service_CallIn or %IPM" no_service_or_ipm "$cpf_file"
@@ -588,6 +716,9 @@ check "rule 10: $manifest declares the exact SystemRequirements element once" sy
 check "rule 11: $install_doc starts in USER, quotes IPM's refusal exactly as release/ipm-install.sh asserts it and sends the reader back to USER" ns_doc_ok "$install_doc" "$script_refusal"
 check "rule 12: $install_doc opens with the registry install: enable -community before the first install command, the shared-repositories sentence, and no Node.js before the developers' section" registry_doc_ok "$install_doc"
 check "rule 13: $manifest invokes OcuTalon.Install.Ipm UnmapRepos once, at Unconfigure, Before, after the Configure Invoke" unmap_declared "$manifest"
+check "rule 14: release/ipm-install.sh adds its repository with the output discarded, never lists repositories and never prints a hash of the definitions" defs_private release/ipm-install.sh
+check "rule 15: docs/security-overview.md carries the ruled Data bullet on the repository mapping" overview_bullet_ok docs/security-overview.md
+check "rule 16: release/ipm-install.sh with no argument, the job's run, runs part p" part_p_in_job release/ipm-install.sh
 
 if [ "$fails" -ne 0 ]; then
   echo "test-cpf: $fails check(s) failed"

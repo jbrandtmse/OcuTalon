@@ -1798,6 +1798,12 @@ t_ipmcheck() {
   has "ipmcheck fail: the row" "$(cat "$(rec_file)")" "| ipmcheck | fail | part p uninstall: USER's repository definitions differ"
   has "ipmcheck fail: the FR-57 section" "$(sect "$(rec_file)" "## FR-57 job")" "Result: fail"
   has "ipmcheck fail: the first failure" "$(sect "$(rec_file)" "## FR-57 job")" "First failure: part p uninstall: USER's repository definitions differ"
+  # a large artifact on a failure: the WARN line too, beside the FAIL line
+  ipmcheck_to fail
+  head -c 5100000 /dev/zero >> "$OCUTALON_RELEASE_STATE/1.0.0-rc1/ipm/ocutalon-1.0.0.tgz"
+  rs '' next
+  eq "ipmcheck large fail: exit" "$rc" 1
+  has "ipmcheck large fail: the WARN line" "$out" "WARN ipmcheck the artifact is "
   lacks "ipmcheck fail: push never ran" "$(cat "$(rec_file)")" "| push |"
   lacks "ipmcheck fail: no local path in the record" "$(cat "$(rec_file)")" "$tmp"
   eq "ipmcheck fail: nothing pushed" "$(git --git-dir="$R" for-each-ref --format='%(refname)' | tr '\n' ' ')" "refs/heads/$INTEG "

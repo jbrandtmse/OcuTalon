@@ -177,6 +177,40 @@ The anchors are taken at `8d6ce22d`.
 - Given the exact artifact (`OCUTALON_IPM_ARTIFACT`, or the one packaged in CI) and a clean build 154 throwaway with no Node.js, when it is installed through a local filesystem repository with `zpm "install ocutalon"` twice, then the row "Repository install" holds, `ARTIFACT ... bytes` is printed and the notes record the size. This is the integration AC for the mapping: IPM's install in OCUTALON reads the mapped definitions and installs.
 - Given an install from the repository, when OcuTalon is uninstalled, then the row "Uninstall keeps the definitions" holds (U-232 condition 1). The job runs part `p` with no argument, and `bash release/ipm-install.sh p` passes locally.
 
+### Review Findings
+
+Code review 2026-11-03 (four layers, full-opus). 27 entries: 8 patch (applied), 2 defer (ledgered `wontfix-accepted`), DW-621 resolved by measurement, 16 rejected. No high, no open medium.
+
+- [x] [Review][Resolved] DW-621: the Unconfigure Invoke might drop OCUTALON's repository mapping on an upgrade or same-version reinstall. Measured on lane-D throwaway `e15s4crm` (part p's setup, then three more installs from the local repository in OCUTALON). After a same-version `zpm "install ocutalon"`, a `-force` install, and a 0.1.0 -> 0.1.1 bump, the three `IPM.Repo.Definition` mappings were all still there. None of the runs printed a Clean or Unconfigure phase (only Reload, Configure and Activate). The definitions hash was unchanged (`same|5`), and a fourth install from the repository in OCUTALON still found the package. Ledger: `resolved-by` this story.
+- [x] [Review][Patch] Rule 9 passed a guide with a `Configure SUCCESS` line but no `Configure START`, checking zero STEP lines. Now a SUCCESS line with no open block fails, and there is a `no-start` sample [docker/tests/test-cpf.sh:install_doc_ok]
+- [x] [Review][Patch] Rule 14's print check covered only echo/printf/cat/tee, so `pass`, `fail` and `die` could leak a hash. Widened, with a `pass-arg` sample [docker/tests/test-cpf.sh:defs_private]
+- [x] [Review][Patch] `uninstall_checks` printed a stale `snap.diff` from `same_config` when the count check or the kept-mapping check failed. It now clears the file first and prints any kept repository mapping lines [release/ipm-install.sh:uninstall_checks]
+- [x] [Review][Patch] A failing `ipmcheck` with an artifact over 5,000,000 bytes printed no WARN line (matrix row "Large artifact"). The WARN now comes before the failure branch; new `t_ipmcheck` case `large fail` [release/release.sh:step_ipmcheck]
+- [x] [Review][Patch] The record's Size note said "reported to the Contest Planner", an action that never happened. It now reads `Size: <n> bytes, over 5000000` [release/release.sh:ipmcheck_section]
+- [x] [Review][Patch] The FR-57 section's `First failure:` skipped `step_fail`'s path scrubbing. It now uses `STEP_DETAIL` [release/release.sh:step_ipmcheck]
+- [x] [Review][Patch] A relative `OCUTALON_RELEASE_STATE` produced an artifact path that pointed at no file once the unit ran inside the export. The path is now made absolute [release/release.sh:step_ipmcheck]
+- [x] [Review][Patch] Nothing pinned AC 5's "the job runs part `p` with no argument", so `ipmcheck` could certify an exit 0 that never installed the artifact. New rule 16 in `test-cpf.sh`, with samples. The exit-code contract stays as specified [docker/tests/test-cpf.sh, rule 16]
+- [x] [Review][Defer] `artifact_prepare`'s ARTIFACT line and its problem branch have no hermetic pin [release/ipm-install.sh:artifact_prepare] -- deferred: DW-622 `wontfix-accepted`, reopen_if an ipm-install or ipmcheck log passes without an ARTIFACT line or with an artifact that `ipm_artifact_check` rejects.
+- [x] [Review][Defer] Part p enables IPM with `enable -map -ns USER`, while the guide's `enable -community` maps the definitions from IRISSYS. The IRISSYS-mapped case is measured by hand only (plan) [release/ipm-install.sh:part_p] -- deferred: DW-623 `wontfix-accepted`, reopen_if the registry-install hand gate's second command in OCUTALON finds no repository.
+
+Rejected:
+- [medium claim] Part p's `BuildCache` step is not in the matrix or the guide. By design. The guide gives no local-repository procedure, only the one "until published" line, so no reader-facing step is missing. Read on throwaway `e15s4crs`: `%IPM.Repo.Remote.Definition` and `%IPM.Repo.Remote.PackageService` reference no cache; only the Filesystem classes use `%IPM.Repo.Filesystem.Cache`. The fix would edit the spec.
+- `false` The overview bullet over-claims, because `UnmapRepos` also removes an admin-made mapping. The bullet is the ruled text, and Decided in-stage 2 covers this: it is the same repository-definition mapping either way.
+- `low` The shared-repositories sentence understates its reach after `enable -community`. It is U-232's verbatim ruled text and true as written; changing it is a veto item.
+- `low` The checklist and notes texts name "the README's two commands" before the README has them. This is the spec's verbatim text: Story 31.3 builds that README section, and the row is a later hand gate.
+- `low` Mode `p` with an artifact starts a stack it never uses. Hand runs only, and the fix restructures the script.
+- `false` Packaging in mode `all` before path A's later checks was never run. lane-a run 41605812449 on `87d34be0`: job `ipm-install` passed the full no-argument run in 26 min 19 s, with `TIME p-fresh 263s`.
+- `low` `ipmcheck` is silent for the whole run. `release.sh`'s output contract is one PASS, FAIL or WAIT line per step, and `image` is silent too; a new line type is more than a direct correction.
+- `low` `UnmapIPM` skips OCUTALON when IPM is installed natively there. Theoretical: the first run creates OCUTALON and maps IPM in from USER.
+- `low` After an uninstall, the same command in OCUTALON finds no repositories. By design under U-232 condition 1: the guide's first command in USER maps them again, and IPM's own error names the cause.
+- `false` An `UnmapRepos` error stops the uninstall. Failing loudly is correct; swallowing the error would leave the mapping in place silently.
+- `low` `push` does not re-check `ipmcheck_result`. Theoretical: no release state from before the new STEPS exists, and `push` re-checks no earlier step.
+- `low` The guide shows `Reload START (/tmp/ocutalon-repo/...)`. That is IPM's own output, which Task 0 (b) requires verbatim; it is a container path, not a local machine path.
+- `low` The developers' blocks keep the `Node:` banner. The spec keeps both existing blocks, and their text claims only that colour codes were removed.
+- `low` The intro says "two commands" while the registry route also needs `enable -community`. "Two commands" is the spec's term for the install itself; pointing IPM at the registry is a setup step in its own subsection.
+- `low` The `uc_expect_fail "0 nodes"` needle cannot fail. The cases still pin the behaviour, because only the node test can produce their FAIL line.
+- `low` `t_ipmcheck` restores `OCUTALON_LOCK_DIR` to `$C/locks`. That is the existing `t_overview` pattern and `newcase`'s own value.
+
 ## Spec Change Log
 
 ## Review Triage Log
@@ -402,6 +436,18 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 **Manual checks:**
 - The guide's registry outputs match the `p-first` and `p-second` blocks of a passing `p` run, and the `enable -community` block matches Task 0's run, apart from times, ANSI codes and the banner.
 - No guide or overview sentence claims more than the measured behaviour and the ruled sentences.
+
+**QA stage (Story 15.4).** Changed file: `docker/tests/test-cpf.sh` (QA), rules 14 and 15 appended; no test file added. The audit of the five lead points found 3, 4 and 5 pinned (`t_ipmcheck`, `t_registry_row`, `t_ipm`), and two gaps closed: U-232 condition 1's "never printed" and its comparison logic had only a live pin (`ipm-install.sh p`), and the ruled Data bullet of `docs/security-overview.md` (U-232 condition 3) had no pin at all.
+- (QA) `bash docker/tests/test-cpf.sh` rule 14: `defs_private` (the repository is added with its output discarded, nothing lists repositories, each hash stays in a variable and is never echoed) and the real `uninstall_checks` run on synthetic files with sentinel hashes (equal hashes with nodes pass; a hash changed at the uninstall or since the first command, 0 nodes, no hash, a kept mapping, another change and a FAILURE line fail; no hash is printed).
+- (QA) `bash docker/tests/test-cpf.sh` rule 15: the ruled Data bullet is present, on samples and in the real file.
+- mutation (QA): AC 5 uninstall -- `uninstall_checks` no longer compares the hash before and after the uninstall (`[ "$2" = "$3" ] &&` removed): `test-cpf.sh` rule 14 on the real function red; restored.
+- mutation (QA): no definition printed -- `uninstall_checks`'s `differs|` line also echoes `$3` (the hash): `test-cpf.sh` rule 14 on the real function and rule 14 red; restored.
+- mutation (QA): no definition printed -- part `p`'s `zpm "repo -name ocutalon-local ..."` session no longer ends with `> /dev/null 2>&1`: `test-cpf.sh` rule 14 red; restored.
+- mutation (QA): U-232 condition 3 -- the Data bullet removed from `docs/security-overview.md`: `test-cpf.sh` rule 15 red; restored. After each, `cmp` against the backup was equal and `git status --short` / `git diff --stat` were unchanged.
+- mutation (CR): AC 5 "the job runs part p with no argument" -- the line `if [ "$mode" = all ]; then part_p; fi` deleted from `release/ipm-install.sh`: `test-cpf.sh` rule 16 red (only); restored.
+- mutation (CR): AC 3 guide, rule 9 -- `if (!on || count != n)` reverted to `if (on && count != n)`: `test-cpf.sh` rule 9 on samples red (the `no-start` sample); restored.
+- mutation (CR): no definition printed -- rule 14's print words narrowed back to `echo|printf|cat|tee`: `test-cpf.sh` rule 14 on samples red (the `pass-arg` sample); restored.
+- mutation (CR): matrix row "Large artifact" -- the WARN block moved below the failure return in `step_ipmcheck`: `test-release-sequence.sh ipmcheck` red (`ipmcheck large fail: the WARN line`); restored. After each, `cmp` against the backup was equal and `git status --short` / `git diff --stat` were unchanged.
 
 ## Auto Run Result
 
