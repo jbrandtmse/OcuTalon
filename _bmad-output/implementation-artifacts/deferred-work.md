@@ -224,6 +224,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: 0.9 Task 0: the image has TZ unset and /etc/localtime at UTC, so Docker installs agree; DW-12's declined residual
 - 2026-10-20T06:55:28Z status=routed owner=15-2-the-second-install-run-gives-a-working-ocutalon-with-demo-mo by=adjudication note=an IPM install derives the instance zone from the OS, or the install sets it, and a test checks Zone() against ToLocal
 - 2026-10-24T02:57:20Z occurrence=1-10-the-chat-agent-sets-lists-and-cancels-reminders
+- 2026-10-31T00:03:53Z status=routed owner=31-3-the-readme-leads-to-the-demo-and-the-launched-demo-is-measur by=orchestrator note=U-177:_Lane_B_classes(AD-33);Lane_B_Story_31.3_fixes_it_before_1.0.0,proved_by_Lane_B's_own_tests;not_release/ipm-install.sh;AD-18's_wording_(the_OS_zone_where_TZ_is_unset)_is_ruled_at_31.3's_spec_gate
+- 2026-10-31T04:47:48Z status=routed owner=31-1-push-live-events-over-a-websocket-on-local-installs by=orchestrator note=U-177(answer_2026-10-31T00:05:17Z#535):_Lane_B_classes(AD-33);the_first_Lane_B_story_inside_1.0.0_that_runs_with_these_files_free(31.1),else_31.3;AD-18's_wording_(the_OS_zone_where_TZ_is_unset)_goes_to_the_orchestrator_at_that_story's_spec_gate
 
 ### DW-35: A failed Orders header has Status 8 (Error), IsError 0 and an empty ErrorStatus; its error text is only the event-log row inside the Terminating BP wrapper, so a reader that keys on IsError or GetErrorText finds no failure
 - source: spec-0-10-the-orders-demo-production-runs-in-ocuorders.md | severity: med | fix-risk: low | footprint: in-epic
@@ -300,6 +302,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-0-12-epic-0-burn-down.md | severity: low | fix-risk: low | footprint: out-of-epic
 - evidence: 0.12 rework deferred item
 - 2026-10-21T02:41:40Z status=routed owner=14-2-the-security-overview-says-what-ocutalon-can-do-and-what-sto by=harvest note=14.2 quotes the sentence where it describes what demo mode off leaves in place
+- 2026-11-02T23:29:46Z status=resolved-by:14-2-the-security-overview-says-what-ocutalon-can-do-and-what-sto by=adjudication note=docs/security-overview.md Data section quotes the kept-OCUORDERS how-to-remove sentence word for word; pinned by test-release-sequence.sh overviewdoc (read from EXPERIENCE.md)
 
 ### DW-47: flake: web/e2e/sign-in/sign-in.spec.ts row 13 (sign-in at a deep link) ended at /ocutalon/#/ instead of /ocutalon/index.html?x=1 once on the runner, then passed on an unchanged rerun
 - source: ci run 39534434817 attempt 1 (head 811102f) | severity: med | fix-risk: low | footprint: in-epic
@@ -1270,6 +1273,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-25T15:36:14Z status=decision-pending owner=burndown by=cr note=product call (matrix row Step fails keeps the value; any fix needs new terminal text, V2): refuse the on switch before audit and write when Plan says error
 - 2026-10-27T05:39:36Z status=routed owner=15-2-the-second-install-run-gives-a-working-ocutalon-with-demo-mo by=unattended note=decision_sheet(Epic_4_merge_gate)_veto_U-106:_SetDemoMode_refuses_the_on-switch_before_audit_and_write_when_Install.Step.Demo.Plan_answers_error,_one_new_terminal_line;_15.2_proves_it_on_its_IPM_install_into_an_existing_instance
 - 2026-10-27T05:49:00Z status=routed owner=15-2-the-second-install-run-gives-a-working-ocutalon-with-demo-mo by=owner note=U-106_kept_with_condition:_the_terminal_line_says_demo_mode_stays_off_and_why_(OCUORDERS_exists_and_OcuTalon_did_not_create_it),_same_style_as_the_other_Install_step_lines,_names_no_customer_data
+- 2026-10-31T00:03:53Z status=routed owner=31-3-the-readme-leads-to-the-demo-and-the-launched-demo-is-measur by=orchestrator note=U-177:_Lane_B_classes(AD-33);Lane_B_Story_31.3_fixes_it_before_1.0.0,proved_by_Lane_B's_own_tests;not_release/ipm-install.sh;U-106's_owner_condition_on_the_terminal_line_travels_with_it
+- 2026-10-31T04:47:48Z status=routed owner=31-1-push-live-events-over-a-websocket-on-local-installs by=orchestrator note=U-177(answer_2026-10-31T00:05:17Z#535):_Lane_B_classes(AD-33);the_first_Lane_B_story_inside_1.0.0_that_runs_with_these_files_free(31.1),else_31.3;only_once_Epic_9_has_merged;otherwise_31.1_declines_it_to_the_next_Lane_B_story,31.3_at_the_latest;U-106's_terminal-line_condition_travels_with_it
 
 ### DW-208: Admin.Result and SettingsOps.Result are near-copies of the private CommandsIn.Result (a CommandResult with Ok, Outcome and Message), three 6-line builders (Rule 2)
 - source: spec-4-1-switch-demo-mode-from-the-terminal.md | severity: low | fix-risk: med | footprint: in-story
@@ -1448,6 +1453,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-5-1-ask-ocutalon-to-watch-a-production-and-to-stop.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Orchestrator ruling 2026-10-25 on Story 5.1 (veto U-79): Install/Step/Demo.cls grants OcuTalonServiceRole %DB_OCUORDERS_DATA:R only with demo mode on (AD-3 readable-namespace rule; AD-24 Prevents: a role that grants more than the security overview says)
 - 2026-10-25T18:12:36Z status=routed owner=14-1-the-overview-s-tool-and-privilege-lists-are-generated-from-t by=spec_gate note=orchestrator_ruling:the_generated_overview_marks_this_grant_demo-mode-only;its_DW_bullet_is_the_orchestrator's_after_Epic_5's_merge
+- 2026-11-02T21:02:17Z status=resolved-by:14-1-the-overview-s-tool-and-privilege-lists-are-generated-from-t by=adjudication note=docs/security-overview.md 'With demo mode on' lists OcuTalonServiceRole %DB_OCUORDERS_DATA R (Demo.WithOrdersData); pinned by Test.Install.SecurityOverview TestDemoOnlyGrantsListed and TestPrivilegesMatchSecurityRecords
 
 ### DW-218: WatchOps' failure answers (session lock timeout, a failed save or delete) and the per-session lock's serialisation of one session's commands have no test
 - source: spec-5-1-ask-ocutalon-to-watch-a-production-and-to-stop.md | severity: med | fix-risk: low | footprint: in-story
@@ -1467,6 +1473,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: src/ocutalon/cls/OcuTalon/Install/Step/Demo.cls WithOrders and WithOrdersData; the U-79 ruling forbade reshaping WithOrders in Epic 4's file, so the copy was forced; a parsing fix to one would miss the other
 - 2026-10-25T21:52:41Z status=routed owner=burndown by=cr note=Rule 2 forced copy: unify by giving WithOrders the resource list as an argument once Epic 4's Demo.cls work has merged
 - 2026-10-27T10:02:57Z status=routed owner=15-2-the-second-install-run-gives-a-working-ocutalon-with-demo-mo by=burndown note=overflow:Install/Step/Demo.cls_is_contended(Epic_15_owns_Install/**,waiting_with_work),so_Epic_5_cannot_unify_it;Epic_4_has_merged,so_the_U-79_reason_for_the_copy_is_gone:give_WithOrders_the_resource_list_as_an_argument_when_15.2_(or_Epic_15%27s_burn-down)_touches_Demo.cls
+- 2026-10-31T00:03:54Z status=routed owner=31-3-the-readme-leads-to-the-demo-and-the-launched-demo-is-measur by=orchestrator note=U-177:_Lane_B_classes(AD-33);Lane_B_Story_31.3_fixes_it_before_1.0.0,proved_by_Lane_B's_own_tests;not_release/ipm-install.sh
+- 2026-10-31T04:47:48Z status=routed owner=31-1-push-live-events-over-a-websocket-on-local-installs by=orchestrator note=U-177(answer_2026-10-31T00:05:17Z#535):_Lane_B_classes(AD-33);the_first_Lane_B_story_inside_1.0.0_that_runs_with_these_files_free(31.1),else_31.3
 
 ### DW-224: Test.Watch.Turns and Test.Watch.Case copy Test.Tools.Reminders' turn helpers (Turn, AssertTurn, AssertSteps, Begin, Calls, SortedKeys) instead of sharing them
 - source: spec-5-1-ask-ocutalon-to-watch-a-production-and-to-stop.md | severity: low | fix-risk: med | footprint: in-story
@@ -1710,6 +1718,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-3-8-the-online-demo-s-settings-password-guard-and-spending-cap-a.md (inbox U-75) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Test/Install/Users.cls TestForeignGuardIsRefused asserts the setting unchanged after the flag-off run (row 12) and row 11 pins no guard; no assertion that ZzForeign still exists after it
 - 2026-10-25T17:37:05Z status=routed owner=15-2-the-second-install-run-gives-a-working-ocutalon-with-demo-mo by=owner note=U-75 condition (the Contest Planner for the owner): add the routine-still-exists assertion, and prove both cases on this story's IPM install into an existing instance
+- 2026-10-31T07:44:46Z status=resolved-by:15-2-the-second-install-run-gives-a-working-ocutalon-with-demo-mo by=adjudication note=Test.Install.Users.TestForeignGuardIsRefused_asserts_RoutineExists(ZzForeign)_after_the_refused_flag-on_run_and_after_the_flag-off_run;release/ipm-install.sh_path_A_keeps_PasswordValidationRoutine_empty,path_B_keeps_ZzOther^ZzForeign_and_the_routine(IPM_install_into_an_existing_instance)
 
 ### DW-231: Story 4.4's feed/break-feed-api.ts (and Story 4.7's guide-marker calls) is a second typed API client beside ApiClient (Stack row: one typed API client), because web/src/app/api/** is Epic 10's footprint
 - source: spec-4-4-show-the-demo-guide-and-the-break-the-feed-box.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -2029,6 +2038,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-28T04:48:55Z status=routed owner=15-3-an-ipm-install-survives-restarts-and-reinstalls-and-every-re by=orchestrator note=flake occurrence=2: CI run 40629178094 (iris production, row 21 wanted CHK|start-fails|1|1, got '') on feature dc44a8c, a bookkeeping-only commit whose code head 6151327 passed; rerun --failed; owner as Epic 7's X.0 re-own (15-3)
 - 2026-11-01T12:38:07Z occurrence=11-2-upgrades-and-restarts-keep-every-record-working note=CI run 41304700491 attempt 1 (OCT-epic11 4bb3d59c, iris production, live:production): FAIL row 21 'the step fails naming WatchOps while it cannot start, and succeeds once it can (1 of 5 values differ)'; the story changed no product or test-production.sh line; one rerun
 - 2026-11-02T03:08:23Z occurrence=11-13-the-release-gets-draft-notes note=CI run 41378276955 attempt 1 (OCT-epic11 7e1e4582, iris production): FAIL row 21 (1 of 5 values differ) again; the second Epic 11 occurrence on 2026-11-01/02; one rerun
+- 2026-11-02T21:59:05Z occurrence=14-1-the-overview-s-tool-and-privilege-lists-are-generated-from-t note=CI run 41527568504 iris (production) live:production row 21 'start-fails' printed nothing on 461a663b (Story 14.1 touched no production path); rerun
 
 ### DW-309: Test.Data.Fixture.Check rows carry no CreatedAt, so with no WatchMark the FailurePoller starts each reading at its poll time and a batch that lands between two polls is never read: a test that expects its failures to be noticed can pass or fail by timing
 - source: spec-5-11-the-demo-guide-s-tests-hold-now-that-incidents-are-real.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -2623,6 +2633,27 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: split from DW-368 at Epic 7's decision sheet (owner U-160) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: DW-368's 2026-10-29T13:12:01Z occurrence trailer (7.4 code review): a resend that errs partway leaves its unreached targets Skipped and renders them as changed since the dry run
 - 2026-10-30T05:24:59Z status=routed owner=30-5-mixed-and-unfinished-resends-say-how-far-they-got by=merge_gate note=owner U-160 (a) via the Contest Planner: fix in 30.5; the result text never claims a change that did not happen
+
+### DW-471: flake: live:online-session leave.spec.ts L2 (600 s idle frees the place) read 'since' as NaN on the splash URL in CI and passed on an unchanged rerun
+- source: cycle-log-epic-15.md (CI run 41147556361 of 55d1d25) | severity: med | fix-risk: low | footprint: web/e2e-online/session/leave.spec.ts (Lane B; contended by Epic 29)
+- evidence: attempt 1 iris (install-fresh) UNIT live:online-session failed: leave.spec.ts:64 expected <5000 received NaN; attempt 2 of the same head passed; the same tree passed on 307ff78
+- 2026-10-31T06:17:44Z status=routed owner=29-4-sessions-stay-isolated-under-load by=ci note=Lane B test outside Epic 15's lane and footprint; same owner as the DW-333 online-session flake; the orchestrator confirms the receiving story
+
+### DW-475: ReconcileIn's poll with ByStep 0 (OnProcessInput handing NotRunning() to Next, and its one warning after WAITWARNSECONDS) has no test of its caller path
+- source: spec-15-2-the-second-install-run-gives-a-working-ocutalon-with-demo-mo.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: TestNext feeds Next directly, StartLock polls only with ByStep 1, check_start_outside counts rows with every item up; a down item in a unit test needs a TempStop of a live item
+- 2026-10-31T07:41:38Z status=wontfix-accepted owner=15-2-the-second-install-run-gives-a-working-ocutalon-with-demo-mo by=cr note=reopen_if=ReconcileIn logs its Info row while NotRunning() is non-empty, or no warning names an item down 60 s
+
+### DW-476: Step.Production can release STARTLOCK while ReconcileIn's job is registered but before its OnInit probes the lock, so a start by the step could also be reconciled by ReconcileIn
+- source: spec-15-2-the-second-install-run-gives-a-working-ocutalon-with-demo-mo.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: irislib Ens/Job.cls Start: Register (status registered, State Alive for NotRunning) precedes %New/OnInit; never seen: start by the step stayed flat in every ipm-install run (1->1, 2->2)
+- 2026-10-31T07:41:38Z status=wontfix-theoretical owner=15-2-the-second-install-run-gives-a-working-ocutalon-with-demo-mo by=cr note=real_if=a ReconcileIn Info row after a Production-step start; fix: count job status registered as not running
+
+### DW-477: AD-23 says the registry writes WARN lines in the after-start log only, but on the IPM path Registry.Run prints them to the install command's output, which path B's WARN Demo check reads
+- source: spec-15-2-the-second-install-run-gives-a-working-ocutalon-with-demo-mo.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: the spine's AD-23 step-ownership paragraph predates the IPM path; the spec's Path B row and release/ipm-install.sh path B require WARN Demo in the IPM output
+- 2026-10-31T07:41:38Z status=by-design owner=15-2-the-second-install-run-gives-a-working-ocutalon-with-demo-mo by=cr note=lead: clarify AD-23's WARN sentence (the command's output on the IPM path) at the next spine update (Rule 20)
+- 2026-10-31T07:45:00Z occurrence=15-2-the-second-install-run-gives-a-working-ocutalon-with-demo-mo note=lead:spine_Conventions_row_IPM_steps_now_says_the_IPM_path_prints_STEP_and_WARN_lines_to_the_command_output;AD-23_text_unchanged(AD_amendments_are_the_orchestrator's)
 - 2026-10-31T04:42:04Z occurrence=30-4-a-stopped-production-or-a-disabled-item-is-reported-once by=cr note=a stopped production whose start read gives timeout (row 15) goes on to Resend's stopped skip and result.skipped
 - 2026-11-02T03:02:29Z status=resolved-by:30-5-mixed-and-unfinished-resends-say-how-far-they-got by=adjudication note=c67cdf16:Resend_stops_at_the_first_copy_that_errs;Unreached+result.stoppedPartway(three_counts,nothing_else_changed);Skipped_stays_wide(gate_ruling);pinned_by_Test.Fix.Executor,Test.Fix.Recheck(stopped/refused/error),Test.Watch.NoticeText,Test.Msg.Catalog(copy_3_of_5)
 
@@ -3194,6 +3225,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: inbox U-199 (#603), Story 5.13 merge 5fb79853 | severity: med | fix-risk: low | footprint: in-epic
 - evidence: Tools/RecentActivity.cls declares READONLY=1 and TRUSTEDOUTPUT=1; Epic 14 has not started, so no overview exists yet and 5.13 regenerated nothing
 - 2026-11-01T07:05:35Z status=routed owner=14-1-the-overview-s-tool-and-privilege-lists-are-generated-from-t by=merge_gate note=U-199 condition: 14.1's generated tool section shows recent_activity read-only and trusted output; its drift test pins it
+- 2026-11-02T21:02:17Z status=resolved-by:14-1-the-overview-s-tool-and-privilege-lists-are-generated-from-t by=adjudication note=recent_activity row reads OcuTalon.Tools.RecentActivity safe read-only yes trusted yes; pinned by TestRecentActivityRow and live:security-overview drift (DRIFT tool recent_activity)
 
 ### DW-524: No test pins the negative cell of 4.8 matrix row 4: after Run again the prompt bar comes back at step 1 or 2 and focus should go to Send, not the box button (FOCUS_RULE.whenGone keys on data-guide-step=3)
 - source: spec-4-8-step-3-of-the-guide-points-to-break-the-feed-without-a-secon.md | severity: med | fix-risk: low | footprint: in-story
@@ -3315,6 +3347,29 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: Epic 11 merge decision sheet (DW-496, veto U-215 kept by the Contest Planner) | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: AD-1 amended a9a221ed; TestCancelAllThroughChat asserts the keys but not the repeat refusal per key
 - 2026-11-02T13:25:27Z status=routed owner=burndown by=merge_gate note=Epic 30 part 2 burn-down 30.7 (sent to its runner with U-215's apply)
+
+### DW-593: Test.Install.SecurityOverview reads Security.Roles, Security.Users and Security.SQLPrivileges with its own small readers, a copy of Test.Install.Registry's private ReadRole/UserResources/SqlPrivileges (that class is contended by Epic 15)
+- source: _bmad-output/implementation-artifacts/spec-14-1-the-overview-s-tool-and-privilege-lists-are-generated-from-t.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: src/ocutalon/cls/OcuTalon/Test/Install/SecurityOverview.cls; Test/Install/Registry.cls:1047,1103 private
+- 2026-11-02T20:16:46Z status=open owner=14-1-the-overview-s-tool-and-privilege-lists-are-generated-from-t by=harvest note=copy forced by contention (Rule 2)
+- 2026-11-02T21:02:18Z status=wontfix-accepted by=adjudication note=reopen_if=Test.Install.Registry's ReadRole/UserResources/SqlPrivileges become public after Epic 15 merges, or a third copy of a security-record reader appears
+
+### DW-598: The generated overview shows the service role's narrow grants while the AD-24 Limits paragraph (production runs as the Interoperability system user, which holds %All) is still a Story 14.2 placeholder, so a candidate cut before 14.2 overstates least privilege
+- source: spec-14-1-the-overview-s-tool-and-privilege-lists-are-generated-from-t.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: docs/security-overview.md 'Limits of the privilege check' holds only the HAND-WRITTEN (Story 14.2) placeholder; step_overview and overviewdoc pass with it; spec 14.1 Never forbids writing that text
+- 2026-11-02T21:00:29Z status=routed owner=14-2-the-security-overview-says-what-ocutalon-can-do-and-what-sto by=cr note=14.2 writes AD-24 Limits word for word and adds an overviewdoc check that no HAND-WRITTEN placeholder remains
+- 2026-11-02T23:29:46Z status=resolved-by:14-2-the-security-overview-says-what-ocutalon-can-do-and-what-sto by=adjudication note=Limits of the privilege check carries the AD-24 paragraph word for word; overviewdoc fails while any HAND-WRITTEN placeholder remains and pins the paragraph
+
+### DW-606: FR-9 lists 'tool classified' as audited, but a change to Decide's ToolClassification setting (a developer's own tools) writes no Tool entry; decide whether FR-9 covers the bridge setting
+- source: spec-14-2-the-security-overview-says-what-ocutalon-can-do-and-what-sto.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: Gate.cls EntryFor reads Decide's ToolClassification (Decide.cls:202); git grep finds no Record("Tool" in src; FR-9 (epics.md:51) names 'tool classified'; the spine (AD-10, conventions 1095) assigns no Tool writer for the setting.
+- 2026-11-02T23:27:32Z status=decision-pending owner=burndown by=cr note=product call: audit developer-tool classification changes or narrow FR-9 to MCP classification; overview now says 'classify an MCP tool'
+- 2026-11-03T01:20:33Z status=routed owner=burndown by=unattended note=veto_U-229 kept (a) at 2026-11-03T01:19:45Z#690: FR-9 tool classified = MCP classification for 1.0.0; Tool audit entry for the bridge ToolClassification setting in the first daily release after 1.0.0; overview + 13.3 guide sentence routed to Epic 13 (13.3)
+
+### DW-607: ovw_doc_problems (test-release-sequence.sh) repeats chk_demo_mode's kept-OCUORDERS sed extraction (test-readme.sh:551), a copy the spec states because test-readme.sh runs on load (Rule 2)
+- source: spec-14-2-the-security-overview-says-what-ocutalon-can-do-and-what-sto.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Both files hold the same sed line for the sentence in EXPERIENCE.md; unifying means a shared lib that test-readme.sh sources, an edit outside Epic 14's footprint. Either copy that no longer matches fails loudly (empty extraction).
+- 2026-11-02T23:27:39Z status=wontfix-accepted owner=14-2-the-security-overview-says-what-ocutalon-can-do-and-what-sto by=cr note=reopen_if=the two kept-OCUORDERS extractions print different text for the same EXPERIENCE.md
 - 2026-11-02T21:12:36Z owner=30-7-epic-30-burn-down by=burndown note=ruling_d1(Contest_Planner,2026-11-02):30.7_entries_keep_owner_30-7;30.7_deferred_after_the_v1.0.0_tag(first_daily_release);conditions_unchanged(U-210/U-218_for_DW-437,U-215_for_DW-584)
 
 ### DW-594: eval/key-proof's globals control is satisfied by subscript hits alone, so a Walk that stops matching node data still passes the outer surface

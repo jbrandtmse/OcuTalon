@@ -20,8 +20,9 @@ ClassMethod Run() As %Status
 }
 
 /// roles(role, resource) = the union of the permissions declared for it, in the order R, W, U.
-/// roles(role) is set for every declared role, including one declared without a resource.
-ClassMethod Compose(Output roles) As %Status [ Private ]
+/// roles(role) is set for every declared role, including one declared without a resource. It changes nothing, so the security overview
+/// (OcuTalon.Install.SecurityOverview) reads the same composition that Run applies.
+ClassMethod Compose(Output roles) As %Status
 {
 	Kill roles
 	Set sc = ##class(OcuTalon.Install.Registry).Declared("Grants", .grants)
