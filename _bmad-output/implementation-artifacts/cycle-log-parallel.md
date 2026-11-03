@@ -1666,3 +1666,6 @@
 2026-11-03T19:58:50Z	Epic 0	worktree_removed	worktree=.worktrees/epic-0
 2026-11-03T19:58:50Z	Epic 0	epic_branches_deleted	branch=OCT-epic0 local+origin(after_push)
 2026-11-03T19:59:51Z	Epic 0	epic_merged_to_feature	merge=dc926d09 head=3cd25ab0 feature_head=75c23f0e verified=merge-base_is-ancestor feature_ci=41708296988,41708296963(pending) story=0.14 rc1=included(before_31.3)
+2026-11-03T20:04:17Z	Epic 33	worktree_provisioned	worktree=.worktrees/epic-33 branch=OCT-epic33 base=537984ab dup_ci_cancelled=41708871931,41708871826 reason=owner_nov2_first_free_runner_starts_epic33(Planner_relay_2026-11-03)
+2026-11-03T20:04:17Z	Epic 33	worktree_bootstrapped	epic=33 result=ok
+2026-11-03T20:04:26Z	Epic 33	runner_dispatched	runner=ac8d6e27567bb096b model=opus slot=ocutalon-slot-c lane=C base=537984ab prompt=prompts/dispatch-epic-33.md push_hold=rc1 story_waits=33.2:12.10 yield=on_message
