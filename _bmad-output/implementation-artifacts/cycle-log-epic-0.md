@@ -408,3 +408,14 @@
 2026-11-03T14:35:03Z	Epic 0	ci_green_verified	runs=41641201023(attempt_2),41641201273 head=c3d264c5
 2026-11-03T15:02:53Z	Epic 0	integrated_forward	feature=6093ed5b head=955e4652 conflicts_resolved=_bmad-output/implementation-artifacts/sprint-status.yaml(SC-4-P_step_4:ours+regenerate+re-set_epic-12_and_12-1..12-9=done) checks=CHECK_SCRIPTS(28_of_28):pass smoke=live_install-start(e0s13p):pass flakes_recorded=DW-453(occurrence),DW-497(occurrence),DW-635(new) note=third_integrate_forward(Epic_12_merged);orchestrator_message
 2026-11-03T15:02:53Z	Epic 0	epic_runner_complete	stories_completed=1
+2026-11-03T16:24:11Z	Epic 0	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-11-03T16:24:11Z	Epic 0	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh
+2026-11-03T16:24:11Z	Epic 0	launch_env	depth=4 watchdog=default bash_max_ms=default
+2026-11-03T16:24:11Z	Epic 0	runner_unattended_start	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec note=reopen_for_story_0.14_runner_C lane=C slot=ocutalon-slot-c
+2026-11-03T16:24:11Z	Epic 0	epic_branch_reopened	reason=story_0.14_veto_U-240 from=67b28aba
+2026-11-03T16:24:11Z	Epic 0	epic_branch_checked_out	repos=. head=67b28aba ci=gh workflows=ci,lane-a bootstrap_check=ok contended_check=epic13,31,39,40:no_overlap
+2026-11-03T16:24:11Z	Epic 0	spine_resolved	path=_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md ads=33 status=final
+2026-11-03T16:24:11Z	Epic 0	ledger_load	total=607 open=0 routed=77 escalated=0 decision_pending=3 terminal=527 owner_unknown=0 burndown=29 reowned_none=0 epic0_owned=1(DW-624)
+2026-11-03T16:24:41Z	Epic 0	sprint_planning_complete	gate=PASS model=claude-opus-5-5 note=readiness_recheck_for_reopen;tracker_in_sync;story_0.14_present_backlog
+2026-11-03T16:24:41Z	Epic 0	epic_status_reopened	epic-0=in-progress via=SC-5_reopen(epic_branch_reopened) story=0.14
+2026-11-03T16:24:41Z	Epic 0	retro_review_skipped	reason=skip(no_X.0_input) note=reopen_for_one_story;epic0_owned_ledger=1(DW-624_routed_to_0.14)
