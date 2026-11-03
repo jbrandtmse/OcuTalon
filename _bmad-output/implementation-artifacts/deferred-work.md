@@ -3713,3 +3713,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: Contest Planner field watch 2026-11-03 (relay) | severity: med | fix-risk: low | footprint: in-footprint
 - evidence: Demo partner (PartnerTrigger) sends today's date as MM/DD/YYYY; until Nov 13 every value has day <= 12, so 11/03/2026 also parses as 11 March; Reformat.cls:62,67,88 ParseDate accepts the given format only, so the format choice is the model's
 - 2026-11-03T21:31:48Z status=routed owner=7-7-a-date-repair-that-could-read-either-way-names-its-evidence by=orchestrator note=Story 7.7 (veto U-248); first daily release after 1.0.0; not rc1 scope
+
+### DW-645: The web incident card's dry-run block does not show U-249's either-way line (Story 7.7 shows it in the notice's Dry run paragraph only): needs an ambiguity flag and the reading on the approval payload (Live/Payload, Lane B) and a card row in web/src/app/approvals/approval-view.ts (Epic 31)
+- source: spec-7-7-a-date-repair-that-could-read-either-way-names-its-evidence.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: approval-view.ts L40-44,L181 builds the card's dry run from the stored DRYRUNKEYS fields; Live/Payload/Approval.cls L85-103 maps them key by key
+- 2026-11-03T22:11:50Z status=escalated owner=burndown by=spec_gate note=veto U-252; follow-on after Epic 31 merges; a Lane B payload field plus a web card row
