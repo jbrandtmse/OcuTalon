@@ -3382,3 +3382,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: CI run 41545446452 (OCT-epic12 e9bfda24), iris (browser) live:answers | severity: med | fix-risk: low | footprint: web/e2e/answers/close-loop.spec.ts
 - evidence: run 41545446452 attempt 1 at 2026-11-03T00:02Z; the answered slot time 23:58 the previous day
 - 2026-11-03T00:09:06Z status=routed owner=burndown by=ci note=time-of-day flake (only when a run crosses midnight); Lane B test; fix: build the expected line with the page's own day rule or pin the clock
+
+### DW-609: flake: web/e2e/demo-path/telegram-page.spec.ts:1002 T7 (Story 12.6) hit the 120 s test timeout in CI iris (browser) live:demo-path, running right after the new T8 (Story 12.7); green on the unchanged rerun and in the local smoke (T8 then T7)
+- source: CI run 41545446452 (OCT-epic12 e9bfda24) attempt 1 | severity: med | fix-risk: low | footprint: web/e2e/demo-path/telegram-page.spec.ts
+- evidence: attempt 1 at 23:38Z: 27 passed, T7 timed out (2.0 m), no assertion message; attempt 2 green
+- 2026-11-03T00:44:48Z status=routed owner=burndown by=ci note=unknown cause (no assertion message); watch for T8 leftovers (a pairing or an incident) slowing T7 on a loaded host
