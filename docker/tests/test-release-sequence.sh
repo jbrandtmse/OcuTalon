@@ -1979,16 +1979,11 @@ t_overviewdoc() {
   { cat "$doc"; printf 'Host %s\n' '10.20.30.''40'; } > "$d/ip.md"
   eq "control: an address" "$(ovw_doc_problems "$d/ip.md")" "1 line(s) with a URL or address"
   # the CI claims (runner ruling 4): the file is an input of every group, a lookalike path is not, and the live unit sits in production
+  # (the expected lines follow IRIS_GROUPS, so a group added to the matrix is checked too)
   want=$(ovw_ci_claims)
-  eq "ci/units.sh: every group claims the overview, and the unit is placed" "$want" "install-fresh:claimed lookalike-free
-install-upgrade:claimed lookalike-free
-production:claimed lookalike-free
-browser:claimed lookalike-free
-shards:claimed lookalike-free
-shards-2:claimed lookalike-free
-image:claimed lookalike-free
-production holds live:security-overview
-NO_WEB_BUNDLE_UNITS holds live:security-overview"
+  expect=$( (. "$root/ci/units.sh"; for grp in $IRIS_GROUPS; do echo "$grp:claimed lookalike-free"; done)
+    echo "production holds live:security-overview"; echo "NO_WEB_BUNDLE_UNITS holds live:security-overview")
+  eq "ci/units.sh: every group claims the overview, and the unit is placed" "$want" "$expect"
   rm -rf "$d"
 }
 
