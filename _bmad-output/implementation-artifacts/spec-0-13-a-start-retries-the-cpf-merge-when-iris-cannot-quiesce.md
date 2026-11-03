@@ -2,7 +2,8 @@
 title: 'Story 0.13: A start retries the CPF merge when IRIS cannot quiesce'
 type: 'bugfix'
 created: '2026-11-03'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '1889d8f6a28584a58efb2cb3b19866f7265e5100'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -114,6 +115,27 @@ IRIS Merge failed
 
 ## Review Triage Log
 
+### 2026-11-03 - Review pass
+- verdicts: 17 findings - high 0, medium 0, low 11, false 6, maybe-false 0
+- findings:
+  - `[false]` `[reject]` Blind: `STEP merge OK` includes the failed attempt and the pause - the intent says `SECONDS` is reset once so the figure covers all attempts.
+  - `[low]` `[patch]` Blind and Verification-gap: the RETRY line's place before the pause is not pinned - patched: the fake `sleep` prints `FAKE-SLEEP <n>` to stdout and row A checks the RETRY line precedes it; mutation recorded.
+  - `[low]` `[patch]` Blind: nothing requires the retry to merge the right content - patched: rows A and B count `merge-file-matches` twice; mutation recorded.
+  - `[low]` `[patch]` Blind, Edge and Verification-gap: the fake `iris` result list with `cut` repeats a one-token list instead of hitting the exhausted guard - patched: `awk` picks the field, so an exhausted list exits 99.
+  - `[low]` `[reject]` Blind: label naming mixes "row 8" and "row G" - cosmetic, no behavior.
+  - `[false]` `[reject]` Blind: the `ERROR #453:` match is a substring match - the intent says the output "contains the fixed string"; the near-miss row D pins the number boundary.
+  - `[low]` `[reject]` Edge: `no_retry` could pass vacuously if the log or stdout is missing - every row that calls it also reads the log in other checks; a guard adds a branch for a case the rows cannot reach.
+  - `[false]` `[reject]` Edge: a non-zero merge with a #453 line and a different final error is retried - the intent defines the trigger as the output containing the string; row E pins the second failure.
+  - `[false]` `[reject]` Edge: a retry may merge a half-applied CPF - AD-23 merges the file over an already applied state at every start, so a re-merge is the normal case.
+  - `[low]` `[reject]` Edge: a copy failure on the second attempt hides the #453 cause - the RETRY line and the first output are in the log just above it.
+  - `[low]` `[reject]` Verification-gap: `SECONDS` coverage is not pinned - a log figure, not an acceptance clause; a pin needs a real wait in the fake `iris`.
+  - `[low]` `[patch]` Verification-gap: removal of the copy, logging of each output and the RETRY order have no `mutation:` line - demonstrated and recorded (see Verification).
+  - `[low]` `[reject]` Verification-gap: `no_retry` vacuity observation - same as the Edge row.
+  - `[false]` `[reject]` Verification-gap: no order dependence found - confirmed, nothing to fix.
+  - `[false]` `[reject]` Verification-gap: no other finding.
+  - `[low]` `[reject]` Intent: the #453 text in the test is hand-written, not captured - the spec copies the real output of run 41419787515; recovery on a real instance is the lead's live smoke.
+  - `[low]` `[reject]` Intent: the worst-case start length is not examined by the hermetic test - the spec's Design Notes size it against `start_period`; the lead runs the live starts.
+
 ## Design Notes
 
 **Governing ADs.**
@@ -177,11 +199,38 @@ Worst case for one #453: the slowest first start, which already includes one suc
 - Reuse one copy for both attempts: the distinct-copy check goes red.
 - Write the RETRY line with `log` instead of `say`: the stdout check goes red.
 
+mutation: attempts set to 1 -> row A "two merges" (and the rest of rows A, B and E) went red
+mutation: match `#453` instead of `ERROR #453:` -> row D "ERROR #4530: one merge, FAILED exit 7, not ready, exit 0" went red
+mutation: retry on any non-zero exit -> row C "exit 7 without output: one merge, no retry, no sleep" went red
+mutation: pause changed from 10 to 11 -> "one pause of 10 s" checks of rows A, B and E went red
+mutation: sleep 10 added before the FAILED line (a pause after the last attempt) -> row B "one pause of 10 s, none after the last try" and the rows 8, C, D, E, G no-sleep checks went red
+mutation: one copy reused for both attempts -> row A "each merge has its own copy and every copy is removed" went red
+mutation: RETRY line written with `log` instead of `say` -> row A "the RETRY line is on stdout" went red
+mutation: sleep 10 moved before the RETRY `say` -> row A "the RETRY line is written before the pause" went red
+mutation: `rm -rf` of the copy dropped -> the copy-removed checks (success, rows A, B, C, E, F) went red
+mutation: the retry attempt merges an empty file instead of the copy -> rows A and B "both merges got the merge file's content" went red
+mutation: `log "$merge_out"` dropped -> row A "the log has the failed output, then RETRY, then OK" and row B "both #453 outputs are in the log" went red
+
 **Shared surfaces:** The after-start log's STEP grammar gains one line kind, written only on a #453 retry. No list, menu, roster, schema or count that another test asserts on changes in a run without #453 (see Design Notes, For the lead (2)). `CHECK_SCRIPTS` is unchanged.
 
 Every test added or changed passes on a fresh environment, in either order.
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** The merge block of `docker/after-start.sh` is a loop of at most 2 attempts. Each attempt merges and removes its own fresh copy and logs its output. A failed attempt whose output contains `ERROR #453:` (and that actually ran `iris merge`) writes `STEP merge RETRY <n> after #453` through `say`, runs `sleep 10` and tries once more. Any other failure, and a #453 on the last try, ends `STEP merge FAILED exit <rc>` and not ready as before. `SECONDS` is reset once. Header item 2 states the retry.
+
+**Files changed.**
+- `docker/after-start.sh`: the retry loop and the header.
+- `docker/tests/test-after-start.sh`: the fake `iris` answers a per-call result list; a fake `sleep` on `PATH`; checks for matrix rows A-G (95+ checks, bash 3.2).
+- This spec: six required mutation lines plus four more under `## Verification`, and the triage log.
+
+**Review.** 17 findings (low 11, false 6). Patches applied: 4 (RETRY-before-pause order check, retry-content check, `awk` field pick in the fake `iris`, four extra mutation lines). Deferred: none. Rejected: 13 with reasons in the triage log (SECONDS pin, substring match by intent, label naming, vacuous `no_retry`, half-applied CPF, second-attempt copy failure, live-surface observations for the lead's smoke).
+
+**Follow-up review recommended:** false (no high, no medium patched).
+
+**Verification.** `bash docker/tests/test-after-start.sh` all checks passed under /bin/bash 3.2.57 (after each patch); `git diff --exit-code` on `docker/merge.cpf`, `docker-compose.yml`, `docker/after-start.cos` exit 0; `test-boundaries`, `test-compose-file`, `test-cpf`, `test-readme`, `test-ci-changes` pass; `test-ci-config` exit 0. Ten mutations were applied, seen red and restored (byte-identical). Not run here, by instruction: `ci/iris.sh live install-start` and `install-upgrade` (the lead's smoke).
+
+**Residual risks.** The #453 recovery on a real instance and the worst-case start length (473 s against `start_period` 600 s, per Design Notes) are proved only by the lead's live runs and CI. `log_steps` in `lib-live.sh` would show a natural RETRY line as a diff (Design Notes, For the lead (2)).
