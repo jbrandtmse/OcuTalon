@@ -19,8 +19,8 @@ Parameter STEPLABELEXAMPLEFORWARDITEM = "Forwarding the item";
 
 Parameter STEPLABELEXAMPLEARCHIVEITEM = "Archiving the item";
 
-/// Counts the items that the example has received so far. It only reads, and answers the number as items. Use it when the user asks how
-/// many items the example holds.
+/// Counts the items that the example has received so far. It only reads, and answers the number as items. Use it when the number of
+/// items helps you decide.
 ClassMethod CountItems() As %DynamicObject
 {
 	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_BridgeExample_Msg.Item")

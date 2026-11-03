@@ -8,7 +8,7 @@ Class OcuTalon.BridgeExample.ToolSet Extends %AI.ToolSet [ DependsOn = OcuTalon.
 XData Definition [ MimeType = application/xml ]
 {
 <ToolSet Name="BridgeExampleTools">
-  <Description>Three tools of the bridge example: one that counts the example's items, and two that change something and wait for a person's approval.</Description>
+  <Description>Three tools of the bridge example: one that counts the example's items, and two that change something and may have to wait for a person's approval.</Description>
   <Tool Name="example_count_items" Class="OcuTalon.BridgeExample.Tools" Method="CountItems"/>
   <Tool Name="example_forward_item" Class="OcuTalon.BridgeExample.Tools" Method="ForwardItem"/>
   <Tool Name="example_archive_item" Class="OcuTalon.BridgeExample.Tools" Method="ArchiveItem"/>

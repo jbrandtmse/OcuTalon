@@ -3,8 +3,9 @@
 # read files only (jq reads the scenarios), so the hosted `checks` job runs them.
 #   - spine-rows (AD-33, AC 9): the Production items table of the architecture spine holds the two Lane A rows of the example: the
 #     five Example items of OcuTalon.BridgeExample.Production with the classes ItemIn, Triage and Outcome, and ExampleRouter with
-#     EnsLib.MsgRouter.RoutingEngine and the rule OcuTalon.BridgeExample.Rule; and every item the production names Example... has one
-#     row, never paired with the item of another row;
+#     EnsLib.MsgRouter.RoutingEngine and the rule OcuTalon.BridgeExample.Rule; every item the production names Example... has one
+#     row, never paired with the item of another row; and the row of the Example items names each approval item (ApprovalStartIn,
+#     ApprovalHold, OcuTalonApprovals) that the production holds (Story 13.2, AC 8);
 #   - scenarios (AD-22, FR-5): the mock scenarios of the example hold what the matrix of the story reads from them. The default
 #     scenario (match.mockkey bridge-example) answers tellnow with confidence 0.7. Each marker scenario bridge-example-<kind> is named
 #     for its file and matched by the marker of the same name; digest, ignore and act answer that outcome with reasons and a confidence
@@ -144,10 +145,10 @@ if [ "$spine_samples_ok" -eq 1 ]; then
   hits=$(spine_problems "$SPINE" "$PRODUCTION")
   if [ -n "$hits" ]; then
     printf '%s\n' "$hits" | sed 's/^/  /'
-    echo "FAIL spine-rows: the Production items table holds the example's two Lane A rows (AD-33)"
+    echo "FAIL spine-rows: the Production items table holds the example's two Lane A rows, and its example row names the approval items (AD-33)"
     fails=$((fails + 1))
   else
-    echo "PASS spine-rows: the Production items table holds the example's two Lane A rows (AD-33)"
+    echo "PASS spine-rows: the Production items table holds the example's two Lane A rows, and its example row names the approval items (AD-33)"
   fi
 fi
 
@@ -267,6 +268,7 @@ if [ "$scn_samples_ok" -eq 1 ]; then
   break_scenario tool-untrusted-order bridge-example-tool-untrusted '.replies[0].toolUse |= reverse'
   break_scenario tool-risky-outcome bridge-example-tool-risky '.replies[1].text = "{\"outcome\":\"tellnow\",\"reasons\":[\"x\"],\"confidence\":0.8}"'
   break_scenario tool-read-sampling bridge-example-tool-read '.replies[1].temperature = 0'
+  break_scenario tool-read-reasons bridge-example-tool-read '.replies[1].text = "{\"outcome\":\"tellnow\",\"reasons\":[],\"confidence\":0.8}"'
   break_scenario tool-read-confidence bridge-example-tool-read '.replies[1].text = "{\"outcome\":\"tellnow\",\"reasons\":[\"x\"],\"confidence\":2}"'
   break_scenario tool-unclassified-replies bridge-example-tool-unclassified 'del(.replies[1])'
   break_scenario tool-risky-name bridge-example-tool-risky '.name = "bridge-example-tool-forward"'

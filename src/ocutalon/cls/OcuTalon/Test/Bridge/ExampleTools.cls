@@ -7,7 +7,10 @@
 ///     Classify method), so the developer's ToolClassification setting alone classifies it;
 ///   - TestAgentInstructions: the agent's instructions name the three tools, say that a call may be held or denied and must not be repeated,
 ///     keep the answer as the one JSON object, and no longer say that the agent has no tools;
-///   - TestTools: each method returns its dynamic object, and the two that change something write their one event-log line.
+///   - TestTools: each method returns its dynamic object, CountItems counts an item that the test saves (and deletes), and the two that change
+///     something write their one event-log line;
+///   - TestApprovalItems (QA): the example production's three approval items are the bridge's own classes and the Workflow operation, each with
+///     the pool it needs and no setting, and no item of the definition carries ToolClassification or ApprovalRole (AD-5, AD-19, AD-31).
 Class OcuTalon.Test.Bridge.ExampleTools Extends %UnitTest.TestCase
 {
 
@@ -16,6 +19,8 @@ Parameter TOOLS = "OcuTalon.BridgeExample.Tools";
 Parameter TOOLSET = "OcuTalon.BridgeExample.ToolSet";
 
 Parameter AGENT = "OcuTalon.BridgeExample.Agent";
+
+Parameter PRODUCTION = "OcuTalon.BridgeExample.Production";
 
 /// The agent's TOOLSETS names the toolset, and its discovery lists exactly the three tools once each, with the tools class as the provider.
 Method TestToolSet()
@@ -100,6 +105,11 @@ Method TestTools()
 	Do $$$AssertEquals($ClassName(count), "%Library.DynamicObject", "CountItems returns a dynamic object")
 	Do $$$AssertEquals(count.%GetTypeOf("items"), "number", "whose items is a number")
 	Do $$$AssertTrue(count.items >= 0, "that is not negative: "_count.items)
+	Set item = ##class(OcuTalon.BridgeExample.Msg.Item).%New()
+	Set item.Subject = "ExampleTools: an item to count"
+	Do $$$AssertStatusOK(item.%Save(), "the test saves one item")
+	Do $$$AssertEquals($ClassMethod(..#TOOLS, "CountItems").items, count.items + 1, "CountItems counts the item that the test saved")
+	Do $$$AssertStatusOK(##class(OcuTalon.BridgeExample.Msg.Item).%DeleteId(item.%Id()), "the test deletes its item")
 	Set last = ..LastLogId()
 	Set forwarded = $ClassMethod(..#TOOLS, "ForwardItem", "operations")
 	Do $$$AssertEquals(forwarded.%ToJSON(), "{""forwarded"":1}", "ForwardItem answers forwarded 1")
@@ -113,6 +123,35 @@ Method TestTools()
 	Do $$$AssertEquals(..LogLines(last, "ExampleTools: example_forward_item ran"), 2, "while the two ForwardItem calls wrote two")
 	Do ..DeleteLines(last)
 	Do $$$AssertEquals(..LogLines(last, "ExampleTools: example_forward_item ran")+..LogLines(last, "ExampleTools: example_archive_item ran"), 0, "the test's rows are deleted")
+}
+
+/// The three approval items that every hold needs are the bridge's own classes (and the Workflow operation), with the pool each needs: a
+/// service of pool 0 that is called, and two hosts of pool 1. None has a setting, and no item of the definition carries ToolClassification or
+/// ApprovalRole: those are rows the developer writes (AD-5, AD-19), and a value here would hide them. (QA)
+Method TestApprovalItems()
+{
+	Set definition = ##class(Ens.Config.Production).%OpenId(..#PRODUCTION)
+	Do $$$AssertTrue($IsObject(definition), "the example production is registered")
+	If '$IsObject(definition) Quit
+	Set want("ApprovalStartIn") = "OcuTalon.Bridge.Service.ApprovalStart|0"
+	Set want("ApprovalHold") = "OcuTalon.Bridge.Process.ApprovalHold|1"
+	Set want("OcuTalonApprovals") = "EnsLib.Workflow.Operation|1"
+	Set seen = 0
+	Set bad = ""
+	For i = 1:1:definition.Items.Count() {
+		Set item = definition.Items.GetAt(i)
+		For j = 1:1:item.Settings.Count() {
+			Set name = item.Settings.GetAt(j).Name
+			If (name = "ToolClassification") || (name = "ApprovalRole") Set bad = bad _ $Select(bad = "": "", 1: ",") _ item.Name_"."_name
+		}
+		If '$Data(want(item.Name)) Continue
+		Set seen = seen + 1
+		Do $$$AssertEquals(item.ClassName_"|"_item.PoolSize, want(item.Name), item.Name_" is "_$Piece(want(item.Name), "|", 1)_" with its pool")
+		Do $$$AssertEquals(item.Settings.Count(), 0, item.Name_" has no setting")
+		Do $$$AssertEquals(+item.Enabled, 1, item.Name_" is enabled")
+	}
+	Do $$$AssertEquals(seen, 3, "the definition holds the three approval items")
+	Do $$$AssertEquals(bad, "", "and no item sets ToolClassification or ApprovalRole")
 }
 
 /// The highest id of the event log.

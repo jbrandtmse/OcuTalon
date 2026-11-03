@@ -820,13 +820,13 @@ fi
 # The six entries of the approval cases of 5e (Story 13.2), each matched by the Ref of its row in the entry's event data: the answer that
 # approved the forward, the start and the finish of its run (done), the Action entry of the run (action example_forward_item, result done and
 # the approvalRef), the answer that rejected the archive, and the expiry of the third row. Each is read with its UTC time, its irisUser
-# and its channel.
+# and its channel; the time must fall after the start of the run (since, UTC).
 frag F_AUDIT <<'EOF'
 Set specs=$ListBuild($ListBuild("answered-approved","Approval",approved,"""change"":""answered""","""outcome"":""approved"""),$ListBuild("started","Approval",approved,"""change"":""started""","""kind"":""tool_call"""),$ListBuild("finished-done","Approval",approved,"""change"":""finished""","""to"":""done"""),$ListBuild("action","Action",approved,"""action"":""example_forward_item""","""result"":""done"""),$ListBuild("answered-rejected","Approval",rejected,"""change"":""answered""","""outcome"":""rejected"""),$ListBuild("expired","Approval",expired,"""change"":""expired""","""kind"":""tool_call"""))
-For i=1:1:$ListLength(specs) { Set spec=$List(specs,i),line="none" Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT TOP 1 UTCTimeStamp, EventData FROM %SYS.Audit WHERE EventSource = ? AND EventType = ? AND EventData [ ? AND EventData [ ? AND EventData [ ?","OcuTalon",$List(spec,2),$List(spec,3),$List(spec,4),$List(spec,5)) If rs.%Next() { Set data={}.%FromJSON(rs.%GetData(2)) Set line=data.irisUser_":"_data.channel_":"_(rs.%GetData(1)'="") } Write !,"CHK|audit-",$List(spec,1),"|",line }
+For i=1:1:$ListLength(specs) { Set spec=$List(specs,i),line="none" Set rs=##class(%SQL.Statement).%ExecDirect(,"SELECT TOP 1 UTCTimeStamp, EventData FROM %SYS.Audit WHERE EventSource = ? AND EventType = ? AND EventData [ ? AND EventData [ ? AND EventData [ ?","OcuTalon",$List(spec,2),$List(spec,3),$List(spec,4),$List(spec,5)) If rs.%Next() { Set data={}.%FromJSON(rs.%GetData(2)) Set line=data.irisUser_":"_data.channel_":"_(rs.%GetData(1)]]since) } Write !,"CHK|audit-",$List(spec,1),"|",line }
 EOF
 audit_entries() { # the CHK lines of the six entries, from the IRIS audit log
-  printf '%s\n' "Set approved=\"$risky_ref\",rejected=\"$unclass_ref\",expired=\"$expired_ref\"" "$F_AUDIT" 'Halt' | iris_script %SYS
+  printf '%s\n' "Set approved=\"$risky_ref\",rejected=\"$unclass_ref\",expired=\"$expired_ref\",since=\"$since\"" "$F_AUDIT" 'Halt' | iris_script %SYS
 }
 audit_entries_visible() { audit_entries > "$tmp/audit.chk"; [ "$(grep -c '^CHK|audit-' "$tmp/audit.chk")" = 6 ] && ! grep -q '|none$' "$tmp/audit.chk"; }
 printf '%s\n' "CHK|audit-answered-approved|ExampleApprover:system:1" "CHK|audit-started|ExampleApprover:system:1" "CHK|audit-finished-done|ExampleApprover:system:1" \
