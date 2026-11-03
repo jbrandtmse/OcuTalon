@@ -1656,3 +1656,9 @@
 2026-11-03T17:21:30Z	Epic 12	runner_clarification	story=12.10 kind=public_text(drawer-band_Telegram_hint) shas=12e697b1(verified)
 2026-11-03T17:21:30Z	Epic 12	ruling	question=12.10_hint_wording+gate_decisions(ux-strings_entry,new_spec_file) choice=recommended:"Optional:_press_Status_at_the_top_of_the_page,_then_scan_the_QR_code_in_the_Telegram_card_to_get_the_notice_on_your_own_phone."+Show_me;gate_decisions_kept rejected=open_variant(guide_never_uses_open_as_a_verb) category=veto reversal=change_one_string_and_its_three_pins inbox=U-244 policy=508603671b9598f59d04750db6b6cdad2d396167
 2026-11-03T17:21:48Z	Epic 12	runner_resumed	agent=a97e4111acaf71f8b with=U-244_hint_wording+gate_decisions_kept
+2026-11-03T19:58:13Z	Epic 12	owner_decision	id=U-244 at=2026-11-03T17:21:47Z#734 via=inbox by=Contest_Planner_1(delegated) answer=keep(hint_wording_exact;Show_me_opens_drawer;Status_from_header_label) resolve_at=12.10_merge
+2026-11-03T19:58:13Z	Epic 0	runner_complete	runner=abc200f2c60ede140 story=0.14 head=3cd25ab0 stories_completed=1 ready_for_merge=true applied=U-240 tokens=337747 tool_uses=134 duration_ms=12874592
+2026-11-03T19:58:13Z	Epic 0	ci_green_verified	runs=41698083197,41698083041 head=3cd25ab0 result=success via=ci-gate note=ci.yml_image_DW-453_rerun_attempt2
+2026-11-03T19:58:13Z	Epic 0	amendments_verified	amendments=0 extensions=0 ok=true note=integrated_forward(feature=679955b1,head=277895a7)+bookkeeping_only_to_3cd25ab0;merge.cpf+after-start.sh+install.sh_unchanged;no_overlap_with_epic31/epic12
+2026-11-03T19:58:13Z	Epic 0	runner_report_error	field=dev_complete.story_base reported=2cc47ab5 actual=50569b41 impact=none(runner_self_reported,cycle-log_line_only)
+2026-11-03T19:58:13Z	Epic 0	merge_enqueued	merge_order=0.14_before_31.3(rc1_takes_it,U-240_condition) push=single_batched_with_local_1f80d109,a43d99b3,f69b9f47
