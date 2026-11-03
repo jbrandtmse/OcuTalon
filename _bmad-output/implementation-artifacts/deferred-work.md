@@ -3702,3 +3702,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: cycle-log-epic-0.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: CI run 41641201023 attempt 1, iris (shards-3) on OCT-epic0 c3d264c5: 105 of 106 floor specs passed; green on the unchanged rerun (attempt 2); Epic 0's head changes no web code
 - 2026-11-03T14:35:03Z status=routed owner=burndown by=burndown note=first daily release after 1.0.0
+
+### DW-643: Data.Time.FromLocal picks between the two instants of the repeated fall-back hour depending on what the job converted just before (measured: 3 zones, 6 preceding-call orders), against its doc comment's 'first instant'; Test.Schedule.ReminderZone's New York case may pass only by call order
+- source: evidence/33-1-task0-zone-measurement.md (Story 33.1 Task 0) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Task 0 Probe.Ambig on slot C build 154: Static() returned the second instant in all 3 zones; Python fold 0 gives the first
+- 2026-11-03T20:24:25Z status=routed owner=18-2-set-the-time-zone-and-the-daily-digest-at-run-time by=harvest note=Data.Time is Lane B's (U-177); 18.2 changes it for the run-time zone; fix with the Bridge.Time.Apply() reading that 33.1 fixes
