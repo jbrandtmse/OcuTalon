@@ -30,7 +30,8 @@
 #     the stack, and it leaves both rows 0 and the mark off, with no job for either item and no Bot API call at the mock. The OCUTALON_EVAL=1 start
 #     runs with the seam at 1, the mark on and TELEGRAM_BOT_TOKEN set and empty (live_no_bot_token, which is what a .env copied
 #     from .env.example holds): it ends ready, the no-key check passes, both rows are 0, the mark is off, and every enabled item
-#     runs. The last start has the seam off, the mark on and the dummy token again, and leaves the rows 0 and the mark off.
+#     runs. The last start has the seam off, the mark on and the dummy token again, and leaves the rows 0 and the mark off. Both of
+#     these starts also run with LIVE_TELEGRAM=started, so that their Telegram checks read what the Telegram step left, not a park.
 # The first start also has to be a start with no model key that wrote no error to the event log.
 # The project is unique, publishes no host port and receives no keys. An EXIT trap removes the project with its volume and
 # images. Every wait ends by an overall deadline, so even a failing run ends within about 9 minutes.
@@ -184,7 +185,7 @@ if ! OCUTALON_EVAL=1 dc up -d >/dev/null 2>&1; then
   die "row 19 recreate with OCUTALON_EVAL=1 failed"
 fi
 cid=$(dc ps -q iris)
-if ! wait_started_ready 200; then
+if ! LIVE_TELEGRAM=started wait_started_ready 200; then
   start_log | tail -n 20 | cut -c1-200
   die "row 19 the start with OCUTALON_EVAL=1 did not end ready within 200 s"
 fi
@@ -208,7 +209,7 @@ if ! dc up -d >/dev/null 2>&1; then
   die "row 19 recreate without OCUTALON_EVAL failed"
 fi
 cid=$(dc ps -q iris)
-if ! wait_started_ready 200; then
+if ! LIVE_TELEGRAM=started wait_started_ready 200; then
   start_log | tail -n 20 | cut -c1-200
   die "row 19 the start without OCUTALON_EVAL did not end ready within 200 s"
 fi

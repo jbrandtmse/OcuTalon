@@ -427,7 +427,7 @@ ClassMethod Notify(sessionRef As %String) As %String
 	Try {
 		Set row = ##class(OcuTalon.Data.Session).RefIndexOpen(sessionRef)
 		If '$IsObject(row) Return "the session has no row"
-		Set notification = $ClassMethod(..#CASE, "Notification", sessionRef, "tellnow", "notice.tellNow", {"whatHappened": "zz harness notice", "reason": "it was sent after the restart."})
+		Set notification = $ClassMethod(..#CASE, "Notification", sessionRef, "tellnow", "notice.tellNow", {"whatHappened": "zz harness notice", "reason": "the upgrade harness sent it."})
 		Set sc = $ClassMethod(..#CASE, "SendToNotify", notification, row.TraceRef)
 		If $$$ISERR(sc) Return "the notification was not sent: "_$ClassMethod(..#CASE, "Cut", $SYSTEM.Status.GetErrorText(sc), ..Token())
 	} Catch ex {

@@ -1477,21 +1477,25 @@ echo "test-ci-warm: all checks passed"
 # This block is self-contained: it runs after the summary above and ends with a summary of its own.
 
 # dw164_run <tag> <log text, with \n for a line break> [<exit status of dc exec>]: warm_up with the start stubbed and the after-start log
-# given to `dc exec ... cat`, which exits with the status given (0 when none). Sets dw164_out, dw164_rc, and the dc calls in
-# $work/dw164.calls. The lane folder is $work/locks-dw164.
+# given to `dc exec ... cat`, which exits with the status given (0 when none). Sets dw164_out, dw164_rc, the dc calls in
+# $work/dw164.calls and the park calls in $work/dw164.park (STUB_PARK_RC=1 makes the park fail). The lane folder is $work/locks-dw164.
 dw164_run() {
   local tag=$1
   dw164_text=$2
   dw164_exec_rc=${3:-0}
   mkdir -p "$work/locks-dw164"
   : > "$work/dw164.calls"
+  : > "$work/dw164.park"
   dw164_out=$(
     {
       export OCUTALON_RUN_TAG=$tag OCUTALON_LOCK_DIR=$work/locks-dw164 OCUTALON_LOCK_OWNER='epic=0 stage=qa' OCUTALON_LOCK_WAIT=1 OCUTALON_LOCK_SLEEP_MIN=1 OCUTALON_LOCK_SLEEP_MAX=1
       preflight() { :; }
       ensure_web_bundle() { return 0; }
       docker() { docker_stub "$@"; }
-      live_park_telegram() { :; }
+      live_park_telegram() {
+        echo park >> "$work/dw164.park"
+        [ "${STUB_PARK_RC:-0}" = 0 ] || { echo "FAIL Telegram could not be parked: stub"; return 1; }
+      }
       dc() {
         echo "dc $*" >> "$work/dw164.calls"
         if [ "$1" = exec ]; then printf '%b' "$dw164_text"; return "$dw164_exec_rc"; fi
@@ -1513,6 +1517,7 @@ if grep -q '^dc down -v --rmi local' "$work/dw164.calls" && [ -z "$(ls "$work/lo
 else
   fail "DW-164: the failed up left '$(ls "$work/locks-dw164" | tr '\n' ' ')' in the lane folder, the state '$(ls "$(state_of cw-d1)" 2> /dev/null | tr '\n' ' ')', dc calls '$(tr '\n' '|' < "$work/dw164.calls")'"
 fi
+if [ ! -s "$work/dw164.park" ]; then pass "DW-164: a start that failed is not parked"; else fail "DW-164: a start that failed was parked"; fi
 
 dw164_run cw-d2 "${dw164_begin}RESULT FAILED 1.0.0\nSTEP late OK 1.0s\nRESULT OK 1.0.0\n${dw164_end}"
 check "DW-164: it is the last RESULT line that counts (a later RESULT OK passes)" "$dw164_out" "$dw164_rc" 0 '^READY warm [0-9]+s$' '^WARM up project ocutalon-warm-cw-d2-.* ready [0-9]+s$' '!^FAIL'
@@ -1533,6 +1538,13 @@ rm -f "$work/locks-dw164"/*
 dw164_run cw-d5 "" 1
 check "DW-164: a log that cannot be read fails the up and says so" "$dw164_out" "$dw164_rc" 1 '^FAIL warm: the after-start log could not be read$' '!^READY' '!^WARM up'
 rm -rf "$(state_of cw-d5)"
+rm -f "$work/locks-dw164"/*
+
+# Story 12.9: a ready start whose park fails fails the up, after one park call.
+STUB_PARK_RC=1 dw164_run cw-d6 "${dw164_begin}RESULT OK 1.0.0\n${dw164_end}"
+check "park: a park that fails fails the up with exit 1 and prints no READY and no WARM up line" "$dw164_out" "$dw164_rc" 1 '^FAIL Telegram could not be parked' '!^READY' '!^WARM up'
+if [ "$(tr '\n' '|' < "$work/dw164.park")" = "park|" ]; then pass "park: the failed park was called once"; else fail "park: the park calls were '$(tr '\n' '|' < "$work/dw164.park")'"; fi
+rm -rf "$(state_of cw-d6)"
 rm -f "$work/locks-dw164"/*
 
 if [ "$fails" -ne 0 ]; then

@@ -156,7 +156,7 @@ Telegram is optional, and these steps are for your own install. With a bot of yo
 2. Turn groups off for the bot: send `/setjoingroups` to @BotFather, choose your bot, then Disable. OcuTalon answers only private chats.
 3. In `.env`, set `TELEGRAM_BOT_TOKEN=<your token>`. Copy `.env.example` to `.env` first if there is no `.env` (`./install.sh` already did). Git ignores `.env`, so the token is never committed.
 4. Restart OcuTalon, from the OcuTalon folder: `docker compose up -d --force-recreate`.
-5. Open http://localhost:52773/ocutalon/ again. In the Status section, the Telegram card shows a QR code. Scan it with your phone's camera, then tap Start in Telegram. The card then shows "Telegram paired" with your Telegram name, and an "Unpair" button. If it still says "Telegram not set up", check the token in `.env` and repeat step 4.
+5. When `docker compose ps` shows the `iris` service `(healthy)` again, open http://localhost:52773/ocutalon/ and sign in if it asks. In the Status section, the Telegram card shows a QR code. Scan it with your phone's camera, then tap Start in Telegram. The card then shows "Telegram paired" with your Telegram name, and an "Unpair" button. If it still says "Telegram not set up", check the token in `.env` and repeat step 4.
 
 Each OcuTalon needs its own bot. If another process polls the same bot, OcuTalon pauses Telegram and tries again after 5 minutes.
 

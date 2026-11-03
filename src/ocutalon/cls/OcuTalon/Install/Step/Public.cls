@@ -71,7 +71,7 @@ ClassMethod SetTelegramIncluded() As %Status [ Private ]
 	Quit ##class(OcuTalon.Data.Public.Settings).Set("telegramIncluded", $Select(included: 1, 1: 0))
 }
 
-/// A local install: the flag 0 and nothing else of the public keys, no gateway row, and the seed of the cap.
+/// A local install: the flag 0, telegramIncluded and no other public key, no gateway row, and the seed of the cap.
 ClassMethod RunLocal() As %Status [ Private ]
 {
 	Set sc = ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 0)

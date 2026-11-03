@@ -37,6 +37,9 @@
 #                  command, "its own bot", and that the steps are for "your own install")
 #   telegram-strings  every UI string the section quotes is one the built page shows: "Telegram not set up", "Telegram paired" and
 #                  "Unpair" are in the rail and card sources, "Approve" and "Reject" are the catalog's button texts (U-228)
+#   telegram-facts  what the steps tell a person to do or expect matches what is built (U-228 condition 3): the pause time is
+#                  In.cls's PAUSESECONDS, "the Status section" is the page's Status region, the token line is in .env.example and
+#                  docker-compose.yml reads .env, and the step 5 address is the one "Sign in" gives
 #   telegram-demo  no sentence about the online demo mentions Telegram or pairing, and every other sentence outside the section that
 #                  mentions Telegram says "your own install" (U-228: the online demo has no bot)
 #   no-telegram    no "Telegram" while Included() has its test-only body
@@ -89,6 +92,8 @@ COMPOSE=docker-compose.yml
 RAILVIEW=web/src/app/rail/rail-view.ts
 CARDVIEW=web/src/app/rail/telegram-card/telegram-card-view.ts
 BUTTONS=src/ocutalon/cls/OcuTalon/Msg/Catalog/Watch.cls
+LAYOUTVIEW=web/src/app/shared/layout-view.ts
+ENVEXAMPLE=.env.example
 
 listing=$(scan_files)
 if [ -z "$listing" ]; then
@@ -114,6 +119,8 @@ compose_p=$(of "$COMPOSE")
 railview_p=$(of "$RAILVIEW")
 cardview_p=$(of "$CARDVIEW")
 buttons_p=$(of "$BUTTONS")
+layoutview_p=$(of "$LAYOUTVIEW")
+envexample_p=$(of "$ENVEXAMPLE")
 
 # product_files: from a list of paths on standard input, the files whose README anchors the product can show: the page's sources
 # and the server's classes, none of the tests.
@@ -744,6 +751,37 @@ chk_telegram_strings() {
   done
 }
 
+# telegram-facts (U-228 condition 3): the steps against what is built. chk_telegram_facts <readme> <In.cls> <layout-view.ts>; the
+# .env.example and the compose file are TGF_ENV and TGF_COMPOSE (the rule swaps them for broken copies).
+TGF_ENV=$envexample_p
+TGF_COMPOSE=$compose_p
+chk_telegram_facts() {
+  local sec="$tmp/sec.tgf" signin="$tmp/sec.tgf.signin" mins secs url
+  section "$1" "$H_TG" > "$sec"
+  section "$1" 'Sign in' > "$signin"
+  if [ ! -s "$sec" ]; then
+    echo "telegram-facts: no section '$H_TG'"
+    return
+  fi
+  mins=$(sed -n 's/.*after \([0-9][0-9]*\) minutes.*/\1/p' "$sec" | head -n 1)
+  if [ -z "$mins" ]; then
+    echo "telegram-facts: the section does not say after how many minutes OcuTalon tries again"
+  else
+    secs=$((mins * 60))
+    if ! grep -qE "^Parameter PAUSESECONDS = $secs;" "$2"; then echo "telegram-facts: the section says $mins minutes, and In.cls's PAUSESECONDS is not $secs"; fi
+  fi
+  if ! grep -qF 'In the Status section' "$sec"; then echo "telegram-facts: step 5 does not name the Status section"; fi
+  if ! grep -qE "^  status: 'Status',$" "$3"; then echo "telegram-facts: the page has no region named Status (layout-view.ts), which step 5 names"; fi
+  if ! grep -q '^TELEGRAM_BOT_TOKEN=' "$TGF_ENV"; then echo "telegram-facts: .env.example has no TELEGRAM_BOT_TOKEN= line to copy, which step 3 relies on"; fi
+  if ! grep -qE '^[[:space:]]+- path: \.env$' "$TGF_COMPOSE"; then echo "telegram-facts: docker-compose.yml does not read .env, so the token of step 3 never reaches OcuTalon"; fi
+  url=$(grep '^5\. ' "$sec" | grep -oE 'http://[^ ]+' | head -n 1)
+  if [ -z "$url" ]; then
+    echo "telegram-facts: step 5 gives no address"
+  elif ! grep -qF -e "$url" "$signin"; then
+    echo "telegram-facts: the address of step 5 ($url) is not the one 'Sign in' gives"
+  fi
+}
+
 # telegram-demo (U-228 condition 2): sentence by sentence, outside code fences.
 chk_telegram_demo() {
   awk '
@@ -754,7 +792,7 @@ chk_telegram_demo() {
       line = $0; gsub(/\. /, ".\n", line); n = split(line, parts, "\n")
       for (i = 1; i <= n; i++) {
         s = parts[i]
-        if (s ~ /online demo|demo\.ocutalon\.com/ && s ~ /Telegram|[Pp]air(ing|ed)?([^a-z]|$)/) print "telegram-demo: " FILENAME ":" FNR ": a sentence about the online demo mentions Telegram or pairing"
+        if (s ~ /online demo|demo\.ocutalon\.com/ && (" " s) ~ /Telegram|[^A-Za-z][Pp]air(ing|ed)?([^a-z]|$)/) print "telegram-demo: " FILENAME ":" FNR ": a sentence about the online demo mentions Telegram or pairing"
         else if (!sec && s ~ /Telegram/ && s !~ /your own install/) print "telegram-demo: " FILENAME ":" FNR ": a sentence outside the Telegram section mentions Telegram without \"your own install\""
       }
     }
@@ -1190,7 +1228,7 @@ rule_telegram_section() {
     st "step $n removed" 1 "$README" "/^## / { s = (\$0 == \"## Telegram\") } !(s && /^$n\\. /)" chk_telegram_section
   done
   st 'a sixth step' 1 "$README" '/^5\. / { print; print "6. One more."; next } { print }' chk_telegram_section
-  st 'the section above Sign in' 1 "$README" '/^## Telegram$/ { skip = 1; next } skip && /^## / { skip = 0 } skip { held = held $0 ORS; next } /^## Sign in$/ { printf "## Telegram\n%s", held } { print } END { }' chk_telegram_section
+  st 'the section above Sign in' 1 "$README" '{ l[NR] = $0 } /^## Telegram$/ { t = NR } END { e = t; while (e < NR && l[e + 1] !~ /^## /) e++; for (i = 1; i <= NR; i++) { if (l[i] == "## Sign in") for (j = t; j <= e; j++) print l[j]; if (t && i >= t && i <= e) continue; print l[i] } }' chk_telegram_section
   finish telegram-section 'the Telegram section sits after Sign in with five steps and the facts a person needs to follow them' chk_telegram_section
 }
 
@@ -1225,10 +1263,31 @@ EOT
   finish telegram-strings 'every UI string the Telegram section quotes is shown by the built page' chk_telegram_strings_real
 }
 
+rule_telegram_facts() {
+  rule_begin telegram-facts "$README" "$included_p" "$layoutview_p" || return
+  st 'the pause reworded to 10 minutes' 1 "$README" '{ sub(/after 5 minutes/, "after 10 minutes") } { print }' chk_telegram_facts
+  st 'the pause time removed' 1 "$README" '{ sub(/ and tries again after 5 minutes/, "") } { print }' chk_telegram_facts
+  st 'the Status section renamed in step 5' 1 "$README" '{ sub(/In the Status section/, "In the Status band") } { print }' chk_telegram_facts
+  st 'the address of step 5 changed' 1 "$README" '/^5\. / { sub(/localhost:52773/, "localhost:52774") } { print }' chk_telegram_facts
+  st 'step 5 without an address' 1 "$README" '/^5\. / { sub(/http:\/\/localhost:52773\/ocutalon\//, "the page") } { print }' chk_telegram_facts
+  st 'PAUSESECONDS changed' 2 "$included_p" '{ sub(/Parameter PAUSESECONDS = 300;/, "Parameter PAUSESECONDS = 600;") } { print }' chk_telegram_facts
+  st 'the page region renamed' 3 "$layoutview_p" "{ sub(/status: 'Status',/, \"status: 'State',\") } { print }" chk_telegram_facts
+  TGF_ENV=$tmp/env.broken
+  sed 's/^TELEGRAM_BOT_TOKEN=/TELEGRAM_TOKEN=/' "$envexample_p" > "$TGF_ENV"
+  if [ -z "$(chk_telegram_facts "$README" "$included_p" "$layoutview_p")" ]; then st_note '.env.example without the TELEGRAM_BOT_TOKEN= line is not flagged'; fi
+  TGF_ENV=$envexample_p
+  TGF_COMPOSE=$tmp/compose.broken
+  sed 's/- path: \.env$/- path: .env.local/' "$compose_p" > "$TGF_COMPOSE"
+  if [ -z "$(chk_telegram_facts "$README" "$included_p" "$layoutview_p")" ]; then st_note 'a compose file that does not read .env is not flagged'; fi
+  TGF_COMPOSE=$compose_p
+  finish telegram-facts 'the pause time, the Status section, the token line, the compose env file and the address of the steps are what is built' chk_telegram_facts
+}
+
 rule_telegram_demo() {
   rule_begin telegram-demo "$README" || return
   st_append 'a sentence about the online demo that mentions Telegram' 'The online demo also sends Telegram notices.' chk_telegram_demo
   st_append 'a sentence about the online demo that mentions pairing' 'Pairing works in the online demo.' chk_telegram_demo
+  st_append 'a sentence about the online demo that mentions a paired chat' 'The online demo keeps your paired chat.' chk_telegram_demo
   st_append 'a sentence about the demo address that mentions a paired phone' 'Visit https://demo.ocutalon.com with your paired phone.' chk_telegram_demo
   st_append 'a Telegram sentence outside the section that does not say your own install' 'You can approve it in Telegram too.' chk_telegram_demo
   st 'the use case without your own install' 1 "$README" '/^- \*\*The partner feed/ { sub(/On your own install you/, "You") } { print }' chk_telegram_demo
@@ -1268,7 +1327,7 @@ rule_must_scan() {
   finish must-scan "the must-scan list for paths and keys in $BOUNDARIES names $README" chk_must_scan
 }
 
-RULES='top try_it interesting use_cases teaser outcomes install install_pointer commands key_account lan sign_in_address demo_mode admin_commands after_start_log dev_only public_text telegram_section telegram_strings telegram_demo no_telegram product_links readme_links must_scan'
+RULES='top try_it interesting use_cases teaser outcomes install install_pointer commands key_account lan sign_in_address demo_mode admin_commands after_start_log dev_only public_text telegram_section telegram_strings telegram_facts telegram_demo no_telegram product_links readme_links must_scan'
 
 # unlisted <rule names>: each rule_* function of this script but rule_begin that the list does not name, one per line.
 unlisted() {

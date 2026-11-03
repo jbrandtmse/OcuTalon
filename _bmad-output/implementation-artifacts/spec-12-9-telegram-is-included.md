@@ -2,7 +2,7 @@
 title: 'Story 12.9: Telegram is included'
 type: 'feature'
 created: '2026-11-02'
-status: 'done'
+status: 'in-progress'
 baseline_revision: '6e92b70a4b5e241ce1d1f05999ef06bdcacd564e'
 baseline_commit: '6e92b70a4b5e241ce1d1f05999ef06bdcacd564e'
 review_loop_iteration: 0
@@ -247,11 +247,51 @@ deferred:
 **Routed to this story after the spec gate (Rule 17 (1b), lead edit):**
 - [ ] DW-591. CI flake on two heads (404351eb, e9bfda24; green on reruns and locally): `OcuTalon.Test.Channel.TelegramChat`'s setup fails in CI's `shard:lane-a@Channel` (the whole shard in one stack, after `TelegramApi` and `TelegramApproval`) with `ERROR #5001: Not every item of OcuTalon.Production runs 120 seconds after OcuTalon.Production||TriageAgent was started again: TelegramIn` (also DiagnosisAgent and ChatAgent): `TelegramIn` is the only item not running after `RunnerFixture`'s agent restarts, and the class then takes about 398 s. Since this story changes `TelegramIn`'s state on every stack (parking, `Included()` at 1), make the restart readiness check hold for `TelegramIn`: find why it is not running there (a stopped or disabled item counted as "should run", a long poll that outlives the wait, or a leftover from the class before) and fix it in Lane A's test code (`Test/Channel/**`, `Test/Agent/RunnerFixture.cls` is Lane A too; report it), with a test or check that would have gone red. Run the whole `lane-a@Channel` shard in one stack, forward and reversed (no `--part`), as CI does, at least once.
 
+**Rework iteration 1 (lead, fresh check, 2026-11-03):**
+- [ ] [Smoke] Parking is not reliable on a fresh stack start: in the lead's fresh check, `ci/iris.sh class OcuTalon.Test.Data.Setting` (tag e12s9fc, lane A) failed before any test ran with `FAIL Telegram could not be parked: ERROR #5001: TelegramOut still has a job 30 s after it was disabled` (`docker/tests/lib-live.sh` live_park_telegram -> `Test.Channel.BotApi.Park` -> `LiveCase.Disable` with its 30 s `WAITJOB`); the same class passed on the next fresh stack, and about ten other fresh starts that day parked fine. CI starts dozens of stacks per run on hosts 1.4-3 times slower, so an intermittent park failure would turn CI red at random. Make the park reliable: measure why `TelegramOut`'s job can outlive 30 s after the disable on a just-started stack (for example a send or a retry in flight, or the operation's own start), and fix it so that a park on a fresh, slow start succeeds every time without hiding a real failure (a longer, bounded wait for the park only, a retry of the disable, or waiting for the items to be idle before parking; the park must still fail loudly when an item truly cannot be stopped). Prove it: a test or check that would have gone red on the 30 s behaviour (a `test-lib-live.sh` case with a slow-stopping stub, or a measured loop of fresh starts), plus at least five consecutive fresh `ci/iris.sh class` starts that park green.
+
 **Acceptance Criteria (Part B):**
 - Given a start where `Included()` is 1 and a bot token is set, when the online demo's splash renders, then `telegramIncluded` is "1". The list shows "Have Telegram? You can scan a QR code inside to get the notices on your own phone." and "Each session can send 50 messages an hour in the chat or Telegram.". With no token (or the seam at 0), the key is "0" and no splash line mentions Telegram (FR-14, FR-20, AD-3, AD-19).
 - Given the signed-in online-demo page, when the allowance or reset-soon banner shows, then it mentions Telegram only while `telegram.included` is true and the state is not `off` (DW-501, DW-506).
 
+
+### Review Findings
+
+Code review (2026-11-03, run e12s9cr; four layers, full-opus): 0 decision-needed, 7 patch (all applied), 4 defer, 14 rejected. HEAD 612aec92.
+
+- [x] [Review][Patch] Row 19's no-token and seam-0 starts were parked before `check_telegram_off`, so the check read the park, not the Telegram step (AC1's no-token half could not fail) [docker/tests/test-production-restart.sh:188] -- both waits now run with `LIVE_TELEGRAM=started`; `live production-restart` green; mutation recorded under Verification (medium; edge-case-hunter+verification-gap)
+- [x] [Review][Patch] Nothing tested that a failed park fails `ci/warm.sh up`, or that a failed start is not parked [docker/tests/test-ci-warm.sh:1541] -- two DW-164-block cases; both mutations of `warm_ready_check` observed red (low; verification-gap)
+- [x] [Review][Patch] The self-test "the section above Sign in" never moved the section (Sign in comes first, so the copy only lost the section) and could not exercise the order check [docker/tests/test-readme.sh:1231] -- the copy now moves the whole section above Sign in; with the order check disabled the self-test reports "not flagged" (low; edge-case-hunter)
+- [x] [Review][Patch] `telegram-demo` matched "pair" inside words such as "repair" or "repaired" [docker/tests/test-readme.sh:795] -- the word now needs a non-letter before it; a "paired chat" broken copy added (low; blind-hunter+edge-case-hunter)
+- [x] [Review][Patch] Stale docs after B2: `RunLocal`'s doc, `TestFlagOffWritesOnlyTheFlag`'s and `TestOnlyOneIsOn`'s docs said a local install writes no other public key, and the class header did not list `TestTelegramIncludedKey` [src/ocutalon/cls/OcuTalon/Install/Step/Public.cls:72] (low; blind-hunter+acceptance-auditor)
+- [x] [Review][Patch] `BotApi.Park`'s doc said "the state a start with no token leaves" without saying `telegramIncluded` keeps the start's value [src/ocutalon/cls/OcuTalon/Test/Channel/BotApi.cls:17] (low; blind-hunter)
+- [x] [Review][Patch] README step 5 said "Open ... again" right after a container recreate; it now waits for `(healthy)` and says to sign in if asked (U-228 condition 3, tightening) [README.md:159]; the harness notice text no longer says "after the restart" when the upgrade check sends it [src/ocutalon/cls/OcuTalon/Test/Channel/TelegramPageFixture.cls:430] (low; acceptance-auditor, blind-hunter)
+- [x] [Review][Defer] `TelegramPageFixture.Notify` and the harness's pairing readings run only in the release harness's live phases [release/upgrade-harness.sh] -- deferred: DW-614, wontfix-accepted (reopen_if a release run's pairing row fails on Notify or a reading)
+- [x] [Review][Defer] `eval/run.sh` starts a CI stack without the park [eval/run.sh:585] -- deferred: DW-615, wontfix-accepted; Epic 30's contended path; no eval case uses Telegram
+- [x] [Review][Defer] R2c's file-local mark reader/writer repeats `pairing.spec.ts`'s (Rule 2, spec-forced by A13) [web/e2e-online/resume.spec.ts:189] -- deferred: DW-616, wontfix-accepted (reopen_if a third copy appears)
+- [x] [Review][Defer] Step 5's "In the Status section" has no visible "Status" label at 1280 px and wider [README.md:159] -- deferred: DW-617, wontfix-accepted (reopen_if the REL-7 pass cannot find the card)
+
+Owned ledger entries at this review: DW-501 and DW-506 resolved-by this story (B5); DW-591 resolved-by this story (fix in 8bead6ac, root cause unreproduced); DW-453 wontfix-accepted (no link found by QA).
+
+**Rejected:**
+- `low` `TelegramParked`'s teardown restores rows, flag and mark but not a job, so on a stack that was not parked it could leave row 1, flag 1 and no job -- every recipe stack is parked before the class runs (ci/iris.sh, ci/warm.sh), so the state is unreachable there; a failed Park in TestPark already fails the class.
+- `low` A Park that fails inside TestPark leaves a live TelegramIn for later classes -- the class is already red; a teardown park adds a branch for a failure path only.
+- `false` Park with an Enabled row of 0 and a live job times out -- Park disables before Apply writes row 0, and no writer leaves row 0 with a job on a recipe stack.
+- `low` `NotRunningText` reads the item list again after the wait (an empty "()" text) or gets the "not running" sentence -- diagnostic text only, in a narrow race; the guard adds a branch.
+- `low` Warm stacks are parked only at `up`, not at each attach -- warm mode is a local convenience; tests restore what they change; CI never attaches.
+- `low` `live_first_start`'s ready time includes the park (0 to 5 s) -- conservative against the 720 s warning, and a park failure prints its own FAIL line.
+- `low` R2c's `restoreMark` in `finally` runs before the sign-out and cleanup, so a throw skips them -- restoring the shared mark first is the better order for other tests; a throw there means IRIS is unreachable anyway.
+- `low` (by-design) The banners say Telegram for a `rejected` token while the card says "Telegram not set up" -- Design Notes "Decided in-stage" 7 and U-227 (kept).
+- `low` (by-design) AD-19's sub-bullet says "the splash and its banners"; the banners read `/state`, not the key -- the key is read only by the splash (the AD's Rule holds); the banner condition is the ruled item 7.
+- `false` Two contended files changed beyond "counts only" (`Test/Msg/Catalog.cls`, `catalog.test.mjs`) -- every changed line is one the two new keys need (count lines and their doc counts, the key list, fixtures, slot maps); no line changed for wording alone.
+- `false` Lane B files edited without a ruling (`allowance-state.ts`, `allowance-view.ts`, `allowance-sources.test.mjs`, `Test/Data/Setting.cls`, `frame.spec.ts`) -- none is on the contended list; Rule 11(b) allows them, reported as footprint extensions ("Decided at implement" 5 and 6).
+- `low` Changed specs (api row 13/16, rail R1, 01-page, frame F1, banners B5) rely on the parked stack -- the park is part of every recipe stack's ready signal (AD-22, decided); tests that change the mark restore it.
+- `false` AC1's live "Telegram on" pin was never seen red -- Rule 19 asks one mutation per AC; AC1 has `TelegramSwitch` and QA's `api.spec`/`rail.spec` reds recorded.
+- `reject` (edits the spec under review) The spec's Auto Run Result, `deferred:` DW-453 text, the file count and `review_loop_iteration` disagree with the QA block.
+
 ## Spec Change Log
+
+- 2026-11-03, lead, rework iteration 1 (trigger smoke/fresh check): the intermittent park failure on a fresh start (TelegramOut still has a job 30 s after it was disabled) re-opens the story; the open item is under Tasks & Acceptance.
 
 ## Review Triage Log
 
@@ -501,6 +541,20 @@ deferred:
 - **Part B also:** the public key list (14), the splash list, and the two banner texts.
 
 Standing criterion: every test added or changed passes on a fresh environment, in either order.
+
+**QA stage (run tag e12s9qa; the lane-A fresh stacks only):**
+- (QA) `docker/tests/test-readme.sh`: the new rule `telegram-facts` (U-228 condition 3, a gap the implement stage left: the section's "after 5 minutes", "In the Status section", the `.env.example` token line, the compose `.env` file and the step 5 address were not pinned to what is built). It pins the minutes to `In.cls` `PAUSESECONDS`, the Status section to `layout-view.ts`'s `status: 'Status'`, step 3 to `.env.example`'s `TELEGRAM_BOT_TOKEN=` and `docker-compose.yml`'s `- path: .env`, and the step 5 address to the one "Sign in" gives. Seven README/source copies and two file copies are its own broken-copy cases. No new test file.
+- mutation: U-228 condition 3 (pause): `PAUSESECONDS` 300 -> 600 in `In.cls` -> `test-readme.sh` red on `telegram-facts`; reverted.
+- mutation: U-228 condition 3 (pause, README side): "after 5 minutes" -> "after 10 minutes" -> `telegram-facts` red; reverted.
+- mutation: U-228 condition 3 (Status): `layout-view.ts` `status: 'Status'` -> `'State'` -> `telegram-facts` red; reverted.
+- mutation: U-228 condition 3 (token line): `.env.example` `TELEGRAM_BOT_TOKEN=` -> `TELEGRAM_TOKEN=` -> `telegram-facts` red; reverted.
+- mutation: U-228 condition 3 (compose): `docker-compose.yml` `- path: .env` -> `- path: .env.local` -> `telegram-facts` red; reverted.
+- mutation: AC1 (rail and endpoints rows, the pins the implement stage recorded no red for): `Included()` set back to `= 1` (the old form) -> `ci/iris.sh live sign-in --part 1/2` red on `api.spec.ts` row 13 (`included: true`) and row 16 (409 `not_available`), `--part 2/2` red on `rail.spec.ts` R1 (five sections); reverted, `git diff` of `In.cls` empty.
+- Re-run after the review patches (fresh stacks, all green): `ci/iris.sh live demo-path` with `OCUTALON_LIVE_DEADLINE=900` (28 passed, 8 of 8 steps, 0 skipped, floor 15 of 15, audit rows pass); `ci/iris.sh live floor` (106 passed); the upgrade harness's seven phases `build`, `settings`, `seed`, `upgrade`, `restart`, `storage`, `report` (`RESULT pass`; the `pairing` row passes with 3 checks and the upgrade note; "pairing after the restart: a notification sent through Notify reached the chat as a sendMessage within 10 s").
+- mutation: AC1 (no-token half, code review e12s9cr): `Install/Step/Telegram.cls` `Run()` passing 1 instead of `TokenSet()` -> `ci/iris.sh live production-restart` red on "row 19, no token: Telegram is off" (rows, jobs 2) and "every enabled item runs ... the disabled items have no job"; reverted, `git diff` of the class empty; green on the reverted tree.
+- mutation: AC3 (warm park, code review): `warm_ready_check` as `warm_start_result && { live_park_telegram || true; }` -> `test-ci-warm.sh` red on "a park that fails fails the up"; as `live_park_telegram; warm_start_result` -> red on that row and "a start that failed is not parked"; reverted, `ci/warm.sh` byte-identical.
+- mutation: AC2 (order self-test, code review): `chk_telegram_section`'s order check disabled -> `test-readme.sh` red ("the section above Sign in: not flagged"); with the old self-test the same mutation stayed green.
+- DW-453 settled for this story: a fresh `ci/iris.sh shard lane-b --part 2/2` passes (43 classes, `Test.Web.GuideApi` passed, 513 s). Evidence that the story does not cause it: the flake first appeared in Epic 30 (DW-453, 30.3 and 30.4, before `Included()` changed); `TestRunAgain` asserts the `done` flags, which `Demo.Guide.Compute` builds from the session's Checks, reminder, incident, approvals and GuideState rows in OCUORDERS and never from `Included()` (that call only sets `telegramRow`); the same code that failed twice at the end of implement passes in this fresh run. No fix in this footprint; the entry stays wontfix-accepted with `reopen_if` red in CI.
 
 ## Auto Run Result
 

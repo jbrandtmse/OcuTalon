@@ -2675,6 +2675,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-31T03:37:20Z occurrence=30-4-a-stopped-production-or-a-disabled-item-is-reported-once by=lead note=second_local_occurrence:30.4_implement_fresh_shard_lane-b_part_2/2_first_run;passed_alone_and_on_one_rerun_of_the_part(558s);code_untouched_by_30.4
 - 2026-11-02T05:39:25Z status=wontfix-accepted by=burndown note=a_burndown-owned_LOW_flake(Rule_15)_with_no_charter_in_part_1;not_seen_again_in_Epic_30_part_1_fresh_runs;reopen_if=GuideApi_TestRunAgain_goes_red_again_in_CI_or_a_fresh_shard
 - 2026-11-03T05:37:19Z occurrence=12-9-telegram-is-included status=routed owner=12-9-telegram-is-included by=harvest note=reopen_if_met:Test.Web.GuideApi_TestRunAgain_red_in_two_fresh_shard_lane-b_part_2/2_runs_at_the_end_of_12.9's_implement(8bead6ac);passes_alone_and_warm;12.9_changes_every_stack(Included()=1,parking),so_12.9's_QA_settles_whether_it_causes_it
+- 2026-11-03T07:11:40Z status=wontfix-accepted owner=12-9-telegram-is-included by=cr note=no_link_to_12.9_(QA_fresh_lane-b_part_2/2_green);reopen_if=GuideApi_TestRunAgain_red_again_in_CI
 
 ### DW-454: U-170's plain-English reason for an old held tool call reaches a person only through the decision live event (decision strip, rail decision row, trace); the approval card and notices do not show it: Live.Payload.Approval.reason stays empty, approval.result is {ref}, Core.Rule.Notice reads only the fallback reason
 - source: spec-30-3-an-approved-tool-call-runs-exactly-once-with-no-model.md | severity: med | fix-risk: med | footprint: out-of-footprint
@@ -3253,6 +3254,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Msg/Catalog/Core.cls:268 and web/src/app/msg/catalog.ts carry the text unconditionally; web/e2e-online/allowance/messages.spec.ts:35 and web/e2e/banners/banners.spec.ts:359,501 pin it; a visitor who uses up the 50 messages reads 'or Telegram' while the release has none
 - 2026-10-31T17:45:09Z status=routed owner=12-7-approve-or-reject-from-telegram-and-every-copy-shows-who-ans by=harvest note=orchestrator ruling U-197: keep it out of 16.11, route it to Story 12.7 with the splash's included case
 - 2026-11-02T14:10:41Z status=routed owner=12-9-telegram-is-included by=spec_gate note=split_at_12.7_spec_gate:the_splash_and_banner_part_moved_to_12.9;mechanism_waits_on_U-219(U-197_follow-up)
+- 2026-11-03T07:11:40Z status=resolved-by:12-9-telegram-is-included owner=12-9-telegram-is-included by=cr note=B5_banner.allowanceChat_shown_while_telegramOn_is_false;banner-view.test.mjs_and_banners.spec_B5_B8_pin_both_forms
 
 ### DW-505: An assertion written x [ "a"_y tests only x [ "a" (ObjectScript evaluates left to right), so it can pass whatever y is: Test.Agent.KeyScan:123 can never fail, and no check rejects the form
 - source: spec-16-11-the-splash-promises-telegram-only-when-the-release-includes.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -3267,6 +3269,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Msg/Catalog/Core.cls:315 and web/src/app/msg/catalog.ts:18 carry it unconditionally; banner-view.ts shows it 5 minutes before each reset; web/e2e-online/reset.spec.ts:48 pins it
 - 2026-10-31T19:24:43Z status=routed owner=12-7-approve-or-reject-from-telegram-and-every-copy-shows-who-ans by=cr note=same ruling as DW-501 (U-197: no other wording change in 16.11); 12.7 gates it with the allowance banner
 - 2026-11-02T14:10:41Z status=routed owner=12-9-telegram-is-included by=spec_gate note=split_at_12.7_spec_gate:the_splash_and_banner_part_moved_to_12.9;mechanism_waits_on_U-219(U-197_follow-up)
+- 2026-11-03T07:11:40Z status=resolved-by:12-9-telegram-is-included owner=12-9-telegram-is-included by=cr note=B5_banner.resetSoonChat_shown_while_telegramOn_is_false;reset.spec_and_announcements.spec_pin_the_chat_form
 
 ### DW-507: live:online-demo prints 'jar.busy.s3.g: No such file or directory' on every run: set_cookie_value reads the redirect-GET headers file that a refused (200) sign-in never writes
 - source: spec-16-11-the-splash-promises-telegram-only-when-the-release-includes.md | severity: low | fix-risk: low | footprint: in-epic
@@ -3379,6 +3382,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-03T00:09:06Z occurrence=12-7-approve-or-reject-from-telegram-and-every-copy-shows-who-ans by=ci note=CI_run_41545446452_head_e9bfda24_iris(production)_shard:lane-a@Channel_TelegramChat_failed_398s(same_setup_pattern);the_40-min_job_timeout_then_cancelled_the_group;second_CI_occurrence_on_a_second_head;rerun_started
 - 2026-11-03T00:10:04Z status=routed owner=12-9-telegram-is-included by=lead note=evidence_attempt1_41545446452;ERROR_5001_Not_every_item_of_OcuTalon.Production_runs_120_seconds_after_TriageAgent/DiagnosisAgent/ChatAgent_was_started_again:TelegramIn(the_only_item_not_running);2_CI_heads(404351eb,e9bfda24),green_on_reruns_and_locally;12.9_changes_TelegramIn's_state_on_every_stack(parking),so_it_owns_making_the_restart_readiness_check_hold_for_TelegramIn
 - 2026-11-03T05:37:19Z occurrence=12-9-telegram-is-included by=harvest note=fix_in_8bead6ac:RunnerFixture.NotRunningNow_skips_an_item_whose_Enabled_row_is_0;failure_text_StateOf_names_row,flag,jobs;not_reproduced_locally(one-stack_shard_forward_508s,reversed_499s,before_and_after)
+- 2026-11-03T07:11:40Z status=resolved-by:12-9-telegram-is-included owner=12-9-telegram-is-included by=cr note=RunnerFixture.NotRunningNow_skips_row-0_items_(TelegramParked_pins_it);root_cause_unreproduced;a_CI_recurrence_shows_StateOf
 
 ### DW-608: flake: web/e2e/answers/close-loop.spec.ts:207 C1 expected 'Approved from the web chat at 23:58.' but the page said 'Approved from the web chat on Monday at 23:58.': the run crossed midnight UTC, and the test builds its expected answer line with hhmm() only while the page names the day for a time before today
 - source: CI run 41545446452 (OCT-epic12 e9bfda24), iris (browser) live:answers | severity: med | fix-risk: low | footprint: web/e2e/answers/close-loop.spec.ts
@@ -3389,3 +3393,23 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: CI run 41545446452 (OCT-epic12 e9bfda24) attempt 1 | severity: med | fix-risk: low | footprint: web/e2e/demo-path/telegram-page.spec.ts
 - evidence: attempt 1 at 23:38Z: 27 passed, T7 timed out (2.0 m), no assertion message; attempt 2 green
 - 2026-11-03T00:44:48Z status=routed owner=burndown by=ci note=unknown cause (no assertion message); watch for T8 leftovers (a pairing or an incident) slowing T7 on a loaded host
+
+### DW-614: TelegramPageFixture.Notify and the upgrade harness's pairing readings (Move, session, replies, notify) run only in the release harness's live phases, never in CI
+- source: spec-12-9-telegram-is-included.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: test-upgrade-harness.sh stubs all five readings; no Test class or spec calls Notify; QA ran the harness live once (pairing row pass)
+- 2026-11-03T07:11:31Z status=wontfix-accepted owner=12-9-telegram-is-included by=cr note=reopen_if=the harness pairing row fails with a Notify or reading error at a release run
+
+### DW-615: eval/run.sh starts a CI stack with the dummy bot token and no park (stack_ready with no check), so TelegramIn polls the mock during eval runs
+- source: spec-12-9-telegram-is-included.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: eval/run.sh calls stack_ready evaluation with no check and layers ci/compose.ci.yml; eval/run.sh is Epic 30's contended path; no eval case uses Telegram
+- 2026-11-03T07:11:31Z status=wontfix-accepted owner=12-9-telegram-is-included by=cr note=reopen_if=an eval run fails or flakes on TelegramIn, TelegramOut or a Bot API call at the mock
+
+### DW-616: resume.spec.ts R2c keeps a file-local telegramState mark reader and writer that repeats pairing.spec.ts's (about 10 lines), a copy the spec forces (A13; web/e2e/support is Lane B)
+- source: spec-12-9-telegram-is-included.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: web/e2e-online/resume.spec.ts readMark/writeMark/restoreMark vs web/e2e/api/pairing.spec.ts readMark/setState/restoreMark
+- 2026-11-03T07:11:31Z status=wontfix-accepted owner=12-9-telegram-is-included by=cr note=reopen_if=a third file-local telegramState writer appears under web/e2e or web/e2e-online; then unify in support/iris.ts
+
+### DW-617: README Telegram step 5 says In the Status section, but at 1280 px and wider no visible label reads Status (the rail h2 is visually hidden; the Status drawer button shows only at 1024-1279 px)
+- source: spec-12-9-telegram-is-included.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: main-page.ts rail-title is visually-hidden; header.ts drawer button only at 1024-1279; telegram-facts pins layout-view.ts status label; the card itself has the visible heading Telegram
+- 2026-11-03T07:11:31Z status=wontfix-accepted owner=12-9-telegram-is-included by=cr note=reopen_if=the owner's REL-7 Telegram pass (Story 38.3) cannot find the card from step 5's wording

@@ -7,7 +7,8 @@
 ///     install, the flag's exact value, an empty variable and the budget rows (rows 4 and 5);
 ///   - TestStartValuesReachTheUsersStep: the chain from the keys to the accounts and the guard (row 6);
 ///   - TestDecisionAtTheCap: a decision at the cap falls back with daily_cap and sends nothing (row 7);
-///   - TestReadyPinsThePublicAccounts: the last phase pins the page size, then sets readiness (row 8, DW-160).
+///   - TestReadyPinsThePublicAccounts: the last phase pins the page size, then sets readiness (row 8, DW-160);
+///   - TestTelegramIncludedKey: telegramIncluded on both paths, with and without a bot token (Story 12.9).
 /// Before each test it saves the 16 variables (present and value), the 14 keys and readiness, the three Decide rows, the guard (setting and
 /// routine) and the runners' state, and after it puts them back, with the fixture accounts and their pins removed. The fixture accounts are
 /// ZzPublic<n>Demo and ZzPublic<n>Ro, n from ^OcuTalonTest("Public","n"), which is never reset.
@@ -258,8 +259,8 @@ Method TestBadStartValues()
 	}
 }
 
-/// Matrix row 4: with the flag unset and every other variable set, only onlineDemo changes (to 0) among the public keys, and readiness is
-/// cleared. No gateway row is written. The cap row is 0 when it was absent, and an existing 7 is kept.
+/// Matrix row 4: with the flag unset and every other variable set, only onlineDemo (to 0) and telegramIncluded change among the public
+/// keys, and readiness is cleared. No gateway row is written. The cap row is 0 when it was absent, and an existing 7 is kept.
 Method TestFlagOffWritesOnlyTheFlag()
 {
 	Do ..Use({"OCUTALON_DEMO_USER": "Zz-demo", "OCUTALON_DEMO_PASSWORD": "Zz-demo-pw", "OCUTALON_READONLY_USER": "Zz-ro", "OCUTALON_READONLY_PASSWORD": "Zz-ro-pw", "OCUTALON_RESET_INTERVAL_HOURS": "6", "OCUTALON_RESET_ANCHOR": "2026-10-25T00:00:00Z", "OCUTALON_LAST_RESET": "2026-10-25T06:00:00Z", "OCUTALON_LAST_RESET_KIND": "unscheduled", "OCUTALON_PROXY_ADDRESS": "10.9.8.7", "OCUTALON_CONNECTION_CAP": "5", "OCUTALON_CONNECTION_RESERVE": "1", "OCUTALON_MESSAGE_ALLOWANCE": "30", "OCUTALON_DAILY_COST_CAP_USD": "12.5", "OCUTALON_GATEWAY_SPEND_USD": "3.2", "OCUTALON_GATEWAY_SPEND_DATE": "2026-10-25"})
@@ -351,7 +352,7 @@ Method TestTelegramIncludedKey()
 }
 
 /// The flag is exactly 1: a near miss (01, 1.0, true, 0, 1 with a space, or empty) is a local install, which changes onlineDemo to 0 and
-/// writes no other public key.
+/// writes no other public key but telegramIncluded.
 Method TestOnlyOneIsOn()
 {
 	For value = "01", "1.0", "true", "0", " 1", "" {
