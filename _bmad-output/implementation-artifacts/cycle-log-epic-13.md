@@ -83,3 +83,5 @@
 2026-11-03T04:30:33Z	Story 13.3	owner_decision	id=U-233 at=2026-11-03T04:27:26Z#698 via=orchestrator(relay_of_Contest_Planner_under_owner_delegation) by=Contest_Planner answer=keep_recipe;rc1_hand_gate_bare_container;guide_relies_on_nothing_OcuTalon_install_creates_instance-wide
 2026-11-03T04:30:33Z	Story 13.3	spec_lead_edit	applied=U-233(Design_Notes+Task:instance-wide_audit;gap_closes_inside_Bridge/Installer.cls_or_intent_gap) by=runner
 2026-11-03T04:34:03Z	Story 13.2	ci_resolved	story=13.2 sha=5de03f08 runs=41575905665,41575905643 result=success failed=none via=none resolved_at=next_implement ci_queue_min=0.03 first_ci=success
+2026-11-03T05:19:59Z	Epic 13	ci_resolved	story=none sha=8399bd5a runs=41578884860,41578884823 result=success failed=none via=none resolved_at=next_implement note=merged_head(integrate-forward_082ac043) ci_queue_min=0.05(hosted;iris_jobs_waited_4.8-16.2)
+2026-11-03T05:19:59Z	Epic 13	integrate_forward_checks	checks=ci/checks.sh_all_scripts_passed(873s)_on_2ef9d7fd ci=success_8399bd5a
