@@ -141,7 +141,7 @@ development_status:
   7-3-approved-repairs-are-re-checked-and-resent: done
   7-4-ocutalon-reports-how-many-orders-went-through: done
   7-5-a-resend-cut-short-by-a-restart-says-how-far-it-got: done
-  7-7-a-date-repair-that-could-read-either-way-names-its-evidence: ready-for-dev
+  7-7-a-date-repair-that-could-read-either-way-names-its-evidence: in-progress
   epic-7-retrospective: optional
 
   epic-8: done
