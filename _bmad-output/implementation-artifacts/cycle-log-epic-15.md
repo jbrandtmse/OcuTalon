@@ -110,3 +110,4 @@
 2026-11-03T03:22:35Z	Epic 15	ledger_load	total=555 open=0 routed=66 escalated=0 decision_pending=3 terminal=486 owner_unknown=0 burndown=10 reowned_none=0 owned_15-3=3(DW-80,DW-306,DW-576)
 2026-11-03T03:23:13Z	Epic 15	sprint_planning_complete	gate=PASS mode=headless readiness_recheck=U8_reopen in_sync=true new_entries=0 dropped_orphans=0 warnings=2(doc_title,epic_list_heading) model=claude-opus-5-5
 2026-11-03T03:25:41Z	Epic 15	epic_context_compiled	reason=planning_artifact_newer(reopen_15.3) model=claude-opus-4-8_subagent(opus) size=9631
+2026-11-03T03:25:55Z	Story 15.3	stage_spawned	stage=plan spawn_at=2026-11-03T03:25:55Z model=opus agent_name=15-3-plan-1 cycle_iteration=1
