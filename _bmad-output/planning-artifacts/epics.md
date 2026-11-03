@@ -4107,7 +4107,7 @@ So that I understand what OcuTalon is before I install it.
 **Given** the README
 **When** this story merges
 **Then** it has a "How you talk to it" section, after "What you can use it for": the web chat page is the product on every install, and the demo adds only the demo guide, Break the feed, and the simulated phone and simulated mailbox; email comes in a later release (step 4); a small table is fine; Slack is not named (FR-12, FR-18)
-**And** every claim matches what 1.0.0 ships; the section names no Telegram row yet: that row is Story 10.6's [AMENDED 2026-11-03, Story 10.5 plan, unattended ruling (split, decide): Epic 12 has not merged, and on this branch `OcuTalon.Channel.Telegram.In.Included()` still has its test-only body, so `docker/tests/test-readme.sh`'s no-telegram rule (AD-29) refuses the word Telegram in the README and Epic 12's README Telegram section (added with the Included() switch) that the row must point to does not exist yet; the Telegram row moved to Story 10.6, which waits on Epic 12. It read: "Telegram, to chat and approve from your phone, is in 1.0.0; [...] **And** every claim matches what 1.0.0 ships: if Epic 12 (Telegram) has not merged when this story starts, the Telegram row is a clarification for the orchestrator, never a promise"]
+**And** every claim matches what 1.0.0 ships; the section names no Telegram row yet: that row is Story 31.3's [AMENDED 2026-11-03, Story 10.5 plan, unattended ruling (split, decide): Epic 12 has not merged, and on this branch `OcuTalon.Channel.Telegram.In.Included()` still has its test-only body, so `docker/tests/test-readme.sh`'s no-telegram rule (AD-29) refuses the word Telegram in the README and Epic 12's README Telegram section (added with the Included() switch) that the row must point to does not exist yet; the Telegram row moved to Story 31.3 (the 1.0.0 README pass, after Epic 12), orchestrator ruling, veto U-234. It read: "Telegram, to chat and approve from your phone, is in 1.0.0; [...] **And** every claim matches what 1.0.0 ships: if Epic 12 (Telegram) has not merged when this story starts, the Telegram row is a clarification for the orchestrator, never a promise"]
 
 **Given** the images the Contest Planner hands over (vetted by the Contest Planner before delivery; drafts in `contest-49/readme-shots`; exactly these five: the page with an incident as the hero, the incident card, the resolved incident, a Visual Trace of the decision, and the page with Demo view off; the draft-vt-watch-* shots are not used)
 **When** this story adds them
@@ -4118,25 +4118,6 @@ So that I understand what OcuTalon is before I install it.
 **When** this story merges
 **Then** `docker/tests/test-readme.sh` checks the new section's heading and that every image link resolves to a file in `docs/images/` with non-empty alt text; CI is green on every workflow; and the story touches only `README.md`, `docs/images/*` and `docker/tests/test-readme.sh`
 - Not in this story: the Mermaid diagram, the evaluation line and the CI badge, which stay for the 1.0.0 README pass.
-
-### Story 10.6: The README's "How you talk to it" section adds Telegram
-
-[ADDED 2026-11-03, split from Story 10.5 (unattended ruling, decide; policy limits.split_children). Docs only. In 1.0.0's scope; not launch-blocking. Waits on Epic 12: it starts only once Epic 12 (Telegram) has merged to the feature branch, which flips `Included()` and adds the README's Telegram section.]
-
-As a judge reading the README,
-I want the "How you talk to it" section to say that Telegram lets me chat and approve on my phone on my own install,
-So that I know every way I can talk to OcuTalon in 1.0.0.
-
-**Acceptance Criteria:**
-
-**Given** Epic 12 merged to the feature branch and integrated into this epic's branch (so `Included()` no longer has its test-only body and the README has Epic 12's Telegram section)
-**When** this story merges
-**Then** the "How you talk to it" section that Story 10.5 added has a Telegram row: Telegram, to chat and approve on your phone, is in 1.0.0, on your own install with your own bot token; it points to the README's Telegram section (Epic 12's setup steps) and never duplicates or edits those steps (FR-12, FR-18)
-**And** no README text about the online demo claims Telegram, pairing or phone approvals while the demo has no bot (until Story 31.4; U-228 condition (2)); any quoted UI string matches the built page exactly (U-228 condition (1)); the README's public-text rule holds (no "from your phone")
-
-**Given** the change
-**When** this story merges
-**Then** `docker/tests/test-readme.sh` passes, CI is green on every workflow, and the story touches only `README.md` and `docker/tests/test-readme.sh`
 
 ## Epic 11: Release 1 ships: the demo path end to end, upgrade in place and a scripted release
 
