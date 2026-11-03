@@ -3444,6 +3444,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: _bmad-output/implementation-artifacts/spec-39-1-fix-the-heartbeat-s-names-and-contracts.md | severity: med | fix-risk: med | footprint: in-epic
 - evidence: web/scripts/payloads.mjs fails closed on a payload class not in TYPES; Test.Live.Payloads pins 16 types and 30 classes; Live/Publish.cls and web/src/app/live are Epic 31-contended Lane B files (U-177); spine ownership row names Story 39.1
 - 2026-11-03T14:18:41Z status=routed owner=39-3-beats-fall-due-on-the-tick-and-skip-without-a-model-call-whe by=harvest note=39.3 plan: arrange the Lane B append (a ruling, or wait on Epic 31's merge for Publish.cls/payloads.ts); correct the spine Built-in cell for Live.Payload.Heartbeat
+- 2026-11-03T15:45:22Z status=routed owner=39-7-publish-the-heartbeat-event by=spec_gate note=Story 39.3's event AC split into sibling Story 39.7 (unattended ruling, decide); 39.7 waits on Epic 31 (Live/Publish.cls TYPES, web/src/app/live, Test.Live.Payloads are Lane B and Epic 31-contended) or an orchestrator-arranged Lane B append
 
 ### DW-634: UX lists no text for the Run the heartbeat now button while it is unavailable (daily cost cap reached or no model key)
 - source: _bmad-output/implementation-artifacts/spec-39-1-fix-the-heartbeat-s-names-and-contracts.md | severity: low | fix-risk: low | footprint: in-epic

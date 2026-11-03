@@ -38,3 +38,7 @@
 2026-11-03T15:26:39Z	Story 39.2	story_waiting	story=39-2-save-your-heartbeat-settings-and-ask-for-a-beat on=40 code=none tracker=backlog
 2026-11-03T15:26:39Z	Story 39.3	stage_spawned	stage=plan spawn_at=2026-11-03T15:26:39Z model=opus agent_name=39-3-plan-1 cycle_iteration=1
 2026-11-03T15:27:54Z	Epic 39	epic_context_compiled	reason=planning_artifact_newer model=claude-opus-5-5
+2026-11-03T15:45:33Z	Story 39.3	story_created	spawn_at=2026-11-03T15:26:39Z model=opus path=_bmad-output/implementation-artifacts/spec-39-3-beats-fall-due-on-the-tick-and-skip-without-a-model-call-whe.md build_status=ready-for-dev epic_context=reused warnings=oversized
+2026-11-03T15:45:33Z	Story 39.3	ruling	question=heartbeat_event_AC_needs_Lane_B_Epic31-contended_edits choice=split_AC6_into_sibling_Story_39.7 rejected=wait_whole_39.3_on_epic31,edit_Lane_B_Publish.cls(U-177) why=Rule5_split_into_sibling_same_epic_within_split_children=6 category=decide policy=5086036
+2026-11-03T15:45:33Z	Story 39.7	story_waiting	story=39-7-publish-the-heartbeat-event on=31 code=none tracker=backlog note=or_an_orchestrator-arranged_Lane_B_append(Live/Publish.cls_TYPES,Test.Live.Payloads,web/src/app/live/payloads.ts)
+2026-11-03T15:45:33Z	Story 39.3	spec_validated	service_introducing=true integration_ac=present adr_constrained_acs=AD-18,AD-19,AD-20,AD-5,AD-14,AD-30,AD-26,AD-8,AD-28,AD-29 decision_dependency=none sections_created=none owned_ledger=DW-633 addressed=1 declined=0 mutates_shared_runtime=false lead_edits=AC6_split_to_39.7 model=claude-opus-5-5

@@ -8181,16 +8181,13 @@ So that it costs a few cents a day, never calls the model every minute, and surv
 **Then** it runs one beat at once, as the person's explicit request: active hours and an unchanged snapshot don't hold it back, and the empty-checklist, back-off, cap and key rules still skip it (FR-66, AD-18)
 **And** a run-now within 2 minutes of the session's `LastRunNowAt` is refused with outcome `cooldown` and its `availableAt`, and nothing is sent (FR-66)
 
-**Given** any beat, skip or recorded result
-**When** its row is committed
-**Then** `Checks` publishes the `heartbeat` event to the session's stream with the row's public view: on, the interval, the hours, next due, the last result and the last skip, but never the `SessionRef`, the checklist's text or a snapshot key (AD-12, AD-33)
-**And** automated tests in `OcuTalon.Test.Checks` cover each skip reason, an outside-hours window that spans midnight, the restart catch-up, the cooldown and the back-off, with fixed clocks
+**Given** the skip, beat and run-now rules above
+**When** `OcuTalon.Test.Checks` runs
+**Then** automated tests cover each skip reason, an outside-hours window that spans midnight, the restart catch-up, the cooldown and the back-off, with fixed clocks [AMENDED 2026-11-03, Story 39.3 spec gate, unattended ruling (split, decide): the `heartbeat` event AC moved to Story 39.7; this tests line was its **And**]
 
 **Given** the CI mock's request log
 **When** `OcuTalon.Test.Checks` drives an hour of ticks with fixed clocks for a person on a 30-minute interval
 **Then** a tick that isn't a due beat makes no model request, a due beat whose snapshot is unchanged since the last Ignore makes none, a due beat whose snapshot changed makes exactly one, and the hour holds at most two (FR-64, NFR-28)
-
-- DW-633: OcuTalon.Live.Payload.Heartbeat not yet created; the class, the Live.Publish TYPES pair, the Test.Live.Payloads counts and web/src/app/live/payloads.ts land together before this story publishes the heartbeat event (ledger; routed by harvest 2026-11-03)
 
 ### Story 39.4: Each beat carries your checklist and a status snapshot built by code
 
@@ -8294,6 +8291,24 @@ So that "stay quiet unless something needs you" is measured, not hoped.
 **Then** that section says that a beat sends the person's checklist and a status snapshot to the configured model provider, at most once per interval (FR-61, NFR-18)
 
 **Release check:** at the first daily release that ships this epic, the Contest Planner's hands-on pass with real keys runs one beat of each outcome on the web app, sees a quiet beat followed by a skipped one while nothing changes, and does a run-now on the demo host (REL-7, as amended 2026-10-31).
+
+### Story 39.7: Publish the heartbeat event
+
+*Home lane: A.*
+
+[ADDED 2026-11-03, split from Story 39.3 at its spec gate, unattended ruling (decide; Rule 5 split into a sibling in the same epic): the event needs `OcuTalon.Live.Payload.Heartbeat` together with Lane B edits that Story 39.3 cannot make]
+
+As a user,
+I want the heartbeat card to learn of each beat, skip and result as it happens,
+So that what it shows is current without a reload.
+
+**Acceptance Criteria:**
+
+**Given** any beat, skip or recorded result
+**When** its row is committed
+**Then** `Checks` publishes the `heartbeat` event to the session's stream with the row's public view: on, the interval, the hours, next due, the last result and the last skip, but never the `SessionRef`, the checklist's text or a snapshot key (AD-12, AD-33)
+
+- DW-633: OcuTalon.Live.Payload.Heartbeat not yet created; the class, the Live.Publish TYPES pair, the Test.Live.Payloads counts and web/src/app/live/payloads.ts land together before this story publishes the heartbeat event (ledger; routed by harvest 2026-11-03; moved with the split)
 
 ## Epic 40: Choose how OcuTalon talks to you
 
