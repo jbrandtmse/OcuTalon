@@ -1644,3 +1644,6 @@
 2026-11-03T16:55:26Z	Epic 13	ci_green_verified	runs=41673027056,41673027092 head=66f98c6a result=success via=none
 2026-11-03T16:55:26Z	Epic 13	amendments_verified	amendments=0 extensions=0 ok=true detail=U-237_sentence_exact_x3_on_66f98c6a;watch_unchanged;merge_tree=clean
 2026-11-03T16:55:26Z	Epic 13	epic_merge_started	branch=OCT-epic13 head=66f98c6a feature=c9d1846b
+2026-11-03T16:55:28Z	Epic 13	decision_sheet_skipped	decided=0 reason=decisions_for_user_none
+2026-11-03T16:55:28Z	Epic 13	ledger_routed_planned	story=none entries=0 excess=0 by=merge_gate note=overflow_DW-629,630,631_burndown
+2026-11-03T16:55:28Z	Epic 13	worktree_removed	path=.worktrees/epic-13
