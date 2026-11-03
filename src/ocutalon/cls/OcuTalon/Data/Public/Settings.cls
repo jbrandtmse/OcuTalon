@@ -6,7 +6,7 @@ Class OcuTalon.Data.Public.Settings
 {
 
 /// The fixed keys that can be read and written. Times are UTC ISO 8601 with "Z".
-Parameter KEYS = "onlineDemo,demoUser,demoPassword,readonlyUser,readonlyPassword,resetIntervalHours,resetAnchor,lastReset,lastResetKind,proxyAddress,connectionCap,connectionReserve,messageAllowance";
+Parameter KEYS = "onlineDemo,demoUser,demoPassword,readonlyUser,readonlyPassword,resetIntervalHours,resetAnchor,lastReset,lastResetKind,proxyAddress,connectionCap,connectionReserve,messageAllowance,telegramIncluded";
 
 /// The readiness key: read with Get, written only by ClearReady and SetReady.
 Parameter READY = "ready";

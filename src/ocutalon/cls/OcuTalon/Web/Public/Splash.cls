@@ -52,6 +52,10 @@ Parameter RESETLINE = "The demo resets every {interval}. Next reset: {time} ({co
 
 Parameter OWNLINE = "Your chat, phone, mailbox and orders are yours alone.";
 
+Parameter TELEGRAMLINE = "Have Telegram? You can scan a QR code inside to get the notices on your own phone.";
+
+Parameter LIMITLINE = "Each session can send {limit} messages an hour in the chat or Telegram.";
+
 Parameter LIMITLINECHAT = "Each session can send {limit} messages an hour in the chat.";
 
 /// The notice above both cards after a reset (EXPERIENCE: Session ended by a scheduled reset); {time} is written by the server as the
@@ -194,8 +198,10 @@ ClassMethod OnLoginPage() As %Status
 	Write "<ul class=""facts"">", !
 	Write ..ResetLine(), !
 	Write "<li>", ..#OWNLINE, "</li>", !
+	Set telegram = (##class(OcuTalon.Data.Public.Settings).Get("telegramIncluded") = 1)
+	If telegram Write "<li>", ..#TELEGRAMLINE, "</li>", !
 	Set limit = ##class(OcuTalon.Data.Public.Settings).Get("messageAllowance")
-	If limit '= "" Write "<li>", $Replace(..#LIMITLINECHAT, "{limit}", $ZConvert(limit, "O", "HTML")), "</li>", !
+	If limit '= "" Write "<li>", $Replace($Select(telegram: ..#LIMITLINE, 1: ..#LIMITLINECHAT), "{limit}", $ZConvert(limit, "O", "HTML")), "</li>", !
 	Write "<li>", ..#SHELLLINE, "</li>", !
 	Write "</ul></section>", !
 	Write "</div>", !

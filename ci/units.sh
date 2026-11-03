@@ -14,14 +14,14 @@ SHARDS="lane-a lane-b"
 # shard_areas <shard>: the areas of a shard.
 shard_areas() {
   case $1 in
-    lane-a) echo "Agent Bridge Checks Fix Install Tools Digest Watch Eval" ;;
+    lane-a) echo "Agent Bridge Checks Fix Install Tools Digest Watch Eval Channel" ;;
     lane-b) echo "Contract Core Data Demo Live Msg Schedule Web" ;;
     *) return 1 ;;
   esac
 }
 
-# The IRIS groups, in the order of the matrix of .github/workflows/ci.yml (eight since Epic 30's CI step).
-IRIS_GROUPS="install-fresh install-upgrade production browser shards shards-2 image shards-3"
+# The IRIS groups, in the order of the matrix of .github/workflows/ci.yml (eight since Epic 30's CI step, nine since Epic 12's close).
+IRIS_GROUPS="install-fresh install-upgrade production browser shards shards-2 image shards-3 shards-4"
 
 # group_units <group>: the units of a group in the order they run. live:<name> is docker/tests/test-<name>.sh and
 # shard:<name> is a %UnitTest shard. Every docker/tests/test-*.sh is in exactly one of CHECK_SCRIPTS, WEB_SCRIPTS or a group.
@@ -39,7 +39,9 @@ IRIS_GROUPS="install-fresh install-upgrade production browser shards shards-2 im
 # 1,037, and live:audit, 267, which reads no web bundle), browser about 1,580 s, shards about 1,710 s (lane-a's Checks, Install
 # and Watch 654, floor 621, online-session 439), shards-2 about 1,810 s (lane-a's other areas, Eval included, 1,334, and
 # demo-switch 473) and image about 1,660 s. shard:lane-b cannot go to production, whose units read no web bundle, because its Web
-# classes check the built bundle.
+# classes check the built bundle. Story 12.2 (2026-10-31, a runner ruling) made lane-a's Channel area a third piece of lane-a,
+# shard:lane-a@Channel, in production: before the move, on af47ff3c (ci run 41188445340), shards-2 took 31 minutes and production
+# 25. Its classes read no file of the bundle, so the unit is in NO_WEB_BUNDLE_UNITS.
 # Story 11.7 swapped live:online-demo-path and live:install-script-live: the online unit grows by its steps 2 to 5 (the guide's watch
 # and reminder, Break the feed and the approval, one visitor's journey), so it moved from install-fresh to image, and the shorter
 # live:install-script-live moved the other way. From the unit seconds of CI run 41206732188 (Story 11.1's head): install-fresh is
@@ -57,6 +59,10 @@ IRIS_GROUPS="install-fresh install-upgrade production browser shards shards-2 im
 # and Watch 902, online-session 530, cards 402), shards-2 about 1,820 (lane-a's other areas alone; any area added to lane-a later
 # lands here), image about 1,740 (lane-b 1,013, online-demo-path 389, storage-roundtrip 325, build-inputs 13), and shards-3 about
 # 1,890 (floor 734, demo-switch 524, bundle-folder 320, audit 310).
+# Epic 12's close (2026-11-03, an orchestrator ruling, carried to the Contest Planner for main's required checks) added the ninth
+# group shards-4 for shard:lane-a@Channel alone: that unit took 704 s in CI (ci run 41618490851), and on feature run 41612880963 the
+# eight groups' steps took 24 to 31 minutes, so it fitted under 33 minutes in none of them; beside production-restart and
+# reminder-restart it had also met the 40-minute job timeout (DW-591).
 group_units() {
   case $1 in
     install-fresh) echo "live:install-start live:online-demo live:install-script-live" ;;
@@ -67,6 +73,7 @@ group_units() {
     shards-2) echo "shard:lane-a@rest" ;;
     image) echo "live:storage-roundtrip live:build-inputs shard:lane-b live:online-demo-path" ;;
     shards-3) echo "live:floor live:demo-switch live:bundle-folder live:audit" ;;
+    shards-4) echo "shard:lane-a@Channel" ;;
     *) return 1 ;;
   esac
 }
@@ -153,7 +160,7 @@ WEB_BUNDLE_INPUT='web/|logo/|_bmad-output/planning-artifacts/ux-designs/'
 # The units whose checks never read, compare or serve the built web bundle. A group whose units are all listed here does not run on a
 # web-only change; a unit that is not listed counts as checking the bundle. A unit or test class that starts to check the bundle
 # leaves this list (docker/tests/test-ci-config.sh, rule inputs, flags a live script that names the bundle).
-NO_WEB_BUNDLE_UNITS="live:audit live:production live:production-restart live:storage-roundtrip live:reminder-restart live:security-overview"
+NO_WEB_BUNDLE_UNITS="live:audit live:production live:production-restart live:storage-roundtrip live:reminder-restart live:security-overview shard:lane-a@Channel"
 
 # The paths that no IRIS unit reads: documentation and release files, the agent settings, Lane A's workflow, the example environment,
 # the manual recording tool, and the check and web scripts. A changed path that no group pattern claims, that is not here and that is

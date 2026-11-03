@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 11-03-2026 10:31
+last_updated: 11-03-2026 12:43
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -195,14 +195,16 @@ development_status:
   11-19-seeded-check-rows-stay-out-of-the-heartbeat-s-way-unless-a-c: done
   epic-11-retrospective: optional
 
-  epic-12: backlog
-  12-1-telegram-stays-off-without-a-token-and-ci-mocks-the-telegram: backlog
-  12-2-ocutalon-polls-and-writes-to-its-own-bot-and-pauses-when-ano: backlog
-  12-3-the-telegram-card-shows-a-fresh-pairing-code-as-a-qr-code: backlog
-  12-4-a-valid-code-pairs-the-chat-with-the-session: backlog
-  12-5-bad-codes-a-bare-start-command-and-unpairing-get-polite-answ: backlog
-  12-6-chat-and-get-notifications-in-the-paired-telegram-chat: backlog
-  12-7-approve-or-reject-from-telegram-and-every-copy-shows-who-ans: backlog
+  epic-12: done
+  12-1-telegram-stays-off-without-a-token-and-ci-mocks-the-telegram: done
+  12-2-ocutalon-polls-and-writes-to-its-own-bot-and-pauses-when-ano: done
+  12-8-the-page-shows-when-telegram-is-paused-and-when-it-will-try: done
+  12-3-the-telegram-card-shows-a-fresh-pairing-code-as-a-qr-code: done
+  12-4-a-valid-code-pairs-the-chat-with-the-session: done
+  12-5-bad-codes-a-bare-start-command-and-unpairing-get-polite-answ: done
+  12-6-chat-and-get-notifications-in-the-paired-telegram-chat: done
+  12-7-approve-or-reject-from-telegram-and-every-copy-shows-who-ans: done
+  12-9-telegram-is-included: done
   epic-12-retrospective: optional
 
   epic-13: done

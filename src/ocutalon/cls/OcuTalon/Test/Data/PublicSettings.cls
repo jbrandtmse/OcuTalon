@@ -40,7 +40,7 @@ Method OnAfterAllTests() As %Status
 Method TestFixedKeysRoundTrip()
 {
 	Set keys = $ListFromString($Parameter(..#ACCESSOR, "KEYS"))
-	Do $$$AssertEquals($Parameter(..#ACCESSOR, "KEYS"), "onlineDemo,demoUser,demoPassword,readonlyUser,readonlyPassword,resetIntervalHours,resetAnchor,lastReset,lastResetKind,proxyAddress,connectionCap,connectionReserve,messageAllowance", "the fixed keys are the contract's thirteen")
+	Do $$$AssertEquals($Parameter(..#ACCESSOR, "KEYS"), "onlineDemo,demoUser,demoPassword,readonlyUser,readonlyPassword,resetIntervalHours,resetAnchor,lastReset,lastResetKind,proxyAddress,connectionCap,connectionReserve,messageAllowance,telegramIncluded", "the fixed keys are the contract's fourteen")
 	Set position = 0
 	While $ListNext(keys, position, key) {
 		Do $$$AssertStatusOK($ClassMethod(..#ACCESSOR, "Set", key, "value of "_key), "Set "_key)

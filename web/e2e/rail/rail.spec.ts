@@ -72,7 +72,12 @@ const iso = (instant: number, offsetMs = 0): string => new Date(instant + offset
 
 const rail = (page: Page): Locator => page.getByRole('region', { name: 'Status', exact: true });
 const rowOf = (page: Page, marker: string): Locator => rail(page).locator('li.row').filter({ hasText: marker });
-const headings = (page: Page): Locator => rail(page).getByRole('heading', { level: 3 });
+/** Every section heading of the rail: the Telegram section first, then the four lists. */
+const sections = (page: Page): Locator => rail(page).getByRole('heading', { level: 3 });
+/** The headings of the four lists, in order: the Telegram section's heading is left out, so the positions do not move. */
+const headings = (page: Page): Locator => sections(page).filter({ hasNotText: /^Telegram$/ });
+/** The heading of the approval requests, selected by its name. */
+const approvals = (page: Page, count: number): Locator => rail(page).getByRole('heading', { level: 3, name: `Approval requests, ${count}`, exact: true });
 const mainOf = (page: Page): Locator => page.locator('main.main');
 
 /**
@@ -100,19 +105,22 @@ test('R1: the rail is the region Status with its sections in order, live counts,
   await open(page);
   const status = rail(page);
   await expect(status, 'the rail is the region Status').toHaveCount(1);
-  await expect(headings(page), 'four sections, no Telegram').toHaveCount(4);
-  const spoken = ['Approval requests, 0', 'Background checks, 0', 'Reminders, 0', 'Recent decisions, 0'];
+  await expect(sections(page), 'five sections, Telegram first').toHaveCount(5);
+  await expect(headings(page), 'and the four lists after it').toHaveCount(4);
+  const spoken = ['Telegram', 'Approval requests, 0', 'Background checks, 0', 'Reminders, 0', 'Recent decisions, 0'];
   for (const [i, name] of spoken.entries()) {
-    await expect(headings(page).nth(i), `heading ${i + 1} is named "${name}"`).toHaveAccessibleName(name);
+    await expect(sections(page).nth(i), `heading ${i + 1} is named "${name}"`).toHaveAccessibleName(name);
   }
-  await expect(status.locator('h3 > [aria-hidden="true"]'), 'the visible headings carry the counts').toHaveText([
+  await expect(status.locator('h3 > [aria-hidden="true"]'), 'the visible headings of the lists carry the counts').toHaveText([
     'Approval requests (0)',
     'Background checks (0)',
     'Reminders (0)',
     'Recent decisions (0)',
   ]);
-  await expect(status.getByRole('heading', { name: 'Telegram' }), 'no Telegram section').toHaveCount(0);
-  await expect(status.getByRole('link'), 'and no README link').toHaveCount(0);
+  await expect(status.locator('app-telegram-card'), 'the Telegram card says it is not set up').toContainText('Telegram not set up');
+  const setUp = status.getByRole('link', { name: 'How to set it up (opens in a new tab)', exact: true });
+  await expect(status.getByRole('link'), 'and holds the one README link').toHaveCount(1);
+  await expect(setUp, 'which opens the README\'s Telegram section').toHaveAttribute('href', /#telegram$/);
   await expect(status.locator('.empty'), 'each list shows its empty text').toHaveText([
     'None waiting.',
     'Nothing yet. Step 1 of the guide sets up a watch.',
@@ -124,7 +132,7 @@ test('R1: the rail is the region Status with its sections in order, live counts,
     'To cancel, ask: "Cancel my reminder to stretch."',
   ]);
   await expect(status.locator(LIVE_REGIONS), 'the rail has no live region').toHaveCount(0);
-  await expect(status.locator('h3[tabindex="-1"]'), 'each heading can take focus').toHaveCount(4);
+  await expect(status.locator('h3[tabindex="-1"]'), 'each heading can take focus').toHaveCount(5);
 
   await page.setViewportSize({ width: 1280, height: 720 });
   expect((await page.locator('section.rail').boundingBox())!.width, 'the rail is 288px wide at 1280px').toBe(288);
@@ -144,7 +152,7 @@ test('R2: an approval request shows its action, its times and the attention bar'
     refs.push(await seedApproval(user, { raisedAt: iso(noon), expiresAt: iso(noon, 86_400_000), dryRun: { affected: 1, itemNoun: { one: 'order', other: 'orders' } } }));
     await open(page);
     const rows = rail(page).locator('li.row.request');
-    await expect(headings(page).first(), 'two pending requests').toHaveAccessibleName('Approval requests, 2');
+    await expect(approvals(page, 2), 'two pending requests').toBeVisible();
     await expect(rows.locator('.title'), 'each names its action, the noun by the count, oldest first').toHaveText(['Repair and resend 50 orders', 'Repair and resend 1 order']);
     await expect(rows.locator('.meta'), 'with when it was raised and when it expires').toHaveText([
       `Raised 11:59${DOT}expires tomorrow at 11:59`,
@@ -165,7 +173,7 @@ test('R3: a raised request appears, and an answered, expired or cancelled one le
   const refs: string[] = [];
   try {
     await open(page);
-    await expect(headings(page).first()).toHaveAccessibleName('Approval requests, 0');
+    await expect(approvals(page, 0)).toBeVisible();
     const cases = [
       ['approved', 'approval.answered'],
       ['expired', 'approval.expired'],
@@ -178,12 +186,12 @@ test('R3: a raised request appears, and an answered, expired or cancelled one le
       await applied(page, await sinkEvent(user, 'approval.raised', { ref }));
       await expect(rowOf(page, tool), `a raised request appears (${state})`).toHaveCount(1, { timeout: ONE_UPDATE_MS });
       await expect(rowOf(page, tool).locator('.title'), 'as the tool it runs').toHaveText(`Run ${tool}`);
-      await expect(headings(page).first(), 'and the count counts it').toHaveAccessibleName('Approval requests, 1', { timeout: ONE_UPDATE_MS });
+      await expect(approvals(page, 1), 'and the count counts it').toBeVisible({ timeout: ONE_UPDATE_MS });
 
       await setApprovalState(ref, state);
       await applied(page, await sinkEvent(user, type, { ref }));
       await expect(rowOf(page, tool), `the ${state} request leaves`).toHaveCount(0, { timeout: ONE_UPDATE_MS });
-      await expect(headings(page).first(), 'and the count drops').toHaveAccessibleName('Approval requests, 0', { timeout: ONE_UPDATE_MS });
+      await expect(approvals(page, 0), 'and the count drops').toBeVisible({ timeout: ONE_UPDATE_MS });
     }
   } finally {
     await cleanFixtureRows(refs);
@@ -200,12 +208,12 @@ test('R4: an instance incident\'s request reaches the session that watches its p
     refs.push(await seedCheck(user, { production, displayName: unique('R4 watch') }));
     refs.push(await seedIncident('instance', { production }));
     await open(page);
-    await expect(headings(page).first(), 'no request is waiting before the event').toHaveAccessibleName('Approval requests, 0');
+    await expect(approvals(page, 0), 'no request is waiting before the event').toBeVisible();
     const request = await seedApproval(user, { kind: 'tool_call', toolName: tool, dryRun: null, incidentRef: refs[1] }, 'instance');
     refs.push(request);
     await applied(page, await sinkEvent(user, 'approval.raised', { ref: request }, 'instance'));
     await expect(rowOf(page, tool), 'the instance request shows as a row').toHaveCount(1, { timeout: ONE_UPDATE_MS });
-    await expect(headings(page).first()).toHaveAccessibleName('Approval requests, 1', { timeout: ONE_UPDATE_MS });
+    await expect(approvals(page, 1)).toBeVisible({ timeout: ONE_UPDATE_MS });
   } finally {
     await cleanFixtureRows(refs);
   }
@@ -444,7 +452,7 @@ test('R10: after live events the rail holds what a reload shows', async ({ page 
     refs.push(decided);
     await applied(page, await sinkEvent(user, 'decision.recorded', { ref: decided }));
 
-    await expect(headings(page).first(), 'the live rail holds two requests').toHaveAccessibleName('Approval requests, 2', { timeout: ONE_UPDATE_MS });
+    await expect(approvals(page, 2), 'the live rail holds two requests').toBeVisible({ timeout: ONE_UPDATE_MS });
     await expect(headings(page).nth(3), 'and four decisions').toHaveAccessibleName('Recent decisions, 4', { timeout: ONE_UPDATE_MS });
     const live = plain(await rail(page).innerText());
     expect(live, 'the departed request is gone').not.toContain(tools.leaving);
@@ -467,9 +475,9 @@ test('R11: with Telegram included, the first section is the Telegram card with i
     before = await setTelegramIncluded(1);
     await open(page);
     const status = rail(page);
-    await expect(headings(page).first(), 'the first section is Telegram, with no count').toHaveText('Telegram');
-    await expect(headings(page).first().locator('[aria-hidden="true"]'), 'the Telegram heading has no count').toHaveCount(0);
-    await expect(headings(page), 'then the four lists').toHaveCount(5);
+    await expect(sections(page).first(), 'the first section is Telegram, with no count').toHaveText('Telegram');
+    await expect(sections(page).first().locator('[aria-hidden="true"]'), 'the Telegram heading has no count').toHaveCount(0);
+    await expect(sections(page), 'then the four lists').toHaveCount(5);
     await expect(status.locator('app-telegram-card'), 'the card says it is not set up').toContainText('Telegram not set up');
     const link = status.getByRole('link', { name: 'How to set it up (opens in a new tab)', exact: true });
     await expect(link, 'with a link to set it up').toHaveCount(1);
@@ -487,7 +495,7 @@ test('R11: with Telegram included, the first section is the Telegram card with i
       });
       await page.reload();
       await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
-      await expect(headings(page).first(), `with the state ${state} the first section is still Telegram`).toHaveText('Telegram');
+      await expect(sections(page).first(), `with the state ${state} the first section is still Telegram`).toHaveText('Telegram');
       await expect(status.locator('app-telegram-card'), `state ${state}: the card ${setUp ? 'shows nothing yet' : 'says it is not set up'}`).toHaveText(setUp ? '' : /^Telegram not set up\s*How to set it up/);
       await expect(link, `state ${state}: the link ${setUp ? 'is not there' : 'is there'}`).toHaveCount(setUp ? 0 : 1);
     }
