@@ -58,3 +58,7 @@
 2026-11-04T12:18:30Z	Story 39.3	spec_rechecked	check=U-268_AD-1_AD-14_additions method=read result=clear why=submits_no_command;AD-14_cited_for_Item_Intake_Decision_only;delivers_nothing;digest_decision_only_copied_to_LastOutcome model=claude-opus-5-5
 2026-11-04T12:33:08Z	Story 39.1	ci_resolved	story=39.1 sha=b50f3add runs=41823780966,41823781098 result=success failed=none via=none resolved_at=next_plan ci_queue=17 note=max_job_queue_iris_shards_17min_over_15;groups_run=true_nine_of_nine
 2026-11-04T12:34:01Z	Story 39.3	stage_spawned	stage=implement spawn_at=2026-11-04T12:34:01Z model=sonnet agent_name=39-3-implement-1 cycle_iteration=1 story_base=f31ca84a
+2026-11-04T13:56:26Z	Story 39.3	dev_complete	spawn_at=2026-11-04T12:34:01Z model=sonnet build_sha=ccaa74bc baseline_revision=15ff20a5 story_base=f31ca84a review_loop_iteration=0 followup_review_recommended=true deferred=0 files=6 loc_added=1302 loc_removed=80 nfr_tripwires=0 adr_violations_surfaced=0 cycle_iteration=1
+2026-11-04T13:56:26Z	Story 39.3	report_error	fault=lead field=implement_stage_prompt reported=stage_and_project_blocks_pasted actual=owner_fixed_list_and_project_block_passed_as_file_references_with_key_lines impact=none_stage_read_them note=pasted_in_full_from_qa_on
+2026-11-04T13:56:26Z	Story 39.3	adr_verifications_complete	tool=none acs=none result=none_required evidence=none mutations=none model=claude-opus-5-5
+2026-11-04T13:56:26Z	Story 39.3	stage_spawned	stage=qa spawn_at=2026-11-04T13:56:26Z model=sonnet agent_name=39-3-qa-1 cycle_iteration=1
