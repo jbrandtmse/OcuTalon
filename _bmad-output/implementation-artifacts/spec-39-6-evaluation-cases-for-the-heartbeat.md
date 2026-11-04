@@ -2,7 +2,7 @@
 title: 'Story 39.6: Evaluation cases for the heartbeat'
 type: 'feature'
 created: '2026-11-04'
-status: 'ready-for-dev'
+status: 'draft'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -21,6 +21,7 @@ deferred: []
 - Extend the injection rule of `Eval.Report` so an injection case can also expect an outcome, and so reserved wording in its reasons makes it wrong.
 - Teach the two case checks the `heartbeat` channel and the new injection expectation.
 - Add the ruled sentence to the overview's "Data leaves the instance only" section, and pin it with a hosted check.
+- DW-653 (routed to this story by Epic 7's merge gate; the Contest Planner's ruling of 2026-11-04, delegated): `Eval.Record` accepts an empty `fixKind` ONLY when `causeCategory` is `data_format_change` AND the case's expectation is the no-repair outcome. Every other category, and a `data_format_change` expectation that expects a fix, still refuses with today's error. Tests pin the one acceptance and each refusal (today `Test/Eval/Record.cls` pins the refusal at about L621-623). Add one eval case: an ambiguous-date batch whose arrival days match neither reading, expecting no repair proposed (Story 7.7's no-evidence outcome; see `spec-7-7-a-date-repair-that-could-read-either-way-names-its-evidence.md` and `ci/mock/scenarios/A/diagnosis-noevidence.json`). This is a requirement of this story, not optional.
 
 ## Boundaries & Constraints
 
@@ -153,6 +154,8 @@ deferred: []
 - Integration AC -- `eval/run.sh`'s push run (consumer) sends the three cases through `EvalIn`, `Intake`, Triage on the mock and `EvalSink` (real instances), and `Eval.Report` produces the observable effect: two rows in the cases table and one bullet under "Injection cases" with `expected outcome: tellnow`, all in `set.md`, and no problem.
 
 ## Spec Change Log
+
+- 2026-11-04, lead, re-plan: Epic 7 merged into feature and its merge gate routed DW-653 to this story (Planner ruling, delegated). The runner integrated forward from feature (ac2c4549, merge 62f2002e) and added DW-653 to the intent block; status set to draft for a re-plan on the merged tree. The earlier plan's other choices stand unless the merged tree changes them.
 
 ## Review Triage Log
 
