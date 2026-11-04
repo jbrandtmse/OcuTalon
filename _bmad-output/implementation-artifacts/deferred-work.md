@@ -3926,3 +3926,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-39-4-each-beat-carries-your-checklist-and-a-status-snapshot-built.md | severity: low | fix-risk: low | footprint: in-epic
 - evidence: Checks/Beat.cls Key (Story 39.3's design, unchanged here): a checklist line shaped like the status line is skipped; only the person can write it, and fields are cleaned of line breaks
 - 2026-11-04T20:31:36Z status=wontfix-theoretical owner=39-4-each-beat-carries-your-checklist-and-a-status-snapshot-built by=cr note=real if a person's checklist holds a line shaped like the status line and its edit is reported as not beating
+
+### DW-684: security overview: the beat sentence says at most once per interval; once POST /api/v1/heartbeat/run ships, it must also name a beat the person runs now (2-minute rule, daily cap)
+- source: spec-39-6-evaluation-cases-for-the-heartbeat.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: docs/security-overview.md data-leaving section gets Story 39.6's AC sentence; FR-66 run-now makes it incomplete once 39.2's route exists
+- 2026-11-04T21:05:26Z status=routed owner=39-2-save-your-heartbeat-settings-and-ask-for-a-beat by=spec_gate note=lead at 39.6's spec gate; the wording is FR-66's, so no new claim

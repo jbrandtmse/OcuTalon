@@ -8405,6 +8405,8 @@ So that OcuTalon checks what I care about, when I want, and nobody else's settin
 **When** `SessionOps.End` runs
 **Then** it deletes the session's `person.<SessionRef>.heartbeat.*` keys (AD-4, AD-19)
 
+- DW-684: security overview: the beat sentence says at most once per interval; once POST /api/v1/heartbeat/run ships, it must also name a beat the person runs now (2-minute rule, daily cap) (ledger; routed by spec_gate 2026-11-04)
+
 ### Story 39.3: Beats fall due on the tick, and skip without a model call when they should
 
 *Home lane: A.*
