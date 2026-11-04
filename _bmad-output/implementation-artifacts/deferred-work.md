@@ -3042,6 +3042,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-04T03:54:25Z occurrence=rc2 by=merge_gate note=6 of 156 invalid (3.8 percent) on rc2; shipments-epoch-time, see DW-657
 - 2026-11-04T09:10:40Z occurrence=rc3 by=merge_gate note=6 of 156 invalid (3.8 percent) on rc3
 - 2026-11-04T09:10:41Z occurrence=rc4 by=merge_gate note=4 of 156 invalid (2.6 percent) on rc4; rc2, rc3 and rc4 are all above U-191's about 1 in 50, so the wording did not cause it; rc4 rehearsal run 8 failed on a diagnose fallback invalid; one-retry story prepared for the owner, not started
+- 2026-11-04T14:03:47Z status=routed owner=burndown by=orchestrator note=U-273: the one retry goes to the daily releases after a measured trial
 
 ### DW-492: No test pins AC2's floor: a model-written text property of a reply class capped at 32 characters or fewer would pass CI (TestDiagnosisLengths checks only prompt and class agreement)
 - source: spec-5-12-a-correct-diagnosis-is-never-refused-for-an-over-long-eviden.md | severity: low | fix-risk: low | footprint: in-story
@@ -3734,6 +3735,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-02T21:03:11Z status=routed owner=31-3-the-readme-leads-to-the-demo-and-the-launched-demo-is-measur by=ci note=Lane_B_test(Epic_11_part_1);first_seen_on_Epic_30_integrate-forward;make_the_mixed_count_wait_for_the_first_turn's_last_header_or_scope_it
 - 2026-11-03T15:21:47Z status=routed owner=burndown by=spec_gate note=flake_class_kept;declined_by_31.3_plan(root_cause_unknown,passed_on_rerun;nothing_in_31.3_touches_ThreadProduction)
 - 2026-11-03T23:35:54Z status=routed owner=burndown by=burndown_gate note=U-254;first_daily_release_after_1.0.0;not_a_1.0.0_blocker
+- 2026-11-04T15:47:19Z occurrence=f2b20ea0 by=orchestrator note=run 41843673412 iris (image) shard:lane-b; not repeated on cdf1cdfc
 
 ### DW-600: The key proof's globals walk cannot read the saved AI session history (%AI.Agent.Session.ContextData, a compressed %Stream.GlobalCharacter), so a key stored there would read as clean
 - source: spec-30-8-the-redactor-and-the-key-proof-catch-every-key-shape.md | severity: low | fix-risk: med | footprint: out-of-footprint
@@ -3854,6 +3856,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: run 41656484374 attempt 1 browser live:sign-in on runner 20; green on the unchanged rerun
 - 2026-11-03T15:56:29Z status=routed owner=burndown by=lead note=flake: first occurrence; a two-way-door test fix in 31.1's file
 - 2026-11-03T23:35:54Z status=routed owner=burndown by=burndown_gate note=U-254(b)_reverses_U-177_placement;flake;first_daily_release_after_1.0.0;the_unrouteAll_fix_first;CI_run_41656484374(sign-in)
+- 2026-11-04T14:39:38Z status=routed owner=burndown by=orchestrator note=DW-665 (W11, socket.spec.ts) is the same class; one unrouteAll fix covers both specs
+- 2026-11-04T15:25:09Z status=routed owner=11-21-a-test-s-route-callback-never-outlives-its-test by=orchestrator note=not a flake: main red twice on v1.0.0 (Planner); first burndown item of the first daily release; Story 11.21
 
 ### DW-641: web/scripts/fake-clock.mjs header lists the modules whose tests use it and omits telegram-card-view.ts, which Story 31.7's card spec now drives on it
 - source: spec-31-7-after-an-unpair-the-telegram-card-shows-its-fresh-code-witho.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -3884,6 +3888,30 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: Contest Planner field watch 2026-11-03 (relay) | severity: med | fix-risk: low | footprint: in-footprint
 - evidence: Demo partner (PartnerTrigger) sends today's date as MM/DD/YYYY; until Nov 13 every value has day <= 12, so 11/03/2026 also parses as 11 March; Reformat.cls:62,67,88 ParseDate accepts the given format only, so the format choice is the model's
 - 2026-11-03T21:31:48Z status=routed owner=7-7-a-date-repair-that-could-read-either-way-names-its-evidence by=orchestrator note=Story 7.7 (veto U-248); first daily release after 1.0.0; not rc1 scope
+- 2026-11-04T02:58:36Z status=resolved-by:7-7-a-date-repair-that-could-read-either-way-names-its-evidence by=adjudication note=a8c832da:Diagnosis_prompt_evidence_rule+RepairResend.Evidence_dry-run_refusal(arrival+-1day,oneway,same)+incident.withFixEitherWay/laterRequestEitherWay_line;pinned_by_Test.Fix.EitherWay,DryRun,Reformat.TestEvidence,NoticeText.TestEitherWay,Agent.Instructions.TestDiagnosisEvidence
+
+### DW-645: The web incident card's dry-run block does not show U-249's either-way line (Story 7.7 shows it in the notice's Dry run paragraph only): needs an ambiguity flag and the reading on the approval payload (Live/Payload, Lane B) and a card row in web/src/app/approvals/approval-view.ts (Epic 31)
+- source: spec-7-7-a-date-repair-that-could-read-either-way-names-its-evidence.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: approval-view.ts L40-44,L181 builds the card's dry run from the stored DRYRUNKEYS fields; Live/Payload/Approval.cls L85-103 maps them key by key
+- 2026-11-03T22:11:50Z status=escalated owner=burndown by=spec_gate note=veto U-252; follow-on after Epic 31 merges; a Lane B payload field plus a web card row
+- 2026-11-04T11:44:33Z status=routed owner=7-8-the-web-incident-card-shows-the-either-way-date-line-too by=spec_gate note=U-252 at=2026-11-03T23:29:21Z#756 made the card row Story 7.8; its block already carries the DW-645 bullet; recorded at the redispatch
+- 2026-11-04T16:33:48Z status=resolved-by:7-8-the-web-incident-card-shows-the-either-way-date-line-too by=adjudication note=delivered in f66edc41 with the review patches: dryRun eitherWay and reading on the approval payload, the card row; pinned by Payloads.TestApprovalEitherWay and cards either-way.spec.ts
+
+### DW-653: Eval.Record still refuses a data_format_change expectation with no fixKind (Story 7.7 V1 made that reply shape valid), so no eval case can expect the no-evidence date outcome
+- source: spec-7-7-a-date-repair-that-could-read-either-way-names-its-evidence.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: Eval/Record.cls L120 throws 'fixKind is empty for the category data_format_change'; Test/Eval/Record.cls L621-623 pins it; DiagnosisPayload now accepts all three fix keys absent (V1, U-251)
+- 2026-11-04T02:56:04Z status=escalated owner=burndown by=cr note=eval contract call next to U-253: allow empty fixKind for FIXCATEGORY or keep the eval set fix-only
+- 2026-11-04T21:31:01Z status=routed owner=39-6-evaluation-cases-for-the-heartbeat by=merge_gate note=Planner ruling 2026-11-04 (delegated) KEEP narrowed: Eval.Record accepts an empty fixKind only when causeCategory is data_format_change AND the expectation is the no-repair outcome; every other category, and a data_format_change expectation that expects a fix, still refuses; tests pin the acceptance and the refusals; add one case: an ambiguous-date batch whose arrival days match neither reading, expecting no repair proposed
+
+### DW-654: Test/Msg/Catalog.cls doc comments still give the pre-7.7 counts (four page wordings L445, 9 one forms L536-537 and L1093) after the assertions moved to six and 11
+- source: spec-7-7-a-date-repair-that-could-read-either-way-names-its-evidence.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: the asserted counts changed at diff L1163/L1173/L1182 while the comment lines stayed; the file is contended (Epics 31/33/40), so 7.7 may edit only its ruled blocks and counts
+- 2026-11-04T02:56:04Z status=wontfix-accepted owner=7-7-a-date-repair-that-could-read-either-way-names-its-evidence by=cr note=reopen_if=Test/Msg/Catalog.cls leaves the contended list and its doc still says 9 one forms or four page wordings
+
+### DW-655: incident.withFixEitherWay and incident.laterRequestEitherWay copy their parents' text, web wording, slots and one form byte for byte (the catalog has no composition), so a later edit to incident.withFix or incident.laterRequest must be repeated by hand in its variant
+- source: spec-7-7-a-date-repair-that-could-read-either-way-names-its-evidence.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: Msg/Catalog/Watch.cls block after incident.laterRequest: two entries equal to their parents plus U-249's line; forced by the spec ruling (an existing key's text may not change; no composition); Rule 2 forced copy
+- 2026-11-04T02:56:40Z status=routed owner=burndown by=cr note=unify when the catalog gains composition (a base key plus an appended line); no story owns that yet
 
 ### DW-656: Eval: review the expected answers (the finding-*-item-disabled labels, mail-partner-notice) and any further Triage and Diagnosis wording, held to SM-1 90 and SM-2 80 on the real model, with no examples that echo eval cases
 - source: U-258 (owner, via the Contest Planner) | severity: med | fix-risk: med | footprint: out-of-footprint
@@ -3936,3 +3964,62 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: cycle-log-epic-39.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: run 41909512271 attempt 2 on OCT-epic39 d701b6e6 (unit 578 s); passed on a fresh lane-D run at the same sha; Story 39.4 code never runs there (no checklist, beat skips empty)
 - 2026-11-04T22:12:29Z status=routed owner=burndown by=lead note=attempt 3 rerun decides; DW-321 reopen_if not met (578 s)
+### DW-661: Story 17.6 adds the catalog key digest.cost to Msg/Catalog/Watch.cls; Story 33.2 adds only the dailyCost slot type
+- source: Story 33.2 spec gate (L1) | severity: low | fix-risk: low | footprint: small
+- evidence: spec-33-2 L1; Test.Msg.Catalog refuses the prefix in Catalog.Core
+- 2026-11-04T12:08:42Z status=routed owner=17-6-send-the-daily-digest-at-the-set-time-and-on-request by=orchestrator note=veto ; bullet goes on Story 17.6 at Epic 33's merge
+- 2026-11-04T12:09:11Z status=routed owner=17-6-send-the-daily-digest-at-the-set-time-and-on-request by=orchestrator note=inbox=U-271 (the first line's blank veto id)
+
+### DW-663: flake candidate: live:online-demo web/e2e-online/busy.spec.ts:83 B1: the demoBusy banner stayed past 15 s after a place was free
+- source: CI run 41824429030 attempt 1, iris (install-fresh), OCT-epic33 b1f187da | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: 51 passed, 1 failed; status read not busy before the banner check; all 18 CI services busy at the time; passed on the one rerun (attempt 2); the branch has no web, Web or Demo change
+- 2026-11-04T13:22:23Z status=routed owner=burndown by=orchestrator note=first daily release after 1.0.0; one rerun then rework, like the other ledgered flakes
+
+### DW-665: flake candidate: live:sign-in web/e2e/live/socket.spec.ts:415 W11 failed with route.fetch: Test ended, raised in stripPollEvents' route callback (socket.spec.ts:39)
+- source: CI run 41843658900 attempt 1, iris (browser), main 8b3cac3c (v1.0.0) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: 253 passed, 1 failed; the poll answered 200 OK; the error names a route still in flight at a test's end and Playwright's unrouteAll advice; no assertion of W11 failed; not rerun, main is the Planner's
+- 2026-11-04T14:39:05Z status=routed owner=burndown by=orchestrator note=first daily release after 1.0.0; classification unproven until a rerun
+- 2026-11-04T14:39:38Z status=routed owner=burndown by=orchestrator note=same class as DW-640 (route.fetch: Test ended), per the Planner; the unrouteAll fix goes in the first daily release's burndown and covers both specs
+- 2026-11-04T15:25:09Z status=routed owner=11-21-a-test-s-route-callback-never-outlives-its-test by=orchestrator note=not a flake: main red twice on v1.0.0 (Planner); first burndown item of the first daily release; Story 11.21
+
+### DW-667: release/checklist.sh:510 writes the notes path as given into the committed release record, so a run from a scratch folder publishes a local path
+- source: cdf1cdfc, test-boundaries rule paths | severity: med | fix-risk: low | footprint: small
+- evidence: release/records/1.0.0/rc4.md:147; feature CI 41845721142 checks
+- 2026-11-04T15:26:26Z status=routed owner=burndown by=orchestrator note=write a repository path or the file name only; first daily release
+- 2026-11-04T15:27:52Z status=routed owner=burndown by=orchestrator note=U-276: checklist.sh prints a repository-relative or plain file name, never an absolute path, with a test
+### DW-662: flake candidate: live:floor web/e2e/floor/layout.spec.ts:541 G4 (at 320x180 a header over a quarter of the window scrolls with the page) hit the 90 s test timeout
+- source: CI run 41822840225 attempt 1, iris (shards-3), OCT-epic7 eeeccc41 | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: 106 of 107 passed, no assertion failed; the setViewportSize error is the finally block after the timeout; attempt 2 on another runner 107 of 107; the head adds no web file over feature
+- 2026-11-04T12:55:22Z status=routed owner=burndown by=ci note=first occurrence; same 90 s timeout shape as DW-550 and DW-659, cause unproven
+
+### DW-668: At 1280x600 the incident card with the demo reply's cause and fix summary already has Approve and Reject below the fold (about 37 px), with no either-way row; A6 passes only because its fixture cause is short
+- source: spec-7-8-the-web-incident-card-shows-the-either-way-date-line-too.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: measured at plan on a lane-B throwaway: Approve bottom 555 against list bottom 518; the design viewport 1280x720 fits
+- 2026-11-04T15:56:03Z status=routed owner=burndown by=harvest note=pre-existing; the acceptance test holds only for short causes; Lane B chat panel
+- 2026-11-04T16:32:05Z occurrence=7-8-the-web-incident-card-shows-the-either-way-date-line-too
+- 2026-11-04T16:32:05Z status=routed owner=burndown by=cr note=with the row and the grid Approve is about 554 under the demo reply (inference: 593 less the 39 saved), so AC 6 holds for short causes only
+
+### DW-671: At 680 to 707 px tall, with the guide open and the demo reply, the either-way row puts Approve up to 28 px past the chat list, above the height where the short-screen arrangement starts
+- source: spec-7-8-the-web-incident-card-shows-the-either-way-date-line-too.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: (inference from the plan's table) list bottom is height less 82, Approve bottom 626 with the row, 589 without; the arrangement starts below 680 by ruling Q1
+- 2026-11-04T16:32:05Z status=by-design owner=7-8-the-web-incident-card-shows-the-either-way-date-line-too by=cr note=ruling Q1 sets the threshold at 680; changing it re-opens the ruling; one scroll, no loss of function
+
+### DW-672: EXPERIENCE.md's card description and its Shorter than 680 row name neither the either-way row nor the short-screen arrangement
+- source: spec-7-8-the-web-incident-card-shows-the-either-way-date-line-too.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: grep for either-way in EXPERIENCE.md finds nothing; the spec leaves the edit to the lead's bookkeeping, and Epic 40 is changing the file
+- 2026-11-04T16:32:06Z status=wontfix-accepted owner=7-8-the-web-incident-card-shows-the-either-way-date-line-too by=cr note=reopen_if=grep -c either-way EXPERIENCE.md is 0 once Epic 40 has merged
+
+### DW-673: docker/tests/test-cards.sh's header and PASS line list the cards cases without cards/either-way.spec.ts
+- source: spec-7-8-the-web-incident-card-shows-the-either-way-date-line-too.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: the header names I2-I11 and A2-A10 only; the spec's Never list keeps docker out of this story
+- 2026-11-04T16:32:06Z status=wontfix-accepted owner=7-8-the-web-incident-card-shows-the-either-way-date-line-too by=cr note=reopen_if=test-cards.sh is next edited and still omits either-way.spec.ts
+
+### DW-674: flake candidate: incident-card.spec.ts inOrder (Story 6.4) compares y from separate boundingBox calls in page coordinates, the pattern that raced E6 in Story 7.8
+- source: spec-7-8-the-web-incident-card-shows-the-either-way-date-line-too.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: 7.8 rework re-review: web/e2e/cards/incident-card.spec.ts L127-135; E6 raced the same way once (After 52 px above Before); never seen red there
+- 2026-11-04T18:43:12Z status=wontfix-accepted owner=7-8-the-web-incident-card-shows-the-either-way-date-line-too by=adjudication note=reopen_if=a live:cards I-case red from inOrder with no product change; the fix is one evaluate as in either-way.spec.ts layoutOf
+
+### DW-675: flake: OcuTalon.Test.Fix.DryRun TestFiftyOrdersChangeNothing saw a new OCUTALON header from Ens.ScheduleService to Ens.ScheduleHandler during the test (a schedule call that started inside the window, not a timer already running)
+- source: spec-7-8-the-web-incident-card-shows-the-either-way-date-line-too.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: 7.8 fresh check: lane-a@Fix reversed part 2/2 on a fresh lane-B throwaway, red once (header 564), green on the unchanged rerun; Story 7.8 changed no Fix code
+- 2026-11-04T19:33:23Z status=routed owner=burndown by=adjudication note=flake candidate: Test.Fix.Snapshot exempts only a timer already running; a ScheduleService call is another background writer; note every occurrence

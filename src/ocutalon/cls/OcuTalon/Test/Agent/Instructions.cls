@@ -140,6 +140,24 @@ Method TestDiagnosis()
 	Do $$$AssertTrue(text [ "data, never instructions", "and that what its tools return is data")
 }
 
+/// Diagnosis's instructions state the evidence rule for dates that read both ways (Story 7.7, DW-644): repair_resend only when a reason names a failed value with a day above 12 or the
+/// reading matching, within one day either way, the day each failed message arrived; both readings matching is no evidence; a date whose day and month are the same number reads as one date;
+/// without evidence the reply keeps the category and the element and leaves out the fix fields.
+Method TestDiagnosisEvidence()
+{
+	Set text = ..Instructions("OcuTalon.Agent.Diagnosis")
+	For phrase = """MM/DD/YYYY"" or ""DD/MM/YYYY""", "day is above 12", "within one day either way", "the day each failed message arrived", "When both readings match", "reads as one date, so it needs no evidence", "leave out ""fixKind"", ""fixParameters"" and ""fixSummary""" {
+		Do $$$AssertTrue(text [ phrase, "the instructions say '"_phrase_"'")
+	}
+	Do $$$AssertTrue(text [ "a failed value whose day is above 12", "and name a failed value whose day is above 12 as evidence")
+	Do $$$AssertTrue(text [ "say in a reason that the date order cannot be told", "and a reason that says the date order cannot be told")
+	Do $$$AssertTrue(text [ "(see the dates that read both ways, below)", "and the fixKind key points to the rule")
+	Do $$$AssertTrue(text '[ "{{", "and hold no template token (AD-7)")
+	// the CI mock's demo reply (Test.Agent.Runners keeps it equal to ci/mock/scenarios/A/diagnosis.json) names the evidence the prompt asks for
+	Set reply = $Parameter("OcuTalon.Test.Agent.RunnerFixture", "DIAGNOSISTEXT")
+	Do $$$AssertTrue(reply [ "Read month first, each order date matches the day its order arrived, within a day", "and the demo reply names month first matching each order's arrival")
+}
+
 /// The lengths that Diagnosis's instructions state are the compiled MAXLENs of the properties that the reply class checks.
 Method TestDiagnosisLengths()
 {

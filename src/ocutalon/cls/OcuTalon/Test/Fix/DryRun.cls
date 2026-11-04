@@ -10,6 +10,15 @@
 ///     request's session; and the mock logged no request;
 ///   - TestLeftOutAndScope: of six failed orders of the scope, two do not read in the source format and are left out; a failed order of another scope and a header that
 ///     was delivered are not counted; the example is the lowest target;
+///   - TestEitherWayWithArrival (Story 7.7, DW-644): three failed orders dated 11/03/2026, each of whose headers arrived on November 3, read both ways and match the source
+///     reading's day: the dry run is worked out, with all three as targets, the example 11/03/2026 and exactly the keys of DRYRUNKEYS;
+///   - TestOneWayIsTheExample: a day above 12 among values that read both ways is evidence of its own (the arrivals match nothing), and its value is the example, not the first
+///     target; with no such value the example is the first target whose readings differ, not a first value that reads as one date;
+///   - TestNoEvidenceIsRefused: three orders dated 03/05/2026 that arrived on November 4 read both ways with nothing to choose: the dry run is refused with the reason that says so,
+///     and no targets and no dry run;
+///   - TestBothReadingsMatch (Q1): three orders dated 11/11/2026 that arrived on November 11 read as one date whichever way: accepted, all three targets;
+///     then (U-250, Condition 1) the third is dated 11/03/2026 and arrived at 02:00 UTC on November 4, so it matches month first through the one-day tolerance only: the mixed set
+///     is accepted too, all three targets, and its example is the value whose readings differ;
 ///   - TestTargetsAscendAcrossGroups: the keys of the incident's groups are descending and overlap, and one order is only in the second group: every group is read,
 ///     the targets are still ascending, and an order of two groups is counted once;
 ///   - TestAskedWindow (Story 7.6; AC 1): 5 failed orders in one group's Seen with the marks of an ask: a window from the 2nd key to the 4th holds the 3rd and 4th
@@ -166,7 +175,7 @@ Method TestLeftOutAndScope()
 	Set second = $Piece(scoped, ",", 2)
 	Set fourth = $Piece(scoped, ",", 4)
 	Do $$$AssertStatusOK(..SetOrderDate(first, "2026/10/16"), "the first order's date is in another format")
-	Do $$$AssertStatusOK(..SetOrderDate(second, "01/02/2027"), "the second order's date is another date, in the source format")
+	Do $$$AssertStatusOK(..SetOrderDate(second, "01/22/2027"), "the second order's date is another date, in the source format")
 	Do $$$AssertStatusOK(..SetOrderDate(fourth, ""), "the fourth order has no date")
 	Set incident = ..Fixture(owner, scoped_","_other_","_delivered)
 	Set response = ..AskDryRun(incident.Ref, "repair_resend", ..Params(), super, .session, .sc)
@@ -178,8 +187,126 @@ Method TestLeftOutAndScope()
 	Do $$$AssertEquals(response.Targets, expected, "the targets are the orders of the scope that read, ascending")
 	Set dryRun = {}.%FromJSON(response.DryRun)
 	Do $$$AssertEquals(dryRun.affected_"|"_dryRun.resend_"|"_dryRun.leftOut, "6|4|2", "six affected, four resent, two left out; the order of another scope and the delivered header are not counted")
-	Do $$$AssertEquals(dryRun.before_"|"_dryRun.after, "01/02/2027|2027-01-02", "the example is the lowest target, not the lowest order")
+	Do $$$AssertEquals(dryRun.before_"|"_dryRun.after, "01/22/2027|2027-01-22", "the example is the lowest target, not the lowest order")
 	Do $$$AssertEquals(dryRun.itemNoun.%ToJSON(), ..#NOUN, "the noun is that of the orders' body class when the incident has none")
+}
+
+Method TestEitherWayWithArrival()
+{
+	If '..Ready() Quit
+	Set owner = ..Session("arrival")
+	Set super = ..TraceOf(owner)
+	If '..Fail(3, super, "2026-11-03") Quit
+	Set failed = ..WaitFailed(3)
+	If failed.%Size() < 3 Quit
+	Set ids = ..HeaderIds(failed)
+	For i = 1:1:3 {
+		Do $$$AssertStatusOK(..SetArrival($Piece(ids, ",", i), "2026-11-03T15:00:00Z"), "order "_i_" arrived on November 3")
+	}
+	Set incident = ..Fixture(owner, ids, , , , {"ItemNoun": (..#NOUN)})
+	Set response = ..AskDryRun(incident.Ref, "repair_resend", ..Params(), super, .session, .sc)
+	Do $$$AssertStatusOK(sc, "FixExecutor answers the DryRun")
+	Do $$$AssertTrue($IsObject(response), "FixExecutor gives a DryRunResult")
+	If '$IsObject(response) Quit
+	Do $$$AssertEquals(response.Reason_"|"_response.Targets, "|"_ids, "the dry run is worked out, with the three orders as targets")
+	Set dryRun = {}.%FromJSON(response.DryRun)
+	Do $$$AssertEquals(..SortedKeys(dryRun), ..SortedNames($Parameter("OcuTalon.Bridge.Data.ApprovalRequest", "DRYRUNKEYS")), "the dry run has exactly the keys of DRYRUNKEYS")
+	Do $$$AssertEquals(dryRun.affected_"|"_dryRun.resend_"|"_dryRun.leftOut_"|"_dryRun.before_"|"_dryRun.after, "3|3|0|11/03/2026|2026-11-03", "three affected and resent, and the example")
+}
+
+Method TestOneWayIsTheExample()
+{
+	If '..Ready() Quit
+	Set owner = ..Session("oneway")
+	Set super = ..TraceOf(owner)
+	If '..Fail(6, super, "2026-11-03") Quit
+	Set failed = ..WaitFailed(6)
+	If failed.%Size() < 6 Quit
+	Set all = ..HeaderIds(failed)
+	Set first = $Piece(all, ",", 1, 3)
+	Set second = $Piece(all, ",", 4, 6)
+	For i = 1:1:6 {
+		Do $$$AssertStatusOK(..SetArrival($Piece(all, ",", i), "2026-12-20T12:00:00Z"), "order "_i_" arrived on December 20, so no reading matches it")
+	}
+	Do $$$AssertStatusOK(..SetOrderDate($Piece(first, ",", 2), "11/13/2026"), "the second order of the first set has a day above 12")
+	Set incident = ..Fixture(owner, first)
+	Set response = ..AskDryRun(incident.Ref, "repair_resend", ..Params(), super, .session, .sc)
+	Do $$$AssertTrue($IsObject(response), "FixExecutor gives a DryRunResult")
+	If '$IsObject(response) Quit
+	Do $$$AssertEquals(response.Reason_"|"_response.Targets, "|"_first, "the day above 12 is the evidence: the three orders are targets")
+	Set dryRun = {}.%FromJSON(response.DryRun)
+	Do $$$AssertEquals(dryRun.before_"|"_dryRun.after, "11/13/2026|2026-11-13", "and its value is the example, not the first target's")
+	// no value with a day above 12: the example is the first value whose readings differ, and the arrivals match it
+	For i = 4:1:6 {
+		Do $$$AssertStatusOK(..SetArrival($Piece(all, ",", i), "2026-11-03T15:00:00Z"), "order "_i_" arrived on November 3")
+	}
+	Do $$$AssertStatusOK(..SetOrderDate($Piece(second, ",", 1), "11/11/2026"), "the first order of the second set reads as one date")
+	Set incident = ..Fixture(owner, second)
+	Set response = ..AskDryRun(incident.Ref, "repair_resend", ..Params(), super, .session, .sc)
+	Do $$$AssertTrue($IsObject(response), "FixExecutor gives a DryRunResult")
+	If '$IsObject(response) Quit
+	Do $$$AssertEquals(response.Reason_"|"_response.Targets, "|"_second, "the three orders are targets")
+	Set dryRun = {}.%FromJSON(response.DryRun)
+	Do $$$AssertEquals(dryRun.before_"|"_dryRun.after, "11/03/2026|2026-11-03", "the example is the first value whose readings differ")
+}
+
+Method TestNoEvidenceIsRefused()
+{
+	If '..Ready() Quit
+	Set owner = ..Session("noevidence")
+	Set super = ..TraceOf(owner)
+	If '..Fail(3, super, "2026-03-05") Quit
+	Set failed = ..WaitFailed(3)
+	If failed.%Size() < 3 Quit
+	Set ids = ..HeaderIds(failed)
+	For i = 1:1:3 {
+		Do $$$AssertStatusOK(..SetArrival($Piece(ids, ",", i), "2026-11-04T02:00:00Z"), "order "_i_" arrived on November 4")
+	}
+	Set incident = ..Fixture(owner, ids)
+	Do ..AssertRefused(incident.Ref, "repair_resend", ..Params(), super, "dates that read both ways and match no arrival", "The dates read as valid dates both month first and day first")
+	// one value that has a day above 12 is the evidence
+	Do $$$AssertStatusOK(..SetOrderDate($Piece(ids, ",", 3), "03/25/2026"), "the third order has a day above 12")
+	Set response = ..AskDryRun(incident.Ref, "repair_resend", ..Params(), super, .session, .sc)
+	Do $$$AssertTrue($IsObject(response), "FixExecutor gives a DryRunResult")
+	If $IsObject(response) Do $$$AssertEquals(response.Reason_"|"_response.Targets, "|"_ids, "and then the dry run is worked out")
+}
+
+Method TestBothReadingsMatch()
+{
+	If '..Ready() Quit
+	Set owner = ..Session("same")
+	Set super = ..TraceOf(owner)
+	If '..Fail(3, super, "2026-11-11") Quit
+	Set failed = ..WaitFailed(3)
+	If failed.%Size() < 3 Quit
+	Set ids = ..HeaderIds(failed)
+	For i = 1:1:3 {
+		Do $$$AssertStatusOK(..SetArrival($Piece(ids, ",", i), "2026-11-11T15:00:00Z"), "order "_i_" arrived on November 11")
+	}
+	Set incident = ..Fixture(owner, ids)
+	Set response = ..AskDryRun(incident.Ref, "repair_resend", ..Params(), super, .session, .sc)
+	Do $$$AssertStatusOK(sc, "FixExecutor answers the DryRun")
+	Do $$$AssertTrue($IsObject(response), "FixExecutor gives a DryRunResult")
+	If '$IsObject(response) Quit
+	Do $$$AssertEquals(response.Reason_"|"_response.Targets, "|"_ids, "the dry run is worked out: the two readings are one date, so nothing is chosen")
+	Do $$$AssertTrue(response.DryRun '= "", "and gives its dry run")
+	If response.DryRun = "" Quit
+	Set dryRun = {}.%FromJSON(response.DryRun)
+	Do $$$AssertEquals(dryRun.resend_"|"_dryRun.before_"|"_dryRun.after, "3|11/11/2026|2026-11-11", "all three are resent, with the example")
+	// U-250 (Condition 1), mixed: the third order is dated the 3rd and arrived at 02:00 UTC on the 4th (its instance-local date and the UTC date of its arrival differ), so it
+	// matches month first through the one-day tolerance only; with the two same-date orders the set has arrival evidence, and the differing value is the example.
+	Do $$$AssertStatusOK(..SetOrderDate($Piece(ids, ",", 3), "11/03/2026"), "the third order is dated November 3")
+	Do $$$AssertStatusOK(..SetArrival($Piece(ids, ",", 3), "2026-11-04T02:00:00Z"), "and arrived at 02:00 UTC on November 4")
+	Set mixed = ..Fixture(owner, ids)
+	Set response = ..AskDryRun(mixed.Ref, "repair_resend", ..Params(), super, .session, .sc)
+	Do $$$AssertStatusOK(sc, "FixExecutor answers the DryRun of the mixed set")
+	Do $$$AssertTrue($IsObject(response), "FixExecutor gives a DryRunResult for the mixed set")
+	If '$IsObject(response) Quit
+	Do $$$AssertEquals(response.Reason_"|"_response.Targets, "|"_ids, "the mixed set is worked out: the value that matches through the tolerance is the evidence")
+	Do $$$AssertTrue(response.DryRun '= "", "and gives its dry run")
+	If response.DryRun = "" Quit
+	Set dryRun = {}.%FromJSON(response.DryRun)
+	Do $$$AssertEquals(dryRun.resend_"|"_dryRun.before_"|"_dryRun.after, "3|11/03/2026|2026-11-03", "all three are resent, and the example is the value whose readings differ")
 }
 
 Method TestTargetsAscendAcrossGroups()
