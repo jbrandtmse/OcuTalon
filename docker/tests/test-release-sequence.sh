@@ -487,7 +487,7 @@ set_stub() {
 }
 
 mkseed() {
-  local s=$tmp/seed
+  local s=$tmp/seed m
   mkdir -p "$s"
   if [ "$live" -eq 1 ]; then
     git -C "$root" archive HEAD | tar -x -C "$s" || exit 1
@@ -498,6 +498,10 @@ mkseed() {
       _bmad-output/planning-artifacts/epics.md | tar -x -C "$s" || exit 1
   fi
   cp -p "$root/release/release.sh" "$root/release/lib-release.sh" "$s/release/"
+  # The fixture's own version, whatever the real tree reads: a candidate's tree is at the release's version, and the rules cut from 0.1.0.
+  for m in module.xml src/module.xml; do
+    sed 's:<Version>[^<]*</Version>:<Version>0.1.0</Version>:' "$s/$m" > "$s/$m.new" && mv "$s/$m.new" "$s/$m"
+  done
   # The overview step runs release/security-overview.sh of the candidate; the seed holds a stub that passes, so that no case needs a container.
   stub_text pass > "$s/release/security-overview.sh"
   chmod 755 "$s/release/security-overview.sh"
