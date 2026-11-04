@@ -5,6 +5,13 @@
 ///     grouping, a fraction of any length, no rounding);
 ///   - TestRefuses: wrong separators, padding, a value of more than 40 characters, a day that is not on the calendar, a time, digits of other scripts, an empty value,
 ///     two formats of two families or one format twice, and a name that is not registered are refused, each with an error status and no result;
+///   - TestReadings (DW-644): OtherOrder names the other order of the two slash formats and nothing else; Readings is 1 exactly when a value reads in the format and in
+///     its other order, with the two day numbers (equal when the month equals the day), and 0, with both empty, for a value that reads one way only, in neither, a
+///     malformed or empty one, and a format that has no other order;
+///   - TestEvidence (DW-644; U-249 Conditions 1 and 2; Q1 ruled (a)): Fix.Kind.RepairResend Evidence over every outcome (n/a, oneway, arrival, same, none) and the count of
+///     the two-way values: the tolerance edges (one day either side of the UTC date of the arrival, at the end and at the start of the day), the instance date against
+///     the UTC date (a value of the 3rd with an arrival at 02:00 UTC on the 4th), a set of only same-date values, both orders, and an arrival that is empty or malformed
+///     (it never matches);
 ///   - TestNeverEvaluates: injection-shaped values are refused by every source format and leave the sentinel global undefined;
 ///   - TestStaticScan: the code of Reformat and of RepairResend has no Xecute (the command, as a whole word: RepairResend's own method Execute is none), no indirection,
 ///     no $ZF, and no $ClassMethod, $Method or $Property.
@@ -179,6 +186,71 @@ Method TestNeverEvaluates()
 	}
 	Do $$$AssertEquals($Data(^OcuTalonTest("FixSentinel")), 0, "and nothing evaluated any of them: the sentinel global is still undefined")
 	Kill ^OcuTalonTest("FixSentinel")
+}
+
+Method TestReadings()
+{
+	Do $$$AssertEquals(##class(OcuTalon.Fix.Reformat).OtherOrder("MM/DD/YYYY"), "DD/MM/YYYY", "the other order of month first is day first")
+	Do $$$AssertEquals(##class(OcuTalon.Fix.Reformat).OtherOrder("DD/MM/YYYY"), "MM/DD/YYYY", "and back")
+	For format = "YYYY-MM-DD", "DD.MM.YYYY", "YYYYMMDD", "1234.56", "mm/dd/yyyy", "" {
+		Do $$$AssertEquals(##class(OcuTalon.Fix.Reformat).OtherOrder(format), "", "'"_format_"' has no other order")
+	}
+	Set nov3 = $ZDateH("2026-11-03", 3)
+	Set mar11 = $ZDateH("2026-03-11", 3)
+	Do $$$AssertTrue(##class(OcuTalon.Fix.Reformat).Readings("11/03/2026", "MM/DD/YYYY", .source, .other), "11/03/2026 reads both ways")
+	Do $$$AssertEquals(source_"|"_other, nov3_"|"_mar11, "month first is November 3, day first March 11")
+	Do $$$AssertTrue(##class(OcuTalon.Fix.Reformat).Readings("03/11/2026", "DD/MM/YYYY", .source, .other), "03/11/2026 reads both ways")
+	Do $$$AssertEquals(source_"|"_other, nov3_"|"_mar11, "day first is November 3, month first March 11")
+	Do $$$AssertTrue(##class(OcuTalon.Fix.Reformat).Readings("11/11/2026", "MM/DD/YYYY", .source, .other), "11/11/2026 reads both ways")
+	Do $$$AssertEquals(source, other, "as one date")
+	Do $$$AssertTrue(##class(OcuTalon.Fix.Reformat).Readings("02/29/2024", "MM/DD/YYYY", .source, .other) = 0, "02/29/2024 reads month first only: day first has no month 29")
+	Do $$$AssertTrue(##class(OcuTalon.Fix.Reformat).Readings("29/02/2024", "DD/MM/YYYY", .source, .other) = 0, "and 29/02/2024 reads day first only")
+	Do $$$AssertEquals(source_"|"_other, "|", "with both day numbers empty")
+	For case = $ListBuild("10/16/2026", "MM/DD/YYYY"), $ListBuild("16/10/2026", "DD/MM/YYYY"), $ListBuild("10/16/2026", "DD/MM/YYYY"), $ListBuild("16/10/2026", "MM/DD/YYYY"), $ListBuild("2026-11-03", "YYYY-MM-DD"), $ListBuild("03.11.2026", "DD.MM.YYYY"), $ListBuild("20261103", "YYYYMMDD"), $ListBuild("1234.56", "1234.56"), $ListBuild("11/03/26", "MM/DD/YYYY"), $ListBuild(" 11/03/2026", "MM/DD/YYYY"), $ListBuild("", "MM/DD/YYYY"), $ListBuild("13/13/2026", "MM/DD/YYYY"), $ListBuild("11/03/2026", "YYYY-MM-DD"), $ListBuild("11/03/2026", "") {
+		Set source = "x"
+		Set other = "x"
+		Do $$$AssertEquals(##class(OcuTalon.Fix.Reformat).Readings($List(case, 1), $List(case, 2), .source, .other), 0, "'"_$List(case, 1)_"' does not read both ways in '"_$List(case, 2)_"'")
+		Do $$$AssertEquals(source_"|"_other, "|", "and gives no day number")
+	}
+}
+
+Method TestEvidence()
+{
+	For format = "YYYY-MM-DD", "DD.MM.YYYY", "YYYYMMDD", "1234.56" {
+		Do ..AssertEvidence([{"value": "11/03/2026", "arrived": "2026-11-03T15:00:00Z"}], format, "n/a", 0, "a source format that is no order format ("_format_")")
+	}
+	Do ..AssertEvidence([{"value": "10/16/2026", "arrived": "2026-12-20T12:00:00Z"}], "MM/DD/YYYY", "oneway", 0, "a day above 12 is evidence")
+	Do ..AssertEvidence([{"value": "16/10/2026", "arrived": "2026-12-20T12:00:00Z"}], "DD/MM/YYYY", "oneway", 0, "also day first")
+	Do ..AssertEvidence([{"value": "11/03/2026", "arrived": "2026-12-20T12:00:00Z"}, {"value": "11/13/2026", "arrived": "2026-12-20T12:00:00Z"}, {"value": "11/03/2026", "arrived": "2026-12-20T12:00:00Z"}], "MM/DD/YYYY", "oneway", 2, "one value with a day above 12 is evidence for the set, and the two-way values are counted")
+	Do ..AssertEvidence([{"value": "11/03/2026", "arrived": "2026-11-03T15:00:00Z"}, {"value": "11/04/2026", "arrived": "2026-11-04T01:00:00Z"}, {"value": "11/05/2026", "arrived": "2026-11-05T23:59:59Z"}], "MM/DD/YYYY", "arrival", 3, "each value matches its own arrival")
+	Do ..AssertEvidence([{"value": "11/03/2026", "arrived": "2026-11-03T15:00:00Z"}, {"value": "11/04/2026", "arrived": "2026-11-09T01:00:00Z"}], "MM/DD/YYYY", "none", 2, "one value that does not match its own arrival leaves the set without evidence")
+	Do ..AssertEvidence([{"value": "03/11/2026", "arrived": "2026-11-03T15:00:00Z"}], "DD/MM/YYYY", "arrival", 1, "day first: 03/11/2026 matches an arrival on November 3")
+	Do ..AssertEvidence([{"value": "03/11/2026", "arrived": "2026-11-03T15:00:00Z"}], "MM/DD/YYYY", "none", 1, "and month first reads it as March 11, which does not")
+	// The tolerance edges: one day either side of the UTC date, at the last second and the first second of a day.
+	For case = $ListBuild("2026-11-02T23:59:59Z", "arrival"), $ListBuild("2026-11-02T00:00:00Z", "arrival"), $ListBuild("2026-11-03T00:00:00Z", "arrival"), $ListBuild("2026-11-03T23:59:59Z", "arrival"), $ListBuild("2026-11-04T00:00:00Z", "arrival"), $ListBuild("2026-11-04T23:59:59Z", "arrival"), $ListBuild("2026-11-01T23:59:59Z", "none"), $ListBuild("2026-11-01T00:00:00Z", "none"), $ListBuild("2026-11-05T00:00:00Z", "none"), $ListBuild("2026-11-05T23:59:59Z", "none") {
+		Do ..AssertEvidence([{"value": "11/03/2026", "arrived": ($List(case, 1))}], "MM/DD/YYYY", $List(case, 2), 1, "11/03/2026 arrived "_$List(case, 1))
+	}
+	// U-249 Condition 2: an evening press in the Americas writes the 3rd while the header says the 4th (UTC).
+	Do ..AssertEvidence([{"value": "11/03/2026", "arrived": "2026-11-04T02:00:00Z"}], "MM/DD/YYYY", "arrival", 1, "the instance date is the 3rd and the UTC date the 4th")
+	// Q1 ruled (a): a value whose month equals its day reads as one date, so it chooses nothing and needs nothing.
+	Do ..AssertEvidence([{"value": "11/11/2026", "arrived": "2026-11-11T15:00:00Z"}, {"value": "11/11/2026", "arrived": "2026-11-11T15:00:00Z"}, {"value": "11/11/2026", "arrived": "2026-11-11T15:00:00Z"}], "MM/DD/YYYY", "same", 3, "three values that read as one date")
+	Do ..AssertEvidence([{"value": "11/11/2026", "arrived": "2026-01-01T00:00:00Z"}], "MM/DD/YYYY", "same", 1, "also when the arrival does not match")
+	Do ..AssertEvidence([{"value": "11/11/2026", "arrived": "2026-11-04T02:00:00Z"}, {"value": "03/05/2026", "arrived": "2026-11-04T02:00:00Z"}], "MM/DD/YYYY", "none", 2, "a same-date value does not make evidence for a value whose readings differ")
+	Do ..AssertEvidence([{"value": "11/11/2026", "arrived": "2026-01-01T00:00:00Z"}, {"value": "11/03/2026", "arrived": "2026-11-03T15:00:00Z"}], "MM/DD/YYYY", "arrival", 2, "and a value whose readings differ and that matches is the evidence of a mixed set")
+	// An arrival that cannot be read never matches.
+	For arrived = "", "garbage", "2026-11-03", "2026-11-03T15:00:00", "2026-13-45T00:00:00Z", "2026-11-03 15:00:00" {
+		Do ..AssertEvidence([{"value": "11/03/2026", "arrived": (arrived)}], "MM/DD/YYYY", "none", 1, "the arrival '"_arrived_"' never matches")
+	}
+	Do ..AssertEvidence([{"value": "11/03/2026"}], "MM/DD/YYYY", "none", 1, "a value with no arrival never matches")
+	// A value that does not read in the source format is not counted.
+	Do ..AssertEvidence([{"value": "2026/10/16", "arrived": "2026-11-03T15:00:00Z"}, {"value": "11/03/2026", "arrived": "2026-11-03T15:00:00Z"}], "MM/DD/YYYY", "arrival", 1, "a value in another format is left out")
+}
+
+/// Asserts the evidence and the two-way count of the values in the format.
+Method AssertEvidence(values As %DynamicArray, format As %String, expected As %String, twoWay As %Integer, label As %String) [ Private ]
+{
+	Set got = ##class(OcuTalon.Fix.Kind.RepairResend).Evidence(values, format, .count)
+	Do $$$AssertEquals(got_"|"_count, expected_"|"_twoWay, label_": "_expected_" with "_twoWay_" two-way")
 }
 
 Method TestStaticScan()

@@ -2,7 +2,8 @@
 title: 'A date repair that could read either way names its evidence'
 type: 'feature'
 created: '2026-11-03'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '181ea67c117f94c29dae51527cb9261044c8dc3c'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -143,6 +144,31 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless stated. Lines as of `eeae8cb
 
 ## Review Triage Log
 
+### 2026-11-03 - Review pass
+- verdicts: 20 findings - high 0, medium 3, low 16, false 1, maybe-false 0 (patched 6, rejected 14)
+- findings:
+  - `[low]` `reject` Blind 1 / Edge 1 / Verification-gap other: for a set that mixes a same-date value with arrival-matching differing values, the either-way line says all N dates match their arrival, which a same-date value need not -- the claim is overbroad but the repair is the same date whichever order is right (Q1 ruled (a), veto U-250), the mix needs same-date values that did not arrive within a day next to differing values that did, and the only fix changes the intent-contract's example rule; carried to the lead in the report.
+  - `[low]` `reject` Blind 2: `incident.noFix` says "None of my fixes applies" although a fix would apply if the date order were known -- V1 ruled accepted (veto U-251) with exactly this existing text; any other wording is outside the one new line allowed (Clarification Needed for the lead, not a patch).
+  - `[low]` `reject` Blind 3: the payload loosening applies to every data_format_change -- V1 ruled accepted (veto U-251); a reply with no fix is noticed honestly as `incident.noFix`, nothing is approvable.
+  - `[medium]` `patch` Blind 4 / Verification-gap 1: the later round (`incident.laterRequestEitherWay`) had no end-to-end pin -- `EitherWay.TestLaterRoundKeepsTheLine` added (first request, two more orders, the approval Notification's key, slots and phone line); mutation line recorded and observed red.
+  - `[low]` `reject` Blind 5 / Edge 5 / Verification-gap: `TestPressWritesTheLocalDate` reads the clock twice around a UTC midnight/noon -- a window of milliseconds; the fix (retry) adds more than it saves.
+  - `[medium]` `patch` Blind 6 / Verification-gap: the arrival is set after `WaitFailed` and the margin was only logged -- `LogMargin` now asserts the DryRun header is not older than the setting of the arrival, so a lost race is red on any date.
+  - `[low]` `reject` Blind 7: the "within one day" prose and `ARRIVALDAYS` can drift -- the phrase is pinned by `TestDiagnosisEvidence` and the number by the tolerance rows; a coupling test adds nothing.
+  - `[low]` `reject` Blind 8: `Evidence` repeats `Reads`/`Readings` work and `twoWay` is unused in production -- cost is negligible for the dry run's size and `twoWay` is a contract output.
+  - `[low]` `patch` Blind 9: the `DiagnosisPayload` class doc ran the new sentence into the semicolon list -- reworded (V1 sentence, then "It also requires ...").
+  - `[low]` `reject` Edge 2: Plan/Execute do not re-run Evidence after approval -- the rule is the dry run's alone by contract (Never: no change to the recheck path), and the case needs a target to vanish between approval and execution.
+  - `[false]` `reject` Edge 3: `parameters.%Get` before `CheckParameters` in DryRun -- the executor's `DryRun` wraps the call in Try/Catch and answers a plain reason; a non-object parameters value never reaches the kind from a stored request.
+  - `[low]` `reject` Edge 4: `"fixParameters":{}` or a blank-with-whitespace fixKind is refused rather than treated as no fix -- the prompt tells the model to leave the keys out, and the refusal is the safe fallback (no false all-clear).
+  - `[medium]` `patch` Verification-gap 2: AC 1's second half (the mock reply names month first matching arrival) had no assertion reading the words -- `TestDiagnosisEvidence` now asserts them on `RunnerFixture.DIAGNOSISTEXT` (kept equal to `diagnosis.json` by `Runners`); mutation line recorded and observed red.
+  - `[low]` `patch` Verification-gap 3: mutation lines missing for the `item` slot, the later key and AC 5 -- the first two applied and observed red, AC 5 mapped to its pin; lines recorded.
+  - `[low]` `patch` Verification-gap 4: `DryRun.TestNoEvidenceIsRefused` last row (DD.MM.YYYY) could not fail -- removed; `n/a` is pinned by `Reformat.TestEvidence`.
+  - `[low]` `reject` Verification-gap 5: `NoticeText.TestEitherWay` one-form renders overwrite `reading` and `before` by hand -- the builder's `reading` and `item` are asserted in the case loop of the same test.
+  - `[low]` `reject` Verification-gap 6: `Test/Msg/Catalog.cls` changed two lines beyond the ruled blocks -- both are counts of the same union kind ("four" to "six" web wordings; 13 to 15 noun keys), required by the two new keys; recorded under Design Notes (Decided in-stage) and reported to the lead.
+  - `[low]` `reject` Intent audit: the prompt surface is pinned only by phrase tests (the mock never reads the prompt) -- inherent to "no real model key"; the code backstop pins the rule.
+  - `[low]` `reject` Intent audit: the mock's canned reasons claim evidence on the negative scenario's data -- the code gate, not the wording, refuses (AD-8); the negative tests pin the gate.
+  - `[low]` `reject` Intent audit: `DryRun.TestLeftOutAndScope` changed an expectation's input (01/02/2027 to 01/22/2027) -- its assertion is unchanged (the example is the lowest target) and the new example rule makes the one-way input necessary.
+
+
 ## Design Notes
 
 **U-249 (owner delegate, at=2026-11-03T21:34:43Z#748)** (recorded exactly as given; it replaces the dispatch's earlier wording):
@@ -186,6 +212,9 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless stated. Lines as of `eeae8cb
 - No recorded eval case's expected outcome changes: no case holds dates that read both ways (`orders-date-format`: 50 x 10/16/2026, day 16; `results-decimal-comma`, `shipments-epoch-time`: not dates; every other incident case expects no fix kind; `mail-date-format-monday` is an item case). The eval path asks no dry run (`IncidentManager` L1377). The demo gate's `Fix.Kind.Check` is unchanged.
 
 **Decided in-stage (small, reversible, within the intent):**
+- Implement: `Test/Msg/Catalog.cls` also changes two count assertions, besides the ruled blocks and counts: `TestWebWording` (the entries with a web wording, four to six, the two new keys joined to the expected set) and `TestNounForms` (keys with a noun, 13 to 15). Both are counts of the same plain-union kind, forced by the two new keys; without them the class is red.
+- Implement (footprint extension): `Test/Channel/TelegramChat.cls` `TestNotices` sweeps every `incident.*` and `result.*` Watch key, so it counts the two new keys (13 to 15 keys, 19 to 21 rows and notifications) and sorts `incident.laterRequestEitherWay` with `incident.laterRequest` as an approval; no in-flight epic touches it (precedent: the 30.5 count change). It needs no unit entry.
+- Implement: `Test.Fix.EitherWay` gains `TestLaterRoundKeepsTheLine` (the later round's key, slots and phone line); `Press`'s `LogMargin` asserts the margin is not negative; `DryRun.TestLeftOutAndScope`'s second order is 01/22/2027 (one-way) so that the example stays the lowest target under the new example rule.
 - Only the slash pair is ambiguous: the registry has no `MM.DD.YYYY`, so `DD.MM.YYYY`, `YYYY-MM-DD` and `YYYYMMDD` are `n/a`.
 - Evidence and the line are judged over the dry run's targets (the values that read in the source format); left-out values do not count.
 - The line sits in the Dry run paragraph right after the example sentence, so "Nothing has changed yet." still ends the block and the phone keeps the paragraph as its inset (`phone-view.ts` L113-136).
@@ -250,13 +279,41 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless stated. Lines as of `eeae8cb
 | Q1 | `Evidence` returns `none` for a same-date set (the literal reading) | `Reformat.TestEvidence`, `DryRun.TestBothReadingsMatch`, `EitherWay.TestBothReadingsMatch` |
 | press | `TestPressWritesTheLocalDate` with `$ZTIMEZONE` left at 0 | that test (local and UTC dates equal) |
 
+**Mutations applied (implement stage, Rule 19; each observed red, then reverted byte-identically, `git diff --stat` unchanged):**
+- mutation: the evidence bullet removed from INSTRUCTIONS -> `Instructions.TestDiagnosisEvidence` red (nine assertions).
+- mutation: `DryRun` stops returning the error for `Evidence` `none` (the check line removed) -> `DryRun.TestNoEvidenceIsRefused` red (reason and empty targets); `EitherWay.TestNoEvidenceNoRequest` red (variant, no request, notice, one warning).
+- mutation: `ARRIVALDAYS` 0 -> `Reformat.TestEvidence` red (the five edge and instance-date rows); `EitherWay.TestDemoRepairWhenInstanceDateIsNotUtcDate` red (no request).
+- mutation: `WithFixKey` always gives the plain key (`eitherWay` := 0) -> `NoticeText.TestEitherWay` red (keys); `EitherWay.TestDemoRepairWhenInstanceDateIsNotUtcDate` red (key, line in the notice and the phone message).
+- mutation: the example rule removed (the example stays the first target) -> `DryRun.TestOneWayIsTheExample` red (both examples). `NoticeText.TestEitherWay` (mixed) stays green by design: it builds its dry run's `before` itself and does not run `RepairResend`.
+- mutation: `READINGS` swapped -> `NoticeText.TestEitherWay` red (the fixture texts and the "month first" line, many and later forms).
+- mutation: V1's branch in `DiagnosisPayload` removed (`If 0`) -> `Payload.TestPayloadAccepted` red (both fix-less rows); `Diagnose.TestNoEvidenceReply` red (accepted, cause, noun, variant, notice).
+- mutation: `Evidence` returns `none` instead of `same` for a set of same-date values -> `Reformat.TestEvidence` red (the two same rows); `DryRun.TestBothReadingsMatch` red (and `DryRun.TestNothingReadable`, whose empty target set is the same case); `EitherWay.TestBothReadingsMatch` red (no request).
+- mutation: `TestPressWritesTheLocalDate` with `$ZTIMEZONE` left at 0 -> that test red (local and UTC dates equal).
+- mutation: the `item` slot takes the other form of the noun (`slots.itemNoun.other`) -> `NoticeText.TestEitherWay` red (the slots rows for month first, day first, unknown noun and own noun).
+- mutation: the later branch of `IncidentManager.Proposed` takes its key from `WithFixKey({}, ...)` (the plain later key) -> `EitherWay.TestLaterRoundKeepsTheLine` red (the key, the phone line).
+- mutation: the CI mock's demo reply loses its month-first-matches-arrival reason (`RunnerFixture.DIAGNOSISTEXT`) -> `Instructions.TestDiagnosisEvidence` red (AC 1, second half).
+- AC 5: pinned by `EitherWay.TestDemoRepairWhenInstanceDateIsNotUtcDate` (its `ARRIVALDAYS` 0 mutation above is red) and, as verification runs, `live:demo-path`, `live:online-demo-path` and `eval/run.sh`.
+
 **Task 0 results:**
 - (a) Plan stage, slot B (`ocutalon-slot-b`, instance 62AB8833-CB21-11F1-9F31-AA10048473C6, build 154U), read only, 2026-11-03: `$ZTIMEZONE` 0 gave `$HOROLOG` 2026-11-03 22:00:10 and `$ZTIMESTAMP` 2026-11-03 22:00:10; after `Set $ZTIMEZONE=-840`, `$HOROLOG` 2026-11-04 12:00:10 and `$ZTIMESTAMP` unchanged; after `Set $ZTIMEZONE=720`, `$HOROLOG` 2026-11-03 10:00:10. The slot runs in UTC. `Ens.MessageHeaderBase.TimeCreated` is `Ens.DataType.UTC`, set by `$$$timeUTC` (`EnsUtil.inc` L24, `$zdatetime($ztimestamp,3,,3)`), so it is unaffected (read from `irislib`).
-- (b), (c): implement stage.
+- (b) Implement stage, first run of `Test.Fix.EitherWay` (warm stack e7s7iw, the stack's product code as loaded; the test logs it): the DryRun header was created 10 seconds after `SetArrival` returned (`WaitFailed` returned just before it), so the margin is well over 3 s and `SetArrival` stays after `WaitFailed`.
+- (c) `Test.Fix.EitherWay` class time on a fresh stack (e7s7i): 39.76 s (39.05 s on the final run); on the warm stack 39.19 s. Under 180 s: one class.
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-Re-plan (cycle_iteration 2): the spec-gate rulings applied (Q1 (a) veto U-250, V1 veto U-251, web card out of scope veto U-252, the catalog test a plain-union append); the spec re-verified against the READY FOR DEVELOPMENT standard.
+Summary: a date written MM/DD/YYYY or DD/MM/YYYY that reads both ways now needs evidence. The Diagnosis prompt carries the rule (a day above 12, or the reading matching the failed messages' arrival within one day either way, both readings matching being no evidence, same-date values needing none); a reply with no fix is accepted (V1) and noticed as `incident.noFix`; `RepairResend.DryRun` enforces the rule in code (`Evidence`: n/a, oneway, arrival, same, none) and refuses on `none`; the notice uses `incident.withFixEitherWay` / `incident.laterRequestEitherWay` with U-249's line when every target reads both ways with differing readings.
+
+Files changed (under `src/ocutalon/cls/OcuTalon/` unless stated):
+- `Agent/Diagnosis.cls`: the evidence rule in the static prompt. `Fix/Reformat.cls`: `OtherOrder`, `Readings`. `Fix/Kind/RepairResend.cls`: `ARRIVALDAYS`, `Evidence`, example rule, refusal.
+- `Watch/Msg/DiagnosisPayload.cls`: V1. `Watch/Notice.cls`: `WithFixKey`, `Reading`, slots `reading`/`item`, fix-less key. `Watch/IncidentManager.cls`: `Proposed` uses them. `Msg/Catalog/Watch.cls`: the two variant keys.
+- `ci/mock/scenarios/A/{diagnosis,diagnosis-late}.json` (reasons), `diagnosis-noevidence.json` (new).
+- Tests: `Test/Fix/{Reformat,DryRun,EitherWay(new)}`, `Test/Watch/{Case,Diagnose,NoticeText,Payload}`, `Test/Agent/{Instructions,RunnerFixture}`, `Test/Msg/Catalog` (ruled union plus two count lines), `Test/Channel/TelegramChat` (counts).
+
+Review: 20 findings from 4 layers; 6 patched (later-round end-to-end test, margin assertion, mock-reason assertion, mutation lines, the DD.MM.YYYY row that could not fail, a class doc), 14 rejected with reasons in the triage log (0 high, 3 medium, all patched). Nothing deferred. Follow-up review recommended: false.
+
+Verification (lane B, CI mock): warm classes Reformat, NoticeText, Payload, Instructions, Msg.Catalog, Fix.Kind, Fix.Validation, Watch.Tell passed; fresh classes EitherWay (about 40 s, 61 s with the added test), DryRun, Diagnose, Runners, Raise, Later, Notices passed; `docker/tests/test-mock.sh` 131 of 131; `lane-a` parts 1 to 12 of 12 passed (186 s to 460 s; part 4 first failed on `TelegramChat.TestNotices` counts, fixed, then passed); `lane-b` parts 1 to 3 passed (303 s to 397 s); `live demo-path` and `live online-demo-path` passed; `eval/run.sh` all checks passed, demo gate 10 of 10; `ci/checks.sh` all scripts passed (16 min total, run outside the 10-minute foreground cap by the harness, polled to completion). Stacks e7s7i, e7s7iw, e7s7ie torn down.
+
+Residual risks: a set that mixes a same-date value with arrival-matching differing values gets the line "they match the day each order arrived", which the same-date value need not satisfy (the repair is identical either way; fixing it changes the contract's example rule); `incident.noFix` for a refused or fix-less date diagnosis says "None of my fixes applies" (V1, ruled); the web incident card does not show the line (DW-645).

@@ -860,7 +860,7 @@ Method Unproposed(ref As %String, error As %String, later As %Boolean = 0) [ Pri
 /// clear AskingSince (the no-fix route does not exist for a noticed incident), with one Type 3 warning with LOGLATER for each error and none for an open
 /// incident or an empty Targets; the slots are those of the round (Notice.WithFixSlots with the number of keys in the windows and AskingSince as the time);
 /// the request is appended and Move saves the row, with AskingSince cleared, and sends each recipient one Notification of kind approval with the key
-/// incident.laterRequest and the request's Ref, then publishes the incident event; NoticedAt does not change. A save that fails cancels the request, with one
+/// incident.laterRequest (incident.laterRequestEitherWay when Notice.WithFixKey gives it) and the request's Ref, then publishes the incident event; NoticedAt does not change. A save that fails cancels the request, with one
 /// warning, and clears AskingSince. An error (a dry run or slots that cannot be used, a failed Raise, a request cancelled after a failed save, a thrown error
 /// before any raise) also puts the marks back (Unask with unmark 1), so the round's failures join the next round; a refused dry run, an empty Targets and an
 /// open incident keep them, and so does a request that was raised and could not be cancelled, which still holds the window.
@@ -896,9 +896,9 @@ Method Proposed(ref As %String, ask As OcuTalon.Fix.Msg.DryRun, result As OcuTal
 			Quit
 		}
 		If later {
-			Set slots = ##class(OcuTalon.Watch.Notice).WithFixSlots(incident, .sc, dryRun, ..Windowed(incident), incident.AskingSince)
+			Set slots = ##class(OcuTalon.Watch.Notice).WithFixSlots(incident, .sc, dryRun, ..Windowed(incident), incident.AskingSince, ask.Parameters)
 		} Else {
-			Set slots = ##class(OcuTalon.Watch.Notice).WithFixSlots(incident, .sc, dryRun)
+			Set slots = ##class(OcuTalon.Watch.Notice).WithFixSlots(incident, .sc, dryRun, , , ask.Parameters)
 		}
 		If $$$ISERR(sc) {
 			$$$LOGWARNING($Select(later: ..#LOGLATER, 1: ..#LOGNOTICE)_ref_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
@@ -924,12 +924,12 @@ Method Proposed(ref As %String, ask As OcuTalon.Fix.Msg.DryRun, result As OcuTal
 		Set incident.RequestRefs = $Select(incident.RequestRefs = "": request, 1: incident.RequestRefs_","_request)
 		If later {
 			Set incident.AskingSince = ""
-			Set sc = ..Move(incident, to, variant, ..Notification(incident, ..#APPROVALKIND, ##class(OcuTalon.Watch.Notice).#KEYLATER, slots, request))
+			Set sc = ..Move(incident, to, variant, ..Notification(incident, ..#APPROVALKIND, ##class(OcuTalon.Watch.Notice).WithFixKey(dryRun, ask.Parameters, 1), slots, request))
 			If $$$ISERR(sc) {
 				$$$LOGWARNING(..#LOGLATER_ref_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
 			}
 		} Else {
-			Set sc = ..Deliver(incident, to, variant, ##class(OcuTalon.Watch.Notice).#KEYWITHFIX, slots, request)
+			Set sc = ..Deliver(incident, to, variant, ##class(OcuTalon.Watch.Notice).WithFixKey(dryRun, ask.Parameters), slots, request)
 		}
 		If $$$ISERR(sc) {
 			Set cancelled = ..CancelRequest(request)

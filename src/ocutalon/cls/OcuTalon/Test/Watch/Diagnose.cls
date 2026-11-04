@@ -21,6 +21,9 @@ Include Ensemble
 ///     beside them, a failure of a real failed order of OCUORDERS whose text holds invalid-reply gives a fallback whose code noun is that of the sample's body
 ///     class, order/orders. Since Story 5.8 each of the five is noticed: NoticedAt is set, the state is open and the open variant is no_fix (no fix, unknown) or
 ///     fallback (invalid, refusal), and A has one Notification of the incident;
+///   - TestNoEvidenceReply (Story 7.7, V1): a synthetic failure whose text holds the marker diagnosis-noevidence gets a data_format_change reply with the element OrderDate and
+///     no fixKind, fixParameters or fixSummary: it is accepted (no fallback), the row holds the category, the element and the cause and no fix summary, the incident is noticed
+///     open with the variant no_fix and one incident.noFix Notification that carries the cause, no DryRun is asked of FixExecutor and no approval request names the incident;
 ///   - TestGoneBeforeTheAnswer: an incident deleted after `diagnosing` while the delayed reply (diagnosis-late) is on its way gets no row back and no error;
 ///   - TestRefusedRequest: the error handler of the diagnose request (through Test.Watch.IncidentProbe, a shadow instance in the test process) stores the fallback
 ///     error with one Type 3 warning and notices the incident as a fallback (one recorded Notification) and leaves the row otherwise as it was; an incident that is
@@ -321,6 +324,37 @@ ClassMethod DecideWarnings(sessionId As %Integer, Output text As %String) As %In
 		Set text = result.%Get("Text")
 	}
 	Quit count
+}
+
+Method TestNoEvidenceReply()
+{
+	If '..Ready() Quit
+	If '..PointKeys() Quit
+	Set a = ..Session("noevidence")
+	Set failures = [{"item": (..Item("diagnosis-noevidence")), "text": "[[mock:diagnosis-noevidence]] Field 'OrderDate' was not a date", "at": (##class(OcuTalon.Test.Watch.Incidents).Stamp(-1))}]
+	Do $$$AssertStatusOK(..SendBatch(..#SYNTHNS, ..#SYNTH, a, failures), "a failure whose diagnosis has no evidence for the date order is sent")
+	Set rows = ..WaitIncident(a, ..#SYNTH)
+	Do $$$AssertEquals(rows.%Size(), 1, "one incident")
+	If rows.%Size() '= 1 Quit
+	Set ref = rows.%Get(0).ref
+	Set ..ItemIds = ..ItemIds _ $ListBuild(ref)
+	Do $$$AssertTrue(..WaitDiagnosed(ref), "the incident holds its diagnosis")
+	Do $$$AssertTrue(..WaitAnswered(ref), "and IncidentManager has handled the answer")
+	Do $$$AssertTrue(..WaitRow(ref, "NoticedAt", "", ..#WAITINCIDENT) '= "", "the incident is noticed")
+	Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(ref)
+	Do $$$AssertEquals(row.Fallback_"|"_row.CauseCategory_"|"_row.Element_"|"_row.FixSummary, "0|data_format_change|OrderDate|", "the reply is accepted: a data-format change with its element and no fix summary")
+	Do $$$AssertTrue(row.Cause '= "", "and a cause")
+	Do $$$AssertEquals(row.ItemNoun, ..#ORDERNOUN, "and the scenario's noun")
+	Do $$$AssertEquals(row.State_"|"_row.OpenVariant_"|"_row.RequestRefs, "open|no_fix|", "the incident is open with the variant no_fix and lists no request")
+	Do ..WaitNotices(ref, 1)
+	Set notes = ..NoticeBodies(ref)
+	Do $$$AssertEquals(notes.%Size(), 1, "A has one Notification of the incident")
+	If notes.%Size() = 1 {
+		Set note = notes.%Get(0)
+		Do $$$AssertEquals(note.sessionRef_"|"_note.kind_"|"_note.catalogKey_"|"_note.approvalRef_"|"_note.slots.cause, a_"|incident|incident.noFix||"_row.Cause, "of kind incident, incident.noFix, with the cause and no request")
+	}
+	Do $$$AssertEquals(..HeadersBetween(row.TraceHeaderId, 1, "IncidentManager", "FixExecutor", "OcuTalon.Fix.Msg.DryRun"), 0, "no dry run is asked of FixExecutor")
+	Do $$$AssertEquals(..Requests(ref).%Size(), 0, "and no approval request names the incident")
 }
 
 Method TestGoneBeforeTheAnswer()

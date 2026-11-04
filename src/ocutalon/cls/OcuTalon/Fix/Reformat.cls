@@ -6,6 +6,9 @@
 ///     rounding, so the digits of the fraction are kept as they are;
 ///   - a value is refused when it is empty, longer than MAXLENGTH, does not match its source format as a whole, or the two formats are one format or
 ///     belong to different families.
+/// Two of the date formats are each other's other order (MM/DD/YYYY and DD/MM/YYYY): a value whose two numbers are both 12 or less is a valid date
+/// in both, and Readings gives the two dates (OtherOrder names the other format). The reformatter converts whichever source format it is given;
+/// choosing between the two is the caller's (Fix.Kind.RepairResend Evidence).
 /// A value is only matched against fixed patterns and cut at fixed positions. It is never evaluated: nothing here runs code that is built from
 /// a value, a name or a format, and no SQL. Pure: no database and no namespace. Lane A.
 Class OcuTalon.Fix.Reformat
@@ -61,6 +64,32 @@ ClassMethod Reads(value As %String, format As %String) As %Boolean
 	If (value = "") || ($Length(value) > ..#MAXLENGTH) Quit 0
 	If family = "date" Quit $$$ISOK(..ParseDate(value, format, .year, .month, .day))
 	Quit $$$ISOK(..ParseNumber(value, format, .sign, .whole, .fraction, .hasFraction))
+}
+
+/// The other order of a date format: "DD/MM/YYYY" for "MM/DD/YYYY" and back, else "" (every other format has none).
+ClassMethod OtherOrder(format As %String) As %String
+{
+	Quit $Case($Get(format), "MM/DD/YYYY": "DD/MM/YYYY", "DD/MM/YYYY": "MM/DD/YYYY", : "")
+}
+
+/// 1 when the value reads in the format and in its other order (both through the same checks as Reads: length, emptiness, shape and calendar), with
+/// source and other the $ZDATEH day numbers of the two readings (they are equal when the month equals the day); else 0 and both empty.
+ClassMethod Readings(value As %String, format As %String, Output source As %Integer, Output other As %Integer) As %Boolean
+{
+	Set (source, other) = ""
+	Set otherFormat = ..OtherOrder($Get(format))
+	If otherFormat = "" Quit 0
+	If '..Reads($Get(value), format) || '..Reads($Get(value), otherFormat) Quit 0
+	Set sc = ..ParseDate(value, format, .year, .month, .day)
+	If $$$ISERR(sc) Quit 0
+	Set first = $ZDateH(year_"-"_month_"-"_day, 3, , , , , , , -1)
+	Set sc = ..ParseDate(value, otherFormat, .year, .month, .day)
+	If $$$ISERR(sc) Quit 0
+	Set second = $ZDateH(year_"-"_month_"-"_day, 3, , , , , , , -1)
+	If (first < 0) || (second < 0) Quit 0
+	Set source = first
+	Set other = second
+	Quit 1
 }
 
 /// The year, month and day of a date value in the format, or an error status when it does not match the format or is not a calendar date.
