@@ -41,6 +41,7 @@ export const PAGE_TEXTS: Readonly<Record<string, string>> = {
   'result.couldNotStart': 'Nothing was resent: {reason}. Nothing was changed.',
   'result.stoppedPartway': "The resend stopped partway: I resent {resent} of the {count} {itemNoun} ({completed} went through), the next one couldn't be resent, and {notTried} more weren't tried. Nothing else was changed, and I won't resend the rest without a new approval.",
   'audit.recorded': 'Recorded in the IRIS audit log.',
+  'incident.eitherWayLine': 'All {resendCount} dates are valid whether read month first or day first. Read {reading}, they match the day each {item} arrived.',
   'fallbackReason.timeout': "the model didn't answer within 60 seconds",
   'fallbackReason.empty': "the model's reply was empty",
   'fallbackReason.cutOff': "the model's reply was cut off",
@@ -101,6 +102,7 @@ export const PAGE_SLOTS: Readonly<Record<string, Readonly<Record<string, string>
   'result.couldNotStart': { 'reason': 'text' },
   'result.stoppedPartway': { 'count': 'count', 'itemNoun': 'noun', 'resent': 'count', 'completed': 'count', 'notTried': 'count' },
   'audit.recorded': {},
+  'incident.eitherWayLine': { 'resendCount': 'count', 'reading': 'text', 'item': 'text' },
 };
 
 /** The count-of-one form of each listed key that has one: the count slot that decides it, and the text used when that slot is "1". */
@@ -112,6 +114,7 @@ export const PAGE_ONE_FORMS: Readonly<Record<string, { readonly slot: string; re
   'result.stillResending': { slot: 'completed', text: "Still resending: 1 of {count} {itemNoun} has gone through so far. I'll tell you when it's done." },
   'result.interrupted': { slot: 'remaining', text: 'The resend stopped when OcuTalon restarted: {completed} of {count} {itemNoun} went through. The other one needs a new approval.' },
   'result.stoppedPartway': { slot: 'notTried', text: "The resend stopped partway: I resent {resent} of the {count} {itemNoun} ({completed} went through), the next one couldn't be resent, and 1 more wasn't tried. Nothing else was changed, and I won't resend the rest without a new approval." },
+  'incident.eitherWayLine': { slot: 'resendCount', text: 'The date is valid whether read month first or day first. Read {reading}, it matches the day the {item} arrived.' },
 };
 
 /** Each fallback reason value with the suffix of its fallbackReason.* key. */

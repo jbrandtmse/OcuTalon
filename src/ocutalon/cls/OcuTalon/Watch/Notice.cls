@@ -16,7 +16,8 @@
 ///     incident.laterRequestEitherWay) exactly when the request's sourceFormat is MM/DD/YYYY or DD/MM/YYYY and the dry run's before reads in both orders as two
 ///     different dates (the dry run refuses a request whose dates read both ways with nothing to single out the reading, so every raised request of that kind
 ///     has arrival evidence: Fix.Kind.RepairResend Evidence). WithFixSlots, given the parameters, then adds reading (month first or day first, the source
-///     format's, READINGS) and item (the one form of the itemNoun slot).
+///     format's, READINGS) and item (the one form of the itemNoun slot). Reading is public because it is the one rule: the approval payload
+///     (Live.Payload.Approval FromRow) asks it over the row's stored dry run and FixParameters, so the web card shows the line exactly when the notice does.
 ///   - The later request (Story 7.6, KEYLATER incident.laterRequest) takes the with-fix slots with its own round's count and time: WithFixSlots given a count and a
 ///     time replaces the slots count and time (the failures of the round, and the first of them), and renders "{count} more {itemNoun} failed since {time}, with
 ///     the same cause ...". It carries the cause slot too, which the catalog ignores.
@@ -151,8 +152,9 @@ ClassMethod WithFixKey(dryRun As %DynamicObject, parameters As %String = "", lat
 	Quit $Select(eitherWay: ..#KEYWITHFIXEITHER, 1: ..#KEYWITHFIX)
 }
 
-/// The words of the source reading ("month first" or "day first") when WithFixKey gives an either-way key for the dry run and the parameters, else "".
-ClassMethod Reading(dryRun As %DynamicObject, parameters As %String = "") As %String [ Private ]
+/// The words of the source reading ("month first" or "day first") when WithFixKey gives an either-way key for the dry run and the parameters, else "". The
+/// notice and the approval payload (Live.Payload.Approval FromRow) both ask this method, so they agree. Pure.
+ClassMethod Reading(dryRun As %DynamicObject, parameters As %String = "") As %String
 {
 	If '$IsObject($Get(dryRun)) Quit ""
 	If '$IsObject(parameters) {

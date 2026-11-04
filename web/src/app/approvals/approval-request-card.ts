@@ -25,6 +25,7 @@ import { approvalTitle } from '../rail/rail-view';
 import { Announcer } from '../shared/announcer';
 import { type FocusRule, keepFocus } from '../shared/focus-rule';
 import { InlineNotice } from '../shared/inline-notice';
+import { HEIGHT_QUERIES } from '../shared/layout-view';
 import { Popovers } from '../shared/popover';
 import { AnswerPress } from './answer-press';
 import { APPROVAL_TEXTS, approvalView, resultView, type ApprovalContext } from './approval-view';
@@ -70,7 +71,10 @@ export function approvalContext(nowMs: number, instanceZone: string, onlineDemo:
  * the fixed-targets line, the dry run, one row with Approve (primary) and Reject (secondary) and, on the first card of an incident,
  * Show details at its right end, the expiry, and the evidence panel when Show details is open. Once answered, here or elsewhere,
  * the label reads "Approval request" and the answered status replaces the two buttons in the same row; the fixed-targets line, the
- * expiry and "Nothing has changed yet." go and the dry run stays. A 4px bar on the left follows the state. Every text is bound by
+ * expiry and "Nothing has changed yet." go and the dry run stays. When the dry run carries the notice's either-way sentence
+ * (view.eitherWay, Story 7.8) it is one unlabelled row (dry-either) between After and Will resend, with the block's ink colour;
+ * on a viewport under 680px tall (HEIGHT_QUERIES.compact) and only while that row shows, Before and After share a line and the
+ * note, while the request is pending, goes on the count line (an answered request has the count line alone). A 4px bar on the left follows the state. Every text is bound by
  * interpolation, never as markup.
  *
  * Story 6.4: when the incident payload gives this request a `result`, the result band (result-band.ts) follows the answer row, and
@@ -109,7 +113,7 @@ export function approvalContext(nowMs: number, instanceZone: string, onlineDemo:
         <p class="fixed">{{ view().fixedTargets }}</p>
       }
       @if (view().dryRun; as dry) {
-        <div class="dry">
+        <div class="dry" [class.has-either]="!!dry.eitherWay" [class.has-note]="!!dry.nothingYet">
           <div class="dry-head">
             <span class="dry-label">{{ texts.dryRun }}</span>
             <span class="dry-count">{{ dry.countLine }}</span>
@@ -126,8 +130,11 @@ export function approvalContext(nowMs: number, instanceZone: string, onlineDemo:
               <span class="mono after">{{ dry.after }}</span>
             </div>
           }
+          @if (dry.eitherWay) {
+            <div class="dry-either">{{ dry.eitherWay }}</div>
+          }
           @if (dry.resendLine) {
-            <div class="dry-row">
+            <div class="dry-row dry-resend">
               <span class="dry-key">{{ texts.willResend }}</span>
               <span>{{ dry.resendLine }}</span>
             </div>
@@ -318,6 +325,35 @@ export function approvalContext(nowMs: number, instanceZone: string, onlineDemo:
     }
     .dry-note {
       color: var(--ink-muted);
+    }
+    /* Under 680px tall, while the either-way row shows, Before and After share a line and the note sits on the count line, so the
+       buttons stay in view. No text and no DOM order changes. */
+    @media ${HEIGHT_QUERIES.compact} {
+      .dry.has-either {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        column-gap: var(--space-3);
+      }
+      .dry.has-either .dry-head {
+        grid-column: 1;
+        grid-row: 1;
+      }
+      .dry.has-either:not(.has-note) .dry-head {
+        grid-column: 1 / -1;
+      }
+      .dry.has-either .dry-note {
+        grid-column: 2;
+        grid-row: 1;
+      }
+      .dry.has-either .dry-row {
+        grid-template-columns: auto minmax(0, 1fr);
+      }
+      .dry.has-either .dry-either {
+        grid-column: 1 / -1;
+      }
+      .dry.has-either .dry-resend {
+        grid-column: 1 / -1;
+      }
     }
     .answer-row {
       display: flex;

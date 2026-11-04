@@ -30,6 +30,7 @@ Include Ensemble
 ///     noticed, closed or gone is not written and gets no notice. The answer handler
 ///     (the probe's Answer) writes a usable answer to an open incident and notices it, and writes and notices neither a noticed nor a closed one, and the empty
 ///     answer that follows an error writes and notices nothing.
+/// Story 7.8 (DW-645): TestDemoDiagnosis also builds the approval payload of its request (10/16/2026, a day above 12) and asserts that its dry run has no either-way flag and no reading.
 Class OcuTalon.Test.Watch.Diagnose Extends OcuTalon.Test.Watch.Case
 {
 
@@ -172,6 +173,8 @@ Method AssertWithFix(ref As %String, row As OcuTalon.Data.Incident, a As %String
 	Do $$$AssertEquals(request.fixTargets, expected, "its targets are the 50 failed orders' header ids, ascending")
 	Set dryRun = {}.%FromJSON(request.dryRun)
 	Do $$$AssertEquals(dryRun.affected_"|"_dryRun.resend_"|"_dryRun.leftOut_"|"_dryRun.field_"|"_dryRun.before_"|"_dryRun.after_"|"_dryRun.itemNoun.one_"|"_dryRun.itemNoun.other, "50|50|0|order date|10/16/2026|2026-10-16|order|orders", "and its stored dry run")
+	Set card = ##class(OcuTalon.Live.Payload.Approval).FromRow(##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(request.ref))
+	Do $$$AssertEquals($IsObject(card.DryRun) && (card.DryRun.EitherWay = 0) && (card.DryRun.Reading = ""), 1, "Story 7.8: a day above 12 (10/16/2026) reads one way, so the approval payload has no either-way flag and no reading")
 	Set targetCount = $Length(request.fixTargets, ",")
 	Set fieldWords = ##class(OcuTalon.Fix.Kind.RepairResend).FieldWords(parameters.field)
 	Set resendCount = +dryRun.resend

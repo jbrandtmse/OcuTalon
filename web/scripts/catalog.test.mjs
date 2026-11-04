@@ -78,6 +78,13 @@ const RESULT_KEYS = [
   'audit.recorded',
 ];
 
+/** The page key of the either-way line (Story 7.8): derived by the generator from the two catalog entries that hold it, listed last. */
+const LINE_KEY = 'incident.eitherWayLine';
+const LINE_PARENTS = ['incident.withFixEitherWay', 'incident.laterRequestEitherWay'];
+/** U-249's line, as the notice shows it: the many form and the one form. */
+const LINE_MANY = 'All {resendCount} dates are valid whether read month first or day first. Read {reading}, they match the day each {item} arrived.';
+const LINE_ONE = 'The date is valid whether read month first or day first. Read {reading}, it matches the day the {item} arrived.';
+
 describe('the real tree', () => {
   it('has a current catalog.ts', () => {
     const r = run('--check');
@@ -91,21 +98,21 @@ describe('the real tree', () => {
     assert.ok(!/[^\x20-\x7e\n]/.test(text), 'ASCII only');
   });
 
-  it('holds the 12 fallback reasons of Msg.Enum, and the 11 reason texts, the sentence, the five check sentences, the 15 banner and action keys, the nine answered keys and the nine result keys', () => {
+  it('holds the 12 fallback reasons of Msg.Enum, and the 11 reason texts, the sentence, the five check sentences, the 15 banner and action keys, the nine answered keys, the nine result keys and the either-way line', () => {
     const enumReasons = /Parameter FALLBACKREASON = "([^"]*)";/.exec(readFileSync(enumFile, 'utf8'))[1].split(',');
     assert.equal(enumReasons.length, 12);
     assert.deepEqual(Object.keys(real.REASON_KEYS), enumReasons);
     const suffixes = ['timeout', 'empty', 'cutOff', 'refusal', 'error', 'rateLimited', 'budget', 'tooLarge', 'dailyCap', 'noKey', 'generic'];
     assert.equal(CHECK_KEYS.length, 5);
-    assert.deepEqual(Object.keys(real.PAGE_TEXTS).sort(), ['conversation.turnFallback', ...CHECK_KEYS, ...BANNER_KEYS, ...ANSWERED_KEYS, ...RESULT_KEYS, ...suffixes.map((suffix) => `fallbackReason.${suffix}`)].sort());
-    assert.equal(Object.keys(real.PAGE_TEXTS).length, 50);
+    assert.deepEqual(Object.keys(real.PAGE_TEXTS).sort(), ['conversation.turnFallback', ...CHECK_KEYS, ...BANNER_KEYS, ...ANSWERED_KEYS, ...RESULT_KEYS, LINE_KEY, ...suffixes.map((suffix) => `fallbackReason.${suffix}`)].sort());
+    assert.equal(Object.keys(real.PAGE_TEXTS).length, 51);
   });
 
   it('holds the 15 banner and action keys, the nine answered keys and the nine result keys with the slot types of the catalog, and no key that waits for another story', () => {
     assert.equal(BANNER_KEYS.length, 15);
     assert.equal(ANSWERED_KEYS.length, 9);
     assert.equal(RESULT_KEYS.length, 9);
-    assert.deepEqual(Object.keys(real.PAGE_SLOTS), ['conversation.turnFallback', ...CHECK_KEYS, ...BANNER_KEYS, ...ANSWERED_KEYS, ...RESULT_KEYS]);
+    assert.deepEqual(Object.keys(real.PAGE_SLOTS), ['conversation.turnFallback', ...CHECK_KEYS, ...BANNER_KEYS, ...ANSWERED_KEYS, ...RESULT_KEYS, LINE_KEY]);
     const slots = {
       'checks.notEverything': { whatFailed: 'text' },
       'checks.notEverythingRestPassed': { whatFailed: 'text' },
@@ -133,6 +140,7 @@ describe('the real tree', () => {
       'result.interrupted': { count: 'count', itemNoun: 'noun', completed: 'count', remaining: 'count' },
       'result.couldNotStart': { reason: 'text' },
       'result.stoppedPartway': { count: 'count', itemNoun: 'noun', resent: 'count', completed: 'count', notTried: 'count' },
+      [LINE_KEY]: { resendCount: 'count', reading: 'text', item: 'text' },
     };
     for (const key of Object.keys(real.PAGE_SLOTS)) assert.deepEqual({ ...real.PAGE_SLOTS[key] }, slots[key] ?? {}, key);
     assert.ok(!Object.hasOwn(real.PAGE_TEXTS, 'bannerAction.budgets'), 'Budgets waits for the settings page');
@@ -225,7 +233,7 @@ describe('the result texts', () => {
   });
 
   it('read the catalog\'s count-of-one form where the named count slot is 1, and the noun by the count slot', () => {
-    assert.deepEqual(Object.keys(real.PAGE_ONE_FORMS), ['result.allThrough', 'result.failedAgain', 'result.skipped', 'result.failedAndSkipped', 'result.stillResending', 'result.interrupted', 'result.stoppedPartway']);
+    assert.deepEqual(Object.keys(real.PAGE_ONE_FORMS), ['result.allThrough', 'result.failedAgain', 'result.skipped', 'result.failedAndSkipped', 'result.stillResending', 'result.interrupted', 'result.stoppedPartway', LINE_KEY]);
     assert.deepEqual(Object.fromEntries(Object.entries(real.PAGE_ONE_FORMS).map(([key, form]) => [key, form.slot])), {
       'result.allThrough': 'count',
       'result.failedAgain': 'failedAgain',
@@ -234,6 +242,7 @@ describe('the result texts', () => {
       'result.stillResending': 'completed',
       'result.interrupted': 'remaining',
       'result.stoppedPartway': 'notTried',
+      [LINE_KEY]: 'resendCount',
     });
     assert.equal(real.renderPageText('result.allThrough', { count: '1', itemNoun: noun }), 'The order went through.');
     assert.equal(
@@ -456,8 +465,26 @@ const GOOD = {
   'pairing.paired': { text: 'Not listed: {time}', slots: { time: 'time' }, source: 'fixture' },
 };
 
-/** The Watch catalog of the fixtures: the five check sentences the page renders. */
+/**
+ * One of the two entries that hold the either-way line, in the shape of the real ones: four forms (text, web, one.text, one.web), each with the line between
+ * "becomes {after}. " and " I'll resend". A form can be given another line, or other words around it, to break one rule of the generator.
+ */
+function eitherParent(lead, forms = {}) {
+  const { many = [LINE_MANY, LINE_MANY], one = [LINE_ONE, LINE_ONE], start = 'becomes {after}. ', end = " I'll resend" } = forms;
+  const form = (line, tail) => `${lead} Example: x ${start}${line}${end} ${tail}`;
+  return {
+    text: form(many[0], '{resendCount} repaired copies. Approve?'),
+    web: form(many[1], '{resendCount} repaired copies.'),
+    slots: { count: 'count', itemNoun: 'noun', after: 'text', resendCount: 'count', reading: 'text', item: 'text' },
+    source: 'fixture',
+    one: { slot: 'resendCount', text: form(one[0], '1 repaired copy. Approve?'), web: form(one[1], '1 repaired copy.') },
+  };
+}
+
+/** The Watch catalog of the fixtures: the five check sentences the page renders, and the two entries that hold the either-way line. */
 const WATCH = {
+  [LINE_PARENTS[0]]: eitherParent('{count} {itemNoun} failed.'),
+  [LINE_PARENTS[1]]: eitherParent('{count} more {itemNoun} failed.'),
   'checks.allPassed': { text: 'All fine.', slots: {}, source: 'fixture' },
   'checks.everythingElsePassed': { text: 'The rest was fine.', slots: {}, source: 'fixture' },
   'checks.nothingWatched': { text: "Nothing's watched.", slots: {}, source: 'fixture' },
@@ -483,11 +510,11 @@ describe('the generator on a fixture', () => {
     const r = run(...args);
     assert.equal(r.status, 0, r.stderr);
     const module = await import(pathToFileURL(args[5]).href);
-    assert.deepEqual(Object.keys(module.PAGE_TEXTS), ['conversation.turnFallback', ...CHECK_KEYS, ...BANNER_KEYS, ...ANSWERED_KEYS, ...RESULT_KEYS, 'fallbackReason.timeout', 'fallbackReason.generic']);
-    assert.deepEqual(Object.keys(module.PAGE_SLOTS), ['conversation.turnFallback', ...CHECK_KEYS, ...BANNER_KEYS, ...ANSWERED_KEYS, ...RESULT_KEYS]);
+    assert.deepEqual(Object.keys(module.PAGE_TEXTS), ['conversation.turnFallback', ...CHECK_KEYS, ...BANNER_KEYS, ...ANSWERED_KEYS, ...RESULT_KEYS, LINE_KEY, 'fallbackReason.timeout', 'fallbackReason.generic']);
+    assert.deepEqual(Object.keys(module.PAGE_SLOTS), ['conversation.turnFallback', ...CHECK_KEYS, ...BANNER_KEYS, ...ANSWERED_KEYS, ...RESULT_KEYS, LINE_KEY]);
     assert.deepEqual({ ...module.PAGE_SLOTS['checks.notEverything'] }, { whatFailed: 'text' });
     assert.equal(module.renderPageText('checks.notEverythingRestPassed', { whatFailed: 'A (x)' }), 'Not everything: A (x). The rest was fine.');
-    assert.deepEqual(Object.keys(module.PAGE_ONE_FORMS), ['result.allThrough', 'result.failedAgain', 'result.skipped', 'result.failedAndSkipped', 'result.stillResending', 'result.interrupted', 'result.stoppedPartway']);
+    assert.deepEqual(Object.keys(module.PAGE_ONE_FORMS), ['result.allThrough', 'result.failedAgain', 'result.skipped', 'result.failedAndSkipped', 'result.stillResending', 'result.interrupted', 'result.stoppedPartway', LINE_KEY]);
     assert.deepEqual({ ...module.CHANNEL_NAMES }, { web: 'the web chat', phone: 'the simulated phone' });
     assert.deepEqual({ ...module.MESSAGE_TEXTS }, { 'answered.approved': 'Yes from {channel} at {time}.' }, 'the text form of the one listed key with a web form');
     assert.equal(module.renderMessageText('answered.approved', { channel: 'phone', time: 'Monday at 09:00' }), 'Yes from the simulated phone on Monday at 09:00.');
@@ -657,9 +684,10 @@ describe('the generator on a fixture', () => {
       'result.failedAgain',
       'result.failedAndSkipped',
       'result.couldNotStart',
+      LINE_KEY,
     ]);
     assert.deepEqual(Object.keys(real.PAGE_SLOTS).filter((key) => Object.values(real.PAGE_SLOTS[key]).includes('text')), TEXT_SLOT_KEYS, 'the listed keys of the real catalog with a text slot');
-    for (const key of LISTED_KEYS) {
+    for (const key of LISTED_KEYS.filter((one) => one !== LINE_KEY)) {
       const inWatch = Object.hasOwn(WATCH, key);
       const entry = (inWatch ? WATCH : GOOD)[key];
       const withText = { ...entry, slots: { ...entry.slots, extra: 'text' } };
@@ -857,5 +885,95 @@ describe('--check', () => {
     assert.equal(run(...args).status, 0);
     writeFileSync(args[1], coreClass(JSON.stringify({ ...GOOD, 'fallbackReason.timeout': { text: 'it timed out later', slots: {} } }, null, 1)));
     assert.equal(run(...args, '--check').status, 1);
+  });
+});
+
+describe('the either-way line of the real tree (Story 7.8; U-249)', () => {
+  const watchFile = join(repoRoot, 'src/ocutalon/cls/OcuTalon/Msg/Catalog/Watch.cls');
+  const fromClass = () => {
+    const text = readFileSync(watchFile, 'utf8');
+    const lines = text.split('\n');
+    const header = lines.findIndex((line) => /^XData\s+Entries\b/.test(line));
+    let close = header + 3;
+    while (!(lines[close] === '}' && lines[close + 1] === '}')) close += 1;
+    return JSON.parse(lines.slice(header + 2, close + 1).join('\n'));
+  };
+
+  it('holds the line as U-249 words it, in a many form and a one form chosen by resendCount', () => {
+    assert.equal(real.PAGE_TEXTS[LINE_KEY], LINE_MANY);
+    assert.deepEqual({ ...real.PAGE_ONE_FORMS[LINE_KEY] }, { slot: 'resendCount', text: LINE_ONE });
+    assert.deepEqual({ ...real.PAGE_SLOTS[LINE_KEY] }, { resendCount: 'count', reading: 'text', item: 'text' });
+    assert.equal(real.renderPageText(LINE_KEY, { resendCount: '3', reading: 'month first', item: 'order' }), 'All 3 dates are valid whether read month first or day first. Read month first, they match the day each order arrived.');
+    assert.equal(real.renderPageText(LINE_KEY, { resendCount: '1', reading: 'day first', item: 'message' }), 'The date is valid whether read month first or day first. Read day first, it matches the day the message arrived.');
+  });
+
+  it('is what each of the eight forms of the two catalog entries holds between its anchors, and nothing else of them is typed on the page', () => {
+    const entries = fromClass();
+    const forms = [];
+    for (const key of LINE_PARENTS) {
+      const entry = entries[key];
+      forms.push([key + ' text', entry.text, LINE_MANY], [key + ' web', entry.web, LINE_MANY], [key + ' one.text', entry.one.text, LINE_ONE], [key + ' one.web', entry.one.web, LINE_ONE]);
+    }
+    assert.equal(forms.length, 8);
+    for (const [name, text, line] of forms) assert.ok(text.includes('becomes {after}. ' + line + " I'll resend"), name);
+    assert.ok(!Object.hasOwn(entries, LINE_KEY), 'no catalog class holds the derived key');
+  });
+});
+
+describe('the either-way line on a fixture', () => {
+  const refused = (name, watchEntries, pattern) => {
+    const r = run(...fixture(name, { watchEntries }));
+    assert.equal(r.status, 1, name);
+    assert.ok(r.stderr.includes(LINE_KEY), `${name}: ${r.stderr}`);
+    assert.match(r.stderr, pattern, `${name}: ${r.stderr}`);
+  };
+
+  it('cuts the line out of the eight forms and lists it with its slots and its one form', async () => {
+    const args = fixture('line-good');
+    const r = run(...args);
+    assert.equal(r.status, 0, r.stderr);
+    const module = await import(pathToFileURL(args[5]).href);
+    assert.equal(module.PAGE_TEXTS[LINE_KEY], LINE_MANY);
+    assert.deepEqual({ ...module.PAGE_SLOTS[LINE_KEY] }, { resendCount: 'count', reading: 'text', item: 'text' });
+    assert.deepEqual({ ...module.PAGE_ONE_FORMS[LINE_KEY] }, { slot: 'resendCount', text: LINE_ONE });
+    assert.equal(module.renderPageText(LINE_KEY, { resendCount: '2', reading: 'day first', item: 'order' }), 'All 2 dates are valid whether read month first or day first. Read day first, they match the day each order arrived.');
+  });
+
+  it('refuses a missing parent entry, naming the key', () => {
+    for (const parent of LINE_PARENTS) {
+      refused(`line-no-${parent}`, Object.fromEntries(Object.entries(WATCH).filter(([key]) => key !== parent)), new RegExp(`'${parent}'`));
+    }
+  });
+
+  it('refuses a parent with no one form', () => {
+    const { one, ...noOne } = WATCH[LINE_PARENTS[0]];
+    refused('line-no-one', { ...WATCH, [LINE_PARENTS[0]]: noOne }, /no one form/);
+  });
+
+  it('refuses a form whose anchor is missing or occurs twice', () => {
+    refused('line-no-start', { ...WATCH, [LINE_PARENTS[0]]: eitherParent('{count} {itemNoun} failed.', { start: 'turns into {after}. ' }) }, /does not hold/);
+    refused('line-no-end', { ...WATCH, [LINE_PARENTS[1]]: eitherParent('{count} more {itemNoun} failed.', { end: ' We will resend' }) }, /does not hold/);
+    refused('line-twice', { ...WATCH, [LINE_PARENTS[1]]: eitherParent('becomes {after}. x', {}) }, /does not hold/);
+  });
+
+  it('refuses a many form that differs in one word of one form', () => {
+    const changed = LINE_MANY.replace('valid', 'fine');
+    refused('line-many-text', { ...WATCH, [LINE_PARENTS[0]]: eitherParent('{count} {itemNoun} failed.', { many: [changed, LINE_MANY] }) }, /many form/);
+    refused('line-many-web', { ...WATCH, [LINE_PARENTS[1]]: eitherParent('{count} more {itemNoun} failed.', { many: [LINE_MANY, changed] }) }, /many form/);
+  });
+
+  it('refuses a one form that differs in one word of one form of one parent', () => {
+    const changed = LINE_ONE.replace('matches', 'fits');
+    refused('line-one-text', { ...WATCH, [LINE_PARENTS[1]]: eitherParent('{count} more {itemNoun} failed.', { one: [changed, LINE_ONE] }) }, /one form/);
+    refused('line-one-web', { ...WATCH, [LINE_PARENTS[0]]: eitherParent('{count} {itemNoun} failed.', { one: [LINE_ONE, changed] }) }, /one form/);
+  });
+
+  it('refuses a slot of the line that a parent does not declare, and a catalog class that defines the derived key', () => {
+    const parent = eitherParent('{count} {itemNoun} failed.');
+    const { reading, ...slots } = parent.slots;
+    refused('line-slot', { ...WATCH, [LINE_PARENTS[0]]: { ...parent, slots } }, /slot 'reading'/);
+    const r = run(...fixture('line-defined', { watchEntries: { ...WATCH, [LINE_KEY]: { text: 'x', slots: {}, source: 'fixture' } } }));
+    assert.equal(r.status, 1);
+    assert.match(r.stderr, /derived by the generator/);
   });
 });

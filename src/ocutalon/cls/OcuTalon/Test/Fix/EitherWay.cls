@@ -23,6 +23,9 @@ Include Ensemble
 ///     the phone message holds "All 2 dates are valid whether read month first or day first. Read month first, they match the day each order arrived.";
 ///   - TestPressWritesTheLocalDate: the partner writes the date of the process's own zone: under a zone whose date differs from the UTC date, Partner.Orders with
 ///     an empty date gives the MM/DD/YYYY of the local date, not of the UTC date.
+/// The tests that raise a request also read the approval payload that the web card is drawn from (Story 7.8; DW-645): AssertCardFields opens the request's row and asserts that
+/// Live.Payload.Approval FromRow gives the dry run eitherWay 1, the notice's reading slot as its reading, the notice's item slot as the item noun's singular and the notice's
+/// resendCount slot as resend, and TestBothReadingsMatch that it gives eitherWay 0. The stored dry run keeps its keys.
 /// Every test that sets arrivals asserts that the DryRun header it depends on was created after the arrivals were set (LogMargin), so a dry run that read the real
 /// arrivals is red on any date.
 Class OcuTalon.Test.Fix.EitherWay Extends OcuTalon.Test.Watch.Case
@@ -74,6 +77,7 @@ Method TestDemoRepairWhenInstanceDateIsNotUtcDate()
 		Do $$$AssertEquals(note.sessionRef_"|"_note.kind_"|"_note.catalogKey_"|"_note.approvalRef, a_"|incident|incident.withFixEitherWay|"_request.ref, "of kind incident, with the either-way key and the request's Ref")
 		Set slots = note.slots
 		Do $$$AssertEquals(slots.reading_"|"_slots.item_"|"_slots.resendCount_"|"_slots.before_"|"_slots.after, "month first|order|3|11/03/2026|2026-11-03", "its slots: the reading, the noun of one item, the count and the example")
+		Do ..AssertCardFields(request, slots)
 		Set text = ##class(OcuTalon.Msg.Catalog).Render(note.catalogKey, slots.%ToJSON(), "phone", .sc)
 		Do $$$AssertStatusOK(sc, "the slots render")
 		Do $$$AssertTrue(text [ ("Example: order date 11/03/2026 becomes 2026-11-03. "_..#LINE_" I'll resend 3 repaired copies;"), "the Dry run paragraph holds the line: "_text)
@@ -125,6 +129,8 @@ Method TestBothReadingsMatch()
 	If notes.%Size() = 1 {
 		Set note = notes.%Get(0)
 		Do $$$AssertEquals(note.catalogKey_"|"_note.slots.%IsDefined("reading")_"|"_note.slots.%IsDefined("item"), "incident.withFix|0|0", "the key is incident.withFix, with no reading and no item slot")
+		Set card = ##class(OcuTalon.Live.Payload.Approval).FromRow(##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(request.ref))
+		Do $$$AssertEquals($IsObject(card.DryRun) && (card.DryRun.EitherWay = 0) && (card.DryRun.Reading = ""), 1, "and the approval payload has no either-way flag and no reading")
 		Set phone = ..PhoneText(a, request.ref)
 		Do $$$AssertTrue(phone [ "Dry run: 3 orders affected. Example: order date 11/11/2026 becomes 2026-11-11. I'll resend 3 repaired copies;", "the phone message holds the dry run without the line: "_phone)
 		Do $$$AssertTrue(phone '[ ..#LINESTART, "and nothing of the line")
@@ -149,6 +155,7 @@ Method TestBothReadingsMatchMixedWithTolerance()
 	If notes.%Size() = 1 {
 		Set note = notes.%Get(0)
 		Do $$$AssertEquals(note.catalogKey_"|"_note.slots.reading_"|"_note.slots.item_"|"_note.slots.resendCount, "incident.withFixEitherWay|month first|order|3", "the either-way key, with the reading, the noun of one item and the count")
+		Do ..AssertCardFields(request, note.slots)
 		Set phone = ..PhoneText(a, request.ref)
 		Do $$$AssertTrue(phone [ ("Example: order date 11/03/2026 becomes 2026-11-03. "_..#LINE_" I'll resend 3 repaired copies;"), "the phone message holds the line as worded: "_phone)
 	}
@@ -190,6 +197,7 @@ Method TestLaterRoundKeepsTheLine()
 		Do $$$AssertEquals(note.kind_"|"_note.catalogKey_"|"_note.approvalRef, "approval|incident.laterRequestEitherWay|"_second.ref, "of kind approval, with the later either-way key and the second request's Ref")
 		Set slots = note.slots
 		Do $$$AssertEquals(slots.reading_"|"_slots.item_"|"_slots.resendCount, "month first|order|2", "its slots: the reading, the noun of one item and the count of the later round")
+		Do ..AssertCardFields(second, slots)
 		Set phone = ..PhoneText(a, second.ref)
 		Do $$$AssertTrue(phone [ "All 2 dates are valid whether read month first or day first. Read month first, they match the day each order arrived. I'll resend 2 repaired copies;", "the phone message holds the line for the two later orders: "_phone)
 	}
@@ -250,6 +258,22 @@ Method Press(name As %String, orderDate As %String, arrival As %String, Output a
 	If rows.%Size() < 1 Quit 0
 	Set ref = rows.%Get(0).ref
 	Quit 1
+}
+
+/// Asserts that the approval payload of the request (an object with its Ref) has the dry run's either-way fields of the notice that was sent (its slots): eitherWay 1, the
+/// reading slot as reading, the item slot as the item noun's singular and the resendCount slot as resend; and that the stored dry run holds no key of the payload's own.
+Method AssertCardFields(request As %DynamicObject, slots As %DynamicObject) [ Private ]
+{
+	Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(request.ref)
+	Do $$$AssertTrue($IsObject(row), "the request's row opens: "_request.ref)
+	If '$IsObject(row) Quit
+	Set payload = ##class(OcuTalon.Live.Payload.Approval).FromRow(row)
+	Do $$$AssertTrue($IsObject(payload.DryRun), "the approval payload has a dry run")
+	If '$IsObject(payload.DryRun) Quit
+	Do $$$AssertEquals(payload.DryRun.EitherWay_"|"_payload.DryRun.Reading, "1|"_slots.reading, "the payload carries the flag and the notice's reading")
+	Do $$$AssertEquals(payload.DryRun.ItemNoun.One_"|"_payload.DryRun.Resend, slots.item_"|"_slots.resendCount, "and the card's item and count are the notice's item and resendCount slots")
+	Set stored = {}.%FromJSON(row.DryRun)
+	Do $$$AssertEquals(stored.%IsDefined("eitherWay")_"|"_stored.%IsDefined("reading"), "0|0", "and the stored dry run holds neither")
 }
 
 /// Asserts that the nth DryRun header of the incident's trace session (in the order of their ids) exists and was created after ArrivalSetAt, so that the dry run

@@ -2,7 +2,8 @@
 title: 'The web incident card shows the either-way date line too'
 type: 'feature'
 created: '2026-11-04'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '701942f7371a67088e3be671a31e1a74588c894d'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -137,6 +138,22 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless stated. Lines as of `ae68a4a
 
 ## Review Triage Log
 
+### 2026-11-04 - Review pass
+- verdicts: 18 findings - high 0, medium 3, low 15, false 0, maybe-false 0 (rows group findings that share a root cause)
+- findings:
+  - `[medium]` `patch` Blind 3 and the Verification-Gap layer: under 680px tall an answered either-way request leaves the cell beside the count line free, so Before lands beside the head and After drops to row 2; nothing tests the arrangement or the answered state at that height - fixed: the template sets `has-note` from `nothingYet`, the CSS gives the head the whole line when there is no note, and E4 (answered, 1280x600) and E5 (pending) assert Before and After share a line below the count line and the note sits on the count line (helper `beforeAndAfterShareALine`).
+  - `[medium]` `patch` Blind 4 and Verification-Gap: nothing asserts the short-screen arrangement itself (same root cause as the row above) - fixed by the same assertions; mutation recorded in Verification.
+  - `[low]` `reject` Blind 1 and Edge-Case 1: `Reading` could throw on a non-string `before` and drop the whole dry run - the stored dry run is written only by `RepairResend` with string values, and a parse failure already drops the dry run today; a guard adds a branch for a state nothing reaches.
+  - `[low]` `reject` Blind 2 and Edge-Case 2: the flag does not look at `resend`, so a payload can say `eitherWay` for a dry run with no resend - spec-bound (Always: `eitherWay` is 1 exactly when `Reading` is not empty; the page's `resend >= 1` check is the spec's own); a raised date repair always has `resend >= 1`.
+  - `[low]` `reject` Blind 5: the class doc of `Test.Bridge.CodeRules` is out of step - the doc of each of the two parameters carries the change; the class doc names no list.
+  - `[low]` `reject` Blind 6 and Verification-Gap other finding 1: the per-key extra-slot loop of `catalog.test.mjs` skips the derived key - its slots are pinned by the real-tree `deepEqual`, by the fixture cases and by the generator's own check; the loop's fixture builds a catalog class entry, which the derived key cannot be.
+  - `[low]` `reject` Blind 7 and Verification-Gap other finding 2: E1 compares the server's render for the many form only - the one form is compared to all four one texts of the catalog entries by `catalog.test.mjs`; a wording drift there fails the generator.
+  - `[low]` `reject` Blind 8: `DAY` is taken at module load - the page clock, the seeded times and the server script use the same constant.
+  - `[low]` `reject` Edge-Case 3 and 4: no `IsObject` guard on `RefIndexOpen` in two tests - a missing row fails the test loudly, which is the intended red.
+  - `[low]` `reject` Edge-Case 5: a request raised before Story 7.7 shows the line though its notice never did - accepted by the lead as veto U-266 (Design Notes, Rulings).
+  - `[low]` `reject` Verification-Gap: AC 3 (stays when answered), AC 4 (other rows) and AC 5 (missing parent or anchor) clauses have no mutation of their own - each AC has its recorded mutation, the clauses are pinned by E4, the `deepEqual` and the fixture refusals, and a mutation per clause is more than the table asks.
+  - `[low]` `reject` Intent audit (descriptive): the short-screen grid, the visibility change and the `CodeRules` lists go beyond the intent's lists - all are in the spec's Tasks and Rulings (Q1 option a; U-267).
+
 ## Design Notes
 
 **Rulings (the lead, 2026-11-04, on the plan's Q1, Q2 and point (c)).**
@@ -234,9 +251,46 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless stated. Lines as of `ae68a4a
 | AC 6 | the short-screen rule removed | E5 |
 | AC 7 | `FromRow` writes `eitherWay` back into `row.DryRun` | `Payloads.TestApprovalEitherWay` (the row's `DryRun` text unchanged) |
 
+**Mutations applied (Rule 19, implement stage).** Each was applied, observed red, and reverted byte-identically (`cmp` against a copy taken before it, and the whole `git diff` equal to the one taken before the first mutation).
+
+- mutation: AC 1 `FromRow` no longer sets `EitherWay` -> red: `Payloads.TestApprovalEitherWay` (slot B); fresh `EitherWay` fails `TestDemoRepairWhenInstanceDateIsNotUtcDate`, `TestBothReadingsMatchMixedWithTolerance` and `TestLaterRoundKeepsTheLine` ("the payload carries the flag and the notice's reading"); `live cards` fails 4 (E1, E2, E4, E5).
+- mutation: AC 1 / reading `READINGS` swapped -> red: `Payloads.TestApprovalEitherWay` and `NoticeText.TestEitherWay` (slot B).
+- mutation: AC 2 `Reading` ignores `first = second` (whether the readings differ) -> red: `Payloads.TestApprovalEitherWay` (the 11/11 case: "same date both ways", its JSON and "it is false"), fresh `EitherWay.TestBothReadingsMatch`. `Diagnose.TestDemoDiagnosis` stays GREEN under this mutation: 10/16/2026 does not read as a date in the other order, so `Reformat.Readings` refuses it before the `first = second` test. The table's expectation of a red `Diagnose` here is wrong for this mutation (and 10/16 in `Payloads` also stays green; 11/11 is what pins it).
+- mutation: AC 2 / day above 12 `FromRow` sets the flag whatever `Reading` answers (`If reading '= ""` replaced by `If 1`) -> red: fresh `Diagnose.TestDemoDiagnosis` ("a day above 12 (10/16/2026) reads one way, so the approval payload has no either-way flag"). This is the mutation that pins the Diagnose assertion.
+- mutation: AC 3 / form the view passes `affected` as `resendCount` -> red: `approval-view.test.mjs` (the many form and the "resend 1 of 50" cases).
+- mutation: AC 3 / item the view passes the `other` noun -> red: `approval-view.test.mjs` (5 cases).
+- mutation: AC 3 / place the row after Will resend -> red: `approval-sources.test.mjs` (2 cases), and `live cards` fails E1, E2 and E4 (after rebuilding the bundle with `ci/iris.sh build`; a run on the old bundle stays green).
+- mutation: AC 4 the view tests `reading` alone and ignores `eitherWay` -> red: `approval-view.test.mjs` ("is absent unless the flag is true ...").
+- mutation: AC 5 one word changed in the one form of `incident.laterRequestEitherWay` -> the generator exits 1 ("incident.eitherWayLine: the one form of the line differs ..."), `catalog.test.mjs` real-tree cases fail (current catalog.ts; the eight forms). The fixture refusal cases pass by design: they build their own broken fixtures and assert the refusal.
+- mutation: AC 6 / answered the rule `.dry.has-either:not(.has-note) .dry-head` removed -> red: E4 only (Before and After no longer share a line below the count line); with the rule E4 and E5 pass.
+- mutation: AC 6 the short-screen rule removed -> red: E5 only (`toBeInViewport` fails); with the rule E5 passes.
+- mutation: AC 7 `FromRow` writes `eitherWay` back into `row.DryRun` -> red: `Payloads.TestApprovalEitherWay` ("the row's stored dry run is unchanged").
+
+**Implementation notes (decided in-stage, small, within the intent).**
+- E1's reload check reads the `/state` snapshot (`rail.approvals[].dryRun.eitherWay` and `reading`) instead of looking for the card after `page.reload()`: the fixture incident is an event only and a reload does not redraw its card, so the request card is not on the page after a reload. The snapshot is what `Web/Api` builds through `FromRow`, which is the matrix row "Reload".
+- The compact rule sets `.dry-row` to `auto minmax(0, 1fr)` columns (not the 84 px key column) while the row shows, so the half-width cells keep room for the value; the rule changes only `.dry.has-either` under `HEIGHT_QUERIES.compact`, and the Will resend row gets the extra class `dry-resend` (a hook for `grid-column: 1 / -1`; no text, order or other row changes).
+- The derived key is listed last in `LISTED_KEYS` and `TEXT_SLOT_KEYS` (its slots `reading` and `item` are text slots).
+- Class tests that need no runtime of their own (`Payloads`, `CodeRules`, `NoticeText`, `BridgeSink`, and the mutation runs of `Payloads` and `NoticeText.TestEitherWay`) ran on slot B (namespace OCUTALON) after `iris_doc_load` of the changed classes, not in a warm throwaway; `EitherWay`, `Diagnose` and `live cards` ran in fresh lane-B throwaways with tag `e7s8i`, torn down at the end.
+- The bundle is rebuilt (`ci/iris.sh build`) before each `live cards` run that follows a web change; a run on an older bundle does not see the change.
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-Summary: the re-plan reconciled the spec with the Rulings and it meets the READY-FOR-DEVELOPMENT standard. See the Spec Change Log's re-plan entry for what changed.
+Summary: the approval payload's `dryRun` now carries `eitherWay` and `reading`, worked out in `FromRow` by `Watch.Notice.Reading` over the stored dry run and `FixParameters` (nothing stored, `DRYRUNKEYS` unchanged). `catalog.mjs` cuts the page key `incident.eitherWayLine` out of the eight forms of the two catalog entries, and the web incident card renders it as one unlabelled `dry-either` row between After and Will resend, in the same one and many forms and with the notice's `reading`, `item` and count. Under 680px tall, and only while the row shows, a CSS grid keeps Approve and Reject in the chat list's view (E5), with the head on the whole line once the request is answered (E4).
+
+Files changed:
+- `src/ocutalon/cls/OcuTalon/Watch/Notice.cls`: `Reading` is public (docs only otherwise).
+- `src/ocutalon/cls/OcuTalon/Live/Payload/Part/DryRun.cls`, `Live/Payload/Approval.cls`: the two derived fields and their mapping.
+- `web/scripts/catalog.mjs`, `web/src/app/msg/catalog.ts`, `web/src/app/live/payloads.ts`: the derived page key and the regenerated files.
+- `web/src/app/approvals/approval-view.ts`, `approval-request-card.ts`: the row, its class and the short-screen grid; `web/src/app/shared/layout-view.ts`: doc line.
+- Tests: `Test/Live/Payloads.cls`, `Test/Fix/EitherWay.cls`, `Test/Watch/Diagnose.cls`, `Test/Bridge/CodeRules.cls` (two names appended to each list), `web/scripts/{catalog,approval-view,approval-sources,floor-sources,playwright-projects,ux-strings}.test.mjs`, `web/e2e/support/iris.ts`, new `web/e2e/cards/either-way.spec.ts` (E1 to E5).
+
+Review: 18 findings from four layers, none high; patches applied 2 groups (medium: the short-screen grid on an answered request, and the missing assertions of the arrangement); deferred 0 new items; the rest rejected as low or spec-bound, each with its reason in the Review Triage Log. Follow-up review recommended: false (no high patched, one medium group patched).
+
+Verification performed (all pass): `payloads`/`catalog` generate and `--check`; the six web node test files (237); `npm --prefix web test` (1323) and `lint`; slot B and fresh classes `Payloads`, `CodeRules`, `NoticeText`, `BridgeSink`, `EitherWay`, `Diagnose` (by the implementation subagent, unchanged since); `live cards` (25), `demo-path`, `floor` (107), `answers` (23), `online-demo`, `online-demo-path`; shards `lane-b` 1 to 3 of 3 and `lane-a` 1 to 12 of 12; `test-boundaries.sh`, `test-class-rules.sh`, `test-web-build.sh`. All throwaway stacks of tag `e7s8i` are torn down (0 left). Ten mutations plus one for the patch are recorded under Verification.
+
+Footprint extensions (named for the completion contract): `Watch/Notice.cls`; `web/scripts/catalog.mjs`, `web/src/app/msg/catalog.ts`; `web/scripts/{catalog,approval-view,approval-sources,floor-sources,playwright-projects}.test.mjs`; `web/src/app/shared/layout-view.ts` (doc); `web/e2e/support/iris.ts`; new `web/e2e/cards/either-way.spec.ts`; and `web/scripts/ux-strings.test.mjs`, found at the (once) `npm --prefix web test`: its SOURCES table needs a source for every `PAGE_TEXTS` string, so it gains one `ruled` entry for `incident.eitherWayLine` citing U-249 and Story 7.8 (a test pin of the generated catalog string, the way the entry for `result.stoppedPartway` is; no production file types the words). Contended, one self-contained edit each: `Test/Live/Payloads.cls`, `Test/Bridge/CodeRules.cls`. `new_units:` none.
+
+Residual risks: a request raised on a build without Story 7.7 can show the line with no evidence check behind it (veto U-266). The `Live.Event` Payload JSON text gains the two keys (veto U-267). The table row for AC 2 in the pinning-mutations list expects `Diagnose.TestDemoDiagnosis` red under "`Reading` ignores whether the readings differ"; it stays green there (10/16/2026 is refused by `Reformat.Readings` first), so the Diagnose assertion is pinned by the mutation recorded as "AC 2 / day above 12". The E1 reload check reads the `/state` snapshot, because the incident card is an event-only card that a reload does not redraw. `EXPERIENCE.md` is not edited (the lead's bookkeeping).
