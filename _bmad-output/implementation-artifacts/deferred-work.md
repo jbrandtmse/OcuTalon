@@ -3979,3 +3979,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-7-8-the-web-incident-card-shows-the-either-way-date-line-too.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: 7.8 fresh check: lane-a@Fix reversed part 2/2 on a fresh lane-B throwaway, red once (header 564), green on the unchanged rerun; Story 7.8 changed no Fix code
 - 2026-11-04T19:33:23Z status=routed owner=burndown by=adjudication note=flake candidate: Test.Fix.Snapshot exempts only a timer already running; a ScheduleService call is another background writer; note every occurrence
+
+### DW-685: live:online-session rows 2 and 4 measure from c_last only after the browser step, so a browser step that overruns (a leave.spec test at the 300 s timeout) makes row 4 read 'gone at 411 s' and row 2 pass at 411 s against a 150-180 s intent: a measurement cascade, not a session leak
+- source: Contest Planner ruling 2026-11-04 on row 4 (f2b20ea0 shards; OCT-epic39 d701b6e6 run 41909512271 att 1) | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: docker/tests/test-online-session.sh L205 sets c_last before the browser step; browser step 422 s (f2b20ea0) and 410 s (d701b6e6); live demo units.sh 1/1, no leaked units
+- 2026-11-04T21:35:21Z status=routed owner=burndown by=orchestrator note=Fix (first daily release if small): a background sampler started at c_last records when C's main and trace CSP sessions disappear; a row that could not be measured reports 'not measured (browser step overran, N s)'; a test pins that a slow browser step leaves row 4's verdict unchanged. No product action.
+
+### DW-686: flake candidate: live:production-restart row 20, the start after the kill did not end ready within 300 s
+- source: OCT-epic39 d701b6e6 run 41909512271 att 1, iris (production) | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: one occurrence; not reproduced on a lane-D throwaway at the same sha; Story 39.4 touches neither path
+- 2026-11-04T21:35:21Z status=routed owner=burndown by=orchestrator note=Contest Planner 2026-11-04: ledger it, tell the Planner on a second occurrence
