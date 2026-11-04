@@ -3964,6 +3964,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: cycle-log-epic-39.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: run 41909512271 attempt 2 on OCT-epic39 d701b6e6 (unit 578 s); passed on a fresh lane-D run at the same sha; Story 39.4 code never runs there (no checklist, beat skips empty)
 - 2026-11-04T22:12:29Z status=routed owner=burndown by=lead note=attempt 3 rerun decides; DW-321 reopen_if not met (578 s)
+- 2026-11-04T22:35:23Z occurrence=39-4-each-beat-carries-your-checklist-and-a-status-snapshot-built note=attempt_3_of_run_41909512271_green_on_unchanged_rerun_flake_confirmed
 ### DW-661: Story 17.6 adds the catalog key digest.cost to Msg/Catalog/Watch.cls; Story 33.2 adds only the dailyCost slot type
 - source: Story 33.2 spec gate (L1) | severity: low | fix-risk: low | footprint: small
 - evidence: spec-33-2 L1; Test.Msg.Catalog refuses the prefix in Catalog.Core
