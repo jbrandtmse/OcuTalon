@@ -3863,3 +3863,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: Contest Planner field watch 2026-11-03 (relay) | severity: med | fix-risk: low | footprint: in-footprint
 - evidence: Demo partner (PartnerTrigger) sends today's date as MM/DD/YYYY; until Nov 13 every value has day <= 12, so 11/03/2026 also parses as 11 March; Reformat.cls:62,67,88 ParseDate accepts the given format only, so the format choice is the model's
 - 2026-11-03T21:31:48Z status=routed owner=7-7-a-date-repair-that-could-read-either-way-names-its-evidence by=orchestrator note=Story 7.7 (veto U-248); first daily release after 1.0.0; not rc1 scope
+
+### DW-658: release.sh's header Output line and the steps banner do not mention the overview step's LOG line
+- source: spec-11-20-the-release-s-overview-step-hands-the-unit-files-the-contain.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: release.sh L45-46 lists ARTIFACT but not LOG, and the steps banner says one PASS or FAIL line; only step_overview's doc comment names LOG.
+- 2026-11-04T04:16:31Z status=by-design owner=11-20-the-release-s-overview-step-hands-the-unit-files-the-contain by=cr note=spec Never list bars release.sh's header; Decided in-stage 1 keeps it, the Output line is not exhaustive

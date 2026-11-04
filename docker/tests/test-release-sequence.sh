@@ -420,8 +420,9 @@ leanpath() {
 
 # --- the throwaway repository ---
 
-# stub_text <pass|fail|busy|silent|nolog>: the text of a stub release/security-overview.sh, the callable unit of the overview step, which prints what the real
-# unit prints for that outcome and exits as it does. It makes no call outside its own folder.
+# stub_text <pass|fail|busy|silent|nolog|quiet>: the text of a stub release/security-overview.sh, the callable unit of the overview step, which prints what the real
+# unit prints for that outcome and exits as it does. It makes no call outside its own folder, except that pass and fail use the marker files in
+# $SHIMLOG, and nolog, a unit that leaves the step no log, removes that log from the release state folder.
 stub_text() {
   printf '%s\n' '#!/usr/bin/env bash' 'set -u'
   case $1 in
@@ -448,6 +449,9 @@ stub_text() {
       ;;
     nolog)
       printf '%s\n' 'rm -f "$OCUTALON_RELEASE_STATE"/*/overview.log' 'exit 1'
+      ;;
+    quiet)
+      printf '%s\n' 'echo "some output that is not a DRIFT or FAIL line"' 'exit 2'
       ;;
   esac
 }
@@ -487,7 +491,7 @@ set_ipm_stub() {
   EXPECT_BASE=$(git -C "$W" rev-parse HEAD)
 }
 
-# set_stub <pass|fail|busy|silent|nolog>: replaces the stub in the case's checkout, commits it on the integration branch and pushes it, before start.
+# set_stub <pass|fail|busy|silent|nolog|quiet>: replaces the stub in the case's checkout, commits it on the integration branch and pushes it, before start.
 set_stub() {
   stub_text "$1" > "$W/release/security-overview.sh"
   git -C "$W" add release/security-overview.sh
@@ -1699,20 +1703,29 @@ t_overview() {
   lacks "overview fail: no local path in the record" "$(cat "$(rec_file)")" "$tmp"
   kept="$OCUTALON_RELEASE_STATE/1.0.0-rc1/overview-fail.log"
   has "overview fail: the log is kept" "$(cat "$kept" 2> /dev/null)" "DRIFT tool recent_activity"
-  eq "overview fail: no overview.log or export remains" "$(ls "$OCUTALON_RELEASE_STATE/1.0.0-rc1" | grep -c '^overview$\|^overview\.log$')" 0
+  eq "overview fail: no overview.log or export remains" "$(ls "$OCUTALON_RELEASE_STATE/1.0.0-rc1" | grep -c -e '^overview$' -e '^overview[.]log$')" 0
   has "overview fail: the LOG line" "$out" "LOG overview $kept"
   eq "overview fail: the LOG line follows the FAIL line" "$(printf '%s\n' "$out" | grep -A 1 '^FAIL overview ' | tail -n 1)" "LOG overview $kept"
   lacks "overview fail: the record does not name the kept log" "$(cat "$(rec_file)")" "overview-fail.log"
   eq "overview fail: nothing pushed" "$(git --git-dir="$R" for-each-ref --format='%(refname)' | tr '\n' ' ')" "refs/heads/$INTEG "
   rs '' status
   has "overview fail: the state still names overview" "$out" "STATE 1.0.0 rc1 next overview"
+  # a new failure replaces an earlier kept log
+  printf '%s\n' "STALE log of an earlier run" > "$kept"
+  rs "$N" next
+  eq "overview refail: exit" "$rc" 1
+  lacks "overview refail: the earlier log is replaced" "$(cat "$kept" 2> /dev/null)" "STALE"
+  has "overview refail: the new log is kept" "$(cat "$kept" 2> /dev/null)" "DRIFT tool recent_activity"
+  eq "overview refail: the LOG line follows the FAIL line" "$(printf '%s\n' "$out" | grep -A 1 '^FAIL overview ' | tail -n 1)" "LOG overview $kept"
   # a wait keeps the log of the earlier failure
+  printf '%s\n' "KEPT log of an earlier run" > "$kept"
   : > "$SHIMLOG/overview-busy"
   rs '' next
   eq "overview wait: exit" "$rc" 5
-  has "overview wait: the kept log stays" "$(cat "$kept" 2> /dev/null)" "DRIFT tool recent_activity"
+  has "overview wait: the kept log stays" "$(cat "$kept" 2> /dev/null)" "KEPT log of an earlier run"
   rm -f "$SHIMLOG/overview-busy"
   # a rerun that passes removes the kept log
+  printf '%s\n' "KEPT log of an earlier run" > "$kept"
   : > "$SHIMLOG/overview-pass"
   rs '' next
   eq "overview rerun: exit" "$rc" 0
@@ -1728,6 +1741,28 @@ t_overview() {
   lacks "overview silent: the unit's own prefix is not repeated" "$out" "FAIL overview FAIL overview"
   has "overview silent: the record" "$(cat "$(rec_file)")" "Result: failed at overview: a step ended with exit 3"
   has "overview silent: the LOG line" "$out" "LOG overview /"
+  # a unit that exits with a code but prints no DRIFT or FAIL line: the exit code is named and the log is still kept
+  newcase
+  set_stub quiet
+  to_step overview
+  rs "$N" next
+  eq "overview quiet: exit" "$rc" 1
+  has "overview quiet: the exit code is named" "$out" "FAIL overview the overview unit ended with exit 2"
+  eq "overview quiet: the LOG line follows the FAIL line" "$(printf '%s\n' "$out" | grep -A 1 '^FAIL overview ' | tail -n 1)" "LOG overview $OCUTALON_RELEASE_STATE/1.0.0-rc1/overview-fail.log"
+  has "overview quiet: the log is kept" "$(cat "$OCUTALON_RELEASE_STATE/1.0.0-rc1/overview-fail.log" 2> /dev/null)" "not a DRIFT or FAIL line"
+  eq "overview quiet: no overview.log or export remains" "$(ls "$OCUTALON_RELEASE_STATE/1.0.0-rc1" | grep -c -e '^overview$' -e '^overview[.]log$')" 0
+  has "overview quiet: the record names the exit code" "$(cat "$(rec_file)")" "Result: failed at overview: the overview unit ended with exit 2"
+  lacks "overview quiet: no local path in the record" "$(cat "$(rec_file)")" "$tmp"
+  # a relative state folder: the LOG line still names an absolute path
+  newcase
+  set_stub fail
+  export OCUTALON_RELEASE_STATE=../state
+  to_step overview
+  rs "$N" next
+  export OCUTALON_RELEASE_STATE=$C/state
+  eq "overview relative: exit" "$rc" 1
+  eq "overview relative: the LOG line names an absolute path" "$(printf '%s\n' "$out" | grep -A 1 '^FAIL overview ' | tail -n 1)" "LOG overview $W/../state/1.0.0-rc1/overview-fail.log"
+  eq "overview relative: the log is kept there" "$([ -s "$C/state/1.0.0-rc1/overview-fail.log" ] && echo yes || echo no)" yes
   # a log that cannot be kept: the failure is reported and no LOG line is printed
   newcase
   set_stub nolog
@@ -1736,6 +1771,22 @@ t_overview() {
   eq "overview nolog: exit" "$rc" 1
   has "overview nolog: the line" "$out" "FAIL overview the overview unit ended with exit 1"
   lacks "overview nolog: no LOG line" "$out" "LOG overview"
+  has "overview nolog: the record" "$(cat "$(rec_file)")" "Result: failed at overview: the overview unit ended with exit 1"
+  # a log that exists but cannot be moved: the failure is reported, no LOG line is printed and the log does not stay behind
+  newcase
+  set_stub fail
+  to_step overview
+  mkdir -p "$C/mvshim"
+  printf '#!/bin/sh\ncase "$*" in *overview-fail.log) exit 1 ;; esac\nexec "%s" "$@"\n' "$(command -v mv)" > "$C/mvshim/mv"
+  chmod 755 "$C/mvshim/mv"
+  RS_PATH="$C/mvshim:$PATH"
+  rs "$N" next
+  RS_PATH=""
+  eq "overview nomove: exit" "$rc" 1
+  has "overview nomove: the line" "$out" "FAIL overview DRIFT tool recent_activity"
+  lacks "overview nomove: no LOG line" "$out" "LOG overview"
+  eq "overview nomove: no log stays" "$(ls "$OCUTALON_RELEASE_STATE/1.0.0-rc1" | grep -c -e '^overview[.]log$' -e '^overview-fail[.]log$')" 0
+  has "overview nomove: the record" "$(cat "$(rec_file)")" "Result: failed at overview: DRIFT tool recent_activity"
   # a busy lane lock: WAIT, exit 5, nothing recorded, and the next call runs the step again
   newcase
   set_stub busy

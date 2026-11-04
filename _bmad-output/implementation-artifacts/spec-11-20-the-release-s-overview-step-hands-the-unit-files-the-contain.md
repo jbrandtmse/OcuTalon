@@ -122,10 +122,32 @@ The same tree under umask 022 passes the whole unit. The step also removed the f
 - AC3. Given `bash docker/tests/test-release-sequence.sh` (no IRIS, no container), when it runs, then every rule passes, including `overview` with the new cases and `static`. In CI it stays in the hosted `checks` job (`CHECK_SCRIPTS` release-sequence), and no unit or group is added.
 - AC4 (footprint). Given the diff since `story_base`, excluding `_bmad-output`, when listed, then it holds only `release/release.sh` and `docker/tests/test-release-sequence.sh`. Every `release/release.sh` hunk lies inside `step_overview`'s block. The chmod line counts as the orchestrator's, from before `story_base`.
 
+### Review Findings
+
+Code review, 2026-11-03, first completed review, tier full-opus; layers blind-hunter, edge-case-hunter, verification-gap and acceptance-auditor all ran. 21 raw findings, 6 entries after grouping, 8 rejected. No HIGH. No AD mismatch (AD-22, AD-29 with the Epic 11 lane exception). All patches are in `docker/tests/test-release-sequence.sh`; `release/release.sh` is unchanged by this review.
+
+- [x] [Review][Patch] MED, fix-risk low, in-story: the "no overview.log or export remains" assertions could not see the export on BSD grep, because `\|` is not portable; both now use the `-e` form the ipmcheck case uses [docker/tests/test-release-sequence.sh:1706,1753]
+- [x] [Review][Patch] MED, fix-risk low, in-story: the matrix row "Log could not be kept" had no test of its write-error leg, so the `else rm -f "$log"` branch was unobserved; added the `overview nomove` case (a `mv` shim that refuses only the kept log's path) and a record assertion in `overview nolog` [docker/tests/test-release-sequence.sh:1775]
+- [x] [Review][Patch] MED, fix-risk low, in-story (Rule 19 hermeticity): `overview wait` and `overview rerun` relied on the log an earlier sub-case left; each now plants its own [docker/tests/test-release-sequence.sh:1720,1727]
+- [x] [Review][Patch] LOW, fix-risk low, in-story: the `stub_text` comment no longer stated the contract once `nolog` reached the release state folder; reworded [docker/tests/test-release-sequence.sh:423]
+- [x] [Review][Patch] LOW, fix-risk low, in-story (Rule 19): AC3, AC4 and two AC2 clauses had no demonstrated mutation; applied, observed red, restored and recorded under `## Verification` [spec `## Verification`]
+- [x] [Review][Defer] LOW, fix-risk low, in-story: the header's Output line and the steps banner omit the `LOG` line [release/release.sh:45,437] - deferred: `by-design` DW-658; the Never list bars the header and Decided in-stage 1 keeps it
+
+Rejected:
+
+- low (blind-hunter): `status` does not name the kept log. The spec asks for the path with the FAIL line only, the path is fixed by the version and candidate, and the footprint is `step_overview`.
+- low (edge-case-hunter): a stale `overview-fail.log` stays when a rerun fails at the export or on a missing unit. Decided in-stage 2 already weighed this; those failures print no `LOG` line, so nothing points to the stale file.
+- low (edge-case-hunter): an earlier kept log survives a failed move. A rename inside one folder has no realistic failure there, and no `LOG` line is printed.
+- low (edge-case-hunter): a kept log stays in the folder of a candidate that never passes. It is owner-only in the owner's state folder, and keeping it is the point.
+- low (verification-gap): the lead's smoke runs the unit outside the `umask 077` subshell. The fix edits the spec under review; relayed to the lead in the closing summary.
+- false (verification-gap): the QA tests are uncommitted. That is this stage's expected state; the lead commits.
+- low (verification-gap, acceptance-auditor): the `set_stub` comment lies outside the spec's edit list. It is one comment word list, and reverting it would leave the comment stale.
+
 ## Spec Change Log
 
 - 2026-11-04 (lead, after QA): the implement stage's finalize write cut the spec at a quoted Auto Run Result heading inside the last Review Triage Log entry, dropping that entry's tail, Design Notes and Verification. Restored Design Notes and Verification from the validated spec (4177e276), added the implement stage's mutations from its report, kept QA's record as a subsection, and put Auto Run Result back as the last section. No requirement changed.
 - 2026-11-04 (lead, after the crash): VS Code killed the runner and its code-review stage. Their uncommitted source changes were saved as evidence and restored to HEAD (`stage_dead`, `rerun_from=qa`), so QA's stage record was replaced by a note and QA and code review re-run. No requirement changed.
+- 2026-11-04 (lead, after review): the smoke ran the unit outside the `umask 077` scope, unlike the step, and its export lacked the web bundle a candidate carries; it now runs inside that scope, from an export with the bundle. No requirement changed.
 
 ## Review Triage Log
 
@@ -207,8 +229,8 @@ Run every command from the worktree root, each in its own foreground call with `
 - AC4: a blank line appended to `release/lib-release.sh`. Expected: the command 6 listing names it.
 
 **Lead-owned smoke (after review).**
-- Make a lane-A throwaway export the way the step makes it, inside the stage scratchpad: `(umask 077; mkdir -p X; git archive HEAD | tar -x -C X; chmod -R a+rX X; mkdir -p X/web/node_modules)`.
-- Then, in `X`, run one live unit: `OCUTALON_LOCK_DIR="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")/.worktrees/.coordination/locks/lane-a" OCUTALON_TEST_WEB_PORT=52801 OCUTALON_LOCK_OWNER='epic=11 stage=smoke' OCUTALON_RUN_TAG=e11s20smoke bash release/security-overview.sh`. Run it in its own call. Expected: exit 0 with a `PASS overview` line. The unit tears down its own run tag.
+- Make a lane-A throwaway export the way the step makes it, inside the stage scratchpad, all under `umask 077`, because `release.sh` runs the unit under that setting. A candidate's tree carries the built web bundle (the cut force-adds it) and `git archive HEAD` of this branch does not, so the export first gets one: `(umask 077; mkdir -p X; git archive HEAD | tar -x -C X; ln -s <worktree>/web/node_modules X/web/node_modules; (cd X && npm --prefix web run build); rm X/web/node_modules)`.
+- Then, in one call: `(umask 077; chmod -R a+rX X; mkdir -p X/web/node_modules; cd X; OCUTALON_LOCK_DIR="<lane-a lock folder>" OCUTALON_TEST_WEB_PORT=52801 OCUTALON_LOCK_OWNER='epic=11 stage=smoke' OCUTALON_RUN_TAG=e11s20smoke bash release/security-overview.sh)`. Expected: exit 0 with a `PASS overview` line. The unit tears down its own run tag.
 - Optionally, run the same steps without the chmod as the negative control. Expected: the `Regenerate did not succeed` FAIL.
 
 **Shared surfaces:**
@@ -224,7 +246,7 @@ Every test added or changed passes on a fresh environment, in either order. Each
 - AC1 (umask): mutation: `umask 022` in `release/release.sh`, and in `release/lib-release.sh` -> the umask assertions red (line count, and the stub's recorded `0077`).
 - AC2: mutation: `rm -f "$log"` in place of the move -> the kept-log and `LOG` line assertions red.
 - AC2: mutation: drop the PASS cleanup; make WAIT remove the log; print `LOG` unconditionally -> each red (`overview rerun`, `overview wait`, `overview nolog`).
-- AC4: command 6 listing, no test.
+- AC4: mutation: a blank line appended to `release/lib-release.sh` -> command 6's listing names `release/lib-release.sh` (a listing, not a test).
 
 ### QA stage record
 
@@ -246,6 +268,21 @@ Mutations (each applied to `release/release.sh`, observed red with `overview`, r
 - mutation: the relative-path `LOG` branch prints `$sdir/...` without `$PWD` -> `overview relative: the LOG line names an absolute path` red.
 - mutation: the PASS branch stops removing `overview-fail.log` -> `overview rerun: the kept log is gone` red.
 - mutation: the WAIT branch also removes `overview-fail.log` -> `overview wait: the kept log stays` red.
+
+### Code review stage record
+
+Mutations run on the patched tests (macOS, BSD grep). Each was applied to `release/release.sh` or `release/lib-release.sh`, observed red, restored from the stage backup, `cmp` identical, and `git status --short` and `git diff --stat` unchanged:
+- AC1: mutation: delete the `chmod -R a+rX "$ctx"` line -> `overview pass: exit` and `overview pass: the export is readable by others` red.
+- AC2 (no path in the detail, row or record): mutation: the kept path appended to the `step_fail` detail -> `overview fail: the row` and `overview fail: the record does not name the kept log` red.
+- AC2 (PASS leaves no `overview.log`): mutation: the PASS branch stops removing `$log` -> `overview pass: the export and the log are gone` red.
+- AC2 (WAIT leaves no `overview.log`): mutation: the WAIT branch stops removing `$log` -> `overview busy: nothing recorded` red.
+- AC2 (a failure leaves no export): mutation: `rm -rf "$ctx"` runs only when the unit passes -> `overview fail: no overview.log or export remains` and `overview quiet: no overview.log or export remains` red.
+- AC2 (a log that cannot be moved): mutation: the `else rm -f "$log"` branch dropped -> `overview nomove: no log stays` red.
+- AC2 (kept log): mutation: `rm -f "$log"` in place of the move -> the kept-log and `LOG` line assertions red.
+- AC2 (rerun and wait, after each planted its own log): mutation: the PASS branch stops removing `overview-fail.log` -> `overview rerun: the kept log is gone` red; mutation: the WAIT branch also removes it -> `overview wait: the kept log stays` red.
+- AC3: mutation: a comment holding the text `mask ` added to `step_overview` -> `static`'s `the overview step makes no ASK` red.
+
+Runs after the patches: `overview static` pass; the whole file `PASS all rules`.
 
 ## Auto Run Result
 
