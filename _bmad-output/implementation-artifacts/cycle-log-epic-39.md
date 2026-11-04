@@ -82,3 +82,4 @@
 2026-11-04T15:25:36Z	Story 39.3	ci_red_classified	run=41853141384 workflow=.github/workflows/ci.yml class=infra test=none note=install-macos_not_acquired_by_hosted_runner_macos_capacity_rerun_when_the_run_ends
 2026-11-04T15:33:49Z	Story 39.4	owner_decision	id=U-275 at=2026-11-04T15:27:10Z#834 via=inbox by=orchestrator answer=kept_with_conditions:summary_cut_80_no_body;beat_stays_untrusted_look_notify_save;recheck_security_overview_and_AD-18_at_epic_close
 2026-11-04T15:33:49Z	Epic 39	run_note	feature_red_on_release-record_path_check:no_integrate_forward_until_orchestrator_says_green;route.fetch_DW-640_DW-665_one_rerun_occurrence_second_red_to_orchestrator
+2026-11-04T15:47:29Z	Story 39.3	ci_red_classified	run=41853141384 workflow=.github/workflows/ci.yml class=flake test=OcuTalon.Test.Web.GuideApi note=pending_one_unchanged_rerun;not_reproduced_alone_or_in_lane-b@Web;inference_real_tick_hits_fixture_check_in_0.6s_class;second_red_same_head_is_story
