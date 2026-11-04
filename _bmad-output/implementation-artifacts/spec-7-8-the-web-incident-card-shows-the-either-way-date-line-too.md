@@ -1,0 +1,232 @@
+---
+title: 'The web incident card shows the either-way date line too'
+type: 'feature'
+created: '2026-11-04'
+status: 'draft'
+review_loop_iteration: 0
+followup_review_recommended: false
+context: []
+warnings: ['oversized']
+deferred:
+  - summary: 'At 1280x600 the incident card with the demo reply cause and fix summary already has Approve and Reject below the fold, with no either-way row.'
+    evidence: 'Measured at plan (Design Notes, table): A6 conditions with the mock reply cause and fix summary, Approve bottom 555 against the list bottom 518, 37 px past it. A6 passes only because its fixture cause is one short line.'
+    location: 'web/e2e/cards/approval-card.spec.ts A6; web/src/app/chat/chat-panel.ts'
+    severity: 'med'
+---
+
+<intent-contract>
+
+## Intent
+
+**Problem:** Story 7.7 shows U-249's either-way line in the notice's Dry run paragraph only. People on the demo path approve on the web incident card, whose dry-run block does not show it (DW-645), so the evidence for a date repair's reading is missing where the decision is made. Until November 13 every date the demo partner sends is ambiguous this way.
+
+**Approach:** `Live.Payload.Approval.FromRow` asks the notice's own rule (`Watch.Notice.Reading`) over the row's stored dry run and `FixParameters`, and carries the answer as two new payload fields, `eitherWay` and `reading`. Nothing new is stored. `web/scripts/catalog.mjs` cuts the line out of the two catalog entries that already hold it, so the page's generated catalog has it with no second typed copy, and `approval-view.ts` renders it as one unlabelled row of the dry-run block.
+
+## Boundaries & Constraints
+
+**Always:**
+- One rule: the payload's `eitherWay` is 1 exactly when `Notice.Reading(dryRun, parameters)` is not empty, called with the row's stored dry run and `FixParameters`, the same two values `IncidentManager.Proposed` gave `WithFixKey` when it chose the notice's key (`row.DryRun = result.DryRun`, `row.FixParameters = ask.Parameters`). `reading` is that method's answer. Neither the page nor the payload class looks at a date.
+- One wording: the words exist only in the catalog entries `incident.withFixEitherWay` and `incident.laterRequestEitherWay` of `Msg/Catalog/Watch.cls`. `catalog.mjs` derives the page's text from them and fails closed if the eight forms do not give one many form and one one form.
+- The row's slots match the notice's for the same approval: `{reading}` is `dryRun.reading`, `{item}` is `dryRun.itemNoun.one` ("message" when absent, as the notice's code noun), the count and the one-or-many choice are `dryRun.resend` (the notice's `resendCount`).
+- The row shows when `eitherWay` is true, `reading` is not empty and `resend` is a number of at least 1; otherwise it is absent. It stays on an answered request, as the block's other rows do, because the notice's line does not depend on the state.
+- The row sits where the notice has the sentence: after After, before Will resend. It has no label and its own class (`dry-either`), never `dry-note`: `web/e2e/support/demo-path.ts` L314 and `web/e2e/floor/approval.spec.ts` L144 read `.dry-note` as one element.
+- `FromRow` stays the one builder (live events, REST, the rail, `AnswersIn`). `payloads.ts` and `msg/catalog.ts` are generated, never hand-edited.
+- CI mock only, lane-B throwaways only. Rule 14: ASCII, comments state the contract.
+
+**Never:**
+- No change to `DRYRUNKEYS`, to any stored dry run, to `Fix.Kind.RepairResend`, `Fix/Msg/**`, to `Bridge/**` or to any table. No stored flag.
+- No text on the payload and no render in `Live/**`: AD-32 and the convention "Text OcuTalon sends" allow only `*Out` operations and the page to render.
+- No second typed copy of the line in `APPROVAL_TEXTS` or anywhere under `web/src/app` but the generated catalog. No new key in `Msg/Catalog/*.cls`, and no change to `Msg/Catalog/Watch.cls` or `Test/Msg/Catalog.cls`.
+- No new label or text. No change to the words of any row of the card.
+- Nothing under `docker/**`, `Install/**`, `src/module.xml`, `module.xml`, `preload/**`, `src/cpf/**`, `release/**`, `install.sh`, `ci/units.sh`, the workflows, `Demo/**`, `eval/**`, `_bmad/`, `.claude/`. No existing e2e spec is edited but `web/e2e/support/iris.ts`, named below.
+- DW-655 (the two keys copy their parents) is not fixed here.
+
+## I/O & Edge-Case Matrix
+
+| Scenario | Input / State | Expected Output / Behavior | Error Handling |
+|---|---|---|---|
+| Either way, real path (Integration AC; DW-645) | `Test.Fix.EitherWay` press: 3 orders 11/03/2026, arrival 2026-11-04T02:00:00Z; the real dry run, `Approval.Raise` and notice | `FromRow(row).DryRun`: `EitherWay` 1, `Reading` "month first", equal to the Notification's slots `reading`; `ItemNoun.One` = slot `item`; `Resend` = slot `resendCount`. Stored dry run keys still exactly DRYRUNKEYS | none |
+| Either way on the card, many (DW-645) | pending request, dry run 50 of 50, `before` 11/04/2026, `FixParameters` sourceFormat MM/DD/YYYY | the row reads "All 50 dates are valid whether read month first or day first. Read month first, they match the day each order arrived.", between After and Will resend; the server's `Catalog.Render` of `incident.withFixEitherWay` for the same slots holds that text | none |
+| One form, day first (DW-645) | resend 1, `before` 03/11/2026, sourceFormat DD/MM/YYYY | "The date is valid whether read month first or day first. Read day first, it matches the day the order arrived." | none |
+| Later round | `TestLaterRoundKeepsTheLine`'s second request | its payload carries `eitherWay` true, `reading` "month first", resend 2: the rule needs no special case | none |
+| Day above 12 (DW-645) | `before` 10/16/2026, or a mixed set whose example is 11/13/2026 | payload `eitherWay` false, no `reading`; no row | none |
+| Same-date values only | `before` 11/11/2026 | as above: no flag, no row (U-250) | none |
+| Mixed same-date and differing | `TestBothReadingsMatchMixedWithTolerance` | flag and row, as the notice shows the line (U-250) | none |
+| No either-way case | sourceFormat YYYY-MM-DD; a `tool_call` or `setting` row with empty `FixParameters` | no flag, no row | none |
+| Broken parameters | `FixParameters` "not json" | the dry run's other fields stay; no flag | none |
+| Unknown noun | dry run `itemNoun` {message, messages}, or none | `{item}` "message" | none |
+| Answered | the either-way request approved or rejected | the row stays; "Nothing has changed yet." goes | none |
+| Reload | the page reloads with the request pending | the row is there from the snapshot (`Web/Api` through `FromRow`) | none |
+| Short screen (Q1) | 1280x600, A6's conditions, the row showing | the headline, cause, dry-run count, Approve and Reject in the chat list's view | see `## Clarification Needed` |
+
+</intent-contract>
+
+## Code Map
+
+Paths are under `src/ocutalon/cls/OcuTalon/` unless stated. Lines as of `ae68a4a1d6a2613ba9ee2a87c4d22f0861681af3`.
+
+**Changed (footprint, U-252):**
+- `Live/Payload/Approval.cls`: `FromRow` L62, the dry-run mapping L85-103 (add after the `itemNoun` block, inside the Try); its doc above L62.
+- `Live/Payload/Part/DryRun.cls`: L1 doc ("its keys are the keys of ... DRYRUNKEYS"), properties. payloads.mjs takes `%Boolean(...) [ InitialExpression = 0 ]` as the other payload classes write it.
+- `web/src/app/live/payloads.ts`: generated (`npm --prefix web run payloads`).
+- `web/src/app/approvals/approval-view.ts`: `DryRunView` L67, `dryRunView` L181 (gets `ctx`), its call L268, class doc. `ctx.render` is `renderPageText`; `nounFor` L173, `numberOf`, `textOf`, `APPROVAL_TEXTS.nounOne` L52 are the helpers to reuse.
+- `web/src/app/approvals/approval-request-card.ts`: template L123-134 (the row goes between the After and Will resend blocks), styles L271-321.
+
+**Footprint extensions (name each in the completion contract):**
+- `Watch/Notice.cls` L155 `Reading`: drop `[ Private ]`, nothing else but its doc line and class doc L15-19 (no behaviour change; no open epic touches the file).
+- `web/scripts/catalog.mjs`: `LISTED_KEYS` L52, `TEXT_SLOT_KEYS` L101, `pageText` L188, `generate` L336-368, header L10-39. Not contended.
+- `web/src/app/msg/catalog.ts`: generated (`npm --prefix web run catalog`).
+- `web/scripts/catalog.test.mjs` (real-tree key list L94-102, fixture `WATCH` L460), `web/scripts/approval-view.test.mjs` (`deepEqual` L65), `web/scripts/approval-sources.test.mjs` (`order` L177), `web/scripts/playwright-projects.test.mjs` (L264-270, `cards.length` 20).
+- `web/e2e/support/iris.ts`: `ApprovalFields` L693, `seedApproval`'s `properties` L732 (`Fixture.SetFields` already sets any row property).
+- `web/e2e/cards/either-way.spec.ts`: new. Pattern: `approval-card.spec.ts` (A6 L320), `web/e2e/support/approvals.ts` `raise`, `incidentOf`, `refOf`; `irisScript` of `iris.ts` L93 for the server's render.
+- `Test/Fix/EitherWay.cls` (Story 7.7's), `Test/Watch/Diagnose.cls` L65.
+
+**Contended, one self-contained edit each (report them):**
+- `Test/Live/Payloads.cls` (Story 39.7 may edit it): one method appended after `TestNotificationFromRow` L730, two lines in the `OcuTalon.Live.Payload.Part.DryRun` block of the XData L1045-1054 (`TestContracts` L77 pins each property). The second to merge makes the plain union, then regenerates `payloads.ts`.
+- `Test/Bridge/CodeRules.cls` (Epic 33 adds other lines): two names appended to each of `CALLBACKHELPERS` L78 and `SINKCLASSES` L89, and their docs. Re-check `git diff --name-only origin/feature/OCT_OcuTalon_MVP...OCT-epic<N>` for 33, 39, 40 and 11 before editing.
+
+**Read only, evidence:**
+- `Watch/Notice.cls` L147-175 `WithFixKey`, `Reading`, `READINGS` L62; L221-225 `reading` and `item` slots; `Common` L292 (`itemNoun`).
+- `Watch/IncidentManager.cls` `Proposed` L867: slots L899-901, the row L914, L916 (`row.DryRun`, `row.FixParameters`), the key L927, L932. L635 and L709 are the only writers of `Incident.ItemNoun`, both before the dry run is asked.
+- `Fix/Kind/RepairResend.cls` L207-215: the dry run's `itemNoun` is the incident's, else the code noun. So `dry.itemNoun.one` equals the notice's `item` for every raised request.
+- `Fix/Reformat.cls` L77 `Readings`: pure.
+- `Msg/Catalog/Watch.cls` L119-163: the eight forms of the line; each is bounded by "becomes {after}. " and " I'll resend".
+- `Core/BridgeSink.cls` L160, L341, `Web/Api.cls` L532, L891, `Core/AnswersIn.cls` L94: the callers of `FromRow`. `BridgeSink` runs in the gate's callback (DW-177), which is why `CodeRules` lists what `FromRow` calls.
+- `web/src/app/shared/layout-view.ts` L28: the `(height < 680px)` query. `web/src/app/chat/chat-panel.ts` L115-122: following stops at the headline.
+
+## Tasks & Acceptance
+
+**Execution:**
+- `Watch/Notice.cls` -- `Reading` loses `[ Private ]`; its doc says the approval payload uses it too; update the class doc. -- one rule, two callers (Rule 2).
+- `Live/Payload/Part/DryRun.cls` -- add `Property EitherWay As %Boolean(%JSONFIELDNAME = "eitherWay") [ InitialExpression = 0 ];` and `Property Reading As %String(%JSONFIELDNAME = "reading", MAXLEN = 32);`; the class doc says the two are worked out for the payload and never stored. -- AC 1; DW-645.
+- `Live/Payload/Approval.cls` -- in `FromRow`'s Try, after the noun: `Set reading = ##class(OcuTalon.Watch.Notice).Reading(dry, row.FixParameters)`, and when not empty set `part.EitherWay = 1`, `part.Reading = reading`; update the doc. -- AC 1, AC 2; DW-645.
+- `web/src/app/live/payloads.ts` -- regenerate. -- the type.
+- `Test/Bridge/CodeRules.cls` -- append `OcuTalon.Watch.Notice,OcuTalon.Fix.Reformat` to `CALLBACKHELPERS` and to `SINKCLASSES`, and say so in their docs. -- the callback scan must cover what `BridgeSink` now reaches (no %AI, no Python; DW-177).
+- `web/scripts/catalog.mjs` -- add a derived key, `incident.eitherWayLine`: `LINE_KEY`, `LINE_PARENTS` (the two entries) and the two anchors (`becomes {after}. `, ` I'll resend`) as constants; in `generate`, before the listed loop, cut the many form from each parent's `text` and `web` and the one form from each `one.text` and `one.web`, refuse (CatalogError naming the key) a missing parent, a missing anchor or forms that differ, and put a synthetic entry `{text, slots, one: {slot: 'resendCount', text}}` with the slots the cut text uses plus `resendCount`, taken from the parent's `slots`, through the existing `pageText` checks. Add the key to `LISTED_KEYS` and `TEXT_SLOT_KEYS`. Update the header. -- AC 5; Rule 2: extends the listed-key path, so `PAGE_TEXTS`, `PAGE_SLOTS`, `PAGE_ONE_FORMS` and `renderPageText` need no change.
+- `web/src/app/msg/catalog.ts` -- regenerate.
+- `web/src/app/approvals/approval-view.ts` -- `DryRunView` gains `eitherWay: string` ("" when the row is absent); `dryRunView(approval, pending, ctx)` renders `ctx.render('incident.eitherWayLine', { resendCount: String(resend), reading, item })` per Always; update the class doc. -- AC 3, AC 4; DW-645.
+- `web/src/app/approvals/approval-request-card.ts` -- `@if (dry.eitherWay) { <div class="dry-either">{{ dry.eitherWay }}</div> }` between the After and Will resend blocks; the inherited text colour, no new token; update the doc. -- AC 3; DW-645.
+- `web/src/app/approvals/approval-request-card.ts` -- **Q1, as recommended; to be confirmed by the ruling.** Under `@media (height < 680px)` and only while the row shows (a class on `.dry`), a CSS grid puts Before and After on one line and "Nothing has changed yet." on the count line. No word, no DOM order and no row in any other state changes. -- AC 6.
+- `web/e2e/support/iris.ts` -- `ApprovalFields.fixParameters?: string`, passed as `FixParameters`. -- the fixture needs the row's parameters.
+- `Test/Live/Payloads.cls` -- `TestApprovalEitherWay` from unsaved rows, with the matrix rows Day above 12, Same-date, No either-way, Broken parameters, month first and day first, the `%JSONExport` shape (`eitherWay` true with `reading`; `eitherWay` false with no `reading` key), and the row's `DryRun` text unchanged; the two XData lines; class doc. -- the story's payload test; DW-645.
+- `Test/Fix/EitherWay.cls` -- a private `AssertCardFields(request, slots)` that opens the row and asserts `FromRow`'s `EitherWay`, `Reading`, `ItemNoun.One`, `Resend` against the slots; called in `TestDemoRepairWhenInstanceDateIsNotUtcDate`, `TestBothReadingsMatchMixedWithTolerance` and `TestLaterRoundKeepsTheLine`; `TestBothReadingsMatch` asserts `EitherWay` 0. Class doc. -- Integration AC.
+- `Test/Watch/Diagnose.cls` `TestDemoDiagnosis` -- `FromRow` of the 10/16/2026 request: `EitherWay` 0, `Reading` "". -- the day above 12 on the real path.
+- `web/scripts/catalog.test.mjs` -- real tree: the key in the key list (count 50 to 51), its many and one texts equal U-249's words, `renderPageText` for 3 and 1, and each of the eight catalog forms holds the text. Fixture: `WATCH` gains the two parents; refusals for a missing parent, a missing anchor, and a one form that differs in one parent. -- AC 5.
+- `web/scripts/approval-view.test.mjs` -- the `deepEqual` gains `eitherWay: ''`; new `describe`: many, one, day first, `resend` 1 against `affected` 50, unknown and missing noun, flag with no reading, reading with no flag, flag with no `resend`, answered. -- the story's web test.
+- `web/scripts/approval-sources.test.mjs` -- `order` gains `dry.eitherWay` between `dry.after` and `dry.resendLine`; `dry-either` is not `dry-note`; `APPROVAL_TEXTS` holds no "valid whether read". -- AC 3, AC 5.
+- `web/e2e/cards/either-way.spec.ts` -- E1 many: the row's exact text, its place, `irisScript` of `Catalog.Render("incident.withFixEitherWay", ..., "phone")` holds it, and it is still there after a reload; E2 one form, day first; E3 no row for 10/16/2026, 11/11/2026 and sourceFormat YYYY-MM-DD; E4 an answered request keeps it; E5 at 1280 by 600 under A6's conditions the five parts are `toBeInViewport({ ratio: 1 })`. -- Rule 3, real runtime.
+- `web/scripts/playwright-projects.test.mjs` -- `range('E', 1, 5)` in `cards/either-way.spec.ts`; `cards.length` 25. -- shared surface.
+
+**Acceptance Criteria:**
+- AC 1: Given an approval whose date repair's dry run found every value valid both ways (the notice used an either-way key), when the approval payload is built for a live event, REST or the rail, then its `dryRun` carries `eitherWay` true and `reading` "month first" or "day first", equal to the notice's `reading` slot, with the dry run's other fields.
+- AC 2: Given an approval with any value with a day above 12 in the example, same-date values only, or no either-way case, when the payload is built, then `eitherWay` is false and there is no `reading`.
+- AC 3: Given that either-way approval on the web incident card, when the card shows its dry-run block, then one unlabelled row between After and Will resend shows U-249's line word for word as the notice shows it, in the same one or many form and with the same `{reading}` and `{item}`, and it stays when the request is answered.
+- AC 4: Given an approval of AC 2 on the card, when the card shows its dry-run block, then no such row exists and every other row reads as it does today.
+- AC 5: Given the catalog, when the page's catalog is generated, then its text comes from the catalog entries alone, and the generator refuses (exit 1) a line that differs between the entries or cannot be found; no other file under `web/src/app` holds the words.
+- AC 6 (Q1): Given 1280x600 under DESIGN.md's acceptance conditions and the row showing, when the card lands, then the headline, cause, dry-run count, Approve and Reject are in the chat list's view without scrolling.
+- AC 7: Given the story's changes, when the stored dry run and the tests are read, then `DRYRUNKEYS` and the stored keys are unchanged, and `live:demo-path`, the cards, floor, answers and online-demo units, the web unit tests and the catalog tests pass.
+
+## Spec Change Log
+
+- 2026-11-04, the lead: plan halted on Q1 and Q2; ruled (Design Notes, Rulings), U-266 and U-267 filed, the project block's scope item 5 corrected, status reset to draft for the re-plan.
+
+## Review Triage Log
+
+## Design Notes
+
+**Rulings (the lead, 2026-11-04, on the plan's Q1, Q2 and point (c)).**
+- Q1, decide: option (a). The line "Rows of the card that exist today do not change" was the lead's own, in the stage's project block; neither the story's acceptance criteria nor the dispatch says it, and it is withdrawn. So there is no conflict and no exception: what binds is the AC (one row in the dry-run block, word for word) and DESIGN.md's acceptance test with EXPERIENCE.md's "Shorter than 680" row. Below 680 px tall, and only while the row shows, the CSS-only arrangement of the Tasks applies. No word changes. Rejected: (b), which weakens a stated guarantee; (c), which leaves the dry-run block.
+- Q2, veto U-266: accepted as a known limit. A request raised on a build without Story 7.7 can show the line with no evidence check behind it. Exposure as stated to the owner: 1.0.0 ships without 7.7, so every answered record from 1.0.0 still in retention is in scope after the upgrade, not only a 24 h pending window. Rows raised on a build with 7.7 are exact, because the row and the notice use the same function on the same values. No flag is stored.
+- Point (c), veto U-267: the two derived fields may reach `Live.Event`'s Payload JSON text. Additive; no table, `DRYRUNKEYS` or stored dry run changes.
+- Checked by the lead: the notice's key is stored on no row tied to an approval (`Data.Delivery`, `Data.Incident`, `Data.SimMessage`; `Data.Turn.ReplyCatalogKey` has no approval link), so reading it back is not an option. `CALLBACKHELPERS` and `SINKCLASSES` in `Test/Bridge/CodeRules.cls` are two-name appends; Epic 33 changes other lines of that file, so this is a plain union.
+
+**Answers to the stage's four questions.**
+- (a) *How the page gets the text:* from the generated web catalog, `incident.eitherWayLine`, which `catalog.mjs` cuts from the two catalog entries. The words stay typed once in `Msg/Catalog/Watch.cls` (in the entries Story 7.7 shipped) and are never typed in `web/`. Rejected: server-rendered text on the payload, because AD-32 and "Text OcuTalon sends" name who renders and a payload builder is not among them, so it needs an AD amendment; and it would still have to cut the line out of a whole notice. Rejected: a new catalog key for the line alone, because the catalog has no composition, so it would type the wording again beside the entries (DW-655 is that copy's owner), in a file Epic 33 is changing. Rejected: a copy in `APPROVAL_TEXTS`.
+- (b) *Many and one, `{reading}`, `{item}`:* the same three values as the notice. The one-or-many choice is `resend` (the entry's one form names `resendCount`, which is `dryRun.resend`). `reading` comes from the same method. `item`: the notice takes the incident's noun at `Proposed`; the dry run took the same noun moments before (`RepairResend` L207-215; `Incident.ItemNoun` is written only before the dry run is asked, IncidentManager L635, L709), and its fallback to the body class's noun is not reachable because L635 always stores one. So `dry.itemNoun.one` is the notice's `item`; `AssertCardFields` pins it on the real path.
+- (c) *Stored data: no change.* `DRYRUNKEYS`, the stored dry run, the `ApprovalRequest` row and every table are unchanged, and no flag is stored: the flag and the reading are worked out on the way out from what the row already holds. The Lane B mapping `FromRow` does change, by two derived fields. The one stored place they reach is the `Payload` JSON text of `Live.Event` rows, which holds whatever the payload class exports: two more keys in that text, no schema, format or retention change (AD-12: a payload is the current public view). So this is not escalated as a stored-data change; the lead can overrule.
+- (d) *Label:* none is needed. The row carries U-249's line alone, as `dry-note` carries its sentence. There is no new text and no veto item here.
+
+**Why the payload asks `Notice`.** The rule needs the source format, which is in `FixParameters` and is not on the payload; the page cannot decide. `Live/Payload` has called other areas' pure readers before (`Status` calls `Schedule.Heartbeat`), and no check forbids it (`docker/tests/test-boundaries.sh` scans other things). Moving `Reading` to `Fix.Reformat` would change a Story 7.7 class for no gain.
+
+**Governing ADs:** AD-11 (the row is the truth: the payload reads it), AD-12 (the payload is the full public view; `payloads.mjs`), AD-16 (the stored dry run's keys unchanged; the Fix area untouched), AD-32 and the convention "Text OcuTalon sends" (who renders; the page renders from `msg/catalog.ts`), AD-29 and AD-33 (lanes and owners; U-252's exception), AD-6 and DW-177 (what runs in the callback), AD-22 (throwaways, the mock). No AD Rule is contradicted; no AD changes.
+
+**Integration ACs, Consumes, Consumed-by (Rules 1 and 2):**
+- No new service. Integration ACs: matrix row 1 (`FromRow` reads the real raised row, and its fields equal the delivered Notification's slots) and E1 (the page reads the real payload through `BridgeSink` and `Web/Api` and draws the row; the server's renderer holds the same text).
+- Consumes: 7.7 (`Notice.Reading`, the two catalog entries, `Test.Fix.EitherWay`), 6.2 (the card, `approval-view.ts`), Epic 0 (`Msg.Catalog`, `payloads.mjs`, `catalog.mjs`).
+- Consumed-by: none; 7.8 is Epic 7's last story.
+
+**Extend, don't copy (Rule 2):** `FromRow` calls `Notice.Reading` (no second rule); the derived key goes through `pageText`, `PAGE_ONE_FORMS` and `renderPageText` (no second renderer); `dryRunView` reuses `textOf`, `numberOf` and the context's `render`; `either-way.spec.ts` uses `raise` of `support/approvals.ts`.
+
+**Ledger inbox:** DW-645 is addressed by the matrix rows marked DW-645 and by the Execution tasks that cite it.
+
+**Decided in-stage (small, reversible, within the intent):**
+- The row stays on an answered request: the block stays as a record and the notice's line does not depend on the state (the epic context leaves this to the spec).
+- `eitherWay` is a `%Boolean` with `InitialExpression = 0`, as every other payload flag, so `false` is present on each dry run. It is an added key; `TestContracts` pins the part's properties and this story updates it. A grep of the web and Core tests finds no other test that compares the dry run's whole key set.
+- The row's class is `dry-either`, inheriting the block's ink colour: it is evidence for the decision, not an aside. No new design token.
+- The derived key's name, `incident.eitherWayLine`, is a page key only and no catalog class holds it; the generator's header says so.
+- A row with `eitherWay` and no numeric `resend` is absent: no count, no sentence. The notice requires `resend` of at least 1 too (`WithFixSlots`).
+- `EXPERIENCE.md`: no edit here (a planning artifact, and Epic 40 is changing it); the lead may append the dry-run row at its bookkeeping, as for Story 7.7.
+- `docker/tests/test-cards.sh`'s comment lists the cases and stays stale by one file: `docker/**` is frozen until the tag.
+
+**Footprint extensions:** the list under Code Map. `new_units:` none (`web/e2e/cards/` is the cards project's folder; `Test/Live`, `Test/Fix`, `Test/Watch` and `Test/Bridge` are in their shards). Contended, reported: `Test/Live/Payloads.cls`, `Test/Bridge/CodeRules.cls`.
+
+**Measured at plan (the 1280x600 rule).** A lane-B throwaway of the cards unit, Chromium, the current bundle, a scratch spec outside the repository with the same set-up as A6; the row was put into the real DOM with its two forms. All values in px from the top of the viewport; the chat list ends at 518 at 600 tall and 638 at 720 tall. Both forms wrap to two lines at the block's 510 px width (the width at 1280) and move Approve down 38 px.
+
+| Viewport, guide | Cause and fix summary | Approve bottom today | With the row | Past the list's end |
+|---|---|---|---|---|
+| 1280x600, hidden (A6's conditions) | A6's fixture (short) | 509 | 547 | 29 |
+| 1280x600, hidden | the mock's demo reply | 555 | 593 | 75 (37 of it today) |
+| 1280x600, compact | the mock's demo reply | 589 | 626 | 108 (71 of it today) |
+| 1280x720, open | A6's fixture | 542 | 580 | none (58 to spare) |
+| 1280x720, open | the mock's demo reply | 589 | 626 | none (12 to spare) |
+| 1280x600, hidden, Before and After on one line and the note on the count line | A6's fixture | | 508 | none (10 to spare) |
+
+## Verification
+
+`<laneB>` stands for `env OCUTALON_LOCK_DIR="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")/.worktrees/.coordination/locks/lane-b" OCUTALON_TEST_WEB_PORT=52802 OCUTALON_LOCK_OWNER='epic=7 stage=implement'`, run from the worktree root. One command per foreground call with `timeout: 600000`; never two IRIS test runs in one message; a call the harness moves to the background is polled to completion in foreground loops under 170 s.
+
+**Commands:**
+- (loop) `npm --prefix web run payloads` and `npm --prefix web run catalog`, then `node web/scripts/payloads.mjs --check` and `node web/scripts/catalog.mjs --check` -- expected: exit 0.
+- (loop) `node --test web/scripts/catalog.test.mjs web/scripts/approval-view.test.mjs web/scripts/approval-sources.test.mjs web/scripts/payloads.test.mjs web/scripts/playwright-projects.test.mjs` -- expected: all pass.
+- (loop) `<laneB> OCUTALON_RUN_TAG=e7s8iw ci/warm.sh up`, once per stage -- expected: READY.
+- (loop) `<laneB> OCUTALON_WARM=1 OCUTALON_RUN_TAG=e7s8iw ci/iris.sh class <Class>`, one call each: `OcuTalon.Test.Live.Payloads`, `OcuTalon.Test.Bridge.CodeRules`, `OcuTalon.Test.Watch.NoticeText`, `OcuTalon.Test.Core.BridgeSink` -- expected: `CLASS ... passed`.
+- (loop) `<laneB> OCUTALON_RUN_TAG=e7s8i ci/iris.sh class <Class>`, fresh, one call each: `OcuTalon.Test.Fix.EitherWay`, `OcuTalon.Test.Watch.Diagnose` -- expected: passed.
+- (loop) `<laneB> OCUTALON_RUN_TAG=e7s8i ci/iris.sh build`, then `<laneB> OCUTALON_RUN_TAG=e7s8i ci/iris.sh live cards` -- expected: passed, E1 to E5 included. If it dies of its local deadline with no failed test, add `OCUTALON_LIVE_DEADLINE=900` on the call.
+- (once) `npm --prefix web test` and `npm --prefix web run lint` -- expected: pass.
+- (once) `<laneB> OCUTALON_RUN_TAG=e7s8i ci/iris.sh live <unit>`, one call each after the last web change: `demo-path`, `floor`, `answers`, `online-demo`, `online-demo-path` -- expected: passed.
+- (once) `<laneB> OCUTALON_RUN_TAG=e7s8i ci/iris.sh shard lane-b --part k/3` for k = 1 to 3, one call each -- expected: passed.
+- (once) `<laneB> OCUTALON_RUN_TAG=e7s8i ci/iris.sh shard lane-a --part k/12` for k = 1 to 12, one call each (split to `k/16` if a part nears 8 minutes) -- expected: passed.
+- (once) `bash docker/tests/test-boundaries.sh`, `bash docker/tests/test-class-rules.sh` and `bash docker/tests/test-web-build.sh`, one call each -- expected: every line PASS. Not `ci/checks.sh` (about 22 minutes).
+- (once) `<laneB> OCUTALON_RUN_TAG=e7s8iw ci/warm.sh down`, then `<laneB> OCUTALON_RUN_TAG=e7s8i ci/iris.sh teardown`; run them also after a failure.
+
+**Shared surfaces:**
+- The `Part.DryRun` properties: `Test.Live.Payloads` `TestContracts` and its XData (two added); `payloads.ts`.
+- `PAGE_TEXTS` count 50 to 51 and the key list: `web/scripts/catalog.test.mjs`. The generator now needs the two parents, so its fixture `WATCH` gains them.
+- `DryRunView`'s shape: `approval-view.test.mjs` `deepEqual`.
+- The card template's printed order: `approval-sources.test.mjs` `order`.
+- The cards project's cases, 20 to 25: `playwright-projects.test.mjs`.
+- `CALLBACKHELPERS` and `SINKCLASSES`: `Test.Bridge.CodeRules`.
+- The card's height on the demo path: `web/e2e/support/demo-path.ts` reads `.dry-note` and `.dry-count`, unchanged by the new class. With the demo's real dates the row shows in `live:demo-path` until November 13 and not after; nothing asserts it there, because the date decides.
+- `DRYRUNKEYS`, the stored dry run, the catalog classes and `Test.Msg.Catalog`: unchanged.
+- Every test added or changed passes on a fresh environment, in either order.
+
+**Pinning mutations to apply (Rule 19).** The implement stage applies each, observes red, reverts byte-identically, and records `mutation: ... -> ...` here.
+
+| AC or row | Mutation | Expected red |
+|---|---|---|
+| AC 1 | `FromRow` no longer sets `EitherWay` | `Payloads.TestApprovalEitherWay`, `EitherWay.TestDemoRepairWhenInstanceDateIsNotUtcDate`, E1 |
+| AC 1 / reading | `READINGS` swapped | `Payloads.TestApprovalEitherWay` (and Story 7.7's `NoticeText.TestEitherWay`) |
+| AC 2 | `Reading` ignores whether the readings differ | `Payloads.TestApprovalEitherWay` (10/16, 11/11), `Diagnose.TestDemoDiagnosis`, `EitherWay.TestBothReadingsMatch` |
+| AC 3 / form | the view passes `affected` as `resendCount` | `approval-view.test.mjs` (`resend` 1 of 50) |
+| AC 3 / item | the view passes the `other` noun | `approval-view.test.mjs` |
+| AC 3 / place | the row after Will resend | `approval-sources.test.mjs`, E1 |
+| AC 4 | the view ignores `eitherWay` and tests `reading` alone | `approval-view.test.mjs` (reading with no flag) |
+| AC 5 | one word changed in one form of `incident.laterRequestEitherWay` | the generator exits 1; `catalog.test.mjs` fixture refusal |
+| AC 6 | the short-screen rule removed | E5 |
+
+## Auto Run Result
+
+Status: blocked
+Blocking condition: intent gap: at 1280x600 the either-way row (38 px) does not fit under DESIGN.md's acceptance test (9 px to spare, Approve and Reject end 29 px past the chat list) unless existing rows are moved, which scope item 5 forbids. See ## Clarification Needed Q1 (recommended: option (a), a short-screen arrangement of three rows) and Q2.
+
+Summary: the spec is otherwise complete and has passed the READY-FOR-DEVELOPMENT check on every criterion but Coherent, which Q1 holds open. After the ruling, set `status: draft` for the re-plan; with option (a) nothing in the Tasks changes, and with option (b) the short-screen task, AC 6, E5 and its mutation row go.
