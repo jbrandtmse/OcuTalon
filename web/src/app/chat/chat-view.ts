@@ -5,9 +5,10 @@
  * pageTime themselves.
  *
  * - chatView lists the store's chat.message entries (turns), its incident entries (incident cards, one per Ref) and its notification
- *   entries of the kinds tellnow and reminder (notices) in store order, then the page's own messages that the store does not hold
+ *   entries of the kinds tellnow, reminder, allowance, and approval or result with an approvalRef (notices) in store order, then the page's own messages that the store does not hold
  *   yet, in send order. A local message is gone as soon as the store holds a chat.message with its clientId, whatever its status
- *   was. A notification of any other kind renders nothing (Stories 6.x and 16.x); the incident kinds are the incident card's.
+ *   was. A notification of any other kind renders nothing (Stories 6.x and 16.x): the kinds incident and answered, and approval or result with no approvalRef, are the incident card's.
+ *   liveRequest says which notice of a tool call's request is drawn as a live approval request card.
  * - An incident entry carries the store's payload as it is, keyed incident:<ref>, the store's key of the entry; the card
  *   (incidents/incident-view.ts) turns it into what it draws.
  * - A notice is a card (UX-DR69): its text as the server rendered it, split from its "Why now:" line, the times of a reminder, and
@@ -21,7 +22,16 @@
  * - indicatorOf says what the turn indicator shows for a reply: the text, the form it is spoken in and whether the dots animate.
  */
 import type { LiveItem } from '../api/api-types';
-import type { ChatMessagePayload, CheckRow, Cost, DecisionPayload, IncidentPayload, NotificationPayload, TurnStepPayload } from '../live/payloads';
+import type {
+  ApprovalPayload,
+  ChatMessagePayload,
+  CheckRow,
+  Cost,
+  DecisionPayload,
+  IncidentPayload,
+  NotificationPayload,
+  TurnStepPayload,
+} from '../live/payloads';
 
 /**
  * Every fixed string of the panel. The ellipsis is U+2026, the middle dot U+00B7. announceReplied and announceTellNow are said
@@ -126,9 +136,12 @@ export interface TurnView {
 }
 
 /** The kinds of notification that the chat shows as a notice card. */
-export type NoticeKind = 'tellnow' | 'reminder' | 'allowance';
+export type NoticeKind = 'tellnow' | 'reminder' | 'allowance' | 'approval' | 'result';
 
-/** One notice card of the chat: a notification of the kind tellnow, reminder or allowance (the session allowance and the daily-cap message, Story 16.9). */
+/**
+ * One notice card of the chat: a notification of the kind tellnow, reminder or allowance (the session allowance and the daily-cap
+ * message, Story 16.9), or a tool call's request (kind approval) or result (kind result) with the approvalRef it carries (Story 31.6).
+ */
 export interface NoticeView {
   entry: 'notice';
   /** `notification:<ref>`, the key of the entry in the live store's chat. */
@@ -148,6 +161,8 @@ export interface NoticeView {
   fallbackReason?: string;
   /** True when the card has a decision strip: it is a tell now with a decision, or a fallback. A reminder has none. */
   strip: boolean;
+  /** The Ref of the tool call's approval request, on a notice of kind approval or result. */
+  approvalRef?: string;
 }
 
 /** One incident card of the chat: the incident payload, the full view of one incident. */
@@ -192,19 +207,23 @@ function messageOf(item: LiveItem): ChatMessagePayload | undefined {
   return item.type === 'chat.message' ? item.payload : undefined;
 }
 
-/** The notice card of a chat entry: a notification of the kind tellnow, reminder or allowance; undefined for any other entry. */
+/**
+ * The notice card of a chat entry: a notification of the kind tellnow, reminder or allowance, or of the kind approval or result
+ * with an approvalRef (a tool call's request or result); undefined for any other entry.
+ */
 export function noticeOf(item: LiveItem): NoticeView | undefined {
   if (item.type !== 'notification') {
     return undefined;
   }
   const payload: NotificationPayload = item.payload;
-  if (payload.kind !== 'tellnow' && payload.kind !== 'reminder' && payload.kind !== 'allowance') {
+  const toolCall = (payload.kind === 'approval' || payload.kind === 'result') && !!payload.approvalRef;
+  if (payload.kind !== 'tellnow' && payload.kind !== 'reminder' && payload.kind !== 'allowance' && !toolCall) {
     return undefined;
   }
   const view: NoticeView = {
     entry: 'notice',
     key: `notification:${payload.ref ?? ''}`,
-    kind: payload.kind,
+    kind: payload.kind as NoticeKind,
     text: payload.text ?? '',
     whyNow: payload.whyNow ?? '',
     time: payload.createdAt ?? '',
@@ -221,7 +240,24 @@ export function noticeOf(item: LiveItem): NoticeView | undefined {
     view.fallbackReason = decision.fallbackReason ?? '';
   }
   view.strip = view.kind === 'tellnow' && (decision !== undefined || view.fallbackReason !== undefined);
+  if (toolCall) {
+    view.approvalRef = payload.approvalRef ?? '';
+    view.strip = false;
+  }
   return view;
+}
+
+/**
+ * The store's `approval` payload that makes a notice a live request card: the payload of a notice of kind approval whose
+ * approvalRef the store holds, else undefined. After a reload the snapshot holds pending requests only, so an answered, expired
+ * or finished request has none and stays a plain notice (U-222); a result notice never has one.
+ */
+export function liveRequest(notice: NoticeView, approvals: Readonly<Record<string, ApprovalPayload>>): ApprovalPayload | undefined {
+  const ref = notice.approvalRef ?? '';
+  if (notice.kind !== 'approval' || ref === '' || !Object.hasOwn(approvals, ref)) {
+    return undefined;
+  }
+  return approvals[ref];
 }
 
 /** The key of a stored turn. */

@@ -108,7 +108,7 @@ Content that didn't come from the user (for example a simulated email, or a fail
 
 Each risky action is one approval request, held as one IRIS Workflow task:
 
-- It is fixed to exact targets and shows its dry run (a fix) or the exact call (a tool call).
+- It is fixed to exact targets and shows its dry run (a fix), or the tool, its MCP server when it has one, and its inputs through the redactor, cut to 200 characters, with the full call kept in the approval record (a tool call).
 - The first answer wins.
 - It is re-checked before acting: the row must still be approved and unexpired, the service user must hold the kind's resources, and the kind runs its own re-check.
 - It expires after 24 hours.
@@ -184,7 +184,7 @@ This release can't connect to MCP servers. When a release adds MCP support, thes
 - Tools are identified by server and name and never take a built-in tool's classification.
 - A changed description or input schema makes a tool unclassified again. MCP annotations such as `readOnlyHint` are ignored.
 - An MCP tool that runs commands must be classified risky.
-- Every call passes the gate, an approval request when needed (showing the exact call), an audit entry (read-only calls included) and an agent step.
+- Every call passes the gate, an approval request when needed (showing the tool, its server and its inputs through the redactor, cut to 200 characters, with the full call kept in the approval record), an audit entry (read-only calls included) and an agent step.
 - Results are untrusted content.
 
 ## Online demo

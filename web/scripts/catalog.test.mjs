@@ -6,7 +6,7 @@
 // text, the merge of the Core and Watch catalogs, the time, cost, count and text slots that take the caller's string, the channel
 // slot that gives a channel's name, a text slot accepted on the keys of TEXT_SLOT_KEYS only, and each way the generator refuses (a
 // missing listed key, a key in both catalogs, a slot type the page does not render, a text slot on any other key, a broken XData
-// block or CHANNELNAMES parameter, a reason with no text) and a stale file. Story 6.4: the seven result texts and the audit line
+// block or CHANNELNAMES parameter, a reason with no text) and a stale file. Story 6.4: the eight result texts and the audit line
 // as Catalog.RenderAt gives them (the Fixtures XData of Test.Msg.Catalog), every count-of-one form of them, the noun slot that
 // the count slot chooses, and the generator's one forms (emitted, and refused when they name no count slot or have no text).
 // Run with: node --test web/scripts/
@@ -65,7 +65,7 @@ const ANSWERED_KEYS = [
   'answered.alreadyRejectedBy',
 ];
 
-/** The seven result texts and the audit line that the page renders (Story 6.4), in the generator's order. */
+/** The eight result texts and the audit line that the page renders (Story 6.4), in the generator's order. */
 const RESULT_KEYS = [
   'result.allThrough',
   'result.failedAgain',
@@ -74,6 +74,7 @@ const RESULT_KEYS = [
   'result.stillResending',
   'result.interrupted',
   'result.couldNotStart',
+  'result.stoppedPartway',
   'audit.recorded',
 ];
 
@@ -90,20 +91,20 @@ describe('the real tree', () => {
     assert.ok(!/[^\x20-\x7e\n]/.test(text), 'ASCII only');
   });
 
-  it('holds the 12 fallback reasons of Msg.Enum, and the 11 reason texts, the sentence, the five check sentences, the 15 banner and action keys, the nine answered keys and the eight result keys', () => {
+  it('holds the 12 fallback reasons of Msg.Enum, and the 11 reason texts, the sentence, the five check sentences, the 15 banner and action keys, the nine answered keys and the nine result keys', () => {
     const enumReasons = /Parameter FALLBACKREASON = "([^"]*)";/.exec(readFileSync(enumFile, 'utf8'))[1].split(',');
     assert.equal(enumReasons.length, 12);
     assert.deepEqual(Object.keys(real.REASON_KEYS), enumReasons);
     const suffixes = ['timeout', 'empty', 'cutOff', 'refusal', 'error', 'rateLimited', 'budget', 'tooLarge', 'dailyCap', 'noKey', 'generic'];
     assert.equal(CHECK_KEYS.length, 5);
     assert.deepEqual(Object.keys(real.PAGE_TEXTS).sort(), ['conversation.turnFallback', ...CHECK_KEYS, ...BANNER_KEYS, ...ANSWERED_KEYS, ...RESULT_KEYS, ...suffixes.map((suffix) => `fallbackReason.${suffix}`)].sort());
-    assert.equal(Object.keys(real.PAGE_TEXTS).length, 49);
+    assert.equal(Object.keys(real.PAGE_TEXTS).length, 50);
   });
 
-  it('holds the 15 banner and action keys, the nine answered keys and the eight result keys with the slot types of the catalog, and no key that waits for another story', () => {
+  it('holds the 15 banner and action keys, the nine answered keys and the nine result keys with the slot types of the catalog, and no key that waits for another story', () => {
     assert.equal(BANNER_KEYS.length, 15);
     assert.equal(ANSWERED_KEYS.length, 9);
-    assert.equal(RESULT_KEYS.length, 8);
+    assert.equal(RESULT_KEYS.length, 9);
     assert.deepEqual(Object.keys(real.PAGE_SLOTS), ['conversation.turnFallback', ...CHECK_KEYS, ...BANNER_KEYS, ...ANSWERED_KEYS, ...RESULT_KEYS]);
     const slots = {
       'checks.notEverything': { whatFailed: 'text' },
@@ -131,6 +132,7 @@ describe('the real tree', () => {
       'result.stillResending': { count: 'count', itemNoun: 'noun', completed: 'count' },
       'result.interrupted': { count: 'count', itemNoun: 'noun', completed: 'count', remaining: 'count' },
       'result.couldNotStart': { reason: 'text' },
+      'result.stoppedPartway': { count: 'count', itemNoun: 'noun', resent: 'count', completed: 'count', notTried: 'count' },
     };
     for (const key of Object.keys(real.PAGE_SLOTS)) assert.deepEqual({ ...real.PAGE_SLOTS[key] }, slots[key] ?? {}, key);
     assert.ok(!Object.hasOwn(real.PAGE_TEXTS, 'bannerAction.budgets'), 'Budgets waits for the settings page');
@@ -215,11 +217,15 @@ describe('the result texts', () => {
       real.renderPageText('result.couldNotStart', { reason: "OcuTalon isn't allowed to resend messages in that production" }),
       "Nothing was resent: OcuTalon isn't allowed to resend messages in that production. Nothing was changed.",
     );
+    assert.equal(
+      real.renderPageText('result.stoppedPartway', { count: '3', itemNoun: noun, resent: '2', completed: '2', notTried: '0' }),
+      "The resend stopped partway: I resent 2 of the 3 orders (2 went through), the next one couldn't be resent, and 0 more weren't tried. Nothing else was changed, and I won't resend the rest without a new approval.",
+    );
     assert.equal(real.renderPageText('audit.recorded'), 'Recorded in the IRIS audit log.');
   });
 
   it('read the catalog\'s count-of-one form where the named count slot is 1, and the noun by the count slot', () => {
-    assert.deepEqual(Object.keys(real.PAGE_ONE_FORMS), ['result.allThrough', 'result.failedAgain', 'result.skipped', 'result.failedAndSkipped', 'result.stillResending', 'result.interrupted']);
+    assert.deepEqual(Object.keys(real.PAGE_ONE_FORMS), ['result.allThrough', 'result.failedAgain', 'result.skipped', 'result.failedAndSkipped', 'result.stillResending', 'result.interrupted', 'result.stoppedPartway']);
     assert.deepEqual(Object.fromEntries(Object.entries(real.PAGE_ONE_FORMS).map(([key, form]) => [key, form.slot])), {
       'result.allThrough': 'count',
       'result.failedAgain': 'failedAgain',
@@ -227,6 +233,7 @@ describe('the result texts', () => {
       'result.failedAndSkipped': 'skipped',
       'result.stillResending': 'completed',
       'result.interrupted': 'remaining',
+      'result.stoppedPartway': 'notTried',
     });
     assert.equal(real.renderPageText('result.allThrough', { count: '1', itemNoun: noun }), 'The order went through.');
     assert.equal(
@@ -258,6 +265,11 @@ describe('the result texts', () => {
     assert.equal(
       real.renderPageText('result.interrupted', { count: '50', itemNoun: noun, completed: '49', remaining: '1' }),
       'The resend stopped when OcuTalon restarted: 49 of 50 orders went through. The other one needs a new approval.',
+    );
+    assert.equal(
+      real.renderPageText('result.stoppedPartway', { count: '4', itemNoun: noun, resent: '3', completed: '2', notTried: '1' }),
+      "The resend stopped partway: I resent 3 of the 4 orders (2 went through), the next one couldn't be resent, and 1 more wasn't tried. Nothing else was changed, and I won't resend the rest without a new approval.",
+      'the notTried slot decides the one form',
     );
     assert.equal(real.renderPageText('result.allThrough', { count: '2', itemNoun: noun }), 'All 2 orders went through.');
     assert.equal(real.renderPageText('result.allThrough', { count: 1, itemNoun: noun }), 'All  orders went through.', 'a count that is no string is not "1"');
@@ -430,6 +442,7 @@ const RESULTS = {
   'result.stillResending': { text: 'Still: {completed}/{count} {itemNoun}.', slots: { count: 'count', itemNoun: 'noun', completed: 'count' }, source: 'fixture', one: { slot: 'completed', text: 'Still: 1/{count} {itemNoun}.' } },
   'result.interrupted': { text: 'Stopped: {completed}/{count} {itemNoun}; {remaining} left.', slots: { count: 'count', itemNoun: 'noun', completed: 'count', remaining: 'count' }, source: 'fixture', one: { slot: 'remaining', text: 'Stopped: {completed}/{count} {itemNoun}; one left.' } },
   'result.couldNotStart': { text: 'Not started: {reason}.', slots: { reason: 'text' }, source: 'fixture' },
+  'result.stoppedPartway': { text: 'Partway: {resent}/{count} {itemNoun}, {completed} through; {notTried} not tried.', slots: { count: 'count', itemNoun: 'noun', resent: 'count', completed: 'count', notTried: 'count' }, source: 'fixture', one: { slot: 'notTried', text: 'Partway: {resent}/{count} {itemNoun}, {completed} through; 1 not tried.' } },
   'audit.recorded': { text: 'Logged.', slots: {}, source: 'fixture' },
 };
 
@@ -474,7 +487,7 @@ describe('the generator on a fixture', () => {
     assert.deepEqual(Object.keys(module.PAGE_SLOTS), ['conversation.turnFallback', ...CHECK_KEYS, ...BANNER_KEYS, ...ANSWERED_KEYS, ...RESULT_KEYS]);
     assert.deepEqual({ ...module.PAGE_SLOTS['checks.notEverything'] }, { whatFailed: 'text' });
     assert.equal(module.renderPageText('checks.notEverythingRestPassed', { whatFailed: 'A (x)' }), 'Not everything: A (x). The rest was fine.');
-    assert.deepEqual(Object.keys(module.PAGE_ONE_FORMS), ['result.allThrough', 'result.failedAgain', 'result.skipped', 'result.failedAndSkipped', 'result.stillResending', 'result.interrupted']);
+    assert.deepEqual(Object.keys(module.PAGE_ONE_FORMS), ['result.allThrough', 'result.failedAgain', 'result.skipped', 'result.failedAndSkipped', 'result.stillResending', 'result.interrupted', 'result.stoppedPartway']);
     assert.deepEqual({ ...module.CHANNEL_NAMES }, { web: 'the web chat', phone: 'the simulated phone' });
     assert.deepEqual({ ...module.MESSAGE_TEXTS }, { 'answered.approved': 'Yes from {channel} at {time}.' }, 'the text form of the one listed key with a web form');
     assert.equal(module.renderMessageText('answered.approved', { channel: 'phone', time: 'Monday at 09:00' }), 'Yes from the simulated phone on Monday at 09:00.');

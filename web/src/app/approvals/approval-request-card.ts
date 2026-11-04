@@ -90,6 +90,9 @@ export function approvalContext(nowMs: number, instanceZone: string, onlineDemo:
  * (its own press, or one under way) or focus, after the render, is on the card's status or on the simulated phone's answer line
  * of this request: where the answer took focus it is already spoken.
  *
+ * The chat panel also draws it for a tool call's request (Story 31.6): with the request text as `request`, the action is that text
+ * (its lines kept) and the buttons are named by its first line.
+ *
  * The card is a section that the chat's New messages button can focus (tabindex -1). Focus: when an update replaces the focused
  * Approve or Reject, the shared focus rule (shared/focus-rule.ts) puts it on the status line (tabindex -1). The card moves no
  * other focus.
@@ -253,6 +256,8 @@ export function approvalContext(nowMs: number, instanceZone: string, onlineDemo:
     }
     .action {
       margin-top: var(--space-1);
+      overflow-wrap: anywhere;
+      white-space: pre-line;
       font-size: var(--type-body-font-size);
       font-weight: var(--type-body-strong-font-weight);
       line-height: var(--type-body-line-height);
@@ -376,6 +381,8 @@ export class ApprovalRequestCard {
   readonly ctx = input.required<ApprovalContext>();
   /** The incident's evidence panel; set only on the first card of the incident, which then has Show details at the row's right end. */
   readonly details = input<PanelView | undefined>(undefined);
+  /** A tool call's request text (Story 31.6): the action as it stands, its first line naming the buttons; '' for a fix's request. */
+  readonly request = input('');
   /** The id of the element that holds the panel, which Show details controls. */
   readonly detailsId = input('');
   /** True while Show details is open. */
@@ -416,7 +423,7 @@ export class ApprovalRequestCard {
     const stored = this.approval();
     return answered !== undefined && stored.state === 'pending' ? answered : stored;
   });
-  protected readonly view = computed(() => approvalView(this.shown(), this.ctx()));
+  protected readonly view = computed(() => approvalView(this.shown(), this.ctx(), this.request()));
 
   /** The result band under the answered status, when the incident payload gives this request a result (approval-view.ts resultView). */
   protected readonly band = computed(() => {

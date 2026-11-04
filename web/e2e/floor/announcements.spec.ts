@@ -18,6 +18,7 @@ import {
 } from '../support/iris';
 import { CARD_MS, banner, composerOf, inMs, mainOf, railOf, replyOf, unique, loadedAfter } from '../support/floor';
 import { announcedTexts, announcedTimes, recordAnnouncements } from '../support/page';
+import { blockLiveSocket } from '../support/socket';
 
 /**
  * Story 2.12, what the page announces (A1 to A7), in a real browser against a real stack. It pins that the page speaks through one
@@ -163,6 +164,7 @@ test('A2: a tell-now card is announced once as Tell now and its first sentence, 
   const { user } = fixtureUser(KIND);
   const refs: string[] = [];
   try {
+    await blockLiveSocket(page);
     await open(page);
     const marker = unique('A2');
     const summary = `${marker} Orders are failing. More.`;
@@ -192,6 +194,7 @@ test('A3: a reminder card is announced once as its text, though its row leaves t
     const dueAt = inMs(300_000);
     const ref = await seedReminder(user, { text, dueAt });
     refs.push(ref);
+    await blockLiveSocket(page);
     await open(page);
     const row = railOf(page).locator('li.row').filter({ hasText: text });
     await expect(row, 'the pending reminder shows in the rail').toHaveCount(1);
@@ -215,6 +218,7 @@ test('A4: two banners that appear in one update are announced as one text, in st
   const { user } = fixtureUser(KIND);
   try {
     await conditionsOff(user);
+    await blockLiveSocket(page);
     await open(page);
     const release = await holdPoll(page);
     await conditionsOn(user);
@@ -234,6 +238,7 @@ test('A5: a burst of two banners and two replies in one update is announced as 4
   const rows: string[] = [];
   try {
     await conditionsOff(user);
+    await blockLiveSocket(page);
     await open(page);
     const release = await holdPoll(page);
     await conditionsOn(user);

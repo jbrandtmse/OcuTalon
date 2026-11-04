@@ -39,6 +39,7 @@ export const PAGE_TEXTS: Readonly<Record<string, string>> = {
   'result.stillResending': "Still resending: {completed} of {count} {itemNoun} have gone through so far. I'll tell you when it's done.",
   'result.interrupted': 'The resend stopped when OcuTalon restarted: {completed} of {count} {itemNoun} went through. The other {remaining} need a new approval.',
   'result.couldNotStart': 'Nothing was resent: {reason}. Nothing was changed.',
+  'result.stoppedPartway': "The resend stopped partway: I resent {resent} of the {count} {itemNoun} ({completed} went through), the next one couldn't be resent, and {notTried} more weren't tried. Nothing else was changed, and I won't resend the rest without a new approval.",
   'audit.recorded': 'Recorded in the IRIS audit log.',
   'fallbackReason.timeout': "the model didn't answer within 60 seconds",
   'fallbackReason.empty': "the model's reply was empty",
@@ -98,6 +99,7 @@ export const PAGE_SLOTS: Readonly<Record<string, Readonly<Record<string, string>
   'result.stillResending': { 'count': 'count', 'itemNoun': 'noun', 'completed': 'count' },
   'result.interrupted': { 'count': 'count', 'itemNoun': 'noun', 'completed': 'count', 'remaining': 'count' },
   'result.couldNotStart': { 'reason': 'text' },
+  'result.stoppedPartway': { 'count': 'count', 'itemNoun': 'noun', 'resent': 'count', 'completed': 'count', 'notTried': 'count' },
   'audit.recorded': {},
 };
 
@@ -109,6 +111,7 @@ export const PAGE_ONE_FORMS: Readonly<Record<string, { readonly slot: string; re
   'result.failedAndSkipped': { slot: 'skipped', text: "{completed} of {count} {itemNoun} went through. {failedAgain} failed again ({failReason}), and 1 had changed since the dry run, so I skipped it. I won't retry any of them without a new approval." },
   'result.stillResending': { slot: 'completed', text: "Still resending: 1 of {count} {itemNoun} has gone through so far. I'll tell you when it's done." },
   'result.interrupted': { slot: 'remaining', text: 'The resend stopped when OcuTalon restarted: {completed} of {count} {itemNoun} went through. The other one needs a new approval.' },
+  'result.stoppedPartway': { slot: 'notTried', text: "The resend stopped partway: I resent {resent} of the {count} {itemNoun} ({completed} went through), the next one couldn't be resent, and 1 more wasn't tried. Nothing else was changed, and I won't resend the rest without a new approval." },
 };
 
 /** Each fallback reason value with the suffix of its fallbackReason.* key. */

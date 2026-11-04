@@ -6,6 +6,7 @@ import { loadedAfter } from '../support/floor';
 import { freeze, lastAnswerAt, pollStarts, recordTraffic, runUntil } from '../support/clock';
 import { fixtureUser, publishReminder } from '../support/iris';
 import { announcements, recordAnnouncements } from '../support/page';
+import { blockLiveSocket } from '../support/socket';
 
 /**
  * Story 2.2, the live path (L1 to L13), in a real browser against a real stack, signed in as the live fixture user that
@@ -402,6 +403,7 @@ test("L9: an epoch that is not the snapshot's loads the snapshot again once, and
  * page does not fetch the event it already holds again.
  */
 test("L10: after a skip the reloaded snapshot's cursors replace the old ones", async ({ page }) => {
+  await blockLiveSocket(page);
   const states = countRequests(page, STATE);
   const asked: string[] = [];
   let armed = false;

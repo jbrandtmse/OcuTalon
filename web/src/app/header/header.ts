@@ -82,7 +82,10 @@ const STATUS_RULE: FocusRule = { within: '.status-button' };
  *
  * Below 1024px the header is the page's one sticky element and is compact (48px minimum, 12px inline padding, may wrap). It writes its
  * measured block size to --app-header-block-size on the root element, which the stacked layout's scroll-padding-top reads, so that
- * the focused element is never scrolled under it.
+ * the focused element is never scrolled under it. Where its wrapped height passes a quarter of the window's height (a very short
+ * window), it would cover too much of the page, so it takes the host class `scrolls`: it scrolls away with the page (position
+ * static) and writes 0px, because nothing stays above the focused element. The measure runs when the header resizes, when the window
+ * resizes and when the layout band changes.
  */
 @Component({
   selector: 'app-header',
@@ -295,6 +298,9 @@ const STATUS_RULE: FocusRule = { within: '.status-button' };
         top: 0;
         z-index: 1;
       }
+      :host(.scrolls) {
+        position: static;
+      }
       .header {
         flex-wrap: wrap;
         gap: var(--space-1) var(--space-3);
@@ -405,17 +411,28 @@ export class Header {
   );
 
   constructor() {
+    const destroyed = inject(DestroyRef);
+    const host = this.host.nativeElement;
+    const doc = inject(DOCUMENT);
+    const root = doc.documentElement;
+    const view = doc.defaultView;
+    const update = (): void => {
+      const height = host.getBoundingClientRect().height;
+      const scrolls = this.layout.stacked() && height > (view?.innerHeight ?? Infinity) / 4;
+      host.classList.toggle('scrolls', scrolls);
+      root.style.setProperty(HEADER_SIZE, scrolls ? '0px' : `${height}px`);
+    };
     effect(() => {
       this.layout.band();
       untracked(() => keepFocus(this.host.nativeElement, this.injector, this.popovers, STATUS_RULE));
+      untracked(update);
     });
-    const destroyed = inject(DestroyRef);
-    const host = this.host.nativeElement;
-    const root = inject(DOCUMENT).documentElement;
-    const observer = new ResizeObserver(() => root.style.setProperty(HEADER_SIZE, `${host.getBoundingClientRect().height}px`));
+    const observer = new ResizeObserver(update);
     observer.observe(host);
+    view?.addEventListener('resize', update);
     destroyed.onDestroy(() => {
       observer.disconnect();
+      view?.removeEventListener('resize', update);
       this.tracePopover?.close();
     });
   }

@@ -4,6 +4,7 @@ import { signIn } from '../sign-in/helpers';
 import { loadedAfter } from '../support/floor';
 import { cleanFixtureRows, finishTurn, fixtureUser, seedTurns, sinkEvent, turnRows, type SeedDecision, type SeedTurn, type SeedUsage } from '../support/iris';
 import { clock, plain, tokenColor } from '../support/page';
+import { blockLiveSocket } from '../support/socket';
 
 /**
  * Story 2.6, the decision strip under every reply (D1 to D14), in a real browser against a real stack. Every case signs in as the
@@ -450,6 +451,7 @@ test('D10: /events serves BridgeSink\'s decision event', async ({ page }) => {
   const { user } = fixtureUser('DECISION');
   const { decisions } = await seed([turn('D10', { createdAt: '2025-03-04T10:00:00Z' })]);
   const ref = decisions[0]!.triage;
+  await blockLiveSocket(page);
   await open(page);
   const served = page.waitForResponse(
     async (response) => {

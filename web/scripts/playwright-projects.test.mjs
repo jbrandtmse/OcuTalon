@@ -261,19 +261,19 @@ describe('the case lists of the floor, answers and cards projects (Story 6.4; DW
     }
   });
 
-  it('holds I2 to I11 and A2 to A10 in the cards project, each once and in its own spec', () => {
+  it('holds I2 to I11 and A2 to A11 in the cards project, each once and in its own spec', () => {
     const where = (id) => cards.filter((one) => idOf(one.title) === id).map((one) => one.file);
     for (const id of range('I', 2, 11)) assert.deepEqual(where(id), ['cards/incident-card.spec.ts'], id);
-    for (const id of range('A', 2, 10)) assert.deepEqual(where(id), ['cards/approval-card.spec.ts'], id);
-    assert.equal(cards.length, 19, 'and no other case');
+    for (const id of range('A', 2, 11)) assert.deepEqual(where(id), ['cards/approval-card.spec.ts'], id);
+    assert.equal(cards.length, 20, 'and no other case');
     assert.deepEqual([...new Set(cards.flatMap((one) => one.projects))], ['cards'], 'in Chromium only: no case is tagged for Firefox or WebKit');
   });
 
-  it('holds X1 to X11 and C1 to C10 in the answers project, each once and in its own spec', () => {
+  it('holds X1 to X13 and C1 to C10 in the answers project, each once and in its own spec', () => {
     const where = (id) => answers.filter((one) => idOf(one.title) === id).map((one) => one.file);
-    for (const id of range('X', 1, 11)) assert.deepEqual(where(id), ['answers/answers.spec.ts'], id);
+    for (const id of range('X', 1, 13)) assert.deepEqual(where(id), ['answers/answers.spec.ts'], id);
     for (const id of range('C', 1, 10)) assert.deepEqual(where(id), ['answers/close-loop.spec.ts'], id);
-    assert.equal(answers.length, 21, 'and no other case');
+    assert.equal(answers.length, 23, 'and no other case');
     assert.deepEqual([...new Set(answers.flatMap((one) => one.projects))], ['answers'], 'in Chromium only: no case is tagged for Firefox or WebKit');
   });
 });

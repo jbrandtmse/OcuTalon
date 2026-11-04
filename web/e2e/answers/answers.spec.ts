@@ -4,7 +4,7 @@ import { signIn } from '../sign-in/helpers';
 import { DRY_RUN, raise, refOf, today } from '../support/approvals';
 import { dropPhone, phoneMessage } from '../support/devices';
 import { CARD_MS, composerOf, inMs, mainOf, railOf, unique, loadedAfter } from '../support/floor';
-import { answerHeaders, answerQuietly, cleanFixtureRows, fixtureUser, readApproval, seedApproval, sendNotification, sinkEvent } from '../support/iris';
+import { answerHeaders, answerQuietly, chk, cleanFixtureRows, fixtureUser, irisScript, quoted, readApproval, seedApproval, sendNotification, sinkEvent } from '../support/iris';
 import { announcedTexts, clock, plain, recordAnnouncements, scrollListTo, tokenColor } from '../support/page';
 
 /**
@@ -20,7 +20,10 @@ import { announcedTexts, clock, plain, recordAnnouncements, scrollListTo, tokenC
  * X1 is the phone's notice, X2 an Approve on the phone (the 2 s bound of NFR-9 to the card), X3 an Approve on the card and the
  * phone following within 5 s, X4 the press that lost the race, X5 the phone's busy rule and failure notices, X6 the rail row's jump,
  * X7 the phone holding its feed for a pending request and X8 an answer from elsewhere, shown within 2 s of its event and announced once by
- * the card. QA adds X9 (Reject on the phone) and X10 (a reload keeps the stored messages).
+ * the card. QA adds X9 (Reject on the phone) and X10 (a reload keeps the stored messages). X12 (Story 31.5) is a tool call's request on the
+ * phone: its server form, Approve, the server's in-place answered line, the second answer's refusal and the result message.
+ * X13 (Story 31.6) is the same tool call in the web chat: the card with the phone's exact text, an answer from the card or from the
+ * phone (the first wins), the result as a new notice, and the plain notice that the request becomes after a reload.
  */
 test.describe.configure({ timeout: 120_000 });
 test.use({ timezoneId: 'UTC', locale: 'en-GB' });
@@ -806,6 +809,258 @@ test('X11: with the Demo view off the request is answerable in the chat, and the
     await expect(message, 'the phone shows the message').toHaveCount(1, { timeout: CARD_MS });
     await expect(lineOf(message), 'with the answer given meanwhile').toHaveText(expected, { timeout: PHONE_MS });
     await expect(message.getByRole('button'), 'and no buttons').toHaveCount(0);
+  } finally {
+    await dropPhone(user, start);
+    await cleanFixtureRows(rows);
+  }
+});
+
+/**
+ * Sets the given properties of a request's row (names are letters only) and saves it, as the bridge would hold a replayable call.
+ */
+async function setApprovalFields(ref: string, fields: Record<string, string>): Promise<void> {
+  const sets = Object.entries(fields).map(([name, value]) => {
+    if (!/^[A-Za-z]+$/.test(name)) throw new Error('a property name is letters only');
+    return `Set r.${name}=${quoted(value)}`;
+  });
+  const lines = await irisScript(
+    [
+      `Set r=##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(${quoted(ref)})`,
+      'If \'$IsObject(r) { Write !,"CHK|set|0" Halt }',
+      ...sets,
+      'Write !,"CHK|set|",$System.Status.IsOK(r.%Save())',
+    ].join('\n'),
+  );
+  if (chk(lines, 'set') !== '1') throw new Error(`the request could not be changed (${lines.join(' ')})`);
+}
+
+/** The newest phone SimMessage of the user's session, whatever request it asks for (a result message asks for none), or undefined when there is none. */
+async function newestPhoneMessage(user: string): Promise<{ approvalRef: string; text: string } | undefined> {
+  const lines = await irisScript(
+    [
+      `Set s=##class(OcuTalon.Data.Session).ForUser(${quoted(user)},.sc)`,
+      'Set a=##class(%SQL.Statement).%New()',
+      'Set sc=a.%Prepare("SELECT TOP 1 ApprovalRef, Text FROM OcuTalon_Data.SimMessage WHERE SessionRef = ? AND Kind = \'phone\' ORDER BY ID DESC")',
+      'Set r=a.%Execute(s.Ref)',
+      'If r.%Next() { Write !,"CHK|approvalRef|",r.%GetData(1) Write !,"CHK|text|",$Translate(r.%GetData(2),$Char(10),"\\") } Else { Write !,"CHK|none|1" }',
+    ].join('\n'),
+  );
+  if (chk(lines, 'none') === '1') return undefined;
+  return { approvalRef: chk(lines, 'approvalRef') ?? '', text: (chk(lines, 'text') ?? '').replace(/\\/g, '\n') };
+}
+
+/**
+ * X12 (Story 31.5): a tool call's request on the phone. A replayable session tool call on an MCP server raises its notice: the phone shows
+ * "Run {tool} on {server}", the call's inputs on one line and the no-dry-run sentence, with Approve and Reject. Approve on the phone
+ * answers 200 and the server edits the request's message in place within 5 s of the reply; a second answer is refused and changes
+ * nothing; the result is a new message with no buttons, and the request's message keeps its line.
+ */
+test('X12: a tool call\'s request reaches the phone with Approve and Reject, the answer edits it in place, and the result is a new message', async ({ page }) => {
+  const { user } = fixtureUser(KIND);
+  const rows: string[] = [];
+  const start = startOf();
+  const tool = 'zz_tool_x12';
+  const text = `Run ${tool} on zzx12\nInputs: {"to":"ops"}\nNo dry run is available for this tool. Approving runs exactly this call once.`;
+  try {
+    const request = await seedApproval(user, { kind: 'tool_call', toolName: tool, dryRun: null, requiredRole: 'OcuTalonUser' });
+    rows.push(request);
+    await setApprovalFields(request, { ToolSource: 'mcp:zzx12', Runner: 'ChatAgent', ToolArguments: '{"to":"ops"}' });
+    await open(page);
+    await sinkEvent(user, 'approval.raised', { ref: request });
+
+    let ref = '';
+    await expect
+      .poll(async () => (ref = (await phoneMessage(user, request))?.ref ?? ''), { message: 'the phone message of the request exists', timeout: CARD_MS })
+      .not.toBe('');
+    const stored = await phoneMessage(user, request);
+    expect(stored?.text, "the phone's text names the server, the inputs and the no-dry-run sentence").toBe(text);
+    expect(stored?.answer, 'and has no answer yet').toBe('');
+    const message = messageOf(page, ref);
+    await expect(message, 'the phone shows it').toHaveCount(1, { timeout: CARD_MS });
+    const approve = message.getByRole('button', { name: `Approve: run ${tool}`, exact: true });
+    const reject = message.getByRole('button', { name: `Reject: run ${tool}`, exact: true });
+    await expect(approve, 'with Approve').toHaveCount(1);
+    await expect(reject, 'and Reject').toHaveCount(1);
+
+    const reply = nextReply(page);
+    await approve.click();
+    const response = await reply;
+    const repliedAt = Date.now();
+    expect(response.status(), 'the answer is 200').toBe(200);
+    const answeredAt = (await replyBody(response)).body.approval?.answeredAt ?? '';
+    expect(answeredAt, "the reply carries the request's answer").toMatch(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/);
+    const line = `Approved from the simulated phone at ${hhmm(answeredAt)}.`;
+    await expect(lineOf(message), 'the phone replaces the buttons with the answer').toHaveText(line);
+    await expect(message.locator('.buttons'), 'and the two buttons are gone').toHaveCount(0);
+    await expect
+      .poll(() => phoneMessage(user, request).then((one) => one?.answer), {
+        message: "the server edited the request's message within 5 s of the reply",
+        timeout: Math.max(1, PHONE_MS - (Date.now() - repliedAt)),
+      })
+      .toBe(line);
+    console.log(`ANSWERS X12 the server edited the request's message ${Date.now() - repliedAt} ms after the reply (bound ${PHONE_MS} ms)`);
+
+    expect(await answerQuietly(user, request, 'reject', 'phone'), 'a second answer is refused').toBe('already_answered');
+    const row = await readApproval(request);
+    expect(row.action + '|' + row.channel, 'the row still holds the phone approval').toBe('approve|phone');
+    expect(await phoneMessage(user, request).then((one) => one?.answer), "and the request's message is unchanged").toBe(line);
+
+    const finishedAt = new Date().toISOString().slice(0, 19) + 'Z';
+    await setApprovalFields(request, { State: 'done', Result: 'done', FinishedAt: finishedAt });
+    await sinkEvent(user, 'approval.result', { ref: request });
+    const ran = `${tool} ran once at ${hhmm(finishedAt)}.`;
+    await expect.poll(() => newestPhoneMessage(user).then((one) => one?.text), { message: 'the phone gets a second message', timeout: PHONE_MS }).toBe(ran);
+    expect((await newestPhoneMessage(user))?.approvalRef, 'the result message asks for no request').toBe('');
+    const result = phoneOf(page).locator('.notification').filter({ hasText: ran });
+    await expect(result, 'the phone shows the result').toHaveCount(1, { timeout: CARD_MS });
+    await expect(result.getByRole('button'), 'with no buttons').toHaveCount(0);
+    expect(await phoneMessage(user, request).then((one) => one?.answer), "the request's message keeps its line").toBe(line);
+  } finally {
+    await dropPhone(user, start);
+    await cleanFixtureRows(rows);
+  }
+});
+
+/**
+ * X13 (Story 31.6): a tool call's request in the web chat. A replayable session tool call on an MCP server raises a card whose text is
+ * the phone's exactly (the server form, the inputs line cut at 200 characters), with Approve and Reject named by its first line.
+ * Approve on the card answers 200, the card's status follows within 2 s and the phone's request message within 5 s; a second answer
+ * from the phone is refused and nothing changes. A request that the phone answers first shows that answer on its card. The result is
+ * a new notice with no buttons and the card keeps its status. After a reload the answered request is a plain notice with its text and
+ * no pending cue, followed by its result. A request that is still pending after a reload is a live card again.
+ */
+test("X13: a tool call's request is a card in the web chat with the phone's text, the first answer wins, and a reload leaves a plain notice", async ({ page }) => {
+  const { user } = fixtureUser(KIND);
+  const rows: string[] = [];
+  const start = startOf();
+  const tool = 'zz_tool_x13';
+  const longNote = 'x'.repeat(280);
+  const seedRequest = async (name: string): Promise<string> => {
+    const request = await seedApproval(user, { kind: 'tool_call', toolName: name, dryRun: null, requiredRole: 'OcuTalonUser' });
+    rows.push(request);
+    await setApprovalFields(request, { ToolSource: 'mcp:zzx13', Runner: 'ChatAgent', ToolArguments: JSON.stringify({ to: 'ops', note: longNote }) });
+    return request;
+  };
+  try {
+    const request = await seedRequest(tool);
+    await open(page);
+    await sinkEvent(user, 'approval.raised', { ref: request });
+
+    const card = requestCard(page, request);
+    await expect(card, 'the web chat shows the request as a card').toHaveCount(1, { timeout: CARD_MS });
+    let phoneText = '';
+    await expect
+      .poll(async () => (phoneText = (await phoneMessage(user, request))?.text ?? ''), { message: 'the phone message of the request exists', timeout: CARD_MS })
+      .not.toBe('');
+    const action = (await card.locator('.action').textContent()) ?? '';
+    // The helper reads the stored text through the terminal, which writes a character outside ASCII as "?".
+    expect(action.replace(/[^\x00-\x7F]/g, '?'), "the card's text is the phone's text").toBe(phoneText);
+    const lines = action.split('\n');
+    expect(lines[0], 'its first line names the tool and the server').toBe(`Run ${tool} on zzx13`);
+    expect(lines[1]?.startsWith('Inputs: '), 'its second line is the inputs').toBe(true);
+    const inputs = (lines[1] ?? '').slice('Inputs: '.length);
+    expect(inputs.length, 'the inputs are cut at 200 characters').toBe(200);
+    expect(inputs.endsWith('\u2026'), 'and end with the ellipsis').toBe(true);
+    const approve = card.getByRole('button', { name: `Approve: run ${tool} on zzx13`, exact: true });
+    const reject = card.getByRole('button', { name: `Reject: run ${tool} on zzx13`, exact: true });
+    await expect(approve, 'Approve is named by the first line').toHaveCount(1);
+    await expect(reject, 'and so is Reject').toHaveCount(1);
+
+    const reply = nextReply(page);
+    await approve.click();
+    const response = await reply;
+    const repliedAt = Date.now();
+    const { status, body } = await replyBody(response);
+    expect(status, 'the answer is 200').toBe(200);
+    const answeredAt = body.approval?.answeredAt ?? '';
+    expect(answeredAt, "the reply carries the request's answer").toMatch(/^\d{4}-\d\d-\d\dT\d\d:\d\d:\d\dZ$/);
+    await expect(card.locator('p.status'), "the card's status names the web chat within 2 s").toHaveText(`Approved from the web chat at ${pageHhmm(answeredAt)}`, { timeout: PAGE_MS });
+    await expect(card.locator('.buttons'), 'and the buttons are gone').toHaveCount(0);
+    await expect
+      .poll(() => phoneMessage(user, request).then((one) => one?.answer), {
+        message: "the phone's request message holds the same answer within 5 s of the reply",
+        timeout: Math.max(1, PHONE_MS - (Date.now() - repliedAt)),
+      })
+      .toBe(`Approved from the web chat at ${hhmm(answeredAt)}.`);
+
+    expect(await answerQuietly(user, request, 'reject', 'phone'), 'a second answer from the phone is refused').toBe('already_answered');
+    const row = await readApproval(request);
+    expect(row.action + '|' + row.channel, 'the row keeps the first answer').toBe('approve|web');
+    await expect(card.locator('p.status'), "the card's status is unchanged").toHaveText(`Approved from the web chat at ${pageHhmm(answeredAt)}`);
+    expect(await phoneMessage(user, request).then((one) => one?.answer), "and so is the phone's line").toBe(`Approved from the web chat at ${hhmm(answeredAt)}.`);
+
+    const second = await seedRequest(`${tool}b`);
+    await sinkEvent(user, 'approval.raised', { ref: second });
+    const secondCard = requestCard(page, second);
+    await expect(secondCard, 'a second request is a card too').toHaveCount(1, { timeout: CARD_MS });
+    await expect
+      .poll(async () => (await phoneMessage(user, second))?.text ?? '', { message: 'the phone has the second request', timeout: CARD_MS })
+      .not.toBe('');
+    // Both copies have now taken an event sent after the refused answer, so a change that the refusal set off would show here.
+    await expect(card.locator('p.status'), "the first card's status is still the first answer's").toHaveText(`Approved from the web chat at ${pageHhmm(answeredAt)}`);
+    expect(await phoneMessage(user, request).then((one) => one?.answer), "and so is the phone's line").toBe(`Approved from the web chat at ${hhmm(answeredAt)}.`);
+    expect(await answerQuietly(user, second, 'approve', 'phone'), 'the phone answers it first').toBe('done');
+    await sinkEvent(user, 'approval.answered', { ref: second });
+    const answeredSecond = await readApproval(second);
+    await expect(secondCard.locator('p.status'), "the second card shows the phone's answer within 2 s of its event").toHaveText(`Approved from the simulated phone at ${pageHhmm(answeredSecond.at)}`, { timeout: PAGE_MS });
+    await expect(secondCard.locator('.buttons'), 'and its buttons are gone').toHaveCount(0);
+
+    const finishedAt = new Date().toISOString().slice(0, 19) + 'Z';
+    await setApprovalFields(request, { State: 'done', Result: 'done', FinishedAt: finishedAt });
+    await sinkEvent(user, 'approval.result', { ref: request });
+    const ran = `${tool} ran once at ${hhmm(finishedAt)}.`;
+    const chat = page.locator('app-chat-panel');
+    /** The places of the request and of its result among the chat's notices, -1 when absent. */
+    const orderOf = (): Promise<number[]> =>
+      chat.locator('[data-part="notice"]').evaluateAll((nodes, args) => {
+        const at = (needle: string): number => nodes.findIndex((node) => (node.textContent ?? '').includes(needle));
+        return [at(args.first), at(args.last)];
+      }, { first: `Run ${tool} on zzx13`, last: ran });
+    const result = chat.locator('[data-part="notice"]').filter({ hasText: ran });
+    await expect(result, 'the result is a new notice').toHaveCount(1, { timeout: CARD_MS });
+    await expect(result.getByRole('button'), 'with no button').toHaveCount(0);
+    await expect(card.locator('p.status'), 'and the card keeps its status').toHaveText(`Approved from the web chat at ${pageHhmm(answeredAt)}`);
+    const order = await orderOf();
+    expect(order[0], 'the card is in the list').toBeGreaterThanOrEqual(0);
+    expect(order[1], 'and the result follows it').toBeGreaterThan(order[0] ?? 0);
+
+    await page.reload();
+    await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
+    await expect(requestCard(page, request), 'after a reload the answered request has no card').toHaveCount(0);
+    await expect(rowOfRequest(page, request), 'and no row in the rail').toHaveCount(0);
+    const plain = chat.locator('app-notice-card').filter({ hasText: `Run ${tool} on zzx13` });
+    await expect(plain, 'it is a plain notice with its request text').toHaveCount(1, { timeout: CARD_MS });
+    await expect(plain.getByRole('button'), 'with no button').toHaveCount(0);
+    await expect(plain.getByText('Approval needed'), 'no "Approval needed" label').toHaveCount(0);
+    await expect(plain.locator('.pending, .bar-pending'), 'and no pending class').toHaveCount(0);
+    const colours = await page.evaluate(() => {
+      const colourOf = (border: string): string => {
+        const probe = document.createElement('div');
+        probe.style.borderInlineStart = border;
+        document.body.append(probe);
+        const colour = getComputedStyle(probe).borderInlineStartColor;
+        probe.remove();
+        return colour;
+      };
+      return { pending: colourOf('var(--approval-request-card-accent-bar-pending)'), tellNow: colourOf('var(--notice-card-accent-bar-tell-now)') };
+    });
+    const bar = await plain.locator('.notice').evaluate((node) => getComputedStyle(node).borderInlineStartColor);
+    expect(bar, "its bar is not the request card's pending colour").not.toBe(colours.pending);
+    expect(bar, "and not the tell-now bar's").not.toBe(colours.tellNow);
+    await expect(chat.locator('app-notice-card').filter({ hasText: ran }), 'its result notice is there').toHaveCount(1);
+    const reloaded = await orderOf();
+    expect(reloaded[0], 'the request is in the list after the reload').toBeGreaterThanOrEqual(0);
+    expect(reloaded[1], 'and its result follows it').toBeGreaterThan(reloaded[0] ?? 0);
+
+    const third = await seedRequest(`${tool}c`);
+    await sinkEvent(user, 'approval.raised', { ref: third });
+    await expect(requestCard(page, third), 'a third request is a card').toHaveCount(1, { timeout: CARD_MS });
+    await page.reload();
+    await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
+    const pendingCard = requestCard(page, third);
+    await expect(pendingCard, 'after a reload a pending request is a live card again').toHaveCount(1, { timeout: CARD_MS });
+    await expect(pendingCard.getByRole('button', { name: `Approve: run ${tool}c on zzx13`, exact: true }), 'with Approve').toHaveCount(1);
+    await expect(pendingCard.getByRole('button', { name: `Reject: run ${tool}c on zzx13`, exact: true }), 'and Reject').toHaveCount(1);
   } finally {
     await dropPhone(user, start);
     await cleanFixtureRows(rows);

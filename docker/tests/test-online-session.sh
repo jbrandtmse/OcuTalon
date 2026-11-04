@@ -17,10 +17,11 @@
 #   - row 2 (AD-13: polling keeps the session): at least 150 s after C's last request, K's /state answers 200 with K's epoch while C's CSP session no
 #     longer exists (the unit waits for the rest of the 150 s when the browser step was shorter, then up to 180 s for C's session to go, and names
 #     the elapsed seconds when it fails);
-#   - row 4 (the closed page, AC 2; Telegram part off): C's main and trace CSP sessions are gone within 180 s of its last request (the delay and
+#   - row 4 (the closed page, AC 2; with its Telegram part, Story 31.3): C's main and trace CSP sessions are gone within 180 s of its last request (the delay and
 #     the licence counts are MEASURED lines); every row of C is as it was; with no CSP session of C a real reminder set for C due in 5 s fires (its
 #     state, its delivery row), Approval.Answer on the approval answers done, the watch's check runs again (LastRunAt passes the moment C was seen
-#     gone, waited for 90 s at most); the splash with C's jar says the place was freed above both cards; a sign-in with C's jar resumes C's epoch with
+#     gone, waited for 90 s at most; with TelegramOut and TelegramIn started against the CI mock bot, the fired reminder's notice reaches C's fixture chat:
+#     a sendMessage to C's chat id that carries the reminder's text, in the mock's calls, waited for 90 s at most, and the Telegram fixture is put back); the splash with C's jar says the place was freed above both cards; a sign-in with C's jar resumes C's epoch with
 #     the rows still there;
 #   - Task 0's (a) and (b): the group sign-out of a jar that opened a trace page (a GET of /ocutalon/?IRISLogout=end), and POST /api/v1/session/end
 #     on the online demo, each followed by whether the jar's trace CSP session is gone within 15 s and the licence units before and after; and (e):
@@ -299,6 +300,31 @@ CHK|run|1" \
   "Set rs=##class(%SQL.Statement).%ExecDirect(,\"SELECT COUNT(*) FROM OcuTalon_Data.BreakFeedRun WHERE SessionRef = ?\",\"$ref_c\") Do rs.%Next() Write !,\"CHK|run|\",rs.%GetData(1)" \
   'Halt'
 
+# Row 4's Telegram part (Story 31.3): TelegramOut and TelegramIn run against the CI mock bot, and C's fixture pairing is its chat, so the
+# reminder that fires below must reach that chat (the CI override gives the stack the mock and a dummy token; never the public Telegram API).
+# A Bot API chat id is a number, and the fixture pairing's is not, so the unit gives C's pairing a fixture chat id (11 digits, 840177341 first)
+# once the fixture has started (its Start deletes the rows of such chats) and puts the first one back when the fixture has finished.
+chat_c=84017734152
+chat_c_was=$(printf '%s\n' "Write !,\"CHK|chat|\",##class(OcuTalon.Data.Pairing).RefIndexOpen(\"$pair_c\").ChatId" 'Halt' | iris_script OCUTALON | sed -n 's/^CHK|chat|//p')
+set_chat() { # set_chat <chat id>: C's pairing row holds the chat id; prints 1 when it was saved
+  printf '%s\n' \
+    "Set row=##class(OcuTalon.Data.Pairing).RefIndexOpen(\"$pair_c\")" \
+    "Set row.ChatId=\"$1\" Set sc=row.%Save()" \
+    'Write !,"CHK|set|",$SYSTEM.Status.IsOK(sc)' \
+    'Halt' | iris_script OCUTALON | sed -n 's/^CHK|set|//p'
+}
+tg_start=$(printf '%s\n' \
+  'Set r="",saved=""' \
+  'Try { Set r=##class(OcuTalon.Test.Channel.TelegramPageFixture).Start(.saved,"",1) } Catch ex { Set r="the call threw "_ex.Name }' \
+  'Write !,"CHK|reason|",$Translate(r,$Char(13,10),"  ")' \
+  'Write !,"CHK|saved|",saved' \
+  'Halt' | iris_script OCUTALON)
+tg_reason=$(printf '%s\n' "$tg_start" | sed -n 's/^CHK|reason|//p')
+tg_saved=$(printf '%s\n' "$tg_start" | sed -n 's/^CHK|saved|//p')
+if [ -z "$tg_reason" ] && [ -z "$tg_saved" ]; then tg_reason="the fixture's Start gave nothing to put back"; fi
+if [ -z "$tg_reason" ] && [ -z "$chat_c_was" ]; then tg_reason="C's pairing chat id could not be read"; fi
+if [ -z "$tg_reason" ] && [ "$(set_chat "$chat_c")" != 1 ]; then tg_reason="C's pairing could not be given the fixture chat id"; fi
+
 # With no CSP session of C: a real reminder due in 5 s fires, the approval can be answered, the watch's check runs again.
 fire=$(printf '%s\n' "Set made=##class(OcuTalon.Test.Schedule.ReminderFixture).Set(\"$ref_c\",\"zz online session fire\",5)" 'Write !,"CHK|fire|",made.ref,"|",made.ok' 'Halt' | iris_script OCUTALON | sed -n 's/^CHK|fire|//p')
 fire_ref=${fire%%|*}
@@ -333,7 +359,38 @@ if [ "$ran" = 1 ]; then
 else
   fail "row 4: C's watch did not run again within 90 s of the moment C was seen gone"
 fi
-echo "SKIP row 4: Telegram keeps working with no CSP session open (Story 31.3 turns this on)"
+# The reminder's notice reaches C's chat through TelegramOut and the mock, with no CSP session of C open.
+chat_sent=0
+if [ -z "$tg_reason" ] && [ -n "$tg_saved" ]; then
+  for _ in $(seq 1 18); do
+    chat_sent=$(printf '%s\n' \
+      'Set n=0,it=##class(OcuTalon.Test.Contract.Mock).Calls().%GetIterator()' \
+      "While it.%GetNext(,.call) { If (call.method=\"sendMessage\")&&(call.params.\"chat_id\"=$chat_c)&&(call.params.text[\"online session fire\") Set n=n+1 }" \
+      'Write !,"CHK|sent|",n' \
+      'Halt' | iris_script OCUTALON | sed -n 's/^CHK|sent|//p')
+    [ "${chat_sent:-0}" -ge 1 ] && break
+    [ "$SECONDS" -lt "$deadline" ] || break
+    sleep 5
+  done
+fi
+tg_finish=$(printf '%s\n' \
+  "Set r=\"\"" \
+  "Try { Set r=##class(OcuTalon.Test.Channel.TelegramPageFixture).Finish(\"$tg_saved\") } Catch ex { Set r=\"the call threw \"_ex.Name }" \
+  'Write !,"CHK|reason|",$Translate(r,$Char(13,10),"  ")' \
+  'Halt' | iris_script OCUTALON | sed -n 's/^CHK|reason|//p')
+if [ -n "$tg_reason" ]; then
+  fail "row 4: TelegramOut and TelegramIn did not start against the mock: $tg_reason"
+elif [ "${chat_sent:-0}" -ge 1 ]; then
+  pass "row 4: with no CSP session of C open, the reminder's notice reached C's chat (a sendMessage to its chat id that carries the reminder's text, in the mock's calls)"
+else
+  fail "row 4: C's chat got no sendMessage with the reminder's text within 90 s of the reminder that fired with no CSP session open (chat $chat_c)"
+fi
+if [ -n "$tg_saved" ] && [ -n "$tg_finish" ]; then
+  fail "row 4: the Telegram fixture did not put everything back: $tg_finish"
+fi
+if [ -n "$tg_saved" ] && [ -n "$chat_c_was" ] && [ "$(set_chat "$chat_c_was")" != 1 ]; then
+  fail "row 4: C's pairing did not get its first chat id back"
+fi
 
 # The splash with C's jar says the place was freed; a sign-in with the jar resumes C's epoch with the rows still there.
 next_probe

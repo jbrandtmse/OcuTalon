@@ -222,7 +222,40 @@ ClassMethod Racer(user As %String, count As %Integer)
 	Do $Increment(@run@("done"))
 }
 
+/// The sign-out mark (U-174): 0 for an unknown or empty ref, each MarkSignedOut raises one session's count by 1 and leaves another's
+/// alone, and an empty ref raises nothing. The fixture refs are fresh references, and their marks are removed after.
+Method TestSignOutMark()
+{
+	Set first = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set second = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Do $$$AssertEquals(##class(OcuTalon.Data.Session).SignOuts(first), 0, "an unknown ref has mark 0")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Session).SignOuts(""), 0, "an empty ref has mark 0")
+	Do $$$AssertStatusOK(##class(OcuTalon.Data.Session).MarkSignedOut(first), "the first mark")
+	Do $$$AssertStatusOK(##class(OcuTalon.Data.Session).MarkSignedOut(first), "the second mark")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Session).SignOuts(first), 2, "two calls give +2")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Session).SignOuts(second), 0, "another ref's mark is unchanged")
+	Do $$$AssertStatusOK(##class(OcuTalon.Data.Session).MarkSignedOut(second), "a mark on the other ref")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Session).SignOuts(first)_"|"_##class(OcuTalon.Data.Session).SignOuts(second), "2|1", "each ref counts on its own")
+	Set count = ..MarkCount()
+	Do $$$AssertStatusOK(##class(OcuTalon.Data.Session).MarkSignedOut(""), "an empty ref is accepted")
+	Do $$$AssertEquals(..MarkCount(), count, "and raises nothing")
+	Kill ^OcuTalonP.SessionM(first), ^OcuTalonP.SessionM(second)
+}
+
 /// --- helpers ---
+/// The number of sessions that hold a sign-out mark.
+ClassMethod MarkCount() As %Integer [ Private ]
+{
+	Set count = 0
+	Set ref = ""
+	For {
+		Set ref = $Order(^OcuTalonP.SessionM(ref))
+		Quit:ref=""
+		Set count = count + 1
+	}
+	Quit count
+}
+
 /// Waits up to seconds for the global node named by ref to reach count.
 ClassMethod WaitFor(ref As %String, count As %Integer, seconds As %Integer) [ Private ]
 {

@@ -10,7 +10,7 @@ import { TryItRow } from '../chat/try-it-row';
 import { DeviceTabs } from '../devices/device-tabs';
 import { BreakFeedBox } from '../feed/break-feed-box';
 import { Icon } from '../icon/icon';
-import { README_URL } from '../links';
+import { BRIDGE_GUIDE_URL, README_URL } from '../links';
 import { AllowanceState } from '../live/allowance-state';
 import { LiveState } from '../live/live-state';
 import type { GuideStatePayload } from '../live/payloads';
@@ -190,6 +190,9 @@ const FOCUS_RULE: FocusRule = {
                   }
                   <a class="link" [href]="readme" target="_blank" rel="noopener noreferrer" data-guide-focus="finishLink"
                     >{{ texts.installLink }}<span aria-hidden="true"> {{ trace.arrow }}</span><span class="visually-hidden"> {{ trace.opensInNewTab }}</span></a
+                  >
+                  <a class="link" [href]="bridgeGuide" target="_blank" rel="noopener noreferrer" data-guide-focus="finishLink"
+                    >{{ texts.bridgeLink }}<span aria-hidden="true"> {{ trace.arrow }}</span><span class="visually-hidden"> {{ trace.opensInNewTab }}</span></a
                   >
                 </p>
                 <p class="more">{{ texts.moreToTry }}</p>
@@ -525,6 +528,11 @@ const FOCUS_RULE: FocusRule = {
         flex-wrap: wrap;
       }
     }
+    @media ${HEIGHT_QUERIES.compact} and ${LAYOUT_QUERIES.stacked} {
+      .finish {
+        flex-basis: 100%;
+      }
+    }
   `,
 })
 export class DemoGuide {
@@ -543,6 +551,7 @@ export class DemoGuide {
   protected readonly texts = GUIDE_TEXTS;
   protected readonly trace = TRACE_TEXTS;
   protected readonly readme = README_URL;
+  protected readonly bridgeGuide = BRIDGE_GUIDE_URL;
   protected readonly telegramTextId = TELEGRAM_TEXT_ID;
 
   /** The id of the reason that a Send prompt is described by while the message allowance is used up. */

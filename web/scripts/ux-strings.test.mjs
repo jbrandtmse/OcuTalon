@@ -373,6 +373,7 @@ const SOURCES = {
     '{n} tokens',
     'See the whole conversation in Visual Trace',
     'Install OcuTalon yourself',
+    'Use the same bridge in your own production',
     'More to try: simulate an incoming email in the simulated mailbox and see what OcuTalon decides. On your own install, ask it to watch any production.',
     'Run again',
     'Try it yourself',
@@ -497,6 +498,7 @@ const SOURCES = {
       '{list} and {last}',
     ],
     'Story 4.6 veto item V2 (the field errors of the compose form)': ['Enter a subject.', 'Enter a body.'],
+    'Story 31.3 (the About links, EXPERIENCE.md About, item 5: README, the bridge developer guide and the security overview; FR-61)': ['Bridge developer guide', 'Security overview'],
     'Story 2.14 ruling, cycle-log-epic-2.md 2026-10-24T16:21:41Z (new Close names, the inactive conversation link\'s reason; UX-DR130, UX-DR133, UX-DR134)': [
       'Close reset notice',
       'Close reconnecting notice',
@@ -510,6 +512,9 @@ const SOURCES = {
     'Story 4.4 ruling, spec gate 2026-10-26, veto item V2 (U-85): the step names that carry the state words of DESIGN.md\'s step markers (UX-DR45)': [
       'Step {n}, {label}, done',
       'Step {n}, {label}, upcoming',
+    ],
+    'Story 30.5 ruling U-182 (AD-16 as amended: the text of result.stoppedPartway, a resend that stops at the first copy that errs; the page renders the catalog\'s text)': [
+      "The resend stopped partway: I resent {resent} of the {count} {itemNoun} ({completed} went through), the next one couldn't be resent, and {notTried} more weren't tried. Nothing else was changed, and I won't resend the rest without a new approval.",
     ],
   },
   calendar: [

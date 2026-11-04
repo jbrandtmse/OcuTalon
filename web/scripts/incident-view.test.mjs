@@ -651,6 +651,15 @@ describe('the result bands (Story 6.4)', () => {
     assert.deepEqual(bandTexts(full({ requests: undefined }), context()), {});
   });
 
+  it('show no band for a fix run that is still going and has no result: the fixing line is its still-resending state', () => {
+    const running = full({ state: 'fixing', requests: [{ ref: 'A1', state: 'executing' }] });
+    const card = view(running);
+    assert.equal(card.fixingLine, 'Repairing and resending 50 orders\u2026');
+    assert.deepEqual(card.results, []);
+    assert.deepEqual(bandTexts(running, context()), {});
+    assert.ok(!Object.values(bandTexts(running, context())).some((text) => /went through/.test(text)), 'never claims an outcome');
+  });
+
   it('show the still-resending text while a request is executing, and the final text once it is done', () => {
     const executing = [{ ref: 'A1', state: 'executing', result: { total: 50, completed: 30 } }];
     assert.equal(bandTexts(full({ state: 'fixing', requests: executing }), context()).A1, "Still resending: 30 of 50 orders have gone through so far. I'll tell you when it's done.");
