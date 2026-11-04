@@ -3917,3 +3917,4 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: cdf1cdfc, test-boundaries rule paths | severity: med | fix-risk: low | footprint: small
 - evidence: release/records/1.0.0/rc4.md:147; feature CI 41845721142 checks
 - 2026-11-04T15:26:26Z status=routed owner=burndown by=orchestrator note=write a repository path or the file name only; first daily release
+- 2026-11-04T15:27:52Z status=routed owner=burndown by=orchestrator note=U-276: checklist.sh prints a repository-relative or plain file name, never an absolute path, with a test
