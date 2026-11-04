@@ -109,6 +109,7 @@ deferred:
 
 - 2026-11-04, spec gate, orchestrator ruling on DW-664 (veto U-272): the MED `deferred:` item is removed, since DW-664 holds it; the ruling is in Design Notes. No frozen text changed.
 - 2026-11-04, `epics.md` Story 40.7, tier-1 amendment under the same ruling: one new Given block, a measured case for a non-English false all-clear. Original: the story had no such case. No existing AC changed.
+- 2026-11-04, `epics.md` Story 40.4, amendment under U-272's answer (kept, with one condition): one new And line, the persona text says replies in other languages have the model's own check only until the language-aware guard lands. Original: the story had no such line. No existing AC changed. This story's own scope is unchanged.
 
 ## Review Triage Log
 

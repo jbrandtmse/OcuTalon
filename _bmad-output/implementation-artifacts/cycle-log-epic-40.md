@@ -116,3 +116,7 @@
 2026-11-04T16:17:44Z	Story 40.8	ledger_adjudicated	owned=0 resolved=0 reowned=0 terminal=0 model=claude-opus-5-5
 2026-11-04T16:24:15Z	Story 40.8	smoke_complete	method=api result=pass iterations=1 defects_caught=0 evidence=fresh_stack_e40s8sm_live_sign-in_part_1/3_91_of_91_real_HTTP_incl_persona.spec,pairing.spec model=claude-opus-5-5
 2026-11-04T16:24:15Z	Story 40.8	fresh_check	env=recipe(warm_stack_started_fresh_e40s8fw) tests=2 result=pass order=forward,reverse classes=Test.Web.PersonaApi,Test.Web.Api e2e=persona.spec,pairing.spec_forward_only_on_fresh_stack
+2026-11-04T16:24:43Z	Story 40.8	committed	sha=1e27155d submodules= ci=pending runs=41866884119,41866884451 amendments=none
+2026-11-04T16:24:43Z	Story 40.8	story_cycle	plan_to_commit_min=206 implement_passes=1 reviews=1 rework=0 first_ci=pending models=plan:opus,implement:sonnet,qa:sonnet,cr:opus
+2026-11-04T16:24:43Z	Epic 40	owner_decision	id=U-272 at=2026-11-04T14:04:23Z#828 via=inbox by=relayed_by_orchestrator answer=kept_with_condition:persona_text_says_other-language_replies_have_the_models_own_check_only_until_the_language-aware_guard_lands;in_40.4_and_docs_that_describe_the_feature;wording_the_UX_lacks_goes_to_the_orchestrator
+2026-11-04T16:25:32Z	Epic 40	amendment	file=epics.md story=40.4 what=U-272_condition_persona_text_says_model_own_check_only wording=pending_orchestrator_veto docs=none_describe_the_feature

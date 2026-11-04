@@ -8690,6 +8690,7 @@ So that I can change OcuTalon's voice in a few seconds.
 **When** the person picks a preset (with Another language, typing a language name; on a local install, with "Your own words", writing up to 1,000 characters against a counter) and presses Save
 **Then** the page sends `PUT /api/v1/persona` and shows "Saved. Applies from your next message. Recorded in the audit log.", or the refusal's message beside the field (FR-67, FR-68)
 **And** the language field's help text says that notices, cards and buttons stay in English. Every control has a label and works by keyboard (NFR-25, NFR-26 as amended)
+**And** until the language-aware guard lands (DW-664), the persona feature's text says that replies in other languages have the model's own check only, and so does any doc that describes the feature; EXPERIENCE.md gives no wording for this, so the sentence is the orchestrator's ruling, never written in a stage [AMENDED 2026-11-04 — see the story change log (spec-40-3); owner's condition on U-272, relayed by the orchestrator]
 
 **Given** a pending persona request
 **When** the card renders
