@@ -1841,3 +1841,5 @@
 2026-11-04T15:27:52Z	Run	planner_note	watch:online-session_row_4_and_iris(image)_red_of_f2b20ea0;tell_Planner_on_second_occurrence;part-merge_11.20+11.21_approved_by_message,inbox_item=U-277_awaits_the_answer
 2026-11-04T16:25:48Z	Run	planner_note	GitHub_Actions_incident_since_16:05Z;41857825397_on_749db383_stuck_GitHub-side,not_red;no_rerun_until_it_clears,rerun_ok_if_cancelled_or_lost;U-276_open;runners_local;DW-599_occurrence_f2b20ea0_recorded(the_iris_image_red)
 2026-11-04T16:26:06Z	Epic 11	owner_decision	id=U-277 at=2026-11-04T15:28:00Z#837 via=inbox by=Contest_Planner_1(delegated) answer=(a)_part-merge_11.20+11.21_ahead_of_11.14-11.18;see_journal_for_conditions apply=at_Epic_11_merge
+2026-11-04T16:26:33Z	Epic 40	runner_clarification	agent=a819e86da03cefa2c head=efd2f487 origin=1e27155d item=U-272_text ci_wait=1e27155d decisions_for_user=DW-669 applied=U-272
+2026-11-04T16:26:33Z	Epic 40	ruling	question=U-272_condition_text choice=language_field_sentence_as_proposed+matching_sentence_on_the_custom_field rejected=language_only(custom_has_the_same_limit) category=veto reversal=reword inbox=U-278 policy=508603671b9598f59d04750db6b6cdad2d396167
