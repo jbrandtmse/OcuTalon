@@ -3855,6 +3855,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: cycle-log-epic-0.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: CI run 41641201023 attempt 1, iris (shards-3) on OCT-epic0 c3d264c5: 105 of 106 floor specs passed; green on the unchanged rerun (attempt 2); Epic 0's head changes no web code
 - 2026-11-03T14:35:03Z status=routed owner=burndown by=burndown note=first daily release after 1.0.0
+- 2026-11-04T08:01:25Z occurrence=rc3-pr by=merge_gate note=live:floor web/e2e/floor/layout.spec.ts:512 timed out on the rc3 release PR, iris (shards-3), 106 passed; same timeout family
 
 ### DW-642: Story 12.10's browser specs copy file-local e2e helpers: telegram-drawer.spec.ts fixture() is the third copy (telegram-page.spec.ts:118, telegram-approval.spec.ts:61) and telegram-drawer-view.spec.ts guideOf/serve copy guide.spec.ts guideOf:30 and liveEvents:75; one shared module in web/e2e/support/ should hold them
 - source: spec-12-10-in-a-narrower-window-the-telegram-step-leads-to-the-status-d.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -3883,3 +3884,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-04T06:28:48Z status=routed owner=burndown by=merge_gate note=first_daily_release_after_1.0.0; confirm by the attempt 2 result
 - 2026-11-04T06:30:47Z status=routed owner=burndown by=merge_gate note=possible link, unproven: the job ran on a runner on the CI host whose unattended upgrade restarted a runner in the same window (shards-2 cancel, 06:15Z); attempt 2 decides
 - 2026-11-04T06:56:29Z occurrence=24e6e9e9 by=merge_gate note=passed on the one rerun (run 41782092223 attempt 2)
+
+### DW-660: Cut the release candidate with CI's Node version: the Mac's Node 26 and CI's Node 24 build a different 3rdpartylicenses.txt
+- source: U-264 (Contest Planner) | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: rc3 release PR: test-web-build AC6 saw a modified src/ocutalon/csp/3rdpartylicenses.txt
+- 2026-11-04T08:01:25Z status=routed owner=burndown by=merge_gate note=first_daily_release_after_1.0.0
