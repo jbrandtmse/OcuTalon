@@ -77,3 +77,7 @@
 2026-11-04T11:44:17Z	Story 40.2	dev_complete	spawn_at=2026-11-04T11:17:04Z model=sonnet build_sha=c519d972 baseline_revision=190e3c08 review_loop_iteration=0 followup_review_recommended=false deferred=0 loc_added=2 loc_removed=2 files=2 nfr_tripwires=0 adr_violations_surfaced=0 cycle_iteration=2
 2026-11-04T11:44:17Z	Story 40.2	adr_verifications_complete	result=none_required mutations=none model=claude-opus-5-5
 2026-11-04T11:44:17Z	Story 40.2	stage_spawned	stage=code-review spawn_at=2026-11-04T11:44:17Z model=opus agent_name=40-2-save-your-persona-and-let-ocutalon-propose-one-code-review-2 cycle_iteration=2
+2026-11-04T12:05:24Z	Story 40.2	cr_complete	spawn_at=2026-11-04T11:44:17Z model=opus resolved=2 fixed_at_source=2 by_design=2 wontfix_theoretical=0 routed=0 escalated=0 decision_pending=0 deferred=0 dismissed=9 high=0 med=0 low=2 rows=18 unresolved_high_med=0 clarifications=0 closing_sections_present=true cycle_iteration=2
+2026-11-04T12:05:24Z	Story 40.2	ledger_adjudicated	owned=0 resolved=0 reowned=0 terminal=0 model=claude-opus-5-5
+2026-11-04T12:05:24Z	Story 40.2	smoke_complete	method=cli result=pass iterations=2 defects_caught=0 evidence=throwaway_e40s2fr2w_SetPersona.PersonaLanguage_prepare=ok,old_Language_column_prepare=error,ProposePersona.PersonaLanguage_prepare=ok,property_keeps_its_name model=claude-opus-5-5
+2026-11-04T12:05:24Z	Story 40.2	fresh_check	env=recipe(warm_stack_started_fresh_e40s2fr2w) tests=3 result=pass order=forward,reverse classes=Msg.Contracts,Data.Tables,Core.SettingsPersona

@@ -326,6 +326,9 @@ XData Contracts [ MimeType = application/json ]
    "Preset": "%String(MAXLEN=)",
    "Language": "%String(MAXLEN=)",
    "Custom": "%String(MAXLEN=)"
+  },
+  "sql": {
+   "Language": "PersonaLanguage"
   }
  },
  "OcuTalon.Msg.Command.ProposePersona": {
@@ -337,6 +340,9 @@ XData Contracts [ MimeType = application/json ]
    "Preset": "%String(MAXLEN=)",
    "Language": "%String(MAXLEN=)",
    "Custom": "%String(MAXLEN=)"
+  },
+  "sql": {
+   "Language": "PersonaLanguage"
   }
  },
  "OcuTalon.Msg.Command.Pair": {
