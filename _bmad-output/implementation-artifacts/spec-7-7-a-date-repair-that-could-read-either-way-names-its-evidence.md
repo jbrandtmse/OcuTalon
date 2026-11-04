@@ -4,6 +4,7 @@ type: 'feature'
 created: '2026-11-03'
 status: 'done'
 baseline_revision: '181ea67c117f94c29dae51527cb9261044c8dc3c'
+baseline_commit: '181ea67c117f94c29dae51527cb9261044c8dc3c'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -129,6 +130,8 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless stated. Lines as of `eeae8cb
 - `Test/Agent/Instructions.cls` -- `TestDiagnosisEvidence`: INSTRUCTIONS hold `"MM/DD/YYYY" or "DD/MM/YYYY"`, `a day above 12` (as "day is above 12"), `within one day either way`, `the day each failed message arrived`, `When both readings match`, `reads as one date, so it needs no evidence`, `leave out "fixKind", "fixParameters" and "fixSummary"`.
 - `Test/Msg/Catalog.cls` -- (contended; ruled a plain-union append) the two keys in `Keys`, `Fixtures` (exact texts per channel) and `OneForms`, each as one block right after the `incident.laterRequest` lines; counts 26 to 28 (L3, L81, L83), 123 to 125 (L121) and 9 to 11 (L5, L554).
 
+- [ ] [QA] U-250 (answer #754): the Condition 1 test (`Test.Fix.EitherWay.TestBothReadingsMatch` and/or `Test.Fix.DryRun.TestBothReadingsMatch`, plus `Test.Fix.Reformat.TestEvidence`) pins the same-date outcome AND a mixed set: same-date value(s) plus one value whose readings differ and which matches its arrival only through the one-day tolerance (its instance-local date and the UTC date of its arrival differ, e.g. 11/03/2026 arriving 2026-11-04T02:00:00Z) -- accepted (`arrival`), the line shown as worded.
+
 **Acceptance Criteria:**
 - AC 1: Given the Diagnosis agent, when its INSTRUCTIONS are read, then they state that for dates that read both ways `repair_resend` is used only when a reason names a value with a day above 12 or the reading matching, within one day either way, the day each failed message arrived, that both readings matching is no evidence, and that without evidence the reply is a data_format_change with no fix; and the CI mock's demo reply names month first matching each order's arrival.
 - AC 2: Given failed values that all read both ways with no arrival evidence, when the dry run of `repair_resend` runs, then it refuses, no approval request is raised, and the incident's notice is `incident.noFix` with its cause (DW-644).
@@ -137,6 +140,8 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless stated. Lines as of `eeae8cb
 - AC 5: Given the demo partner's press (today's instance-local date, MM/DD/YYYY), when the demo incident is diagnosed on the CI mock, then it still gets its repair request (month first matching each order's arrival), `live:demo-path` and `live:online-demo-path` stay green, and the evaluation push run passes with no expected outcome changed.
 
 ## Spec Change Log
+
+- After implement (the lead, 2026-11-03): owner-delegate answers U-250 (#754), U-251 (#755), U-252 (#756) recorded under Design Notes; one [QA] task added for U-250's extra Condition 1 case.
 
 - U-249 applied at plan (answer 2026-11-03T21:34:43Z#748): new wording keyed on arrival, {item} slot, one-day tolerance both ways, both-readings-match = no evidence, instance-vs-UTC-date test.
 - Spec gate, 2026-11-03 (the lead, unattended rulings): Q1 ruled (a) (veto U-250): same-date values are not ambiguous; a set of only such values is accepted without the line; the prompt carries the Q1 (a) sentence. V1 ruled accepted (veto U-251). Web incident card: notice-only in 7.7, the card row ledgered as DW-645 (escalated, veto U-252). `Test/Msg/Catalog.cls` XData `Keys`/`Fixtures`/`OneForms` blocks plus the counts: ruled a plain-union append (decide). Two variant keys copying their parents' text plus U-249's line: ruled within the wording rule (decide; no new wording). Status reset to draft for the re-plan.
@@ -184,6 +189,11 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless stated. Lines as of `eeae8cb
 - Measured: for a month and day that differ (both 12 or less), the two readings lie at least 27 days apart (every year 2025 to 2028; minimum 02/03 against 03/02). With one day of tolerance either way, "both readings land within a day of its arrival" can only happen when the month equals the day, where the two readings are the same date.
 - So Condition 1's second half is exactly about values such as 11/11/2026. The demo partner writes 11/11/2026 on November 11 and 12/12/2026 on December 12 (instance-local; the CI stacks run in UTC); read literally, such a set never has evidence, the demo incident would get no repair on those days and `live:demo-path` would go red on those UTC days, against scope item 5 and U-249 Condition 2.
 - Decided: a value whose two readings are the same date is not ambiguous, because the repair writes the same value whichever order is right. It needs no evidence and never shows the line. A set of only such values gives `Evidence` `same` (accepted, `incident.withFix`, no line); only values whose readings differ need arrival evidence, or a one-way value in the set. Condition 1's both-ways case cannot occur for values whose readings differ, and its tests pin the same-date outcome (`Reformat.TestEvidence`, `DryRun.TestBothReadingsMatch`, `EitherWay.TestBothReadingsMatch`). The prompt says so in its own words: "A date whose day and month are the same number reads as one date, so it needs no evidence."
+
+**Owner-delegate answers (Contest Planner, relayed by the orchestrator, applied by the lead after implement, 2026-11-03):**
+- U-250 at=2026-11-03T23:29:21Z#754: KEPT as ruled. A value whose two readings are the same date (11/11, 12/12) is not ambiguous: no line and no arrival evidence needed. Only values whose readings differ need evidence, and a mixed set shows the line as worded. The Condition 1 test pins the same-date outcome, PLUS one value whose readings differ and which matches arrival only through the one-day tolerance (the instance and UTC dates differ). (This settles the implement review's unpatched note on mixed same-date sets: the line stays as worded.)
+- U-251 at=2026-11-03T23:29:21Z#755: KEPT. All three of fixKind, fixParameters and fixSummary absent: the existing incident.noFix notice with the model's cause, nothing approvable; any one or two alone still refused. Any eval re-baseline comes back as a veto item, never silently. (Its real-model merge condition is the orchestrator's, U-253; no real model key in this story.)
+- U-252 at=2026-11-03T23:29:21Z#756: PARTLY KEPT. 7.7's AC is met by the notice's Dry run paragraph. The web-card row becomes Story 7.8 (added by the Planner on the feature branch), dispatched in Epic 7 once Epic 31 has merged; 7.7 never touches approval-view.ts or Live/Payload; DW-645 stays as it is.
 
 **Rulings at the spec gate (the lead, 2026-11-03, unattended; policy 5086036):**
 - Q1: ruling (a), veto U-250. A value whose month equals its day reads as one date; it needs no evidence and never shows the line. Only values whose readings differ need arrival evidence (or a one-way value in the set). The prompt carries the Q1 (a) sentence. Condition 1's test pins the same-date outcome (`same`, accepted, no line).
