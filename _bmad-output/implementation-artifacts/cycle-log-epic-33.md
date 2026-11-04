@@ -41,3 +41,8 @@
 2026-11-04T02:23:23Z	Epic 33	integrated_forward	feature=8a452f77 head=a170dd01 conflicts_resolved=sprint-status.yaml(SC-4-P_step_4:theirs+regenerate+re-set_33-1=done,epic-33=in-progress),src/ocutalon/cls/OcuTalon/Test/Msg/Catalog.cls(plain_union:Core_102_from_feature,Watch_47_ours,total_149) checks=test-boundaries,test-class-rules,test-storage_pass;Test.Msg.Catalog_22/22_on_slot-c(merged_tree_loaded) note=mid-epic_before_33.2;not_pushed(RC1_PUSH_HOLD)
 2026-11-04T02:23:23Z	Story 33.1	ledger_adjudicated	owned=1 resolved=0 reowned=1(DW-34_to_18-2) terminal=0 note=DW-34_arrived_via_integrate-forward_(U-254);33.1_already_committed
 2026-11-04T02:23:23Z	Story 33.2	story_waiting	story=33.2 on=12 resolved=12.10_merged_4576b1f4 next=plan_after_rc1_push_hold_release
+2026-11-04T11:14:42Z	Epic 33	runner_unattended_start	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec note=redispatch_rc4_cut_story_33.2_runner_C lane=C slot=ocutalon-slot-c
+2026-11-04T11:14:42Z	Epic 33	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-11-04T11:14:42Z	Epic 33	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh
+2026-11-04T11:14:42Z	Epic 33	launch_env	depth=4 watchdog=default bash_max_ms=default bootstrap_check=ok
+2026-11-04T11:14:42Z	Epic 33	telemetry_gate	pending=1 action=none note=epic5_record_only(gates.model_tier)
