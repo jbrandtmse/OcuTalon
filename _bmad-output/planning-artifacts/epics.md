@@ -8581,6 +8581,8 @@ So that "stay quiet unless something needs you" is measured, not hoped.
 **When** this story updates its section on what data leaves the instance
 **Then** that section says that a beat sends the person's checklist and a status snapshot to the configured model provider, at most once per interval (FR-61, NFR-18)
 
+- DW-653: Eval.Record accepts an empty fixKind only for a data_format_change case expecting no repair (refusals pinned), plus one ambiguous-date eval case whose arrival days match neither reading, expecting no repair proposed (ledger; routed by merge_gate 2026-11-04, Planner ruling)
+
 **Release check:** at the first daily release that ships this epic, the Contest Planner's hands-on pass with real keys runs one beat of each outcome on the web app, sees a quiet beat followed by a skipped one while nothing changes, and does a run-now on the demo host (REL-7, as amended 2026-10-31).
 
 ## Epic 40: Choose how OcuTalon talks to you
