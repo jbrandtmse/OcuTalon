@@ -95,7 +95,7 @@ test.describe('approve from the paired Telegram chat (Story 12.7)', () => {
    * T8: the paired chat's Approve answers the request, and every copy shows who answered. The matrix rows "REL-2 step 5's Telegram part" and
    * "Every copy shows who answered" in a browser.
    */
-  test('T8: Approve from the paired Telegram chat answers the request, the page and the phone show it within 5 s, and the chat gets the edit and the result', { tag: '@floor' }, async ({ page }) => {
+  test('T8: Approve from the paired Telegram chat answers the request, the page and the phone show it within 5 s, and the chat gets the edit and the result', { tag: ['@floor', '@ci-only'] }, async ({ page }) => {
     test.setTimeout(240_000);
     const was = await setTelegramIncluded(1);
     let saved = '';

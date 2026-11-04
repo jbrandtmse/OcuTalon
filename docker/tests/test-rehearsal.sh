@@ -32,6 +32,8 @@
 #   - dry-report: report and report --plant (also <id>@<run>) on a dry state with a run: the plant reaches the evaluation through the command;
 #   - dry-down: down of a dry run's state on a stub docker: the saved image names removed, the lane lock released only when its content
 #     is the saved one, and the state removed;
+#   - ci-only: run 1's list of web/e2e/demo-path (every test without @ci-only) holds no test that reads CI's mock Telegram or its dummy token,
+#     and the count run 1 prints is the number of tagged tests;
 #   - static: no sourcing of a variable path but the three libraries, no cat of an env file, umask 077, mode 100755, ASCII, strict host
 #     keys and no docker push, login, save or export; the collector heredoc writes nothing.
 # Each rule with a break first runs on a synthetic break (the rule pattern of test-upgrade-harness.sh): a check that can no longer fail
@@ -1581,8 +1583,9 @@ t_timed_runs() {
   has "the late line" "$(cat "$d/marks.server")" "late 0 1"
   has "the tokens line" "$(cat "$d/marks.server")" "tokens 1520"
   has "the tell-now line" "$(cat "$d/marks.server")" "tellnow tellnow 1500"
-  eq "run 1 calls the demo-path project, then the rehearsal's tell-now spec" "$(cat "$tmp/npm.log")" "--prefix web run e2e:demo-path
+  eq "run 1 calls the demo-path project, then the rehearsal's tell-now spec" "$(cat "$tmp/npm.log")" "--prefix web run e2e:demo-path -- --grep-invert @ci-only
 --prefix web run e2e:rehearsal -- tell-now.spec.ts"
+  has "run 1 says how many tests it leaves out" "$out" "left out: 0 test(s) tagged @ci-only"
   envf=$(npm_env_of "e2e:demo-path")
   has "Playwright gets the install's origin" "$envf" "URL=http://clean-web-9.invalid:52801"
   has "the real model in real mode" "$envf" "MODEL=real"
@@ -2053,7 +2056,7 @@ t_run_steps() {
   has "call 2 is run 1" "$out" "PASS run 1 demo path"
   has "it says run 2 is due" "$out" "NEXT run: run 2 of 2"
   has "and exits 4" "$out" "status 4"
-  eq "run 1 called the demo path and the tell-now spec only" "$(cat "$tmp/npm.log")" "--prefix web run e2e:demo-path
+  eq "run 1 called the demo path and the tell-now spec only" "$(cat "$tmp/npm.log")" "--prefix web run e2e:demo-path -- --grep-invert @ci-only
 --prefix web run e2e:rehearsal -- tell-now.spec.ts"
   lacks "the call did not report" "$out" "RESULT"
   : > "$tmp/npm.log"
@@ -2286,6 +2289,53 @@ b_static() {
   COLLECTOR=$(printf 'Set ^Probe(1)=2\nDo obj.%%Save()\n')
 }
 
+# ci_only_list <folder>: one line per test of the spec files in the folder: file|test id|ci-only or run1|mock or -. A test is "mock" when its body starts
+# Telegram against CI's mock or reads CI's dummy token (Rule 21: such a test refuses a real install).
+ci_only_list() {
+  node - "$1" << 'JS'
+const fs = require('fs');
+const path = require('path');
+const marks = [/fixture\([`'"]Start\(/, /\.Token\(\)/, /mock:8080/, /ocutalon-ci-dummy/];
+for (const file of fs.readdirSync(process.argv[2]).filter((name) => name.endsWith('.spec.ts')).sort()) {
+  const lines = fs.readFileSync(path.join(process.argv[2], file), 'utf8').split('\n');
+  lines.forEach((line, at) => {
+    const test = /^(\s*)test\((['"`])(.*)$/.exec(line);
+    if (!test) return;
+    let end = at + 1;
+    while (end < lines.length && lines[end] !== test[1] + '});') end++;
+    const body = lines.slice(at, end + 1).join('\n');
+    const id = (/^([A-Za-z]+[0-9]+[a-z]?)[:.]/.exec(test[3]) || [null, test[3].slice(0, 30)])[1];
+    console.log([file, id, line.includes("'@ci-only'") ? 'ci-only' : 'run1', marks.some((mark) => mark.test(body)) ? 'mock' : '-'].join('|'));
+  });
+}
+JS
+}
+
+CI_ONLY_DIR=$root/web/e2e/demo-path
+
+t_ci_only() {
+  local bad=0 list hits
+  list=$(ci_only_list "$CI_ONLY_DIR")
+  if ! printf '%s\n' "$list" | grep -q '|run1|'; then
+    echo "run 1's list is empty"
+    bad=1
+  fi
+  hits=$(printf '%s\n' "$list" | grep '|run1|mock$')
+  if [ -n "$hits" ]; then
+    printf 'run 1 would run a test that needs CI: %s\n' "$hits"
+    bad=1
+  fi
+  eq "run 1 prints the number of tagged tests" "$(reh_root=$root ci_only_count)" "$(printf '%s\n' "$list" | grep -c '|ci-only|')"
+  [ "$bad" -eq 0 ]
+}
+# The break: a copy of the folder in which one mock-reading test has lost its tag.
+b_ci_only() {
+  mkdir -p "$tmp/ci-only"
+  cp "$CI_ONLY_DIR"/*.spec.ts "$tmp/ci-only/"
+  sed -i.bak "s/{ tag: \['@floor', '@ci-only'\] }/{ tag: '@floor' }/" "$tmp/ci-only/telegram-approval.spec.ts"
+  CI_ONLY_DIR=$tmp/ci-only
+}
+
 rule config t_config b_config
 rule host-run t_host_run b_host_run
 rule parsers t_parsers b_parsers
@@ -2304,6 +2354,7 @@ rule dry-down t_dry_down
 rule dry-report t_dry_report
 rule run-steps t_run_steps b_run_steps
 rule collector-names t_collector_names b_collector_names
+rule ci-only t_ci_only b_ci_only
 rule static t_static b_static
 
 if [ "$fails_total" -ne 0 ]; then

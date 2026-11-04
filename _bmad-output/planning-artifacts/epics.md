@@ -4987,6 +4987,28 @@ So that I can find the QR code without hunting for a card I cannot see.
 **Then** a browser test at 1100 px pins the hint and the Show me drawer, a control at 1400 px shows nothing changed there, and CI is green on every workflow
 - DW-503: UX-DR137 (the unpaired Telegram card at the top of the device column at 1024 to 1279 px) is carried by no story; the narrow fix is this story (U-238), and the device-column placement goes to the first daily release after 1.0.0 (ledger; routed by owner decision U-238, 2026-11-03)
 
+### Story 12.11: The rehearsal's first run leaves out the specs that need CI's mock Telegram
+
+As the author,
+I want the clean-machine rehearsal to run only the demo-path specs a real install can pass,
+So that a release candidate's rehearsal is not failed by tests that refuse a real install on purpose.
+
+[ADDED 2026-11-04, fix-forward (orchestrator ruling at the Contest Planner's request, reason fix_forward, veto U-257): the 1.0.0-rc2 rehearsal (Story 38.2) failed run 1 on six specs Epic 12 added to web/e2e/demo-path: telegram-approval.spec.ts T8 and telegram-page.spec.ts T1, T3, T5, T6 and T7. Each refuses any stack whose Telegram API base is not CI's mock or that lacks CI's dummy token (Rule 21), as designed, and release/rehearse.sh's run 1 runs the whole folder. The install, sign-in, T2 and T4 passed. The driver reads the specs from the author's checkout, so this fix on the integration branch keeps the cut candidate valid. A real Telegram on the clean host is covered by the owner's hands-on pass (Story 38.3).]
+
+**Acceptance Criteria:**
+
+**Given** every spec under web/e2e/demo-path that needs CI's mock Telegram API, CI's dummy token or any other fixture only ci/compose.ci.yml provides
+**When** it is declared
+**Then** it carries one Playwright tag, `@ci-only`, and its Rule 21 guard stays exactly as it is: it never skips itself, so CI cannot go silent
+
+**Given** the rehearsal's run 1
+**When** it runs the demo-path specs on the fresh install
+**Then** it passes `--grep-invert @ci-only` and prints one line naming how many tests it left out; CI's own demo-path runs are unchanged and still run every tagged test
+
+**Given** the rehearsal's hermetic tests (no install)
+**When** they run
+**Then** one check lists run 1's tests (`playwright test --list` with run 1's arguments) and fails if any listed spec reads the mock Telegram base or the dummy token, with the mutation shown (an untagged mock-reading spec reds it)
+
 ## Epic 13: Any production can use the bridge
 
 A production developer follows the bridge developer guide to install the bridge into another production without OcuTalon (its classes load without IPM), configure it entirely through production settings, and run the example production, whose decisions, agent steps and approvals appear in Visual Trace.

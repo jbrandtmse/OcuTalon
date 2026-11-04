@@ -81,8 +81,10 @@
 # then runs Playwright on this machine against the install's origin (OCUTALON_URL), with OCUTALON_E2E_JSON, OCUTALON_E2E_MARKS (the page
 # marks), OCUTALON_E2E_IRIS_EXEC (this script's exec: every IRIS read of the specs goes through host_run clean), OCUTALON_DEMO_PATH_MODEL
 # (mock in a dry run, real in real mode), OCUTALON_RUN_TAG and OCUTALON_REHEARSAL_RUN=<k>:
-#   run 1       "npm --prefix web run e2e:demo-path" (the REL-2 project verbatim on the fresh install; Playwright time
-#               OCUTALON_E2E_TIMEOUT_MS minus 90000), summarised by web/scripts/demo-path-summary.mjs --only-telegram-skips; then
+#   run 1       "npm --prefix web run e2e:demo-path -- --grep-invert @ci-only" (the REL-2 project on the fresh install, less the tests
+#               tagged @ci-only, which need CI's mock Telegram API and refuse a real install by design (Rule 21; Story 12.11); it prints
+#               how many it leaves out; Playwright time OCUTALON_E2E_TIMEOUT_MS minus 90000), summarised by
+#               web/scripts/demo-path-summary.mjs --only-telegram-skips; then
 #               "npm --prefix web run e2e:rehearsal -- tell-now.spec.ts" (90000 ms), summarised with --steps tell-now
 #   run k >= 2  "npm --prefix web run e2e:rehearsal" (web/e2e-rehearsal/: repeat.spec.ts, which clears what the earlier run left (run 2
 #               rejects and dismisses the REL-2 replay's pending request; run 3 and later press Run again), sends guide steps 1 and 2
@@ -1614,6 +1616,11 @@ scrub_origin() {
   REH_SCRUB=$host awk 'BEGIN { h = tolower(ENVIRON["REH_SCRUB"]) } { s = $0; out = ""; if (h != "") { while ((i = index(tolower(s), h)) > 0) { out = out substr(s, 1, i - 1) "<clean host>"; s = substr(s, i + length(h)) } } print out s }'
 }
 
+# ci_only_count: how many tests of web/e2e/demo-path carry the @ci-only tag, which is one tag line per test (Story 12.11). Run 1 leaves them out.
+ci_only_count() {
+  cat "$reh_root"/web/e2e/demo-path/*.spec.ts 2> /dev/null | grep -c "'@ci-only'"
+}
+
 # e2e_call <file suffix> <timeout ms> <summary options> <npm run argument>...: one Playwright call of the run in progress, then its summary.
 # It reads run_one's locals (r_k, r_dir, r_me, r_origin, r_model) and adds to its fails, first_step, first_reason and passed_text. Files:
 # report<suffix>.json, e2e<suffix>.log and summary<suffix>.log in the run's folder; the summary options are one word or two, split here.
@@ -1704,7 +1711,8 @@ Halt' | sed -n 's/^CHK|now|//p' | head -n 1)
     rel2=$((wait_ms - 90000))
     if [ "$rel2" -lt 1000 ]; then rel2=1000; fi
     echo "PHASE runs: run $r_k of the REL-2 specs, then the tell-now item, against the install (at most $((wait_ms / 1000)) s)"
-    e2e_call "" "$rel2" --only-telegram-skips e2e:demo-path
+    echo "  left out: $(ci_only_count) test(s) tagged @ci-only (they need CI's mock Telegram API)"
+    e2e_call "" "$rel2" --only-telegram-skips e2e:demo-path -- --grep-invert @ci-only
     e2e_call .tellnow 90000 "--steps tell-now" e2e:rehearsal -- tell-now.spec.ts
   else
     echo "PHASE runs: run $r_k of the repeat and the tell-now item against the install (at most $((wait_ms / 1000)) s)"
