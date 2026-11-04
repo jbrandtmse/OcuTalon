@@ -10,6 +10,8 @@ import { changeSnapshot } from '../support/api';
  */
 const STATE = '/ocutalon/api/v1/state';
 const README = 'https://github.com/jbrandtmse/OcuTalon#readme';
+const BRIDGE_GUIDE = 'https://github.com/jbrandtmse/OcuTalon/blob/HEAD/docs/bridge-guide.md';
+const SECURITY_OVERVIEW = 'https://github.com/jbrandtmse/OcuTalon/blob/HEAD/docs/security-overview.md';
 const RAIL_LABELS = ['Approval requests', 'Background checks', 'Reminders', 'Recent decisions'];
 /** The rail's headings for an account with nothing: the spoken name, and the visible text with its count. */
 const RAIL_SPOKEN = RAIL_LABELS.map((label) => `${label}, 0`);
@@ -255,12 +257,14 @@ test('F6: the About dialog', async ({ page }) => {
   await expect(page.locator('[role=dialog][aria-modal=true]'), 'and it is modal').toHaveCount(1);
 
   const lines = (await dialog.locator('h2, p').allTextContents()).map((line) => line.replace(/\s+/g, ' ').trim());
-  expect(lines, 'the seven lines, in order').toEqual([
+  expect(lines, 'the nine lines, in order').toEqual([
     title,
     'An AI assistant for InterSystems IRIS.',
     'An assistant that runs as an IRIS Interoperability production and decides, for everything that arrives, whether it deserves your attention.',
     'Default model: Claude Haiku 5.5.',
     'README (opens in a new tab)',
+    'Bridge developer guide (opens in a new tab)',
+    'Security overview (opens in a new tab)',
     'Built with the BMAD Method and Claude Code.',
     'OcuTalon is inspired by OpenClaw and is not affiliated with or endorsed by the OpenClaw Foundation.',
   ]);
@@ -274,14 +278,22 @@ test('F6: the About dialog', async ({ page }) => {
   expect(sameBody, 'the tagline and the note are inside the same body element').toBe(true);
 
   const links = dialog.getByRole('link');
-  await expect(links, 'its only link is README').toHaveCount(1);
-  const readme = dialog.getByRole('link', { name: 'README (opens in a new tab)', exact: true });
-  await expect(readme).toHaveAttribute('href', README);
-  await expect(readme).toHaveAttribute('target', '_blank');
-  await expect(readme).toHaveAttribute('rel', 'noopener noreferrer');
+  await expect(links, 'its links are README, the bridge developer guide and the security overview').toHaveCount(3);
+  for (const [index, [name, href]] of [
+    ['README (opens in a new tab)', README],
+    ['Bridge developer guide (opens in a new tab)', BRIDGE_GUIDE],
+    ['Security overview (opens in a new tab)', SECURITY_OVERVIEW],
+  ].entries()) {
+    const link = dialog.getByRole('link', { name, exact: true });
+    await expect(links.nth(index), `link ${index + 1} is ${name}`).toHaveAccessibleName(name);
+    await expect(link).toHaveAttribute('href', href);
+    await expect(link).toHaveAttribute('target', '_blank');
+    await expect(link).toHaveAttribute('rel', 'noopener noreferrer');
+  }
 
   await expect(dialog.getByRole('heading', { level: 2 }), 'focus starts on the heading').toBeFocused();
-  for (const key of ['Tab', 'Tab', 'Tab', 'Tab', 'Shift+Tab', 'Shift+Tab', 'Shift+Tab', 'Shift+Tab']) {
+  // Five presses each way: the dialog has four stops (three links, then Close), so focus wraps past both ends.
+  for (const key of [...Array<string>(5).fill('Tab'), ...Array<string>(5).fill('Shift+Tab')]) {
     await page.keyboard.press(key);
     await expect(dialog.locator(':focus'), `${key} keeps focus inside the dialog`).toHaveCount(1);
   }
@@ -422,8 +434,8 @@ test('F7: ghost buttons and the focus ring', async ({ page }) => {
   await expect(close).toBeVisible();
   // The dialog moves focus to its heading after it renders; Tab only counts from there.
   await expect(page.getByRole('dialog').getByRole('heading', { level: 2 })).toBeFocused();
-  await page.keyboard.press('Tab');
-  await page.keyboard.press('Tab');
+  // The three links come first (README, the bridge developer guide, the security overview), then Close.
+  for (let tab = 0; tab < 4; tab += 1) await page.keyboard.press('Tab');
   await expect(close).toBeFocused();
   await expectRing(close, "the About dialog's Close button");
 });

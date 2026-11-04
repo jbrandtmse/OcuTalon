@@ -10,7 +10,7 @@ The commands of the marked blocks below are run line by line, as written, by the
 
 ### What you need
 
-- InterSystems AI Hub, build 154, on IRIS for Health or on IRIS.
+- InterSystems AI Hub, build 154, on IRIS for Health or on IRIS. Build 109, which the Early Access portal now offers in place of build 154, has not been tested with this guide yet.
 - An Interoperability namespace. In the Management Portal, open System Administration, then Configuration, then System Configuration, then Namespaces, and create a namespace with its own databases. Choose the option that enables the namespace for Interoperability productions. A namespace that is not enabled for it is refused by the installer.
 - An account that can run the installer. It sets up security objects (audit events and a user), so run the steps below as an administrator.
 - A model key from your model provider. This guide uses the `ANTHROPIC_API_KEY` variable (see "The key").
