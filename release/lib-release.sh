@@ -48,10 +48,12 @@
 # release_state_dir <v> <rc>   prints the state folder of one candidate: <state root>/<v>-rc<rc> (Story 11.17)
 # sha256_file <file>           prints the 64-hex SHA-256 of a file (sha256sum, else shasum -a 256)
 # ipm_artifact_path <v> <rc>   prints the IPM artifact of a candidate: <state folder>/ipm/ocutalon-<v>.tgz (Story 11.17; Story 15.3 reads it)
-# ipm_artifact_check <tgz> <v> <tree>
+# ipm_artifact_check <tgz> <v> <tree> <root|src>
 #                              prints one line per problem of the IPM artifact, and nothing when it is good: the top-level module.xml must name
-#                              ocutalon and <v> and hold the FileCopy of ocutalon/csp/, and every file of <tree>/src/ocutalon/csp/ must be in the
-#                              artifact as ocutalon/csp/<rel> with the same bytes
+#                              ocutalon and <v> and hold the FileCopy of the bundle, and every file of <tree>/src/ocutalon/csp/ must be in the
+#                              artifact with the same bytes. The last argument, required, names the manifest the artifact was packed from and so
+#                              where the bundle is: root (module.xml of the repository root) src/ocutalon/csp/<rel>, src (src/module.xml)
+#                              ocutalon/csp/<rel>. Any other value is a problem, never a pass
 # ipm_content_digest <tgz>     prints the SHA-256 of the sorted "<sha256>  <path>" lines of every regular file of the artifact: one value for
 #                              every packaging of one tree, whatever the archive's own bytes
 # ipm_unpack <tgz> <folder>    extracts the artifact into the folder; status 1 when it cannot be read as a gzip tar archive
@@ -97,7 +99,15 @@ ipm_unpack() {
 }
 
 ipm_artifact_check() {
-  local tgz=$1 ver=$2 tree=$3 d f rel mx
+  local tgz=$1 ver=$2 tree=$3 layout=${4:-} csp d f rel mx
+  case $layout in
+    root) csp=src/ocutalon/csp ;;
+    src) csp=ocutalon/csp ;;
+    *)
+      echo "cannot be checked (the layout '$layout' is not root or src)"
+      return 0
+      ;;
+  esac
   d=$(mktemp -d "${TMPDIR:-/tmp}/ocutalon-ipmchk.XXXXXX" 2> /dev/null) || {
     echo "cannot be checked (no temporary folder)"
     return 0
@@ -113,15 +123,15 @@ ipm_artifact_check() {
   else
     grep -qF "<Name>ocutalon</Name>" "$mx" || echo "holds a module.xml that does not name ocutalon"
     grep -qF "<Version>$ver</Version>" "$mx" || echo "holds a module.xml that does not read version $ver"
-    grep -qF '<FileCopy Name="ocutalon/csp/"' "$mx" || echo 'holds a module.xml with no FileCopy of ocutalon/csp/'
+    grep -qF "<FileCopy Name=\"$csp/\"" "$mx" || echo "holds a module.xml with no FileCopy of $csp/"
   fi
   if [ -d "$tree/src/ocutalon/csp" ]; then
     while IFS= read -r f; do
       rel=${f#"$tree/src/ocutalon/csp/"}
-      if [ ! -f "$d/ocutalon/csp/$rel" ]; then
-        echo "lacks the bundle file ocutalon/csp/$rel"
-      elif ! cmp -s "$f" "$d/ocutalon/csp/$rel"; then
-        echo "holds a different ocutalon/csp/$rel than the candidate"
+      if [ ! -f "$d/$csp/$rel" ]; then
+        echo "lacks the bundle file $csp/$rel"
+      elif ! cmp -s "$f" "$d/$csp/$rel"; then
+        echo "holds a different $csp/$rel than the candidate"
       fi
     done <<EOT
 $(find "$tree/src/ocutalon/csp" -type f | LC_ALL=C sort)

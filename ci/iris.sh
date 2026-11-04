@@ -254,7 +254,8 @@ stack_start() {
 
 # stack_ready <title> <start second> [<check>]: the STACK line, the build and start of the project, and the READY line. The optional
 # check is a command that runs once the project is up and before the READY line: it prints its own FAIL line and returns non-zero
-# to end the run (exit 1, so the caller's exit trap tears the project down). A fresh run passes none.
+# to end the run (exit 1, so the caller's exit trap tears the project down). A fresh class or shard run passes live_park_telegram
+# (docker/tests/lib-live.sh), which parks the Telegram items of the new stack.
 stack_ready() {
   local title=$1 started=$2 check=${3:-} ready
   echo "STACK $title: project $P"
@@ -281,7 +282,7 @@ run_classes() {
     warm_attach "$title" || exit 1
   else
     stack_start "$label"
-    stack_ready "$title" "$started"
+    stack_ready "$title" "$started" live_park_telegram
   fi
   for c in "$@"; do
     n=$((n + 1))

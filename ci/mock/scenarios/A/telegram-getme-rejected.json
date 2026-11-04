@@ -1,0 +1,16 @@
+{
+  "name": "telegram-getme-rejected",
+  "match": {
+    "telegram": "getMe"
+  },
+  "replies": [
+    {
+      "status": 401,
+      "body": {
+        "ok": false,
+        "error_code": 401,
+        "description": "Unauthorized"
+      }
+    }
+  ]
+}

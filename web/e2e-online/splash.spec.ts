@@ -9,7 +9,7 @@ import { fixtureUser } from '../e2e/support/iris';
 import { plain, tokenColor } from '../e2e/support/page';
 import { scanPage } from '../e2e/support/scan';
 import { SIGN_IN_IMAGES, watchViolations } from '../e2e/sign-in/helpers';
-import { recordSplashAnnouncements, signInFromSplash, signOutGroup, splashAnnouncements } from './support';
+import { publicValue, recordSplashAnnouncements, setPublic, signInFromSplash, signOutGroup, splashAnnouncements } from './support';
 
 /**
  * Story 16.2, the online demo's splash screen in a real browser on the online-demo throwaway (S1 to S12, S2b, S6b and S8b; matrix rows 1
@@ -20,7 +20,7 @@ import { recordSplashAnnouncements, signInFromSplash, signOutGroup, splashAnnoun
  * - S1: the head and the sign-in card: the texts, the prefilled text inputs with their 88px labels, the four copy buttons, the session
  *   line, the warning notice just before the full-width button, no show/hide toggle.
  * - S2: the Before you start card with the reset line (the browser's zone and clock, the countdown at 1 h 42 min, 9 min and 23 s, then
- *   rolled forward), its four lines in order with the chat-only limit line and no Telegram line, the Visual Trace card and the footer.
+ *   rolled forward), its four lines in order with the chat-only limit line and no Telegram line (the key telegramIncluded is set to "0" and put back), the Visual Trace card and the footer.
  * - S3: the four copy buttons write the exact value, show "Copied" for about 2 seconds and announce it once.
  * - S4: a rejected write, then no clipboard at all: the failure text under that card's rows, announced once, the value selected, the line
  *   gone after the next successful copy in that card.
@@ -31,6 +31,7 @@ import { recordSplashAnnouncements, signInFromSplash, signOutGroup, splashAnnoun
  * - S8: 1280x600 in light and dark: the button above the fold, the canvas, the column and the cards side by side, the in-house scan.
  * - S9: the focus order, the ring at every stop, Enter and Space on a copy button.
  * - S10: the envelope: the exact policy over the hashes of the one style and the one script, no-store, no other file.
+ * - S2c: with the public key telegramIncluded "1" the list holds the Telegram line and the allowance line that names Telegram.
  * - S2b, S11, S12: the singular countdown words, the address's fragment through sign-in, and the cards stacked at phone width.
  * - S6b, S8b: a refused name that holds markup is kept exactly and escaped, under the same policy, with the focused error's ring; the
  *   button's whole box and the scheme's logo at 1280x600.
@@ -50,6 +51,8 @@ const NO_ROLE = "This IRIS account doesn't have the OcuTalon user role. Ask an O
 const COPY_FAILED = "Couldn't copy. Select the text and copy it yourself.";
 const OWN_LINE = 'Your chat, phone, mailbox and orders are yours alone.';
 const LIMIT_LINE = 'Each session can send 50 messages an hour in the chat.';
+const TELEGRAM_LINE = 'Have Telegram? You can scan a QR code inside to get the notices on your own phone.';
+const LIMIT_LINE_TELEGRAM = 'Each session can send 50 messages an hour in the chat or Telegram.';
 const SHELL_LINE = "OcuTalon can't run shell commands, and every action it takes is recorded in the IRIS audit log.";
 const TRACE_HEADING = 'Read-only Visual Trace account,';
 const TRACE_PARAGRAPH = 'for opening Visual Trace in the portal yourself (trace links on the page are already signed in). See each decision with its cost, and every step.';
@@ -144,6 +147,9 @@ test.describe('S1 to S2, the page', () => {
 
   /** S2: the Before you start card, the Visual Trace card and the footer, with the browser's own zone and clock. */
   test('S2: the Before you start card counts down to the next reset in the browser zone; the Visual Trace card and the footer', async ({ page }) => {
+    // The throwaway starts with the CI dummy bot token, so its key is "1": this case is the one without Telegram.
+    const keyWas = await publicValue('telegramIncluded');
+    await setPublic('telegramIncluded', '0');
     try {
       const due = await nextReset(page);
       const dueMs = Date.parse(due);
@@ -251,6 +257,23 @@ test.describe('S1 to S2, the page', () => {
       await expect(link).toHaveAttribute('rel', 'noopener noreferrer');
       await expect(link.locator('svg'), 'the icon is hidden from assistive technology').toHaveAttribute('aria-hidden', 'true');
     } finally {
+      await setPublic('telegramIncluded', keyWas);
+      await signOutGroup(page);
+    }
+  });
+
+  /** S2c: with the key telegramIncluded "1", the list holds the reset, own, Telegram, allowance (naming Telegram) and shell lines, in that order. */
+  test('S2c: with Telegram included the Before you start card has the Telegram line and the allowance line that names Telegram', async ({ page }) => {
+    const keyWas = await publicValue('telegramIncluded');
+    await setPublic('telegramIncluded', '1');
+    try {
+      await page.goto(splashPath());
+      const before = page.getByRole('region', { name: 'Before you start', exact: true });
+      await expect(before.locator('li'), 'the list holds five lines').toHaveCount(5);
+      await expect(before.locator('li'), 'the reset, own, Telegram, allowance and shell lines, in that order').toHaveText([/^The demo resets every 4 hours\. Next reset: /, OWN_LINE, TELEGRAM_LINE, LIMIT_LINE_TELEGRAM, SHELL_LINE]);
+      await expect(page.getByText(LIMIT_LINE, { exact: true }), 'the chat-only allowance line is gone').toHaveCount(0);
+    } finally {
+      await setPublic('telegramIncluded', keyWas);
       await signOutGroup(page);
     }
   });

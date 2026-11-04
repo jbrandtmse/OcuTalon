@@ -5,6 +5,7 @@ import { pointKeys, restoreKeys } from '../support/devices';
 import { composerOf, loadedAfter, mainOf, replyOf, settled } from '../support/floor';
 import { changeSnapshot, holdPoll, MESSAGES } from '../support/api';
 import { chk, cleanFixtureRows, finishTurn, fixtureUser, irisScript, quoted, seedTurns } from '../support/iris';
+import { blockLiveSocket } from '../support/socket';
 
 /**
  * Story 4.10, the "Try it yourself" row, in a real browser against a real stack with the CI mock. The rail user's session is held empty
@@ -208,6 +209,7 @@ function finishedGuide(): Record<string, unknown> {
  * on this stack) cannot replace the routed one. Call it before the page loads.
  */
 async function keepRoutedFinish(page: Page): Promise<void> {
+  await blockLiveSocket(page);
   await page.addInitScript(() => {
     const original = window.fetch.bind(window);
     window.fetch = async (input, init) => {

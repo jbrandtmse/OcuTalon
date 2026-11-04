@@ -12,7 +12,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const app = (...parts) => pathToFileURL(join(here, '..', 'src', 'app', ...parts)).href;
-const { BANNERS, BANNER_TEXTS, REPLACED_BY, activeBanners, bannerText, bannersView, closeBanner, closeName, retainClosed } = await import(app('banners', 'banner-view.ts'));
+const { BANNERS, BANNER_TEXTS, REPLACED_BY, activeBanners, bannerText, bannersView, closeBanner, closeName, retainClosed, telegramOn } = await import(app('banners', 'banner-view.ts'));
 const { renderPageText } = await import(app('msg', 'catalog.ts'));
 const { pageTime } = await import(app('chat', 'page-time.ts'));
 const { formatCost } = await import(app('chat', 'decision-view.ts'));
@@ -41,8 +41,8 @@ const status = (...payloads) => Object.fromEntries(payloads.map((payload) => [pa
 const on = (condition, slots) => (slots === undefined ? { condition, active: true } : { condition, active: true, slots });
 const off = (condition) => ({ condition, active: false });
 
-/** The input of the view with the conditions given: a local install by default. */
-const input = (payloads = [], over = {}) => ({ status: status(...payloads), own: [], onlineDemo: false, closed: {}, ...over });
+/** The input of the view with the conditions given: a local install with Telegram on by default (the texts below are the Telegram forms). */
+const input = (payloads = [], over = {}) => ({ status: status(...payloads), own: [], onlineDemo: false, telegram: true, closed: {}, ...over });
 const view = (payloads = [], over = {}, fmt = format) => bannersView(input(payloads, over), fmt);
 const ids = (banners) => banners.map((banner) => banner.id);
 
@@ -189,6 +189,32 @@ describe('the texts', () => {
     assert.equal(bannerText('banner.allowance', { limit: 50, time: T }, formatIn('Europe/Berlin', 'en-GB')), "You've used this session's 50 messages for the hour (messages you send in the chat or Telegram). You can send more at 14:00.", 'the time is a page time, in the browser\'s zone');
     assert.equal(bannerText('banner.allowance', {}, format).slice(0, 40), "You've used this session's  messages for", 'a slot that is missing is empty');
     assert.equal(bannerText('banner.dailyCap', { time: T }, format), "The online demo has used today's model allowance. Decisions use fixed rules until 12:00.");
+  });
+
+  it('say Telegram only while telegramOn holds, and read the chat-only forms otherwise (Story 12.9; DW-501, DW-506, U-227)', () => {
+    const allowance = on('allowance', { limit: 50, time: T });
+    assert.equal(only(allowance, { telegram: false }).text, "You've used this session's 50 messages for the hour. You can send more at 12:00.", 'the allowance banner without Telegram');
+    assert.equal(only(allowance, { telegram: true }).text, "You've used this session's 50 messages for the hour (messages you send in the chat or Telegram). You can send more at 12:00.", 'and with it');
+    assert.equal(only(on('resetSoon'), { telegram: false }).text, 'The demo resets in 5 minutes. Your session will be cleared.', 'the reset-soon banner without Telegram');
+    assert.equal(only(on('resetSoon'), { telegram: true }).text, 'The demo resets in 5 minutes. Your session and Telegram pairing will be cleared.', 'and with it');
+    assert.equal(bannerText('banner.allowanceChat', { limit: 50, time: T }, format), only(allowance, { telegram: false }).text, 'bannerText gives the chat-only form for the composer');
+    for (const text of [only(allowance, { telegram: false }).text, only(on('resetSoon'), { telegram: false }).text]) assert.doesNotMatch(text, /Telegram/, text);
+    assert.deepEqual(BANNERS.filter((banner) => banner.chatKey !== undefined).map((banner) => [banner.id, banner.chatKey]), [['allowance', 'banner.allowanceChat'], ['resetSoon', 'banner.resetSoonChat']], 'only these two banners have a chat-only form');
+    const withTelegram = view(SIX, { onlineDemo: true, telegram: true });
+    const without = view(SIX, { onlineDemo: true, telegram: false });
+    assert.deepEqual(ids(without), ids(withTelegram), 'the flag changes no banner that shows');
+    for (const [i, banner] of withTelegram.entries()) {
+      if (banner.id === 'allowance' || banner.id === 'resetSoon') assert.notEqual(without[i].text, banner.text, `${banner.id}: the text differs`);
+      else assert.equal(without[i].text, banner.text, `${banner.id}: the text is the same`);
+    }
+  });
+
+  it('read the flag from the store: telegramOn holds only when Telegram is included and its state is not off', () => {
+    assert.equal(telegramOn({ included: true, state: 'on' }), true);
+    assert.equal(telegramOn({ included: true, state: 'rejected' }), true, 'a rejected token still says Telegram, as the key does');
+    assert.equal(telegramOn({ included: true, state: 'off' }), false);
+    assert.equal(telegramOn({ included: false, state: 'on' }), false);
+    assert.equal(telegramOn({ included: false, state: 'off' }), false);
   });
 
   it('show a value that names a placeholder as it is, filled in once', () => {

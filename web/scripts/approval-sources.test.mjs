@@ -285,3 +285,42 @@ describe('the result band and Dismiss on the request card (Story 6.4)', () => {
     assert.match(view.code, /let tone: ResultView\['tone'\] = 'partial';\s*let icon: ResultView\['icon'\] = 'triangle-alert';/);
   });
 });
+
+// Story 31.6 (QA): the chat panel draws a tool call's request as this card only while the store holds its approval payload, and as the
+// plain notice card otherwise; the plain form carries none of the request card's pending cues (U-222). The browser case (answers X13)
+// pins what the running page does; this reads the sources, so neither branch can lose its binding without a test turning red.
+describe('a tool call\'s request in the chat panel (Story 31.6)', () => {
+  const chat = sourceFiles(join(app, 'chat'), ['.ts']);
+  const panel = file(chat, 'chat-panel.ts');
+  const notice = file(chat, 'notice-card.ts');
+  const panelTemplate = literal(panel, 'template');
+  const noticeTemplate = literal(notice, 'template');
+  const noticeStyles = literal(notice, 'styles');
+
+  it('draws the request card for a notice the store holds a payload for, with the payload, the page context and the notice text as the request', () => {
+    const branch = /@else if \(requestOf\(entry\); as request\) \{([\s\S]*?)\n\s*\} @else \{([\s\S]*?)\n\s*\}/.exec(panelTemplate);
+    assert.ok(branch, 'the template has the request branch before the plain notice branch');
+    assert.match(branch[1], /<div class="tool-call" data-part="notice" \[attr\.data-key\]="entry\.key" tabindex="-1">/, 'the wrapper keeps the notice\'s part and key for New messages');
+    assert.match(branch[1], /<app-approval-request-card \[approval\]="request" \[ctx\]="approvalCtx\(\)" \[request\]="entry\.text" \/>/, 'the card gets the payload, the context and the notice\'s text');
+    assert.match(branch[2], /<app-notice-card \[notice\]="entry" \[instanceZone\]="instanceZone\(\)" \/>/, 'any other notice stays a plain notice card');
+  });
+
+  it('asks the store for the payload: only a notice entry, and only through liveRequest on the live store\'s approvals', () => {
+    assert.match(panel.code, /requestOf\(entry: ChatEntryView\): ApprovalPayload \| undefined \{\s*return entry\.entry === 'notice' \? liveRequest\(entry, this\.live\.store\(\)\?\.approvals \?\? \{\}\) : undefined;\s*\}/);
+  });
+
+  it('reads the clock of the card\'s context again at every change of the live store, so a card raised later is not timed at page load', () => {
+    assert.match(panel.code, /approvalCtx = computed\(\(\) => \{\s*this\.live\.store\(\);\s*return approvalContext\(Date\.now\(\), this\.instanceZone\(\), this\.onlineDemo\(\), this\.user\(\)\);\s*\}\);/);
+  });
+
+  it('gives the plain notice no pending cue: no button, no label text, no request-card token, no pending class, and only the info bar', () => {
+    const bare = noticeTemplate.replace(`[class.request]="notice().kind === 'approval'"`, '');
+    assert.match(noticeTemplate, /\[class\.request\]="notice\(\)\.kind === 'approval'"/, 'the request class is the only mention of the kind');
+    assert.doesNotMatch(bare, /<button|pending|Approval needed|approval/i, 'the template holds no button, label or pending class');
+    assert.doesNotMatch(notice.code, /pending|APPROVAL_TEXTS|approval-request-card|Approval needed/i, 'the sources hold no pending cue');
+    assert.doesNotMatch(noticeStyles, /pending|--approval-request-card/, 'the styles read no pending token');
+    assert.match(noticeStyles, /border-inline-start: var\(--notice-card-accent-bar\);/, 'the bar is the notice card\'s own');
+    assert.equal(rule(noticeStyles, '.request .text')?.replace(/\s+/g, ' ').trim(), 'white-space: pre-line;', 'the request class only keeps line breaks');
+    assert.match(notice.code, /if \(kind === 'approval' \|\| kind === 'result'\) \{\s*return 'info';\s*\}/, 'the icon is info');
+  });
+});

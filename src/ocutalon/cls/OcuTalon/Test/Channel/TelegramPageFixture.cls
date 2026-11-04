@@ -1,0 +1,569 @@
+/// The IRIS side of the page's real-pause browser test (Story 12.8; FR-22, AD-12, AD-14, AD-18, NFR-11): web/e2e/demo-path/telegram-page.spec.ts
+/// calls it from IRIS scripts, one method per step, to drive the real TelegramIn against the CI mock and the production's own StatusMonitor.
+/// THIS CLASS RUNS IN THROWAWAY STACKS AND IN CI ONLY (Rule 21): it has no Test method, so it is no test class and joins no shard run.
+/// It is built on the class methods of OcuTalon.Test.Channel.LiveCase, which it calls instead of copying.
+///   - Start guards the stack, saves what Finish puts back and starts TelegramIn; Conflict queues the 409 and waits for the pause and for
+///     StatusMonitor's onset; Resume stands in for the five minutes by moving the mark; Finish puts everything back.
+///   - Each of those methods returns "" when it worked, or the reason it did not. No reason, and no value this class returns except Token,
+///     holds the Bot API token: an exception's text has the token cut out.
+///   - Finish is safe after any partial Start. It does nothing for a Start that was refused before it changed anything (saved is "").
+///   - Token is the stack's dummy token, for the spec's search of the page and nothing else.
+///   - Story 12.3 (FR-18, AD-4): Start takes an optional botName and queues a getMe reply that names it, so that the card's link follows
+///     getMe and not the mock's default name. Start also saves the Refs of the code rows that exist, and Finish deletes every other code
+///     row (the rows the page made during the test). CodeMark takes the marks of the stores that Codes searches before the page asks for
+///     its first code. Codes reads back the session's code row and searches the production's stores (message headers and bodies, event
+///     log, settings, sessions, live events and audit entries) for the plaintext codes: the server holds only their hashes. Issuing a code
+///     writes nothing to most of those stores, so Codes first writes one probe to each through the product's own paths and checks that its
+///     scan finds it, then removes the probes (the audit entry stays: the audit log is append-only). It returns "" or the first failed
+///     check, which names the check and never a code.
+///   - Story 12.4 (FR-15, AD-4): Start takes a third parameter, out; with 1 it enables TelegramOut before TelegramIn (through the same
+///     Enable, so rows holds both snapshots), so that the pairing reply reaches the mock. Before it lists the rows, Start deletes those of
+///     the fixture chats (840177341xx) that a run stopped before its Finish left behind, so they never count as found. saved's fourth element lists the Refs of every
+///     Pairing row at Start (code rows and chat rows), and Finish disables both items and deletes every row that Start did not find, so that
+///     a pairing made during the test leaves no chat behind, and reads the rows back. Now is the IRIS clock as Unix milliseconds. Pair waits
+///     for an open long poll, takes queuedAt (Unix milliseconds) just before it queues one private "/start <code>" update with the chat's
+///     first_name, and Replies lists the text of every sendMessage to a chat as a JSON array.
+///   - Story 12.5 (FR-18, FR-19, AD-4): Send(chatId, name, text, queuedAt) is Pair's body generalized (Pair calls it): it waits for an open
+///     long poll, takes queuedAt just before it queues one private update with the text, and with an empty name the update has no
+///     first_name. Move(chatId, name, queuedAt) makes a fixture session zztgmove<n>, stores a code for it (600 s) and Sends
+///     "/start <code>" from the chat, so that the chat pairs with a session of its own and leaves the session the page shows. Finish also
+///     removes the fixture sessions (LiveCase.DropSessions) after it has dropped the Pairing rows, which removes the move's code row.
+///     Every new method returns "" or a reason that holds no token.
+///   - Story 12.7 (FR-8, FR-20, AD-4, AD-32): Press(chatId, name, data, queuedAt) waits for an open long poll and queues one callback_query
+///     update for the newest message with buttons that the chat got, as Send does; Buttons lists the callback data of the newest keyboard
+///     sent to a chat as a JSON array, Edits the text of every editMessageText to a chat as a JSON array, and PressAnswers the answers of
+///     every press as a JSON array of {"text", "show_alert"}; Audit reads the Approval audit entry that answered a request and gives
+///     {"channel", "holdsChatId", "holdsName"}, the last two as 0 or 1, so that the spec can check that the entry names the channel and
+///     holds neither the chat id nor the chat's name.
+///   - Story 12.9 (FR-60): Notify(sessionRef) sends one tell-now Notification for the session through Notify, with LiveCase's Notification
+///     and SendToNotify, so that the upgrade harness can show that a paired chat still gets a notice after a restart.
+Class OcuTalon.Test.Channel.TelegramPageFixture Extends %RegisteredObject
+{
+
+/// The live-test helpers.
+Parameter CASE = "OcuTalon.Test.Channel.LiveCase";
+
+/// The item the page's pause comes from.
+Parameter ITEM = "TelegramIn";
+
+/// The item that sends the pairing reply (Start with out 1).
+Parameter OUT = "TelegramOut";
+
+/// The pause mark.
+Parameter MARK = "telegramPaused";
+
+/// The first nine digits of the fixture chat ids (840177341xx, 11 digits).
+Parameter CHATPREFIX = "840177341";
+
+/// The longest, in seconds, to wait for TelegramIn to record that it is on.
+Parameter WAITON = 20;
+
+/// The longest, in seconds, to wait for a long poll to be open.
+Parameter WAITPOLL = 20;
+
+/// The longest, in seconds, to wait for the pause mark after the 409 is queued.
+Parameter WAITMARK = 5;
+
+/// The longest, in seconds, to wait for TelegramIn to delete the mark once its time has passed.
+Parameter WAITRESUME = 20;
+
+/// Starts TelegramIn against the mock. The guards come first: the Bot API base is the mock's, the token is set, no TelegramIn job is live
+/// and the production runs. Then StatusMonitor must be past its silent first run and the mock's Bot API side is reset. saved is what
+/// Finish needs: it is set before TelegramIn is enabled, and again once its Enabled row is known. Returns "" once the Telegram state is on.
+/// When botName is not empty, one getMe reply that names that bot is queued after the reset and before TelegramIn is enabled, so that the
+/// user name /state shows is botName (the mock's default name otherwise). saved also holds the Refs of the Pairing rows that exist now.
+/// With out 1, TelegramOut is enabled before TelegramIn, so that a notification for a chat reaches the mock.
+ClassMethod Start(Output saved As %String, botName As %String = "", out As %Boolean = 0) As %String
+{
+	Set saved = ""
+	Set rows = ""
+	Set marks = ""
+	Set since = 0
+	Set codes = ""
+	Try {
+		Set mock = "OcuTalon.Test.Contract.Mock"
+		Set reason = $ClassMethod(mock, "TelegramMissingReason", $SYSTEM.Util.GetEnviron($Parameter(mock, "TELEGRAMBASEVAR")), ..Token())
+		If reason = "" Set reason = ##class(OcuTalon.Test.Channel.BotApi).PollerReason()
+		If reason = "" Set reason = ##class(OcuTalon.Test.Agent.RunnerFixture).RunningReason()
+		If reason '= "" Return reason
+		If '$ClassMethod(..#CASE, "WaitMonitor") Return "StatusMonitor's job is not past its silent first run"
+		Set sc = ##class(OcuTalon.Test.Channel.BotApi).Reset()
+		If $$$ISERR(sc) Return $SYSTEM.Status.GetErrorText(sc)
+		Set marks = $ClassMethod(..#CASE, "Marks")
+		Set since = $ClassMethod(..#CASE, "InstanceSeq")
+		Set left = ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.Pairing WHERE ChatId %STARTSWITH ? AND LENGTH(ChatId) = 11", ..#CHATPREFIX)
+		If left.%SQLCODE < 0 Return "the rows of the fixture chats could not be deleted: "_left.%Message
+		Set codes = $ListBuild(1, ..RowRefs())
+		Set saved = ..Pack(rows, marks, since, codes)
+		If botName '= "" {
+			Set result = {"id": 424243, "is_bot": true, "first_name": "OcuTalon QR", "username": (botName)}
+			Set reply = {"status": 200, "body": {"ok": true, "result": (result)}}
+			If '##class(OcuTalon.Test.Contract.Mock).Control("replies", {"method": "getMe", "replies": [(reply)]}) Return "the mock did not accept the getMe reply"
+		}
+		If out {
+			Set sc = $ClassMethod(..#CASE, "Enable", ..#OUT, .rows)
+			Set saved = ..Pack(rows, marks, since, codes)
+			If $$$ISERR(sc) Return $SYSTEM.Status.GetErrorText(sc)
+		}
+		Set sc = $ClassMethod(..#CASE, "Enable", ..#ITEM, .rows)
+		Set saved = ..Pack(rows, marks, since, codes)
+		If $$$ISERR(sc) Return $SYSTEM.Status.GetErrorText(sc)
+		If '$ClassMethod(..#CASE, "WaitState", "on", ..#WAITON) Return ..#ITEM_" did not record the state on within "_..#WAITON_" s"
+	} Catch ex {
+		If marks '= "" Set saved = ..Pack(rows, marks, since, codes)
+		Return "Start failed: "_..Safe(ex)
+	}
+	Quit ""
+}
+
+/// Queues the 409 while a long poll is open and waits for the pause: until is the mark (a UTC time) and onset is the Seq of StatusMonitor's
+/// onset event on the instance stream. Returns "" when both came.
+ClassMethod Conflict(Output until As %String, Output onset As %Integer) As %String
+{
+	Set until = ""
+	Set onset = 0
+	Try {
+		Set since = $ClassMethod(..#CASE, "InstanceSeq")
+		If $ClassMethod(..#CASE, "WaitCalls", "getUpdates", 1, ..#WAITPOLL).%Size() < 1 Return "no long poll is open within "_..#WAITPOLL_" s"
+		If '##class(OcuTalon.Test.Contract.Mock).Control("replies", {"scenario": "telegram-conflict"}) Return "the mock did not accept the telegram-conflict scenario"
+		If '$ClassMethod(..#CASE, "WaitMark", ..#MARK, 1, ..#WAITMARK) Return "the pause mark is not set within "_..#WAITMARK_" s of the 409"
+		Set until = ##class(OcuTalon.Data.StatusMark).Get(..#MARK)
+		Set onset = $ClassMethod(..#CASE, "WaitEvent", since, 1)
+		If 'onset Return "StatusMonitor published no onset of the pause"
+	} Catch ex {
+		Return "Conflict failed: "_..Safe(ex)
+	}
+	Quit ""
+}
+
+/// Stands in for the elapsed pause: the mark is moved to seconds ahead, TelegramIn's first 200 deletes it, and clear is the Seq of
+/// StatusMonitor's clear event after onset. Returns "" when both happened.
+ClassMethod Resume(seconds As %Numeric, onset As %Integer, Output clear As %Integer) As %String
+{
+	Set clear = 0
+	Try {
+		Set until = ##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), seconds)
+		Set sc = ##class(OcuTalon.Data.StatusMark).Record(..#MARK, until)
+		If $$$ISERR(sc) Return $SYSTEM.Status.GetErrorText(sc)
+		If '$ClassMethod(..#CASE, "WaitMark", ..#MARK, 0, ..#WAITRESUME) Return "TelegramIn did not delete the pause mark within "_..#WAITRESUME_" s"
+		Set clear = $ClassMethod(..#CASE, "WaitEvent", onset, 0)
+		If 'clear Return "StatusMonitor published no clear of the pause"
+	} Catch ex {
+		Return "Resume failed: "_..Safe(ex)
+	}
+	Quit ""
+}
+
+/// Puts back what Start saved, after any partial Start: TelegramIn is disabled and has no job, its Enabled row and the two Telegram marks
+/// are as they were (the marks are read back and compared), the mock's Bot API side is reset (after the item has no job, as BotApi.Reset
+/// requires), and StatusMonitor has published the clear of any pause. Both items are disabled, and every Pairing row (code row or chat row)
+/// that Start did not find is deleted after that (a saved that holds no list of rows, or whose Start did not get as far as reading them,
+/// deletes none). Returns "" or the first reason something was not put back.
+ClassMethod Finish(saved As %String) As %String
+{
+	If saved = "" Quit ""
+	Set first = ""
+	Try {
+		Set list = $ZConvert($SYSTEM.Encryption.Base64Decode(saved), "I", "UTF8")
+		Set rows = $List(list, 1)
+		Set marks = $List(list, 2)
+		Set since = $List(list, 3)
+		If rows '= "" {
+			Set sc = $ClassMethod(..#CASE, "Disable", ..#ITEM_","_..#OUT, rows)
+			If $$$ISERR(sc) Set first = $SYSTEM.Status.GetErrorText(sc)
+		}
+		Set held = $Select($ListLength(list) > 3: $List(list, 4), 1: "")
+		If held '= "" {
+			Set reason = ..DropRows($List(held, 2))
+			If (reason '= "") && (first = "") Set first = reason
+			Do $ClassMethod(..#CASE, "DropSessions")
+		}
+		Do $ClassMethod(..#CASE, "PutMarks", marks)
+		If ($ClassMethod(..#CASE, "Marks") '= marks) && (first = "") Set first = "the two Telegram marks are not as Start found them"
+		Set sc = ##class(OcuTalon.Test.Channel.BotApi).Reset()
+		If $$$ISERR(sc) && (first = "") Set first = $SYSTEM.Status.GetErrorText(sc)
+		If '$ClassMethod(..#CASE, "WaitClear", since) && (first = "") Set first = "StatusMonitor published no clear of the pause"
+	} Catch ex {
+		If first = "" Set first = "Finish failed: "_..Safe(ex)
+	}
+	Quit first
+}
+
+/// The marks that Codes reads from, as one line of base64 without line breaks: the UTF-8 of $ListBuild(header mark, audit mark, live-event
+/// mark, event-log mark). The spec takes it before the page asks for its first code.
+ClassMethod CodeMark() As %String
+{
+	Quit $SYSTEM.Encryption.Base64Encode($ZConvert($ListBuild($ClassMethod(..#CASE, "HeaderMark"), ##class(OcuTalon.Test.Bridge.AuditLog).Now(), $ClassMethod(..#CASE, "LiveMark"), ##class(OcuTalon.Test.Agent.RunnerFixture).EventMark()), "O", "UTF8"), 1)
+}
+
+/// Checks the codes the page was given for the user's session, and searches the production for them. codes is comma-separated, in issue
+/// order, and expiresAt is the last answer's, as the server sent it; mark is CodeMark's. Returns "" or the first failed check (CodeRow's
+/// and CodeSearch's), which names the check and holds no code and no token.
+ClassMethod Codes(mark As %String, user As %String, codes As %String, expiresAt As %String) As %String
+{
+	Try {
+		Set list = $ZConvert($SYSTEM.Encryption.Base64Decode(mark), "I", "UTF8")
+		If ($ListLength(list) '= 4) || (codes = "") Return "the mark or the codes are not as the fixture expects"
+		Set reason = ..CodeRow(user, codes, expiresAt)
+		If reason '= "" Return reason
+	} Catch ex {
+		Return "Codes failed: "_..Safe(ex)
+	}
+	Quit ..CodeSearch(list, codes)
+}
+
+/// The server side of the codes: the session's one code row holds the hash of the last code with the answer's expiry and is unused and
+/// unpaired, the earlier codes' hashes find no row, and no column of any Pairing row holds any code (the scan of every column of every row
+/// must find the last code's hash first).
+ClassMethod CodeRow(user As %String, codes As %String, expiresAt As %String) As %String [ Private ]
+{
+	Try {
+		Set session = ##class(OcuTalon.Data.Session).ForUser(user, .sc)
+		If '$IsObject(session) Return "the session of the user could not be read"
+		Set count = $Length(codes, ",")
+		Set pairing = "OcuTalon.Data.Pairing"
+		Set row = $ClassMethod(pairing, "ForCode", $ClassMethod(pairing, "HashCode", $Piece(codes, ",", count)))
+		If '$IsObject(row) Return "no code row holds the hash of the last code"
+		If row.CodeSessionRef '= session.Ref Return "the last code's row belongs to another session"
+		If row.CodeExpiresAt '= expiresAt Return "the last code's row does not hold the answer's expiry"
+		If row.CodeUsedAt '= "" Return "the last code's row is marked used"
+		If (row.ChatId '= "") || (row.SessionRef '= "") Return "the last code's row is a chat or a pairing"
+		Set rows = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Data.Pairing WHERE CodeSessionRef = ?", session.Ref)
+		Do rows.%Next()
+		If +rows.%GetData(1) '= 1 Return "the session does not have exactly one code row"
+		Set table = $ClassMethod(..#CASE, "RowsText", "SELECT * FROM OcuTalon_Data.Pairing WHERE ID > ?", 0)
+		If '$Find(table, row.CodeHash) Return "the scan of the Pairing rows does not read the last code's row"
+		For i = 1:1:count {
+			Set code = $Piece(codes, ",", i)
+			If (i < count) && $IsObject($ClassMethod(pairing, "ForCode", $ClassMethod(pairing, "HashCode", code))) Return "the hash of code "_i_" still finds a row"
+			If $Find(table, code) Return "a column of a Pairing row holds code "_i
+		}
+	} Catch ex {
+		Return "the code row check failed: "_..Safe(ex)
+	}
+	Quit ""
+}
+
+/// The search for the plaintext codes, with a probe for every store (Story 12.3, Decided 10): the probes are written through the product's
+/// paths first (CodeProbed checks that each scan finds its probe), then the probes are removed on every path (the audit entry stays);
+/// a probe that is not removed is the reason when the search found nothing else. list is CodeMark's list.
+ClassMethod CodeSearch(list As %List, codes As %String) As %String [ Private ]
+{
+	Set fixture = "OcuTalon.Test.Data.Fixture"
+	Set reason = ""
+	Set probe = ""
+	Set trace = ""
+	Set unique = ""
+	Try {
+		Set number = $Increment(^OcuTalonTest("TelegramLive", "n"))
+		Set unique = "zzcodes-"_number_"-"_##class(OcuTalon.Bridge.Ids).NewRef()
+		Set probe = $ClassMethod(fixture, "Session", "zztgqr"_number)
+		Set trace = ##class(OcuTalon.Data.Session).RefIndexOpen(probe).TraceRef
+		Set reason = ..CodeProbed(list, codes, probe, "zzcodes"_number, unique)
+	} Catch ex {
+		Set reason = "the code search failed: "_..Safe(ex)
+	}
+	Set left = ""
+	Try {
+		If (unique '= "") && (##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE Text [ ?", unique).%SQLCODE < 0) Set left = "the probe's event-log row was not removed"
+	} Catch {
+		Set left = "the probe's event-log row was not removed"
+	}
+	Try {
+		If (trace '= "") && $$$ISERR($ClassMethod(fixture, "RemoveMessages", [(trace)])) && (left = "") Set left = "the probe's messages were not removed"
+	} Catch {
+		If left = "" Set left = "the probe's messages were not removed"
+	}
+	Try {
+		If probe '= "" Do $ClassMethod(fixture, "Clean", probe)
+	} Catch {
+		If left = "" Set left = "the probe session was not removed"
+	}
+	If reason = "" Set reason = left
+	Quit reason
+}
+
+/// Writes the probes (a command that reaches SessionOps for the probe session, an event-log row with the unique text, a live event with
+/// the condition on the probe's stream, and a Pairing audit entry with the unique reason), checks that each scan finds its probe, and
+/// then that no scan finds any code. Returns "" or the first failed check.
+ClassMethod CodeProbed(list As %List, codes As %String, probe As %String, condition As %String, unique As %String) As %String [ Private ]
+{
+	Set case = ..#CASE
+	Set scan = "OcuTalon.Test.Agent.KeyScan"
+	Set runner = "OcuTalon.Test.Agent.RunnerFixture"
+	Set log = "OcuTalon.Test.Bridge.AuditLog"
+	Set headers = $List(list, 1), audit = $List(list, 2), liveMark = $List(list, 3), events = $List(list, 4)
+
+	Set command = ##class(OcuTalon.Msg.Command.Unpair).%New()
+	Set command.SessionRef = probe
+	Set sc = ##class(OcuTalon.Core.Commands).Submit(command, "web_user", .result)
+	If $$$ISERR(sc) Return "the probe command was not submitted"
+	Do ##class(Ens.Util.Log).LogInfo("OcuTalon.Test.Channel.TelegramPageFixture", "CodeSearch", unique)
+	Set status = ##class(OcuTalon.Live.Payload.Status).%New()
+	Set status.Condition = condition
+	Set status.Active = 1
+	Set sc = ##class(OcuTalon.Live.Publish).Publish(probe, "status", status)
+	If $$$ISERR(sc) Return "the probe live event was not published"
+	Set data = {"irisUser": "zztgqr", "sessionRef": "", "channel": "telegram", "change": "rejected", "reason": (unique)}
+	If $$$ISERR(##class(OcuTalon.Bridge.Audit).Record("Pairing", data)) Return "the probe audit entry was not written"
+
+	If $ClassMethod(scan, "Find", ##class(OcuTalon.Test.Contract.Mock).#TELEGRAMBASE) = "" Return "the key scan does not find the mock's base, which the settings hold"
+	Set headerText = $ClassMethod(case, "RowsText", "SELECT * FROM Ens.MessageHeader WHERE ID > ?", headers)
+	Set bodyText = $ClassMethod(case, "Bodies", headers)
+	If '$Find(headerText, "SessionOps") Return "the header scan does not read the probe's headers"
+	If '$Find(bodyText, probe) Return "the body scan does not read the probe's body"
+	If $ClassMethod(runner, "LogRowsHolding", events, unique) '= 1 Return "the event-log scan does not find the probe's row"
+	Set liveText = $ClassMethod(case, "RowsText", "SELECT Payload FROM OcuTalon_Live.Event WHERE %ID > ?", liveMark)
+	If '$Find(liveText, condition) Return "the live-event scan does not read the probe's event"
+	If $ClassMethod(log, "Wait", audit, "OcuTalon", "Pairing", "Pairing", unique, "", 1, 20).%Size() < 1 Return "the audit scan does not find the probe's entry"
+	Set everything = $ClassMethod(log, "Entries", audit).%ToJSON()
+
+	For i = 1:1:$Length(codes, ",") {
+		Set code = $Piece(codes, ",", i)
+		If $ClassMethod(scan, "Find", code) '= "" Return "the settings, item settings, event log or sessions hold code "_i
+		If $Find(headerText, code) Return "a message header holds code "_i
+		If $Find(bodyText, code) Return "a message body holds code "_i
+		If $ClassMethod(runner, "LogRowsHolding", events, code) Return "the event log holds code "_i
+		If $Find(liveText, code) Return "a live event holds code "_i
+		If $Find(everything, code) Return "an audit entry holds code "_i
+	}
+	Quit ""
+}
+
+/// The IRIS clock as Unix milliseconds (UTC), for the page test's 5-second bound.
+ClassMethod Now() As %Integer
+{
+	Set stamp = $ZTimeStamp
+	Quit ((($Piece(stamp, ",", 1) - 47117) * 86400) + $Piece(stamp, ",", 2)) * 1000 \ 1
+}
+
+/// Waits for an open long poll, then queues one private "/start <code>" update from the chat with the name as its first_name.
+/// queuedAt is Now() taken just before the update is queued. Returns "" when it was queued, or the reason it was not.
+ClassMethod Pair(code As %String, chatId As %String, name As %String, Output queuedAt As %Integer) As %String
+{
+	Quit ..Send(chatId, name, "/start "_code, .queuedAt)
+}
+
+/// Waits for an open long poll, then queues one private update from the chat with the text, and with the name as its first_name unless
+/// the name is empty. queuedAt is Now() taken just before the update is queued. Returns "" when it was queued, or the reason it was not.
+ClassMethod Send(chatId As %String, name As %String, text As %String, Output queuedAt As %Integer) As %String
+{
+	Set queuedAt = 0
+	Try {
+		If $ClassMethod(..#CASE, "WaitCalls", "getUpdates", 1, ..#WAITPOLL).%Size() < 1 Return "no long poll is open within "_..#WAITPOLL_" s"
+		Set update = $ClassMethod(..#CASE, "PrivateMessage", chatId, name, text)
+		Set batch = []
+		Do batch.%Push(update)
+		Set queuedAt = ..Now()
+		If '##class(OcuTalon.Test.Contract.Mock).Control("updates", batch) Return "the mock did not accept the update"
+	} Catch ex {
+		Return "Send failed: "_..Safe(ex)
+	}
+	Quit ""
+}
+
+/// Makes a fixture session of its own (zztgmove<n>), stores a code for it (600 s) and Sends "/start <code>" from the chat, so that the chat
+/// pairs with that session. Finish removes the session and the code row. Returns "" when the update was queued, or the reason it was not.
+ClassMethod Move(chatId As %String, name As %String, Output queuedAt As %Integer) As %String
+{
+	Set queuedAt = 0
+	Try {
+		Set number = $Increment(^OcuTalonTest("TelegramLive", "n"))
+		Set session = ##class(OcuTalon.Data.Session).ForUser("zztgmove"_number, .sc)
+		If $$$ISERR(sc) Return "the fixture session could not be made: "_$SYSTEM.Status.GetErrorText(sc)
+		Set code = "zzmove"_##class(OcuTalon.Bridge.Ids).NewRef()
+		Set expires = ##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), 600)
+		Set sc = ##class(OcuTalon.Data.Pairing).StoreCode(session.Ref, ##class(OcuTalon.Data.Pairing).HashCode(code), expires)
+		If $$$ISERR(sc) Return "the fixture session's code could not be stored: "_$SYSTEM.Status.GetErrorText(sc)
+	} Catch ex {
+		Return "Move failed: "_..Safe(ex)
+	}
+	Quit ..Send(chatId, name, "/start "_code, .queuedAt)
+}
+
+/// The text of every sendMessage to the chat, in order, as a JSON array in texts. Returns "" or the reason it could not be read.
+ClassMethod Replies(chatId As %String, Output texts As %String) As %String
+{
+	Set texts = "[]"
+	Try {
+		Set texts = $ClassMethod(..#CASE, "TextsTo", chatId).%ToJSON()
+	} Catch ex {
+		Return "Replies failed: "_..Safe(ex)
+	}
+	Quit ""
+}
+
+/// Waits for an open long poll, then queues one callback_query update from the private chat: the press of the button whose data is data
+/// under the newest message with buttons that the chat got (message id 1 when it got none), with the name as the chat's first_name unless
+/// it is empty. queuedAt is Now() taken just before the update is queued. Returns "" when it was queued, or the reason it was not.
+ClassMethod Press(chatId As %String, name As %String, data As %String, Output queuedAt As %Integer) As %String
+{
+	Set queuedAt = 0
+	Try {
+		If $ClassMethod(..#CASE, "WaitCalls", "getUpdates", 1, ..#WAITPOLL).%Size() < 1 Return "no long poll is open within "_..#WAITPOLL_" s"
+		Set messageId = 0, newest = 1
+		Set all = ##class(OcuTalon.Test.Contract.Mock).Calls().%GetIterator()
+		While all.%GetNext(, .call) {
+			If (call.method '= "sendMessage") && (call.method '= "editMessageText") Continue
+			Set messageId = messageId + 1
+			If (call.method = "sendMessage") && (call.params."chat_id" = chatId) && (call.params.%GetTypeOf("reply_markup") = "object") Set newest = messageId
+		}
+		Set update = $ClassMethod(..#CASE, "ButtonPress", chatId, name, newest, data, "zzpage"_$Increment(^OcuTalonTest("TelegramLive", "press")))
+		Set batch = []
+		Do batch.%Push(update)
+		Set queuedAt = ..Now()
+		If '##class(OcuTalon.Test.Contract.Mock).Control("updates", batch) Return "the mock did not accept the update"
+	} Catch ex {
+		Return "Press failed: "_..Safe(ex)
+	}
+	Quit ""
+}
+
+/// Sends one tell-now Notification for the session through Notify, as the product's own notices go, so that a paired session's chat gets
+/// it (the upgrade harness, Story 12.9). It reuses LiveCase's Notification and SendToNotify. Returns "" when it was sent, or the reason it
+/// was not; the reason holds no token.
+ClassMethod Notify(sessionRef As %String) As %String
+{
+	Try {
+		Set row = ##class(OcuTalon.Data.Session).RefIndexOpen(sessionRef)
+		If '$IsObject(row) Return "the session has no row"
+		Set notification = $ClassMethod(..#CASE, "Notification", sessionRef, "tellnow", "notice.tellNow", {"whatHappened": "zz harness notice", "reason": "the upgrade harness sent it."})
+		Set sc = $ClassMethod(..#CASE, "SendToNotify", notification, row.TraceRef)
+		If $$$ISERR(sc) Return "the notification was not sent: "_$ClassMethod(..#CASE, "Cut", $SYSTEM.Status.GetErrorText(sc), ..Token())
+	} Catch ex {
+		Return "Notify failed: "_..Safe(ex)
+	}
+	Quit ""
+}
+
+/// The callback data of the buttons of the newest keyboard that the chat got, as a JSON array in data ("[]" when it got none). Returns ""
+/// or the reason it could not be read.
+ClassMethod Buttons(chatId As %String, Output data As %String) As %String
+{
+	Set data = "[]"
+	Try {
+		Set keyboard = $ClassMethod(..#CASE, "KeyboardTo", chatId)
+		Set found = []
+		If $IsObject(keyboard) && (keyboard.%GetTypeOf("inline_keyboard") = "array") {
+			Set rows = keyboard."inline_keyboard".%GetIterator()
+			While rows.%GetNext(, .row) {
+				Set buttons = row.%GetIterator()
+				While buttons.%GetNext(, .button) {
+					Do found.%Push(button."callback_data")
+				}
+			}
+		}
+		Set data = found.%ToJSON()
+	} Catch ex {
+		Return "Buttons failed: "_..Safe(ex)
+	}
+	Quit ""
+}
+
+/// The text of every editMessageText to the chat, in order, as a JSON array in texts. Returns "" or the reason it could not be read.
+ClassMethod Edits(chatId As %String, Output texts As %String) As %String
+{
+	Set texts = "[]"
+	Try {
+		Set found = []
+		Set iterator = $ClassMethod(..#CASE, "EditsTo", chatId).%GetIterator()
+		While iterator.%GetNext(, .params) {
+			Do found.%Push(params.text)
+		}
+		Set texts = found.%ToJSON()
+	} Catch ex {
+		Return "Edits failed: "_..Safe(ex)
+	}
+	Quit ""
+}
+
+/// The answer of every press (answerCallbackQuery), in order, as a JSON array of {"text", "show_alert"} in answers ("text" is "" for an
+/// answer with none). Returns "" or the reason it could not be read.
+ClassMethod PressAnswers(Output answers As %String) As %String
+{
+	Set answers = "[]"
+	Try {
+		Set found = []
+		Set iterator = $ClassMethod(..#CASE, "PressAnswers", 0).%GetIterator()
+		While iterator.%GetNext(, .params) {
+			Do found.%Push({"text": ($Select(params.%GetTypeOf("text") = "string": params.text, 1: "")), "show_alert": (+params."show_alert")})
+		}
+		Set answers = found.%ToJSON()
+	} Catch ex {
+		Return "PressAnswers failed: "_..Safe(ex)
+	}
+	Quit ""
+}
+
+/// The Approval audit entry that answered the request, as {"channel", "holdsChatId", "holdsName"} in found: the channel it names, and 1 or
+/// 0 for whether its data or description holds the chat id or the chat's name. Returns "" or the reason: no such entry, or the audit log
+/// could not be read.
+ClassMethod Audit(ref As %String, chatId As %String, name As %String, Output found As %String) As %String
+{
+	Set found = "{}"
+	Try {
+		Set entries = ##class(OcuTalon.Test.Bridge.AuditLog).Entries("2000-01-01 00:00:00", "OcuTalon", "Approval", "Approval", ref)
+		Set iterator = entries.%GetIterator()
+		While iterator.%GetNext(, .entry) {
+			If '$IsObject(entry.data) || (entry.data.change '= "answered") Continue
+			Set text = entry.data.%ToJSON()_entry.description
+			Set found = {"channel": (entry.data.channel), "holdsChatId": (''$Find(text, chatId)), "holdsName": (''$Select(name = "": 0, 1: $Find(text, name)))}.%ToJSON()
+			Return ""
+		}
+	} Catch ex {
+		Return "Audit failed: "_..Safe(ex)
+	}
+	Quit "no Approval audit entry of an answer names the request"
+}
+
+/// The Bot API token of this stack (the CI dummy), read from the environment (AD-19). For the spec's search of the page only.
+ClassMethod Token() As %String
+{
+	Quit $SYSTEM.Util.GetEnviron(##class(OcuTalon.Test.Contract.Mock).#TELEGRAMTOKENVAR)
+}
+
+/// What Finish needs, as one line of base64 without line breaks: the UTF-8 of $ListBuild(rows, marks, since, codes), where codes is
+/// "" until Start has read the code rows, and then $ListBuild(1, the list of the Refs of the code rows that Start found).
+ClassMethod Pack(rows As %List, marks As %List, since As %Integer, codes As %List = "") As %String [ Private ]
+{
+	Quit $SYSTEM.Encryption.Base64Encode($ZConvert($ListBuild(rows, marks, since, codes), "O", "UTF8"), 1)
+}
+
+/// The Refs of every Pairing row (code rows and chat rows), as a list.
+ClassMethod RowRefs() As %List [ Private ]
+{
+	Set refs = ""
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT Ref FROM OcuTalon_Data.Pairing")
+	While result.%Next() {
+		Set refs = refs _ $ListBuild(result.%GetData(1))
+	}
+	Quit refs
+}
+
+/// Deletes every Pairing row whose Ref is not in keep (a list), then reads the rows back, and returns "" or the first reason the rows
+/// could not be read, one was not deleted, or one is still there.
+ClassMethod DropRows(keep As %List) As %String [ Private ]
+{
+	Set first = ""
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT ID, Ref FROM OcuTalon_Data.Pairing")
+	If result.%SQLCODE < 0 Return "the Pairing rows could not be read: "_result.%Message
+	While result.%Next() {
+		If $ListFind(keep, result.%GetData(2)) Continue
+		Set sc = ##class(OcuTalon.Data.Pairing).%DeleteId(result.%GetData(1))
+		If $$$ISERR(sc) && (first = "") Set first = "a Pairing row was not deleted: "_$SYSTEM.Status.GetErrorText(sc)
+	}
+	If first '= "" Return first
+	Set left = ..RowRefs()
+	For i = 1:1:$ListLength(left) {
+		If '$ListFind(keep, $List(left, i)) Return "a Pairing row that Start did not find is still there"
+	}
+	Quit ""
+}
+
+/// The text of an exception, in one line, with the token cut out (LiveCase.Cut).
+ClassMethod Safe(ex As %Exception.AbstractException) As %String [ Private ]
+{
+	Quit $ClassMethod(..#CASE, "Cut", ex.DisplayString(), ..Token())
+}
+
+}

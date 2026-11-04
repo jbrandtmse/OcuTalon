@@ -13,6 +13,8 @@
 ///   - TestAnsweredEditsInPlace: an answered notification sets the Answer of the delivered message, keeping its Ref and Text,
 ///     with one more event and its Delivery row, and a later one leaves the first answer (Delivery row only); TestAnsweredWithNoMessageRecordsOnly, TestAnsweredNeverEditsAnotherSessionsMessage
 ///     and TestAnsweredRenderErrorChangesNothing are its edges;
+///   - TestAnsweredNeverEditsAResult (Story 31.5): an answered notification that arrives after the result message of a tool call edits
+///     neither the result message nor the request's: it records its Delivery row only (ChannelMessageId empty), with no new event;
 ///   - TestTextIsTheTelegramWording: for a key that words the web differently, the phone carries the telegram wording;
 ///   - TestOnlineDemoTimesNameTheZone: a late reminder's time ends with " ET" on the online demo and has no suffix otherwise;
 ///   - TestResultIsAMessage (Story 6.4; AD-32): a result notification is one new SimMessage with the phone render of its key, no ApprovalRef
@@ -442,6 +444,45 @@ Method TestAnsweredEditsInPlace()
 	Set deliveries = ##class(OcuTalon.Test.Core.Observe).DeliveryRows(session)
 	Do $$$AssertEquals(deliveries.Count(), 3, "with its Delivery row")
 	If deliveries.Count() = 3 Do $$$AssertEquals(deliveries.GetAt(3).ChannelMessageId_"|"_deliveries.GetAt(3).Kind, message.Ref_"|answered", "which names the message")
+}
+
+/// A result message is newer than the request's message and shares its ApprovalRef in the Delivery rows, so FindByApproval gives the
+/// result message. An answered notification for the request then edits neither message: both keep their Answer (empty), no event is
+/// published, and one answered Delivery row is recorded with an empty ChannelMessageId.
+Method TestAnsweredNeverEditsAResult()
+{
+	Set session = ..Session("noresultedit")
+	Set now = ##class(OcuTalon.Data.Time).NowUtc()
+	Set approval = ..NewRef()
+	Set request = ..Notification(session, "approval", "toolCall.request", {"tool": "zz_send", "inputs": "{}"})
+	Set request.ApprovalRef = approval
+	Do $$$AssertStatusOK(..Out().OnNotification(request, .response), "the request is delivered")
+	Set requestMessage = ..Newest(session)
+	Set requestRef = requestMessage.Ref, requestText = requestMessage.Text
+	Kill requestMessage
+	Set result = ..Notification(session, "result", "toolCall.done", {"tool": "zz_send", "time": (now)})
+	Set result.ApprovalRef = approval
+	Do $$$AssertStatusOK(..Out().OnNotification(result, .response), "the result is delivered after it")
+	Set resultMessage = ..Newest(session)
+	Set resultRef = resultMessage.Ref, resultText = resultMessage.Text
+	Kill resultMessage
+	Do $$$AssertTrue(resultRef '= requestRef, "the result is a message of its own")
+	Do $$$AssertEquals(..Phones(session).%Size(), 2, "two events so far")
+
+	Set answered = ..Notification(session, "answered", "answered.approved", {"channel": "phone", "time": (now)})
+	Set answered.ApprovalRef = approval
+	Do $$$AssertStatusOK(..Out().OnNotification(answered, .response), "the answered notification is delivered")
+	Set requestMessage = ..Message(requestRef)
+	Set resultMessage = ..Message(resultRef)
+	Do $$$AssertEquals(resultMessage.Answer_"|"_resultMessage.Text_"|"_resultMessage.ApprovalRef, "|"_resultText_"|", "the result message is unchanged: no answer, no request")
+	Do $$$AssertEquals(requestMessage.Answer_"|"_requestMessage.Text_"|"_requestMessage.ApprovalRef, "|"_requestText_"|"_approval, "and so is the request's")
+	Do $$$AssertEquals(..PhoneCount(session)_"|"_..Phones(session).%Size(), "2|2", "no message and no event was added")
+	Set deliveries = ##class(OcuTalon.Test.Core.Observe).DeliveryRows(session)
+	Do $$$AssertEquals(deliveries.Count(), 3, "three Delivery rows")
+	If deliveries.Count() = 3 {
+		Set row = deliveries.GetAt(3)
+		Do $$$AssertEquals(row.Channel_"|"_row.Kind_"|"_row.ChannelMessageId_"|"_row.ApprovalRef, "phone|answered||"_approval, "the last is the answered row, naming no message")
+	}
 }
 
 /// An answered notification for a request whose message was never delivered records its Delivery row only (ChannelMessageId

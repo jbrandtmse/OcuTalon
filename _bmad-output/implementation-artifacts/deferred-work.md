@@ -199,6 +199,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: 0.9 implement report; Msg.Catalog.Render has no length cap; Bot API sendMessage limit
 - 2026-10-20T05:25:07Z status=routed owner=12-6-chat-and-get-notifications-in-the-paired-telegram-chat by=harvest note=TelegramOut truncates or splits per the UX before sendMessage
 - 2026-10-20T06:51:54Z occurrence=0-9-the-message-catalog-and-its-one-renderer by=cr note=code review sighting (edge-case hunter): incident.fallback/noFix groups and slots have no length cap
+- 2026-11-01T17:23:37Z status=resolved-by:12-6-chat-and-get-notifications-in-the-paired-telegram-chat by=adjudication note=TelegramOut_sends_every_message_through_Api.Split(<=4096_per_part);pinned_by_Test.Channel.TelegramOut.TestLongNotice(5000-char_whatHappened_goes_in_parts;mutation_Send_without_Split_red)
 
 ### DW-31: AD-32's older sentence can read as putting the Results keys in Catalog.Core, while its Story 0.9 bullet and the code put result.* in Catalog.Watch
 - source: spec-0-9-the-message-catalog-and-its-one-renderer.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -226,6 +227,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-24T02:57:20Z occurrence=1-10-the-chat-agent-sets-lists-and-cancels-reminders
 - 2026-10-31T00:03:53Z status=routed owner=31-3-the-readme-leads-to-the-demo-and-the-launched-demo-is-measur by=orchestrator note=U-177:_Lane_B_classes(AD-33);Lane_B_Story_31.3_fixes_it_before_1.0.0,proved_by_Lane_B's_own_tests;not_release/ipm-install.sh;AD-18's_wording_(the_OS_zone_where_TZ_is_unset)_is_ruled_at_31.3's_spec_gate
 - 2026-10-31T04:47:48Z status=routed owner=31-1-push-live-events-over-a-websocket-on-local-installs by=orchestrator note=U-177(answer_2026-10-31T00:05:17Z#535):_Lane_B_classes(AD-33);the_first_Lane_B_story_inside_1.0.0_that_runs_with_these_files_free(31.1),else_31.3;AD-18's_wording_(the_OS_zone_where_TZ_is_unset)_goes_to_the_orchestrator_at_that_story's_spec_gate
+- 2026-11-03T23:35:54Z status=routed owner=33-1-fix-the-step-2-contracts-in-the-spine by=burndown_gate note=U-254(b)_reverses_U-177_placement;goes_with_U-247's_InstanceZone_work;AD-18's_wording_(the_OS_zone_where_TZ_is_unset)_goes_to_the_Planner_at_33.1's_spec_gate
 
 ### DW-35: A failed Orders header has Status 8 (Error), IsError 0 and an empty ErrorStatus; its error text is only the event-log row inside the Terminating BP wrapper, so a reader that keys on IsError or GetErrorText finds no failure
 - source: spec-0-10-the-orders-demo-production-runs-in-ocuorders.md | severity: med | fix-risk: low | footprint: in-epic
@@ -1112,6 +1114,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Task 0 measured toolset tools only; rows 8 and 9 build the toolref by hand
 - 2026-10-24T18:06:19Z status=routed owner=22-2-classify-mcp-tools-by-server-and-name by=harvest note=measure a real MCP tool's toolref and metadata in %CanExecute (stdio, remote, JSON configuration) when step 4 registers MCP servers
 - 2026-10-24T20:53:20Z occurrence=3-2-one-gate-decides-every-tool-call
+- 2026-11-02T21:46:12Z occurrence=31-5-a-tool-call-s-approval-request-reaches-the-phone-with-approv
 
 ### DW-175: Two tools of one class whose names differ only in underscores, hyphens or case share their CLASSIFICATION, RESOURCES and STEPLABEL parameters (StepBuffer.ToolParameter's naming rule)
 - source: spec-3-2-one-gate-decides-every-tool-call.md | severity: low | fix-risk: med | footprint: in-epic
@@ -1277,6 +1280,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-27T05:49:00Z status=routed owner=15-2-the-second-install-run-gives-a-working-ocutalon-with-demo-mo by=owner note=U-106_kept_with_condition:_the_terminal_line_says_demo_mode_stays_off_and_why_(OCUORDERS_exists_and_OcuTalon_did_not_create_it),_same_style_as_the_other_Install_step_lines,_names_no_customer_data
 - 2026-10-31T00:03:53Z status=routed owner=31-3-the-readme-leads-to-the-demo-and-the-launched-demo-is-measur by=orchestrator note=U-177:_Lane_B_classes(AD-33);Lane_B_Story_31.3_fixes_it_before_1.0.0,proved_by_Lane_B's_own_tests;not_release/ipm-install.sh;U-106's_owner_condition_on_the_terminal_line_travels_with_it
 - 2026-10-31T04:47:48Z status=routed owner=31-1-push-live-events-over-a-websocket-on-local-installs by=orchestrator note=U-177(answer_2026-10-31T00:05:17Z#535):_Lane_B_classes(AD-33);the_first_Lane_B_story_inside_1.0.0_that_runs_with_these_files_free(31.1),else_31.3;only_once_Epic_9_has_merged;otherwise_31.1_declines_it_to_the_next_Lane_B_story,31.3_at_the_latest;U-106's_terminal-line_condition_travels_with_it
+- 2026-11-03T23:35:54Z status=routed owner=burndown by=burndown_gate note=U-254(b)_reverses_U-177_placement;first_daily_release_after_1.0.0;Lane_B;U-106's_terminal-line_condition_travels_with_it(the_line_says_demo_mode_stays_off_and_why:OCUORDERS_exists_and_OcuTalon_did_not_create_it;same_style_as_the_other_Install_step_lines;names_no_customer_data)
 
 ### DW-208: Admin.Result and SettingsOps.Result are near-copies of the private CommandsIn.Result (a CommandResult with Ok, Outcome and Message), three 6-line builders (Rule 2)
 - source: spec-4-1-switch-demo-mode-from-the-terminal.md | severity: low | fix-risk: med | footprint: in-story
@@ -1477,6 +1481,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-27T10:02:57Z status=routed owner=15-2-the-second-install-run-gives-a-working-ocutalon-with-demo-mo by=burndown note=overflow:Install/Step/Demo.cls_is_contended(Epic_15_owns_Install/**,waiting_with_work),so_Epic_5_cannot_unify_it;Epic_4_has_merged,so_the_U-79_reason_for_the_copy_is_gone:give_WithOrders_the_resource_list_as_an_argument_when_15.2_(or_Epic_15%27s_burn-down)_touches_Demo.cls
 - 2026-10-31T00:03:54Z status=routed owner=31-3-the-readme-leads-to-the-demo-and-the-launched-demo-is-measur by=orchestrator note=U-177:_Lane_B_classes(AD-33);Lane_B_Story_31.3_fixes_it_before_1.0.0,proved_by_Lane_B's_own_tests;not_release/ipm-install.sh
 - 2026-10-31T04:47:48Z status=routed owner=31-1-push-live-events-over-a-websocket-on-local-installs by=orchestrator note=U-177(answer_2026-10-31T00:05:17Z#535):_Lane_B_classes(AD-33);the_first_Lane_B_story_inside_1.0.0_that_runs_with_these_files_free(31.1),else_31.3
+- 2026-11-03T23:35:54Z status=routed owner=burndown by=burndown_gate note=U-254(b)_reverses_U-177_placement;first_daily_release_after_1.0.0;Lane_B
 
 ### DW-224: Test.Watch.Turns and Test.Watch.Case copy Test.Tools.Reminders' turn helpers (Turn, AssertTurn, AssertSteps, Begin, Calls, SortedKeys) instead of sharing them
 - source: spec-5-1-ask-ocutalon-to-watch-a-production-and-to-stop.md | severity: low | fix-risk: med | footprint: in-story
@@ -1708,6 +1713,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-5-7-asked-whether-everything-is-fine-ocutalon-never-gives-a-fals.md | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: Agent/Chat.cls's check block and the CheckStatus description say OcuTalon shows the results under the reply; spec 5.7's Never keeps every *Out operation from rendering a check key; AD-28 says the *Out operations render the check sentences; Story 12.6 carries chat replies to Telegram
 - 2026-10-27T09:14:54Z status=routed owner=12-6-chat-and-get-notifications-in-the-paired-telegram-chat by=cr note=12.6 renders the reply's check key and rows on Telegram (AD-28, the HostData row's whatFailed rule)
+- 2026-10-31T13:34:35Z occurrence=12-2-ocutalon-polls-and-writes-to-its-own-bot-and-pauses-when-ano
+- 2026-11-01T17:23:37Z status=resolved-by:12-6-chat-and-get-notifications-in-the-paired-telegram-chat by=adjudication note=TelegramOut_appends_OcuTalons_own_check_sentence_under_a_reply(mirrors_web_checkSentence/whatFailed;never_an_all-clear_unless_Checks.Render_chose_it),so_the_Chat_agents_shown-under-your-reply_instruction_holds_on_Telegram;Agent/Chat.cls_untouched;pinned_by_TelegramOut.TestCheckSentence(a-j)
 
 ### DW-300: Contended tests (Test.Core.BridgeSink: four methods; Test.Web.Api.TestStateSections) make check rows due at once or count stream events, so a real HeartbeatIn Tick (once Epic 8's heartbeat ticks) can run their rows or add check events mid-test: the DW-289 root cause outside Epic 5's footprint
 - source: spec-5-10-epic-5-burn-down.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -2043,6 +2050,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-02T21:59:05Z occurrence=14-1-the-overview-s-tool-and-privilege-lists-are-generated-from-t note=CI run 41527568504 iris (production) live:production row 21 'start-fails' printed nothing on 461a663b (Story 14.1 touched no production path); rerun
 - 2026-11-03T04:20:55Z status=routed owner=burndown by=spec_gate note=declined_by_15.3(never_edits_the_contended_docker/tests/test-production.sh);residual:give_row_21_a_longer_wait_or_a_retry_when_a_story_next_edits_that_file
 - 2026-11-03T09:49:32Z status=routed owner=burndown by=burndown note=not_a_1.0.0_blocker(test_flake_in_contended_test-production.sh);first_daily_release_after_1.0.0
+- 2026-11-03T18:35:57Z occurrence=31-7-after-an-unpair-the-telegram-card-shows-its-fresh-code-witho by=lead note=CI_run_41689251949_iris(production)_live:production_row_21_wanted_CHK|start-fails|1|1_got_empty;flake_rerun
 
 ### DW-309: Test.Data.Fixture.Check rows carry no CreatedAt, so with no WatchMark the FailurePoller starts each reading at its poll time and a batch that lands between two polls is never read: a test that expects its failures to be noticed can pass or fail by timing
 - source: spec-5-11-the-demo-guide-s-tests-hold-now-that-incidents-are-real.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -2245,6 +2253,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-29T21:42:13Z occurrence=16-9-allowances-cap-messages-model-cost-and-simulated-emails by=ci note=status_unchanged:routed_owner=11-1-the-web-demo-path-passes-end-to-end-in-the-rel-2-test;CI_run_40945229992_attempt_1_(ba6856d,16.9s_implement_20cc3f9),iris_(browser),web/e2e/banners/banners.spec.ts_B2_got_'Last_run_tomorrow_at_1:40_·_No_read_access_to_its_namespace'(a_real_heartbeat_tick_ran_the_seeded_check_row);B2_untouched_by_16.9;attempt_2_green
 - 2026-10-30T00:24:16Z occurrence=16-9-allowances-cap-messages-model-cost-and-simulated-emails by=ci note=status_unchanged:routed_owner=11-1;CI_run_40975637263_attempt_1_(75d731a),iris_(browser),live:sign-in,web/e2e/session/session.spec.ts_S1:the_seeded_Zz.Production_check_row_got_lastRunAt,finding_'No_read_access_to_its_namespace'_from_a_real_tick(session.spec.ts:68_is_on_DW-349s_list);rerun_requested
 - 2026-10-30T02:20:58Z occurrence=16-9-allowances-cap-messages-model-cost-and-simulated-emails by=ci note=status_unchanged:routed_owner=11-1;CI_run_40987940151_attempt_1_(0990fbe),iris_(browser),live:sign-in,web/e2e/rail/rail.spec.ts_R5:'Last_run_2:02_·_No_read_access_to_its_namespace'_(a_real_tick_ran_the_seeded_row;rail_is_on_DW-349s_list);rerun_requested
+- 2026-10-30T09:34:20Z occurrence=12-1-telegram-stays-off-without-a-token-and-ci-mocks-the-telegram by=ci note=flake: OcuTalon.Test.Live.GuideRefresh.TestHeldLock 'the counter moved' red in CI run 41028771985 attempt 1, iris (image), shard:lane-b, on 6ca6563 (Story 12.1 touches no Live, Demo or Checks code); the same class as run 40713989310; one rerun
+- 2026-10-30T10:05:51Z occurrence=12-1-telegram-stays-off-without-a-token-and-ci-mocks-the-telegram by=ci note=CI run 41028771985 attempt 1 and its rerun (attempt 2), iris (image), shard:lane-b, on 6ca6563: OcuTalon.Test.Live.GuideRefresh.TestHeldLock 'the counter moved' both times (the class ran across a minute boundary; Fixture.Check seeds its check with no NextDueAt); fix routed to Lane B (Epic 9): TestHeldLock sets NextDueAt one hour ahead through Fixture.Check's fields argument; general fix stays 11-1
 - 2026-10-30T17:52:52Z occurrence=30-2-old-messages-and-records-are-purged-on-schedule by=ci note=status_unchanged:routed_owner=11-1;CI_run_41090217751_attempt_1(bb79c2f):iris(browser)_live:sign-in_banners.spec.ts:439_B7(heartbeat_stalled_late_marks:'and_the_late_mark')+iris(shards)_live:floor_guide.spec.ts:253_M4('the_page_holds_the_earlier_progress_event');both_listed_unfixed_seeds(banners,floor/guide);attempt_2_green(one_rerun_per_the_flake_rule)
 - 2026-10-30T17:28:53Z occurrence=29-5-the-address-counter-s-hash-is-keyed-per-reset note=CI run 41088697760 attempt 2 (OCT-epic29 511f1b03, iris image, shard lane-b): Test.Live.GuideRefresh.TestHeldLock 'the counter moved' (Fixture.Check seeds a check row with no NextDueAt; a real minute tick published between Publish and LastSeq); flake class, one rerun
 - 2026-10-31T00:50:24Z occurrence=29-7-demo-busy-counts-the-live-visitors note=CI run 41149604870 (OCT-epic29 3f5b3cbe, iris image, shard lane-b): Test.Live.GuideRefresh.TestHeldLock 'the counter moved' again; flake class, one rerun
@@ -2255,12 +2265,16 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-30T10:50:46Z occurrence=9-6-incident-cases-are-diagnosed-through-incidentmanager-and-rea by=cr note=sibling Test.Live.GuideRefresh.TestHeldLockCallerWait seeds Fixture.Check with no NextDueAt, asserts seq=1; status_unchanged
 - 2026-10-31T07:36:27Z occurrence=29-9-epic-29-burn-down note=CI run 41178903176 attempt 1 (OCT-epic29 b8090784, bookkeeping over e7a5bb94's green code): iris image shard:lane-b Test.Web.GuideApi TestOnlyTheMarkerChanges (Fixture.Check's seeded row run by a real tick between the two fingerprints) and iris browser live:sign-in session.spec.ts S1 (the rail row gained a finding); superseded by the Epic 9 integrate-forward head, not rerun
 - 2026-10-31T08:07:39Z occurrence=29-9-epic-29-burn-down note=CI run 41181446111 attempt 1 (OCT-epic29 13e56475, Epic 9 integrate-forward): iris browser live:sign-in banners.spec.ts B2 'Last run 13:19 · No read access to its namespace' (seeded check row run by a real tick); flake class, one rerun
+- 2026-10-31T09:54:07Z occurrence=12-1-telegram-stays-off-without-a-token-and-ci-mocks-the-telegram by=ci note=CI run 41188445340 attempt 1 (OCT-epic12 af47ff3c, Epic 12 integrate-forward onto 366a79ab), iris image, shard:lane-b: Test.Web.GuideApi TestOnlyTheMarkerChanges 'run_again changes none of the session data rows' (Fixture.Check seeded row run by a real tick between the two fingerprints; same as run 41178903176); flake class, one rerun; status_unchanged
+- 2026-10-31T11:20:46Z occurrence=10-4-the-readme-opens-with-what-ocutalon-is-for-and-what-a-model by=ci note=CI run 41192152812 attempt 1 (OCT-epic10 192f60c3, Epic 10's final integrate-forward of feature 366a79ab; code = feature + README/test-readme only), iris (shards), live:floor web/e2e/floor/focus.spec.ts:209 P4: the seeded check row read 'No read access to its namespace' (run by a real heartbeat tick) before the republish assertion; floor/focus is on DW-349's list; flake class, one rerun (attempt 2 green); status_unchanged routed owner=11-1
+- 2026-10-31T19:14:32Z occurrence=12-8-the-page-shows-when-telegram-is-paused-and-when-it-will-try by=ci note=CI run 41230579974 attempt 1 (OCT-epic12 a634857d, Story 12.8), iris browser, live:sign-in: web/e2e/rail/rail.spec.ts R5 'Last run 18:57 · No read access to its namespace' (a real tick ran the seeded check row; rail R5 is on DW-349's list); flake class, one rerun; status_unchanged
 - 2026-10-31T13:32:52Z status=resolved-by:11-1-the-web-demo-path-passes-end-to-end-in-the-rel-2-test by=adjudication note=AC9: Test.Data.Fixture.Check seeds NextDueAt an hour ahead when the caller passes none, so a heartbeat tick never runs a seeded row; Test.Data.FixtureDefaults pins it
 - 2026-10-31T11:20:46Z occurrence=10-4-the-readme-opens-with-what-ocutalon-is-for-and-what-a-model by=ci note=CI run 41192152812 attempt 1 (OCT-epic10 192f60c3, Epic 10's final integrate-forward of feature 366a79ab; code = feature + README/test-readme only), iris (shards), live:floor web/e2e/floor/focus.spec.ts:209 P4: the seeded check row read 'No read access to its namespace' (run by a real heartbeat tick) before the republish assertion; floor/focus is on DW-349's list; flake class, one rerun (attempt 2 green); status_unchanged routed owner=11-1
 - 2026-11-01T08:53:30Z occurrence=4-8-step-3-of-the-guide-points-to-break-the-feed-without-a-secon note=implement_live_sign-in_part1_B2_red_then_unchanged_rerun_green
 - 2026-11-02T05:12:28Z occurrence=30-5-mixed-and-unfinished-resends-say-how-far-they-got note=CI_run_41389356450_head_dd8ccfd4:live:sign-in_banners.spec.ts:439_B7_late_mark_overwritten(Last_run_10:17_No_read_access)_also_seen_at_a0a32cf9(sign-in_heartbeat-stalled_mark);one_rerun
 - 2026-11-02T07:15:31Z status=open owner=burndown by=merge_gate note=occurrence:81f230eb(Epic_30_part_1_final_head)_browser_banners_B2,one_rerun_green(41395335549)
 - 2026-11-02T07:15:49Z status=routed owner=11-1-the-web-demo-path-passes-end-to-end-in-the-rel-2-test by=merge_gate note=correction:previous_trailer's_status/owner_were_an_error;routing_to_11.1_unchanged(occurrence_81f230eb_recorded_above)
+- 2026-11-02T11:25:17Z occurrence=31-1-push-live-events-over-a-websocket-on-local-installs note=CI_run_41419787515_on_17c86e98:browser_live:sign-in_red_3_times_from_a_real_heartbeat_tick_running_a_seeded_check(received_'Last_run_HH:37_No_read_access_to_its_namespace'):banners_B2(attempts_2_and_4),rail_R5(attempt_3);local_lane-C_live:sign-in_all_3_parts_pass
 - 2026-11-02T12:40:53Z occurrence=30-1-long-conversations-are-compacted-under-the-limit by=ci note=CI_run_41442099518_job_125266219466(iris_browser,live:sign-in):banners.spec.ts:439_B7_expected_'Last_run_15:30_(late)_·_Passed'_received_'Last_run_17:49_(late)_·_No_read_access_to_its_namespace';head_9cb51f7e;30.1_touches_no_Checks_or_web_code;one_rerun
 - 2026-11-02T13:11:45Z occurrence=30-1-long-conversations-are-compacted-under-the-limit by=ci note=rerun_attempt_2_of_41442099518(job_125282252713):banners.spec.ts:215_B2_expected_'Last_run_15:30_·_Passed'_received_'Last_run_18:23_·_No_read_access_to_its_namespace';same_root_cause(seeded_check_runs_for_real);orchestrator_ruling_2026-11-02T11:26Z:DW-349_reds_are_flake_occurrences;fix_in_Epic_11_part_1
 - 2026-11-02T11:31:04Z owner=11-19-seeded-check-rows-stay-out-of-the-heartbeat-s-way-unless-a-c by=runner note=fix-forward story 11.19 (orchestrator ruling with the Contest Planner, 2026-11-02): lands the not-due seed default with Epic 11 part 1
@@ -2362,6 +2376,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-29T17:55:09Z status=routed owner=burndown by=cr note=Rule 2 forced copy: a namespace-parameterised Demo.System helper unifies it when Epic 15 touches Demo.cls (cf. DW-223)
 - 2026-10-30T15:23:33Z status=routed owner=15-2-the-second-install-run-gives-a-working-ocutalon-with-demo-mo by=burndown note=overflow: the fix (a namespace-parameterised Install.Step.Demo System helper that Test.Eval.Feed.Fixture calls) needs Install/Step/Demo.cls, Epic 15's contended path; Story 15.2 touches Demo.cls and already owns the sibling copy DW-223
 - 2026-10-31T07:17:56Z status=routed owner=31-1-push-live-events-over-a-websocket-on-local-installs by=merge_gate note=follows_DW-223(U-177):the_fix_needs_Install/Step/Demo.cls(Lane_B,AD-33),not_Lane_A's_15.2;31.1_declines_it_onward_if_Demo.cls_is_not_free
+- 2026-11-01T20:26:18Z status=routed owner=burndown by=spec_gate note=declined_by_31.1(WebSocket_story;fix_edits_Install/Step/Demo.cls_outside_its_intent);the_Epic_31_burn-down_gate_charters_it_or_re-owns_it_to_a_Lane-B_story_touching_Demo.cls
 ### DW-359: The README's clone command and the page's README_URL resolve only once the repository is public (github.com/jbrandtmse/OcuTalon answered 404 on 2026-10-28); recheck every README link and GitHub's heading slugs on the public page before the release
 - source: spec-10-2-the-readme-gets-a-judge-from-download-to-sign-in.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Story 10.2 implement: HTTP 404 on the private repository; test-readme.sh checks anchors against its own slug rule (Design Note 8, inference until the page is public)
@@ -2374,6 +2389,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: README.md ## Sign in: reachable from the LAN until the default IRIS accounts' and the README account's passwords are changed; only the README account has a how-to (DW-3 wording, author's decision 2026-10-18)
 - 2026-10-28T18:29:41Z status=decision-pending owner=burndown by=harvest note=product and security-posture call: add how to change the default IRIS accounts' passwords, or say how to publish the port on 127.0.0.1 only, or keep the wording
 - 2026-10-29T02:22:28Z status=routed owner=31-3-the-readme-leads-to-the-demo-and-the-launched-demo-is-measur by=merge_gate note=Epic 10 decision sheet (veto U-145): the 1.0.0 README adds how to change the default IRIS accounts' passwords in the Management Portal, next to the README account's how-to; the private 0.1.x README keeps its wording
+- 2026-11-03T23:19:08Z status=resolved-by:31-3-the-readme-leads-to-the-demo-and-the-launched-demo-is-measur by=adjudication note=README_LAN_section_gives_the_Management_Portal_steps_for_SuperUser,_SYSTEM,Admin(Enter_new_password,Password_and_Password_(confirm),Save);pinned_by_test-readme_lan_rule;Task_0_checked_the_portal_labels(%CSP.UI.Portal.User:111)
 
 ### DW-361: The page's How to set a key and Install it yourself links open the README's top (#readme), not the Set a model key and Install it yourself sections
 - source: spec-10-2-the-readme-gets-a-judge-from-download-to-sign-in.md | severity: med | fix-risk: med | footprint: out-of-footprint
@@ -2386,17 +2402,20 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-10-3-the-session-side-of-telegram-is-ready-and-stays-off.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: ci/compose.ci.yml sets TELEGRAM_BOT_TOKEN unconditionally and live_key_count counts an empty token as a key; unverified until Story 12.1 enables the Telegram items
 - 2026-10-28T22:30:49Z status=routed owner=12-1-telegram-stays-off-without-a-token-and-ci-mocks-the-telegram by=harvest note=Story 12.1 decides how a no-token start is made in CI (a start without the override, or an explicit empty value) when it turns the items on
+- 2026-10-30T08:38:01Z status=resolved-by:12-1-telegram-stays-off-without-a-token-and-ci-mocks-the-telegram by=adjudication note=213ea71+review_patches: docker/tests/lib-live.sh live_key_count counts an empty TELEGRAM_BOT_TOKEN as no key and live_no_bot_token layers TELEGRAM_BOT_TOKEN='' last; test-production-restart.sh row 19 starts with the seam at 1 and an empty token (check_token_empty, check_no_key, check_items_run, check_telegram_off: rows 0, mark off, no Bot API call); test-lib-live.sh rows pin both
 
 ### DW-370: The CI mock's Bot API state is one global queue, call list and counter for one client: reset restarts update_id at 1, so a poller that keeps its offset drops new updates as confirmed, and Test.Contract.Mock.TestTelegramBotApi expects only its own three calls
 - source: spec-10-3-the-session-side-of-telegram-is-ready-and-stays-off.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: ci/mock/mock.mjs telegramControl reset sets tg.nextUpdateId = 1 and pendingUpdates drops update_id < offset (Decided 23); Test/Contract/Mock.cls:358-372 resets, then expects update_id 1 and 3 calls; reachable once Story 12.1 runs an enabled TelegramIn poller in CI
 - 2026-10-28T23:35:43Z status=routed owner=12-1-telegram-stays-off-without-a-token-and-ci-mocks-the-telegram by=cr note=12.1 decides how a live poller and the tests share the mock: keep update_id counting over reset, or reset the offset
+- 2026-10-30T08:38:01Z status=resolved-by:12-1-telegram-stays-off-without-a-token-and-ci-mocks-the-telegram by=adjudication note=Lane A half (orchestrator ruling Q2, comply with AD-22/AD-33): Test.Channel.BotApi.Reset clears TelegramIn's kept offset ($$$EnsStaticAppData TelegramIn offset) in the same call as the mock reset and refuses under a live TelegramIn job (TelegramMock TestResetClearsKeptOffset, TestPollerCheck, mutations in the spec); the mock's one-client state and TestTelegramBotApi's own-calls assumption are DW-421 (escalated, Lane B mock ask); the poller's use of the node is DW-422 (12.2)
 
 ### DW-371: Data.Pairing.Purge repeats about 20 of the 22 lines of Lane A's Digest.Data.Item.Purge (the day-count check and the UTC cutoff), a copy forced by AD-29; the purges drift when the day rule changes
 - source: spec-10-3-the-session-side-of-telegram-is-ready-and-stays-off.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: src/ocutalon/cls/OcuTalon/Data/Pairing.cls:217 Purge vs src/ocutalon/cls/OcuTalon/Digest/Data/Item.cls:64 Purge; Task A says the validation and cutoff follow Digest/Data/Item.cls:64-87; Digest is Lane A's (AD-29)
 - 2026-10-28T23:35:43Z status=routed owner=30-2-old-messages-and-records-are-purged-on-schedule by=cr note=Rule 2 forced copy: one day-count check and cutoff helper (e.g. in Data.Time) for Bridge.Purge, Pairing.Purge, Digest
 - 2026-10-30T15:56:40Z status=routed owner=burndown by=cr note=Lane A side done in 30.2 (Bridge.Time.DaysCutoff, used by Digest); left: Data.Pairing.Purge (Lane B), IncidentManager.Purge
+- 2026-11-03T11:05:55Z status=routed owner=burndown by=burndown note=Epic_12_burn-down:not_a_1.0.0_blocker(single_occurrence_or_forced_copy);first_daily_release_after_1.0.0(orchestrator_ruling_with_the_Contest_Planner)
 - 2026-11-02T12:09:16Z owner=30-7-epic-30-burn-down by=burndown note=chartered_into_the_Epic_30_burn-down_story_30.7(part_2_gate);conditions_unchanged
 
 ### DW-372: The Story 10.3 Pairing test classes each carry their own NewChat, Code, Submit, Hops and WaitHops helpers (SessionOps, SessionOpsProduction, AnswersTelegramProduction, PairingApi, beside RoutingProduction.WaitHops)
@@ -2411,6 +2430,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-29T01:11:55Z owner=11-1-the-web-demo-path-passes-end-to-end-in-the-rel-2-test by=burndown note=Epic 10 burn-down overflow: the release-1 flake class beside DW-349 (a fixed wait on a heartbeat-driven run); 11.1 gates REL-2 on a green CI, so it fixes the RunNow wait or ledgers the rerun rule
 - 2026-10-30T15:56:40Z occurrence=30-2-old-messages-and-records-are-purged-on-schedule
 - 2026-10-30T16:58:58Z occurrence=29-5-the-address-counter-s-hash-is-keyed-per-reset note=CI run 41088697760 (OCT-epic29 511f1b03, iris image, shard lane-b): Test.Schedule.Heartbeat TestStoppedThenStarted 'the task ran while the production was stopped' (197 s); flake class, one rerun
+- 2026-11-02T00:00:24Z occurrence=31-1-push-live-events-over-a-websocket-on-local-installs note=local_fresh_lane-b_forward_run_at_31.1_implement:Test.Schedule.Heartbeat_75s_wall-clock_assertion_failed_under_load;passed_alone_on_a_fresh_stack_in_177s
+- 2026-11-02T10:31:13Z occurrence=31-1-push-live-events-over-a-websocket-on-local-installs note=CI_run_41419787515_attempt_1_image_shard:lane-b_TestStoppedThenStarted_red;green_on_rerun
 - 2026-10-31T09:29:36Z owner=11-9-every-check-left-off-for-release-1-turns-on-and-the-ci-flake by=spec_gate note=Story 11.1 split at its plan (unattended ruling, decide): moved to Story 11.9 with the checks left off and the CI flakes
 - 2026-11-01T03:59:33Z status=resolved-by:11-9-every-check-left-off-for-release-1-turns-on-and-the-ci-flake by=adjudication note=2da3f0ba: Schedule/HeartbeatIn.cls wakes the Task Manager (RunNow) and Test/Schedule/Heartbeat.cls waits RUNNOWSECONDS for the History row (AC9); QA mutation RUNNOWSECONDS=0 turned TestStoppedThenStarted red
 
@@ -2567,6 +2588,9 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: the Planner's API POSTs through the gated proxy got 403 wrong_origin until the host mapped the origin; a foreign or missing Origin still gets 403 with the workaround
 - 2026-10-30T04:25:44Z status=routed owner=burndown by=runner note=repository option the Planner prefers: trust X-Forwarded-Proto only from the trusted proxy address (the one trusted for X-Forwarded-For), or a configured public origin; a veto-window change to the origin check (security posture); not needed for the launch while the host workaround stands; runner C ruling 2026-10-30: no repository change in Story 29.3
 - 2026-10-31T03:39:09Z owner=31-3-the-readme-leads-to-the-demo-and-the-launched-demo-is-measur by=burndown note=overflow: Lane B hardening on the launched demo; the host workaround (exact-origin mapping) stands until then; trusting X-Forwarded-Proto from the trusted proxy is a veto-window change for that story
+- 2026-11-03T15:21:47Z status=escalated owner=burndown by=spec_gate note=declined_by_31.3_plan:changing_how_the_origin_check(Web/Api.cls:965-973,Web/Live.cls:72)_trusts_a_TLS-terminating_proxy_is_security_posture(veto_window);the_demo_host_workaround_holds;for_the_decision_sheet
+- 2026-11-04T01:20:59Z status=decision-pending owner=burndown by=unattended note=inbox=U-255
+- 2026-11-04T01:27:40Z status=routed owner=burndown by=owner note=U-255 keep (a); first_daily_release_after_1.0.0; conditions: (1) the fix is an explicit admin setting naming the public origin(s), never trust of a client-sent X-Forwarded-Proto or of any https origin by default; (2) README/docs gain one plain sentence on running behind a TLS-terminating proxy, shipped with the fix and not before; (3) after deploy the Planner removes the host workaround and re-measures (page POST no 403, foreign-Origin POST still 403)
 
 ### DW-417: Times the model writes itself on the online demo carry no ET (for example 'due at 23:39'), against UX-DR108 and UX-DR123; the catalog's message times do carry it
 - source: host facts measured on the gated host by the Contest Planner 2026-10-30 (Epic 16 deploy c70a0f4) | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -2673,6 +2697,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-30T15:56:40Z status=decision-pending owner=burndown by=cr note=product call: purge turns and sessions with their decisions, or keep usage as long as turns; AD-27 weight (Rule 20 Deferred)
 - 2026-11-02T07:15:31Z status=routed owner=burndown by=merge_gate note=Epic_30_part_1_decision_sheet,veto:purge_Turn,Delivery,Session_on_the_same_90-day_cut_as_their_Decision_and_Usage_rows(AD-27_retention_extension,marker+lint),one_test_that_TurnCost_and_ShownDecisionRef_never_read_a_purged_turn;Epic_30_part_2_burn-down(30.7)
 - 2026-11-02T07:16:07Z status=routed owner=burndown by=merge_gate note=veto_U-210
+- 2026-11-02T14:15:18Z occurrence=12-7-approve-or-reject-from-telegram-and-every-copy-shows-who-ans note=U-218(owner_KEPT):from_Story_12.7_Telegram_Delivery_rows_of_request_messages_hold_redacted_sent_Text;the_purge_of_Delivery_rows_on_the_90-day_cut(30.7)_is_the_owner's_condition_2_for_it;its_test_should_cover_a_telegram_row_with_Text
+- 2026-11-02T21:34:22Z occurrence=12-7-approve-or-reject-from-telegram-and-every-copy-shows-who-ans by=harvest note=built_in_4ff30f5b:Telegram_request_rows_keep_redacted_Text(and_the_Approval_Ref);answered_rows_store_empty_Text;also_Lane_B_doc_ask:Data/Delivery.cls_Text_doc_line(line_31)_still_says_empty_for_any_other_row-fix_it_with_the_purge(Story_30.7,deferred_after_v1.0.0)
 - 2026-11-02T12:09:16Z owner=30-7-epic-30-burn-down by=burndown note=chartered_into_the_Epic_30_burn-down_story_30.7(part_2_gate);conditions_unchanged
 - 2026-11-02T14:56:21Z status=routed owner=burndown by=owner note=U-218_condition_2_(Planner_2026-11-02):30.7's_purge_must_cover_Delivery.Text_on_Telegram_rows_with_buttons(Story_12.7);1.0.0_has_no_Delivery_purge(accepted:redacted,no_chat_id,demo_wipes_every_4h);30.7_deferred_after_the_tag(d1)
 - 2026-11-02T21:12:36Z owner=30-7-epic-30-burn-down by=burndown note=ruling_d1(Contest_Planner,2026-11-02):30.7_entries_keep_owner_30-7;30.7_deferred_after_the_v1.0.0_tag(first_daily_release);conditions_unchanged(U-210/U-218_for_DW-437,U-215_for_DW-584)
@@ -2698,6 +2724,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-30T17:04:59Z status=escalated owner=burndown by=spec_gate note=for the decision sheet: recommended route to Story 31.2 (31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv, Lane B) as a DW bullet, or another Lane B story; out of Lane A's files (AD-33)
 - 2026-10-31T00:33:43Z status=routed owner=31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=orchestrator note=U-178:_Lane_B_display(AD-33);31.2_reads_the_sentence_from_the_existing_fallback_Decision_row;a_new_stored_column_is_its_own_veto_item
 - 2026-10-31T00:41:46Z note=U-178_kept:routed_to_31.2_with_DW-454
+- 2026-11-02T15:14:11Z status=resolved-by:31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=adjudication note=Conversation.ToolNote+Ownership.FinishedToolCalls:code-written_SystemNote(tool,done/failed,time);ConversationTurns+Data.Ownership_tests_on_real_ApprovalRequest_rows
 
 ### DW-444: A tool_call ApprovalRequest left executing by a crash or restart mid-replay stays executing: the call is never re-run (NFR-13 holds) but no result or approval.result is ever sent
 - source: spec-30-3-an-approved-tool-call-runs-exactly-once-with-no-model.md | severity: med | fix-risk: med | footprint: in-epic
@@ -2722,9 +2749,18 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-30T21:56:21Z status=routed owner=burndown by=harvest note=flake: first occurrence (local, not CI); watch for a CI recurrence
 - 2026-10-31T03:37:20Z occurrence=30-4-a-stopped-production-or-a-disabled-item-is-reported-once by=lead note=second_local_occurrence:30.4_implement_fresh_shard_lane-b_part_2/2_first_run;passed_alone_and_on_one_rerun_of_the_part(558s);code_untouched_by_30.4
 - 2026-11-02T05:39:25Z status=wontfix-accepted by=burndown note=a_burndown-owned_LOW_flake(Rule_15)_with_no_charter_in_part_1;not_seen_again_in_Epic_30_part_1_fresh_runs;reopen_if=GuideApi_TestRunAgain_goes_red_again_in_CI_or_a_fresh_shard
+- 2026-11-03T05:37:19Z occurrence=12-9-telegram-is-included status=routed owner=12-9-telegram-is-included by=harvest note=reopen_if_met:Test.Web.GuideApi_TestRunAgain_red_in_two_fresh_shard_lane-b_part_2/2_runs_at_the_end_of_12.9's_implement(8bead6ac);passes_alone_and_warm;12.9_changes_every_stack(Included()=1,parking),so_12.9's_QA_settles_whether_it_causes_it
+- 2026-11-03T07:11:40Z status=wontfix-accepted owner=12-9-telegram-is-included by=cr note=no_link_to_12.9_(QA_fresh_lane-b_part_2/2_green);reopen_if=GuideApi_TestRunAgain_red_again_in_CI
 - 2026-11-02T10:55:33Z status=routed owner=burndown by=lead occurrence=30-1-long-conversations-are-compacted-under-the-limit note=reopened(reopen_if_met):30.1_implement_fresh_shard_lane-b_part_2/2_red_twice_on_TestRunAgain;passed_alone_on_a_fresh_throwaway;30.1_touches_no_Web/Guide_code;Lane_B_class(AD-33):route_to_a_Lane_B_story_at_the_burn-down_gate
 - 2026-11-02T12:09:17Z owner=31-3-the-readme-leads-to-the-demo-and-the-launched-demo-is-measur by=burndown note=overflow:Lane_B_class_Test.Web.GuideApi(AD-33:off_limits_to_Lane_A_epic_30);flake_reopened_by_30.1's_fresh_shard_lane-b_2/2(red_twice,passes_alone):find_the_order_or_timing_dependence_of_TestRunAgain
+- 2026-11-03T05:33:44Z occurrence=31-6-a-tool-call-s-approval-request-appears-in-the-web-chat-with
+- 2026-11-03T05:33:44Z status=routed owner=31-3-the-readme-leads-to-the-demo-and-the-launched-demo-is-measur by=harvest note=CI occurrence on 510ddbc9 (run 41577710442 image shard lane-b: TestOnlyTheMarkerChanges and TestRunAgain, 1 of 88 classes; green on rerun; passes alone on slot C)
 - 2026-11-03T02:38:20Z occurrence=13-2-the-example-s-own-tools-wait-for-approval-when-they-are-risk by=harvest note=failed_once_in_13.2_implement_fresh_shard_lane-b_part_2/2;passed_alone_and_on_rerun
+- 2026-11-03T12:55:18Z occurrence=0-13-a-start-retries-the-cpf-merge-when-iris-cannot-quiesce note=CI run 41629601732 iris (image) shard:lane-b on OCT-epic0 032a25c0 (integrate-forward head): TestRunAgain and TestOnlyTheMarkerChanges failed; passed on the unchanged rerun of the failed jobs
+- 2026-11-03T14:35:03Z occurrence=0-13-a-start-retries-the-cpf-merge-when-iris-cannot-quiesce note=CI run 41641201023 attempt 1, iris (image) shard:lane-b on OCT-epic0 c3d264c5: TestRunAgain and TestOnlyTheMarkerChanges (run_again and trace_opened) failed; green on the unchanged rerun of the failed jobs
+- 2026-11-03T18:26:01Z occurrence=0-14-a-start-that-recovers-through-the-merge-retry-passes-the-liv note=run_41688225535_iris(image)_shard_lane-b_GuideApi_TestRunAgain,TestOnlyTheMarkerChanges_head_9dd16cdc
+- 2026-11-03T19:58:41Z occurrence=0-14-a-start-that-recovers-through-the-merge-retry-passes-the-liv by=merge_gate note=CI run 41698083197 attempt 1, iris (image) shard:lane-b on OCT-epic0 3cd25ab0 (final head): GuideApi TestRunAgain failed; green on the rerun of the failed job
+- 2026-11-04T04:29:11Z occurrence=10ce26ac by=merge_gate note=run 41769982647 attempt 1 shard:lane-b Test.Web.GuideApi TestOnlyTheMarkerChanges (feature head)
 
 ### DW-454: U-170's plain-English reason for an old held tool call reaches a person only through the decision live event (decision strip, rail decision row, trace); the approval card and notices do not show it: Live.Payload.Approval.reason stays empty, approval.result is {ref}, Core.Rule.Notice reads only the fallback reason
 - source: spec-30-3-an-approved-tool-call-runs-exactly-once-with-no-model.md | severity: med | fix-risk: med | footprint: out-of-footprint
@@ -2733,6 +2769,9 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-30T23:56:26Z status=escalated owner=burndown by=cr note=correction: no web view renders a kind-tool decision (rail, mailbox filter kind decide); the person sees no reason today
 - 2026-10-31T00:33:43Z status=routed owner=31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=orchestrator note=U-178:_Lane_B_display(AD-33);31.2_reads_the_sentence_from_the_existing_fallback_Decision_row;a_new_stored_column_is_its_own_veto_item;it_carries_the_visible_half_of_U-170's_owner_condition
 - 2026-10-31T00:41:46Z note=U-178_kept:31.2_tests_prove_the_approval_card_and_the_notice_both_show_the_sentence_and_offer_no_Approve_for_an_old_held_tool_call_row;read_from_the_existing_fallback_Decision_row;a_new_stored_column_is_its_own_veto_at_31.2's_spec_gate;U-170_checked_at_Epic_31's_merge
+- 2026-11-02T07:57:37Z status=routed owner=31-5-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=spec_gate note=Story_31.2_split:DW-454_needs_part_2s_tool-call_notice_keys(declined_in_31.2_part_1)
+- 2026-11-02T21:50:55Z status=routed owner=31-6-a-tool-call-s-approval-request-appears-in-the-web-chat-with by=adjudication note=31.5 delivered the notice and event half (BridgeSink.HeldNotice: toolCall.failedWithReason to the phone and paired chat, the approval event's reason; TestHeldBeforeUpdateSaysWhy, TestHeldReasonIsCatalogOnly, commit 4c0c0eb8); residual: the same result notice in the web chat (W10), Story 31.6's card path
+- 2026-11-03T04:02:13Z status=resolved-by:31-6-a-tool-call-s-approval-request-appears-in-the-web-chat-with by=adjudication note=web half delivered: WebChatOut renders toolCall.failedWithReason as a web chat notice with no Approve (ToolCallNotices.TestHeldReasonReachesTheWebChat, TestHeldRawReasonIsNeverShownInTheWebChat); phone, paired chat and event half by 31.5 (4c0c0eb8)
 
 ### DW-455: When FinishExecution is refused (row lock not taken) for an old approved tool_call row with ToolSource or Runner empty, Decide records a fallback Decision row with no reason, answers a repeat from it, and the row stays approved; untested
 - source: spec-30-3-an-approved-tool-call-runs-exactly-once-with-no-model.md | severity: low | fix-risk: med | footprint: in-story
@@ -2783,12 +2822,44 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-30-5-mixed-and-unfinished-resends-say-how-far-they-got.md (orchestrator ruling U-183) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: 30.5 plan, Lane B need 1: the page picks result.* from Live.Payload.Incident (Conventions Result texts); web/ is Lane B's (AD-33)
 - 2026-10-31T06:20:20Z status=routed owner=31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=orchestrator note=U-183: Lane B display part of 30.5's stopped-partway result; 30.5 lands the Lane A payload field and the catalog text
+- 2026-11-02T15:14:11Z status=resolved-by:31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=adjudication note=approval-view.ts_resultView_picks_result.stoppedPartway(unreached>0,ResultKey_order);catalog.mjs+catalog.ts;approval-view.test.mjs+A11(approval-card.spec.ts)
 
 ### DW-473: The page has no 'still resending' result band for a fix run still running after FixExecutor's 60-second wait, and the counts so far are stored nowhere the page reads them
 - source: spec-30-5-mixed-and-unfinished-resends-say-how-far-they-got.md (orchestrator ruling U-183) | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: 30.5 plan, Lane B need 2: Live.Payload.Incident fills a request's result only from an ended run; the chat notice uses result.stillResending (30.5)
 - 2026-10-31T06:20:20Z status=routed owner=31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=orchestrator note=U-183: Lane B display part (the still-resending band)
+- 2026-11-02T15:14:11Z status=resolved-by:31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=adjudication note=fixing_line_is_the_still-resending_state(U-211_kept);incident-view/approval-view_tests_pin_no_band_for_executing_with_no_result;counts_residual_DW-585
 
+### DW-457: A WebSocket keeps serving its session for up to its 60 s lifetime after sign-out, because the socket's CSP session never sees the sign-out; add a server-side sign-out check (a mark set at sign-out and read on each socket loop)
+- source: spec-31-1-push-live-events-over-a-websocket-on-local-installs.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: Plan Task 0 M5 on build 154U: after POST /v1/session/end or ?IRISLogout=end the next HTTP request is 401 but the open socket's %CSP.Session stays unchanged for at least 10 s; orchestrator ruling U-174 keeps the 60 s lifetime as the known cost
+- 2026-10-30T22:42:13Z status=routed owner=31-1-push-live-events-over-a-websocket-on-local-installs by=spec_gate note=orchestrator_ruling_U-174: needs Data/Session.cls (contended with Epic 29); do it after Epic 29 merges, at 31.1's re-plan or a follow-up story
+- 2026-10-30T22:44:54Z status=routed owner=31-1-push-live-events-over-a-websocket-on-local-installs by=owner note=owner_answer_U-174_at=2026-10-30T22:43:15Z#527:build_the_sign-out_mark_in_31.1_itself(test:no_further_frame_within_one_loop_after_sign-out;60s_lifetime_backstop);kept_as_31.1's_tracking_anchor,resolved-by_31.1_at_adjudication;only_if_another_open_epic_holds_Data/Session.cls_at_the_re-plan:re-own_due_before_1.0.0
+- 2026-11-02T00:32:30Z status=resolved-by:31-1-push-live-events-over-a-websocket-on-local-installs by=adjudication note=3010f5a7:Data.Session.MarkSignedOut(^OcuTalonP.SessionM)_set_in_Web.SessionEvents.OnLogout(local_only)+read_each_Web.Live_loop;tests_TestSignOutMark,TestSignOutWakesTheSocket,TestServer,W8(no_frame_after_204,close<1s);60s_lifetime_kept(W12,TestNext)
+### DW-420: AD-22's as-built shard list does not name the lane-a area Channel that Story 12.1 adds to ci/units.sh
+- source: spec-12-1-telegram-stays-off-without-a-token-and-ci-mocks-the-telegram.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: spine AD-22 'CI as built' lists lane-a: Agent, Bridge, Checks, Fix, Install, Tools, Digest and Watch; Story 12.1 appends Channel to ci/units.sh lane-a (Epic 9 appends Eval to the same line)
+- 2026-10-30T06:30:51Z status=escalated owner=burndown by=spec_gate note=AD-22 as-built: lane-a gains Channel; orchestrator writes it at the merge gate (ruling 2026-10-30, Q3)
+- 2026-10-31T13:34:35Z occurrence=12-2-ocutalon-polls-and-writes-to-its-own-bot-and-pauses-when-ano
+- 2026-11-03T14:32:55Z status=resolved-by:12-9-telegram-is-included owner=burndown by=unattended note=decision_sheet_Epic_12_merge:AD-22_CI-as-built_line_rewritten_as_built_by_the_orchestrator(lane-a_list+Eval,Channel;nine_groups_incl_shards-3,shards-4;lane-a_three_pieces),checked_against_ci/units.sh;no_rule_change
+
+### DW-421: The CI mock's Bot API side keeps one global state (updates, replies, calls, counters) for every client, so once TelegramIn polls in CI a direct-call test such as Test.Contract.Mock.TestTelegramBotApi shares its queue and call list with the live poller
+- source: spec-12-1-telegram-stays-off-without-a-token-and-ci-mocks-the-telegram.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: ci/mock/mock.mjs one tg state; Test/Contract/Mock.cls TestTelegramBotApi resets then expects update_id 1 and its own 3 calls; Lane A's Test.Channel.BotApi.Reset clears TelegramIn's kept offset with its own resets only (Story 12.1 re-plan); reachable from Story 12.7 (Included() 1 at every CI start)
+- 2026-10-30T06:46:50Z status=escalated owner=burndown by=spec_gate note=Lane B mock ask under AD-33 (AD-22): keep the Bot API state per token (keyed by the /bot<token>/ segment, control routes naming the token), or have TestTelegramBotApi stop TelegramIn around itself and read its ids from updateIds; optional: a status output on BotCall so Lane A's BotReply copy can go; DW-370 residual (orchestrator ruling 2026-10-30, Q2)
+- 2026-10-30T08:35:22Z occurrence=12-1-telegram-stays-off-without-a-token-and-ci-mocks-the-telegram
+- 2026-11-03T14:32:55Z status=wontfix-accepted owner=burndown by=unattended note=decision_sheet_Epic_12_merge:12.9_stops_the_Telegram_items_after_every_CI_and_throwaway_stack_start;reopen_if_a_direct-call_test_and_a_live_poller_share_one_stack
+
+### DW-422: TelegramIn's kept update offset ($$$EnsStaticAppData("TelegramIn", "offset")) is pinned only against Test.Channel.BotApi, so a Story 12.2 poller that kept its offset elsewhere would leave DW-370's Lane A half doing nothing
+- source: spec-12-1-telegram-stays-off-without-a-token-and-ci-mocks-the-telegram.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: Test.Channel.TelegramMock.TestResetClearsKeptOffset sets, reads and clears the node through BotApi alone; TelegramIn is still the stub (12.1 build-auto deferred)
+- 2026-10-30T07:40:55Z status=routed owner=12-2-ocutalon-polls-and-writes-to-its-own-bot-and-pauses-when-ano by=harvest note=Story 12.2's tests prove its poller's offset node is BotApi.Offset()'s node (Test.Channel.BotApi.Reset clears it with each mock reset)
+- 2026-10-31T13:36:45Z status=resolved-by:12-2-ocutalon-polls-and-writes-to-its-own-bot-and-pauses-when-ano by=adjudication note=Test.Channel.TelegramIn.TestOffsetNode (dd849271 plus review patches): the offset BotApi.SetOffset sets is carried by the first getUpdates (offset 3), only the update at it is handled, and the node moves to 4; mutation keeping the offset at EnsStaticAppData(TelegramIn,next) turns it red (spec Verification)
+
+### DW-428: Test.Channel.TelegramMock calls Test.Contract.Mock and Test.Channel.BotApi through $ClassMethod string names in three tests (##class in the other two), so a renamed helper shows only when the class runs
+- source: spec-12-1-telegram-stays-off-without-a-token-and-ci-mocks-the-telegram.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: TelegramMock.cls TestCallsAndLog, TestResetClearsKeptOffset, TestPollerCheck use $ClassMethod(mock|helper, "<name>", ...); TestUpdateScenarios and TestReplyScenarios use ##class; about 29 mechanical lines to align
+- 2026-10-30T08:35:22Z status=wontfix-accepted owner=12-1-telegram-stays-off-without-a-token-and-ci-mocks-the-telegram by=cr note=reopen_if=a renamed Mock or BotApi helper first shows as a TelegramMock red in CI, not at compile (not a two-way door)
 ### DW-480: README opening (owner text) 'Every decision is in Visual Trace with its reasons and cost' may read as an overclaim for a fixed-rules decision, which keeps only its fallback reason (Reasons empty, FallbackReason set)
 - source: _bmad-output/implementation-artifacts/spec-10-4-the-readme-opens-with-what-ocutalon-is-for-and-what-a-model.md | severity: low | fix-risk: high | footprint: in-story
 - evidence: Decide.cls RecordFallback sets Reasons='' and FallbackReason=reason; Result carries Fallback, FallbackReason, tokens and CostUSD; README.md:3 opening, README.md:34 Story 10.2 line
@@ -2812,6 +2883,9 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-30T13:09:59Z status=routed owner=burndown by=cr note=pre-existing, not 29.4's D1 edits (cappedMarked(day) passed first); fix: align the counts or sign S1 in before the seed
 - 2026-10-31T03:39:09Z owner=29-9-epic-29-burn-down by=burndown note=chartered into Story 29.9 (Epic 29 burn-down) at the burn-down gate
 - 2026-10-31T04:03:11Z owner=31-3-the-readme-leads-to-the-demo-and-the-launched-demo-is-measur by=burndown note=overflow (declined by Story 29.9's plan): not a test flake but a product gap: a web process cannot read the day's Usage rows (no SQL privilege), so its /state misses the counted spend StatusMonitor sees; a visitor arriving between the spend reaching the cap and the day being marked never gets the daily-cap banner live; a story that makes /state and StatusMonitor agree owns it; until then D1 stays under the one-rerun flake rule
+- 2026-11-03T15:21:47Z status=routed owner=burndown by=spec_gate note=flake_class_kept;declined_by_31.3_plan(fix_in_web/e2e-online/allowance/daily-cap.spec.ts_D1_racing_Core/StatusMonitor.cls:47-75,not_an_AC-named_case)
+- 2026-11-03T23:35:54Z status=routed owner=burndown by=burndown_gate note=U-254;first_daily_release_after_1.0.0;not_a_1.0.0_blocker
+- 2026-11-04T04:29:11Z occurrence=10ce26ac by=merge_gate note=run 41769982647 attempt 1 live:online-allowance D1 (feature head)
 
 ### DW-433: The CI mock's guide-watch scenario (ci/mock/scenarios/B/guide-watch.json) answers the guide's watch prompt with text only and calls no start_watch, so under the mock the guide's watch button starts no watch and makes no Orders check (UJ-1 step 2)
 - source: spec-29-4-sessions-stay-isolated-under-load.md | severity: med | fix-risk: med | footprint: out-of-footprint
@@ -2915,6 +2989,41 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-02T14:55:52Z status=routed owner=31-4-the-paired-chat-stays-isolated-under-load-too by=owner note=31.4_deferred_after_the_v1.0.0_tag(owner:Move_it_after_the_tag);first_daily_release
 - 2026-11-02T20:59:27Z occurrence=30-8-the-redactor-and-the-key-proof-catch-every-key-shape
 
+### DW-482: Test.Install.Production class doc (line 10): its list of items that carry no STUB (so the oracle marks them stub 0) does not yet name TelegramIn and TelegramOut, which Story 12.2 builds
+- source: spec-12-2-ocutalon-polls-and-writes-to-its-own-bot-and-pauses-when-ano.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Story 12.2 sets the TelegramIn and TelegramOut oracle rows to stub 0 (orchestrator ruling 2026-10-31, file-level extension); the doc line 10 edit was dropped because Epic 15 also changes line 10 of src/ocutalon/cls/OcuTalon/Test/Install/Production.cls
+- 2026-10-31T11:52:15Z status=routed owner=15-3-an-ipm-install-survives-restarts-and-reinstalls-and-every-re by=orchestrator note=doc only: append TelegramIn and TelegramOut (built in Story 12.2) to the class doc's list of items without STUB, in the same edit as Epic 15's own line-10 change; no behaviour
+
+### DW-486: TelegramIn calls Pairing.RecordChat(chatId, "") for every private update, and RecordChat sets DisplayName unconditionally, so once Story 12.4 stores a paired chat's name every later message would blank it
+- source: spec-12-2-ocutalon-polls-and-writes-to-its-own-bot-and-pauses-when-ano.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: Data/Pairing.cls RecordChat sets row.DisplayName = name unconditionally; Channel/Telegram/In.cls HandleUpdate passes an empty name (as 12.2's spec fixes it); no story stores a name yet, so nothing is lost today (dd849271)
+- 2026-10-31T12:13:11Z status=routed owner=12-4-a-valid-code-pairs-the-chat-with-the-session by=harvest note=fix on Epic 12's side if possible (TelegramIn passes the update's own name, or skips the name when it is empty); Data/Pairing.cls is Lane B's (AD-33) and contended with Epic 11, so a change there is a Lane B ask
+- 2026-11-01T07:40:52Z status=resolved-by:12-4-a-valid-code-pairs-the-chat-with-the-session by=adjudication note=TelegramIn_keeps_chat.first_name_only_while_paired(never_blanks_a_paired_name;clears_an_unpaired_row);pinned_by_Test.Channel.TelegramPair.TestNameOnlyWhilePaired(a-d);Data/Pairing.cls_untouched;commit_72017ebd+review_patches
+
+### DW-487: A Bot API call can outlast the 10-second item stop on a slow network: OpenTimeout inherits the read Timeout, and sendMessage reads 15 s
+- source: spec-12-2-ocutalon-polls-and-writes-to-its-own-bot-and-pauses-when-ano.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Api.Call sets only Timeout, which %Net.HttpRequest also uses for the connect (HttpRequest.cls:1257,1664): up to 8+8 s for getUpdates, 15+15 s for sendMessage; CI's local mock never shows it
+- 2026-10-31T13:34:35Z status=wontfix-accepted owner=12-2-ocutalon-polls-and-writes-to-its-own-bot-and-pauses-when-ano by=cr note=reopen_if=a TelegramIn or TelegramOut stop over 10 s is logged on a real network (12.7 hands-on pass or the demo host)
+
+### DW-488: A TELEGRAM_BOT_TOKEN with surrounding white space or a CR (an env file with CRLF) counts as set and goes into the /bot<token>/ path unchanged
+- source: spec-12-2-ocutalon-polls-and-writes-to-its-own-bot-and-pauses-when-ano.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Install.Step.Telegram.TokenSet only tests for an empty value and Api.Call uses GetEnviron as is; trimming is token handling (a veto area), so it was not changed in review
+- 2026-10-31T13:34:35Z status=wontfix-accepted owner=12-2-ocutalon-polls-and-writes-to-its-own-bot-and-pauses-when-ano by=cr note=reopen_if=an install with a right token shows Telegram rejected or failing, and the variable holds white space or a CR
+
+### DW-489: Two names are written twice: the client SSL configuration (Api.SSLCONFIG and Install.Step.SSL.NAME) and the token variable (Api.TOKENVAR and Install.Step.Telegram.TOKENVAR)
+- source: spec-12-2-ocutalon-polls-and-writes-to-its-own-bot-and-pauses-when-ano.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: a rename in one class only turns TelegramSettings (SSLConfig resolves to OcuTalonClient, which exists) or TelegramSwitch and the live tests red; unifying needs a cross-class parameter in a contended Install file
+- 2026-10-31T13:34:35Z status=wontfix-accepted owner=12-2-ocutalon-polls-and-writes-to-its-own-bot-and-pauses-when-ano by=cr note=reopen_if=either name changes in one place, or a second client of OcuTalonClient (the email story) adds a third copy
+
+### DW-490: test-ci-config.sh scans only the live:* entries of NO_WEB_BUNDLE_UNITS for bundle markers, so shard:lane-a@Channel, the first shard unit there, has no ongoing guard
+- source: spec-12-2-ocutalon-polls-and-writes-to-its-own-bot-and-pauses-when-ano.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: docker/tests/test-ci-config.sh:1045-1055 greps the bundle markers under case live:*); Story 12.2 recorded a one-time grep of Test/Channel in its Verification; the check script is not Epic 12's
+- 2026-10-31T13:34:35Z status=wontfix-accepted owner=12-2-ocutalon-polls-and-writes-to-its-own-bot-and-pauses-when-ano by=cr note=reopen_if=a Test.Channel class reads a file of the built bundle (a grep of Test/Channel for csp/, index.html or ensure_web_bundle hits)
+
+### DW-491: Test.Contract.Ac (TestTelegramStubHasAnAdapter) and Test.Msg.Contracts (line 136) still call TelegramIn the stub, and Ac.cls says that the Telegram epic replaces the value
+- source: spec-12-2-ocutalon-polls-and-writes-to-its-own-bot-and-pauses-when-ano.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Story 12.2 built TelegramIn and TelegramOut, which carry no STUB; the two docs are outside Epic 12's footprint and their assertions still hold
+- 2026-10-31T13:34:35Z status=wontfix-accepted owner=12-2-ocutalon-polls-and-writes-to-its-own-bot-and-pauses-when-ano by=cr note=reopen_if=either class is edited, or a later plan cites TelegramIn as a stub from those docs
 ### DW-478: Session.Hash's doc comment names only the resume reference and a client address as forms stored with it; Pairing.HashCode now stores pairing-code hashes through it
 - source: spec-11-0-epic-10-deferred-cleanup.md | severity: low | fix-risk: low | footprint: in-epic
 - evidence: Session.cls:120-121 reads 'the form in which the resume reference and a client address are stored'; since Story 11.0 Pairing.HashCode quits Session.Hash(code)
@@ -2930,6 +3039,9 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-31T11:55:11Z status=routed owner=30-1-long-conversations-are-compacted-under-the-limit by=orchestrator note=measure first:_the_invalid_rate_after_5.12_and_the_retry's_cost_and_time;veto_item
 - 2026-11-02T07:40:01Z status=decision-pending owner=burndown by=spec_gate note=human=measure_diagnose's_invalid_rate_after_5.12_on_host_Decision_rows_and_Story_9.5's_real-key_release-candidate_run;build_the_one_retry_only_if_above_about_1_in_50(U-191's_kept_condition);this_unattended_run_has_neither_host_access_nor_a_real_key(30.1_spec_declined_it)
 - 2026-11-02T22:47:05Z status=decision-pending owner=burndown by=merge_gate note=action_item:epic-30-decision-item-1-dw-483-measure-decide-invalid-rate(owner;decided_unattended_U9:human-only_entry_to_action_items)
+- 2026-11-04T03:54:25Z occurrence=rc2 by=merge_gate note=6 of 156 invalid (3.8 percent) on rc2; shipments-epoch-time, see DW-657
+- 2026-11-04T09:10:40Z occurrence=rc3 by=merge_gate note=6 of 156 invalid (3.8 percent) on rc3
+- 2026-11-04T09:10:41Z occurrence=rc4 by=merge_gate note=4 of 156 invalid (2.6 percent) on rc4; rc2, rc3 and rc4 are all above U-191's about 1 in 50, so the wording did not cause it; rc4 rehearsal run 8 failed on a diagnose fallback invalid; one-retry story prepared for the owner, not started
 
 ### DW-492: No test pins AC2's floor: a model-written text property of a reply class capped at 32 characters or fewer would pass CI (TestDiagnosisLengths checks only prompt and class agreement)
 - source: spec-5-12-a-correct-diagnosis-is-never-refused-for-an-over-long-eviden.md | severity: low | fix-risk: low | footprint: in-story
@@ -2955,6 +3067,94 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-31T12:04:51Z status=routed owner=31-4-the-paired-chat-stays-isolated-under-load-too by=orchestrator note=also_check_that_the_repo's_proxy_stand-in(Story_29.3)_admits_the_broker-path_hyperevent_fields,and_record_the_allowance_as_built_beside_AD-25's_sign-in_rule
 - 2026-11-02T14:55:52Z status=routed owner=31-4-the-paired-chat-stays-isolated-under-load-too by=owner note=31.4_deferred_after_the_v1.0.0_tag(owner:Move_it_after_the_tag);first_daily_release
 
+### DW-494: flake: OcuTalon.Test.Fix.Partial TestCopiesFailAgain ('and stores 3/3/0/3/0 with the reason the order date still wasn't accepted' and four more asserts) red in CI shards-2 (shard:lane-a@rest), green on an unchanged rerun
+- source: spec-12-2-ocutalon-polls-and-writes-to-its-own-bot-and-pauses-when-ano.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: CI run 41207682542 attempt 1 (OCT-epic12 ec468c81, Story 12.2, no Fix change), iris shards-2: 5 asserts of TestCopiesFailAgain failed (57.4 s); attempt 2 green; the class passed on a fresh lane-C throwaway in 41 s; af47ff3c green on the same unit
+- 2026-10-31T15:28:23Z status=routed owner=burndown by=ci note=flake class from now: one rerun with occurrence=; likely a wait in Fix.Partial under CI load (inference); Fix is Lane A, Epic 7's area (Fix/Executor.cls is contended with Epic 30)
+- 2026-11-03T11:05:55Z status=routed owner=burndown by=burndown note=Epic_12_burn-down:not_a_1.0.0_blocker(single_occurrence_or_forced_copy);first_daily_release_after_1.0.0(orchestrator_ruling_with_the_Contest_Planner)
+
+### DW-499: The Telegram card's view module web/src/app/rail/telegram-card/telegram-card-view.ts has no Node unit test; its branches (missing status, missing or non-string time slot, state on) are pinned only by the browser tests T1 and T2
+- source: spec-12-8-the-page-shows-when-telegram-is-paused-and-when-it-will-try.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: Sibling view modules (banner-view, rail-view) have web/scripts/*-view.test.mjs; a new file under web/scripts/ is Lane B's (AD-29) and Story 12.8's ruling allows only three named entries; T1 and T2 cover paused, off, rejected and not paused (750cc54e)
+- 2026-10-31T17:44:56Z status=wontfix-accepted owner=12-8-the-page-shows-when-telegram-is-paused-and-when-it-will-try by=harvest note=reopen_if=a card-state defect reaches CI or the page that T1/T2 did not catch, or Lane A gains its own web unit-test file for telegram-card (then add telegram-card-view.test.mjs there)
+
+### DW-502: The Telegram card's paused predicate (telegram-card-view.ts holds() and the condition name telegramPaused) is a copy of banner-view.ts's private holds(), so a later change to the banner's rule would leave the card and the banner out of step
+- source: spec-12-8-the-page-shows-when-telegram-is-paused-and-when-it-will-try.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: A one-expression copy that the spec forces (Decided 1; banners/* is on the Never list, Lane B's under AD-29); T1 pins both together for today's rule; the unifying fix exports holds() from banner-view.ts, a Lane B file
+- 2026-10-31T18:23:40Z status=wontfix-accepted owner=12-8-the-page-shows-when-telegram-is-paused-and-when-it-will-try by=cr note=reopen_if=banner-view.ts's holds() or its telegramPaused row changes, or a Lane B story exports holds(): then import it
+
+### DW-503: UX-DR137 (the unpaired Telegram card at the top of the device column at 1024 to 1279 px) is carried by no story's acceptance criteria, and the column layout is Lane B's (AD-29)
+- source: spec-12-3-the-telegram-card-shows-a-fresh-pairing-code-as-a-qr-code.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: found by Story 12.3's plan: the card's unpaired state is built in Lane A's telegram-card/, but its position in the device column at 1024-1279 px is the rail layout's (Lane B's web files); no story in epics.md names UX-DR137
+- 2026-10-31T19:18:18Z status=escalated owner=burndown by=spec_gate note=for the decision sheet: route to a Lane B story (layout) or accept; not Epic 12's files
+- 2026-11-03T14:32:55Z status=decision-pending owner=burndown by=unattended note=inbox=U-238
+- 2026-11-03T14:37:22Z status=routed owner=burndown by=owner note=U-238:UX-DR137_device-column_placement_to_first_daily_release;the_narrow_fix(guide_hint_and_Show_me_open_the_Status_drawer_at_1024-1279)_is_Story_12.10_before_the_tag
+
+### DW-504: Lane B's web/scripts/qr-pin.test.mjs header says nothing in web/src uses qrcode-generator yet, which Story 12.3's card makes untrue
+- source: spec-12-3-the-telegram-card-shows-a-fresh-pairing-code-as-a-qr-code.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Story 12.3 draws the pairing QR code with the vendored qrcode-generator 2.0.4 in web/src/app/rail/telegram-card/; the comment is Lane B's file
+- 2026-10-31T19:18:18Z status=wontfix-accepted owner=12-3-the-telegram-card-shows-a-fresh-pairing-code-as-a-qr-code by=spec_gate note=reopen_if=Lane B next edits qr-pin.test.mjs (update the header then), or the comment misleads a reviewer
+
+### DW-508: flake: web/e2e/floor/guide.spec.ts:253 M4 ('the page holds the earlier progress event': 'zz M Orders again' not visible in the Status region within 15 s) red in CI shards live:floor, green on an unchanged rerun
+- source: spec-12-8-the-page-shows-when-telegram-is-paused-and-when-it-will-try.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: CI run 41230579974 attempt 1 (OCT-epic12 a634857d, Story 12.8; no guide, rail or watch change), iris shards, live:floor M4; attempt 2 green; live:floor passed locally 105/105 on a fresh lane-C stack
+- 2026-10-31T19:42:02Z status=routed owner=burndown by=ci note=flake class from now: one rerun with occurrence=; guide.spec.ts and the Status region are Lane B's (Epic 4/8 area); possibly a real tick or watch.progress ordering under CI load (inference)
+- 2026-11-03T11:05:55Z status=routed owner=burndown by=burndown note=Epic_12_burn-down:not_a_1.0.0_blocker(single_occurrence_or_forced_copy);first_daily_release_after_1.0.0(orchestrator_ruling_with_the_Contest_Planner)
+
+### DW-512: A browser clock ahead of the server's by ten minutes or more makes the Telegram card replace its pairing code every 10 s, captioned 'New code in 1 min'
+- source: spec-12-3-the-telegram-card-shows-a-fresh-pairing-code-as-a-qr-code.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: telegram-card-view.ts dueTime compares the server's expiresAt with the browser clock; the 10 s spacing bounds the requests (Boundaries 'The spacing', Decided 4; matrix row 2 expects '1 min' for a past expiry)
+- 2026-10-31T23:27:23Z status=by-design owner=12-3-the-telegram-card-shows-a-fresh-pairing-code-as-a-qr-code by=cr note=spec-bound: the spacing rule is the specified guard; a server-relative lifetime would change the Boundaries' due-time formula
+
+### DW-513: A 409 that the code route gives only briefly (TelegramIn restarting) keeps the Telegram card on 'Telegram not set up' until /state's Telegram values or the pause change
+- source: spec-12-3-the-telegram-card-shows-a-fresh-pairing-code-as-a-qr-code.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: telegram-card.ts records refusedAt under the asking key and never re-asks for that key; no live event carries the server's state (Decided 2)
+- 2026-10-31T23:27:23Z status=by-design owner=12-3-the-telegram-card-shows-a-fresh-pairing-code-as-a-qr-code by=cr note=spec-bound: Decided 2 (a stale page never polls a refusing route); a reload shows the real state
+
+### DW-514: Two tabs of one session each show an unpaired Telegram card, and each code request replaces the session's one code (AD-4), so the other tab's QR code is dead until its own refresh
+- source: spec-12-3-the-telegram-card-shows-a-fresh-pairing-code-as-a-qr-code.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: Pairing.StoreCode keeps one code row per session (CodeSessionRefIndex unique) and each card asks on its own; scanning the older tab's code gets Story 12.5's 'That code didn't work'
+- 2026-10-31T23:27:33Z status=decision-pending owner=burndown by=cr note=product call: accept (AD-4, the code never leaves the card), only the visible tab asks, or another rule; a cross-tab share breaches the spec's 'sends it nowhere'
+- 2026-11-03T14:32:55Z status=by-design owner=burndown by=unattended note=decision_sheet_Epic_12_merge:AD-4_one_code_per_session;refreshing_the_other_tab_gets_a_fresh_code
+
+### DW-515: The Telegram card's long-timer and refusal-reset rules are pinned by no test: the 30 s retry after a non-409 failure, the 409 stop beyond T4's 3 s window (the 10 s spacing makes that window unable to fail), and the refusal forgotten when a pause starts and ends
+- source: spec-12-3-the-telegram-card-shows-a-fresh-pairing-code-as-a-qr-code.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: telegram-card.ts ask()/later() and the askKey effect; pinning needs a 31 s wait or a live-event route on a refused page, and page.clock is excluded (Decided 9) while the browser group runs about 25 min
+- 2026-10-31T23:27:33Z status=wontfix-accepted owner=12-3-the-telegram-card-shows-a-fresh-pairing-code-as-a-qr-code by=cr note=reopen_if=a card asks after a 409, never retries after a 5xx, or stays not set up after a pause clears, in CI or on a page; or Lane A gains a web unit-test host
+
+### DW-516: TelegramPageFixture.Finish keeps a code row that existed at Start, so when an earlier Finish failed and left the README session's code row, the page's codes overwrite that row and it stays with the test's last code hash
+- source: spec-12-3-the-telegram-card-shows-a-fresh-pairing-code-as-a-qr-code.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Pairing.StoreCode reuses the session's row (CodeSessionRefIndexOpen), and DropCodes keeps every Ref Start saved; mutation M5 showed it (T1's leftover row survived T3's Finish)
+- 2026-10-31T23:27:33Z status=wontfix-accepted owner=12-3-the-telegram-card-shows-a-fresh-pairing-code-as-a-qr-code by=cr note=reopen_if=Start finds a code row of the test's own session, or a later test reads the README session's code row
+
+### DW-520: SessionOps.Unlink keeps DisplayName in a row it unpairs, so an unpaired Pairing row holds a name until that chat writes again (Lane B ask: clear DisplayName on unlink)
+- source: _bmad-output/implementation-artifacts/spec-12-4-a-valid-code-pairs-the-chat-with-the-session.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Core/SessionOps.cls Unlink clears SessionRef and SeenAt only; TelegramIn (12.4) clears the name on the chat's next update; the name never reaches a production message, /state of another session or the trace
+- 2026-11-01T06:58:27Z status=wontfix-accepted owner=12-4-a-valid-code-pairs-the-chat-with-the-session by=harvest note=reopen_if=a test or audit finds a DisplayName on a Pairing row with no SessionRef older than one update, or a Lane B story edits SessionOps.Unlink (then add the one-line clear)
+- 2026-11-01T07:39:08Z occurrence=12-4-a-valid-code-pairs-the-chat-with-the-session
+
+### DW-527: The Telegram card's state order (paused, not set up and paired ahead of just-unpaired) has no unit test: moving the justUnpaired branch above paired or paused keeps T5 and T6 green
+- source: _bmad-output/implementation-artifacts/spec-12-5-bad-codes-a-bare-start-command-and-unpairing-get-polite-answ.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: telegram-card-view.ts:169 telegramCardView is framework-free; no web/scripts/*.test.mjs calls it; only T5/T6 run the just-unpaired view
+- 2026-11-01T11:13:27Z status=open owner=12-5-bad-codes-a-bare-start-command-and-unpairing-get-polite-answ by=harvest note=runner ruling: a NEW test file web/scripts/telegram-card-view.test.mjs (Epic 12's own card view; not contended) is allowed and reported as a footprint extension; or pin it with a T6 case (a pairing during the 5 s window shows the paired row)
+- 2026-11-01T12:06:25Z status=resolved-by:12-5-bad-codes-a-bare-start-command-and-unpairing-get-polite-answ by=adjudication note=web/scripts/telegram-card-view.test.mjs(10_cases;QA)_pins_paused,not-set-up,paired_ahead_of_just-unpaired_and_the_5000ms_window;mutations_moving_justUnpaired_above_paired(3_red)/paused(4_red)
+
+### DW-528: A pairing that removes the focused Open in Telegram link sends focus to the main region, not the Telegram heading
+- source: spec-12-5-bad-codes-a-bare-start-command-and-unpairing-get-polite-answ.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: The unpaired root of telegram-card.ts carries no data-row-key/data-section, so keepFocus finds no item and falls back to the main region when the paired view replaces it. EXPERIENCE Focus replacement says nearest container. Neither 12.4 nor 12.5 specifies focus on pairing, and it needs a T6 step plus a live run.
+- 2026-11-01T12:04:51Z status=wontfix-accepted owner=12-5-bad-codes-a-bare-start-command-and-unpairing-get-polite-answ by=cr note=reopen_if=a keyboard pass (38.3 real-device or an a11y audit) finds focus outside the Telegram section after pairing
+
+### DW-536: flake: web/e2e/demo-path/telegram-page.spec.ts T6 (Story 12.5): 'chat 113 is told that the code did not work' timed out (10 s poll for the bad-code reply) once on a fresh lane-C live:demo-path; the unchanged rerun passed
+- source: _bmad-output/implementation-artifacts/spec-12-5-bad-codes-a-bare-start-command-and-unpairing-get-polite-answ.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: runner smoke of 12.6 (tag e12s6smk, 2026-11-01T17:30Z): 1 failed telegram-page.spec.ts:925 expect.poll repliesOf(STRANGER_CHAT) toEqual([BAD]) timeout 10000ms; rerun 19 passed
+- 2026-11-01T17:35:48Z status=routed owner=burndown by=smoke note=flake class: one rerun with occurrence=; a second red on the same head takes the rework path; probe whether TelegramIn's poll plus Notify->TelegramOut can exceed 10 s under load, or the reply list read races the send
+- 2026-11-03T11:05:55Z status=routed owner=burndown by=burndown note=Epic_12_burn-down:not_a_1.0.0_blocker(single_occurrence_or_forced_copy);first_daily_release_after_1.0.0(orchestrator_ruling_with_the_Contest_Planner)
+
+### DW-540: flake: web/e2e/demo-switch/mailbox.spec.ts:425 MB9 (a refused chip press shows the server message; page.waitForResponse hit the 120 s test timeout) red once in CI shards-2 live:demo-switch on OCT-epic12 b14f7527; the unchanged rerun passed
+- source: _bmad-output/implementation-artifacts/cycle-log-epic-12.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: run 41334145441 job iris (shards-2) attempt 1: 1 failed (MB9, 2.0m); attempt 2 green; Epic 12 changed no mailbox or demo-switch code
+- 2026-11-01T19:32:33Z status=routed owner=burndown by=ci note=flake class: one rerun with occurrence=; Lane B's (Epic 4 / Story 4.6) test; a second red on the same head takes the rework path
+- 2026-11-03T11:05:55Z status=routed owner=burndown by=burndown note=Epic_12_burn-down:not_a_1.0.0_blocker(single_occurrence_or_forced_copy);first_daily_release_after_1.0.0(orchestrator_ruling_with_the_Contest_Planner)
 ### DW-495: Test.Bridge.Gate's untrusted-turn row still calls cancel_reminder with {"reminderRef":"x"}, which now answers BADREFS before CommandCall.Run, so the row's 'its method did not run' check (CommandCount '= 0) can no longer fail for cancel_reminder
 - source: spec-11-8-the-chat-cancels-several-reminders-in-one-call-and-says-it-c.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Test/Bridge/Gate.cls:1764 passes the old key; RunDenied (Gate.cls:2235) detects a built-in tool's run only by CommandCount; ReminderTools.CancelReminder answers BADREFS for a missing reminderRefs without calling Run (TestCancelThroughTheToolManager pins {} as BADREFS with nothing recorded)
@@ -3076,6 +3276,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: CI run 41351529214 attempt 1 (OCT-epic11 1b0c0d39, iris install-upgrade, live:cards): 1 failed (I10, 1.5m); attempt 2 green; the spec imports no file Story 11.12 changed
 - 2026-11-01T22:44:24Z status=routed owner=burndown by=ci note=flake routed to the burn-down with priority: a sign-in that never answers /state within 90 s on a loaded host
 - 2026-11-02T11:13:19Z owner=burndown by=burndown note=Epic 11 part 1 burn-down (owner trim): no charter (2 story-closable entries plus this repaired owner, under the cap, no repeat occurrences); kept for Epic 11 part 2's burn-down gate, as Epic 30 part 1 did; flakes with priority
+- 2026-11-03T18:43:26Z occurrence=31-7-after-an-unpair-the-telegram-card-shows-its-fresh-code-witho by=lead note=CI_run_41689251949_iris(browser)_live:sign-in_web/e2e/live/socket.spec.ts:138_W2_45s_timeout_in_loadedAfter_/state_wait(floor.ts:141)_runner_19;flake_rerun
+- 2026-11-03T16:12:51Z status=routed owner=burndown by=merge_gate note=occurrence:035be7d2_run_41659785594_iris(shards)_live:cards_I8_incident-card.spec.ts:396_loadedAfter_/state_wait_at_sign-in;green_on_rerun
 
 ### DW-551: The release checklist does not check the draft notes for the inspiration's name outside the not-affiliated note (only the tracked tree's name-only-in-note row); the draft's own rules are Story 11.13's
 - source: spec-11-4-the-release-gets-draft-notes-and-a-checklist.md | severity: low | fix-risk: low | footprint: in-epic
@@ -3163,6 +3365,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: iris (install-upgrade) attempt 1 red only on live:cards A7 after a 2.0 min test timeout in page.waitForResponse; every other unit and group green; attempt 2 of the same job green on the same sha; Story 5.12 touched no web or cards file
 - 2026-10-31T16:42:54Z status=routed owner=burndown by=ci note=flake class, filed at CI resolution point 1 (Story 5.12); fix: find why the first state GET can miss the 120 s window under the install-upgrade group's load (sign-in wait or the response predicate)
 - 2026-10-31T16:43:23Z owner=31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=burndown note=overflow at Epic 5's burn-down gate (re-open for Story 5.12): the approval-card spec is Lane B's (Epic 6); Story 31.2, Lane B's hardening story on approval requests, is the next story to touch that path; one occurrence, under the cap, so no burn-down story was chartered
+- 2026-11-02T15:14:11Z status=resolved-by:31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=adjudication note=A7_signs_in_over_HTTP(signInOverHttp),no_open();floor.ts_untouched
+- 2026-11-03T14:35:03Z occurrence=0-13-a-start-retries-the-cpf-merge-when-iris-cannot-quiesce note=CI run 41641201023 attempt 1, iris (browser) live:sign-in on OCT-epic0 c3d264c5: web/e2e/chat/chat.spec.ts:693 C7 timed out (45 s) in loadedAfter's /state wait at sign-in (support/floor.ts:141); green on the unchanged rerun
 
 ### DW-498: Story 5.12's invalid-reply warning logs $SYSTEM.Status.GetErrorText of the reply check, and for a MAXLEN or datatype failure that text quotes the offending value (the model's own reply content), which U-193's condition forbids: the warning must name the failing property and the limit (for example 'Evidence element 6: 42 > 32') and quote none of the reply
 - source: orchestrator: U-193's condition (#581) checked against Story 5.12's merged code (14de8018) | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -3183,6 +3387,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-16-11-the-splash-promises-telegram-only-when-the-release-includes.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: Msg/Catalog/Core.cls:268 and web/src/app/msg/catalog.ts carry the text unconditionally; web/e2e-online/allowance/messages.spec.ts:35 and web/e2e/banners/banners.spec.ts:359,501 pin it; a visitor who uses up the 50 messages reads 'or Telegram' while the release has none
 - 2026-10-31T17:45:09Z status=routed owner=12-7-approve-or-reject-from-telegram-and-every-copy-shows-who-ans by=harvest note=orchestrator ruling U-197: keep it out of 16.11, route it to Story 12.7 with the splash's included case
+- 2026-11-02T14:10:41Z status=routed owner=12-9-telegram-is-included by=spec_gate note=split_at_12.7_spec_gate:the_splash_and_banner_part_moved_to_12.9;mechanism_waits_on_U-219(U-197_follow-up)
+- 2026-11-03T07:11:40Z status=resolved-by:12-9-telegram-is-included owner=12-9-telegram-is-included by=cr note=B5_banner.allowanceChat_shown_while_telegramOn_is_false;banner-view.test.mjs_and_banners.spec_B5_B8_pin_both_forms
 
 ### DW-505: An assertion written x [ "a"_y tests only x [ "a" (ObjectScript evaluates left to right), so it can pass whatever y is: Test.Agent.KeyScan:123 can never fail, and no check rejects the form
 - source: spec-16-11-the-splash-promises-telegram-only-when-the-release-includes.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -3196,6 +3402,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-16-11-the-splash-promises-telegram-only-when-the-release-includes.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: Msg/Catalog/Core.cls:315 and web/src/app/msg/catalog.ts:18 carry it unconditionally; banner-view.ts shows it 5 minutes before each reset; web/e2e-online/reset.spec.ts:48 pins it
 - 2026-10-31T19:24:43Z status=routed owner=12-7-approve-or-reject-from-telegram-and-every-copy-shows-who-ans by=cr note=same ruling as DW-501 (U-197: no other wording change in 16.11); 12.7 gates it with the allowance banner
+- 2026-11-02T14:10:41Z status=routed owner=12-9-telegram-is-included by=spec_gate note=split_at_12.7_spec_gate:the_splash_and_banner_part_moved_to_12.9;mechanism_waits_on_U-219(U-197_follow-up)
+- 2026-11-03T07:11:40Z status=resolved-by:12-9-telegram-is-included owner=12-9-telegram-is-included by=cr note=B5_banner.resetSoonChat_shown_while_telegramOn_is_false;reset.spec_and_announcements.spec_pin_the_chat_form
 
 ### DW-507: live:online-demo prints 'jar.busy.s3.g: No such file or directory' on every run: set_cookie_value reads the redirect-GET headers file that a refused (200) sign-in never writes
 - source: spec-16-11-the-splash-promises-telegram-only-when-the-release-includes.md | severity: low | fix-risk: low | footprint: in-epic
@@ -3249,6 +3457,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Story 4.9 notes: stacked header 157px/180px at 320px wide; G4 amended to at most a quarter of the viewport (U-202)
 - 2026-11-01T12:30:52Z status=routed owner=31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=merge_gate note=Planner: where the stacked header would pass a quarter of the window's height it scrolls with the page (lean: position static below 480px), or a menu below 1024px, the cheaper; 1.0.0 only at no date cost to Epic 31, else the first daily release after 1.0.0
 - 2026-11-01T19:39:55Z occurrence=4-9-a-demo-view-switch-shows-the-page-as-it-looks-on-your-own-in note=4.9_code_review:at_320px_the_stacked_demo_header_measures_157-180px,over_a_quarter_of_windows_under_~720px_high(U-202_bound)
+- 2026-11-02T15:14:11Z status=resolved-by:31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=adjudication note=header.ts_scrolls_class_where_over_a_quarter_of_the_window;layout_G4(320x180,resize_back_to_sticky)
 
 ### DW-544: An invalid diagnose reply whose nested field (fixParameters.field/sourceFormat/targetFormat, itemNoun.one/other) breaks its MAXLEN gets the warning 'ERROR #9406' with no property, limit or length: RefusalImport matches the #9406 field only among the reply class's own properties
 - source: spec-30-6-the-invalid-reply-warning-names-what-failed-never-the-reply.md | severity: med | fix-risk: med | footprint: in-story
@@ -3266,17 +3475,25 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: Contest Planner: Epic 4 host check on 374f958e, 2026-11-01 | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: host browser check at 640x360 scale 2
 - 2026-11-01T20:13:34Z status=routed owner=31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=merge_gate note=the finish state wraps to full width below the breakpoint; with DW-530, 1.0.0 only at no date cost
+- 2026-11-02T15:14:11Z status=resolved-by:31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=adjudication note=demo-guide.ts_compact_stacked_.finish_full_width;guide_M9
 
 ### DW-543: At 1280x800 the empty chat opens scrolled to the bottom, so the welcome block's heading is clipped at the top
 - source: Contest Planner: Epic 4 host check on 374f958e, 2026-11-01 | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: host browser check at 1280x800
 - 2026-11-01T20:13:34Z status=routed owner=31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=merge_gate note=cosmetic; the empty chat opens at its top; only if cheap, with DW-530's no-date-cost rule
+- 2026-11-02T15:14:12Z status=resolved-by:31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=adjudication note=chat-panel.ts_fresh_chat_exempt_from_bottom-follow;chat_C16
 
+### DW-556: Web.Live copies Api.IsCursor (?1.15N) and Api.CurrentSession's SessionRef+RefIndexOpen pair, both Private in the contended Web/Api.cls (Rule 2 spec-forced copy)
+- source: spec-31-1-push-live-events-over-a-websocket-on-local-installs.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Web/Live.cls Refusal :74 and Admit/Frame :90,:163 repeat Api.cls :1017-1019 and :900-909; the spec names the copy (Api private, Epic 11 contended). If the cursor rule changes in Api only, the socket refuses valid cursors and the page silently falls back to polling.
+- 2026-11-02T00:30:45Z status=wontfix-accepted owner=31-1-push-live-events-over-a-websocket-on-local-installs by=cr note=reopen_if=git log 3010f5a7.. -L1017,1020:src/ocutalon/cls/OcuTalon/Web/Api.cls (or :900,910) shows a change, or either becomes public
 ### DW-549: flake: live:online-demo web/e2e-online/resume.spec.ts:84 R1 'it expires at the next reset' was one second off (expected 1793575980, received 1793575981): the cookie's expiry and the test's computed next reset are taken at different seconds
 - source: CI run 41350877752 (install-fresh), head 3728ccee | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: job 124980538561: R1 expected Math.floor(nextReset/1000)=1793575980, cookie expires 1793575981; passed on the unchanged rerun
 - 2026-11-01T22:22:51Z status=routed owner=burndown by=harvest note=flake class: one rerun; fix: compare within one second, or derive both from one clock read (Lane B web/e2e-online; Epic 11 currently changes resume.spec.ts)
 - 2026-11-02T12:09:17Z owner=31-3-the-readme-leads-to-the-demo-and-the-launched-demo-is-measur by=burndown note=overflow:Lane_B_web/e2e-online/resume.spec.ts(contended:Epic_11_changes_it;AD-33);fix:compare_within_one_second_or_derive_both_from_one_clock_read
+- 2026-11-03T15:21:47Z status=routed owner=burndown by=spec_gate note=flake_class_kept;declined_by_31.3_plan(fix_in_web/e2e-online/resume.spec.ts:84,not_AC-named,standing_ruling_forbids_the_edit)
+- 2026-11-03T23:35:54Z status=routed owner=burndown by=burndown_gate note=U-254;first_daily_release_after_1.0.0;not_a_1.0.0_blocker
 
 ### DW-559: The reminders list answer (CommandCall.Listed) shows each due time without the zone label on the online demo, while the set reply (Answer) now carries ' ET'
 - source: _bmad-output/implementation-artifacts/spec-30-5-mixed-and-unfinished-resends-say-how-far-they-got.md | severity: low | fix-risk: low | footprint: in-story
@@ -3295,6 +3512,28 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Contest Planner note on DW-484 (2026-11-01T07:18:36Z): the wider mixed-clock issue stays post-1.0.0
 - 2026-11-02T03:02:29Z status=wontfix-accepted owner=30-5-mixed-and-unfinished-resends-say-how-far-they-got by=adjudication note=post-1.0.0 by the Planner's decision; reopen_if=a_1.x_step_or_the_Planner_schedules_the_mixed-clock_fix
 
+### DW-578: flake: live:sign-in web/e2e/banners/banners.spec.ts:927 B15 (a skipped Seq after the outage loads the snapshot again, once) hit the 45 s test timeout in CI and passed on the unchanged rerun
+- source: cycle-log-epic-31 CI run 41419787515 attempt 1 | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: head 17c86e98 changed only Test/Web/SessionEvents.cls; browser green on 63bfe214; B15 green on attempt 2. banners.spec.ts is never edited (U-173) and does not block the 31.1 socket: check whether a socket frame right after the outage adds a reload (31.1 review's rejected 'one extra, idempotent snapshot reload')
+- 2026-11-02T10:31:21Z status=routed owner=burndown by=cr note=flake class: one rerun and an occurrence; reopen as story if it reds twice on one head
+- 2026-11-02T10:31:25Z by=ci note=filed_by_runner_C_at_the_CI_red_classification(the_new_line_says_by=cr_in_error)
+- 2026-11-03T23:35:54Z status=routed owner=burndown by=burndown_gate note=U-254;first_daily_release_after_1.0.0;not_a_1.0.0_blocker
+
+### DW-585: DW-473 residual: the page cannot show a still-running fix run's counts so far (result.stillResending needs completed and count): Live.Payload.Incident fills Requests[].Result only from an ended FixRun, and Fix/Run keeps no counts while executing
+- source: _bmad-output/implementation-artifacts/spec-31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv.md | severity: low | fix-risk: med | footprint: out-of-footprint
+- evidence: Incident.cls:144-147 (Lane A); spec-30-5 row 2 (FixRun has no EndedAt and no counts while executing); Watch.Notice ResultSlots needs completed/count
+- 2026-11-02T14:20:12Z status=routed owner=burndown by=harvest note=U-211 kept (Contest Planner, 2026-11-02T09:22:13Z#640): post-1.0.0 Lane A story (Fix/Run.cls, Live/Payload/Incident.cls); not 1.0.0 scope
+- 2026-11-03T23:35:54Z status=routed owner=burndown by=burndown_gate note=U-254;first_daily_release_after_1.0.0;not_a_1.0.0_blocker
+
+### DW-586: docker/tests/test-cards.sh (lines 6, 77, 83) and test-answers.sh (line 7) still word the cards unit's approval cases as A2-A10 after Story 31.2 added A11
+- source: spec-31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: playwright-projects.test.mjs now pins A2 to A11 (20 cases); the two scripts' comments and pass/fail lines say A2-A10; docker/tests/** is in Epic 13's and Epic 15's footprints (contended)
+- 2026-11-02T15:12:18Z status=wontfix-accepted owner=31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=cr note=reopen_if=a story that owns docker/tests/ edits test-cards.sh or test-answers.sh (fix the wording then)
+
+### DW-587: web/e2e/cards/approval-card.spec.ts iconPaths is a near-copy of web/e2e/answers/close-loop.spec.ts iconPaths (Rule 2); its shared home, web/e2e/support/, and close-loop.spec.ts are outside Story 31.2's footprint
+- source: spec-31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: the two functions read src/app/icon/icon.ts the same way (31.2's adds a non-empty guard); unifying needs web/e2e/support/ and close-loop.spec.ts, both on the spec's Never list
+- 2026-11-02T15:12:18Z status=wontfix-accepted owner=31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=cr note=reopen_if=a third e2e spec reads icon paths from icon.ts, or a story editing web/e2e/support/ can host the helper
 ### DW-575: Spine notes from Story 30.1 for an attended bmad-architecture Update: AD-20 fallback also covers a summarizer request or first request over the request-size limit and a fork that cannot be saved and reopened; the fork is reopened through OpenSession before Chat; a compaction sets SessionRotated; the seed is bounded by SEEDCHARS (80,000); the 20 s go only to a flagged turn that continues a linked conversation; AD-8 judges too_large for such a turn on the post-compaction bound; AD-6's adapter save rule gains the compaction fork after its check; AD-22 names Test.Eval.ThinkingSmoke's home
 - source: spec-30-1-long-conversations-are-compacted-under-the-limit.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: 30.1 Design Notes V1 and Spine notes; the ADs allow the behaviour as written, but their text is silent; AD-20/AD-8/AD-6/AD-22 are cited by merged stories, so a runner may not amend them unattended (U7, U14)
@@ -3351,11 +3590,115 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: a deterministic red needs a browser spec that waits a tick, or a mutated Test.Data.Fixture CHECKAHEAD; both are outside 11.19's footprint (spec Never list); AC1's source pins and FixtureDefaults.TestCheckIsNotDue are the falsifiable halves
 - 2026-11-02T12:35:31Z status=wontfix-accepted owner=11-19-seeded-check-rows-stay-out-of-the-heartbeat-s-way-unless-a-c by=cr note=reopen_if=a seeded browser case reads a finding or last run it was not seeded with in CI after Epic 11 part 1 merges
 
+### DW-591: flake: OcuTalon.Test.Channel.TelegramChat setup (RunnerFixture) failed with ERROR 5001 'not every item runs 120 s after the TriageAgent restart' in CI iris (production) shard:lane-a@Channel (399 s vs 38 s locally); the unchanged rerun of the failed jobs was green
+- source: cycle-log-epic-12.md (integrate-forward head 404351eb, run 41456056242) | severity: med | fix-risk: low | footprint: src/ocutalon/cls/OcuTalon/Test/Channel/TelegramChat.cls
+- evidence: run 41456056242 attempt 1 production group 2369 s, TelegramChat setup red; attempt 2 (gh run rerun --failed) green; lane-a 41456056000 green
+- 2026-11-02T17:51:56Z status=routed owner=burndown by=harvest note=CI flake (one unchanged rerun green); setup restart wait likely too short on a loaded CI host; not a 1.0.0 blocker unless it recurs
+- 2026-11-02T22:14:54Z occurrence=12-7-approve-or-reject-from-telegram-and-every-copy-shows-who-ans by=harvest note=QA_warm_stack_reversed_lane-a@Channel_part2/2:TelegramChat_setup_production_items_not_running_after_120s;passed_alone(36s)_and_fresh_reversed
+- 2026-11-03T00:09:06Z occurrence=12-7-approve-or-reject-from-telegram-and-every-copy-shows-who-ans by=ci note=CI_run_41545446452_head_e9bfda24_iris(production)_shard:lane-a@Channel_TelegramChat_failed_398s(same_setup_pattern);the_40-min_job_timeout_then_cancelled_the_group;second_CI_occurrence_on_a_second_head;rerun_started
+- 2026-11-03T00:10:04Z status=routed owner=12-9-telegram-is-included by=lead note=evidence_attempt1_41545446452;ERROR_5001_Not_every_item_of_OcuTalon.Production_runs_120_seconds_after_TriageAgent/DiagnosisAgent/ChatAgent_was_started_again:TelegramIn(the_only_item_not_running);2_CI_heads(404351eb,e9bfda24),green_on_reruns_and_locally;12.9_changes_TelegramIn's_state_on_every_stack(parking),so_it_owns_making_the_restart_readiness_check_hold_for_TelegramIn
+- 2026-11-03T05:37:19Z occurrence=12-9-telegram-is-included by=harvest note=fix_in_8bead6ac:RunnerFixture.NotRunningNow_skips_an_item_whose_Enabled_row_is_0;failure_text_StateOf_names_row,flag,jobs;not_reproduced_locally(one-stack_shard_forward_508s,reversed_499s,before_and_after)
+- 2026-11-03T07:11:40Z status=resolved-by:12-9-telegram-is-included owner=12-9-telegram-is-included by=cr note=RunnerFixture.NotRunningNow_skips_row-0_items_(TelegramParked_pins_it);root_cause_unreproduced;a_CI_recurrence_shows_StateOf
+
+### DW-608: flake: web/e2e/answers/close-loop.spec.ts:207 C1 expected 'Approved from the web chat at 23:58.' but the page said 'Approved from the web chat on Monday at 23:58.': the run crossed midnight UTC, and the test builds its expected answer line with hhmm() only while the page names the day for a time before today
+- source: CI run 41545446452 (OCT-epic12 e9bfda24), iris (browser) live:answers | severity: med | fix-risk: low | footprint: web/e2e/answers/close-loop.spec.ts
+- evidence: run 41545446452 attempt 1 at 2026-11-03T00:02Z; the answered slot time 23:58 the previous day
+- 2026-11-03T00:09:06Z status=routed owner=burndown by=ci note=time-of-day flake (only when a run crosses midnight); Lane B test; fix: build the expected line with the page's own day rule or pin the clock
+- 2026-11-03T11:05:55Z status=routed owner=burndown by=burndown note=Epic_12_burn-down:not_a_1.0.0_blocker(single_occurrence_or_forced_copy);first_daily_release_after_1.0.0(orchestrator_ruling_with_the_Contest_Planner)
+
+### DW-609: flake: web/e2e/demo-path/telegram-page.spec.ts:1002 T7 (Story 12.6) hit the 120 s test timeout in CI iris (browser) live:demo-path, running right after the new T8 (Story 12.7); green on the unchanged rerun and in the local smoke (T8 then T7)
+- source: CI run 41545446452 (OCT-epic12 e9bfda24) attempt 1 | severity: med | fix-risk: low | footprint: web/e2e/demo-path/telegram-page.spec.ts
+- evidence: attempt 1 at 23:38Z: 27 passed, T7 timed out (2.0 m), no assertion message; attempt 2 green
+- 2026-11-03T00:44:48Z status=routed owner=burndown by=ci note=unknown cause (no assertion message); watch for T8 leftovers (a pairing or an incident) slowing T7 on a loaded host
+- 2026-11-03T11:05:55Z status=routed owner=burndown by=burndown note=Epic_12_burn-down:not_a_1.0.0_blocker(single_occurrence_or_forced_copy);first_daily_release_after_1.0.0(orchestrator_ruling_with_the_Contest_Planner)
+
+### DW-614: TelegramPageFixture.Notify and the upgrade harness's pairing readings (Move, session, replies, notify) run only in the release harness's live phases, never in CI
+- source: spec-12-9-telegram-is-included.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: test-upgrade-harness.sh stubs all five readings; no Test class or spec calls Notify; QA ran the harness live once (pairing row pass)
+- 2026-11-03T07:11:31Z status=wontfix-accepted owner=12-9-telegram-is-included by=cr note=reopen_if=the harness pairing row fails with a Notify or reading error at a release run
+
+### DW-615: eval/run.sh starts a CI stack with the dummy bot token and no park (stack_ready with no check), so TelegramIn polls the mock during eval runs
+- source: spec-12-9-telegram-is-included.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: eval/run.sh calls stack_ready evaluation with no check and layers ci/compose.ci.yml; eval/run.sh is Epic 30's contended path; no eval case uses Telegram
+- 2026-11-03T07:11:31Z status=wontfix-accepted owner=12-9-telegram-is-included by=cr note=reopen_if=an eval run fails or flakes on TelegramIn, TelegramOut or a Bot API call at the mock
+
+### DW-616: resume.spec.ts R2c keeps a file-local telegramState mark reader and writer that repeats pairing.spec.ts's (about 10 lines), a copy the spec forces (A13; web/e2e/support is Lane B)
+- source: spec-12-9-telegram-is-included.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: web/e2e-online/resume.spec.ts readMark/writeMark/restoreMark vs web/e2e/api/pairing.spec.ts readMark/setState/restoreMark
+- 2026-11-03T07:11:31Z status=wontfix-accepted owner=12-9-telegram-is-included by=cr note=reopen_if=a third file-local telegramState writer appears under web/e2e or web/e2e-online; then unify in support/iris.ts
+
+### DW-617: README Telegram step 5 says In the Status section, but at 1280 px and wider no visible label reads Status (the rail h2 is visually hidden; the Status drawer button shows only at 1024-1279 px)
+- source: spec-12-9-telegram-is-included.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: main-page.ts rail-title is visually-hidden; header.ts drawer button only at 1024-1279; telegram-facts pins layout-view.ts status label; the card itself has the visible heading Telegram
+- 2026-11-03T07:11:31Z status=wontfix-accepted owner=12-9-telegram-is-included by=cr note=reopen_if=the owner's REL-7 Telegram pass (Story 38.3) cannot find the card from step 5's wording
 ### DW-584: No test pins that a several-ref command's IdempotencyKeys (:2, :3, :4 from one tool call) are each accepted once and refused on a repeat, the as-built AD-1 rule (U-215's condition)
 - source: Epic 11 merge decision sheet (DW-496, veto U-215 kept by the Contest Planner) | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: AD-1 amended a9a221ed; TestCancelAllThroughChat asserts the keys but not the repeat refusal per key
 - 2026-11-02T13:25:27Z status=routed owner=burndown by=merge_gate note=Epic 30 part 2 burn-down 30.7 (sent to its runner with U-215's apply)
 
+### DW-592: Web chat tool-call card: after a page reload an answered, expired or finished tool-call request shows no answered line, because /state serves pending approvals only (Ownership.Approvals through Web/Api.cls RailBody); the live page shows who answered
+- source: _bmad-output/implementation-artifacts/spec-31-5-a-tool-call-s-approval-request-reaches-the-phone-with-approv.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: spec-31-5 re-plan W3 (deferred item); Web/Api.cls RailBody serves Ownership.Approvals (pending only); U-222
+- 2026-11-02T18:27:51Z status=routed owner=burndown by=spec_gate note=first daily release after 1.0.0 (U-222); U-222 kept at=2026-11-02T18:27:03Z#671 with one condition: the reloaded card shows no pending cue, which is Story 31.6's
+- 2026-11-03T23:35:54Z status=wontfix-accepted by=burndown_gate note=U-254;reopen_if=a_tool-call_card_after_a_page_reload_shows_as_pending_(buttons_or_awaiting_label)_or_a_user_report_asks_for_the_full_answered_line_after_reload
+
+### DW-595: Telegram press alert for an approved tool call: AnswersIn.TelegramCode answers approved with no count or noun for a tool_call (no dry run), and TelegramIn renders press.approved (Repairing and resending {count} {itemNoun}), which has no tool-call form
+- source: _bmad-output/implementation-artifacts/spec-31-5-a-tool-call-s-approval-request-reaches-the-phone-with-approv.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: Core/AnswersIn.cls :86-100 (slots from the dry run only); Msg/Catalog/Core.cls press.approved :52-58; TelegramOut is a stub on OCT-epic31
+- 2026-11-02T20:59:30Z status=routed owner=12-7-approve-or-reject-from-telegram-and-every-copy-shows-who-ans by=harvest note=Story 31.5 harvest: Telegram's press alert for a tool call belongs to Epic 12's TelegramIn (Story 12.7); cross-epic, the orchestrator plans the bullet
+
+### DW-596: Tool-call result reasons from Story 30.7 (U-214 unreachable-endpoint sentences, U-170 no-key wording) do not reach toolCall.failedWithReason: BridgeSink's reason allowlist holds only Decide's HELDBEFOREUPDATE, so a replayable row's failed result sends toolCall.failed with no reason
+- source: _bmad-output/implementation-artifacts/spec-31-5-a-tool-call-s-approval-request-reaches-the-phone-with-approv.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: U-214 (#650); Story 30.7 set aside (deferred after the v1.0.0 tag); the texts exist nowhere in src/
+- 2026-11-02T20:59:30Z status=wontfix-accepted owner=31-5-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=harvest note=reopen_if=Story 30.7 is planned and its replay-failure reasons exist in a catalog (then add them to BridgeSink.HeldReasons)
+
+### DW-597: live answers close-loop C1 red locally at the 31.5 baseline: the result band reads All 50 messages went through where the case expects All 50 orders went through (incident row with no itemNoun falls back to messages; inference)
+- source: _bmad-output/implementation-artifacts/spec-31-5-a-tool-call-s-approval-request-reaches-the-phone-with-approv.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: ci/iris.sh live answers fresh, with and without 31.5: 1 failed (C1), 20 passed; web/e2e/answers/close-loop.spec.ts:62,:159
+- 2026-11-02T20:59:30Z status=open owner=31-5-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=harvest note=investigate at 31.5 smoke: reproduce, compare with CI's live:answers, classify
+- 2026-11-02T21:50:55Z status=wontfix-accepted by=adjudication note=local lane-C only: CI ran live:answers on the merged head a95624a9 (run 41495452746, iris browser) and C1 passed; reopen_if=C1 goes red in CI's live:answers
+- 2026-11-02T23:15:15Z status=open owner=31-5-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=adjudication note=reopen_if fired: C1 red twice in CI on 6e57e259 (run 41534940990 attempts 1-2, line 222); 31.5 rework iteration 1 [CI] item
+- 2026-11-02T23:52:33Z status=resolved-by:31-5-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=adjudication note=7c96f9bc + round-2 patch: C1's fixture row carries ItemNoun, CauseCategory and Element (from incidentOf) and C1 waits for the server's Closed chip before reading the band; live answers 22/22 on fresh lane-C; mutation (drop ItemNoun) turns C1 red at close-loop.spec.ts:261
+
+### DW-601: Story 31.6's web card must take its first line and inputs from BridgeSink.ServerOf/InputsOf (private today), not a re-implementation, so U-212 (1)(2) phone and card texts cannot drift
+- source: spec-31-5-a-tool-call-s-approval-request-reaches-the-phone-with-approv.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: BridgeSink.cls ServerOf/InputsOf are [ Private ]; U-212 binds the card and the phone to one rule and one 200-char string; nothing pins the two equal yet
+- 2026-11-02T21:46:03Z status=routed owner=31-6-a-tool-call-s-approval-request-appears-in-the-web-chat-with by=cr note=make ServerOf/InputsOf one shared public helper the card calls; pin card text = phone text in a test
+- 2026-11-03T04:02:13Z status=resolved-by:31-6-a-tool-call-s-approval-request-appears-in-the-web-chat-with by=adjudication note=the web card renders the very Notification BridgeSink built with ServerOf/InputsOf (WebChatOut ToolCallCard); X13 compares card and phone text with inputs over 200 characters
+
+### DW-602: X12 (answers.spec.ts) near-copies support/devices.ts phoneMessage as newestPhoneMessage and works around seedApproval's missing ToolSource/Runner/ToolArguments with a local setApprovalFields, forced by support/* being import-only
+- source: spec-31-5-a-tool-call-s-approval-request-reaches-the-phone-with-approv.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: answers.spec.ts newestPhoneMessage = phoneMessage minus the ApprovalRef filter (phoneMessage(user,'') never matches: SQL = '' on an empty property); support/iris.ts ApprovalFields lacks the tool fields
+- 2026-11-02T21:46:03Z status=routed owner=burndown by=cr note=Rule 2 forced copy: extend seedApproval's fields and add an any-request newest read in support/ when its owner touches it
+- 2026-11-02T23:50:56Z occurrence=31-5-a-tool-call-s-approval-request-reaches-the-phone-with-approv note=close-loop.spec.ts setIncidentFields: support IncidentFields lacks ItemNoun, CauseCategory, Element
+- 2026-11-03T23:35:54Z status=routed owner=burndown by=burndown_gate note=U-254;first_daily_release_after_1.0.0;not_a_1.0.0_blocker
+
+### DW-603: Test.Core.ToolCallNotices copies Lane A's private Test.Bridge.Approval HeldCall, UseReplayAgent and RestoreReplayAgent (forced by AD-29); the copy already drifted once (its Kill took the InProduction run counter)
+- source: spec-31-5-a-tool-call-s-approval-request-reaches-the-phone-with-approv.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: ToolCallNotices.cls HeldCall/UseReplayAgent/Restore (about 40 lines) vs Test/Bridge/Approval.cls :2561-2598; the review patched the drifted Kill
+- 2026-11-02T21:46:03Z status=routed owner=burndown by=cr note=Rule 2 forced copy: make HeldCall and the replay-agent swap public helpers of Test.Bridge.Approval (Lane A) and call them
+- 2026-11-03T23:35:54Z status=routed owner=burndown by=burndown_gate note=U-254;first_daily_release_after_1.0.0;not_a_1.0.0_blocker
+
+### DW-604: A tool call's answered notice that reaches SimPhoneOut after its result message edits nothing, so the request message keeps Approve and Reject (a press then gets 409)
+- source: spec-31-5-a-tool-call-s-approval-request-reaches-the-phone-with-approv.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: Approval.Answer fires approval.answered after the unlock and audit, while FinishExecution can take the lock first; EditAnswered's ApprovalRef guard skips a newest result row
+- 2026-11-02T21:46:12Z status=by-design owner=31-5-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=cr note=spec matrix row 'Answered after a result' requires M and R unchanged; reopen only by spec amendment (find the request row, not the newest)
+
+### DW-605: BridgeSink.Compose repeats IncidentManager.Compose (the six Notification property sets), forced across lanes (AD-29)
+- source: spec-31-5-a-tool-call-s-approval-request-reaches-the-phone-with-approv.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: Core/BridgeSink.cls Compose (9 lines) vs Watch/IncidentManager.cls Compose :1192-1201; the spec records the reason
+- 2026-11-02T21:46:12Z status=wontfix-accepted owner=31-5-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=cr note=reopen_if=a third Notification Compose copy appears or Msg.Notification gains a constructor
+
+### DW-610: Web chat: a tool-call request or result notice is announced through the generic notice branch (its full multi-line text) and no test pins what is spoken or that it is spoken once beside the request card's own announcements
+- source: _bmad-output/implementation-artifacts/spec-31-6-a-tool-call-s-approval-request-appears-in-the-web-chat-with.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: web/src/app/chat/chat-announcements.ts:107 announces every unheard notice that is not a tell-now as entry.text; 31.6 lets kinds approval and result into that list; no unit case names either kind
+- 2026-11-03T03:21:47Z status=open owner=31-6-a-tool-call-s-approval-request-appears-in-the-web-chat-with by=harvest note=31.6 QA/CR: pin it (or fix a double announcement) as a two-way door
+- 2026-11-03T04:02:13Z status=resolved-by:31-6-a-tool-call-s-approval-request-appears-in-the-web-chat-with by=adjudication note=pinned by web/scripts/chat-announcements.test.mjs (6 cases): a tool-call request or result is spoken once, in full, like the other notices; no double announcement
+
+### DW-611: Status rail: a tool call's rail row is titled 'Run {tool}' (no server) and has no Show in chat jump, while its web chat card reads 'Run {tool} on {server}'
+- source: spec-31-6-a-tool-call-s-approval-request-appears-in-the-web-chat-with.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: rail-view.ts approvalTitle gives 'Run {toolName}' and sets the chat jump only with an incidentRef; X13 shows 'Run zz_tool_x13' in the rail beside the card 'Run zz_tool_x13 on zzx13'. Cosmetic: both name the same tool and the card carries the full text.
+- 2026-11-03T04:00:25Z status=wontfix-accepted owner=31-6-a-tool-call-s-approval-request-appears-in-the-web-chat-with by=cr note=reopen_if=an owner or UX pass asks the rail row of a tool call to name its server or to jump to its chat card
 ### DW-593: Test.Install.SecurityOverview reads Security.Roles, Security.Users and Security.SQLPrivileges with its own small readers, a copy of Test.Install.Registry's private ReadRole/UserResources/SqlPrivileges (that class is contended by Epic 15)
 - source: _bmad-output/implementation-artifacts/spec-14-1-the-overview-s-tool-and-privilege-lists-are-generated-from-t.md | severity: low | fix-risk: low | footprint: in-epic
 - evidence: src/ocutalon/cls/OcuTalon/Test/Install/SecurityOverview.cls; Test/Install/Registry.cls:1047,1103 private
@@ -3389,12 +3732,20 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: ci run 41495443713 (OCT-epic30 8b2f15f9) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: iris (image) attempt 1 red, attempt 2 green on the same head; the assertion counts headers by id against the second thread's first Item id, so a late header of the first turn trips it (inference)
 - 2026-11-02T21:03:11Z status=routed owner=31-3-the-readme-leads-to-the-demo-and-the-launched-demo-is-measur by=ci note=Lane_B_test(Epic_11_part_1);first_seen_on_Epic_30_integrate-forward;make_the_mixed_count_wait_for_the_first_turn's_last_header_or_scope_it
+- 2026-11-03T15:21:47Z status=routed owner=burndown by=spec_gate note=flake_class_kept;declined_by_31.3_plan(root_cause_unknown,passed_on_rerun;nothing_in_31.3_touches_ThreadProduction)
+- 2026-11-03T23:35:54Z status=routed owner=burndown by=burndown_gate note=U-254;first_daily_release_after_1.0.0;not_a_1.0.0_blocker
 
 ### DW-600: The key proof's globals walk cannot read the saved AI session history (%AI.Agent.Session.ContextData, a compressed %Stream.GlobalCharacter), so a key stored there would read as clean
 - source: spec-30-8-the-redactor-and-the-key-proof-catch-every-key-shape.md | severity: low | fix-risk: med | footprint: out-of-footprint
 - evidence: 30.8 Task 0 control: ContextData is the one global stream found; U-185 scopes the stream question to message bodies (0 streams there); the provider key travels in a request header and never in session content (inference)
 - 2026-11-02T21:03:47Z status=wontfix-accepted owner=30-8-the-redactor-and-the-key-proof-catch-every-key-shape by=adjudication note=reopen_if=a_product_path_puts_the_provider_key_or_a_request_header_into_an_AI_session's_messages,or_the_key_proof_is_asked_to_cover_session_history
 
+### DW-612: flake: live:install-start row 2 (install-fresh): the restart's CPF merge fails with ERROR #453 Cannot quiesce the system for namespace reactivation, so the restart is not ready within 200 s
+- source: _bmad-output/implementation-artifacts/cycle-log-epic-31.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: OCT-epic31 runs 41419787515 (17c86e98 attempt 1), 41577358713 (f7cc68ab), 41577710442 (510ddbc9); each green on one unchanged rerun; feature and other epic branches green in the same window
+- 2026-11-03T05:33:43Z status=routed owner=burndown by=harvest note=flake class (one rerun and an occurrence); priority at Epic 31's burn-down: find what holds the namespace at the restart (inference: none of Epic 31's code runs a background job; 31.1's WebSocket needs a browser)
+- 2026-11-03T23:35:54Z status=routed owner=burndown by=burndown_gate note=U-254;first_daily_release_after_1.0.0;not_a_1.0.0_blocker
+- 2026-11-04T01:20:59Z status=routed owner=burndown by=merge_gate note=verdict=not_CI-only(check 2026-11-03T09:22Z, evidence to the Planner); mitigated by Story 0.13 (merge retry on #453, merged 1457eccb) and 0.14 (check_log accepts one RETRY, merged dc926d09); residual cause to burndown
 ### DW-621: The Unconfigure Invoke (UnmapRepos) may remove OCUTALON's IPM repository-definition mapping during an upgrade or same-version reinstall of ocutalon in OCUTALON, and nothing maps it again, so a later install from a repository in OCUTALON finds none
 - source: _bmad-output/implementation-artifacts/spec-15-4-every-release-proves-the-ipm-package-and-the-guide-opens-wit.md | severity: med | fix-risk: med | footprint: in-story
 - evidence: unmeasured: UnmapRepos runs at Unconfigure Before; MapAndStop maps only outside OCUTALON; settle by installing twice in OCUTALON from a local repository with a version bump, then reading OCUTALON's three IPM.Repo.Definition mappings
@@ -3424,12 +3775,49 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: 10.5 plan: overlap found by the planner; 31.3 is backlog (Epic 31's README pass, after Epic 10)
 - 2026-11-03T06:19:13Z status=routed owner=31-3-the-readme-leads-to-the-demo-and-the-launched-demo-is-measur by=spec_gate note=plan 31.3 against the 10.5 README: reuse the hero and the Visual Trace image
 - 2026-11-03T08:20:37Z status=routed owner=31-3-the-readme-leads-to-the-demo-and-the-launched-demo-is-measur by=merge_gate note=bullet_planned_under_31.3_at_Epic_10_merge_9ffac64e
+- 2026-11-03T23:19:08Z status=resolved-by:31-3-the-readme-leads-to-the-demo-and-the-launched-demo-is-measur by=adjudication note=U-242_option_C:page-incident.png_reused(unchanged),vt-decision.png_re-shot_in_place_by_web/e2e-capture/vt-decision.spec.ts;no_new_or_duplicate_PNG;test-readme_images_and_interesting_rules
 
 ### DW-618: README 'How you talk to it' quotes UI strings (Simulated phone, Simulated mailbox, Demo view, Break the feed) that test-readme.sh pins only on the README side, never against web/src, so a later UI rename leaves the README stale with CI green
 - source: spec-10-5-the-readme-shows-the-product-and-says-how-you-talk-to-it.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: chk_how_you_talk greps TALK_FACTS in the README section only; no read of device-view.ts or demo-view-texts.ts (outcomes reads chat-view.ts, the precedent). AC2 is a recorded check at the plan base by spec.
 - 2026-11-03T07:35:37Z status=by-design owner=10-5-the-readme-shows-the-product-and-says-how-you-talk-to-it by=cr note=AC2 is specified as a recorded check; reopen via spec amendment if a UI story renames a quoted product term
 
+### DW-629: The tool calls of a timed-out decision, and of a late runner reply, are written to no AgentStep: Decide's timer branch records the fallback and sends no step; record them as AgentSteps, then drop 'unless the decision times out' from docs/bridge-guide.md and docs/security-overview.md L100 (U-237's answer)
+- source: spec-13-4-the-guide-and-the-overview-say-exactly-what-is-audited-and-t.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: Decide.cls:331-337 (timer branch, no EmitSteps), :44 and :69-71 (a timer that fired and a late reply send no steps); Timeouts.cls:7-10 (reachable: a request in flight is not stopped)
+- 2026-11-03T12:13:10Z status=routed owner=burndown by=burndown note=first daily release after 1.0.0; U-237 answer (Contest Planner, 2026-11-03T10:46:10Z#712); not a 1.0.0 blocker (the docs state the timeout case)
+- 2026-11-03T13:25:42Z status=routed owner=burndown by=burndown note=prerequisite for MCP support: docs/security-overview.md's MCP rules (under 'When a release adds MCP support, these rules apply:') promise an agent step for every MCP call (spine 'Every MCP tool call is audited, read-only ones included'; FR-49), so this must land before or with the release that adds MCP support
+
+### DW-630: The bridge guide has no runnable block that reaches a held call: a user item that leads to a forward, reading the pending approval Ref, and calling OcuTalon.Bridge.Approval.Answer; add those blocks and run them in the standalone-bridge job (Story 13.4 gap (f))
+- source: spec-13-4-the-guide-and-the-overview-say-exactly-what-is-audited-and-t.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: U-233 bare-container run of docs/bridge-guide.md (Contest Planner); release/standalone-bridge.sh:787,933-937 reach the held call only through the job's own code, not through guide blocks
+- 2026-11-03T12:13:10Z status=routed owner=burndown by=burndown note=first daily release after 1.0.0; veto U-236 item (f); not a 1.0.0 blocker
+
+### DW-631: A bare-bridge production has no self re-arm at production start: after an abnormal end (killed jobs, a cleaned production) only Approval.Reconcile re-arms a lost approval hold and resends an approved call whose replay never started, and only OcuTalon's own install calls it; a lost hold fails safe but never expires
+- source: spec-13-4-the-guide-and-the-overview-say-exactly-what-is-audited-and-t.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: Approval.cls:769-813 (Reconcile; pass 2 L798-811 re-arm, pass 3 resend); Install/Step/Approvals.cls is the only non-test caller; a clean stop and start restores the alarm (irislib Ens/Director.cls:470-477, Ens/Alarm.cls:228-233,383-400)
+- 2026-11-03T12:13:10Z status=routed owner=burndown by=burndown note=first daily release after 1.0.0; Story 13.4 (g) finding, orchestrator ruling (decide): the guide says nothing; not a 1.0.0 blocker (fails safe)
+### DW-624: lib-live.sh log_steps keeps every ^STEP line, so a live start that recovers from #453 through Story 0.13's retry still fails check_log on a 'STEP merge RETRY 1 after #453' diff
+- source: spec-0-13-a-start-retries-the-cpf-merge-when-iris-cannot-quiesce.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: log_steps (docker/tests/lib-live.sh L590) greps '^(STEP|RESULT) ' and check_log diffs it against expected_run, which has only 'STEP merge OK'; callers: test-install-start rows 1-4, test-install-upgrade row 6, test-online-demo, test-audit, release/upgrade-harness.sh; the CI #453 hits (runs 41419787515, 41577358713, 41577710442) were in these tests
+- 2026-11-03T10:41:25Z status=routed owner=burndown by=cr note=fix: drop '^STEP merge RETRY ' lines in log_steps plus a test-lib-live fixture; Epic 12/15 files, outside 0.13
+- 2026-11-03T11:09:29Z status=routed owner=burndown by=burndown note=first daily release after 1.0.0; not a 1.0.0 blocker: a start that meets #453 failed these live tests before Story 0.13 too, so nothing regresses; flag to the Planner: release/upgrade-harness.sh (L934, L1213) uses the same log_steps, so a hand-gate start that recovers through the retry would read as a harness failure, and Epic 15 owns release/** and docker/tests/**
+- 2026-11-03T16:12:51Z status=routed owner=0-14-a-start-that-recovers-through-the-merge-retry-passes-the-liv by=merge_gate note=U-240:Story_0.14_re-opens_Epic_0
+- 2026-11-03T17:36:51Z status=resolved-by:0-14-a-start-that-recovers-through-the-merge-retry-passes-the-liv by=adjudication note=check_log_accepts_only_RETRY_1_after_#453_then_STEP_merge_OK(lib-live.sh);log_steps_unchanged;test-lib-live_rows1-11+near-misses;harness_Merge_retries_count(test-upgrade-harness_merge-retries)
+
+### DW-625: after-start.sh re-merges merge.cpf at every start, so even an unchanged start runs about five namespace activations, each able to wait about 120 s for a quiesce and fail with ERROR #453; skip the merge on an unchanged start and re-create only the missing CPF items
+- source: spec-0-13-a-start-retries-the-cpf-merge-when-iris-cannot-quiesce.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: U-235 (veto, kept by the Contest Planner 2026-11-03T09:22:15Z#706): the larger rework is out of 1.0.0; Story 0.13 retries once on #453 instead; the DW-612 check found #453 on a fresh first start (41419787515) and install-start row 2 (41577358713, 41577710442)
+- 2026-11-03T11:09:29Z status=routed owner=burndown by=burndown note=first daily release after 1.0.0 (U-235); keeps AD-23's merge-at-every-start promise (repair a mapping removed by hand) through a cheaper check
+
+### DW-632: flake: live:floor web/e2e/floor/guide.spec.ts:740 M12 (Show me with no pending notification focuses the phone feed; a jump to step 3 hands focus to an inactive box) hit the 120 s test timeout in the floor project in CI
+- source: cycle-log-epic-0.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: CI run 41629601732 iris (shards-3) attempt 1 on OCT-epic0 032a25c0, 105 of 106 floor specs passed; passed on the unchanged rerun (attempt 2); Epic 0's head changes no web or guide code
+- 2026-11-03T12:55:18Z status=routed owner=burndown by=burndown note=flake class; one rerun and an occurrence= trailer on a recurrence; first daily release after 1.0.0 unless it recurs
+### DW-627: Shorten the waits of the lane-a Channel test classes: shard:lane-a@Channel took 704 s in CI (run 41618490851), mostly waits (TelegramIn about 98 s, TelegramPause about 82 s, TelegramPair about 63 s, TelegramApproval about 60 s locally), which needed its own iris group shards-4
+- source: orchestrator ruling at Epic 12's close (option d) | severity: med | fix-risk: med | footprint: src/ocutalon/cls/OcuTalon/Test/Channel/
+- evidence: CI run 41618490851 production group 38 min with the Channel unit 704 s; local one-stack shard 535-567 s
+- 2026-11-03T11:57:11Z status=routed owner=burndown by=lead note=first daily release after 1.0.0 (orchestrator ruling); goal: Channel well under 10 min so shards-4 has room or the unit fits an existing group again
 ### DW-626: flake: OcuTalon.Test.Watch.Reader TestDisabledItemsInStoredOrderAcrossAStopAndAStart failed in CI shard lane-a@Checks,Install,Watch (stopped, with the disabled items: suspended) and passed on an unchanged rerun
 - source: ci run 41619944438 (OCT-epic15 head 6a18ed4c) | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: attempt 1 red (1 of 38 classes, 5.00s), attempt 2 green on the same head; Epic 15 changed nothing under Watch since 082ac043
@@ -3455,3 +3843,66 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-39-1-fix-the-heartbeat-s-names-and-contracts.md | severity: low | fix-risk: med | footprint: out-of-footprint
 - evidence: Pre-existing in baseline 3f5f7b3e at spine lines 454, 1010, 1023, 1086, 1091; Story 39.1 adds none; stages read the check as no new finding. Fix needs the kit lint (.claude/, owner-only) or spine prose edits outside any story's ACs.
 - 2026-11-03T14:41:53Z status=wontfix-accepted owner=39-1-fix-the-heartbeat-s-names-and-contracts by=cr note=reopen_if=lint_spine reports a finding other than these 8 baseline placeholders, or a Rule 20 spine update halts on them
+### DW-639: flake: OcuTalon.Test.Schedule.Heartbeat TestAfterAllTestsNothingSaved ('and the production runs every item': Install.Step.Production.NotRunning() not empty) red once in CI image shard lane-b (1 of 88) on the integrate-forward head e75b90bc; green on the unchanged rerun
+- source: cycle-log-epic-31 (ci run 41656484374) | severity: low | fix-risk: low | footprint: in-epic
+- evidence: run 41656484374 attempt 1 image shard:lane-b; attempt 2 green; passes alone on a fresh lane-A throwaway with the merged tree (84.6 s)
+- 2026-11-03T15:56:29Z status=routed owner=burndown by=lead note=flake: first occurrence; order or timing dependence in the shard
+- 2026-11-03T23:35:54Z status=routed owner=burndown by=burndown_gate note=U-254(b)_reverses_U-177_placement;flake;first_daily_release_after_1.0.0;CI_run_41656484374(image_job)
+
+### DW-640: flake: web/e2e/live/live.spec.ts L9 reported 'route.fetch: Test ended' from L8's events route callback (live.spec.ts:349): L8 ends with a route callback in flight; fix: await page.unrouteAll({ behavior: 'ignoreErrors' }) at the end of L8
+- source: cycle-log-epic-31 (ci run 41656484374) | severity: low | fix-risk: low | footprint: in-epic
+- evidence: run 41656484374 attempt 1 browser live:sign-in on runner 20; green on the unchanged rerun
+- 2026-11-03T15:56:29Z status=routed owner=burndown by=lead note=flake: first occurrence; a two-way-door test fix in 31.1's file
+- 2026-11-03T23:35:54Z status=routed owner=burndown by=burndown_gate note=U-254(b)_reverses_U-177_placement;flake;first_daily_release_after_1.0.0;the_unrouteAll_fix_first;CI_run_41656484374(sign-in)
+
+### DW-641: web/scripts/fake-clock.mjs header lists the modules whose tests use it and omits telegram-card-view.ts, which Story 31.7's card spec now drives on it
+- source: spec-31-7-after-an-unpair-the-telegram-card-shows-its-fresh-code-witho.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: telegram-card-view.test.mjs imports fakeClock for CodeSchedule; the fake-clock.mjs header (lines 1-3) names busy-state, contact-watch and announce-queue only. Outside the U-243 footprint.
+- 2026-11-03T17:45:14Z status=wontfix-accepted owner=31-7-after-an-unpair-the-telegram-card-shows-its-fresh-code-witho by=cr note=cosmetic list; reopen_if=a story edits web/scripts/fake-clock.mjs and leaves telegram-card-view.ts out of its header list
+### DW-636: install.sh looks only for build 154 (install.sh:29, :179, :285): make it find a build 109 image (irishealth-community:2027.1.0AI.109.0) too, then drop the README's separate 'Start it with build 109' path (U-241)
+- source: Contest Planner build 109 spike, 2026-11-03 | severity: low | fix-risk: low | footprint: small
+- evidence: spike-109: OcuTalon at 138d0066 runs unchanged on 109 (build, first start 91 s, restart 15 s, install-fresh/production/shards groups, real-model demo walk); only install.sh refuses the tag
+- 2026-11-03T14:37:22Z status=routed owner=burndown by=merge_gate note=first daily release after 1.0.0
+
+### DW-637: Build 109 changes to watch: %AI.Tool.%DecodeScalar rejects an array or object for a scalar tool argument (a malformed call becomes a tool error), and %AI.System, %AI.Utils.SettingStore, %AI.Shell.StreamRenderer, EnsLib.AI.Agent.OutboundAdapter and %AI.Policy.Audit/Authorization are now Hidden, Internal or EXPERIMENTAL; nothing changes at runtime today
+- source: Contest Planner build 109 spike, 2026-11-03 | severity: low | fix-risk: low | footprint: small
+- evidence: API diff of 145 referenced system classes: no removed member, no changed signature; these two notes only
+- 2026-11-03T14:37:22Z status=routed owner=burndown by=merge_gate note=first daily release after 1.0.0; note for any move to 109
+### DW-635: flake: live:floor web/e2e/floor/layout.spec.ts:483 G4 (at 1000x800 the page is one column with the rail after main, and only the header sticks) hit the 150 s test timeout in the floor project in CI
+- source: cycle-log-epic-0.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: CI run 41641201023 attempt 1, iris (shards-3) on OCT-epic0 c3d264c5: 105 of 106 floor specs passed; green on the unchanged rerun (attempt 2); Epic 0's head changes no web code
+- 2026-11-03T14:35:03Z status=routed owner=burndown by=burndown note=first daily release after 1.0.0
+- 2026-11-04T08:01:25Z occurrence=rc3-pr by=merge_gate note=live:floor web/e2e/floor/layout.spec.ts:512 timed out on the rc3 release PR, iris (shards-3), 106 passed; same timeout family
+
+### DW-642: Story 12.10's browser specs copy file-local e2e helpers: telegram-drawer.spec.ts fixture() is the third copy (telegram-page.spec.ts:118, telegram-approval.spec.ts:61) and telegram-drawer-view.spec.ts guideOf/serve copy guide.spec.ts guideOf:30 and liveEvents:75; one shared module in web/e2e/support/ should hold them
+- source: spec-12-10-in-a-narrower-window-the-telegram-step-leads-to-the-status-d.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Rule 2: near-copies (14-line fixture(), 9-line guideOf, 25-line poll router) forced by the footprint (siblings in Lane A or contended files, support/ outside it); a change to TelegramPageFixture or the events envelope must be made in every copy
+- 2026-11-03T19:57:30Z status=routed owner=burndown by=cr note=forced copy (Rule 2): unify all copies in web/e2e/support/ when the siblings' owners can edit them
+- 2026-11-03T20:50:08Z status=routed owner=burndown by=burndown note=not_a_1.0.0_blocker(test-helper_copies);first_daily_release_after_1.0.0
+
+### DW-644: Date repairs from a source that reads either way (MM/DD/YYYY or DD/MM/YYYY) rest on the model alone: Fix.Reformat ParseDate accepts both readings, and neither the incident card nor the dry run says why one was chosen
+- source: Contest Planner field watch 2026-11-03 (relay) | severity: med | fix-risk: low | footprint: in-footprint
+- evidence: Demo partner (PartnerTrigger) sends today's date as MM/DD/YYYY; until Nov 13 every value has day <= 12, so 11/03/2026 also parses as 11 March; Reformat.cls:62,67,88 ParseDate accepts the given format only, so the format choice is the model's
+- 2026-11-03T21:31:48Z status=routed owner=7-7-a-date-repair-that-could-read-either-way-names-its-evidence by=orchestrator note=Story 7.7 (veto U-248); first daily release after 1.0.0; not rc1 scope
+
+### DW-656: Eval: review the expected answers (the finding-*-item-disabled labels, mail-partner-notice) and any further Triage and Diagnosis wording, held to SM-1 90 and SM-2 80 on the real model, with no examples that echo eval cases
+- source: U-258 (owner, via the Contest Planner) | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: rc2 real-model trials with the fixed wording: items 82-86 percent, incidents 90 percent
+- 2026-11-04T03:54:25Z status=routed owner=burndown by=merge_gate note=first_daily_release_after_1.0.0; owner's override covers only the item gap
+
+### DW-657: Eval case shipments-epoch-time gets an invalid diagnosis reply, a fallback in nearly every attempt
+- source: U-258 follow-up (Contest Planner) | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: rc2 trials; see DW-483, which reads 6 of 156 (3.8 percent) on rc2
+- 2026-11-04T03:54:25Z status=routed owner=burndown by=merge_gate note=first_daily_release_after_1.0.0
+
+### DW-659: flake candidate: live:cards web/e2e/cards/incident-card.spec.ts:360 I7 (when the card compacts, focus moves from the removed footer button to the card) hit the 90 s test timeout
+- source: CI run 41782092223 attempt 1, iris (shards), feature 24e6e9e9 | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: 19 of 20 passed; no assertion failed; relative of DW-550 (same project, same timeout shape)
+- 2026-11-04T06:28:48Z status=routed owner=burndown by=merge_gate note=first_daily_release_after_1.0.0; confirm by the attempt 2 result
+- 2026-11-04T06:30:47Z status=routed owner=burndown by=merge_gate note=possible link, unproven: the job ran on a runner on the CI host whose unattended upgrade restarted a runner in the same window (shards-2 cancel, 06:15Z); attempt 2 decides
+- 2026-11-04T06:56:29Z occurrence=24e6e9e9 by=merge_gate note=passed on the one rerun (run 41782092223 attempt 2)
+
+### DW-660: Cut the release candidate with CI's Node version: the Mac's Node 26 and CI's Node 24 build a different 3rdpartylicenses.txt
+- source: U-264 (Contest Planner) | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: rc3 release PR: test-web-build AC6 saw a modified src/ocutalon/csp/3rdpartylicenses.txt
+- 2026-11-04T08:01:25Z status=routed owner=burndown by=merge_gate note=first_daily_release_after_1.0.0

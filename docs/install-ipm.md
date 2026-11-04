@@ -4,7 +4,7 @@ This page installs OcuTalon into an IRIS instance you already run, with the Inte
 
 ## What you need
 
-- An InterSystems IRIS for AI Hub instance, build 154, with IPM 0.10.10 loaded in %SYS and enabled for USER (the examples start there).
+- An InterSystems IRIS for AI Hub instance, build 154, with IPM 0.10.10 loaded in %SYS and enabled for USER (the examples start there). Build 109, which the Early Access portal now offers in place of build 154, has not been tested with the IPM install yet.
 - For the registry install: an instance that can reach the community package registry.
 
 OcuTalon needs no other package: the one package `ocutalon` holds the bridge too.

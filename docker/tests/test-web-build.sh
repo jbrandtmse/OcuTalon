@@ -3,7 +3,8 @@
 # ignored into an empty directory, as a checkout holds them, stages them in a repository of that directory, and
 # runs `npm --prefix web ci` and `npm --prefix web run build` there. Then it checks
 #   - the copy's `git status --short`: nothing is modified and nothing is new, so the bundle, the brand copies and
-#     node_modules are ignored and the generated tokens.css and SignInAssets.cls are current;
+#     node_modules are ignored and the generated tokens.css and SignInAssets.cls are current. A release candidate tracks the bundle
+#     and this build remakes it, so only a tracked file under src/ocutalon/csp/ may come out modified;
 #   - the bundle: index.html with <base href="/ocutalon/"> and no inline script, main-*.js and styles-*.css,
 #     3rdpartylicenses.txt, and the font and icon licence texts under assets/licenses/.
 # It never touches the working tree it is run from, makes no commit, and removes its copy on every exit. It needs
@@ -99,7 +100,20 @@ fi
 
 # --- AC6: the tree is clean ---
 
-dirty=$(copy_git status --short | grep -v '^A  ')
+# not_clean: the lines of `git status --short` on standard input that make the tree unclean. A file staged as added is clean, and so
+# is a tracked file of the built bundle that the build changed: `AM` in a copy, ` M` in a checkout.
+not_clean() { grep -v '^A  ' | grep -vE '^( M|AM) src/ocutalon/csp/'; }
+
+# The allowance is that and no wider. A new file, a deleted file, or a change beside the bundle is still unclean.
+allowed=$(printf '%s\n' 'A  a.txt' ' M src/ocutalon/csp/3rdpartylicenses.txt' 'AM src/ocutalon/csp/main.js' | not_clean)
+refused=$(printf '%s\n' '?? src/ocutalon/csp/new.js' ' D src/ocutalon/csp/gone.js' ' M src/ocutalon/cspx/near.js' ' M web/package.json' 'AM src/module.xml' '?? new.txt' | not_clean | grep -c .)
+if [ -z "$allowed" ] && [ "$refused" -eq 6 ]; then
+  pass "only a modified tracked file of the built bundle is allowed after the build"
+else
+  fail "the clean-tree rule allows the wrong lines (kept: '$allowed'; refused $refused of 6)"
+fi
+
+dirty=$(copy_git status --short | not_clean)
 if [ -z "$dirty" ]; then
   pass "git status --short after ci and build: nothing is modified and nothing is new"
 else

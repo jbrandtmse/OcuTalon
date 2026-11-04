@@ -115,7 +115,7 @@ Method TestEveryPublicKeyIsDelegated()
 {
 	Set keys = ##class(OcuTalon.Data.Public.Settings).#KEYS_",ready"
 	Set count = $Length(keys, ",")
-	Do $$$AssertEquals(count, 14, "the 13 keys and ready")
+	Do $$$AssertEquals(count, 15, "the 14 keys and ready")
 	For i = 1:1:count {
 		Set saved($Piece(keys, ",", i)) = $ClassMethod(..#PUBLIC, "Get", $Piece(keys, ",", i))
 	}

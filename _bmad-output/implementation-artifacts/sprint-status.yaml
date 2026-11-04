@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 11-03-2026 15:45
+last_updated: 11-04-2026 03:54
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -48,7 +48,8 @@ development_status:
   0-10-the-orders-demo-production-runs-in-ocuorders: done
   0-11-the-ci-model-mock-answers-every-scenario-the-stories-need: done
   0-12-epic-0-burn-down: done
-  0-13-a-start-retries-the-cpf-merge-when-iris-cannot-quiesce: backlog
+  0-13-a-start-retries-the-cpf-merge-when-iris-cannot-quiesce: done
+  0-14-a-start-that-recovers-through-the-merge-retry-passes-the-liv: done
   epic-0-retrospective: optional
 
   epic-1: done
@@ -140,6 +141,8 @@ development_status:
   7-3-approved-repairs-are-re-checked-and-resent: done
   7-4-ocutalon-reports-how-many-orders-went-through: done
   7-5-a-resend-cut-short-by-a-restart-says-how-far-it-got: done
+  7-7-a-date-repair-that-could-read-either-way-names-its-evidence: backlog
+  7-8-the-web-incident-card-shows-the-either-way-date-line-too: backlog
   epic-7-retrospective: optional
 
   epic-8: done
@@ -193,23 +196,28 @@ development_status:
   11-17-the-release-s-ipm-artifact-carries-the-built-page: done
   11-18-the-update-hook-updates-the-online-demo-and-a-rehearsal-cand: backlog
   11-19-seeded-check-rows-stay-out-of-the-heartbeat-s-way-unless-a-c: done
+  11-20-the-release-s-overview-step-hands-the-unit-files-the-contain: backlog
   epic-11-retrospective: optional
 
-  epic-12: backlog
-  12-1-telegram-stays-off-without-a-token-and-ci-mocks-the-telegram: backlog
-  12-2-ocutalon-polls-and-writes-to-its-own-bot-and-pauses-when-ano: backlog
-  12-3-the-telegram-card-shows-a-fresh-pairing-code-as-a-qr-code: backlog
-  12-4-a-valid-code-pairs-the-chat-with-the-session: backlog
-  12-5-bad-codes-a-bare-start-command-and-unpairing-get-polite-answ: backlog
-  12-6-chat-and-get-notifications-in-the-paired-telegram-chat: backlog
-  12-7-approve-or-reject-from-telegram-and-every-copy-shows-who-ans: backlog
+  epic-12: done
+  12-1-telegram-stays-off-without-a-token-and-ci-mocks-the-telegram: done
+  12-2-ocutalon-polls-and-writes-to-its-own-bot-and-pauses-when-ano: done
+  12-8-the-page-shows-when-telegram-is-paused-and-when-it-will-try: done
+  12-3-the-telegram-card-shows-a-fresh-pairing-code-as-a-qr-code: done
+  12-4-a-valid-code-pairs-the-chat-with-the-session: done
+  12-5-bad-codes-a-bare-start-command-and-unpairing-get-polite-answ: done
+  12-6-chat-and-get-notifications-in-the-paired-telegram-chat: done
+  12-7-approve-or-reject-from-telegram-and-every-copy-shows-who-ans: done
+  12-9-telegram-is-included: done
+  12-10-in-a-narrower-window-the-telegram-step-leads-to-the-status-d: done
+  12-11-the-rehearsal-s-first-run-leaves-out-the-specs-that-need-ci: done
   epic-12-retrospective: optional
 
   epic-13: done
   13-1-the-example-production-makes-its-own-decision-through-the-br: done
   13-2-the-example-s-own-tools-wait-for-approval-when-they-are-risk: done
   13-3-the-bridge-developer-guide-proved-on-a-clean-instance: done
-  13-4-the-guide-and-the-overview-say-exactly-what-is-audited-and-t: backlog
+  13-4-the-guide-and-the-overview-say-exactly-what-is-audited-and-t: done
   epic-13-retrospective: optional
 
   epic-14: done
@@ -341,11 +349,14 @@ development_status:
   30-8-the-redactor-and-the-key-proof-catch-every-key-shape: done
   epic-30-retrospective: optional
 
-  epic-31: backlog
-  31-1-push-live-events-over-a-websocket-on-local-installs: backlog
-  31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv: backlog
-  31-3-the-readme-leads-to-the-demo-and-the-launched-demo-is-measur: backlog
+  epic-31: in-progress
+  31-1-push-live-events-over-a-websocket-on-local-installs: done
+  31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv: done
+  31-3-the-readme-leads-to-the-demo-and-the-launched-demo-is-measur: done
   31-4-the-paired-chat-stays-isolated-under-load-too: backlog
+  31-5-a-tool-call-s-approval-request-reaches-the-phone-with-approv: done
+  31-6-a-tool-call-s-approval-request-appears-in-the-web-chat-with: done
+  31-7-after-an-unpair-the-telegram-card-shows-its-fresh-code-witho: done
   epic-31-retrospective: optional
 
   epic-32: done

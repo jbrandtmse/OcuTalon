@@ -57,6 +57,8 @@ interface BannerSpec {
   /** When set, the banner shows only for this value of onlineDemo. */
   onlineDemo?: boolean;
   key: string;
+  /** The catalog key of the text that stands while Telegram is not on (the chat-only form); the banner keeps `key` while it is on. */
+  chatKey?: string;
   variant: BannerVariant;
   icon: BannerIcon;
   /** The catalog key of the action's text, and where it opens. */
@@ -66,7 +68,7 @@ interface BannerSpec {
 
 /** The closed set of banners, in the order they stack (UX-DR100). */
 export const BANNERS: readonly BannerSpec[] = [
-  { id: 'allowance', condition: 'allowance', key: 'banner.allowance', variant: 'danger', icon: 'circle-alert', action: { key: 'bannerAction.installYourself', target: 'install' }, closable: false },
+  { id: 'allowance', condition: 'allowance', key: 'banner.allowance', chatKey: 'banner.allowanceChat', variant: 'danger', icon: 'circle-alert', action: { key: 'bannerAction.installYourself', target: 'install' }, closable: false },
   { id: 'dailyCap', condition: 'dailyCap', onlineDemo: true, key: 'banner.dailyCap', variant: 'danger', icon: 'circle-alert', action: { key: 'bannerAction.installYourself', target: 'install' }, closable: false },
   { id: 'unreachable', condition: 'unreachable', key: 'banner.unreachable', variant: 'danger', icon: 'circle-alert', closable: false },
   { id: 'demoBusy', condition: 'demoBusy', onlineDemo: true, key: 'banner.demoBusy', variant: 'warning', icon: 'triangle-alert', action: { key: 'bannerAction.installYourself', target: 'install' }, closable: false },
@@ -74,7 +76,7 @@ export const BANNERS: readonly BannerSpec[] = [
   { id: 'costCap', condition: 'dailyCap', onlineDemo: false, key: 'banner.costCap', variant: 'warning', icon: 'triangle-alert', closable: false },
   { id: 'heartbeatStalled', condition: 'heartbeatStalled', key: 'banner.heartbeatStalled', variant: 'warning', icon: 'triangle-alert', closable: false },
   { id: 'telegramPaused', condition: 'telegramPaused', key: 'banner.telegramPaused', variant: 'warning', icon: 'triangle-alert', action: { key: 'bannerAction.setUpBot', target: 'telegram' }, closable: false },
-  { id: 'resetSoon', condition: 'resetSoon', key: 'banner.resetSoon', variant: 'warning', icon: 'triangle-alert', closable: true },
+  { id: 'resetSoon', condition: 'resetSoon', key: 'banner.resetSoon', chatKey: 'banner.resetSoonChat', variant: 'warning', icon: 'triangle-alert', closable: true },
   { id: 'reconnecting', condition: 'reconnecting', key: 'banner.reconnecting', variant: 'info', icon: 'info', closable: true },
 ];
 
@@ -120,6 +122,8 @@ export interface BannerInput {
   /** The page's own conditions that hold now. */
   own: readonly OwnCondition[];
   onlineDemo: boolean;
+  /** True while Telegram is on for this OcuTalon (telegramOn): the allowance and reset-soon banners name Telegram only then. */
+  telegram: boolean;
   /** The signature of each banner the user closed, by id. */
   closed: Readonly<Partial<Record<BannerId, string>>>;
 }
@@ -140,6 +144,19 @@ export interface BannerView {
   closable: boolean;
   /** The banner's id and the slots of its condition: what closing remembers. */
   signature: string;
+}
+
+/**
+ * True while the release includes Telegram and the state is not off: the condition of the public key telegramIncluded as /state serves it
+ * (a rejected token still says Telegram, as the key does). The allowance and reset-soon banners and the allowance reason name Telegram only then.
+ */
+export function telegramOn(telegram: { readonly included: boolean; readonly state: string }): boolean {
+  return telegram.included && telegram.state !== 'off';
+}
+
+/** The catalog key a banner shows now: its chat-only form while Telegram is not on, when it has one. */
+function keyOf(spec: BannerSpec, telegram: boolean): string {
+  return !telegram && spec.chatKey !== undefined ? spec.chatKey : spec.key;
 }
 
 /** True when the store holds the condition as active. */
@@ -180,7 +197,7 @@ function signatureOf(spec: BannerSpec, slots: StatusSlots): string {
 }
 
 /** The banners whose condition holds, in table order, whether the user closed them or not. */
-export function activeBanners(input: Pick<BannerInput, 'status' | 'own' | 'onlineDemo'>, format: BannerFormat): BannerView[] {
+export function activeBanners(input: Pick<BannerInput, 'status' | 'own' | 'onlineDemo' | 'telegram'>, format: BannerFormat): BannerView[] {
   const views: BannerView[] = [];
   for (const spec of BANNERS) {
     if (spec.onlineDemo !== undefined && spec.onlineDemo !== input.onlineDemo) {
@@ -195,7 +212,7 @@ export function activeBanners(input: Pick<BannerInput, 'status' | 'own' | 'onlin
       id: spec.id,
       variant: spec.variant,
       icon: spec.icon,
-      text: bannerText(spec.key, slots, format),
+      text: bannerText(keyOf(spec, input.telegram), slots, format),
       closable: spec.closable,
       signature: signatureOf(spec, slots),
     };

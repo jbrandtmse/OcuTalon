@@ -2,9 +2,11 @@
 ///   - TestOnlineFlagChangesOnlyTheTimeout: the Web step's applications with the online-demo flag on and with it off differ in the Timeout of
 ///     the four sign-in-group applications and in nothing else (so the story adds no role, no grant, no event class and no permitted class
 ///     under the flag), and /ocutalon/public keeps its Timeout;
-///   - TestNoProductClassEndsASessionOnTimeout: no class of the product defines OnTimeout, OnEndSession or OnLogout, the CSP session
-///     callbacks, so that a CSP session that ends (a closed page, the idle cap, the timeout) ends nothing else and no CSP session's end can
-///     reach an OcuTalon session. The probe of the tests (Test.Web.LogoutProbe) does define one, which shows the query can find it.
+///   - TestNoProductClassEndsASessionOnTimeout: no class of the product defines OnTimeout or OnEndSession, and OnLogout is defined by
+///     OcuTalon.Web.SessionEvents alone, so that a CSP session that ends (a closed page, the idle cap, the timeout) ends nothing else and
+///     no CSP session's end can reach an OcuTalon session. OnLogout runs at a sign-out only and changes nothing but the local install's
+///     sign-out mark (Test.Web.SessionEvents.TestSignOutMark). The probe of the tests (Test.Web.LogoutProbe) does define one, which shows
+///     the query can find it.
 /// TestOnlineFlagChangesOnlyTheTimeout sets the public setting onlineDemo to 0 and then to 1 while it reads the definitions, which makes the
 /// instance the online demo for that moment, and puts it back, also after a failure; the class needs no production and changes no
 /// application.
@@ -69,22 +71,27 @@ Method TestOnlineFlagChangesOnlyTheTimeout()
 	Do $$$AssertEquals(error, "", "the checks ran without an error")
 }
 
-/// No class of the product (OcuTalon.*, the tests of OcuTalon.Test.* apart) defines OnTimeout, OnEndSession or OnLogout; the tests' probe
-/// does, and the query finds it.
+/// No class of the product (OcuTalon.*, the tests of OcuTalon.Test.* apart) defines OnTimeout or OnEndSession, and OnLogout is defined by
+/// OcuTalon.Web.SessionEvents alone; the tests' probe defines OnLogout, and the query finds it.
 Method TestNoProductClassEndsASessionOnTimeout()
 {
 	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT parent, Name FROM %Dictionary.MethodDefinition WHERE Name IN ('OnTimeout', 'OnEndSession', 'OnLogout') AND parent LIKE 'OcuTalon.%'")
 	Do $$$AssertEquals(rs.%SQLCODE, 0, "the class dictionary is read")
-	Set product = "", tests = ""
+	Set product = "", tests = "", logouts = ""
 	While rs.%Next() {
 		Set one = rs.%Get("parent")_"."_rs.%Get("Name")
+		If one = "OcuTalon.Web.SessionEvents.OnLogout" {
+			Set logouts = logouts_$ListBuild(one)
+			Continue
+		}
 		If $Extract(rs.%Get("parent"), 1, 14) = "OcuTalon.Test." {
 			Set tests = tests_$ListBuild(one)
 		} Else {
 			Set product = product_$Select(product = "": "", 1: ", ")_one
 		}
 	}
-	Do $$$AssertEquals(product, "", "no product class defines a CSP session callback: "_product)
+	Do $$$AssertEquals(product, "", "no other product class defines a CSP session callback: "_product)
+	Do $$$AssertEquals($ListLength(logouts), 1, "OnLogout is defined by OcuTalon.Web.SessionEvents")
 	Do $$$AssertTrue($ListFind(tests, "OcuTalon.Test.Web.LogoutProbe.OnLogout") > 0, "control: the tests' own probe defines OnLogout, so the query finds a callback")
 }
 

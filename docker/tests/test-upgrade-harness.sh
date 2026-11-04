@@ -10,18 +10,29 @@
 #   - state-readers: the readers of a /state answer, on canned JSON;
 #   - chat-request: the mock-log reader that finds the fact in the chat agent's request after a mark;
 #   - storage-compare: the compiled-storage comparison (appended is clean; renamed, retyped, removed and moved slots are flagged);
-#   - record: the record section (the result, the mode, the pre-release note, the rows, pairing off) and its write (another section
+#   - record: the record section (the result, the mode, the pre-release note, the rows, pairing as a pass row) and its write (another section
 #     kept, a section replaced and not duplicated);
 #   - record-contract: what Stories 11.4 and 11.5 read from a record file: the section's lines in their fixed order, one Result:,
 #     Mode: and Required: line from the closed set of values, read as a consumer reads them with other sections around, and a table of
 #     three-cell ASCII rows;
+#   - pairing (Story 12.9): the pairing family over stubs of its five readings of the stack: the seed pairs a chat on the previous build
+#     only when that build reports Included() 1; the upgrade check passes on a seeded chat that still names its session and gets a
+#     notification, fails on a changed Pairing row or on a missing sendMessage, and writes the note that its upgrade part joins later when
+#     the previous build did not include Telegram; the candidate's chat is paired at the end of the upgrade phase, and the restart check
+#     passes only with the row intact and the notification delivered, and fails with no paired chat left;
 #   - run: the run command chained over a stub of the harness: the phases in order, the options only on build, the tag shared, report and
 #     down after any failed phase, and only down after a refused build;
 #   - static: the harness holds no docker push, login, save or export, no compose config without --quiet and no inspect without
 #     --format;
+#   - real-previous: real_previous on a plain commit, a pull request's merge commit, the merge back and a merge of two product sides;
 #   - real-tree: plan on this checkout writes a dry-run record, a version that is not the candidate's and a phase with no tag exit 2;
 #   - storage-base: test-storage.sh judges this checkout's storage blocks against the pinned pre-release commit, so a non-appending
 #     storage change since that commit fails this rule (a gate on the real tree), and the storage phase accepts only that verdict;
+#   - merge-retries (Story 0.14): count_merge_retries over a stubbed start_log appends MERGE-RETRIES <n> (0, 1 or 2) and the start's label to the
+#     results (a near miss counts too); the five starts each call it right after their wait, before any die
+#     (phase_upgrade, phase_restart and ready_or_die run over stubs, ready or not); the record section reads
+#     "Merge retries: 0" with no such line and the sum otherwise, right after Run:, with Result: and the table unchanged; report prints
+#     MERGE-RETRIES <total> before RECORD and RESULT;
 #   - report: report and upgrade over a fabricated state folder: every phase's results joined, the row of a phase that started and did
 #     not end failed, exit 1 on any failure, and upgrade refused while seed is not done.
 # Each rule first runs on a synthetic break (the rule pattern of test-storage.sh): a check that can no longer fail makes its rule fail.
@@ -428,7 +439,7 @@ write_results() {
   : > "$f"
   case $2 in
     pass | fail | partial)
-      for id in previous-build upgrade conversation reminder approval watch settings restart storage private-globals; do
+      for id in previous-build upgrade conversation reminder approval watch settings restart storage private-globals pairing; do
         if [ "$2" = partial ] && [ "$id" = restart ]; then continue; fi
         if [ "$2" = partial ] && [ "$id" = storage ]; then continue; fi
         printf 'RECORD %s pass the first check of %s\nRECORD %s pass the second | check\n' "$id" "$id" "$id" >> "$f"
@@ -436,7 +447,7 @@ write_results() {
       printf 'RECORD reminder note R1 fired late\n' >> "$f"
       if [ "$2" = fail ]; then printf 'RECORD watch fail Orders is not listed | really\nRECORD watch fail the press answered 409\n' >> "$f"; fi
       ;;
-    pairing) printf 'RECORD pairing off held back\n' >> "$f" ;;
+    held) printf 'RECORD pairing off held back\n' >> "$f" ;;
   esac
 }
 
@@ -473,7 +484,8 @@ t_record() {
   eq "the heading is the first line" "$(printf '%s\n' "$sec" | head -n 1)" "## Upgrade harness"
   eq "the table has a header, a separator and eleven rows" "$(printf '%s\n' "$sec" | grep -c '^| ')" 13
   eq "the rows are in order, pairing last" "$(printf '%s\n' "$sec" | sed -n 's/^| \([a-z ]*\) | [a-z ]* | .*/\1/p' | tr '\n' ',')" "previous build,upgrade,conversation,reminder,approval,watch,settings,restart,storage,private globals,pairing,"
-  has "pairing is off in the table" "$sec" "| pairing | off | joins from the release after 1.0.0 (Story 12.7) |"
+  has "pairing is a pass row in the table" "$sec" "| pairing | pass | 2 checks passed |"
+  lacks "no row is off" "$sec" "| off |"
   has "a note adds to a pass detail" "$sec" "| reminder | pass | 2 checks passed; R1 fired late |"
 
   write_options "$o" pre-release aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa "rehearsal (uncommitted changes)"
@@ -490,7 +502,7 @@ t_record() {
   sec=$(record_section /dev/null "$o")
   eq "no results is not run" "$(printf '%s\n' "$sec" | sed -n 's/^Result: //p')" "not run"
   eq "a dry run's mode" "$(printf '%s\n' "$sec" | sed -n 's/^Mode: //p')" "dry run"
-  eq "every row is not run but pairing" "$(printf '%s\n' "$sec" | grep -c '| not run | not run |')" 10
+  eq "every row is not run, pairing too" "$(printf '%s\n' "$sec" | grep -c '| not run | not run |')" 11
 
   write_results "$r" fail
   sec=$(record_section "$r" "$o")
@@ -506,10 +518,16 @@ t_record() {
   eq "the seed lines are no checks of the upgrade" "$(record_rows "$tmp/results-seed" | awk -F'\t' '$1 == "conversation" || $1 == "approval" { print $3 "," $4 }' | tr '\n' ' ')" "not run,not run (seeded only) not run,not run (seeded only) "
   printf 'RECORD conversation pass after the upgrade\n' >> "$tmp/results-seed"
   eq "a seed line and a check make a pass of one check" "$(record_rows "$tmp/results-seed" | awk -F'\t' '$1 == "conversation" { print $3 "," $4 }')" "pass,1 checks passed"
-  printf 'RECORD pairing off held back\n' >> "$r"
-  eq "pairing off is not counted" "$(record_result "$r")" pass
-  printf 'RECORD pairing fail never\n' >> "$r"
-  eq "a pairing failure line is not counted either" "$(record_result "$r")" pass
+  eq "pairing is counted: all its rows pass" "$(record_result "$r")" pass
+  printf 'RECORD pairing fail the restart lost the chat\n' >> "$r"
+  eq "a pairing failure line fails the result" "$(record_result "$r")" fail
+  has "and its row shows the failure" "$(record_section "$r" "$o")" "| pairing | fail | the restart lost the chat |"
+  write_results "$r" pass
+  printf 'RECORD pairing note the upgrade part joins from the release after 1.0.0\n' >> "$r"
+  has "the note adds to the pairing pass detail" "$(record_section "$r" "$o")" "| pairing | pass | 2 checks passed; the upgrade part joins from the release after 1.0.0 |"
+  write_results "$r" held
+  eq "a held-back row is not counted (HARNESS_OFF)" "$(HARNESS_OFF=pairing record_result "$r")" "not run"
+  write_results "$r" pass
 
   # record_write: a missing file, another section kept, the section replaced and not duplicated.
   rec=$tmp/record.md
@@ -577,18 +595,65 @@ b_static() { static_violations() { :; }; }
 
 run_plan() { env -u OCUTALON_RUN_TAG bash "$root/release/upgrade-harness.sh" plan "$@"; }
 
+# real_previous [<repository>]: the first of HEAD~1 and HEAD^2~1 that holds src/module.xml, or nothing. On a pull request's merge commit, and on main's
+# merge commit, HEAD~1 is main's old tip, which has no product; at the merge back into the integration branch HEAD~1 is right and HEAD^2~1 is that old tip.
+real_previous() {
+  local ref
+  for ref in 'HEAD~1' 'HEAD^2~1'; do
+    if git -C "${1:-.}" cat-file -e "$ref:src/module.xml" 2> /dev/null; then
+      echo "$ref"
+      return 0
+    fi
+  done
+  return 1
+}
+
+# gmerge <dir> <branch>: a merge commit of the branch.
+gmerge() { git -C "$1" -c user.name=t -c user.email=t@example.invalid merge -q --no-ff -m "merge $2" "$2"; }
+
+t_real_previous() {
+  local bad=0 d=$tmp/real-previous
+  ginit "$d"
+  git -C "$d" checkout -q -b old-main
+  gcommit "$d" "main's old tip" > /dev/null
+  git -C "$d" checkout -q -b feature
+  mkdir -p "$d/src"
+  echo '<Module/>' > "$d/src/module.xml"
+  git -C "$d" add src
+  gcommit "$d" product > /dev/null
+  gcommit "$d" candidate > /dev/null
+  eq "a plain commit: HEAD~1" "$(real_previous "$d")" 'HEAD~1'
+  git -C "$d" checkout -q -b pr old-main
+  gmerge "$d" feature
+  eq "a pull request's merge commit: HEAD^2~1" "$(real_previous "$d")" 'HEAD^2~1'
+  git -C "$d" checkout -q feature
+  gcommit "$d" "after the cut" > /dev/null
+  gmerge "$d" pr
+  eq "the merge back: HEAD~1, though main's side is the second parent" "$(real_previous "$d")" 'HEAD~1'
+  git -C "$d" checkout -q -b epic HEAD~1
+  gcommit "$d" "an epic" > /dev/null
+  gcommit "$d" "and more" > /dev/null
+  git -C "$d" checkout -q feature
+  gmerge "$d" epic
+  eq "both sides hold the product: HEAD~1 first" "$(real_previous "$d")" 'HEAD~1'
+  git -C "$d" checkout -q old-main
+  eq "no side holds the product: nothing" "$(real_previous "$d")" ''
+  [ "$bad" -eq 0 ]
+}
+
 t_real() {
-  local bad=0 rec=$tmp/real-record.md out
-  if git rev-parse --verify --quiet 'HEAD~1^{commit}' > /dev/null; then
-    out=$(run_plan --previous HEAD~1 --rc 1 --record "$rec" 2>&1)
-    eq "plan --previous HEAD~1 exits 0" "$?" 0
+  local bad=0 rec=$tmp/real-record.md out previous
+  previous=$(real_previous)
+  if [ -n "$previous" ]; then
+    out=$(run_plan --previous "$previous" --rc 1 --record "$rec" 2>&1)
+    eq "plan --previous $previous exits 0" "$?" 0
     has "plan ends with RESULT not run" "$out" "RESULT not run"
     has "the record is a dry run" "$(cat "$rec" 2> /dev/null)" "Mode: dry run"
     has "the record's result is not run" "$(cat "$rec" 2> /dev/null)" "Result: not run"
-    has "the record names the explicit previous build" "$(cat "$rec" 2> /dev/null)" "Previous: explicit HEAD~1 at "
+    has "the record names the explicit previous build" "$(cat "$rec" 2> /dev/null)" "Previous: explicit $previous at "
     has "the record's candidate is this checkout's version" "$(cat "$rec" 2> /dev/null)" "Candidate: $(manifest_version src/module.xml) at $(git rev-parse HEAD)"
   else
-    echo "  this checkout has no parent commit (a shallow clone): the plan with --previous HEAD~1 cannot run here"
+    echo "  this checkout has no parent commit that holds the product (a shallow clone): the plan with --previous cannot run here"
     bad=1
   fi
   out=$(run_plan --rc 1 --record "$tmp/default-record.md" 2>&1)
@@ -656,14 +721,14 @@ consumer_read() { # consumer_read <record file> <Key>: the value of the key in t
 t_record_contract() {
   local bad=0 r=$tmp/rc-results o=$tmp/rc-options sec rec=$tmp/rc-record.md kind mode res want want_order got_order v rows
 
-  want_order="## Upgrade harness,Result,Mode,Required,Candidate,Previous,Note,Run,| Record"
+  want_order="## Upgrade harness,Result,Mode,Required,Candidate,Previous,Note,Run,Merge retries,| Record"
   write_results "$r" pass
   write_options "$o" pre-release aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa release
-  got_order=$(record_section "$r" "$o" | grep -E '^(## Upgrade harness|Result:|Mode:|Required:|Candidate:|Previous:|Note:|Run:|\| Record )' | sed 's/:.*//; s/ |.*$//' | tr '\n' ',')
+  got_order=$(record_section "$r" "$o" | grep -E '^(## Upgrade harness|Result:|Mode:|Required:|Candidate:|Previous:|Note:|Run:|Merge retries:|\| Record )' | sed 's/:.*//; s/ |.*$//' | tr '\n' ',')
   eq "the lines of a pre-release section are in the fixed order" "$got_order" "$want_order,"
   write_options "$o" tag v1.0.0 release
-  got_order=$(record_section "$r" "$o" | grep -E '^(## Upgrade harness|Result:|Mode:|Required:|Candidate:|Previous:|Note:|Run:|\| Record )' | sed 's/:.*//; s/ |.*$//' | tr '\n' ',')
-  eq "a tag section has the same order with no Note" "$got_order" "## Upgrade harness,Result,Mode,Required,Candidate,Previous,Run,| Record,"
+  got_order=$(record_section "$r" "$o" | grep -E '^(## Upgrade harness|Result:|Mode:|Required:|Candidate:|Previous:|Note:|Run:|Merge retries:|\| Record )' | sed 's/:.*//; s/ |.*$//' | tr '\n' ',')
+  eq "a tag section has the same order with no Note" "$got_order" "## Upgrade harness,Result,Mode,Required,Candidate,Previous,Run,Merge retries,| Record,"
 
   # Every value a consumer can meet is one of the words it matches on, once, in a file that holds other sections around it.
   for kind in pass fail partial; do
@@ -705,6 +770,137 @@ b_record_contract() {
   eval "$(declare -f record_section | sed '1s/^record_section/orig_record_section/')"
   record_section() { orig_record_section "$@" | sed 's/^Mode: /Mode:/'; }
 }
+
+# --- pairing (Story 12.9) ---
+
+# The family over stubs of its five readings of the stack. STUB_* say what the stack answers: the previous build's Included(), the reason
+# a move failed, the session a chat's Pairing row names, the number of messages the mock got for the chat before and after the
+# notification, and the reason a notification was not sent.
+pairing_stubs() {
+  wait_until() { shift; "$@"; }
+  PAIR_WAIT=1
+  pairing_build_included() { echo "${STUB_INC-}"; }
+  pairing_move() { echo "${STUB_MOVE_WHY-}"; }
+  pairing_session_of() { echo "${STUB_SESSION-}"; }
+  pairing_replies() {
+    local n
+    n=$(cat "$state/replies.n" 2> /dev/null || echo 0)
+    echo "$((n + 1))" > "$state/replies.n"
+    if [ "$n" -eq 0 ]; then echo "${STUB_BEFORE-3}"; else echo "${STUB_AFTER-4}"; fi
+  }
+  pairing_notify() { echo "${STUB_NOTIFY_WHY-}"; }
+}
+pairing_fresh() { # pairing_fresh: an empty state and results
+  state=$tmp/pairing-state
+  rm -rf "$state"
+  mkdir -p "$state"
+  results=$state/results
+  : > "$results"
+  : > "$state/seed.env"
+  : > "$state/upgrade.env"
+  fails=0
+  seeding=0
+  cur_row=""
+}
+pairing_lines() { grep -c "^RECORD pairing $1 " "$results" 2> /dev/null; }
+
+t_pairing() {
+  local bad=0
+  pairing_stubs
+
+  # The seed: nothing on a previous build that does not include Telegram, a paired chat on one that does.
+  pairing_fresh
+  seeding=1
+  STUB_INC=0 seed_pairing > /dev/null
+  eq "a previous build without Telegram: no chat is seeded" "$(env_get "$state/seed.env" pair_chat)" ""
+  eq "and the seed remembers that it did not include Telegram" "$(env_get "$state/seed.env" prev_telegram)" 0
+  eq "and writes no seed line" "$(pairing_lines seed)" 0
+  pairing_fresh
+  seeding=1
+  STUB_INC=1 STUB_SESSION=zzsession1 seed_pairing > /dev/null
+  eq "a previous build with Telegram: the chat is seeded" "$(env_get "$state/seed.env" pair_chat)" 84017734150
+  eq "with its session" "$(env_get "$state/seed.env" pair_session)" zzsession1
+  eq "and a seed line, which is no check" "$(pairing_lines seed)" 1
+  pairing_fresh
+  seeding=1
+  STUB_INC=1 STUB_MOVE_WHY="no long poll is open" seed_pairing > /dev/null
+  eq "a move that fails fails the seed" "$(pairing_lines fail)" 1
+
+  # The upgrade part: a note without a seeded chat, the checks with one.
+  pairing_fresh
+  env_set "$state/seed.env" prev_telegram 0
+  check_pairing_upgrade > /dev/null
+  eq "an older previous build: the note says the upgrade part joins later" "$(grep -c "^RECORD pairing note $PAIRING_UPGRADE_NOTE\$" "$results")" 1
+  eq "and nothing is checked" "$(pairing_lines pass)$(pairing_lines fail)" 00
+  pairing_fresh
+  env_set "$state/seed.env" prev_telegram 1
+  env_set "$state/seed.env" pair_chat 84017734150
+  env_set "$state/seed.env" pair_session zzsession1
+  STUB_SESSION=zzsession1 check_pairing_upgrade > /dev/null
+  eq "a seeded chat that still names its session and gets the notice: two passes" "$(pairing_lines pass)" 2
+  eq "and no failure" "$(pairing_lines fail)" 0
+  pairing_fresh
+  env_set "$state/seed.env" prev_telegram 1
+  env_set "$state/seed.env" pair_chat 84017734150
+  env_set "$state/seed.env" pair_session zzsession1
+  STUB_SESSION=zzother check_pairing_upgrade > /dev/null
+  eq "a Pairing row that names another session fails" "$(pairing_lines fail)" 1
+  pairing_fresh
+  env_set "$state/seed.env" prev_telegram 1
+  env_set "$state/seed.env" pair_chat 84017734150
+  env_set "$state/seed.env" pair_session zzsession1
+  STUB_SESSION=zzsession1 STUB_AFTER=3 check_pairing_upgrade > /dev/null
+  eq "a notice that never reaches the mock fails" "$(pairing_lines fail)" 1
+  pairing_fresh
+  env_set "$state/seed.env" prev_telegram 1
+  check_pairing_upgrade > /dev/null
+  eq "a previous build with Telegram and no seeded chat fails" "$(pairing_lines fail)" 1
+
+  # The candidate's chat, paired at the end of the upgrade phase.
+  pairing_fresh
+  STUB_SESSION=zzsession2 pair_candidate > /dev/null
+  eq "the candidate's chat is kept for the restart" "$(env_get "$state/upgrade.env" pair_chat)" 84017734151
+  eq "with its session" "$(env_get "$state/upgrade.env" pair_session)" zzsession2
+  pairing_fresh
+  STUB_MOVE_WHY="the mock did not accept the update" pair_candidate > /dev/null
+  eq "a candidate chat that cannot be paired fails and keeps nothing" "$(pairing_lines fail)$(env_get "$state/upgrade.env" pair_chat)" 1
+
+  # The restart part.
+  pairing_fresh
+  env_set "$state/upgrade.env" pair_chat 84017734151
+  env_set "$state/upgrade.env" pair_session zzsession2
+  STUB_SESSION=zzsession2 check_pairing_restart > /dev/null
+  eq "after the restart the chat is paired and the notice arrives: two passes" "$(pairing_lines pass)" 2
+  pairing_fresh
+  env_set "$state/upgrade.env" pair_chat 84017734151
+  env_set "$state/upgrade.env" pair_session zzsession2
+  STUB_SESSION=zzsession2 STUB_AFTER=3 check_pairing_restart > /dev/null
+  eq "after the restart a notice with no sendMessage at the mock fails" "$(pairing_lines fail)" 1
+  pairing_fresh
+  env_set "$state/upgrade.env" pair_chat 84017734151
+  env_set "$state/upgrade.env" pair_session zzsession2
+  STUB_SESSION="" check_pairing_restart > /dev/null
+  eq "after the restart a chat that lost its pairing fails" "$(pairing_lines fail)" 1
+  pairing_fresh
+  env_set "$state/upgrade.env" pair_chat 84017734151
+  env_set "$state/upgrade.env" pair_session zzsession2
+  STUB_SESSION=zzsession2 STUB_NOTIFY_WHY="the session has no row" check_pairing_restart > /dev/null
+  eq "a notification that cannot be sent fails" "$(pairing_lines fail)" 1
+  pairing_fresh
+  check_pairing_restart > /dev/null
+  eq "no paired chat left by the upgrade fails" "$(pairing_lines fail)" 1
+
+  # The phases' wiring: the three phases that read the pairing keep Telegram on from their first statement, and the upgrade phase pairs
+  # the candidate's chat after its own check.
+  for fn in phase_seed phase_upgrade phase_restart; do
+    eq "$fn keeps Telegram on (LIVE_TELEGRAM=started) as its first statement" "$(declare -f "$fn" | sed -n 3p | tr -d ' ;')" "LIVE_TELEGRAM=started"
+  done
+  eq "phase_upgrade pairs the candidate's chat right after the upgrade check" "$(declare -f phase_upgrade | tr -s ' \t\n' ' ' | grep -c 'check_pairing_upgrade; pair_candidate;')" 1
+  eq "phase_restart checks the pairing after the restart" "$(declare -f phase_restart | tr -s ' \t\n' ' ' | grep -c 'check_pairing_restart')" 1
+  eq "phase_seed seeds the pairing" "$(declare -f phase_seed | tr -s ' \t\n' ' ' | grep -c 'seed_pairing')" 1
+  [ "$bad" -eq 0 ]
+}
+b_pairing() { pairing_reached() { return 0; }; }
 
 # --- run ---
 
@@ -850,6 +1046,112 @@ t_report() {
 }
 b_report() { unfinished_phase_lines() { :; }; }
 
+# --- merge-retries ---
+
+t_merge_retries() {
+  local bad=0 r=$tmp/mr-results o=$tmp/mr-options sec out s want
+
+  # The helper: the count of the current start's STEP merge RETRY lines, with the start's label, appended to the results.
+  : > "$r"
+  (
+    results=$r
+    start_log() { printf 'AFTER-START begin x\nSTEP merge OK 9s\nRESULT OK 0.1.0\n'; }
+    count_merge_retries "settings project, previous build"
+    start_log() { printf 'STEP merge RETRY 1 after #453\nSTEP merge OK 9s\n'; }
+    count_merge_retries "records project, restart"
+    start_log() { printf 'STEP merge RETRY 1 after #453\nSTEP merge RETRY 2 after #453\n'; }
+    count_merge_retries "records project, candidate"
+  )
+  eq "the helper appends one line per start, with its count and label" "$(cat "$r")" "MERGE-RETRIES 0 settings project, previous build
+MERGE-RETRIES 1 records project, restart
+MERGE-RETRIES 2 records project, candidate"
+  eq "the helper's lines are no record row" "$(record_rows "$r" | awk -F'\t' '$3 != "not run" { n++ } END { print n + 0 }')" 0
+
+  # ready_or_die counts a start's retries whether or not it ended ready, and before its die.
+  : > "$r"
+  (
+    results=$r
+    start_log() { printf 'STEP merge RETRY 1 after #453\nSTEP merge OK 9s\n'; }
+    wait_started_ready() { return 0; }
+    die() { echo "die: $1" >> "$r"; }
+    ready_or_die "records project, previous build" 400
+    wait_started_ready() { return 1; }
+    ready_or_die "settings project, candidate" 400
+  ) > /dev/null
+  eq "ready_or_die counts a ready start, and a start that was not ready before its die" "$(cat "$r")" "MERGE-RETRIES 1 records project, previous build
+MERGE-RETRIES 1 settings project, candidate
+die: settings project, candidate: the start did not end ready within 400 s"
+
+  # The upgrade's and the restart's own waits (phase_upgrade and phase_restart run over stubs, no Docker): the start's retries are
+  # counted whether the start ended ready or not, and in the not-ready case before the die. The stubbed die and the stubbed step that
+  # follows the wait (the upgrade's env_set; the restart's keys check, after its marker check, which the stubs let through) both leave the
+  # subshell, so a count placed after them, or left out, shows as a missing results line. Straight after the wait is the source pins' part.
+  mkdir -p "$tmp/mr-state/p1"
+  printf '%s\n' 'x/context.yml' > "$tmp/mr-state/p1/files"
+  mr_phase() { # mr_phase <phase> <wait status>: the phase over stubs, its results file on stdout
+    : > "$r"
+    (
+      results=$r state=$tmp/mr-state
+      row() { :; }; attach_stack() { :; }; preflight() { :; }; load_seed() { :; }; opt() { echo 9.9.9; }
+      env_get() { :; }; env_set() { echo "past: env_set" >> "$r"; exit 3; }; marker() { :; }; fail() { :; }; pass() { :; }; keys_point() { echo 0; }
+      dc() { case $* in "ps -q iris") echo cid ;; esac; }
+      live_pop_file() { :; }; live_track_image() { :; }
+      start_log() { printf 'STEP merge RETRY 1 after #453\nSTEP merge OK 9s\n'; }
+      wait_started_ready() { return "$waited"; }
+      die() { echo "die: $1" >> "$r"; exit 1; }
+      waited=$2
+      "phase_$1"
+    ) > /dev/null 2>&1
+    cat "$r"
+  }
+  eq "the restart counts a ready start before its next step" "$(mr_phase restart 0)" "MERGE-RETRIES 1 records project, restart
+die: restart: the runners' keys could not be pointed at the mock"
+  eq "the restart counts a start that was not ready before its die" "$(mr_phase restart 1)" "MERGE-RETRIES 1 records project, restart
+die: restart: the container was not ready within 300 s"
+  eq "the upgrade counts a ready start before its next step" "$(mr_phase upgrade 0)" "MERGE-RETRIES 1 records project, candidate
+past: env_set"
+  eq "the upgrade counts a start that was not ready before its die" "$(mr_phase upgrade 1)" "MERGE-RETRIES 1 records project, candidate
+die: upgrade: the candidate did not end ready within 400 s"
+
+  # The five starts each count right after their wait, before any die.
+  eq "ready_or_die serves three starts" "$(grep -c '^  ready_or_die "' release/upgrade-harness.sh)" 3
+  eq "the upgrade's wait is followed by its count" "$(grep -A1 'wait_started_ready 400 || ready=1' release/upgrade-harness.sh | tail -n 1)" '  count_merge_retries "records project, candidate"'
+  eq "the restart's wait is followed by its count" "$(grep -A1 'wait_started_ready 300 || ready=1' release/upgrade-harness.sh | tail -n 1)" '  count_merge_retries "records project, restart"'
+  eq "ready_or_die counts straight after its wait" "$(grep -A1 'wait_started_ready "\$2" || ready=1' release/upgrade-harness.sh | tail -n 1)" '  count_merge_retries "$1"'
+
+  # The section: Merge retries: right after Run:, 0 with no line (a dry run included), the sum otherwise; nothing else changes.
+  write_options "$o" tag v1.0.0 release
+  write_results "$r" pass
+  sec=$(record_section "$r" "$o")
+  has "no MERGE-RETRIES line reads 0" "$sec" "Merge retries: 0"
+  eq "the line follows Run:" "$(printf '%s\n' "$sec" | grep -A1 '^Run: ' | tail -n 1)" "Merge retries: 0"
+  want=$(printf '%s\n' "$sec" | grep -v '^Merge retries: ')
+  printf 'MERGE-RETRIES 0 settings project, candidate\nMERGE-RETRIES 1 records project, restart\nMERGE-RETRIES 2 records project, candidate\n' >> "$r"
+  sec=$(record_section "$r" "$o")
+  has "lines of 0, 1 and 2 read 3" "$sec" "Merge retries: 3"
+  lacks "the total is no longer 0" "$sec" "Merge retries: 0"
+  eq "the section is otherwise unchanged" "$(printf '%s\n' "$sec" | grep -v '^Merge retries: ')" "$want"
+  has "Result: is unchanged" "$sec" "Result: pass"
+  has "a dry run reads 0" "$(record_section /dev/null "$o")" "Merge retries: 0"
+
+  # The report: the total before RECORD and RESULT, which stays last.
+  mkdir -p "$tmp/rs"
+  report_state rs-mr
+  s=$(TMPDIR=$tmp/rs state_dir rs-mr)
+  printf 'MERGE-RETRIES 0 settings project, candidate\n' > "$s/results.settings"
+  printf 'MERGE-RETRIES 1 records project, restart\nMERGE-RETRIES 2 records project, candidate\n' > "$s/results.restart"
+  rm -f "$tmp/rs-rs-mr.md" # the break run's record is no evidence for this run
+  out=$(run_cmd_phase rs-mr report)
+  eq "report prints the total before RECORD and RESULT" "$(printf '%s\n' "$out" | grep -v '^PHASE' | awk '{ if ($1 == "MERGE-RETRIES") print $1 " " $2; else print $1 }')" "MERGE-RETRIES 3
+RECORD
+RESULT
+status"
+  has "report's record holds the total" "$(cat "$tmp/rs-rs-mr.md" 2> /dev/null)" "Merge retries: 3"
+  has "its Result: is unchanged" "$(cat "$tmp/rs-rs-mr.md" 2> /dev/null)" "Result: pass"
+  [ "$bad" -eq 0 ]
+}
+b_merge_retries() { count_merge_retries() { printf 'MERGE-RETRIES 0 %s\n' "$1" >> "${results:-/dev/null}"; }; }
+
 rule resolve-previous t_resolve b_resolve
 rule stamp-mode t_stamp_mode b_stamp_mode
 rule phase-ready t_phase_ready b_phase_ready
@@ -859,11 +1161,14 @@ rule chat-request t_chat_request b_chat_request
 rule storage-compare t_storage b_storage
 rule record t_record b_record
 rule static t_static b_static
+rule real-previous t_real_previous
 rule real-tree t_real b_real
 rule storage-base t_storage_base b_storage_base
 rule record-contract t_record_contract b_record_contract
+rule pairing t_pairing b_pairing
 rule run t_run b_run
 rule report t_report b_report
+rule merge-retries t_merge_retries b_merge_retries
 
 if [ "$fails_total" -ne 0 ]; then
   echo "test-upgrade-harness: $fails_total rule(s) failed"

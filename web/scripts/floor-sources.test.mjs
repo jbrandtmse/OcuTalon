@@ -422,6 +422,14 @@ describe('the width bands (Story 2.15)', () => {
       .filter((condition) => !heightOnly(condition))
       .filter((condition) => /\b(?:min-|max-)?width\b|\bwidth\s*[<>=]|[<>=]\s*\d+px|\$\{/.test(condition));
 
+  /** A width condition without a height query that leads it: "(height < 680px) and (width < 1024px)" is the width band (width < 1024px) within a short window. */
+  const withoutHeight = (condition) => {
+    for (const height of Object.values(HEIGHT_QUERIES)) {
+      if (condition.startsWith(`${height} and `)) return condition.slice(height.length + 5);
+    }
+    return condition;
+  };
+
   it('catches a width media query that is none of the four, in any syntax', () => {
     assert.deepEqual(widthConditions('@media (max-width: 1000px) { a { b: c } }'), ['(max-width: 1000px)']);
     assert.deepEqual(widthConditions('@media (min-width: 1440px) { a { b: c } }'), ['(min-width: 1440px)']);
@@ -438,6 +446,9 @@ describe('the width bands (Story 2.15)', () => {
     assert.deepEqual(widthConditions('@media ${HEIGHT_QUERIES.compact} { a { b: c } }'), []);
     assert.deepEqual(widthConditions('@media (height < 680px) and (width < 900px) { a { b: c } }'), ['(height < 680px) and (width < 900px)']);
     assert.deepEqual(widthConditions('@media (max-width: 900px) { a { b: c } }'), ['(max-width: 900px)']);
+    assert.equal(withoutHeight('(height < 680px) and (width < 1024px)'), '(width < 1024px)', 'a leading height query is set aside');
+    assert.ok(!QUERIES.includes(withoutHeight('(height < 680px) and (width < 900px)')), 'and the width beside it must still be one of the four');
+    assert.equal(withoutHeight('(width < 1024px) and (height < 680px)'), '(width < 1024px) and (height < 680px)', 'only a leading one');
   });
 
   it('keeps the one height query of the page apart from the four width queries', () => {
@@ -456,7 +467,7 @@ describe('the width bands (Story 2.15)', () => {
       for (const condition of widthConditions(cssOf(one))) found.push([one.name, condition]);
     }
     assert.ok(found.length >= 6, `the width queries are found (${found.length})`);
-    for (const [name, condition] of found) assert.ok(QUERIES.includes(condition), `${name}: ${condition} is one of the four queries`);
+    for (const [name, condition] of found) assert.ok(QUERIES.includes(withoutHeight(condition)), `${name}: ${condition} is one of the four queries`);
     assert.deepEqual(
       [...new Set(found.map(([name]) => name))].sort(),
       ['app/app.ts', 'app/chat/chat-panel.ts', 'app/devices/device-panel.ts', 'app/feed/break-feed-box.ts', 'app/guide/demo-guide.ts', 'app/header/header.ts', 'app/main-page/main-page.ts', 'styles/base.css'],
@@ -466,7 +477,7 @@ describe('the width bands (Story 2.15)', () => {
   it('writes every query of a component as an interpolation of LAYOUT_QUERIES, and only base.css writes one out', () => {
     for (const one of files.filter((one) => /^app\/.*\.ts$/.test(one.name))) {
       const css = [...one.code.matchAll(/styles:\s*`([\s\S]*?)`/g)].map((match) => match[1]).join('\n');
-      for (const condition of widthConditions(css)) assert.match(condition, /^\$\{LAYOUT_QUERIES\.(?:stacked|framed|drawer|wide)\}$/, `${one.name}: ${condition}`);
+      for (const condition of widthConditions(css)) assert.match(condition, /^(?:\$\{HEIGHT_QUERIES\.\w+\} and )?\$\{LAYOUT_QUERIES\.(?:stacked|framed|drawer|wide)\}$/, `${one.name}: ${condition}`);
     }
   });
 

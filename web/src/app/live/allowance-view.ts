@@ -19,6 +19,8 @@ import type { StatusPayload } from './payloads';
 export interface AllowanceWindow {
   limit: number | undefined;
   time: string;
+  /** True while Telegram is on (banners/banner-view.ts telegramOn): the reason then names Telegram. AllowanceState sets it; allowanceOf leaves it out. */
+  telegram?: boolean;
 }
 
 /** What a 429 refusal told the page: the limit when the server gave one, and the UTC ISO time when the session can send again. */
