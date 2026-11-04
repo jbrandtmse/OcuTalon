@@ -155,3 +155,5 @@
 2026-11-04T22:03:15Z	Epic 40	owner_decision	id=DW-669 at=orchestrator_2026-11-04T21:5xZ via=orchestrator_message by=Contest_Planner_owner_delegation answer=part_a_in_Epic_40_before_merge:PersonaBody_forwards_only_used_values;over-limit_refused_bad_language/bad_custom;part_b_DW-687_burndown;part_c_Planner_demo_host
 2026-11-04T22:03:15Z	Epic 40	ruling	question=where_DW-669_part_a_goes choice=route_to_40.6_with_DW_bullet(Rule_17_1b) rejected=fix_forward_story,40.4_scope why=40.4_spec_forbids_server_classes;40.6_already_owns_Web/Api_persona_work(DW-570,571);fix_forward_is_for_inherited_CI_reds;no_graph_change category=decide policy=5086036
 2026-11-04T22:03:15Z	Story 40.6	ledger_routed_planned	story=40-6-answer-a-proposed-persona-from-the-page-the-phone-or-telegra entries=1 excess=0 by=merge_gate ids=DW-669
+2026-11-04T22:32:01Z	Story 40.3	ci_resolved	story=40.3 sha=2a789066 runs=41914403794,41914403947 failed=none via=none result=success resolved_at=next_plan ci_queue=0 note=attempt_2_green_after_flake_DW-688
+2026-11-04T22:32:01Z	Epic 40	ci_green_verified	runs=41916844884,41916844987 head=ac2c4549 branch=feature result=success note=read_before_integrate_forward
