@@ -1871,3 +1871,7 @@
 2026-11-04T21:12:56Z	Epic 7	ci_green_verified	sha=5639a269 runs=41907840967,41907840312 result=success note=epic_head_recorded_here_per_contract(no_write_after_final_push)
 2026-11-04T21:12:56Z	Epic 7	runner_complete	agent=a0a593f1f2fa5d3b3 head=5639a269 ci=success(41907840967,41907840312) stories=7.7,7.8 tokens=375499 model=opus unpushed=none ledger_drain=0.70 decisions_for_user=DW-653 applied=U-249,U-250,U-251,U-252 merge=held_U-253 contract_verified=head_matches_origin,tree_clean
 2026-11-04T21:12:56Z	Epic 7	merge_held	reason=U-253(Planner_5_real-model_trials_before_Nov_12) u253_handoff=sent_to_Planner decision_sheet_at_merge=DW-653 worktree=kept runner_B=freed
+2026-11-04T21:13:44Z	Epic 11	ruling	question=dispatch_onto_feature_9b66b35d_with_CI_pending choice=dispatch_now;runner_merges_feature_only_on_CI_success(spec_work_meanwhile,story_text_read_from_origin) rejected=wait_idle_for_feature_CI(9b66b35d_is_bookkeeping_only_over_green_749db383) category=decide policy=508603671b9598f59d04750db6b6cdad2d396167
+2026-11-04T21:13:44Z	Epic 11	runner_dispatched	agent=a7d7e52bf1aec359d model=opus runner=B slot=ocutalon-slot-b lane=B scope=integrate_forward,11.21,part_merge_11.20+11.21(U-277) start=de6670fe prompt=prompts/redispatch-epic-11-1121.md
+2026-11-04T21:13:44Z	Run	feature_pushed	head=9b66b35d verified=origin contains=bookkeeping_only(Story_11.21_text,ledger,tracker,logs,deps) since=749db383
+2026-11-04T21:13:56Z	Run	planner_note	sent=U-253_handoff(5639a269,throwaway_cmd,trial_pass_rule),DW-653_for_decision_sheet,runner_status
