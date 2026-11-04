@@ -3999,6 +3999,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: feature 417f17c5 (Epic 7 merge) run 41916766312 iris (browser) attempt 1 | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: same code green on ac2c4549 (run 41916844884); not DW-415 (ERR_NETWORK_CHANGED); gotoSettled in support/navigate.ts retries only NETWORK_CHANGED
 - 2026-11-04T22:31:36Z status=routed owner=burndown by=orchestrator note=candidate for Story 11.21's shared-helper bounds; a second occurrence is a real red
+- 2026-11-04T23:33:06Z occurrence=epic-40 by=orchestrator note=OCT-epic40@5d96d2f6 run 41929230934 att 1, iris (browser) live:demo-path 02-watch.spec.ts:61 'Orders production' check row; page.waitForResponse 180 s test timeout in support/floor.ts:141 loadedAfter (same shared sign-in helper family)
 
 ### DW-691: flake: floor focus.spec.ts:53 P1 (Retry sending leaves focus on its message) hit the 90 s test timeout in page.waitForResponse
 - source: feature 417f17c5 (Epic 7 merge) run 41916766312 iris (shards-3) attempt 1 | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -4009,3 +4010,9 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: OCT-epic40 5d96d2f6 run 41929230934 iris (production) att 1; OCT-epic39 d701b6e6 run 41909512271 iris (shards) att 1 | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: two sightings on two branches within 2 h, neither branch touches the Telegram items or the production definition; row 14's other values and row 21's after-restore check passed in the same run
 - 2026-11-04T23:32:19Z status=escalated owner=burndown by=orchestrator note=Story 12.1 promises Telegram stays off without a token; if a disabled TelegramIn/TelegramOut can hold a job, that is a product path, not a flake. Raised to the Contest Planner 2026-11-04.
+- 2026-11-04T23:33:35Z status=routed owner=burndown by=Contest_Planner(delegated) note=INVESTIGATE NOW, diagnosis first, bounded, by the first of runners A, C, D at a story boundary (orchestrator: runner A, idle at 40.3/40.4 boundary). (a) transition timing vs row 14 and shard samples (b) the job's state at sample and its end (c) 20 restore-then-sample cycles on one slot, 30 s after steady running. Transition only = harness race: row 14 and the shard check wait, own bound, for a steady production; held when steady = product bug P1 gating Story 31.4's demo deploy, to the Planner with evidence before a fix. Does not hold the Epic 39 or 40 merges.
+
+### DW-693: README never names or links the community idea claimed for the 4-point bonus
+- source: Contest Planner request 2026-11-04 (first daily release) | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: 1.0.0 README, 'What's interesting' section, first paragraph
+- 2026-11-04T23:33:35Z status=routed owner=burndown by=orchestrator note=Add exactly, after '...in the same place as the rest of your integrations.': 'It implements the community idea [Use InterSystems Interoperability as a Traceability tool for GenAI LLM pipelines](https://ideas.intersystems.com/ideas/DPI-I-689).' Nothing else changes; README tests and the link check pass; the Planner reviews it in the release's public-text pass.
