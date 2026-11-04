@@ -1,22 +1,23 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 
 import { signIn } from '../sign-in/helpers';
-import { STATE, changeSnapshot } from '../support/api';
+import { changeSnapshot } from '../support/api';
 import { raise, refOf } from '../support/approvals';
 import { CARD_MS, composerOf, loadedAfter, mainOf } from '../support/floor';
-import { cleanFixtureRows, fixtureUser, irisScript, quoted } from '../support/iris';
+import { cleanFixtureRows, fixtureUser, irisScript, quoted, seedIncident } from '../support/iris';
 
 /**
- * Story 7.8 (DW-645), the either-way line on the approval request card's dry-run block (E1 to E5), in a real browser against a real
+ * Story 7.8 (DW-645), the either-way line on the approval request card's dry-run block (E1 to E8), in a real browser against a real
  * stack, as the cards unit's user CARDS. The request is a fixture row whose FixParameters name the source format; the page gets its
  * `approval` payload through BridgeSink, which asks the notice's own rule (Watch.Notice.Reading) for the flag and the reading, so the
  * row on the card is what the server decided. The words are the catalog's: E1 reads the same sentence out of the server's renderer
  * for the with-fix notice.
- * E1 is the many form (50 of 50, 11/04/2026 as month first) with its place in the block, the server's text and the reload's snapshot, E2 the one form
+ * E1 is the many form (50 of 50, 11/04/2026 as month first) with its place in the block and the server's text, E2 the one form
  * (day first), E3 the requests that get no row (a day above 12, the same date both ways, a source format that is not an order format),
  * E4 an answered request, which keeps the row and loses the note (at 1280 by 600 its Before and After share a line below the count line), and E5
  * the layout at 1280 by 600 under the conditions of DESIGN.md's acceptance test, as cards/approval-card.spec.ts A6 sets them (Before and After
- * share a line and the note is on the count line).
+ * share a line and the note is on the count line), E6 the same height with no row: the block keeps its stacked arrangement, E7 a reload: the card
+ * is drawn from the snapshot with the row, and E8 narrow short screens: the arrangement keeps the block inside the card.
  */
 test.describe.configure({ timeout: 120_000 });
 test.use({ timezoneId: 'UTC', locale: 'en-GB' });
@@ -112,7 +113,7 @@ async function serverHolds(count: number, reading: string, sentence: string): Pr
 }
 
 /** E1: the many form. */
-test('E1: the dry-run block shows the either-way sentence between After and Will resend, as the server renders it, and the snapshot after a reload carries its flag', async ({ page }) => {
+test('E1: the dry-run block shows the either-way sentence between After and Will resend, as the server renders it', async ({ page }) => {
   const { user } = fixtureUser(KIND);
   const rows: string[] = [];
   try {
@@ -126,15 +127,6 @@ test('E1: the dry-run block shows the either-way sentence between After and Will
     await expect(card.locator('.dry-either .dry-key'), 'with no label').toHaveCount(0);
     await expect(card.locator('.dry-note')).toHaveText('Nothing has changed yet.');
     expect(await serverHolds(50, 'month first', MANY), "the server's with-fix notice holds the same sentence").toBe(true);
-
-    await page.reload();
-    await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
-    const response = await page.request.get(STATE);
-    expect(response.status(), 'the snapshot is served').toBe(200);
-    const snapshot = (await response.json()) as { rail: { approvals: Array<{ ref: string; dryRun?: { eitherWay?: boolean; reading?: string } }> } };
-    const held = snapshot.rail.approvals.find((one) => one.ref === request);
-    expect(held?.dryRun?.eitherWay, 'a reload gets the flag from the snapshot, which the server builds with the same rule').toBe(true);
-    expect(held?.dryRun?.reading).toBe('month first');
   } finally {
     await cleanFixtureRows(rows);
   }
@@ -230,6 +222,93 @@ test('E5: at 1280 by 600 with the row showing the headline, the cause, the dry-r
     await beforeAndAfterShareALine(card, true);
     await expect(card.getByRole('button', { name: 'Approve: repair and resend 50 orders', exact: true }), 'Approve').toBeInViewport({ ratio: 1 });
     await expect(card.getByRole('button', { name: 'Reject: repair and resend 50 orders', exact: true }), 'Reject').toBeInViewport({ ratio: 1 });
+  } finally {
+    await cleanFixtureRows(rows);
+  }
+});
+
+/**
+ * E6: the short-screen arrangement belongs to the either-way row alone. At 1280 by 600 a request with no row (a day above 12, the
+ * same date both ways) keeps the block as it was: Before above After, each on its own line, and the note below them, not on the count line.
+ */
+test('E6: at 1280 by 600 a request with no either-way row keeps its block as it was', async ({ page }) => {
+  const { user } = fixtureUser(KIND);
+  const rows: string[] = [];
+  try {
+    await open(page);
+    await page.setViewportSize({ width: 1280, height: 600 });
+    const cases: Array<{ label: string; before: string; after: string }> = [
+      { label: 'a day above 12', before: '10/16/2026', after: '2026-10-16' },
+      { label: 'the same date both ways', before: '11/11/2026', after: '2026-11-11' },
+    ];
+    for (const [index, one] of cases.entries()) {
+      const request = await raise(page, user, rows, refOf(`E6${index}`), [], { dryRun: dryRunOf(50, one.before, one.after), fixParameters: parametersOf('MM/DD/YYYY') });
+      const card = requestCard(page, request);
+      await expect(card.locator('.dry'), `${one.label}: the dry-run block is there`).toHaveCount(1, { timeout: CARD_MS });
+      await expect(card.locator('.dry-either'), `${one.label}: no row`).toHaveCount(0);
+      const head = await edgesOf(card.locator('.dry-head'));
+      const before = await edgesOf(card.locator('.dry > .dry-row').nth(0));
+      const after = await edgesOf(card.locator('.dry > .dry-row').nth(1));
+      const note = await edgesOf(card.locator('.dry-note'));
+      expect(before.top, `${one.label}: Before is below the count line`).toBeGreaterThanOrEqual(head.bottom - 1);
+      expect(after.top, `${one.label}: After is below Before, not beside it`).toBeGreaterThanOrEqual(before.bottom - 1);
+      expect(note.top, `${one.label}: the note is below the rows, not on the count line`).toBeGreaterThan(after.top);
+    }
+  } finally {
+    await cleanFixtureRows(rows);
+  }
+});
+
+/**
+ * E7: a reload. The incident is a noticed row, so the page draws its card from the snapshot; the request comes from the rail's approvals,
+ * which the server builds through the same FromRow as the live event. The card is back after the reload with the row in its place.
+ */
+test('E7: after a reload the card is drawn from the snapshot and the row is still there', async ({ page }) => {
+  const { user } = fixtureUser(KIND);
+  const rows: string[] = [];
+  try {
+    const incident = await seedIncident(user);
+    rows.push(incident);
+    await open(page);
+    const request = await raise(page, user, rows, incident, [], { dryRun: dryRunOf(50, '11/04/2026', '2026-11-04'), fixParameters: parametersOf('MM/DD/YYYY') }, false);
+    const card = requestCard(page, request);
+    await expect(card.locator('.dry-either'), 'the row, from the live event').toHaveText(MANY, { timeout: CARD_MS });
+
+    await page.reload();
+    await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
+    await expect(card.locator('.dry-either'), 'the row, from the snapshot').toHaveText(MANY, { timeout: CARD_MS });
+    expect(await partsOf(card), 'in its place').toEqual(['dry-head', 'dry-row', 'dry-row', 'dry-either', 'dry-row dry-resend', 'dry-note']);
+  } finally {
+    await cleanFixtureRows(rows);
+  }
+});
+
+/**
+ * E8: the short-screen arrangement has a height condition alone, so it also applies on a narrow screen. At 640 by 360 (200% zoom) and at
+ * 320 by 360 the block keeps the arrangement, and nothing in it passes the block's right edge or widens the page.
+ */
+test('E8: on a narrow short screen the arrangement keeps the block inside the card', async ({ page }) => {
+  const { user } = fixtureUser(KIND);
+  const rows: string[] = [];
+  try {
+    await open(page);
+    const request = await raise(page, user, rows, refOf('E8'), [], { dryRun: dryRunOf(50, '11/04/2026', '2026-11-04'), fixParameters: parametersOf('MM/DD/YYYY') });
+    const block = requestCard(page, request).locator('.dry');
+    await expect(block.locator('.dry-either')).toHaveText(MANY, { timeout: CARD_MS });
+    for (const viewport of [{ width: 640, height: 360 }, { width: 320, height: 360 }]) {
+      await page.setViewportSize(viewport);
+      const label = `${viewport.width} by ${viewport.height}`;
+      await expect(block, `${label}: the arrangement applies`).toHaveCSS('display', 'grid');
+      const past = await block.evaluate((element) => {
+        const edge = element.getBoundingClientRect().right;
+        const parts = [...element.querySelectorAll('*')].map((one) => one.getBoundingClientRect().right - edge);
+        const root = document.documentElement;
+        return { part: Math.max(...parts), block: element.scrollWidth - element.clientWidth, page: root.scrollWidth - root.clientWidth };
+      });
+      expect(past.part, `${label}: no part passes the block's right edge`).toBeLessThanOrEqual(0.5);
+      expect(past.block, `${label}: the block does not scroll sideways`).toBeLessThanOrEqual(0);
+      expect(past.page, `${label}: the page does not scroll sideways`).toBeLessThanOrEqual(0);
+    }
   } finally {
     await cleanFixtureRows(rows);
   }

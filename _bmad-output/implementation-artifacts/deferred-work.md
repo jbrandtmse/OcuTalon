@@ -3876,6 +3876,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: approval-view.ts L40-44,L181 builds the card's dry run from the stored DRYRUNKEYS fields; Live/Payload/Approval.cls L85-103 maps them key by key
 - 2026-11-03T22:11:50Z status=escalated owner=burndown by=spec_gate note=veto U-252; follow-on after Epic 31 merges; a Lane B payload field plus a web card row
 - 2026-11-04T11:44:33Z status=routed owner=7-8-the-web-incident-card-shows-the-either-way-date-line-too by=spec_gate note=U-252 at=2026-11-03T23:29:21Z#756 made the card row Story 7.8; its block already carries the DW-645 bullet; recorded at the redispatch
+- 2026-11-04T16:33:48Z status=resolved-by:7-8-the-web-incident-card-shows-the-either-way-date-line-too by=adjudication note=delivered in f66edc41 with the review patches: dryRun eitherWay and reading on the approval payload, the card row; pinned by Payloads.TestApprovalEitherWay and cards either-way.spec.ts
 
 ### DW-653: Eval.Record still refuses a data_format_change expectation with no fixKind (Story 7.7 V1 made that reply shape valid), so no eval case can expect the no-evidence date outcome
 - source: spec-7-7-a-date-repair-that-could-read-either-way-names-its-evidence.md | severity: med | fix-risk: med | footprint: out-of-footprint
@@ -3923,3 +3924,20 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-7-8-the-web-incident-card-shows-the-either-way-date-line-too.md | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: measured at plan on a lane-B throwaway: Approve bottom 555 against list bottom 518; the design viewport 1280x720 fits
 - 2026-11-04T15:56:03Z status=routed owner=burndown by=harvest note=pre-existing; the acceptance test holds only for short causes; Lane B chat panel
+- 2026-11-04T16:32:05Z occurrence=7-8-the-web-incident-card-shows-the-either-way-date-line-too
+- 2026-11-04T16:32:05Z status=routed owner=burndown by=cr note=with the row and the grid Approve is about 554 under the demo reply (inference: 593 less the 39 saved), so AC 6 holds for short causes only
+
+### DW-671: At 680 to 707 px tall, with the guide open and the demo reply, the either-way row puts Approve up to 28 px past the chat list, above the height where the short-screen arrangement starts
+- source: spec-7-8-the-web-incident-card-shows-the-either-way-date-line-too.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: (inference from the plan's table) list bottom is height less 82, Approve bottom 626 with the row, 589 without; the arrangement starts below 680 by ruling Q1
+- 2026-11-04T16:32:05Z status=by-design owner=7-8-the-web-incident-card-shows-the-either-way-date-line-too by=cr note=ruling Q1 sets the threshold at 680; changing it re-opens the ruling; one scroll, no loss of function
+
+### DW-672: EXPERIENCE.md's card description and its Shorter than 680 row name neither the either-way row nor the short-screen arrangement
+- source: spec-7-8-the-web-incident-card-shows-the-either-way-date-line-too.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: grep for either-way in EXPERIENCE.md finds nothing; the spec leaves the edit to the lead's bookkeeping, and Epic 40 is changing the file
+- 2026-11-04T16:32:06Z status=wontfix-accepted owner=7-8-the-web-incident-card-shows-the-either-way-date-line-too by=cr note=reopen_if=grep -c either-way EXPERIENCE.md is 0 once Epic 40 has merged
+
+### DW-673: docker/tests/test-cards.sh's header and PASS line list the cards cases without cards/either-way.spec.ts
+- source: spec-7-8-the-web-incident-card-shows-the-either-way-date-line-too.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: the header names I2-I11 and A2-A10 only; the spec's Never list keeps docker out of this story
+- 2026-11-04T16:32:06Z status=wontfix-accepted owner=7-8-the-web-incident-card-shows-the-either-way-date-line-too by=cr note=reopen_if=test-cards.sh is next edited and still omits either-way.spec.ts

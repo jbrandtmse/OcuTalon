@@ -43,7 +43,7 @@
 // form that does not name a declared count slot or has no text of its own, a listed key with both a web form and a one form, a
 // noun slot in an entry with no count slot, a reason value whose fallbackReason.* key is missing, a key that both catalogs
 // define, the key incident.eitherWayLine in either catalog, an either-way line that cannot be cut (a parent entry or an anchor
-// is missing or occurs twice) or that differs between its eight forms, and an XData block, a REASONKEYS parameter or a
+// is missing or occurs twice, or a parent's one form is not chosen by resendCount) or that differs between its eight forms, and an XData block, a REASONKEYS parameter or a
 // CHANNELNAMES parameter it cannot read.
 // A later story that renders another key or slot type adds it here, to the allowlist and to renderPageText.
 
@@ -101,10 +101,10 @@ export const LISTED_KEYS = [
   'incident.eitherWayLine',
 ];
 /** The page key of the either-way line, the two entries it is cut from, and the words that bound it in each of their texts. */
-export const LINE_KEY = 'incident.eitherWayLine';
-export const LINE_PARENTS = ['incident.withFixEitherWay', 'incident.laterRequestEitherWay'];
-export const LINE_START = 'becomes {after}. ';
-export const LINE_END = " I'll resend";
+const LINE_KEY = 'incident.eitherWayLine';
+const LINE_PARENTS = ['incident.withFixEitherWay', 'incident.laterRequestEitherWay'];
+const LINE_START = 'becomes {after}. ';
+const LINE_END = " I'll resend";
 export const REASON_PREFIX = 'fallbackReason.';
 /** The slot types that every listed key may declare (a key of TEXT_SLOT_KEYS may also declare text): a fallbackReason slot gives its reason text, a channel slot the channel's name, a noun slot the form of {one, other} that the count slot chooses, the others take the caller's formatted string. */
 const SLOT_TYPES = ['fallbackReason', 'time', 'count', 'cost', 'channel', 'noun'];
@@ -274,6 +274,7 @@ function eitherWayLine(entries) {
     if (entry === null || typeof entry !== 'object' || entry.one === null || typeof entry.one !== 'object') {
       throw new CatalogError(file, 0, `${LINE_KEY}: the entry '${parentKey}' has no one form`);
     }
+    if (entry.one.slot !== 'resendCount') throw new CatalogError(file, 0, `${LINE_KEY}: the one form of '${parentKey}' is not chosen by resendCount`);
     many.push(cutLine(parentKey, 'text', entry.text, file), cutLine(parentKey, 'web', entry.web, file));
     ones.push(cutLine(parentKey, 'one.text', entry.one.text, file), cutLine(parentKey, 'one.web', entry.one.web, file));
     declared.set(parentKey, entry.slots !== null && typeof entry.slots === 'object' ? entry.slots : {});

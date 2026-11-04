@@ -2,7 +2,7 @@
 title: 'The web incident card shows the either-way date line too'
 type: 'feature'
 created: '2026-11-04'
-status: 'done'
+status: 'in-progress'
 baseline_revision: '701942f7371a67088e3be671a31e1a74588c894d'
 baseline_commit: '701942f7371a67088e3be671a31e1a74588c894d'
 review_loop_iteration: 0
@@ -132,6 +132,34 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless stated. Lines as of `ae68a4a
 - AC 6 (Q1): Given 1280x600 under DESIGN.md's acceptance conditions and the row showing, when the card lands, then the headline, cause, dry-run count, Approve and Reject are in the chat list's view without scrolling.
 - AC 7: Given the story's changes, when the stored dry run and the tests are read, then `DRYRUNKEYS` and the stored keys are unchanged, and `live:demo-path`, the cards, floor, answers and online-demo units, the web unit tests and the catalog tests pass.
 
+### Review Findings
+
+Code review, 2026-11-04: full tier, four layers (blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor), no failed layer. 24 raw findings, 17 entries: high 0, med 4, low 13; 3 rejected. Every patch is applied; the runs and mutations are under Verification, "Code-review stage".
+
+- [x] [Review][Patch] (med; fix-risk low; in-story) The matrix row Reload and E1's task were pinned by a `/state` read, not by the card: `page.reload()` changed nothing the test looked at, and a fixture incident is an event only. E7 seeds a noticed incident, so the card is drawn from the snapshot, and asserts the row on it; E1's decorative reload goes [web/e2e/cards/either-way.spec.ts]
+- [x] [Review][Patch] (med; fix-risk low; in-story) AC 5's fail-closed path had four refusal branches with no case: the end anchor twice, a form with no text, an empty sentence, a slot typed differently in the two parents. Each has a fixture now [web/scripts/catalog.test.mjs]
+- [x] [Review][Patch] (low; fix-risk low; in-story) "Nothing overflows" at a narrow width had no test: the grid has a height condition alone and E4 to E6 ran at 1280 wide. E8 renders it at 640 by 360 and 320 by 360; it passes, so the claim holds [web/e2e/cards/either-way.spec.ts]
+- [x] [Review][Patch] (low; fix-risk low; in-story) The generator did not check that a parent's one form is chosen by `resendCount`, the slot the card chooses by: a parent chosen by `count` would have stayed green and split the card from the notice. `eitherWayLine` refuses it, with a fixture [web/scripts/catalog.mjs]
+- [x] [Review][Patch] (low; fix-risk low; in-story) The real-tree case's hand loop over `Watch.cls` never ended if the XData's closing lines were gone, hanging the run. It uses the generator's `readEntries` [web/scripts/catalog.test.mjs]
+- [x] [Review][Patch] (low; fix-risk low; in-story) The class docs said the two fields are never stored, against U-267: `Live.Event`'s Payload text keeps them. They now say not kept on the request or in its dry run [src/ocutalon/cls/OcuTalon/Live/Payload/Part/DryRun.cls, Approval.cls]
+- [x] [Review][Patch] (low; fix-risk low; in-story) `EitherWay`'s doc misstated the rule ("every value of the example", no source format). It states `Reading`'s rule [src/ocutalon/cls/OcuTalon/Live/Payload/Part/DryRun.cls]
+- [x] [Review][Patch] (low; fix-risk low; in-story) Absence for a day above 12 was pinned for month-first sources only. `TestApprovalEitherWay` gains 16/10/2026 under DD/MM/YYYY [src/ocutalon/cls/OcuTalon/Test/Live/Payloads.cls]
+- [x] [Review][Patch] (low; fix-risk low; in-story) `.dry-either` had no wrapping rule, unlike the card's other free text, though it carries `{item}` [web/src/app/approvals/approval-request-card.ts]
+- [x] [Review][Patch] (low; fix-risk low; in-story) `catalog.mjs` exported four constants nothing imports [web/scripts/catalog.mjs]
+- [x] [Review][Patch] (low; fix-risk low; in-story) The AC 6 `mutation:` line was stale ("E5 only"): re-observed, E4, E5 and E8 go red. Line corrected under Verification
+- [x] [Review][Patch] (low; fix-risk low; in-story) AC 3 "stays when answered" and AC 2 "no either-way case" had no observed red: both mutations applied and recorded under Verification
+- [x] [Review][Patch] (low; fix-risk low; in-story) Test headers narrated the stage that wrote them ("E6 (QA)", "Story 7.8 (QA)"), against Rule 14 [web/e2e/cards/either-way.spec.ts, web/scripts/either-way-line-sources.test.mjs]
+- [x] [Review][Defer] (med; fix-risk med; out-of-footprint) With the demo reply's cause, Approve stays past the list at 1280x600 with the row showing, about 36 px (inference: 593 less the 39 the grid saves), so AC 6 holds for short causes only. The grid gives back the row's height, so this is DW-668's overrun, not a new one [web/src/app/chat/chat-panel.ts] -- deferred: occurrence on DW-668, routed owner=burndown
+- [x] [Review][Defer] (med; fix-risk low; in-story) From 680 to 707 px tall, with the guide open and the demo reply, the row puts Approve up to 28 px past the list (inference from the plan's table) [web/src/app/approvals/approval-request-card.ts] -- deferred: DW-671 by-design, ruling Q1 sets the threshold at 680
+- [x] [Review][Defer] (low; fix-risk low; out-of-footprint) EXPERIENCE.md names neither the row nor the arrangement -- deferred: DW-672 wontfix-accepted, the lead's bookkeeping, Epic 40 is changing the file
+- [x] [Review][Defer] (low; fix-risk low; out-of-footprint) `docker/tests/test-cards.sh`'s header omits `either-way.spec.ts` -- deferred: DW-673 wontfix-accepted, the spec's Never list keeps `docker/**` out of this story
+- [ ] [Smoke] (med; fix-risk low; in-story; Rule 19 hermeticity) `live cards` failed E6 once at the lead's smoke (fresh lane-B throwaway, the bundle built from the reviewed tree) and passed on an unchanged rerun: "the same date both ways: After is below Before, not beside it", expected >= 535.98, received 484.98. The second card of the loop is measured with five separate `boundingBox` calls while the chat list may still be following the new card to the bottom, so the parts are measured in different scroll positions (After's top read 52 px above Before's bottom). The fix must make E6 measure the block's parts in one consistent layout (for example one `evaluate` that reads every part's rect relative to the `.dry` block, after the card is settled), and apply the same to the helpers E4, E5 and E8 share (`edgesOf` / `beforeAndAfterShareALine`), keeping every assertion's meaning; if the layout itself moves after the card is drawn (a product cause), fix that instead and say so. Re-observe E6's and AC 6's `mutation:` lines (they must still go red) and update them. Show it stable: `live cards` passes three times in a row on fresh lane-B throwaways after `ci/iris.sh build` [web/e2e/cards/either-way.spec.ts]
+
+**Rejected:**
+- `low`: the closing records (Auto Run Result, Tasks, Footprint extensions) trail the QA stage's counts and files. The fix edits the spec's record; Rule 14 has each pass report its own runs, and the current counts are under Verification.
+- `low`: the grid has no width condition. Spec-bound: Decided in-stage holds it to height alone, as ruling Q1 says; E8 now shows it does no harm.
+- `false`: the other live units were not re-run after QA. QA changed test files only, so they had nothing new to run against.
+
 ## Spec Change Log
 
 - 2026-11-04, the lead: plan halted on Q1 and Q2; ruled (Design Notes, Rulings), U-266 and U-267 filed, the project block's scope item 5 corrected, status reset to draft for the re-plan.
@@ -230,7 +258,7 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless stated. Lines as of `ae68a4a
 - `PAGE_TEXTS` count 50 to 51 and the key list: `web/scripts/catalog.test.mjs`. The generator now needs the two parents, so its fixture `WATCH` gains them.
 - `DryRunView`'s shape: `approval-view.test.mjs` `deepEqual`.
 - The card template's printed order: `approval-sources.test.mjs` `order`.
-- The cards project's cases, 20 to 25: `playwright-projects.test.mjs`.
+- The cards project's cases, 20 to 28: `playwright-projects.test.mjs`.
 - `CALLBACKHELPERS` and `SINKCLASSES`: `Test.Bridge.CodeRules`.
 - `HEIGHT_QUERIES`' users: `floor-sources.test.mjs` `used`.
 - The card's height on the demo path: `web/e2e/support/demo-path.ts` reads `.dry-note` and `.dry-count`, unchanged by the new class. With the demo's real dates the row shows in `live:demo-path` until November 13 and not after; nothing asserts it there, because the date decides.
@@ -264,15 +292,39 @@ Paths are under `src/ocutalon/cls/OcuTalon/` unless stated. Lines as of `ae68a4a
 - mutation: AC 4 the view tests `reading` alone and ignores `eitherWay` -> red: `approval-view.test.mjs` ("is absent unless the flag is true ...").
 - mutation: AC 5 one word changed in the one form of `incident.laterRequestEitherWay` -> the generator exits 1 ("incident.eitherWayLine: the one form of the line differs ..."), `catalog.test.mjs` real-tree cases fail (current catalog.ts; the eight forms). The fixture refusal cases pass by design: they build their own broken fixtures and assert the refusal.
 - mutation: AC 6 / answered the rule `.dry.has-either:not(.has-note) .dry-head` removed -> red: E4 only (Before and After no longer share a line below the count line); with the rule E4 and E5 pass.
-- mutation: AC 6 the short-screen rule removed -> red: E5 only (`toBeInViewport` fails); with the rule E5 passes.
+- mutation: AC 6 the short-screen rule disabled (`@media ${HEIGHT_QUERIES.compact} and (width < 1px)`) -> red: E4 and E5 ("Before and After share a line") and E8 ("640 by 360: the arrangement applies"); with the rule all pass. Re-observed at code review.
 - mutation: AC 7 `FromRow` writes `eitherWay` back into `row.DryRun` -> red: `Payloads.TestApprovalEitherWay` ("the row's stored dry run is unchanged").
 
 **Implementation notes (decided in-stage, small, within the intent).**
-- E1's reload check reads the `/state` snapshot (`rail.approvals[].dryRun.eitherWay` and `reading`) instead of looking for the card after `page.reload()`: the fixture incident is an event only and a reload does not redraw its card, so the request card is not on the page after a reload. The snapshot is what `Web/Api` builds through `FromRow`, which is the matrix row "Reload".
+- The matrix row "Reload" is E7, on a seeded noticed incident: `raise`'s published incident is an event only, which a reload does not redraw, so E1 does not carry it.
 - The compact rule sets `.dry-row` to `auto minmax(0, 1fr)` columns (not the 84 px key column) while the row shows, so the half-width cells keep room for the value; the rule changes only `.dry.has-either` under `HEIGHT_QUERIES.compact`, and the Will resend row gets the extra class `dry-resend` (a hook for `grid-column: 1 / -1`; no text, order or other row changes).
 - The derived key is listed last in `LISTED_KEYS` and `TEXT_SLOT_KEYS` (its slots `reading` and `item` are text slots).
 - Class tests that need no runtime of their own (`Payloads`, `CodeRules`, `NoticeText`, `BridgeSink`, and the mutation runs of `Payloads` and `NoticeText.TestEitherWay`) ran on slot B (namespace OCUTALON) after `iris_doc_load` of the changed classes, not in a warm throwaway; `EitherWay`, `Diagnose` and `live cards` ran in fresh lane-B throwaways with tag `e7s8i`, torn down at the end.
 - The bundle is rebuilt (`ci/iris.sh build`) before each `live cards` run that follows a web change; a run on an older bundle does not see the change.
+
+**QA stage (Rule 19).** AC 1 to AC 4, AC 6 and AC 7 are pinned by tests that have their `mutation:` line above; nothing was added for them. Two gaps were found against the ACs and the matrix and closed:
+
+- `web/scripts/either-way-line-sources.test.mjs` (QA): AC 5's "no other file under `web/src/app` holds the words" was pinned only for the approvals folder (`approval-sources.test.mjs`); this scans every source of the page, comments included, and finds the line in `msg/catalog.ts` alone, once as the many form and once as the one form.
+- `web/e2e/cards/either-way.spec.ts` E6 (QA), with `playwright-projects.test.mjs` (`range('E', 1, 6)`, `cards.length` 26): "no row in any other state changes" at 1280x600. A request with no row (a day above 12, the same date both ways) keeps Before above After and the note below the rows; nothing pinned that the short-screen grid belongs to the row alone.
+
+- mutation: AC 5 / the line typed in a second page source (`web/src/app/chat/chat-panel.ts` gains a line holding "they match the day each order arrived") -> red: `either-way-line-sources.test.mjs` ("is typed in the generated catalog and in no other source of the page"); reverted byte-identically (`cmp` against a copy, `git status --short` and `git diff` equal to the ones taken before).
+- mutation: AC 4 / short-screen rule leaks to every card (`.dry.has-either {` of the compact block becomes `.dry {`) -> red: `live cards` E6 ("a day above 12: Before is below the count line"), and A6 as well (Approve out of view); reverted byte-identically, bundle rebuilt.
+
+QA runs: `node --test` of the new file and `playwright-projects.test.mjs` pass; `npm --prefix web test` 1326 pass; `npm --prefix web run lint` clean; `live cards` 26 passed (E6 included) in the throwaway `e7s8q`, torn down (0 left). No IRIS class changed in this stage, so no class run.
+
+**Code-review stage (Rule 19).** Each mutation was applied, observed red, and reverted byte-identically (`git status --short` and `git diff` equal to the ones taken before it).
+
+- mutation: Reload `fromSnapshot` sets `dryRun.eitherWay` false on the rail's approvals -> red: E7 only ("the row, from the snapshot").
+- mutation: short-screen overflow `.dry.has-either` gets `repeat(2, 240px)` columns -> red: E8 only ("320 by 360: no part passes the block's right edge").
+- mutation: AC 3 / answered `eitherWay: pending ? eitherWayOf(...) : ''` -> red: `approval-view.test.mjs` ("stays on an answered request").
+- mutation: AC 2 / no either-way case `Notice.Reading` treats YYYY-MM-DD as MM/DD/YYYY -> red: `Payloads.TestApprovalEitherWay` ("a source format that is not an order format: no flag"), slot B.
+- mutation: AC 5 / the end anchor twice, the once-check dropped -> red: `catalog.test.mjs` ("refuses a form whose anchor is missing or occurs twice").
+- mutation: AC 5 / a form missing, the `typeof text` check dropped -> red: `catalog.test.mjs` ("refuses a parent with a form missing").
+- mutation: AC 5 / an empty sentence, the `line === ''` check dropped -> red: `catalog.test.mjs` ("refuses a form with nothing between its anchors").
+- mutation: AC 5 / slot types, the type check dropped -> red: `catalog.test.mjs` ("refuses a slot of the line whose type differs").
+- mutation: AC 5 / the one form's slot, the `resendCount` guard dropped -> red: `catalog.test.mjs` ("refuses a one form that is not chosen by resendCount").
+
+Code-review runs: `live cards` 28 passed (E7 and E8 included) in the throwaway `e7s8c`, torn down (0 left); `npm --prefix web test` 1330 pass; `npm --prefix web run lint` clean; `Payloads` 15 of 15 on slot B; `catalog.mjs --check` and `payloads.mjs --check` exit 0; `test-class-rules.sh` and `test-boundaries.sh` pass. The bundle was rebuilt from the clean tree after the last mutation.
 
 ## Auto Run Result
 

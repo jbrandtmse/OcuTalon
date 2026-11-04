@@ -323,6 +323,9 @@ export function approvalContext(nowMs: number, instanceZone: string, onlineDemo:
     .after {
       color: var(--dry-run-block-after);
     }
+    .dry-either {
+      overflow-wrap: anywhere;
+    }
     .dry-note {
       color: var(--ink-muted);
     }

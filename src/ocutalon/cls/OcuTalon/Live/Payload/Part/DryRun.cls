@@ -1,5 +1,5 @@
 /// The stored dry run of an approval request; its keys are the keys of ApprovalRequest DRYRUNKEYS, and EitherWay and Reading, which FromRow works out for the
-/// payload from the stored dry run and the request's parameters and never stores. Lane B.
+/// payload from the stored dry run and the request's parameters. Neither is kept on the request or in its dry run; Live.Event's Payload text holds them as it holds the rest of a payload. Lane B.
 Class OcuTalon.Live.Payload.Part.DryRun Extends (%RegisteredObject, %JSON.Adaptor)
 {
 
@@ -24,11 +24,11 @@ Property After As %String(%JSONFIELDNAME = "after", MAXLEN = 1000);
 /// The item noun, singular and plural.
 Property ItemNoun As OcuTalon.Live.Payload.Part.ItemNoun(%JSONFIELDNAME = "itemNoun");
 
-/// 1 when every value of the example reads as a valid date both ways, month first and day first, as two different dates (the notice then carries the either-way line);
-/// worked out for the payload, never stored.
+/// 1 when Watch.Notice Reading answers for the stored dry run and the request's parameters: the source format is MM/DD/YYYY or DD/MM/YYYY and before reads in both orders as
+/// two different dates (the notice then carries the either-way line). Worked out for the payload, not kept on the request.
 Property EitherWay As %Boolean(%JSONFIELDNAME = "eitherWay") [ InitialExpression = 0 ];
 
-/// The reading the dry run used when EitherWay is 1 ("month first" or "day first"); empty otherwise. Worked out for the payload, never stored.
+/// The reading the dry run used when EitherWay is 1 ("month first" or "day first"); empty otherwise. Worked out for the payload, not kept on the request.
 Property Reading As %String(%JSONFIELDNAME = "reading", MAXLEN = 32);
 
 }

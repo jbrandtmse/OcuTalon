@@ -56,7 +56,7 @@ Property TraceNamespace As %String(%JSONFIELDNAME = "traceNamespace", MAXLEN = 1
 
 /// The payload for an approval request row, with every row-backed field set; dryRun is the row's stored JSON parsed
 /// into its part (left absent when the row holds none or it can't be read). The part's eitherWay and reading are the answer of Watch.Notice Reading over that dry run
-/// and the row's FixParameters, the rule that chose the notice's key: eitherWay 1 with the reading, else 0 and no reading. They are not stored. The reason has no source in the row and
+/// and the row's FixParameters, the rule that chose the notice's key: eitherWay 1 with the reading, else 0 and no reading. Neither is kept on the row. The reason has no source in the row and
 /// stays empty. The trace target is the request's incident's: when sessionRef, the Ref of the session the payload is for,
 /// and the row's IncidentRef are both set and Ownership.Incident gives an incident that session can see with a
 /// TraceHeaderId, traceHeaderId is that id and traceNamespace the current namespace. Otherwise the payload has no target.

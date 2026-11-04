@@ -890,13 +890,9 @@ describe('--check', () => {
 
 describe('the either-way line of the real tree (Story 7.8; U-249)', () => {
   const watchFile = join(repoRoot, 'src/ocutalon/cls/OcuTalon/Msg/Catalog/Watch.cls');
-  const fromClass = () => {
-    const text = readFileSync(watchFile, 'utf8');
-    const lines = text.split('\n');
-    const header = lines.findIndex((line) => /^XData\s+Entries\b/.test(line));
-    let close = header + 3;
-    while (!(lines[close] === '}' && lines[close + 1] === '}')) close += 1;
-    return JSON.parse(lines.slice(header + 2, close + 1).join('\n'));
+  const fromClass = async () => {
+    const { readEntries } = await import(pathToFileURL(script).href);
+    return readEntries(readFileSync(watchFile, 'utf8'), watchFile).entries;
   };
 
   it('holds the line as U-249 words it, in a many form and a one form chosen by resendCount', () => {
@@ -907,8 +903,8 @@ describe('the either-way line of the real tree (Story 7.8; U-249)', () => {
     assert.equal(real.renderPageText(LINE_KEY, { resendCount: '1', reading: 'day first', item: 'message' }), 'The date is valid whether read month first or day first. Read day first, it matches the day the message arrived.');
   });
 
-  it('is what each of the eight forms of the two catalog entries holds between its anchors, and nothing else of them is typed on the page', () => {
-    const entries = fromClass();
+  it('is what each of the eight forms of the two catalog entries holds between its anchors, and nothing else of them is typed on the page', async () => {
+    const entries = await fromClass();
     const forms = [];
     for (const key of LINE_PARENTS) {
       const entry = entries[key];
@@ -954,6 +950,29 @@ describe('the either-way line on a fixture', () => {
     refused('line-no-start', { ...WATCH, [LINE_PARENTS[0]]: eitherParent('{count} {itemNoun} failed.', { start: 'turns into {after}. ' }) }, /does not hold/);
     refused('line-no-end', { ...WATCH, [LINE_PARENTS[1]]: eitherParent('{count} more {itemNoun} failed.', { end: ' We will resend' }) }, /does not hold/);
     refused('line-twice', { ...WATCH, [LINE_PARENTS[1]]: eitherParent('becomes {after}. x', {}) }, /does not hold/);
+    refused('line-end-twice', { ...WATCH, [LINE_PARENTS[1]]: eitherParent('{count} more {itemNoun} failed.', { end: " I'll resend I'll resend" }) }, /does not hold/);
+  });
+
+  it('refuses a parent with a form missing, naming the form', () => {
+    const parent = eitherParent('{count} {itemNoun} failed.');
+    const { web, ...noWeb } = parent;
+    refused('line-no-web', { ...WATCH, [LINE_PARENTS[0]]: noWeb }, /no web text/);
+    const { web: oneWeb, ...oneNoWeb } = parent.one;
+    refused('line-no-one-web', { ...WATCH, [LINE_PARENTS[1]]: { ...parent, one: oneNoWeb } }, /no one\.web text/);
+  });
+
+  it('refuses a form with nothing between its anchors', () => {
+    refused('line-empty', { ...WATCH, [LINE_PARENTS[0]]: eitherParent('{count} {itemNoun} failed.', { many: ['', ''], one: ['', ''] }) }, /no sentence/);
+  });
+
+  it('refuses a one form that is not chosen by resendCount, as the card chooses it', () => {
+    const parent = eitherParent('{count} {itemNoun} failed.');
+    refused('line-one-slot', { ...WATCH, [LINE_PARENTS[0]]: { ...parent, one: { ...parent.one, slot: 'count' } } }, /not chosen by resendCount/);
+  });
+
+  it('refuses a slot of the line whose type differs between the parents', () => {
+    const parent = eitherParent('{count} more {itemNoun} failed.');
+    refused('line-slot-type', { ...WATCH, [LINE_PARENTS[1]]: { ...parent, slots: { ...parent.slots, item: 'time' } } }, /different type/);
   });
 
   it('refuses a many form that differs in one word of one form', () => {
