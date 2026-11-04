@@ -3911,3 +3911,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-39-3-beats-fall-due-on-the-tick-and-skip-without-a-model-call-whe.md | severity: low | fix-risk: med | footprint: in-story
 - evidence: Real Ticks run on test stacks. Due rows and Runs.Beating are now out of reach (NextDueAt in the test's future); these gaps last milliseconds in a 60 s tick and need a fixture seam to close.
 - 2026-11-04T14:53:24Z status=wontfix-accepted owner=39-3-beats-fall-due-on-the-tick-and-skip-without-a-model-call-whe by=cr note=reopen_if=a CI red in Test.Checks on 'the fixture row is saved' or a BackoffUntil off by real time
+
+### DW-670: flake: OcuTalon.Test.Web.GuideApi TestOnlyTheMarkerChanges and TestRunAgain went red once in CI (shard lane-b, group image, run 41853141384 attempt 1) and passed on an unchanged rerun
+- source: ci-run-41853141384 | severity: med | fix-risk: med | footprint: in-epic
+- evidence: Fingerprint changed and done was not 10000 inside a 0.6 s class; passed alone, in lane-b@Web and in lane-b@Schedule,Web, and in attempt 2 of the same head. Cause unknown: the fixture watch is not due for 3600 s, so a real tick does not run it, and a beat writes nothing the test reads
+- 2026-11-04T16:26:42Z status=routed owner=burndown by=harvest note=one occurrence on 092876ad; reads as a test race, cause not found
