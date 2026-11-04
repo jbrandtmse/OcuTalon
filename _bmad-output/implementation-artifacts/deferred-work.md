@@ -3891,3 +3891,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: U-264 (Contest Planner) | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: rc3 release PR: test-web-build AC6 saw a modified src/ocutalon/csp/3rdpartylicenses.txt
 - 2026-11-04T08:01:25Z status=routed owner=burndown by=merge_gate note=first_daily_release_after_1.0.0
+
+### DW-661: Story 17.6 adds the catalog key digest.cost to Msg/Catalog/Watch.cls; Story 33.2 adds only the dailyCost slot type
+- source: Story 33.2 spec gate (L1) | severity: low | fix-risk: low | footprint: small
+- evidence: spec-33-2 L1; Test.Msg.Catalog refuses the prefix in Catalog.Core
+- 2026-11-04T12:08:42Z status=routed owner=17-6-send-the-daily-digest-at-the-set-time-and-on-request by=orchestrator note=veto ; bullet goes on Story 17.6 at Epic 33's merge
