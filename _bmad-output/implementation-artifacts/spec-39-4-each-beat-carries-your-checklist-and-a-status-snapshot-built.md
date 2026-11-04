@@ -2,7 +2,7 @@
 title: 'Story 39.4: Each beat carries your checklist and a status snapshot built by code'
 type: 'feature'
 created: '2026-11-04'
-status: 'draft'
+status: 'ready-for-dev'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -80,21 +80,25 @@ deferred: []
 ## Code Map
 
 - `src/ocutalon/cls/OcuTalon/Checks/Beat.cls` -- the only product class that changes besides Triage:
-  - class doc, lines 22-23 ("Until Story 39.4 ...");
-  - `Snapshot`, the stub to fill; `Run`, which calls `Snapshot` and `Key`;
-  - `STATUSPREFIX`, `STATUSSUFFIX`, `SUBJECT`; `Key`, which needs no change;
+  - class doc, lines 24-25 ("Until Story 39.4 ...");
+  - `Snapshot` 173, the stub to fill; `Run` 298, which calls `Snapshot` and `Key` at 304-305;
+  - `STATUSPREFIX`, `STATUSSUFFIX`, `SUBJECT`; `Key` 180, which needs no change;
   - `Values`, for the interval of the reminder window.
-- `src/ocutalon/cls/OcuTalon/Agent/Triage.cls` -- `XData INSTRUCTIONS`, last paragraph ends at line 38. Epic 40's Story 40.3 also edits this file; it has not yet.
+- `src/ocutalon/cls/OcuTalon/Agent/Triage.cls` -- `XData INSTRUCTIONS`, last paragraph ends at line 39. Epic 40's Story 40.3 also edits this file; it has not yet.
 - `_bmad-output/planning-artifacts/ux-designs/ux-OcuTalon-2026-10-16/EXPERIENCE.md` -- line 1017, `**Triage, heartbeat:**`, the paragraph's source.
-- `src/ocutalon/cls/OcuTalon/Data/Ownership.cls` -- `Reminders` 270, `Checks` 276, `Decisions` 282, `Incidents` 289, `Approvals` 303, `TurnOfItem` 238, `Incident` 381. Each takes `.sc`. Call only.
-- `src/bridge/cls/OcuTalon/Bridge/Data/Usage.cls` -- `Channel`, `DecisionRefIndex`. Read by SQL. `Bridge/Data/Decision.cls` has no `Channel`.
+- `src/ocutalon/cls/OcuTalon/Data/Ownership.cls` -- `Reminders` 270, `Checks` 276, `Decisions` 282, `Incidents` 289, `Approvals` 303, `TurnOfItem` 238, `Incident` 381. Each takes `.sc`. `Decisions` takes a `max` (default 20), newest first by `RecordedAt`, then ID, and holds chat rows too. `Reminders` holds pending rows only. Call only.
+- `src/bridge/cls/OcuTalon/Bridge/Data/Usage.cls` -- `Channel`, `DecisionRefIndex`. Read by SQL, table `OcuTalon_Bridge_Data.Usage`, with a bound value, compared exactly afterwards as `TurnOfItem` does (the default collation ignores case). `Bridge/Data/Decision.cls` has no `Channel`.
 - `src/ocutalon/cls/OcuTalon/Tools/WatchAnswers.cls` -- `WatchNames`, line 179, and `Tools/RecentActivity.cls`: the sibling reads of the same rows, and the same list of what never to read. Read for reference, not called (see Design Notes).
-- `src/ocutalon/cls/OcuTalon/Checks/Process.cls` -- `INTERVALSECONDS` = 60 at 67 and the unconditional `UPDATE` at 491: `LastRunAt` moves every minute. Read only.
+- `src/ocutalon/cls/OcuTalon/Checks/Process.cls` -- `KIND` at 85, the value that picks a watch from `Ownership.Checks`. `INTERVALSECONDS` = 60 at 67 and the unconditional `UPDATE` at 491: `LastRunAt` moves every minute, which is why a watch's line holds no time. Read only.
 - `src/ocutalon/cls/OcuTalon/Core/Intake.cls` -- `SummaryOf`, the Summary of a beat and of mail. `Core/Rule/Outcome.cls` -- digest to `DigestStore`, tellnow and act to `Notify`. `Digest/Store.cls`, `Digest/Data/Item.cls`. All read only.
 - `src/ocutalon/cls/OcuTalon/Test/Checks/Beat.cls` -- old shape to update:
   - `TestKey`'s last line (299);
-  - each `..BKey("c")`-style seed that stands for a whole snapshot (355, 468, 535 and `TestUnchangedAfterIgnore`, 409): use `..BKey(..BSnap(ref, at))`.
-- `src/ocutalon/cls/OcuTalon/Test/Checks/Heartbeat.cls` -- old shape to update: `TestBeatReachesIntake` (480) and `TestBeatNowReachesIntake` (520) assert the Item's text equals the checklist. Helpers `Findings` 292, `Beatable` 350, `Due` 361, `SeedBeat` 369, `WaitDecision` 391 and `Marked` 403 move to `BeatCase` (see Tasks).
+  - the Item's text as the checklist: 353, 437;
+  - each key that must equal the real snapshot's: 355, 412 with 549's skip, 429, 535. Use `..BKey(..BSnap(ref, at))`, set after the person's row exists. 429 matters most: with a stale key, "unchanged does not hold a run now" would pass without testing anything;
+  - the other seeds (305, 347, 371, 468, 539, 543, 578-579) are only copied or must only differ, so they stay.
+- `src/ocutalon/cls/OcuTalon/Test/Checks/Heartbeat.cls` -- old shape to update: `TestBeatReachesIntake` (480) and `TestBeatNowReachesIntake` (520) assert the Item's text equals the checklist. The quiet key at 505 must become the real snapshot's key, written after `SeedBeat` because `Snapshot` reads the saved checklist; otherwise "unchanged does not hold a run now" tests nothing. `TestAnHourOfTicks` (534) needs no change: its minute-30 snapshot stops at T0's own decision, so its text is T0's. Helpers `Findings` 292, `Beatable` 350, `Due` 361, `SeedBeat` 369, `Beat` 383, `WaitDecision` 391, `Marked` 403 and `Check` 587 move to `BeatCase` (see Tasks). `TestTickRunsTheWatch` (50) is how a real watch is seeded and run.
+- `src/ocutalon/cls/OcuTalon/Test/Checks/Runs.cls` -- old shape to update: 1035 asserts the Item's text is the checklist.
+- `src/ocutalon/cls/OcuTalon/Test/Checks/BrokenGuard.cls` -- the shape of a test-support subclass with no test; `ci/iris.sh` `is_test_case` needs a `Method Test`, so it lists none.
 - `src/ocutalon/cls/OcuTalon/Test/Watch/Case.cls` -- `Tick` 680, `HeadersBetween` 360, `PointKeys` 560.
 - `src/ocutalon/cls/OcuTalon/Test/Watch/Turns.cls` -- `AssertDenied` 195: the shape of the act test.
 - `src/ocutalon/cls/OcuTalon/Test/Data/Fixture.cls` -- `Session`, `Turn`, `Reminder`, `Check`, `Incident`, `Approval`, `Decision`, `Usage`, `Clean`.
@@ -107,18 +111,19 @@ deferred: []
 
 **Execution:**
 - `ci/mock/scenarios/A/heartbeat-ignore.json`, `heartbeat-tellnow.json`, `heartbeat-digest.json`, `heartbeat-act.json`, `heartbeat-all-clear.json` -- add first, before `ci/warm.sh up` (a change under `ci/mock` refuses a warm run). `heartbeat-ignore` uses `body` with fixed usage as `usage-decide.json` does. `heartbeat-act` has three replies: the act decision; `toolUse` of `recent_activity` and `stop_watch`; a closing text. `heartbeat-all-clear` is tellnow with reasons "Everything is fine." then a plain second reason.
-- `src/ocutalon/cls/OcuTalon/Checks/Beat.cls` -- fill `Snapshot(sessionRef, now, Output keyed)`: the return value is the cut text for the Item, `keyed` the text `Run` hands to `Key`. Add `DECISIONSMAX` and `STATUSMAX` parameters, the "(more not shown)" text as a parameter, and one private builder for each kind of line. Every read goes through one method that throws on an error status, which a test subclass overrides to fail a read, as `Test.Checks.Probe` overrides `Process`'s seams. Change `Run` to key `keyed`. Replace the class doc's two 39.3 lines -- the snapshot's contract.
+- `src/ocutalon/cls/OcuTalon/Checks/Beat.cls` -- fill `Snapshot(sessionRef, now, Output whole)`: the return value is the Item's text, and `whole` is that same text with no cut, which `Run` hands to `Key`. Each line is built once, so the two differ only past the 4,000-character cut. A watch's line reads `DisplayName` and `Result` only. Add `DECISIONSMAX`, `DECISIONSREAD` (100) and `STATUSMAX` parameters, the "(more not shown)" text as a parameter, and one private builder for each kind of line. Every read goes through one method that throws on an error status, which a test subclass overrides to fail a read, as `Test.Checks.BrokenGuard` overrides `ReplyGuard`'s. The `Usage` read goes through it too, so a failed SQL read throws. Change `Run` to key `whole`. Replace the class doc's two 39.3 lines -- the snapshot's contract.
 - `src/ocutalon/cls/OcuTalon/Agent/Triage.cls` -- append the UX paragraph as the last paragraph of `XData INSTRUCTIONS` -- one self-contained block so that Epic 40's merge is a plain union.
 - `docker/tests/test-triage-heartbeat.sh` (new) and `ci/units.sh` -- the hosted check: it extracts the quoted text of `**Triage, heartbeat:**` from EXPERIENCE.md, fails when the extraction is empty, and requires that exact text as one whole line of `Agent/Triage.cls`. Append `triage-heartbeat` to `CHECK_SCRIPTS` (a one-name append; report it under `footprint_extensions`).
-- `src/ocutalon/cls/OcuTalon/Test/Checks/Snapshot.cls` (new, plain `%UnitTest.TestCase`, `Test.Data.Fixture`, no production) -- the matrix rows from Full snapshot to Failed read.
-- `src/ocutalon/cls/OcuTalon/Test/Checks/BeatOutcomes.cls` (new, extends `Test.Watch.Case`) -- the matrix rows Ignore to No check, on the real production through a real Tick. Move `Findings`, `Beatable`, `Due`, `SeedBeat`, `WaitDecision` and `Marked` from `Heartbeat.cls` to a shared place rather than copying them: a new `Test/Checks/BeatCase.cls` extending `Test.Watch.Case`, declared `[ Abstract ]` as `Case` is (`ci/iris.sh` then lists it as no test class), which `Heartbeat` and `BeatOutcomes` both extend.
-- `src/ocutalon/cls/OcuTalon/Test/Checks/Beat.cls`, `Test/Checks/Heartbeat.cls` -- update every old-shape assertion in the Code Map. Search `Test/**` for `Beat.Snapshot`, `Beat).Key(` and `LastSnapshotKey`.
+- `src/ocutalon/cls/OcuTalon/Test/Checks/BrokenBeat.cls` (new) -- a `Checks.Beat` whose read method throws. Test support only, with no test.
+- `src/ocutalon/cls/OcuTalon/Test/Checks/Snapshot.cls` (new, plain `%UnitTest.TestCase`, `Test.Data.Fixture`, no production) -- the matrix rows from Full snapshot to Failed read, the last through `BrokenBeat`.
+- `src/ocutalon/cls/OcuTalon/Test/Checks/BeatOutcomes.cls` (new, extends `Test.Watch.Case`) -- the matrix rows Ignore to No check, on the real production through a real Tick. Two further proofs on real Ticks. The Watch runs row again, with a real watch: a person of their own, so that the No check row stays true of every other person, holds a watch and `heartbeat-ignore`; the watch's `LastRunAt` moves between the beats (`Hang 1.1`, as `TestTickRunsTheWatch` does), and the beat due one interval later skips `unchanged` with no request carrying the marker. And the `Usage` read under the production's job: the Tell now person also holds a mail decision with a `Usage` row, and the mock's log shows that channel in the request. Move `Findings`, `Beatable`, `Due`, `SeedBeat`, `Beat`, `WaitDecision`, `Marked` and `Check` from `Heartbeat.cls` to a shared place rather than copying them: a new `Test/Checks/BeatCase.cls` extending `Test.Watch.Case`, declared `[ Abstract ]` as `Case` is (`ci/iris.sh` then lists it as no test class), which `Heartbeat` and `BeatOutcomes` both extend.
+- `src/ocutalon/cls/OcuTalon/Test/Checks/Beat.cls`, `Test/Checks/Heartbeat.cls`, `Test/Checks/Runs.cls` -- update every old-shape assertion in the Code Map. Search `Test/**` for `Beat.Snapshot`, `Beat).Key(`, `LastSnapshotKey`, `LastQuietKey`, and the text of a heartbeat Item.
 
 **Acceptance Criteria:**
 - AC 1 -- Given a person with watches, incidents, approval requests, reminders and decisions, when `Beat.Snapshot(sessionRef, now)` builds the text, then it writes the checklist first, then the status line, then one line per entry with the fields of Boundaries.
 - AC 2 -- Given rows that hold a diagnosis cause, reasons, event-log or message text, keys and identities, when the snapshot is built, then none of them is in the text.
 - AC 3 -- Given rows that pass the cap, when the snapshot is built, then the status block is at most 4,000 characters and ends with "(more not shown)", and given a kind with no rows, its line says "none".
-- AC 4 -- Given two snapshots built at different times over the same records, then `Beat.Key` is the same, and given a change to an entry or to the checklist, then the key that `Run` stores differs (for a watch's run time, as ruled under Clarification Needed).
+- AC 4 -- Given two snapshots built at different times over the same records, then `Beat.Key` is the same, and given a change to an entry or to the checklist, then the key that `Run` stores differs. A watch that runs again with the same `Result` changes no entry, because its line holds no time.
 - AC 5 -- Given Triage's instructions, when the hosted check compares them with EXPERIENCE.md, then the paragraph is there word for word, and `Test.Agent.Instructions` `TestNoTemplates` still passes.
 - AC 6 -- Given each `heartbeat-*` scenario, when a beat runs end to end on the real production, then the outcomes are those of the matrix rows Ignore, Tell now, Digest and Act.
 - AC 7 -- Given a beat, when Decide answers, then the `DecisionResponse` from Decide to Intake carries the fixed input tokens and a cost equal to the `Decision` row's, and the beat's `Decision.TraceSessionId` is the Item's own trace session, whose `SuperSession` is the person's `TraceRef`.
@@ -138,22 +143,36 @@ deferred: []
 **Governing ADs:**
 - AD-18: the agent heartbeat (the snapshot, the key, the outcomes, no all-clear).
 - AD-7: Triage's static instructions, no template token.
-- AD-10: the Gate rule 3 behind act. AD-14 and AD-30: untrusted Item, `Intake`, `OutcomeRouter`, `DigestStore`.
+- AD-10: item 3 of its list, provenance and taint, behind act (`Bridge.Policy.Gate` step 4). AD-14 and AD-30: untrusted Item, `Intake`, `OutcomeRouter`, `DigestStore`.
 - AD-26: the beat's own trace session. AD-20: tokens and cost.
 - AD-28: the guard, no all-clear. AD-32: the tell-now notice.
 - AD-29 and U-177: lanes.
-- The story changes no AD's Rule unless the ruling under Clarification Needed does.
+- The story changes no AD's Rule. `Beat.Key` stays as AD-18 says, and the spine is not amended.
 
 **U-268 (Story 33.2's pending additions to AD-1, AD-14, AD-13, AD-19, AD-32): nothing in this story relies on them.**
 - `digest` ("reaches `DigestStore`") is the inbound half only. `Core.Rule.Outcome` forwards the `ItemDecision` unchanged and `Digest.Store.Keep` writes one `Digest.Data.Item`. No `Notification` of kind `digest` is built, `Rule.Notify` and `digest.channels` are not involved, and `SendDigest` and **Got it** are not called. The test asserts the row and no notice. So it does not rely on outbound digest routing.
-- `act` ("calls no tool that isn't read-only") rests on `Bridge.Policy.Gate` rule 3 (AD-10): in an untrusted turn only tools declared read-only run, decided before the call from the tool's own class parameter. `CommandsIn.TOOLVERBS`, the closed `tool` list of AD-1, is a later fence that a denied call never reaches. Adding `SendDigest` to it widens nothing here, because a tool that submits a command isn't read-only and the Gate stops it first. The test asserts a denied step and nothing at `WatchOps` or `CommandsIn`, not the list's contents, so it stays green when the list grows.
+- `act` ("calls no tool that isn't read-only") rests on `Bridge.Policy.Gate`'s step 4, provenance and taint, which is item 3 of AD-10's list: in an untrusted or tainted turn a call runs only when its classification is safe and its readOnly is 1. Every other call is denied with UNTRUSTED, fires no `turn.step` and never reaches step 5, so no approval request can come from it. The Gate decides before the call, from the tool's own class parameters: `stop_watch` is safe with `READONLYSTOPWATCH` 0, and `recent_activity` is safe with `READONLYRECENTACTIVITY` 1. `CommandsIn.TOOLVERBS`, the closed `tool` list of AD-1, is a later fence that a denied call never reaches. Adding `SendDigest` to it widens nothing here, because a tool that submits a command isn't read-only and the Gate stops it first. The test asserts a denied step and nothing at `WatchOps` or `CommandsIn`, not the list's contents, so it stays green when the list grows.
 - Nothing else: the story adds no route, setting, notification kind or command verb, and `SendDigest` takes no part in a beat.
 
 **Decided in-stage:**
+- A watch's line holds `DisplayName` and `Result` (veto U-274), so its text and its keyed form are the same. `LastRunAt` is not read. An empty `Result` reads `not run yet`, and `not_checked` is shown as stored. Going from `not run yet` to a result is a real change of an entry.
+- The line forms, for the model only, with ` | ` between fields and a kind with no entries as its plural label and `none`:
+  ```
+  Status at 2026-11-04 12:00 (built by OcuTalon):
+  Incident: Demo.Orders | open | 3 | 2026-11-04 11:40
+  Watch: Orders feed | failed
+  Watch: Billing feed | not run yet
+  Approval request: fix | restart | Demo.Orders | 2026-11-04 11:45 | 2026-11-04 12:45
+  Reminders: none
+  Decision: 2026-11-04 11:50 | mailbox | digest | Ana: Invoice run
+  ```
+- `Beat` reads at most `DECISIONSREAD` (100, the size of `Ownership`'s other recent reads) rows of `Ownership.Decisions`, and stops at the first beat's row or the tenth line. The read needs a bound above 10 because chat rows are read and left out. More than 100 newer chat decisions would hide an older mail decision from the list, and the person took part in those turns.
+- `heartbeat` is not yet in `Msg.Enum` CHANNEL (39.2's append, in backlog), and no matrix row needs it. `Intake` copies the channel, `Digest.Data.Item.Channel` is a plain string, `Delivery.Record` validates the notice's own `web` channel, and no `Bridge.Audit` writer is on the denied-step path.
+- `%ExecDirect` is privilege-checked, and only `Ownership` and `Eval` read a bridge table by SQL today. No hosted rule forbids it (`test-class-rules.sh`), and `BeatOutcomes` proves the read in the production's own job.
 - The 4,000 characters bound the status block, not the checklist too. NFR-27 reads "1,000 characters of checklist plus 4,000 of snapshot", and AD-18 says the snapshot is at most 4,000.
 - `Key` hashes the uncut status. Otherwise a new incident past the cut would leave the key unchanged and a quiet beat would skip it, against AC 4 and the point of the skip.
 - User-turn decisions are left out. `Conversation`'s `Summary` is the first line of the user's message, so listing it breaks "no message text" (AD-18). Those rows are always tellnow and tell a beat nothing.
-- A mail decision's `Summary` is "{Sender}: {Subject}", kept as stored. The AC names `Summary`, and FR-64 says the snapshot "can quote outside content". The list of identities that never appear (Never) is OcuTalon's own: refs, IRIS users, approvers and tokens. The lead may want to read this one at the gate.
+- A mail decision's `Summary` is "{Sender}: {Subject}", kept as stored. The AC names `Summary`, and FR-64 says the snapshot "can quote outside content". The list of identities that never appear (Never) is OcuTalon's own: refs, IRIS users, approvers and tokens. Veto U-275 keeps this.
 - A beat's row is found by `Summary = Beat.SUBJECT`, because a fallback beat with no model request has no `Usage` row to give its channel. Only an Item with no sender and that exact subject or first line could match, and no channel builds one today.
 - A new decision costs two model requests, not one: the beat that lists it, and the next one, whose decisions line has moved on. It is then quiet. Inside FR-64 and NFR-28.
 - The line labels (`Incident:`, `Watch:`, ...) are code-written facts for the model. They appear in no card or notice. `Status at ... (built by OcuTalon):` and "(more not shown)" are the AC's.
@@ -181,7 +200,7 @@ deferred: []
 
 **Ledger inbox:** none.
 
-**Footprint:** `ci/units.sh` and `docker/tests/test-triage-heartbeat.sh` are outside Epic 39's paths_hint and no open epic has changed them (Rule 11 (b), `footprint_extensions`). `Agent/Triage.cls` is shared with Epic 40 and unchanged there. Nothing else contended is edited.
+**Footprint:** `ci/units.sh` and `docker/tests/test-triage-heartbeat.sh` are outside Epic 39's paths_hint and no open epic has changed them (Rule 11 (b), `footprint_extensions`, for the lead to report). The stability watch has ended, so both are allowed. `Agent/Triage.cls` is shared with Epic 40 and unchanged there. Epic 7 has changed `Test/Watch/Case.cls`, which `BeatCase` only extends. Nothing else contended is edited.
 
 ## Verification
 
@@ -205,19 +224,19 @@ Pinning mutations to apply, observe red, revert byte-identical and record (Rule 
 - AC 1: swap the watch and incident lines -> `Snapshot`'s full-snapshot test.
 - AC 2: add `Cause` to the incident line -> `Snapshot`'s never-in-the-text test.
 - AC 3: `STATUSMAX` of 5000 -> `Snapshot`'s cut test.
-- AC 4: entry times through `ForMessage` -> `Snapshot`'s later-time test; `Run` keys the cut text -> the past-the-cut test.
+- AC 4: entry times through `ForMessage` -> `Snapshot`'s later-time test; `Run` keys the cut text -> the past-the-cut test; `LastRunAt` added to the watch line -> `Snapshot`'s watch-runs test and `BeatOutcomes`' real-watch test.
 - AC 5: one word of the paragraph changed -> `test-triage-heartbeat.sh`; the extraction pattern broken -> the same, by its empty-extraction failure.
 - AC 6: `READONLYSTOPWATCH` set to 1 in `Tools/WatchTools.cls` -> `BeatOutcomes`' act test.
 - AC 7: the Item in the Tick's session -> `BeatOutcomes`' trace assertion.
 - AC 8: "everything is fine" taken out of `ReplyGuard.BANNED` -> `BeatOutcomes`' guard test.
 
-Shared surfaces: `CHECK_SCRIPTS` (one name added; `test-ci-config.sh` asserts on it); the text of a beat's Item and the value of `LastSnapshotKey` (`Test.Checks.Beat`, `Test.Checks.Heartbeat`); Triage's `INSTRUCTIONS` (`Test.Agent.Instructions`); the `Test.Checks` class list (`ci/iris.sh` shards, `test-ci-config.sh`).
+Shared surfaces: `CHECK_SCRIPTS` (one name added; `test-ci-config.sh` asserts on it); the text of a beat's Item and the value of `LastSnapshotKey` (`Test.Checks.Beat`, `Test.Checks.Heartbeat`, `Test.Checks.Runs`); Triage's `INSTRUCTIONS` (`Test.Agent.Instructions`); the `Test.Checks` class list (`ci/iris.sh` shards, `test-ci-config.sh`).
 
 Standing criterion: every test added or changed passes on a fresh environment, in either order.
 
-Added test time: `BeatOutcomes` about 15 to 25 s in the `shards` group, and `Snapshot` under 1 s (inference from `Heartbeat`'s 12 to 14 s; record the measured time).
+Added test time: `BeatOutcomes` about 20 to 30 s in the `shards` group, and `Snapshot` under 1 s (inference from `Heartbeat`'s 12 to 14 s; record the measured time).
 
 ## Auto Run Result
 
-Status: blocked
-Blocking condition: intent gap: AD-18 against Story 39.4's AC. A watch's entry line holds its LastRunAt, which moves every 60 seconds, and any change to an entry line changes the key, so the unchanged skip can never fire for a person with a watch. Ruling needed (see ## Clarification Needed): option A (recommended) leaves a watch's run time out of the keyed text, and needs a clause in AD-18 and the AC; B drops the time from the line; C keeps it literal.
+Status: ready-for-dev
+Blocking condition: none
