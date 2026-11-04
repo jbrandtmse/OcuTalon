@@ -497,6 +497,8 @@ mkseed() {
       web/package.json web/package-lock.json _bmad-output/implementation-artifacts/sprint-status.yaml \
       _bmad-output/planning-artifacts/epics.md | tar -x -C "$s" || exit 1
   fi
+  # The real tree's records are its own history; every case starts with none and writes its own.
+  rm -rf "$s/release/records"
   cp -p "$root/release/release.sh" "$root/release/lib-release.sh" "$s/release/"
   # The fixture's own version, whatever the real tree reads: a candidate's tree is at the release's version, and the rules cut from 0.1.0.
   for m in module.xml src/module.xml; do
