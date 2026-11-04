@@ -3897,3 +3897,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: spec-33-2 L1; Test.Msg.Catalog refuses the prefix in Catalog.Core
 - 2026-11-04T12:08:42Z status=routed owner=17-6-send-the-daily-digest-at-the-set-time-and-on-request by=orchestrator note=veto ; bullet goes on Story 17.6 at Epic 33's merge
 - 2026-11-04T12:09:11Z status=routed owner=17-6-send-the-daily-digest-at-the-set-time-and-on-request by=orchestrator note=inbox=U-271 (the first line's blank veto id)
+
+### DW-663: flake candidate: live:online-demo web/e2e-online/busy.spec.ts:83 B1: the demoBusy banner stayed past 15 s after a place was free
+- source: CI run 41824429030 attempt 1, iris (install-fresh), OCT-epic33 b1f187da | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: 51 passed, 1 failed; status read not busy before the banner check; all 18 CI services busy at the time; passed on the one rerun (attempt 2); the branch has no web, Web or Demo change
+- 2026-11-04T13:22:23Z status=routed owner=burndown by=orchestrator note=first daily release after 1.0.0; one rerun then rework, like the other ledgered flakes
