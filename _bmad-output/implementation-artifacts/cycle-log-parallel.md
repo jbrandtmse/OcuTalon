@@ -1715,3 +1715,8 @@
 2026-11-03T23:34:55Z	Epic 31	owner_decision	id=U-254 at=2026-11-03T23:33:59Z#760 via=inbox by=Contest_Planner_1(delegated) answer=(b)_no_31.8;merge_under_U-239_on_31.3_CI+t6_twice;reverses_U-177_placement;DW-34->33.1(U-247_InstanceZone,AD-18_wording_to_Planner);DW-207(+U-106_cond),DW-223->burndown_first_daily;DW-639,DW-640_flakes_burndown(DW-640_unrouteAll_first);other_rulings_stand;DW-416_parked_at_merge;merge_record_notes_reversal apply=runner_A(stop_31.8,trailers)+runner_C(DW-34)
 2026-11-03T23:34:55Z	Epic 31	runner_resumed	agent=a253617cd5fcd9dc8 with=apply_U-254(b):stop_31.8,ledger_routing,close
 2026-11-03T23:34:55Z	Epic 33	runner_resumed	agent=ac8d6e27567bb096b with=DW-34_routed_to_33.1(U-254),fold_in_if_in_footprint_else_report
+2026-11-04T01:20:04Z	Epic 31	runner_complete	agent=a253617cd5fcd9dc8 head=94bf26d6 stories=31.1,31.2,31.3,31.5,31.6,31.7_done;31.4_backlog(U-239) tokens=542943 model=opus
+2026-11-04T01:20:04Z	Epic 31	ci_green_verified	runs=41745125006,41745125008 head=94bf26d6 result=success via=ci-gate t6_twice=jobs_126296080504(att1),126310627823(att2)_success feature_head=e660faef(runs_41721753386,41721753436_success)
+2026-11-04T01:20:04Z	Epic 31	runner_report_error	field=amendments reported=epics.md:7507 actual=epics.md:7567 impact=none
+2026-11-04T01:20:04Z	Epic 31	amendments_verified	amendments=2 extensions=22 ok=true note=U-242_marker_L7567,31.7_ADDED_L7648;extensions_no_overlap_with_open_epics(7,33,39 local;watch_files_unchanged:merge.cpf,after-start.sh,install.sh)
+2026-11-04T01:20:04Z	Epic 31	merge_enqueued	branch=OCT-epic31 head=94bf26d6 policy=when_green part_merge=U-239(31.4_backlog)
