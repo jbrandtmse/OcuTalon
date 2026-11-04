@@ -2,7 +2,8 @@
 title: "Story 40.8: The persona's web routes"
 type: 'feature'
 created: '2026-11-04'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '6ccc3838e5e876d27116d02ac6a6814c2453a1dd'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -113,6 +114,24 @@ All paths are under `src/ocutalon/cls/OcuTalon/` unless they start with `web/` o
 
 ## Review Triage Log
 
+### 2026-11-04 — Review pass
+- verdicts: 14 findings (the same claim from several layers shares one row) — high 0, medium 0, low 14, false 0, maybe-false 0; 5 patched, 9 rejected
+- findings:
+  - `[low]` `patch` Ok result with an empty `Message` answers 200 with the server-error sentence (blind, edge-case, verification-gap) — real in code, unreachable today because `SettingsOps` always sets `Message`; patched with the existing `SettingsOps.#MESSAGESAVED` for an Ok result and pinned by `TestPutOkFromOwner`.
+  - `[low]` `reject` Refusal outcome with an empty `Message` answers 400 with the server-error sentence (edge-case) — `wontfix-theoretical`: every `SettingsOps` outcome carries its message; reopen_if an owner outcome without `Message` is observed.
+  - `[low]` `patch` Ok result with unparseable `Data` is 500 and has no test (blind, verification-gap) — the 500 is the honest answer to a result the route cannot read; added the probe-driven case to `TestPutOkFromOwner`.
+  - `[low]` `reject` No length bound on `language`/`custom` before the command is stored (blind, edge-case) — by-design: the intent has the route check the shape only and `SettingsOps` the only validator (AD-19); the gateway bounds the body.
+  - `[low]` `reject` Zero-entry audit assertions are point-in-time reads (blind, verification-gap) — `wontfix-accepted`: the route writes no audit entry, `SettingsOps` is Story 40.2's and pinned there; reopen_if a refusal is seen to audit late.
+  - `[low]` `patch` `TestNoSessionIs500` closing assertions watched a session no call used (verification-gap) — replaced by a probe-driven PUT whose submit would succeed and an assertion that nothing was submitted; mutation recorded.
+  - `[low]` `patch` `TestGetFails` redundant assertion `body '[ "pirate"` (blind, verification-gap, other) — removed.
+  - `[low]` `patch` `persona.spec.ts` comment "the first PUT any stack answers" is history (edge-case) — reworded to the contract.
+  - `[low]` `reject` Class header of `Api.cls` and `api-types.ts` do not list the persona routes (blind) — by-design: the intent forbids editing the class comment and anything under `web/src/`; Story 40.4 owns the client types.
+  - `[low]` `reject` `persona.spec.ts` never PUTs a plain preset over HTTP (blind) — the language PUT passes the same gateway, method and role; the preset path is pinned in `PersonaApi`.
+  - `[low]` `reject` Mutation lines cover only part of AC 2, AC 3 and AC 7 (verification-gap) — each AC has a pinning test whose recorded mutation goes red (Rule 19); further mutations are optional.
+  - `[low]` `reject` e2e relies on seeded stack state (`onlineDemo` off, no pending request) (verification-gap other) — documented in the spec's header and the same seed as `pairing.spec.ts`.
+  - `[low]` `reject` The 401 is asserted only in `persona.spec.ts`, not in `OcuTalon.Test.Web` (intent-alignment) — by-design: the spec's matrix puts the three real-HTTP rows in the Playwright spec and the unit test pins the no-session 500.
+  - `[low]` `reject` Signed-out PUT cases do not check the row afterwards (intent-alignment) — a signed-out request has no session to write for; `ApiBase.Login` answers before `PutPersona` runs.
+
 ## Design Notes
 
 **Governing decisions.** AD-1 (a state change enters as a command through `Commands.Submit`, its `Origin` set by the submitting code), AD-4 (the session comes from the server), AD-13 (401 `signed_out`, the browser envelope, the error shape), AD-17 (the audit entry, `SettingsOps` writes it), AD-19 (per-person values: session-checked endpoints with origin `web_user`, `SettingsOps` the only writer, its validation), AD-29 and AD-33 (the routes are in the REST surface table as `GET`, `PUT /api/v1/persona` -> `SettingsOps`; `Web.Api` is Lane B's). No AD is contradicted and the spine does not change: the route is already in its table.
@@ -138,6 +157,10 @@ All paths are under `src/ocutalon/cls/OcuTalon/` unless they start with `web/` o
 - A failed `GET` is 500, not the defaults with an empty `pendingRef`, which would hide a pending request.
 - `PUT` reads the session first, then the body, as `DismissIncident` does.
 - `not_saved` and `bad_persona` are new error codes, not new text.
+- An owner result with no `Message` is answered with the existing `MESSAGESERVERERROR` text (a refusal or a failure), never with a claim about the state.
+- `Test.Web.PersonaApiProbe.ReadPersona` has a second mode, `defaults` (an OK status and the defaults whatever the session), so that `TestNoSessionIs500` pins `GetPersona`'s own session check: `SettingsOps.Persona("")` already gives an error status, which would hide a removed check.
+- A result with `Ok` and no `Message` is answered with `SettingsOps`' existing Saved sentence, since an Ok from the owner means the write and its audit entry happened.
+- `TestPutRefusals` waits for the control save's audit entry before it takes its mark, so the "no entry" count cannot see a late entry of the control save (one run in about seven showed it before this).
 - No Task 0. `SettingsOps.Persona` has not yet run in a web process as a person without `%All`: it opens `Setting` rows by object, which needs no SQL privilege, and `Ownership.Approvals` is what the rail reads in the same process, so it should work (inference until `persona.spec.ts` runs it as the README account). `%CSP.REST` matches a route by URL and method, so two lines with one URL work (`irislib/%CSP/REST.cls`), and `%Api.Atelier` serves `PUT` the same way. If the spec shows either inference wrong, the fix is in a file this story may not change, so stop with `## Clarification Needed`.
 
 ## Verification
@@ -163,11 +186,37 @@ All calls run from the worktree root with `timeout: 600000`, one per call, each 
 - AC 6: `command.SessionRef` taken from the body's `sessionRef` -> `PersonaApi` body-names-a-session test red.
 - AC 7 is the test list itself: its pins are the mutations above.
 
+Recorded by the implement stage (warm stack e40s8iw for the `PersonaApi` mutations, each reverted byte-identical and the class green again on the same stack; fresh stack e40s8i for the sign-in one):
+- mutation: SubmitPersona with origin web_admin -> TestPutPreset (the answer, the keys, the entry, the command) and every other accepted-PUT test red
+- mutation: Fail(400, ...) with MESSAGESERVERERROR in place of result.Message -> TestPutRefusals red (all seven refusals)
+- mutation: GetPersona writing pendingRef as "" -> TestGetPending red
+- mutation: GetPersona not quitting on the SessionRef error -> TestNoSessionIs500 red ("GET: 500 server_error even where the read itself would succeed", through the probe's `defaults` read)
+- mutation: ApiBase.Login answering 403 -> persona.spec.ts signed-out case red (`ci/iris.sh live sign-in --part 1/3`: 89 passed, 2 failed, persona.spec.ts among them)
+- mutation: not_saved answered with SettingsOps' MESSAGENOTSAVED always -> TestPutSaveFailed red (the CommandsIn failed text, the unknown outcome, the empty message)
+- mutation: command.SessionRef taken from the body's sessionRef -> TestPutBodyNamesSession red
+- mutation: PutPersona without its Quit on the SessionRef error -> TestNoSessionIs500 red (PUT: 500 server_error, even where the submit would succeed, and nothing submitted)
+- mutation: an Ok result with an empty message answered with MESSAGESERVERERROR instead of the Saved sentence -> TestPutOkFromOwner red
+
 **Standing criterion:** every test added or changed passes on a fresh environment, in either order.
 
 Shared surfaces: `OcuTalon.Web.Api`'s `UrlMap`, 12 to 14 routes (`Test.Web.Api:TestRoutes` pins the list and the count, and Story 33.2 changes the same line; `Test.Web.MailboxApi:TestRoutes` and `Test.Web.BreakFeedApi` read the map); the test classes of area `Web` in shard `lane-b`, one more (`docker/tests/test-ci-config.sh`); the README account's persona keys in the sign-in stack, which `persona.spec.ts` removes before and after itself.
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** `GET` and `PUT /v1/persona` are on `OcuTalon.Web.Api`: two route lines at the end of the `UrlMap` and one appended block (`GetPersona`, `PutPersona`, `PersonaBody`, and the seams `ReadPersona` and `SubmitPersona`). `PUT` submits `SetPersona` through `Commands.Submit` with origin `web_user` for the session from `Ownership.SessionRef` and turns the `CommandResult` into 200, 400, 501 or 500. No new text.
+
+**Files changed.**
+- `src/ocutalon/cls/OcuTalon/Web/Api.cls` -- the routes and the handler block.
+- `src/ocutalon/cls/OcuTalon/Test/Web/PersonaApiProbe.cls` -- new, overrides the two seams for failure cases.
+- `src/ocutalon/cls/OcuTalon/Test/Web/PersonaApi.cls` -- new, 17 tests through the real production.
+- `src/ocutalon/cls/OcuTalon/Test/Web/Api.cls` -- `TestRoutes` pins 14 routes.
+- `web/e2e/api/persona.spec.ts` -- new, real-HTTP evidence (401, 403, 405, defaults, a language outside ASCII, a refused name).
+
+**Review.** 14 findings, all low, none high or medium. Patched 5: Ok with no message answers the Saved sentence, the Ok-with-bad-Data case is tested, `TestNoSessionIs500` now watches the submit it can reach, a redundant assertion is removed, and a history phrase in the e2e comment is reworded. Rejected 9, each with its reason in the triage log (theoretical, by-design per the intent, optional extra mutations, covered elsewhere). Nothing deferred. Follow-up review recommended: false (no high, fewer than two medium patched).
+
+**Verification.** Warm stack `e40s8iw`: `PersonaApi`, `Web.Api`, `MailboxApi`, `BreakFeedApi`, `Core.SettingsOps`, `Data.Tables`, `Core.SettingsPersona`, `Core.CommandsInProduction` passed, and two new mutations went red and were reverted. Fresh stack `e40s8i`: `PersonaApi` and `Web.Api` passed, `ci/iris.sh build`, then `live sign-in --part 1/3` passed (91 tests, `persona.spec.ts` in the part), teardown clean. `bash ci/checks.sh` passed. `e2e --list` count 1, `test-ci-config.sh` passed. Both stacks torn down.
+
+**Residual risks.** A refusal outcome with an empty owner message would answer 400 with the server-error sentence (the owner never does this today). Zero-audit-entry assertions are point-in-time reads.

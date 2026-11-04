@@ -944,12 +944,12 @@ Method TestErrorTexts()
 	Do $$$AssertEquals(##class(OcuTalon.Web.Public.Login).#ERRORNOROLE, "This IRIS account doesn't have the OcuTalon user role. Ask an OcuTalon admin to add it.", "no_role is the sign-in page's text")
 }
 
-/// The URL map holds exactly the 12 routes, each with its call.
+/// The URL map holds exactly the 14 routes, each with its call.
 Method TestRoutes()
 {
 	Set found = ..Routes("OcuTalon.Web.Api")
-	Set expected = $ListBuild("GET /v1/state State", "GET /v1/events Events", "POST /v1/messages Messages", "POST /v1/approvals/:ref/answer AnswerApproval", "POST /v1/incidents/:ref/dismiss DismissIncident", "POST /v1/demo/break-feed BreakFeed", "POST /v1/mailbox/incoming MailboxIncoming", "POST /v1/mailbox/samples/:name MailboxSample", "POST /v1/guide/markers GuideMarkers", "POST /v1/session/end EndSession", "POST /v1/pairing/code Pairing", "DELETE /v1/pairing Pairing")
-	Do $$$AssertEquals($ListLength(found), 12, "12 routes")
+	Set expected = $ListBuild("GET /v1/state State", "GET /v1/events Events", "POST /v1/messages Messages", "POST /v1/approvals/:ref/answer AnswerApproval", "POST /v1/incidents/:ref/dismiss DismissIncident", "POST /v1/demo/break-feed BreakFeed", "POST /v1/mailbox/incoming MailboxIncoming", "POST /v1/mailbox/samples/:name MailboxSample", "POST /v1/guide/markers GuideMarkers", "POST /v1/session/end EndSession", "POST /v1/pairing/code Pairing", "DELETE /v1/pairing Pairing", "GET /v1/persona GetPersona", "PUT /v1/persona PutPersona")
+	Do $$$AssertEquals($ListLength(found), 14, "14 routes")
 	Do $$$AssertEquals($ListToString(found, "|"), $ListToString(expected, "|"), "the routes, in order")
 	Do $$$AssertEquals($Parameter("OcuTalon.Web.Api", "HandleCorsRequest"), 0, "no CORS handling")
 	Do $$$AssertEquals($Parameter("OcuTalon.Web.Api", "CHARSET"), "utf-8", "utf-8")
