@@ -3924,3 +3924,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: release/records/1.0.0/rc4.md:147; feature CI 41845721142 checks
 - 2026-11-04T15:26:26Z status=routed owner=burndown by=orchestrator note=write a repository path or the file name only; first daily release
 - 2026-11-04T15:27:52Z status=routed owner=burndown by=orchestrator note=U-276: checklist.sh prints a repository-relative or plain file name, never an absolute path, with a test
+
+### DW-694: A local ci/iris.sh live online-demo run fails its Story 16.6 probe-phase deadline check unless OCUTALON_LIVE_DEADLINE is raised to the CI value (lib-live.sh defaults 540 s; CI sets 1200)
+- source: spec-11-21-a-test-s-route-callback-never-outlives-its-test.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: docker/tests/test-online-demo.sh:1306; the browser run alone took about 414 s; passed with OCUTALON_LIVE_DEADLINE=1200
+- 2026-11-04T23:42:25Z status=wontfix-accepted owner=11-21-a-test-s-route-callback-never-outlives-its-test by=harvest note=reopen_if=a local or rehearsal gate runs live:online-demo under the default deadline and fails only on the deadline; CI is unaffected (1200 s)
