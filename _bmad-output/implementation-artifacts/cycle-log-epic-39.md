@@ -68,3 +68,7 @@
 2026-11-04T14:59:39Z	Story 39.3	ledger_adjudicated	owned=0 resolved=0 reowned=0 terminal=0 note=DW-666_terminal_at_cr model=claude-opus-5-5
 2026-11-04T14:59:39Z	Story 39.3	smoke_complete	method=other result=pass iterations=1 defects_caught=0 evidence=fresh_throwaway_running_production_Test.Checks.Heartbeat;slot-d_Beat.Key_ignores_status_line_matches_independent_sha256 model=claude-opus-5-5
 2026-11-04T14:59:39Z	Story 39.3	fresh_check	env=recipe tests=6 result=pass order=forward,reverse fwd_rc=0 rev_rc=0 shard=lane-a@Checks_138s_133s
+2026-11-04T15:00:13Z	Story 39.3	committed	sha=092876ad submodules= ci=pending runs=41853141384,41853141349 amendments=none footprint_extensions=none
+2026-11-04T15:00:13Z	Story 39.3	story_cycle	plan_to_commit_min=163 implement_passes=1 reviews=1 rework=0 first_ci=pending models=plan:opus,implement:sonnet,qa:sonnet,cr:opus note=excludes_the_rc_push_hold_gap
+2026-11-04T15:00:28Z	Story 39.3	report_error	fault=lead field=code_review_stage_prompt reported=blocks_pasted_in_full_from_qa_on actual=owner_fixed_list_and_project_block_again_file_references_with_key_lines impact=none_stage_read_them note=qa_prompt_omitted_item_2_amendment_history_and_condensed_the_footprint_section
+2026-11-04T15:00:28Z	Story 39.4	stage_spawned	stage=plan spawn_at=2026-11-04T15:00:28Z model=opus agent_name=39-4-plan-1 cycle_iteration=1
