@@ -75,3 +75,5 @@
 2026-11-04T15:13:34Z	Story 39.4	plan_clarification_requested	spawn_at=2026-11-04T15:00:28Z model=opus question=watch_run_time_on_a_keyed_entry_line_kills_the_unchanged_skip cross_epic=AD-18_to_orchestrator_U7_U14 u268=read_clear
 2026-11-04T15:14:56Z	Story 39.4	ruling	question=watch_run_time_on_a_keyed_entry_line choice=B_drop_the_time_from_the_watch_line rejected=A_AD-18_clause(U14_33_and_7_specs_cite_AD-18),C_literal(skip_dead_on_demo_path) why=U7_comply_first;FR-64_and_AD-18_ask_only_for_the_latest_check_result category=veto reversal=restore_time_and_add_AD-18_clause_once_no_in-flight_epic_cites_it inbox=U-274 policy=5086036 amendment=epics.md_39.4_watch_line
 2026-11-04T15:14:56Z	Story 39.4	ruling	question=mail_Summary_on_decision_lines choice=keep_as_stored rejected=omit_Summary why=AC_names_Summary;FR-64_snapshot_can_quote_outside_content category=veto reversal=show_mail_decisions_without_Summary inbox=U-275 policy=5086036
+2026-11-04T15:16:37Z	Epic 39	epic_context_compiled	reason=planning_artifact_newer model=opus
+2026-11-04T15:16:37Z	Story 39.4	stage_spawned	stage=plan spawn_at=2026-11-04T15:16:37Z model=opus agent_name=39-4-plan-2 cycle_iteration=2
