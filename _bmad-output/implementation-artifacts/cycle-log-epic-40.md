@@ -81,3 +81,5 @@
 2026-11-04T12:05:24Z	Story 40.2	ledger_adjudicated	owned=0 resolved=0 reowned=0 terminal=0 model=claude-opus-5-5
 2026-11-04T12:05:24Z	Story 40.2	smoke_complete	method=cli result=pass iterations=2 defects_caught=0 evidence=throwaway_e40s2fr2w_SetPersona.PersonaLanguage_prepare=ok,old_Language_column_prepare=error,ProposePersona.PersonaLanguage_prepare=ok,property_keeps_its_name model=claude-opus-5-5
 2026-11-04T12:05:24Z	Story 40.2	fresh_check	env=recipe(warm_stack_started_fresh_e40s2fr2w) tests=3 result=pass order=forward,reverse classes=Msg.Contracts,Data.Tables,Core.SettingsPersona
+2026-11-04T12:06:03Z	Story 40.2	committed	sha=38cb2a18 submodules= ci=pending runs=41826263930,41826263759 amendments=none fix_for=40-2-save-your-persona-and-let-ocutalon-propose-one
+2026-11-04T12:06:03Z	Story 40.2	story_cycle	plan_to_commit_min=56 implement_passes=1 reviews=1 rework=1 first_ci=story models=implement:sonnet,cr:opus
