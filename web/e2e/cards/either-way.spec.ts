@@ -61,24 +61,54 @@ async function open(page: Page): Promise<void> {
   await expect(composerOf(page)).toBeVisible();
 }
 
-/** The top edge and the bottom edge of an element, in page pixels. */
-async function edgesOf(target: Locator): Promise<{ top: number; bottom: number }> {
-  const box = await target.boundingBox();
-  if (box === null) {
-    throw new Error('the element has no box');
-  }
-  return { top: box.y, bottom: box.y + box.height };
+/** The top edge and the bottom edge of a part of the dry-run block, in pixels from the block's own top edge. */
+interface Edges {
+  top: number;
+  bottom: number;
+}
+
+/** Where the parts of a card's dry-run block sit, all read in one layout pass; `note` is null when the block has none. */
+interface DryLayout {
+  head: Edges;
+  before: Edges;
+  after: Edges;
+  note: Edges | null;
+}
+
+/**
+ * The count line, the Before row, the After row and the note of the card's dry-run block, measured in a single `evaluate` and
+ * relative to the block's own top edge. One call reads every rect in the same layout, and the offsets do not move when the chat list
+ * scrolls to follow a new card, so the parts are never compared across two scroll positions.
+ */
+async function layoutOf(card: Locator): Promise<DryLayout> {
+  return card.locator('.dry').evaluate((block): DryLayout => {
+    const origin = block.getBoundingClientRect().top;
+    const edgesIn = (part: Element | null): Edges | null => {
+      if (part === null) {
+        return null;
+      }
+      const box = part.getBoundingClientRect();
+      return { top: box.top - origin, bottom: box.bottom - origin };
+    };
+    const rows = block.querySelectorAll(':scope > .dry-row');
+    const head = edgesIn(block.querySelector(':scope > .dry-head'));
+    const before = edgesIn(rows.item(0));
+    const after = edgesIn(rows.item(1));
+    if (head === null || before === null || after === null) {
+      throw new Error('the dry-run block lacks its count line or its Before and After rows');
+    }
+    return { head, before, after, note: edgesIn(block.querySelector(':scope > .dry-note')) };
+  });
 }
 
 /** Whether the Before row and the After row of the card's dry-run block share one line, below the count line (and, when `noteBesideCount`, with the note on the count line). */
 async function beforeAndAfterShareALine(card: Locator, noteBesideCount: boolean): Promise<void> {
-  const head = await edgesOf(card.locator('.dry-head'));
-  const [before, after] = [await edgesOf(card.locator('.dry > .dry-row').nth(0)), await edgesOf(card.locator('.dry > .dry-row').nth(1))];
+  const { head, before, after, note } = await layoutOf(card);
   expect(Math.abs(before.top - after.top), 'Before and After share a line').toBeLessThan(2);
   expect(before.top, 'below the count line').toBeGreaterThanOrEqual(head.bottom - 1);
   if (noteBesideCount) {
-    const note = await edgesOf(card.locator('.dry-note'));
-    expect(Math.abs(note.top - head.top), 'the note is on the count line').toBeLessThan(2);
+    expect(note, 'the note is there').not.toBeNull();
+    expect(Math.abs((note?.top ?? Number.NaN) - head.top), 'the note is on the count line').toBeLessThan(2);
   }
 }
 
@@ -246,13 +276,11 @@ test('E6: at 1280 by 600 a request with no either-way row keeps its block as it 
       const card = requestCard(page, request);
       await expect(card.locator('.dry'), `${one.label}: the dry-run block is there`).toHaveCount(1, { timeout: CARD_MS });
       await expect(card.locator('.dry-either'), `${one.label}: no row`).toHaveCount(0);
-      const head = await edgesOf(card.locator('.dry-head'));
-      const before = await edgesOf(card.locator('.dry > .dry-row').nth(0));
-      const after = await edgesOf(card.locator('.dry > .dry-row').nth(1));
-      const note = await edgesOf(card.locator('.dry-note'));
+      const { head, before, after, note } = await layoutOf(card);
+      expect(note, `${one.label}: the note is there`).not.toBeNull();
       expect(before.top, `${one.label}: Before is below the count line`).toBeGreaterThanOrEqual(head.bottom - 1);
       expect(after.top, `${one.label}: After is below Before, not beside it`).toBeGreaterThanOrEqual(before.bottom - 1);
-      expect(note.top, `${one.label}: the note is below the rows, not on the count line`).toBeGreaterThan(after.top);
+      expect(note?.top ?? Number.NaN, `${one.label}: the note is below the rows, not on the count line`).toBeGreaterThan(after.top);
     }
   } finally {
     await cleanFixtureRows(rows);

@@ -2,8 +2,8 @@
 title: 'The web incident card shows the either-way date line too'
 type: 'feature'
 created: '2026-11-04'
-status: 'in-progress'
-baseline_revision: '701942f7371a67088e3be671a31e1a74588c894d'
+status: 'done'
+baseline_revision: '09afe57af1acf1246a406698788b1036eadc23d1'
 baseline_commit: '701942f7371a67088e3be671a31e1a74588c894d'
 review_loop_iteration: 0
 followup_review_recommended: false
@@ -153,7 +153,7 @@ Code review, 2026-11-04: full tier, four layers (blind-hunter, edge-case-hunter,
 - [x] [Review][Defer] (med; fix-risk low; in-story) From 680 to 707 px tall, with the guide open and the demo reply, the row puts Approve up to 28 px past the list (inference from the plan's table) [web/src/app/approvals/approval-request-card.ts] -- deferred: DW-671 by-design, ruling Q1 sets the threshold at 680
 - [x] [Review][Defer] (low; fix-risk low; out-of-footprint) EXPERIENCE.md names neither the row nor the arrangement -- deferred: DW-672 wontfix-accepted, the lead's bookkeeping, Epic 40 is changing the file
 - [x] [Review][Defer] (low; fix-risk low; out-of-footprint) `docker/tests/test-cards.sh`'s header omits `either-way.spec.ts` -- deferred: DW-673 wontfix-accepted, the spec's Never list keeps `docker/**` out of this story
-- [ ] [Smoke] (med; fix-risk low; in-story; Rule 19 hermeticity) `live cards` failed E6 once at the lead's smoke (fresh lane-B throwaway, the bundle built from the reviewed tree) and passed on an unchanged rerun: "the same date both ways: After is below Before, not beside it", expected >= 535.98, received 484.98. The second card of the loop is measured with five separate `boundingBox` calls while the chat list may still be following the new card to the bottom, so the parts are measured in different scroll positions (After's top read 52 px above Before's bottom). The fix must make E6 measure the block's parts in one consistent layout (for example one `evaluate` that reads every part's rect relative to the `.dry` block, after the card is settled), and apply the same to the helpers E4, E5 and E8 share (`edgesOf` / `beforeAndAfterShareALine`), keeping every assertion's meaning; if the layout itself moves after the card is drawn (a product cause), fix that instead and say so. Re-observe E6's and AC 6's `mutation:` lines (they must still go red) and update them. Show it stable: `live cards` passes three times in a row on fresh lane-B throwaways after `ci/iris.sh build` [web/e2e/cards/either-way.spec.ts]
+- [x] [Smoke] (med; fix-risk low; in-story; Rule 19 hermeticity) `live cards` failed E6 once at the lead's smoke (fresh lane-B throwaway, the bundle built from the reviewed tree) and passed on an unchanged rerun: "the same date both ways: After is below Before, not beside it", expected >= 535.98, received 484.98. The second card of the loop is measured with five separate `boundingBox` calls while the chat list may still be following the new card to the bottom, so the parts are measured in different scroll positions (After's top read 52 px above Before's bottom). The fix must make E6 measure the block's parts in one consistent layout (for example one `evaluate` that reads every part's rect relative to the `.dry` block, after the card is settled), and apply the same to the helpers E4, E5 and E8 share (`edgesOf` / `beforeAndAfterShareALine`), keeping every assertion's meaning; if the layout itself moves after the card is drawn (a product cause), fix that instead and say so. Re-observe E6's and AC 6's `mutation:` lines (they must still go red) and update them. Show it stable: `live cards` passes three times in a row on fresh lane-B throwaways after `ci/iris.sh build` [web/e2e/cards/either-way.spec.ts]
 
 **Rejected:**
 - `low`: the closing records (Auto Run Result, Tasks, Footprint extensions) trail the QA stage's counts and files. The fix edits the spec's record; Rule 14 has each pass report its own runs, and the current counts are under Verification.
@@ -182,6 +182,25 @@ Code review, 2026-11-04: full tier, four layers (blind-hunter, edge-case-hunter,
   - `[low]` `reject` Edge-Case 5: a request raised before Story 7.7 shows the line though its notice never did - accepted by the lead as veto U-266 (Design Notes, Rulings).
   - `[low]` `reject` Verification-Gap: AC 3 (stays when answered), AC 4 (other rows) and AC 5 (missing parent or anchor) clauses have no mutation of their own - each AC has its recorded mutation, the clauses are pinned by E4, the `deepEqual` and the fixture refusals, and a mutation per clause is more than the table asks.
   - `[low]` `reject` Intent audit (descriptive): the short-screen grid, the visibility change and the `CodeRules` lists go beyond the intent's lists - all are in the spec's Tasks and Rulings (Q1 option a; U-267).
+
+### 2026-11-04 - Review pass (rework iteration 1, the Smoke item)
+- verdicts: 15 findings - high 0, medium 1, low 11, false 3, maybe-false 0 (rows group findings that share a root cause)
+- findings:
+  - `[medium]` `patch` Verification-Gap: the AC 6, AC 6 / answered and AC 4 mutation lines predate the one-pass helper, so a selector or origin slip in `layoutOf` could keep E4, E5 and E6 green unseen - fixed: all three mutations re-applied on the current spec, red observed, reverted byte-identically; lines under Verification, "Rework stage".
+  - `[low]` `reject` Verification-Gap other 1: the race fix has no pinning test - the race is nondeterministic; the Smoke item's own evidence is three consecutive `live cards` passes, recorded under Verification.
+  - `[low]` `reject` Verification-Gap other 2 and Edge-Case 5: E6 and the others measure right after `.dry` appears, with no settled signal - the offsets are read in one layout pass relative to the block, so scroll cannot move them, and the block and its children come from one template pass; three runs passed.
+  - `[low]` `reject` Blind 1: `getBoundingClientRect` gives a zero rect for a hidden part, so the null checks pass - a hidden note gives `top = -origin`, which fails the "note is on the count line" and "note is below the rows" comparisons; nothing hides the note.
+  - `[low]` `reject` Blind 2: the `Number.NaN` fallbacks are awkward - the not-null assertion fails first; cosmetic.
+  - `[low]` `reject` Blind 3: the thrown message does not name the missing part and `evaluate` does not retry - the callers wait on `.dry` and its row text first, and the old per-element waits are what hid the race.
+  - `[low]` `reject` Edge-Case 1: `.dry-resend` is also a `dry-row`, so index 0 and 1 shift if Before or After were absent - the old code used the same indices, and every request in E4 to E6 has both rows (E1 to E3 pin the part list).
+  - `[false]` `reject` Edge-Case 2: `layoutOf` cannot see the either-way row land before After - E1, E2, E4 and E7 pin the part order with `partsOf`; the helper is not their check.
+  - `[low]` `reject` Edge-Case 3: a wrapped `.dry-note` would read as missing - `partsOf` pins it as a direct child; hypothetical.
+  - `[low]` `reject` Edge-Case 4: `noteBesideCount` false does not check the note is off the count line - E4 has no note; E6 asserts the note below the rows.
+  - `[low]` `reject` Edge-Case 6: E6 does not compare the note with Will resend - unchanged assertion, outside the Smoke item.
+  - `[low]` `reject` Verification-Gap on the not-null guards: no assertion that cannot fail was found; recorded as a pass, no action.
+  - `[false]` `reject` Intent audit (descriptive): the diff touches no feature code - the pass is a test rework by the lead's instruction.
+  - `[false]` `reject` Intent audit (descriptive): the test reaches the card through a fixture row and `BridgeSink`, not a live incident - unchanged by this pass; E1 and E7 are the story's Integration ACs.
+  - `[low]` `reject` Intent audit (descriptive): the diff implements the broad reading (every geometry measurement of the spec) - the Smoke item asks for exactly that.
 
 ## Design Notes
 
@@ -291,8 +310,8 @@ Code review, 2026-11-04: full tier, four layers (blind-hunter, edge-case-hunter,
 - mutation: AC 3 / place the row after Will resend -> red: `approval-sources.test.mjs` (2 cases), and `live cards` fails E1, E2 and E4 (after rebuilding the bundle with `ci/iris.sh build`; a run on the old bundle stays green).
 - mutation: AC 4 the view tests `reading` alone and ignores `eitherWay` -> red: `approval-view.test.mjs` ("is absent unless the flag is true ...").
 - mutation: AC 5 one word changed in the one form of `incident.laterRequestEitherWay` -> the generator exits 1 ("incident.eitherWayLine: the one form of the line differs ..."), `catalog.test.mjs` real-tree cases fail (current catalog.ts; the eight forms). The fixture refusal cases pass by design: they build their own broken fixtures and assert the refusal.
-- mutation: AC 6 / answered the rule `.dry.has-either:not(.has-note) .dry-head` removed -> red: E4 only (Before and After no longer share a line below the count line); with the rule E4 and E5 pass.
-- mutation: AC 6 the short-screen rule disabled (`@media ${HEIGHT_QUERIES.compact} and (width < 1px)`) -> red: E4 and E5 ("Before and After share a line") and E8 ("640 by 360: the arrangement applies"); with the rule all pass. Re-observed at code review.
+- mutation: AC 6 / answered the rule `.dry.has-either:not(.has-note) .dry-head` removed -> red: E4 only (Before and After no longer share a line below the count line); with the rule E4 and E5 pass. Re-observed at the rework stage on the one-pass helper (selector made never to match -> E4 red, 27 passed).
+- mutation: AC 6 the short-screen rule disabled (`@media ${HEIGHT_QUERIES.compact} and (width < 1px)`) -> red: E4 and E5 ("Before and After share a line") and E8 ("640 by 360: the arrangement applies"); with the rule all pass. Re-observed at code review and again at the rework stage (E4, E5, E8 red; 25 passed).
 - mutation: AC 7 `FromRow` writes `eitherWay` back into `row.DryRun` -> red: `Payloads.TestApprovalEitherWay` ("the row's stored dry run is unchanged").
 
 **Implementation notes (decided in-stage, small, within the intent).**
@@ -308,7 +327,7 @@ Code review, 2026-11-04: full tier, four layers (blind-hunter, edge-case-hunter,
 - `web/e2e/cards/either-way.spec.ts` E6 (QA), with `playwright-projects.test.mjs` (`range('E', 1, 6)`, `cards.length` 26): "no row in any other state changes" at 1280x600. A request with no row (a day above 12, the same date both ways) keeps Before above After and the note below the rows; nothing pinned that the short-screen grid belongs to the row alone.
 
 - mutation: AC 5 / the line typed in a second page source (`web/src/app/chat/chat-panel.ts` gains a line holding "they match the day each order arrived") -> red: `either-way-line-sources.test.mjs` ("is typed in the generated catalog and in no other source of the page"); reverted byte-identically (`cmp` against a copy, `git status --short` and `git diff` equal to the ones taken before).
-- mutation: AC 4 / short-screen rule leaks to every card (`.dry.has-either {` of the compact block becomes `.dry {`) -> red: `live cards` E6 ("a day above 12: Before is below the count line"), and A6 as well (Approve out of view); reverted byte-identically, bundle rebuilt.
+- mutation: AC 4 / short-screen rule leaks to every card (`.dry.has-either {` of the compact block becomes `.dry {`) -> red: `live cards` E6 ("a day above 12: Before is below the count line"), and A6 as well (Approve out of view); reverted byte-identically, bundle rebuilt. Re-observed at the rework stage on the one-pass helper (E6 and A6 red, 26 passed).
 
 QA runs: `node --test` of the new file and `playwright-projects.test.mjs` pass; `npm --prefix web test` 1326 pass; `npm --prefix web run lint` clean; `live cards` 26 passed (E6 included) in the throwaway `e7s8q`, torn down (0 left). No IRIS class changed in this stage, so no class run.
 
@@ -326,24 +345,25 @@ QA runs: `node --test` of the new file and `playwright-projects.test.mjs` pass; 
 
 Code-review runs: `live cards` 28 passed (E7 and E8 included) in the throwaway `e7s8c`, torn down (0 left); `npm --prefix web test` 1330 pass; `npm --prefix web run lint` clean; `Payloads` 15 of 15 on slot B; `catalog.mjs --check` and `payloads.mjs --check` exit 0; `test-class-rules.sh` and `test-boundaries.sh` pass. The bundle was rebuilt from the clean tree after the last mutation.
 
+**Rework stage (Rule 19, the Smoke item).** The cause was in the test: E6 (and `edgesOf`, which E4 and E5 shared) read the parts of the dry-run block with separate `boundingBox` calls in page coordinates, so a chat list still following the new card to the bottom put each read at another scroll position. `layoutOf` now reads the count line, Before, After and the note in one `evaluate`, as offsets from the block's own top edge; E4, E5 (through `beforeAndAfterShareALine`) and E6 use it, and every assertion keeps its threshold and meaning. E8 measures edges inside one `evaluate` already. The product's layout does not move after the card is drawn, so `approval-request-card.ts` is unchanged and `live demo-path` was not needed.
+
+- mutation: AC 6 the short-screen rule disabled (`@media ${HEIGHT_QUERIES.compact} and (width < 1px)`), one-pass helper -> red: E4 and E5 ("Before and After share a line") and E8 ("640 by 360: the arrangement applies"); 25 passed; reverted byte-identically (`cmp` against a copy, `git status --short` and `git diff --stat` equal to the ones taken before).
+- mutation: AC 4 / short-screen rule leaks to every card (`.dry.has-either {` of the compact block becomes `.dry {`), one-pass helper -> red: E6 ("a day above 12: Before is below the count line") and A6 (Approve out of view); 26 passed; reverted byte-identically.
+- mutation: AC 6 / answered the selector of `.dry.has-either:not(.has-note) .dry-head` made never to match, one-pass helper -> red: E4 ("Before and After share a line"); 27 passed; reverted byte-identically.
+
+Rework runs: `npm --prefix web run lint` clean; `playwright-projects.test.mjs` 27 pass; after `ci/iris.sh build`, `live cards` passed 28 of 28 three times in a row, each on a fresh lane-B throwaway of tag `e7s8rwi`; the bundle was rebuilt from the restored tree and the tag torn down (0 left).
+
 ## Auto Run Result
 
 Status: done
 Blocking condition: none
 
-Summary: the approval payload's `dryRun` now carries `eitherWay` and `reading`, worked out in `FromRow` by `Watch.Notice.Reading` over the stored dry run and `FixParameters` (nothing stored, `DRYRUNKEYS` unchanged). `catalog.mjs` cuts the page key `incident.eitherWayLine` out of the eight forms of the two catalog entries, and the web incident card renders it as one unlabelled `dry-either` row between After and Will resend, in the same one and many forms and with the notice's `reading`, `item` and count. Under 680px tall, and only while the row shows, a CSS grid keeps Approve and Reject in the chat list's view (E5), with the head on the whole line once the request is answered (E4).
+Summary (rework iteration 1, this pass only): the Smoke item is closed. The E6 race was in the test: the block's parts were measured with separate `boundingBox` calls while the chat list could still be scrolling. `layoutOf` in `web/e2e/cards/either-way.spec.ts` now reads every part in one `evaluate`, relative to the block's top edge; `beforeAndAfterShareALine` (E4, E5) and E6 use it with unchanged assertions plus a not-null check on the note. No product file changed.
 
-Files changed:
-- `src/ocutalon/cls/OcuTalon/Watch/Notice.cls`: `Reading` is public (docs only otherwise).
-- `src/ocutalon/cls/OcuTalon/Live/Payload/Part/DryRun.cls`, `Live/Payload/Approval.cls`: the two derived fields and their mapping.
-- `web/scripts/catalog.mjs`, `web/src/app/msg/catalog.ts`, `web/src/app/live/payloads.ts`: the derived page key and the regenerated files.
-- `web/src/app/approvals/approval-view.ts`, `approval-request-card.ts`: the row, its class and the short-screen grid; `web/src/app/shared/layout-view.ts`: doc line.
-- Tests: `Test/Live/Payloads.cls`, `Test/Fix/EitherWay.cls`, `Test/Watch/Diagnose.cls`, `Test/Bridge/CodeRules.cls` (two names appended to each list), `web/scripts/{catalog,approval-view,approval-sources,floor-sources,playwright-projects,ux-strings}.test.mjs`, `web/e2e/support/iris.ts`, new `web/e2e/cards/either-way.spec.ts` (E1 to E5).
+Files changed: `web/e2e/cards/either-way.spec.ts` (the helper); this spec (the Smoke item ticked, the triage entry, the mutation lines, this result).
 
-Review: 18 findings from four layers, none high; patches applied 2 groups (medium: the short-screen grid on an answered request, and the missing assertions of the arrangement); deferred 0 new items; the rest rejected as low or spec-bound, each with its reason in the Review Triage Log. Follow-up review recommended: false (no high patched, one medium group patched).
+Review: 15 findings from four layers, none high; one medium patched (the mutation lines of the helper's three pinning mutations, re-observed red), the rest rejected as low, false or descriptive, each with its reason in the Review Triage Log; deferred 0 new items. Follow-up review recommended: false (no high patched).
 
-Verification performed (all pass): `payloads`/`catalog` generate and `--check`; the six web node test files (237); `npm --prefix web test` (1323) and `lint`; slot B and fresh classes `Payloads`, `CodeRules`, `NoticeText`, `BridgeSink`, `EitherWay`, `Diagnose` (by the implementation subagent, unchanged since); `live cards` (25), `demo-path`, `floor` (107), `answers` (23), `online-demo`, `online-demo-path`; shards `lane-b` 1 to 3 of 3 and `lane-a` 1 to 12 of 12; `test-boundaries.sh`, `test-class-rules.sh`, `test-web-build.sh`. All throwaway stacks of tag `e7s8i` are torn down (0 left). Ten mutations plus one for the patch are recorded under Verification.
+Verification performed (all pass): `npm --prefix web run lint`; `node --test web/scripts/playwright-projects.test.mjs` (27); `ci/iris.sh build` then `live cards` three times in a row, 28 of 28 each, on fresh lane-B throwaways; three mutations red and reverted byte-identically; the throwaway tag `e7s8rwi` torn down (0 left).
 
-Footprint extensions (named for the completion contract): `Watch/Notice.cls`; `web/scripts/catalog.mjs`, `web/src/app/msg/catalog.ts`; `web/scripts/{catalog,approval-view,approval-sources,floor-sources,playwright-projects}.test.mjs`; `web/src/app/shared/layout-view.ts` (doc); `web/e2e/support/iris.ts`; new `web/e2e/cards/either-way.spec.ts`; and `web/scripts/ux-strings.test.mjs`, found at the (once) `npm --prefix web test`: its SOURCES table needs a source for every `PAGE_TEXTS` string, so it gains one `ruled` entry for `incident.eitherWayLine` citing U-249 and Story 7.8 (a test pin of the generated catalog string, the way the entry for `result.stoppedPartway` is; no production file types the words). Contended, one self-contained edit each: `Test/Live/Payloads.cls`, `Test/Bridge/CodeRules.cls`. `new_units:` none.
-
-Residual risks: a request raised on a build without Story 7.7 can show the line with no evidence check behind it (veto U-266). The `Live.Event` Payload JSON text gains the two keys (veto U-267). The table row for AC 2 in the pinning-mutations list expects `Diagnose.TestDemoDiagnosis` red under "`Reading` ignores whether the readings differ"; it stays green there (10/16/2026 is refused by `Reformat.Readings` first), so the Diagnose assertion is pinned by the mutation recorded as "AC 2 / day above 12". The E1 reload check reads the `/state` snapshot, because the incident card is an event-only card that a reload does not redraw. `EXPERIENCE.md` is not edited (the lead's bookkeeping).
+Residual risks: the race fix has no pinning test of its own (the race is nondeterministic); its evidence is the three consecutive passes. The lead re-runs the smoke and the fresh check.
