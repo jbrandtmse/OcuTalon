@@ -46,3 +46,5 @@
 2026-11-04T11:14:42Z	Epic 33	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh
 2026-11-04T11:14:42Z	Epic 33	launch_env	depth=4 watchdog=default bash_max_ms=default bootstrap_check=ok
 2026-11-04T11:14:42Z	Epic 33	telemetry_gate	pending=1 action=none note=epic5_record_only(gates.model_tier)
+2026-11-04T11:49:18Z	Epic 33	epic_context_compiled	sha=886c500d reason=planning_artifact_newer model=opus
+2026-11-04T11:49:18Z	Epic 33	ruling	question=release_notes_real_tree_literal choice=three_line_edit_verbatim rejected=notes-areas_line_for_epic_33 why=rc4-release-common_ruling category=decide by=orchestrator sha=886c500d policy=5086036
