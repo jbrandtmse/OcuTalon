@@ -289,3 +289,5 @@
 2026-11-04T15:56:03Z	Story 7.8	ledger_filed	DW-668 status=routed owner=burndown by=harvest note=pre-existing_fold_overrun_with_the_demo_cause
 2026-11-04T15:56:03Z	Story 7.8	adr_verifications_complete	tool=none acs=none result=none_required evidence= mutations=none note=no_AD_commits_a_verification_tool_stack;AC_6_fold_pinned_by_either-way.spec.ts model=claude-opus-5-5
 2026-11-04T15:56:04Z	Story 7.8	stage_spawned	stage=qa spawn_at=2026-11-04T15:56:04Z model=claude-sonnet-5-5 agent_name=7-8-qa-1 cycle_iteration=1
+2026-11-04T16:06:43Z	Story 7.8	qa_complete	spawn_at=2026-11-04T15:56:04Z model=claude-sonnet-5-5 tests=web/scripts/either-way-line-sources.test.mjs,web/e2e/cards/either-way.spec.ts(E6) tests_added=2 mutations_demonstrated=2 first_run_failures=0 clarifications=0 closing_sections_present=true
+2026-11-04T16:06:43Z	Story 7.8	stage_spawned	stage=code-review spawn_at=2026-11-04T16:06:43Z model=claude-opus-5-5 agent_name=7-8-code-review-1 cycle_iteration=1 scope=701942f7..HEAD+tree
