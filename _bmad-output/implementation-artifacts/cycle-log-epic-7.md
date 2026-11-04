@@ -262,3 +262,7 @@
 2026-11-04T05:41:19Z	Story 7.7	fresh_check	env=recipe(ci/iris.sh_fresh_throwaways,tags=e7s7rf+e7s7rs,lane-B,port_52802) tests=9_changed_classes(Fix.DryRun,Fix.EitherWay,Fix.Reformat,Watch.Diagnose,Watch.NoticeText,Watch.Payload,Agent.Instructions,Channel.TelegramChat,Msg.Catalog)+fixture_users(RunnerFixture,Watch.Case) result=pass order=forward,reverse forward=lane-a@Fix_19(smoke_run),lane-a@Watch_18(smoke_run),lane-a@Agent_12,lane-a@Channel_part_1/2_7,lane-b@Msg_2 reverse=lane-a@Fix_19,lane-a@Watch_18,lane-a@Agent_12,lane-a@Channel_part_2/2_6,lane-b@Msg_2 note=forward_Fix_and_Watch_are_the_smoke_runs_on_fresh_stacks_of_the_same_tree skips=DW-399(Fix.Stopped,known) leftovers=none model=claude-opus-5-5
 2026-11-04T05:43:15Z	Story 7.7	committed	sha=4093ed11 submodules= ci=pending_rc_hold runs=none pushed=no amendments=none note=rc2_push_hold;redispatch_after_crash
 2026-11-04T05:43:15Z	Story 7.7	story_cycle	plan_to_commit_min=479 implement_passes=1 reviews=1 rework=0 first_ci=pending models=plan:claude-opus-5-5,implement:claude-sonnet-5-5,qa:claude-sonnet-5-5,cr:claude-opus-5-5 note=includes_the_crash_gap
+2026-11-04T11:14:33Z	Epic 7	runner_unattended_start	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec note=redispatch_rc4_cut_story_7.8_runner_B lane=B slot=ocutalon-slot-b
+2026-11-04T11:14:33Z	Epic 7	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-11-04T11:14:33Z	Epic 7	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh
+2026-11-04T11:14:33Z	Epic 7	launch_env	depth=4 watchdog=0 bash_max_ms=default
