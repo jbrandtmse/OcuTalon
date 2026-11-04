@@ -4658,6 +4658,34 @@ So that a release candidate's security overview is checked rather than failed by
 **When** they run the overview step with the stub unit
 **Then** the stub fails if any exported file is not readable by others, so a regression of the mode fix reds the release sequence tests; and one case checks that a failing unit's log is kept and its path printed
 
+### Story 11.21: A test's route callback never outlives its test
+
+As the author,
+I want every end-to-end test to remove its route callbacks before it ends,
+So that the browser job fails only when something is wrong, and a red on the trunk means a defect.
+
+[ADDED 2026-11-04, fix-forward (orchestrator ruling at the Contest Planner's request, reason fix_forward): main's `iris (browser)` was red twice on v1.0.0 (run 41843658900, attempts 1 and 2; 253 passed, 1 failed, `route.fetch: Test ended` from a route callback still in flight at a test's end; the demo path passed 28 of 28 in the same job and no product check failed). First burndown item of the first daily release. A test-harness defect, not a flake; no product code changes.]
+
+**Acceptance Criteria:**
+
+**Given** every spec under `web/e2e` and `web/e2e-online` that installs a route callback calling `route.fetch`
+**When** a test ends
+**Then** its callbacks are removed through one shared mechanism, in the shared route helper or a shared `afterEach`, with `page.unrouteAll({ behavior: 'ignoreErrors' })`, and no spec carries its own copy of the fix
+
+**Given** a route callback still in flight when its test ends
+**When** the test ends
+**Then** the run does not fail with `route.fetch: Test ended`; a test pins this, and removing the shared mechanism turns it red (mutation shown)
+
+**Given** a spec added later that installs such a callback
+**When** the checks run
+**Then** it is covered without further edits, or a check names it
+
+**Given** the fix on its branch
+**When** `iris (browser)` runs
+**Then** it is green three runs in a row, and every other group stays green
+- DW-640: web/e2e/live/live.spec.ts L9 reported `route.fetch: Test ended` from L8's route callback (ledger; routed by the Contest Planner 2026-11-04)
+- DW-665: web/e2e/live/socket.spec.ts W11 failed the same way on v1.0.0, twice (ledger; routed by the Contest Planner 2026-11-04)
+
 ## Epic 12: Approve from your own phone with Telegram
 
 A user scans the page's QR code to pair their Telegram private chat with their session, then chats, gets notifications and reminders, and answers approval requests with inline buttons from Telegram; unknown codes and a bare `/start` get polite instructions and link nothing; OcuTalon runs fully without a bot token, and pauses politely if another process polls the same bot. Built in Lane A after Epic 11 and shipped in 1.0.0, the first release; it merges into the integration branch when done, with no tag gate [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0": 0.1.0 and 0.1.1 are not cut; it read "shipped as 0.1.1, the release right after 0.1.0 and before the online demo goes public (PRD §7.2)", and the merge gate on the `v0.1.0` tag below is dropped]. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation (inbox U-67): built alongside Epic 11 by the first free runner once Epic 10 has merged, and merged only after the `v0.1.0` tag exists; still shipped as 0.1.1.]

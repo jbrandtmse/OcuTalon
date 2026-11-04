@@ -336,9 +336,10 @@ case "$1" in
                       else
                         rm -rf "$d/pk"
                         mkdir -p "$d/pk"
-                        cp -R "$d/fs$src/." "$d/pk/"
-                        [ -f "$SHIMFLAGS/ipm-drop-csp" ] && rm -f "$d/pk/ocutalon/csp/main-FAKE.js"
-                        [ -f "$SHIMFLAGS/ipm-byte" ] && echo x >> "$d/pk/ocutalon/csp/main-FAKE.js"
+                        # IPM packs the module, not the folder it was loaded from
+                        cp -R "$d/fs$src/module.xml" "$d/fs$src/src" "$d/pk/"
+                        [ -f "$SHIMFLAGS/ipm-drop-csp" ] && rm -f "$d/pk/src/ocutalon/csp/main-FAKE.js"
+                        [ -f "$SHIMFLAGS/ipm-byte" ] && echo x >> "$d/pk/src/ocutalon/csp/main-FAKE.js"
                         if [ -f "$SHIMFLAGS/ipm-version" ]; then
                           sed 's:<Version>[^<]*</Version>:<Version>9.9.9</Version>:' "$d/pk/module.xml" > "$d/pk/module.xml.new"
                           mv "$d/pk/module.xml.new" "$d/pk/module.xml"
@@ -501,17 +502,23 @@ set_stub() {
 }
 
 mkseed() {
-  local s=$tmp/seed
+  local s=$tmp/seed m
   mkdir -p "$s"
   if [ "$live" -eq 1 ]; then
     git -C "$root" archive HEAD | tar -x -C "$s" || exit 1
   else
     # Only what the sequence, the notes script and the harness read: the whole tree adds time and no case.
-    git -C "$root" archive HEAD release ci docker/tests docker/Dockerfile docker/ipm .gitignore .dockerignore src/module.xml README.md \
+    git -C "$root" archive HEAD release ci docker/tests docker/Dockerfile docker/ipm .gitignore .dockerignore module.xml src/module.xml README.md \
       web/package.json web/package-lock.json _bmad-output/implementation-artifacts/sprint-status.yaml \
       _bmad-output/planning-artifacts/epics.md | tar -x -C "$s" || exit 1
   fi
+  # The real tree's records are its own history; every case starts with none and writes its own.
+  rm -rf "$s/release/records"
   cp -p "$root/release/release.sh" "$root/release/lib-release.sh" "$s/release/"
+  # The fixture's own version, whatever the real tree reads: a candidate's tree is at the release's version, and the rules cut from 0.1.0.
+  for m in module.xml src/module.xml; do
+    sed 's:<Version>[^<]*</Version>:<Version>0.1.0</Version>:' "$s/$m" > "$s/$m.new" && mv "$s/$m.new" "$s/$m"
+  done
   # The overview step runs release/security-overview.sh of the candidate; the seed holds a stub that passes, so that no case needs a container.
   stub_text pass > "$s/release/security-overview.sh"
   chmod 755 "$s/release/security-overview.sh"
@@ -773,9 +780,10 @@ t_refusals() {
 # --- cut ---
 
 t_cut() {
-  local c integ_ver sha
+  local c integ_ver integ_root sha
   newcase
   integ_ver=$(git -C "$W" show "HEAD:src/module.xml")
+  integ_root=$(git -C "$W" show "HEAD:module.xml")
   to_step cut
   rs '' next
   eq "cut: exit" "$rc" 0
@@ -791,7 +799,10 @@ t_cut() {
   eq "cut: its parent is the integration head" "$(git -C "$W" rev-parse "release/1.0.0-rc1^")" "$EXPECT_BASE"
   eq "cut: the candidate's version" "$(git -C "$W" show release/1.0.0-rc1:src/module.xml | sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' | head -n 1)" 1.0.0
   eq "cut: only the first <Version> changed" "$(git -C "$W" diff --numstat "$INTEG" release/1.0.0-rc1 -- src/module.xml | awk '{ print $1 "/" $2 }')" "1/1"
+  eq "cut: the candidate's root version" "$(git -C "$W" show release/1.0.0-rc1:module.xml | sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' | head -n 1)" 1.0.0
+  eq "cut: only the first <Version> of the root manifest changed" "$(git -C "$W" diff --numstat "$INTEG" release/1.0.0-rc1 -- module.xml | awk '{ print $1 "/" $2 }')" "1/1"
   eq "cut: the integration branch's module.xml" "$(git -C "$W" show "$INTEG:src/module.xml")" "$integ_ver"
+  eq "cut: the integration branch's root module.xml" "$(git -C "$W" show "$INTEG:module.xml")" "$integ_root"
   eq "cut: the integration branch has not moved" "$(git -C "$W" rev-parse "$INTEG")" "$EXPECT_BASE"
   eq "cut: the bundle's index.html is committed" "$(git -C "$W" ls-tree --name-only release/1.0.0-rc1 src/ocutalon/csp/index.html)" "src/ocutalon/csp/index.html"
   eq "cut: the rest of the bundle is committed" "$(git -C "$W" ls-tree -r --name-only release/1.0.0-rc1 -- src/ocutalon/csp | tr '\n' ' ')" "src/ocutalon/csp/assets/a.txt src/ocutalon/csp/index.html src/ocutalon/csp/main-FAKE.js "
@@ -799,6 +810,7 @@ t_cut() {
   eq "cut: the author's checkout is clean" "$(git -C "$W" status --porcelain)" ""
   eq "cut: the checkout has no bundle" "$([ -e "$W/src/ocutalon/csp" ] && echo yes || echo no)" no
   eq "cut: the checkout's module.xml" "$(cat "$W/src/module.xml")" "$integ_ver"
+  eq "cut: the checkout's root module.xml" "$(cat "$W/module.xml")" "$integ_root"
   eq "cut: the remote has no candidate yet" "$(git --git-dir="$R" for-each-ref --format='%(refname)' | tr '\n' ' ')" "refs/heads/$INTEG "
   eq "cut: npm ci and build ran once each" "$(wc -l < "$SHIMLOG/npm.log" | tr -d ' ')" 2
   has "cut: npm ci" "$(cat "$SHIMLOG/npm.log")" "--prefix web ci"
@@ -818,6 +830,43 @@ t_cut() {
   rs '' next
   eq "retry of the cut: exit" "$rc" 0
   has "retry of the cut" "$out" "PASS cut "
+  # the two manifests read different versions: no branch, a FAIL line, a stop and exit 1
+  newcase
+  sed 's:<Version>[^<]*</Version>:<Version>0.1.1</Version>:' "$W/module.xml" > "$W/module.xml.new"
+  mv "$W/module.xml.new" "$W/module.xml"
+  git -C "$W" commit -q -am "the root manifest alone moves"
+  git -C "$W" push -q origin "$INTEG"
+  EXPECT_BASE=$(git -C "$W" rev-parse HEAD)
+  to_step cut
+  rs "$N" next
+  eq "two versions: exit" "$rc" 1
+  has "two versions: the line" "$out" "FAIL cut module.xml and src/module.xml hold different versions"
+  eq "two versions: no candidate branch" "$(cand)" ""
+  # a tree with no root manifest is the same failure
+  newcase
+  git -C "$W" rm -q module.xml
+  git -C "$W" commit -q -m "no root manifest"
+  git -C "$W" push -q origin "$INTEG"
+  EXPECT_BASE=$(git -C "$W" rev-parse HEAD)
+  to_step cut
+  rs "$N" next
+  eq "no root manifest: exit" "$rc" 1
+  has "no root manifest: the line" "$out" "FAIL cut module.xml and src/module.xml hold different versions"
+  eq "no root manifest: no candidate branch" "$(cand)" ""
+  # no <Version> in either: nothing to set
+  newcase
+  grep -v '<Version>' "$W/module.xml" > "$W/module.xml.new"
+  mv "$W/module.xml.new" "$W/module.xml"
+  grep -v '<Version>' "$W/src/module.xml" > "$W/src/module.xml.new"
+  mv "$W/src/module.xml.new" "$W/src/module.xml"
+  git -C "$W" commit -q -am "no version"
+  git -C "$W" push -q origin "$INTEG"
+  EXPECT_BASE=$(git -C "$W" rev-parse HEAD)
+  to_step cut
+  rs "$N" next
+  eq "no version: exit" "$rc" 1
+  has "no version: the line" "$out" "FAIL cut module.xml has no <Version> to set"
+  eq "no version: no candidate branch" "$(cand)" ""
   # a re-cut from the integration head; rc1 stays
   newcase
   to_step cut
@@ -1153,7 +1202,7 @@ t_record() {
   has "the run line" "$rec" "Run: "
   has "the table" "$rec" "| Step | Result | Detail |"
   has "the kit row" "$rec" "| kit | confirmed | the author confirmed the 1.0.0 kit is on $INTEG at ${EXPECT_BASE%"${EXPECT_BASE#???????}"} |"
-  has "the cut row" "$rec" "| cut | pass | src/module.xml set to 1.0.0; web bundle built with Node.js and committed |"
+  has "the cut row" "$rec" "| cut | pass | module.xml and src/module.xml set to 1.0.0; web bundle built with Node.js and committed |"
   has "the image row" "$rec" "| image | fail | "
   has "the record row" "$rec" "| record | committed, not pushed | the author did not give the word |"
   lacks "no step beyond the failure" "$rec" "| push |"
@@ -2320,13 +2369,13 @@ ipm_fail_expect() {
     "Published: no; publishing to the package registry is the author's own action, outside this sequence"
 }
 ZPM_ONE='%SYS zpm "enable -map -ns USER"
-USER zpm "load /tmp/ocutalon-pkg/src"
+USER zpm "load /tmp/ocutalon-pkg"
 USER zpm "package ocutalon -only -path /tmp/ocutalon-ipm/ocutalon-1.0.0"
 USER zpm "repo -name ocutalon-check -fs -depth 2 -path /tmp/ocutalon-check/"
 USER zpm "repo -name ocutalon-check -list-modules"'
 ZPM_TWO='%SYS zpm "enable -map -ns USER"
-USER zpm "load /tmp/ocutalon-pkg/src"
-OCUTALON zpm "load /tmp/ocutalon-pkg/src"
+USER zpm "load /tmp/ocutalon-pkg"
+OCUTALON zpm "load /tmp/ocutalon-pkg"
 OCUTALON zpm "package ocutalon -only -path /tmp/ocutalon-ipm/ocutalon-1.0.0"
 OCUTALON zpm "repo -name ocutalon-check -fs -depth 2 -path /tmp/ocutalon-check/"
 OCUTALON zpm "repo -name ocutalon-check -list-modules"'
@@ -2336,7 +2385,7 @@ bundle_diff() {
   local f rel
   for f in $(git -C "$W" ls-tree -r --name-only "$2" -- src/ocutalon/csp); do
     rel=${f#src/ocutalon/csp/}
-    cmp -s "$1/ocutalon/csp/$rel" <(git -C "$W" cat-file blob "$2:$f") || echo "$rel"
+    cmp -s "$1/src/ocutalon/csp/$rel" <(git -C "$W" cat-file blob "$2:$f") || echo "$rel"
   done
 }
 
@@ -2351,9 +2400,9 @@ t_ipm() {
   . "$root/release/lib-release.sh"
   # the pass, with a module that runs once: today's module.xml without its MapAndStop invoke (Epic 15's two-run module is the next case)
   newcase
-  if grep -q MapAndStop "$W/src/module.xml"; then
-    grep -v MapAndStop "$W/src/module.xml" > "$W/src/module.xml.new"
-    mv "$W/src/module.xml.new" "$W/src/module.xml"
+  if grep -q MapAndStop "$W/module.xml"; then
+    grep -v MapAndStop "$W/module.xml" > "$W/module.xml.new"
+    mv "$W/module.xml.new" "$W/module.xml"
     git -C "$W" commit -q -am "a module that runs once"
     git -C "$W" push -q origin "$INTEG"
     EXPECT_BASE=$(git -C "$W" rev-parse HEAD)
@@ -2378,7 +2427,7 @@ t_ipm() {
   tar -xzf "$art" -C "$x"
   has "ipm: the module's name" "$(cat "$x/module.xml")" "<Name>ocutalon</Name>"
   has "ipm: the module's version" "$(cat "$x/module.xml")" "<Version>1.0.0</Version>"
-  has "ipm: the FileCopy of the bundle" "$(cat "$x/module.xml")" '<FileCopy Name="ocutalon/csp/"'
+  has "ipm: the FileCopy of the bundle" "$(cat "$x/module.xml")" '<FileCopy Name="src/ocutalon/csp/"'
   eq "ipm: the candidate tracks three bundle files" "$(git -C "$W" ls-tree -r --name-only release/1.0.0-rc1 -- src/ocutalon/csp | wc -l | tr -d ' ')" 3
   eq "ipm: every bundle file of the candidate is in the artifact, byte for byte" "$(bundle_diff "$x" release/1.0.0-rc1)" ""
   cdig=$(ipm_content_digest "$art")
@@ -2429,9 +2478,9 @@ t_ipm() {
   eq "ipm: still one throwaway run" "$(count_runs)" 1
   # a module that stops the first run (Epic 15's, today's module.xml): loaded in USER, then in OCUTALON, packaged there
   newcase
-  if ! grep -q MapAndStop "$W/src/module.xml"; then
-    awk '/<\/Module>/ { print "      <Invoke Class=\"OcuTalon.Install.Ipm\" Method=\"MapAndStop\" Phase=\"Initialize\" When=\"After\"/>" } { print }' "$W/src/module.xml" > "$W/src/module.xml.new"
-    mv "$W/src/module.xml.new" "$W/src/module.xml"
+  if ! grep -q MapAndStop "$W/module.xml"; then
+    awk '/<\/Module>/ { print "      <Invoke Class=\"OcuTalon.Install.Ipm\" Method=\"MapAndStop\" Phase=\"Initialize\" When=\"After\"/>" } { print }' "$W/module.xml" > "$W/module.xml.new"
+    mv "$W/module.xml.new" "$W/module.xml"
     git -C "$W" commit -q -am "a module that stops the first run"
     git -C "$W" push -q origin "$INTEG"
     EXPECT_BASE=$(git -C "$W" rev-parse HEAD)
@@ -2464,8 +2513,8 @@ t_ipmfail() {
   art=$OCUTALON_RELEASE_STATE/1.0.0-rc1/ipm/ocutalon-1.0.0.tgz
   for i in "ipm-load-fail|the package did not install: ERROR! planted install failure" \
     "ipm-iris-load-fail|the package did not install: IPM could not be loaded: ERROR #5001: planted IPM load failure" \
-    "ipm-drop-csp|the artifact lacks the bundle file ocutalon/csp/main-FAKE.js" \
-    "ipm-byte|the artifact holds a different ocutalon/csp/main-FAKE.js than the candidate" \
+    "ipm-drop-csp|the artifact lacks the bundle file src/ocutalon/csp/main-FAKE.js" \
+    "ipm-byte|the artifact holds a different src/ocutalon/csp/main-FAKE.js than the candidate" \
     "ipm-version|the artifact holds a module.xml that does not read version 1.0.0" \
     "ipm-empty-repo|the artifact is not listed by the IPM filesystem repository (it lists nothing for ocutalon 1.0.0)" \
     "ipm-not-running|the package did not install: the throwaway instance was not running after 0 s" \
@@ -2498,7 +2547,7 @@ t_ipmfail() {
     case $f in
       ipm-load-fail) lacks "$f: no load in OCUTALON" "$(cat "$SHIMLOG/zpm.log")" "OCUTALON zpm" ;;
       ipm-ocutalon-load-fail)
-        has "$f: loaded again in OCUTALON" "$(cat "$SHIMLOG/zpm.log")" 'OCUTALON zpm "load /tmp/ocutalon-pkg/src"'
+        has "$f: loaded again in OCUTALON" "$(cat "$SHIMLOG/zpm.log")" 'OCUTALON zpm "load /tmp/ocutalon-pkg"'
         lacks "$f: nothing packaged" "$(cat "$SHIMLOG/zpm.log")" 'zpm "package'
         ;;
     esac
@@ -2531,7 +2580,7 @@ t_ipmfail() {
   env_set "$OCUTALON_RELEASE_STATE/1.0.0-rc1/state.env" cand_sha 0123456789abcdef0123456789abcdef01234567
   rs "$N" next
   eq "a tree that cannot be exported: exit" "$rc" 1
-  has "a tree that cannot be exported: the line" "$out" "FAIL ipm the candidate's tree (src and docker/ipm) could not be exported"
+  has "a tree that cannot be exported: the line" "$out" "FAIL ipm the candidate's tree could not be exported"
   eq "a tree that cannot be exported: no container" "$(count_runs)" 0
   eq "a tree that cannot be exported: no section" "$(grep -c '^## IPM artifact' "$(rec_file)")" 0
   git -C "$W" checkout -q --detach release/1.0.0-rc1
@@ -2555,6 +2604,16 @@ t_ipmfail() {
   rs "$N" next
   has "a wrong version: the line" "$out" "FAIL ipm src/module.xml reads 1.0.1, not 1.0.0"
   eq "a wrong version: no container" "$(count_runs)" 0
+  git -C "$W" checkout -q --detach release/1.0.0-rc1
+  sed 's:<Version>[^<]*</Version>:<Version>1.0.1</Version>:' "$W/module.xml" > "$W/module.xml.new"
+  mv "$W/module.xml.new" "$W/module.xml"
+  git -C "$W" commit -q -am "another root version"
+  before=$(git -C "$W" rev-parse HEAD)
+  git -C "$W" checkout -q "$INTEG"
+  env_set "$OCUTALON_RELEASE_STATE/1.0.0-rc1/state.env" cand_sha "$before"
+  rs "$N" next
+  has "a wrong root version: the line" "$out" "FAIL ipm module.xml reads 1.0.1, not 1.0.0"
+  eq "a wrong root version: no container" "$(count_runs)" 0
   git -C "$W" checkout -q --detach release/1.0.0-rc1
   git -C "$W" rm -q docker/ipm/zpm-0.10.10.xml
   git -C "$W" commit -q -m "no ipm release file"
@@ -2678,26 +2737,26 @@ t_ipmlib() {
   printf 'a\nb\n\nNS>\n  \n' > "$C/sess"
   eq "last_prompt_free_line" "$(last_prompt_free_line "$C/sess")" "b"
   # the content digest: one value for two packagings of one tree, another for other content
-  mkdir -p "$t/a/ocutalon/csp/assets" "$t/tree/src/ocutalon/csp/assets"
-  printf '<Name>ocutalon</Name><Version>1.0.0</Version><FileCopy Name="ocutalon/csp/" Target="x"/>\n' > "$t/a/module.xml"
-  printf 'page\n' > "$t/a/ocutalon/csp/index.html"
-  printf 'asset\n' > "$t/a/ocutalon/csp/assets/a.txt"
-  cp -R "$t/a/ocutalon/csp/." "$t/tree/src/ocutalon/csp/"
+  mkdir -p "$t/a/src/ocutalon/csp/assets" "$t/tree/src/ocutalon/csp/assets"
+  printf '<Name>ocutalon</Name><Version>1.0.0</Version><FileCopy Name="src/ocutalon/csp/" Target="x"/>\n' > "$t/a/module.xml"
+  printf 'page\n' > "$t/a/src/ocutalon/csp/index.html"
+  printf 'asset\n' > "$t/a/src/ocutalon/csp/assets/a.txt"
+  cp -R "$t/a/src/ocutalon/csp/." "$t/tree/src/ocutalon/csp/"
   tar -czf "$C/one.tgz" -C "$t/a" .
-  touch -t 202001010101 "$t/a/ocutalon/csp/assets/a.txt" "$t/a/module.xml"
+  touch -t 202001010101 "$t/a/src/ocutalon/csp/assets/a.txt" "$t/a/module.xml"
   tar -czf "$C/two.tgz" -C "$t/a" .
   eq "the two packagings differ in bytes" "$(cmp -s "$C/one.tgz" "$C/two.tgz" && echo same || echo differ)" differ
   a=$(ipm_content_digest "$C/one.tgz")
   b=$(ipm_content_digest "$C/two.tgz")
   eq "the content digest is a SHA-256" "$(printf '%s' "$a" | grep -cE '^[0-9a-f]{64}$')" 1
   eq "the content digest is the same for both packagings" "$a" "$b"
-  printf 'asset2\n' > "$t/a/ocutalon/csp/assets/a.txt"
+  printf 'asset2\n' > "$t/a/src/ocutalon/csp/assets/a.txt"
   tar -czf "$C/three.tgz" -C "$t/a" .
   [ "$(ipm_content_digest "$C/three.tgz")" != "$a" ] || {
     echo "  the digest ignores a changed file"
     bad=1
   }
-  printf 'asset\n' > "$t/a/ocutalon/csp/assets/a.txt"
+  printf 'asset\n' > "$t/a/src/ocutalon/csp/assets/a.txt"
   # the digest covers every file's path and bytes, module.xml included
   eq "the content digest is the SHA-256 of the sorted per-file sums" "$a" "$(cd "$t/a" && find . -type f | sed 's|^\./||' | LC_ALL=C sort | while IFS= read -r f; do printf '%s  %s\n' "$(sha256_file "$f")" "$f"; done | LC_ALL=C sort | { cat > "$C/lines"; sha256_file "$C/lines"; })"
   printf 'x\n' >> "$t/a/module.xml"
@@ -2706,35 +2765,59 @@ t_ipmlib() {
     echo "  the digest ignores module.xml"
     bad=1
   }
-  printf '<Name>ocutalon</Name><Version>1.0.0</Version><FileCopy Name="ocutalon/csp/" Target="x"/>\n' > "$t/a/module.xml"
-  mv "$t/a/ocutalon/csp/assets/a.txt" "$t/a/ocutalon/csp/assets/b.txt"
+  printf '<Name>ocutalon</Name><Version>1.0.0</Version><FileCopy Name="src/ocutalon/csp/" Target="x"/>\n' > "$t/a/module.xml"
+  mv "$t/a/src/ocutalon/csp/assets/a.txt" "$t/a/src/ocutalon/csp/assets/b.txt"
   tar -czf "$C/ren.tgz" -C "$t/a" .
   [ "$(ipm_content_digest "$C/ren.tgz")" != "$a" ] || {
     echo "  the digest ignores a renamed file"
     bad=1
   }
-  mv "$t/a/ocutalon/csp/assets/b.txt" "$t/a/ocutalon/csp/assets/a.txt"
+  mv "$t/a/src/ocutalon/csp/assets/b.txt" "$t/a/src/ocutalon/csp/assets/a.txt"
   # the artifact check
-  eq "a good artifact has no problem" "$(ipm_artifact_check "$C/one.tgz" 1.0.0 "$t/tree")" ""
-  has "no temporary folder: a problem, never a pass" "$(TMPDIR=$C/no-such-folder ipm_artifact_check "$C/one.tgz" 1.0.0 "$t/tree")" "cannot be checked (no temporary folder)"
-  has "another version" "$(ipm_artifact_check "$C/one.tgz" 1.0.1 "$t/tree")" "does not read version 1.0.1"
+  eq "a good artifact has no problem" "$(ipm_artifact_check "$C/one.tgz" 1.0.0 "$t/tree" root)" ""
+  has "no temporary folder: a problem, never a pass" "$(TMPDIR=$C/no-such-folder ipm_artifact_check "$C/one.tgz" 1.0.0 "$t/tree" root)" "cannot be checked (no temporary folder)"
+  has "another version" "$(ipm_artifact_check "$C/one.tgz" 1.0.1 "$t/tree" root)" "does not read version 1.0.1"
   printf 'asset\nmore\n' > "$t/tree/src/ocutalon/csp/assets/a.txt"
-  has "a changed bundle byte" "$(ipm_artifact_check "$C/one.tgz" 1.0.0 "$t/tree")" "holds a different ocutalon/csp/assets/a.txt than the candidate"
+  has "a changed bundle byte" "$(ipm_artifact_check "$C/one.tgz" 1.0.0 "$t/tree" root)" "holds a different src/ocutalon/csp/assets/a.txt than the candidate"
   printf 'asset\n' > "$t/tree/src/ocutalon/csp/assets/a.txt"
   printf 'extra\n' > "$t/tree/src/ocutalon/csp/extra.js"
-  has "a missing bundle file" "$(ipm_artifact_check "$C/one.tgz" 1.0.0 "$t/tree")" "lacks the bundle file ocutalon/csp/extra.js"
+  has "a missing bundle file" "$(ipm_artifact_check "$C/one.tgz" 1.0.0 "$t/tree" root)" "lacks the bundle file src/ocutalon/csp/extra.js"
   rm -f "$t/tree/src/ocutalon/csp/extra.js"
   printf '<Name>ocutalon</Name><Version>1.0.0</Version>\n' > "$t/a/module.xml"
   tar -czf "$C/nofc.tgz" -C "$t/a" .
-  has "no FileCopy" "$(ipm_artifact_check "$C/nofc.tgz" 1.0.0 "$t/tree")" "no FileCopy of ocutalon/csp/"
-  printf '<Name>other</Name><Version>1.0.0</Version><FileCopy Name="ocutalon/csp/"/>\n' > "$t/a/module.xml"
+  has "no FileCopy" "$(ipm_artifact_check "$C/nofc.tgz" 1.0.0 "$t/tree" root)" "no FileCopy of src/ocutalon/csp/"
+  printf '<Name>other</Name><Version>1.0.0</Version><FileCopy Name="src/ocutalon/csp/"/>\n' > "$t/a/module.xml"
   tar -czf "$C/name.tgz" -C "$t/a" .
-  has "another name" "$(ipm_artifact_check "$C/name.tgz" 1.0.0 "$t/tree")" "does not name ocutalon"
+  has "another name" "$(ipm_artifact_check "$C/name.tgz" 1.0.0 "$t/tree" root)" "does not name ocutalon"
   rm -f "$t/a/module.xml"
   tar -czf "$C/nomod.tgz" -C "$t/a" .
-  has "no module.xml" "$(ipm_artifact_check "$C/nomod.tgz" 1.0.0 "$t/tree")" "has no top-level module.xml"
+  has "no module.xml" "$(ipm_artifact_check "$C/nomod.tgz" 1.0.0 "$t/tree" root)" "has no top-level module.xml"
   printf 'not an archive' > "$C/bad.tgz"
-  has "not an archive" "$(ipm_artifact_check "$C/bad.tgz" 1.0.0 "$t/tree")" "cannot be read"
+  has "not an archive" "$(ipm_artifact_check "$C/bad.tgz" 1.0.0 "$t/tree" root)" "cannot be read"
+  # the layout is an explicit argument: the same checks and the same bundle files for an artifact packed from src/module.xml, and neither
+  # layout passes for the other's artifact, file by file
+  n=$(find "$t/tree/src/ocutalon/csp" -type f | wc -l | tr -d ' ')
+  mkdir -p "$t/s/ocutalon/csp"
+  printf '<Name>ocutalon</Name><Version>1.0.0</Version><FileCopy Name="ocutalon/csp/" Target="x"/>\n' > "$t/s/module.xml"
+  cp -R "$t/tree/src/ocutalon/csp/." "$t/s/ocutalon/csp/"
+  tar -czf "$C/src.tgz" -C "$t/s" .
+  eq "src layout: a good artifact has no problem" "$(ipm_artifact_check "$C/src.tgz" 1.0.0 "$t/tree" src)" ""
+  has "src layout: another version" "$(ipm_artifact_check "$C/src.tgz" 1.0.1 "$t/tree" src)" "does not read version 1.0.1"
+  printf 'asset\nmore\n' > "$t/tree/src/ocutalon/csp/assets/a.txt"
+  has "src layout: a changed bundle byte" "$(ipm_artifact_check "$C/src.tgz" 1.0.0 "$t/tree" src)" "holds a different ocutalon/csp/assets/a.txt than the candidate"
+  printf 'asset\n' > "$t/tree/src/ocutalon/csp/assets/a.txt"
+  printf 'extra\n' > "$t/tree/src/ocutalon/csp/extra.js"
+  has "src layout: a missing bundle file" "$(ipm_artifact_check "$C/src.tgz" 1.0.0 "$t/tree" src)" "lacks the bundle file ocutalon/csp/extra.js"
+  rm -f "$t/tree/src/ocutalon/csp/extra.js"
+  printf '<Name>ocutalon</Name><Version>1.0.0</Version>\n' > "$t/s/module.xml"
+  tar -czf "$C/srcnofc.tgz" -C "$t/s" .
+  has "src layout: no FileCopy" "$(ipm_artifact_check "$C/srcnofc.tgz" 1.0.0 "$t/tree" src)" "no FileCopy of ocutalon/csp/"
+  has "a src artifact checked as root: no FileCopy" "$(ipm_artifact_check "$C/src.tgz" 1.0.0 "$t/tree" root)" "no FileCopy of src/ocutalon/csp/"
+  eq "a src artifact checked as root: every bundle file is missing" "$(ipm_artifact_check "$C/src.tgz" 1.0.0 "$t/tree" root | grep -c 'lacks the bundle file src/ocutalon/csp/')" "$n"
+  has "a root artifact checked as src: no FileCopy" "$(ipm_artifact_check "$C/one.tgz" 1.0.0 "$t/tree" src)" "no FileCopy of ocutalon/csp/"
+  eq "a root artifact checked as src: every bundle file is missing" "$(ipm_artifact_check "$C/one.tgz" 1.0.0 "$t/tree" src | grep -c 'lacks the bundle file ocutalon/csp/')" "$n"
+  has "no layout: a problem, never a pass" "$(ipm_artifact_check "$C/one.tgz" 1.0.0 "$t/tree")" "cannot be checked (the layout '' is not root or src)"
+  has "another layout: a problem, never a pass" "$(ipm_artifact_check "$C/one.tgz" 1.0.0 "$t/tree" both)" "cannot be checked (the layout 'both' is not root or src)"
 }
 
 # --- static ---
@@ -2842,7 +2925,7 @@ live_ipm_run() {
   }
   eq "IPM's filesystem repository lists the artifact" "$(awk '$1 == "ocutalon" && $2 == "1.0.0" { print $1, $2 }' "$OCUTALON_RELEASE_STATE/1.0.0-rc1/ipm/repo-list.log" | head -n 1)" "ocutalon 1.0.0"
   eq "the artifact holds the real bundle byte for byte" "$(bundle_diff "$x" release/1.0.0-rc1)" ""
-  has "the artifact's module.xml" "$(cat "$x/module.xml")" '<FileCopy Name="ocutalon/csp/"'
+  has "the artifact's module.xml" "$(cat "$x/module.xml")" '<FileCopy Name="src/ocutalon/csp/"'
   eq "no ipm throwaway container is left" "$(docker ps -a --format '{{.Names}}' | grep -c '^ocutalon-release-ipm-')" 0
   lockf=${OCUTALON_LOCK_DIR:-}/throwaway-iris.lock
   eq "the lane lock holds nothing of the run" "$(cat "$lockf" 2> /dev/null | grep -c 'project=ocutalon-release-ipm-')" 0

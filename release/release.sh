@@ -22,11 +22,12 @@
 #
 # The steps. cut makes the candidate in a temporary clone inside the state folder (so the author's checkout is never switched): the
 # integration head (or --from's candidate plus the cherry-picked --pick commits, each an integration-branch commit), one cut commit that
-# sets src/module.xml to the version and force-adds the built web bundle, then the branch release/<v>-rc<n> in the author's repository.
+# sets module.xml and src/module.xml to the version, which fails when the two differ, and force-adds the built web bundle, then the branch release/<v>-rc<n> in the author's repository.
 # A candidate branch is never moved, re-committed, force-pushed or deleted. image builds the candidate's own tree and reads
 # /opt/ocutalon/version in the image, which must equal the version, and removes the check image. overview runs release/security-overview.sh on an
 # export of the candidate's tree: a fresh generation of docs/security-overview.md against the committed sections, and the overview tests; a drift or a failure
-# stops the release (the author runs the unit with --write on the integration branch, commits, and cuts the next candidate). ipm packs the cut commit's tree with
+# stops the release (the author runs the unit with --write on the integration branch, commits, and cuts the next candidate). ipm loads the root module.xml
+# over a full export of the cut commit's tree, what the package registry does with the GitHub archive, and packs it with
 # IPM in a throwaway container with no network, keeps the .tgz in the state folder (never in the repository), checks that it carries
 # the module's name and version and every file of the committed web bundle byte for byte, and records its size and checksums in
 # "## IPM artifact"; it sends nothing out. ipmcheck runs the FR-57 job's own command, release/ipm-install.sh, on an export of the candidate's
@@ -457,7 +458,7 @@ base_image() { printf '%s\n' "${IRIS_IMAGE:-ocutalon-iris-base:2026.3.0AI.154.0}
 cut_clean() { rm -rf "$sdir/clone" "$sdir/context"; }
 
 step_cut() {
-  local clone="$sdir/clone" start_sha picks full p short out name email cand
+  local clone="$sdir/clone" start_sha picks full p short out name email cand m
   if git rev-parse --verify --quiet "refs/heads/$branch" < /dev/null > /dev/null 2>&1; then
     step_fail cut "$branch already exists; a candidate is never moved, so start the next one"
     return 1
@@ -499,12 +500,19 @@ step_cut() {
     fi
     picks="${picks:+$picks }$full"
   done
-  stamp_version "$clone/src/module.xml" "$version" > "$clone/src/module.xml.new" && mv "$clone/src/module.xml.new" "$clone/src/module.xml"
-  if [ "$(manifest_version "$clone/src/module.xml")" != "$version" ]; then
+  if [ "$(manifest_version "$clone/module.xml" 2> /dev/null)" != "$(manifest_version "$clone/src/module.xml" 2> /dev/null)" ]; then
     cut_clean
-    step_fail cut "src/module.xml has no <Version> to set"
+    step_fail cut "module.xml and src/module.xml hold different versions"
     return 1
   fi
+  for m in module.xml src/module.xml; do
+    stamp_version "$clone/$m" "$version" > "$clone/$m.new" && mv "$clone/$m.new" "$clone/$m"
+    if [ "$(manifest_version "$clone/$m")" != "$version" ]; then
+      cut_clean
+      step_fail cut "$m has no <Version> to set"
+      return 1
+    fi
+  done
   out=$(
     cd "$clone" || exit 1
     LIVE_REBUILD_WEB=1
@@ -521,7 +529,7 @@ step_cut() {
     step_fail cut "the web build left no src/ocutalon/csp/index.html"
     return 1
   fi
-  if ! git -C "$clone" add -f -- src/module.xml src/ocutalon/csp < /dev/null > /dev/null 2>&1 \
+  if ! git -C "$clone" add -f -- module.xml src/module.xml src/ocutalon/csp < /dev/null > /dev/null 2>&1 \
     || ! git -C "$clone" commit -q --allow-empty -m "Release $version rc$rc: set the version and add the built web bundle" < /dev/null > /dev/null 2>&1; then
     cut_clean
     step_fail cut "the cut commit failed"
@@ -538,7 +546,7 @@ step_cut() {
   sset picks_full "$picks"
   rm -rf "$clone"
   STEP_ROW=pass
-  STEP_DETAIL="src/module.xml set to $version; web bundle built with Node.js and committed"
+  STEP_DETAIL="module.xml and src/module.xml set to $version; web bundle built with Node.js and committed"
   [ -z "$picks" ] || STEP_DETAIL="$STEP_DETAIL; fixes cherry-picked: $(printf '%s\n' $picks | wc -l | tr -d ' ')"
   echo "PASS cut $cand"
   return 0
@@ -729,7 +737,8 @@ ipm_load_ok() {
   grep -Eq "\\[$2\\|ocutalon\\][[:space:]]*Activate SUCCESS[[:space:]]*\$" "$1"
 }
 
-# ipm_pack <container> <tree> <state ipm folder> <zpm file name>: the whole packaging; runs in a subshell of step_ipm. Exit 75 is a busy
+# ipm_pack <container> <tree> <state ipm folder> <zpm file name>: the whole packaging; runs in a subshell of step_ipm. The tree is a full
+# export of the candidate and IPM loads its root, so the module.xml and the preload folder at the top are the ones the package registry reads. Exit 75 is a busy
 # lane lock, 1 a failure (the reason in fail.txt), 0 a verified artifact in <folder>/ocutalon-<v>.tgz and result.env.
 ipm_pack() {
   local zpmfile=$4 pkg=/tmp/ocutalon-pkg out=/tmp/ocutalon-ipm chk=/tmp/ocutalon-check
@@ -755,22 +764,21 @@ ipm_pack() {
     sleep 2
   done
   docker exec -u root "$IPM_C" mkdir -p "$pkg" < /dev/null > /dev/null 2>&1 \
-    && docker cp "$IPM_TREE/src" "$IPM_C:$pkg/src" < /dev/null >> "$IPM_IDIR/run.log" 2>&1 \
-    && docker cp "$IPM_TREE/docker/ipm/$zpmfile" "$IPM_C:$pkg/$zpmfile" < /dev/null >> "$IPM_IDIR/run.log" 2>&1 \
+    && docker cp "$IPM_TREE/." "$IPM_C:$pkg" < /dev/null >> "$IPM_IDIR/run.log" 2>&1 \
     && docker exec -u root "$IPM_C" chmod -R a+rX "$pkg" < /dev/null > /dev/null 2>&1 \
     && docker exec "$IPM_C" mkdir -p "$out" < /dev/null > /dev/null 2>&1 \
     || ipm_pack_fail install "the source tree could not be copied into the throwaway instance"
-  ipm_session ipm-load %SYS "Set sc=\$SYSTEM.OBJ.Load(\"$pkg/$zpmfile\",\"ck-d\") Write !,\"IPMLOAD \",\$Select(\$SYSTEM.Status.IsError(sc):\"FAILED\",1:\"OK\")
+  ipm_session ipm-load %SYS "Set sc=\$SYSTEM.OBJ.Load(\"$pkg/docker/ipm/$zpmfile\",\"ck-d\") Write !,\"IPMLOAD \",\$Select(\$SYSTEM.Status.IsError(sc):\"FAILED\",1:\"OK\")
 zpm \"enable -map -ns USER\""
   grep -q '^IPMLOAD OK' "$IPM_IDIR/ipm-load.log" || ipm_pack_fail install "IPM could not be loaded: $(last_prompt_free_line "$IPM_IDIR/ipm-load.log")"
-  ipm_session load-user USER "zpm \"load $pkg/src\""
+  ipm_session load-user USER "zpm \"load $pkg\""
   last="$IPM_IDIR/load-user.log"
   if ipm_load_ok "$last" USER; then
     ns=USER
   else
     ipm_session ns-check %SYS 'Write !,"NSCHECK ",##class(Config.Namespaces).Exists("OCUTALON")'
     if grep -Eq '^NSCHECK 1[[:space:]]*$' "$IPM_IDIR/ns-check.log"; then
-      ipm_session load-ocutalon OCUTALON "zpm \"load $pkg/src\""
+      ipm_session load-ocutalon OCUTALON "zpm \"load $pkg\""
       last="$IPM_IDIR/load-ocutalon.log"
       ! ipm_load_ok "$last" OCUTALON || ns=OCUTALON
     fi
@@ -779,7 +787,7 @@ zpm \"enable -map -ns USER\""
   ipm_session package "$ns" "zpm \"package ocutalon -only -path $out/ocutalon-$version\""
   docker cp "$IPM_C:$out/ocutalon-$version.tgz" "$art" < /dev/null >> "$IPM_IDIR/run.log" 2>&1 \
     || ipm_pack_fail install "the package left no ocutalon-$version.tgz: $(last_prompt_free_line "$IPM_IDIR/package.log")"
-  problems=$(ipm_artifact_check "$art" "$version" "$IPM_TREE")
+  problems=$(ipm_artifact_check "$art" "$version" "$IPM_TREE" root)
   if [ -n "$problems" ]; then
     rm -f "$art"
     ipm_pack_fail artifact "$(printf '%s\n' "$problems" | head -n 1)"
@@ -808,7 +816,7 @@ zpm \"enable -map -ns USER\""
 }
 
 step_ipm() {
-  local cand tree="$sdir/ipm-tree" idir="$sdir/ipm" base cname zpmfile got old sub_rc fail kind line art bytes sha cdig ns files ipmver
+  local cand tree="$sdir/ipm-tree" idir="$sdir/ipm" base cname zpmfile got old sub_rc fail kind line art bytes sha cdig ns files ipmver m
   cand=$(sget cand_sha)
   if [ -z "$cand" ]; then
     step_fail ipm "the candidate is not cut"
@@ -816,9 +824,9 @@ step_ipm() {
   fi
   rm -rf "$tree"
   mkdir -p "$tree"
-  if ! git archive -o "$tree.tar" "$cand" -- src docker/ipm < /dev/null > /dev/null 2>&1 || ! tar -x -C "$tree" -f "$tree.tar" < /dev/null > /dev/null 2>&1; then
+  if ! git archive -o "$tree.tar" "$cand" < /dev/null > /dev/null 2>&1 || ! tar -x -C "$tree" -f "$tree.tar" < /dev/null > /dev/null 2>&1; then
     rm -rf "$tree" "$tree.tar"
-    step_fail ipm "the candidate's tree (src and docker/ipm) could not be exported"
+    step_fail ipm "the candidate's tree could not be exported"
     return 1
   fi
   rm -f "$tree.tar"
@@ -827,12 +835,14 @@ step_ipm() {
     ipm_fail "the candidate has no committed web bundle (src/ocutalon/csp/index.html)"
     return 1
   fi
-  got=$(manifest_version "$tree/src/module.xml")
-  if [ "$got" != "$version" ]; then
-    rm -rf "$tree"
-    ipm_fail "src/module.xml reads $got, not $version"
-    return 1
-  fi
+  for m in module.xml src/module.xml; do
+    got=$(manifest_version "$tree/$m" 2> /dev/null)
+    if [ "$got" != "$version" ]; then
+      rm -rf "$tree"
+      ipm_fail "$m reads ${got:-no version}, not $version"
+      return 1
+    fi
+  done
   set -- "$tree"/docker/ipm/zpm-*.xml
   if [ $# -ne 1 ] || [ ! -f "$1" ]; then
     rm -rf "$tree"
