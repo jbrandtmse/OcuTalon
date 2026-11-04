@@ -3913,3 +3913,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: U-264 (Contest Planner) | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: rc3 release PR: test-web-build AC6 saw a modified src/ocutalon/csp/3rdpartylicenses.txt
 - 2026-11-04T08:01:25Z status=routed owner=burndown by=merge_gate note=first_daily_release_after_1.0.0
+
+### DW-662: flake candidate: live:floor web/e2e/floor/layout.spec.ts:541 G4 (at 320x180 a header over a quarter of the window scrolls with the page) hit the 90 s test timeout
+- source: CI run 41822840225 attempt 1, iris (shards-3), OCT-epic7 eeeccc41 | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: 106 of 107 passed, no assertion failed; the setViewportSize error is the finally block after the timeout; attempt 2 on another runner 107 of 107; the head adds no web file over feature
+- 2026-11-04T12:55:22Z status=routed owner=burndown by=ci note=first occurrence; same 90 s timeout shape as DW-550 and DW-659, cause unproven
