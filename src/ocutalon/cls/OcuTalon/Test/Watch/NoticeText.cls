@@ -11,6 +11,11 @@
 ///   - TestLaterRequest (Story 7.6; AC 5): WithFixSlots given a count and a time (the round's) replaces the count and time slots; the slots of the UX fixture's
 ///     values render the text of incident.laterRequest in the fixture exactly (telegram, and the page wording on the web), and a count of 0 or one that is no
 ///     whole number and an empty time are refused;
+///   - TestEitherWay (Story 7.7; DW-644; AC 3): WithFixKey gives incident.withFixEitherWay (a later request incident.laterRequestEitherWay) exactly when the request's source
+///     format is MM/DD/YYYY or DD/MM/YYYY and the dry run's before reads in both orders as two different dates, and WithFixSlots then adds reading ("month first" or "day first")
+///     and item (the one form of the incident's noun, message when it has none); a before with a day above 12, one that is the same date both ways, and any other source format
+///     keep incident.withFix and its slots; the slots of the UX fixtures' values render both new keys, many and one forms, as the fixtures say on telegram, the phone and the
+///     page, and the line holds U-249's words;
 ///   - TestResultKeys (Story 7.3; AC 5): Notice.ResultKey picks the catalog key of a final or interrupted FixResult by the Result texts convention, row by row and in
 ///     the order of the convention (a request that is executing first, then an interrupted run, then a run that resent, completed, failed and skipped nothing and
 ///     has a reason, then failures with skips, failures, skips, and else all through); Notice.ResultSlots gives the slots that each of the seven keys declares, and
@@ -219,6 +224,11 @@ Method TestKeysAndVariants()
 	Do $$$AssertEquals($ClassMethod(..#NOTICE, "Key", row)_"|"_$ClassMethod(..#NOTICE, "Variant", row), "incident.noFixUnknown|no_fix", "unknown")
 	Set row = ..Row("data_format_change")
 	Do $$$AssertEquals($ClassMethod(..#NOTICE, "Key", row)_"|"_$ClassMethod(..#NOTICE, "Variant", row), "|", "a usable data-format diagnosis has a fix, so it has no key and no variant here")
+	Set row.FixSummary = ""
+	Do $$$AssertEquals($ClassMethod(..#NOTICE, "Key", row)_"|"_$ClassMethod(..#NOTICE, "Variant", row), "incident.noFix|no_fix", "a data-format diagnosis with no fix is the no-fix notice")
+	Set row.FixSummary = "  "
+	Do $$$AssertEquals($ClassMethod(..#NOTICE, "Key", row), "incident.noFix", "also when its fix summary is blank")
+	Set row = ..Row("data_format_change")
 	Set slots = $ClassMethod(..#NOTICE, "WithFixSlots", row, .sc)
 	Do $$$AssertEquals($Select($IsObject(slots): slots.count, 1: ""), 50, "its with-fix slots are the builder's")
 	For category = "partner_outage", "config_error", "other", "" {
@@ -346,6 +356,97 @@ Method TestLaterRequest()
 	Set none = $ClassMethod(..#NOTICE, "WithFixSlots", row, .sc, dryRun, 3, "")
 	Do $$$AssertStatusNotOK(sc, "an empty time is refused")
 	Do $$$AssertEquals($IsObject(none), 0, "and gives no slots")
+}
+
+Method TestEitherWay()
+{
+	Set ..SavedZone = $SYSTEM.Process.TimeZone()
+	Set ..ZoneSaved = 1
+	Do $SYSTEM.Process.TimeZone(..#ZONE)
+	Set monthFirst = {"field": "OrderDate", "sourceFormat": "MM/DD/YYYY", "targetFormat": "YYYY-MM-DD"}
+	Set dayFirst = {"field": "OrderDate", "sourceFormat": "DD/MM/YYYY", "targetFormat": "YYYY-MM-DD"}
+	Set row = ..Row("data_format_change")
+	// the matrix rows: before, after, source format, target format, expected key, reading, label
+	For case = $ListBuild("11/03/2026", "2026-11-03", "MM/DD/YYYY", "YYYY-MM-DD", "incident.withFixEitherWay", "month first", "month first, two readings"), $ListBuild("03/11/2026", "2026-11-03", "DD/MM/YYYY", "YYYY-MM-DD", "incident.withFixEitherWay", "day first", "day first, two readings"), $ListBuild("11/13/2026", "2026-11-13", "MM/DD/YYYY", "YYYY-MM-DD", "incident.withFix", "", "mixed: the example has a day above 12"), $ListBuild("10/16/2026", "2026-10-16", "MM/DD/YYYY", "YYYY-MM-DD", "incident.withFix", "", "a day above 12"), $ListBuild("11/11/2026", "2026-11-11", "MM/DD/YYYY", "YYYY-MM-DD", "incident.withFix", "", "the same date both ways"), $ListBuild("2026-11-03", "20261103", "YYYY-MM-DD", "YYYYMMDD", "incident.withFix", "", "not an order format"), $ListBuild("03.11.2026", "2026-11-03", "DD.MM.YYYY", "YYYY-MM-DD", "incident.withFix", "", "dots are no order format") {
+		Set dry = {"affected": 3, "resend": 3, "leftOut": 0, "field": "order date", "before": ($List(case, 1)), "after": ($List(case, 2)), "itemNoun": {"one": "order", "other": "orders"}}
+		Set parameters = {"field": "OrderDate", "sourceFormat": ($List(case, 3)), "targetFormat": ($List(case, 4))}
+		Set label = $List(case, 7)
+		Do $$$AssertEquals(##class(OcuTalon.Watch.Notice).WithFixKey(dry, parameters.%ToJSON()), $List(case, 5), label_": the key from the parameters as JSON text")
+		Do $$$AssertEquals(##class(OcuTalon.Watch.Notice).WithFixKey(dry, parameters), $List(case, 5), label_": and from the parameters as an object")
+		Do $$$AssertEquals(##class(OcuTalon.Watch.Notice).WithFixKey(dry, parameters.%ToJSON(), 1), $Select($List(case, 6) '= "": "incident.laterRequestEitherWay", 1: "incident.laterRequest"), label_": and the later request's key")
+		Set slots = ##class(OcuTalon.Watch.Notice).WithFixSlots(row, .sc, dry, , , parameters.%ToJSON())
+		Do $$$AssertStatusOK(sc, label_": the slots are built")
+		If '$IsObject(slots) Continue
+		Do $$$AssertEquals(slots.%IsDefined("reading")_"|"_slots.%IsDefined("item")_"|"_slots.reading_"|"_slots.item, $Select($List(case, 6) '= "": "1|1|"_$List(case, 6)_"|order", 1: "0|0||"), label_": the slots reading and item")
+		Do $$$AssertEquals(slots.count_"|"_slots.resendCount_"|"_slots.field_"|"_slots.before_"|"_slots.after, "50|3|order date|"_$List(case, 1)_"|"_$List(case, 2), label_": and the others are the with-fix slots")
+	}
+	Set dry = {"affected": 3, "resend": 3, "leftOut": 0, "field": "order date", "before": "11/03/2026", "after": "2026-11-03"}
+	Set plain = ##class(OcuTalon.Watch.Notice).WithFixSlots(row, .sc, dry)
+	Do $$$AssertEquals(plain.%IsDefined("reading")_"|"_##class(OcuTalon.Watch.Notice).WithFixKey(dry), "0|incident.withFix", "given no parameters, the slots have no reading and the key is incident.withFix")
+	For bad = "", "not json", "[]", "{}", "{""sourceFormat"": ""YYYY-MM-DD""}" {
+		Do $$$AssertEquals(##class(OcuTalon.Watch.Notice).WithFixKey(dry, bad), "incident.withFix", "parameters '"_bad_"' give incident.withFix")
+	}
+	Do $$$AssertEquals(##class(OcuTalon.Watch.Notice).WithFixKey("", monthFirst), "incident.withFix", "and no dry run gives incident.withFix")
+	// the noun of the line
+	Set unknown = ..Row("data_format_change")
+	Set unknown.ItemNoun = ""
+	Set slots = ##class(OcuTalon.Watch.Notice).WithFixSlots(unknown, .sc, dry, , , monthFirst.%ToJSON())
+	Do $$$AssertEquals($Select($IsObject(slots): slots.item_"|"_slots.itemNoun.one, 1: ""), "message|message", "an incident with no noun says message")
+	Set purchase = ..Row("data_format_change")
+	Set purchase.ItemNoun = "{""one"":""purchase order"",""other"":""purchase orders""}"
+	Set slots = ##class(OcuTalon.Watch.Notice).WithFixSlots(purchase, .sc, dry, , , monthFirst.%ToJSON())
+	Do $$$AssertEquals($Select($IsObject(slots): slots.item, 1: ""), "purchase order", "and one with a noun of its own says its one form")
+	// the text, against the UX fixtures
+	Set fixtures = ##class(%DynamicAbstractObject).%FromJSON(##class(%Dictionary.CompiledXData).%OpenId("OcuTalon.Test.Msg.Catalog||Fixtures").Data)
+	Set forms = ##class(%DynamicAbstractObject).%FromJSON(##class(%Dictionary.CompiledXData).%OpenId("OcuTalon.Test.Msg.Catalog||OneForms").Data)
+	Set dry = {"affected": 50, "resend": 50, "leftOut": 0, "field": "order date", "before": "11/03/2026", "after": "2026-11-03"}
+	Set many = ..Row("data_format_change")
+	Set many.Cause = "The partner changed its date format."
+	Set many.FixSummary = "repair and resend all 50"
+	Set many.FirstAt = "2026-10-16T18:12:00Z"
+	Set slots = ##class(OcuTalon.Watch.Notice).WithFixSlots(many, .sc, dry, , , monthFirst.%ToJSON())
+	Do $$$AssertStatusOK(sc, "the slots of the many form are built")
+	If $IsObject(slots) {
+		Do ..AssertFixture(fixtures.%Get("incident.withFixEitherWay"), "incident.withFixEitherWay", slots, "50 dates, many")
+		Do $$$AssertTrue(..Render("incident.withFixEitherWay", slots, "phone") [ "Example: order date 11/03/2026 becomes 2026-11-03. All 50 dates are valid whether read month first or day first. Read month first, they match the day each order arrived. I'll resend 50 repaired copies;", "U-249's many line, word for word")
+	}
+	Set one = ..Row("data_format_change")
+	Set one.NoticeCount = 1
+	Set one.Cause = "The partner changed its date format."
+	Set one.FixSummary = "repair and resend it"
+	Set one.FirstAt = "2026-10-16T18:12:00Z"
+	Set dry = {"affected": 1, "resend": 1, "leftOut": 0, "field": "order date", "before": "03/11/2026", "after": "2026-11-03"}
+	Set slots = ##class(OcuTalon.Watch.Notice).WithFixSlots(one, .sc, dry, , , dayFirst.%ToJSON())
+	Do $$$AssertStatusOK(sc, "the slots of the one form are built")
+	If $IsObject(slots) {
+		Set form = forms.%Get("incident.withFixEitherWay")
+		Set slots.reading = "month first"
+		Set slots.before = "11/03/2026"
+		Do $$$AssertEquals(##class(OcuTalon.Msg.Catalog).RenderAt("incident.withFixEitherWay", slots.%ToJSON(), "phone", "2026-10-16T18:20:00Z", 1), form.text, "the one form is the OneForms text")
+		Do $$$AssertEquals(##class(OcuTalon.Msg.Catalog).RenderAt("incident.withFixEitherWay", slots.%ToJSON(), "web", "2026-10-16T18:20:00Z", 1), form.web, "and its page wording")
+		Do slots.%Set("reading", "day first")
+		Do slots.%Set("before", "03/11/2026")
+		Do $$$AssertTrue(..Render("incident.withFixEitherWay", slots, "phone") [ "Example: order date 03/11/2026 becomes 2026-11-03. The date is valid whether read month first or day first. Read day first, it matches the day the order arrived. I'll resend 1 repaired copy;", "U-249's one line, word for word, day first")
+	}
+	Set later = ..Row("data_format_change")
+	Set later.Cause = "The partner changed its date format."
+	Set later.FixSummary = "repair and resend all 3"
+	Set dry = {"affected": 3, "resend": 3, "leftOut": 0, "field": "order date", "before": "11/03/2026", "after": "2026-11-03"}
+	Set slots = ##class(OcuTalon.Watch.Notice).WithFixSlots(later, .sc, dry, 3, "2026-10-16T18:20:00Z", monthFirst.%ToJSON())
+	Do $$$AssertStatusOK(sc, "the slots of a later request are built")
+	If $IsObject(slots) Do ..AssertFixture(fixtures.%Get("incident.laterRequestEitherWay"), "incident.laterRequestEitherWay", slots, "3 dates, later")
+}
+
+/// Asserts that the slots render the fixture's text on the phone, the mailbox and Telegram, and its web text on the page.
+Method AssertFixture(fixture As %DynamicObject, key As %String, slots As %DynamicObject, label As %String) [ Private ]
+{
+	For channel = "phone", "mailbox", "telegram" {
+		Set text = ##class(OcuTalon.Msg.Catalog).RenderAt(key, slots.%ToJSON(), channel, "2026-10-16T18:20:00Z", 1, .sc)
+		Do $$$AssertStatusOK(sc, label_": "_key_" renders on "_channel)
+		Do $$$AssertEquals(text, fixture.text, label_": "_key_" on "_channel_" is the fixture's text")
+	}
+	Set web = ##class(OcuTalon.Msg.Catalog).RenderAt(key, slots.%ToJSON(), "web", "2026-10-16T18:20:00Z", 1, .sc)
+	Do $$$AssertEquals(web, fixture.web, label_": and on the page the fixture's web text")
 }
 
 Method TestResultKeys()

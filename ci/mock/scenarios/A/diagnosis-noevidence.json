@@ -1,0 +1,12 @@
+{
+  "name": "diagnosis-noevidence",
+  "match": {
+    "marker": "diagnosis-noevidence"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "text": "{\"outcome\":\"act\",\"causeCategory\":\"data_format_change\",\"elementAtFault\":\"OrderDate\",\"evidence\":[\"failed_messages\",\"OrderDate\"],\"cause\":\"The partner now sends the order date with slashes, and the production expects year, month and day with dashes.\",\"itemNoun\":{\"one\":\"order\",\"other\":\"orders\"},\"reasons\":[\"The order dates read as valid dates both month first and day first, and no date has a day above 12 or matches the day its order arrived, so the date order cannot be told.\"],\"confidence\":0.6}"
+    }
+  ]
+}

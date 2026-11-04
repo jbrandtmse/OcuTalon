@@ -15,7 +15,14 @@
 /// test: a target passes only if its header still exists in the status Error, its scope is the incident's owner, no header of its session names it as resent,
 /// it still has its body, and the field is a stored datatype property of the body whose value still reads in the source format. Every other target is skipped
 /// with one plain reason that names it, and is never acted on. Execute resends a repaired copy of each target that passes through Fix.Executor.Resend, which
-/// holds the one namespace switch of the executor; the originals are never changed. Lane A.
+/// holds the one namespace switch of the executor; the originals are never changed.
+/// Dates that read two ways (DW-644): for a source format that is an order format (MM/DD/YYYY or DD/MM/YYYY), a target value is one-way when it reads only in the
+/// source format, and two-way when it also reads in the other order. Evidence says what, if anything, singles out the source reading over the dry run's targets:
+/// oneway (any target value is one-way), arrival (every two-way value whose two readings differ matches the source reading: that reading's date is within
+/// ARRIVALDAYS days, either way, of the UTC date of its own failed header's TimeCreated), same (every value's two readings are the same date, so nothing is
+/// chosen), none (otherwise), or n/a (the source is not an order format). The dry run refuses, with a reason, exactly when the evidence is none. Its example
+/// (before and after) is the first one-way target, else the first target whose readings differ, else the first target, so that a raised request's before reads
+/// two ways with different readings exactly when every target value does. The stored dry run keeps its keys. Lane A.
 Class OcuTalon.Fix.Kind.RepairResend Extends OcuTalon.Fix.Kind
 {
 
@@ -25,8 +32,15 @@ Parameter PARAMETERS = "field,sourceFormat,targetFormat";
 
 Parameter RESOURCES = "%Ens_MessageResend:U";
 
+/// The days, either way, between a reading and the UTC date a message arrived within which the reading matches that arrival (a partner's own date can differ
+/// from the UTC date by up to a day either side).
+Parameter ARRIVALDAYS = 1;
+
 /// The plain reason of a run that cannot start without RESOURCES (Fix.Executor gives it as the Reason of the FixResult; the catalog renders it after "Nothing was resent: ").
 Parameter NOTALLOWED = "OcuTalon isn't allowed to resend messages in that production";
+
+/// The reason of a dry run that has no evidence for the source reading of its dates.
+Parameter NOEVIDENCE = "The dates read as valid dates both month first and day first, and nothing shows which: no date has a day above 12, and the dates do not all match, within a day, the day their message arrived";
 
 /// The status text of a message that failed, as Reader.Evidence gives it.
 Parameter ERRORSTATUS = "Error";
@@ -109,6 +123,10 @@ ClassMethod DryRun(incident As OcuTalon.Data.Incident, parameters As %DynamicObj
 	Set (before, after) = ""
 	Set haveExample = 0
 	Set unlisted = 0
+	Set sourceFormat = parameters.%Get("sourceFormat")
+	Set orderFormat = (##class(OcuTalon.Fix.Reformat).OtherOrder(sourceFormat) '= "")
+	Set values = []
+	Set (oneWayFound, differFound) = 0
 	For g = 1:1:groups.Count() {
 		Set group = groups.GetAt(g)
 		Set dropped = group.Unlisted(.known)
@@ -132,6 +150,7 @@ ClassMethod DryRun(incident As OcuTalon.Data.Incident, parameters As %DynamicObj
 			If $Data(scoped(id)) Continue
 			Set scoped(id) = $Select($IsObject(failure.body) && failure.body.%IsA("%Library.DynamicObject"): failure.body, 1: {})
 			Set classes(id) = failure.bodyClass
+			Set arrived(id) = failure.timeCreated
 		}
 	}
 	Set first = $Order(scoped(""))
@@ -158,11 +177,32 @@ ClassMethod DryRun(incident As OcuTalon.Data.Incident, parameters As %DynamicObj
 		Set affected = affected + 1
 		If ..Readable(scoped(id), parameters, .current, .repaired) '= "" Continue
 		Set targets = targets _ $Select(targets = "": "", 1: ",") _ id
+		Do values.%Push({"value": (current), "arrived": ($Get(arrived(id)))})
 		If 'haveExample {
 			Set haveExample = 1
 			Set before = current
 			Set after = repaired
 		}
+		If orderFormat {
+			Set twoWay = ##class(OcuTalon.Fix.Reformat).Readings(current, sourceFormat, .daySource, .dayOther)
+			If 'twoWay && 'oneWayFound {
+				Set oneWayFound = 1
+				Set oneWayBefore = current
+				Set oneWayAfter = repaired
+			} ElseIf twoWay && (daySource '= dayOther) && 'differFound {
+				Set differFound = 1
+				Set differBefore = current
+				Set differAfter = repaired
+			}
+		}
+	}
+	If orderFormat {
+		If oneWayFound {
+			Set before = oneWayBefore, after = oneWayAfter
+		} ElseIf differFound {
+			Set before = differBefore, after = differAfter
+		}
+		If ..Evidence(values, sourceFormat) = "none" Quit $$$ERROR($$$GeneralError, ..#NOEVIDENCE)
 	}
 	Set noun = ""
 	If incident.ItemNoun '= "" {
@@ -193,6 +233,47 @@ ClassMethod DryRun(incident As OcuTalon.Data.Incident, parameters As %DynamicObj
 		}
 	}
 	Quit $$$OK
+}
+
+/// What singles out the source reading of the dates of values (see the class description): "n/a" when format is not an order format, "oneway" when any value reads
+/// only in format, "arrival" when every value that reads both ways with two different dates matches the format's reading of the arrival, "same" when no value
+/// does (every value reads as one date), else "none". values holds {"value", "arrived"} (arrived as Reader.Evidence gives timeCreated: YYYY-MM-DDThh:mm:ssZ, UTC);
+/// an empty or malformed arrived never matches. twoWay is the number of values that read both ways. A value that does not read in format is not counted. Pure.
+ClassMethod Evidence(values As %DynamicArray, format As %String, Output twoWay As %Integer) As %String
+{
+	Set twoWay = 0
+	If ##class(OcuTalon.Fix.Reformat).OtherOrder($Get(format)) = "" Quit "n/a"
+	Set oneWay = 0
+	Set differing = 0
+	Set unmatched = 0
+	If $IsObject($Get(values)) {
+		Set iterator = values.%GetIterator()
+		While iterator.%GetNext(, .entry) {
+			Set value = entry.value
+			If '##class(OcuTalon.Fix.Reformat).Reads(value, format) Continue
+			If '##class(OcuTalon.Fix.Reformat).Readings(value, format, .daySource, .dayOther) {
+				Set oneWay = 1
+				Continue
+			}
+			Set twoWay = twoWay + 1
+			If daySource = dayOther Continue
+			Set differing = differing + 1
+			If '..Matches(daySource, entry.arrived) Set unmatched = unmatched + 1
+		}
+	}
+	If oneWay Quit "oneway"
+	If differing = 0 Quit "same"
+	Quit $Select(unmatched = 0: "arrival", 1: "none")
+}
+
+/// 1 when the day number (a $ZDATEH value) is within ARRIVALDAYS days, either way, of the UTC date of arrived (YYYY-MM-DDThh:mm:ssZ); 0 when arrived is not that.
+ClassMethod Matches(day As %Integer, arrived As %String) As %Boolean [ Private ]
+{
+	Set arrived = $Get(arrived)
+	If '$Match(arrived, "[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}Z") Quit 0
+	Set arrival = $ZDateH($Extract(arrived, 1, 10), 3, , , , , , , -1)
+	If arrival < 0 Quit 0
+	Quit $Select($ZAbs(day - arrival) <= ..#ARRIVALDAYS: 1, 1: 0)
 }
 
 /// Re-checks the targets (comma-separated header ids, ascending) of an approved request before any copy is made (see the class description). passed holds the

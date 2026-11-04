@@ -700,6 +700,8 @@ export interface ApprovalFields {
   raisedAt?: string;
   expiresAt?: string;
   dryRun?: SeedDryRun | null;
+  /** The request's FixParameters, the JSON text of the fix's parameters (for a date repair, the sourceFormat that decides the either-way line). */
+  fixParameters?: string;
   requiredRole?: string;
   answeredAction?: string;
   answeredChannel?: string;
@@ -735,6 +737,7 @@ export async function seedApproval(user: string, fields: ApprovalFields = {}, ow
     ToolName: fields.toolName,
     ExpiresAt: fields.expiresAt,
     DryRun: dryRun,
+    FixParameters: fields.fixParameters,
     RequiredRole: fields.requiredRole,
     AnsweredAction: fields.answeredAction,
     AnsweredChannel: fields.answeredChannel,
