@@ -1,0 +1,415 @@
+/// Tests of the settings routes of the REST surface (Story 33.2; AD-1, AD-4, AD-13, AD-19), called with stand-in request and response objects
+/// and a CSP session whose OcuTalon.SessionRef is the fixture session (as Test.Web.DismissApi does). THIS CLASS RUNS IN THROWAWAY STACKS AND IN CI
+/// ONLY (Rule 21): the saves go through the real production, Commands.Submit, CommandsIn and the real SettingsOps, and where
+/// OcuTalon.Production does not run those tests fail with that reason, so that a broken stack can never give a green shard. The roles of the
+/// signed-in user are set through Test.Web.ApiProbe's roles seam. The one demo mode save made through the production keeps the stack's own mode (the Demo step then
+/// changes nothing); the mapping of every outcome to its answer is tested on Answer.
+///   - TestNonAdminIs403Everywhere: with the OcuTalon user role only, or with %All, GET /v1/settings and each of the seven POST routes (also written
+///     with another case, a trailing slash and a query) answer 403 not_admin and stop the dispatch, before the browser envelope, whatever the
+///     headers, while an admin passes to the envelope check and a path that is not a settings path is not asked for the role;
+///   - TestGetShape: the body is SettingsOps.Values and holds no key material;
+///   - TestSaveThresholds: an admin's save through the production answers 200, writes the rows with the audit entries, and the page's GET and
+///     Setting.Get in a process whose cache entry has expired show the saved values; the command is the CSP session's, not the body's;
+///   - TestRefusedSaves: a refused value, a field that is not the section's, "@{" and a body that is not an object answer 400 bad_settings with the
+///     ruled text and the fields, and change nothing;
+///   - TestBridgeRoutesAre501: budgets and time-zone reach the real stubs and answer 501 not_built with nothing written; models and channels are 501;
+///   - TestSaveDemoModeAudited: an admin's demo mode save (the stack's own mode) answers 200 and writes one entry with the call's user, the CSP session's Ref and the channel web;
+///   - TestDemoModeBodies: a demo mode body that is not exactly {demoMode: true or false} is 400 with nothing submitted;
+///   - TestAnswerMapping: each outcome of a save has its status, code and text;
+///   - TestStateHasAdmin: the snapshot's admin follows the role.
+Class OcuTalon.Test.Web.SettingsApi Extends %UnitTest.TestCase
+{
+
+/// The probe that carries the roles seam.
+Parameter PROBE = "OcuTalon.Test.Web.ApiProbe";
+
+/// The keys that the tests write.
+Parameter KEYS = "digest.time,digest.channels,checks.thresholds.diskFreePercent,checks.thresholds.journalFreePercent,checks.thresholds.licenseUsePercent,checks.thresholds.queueMessages,checks.thresholds.queueWaitMinutes";
+
+/// The seven POST routes with their slugs.
+Parameter SLUGS = "models,budgets,channels,daily-digest,time-zone,check-thresholds,demo-mode";
+
+/// The run's number.
+Property Number As %Integer;
+
+/// The reason why the tests that need the production fail, or empty.
+Property Missing As %String(MAXLEN = 200);
+
+/// The TraceRefs of the fixture sessions, for the clean-up of the messages.
+Property Traces As %DynamicArray;
+
+Method OnBeforeAllTests() As %Status
+{
+	Do ##class(OcuTalon.Test.Data.Fixture).Clean()
+	Set ..Number = $Increment(^OcuTalonTest("SettingsApi", "n"))
+	Set ..Traces = []
+	Set ..Missing = ""
+	Kill ^OcuTalonTest("ApiProbe", "roles")
+	Set keys = $ListFromString(..#KEYS)
+	Set position = 0
+	While $ListNext(keys, position, key) {
+		Set row = ##class(OcuTalon.Data.Setting).KeyIndexOpen(key)
+		If $IsObject(row) Set ^OcuTalonTest("SettingsApi", "saved", key) = $ListBuild(row.Value, row.UpdatedAt)
+	}
+	If '##class(Ens.Director).IsProductionRunning(.name) || (name '= "OcuTalon.Production") {
+		Set ..Missing = "OcuTalon.Production does not run in OCUTALON: this class runs in throwaways and CI only (Rule 21)"
+	}
+	Quit $SYSTEM.Status.OK()
+}
+
+Method OnBeforeOneTest() As %Status
+{
+	Kill ^OcuTalonTest("ApiProbe", "roles")
+	Do ..Clear()
+	Quit $SYSTEM.Status.OK()
+}
+
+Method OnAfterAllTests() As %Status
+{
+	Kill ^OcuTalonTest("ApiProbe", "roles")
+	Do ..Clear()
+	Set keys = $ListFromString(..#KEYS)
+	Set position = 0
+	While $ListNext(keys, position, key) {
+		If $Data(^OcuTalonTest("SettingsApi", "saved", key), saved) {
+			Set row = ##class(OcuTalon.Data.Setting).%New()
+			Set row.Key = key, row.Value = $List(saved, 1), row.UpdatedAt = $List(saved, 2)
+			Do row.%Save()
+		}
+		Kill ^||OcuTalon.Setting(key)
+	}
+	Kill ^OcuTalonTest("SettingsApi", "saved")
+	Do ##class(OcuTalon.Test.Data.Fixture).RemoveMessages(..Traces, "OCUTALON")
+	Do ##class(OcuTalon.Test.Data.Fixture).Clean()
+	Quit $SYSTEM.Status.OK()
+}
+
+/// A user without OcuTalonAdmin is refused on all eight settings calls before the envelope, the body and the route.
+Method TestNonAdminIs403Everywhere()
+{
+	Set wanted = {"error": {"code": "not_admin", "message": "Only OcuTalon admins can open settings."}}.%ToJSON()
+	Set urls = $ListBuild("GET|/v1/settings")
+	Set slugs = $ListFromString(..#SLUGS)
+	Set position = 0
+	While $ListNext(slugs, position, slug) {
+		Set urls = urls_$ListBuild("POST|/v1/settings/"_slug)
+	}
+	Do $$$AssertEquals($ListLength(urls), 8, "all eight calls are tried")
+	Set odd = $ListBuild("GET|/v1/Settings", "GET|/v1/settings/", "GET|/v1/settings?x=1", "POST|/v1/SETTINGS/check-thresholds", "POST|/v1/settings/zz-unknown", "DELETE|/v1/settings")
+	For roles = "OcuTalonUser", "%All,OcuTalonUser", "OcuTalonUser,OcuTalonAdministrator", "OcuTalonUser,XOcuTalonAdmin" {
+		Set ^OcuTalonTest("ApiProbe", "roles") = roles
+		Set all = urls_odd
+		Set position = 0
+		While $ListNext(all, position, row) {
+			Set method = $Piece(row, "|", 1), url = $Piece(row, "|", 2)
+			Set label = method_" "_url_" with roles "_roles
+			Set body = ..PreDispatch(url, method, "text/plain", "", "", "h:1", .response, .continue)
+			Do $$$AssertEquals(response.Status, "403 Forbidden", label_": 403")
+			Do $$$AssertEquals(body, wanted, label_": not_admin with the ruled text")
+			Do $$$AssertEquals(continue, 0, label_": the dispatch stops")
+		}
+	}
+	Set ^OcuTalonTest("ApiProbe", "roles") = "OcuTalonUser,OcuTalonAdmin"
+	Set body = ..PreDispatch("/v1/settings/check-thresholds", "POST", "application/json", 1, "http://h:1", "h:1", .response, .continue)
+	Do $$$AssertEquals(continue, 1, "an admin with the whole envelope goes on to the route")
+	Do $$$AssertEquals(body, "", "and nothing is written")
+	Set body = ..PreDispatch("/v1/settings/check-thresholds", "POST", "text/plain", "", "", "h:1", .response, .continue)
+	Do $$$AssertEquals(continue_"|"_response.Status, "0|403 Forbidden", "an admin without the envelope is stopped by the envelope check")
+	Do $$$AssertEquals($Piece(body, """", 6), "not_json", "with the envelope's code, not not_admin")
+	Set body = ..PreDispatch("/v1/settings", "GET", "", "", "", "h:1", .response, .continue)
+	Do $$$AssertEquals(continue, 1, "an admin's GET goes on")
+	Set ^OcuTalonTest("ApiProbe", "roles") = "OcuTalonUser"
+	Set body = ..PreDispatch("/v1/state", "GET", "", "", "", "h:1", .response, .continue)
+	Do $$$AssertEquals(continue, 1, "a path that is not a settings path is not asked for the admin role")
+	Set ^OcuTalonTest("ApiProbe", "roles") = "OcuTalonAdmin"
+	Set body = ..PreDispatch("/v1/settings", "GET", "", "", "", "h:1", .response, .continue)
+	Do $$$AssertEquals(continue_"|"_$Piece(body, """", 6), "0|no_role", "an admin without the user role is still no_role, first")
+}
+
+/// GET /v1/settings is SettingsOps.Values as JSON, with the sections, the bridge values, the providers and the zone, and no key material.
+Method TestGetShape()
+{
+	Set ^OcuTalonTest("ApiProbe", "roles") = "OcuTalonUser,OcuTalonAdmin"
+	Set body = ..Call("Settings", "", ..Session(), .response)
+	Do $$$AssertEquals(response.Status_"|"_response.ContentType, "200 OK|application/json", "200 JSON")
+	Set json = {}.%FromJSON(body)
+	Set keys = ""
+	Set iterator = json.%GetIterator()
+	While iterator.%GetNext(.key) {
+		Set keys = keys_$Select(keys = "": "", 1: ",")_key
+	}
+	Do $$$AssertEquals(keys, "sections,bridge,providers,instanceZone", "the keys")
+	Do $$$AssertEquals(json.sections.%Get("check-thresholds").%ToJSON(), "{""diskFreePercent"":10,""journalFreePercent"":10,""licenseUsePercent"":90,""queueMessages"":100,""queueWaitMinutes"":10}", "the thresholds")
+	Do $$$AssertEquals(json.sections.%Get("daily-digest").channels, "web,phone,telegram", "the digest channels")
+	Do $$$AssertEquals(json.sections.%Get("demo-mode").%GetTypeOf("demoMode"), "boolean", "demoMode is a boolean")
+	Do $$$AssertEquals(json.providers.%GetTypeOf(0), "unassigned", "the stub's providers are empty")
+	Set lower = $ZConvert(body, "L")
+	For word = "secret", "apikey", "api_key", "password", "token_value", "sk-" {
+		Do $$$AssertTrue(lower '[ word, "the body holds no '"_word_"'")
+	}
+}
+
+/// An admin's save of two thresholds through the production: 200 {"result":"done","sections"}, the two rows, the GET at once, and Setting.Get in a
+/// process whose cache entry has expired. The body's sessionRef is not accepted.
+Method TestSaveThresholds()
+{
+	If '..Guard() Quit
+	Set ^OcuTalonTest("ApiProbe", "roles") = "OcuTalonUser,OcuTalonAdmin"
+	Set session = ..Session()
+	Set since = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
+	Set body = ..Call("SaveCheckThresholds", {"diskFreePercent": 17, "journalFreePercent": 10, "licenseUsePercent": 90, "queueMessages": 321, "queueWaitMinutes": 10}.%ToJSON(), session, .response)
+	Do $$$AssertEquals(response.Status_"|"_response.ContentType, "200 OK|application/json", "200 JSON: "_body)
+	Set answer = {}.%FromJSON(body)
+	Do $$$AssertEquals(answer.result, "done", "result done")
+	Do $$$AssertEquals(answer.sections.%Get("check-thresholds").diskFreePercent_"|"_answer.sections.%Get("check-thresholds").queueMessages, "17|321", "the answer carries the saved sections")
+	Do $$$AssertEquals(..Row("checks.thresholds.diskFreePercent")_"|"_..Row("checks.thresholds.queueMessages"), "17|321", "the two rows are written")
+	Do $$$AssertEquals(..Row("checks.thresholds.journalFreePercent")_..Row("checks.thresholds.licenseUsePercent")_..Row("checks.thresholds.queueWaitMinutes"), "", "and no other")
+	Set body = ..Call("Settings", "", session, .response)
+	Do $$$AssertEquals({}.%FromJSON(body).sections.%Get("check-thresholds").diskFreePercent, 17, "GET /v1/settings shows the new value at once")
+	Set ^||OcuTalon.Setting("checks.thresholds.queueMessages") = $ListBuild("100", 0, $ZHorolog - 61)
+	Do $$$AssertEquals(##class(OcuTalon.Data.Setting).Get("checks.thresholds.queueMessages"), "321", "Setting.Get in a process whose cache entry is 61 seconds old reads the new value")
+	Set entries = ##class(OcuTalon.Test.Bridge.AuditLog).Wait(since, "OcuTalon", "Settings", "", $Username, "", 2, 180)
+	Do $$$AssertTrue(entries.%Size() >= 2, "two Settings entries name the IRIS user of the call")
+	For i = 0:1:entries.%Size() - 1 {
+		If entries.%Get(i).data.setting [ "checks.thresholds" Do $$$AssertEquals(entries.%Get(i).data.sessionRef_"|"_entries.%Get(i).data.channel, session_"|web", "an entry has the CSP session's Ref and the channel web")
+	}
+	Set body = ..Call("SaveCheckThresholds", {"diskFreePercent": 18, "journalFreePercent": 10, "licenseUsePercent": 90, "queueMessages": 321, "queueWaitMinutes": 10, "sessionRef": "zzother"}.%ToJSON(), session, .response)
+	Do $$$AssertEquals(response.Status, "400 Bad Request", "a sessionRef in the body is an unknown field: 400")
+	Do $$$AssertEquals(..Row("checks.thresholds.diskFreePercent"), "17", "and nothing changed")
+	Set body = ..Call("SaveCheckThresholds", {"diskFreePercent": 17, "journalFreePercent": 10, "licenseUsePercent": 90, "queueMessages": 321, "queueWaitMinutes": 10}.%ToJSON(), session, .response)
+	Do $$$AssertEquals(response.Status, "200 OK", "the same values again are 200")
+	Set body = ..Call("SaveDailyDigest", {"time": "06:45", "channels": "phone,web"}.%ToJSON(), session, .response)
+	Do $$$AssertEquals(response.Status, "200 OK", "the digest section saves too: "_body)
+	Do $$$AssertEquals(..Row("digest.time")_"|"_..Row("digest.channels"), "06:45|web,phone", "the digest keys are written")
+}
+
+/// An admin's demo mode save through the production, with the mode the stack already has: 200 and one Settings entry with the IRIS user of the call,
+/// the CSP session's Ref and the channel web. The value is the stack's own, so the Demo step that follows the write leaves the stack as it was.
+Method TestSaveDemoModeAudited()
+{
+	If '..Guard() Quit
+	Set ^OcuTalonTest("ApiProbe", "roles") = "OcuTalonUser,OcuTalonAdmin"
+	Set session = ..Session()
+	Set mode = ##class(OcuTalon.Data.Setting).Get("demo.mode")
+	Set on = (mode = 1)
+	Set existed = ##class(OcuTalon.Data.Setting).KeyIndexExists("demo.mode")
+	Set since = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
+	Set body = ..Call("SaveDemoMode", "{""demoMode"": "_$Select(on: "true", 1: "false")_"}", session, .response)
+	Do $$$AssertEquals(response.Status, "200 OK", "a demo mode save is 200: "_body)
+	Do $$$AssertEquals({}.%FromJSON(body).sections.%Get("demo-mode").demoMode, on, "the answer shows the mode")
+	Set entries = ##class(OcuTalon.Test.Bridge.AuditLog).Wait(since, "OcuTalon", "Settings", "", $Username, "", 1, 180)
+	If 'existed Do ##class(OcuTalon.Data.Setting).KeyIndexDelete("demo.mode") Kill ^||OcuTalon.Setting("demo.mode")
+	Do $$$AssertEquals(entries.%Size(), 1, "one Settings entry names the IRIS user of the call")
+	If entries.%Size() < 1 Quit
+	Set data = entries.%Get(0).data
+	Do $$$AssertEquals(data.setting_"|"_data.sessionRef_"|"_data.channel, "demo.mode|"_session_"|web", "it is for demo.mode, with the CSP session's Ref and the channel web")
+}
+
+/// A refused value, a field that is not the section's, "@{" and a body that is not an object: 400 bad_settings with the ruled text and the fields.
+Method TestRefusedSaves()
+{
+	If '..Guard() Quit
+	Set ^OcuTalonTest("ApiProbe", "roles") = "OcuTalonUser,OcuTalonAdmin"
+	Set session = ..Session()
+	Set text = "Couldn't save. Nothing was changed."
+	Set good = "{""diskFreePercent"": 10, ""journalFreePercent"": 10, ""licenseUsePercent"": 90, ""queueMessages"": 100, ""queueWaitMinutes"": 10}"
+	Set cases = $ListBuild($ListBuild("a non-number", "{""diskFreePercent"": ""abc"", ""journalFreePercent"": 10, ""licenseUsePercent"": 90, ""queueMessages"": 100, ""queueWaitMinutes"": 10}", "[""diskFreePercent""]"), $ListBuild("out of range", "{""diskFreePercent"": 10, ""journalFreePercent"": 101, ""licenseUsePercent"": 90, ""queueMessages"": 100, ""queueWaitMinutes"": 10}", "[""journalFreePercent""]"), $ListBuild("@{", "{""diskFreePercent"": 10, ""journalFreePercent"": 10, ""licenseUsePercent"": 90, ""queueMessages"": 100, ""queueWaitMinutes"": ""@{env:KEY}""}", "[""queueWaitMinutes""]"), $ListBuild("a missing field", "{""diskFreePercent"": 10}", "[""journalFreePercent"",""licenseUsePercent"",""queueMessages"",""queueWaitMinutes""]"), $ListBuild("an extra field", "{""diskFreePercent"": 11, ""journalFreePercent"": 10, ""licenseUsePercent"": 90, ""queueMessages"": 100, ""queueWaitMinutes"": 10, ""zz"": 1}", "[]"), $ListBuild("an array", "[1]", "[]"), $ListBuild("text", "not json", "[]"), $ListBuild("an empty body", "", "[]"))
+	Set position = 0
+	While $ListNext(cases, position, case) {
+		Set label = $List(case, 1)
+		Set body = ..Call("SaveCheckThresholds", $List(case, 2), session, .response)
+		Do $$$AssertEquals(response.Status_"|"_response.ContentType, "400 Bad Request|application/json", label_": 400 JSON")
+		Do $$$AssertEquals(body, "{""error"":{""code"":""bad_settings"",""message"":"""_text_"""},""fields"":"_$List(case, 3)_"}", label_": bad_settings, the ruled text and the fields")
+		Do $$$AssertEquals(..Rows(), 0, label_": nothing is written")
+	}
+	Set body = ..Call("SaveDailyDigest", "{""time"": ""25:00"", ""channels"": ""web""}", session, .response)
+	Do $$$AssertEquals(response.Status_"|"_$Piece(body, """fields"":", 2), "400 Bad Request|[""time""]}", "the digest time is refused and named")
+	Do $$$AssertEquals(..Rows(), 0, "nothing is written")
+}
+
+/// Budgets and time-zone reach the real stubs through the production: 501 not_built, nothing written. Models and channels are 501.
+Method TestBridgeRoutesAre501()
+{
+	If '..Guard() Quit
+	Set ^OcuTalonTest("ApiProbe", "roles") = "OcuTalonUser,OcuTalonAdmin"
+	Set session = ..Session()
+	Set wanted = {"error": {"code": "not_built", "message": "This part of OcuTalon isn't built yet."}}.%ToJSON()
+	Set body = ..Call("SaveBudgets", {"DecisionTokenBudget": 5000, "DailyCostCapUSD": "7.50"}.%ToJSON(), session, .response)
+	Do $$$AssertEquals(response.Status_"|"_body, "501 Not Implemented|"_wanted, "budgets: 501 not_built")
+	Set body = ..Call("SaveTimeZone", {"InstanceZone": "Europe/Paris"}.%ToJSON(), session, .response)
+	Do $$$AssertEquals(response.Status_"|"_body, "501 Not Implemented|"_wanted, "time-zone: 501 not_built")
+	Set body = ..Call("NotBuilt", "{}", session, .response)
+	Do $$$AssertEquals(response.Status_"|"_body, "501 Not Implemented|"_wanted, "models and channels: 501 not_built")
+	Do $$$AssertEquals(..Rows(), 0, "nothing is written")
+	Set body = ..Call("SaveBudgets", {"DecisionTokenBudget": "@{env:KEY}", "DailyCostCapUSD": "7.50"}.%ToJSON(), session, .response)
+	Do $$$AssertEquals(response.Status_"|"_$Piece(body, """fields"":", 2), "400 Bad Request|[""DecisionTokenBudget""]}", "a value with @{ is refused before the stub is asked")
+}
+
+/// A demo mode body that is not exactly {demoMode: true or false} is 400 with the field named when it is the field's value, and nothing is submitted.
+Method TestDemoModeBodies()
+{
+	Set ^OcuTalonTest("ApiProbe", "roles") = "OcuTalonUser,OcuTalonAdmin"
+	Set session = ..Session()
+	Set before = ##class(OcuTalon.Data.Setting).KeyIndexOpen("demo.mode")
+	Set was = $Select($IsObject(before): before.Value, 1: "")
+	Kill before
+	Set cases = $ListBuild($ListBuild("{}", "[""demoMode""]"), $ListBuild("{""demoMode"": 1}", "[""demoMode""]"), $ListBuild("{""demoMode"": ""true""}", "[""demoMode""]"), $ListBuild("{""demoMode"": null}", "[""demoMode""]"), $ListBuild("{""demoMode"": true, ""x"": 1}", "[]"), $ListBuild("[true]", "[]"), $ListBuild("true", "[]"), $ListBuild("", "[]"))
+	Set position = 0
+	While $ListNext(cases, position, case) {
+		Set body = ..Call("SaveDemoMode", $List(case, 1), session, .response)
+		Do $$$AssertEquals(response.Status_"|"_$Piece(body, """fields"":", 2), "400 Bad Request|"_$List(case, 2)_"}", "'"_$List(case, 1)_"': 400 bad_settings")
+		Do $$$AssertEquals($Piece(body, """", 6), "bad_settings", "'"_$List(case, 1)_"': with the code")
+	}
+	Set after = ##class(OcuTalon.Data.Setting).KeyIndexOpen("demo.mode")
+	Do $$$AssertEquals($Select($IsObject(after): after.Value, 1: ""), was, "demo mode did not change")
+}
+
+/// Every outcome of a save has its status, code and text.
+Method TestAnswerMapping()
+{
+	Set cases = $ListBuild($ListBuild(1, "done", "", "", "200 OK", "done"), $ListBuild(1, "on", "", "on", "200 OK", "done"), $ListBuild(1, "off_kept", "", "off", "200 OK", "done"), $ListBuild(0, "refused", "{""fields"":[""a"",""b""]}", "", "400 Bad Request", "bad_settings"), $ListBuild(0, "refused", "", "", "400 Bad Request", "bad_settings"), $ListBuild(0, "not_built", "", "", "501 Not Implemented", "not_built"), $ListBuild(0, "step_failed", "", "on", "409 Conflict", "demo_step_failed"), $ListBuild(0, "step_failed", "", "", "500 Internal Server Error", "server_error"), $ListBuild(0, "not_audited", "", "on", "500 Internal Server Error", "server_error"), $ListBuild(0, "failed", "", "", "500 Internal Server Error", "server_error"), $ListBuild(0, "unknown_command", "", "", "500 Internal Server Error", "server_error"), $ListBuild(0, "zz_other", "", "", "500 Internal Server Error", "server_error"))
+	Set position = 0
+	While $ListNext(cases, position, case) {
+		Set result = ##class(OcuTalon.Msg.CommandResult).%New()
+		Set result.Ok = $List(case, 1), result.Outcome = $List(case, 2), result.Data = $List(case, 3), result.Message = "developer text that no user sees"
+		Set body = ..Answer(result, $List(case, 4), .response)
+		Set label = $List(case, 2)_" ("_$List(case, 4)_")"
+		Do $$$AssertEquals(response.Status, $List(case, 5), label_": the status")
+		If $List(case, 1) {
+			Do $$$AssertEquals({}.%FromJSON(body).result, "done", label_": result done")
+		} Else {
+			Do $$$AssertEquals($Piece(body, """", 6), $List(case, 6), label_": the code")
+			Do $$$AssertTrue(body '[ "developer text", label_": the developer text is never sent")
+		}
+	}
+	Set result = ##class(OcuTalon.Msg.CommandResult).%New()
+	Set result.Outcome = "refused", result.Data = "{""fields"":[""a"",""b""]}"
+	Set body = ..Answer(result, "", .response)
+	Do $$$AssertEquals(body, "{""error"":{""code"":""bad_settings"",""message"":""Couldn't save. Nothing was changed.""},""fields"":[""a"",""b""]}", "a refusal carries the ruled text and its fields")
+	Set result.Outcome = "step_failed"
+	Set body = ..Answer(result, "off", .response)
+	Do $$$AssertEquals(body, "{""error"":{""code"":""demo_step_failed"",""message"":""Demo mode is set to off, but the switch didn't finish. OcuTalon tries again at its next start.""}}", "a Demo step that failed has the ruled text, never 'Nothing was changed.'")
+}
+
+/// The snapshot's admin follows the role and comes right after user.
+Method TestStateHasAdmin()
+{
+	Set session = ##class(OcuTalon.Data.Session).ForUser("zzsettingsapi"_..Number, .sc)
+	Do $$$AssertStatusOK(sc, "the fixture session")
+	For case = "OcuTalonUser|0", "OcuTalonUser,OcuTalonAdmin|1", "OcuTalonUser,%All|0" {
+		Set ^OcuTalonTest("ApiProbe", "roles") = $Piece(case, "|", 1)
+		Set body = $ClassMethod(..#PROBE, "StateBody", session)
+		Do $$$AssertEquals(body.%GetTypeOf("admin"), "boolean", $Piece(case, "|", 1)_": admin is a boolean")
+		Do $$$AssertEquals(body.admin + 0, +$Piece(case, "|", 2), $Piece(case, "|", 1)_": admin follows the role")
+		Set keys = ""
+		Set iterator = body.%GetIterator()
+		While iterator.%GetNext(.key) {
+			Set keys = keys_$Select(keys = "": "", 1: ",")_key
+			If key = "admin" Quit
+		}
+		Do $$$AssertTrue(keys [ "rail,user,admin", "admin comes right after user: "_keys)
+	}
+}
+
+/// --- helpers ---
+/// 1 when the test may run. Otherwise it fails with the reason, and the test quits.
+Method Guard() As %Boolean [ Private ]
+{
+	If ..Missing '= "" {
+		Do $$$AssertTrue(0, ..Missing)
+		Quit 0
+	}
+	Quit 1
+}
+
+/// The fixture session of the IRIS user who runs the tests (the user that Ownership.SessionRef resolves the CSP session for).
+Method Session() As %String [ Private ]
+{
+	Set ref = ##class(OcuTalon.Test.Data.Fixture).Session($Username)
+	Do ..Traces.%Push(##class(OcuTalon.Data.Session).RefIndexOpen(ref).TraceRef)
+	Quit ref
+}
+
+/// Runs OnPreDispatch of the probe for the URL and method with a stand-in request; returns what it wrote. continue is the dispatch flag it left.
+Method PreDispatch(url As %String, method As %String, contentType As %String, header As %String, origin As %String, host As %String, Output response, Output continue) As %String [ Private ]
+{
+	New %request, %response, %session
+	Set %request = ##class(OcuTalon.Test.Web.StubRequest).MakeCall("/ocutalon/api/", method, contentType, header, origin, host)
+	Set %response = ##class(%CSP.Response).%New()
+	Set %session = ##class(%CSP.Session).%New("ZzSettingsApi"_..Number, 0)
+	Set %response.ContentType = ""
+	Set continue = 1
+	Set sc = ##class(OcuTalon.Test.Web.Api).Capture(.capture)
+	If $SYSTEM.Status.IsOK(sc) {
+		Try {
+			Set sc = $ClassMethod(..#PROBE, "OnPreDispatch", url, method, .continue)
+		} Catch exception {
+			Set sc = exception.AsStatus()
+		}
+	}
+	Set written = ##class(OcuTalon.Test.Web.Api).Collect(.capture)
+	Set response = %response
+	Do $$$AssertStatusOK(sc, "OnPreDispatch returns OK")
+	Quit written
+}
+
+/// Calls the route method of the probe as the CSP session of the session (body is the request's content); response is the %response.
+Method Call(method As %String, body As %String, session As %String = "", Output response) As %String [ Private ]
+{
+	New %request, %response, %session
+	Set application = "/ocutalon/api/"
+	Set %request = $Select(body = "": ##class(OcuTalon.Test.Web.StubRequest).Make(application), 1: ##class(OcuTalon.Test.Web.StubRequest).MakeBody(application, body))
+	Set %response = ##class(%CSP.Response).%New()
+	Set %response.ContentType = ""
+	Set %session = ##class(%CSP.Session).%New("ZzSettingsApi"_..Number, 0)
+	Set %session.Data("OcuTalon.SessionRef") = session
+	Set written = ##class(OcuTalon.Test.Web.Api).Written(.sc, ..#PROBE, method)
+	Do $$$AssertStatusOK(sc, method_" returns OK")
+	Set response = %response
+	Quit written
+}
+
+/// The HTTP answer to a CommandResult through Answer; response is the %response.
+Method Answer(result As OcuTalon.Msg.CommandResult, word As %String, Output response) As %String [ Private ]
+{
+	New %request, %response, %session
+	Set %request = ##class(OcuTalon.Test.Web.StubRequest).Make("/ocutalon/api/")
+	Set %response = ##class(%CSP.Response).%New()
+	Set %response.ContentType = ""
+	Set %session = ##class(%CSP.Session).%New("ZzSettingsApi"_..Number, 0)
+	Set written = ##class(OcuTalon.Test.Web.Api).Written(.sc, ..#PROBE, "AnswerFor", result, word)
+	Set response = %response
+	Quit written
+}
+
+/// Deletes the rows of the keys.
+Method Clear() [ Private ]
+{
+	Set keys = $ListFromString(..#KEYS)
+	Set position = 0
+	While $ListNext(keys, position, key) {
+		Do ##class(OcuTalon.Data.Setting).KeyIndexDelete(key)
+		Kill ^||OcuTalon.Setting(key)
+	}
+}
+
+/// The stored value of the key, "" when there is no row.
+Method Row(key As %String) As %String [ Private ]
+{
+	Set row = ##class(OcuTalon.Data.Setting).KeyIndexOpen(key)
+	Quit $Select($IsObject(row): row.Value, 1: "")
+}
+
+/// The number of rows of the keys.
+Method Rows() As %Integer [ Private ]
+{
+	Set count = 0
+	Set keys = $ListFromString(..#KEYS)
+	Set position = 0
+	While $ListNext(keys, position, key) {
+		If ##class(OcuTalon.Data.Setting).KeyIndexExists(key) Set count = count + 1
+	}
+	Quit count
+}
+
+}

@@ -57,10 +57,10 @@ describe('leaving the page signs nothing out (AC 1)', () => {
     }
   });
 
-  it('no source registers a handler for pagehide, beforeunload, unload or visibilitychange, or sends a beacon', () => {
+  it('no source registers a handler for pagehide, beforeunload, unload or visibilitychange, or sends a beacon, but the settings page, which arms the browser\'s own prompt of a reload or a closed tab while its form has unsaved changes and signs nothing out (Story 33.2)', () => {
     assert.deepEqual(
       files.filter((file) => LEAVING.test(file.code)).map((file) => file.name),
-      [],
+      ['app/settings/settings-page.ts'],
     );
   });
 

@@ -15,7 +15,7 @@
 ///     of AD-32 and Data.Time.ForMessage from Story 0.9, the Orders partner's Send from Story 0.10, and the Telegram session side that Lane A calls from
 ///     Story 10.3: Pairing.HashCode, RecordChat, TakeReplySlot, StoreCode, Chat and Purge, StatusMark.RecordTelegram and TelegramState, AnswersIn.FromTelegram,
 ///     Ownership.ApprovalKnown and Install.Step.Core.Purge, and from Story 33.1 the nine OcuTalon.Bridge.Settings methods that SettingsOps calls and
-///     OcuTalon.Bridge.Time.Zone, SetZone and Apply, 76 signatures in all, which the floor of the count pins);
+///     OcuTalon.Bridge.Time.Zone, SetZone and Apply, and from Story 33.2 Delivery.FindByRef, Handled.Marked and Ownership.DeliveryByRef, 79 signatures in all, which the floor of the count pins);
 ///   - TestTelegramStubHasAnAdapter: the stub is an inbound service with an adapter class.
 /// The incident fixtures use a per-run Zz reference, and every row is deleted in the test and again in OnAfterAllTests.
 Class OcuTalon.Test.Contract.Ac Extends OcuTalon.Test.Contract
@@ -72,7 +72,7 @@ Method TestAcClassesAreCompiledAndPinned()
 		Do $$$AssertTrue(##class(%Dictionary.CompiledClass).%ExistsId(class), class_" is compiled")
 		Do $$$AssertTrue($Data(pinned(class)), class_" has an entry in a contract oracle")
 	}
-	Do $$$AssertTrue(count >= 47, "the epics AC name at least 47 classes: "_count)
+	Do $$$AssertTrue(count >= 51, "the epics AC name at least 51 classes: "_count)
 }
 
 /// Every registry class keeps all four of its storage globals under its registry global, and they resolve to the private
@@ -162,7 +162,7 @@ Method TestCrossLaneSignatures()
 		Do $$$AssertEquals(..Join(prefix), ..Join(expected), id_" takes ("_signature.args_") in that order")
 		Do $$$AssertEquals(..FullName(method.ReturnType), ..FullName(signature.returns), id_" returns "_signature.returns)
 	}
-	Do $$$AssertTrue(count >= 76, "the signatures are read: "_count)
+	Do $$$AssertTrue(count >= 79, "the signatures are read: "_count)
 }
 
 /// The Telegram stub is an inbound service, and its adapter is a class (the Telegram epic replaces the value).
@@ -223,6 +223,9 @@ XData Named [ MimeType = application/json ]
  "OcuTalon.Msg.Command.Pair": "Origin,IdempotencyKey,SessionRef",
  "OcuTalon.Msg.Command.Unpair": "Origin,IdempotencyKey,SessionRef",
  "OcuTalon.Msg.Command.EndSession": "Origin,IdempotencyKey,SessionRef",
+ "OcuTalon.Msg.Command.SendDigest": "Origin,IdempotencyKey,SessionRef",
+ "OcuTalon.Msg.Command.GotIt": "Origin,IdempotencyKey,SessionRef,Ref,Channel",
+ "OcuTalon.Msg.Command.SaveSettings": "Origin,IdempotencyKey,SessionRef,Slug,Changes,ActingUser",
  "OcuTalon.Live.Payload.Decision": "ItemId,ItemSummary",
  "OcuTalon.Bridge.Msg.Request": "Input,Kind,Provenance,ItemId,Summary,DecisionRef,OwnerRef,TraceRef,Channel,ThreadSessionId,SessionMode,SeedText,SystemNote",
  "OcuTalon.Bridge.Msg.DecisionResponse": "DecisionRef,Outcome,Payload,Fallback,FallbackReason",
@@ -256,6 +259,9 @@ XData Classes [ MimeType = application/json ]
  "OcuTalon.Msg.Command.Pair",
  "OcuTalon.Msg.Command.Unpair",
  "OcuTalon.Msg.Command.EndSession",
+ "OcuTalon.Msg.Command.SendDigest",
+ "OcuTalon.Msg.Command.GotIt",
+ "OcuTalon.Msg.Command.SaveSettings",
  "OcuTalon.Live.Payload.Decision",
  "OcuTalon.Bridge.Msg.Request",
  "OcuTalon.Bridge.Msg.Result",
@@ -273,6 +279,7 @@ XData Classes [ MimeType = application/json ]
  "OcuTalon.Data.AddressCounter",
  "OcuTalon.Data.StatusMark",
  "OcuTalon.Data.GuideState",
+ "OcuTalon.Data.Handled",
  "OcuTalon.Data.BreakFeedRun",
  "OcuTalon.Data.Pairing",
  "OcuTalon.Data.Turn",
@@ -294,6 +301,9 @@ XData Signatures [ MimeType = application/json ]
 [
  {"class": "OcuTalon.Data.Delivery", "method": "Record", "args": "ownerRef,channel,channelMessageId,approvalRef", "returns": "%Status"},
  {"class": "OcuTalon.Data.Delivery", "method": "FindByApproval", "args": "approvalRef,channel,ownerRef", "returns": "%String"},
+ {"class": "OcuTalon.Data.Delivery", "method": "FindByRef", "args": "ref,channel,ownerRef", "returns": "%String"},
+ {"class": "OcuTalon.Data.Handled", "method": "Marked", "args": "ref", "returns": "%String"},
+ {"class": "OcuTalon.Data.Ownership", "method": "DeliveryByRef", "args": "ref,channel,sessionRef,*sc", "returns": "OcuTalon.Data.Delivery"},
  {"class": "OcuTalon.Bridge.Msg.Reply", "method": "NewBusy", "args": "", "returns": "OcuTalon.Bridge.Msg.Reply"},
  {"class": "OcuTalon.Bridge.Ids", "method": "NewRef", "args": "", "returns": "%String"},
  {"class": "OcuTalon.Data.Time", "method": "NowUtc", "args": "", "returns": "%String"},

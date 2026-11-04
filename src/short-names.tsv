@@ -26,3 +26,4 @@ DigestItem	^OcuTalonP.DigestItem	OcuTalon.Digest.Data.Item	A
 EvalCaseResult	^OcuTalonP.EvalCaseResult	OcuTalon.Eval.Data.CaseResult	A
 CheckRun	^OcuTalonP.CheckRun	OcuTalon.Digest.Data.CheckRun	A
 DigestSent	^OcuTalonP.DigestSent	OcuTalon.Digest.Data.Sent	A
+Handled	^OcuTalonP.Handled	OcuTalon.Data.Handled	B
