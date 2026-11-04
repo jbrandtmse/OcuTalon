@@ -414,3 +414,4 @@
 2026-11-04T03:50:21Z	Epic 11	launch_env	depth=4 watchdog=default bash_max_ms=default
 2026-11-04T03:50:21Z	Epic 11	runner_unattended_start	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec note=redispatch_after_crash_story_11.20_runner_A lane=A slot=ocutalon-slot-a
 2026-11-04T03:50:21Z	Story 11.20	stage_dead	story=11-20-the-release-s-overview-step-hands-the-unit-files-the-contain stage=code-review evidence=<state>/evidence/epic-11/11-20-dead-code-review-20261104T034807Z.patch rerun_from=qa head=70941959 note=vs_code_crash_2026-11-04T03:42:01Z;evidence_src_part_byte_identical_to_the_tree;release.sh_rm_-rf_ctx_mutation_in_flight;qa_tests_refail,quiet_and_review_case_relative_taken_out
+2026-11-04T03:51:02Z	Story 11.20	stage_spawned	stage=qa spawn_at=2026-11-04T03:51:02Z model=claude-sonnet agent_name=11-20-the-release-s-overview-step-hands-the-unit-files-the-contain-qa-2 cycle_iteration=2 rerun_after=stage_dead
