@@ -990,7 +990,9 @@ t_real() {
   printf '\n### Story 40.1: A later story\n' >> "$r/_bmad-output/planning-artifacts/epics.md"
   git -C "$r" commit -q -am later
   run_real "$r" --replace
-  has "a later epic: notes.sh fails areas, naming it" "$out" "FAIL areas no area for epic 40"
+  arow=$(printf '%s\n' "$out" | grep -m 1 '^FAIL areas ')
+  has "a later epic: notes.sh fails areas for unmapped epics" "$arow" "FAIL areas no area for epic "
+  has "a later epic: notes.sh fails areas, naming it" "$arow" "epic 40"
   areas_ok_real || { echo "  a later epic: the real-tree run does not tolerate it"; bad=1; }
   # An unmapped epic of release 1 is not tolerated.
   grep -v '^epic 8 ' "$r/release/notes-areas.txt" > "$tmp/areas-no8.txt"
