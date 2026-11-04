@@ -1,5 +1,5 @@
 /// Tests of the REST skeleton's classes (matrix rows 9 to 12), called with stand-in request and response objects so
-/// that no web application is needed: the bodies of /state and /events, the browser-envelope check, the 12 routes,
+/// that no web application is needed: the bodies of /state and /events, the browser-envelope check, the 14 routes,
 /// and the shape of every error; and (Story 2.2) the snapshot's sections, the resolution of the caller's session from the
 /// CSP session, the sign-out call and the 404 of a record the session can't see. The HTTP rows are test-sign-in.sh's.
 /// The rows of the Story 2.2 tests come from Test.Data.Fixture, and so do the decisions, usage rows and check rows of

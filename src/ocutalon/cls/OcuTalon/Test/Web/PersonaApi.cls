@@ -24,8 +24,8 @@
 ///   - TestPutSaveFailed: an outcome that is a failure is 500 not_saved with the owner's message as given;
 ///   - TestPutNotBuilt: not_built is 501 not_built;
 ///   - TestPutNotDelivered: an error status or no result from the submit is 500 server_error;
-///   - TestPutOkFromOwner: an Ok result with no message is answered with the Saved sentence, and one whose Data is no JSON object is 500
-///     server_error;
+///   - TestPutOkFromOwner: an Ok result answers the owner's message and values, or the Saved sentence with no message, and one whose Data
+///     is not JSON is 500 server_error;
 ///   - TestNoSessionIs500: with no CSP session both routes answer 500 server_error and write nothing.
 Class OcuTalon.Test.Web.PersonaApi Extends %UnitTest.TestCase
 {
@@ -74,7 +74,7 @@ Method OnBeforeAllTests() As %Status
 
 Method OnBeforeOneTest() As %Status
 {
-	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", ..SavedDemo)
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
 	Kill ^OcuTalonTest("PersonaApiProbe")
 	Quit $SYSTEM.Status.OK()
 }
@@ -114,19 +114,20 @@ Method TestGetSavedAndDemo()
 	Do $$$AssertEquals(body, "{""preset"":""language"",""language"":""Spanish"",""custom"":"""",""customOffered"":true,""pendingRef"":""""}", "GET reads the saved language")
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
 	Set body = ..Get(.response)
-	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", ..SavedDemo)
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
 	Do $$$AssertEquals(response.Status, "200 OK", "200 on the online demo")
-	Do $$$AssertEquals({}.%FromJSON(body).customOffered, 0, "customOffered is false on the online demo")
+	Set answer = {}.%FromJSON(body)
+	Do $$$AssertEquals(answer.%GetTypeOf("customOffered")_"|"_answer.customOffered, "boolean|0", "customOffered is the JSON false on the online demo")
 }
 
-/// pendingRef is the Ref of the newest pending setting request that the session owns. A fix request, an answered request and another
-/// session's request are not reported.
+/// pendingRef is the Ref of the newest pending setting request that the session owns, by the time it was raised: the newer one is the
+/// row made first. A fix request, an answered request and another session's request are not reported.
 Method TestGetPending()
 {
 	If '..Guard() Quit
 	Set session = ..Session()
-	Set older = ##class(OcuTalon.Test.Data.Fixture).Approval(session, "", "pending", "2030-01-01T09:00:00Z", {"Kind": "setting"})
 	Set newer = ##class(OcuTalon.Test.Data.Fixture).Approval(session, "", "pending", "2030-01-01T10:00:00Z", {"Kind": "setting"})
+	Set older = ##class(OcuTalon.Test.Data.Fixture).Approval(session, "", "pending", "2030-01-01T09:00:00Z", {"Kind": "setting"})
 	Set fix = ##class(OcuTalon.Test.Data.Fixture).Approval(session, "", "pending", "2030-01-01T11:00:00Z")
 	Set done = ##class(OcuTalon.Test.Data.Fixture).Approval(session, "", "done", "2030-01-01T12:00:00Z", {"Kind": "setting"})
 	Set other = ##class(OcuTalon.Test.Data.Fixture).Approval(##class(OcuTalon.Bridge.Ids).NewRef(), "", "pending", "2030-01-01T13:00:00Z", {"Kind": "setting"})
@@ -137,7 +138,8 @@ Method TestGetPending()
 	Do $$$AssertEquals(answer.%GetTypeOf("pendingRef"), "string", "as a string")
 }
 
-/// A read that fails is 500 server_error and sends no value: not the defaults, and not the values that the failed read held.
+/// A read that fails is 500 server_error and sends no value: not the defaults, and not the values that the failed read held. The cause
+/// goes to ServerError, which logs it.
 Method TestGetFails()
 {
 	If '..Guard() Quit
@@ -145,15 +147,18 @@ Method TestGetFails()
 	Set ^OcuTalonTest("PersonaApiProbe", "read") = "fail"
 	Set body = ..Get(.response, ..#PROBE)
 	Do $$$AssertEquals(response.Status_"|"_body, "500 Internal Server Error|"_..ErrorBody("server_error", "Something went wrong inside OcuTalon. Try again."), "500 server_error")
+	Do $$$AssertTrue($Get(^OcuTalonTest("PersonaApiProbe", "logged")) [ "zz the persona could not be read", "and the cause is logged")
 }
 
 /// An accepted preset: 200 {"result":"done","message","preset","language","custom"} with the Saved sentence. The three keys hold it, one
 /// Settings entry (channel web) records the old form and the new one, and the SetPersona reached SettingsOps once with origin web_user.
+/// GET reads the same session before and after the change.
 Method TestPutPreset()
 {
 	If '..Guard() Quit
 	Set session = ..Session()
 	Set trace = ..TraceOf(session)
+	Do $$$AssertEquals({}.%FromJSON(..Get(.response)).preset, "professional", "GET reads the default before the change")
 	Set mark = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
 	Set body = ..Put("{""preset"":""pirate""}", .response)
 	Do $$$AssertEquals(response.Status_"|"_response.ContentType, "200 OK|application/json", "200 JSON")
@@ -172,7 +177,7 @@ Method TestPutPreset()
 		Do $$$AssertEquals(command.%ClassName(1)_"|"_command.Origin_"|"_command.SessionRef, "OcuTalon.Msg.Command.SetPersona|web_user|"_session, "a SetPersona with origin web_user for the caller's session")
 	}
 	Set answer = {}.%FromJSON(..Get(.response))
-	Do $$$AssertEquals(answer.preset, "pirate", "GET reads it")
+	Do $$$AssertEquals(answer.preset, "pirate", "GET reads it after the change")
 }
 
 /// A language name outside ASCII (Portugues with an e circumflex): the same characters come back in PUT and GET, and the entry's "to" is
@@ -225,7 +230,8 @@ Method TestPutUnusedValues()
 	Do $$$AssertEquals(..KeyValues(session), "pirate||", "and so do the keys")
 }
 
-/// A refused value is 400 with the outcome as the code and the owner's sentence, and the keys and the audit log are as they were.
+/// A refused value is 400 with the outcome as the code and the owner's sentence, and the keys and the audit log are as they were. An
+/// accepted save after the refusals fences the audit read: once its entry is in, it must be the only one since the mark.
 Method TestPutRefusals()
 {
 	If '..Guard() Quit
@@ -252,13 +258,17 @@ Method TestPutRefusals()
 	Set position = 0
 	While $ListNext(cases, position, case) {
 		Set label = $List(case, 1)
-		Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", $Select($List(case, 3): 1, 1: ..SavedDemo))
+		Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", $Select($List(case, 3): 1, 1: ""))
 		Set body = ..Put($List(case, 2), .response)
-		Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", ..SavedDemo)
+		Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
 		Do $$$AssertEquals(response.Status_"|"_body, "400 Bad Request|"_..ErrorBody($List(case, 4), $List(case, 5)), label_": 400 with the outcome and the sentence")
 		Do $$$AssertEquals(..KeyValues(session), before, label_": the keys are as they were")
 	}
-	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Entries(mark, "OcuTalon", "Settings", "Settings", session).%Size(), 0, "and no Settings entry was written")
+	Do ..Put("{""preset"":""kindfriend""}", .response)
+	Do $$$AssertEquals(response.Status, "200 OK", "control: the fence is saved")
+	Set entries = ##class(OcuTalon.Test.Bridge.AuditLog).Wait(mark, "OcuTalon", "Settings", "Settings", session, "", 1, ..#SECONDS)
+	Do $$$AssertEquals(entries.%Size(), 1, "the fence's is the only Settings entry since the mark: no refusal wrote one")
+	If entries.%Size() = 1 Do $$$AssertEquals(entries.%Get(0).data.to, "kindfriend", "and it is the fence's")
 }
 
 /// On the online demo a preset is accepted as anywhere else.
@@ -268,7 +278,7 @@ Method TestPutOnlineDemoPreset()
 	Set session = ..Session()
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
 	Set body = ..Put("{""preset"":""kindfriend""}", .response)
-	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", ..SavedDemo)
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
 	Do $$$AssertEquals(response.Status_"|"_body, "200 OK|{""result"":""done"",""message"":""Saved. Applies from your next message. Recorded in the audit log."",""preset"":""kindfriend"",""language"":"""",""custom"":""""}", "200 as for any accepted preset")
 	Do $$$AssertEquals(..KeyValues(session), "kindfriend||", "and the keys hold it")
 }
@@ -309,7 +319,8 @@ Method TestPutBodyNamesSession()
 
 /// An outcome that is a failure is 500 not_saved with the owner's message as given: SettingsOps' sentence for its own outcomes,
 /// CommandsIn's for a failed command, and a message of the owner that this route does not know. An owner that gave no message gets the
-/// server_error sentence, never a claim that nothing changed. The command carries the caller's session and the body's values.
+/// server_error sentence, never a claim that nothing changed. The command carries the caller's session and the body's three values
+/// unchanged, those that the preset does not use among them.
 Method TestPutSaveFailed()
 {
 	If '..Guard() Quit
@@ -324,12 +335,13 @@ Method TestPutSaveFailed()
 	While $ListNext(cases, position, case) {
 		Set message = $List(case, 2)
 		Set ^OcuTalonTest("PersonaApiProbe", "submit") = {"ok": 0, "outcome": ($List(case, 1)), "message": (message)}.%ToJSON()
-		Set body = ..Put("{""preset"":""pirate""}", .response, 0, 1, ..#PROBE)
+		Set body = ..Put("{""preset"":""pirate"",""language"":""zz !!"",""custom"":""zz {{""}", .response, 0, 1, ..#PROBE)
 		Set expected = $Select(message = "": "Something went wrong inside OcuTalon. Try again.", 1: message)
 		Do $$$AssertEquals(response.Status_"|"_body, "500 Internal Server Error|"_..ErrorBody("not_saved", expected), $List(case, 1)_" with '"_message_"': 500 not_saved with the owner's message")
 	}
 	Do $$$AssertEquals($Get(^OcuTalonTest("PersonaApiProbe", "submitted")), $ListLength(cases), "each PUT submitted one command")
 	Do $$$AssertEquals(^OcuTalonTest("PersonaApiProbe", "submitted", 1, "session")_"|"_^OcuTalonTest("PersonaApiProbe", "submitted", 1, "preset"), session_"|pirate", "for the caller's session, with the body's preset")
+	Do $$$AssertEquals(^OcuTalonTest("PersonaApiProbe", "submitted", 1, "language")_"|"_^OcuTalonTest("PersonaApiProbe", "submitted", 1, "custom"), "zz !!|zz {{", "and the body's language and custom unchanged")
 }
 
 /// not_built is 501 not_built with the not-built sentence, as for Unpair and DismissIncident.
@@ -342,7 +354,7 @@ Method TestPutNotBuilt()
 	Do $$$AssertEquals(response.Status_"|"_body, "501 Not Implemented|"_..ErrorBody("not_built", "This part of OcuTalon isn't built yet."), "501 not_built")
 }
 
-/// A submit that gives an error status, or no result object, is 500 server_error.
+/// A submit that gives an error status, or no result object, is 500 server_error, and the cause goes to ServerError, which logs it.
 Method TestPutNotDelivered()
 {
 	If '..Guard() Quit
@@ -351,11 +363,12 @@ Method TestPutNotDelivered()
 		Set ^OcuTalonTest("PersonaApiProbe", "submit") = mode
 		Set body = ..Put("{""preset"":""pirate""}", .response, 0, 1, ..#PROBE)
 		Do $$$AssertEquals(response.Status_"|"_body, "500 Internal Server Error|"_..ErrorBody("server_error", "Something went wrong inside OcuTalon. Try again."), mode_": 500 server_error")
+		Do $$$AssertTrue($Get(^OcuTalonTest("PersonaApiProbe", "logged")) [ $Select(mode = "fail": "zz CommandsIn is not running", 1: "CommandsIn answered no result"), mode_": and the cause is logged")
 	}
 }
 
-/// An Ok result with no message is answered with the Saved sentence and the owner's values, not with an error sentence; an Ok result
-/// whose Data is no JSON object is 500 server_error.
+/// An Ok result answers the owner's message and the values it saved, whatever the body held; with no message it answers the Saved
+/// sentence, not an error sentence. An Ok result whose Data is not JSON is 500 server_error.
 Method TestPutOkFromOwner()
 {
 	If '..Guard() Quit
@@ -364,6 +377,10 @@ Method TestPutOkFromOwner()
 	Set ^OcuTalonTest("PersonaApiProbe", "submit") = {"ok": 1, "outcome": "saved", "message": "", "data": (data)}.%ToJSON()
 	Set body = ..Put("{""preset"":""pirate""}", .response, 0, 1, ..#PROBE)
 	Do $$$AssertEquals(response.Status_"|"_body, "200 OK|{""result"":""done"",""message"":""Saved. Applies from your next message. Recorded in the audit log."",""preset"":""pirate"",""language"":"""",""custom"":""""}", "200 with the Saved sentence")
+	Set data = {"preset": "kindfriend", "language": "zz language", "custom": "zz words"}.%ToJSON()
+	Set ^OcuTalonTest("PersonaApiProbe", "submit") = {"ok": 1, "outcome": "saved", "message": "zz the owner's own words", "data": (data)}.%ToJSON()
+	Set body = ..Put("{""preset"":""pirate""}", .response, 0, 1, ..#PROBE)
+	Do $$$AssertEquals(response.Status_"|"_body, "200 OK|{""result"":""done"",""message"":""zz the owner's own words"",""preset"":""kindfriend"",""language"":""zz language"",""custom"":""zz words""}", "200 with the owner's message and values")
 	Set ^OcuTalonTest("PersonaApiProbe", "submit") = {"ok": 1, "outcome": "saved", "message": "x", "data": "zz not json"}.%ToJSON()
 	Set body = ..Put("{""preset"":""pirate""}", .response, 0, 1, ..#PROBE)
 	Do $$$AssertEquals(response.Status_"|"_body, "500 Internal Server Error|"_..ErrorBody("server_error", "Something went wrong inside OcuTalon. Try again."), "Data that is no JSON: 500 server_error")
@@ -371,7 +388,7 @@ Method TestPutOkFromOwner()
 
 /// With no CSP session to take the OcuTalon session from, both routes answer 500 server_error and nothing is submitted; GET does so also
 /// where the persona read would succeed, and PUT also where the submit would succeed, so the routes' own session checks are what refuse
-/// the calls.
+/// the calls. PUT checks the session before the body, so a bad body with no session is 500 as well.
 Method TestNoSessionIs500()
 {
 	If '..Guard() Quit
@@ -380,6 +397,8 @@ Method TestNoSessionIs500()
 	Do $$$AssertEquals(response.Status_"|"_body, "500 Internal Server Error|"_error, "GET: 500 server_error")
 	Set body = ..Put("{""preset"":""pirate""}", .response, 0, 1, "OcuTalon.Web.Api", 1)
 	Do $$$AssertEquals(response.Status_"|"_body, "500 Internal Server Error|"_error, "PUT: 500 server_error")
+	Set body = ..Put("zz not json", .response, 0, 1, "OcuTalon.Web.Api", 1)
+	Do $$$AssertEquals(response.Status_"|"_body, "500 Internal Server Error|"_error, "PUT with a bad body: the session comes first")
 	Set ^OcuTalonTest("PersonaApiProbe", "read") = "defaults"
 	Set body = ..Get(.response, ..#PROBE, 1)
 	Do $$$AssertEquals(response.Status_"|"_body, "500 Internal Server Error|"_error, "GET: 500 server_error even where the read itself would succeed")

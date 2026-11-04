@@ -3938,3 +3938,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: RESERVED and BANNED in Checks.ReplyGuard are English; AD-7 keeps the guard to that list; under Spanish only Chat's instruction stands between the model and a false all-clear (FR-37, AD-28 Prevents). The catalog all-clear itself stays code-only.
 - 2026-11-04T14:00:23Z status=decision-pending owner=burndown by=spec_gate note=raised to the orchestrator at 40.3's spec gate; not decided by the runner
 - 2026-11-04T14:04:16Z status=routed owner=burndown by=unattended note=inbox=U-272; a language-aware guard is its own story
+
+### DW-669: No API route bounds its body: PUT /v1/persona stores language and custom of any size in the SetPersona message, with no allowance
+- source: spec-40-8-the-persona-s-web-routes.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: BodyText's only limit is the longest string, SetPersona's fields are MAXLEN empty, and no body limit is tracked in docker/, ci/ or release/; the demo proxy is off-repo, so its limit is unmeasured.
+- 2026-11-04T16:10:05Z status=escalated owner=burndown by=cr note=fix sits in shared BodyText or the host proxy; a cap in the block would answer bad_persona where AC 2 says bad_custom

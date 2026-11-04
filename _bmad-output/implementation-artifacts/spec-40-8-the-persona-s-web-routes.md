@@ -111,6 +111,36 @@ All paths are under `src/ocutalon/cls/OcuTalon/` unless they start with `web/` o
 - Given a body that names another session, when `PUT` is accepted, then only the caller's persona changes (AD-4).
 - Given the tests of `OcuTalon.Test.Web`, when they run, then they cover an accepted `PUT`, a refused language name, the online demo's refusal of `custom`, a `GET` before and after a change, and a request without a session.
 
+### Review Findings
+
+Code review of 2026-11-04 (blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor). Severity, fix-risk and footprint per Rule 15.
+
+- [x] [Review][Patch] MED, fix-risk low, in-story (Rule 19): `PersonaApi` restored whatever `onlineDemo` held instead of setting it, so a stack left at 1 turned the local-install tests red [src/ocutalon/cls/OcuTalon/Test/Web/PersonaApi.cls:75]
+- [x] [Review][Patch] MED, fix-risk low, in-story (Rule 19): `persona.spec.ts` relied on `onlineDemo` off and on no pending `setting` request, state it did not create [web/e2e/api/persona.spec.ts:28]
+- [x] [Review][Patch] MED, fix-risk low, in-story (Rule 2): `expectError` in `persona.spec.ts` is a copy of `pairing.spec.ts`'s with no stated reason; moved to `web/e2e/sign-in/helpers.ts` and both specs import it [web/e2e/api/persona.spec.ts:36]
+- [x] [Review][Patch] LOW, fix-risk low: `persona.spec.ts` cleared the keys after the signed-out cases, not before the first case, so AC 4's "nothing is written" had no row check; it now signs in first and reads the row after them [web/e2e/api/persona.spec.ts:96]
+- [x] [Review][Patch] LOW, fix-risk low: nothing pinned the 200's message and preset to the owner's result; `TestPutOkFromOwner` now has an owner whose sentence and values differ from the body's [src/ocutalon/cls/OcuTalon/Test/Web/PersonaApi.cls:357]
+- [x] [Review][Patch] LOW, fix-risk low: nothing pinned that `language` and `custom` pass on unchanged; `TestPutSaveFailed` now reads all three from the command [src/ocutalon/cls/OcuTalon/Test/Web/PersonaApi.cls:312]
+- [x] [Review][Patch] LOW, fix-risk low: `TestGetPending` made the newer request second, so dropping `RaisedAt` from the order stayed green; the newer one is now made first [src/ocutalon/cls/OcuTalon/Test/Web/PersonaApi.cls:128]
+- [x] [Review][Patch] LOW, fix-risk low: the session-before-body order was unpinned; `TestNoSessionIs500` now sends a bad body with no session [src/ocutalon/cls/OcuTalon/Test/Web/PersonaApi.cls:381]
+- [x] [Review][Patch] LOW, fix-risk low: "cause logged" was unpinned; the probe records the status `ServerError` receives and `TestGetFails` and `TestPutNotDelivered` read it [src/ocutalon/cls/OcuTalon/Test/Web/PersonaApiProbe.cls:40]
+- [x] [Review][Patch] LOW, fix-risk low: `customOffered` false was not pinned as a JSON boolean [src/ocutalon/cls/OcuTalon/Test/Web/PersonaApi.cls:119]
+- [x] [Review][Patch] LOW, fix-risk low (AC 7): no session in `OcuTalon.Test.Web` was read before and after a change; `TestPutPreset` now reads first [src/ocutalon/cls/OcuTalon/Test/Web/PersonaApi.cls:155]
+- [x] [Review][Patch] LOW, fix-risk low (AD-17): the zero-entry read in `TestPutRefusals` could run before a late entry; an accepted save after the refusals now fences it, and the count must be exactly that one entry [src/ocutalon/cls/OcuTalon/Test/Web/PersonaApi.cls:261]
+- [x] [Review][Patch] LOW, fix-risk low: the `'$IsObject(persona)` branch of `GetPersona` was untested and unreachable (`SettingsOps.Persona` always returns an object); removed [src/ocutalon/cls/OcuTalon/Web/Api.cls:1046]
+- [x] [Review][Patch] LOW, fix-risk low: `PutPersona`'s doc comment left out the empty-message fallbacks and the unreadable-Data 500 [src/ocutalon/cls/OcuTalon/Web/Api.cls:1056]
+- [x] [Review][Patch] LOW, fix-risk low: `Test.Web.Api`'s class comment still said 12 routes [src/ocutalon/cls/OcuTalon/Test/Web/Api.cls:2]
+- [x] [Review][Patch] LOW, fix-risk low: the `persona.spec.ts` header said the PUT passes "the web gateway" without saying it is this stack's; the demo host's proxy is covered by the epic's release check [web/e2e/api/persona.spec.ts:10]
+- [x] [Review][Patch] LOW, fix-risk low: `persona.spec.ts` used double quotes and 80-column reflow, unlike the other specs [web/e2e/api/persona.spec.ts:1]
+- [x] [Review][Defer] MED, fix-risk low, out-of-footprint: no API route bounds its body, and `PUT /v1/persona` stores `language` and `custom` of any size in the `SetPersona` message with no allowance [src/ocutalon/cls/OcuTalon/Web/Api.cls:1101] — deferred: DW-669, `escalated owner=burndown`. Nothing tracked backs the Review Triage Log's "the gateway bounds the body". `BodyText` is shared, the host's proxy is off-repo, and a cap in this block would answer `bad_persona` where AC 2 says `bad_custom`. The online demo's real limit is unmeasured; a body-size probe on the demo host would settle it.
+
+Rejected:
+- `low` wontfix-theoretical: a refusal outcome with an empty `Message` answers 400 with the server-error sentence. `PersonaProblem` sets outcome and sentence together from parameters, so no refusal is empty, and the sentence claims nothing false. Real only if an owner refusal without a `Message` appears.
+- `low` wontfix-theoretical: an Ok result with `Data` of `{}` answers 200 with an empty preset. `SavePersona` is the only Ok path for this verb and always writes all three members. Real only if a second Ok path appears.
+- `low` by-design: unused values holding `{{` answer 200. The matrix row "Values the preset does not use" says so, nothing is stored, and `SettingsOps` is read-only here. No AD-19 Prevents line is touched.
+- `low` by-design: `Web.Api` references `SettingsOps` although the spine's layer paragraph does not list it. The REST table (`GET`, `PUT /api/v1/persona` -> `SettingsOps`) names it and the spec prescribes it. The wording gap is the spine's, not an AD Rule mismatch.
+- `low` by-design: no persona case in `web/e2e-online`. The epic's release check has the Contest Planner try each preset and one language on the demo host. `test-online-host.sh` row 15 restricts the check script, not the proxy.
+
 ## Spec Change Log
 
 ## Review Triage Log
@@ -200,6 +230,15 @@ Recorded by the implement stage (warm stack e40s8iw for the `PersonaApi` mutatio
 
 Recorded by the QA stage (warm stack e40s8qw; every AC and matrix row audited against `PersonaApi` and `persona.spec.ts`: all pinned, no test added; `PersonaApi` passed on the stack before the mutation):
 - mutation (QA, AC 7: the route list): the `PUT /v1/persona` route line deleted from the `UrlMap` -> `Test.Web.Api:TestRoutes` red ("14 routes", "the routes, in order"); reverted byte-identical (same hash, `git status --short` empty) and `Test.Web.Api` green again
+
+Recorded by the code-review stage (warm stack e40s8cw; each reverted byte-identical by hash and `git status --short`, `PersonaApi` green again on the same stack and on fresh stack e40s8c):
+- mutation: an Ok result answered with the Saved sentence whatever the owner's message -> TestPutOkFromOwner red ("200 with the owner's message and values")
+- mutation: PutPersona reading the body before the session -> TestNoSessionIs500 red ("PUT with a bad body: the session comes first")
+- mutation: GetPersona answering a failed read with Fail(500, ...) instead of ServerError -> TestGetFails red ("and the cause is logged")
+- mutation: PutPersona dropping a language the preset does not use -> TestPutSaveFailed red ("and the body's language and custom unchanged")
+- mutation: the approvals query ordered by ID alone -> TestGetPending red ("pendingRef is the newest pending setting request of the session")
+- mutation: customOffered false written as a number -> TestGetSavedAndDemo red ("customOffered is the JSON false on the online demo")
+- mutation: SavePersona writing an audit entry for a refusal -> TestPutRefusals red ("the fence's is the only Settings entry since the mark"), with the SettingsOps item restarted after the reload: a warm reload does not reach the running job, and without the restart this mutation stayed green
 
 **Standing criterion:** every test added or changed passes on a fresh environment, in either order.
 

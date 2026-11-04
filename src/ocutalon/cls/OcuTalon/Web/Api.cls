@@ -1043,7 +1043,6 @@ ClassMethod GetPersona() As %Status
 	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
 	Set persona = ..ReadPersona(sessionRef, .sc)
 	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
-	If '$IsObject(persona) Quit ..ServerError($SYSTEM.Status.Error(5001, "SettingsOps answered no persona"))
 	Set %response.ContentType = ..#CONTENTTYPE
 	Write persona.%ToJSON()
 	Quit $SYSTEM.Status.OK()
@@ -1053,10 +1052,12 @@ ClassMethod GetPersona() As %Status
 /// sessionRef in the body is ignored. In order: the session (a failure is 500 server_error); the body (PersonaBody; a bad one is 400
 /// bad_persona and nothing is submitted); a SetPersona with the body's preset, language and custom unchanged, submitted with origin
 /// web_user (an error status or no result is 500 server_error). SettingsOps validates and writes, and the answer follows its result:
-///   - Ok: 200 {"result":"done","message","preset","language","custom"}, the message as the owner gave it and the values as it saved them;
+///   - Ok: 200 {"result":"done","message","preset","language","custom"}, the message as the owner gave it (the Saved sentence when it gave
+///     none) and the values as it saved them; Data that can't be read is 500 server_error;
 ///   - bad_preset, bad_language, bad_custom, custom_not_offered: 400 with the outcome as the code and the owner's message;
 ///   - not_built: 501 not_built;
 ///   - any other outcome: 500 not_saved with the owner's message as given.
+/// A refusal or a failure that came with no message carries the server_error sentence.
 ClassMethod PutPersona() As %Status
 {
 	Set sessionRef = ##class(OcuTalon.Data.Ownership).SessionRef(.sc)
