@@ -634,6 +634,10 @@ candidate_lock_dir() {
 step_overview() {
   local ctx="$sdir/overview" log="$sdir/overview.log" lockdir code line
   candidate_export overview "$ctx" || return 1
+  # The unit copies these files into a container whose IRIS user is not this one, and the owner-only file mode (077) this script sets
+  # at its start leaves them readable by their owner alone (Story 11.20): open the export to other users, as step_ipm does inside its
+  # container. That setting stays: the state files rely on it.
+  chmod -R a+rX "$ctx"
   if [ ! -f "$ctx/release/security-overview.sh" ]; then
     rm -rf "$ctx"
     step_fail overview "the candidate has no release/security-overview.sh"
