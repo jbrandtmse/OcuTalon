@@ -106,3 +106,5 @@
 2026-11-04T20:32:56Z	Story 39.4	ledger_adjudicated	owned=0 resolved=0 reowned=0 terminal=0 note=DW-676_DW-677_terminal_at_cr model=claude-opus-5-5
 2026-11-04T20:44:41Z	Story 39.4	smoke_complete	method=other result=pass iterations=1 defects_caught=0 evidence=slot-d_Beat.Snapshot_shape_checklist_blank_status_line_five_sections;Key_ignores_status_line;fresh_throwaway_running_production_BeatOutcomes_six_outcomes model=claude-opus-5-5
 2026-11-04T20:44:41Z	Story 39.4	fresh_check	env=recipe tests=10 result=pass order=forward,reverse shard=lane-a@Checks_fwd_218s_rev_213s class=Test.Agent.Instructions_127s hosted=triage-heartbeat,ci-config,boundaries,class-rules
+2026-11-04T20:45:12Z	Story 39.4	committed	sha=d701b6e6 submodules= ci=pending runs=41909512271,41909512414 pushed=true amendments=none footprint_extensions=docker/tests/test-triage-heartbeat.sh,ci/units.sh
+2026-11-04T20:45:12Z	Story 39.4	story_cycle	plan_to_commit_min=344 implement_passes=2 reviews=1 rework=0 first_ci=pending models=plan:opus,implement:sonnet,qa:sonnet,cr:opus note=includes_the_dead_implement_pass_cut_by_the_vscode_restart_about_85min
