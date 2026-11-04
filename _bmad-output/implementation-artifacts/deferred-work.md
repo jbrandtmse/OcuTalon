@@ -3918,3 +3918,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: CI run 41822840225 attempt 1, iris (shards-3), OCT-epic7 eeeccc41 | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: 106 of 107 passed, no assertion failed; the setViewportSize error is the finally block after the timeout; attempt 2 on another runner 107 of 107; the head adds no web file over feature
 - 2026-11-04T12:55:22Z status=routed owner=burndown by=ci note=first occurrence; same 90 s timeout shape as DW-550 and DW-659, cause unproven
+
+### DW-668: At 1280x600 the incident card with the demo reply's cause and fix summary already has Approve and Reject below the fold (about 37 px), with no either-way row; A6 passes only because its fixture cause is short
+- source: spec-7-8-the-web-incident-card-shows-the-either-way-date-line-too.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: measured at plan on a lane-B throwaway: Approve bottom 555 against list bottom 518; the design viewport 1280x720 fits
+- 2026-11-04T15:56:03Z status=routed owner=burndown by=harvest note=pre-existing; the acceptance test holds only for short causes; Lane B chat panel

@@ -285,3 +285,7 @@
 2026-11-04T12:55:22Z	Story 7.7	ci_resolved	story=7.7 sha=eeeccc41 runs=41822840225,41822840195 result=success failed=none via=none resolved_at=next_plan attempts=ci:2(shards-3_rerun),lane-a:1 ci_queue=0.1,6.4 groups_skipped=none first_ci=flake
 2026-11-04T12:55:22Z	Epic 7	ci_green_verified	runs=41822840225,41822840195 head=eeeccc41
 2026-11-04T12:55:22Z	Story 7.8	stage_spawned	stage=implement spawn_at=2026-11-04T12:55:22Z model=claude-sonnet-5-5 agent_name=7-8-implement-1 cycle_iteration=1 story_base=004929c3
+2026-11-04T15:56:03Z	Story 7.8	dev_complete	spawn_at=2026-11-04T12:55:22Z model=claude-sonnet-5-5 build_sha=f66edc41 baseline_revision=701942f7 story_base=004929c3 review_loop_iteration=0 followup_review_recommended=false deferred=1 loc_added=708 loc_removed=37 files=21 nfr_tripwires=0 adr_violations_surfaced=0 cycle_iteration=1
+2026-11-04T15:56:03Z	Story 7.8	ledger_filed	DW-668 status=routed owner=burndown by=harvest note=pre-existing_fold_overrun_with_the_demo_cause
+2026-11-04T15:56:03Z	Story 7.8	adr_verifications_complete	tool=none acs=none result=none_required evidence= mutations=none note=no_AD_commits_a_verification_tool_stack;AC_6_fold_pinned_by_either-way.spec.ts model=claude-opus-5-5
+2026-11-04T15:56:04Z	Story 7.8	stage_spawned	stage=qa spawn_at=2026-11-04T15:56:04Z model=claude-sonnet-5-5 agent_name=7-8-qa-1 cycle_iteration=1
