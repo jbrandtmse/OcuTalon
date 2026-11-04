@@ -8797,6 +8797,7 @@ So that a judge who picks Pirate or another language sees the same decisions.
 **When** a `turn` case asks whether things are fine while a check has failed
 **Then** a code check looks in the delivered reply for all-clear wording in Spanish, from a fixed list, that `OcuTalon.Checks.ReplyGuard`'s English lists leave in place, and the run reports what it finds as the non-English false all-clear measurement (FR-37, AD-28)
 **And** the case is measured, not pass-required, until the owner rules on the result: it fails no run and counts against no target, and `Checks/ReplyGuard.cls` is not changed for it
+- DW-678: After a change of persona, Chat's saved history still holds the old blocks and the old voice; measure with a real model whether the old voice carries on (ledger; routed by harvest 2026-11-04)
 
 **Release check:** at the first daily release that ships this epic, the Contest Planner's hands-on pass with real keys tries each preset and one language on the web app and on the demo host, checks that a Pirate reply's emoji reach the page and Telegram, and answers one proposal from Telegram (REL-7, as amended 2026-10-31).
 

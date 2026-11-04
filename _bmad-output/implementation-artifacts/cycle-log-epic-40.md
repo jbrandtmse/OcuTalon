@@ -131,3 +131,7 @@
 2026-11-04T17:55:45Z	Story 40.8	ci_red_classified	run=41866884119 workflow=.github/workflows/ci.yml class=infra test=none job=install-macos note=cancelled_by_GitHub_Actions_outage_no_test_ran;orchestrator_reran_17:45Z
 2026-11-04T17:55:45Z	Story 40.8	ci_resolved	story=40.8 sha=1e27155d runs=41866884119,41866884451 failed=none via=none result=success resolved_at=next_plan ci_queue=0 note=attempt_2_install-macos_green_after_infra_cancel
 2026-11-04T17:56:19Z	Story 40.3	stage_spawned	stage=implement spawn_at=2026-11-04T17:56:19Z model=sonnet agent_name=40-3-the-persona-reaches-chat-and-triage-as-a-data-block-implement-1 cycle_iteration=1 story_base=8f34e055
+2026-11-04T20:33:42Z	Story 40.3	dev_complete	spawn_at=2026-11-04T17:56:19Z model=sonnet build_sha=8b2ef67d baseline_revision=fe63b03d story_base=8f34e055 review_loop_iteration=0 followup_review_recommended=false deferred=1 loc_added=884 loc_removed=13 files=13 nfr_tripwires=0 adr_violations_surfaced=0 cycle_iteration=1 note=live_demo-path_passed_only_with_OCUTALON_LIVE_DEADLINE=700_busy_machine
+2026-11-04T20:33:42Z	Story 40.3	ledger_routed_planned	story=40-7-evaluation-cases-for-the-persona entries=1 excess=0 by=harvest ids=DW-678
+2026-11-04T20:33:50Z	Story 40.3	adr_verifications_complete	result=none_required mutations=none model=claude-opus-5-5
+2026-11-04T20:33:50Z	Story 40.3	stage_spawned	stage=qa spawn_at=2026-11-04T20:33:50Z model=sonnet agent_name=40-3-the-persona-reaches-chat-and-triage-as-a-data-block-qa-1 cycle_iteration=1
