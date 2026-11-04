@@ -144,3 +144,5 @@
 2026-11-04T21:15:34Z	Story 40.3	fresh_check	env=recipe(fresh_stack_e40s3fr) tests=15 result=pass order=forward,reverse classes=shard_lane-a@Agent_incl_Persona,PersonaBlock,PersonaTurns forward=365s reverse=369s boundaries=pass
 2026-11-04T21:16:20Z	Story 40.3	committed	sha=2a789066 submodules= ci=pending runs=41914403794,41914403947 amendments=epics.md:8693(U-278_40.4_And_line),epics.md_40.7_DW-678_DW-679_bullets
 2026-11-04T21:16:20Z	Story 40.3	story_cycle	plan_to_commit_min=453 implement_passes=1 reviews=1 rework=0 first_ci=pending models=plan:opus,implement:sonnet,qa:sonnet,cr:opus note=includes_DW-664_ruling_wait_and_40.8
+2026-11-04T21:17:54Z	Epic 40	epic_context_compiled	reason=planning_artifact_newer model=opus note=U-278_and_DW-678_679_bullets
+2026-11-04T21:17:54Z	Story 40.4	stage_spawned	stage=plan spawn_at=2026-11-04T21:17:54Z model=opus agent_name=40-4-the-persona-card-plan-1 cycle_iteration=1
