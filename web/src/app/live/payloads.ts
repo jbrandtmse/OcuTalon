@@ -23,6 +23,8 @@ export interface DryRun {
   before?: string;
   after?: string;
   itemNoun?: ItemNoun;
+  eitherWay?: boolean;
+  reading?: string;
 }
 
 export interface GuideBreakFeed {

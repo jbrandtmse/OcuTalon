@@ -17,6 +17,12 @@
  *   from the instance's.
  * - A dry run that is not an object, or has no numeric `affected`, leaves out the fixed-targets line and the dry run block, and
  *   the action reads "Repair and resend.". A count of one uses the singular forms.
+ * - The dry run block has one more row, `eitherWay` (Story 7.8; U-249), between After and Will resend: the notice's either-way
+ *   sentence, rendered from the page catalog's incident.eitherWayLine, which the generator cuts out of the two catalog entries that
+ *   hold it. The server decides whether it applies (the payload's `eitherWay` and `reading`, from the notice's own rule); the page
+ *   never looks at a date. The row is "" unless `eitherWay` is true, `reading` is not empty and `resend` is a number of at least 1.
+ *   Its slots are the notice's: resendCount is `resend` (which also chooses the one or many form), reading is `reading` and item is
+ *   the dry run's singular noun, "message" when it has none. It stays on an answered request.
  * - answerOutcomeOf reads the reply of POST /approvals/:ref/answer; latePressText is the notice of a press that lost the race.
  * - resultView (Story 6.4; AD-16) reads the `result` of one of the incident payload's `requests` into the band under the request's
  *   answered status: the catalog's result.* key by the fields (the page maps the fields, because the payload carries no key), its text
@@ -69,6 +75,8 @@ export interface DryRunView {
   field: string;
   before: string;
   after: string;
+  /** The notice's either-way sentence, or "" when the row is absent. */
+  eitherWay: string;
   resendLine: string;
   /** "Nothing has changed yet." while the request is pending, else "". */
   nothingYet: string;
@@ -177,8 +185,21 @@ function nounFor(dry: DryRun, count: number): string {
 /** The text with the spaces of an empty slot collapsed: "50  affected" is "50 affected" and "these 50 ," is "these 50,". */
 const tidy = (text: string): string => text.replace(/\s{2,}/g, ' ').replace(/\s+,/g, ',').trim();
 
+/** The either-way sentence of the dry run, or "" when the payload does not flag it, has no reading, or has no resend count of at least 1. */
+function eitherWayOf(dry: DryRun, resend: number | undefined, ctx: ApprovalContext): string {
+  const reading = textOf(dry.reading);
+  if (dry.eitherWay !== true || reading === '' || resend === undefined || resend < 1) {
+    return '';
+  }
+  return ctx.render('incident.eitherWayLine', {
+    resendCount: String(resend),
+    reading,
+    item: textOf(dry.itemNoun?.one) || APPROVAL_TEXTS.nounOne,
+  });
+}
+
 /** The dry run block of a request, or undefined when its dry run has no count. */
-function dryRunView(approval: ApprovalPayload, pending: boolean): DryRunView | undefined {
+function dryRunView(approval: ApprovalPayload, pending: boolean, ctx: ApprovalContext): DryRunView | undefined {
   const dry = dryRunOf(approval);
   if (dry === undefined) {
     return undefined;
@@ -192,6 +213,7 @@ function dryRunView(approval: ApprovalPayload, pending: boolean): DryRunView | u
     field,
     before: example(dry.before),
     after: example(dry.after),
+    eitherWay: eitherWayOf(dry, resend, ctx),
     resendLine:
       resend === undefined ? '' : resend === 1 ? APPROVAL_TEXTS.resendCopyOne : fill(APPROVAL_TEXTS.resendCopies, { count: String(resend) }),
     nothingYet: pending ? APPROVAL_TEXTS.nothingYet : '',
@@ -265,7 +287,7 @@ export function approvalView(approval: ApprovalPayload, ctx: ApprovalContext, re
     approveName: fill(APPROVAL_TEXTS.approveName, { action: lowerFirst(title) }),
     rejectName: fill(APPROVAL_TEXTS.rejectName, { action: lowerFirst(title) }),
     fixedTargets,
-    dryRun: dryRunView(approval, pending),
+    dryRun: dryRunView(approval, pending, ctx),
     expiry: expires === '' ? '' : fill(APPROVAL_TEXTS.expires, { when: expires }),
     status: pending ? undefined : statusOf(approval, ctx),
   };

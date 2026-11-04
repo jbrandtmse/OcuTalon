@@ -5,6 +5,7 @@
 // requests of an incident in the order raised; Story 6.4: resultView, every row of the Result mapping (the first matching row wins) with
 // the catalog's texts, the count-of-one forms, the tones and icons, the audit line, and undefined with no result. The view reads the catalog's page texts (msg/catalog.ts), the rail's title of a
 // request and the page's time formats through its context, so these tests pass the real ones.
+// Story 7.8: the dry run's either-way row, as the notice's line (many and one form, day first, the slots, the places it is absent, answered).
 // Run with: node --test web/scripts/
 import assert from 'node:assert/strict';
 import { dirname, join } from 'node:path';
@@ -67,6 +68,7 @@ describe('the pending card', () => {
       field: 'OrderDate',
       before: 'OrderDate 10/16/2026',
       after: 'OrderDate 2026-10-16',
+      eitherWay: '',
       resendLine: '50 repaired copies; the originals stay unchanged.',
       nothingYet: 'Nothing has changed yet.',
     });
@@ -484,5 +486,64 @@ describe('the texts', () => {
 
   it('are printable ASCII', () => {
     for (const text of Object.values(APPROVAL_TEXTS)) assert.ok(!/[^\x20-\x7e]/.test(text), text);
+  });
+});
+
+describe('the either-way row of the dry run (Story 7.8; DW-645)', () => {
+  const MANY = 'All 50 dates are valid whether read month first or day first. Read month first, they match the day each order arrived.';
+  const eitherWay = (over = {}, request = {}) => pending({ dryRun: dry({ before: '11/04/2026', after: '2026-11-04', eitherWay: true, reading: 'month first', ...over }), ...request });
+  const rowOf = (approval) => approvalView(approval, ctx()).dryRun?.eitherWay;
+
+  it('reads the notice\'s line in its many form, with the reading and the singular noun', () => {
+    assert.equal(rowOf(eitherWay()), MANY);
+    assert.equal(rowOf(eitherWay({ resend: 3 })), MANY.replace('50', '3'));
+  });
+
+  it('reads the one form, day first, when resend is 1 whatever affected is', () => {
+    const one = 'The date is valid whether read month first or day first. Read day first, it matches the day the order arrived.';
+    assert.equal(rowOf(eitherWay({ resend: 1, reading: 'day first' })), one);
+    assert.equal(rowOf(eitherWay({ affected: 50, resend: 1, reading: 'day first' })), one, 'resend decides the form, not affected');
+    assert.equal(rowOf(eitherWay({ affected: 1, resend: 2 })), MANY.replace('50', '2'), 'and affected of 1 does not make it the one form');
+  });
+
+  it('takes the noun from the dry run\'s singular, "message" when it has none', () => {
+    assert.match(rowOf(eitherWay({ itemNoun: { one: 'message', other: 'messages' } })), /each message arrived\.$/);
+    assert.match(rowOf(eitherWay({ itemNoun: { one: ' invoice ', other: 'other' } })), /each invoice arrived\.$/);
+    assert.match(rowOf(eitherWay({ itemNoun: { other: 'orders' } })), /each message arrived\.$/);
+    assert.match(rowOf(eitherWay({ itemNoun: undefined })), /each message arrived\.$/);
+    assert.match(rowOf(eitherWay({ itemNoun: { one: '', other: '' } })), /each message arrived\.$/);
+  });
+
+  it('is absent unless the flag is true, the reading is not empty and resend is a number of at least 1', () => {
+    assert.equal(rowOf(pending()), '', 'a plain dry run');
+    assert.equal(rowOf(eitherWay({ eitherWay: false })), '', 'a false flag');
+    assert.equal(rowOf(eitherWay({ eitherWay: false, reading: undefined })), '', 'a false flag and no reading');
+    assert.equal(rowOf(eitherWay({ eitherWay: undefined })), '', 'a reading with no flag');
+    assert.equal(rowOf(eitherWay({ reading: undefined })), '', 'a flag with no reading');
+    assert.equal(rowOf(eitherWay({ reading: '  ' })), '', 'a blank reading');
+    assert.equal(rowOf(eitherWay({ resend: undefined })), '', 'a flag with no resend');
+    assert.equal(rowOf(eitherWay({ resend: 0 })), '', 'a resend of 0');
+    assert.equal(rowOf(eitherWay({ resend: '3' })), '', 'a resend that is not a number');
+    assert.equal(rowOf(eitherWay({ eitherWay: 'true' })), '', 'a flag that is not a boolean');
+  });
+
+  it('does not look at a date: the example does not change whether the row shows', () => {
+    assert.equal(rowOf(eitherWay({ before: '10/16/2026', eitherWay: false, reading: undefined })), '');
+    assert.equal(rowOf(eitherWay({ before: '10/16/2026' })), MANY, 'the flag alone decides');
+  });
+
+  it('stays on an answered request, which loses only "Nothing has changed yet."', () => {
+    for (const state of ['approved', 'rejected', 'expired', 'done']) {
+      const view = approvalView(answered(state, { dryRun: eitherWay().dryRun }), ctx());
+      assert.equal(view.dryRun.eitherWay, MANY, state);
+      assert.equal(view.dryRun.nothingYet, '', state);
+    }
+    assert.equal(approvalView(eitherWay(), ctx()).dryRun.nothingYet, 'Nothing has changed yet.');
+  });
+
+  it('leaves every other part of the dry run as it was', () => {
+    const plain = approvalView(pending({ dryRun: dry({ before: '11/04/2026', after: '2026-11-04' }) }), ctx()).dryRun;
+    const flagged = approvalView(eitherWay(), ctx()).dryRun;
+    assert.deepEqual({ ...flagged, eitherWay: '' }, plain);
   });
 });
