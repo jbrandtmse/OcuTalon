@@ -1769,3 +1769,5 @@
 2026-11-04T04:19:41Z	Run	owner_decision	id=U-261 at=2026-11-04T04:19:22Z via=inbox by=Contest_Planner_1(delegated) answer=(a)_apply_overview-wording.diff(sha256_f2d3a99a) apply=orchestrator commit=fa4c549c
 2026-11-04T04:23:08Z	Run	worker_stopped	agent=a86dda17c0c9e12da item=U-260 reason=root_load_needs_root_preload_folder(out_of_scope) head=2bec6879 no_commit=yes throwaways_removed=yes note=one_extra_symlink_trial_in_scratchpad_after_the_stop,disclosed inbox=U-262
 2026-11-04T04:23:52Z	Run	owner_decision	id=U-262 at=2026-11-04T04:23:43Z#790 via=inbox by=Contest_Planner_1(delegated) answer=(a)_real_root_preload_copy+drift_rule+ipm_artifact_check_allowance+3_conditions apply=worker
+2026-11-04T04:29:11Z	Run	ci_red_classified	run=41769982647 head=10ce26ac reds=install-upgrade(live:online-allowance_D1=DW-432),image(shard:lane-b_GuideApi_TestOnlyTheMarkerChanges=DW-453) class=flake rerun=failed_jobs_once
+2026-11-04T04:29:11Z	Epic 12	ci_note	U-257_condition_2:demo-path_28_passed_on_10ce26ac(browser_job_126377145033)=28_on_94bf26d6
