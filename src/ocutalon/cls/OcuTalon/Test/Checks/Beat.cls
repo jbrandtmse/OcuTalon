@@ -9,7 +9,7 @@
 ///   - TestActiveHours: the window over midnight, the normal window, from = to and all day, and the same windows read in America/New_York;
 ///   - TestNextDue: the next start of the active hours for hours, one interval for every other reason, and the same in America/New_York;
 ///   - TestSkipOrder: each reason alone, in pairs and all at once, and the run-now variant that leaves out hours and unchanged;
-///   - TestKey: 64 lower-case hexadecimal characters, the SHA-256 of the UTF-8 text, stable, deaf to the status line, changed by the checklist;
+///   - TestKey: 64 lower-case hexadecimal characters, the SHA-256 of the UTF-8 text, stable, deaf to the status line, changed by the checklist, and the snapshot of a person with no rows;
 ///   - TestDueSelection: a beat that is not due, a person with no row, an off person, a restart that catches up once;
 ///   - TestBeatRow: the Item and the row of a beat that runs;
 ///   - TestDecisionIsRecorded: ignore, a pending beat, a fallback with an interval of 30 and of 1440 minutes;
@@ -296,7 +296,12 @@ Method TestKey()
 	Do $$$AssertEquals(..BKey($Char(8364)), "c4cc90ed3d26f12d4b08a75140970a7904035c31cbb4515a83f19b9003c00d1d", "and so is one above 255")
 	Do $$$AssertNotTrue(..BKey($Char(10)_"abc") = ..BKey("abc"), "a leading empty line is part of the text")
 	Do $$$AssertEquals(..BKey("Status at 12:00 (built by OcuTalon):"_$Char(10, 10)_"abc"), ..BKey($Char(10)_"abc"), "and the line of the status takes only itself with it")
-	Do $$$AssertEquals(..BSnap(..Person("check the orders", {"NextDueAt": "2099-12-31T00:00:00Z"}), ..Local("12:00")), "check the orders", "until Story 39.4 the snapshot is the checklist")
+	Set ref = ..Person("check the orders", {"NextDueAt": "2099-12-31T00:00:00Z"})
+	Set lf = $Char(10)
+	Set snapshot = ..BSnap(ref, ..Local("12:00"))
+	Do $$$AssertEquals(snapshot, "check the orders"_lf_lf_"Status at 2099-06-15 12:00 (built by OcuTalon):"_lf_"Incidents: none"_lf_"Watches: none"_lf_"Approval requests: none"_lf_"Reminders: none"_lf_"Decisions: none", "a person with no rows: the checklist, a blank line, the status line and a none line for each of the five kinds")
+	Do $$$AssertEquals(..BKey(snapshot), ..BKey("check the orders"_lf_lf_"Incidents: none"_lf_"Watches: none"_lf_"Approval requests: none"_lf_"Reminders: none"_lf_"Decisions: none"), "its key is that of the text without the status line")
+	Do $$$AssertEquals(..BKey(..BSnap(ref, ..Local("13:45"))), ..BKey(snapshot), "so a snapshot at another time has the same key")
 }
 
 Method TestDueSelection()
@@ -345,14 +350,16 @@ Method TestBeatRow()
 {
 	Set noon = ..Local("12:00")
 	Set ref = ..Person("watch the orders production", {"NextDueAt": (noon), "LastQuietKey": (..BKey("another text")), "LastOutcome": "ignore", "LastFallback": 1, "LastCostUSD": 0.5, "LastDecisionRef": "olddecision", "LastTraceSessionId": 7})
+	Set snapshot = ..BSnap(ref, noon)
 	Do $$$AssertStatusOK(..BDue(noon, .items, ref), "RunDue is OK")
 	Do $$$AssertEquals(items.Count(), 1, "one beat runs")
 	If items.Count() '= 1 Quit
 	Set item = items.GetAt(1)
 	Do $$$AssertTrue(item.ItemId '= "", "the Item has a new ItemId")
-	Do $$$AssertEquals(item.Provenance_"|"_item.Channel_"|"_item.SessionRef_"|"_item.Subject_"|"_item.Text, "untrusted|heartbeat|"_ref_"|Heartbeat check-in|watch the orders production", "it is untrusted, on the heartbeat channel, for the person, with the subject and the checklist")
+	Do $$$AssertEquals(item.Provenance_"|"_item.Channel_"|"_item.SessionRef_"|"_item.Subject_"|"_item.Text, "untrusted|heartbeat|"_ref_"|Heartbeat check-in|"_snapshot, "it is untrusted, on the heartbeat channel, for the person, with the subject and the snapshot")
+	Do $$$AssertEquals($Piece(item.Text, $Char(10, 10), 1), "watch the orders production", "which starts with the checklist")
 	Set row = ..Open(ref)
-	Do $$$AssertEquals(row.LastBeatAt_"|"_row.LastItemId_"|"_row.LastSnapshotKey_"|"_row.NextDueAt, noon_"|"_item.ItemId_"|"_..BKey("watch the orders production")_"|"_..Plus(noon, 1800), "the row records the beat, its Item, the snapshot's key and the next due time")
+	Do $$$AssertEquals(row.LastBeatAt_"|"_row.LastItemId_"|"_row.LastSnapshotKey_"|"_row.NextDueAt, noon_"|"_item.ItemId_"|"_..BKey(snapshot)_"|"_..Plus(noon, 1800), "the row records the beat, its Item, the snapshot's key and the next due time")
 	Do $$$AssertEquals(row.LastOutcome_"|"_row.LastFallback_"|"_row.LastCostUSD_"|"_row.LastDecisionRef_"|"_row.LastTraceSessionId, "|0|||", "the five decision fields are cleared, so that the beat is pending")
 	Do $$$AssertEquals(row.LastQuietKey, ..BKey("another text"), "the quiet key is left as it was")
 	Do $$$AssertEquals(row.LastSkipAt_"|"_row.LastSkipReason, "|", "and no skip is recorded")
@@ -409,7 +416,8 @@ Method TestDecisionIsRecorded()
 Method TestUnchangedAfterIgnore()
 {
 	Set noon = ..Local("12:00")
-	Set ref = ..Person("same as before", {"NextDueAt": (..Plus(noon, -60)), "LastQuietKey": (..BKey("same as before"))})
+	Set ref = ..Person("same as before", {"NextDueAt": (..Plus(noon, -60))})
+	Do ..SetRow(ref, "LastQuietKey", ..BKey(..BSnap(ref, noon)))
 	Do $$$AssertStatusOK(..BDue(noon, .items, ref), "RunDue is OK")
 	Do $$$AssertEquals(items.Count(), 0, "a checklist unchanged since the last ignore sends nothing")
 	Set row = ..Open(ref)
@@ -426,7 +434,8 @@ Method TestRunNow()
 	Set far = ..Plus(noon, 86400)
 
 	// hours and unchanged do not hold it; neither does an off person
-	Set ref = ..Person("c", {"NextDueAt": (far), "LastQuietKey": (..BKey("c"))})
+	Set ref = ..Person("c", {"NextDueAt": (far)})
+	Do ..SetRow(ref, "LastQuietKey", ..BKey(..BSnap(ref, late)))
 	Do ..Put(ref, "on", "0")
 	Set sc = ..BNow(ref, late, .item, .outcome, .availableAt)
 	Do $$$AssertStatusOK(sc, "RunNow is OK")
@@ -434,7 +443,7 @@ Method TestRunNow()
 	Set row = ..Open(ref)
 	If $IsObject(item) Do $$$AssertEquals(row.LastRunNowAt_"|"_row.NextDueAt_"|"_row.LastItemId_"|"_row.LastBeatAt, late_"|"_..Plus(late, 1800)_"|"_item.ItemId_"|"_late, "the row records the request, moves the next due time to now plus one interval and records the beat")
 	Do $$$AssertTrue($IsObject(item), "an Item is returned")
-	If $IsObject(item) Do $$$AssertEquals(item.Channel_"|"_item.Text_"|"_item.SessionRef, "heartbeat|c|"_ref, "for the person's checklist")
+	If $IsObject(item) Do $$$AssertEquals(item.Channel_"|"_item.Text_"|"_item.SessionRef, "heartbeat|"_..BSnap(ref, late)_"|"_ref, "for the person's snapshot")
 
 	// the held reasons
 	Set empty = ..Person("", {"NextDueAt": (far)})
@@ -532,8 +541,10 @@ Method TestRecordedDecisionCountsInTheSameRunDue()
 	Set far = ..Plus(noon, 86400)
 
 	// ignore, and the beat is due at the same tick
-	Set ignored = ..Person("same", {"NextDueAt": (..Plus(noon, -60)), "LastItemId": "itemsame", "LastSnapshotKey": (..BKey("same"))})
-	Set ignoreRef = ..Decision(ignored, "itemsame", {"Outcome": "ignore"})
+	Set ignored = ..Person("same", {"NextDueAt": (..Plus(noon, -60)), "LastItemId": "itemsame"})
+	Set ignoreRef = ..Decision(ignored, "itemsame", {"Outcome": "ignore", "Summary": "Heartbeat check-in"})
+	Set sameKey = ..BKey(..BSnap(ignored, noon))
+	Do ..SetRow(ignored, "LastSnapshotKey", sameKey)
 
 	// fallback, and the beat is due at the same tick
 	Set fallen = ..Person("c", {"NextDueAt": (..Plus(noon, -60)), "LastItemId": "itemfall", "LastSnapshotKey": (..BKey("c"))})
@@ -546,7 +557,7 @@ Method TestRecordedDecisionCountsInTheSameRunDue()
 	Do $$$AssertStatusOK(..BDue(noon, .items, ignored_","_fallen_","_off), "RunDue is OK")
 	Do $$$AssertEquals(items.Count(), 0, "no Item is sent: the settled decisions hold both due beats")
 	Set row = ..Open(ignored)
-	Do $$$AssertEquals(row.LastDecisionRef_"|"_row.LastQuietKey_"|"_row.LastSkipReason_"|"_row.NextDueAt, ignoreRef_"|"_..BKey("same")_"|unchanged|"_..Plus(noon, 1800), "the ignore is recorded first, so the due beat is skipped as unchanged")
+	Do $$$AssertEquals(row.LastDecisionRef_"|"_row.LastQuietKey_"|"_row.LastSkipReason_"|"_row.NextDueAt, ignoreRef_"|"_sameKey_"|unchanged|"_..Plus(noon, 1800), "the ignore is recorded first, so the due beat is skipped as unchanged")
 	Set row = ..Open(fallen)
 	Do $$$AssertEquals(row.LastDecisionRef_"|"_row.BackoffUntil_"|"_row.LastSkipReason_"|"_row.NextDueAt, fallRef_"|"_..Plus(noon, 14400)_"|backoff|"_..Plus(noon, 1800), "the fallback is recorded first, so the due beat is skipped for the back-off")
 	Set row = ..Open(off)
@@ -685,6 +696,14 @@ Method Person(checklist As %String = "", fields As %DynamicObject = "") As %Stri
 	}
 	If checklist '= "" Do ..Put(ref, "checklist", checklist)
 	Quit ref
+}
+
+/// Sets one property of the person's HeartbeatBeat row and saves it.
+Method SetRow(ref As %String, name As %String, value As %String) [ Private ]
+{
+	Set row = ..Open(ref)
+	Set $Property(row, name) = value
+	Do $$$AssertStatusOK(row.%Save(), "the row's "_name_" is set")
 }
 
 /// Writes the person's setting, and drops this process's cache entry of it.

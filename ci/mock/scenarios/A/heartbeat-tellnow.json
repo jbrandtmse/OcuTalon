@@ -1,0 +1,12 @@
+{
+  "name": "heartbeat-tellnow",
+  "match": {
+    "marker": "heartbeat-tellnow"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "text": "{\"outcome\":\"tellnow\",\"reasons\":[\"The CI mock finds something in the snapshot that cannot wait.\",\"A second reason that the notice does not show.\"],\"confidence\":0.8}"
+    }
+  ]
+}

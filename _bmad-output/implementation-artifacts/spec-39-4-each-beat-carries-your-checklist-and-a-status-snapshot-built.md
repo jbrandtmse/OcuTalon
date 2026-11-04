@@ -2,9 +2,10 @@
 title: 'Story 39.4: Each beat carries your checklist and a status snapshot built by code'
 type: 'feature'
 created: '2026-11-04'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '7efce86c095a614678fd0830e52b771f3ef271b8'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context: []
 warnings: ['oversized']
 deferred: []
@@ -142,6 +143,47 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-11-04 - Review pass
+- verdicts: 37 findings - high 0, medium 2, low 31, false 4, maybe-false 0; patches 5 (2 medium, 3 low), deferred 0, rejected 32
+- findings:
+  - `[medium]` `[patch]` verification-gap: ApprovalLines' tool-name and no-incident branches unpinned -- added `TestApprovalLines` in `Test/Checks/Snapshot.cls` with mutations (both red).
+  - `[medium]` `[patch]` verification-gap: reminder window never varied from interval 30 -- added `TestReminderWindowFollowsTheInterval` with a mutation (red).
+  - `[low]` `[patch]` verification-gap: `Beat.Read`'s own throw on an error status unpinned (only the override was) -- `BrokenBeat.ReadOf` plus an assertion in `TestFailedRead`, mutation red.
+  - `[low]` `[patch]` blind-hunter: class doc says reminders are due "within one interval" and "only the status line depends on the clock", and two comments disagree on the beat row -- comments corrected.
+  - `[low]` `[patch]` verification-gap: matrix rows without a mutation line -- mutations run and recorded under Verification.
+  - `[low]` `[reject]` blind-hunter: kinds later in the order are starved by the 4,000 cut -- the order and the whole-line cut are the spec's own; a per-kind share would be a new rule.
+  - `[low]` `[reject]` blind-hunter: N+1 reads (turn per row, channel per kept row, incident per approval) -- bounded by DECISIONSREAD 100 and the spec's named reads; a batched read would be a Lane B change.
+  - `[low]` `[reject]` blind-hunter: a mail with no sender and the subject "Heartbeat check-in" could stop the decisions -- the spec fixes the beat-row rule and Design Notes accept it (no channel builds such an Item).
+  - `[low]` `[reject]` blind-hunter: the channel is read by SQL in Beat -- Design Notes name this read and the boundary rule (`test-class-rules.sh`) passes.
+  - `[low]` `[reject]` blind-hunter: " | " in a field is not escaped -- only control characters and line breaks are required; the Item is untrusted and the text is for the model.
+  - `[false]` `[reject]` blind-hunter: BeatCase may not compile (undefined helpers) -- it compiled and every test class ran green.
+  - `[false]` `[reject]` blind-hunter: new tests not registered for CI -- `ci/iris.sh` lists every class with a Method Test under `Test.Checks`; BeatCase is abstract.
+  - `[low]` `[reject]` blind-hunter: hosted script header says one PASS/FAIL line; matches anywhere in Triage.cls, not only XData -- the spec asks for the whole line in Triage.cls; self-tests cover the rest.
+  - `[low]` `[reject]` blind-hunter: hard-coded usage totals and 4 s waits are brittle -- the scenario's usage is fixed and a negative check needs a wait; same shape as sibling tests.
+  - `[low]` `[reject]` blind-hunter: `Refs` leading comma in TestTellNow -- inherited convention of `Test.Watch.Case`, harmless to Clean.
+  - `[low]` `[reject]` blind-hunter: untested DECISIONSREAD cap, empty interval, DST hour, one over-long first line -- all accepted limits in Design Notes or theoretical.
+  - `[low]` `[reject]` edge-case-hunter: after an ignore the next snapshot reads "Decisions: none" so the key differs once -- Design Notes: "a new decision costs two model requests".
+  - `[low]` `[reject]` edge-case-hunter: 100 newest decisions all chat rows -> "none" -- Design Notes accept this bound.
+  - `[low]` `[reject]` edge-case-hunter: one line over STATUSMAX ends the block (a very long reminder text) -- the spec keeps whole lines; a per-field cap is a new rule.
+  - `[low]` `[reject]` edge-case-hunter: an unreadable `now` skips every reminder -- `now` is the Tick's own clock and the interval is validated by Values.
+  - `[low]` `[reject]` edge-case-hunter: Snapshot re-reads Values after Run's Skip -- the signature is the spec's; the race is a few milliseconds and the key follows the re-read checklist.
+  - `[low]` `[reject]` edge-case-hunter: same records at different times give different keys when a reminder enters the window -- Design Notes: a real change.
+  - `[low]` `[reject]` edge-case-hunter: hosted script needs the closing quote at line end and does not require XData -- see above.
+  - `[low]` `[reject]` verification-gap: AC halves (none line, per-kind key change) share one mutation -- covered now by the extra mutations recorded.
+  - `[low]` `[reject]` verification-gap: `Marked(mark) = 0` is read right after a synchronous Tick -- the `LastSkipReason` and `LastItemId` assertions beside it carry the check, and the mutation shows the test red.
+  - `[low]` `[reject]` verification-gap: AC 4 `LastRunAt` mutation as worded is not seen by the real-watch test (minute grain) -- recorded honestly: `Snapshot.TestWatchRuns` pins the worded mutation, the real-watch test pins a raw-seconds one.
+  - `[low]` `[reject]` verification-gap: 4 s fixed waits for absence -- inherent to a negative check on a running production.
+  - `[low]` `[reject]` verification-gap: TestPastTheCut does not settle an ignore -- the stored-key comparison is the AC; its mutation is red.
+  - `[low]` `[reject]` verification-gap: old-shape tests compare the Item to `Snapshot` itself -- spec-directed; independent pins are `TestKey`, `Snapshot` and the head checks.
+  - `[low]` `[reject]` verification-gap: Refs/Sessions properties unchecked -- inherited from `Test.Watch.Case`, both classes ran green.
+  - `[low]` `[reject]` verification-gap: no executed host for the script and BeatCase -- script is in CHECK_SCRIPTS; BeatCase is run through its two subclasses.
+  - `[false]` `[reject]` intent-alignment: Reading B (Triage choosing outcomes) -- Story 39.6 measures the model; here the routing is the AC.
+  - `[low]` `[reject]` intent-alignment: ci/units.sh and the new script are outside Lane A's list -- the dispatch names both as validated footprint extensions.
+  - `[low]` `[reject]` intent-alignment: some fixtures use NowUtc -- only where no text of the time is asserted; time-dependent assertions use 2099 clocks.
+  - `[low]` `[reject]` intent-alignment: the Usage read is SQL in Beat -- Design Notes name it.
+  - `[low]` `[reject]` intent-alignment: `not_checked` prints as stored -- Design Notes: shown as stored.
+  - `[false]` `[reject]` intent-alignment: guard test sits on code the diff does not change -- AC 8 asks for that proof end to end.
+
 ## Design Notes
 
 **Governing ADs:**
@@ -233,6 +275,25 @@ Pinning mutations to apply, observe red, revert byte-identical and record (Rule 
 - AC 6: `READONLYSTOPWATCH` set to 1 in `Tools/WatchTools.cls` -> `BeatOutcomes`' act test.
 - AC 7: the Item in the Tick's session -> `BeatOutcomes`' trace assertion.
 - AC 8: "everything is fine" taken out of `ReplyGuard.BANNED` -> `BeatOutcomes`' guard test.
+- AC 9: the decision line reads the Item's text (the mail's body appended to the `Summary`) instead of the stored `Summary` -> `Snapshot`'s summary-not-body test.
+- AC 10: the beat's Item set to provenance `user` -> the Item assertion of every `BeatOutcomes` test (`AssertItem`).
+
+Mutation results (2026-11-04, implement stage; each applied, observed red, reverted byte-identical by checksum):
+- mutation: AC 1, watch and incident lines swapped in `Snapshot` -> `TestFullSnapshot` (and `TestEmptyKinds`, `TestAnotherPersonsRows`, `TestWatchLines`) red.
+- mutation: AC 2, `row.Cause` added to the incident line -> `TestNeverInTheText` (and `TestFullSnapshot`, `TestClosedIncident`) red.
+- mutation: AC 3, `STATUSMAX` of 5000 -> `TestTheCut` red (status block 4928).
+- mutation: AC 4, `Local` through `Data.Time.ForMessage` -> `TestSameRecordsLaterTime` red; `Run` keying the cut text -> `TestPastTheCut` red; `..Local(row.LastRunAt)` added to the watch line -> `TestWatchRuns` red in `Snapshot`; the real-watch test `BeatOutcomes.TestWatchRunsAgain` goes red when the line shows the raw `LastRunAt` (to the second), because the real watch re-runs within the same minute and a line at `YYYY-MM-DD HH:MM` would not show the move.
+- mutation: AC 5, one word of the paragraph changed in `Triage.cls` -> `test-triage-heartbeat.sh` exit 1 (`paragraph` FAIL); extraction pattern broken -> its self-test fails by the empty-extraction message.
+- mutation: AC 6, `READONLYSTOPWATCH` 1 in `Tools/WatchTools.cls` -> `TestAct` red (the `stop_watch` step ran and the watch was stopped).
+- mutation: AC 7, `Checks.Process.SendOwn` keeping the Tick's `%SessionId` -> `TestIgnore` red ("Decide answers Intake once, in the Item's trace session").
+- mutation: AC 8, "everything is fine" removed from `ReplyGuard.BANNED` -> `TestAllClearIsGuarded` red.
+- mutation: AC 9, the Item's body appended to the stored `Summary` -> `TestSummaryNotBody` red (both assertions).
+- mutation: AC 10, `Set item.Provenance = "user"` -> `AssertItem` red in all six `BeatOutcomes` tests.
+- mutation: AC 1 (approval line), `row.FixKind` alone instead of FixKind-or-ToolName -> `TestApprovalLines` red; `incident.Production` without the `IsObject` guard -> `TestApprovalLines` red (INVALID OREF).
+- mutation: AC 1 (reminder window), the person's interval replaced by 30 -> `TestReminderWindowFollowsTheInterval` red; the window widened by an hour -> `TestReminderWindow` and `TestReminderWindowFollowsTheInterval` red.
+- mutation: Failed read, `$$$ThrowOnError(sc)` removed from `Beat.Read` -> `TestFailedRead` red (its `ReadOf` assertion); `BrokenBeat` alone pins `Snapshot`'s handling of a throw.
+- mutation: Decisions rows, the beat-row stop removed -> `TestDecisionsSinceTheLastBeat` red; the turn skip removed -> `TestUserChatDecision` red; the closed-incident skip removed -> `TestClosedIncident` red; the line-break translate removed from `Clean` -> `TestInjectedLine` red; the decisions-none line removed -> `TestEmptyKinds` red; the `DECISIONSMAX` stop removed -> `TestNoBeatYet` red; the `unknown` channel removed -> `TestDecisionWithNoUsage` red; the exact `DecisionRef` comparison removed -> `TestDecisionWithNoUsage` red.
+- mutation: AC 6 / Integration AC, `LastQuietKey` no longer set on an ignore -> `TestIgnore` red; `Digest.Store` not saving the Item -> `TestDigest` red; the `Usage` channel read answering "" -> `TestTellNow` red (the mock's request lacks the channel).
 
 Shared surfaces: `CHECK_SCRIPTS` (one name added; `test-ci-config.sh` asserts on it); the text of a beat's Item and the value of `LastSnapshotKey` (`Test.Checks.Beat`, `Test.Checks.Heartbeat`, `Test.Checks.Runs`); Triage's `INSTRUCTIONS` (`Test.Agent.Instructions`); the `Test.Checks` class list (`ci/iris.sh` shards, `test-ci-config.sh`).
 
@@ -242,5 +303,29 @@ Added test time: `BeatOutcomes` about 20 to 30 s in the `shards` group, and `Sna
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** `Beat.Snapshot` now builds the checklist, a blank line, the `Status at ... (built by OcuTalon):` line and one line per entry of incidents, watches, approval requests, reminders and decisions (fields, order, `none` lines, local times, clean-up of control characters and line breaks, the 4,000-character cut with `(more not shown)`) and `Run` keys the whole, uncut status. All reads go through one private `Read` that throws. Triage carries the UX heartbeat paragraph. Five `heartbeat-*` mock scenarios and the end-to-end `BeatOutcomes` prove ignore, tell now, digest, act, the all-clear guard, the real watch that runs again, the trace/tokens/cost carry and the untrusted provenance.
+
+**Files changed.**
+- `src/ocutalon/cls/OcuTalon/Checks/Beat.cls` -- the snapshot, `Read`, line builders, parameters, `Run` keying `whole`.
+- `src/ocutalon/cls/OcuTalon/Agent/Triage.cls` -- the heartbeat paragraph at the end of `XData INSTRUCTIONS`.
+- `docker/tests/test-triage-heartbeat.sh` (new) and `ci/units.sh` -- the hosted word-for-word check; `triage-heartbeat` appended to `CHECK_SCRIPTS`.
+- `ci/mock/scenarios/A/heartbeat-{ignore,tellnow,digest,act,all-clear}.json` (new).
+- `src/ocutalon/cls/OcuTalon/Test/Checks/{BeatCase,BrokenBeat,Snapshot,BeatOutcomes}.cls` (new); `Beat.cls`, `Heartbeat.cls`, `Runs.cls` updated to the new snapshot shape (helpers moved to `BeatCase`).
+
+**footprint_extensions (Rule 11, for the lead to report):** `ci/units.sh` (one-name append to `CHECK_SCRIPTS`) and the new `docker/tests/test-triage-heartbeat.sh`; both are named by the dispatch as validated, and no open epic changed them. No other contended path was edited. Epic 7's `Test/Watch/Case.cls` is only extended.
+
+**Review.** 37 findings from four layers: patches applied 5 (2 medium, 3 low: the approval-line and reminder-interval tests, the pin on `Beat.Read`'s own throw, comment corrections, the extra mutation lines), deferred 0, rejected 32 with their reasons in the triage log (spec-defined behaviour, Design Notes, or false).
+
+**Follow-up review recommendation:** true. Two medium test-gap findings were patched (the new `TestApprovalLines` and `TestReminderWindowFollowsTheInterval` and the `BrokenBeat.ReadOf` assertion were added after the review layers read the diff and have mutation evidence but no independent read).
+
+**Verification performed.**
+- Warm: `Snapshot`, `Beat`, `Runs` passed. Fresh: `BeatOutcomes` passed (test time 28 s, 178 s with stack start), `Heartbeat` passed (14 s); `shard lane-a@Checks` passed forward (250 s, 8 classes) and `--reverse` (264 s); `Agent.Instructions`, `Agent.TriageUserTurn`, `Agent.RequestSize` passed.
+- `test-triage-heartbeat.sh` PASS; `test-mock.sh` exit 0; the footprint `git diff --exit-code` against a22e223e exit 0; all hosted `CHECK_SCRIPTS` ran in three parts with no FAIL.
+- Mutations: every Rule 19 line applied, observed red and reverted byte-identical (checksum), recorded under Verification. The spec's AC 4 `LastRunAt` mutation is pinned by `Snapshot.TestWatchRuns`; the real-watch test pins the raw-seconds variant (the line's minute grain hides a same-minute re-run).
+- Added test time: `BeatOutcomes` about 28 s and `Snapshot` under 1 s in the `shards` group.
+- Tear down: warm stack `e39s4i2w` down, fresh tag `e39s4i2` torn down, no container of this stage left. Slot D was used only for the handoff's `iris_doc_load`/compile.
+
+**Residual risks.** A single field longer than 4,000 characters (a very long reminder text) ends the status block at that line, by the spec's whole-line rule. Absence checks in `BeatOutcomes` rest on a fixed 4-second wait after Intake's send.

@@ -1,5 +1,5 @@
 /// Tests of Checks, OcuTalon.Checks.Process, in the running production (Story 5.6; AD-4, AD-12, AD-15, AD-18, AD-26, AD-28, AD-33). THEY RUN IN THROWAWAY STACKS
-/// AND IN CI ONLY (Rule 21), with demo mode on, through Test.Watch.Case, and fresh: a real Tick acts on every check row and every quiet incident of the
+/// AND IN CI ONLY (Rule 21), with demo mode on, through Test.Checks.BeatCase (Test.Watch.Case), and fresh: a real Tick acts on every check row and every quiet incident of the
 /// namespace, so each test asserts only on its own rows. A Tick is sent as HeartbeatIn sends it, from an adapterless service created with
 /// Ens.Director.CreateBusinessService, to the Checks item; the service's session is the Tick's trace session. A test that runs its row sends its own Tick
 /// synchronously at the row's NextDueAt (the fixture watch is due a day ahead, see Case.Watch); TestQuietClose's own Tick is at the clock's now. The first
@@ -29,15 +29,15 @@
 ///   - TestBeatNowIsAnswered (Stories 39.1 and 39.3; Integration AC; AD-18): a BeatNow that HeartbeatIn sends Checks synchronously is answered OK with a CommandResult whose Outcome is the code "empty" (the
 ///     person has no checklist), and the service's session holds no message whose target is Intake and no request whose source is Checks: a held beat sends nothing.
 ///   - TestBeatReachesIntake (Story 39.3; AC 2, AC 5; Integration AC; FR-64, AD-18, AD-26): a person with a checklist that holds a mock marker has a row due at T0; the Tick at T0 sends one Item from
-///     Checks to Intake (channel heartbeat, untrusted, the subject and the checklist as text) in a trace session of its own with the TraceRef as SuperSession; Intake records a Decision for it,
+///     Checks to Intake (channel heartbeat, untrusted, the subject and the snapshot as text, which starts with the checklist) in a trace session of its own with the TraceRef as SuperSession; Intake records a Decision for it,
 ///     the CI mock's log holds exactly one request with the marker, and the Tick a minute later records the outcome, cost, decision and trace session on the row.
 ///   - TestAnHourOfTicks (Story 39.3; AC 5): an hour of Ticks, a minute apart, for a person on a 30-minute interval whose checklist changed since the last ignore: one request at the first Tick,
 ///     none at the 59 after it (the second due beat, at 30 minutes, is unchanged since the Ignore and is skipped), and the hour holds one request.
 ///   - TestBeatNowReachesIntake (Story 39.3; AC 4; Integration AC; AD-18): through the real seam, with the key and the cap read by Beat, a BeatNow for a person with a checklist, unchanged since the
-///     last ignore, answers sent with the ItemId as Ref; the Item reaches Intake, which records a Decision, and the CI mock's log holds exactly one request. A second BeatNow 119 seconds later answers
+///     last ignore (the quiet key is the key of the real snapshot), answers sent with the ItemId as Ref; the Item reaches Intake, which records a Decision, and the CI mock's log holds exactly one request. A second BeatNow 119 seconds later answers
 ///     cooldown with availableAt, sends nothing and makes no request.
 /// The tests of the beat start with the preconditions that make a beat run: the TriageAgent's key is present (the entries point at the CI mock key variable) and the daily cap is not reached.
-Class OcuTalon.Test.Checks.Heartbeat Extends OcuTalon.Test.Watch.Case
+Class OcuTalon.Test.Checks.Heartbeat Extends OcuTalon.Test.Checks.BeatCase
 {
 
 Parameter SESSIONPREFIX = "zzbeat";
@@ -286,25 +286,6 @@ Method TestStartAndStop()
 	Do $$$AssertEquals(##class(OcuTalon.Data.BackgroundCheck).RefIndexExists(started.Ref), 0, "the row is gone")
 }
 
-/// The finding Items that Checks sent to Intake for the owner, with the owner's TraceRef (trace) as SuperSession, in the headers above the floor (a header id), in
-/// order, as a dynamic array of {itemId, catalogKey, slots, channel, provenance, subject, text, and of the header superSession, sessionId and headerId}. Each ItemId joins
-/// ItemIds, so that OnAfterOneTest removes the decision and the usage that it made.
-Method Findings(trace As %String, owner As %String, floor As %Integer) As %DynamicArray [ Private ]
-{
-	Set found = []
-	Set sent = ##class(OcuTalon.Test.Data.Fixture).Between(##class(OcuTalon.Test.Data.Fixture).Headers(trace), 1, ..#CHECKS, "Intake")
-	For i = 0:1:sent.%Size() - 1 {
-		Set header = sent.%Get(i)
-		If (header.id '> floor) || (header.bodyClass '= "OcuTalon.Msg.Item") Continue
-		Set body = ##class(OcuTalon.Msg.Item).%OpenId(header.bodyId)
-		If $IsObject(body) && (body.SessionRef = owner) {
-			Do found.%Push({"itemId": (body.ItemId), "catalogKey": (body.CatalogKey), "slots": (body.Slots), "channel": (body.Channel), "provenance": (body.Provenance), "subject": (body.Subject), "text": (body.Text), "superSession": (header.superSession), "sessionId": (header.sessionId), "headerId": (header.id)})
-			If '$ListFind(..ItemIds, body.ItemId) Set ..ItemIds = ..ItemIds_$ListBuild(body.ItemId)
-		}
-	}
-	Quit found
-}
-
 /// (QA) Where the item travelled in its owner's trace (trace, the TraceRef) above the floor: one entry "Item source>target" per request from Checks or Intake
 /// that carried the Item with the id, and "ItemDecision source>target" per such request that carried its decision, in order, separated by "|". OutcomeRouter's
 /// own forward of the decision (to DigestStore for a digest) is the router's routing, not the item's.
@@ -343,80 +324,6 @@ Method Decision(session As %String, itemId As %String) As %DynamicObject [ Priva
 	}
 	Do $$$AssertTrue($IsObject(found), "Intake sent OutcomeRouter the ItemDecision of the item")
 	Quit found
-}
-
-/// The preconditions of a beat: 1 when the entries of the runners point at the CI mock key variable, the TriageAgent's key is present and today's cap is not reached;
-/// otherwise a failed assertion that names the precondition, and 0.
-Method Beatable() As %Boolean [ Private ]
-{
-	If '..PointKeys() Quit 0
-	Set keyed = ##class(OcuTalon.Bridge.Keys).Status(##class(OcuTalon.Checks.Beat).#AGENT)
-	Do $$$AssertEquals(keyed, 1, "precondition: the TriageAgent's key is present (Bridge.Keys.Status)")
-	Set capped = ##class(OcuTalon.Bridge.Budget).State().capped
-	Do $$$AssertEquals(+capped, 0, "precondition: the daily cost cap is not reached (Bridge.Budget.State)")
-	Quit (keyed = 1) && 'capped
-}
-
-/// The first minute that is two days ahead of now, as a UTC stamp: no real Tick reaches a row due then.
-ClassMethod Due() As %String [ Private ]
-{
-	Set now = ##class(OcuTalon.Data.Time).NowUtc()
-	Quit $Extract(##class(OcuTalon.Data.Time).AddSeconds(now, 172800), 1, 17)_"00Z"
-}
-
-/// The person's HeartbeatBeat row, due at the time and with the quiet key, made before the settings (on, a 30 minute interval, all day, the checklist), so that a real Tick
-/// does not run it first.
-Method SeedBeat(session As %String, dueAt As %String, checklist As %String, quietKey As %String) [ Private ]
-{
-	Set row = ##class(OcuTalon.Data.HeartbeatBeat).%New()
-	Set row.SessionRef = session
-	Set row.NextDueAt = dueAt
-	Set row.LastQuietKey = quietKey
-	Do $$$AssertStatusOK(row.%Save(), "the person's row is made, due at "_dueAt)
-	For name = "on", "interval", "from", "to", "checklist" {
-		Set value = $Case(name, "on": 1, "interval": 30, "checklist": checklist, : "")
-		Do $$$AssertStatusOK(##class(OcuTalon.Data.Setting).Set(##class(OcuTalon.Checks.Beat).SettingKey(session, name), value), "the setting "_name_" is written")
-	}
-}
-
-/// The person's HeartbeatBeat row as stored now.
-ClassMethod Beat(session As %String) As OcuTalon.Data.HeartbeatBeat [ Private ]
-{
-	Set row = ##class(OcuTalon.Data.HeartbeatBeat).SessionRefIndexOpen(session)
-	If $IsObject(row) Do row.%Reload()
-	Quit row
-}
-
-/// The person's decision for the beat Item (Kind decide), waiting up to WAITDIAGNOSIS seconds; "" when there is none.
-Method WaitDecision(itemId As %String, session As %String) As OcuTalon.Bridge.Data.Decision [ Private ]
-{
-	Set end = $ZHorolog + ..#WAITDIAGNOSIS
-	For {
-		Set decision = ##class(OcuTalon.Data.Ownership).DecisionOfItem(itemId, session, .sc)
-		If $IsObject(decision) || ($ZHorolog > end) Quit
-		Hang 0.5
-	}
-	Quit decision
-}
-
-/// The number of requests that the CI mock logged after the mark and that carry the person's marker (decide-ignore:<the session's Ref>).
-ClassMethod Marked(mark As %Integer, session As %String) As %Integer [ Private ]
-{
-	Set count = 0
-	If $$$ISERR(##class(OcuTalon.Test.Contract.Mock).LogSince(mark, .entries)) Quit -1
-	Set iterator = entries.%GetIterator()
-	While iterator.%GetNext(, .entry) {
-		If (entry.marker '= "") && $Find(entry.marker, session) Set count = count + 1
-	}
-	Quit count
-}
-
-Method OnAfterOneTest(testname As %String) As %Status
-{
-	For i = 1:1:$Length(..Sessions, ",") {
-		If $Piece(..Sessions, ",", i) '= "" Do ##class(OcuTalon.Test.Checks.Beat).Forget($Piece(..Sessions, ",", i))
-	}
-	Quit ##super(testname)
 }
 
 /// --- helpers ---
@@ -477,7 +384,8 @@ Method TestBeatReachesIntake()
 	Do $$$AssertEquals(items.%Size(), 1, "the Tick at T0 sends one Item from Checks to Intake for the person")
 	If items.%Size() '= 1 Quit
 	Set item = items.%Get(0)
-	Do $$$AssertEquals(item.channel_"|"_item.provenance_"|"_item.subject_"|"_item.text, "heartbeat|untrusted|Heartbeat check-in|"_text, "a heartbeat Item, untrusted, with the subject and the checklist as its text")
+	Do $$$AssertEquals(item.channel_"|"_item.provenance_"|"_item.subject_"|"_item.text, "heartbeat|untrusted|Heartbeat check-in|"_##class(OcuTalon.Checks.Beat).Snapshot(session, t0), "a heartbeat Item, untrusted, with the subject and the snapshot as its text")
+	Do $$$AssertEquals($Piece(item.text, $Char(10, 10), 1), text, "which starts with the checklist")
 	Do $$$AssertEquals(item.superSession, trace, "with the person's TraceRef as SuperSession")
 	Do $$$AssertTrue((item.sessionId = item.headerId) && (item.sessionId '= tick), "in a trace session of its own, not the Tick's (AD-26): "_item.sessionId_" (Tick "_tick_")")
 	Set decision = ..WaitDecision(item.itemId, session)
@@ -502,7 +410,8 @@ Method TestBeatNowReachesIntake()
 	Set trace = ##class(OcuTalon.Data.Session).RefIndexOpen(session).TraceRef
 	Set t0 = ..Due()
 	Set text = "zz run now [[mock:decide-ignore:"_session_"]]"
-	Do ..SeedBeat(session, ##class(OcuTalon.Data.Time).AddSeconds(t0, 86400), text, ##class(OcuTalon.Checks.Beat).Key(text))
+	Do ..SeedBeat(session, ##class(OcuTalon.Data.Time).AddSeconds(t0, 86400), text, "")
+	Do ..QuietNow(session, t0)
 	Do $$$AssertStatusOK(##class(Ens.Director).CreateBusinessService(..#HEARTBEAT, .service), "the "_..#HEARTBEAT_" service is created")
 	If '$IsObject(service) Quit
 	Set floor = ..Top("Ens.MessageHeader", $Namespace)
@@ -517,7 +426,8 @@ Method TestBeatNowReachesIntake()
 	If items.%Size() '= 1 Quit
 	Set item = items.%Get(0)
 	Do $$$AssertEquals(response.Ok_"|"_response.Outcome_"|"_response.Ref_"|"_response.Data, "1|sent|"_item.itemId_"|", "the answer is sent, with the ItemId as Ref")
-	Do $$$AssertEquals(item.channel_"|"_item.provenance_"|"_item.text_"|"_item.superSession, "heartbeat|untrusted|"_text_"|"_trace, "a heartbeat Item with the checklist, in the person's trace")
+	Do $$$AssertEquals(item.channel_"|"_item.provenance_"|"_item.text_"|"_item.superSession, "heartbeat|untrusted|"_##class(OcuTalon.Checks.Beat).Snapshot(session, t0)_"|"_trace, "a heartbeat Item with the snapshot, in the person's trace")
+	Do $$$AssertEquals($Piece(item.text, $Char(10, 10), 1), text, "which starts with the checklist")
 	Set decision = ..WaitDecision(item.itemId, session)
 	Do $$$AssertTrue($IsObject(decision), "Intake records a Decision for the Item")
 	Do $$$AssertEquals(..Marked(mark, session), 1, "and the CI mock's log holds exactly one request with the marker")
@@ -581,14 +491,6 @@ ClassMethod QuietRequests(incident As %String) As %DynamicArray [ Private ]
 		}
 	}
 	Quit found
-}
-
-/// The check row as stored now: other processes change it, and an object that this one opened before is reloaded.
-ClassMethod Check(ref As %String) As OcuTalon.Data.BackgroundCheck [ Private ]
-{
-	Set row = ##class(OcuTalon.Data.BackgroundCheck).RefIndexOpen(ref)
-	If $IsObject(row) Do row.%Reload()
-	Quit row
 }
 
 /// The incident row as stored now.

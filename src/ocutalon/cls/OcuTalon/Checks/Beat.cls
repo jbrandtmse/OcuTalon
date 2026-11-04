@@ -21,8 +21,15 @@
 ///   - Each person runs in its own Try/Catch. A person whose pending decision could not be recorded does not run in that RunDue, so that a new beat never
 ///     overwrites a decision that is still to be recorded (RunNow stops there too). RunDue answers an error status that holds only the count of failures and
 ///     their error codes, never a SessionRef; a read of the rows that stops partway counts as one failure.
-///   - Until Story 39.4 the snapshot is the checklist alone. Key is the SHA-256 of the snapshot without its status line, so that a status line never
-///     changes it.
+///   - The snapshot (Snapshot) is the checklist, a blank line, the line "Status at {local time} (built by OcuTalon):" and one line for each entry of the person's
+///     incidents (not closed), watches, approval requests, reminders (pending, due by one interval after now) and recent decisions, in that order; a kind with no entry gets one
+///     line that says none. Every time in it is the instance-zone local time, YYYY-MM-DD HH:MM, so that no entry line is worded by the clock (the status line holds now). An entry holds
+///     only the fields that its line names (no cause, reason, payload, finding, argument, reference or message text), and every field loses its control characters
+///     and line breaks, so that none can start a line of its own. The status block is at most STATUSMAX characters; over that it keeps whole lines and ends with
+///     the line MORE. The decisions are those of Ownership.Decisions, newest first, without the person's own chat messages, and stop at the last beat's own row, at
+///     most DECISIONSMAX of them. A read that fails throws, so that the beat stays due.
+///   - Key is the SHA-256 of the snapshot without its status line, so that a status line never changes it. Run keys the whole status, uncut, so that a change past
+///     the cut still changes it. A watch's line holds no time, so that a watch that runs again with the same result changes no key.
 Class OcuTalon.Checks.Beat
 {
 
@@ -77,10 +84,20 @@ Parameter COOLDOWN = "cooldown";
 
 Parameter FAILED = "failed";
 
-/// The line that the status snapshot adds (Story 39.4) starts and ends with these, and Key leaves it out.
+/// The line that the status snapshot adds starts and ends with these, and Key leaves it out.
 Parameter STATUSPREFIX = "Status at ";
 
 Parameter STATUSSUFFIX = "(built by OcuTalon):";
+
+/// The most decisions that the snapshot lists, the most rows of Ownership.Decisions that it reads to find them (the person's own chat decisions are read and left
+/// out), the most characters of the status block, and the line that ends a block that was cut.
+Parameter DECISIONSMAX = 10;
+
+Parameter DECISIONSREAD = 100;
+
+Parameter STATUSMAX = 4000;
+
+Parameter MORE = "(more not shown)";
 
 /// The values of the session's heartbeat settings, read now: a dynamic object of on (1 or 0), interval (minutes), from and to (HH:MM, or "" for both when
 /// the window is all day) and checklist.
@@ -169,10 +186,171 @@ ClassMethod Keyed() As %Boolean
 	Quit +##class(OcuTalon.Bridge.Keys).Status(..#AGENT)
 }
 
-/// The snapshot of what a beat reads for the session at now: the checklist, until Story 39.4 adds the status.
-ClassMethod Snapshot(sessionRef As %String, now As %String) As %String
+/// The snapshot of what a beat reads for the session at the UTC time now (see the class description): the text that the Item carries, and in whole the same text
+/// without the cut, which Run keys. Each line is built once, so the two differ only past STATUSMAX. A read that fails throws.
+ClassMethod Snapshot(sessionRef As %String, now As %String, Output whole As %String) As %String
 {
-	Quit ..Values(sessionRef).checklist
+	Set lf = $Char(10)
+	Set values = ..Values(sessionRef)
+	Set lines = $ListBuild(..#STATUSPREFIX_..Local(now)_" "_..#STATUSSUFFIX)
+	Set lines = lines_..IncidentLines(sessionRef)_..WatchLines(sessionRef)_..ApprovalLines(sessionRef)_..ReminderLines(sessionRef, now, values.interval)_..DecisionLines(sessionRef)
+	Set full = ""
+	Set position = 0
+	While $ListNext(lines, position, line) {
+		Set full = full_$Select(full = "": "", 1: lf)_line
+	}
+	Set head = values.checklist_lf_lf
+	Set whole = head_full
+	If $Length(full) '> ..#STATUSMAX Quit whole
+	Set kept = ""
+	Set position = 0
+	While $ListNext(lines, position, line) {
+		Set next = kept_$Select(kept = "": "", 1: lf)_line
+		If $Length(next) + $Length(lf_..#MORE) > ..#STATUSMAX Quit
+		Set kept = next
+	}
+	Quit head_kept_$Select(kept = "": "", 1: lf)_..#MORE
+}
+
+/// The lines of the person's incidents that are not closed: the production, the state, the count and the first failure's time.
+ClassMethod IncidentLines(sessionRef As %String) As %List [ Private ]
+{
+	Set lines = ""
+	Set rows = ..Read("incidents", sessionRef)
+	For i = 1:1:rows.Count() {
+		Set row = rows.GetAt(i)
+		If row.State = "closed" Continue
+		Set lines = lines_$ListBuild(..Line("Incident", row.Production, row.State, row.Count, ..Local(row.FirstAt)))
+	}
+	Quit $Select(lines = "": $ListBuild(..Line("Incidents", "none")), 1: lines)
+}
+
+/// The lines of the person's production watches: the display name and the last result, or that it has not run. No time: a watch runs every minute.
+ClassMethod WatchLines(sessionRef As %String) As %List [ Private ]
+{
+	Set lines = ""
+	Set rows = ..Read("checks", sessionRef)
+	For i = 1:1:rows.Count() {
+		Set row = rows.GetAt(i)
+		If row.Kind '= ##class(OcuTalon.Checks.Process).#KIND Continue
+		Set lines = lines_$ListBuild(..Line("Watch", row.DisplayName, $Select(row.Result = "": "not run yet", 1: row.Result)))
+	}
+	Quit $Select(lines = "": $ListBuild(..Line("Watches", "none")), 1: lines)
+}
+
+/// The lines of the person's pending approval requests: the kind, the fix kind or the tool, the production of the incident (none without one), and the times.
+ClassMethod ApprovalLines(sessionRef As %String) As %List [ Private ]
+{
+	Set lines = ""
+	Set rows = ..Read("approvals", sessionRef)
+	For i = 1:1:rows.Count() {
+		Set row = rows.GetAt(i)
+		Set incident = ..Read("incident", sessionRef, row.IncidentRef)
+		Set lines = lines_$ListBuild(..Line("Approval request", row.Kind, $Select(row.FixKind '= "": row.FixKind, 1: row.ToolName), $Select($IsObject(incident): incident.Production, 1: "none"), ..Local(row.RaisedAt), ..Local(row.ExpiresAt)))
+	}
+	Quit $Select(lines = "": $ListBuild(..Line("Approval requests", "none")), 1: lines)
+}
+
+/// The lines of the person's pending reminders that are due at the UTC time now or within the interval (minutes) after it: the text and the due time.
+ClassMethod ReminderLines(sessionRef As %String, now As %String, interval As %Integer) As %List [ Private ]
+{
+	Set lines = ""
+	Set limit = ##class(OcuTalon.Data.Time).AddSeconds(now, interval * 60)
+	Set rows = ..Read("reminders", sessionRef)
+	For i = 1:1:rows.Count() {
+		Set row = rows.GetAt(i)
+		If (limit = "") || (row.DueAt ] limit) Continue
+		Set lines = lines_$ListBuild(..Line("Reminder", row.Text, ..Local(row.DueAt)))
+	}
+	Quit $Select(lines = "": $ListBuild(..Line("Reminders", "none")), 1: lines)
+}
+
+/// The lines of the person's recent decisions, newest first, at most DECISIONSMAX: the time, the channel, the outcome and the summary. The rows are read newest
+/// first and the read stops at the newest beat's own row (its Summary is SUBJECT), the last beat that made a decision. A row of the person's own chat message
+/// (it has a turn) is left out. The channel is that of the decision's Usage row, unknown when it has none.
+ClassMethod DecisionLines(sessionRef As %String) As %List [ Private ]
+{
+	Set lines = ""
+	Set count = 0
+	Set rows = ..Read("decisions", sessionRef)
+	For i = 1:1:rows.Count() {
+		If count '< ..#DECISIONSMAX Quit
+		Set row = rows.GetAt(i)
+		If $IsObject(..Read("turn", sessionRef, row.ItemId)) Continue
+		If row.Summary = ..#SUBJECT Quit
+		Set channel = ..Read("channel", sessionRef, row.Ref)
+		Set lines = lines_$ListBuild(..Line("Decision", ..Local(row.RecordedAt), $Select(channel = "": "unknown", 1: channel), row.Outcome, row.Summary))
+		Set count = count + 1
+	}
+	Quit $Select(lines = "": $ListBuild(..Line("Decisions", "none")), 1: lines)
+}
+
+/// The one read of the snapshot. what is incidents, checks, approvals, reminders or decisions (the person's rows, as Data.Ownership gives them), incident
+/// (the incident with the Ref in arg, or ""), turn (the person's turn of the Item in arg, or "") or channel (the Channel of the first Usage row of the decision
+/// with the Ref in arg, or ""). A read that fails throws: it never reads as nothing. A test subclass overrides this to fail a read.
+ClassMethod Read(what As %String, sessionRef As %String, arg As %String = "") [ Private ]
+{
+	Set sc = $$$OK
+	Set result = ""
+	If what = "incidents" {
+		Set result = ##class(OcuTalon.Data.Ownership).Incidents(sessionRef, .sc)
+	} ElseIf what = "checks" {
+		Set result = ##class(OcuTalon.Data.Ownership).Checks(sessionRef, .sc)
+	} ElseIf what = "approvals" {
+		Set result = ##class(OcuTalon.Data.Ownership).Approvals(sessionRef, .sc)
+	} ElseIf what = "reminders" {
+		Set result = ##class(OcuTalon.Data.Ownership).Reminders(sessionRef, .sc)
+	} ElseIf what = "decisions" {
+		Set result = ##class(OcuTalon.Data.Ownership).Decisions(sessionRef, ..#DECISIONSREAD, .sc)
+	} ElseIf what = "incident" {
+		Set result = ##class(OcuTalon.Data.Ownership).Incident(arg, sessionRef, .sc)
+	} ElseIf what = "turn" {
+		Set result = ##class(OcuTalon.Data.Ownership).TurnOfItem(arg, sessionRef, .sc)
+	} ElseIf what = "channel" {
+		// the default collation of DecisionRef ignores case, so the value is compared exactly after the read
+		Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT DecisionRef, Channel FROM OcuTalon_Bridge_Data.Usage WHERE DecisionRef = ? ORDER BY ID", arg)
+		If rs.%SQLCODE < 0 {
+			Set sc = $SYSTEM.Status.Error(5001, "The usage rows could not be read")
+		} Else {
+			While rs.%Next() {
+				If rs.%Get("DecisionRef") '= arg Continue
+				Set result = rs.%Get("Channel")
+				Quit
+			}
+			If rs.%SQLCODE < 0 Set sc = $SYSTEM.Status.Error(5001, "The usage rows could not be read")
+		}
+	} Else {
+		Set sc = $SYSTEM.Status.Error(5001, "The snapshot has no read named "_what)
+	}
+	$$$ThrowOnError(sc)
+	Quit result
+}
+
+/// One line of the snapshot: the label, a colon and the fields, separated by " | ". Each field loses its control characters and its line breaks (Clean),
+/// and a field that is then empty reads none.
+ClassMethod Line(label As %String, fields... As %String) As %String [ Private ]
+{
+	Set line = label_":"
+	For i = 1:1:fields {
+		Set field = ..Clean($Get(fields(i)))
+		Set line = line_$Select(i = 1: " ", 1: " | ")_$Select(field = "": "none", 1: field)
+	}
+	Quit line
+}
+
+/// The text without its control characters and without every line break that Agent.Input.Quoted knows (CR, LF, VT, FF, NEL, U+2028 and U+2029), so that no
+/// field can start a line of its own.
+ClassMethod Clean(text As %String) As %String [ Private ]
+{
+	Quit $Translate($ZStrip(text, "*C"), $Char(10, 11, 12, 13, 133, 8232, 8233))
+}
+
+/// A UTC time as the instance-zone local time, YYYY-MM-DD HH:MM, or unknown for an empty or unreadable one. Data.Time.ForMessage is not used: its text
+/// depends on the clock, so that a line would change with no record changed.
+ClassMethod Local(utc As %String) As %String [ Private ]
+{
+	Set local = ##class(OcuTalon.Data.Time).ToLocal($Get(utc))
+	Quit $Select(local = "": "unknown", 1: $Extract(local, 1, 10)_" "_$Extract(local, 12, 16))
 }
 
 /// The key of a snapshot: the lower-case hexadecimal SHA-256 (64 characters) of its UTF-8 text without the line that starts STATUSPREFIX and ends
@@ -301,8 +479,8 @@ ClassMethod Run(row As OcuTalon.Data.HeartbeatBeat, values As %DynamicObject, at
 	Set snapshot = ""
 	Set key = ""
 	If reason = "" {
-		Set snapshot = ..Snapshot(row.SessionRef, at)
-		Set key = ..Key(snapshot)
+		Set snapshot = ..Snapshot(row.SessionRef, at, .whole)
+		Set key = ..Key(whole)
 		Set reason = ..Skip(values, row, at, runNow, capped, keyed, key)
 	}
 	If reason '= "" {
