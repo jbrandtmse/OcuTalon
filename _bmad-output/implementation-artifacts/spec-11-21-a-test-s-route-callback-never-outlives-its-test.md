@@ -2,7 +2,7 @@
 title: "Story 11.21: A test's route callback never outlives its test"
 type: 'bugfix'
 created: '2026-11-04'
-status: 'done'
+status: 'in-progress'
 baseline_revision: '79a8aca3e2016d544fc3fc4f1e18f353a9629eb3'
 baseline_commit: '79a8aca3e2016d544fc3fc4f1e18f353a9629eb3'
 review_loop_iteration: 0
@@ -128,6 +128,15 @@ deferred:
   - Source pins: each project of `web/playwright.config.ts` whose `testDir` starts with `./e2e-online` spreads `ONLINE_WAITS` and sets `irisScriptMs`, and no other project does. `iris.ts` `irisScript` takes the bound from `test.info().project.metadata`. `telegram.ts` `fixture()` passes `TELEGRAM_FIXTURE_MS`.
 - [x] This spec: record the Verification results and the `mutation:` lines.
 
+- [ ] [Amend] `web/e2e/cards/either-way.spec.ts` (arrived with Epic 7's merge, 4238dc8f): change its one `@playwright/test` import line to the shared fixtures module, like the other 70 specs, so `route-cleanup.test.mjs` passes. Nothing else in the file. (AC1, AC3)
+- [ ] [Amend] Shared sign-in helper waits, each with its own bound shorter than the test timeout and a failure message naming the step and the response it waited for (AC7; epics.md Story 11.21, the Contest Planner's condition of 2026-11-04; DW-690, DW-691):
+  - `web/e2e/support/floor.ts` `loadedAfter`: the `waitForResponse` for the snapshot's GET of `/ocutalon/api/v1/state` and the sign-in action it wraps are bounded; on expiry it fails naming the step ("the sign-in" or "the snapshot GET /ocutalon/api/v1/state") and its bound. (OCT-epic40 run 41929230934 `02-watch.spec.ts:61` timed out at 180 s inside `loadedAfter`'s `waitForResponse`.)
+  - `web/e2e/support/navigate.ts` `gotoSettled`: bounded, naming the URL; and it also retries once on `net::ERR_ABORTED` (logging `NAV retry <url>` as for NETWORK_CHANGED): the page's own `location.replace` after a sign-out aborts the next navigation (DW-690: `07-failure-paths` L77's re-sign-in failed with `page.goto net::ERR_ABORTED` at `/ocutalon/`). Decided by the lead (decide, within intent): a second failure, and every other error, is still thrown.
+  - `web/e2e-online/support.ts` `signInFromSplash` (its POST answer wait) and `openSession`: bounded and named.
+  - `web/e2e/sign-in/helpers.ts` is an OPEN path of Epic 40 (it inserted a block at the top): do NOT edit it. Bound its waits (`submitSignIn`'s POST answer, `signInReadme`'s load) from the shared layer instead: (a) `loadedAfter` bounds the sign-in action it wraps, naming it; and (b) the shared fixture (`web/e2e/support/fixtures.ts`) gives every page a default timeout and navigation timeout below the test's own timeout (derived from `testInfo.timeout`, for example the smaller of a fixed cap and a share of it; measure, and keep every live unit green), so any wait without its own bound, in a helper or a spec, fails on its own timeout with Playwright's call name and the helper's stack line instead of the test timeout. A wait that passes an explicit timeout keeps it. Record the numbers and why in Design Notes.
+  - A pinning test (hermetic, no stack, in `web/e2e/live/` like `route-cleanup.spec.ts`, so `live:sign-in` runs it): a response that never comes makes `loadedAfter` (and `gotoSettled`'s bound) fail within its bound with the named step in the message, well before the test timeout; mutation shown (remove the bound: the test times out instead), never committed. Plus a node source pin in `web/scripts/bounded-waits.test.mjs` if it fits.
+  - Verification: re-run `live:online-session` (L5, L6), `live:sign-in` both parts, `live:demo-path` and `live:floor` (the units whose specs use these helpers most; `focus.spec.ts` P1 is in `live:floor`) on lane-B throwaways, one at a time, after the last patch.
+
 **Acceptance Criteria:**
 - AC1 (one mechanism, DW-640, DW-665). Given every spec under `web/e2e` and `web/e2e-online`, when a test ends, then its routes are removed by the shared fixtures with `unrouteAll({ behavior: 'ignoreErrors' })`, no spec carries its own `afterEach` copy, and `route-cleanup.test.mjs` is green.
 - AC2 (pinned). Given a route callback still waiting on `route.fetch` when its test ends (on the page, the context, or a second page of the context), when the next test runs, then neither fails with `route.fetch: Test ended`, and a page the test closed itself makes no error. `route-cleanup.spec.ts` is green in Chromium with no stack.
@@ -135,8 +144,11 @@ deferred:
 - AC4 (bounded online waits). Given a test of an online project, when an `irisScript` session, a page action, a navigation, a response wait or a page request never answers, then it fails on its own bound (90 s, or 150 s for the Telegram fixture; 30 s; 60 s), well under the 120 to 300 s test timeouts, naming the step. `bounded-waits.test.mjs` is green.
 - AC5 (proof on the stack). Given the story's tree on a lane-B throwaway, when `live:online-session` runs, then it passes with `leave.spec.ts` L5 and L6 green. When the `(once)` units run, each passes.
 - AC6 (footprint). Given the diff since `story_base`, excluding `_bmad-output`, when listed, then it holds only the files in the Code Map and the spec import lines.
+- AC7 (bounded sign-in helper waits; the Contest Planner's condition, 2026-11-04; DW-690, DW-691). Given a wait in the shared sign-in helpers (`loadedAfter`, `gotoSettled`, the sign-in helpers of `web/e2e/sign-in/helpers.ts` and `web/e2e-online/support.ts`) that never ends, when the test runs, then the wait fails on its own bound, shorter than the test timeout, with a message naming the step and the response it waited for; a hermetic test pins it (mutation shown). `gotoSettled` also retries once on `net::ERR_ABORTED`.
 
 ## Spec Change Log
+
+- 2026-11-04 (rework iteration 1, trigger=scope_amendment, by the lead): epics.md Story 11.21 gained the Contest Planner's condition (bounded shared sign-in helper waits, named failures; DW-690, DW-691; `loadedAfter` in scope) after the implement pass; Epic 7's merge (4238dc8f) brought `web/e2e/cards/either-way.spec.ts`. Added the two `[Amend]` items and AC7. `web/e2e/sign-in/helpers.ts` stays untouched (Epic 40's open path).
 
 ## Review Triage Log
 
