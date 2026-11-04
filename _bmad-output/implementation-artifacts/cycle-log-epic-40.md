@@ -110,3 +110,5 @@
 2026-11-04T15:27:13Z	Story 40.8	dev_complete	spawn_at=2026-11-04T14:21:33Z model=sonnet build_sha=ff104a2b baseline_revision=6ccc3838 story_base=234372ce review_loop_iteration=0 followup_review_recommended=false deferred=0 loc_added=835 loc_removed=3 files=5 nfr_tripwires=0 adr_violations_surfaced=0 cycle_iteration=1
 2026-11-04T15:27:13Z	Story 40.8	adr_verifications_complete	result=none_required mutations=none model=claude-opus-5-5
 2026-11-04T15:27:14Z	Story 40.8	stage_spawned	stage=qa spawn_at=2026-11-04T15:27:14Z model=sonnet agent_name=40-8-the-persona-s-web-routes-qa-1 cycle_iteration=1
+2026-11-04T15:31:26Z	Story 40.8	qa_complete	spawn_at=2026-11-04T15:27:14Z model=sonnet tests_added=0 mutations_demonstrated=1 first_run_failures=0 clarifications=0 closing_sections_present=true
+2026-11-04T15:31:26Z	Story 40.8	stage_spawned	stage=code-review spawn_at=2026-11-04T15:31:26Z model=opus agent_name=40-8-the-persona-s-web-routes-code-review-1 cycle_iteration=1

@@ -198,6 +198,9 @@ Recorded by the implement stage (warm stack e40s8iw for the `PersonaApi` mutatio
 - mutation: PutPersona without its Quit on the SessionRef error -> TestNoSessionIs500 red (PUT: 500 server_error, even where the submit would succeed, and nothing submitted)
 - mutation: an Ok result with an empty message answered with MESSAGESERVERERROR instead of the Saved sentence -> TestPutOkFromOwner red
 
+Recorded by the QA stage (warm stack e40s8qw; every AC and matrix row audited against `PersonaApi` and `persona.spec.ts`: all pinned, no test added; `PersonaApi` passed on the stack before the mutation):
+- mutation (QA, AC 7: the route list): the `PUT /v1/persona` route line deleted from the `UrlMap` -> `Test.Web.Api:TestRoutes` red ("14 routes", "the routes, in order"); reverted byte-identical (same hash, `git status --short` empty) and `Test.Web.Api` green again
+
 **Standing criterion:** every test added or changed passes on a fresh environment, in either order.
 
 Shared surfaces: `OcuTalon.Web.Api`'s `UrlMap`, 12 to 14 routes (`Test.Web.Api:TestRoutes` pins the list and the count, and Story 33.2 changes the same line; `Test.Web.MailboxApi:TestRoutes` and `Test.Web.BreakFeedApi` read the map); the test classes of area `Web` in shard `lane-b`, one more (`docker/tests/test-ci-config.sh`); the README account's persona keys in the sign-in stack, which `persona.spec.ts` removes before and after itself.
