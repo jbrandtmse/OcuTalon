@@ -430,3 +430,8 @@
 2026-11-04T05:01:25Z	Epic 11	model_tier_checkpoint	armed=false stack_risk=none review_tier=full-opus implement_model=claude-sonnet unresolved_high_med_avg=0 metric=unresolved rework_stories=0 review_loop_thrash=0 rework_lang_defects=0 review_high=0 review_med=3 result=hold applied=false(record_only) note=reopen_scope(story_11.20)
 2026-11-04T05:13:05Z	Epic 11	integrated_forward	feature=10ce26ac head=8e382e19 conflicts_resolved=sprint-status.yaml(regenerated;11.20_done_re-set) checks=hermetic_release-sequence_PASS_all_rules(27),checklist,notes,boundaries;live_overview_unit_exit0_under_umask_077_on_the_merged_tree note=U-257_and_U-258;source_differs_from_feature_by_the_two_story_files_only stage=epic_close
 2026-11-04T05:13:05Z	Epic 11	epic_runner_complete	stories_completed=1(11.20) partial=11.14,11.15,11.16,11.18_held_out(owner_trim,part_2) applied=U-256_at=2026-11-04T02:01:21Z#770 merge=after_the_v1.0.0_tag_with_part_2
+2026-11-04T21:18:30Z	Epic 11	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-11-04T21:18:30Z	Epic 11	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh
+2026-11-04T21:18:30Z	Epic 11	launch_env	depth=4 watchdog=default bash_max_ms=default
+2026-11-04T21:18:30Z	Epic 11	runner_unattended_start	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec note=reopen_story_11.21_part_merge_runner_B lane=B slot=ocutalon-slot-b
+2026-11-04T21:18:30Z	Epic 11	epic_branch_checked_out	repos=. head=de6670fe note=reopen_part_merge_U-277;story_11.21;feature_9b66b35d_CI_pending_merge_before_implement
