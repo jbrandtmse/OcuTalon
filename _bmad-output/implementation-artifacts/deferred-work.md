@@ -3037,6 +3037,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-31T11:55:11Z status=routed owner=30-1-long-conversations-are-compacted-under-the-limit by=orchestrator note=measure first:_the_invalid_rate_after_5.12_and_the_retry's_cost_and_time;veto_item
 - 2026-11-02T07:40:01Z status=decision-pending owner=burndown by=spec_gate note=human=measure_diagnose's_invalid_rate_after_5.12_on_host_Decision_rows_and_Story_9.5's_real-key_release-candidate_run;build_the_one_retry_only_if_above_about_1_in_50(U-191's_kept_condition);this_unattended_run_has_neither_host_access_nor_a_real_key(30.1_spec_declined_it)
 - 2026-11-02T22:47:05Z status=decision-pending owner=burndown by=merge_gate note=action_item:epic-30-decision-item-1-dw-483-measure-decide-invalid-rate(owner;decided_unattended_U9:human-only_entry_to_action_items)
+- 2026-11-04T03:54:25Z occurrence=rc2 by=merge_gate note=6 of 156 invalid (3.8 percent) on rc2; shipments-epoch-time, see DW-657
 
 ### DW-492: No test pins AC2's floor: a model-written text property of a reply class capped at 32 characters or fewer would pass CI (TestDiagnosisLengths checks only prompt and class agreement)
 - source: spec-5-12-a-correct-diagnosis-is-never-refused-for-an-over-long-eviden.md | severity: low | fix-risk: low | footprint: in-story
@@ -3863,3 +3864,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: Contest Planner field watch 2026-11-03 (relay) | severity: med | fix-risk: low | footprint: in-footprint
 - evidence: Demo partner (PartnerTrigger) sends today's date as MM/DD/YYYY; until Nov 13 every value has day <= 12, so 11/03/2026 also parses as 11 March; Reformat.cls:62,67,88 ParseDate accepts the given format only, so the format choice is the model's
 - 2026-11-03T21:31:48Z status=routed owner=7-7-a-date-repair-that-could-read-either-way-names-its-evidence by=orchestrator note=Story 7.7 (veto U-248); first daily release after 1.0.0; not rc1 scope
+
+### DW-656: Eval: review the expected answers (the finding-*-item-disabled labels, mail-partner-notice) and any further Triage and Diagnosis wording, held to SM-1 90 and SM-2 80 on the real model, with no examples that echo eval cases
+- source: U-258 (owner, via the Contest Planner) | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: rc2 real-model trials with the fixed wording: items 82-86 percent, incidents 90 percent
+- 2026-11-04T03:54:25Z status=routed owner=burndown by=merge_gate note=first_daily_release_after_1.0.0; owner's override covers only the item gap
+
+### DW-657: Eval case shipments-epoch-time gets an invalid diagnosis reply, a fallback in nearly every attempt
+- source: U-258 follow-up (Contest Planner) | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: rc2 trials; see DW-483, which reads 6 of 156 (3.8 percent) on rc2
+- 2026-11-04T03:54:25Z status=routed owner=burndown by=merge_gate note=first_daily_release_after_1.0.0
