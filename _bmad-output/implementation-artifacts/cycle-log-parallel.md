@@ -1729,3 +1729,4 @@
 2026-11-04T01:21:51Z	Epic 31	runner_reported	item=U-255
 2026-11-04T01:27:40Z	Epic 31	owner_decision	id=U-255 at=2026-11-04T01:26:36Z#767 via=inbox by=Contest_Planner_1(delegated) answer=keep(a):1.0.0_ships_with_host_exact-origin_workaround;DW-416->first_daily_release_burndown+3_conditions(admin_setting_naming_public_origins,no_forwarded-proto_trust;one_doc_sentence_shipped_with_fix;Planner_removes_host_workaround_and_re-measures) apply=orchestrator(ledger)
 2026-11-04T01:27:40Z	Run	feature_freeze	by=Contest_Planner_1 at=823bdf41 until=RC1_CUT note=no_push_to_feature_incl_bookkeeping;local_commits_ok;holds_B,C,D_unchanged
+2026-11-04T01:28:19Z	Run	planner_note	snapshot_proxy_name_cleared(already_in_spine_L846_and_spec-2-11;internal_bmad-output);take_snapshot_as_is;RC1_CUT_follows_green_CI_on_823bdf41
