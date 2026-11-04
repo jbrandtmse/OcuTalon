@@ -417,7 +417,7 @@ XData Entries [ MimeType = application/json ]
   "source": "EXPERIENCE Message Catalog / Daily digest / Saved for later, with a summary"
  },
  "digest.savedNoSummary": {
-  "text": "Saved for later ({count}): I couldn't summarize them this time ({fallbackReason}). They're under Recent decisions on your OcuTalon page.",
+  "text": "Saved for later ({count}): I couldn't summarize them this time ({fallbackReason}). The most recent are under Recent decisions on your OcuTalon page.",
   "slots": {
    "count": "count",
    "fallbackReason": "fallbackReason"

@@ -814,7 +814,7 @@ The digest is one message to a session. Its parts come in this order: a greeting
 | Exactly one thing needs the user | "One thing needs you: {what}." |
 | Two or more things need the user (none: no needs-you part) | "{count} things need you: {what}." |
 | Items were saved and the summary came back | "Saved for later ({count}): {summary}" |
-| Items were saved and the summary request fell back | "Saved for later ({count}): I couldn't summarize them this time ({fallbackReason}). They're under Recent decisions on your OcuTalon page." |
+| Items were saved and the summary request fell back | "Saved for later ({count}): I couldn't summarize them this time ({fallbackReason}). The most recent are under Recent decisions on your OcuTalon page." |
 | No item saved in the window | "Nothing was saved for later." |
 | Every digest (the cost) | "Yesterday's cost: {cost}." (two decimals, as the Formats rule says) |
 

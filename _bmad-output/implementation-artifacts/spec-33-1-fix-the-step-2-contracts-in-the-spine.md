@@ -2,8 +2,8 @@
 title: 'Story 33.1: Fix the step 2 contracts in the spine'
 type: 'feature'
 created: '2026-11-03'
-status: 'in-progress'
-baseline_revision: '6fe91568dde94f0ad82449494bfb6605cdedb491'
+status: 'done'
+baseline_revision: '2279999b871483de5918099710bc8c7b32b5d413'
 baseline_commit: '6fe91568dde94f0ad82449494bfb6605cdedb491'
 review_loop_iteration: 0
 followup_review_recommended: false
@@ -41,6 +41,13 @@ deferred:
     location: >-
       src/ocutalon/cls/OcuTalon/Digest/Data/Sent.cls
     severity: low
+  - summary: >-
+      Story 17.2's block in epics.md carries no acceptance criterion for the RetryOf behavioural tests (a) to (d) that the spine now records only as notes (AD-6 sub-bullet and Conventions "Retried turns", veto U-246).
+    evidence: |-
+      The static pin (Test.Bridge.CodeRules.TestOnlyTheRetryPathNamesRetryOf) sees only a class that names RetryOf in code; a generic body-to-message copy or a computed property name would pass it, so the "ignored from a client" half (case c) is pinned nowhere until Story 17.2 builds its tests. A grep of epics.md for RetryOf and U-246 finds nothing.
+    location: >-
+      _bmad-output/planning-artifacts/epics.md (Story 17.2); ARCHITECTURE-SPINE.md AD-6 and Conventions "Retried turns"
+    severity: medium
 ---
 
 <intent-contract>
@@ -130,9 +137,9 @@ deferred:
 - [x] After the author's acceptance (lead records it in Design Notes): `src/ocutalon/cls/OcuTalon/Msg/Catalog/Watch.cls` -- add each accepted `digest.*` key except `digest.cost` (which waits for the `dailyCost` slot type, S16) with its text, slots and `"source": "EXPERIENCE Message Catalog / Daily digest / <case>"`; class doc names the digest texts.
 - [x] After the author's acceptance (lead records it in Design Notes): `src/ocutalon/cls/OcuTalon/Test/Msg/Catalog.cls` -- appends only: the new keys to `XData Keys` "watch", one `XData Fixtures` entry per new key (UJ-1 fixture context), the Watch count (26 plus the keys added) at :3, :81, :83 and the total at :121.
 
-- [ ] [Owner] U-245 (Planner, at=2026-11-03T21:05:48Z#739): `digest.savedNoSummary` must read exactly 'Saved for later ({count}): I couldn't summarize them this time ({fallbackReason}). The most recent are under Recent decisions on your OcuTalon page.' (Recent decisions lists only the latest 20, `DECISIONS_SHOWN`, rail-view.ts:61). Change it together in: this spec's `### Proposed digest texts` table, `EXPERIENCE.md`'s Daily digest block (~L817), `Msg/Catalog/Watch.cls` (~L420) and its fixed-strings pin/fixture in `Test/Msg/Catalog.cls` (~L1365). The other 21 keys stay as they are.
-- [ ] [Owner] U-246 (Planner, at=2026-11-03T21:05:48Z#740), spine text: extend the AD-6 retry sub-bullet (~L216) and the Conventions "Retried turns" row (~L1106), additively and with the U-246 marker: only the server's AD-8 second-model retry path (`Decide`) sets `RetryOf`; no client-facing entry can carry or set it (not the web API, Telegram, mail, the bridge's entry points or MCP), so the `Held` skip can never be used to jump the conversation lock; a retry skips `Held` only when `RetryOf` names a runner of the same conversation and the request has the same `ItemId`, otherwise it waits like any new turn. Record the full behavioural test as an acceptance note for Story 17.2 in both places: (a) a retry with `RetryOf` for the same conversation and `ItemId` skips `Held`; (b) a request without `RetryOf` waits; (c) a request arriving through the web API carrying a `RetryOf` value still waits (the field is ignored); (d) a `RetryOf` naming another conversation or `ItemId` waits. `lint_spine.py` must add no finding beyond the 8 pre-existing `placeholder` ones.
-- [ ] [Owner] U-246, the 33.1 pin (what the stub state can show): `RetryOf` does not exist yet, so add a static test in a Lane A test class (extend `OcuTalon.Test.Bridge.CodeRules` if it already scans class source; otherwise a new method in `Test.Bridge.SettingsStubs`) that fails if any class outside an allow-list mentions `RetryOf` in code (comments excluded): allowed only `OcuTalon.Bridge.Process.Decide`, `OcuTalon.Bridge.Msg.Request`, `OcuTalon.Bridge.Operation.AgentRunner`, `OcuTalon.Bridge.Adapter.Agent`, `OcuTalon.Bridge.Data.ConversationLink` and `OcuTalon.Test.*`; so no `OcuTalon.Web.*`, `OcuTalon.Channel.*`, `OcuTalon.Core.*`, `OcuTalon.Tools.*` or `OcuTalon.Mcp.*` class (the web API's request-to-message mapping included) can set it. Demonstrate its mutation (a `RetryOf` reference added to a web or channel class -> red, reverted) and write the `mutation:` line. Do not edit any Lane B class to do it.
+- [x] [Owner] U-245 (Planner, at=2026-11-03T21:05:48Z#739): `digest.savedNoSummary` must read exactly 'Saved for later ({count}): I couldn't summarize them this time ({fallbackReason}). The most recent are under Recent decisions on your OcuTalon page.' (Recent decisions lists only the latest 20, `DECISIONS_SHOWN`, rail-view.ts:61). Change it together in: this spec's `### Proposed digest texts` table, `EXPERIENCE.md`'s Daily digest block (~L817), `Msg/Catalog/Watch.cls` (~L420) and its fixed-strings pin/fixture in `Test/Msg/Catalog.cls` (~L1365). The other 21 keys stay as they are.
+- [x] [Owner] U-246 (Planner, at=2026-11-03T21:05:48Z#740), spine text: extend the AD-6 retry sub-bullet (~L216) and the Conventions "Retried turns" row (~L1106), additively and with the U-246 marker: only the server's AD-8 second-model retry path (`Decide`) sets `RetryOf`; no client-facing entry can carry or set it (not the web API, Telegram, mail, the bridge's entry points or MCP), so the `Held` skip can never be used to jump the conversation lock; a retry skips `Held` only when `RetryOf` names a runner of the same conversation and the request has the same `ItemId`, otherwise it waits like any new turn. Record the full behavioural test as an acceptance note for Story 17.2 in both places: (a) a retry with `RetryOf` for the same conversation and `ItemId` skips `Held`; (b) a request without `RetryOf` waits; (c) a request arriving through the web API carrying a `RetryOf` value still waits (the field is ignored); (d) a `RetryOf` naming another conversation or `ItemId` waits. `lint_spine.py` must add no finding beyond the 8 pre-existing `placeholder` ones.
+- [x] [Owner] U-246, the 33.1 pin (what the stub state can show): `RetryOf` does not exist yet, so add a static test in a Lane A test class (extend `OcuTalon.Test.Bridge.CodeRules` if it already scans class source; otherwise a new method in `Test.Bridge.SettingsStubs`) that fails if any class outside an allow-list mentions `RetryOf` in code (comments excluded): allowed only `OcuTalon.Bridge.Process.Decide`, `OcuTalon.Bridge.Msg.Request`, `OcuTalon.Bridge.Operation.AgentRunner`, `OcuTalon.Bridge.Adapter.Agent`, `OcuTalon.Bridge.Data.ConversationLink` and `OcuTalon.Test.*`; so no `OcuTalon.Web.*`, `OcuTalon.Channel.*`, `OcuTalon.Core.*`, `OcuTalon.Tools.*` or `OcuTalon.Mcp.*` class (the web API's request-to-message mapping included) can set it. Demonstrate its mutation (a `RetryOf` reference added to a web or channel class -> red, reverted) and write the `mutation:` line. Do not edit any Lane B class to do it.
 
 **Acceptance Criteria:**
 - Given Task 0's evidence file, when the spine update is written, then AD-18's new zone bullet names the single run-time source (S5) by that measurement, the "process zone with a restart" fallback appears nowhere, and no veto item is raised for it.
@@ -141,7 +148,21 @@ deferred:
 - Given the compiled package, when the production starts, then `Digest` and the three retry items sit in Lane A's region with no job, `Test.Install.Production`, `Test.Install.ProductionRules` and `Test.Install.Provider` pass, and the live `production` unit passes.
 - Given the two new tables, when the static and contract checks run, then `test-storage.sh` passes (registry rows, `^OcuTalonP.` prefix, committed storage blocks, release diff) and `Test.Digest.Contracts` and `Test.Data.Tables` pass.
 - Given Lane B's `SettingsOps` calling the bridge, when it calls any `Bridge.Settings` or `Bridge.Time` zone method by the spine's name, then the call compiles and returns its stub answer, `Test.Contract.Ac` pins all 12 signatures, `Test.Bridge.SettingsStubs` passes, and `test-class-rules.sh` (bridge-refs, ai-allowlist) passes.
-- Given the proposal table, when the lead raises it, then no `digest.*` key or `EXPERIENCE.md` digest text lands before the lead records the author's acceptance in `## Design Notes`, and after it exactly the accepted texts land with `Test.Msg.Catalog` green.
+- Given the proposal table, when the lead raises it, then no `digest.*` key or `EXPERIENCE.md` digest text lands before the lead records the author's acceptance in `### 2026-11-03 -- Review pass (rework iteration 1: U-245 wording, U-246 text and static pin)
+- verdicts: 10 rows for 20 reported items (Blind Hunter 7, Edge Case Hunter 9, Verification Gap 4; merged where they name the same defect) -- high 0, medium 1, low 8, false 1, maybe-false 0; the Intent Alignment Auditor reported readings and divergence notes only (it read the whole-story contract against a rework diff), no finding
+- findings:
+  - `[low]` `[patch]` Blind/Edge/Verification: RETRYOF was an unanchored substring, so a longer name such as RetryOffset in a web class would be flagged although the doc says look-alikes pass -- pattern anchored (`\bretryof\b`) and a look-alike sample added; CodeRules green and the TraceLink mutation red again.
+  - `[low]` `[reject]` Blind/Edge: names built at run time, generic JSON or clone copies, routines and include files are not scanned -- the owner's U-246 item defines the pin as the static allow-list scan; the behavioural half is Story 17.2's (a) to (d), tracked by the deferred item.
+  - `[medium]` `[defer]` Verification: Story 17.2's epics.md block has no criterion for tests (a) to (d), so case (c) is pinned nowhere until 17.2 -- deferred (epics.md blocks are the lead's).
+  - `[low]` `[reject]` Blind/Edge: the spine does not say where Decide looks up the conversation and ItemId of RetryOf, or the result for an unresolvable name -- the wording is the Planner's ruling verbatim; Story 17.2 designs the lookup.
+  - `[low]` `[reject]` Blind/Verification: no note that Story 17.2 must extend RETRYOFCLASSES, nothing asserts the allowed classes name the property, a stale entry is not caught -- the allow-list is fixed by the ruling; the scan failing on a new class is the intended prompt.
+  - `[low]` `[reject]` Blind: the paragraph is repeated in the AD-6 sub-bullet and the Conventions row and cites a test method name -- the ruling asks for both places.
+  - `[low]` `[reject]` Blind: frontmatter review_loop_iteration, baseline_commit and the ticked items lack evidence -- bookkeeping, not code; this pass's evidence is in Auto Run Result.
+  - `[false]` `[reject]` Edge: RetryOf behind a /* */ block comment is not flagged -- code inside a block comment does not execute, so it sets nothing.
+  - `[low]` `[reject]` Edge: the comment fixture joins three comment forms in one string -- the scanner treats them alike; splitting them adds assertions for no new defect.
+  - `[low]` `[reject]` Edge/Verification: EXPERIENCE.md and the spec table copies of digest.savedNoSummary have no automated check against the catalog -- no such check exists for any digest row; Watch.cls against its fixture is the pin.
+
+## Design Notes`, and after it exactly the accepted texts land with `Test.Msg.Catalog` green.
 
 ## Spec Change Log
 
@@ -293,7 +314,7 @@ Keys go in `OcuTalon.Msg.Catalog.Watch` (prefix `digest.`). Slot types are the c
 | `digest.needsYouOne` | "One thing needs you: {what}." (UJ-2; what text: a failed entry or a tell-now item's summary) | Exactly one thing needs the user |
 | `digest.needsYou` | "{count} things need you: {what}." (what text, failed entries first, then tell-now summaries, joined with "; ") | Two or more; no needs-you part when none |
 | `digest.saved` | "Saved for later ({count}): {summary}" (summary sentence, the model's) | Items were saved and the summary came back |
-| `digest.savedNoSummary` | "Saved for later ({count}): I couldn't summarize them this time ({fallbackReason}). They're under Recent decisions on your OcuTalon page." | Items were saved and the summary request fell back |
+| `digest.savedNoSummary` | "Saved for later ({count}): I couldn't summarize them this time ({fallbackReason}). The most recent are under Recent decisions on your OcuTalon page." | Items were saved and the summary request fell back |
 | `digest.savedNone` | "Nothing was saved for later." | No item saved in the window |
 | `digest.cost` | "Yesterday's cost: {cost}." (UJ-2; cost dailyCost, two decimals) | Every digest (added with the `dailyCost` slot type, S16) |
 
@@ -347,6 +368,8 @@ Every IRIS line runs with the lane prefix `P` = `OCUTALON_LOCK_DIR="$(dirname "$
 - mutation: the `**Rule:**` line of AD-28 removed -> `lint_spine.py` red (`ad_fields`: AD-28 missing required field rule).
 - mutation: `COLLATION = "EXACT"` removed from `Sent.Ref` -> `Test.Digest.Contracts` red (TestRefCollation; the compared type parameters of `AssertContract` do not include COLLATION).
 - mutation: `Settings.SetModel` stub creates the Config Store entry `AI.LLM.OcuTalonChatRetry` (copy of the Chat entry) -> `Test.Bridge.SettingsStubs` red (TestNothingWritten: the snapshot now reads the retry entries and the Price rows by value); the warm stack was rebuilt afterwards.
+- mutation: a `RetryOf` code line added to `OcuTalon.Web.TraceLink` (`Set request.RetryOf = "x"` in a new method) -> `Test.Bridge.CodeRules` red (TestOnlyTheRetryPathNamesRetryOf: no class outside Decide, the request, the runner, its adapter and the link names RetryOf); reverted, `cmp` against a saved copy identical, green again on the same warm stack.
+- mutation: `digest.savedNoSummary` in `Catalog.Watch` set back to "They're under Recent decisions..." -> `Test.Msg.Catalog` red (TestEveryKeyOnEveryChannel and TestLocalInstallEveryKey: not the fixture's text); reverted, `cmp` identical, green again on the same warm stack.
 
 **Shared surfaces:** the production's item list (`Test.Install.Production` oracle; `Test.Install.Provider` runner count; `live:production`); `src/short-names.tsv` (`test-storage.sh`); `Test.Contract.Ac`'s signature list and floor; after acceptance, the `Catalog.Watch` key count, Keys list and Fixtures (`Test.Msg.Catalog`); the spine's ownership tables and Deferred list. Standing criterion: every test added or changed passes on a fresh environment, in either order.
 
@@ -359,21 +382,12 @@ Every IRIS line runs with the lane prefix `P` = `OCUTALON_LOCK_DIR="$(dirname "$
 Status: done
 Blocking condition: none
 
-**Summary.** Story 33.1 writes the step 2 Lane A contracts into the spine as additive, marked unions (S1 to S18, three Deferred rows removed), records the digest texts in EXPERIENCE.md and Catalog.Watch (21 keys; `digest.cost` stays with Story 33.2), and lands the Lane A stubs: the disabled `Digest` item and three disabled retry runner items, the `Digest.Data.CheckRun` and `Digest.Data.Sent` tables with registry rows and committed storage, and `Bridge.Settings` plus `Bridge.Time.Zone/SetZone/Apply` as pinned stubs. The zone source is Task 0's `InstanceZone` setting; the process-zone-with-restart fallback appears nowhere.
+**This pass (rework iteration 1, the three `[Owner]` items).** `digest.savedNoSummary` now reads "...The most recent are under Recent decisions on your OcuTalon page." in the proposal table, `EXPERIENCE.md`, `Msg/Catalog/Watch.cls` and the `Test/Msg/Catalog.cls` fixture (the other 21 keys unchanged). The AD-6 retry sub-bullet and the Conventions "Retried turns" row carry the U-246 clause (only `Decide`'s AD-8 retry sets `RetryOf`; same conversation and `ItemId`; Story 17.2's acceptance note (a) to (d)) under the `Planner ruling U-246` marker. `Test.Bridge.CodeRules.TestOnlyTheRetryPathNamesRetryOf` (new, Lane A) fails when a class outside `Decide`, `Bridge.Msg.Request`, `AgentRunner`, `Adapter.Agent`, `ConversationLink` and the Test package names `RetryOf` on a code line.
 
-**Files changed.**
-- `_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md`: S1 to S18, each with its marker.
-- `_bmad-output/planning-artifacts/ux-designs/ux-OcuTalon-2026-10-16/EXPERIENCE.md`: the `Daily digest (FR-35 to FR-37)` block after the Notifications table.
-- `src/ocutalon/cls/OcuTalon/Digest/Process.cls`, `Digest/Data/CheckRun.cls`, `Digest/Data/Sent.cls`: stub item and two tables.
-- `src/bridge/cls/OcuTalon/Bridge/Settings.cls` (new) and `Bridge/Time.cls`: stub APIs.
-- `src/ocutalon/cls/OcuTalon/Production.cls`: three disabled retry items (empty `AgentClass`) and the disabled `Digest`.
-- `src/ocutalon/cls/OcuTalon/Msg/Catalog/Watch.cls`, `src/short-names.tsv`: 21 digest keys; two registry rows.
-- Tests: `Test/Digest/Contracts.cls`, `Test/Bridge/SettingsStubs.cls` (new); `Test/Contract/Ac.cls`, `Test/Install/Production.cls`, `Test/Install/ProductionRules.cls`, `Test/Install/Provider.cls`, `Test/Msg/Catalog.cls` (edited).
+**Review.** 1 patch applied (low: the pin's pattern anchored with word boundaries), 1 item deferred (medium: Story 17.2's `epics.md` block has no criterion for the behavioural tests), 8 rows rejected with reasons in the triage log.
 
-**Review.** 3 patches applied (a vacuous Provider assertion removed, COLLATION pinned, the nothing-written snapshot widened), 4 items deferred (see frontmatter `deferred:`), the rest rejected with the reasons in the triage log.
+**Verification.** `test-boundaries.sh` and `test-class-rules.sh` pass; `lint_spine.py` shows only the 8 pre-existing `placeholder` findings; warm `OcuTalon.Test.Msg.Catalog` and `OcuTalon.Test.Bridge.CodeRules` pass; both mutations observed and reverted (see Observed mutations); `shard lane-a` parts 1 to 4 (136 classes) and `shard lane-b` parts 1 and 2 (86 classes) pass on the warm stack; the warm stack was torn down.
 
-**Verification.** `test-storage.sh`, `test-class-rules.sh`, `test-boundaries.sh`, `test-ci-config.sh` pass; the nine loop classes pass on a warm stack; the (once) lines pass: `shard lane-a` parts 1 to 4 (136 classes), `shard lane-b` parts 1 and 2 (86 classes), `live production` and `live install-start`. `lint_spine.py` prints `"ok": false` with the same 8 low `placeholder` findings that `HEAD` has (Decided in-stage 17); no `ad_id` or `ad_fields` finding. The memlog line sits in the worktree's gitignored `.memlog.md` (Decided in-stage 18).
+**Residual risks.** The static pin sees only code that names `RetryOf`; the client-ignores-it half waits for Story 17.2 (deferred item). The memlog line sits in the worktree's gitignored `.memlog.md`.
 
-**Residual risks.** The four deferred items; the deviations in Decided in-stage 14 to 18 (empty `AgentClass` on the retry items, one-dot digest key names, `itemNoun`, the lint baseline, the memlog); `Test.Install.ProductionRules` and `Test.Install.Provider` are Lane A tests outside the hint, edited for the retry items.
-
-Follow-up review recommended: false (no high patched, one medium-level group of two patches applied).
+Follow-up review recommended: false (no high patched; follow-up pass).

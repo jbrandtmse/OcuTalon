@@ -1362,7 +1362,7 @@ XData Fixtures [ MimeType = application/json ]
  "digest.needsYouOne": {"slots": {"what": "the Orders production has 50 failed orders"}, "text": "One thing needs you: the Orders production has 50 failed orders."},
  "digest.needsYou": {"slots": {"count": 2, "what": "the Orders production has 50 failed orders; the Billing source is unreachable"}, "text": "2 things need you: the Orders production has 50 failed orders; the Billing source is unreachable."},
  "digest.saved": {"slots": {"count": 3, "summary": "Two newsletters and a shipping notice."}, "text": "Saved for later (3): Two newsletters and a shipping notice."},
- "digest.savedNoSummary": {"slots": {"count": 3, "fallbackReason": "timeout"}, "text": "Saved for later (3): I couldn't summarize them this time (the model didn't answer within 60 seconds). They're under Recent decisions on your OcuTalon page."},
+ "digest.savedNoSummary": {"slots": {"count": 3, "fallbackReason": "timeout"}, "text": "Saved for later (3): I couldn't summarize them this time (the model didn't answer within 60 seconds). The most recent are under Recent decisions on your OcuTalon page."},
  "digest.savedNone": {"slots": {}, "text": "Nothing was saved for later."}
 }
 }
