@@ -3932,3 +3932,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: U-264 (Contest Planner) | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: rc3 release PR: test-web-build AC6 saw a modified src/ocutalon/csp/3rdpartylicenses.txt
 - 2026-11-04T08:01:25Z status=routed owner=burndown by=merge_gate note=first_daily_release_after_1.0.0
+
+### DW-664: Under Another language or a custom persona, a model-worded all-clear can pass ReplyGuard's English closed lists (AD-7 vs AD-28 Prevents)
+- source: spec-40-3-the-persona-reaches-chat-and-triage-as-a-data-block.md | severity: med | fix-risk: high | footprint: out-of-footprint
+- evidence: RESERVED and BANNED in Checks.ReplyGuard are English; AD-7 keeps the guard to that list; under Spanish only Chat's instruction stands between the model and a false all-clear (FR-37, AD-28 Prevents). The catalog all-clear itself stays code-only.
+- 2026-11-04T14:00:23Z status=decision-pending owner=burndown by=spec_gate note=raised to the orchestrator at 40.3's spec gate; not decided by the runner
