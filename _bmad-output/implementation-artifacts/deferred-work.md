@@ -3875,6 +3875,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-7-7-a-date-repair-that-could-read-either-way-names-its-evidence.md | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: approval-view.ts L40-44,L181 builds the card's dry run from the stored DRYRUNKEYS fields; Live/Payload/Approval.cls L85-103 maps them key by key
 - 2026-11-03T22:11:50Z status=escalated owner=burndown by=spec_gate note=veto U-252; follow-on after Epic 31 merges; a Lane B payload field plus a web card row
+- 2026-11-04T11:44:33Z status=routed owner=7-8-the-web-incident-card-shows-the-either-way-date-line-too by=spec_gate note=U-252 at=2026-11-03T23:29:21Z#756 made the card row Story 7.8; its block already carries the DW-645 bullet; recorded at the redispatch
 
 ### DW-653: Eval.Record still refuses a data_format_change expectation with no fixKind (Story 7.7 V1 made that reply shape valid), so no eval case can expect the no-evidence date outcome
 - source: spec-7-7-a-date-repair-that-could-read-either-way-names-its-evidence.md | severity: med | fix-risk: med | footprint: out-of-footprint
