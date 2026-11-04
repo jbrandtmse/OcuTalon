@@ -3042,6 +3042,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-04T03:54:25Z occurrence=rc2 by=merge_gate note=6 of 156 invalid (3.8 percent) on rc2; shipments-epoch-time, see DW-657
 - 2026-11-04T09:10:40Z occurrence=rc3 by=merge_gate note=6 of 156 invalid (3.8 percent) on rc3
 - 2026-11-04T09:10:41Z occurrence=rc4 by=merge_gate note=4 of 156 invalid (2.6 percent) on rc4; rc2, rc3 and rc4 are all above U-191's about 1 in 50, so the wording did not cause it; rc4 rehearsal run 8 failed on a diagnose fallback invalid; one-retry story prepared for the owner, not started
+- 2026-11-04T14:03:47Z status=routed owner=burndown by=orchestrator note=U-273: the one retry goes to the daily releases after a measured trial
 
 ### DW-492: No test pins AC2's floor: a model-written text property of a reply class capped at 32 characters or fewer would pass CI (TestDiagnosisLengths checks only prompt and class agreement)
 - source: spec-5-12-a-correct-diagnosis-is-never-refused-for-an-over-long-eviden.md | severity: low | fix-risk: low | footprint: in-story
