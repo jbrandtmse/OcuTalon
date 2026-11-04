@@ -3989,3 +3989,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: OCT-epic39 d701b6e6 run 41909512271 att 1, iris (production) | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: one occurrence; not reproduced on a lane-D throwaway at the same sha; Story 39.4 touches neither path
 - 2026-11-04T21:35:21Z status=routed owner=burndown by=orchestrator note=Contest Planner 2026-11-04: ledger it, tell the Planner on a second occurrence
+
+### DW-687: BodyText parses any request body size: no API route refuses an oversized body
+- source: Contest Planner ruling on DW-669 (b), 2026-11-04 | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: DW-669 (Epic 40 review): no API route limits its request body size; the largest legitimate body is a 10,000-character simulated email with subject and sender
+- 2026-11-04T21:37:09Z status=routed owner=burndown by=orchestrator note=First daily release: BodyText refuses any body over 256 KB with 413 body_too_large before parsing, on every route; one test per route family. Related: DW-669 (a) in Epic 40; the demo host's Caddy limit is the Planner's (c).
