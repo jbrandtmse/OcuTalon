@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<Export generator="Cache" version="25">
+  <Document name="ocutalon.ZPM">
+    <Module>
+      <Name>ocutalon</Name>
+      <Version>0.1.0</Version>
+      <Description>Your integrations already tell you when something breaks, usually fifty times. OcuTalon reads the failures, works out the one cause, proposes the fix with a dry run, and only interrupts you when something needs you.</Description>
+      <Packaging>module</Packaging>
+      <SourcesRoot>src</SourcesRoot>
+      <SystemRequirements Version=">=2026.3" Interoperability="enabled"/>
+      <CPF Name="ocutalon.cpf" Directory="cpf" Phase="Initialize" When="Before"/>
+      <Resource Name="OcuTalon.Bridge.PKG" Directory="bridge/cls"/>
+      <Resource Name="OcuTalon.BridgeExample.PKG" Directory="bridge/cls"/>
+      <Resource Name="OcuTalon.PKG" Directory="ocutalon/cls"/>
+      <Resource Name="OcuTalon.Install.Ipm.CLS" Directory="cls" Preload="true"/>
+      <FileCopy Name="src/ocutalon/csp/" Target="${dataDir}csp/ocutalon-web/"/>
+      <Invoke Class="OcuTalon.Install.Ipm" Method="MapAndStop" Phase="Initialize" When="After"/>
+      <Invoke Class="OcuTalon.Install.Registry" Method="Ipm" Phase="Configure" When="After"/>
+      <Invoke Class="OcuTalon.Install.Ipm" Method="UnmapRepos" Phase="Unconfigure" When="Before"/>
+    </Module>
+  </Document>
+</Export>

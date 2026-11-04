@@ -13,7 +13,9 @@ XData ProductionDefinition
 <Production Name="OcuTalon.Production" TestingEnabled="false" LogGeneralTraceEvents="false">
   <ActorPoolSize>2</ActorPoolSize>
   <!-- lane A: begin -->
-  <Item Name="TelegramIn" ClassName="OcuTalon.Channel.Telegram.In" PoolSize="1" Enabled="false"/>
+  <Item Name="TelegramIn" ClassName="OcuTalon.Channel.Telegram.In" PoolSize="1" Enabled="false">
+    <Setting Target="Adapter" Name="CallInterval">1</Setting>
+  </Item>
   <Item Name="TelegramOut" ClassName="OcuTalon.Channel.Telegram.Out" PoolSize="1" Enabled="false"/>
   <Item Name="Decide" ClassName="OcuTalon.Bridge.Process.Decide" PoolSize="1" Enabled="true">
     <Setting Target="Host" Name="HostSinkClass">OcuTalon.Core.BridgeSink</Setting>
@@ -44,6 +46,9 @@ XData ProductionDefinition
   <Item Name="FixExecutor" ClassName="OcuTalon.Fix.Executor" PoolSize="2" Enabled="true"/>
   <Item Name="Checks" ClassName="OcuTalon.Checks.Process" PoolSize="1" Enabled="true"/>
   <Item Name="DigestStore" ClassName="OcuTalon.Digest.Store" PoolSize="1" Enabled="true"/>
+  <Item Name="ReconcileIn" ClassName="OcuTalon.Install.ReconcileIn" PoolSize="1" Enabled="true">
+    <Setting Target="Adapter" Name="CallInterval">5</Setting>
+  </Item>
   <!-- lane A: end -->
   <!-- lane B: begin -->
   <Item Name="WebChatIn" ClassName="OcuTalon.Channel.WebChat.In" PoolSize="0" Enabled="true"/>

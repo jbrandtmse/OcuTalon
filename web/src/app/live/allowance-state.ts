@@ -1,5 +1,6 @@
 import { Injectable, computed, effect, inject, signal, untracked } from '@angular/core';
 
+import { telegramOn } from '../banners/banner-view';
 import { LiveState } from './live-state';
 import { allowanceOf, nextChange, type Refusal } from './allowance-view';
 
@@ -27,8 +28,17 @@ export class AllowanceState {
 
   private readonly condition = computed(() => this.live.store()?.status['allowance']);
 
+  /** True while Telegram is on for this OcuTalon (banners/banner-view.ts telegramOn); a boolean, so a store update that leaves it alone leaves `active` alone. */
+  private readonly telegram = computed(() => {
+    const telegram = this.live.store()?.telegram;
+    return telegram !== undefined && telegramOn(telegram);
+  });
+
   /** The allowance window that holds now: the limit (when known) and the UTC ISO time when the session can send again; undefined when none holds. */
-  readonly active = computed(() => allowanceOf(this.condition(), this.refusal(), this.clock()));
+  readonly active = computed(() => {
+    const window = allowanceOf(this.condition(), this.refusal(), this.clock());
+    return window === undefined ? undefined : { ...window, telegram: this.telegram() };
+  });
 
   constructor() {
     effect((onCleanup) => {

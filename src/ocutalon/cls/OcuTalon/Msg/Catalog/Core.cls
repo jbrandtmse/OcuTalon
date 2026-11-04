@@ -272,6 +272,14 @@ XData Entries [ MimeType = application/json ]
   },
   "source": "EXPERIENCE Message Catalog / Status banners (web) / Allowance used up: session"
  },
+ "banner.allowanceChat": {
+  "text": "You've used this session's {limit} messages for the hour. You can send more at {time}.",
+  "slots": {
+   "limit": "count",
+   "time": "time"
+  },
+  "source": "EXPERIENCE Message Catalog / Status banners (web) / Allowance used up: session, the form while Telegram is not on (Story 12.9, DW-501, U-227)"
+ },
  "banner.dailyCap": {
   "text": "The online demo has used today's model allowance. Decisions use fixed rules until {time}.",
   "slots": {
@@ -315,6 +323,11 @@ XData Entries [ MimeType = application/json ]
   "text": "The demo resets in 5 minutes. Your session and Telegram pairing will be cleared.",
   "slots": {},
   "source": "EXPERIENCE Message Catalog / Status banners (web) / Reset soon"
+ },
+ "banner.resetSoonChat": {
+  "text": "The demo resets in 5 minutes. Your session will be cleared.",
+  "slots": {},
+  "source": "EXPERIENCE Message Catalog / Status banners (web) / Reset soon, the form while Telegram is not on (Story 12.9, DW-506, U-227)"
  },
  "banner.reconnecting": {
   "text": "Reconnecting\u2026 New messages may be delayed.",
@@ -570,6 +583,47 @@ XData Entries [ MimeType = application/json ]
   "text": "Your persona changed after this was suggested. Nothing was changed.",
   "slots": {},
   "source": "EXPERIENCE Message Catalog / Personality notices / Persona stale"
+ },
+ "toolCall.request": {
+  "text": "Run {tool}\nInputs: {inputs}\nNo dry run is available for this tool. Approving runs exactly this call once.",
+  "slots": {
+   "tool": "text",
+   "inputs": "text"
+  },
+  "source": "EXPERIENCE Incidents and Approvals / Approval request states / A tool call's request"
+ },
+ "toolCall.requestOnServer": {
+  "text": "Run {tool} on {server}\nInputs: {inputs}\nNo dry run is available for this tool. Approving runs exactly this call once.",
+  "slots": {
+   "tool": "text",
+   "server": "text",
+   "inputs": "text"
+  },
+  "source": "EXPERIENCE Incidents and Approvals / Approval request states / A tool call's request, on an MCP server"
+ },
+ "toolCall.done": {
+  "text": "{tool} ran once at {time}.",
+  "slots": {
+   "tool": "text",
+   "time": "time"
+  },
+  "source": "EXPERIENCE Incidents and Approvals / Results / A tool call's result"
+ },
+ "toolCall.failed": {
+  "text": "{tool} failed at {time}. I won't run it again without a new approval.",
+  "slots": {
+   "tool": "text",
+   "time": "time"
+  },
+  "source": "EXPERIENCE Incidents and Approvals / Results / A tool call's result"
+ },
+ "toolCall.failedWithReason": {
+  "text": "{tool} didn't run. {reason}",
+  "slots": {
+   "tool": "text",
+   "reason": "text"
+  },
+  "source": "EXPERIENCE Incidents and Approvals / Results / A tool call that could not run"
  }
 }
 }

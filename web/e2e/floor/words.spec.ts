@@ -103,6 +103,8 @@ test('W1: every link is underlined at rest', async ({ page }) => {
     await page.locator('app-header button.header-button').last().click();
     await page.getByRole('menuitem', { name: 'About OcuTalon' }).click();
     await expect(page.locator('app-about-dialog').getByRole('link', { name: /^README/ }), 'About has its README link').toHaveCount(1);
+    await expect(page.locator('app-about-dialog').getByRole('link', { name: /^Bridge developer guide/ }), 'About has its bridge developer guide link').toHaveCount(1);
+    await expect(page.locator('app-about-dialog').getByRole('link', { name: /^Security overview/ }), 'About has its security overview link').toHaveCount(1);
     expect(await notUnderlined(page), 'with About open').toEqual([]);
   } finally {
     await clearFullPage(user, refs);

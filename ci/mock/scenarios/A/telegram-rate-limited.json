@@ -1,0 +1,17 @@
+{
+  "name": "telegram-rate-limited",
+  "match": {
+    "telegram": "sendMessage"
+  },
+  "replies": [
+    {
+      "status": 429,
+      "body": {
+        "ok": false,
+        "error_code": 429,
+        "description": "Too Many Requests: retry after 2",
+        "parameters": { "retry_after": 2 }
+      }
+    }
+  ]
+}

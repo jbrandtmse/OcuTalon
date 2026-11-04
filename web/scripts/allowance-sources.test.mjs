@@ -100,7 +100,14 @@ describe('the composer (UX-DR68)', () => {
 
   it('the reason is the banner\'s own text, for the window that AllowanceState says holds', () => {
     assert.match(composer.code, /const window = this\.allowance\.active\(\);\s*return window === undefined \? '' : allowanceReason\(window\);/);
-    assert.match(stack.code, /export function allowanceReason\(window: AllowanceWindow\): string \{\s*return bannerText\('banner\.allowance', \{ limit: window\.limit, time: window\.time \}, FORMAT\);/);
+    assert.match(stack.code, /export function allowanceReason\(window: AllowanceWindow\): string \{\s*return bannerText\(window\.telegram === true \? 'banner\.allowance' : 'banner\.allowanceChat', \{ limit: window\.limit, time: window\.time \}, FORMAT\);/, 'it names Telegram only while the window says Telegram is on');
+  });
+
+  it('the window carries the Telegram flag of the store, so that the reason names Telegram only while it is on (Story 12.9)', () => {
+    const state = file('live/allowance-state.ts');
+    assert.match(state.code, /return telegram !== undefined && telegramOn\(telegram\);/, 'AllowanceState sets it from telegramOn of the store\'s Telegram block');
+    assert.match(state.code, /const telegram = this\.live\.store\(\)\?\.telegram;/);
+    assert.match(state.code, /\{ \.\.\.window, telegram: this\.telegram\(\) \}/, 'through a computed of its own, so that a store update that leaves the flag alone leaves the window alone');
   });
 
   it('send() does nothing while the allowance is used up, before it reads the field, so the text stays', () => {

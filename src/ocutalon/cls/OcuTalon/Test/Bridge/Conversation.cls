@@ -44,7 +44,8 @@
 /// Added by Story 1.9 (AD-6, AD-20):
 ///   - TestPrecheckCountsHistory: the estimate that Decide works out before it sends a turn (EstimateTokens) is the agent part, the stored history of
 ///     the owner's session and the input that Chat gets; it is the agent part and the input alone for the owner's first turn, for an untrusted turn and
-///     for a fresh turn; and for a turn that continues it is within BANDPERCENT of the runner's own estimate of the same turn.
+///     for a fresh turn; and for a turn that continues it is above the runner's own estimate of the same turn by the agent's system prompt, JSON-escaped
+///     as the stored history holds it, give or take ENVELOPECHARS (the bound follows the agent's own prompt, so it holds as the prompt changes).
 /// Added by Story 3.3 (AD-6, AD-10 3a):
 ///   - TestQuarantineAfterTaint: on the gate's agent (ZzGateAgent), a user's turn whose tool result is not trusted output (gate-read) comes back
 ///     Tainted and leaves the link and the saved session as they were; the next turn, fresh with a code-written recap, rotates the link and its first request
@@ -73,11 +74,13 @@ Parameter GATEAGENT = "OcuTalon.Test.Bridge.ZzGateAgent";
 /// The cap of the composed session config, in tokens.
 Parameter CAP = 8000;
 
-/// How far Decide's estimate of a turn that continues may be from the runner's own estimate of its first model step, in percent of the runner's: the stored
-/// history holds the system prompt that the agent part counts too, so the estimate is the larger (measured in Story 1.9: 24 percent for a first exchange of
-/// 4,000 characters, and the band is that and 5 points more). The gap is the agent's system prompt and the envelope of the stored value, 901 + 328 = 1,229
-/// characters (about 310 tokens) for Chat, the same whatever the conversation, so it shrinks as the history grows.
-Parameter BANDPERCENT = 29;
+/// How many characters, besides the agent's system prompt, Decide's estimate of a turn that continues may count above the runner's own estimate of its
+/// first model step. The stored history holds the agent's system prompt, JSON-escaped, which the runner counts once, raw, in the agent part, and not again
+/// in the exported messages that it reads from the session; so Decide's estimate (agent part, stored history and input) is above the runner's by that
+/// prompt, whatever the conversation, and by the envelope of the stored value less the difference between the two readings of the tool catalog (the
+/// runner's reading is the longer). Measured for Chat: an envelope of 316 characters and a runner's catalog 167 characters longer, so 149 characters beyond
+/// the escaped prompt, and the envelope the same after a second exchange.
+Parameter ENVELOPECHARS = 500;
 
 /// A model of the Anthropic family other than the agents' own, with a Price row (Bridge.Installer), for TestResumeFollowsTheRunner.
 Parameter OTHERMODEL = "claude-sonnet-5-5";
@@ -507,8 +510,11 @@ Method TestFirstStepCountsHistory()
 
 /// Decide's estimate of a turn counts the stored history of the conversation (Story 1.9; AD-6, AD-20). Turn 1 of an owner, with 4,000 characters of input, is
 /// answered and saved. The estimate of turn 2, worked out before it is sent, is the agent part (RequestSize.AgentChars), the stored size of the saved session
-/// (RequestSize.HistoryChars, which is more than the 4,000 characters) and the input that Chat gets, and it is within BANDPERCENT of the runner's own estimate of
-/// turn 2's first model step. An untrusted turn and a fresh turn of the same owner count no history, and turn 1, which has no link yet, counts none either.
+/// (RequestSize.HistoryChars, which is more than the 4,000 characters) and the input that Chat gets. Against the runner's own estimate of turn 2's first model
+/// step it is above it by the system prompt of the agent, JSON-escaped as the stored history holds it (the runner reads the prompt from the agent and not
+/// again from the exported messages), give or take ENVELOPECHARS, in tokens: a lower bound that fails when the history is dropped, or cut by more than
+/// ENVELOPECHARS and the residue that it names, and an upper bound that fails when anything larger than the prompt is counted twice. An untrusted turn
+/// and a fresh turn of the same owner count no history, and turn 1, which has no link yet, counts none either.
 Method TestPrecheckCountsHistory()
 {
 	If ..Guard() Quit
@@ -542,7 +548,12 @@ Method TestPrecheckCountsHistory()
 	Do $$$AssertStatusOK(..Send(host, two, .next), "turn 2 is answered")
 	Set runner = ..FirstEstimate(next)
 	Do $$$AssertTrue(runner > 0, "the runner's own estimate of turn 2's first model step is read: "_runner)
-	Do $$$AssertTrue($ZAbs(estimate - runner) * 100 '> (..#BANDPERCENT * runner), "Decide's estimate, "_estimate_", is within "_..#BANDPERCENT_" percent of it, "_runner)
+	Set prompt = $Length([(host.Adapter.Agent.SystemPrompt)].%ToJSON()) - 4
+	Do $$$AssertTrue(prompt > 0, "the system prompt of the agent, JSON-escaped as the stored history holds it, is read: "_prompt_" characters")
+	Set allowed = ..Tokens(prompt + ..#ENVELOPECHARS)
+	Set least = ..Tokens(prompt) - ..Tokens(..#ENVELOPECHARS)
+	Do $$$AssertTrue(estimate - runner '< least, "Decide's estimate, "_estimate_", is above the runner's, "_runner_", by at least the system prompt less the envelope, "_least_" tokens, so the history is counted: "_(estimate - runner))
+	Do $$$AssertTrue(estimate - runner '> allowed, "Decide's estimate, "_estimate_", is above the runner's, "_runner_", by no more than the system prompt and the envelope, "_allowed_" tokens: "_(estimate - runner))
 }
 
 /// A user's turn with an empty OwnerRef has no conversation to link: the runner refuses it with an error that names OwnerRef, sends nothing to the
@@ -781,9 +792,10 @@ ClassMethod Stored(id As %String, property As %String) As %String [ Private ]
 }
 
 /// --- helpers ---
+/// NewHost, NewTurn, Send and LinkOf are public: Test.Bridge.Compaction and Test.Agent.Compaction reuse them.
 /// A runner host (Test.Bridge.Runner NewRunner) named ZzRunner for the agent class, with the effort low and the provider of the CI mock. The
 /// scenario of a request is picked by the marker in its input.
-ClassMethod NewHost(agentClass As %String = "OcuTalon.Agent.Chat") As OcuTalon.Bridge.Operation.AgentRunner [ Private ]
+ClassMethod NewHost(agentClass As %String = "OcuTalon.Agent.Chat") As OcuTalon.Bridge.Operation.AgentRunner
 {
 	Quit $ClassMethod(..#RUNNERTEST, "NewRunner", agentClass, "low")
 }
@@ -791,7 +803,7 @@ ClassMethod NewHost(agentClass As %String = "OcuTalon.Agent.Chat") As OcuTalon.B
 /// A request for the runner: the kind (a turn) with the provenance (user), the input with " (test <ref>)" appended, so that the mock's log finds it
 /// by the reference (ItemId), the owner, the session mode, the seed and the note. ref is the reference. It has a DecisionRef of its own, because
 /// Decide allocates it before the runner is asked.
-ClassMethod NewTurn(input As %String, owner As %String, Output ref As %String, kind As %String = "turn", provenance As %String = "user", mode As %String = "", seed As %String = "", note As %String = "") As OcuTalon.Bridge.Msg.Request [ Private ]
+ClassMethod NewTurn(input As %String, owner As %String, Output ref As %String, kind As %String = "turn", provenance As %String = "user", mode As %String = "", seed As %String = "", note As %String = "") As OcuTalon.Bridge.Msg.Request
 {
 	Set ref = ##class(OcuTalon.Bridge.Ids).NewRef()
 	Set request = ##class(OcuTalon.Bridge.Msg.Request).%New()
@@ -811,7 +823,7 @@ ClassMethod NewTurn(input As %String, owner As %String, Output ref As %String, k
 
 /// Sends the request through the host's OnMessage and returns the status; reply is the runner's Reply (or ""), and logged holds the entries of the
 /// mock's log for the requests that carry the reference of the request.
-Method Send(host As OcuTalon.Bridge.Operation.AgentRunner, request As OcuTalon.Bridge.Msg.Request, Output reply As OcuTalon.Bridge.Msg.Reply, Output logged As %DynamicArray) As %Status [ Private ]
+ClassMethod Send(host As OcuTalon.Bridge.Operation.AgentRunner, request As OcuTalon.Bridge.Msg.Request, Output reply As OcuTalon.Bridge.Msg.Reply, Output logged As %DynamicArray) As %Status
 {
 	Set logged = []
 	Set mark = ##class(OcuTalon.Test.Contract.Mock).LogMark()
@@ -866,7 +878,7 @@ Method SessionStats(host As OcuTalon.Bridge.Operation.AgentRunner, id As %String
 }
 
 /// The id of the AI session that the link of the owner and ZzRunner names, or "".
-ClassMethod LinkOf(owner As %String) As %String [ Private ]
+ClassMethod LinkOf(owner As %String) As %String
 {
 	Quit ##class(OcuTalon.Bridge.Data.ConversationLink).SessionOf(owner, ..#AGENT)
 }

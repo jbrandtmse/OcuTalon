@@ -1,20 +1,46 @@
 #!/usr/bin/env bash
-# Pins README.md (Stories 10.2 and 10.4; FR-4, FR-38, FR-58, UX-DR56, UX-DR98; DW-2, DW-3, DW-45, DW-134). Hermetic: it starts nothing, needs no network
+# Pins README.md (Stories 10.2, 10.4 and 10.5; FR-4, FR-38, FR-58, UX-DR56, UX-DR98; DW-2, DW-3, DW-45, DW-134). Hermetic: it starts nothing, needs no network
 # and no container, and runs in bash 3.2 with BSD or GNU tools (install.sh's rules).
 #
 # What it pins, one rule each:
-#   top            the README opens with "# OcuTalon", a blank line and the owner's opening paragraph, then at most the teaser line,
-#                  then the H2 sections "Try it in two minutes", "What's interesting" and "What you can use it for" in this order;
-#                  the other H2 sections are there; no "Contest task" heading and no header row of its table
+#   top            the README opens with "# OcuTalon", a blank line and the owner's opening paragraph, then the teaser line and, after
+#                  it, exactly one image line (the hero), then the H2 sections "Try it in two minutes", "What's interesting", "What
+#                  you can use it for" and "How you talk to it" in this order; the other H2 sections are there; no "Contest task"
+#                  heading and no header row of its table
 #   try-it         the online demo link comes before ./install.sh, with "nothing to install, and no Early Access image needed"
-#                  beside it and the splash screen; the local path is four numbered steps
-#   interesting    "What's interesting" has at most 120 words and names Interoperability, Visual Trace, AI Hub, a dry run and the
-#                  audit log
-#   use-cases      "What you can use it for" holds exactly the two use cases, word for word
+#                  beside it, the splash screen and its read-only Visual Trace account; the local path is four numbered steps
+#                  and leads to the build 109 section; steps 1 and 2 are the ruled build 109 steps, word for word (U-241 item 1)
+#   interesting    "What's interesting" has at most 120 words (its image lines are not counted) and names Interoperability, Visual
+#                  Trace, AI Hub, a dry run and the audit log; it shows two image lines, the hero's image and then the Chat bullet's
+#                  image
+#   use-cases      "What you can use it for" holds exactly the three items, word for word (the third links docs/bridge-guide.md)
+#   how-you-talk   "How you talk to it" holds its facts (the web chat page on every install, the demo-only parts, the Telegram row
+#                  for your own install with your own bot token, email in a later release, the link to "Demo mode"), a table and an
+#                  image line, and never the word Slack
 #   teaser         the teaser line is there once, word for word, two lines below the opening paragraph with an empty line between
-#                  them and above the first H2 section, with no embed
+#                  them and above the first H2 section; no HTML media tag, no image inside a link, and no image that is not an
+#                  inline docs/images/<name>.png image
+#   images         every Markdown image link of the README has non-empty alt text and a target that is a file directly in
+#                  docs/images/ which the tree lists, there is at least one, and "What OcuTalon does" holds at least three, with at
+#                  least one under the Chat bullet and two under the Break the feed bullet; each image line has an empty line
+#                  before and after it; every linked file of docs/images/ is under 300,000 bytes in the tree; it names no image file
 #   outcomes       the four outcomes, with the meanings that web/src/app/chat/chat-view.ts shows
-#   install        the facts of the install sections: Compose 2.24 (DW-2), both image names, load and retag, the portal, the CPUs
+#   install        the facts of the install sections: Compose 2.24 (DW-2), both image names, load and retag, the portal, the CPUs,
+#                  and the build 109 facts (U-241): its image name, IRIS_IMAGE=, its section between "Start it by hand" and "The IRIS
+#                  (non-Health) image", and the sentence that its plain IRIS image has not been tested; the ruled build 109 paragraphs
+#                  of "Get the image" and "Start it with build 109" and its .env line, word for word (U-241 items 2 and 4)
+#   ipm            the section "Install it with IPM" is there after "Check that it is ready": the community-registry line comes before
+#                  the first install command, which is said to run in USER; docs/install-ipm.md is linked and itself gives the registry
+#                  install before the folder install; the section never says "any namespace" (AD-23, U-231); it warns that the
+#                  registry line removes the repositories already set up, and gives the second run in OCUTALON
+#   licence        LICENSE holds the MIT grant, condition and warranty paragraphs and exactly the holder line "Copyright (c) 2026
+#                  jbrandtmse", and
+#                  "Credits and licences" holds the README's LICENSE line
+#   docs           the sentences this story added to other public files, word for word: the build 109 sentence at the end of the
+#                  bridge guide's build 154 bullet and of the IPM page's build 154 bullet (U-241 item 7), and the two ruled lines of
+#                  the security overview (U-242): what an approval request shows for a tool call, in the approval section and in the
+#                  MCP rules, which still sit under "This release can't connect to MCP servers." with no heading between; the old
+#                  "exact call" wording is gone
 #   install-pointer  every README section that install.sh names ("The Troubleshooting section of README.md") is an H2 heading
 #   commands       every `docker compose` command that install.sh prints after "run:" is in the README (DW-134), and the README
 #                  has no `docker compose restart`, `docker-compose restart`, `docker restart`, "install.sh again", "the install
@@ -22,7 +48,9 @@
 #   key-account    the provider key line, .env.example, the default model, the fixed-rules sentence of "Set a model key", the
 #                  model paragraph and three-row table at the end of "What OcuTalon does", with an empty line above, the README
 #                  account and "Sign in to Visual Trace"; no "No key, still works." bullet; no key-shaped example
-#   lan            "Sign in" warns that the Management Portal is reachable from the LAN and links to the password steps (DW-3)
+#   lan            "Sign in" warns that the Management Portal is reachable from the LAN and links to the password steps of the README
+#                  account and of the default IRIS accounts (DW-3, DW-360), and the second one's section follows the first's and
+#                  holds its steps: the portal address, the menu path, Enter new password, the two password fields, and CSPSystem
 #   sign-in-address  the README's ready block is the one install.sh prints, with the compose file's default web port, and "Try it
 #                  in two minutes" and "Sign in" give its address ("Try it" its account too)
 #   demo-mode      the SetDemoMode line, its roles, and the kept-OCUORDERS sentence word for word from EXPERIENCE.md (DW-45)
@@ -32,6 +60,17 @@
 #   dev-only       no ##class(, class name or error code outside the section "For admins and developers"
 #   public-text    the not-affiliated note, the BMAD Method and Claude Code credit, the licence pointers; OpenClaw only in the
 #                  note; no other model provider, "from your phone", "per step", private infrastructure or IPv4 address
+#   telegram-section  the section "Telegram" is there after "Sign in" and before "Stop, start and update", with its five numbered steps and
+#                  the facts a person needs to follow them (@BotFather, /newbot, /setjoingroups, TELEGRAM_BOT_TOKEN=, the restart
+#                  command, "its own bot", and that the steps are for "your own install")
+#   telegram-strings  every UI string the section quotes is one the built page shows: "Telegram not set up", "Telegram paired" and
+#                  "Unpair" are in the rail and card sources, "Approve" and "Reject" are the catalog's button texts (U-228)
+#   telegram-facts  what the steps tell a person to do or expect matches what is built (U-228 condition 3): the pause time is
+#                  In.cls's PAUSESECONDS, "the Status section" is the page's Status region and step 5 says how to open it in a narrower
+#                  window (U-238), the token line is in .env.example and
+#                  docker-compose.yml reads .env, and the step 5 address is the one "Sign in" gives
+#   telegram-demo  no sentence about the online demo mentions Telegram or pairing, and every other sentence outside the section that
+#                  mentions Telegram says "your own install" (U-228: the online demo has no bot)
 #   no-telegram    no "Telegram" while Included() has its test-only body
 #   product-links  every README anchor the page or the server text can show reaches a heading (#readme while README.md exists)
 #   readme-links   every link of the README reaches a heading, a file or folder of the repository, or an allow-listed host;
@@ -39,15 +78,17 @@
 #   must-scan      docker/tests/test-boundaries.sh's must-scan list for paths and keys names README.md, so the most public file can
 #                  never drop out of that scan
 #
-# What it reads, all from files that git tracks or has not ignored (lib-scan.sh's scan_files; never .env): README.md, install.sh,
-# src/ocutalon/cls/OcuTalon/Core/Admin.cls, src/ocutalon/cls/OcuTalon/Channel/Telegram/In.cls, the UX design's EXPERIENCE.md,
+# What it reads, all from files that git tracks or has not ignored (lib-scan.sh's scan_files; never .env): README.md, LICENSE,
+# docs/install-ipm.md, docs/bridge-guide.md, docs/security-overview.md, the sizes of the linked files of docs/images/, install.sh,
+# the tree's file list (for the files of docs/images/), src/ocutalon/cls/OcuTalon/Core/Admin.cls, src/ocutalon/cls/OcuTalon/Channel/Telegram/In.cls, the UX design's EXPERIENCE.md,
 # docker/after-start.sh, docker/tests/test-boundaries.sh, docker-compose.yml, web/src/app/**/*.ts (not *.spec.ts) and src/**/*.cls
 # (not /Test/).
 #
-# The Included() rule (AD-29): while Included() has its test-only body, Quit $Get(^OcuTalonTest("TelegramIncluded")) = 1,
-# the page never shows the link to a README Telegram section. Then the check prints one "SKIP #telegram" line, leaves #telegram
-# out of product-links and refuses the word Telegram. Any other body, or no In.cls, covers #telegram (the README needs a heading
-# with that slug) and allows the word, so the change that turns Telegram on edits the README, not this check.
+# The Included() rule (AD-29): while Included() has its test-only body, Quit $Get(^OcuTalonTest("TelegramIncluded")) = 1, the page
+# never shows the link to a README Telegram section, so the check prints one "SKIP #telegram" line, leaves #telegram out of
+# product-links and refuses the word Telegram. Any other body, or no In.cls, covers #telegram (the README needs a heading with that
+# slug) and allows the word, so the change that turns Telegram on edits the README, not this check. Since Story 12.9 Included() is
+# Quit $Get(...) '= 0: #telegram is covered and no SKIP line prints; the rule keeps its test for a test-only body.
 #
 # Each rule first runs on copies of its input that are broken for that rule, each of which it must flag (a rule that can no
 # longer flag anything fails), and only then on the real files. With no README.md every rule fails closed, which is checked first
@@ -78,6 +119,15 @@ CHATVIEW=web/src/app/chat/chat-view.ts
 AFTER_START=docker/after-start.sh
 BOUNDARIES=docker/tests/test-boundaries.sh
 COMPOSE=docker-compose.yml
+RAILVIEW=web/src/app/rail/rail-view.ts
+CARDVIEW=web/src/app/rail/telegram-card/telegram-card-view.ts
+BUTTONS=src/ocutalon/cls/OcuTalon/Msg/Catalog/Watch.cls
+LAYOUTVIEW=web/src/app/shared/layout-view.ts
+ENVEXAMPLE=.env.example
+LICENSE_FILE=LICENSE
+IPM_DOC=docs/install-ipm.md
+BRIDGE_DOC=docs/bridge-guide.md
+SECOV_DOC=docs/security-overview.md
 
 listing=$(scan_files)
 if [ -z "$listing" ]; then
@@ -100,6 +150,15 @@ chatview_p=$(of "$CHATVIEW")
 after_start_p=$(of "$AFTER_START")
 boundaries_p=$(of "$BOUNDARIES")
 compose_p=$(of "$COMPOSE")
+railview_p=$(of "$RAILVIEW")
+cardview_p=$(of "$CARDVIEW")
+buttons_p=$(of "$BUTTONS")
+layoutview_p=$(of "$LAYOUTVIEW")
+envexample_p=$(of "$ENVEXAMPLE")
+license_p=$(of "$LICENSE_FILE")
+ipmdoc_p=$(of "$IPM_DOC")
+bridgedoc_p=$(of "$BRIDGE_DOC")
+secov_p=$(of "$SECOV_DOC")
 
 # product_files: from a list of paths on standard input, the files whose README anchors the product can show: the page's sources
 # and the server's classes, none of the tests.
@@ -110,11 +169,13 @@ ARROW=$(printf '\342\206\222')
 H_TRY='Try it in two minutes'
 H_INT="What's interesting"
 H_USE='What you can use it for'
+H_TALK='How you talk to it'
 # The owner's text of Story 10.4 (epics.md), word for word: the opening paragraph, the two use cases, and the model paragraph
 # and table of "What OcuTalon does".
 OPENING="Your integrations already tell you when something breaks, usually fifty times. OcuTalon reads the failures, works out the one cause, proposes the fix with a dry run, and only interrupts you when something needs you. Nothing risky runs without your yes: fixed rules that the model can't change decide what is risky, and every approval lands in the IRIS audit log. Every decision is in Visual Trace with its reasons and cost. Without a model it fails safe: it tells you everything and claims nothing."
-ITEM1='- **The partner feed that breaks at 2am.** A trading partner changes a date format, and 50 orders fail. Instead of 50 alerts, you get one notice: the cause in plain English, the fix, and a dry run that shows what it would resend. Nothing is resent until you approve, and then OcuTalon reports how many orders went through. Break the feed in the online demo plays this out in two minutes.'
-ITEM2='- **"Only tell me if something needs me."** Ask OcuTalon in plain words to watch a production, and it stays quiet until something needs you. Failures with one cause become one incident, not a flood, and when you ask whether everything is fine, it never gives a false all-clear.'
+ITEM1='- **The partner feed that breaks at 2am.** A trading partner changes a date format, and 50 orders fail. Instead of 50 alerts, you get one notice: the cause in plain English, the fix, and a dry run that shows what it would resend. Nothing is resent until you approve, and then OcuTalon reports how many orders went through. Break the feed in the online demo plays this out in two minutes. On your own install you can also approve it in Telegram on your phone, without a laptop or the Management Portal ([how to set up Telegram](#telegram)).'
+ITEM2='- **"Only tell me if something needs me."** Ask OcuTalon in plain words to watch a production, and it stays quiet until something needs you. Failures with one cause become one incident, not a flood, and when you ask whether everything is fine, it never gives a false all-clear. It also tells you once when a production stops or one of its items is disabled.'
+ITEM3='- **[An AI decision step you can audit, in your own production.](docs/bridge-guide.md)**'
 MODEL_PARA="**With a model, and without one.** OcuTalon uses Claude Haiku 5.5 by default. With no model key, or when the model can't give a usable answer, it falls back to fixed rules and says so on the page and in Visual Trace."
 T_HEAD='| | With a model | With fixed rules only |'
 T_SEP='| --- | --- | --- |'
@@ -131,6 +192,21 @@ $T_ROW3"
 # The sentence of "Set a model key" that stays as it is.
 FIXED_SENTENCE='Without a key, OcuTalon still starts. Every decision uses fixed rules, and the page shows a notice that says so.'
 TEASER='Watch the 35-second teaser: https://youtu.be/wycbyfnXFMU'
+# The facts of "How you talk to it", each on a line of that section.
+TALK_FACTS='The web chat page is OcuTalon on every install.
+| The web chat page |
+Every install
+Demo mode
+demo guide
+Break the feed
+Simulated phone
+Simulated mailbox
+Demo view
+Email comes in a later release.
+](#demo-mode)
+| Telegram |
+your own bot token
+(#telegram)'
 NOTE='OcuTalon is inspired by OpenClaw and is not affiliated with or endorsed by the OpenClaw Foundation.'
 OTHER_H2='What OcuTalon does
 Install it yourself
@@ -150,6 +226,29 @@ headings() {
     function slug(s) { s = tolower(s); gsub(/[^a-z0-9 _-]/, "", s); gsub(/ /, "-", s); return s }
     /^```/ { fence = !fence; next }
     !fence && /^#+ / { match($0, /^#+/); lvl = RLENGTH; t = substr($0, lvl + 2); printf "%d\t%s\t%s\n", lvl, slug(t), t }
+  ' "$1"
+}
+
+# image_links <file>: line, alt text and target of every inline Markdown image ![alt](target) outside a code fence, tab separated,
+# every image of a line. A "![" that is not followed by "...](" (a reference-style image) is not listed.
+image_links() {
+  awk '
+    /^```/ { fence = !fence; next }
+    fence { next }
+    {
+      line = $0
+      while ((i = index(line, "![")) > 0) {
+        rest = substr(line, i + 2)
+        j = index(rest, "]")
+        if (j == 0) break
+        if (substr(rest, j + 1, 1) != "(") { line = rest; continue }
+        after = substr(rest, j + 2)
+        k = index(after, ")")
+        if (k == 0) break
+        printf "%d\t%s\t%s\n", FNR, substr(rest, 1, j - 1), substr(after, 1, k - 1)
+        line = substr(after, k + 1)
+      }
+    }
   ' "$1"
 }
 
@@ -301,10 +400,15 @@ chk_top() {
     state == 0 && $0 ~ /[^ \t]/ { if ($0 != "# OcuTalon") print FILENAME ":" FNR ": the first line is not \"# OcuTalon\""; state = 1; next }
     state == 1 && /^## / { state = 2 }
     state == 1 && $0 ~ /[^ \t]/ {
-      if ($0 != opening && $0 != teaser) print FILENAME ":" FNR ": a line between the title and the first H2 section that is neither the opening paragraph nor the teaser"
+      if ($0 == teaser) seen = 1
+      else if (index($0, "![") == 1 && (k = index($0, "](")) > 0 && index(substr($0, k + 2), ")") == length($0) - k - 1) {
+        imgs++
+        if (!seen) print FILENAME ":" FNR ": the image line is above the teaser"
+      } else if ($0 != opening) print FILENAME ":" FNR ": a line between the title and the first H2 section that is neither the opening paragraph, the teaser nor the image line"
     }
     state == 0 { next }
     /^#+ Contest task/ || index($0, "| Contest task or criterion") == 1 { print FILENAME ":" FNR ": the Contest task section is back" }
+    END { if (imgs != 1) print FILENAME ": " imgs + 0 " image lines between the title and the first H2 section, not exactly one" }
   ' "$f"
   chk_block top "$f" "# OcuTalon
 
@@ -312,8 +416,8 @@ $OPENING"
   n=$(grep -cxF -- "$OPENING" "$f")
   if [ "$n" -gt 1 ]; then echo "$f: the opening paragraph is there $n times, not once"; fi
   h2s=$(headings "$f" | awk -F'\t' '$1 == 2 { print $3 }')
-  if [ "$(printf '%s\n' "$h2s" | head -n 3)" != "$(printf '%s\n%s\n%s' "$H_TRY" "$H_INT" "$H_USE")" ]; then
-    echo "$f: the first three H2 sections are not, in this order: $H_TRY, $H_INT, $H_USE"
+  if [ "$(printf '%s\n' "$h2s" | head -n 4)" != "$(printf '%s\n%s\n%s\n%s' "$H_TRY" "$H_INT" "$H_USE" "$H_TALK")" ]; then
+    echo "$f: the first four H2 sections are not, in this order: $H_TRY, $H_INT, $H_USE, $H_TALK"
   fi
   printf '%s\n' "$OTHER_H2" | while IFS= read -r t; do
     if ! printf '%s\n' "$h2s" | grep -qxF -- "$t"; then echo "$f: no H2 section '$t'"; fi
@@ -325,7 +429,16 @@ DEMO_PHRASE='nothing to install, and no Early Access image needed'
 TRY_FACTS="https://demo.ocutalon.com
 ./install.sh
 $DEMO_PHRASE
-splash"
+splash
+#start-it-with-build-109
+read-only Visual Trace account"
+# The ruled build 109 steps (U-241 item 1), word for word; a heredoc, because the lines hold backticks.
+IFS= read -r -d '' TRY_B109 <<'B109' || true
+1. Load the IRIS for Health AI Hub Early Access image into Docker: build 154, or build 109, which the download portal now offers ([where to get it](#get-the-image)).
+2. Clone this repository and run `./install.sh` in its folder ([what it does](#start-it-with-the-install-script)). With build 109, follow [Start it with build 109](#start-it-with-build-109) instead.
+B109
+TRY_FACTS="$TRY_FACTS
+$TRY_B109"
 chk_try_it() {
   local sec="$tmp/sec.try" demo install n
   section "$1" "$H_TRY" > "$sec"
@@ -355,16 +468,27 @@ AI Hub
 dry run
 audit log'
 chk_interesting() {
-  local sec="$tmp/sec.int" n
+  local sec="$tmp/sec.int" n hero chat hero_at chat_at
   section "$1" "$H_INT" > "$sec"
   if [ ! -s "$sec" ]; then
     echo "$1: no section '$H_INT'"
     return
   fi
-  n=$(wc -w < "$sec")
+  n=$(grep -v '^!\[' "$sec" | wc -w)
   n=$((n + 0))
   if [ "$n" -gt 120 ]; then echo "interesting: $n words, at most 120"; fi
   chk_facts interesting "$sec" "$INT_FACTS"
+  # Two image lines: the hero's image (the first image link of the README) and the Chat bullet's image. The rule names no file.
+  hero=$(image_links "$1" | head -n 1 | cut -f3)
+  chat=$(section "$1" 'What OcuTalon does' | awk '/^- \*\*/ { cur = (index($0, "- **Chat on a live page.**") == 1) } cur && /^  !\[/ { i = index($0, "]("); print substr($0, i + 2, length($0) - i - 2); exit }')
+  image_links "$sec" | cut -f3 > "$tmp/int.targets"
+  if [ -z "$hero" ] || ! grep -qxF -- "$hero" "$tmp/int.targets"; then echo "interesting: '$H_INT' has no image line with the hero's image"; fi
+  if [ -z "$chat" ] || ! grep -qxF -- "$chat" "$tmp/int.targets"; then echo "interesting: '$H_INT' has no image line with the Chat bullet's image"; fi
+  # The hero's image comes first, then the Chat bullet's (U-242 option C).
+  hero_at=$(grep -n '^!\[' "$sec" | grep -F -m 1 -- "]($hero)" | cut -d: -f1)
+  chat_at=$(grep -n '^!\[' "$sec" | grep -F -m 1 -- "]($chat)" | cut -d: -f1)
+  if [ -n "$hero_at" ] && [ -n "$chat_at" ] && [ "$hero_at" -ge "$chat_at" ]; then echo "interesting: the hero's image line does not come before the Chat bullet's"; fi
+  if [ "$(grep -c '^!\[' "$sec")" -lt 2 ]; then echo "interesting: '$H_INT' has fewer than two image lines"; fi
 }
 
 # use-cases
@@ -376,9 +500,72 @@ chk_use_cases() {
     return
   fi
   chk_block use-cases "$sec" "$ITEM1
-$ITEM2"
+$ITEM2
+$ITEM3"
   n=$(grep -c '[^[:space:]]' "$sec")
-  if [ "$n" -ne 2 ]; then echo "use-cases: '$H_USE' has $n lines, not exactly the two items"; fi
+  if [ "$n" -ne 3 ]; then echo "use-cases: '$H_USE' has $n lines, not exactly the three items"; fi
+}
+
+# how-you-talk
+chk_how_you_talk() {
+  local sec="$tmp/sec.talk"
+  section "$1" "$H_TALK" > "$sec"
+  if [ ! -s "$sec" ]; then
+    echo "$1: no section '$H_TALK'"
+    return
+  fi
+  chk_facts how-you-talk "$sec" "$TALK_FACTS"
+  if ! grep -q '^| --- |' "$sec"; then echo "how-you-talk: '$H_TALK' has no table"; fi
+  if ! grep -q '^!\[' "$sec"; then echo "how-you-talk: '$H_TALK' has no image line"; fi
+  if grep -qi 'slack' "$sec"; then echo "how-you-talk: '$H_TALK' names Slack"; fi
+}
+
+# images: chk_images <readme> <file list> [root]
+# The size of each linked file of docs/images/ is read, as wc -c, from the root (the repository by default); a linked file that the root
+# lacks is the tree list's matter.
+IMAGE_LIMIT=300000
+chk_images() {
+  local target bytes
+  image_links "$1" | awk -F'\t' -v list="$2" -v readme="$1" '
+    BEGIN { while ((getline entry < list) > 0) have[entry] = 1 }
+    {
+      n++
+      alt = $2
+      gsub(/[ \t]/, "", alt)
+      if (alt == "") print "images: " readme ":" $1 ": the image " $3 " has no alt text"
+      if ($3 !~ /^docs\/images\/[^\/]+$/ || index($3, "..") > 0) print "images: " readme ":" $1 ": the target " $3 " is not a file directly in docs/images/"
+      else if (!($3 in have)) print "images: " readme ":" $1 ": the target " $3 " is not a file the tree lists"
+    }
+  '
+  image_links "$1" | cut -f3 | sort -u | while IFS= read -r target; do
+    case $target in
+      docs/images/*)
+        if [ -f "${3:-$root}/$target" ]; then
+          bytes=$(wc -c < "${3:-$root}/$target" | tr -d ' ')
+          if [ "$bytes" -ge "$IMAGE_LIMIT" ]; then echo "images: $target is $bytes bytes, not under $IMAGE_LIMIT"; fi
+        fi
+        ;;
+    esac
+  done
+  # Each image line is a paragraph of its own (an empty line before and after it), so that GFM does not join it to a text line.
+  image_links "$1" | cut -f1 | uniq | awk -v readme="$1" '
+    BEGIN { while ((getline l < readme) > 0) { nl++; blank[nl] = (l !~ /[^ \t]/) } }
+    ($1 > 1 && !blank[$1 - 1]) || ($1 < nl && !blank[$1 + 1]) { print "images: " readme ":" $1 ": the image line has no empty line before or after it" }
+  '
+  # "At least one image link" (AC5) is implied by the count of three below, which is why it has no check of its own.
+  local sec="$tmp/sec.what" n
+  section "$1" 'What OcuTalon does' > "$sec"
+  n=$(image_links "$sec" | wc -l | tr -d ' ')
+  if [ "$n" -lt 3 ]; then echo "images: $1: 'What OcuTalon does' holds $n image links, not at least three"; fi
+  # Placement (AC4), by bullet and not by file name: the Chat bullet owns at least one image paragraph, the Break the feed bullet at least two.
+  awk -v readme="$1" '
+    /^- \*\*/ { cur = (index($0, "- **Chat on a live page.**") == 1) ? "chat" : (index($0, "- **Break the feed.**") == 1) ? "break" : "" }
+    /^  !\[/ && cur != "" { got[cur]++ }
+    END {
+      if (got["chat"] < 1) print "images: " readme ": the bullet Chat on a live page. has no image under it"
+      if (got["break"] < 2) print "images: " readme ": the bullet Break the feed. has " got["break"] + 0 " images under it, not at least two"
+    }
+  ' "$sec"
 }
 
 # teaser
@@ -399,7 +586,15 @@ chk_teaser() {
     fi
     if [ -n "$h2" ] && [ "$at" -gt "$h2" ]; then echo "teaser: $f:$at: it is below the first H2 section"; fi
   fi
-  grep -niE '!\[|<(img|iframe|video|embed|object|picture)' "$f" | cut -d: -f1 | sed "s|^|$f:|; s|\$|: an image or embed (the teaser is a plain link)|"
+  grep -niE '<(img|iframe|video|embed|object|picture)' "$f" | cut -d: -f1 | sed "s|^|$f:|; s|\$|: an HTML media tag (the teaser is a plain link)|"
+  grep -nF '[![' "$f" | cut -d: -f1 | sed "s|^|$f:|; s|\$|: an image inside a link (the teaser is a plain link)|"
+  # Every "![" of a line must be an inline docs/images/<name>.png image; a remote, local-elsewhere, non-PNG or reference-style image is not.
+  image_links "$f" | awk -F'\t' '$3 ~ /^docs\/images\/[^\/]+\.png$/ { good[$1]++ } END { for (l in good) print l, good[l] }' > "$tmp/img.good"
+  awk -v goodfile="$tmp/img.good" -v f="$f" '
+    BEGIN { while ((getline entry < goodfile) > 0) { split(entry, p, " "); good[p[1]] = p[2] } }
+    { n = 0; s = $0; while ((i = index(s, "![")) > 0) { n++; s = substr(s, i + 2) } }
+    n > good[FNR] + 0 { print f ":" FNR ": an image that is not an inline docs/images/<name>.png image" }
+  ' "$f"
 }
 
 # outcomes: chk_outcomes <readme> <chat-view.ts>
@@ -432,11 +627,45 @@ HealthShare
 HSCUSTOM
 ARM64
 15 minutes
-(healthy)'
+(healthy)
+irishealth-community:2027.1.0AI.109.0
+IRIS_IMAGE=
+#start-it-with-build-109'
+INSTALL_FACTS="$INSTALL_FACTS
+Build 109's plain IRIS image has not been tested.
+The install script needs build 154. With build 109, see [Start it with build 109](#start-it-with-build-109)."
+# The ruled build 109 paragraphs (U-241 items 2 and 4) and the .env line of its code block, word for word.
+IFS= read -r -d '' INSTALL_B109 <<'B109' || true
+OcuTalon 1.0.0 is built and tested on IRIS for Health AI Hub Early Access build 154 (`irishealth-community:2026.3.0AI.154.0`). The InterSystems Early Access Program portal now offers build 109 (`irishealth-community:2027.1.0AI.109.0`) in its place: https://evaluation.intersystems.com/Eval/early-access/AIHub
+OcuTalon 1.0.0 also runs unchanged on build 109: its install, production and test checks and the demo guide pass on it. In this release, `./install.sh` looks only for build 154, so with build 109, start OcuTalon as [Start it with build 109](#start-it-with-build-109) shows.
+`docker load` printed the loaded image's name; for the IRIS for Health archive it is `docker.iscinternal.com/docker-intersystems/intersystems/irishealth-community:2027.1.0AI.109.0`. Name it in `.env` as `IRIS_IMAGE`, so that OcuTalon builds from it, then start OcuTalon:
+echo 'IRIS_IMAGE=<the name docker load printed>' >> .env
+Skip the `cp` step when `.env` already exists. Keep the `IRIS_IMAGE` line in `.env`, because every `docker compose up -d` reads it, an update included. Then [check that it is ready](#check-that-it-is-ready) and [sign in](#sign-in).
+B109
+INSTALL_FACTS="$INSTALL_FACTS
+$INSTALL_B109"
+T_B109='With build 109, follow [Start it with build 109](#start-it-with-build-109) instead of running `./install.sh`.'
+H_B109='### Start it with build 109'
 chk_install() {
-  local sec="$tmp/sec.install"
+  local sec="$tmp/sec.install" hand build plain
   section "$1" 'Install it yourself' > "$sec"
   chk_facts install "$sec" "$INSTALL_FACTS"
+  # The build 109 section sits between "Start it by hand" and "The IRIS (non-Health) image", and its code block names IRIS_IMAGE.
+  hand=$(grep -nxF -m 1 '### Start it by hand' "$sec" | cut -d: -f1)
+  build=$(grep -nxF -m 1 "$H_B109" "$sec" | cut -d: -f1)
+  plain=$(grep -nxF -m 1 '### The IRIS (non-Health) image' "$sec" | cut -d: -f1)
+  if [ -z "$build" ]; then
+    echo "install: no section '$H_B109'"
+  elif [ -z "$hand" ] || [ -z "$plain" ] || [ "$build" -le "$hand" ] || [ "$build" -ge "$plain" ]; then
+    echo "install: '$H_B109' is not between 'Start it by hand' and 'The IRIS (non-Health) image'"
+  elif ! sed -n "${build},${plain}p" "$sec" | grep -qF 'IRIS_IMAGE='; then
+    echo "install: '$H_B109' does not name IRIS_IMAGE="
+  fi
+  # The Troubleshooting entry for a missing build 154 image sends a build 109 reader to the build 109 section.
+  section "$1" 'Troubleshooting' > "$tmp/sec.trouble"
+  if ! grep -qF "$T_B109" "$tmp/sec.trouble"; then
+    echo "install: the Troubleshooting entry for a missing build 154 image does not send build 109 to '$H_B109'"
+  fi
 }
 
 # install-pointer: chk_install_pointer <readme> <install.sh>
@@ -498,11 +727,31 @@ chk_key_account() {
 LAN_FACTS='LAN
 Management Portal
 ](#change-the-readme-accounts-password)
+](#change-the-default-iris-accounts-passwords)
 Change the README account'"'"'s password after your first sign-in'
+H_ACCOUNTS="### Change the default IRIS accounts' passwords"
+# The steps of that section (DW-360), as measured against the portal (spec 31.3, Decided in-stage 14 and 26).
+IFS= read -r -d '' ACCOUNTS_FACTS <<'DW360' || true
+http://localhost:52773/csp/sys/UtilHome.csp
+System Administration, then Security, then Users
+select Enter new password, enter a new password in Password and Password (confirm), and press Save.
+Leave `CSPSystem`, the web gateway's account
+DW360
 chk_lan() {
-  local sec="$tmp/sec.lan"
+  local sec="$tmp/sec.lan" readme accounts
   section "$1" 'Sign in' > "$sec"
   chk_facts lan "$sec" "$LAN_FACTS"
+  # DW-360: the section for the default IRIS accounts follows the README account's, in "For admins and developers".
+  readme=$(grep -nxF -m 1 "### Change the README account's password" "$1" | cut -d: -f1)
+  accounts=$(grep -nxF -m 1 "$H_ACCOUNTS" "$1" | cut -d: -f1)
+  if [ -z "$accounts" ]; then
+    echo "lan: no section '$H_ACCOUNTS'"
+  elif [ -z "$readme" ] || [ "$accounts" -le "$readme" ]; then
+    echo "lan: '$H_ACCOUNTS' does not follow the README account's password section"
+  else
+    awk -v h="$H_ACCOUNTS" '/^#+ / { on = ($0 == h); next } on { print }' "$1" > "$tmp/sec.accounts"
+    chk_facts lan "$tmp/sec.accounts" "$ACCOUNTS_FACTS"
+  fi
 }
 
 # sign-in-address: chk_sign_in_address <readme> <install.sh> <docker-compose.yml>
@@ -667,6 +916,195 @@ telegram_mode() {
   if [ "$body" = '{ Quit $Get(^OcuTalonTest("TelegramIncluded")) = 1' ]; then echo testonly; else echo included; fi
 }
 
+# telegram-section (Story 12.9)
+H_TG='Telegram'
+TG_FACTS='@BotFather
+/newbot
+/setjoingroups
+TELEGRAM_BOT_TOKEN=
+docker compose up -d --force-recreate
+its own bot
+your own install'
+chk_telegram_section() {
+  local f=$1 sec="$tmp/sec.tg" n order
+  section "$f" "$H_TG" > "$sec"
+  if [ ! -s "$sec" ]; then
+    echo "telegram-section: no section '$H_TG'"
+    return
+  fi
+  chk_facts telegram-section "$sec" "$TG_FACTS"
+  for n in 1 2 3 4 5; do
+    if ! grep -q "^$n\. " "$sec"; then echo "telegram-section: no step $n"; fi
+  done
+  if grep -q '^6\. ' "$sec"; then echo "telegram-section: more than five steps"; fi
+  order=$(headings "$f" | awk -F'\t' '$1 == 2 { print $3 }' | grep -xF -e 'Sign in' -e "$H_TG" -e 'Stop, start and update' | tr '\n' '|')
+  if [ "$order" != "Sign in|$H_TG|Stop, start and update|" ]; then echo "telegram-section: the section is not between 'Sign in' and 'Stop, start and update'"; fi
+}
+
+# telegram-strings (U-228 condition 1): the UI strings the section quotes. Each row is <string>|<source>|<ts, or the catalog key>.
+TG_UI='Telegram not set up|RAIL|ts
+Telegram paired|CARD|ts
+Unpair|CARD|ts
+Approve|BUTTONS|button.approve
+Reject|BUTTONS|button.reject'
+# ui_in_source <string> <source name> <kind> <rail-view.ts> <telegram-card-view.ts> <catalog class>: the string is what the source shows.
+ui_in_source() {
+  local file
+  case $2 in RAIL) file=$4 ;; CARD) file=$5 ;; *) file=$6 ;; esac
+  if [ "$3" = ts ]; then
+    grep -qF -e "'$1'" "$file"
+  else
+    awk -v key="\"$3\": {" -v text="\"text\": \"$1\"," '
+      index($0, key) { on = 1; next }
+      on && index($0, text) { found = 1 }
+      on && /^ }/ { exit }
+      END { exit !found }
+    ' "$file"
+  fi
+}
+# chk_telegram_strings <readme> <rail-view.ts> <telegram-card-view.ts> <catalog class>
+chk_telegram_strings() {
+  local sec="$tmp/sec.tgs" str src kind
+  section "$1" "$H_TG" > "$sec"
+  if [ ! -s "$sec" ]; then
+    echo "telegram-strings: no section '$H_TG'"
+    return
+  fi
+  grep -o '"[^"]*"' "$sec" | sed 's/^"//; s/"$//' | while IFS= read -r str; do
+    if ! printf '%s\n' "$TG_UI" | cut -d'|' -f1 | grep -qxF -e "$str"; then echo "telegram-strings: the section quotes \"$str\", which no pinned UI string is"; fi
+  done
+  printf '%s\n' "$TG_UI" | while IFS='|' read -r str src kind; do
+    if ! grep -qF -e "\"$str\"" "$sec"; then echo "telegram-strings: the section does not quote \"$str\""; fi
+    if ! ui_in_source "$str" "$src" "$kind" "$2" "$3" "$4"; then echo "telegram-strings: the built page does not show \"$str\" ($src)"; fi
+  done
+}
+
+# telegram-facts (U-228 condition 3): the steps against what is built. chk_telegram_facts <readme> <In.cls> <layout-view.ts>; the
+# .env.example and the compose file are TGF_ENV and TGF_COMPOSE (the rule swaps them for broken copies).
+TGF_ENV=$envexample_p
+TGF_COMPOSE=$compose_p
+chk_telegram_facts() {
+  local sec="$tmp/sec.tgf" signin="$tmp/sec.tgf.signin" mins secs url
+  section "$1" "$H_TG" > "$sec"
+  section "$1" 'Sign in' > "$signin"
+  if [ ! -s "$sec" ]; then
+    echo "telegram-facts: no section '$H_TG'"
+    return
+  fi
+  mins=$(sed -n 's/.*after \([0-9][0-9]*\) minutes.*/\1/p' "$sec" | head -n 1)
+  if [ -z "$mins" ]; then
+    echo "telegram-facts: the section does not say after how many minutes OcuTalon tries again"
+  else
+    secs=$((mins * 60))
+    if ! grep -qE "^Parameter PAUSESECONDS = $secs;" "$2"; then echo "telegram-facts: the section says $mins minutes, and In.cls's PAUSESECONDS is not $secs"; fi
+  fi
+  if ! grep -qF 'In the Status section' "$sec"; then echo "telegram-facts: step 5 does not name the Status section"; fi
+  if ! grep -qF 'In the Status section (in a narrower window, open it with the Status button at the top of the page)' "$sec"; then echo "telegram-facts: step 5 does not say how to open the Status section in a narrower window (U-238)"; fi
+  if ! grep -qE "^  status: 'Status',$" "$3"; then echo "telegram-facts: the page has no region named Status (layout-view.ts), which step 5 names"; fi
+  if ! grep -q '^TELEGRAM_BOT_TOKEN=' "$TGF_ENV"; then echo "telegram-facts: .env.example has no TELEGRAM_BOT_TOKEN= line to copy, which step 3 relies on"; fi
+  if ! grep -qE '^[[:space:]]+- path: \.env$' "$TGF_COMPOSE"; then echo "telegram-facts: docker-compose.yml does not read .env, so the token of step 3 never reaches OcuTalon"; fi
+  url=$(grep '^5\. ' "$sec" | grep -oE 'http://[^ ]+' | head -n 1)
+  if [ -z "$url" ]; then
+    echo "telegram-facts: step 5 gives no address"
+  elif ! grep -qF -e "$url" "$signin"; then
+    echo "telegram-facts: the address of step 5 ($url) is not the one 'Sign in' gives"
+  fi
+}
+
+# ipm (Story 31.3; AD-23, U-231): chk_ipm <readme> <docs/install-ipm.md>
+H_IPM='### Install it with IPM'
+IPM_WARNING='This command first removes the package repositories that are already set up in %SYS, so note any you use before you run it.'
+chk_ipm() {
+  local sec="$tmp/sec.ipm" at ready next enable first load folder registry
+  awk '/^```/ { fence = !fence } !fence && /^#+ / { on = ($0 == "'"$H_IPM"'"); next } on { print }' "$1" > "$sec"
+  if [ ! -s "$sec" ]; then
+    echo "ipm: no section '$H_IPM'"
+    return
+  fi
+  at=$(grep -nxF -m 1 "$H_IPM" "$1" | cut -d: -f1)
+  ready=$(grep -nxF -m 1 '### Check that it is ready' "$1" | cut -d: -f1)
+  next=$(grep -nxF -m 1 '## Set a model key' "$1" | cut -d: -f1)
+  if [ -z "$ready" ] || [ -z "$next" ] || [ "$at" -le "$ready" ] || [ "$at" -ge "$next" ]; then
+    echo "ipm: '$H_IPM' is not the last section of 'Install it yourself', after 'Check that it is ready'"
+  fi
+  enable=$(grep -nF -m 1 'zpm "enable -community"' "$sec" | cut -d: -f1)
+  first=$(grep -nF -m 1 'zpm "install ocutalon"' "$sec" | cut -d: -f1)
+  if [ -z "$enable" ]; then echo 'ipm: the community-registry line zpm "enable -community" is missing'; fi
+  if [ -z "$first" ]; then echo 'ipm: the command zpm "install ocutalon" is missing'; fi
+  if [ -n "$enable" ] && [ -n "$first" ]; then
+    if [ "$enable" -ge "$first" ]; then
+      echo 'ipm: the community-registry line does not come before the first zpm "install ocutalon"'
+    elif ! sed -n "${enable},${first}p" "$sec" | grep -qF 'USER'; then
+      echo 'ipm: the first zpm "install ocutalon" is not said to run in USER'
+    fi
+  fi
+  if ! grep -qF '](docs/install-ipm.md)' "$sec"; then echo 'ipm: the section does not link docs/install-ipm.md'; fi
+  if grep -qi 'any namespace' "$sec"; then echo 'ipm: the section says "any namespace"'; fi
+  if ! grep -qF "$IPM_WARNING" "$sec"; then echo 'ipm: the section does not warn that the registry line removes the repositories already set up'; fi
+  if ! grep -qxF 'zn "OCUTALON"' "$sec" || [ "$(grep -cxF 'zpm "install ocutalon"' "$sec")" -lt 2 ]; then echo 'ipm: the section does not give the second run in OCUTALON'; fi
+  load=$(grep -nF -m 1 'zpm "load' "$sec" | cut -d: -f1)
+  if [ -n "$load" ] && { [ -z "$first" ] || [ "$load" -le "$first" ]; }; then echo 'ipm: the folder install (zpm "load) comes before the registry install'; fi
+  # The linked page gives the registry install first and the folder install second.
+  registry=$(grep -nF -m 1 'zpm "install ocutalon"' "$2" | cut -d: -f1)
+  folder=$(grep -nF -m 1 'zpm "load' "$2" | cut -d: -f1)
+  if [ -z "$registry" ] || [ -z "$folder" ] || [ "$registry" -ge "$folder" ]; then
+    echo "ipm: $IPM_DOC does not give the registry install before the folder install"
+  fi
+}
+
+# licence (Story 31.3): chk_licence <readme> <LICENSE>
+LICENCE_LINE='OcuTalon is under the MIT License: [LICENSE](LICENSE).'
+HOLDER_LINE='Copyright (c) 2026 jbrandtmse'
+chk_licence() {
+  local sec="$tmp/sec.licence"
+  if ! grep -qF 'Permission is hereby granted, free of charge, to any person obtaining a copy' "$2"; then echo "licence: $LICENSE_FILE has no MIT grant paragraph"; fi
+  if ! grep -qF 'The above copyright notice and this permission notice shall be included in all' "$2"; then echo "licence: $LICENSE_FILE has no MIT condition paragraph"; fi
+  if ! grep -qF 'THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND' "$2"; then echo "licence: $LICENSE_FILE has no MIT warranty paragraph"; fi
+  if [ "$(grep -c '^Copyright' "$2")" -ne 1 ] || ! grep -qxF -- "$HOLDER_LINE" "$2"; then echo "licence: $LICENSE_FILE does not hold exactly the line '$HOLDER_LINE'"; fi
+  section "$1" 'Credits and licences' > "$sec"
+  if ! grep -qxF -- "$LICENCE_LINE" "$sec"; then echo "licence: 'Credits and licences' does not hold the line '$LICENCE_LINE'"; fi
+}
+
+# docs (Story 31.3, AC 2 and AC 7): chk_docs <docs/bridge-guide.md> <docs/install-ipm.md> <docs/security-overview.md>
+BRIDGE_BULLET_START='- InterSystems AI Hub, build 154, '
+BRIDGE_SENTENCE='Build 109, which the Early Access portal now offers in place of build 154, has not been tested with this guide yet.'
+IPM_BULLET_START='- An InterSystems IRIS for AI Hub instance, build 154, '
+IPM_SENTENCE='Build 109, which the Early Access portal now offers in place of build 154, has not been tested with the IPM install yet.'
+L111='- It is fixed to exact targets and shows its dry run (a fix), or the tool, its MCP server when it has one, and its inputs through the redactor, cut to 200 characters, with the full call kept in the approval record (a tool call).'
+L187="- Every call passes the gate, an approval request when needed (showing the tool, its server and its inputs through the redactor, cut to 200 characters, with the full call kept in the approval record), an audit entry (read-only calls included) and an agent step."
+MCP_FRAME="This release can't connect to MCP servers. When a release adds MCP support, these rules apply:"
+chk_docs() {
+  if ! grep -F -- "$BRIDGE_BULLET_START" "$1" | grep -q -F -- "$BRIDGE_SENTENCE"; then
+    echo "docs: $BRIDGE_DOC has no build 154 bullet that holds the build 109 sentence"
+  fi
+  if ! grep -F -- "$IPM_BULLET_START" "$2" | grep -q -F -- "$IPM_SENTENCE"; then
+    echo "docs: $IPM_DOC has no build 154 bullet that holds the build 109 sentence"
+  fi
+  if [ "$(grep -c -x -F -- "$L111" "$3")" -ne 1 ]; then echo "docs: $SECOV_DOC does not hold the ruled line about a tool call's approval request once"; fi
+  if [ "$(grep -c -x -F -- "$L187" "$3")" -ne 1 ]; then echo "docs: $SECOV_DOC does not hold the ruled line of the MCP rules about the approval request once"; fi
+  if grep -q -F -- 'the exact call' "$3"; then echo "docs: $SECOV_DOC still promises 'the exact call'"; fi
+  if ! awk -v f="$MCP_FRAME" -v l="$L187" '$0 == f { a = NR } $0 == l { b = NR } /^#/ && a && !b { h = 1 } END { exit !(a && b && a < b && !h) }' "$3"; then
+    echo "docs: the MCP rules line is not under \"$MCP_FRAME\" with no heading between"
+  fi
+}
+
+# telegram-demo (U-228 condition 2): sentence by sentence, outside code fences.
+chk_telegram_demo() {
+  awk '
+    /^```/ { fence = !fence; next }
+    fence { next }
+    /^## / { sec = ($0 == "## Telegram"); next }
+    {
+      line = $0; gsub(/\. /, ".\n", line); n = split(line, parts, "\n")
+      for (i = 1; i <= n; i++) {
+        s = parts[i]
+        if (s ~ /online demo|demo\.ocutalon\.com/ && (" " s) ~ /Telegram|[^A-Za-z][Pp]air(ing|ed)?([^a-z]|$)/) print "telegram-demo: " FILENAME ":" FNR ": a sentence about the online demo mentions Telegram or pairing"
+        else if (!sec && s ~ /Telegram/ && s !~ /your own install/) print "telegram-demo: " FILENAME ":" FNR ": a sentence outside the Telegram section mentions Telegram without \"your own install\""
+      }
+    }
+  ' "$1"
+}
+
 # inventory <list file>: the README anchors that the files of the list can link to, one per line, sorted: the part after # of a
 # jbrandtmse/OcuTalon# address, the section argument of a readmeSection(..., '<x>') call, and the value of a *_ANCHOR constant of
 # a TypeScript file.
@@ -757,10 +1195,20 @@ rule_top() {
   st 'the use cases section moved down' 1 "$README" '/^## What you can use it for$/ { print "## What OcuTalon does"; next } /^## What OcuTalon does$/ { print "## What you can use it for"; next } { print }' chk_top
   st 'the use cases section renamed' 1 "$README" '/^## What you can use it for$/ { print "## What you can do with it"; next } { print }' chk_top
   st 'a line between the teaser and the first H2 section' 1 "$README" '{ print } /^Watch the 35-second teaser: / { print ""; print "A stray line." }' chk_top
+  st 'the hero image line removed' 1 "$README" '!/^!\[The OcuTalon page on the online demo/' chk_top
+  st 'a second image line' 1 "$README" '{ print } /^!\[The OcuTalon page on the online demo/ { print ""; print "![Second.](docs/images/page-incident.png)" }' chk_top
+  st 'a second image on the hero line' 1 "$README" '/^!\[The OcuTalon page on the online demo/ { $0 = $0 " ![Second.](docs/images/page-incident.png)" } { print }' chk_top
+  st 'text after the hero image' 1 "$README" '/^!\[The OcuTalon page on the online demo/ { $0 = $0 " on the demo (live)" } { print }' chk_top
+  st 'the hero above the teaser' 1 "$README" '/^!\[The OcuTalon page on the online demo/ { next } /^Watch the 35-second teaser: / { print "![Hero.](docs/images/page-incident.png)"; print "" } { print }' chk_top
+  st 'the hero moved under the first H2 section' 1 "$README" '/^!\[The OcuTalon page on the online demo/ { hero = $0; next } { print } /^## Try it in two minutes$/ { print ""; print hero }' chk_top
+  st 'the How you talk to it section removed' 1 "$README" '!/^## How you talk to it$/' chk_top
+  st 'the How you talk to it section renamed' 1 "$README" '/^## How you talk to it$/ { print "## How to talk to it"; next } { print }' chk_top
+  st 'How you talk to it swapped with What OcuTalon does' 1 "$README" '/^## How you talk to it$/ { print "## What OcuTalon does"; next } /^## What OcuTalon does$/ { print "## How you talk to it"; next } { print }' chk_top
+  st 'How you talk to it swapped with What you can use it for' 1 "$README" '/^## How you talk to it$/ { print "## What you can use it for"; next } /^## What you can use it for$/ { print "## How you talk to it"; next } { print }' chk_top
   st 'a required section removed' 1 "$README" '!/^## Troubleshooting$/' chk_top
   st 'the Contest task section back' 1 "$README" '{ print } END { print ""; print "## Contest task"; print "" }' chk_top
   st 'the Contest task table header back' 1 "$README" '{ print } /^## What OcuTalon does$/ { print ""; print "| Contest task or criterion | x | y |" }' chk_top
-  finish top 'the title, the opening paragraph, then the three top sections in order, and the other sections are there' chk_top
+  finish top 'the title, the opening paragraph, the teaser and the hero image, then the four top sections in order, and the other sections are there' chk_top
 }
 
 rule_try_it() {
@@ -779,11 +1227,18 @@ rule_try_it() {
 }
 
 rule_interesting() {
-  local n
+  local n hero chat
   rule_begin interesting "$README" || return
   st_facts chk_interesting "$INT_FACTS"
-  n=$(section "$README" "$H_INT" | wc -w)
+  n=$(section "$README" "$H_INT" | grep -v '^!\[' | wc -w)
   n=$((n + 0))
+  hero=$(image_links "$README" | head -n 1 | cut -f3)
+  chat=$(section "$README" 'What OcuTalon does' | awk '/^- \*\*/ { cur = (index($0, "- **Chat on a live page.**") == 1) } cur && /^  !\[/ { i = index($0, "]("); print substr($0, i + 2, length($0) - i - 2); exit }')
+  st 'the hero image line dropped from the section' 1 "$README" '/^## / { s = ($0 ~ /^## What.s interesting$/) } s && index($0, "![") == 1 && index($0, "]('"$hero"')") > 0 { next } { print }' chk_interesting
+  st 'the Chat bullet image line dropped from the section' 1 "$README" '/^## / { s = ($0 ~ /^## What.s interesting$/) } s && index($0, "![") == 1 && index($0, "]('"$chat"')") > 0 { next } { print }' chk_interesting
+  st 'both image lines dropped from the section' 1 "$README" '/^## / { s = ($0 ~ /^## What.s interesting$/) } s && index($0, "![") == 1 { next } { print }' chk_interesting
+  st 'the two image lines swapped' 1 "$README" '/^## / { s = ($0 ~ /^## What.s interesting$/) } s && index($0, "![") == 1 && index($0, "]('"$hero"')") > 0 { held = $0; next } s && index($0, "![") == 1 && index($0, "]('"$chat"')") > 0 { print; if (held != "") print held; next } { print }' chk_interesting
+  st 'an image line that is not the two' 1 "$README" '/^## / { s = ($0 ~ /^## What.s interesting$/) } s && index($0, "![") == 1 && index($0, "]('"$chat"')") > 0 { sub(/\]\([^)]*\)/, "](docs/images/other.png)") } { print }' chk_interesting
   if [ "$n" -le 120 ]; then
     # The limit itself: the section padded to exactly 121 words is flagged, and padded to exactly 120 it is not.
     st 'exactly 121 words' 1 "$README" "{ print } /^## What.s interesting\$/ { print \"\"; for (i = $n; i < 121; i++) printf \"w \"; print \"\" }" chk_interesting
@@ -803,12 +1258,76 @@ rule_use_cases() {
   st 'item 1 removed' 1 "$README" '!/^- \*\*The partner feed/' chk_use_cases
   st 'item 2 removed' 1 "$README" '!/^- \*\*"Only tell me/' chk_use_cases
   st 'the items swapped' 1 "$README" '/^- \*\*The partner feed/ { held = $0; next } { print } /^- \*\*"Only tell me/ { print held }' chk_use_cases
-  st 'a third item' 1 "$README" '{ print } /^- \*\*"Only tell me/ { print "- **A third item.** More." }' chk_use_cases
+  st 'a fourth item' 1 "$README" '{ print } /^- \*\*\[An AI decision step/ { print "- **A fourth item.** More." }' chk_use_cases
   st 'the production-stopped sentence appended to item 2' 1 "$README" '/^- \*\*"Only tell me/ { $0 = $0 " It also tells you once when a production stops or one of its items is disabled." } { print }' chk_use_cases
   st 'the production-stopped sentence on a line of its own' 1 "$README" '{ print } /^- \*\*"Only tell me/ { print "It also tells you once when a production stops or one of its items is disabled." }' chk_use_cases
-  st 'an audit item appended' 1 "$README" '{ print } /^- \*\*"Only tell me/ { print "- **An AI decision step you can audit, in your own production.**" }' chk_use_cases
+  st 'the audit item without its link' 1 "$README" '/^- \*\*\[An AI decision step/ { $0 = "- **An AI decision step you can audit, in your own production.**" } { print }' chk_use_cases
+  st 'the audit item linking another file' 1 "$README" '/^- \*\*\[An AI decision step/ { sub(/docs\/bridge-guide\.md/, "docs/install-ipm.md") } { print }' chk_use_cases
+  st 'the audit item removed' 1 "$README" '!/^- \*\*\[An AI decision step/' chk_use_cases
   st 'the section heading removed' 1 "$README" '!/^## What you can use it for$/' chk_use_cases
-  finish use-cases 'What you can use it for holds exactly the two items, word for word' chk_use_cases
+  finish use-cases 'What you can use it for holds exactly the three items, word for word' chk_use_cases
+}
+
+rule_how_you_talk() {
+  rule_begin how-you-talk "$README" || return
+  st 'the heading removed' 1 "$README" '!/^## How you talk to it$/' chk_how_you_talk
+  st_facts chk_how_you_talk "$TALK_FACTS"
+  st_move 'the Demo mode paragraph moved out of the section' "$H_TALK" 'Demo mode is on in the online demo' chk_how_you_talk
+  st 'the table rows removed' 1 "$README" '/^## / { s = ($0 == "## How you talk to it") } s && /^\|/ { next } { print }' chk_how_you_talk
+  st 'the table separator line removed' 1 "$README" '/^## / { s = ($0 == "## How you talk to it") } s && /^\| --- \|/ { next } { print }' chk_how_you_talk
+  st 'the image line removed' 1 "$README" '/^## / { s = ($0 == "## How you talk to it") } s && /^!\[/ { next } { print }' chk_how_you_talk
+  st 'Slack named in the section' 1 "$README" '{ print } /^## How you talk to it$/ { print ""; print "It also works in Slack." }' chk_how_you_talk
+  finish how-you-talk 'the web chat page on every install, the demo-only parts, email in a later release, a table and an image' chk_how_you_talk
+}
+
+# swap_target <old> <new>: an awk program that replaces the target <old> of the first image link with <new>.
+swap_target() {
+  printf '%s' '!done && (j = index($0, "]('"$1"')")) > 0 { $0 = substr($0, 1, j + 1) "'"$2"'" substr($0, j + 2 + length("'"$1"'")); done = 1 } { print }'
+}
+
+# set_alt <target> <alt>: an awk program that replaces the alt text of the image link with that target.
+set_alt() {
+  printf '%s' '!done && (j = index($0, "]('"$1"')")) > 0 { i = index($0, "!["); if (i > 0 && i < j) { $0 = substr($0, 1, i + 1) "'"$2"'" substr($0, j); done = 1 } } { print }'
+}
+
+rule_images() {
+  local first other target
+  printf '%s\n' "$listing" > "$tmp/files.list"
+  rule_begin images "$README" "$tmp/files.list" || return
+  # The self-tests use the README's own first image link, so that no image file is named here.
+  first=$(image_links "$README" | head -n 1 | cut -f3)
+  other=$(printf '%s\n' "$listing" | grep -m 1 '^logo/.*\.png$')
+  if [ -z "$other" ]; then st_note 'the tree lists no logo PNG, the file outside docs/images/ to link'; fi
+  st 'an empty alt text' 1 "$README" "$(set_alt "$first" '')" chk_images
+  st 'a blank alt text' 1 "$README" "$(set_alt "$first" '   ')" chk_images
+  st 'a file the tree does not list' 1 "$README" "$(swap_target "$first" docs/images/zz-missing.png)" chk_images
+  st 'a file outside docs/images/' 1 "$README" "$(swap_target "$first" "$other")" chk_images
+  st 'dot segments' 1 "$README" "$(swap_target "$first" "docs/images/../images/${first##*/}")" chk_images
+  st 'a remote address' 1 "$README" "$(swap_target "$first" https://example.org/hero.png)" chk_images
+  st 'a second image on the line with no alt text' 1 "$README" '!done && index($0, "]('"$first"')") > 0 { $0 = $0 " ![]('"$first"')"; done = 1 } { print }' chk_images
+  st 'every image line removed' 1 "$README" 'index($0, "![") == 0' chk_images
+  st 'the images of What OcuTalon does removed' 1 "$README" '/^## / { s = ($0 == "## What OcuTalon does") } s && /^  !\[/ { next } { print }' chk_images
+  st 'the Chat bullet image moved under the Break the feed bullet' 1 "$README" '/^## / { s = ($0 == "## What OcuTalon does") } s && /^  !\[/ && !held { held = $0; next } s && /^  !\[/ && held && !put { print held; print ""; put = 1 } { print }' chk_images
+  st 'the images of What OcuTalon does made reference-style' 1 "$README" '/^## / { s = ($0 == "## What OcuTalon does") } s && /^  !\[/ { sub(/\]\(/, "][") } { print }' chk_images
+  st 'the last Break the feed image moved under the Chat bullet' 1 "$README" '/^## / { s = ($0 == "## What OcuTalon does") } /^- \*\*/ { b = (index($0, "- **Break the feed.**") == 1) } s && b && /^  !\[/ { last = $0 } { line[NR] = $0 } END { for (i = 1; i <= NR; i++) { if (line[i] == last) continue; print line[i]; if (index(line[i], "- **Chat on a live page.**") == 1) { print ""; print last } } }' chk_images
+  st 'no empty line between the text and an image line' 1 "$README" 'held { held = 0; if ($0 == "") next } { print } /^Watch the 35-second teaser: / { held = 1 }' chk_images
+  st 'the images under the Break the feed bullet removed' 1 "$README" '/^## / { s = ($0 == "## What OcuTalon does") } /^- \*\*/ { b = (index($0, "- **Break the feed.**") == 1) } s && b && /^  !\[/ { next } { print }' chk_images
+  st 'the first image file dropped from the list' 2 "$tmp/files.list" '$0 != "'"$first"'"' chk_images
+  # A linked file of exactly 300,000 bytes is flagged, and one byte less is not: the sizes are read from a root of the rule's own.
+  mkdir -p "$tmp/size/docs/images"
+  image_links "$README" | cut -f3 | sort -u | while IFS= read -r target; do
+    case $target in docs/images/*) head -c 10 /dev/zero > "$tmp/size/$target" ;; esac
+  done
+  head -c 299999 /dev/zero > "$tmp/size/$first"
+  if [ -n "$(chk_images "$README" "$tmp/files.list" "$tmp/size")" ]; then st_note 'a linked file of 299,999 bytes is flagged'; fi
+  head -c 300000 /dev/zero > "$tmp/size/$first"
+  if [ -z "$(chk_images "$README" "$tmp/files.list" "$tmp/size")" ]; then st_note 'a linked file of exactly 300,000 bytes is not flagged'; fi
+  # A newly listed and linked docs/images file is not flagged: the rule names no file.
+  mkdir -p "$tmp/imgs"
+  { cat "$tmp/files.list"; echo docs/images/zz-extra.png; } > "$tmp/imgs/extra.list"
+  { cat "$README"; printf '\n![Extra.](docs/images/zz-extra.png)\n'; } > "$tmp/imgs/extra.md"
+  if [ -n "$(chk_images "$tmp/imgs/extra.md" "$tmp/imgs/extra.list")" ]; then st_note 'a newly listed and linked docs/images file is flagged'; fi
+  finish images 'every image link has alt text and reaches a file of docs/images/ that the tree lists' chk_images
 }
 
 rule_teaser() {
@@ -821,13 +1340,17 @@ rule_teaser() {
   st 'no empty line between the opening paragraph and the teaser' 1 "$README" 'held { held = 0; if ($0 == "") next } { print } /^Your integrations already/ { held = 1 }' chk_teaser
   st 'a stray line where the empty line is' 1 "$README" 'held { held = 0; if ($0 == "") { print "x"; next } } { print } /^Your integrations already/ { held = 1 }' chk_teaser
   st_append 'an embedded image' '![teaser](teaser.png)' chk_teaser
+  st_append 'a linked image' '[![Teaser](docs/images/page-incident.png)](https://youtu.be/wycbyfnXFMU)' chk_teaser
+  st_append 'a remote image' '![teaser](https://youtu.be/wycbyfnXFMU)' chk_teaser
+  st_append 'a GIF' '![teaser](docs/images/teaser.gif)' chk_teaser
+  st_append 'a reference-style image' '![teaser][t]' chk_teaser
   st_append 'an image tag' '<img src=teaser.png>' chk_teaser
   st_append 'a frame' '<iframe src=teaser></iframe>' chk_teaser
   st_append 'a video tag' '<video src=teaser.mp4></video>' chk_teaser
   st_append 'an image tag in capitals' '<IMG src=teaser.png>' chk_teaser
   st_append 'a picture tag' '<picture><source srcset=teaser.png></picture>' chk_teaser
   st_append 'the teaser line twice' "$TEASER" chk_teaser
-  finish teaser 'the teaser is a plain link, word for word, two lines below the opening paragraph, with no embed' chk_teaser
+  finish teaser 'the teaser is a plain link, word for word, two lines below the opening paragraph, with no media tag and only inline docs/images PNG images' chk_teaser
 }
 
 rule_outcomes() {
@@ -845,6 +1368,12 @@ rule_install() {
   rule_begin install "$README" || return
   st_facts chk_install "$INSTALL_FACTS"
   st_move 'the Compose version moved out of the section' 'Install it yourself' '- Docker Compose 2.24' chk_install
+  st 'the build 109 section removed' 1 "$README" '!/^### Start it with build 109$/' chk_install
+  st 'the build 109 section renamed' 1 "$README" '/^### Start it with build 109$/ { print "### Start it with build 109 now"; next } { print }' chk_install
+  st 'the build 109 section below the non-Health image' 1 "$README" '/^### Start it with build 109$/ { print "### The IRIS (non-Health) image"; next } /^### The IRIS \(non-Health\) image$/ { print "### Start it with build 109"; next } { print }' chk_install
+  st 'the build 109 section above Start it by hand' 1 "$README" '/^### Start it with build 109$/ { print "### Start it by hand"; next } /^### Start it by hand$/ { print "### Start it with build 109"; next } { print }' chk_install
+  st 'the Troubleshooting build 109 sentence removed' 1 "$README" '{ sub(/ With build 109, follow \[Start it with build 109\].*instead of running `\.\/install\.sh`\./, ""); print }' chk_install
+  st 'IRIS_IMAGE= out of the build 109 section' 1 "$README" '/^### / { s = ($0 == "### Start it with build 109") } s { gsub(/IRIS_IMAGE=/, "ZZ=") } { print }' chk_install
   finish install 'Compose 2.24, both image names, load and retag, the portal, the CPUs and the 15-minute wait' chk_install
 }
 
@@ -905,7 +1434,11 @@ rule_key_account() {
 rule_lan() {
   rule_begin lan "$README" || return
   st_facts chk_lan "$LAN_FACTS"
+  st_facts chk_lan "$ACCOUNTS_FACTS"
   st_move 'the warning moved out of the section' 'Sign in' '**Change the README account' chk_lan
+  st 'the default accounts section removed' 1 "$README" '$0 == "### Change the default IRIS accounts\047 passwords" { next } { print }' chk_lan
+  st 'the default accounts section renamed' 1 "$README" '$0 == "### Change the default IRIS accounts\047 passwords" { print "### Change the default passwords"; next } { print }' chk_lan
+  st 'the default accounts section above the README account section' 1 "$README" '$0 == "### Change the default IRIS accounts\047 passwords" { print "### Change the README account\047s password"; next } $0 == "### Change the README account\047s password" { print "### Change the default IRIS accounts\047 passwords"; next } { print }' chk_lan
   finish lan 'Sign in warns about the LAN and the Management Portal and links to the password steps' chk_lan
 }
 
@@ -1086,6 +1619,84 @@ rule_product_links() {
   fi
 }
 
+rule_telegram_section() {
+  local n
+  rule_begin telegram-section "$README" || return
+  st 'the heading renamed' 1 "$README" '/^## Telegram$/ { print "## Phones"; next } { print }' chk_telegram_section
+  st 'the section removed' 1 "$README" '/^## Telegram$/ { skip = 1; next } skip && /^## / { skip = 0 } !skip' chk_telegram_section
+  st_facts chk_telegram_section "$TG_FACTS"
+  for n in 1 2 3 4 5; do
+    st "step $n removed" 1 "$README" "/^## / { s = (\$0 == \"## Telegram\") } !(s && /^$n\\. /)" chk_telegram_section
+  done
+  st 'a sixth step' 1 "$README" '/^5\. / { print; print "6. One more."; next } { print }' chk_telegram_section
+  st 'the section above Sign in' 1 "$README" '{ l[NR] = $0 } /^## Telegram$/ { t = NR } END { e = t; while (e < NR && l[e + 1] !~ /^## /) e++; for (i = 1; i <= NR; i++) { if (l[i] == "## Sign in") for (j = t; j <= e; j++) print l[j]; if (t && i >= t && i <= e) continue; print l[i] } }' chk_telegram_section
+  finish telegram-section 'the Telegram section sits after Sign in with five steps and the facts a person needs to follow them' chk_telegram_section
+}
+
+rule_telegram_strings() {
+  local str src kind file out
+  rule_begin telegram-strings "$README" || return
+  chk_telegram_strings_real() { chk_telegram_strings "$1" "$railview_p" "$cardview_p" "$buttons_p"; }
+  st 'Telegram not set up reworded' 1 "$README" '{ sub(/"Telegram not set up"/, "\"Telegram is not set up\"") } { print }' chk_telegram_strings_real
+  st 'Telegram paired reworded' 1 "$README" '{ sub(/"Telegram paired"/, "\"Paired with Telegram\"") } { print }' chk_telegram_strings_real
+  st 'Unpair reworded' 1 "$README" '{ sub(/"Unpair"/, "\"Disconnect\"") } { print }' chk_telegram_strings_real
+  st 'Approve reworded' 1 "$README" '{ sub(/"Approve"/, "\"Yes\"") } { print }' chk_telegram_strings_real
+  st 'a new quoted string' 1 "$README" '/^1\. In Telegram/ { $0 = $0 " Tap \"Pair now\"." } { print }' chk_telegram_strings_real
+  st 'a quoted string unquoted' 1 "$README" '{ sub(/"Reject"/, "Reject") } { print }' chk_telegram_strings_real
+  # The source side: a built page that no longer shows a string is flagged.
+  while IFS='|' read -r str src kind; do
+    [ -n "$str" ] || continue
+    case $src in RAIL) file=$railview_p ;; CARD) file=$cardview_p ;; *) file=$buttons_p ;; esac
+    if [ "$kind" = ts ]; then
+      strip_str "$file" "'$str'" || { st_note "the source without '$str': the edit changed nothing"; continue; }
+    else
+      strip_str "$file" "\"text\": \"$str\"," || { st_note "the catalog without \"$str\": the edit changed nothing"; continue; }
+    fi
+    case $src in
+      RAIL) out=$(chk_telegram_strings "$README" "$tmp/m" "$cardview_p" "$buttons_p") ;;
+      CARD) out=$(chk_telegram_strings "$README" "$railview_p" "$tmp/m" "$buttons_p") ;;
+      *) out=$(chk_telegram_strings "$README" "$railview_p" "$cardview_p" "$tmp/m") ;;
+    esac
+    if [ -z "$out" ]; then st_note "the built page without \"$str\" is not flagged"; fi
+  done <<EOT
+$TG_UI
+EOT
+  finish telegram-strings 'every UI string the Telegram section quotes is shown by the built page' chk_telegram_strings_real
+}
+
+rule_telegram_facts() {
+  rule_begin telegram-facts "$README" "$included_p" "$layoutview_p" || return
+  st 'the pause reworded to 10 minutes' 1 "$README" '{ sub(/after 5 minutes/, "after 10 minutes") } { print }' chk_telegram_facts
+  st 'the pause time removed' 1 "$README" '{ sub(/ and tries again after 5 minutes/, "") } { print }' chk_telegram_facts
+  st 'the narrower-window phrase dropped from step 5' 1 "$README" '{ sub(/ \(in a narrower window, open it with the Status button at the top of the page\)/, "") } { print }' chk_telegram_facts
+  st 'the Status section renamed in step 5' 1 "$README" '{ sub(/In the Status section/, "In the Status band") } { print }' chk_telegram_facts
+  st 'the address of step 5 changed' 1 "$README" '/^5\. / { sub(/localhost:52773/, "localhost:52774") } { print }' chk_telegram_facts
+  st 'step 5 without an address' 1 "$README" '/^5\. / { sub(/http:\/\/localhost:52773\/ocutalon\//, "the page") } { print }' chk_telegram_facts
+  st 'PAUSESECONDS changed' 2 "$included_p" '{ sub(/Parameter PAUSESECONDS = 300;/, "Parameter PAUSESECONDS = 600;") } { print }' chk_telegram_facts
+  st 'the page region renamed' 3 "$layoutview_p" "{ sub(/status: 'Status',/, \"status: 'State',\") } { print }" chk_telegram_facts
+  TGF_ENV=$tmp/env.broken
+  sed 's/^TELEGRAM_BOT_TOKEN=/TELEGRAM_TOKEN=/' "$envexample_p" > "$TGF_ENV"
+  if [ -z "$(chk_telegram_facts "$README" "$included_p" "$layoutview_p")" ]; then st_note '.env.example without the TELEGRAM_BOT_TOKEN= line is not flagged'; fi
+  TGF_ENV=$envexample_p
+  TGF_COMPOSE=$tmp/compose.broken
+  sed 's/- path: \.env$/- path: .env.local/' "$compose_p" > "$TGF_COMPOSE"
+  if [ -z "$(chk_telegram_facts "$README" "$included_p" "$layoutview_p")" ]; then st_note 'a compose file that does not read .env is not flagged'; fi
+  TGF_COMPOSE=$compose_p
+  finish telegram-facts 'the pause time, the Status section, the token line, the compose env file and the address of the steps are what is built' chk_telegram_facts
+}
+
+rule_telegram_demo() {
+  rule_begin telegram-demo "$README" || return
+  st_append 'a sentence about the online demo that mentions Telegram' 'The online demo also sends Telegram notices.' chk_telegram_demo
+  st_append 'a sentence about the online demo that mentions pairing' 'Pairing works in the online demo.' chk_telegram_demo
+  st_append 'a sentence about the online demo that mentions a paired chat' 'The online demo keeps your paired chat.' chk_telegram_demo
+  st_append 'a sentence about the demo address that mentions a paired phone' 'Visit https://demo.ocutalon.com with your paired phone.' chk_telegram_demo
+  st_append 'a Telegram sentence outside the section that does not say your own install' 'You can approve it in Telegram too.' chk_telegram_demo
+  st 'the Telegram row without your own install' 1 "$README" '/^\| Telegram \|/ { gsub(/your own install/, "ZZ") } { print }' chk_telegram_demo
+  st 'the use case without your own install' 1 "$README" '/^- \*\*The partner feed/ { sub(/On your own install you/, "You") } { print }' chk_telegram_demo
+  finish telegram-demo 'no sentence about the online demo mentions Telegram, and the other mentions say your own install' chk_telegram_demo
+}
+
 rule_readme_links() {
   rule_begin readme-links "$README" || return
   st_append 'a link to a heading that is not there' '[x](#nowhere)' chk_readme_links
@@ -1119,7 +1730,56 @@ rule_must_scan() {
   finish must-scan "the must-scan list for paths and keys in $BOUNDARIES names $README" chk_must_scan
 }
 
-RULES='top try_it interesting use_cases teaser outcomes install install_pointer commands key_account lan sign_in_address demo_mode admin_commands after_start_log dev_only public_text no_telegram product_links readme_links must_scan'
+rule_ipm() {
+  rule_begin ipm "$README" "$ipmdoc_p" || return
+  st 'the IPM section removed' 1 "$README" '!/^### Install it with IPM$/' chk_ipm
+  st 'the IPM section above Check that it is ready' 1 "$README" '/^### Install it with IPM$/ { print "### Check that it is ready"; next } /^### Check that it is ready$/ { print "### Install it with IPM"; next } { print }' chk_ipm
+  st 'the registry line and the first install swapped' 1 "$README" '/^zpm "enable -community"$/ { print "zpm \"install ocutalon\""; next } !done && /^zpm "install ocutalon"$/ { print "zpm \"enable -community\""; done = 1; next } { print }' chk_ipm
+  st 'the registry line removed' 1 "$README" '!/^zpm "enable -community"$/' chk_ipm
+  st 'the first install not said to run in USER' 1 "$README" '{ gsub(/terminal in USER, an/, "terminal in the instance, an") } { print }' chk_ipm
+  st 'the link to docs/install-ipm.md changed' 1 "$README" '{ gsub(/\]\(docs\/install-ipm\.md\)/, "](docs/other.md)") } { print }' chk_ipm
+  st 'any namespace said' 1 "$README" '{ print } /^This second run installs/ { print ""; print "Run it in any namespace." }' chk_ipm
+  st 'the folder install before the registry install' 1 "$README" '{ print } /^### Install it with IPM$/ { print ""; print "```"; print "zpm \"load /x\""; print "```" }' chk_ipm
+  st 'the repositories warning removed' 1 "$README" '!/^This command first removes the package repositories/' chk_ipm
+  st 'the second run removed' 1 "$README" '!/^zn "OCUTALON"$/' chk_ipm
+  st 'the page gives the folder install first' 2 "$ipmdoc_p" '/^zpm "enable -community"$/ { print; print "zpm \"load /x\""; next } { print }' chk_ipm
+  st 'the page without the folder install' 2 "$ipmdoc_p" '!/^zpm "load/' chk_ipm
+  finish ipm 'the IPM section follows the image sections: registry line, then the first install in USER, a link to the page, no "any namespace"' chk_ipm
+}
+
+rule_licence() {
+  rule_begin licence "$README" "$license_p" || return
+  st 'the holder changed' 2 "$license_p" '/^Copyright/ { sub(/jbrandtmse/, "someone") } { print }' chk_licence
+  st 'the year changed' 2 "$license_p" '/^Copyright/ { sub(/2026/, "2025") } { print }' chk_licence
+  st 'a second copyright line' 2 "$license_p" '{ print } /^Copyright/ { print "Copyright (c) 2026 someone else" }' chk_licence
+  st 'no holder line' 2 "$license_p" '!/^Copyright/' chk_licence
+  st 'no grant paragraph' 2 "$license_p" '!/^Permission is hereby granted/' chk_licence
+  st 'no condition paragraph' 2 "$license_p" '!/^The above copyright notice and this permission notice/' chk_licence
+  st 'no warranty paragraph' 2 "$license_p" '!/^THE SOFTWARE IS PROVIDED/' chk_licence
+  st 'the README line removed' 1 "$README" '!/^OcuTalon is under the MIT License: /' chk_licence
+  st 'the README line changed' 1 "$README" '/^OcuTalon is under the MIT License: / { sub(/MIT/, "Apache") } { print }' chk_licence
+  st 'the README line moved to another section' 1 "$README" '/^OcuTalon is under the MIT License: / { next } { print } /^## Stop, start and update$/ { print ""; print "OcuTalon is under the MIT License: [LICENSE](LICENSE)." }' chk_licence
+  finish licence 'LICENSE holds the MIT grant, the warranty and the holder line, and Credits and licences links it' chk_licence
+}
+
+rule_docs() {
+  rule_begin docs "$bridgedoc_p" "$ipmdoc_p" "$secov_p" || return
+  st 'the bridge guide without the build 109 sentence' 1 "$bridgedoc_p" '{ sub(/ Build 109, which the Early Access portal now offers in place of build 154, has not been tested with this guide yet\./, "") } { print }' chk_docs
+  st 'the bridge guide sentence changed' 1 "$bridgedoc_p" '{ sub(/has not been tested with this guide yet/, "has been tested with this guide") } { print }' chk_docs
+  st 'the bridge guide sentence on a line of its own' 1 "$bridgedoc_p" '{ if (sub(/ Build 109, which the Early Access portal now offers in place of build 154, has not been tested with this guide yet\./, "")) { print; print ""; print "Build 109, which the Early Access portal now offers in place of build 154, has not been tested with this guide yet." } else print }' chk_docs
+  st 'the IPM page without the build 109 sentence' 2 "$ipmdoc_p" '{ sub(/ Build 109, which the Early Access portal now offers in place of build 154, has not been tested with the IPM install yet\./, "") } { print }' chk_docs
+  st 'the IPM page sentence changed' 2 "$ipmdoc_p" '{ sub(/has not been tested with the IPM install yet/, "has been tested with the IPM install") } { print }' chk_docs
+  st 'the approval section back to the exact call' 3 "$secov_p" 'index($0, "- It is fixed to exact targets and shows its dry run (a fix), or the tool") == 1 { print "- It is fixed to exact targets and shows its dry run (a fix) or the exact call (a tool call)."; next } { print }' chk_docs
+  st 'the approval section line without the 200 characters' 3 "$secov_p" '{ sub(/, cut to 200 characters/, "") } { print }' chk_docs
+  st 'the MCP rules back to the exact call' 3 "$secov_p" 'index($0, "- Every call passes the gate, an approval request when needed (showing the tool") == 1 { print "- Every call passes the gate, an approval request when needed (showing the exact call), an audit entry (read-only calls included) and an agent step."; next } { print }' chk_docs
+  st 'the MCP rules line without the full call kept' 3 "$secov_p" '{ sub(/, with the full call kept in the approval record\), an audit entry/, "), an audit entry") } { print }' chk_docs
+  st 'the MCP framing sentence removed' 3 "$secov_p" '!/^This release can.t connect to MCP servers\./' chk_docs
+  st 'a heading between the framing sentence and the rules line' 3 "$secov_p" '/^- An MCP tool that runs commands must be classified risky\./ { print "## Other"; print "" } { print }' chk_docs
+  st 'the exact call promised elsewhere' 3 "$secov_p" '{ print } END { print ""; print "- It shows the exact call." }' chk_docs
+  finish docs 'the build 109 sentences of the bridge guide and the IPM page and the two ruled lines of the security overview are there, word for word' chk_docs
+}
+
+RULES='top try_it interesting use_cases how_you_talk teaser images outcomes install install_pointer commands key_account lan sign_in_address demo_mode admin_commands after_start_log dev_only public_text telegram_section telegram_strings telegram_facts telegram_demo no_telegram product_links readme_links must_scan ipm licence docs'
 
 # unlisted <rule names>: each rule_* function of this script but rule_begin that the list does not name, one per line.
 unlisted() {

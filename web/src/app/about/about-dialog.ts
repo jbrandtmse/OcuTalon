@@ -3,7 +3,7 @@ import { ChangeDetectionStrategy, Component, computed, inject } from '@angular/c
 
 import { Icon } from '../icon/icon';
 import { LiveState } from '../live/live-state';
-import { README_URL } from '../links';
+import { BRIDGE_GUIDE_URL, README_URL, SECURITY_OVERVIEW_URL } from '../links';
 
 /** The id of the dialog's heading, which names the dialog. */
 export const ABOUT_TITLE_ID = 'about-title';
@@ -34,6 +34,20 @@ export const ABOUT_CLOSE_NAME = 'Close About OcuTalon';
       <p>
         <a class="link" [href]="readme" target="_blank" rel="noopener noreferrer">
           README
+          <app-icon name="external-link" />
+          <span class="visually-hidden"> (opens in a new tab)</span>
+        </a>
+      </p>
+      <p>
+        <a class="link" [href]="bridgeGuide" target="_blank" rel="noopener noreferrer">
+          Bridge developer guide
+          <app-icon name="external-link" />
+          <span class="visually-hidden"> (opens in a new tab)</span>
+        </a>
+      </p>
+      <p>
+        <a class="link" [href]="securityOverview" target="_blank" rel="noopener noreferrer">
+          Security overview
           <app-icon name="external-link" />
           <span class="visually-hidden"> (opens in a new tab)</span>
         </a>
@@ -92,6 +106,8 @@ export class AboutDialog {
   protected readonly titleId = ABOUT_TITLE_ID;
   protected readonly closeName = ABOUT_CLOSE_NAME;
   protected readonly readme = README_URL;
+  protected readonly bridgeGuide = BRIDGE_GUIDE_URL;
+  protected readonly securityOverview = SECURITY_OVERVIEW_URL;
   protected readonly title = computed(() => {
     const version = this.live.snapshot()?.version ?? '';
     return version ? `OcuTalon ${version}` : 'OcuTalon';

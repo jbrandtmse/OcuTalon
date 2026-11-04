@@ -15,6 +15,9 @@
 Class OcuTalon.Test.Data.Fixture
 {
 
+/// How many seconds ahead of now a fixture check row is first due (Check).
+Parameter CHECKAHEAD = 3600;
+
 /// A session row of the IRIS user, with its own Ref, TraceRef and Epoch.
 ClassMethod Session(user As %String) As %String
 {
@@ -61,7 +64,9 @@ ClassMethod Reminder(sessionRef As %String, dueAt As %String = "2030-01-01T10:00
 }
 
 /// A production check of the session on a production; the namespace and the production default to a pair of
-/// fixture names that no real check uses. fields, an object of property names and values, is set after the defaults.
+/// fixture names that no real check uses. The row is not due for CHECKAHEAD seconds (NextDueAt), so that the heartbeat's
+/// Checks run leaves it alone while a test reads it; a field NextDueAt, even "" (due at once), replaces that default.
+/// fields, an object of property names and values, is set after the defaults.
 ClassMethod Check(sessionRef As %String, namespace As %String = "ZZNS", production As %String = "Zz.Production", fields As %DynamicObject = "") As %String
 {
 	Set row = ##class(OcuTalon.Data.BackgroundCheck).%New()
@@ -72,6 +77,7 @@ ClassMethod Check(sessionRef As %String, namespace As %String = "ZZNS", producti
 	Set row.Production = production
 	Set row.DisplayName = "Zz "_production
 	Set row.AskedBy = "zzfixture"
+	Set row.NextDueAt = ##class(OcuTalon.Data.Time).AddSeconds(##class(OcuTalon.Data.Time).NowUtc(), ..#CHECKAHEAD)
 	Do ..SetFields(row, fields)
 	Quit ..Keep(row)
 }
@@ -112,6 +118,21 @@ ClassMethod Approval(ownerRef As %String, incidentRef As %String = "", state As 
 	Set row.ExpiresAt = "2030-01-02T09:00:00Z"
 	Do ..SetFields(row, fields)
 	Quit ..Keep(row)
+}
+
+/// A saved FixRun of the request (a Ref) for the incident (a Ref), started now and ended now unless fields, an object of property names and
+/// values, gives EndedAt ("" is a run that has not ended); fields is set after the defaults. It answers the run's id. The run is recorded under the
+/// incident's Ref, so that Clean of that Ref (or of every row) deletes it.
+ClassMethod FixRun(incident As %String, request As %String, fields As %DynamicObject = "") As %Integer
+{
+	Set row = ##class(OcuTalon.Data.FixRun).%New()
+	Set row.ApprovalRef = request
+	Set row.IncidentRef = incident
+	Set row.StartedAt = ##class(OcuTalon.Data.Time).NowUtc()
+	If '$IsObject(fields) || 'fields.%IsDefined("EndedAt") Set row.EndedAt = row.StartedAt
+	Do ..SetFields(row, fields)
+	Do ..Keep(row, incident)
+	Quit row.%Id()
 }
 
 /// A decision of the owner. kind defaults to decide, the attention decision; recordedAt to now; the outcome is tellnow. Its
@@ -175,10 +196,10 @@ ClassMethod GuideState(sessionRef As %String, runEpoch As %Integer = 1, runStart
 }
 
 /// Sets the test seam that says whether this release includes Telegram (what Channel.Telegram.In's Included() reads) to
-/// value, 1 or 0, and returns the value it had, 0 when it was not set, so that a test can put it back.
+/// value, 1 or 0, and returns the value it had, 1 when it was not set (Included() is 1 unless the seam is 0), so that a test can put it back.
 ClassMethod SetTelegramIncluded(value As %Boolean) As %Boolean
 {
-	Set was = +$Get(^OcuTalonTest("TelegramIncluded"))
+	Set was = +$Get(^OcuTalonTest("TelegramIncluded"), 1)
 	Set ^OcuTalonTest("TelegramIncluded") = +value
 	Quit was
 }

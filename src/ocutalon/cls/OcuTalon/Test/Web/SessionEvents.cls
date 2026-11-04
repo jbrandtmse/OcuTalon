@@ -9,6 +9,9 @@
 /// proxied attach, and OWNCONNECTIONS = 0): each test starts with the flag off, saves and restores onlineDemo, proxyAddress,
 /// resetAnchor, resetIntervalHours and the address limit's row, and removes its session rows and counter rows after, also
 /// when it failed. The sign-ins are in process, with a stand-in request and response, as the user that runs the tests.
+/// Story 31.1's TestSignOutMark covers OnLogout: it raises the session's sign-out mark by one off the online demo, changes no field
+/// of the session row (every stored property of Data.Session, derived from its definition) and always answers OK; on the online
+/// demo it sets no mark node at all.
 Class OcuTalon.Test.Web.SessionEvents Extends %UnitTest.TestCase
 {
 
@@ -922,6 +925,158 @@ Method TestFailureIsLoggedWithoutTheUser()
 	Do $$$AssertEquals($ListLength(..LinesSince(log, mark)), 0, "and writes no line")
 	Set row = ##class(OcuTalon.Data.Session).RefIndexOpen($Get(%session.Data("OcuTalon.SessionRef")))
 	If before = 0, $IsObject(row) Do ##class(OcuTalon.Test.Data.Fixture).Adopt(row)
+}
+
+/// OnLogout (Story 31.1, DW-457; U-209): with a CSP session that names a session row and the online demo off it answers OK and
+/// raises the row's sign-out mark by exactly 1, and every stored field of the row stays as it was (the fields are derived from
+/// the class's stored properties, so a field added later is compared too; the Epoch is also asserted on its own). With the
+/// online demo on it answers OK and sets no mark node, for a session that never signed out as for one that did; with no ref in
+/// the CSP session it answers OK and the mark is unchanged; a broken CSP session still answers OK. The online-demo setting is
+/// put back and every mark node the test made is killed, also after a failure.
+Method TestSignOutMark()
+{
+	New %session
+	Set markGlobal = ##class(OcuTalon.Data.Session).#MARKGLOBAL
+	Set ref = ..MarkedFixture()
+	Set other = ..MarkedFixture()
+	Set fresh = ..MarkedFixture()
+	Set fields = ..StoredFields()
+	For name = "Epoch", "Ref", "CspSessionId", "ResumeHash", "AllowanceTimes", "ThreadSessionId", "DailyCapDay" {
+		Do $$$AssertTrue($ListFind(fields, name) > 0, "the stored fields compared include "_name)
+	}
+	Set before = ..RowText(ref)
+	Set epochBefore = ##class(OcuTalon.Data.Session).RefIndexOpen(ref).Epoch
+	Set otherBefore = ##class(OcuTalon.Data.Session).SignOuts(other)
+	Set freshBefore = ..RowText(fresh)
+	Set %session = ##class(%CSP.Session).%New("ZzSignOutMark", 0)
+	Set %session.Data(##class(OcuTalon.Data.Ownership).#SESSIONKEY) = ref
+	Set resumeHash = "|ResumeHash="_##class(OcuTalon.Data.Session).Hash(ref)
+	Set cspSessionId = "|CspSessionId=zz"_ref
+	Try {
+		Do $$$AssertNotEquals(epochBefore, "", "the session has an Epoch to compare")
+		Do $$$AssertTrue(before [ resumeHash, "the row text holds the resume hash")
+		Do $$$AssertTrue(before [ cspSessionId, "and the CSP session id")
+		Do $$$AssertTrue(before [ "|AllowanceTimes=2001-01-01T00:00:01Z~2001-01-01T00:00:02Z", "and the allowance list by its elements")
+		Do $$$AssertEquals($Data(@markGlobal@(fresh)), 0, "a session that never signed out has no mark node to begin with")
+		Do $$$AssertEquals(##class(OcuTalon.Data.Session).SignOuts(ref), 0, "the session has no mark to begin with")
+		Do $$$AssertStatusOK(##class(OcuTalon.Web.SessionEvents).OnLogout(), "OnLogout answers OK")
+		Do $$$AssertEquals(##class(OcuTalon.Data.Session).SignOuts(ref), 1, "and raises the mark by 1")
+		Do $$$AssertStatusOK(##class(OcuTalon.Web.SessionEvents).OnLogout(), "a second sign-out answers OK")
+		Do $$$AssertEquals(##class(OcuTalon.Data.Session).SignOuts(ref), 2, "and raises it by 1 again")
+		Do $$$AssertEquals($Get(@markGlobal@(ref)), 2, "and the mark is the node that MARKGLOBAL names")
+		Do $$$AssertEquals(..RowText(ref), before, "the row's fields are unchanged")
+		Do $$$AssertEquals(##class(OcuTalon.Data.Session).RefIndexOpen(ref).Epoch, epochBefore, "and the Epoch is unchanged")
+		Do $$$AssertEquals(##class(OcuTalon.Data.Session).SignOuts(other), otherBefore, "another session's mark is unchanged")
+
+		Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "1")
+		Do $$$AssertStatusOK(##class(OcuTalon.Web.SessionEvents).OnLogout(), "on the online demo it answers OK")
+		Do $$$AssertEquals(##class(OcuTalon.Data.Session).SignOuts(ref), 2, "and the marked session's count is unchanged")
+		Set %session.Data(##class(OcuTalon.Data.Ownership).#SESSIONKEY) = fresh
+		Do $$$AssertStatusOK(##class(OcuTalon.Web.SessionEvents).OnLogout(), "for a session that never signed out it answers OK")
+		Do $$$AssertEquals($Data(@markGlobal@(fresh)), 0, "and sets no mark node")
+		Do $$$AssertEquals(..RowText(fresh), freshBefore, "and its row's fields are unchanged")
+		Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
+
+		Kill %session.Data(##class(OcuTalon.Data.Ownership).#SESSIONKEY)
+		Do $$$AssertStatusOK(##class(OcuTalon.Web.SessionEvents).OnLogout(), "with no ref in the CSP session it answers OK")
+		Do $$$AssertEquals(##class(OcuTalon.Data.Session).SignOuts(ref), 2, "and changes no mark")
+
+		Set %session = ""
+		Do $$$AssertStatusOK(##class(OcuTalon.Web.SessionEvents).OnLogout(), "with no CSP session it answers OK")
+		Do $$$AssertEquals(##class(OcuTalon.Data.Session).SignOuts(ref), 2, "and changes no mark")
+	} Catch exception {
+		Do $$$AssertEquals(exception.DisplayString(), "", "the checks ran without an error")
+	}
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
+	For node = ref, other, fresh {
+		Kill @markGlobal@(node)
+	}
+}
+
+/// OnLogout wakes the session's WebSocket (Story 31.1, U-174: "so that its socket wakes at once"): after a sign-out a wait on the
+/// session's wake resource returns signalled, and it does not when the online demo is on, when the CSP session names no ref, or
+/// when another session signs out. The resource is created and cleared here and deleted after, also after a failure.
+Method TestSignOutWakesTheSocket()
+{
+	New %session
+	Set ref = ##class(OcuTalon.Test.Data.Fixture).Session($Username)
+	Set other = ##class(OcuTalon.Test.Data.Fixture).Session($Username)
+	Set name = ##class(OcuTalon.Live.Publish).WakeName(ref)
+	Set key = ##class(OcuTalon.Data.Ownership).#SESSIONKEY
+	Set %session = ##class(%CSP.Session).%New("ZzSignOutWake", 0)
+	Try {
+		Do $SYSTEM.Event.Create(name)
+		Do $SYSTEM.Event.Clear(name)
+		Do $$$AssertEquals($SYSTEM.Event.Wait(name, 0.1), 0, "nothing is queued to begin with")
+
+		Set %session.Data(key) = other
+		Do $$$AssertStatusOK(##class(OcuTalon.Web.SessionEvents).OnLogout(), "another session signs out")
+		Do $$$AssertEquals($SYSTEM.Event.Wait(name, 0.1), 0, "and does not wake this session's socket")
+
+		Set %session.Data(key) = ref
+		Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "1")
+		Do $$$AssertStatusOK(##class(OcuTalon.Web.SessionEvents).OnLogout(), "on the online demo it answers OK")
+		Do $$$AssertEquals($SYSTEM.Event.Wait(name, 0.1), 0, "and wakes nothing")
+		Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
+
+		Kill %session.Data(key)
+		Do $$$AssertStatusOK(##class(OcuTalon.Web.SessionEvents).OnLogout(), "with no ref it answers OK")
+		Do $$$AssertEquals($SYSTEM.Event.Wait(name, 0.1), 0, "and wakes nothing")
+
+		Set %session.Data(key) = ref
+		Do $$$AssertStatusOK(##class(OcuTalon.Web.SessionEvents).OnLogout(), "the session signs out")
+		Do $$$AssertEquals($SYSTEM.Event.Wait(name, 0.1), 1, "and its socket's wake resource is signalled")
+	} Catch exception {
+		Do $$$AssertEquals(exception.DisplayString(), "", "the checks ran without an error")
+	}
+	Do $SYSTEM.Event.Delete(name)
+	Kill ^OcuTalonP.SessionM(ref), ^OcuTalonP.SessionM(other)
+}
+
+/// A session row of the running user with every stored field set to a value of its own (including the resume hash, the CSP
+/// session id and the allowance list), so that a comparison of the fields can fail on each; its Ref. The days and times are in
+/// 2001, a date that no writer of these fields stores (they store today's), so a write of today's values changes the row.
+ClassMethod MarkedFixture() As %String [ Private ]
+{
+	Set ref = ##class(OcuTalon.Test.Data.Fixture).Session($Username)
+	Set row = ##class(OcuTalon.Data.Session).RefIndexOpen(ref)
+	Set row.ThreadSessionId = 7
+	Set row.ThreadDay = "2001-01-01"
+	Set row.ResumeHash = ##class(OcuTalon.Data.Session).Hash(ref)
+	Set row.CspSessionId = "zz"_ref
+	Set row.AllowanceTimes = $ListBuild("2001-01-01T00:00:01Z", "2001-01-01T00:00:02Z")
+	Set row.AllowanceUntil = "2001-01-01T01:00:00Z"
+	Set row.DailyCapDay = "2001-01-01"
+	Set sc = row.%Save()
+	If $SYSTEM.Status.IsError(sc) Throw ##class(%Exception.StatusException).CreateFromStatus(sc)
+	Quit ref
+}
+
+/// The names of the stored properties of OcuTalon.Data.Session as a $List: not transient, not calculated, and not a %-name.
+ClassMethod StoredFields() As %List [ Private ]
+{
+	Set names = ""
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT Name FROM %Dictionary.CompiledProperty WHERE parent = ? AND Transient = 0 AND Calculated = 0 AND SUBSTRING(Name, 1, 1) <> '%' ORDER BY Name", "OcuTalon.Data.Session")
+	While result.%Next() {
+		Set names = names_$ListBuild(result.%Get("Name"))
+	}
+	Quit names
+}
+
+/// The stored fields of a session row as one text, to see that nothing changed; a list property is compared by its elements.
+ClassMethod RowText(ref As %String) As %String [ Private ]
+{
+	Set row = ##class(OcuTalon.Data.Session).RefIndexOpen(ref)
+	Set fields = ..StoredFields()
+	Set text = ""
+	For i = 1:1:$ListLength(fields) {
+		Set name = $List(fields, i)
+		Set type = ##class(%Dictionary.CompiledProperty).%OpenId("OcuTalon.Data.Session||"_name).Type
+		Set value = $Property(row, name)
+		If $Piece(type, ".", $Length(type, ".")) = "List", $ListValid(value) Set value = $ListToString(value, "~")
+		Set text = text_"|"_name_"="_value
+	}
+	Quit text
 }
 
 /// The lines of OcuTalon.Web.SessionEvents that the console log gained after byte offset mark, as a $List of lines.

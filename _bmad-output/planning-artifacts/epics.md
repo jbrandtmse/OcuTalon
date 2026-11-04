@@ -262,7 +262,7 @@ From the architecture spine (`ARCHITECTURE-SPINE.md`, final, updated 2026-10-17)
 - Namespace OCUTALON with code, data, private and public databases; OCUORDERS (demo mode) with code and data databases, created or removed by `OcuTalon.Install.Step.Demo`. The public database holds only `OcuTalon.Web.Public`, `OcuTalon.Data.Public` and `^OcuTalonPublic`. Every non-message persistent class sets `DEFAULTGLOBAL` to `^OcuTalonP.<Short>` (`^OcuTalonBP.<Short>` in the bridge); mappings `OcuTalonP.*`, `OcuTalonBP.*`, `AI.Agent.Session*` and `IRIS.IF.*` go to the private database, with an install check on where `^OcuTalonPublic` resolves.
 - Image: one Dockerfile `FROM` the retagged build 154 image, a build argument for the non-Health image, IPM's release file, the committed web bundle and, by step, the baked FastEmbed model and pinned Python packages. Durable `%SYS` and databases on a named volume; every install replaces only code.
 - The after-start script (OS authentication, always exits 0) first deletes the ready marker and clears readiness through `OcuTalon.Data.Public.Settings` when that class exists, installs or upgrades the package (version-gated; a developer compose file sets `OCUTALON_DEV=1`), runs the installer steps in order (bridge installer; `Public`, which writes the public settings from AD-19's variables with readiness still cleared and copies the budget values into `Decide`'s host settings, so every later step reads the online-demo flag through the accessor; roles and users with the README account's non-expiring password; web applications, SSL and tasks; `Demo`, which creates or removes OCUORDERS, its trace application and its grants as demo mode says; Config Store entries; audit events; the Telegram items, enabled only when `Included()` returns 1 and `TELEGRAM_BOT_TOKEN` is set), then `Production`, `Reconcile`, then `Public` again to set readiness last, and writes the ready marker. The compose health check opens no IRIS session and passes when IRIS runs and the marker equals the image version; `start_period` at least 10 minutes; `stop_grace_period: 60s`; each compose file sets its own `name:`.
-- An IPM install into an existing instance takes two runs of the same package (first in any namespace, then in OCUTALON) or `iris merge`, then `zpm "enable -map -ns OCUTALON"`, then one run; demo mode off.
+- An IPM install into an existing instance takes two runs of the same package (first in any Interoperability-enabled namespace (USER on build 154), then in OCUTALON) or `iris merge`, then `zpm "enable -map -ns OCUTALON"`, then one run; demo mode off. [AMENDED 2026-11-03, Story 15.3, unattended ruling U-231 (veto), kept with conditions by the owner's delegate (answer 2026-11-03T03:57:20Z#695): IPM 0.10.10 refuses the package in a namespace without Interoperability (`SystemRequirements Interoperability="enabled"`), so %SYS cannot run the first command; USER is Interoperability-enabled on both the IRIS for Health and the plain IRIS build 154 images (measured 2026-11-03); it read "first in any namespace" - see the story change log (spec-15-3, Spec Change Log)]
 - Storage is append-only; every persistent class commits its compiler-generated `Storage` block; CI diffs storage against the previous release tag (a no-op until the first tag exists). Only `ApprovalHold` and `ReminderTimer` hold long timers; each mirrors a row that is the truth, and the startup reconciler re-arms them.
 - Settings: bridge values in host settings and bridge tables; product values in `OcuTalon.Data.Setting` through `Setting.Get` (60-second cache); model and provider through the Config Store (`AI.LLM.OcuTalon<Agent>`); secrets only from environment variables. `OcuTalon.Core.SettingsOps` is the only run-time settings writer and ships in release 1; there an admin switches demo mode with `do ##class(OcuTalon.Core.Admin).SetDemoMode(<0 or 1>)`; the settings page arrives in step 2.
 
@@ -1331,6 +1331,58 @@ So that each lane starts from a catalog, a Demo step and a test suite that need 
 - DW-41: The catalog holds the owner's count-of-one, late-press and sign-in-label texts from EXPERIENCE.md ("Forms for a count of one, the late press, and the sign-in labels", October 20): `Catalog.Render` picks the count-of-one form by its count slot, the matching `gap` fields and `Gaps` entries are removed, `answered.*` gains the rejected and by-user late-press keys, and the sign-in labels "User name", "Password" and "Show password" are catalog texts that `Test.Web.PublicTexts` compares with the public package's copies (AD-3, AD-32; owner decision 1) (ledger; routed by burndown 2026-10-20)
 - DW-42: With demo mode off, an OCUORDERS that OcuTalon didn't create, or that holds any production other than the Orders demo, is left in place: the `Demo` step logs a warning naming what it kept, records a status note saying how to remove it by hand, and the start finishes normally with the ready marker written; `test-install-start.sh`'s stopped-foreign and foreign-namespace fixtures assert the warning, the note and the ready marker (AD-3 as amended; owner decision 2) (ledger; routed by burndown 2026-10-20)
 - DW-9: `OcuTalon.Test.Install.Users:TestEnsureCreates` no longer reads an empty password hash after the create (a unique fixture name per run, and a read that waits for the committed object), or the flake is closed on evidence of a fresh-environment run of `lane-a` forward and reversed with no recurrence (Rule 19) (ledger; routed by burndown 2026-10-20)
+
+### Story 0.13: A start retries the CPF merge when IRIS cannot quiesce
+
+[ADDED 2026-11-03, fix-forward from DW-612 (orchestrator unattended ruling, veto U-235; re-opens Epic 0 under SC-5, before the 1.0.0 tag): `docker/after-start.sh` runs `iris merge` on a fresh copy of `merge.cpf` at every start, and even an unchanged merge runs about five full namespace activations, each of which waits up to about 120 s for a system quiesce and returns ERROR #453 when it cannot get one; CI hit it on a fresh first start (run 41419787515) and at install-start row 2, so a user's first start, restart or image update can end not ready. The larger rework (no re-merge on an unchanged start) is routed to the first daily release after 1.0.0. In 1.0.0's scope.]
+
+As a person starting OcuTalon (a first start, a restart or an image update),
+I want a start that meets IRIS's momentary "cannot quiesce" refusal during the CPF merge to try the merge again,
+So that a rare timing collision never leaves my install not ready.
+
+**Acceptance Criteria:**
+
+**Given** `docker/after-start.sh`'s merge step
+**When** `iris merge` fails and its output names ERROR #453 (Cannot quiesce the system for namespace reactivation)
+**Then** the step waits briefly and runs the merge again, a bounded number of times; each retry is written to the start's log with the attempt number; a merge that succeeds on a retry continues the start exactly as a first-try success does; after the last failed attempt the start ends not ready with the existing `STEP merge FAILED` report
+**And** any other merge failure fails at once, as today, with no retry
+**And** the retry count and wait are chosen so that a start that succeeds on its first retry stays inside the ready limits the live tests use (row 1's 400 s, row 2's 200 s); the choice and its reason are in the spec's Design Notes
+
+[AMENDED 2026-11-03, Contest Planner under the owner's delegation, U-235 conditions] The Contest Planner kept veto U-235 with five binding conditions (answer 2026-11-03T09:22:15Z#706); they refine the acceptance criteria above, and where they differ they win:
+- **Retry only on #453.** The merge is retried only when its output carries ERROR #453; any other failure, or a #453 after the last try, ends not ready exactly as today. A short pause separates the tries, so the blocking job can finish. Each retry writes exactly one log line of the form `STEP merge RETRY <n> after #453`, so the retries can be counted (the Planner's 38.2 rehearsal counts these lines across 20 starts).
+- **Size the bound against `start_period`.** One #453 (about 122 s), the pause, a successful retry and the slowest measured first start (IPM and package install) still end healthy inside `docker-compose.yml`'s `start_period: 600s`; the slowest first start is measured or cited and the arithmetic is in the spec's Design Notes. If it does not fit, this story raises `start_period` and says so. The live tests' ready limits (row 1's 400 s, row 2's 200 s) apply only to their own runs, where no #453 is injected; they are not the retry bound, and they are loosened only if the plan finds they must be, with the reason recorded. This replaces the third criterion above.
+- **The stubbed test** pins all three cases with their log lines: #453 then success (ready, one `RETRY` line); #453 on every try (`STEP merge FAILED`, not ready, one `RETRY` line per retry); another failure (no retry, no `RETRY` line). It runs in an existing CI group, never `production`, `browser`, `install-fresh` or `install-upgrade`.
+- **`docker/merge.cpf` stays unchanged,** and this story is `docker/after-start.sh`'s only change before the 1.0.0 tag.
+- **rc1 includes this story:** the Planner's hand gates must run the `after-start.sh` that ships.
+
+**Given** the change
+**When** this story merges
+**Then** a test with a stubbed `iris merge` pins the three cases (#453 then success: ready, the retry logged; #453 on every attempt: `STEP merge FAILED`, not ready; another error: no retry), in an existing CI group other than `production`, `browser`, `install-fresh` and `install-upgrade`; `docker/merge.cpf` is unchanged; `docker/tests/test-install-start.sh` and `test-install-upgrade.sh` pass; CI is green on every workflow
+
+### Story 0.14: A start that recovers through the merge retry passes the live checks and the upgrade harness
+
+[ADDED 2026-11-03, fix-forward from DW-624 (orchestrator unattended ruling, veto U-240, scoped by the Contest Planner; re-opens Epic 0 under SC-5 after Story 0.13 merged): Story 0.13 lets a start recover from ERROR #453 with one `STEP merge RETRY 1 after #453` line, but `docker/tests/lib-live.sh`'s `log_steps` keeps every STEP line, so `check_log` (used by the live tests and by `release/upgrade-harness.sh`) still reads a recovered start as a failure. rc1 takes this story only if it has merged when Story 31.3 merges; otherwise it ships in the first daily release after 1.0.0, and it never becomes rc1's last item.]
+
+As the author running the live tests, the rehearsal and the upgrade harness,
+I want a start that recovers through the one sanctioned merge retry to count as a pass, with its retry counted,
+So that a rare #453 no longer fails a check whose start became healthy, and every retry stays visible.
+
+**Acceptance Criteria:**
+
+**Given** `docker/tests/lib-live.sh`'s `check_log`, used by the live tests and `release/upgrade-harness.sh`
+**When** a start log carries exactly one `STEP merge RETRY 1 after #453` line and a `STEP merge OK` line follows it in the same start log
+**Then** `check_log` treats the start as matching its expected STEP and RESULT lines, as if the merge had succeeded on its first try
+**And** a start log with any `STEP merge FAILED` line, a second `RETRY` line (any number), a `RETRY` line with no `STEP merge OK` after it, or a `RETRY` line in any other form still fails `check_log` exactly as today
+**And** no other STEP or RESULT line is ignored or loosened
+
+**Given** `release/upgrade-harness.sh`
+**When** it reports its result
+**Then** the result names how many `STEP merge RETRY` lines its starts carried (0 when none)
+
+**Given** the change
+**When** this story merges
+**Then** `docker/tests/test-lib-live.sh` (and `docker/tests/test-upgrade-harness.sh` for the count) pin it with fixtures: one RETRY followed by OK passes; a RETRY with no OK, two RETRY lines, a RETRY followed by FAILED, and a near-miss RETRY line each fail; the harness count reads 0 and 1 in its fixtures; `docker/after-start.sh` and `docker/merge.cpf` are unchanged; CI is green on every workflow
+- DW-624: lib-live.sh's log_steps keeps every STEP line, so a live-test or upgrade-harness start that recovers through Story 0.13's retry still fails check_log on the RETRY line (ledger; routed by Story 0.13's review, 2026-11-03)
 
 ## Epic 1: Every item gets an attention decision you can audit and afford
 
@@ -3485,6 +3537,53 @@ So that I never think a fix finished when it didn't, and nothing is resent behin
 
 - DW-395: A FixExecutor waiter that stops on a quiesce or terminate request while the production keeps running (the item restarted or its settings changed) leaves every run still in its 60-second wait executing and its incident fixing with no result; the Sweep (or a waiter restart) must end them (ledger; routed by cr 2026-10-29)
 
+### Story 7.7: A date repair that could read either way names its evidence
+
+[ADDED 2026-11-03, the Contest Planner's field watch, under the owner's delegation (veto U-248, scope as the Planner gave it): the demo partner sends today's date as MM/DD/YYYY, and until Nov 13 every value has a day of 12 or less, so "11/03/2026" also reads as DD/MM (March 11). `OcuTalon.Fix.Reformat`'s `ParseDate` accepts both readings, so the choice of source format rests on the model alone, and neither the incident card nor the dry run says why. Post-1.0.0: first daily release; not rc1 scope.]
+
+As a user approving a date repair,
+I want OcuTalon to say why it read the dates month first or day first,
+So that a plausible conversion is never the only reason I approve a resend.
+
+**Acceptance Criteria:**
+
+**Given** an incident whose failed values could be read as MM/DD/YYYY or as DD/MM/YYYY
+**When** the diagnosis proposes a date repair
+**Then** a `repair_resend` is proposed only if a reason names the evidence for the source format: a value with a day above 12, or the month-first reading matching each failed message's own date; without such evidence the reply does not propose `repair_resend` (FR-5, FR-25, AD-16)
+
+**Given** a date repair's dry run
+**When** it counts the values
+**Then** it counts the values that read as valid dates both ways, and when every value is ambiguous the dry run shows one line saying so and naming the evidence (wording: veto U-249) (FR-25, AD-16)
+
+**Given** the tests
+**When** they run
+**Then** one case has only ambiguous dates and one has a day above 12; each checks the proposal rule and the dry-run line or its absence (FR-5, FR-25)
+- DW-644: date repairs from an ambiguous MM/DD vs DD/MM source rest on the model alone; the diagnosis must name the evidence and the dry run must count ambiguous values (ledger; Contest Planner field watch 2026-11-03)
+
+
+### Story 7.8: The web incident card shows the either-way date line too
+
+[ADDED 2026-11-03, follow-on to Story 7.7 under the owner's delegation (veto U-252, partly kept by the Contest Planner): on the demo path people approve on the web incident card, so the evidence for a date repair's source format must show there as well as in the notice's Dry run paragraph. Footprint exception by U-252: Lane B's `Live/Payload` approval payload and `web/src/app/approvals/approval-view.ts`. That view is Epic 31's file until Epic 31 merges, so the story is dispatched once Epic 31 has merged (a contended-path wait, not a graph edge). Post-1.0.0: same daily release as 7.7 if it makes the cut; 7.7 never waits for it. No new public text.]
+
+As a user approving a date repair on the web page,
+I want the incident card's dry run to show the same either-way line the notice shows,
+So that I see why the dates were read month first or day first wherever I approve.
+
+**Acceptance Criteria:**
+
+**Given** an approval whose date repair's dry run found every value valid both ways (Story 7.7's either-way case)
+**When** the approval payload is built
+**Then** it carries the ambiguity flag and the reading (month first or day first) with the dry run's other fields (FR-25, AD-16)
+
+**Given** that approval on the web incident card
+**When** the card shows its dry-run block
+**Then** one row shows U-249's catalog line, word for word as the notice shows it, and the row is absent whenever the notice's line is absent (a day above 12, same-date values only, or no either-way case) (FR-25)
+
+**Given** the tests
+**When** they run
+**Then** a payload test and a web test pin the row's presence for the either-way case and its absence for a day above 12; any new label comes back as a veto item (FR-25)
+- DW-645: the web incident card's dry-run block does not show U-249's either-way line; needs the ambiguity flag and reading on the approval payload and one card row (ledger; routed by veto U-252 2026-11-03)
+
 ## Epic 8: Heartbeat and reminders, on time and surviving restarts
 
 A heartbeat runs every minute and runs the due background checks, each visible with its schedule, last run and result; a user asks for a reminder in plain words and it fires within 10 seconds on every channel, survives restarts (marked late if it fires more than 10 seconds after its due time), and can be listed and cancelled in the chat.
@@ -4106,8 +4205,8 @@ So that I understand what OcuTalon is before I install it.
 
 **Given** the README
 **When** this story merges
-**Then** it has a "How you talk to it" section, after "What you can use it for": the web chat page is the product on every install, and the demo adds only the demo guide, Break the feed, and the simulated phone and simulated mailbox; Telegram, to chat and approve from your phone, is in 1.0.0; email comes in a later release (step 4); a small table is fine; Slack is not named (FR-12, FR-18)
-**And** every claim matches what 1.0.0 ships: if Epic 12 (Telegram) has not merged when this story starts, the Telegram row is a clarification for the orchestrator, never a promise
+**Then** it has a "How you talk to it" section, after "What you can use it for": the web chat page is the product on every install, and the demo adds only the demo guide, Break the feed, and the simulated phone and simulated mailbox; email comes in a later release (step 4); a small table is fine; Slack is not named (FR-12, FR-18)
+**And** every claim matches what 1.0.0 ships; the section names no Telegram row yet: that row is Story 31.3's [AMENDED 2026-11-03, Story 10.5 plan, unattended ruling (split, decide): Epic 12 has not merged, and on this branch `OcuTalon.Channel.Telegram.In.Included()` still has its test-only body, so `docker/tests/test-readme.sh`'s no-telegram rule (AD-29) refuses the word Telegram in the README and Epic 12's README Telegram section (added with the Included() switch) that the row must point to does not exist yet; the Telegram row moved to Story 31.3 (the 1.0.0 README pass, after Epic 12), orchestrator ruling, veto U-234. It read: "Telegram, to chat and approve from your phone, is in 1.0.0; [...] **And** every claim matches what 1.0.0 ships: if Epic 12 (Telegram) has not merged when this story starts, the Telegram row is a clarification for the orchestrator, never a promise"]
 
 **Given** the images the Contest Planner hands over (vetted by the Contest Planner before delivery; drafts in `contest-49/readme-shots`; exactly these five: the page with an incident as the hero, the incident card, the resolved incident, a Visual Trace of the decision, and the page with Demo view off; the draft-vt-watch-* shots are not used)
 **When** this story adds them
@@ -4123,6 +4222,20 @@ So that I understand what OcuTalon is before I install it.
 
 The whole web demo path (UJ-1 without Telegram) runs end to end on real components and in the REL-2 test; an in-place upgrade from the previous release keeps every conversation, reminder, approval request, watch and setting, and, once Telegram ships, every pairing; one scripted sequence cuts a release with its rehearsal, notes and the Contest Planner's hands-on pass; the release checklist covers naming, licence notices and public text.
 
+### Story 11.0: Epic 10 Deferred Cleanup
+
+As a maintainer,
+I want the one ledger item left over from the earlier epics closed before the release-1 work starts,
+So that the release candidate carries one pairing-code hash helper, not two copies that could drift apart.
+
+**Acceptance Criteria:**
+
+**Given** `OcuTalon.Data.Pairing.HashCode`, which today repeats `OcuTalon.Data.Session.Hash`'s SHA-256 base64url code instead of calling it
+**When** the story is done
+**Then** `HashCode(code)` quits `##class(OcuTalon.Data.Session).Hash(code)` (an empty code still answers ""), every stored code hash keeps its value byte for byte, and the existing Pairing and pairing-API tests stay green (AD-4, Rule 2)
+
+- DW-237: Story 10.3's Pairing.HashCode must delegate to Session.Hash (Story 16.3) instead of adding a second SHA-256 base64url helper (ledger; retro review by=x0 2026-10-31; source: Epic 10 ledger)
+
 ### Story 11.1: The web demo path passes end to end in the REL-2 test
 
 As a judge,
@@ -4134,7 +4247,7 @@ So that every README claim happens on the product's real items in about two minu
 **Given** every release-1 floor epic (0 to 10) merged into the integration branch, and the IRIS CI job running OcuTalon with the CI override (mocked model)
 **When** the REL-2 Playwright test runs on a pull request or a push to `main`
 **Then** every UJ-1 step spec under `web/e2e/demo-path/` except Telegram's is turned on and passes in order: sign-in; the watch step shows the Act strip with its reasons and trace link, the "Orders production" check row and an active Break the feed; the reminder step shows the reminder row; Break the feed leads to one incident card awaiting approval in the chat and on the simulated phone, with the headline, cause, evidence line, dry run, Approve and Reject, "Approval requests (1)" in the rail, and the reminder landing in the chat and on the phone during the wait (REL-2, FR-16, FR-23, FR-24, FR-34, UX-DR101)
-**And** this story turns on every step spec still skipped except Telegram's, and every check left off by a "turns on when … merges" clause in Epics 0 to 10, except a check that such a clause leaves for a story in Epic 30 or 31, which that story turns on [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner] (for example Story 1.12's `OutcomeRouter` path, Story 2.10's no-key test, and the fixture paths of Stories 2.7, 2.8, 2.9 and 4.6), and may change either lane's files to make the whole web demo path pass end to end, serialized by the orchestrator against any epic whose files overlap (AD-29)
+**And** this story turns on every step spec still skipped except Telegram's, and may change either lane's files to make the whole web demo path pass end to end, serialized by the orchestrator against any epic whose files overlap (AD-29) [AMENDED 2026-10-31, Story 11.1's plan, unattended split ruling (decide, U5): the "turns on when … merges" half moved verbatim to Story 11.9; it read "this story turns on every step spec still skipped except Telegram's, and every check left off by a "turns on when … merges" clause in Epics 0 to 10, except a check that such a clause leaves for a story in Epic 30 or 31, which that story turns on [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner] (for example Story 1.12's `OutcomeRouter` path, Story 2.10's no-key test, and the fixture paths of Stories 2.7, 2.8, 2.9 and 4.6), and may change either lane's files to make the whole web demo path pass end to end, serialized by the orchestrator against any epic whose files overlap (AD-29)"]
 
 **Given** the incident awaiting approval
 **When** the test presses Approve on the simulated phone
@@ -4145,6 +4258,42 @@ So that every README claim happens on the product's real items in about two minu
 **Then** the link opens OcuTalon's trace application at the incident's diagnosis session, after the local install's Visual Trace sign-in popover, and the guide's finish state shows "This run: {n} decisions · {tokens} tokens · {cost} on {model}." (AD-26, UX-DR47, UX-DR101, UX-DR139, UX-DR140)
 **And** after the browser steps, the same job reads the IRIS audit log, polling with a timeout, and finds the approval's answered entry and the resend's action entry for the run's session, with no key, access token, password or Telegram identity in either (FR-9, AD-17)
 
+[AMENDED 2026-10-31, Story 11.1's plan, unattended split ruling (decide, U5): the failure-path scenarios, the coda and the real-model rule moved verbatim to Story 11.7; DW-307 moved to Story 11.7, DW-140 and DW-142 to Story 11.8]
+
+- DW-294: After a page load an incident card's footer finds its diagnosis decision: `/state` or the incident payload carries the incident's diagnose decision, and the page's store reads it, not only the rail's kind-decide decisions (ledger; routed by merge_gate 2026-10-28)
+- DW-202: REL-2 step 2: the real 'Orders production check row shows a real last run' assertion in web/e2e/demo-path/02-watch.spec.ts is still notBuilt(..., '8.2') after Story 8.2 (fixture-backed block appended); turn it on with the real watch and Checks now that Epics 5 and 8 have merged on the integration branch, and drop 8.2's fixture block (ledger; routed by merge_gate 2026-10-28)
+- DW-340: 03-reminder.spec.ts clicks 'Step 2, Reminder, upcoming', a name that exists only while guide step 1 (watching) is undone; once this story makes 02's background check real (DW-202), step 2 is 'current' at 03 and the click finds nothing (ledger; routed by merge_gate 2026-10-28)
+
+### Story 11.7: The demo path's failure paths, quiet outcomes and online run pass in the REL-2 test
+
+As a judge,
+I want the demo path's failure paths, its quiet outcomes and the online demo's run checked as well as its main route,
+So that a rejection, a refusal, a newsletter and a suspicious request behave as the README says, locally and online.
+
+[ADDED 2026-10-31, split from Story 11.1 at its plan, unattended ruling (decide, U5: a split into siblings planned next in the same epic); the criteria below moved verbatim from Story 11.1]
+
+[AMENDED 2026-10-31, Story 11.7's plan, unattended split ruling (decide, U5): the failure-path scenarios and the coda moved verbatim to Story 11.10]
+
+**Acceptance Criteria:**
+
+**Given** the demo-path test run against the real model (a release-candidate or rehearsal run) rather than the CI mock
+**When** it reaches a decision
+**Then** it checks that a decision with reasons and a trace link appears, never which outcome; specific outcomes, such as the Act strip on the watch step, are asserted only against the CI mock (REL-2, REL-5)
+
+- DW-307: Under the CI mock a prompt-selected B scenario (e.g. guide-reminder.json) also answers the Triage request; Triage has no tools, so a guide-step chat turn's triage decision ends as an invalid fallback in the trace while the turn completes (ledger; routed by merge_gate 2026-10-28)
+- DW-221: REL-2's online-demo run lives in web/e2e-online/demo-path.spec.ts (run by the online-demo unit, image group), not under web/e2e/demo-path/; its steps 2-6 are notBuilt(...,'11.1'), outside the demo-path gate's view; turn its steps on here (ledger; split from Story 11.1 2026-10-31)
+- DW-433: The CI mock's guide-watch scenario (ci/mock/scenarios/B/guide-watch.json) answers the guide's watch prompt with text only and calls no start_watch, so under the mock the guide's watch button starts no watch and makes no Orders check (UJ-1 step 2) (ledger; split from Story 11.1 2026-10-31)
+
+### Story 11.10: The demo path's failure paths and quiet outcomes pass in the REL-2 test
+
+As a judge,
+I want the demo path's rejection, refusal and quiet outcomes checked as well as its main route,
+So that a rejection, a refusal, a newsletter and a suspicious request behave as the README says.
+
+[ADDED 2026-10-31, split from Story 11.7 at its plan, unattended ruling (decide, U5: a split into siblings planned next in the same epic); the criteria below moved verbatim from Story 11.7, which had them from Story 11.1]
+
+**Acceptance Criteria:**
+
 **Given** the test's failure-path scenarios
 **When** one rejects the request and another makes the mocked model refuse the diagnosis
 **Then** the rejection shows "Rejected from the simulated phone at {time}. Nothing was changed.", the incident returns to Open, Dismiss re-enables Break the feed and a replay opens a new incident with its own request; the refusal shows the fallback card with its failure groups and no fix, and step 5 still opens the trace (FR-4, FR-8, FR-16, FR-24, UX-DR104)
@@ -4153,16 +4302,42 @@ So that every README claim happens on the product's real items in about two minu
 **When** the test presses "Sample: newsletter" and "Sample: suspicious request"
 **Then** the newsletter is decided Ignore with nothing on the phone, the suspicious request leads to no approval request, resend or setting change, and the whole test keeps a full CI run within 35 minutes [AMENDED 2026-10-20, owner decision 7] (NFR-14, REL-4, UX-DR105)
 
-**Given** the demo-path test run against the real model (a release-candidate or rehearsal run) rather than the CI mock
-**When** it reaches a decision
-**Then** it checks that a decision with reasons and a trace link appears, never which outcome; specific outcomes, such as the Act strip on the watch step, are asserted only against the CI mock (REL-2, REL-5)
+### Story 11.8: The chat cancels several reminders in one call and says it can set them
 
-- DW-294: After a page load an incident card's footer finds its diagnosis decision: `/state` or the incident payload carries the incident's diagnose decision, and the page's store reads it, not only the rail's kind-decide decisions (ledger; routed by merge_gate 2026-10-28)
+As a user,
+I want to ask OcuTalon in the chat to cancel several reminders at once, and to hear from it what it can do,
+So that "cancel all my reminders" works in one turn and the chat never says it can't set a reminder.
+
+[ADDED 2026-10-31, split from Story 11.1 at its plan, unattended ruling (decide, U5: a split into siblings planned next in the same epic); the criteria below moved verbatim from Story 11.1]
+
+**Acceptance Criteria:**
+
+**Given** the ledger bullets below, moved from Story 11.1
+**When** the story is done
+**Then** each is met and pinned by tests on the CI mock; the live check on Claude Haiku 5.5 that DW-142 names runs in Story 38.1's real-key pass (was Story 11.6), with DW-358 (U-118, REL-7)
+
 - DW-140: Chat's ceiling of 4 iterations (AD-20) may be too low for a turn that lists and then cancels several reminders one call at a time; U-118 (kept by the owner): Lane A's cancel_reminder takes one or more reminder ids and sends one CancelReminder per id within one tool call, each with its own IdempotencyKey, with no AD-20 change; Story 11.6 runs the live check (DW-358) (ledger; routed by merge_gate 2026-10-28)
-- DW-142: Chat's INSTRUCTIONS still tell the model to answer a request to run a command with 'I can't run commands' and call no tool, and name no reminder ability, though Chat now has the reminder tools; U-118 (kept by the owner): Chat's instruction lines say Chat can set, list and cancel reminders and keep the no-commands rule for the rest, and a live check on Claude Haiku 5.5 with the guide's exact step-2 sentence plus two paraphrases, on the online demo's model, effort and endpoint, passes before 0.1.0 is cut (ledger; routed by merge_gate 2026-10-28)
-- DW-202: REL-2 step 2: the real 'Orders production check row shows a real last run' assertion in web/e2e/demo-path/02-watch.spec.ts is still notBuilt(..., '8.2') after Story 8.2 (fixture-backed block appended); turn it on with the real watch and Checks now that Epics 5 and 8 have merged on the integration branch, and drop 8.2's fixture block (ledger; routed by merge_gate 2026-10-28)
-- DW-307: Under the CI mock a prompt-selected B scenario (e.g. guide-reminder.json) also answers the Triage request; Triage has no tools, so a guide-step chat turn's triage decision ends as an invalid fallback in the trace while the turn completes (ledger; routed by merge_gate 2026-10-28)
-- DW-340: 03-reminder.spec.ts clicks 'Step 2, Reminder, upcoming', a name that exists only while guide step 1 (watching) is undone; once this story makes 02's background check real (DW-202), step 2 is 'current' at 03 and the click finds nothing (ledger; routed by merge_gate 2026-10-28)
+- DW-142: Chat's INSTRUCTIONS still tell the model to answer a request to run a command with 'I can't run commands' and call no tool, and name no reminder ability, though Chat now has the reminder tools; U-118 (kept by the owner): Chat's instruction lines say Chat can set, list and cancel reminders and keep the no-commands rule for the rest, and a live check on Claude Haiku 5.5 with the guide's exact step-2 sentence plus two paraphrases, on the online demo's model, effort and endpoint, passes before 0.1.0 is cut (ledger; routed by merge_gate 2026-10-28) [read "before 1.0.0 is cut": the live check runs in Story 38.1's pass on `release/1.0.0-rc1`] [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0" and "New Linux droplet"]
+- DW-316: Test.Schedule.ReminderChat.AssertToolSteps is a near-copy of Lane A's private Test.Tools.Reminders.AssertSteps (the step kinds, tool labels, summaries, status and outside-session count), forced by AD-29; one shared agent-step checker serves both (ledger; split from Story 11.1 2026-10-31)
+
+### Story 11.9: Every check left off for release 1 turns on, and the CI flakes are fixed
+
+As a maintainer,
+I want every check that earlier stories left off until release 1 turned on, and the known CI flakes fixed,
+So that the release candidate's CI run proves everything it claims and needs no reruns.
+
+[ADDED 2026-10-31, split from Story 11.1 at its plan, unattended ruling (decide, U5: a split into siblings planned next in the same epic); the clause half of the criterion below moved verbatim from Story 11.1]
+
+**Acceptance Criteria:**
+
+**Given** Epics 0 to 10 merged into the integration branch
+**When** this story is done
+**Then** every check left off by a "turns on when … merges" clause in Epics 0 to 10 is turned on, except a check that such a clause leaves for a story in Epic 30 or 31, which that story turns on
+**And** this story turns on every step spec still skipped except Telegram's, and every check left off by a "turns on when … merges" clause in Epics 0 to 10, except a check that such a clause leaves for a story in Epic 30 or 31, which that story turns on [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner] (for example Story 1.12's `OutcomeRouter` path, Story 2.10's no-key test, and the fixture paths of Stories 2.7, 2.8, 2.9 and 4.6), and may change either lane's files to make the whole web demo path pass end to end, serialized by the orchestrator against any epic whose files overlap (AD-29)
+
+- DW-376: flake: OcuTalon.Test.Schedule.Heartbeat TestStoppedThenStarted, 'the task ran while the production was stopped': the Task Manager's RunNow run was not seen within RUNSECONDS (ledger; split from Story 11.1 2026-10-31)
+- DW-396: flake: checks ci-warm 'up beside a held warm-iris.lock' printed LOCK busy after 1 s without its LOCK waiting line (docker/tests/test-ci-warm.sh, Story 32.4) (ledger; split from Story 11.1 2026-10-31)
+- DW-415: flake: live:sign-in web/e2e/sign-in/shell.spec.ts:93 row 9 failed with page.goto: net::ERR_NETWORK_CHANGED (Chromium saw the CI host's network interfaces change mid-run), then passed on an unchanged rerun (ledger; split from Story 11.1 2026-10-31)
 
 ### Story 11.2: Upgrades and restarts keep every record working
 
@@ -4174,7 +4349,7 @@ So that neither an upgrade nor a restart costs me a conversation, a waiting remi
 
 **Given** the upgrade harness in `release/`, the previous release's tag and the release candidate
 **When** it runs in throwaway compose projects with the CI override, never against a developer instance
-**Then** it builds the previous release's image from its tag on the machine it runs on, starts it to ready, and creates through the product's own API and the mock: a conversation of several turns, a reminder due after the upgrade will have finished, a pending approval request from a Break the feed run, a watch of the Orders production, and, once the previous release includes Telegram (from 0.1.2; Story 12.7 extends this harness to do it), a pairing through the Telegram mock (FR-60, CON-1, AD-22)
+**Then** it builds the previous release's image from its tag on the machine it runs on, starts it to ready, and creates through the product's own API and the mock: a conversation of several turns, a reminder due after the upgrade will have finished, a pending approval request from a Break the feed run, a watch of the Orders production, and, once the previous release includes Telegram (from the release after 1.0.0; Story 12.7 extends this harness to do it), a pairing through the Telegram mock (FR-60, CON-1, AD-22) [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0" and "New Linux droplet"]
 **And** its settings change is the demo-mode switch, release 1's only run-time settings writer path: in a second throwaway project of the previous release, so the Orders records above stay intact, demo mode is switched off with `do ##class(OcuTalon.Core.Admin).SetDemoMode(0)` before that project is upgraded too (FR-16, FR-60, AD-19)
 
 **Given** those records
@@ -4185,7 +4360,7 @@ So that neither an upgrade nor a restart costs me a conversation, a waiting remi
 **When** the harness checks each record
 **Then** the conversation's history is present and the next turn answers in it; the reminder fires, marked late if it fell due during the upgrade; the approval request is still pending with its original expiry, and approving it resends the orders and reports "All 50 orders went through."; the watch is listed and picks up a new Break the feed run as a new incident; in the second project demo mode is still off, not reset to its seed, with OCUORDERS absent and no demo feature on the page; and the pairing still receives notifications (FR-16, FR-60, NFR-16, NFR-17, AD-19)
 
-**Given** the release candidate running with a conversation in which the user told OcuTalon a fact, a pending reminder, a pending approval request and, from 0.1.1 (Story 12.7's extension), a paired chat
+**Given** the release candidate running with a conversation in which the user told OcuTalon a fact, a pending reminder, a pending approval request and, from 1.0.0 (Story 12.7's extension), a paired chat [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0" and "New Linux droplet"]
 **When** the harness restarts its container
 **Then** the next turn's first model request, in the mock's log, carries the earlier conversation, a mock scenario asking a question that only the conversation before the restart can answer passes, and the history, the background checks, the pending reminder, the pending approval request and the pairing are all intact (FR-6, NFR-16, AD-5)
 
@@ -4195,7 +4370,7 @@ So that neither an upgrade nor a restart costs me a conversation, a waiting remi
 
 **Given** the harness has finished
 **When** it reports
-**Then** it writes pass or fail per record to the candidate's record (`release/records/<version>/rc<n>.md`), and any failure blocks the release; it is required from 0.1.1, and for 0.1.0, which has no previous release, it runs from a pre-release build of the integration branch to prove the harness itself (FR-60, REL-6)
+**Then** it writes pass or fail per record to the candidate's record (`release/records/<version>/rc<n>.md`), and any failure blocks the release; it is required from the release after 1.0.0, and for 1.0.0, the first release, which has no previous release, it runs from a pre-release build of the integration branch to prove the harness itself (FR-60, REL-6) [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0" and "New Linux droplet"]
 
 ### Story 11.3: The clean-machine rehearsal installs and times the demo path
 
@@ -4203,34 +4378,73 @@ As the author,
 I want each release candidate installed on a clean machine and its demo path timed on the real model,
 So that the release works for a judge and the timing bounds are measured, not assumed.
 
+[AMENDED 2026-10-31, U-189 (option (a), decided by the Contest Planner under the owner's delegation): narrowed to what can be built and dry-run on throwaways; the criteria that need the author's real clean hosts, the driver host and a real model key moved verbatim to Story 38.2 in Epic 38; it read as Story 38.2's criteria now read]
+
 **Acceptance Criteria:**
 
-**Given** a clean machine with Docker and the build 154 image archive loaded, no OcuTalon volume and no Node.js, and a separate driver host with Node.js and Playwright that reaches the clean machine's published port (the author provides the hosts before this story starts, and restoring each clean host to clean for every candidate is part of that precondition)
-**When** the rehearsal script in `release/` reaches each clean host and the driver host over SSH, with their addresses and keys from the author's configuration outside the repository, copies the candidate branch to the clean host as a `git bundle` and clones it there, so the host needs no outbound access beyond the model provider, and runs `install.sh` with the author's model key in `.env`
-**Then** the install finds, checks and retags the image, starts OcuTalon, reaches ready and prints the address and sign-in details, and the first start's duration, install included, is recorded for the README (FR-55, NFR-22, REL-6, AD-23)
+[AMENDED 2026-11-01, Story 11.3's plan, unattended ruling (decide: a split into a sibling planned next in this epic, product default 6): the rehearsal runner's criterion, the 'names the run, the step and the bound' parts of the failed-run criterion and the planted missed bound of the throwaway criterion moved verbatim to Story 11.11; 11.3 keeps the hosts, the copy, the install, the first start, the record, the no-value rule and the dry run on throwaways]
+
+**Given** the rehearsal script in `release/`, the clean host's and the driver host's addresses and SSH keys from the author's configuration outside the repository, and a candidate branch (for 1.0.0, one clean Linux host, a droplet the Contest Planner provides, creating and deleting it for each check, with the Contest Planner's Mac as the driver host; no clean macOS run) [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0" and "New Linux droplet"]
+**When** it runs against a host
+**Then** it reaches the clean host and the driver host over SSH, copies the candidate branch to the clean host as a `git bundle` and clones it there, so the host needs no outbound access beyond the model provider, runs `install.sh` with the model key in the host's `.env`, waits for ready, reads the printed address and sign-in details, and records the first start's duration, install included (FR-55, NFR-22, REL-6, AD-23)
 **And** the script never prints a value from `.env`: it runs `docker compose config` only with `--quiet` and `docker inspect` only with `--format` (NFR-11, AD-22)
 
-**Given** the running install on Claude Haiku 5.5
-**When** the rehearsal runner, the REL-2 Playwright specs run from the driver host against the clean machine, drives the web demo path through the page 20 times on each clean host, using Run again and the replay rule between runs
-**Then** every run passes UJ-1's web route on real components, with no mock in the compose file, and NFR-7 passes when Break the feed to the incident notice on the simulated phone takes at most 60 seconds in at least 19 of the 20 runs (NFR-7, REL-6, CON-3, UX-DR101)
-**And** each run splits that time, from production message timestamps, into pick-up (at most 15 s), the settle rule's end (at most 30 s after the first failure), diagnosis (at most 20 s) and delivery (at most 5 s), and the report gives the median notice time against the typical target of about 35 seconds (NFR-7, AD-15, UX-DR102)
+**Given** a failed install step
+**When** the rehearsal ends
+**Then** the rehearsal fails, its report names the step, and the release is blocked (REL-6)
+**And** its result goes into the candidate's record (`release/records/<version>/rc<n>.md`), which describes the machine only by operating system, CPU architecture and memory, never by host name or address (CON-5)
 
-**Given** the same 20 runs
-**When** the report is written
-**Then** it also records step 1's decision time (within 10 s in at least 19 of 20 runs), the approval result reaching the page (within 2 s in at least 19 of 20 runs, P30), each reminder's firing against its due time (within 10 s), the largest model request (none over 100,000 input tokens), the first reply's time, and when the reminder lands relative to "All 50 orders went through.", which the deferred reminder-prompt decision needs (NFR-3, NFR-8, NFR-9, NFR-10, P30, UX-DR102)
+**Given** this build, which has no clean host and never a real model key
+**When** the script's tests run
+**Then** they prove all of the above on throwaways: a throwaway compose project or container standing in for the clean host and the driver host, the CI mock in place of the model (the report and the record mark such a run as a dry run, never as a rehearsal pass), and a scan of the script's whole output that finds no `.env` value; the real rehearsal on the author's hosts is Story 38.2 (REL-6, NFR-11)
+
+### Story 11.11: The rehearsal runner times the demo path and checks every bound
+
+As the author,
+I want the rehearsal to run the demo path N times on the installed candidate and check every timing bound,
+So that the timing bounds are measured on each candidate, not assumed.
+
+[ADDED 2026-11-01, split from Story 11.3 at its plan, unattended ruling (decide: a sibling planned next in this epic, product default 6); its criteria are Story 11.3's, moved verbatim; it builds on Story 11.3's `release/rehearse.sh`, and Story 11.5's release sequence composes both]
+
+**Acceptance Criteria:**
+
+[AMENDED 2026-11-01, Story 11.11's plan, unattended ruling (decide: a split into a sibling planned next in this epic, product default 6): 'N times (20 for a real rehearsal), using Run again and the replay rule between runs' and 'the tell-now notice's 5 seconds in at least 19 of 20 runs', with their dry-run proof, moved verbatim to Story 11.12; 11.11 keeps one timed run per call, the timing collector, every other bound and its record rows]
+
+**Given** the rehearsal runner, which runs the REL-2 Playwright specs from the driver host against the clean machine
+**When** the runs end
+**Then** the report splits each run's Break the feed to incident notice time, from production message timestamps, into pick-up, the settle rule's end, diagnosis and delivery, and checks every bound Story 38.2 measures: NFR-7's 60 seconds in at least 19 of 20 runs and its split bounds, the median against about 35 seconds, step 1's decision time, the approval result's 2 seconds, each reminder's firing within 10 seconds, the largest model request under 100,000 input tokens, the first reply's time, when the reminder lands relative to "All 50 orders went through." (NFR-3, NFR-7, NFR-8, NFR-9, NFR-10, P30, AD-15, UX-DR102)
 
 **Given** a failed run or a missed bound
 **When** the rehearsal ends
 **Then** the rehearsal fails, its report names the run, the step and the bound, and the release is blocked (REL-6)
-**And** its result goes into the candidate's record (`release/records/<version>/rc<n>.md`), which describes the machine only by operating system, CPU architecture and memory, never by host name or address (CON-5)
 
-**Given** the clean-machine rehearsal
-**When** a sample email that the evaluation set records as tell now is sent from the simulated mailbox
-**Then** the time from its decision to the notification on the simulated phone is recorded in 20 runs and is at most 5 seconds in at least 19 (FR-1, NFR-9, P30)
+**Given** this build, which has no clean host and never a real model key
+**When** the runner's tests run
+**Then** they prove the above on throwaways with the CI mock in place of the model (a dry run, never a rehearsal pass), including a run set with a planted missed bound that fails the rehearsal and names the run, the step and the bound; the real rehearsal on the author's hosts is Story 38.2 (REL-6, NFR-11)
 
-**Given** the rehearsal runs on both a clean macOS host and a clean Linux host, each with Docker and outbound network access limited to the configured model provider (and the Telegram API when a token is set), which the author provides before this story starts
-**When** the install script and the 20 runs of the whole web demo path run on each
-**Then** both pass with no other destination contacted, and the release notes record both hosts (FR-55, NFR-18, NFR-22)
+### Story 11.12: The rehearsal runner repeats the demo path N times with Run again
+
+As the author,
+I want the rehearsal to repeat the timed demo path N times on one install, using Run again between runs, and check the tell-now notice,
+So that the 19-of-20 bounds are measured over a full run set, not one run.
+
+[ADDED 2026-11-01, split from Story 11.11 at its plan, unattended ruling (decide: a sibling planned next in this epic, product default 6); its criteria are Story 11.11's (Story 11.3's), moved verbatim; it builds on Story 11.11's runner, and Story 11.5's release sequence composes 11.3, 11.11 and 11.12]
+
+**Acceptance Criteria:**
+
+**Given** the rehearsal runner, which runs the REL-2 Playwright specs from the driver host against the clean machine N times (20 for a real rehearsal), using Run again and the replay rule between runs
+**When** the runs end
+**Then** the report checks every bound Story 11.11 checks over the whole run set, and the tell-now notice's 5 seconds in at least 19 of 20 runs (NFR-3, NFR-7, NFR-8, NFR-9, NFR-10, P30, AD-15, UX-DR102)
+
+**Given** a failed run or a missed bound in any run of the set
+**When** the rehearsal ends
+**Then** the rehearsal fails, its report names the run, the step and the bound, and the release is blocked (REL-6)
+
+**Given** this build, which has no clean host and never a real model key
+**When** the runner's tests run
+**Then** they prove the above on throwaways with the CI mock in place of the model (a dry run, never a rehearsal pass), including a run set with a planted missed bound in a later run that fails the rehearsal and names the run, the step and the bound; the real rehearsal on the author's hosts is Story 38.2 (REL-6, NFR-11)
+- DW-522: 07 and 08 run once per install: a second run of the demo path on one install (Story 11.12's N runs) finds 07's replay request still pending (Break the feed refused) and 08's samples already in the mailbox; 11.12 decides which specs repeat (ledger; routed by cr 2026-11-01)
+- DW-534: The rehearsal collector's queries and page-mark probes run only in the manual live dry run, so a schema, message-body or wording change breaks the marks unseen; give them a check that runs where a change would show, within the CI budget, or ledger why not (ledger; routed by harvest 2026-11-01)
 
 ### Story 11.4: The release gets draft notes and a checklist
 
@@ -4238,12 +4452,11 @@ As the author,
 I want draft release notes and a release checklist produced for every candidate,
 So that I publish accurate plain-language notes and never ship a naming, licence or public-text slip.
 
+For 1.0.0, the first release (0.1.0 and 0.1.1 are not cut), the notes and the checklist are 1.0.0's; "the previous release's tag" for 1.0.0 is none, so its notes cover every story merged for the release. [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0" and "New Linux droplet"]
+
 **Acceptance Criteria:**
 
-**Given** the previous release's tag and the candidate
-**When** the notes generator in `release/` runs
-**Then** it drafts notes for the version in plain language, grouped by area, from the stories merged since the previous tag, claiming only what the release ships, with no class names or error codes outside a developer section (NFR-24, REL-8, CON-5)
-**And** the draft includes the evaluation summary from the result file Story 9.5 writes in `eval/` (scores, mean and maximum decision cost, largest request, and any REL-5 override reason), the rehearsal's timings, the upgrade result and any REL-5 override with its reason, and the author edits and publishes it (FR-62, REL-5, REL-6, REL-8)
+[AMENDED 2026-11-01, Story 11.4's plan, unattended ruling (decide: a split into a sibling planned next in this epic, product default 6): the notes generator's criterion and the 1.0.0 notes sentence moved verbatim to Story 11.13; 11.4 keeps the release checklist, which also scans the draft notes]
 
 **Given** the release checklist in `release/`
 **When** it runs for a candidate
@@ -4261,6 +4474,24 @@ So that I publish accurate plain-language notes and never ship a naming, licence
 - DW-359: The README's clone command and the page's README_URL resolve only once the repository is public (github.com/jbrandtmse/OcuTalon answered 404 on 2026-10-28); the release checklist rechecks every README link and GitHub's heading slugs on the public page before the release (ledger; routed by merge_gate 2026-10-29)
 - DW-518: Chat's INSTRUCTIONS gain one line for `recent_activity` (Story 5.13: asked what happened earlier, call it and answer from its result), and `Agent/Chat.cls`'s class doc lists six watching tools; whether the real model calls it is confirmed by the Contest Planner's host check, never by a key in the pipeline (ledger; routed by merge_gate 2026-11-01)
 
+### Story 11.13: The release gets draft notes
+
+As the author,
+I want draft release notes produced for every candidate,
+So that I publish accurate plain-language notes.
+
+[ADDED 2026-11-01, split from Story 11.4 at its plan, unattended ruling (decide: a sibling planned next in this epic, product default 6); its criterion and the 1.0.0 sentence are Story 11.4's, moved verbatim; Story 11.4's checklist scans its draft, and Story 11.5's release sequence composes 11.4 and 11.13]
+
+For 1.0.0, the first release (0.1.0 and 0.1.1 are not cut), the notes and the checklist are 1.0.0's; "the previous release's tag" for 1.0.0 is none, so its notes cover every story merged for the release.
+
+**Acceptance Criteria:**
+
+**Given** the previous release's tag and the candidate
+**When** the notes generator in `release/` runs
+**Then** it drafts notes for the version in plain language, grouped by area, from the stories merged since the previous tag, claiming only what the release ships, with no class names or error codes outside a developer section (NFR-24, REL-8, CON-5)
+**And** the draft includes the evaluation summary from the result file Story 9.5 writes in `eval/` (scores, mean and maximum decision cost, largest request, and any REL-5 override reason), the rehearsal's timings, the upgrade result and any REL-5 override with its reason, and the author edits and publishes it (FR-62, REL-5, REL-6, REL-8)
+- DW-551: The release checklist scans the draft notes only for local paths and key-like text; 11.13's draft check also refuses the inspiration's name outside the not-affiliated note (the note verbatim, or nowhere) (ledger; routed by harvest 2026-11-01)
+
 ### Story 11.5: One scripted sequence cuts a release
 
 As the author,
@@ -4269,9 +4500,11 @@ So that a release takes me at most 15 minutes of hands-on time and never skips a
 
 **Acceptance Criteria:**
 
+[AMENDED 2026-11-01, Story 11.5's plan, unattended ruling (decide: a split into siblings planned next in this epic, product default 6): the gates' criterion to Story 11.14, the hands-on gate's to Story 11.15, the outward steps' after the gates (and DW-27) to Story 11.16, the IPM artifact's to Story 11.17, and the update hook's and the rehearsal candidate's to Story 11.18, each moved verbatim; 11.5 keeps the cut, the first outward step, no image push or environment value, and the hands-on time with the draft-notes step]
+
 **Given** the integration branch with the demo-path test green
 **When** the author starts the release sequence in `release/` with a version
-**Then** it refuses a version that isn't 0.1.x before the first public release (unless the author asks for 1.0.0 and confirms the 1.0.0 kit is in it) and a version already tagged; it sets the version in `src/module.xml`, which the package, the image's ready marker and the About dialog report, builds the web bundle with Node.js and commits it on a new candidate branch, `release/<version>-rc<n>`, so a Docker install needs no Node.js, and checks the version inside the built image (REL-3, REL-9, AD-23)
+**Then** it refuses, for the first release, a version other than 1.0.0 (whose candidate branch is `release/1.0.0-rc<n>`, and for which the author confirms the 1.0.0 kit is in it) and a version already tagged; it sets the version in `src/module.xml`, which the package, the image's ready marker and the About dialog report, builds the web bundle with Node.js and commits it on a new candidate branch, `release/<version>-rc<n>`, so a Docker install needs no Node.js, and checks the version inside the built image (REL-3, REL-9, AD-23) [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0" and "New Linux droplet"]
 **And** that commit is the cut: the candidate is identified by its version and commit SHA, its branch is never changed after it, and a failed gate means a fix on the integration branch and a new candidate, `rc<n+1>`, cut from the integration branch's head or, to carry a hands-on pass over, from the previous candidate plus the fix commits (the hands-on gate below) (REL-1, REL-7)
 **And** the candidate's record lives on the integration branch in `release/records/<version>/rc<n>.md`: the candidate's commit SHA, each gate's result, the hands-on pass (each finding with its fix or the Contest Planner's decision to defer it) and the author's hands-on time (REL-1, REL-3, REL-7)
 
@@ -4279,19 +4512,94 @@ So that a release takes me at most 15 minutes of hands-on time and never skips a
 **When** the sequence takes its first outward step
 **Then** it stops for the author's word and pushes the candidate branch, because the full CI run, the FR-57 job and the clean hosts need it; nothing else goes out before every gate passes, except the candidate's record, which the sequence commits to the integration branch and pushes on the author's word whenever it stops (REL-1, REL-11)
 
+**Given** the whole sequence
+**When** it runs
+**Then** no step pushes an image or signs in to a registry, and no step prints an environment value (CON-1, NFR-11, AD-22)
+
+**Given** every release cut with the scripted sequence, not only 1.0.0 [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0" and "New Linux droplet"]
+**When** the sequence runs
+**Then** it records in the candidate's record the author's hands-on time for that release (the time spent at its prompts), which is at most 15 minutes, not counting CI or the time spent on the hands-on pass, and its steps include the draft-notes generator from Story 11.13 (REL-3, REL-8) [AMENDED 2026-11-01, after Story 11.4's split (unattended ruling, decide): it read "from Story 11.4"]
+- DW-560: The draft notes file (release/records/<v>/rc<n>-notes.md) is not git-ignored and sits beside the record the sequence commits; stage only rc<n>.md by explicit pathspec, never the folder, so the draft is never published (ledger; routed by cr 2026-11-02)
+
+### Story 11.14: The release sequence runs every gate on the pushed candidate
+
+[SPLIT 2026-11-02, owner decision via the Contest Planner: Epic 11 part 2, after rc1]
+
+As the author,
+I want the release sequence to run every gate on the pushed candidate and stop naming the gate that failed,
+So that a release never skips a gate.
+
+[ADDED 2026-11-01, split from Story 11.5 at its plan, unattended ruling (decide: a sibling planned next in this epic, product default 6); its criteria are Story 11.5's, moved verbatim; it adds its steps to Story 11.5's `release/release.sh`]
+
+**Acceptance Criteria:**
+
 **Given** the pushed candidate
 **When** the gates run
-**Then** the full CI run, the release-candidate evaluation with the demo incident gate, the upgrade harness, the clean-machine rehearsal, the release checklist and the Contest Planner's REL-7 hands-on pass on this candidate (with no open finding the Contest Planner hasn't deferred: Story 11.6 for 0.1.0, Story 12.7 for 0.1.1) must all pass, each result goes into the candidate's record, the sequence stops naming the gate that failed, and REL-5's override is the only override it accepts (REL-1, REL-5, REL-6, REL-7, CON-2, CON-5)
+**Then** the full CI run, the release-candidate evaluation with the demo incident gate, the upgrade harness, the clean-machine rehearsal, the release checklist and the Contest Planner's REL-7 hands-on pass on this candidate (with no open finding the Contest Planner hasn't deferred: for 1.0.0, Stories 38.1 and 38.3 on `release/1.0.0-rc1`) must all pass, each result goes into the candidate's record, the sequence stops naming the gate that failed, and REL-5's override is the only override it accepts (REL-1, REL-5, REL-6, REL-7, CON-2, CON-5) [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0" and "New Linux droplet"]
 **And** it refuses a candidate in which an enabled production item still answers "not implemented", so unfinished features stay off the demo path (REL-1, AD-29)
+- DW-548: Story 11.14's spec and the epic context still describe release/rehearse.sh's old run contract; since Story 11.12, run needs OCUTALON_RUN_TAG, does one phase per call and exits 4 until the last phase, so the rehearsal gate calls it once per phase (ledger; routed by cr 2026-11-01)
+
+### Story 11.15: The hands-on gate stops the sequence, and its resume command waits for a pass or a carry-over
+
+[SPLIT 2026-11-02, owner decision via the Contest Planner: Epic 11 part 2, after rc1]
+
+As the author,
+I want the sequence to stop at the hands-on gate and resume only on a recorded pass or carry-over,
+So that the Contest Planner's pass is part of every release that needs one.
+
+[ADDED 2026-11-01, split from Story 11.5 at its plan, unattended ruling (decide: a sibling planned next in this epic, product default 6); its criteria are Story 11.5's, moved verbatim; it adds its steps to Story 11.5's `release/release.sh`]
+
+**Acceptance Criteria:**
 
 **Given** the hands-on gate
 **When** the sequence reaches it
 **Then** it stops and names the candidate to install; the Contest Planner runs the pass and records it in the candidate's record, and the sequence is resumed with its resume command, which refuses to go on until the record holds a pass or a carry-over for this candidate; the time spent on the pass doesn't count toward the 15 minutes (REL-3, REL-7)
-**And** the release that ends a build step (0.1.0's web demo path, 0.1.1's Telegram, each later step's release) needs a fresh pass; a re-cut from the passed candidate plus the recorded fixes' commits (cherry-picked from the integration branch), whose only changes since that candidate are those fixes, carries the pass over, with the Contest Planner's note in its record, while a re-cut from the integration branch's head needs a fresh pass; other releases record a carry-over (REL-7, P29)
+**And** the release that ends a build step (1.0.0, the first release, with the web demo path and Telegram, then each later step's release) needs a fresh pass; a re-cut from the passed candidate plus the recorded fixes' commits (cherry-picked from the integration branch), whose only changes since that candidate are those fixes, carries the pass over, with the Contest Planner's note in its record, while a re-cut from the integration branch's head needs a fresh pass; other releases record a carry-over (REL-7, P29) [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0" and "New Linux droplet"]
+
+### Story 11.16: The sequence asks before each outward step after the gates
+
+[SPLIT 2026-11-02, owner decision via the Contest Planner: Epic 11 part 2, after rc1]
+
+As the author,
+I want the sequence to ask for my word before the release pull request, the merge, the tag and the merge back,
+So that nothing goes out without my word.
+
+[ADDED 2026-11-01, split from Story 11.5 at its plan, unattended ruling (decide: a sibling planned next in this epic, product default 6); its criteria are Story 11.5's, moved verbatim; it adds its steps to Story 11.5's `release/release.sh`]
+
+**Acceptance Criteria:**
 
 **Given** every gate passed
 **When** the sequence reaches each later step that acts outside the machine
 **Then** it stops for the author's word before each one: opening the release pull request from the candidate branch that passed, merging it into `main` only when every required check is green (it reads `main`'s branch protection, which the author sets up with the `ci.yml` and `lane-a.yml` checks required before the sequence first runs, and refuses if those checks aren't required; while the repository is private on a GitHub plan that offers no branch protection, which GitHub answers with HTTP 403, the sequence instead checks every job of the `ci.yml` and `lane-a.yml` runs for the pull request's head commit itself, merges only when each one has succeeded or was skipped by its own condition, and records in the candidate's record that it checked the jobs itself because branch protection was unavailable) [AMENDED 2026-10-25, owner decision, relayed by the Contest Planner; the owner: "We won't make the repo public until we release on Open Exchange." On GitHub Free a private repository has no branch protection, so the first public release merges to `main` while the repository is still private; the author makes it public together with the Open Exchange release, and the Contest Planner then sets up the branch protection for every later release], tagging the release, merging `main` back into the integration branch after the merge and the tag, so the version bump and the built web bundle are on it and the next candidate's pull request doesn't conflict with `main`, and updating the online demo; it never publishes the notes, which the author does (REL-1, REL-8, REL-11, AD-29)
+
+- DW-27: Before the repository goes public, a fork pull request cannot merge without a demo-path run: 0.7's fork guard keeps the IRIS jobs off fork pull requests, so branch protection or a maintainer-run path from a same-repository branch must require it (REL-2; owner-only settings) (ledger; routed by adjudication 2026-10-20)
+- DW-532: After 1.0.0's merge back, the built web bundle in src/ocutalon/csp/ (gitignored today) is tracked on the integration branch, as Story 11.5's merge-back criterion and AD-29 require; from then on every local web build (ci/iris.sh build) rewrites tracked files and leaves the tree dirty, which trips release.sh's clean-tree check at start and bmad-build-auto's clean-tree checks in every epic worktree (ledger; routed by merge_gate 2026-11-02, Epic 30 merge)
+
+### Story 11.17: The release's IPM artifact carries the built page
+
+As the author,
+I want the release's IPM artifact to carry the built web page,
+So that a registry install works with no Node.js on a judge's machine.
+
+[ADDED 2026-11-01, split from Story 11.5 at its plan, unattended ruling (decide: a sibling planned next in this epic, product default 6); its criteria are Story 11.5's, moved verbatim; it adds its steps to Story 11.5's `release/release.sh`]
+
+**Acceptance Criteria:**
+
+**Given** the release sequence packaging a candidate's IPM artifact
+**When** it builds the package
+**Then** it builds the web page and puts the built bundle into the package's resources, in `src/ocutalon/csp/` (which `src/module.xml`'s `FileCopy` already copies into `${dataDir}csp/ocutalon-web/`), before it packages the artifact, so the artifact is self-contained and a registry install works with no Node.js on the judge's machine; it records in the candidate's record the artifact it would publish, so Story 15.3 can install exactly that artifact; the registry publish itself stays the author's action, at 1.0.0, and the sequence asks for the author's word before anything goes out (REL-3, REL-11, AD-23) [ADDED 2026-10-31, decided by the Contest Planner under the owner's delegation]
+
+### Story 11.18: The update hook updates the online demo, and a rehearsal candidate proves the sequence
+
+[SPLIT 2026-11-02, owner decision via the Contest Planner: Epic 11 part 2, after rc1]
+
+As the author,
+I want the update hook to update the online demo and a rehearsal candidate to prove the whole sequence,
+So that the real 1.0.0 cut runs a sequence that has been proved.
+
+[ADDED 2026-11-01, split from Story 11.5 at its plan, unattended ruling (decide: a sibling planned next in this epic, product default 6); its criteria are Story 11.5's, moved verbatim; it adds its steps to Story 11.5's `release/release.sh`]
+
+**Acceptance Criteria:**
 
 **Given** the author's word to update the online demo
 **When** the update hook runs
@@ -4299,48 +4607,60 @@ So that a release takes me at most 15 minutes of hands-on time and never skips a
 **And** the hook then reads `ocutalon-demo status`, one JSON object with `runningVersion`, `goldenVersion`, `lastReset` (UTC ISO 8601), `lastResetKind` (`scheduled` or `unscheduled`), `nextReset` (UTC ISO 8601), `pendingVersion` (or null) and `access` (`restricted` or `public`), and checks the running and golden-copy versions, or `pendingVersion` for a scheduled update; the host's address and SSH key come from the author's configuration outside the repository; with no demo host configured, it says so and the draft notes state that the online demo wasn't updated (REL-10, AD-25, CON-5)
 **And** the hook is tested against a throwaway compose project standing in for the demo host, which answers `status` and `update` exactly as above (both results and a failing update's non-zero exit), and whose update restore is exempt from the reset's version refusal: it checks that the golden copy holds the previous version and that the upgraded copy reports `<version>` before capture (REL-10, AD-25)
 
-**Given** the whole sequence
-**When** it runs
-**Then** no step pushes an image or signs in to a registry, and no step prints an environment value (CON-1, NFR-11, AD-22)
-
-**Given** every release cut with the scripted sequence, not only 0.1.0
-**When** the sequence runs
-**Then** it records in the candidate's record the author's hands-on time for that release (the time spent at its prompts), which is at most 15 minutes, not counting CI or the time spent on the hands-on pass, and its steps include the draft-notes generator from Story 11.4 (REL-3, REL-8)
-
 **Given** a rehearsal candidate cut from the integration branch (its record marked as a rehearsal), a fixture pass record and the stand-in demo host
-**When** the author runs the sequence on it before the real 0.1.0 cut
-**Then** it pushes the candidate on the author's word, runs every gate, stops at the hands-on gate, refuses to resume until the fixture pass record is in the candidate's record, then resumes with the resume command; the author declines the release pull request, the merge, the tag and the merge back (a declined step is skipped and the sequence goes on), the update hook runs against the stand-in, copying a `git bundle` of the rehearsal candidate's commit because there is no tag, and the stand-in builds from it, a rehearsal record never carries a pass over to a real candidate, and the record holds the commit SHA, each gate's result and the hands-on time; this proves the sequence, and Story 11.6 runs the real 0.1.0 cut through it (REL-1, REL-3, REL-7)
+**When** the author runs the sequence on it before the real 1.0.0 cut [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0" and "New Linux droplet"]
+**Then** it pushes the candidate on the author's word, runs every gate, stops at the hands-on gate, refuses to resume until the fixture pass record is in the candidate's record, then resumes with the resume command; the author declines the release pull request, the merge, the tag and the merge back (a declined step is skipped and the sequence goes on), the update hook runs against the stand-in, copying a `git bundle` of the rehearsal candidate's commit because there is no tag, and the stand-in builds from it, a rehearsal record never carries a pass over to a real candidate, and the record holds the commit SHA, each gate's result and the hands-on time; this proves the sequence, and Epic 38 runs the real 1.0.0 cut through it (REL-1, REL-3, REL-7) [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0" and "New Linux droplet"]
 
-- DW-27: Before the repository goes public, a fork pull request cannot merge without a demo-path run: 0.7's fork guard keeps the IRIS jobs off fork pull requests, so branch protection or a maintainer-run path from a same-repository branch must require it (REL-2; owner-only settings) (ledger; routed by adjudication 2026-10-20)
+**Given** a rehearsal candidate (U-203) [AMENDED 2026-11-01, U-203 (veto, kept): orchestrator ruling, kept by the Contest Planner under the owner's delegation]
+**When** the sequence cuts and pushes it
+**Then** rehearsal candidates are always named `rehearsal/<v>-rc<n>`, never `release/*`; a rehearsal branch never goes to origin, because the repository is public: the rehearsal works on a local bare remote only, the sequence's rehearsal mode refuses a `release/*` name (a test pins the refusal), and the script's header and usage say that a rehearsal branch accidentally pushed to origin is deleted when the rehearsal ends; the rc1 merge gate (`git ls-remote --heads origin release/1.0.0-rc1`) is unchanged, and no dependency statement changes
 
-### Story 11.6: A hands-on pass with real keys finds and fixes what the tests missed before 0.1.0
+### Story 11.19: Seeded check rows stay out of the heartbeat's way unless a case asks for the real watch
 
 As the author,
-I want the Contest Planner to run the web demo path by hand with a real model key before 0.1.0 is cut, on my behalf (REL-7's amendment of 2026-10-25),
-So that what the automated tests can't see is found and fixed before the first release (REL-7).
+I want every check row the e2e specs seed to be not due by default,
+So that no heartbeat tick overwrites a seeded last run while a spec asserts it, on any epic's CI.
+
+[ADDED 2026-11-02, fix-forward (orchestrator ruling with the Contest Planner, reason fix_forward): DW-349 reds most browser runs on every epic (23 occurrences); Story 11.1 gave Test.Data.Fixture.Check an hour-ahead NextDueAt default on this branch, which has not reached the integration branch; this story makes the default the whole contract, proves it on every seeding path, and lands it with Epic 11 part 1]
 
 **Acceptance Criteria:**
 
-**Given** Stories 11.1 to 11.5 merged, and Story 11.5's sequence stopped at the hands-on gate for the 0.1.0 candidate `release/0.1.0-rc<n>`
-**When** the Contest Planner installs that candidate from the README with Docker and a real model key and runs UJ-1's web route by hand in a browser: sign in, ask OcuTalon to watch Orders, set a reminder, Break the feed, the incident notice on the simulated phone, Approve and the result, Visual Trace, the three sample emails and the reminder firing
-**Then** each finding goes into the candidate's record (`release/records/0.1.0/rc<n>.md`) with its fix or the Contest Planner's decision to defer it, and the pass is recorded against the candidate by its version and commit SHA; fixes merge into the integration branch, and the sequence cuts a new candidate as Story 11.5 sets out (REL-7, P29)
-**And** the pass has no Telegram, because 0.1.0 has none; Story 12.7 runs the Telegram pass for 0.1.1 (REL-7)
+**Given** a spec that seeds a check row through the e2e seed helper (`seedCheck`, which calls `Test.Data.Fixture.Check`) without asking for the real watch
+**When** the row is stored
+**Then** it is not due: its next due time is about an hour ahead, so no heartbeat tick (the minute task or a fixture's HeartbeatTask) runs it or overwrites its seeded last run, result or finding while the spec asserts them (DW-349, AD-15)
+**And** a case that wants the real watch to run opts in explicitly (an empty next due time), and every spec that relies on the real watch says so
 
-**Given** fixes made after the pass
-**When** Story 11.5's sequence cuts the next candidate and reaches the hands-on gate
-**Then** the pass carries over only when that candidate was cut from the passed candidate plus the recorded fixes' commits, cherry-picked from the integration branch, so its only changes since the passed candidate are those fixes, with the Contest Planner's note in its record; otherwise, as for a re-cut from the integration branch's head, the Contest Planner runs a fresh pass on it, and the sequence refuses to resume until its record holds one (REL-1, REL-7)
+**Given** every place that seeds a check row for the browser specs (banners, rail, answers/close-loop, floor/focus, floor/guide, trace/links, session, 04-incident and any other caller)
+**When** they run on the merged tree
+**Then** each gets the not-due default without its spec being edited (banners.spec.ts is changed only if the fix truly needs it), and one test pins the default on the web side as Test.Data.FixtureDefaults pins it on the IRIS side
+- DW-349: Specs that seed a production check row with no NextDueAt can have it run by a real heartbeat tick since Story 5.6, which overwrites its last run, result and finding: a Last-run assertion can flake (ledger; routed by merge_gate 2026-10-29; fix-forward 2026-11-02)
 
-**Given** the real 0.1.0 cut through Story 11.5's sequence
-**When** it is resumed after the recorded pass and it finishes
-**Then** the candidate's record holds the author's hands-on time for 0.1.0, at most 15 minutes, not counting CI or the time spent on the hands-on pass (REL-3)
+### Story 11.20: The release's overview step hands the unit files the container can read
 
-- DW-299: Story 6.2's AC3 (headline, cause, dry-run count, Approve and Reject in view at 1280x600 without scrolling, UX-DR20) holds with the demo guide open: the guide reaches DESIGN's 56 px compact form while its Break the feed box shows, and 6.2's A6 check runs without Hide guide (ledger; routed by merge_gate 2026-10-28)
-- DW-358: Live check of 'cancel all my reminders' with three or more reminders pending, on the online demo's model, effort and endpoint: the turn cancels every pending reminder within Chat's iteration ceiling (AD-20) through the multi-id cancel_reminder of DW-140 (Story 11.1), and the reply says so (U-118) (ledger; routed by merge_gate 2026-10-28)
-- DW-365: A later request reuses the first diagnosis's fixSummary, so a count the model writes into it (the UX fixture's 'repair and resend all 50') would contradict the later round's own count and resend (ledger; routed by merge_gate 2026-10-30)
+As the author,
+I want the overview step's export of the candidate to be readable inside the overview unit's container,
+So that a release candidate's security overview is checked rather than failed by the release script's own file mode.
+
+[ADDED 2026-11-04, fix-forward (orchestrator ruling at the Contest Planner's request, reason fix_forward, veto U-256): the 1.0.0-rc1 cut failed at the overview step twice ("FAIL Regenerate did not succeed"). release.sh and lib-release.sh set umask 077, so step_overview's candidate_export writes docs/security-overview.md as 0600; test-security-overview.sh copies it into the container, where IRIS's user cannot read it, reads an empty file and reports the missing generated-tools marker (ERROR #5001). The same candidate tree under umask 022 passes the whole unit, so the product is fine. step_ipm already opens its files to others inside its container. rc1 was abandoned unpushed; rc2 is cut from this story's merge.]
+
+**Acceptance Criteria:**
+
+**Given** the overview step has exported the candidate's tree
+**When** it hands the tree to the overview unit
+**Then** every exported file and folder is readable (and every folder searchable) by other users (`chmod -R a+rX` on the export), with a comment in the file's style saying why: the unit copies files into a container whose IRIS user differs, and this script's umask 077 leaves them owner-only
+**And** the script's umask is unchanged: the release state files keep relying on it
+
+**Given** the overview unit fails
+**When** the step reports the failure
+**Then** the unit's log is kept in the release state folder (for example `overview-fail.log`) and its path is printed with the FAIL line, instead of being removed
+
+**Given** the release unit tests (no IRIS)
+**When** they run the overview step with the stub unit
+**Then** the stub fails if any exported file is not readable by others, so a regression of the mode fix reds the release sequence tests; and one case checks that a failing unit's log is kept and its path printed
 
 ## Epic 12: Approve from your own phone with Telegram
 
-A user scans the page's QR code to pair their Telegram private chat with their session, then chats, gets notifications and reminders, and answers approval requests with inline buttons from Telegram; unknown codes and a bare `/start` get polite instructions and link nothing; OcuTalon runs fully without a bot token, and pauses politely if another process polls the same bot. Built in Lane A after Epic 11 and shipped as 0.1.1, the release right after 0.1.0 and before the online demo goes public (PRD §7.2). [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation (inbox U-67): built alongside Epic 11 by the first free runner once Epic 10 has merged, and merged only after the `v0.1.0` tag exists; still shipped as 0.1.1.]
+A user scans the page's QR code to pair their Telegram private chat with their session, then chats, gets notifications and reminders, and answers approval requests with inline buttons from Telegram; unknown codes and a bare `/start` get polite instructions and link nothing; OcuTalon runs fully without a bot token, and pauses politely if another process polls the same bot. Built in Lane A after Epic 11 and shipped in 1.0.0, the first release; it merges into the integration branch when done, with no tag gate [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0": 0.1.0 and 0.1.1 are not cut; it read "shipped as 0.1.1, the release right after 0.1.0 and before the online demo goes public (PRD §7.2)", and the merge gate on the `v0.1.0` tag below is dropped]. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation (inbox U-67): built alongside Epic 11 by the first free runner once Epic 10 has merged, and merged only after the `v0.1.0` tag exists; still shipped as 0.1.1.]
 
 ### Story 12.1: Telegram stays off without a token, and CI mocks the Telegram API
 
@@ -4370,7 +4690,7 @@ So that Telegram is optional and the web demo path never waits on it.
 - DW-367: The CI override sets the dummy TELEGRAM_BOT_TOKEN for every CI and throwaway start, so once Included() can be 1 a start with no bot token (FR-21: no token, so Telegram off) has no way to be expressed in CI (ledger; routed by merge_gate 2026-10-29)
 - DW-370: The CI mock's Bot API state is one global queue, call list and counter for one client: reset restarts update_id at 1, so a poller that keeps its offset drops new updates as confirmed, and Test.Contract.Mock.TestTelegramBotApi expects only its own three calls (ledger; routed by merge_gate 2026-10-29)
 
-**On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the Contest Planner's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
+**On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the owner's Telegram pass on the 1.0.0 candidate (Story 38.3) [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0": it read "a real bot only in the Contest Planner's hands-on pass"]. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
 
 ### Story 12.2: OcuTalon polls and writes to its own bot, and pauses when another process polls it
 
@@ -4393,17 +4713,51 @@ So that no message is lost or repeated and two installs never fight over one bot
 **Given** Telegram answers `getUpdates` with 409 Conflict because another process polls the same token
 **When** `TelegramIn` receives it
 **Then** it stops polling for 5 minutes, logs the event without the token, and records the pause and its retry time through `OcuTalon.Data.StatusMark.Record` (Lane B's API from Story 10.3), from which `StatusMonitor` and `/state` turn on the `telegramPaused` condition with that time (FR-22, AD-12, AD-18)
-**And** the page shows the warning banner "Telegram is paused: this bot is in use by another OcuTalon. OcuTalon will try again at {time}. Each OcuTalon needs its own bot." with the "Set up a bot" README link, and the card shows "Telegram paused" and "Trying again at {time}" with the QR code withdrawn (FR-22, UX-DR56, UX-DR116)
 
 **Given** the pause has lasted 5 minutes
 **When** `TelegramIn` polls again
-**Then** on success the condition clears and the banner leaves within one live update, and on another 409 it pauses again for 5 minutes (FR-22, UX-DR34)
+**Then** on success the condition clears, and on another 409 it pauses again for 5 minutes (FR-22)
 
 **Given** a Telegram test run against the mock
-**When** a test searches every production setting, `%Status` text, event-log entry, trace message, audit entry, live event and the page for the dummy token
+**When** a test searches every production setting, `%Status` text, event-log entry, trace message, audit entry and live event for the dummy token
 **Then** it finds none (NFR-11, AD-14)
 
-**On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the Contest Planner's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
+**Given** the installer's client SSL configuration `OcuTalonClient`, which `TelegramIn` and `TelegramOut` name in their SSL configuration host setting
+**When** a test runs against the shipped image
+**Then** the CA file the configuration names exists in that image, and a request through the configuration to a disposable TLS server with a bad certificate (self-signed or for another host, never a real external host) is refused (NFR-11, AD-19, AD-23)
+**And** with an `http://` endpoint override (AD-19: the CI mock, the demo host's gateway), `TelegramIn` and `TelegramOut` stay plain HTTP and work, with no SSL configuration in the way, which the CI mock tests show (AD-19, AD-22)
+
+[AMENDED 2026-10-30, Story 12.2 spec gate, Epic 12 runner: the criterion above is the owner's U-164 conditions (1) and (2), answered 2026-10-30T09:39:29Z on the veto item for the client SSL configuration.]
+
+[AMENDED 2026-10-30, Story 12.2 spec gate, Epic 12 runner, unattended ruling (split, decide): the page side moved verbatim to Story 12.8, planned next: the third criterion's And clause (the banner and the card's paused state), "the banner leaves within one live update" from the fourth, and "the page" from the fifth's search; the server side stays here.]
+
+- DW-422: TelegramIn's kept update offset (`$$$EnsStaticAppData("TelegramIn", "offset")`, Story 12.1's `Test.Channel.BotApi`) is pinned only against that helper; this story's tests prove its poller keeps its offset in that node (ledger; routed by harvest 2026-10-30)
+
+**On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the owner's Telegram pass on the 1.0.0 candidate (Story 38.3) [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0": it read "a real bot only in the Contest Planner's hands-on pass"]. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
+
+### Story 12.8: The page shows when Telegram is paused, and when it will try again
+
+[ADDED 2026-10-30, Story 12.2 spec gate, Epic 12 runner, unattended ruling (split, decide): split from Story 12.2, whose page-side clauses are moved here verbatim; planned next in Epic 12, after 12.2 and before 12.3.]
+
+As a user,
+I want the page to tell me when Telegram is paused because another process polls my bot, and when OcuTalon will try again,
+So that I know why Telegram is quiet and what to do about it.
+
+**Acceptance Criteria:**
+
+**Given** `TelegramIn` has stopped polling after a 409 Conflict and recorded the pause and its retry time (Story 12.2), so that `/state` carries the `telegramPaused` condition with that time
+**When** the page shows it
+**Then** the page shows the warning banner "Telegram is paused: this bot is in use by another OcuTalon. OcuTalon will try again at {time}. Each OcuTalon needs its own bot." with the "Set up a bot" README link, and the card shows "Telegram paused" and "Trying again at {time}" with the QR code withdrawn (FR-22, UX-DR56, UX-DR116)
+
+**Given** the pause has lasted 5 minutes and `TelegramIn` polls again with success, so the condition clears (Story 12.2)
+**When** the page receives the next live update
+**Then** the banner leaves within one live update (FR-22, UX-DR34)
+
+**Given** a Telegram test run against the mock
+**When** a test searches the page for the dummy token
+**Then** it finds none (NFR-11, AD-14)
+
+**On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the owner's Telegram pass on the 1.0.0 candidate (Story 38.3) [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0": it read "a real bot only in the Contest Planner's hands-on pass"]. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
 
 ### Story 12.3: The Telegram card shows a fresh pairing code as a QR code
 
@@ -4430,7 +4784,7 @@ So that I can pair my phone in one scan without typing anything.
 **When** a test searches the production messages, headers, event log, live events and audit entries
 **Then** no code appears in any of them (FR-18, AD-4)
 
-**On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the Contest Planner's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
+**On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the owner's Telegram pass on the 1.0.0 candidate (Story 38.3) [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0": it read "a real bot only in the Contest Planner's hands-on pass"]. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
 
 ### Story 12.4: A valid code pairs the chat with the session
 
@@ -4464,7 +4818,9 @@ So that I know my phone will get OcuTalon's notices.
 **When** the REL-2 spec for UJ-1's page step reaches its Telegram pairing part, in its `web/e2e/demo-path/telegram-*.spec.ts` file that Story 10.3 created skipped
 **Then** that part is turned on once it passes on the integration branch with the CI mock: it reads the code from the page's "Open in Telegram" link, injects `/start <code>` from a private chat, and sees "Telegram paired" on the card and the confirmation sent to the chat (REL-2, AD-29, UX-DR101)
 
-**On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the Contest Planner's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
+**On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the owner's Telegram pass on the 1.0.0 candidate (Story 38.3) [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0": it read "a real bot only in the Contest Planner's hands-on pass"]. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
+
+- DW-486: `TelegramIn` (Story 12.2) calls `Pairing.RecordChat(chatId, "")` for every private update, and `RecordChat` sets `DisplayName` unconditionally, so the name this story stores would be blanked by the chat's next message; this story keeps a stored name (on Epic 12's side if possible: `TelegramIn` passes the update's own name, or skips an empty one; `Data/Pairing.cls` is Lane B's and contended with Epic 11) (ledger; routed by harvest 2026-10-31)
 
 ### Story 12.5: Bad codes, a bare start command and unpairing get polite answers
 
@@ -4495,7 +4851,7 @@ So that nobody pairs with my session by accident or learns anything about it.
 **When** a chat paired with A pairs with B, or A pairs a second chat
 **Then** a chat keeps at most one live pairing: in the first case A's card shows "Telegram unpaired" and then a new code, from the `pairing` event `SessionOps` publishes to every session whose state changed; in the second the first chat gets "Another Telegram chat was paired with this OcuTalon session, so this chat is no longer paired." from the `pairing` `Notification` that `SessionOps` sends (Story 10.3), and no more of A's messages; and each change is audited (FR-18, FR-9, AD-4, UX-DR56, UX-DR109)
 
-**On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the Contest Planner's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
+**On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the owner's Telegram pass on the 1.0.0 candidate (Story 38.3) [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0": it read "a real bot only in the Contest Planner's hands-on pass"]. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
 
 ### Story 12.6: Chat and get notifications in the paired Telegram chat
 
@@ -4527,10 +4883,10 @@ So that I can follow and steer it from my own phone.
 **When** a test searches the production messages, Visual Trace, the agent steps, the event log and the IRIS audit log
 **Then** none holds the chat's Telegram id or display name; only the `Pairing` row does (FR-15, FR-3, FR-9, AD-4)
 
-**On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the Contest Planner's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
+**On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the owner's Telegram pass on the 1.0.0 candidate (Story 38.3) [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0": it read "a real bot only in the Contest Planner's hands-on pass"]. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
 
 - DW-30: `TelegramOut` keeps every message within the Bot API's 4,096-character limit, because `Catalog.Render` caps no length and a model-written slot can be long (ledger; routed by harvest 2026-10-20)
-- DW-295: On a channel that shows no check rows (Telegram from 0.1.1) the Chat agent is no longer told that OcuTalon shows the check results under its reply and not to repeat them, so 'is everything OK?' gets a status there (ledger; routed by merge_gate 2026-10-27)
+- DW-295: On a channel that shows no check rows (Telegram from 1.0.0 [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0": it read "from 0.1.1"]) the Chat agent is no longer told that OcuTalon shows the check results under its reply and not to repeat them, so 'is everything OK?' gets a status there (ledger; routed by merge_gate 2026-10-27)
 
 ### Story 12.7: Approve or reject from Telegram, and every copy shows who answered
 
@@ -4562,24 +4918,96 @@ So that I can approve the fix from my own phone and see the result there.
 **When** the REL-2 spec for UJ-1's approval step reaches its Telegram part, in its `web/e2e/demo-path/telegram-*.spec.ts` file that Story 10.3 created skipped
 **Then** that part is turned on once it passes on the integration branch with the CI mock: it presses Approve on the notice's button, sees the answered status on the chat card and the phone, the edited Telegram message and "All 50 orders went through." in the paired chat, and finds the approval in the IRIS audit log with channel Telegram and no Telegram identity (FR-8, FR-9, REL-1, REL-2, UX-DR101, UX-DR103)
 
-**Given** this epic's stories are merged and Story 11.5's sequence stopped at the hands-on gate for the 0.1.1 candidate `release/0.1.1-rc<n>`
-**When** the Contest Planner installs that candidate from the README with Docker, a real model key and a real bot (the author provides a bot token for the rehearsal, and Telegram Web runs in the browser the Contest Planner drives, logged in once by the author), and runs the step's hands-on pass
-**Then** pairing, a reminder, the incident notice and Approve work in Telegram Web, and the author's optional look at one notice and one approval on a phone is recorded, or noted as skipped, without blocking the release (REL-7's amendment of 2026-10-25); each finding goes into the candidate's record (`release/records/0.1.1/rc<n>.md`) with its fix or the Contest Planner's decision to defer it, and the pass is recorded against the candidate by its version and commit SHA (REL-7, P29, UX-DR136, UX-DR138)
+**Moved to Story 38.3** [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0": Story 12.7's real-device Telegram pass moves to Story 38.3, "the owner's Telegram pass on the 1.0.0 candidate", in Epic 38, which runs on `release/1.0.0-rc1`; this story keeps everything that is built and proved on the CI mock. The criterion moved verbatim, with its U-164 condition (3) line: it read "**Given** this epic's stories are merged and Story 11.5's sequence stopped at the hands-on gate for the 0.1.1 candidate `release/0.1.1-rc<n>` / **When** the Contest Planner installs that candidate from the README with Docker, a real model key and a real bot (the author provides a bot token for the rehearsal, and Telegram Web runs in the browser the Contest Planner drives, logged in once by the author), and runs the step's hands-on pass / **Then** pairing, a reminder, the incident notice and Approve work in Telegram Web, and the author's optional look at one notice and one approval on a phone is recorded, or noted as skipped, without blocking the release (REL-7's amendment of 2026-10-25); each finding goes into the candidate's record (`release/records/0.1.1/rc<n>.md`) with its fix or the Contest Planner's decision to defer it, and the pass is recorded against the candidate by its version and commit SHA (REL-7, P29, UX-DR136, UX-DR138) / **And** the hands-on pass records a verified TLS handshake with `api.telegram.org` through the installer's client SSL configuration `OcuTalonClient` (peer verification on), in the candidate's record (REL-7, AD-19) [AMENDED 2026-10-30, Story 12.2 spec gate, Epic 12 runner: the owner's U-164 condition (3)]"]
+
+**Moved to Story 12.9** [AMENDED 2026-11-02, Story 12.7 spec gate, Epic 12 runner: split (U5 decide; orchestrator accepted). The criteria from Story 11.2's harness to the splash moved verbatim from Story 12.7 to the new sibling Story 12.9, because AD-32 forbids a released Telegram notice without Approve and Reject, so the switch follows the buttons.]
+
+**Moved to Story 38.3** [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0": the 20 timed pairings and approvals with a real bot are part of Story 12.7's real-device pass, which Story 38.3 now carries on the 1.0.0 candidate; this story keeps the CI mock's 5-second checks. The criterion moved verbatim (read 0.1.1 as 1.0.0, and its record as `release/records/1.0.0/rc<n>.md`): it read "**Given** the 0.1.1 candidate's hands-on gate above, on a clean-machine rehearsal host with a real bot / **When** the Contest Planner runs pairing and an approval answered from Telegram Web 20 times each (the Bot API can't act as a user, so a user client is driven), with the timings taken from server-side timestamps: from the update's arrival at `TelegramIn` to the page's `pairing` event, and to each other copy's delivery / **Then** the page shows "Telegram paired" within 5 seconds of the valid code, and every other copy shows the approval's result within 5 seconds, in at least 19 of 20 runs; the 20 pairings and 20 approvals are recorded once, in the 0.1.1 candidate's record (`release/records/0.1.1/rc<n>.md`), as part of the hands-on gate, not as a merge criterion of this story and not for each later release, and the 0.1.1 release notes report them (FR-8, FR-18, NFR-9, P30, REL-7)"]
+
+**On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the owner's Telegram pass on the 1.0.0 candidate (Story 38.3) [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0": it read "a real bot only in the Contest Planner's hands-on pass"]. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
+
+### Story 12.9: Telegram is included
+
+As a user,
+I want OcuTalon to turn Telegram on once approvals work there, with the README telling me how to set up my bot,
+So that I can pair my own phone and approve from it in a release.
+
+**Depends on:** Story 12.7 (the buttons, the presses and the edit in place). [AMENDED 2026-11-02, Story 12.7 spec gate, Epic 12 runner: split (U5 decide; orchestrator accepted). The criteria from Story 11.2's harness to the splash moved verbatim from Story 12.7 to the new sibling Story 12.9, because AD-32 forbids a released Telegram notice without Approve and Reject, so the switch follows the buttons.]
+
+**Acceptance Criteria:**
 
 **Given** Story 11.2's upgrade and restart harness
 **When** this story merges
-**Then** it extends the harness so the restart check includes a pairing through the Telegram mock from 0.1.1 and the upgrade check from 0.1.2, once the previous release includes Telegram, and the pairing still receives notifications afterwards (FR-60, NFR-16, NFR-17)
-
-**Given** the 0.1.1 candidate's hands-on gate above, on a clean-machine rehearsal host with a real bot
-**When** the Contest Planner runs pairing and an approval answered from Telegram Web 20 times each (the Bot API can't act as a user, so a user client is driven), with the timings taken from server-side timestamps: from the update's arrival at `TelegramIn` to the page's `pairing` event, and to each other copy's delivery
-**Then** the page shows "Telegram paired" within 5 seconds of the valid code, and every other copy shows the approval's result within 5 seconds, in at least 19 of 20 runs; the 20 pairings and 20 approvals are recorded once, in the 0.1.1 candidate's record (`release/records/0.1.1/rc<n>.md`), as part of the hands-on gate, not as a merge criterion of this story and not for each later release, and the 0.1.1 release notes report them (FR-8, FR-18, NFR-9, P30, REL-7)
+**Then** it extends the harness so the restart check includes a pairing through the Telegram mock from 1.0.0 and the upgrade check from the first release after 1.0.0, once the previous release includes Telegram [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0": it read "from 0.1.1 and the upgrade check from 0.1.2"], and the pairing still receives notifications afterwards (FR-60, NFR-16, NFR-17)
 
 **Given** every Telegram story merged
 **When** this story merges
 **Then** `OcuTalon.Channel.Telegram.In.Included()` returns 1, so `/state` shows the rail's Telegram card (Story 2.8), the pairing endpoints answer, and with a token set the Telegram installer step enables `TelegramIn` and `TelegramOut` (Story 12.1's one switch), in the same change that adds the README's Telegram section (creating a bot with BotFather, turning groups off for it, setting `TELEGRAM_BOT_TOKEN` in `.env` and restarting OcuTalon, and that each OcuTalon needs its own bot), which the card's "How to set it up" link and the "Set up a bot" banner link open, so the link never points at a missing section and Story 10.2's README link check covers it from this change on (FR-21, FR-22, FR-58, UX-DR98)
 **And** [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: moved from Story 16.10, because Lane A's Epic 29 now runs before this epic] this story also turns on the online demo's Telegram case that Epic 16 leaves off: Story 16.3's check that the rail's Telegram card shows a resumed session's pairing (FR-14, FR-15, FR-20, AD-29) [AMENDED 2026-10-21, owner decision at the unattended launch, worked out with the Contest Planner: Story 29.2 is Story 16.3 again; Story 29.4's paired-chat cases moved to Story 31.4]
 
-**On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the Contest Planner's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
+**Given** a release that includes Telegram (`OcuTalon.Channel.Telegram.In.Included()` returns 1, from this story)
+**When** the online demo's splash renders
+**Then** it shows "Have Telegram? You can scan a QR code inside to get the notices on your own phone." and the allowance line "Each session can send {limit} messages an hour in the chat or Telegram." (catalog key `splash.limitLine`), and the allowance banner `banner.allowance` says "chat or Telegram" only then; with `Included()` 0 neither text mentions Telegram (FR-14, FR-20, AD-3, AD-19)
+**And** the splash learns it through a public key `telegramIncluded` in `Data.Public.Settings`, written from `Included()` by Lane A's `Install.Step.Public` at every online-demo start, because the public pages may read only `Data.Public.Settings`' fixed keys (AD-3, AD-19); that key needs the owner's amendment of AD-19, so it is not built before this story's spec gate brings the mechanism to the orchestrator as a `## Clarification Needed` [ADDED 2026-10-31, orchestrator ruling U-197, from Story 16.11]
+
+**Note on the splash criterion above** [ADDED 2026-11-02, orchestrator ruling at Story 12.7's spec gate]: the mechanism (the public key `telegramIncluded`, option (a) or (a'), or no key with the splash lines shown unconditionally once `Included()` is a constant 1, option (b)) waits on the Contest Planner's answer to the U-197 follow-up; this story's spec gate reads that answer. Only this story's splash and banner part waits on it.
+
+**U-219 answered: option (a')** [AMENDED 2026-11-02, Story 12.9, U-219; the Contest Planner under the owner's delegation, after the owner deferred Story 31.4 to after the v1.0.0 tag]: the public key `telegramIncluded` is `1` only when `Included()` returns 1 and a bot token is set on that start, otherwise `0`; Lane A's `Install.Step.Public` writes it on every start and only the splash reads it (AD-19's dated sub-bullet). The splash line, the allowance line's "or Telegram" and `banner.allowance`'s "chat or Telegram" follow that key, not `Included()` alone, so the online demo keeps Telegram off by host configuration (no bot token in its IRIS container) until Story 31.4 lands, with a truthful splash; when 31.4 merges, no code change is needed. This story does not depend on Story 31.4.
+
+- DW-501: The allowance banner (catalog banner.allowance) promises Telegram on the online demo while the release has no Telegram (ledger; routed by spec_gate 2026-11-02)
+- DW-506: The reset-soon banner (catalog banner.resetSoon) names Telegram pairing on the online demo while the release has no Telegram (ledger; routed by spec_gate 2026-11-02)
+
+**On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the owner's Telegram pass on the 1.0.0 candidate (Story 38.3) [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0": it read "a real bot only in the Contest Planner's hands-on pass"]. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
+
+### Story 12.10: In a narrower window, the Telegram step leads to the Status drawer
+
+[ADDED 2026-11-03, fix-forward from DW-503 (owner decision U-238, answered by the Contest Planner under the owner's delegation, 2026-11-03T14:34:23Z#723; re-opens Epic 12 under SC-5 after Epic 12 merged, before the 1.0.0 tag): at 1024 to 1279 px the status rail is a drawer that starts closed, so the unpaired Telegram card is not on the page while the demo guide's hint says "scan the QR code in the Telegram card". The narrow fix is before the tag; UX-DR137's placement of the card at the top of the device column goes to the first daily release after 1.0.0 (DW-503).]
+
+As a person pairing Telegram in a narrower browser window,
+I want the guide's Telegram step to send me to the Status button and open the drawer with the card in view,
+So that I can find the QR code without hunting for a card I cannot see.
+
+**Acceptance Criteria:**
+
+**Given** a page 1024 to 1279 px wide (the status rail is a closed drawer), Telegram configured and the session unpaired
+**When** the demo guide reaches its Telegram step
+**Then** the step's hint tells the user to open the Status button in the page header, naming the button exactly as it is labelled, instead of pointing at a card they cannot see
+**And** the step's Show me opens the Status drawer with the Telegram card in view (not clipped, not hidden, not overlapping anything; the QR code and "Open in Telegram" visible and enabled)
+
+**Given** a page 1280 px wide or wider, or Telegram not configured, or the session paired
+**When** the demo guide reaches its Telegram step
+**Then** nothing changes from today
+
+**Given** the online demo, where Telegram is off at 1.0.0
+**When** a visitor opens the page at any width
+**Then** neither the Telegram hint nor the card shows, as today
+
+**Given** the change
+**When** this story merges
+**Then** a browser test at 1100 px pins the hint and the Show me drawer, a control at 1400 px shows nothing changed there, and CI is green on every workflow
+- DW-503: UX-DR137 (the unpaired Telegram card at the top of the device column at 1024 to 1279 px) is carried by no story; the narrow fix is this story (U-238), and the device-column placement goes to the first daily release after 1.0.0 (ledger; routed by owner decision U-238, 2026-11-03)
+
+### Story 12.11: The rehearsal's first run leaves out the specs that need CI's mock Telegram
+
+As the author,
+I want the clean-machine rehearsal to run only the demo-path specs a real install can pass,
+So that a release candidate's rehearsal is not failed by tests that refuse a real install on purpose.
+
+[ADDED 2026-11-04, fix-forward (orchestrator ruling at the Contest Planner's request, reason fix_forward, veto U-257): the 1.0.0-rc2 rehearsal (Story 38.2) failed run 1 on six specs Epic 12 added to web/e2e/demo-path: telegram-approval.spec.ts T8 and telegram-page.spec.ts T1, T3, T5, T6 and T7. Each refuses any stack whose Telegram API base is not CI's mock or that lacks CI's dummy token (Rule 21), as designed, and release/rehearse.sh's run 1 runs the whole folder. The install, sign-in, T2 and T4 passed. The driver reads the specs from the author's checkout, so this fix on the integration branch keeps the cut candidate valid. A real Telegram on the clean host is covered by the owner's hands-on pass (Story 38.3).]
+
+**Acceptance Criteria:**
+
+**Given** every spec under web/e2e/demo-path that needs CI's mock Telegram API, CI's dummy token or any other fixture only ci/compose.ci.yml provides
+**When** it is declared
+**Then** it carries one Playwright tag, `@ci-only`, and its Rule 21 guard stays exactly as it is: it never skips itself, so CI cannot go silent
+
+**Given** the rehearsal's run 1
+**When** it runs the demo-path specs on the fresh install
+**Then** it passes `--grep-invert @ci-only` and prints one line naming how many tests it left out; CI's own demo-path runs are unchanged and still run every tagged test
+
+**Given** the rehearsal's hermetic tests (no install)
+**When** they run
+**Then** one check lists run 1's tests (`playwright test --list` with run 1's arguments) and fails if any listed spec reads the mock Telegram base or the dummy token, with the mutation shown (an untagged mock-reading spec reds it)
 
 ## Epic 13: Any production can use the bridge
 
@@ -4684,6 +5112,34 @@ So that I can add the bridge to my own production without OcuTalon and without r
 **When** the public-text check and the release checklist run
 **Then** it is in plain English, holds no key, local machine path, instance name or private infrastructure detail, and the release checklist confirms it matches the release (FR-5, NFR-26, CON-5)
 
+- DW-181: The example's inline `ProviderConfig` carries no `Timeouts.Derive` `http_config`, so AI Hub's 30 s Retry-After cap and default request timeout apply under the bridge timer; the guide tells a developer to write `Derive(timer).http_config` into an inline config, or to use `@{config:}` with `Timeouts.Apply` (AD-8), and keeps Story 13.1's timer row working (ledger; routed by cr 2026-10-24)
+
+### Story 13.4: The guide and the overview say exactly what is audited, and the guide's gaps are closed
+
+[ADDED 2026-11-03, fix-forward from the Contest Planner's U-233 bare-container run of `docs/bridge-guide.md` (PASS on ac3f9c58), orchestrator unattended ruling, veto U-236; re-opens Epic 13 under SC-5, before rc1. U-229's sentence "each tool call is still audited" is false as written: by the overview's own audit section, "audited" means an IRIS audit entry, and the bridge writes one only for Approval, Action (Replay, Executor, PartnerTrigger), Pairing and Settings. The Planner amended U-229's wording. Docs and their test pins only. In 1.0.0's scope; must merge before rc1 (U-223 condition (2): every "this release" statement is true when rc1 is cut).]
+
+As a developer or a security reviewer reading the bridge guide and the security overview,
+I want them to say exactly what is audited, and the guide's steps to match what I see,
+So that I can follow the guide literally and trust its claims.
+
+**Acceptance Criteria:**
+
+**Given** U-229's sentence in `docs/security-overview.md` (L100), in `docs/bridge-guide.md` (L291) and pinned in `docker/tests/test-bridge-guide.sh` (`U229=`, L39, and its negative fixture)
+**When** this story merges
+**Then** all three read exactly: "In this release, changing this setting writes no OcuTalon audit entry. Each tool call is recorded as a step of its decision, and an approval and an approved call's run each write an audit entry." (the Contest Planner's amended U-229 wording)
+**And** each clause is checked against the code before it lands (where a tool call is recorded as a decision step; which `Bridge.Audit.Record` calls an approval and an approved call's replay write), with the file:line evidence in the spec's Design Notes; if any clause is not true, the story stops with a clarification to the orchestrator and never rewords it
+**And** the overview's generated lists and `overviewdoc` pins still pass, and every other "this release" statement in both files stays true
+
+**Given** the guide gaps the Planner's run found
+**When** this story merges
+**Then** (b) the settings table's `AgentAllowList` default cell says the default is empty, which refuses every class (replacing "see below")
+**And** (c) Step 6 gives the real path to a trace: in the message viewer, click the row, then the Trace tab, then View Full Trace (or click the Session number); the header id is not a link; and the trace's list names the bridge timer's `AlarmRequest` to `Ens.Alarm`
+**And** (d) the reference states Decide's rule that for a `user` request an ignore or digest decision becomes tellnow, with the reason the trace shows ("The outcome was changed because a message the user writes is always answered."), since steps 4 to 6 say an ignore decision goes to no output
+**And** (e) the Govern section says in one sentence that the Portal's notice that Decide needs an update, after the two settings rows are written, can be ignored, because the settings are read live
+**And** (g) the story finds whether a bare-bridge production needs `Approval.Reconcile` (re-arming pending approvals after a production start; today only OcuTalon's own install calls it): if it does, one sentence tells bridge users to run it after a production start; if it does not, the guide says nothing; the finding and its evidence are in Design Notes
+**And** every changed guide block still passes the standalone-bridge job's block-by-block guide run, `docker/tests/test-bridge-guide.sh` passes, and CI is green on every workflow
+**And** the story touches only `docs/bridge-guide.md`, `docs/security-overview.md` (L100's sentence only) and `docker/tests/test-bridge-guide.sh`; runnable guide blocks that reach a held call, and any bridge self re-arm at production start, go to the ledger `owner=burndown` with the note "first daily release after 1.0.0"
+
 ## Epic 14: A security reviewer can approve OcuTalon
 
 A security reviewer reads one overview, generated in part from the product, listing every built-in tool with its classification, the service user's privileges and the limits of that check, the approval and audit rules, what data leaves the instance, how MCP tools are classified and the online demo's protections; a test fails if the tool list drifts.
@@ -4761,6 +5217,7 @@ So that I can approve OcuTalon from one document without reading its code.
 **Then** a release checklist item reviews its hand-written sections against the release, the public-text check passes on it, and this story supplies the overview's path for the About dialog's security overview link, which Lane B's Story 31.3 (was Story 16.10) adds (FR-61, CON-5, UX-DR28)
 
 - DW-46: The security overview quotes the same sentence where it describes what demo mode off leaves in place (EXPERIENCE.md, the owner forms table; Story 0.12) (ledger; routed by harvest 2026-10-21)
+- DW-598: The overview's privilege section carries AD-24's limits paragraph (the production runs as the Interoperability system user, which holds `%All`) in place of its placeholder, and a check fails while any hand-written placeholder remains, so the generated grants never read as the whole story (ledger; routed by cr 2026-11-02)
 
 ## Epic 15: Install into an existing IRIS with IPM
 
@@ -4769,7 +5226,7 @@ An IRIS user installs OcuTalon into an existing AI Hub build 154 instance with i
 ### Story 15.1: The first install run creates OCUTALON and gives the next command
 
 As an admin,
-I want the first run of OcuTalon's IPM package, in any namespace, to create OCUTALON with its databases and mappings and then stop with the exact next command,
+I want the first run of OcuTalon's IPM package, in any Interoperability-enabled namespace (USER on build 154), to create OCUTALON with its databases and mappings and then stop with the exact next command, [AMENDED 2026-11-03, Story 15.3, unattended ruling U-231 (veto), kept with conditions by the owner's delegate (answer 2026-11-03T03:57:20Z#695): IPM 0.10.10 refuses the package in a namespace without Interoperability (`SystemRequirements Interoperability="enabled"`), so %SYS cannot run the first command; USER is Interoperability-enabled on both the IRIS for Health and the plain IRIS build 154 images (measured 2026-11-03); it read "first in any namespace" - see the story change log (spec-15-3, Spec Change Log)]
 So that I can install into my existing instance without preparing IRIS by hand.
 
 **Acceptance Criteria:**
@@ -4789,8 +5246,8 @@ So that I can install into my existing instance without preparing IRIS by hand.
 **And** the stop shows without IPM's error prefix if IPM allows it, the instance's services are unchanged, and the job keeps the run's full output (AD-23)
 
 **Given** the first run has stopped
-**When** the same command runs again in any namespace other than OCUTALON
-**Then** the CPF resource and the IPM mapping change nothing, the run stops with the same message, and no installer step runs outside OCUTALON (AD-23)
+**When** the same command runs again in any Interoperability-enabled namespace other than OCUTALON
+**Then** the CPF resource and the IPM mapping change nothing, the run stops with the same message, and no installer step runs outside OCUTALON (AD-23) [AMENDED 2026-11-03, Story 15.3, unattended ruling U-231: "any namespace" became "any Interoperability-enabled namespace" - see the story change log (spec-15-3, Spec Change Log)]
 
 **Given** an admin with a shell on the instance
 **When** they run `iris merge` with the release's `ocutalon.cpf` instead of the first command
@@ -4829,13 +5286,14 @@ So that one package gives me a working OcuTalon in my existing instance.
 
 **Given** the FR-57 job's captured output of both commands
 **When** this story writes the README's IPM text
-**Then** it writes `docs/install-ipm.md` with: the two commands (first in any namespace, then in OCUTALON) with their expected output; that the first run ends early by design; the `iris merge` alternative, followed by `zpm "enable -map -ns OCUTALON"` and then the install command in OCUTALON; that demo mode is off, with the command to switch it on; that the model key comes from `ANTHROPIC_API_KEY` in the instance's environment and that without it decisions use fixed rules; and the README account with how to change its password (FR-14, FR-38, FR-57, FR-58, AD-23)
+**Then** it writes `docs/install-ipm.md` with: the two commands (first in any Interoperability-enabled namespace (USER on build 154), then in OCUTALON) with their expected output; that the first run ends early by design; the `iris merge` alternative, followed by `zpm "enable -map -ns OCUTALON"` and then the install command in OCUTALON; that demo mode is off, with the command to switch it on; that the model key comes from `ANTHROPIC_API_KEY` in the instance's environment and that without it decisions use fixed rules; and the README account with how to change its password (FR-14, FR-38, FR-57, FR-58, AD-23) [AMENDED 2026-11-03, Story 15.3, unattended ruling U-231: "any namespace" became "any Interoperability-enabled namespace" - see the story change log (spec-15-3, Spec Change Log)]
 **And** this story needs no Lane B action: Lane B's Story 31.3 (was Story 16.10) adds the README's IPM section from that file (FR-58, AD-29)
 
-- DW-34: On an IPM install outside the image, `Data.Time.Zone()` and `ToLocal` agree on the instance zone even when `TZ` is unset on a non-UTC host, and a test checks it (AD-18) (ledger; routed by adjudication 2026-10-20)
+- DW-34: On an IPM install outside the image, `Data.Time.Zone()` and `ToLocal` agree on the instance zone even when `TZ` is unset on a non-UTC host, and a test checks it (AD-18) (ledger; routed by adjudication 2026-10-20) (moved to Lane B, U-177)
 - DW-212: With the online-demo flag off, an install into an instance whose `PasswordValidationRoutine` names another routine leaves the setting and that routine exactly as they were, and an instance with none stays with none (U-75's condition). Story 3.8's `TestForeignGuardIsRefused` pins the setting; add the assertion that the foreign routine still exists after the flag-off run, and prove both cases on this story's IPM install into an existing instance (ledger; routed by owner 2026-10-25, inbox U-75)
-- DW-207: `SetDemoMode(1)` on an instance whose OCUORDERS OcuTalon did not create refuses the on-switch before the audit entry and the settings write when `Install.Step.Demo.Plan` answers error, prints one terminal line that names the foreign OCUORDERS and changes nothing, and leaves `demo.mode` 0, so later starts still reach Production and Ready (today it writes 1 first and every later start stops at STEP Demo FAILED); prove both on this story's IPM install into an existing instance. U-106's condition on the terminal line: it says that demo mode stays off and why (OCUORDERS exists and OcuTalon did not create it), in the same style as the other Install step lines, and names no customer data from that namespace (ledger; routed by orchestrator 2026-10-27, Epic 4 decision sheet, veto U-106, kept by the Contest Planner under the owner's delegation)
-- DW-223: `Install.Step.Demo.WithOrdersData` (Story 5.1, U-79) is a near-copy of `WithOrders` (about 18 of its 20 lines), differing only in the resource list it edits (ledger; routed by merge_gate 2026-10-27)
+- DW-207: `SetDemoMode(1)` on an instance whose OCUORDERS OcuTalon did not create refuses the on-switch before the audit entry and the settings write when `Install.Step.Demo.Plan` answers error, prints one terminal line that names the foreign OCUORDERS and changes nothing, and leaves `demo.mode` 0, so later starts still reach Production and Ready (today it writes 1 first and every later start stops at STEP Demo FAILED); prove both on this story's IPM install into an existing instance. U-106's condition on the terminal line: it says that demo mode stays off and why (OCUORDERS exists and OcuTalon did not create it), in the same style as the other Install step lines, and names no customer data from that namespace (ledger; routed by orchestrator 2026-10-27, Epic 4 decision sheet, veto U-106, kept by the Contest Planner under the owner's delegation) (moved to Lane B, U-177)
+- DW-223: `Install.Step.Demo.WithOrdersData` (Story 5.1, U-79) is a near-copy of `WithOrders` (about 18 of its 20 lines), differing only in the resource list it edits (ledger; routed by merge_gate 2026-10-27) (moved to Lane B, U-177)
+- U-176 (owner decision via the Contest Planner, 2026-10-31): the install command commits IPM's transaction at Configure, After, then runs the installer steps; a step that fails after the commit makes the command report failure and print one Install-style line naming the step, saying the new code is installed and to run the same command again; the FR-57 job forces one step to fail on a reinstall through a test-only seam and proves the failure is reported, no data is lost, the namespace and databases stay, and a re-run completes and passes the checks of Stories 15.1 and 15.2; a failed Compile still rolls back with the previous version running; and `docs/install-ipm.md` says the same in one line [ADDED 2026-10-31, U-176]
 
 ### Story 15.3: An IPM install survives restarts and reinstalls, and every release proves it
 
@@ -4853,12 +5311,27 @@ So that the IPM install is as durable as the Docker one.
 **Given** an IPM-installed OcuTalon holding data
 **When** the install command runs again in OCUTALON, with the same version or the next one
 **Then** it completes without errors or data loss and restarts every item on the new code (FR-56, NFR-17, AD-5, AD-23)
-**And** if the load fails part-way, IPM rolls it back, the previous version keeps running, and the namespace and databases stay in place for the next run (AD-3, AD-23)
+**And** if the load fails part-way, IPM rolls it back, the previous version keeps running, and the namespace and databases stay in place for the next run (AD-3, AD-23) [AMENDED 2026-10-31, U-176, owner decision via the Contest Planner: "the load" means IPM's Reload, Validate and Compile phases; an installer step that fails after them is recovered by running the same command again, as on the Docker path]
+**And** the FR-57 job's forced step failure on a reinstall (Story 15.2, U-176) re-runs to completion and also passes this story's checks [ADDED 2026-10-31, U-176, owner decision via the Contest Planner]
 
 **Given** a push or pull request
 **When** the FR-57 job in `.github/workflows/lane-a.yml` runs
 **Then** it runs both install paths on clean build 154 containers (two runs of the same package, and `iris merge`, then `zpm "enable -map -ns OCUTALON"`, then one run), restarts the instance and runs the install command again, and fails the build unless every check of Stories 15.1, 15.2 and this story passes; fork pull requests never run it on the IRIS runner (FR-57, REL-4, CON-1)
 **And** it turns on Story 9.1's IPM case: on an IPM install, `EvalIn` (`OcuTalon.Eval.In`) is disabled and the production's testing switch is off (FR-57, AD-16, AD-22, CON-3)
+
+- DW-80: Nothing runs the Reconcile declarations when the production starts on its own (an IPM install's autostart, or a stop and start without an installer run), so a turn left running waits for the next installer run. This story's criterion that every area's Reconcile() runs once the autostarted production's items run covers it (AD-23): test a restart of the production alone (ledger; routed by burndown 2026-10-25)
+- DW-306: flake: test-production.sh row 21 (an item that cannot start) printed nothing for 'Start(15) with a WatchOps whose OnInit fails' in CI after Epic 5's merge (two occurrences); give row 21 a longer wait or a retry when this story next edits docker/tests/test-production.sh (ledger; routed by orchestrator 2026-10-28)
+- `src/module.xml` declares `<SystemRequirements Version=">=2026.3" Interoperability="enabled"/>` so IPM refuses earlier IRIS versions (contest staff's request in the Developer Community announcement thread, 2026-11-02): the IPM install still succeeds on build 154, whose version IPM compares as "2026.3.0AI.154.0" (measure that the "AI" suffix doesn't fail the comparison; a failure is a clarification, never a workaround); the first install run still works wherever Epic 15's flow runs it (Interoperability="enabled" refuses a namespace without Interoperability: if the first run's namespace isn't Interoperability-enabled, that is a clarification, never a silent workaround); and `release/lib-release.sh`'s artifact checks still pass with the changed module.xml [AMENDED 2026-11-02, Contest Planner 1 under the owner's delegation, routed by the orchestrator]
+- U-231: the first run works in any Interoperability-enabled namespace (USER on build 154; USER is Interoperability-enabled on both the IRIS for Health and the plain IRIS build 154 images, measured 2026-11-03), and `SystemRequirements` stays as written. `release/ipm-install.sh` check 5's %SYS case asserts IPM's refusal message with nothing left behind (no OCUTALON namespace or databases, no mappings, no globals). `docs/install-ipm.md` drops its two any-namespace sentences (the first run repeated in %SYS, and its pair), quotes or plainly describes IPM's refusal for a namespace without Interoperability, and says to run the first command in USER instead; that namespace advice holds on both supported images. [ADDED 2026-11-03, Story 15.3, unattended ruling U-231 (veto), kept with conditions by the owner's delegate (answer 2026-11-03T03:57:20Z#695) - see the story change log (spec-15-3, Spec Change Log)]
+- Split note: the release-proof criteria (the release gate, the registry install, `docs/install-ipm.md` and the local-repository artifact install) and DW-576 moved to Story 15.4 [SPLIT 2026-11-03 from Story 15.3, orchestrator ruling (decide)] - see the story change log (spec-15-3, Spec Change Log). This story keeps its title, so its sprint key is unchanged; both stories ship before rc1.
+
+### Story 15.4: Every release proves the IPM package, and the guide opens with the registry install
+
+As an admin,
+I want every release to stop unless the IPM package passed its FR-57 job, and the IPM guide to open with the registry install,
+So that 1.0.0 and every later release include a working IPM package that a judge can install from the registry. [SPLIT 2026-11-03 from Story 15.3, orchestrator ruling (decide)]
+
+**Acceptance Criteria:**
 
 **Given** a release candidate from 1.0.0 on
 **When** the release sequence runs
@@ -4871,9 +5344,10 @@ So that the IPM install is as durable as the Docker one.
 **Given** `docs/install-ipm.md`
 **When** a judge reads it
 **Then** it opens with the registry install, the path a judge takes for the IPM bonus: the line that enables the community registry on a fresh IPM (its exact IPM 0.10.10 form, such as `zpm "enable -community"`, and its output, both measured on this story's clean build 154 throwaway), then `zpm "install ocutalon"` with the two-step namespace message; the load-from-folder path, which needs Node.js to build the web page, comes second, for developers [ADDED 2026-10-31, decided by the Contest Planner under the owner's delegation, relayed to the orchestrator]
-**And** before any publish, it installs the exact artifact the release would publish, which carries the built web page (Story 11.5 builds it into the package's resources), on a clean build 154 throwaway with no Node.js, through a local filesystem IPM repository (`zpm "repo"` pointing at the artifact's folder, then `zpm "install ocutalon"` and its two steps); it proves that `/ocutalon/` serves the branded sign-in page and that the README account signs in, and the guide shows that real output until the author's publish, after which the registry's own output replaces it, as the criterion above says; the release notes record the artifact's size, and a size over a few MB is reported to the Contest Planner [ADDED 2026-10-31, decided by the Contest Planner under the owner's delegation: the published IPM package carries the built web page, so a registry install needs no Node.js]
-- DW-80: Nothing runs the Reconcile declarations when the production starts on its own (an IPM install's autostart, or a stop and start without an installer run), so a turn left running waits for the next installer run. This story's criterion that every area's Reconcile() runs once the autostarted production's items run covers it (AD-23): test a restart of the production alone (ledger; routed by burndown 2026-10-25)
-- DW-306: flake: test-production.sh row 21 (an item that cannot start) printed nothing for 'Start(15) with a WatchOps whose OnInit fails' in CI after Epic 5's merge (two occurrences); give row 21 a longer wait or a retry when this story next edits docker/tests/test-production.sh (ledger; routed by orchestrator 2026-10-28)
+**And** before any publish, it installs the exact artifact the release would publish, which carries the built web page (Story 11.17 builds it into the package's resources) [AMENDED 2026-11-02, Epic 11 merge, orchestrator (as built: the IPM artifact step moved from Story 11.5 to Story 11.17 at 11.5's plan); it read "Story 11.5 builds it"], on a clean build 154 throwaway with no Node.js, through a local filesystem IPM repository (`zpm "repo"` pointing at the artifact's folder, then `zpm "install ocutalon"` and its two steps); it proves that `/ocutalon/` serves the branded sign-in page and that the README account signs in, and the guide shows that real output until the author's publish, after which the registry's own output replaces it, as the criterion above says; the release notes record the artifact's size, and a size over a few MB is reported to the Contest Planner [ADDED 2026-10-31, decided by the Contest Planner under the owner's delegation: the published IPM package carries the built web page, so a registry install needs no Node.js]
+- DW-576: release.sh's ipm step has proved only the one-run install path live; before 15.3 relies on 11.17's artifact record, run `docker/tests/test-release-sequence.sh --live ipm` on a candidate that carries Epic 15's `module.xml` (the two-run MapAndStop path) (ledger; routed by harvest 2026-11-02)
+- MapAndStop also maps IPM's repository definitions into OCUTALON (IPM's own `enable -map -repos -ns OCUTALON -q` form if IPM 0.10.10 supports it, else the equivalent `^IPM.Repo.Definition*` global mapping, measured on a throwaway), so the second command in OCUTALON finds the repositories of the namespace where the first command ran and the README keeps its two commands. The definitions are mapped as they are, never copied, created, edited or printed, and no test or log prints a definition's fields. Removing or uninstalling OcuTalon removes the mapping only, never the first namespace's repository data, and a test asserts the definitions are unchanged after uninstall (it compares a hash of the definitions' global and never prints it). The guide says in plain words that OCUTALON shares the first namespace's repositories, so a repository added or removed in either namespace changes both. If the security overview or its generated lists describe OCUTALON's mappings, this mapping is listed there. [ADDED 2026-11-03, Story 15.3, unattended ruling U-232 (veto), kept with conditions by the owner's delegate (answer 2026-11-03T03:57:20Z#696) - see the story change log (spec-15-3, Spec Change Log)]
+
 
 ## Epic 16: Anyone can try the online demo
 
@@ -6941,10 +7415,10 @@ So that long conversations keep working at the cheaper price tier.
 - DW-125: Until Story 30.1's compaction, a linked conversation whose stored history alone passes the request-size limit answers too_large on every turn that continues it (about 400,000 characters of history); Epic 2's Conversation starts a fresh session only after Tainted or SessionBroken, so the conversation stays stuck (ledger; routed by spec_gate 2026-10-23)
 - DW-130: Until Story 30.1 compacts, a turn that passes the request-size check can still send a later model request above 100,000 tokens inside AI Hub's tool loop (a 99,000-token first request could reach about 153,000 on its fourth); AD-20's arithmetic bound holds only once turns above 40,000 are compacted (ledger; routed by harvest 2026-10-23)
 - DW-93: Decide.Precheck calls Budget.State on every decision, and State scans the Usage table by RecordedAt, which has no index, so the precheck's cost grows with the Usage rows (unmeasured) (ledger; routed by merge_gate 2026-10-24)
-- DW-448: The key proof's globals scan (Test.Eval.KeyProof Walk) and its raw container-file grep match the key only as contiguous 8-bit bytes of one node, so a key inside a zstd-compressed %Stream.Global* chunk, a 16-bit $List element or split across stream chunks reads as clean (ledger; routed by merge_gate 2026-10-31)
-- DW-386: The product redactor OcuTalon.Bridge.Redact does not replace two key shapes that docker/tests/test-boundaries.sh key_like flags: DigitalOcean tokens (dop_v1_...) and PEM private-key headers (-----BEGIN ... PRIVATE KEY) (ledger; routed by merge_gate 2026-10-31)
+- DW-448: The key proof's globals scan (Test.Eval.KeyProof Walk) and its raw container-file grep match the key only as contiguous 8-bit bytes of one node, so a key inside a zstd-compressed %Stream.Global* chunk, a 16-bit $List element or split across stream chunks reads as clean (ledger; routed by merge_gate 2026-10-31) [AMENDED 2026-11-02, Story 30.1 spec gate: re-owned to the Epic 30 burn-down story 30.7 with U-185's condition unchanged; not compaction scope]
+- DW-386: The product redactor OcuTalon.Bridge.Redact does not replace two key shapes that docker/tests/test-boundaries.sh key_like flags: DigitalOcean tokens (dop_v1_...) and PEM private-key headers (-----BEGIN ... PRIVATE KEY) (ledger; routed by merge_gate 2026-10-31) [AMENDED 2026-11-02, Story 30.1 spec gate: re-owned to the Epic 30 burn-down story 30.7 with U-184's condition unchanged; not compaction scope]
 - DW-483: Decide falls back on the first invalid reply; one retry on an invalid reply (with the check's own error text in the retry) could recover a correct-but-malformed diagnosis, within NFR-7's diagnosis budget (ledger; routed by orchestrator 2026-10-31)
-- DW-541: Chip 1 ("Which productions are running?") gets a real answer: `list_productions` returns a code-built running or stopped state for each production (trusted fields only), or, cheaper, the chip reads "Which productions can you watch?" (web text and its `ci/mock/scenarios/B/` scenario). In 1.0.0 only at no date cost: if it would make this re-open merge later than Epic 13 (the critical path to rc1), re-own it to the first daily release after 1.0.0 (ledger; routed by merge_gate 2026-11-01, Contest Planner's Epic 4 host check)
+- DW-541: Chip 1 ("Which productions are running?") gets a real answer: `list_productions` returns a code-built running or stopped state for each production (trusted fields only), or, cheaper, the chip reads "Which productions can you watch?" (web text and its `ci/mock/scenarios/B/` scenario). In 1.0.0 only at no date cost: if it would make this re-open merge later than Epic 13 (the critical path to rc1), re-own it to the first daily release after 1.0.0 (ledger; routed by merge_gate 2026-11-01, Contest Planner's Epic 4 host check) [AMENDED 2026-11-02, Story 30.1 spec gate: re-owned to the Epic 30 burn-down story 30.7, same no-date-cost condition; not compaction scope]
 
 ### Story 30.2: Old messages and records are purged on schedule
 
@@ -7000,6 +7474,10 @@ So that my own risky tools work through the bridge and never run without a yes.
 **Given** a test answers an approval request and replays its approved test tool
 **When** it reads the IRIS audit log back, polling with a timeout because IRIS writes some rows late, through Story 3.7's read-back helper
 **Then** it finds the approval entry and the action entry, each with time, IRIS user and session (FR-9, AD-17) [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: moved from Story 3.7, which keeps the approval entry]
+
+**Given** an approved `tool_call` request whose row was held before the update that added its tool source and runner (either of `ToolSource` and `Runner` empty)
+**When** its replay is asked for
+**Then** the row closes `failed` with a plain-English reason the person sees: it was held before an update and can't be run again safely, so ask again; the reason holds no class name and no error code, and a test seeds such a row (AD-10, AD-11) [AMENDED 2026-10-30, Story 30.3, owner decision U-170, decided by the Contest Planner under the owner's delegation, relayed by the orchestrator: "an old approved tool_call row with ToolSource or Runner empty closes failed with a plain-English reason the person sees (it was held before an update and can't be run again safely, so ask again), never a class name or error code. A test covers that row"]
 - DW-99: Story 2.8's real `approval.result` path for a replayed tool call has no story that turns it on; this story turns it on (ledger; routed by load 2026-10-23)
 - DW-192: A pending approval row can lose its hold (a task completed outside Answer, the timer's Expire failing on the lock or a save, a past-expiry Answer on a row whose hold is gone); then no timer fires and no `ApprovalOutcome` is sent until the next Reconcile. This story reworks the hold's delivery: Reconcile or the hold delivers an answered or expired row that has no live hold, including the expired outcome to `ResultTarget` (ledger; routed by merge_gate 2026-10-25, veto U-78)
 - DW-194: A tool_call ApprovalRequest stores neither the tool's source class nor the runner item that made the call, which AD-10's replay needs (the live grant matches the source; the replay goes to the runner of the agent that made the call). This story adds the two fields (a stored-data change, in its own veto window) or derives them, for example from the decision's trace (ledger; routed by spec_gate 2026-10-25)
@@ -7041,9 +7519,73 @@ So that I never think a fix finished when it didn't, and nothing is resent behin
 **Then** `FixExecutor` sends a `FixResult` marked in progress (`Final` 0) with the counts so far, the incident stays fixing, and the `result` notification uses the in-progress catalog key; once every registered copy has completed or failed, `Checks`, on its next heartbeat `Tick`, calls `OcuTalon.Fix.Run.Sweep()`, which returns the run's final `FixResult`, and sends it to `IncidentManager`, which moves the incident per AD-15's transition table with the matching result text (FR-25, AD-15, AD-16, AD-18)
 - DW-384: An approved request whose ExpiresAt has passed when FixExecutor takes its Execute is refused with an info line only (AD-16's refused list read as covering it), so it stays approved and its incident stays fixing with no result (ledger; routed by merge_gate 2026-10-30)
 - DW-419: A resend that errs partway counts the targets it never reached as Skipped, so its result reads 'had changed since the dry run', which is false; it must report them by how far the run got (AD-16 as amended for U-160) (ledger; routed by merge_gate 2026-10-30)
+- DW-469: U-180's condition: the {time} of a watch.productionStopped or watch.itemDisabled notice renders through the catalog's time format with the zone label, for both time sources; pin it with a test (ledger; routed by lead 2026-10-31)
 - DW-484: An agent-written reply time has no zone label: the chat's reminder reply reads 'Your reminder is set for 08:02 to stretch.' in the instance zone (ET on the demo), while the page shows the visitor's own time ('5:01 AM PDT', 'Due 5:02 AM'), so a visitor elsewhere sees three different clocks (ledger; routed by orchestrator 2026-10-31)
 - DW-519: `Tools.RecentActivity.WatchNames` copies the private `WatchAnswers.WatchNames`, and `RecentActivity.Shown` repeats the catalog's private ET time-slot rule; make both shared and call them from `RecentActivity`, so `recent_activity`'s display names and time labels never drift from the cards' (ledger; routed by burndown 2026-11-01)
 - DW-500 [PROMOTED 2026-11-01 into 1.0.0's scope, Contest Planner under the owner's delegation; WIDENED 2026-11-01 after the Epic 4 host check]: on ANY user chat turn (the always-answered Tell-now override, AD-28), Triage's reasons never describe production state, what Triage can or cannot access, or whether anything needs the user; they only classify the turn as the user's own message, which is always answered (for example "A question from the user; the user is answered directly"). Seen on the host with real Haiku: under chip 2 ("Is anything wrong right now?") the reasons said "…there is nothing that needs the user at this moment", a model-written all-clear (AD-28); under a correct `recent_activity` answer they said "I have no access to earlier items or failure logs…". Preferred: Triage's instructions, with evaluation cases on the mock for all four "Try it yourself" chips' exact texts ("Which productions are running?", "Is anything wrong right now?", "What was that failure earlier?", "What can you do?"; on the host, chips 1 and 4 also drew tool-limit reasons: "I have no tools in this context and cannot look up production status…", "I have no tools, so I can only classify an item…"); fallback, only if the decision payload already marks the override (no change to `api/api-types.ts` or `live/live-store.ts`): with the override, the strip shows only the override line and the reasons move into Decision details, pinned by a web unit test (ledger; routed by owner decision 2026-11-01)
+
+### Story 30.6: The invalid-reply warning names what failed, never the reply
+
+[ADDED 2026-10-31 at Epic 30's second re-dispatch, by the orchestrator's dispatch: DW-498, U-193's condition (kept by the Contest Planner), done first, as a story of its own because Story 30.1 is full. It reaches the demo with the next deploy of Epic 30's merge.]
+
+As a production developer,
+I want the trace warning for a refused reply to say which property failed and by how much, without quoting the reply,
+So that the model's own reply content never reaches the trace through an error text.
+
+**Acceptance Criteria:**
+
+**Given** a reply whose check fails on a length or datatype rule (for example an evidence element longer than its limit)
+**When** `Decide` refuses it as `invalid`
+**Then** its one trace warning names the failing property and the limit, with the measured length where it applies (for example 'Evidence element 6: 42 > 32'), built from the status's error code, property and limit, and quotes none of the reply's own content (U-193)
+
+**Given** a reply that fails its check again after the reply filter ran
+**When** `Decide` refuses it
+**Then** the "After the reply filter ran" warning follows the same rule (U-193)
+
+**Given** any other check failure (the reply is not one JSON object, or the status carries an error code with no property and limit)
+**When** the warning is written
+**Then** it names the error code and the reply class, and still quotes no reply content
+
+**Given** the tests in `OcuTalon.Test.Bridge`
+**When** they run
+**Then** a test pins that no reply content appears in the warning: a refused reply whose failing value carries a unique marker produces a warning without the marker, for both paths; the change stays inside `Decide.Judge` and its caller in `Bridge/Process/Decide.cls`
+- DW-498: Story 5.12's invalid-reply warning logs $SYSTEM.Status.GetErrorText of the reply check, and for a MAXLEN or datatype failure that text quotes the offending value (the model's own reply content); the warning must name the failing property and the limit and quote none of the reply (ledger; routed by orchestrator 2026-10-31)
+- DW-505: An assertion written x [ "a"_y tests only x [ "a", so it can pass whatever y is: Test.Agent.KeyScan:123 can never fail; parenthesise it, and have a class-rules check reject a top-level _ right of [ or ] in an assertion's first argument (ledger; routed by burndown 2026-10-31)
+
+
+### Story 30.7: Epic 30 burn-down
+
+[DEFERRED 2026-11-02, the Contest Planner (reserve lever d1): after the v1.0.0 tag, first daily release]
+
+[ADDED 2026-11-02, Epic 30 part 2 burn-down gate (Rule 17; U-207): the ledger entries this epic still owns, chartered with their kept conditions. DW-437 is the orchestrator's ruling U-210 (veto), kept by the Contest Planner with two conditions; DW-386 and DW-448 are U-184's and U-185's kept conditions, re-owned here from Story 30.1 at its spec gate; DW-541 is in 1.0.0 only at no date cost. This story is built independently of Story 30.1 (no code or test of it depends on 30.1's changes) and lands in commits of its own, so it can be deferred on its own: if the rc1 forecast slips past 2026-11-03 18:00Z, the Contest Planner may move it after the tag.]
+
+As a maintainer,
+I want Epic 30's remaining ledger entries resolved before the epic closes,
+So that old conversations are purged whole, approvals and replays always finish, keys are redacted in every shape, and the tests that flaked hold.
+
+**Acceptance Criteria:**
+
+- DW-437: After the OcuTalon purge deletes a turn's Decision and Usage rows (90 days), its Turn, Delivery and Session rows stay (no area purges them): Ownership.TurnCost reads 0 and ShownDecisionRef names a missing decision. Ruled (U-210, veto, kept by the Contest Planner): purge Turn, Delivery and Session on the same 90-day cut as their Decision and Usage rows, as an AD-27 retention extension marked `[AMENDED <date>, Story 30.7, orchestrator ruling U-210]` (spine lint baseline `ok: false`, 8 low); one test that TurnCost and ShownDecisionRef never read a purged turn; and the Planner's two conditions, each with a test beside that one: (1) a Session row is purged only when the session has no Turn, Delivery or Decision newer than the 90-day cut AND it is not a current session (signed in, or with an open approval request, watch or reminder): never by age alone; (2) the purge touches only OcuTalon's own tables: the IRIS audit log entries for approvals and actions are never purged by this story. `Data/Session.cls` is Epic 31's: a change there is one self-contained block appended at its end (ledger; routed by merge_gate 2026-11-02, U-210)
+- DW-444: A tool_call ApprovalRequest left executing by a crash or restart mid-replay stays executing: the call is never re-run (NFR-13 holds) but no result or approval.result is ever sent; candidate fix: Reconcile at instance start (never on a test's call) closes executing tool_call rows through FinishExecution with result interrupted (ledger; routed by spec_gate 2026-10-30)
+- DW-470: U-172's conditions: a replayed tool call that fails because no provider key is set or the provider can't be reached says so in its failed row, in catalog words, and that nothing was changed; and no public text claims a replay works without a provider connection (ledger; routed by lead 2026-10-31)
+- DW-462: flake: OcuTalon.Test.Bridge.Approval TestAnswerBeforeTheTaskExists (row 13) went red once in CI (the task appeared but was not completed with Approve by OcuTalonWorkflow, the hold did not end and no single outcome was sent); find the race and make the test (or the hold) deterministic (ledger; routed by ci 2026-10-31)
+- DW-386: The product redactor OcuTalon.Bridge.Redact does not replace every key shape that docker/tests/test-boundaries.sh key_like flags. Kept condition (U-184): extend Bridge.Redact to every key_like shape, DigitalOcean tokens (dop_v1_...) and PEM private-key headers (-----BEGIN ... PRIVATE KEY) included, and also the Anthropic key (sk-ant-...) and the Telegram bot token (digits:35 characters) if key_like lacks them, with one test per shape, before 1.0.0 (ledger; routed by merge_gate 2026-10-31, re-owned from Story 30.1 by spec_gate 2026-11-02) [RE-OWNED 2026-11-02 to Story 30.8, fix-forward before 1.0.0]
+- DW-448: The key proof's globals scan (Test.Eval.KeyProof Walk) and its raw container-file grep match the key only as contiguous 8-bit bytes of one node. Kept condition (U-185): decode $List elements in Test.Eval.KeyProof Walk; measure on a throwaway whether a message body can store a key in a compressed or split %Stream.Global* chunk (yes: decode it; no: that half is closed wontfix-accepted with the evidence: throwaway build, message class, what was stored); the key proof is otherwise unchanged; Lane B's copy in Test.Web.SessionEvents is its own entry (ledger; routed by merge_gate 2026-10-31, re-owned from Story 30.1 by spec_gate 2026-11-02) [RE-OWNED 2026-11-02 to Story 30.8, fix-forward before 1.0.0]
+- DW-371: Lane A's remaining copy of the purge day rule: IncidentManager.Purge uses the shared Bridge.Time.DaysCutoff (Story 30.2) like Digest; Data.Pairing.Purge is Lane B's and stays with its own entry (ledger; routed by cr 2026-10-30)
+- DW-541: Chip 1 ("Which productions are running?") gets a real answer: `list_productions` returns a code-built running or stopped state for each production (trusted fields only), or, cheaper, the chip reads "Which productions can you watch?" (web text and its `ci/mock/scenarios/B/` scenario). In 1.0.0 only at no date cost: if it would make this re-open merge later than Epic 13 (the critical path to rc1), it is re-owned to the first daily release after 1.0.0 (ledger; routed by merge_gate 2026-11-01, re-owned from Story 30.1 by spec_gate 2026-11-02)
+
+### Story 30.8: The redactor and the key proof catch every key shape
+
+[ADDED 2026-11-02 after hold #2, fix-forward (the orchestrator's ruling at hold_complete, confirmed by the Contest Planner under the owner's delegation: "DW-386 + DW-448 KEEP in 1.0.0 as fix-forward Story 30.8 before the repack, full QA+review"). Both entries carry owner-kept conditions that say "before 1.0.0" (U-184, U-185), and Story 30.7, which chartered them, is deferred after the v1.0.0 tag. Their conditions are unchanged. The implement starts from the parts of the 30.7 set-aside patch that cover these two entries; 30.7 itself stays deferred.]
+
+As a maintainer,
+I want the product redactor to replace every key shape the boundary scan flags, and the key proof to find a key inside a $List element,
+So that no key reaches the trace or a log in a shape the redactor misses, and the release candidate's key proof cannot pass over a key stored in a list.
+
+**Acceptance Criteria:**
+
+- DW-386: `OcuTalon.Bridge.Redact` replaces every key shape that `docker/tests/test-boundaries.sh` `key_like` flags, DigitalOcean tokens (`dop_v1_...`) and PEM private-key headers (`-----BEGIN ... PRIVATE KEY`) included, and also the Anthropic key (`sk-ant-...`) and the Telegram bot token (digits, a colon, 35 characters) if `key_like` lacks them; one test per shape (U-184, kept; before 1.0.0) (ledger; routed by merge_gate 2026-10-31, re-owned from Story 30.7 by spec_gate 2026-11-02, fix-forward)
+- DW-448: `Test.Eval.KeyProof`'s Walk decodes `$List` elements, so a key stored as one element of a list (nested lists included) is found; and a measurement on a throwaway answers whether a message body can store a key in a compressed or split `%Stream.Global*` chunk: yes, the walk decodes those too; no, that half closes `wontfix-accepted` and the ledger entry records the evidence (the throwaway's build, the message class, what was stored). The release candidate's key proof is otherwise unchanged; Lane B's copy (`Test.Web.SessionEvents`, DW-474) stays with its own entry (U-185, kept; before 1.0.0) (ledger; routed by merge_gate 2026-10-31, re-owned from Story 30.7 by spec_gate 2026-11-02, fix-forward)
 
 ## Epic 31: Lane B post-demo hardening
 
@@ -7070,6 +7612,7 @@ So that updates arrive at once.
 **Given** the CI demo-path environment
 **When** the WebSocket tests run
 **Then** an event published while the socket is open reaches the page through it; with the socket blocked, polling still delivers it; the 2-second delivery bound is measured in the rehearsal (NFR-9, AD-12) [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: the banner half of this criterion stays in Story 2.11]
+- DW-457: A WebSocket keeps serving its session after sign-out (the socket's CSP session never sees the sign-out); this story adds a server-side sign-out check, a mark the sign-out sets and each socket loop reads, so an open socket sends no further frame within one loop after sign-out, with the 60 s socket lifetime kept as a backstop; only if another open epic holds `Data/Session.cls` when this story resumes does it stay a ledger entry, due before 1.0.0 (ledger; routed by spec_gate 2026-10-30, orchestrator ruling U-174, owner answer U-174 of 2026-10-30)
 - DW-397: Test.Eval.Feed.Fixture (Story 9.9) near-copies Install.Step.Demo.System's namespace create/remove and ServiceRole, and Keys/Count repeat Test.Demo.Production WaitCount/Count, forced by Lane B's OCUORDERS-fixed private helpers; the two teardown sequences drift when one changes (ledger; routed by merge_gate 2026-10-31)
 
 ### Story 31.2: A tool call's approval request reaches the phone with Approve and Reject
@@ -7082,10 +7625,14 @@ So that a tool call is answered the same way as a fix.
 
 **Acceptance Criteria:**
 
-**Given** an approval of kind `tool_call`
-**When** the bridge reports `approval.raised`, `approval.answered` or `approval.result`
-**Then** `BridgeSink` sends `Notification`s of kinds `approval`, `answered` and `result` through `NoticesIn`, each carrying the request's `ApprovalRef` (and its `IncidentRef`, empty for a tool call), so the phone gets buttons and in-place edits for it too; for kind `fix`, `IncidentManager` sends them, its `answered` and `result` notifications carrying both `ApprovalRef` and `IncidentRef` (AD-31, AD-32)
-**And** until Story 30.3 merges, its tests call `BridgeSink.OnEvent` with fixture `approval.*` events of kind `tool_call`, and the replay's real `approval.result` turns on then [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner]
+**Given** a resolved incident whose request result has `unreached` above 0
+**When** the signed-in page shows its card
+**Then** the result band reads `result.stoppedPartway`'s text, picked in the server's `Watch.Notice.ResultKey` order, and never `result.skipped`'s; a run still going past FixExecutor's 60-second wait shows the card's fixing line and no result band (DW-472, DW-473; AD-16, AD-32)
+**And** an approved tool call of the session that finished after one message is named in the next turn's code-written `SystemNote` (the tool, done or failed, and the time), and in that turn only (DW-443, AD-30)
+[AMENDED 2026-11-02, Story 31.2's plan, split (Rule 5 tier-2, unattended ruling, decide): the story's `tool_call` notice criterion moved verbatim to Story 31.5, which keeps this story's user story; this story is part 1: the page's stopped-partway result (U-183 condition 1), the tool-call note to the next turn and the routed layout fixes below. Its title and key are kept]
+- DW-472: The page's result band picks `result.stoppedPartway` when a request's `unreached` is above 0; the web catalog key lists gain the key and its count-of-one form (ledger; routed by orchestrator 2026-10-31, U-183)
+- DW-473: The page has a named still-resending state for a fix run still running after FixExecutor's 60-second wait (ledger; routed by orchestrator 2026-10-31, U-183)
+- DW-443: A replayed tool call's approval.result reaches the next turn as a code-written SystemNote (the tool, done or failed, and the time; AD-30) (ledger; routed earlier)
 - DW-497: flake: live:cards A7 (web/e2e/cards/approval-card.spec.ts:348, another session's request answers 404) timed out at sign-in waiting for the page's first GET of the state (web/e2e/support/floor.ts:141, loadedAfter) in CI; it passed on the unchanged rerun (ledger; routed by orchestrator 2026-10-31)
 - DW-530: Where the top bar's stacked header (Story 4.9's Demo view switch) would pass a quarter of the window's height (157px local, 180px online at 320px wide; the whole window at 400% zoom), it scrolls with the page instead of sticking (for example `position: static` below 480px wide), or the switch moves into a menu below 1024px, whichever is cheaper; floor G4's quarter-of-the-viewport rule then holds at every width. In 1.0.0 only at no date cost to Epic 31: if the plan finds it adds time, re-own it to the first daily release after 1.0.0 (ledger; routed by owner decision U-202, 2026-11-01)
 - DW-542: At 640px wide (200% zoom) the guide's finish state wraps to full width instead of a 321px right column beside an empty left half (Contest Planner's Epic 4 host check); with DW-530's rule: 1.0.0 only at no date cost (ledger; routed by merge_gate 2026-11-01)
@@ -7109,7 +7656,7 @@ So that I can try OcuTalon in two minutes from the README.
 **And** the About dialog gains the bridge developer guide and security overview links, and the demo guide's finish state its "Use the same bridge in your own production ↗" link, at the paths Stories 13.3 and 14.2 supply, once both have merged (FR-5, FR-61, UX-DR28, UX-DR47)
 **And** it keeps the BMAD Method and Claude Code credits and the not-affiliated note, is plain English with no class name or error code outside its developer sections, names no private infrastructure detail, and every link in it resolves (FR-58, CON-2, CON-5)
 **And** it adds `LICENSE` at the repository root with the standard MIT License text and the holder line "Copyright (c) 2026 jbrandtmse" (the same holder line as the owner's OcuPilot), and one line under "Credits and licences": "OcuTalon is under the MIT License: [LICENSE](LICENSE)."; the README test (`docker/tests/test-readme.sh`) pins both: the file's MIT text with that holder line, and the README line [AMENDED 2026-10-28, owner decision U-136, relayed by the Contest Planner under the owner's delegation: release 1's README was kept as written, with this condition; OcuTalon has no project licence yet and is MIT, as OcuPilot is; written into this story before its plan]
-**And** the README shows two screenshots under "What's interesting", each with plain-English alt text: (1) the OcuTalon page on the demo path, with the incident card, its dry run with counts, and the approval request; (2) Visual Trace of one decision, showing the agent's model requests and tool calls as steps. The PNG files live in `docs/images/`, each under 300 KB. They are captured by a Playwright spec on a throwaway stack, the way `web/e2e/trace` already opens real Visual Trace pages; the mocked model is fine. They show no key, secret, password other than the README account's, or private host name. `docker/tests/test-readme.sh` checks that both files exist and are linked [AMENDED 2026-10-28, decided by the Contest Planner under the owner's delegation ("I have delegated authority to the Contest Planner. That agent is allowed to make decision on my behalf."), written in by the orchestrator as an unattended ruling, veto U-142: judges skim, and Visual Trace showing every model request and tool call as an agent step is OcuTalon's clearest difference, so the README shows it without an install; written into this story before its plan]
+**And** the README shows two screenshots under "What's interesting", each with plain-English alt text: (1) the OcuTalon page on the demo path, with the incident card, its dry run with counts, and the approval request; (2) Visual Trace of one decision, showing the agent's model requests and tool calls as steps. The PNG files live in `docs/images/`, each under 300 KB. They are captured by a Playwright spec on a throwaway stack, the way `web/e2e/trace` already opens real Visual Trace pages; the mocked model is fine. They show no key, secret, password other than the README account's, or private host name. `docker/tests/test-readme.sh` checks that both files exist and are linked [AMENDED 2026-10-28, decided by the Contest Planner under the owner's delegation ("I have delegated authority to the Contest Planner. That agent is allowed to make decision on my behalf."), written in by the orchestrator as an unattended ruling, veto U-142: judges skim, and Visual Trace showing every model request and tool call as an agent step is OcuTalon's clearest difference, so the README shows it without an install; written into this story before its plan] [AMENDED 2026-11-03, orchestrator unattended ruling, veto U-242: image 1 is Story 10.5's vetted docs/images/page-incident.png, reused per DW-613; image 2 is re-shot by this story's Playwright spec]
 
 **Given** 0.1.1's Telegram channel (Epic 12, Lane A) and Lane A's real paths merged [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner: split from the paired-chat criterion that moved to Story 29.4]
 **When** this story's tests run
@@ -7118,13 +7665,25 @@ So that I can try OcuTalon in two minutes from the README.
 **Given** the README's IPM install section, which this story adds from `docs/install-ipm.md`
 **When** a judge reads it
 **Then** it opens with the registry install (the community-registry line and `zpm "install ocutalon"`) and gives the load-from-folder path second, for developers, in the order Story 15.3's guide uses [ADDED 2026-10-31, decided by the Contest Planner under the owner's delegation, relayed to the orchestrator]
+
+**Given** Epic 12 merged to the feature branch and integrated into this epic's branch (so `Included()` no longer has its test-only body and the README has Epic 12's Telegram section)
+**When** this story merges
+**Then** the "How you talk to it" section that Story 10.5 added has a Telegram row: Telegram, to chat and approve on your phone, is in 1.0.0, on your own install with your own bot token; it points to the README's Telegram section (Epic 12's setup steps) and never duplicates or edits those steps (FR-12, FR-18)
+**And** no README text about the online demo claims Telegram, pairing or phone approvals while the demo has no bot (until Story 31.4; U-228 condition (2)); any quoted UI string matches the built page exactly (U-228 condition (1)); the README's public-text rule holds (no "from your phone")
+**And** `docker/tests/test-readme.sh` passes, CI is green on every workflow, and the Telegram row's change touches only `README.md` and `docker/tests/test-readme.sh` [AMENDED 2026-11-03, orchestrator unattended ruling, veto U-234, kept by the Contest Planner under the owner's delegation (2026-11-03T07:59:58Z): moved verbatim from Story 10.6 (split from Story 10.5, then removed), because AD-29's no-telegram README guard blocks the row until Epic 12 merges; this story is placed only after Epic 12 has merged, and rc1 is not cut until this story has merged. Its last line read "**Given** the change **When** this story merges **Then** `docker/tests/test-readme.sh` passes, CI is green on every workflow, and the story touches only `README.md` and `docker/tests/test-readme.sh`"; "the story" now names the row's change, since this story touches more]
 - DW-360: The README's LAN warning names the default IRIS accounts' passwords but gives steps only for the README account; the 1.0.0 README adds how to change the default IRIS accounts' passwords in the Management Portal, next to the README account's how-to (Epic 10's decision sheet, veto U-145) (ledger; routed by merge_gate 2026-10-29)
 - DW-416: Behind a TLS-terminating proxy every online-demo API POST fails the origin check (403 wrong_origin): IRIS expects an http:// origin and the browser sends https://; the demo host maps that exact origin on /ocutalon/api/* as a workaround (ledger; routed by merge_gate 2026-10-31)
 - DW-432: flake: live:online-allowance D1 missed S1's daily-cap banner: StatusMonitor (counts the Usage spend) can publish dailyCap before S1's /state, which a web process computes from the day's mark alone, and the later mark is no change to the monitor (ledger; routed by merge_gate 2026-10-31)
+- DW-453: flake: OcuTalon.Test.Web.GuideApi TestRunAgain ('steps 3 to 5 reset; the watch still counts') failed once in a local fresh shard lane-b part 2/2 and passed on the warm stack and on the rerun of the part (ledger; routed by merge_gate 2026-11-02, Epic 30 merge)
+- DW-549: flake: live:online-demo web/e2e-online/resume.spec.ts:84 R1 'it expires at the next reset' was one second off (expected 1793575980, received 1793575981): the cookie's expiry and the test's computed next reset are taken at different seconds (ledger; routed by merge_gate 2026-11-02, Epic 30 merge)
+- DW-599: flake: OcuTalon.Test.Core.ThreadProduction TestNewThreadAfterMidnight went red once in CI (mixed headers: a header of one turn counted in the other thread) and passed on the unchanged rerun (ledger; routed by merge_gate 2026-11-02, Epic 30 merge)
+- DW-613: Story 31.3's README AC adds 'the page on the demo path' and 'a Visual Trace of one decision' under What's interesting; Story 10.5 already puts docs/images/page-incident.png (hero) and docs/images/vt-decision.png in the README, so 31.3 should reuse or move them rather than add duplicates; its new images also need git add -f (the .gitignore line images/ matches docs/images/) (ledger; routed by merge_gate 2026-11-03, Epic 10 merge)
 
 **Release check:** measured on the public online demo host serving the 1.0.0 candidate, at the 1.0.0 release, the author's [AMENDED 2026-10-30, owner decision, relayed by the Contest Planner; the owner: "Yes, that should be our plan.": the online demo goes public on its own this weekend (about Nov 1), ahead of 1.0.0, while the repository, the Open Exchange listing and the contest entry wait for 1.0.0; so Story 31.3 measures on the public host (see the Epic List's step release checks); it read "measured on the online demo host serving the 1.0.0 candidate, behind the access gate before the public flip, at the 1.0.0 release, the author's"] [AMENDED 2026-10-29, owner decision, relayed by the Contest Planner (one public release at 1.0.0; see the Epic List's step release checks); it read "measured on the launched online demo at the 1.0.0 release"] [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." step readiness review M11: this criterion moved, verbatim, to the Epic List's step release checks as a 1.0.0 release check, so this story keeps the README work, never parks on the launch, and Epic 31 merges once `v0.1.1` is tagged (its merge gate); the title is kept so the story's tracker key stays the same]
 
 ### Story 31.4: The paired chat stays isolated under load too
+
+[DEFERRED 2026-11-02, owner decision relayed by the Contest Planner (AskUserQuestion ~14:55Z; the owner: "Move it after the tag."): Story 31.4 moves out of 1.0.0 into the first daily release after the v1.0.0 tag, with its ledger entries (DW-237, DW-446, DW-474, DW-485, DW-511). Epic 31 merges for 1.0.0 with Stories 31.1, 31.2, 31.5 and 31.3; 31.4 re-opens Epic 31 under SC-5 after the tag. Until it lands, the Contest Planner keeps Telegram pairing off on the public demo by host configuration (U-219: the splash's Telegram line shows only when a bot token is set).]
 
 [AMENDED 2026-10-21, owner decision at the unattended launch, worked out with the Contest Planner: a new story for Story 29.4's paired-chat cases, so that no Lane A epic waits on Epic 29, which merges only after the author's host work. Lane B builds it in Epic 31, once Lane A's Epic 12 and Epic 29 have merged]
 
@@ -7141,6 +7700,57 @@ So that what reaches my phone is my own work.
 - DW-446: The probe reports healthy when every turn is an error fallback (a revoked real key, a provider 500 or a down gateway behind the demo's gateway), because degraded covers only no_key, timeout and rate_limited (ledger; routed by merge_gate 2026-10-31)
 - DW-237: Story 10.3's Pairing.HashCode must delegate to Session.Hash (Story 16.3) instead of adding a second SHA-256 base64url helper (ledger; routed by merge_gate 2026-10-31)
 - DW-485: release/demo-host-check.sh has no allow-hyperevent check, so run 1 passed while the host's S17 filter refused every Visual Trace hyperevent (WARGC, WEVENT, WARG_<n> to /ocutalon/trace/<app>/%25CSP.Broker.cls answered 400 'unexpected form field'), which broke demo step 5's message clicks; add a check that a hyperevent-shaped POST with dummy WARGC, WEVENT and WARG_1 to each trace application's %CSP.Broker.cls gets neither the block status nor the block mark (ledger; routed by orchestrator 2026-10-31)
+- DW-450: Test.Eval.KeyProof Walk copies the global walk of Test.Web.SessionEvents.ReferenceHits (about 8 lines: the extended reference, $Data of the root, then $Query with data) instead of sharing one helper (ledger; routed by merge_gate 2026-11-02, Epic 30 merge)
+- DW-511: Lane B's Test.Data.PublicSettings:TestNextReset line 105 has the assertion form x ] y_"Z" (DW-505): it compares now against the time without the Z, so it also passes when now is that very second; Story 30.6's assert-concat rule allow-lists it by name (ledger; routed by merge_gate 2026-11-02, Epic 30 merge)
+
+### Story 31.5: A tool call's approval request reaches the phone with Approve and Reject (notices)
+
+[AMENDED 2026-11-02, Story 31.2's plan, split (Rule 5 tier-2, unattended ruling, decide): part 2 of Story 31.2, its `tool_call` notice criterion moved here verbatim, its spent "until Story 30.3 merges" clause kept for the record (30.3 has merged, so the replay's real `approval.result` is on)]
+
+As a production developer,
+I want a risky tool call's approval request on the session's simulated phone and paired chat with Approve and Reject, edited in place when it is answered and when its result arrives,
+So that a tool call is answered the same way as a fix.
+
+**Acceptance Criteria:**
+
+**Given** an approval of kind `tool_call`
+**When** the bridge reports `approval.raised`, `approval.answered` or `approval.result`
+**Then** `BridgeSink` sends `Notification`s of kinds `approval`, `answered` and `result` through `NoticesIn`, each carrying the request's `ApprovalRef` (and its `IncidentRef`, empty for a tool call), so the phone gets buttons and in-place edits for it too; for kind `fix`, `IncidentManager` sends them, its `answered` and `result` notifications carrying both `ApprovalRef` and `IncidentRef` (AD-31, AD-32)
+**And** until Story 30.3 merges, its tests call `BridgeSink.OnEvent` with fixture `approval.*` events of kind `tool_call`, and the replay's real `approval.result` turns on then [AMENDED 2026-10-20, owner decision, relayed by the Contest Planner]
+- DW-454: U-170's plain-English reason for an old held tool call reaches the approval card and the tool-call notices, not only the decision live event (ledger; routed to this story by Story 31.2's spec gate 2026-11-02)
+- [AMENDED 2026-11-02, Story 31.5 split, orchestrator ruling (decide, Rule 5 tier-2 split into a sibling planned next): the web chat card criterion moved to Story 31.6]
+
+### Story 31.6: A tool call's approval request appears in the web chat with Approve and Reject (card)
+
+[AMENDED 2026-11-02, Story 31.5 split, orchestrator ruling (decide, Rule 5 tier-2 split into a sibling planned next in the same epic): part B of Story 31.5, its web chat card criterion moved here verbatim; it follows Story 31.5, whose notices, texts (U-212) and catalog keys it reuses]
+
+As a production developer,
+I want a risky tool call's approval request in the web chat as a card with Approve and Reject, answered once whichever copy is pressed first, with its result as a new message,
+So that a tool call is answered in the web chat the same way as a fix.
+
+**Acceptance Criteria:**
+
+- A tool call's approval request also appears in the web chat as a card with Approve and Reject, with the same texts as the phone (first line 'Run {tool} on {server}' when the server is known, else 'Run {tool}'; the inputs on one line through the redactor, capped at 200 characters and ending with '…' when cut); it is answered once, the first answer winning across every copy (web chat, simulated phone, paired chat), and its result shows as a new message with no buttons (FR-8; PRD "Channels": the web chat, the simulated phone and the paired chat with inline Approve and Reject) [AMENDED 2026-11-02, Story 31.5, Contest Planner under the owner's delegation; moved here by the Story 31.5 split]
+- U-222 (owner decision, kept with one condition): after a page reload, an answered, expired or finished tool-call card must not look pending: no buttons, and no 'awaiting approval' label, badge or colour that suggests it is still waiting; a test pins it. The full answered line after a reload (/state serving answered tool-call requests) is DW-592, routed to the first daily release after 1.0.0 [AMENDED 2026-11-02, Story 31.6, Contest Planner under the owner's delegation (U-222 at=2026-11-02T18:27:03Z#671)]
+- DW-454: the web chat half: an old held tool call's result notice with its plain-English reason shows in the web chat too (W10; Story 31.5 delivered the phone, paired-chat and event half) (ledger; routed by adjudication 2026-11-02)
+- DW-601: the web card takes its first line and inputs from BridgeSink's ServerOf/InputsOf (made reachable), never a second implementation, so the phone and card texts cannot drift (ledger; routed by cr 2026-11-02)
+
+### Story 31.7: After an unpair, the Telegram card shows its fresh code without a gap
+
+[ADDED 2026-11-03, fix-forward from e75b90bc's T6 red, orchestrator unattended ruling, veto U-243: on the integrate-forward head e75b90bc (Epic 12 merged into Epic 31), web/e2e/demo-path/telegram-page.spec.ts T6 saw the unpaired view 8169 ms and 8063 ms after "Telegram unpaired" (bound 8000 ms), because Story 31.1's WebSocket delivers the pair and move events at once and the card's next code request waited for CODE_SPACING_MS (10 s) after the previous one; it runs before Story 31.3. web/src/app/rail/telegram-card/** (Epic 12's, Lane A) is a footprint extension for this story only]
+
+As a user who has just unpaired Telegram,
+I want the card's fresh pairing code ready when the five-second "Telegram unpaired" view ends,
+So that the card never goes blank between the two.
+
+**Acceptance Criteria:**
+
+**Given** a session whose Telegram pairing has just ended (an unpair, a /stop or a move to another session), and the card's previous code request less than CODE_SPACING_MS (10 s) ago
+**When** the card starts its new pairing round
+**Then** that round's first code request goes out at once, not after CODE_SPACING_MS, so the fresh code is ready when the 5 s "Telegram unpaired" view ends, with no blank card between them (UX-DR14)
+**And** only that one request is exempt, once per unpair: every other request keeps the 10 s spacing and the 30 s retry after a failure, unchanged
+**And** the card's own unit tests pin both: an unpair followed at once by a new round requests immediately; any other request inside 10 s still waits
+**And** T6 in `web/e2e/demo-path/telegram-page.spec.ts` passes with its bound unchanged (8000 ms, line 891); that spec is not edited, and nothing else in the card or the server changes
 
 ## Epic 32: CI gives a verdict in about ten minutes, even with both lanes pushing
 
@@ -7621,6 +8231,111 @@ So that I can see what OcuTalon costs and spot a request close to the size limit
 **Given** automated tests and a Playwright spec under `web/e2e/` with fixture usage rows across days, agents, channels and models
 **When** each grouping is chosen
 **Then** each total equals the sum of its rows, the chart and the table agree, another session's rows never appear, and the page works by keyboard with labelled controls and never relies on colour alone (FR-52, AD-4, NFR-25, UX-DR134)
+
+## Epic 38: 1.0.0 is checked by hand and cut
+
+Epic 38 depends on every 1.0.0-scope epic and gates the v1.0.0 tag. Once those epics have merged and Story 11.5's sequence has cut `release/1.0.0-rc1`, the first release's candidate (0.1.0 and 0.1.1 are not cut), one full candidate check runs on it: the Contest Planner's real-key pass on the web demo path (Story 38.1), the timed runs on one clean Linux droplet that the Contest Planner creates and deletes for each check, driven from the Contest Planner's Mac, with no clean macOS run (Story 38.2), and the owner's Telegram pass on the same candidate (Story 38.3). [ADDED 2026-10-31, decided by the Contest Planner under the owner's delegation (inbox U-189, option (a))] [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0" and "New Linux droplet"]; it read "Once Epic 11 has merged and Story 11.5's sequence has cut the 0.1.0 candidate, the author's clean macOS and Linux hosts install it and time its demo path on the real model, and the Contest Planner runs the web demo path by hand with a real model key on the author's behalf; this epic gates the v0.1.0 tag."]
+
+[AMENDED 2026-11-02, owner decision via the Contest Planner (Epic 11 trimmed to 11.17)] Until Epic 11 part 2 merges, read "Story 11.5's sequence stopped at the hands-on gate" in Stories 38.1 and 38.3 as: the candidate cut and pushed by Story 11.5's sequence, with the Contest Planner's hand run of Story 11.14's gate list recorded in its record (the full CI run, the release-candidate evaluation with the demo incident gate, the upgrade harness, the rehearsal, the checklist and the REL-7 hands-on pass, the refusal of any enabled item that answers "not implemented" included); read "resumed after the recorded pass and it finishes" as the Contest Planner's hand steps under REL-11's standing go (the PRD amendment is written on the feature branch). The demo host is updated by the Contest Planner's update-ref path; U-208 and H19 move with Story 11.18 to Epic 11 part 2. No acceptance criterion changes; Story 15.3 still reads Story 11.17's artifact record.
+
+[AMENDED 2026-11-02, U-216 kept by the Contest Planner (DW-532)] At 1.0.0's merge-back of `main` into the integration branch, the Contest Planner untracks the built web bundle by hand in the same merge-back commit (`git rm -r --cached src/ocutalon/csp`; the integration branch's `.gitignore` already covers it), so local web builds stay clean; any daily release's merge-back before Epic 11 part 2 (Story 11.16) resolves the bundle's modify/delete the same way. Story 11.16 then builds into a separate folder and copies the bundle in only at the cut.
+
+### Story 38.1: A hands-on pass with real keys finds and fixes what the tests missed before 1.0.0
+
+As the author,
+I want the Contest Planner to run the web demo path by hand with a real model key before 1.0.0 is cut, on my behalf (REL-7's amendment of 2026-10-25), [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0" and "New Linux droplet"]
+So that what the automated tests can't see is found and fixed before the first release (REL-7).
+
+[MOVED 2026-10-31 from Story 11.6, whole and verbatim, U-189 (option (a), decided by the Contest Planner under the owner's delegation); its "Given Stories 11.1 to 11.5 merged" now reads as Epic 11 merged; DW-299, DW-358 and DW-365 moved with it]
+
+**Acceptance Criteria:**
+
+**Given** Epic 11 and every other 1.0.0-scope epic merged, and Story 11.5's sequence stopped at the hands-on gate for the 1.0.0 candidate `release/1.0.0-rc1` [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0" and "New Linux droplet"]
+**When** the Contest Planner installs that candidate from the README with Docker and a real model key and runs UJ-1's web route by hand in a browser: sign in, ask OcuTalon to watch Orders, set a reminder, Break the feed, the incident notice on the simulated phone, Approve and the result, Visual Trace, the three sample emails and the reminder firing
+**Then** each finding goes into the candidate's record (`release/records/1.0.0/rc<n>.md`) with its fix or the Contest Planner's decision to defer it, and the pass is recorded against the candidate by its version and commit SHA; fixes merge into the integration branch, and the sequence cuts a new candidate as Story 11.5 sets out (REL-7, P29) [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0" and "New Linux droplet"]
+**And** the pass covers the web route; the Telegram pass on the same candidate is Story 38.3, the owner's (REL-7) [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0" and "New Linux droplet"]
+
+**Given** fixes made after the pass
+**When** Story 11.5's sequence cuts the next candidate and reaches the hands-on gate
+**Then** the pass carries over only when that candidate was cut from the passed candidate plus the recorded fixes' commits, cherry-picked from the integration branch, so its only changes since the passed candidate are those fixes, with the Contest Planner's note in its record; otherwise, as for a re-cut from the integration branch's head, the Contest Planner runs a fresh pass on it, and the sequence refuses to resume until its record holds one (REL-1, REL-7)
+
+**Given** the real 1.0.0 cut through Story 11.5's sequence [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0" and "New Linux droplet"]
+**When** it is resumed after the recorded pass and it finishes
+**Then** the candidate's record holds the author's hands-on time for 1.0.0, at most 15 minutes, not counting CI or the time spent on the hands-on pass (REL-3) [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0" and "New Linux droplet"]
+
+**Given** the candidate under the real key
+**When** the pass reaches the demo path's step 2
+**Then** step 2 is driven through the guide's own Send, as a judge drives it, never through the CI mock's marker route that Story 11.1 uses on the mock (REL-2, REL-7) [ADDED 2026-10-31, U-190, decided by the Contest Planner under the owner's delegation]
+
+- DW-299: Story 6.2's AC3 (headline, cause, dry-run count, Approve and Reject in view at 1280x600 without scrolling, UX-DR20) holds with the demo guide open: the guide reaches DESIGN's 56 px compact form while its Break the feed box shows, and 6.2's A6 check runs without Hide guide (ledger; routed by merge_gate 2026-10-28)
+- DW-358: Live check of 'cancel all my reminders' with three or more reminders pending, on the online demo's model, effort and endpoint: the turn cancels every pending reminder within Chat's iteration ceiling (AD-20) through the multi-id cancel_reminder of DW-140 (Story 11.1), and the reply says so (U-118) (ledger; routed by merge_gate 2026-10-28)
+- DW-365: A later request reuses the first diagnosis's fixSummary, so a count the model writes into it (the UX fixture's 'repair and resend all 50') would contradict the later round's own count and resend (ledger; routed by merge_gate 2026-10-30)
+
+### Story 38.2: The clean-machine rehearsal runs on the author's hosts and times the demo path on the real model
+
+[Read "the author's hosts" in this title as the one clean Linux droplet the Contest Planner provides.] [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0" and "New Linux droplet"]
+
+As the author,
+I want each release candidate installed on a clean machine and its demo path timed on the real model,
+So that the release works for a judge and the timing bounds are measured, not assumed.
+
+[MOVED 2026-10-31 from Story 11.3, verbatim, U-189 (option (a), decided by the Contest Planner under the owner's delegation): the criteria that need the author's real clean hosts, the driver host and a real model key; Story 11.3 keeps the rehearsal script and its dry runs on throwaways, which this story runs for real]
+
+**Acceptance Criteria:**
+
+**Given** one clean Linux droplet with Docker and the build 154 image archive loaded, no OcuTalon volume and no Node.js, which the Contest Planner creates for the check and deletes after it, and the Contest Planner's Mac as the driver host, with Node.js and Playwright, reaching the droplet's published port [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0" and "New Linux droplet"]
+**When** the rehearsal script in `release/` reaches each clean host and the driver host over SSH, with their addresses and keys from the author's configuration outside the repository, copies the candidate branch to the clean host as a `git bundle` and clones it there, so the host needs no outbound access beyond the model provider, and runs `install.sh` with the author's model key in `.env`
+**Then** the install finds, checks and retags the image, starts OcuTalon, reaches ready and prints the address and sign-in details, and the first start's duration, install included, is recorded for the README (FR-55, NFR-22, REL-6, AD-23)
+**And** the script never prints a value from `.env`: it runs `docker compose config` only with `--quiet` and `docker inspect` only with `--format` (NFR-11, AD-22)
+
+**Given** the running install on Claude Haiku 5.5
+**When** the rehearsal runner, the REL-2 Playwright specs run from the driver host against the clean machine, drives the web demo path through the page 20 times on the clean droplet, using Run again and the replay rule between runs
+**Then** every run passes UJ-1's web route on real components, with no mock in the compose file, and NFR-7 passes when Break the feed to the incident notice on the simulated phone takes at most 60 seconds in at least 19 of the 20 runs (NFR-7, REL-6, CON-3, UX-DR101)
+**And** each run splits that time, from production message timestamps, into pick-up (at most 15 s), the settle rule's end (at most 30 s after the first failure), diagnosis (at most 20 s) and delivery (at most 5 s), and the report gives the median notice time against the typical target of about 35 seconds (NFR-7, AD-15, UX-DR102)
+
+**Given** the same 20 runs
+**When** the report is written
+**Then** it also records step 1's decision time (within 10 s in at least 19 of 20 runs), the approval result reaching the page (within 2 s in at least 19 of 20 runs, P30), each reminder's firing against its due time (within 10 s), the largest model request (none over 100,000 input tokens), the first reply's time, and when the reminder lands relative to "All 50 orders went through.", which the deferred reminder-prompt decision needs (NFR-3, NFR-8, NFR-9, NFR-10, P30, UX-DR102)
+
+**Given** a failed run or a missed bound
+**When** the rehearsal ends
+**Then** the rehearsal fails, its report names the run, the step and the bound, and the release is blocked (REL-6)
+**And** its result goes into the candidate's record (`release/records/<version>/rc<n>.md`), which describes the machine only by operating system, CPU architecture and memory, never by host name or address (CON-5)
+
+**Given** the clean-machine rehearsal
+**When** a sample email that the evaluation set records as tell now is sent from the simulated mailbox
+**Then** the time from its decision to the notification on the simulated phone is recorded in 20 runs and is at most 5 seconds in at least 19 (FR-1, NFR-9, P30)
+
+**Given** the rehearsal runs on the one clean Linux droplet, with Docker and outbound network access limited to the configured model provider (and the Telegram API when a token is set), and no clean macOS run [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0" and "New Linux droplet"]
+**When** the install script and the 20 runs of the whole web demo path run on it
+**Then** they pass with no other destination contacted, and the release notes record the host by operating system, CPU architecture and memory (FR-55, NFR-18, NFR-22)
+
+**Given** the 20 timed runs on the clean droplet under the real key
+**When** a run reaches the demo path's step 2
+**Then** step 2 is driven through the guide's own Send, as a judge drives it, never through the CI mock's marker route that Story 11.1 uses on the mock (REL-2, REL-6) [ADDED 2026-10-31, U-190, decided by the Contest Planner under the owner's delegation]
+
+### Story 38.3: The owner's Telegram pass on the 1.0.0 candidate
+
+As the author,
+I want the Telegram path run by hand with a real model key and a real bot on the 1.0.0 candidate,
+So that pairing, a reminder, the incident notice and Approve are proved in Telegram itself before the first release.
+
+[MOVED 2026-10-31 from Story 12.7, verbatim: its real-device criterion; Epic 12's runner removes it from Story 12.7 in its own worktree, and the two edits meet at the merge] [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0" and "New Linux droplet"]
+
+**Acceptance Criteria:**
+
+**Given** this epic's stories are merged and Story 11.5's sequence stopped at the hands-on gate for the 0.1.1 candidate `release/0.1.1-rc<n>`
+**When** the Contest Planner installs that candidate from the README with Docker, a real model key and a real bot (the author provides a bot token for the rehearsal, and Telegram Web runs in the browser the Contest Planner drives, logged in once by the author), and runs the step's hands-on pass
+**Then** pairing, a reminder, the incident notice and Approve work in Telegram Web, and the author's optional look at one notice and one approval on a phone is recorded, or noted as skipped, without blocking the release (REL-7's amendment of 2026-10-25); each finding goes into the candidate's record (`release/records/0.1.1/rc<n>.md`) with its fix or the Contest Planner's decision to defer it, and the pass is recorded against the candidate by its version and commit SHA (REL-7, P29, UX-DR136, UX-DR138)
+**And** the hands-on pass records a verified TLS handshake with `api.telegram.org` through the installer's client SSL configuration `OcuTalonClient` (peer verification on), in the candidate's record (REL-7, AD-19) [AMENDED 2026-10-30, Story 12.2 spec gate, Epic 12 runner: the owner's U-164 condition (3)]
+
+[MOVED 2026-10-31 from Story 12.7, verbatim: its 20 timed real-bot runs, with the TLS handshake line above (Epic 12's U-164 condition (3)); Epic 12's runner leaves a "Moved to Story 38.3" marker in 12.7] [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0" and "New Linux droplet"]
+
+**Given** the 0.1.1 candidate's hands-on gate above, on a clean-machine rehearsal host with a real bot
+**When** the Contest Planner runs pairing and an approval answered from Telegram Web 20 times each (the Bot API can't act as a user, so a user client is driven), with the timings taken from server-side timestamps: from the update's arrival at `TelegramIn` to the page's `pairing` event, and to each other copy's delivery
+**Then** the page shows "Telegram paired" within 5 seconds of the valid code, and every other copy shows the approval's result within 5 seconds, in at least 19 of 20 runs; the 20 pairings and 20 approvals are recorded once, in the 0.1.1 candidate's record (`release/records/0.1.1/rc<n>.md`), as part of the hands-on gate, not as a merge criterion of this story and not for each later release, and the 0.1.1 release notes report them (FR-8, FR-18, NFR-9, P30, REL-7)
+
+**And** it runs on the same candidate as Stories 38.1 and 38.2, `release/1.0.0-rc1`: read "this epic's stories are merged" as every 1.0.0-scope epic merged, "the 0.1.1 candidate `release/0.1.1-rc<n>`" as `release/1.0.0-rc1`, and `release/records/0.1.1/` as `release/records/1.0.0/`; read "the 0.1.1 candidate's hands-on gate above" as this story's pass on `release/1.0.0-rc1`, "a clean-machine rehearsal host" as Story 38.2's clean Linux droplet, "the 0.1.1 release notes" as 1.0.0's, and "this story" in the moved text as Story 12.7 [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0" and "New Linux droplet"]
 
 ## Epic 39: A heartbeat checks your list and stays quiet unless something needs you
 

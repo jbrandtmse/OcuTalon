@@ -232,12 +232,44 @@ XData Entries [ MimeType = application/json ]
    "text": "The resend stopped when OcuTalon restarted: {completed} of {count} {itemNoun} went through. The other one needs a new approval."
   }
  },
+ "result.stoppedPartway": {
+  "text": "The resend stopped partway: I resent {resent} of the {count} {itemNoun} ({completed} went through), the next one couldn't be resent, and {notTried} more weren't tried. Nothing else was changed, and I won't resend the rest without a new approval.",
+  "slots": {
+   "count": "count",
+   "itemNoun": "noun",
+   "resent": "count",
+   "completed": "count",
+   "notTried": "count"
+  },
+  "source": "Story 30.5 (AD-16 as amended, U-182)",
+  "one": {
+   "slot": "notTried",
+   "text": "The resend stopped partway: I resent {resent} of the {count} {itemNoun} ({completed} went through), the next one couldn't be resent, and 1 more wasn't tried. Nothing else was changed, and I won't resend the rest without a new approval."
+  }
+ },
  "result.couldNotStart": {
   "text": "Nothing was resent: {reason}. Nothing was changed.",
   "slots": {
    "reason": "text"
   },
   "source": "EXPERIENCE Incidents and Approvals / Results / Couldn't start"
+ },
+ "watch.time": {
+  "text": "{time}",
+  "slots": {
+   "time": "time"
+  },
+  "source": "Story 30.5 (DW-519, DW-484): the catalog's time label alone, for a tool's answer to the model"
+ },
+ "button.approve": {
+  "text": "Approve",
+  "slots": {},
+  "source": "EXPERIENCE Message Catalog / Telegram / word-labeled buttons"
+ },
+ "button.reject": {
+  "text": "Reject",
+  "slots": {},
+  "source": "EXPERIENCE Message Catalog / Telegram / word-labeled buttons"
  }
 }
 }

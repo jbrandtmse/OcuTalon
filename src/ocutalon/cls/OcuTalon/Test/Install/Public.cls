@@ -7,8 +7,9 @@
 ///     install, the flag's exact value, an empty variable and the budget rows (rows 4 and 5);
 ///   - TestStartValuesReachTheUsersStep: the chain from the keys to the accounts and the guard (row 6);
 ///   - TestDecisionAtTheCap: a decision at the cap falls back with daily_cap and sends nothing (row 7);
-///   - TestReadyPinsThePublicAccounts: the last phase pins the page size, then sets readiness (row 8, DW-160).
-/// Before each test it saves the 16 variables (present and value), the 13 keys and readiness, the three Decide rows, the guard (setting and
+///   - TestReadyPinsThePublicAccounts: the last phase pins the page size, then sets readiness (row 8, DW-160);
+///   - TestTelegramIncludedKey: telegramIncluded on both paths, with and without a bot token (Story 12.9).
+/// Before each test it saves the 16 variables (present and value), the 14 keys and readiness, the three Decide rows, the guard (setting and
 /// routine) and the runners' state, and after it puts them back, with the fixture accounts and their pins removed. The fixture accounts are
 /// ZzPublic<n>Demo and ZzPublic<n>Ro, n from ^OcuTalonTest("Public","n"), which is never reset.
 Class OcuTalon.Test.Install.Public Extends %UnitTest.TestCase
@@ -258,8 +259,8 @@ Method TestBadStartValues()
 	}
 }
 
-/// Matrix row 4: with the flag unset and every other variable set, only onlineDemo changes (to 0) among the public keys, and readiness is
-/// cleared. No gateway row is written. The cap row is 0 when it was absent, and an existing 7 is kept.
+/// Matrix row 4: with the flag unset and every other variable set, only onlineDemo (to 0) and telegramIncluded change among the public
+/// keys, and readiness is cleared. No gateway row is written. The cap row is 0 when it was absent, and an existing 7 is kept.
 Method TestFlagOffWritesOnlyTheFlag()
 {
 	Do ..Use({"OCUTALON_DEMO_USER": "Zz-demo", "OCUTALON_DEMO_PASSWORD": "Zz-demo-pw", "OCUTALON_READONLY_USER": "Zz-ro", "OCUTALON_READONLY_PASSWORD": "Zz-ro-pw", "OCUTALON_RESET_INTERVAL_HOURS": "6", "OCUTALON_RESET_ANCHOR": "2026-10-25T00:00:00Z", "OCUTALON_LAST_RESET": "2026-10-25T06:00:00Z", "OCUTALON_LAST_RESET_KIND": "unscheduled", "OCUTALON_PROXY_ADDRESS": "10.9.8.7", "OCUTALON_CONNECTION_CAP": "5", "OCUTALON_CONNECTION_RESERVE": "1", "OCUTALON_MESSAGE_ALLOWANCE": "30", "OCUTALON_DAILY_COST_CAP_USD": "12.5", "OCUTALON_GATEWAY_SPEND_USD": "3.2", "OCUTALON_GATEWAY_SPEND_DATE": "2026-10-25"})
@@ -279,6 +280,9 @@ Method TestFlagOffWritesOnlyTheFlag()
 	While $ListNext(keys, position, key) {
 		If key = "onlineDemo" {
 			Do $$$AssertEquals($ClassMethod(..#ACCESSOR, "Get", key), 0, "onlineDemo is 0")
+		} ElseIf key = "telegramIncluded" {
+			Set want = $Select(##class(OcuTalon.Channel.Telegram.In).Included() && ##class(OcuTalon.Install.Step.Telegram).TokenSet(): 1, 1: 0)
+			Do $$$AssertEquals($ClassMethod(..#ACCESSOR, "Get", key), want, "telegramIncluded is written on a local install too: "_want)
 		} Else {
 			Do $$$AssertEquals($ClassMethod(..#ACCESSOR, "Get", key), "stale-"_key, key_" is as it was")
 		}
@@ -296,8 +300,59 @@ Method TestFlagOffWritesOnlyTheFlag()
 	Do $$$AssertEquals(..Row("GatewaySpendUSD"), "<none>", "and still no gateway row")
 }
 
+/// Story 12.9 (AD-19, U-219 (a')): telegramIncluded is "1" when Included() and a bot token are both 1, else "0", on both paths (the online
+/// demo and a local install), at every start; the seam absent (the judges' install) and 0 are tried with the token set and not set. The
+/// token variable and the seam are put back.
+Method TestTelegramIncludedKey()
+{
+	Set tokenWas = $SYSTEM.Util.GetEnviron("TELEGRAM_BOT_TOKEN")
+	Set tokenHad = ##class(OcuTalon.Test.Agent.KeyScan).HasEnv("TELEGRAM_BOT_TOKEN")
+	Set seamHad = $Data(^OcuTalonTest("TelegramIncluded"), seamWas)
+	Try {
+		For online = 1, 0 {
+			For token = 1, 0 {
+				For seam = "absent", 0 {
+					Set label = $Select(online: "online demo", 1: "local install")_", token "_$Select(token: "set", 1: "not set")_", seam "_seam
+					If online {
+						Do ..Use({"OCUTALON_ONLINE_DEMO": "1"})
+					} Else {
+						Do ..Use({})
+					}
+					If token {
+						Do ##class(OcuTalon.Test.Agent.KeyScan).SetEnv("TELEGRAM_BOT_TOKEN", "zz-dummy-token")
+					} Else {
+						Do ##class(OcuTalon.Test.Agent.KeyScan).UnsetEnv("TELEGRAM_BOT_TOKEN")
+					}
+					If seam = 0 {
+						Set ^OcuTalonTest("TelegramIncluded") = 0
+					} Else {
+						Kill ^OcuTalonTest("TelegramIncluded")
+					}
+					Do $ClassMethod(..#ACCESSOR, "Set", "telegramIncluded", "stale")
+					Do $$$AssertStatusOK($ClassMethod(..#STEP, "Run"), label_": Run is OK")
+					Set want = $Select((seam '= 0) && token: 1, 1: 0)
+					Do $$$AssertEquals($ClassMethod(..#ACCESSOR, "Get", "telegramIncluded"), want, label_": telegramIncluded is "_want)
+					Do $$$AssertEquals($ClassMethod(..#ACCESSOR, "Get", "onlineDemo"), +online, label_": onlineDemo is "_+online)
+				}
+			}
+		}
+	} Catch exception {
+		Do $$$AssertTrue(0, "the key matrix threw "_exception.DisplayString())
+	}
+	If tokenHad {
+		Do ##class(OcuTalon.Test.Agent.KeyScan).SetEnv("TELEGRAM_BOT_TOKEN", tokenWas)
+	} Else {
+		Do ##class(OcuTalon.Test.Agent.KeyScan).UnsetEnv("TELEGRAM_BOT_TOKEN")
+	}
+	If seamHad {
+		Set ^OcuTalonTest("TelegramIncluded") = seamWas
+	} Else {
+		Kill ^OcuTalonTest("TelegramIncluded")
+	}
+}
+
 /// The flag is exactly 1: a near miss (01, 1.0, true, 0, 1 with a space, or empty) is a local install, which changes onlineDemo to 0 and
-/// writes no other public key.
+/// writes no other public key but telegramIncluded.
 Method TestOnlyOneIsOn()
 {
 	For value = "01", "1.0", "true", "0", " 1", "" {
@@ -508,7 +563,7 @@ Method Use(values As %DynamicObject) [ Private ]
 	}
 }
 
-/// The 13 public keys as one text.
+/// The 14 public keys as one text.
 ClassMethod KeyState() As %String [ Private ]
 {
 	Set text = ""

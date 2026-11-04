@@ -16,17 +16,18 @@
 ///     the same cause ...". It carries the cause slot too, which the catalog ignores.
 ///   - groups holds one {itemName, count, errorSummary, firstAt} per failure group that has a NoticeCount, in Seq order. A group's count is its
 ///     NoticeCount, so the lines add up to the count slot even when failures joined during the diagnosis. An empty error summary is written as NOERRORTEXT.
-///   - The result of a fix run (Story 7.3, Consistency Conventions: Result texts): ResultKey gives the catalog key of the notice for an accepted final or interrupted
-///     FixResult, the first row that matches:
-///       the request's row is executing                      result.stillResending
+///   - The result of a fix run (Story 7.3, Consistency Conventions: Result texts): ResultKey gives the catalog key of the notice for an accepted FixResult (final,
+///     interrupted or in progress), the first row that matches:
+///       the request's row is executing, or the result is neither final nor interrupted (a progress report)   result.stillResending
 ///       the run was interrupted                             result.interrupted
 ///       Resent, Completed, FailedAgain and Skipped are 0    result.couldNotStart (when Reason is set; Total is the number of targets that were not resent)
+///       Unreached is above 0                                result.stoppedPartway (the resend stopped at the first copy that erred; Unreached is part of Skipped)
 ///       FailedAgain and Skipped                             result.failedAndSkipped
 ///       FailedAgain                                         result.failedAgain
 ///       Skipped                                             result.skipped
 ///       otherwise                                           result.allThrough
 ///     ResultSlots gives the slots that the key declares, as a dynamic object, from the FixResult and the item noun: count (Total), itemNoun, completed, failedAgain,
-///     skipped, remaining (Total less Completed, at least 0), failReason and reason (both the Reason). An empty count is 0. The result texts (OcuTalon.Msg.Catalog.Watch)
+///     skipped, resent, notTried (Unreached less the copy that erred, at least 0), remaining (Total less Completed, at least 0), failReason and reason (both the Reason). An empty count is 0. The result texts (OcuTalon.Msg.Catalog.Watch)
 ///     are the experience document's; this class renders nothing.
 /// Slots, WithFixSlots and ResultSlots give "" with an error status in sc where the slots cannot be built (no group, an empty cause, an empty time, a dry run without its
 /// field, before or after or with a resend below 1, a given count below 1 or not a whole number, a given time that is empty; a noun without both forms, an empty
@@ -68,6 +69,8 @@ Parameter KEYFAILEDANDSKIPPED = "result.failedAndSkipped";
 Parameter KEYSTILL = "result.stillResending";
 
 Parameter KEYINTERRUPTED = "result.interrupted";
+
+Parameter KEYPARTWAY = "result.stoppedPartway";
 
 Parameter KEYCOULDNOTSTART = "result.couldNotStart";
 
@@ -173,14 +176,15 @@ ClassMethod WithFixSlots(incident As OcuTalon.Data.Incident, Output sc As %Statu
 	Quit slots
 }
 
-/// The catalog key of the notice of a final or interrupted FixResult, for the state of the request's row (see the class description). Pure.
+/// The catalog key of the notice of a FixResult, for the state of the request's row (see the class description). Pure.
 ClassMethod ResultKey(state As %String, result As OcuTalon.Fix.Msg.FixResult) As %String
 {
-	If $Get(state) = ..#EXECUTING Quit ..#KEYSTILL
+	If ($Get(state) = ..#EXECUTING) || ('result.Final && 'result.Interrupted) Quit ..#KEYSTILL
 	If result.Interrupted Quit ..#KEYINTERRUPTED
 	Set failedAgain = +result.FailedAgain
 	Set skipped = +result.Skipped
 	If (+result.Resent = 0) && (+result.Completed = 0) && (failedAgain = 0) && (skipped = 0) && (result.Reason '= "") Quit ..#KEYCOULDNOTSTART
+	If +result.Unreached > 0 Quit ..#KEYPARTWAY
 	If failedAgain && skipped Quit ..#KEYFAILEDANDSKIPPED
 	If failedAgain Quit ..#KEYFAILEDAGAIN
 	If skipped Quit ..#KEYSKIPPED
@@ -200,7 +204,7 @@ ClassMethod ResultSlots(key As %String, result As OcuTalon.Fix.Msg.FixResult, no
 		}
 		Quit {"reason": (reason)}
 	}
-	If '$ListFind($ListBuild(..#KEYALLTHROUGH, ..#KEYFAILEDAGAIN, ..#KEYSKIPPED, ..#KEYFAILEDANDSKIPPED, ..#KEYSTILL, ..#KEYINTERRUPTED), key) {
+	If '$ListFind($ListBuild(..#KEYALLTHROUGH, ..#KEYFAILEDAGAIN, ..#KEYSKIPPED, ..#KEYFAILEDANDSKIPPED, ..#KEYSTILL, ..#KEYINTERRUPTED, ..#KEYPARTWAY), key) {
 		Set sc = $SYSTEM.Status.Error(5001, "'"_$Get(key)_"' is not the key of a result")
 		Quit ""
 	}
@@ -224,6 +228,12 @@ ClassMethod ResultSlots(key As %String, result As OcuTalon.Fix.Msg.FixResult, no
 	}
 	If (key = ..#KEYSKIPPED) || (key = ..#KEYFAILEDANDSKIPPED) Do slots.%Set("skipped", +result.Skipped, "number")
 	If key = ..#KEYINTERRUPTED Do slots.%Set("remaining", $Select(count > completed: count - completed, 1: 0), "number")
+	If key = ..#KEYPARTWAY {
+		Do slots.%Set("resent", +result.Resent, "number")
+		Set tried = +result.Unreached - 1
+		Do slots.%Set("notTried", $Select(tried > 0: tried, 1: 0), "number")
+	}
+	If key = ..#KEYFAILEDANDSKIPPED Do slots.%Set("resent", +result.Resent, "number")
 	Quit slots
 }
 

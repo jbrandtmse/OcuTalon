@@ -5,7 +5,7 @@ import { cleanFixtureRows, fixtureUser, publishIncident, seedApproval, sinkEvent
 import { recordAnnouncements, tokenColor } from '../support/page';
 
 /**
- * Story 6.2, the approval request card inside the incident card (A1; the other nine cases, A2 to A10, are in cards/approval-card.spec.ts
+ * Story 6.2, the approval request card inside the incident card (A1; the other ten cases, A2 to A11, are in cards/approval-card.spec.ts
  * since Story 6.4), in a real browser against a real stack, as the FLOOR user (the floor stack is in demo mode, its instance zone is UTC and
  * the browser's is UTC and en-GB; the page's clock is fixed at 14:30 UTC on the run's date). An incident card is made as IncidentManager
  * will make it (an `incident` event, publishIncident); a request is a fixture row (seedApproval) whose `approval` event reaches the page

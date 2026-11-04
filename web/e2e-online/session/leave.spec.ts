@@ -1,6 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
 
-import { notBuilt } from '../../e2e/demo-path/not-built';
 import { EVENTS, STATE } from '../../e2e/support/api';
 import { loadedAfter } from '../../e2e/support/floor';
 import { recordTraffic, traffic } from '../../e2e/support/clock';
@@ -23,6 +22,7 @@ import {
   signOutGroup,
   watchText,
 } from '../support';
+import { CHAT_A, MOCK_MS, chatTurnsOf, finishTelegram, pairChat, repliesOf, sendFromChat, startTelegram, unpairChat } from '../telegram';
 
 /**
  * Story 16.4, leaving the page frees its place (matrix rows 3, 5, 7, 9 and 9b), on the throwaway of docker/tests/test-online-session.sh: the
@@ -44,7 +44,9 @@ import {
  * - L4c (the group sign-out's bound): a sign-out request that is never answered holds the page for 3 s at most.
  * - L5 (row 9b, AC 4): a real epoch change: another page of the context signs out and in again, and the first page, on the new session's
  *   cookie, never shows the new session's turn, signs out and lands on the splash with ended=1.
- * - L6: Telegram keeps working with no CSP session open (Story 31.3).
+ * - L6 (row 4's Telegram part, Story 31.3): the session has a paired chat (a fixture pairing for a chat of the CI mock bot, with TelegramIn and
+ *   TelegramOut started against the mock); the page closes and the group sign-out leaves the session with no CSP session; a text from the chat
+ *   gets OcuTalon's reply in that chat within 90 s. `finally` puts the Telegram fixture back and removes the pairing and the session's rows.
  * The texts are written out here, as the independent oracle of the page's own.
  */
 test.describe.configure({ timeout: 300_000 });
@@ -348,4 +350,37 @@ test('L5: when another page ends the session and starts a new one, the first pag
   }
 });
 
-notBuilt('L6: a paired Telegram chat keeps working while no CSP session is open', '31.3');
+/** L6: a paired Telegram chat keeps working while no CSP session is open. */
+test('L6: a paired Telegram chat keeps working while no CSP session is open', async ({ page, context }) => {
+  let epoch = '';
+  let saved = '';
+  let pairing = '';
+  try {
+    epoch = await openSession(page);
+    const row = await sessionRow(epoch);
+    expect(row?.cspSessionId, 'the row names its CSP session').toBeTruthy();
+    saved = await startTelegram();
+    pairing = await pairChat(row!.ref, CHAT_A);
+    expect(await repliesOf(CHAT_A), 'the chat has had no message yet').toEqual([]);
+
+    await signOutGroup(context);
+    await page.close();
+    await expect.poll(() => cspSessionExists(row!.cspSessionId), { message: 'no CSP session of the session is open', timeout: 30_000, intervals: [1000] }).toBe(false);
+
+    const question = 'zz L6 a question from the paired chat';
+    await sendFromChat(CHAT_A, question);
+    await expect
+      .poll(() => chatTurnsOf(row!.ref, question), { message: "the chat's text is a Turn of the channel telegram in the session, answered (done), not refused", timeout: MOCK_MS, intervals: [2000] })
+      .toEqual(['done:telegram']);
+    await expect
+      .poll(async () => (await repliesOf(CHAT_A)).filter((text) => text.trim() !== '').length, { message: "the chat gets OcuTalon's reply", timeout: MOCK_MS, intervals: [2000] })
+      .toBeGreaterThan(0);
+  } finally {
+    try {
+      if (saved !== '') await finishTelegram(saved);
+    } finally {
+      if (pairing !== '') await unpairChat(pairing);
+      if (epoch) await removeSession(epoch);
+    }
+  }
+});

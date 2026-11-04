@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 11-04-2026 11:53
+last_updated: 11-04-2026 12:07
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -48,6 +48,8 @@ development_status:
   0-10-the-orders-demo-production-runs-in-ocuorders: done
   0-11-the-ci-model-mock-answers-every-scenario-the-stories-need: done
   0-12-epic-0-burn-down: done
+  0-13-a-start-retries-the-cpf-merge-when-iris-cannot-quiesce: done
+  0-14-a-start-that-recovers-through-the-merge-retry-passes-the-liv: done
   epic-0-retrospective: optional
 
   epic-1: done
@@ -139,6 +141,8 @@ development_status:
   7-3-approved-repairs-are-re-checked-and-resent: done
   7-4-ocutalon-reports-how-many-orders-went-through: done
   7-5-a-resend-cut-short-by-a-restart-says-how-far-it-got: done
+  7-7-a-date-repair-that-could-read-either-way-names-its-evidence: backlog
+  7-8-the-web-incident-card-shows-the-either-way-date-line-too: backlog
   epic-7-retrospective: optional
 
   epic-8: done
@@ -169,43 +173,63 @@ development_status:
   10-2-the-readme-gets-a-judge-from-download-to-sign-in: done
   10-3-the-session-side-of-telegram-is-ready-and-stays-off: done
   10-4-the-readme-opens-with-what-ocutalon-is-for-and-what-a-model: done
-  10-5-the-readme-shows-the-product-and-says-how-you-talk-to-it: backlog
+  10-5-the-readme-shows-the-product-and-says-how-you-talk-to-it: done
   epic-10-retrospective: optional
 
-  epic-11: backlog
-  11-1-the-web-demo-path-passes-end-to-end-in-the-rel-2-test: backlog
-  11-2-upgrades-and-restarts-keep-every-record-working: backlog
-  11-3-the-clean-machine-rehearsal-installs-and-times-the-demo-path: backlog
-  11-4-the-release-gets-draft-notes-and-a-checklist: backlog
-  11-5-one-scripted-sequence-cuts-a-release: backlog
-  11-6-a-hands-on-pass-with-real-keys-finds-and-fixes-what-the-test: backlog
+  epic-11: in-progress
+  11-0-epic-10-deferred-cleanup: done
+  11-1-the-web-demo-path-passes-end-to-end-in-the-rel-2-test: done
+  11-7-the-demo-path-s-failure-paths-quiet-outcomes-and-online-run: done
+  11-10-the-demo-path-s-failure-paths-and-quiet-outcomes-pass-in-the: done
+  11-8-the-chat-cancels-several-reminders-in-one-call-and-says-it-c: done
+  11-9-every-check-left-off-for-release-1-turns-on-and-the-ci-flake: done
+  11-2-upgrades-and-restarts-keep-every-record-working: done
+  11-3-the-clean-machine-rehearsal-installs-and-times-the-demo-path: done
+  11-11-the-rehearsal-runner-times-the-demo-path-and-checks-every-bo: done
+  11-12-the-rehearsal-runner-repeats-the-demo-path-n-times-with-run: done
+  11-4-the-release-gets-draft-notes-and-a-checklist: done
+  11-13-the-release-gets-draft-notes: done
+  11-5-one-scripted-sequence-cuts-a-release: done
+  11-14-the-release-sequence-runs-every-gate-on-the-pushed-candidate: backlog
+  11-15-the-hands-on-gate-stops-the-sequence-and-its-resume-command: backlog
+  11-16-the-sequence-asks-before-each-outward-step-after-the-gates: backlog
+  11-17-the-release-s-ipm-artifact-carries-the-built-page: done
+  11-18-the-update-hook-updates-the-online-demo-and-a-rehearsal-cand: backlog
+  11-19-seeded-check-rows-stay-out-of-the-heartbeat-s-way-unless-a-c: done
+  11-20-the-release-s-overview-step-hands-the-unit-files-the-contain: backlog
   epic-11-retrospective: optional
 
-  epic-12: backlog
-  12-1-telegram-stays-off-without-a-token-and-ci-mocks-the-telegram: backlog
-  12-2-ocutalon-polls-and-writes-to-its-own-bot-and-pauses-when-ano: backlog
-  12-3-the-telegram-card-shows-a-fresh-pairing-code-as-a-qr-code: backlog
-  12-4-a-valid-code-pairs-the-chat-with-the-session: backlog
-  12-5-bad-codes-a-bare-start-command-and-unpairing-get-polite-answ: backlog
-  12-6-chat-and-get-notifications-in-the-paired-telegram-chat: backlog
-  12-7-approve-or-reject-from-telegram-and-every-copy-shows-who-ans: backlog
+  epic-12: done
+  12-1-telegram-stays-off-without-a-token-and-ci-mocks-the-telegram: done
+  12-2-ocutalon-polls-and-writes-to-its-own-bot-and-pauses-when-ano: done
+  12-8-the-page-shows-when-telegram-is-paused-and-when-it-will-try: done
+  12-3-the-telegram-card-shows-a-fresh-pairing-code-as-a-qr-code: done
+  12-4-a-valid-code-pairs-the-chat-with-the-session: done
+  12-5-bad-codes-a-bare-start-command-and-unpairing-get-polite-answ: done
+  12-6-chat-and-get-notifications-in-the-paired-telegram-chat: done
+  12-7-approve-or-reject-from-telegram-and-every-copy-shows-who-ans: done
+  12-9-telegram-is-included: done
+  12-10-in-a-narrower-window-the-telegram-step-leads-to-the-status-d: done
+  12-11-the-rehearsal-s-first-run-leaves-out-the-specs-that-need-ci: done
   epic-12-retrospective: optional
 
-  epic-13: backlog
-  13-1-the-example-production-makes-its-own-decision-through-the-br: backlog
-  13-2-the-example-s-own-tools-wait-for-approval-when-they-are-risk: backlog
-  13-3-the-bridge-developer-guide-proved-on-a-clean-instance: backlog
+  epic-13: done
+  13-1-the-example-production-makes-its-own-decision-through-the-br: done
+  13-2-the-example-s-own-tools-wait-for-approval-when-they-are-risk: done
+  13-3-the-bridge-developer-guide-proved-on-a-clean-instance: done
+  13-4-the-guide-and-the-overview-say-exactly-what-is-audited-and-t: done
   epic-13-retrospective: optional
 
-  epic-14: backlog
-  14-1-the-overview-s-tool-and-privilege-lists-are-generated-from-t: backlog
-  14-2-the-security-overview-says-what-ocutalon-can-do-and-what-sto: backlog
+  epic-14: done
+  14-1-the-overview-s-tool-and-privilege-lists-are-generated-from-t: done
+  14-2-the-security-overview-says-what-ocutalon-can-do-and-what-sto: done
   epic-14-retrospective: optional
 
-  epic-15: backlog
-  15-1-the-first-install-run-creates-ocutalon-and-gives-the-next-co: backlog
-  15-2-the-second-install-run-gives-a-working-ocutalon-with-demo-mo: backlog
-  15-3-an-ipm-install-survives-restarts-and-reinstalls-and-every-re: backlog
+  epic-15: done
+  15-1-the-first-install-run-creates-ocutalon-and-gives-the-next-co: done
+  15-2-the-second-install-run-gives-a-working-ocutalon-with-demo-mo: done
+  15-3-an-ipm-install-survives-restarts-and-reinstalls-and-every-re: done
+  15-4-every-release-proves-the-ipm-package-and-the-guide-opens-wit: done
   epic-15-retrospective: optional
 
   epic-16: done
@@ -314,19 +338,25 @@ development_status:
   29-9-epic-29-burn-down: done
   epic-29-retrospective: optional
 
-  epic-30: backlog
-  30-1-long-conversations-are-compacted-under-the-limit: backlog
-  30-2-old-messages-and-records-are-purged-on-schedule: backlog
-  30-3-an-approved-tool-call-runs-exactly-once-with-no-model: backlog
-  30-4-a-stopped-production-or-a-disabled-item-is-reported-once: backlog
-  30-5-mixed-and-unfinished-resends-say-how-far-they-got: backlog
+  epic-30: in-progress
+  30-1-long-conversations-are-compacted-under-the-limit: done
+  30-2-old-messages-and-records-are-purged-on-schedule: done
+  30-3-an-approved-tool-call-runs-exactly-once-with-no-model: done
+  30-4-a-stopped-production-or-a-disabled-item-is-reported-once: done
+  30-5-mixed-and-unfinished-resends-say-how-far-they-got: done
+  30-6-the-invalid-reply-warning-names-what-failed-never-the-reply: done
+  30-7-epic-30-burn-down: backlog
+  30-8-the-redactor-and-the-key-proof-catch-every-key-shape: done
   epic-30-retrospective: optional
 
-  epic-31: backlog
-  31-1-push-live-events-over-a-websocket-on-local-installs: backlog
-  31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv: backlog
-  31-3-the-readme-leads-to-the-demo-and-the-launched-demo-is-measur: backlog
+  epic-31: in-progress
+  31-1-push-live-events-over-a-websocket-on-local-installs: done
+  31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv: done
+  31-3-the-readme-leads-to-the-demo-and-the-launched-demo-is-measur: done
   31-4-the-paired-chat-stays-isolated-under-load-too: backlog
+  31-5-a-tool-call-s-approval-request-reaches-the-phone-with-approv: done
+  31-6-a-tool-call-s-approval-request-appears-in-the-web-chat-with: done
+  31-7-after-an-unpair-the-telegram-card-shows-its-fresh-code-witho: done
   epic-31-retrospective: optional
 
   epic-32: done
@@ -360,6 +390,12 @@ development_status:
   37-1-fix-step-6-s-contracts-approver-roles-and-the-photo-caption: backlog
   37-2-see-tokens-and-cost-over-time-on-the-usage-page: backlog
   epic-37-retrospective: optional
+
+  epic-38: backlog
+  38-1-a-hands-on-pass-with-real-keys-finds-and-fixes-what-the-test: backlog
+  38-2-the-clean-machine-rehearsal-runs-on-the-author-s-hosts-and-t: backlog
+  38-3-the-owner-s-telegram-pass-on-the-1-0-0-candidate: backlog
+  epic-38-retrospective: optional
 
   epic-39: backlog
   39-1-fix-the-heartbeat-s-names-and-contracts: backlog
@@ -441,4 +477,28 @@ action_items:
       on the Planner's own Docker install of the feature head (DW-159; replaces epic-2-retro-item-4)"
     owner: "Contest Planner"
     status: done
+    ref: ""
+  - id: "epic-30-decision-item-1-dw-483-measure-decide-invalid-rate"
+    epic: 30
+    action: "DW-483: measure diagnose/Decide invalid-reply rate after Story 5.12 on
+      host Decision rows and in the real-key release-candidate run (Story 9.5); build
+      the one retry only above about 1 in 50 (U-191 condition)"
+    owner: "user"
+    status: open
+    ref: ""
+  - id: "epic-30-decision-item-2-dw-580-summarizer-latency-real-model"
+    epic: 30
+    action: "DW-580: in the release-candidate run, measure a ~100k-token summarizer
+      request latency on the real model against AD-20 20 s timeout (30.1 measured
+      it only on the mock)"
+    owner: "user"
+    status: open
+    ref: ""
+  - id: "epic-30-decision-item-3-dw-575-ad-20-fallback-spine-notes"
+    epic: 30
+    action: "DW-575: attended bmad-architecture Update after the run writes (or declines)
+      the 30.1 Spine notes for AD-20 fallback cases (AD-20/AD-8/AD-6/AD-22 text is
+      silent; no code change)"
+    owner: "user"
+    status: open
     ref: ""

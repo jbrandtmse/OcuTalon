@@ -12,6 +12,7 @@
 ///     TestUnreadable and TestUnreadableRuns ("Unreadable": the code, and both failing reads at run time through Test.Tools.RecentActivityUnread);
 ///   - TestProductionName, TestGroupsAndFixKind and TestWindowEdge (QA): the display name or the row's Production, the first group's item and the first known fix
 ///     kind, and the 24-hour window just inside and just outside;
+///   - TestSharedRulesAreNotCopied (DW-519): the tool has no WatchNames or Shown of its own; its display names are WatchAnswers WatchNames's and its times CommandCall TimeLabel's;
 ///   - TestClassification (AC1): the gate classifies the tool safe, read-only and trusted output by code, the Watching toolset offers it once from its class, and
 ///     Eval.Report scores it read-only;
 ///   - TestDescription (AC1): the description names earlier failures, incidents, approvals, fixes and what happened.
@@ -162,6 +163,18 @@ Method TestDemoPath()
 	Do ..AssertObject(..Call(session), ..DemoAnswer(times, ""), "on a local install")
 	Do ..SetOnlineDemo(1)
 	Do ..AssertObject(..Call(session), ..DemoAnswer(times, " ET"), "on the online demo")
+}
+
+/// (DW-519) The tool keeps no copy of the rules it shares with the watch cards and the reminder tool: it has no WatchNames and no Shown of its own, and WatchAnswers WatchNames and
+/// CommandCall TimeLabel, which it calls, exist.
+Method TestSharedRulesAreNotCopied()
+{
+	For name = "WatchNames", "Shown" {
+		Do $$$AssertEquals(##class(%Dictionary.CompiledMethod).%ExistsId(..#TOOL_"||"_name), 0, "RecentActivity has no "_name_" of its own")
+	}
+	Do $$$AssertEquals(##class(%Dictionary.CompiledMethod).%ExistsId("OcuTalon.Tools.WatchAnswers||WatchNames"), 1, "WatchAnswers has WatchNames")
+	Do $$$AssertEquals(##class(%Dictionary.CompiledMethod).%ExistsId("OcuTalon.Tools.CommandCall||TimeLabel"), 1, "and CommandCall has TimeLabel")
+	Do $$$AssertEquals($ClassMethod("OcuTalon.Tools.CommandCall", "TimeLabel", "2030-06-01T12:01:20Z", 1), ##class(OcuTalon.Data.Time).ForMessage("2030-06-01T12:01:20Z")_" ET", "and the label of a time on the online demo has ET")
 }
 
 /// Poisoned free text: every free-text property holds ZZPOISON, and the answer's JSON holds none of it. Every object has exactly the pinned keys.

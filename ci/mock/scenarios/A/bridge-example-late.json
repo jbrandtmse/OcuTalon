@@ -1,0 +1,13 @@
+{
+  "name": "bridge-example-late",
+  "match": {
+    "marker": "bridge-example-late"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "delayMs": 25000,
+      "text": "{\"outcome\":\"tellnow\",\"reasons\":[\"The CI mock answers the example's item late.\"],\"confidence\":0.5}"
+    }
+  ]
+}

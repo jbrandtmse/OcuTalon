@@ -384,3 +384,52 @@ describe('the module', () => {
     assert.doesNotMatch(text, /[^\x00-\x7F]/, 'non-ASCII characters are written as escapes');
   });
 });
+
+// Story 31.6 (QA, DW-610): a tool call's request and result are notices of kind approval and result with an approvalRef. They take the
+// generic notice branch: the notice's whole text, trimmed, once when the notice is new. The request card (approvals/approval-request-card.ts)
+// announces nothing when it appears, only its status when the store answers it, so the request's text is spoken once.
+describe('a tool call\'s request and result notice (Story 31.6, DW-610)', () => {
+  const REQUEST = 'Run zz_send on ops-mcp\nInputs: {"to":"ops"}\nNo dry run is available for this tool. Approving runs exactly this call once.';
+  const request = (over = {}) => notice('K1', { kind: 'approval', approvalRef: 'A1', text: REQUEST, ...over });
+  const result = (over = {}) => notice('K2', { kind: 'result', approvalRef: 'A1', text: 'zz_send ran once at 14:12.', ...over });
+
+  it('announces a new request as its whole text, line breaks kept, with no "Tell now:" and no sentence cut', () => {
+    const { texts } = next([[turn('A')]], [[turn('A'), request()]]);
+    assert.deepEqual(texts, [REQUEST]);
+  });
+
+  it('announces a new result as its text', () => {
+    const { texts } = next([[turn('A'), request()]], [[turn('A'), request(), result()]]);
+    assert.deepEqual(texts, ['zz_send ran once at 14:12.']);
+  });
+
+  it('announces the whole text trimmed, whatever surrounds it', () => {
+    const { texts } = next([[turn('A')]], [[turn('A'), request({ text: `\n ${REQUEST} \n` })]]);
+    assert.deepEqual(texts, [REQUEST]);
+  });
+
+  it('speaks a request once: the next look, the same notice answered or edited in place, and a reload say nothing', () => {
+    const first = chatAnnouncements(undefined, view([turn('A')]), FAKE);
+    const second = chatAnnouncements(first.heard, view([turn('A'), request()]), FAKE);
+    assert.deepEqual(second.texts, [REQUEST], 'spoken when it arrives');
+    const third = chatAnnouncements(second.heard, view([turn('A'), request()]), FAKE);
+    assert.deepEqual(third.texts, [], 'not again at the next look');
+    const fourth = chatAnnouncements(third.heard, view([turn('A'), request({ text: 'Run zz_send on ops-mcp.' })]), FAKE);
+    assert.deepEqual(fourth.texts, [], 'not when the same notice changes in place');
+    assert.deepEqual(next([[turn('A'), request(), result()]], [[turn('A'), request(), result()]]).texts, [], 'nor for notices there at the first look');
+  });
+
+  it('speaks only the result when it follows a request that was heard, and both in the chat\'s order when they arrive together', () => {
+    const first = chatAnnouncements(undefined, view([turn('A')]), FAKE);
+    const both = chatAnnouncements(first.heard, view([turn('A'), request(), result()]), FAKE);
+    assert.deepEqual(both.texts, [REQUEST, 'zz_send ran once at 14:12.']);
+    const first2 = chatAnnouncements(undefined, view([turn('A'), request()]), FAKE);
+    const later = chatAnnouncements(first2.heard, view([turn('A'), request(), result()]), FAKE);
+    assert.deepEqual(later.texts, ['zz_send ran once at 14:12.']);
+  });
+
+  it('announces nothing for a request or result notice with no approvalRef, which the chat does not show', () => {
+    const { texts } = next([[turn('A')]], [[turn('A'), notice('K3', { kind: 'approval', text: REQUEST }), notice('K4', { kind: 'result', text: 'zz_send ran once.' })]]);
+    assert.deepEqual(texts, []);
+  });
+});

@@ -77,6 +77,7 @@ export interface IncidentRequestResult {
   failedAgain?: number;
   skipped?: number;
   interrupted?: number;
+  unreached?: number;
   reason?: string;
 }
 

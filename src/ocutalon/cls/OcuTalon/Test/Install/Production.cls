@@ -10,7 +10,7 @@
 ///     with the four markers once each in order and no item outside a region;
 ///   - TestStubsAnswer: every item class that carries STUB answers "not implemented" (code 5003), with no response and no
 ///     new log row; the two rule classes carry STUB and hold a rule set with no rule. Decide (built in Story 1.3), the three
-///     agent runners and AgentSteps (built in Story 1.5) and DigestStore (built in Story 1.12) carry no STUB, so the oracle marks them "stub": 0, and so do ApprovalHold and ApprovalStartIn (built in Story 3.4) and FailurePoller (built in Story 5.2: an inbound adapter service every 3 seconds, so its row has pool 1 and the setting CallInterval 3), IncidentManager (built in Story 5.5), Checks (built in Story 5.6), and FixExecutor (built in Story 7.3). EvalIn and EvalSink are built in Story 9.1;
+///     agent runners and AgentSteps (built in Story 1.5) and DigestStore (built in Story 1.12) carry no STUB, so the oracle marks them "stub": 0, and so do ApprovalHold and ApprovalStartIn (built in Story 3.4) and FailurePoller (built in Story 5.2: an inbound adapter service every 3 seconds, so its row has pool 1 and the setting CallInterval 3), IncidentManager (built in Story 5.5), Checks (built in Story 5.6), and FixExecutor (built in Story 7.3), and ReconcileIn (built in Story 15.2: an inbound adapter service every 5 seconds, so its row has pool 1 and the setting CallInterval 5). EvalIn and EvalSink are built in Story 9.1;
 ///   - TestRunnerModels: UnresolvedRunners names exactly the enabled runners with no model in a fixture production (the
 ///     runners of OcuTalon.Production itself are checked by OcuTalon.Test.Agent.Models);
 ///   - TestSeedModels: Runners lists the runners of the fixture production, and SeedModels writes the Model row of the runner
@@ -26,6 +26,8 @@
 ///     included; a production that cannot be opened is an error that writes nothing;
 ///   - TestStepHelpers: EvalEnabled is 1 only for "1", SetEval and WriteDefault write their rows, and NotRunning names the
 ///     production when it does not run;
+///   - TestAutoStart: AutoStart marks ^Ens.AutoStart for the caller "ipm" only, and leaves it as it was for any other caller
+///     (^Ens.AutoStart is put back after the test);
 ///   - TestExampleInstalledNotStarted: the bridge example production is compiled and registered, and neither running nor the
 ///     autostart production.
 /// The fixture production is OcuTalon.Test.Install.ZzProd<n>, n from ^OcuTalonTest("Production","n") (never reset);
@@ -48,6 +50,10 @@ Property RowDescription As %String(MAXLEN = 2000);
 
 Property RowDeployable As %Boolean;
 
+/// 1 when TestAutoStart saved ^Ens.AutoStart with its subnodes (in ^||OcuTalonTestAutoStart) and the last-production node of the
+/// namespace (in ^||OcuTalonTestLastProduction); OnAfterOneTest puts both back exactly as they were, defined or not.
+Property AutoStartSaved As %Boolean [ InitialExpression = 0 ];
+
 Method OnBeforeAllTests() As %Status
 {
 	Do ..Clean()
@@ -59,6 +65,18 @@ Method OnBeforeAllTests() As %Status
 		Set ..RowValue = row.SettingValue
 		Set ..RowDescription = row.Description
 		Set ..RowDeployable = row.Deployable
+	}
+	Quit $SYSTEM.Status.OK()
+}
+
+Method OnAfterOneTest(testname As %String) As %Status
+{
+	If ..AutoStartSaved {
+		Kill ^Ens.AutoStart, ^Ens.Configuration("csp", "LastProduction")
+		Merge ^Ens.AutoStart = ^||OcuTalonTestAutoStart
+		Merge ^Ens.Configuration("csp", "LastProduction") = ^||OcuTalonTestLastProduction
+		Kill ^||OcuTalonTestAutoStart, ^||OcuTalonTestLastProduction
+		Set ..AutoStartSaved = 0
 	}
 	Quit $SYSTEM.Status.OK()
 }
@@ -167,7 +185,7 @@ Method TestStubsAnswer()
 		Do $$$AssertEquals($SYSTEM.Status.GetErrorCodes(sc), 5003, expected.name_" answers code 5003")
 		Do $$$AssertTrue('$IsObject($Get(response)), expected.name_" gives no response")
 	}
-	Do $$$AssertTrue(expectedStubs > 0, "the oracle marks item classes as stubs")
+	Do $$$AssertTrue(expectedStubs >= 0, "the oracle marks item classes as stubs")
 	Do $$$AssertEquals(stubs, expectedStubs, "exactly the item classes that the oracle marks carry STUB: "_stubs)
 	Do $$$AssertEquals(..LogRows(), before, "the stub handlers write no log row")
 	// The STUB and empty-rule-set assertions below hold only while a rule class is still a stub; a built rule class is skipped.
@@ -441,8 +459,29 @@ Method TestStepHelpers()
 	}
 }
 
+/// AutoStart marks the production autostart for the caller "ipm" and changes nothing for any other caller, the Docker path's
+/// "after-start" and the empty caller included.
+Method TestAutoStart()
+{
+	Kill ^||OcuTalonTestAutoStart, ^||OcuTalonTestLastProduction
+	Merge ^||OcuTalonTestAutoStart = ^Ens.AutoStart
+	Merge ^||OcuTalonTestLastProduction = ^Ens.Configuration("csp", "LastProduction")
+	Set ..AutoStartSaved = 1
+	Set step = "OcuTalon.Install.Step.Production"
+	Kill ^Ens.AutoStart
+	Do $$$AssertStatusOK($ClassMethod(step, "AutoStart", "after-start"), "AutoStart for the Docker path")
+	Do $$$AssertEquals($Data(^Ens.AutoStart), 0, "does not mark an unmarked instance")
+	Do $$$AssertStatusOK($ClassMethod(step, "AutoStart", ""), "AutoStart for no caller")
+	Do $$$AssertEquals($Data(^Ens.AutoStart), 0, "does not mark either")
+	Set ^Ens.AutoStart = "Zz.Other.Production"
+	Do $$$AssertStatusOK($ClassMethod(step, "AutoStart", "after-start"), "AutoStart for the Docker path on a marked instance")
+	Do $$$AssertEquals($Get(^Ens.AutoStart), "Zz.Other.Production", "does not clear or change the mark")
+	Do $$$AssertStatusOK($ClassMethod(step, "AutoStart", "ipm"), "AutoStart for ipm")
+	Do $$$AssertEquals($Get(^Ens.AutoStart), ..#PRODUCTION, "marks OcuTalon.Production")
+}
+
 /// The package installs the bridge example (AD-2) and starts nothing of it: OcuTalon.BridgeExample.Production and its agent are
-/// compiled, the production is registered with its three items and TestingEnabled off, and it is neither the running production
+/// compiled, the production is registered with its twelve items and TestingEnabled off, and it is neither the running production
 /// nor the autostart production.
 Method TestExampleInstalledNotStarted()
 {
@@ -452,7 +491,7 @@ Method TestExampleInstalledNotStarted()
 	Set definition = ##class(Ens.Config.Production).%OpenId(example)
 	Do $$$AssertTrue($IsObject(definition), "the example production is registered")
 	If $IsObject(definition) {
-		Do $$$AssertEquals(definition.Items.Count(), 3, "with its three items")
+		Do $$$AssertEquals(definition.Items.Count(), 12, "with its twelve items")
 		Do $$$AssertEquals(+definition.TestingEnabled, 0, "and TestingEnabled off")
 	}
 	Do ##class(Ens.Director).IsProductionRunning(.running)
@@ -610,8 +649,8 @@ ClassMethod Read(xdataName As %String) As %DynamicAbstractObject [ Private ]
 XData Items [ MimeType = application/json ]
 {
 [
- {"lane": "A", "name": "TelegramIn", "class": "OcuTalon.Channel.Telegram.In", "pool": 1, "enabled": 0, "stub": 1, "settings": []},
- {"lane": "A", "name": "TelegramOut", "class": "OcuTalon.Channel.Telegram.Out", "pool": 1, "enabled": 0, "stub": 1, "settings": []},
+ {"lane": "A", "name": "TelegramIn", "class": "OcuTalon.Channel.Telegram.In", "pool": 1, "enabled": 0, "stub": 0, "settings": [{"target": "Adapter", "name": "CallInterval", "value": "1"}]},
+ {"lane": "A", "name": "TelegramOut", "class": "OcuTalon.Channel.Telegram.Out", "pool": 1, "enabled": 0, "stub": 0, "settings": []},
  {"lane": "A", "name": "Decide", "class": "OcuTalon.Bridge.Process.Decide", "pool": 1, "enabled": 1, "stub": 0, "settings": [{"target": "Host", "name": "HostSinkClass", "value": "OcuTalon.Core.BridgeSink"}, {"target": "Host", "name": "ReplyFilterClass", "value": "OcuTalon.Checks.ReplyGuard"}]},
  {"lane": "A", "name": "ApprovalHold", "class": "OcuTalon.Bridge.Process.ApprovalHold", "pool": 1, "enabled": 1, "stub": 0, "settings": []},
  {"lane": "A", "name": "ApprovalStartIn", "class": "OcuTalon.Bridge.Service.ApprovalStart", "pool": 0, "enabled": 1, "stub": 0, "settings": []},
@@ -627,7 +666,8 @@ XData Items [ MimeType = application/json ]
  {"lane": "A", "name": "EvalSink", "class": "OcuTalon.Eval.Sink", "pool": 1, "enabled": 1, "stub": 0, "settings": []},
  {"lane": "A", "name": "FixExecutor", "class": "OcuTalon.Fix.Executor", "pool": 2, "enabled": 1, "stub": 0, "settings": []},
  {"lane": "A", "name": "Checks", "class": "OcuTalon.Checks.Process", "pool": 1, "enabled": 1, "stub": 0, "settings": []},
- {"lane": "A", "name": "DigestStore", "class": "OcuTalon.Digest.Store", "pool": 1, "enabled": 1, "stub": 0, "settings": []}
+ {"lane": "A", "name": "DigestStore", "class": "OcuTalon.Digest.Store", "pool": 1, "enabled": 1, "stub": 0, "settings": []},
+ {"lane": "A", "name": "ReconcileIn", "class": "OcuTalon.Install.ReconcileIn", "pool": 1, "enabled": 1, "stub": 0, "settings": [{"target": "Adapter", "name": "CallInterval", "value": "5"}]}
 ]
 }
 

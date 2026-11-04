@@ -74,6 +74,12 @@ Property FixParameters As %String(MAXLEN = "");
 /// The targets that the fix's dry run found, as the dry run gave them (header ids, ascending, comma-separated); empty for a tool_call request.
 Property FixTargets As %String(MAXLEN = "");
 
+/// The class or MCP toolref the gate classified a held call by; empty for a fix request and for a row held before this property existed.
+Property ToolSource As %String(MAXLEN = 512);
+
+/// The runner item whose job held the call, which replays it once it is approved; empty for a fix request and for a row held before this property existed.
+Property Runner As %String(MAXLEN = 128);
+
 Index RefIndex On Ref [ Unique ];
 
 Index IncidentRefIndex On IncidentRef;
@@ -151,6 +157,12 @@ Storage Default
 </Value>
 <Value name="23">
 <Value>FixTargets</Value>
+</Value>
+<Value name="24">
+<Value>ToolSource</Value>
+</Value>
+<Value name="25">
+<Value>Runner</Value>
 </Value>
 </Data>
 <DataLocation>^OcuTalonBP.ApprovalD</DataLocation>

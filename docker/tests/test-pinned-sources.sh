@@ -4,7 +4,10 @@
 #     (size and sha256), the file says it is 0.10.10, the licence keeps its copyright notice, and the
 #     after-start session names that file and version;
 #   - src/module.xml: the manifest's sources root, and the three resources in the order AD-2 fixes, the bridge
-#     package, the bridge example, then the product, each in a directory that exists below the sources root.
+#     package, the bridge example, then the product, each in a directory that exists below the sources root;
+#   - module.xml, the manifest that the package registry reads from the repository root: it is src/module.xml except that its sources
+#     root is src and its FileCopy names the bundle from the root, so a change to one manifest alone fails; and preload/, the folder IPM
+#     imports from beside module.xml, is the same tree as src/preload/, byte for byte.
 # The digest and the manifest checkers first run on synthetic inputs (a known digest; manifests that keep and
 # break their rules), so a checker that can no longer fail makes the test fail; the other checks compare a file
 # with a fixed value. Prints one PASS or FAIL line per check; exits 0 only when all pass.
@@ -68,6 +71,16 @@ OcuTalon.PKG ocutalon/cls" ]
 
 sources_root_is_dot() { grep -q '<SourcesRoot>\.</SourcesRoot>' "$1"; }
 
+# The drift rule: <root manifest> and <src manifest> agree when the root one has the sources root src and the root-relative FileCopy, and
+# is otherwise, line for line, the src one.
+manifests_agree() {
+  grep -q '^ *<SourcesRoot>src</SourcesRoot>$' "$1" && grep -q '<FileCopy Name="src/ocutalon/csp/"' "$1" \
+    && sed -e 's:<SourcesRoot>src</SourcesRoot>:<SourcesRoot>.</SourcesRoot>:' -e 's:<FileCopy Name="src/ocutalon/csp/":<FileCopy Name="ocutalon/csp/":' "$1" | cmp -s - "$2"
+}
+
+# The two preload folders hold the same files with the same bytes.
+same_tree() { [ -d "$1" ] && [ -d "$2" ] && diff -r "$1" "$2"; }
+
 # --- the checkers on samples ---
 
 printf 'abc' > "$tmp/abc"
@@ -113,6 +126,44 @@ else
   fail "checkers: a manifest checker accepts what it should reject, or rejects what it should accept"
 fi
 
+cat > "$tmp/root.good" <<'EOM'
+<Module>
+  <Version>1.2.3</Version>
+  <Description>The product.</Description>
+  <SourcesRoot>src</SourcesRoot>
+  <CPF Name="ocutalon.cpf" Directory="cpf"/>
+  <FileCopy Name="src/ocutalon/csp/" Target="${dataDir}csp/ocutalon-web/"/>
+</Module>
+EOM
+sed -e 's:<SourcesRoot>src<:<SourcesRoot>.<:' -e 's:Name="src/ocutalon/csp/":Name="ocutalon/csp/":' "$tmp/root.good" > "$tmp/src.good"
+sed 's:1\.2\.3:1.2.4:' "$tmp/root.good" > "$tmp/root.version"
+sed 's:The product\.:Another product.:' "$tmp/root.good" > "$tmp/root.description"
+sed 's:Directory="cpf":Directory="src/cpf":' "$tmp/root.good" > "$tmp/root.directory"
+grep -v '<CPF' "$tmp/root.good" > "$tmp/root.lost"
+sed 's:<SourcesRoot>src<:<SourcesRoot>.<:' "$tmp/root.good" > "$tmp/root.dot"
+sed 's:Name="src/ocutalon/csp/":Name="ocutalon/csp/":' "$tmp/root.good" > "$tmp/root.relative"
+sed 's:1\.2\.3:1.2.4:' "$tmp/src.good" > "$tmp/src.version"
+if manifests_agree "$tmp/root.good" "$tmp/src.good" \
+  && ! manifests_agree "$tmp/root.version" "$tmp/src.good" && ! manifests_agree "$tmp/root.description" "$tmp/src.good" \
+  && ! manifests_agree "$tmp/root.directory" "$tmp/src.good" && ! manifests_agree "$tmp/root.lost" "$tmp/src.good" \
+  && ! manifests_agree "$tmp/root.dot" "$tmp/src.good" && ! manifests_agree "$tmp/root.relative" "$tmp/src.good" \
+  && ! manifests_agree "$tmp/root.good" "$tmp/src.version" && ! manifests_agree "$tmp/root.good" "$tmp/no-such-file"; then
+  pass "drift on samples: a root manifest that differs only in the sources root and the FileCopy passes; any other change to one side fails, and so do a root with the src paths and a missing file"
+else
+  fail "drift on samples: the checker accepts a manifest that drifted, or rejects the right pair"
+fi
+
+mkdir -p "$tmp/a/cls" "$tmp/b/cls" "$tmp/c/cls" "$tmp/d/cls"
+printf 'x\n' | tee "$tmp/a/cls/I.cls" "$tmp/b/cls/I.cls" "$tmp/c/cls/I.cls" "$tmp/d/cls/I.cls" > /dev/null
+printf 'y\n' > "$tmp/c/cls/I.cls"
+printf 'x\n' > "$tmp/d/cls/J.cls"
+if same_tree "$tmp/a" "$tmp/b" > /dev/null && ! same_tree "$tmp/a" "$tmp/c" > /dev/null && ! same_tree "$tmp/a" "$tmp/d" > /dev/null \
+  && ! same_tree "$tmp/a" "$tmp/no-such-folder" > /dev/null; then
+  pass "preload on samples: two equal trees pass; a changed byte, an extra file and a missing folder fail"
+else
+  fail "preload on samples: the checker accepts two trees that differ, or rejects equal ones"
+fi
+
 # --- docker/ipm/ ---
 
 check "ipm: the release file is $ipm_size bytes" test "$(file_size "$ipm_file")" = "$ipm_size"
@@ -135,15 +186,29 @@ check "ipm: the wanted version is the pinned 0.10.10" test "$(session_ipm_versio
 check "manifest: the sources root is the manifest's own directory" sources_root_is_dot src/module.xml
 check "manifest: the first three resources are the bridge package, the bridge example, then the product package" bridge_first src/module.xml
 
-# A resource "A.B.PKG" in directory D holds the classes of package A.B at src/D/A/B/.
+# A resource "A.B.PKG" in directory D holds the classes of package A.B at src/D/A/B/. A class resource "A.B.C.CLS" with
+# Preload="true" is IPM's preload step: its file is src/preload/D/A/B/C.cls.
 each_resource_has_its_package() {
   local name dir path
   resources src/module.xml | while read -r name dir; do
-    path="src/$dir/$(echo "${name%.PKG}" | tr . /)"
-    [ -n "$(find "$path" -type f -name '*.cls' 2>/dev/null | head -n 1)" ] || exit 1
+    case $name in
+      *.CLS)
+        grep -F "Name=\"$name\"" src/module.xml | grep -q 'Preload="true"' || exit 1
+        [ -f "src/preload/$dir/$(echo "${name%.CLS}" | tr . /).cls" ] || exit 1
+        ;;
+      *)
+        path="src/$dir/$(echo "${name%.PKG}" | tr . /)"
+        [ -n "$(find "$path" -type f -name '*.cls' 2>/dev/null | head -n 1)" ] || exit 1
+        ;;
+    esac
   done
 }
 check "manifest: each resource's package is in its directory below src/" each_resource_has_its_package
+
+# --- module.xml and preload/ ---
+
+check "drift: module.xml is src/module.xml with the sources root src and the root-relative FileCopy, and nothing else differs" manifests_agree module.xml src/module.xml
+check "drift: preload/ is the same tree as src/preload/, byte for byte" same_tree preload src/preload
 
 if [ "$fails" -ne 0 ]; then
   echo "test-pinned-sources: $fails check(s) failed"

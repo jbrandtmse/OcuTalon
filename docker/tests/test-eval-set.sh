@@ -105,6 +105,9 @@
 #                 900 s by default, and a blocked verdict ends with VERDICT blocked, exit 3 and the result pair in eval/; attempt 1 meeting every target
 #                 runs one attempt and ends with VERDICT pass, exit 0 and the pair; --on-mock ends with exit 0, its pair in the report folder and nothing
 #                 in eval/; an incomplete verdict, a runner on another model and a runner with no key end with exit 1 and nothing in eval/. Since
+#                 Story 30.1: --release-candidate runs the thinking-history smoke test once, after the last attempt and before Gate.Result, and gives
+#                 Gate.Result its figure as thinkingHistorySmoke; a smoke that fails, or prints no figure, is recorded as failed and changes neither the
+#                 verdict nor the exit code; --on-mock never runs it and gives Gate.Result no figure. Since
 #                 Story 9.10: a key-like line (built from fragments) in the stub's result Markdown ends the real form (the pair kept in eval/) and the
 #                 --on-mock form (the pair kept in the report folder) with exit 4 and the do-not-commit FAIL line that names file and line and never
 #                 shows the text, not even in the step summary, which a clean pair's text reaches; a clean pair gets the key-like PASS line; a readiness
@@ -1306,6 +1309,11 @@ variant('rc-flow', 'bad-key-like-md-printed', 'the key-like text appears in the 
 variant('rc-flow', 'bad-key-proof-hit-passes', 'with FAIL key proof globals and exit 1', (f) => { f['eval/run.sh'] = rcFlowed([['    *) fail "key proof $label: ${out#bad }" ;;', '    *) pass "key proof $label: ${out#bad }" ;;']]); });
 variant('rc-flow', 'bad-key-proof-skipped', 'holds 0 PASS key proof lines', (f) => { f['eval/run.sh'] = rcFlowed([['  if [ "$keypath" -eq 1 ]; then\n    key_proof\n', '  if false; then\n    key_proof\n']]); });
 variant('rc-flow', 'bad-key-path-pointkeys', 'calls PointKeys', (f) => { f['eval/run.sh'] = rcFlowed([['\'Write !,"CHK|keylength|",$Length($SYSTEM.Util.GetEnviron("ANTHROPIC_API_KEY"))\'', '\'Write !,"CHK|keylength|",$Length($SYSTEM.Util.GetEnviron("ANTHROPIC_API_KEY")) Set sc=##class(OcuTalon.Test.Agent.RunnerFixture).PointKeys()\'']]); });
+variant('rc-flow', 'bad-smoke-on-mock', 'runs the thinking-history smoke test', (f) => { f['eval/run.sh'] = rcFlowed([['  if [ "$fails" -eq 0 ] && [ "$onmock" -eq 0 ]; then\n    smoke_run thinking-smoke', '  if [ "$fails" -eq 0 ]; then\n    smoke_run thinking-smoke']]); });
+variant('rc-flow', 'bad-smoke-not-recorded', 'does not give Gate.Result the figure of the thinking-history smoke test', (f) => { f['eval/run.sh'] = rcFlowed([['"$tree_clean" "$onmock" "$smoke"', '"$tree_clean" "$onmock"']]); });
+variant('rc-flow', 'bad-smoke-failure-fails', 'changes the verdict or the exit code', (f) => { f['eval/run.sh'] = rcFlowed([['      passed | failed) echo "SMOKE thinking-history smoke test: $smoke" ;;', '      passed) echo "SMOKE thinking-history smoke test: $smoke" ;;\n      failed) fail "the thinking-history smoke test failed" ;;']]); });
+variant('rc-flow', 'bad-smoke-before-attempts', 'runs the thinking-history smoke test 2 time(s), not once', (f) => { f['eval/run.sh'] = rcFlowed([['  attempts=0\n  number=1\n', '  smoke_run thinking-smoke\n  attempts=0\n  number=1\n']]); });
+variant('rc-flow', 'bad-smoke-in-push-run', 'the push run runs the thinking-history smoke test', (f) => { f['eval/run.sh'] = rcFlowed([['# --- run 1: the set ---\n', '# --- run 1: the set ---\nsmoke_run thinking-smoke\n']]); });
 variant('rc-flow', 'bad-no-key-check', 'goes on with a runner that has no key', (f) => { f['eval/run.sh'] = rcFlowed([[RCF_KEYS, '']]); });
 // The rule key-proof (Story 9.10) runs the real eval/key-proof.sh (a sample's own copy of it) against stubs of eval/run.sh and ci/iris.sh whose behaviour
 // the sample's kp-mode.txt names; the harness must flag every bad behaviour and pass the good one. A bad sample may also edit the harness, so that it
@@ -2011,7 +2019,8 @@ check_rc_stack() {
 # rcf_stub: the stub of the container tool for rc-flow, in $tmp/stub-rcf, with an instant sleep and an npm that does nothing. It stands for a healthy
 # stack: it records each call's arguments and each IRIS session's input in $RCF_CALLS, and answers a session by what it calls: the readiness of the
 # real model (RCF_READY ok; model: the DiagnosisAgent runs claude-sonnet-5-5; key: the ChatAgent has no key) or of the mock, Report.Run, Gate.Demo,
-# Gate.Attempt (met RCF_MET on every target) and Gate.Result (the verdict RCF_VERDICT). A cat of a file in the container prints "stub <file>".
+# Gate.Attempt (met RCF_MET on every target), the thinking-history smoke test (Story 30.1; RCF_SMOKE passed, failed or none, which prints no figure) and
+# Gate.Result (the verdict RCF_VERDICT). A cat of a file in the container prints "stub <file>".
 rcf_stub() {
   local tool=doc
   tool=${tool}ker
@@ -2060,6 +2069,10 @@ case "$*" in
         printf 'CHK|started|1\nCHK|keylength|%s\n' "${#ANTHROPIC_API_KEY}"
         printf 'CHK|globals|%s|%s|16|IRISLIB (read-only)|800|4000000|3|%s|%s\n' "$hits" "$gcontrol" "$places" "$gunreadable"
         printf 'CHK|stores|%s\nCHK|trace|%s\nCHK|mock|%s\n' "$stores" "$trace" "$mock"
+        ;;
+      *ThinkingSmoke*)
+        printf 'CHK|started|1\n'
+        if [ "${RCF_SMOKE:-passed}" != none ]; then printf 'CHK|smoke|%s|0\n' "${RCF_SMOKE:-passed}"; fi
         ;;
       *ReadyReason*) printf 'CHK|ready|\nCHK|keys|1\n' ;;
       *'Eval.Report).Run('*) printf 'CHK|started|1\nCHK|run|1\nCHK|leftwatches|0\nCHK|problems|0\nCHK|democase|orders-date-format\nCHK|saved|1\n' ;;
@@ -2197,6 +2210,15 @@ rcf_cases() {
     if ! rcf_pair "$dir"; then echo "eval/run.sh: a finished --release-candidate does not write eval/release-candidate.json and .md (the result it saved)"; fi
     if ! grep -qF ',900,.report)' "$dir/calls"; then echo "eval/run.sh: --release-candidate does not wait 900 s by default"; fi
     if grep -rqF -- "$fake" "$dir/calls" "$dir/out.log" "$dir/reports" "$dir/t"; then echo "eval/run.sh: the value of the key appears in a call, the output or a file of --release-candidate"; fi
+    smoked=$(grep -cF 'Test.Eval.ThinkingSmoke).Print(' "$dir/calls")
+    if [ "$smoked" -ne 1 ]; then echo "eval/run.sh: --release-candidate runs the thinking-history smoke test $smoked time(s), not once"; fi
+    if ! grep -qF '"thinkingHistorySmoke":"passed"' "$dir/calls"; then echo "eval/run.sh: --release-candidate does not give Gate.Result the figure of the thinking-history smoke test"; fi
+    if [ "$smoked" -eq 1 ]; then
+      smoke_at=$(grep -nF 'Test.Eval.ThinkingSmoke).Print(' "$dir/calls" | cut -d: -f1)
+      last_set=$(grep -nF 'Eval.Report).Run(' "$dir/calls" | tail -n 1 | cut -d: -f1)
+      result_at=$(grep -nF 'Eval.Gate).Result(' "$dir/calls" | head -n 1 | cut -d: -f1)
+      if [ "$smoke_at" -lt "$last_set" ] || [ "$smoke_at" -gt "$result_at" ]; then echo "eval/run.sh: --release-candidate does not run the thinking-history smoke test once after the attempts and before the verdict"; fi
+    fi
   )
   if [ -n "$out" ]; then printf '%s\n' "$out" && return 0; fi
   rc=$(rcf_session "$script" "$dir" "$fake" 1 pass ok --release-candidate)
@@ -2212,8 +2234,16 @@ rcf_cases() {
     if [ "$rc" -ne 0 ] || ! grep -qx 'VERDICT blocked' "$dir/out.log"; then echo "eval/run.sh: --release-candidate --on-mock with a blocked verdict does not end with VERDICT blocked and exit 0 (exit $rc)"; fi
     if ! rcf_none "$dir"; then echo "eval/run.sh: --release-candidate --on-mock writes a result file into eval/"; fi
     if [ ! -s "$dir/reports/release-candidate-on-mock.json" ]; then echo "eval/run.sh: --release-candidate --on-mock does not keep release-candidate-on-mock.json in the report folder"; fi
+    if grep -qF 'ThinkingSmoke' "$dir/calls"; then echo "eval/run.sh: --release-candidate --on-mock runs the thinking-history smoke test"; fi
+    if grep -qF 'thinkingHistorySmoke' "$dir/calls"; then echo "eval/run.sh: --release-candidate --on-mock gives Gate.Result a figure of the thinking-history smoke test"; fi
   )
   if [ -n "$out" ]; then printf '%s\n' "$out" && return 0; fi
+  # a failed smoke, and one that prints no figure, are recorded as failed and change neither the verdict nor the exit code
+  for smoke in failed none; do
+    rc=$(RCF_SMOKE=$smoke rcf_session "$script" "$dir" "$fake" 0 blocked ok --release-candidate)
+    if [ "$rc" -ne 3 ] || ! grep -qx 'VERDICT blocked' "$dir/out.log"; then echo "eval/run.sh: a thinking-history smoke test that is $smoke changes the verdict or the exit code of --release-candidate (exit $rc)" && return 0; fi
+    if ! grep -qF '"thinkingHistorySmoke":"failed"' "$dir/calls"; then echo "eval/run.sh: a thinking-history smoke test that is $smoke is not recorded as failed in the result of --release-candidate" && return 0; fi
+  done
   rc=$(rcf_session "$script" "$dir" "$fake" 0 incomplete ok --release-candidate)
   if [ "$rc" -ne 1 ] || ! rcf_none "$dir"; then echo "eval/run.sh: an incomplete verdict is not a structural failure, with exit 1 and nothing in eval/ (exit $rc)" && return 0; fi
   rc=$(rcf_session "$script" "$dir" "$fake" 0 blocked model --release-candidate)
@@ -2310,6 +2340,17 @@ rcf_cases_keys() {
 check_rc_flow() {
   if [ ! -f "$1/eval/run.sh" ]; then
     echo "eval/run.sh: the script is missing"
+    return 0
+  fi
+  # the push run (after its marker) never runs the thinking-history smoke test: it is a step of the release-candidate run alone
+  local marker
+  marker=$(grep -n '^# --- run 1: the set ---$' "$1/eval/run.sh" | head -n 1 | cut -d: -f1)
+  if [ -z "$marker" ]; then
+    echo "eval/run.sh: the push run has no marker '# --- run 1: the set ---'"
+    return 0
+  fi
+  if sed -n "$marker,\$p" "$1/eval/run.sh" | grep -q 'smoke_run '; then
+    echo "eval/run.sh: the push run runs the thinking-history smoke test"
     return 0
   fi
   rcf_stub
@@ -2653,7 +2694,7 @@ rule run-guard "eval/run.sh refuses an OCUTALON_EVAL_WAIT outside 1 to 3600 with
 rule record-guard "docker/tests/record-eval.sh refuses every argument but the word feed with exit 2 before it goes on to lib-live.sh, and goes on with none and with feed" check_record_guard
 rule rc-guard "eval/run.sh refuses a bad argument and --release-candidate without ANTHROPIC_API_KEY (unset or empty) with exit 2 before any call to the container tool, accepts --release-candidate with a key, --on-mock with or without one and --on-mock --key-path with one (refused with none), never shows the key, and eval/compose.release-candidate.yml holds exactly its six code lines" check_rc_guard
 rule rc-stack "eval/run.sh --release-candidate lays eval/compose.release-candidate.yml over its stack, starts it with OCUTALON_EVAL=1 and the key in the environment, asks RunningReason and never calls PointKeys, RestoreKeys or ReadyReason, and shows the key nowhere; --release-candidate --on-mock lays nothing over the stack, enables EvalIn, points the keys at the mock and unsets a key that the caller exported; --on-mock --key-path lays the override and the CI file again, with ReadyReason and KeysAre and no PointKeys; npm never has the key and the bundle is built once" check_rc_stack
-rule rc-flow "eval/run.sh --release-candidate, on a stub of a healthy stack, runs three attempts after attempt 1 is below a target and ends blocked with exit 3 and the result pair in eval/, stops after an attempt 1 that meets every target and ends with exit 0, waits 900 s by default, refuses a runner on another model or with no key, and ends an incomplete verdict with exit 1 and nothing in eval/; --on-mock ends with exit 0 and its pair in the report folder only; a key-like line in the pair ends with exit 4, the pair kept and the text never shown; --on-mock --key-path passes the nine key proof lines and the counts line, and fails on a hit, a failed control or an unreadable place in each of the nine scans, including a key in the web bundle, in the report folder or below eval/" check_rc_flow
+rule rc-flow "eval/run.sh --release-candidate, on a stub of a healthy stack, runs three attempts after attempt 1 is below a target and ends blocked with exit 3 and the result pair in eval/, stops after an attempt 1 that meets every target and ends with exit 0, waits 900 s by default, refuses a runner on another model or with no key, and ends an incomplete verdict with exit 1 and nothing in eval/; runs the thinking-history smoke test once after the attempts and gives the result its figure, records a failed one without changing the verdict or the exit code, and never runs it with --on-mock or in the push run; --on-mock ends with exit 0 and its pair in the report folder only; a key-like line in the pair ends with exit 4, the pair kept and the text never shown; --on-mock --key-path passes the nine key proof lines and the counts line, and fails on a hit, a failed control or an unreadable place in each of the nine scans, including a key in the web bundle, in the report folder or below eval/" check_rc_flow
 rule key-proof "eval/key-proof.sh exits 2 without OCUTALON_RUN_TAG before eval/run.sh runs, gives the run a fake key of 66 characters in the shape of a real one, never shows it, and flags a run that prints it, writes it below eval/, in the checkout or in the report folder, changes eval/, exits 1, lacks a PASS key proof line or leaves a volume or container, reports counts other than its contract, lets an inherited key through, or runs against a model endpoint that is not the CI mock, and passes one that does none of these" check_key_proof
 rule key-like "eval/run.sh, eval/key-proof.sh and docker/tests/test-boundaries.sh each source docker/tests/lib-keys.sh, the one definition of the key-like patterns, and hold none of their own" check_key_like
 rule rc-override "eval/run.sh --override turns a blocked result into an overridden one with the reason, refuses everything else with exit 2 and both files unchanged, needs no ci/, refuses a key-like reason, reports key-like text in the result with exit 4, and eval/release-candidate.json, when there, is a result of the format with the verdict and the override reason that go together" check_rc_override

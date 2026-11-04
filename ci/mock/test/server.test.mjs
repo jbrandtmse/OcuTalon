@@ -302,6 +302,52 @@ test('row 7: a guide prompt is its exact text inside the newest user message, af
   });
 });
 
+test('row 7: a keyed guide prompt answers only the agent it names; another key falls through to its default script, no key to a 500, and a marker still wins', async () => {
+  const prompt = 'Keyed guide prompt: report the watched productions.';
+  const keyed = (name, mockkey, text) => [`B/${name}.json`, { name, match: { prompt, mockkey }, replies: [{ status: 200, text }] }];
+  const files = Object.fromEntries([keyed('keyed-chat', 'chat', 'Chat answer.'), keyed('keyed-triage', 'triage', 'Triage answer.')]);
+  await withServer({ files }, async ({ base, readLog }) => {
+    const text = `Agent.Input preamble: item 3.\n\n${prompt}`;
+    const of = (key) => post(base, request([user(text)]), key === null ? {} : { 'x-ocutalon-mockkey': key });
+
+    const chat = await of('chat');
+    assert.equal(chat.json.content[0].text, 'Chat answer.');
+    let line = readLog().pop();
+    assert.equal(line.scenario, 'keyed-chat');
+    assert.equal(line.selectedBy, 'prompt');
+
+    const triage = await of('triage');
+    assert.equal(triage.json.content[0].text, 'Triage answer.');
+    line = readLog().pop();
+    assert.equal(line.scenario, 'keyed-triage');
+    assert.equal(line.selectedBy, 'prompt');
+
+    const diagnosis = await of('diagnosis');
+    assert.equal(diagnosis.status, 200);
+    line = readLog().pop();
+    assert.equal(line.scenario, 'diagnosis');
+    assert.equal(line.selectedBy, 'mockkey');
+
+    const absent = await of(null);
+    assert.equal(absent.status, 500);
+    assert.equal(absent.json.error.message, 'CI mock: no scenario: no marker, no guide prompt and no known mock key');
+    line = readLog().pop();
+    assert.equal(line.rejected, 'no-scenario');
+
+    const marker = await post(base, request([user(`${text} [[mock:refusal]]`)]), { 'x-ocutalon-mockkey': 'chat' });
+    assert.equal(marker.json.stop_reason, 'refusal');
+    assert.equal(readLog().pop().selectedBy, 'marker');
+  });
+  const keyless = { name: 'keyless-guide', match: { prompt: 'Keyless guide prompt: any agent.' }, replies: [{ status: 200, text: 'Keyless answer.' }] };
+  await withServer({ files: { 'B/keyless-guide.json': keyless } }, async ({ base, readLog }) => {
+    for (const key of ['chat', 'triage', null]) {
+      const r = await post(base, request([user(keyless.match.prompt)]), key === null ? {} : { 'x-ocutalon-mockkey': key });
+      assert.equal(r.json.content[0].text, 'Keyless answer.', String(key));
+      assert.equal(readLog().pop().selectedBy, 'prompt');
+    }
+  });
+});
+
 test('row 8: the mock key header picks a default script when there is no marker and no prompt', async () => {
   await withServer({}, async ({ base, readLog }) => {
     const r = await post(base, request([user('hello')]), { 'x-ocutalon-mockkey': 'triage' });

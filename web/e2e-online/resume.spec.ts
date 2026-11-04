@@ -2,7 +2,6 @@ import { randomBytes } from 'node:crypto';
 
 import { expect, test, type Page, type Response } from '@playwright/test';
 
-import { notBuilt } from '../e2e/demo-path/not-built';
 import { EVENTS, holdState, MESSAGES, post, sessionEvents, STATE } from '../e2e/support/api';
 import { loadedAfter } from '../e2e/support/floor';
 import { chk, cleanFixtureRows, fixtureUser, irisScript, quoted } from '../e2e/support/iris';
@@ -19,8 +18,9 @@ import { RESUME_COOKIE, removeSession, resumeCookie, sessionRow, sessionRowCount
  *   strict, path /ocutalon/), the browser keeps it, one new row stores only its SHA-256, and the page opens on an empty chat.
  * - R2: after the group sign-out, and coming from another site (which sends no Strict cookie to the splash), the same browser's
  *   sign-in resumes the row: the same epoch, its turn, its approval request, no new Session row, and its pairing and break-the-feed
- *   run still named by its Ref; skeletons show while /state is held. (Build 154 may reuse the CSP session id, so the attach of the
- *   new CSP session is pinned in process, by Test.Web.SessionEvents.TestResume.)
+ *   run still named by its Ref; /state names the fixture pairing (R2b: telegram.paired is true, its displayName "Zz chat"); skeletons show
+ *   while /state is held. (Build 154 may reuse the CSP session id, so the attach of the new CSP session is pinned in process, by
+ *   Test.Web.SessionEvents.TestResume.)
  * - R4: a cookie that names no row gives a new session and a new cookie.
  * - R5: two browsers get two sessions: A's turns, events and a body or query that names B's Ref never reach B, and the second turn is A's;
  *   a context that signed in only at the trace application has no session for the API (it never gets the shared account's row).
@@ -37,12 +37,12 @@ const probed = (path: string): string => `${path}${path.includes('?') ? '&' : '?
 const mainOf = (page: Page) => page.locator('main.main');
 const rail = (page: Page) => page.locator('section.rail');
 
-/** The /state of the page's own session: its epoch and the chat's JSON text. */
-async function readState(page: Pick<Page, 'request'>): Promise<{ epoch: string; chat: string; session: number }> {
+/** The /state of the page's own session: its epoch, the chat's JSON text, its stream's session and its Telegram block. */
+async function readState(page: Pick<Page, 'request'>): Promise<{ epoch: string; chat: string; session: number; telegram: { paired: boolean; displayName: string } }> {
   const response = await page.request.get(STATE);
   expect(response.status(), 'the state is served').toBe(200);
-  const state = (await response.json()) as { epoch: string; chat: unknown; streams: { session: number } };
-  return { epoch: state.epoch, chat: JSON.stringify(state.chat), session: state.streams.session };
+  const state = (await response.json()) as { epoch: string; chat: unknown; streams: { session: number }; telegram: { paired: boolean; displayName: string } };
+  return { epoch: state.epoch, chat: JSON.stringify(state.chat), session: state.streams.session, telegram: state.telegram };
 }
 
 /** A new, valid-looking resume reference that no row has: 16 random bytes as base64url. */
@@ -160,8 +160,10 @@ test('R2: the same browser signs in again and resumes its conversation, approval
 
     const after = await readState(page);
     expect(after.epoch, 'the same session: the same epoch').toBe(epoch);
+    expect(after.telegram.paired, '/state names the fixture pairing (R2b): it is paired').toBe(true);
+    expect(after.telegram.displayName, '/state names the fixture pairing (R2b): its display name').toBe('Zz chat');
     await expect(page.locator('app-chat-panel').getByText(text, { exact: true }), "the turn's text is in the chat").toBeVisible();
-    await expect(rail(page).getByRole('heading', { level: 3 }).first(), 'the approval request is in the rail').toHaveAccessibleName('Approval requests, 1');
+    await expect(rail(page).getByRole('heading', { level: 3, name: 'Approval requests, 1', exact: true }), 'the approval request is in the rail').toBeVisible();
     const resumed = (await sessionRow(epoch))!;
     expect(resumed.ref, 'the epoch still names the first row').toBe(first.ref);
     expect(await sessionRowCount(), 'no new Session row').toBe(rowsBefore);
@@ -184,8 +186,46 @@ test('R2: the same browser signs in again and resumes its conversation, approval
   }
 });
 
-notBuilt('R2b: /state returns the fixture pairing', '10.3');
-notBuilt("R2c: the rail's Telegram card shows the fixture pairing", '12.7');
+/** The raw telegramState mark ("" when there is none). */
+async function readMark(): Promise<string> {
+  return chk(await irisScript('Write !,"CHK|mark|",##class(OcuTalon.Data.StatusMark).Get("telegramState")'), 'mark') ?? '';
+}
+/** Writes the mark through a StatusMark call (the call is the text after the class name) and expects it to succeed. */
+async function writeMark(call: string): Promise<void> {
+  const done = chk(await irisScript(`Write !,"CHK|set|",$SYSTEM.Status.IsOK(##class(OcuTalon.Data.StatusMark).${call})`), 'set');
+  expect(done, 'the Telegram mark is written').toBe('1');
+}
+/** The state on with the CI mock's bot, as the poller records it. */
+const markOn = (): Promise<void> => writeMark('RecordTelegram("on","ocutalon_ci_bot")');
+/** Puts a raw value read by readMark back. */
+const restoreMark = (raw: string): Promise<void> => writeMark(`Record("telegramState",${quoted(raw)})`);
+
+/** R2c: with the Telegram state on, the rail's Telegram card shows the fixture pairing of R2b: "Telegram paired", a middle dot, its name and Unpair. */
+test("R2c: the rail's Telegram card shows the fixture pairing", async ({ page }) => {
+  let epoch = '';
+  let fixture = '';
+  let saved: string | undefined;
+  try {
+    await loadedAfter(page, () => signInFromSplash(page));
+    await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
+    epoch = (await readState(page)).epoch;
+    const row = (await sessionRow(epoch))!;
+    fixture = chk(await irisScript(`Write !,"CHK|pairing|",##class(OcuTalon.Test.Data.Fixture).Pairing(${quoted(row.ref)})`), 'pairing') ?? '';
+    expect(fixture !== '', 'the fixture pairing is seeded').toBe(true);
+    saved = await readMark();
+    await markOn();
+    await page.reload();
+    await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
+    const card = rail(page).locator('app-telegram-card');
+    await expect(card, 'the card shows the pairing: Telegram paired, a middle dot and the name').toContainText(/Telegram paired\s*\u00b7\s*Zz chat/);
+    await expect(card.getByRole('button', { name: 'Unpair Telegram', exact: true }), 'with its Unpair button').toHaveText('Unpair');
+  } finally {
+    if (saved !== undefined) await restoreMark(saved);
+    await signOutGroup(page);
+    if (fixture) await cleanFixtureRows([fixture]);
+    if (epoch) await removeSession(epoch);
+  }
+});
 
 /** R4: a cookie that names no row gives a new session and a new cookie, and the old value's hash opens no row. */
 test('R4: an unknown resume cookie gives a fresh session and a new cookie', async ({ page, context }) => {

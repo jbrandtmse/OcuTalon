@@ -9,6 +9,7 @@ export const PAGE_TEXTS: Readonly<Record<string, string>> = {
   'checks.notEverything': 'Not everything: {whatFailed}.',
   'checks.notEverythingRestPassed': 'Not everything: {whatFailed}. Everything else I checked passed.',
   'banner.allowance': "You've used this session's {limit} messages for the hour (messages you send in the chat or Telegram). You can send more at {time}.",
+  'banner.allowanceChat': "You've used this session's {limit} messages for the hour. You can send more at {time}.",
   'banner.dailyCap': "The online demo has used today's model allowance. Decisions use fixed rules until {time}.",
   'banner.unreachable': "Can't reach OcuTalon. Retrying every 10 seconds.",
   'banner.noModelKey': 'OcuTalon has no model key, so every decision uses fixed rules. Add ANTHROPIC_API_KEY to the .env file and restart OcuTalon.',
@@ -16,6 +17,7 @@ export const PAGE_TEXTS: Readonly<Record<string, string>> = {
   'banner.heartbeatStalled': 'Background checks have paused: the heartbeat last ran at {time}. Watches and reminders may be late until it recovers.',
   'banner.telegramPaused': 'Telegram is paused: this bot is in use by another OcuTalon. OcuTalon will try again at {time}. Each OcuTalon needs its own bot.',
   'banner.resetSoon': 'The demo resets in 5 minutes. Your session and Telegram pairing will be cleared.',
+  'banner.resetSoonChat': 'The demo resets in 5 minutes. Your session will be cleared.',
   'banner.reconnecting': 'Reconnecting\u2026 New messages may be delayed.',
   'banner.demoBusy': 'The demo is busy right now. Try again in a few minutes, or install it yourself.',
   'bannerAction.installYourself': 'Install it yourself',
@@ -37,6 +39,7 @@ export const PAGE_TEXTS: Readonly<Record<string, string>> = {
   'result.stillResending': "Still resending: {completed} of {count} {itemNoun} have gone through so far. I'll tell you when it's done.",
   'result.interrupted': 'The resend stopped when OcuTalon restarted: {completed} of {count} {itemNoun} went through. The other {remaining} need a new approval.',
   'result.couldNotStart': 'Nothing was resent: {reason}. Nothing was changed.',
+  'result.stoppedPartway': "The resend stopped partway: I resent {resent} of the {count} {itemNoun} ({completed} went through), the next one couldn't be resent, and {notTried} more weren't tried. Nothing else was changed, and I won't resend the rest without a new approval.",
   'audit.recorded': 'Recorded in the IRIS audit log.',
   'fallbackReason.timeout': "the model didn't answer within 60 seconds",
   'fallbackReason.empty': "the model's reply was empty",
@@ -66,6 +69,7 @@ export const PAGE_SLOTS: Readonly<Record<string, Readonly<Record<string, string>
   'checks.notEverything': { 'whatFailed': 'text' },
   'checks.notEverythingRestPassed': { 'whatFailed': 'text' },
   'banner.allowance': { 'limit': 'count', 'time': 'time' },
+  'banner.allowanceChat': { 'limit': 'count', 'time': 'time' },
   'banner.dailyCap': { 'time': 'time' },
   'banner.unreachable': {},
   'banner.noModelKey': {},
@@ -73,6 +77,7 @@ export const PAGE_SLOTS: Readonly<Record<string, Readonly<Record<string, string>
   'banner.heartbeatStalled': { 'time': 'time' },
   'banner.telegramPaused': { 'time': 'time' },
   'banner.resetSoon': {},
+  'banner.resetSoonChat': {},
   'banner.reconnecting': {},
   'banner.demoBusy': {},
   'bannerAction.installYourself': {},
@@ -94,6 +99,7 @@ export const PAGE_SLOTS: Readonly<Record<string, Readonly<Record<string, string>
   'result.stillResending': { 'count': 'count', 'itemNoun': 'noun', 'completed': 'count' },
   'result.interrupted': { 'count': 'count', 'itemNoun': 'noun', 'completed': 'count', 'remaining': 'count' },
   'result.couldNotStart': { 'reason': 'text' },
+  'result.stoppedPartway': { 'count': 'count', 'itemNoun': 'noun', 'resent': 'count', 'completed': 'count', 'notTried': 'count' },
   'audit.recorded': {},
 };
 
@@ -105,6 +111,7 @@ export const PAGE_ONE_FORMS: Readonly<Record<string, { readonly slot: string; re
   'result.failedAndSkipped': { slot: 'skipped', text: "{completed} of {count} {itemNoun} went through. {failedAgain} failed again ({failReason}), and 1 had changed since the dry run, so I skipped it. I won't retry any of them without a new approval." },
   'result.stillResending': { slot: 'completed', text: "Still resending: 1 of {count} {itemNoun} has gone through so far. I'll tell you when it's done." },
   'result.interrupted': { slot: 'remaining', text: 'The resend stopped when OcuTalon restarted: {completed} of {count} {itemNoun} went through. The other one needs a new approval.' },
+  'result.stoppedPartway': { slot: 'notTried', text: "The resend stopped partway: I resent {resent} of the {count} {itemNoun} ({completed} went through), the next one couldn't be resent, and 1 more wasn't tried. Nothing else was changed, and I won't resend the rest without a new approval." },
 };
 
 /** Each fallback reason value with the suffix of its fallbackReason.* key. */

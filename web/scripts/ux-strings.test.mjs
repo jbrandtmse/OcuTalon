@@ -42,6 +42,7 @@ const IMPORTED = [
   ['chat/chat-view.ts', ['CHAT_TEXTS', 'NOTICE_TEXTS']],
   ['chat/decision-view.ts', ['DECISION_TEXTS']],
   ['rail/rail-view.ts', ['RAIL_TEXTS']],
+  ['rail/telegram-card/telegram-card-view.ts', ['TELEGRAM_CARD_TEXTS']],
   ['shared/trace-view.ts', ['TRACE_TEXTS']],
   ['banners/banner-view.ts', ['BANNER_TEXTS']],
   ['shared/layout-view.ts', ['LAYOUT_TEXTS']],
@@ -223,6 +224,18 @@ const SOURCES = {
     'Last run {when} (late)',
     'Telegram not set up',
     'How to set it up',
+    'Telegram paused',
+    'Trying again at {time}',
+    "Scan with your phone's camera, then tap Start in Telegram.",
+    'Open in Telegram',
+    '(opens Telegram)',
+    'New code in {n} min',
+    'QR code that opens OcuTalon in Telegram to pair this session',
+    'Telegram paired \u00b7 {name}',
+    'Telegram paired',
+    'Unpair',
+    'Unpair Telegram',
+    'Telegram unpaired',
     'Trace',
     'Open in Visual Trace (shows sign-in help first)',
     'Sign in to Visual Trace',
@@ -360,6 +373,7 @@ const SOURCES = {
     '{n} tokens',
     'See the whole conversation in Visual Trace',
     'Install OcuTalon yourself',
+    'Use the same bridge in your own production',
     'More to try: simulate an incoming email in the simulated mailbox and see what OcuTalon decides. On your own install, ask it to watch any production.',
     'Run again',
     'Try it yourself',
@@ -445,6 +459,13 @@ const SOURCES = {
     'Story 16.8: The page counts down to the reset (the reset countdown reads "Next reset {time} \u00b7 in {countdown}")': ['Next reset {time} \u00b7 in {countdown}'],
   },
   ruled: {
+    'Story 12.10 veto item (U-244, orchestrator veto: the hint of the Telegram row in the drawer band, which names the header\'s Status button; EXPERIENCE.md gives only the line for the other bands)': [
+      'Optional: press {status} at the top of the page, then scan the QR code in the Telegram card to get the notice on your own phone.',
+    ],
+    'Story 12.9 (DW-501, DW-506; the chat-only forms of the allowance and reset-soon banners, shown while Telegram is not on: EXPERIENCE.md:174 gives the allowance form with its slots, and the Contest Planner kept both texts as U-227)': [
+      "You've used this session's {limit} messages for the hour. You can send more at {time}.",
+      'The demo resets in 5 minutes. Your session will be cleared.',
+    ],
     'Story 6.3 veto item V2 (the accessible name of the rail row\'s title button, "Show in the chat: {action}": the visible title is unchanged and the name contains it, WCAG 2.5.3; the UX gives the press its effect, not a name)': [
       'Show in the chat: {action}',
     ],
@@ -477,6 +498,7 @@ const SOURCES = {
       '{list} and {last}',
     ],
     'Story 4.6 veto item V2 (the field errors of the compose form)': ['Enter a subject.', 'Enter a body.'],
+    'Story 31.3 (the About links, EXPERIENCE.md About, item 5: README, the bridge developer guide and the security overview; FR-61)': ['Bridge developer guide', 'Security overview'],
     'Story 2.14 ruling, cycle-log-epic-2.md 2026-10-24T16:21:41Z (new Close names, the inactive conversation link\'s reason; UX-DR130, UX-DR133, UX-DR134)': [
       'Close reset notice',
       'Close reconnecting notice',
@@ -490,6 +512,9 @@ const SOURCES = {
     'Story 4.4 ruling, spec gate 2026-10-26, veto item V2 (U-85): the step names that carry the state words of DESIGN.md\'s step markers (UX-DR45)': [
       'Step {n}, {label}, done',
       'Step {n}, {label}, upcoming',
+    ],
+    'Story 30.5 ruling U-182 (AD-16 as amended: the text of result.stoppedPartway, a resend that stops at the first copy that errs; the page renders the catalog\'s text)': [
+      "The resend stopped partway: I resent {resent} of the {count} {itemNoun} ({completed} went through), the next one couldn't be resent, and {notTried} more weren't tried. Nothing else was changed, and I won't resend the rest without a new approval.",
     ],
   },
   calendar: [

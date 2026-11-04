@@ -18,6 +18,8 @@
 ///     0.0001 and one at 0.001 do not meet it although the mean is 0.00019, and the one at 0.000999 does; the target names maxUSD as the gated figure;
 ///   - TestTextNFR4NotMeasured (Story 9.10): a set with no priced item decision reads "not known" for the maximum and the mean, "none priced", and not met;
 ///   - TestVerdict: the nine cases of REL-5's rule, from no attempt to three;
+///   - TestSmokeInTheResult (Story 30.1; AD-20): the result's thinkingHistorySmoke is the context's passed or failed, and not run for anything else, in the JSON and
+///     the Markdown closing line, with the verdict unchanged;
 ///   - TestResult, TestText and TestSave: the result document (the attention cost with its gated figure, the flag, the flagged and unpriced decisions, the
 ///     mean for information only and met), its Markdown (the three cost lines, and a blocked result's Verdict line is the one --override requires) and its files.
 Class OcuTalon.Test.Eval.Gate Extends %UnitTest.TestCase
@@ -442,6 +444,29 @@ Method TestVerdict()
 	Do ..VerdictIs("mnn", "pass|1|1")
 	Do $$$AssertEquals(##class(OcuTalon.Eval.Gate).Verdict("").verdict, "incomplete", "no attempts array is incomplete")
 	Do $$$AssertEquals(##class(OcuTalon.Eval.Gate).Verdict([{"met": true}]).decidedBy, "attempt 1 met every target", "and attempt 1 explains itself")
+}
+
+/// The thinking-history smoke test's figure (Story 30.1; AD-20): the result takes the context's thinkingHistorySmoke when it is passed or failed, and
+/// is not run for a context without one (the push run and --on-mock), and for any other value. The Markdown closing line says it, and the verdict does
+/// not change.
+Method TestSmokeInTheResult()
+{
+	Set attempts = [(##class(OcuTalon.Eval.Gate).Attempt(..GoodSet(), ..NewGate(), 1))]
+	Set plain = ##class(OcuTalon.Eval.Gate).Result(attempts, {"commit": "abc123", "branch": "feature/x", "treeClean": 1, "onMock": 0})
+	Do $$$AssertEquals(plain.thinkingHistorySmoke, "not run", "a context without the figure gives not run")
+	For value = "passed", "failed" {
+		Set result = ##class(OcuTalon.Eval.Gate).Result(attempts, {"commit": "abc123", "branch": "feature/x", "treeClean": 1, "onMock": 0, "thinkingHistorySmoke": (value)})
+		Do $$$AssertEquals(result.thinkingHistorySmoke, value, "the context's "_value_" reaches the JSON")
+		Do $$$AssertEquals(result.verdict, plain.verdict, "and "_value_" does not change the verdict")
+		Set text = ##class(OcuTalon.Eval.Gate).Text(result)
+		Do $$$AssertTrue(text [ ("Thinking-history smoke test: "_value_"."_$Char(10)), "nor the Markdown line: "_value)
+		Do $$$AssertEquals(##class(%DynamicAbstractObject).%FromJSON(result.%ToJSON()).thinkingHistorySmoke, value, "which is in the saved JSON")
+	}
+	For value = "", "not run", "maybe", "PASSED" {
+		Set result = ##class(OcuTalon.Eval.Gate).Result(attempts, {"thinkingHistorySmoke": (value)})
+		Do $$$AssertEquals(result.thinkingHistorySmoke, "not run", "'"_value_"' is not a figure: not run")
+	}
+	Do $$$AssertEquals(##class(OcuTalon.Eval.Gate).Result(attempts, "").thinkingHistorySmoke, "not run", "and so is no context")
 }
 
 /// The result document: every field, the summary's source attempt and a null override.

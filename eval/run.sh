@@ -80,8 +80,11 @@
 #   4. the files are copied out into the report folder, and the result's Markdown is printed and appended to $GITHUB_STEP_SUMMARY only when it holds
 #      neither key-like text nor the value of the key in the environment (otherwise a NOTE line says it is not printed). Without --on-mock a finished
 #      run (verdict pass or blocked, no structural failure) also copies the pair to eval/release-candidate.json and .md; with --on-mock the pair is
-#      release-candidate-on-mock.* in the report folder only, and eval/ is not touched. Neither form runs eval/mock-wrong/. The thinking-history smoke
-#      test is not run (Story 30.1);
+#      release-candidate-on-mock.* in the report folder only, and eval/ is not touched. Neither form runs eval/mock-wrong/. Without --on-mock, once
+#      after the attempts and before the verdict, the thinking-history smoke test of Story 30.1 runs on the real model in its own IRIS session
+#      (OcuTalon.Test.Eval.ThinkingSmoke: three turns in three jobs with the thinking rule forced, a tool change and a compaction through the guarded
+#      path) and its figure, passed or failed, goes into Gate.Result's context as thinkingHistorySmoke; a failed smoke is recorded and changes
+#      neither the verdict nor the exit code. The push run and --on-mock never run it, and their result says "not run";
 #   5. the pair that was written is scanned with the key-like patterns of docker/tests/lib-keys.sh, the definition that
 #      docker/tests/test-boundaries.sh also reads: "PASS <name>: the result pair holds no key-like text", or, on a match, a FAIL line that names
 #      file:line (never the text) and tells the author not to commit the pair, and exit 4 with both files kept.
@@ -333,16 +336,30 @@ attempt_run() {
   sed 's/^/  /' "$tmp/$name.chk"
 }
 
-# verdict_run <attempts> <name> <commit> <branch> <tree clean 0|1> <on mock 0|1>: Gate.Result over attempt-1.json to attempt-<attempts>.json
-# with the context, saved as <name>.json and <name>.md; prints CHK|verdict|, CHK|attempts| (run and met) and CHK|saved|. The lines are in
-# $tmp/<name>.chk.
+# smoke_run <name>: the thinking-history smoke test (Story 30.1; AD-20) in its own IRIS session: Test.Eval.ThinkingSmoke Run, then Print, which
+# writes one line CHK|smoke|passed|<problems> or CHK|smoke|failed|<problems> (the number of problems, never a reply or a setting). The early CHK
+# line keeps iris_script from starting the smoke a second time. The lines are in $tmp/<name>.chk.
+smoke_run() {
+  local name=$1 begun=$SECONDS
+  printf '%s\n' \
+    'Write !,"CHK|started|1"' \
+    'Do ##class(OcuTalon.Test.Eval.ThinkingSmoke).Print(##class(OcuTalon.Test.Eval.ThinkingSmoke).Run(.p))' \
+    'Halt' | iris_script OCUTALON > "$tmp/$name.chk"
+  echo "RUN $name $((SECONDS - begun))s"
+  sed 's/^/  /' "$tmp/$name.chk"
+}
+
+# verdict_run <attempts> <name> <commit> <branch> <tree clean 0|1> <on mock 0|1> [<smoke passed|failed>]: Gate.Result over attempt-1.json to
+# attempt-<attempts>.json with the context (the smoke's figure as thinkingHistorySmoke when it is given), saved as <name>.json and <name>.md;
+# prints CHK|verdict|, CHK|attempts| (run and met) and CHK|saved|. The lines are in $tmp/<name>.chk.
 verdict_run() {
-  local count=$1 name=$2 commit=$3 branch=$4 clean=$5 mock=$6
+  local count=$1 name=$2 commit=$3 branch=$4 clean=$5 mock=$6 smoke=${7:-} figure=
+  if [ -n "$smoke" ]; then figure=",\"thinkingHistorySmoke\":\"$smoke\""; fi
   printf '%s\n' \
     'Write !,"CHK|started|1"' \
     'Set as=[]' \
     "For k=1:1:$count { Do as.%Push(##class(%DynamicAbstractObject).%FromJSONFile(\"$CONTAINER_REPORTS/attempt-\"_k_\".json\")) }" \
-    "Set cx={\"commit\":\"$commit\",\"branch\":\"$branch\",\"treeClean\":$clean,\"onMock\":$mock}" \
+    "Set cx={\"commit\":\"$commit\",\"branch\":\"$branch\",\"treeClean\":$clean,\"onMock\":$mock$figure}" \
     'Set rs=##class(OcuTalon.Eval.Gate).Result(as,cx)' \
     'Write !,"CHK|verdict|",rs.verdict' \
     'Write !,"CHK|attempts|",rs.attemptsRun,"|",rs.attemptsMet' \
@@ -679,9 +696,23 @@ if [ "$mode" = rc ]; then
     number=$((number + 1))
   done
 
+  # the thinking-history smoke test: on the real model only, once, after the attempts (a failed smoke is recorded, never a failure of the run)
+  smoke=
+  if [ "$fails" -eq 0 ] && [ "$onmock" -eq 0 ]; then
+    smoke_run thinking-smoke
+    smoke=$(chk_value thinking-smoke smoke | cut -d'|' -f1)
+    case $smoke in
+      passed | failed) echo "SMOKE thinking-history smoke test: $smoke" ;;
+      *)
+        smoke=failed
+        echo "NOTE the thinking-history smoke test printed no figure: it is recorded as failed"
+        ;;
+    esac
+  fi
+
   verdict=
   if [ "$fails" -eq 0 ]; then
-    verdict_run "$attempts" "$result_name" "$commit" "$branch" "$tree_clean" "$onmock"
+    verdict_run "$attempts" "$result_name" "$commit" "$branch" "$tree_clean" "$onmock" "$smoke"
     if [ ! -s "$tmp/$result_name.chk" ]; then
       fail "$result_name: the IRIS session printed nothing"
     elif [ "$(chk_value "$result_name" saved)" != 1 ]; then

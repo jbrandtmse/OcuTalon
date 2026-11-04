@@ -11,7 +11,7 @@ import { describe, it } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const { GUIDE_TEXTS, advance, currentOf, followSelection, guideOf, guideView, promptOf, runTotalText } = await import(pathToFileURL(join(here, '..', 'src', 'app', 'guide', 'guide-view.ts')).href);
+const { GUIDE_TEXTS, advance, currentOf, followSelection, guideOf, guideView, promptOf, runTotalText, telegramRowOf } = await import(pathToFileURL(join(here, '..', 'src', 'app', 'guide', 'guide-view.ts')).href);
 const { formatCost, formatTokens } = await import(pathToFileURL(join(here, '..', 'src', 'app', 'chat', 'decision-view.ts')).href);
 
 /** The page's token and cost formats, as the component hands them in. */
@@ -64,11 +64,13 @@ describe('the fixed strings', () => {
       modelsComma: ', ',
       conversationLink: 'See the whole conversation in Visual Trace',
       installLink: 'Install OcuTalon yourself',
+      bridgeLink: 'Use the same bridge in your own production',
       moreToTry: 'More to try: simulate an incoming email in the simulated mailbox and see what OcuTalon decides. On your own install, ask it to watch any production.',
       runAgain: 'Run again',
       quoted: '"{text}"',
       send: 'Send',
       telegram: 'Optional: scan the QR code in the Telegram card to get the notice on your own phone.',
+      telegramDrawer: 'Optional: press {status} at the top of the page, then scan the QR code in the Telegram card to get the notice on your own phone.',
       stepCurrent: 'Step {n}, {label}, current',
       stepDone: 'Step {n}, {label}, done',
       stepUpcoming: 'Step {n}, {label}, upcoming',
@@ -177,6 +179,32 @@ describe('guideView: the Telegram row and the collapsed bar', () => {
   });
 });
 
+describe('telegramRowOf: the Telegram row for the band', () => {
+  const ORIGINAL = 'Optional: scan the QR code in the Telegram card to get the notice on your own phone.';
+  const HINT = 'Optional: press Status at the top of the page, then scan the QR code in the Telegram card to get the notice on your own phone.';
+
+  it('names the Status button and carries a Show me in the drawer band', () => {
+    assert.deepEqual(telegramRowOf(view(0, { telegramRow: true }), true, 'Status'), { text: HINT, showMe: true });
+  });
+
+  it('fills the button\'s word from the argument, never a copy of it', () => {
+    assert.match(telegramRowOf(view(0, { telegramRow: true }), true, 'Zustand').text, /^Optional: press Zustand at the top of the page, then /);
+  });
+
+  it('is the original line with no Show me outside the drawer band', () => {
+    assert.deepEqual(telegramRowOf(view(0, { telegramRow: true }), false, 'Status'), { text: ORIGINAL, showMe: false });
+    assert.equal(ORIGINAL, GUIDE_TEXTS.telegram);
+  });
+
+  it('is undefined unless the server\'s view says telegramRow, at every band', () => {
+    for (const drawer of [true, false]) {
+      assert.equal(telegramRowOf(view(0, { telegramRow: false }), drawer, 'Status'), undefined);
+      assert.equal(telegramRowOf({ step: 1 }, drawer, 'Status'), undefined);
+      assert.equal(telegramRowOf(undefined, drawer, 'Status'), undefined);
+    }
+  });
+});
+
 describe('advance', () => {
   it('announces "Step {n} of 5: {step}" for a later step of the same run', () => {
     assert.equal(advance(view(0), view(1)), 'Step 2 of 5: Reminder');
@@ -213,6 +241,9 @@ describe('the CI mock scenarios of the guide\'s prompts', () => {
   it('key the exact text of the guide\'s step 1 and step 2 prompts, so a changed prompt cannot leave the mock without its scenario', () => {
     assert.equal(scenario('guide-watch').match.prompt, GUIDE_TEXTS.promptWatch);
     assert.equal(scenario('guide-reminder').match.prompt, GUIDE_TEXTS.promptReminder);
+    // Each prompt's Triage scenario too (U-194): a stale one would leave the turn's decision to the triage default script.
+    assert.equal(scenario('guide-watch-triage').match.prompt, GUIDE_TEXTS.promptWatch);
+    assert.equal(scenario('guide-reminder-triage').match.prompt, GUIDE_TEXTS.promptReminder);
     assert.equal(GUIDE_TEXTS.promptWatch, P1);
     assert.equal(GUIDE_TEXTS.promptReminder, P2);
   });
