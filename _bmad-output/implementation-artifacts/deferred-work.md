@@ -4004,3 +4004,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: feature 417f17c5 (Epic 7 merge) run 41916766312 iris (shards-3) attempt 1 | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: same code green on ac2c4549 (run 41916844884); an unbounded helper wait, as in the Planner's leave.spec hypothesis
 - 2026-11-04T22:31:36Z status=routed owner=burndown by=orchestrator note=candidate for Story 11.21's bounded helper waits (Planner ruling 2026-11-04); a second occurrence is a real red
+
+### DW-692: A disabled Telegram item had a live job in CI: live:production row 14 got 'CHK|disabled|running=TelegramOut' (wanted none), and live:online-session logged 'TelegramIn has a live job' against the mock
+- source: OCT-epic40 5d96d2f6 run 41929230934 iris (production) att 1; OCT-epic39 d701b6e6 run 41909512271 iris (shards) att 1 | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: two sightings on two branches within 2 h, neither branch touches the Telegram items or the production definition; row 14's other values and row 21's after-restore check passed in the same run
+- 2026-11-04T23:32:19Z status=escalated owner=burndown by=orchestrator note=Story 12.1 promises Telegram stays off without a token; if a disabled TelegramIn/TelegramOut can hold a job, that is a product path, not a flake. Raised to the Contest Planner 2026-11-04.
