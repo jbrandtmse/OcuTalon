@@ -64,3 +64,7 @@
 2026-11-04T13:56:26Z	Story 39.3	stage_spawned	stage=qa spawn_at=2026-11-04T13:56:26Z model=sonnet agent_name=39-3-qa-1 cycle_iteration=1
 2026-11-04T14:02:23Z	Story 39.3	qa_complete	spawn_at=2026-11-04T13:56:26Z model=sonnet tests=Test/Checks/Beat.cls tests_added=2 mutations_demonstrated=2 first_run_failures=0 clarifications=0 closing_sections_present=true
 2026-11-04T14:02:23Z	Story 39.3	stage_spawned	stage=code-review spawn_at=2026-11-04T14:02:23Z model=opus agent_name=39-3-code-review-1 cycle_iteration=1
+2026-11-04T14:59:39Z	Story 39.3	cr_complete	spawn_at=2026-11-04T14:02:23Z model=opus resolved=11 fixed_at_source=11 by_design=0 wontfix_theoretical=0 routed=0 escalated=0 decision_pending=0 deferred=1 dismissed=18 high=0 med=6 low=6 rows=45 unresolved_high_med=0 clarifications=0 closing_sections_present=true review_tier=full-opus
+2026-11-04T14:59:39Z	Story 39.3	ledger_adjudicated	owned=0 resolved=0 reowned=0 terminal=0 note=DW-666_terminal_at_cr model=claude-opus-5-5
+2026-11-04T14:59:39Z	Story 39.3	smoke_complete	method=other result=pass iterations=1 defects_caught=0 evidence=fresh_throwaway_running_production_Test.Checks.Heartbeat;slot-d_Beat.Key_ignores_status_line_matches_independent_sha256 model=claude-opus-5-5
+2026-11-04T14:59:39Z	Story 39.3	fresh_check	env=recipe tests=6 result=pass order=forward,reverse fwd_rc=0 rev_rc=0 shard=lane-a@Checks_138s_133s

@@ -18,8 +18,9 @@
 ///   - The decision of a pending beat (Kind decide, same ItemId, the person as owner) is recorded on the row by the next RunDue or RunNow: the outcome,
 ///     the fallback, the cost, the decision's Ref and trace session. An ignore copies LastSnapshotKey to LastQuietKey, and a fallback sets BackoffUntil to
 ///     the time plus the longer of BACKOFFSECONDS and one interval.
-///   - Each person runs in its own Try/Catch. RunDue answers an error status that holds only the count of failed people and their error codes, never a
-///     SessionRef.
+///   - Each person runs in its own Try/Catch. A person whose pending decision could not be recorded does not run in that RunDue, so that a new beat never
+///     overwrites a decision that is still to be recorded (RunNow stops there too). RunDue answers an error status that holds only the count of failures and
+///     their error codes, never a SessionRef; a read of the rows that stops partway counts as one failure.
 ///   - Until Story 39.4 the snapshot is the checklist alone. Key is the SHA-256 of the snapshot without its status line, so that a status line never
 ///     changes it.
 Class OcuTalon.Checks.Beat
@@ -202,7 +203,7 @@ ClassMethod Key(snapshot As %String) As %String
 /// Runs the beats that are due at the tick time (UTC, YYYY-MM-DDTHH:MM:SSZ), after recording the decisions of the beats sent before. items is a
 /// %ListOfObjects of the Items to send, one for each beat that ran, whatever the status is. sessions limits the people to the comma-separated Refs (a test
 /// seam; empty means everyone), and capped and keyed give what Capped and Keyed would ("" means read them, once, when the first due person needs them).
-/// Each person runs in its own Try/Catch; the status is an error that holds the number of people that failed and their error codes.
+/// Each person runs in its own Try/Catch; the status is an error that holds the number of failures and their error codes (see the class description).
 ClassMethod RunDue(tickAt As %String, Output items As %ListOfObjects, sessions As %String = "", capped As %String = "", keyed As %String = "") As %Status
 {
 	Set items = ##class(%ListOfObjects).%New()
@@ -221,9 +222,11 @@ ClassMethod RunDue(tickAt As %String, Output items As %ListOfObjects, sessions A
 			Set row = ##class(OcuTalon.Data.HeartbeatBeat).SessionRefIndexOpen(ref)
 			If $IsObject(row) $$$ThrowOnError(..Settle(row, tickAt))
 		} Catch exception {
+			Set unsettled(ref) = 1
 			Do ..Failed(exception.AsStatus(), .failed, .codes)
 		}
 	}
+	If rs.%SQLCODE < 0 Do ..Failed($SYSTEM.Status.Error(5001, "The heartbeat rows could not be read"), .failed, .codes)
 
 	// the due people
 	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT Ref FROM OcuTalon_Data.Session ORDER BY ID")
@@ -231,6 +234,7 @@ ClassMethod RunDue(tickAt As %String, Output items As %ListOfObjects, sessions A
 	While rs.%Next() {
 		Set ref = rs.%Get("Ref")
 		If (sessions '= "") && '$ListFind($ListFromString(sessions), ref) Continue
+		If $Data(unsettled(ref)) Continue
 		Try {
 			Set values = ..Values(ref)
 			Set row = ##class(OcuTalon.Data.HeartbeatBeat).SessionRefIndexOpen(ref)
@@ -248,6 +252,7 @@ ClassMethod RunDue(tickAt As %String, Output items As %ListOfObjects, sessions A
 			Do ..Failed(exception.AsStatus(), .failed, .codes)
 		}
 	}
+	If rs.%SQLCODE < 0 Do ..Failed($SYSTEM.Status.Error(5001, "The sessions could not be read"), .failed, .codes)
 	If failed Quit $SYSTEM.Status.Error(5001, failed_" heartbeat beat"_$Select(failed = 1: "", 1: "s")_" failed, error codes "_codes)
 	Quit $$$OK
 }
@@ -349,7 +354,7 @@ ClassMethod Settle(row As OcuTalon.Data.HeartbeatBeat, at As %String) As %Status
 	Quit row.%Save()
 }
 
-/// Counts one failed person and adds the error codes of the status to the comma-separated codes.
+/// Counts one failure and adds the error codes of the status to the comma-separated codes.
 ClassMethod Failed(sc As %Status, ByRef failed As %Integer, ByRef codes As %String) [ Private ]
 {
 	Set failed = failed + 1

@@ -54,7 +54,7 @@
 ///   - TestBeatsRunWhateverEarlierStepsDo (Story 39.1): a Sweep that throws and a due row that throws do not stop RunDue, and the Tick answers OK; a Tick whose TickAt is not a UTC stamp gives
 ///     RunDue the Tick's own current time (a UTC stamp), never the bad text; a CheckChanged calls neither RunDue nor RunNow;
 ///   - TestBeatLogsAreRedacted: a secret in the error text of a RunDue or a RunNow is redacted from the LOGBEAT and LOGBEATNOW line, which still holds the text before it, and a
-///     SessionRef in the error text of a RunNow is left out;
+///     SessionRef in the error text of a RunNow, in any case, is left out, whether RunNow answers it or throws it;
 ///   - TestBeatNowKeepsEachSession: two BeatNows of two sessions call RunNow twice, in order, each with its own SessionRef, and a repeated BeatNow is not collapsed;
 ///   - TestUnknownRequest ("Unknown request"): a request of another class is an error 5001 that names the class.
 /// The fixture rows, streams and the log lines that the tests made are removed after each test.
@@ -1060,7 +1060,8 @@ Method TestBeatSendFailureIsLogged()
 	If items.%Size() '= 1 Quit
 	Set ..BeatItems = items.%Get(0).itemId
 	Do $$$AssertEquals(..Warnings("Tick", $Parameter(..#PROBE, "LOGBEATSEND")_..BeatItems, .line), 1, "a send that fails logs one warning that names the ItemId")
-	Do $$$AssertNotTrue(line [ a, "and not the SessionRef")
+	Do $$$AssertTrue(line [ "is refused", "and holds the error text: "_line)
+	Do $$$AssertNotTrue((line [ a) || (line [ $ZConvert(a, "U")), "but not the SessionRef that the error names, in any case: "_line)
 }
 
 Method TestBeatNowRunsOnce()
@@ -1123,7 +1124,8 @@ Method TestBeatNowSendFailureAnswersFailed()
 	Set ..BeatItems = items.%Get(0).itemId
 	Do $$$AssertEquals(response.Ok_"|"_response.Outcome_"|"_response.Ref_"|"_response.Data, "0|failed||", "the answer is failed, with no Ref")
 	Do $$$AssertEquals(..Warnings("BeatNow", $Parameter(..#PROBE, "LOGBEATSEND")_..BeatItems, .line), 1, "and one warning names the ItemId")
-	Do $$$AssertNotTrue(line [ a, "and not the SessionRef")
+	Do $$$AssertTrue(line [ "is refused", "and holds the error text: "_line)
+	Do $$$AssertNotTrue((line [ a) || (line [ $ZConvert(a, "U")), "but not the SessionRef that the error names, in any case: "_line)
 }
 
 Method TestBeatsRunWhateverEarlierStepsDo()
@@ -1201,10 +1203,16 @@ Method TestBeatLogsAreRedacted()
 	Do $$$AssertStatusOK(host.OnRequest(request, .response), "a RunNow that answers an error status is answered OK")
 	Do $$$AssertEquals(..Beaten(marker, .text, "BeatNow"), 2, "and logs one more warning")
 	Do $$$AssertNotTrue(text [ "QaSecret", "without the secret: "_text)
-	Set host.BeatNowError = "zzchk"_..Number_" beatnow names "_a_" twice "_a
+	Set upper = $ZConvert(a, "U")
+	Set host.BeatNowError = "zzchk"_..Number_" beatnow names "_a_" twice "_a_" and as a %Save error does "_upper
 	Do $$$AssertStatusOK(host.OnRequest(request, .response), "a RunNow whose error names the SessionRef is answered OK")
 	Do $$$AssertEquals(..Beaten("zzchk"_..Number_" beatnow names ", .text, "BeatNow"), 1, "and logs one warning")
-	Do $$$AssertNotTrue(text [ a, "that does not name the SessionRef: "_text)
+	Do $$$AssertNotTrue((text [ a) || (text [ upper), "that does not name the SessionRef, in any case: "_text)
+	Set host.BeatNowError = ""
+	Set host.BeatNowThrows = "zzchk"_..Number_" beatnow throws "_a_" and as a %Save error does "_upper
+	Do $$$AssertStatusOK(host.OnRequest(request, .response), "a RunNow that throws an error that names the SessionRef is answered OK")
+	Do $$$AssertEquals(..Beaten("zzchk"_..Number_" beatnow throws ", .text, "BeatNow"), 1, "and logs one warning")
+	Do $$$AssertNotTrue((text [ a) || (text [ upper), "that does not name the SessionRef either: "_text)
 }
 
 Method TestBeatNowKeepsEachSession()
@@ -1490,9 +1498,14 @@ Method RanLine(ref As %String) As %String
 	Quit ""
 }
 
-/// All-day heartbeat settings for the session with the checklist (the beat then runs at any tick time, whatever the instance zone is).
+/// The session's row, due at TICK (a real Tick does not reach it), then all-day heartbeat settings with the checklist (the beat then runs at any tick time, whatever
+/// the instance zone is).
 Method Beating(session As %String, checklist As %String) [ Private ]
 {
+	Set row = ##class(OcuTalon.Data.HeartbeatBeat).%New()
+	Set row.SessionRef = session
+	Set row.NextDueAt = ..#TICK
+	Do $$$AssertStatusOK(row.%Save(), "the person's row is made")
 	For name = "from", "to", "checklist" {
 		Do $$$AssertStatusOK(##class(OcuTalon.Data.Setting).Set($ClassMethod("OcuTalon.Checks.Beat", "SettingKey", session, name), $Select(name = "checklist": checklist, 1: "")), "the setting "_name_" is written")
 	}

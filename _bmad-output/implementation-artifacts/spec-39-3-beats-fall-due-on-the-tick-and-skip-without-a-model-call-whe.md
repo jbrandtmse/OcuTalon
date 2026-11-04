@@ -201,6 +201,43 @@ Clocks are fixed UTC stamps in 2099 (local times built with `Data.Time.FromLocal
 - AC 6 (moved to Story 39.7 by the spec-gate split; not part of this story). Given any beat, skip or recorded result, when its row is committed, then `Checks` publishes `heartbeat` to the session's stream with the row's public view (on, interval, hours, next due, last result, last skip), never the `SessionRef`, the checklist or a key (AD-12, AD-33).
 - AC 7. Given the story's diff, when it is compared with the merge base of `origin/feature/OCT_OcuTalon_MVP`, then the paths under Never are unchanged and `test-production.sh`'s item list is the same.
 
+### Review Findings
+
+Code review of 2026-11-04 (full mode; layers: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor; 45 raw rows, 12 root-cause entries, 18 rejected). Every patch below is applied; each was shown red by a mutation listed under `## Verification`.
+
+- [x] [Review][Patch] (med) A log line could still name the SessionRef: `WithoutRef` matched exact case only, while the one measured `%Save` error that names the ref (5808) prints it in upper case through the collated index, so the implement stage's patch missed its own target; both `LOGBEATSEND` lines did not use it, and its Catch branch was unpinned [src/ocutalon/cls/OcuTalon/Checks/Process.cls]
+- [x] [Review][Patch] (med) A person whose decision could not be recorded still ran: the beat overwrote `LastItemId`, so an unrecorded fallback set no `BackoffUntil`, and the person counted twice; `RunDue` now skips that person, as `RunNow` already stops [src/ocutalon/cls/OcuTalon/Checks/Beat.cls]
+- [x] [Review][Patch] (med) `TestOneFailureLeavesTheOthers` failed the last person only, so a loop that stops at the first failure stayed green; it also tied its green to code 5808 and left its broken node unprotected. The failing person is now first, the node is put back after a throw, and the code is any number [src/ocutalon/cls/OcuTalon/Test/Checks/Beat.cls]
+- [x] [Review][Patch] (med) "A recorded decision is not recorded again" could not fail: nothing read `BackoffUntil` after the second run, so a back-off pushed on by every tick stayed green [src/ocutalon/cls/OcuTalon/Test/Checks/Beat.cls]
+- [x] [Review][Patch] (med) The real `BeatRunNow` seam never carried a sent Item, and `RunNow`'s `Keyed` read was not observable: `TestBeatNowReachesIntake` added (AC 4, fresh production) [src/ocutalon/cls/OcuTalon/Test/Checks/Heartbeat.cls]
+- [x] [Review][Patch] (med) Test rows a real Tick could reach: rows seeded with an empty `NextDueAt` and `Runs.Beating`'s settings with no row. They now seed a `NextDueAt` at the test's own future tick, and the class doc says what holds [src/ocutalon/cls/OcuTalon/Test/Checks/Beat.cls, src/ocutalon/cls/OcuTalon/Test/Checks/Runs.cls]
+- [x] [Review][Patch] (low) One unreadable row stops the whole `HeartbeatBeat` scan (measured: no rows read, SQLCODE -400) and `RunDue` answered OK; a read that stops now counts as a failure, and the due people still run [src/ocutalon/cls/OcuTalon/Checks/Beat.cls]
+- [x] [Review][Patch] (low) Stale docs: `Checks.Msg.BeatNow` still said no response object and no send, and `SendFinding` named only `Record` [src/ocutalon/cls/OcuTalon/Checks/Msg/BeatNow.cls, src/ocutalon/cls/OcuTalon/Checks/Process.cls]
+- [x] [Review][Patch] (low) Unpinned branches: an empty key against an empty `LastQuietKey`, and the `sessions` filter of the decisions loop [src/ocutalon/cls/OcuTalon/Test/Checks/Beat.cls]
+- [x] [Review][Patch] (low) AC 7 had no `mutation:` line: its guard is now shown red under `## Verification` [spec]
+- [x] [Review][Patch] (low) The two QA tests had no fresh, both-order run: `shard lane-a@Checks` ran forward and `--reverse` on the final tree [spec]
+- [x] [Review][Defer] (low) Millisecond fixture gaps a real Tick could still hit [src/ocutalon/cls/OcuTalon/Test/Checks/Beat.cls] -- deferred: DW-666 wontfix-accepted, with its reopen_if probe
+
+**Rejected:**
+- `Values` runs before the due check on every tick (blind): low; a few cached reads per session, the spec reads the values on every tick, and the demo holds about 6 visitors per instance.
+- The Review Triage Log's tally is off by one (blind): the fix edits the spec; cosmetic.
+- An Intake fallback with no `Decision` row gets no back-off (edge): low; `Decide.RecordFallback` writes the row for a timer, an error and a precheck, so a model outage backs off; only a failure of `Decide` itself leaves none, and AC 3 is conditional on the row.
+- A beat or run-now overwrites a decision still in flight (edge, auditor): low; the spec clears the fields, it needs a run-now inside one Decide call, and the next beat heals it.
+- The checklist is emptied between `Values` and `Snapshot` (edge): low; a cache expiry inside one method call.
+- Unicode-only white space passes the empty rule (edge): low; deliberate input, and it costs one request per interval.
+- A past `NextDueAt` in the repeated daylight-saving hour (edge): low; once a year, it re-skips with no model call and ends with the hour.
+- A retry after a failed send answers `cooldown` (edge): low; the spec saves the row before the send.
+- `TimeZone("")` is not a true unset (edge): low; the API has no unset, and the spine sets the instance zone through the container's TZ (inference for the test stacks).
+- No check that the cap and key are read once per tick, and `Keyed` seen in one state only (verification-gap): low; read and confirmed in `RunDue`, a seam for one count is not worth it, and seeding the key state on a live stack would race real Ticks.
+- A row that fails to open reads as absent (verification-gap): low; it fails loudly on the unique index and is counted.
+- `Fixture.Clean` leaves `HeartbeatBeat` rows (verification-gap): no named harm; no test counts the table, and `Test/Data` is outside the epic's files.
+- Spec status `done` against `sprint-status.yaml` `review` (verification-gap): false; the frontmatter is build-auto's machine state.
+- The "One person fails" matrix row states a mechanism that cannot work (blind, auditor): the fix edits the spec; the deviation is accepted, see the note under `## Verification`.
+- A held run-now writes no `LastSkipAt` (auditor): the matrix row "Run now, held" lists what it writes and `TestRunNow` pins it; the reason goes back in the answer.
+- AC 7's wording names the merge base (auditor): the fix edits the spec; the Spec Change Log explains it.
+- The mock marker uses the session Ref, not `NewRef()` (auditor): low; uniqueness holds, test text only.
+- The QA tests are uncommitted (blind, auditor): false; the lead commits after the smoke gate.
+
 ## Spec Change Log
 
 - 2026-11-04, lead at the re-check on the merged tree: the (once) guard under `## Verification` diffed from the merge-base with feature, which counts 39.1's `Data/HeartbeatBeat.cls` and the orchestrator's ruled test edit (`docker/tests/test-release-notes.sh`); neither is this story's. It now diffs from b50f3add, the pushed head this story starts from. Line anchors, `Data.Ownership.DecisionOfItem`, `Data.Session` and `Test.Data.Fixture` checked against the merged tree: no spec change needed.
@@ -255,7 +292,7 @@ Clocks are fixed UTC stamps in 2099 (local times built with `Data.Time.FromLocal
 - `from` = `to` reads as all day. A stored pair that is invalid reads as the defaults (39.2's validation never writes one).
 - `Key` removes only the line that 39.4 will add ("Status at ... (built by OcuTalon):"). In 39.3 the snapshot is the checklist, so `Key` is fully real now, and 39.4 adds lines without changing `Key`.
 - Every model request is pinned on a fresh production with the `decide-ignore` marker. The "changed" beat is the first beat after a seeded earlier quiet key. That avoids the 60-second setting cache of the Checks job, which a mid-test checklist edit would hit.
-- The matrix row "One person fails" cannot be built as written: `%Save` validates only the properties modified since the open, and a beat never modifies `LastQuietKey`, so a 65-character stored value does not fail B's save (measured on slot D). `Beat.TestOneFailureLeavesTheOthers` makes B fail by replacing B's row node with a non-list string while `RunDue` runs (put back at once), so B's row cannot be opened and the new row is refused by the unique SessionRef index (error 5808). The row's expectation (A still beats, the status holds the count and the code, never a ref) is unchanged.
+- The matrix row "One person fails" cannot be built as written: `%Save` validates only the properties modified since the open, and a beat never modifies `LastQuietKey`, so a 65-character stored value does not fail B's save (measured on slot D). `Beat.TestOneFailureLeavesTheOthers` makes B fail by replacing B's row node with a non-list string while `RunDue` runs (put back at once), so B's row cannot be opened and the new row is refused by the unique SessionRef index (error 5808). The row's expectation (A still beats, the status holds the count and the code, never a ref) is unchanged. [Lead, 2026-11-04: the non-list-node mechanism this note describes was replaced in review; `## Verification` holds the current one.]
 - Review pass: `Beat.Key` joins kept lines with a flag, so a leading empty line is part of the key; `Process.BeatNow` takes the SessionRef out of the text of a `LOGBEATNOW` line (a `%Save` error may name it). The `Beat` tests read hours in America/New_York (January, so no daylight-saving change), and the `Probe` answers `BeatError` after the real `RunDue` while `BeatSessions` is set.
 - `Channel` `heartbeat` goes out before `Msg.Enum` CHANNEL holds it (39.2's append, Lane B, waits on Epic 40). Nothing at run time validates an Item's channel; checked in `Intake`, `Agent.Input` and `Decide`.
 
@@ -340,11 +377,36 @@ Pinning mutations to apply, observe red, revert byte-identical and record (Rule 
   - mutation: the Tick drops the Items of a RunDue that answered an error status -> `Runs.TestTickSendsTheItemsOfAFailedRunDue`.
   - mutation: `BeatNow` keeps the outcome `sent` after a failed send -> `Runs.TestBeatNowSendFailureAnswersFailed`.
 - 39.1's `TestStubsDoNothing` mutation line is obsolete; the test is replaced.
+- Code review (2026-11-04), each applied alone, observed red, reverted byte-identical (`git diff` hash unchanged):
+  - mutation: `WithoutRef` matches exact case only -> `Runs.TestBeatLogsAreRedacted`, `TestBeatSendFailureIsLogged`, `TestBeatNowSendFailureAnswersFailed`.
+  - mutation: the Tick's `LOGBEATSEND` drops `WithoutRef` -> `Runs.TestBeatSendFailureIsLogged`.
+  - mutation: `BeatNow`'s `LOGBEATSEND` drops `WithoutRef` -> `Runs.TestBeatNowSendFailureAnswersFailed`.
+  - mutation: `BeatNow`'s Catch drops `WithoutRef` -> `Runs.TestBeatLogsAreRedacted`.
+  - mutation: a person whose decision was not recorded still runs -> `Beat.TestFailedDecisionHoldsTheBeat`.
+  - mutation: the stopped read of the rows is not reported -> `Beat.TestUnreadableRowIsReported`.
+  - mutation: the due loop stops at the first failure -> `Beat.TestOneFailureLeavesTheOthers`.
+  - mutation: both recorded-decision guards removed -> `Beat.TestDecisionIsRecorded`, `TestRunNow`; `Settle`'s guard alone -> `Beat.TestRunNow`.
+  - mutation: the decisions loop ignores `sessions` -> `Beat.TestDecisionIsRecorded`.
+  - mutation: `Skip` loses the empty-key and empty-quiet guards -> `Beat.TestSkipOrder`.
+  - mutation: `Process.BeatRunNow` passes `item` without the dot -> `Heartbeat.TestBeatNowReachesIntake` (fresh throwaway).
+  - mutation: `RunNow` does not read `Keyed()` -> `Heartbeat.TestBeatNowReachesIntake` (fresh throwaway).
+- AC 7: mutation: a line added to `Production.cls` -> the `(once)` guard diff exits 1, and exits 0 again after the revert.
+- QA stage (2026-11-04), tests added to `src/ocutalon/cls/OcuTalon/Test/Checks/Beat.cls` (QA; no new file; warm `Beat` 0.14 s, no added time worth noting):
+  - `TestSkipsAreRecordedByRunDue` (QA): what RunDue writes for hours, hours with the cap, backoff, cap and nokey (reason, tick, next due time), and that a skip leaves an earlier beat's fields. Gap closed: `NextDue` was pinned only as a pure function, never through `Run`.
+  - `TestRecordedDecisionCountsInTheSameRunDue` (QA): an ignore, a fallback and an off person's pending decision are recorded before the due run of the same call. Gap closed: the order "decisions first, then the due people" and the recording for an off person were not pinned.
+  - mutation: `Run` moves `NextDueAt` one interval on for an hours skip instead of calling `NextDue` -> `Beat.TestSkipsAreRecordedByRunDue` (`TestNextDue` stayed green); reverted byte-identical (cmp against a backup, `git status --short` and `git diff` unchanged).
+  - mutation: `RunDue` records the pending decisions after the due people instead of before -> `Beat.TestRecordedDecisionCountsInTheSameRunDue`; reverted byte-identical (cmp against a backup, `git status --short` and `git diff` unchanged).
 
 **Measured (implement stage):**
 - Task 0, first fresh run of `Heartbeat` (tag e39s3impl): `Keys.Status("TriageAgent")` = 1 (after `Case.PointKeys`, the entries point at the CI mock key variable) and `Budget.State().capped` = false. Both preconditions held; no `## Clarification Needed`.
 - `Beat` warm 0.1-0.3 s, `Runs` warm 1.4-1.9 s, `Heartbeat` fresh 11-13 s (the class; the fresh start is about 100 s). `shard lane-a@Checks`: 6 classes passed in 134 s, and passed again with `--reverse` in 131 s. The hosted checks (28 scripts, three parts) printed no FAIL, the `(once)` guard diff from b50f3add exits 0.
 - Deviation from the Integration matrix row "One person fails": a row whose stored `LastQuietKey` node is 65 characters does not fail the save, because `%Save` validates only the properties that were modified since the open (measured on slot D), and a beat never modifies `LastQuietKey`. `TestOneFailureLeavesTheOthers` makes B fail another way: B's row node is replaced by a non-list string while RunDue runs (the node is put back at once), so that B's row cannot be opened and the new row for B is refused by the unique SessionRef index (error 5808). The status holds the count and the code only.
+
+**Measured (code review):**
+- `%Save`'s uniqueness error on `HeartbeatBeat` names the ref in upper case (`SessionRefIndex`, collated), on slot D inside a rolled-back transaction: exact-case `$Replace` leaves it, the case-insensitive form takes it out. `Redact.Text` does not change it.
+- A `HeartbeatBeat` node that is not a list stops `SELECT ... ORDER BY ID` with no row read: `%Next` gives 0 and `%SQLCODE` is -400 (slot D, rolled back).
+- The deviation above stands as judged by review: `%Save` validates only modified properties, so the row's mechanism cannot work, and its expected result is kept. The test's mechanism changed in review: B's node is removed while its index entry stays (the save is refused by the unique index), so the read of the rows is not disturbed, and `TestFailedDecisionHoldsTheBeat` holds the matrix row's own mechanism, a 65-character stored key written into the node, which fails validation once the value is copied. The Design Notes line still describes the non-list node.
+- Final tree: `shard lane-a@Checks` on fresh throwaways, forward 6 classes passed and `--reverse` passed in 154 s (`Heartbeat` 12-14 s, `Beat` under 0.5 s, `Runs` under 2 s); the 28 hosted checks printed no FAIL. `TestBeatNowReachesIntake` adds under 1 s to `Heartbeat`.
 
 **Shared surfaces:**
 - the `Test.Checks.Probe` seam signatures and new properties;

@@ -3906,3 +3906,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: U-264 (Contest Planner) | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: rc3 release PR: test-web-build AC6 saw a modified src/ocutalon/csp/3rdpartylicenses.txt
 - 2026-11-04T08:01:25Z status=routed owner=burndown by=merge_gate note=first_daily_release_after_1.0.0
+
+### DW-666: Test.Checks fixtures: a real Tick in the gap between a fixture session and its row, or between a pending row's decision and the test's RunDue, can disturb a test
+- source: spec-39-3-beats-fall-due-on-the-tick-and-skip-without-a-model-call-whe.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Real Ticks run on test stacks. Due rows and Runs.Beating are now out of reach (NextDueAt in the test's future); these gaps last milliseconds in a 60 s tick and need a fixture seam to close.
+- 2026-11-04T14:53:24Z status=wontfix-accepted owner=39-3-beats-fall-due-on-the-tick-and-skip-without-a-model-call-whe by=cr note=reopen_if=a CI red in Test.Checks on 'the fixture row is saved' or a BackoffUntil off by real time

@@ -215,7 +215,7 @@ Method Tick(tick As OcuTalon.Msg.Tick) As %Status [ Private ]
 			Set item = items.GetAt(i)
 			Set sc = ..SendOwn(item)
 			If $$$ISERR(sc) {
-				$$$LOGWARNING(..#LOGBEATSEND_item.ItemId_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
+				$$$LOGWARNING(..#LOGBEATSEND_item.ItemId_": "_..WithoutRef(##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)), item.SessionRef))
 			}
 		}
 	}
@@ -244,7 +244,7 @@ Method BeatNow(request As OcuTalon.Checks.Msg.BeatNow, Output response As OcuTal
 	If $IsObject(item) {
 		Set sc = ..SendOwn(item)
 		If $$$ISERR(sc) {
-			$$$LOGWARNING(..#LOGBEATSEND_item.ItemId_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
+			$$$LOGWARNING(..#LOGBEATSEND_item.ItemId_": "_..WithoutRef(##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)), item.SessionRef))
 			Set outcome = ##class(OcuTalon.Checks.Beat).#FAILED
 			Set item = ""
 		}
@@ -258,10 +258,11 @@ Method BeatNow(request As OcuTalon.Checks.Msg.BeatNow, Output response As OcuTal
 	Quit $$$OK
 }
 
-/// The text with every occurrence of the SessionRef taken out, so that a log line never names a person's session.
+/// The text with every occurrence of the SessionRef taken out, in any case (a uniqueness error of %Save prints the collated, upper-case value), so that a log
+/// line never names a person's session.
 ClassMethod WithoutRef(text As %String, sessionRef As %String) As %String [ Private ]
 {
-	Quit $Select(sessionRef = "": text, 1: $Replace(text, sessionRef, ""))
+	Quit $Select(sessionRef = "": text, 1: $Replace(text, sessionRef, "", 1, -1, 1))
 }
 
 /// The heartbeat's due beats at the tick time: OcuTalon.Checks.Beat.RunDue, with the Items to send in items (a seam for the tests).
@@ -642,7 +643,8 @@ Method Read(namespace As %String, production As %String, from As %String, limit 
 	Quit ##class(OcuTalon.Watch.Reader).Failures(namespace, production, from, limit, .rows, .state, .disabled, .stoppedAt)
 }
 
-/// Sends Intake the finding Item, asynchronously, with no answer wanted, with this process's %SessionId and SuperSession as Record set them (a seam for the tests).
+/// Sends Intake the Item of a finding or a beat, asynchronously, with no answer wanted, with this process's %SessionId and SuperSession as SendOwn set them (a seam
+/// for the tests).
 Method SendFinding(item As OcuTalon.Msg.Item) As %Status [ Private ]
 {
 	Quit ..SendRequestAsync(..#INTAKE, item, 0)

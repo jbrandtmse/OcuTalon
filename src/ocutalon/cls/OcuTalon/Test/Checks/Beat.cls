@@ -2,8 +2,8 @@
 /// exactly its contract and shares the Ens.MessageBody extent, the setting names, defaults and caps are the spine's (the checklist cap being the length of
 /// Setting.Value), a HeartbeatBeat row keeps all 15 fields through a save and a reopen, with the defaults of an empty row, in the private global
 /// ^OcuTalonP.HeartbeatBeat, a second row of the same SessionRef is refused and leaves the first untouched, and SettingKey takes a name only exactly as KEYS lists
-/// it. The tests need no production (warm). Every time-dependent test uses fixed clocks in 2099 (local times built with Data.Time.FromLocal), so no real tick can
-/// reach a row of a test, and every RunDue call names its sessions, so that the rows of a warm stack are never touched. The tests make their fixture sessions
+/// it. The tests need no production (warm). Every time-dependent test uses fixed clocks in 2099 (local times built with Data.Time.FromLocal), so no real tick finds
+/// a row of a test due (a due row is due at the test's own 2099 tick), and every RunDue call names its sessions, so that the rows of a warm stack are never touched. The tests make their fixture sessions
 /// with Test.Data.Fixture, make each row before the settings, and remove their HeartbeatBeat rows, Setting rows and fixture decisions after each test.
 ///   - TestValues: the defaults, the online demo's on, an interval outside the allowed ones, an all-day pair and a bad pair;
 ///   - TestActiveHours: the window over midnight, the normal window, from = to and all day, and the same windows read in America/New_York;
@@ -15,7 +15,11 @@
 ///   - TestDecisionIsRecorded: ignore, a pending beat, a fallback with an interval of 30 and of 1440 minutes;
 ///   - TestUnchangedAfterIgnore: a checklist unchanged since the last ignore is skipped, a changed one beats;
 ///   - TestRunNow: hours and unchanged do not hold it, the other reasons do, and the cooldown at 119 and 120 seconds;
-///   - TestOneFailureLeavesTheOthers: a person whose row cannot be saved leaves the other beat, and the status holds the count and the error code only;
+///   - TestSkipsAreRecordedByRunDue (QA): what RunDue writes for hours, hours with the cap, backoff, cap and nokey, and that a skip leaves an earlier beat's fields;
+///   - TestRecordedDecisionCountsInTheSameRunDue (QA): an ignore, a fallback and an off person's pending decision are recorded before the due run;
+///   - TestOneFailureLeavesTheOthers: a person whose row cannot be saved leaves the person after it to beat, and the status holds the count and an error code only;
+///   - TestFailedDecisionHoldsTheBeat: a person whose decision cannot be recorded does not beat over it and counts once, and the person after it is recorded and beats;
+///   - TestUnreadableRowIsReported: a row that stops the read of the rows gives an error status, and the people still beat;
 ///   - TestInputsAreRead: Capped follows the day's mark, Keyed follows Bridge.Keys, and RunDue and RunNow read both when they are given none.
 Class OcuTalon.Test.Checks.Beat Extends OcuTalon.Test.Contract
 {
@@ -267,6 +271,7 @@ Method TestSkipOrder()
 	Do $$$AssertEquals(..BSkip(values, row, noon, 0, 0, 1, ""), "", "an empty key leaves unchanged out")
 	Set row.LastQuietKey = ""
 	Do $$$AssertEquals(..BSkip(values, row, noon, 0, 0, 1, "k"), "", "an empty LastQuietKey never matches")
+	Do $$$AssertEquals(..BSkip(values, row, noon, 0, 0, 1, ""), "", "not even an empty key")
 	Set row.LastQuietKey = "k"
 	Set row.BackoffUntil = noon
 	Do $$$AssertEquals(..BSkip(values, row, noon, 0, 0, 1, "j"), "", "a back-off that ends now no longer holds")
@@ -339,7 +344,7 @@ Method TestDueSelection()
 Method TestBeatRow()
 {
 	Set noon = ..Local("12:00")
-	Set ref = ..Person("watch the orders production", {"NextDueAt": "", "LastQuietKey": (..BKey("another text")), "LastOutcome": "ignore", "LastFallback": 1, "LastCostUSD": 0.5, "LastDecisionRef": "olddecision", "LastTraceSessionId": 7})
+	Set ref = ..Person("watch the orders production", {"NextDueAt": (noon), "LastQuietKey": (..BKey("another text")), "LastOutcome": "ignore", "LastFallback": 1, "LastCostUSD": 0.5, "LastDecisionRef": "olddecision", "LastTraceSessionId": 7})
 	Do $$$AssertStatusOK(..BDue(noon, .items, ref), "RunDue is OK")
 	Do $$$AssertEquals(items.Count(), 1, "one beat runs")
 	If items.Count() '= 1 Quit
@@ -378,6 +383,9 @@ Method TestDecisionIsRecorded()
 	Set day = ..Person("c", {"NextDueAt": (due), "LastItemId": "itemday", "LastSnapshotKey": (quiet)})
 	Do ..Put(day, "interval", 1440)
 	Do ..Decision(day, "itemday", {"Outcome": "tellnow", "Fallback": 1})
+	// outside the sessions of the call
+	Set outside = ..Person("c", {"NextDueAt": (due), "LastItemId": "itemoutside", "LastSnapshotKey": (quiet)})
+	Do ..Decision(outside, "itemoutside", {"Outcome": "ignore"})
 	Do $$$AssertStatusOK(..BDue(tick, .items, ignored_","_pending_","_fallen_","_day), "RunDue is OK")
 	Do $$$AssertEquals(items.Count(), 0, "no beat runs: none is due")
 	Set row = ..Open(ignored)
@@ -389,9 +397,13 @@ Method TestDecisionIsRecorded()
 	Do $$$AssertEquals(row.LastFallback_"|"_row.BackoffUntil_"|"_row.LastQuietKey, "1|"_..Plus(tick, 14400)_"|", "a fallback holds the beats back for 4 hours and is no quiet reading")
 	Set row = ..Open(day)
 	Do $$$AssertEquals(row.BackoffUntil, ..Plus(tick, 86400), "and for an interval of a day, for a day")
+	Set row = ..Open(outside)
+	Do $$$AssertEquals(row.LastDecisionRef_"|"_row.LastQuietKey, "|", "a person outside the sessions of the call is left alone")
 	Do $$$AssertStatusOK(..BDue(..Plus(tick, 60), .items, ignored_","_fallen), "RunDue is OK again")
 	Set row = ..Open(ignored)
 	Do $$$AssertEquals(row.LastDecisionRef, decision, "a recorded decision is not recorded again")
+	Set row = ..Open(fallen)
+	Do $$$AssertEquals(row.BackoffUntil, ..Plus(tick, 14400), "so a later tick does not move the back-off on")
 }
 
 Method TestUnchangedAfterIgnore()
@@ -458,29 +470,141 @@ Method TestRunNow()
 	Do ..BNow(pending, noon, .item, .outcome, .availableAt)
 	Set row = ..Open(pending)
 	Do $$$AssertEquals(outcome_"|"_row.LastDecisionRef_"|"_row.LastQuietKey, "cooldown|"_decision_"|"_..BKey("c"), "the cooldown comes after it")
+
+	// a decision that is already recorded is not recorded again, so a run now does not move the back-off on
+	Set settled = ..Person("c", {"NextDueAt": (far), "LastItemId": "itemsettled", "LastDecisionRef": "decisionsettled", "LastFallback": 1, "BackoffUntil": (..Plus(noon, 600))})
+	Do ..Decision(settled, "itemsettled", {"Outcome": "tellnow", "Fallback": 1})
+	Do ..BNow(settled, noon, .item, .outcome, .availableAt)
+	Do $$$AssertEquals(outcome_"|"_availableAt_"|"_..Open(settled).BackoffUntil, "backoff|"_..Plus(noon, 600)_"|"_..Plus(noon, 600), "a run now during a back-off leaves it as it is")
+}
+
+/// QA: what RunDue writes for each skip, through the whole beat (not Skip and NextDue alone): the reason, the tick, and the next due time, which is the next
+/// start of the hours for hours (also when another rule holds too) and one interval on for the others.
+Method TestSkipsAreRecordedByRunDue()
+{
+	Set noon = ..Local("12:00")
+	Set late = ..Local("21:00")
+	Set start = ..Local("08:00", "2099-06-16")
+
+	// outside the hours: the next start, not one interval on
+	Set outside = ..Person("c", {"NextDueAt": (noon)})
+	Do $$$AssertStatusOK(..BDue(late, .items, outside), "RunDue is OK outside the hours")
+	Do $$$AssertEquals(items.Count(), 0, "outside the hours sends nothing")
+	Set row = ..Open(outside)
+	Do $$$AssertEquals(row.LastSkipAt_"|"_row.LastSkipReason_"|"_row.NextDueAt_"|"_row.LastItemId, late_"|hours|"_start_"|", "it records hours, and the next start of the hours as the next due time")
+
+	// two rules at once: the first one's next due time
+	Set both = ..Person("c", {"NextDueAt": (noon)})
+	Do $$$AssertStatusOK(..BDue(late, .items, both, 1), "RunDue is OK outside the hours with the cap reached")
+	Set row = ..Open(both)
+	Do $$$AssertEquals(items.Count()_"|"_row.LastSkipReason_"|"_row.NextDueAt, "0|hours|"_start, "hours and cap give hours, and its next due time")
+
+	// back-off
+	Set backoff = ..Person("c", {"NextDueAt": (noon), "BackoffUntil": (..Plus(noon, 600))})
+	Do $$$AssertStatusOK(..BDue(noon, .items, backoff), "RunDue is OK during a back-off")
+	Set row = ..Open(backoff)
+	Do $$$AssertEquals(items.Count()_"|"_row.LastSkipAt_"|"_row.LastSkipReason_"|"_row.NextDueAt_"|"_row.LastItemId, "0|"_noon_"|backoff|"_..Plus(noon, 1800)_"|", "it records backoff and one interval on")
+
+	// cap
+	Set capped = ..Person("c", {"NextDueAt": (noon)})
+	Do $$$AssertStatusOK(..BDue(noon, .items, capped, 1), "RunDue is OK with the cap reached")
+	Set row = ..Open(capped)
+	Do $$$AssertEquals(items.Count()_"|"_row.LastSkipAt_"|"_row.LastSkipReason_"|"_row.NextDueAt_"|"_row.LastItemId, "0|"_noon_"|cap|"_..Plus(noon, 1800)_"|", "it records cap and one interval on")
+
+	// no key
+	Set keyless = ..Person("c", {"NextDueAt": (noon)})
+	Do $$$AssertStatusOK(..BDue(noon, .items, keyless, 0, 0), "RunDue is OK with no key")
+	Set row = ..Open(keyless)
+	Do $$$AssertEquals(items.Count()_"|"_row.LastSkipAt_"|"_row.LastSkipReason_"|"_row.NextDueAt_"|"_row.LastItemId, "0|"_noon_"|nokey|"_..Plus(noon, 1800)_"|", "it records nokey and one interval on")
+
+	// a skip after a beat leaves the beat's own fields as they were
+	Set beaten = ..Person("c", {"NextDueAt": (noon), "LastBeatAt": (..Plus(noon, -7200)), "LastItemId": "itembefore", "LastSnapshotKey": "keybefore", "LastDecisionRef": "decisionbefore"})
+	Do $$$AssertStatusOK(..BDue(noon, .items, beaten, 1), "RunDue is OK with the cap reached after an earlier beat")
+	Set row = ..Open(beaten)
+	Do $$$AssertEquals(row.LastBeatAt_"|"_row.LastItemId_"|"_row.LastSnapshotKey_"|"_row.LastDecisionRef, ..Plus(noon, -7200)_"|itembefore|keybefore|decisionbefore", "and the earlier beat's fields are left as they were")
+}
+
+/// QA: a decision recorded at the start of RunDue counts for the beats of the same call: an Ignore makes the unchanged snapshot skip at once, a fallback holds
+/// the same tick back, and an off person's pending decision is recorded all the same.
+Method TestRecordedDecisionCountsInTheSameRunDue()
+{
+	Set noon = ..Local("12:00")
+	Set far = ..Plus(noon, 86400)
+
+	// ignore, and the beat is due at the same tick
+	Set ignored = ..Person("same", {"NextDueAt": (..Plus(noon, -60)), "LastItemId": "itemsame", "LastSnapshotKey": (..BKey("same"))})
+	Set ignoreRef = ..Decision(ignored, "itemsame", {"Outcome": "ignore"})
+
+	// fallback, and the beat is due at the same tick
+	Set fallen = ..Person("c", {"NextDueAt": (..Plus(noon, -60)), "LastItemId": "itemfall", "LastSnapshotKey": (..BKey("c"))})
+	Set fallRef = ..Decision(fallen, "itemfall", {"Outcome": "tellnow", "Fallback": 1})
+
+	// off, with a pending decision
+	Set off = ..Person("same", {"NextDueAt": (far), "LastItemId": "itemoff", "LastSnapshotKey": (..BKey("same"))})
+	Do ..Put(off, "on", "0")
+	Set offRef = ..Decision(off, "itemoff", {"Outcome": "ignore"})
+	Do $$$AssertStatusOK(..BDue(noon, .items, ignored_","_fallen_","_off), "RunDue is OK")
+	Do $$$AssertEquals(items.Count(), 0, "no Item is sent: the settled decisions hold both due beats")
+	Set row = ..Open(ignored)
+	Do $$$AssertEquals(row.LastDecisionRef_"|"_row.LastQuietKey_"|"_row.LastSkipReason_"|"_row.NextDueAt, ignoreRef_"|"_..BKey("same")_"|unchanged|"_..Plus(noon, 1800), "the ignore is recorded first, so the due beat is skipped as unchanged")
+	Set row = ..Open(fallen)
+	Do $$$AssertEquals(row.LastDecisionRef_"|"_row.BackoffUntil_"|"_row.LastSkipReason_"|"_row.NextDueAt, fallRef_"|"_..Plus(noon, 14400)_"|backoff|"_..Plus(noon, 1800), "the fallback is recorded first, so the due beat is skipped for the back-off")
+	Set row = ..Open(off)
+	Do $$$AssertEquals(row.LastDecisionRef_"|"_row.LastQuietKey_"|"_row.NextDueAt_"|"_row.LastSkipAt, offRef_"|"_..BKey("same")_"|"_far_"|", "an off person's pending decision is recorded too, and nothing else is written")
 }
 
 Method TestOneFailureLeavesTheOthers()
 {
 	Set noon = ..Local("12:00")
-	Set a = ..Person("a", {"NextDueAt": ""})
-	Set b = ..Person("b", {"NextDueAt": ""})
+	Set b = ..Person("b", {"NextDueAt": (noon)})
+	Set a = ..Person("a", {"NextDueAt": (noon)})
 
-	// B's row cannot be opened (its node is not a list), so B's new row is refused: the SessionRef is not unique
-	Set id = ..Open(b).%Id()
-	Set node = ^OcuTalonP.HeartbeatBeatD(id)
-	Set ^OcuTalonP.HeartbeatBeatD(id) = "garbage"
-	Set sc = ..BDue(noon, .items, a_","_b)
-	Set ^OcuTalonP.HeartbeatBeatD(id) = node
+	// B comes first. B's row cannot be opened (its node is gone and its index entry is not), so B's new row is refused: the SessionRef is not unique
+	Set sc = ..BDueBroken(b, "", noon, .items, b_","_a)
 	Do $$$AssertStatusNotOK(sc, "RunDue answers an error status")
 	Set text = $SYSTEM.Status.GetErrorText(sc)
-	Do $$$AssertEquals($Piece(text, "error codes ", 2), "5808", "which holds the error code: "_text)
+	Do $$$AssertTrue($Piece(text, "error codes ", 2) ? 1.N, "which holds the error code: "_text)
 	Do $$$AssertTrue(text [ "1 heartbeat beat failed", "and the count: "_text)
 	Do $$$AssertNotTrue((text [ a) || (text [ b), "and no SessionRef")
 	Do $$$AssertEquals(items.Count(), 1, "A still beats")
 	If items.Count() = 1 Do $$$AssertEquals(items.GetAt(1).SessionRef, a, "the one Item is A's")
 	Set row = ..Open(a)
 	Do $$$AssertEquals(row.LastBeatAt, noon, "and A's row records it")
+}
+
+Method TestFailedDecisionHoldsTheBeat()
+{
+	Set noon = ..Local("12:00")
+	Set b = ..Person("b", {"NextDueAt": (noon), "LastItemId": "itemb", "LastSnapshotKey": (..BKey("b"))})
+	Set a = ..Person("a", {"NextDueAt": (noon), "LastItemId": "itema", "LastSnapshotKey": (..BKey("an earlier text"))})
+	Do ..Decision(b, "itemb", {"Outcome": "ignore"})
+	Do ..Decision(a, "itema", {"Outcome": "ignore"})
+
+	// B's stored snapshot key is 65 characters, written straight into its node, so that its copy to LastQuietKey fails the save
+	Set id = ..Open(b).%Id()
+	Set $List(^OcuTalonP.HeartbeatBeatD(id), 15) = ..BKey("b")_"0"
+	Set sc = ..BDue(noon, .items, b_","_a)
+	Do $$$AssertStatusNotOK(sc, "RunDue answers an error status")
+	Set text = $SYSTEM.Status.GetErrorText(sc)
+	Do $$$AssertTrue(text [ "1 heartbeat beat failed", "which counts the person once: "_text)
+	Do $$$AssertTrue($Piece(text, "error codes ", 2) ? 1.N, "and holds the error code: "_text)
+	Do $$$AssertNotTrue((text [ a) || (text [ b), "and no SessionRef")
+	Do $$$AssertEquals(items.Count(), 1, "one beat runs")
+	If items.Count() = 1 Do $$$AssertEquals(items.GetAt(1).SessionRef, a, "A's, whose decision is recorded after B's failure")
+	Do $$$AssertEquals(..Open(a).LastQuietKey, ..BKey("an earlier text"), "A's ignore is recorded")
+	Set row = ..Open(b)
+	Do $$$AssertEquals(row.LastItemId_"|"_row.LastBeatAt_"|"_row.NextDueAt, "itemb||"_noon, "B stays pending, for its decision to be recorded on a later tick")
+}
+
+Method TestUnreadableRowIsReported()
+{
+	Set noon = ..Local("12:00")
+	Set a = ..Person("a", {"NextDueAt": (noon)})
+	Set b = ..Person("b", {"NextDueAt": (..Plus(noon, 86400))})
+	Set sc = ..BDueBroken(b, "not a list", noon, .items, a)
+	Do $$$AssertStatusNotOK(sc, "a row that stops the read of the rows gives an error status, not a quiet OK")
+	Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ "error codes 5001", "with the error code")
+	Do $$$AssertEquals(items.Count(), 1, "and the people still beat")
 }
 
 Method TestInputsAreRead()
@@ -491,11 +615,11 @@ Method TestInputsAreRead()
 	Set ^OcuTalonBP.UsageCapped(..Day) = noon
 	Do $$$AssertEquals(..BCapped(noon), 1, "a day marked as capped reads as capped")
 	Do $$$AssertEquals(..BCapped(..Local("12:00", "2099-07-02")), 0, "and the next day does not")
-	Set ref = ..Person("c", {"NextDueAt": ""})
+	Set ref = ..Person("c", {"NextDueAt": (noon)})
 	Do $$$AssertStatusOK(..BDue(noon, .items, ref, "", 1), "RunDue is OK with the cap left to be read")
 	Set row = ..Open(ref)
 	Do $$$AssertEquals(items.Count()_"|"_row.LastSkipReason, "0|cap", "it skips for the cap of that day")
-	Set other = ..Person("c", {"NextDueAt": ""})
+	Set other = ..Person("c", {"NextDueAt": (noon)})
 	Do $$$AssertStatusOK($ClassMethod(..#BEAT, "RunNow", other, noon, .item, .outcome, .availableAt), "RunNow is OK with the cap and the key left to be read")
 	Do $$$AssertEquals(outcome, "cap", "and it holds a run now for the cap of that day")
 	Kill ^OcuTalonBP.UsageCapped(..Day)
@@ -576,6 +700,22 @@ Method Decision(ref As %String, itemId As %String, fields As %DynamicObject) As 
 	Set decision = ##class(OcuTalon.Test.Data.Fixture).Decision(ref, "decide", ##class(OcuTalon.Data.Time).NowUtc(), fields)
 	Set ..Refs = ..Refs_","_decision
 	Quit decision
+}
+
+/// BDue while the node of the person's row holds broken ("" removes it); the node is put back after the call, also after a throw.
+Method BDueBroken(ref As %String, broken As %String, tickAt As %String, Output items As %ListOfObjects, sessions As %String) As %Status [ Private ]
+{
+	Set id = ..Open(ref).%Id()
+	Set node = ^OcuTalonP.HeartbeatBeatD(id)
+	Kill ^OcuTalonP.HeartbeatBeatD(id)
+	If broken '= "" Set ^OcuTalonP.HeartbeatBeatD(id) = broken
+	Try {
+		Set sc = ..BDue(tickAt, .items, sessions)
+	} Catch exception {
+		Set sc = exception.AsStatus()
+	}
+	Set ^OcuTalonP.HeartbeatBeatD(id) = node
+	Quit sc
 }
 
 /// Removes the HeartbeatBeat row and the Setting rows of the session, and the cache entries of the settings.

@@ -33,7 +33,10 @@
 ///     the CI mock's log holds exactly one request with the marker, and the Tick a minute later records the outcome, cost, decision and trace session on the row.
 ///   - TestAnHourOfTicks (Story 39.3; AC 5): an hour of Ticks, a minute apart, for a person on a 30-minute interval whose checklist changed since the last ignore: one request at the first Tick,
 ///     none at the 59 after it (the second due beat, at 30 minutes, is unchanged since the Ignore and is skipped), and the hour holds one request.
-/// Both tests of the beat start with the preconditions that make a beat run: the TriageAgent's key is present (the entries point at the CI mock key variable) and the daily cap is not reached.
+///   - TestBeatNowReachesIntake (Story 39.3; AC 4; Integration AC; AD-18): through the real seam, with the key and the cap read by Beat, a BeatNow for a person with a checklist, unchanged since the
+///     last ignore, answers sent with the ItemId as Ref; the Item reaches Intake, which records a Decision, and the CI mock's log holds exactly one request. A second BeatNow 119 seconds later answers
+///     cooldown with availableAt, sends nothing and makes no request.
+/// The tests of the beat start with the preconditions that make a beat run: the TriageAgent's key is present (the entries point at the CI mock key variable) and the daily cap is not reached.
 Class OcuTalon.Test.Checks.Heartbeat Extends OcuTalon.Test.Watch.Case
 {
 
@@ -489,6 +492,43 @@ Method TestBeatReachesIntake()
 	Do $$$AssertEquals(decision.Outcome, "ignore", "which is the mock's ignore")
 	Do $$$AssertEquals(+row.LastCostUSD, +decision.CostUSD, "with its cost")
 	Do $$$AssertEquals(row.LastItemId_"|"_row.NextDueAt, item.itemId_"|"_##class(OcuTalon.Data.Time).AddSeconds(t0, 1800), "and the row still names the beat and its next due time")
+}
+
+Method TestBeatNowReachesIntake()
+{
+	If '..Ready() Quit
+	If '..Beatable() Quit
+	Set session = ..Session("beatnowintake")
+	Set trace = ##class(OcuTalon.Data.Session).RefIndexOpen(session).TraceRef
+	Set t0 = ..Due()
+	Set text = "zz run now [[mock:decide-ignore:"_session_"]]"
+	Do ..SeedBeat(session, ##class(OcuTalon.Data.Time).AddSeconds(t0, 86400), text, ##class(OcuTalon.Checks.Beat).Key(text))
+	Do $$$AssertStatusOK(##class(Ens.Director).CreateBusinessService(..#HEARTBEAT, .service), "the "_..#HEARTBEAT_" service is created")
+	If '$IsObject(service) Quit
+	Set floor = ..Top("Ens.MessageHeader", $Namespace)
+	Set mark = ##class(OcuTalon.Test.Contract.Mock).LogMark()
+	Set request = ##class(OcuTalon.Checks.Msg.BeatNow).%New()
+	Set request.SessionRef = session
+	Set request.RequestedAt = t0
+	Do $$$AssertStatusOK(service.SendRequestSync(..#CHECKS, request, .response, ..#TICKWAIT), "Checks answers the BeatNow OK")
+	If '$IsObject($Get(response)) Do $$$AssertTrue(0, "with a CommandResult") Quit
+	Set items = ..Findings(trace, session, floor)
+	Do $$$AssertEquals(items.%Size(), 1, "the BeatNow sends one Item from Checks to Intake")
+	If items.%Size() '= 1 Quit
+	Set item = items.%Get(0)
+	Do $$$AssertEquals(response.Ok_"|"_response.Outcome_"|"_response.Ref_"|"_response.Data, "1|sent|"_item.itemId_"|", "the answer is sent, with the ItemId as Ref")
+	Do $$$AssertEquals(item.channel_"|"_item.provenance_"|"_item.text_"|"_item.superSession, "heartbeat|untrusted|"_text_"|"_trace, "a heartbeat Item with the checklist, in the person's trace")
+	Set decision = ..WaitDecision(item.itemId, session)
+	Do $$$AssertTrue($IsObject(decision), "Intake records a Decision for the Item")
+	Do $$$AssertEquals(..Marked(mark, session), 1, "and the CI mock's log holds exactly one request with the marker")
+	Set again = ##class(OcuTalon.Checks.Msg.BeatNow).%New()
+	Set again.SessionRef = session
+	Set again.RequestedAt = ##class(OcuTalon.Data.Time).AddSeconds(t0, 119)
+	Do $$$AssertStatusOK(service.SendRequestSync(..#CHECKS, again, .response, ..#TICKWAIT), "Checks answers a second BeatNow OK")
+	If '$IsObject($Get(response)) Do $$$AssertTrue(0, "with a CommandResult") Quit
+	Do $$$AssertEquals(response.Ok_"|"_response.Outcome_"|"_response.Ref_"|"_response.Data, "0|cooldown||"_{"availableAt": (##class(OcuTalon.Data.Time).AddSeconds(t0, 120))}.%ToJSON(), "119 seconds later the answer is cooldown, with the time it may run")
+	Do $$$AssertEquals(..Findings(trace, session, floor).%Size(), 1, "and no further Item goes")
+	Do $$$AssertEquals(..Marked(mark, session), 1, "and no further request")
 }
 
 Method TestAnHourOfTicks()

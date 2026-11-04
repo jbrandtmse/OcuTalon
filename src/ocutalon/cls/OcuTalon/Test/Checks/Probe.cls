@@ -19,7 +19,8 @@
 ///     IncidentManager from a shadow instance, so it records {approvalRef, sessionId, superSession} in Sent and answers OK, or an error for a request that FailFix names (comma-separated Refs).
 ///   - SendFinding (Story 30.4) cannot reach Intake from a shadow instance, so it keeps {itemId, sessionRef, channel, provenance, text, sender, subject,
 ///     catalogKey, slots, sessionId, superSession} in ^||ChecksProbe("findings", n) (FindingItems reads them) and answers OK, or an error for an item whose Text holds one of
-///     the texts that FailFindings set (comma-separated; the finding of one display name or item name), or throws when FailFindings asked for it. Reset clears them.
+///     the texts that FailFindings set (comma-separated; the finding of one display name or item name; the error of a beat's Item names its SessionRef, as it is and in
+///     upper case), or throws when FailFindings asked for it. Reset clears them.
 ///   - Order lists each send in order, "quiet:<incident Ref>" for SendQuiet and "fix:<approval Ref>" for SendFixResult and "finding:<catalog key>" for SendFinding, so that a test can tell that the quiet sweep came first. Quieted keeps its shape.
 ///   - BeatRunDue and BeatRunNow (Stories 39.1 and 39.3) record the call and, unless the test makes them call the real Beat, send nothing and write nothing. BeatRunDue
 ///     records {tickAt, reads, sends} in Beats (the Read calls and the Order entries so far), then throws the text in BeatThrows, or answers an error status with the
@@ -156,7 +157,7 @@ Method SendFinding(item As OcuTalon.Msg.Item) As %Status [ Private ]
 	While $ListNext(fails, position, text) {
 		If (text '= "") && (item.Text [ text) {
 			If $Get(^||ChecksProbe("failThrow")) Throw ##class(%Exception.StatusException).CreateFromStatus($SYSTEM.Status.Error(5001, "The send of the finding threw"))
-			Return $SYSTEM.Status.Error(5001, "The send of the finding is refused")
+			Return $SYSTEM.Status.Error(5001, "The send of the finding is refused"_$Select(item.Channel = "heartbeat": " for "_item.SessionRef_" ("_$ZConvert(item.SessionRef, "U")_")", 1: ""))
 		}
 	}
 	Quit $$$OK

@@ -1,5 +1,5 @@
 /// The request that CommandsIn sends the Checks item for the RunHeartbeat command (AD-1, AD-18, AD-33): a person asks for a heartbeat beat now. Checks answers
-/// it OK with no response object and sends nothing to any other item. Lane A.
+/// it OK with an OcuTalon.Msg.CommandResult, and sends Intake the beat's Item when the beat runs (Checks.Process, Story 39.3). Lane A.
 Class OcuTalon.Checks.Msg.BeatNow Extends Ens.Request
 {
 
