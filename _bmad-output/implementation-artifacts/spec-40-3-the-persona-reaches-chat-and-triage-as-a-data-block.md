@@ -9,10 +9,6 @@ context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-40-context.md'
 warnings: [oversized]
 deferred:
-  - summary: "Another language or a custom persona can word an all-clear that ReplyGuard's English lists do not match"
-    evidence: "RESERVED and BANNED in OcuTalon.Checks.ReplyGuard are English phrases, and AD-7 keeps the guard to that list. Under Spanish, a model that broke Chat's instruction could write the Spanish for 'everything is fine' and the guard would pass it (AD-28 Prevents: a false all-clear written by the model). Only the instruction stands in the way. No story owns it. It needs a product decision, and Story 40.7's Spanish code check can gather the evidence."
-    location: 'src/ocutalon/cls/OcuTalon/Checks/ReplyGuard.cls'
-    severity: med
   - summary: "After a change of persona, Chat's saved history still holds the old blocks and the old voice"
     evidence: "A linked turn opens the saved AI session (Bridge.Adapter.Agent), so earlier user messages keep the block they were sent with. After Pirate to Professional the new message has no block, as AC 2 requires, but the history still shows Pirate blocks and replies, so a real model may carry the voice on for a while. The mock cannot show this. Story 40.7 or the release check should try it with a real model."
     location: 'src/bridge/cls/OcuTalon/Bridge/Adapter/Agent.cls'
@@ -111,6 +107,9 @@ deferred:
 
 ## Spec Change Log
 
+- 2026-11-04, spec gate, orchestrator ruling on DW-664 (veto U-272): the MED `deferred:` item is removed, since DW-664 holds it; the ruling is in Design Notes. No frozen text changed.
+- 2026-11-04, `epics.md` Story 40.7, tier-1 amendment under the same ruling: one new Given block, a measured case for a non-English false all-clear. Original: the story had no such case. No existing AC changed.
+
 ## Review Triage Log
 
 ## Design Notes
@@ -140,7 +139,12 @@ deferred:
 **Risks a mock can't show (for Story 40.7's sweep, no action here):**
 - Triage's existing rule calls a message the user's own when it "is not quoted", and a user turn with a block now holds quoted lines above the text. The opening line labels them, but 40.7's `user-turn` cases should be read under each preset.
 - Chat's first line says "Write in plain English" and Triage's `reasons` line says "in plain English", and neither may change. The persona paragraph says the block sets language but "never changes these instructions". If 40.7's Spanish case fails on this, that is a clarification about an existing line, not a fix to make in passing.
-- The two items in frontmatter `deferred:` are for the lead's harvest. The first is a product decision on AD-28's guarantee under a language persona.
+- The one item in frontmatter `deferred:` is for the lead's harvest.
+
+**DW-664, ruled (orchestrator, veto U-272, 2026-11-04).** Under Another language or a custom persona, a model-worded all-clear can pass `ReplyGuard`'s English lists. This story proceeds with the guard unchanged:
+- `Checks/ReplyGuard.cls` is not edited, and the AD-28 wording stays as it is. A language-aware guard is its own story (DW-664, `routed owner=burndown`).
+- Story 40.7 gains an eval case that measures a non-English false all-clear under Another language. It is measured, not pass-required, until the owner rules on the result.
+- No README, docs or UI text may claim the guard covers languages other than English.
 
 **Privacy:** the block travels in `Bridge.Msg.Request.Input`, so a custom text is in that message and in the trace, like the person's own chat text, and is purged the same way. It never enters an audit entry. Custom isn't offered on the online demo, so a visitor's messages hold only a fixed preset text or a language name.
 

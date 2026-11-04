@@ -3937,3 +3937,4 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-40-3-the-persona-reaches-chat-and-triage-as-a-data-block.md | severity: med | fix-risk: high | footprint: out-of-footprint
 - evidence: RESERVED and BANNED in Checks.ReplyGuard are English; AD-7 keeps the guard to that list; under Spanish only Chat's instruction stands between the model and a false all-clear (FR-37, AD-28 Prevents). The catalog all-clear itself stays code-only.
 - 2026-11-04T14:00:23Z status=decision-pending owner=burndown by=spec_gate note=raised to the orchestrator at 40.3's spec gate; not decided by the runner
+- 2026-11-04T14:04:16Z status=routed owner=burndown by=unattended note=inbox=U-272; a language-aware guard is its own story
