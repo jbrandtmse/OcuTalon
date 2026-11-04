@@ -3837,6 +3837,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: run 41656484374 attempt 1 image shard:lane-b; attempt 2 green; passes alone on a fresh lane-A throwaway with the merged tree (84.6 s)
 - 2026-11-03T15:56:29Z status=routed owner=burndown by=lead note=flake: first occurrence; order or timing dependence in the shard
 - 2026-11-03T23:35:54Z status=routed owner=burndown by=burndown_gate note=U-254(b)_reverses_U-177_placement;flake;first_daily_release_after_1.0.0;CI_run_41656484374(image_job)
+- 2026-11-04T23:50:45Z occurrence=33-2-open-the-settings-page-as-an-admin by=harvest note=red_2_of_4_local_shard_lane-b_part_2/2_runs_in_the_implement_stage(e33s2i);green_alone_fresh_and_warm
 
 ### DW-640: flake: web/e2e/live/live.spec.ts L9 reported 'route.fetch: Test ended' from L8's events route callback (live.spec.ts:349): L8 ends with a route callback in flight; fix: await page.unrouteAll({ behavior: 'ignoreErrors' }) at the end of L8
 - source: cycle-log-epic-31 (ci run 41656484374) | severity: low | fix-risk: low | footprint: in-epic
@@ -3934,3 +3935,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: U-264 (Contest Planner) | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: rc3 release PR: test-web-build AC6 saw a modified src/ocutalon/csp/3rdpartylicenses.txt
 - 2026-11-04T08:01:25Z status=routed owner=burndown by=merge_gate note=first_daily_release_after_1.0.0
+
+### DW-695: Data.Handled has no purge or end-of-session delete, and no purge owner is named (AD-27)
+- source: spec-33-2-open-the-settings-page-as-an-admin.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: Data/Handled.cls keyed by SessionRef; SessionOps.End and the spine purge list do not cover it; first writer is Story 18.4
+- 2026-11-04T23:50:45Z status=routed owner=18-4-read-the-digest-on-every-channel-and-mark-notices-as-handled by=harvest note=the writer story adds the purge with its first row (unverified: whether the purge list already covers every ^OcuTalonP table)
+
+### DW-696: SendDigest sent to the disabled Digest item answers failed, not not_built
+- source: spec-33-2-open-the-settings-page-as-an-admin.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: Production lists Digest Enabled=false; CommandsIn.IsStub recognises code 5003 only; tests route to a recording owner; no route submits SendDigest yet
+- 2026-11-04T23:50:45Z status=routed owner=17-6-send-the-daily-digest-at-the-set-time-and-on-request by=harvest note=first caller runs it against the real production once Lane A enables the item, or CommandsIn maps the disabled-item error to not_built
