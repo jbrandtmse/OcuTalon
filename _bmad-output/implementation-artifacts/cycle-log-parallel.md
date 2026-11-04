@@ -1781,3 +1781,4 @@
 2026-11-04T06:28:21Z	Run	ci_red_classified	run=41782092223 head=24e6e9e9 reds=shards(live:cards_I7_90s_test_timeout,no_ledger_entry),shards-2(operation_canceled_06:15:29Z,no_test_failed) class=unproven action=reported_to_Planner,no_rerun_until_their_word
 2026-11-04T06:28:48Z	Run	planner_note	Planner_started_the_one_rerun(41782092223_attempt_2);second_red_stops_rc3;DW-659_filed_for_I7
 2026-11-04T06:30:47Z	Run	planner_note	shards-2_cancel_cause=CI_host_unattended-upgrades+needrestart_restarted_a_busy_runner_06:15Z;fixed_on_hosts_by_Planner;DW-659_possible_link_unproven
+2026-11-04T06:56:29Z	Run	ci_green_verified	runs=41782092223(attempt_2),41782092238 head=24e6e9e9 result=success via=ci-gate note=all_jobs_green;rc3_may_be_cut
