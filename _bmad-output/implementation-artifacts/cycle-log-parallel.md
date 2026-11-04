@@ -1830,3 +1830,7 @@
 2026-11-04T14:20:47Z	Epic 40	runner_resumed	agent=a819e86da03cefa2c ci=d28ad811_success note=403_did_not_repeat;40.8_implement_local_until_14:45Z
 2026-11-04T14:39:05Z	Run	main_red	run=41843658900 sha=8b3cac3c job=iris(browser) unit=live:sign-in spec=socket.spec.ts:415_W11 error=route.fetch_Test_ended(stripPollEvents:39) ledger=DW-665 not_rerun=main_is_the_Planner_s;reported
 2026-11-04T14:39:38Z	Run	planner_note	main_rerun_started_by_Planner(41843658900_attempt_2);DW-665_linked_to_DW-640;cdf1cdfc_release_record_merged_forward;push_hold_ends_14:45Z
+2026-11-04T15:25:09Z	Run	planner_note	main_iris(browser)_red_on_attempt_2(41843658900);second_red_is_real;not_a_flake;harness_defect;tag_stands;no_further_reruns;main_green_with_first_daily_release
+2026-11-04T15:25:09Z	Run	deps_hash_rerecorded	reason=fix_forward story=11.21
+2026-11-04T15:25:09Z	Epic 11	ruling	question=home_of_the_route.fetch_fix(DW-640,DW-665) choice=Story_11.21_in_Epic_11(owns_web/e2e/support;first_story_at_its_re-open,before_part_2);first_of_B,C,D_free rejected=direct_edit(spans_12_files),one_fix_per_spec category=decide policy=508603671b9598f59d04750db6b6cdad2d396167
+2026-11-04T15:25:09Z	Epic 40	owner_decision	id=U-272 at=2026-11-04T14:04:23Z#828 via=inbox by=Contest_Planner_1(delegated) answer=KEEP+condition:until_the_language-aware_guard_lands_the_persona_text_says_replies_in_other_languages_have_the_model_s_own_check_only apply=runner_A
