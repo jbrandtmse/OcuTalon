@@ -1810,3 +1810,10 @@
 2026-11-04T12:08:42Z	Epic 33	ruling	question=stage_prompts choice=paste_unattended-stage-block.md_verbatim(U6);project_block_may_be_a_file_reference_if_every_prohibition_is_inline;33.2_plan_stands rejected=file_reference_for_U6_block category=decide policy=508603671b9598f59d04750db6b6cdad2d396167
 2026-11-04T12:08:42Z	Epic 33	runner_resumed	agent=aacd6dc76f58f9811 rulings=T,L1,L2,contended,resume,stage_block open=
 2026-11-04T12:09:10Z	Run	orchestrator_error	fault=orchestrator what=zsh_word_split_of_$IN:the_four_INBOX_add_calls_failed,so_the_12:08:42Z_ruling_lines_carry_a_blank_inbox= correction=A1,A2_inbox=U-268;T1-T10_inbox=U-269;L2_inbox=U-270;L1_inbox=U-271(DW-661) nothing_else_affected
+2026-11-04T12:10:22Z	Epic 33	owner_decision	id=U-268 at=2026-11-04T12:10:10Z#813 via=inbox by=Contest_Planner_1(delegated) answer=(a)_A1,A2,P2-P5_additive_marked_sub-bullets;see_journal_for_conditions apply=runner_C
+2026-11-04T12:10:22Z	Run	owner_decision	id=U-266 at=2026-11-04T12:10:10Z#814 via=inbox by=Contest_Planner_1(delegated) answer=KEEP(known_limit_recorded_in_ledger) unit=Epic_7
+2026-11-04T12:10:22Z	Run	owner_decision	id=U-267 at=2026-11-04T12:10:10Z#815 via=inbox by=Contest_Planner_1(delegated) answer=KEEP(additive) unit=Epic_7
+2026-11-04T12:10:22Z	Run	owner_decision	id=U-269 at=2026-11-04T12:10:10Z#816 via=inbox by=Contest_Planner_1(delegated) answer=KEEP(T1-T8,T10) unit=Epic_33
+2026-11-04T12:10:22Z	Run	owner_decision	id=U-270 at=2026-11-04T12:10:10Z#817 via=inbox by=Contest_Planner_1(delegated) answer=KEEP(T9,AC_marker) unit=Epic_33
+2026-11-04T12:10:22Z	Run	owner_decision	id=U-271 at=2026-11-04T12:10:10Z#818 via=inbox by=Contest_Planner_1(delegated) answer=KEEP(digest.cost_to_17.6) unit=Epic_33
+2026-11-04T12:10:22Z	Run	planner_note	CI_queue:no_throttle;tell_Planner_if_a_wait_passes_30_min_or_anything_would_delay_main_CI_after_the_tag
