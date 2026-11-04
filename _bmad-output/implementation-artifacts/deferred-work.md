@@ -227,6 +227,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-24T02:57:20Z occurrence=1-10-the-chat-agent-sets-lists-and-cancels-reminders
 - 2026-10-31T00:03:53Z status=routed owner=31-3-the-readme-leads-to-the-demo-and-the-launched-demo-is-measur by=orchestrator note=U-177:_Lane_B_classes(AD-33);Lane_B_Story_31.3_fixes_it_before_1.0.0,proved_by_Lane_B's_own_tests;not_release/ipm-install.sh;AD-18's_wording_(the_OS_zone_where_TZ_is_unset)_is_ruled_at_31.3's_spec_gate
 - 2026-10-31T04:47:48Z status=routed owner=31-1-push-live-events-over-a-websocket-on-local-installs by=orchestrator note=U-177(answer_2026-10-31T00:05:17Z#535):_Lane_B_classes(AD-33);the_first_Lane_B_story_inside_1.0.0_that_runs_with_these_files_free(31.1),else_31.3;AD-18's_wording_(the_OS_zone_where_TZ_is_unset)_goes_to_the_orchestrator_at_that_story's_spec_gate
+- 2026-11-03T23:35:54Z status=routed owner=33-1-fix-the-step-2-contracts-in-the-spine by=burndown_gate note=U-254(b)_reverses_U-177_placement;goes_with_U-247's_InstanceZone_work;AD-18's_wording_(the_OS_zone_where_TZ_is_unset)_goes_to_the_Planner_at_33.1's_spec_gate
 
 ### DW-35: A failed Orders header has Status 8 (Error), IsError 0 and an empty ErrorStatus; its error text is only the event-log row inside the Terminating BP wrapper, so a reader that keys on IsError or GetErrorText finds no failure
 - source: spec-0-10-the-orders-demo-production-runs-in-ocuorders.md | severity: med | fix-risk: low | footprint: in-epic
@@ -1279,6 +1280,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-27T05:49:00Z status=routed owner=15-2-the-second-install-run-gives-a-working-ocutalon-with-demo-mo by=owner note=U-106_kept_with_condition:_the_terminal_line_says_demo_mode_stays_off_and_why_(OCUORDERS_exists_and_OcuTalon_did_not_create_it),_same_style_as_the_other_Install_step_lines,_names_no_customer_data
 - 2026-10-31T00:03:53Z status=routed owner=31-3-the-readme-leads-to-the-demo-and-the-launched-demo-is-measur by=orchestrator note=U-177:_Lane_B_classes(AD-33);Lane_B_Story_31.3_fixes_it_before_1.0.0,proved_by_Lane_B's_own_tests;not_release/ipm-install.sh;U-106's_owner_condition_on_the_terminal_line_travels_with_it
 - 2026-10-31T04:47:48Z status=routed owner=31-1-push-live-events-over-a-websocket-on-local-installs by=orchestrator note=U-177(answer_2026-10-31T00:05:17Z#535):_Lane_B_classes(AD-33);the_first_Lane_B_story_inside_1.0.0_that_runs_with_these_files_free(31.1),else_31.3;only_once_Epic_9_has_merged;otherwise_31.1_declines_it_to_the_next_Lane_B_story,31.3_at_the_latest;U-106's_terminal-line_condition_travels_with_it
+- 2026-11-03T23:35:54Z status=routed owner=burndown by=burndown_gate note=U-254(b)_reverses_U-177_placement;first_daily_release_after_1.0.0;Lane_B;U-106's_terminal-line_condition_travels_with_it(the_line_says_demo_mode_stays_off_and_why:OCUORDERS_exists_and_OcuTalon_did_not_create_it;same_style_as_the_other_Install_step_lines;names_no_customer_data)
 
 ### DW-208: Admin.Result and SettingsOps.Result are near-copies of the private CommandsIn.Result (a CommandResult with Ok, Outcome and Message), three 6-line builders (Rule 2)
 - source: spec-4-1-switch-demo-mode-from-the-terminal.md | severity: low | fix-risk: med | footprint: in-story
@@ -1479,6 +1481,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-27T10:02:57Z status=routed owner=15-2-the-second-install-run-gives-a-working-ocutalon-with-demo-mo by=burndown note=overflow:Install/Step/Demo.cls_is_contended(Epic_15_owns_Install/**,waiting_with_work),so_Epic_5_cannot_unify_it;Epic_4_has_merged,so_the_U-79_reason_for_the_copy_is_gone:give_WithOrders_the_resource_list_as_an_argument_when_15.2_(or_Epic_15%27s_burn-down)_touches_Demo.cls
 - 2026-10-31T00:03:54Z status=routed owner=31-3-the-readme-leads-to-the-demo-and-the-launched-demo-is-measur by=orchestrator note=U-177:_Lane_B_classes(AD-33);Lane_B_Story_31.3_fixes_it_before_1.0.0,proved_by_Lane_B's_own_tests;not_release/ipm-install.sh
 - 2026-10-31T04:47:48Z status=routed owner=31-1-push-live-events-over-a-websocket-on-local-installs by=orchestrator note=U-177(answer_2026-10-31T00:05:17Z#535):_Lane_B_classes(AD-33);the_first_Lane_B_story_inside_1.0.0_that_runs_with_these_files_free(31.1),else_31.3
+- 2026-11-03T23:35:54Z status=routed owner=burndown by=burndown_gate note=U-254(b)_reverses_U-177_placement;first_daily_release_after_1.0.0;Lane_B
 
 ### DW-224: Test.Watch.Turns and Test.Watch.Case copy Test.Tools.Reminders' turn helpers (Turn, AssertTurn, AssertSteps, Begin, Calls, SortedKeys) instead of sharing them
 - source: spec-5-1-ask-ocutalon-to-watch-a-production-and-to-stop.md | severity: low | fix-risk: med | footprint: in-story
@@ -2874,6 +2877,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-31T03:39:09Z owner=29-9-epic-29-burn-down by=burndown note=chartered into Story 29.9 (Epic 29 burn-down) at the burn-down gate
 - 2026-10-31T04:03:11Z owner=31-3-the-readme-leads-to-the-demo-and-the-launched-demo-is-measur by=burndown note=overflow (declined by Story 29.9's plan): not a test flake but a product gap: a web process cannot read the day's Usage rows (no SQL privilege), so its /state misses the counted spend StatusMonitor sees; a visitor arriving between the spend reaching the cap and the day being marked never gets the daily-cap banner live; a story that makes /state and StatusMonitor agree owns it; until then D1 stays under the one-rerun flake rule
 - 2026-11-03T15:21:47Z status=routed owner=burndown by=spec_gate note=flake_class_kept;declined_by_31.3_plan(fix_in_web/e2e-online/allowance/daily-cap.spec.ts_D1_racing_Core/StatusMonitor.cls:47-75,not_an_AC-named_case)
+- 2026-11-03T23:35:54Z status=routed owner=burndown by=burndown_gate note=U-254;first_daily_release_after_1.0.0;not_a_1.0.0_blocker
 
 ### DW-433: The CI mock's guide-watch scenario (ci/mock/scenarios/B/guide-watch.json) answers the guide's watch prompt with text only and calls no start_watch, so under the mock the guide's watch button starts no watch and makes no Orders check (UJ-1 step 2)
 - source: spec-29-4-sessions-stay-isolated-under-load.md | severity: med | fix-risk: med | footprint: out-of-footprint
@@ -3475,6 +3479,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-01T22:22:51Z status=routed owner=burndown by=harvest note=flake class: one rerun; fix: compare within one second, or derive both from one clock read (Lane B web/e2e-online; Epic 11 currently changes resume.spec.ts)
 - 2026-11-02T12:09:17Z owner=31-3-the-readme-leads-to-the-demo-and-the-launched-demo-is-measur by=burndown note=overflow:Lane_B_web/e2e-online/resume.spec.ts(contended:Epic_11_changes_it;AD-33);fix:compare_within_one_second_or_derive_both_from_one_clock_read
 - 2026-11-03T15:21:47Z status=routed owner=burndown by=spec_gate note=flake_class_kept;declined_by_31.3_plan(fix_in_web/e2e-online/resume.spec.ts:84,not_AC-named,standing_ruling_forbids_the_edit)
+- 2026-11-03T23:35:54Z status=routed owner=burndown by=burndown_gate note=U-254;first_daily_release_after_1.0.0;not_a_1.0.0_blocker
 
 ### DW-559: The reminders list answer (CommandCall.Listed) shows each due time without the zone label on the online demo, while the set reply (Answer) now carries ' ET'
 - source: _bmad-output/implementation-artifacts/spec-30-5-mixed-and-unfinished-resends-say-how-far-they-got.md | severity: low | fix-risk: low | footprint: in-story
@@ -3498,11 +3503,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: head 17c86e98 changed only Test/Web/SessionEvents.cls; browser green on 63bfe214; B15 green on attempt 2. banners.spec.ts is never edited (U-173) and does not block the 31.1 socket: check whether a socket frame right after the outage adds a reload (31.1 review's rejected 'one extra, idempotent snapshot reload')
 - 2026-11-02T10:31:21Z status=routed owner=burndown by=cr note=flake class: one rerun and an occurrence; reopen as story if it reds twice on one head
 - 2026-11-02T10:31:25Z by=ci note=filed_by_runner_C_at_the_CI_red_classification(the_new_line_says_by=cr_in_error)
+- 2026-11-03T23:35:54Z status=routed owner=burndown by=burndown_gate note=U-254;first_daily_release_after_1.0.0;not_a_1.0.0_blocker
 
 ### DW-585: DW-473 residual: the page cannot show a still-running fix run's counts so far (result.stillResending needs completed and count): Live.Payload.Incident fills Requests[].Result only from an ended FixRun, and Fix/Run keeps no counts while executing
 - source: _bmad-output/implementation-artifacts/spec-31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv.md | severity: low | fix-risk: med | footprint: out-of-footprint
 - evidence: Incident.cls:144-147 (Lane A); spec-30-5 row 2 (FixRun has no EndedAt and no counts while executing); Watch.Notice ResultSlots needs completed/count
 - 2026-11-02T14:20:12Z status=routed owner=burndown by=harvest note=U-211 kept (Contest Planner, 2026-11-02T09:22:13Z#640): post-1.0.0 Lane A story (Fix/Run.cls, Live/Payload/Incident.cls); not 1.0.0 scope
+- 2026-11-03T23:35:54Z status=routed owner=burndown by=burndown_gate note=U-254;first_daily_release_after_1.0.0;not_a_1.0.0_blocker
 
 ### DW-586: docker/tests/test-cards.sh (lines 6, 77, 83) and test-answers.sh (line 7) still word the cards unit's approval cases as A2-A10 after Story 31.2 added A11
 - source: spec-31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -3619,6 +3626,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: _bmad-output/implementation-artifacts/spec-31-5-a-tool-call-s-approval-request-reaches-the-phone-with-approv.md | severity: low | fix-risk: low | footprint: in-epic
 - evidence: spec-31-5 re-plan W3 (deferred item); Web/Api.cls RailBody serves Ownership.Approvals (pending only); U-222
 - 2026-11-02T18:27:51Z status=routed owner=burndown by=spec_gate note=first daily release after 1.0.0 (U-222); U-222 kept at=2026-11-02T18:27:03Z#671 with one condition: the reloaded card shows no pending cue, which is Story 31.6's
+- 2026-11-03T23:35:54Z status=wontfix-accepted by=burndown_gate note=U-254;reopen_if=a_tool-call_card_after_a_page_reload_shows_as_pending_(buttons_or_awaiting_label)_or_a_user_report_asks_for_the_full_answered_line_after_reload
 
 ### DW-595: Telegram press alert for an approved tool call: AnswersIn.TelegramCode answers approved with no count or noun for a tool_call (no dry run), and TelegramIn renders press.approved (Repairing and resending {count} {itemNoun}), which has no tool-call form
 - source: _bmad-output/implementation-artifacts/spec-31-5-a-tool-call-s-approval-request-reaches-the-phone-with-approv.md | severity: med | fix-risk: med | footprint: out-of-footprint
@@ -3649,11 +3657,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: answers.spec.ts newestPhoneMessage = phoneMessage minus the ApprovalRef filter (phoneMessage(user,'') never matches: SQL = '' on an empty property); support/iris.ts ApprovalFields lacks the tool fields
 - 2026-11-02T21:46:03Z status=routed owner=burndown by=cr note=Rule 2 forced copy: extend seedApproval's fields and add an any-request newest read in support/ when its owner touches it
 - 2026-11-02T23:50:56Z occurrence=31-5-a-tool-call-s-approval-request-reaches-the-phone-with-approv note=close-loop.spec.ts setIncidentFields: support IncidentFields lacks ItemNoun, CauseCategory, Element
+- 2026-11-03T23:35:54Z status=routed owner=burndown by=burndown_gate note=U-254;first_daily_release_after_1.0.0;not_a_1.0.0_blocker
 
 ### DW-603: Test.Core.ToolCallNotices copies Lane A's private Test.Bridge.Approval HeldCall, UseReplayAgent and RestoreReplayAgent (forced by AD-29); the copy already drifted once (its Kill took the InProduction run counter)
 - source: spec-31-5-a-tool-call-s-approval-request-reaches-the-phone-with-approv.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: ToolCallNotices.cls HeldCall/UseReplayAgent/Restore (about 40 lines) vs Test/Bridge/Approval.cls :2561-2598; the review patched the drifted Kill
 - 2026-11-02T21:46:03Z status=routed owner=burndown by=cr note=Rule 2 forced copy: make HeldCall and the replay-agent swap public helpers of Test.Bridge.Approval (Lane A) and call them
+- 2026-11-03T23:35:54Z status=routed owner=burndown by=burndown_gate note=U-254;first_daily_release_after_1.0.0;not_a_1.0.0_blocker
 
 ### DW-604: A tool call's answered notice that reaches SimPhoneOut after its result message edits nothing, so the request message keeps Approve and Reject (a press then gets 409)
 - source: spec-31-5-a-tool-call-s-approval-request-reaches-the-phone-with-approv.md | severity: med | fix-risk: med | footprint: in-story
@@ -3709,6 +3719,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: iris (image) attempt 1 red, attempt 2 green on the same head; the assertion counts headers by id against the second thread's first Item id, so a late header of the first turn trips it (inference)
 - 2026-11-02T21:03:11Z status=routed owner=31-3-the-readme-leads-to-the-demo-and-the-launched-demo-is-measur by=ci note=Lane_B_test(Epic_11_part_1);first_seen_on_Epic_30_integrate-forward;make_the_mixed_count_wait_for_the_first_turn's_last_header_or_scope_it
 - 2026-11-03T15:21:47Z status=routed owner=burndown by=spec_gate note=flake_class_kept;declined_by_31.3_plan(root_cause_unknown,passed_on_rerun;nothing_in_31.3_touches_ThreadProduction)
+- 2026-11-03T23:35:54Z status=routed owner=burndown by=burndown_gate note=U-254;first_daily_release_after_1.0.0;not_a_1.0.0_blocker
 
 ### DW-600: The key proof's globals walk cannot read the saved AI session history (%AI.Agent.Session.ContextData, a compressed %Stream.GlobalCharacter), so a key stored there would read as clean
 - source: spec-30-8-the-redactor-and-the-key-proof-catch-every-key-shape.md | severity: low | fix-risk: med | footprint: out-of-footprint
@@ -3719,6 +3730,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: _bmad-output/implementation-artifacts/cycle-log-epic-31.md | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: OCT-epic31 runs 41419787515 (17c86e98 attempt 1), 41577358713 (f7cc68ab), 41577710442 (510ddbc9); each green on one unchanged rerun; feature and other epic branches green in the same window
 - 2026-11-03T05:33:43Z status=routed owner=burndown by=harvest note=flake class (one rerun and an occurrence); priority at Epic 31's burn-down: find what holds the namespace at the restart (inference: none of Epic 31's code runs a background job; 31.1's WebSocket needs a browser)
+- 2026-11-03T23:35:54Z status=routed owner=burndown by=burndown_gate note=U-254;first_daily_release_after_1.0.0;not_a_1.0.0_blocker
 ### DW-621: The Unconfigure Invoke (UnmapRepos) may remove OCUTALON's IPM repository-definition mapping during an upgrade or same-version reinstall of ocutalon in OCUTALON, and nothing maps it again, so a later install from a repository in OCUTALON finds none
 - source: _bmad-output/implementation-artifacts/spec-15-4-every-release-proves-the-ipm-package-and-the-guide-opens-wit.md | severity: med | fix-risk: med | footprint: in-story
 - evidence: unmeasured: UnmapRepos runs at Unconfigure Before; MapAndStop maps only outside OCUTALON; settle by installing twice in OCUTALON from a local repository with a version bump, then reading OCUTALON's three IPM.Repo.Definition mappings
@@ -3773,11 +3785,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: cycle-log-epic-31 (ci run 41656484374) | severity: low | fix-risk: low | footprint: in-epic
 - evidence: run 41656484374 attempt 1 image shard:lane-b; attempt 2 green; passes alone on a fresh lane-A throwaway with the merged tree (84.6 s)
 - 2026-11-03T15:56:29Z status=routed owner=burndown by=lead note=flake: first occurrence; order or timing dependence in the shard
+- 2026-11-03T23:35:54Z status=routed owner=burndown by=burndown_gate note=U-254(b)_reverses_U-177_placement;flake;first_daily_release_after_1.0.0;CI_run_41656484374(image_job)
 
 ### DW-640: flake: web/e2e/live/live.spec.ts L9 reported 'route.fetch: Test ended' from L8's events route callback (live.spec.ts:349): L8 ends with a route callback in flight; fix: await page.unrouteAll({ behavior: 'ignoreErrors' }) at the end of L8
 - source: cycle-log-epic-31 (ci run 41656484374) | severity: low | fix-risk: low | footprint: in-epic
 - evidence: run 41656484374 attempt 1 browser live:sign-in on runner 20; green on the unchanged rerun
 - 2026-11-03T15:56:29Z status=routed owner=burndown by=lead note=flake: first occurrence; a two-way-door test fix in 31.1's file
+- 2026-11-03T23:35:54Z status=routed owner=burndown by=burndown_gate note=U-254(b)_reverses_U-177_placement;flake;first_daily_release_after_1.0.0;the_unrouteAll_fix_first;CI_run_41656484374(sign-in)
 
 ### DW-641: web/scripts/fake-clock.mjs header lists the modules whose tests use it and omits telegram-card-view.ts, which Story 31.7's card spec now drives on it
 - source: spec-31-7-after-an-unpair-the-telegram-card-shows-its-fresh-code-witho.md | severity: low | fix-risk: low | footprint: out-of-footprint
