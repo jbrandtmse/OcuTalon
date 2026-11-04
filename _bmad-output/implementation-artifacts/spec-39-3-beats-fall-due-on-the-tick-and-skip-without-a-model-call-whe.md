@@ -2,9 +2,10 @@
 title: 'Story 39.3: Beats fall due on the tick, and skip without a model call when they should'
 type: 'feature'
 created: '2026-11-03'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '15ff20a5fcb66869d25004974df63ba36088861b'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context: []
 warnings: ['oversized']
 deferred: []
@@ -209,6 +210,27 @@ Clocks are fixed UTC stamps in 2099 (local times built with `Data.Time.FromLocal
 
 ## Review Triage Log
 
+### 2026-11-04 - Review pass
+- verdicts: 16 rows (findings of the four layers grouped by root cause) - medium 5, low 11; patched 8, rejected 8 (rows below)
+- findings:
+  - `[medium]` `[patch]` Key: a leading empty line (or empty lines before a removed status line) dropped the newline, so "\nabc" and "abc" shared a key (edge-case) - fixed with a `kept` flag; TestKey asserts it.
+  - `[medium]` `[patch]` Hours and next-start were read through ToLocal but every test ran in UTC, so reading the UTC clock stayed green (verification-gap) - TestActiveHours and TestNextDue now run in America/New_York; the process zone is restored after each test.
+  - `[medium]` `[patch]` Tick sends the Items of a RunDue that answered an error status, and BeatNow answers failed after a failed send: neither was pinned (verification-gap) - TestTickSendsTheItemsOfAFailedRunDue and TestBeatNowSendFailureAnswersFailed added; Probe answers BeatError after the real RunDue while BeatSessions is set.
+  - `[medium]` `[patch]` RunNow's own Capped/Keyed reads were never exercised (verification-gap) - TestInputsAreRead calls RunNow with both left to be read on a capped day and expects `cap`.
+  - `[medium]` `[patch]` LOGBEATNOW could name the SessionRef through a raw save error (edge-case) - Process.WithoutRef takes it out; TestBeatLogsAreRedacted asserts it.
+  - `[low]` `[patch]` Key was only pinned for ASCII (verification-gap) - two non-ASCII SHA-256 vectors added to TestKey.
+  - `[low]` `[patch]` TestValues and TestKey made a session with a checklist and no row, which a real Tick would treat as due (verification-gap) - both now make the row first with a far NextDueAt.
+  - `[low]` `[patch]` Heartbeat header said "Outcome is empty" for the code "empty" (blind) - reworded.
+  - `[low]` `[reject]` Quiet key not cleared by a non-ignore decision, then reverting the checklist (blind) - AC 3 says only Ignore copies the key; spec-bound.
+  - `[low]` `[reject]` A failed send leaves the beat pending, with no retry or age limit (blind, edge-case) - AC 2 saves the row before the send and defines pending as LastItemId set with LastDecisionRef empty; the next beat clears it; one cheap read per tick.
+  - `[low]` `[reject]` RequestedAt trusted as the clock, an unreal stamp gives an empty NextDueAt (blind, edge-case) - "Tick's rule" is the spec's; the stamp is set by the platform, not by a visitor; no reachable failure shown.
+  - `[low]` `[reject]` RunDue ends silently on a mid-iteration row read error, aborts on the first query's SQL error, and the lazy cap/key read can fail for every person (blind, edge-case) - systemic failures, reported as an error status or per person; theoretical.
+  - `[low]` `[reject]` RunNow makes a row for an unknown SessionRef (blind, edge-case) - the caller is the authenticated session's command; theoretical.
+  - `[low]` `[reject]` Snapshot re-reads Values, and interval 30 is a literal (blind) - Setting.Get is cached for 60 s; the spec says "reads as 30" and fixes the Snapshot signature.
+  - `[low]` `[reject]` Untested CRLF, FromLocal-empty and ToLocal-empty fallbacks, whitespace code points 11/12/13/160, cost copy weak in TestBeatReachesIntake, no mutation line for sub-clauses (blind, verification-gap) - one mutation per AC is the rule; the cost copy is pinned in TestDecisionIsRecorded; the rest is cosmetic.
+  - `[low]` `[reject]` TestOneFailureLeavesTheOthers depends on the storage layout and error code 5808 (blind, verification-gap, intent) - the global is the one TestHeartbeatBeatRowAndUniqueness already pins; the matrix mechanism cannot fail a save (see Design Notes, Decided in-stage).
+  - `[low]` `[reject]` Intent-alignment readings (Beat-level versus Process-level tests, run-now settling a pending decision, `Ready()` early exit in the Heartbeat tests) - descriptive; the production tests ran on fresh throwaways and passed, and the `Ready()` pattern is the class's existing one.
+
 ## Design Notes
 
 **Governing ADs:**
@@ -232,6 +254,8 @@ Clocks are fixed UTC stamps in 2099 (local times built with `Data.Time.FromLocal
 - `from` = `to` reads as all day. A stored pair that is invalid reads as the defaults (39.2's validation never writes one).
 - `Key` removes only the line that 39.4 will add ("Status at ... (built by OcuTalon):"). In 39.3 the snapshot is the checklist, so `Key` is fully real now, and 39.4 adds lines without changing `Key`.
 - Every model request is pinned on a fresh production with the `decide-ignore` marker. The "changed" beat is the first beat after a seeded earlier quiet key. That avoids the 60-second setting cache of the Checks job, which a mid-test checklist edit would hit.
+- The matrix row "One person fails" cannot be built as written: `%Save` validates only the properties modified since the open, and a beat never modifies `LastQuietKey`, so a 65-character stored value does not fail B's save (measured on slot D). `Beat.TestOneFailureLeavesTheOthers` makes B fail by replacing B's row node with a non-list string while `RunDue` runs (put back at once), so B's row cannot be opened and the new row is refused by the unique SessionRef index (error 5808). The row's expectation (A still beats, the status holds the count and the code, never a ref) is unchanged.
+- Review pass: `Beat.Key` joins kept lines with a flag, so a leading empty line is part of the key; `Process.BeatNow` takes the SessionRef out of the text of a `LOGBEATNOW` line (a `%Save` error may name it). The `Beat` tests read hours in America/New_York (January, so no daylight-saving change), and the `Probe` answers `BeatError` after the real `RunDue` while `BeatSessions` is set.
 - `Channel` `heartbeat` goes out before `Msg.Enum` CHANNEL holds it (39.2's append, Lane B, waits on Epic 40). Nothing at run time validates an Item's channel; checked in `Intake`, `Agent.Input` and `Decide`.
 
 **Extend, don't copy (Rule 2):**
@@ -281,19 +305,45 @@ Clocks are fixed UTC stamps in 2099 (local times built with `Data.Time.FromLocal
 
 Pinning mutations to apply, observe red, revert byte-identical and record (Rule 19):
 - AC 1: due selection ignores `NextDueAt` -> `Beat.TestDueSelection`.
+  - mutation: due selection ignores `NextDueAt` applied, red: TestDueSelection (not-due row, slack and restart assertions), also TestDecisionIsRecorded; reverted byte-identical (cmp against a backup, `git status --short` shows the story's files only).
 - AC 2: the `cap` rule removed -> `Beat.TestSkipOrder`.
+  - mutation: the `cap` rule removed applied, red: TestSkipOrder (also TestRunNow, TestInputsAreRead); reverted byte-identical (cmp against a backup, `git status --short` shows the story's files only).
 - AC 2: `hours` and `empty` swapped -> `Beat.TestSkipOrder`.
+  - mutation: `hours` and `empty` swapped applied, red: TestSkipOrder; reverted byte-identical (cmp against a backup, `git status --short` shows the story's files only).
 - AC 2: the over-midnight window read as from<=t<to -> `Beat.TestActiveHours`.
+  - mutation: the over-midnight window read as from<=t<to applied, red: TestActiveHours (mutated to `from <= t && t < to` for the over-midnight branch); reverted byte-identical (cmp against a backup, `git status --short` shows the story's files only).
 - AC 2: `hours` moves `NextDueAt` by one interval -> `Beat.TestNextDue`.
+  - mutation: `hours` moves `NextDueAt` by one interval applied, red: TestNextDue; reverted byte-identical (cmp against a backup, `git status --short` shows the story's files only).
 - AC 2: `NextDueAt` = old `NextDueAt` + interval -> `Beat.TestDueSelection` (restart).
+  - mutation: `NextDueAt` = old `NextDueAt` + interval applied, red: TestDueSelection (also TestRunNow); reverted byte-identical (cmp against a backup, `git status --short` shows the story's files only).
 - AC 2: `SendOwn` does not clear `%SessionId` -> `Runs.TestTickSendsTheBeats`.
+  - mutation: `SendOwn` does not clear `%SessionId` applied, red: TestTickSendsTheBeats (also TestBeatNowRunsOnce and the 30.4 TestStoppedIsReportedOnce); reverted byte-identical (cmp against a backup, `git status --short` shows the story's files only).
 - AC 3: no copy to `LastQuietKey` -> `Beat.TestDecisionIsRecorded`.
+  - mutation: no copy to `LastQuietKey` applied, red: TestDecisionIsRecorded (also TestRunNow); reverted byte-identical (cmp against a backup, `git status --short` shows the story's files only).
 - AC 3: the back-off is always 4 h -> `Beat.TestDecisionIsRecorded` (interval 1440).
+  - mutation: the back-off is always 4 h applied, red: TestDecisionIsRecorded; reverted byte-identical (cmp against a backup, `git status --short` shows the story's files only).
 - AC 4: run-now obeys hours -> `Beat.TestRunNow`.
+  - mutation: run-now obeys hours applied, red: TestRunNow (also TestSkipOrder); reverted byte-identical (cmp against a backup, `git status --short` shows the story's files only).
 - AC 4: cooldown of 60 s -> `Beat.TestRunNow`.
+  - mutation: cooldown of 60 s applied, red: TestRunNow; reverted byte-identical (cmp against a backup, `git status --short` shows the story's files only).
 - AC 5: the `unchanged` rule removed -> `Heartbeat.TestAnHourOfTicks`.
+  - mutation: the `unchanged` rule removed applied, red on a fresh throwaway: TestAnHourOfTicks (skip at 30 minutes, the 59 ticks, the hour's total); reverted byte-identical (cmp against a backup, `git status --short` shows the story's files only).
 - AC 5: the Tick block drops the send loop -> `Heartbeat.TestBeatReachesIntake`.
+  - mutation: the Tick block drops the send loop applied, red on a fresh throwaway: TestBeatReachesIntake (also TestAnHourOfTicks); reverted byte-identical (cmp against a backup, `git status --short` shows the story's files only).
+- Review pass additions (each applied to the product class, observed red on the warm stack, reverted byte-identical: `git diff` before and after compared with `cmp`):
+  - mutation: the `Key` separator tested on `text = ""` instead of a `kept` flag -> `Beat.TestKey` (leading empty line).
+  - mutation: `InHours` and `NextDue` read the UTC clock instead of `ToLocal` -> `Beat.TestActiveHours` and `Beat.TestNextDue` (America/New_York cases).
+  - mutation: `RunNow` does not read `Capped(now)` (capped = 0) -> `Beat.TestInputsAreRead`.
+  - mutation: `Key` hashes the text without `$ZConvert(..., "O", "UTF8")` -> `Beat.TestKey` (the two non-ASCII vectors).
+  - mutation: `Process.WithoutRef` returns the text -> `Runs.TestBeatLogsAreRedacted`.
+  - mutation: the Tick drops the Items of a RunDue that answered an error status -> `Runs.TestTickSendsTheItemsOfAFailedRunDue`.
+  - mutation: `BeatNow` keeps the outcome `sent` after a failed send -> `Runs.TestBeatNowSendFailureAnswersFailed`.
 - 39.1's `TestStubsDoNothing` mutation line is obsolete; the test is replaced.
+
+**Measured (implement stage):**
+- Task 0, first fresh run of `Heartbeat` (tag e39s3impl): `Keys.Status("TriageAgent")` = 1 (after `Case.PointKeys`, the entries point at the CI mock key variable) and `Budget.State().capped` = false. Both preconditions held; no `## Clarification Needed`.
+- `Beat` warm 0.1-0.3 s, `Runs` warm 1.4-1.9 s, `Heartbeat` fresh 11-13 s (the class; the fresh start is about 100 s). `shard lane-a@Checks`: 6 classes passed in 134 s, and passed again with `--reverse` in 131 s. The hosted checks (28 scripts, three parts) printed no FAIL, the `(once)` guard diff from b50f3add exits 0.
+- Deviation from the Integration matrix row "One person fails": a row whose stored `LastQuietKey` node is 65 characters does not fail the save, because `%Save` validates only the properties that were modified since the open (measured on slot D), and a beat never modifies `LastQuietKey`. `TestOneFailureLeavesTheOthers` makes B fail another way: B's row node is replaced by a non-list string while RunDue runs (the node is put back at once), so that B's row cannot be opened and the new row for B is refused by the unique SessionRef index (error 5808). The status holds the count and the code only.
 
 **Shared surfaces:**
 - the `Test.Checks.Probe` seam signatures and new properties;
@@ -306,7 +356,18 @@ Pinning mutations to apply, observe red, revert byte-identical and record (Rule 
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-Planned only (halt after planning). The Event group (AC 6, DW-633) is a split candidate for the lead's spec gate; the rest of the story is planned in full and is Lane A only.
+**Summary:** Story 39.3 fills `Checks.Beat` (settings read on every tick, the six skip rules in AD-18's order, the row writes, the decision record and the run-now rules) and wires `Checks.Process` (`SendOwn`, the Tick's send loop, `BeatNow` answering a `CommandResult`). AC 1-5 and AC 7; AC 6 and the Event group belong to Story 39.7.
+
+**Files changed:**
+- `src/ocutalon/cls/OcuTalon/Checks/Beat.cls`: beat logic, parameters and class doc.
+- `src/ocutalon/cls/OcuTalon/Checks/Process.cls`: `SendOwn`, the beat send loop, `BeatNow`/`WithoutRef`, seams, class doc.
+- `src/ocutalon/cls/OcuTalon/Test/Checks/{Beat,Runs,Heartbeat,Probe}.cls`: the tests, the probe seam and docs.
+
+**Review:** 0 high, 5 medium and 3 low patched (see the Review Triage Log), 0 deferred, the rest rejected with their reasons logged. Follow-up review recommended: true, because two or more medium findings were patched; the unverified risk is the `Key` separator change and `WithoutRef`, which only the tests written in this pass cover.
+
+**Verification:** warm `Beat` and `Runs` pass after the patches, all seven review-pass mutations went red and were reverted byte-identical, `shard lane-a@Checks` passed forward and `--reverse` on fresh throwaways (6 classes, about 134 s each, `Heartbeat` 12.7 s), the 28 hosted checks printed no FAIL, the (once) guard diff from b50f3add exits 0. Slot D holds the final classes. Added test time is about 3 s warm plus about 13 s in `Heartbeat`.
+
+**Residual risks:** a pending beat whose send failed waits for the next beat (by design); the "One person fails" matrix row uses another failure mechanism than the one written (Design Notes).

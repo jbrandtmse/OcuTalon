@@ -12,15 +12,21 @@
 ///     and SuperSession being put back after each send. A Sweep that throws logs one Type 3 warning (LOGFIXES), a failed send one Type 3 warning (LOGFIX, with
 ///     the request's Ref), and the other results still go. Then the checks: every row of Kind production is due when its NextDueAt is empty or at most
 ///     DUESLACKSECONDS after the tick time, and each due row runs once however many ticks were missed. An exception in one row's run logs one Type 3
-///     warning (LOGRUN), and the next row still runs. Last, the agent heartbeat's due beats: OcuTalon.Checks.Beat.RunDue(tickAt) (the seam BeatRunDue). An error
-///     status or an exception from it logs one Type 3 warning (LOGBEAT), and the Tick still answers OK. The quiet sweep, the fixes, the due checks and
-///     the beats each have their own Try/Catch. A beat is no background check (AD-28): it adds no row, check result or coverage entry.
+///     warning (LOGRUN), and the next row still runs. Last, the agent heartbeat's due beats: OcuTalon.Checks.Beat.RunDue(tickAt, .items) (the seam BeatRunDue). An error
+///     status or an exception from it logs one Type 3 warning (LOGBEAT), and the Tick still answers OK. Every Item that RunDue returned, also when it gave an
+///     error status, goes to Intake through SendOwn, in a trace session of its own with the TraceRef of the person's session as SuperSession (AD-26); the row
+///     was saved before, and a send that fails logs one Type 3 warning (LOGBEATSEND, with the ItemId). The Tick itself never calls the model: every request
+///     comes from Intake. The quiet sweep, the fixes, the due checks and the beats each have their own Try/Catch. A beat is no background check (AD-28): it
+///     adds no row, check result or coverage entry.
 ///   - An OcuTalon.Checks.Msg.CheckChanged (WatchOps sends one after a watch is started or stopped): Checks publishes the change as a check event
 ///     on the owner's stream, FromRow of the row it opens by Ref for a start (nothing when the row is gone), and for a stop a payload of the message's
 ///     fields with stopped true. A failed publish logs one Type 3 warning (LOGPUBLISH).
-///   - An OcuTalon.Checks.Msg.BeatNow (CommandsIn sends one for the RunHeartbeat command): Checks calls OcuTalon.Checks.Beat.RunNow(SessionRef) (the seam
-///     BeatRunNow) and answers OK with no response object. An error status or an exception logs one Type 3 warning (LOGBEATNOW). No log line names a
-///     SessionRef, and nothing is sent to Intake or any other item.
+///   - An OcuTalon.Checks.Msg.BeatNow (CommandsIn sends one for the RunHeartbeat command): Checks calls OcuTalon.Checks.Beat.RunNow(SessionRef, now, .item, .outcome,
+///     .availableAt) (the seam BeatRunNow; now is RequestedAt when that is a UTC stamp, else the current time) and sends the Item that it returns to Intake
+///     through SendOwn, as the Tick does. It answers OK with an OcuTalon.Msg.CommandResult: Ok when the outcome is sent, Outcome the outcome (sent, cooldown, the
+///     reason that held the beat, or failed), Ref the ItemId when sent, Data {"availableAt": <UTC time>} when there is one, and no Message. An error status or
+///     an exception from RunNow logs one Type 3 warning (LOGBEATNOW), a failed send one (LOGBEATSEND), and the outcome becomes failed. No log line names a
+///     SessionRef.
 /// One run of a row:
 ///   - Read: Watch.Reader.Failures (the seam Read) from Watch.Mark.Start(LastRunAt, CreatedAt, now), the previous run less Mark.OVERLAP seconds, else
 ///     the watch's creation, at most Mark.MAXFAILURES failures, with the production's running state. The incidents come from the rows.
@@ -142,6 +148,8 @@ Parameter LOGBEAT = "Checks could not run the heartbeat's due beats: ";
 
 Parameter LOGBEATNOW = "Checks could not run a requested heartbeat: ";
 
+Parameter LOGBEATSEND = "Checks could not send a heartbeat beat, item ";
+
 /// The text of a finding Item (public text, veto U-180; the first line becomes the item summary): {production} is the display name, {itemName} the item's name.
 Parameter TEXTSTOPPED = "The {production} production stopped.";
 
@@ -160,7 +168,7 @@ Method OnRequest(request As %Library.Persistent, Output response As %Library.Per
 	If $IsObject(request) {
 		If request.%IsA("OcuTalon.Msg.Tick") Quit ..Tick(request)
 		If request.%IsA("OcuTalon.Checks.Msg.CheckChanged") Quit ..Changed(request)
-		If request.%IsA("OcuTalon.Checks.Msg.BeatNow") Quit ..BeatNow(request)
+		If request.%IsA("OcuTalon.Checks.Msg.BeatNow") Quit ..BeatNow(request, .response)
 	}
 	Quit $SYSTEM.Status.Error(5001, "Checks does not handle a request of the class '"_$Select($IsObject(request): $ClassName(request), 1: "none")_"'")
 }
@@ -193,41 +201,97 @@ Method Tick(tick As OcuTalon.Msg.Tick) As %Status [ Private ]
 	} Catch exception {
 		$$$LOGWARNING(..#LOGDUE_##class(OcuTalon.Bridge.Redact).Text(exception.DisplayString()))
 	}
+	Set items = ""
 	Try {
-		Set sc = ..BeatRunDue(tickAt)
+		Set sc = ..BeatRunDue(tickAt, .items)
 		If $$$ISERR(sc) {
 			$$$LOGWARNING(..#LOGBEAT_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
 		}
 	} Catch exception {
 		$$$LOGWARNING(..#LOGBEAT_##class(OcuTalon.Bridge.Redact).Text(exception.DisplayString()))
 	}
-	Quit $$$OK
-}
-
-/// A BeatNow: Beat.RunNow for the request's session (see the class description). Always OK.
-Method BeatNow(request As OcuTalon.Checks.Msg.BeatNow) As %Status [ Private ]
-{
-	Try {
-		Set sc = ..BeatRunNow(request.SessionRef)
-		If $$$ISERR(sc) {
-			$$$LOGWARNING(..#LOGBEATNOW_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
+	If $IsObject(items) {
+		For i = 1:1:items.Count() {
+			Set item = items.GetAt(i)
+			Set sc = ..SendOwn(item)
+			If $$$ISERR(sc) {
+				$$$LOGWARNING(..#LOGBEATSEND_item.ItemId_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
+			}
 		}
-	} Catch exception {
-		$$$LOGWARNING(..#LOGBEATNOW_##class(OcuTalon.Bridge.Redact).Text(exception.DisplayString()))
 	}
 	Quit $$$OK
 }
 
-/// The heartbeat's due beats at the tick time: OcuTalon.Checks.Beat.RunDue (a seam for the tests).
-Method BeatRunDue(tickAt As %String) As %Status [ Private ]
+/// A BeatNow: Beat.RunNow for the request's session, the Item it returns sent to Intake, and a CommandResult as the answer (see the class description). Always OK.
+Method BeatNow(request As OcuTalon.Checks.Msg.BeatNow, Output response As OcuTalon.Msg.CommandResult) As %Status [ Private ]
 {
-	Quit ##class(OcuTalon.Checks.Beat).RunDue(tickAt)
+	Set now = $Select(request.RequestedAt ? 4N1"-"2N1"-"2N1"T"2N1":"2N1":"2N1"Z": request.RequestedAt, 1: ##class(OcuTalon.Data.Time).NowUtc())
+	Set item = ""
+	Set outcome = ""
+	Set availableAt = ""
+	Try {
+		Set sc = ..BeatRunNow(request.SessionRef, now, .item, .outcome, .availableAt)
+		If $$$ISERR(sc) {
+			$$$LOGWARNING(..#LOGBEATNOW_..WithoutRef(##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)), request.SessionRef))
+			Set outcome = ##class(OcuTalon.Checks.Beat).#FAILED
+			Set item = ""
+		}
+	} Catch exception {
+		$$$LOGWARNING(..#LOGBEATNOW_..WithoutRef(##class(OcuTalon.Bridge.Redact).Text(exception.DisplayString()), request.SessionRef))
+		Set outcome = ##class(OcuTalon.Checks.Beat).#FAILED
+		Set item = ""
+	}
+	If $IsObject(item) {
+		Set sc = ..SendOwn(item)
+		If $$$ISERR(sc) {
+			$$$LOGWARNING(..#LOGBEATSEND_item.ItemId_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
+			Set outcome = ##class(OcuTalon.Checks.Beat).#FAILED
+			Set item = ""
+		}
+	}
+	Set sent = (outcome = ##class(OcuTalon.Checks.Beat).#SENT)
+	Set response = ##class(OcuTalon.Msg.CommandResult).%New()
+	Set response.Ok = sent
+	Set response.Outcome = outcome
+	Set response.Ref = $Select(sent && $IsObject(item): item.ItemId, 1: "")
+	Set response.Data = $Select(availableAt '= "": {"availableAt": (availableAt)}.%ToJSON(), 1: "")
+	Quit $$$OK
 }
 
-/// The requested beat of the session: OcuTalon.Checks.Beat.RunNow (a seam for the tests).
-Method BeatRunNow(sessionRef As %String) As %Status [ Private ]
+/// The text with every occurrence of the SessionRef taken out, so that a log line never names a person's session.
+ClassMethod WithoutRef(text As %String, sessionRef As %String) As %String [ Private ]
 {
-	Quit ##class(OcuTalon.Checks.Beat).RunNow(sessionRef)
+	Quit $Select(sessionRef = "": text, 1: $Replace(text, sessionRef, ""))
+}
+
+/// The heartbeat's due beats at the tick time: OcuTalon.Checks.Beat.RunDue, with the Items to send in items (a seam for the tests).
+Method BeatRunDue(tickAt As %String, Output items As %ListOfObjects) As %Status [ Private ]
+{
+	Quit ##class(OcuTalon.Checks.Beat).RunDue(tickAt, .items)
+}
+
+/// The requested beat of the session at now: OcuTalon.Checks.Beat.RunNow (a seam for the tests).
+Method BeatRunNow(sessionRef As %String, now As %String, Output item As OcuTalon.Msg.Item, Output outcome As %String, Output availableAt As %String) As %Status [ Private ]
+{
+	Quit ##class(OcuTalon.Checks.Beat).RunNow(sessionRef, now, .item, .outcome, .availableAt)
+}
+
+/// Sends Intake the Item in a trace session of its own, with the TraceRef of the Item's owner as SuperSession (AD-26); this process's own %SessionId and
+/// SuperSession are put back after the send. The status of the send; a throw is its error status.
+Method SendOwn(item As OcuTalon.Msg.Item) As %Status [ Private ]
+{
+	Set saved = ..%SuperSession
+	Set session = ..%SessionId
+	Try {
+		Set ..%SessionId = ""
+		Set ..%SuperSession = ..TraceOf(item.SessionRef)
+		Set sc = ..SendFinding(item)
+	} Catch exception {
+		Set sc = exception.AsStatus()
+	}
+	Set ..%SessionId = session
+	Set ..%SuperSession = saved
+	Quit sc
 }
 
 /// The fixes: each final FixResult that Fix.Run Sweep returns goes to IncidentManager (see the class description). A send that fails or throws logs one Type 3 warning (LOGFIX), and the
@@ -428,17 +492,7 @@ Method Record(row As %DynamicObject, tickAt As %String, runAt As %String, result
 	If +rs.%ROWCOUNT < 1 Quit
 	For i = 1:1:items.Count() {
 		Set item = items.GetAt(i)
-		Set saved = ..%SuperSession
-		Set session = ..%SessionId
-		Try {
-			Set ..%SessionId = ""
-			Set ..%SuperSession = ..TraceOf(row.sessionRef)
-			Set sc = ..SendFinding(item)
-		} Catch exception {
-			Set sc = exception.AsStatus()
-		}
-		Set ..%SessionId = session
-		Set ..%SuperSession = saved
+		Set sc = ..SendOwn(item)
 		If $$$ISERR(sc) {
 			$$$LOGWARNING(..#LOGFINDING_row.ref_": "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
 		}

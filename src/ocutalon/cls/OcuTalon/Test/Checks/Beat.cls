@@ -1,30 +1,69 @@
-/// Tests of the agent heartbeat's names and stubs (Story 39.1; AD-18, AD-19, AD-33): the BeatNow message has exactly its contract and shares the
-/// Ens.MessageBody extent, the stubs of OcuTalon.Checks.Beat do nothing (they return OK or "", write no HeartbeatBeat row and send nothing), and the
-/// setting names, defaults and caps are the spine's, the checklist cap being the length of Setting.Value. The tests need no production (warm).
-/// A HeartbeatBeat row keeps all 15 fields through a save and a reopen, with the defaults of an empty row, in the private global
-/// ^OcuTalonP.HeartbeatBeat; a second row of the same SessionRef is refused and leaves the first untouched; SettingKey takes a name only exactly as KEYS lists it.
+/// Tests of the agent heartbeat's beats and the names of its settings (Stories 39.1 and 39.3; AD-5, AD-18, AD-19, AD-20, AD-28, AD-33): the BeatNow message has
+/// exactly its contract and shares the Ens.MessageBody extent, the setting names, defaults and caps are the spine's (the checklist cap being the length of
+/// Setting.Value), a HeartbeatBeat row keeps all 15 fields through a save and a reopen, with the defaults of an empty row, in the private global
+/// ^OcuTalonP.HeartbeatBeat, a second row of the same SessionRef is refused and leaves the first untouched, and SettingKey takes a name only exactly as KEYS lists
+/// it. The tests need no production (warm). Every time-dependent test uses fixed clocks in 2099 (local times built with Data.Time.FromLocal), so no real tick can
+/// reach a row of a test, and every RunDue call names its sessions, so that the rows of a warm stack are never touched. The tests make their fixture sessions
+/// with Test.Data.Fixture, make each row before the settings, and remove their HeartbeatBeat rows, Setting rows and fixture decisions after each test.
+///   - TestValues: the defaults, the online demo's on, an interval outside the allowed ones, an all-day pair and a bad pair;
+///   - TestActiveHours: the window over midnight, the normal window, from = to and all day, and the same windows read in America/New_York;
+///   - TestNextDue: the next start of the active hours for hours, one interval for every other reason, and the same in America/New_York;
+///   - TestSkipOrder: each reason alone, in pairs and all at once, and the run-now variant that leaves out hours and unchanged;
+///   - TestKey: 64 lower-case hexadecimal characters, the SHA-256 of the UTF-8 text, stable, deaf to the status line, changed by the checklist;
+///   - TestDueSelection: a beat that is not due, a person with no row, an off person, a restart that catches up once;
+///   - TestBeatRow: the Item and the row of a beat that runs;
+///   - TestDecisionIsRecorded: ignore, a pending beat, a fallback with an interval of 30 and of 1440 minutes;
+///   - TestUnchangedAfterIgnore: a checklist unchanged since the last ignore is skipped, a changed one beats;
+///   - TestRunNow: hours and unchanged do not hold it, the other reasons do, and the cooldown at 119 and 120 seconds;
+///   - TestOneFailureLeavesTheOthers: a person whose row cannot be saved leaves the other beat, and the status holds the count and the error code only;
+///   - TestInputsAreRead: Capped follows the day's mark, Keyed follows Bridge.Keys, and RunDue and RunNow read both when they are given none.
 Class OcuTalon.Test.Checks.Beat Extends OcuTalon.Test.Contract
 {
 
 Parameter BEAT = "OcuTalon.Checks.Beat";
 
+/// The Refs of the fixture rows of the test being run (sessions and decisions), comma-separated.
+Property Refs As %String(MAXLEN = "");
+
+/// The sessions whose settings and HeartbeatBeat rows the test made, comma-separated.
+Property Sessions As %String(MAXLEN = "");
+
+/// The day whose mark ^OcuTalonBP.UsageCapped the test set, "" for none.
+Property Day As %String;
+
+/// The public setting onlineDemo before the test.
+Property SavedOnline As %String;
+
+/// The TZ of the process before the test: -1 when it was undefined.
+Property SavedZone As %String;
+
+Method OnBeforeOneTest(testname As %String) As %Status
+{
+	Set ..Refs = ""
+	Set ..Sessions = ""
+	Set ..Day = ""
+	Set ..SavedOnline = ##class(OcuTalon.Data.Public.Settings).Get("onlineDemo")
+	Set ..SavedZone = $SYSTEM.Process.TimeZone()
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
+	Quit $$$OK
+}
+
+Method OnAfterOneTest(testname As %String) As %Status
+{
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", ..SavedOnline)
+	Do $SYSTEM.Process.TimeZone($Select(..SavedZone = -1: "", 1: ..SavedZone))
+	If ..Day '= "" Kill ^OcuTalonBP.UsageCapped(..Day)
+	For i = 1:1:$Length(..Sessions, ",") {
+		If $Piece(..Sessions, ",", i) '= "" Do ..Forget($Piece(..Sessions, ",", i))
+	}
+	If ..Refs '= "" Do ##class(OcuTalon.Test.Data.Fixture).Clean(..Refs)
+	Quit $$$OK
+}
+
 Method TestBeatNowContract()
 {
 	Do ..AssertContract("Contracts")
 	Do ..AssertMessageExtent("Contracts")
-}
-
-Method TestStubsDoNothing()
-{
-	Set ref = ##class(OcuTalon.Bridge.Ids).NewRef()
-	Set before = ..Rows("")
-	Do $$$AssertStatusOK($ClassMethod(..#BEAT, "RunDue", "2030-06-01T12:00:00Z"), "RunDue is OK")
-	Do $$$AssertStatusOK($ClassMethod(..#BEAT, "RunNow", ref), "RunNow is OK")
-	Do $$$AssertEquals($ClassMethod(..#BEAT, "Snapshot", ref, "2030-06-01T12:00:00Z"), "", "Snapshot is empty")
-	Do $$$AssertEquals($ClassMethod(..#BEAT, "Key", "x"), "", "Key is empty")
-	Do $$$AssertEquals(..Rows(ref), 0, "no HeartbeatBeat row is made for the fixture ref")
-	Do $$$AssertEquals(..Rows(""), before, "and the table holds as many rows as before")
-	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.HeartbeatBeat WHERE SessionRef = ?", ref)
 }
 
 Method TestSettingNames()
@@ -110,6 +149,361 @@ Method TestHeartbeatBeatRowAndUniqueness()
 	Do $$$AssertEquals(..Rows(first) + ..Rows(second), 0, "the fixture rows are removed")
 }
 
+Method TestValues()
+{
+	Set ref = ..Person("", {"NextDueAt": "2099-12-31T00:00:00Z"})
+	Set values = ..BValues(ref)
+	Do $$$AssertEquals(values.on_"|"_values.interval_"|"_values.from_"|"_values.to_"|"_values.checklist, "1|30|08:00|20:00|", "a person with no settings has the defaults")
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
+	Do $$$AssertEquals(..BValues(ref).on, 0, "on is off by default on the online demo")
+	Do ..Put(ref, "on", "1")
+	Do $$$AssertEquals(..BValues(ref).on, 1, "and a stored on of 1 turns it on")
+	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
+	Do ..Put(ref, "on", "0")
+	Do $$$AssertEquals(..BValues(ref).on, 0, "a stored on of 0 is off")
+	For stored = 60, 120, 240, 480, 1440 {
+		Do ..Put(ref, "interval", stored)
+		Do $$$AssertEquals(..BValues(ref).interval, stored, "the allowed interval "_stored_" is read as it is")
+	}
+	For stored = 15, 10, 0, 45, 90, 2880, "abc", "060" {
+		Do ..Put(ref, "interval", stored)
+		Do $$$AssertEquals(..BValues(ref).interval, 30, "the interval '"_stored_"' reads as 30, so that nothing under 30 minutes runs")
+	}
+	Do ..Put(ref, "from", "22:00")
+	Do ..Put(ref, "to", "06:00")
+	Set values = ..BValues(ref)
+	Do $$$AssertEquals(values.from_"|"_values.to, "22:00|06:00", "a stored window is read as it is")
+	Do ..Put(ref, "from", "")
+	Do ..Put(ref, "to", "")
+	Set values = ..BValues(ref)
+	Do $$$AssertEquals(values.from_"|"_values.to, "|", "from and to both stored as empty mean all day")
+	Do ..Put(ref, "from", "08:00")
+	Set values = ..BValues(ref)
+	Do $$$AssertEquals(values.from_"|"_values.to, "08:00|20:00", "only one of them stored empty is no pair: the defaults")
+	For pair = "25:00,20:00", "8:00,20:00", "08:00,24:00", "08:60,20:00", "ab:cd,20:00", "08:00,", ",20:00", "0800,2000" {
+		Do ..Put(ref, "from", $Piece(pair, ",", 1))
+		Do ..Put(ref, "to", $Piece(pair, ",", 2))
+		Set values = ..BValues(ref)
+		Do $$$AssertEquals(values.from_"|"_values.to, "08:00|20:00", "the pair '"_pair_"' reads as the defaults")
+	}
+	Do ..Put(ref, "checklist", "check the orders")
+	Do $$$AssertEquals(..BValues(ref).checklist, "check the orders", "the checklist is read as it is")
+}
+
+Method TestActiveHours()
+{
+	Set over = ..V("c", "22:00", "06:00")
+	For clock = "23:00", "05:00", "22:00", "00:00", "05:59" {
+		Do $$$AssertTrue(..BHours(over, ..Local(clock)), "local "_clock_" is inside 22:00 to 06:00")
+	}
+	For clock = "12:00", "06:00", "21:59", "07:00" {
+		Do $$$AssertNotTrue(..BHours(over, ..Local(clock)), "local "_clock_" is outside 22:00 to 06:00")
+	}
+	Set normal = ..V("c", "08:00", "20:00")
+	For clock = "08:00", "12:00", "19:59" {
+		Do $$$AssertTrue(..BHours(normal, ..Local(clock)), "local "_clock_" is inside 08:00 to 20:00")
+	}
+	For clock = "21:00", "07:00", "20:00", "00:00" {
+		Do $$$AssertNotTrue(..BHours(normal, ..Local(clock)), "local "_clock_" is outside 08:00 to 20:00")
+	}
+	Do $$$AssertTrue(..BHours(..V("c", "09:00", "09:00"), ..Local("03:00")), "from = to counts as all day")
+	Do $$$AssertTrue(..BHours(..V("c", "", ""), ..Local("03:00")), "and so does an empty pair")
+
+	// the hours are the instance zone's: New York is 5 hours behind UTC in January
+	Do $SYSTEM.Process.TimeZone("America/New_York")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Time).ToLocal("2099-01-15T22:00:00Z"), "2099-01-15T17:00:00", "the zone is in force: 22:00Z is 17:00 local")
+	Do $$$AssertTrue(..BHours(normal, "2099-01-15T22:00:00Z"), "22:00Z is 17:00 local, inside 08:00 to 20:00")
+	Do $$$AssertTrue(..BHours(normal, "2099-01-15T13:00:00Z"), "13:00Z is 08:00 local, inside")
+	Do $$$AssertNotTrue(..BHours(normal, "2099-01-15T12:59:00Z"), "12:59Z is 07:59 local, outside")
+	Do $$$AssertNotTrue(..BHours(normal, "2099-01-16T01:00:00Z"), "01:00Z is 20:00 local, outside")
+}
+
+Method TestNextDue()
+{
+	Set noon = ..Local("12:00")
+	Set normal = ..V("c", "08:00", "20:00", 60)
+	Do $$$AssertEquals(..BNext(normal, noon, "empty"), ..Plus(noon, 3600), "a skip for another reason waits one interval")
+	Do $$$AssertEquals(..BNext(normal, noon, "unchanged"), ..Plus(noon, 3600), "unchanged too")
+	Do $$$AssertEquals(..BNext(normal, ..Local("21:00"), "hours"), ..Local("08:00", "2099-06-16"), "outside a normal window in the evening the next start is tomorrow's")
+	Do $$$AssertEquals(..BNext(normal, ..Local("07:00"), "hours"), ..Local("08:00"), "and in the morning today's")
+	Do $$$AssertEquals(..BNext(..V("c", "22:00", "06:00", 60), noon, "hours"), ..Local("22:00"), "outside a window over midnight the next start is today's 22:00")
+	Do $$$AssertEquals(..BNext(..V("c", "22:00", "06:00", 60), ..Local("06:00"), "hours"), ..Local("22:00"), "from the end of such a window too")
+	Do $$$AssertEquals(..BNext(..V("c", "", "", 120), noon, "hours"), ..Plus(noon, 7200), "an all-day window has no start to wait for")
+
+	// the start is the instance zone's: New York is 5 hours behind UTC in January
+	Do $SYSTEM.Process.TimeZone("America/New_York")
+	Do $$$AssertEquals(..BNext(normal, "2099-01-15T12:00:00Z", "hours"), "2099-01-15T13:00:00Z", "at 07:00 local the next start is today's 08:00 local, 13:00Z")
+	Do $$$AssertEquals(..BNext(normal, "2099-01-15T13:00:00Z", "hours"), "2099-01-16T13:00:00Z", "and at 08:00 local, tomorrow's")
+}
+
+Method TestSkipOrder()
+{
+	Do ..Case("none", "", 0, 0, 0, 0, 0, 0, 0)
+	Do ..Case("empty alone", "empty", 1, 0, 0, 0, 0, 0, 0)
+	Do ..Case("hours alone", "hours", 0, 1, 0, 0, 0, 0, 0)
+	Do ..Case("backoff alone", "backoff", 0, 0, 1, 0, 0, 0, 0)
+	Do ..Case("cap alone", "cap", 0, 0, 0, 1, 0, 0, 0)
+	Do ..Case("nokey alone", "nokey", 0, 0, 0, 0, 1, 0, 0)
+	Do ..Case("unchanged alone", "unchanged", 0, 0, 0, 0, 0, 1, 0)
+	Do ..Case("empty and hours", "empty", 1, 1, 0, 0, 0, 0, 0)
+	Do ..Case("hours and backoff", "hours", 0, 1, 1, 0, 0, 0, 0)
+	Do ..Case("backoff and cap", "backoff", 0, 0, 1, 1, 0, 0, 0)
+	Do ..Case("cap and nokey", "cap", 0, 0, 0, 1, 1, 0, 0)
+	Do ..Case("nokey and unchanged", "nokey", 0, 0, 0, 0, 1, 1, 0)
+	Do ..Case("empty and unchanged", "empty", 1, 0, 0, 0, 0, 1, 0)
+	Do ..Case("hours and cap", "hours", 0, 1, 0, 1, 0, 0, 0)
+	Do ..Case("all six", "empty", 1, 1, 1, 1, 1, 1, 0)
+	Do ..Case("run now: none", "", 0, 0, 0, 0, 0, 0, 1)
+	Do ..Case("run now: hours do not hold it", "", 0, 1, 0, 0, 0, 0, 1)
+	Do ..Case("run now: unchanged does not hold it", "", 0, 0, 0, 0, 0, 1, 1)
+	Do ..Case("run now: empty", "empty", 1, 1, 0, 0, 0, 1, 1)
+	Do ..Case("run now: backoff", "backoff", 0, 1, 1, 0, 0, 1, 1)
+	Do ..Case("run now: cap", "cap", 0, 1, 0, 1, 0, 1, 1)
+	Do ..Case("run now: nokey", "nokey", 0, 1, 0, 0, 1, 1, 1)
+	Set noon = ..Local("12:00")
+	Set values = ..V("c")
+	Set row = ##class(OcuTalon.Data.HeartbeatBeat).%New()
+	Set row.LastQuietKey = "k"
+	Do $$$AssertEquals(..BSkip(values, row, noon, 0, 0, 1, ""), "", "an empty key leaves unchanged out")
+	Set row.LastQuietKey = ""
+	Do $$$AssertEquals(..BSkip(values, row, noon, 0, 0, 1, "k"), "", "an empty LastQuietKey never matches")
+	Set row.LastQuietKey = "k"
+	Set row.BackoffUntil = noon
+	Do $$$AssertEquals(..BSkip(values, row, noon, 0, 0, 1, "j"), "", "a back-off that ends now no longer holds")
+	Set row.BackoffUntil = ..Plus(noon, 1)
+	Do $$$AssertEquals(..BSkip(values, row, noon, 0, 0, 1, "j"), "backoff", "and one that ends a second later does")
+	Do $$$AssertEquals(..BSkip(values, "", noon, 0, 0, 1, "k"), "", "a person with no row skips for nothing")
+}
+
+Method TestKey()
+{
+	Set key = ..BKey("check the orders")
+	Do $$$AssertTrue(key ? 64(1N,1"a",1"b",1"c",1"d",1"e",1"f"), "the key is 64 lower-case hexadecimal characters: "_key)
+	Do $$$AssertEquals(..BKey("abc"), "ba7816bf8f01cfea414140de5dae2223b00361a396177a9cb410ff61f20015ad", "it is the SHA-256 of the text")
+	Do $$$AssertEquals(..BKey("check the orders"), key, "it is stable")
+	Set status = $Char(10)_"Status at 12:00 (built by OcuTalon):"
+	Do $$$AssertEquals(..BKey("check the orders"_status), key, "a status line does not change it")
+	Do $$$AssertEquals(..BKey("check the orders"_$Char(10)_"Status at 13:45 on Monday (built by OcuTalon):"), key, "whatever its time")
+	Do $$$AssertEquals(..BKey("Status at 12:00 (built by OcuTalon):"_$Char(10)_"check the orders"), key, "and wherever it is")
+	Do $$$AssertNotTrue(..BKey("check the orders!") = key, "a changed checklist changes it")
+	Do $$$AssertNotTrue(..BKey("check the orders"_$Char(10)_"Status at 12:00 and more") = key, "a line that only starts like the status line is part of the text")
+	Do $$$AssertEquals(..BKey($Char(233)), "4a99557e4033c3539de2eb65472017cad5f9557f7a0625a09f1c3f6e2ba69c4c", "a character of 128 to 255 is hashed as UTF-8")
+	Do $$$AssertEquals(..BKey($Char(8364)), "c4cc90ed3d26f12d4b08a75140970a7904035c31cbb4515a83f19b9003c00d1d", "and so is one above 255")
+	Do $$$AssertNotTrue(..BKey($Char(10)_"abc") = ..BKey("abc"), "a leading empty line is part of the text")
+	Do $$$AssertEquals(..BKey("Status at 12:00 (built by OcuTalon):"_$Char(10, 10)_"abc"), ..BKey($Char(10)_"abc"), "and the line of the status takes only itself with it")
+	Do $$$AssertEquals(..BSnap(..Person("check the orders", {"NextDueAt": "2099-12-31T00:00:00Z"}), ..Local("12:00")), "check the orders", "until Story 39.4 the snapshot is the checklist")
+}
+
+Method TestDueSelection()
+{
+	Set noon = ..Local("12:00")
+	Set stale = ..BKey("an earlier checklist")
+
+	// not due
+	Set notDue = ..Person("not due", {"NextDueAt": (..Plus(noon, 600)), "LastQuietKey": (stale)})
+	// no row, empty checklist
+	Set fresh = ..Person()
+	// off
+	Set off = ..Person("off", {"NextDueAt": (..Plus(noon, -60)), "LastQuietKey": (stale)})
+	Do ..Put(off, "on", "0")
+	Set sc = ..BDue(noon, .items, notDue_","_fresh_","_off)
+	Do $$$AssertStatusOK(sc, "RunDue is OK")
+	Do $$$AssertEquals(items.Count(), 0, "no beat runs: a beat that is not due, an empty checklist and an off person send nothing")
+	Set row = ..Open(notDue)
+	Do $$$AssertEquals(row.NextDueAt_"|"_row.LastBeatAt_"|"_row.LastSkipAt_"|"_row.LastItemId, ..Plus(noon, 600)_"|||", "the row that is not due is unchanged")
+	Set row = ..Open(fresh)
+	Do $$$AssertTrue($IsObject(row), "a person with no row gets one")
+	If $IsObject(row) Do $$$AssertEquals(row.LastSkipAt_"|"_row.LastSkipReason_"|"_row.NextDueAt, noon_"|empty|"_..Plus(noon, 1800), "recording the empty skip at the tick, and the next due time one interval on")
+	Set row = ..Open(off)
+	Do $$$AssertEquals(row.NextDueAt_"|"_row.LastSkipAt_"|"_row.LastItemId, ..Plus(noon, -60)_"||", "nothing is written for a person who is off")
+
+	// the slack
+	Set early = ..Person("early", {"NextDueAt": (..Plus(noon, 5)), "LastQuietKey": (stale)})
+	Set later = ..Person("later", {"NextDueAt": (..Plus(noon, 6)), "LastQuietKey": (stale)})
+	Do $$$AssertStatusOK(..BDue(noon, .items, early_","_later), "RunDue is OK again")
+	Do $$$AssertEquals(items.Count(), 1, "a beat due 5 seconds after the tick runs, one due 6 seconds after does not")
+	If items.Count() = 1 Do $$$AssertEquals(items.GetAt(1).SessionRef, early, "it is the first one's")
+
+	// restart: a beat missed by hours runs once
+	Set restart = ..Person("restart", {"NextDueAt": (..Plus(noon, -10800)), "LastQuietKey": (stale)})
+	Do $$$AssertStatusOK(..BDue(noon, .items, restart), "RunDue is OK at the first tick")
+	Do $$$AssertEquals(items.Count(), 1, "the missed beat runs once at the first tick")
+	Set row = ..Open(restart)
+	Do $$$AssertEquals(row.LastBeatAt_"|"_row.NextDueAt, noon_"|"_..Plus(noon, 1800), "its next due time is the tick plus one interval")
+	Do $$$AssertStatusOK(..BDue(..Plus(noon, 60), .items, restart), "RunDue is OK at the next tick")
+	Do $$$AssertEquals(items.Count(), 0, "and the tick a minute later runs none")
+	Set row = ..Open(restart)
+	Do $$$AssertEquals(row.NextDueAt, ..Plus(noon, 1800), "leaving the next due time as it was")
+}
+
+Method TestBeatRow()
+{
+	Set noon = ..Local("12:00")
+	Set ref = ..Person("watch the orders production", {"NextDueAt": "", "LastQuietKey": (..BKey("another text")), "LastOutcome": "ignore", "LastFallback": 1, "LastCostUSD": 0.5, "LastDecisionRef": "olddecision", "LastTraceSessionId": 7})
+	Do $$$AssertStatusOK(..BDue(noon, .items, ref), "RunDue is OK")
+	Do $$$AssertEquals(items.Count(), 1, "one beat runs")
+	If items.Count() '= 1 Quit
+	Set item = items.GetAt(1)
+	Do $$$AssertTrue(item.ItemId '= "", "the Item has a new ItemId")
+	Do $$$AssertEquals(item.Provenance_"|"_item.Channel_"|"_item.SessionRef_"|"_item.Subject_"|"_item.Text, "untrusted|heartbeat|"_ref_"|Heartbeat check-in|watch the orders production", "it is untrusted, on the heartbeat channel, for the person, with the subject and the checklist")
+	Set row = ..Open(ref)
+	Do $$$AssertEquals(row.LastBeatAt_"|"_row.LastItemId_"|"_row.LastSnapshotKey_"|"_row.NextDueAt, noon_"|"_item.ItemId_"|"_..BKey("watch the orders production")_"|"_..Plus(noon, 1800), "the row records the beat, its Item, the snapshot's key and the next due time")
+	Do $$$AssertEquals(row.LastOutcome_"|"_row.LastFallback_"|"_row.LastCostUSD_"|"_row.LastDecisionRef_"|"_row.LastTraceSessionId, "|0|||", "the five decision fields are cleared, so that the beat is pending")
+	Do $$$AssertEquals(row.LastQuietKey, ..BKey("another text"), "the quiet key is left as it was")
+	Do $$$AssertEquals(row.LastSkipAt_"|"_row.LastSkipReason, "|", "and no skip is recorded")
+	Do ..Put(ref, "interval", 60)
+	Set row.NextDueAt = ""
+	Do row.%Save()
+	Do $$$AssertStatusOK(..BDue(..Plus(noon, 60), .items, ref), "RunDue is OK again")
+	Set row = ..Open(ref)
+	Do $$$AssertEquals(row.NextDueAt, ..Plus(noon, 3660), "an interval of 60 minutes moves the next due time by an hour")
+}
+
+Method TestDecisionIsRecorded()
+{
+	Set noon = ..Local("12:00")
+	Set tick = ..Plus(noon, 60)
+	Set quiet = ..BKey("what the beat read")
+	Set due = ..Plus(noon, 1800)
+
+	// ignore
+	Set ignored = ..Person("c", {"NextDueAt": (due), "LastItemId": "itemignore", "LastSnapshotKey": (quiet)})
+	Set decision = ..Decision(ignored, "itemignore", {"Outcome": "ignore", "CostUSD": 0.0004, "TraceSessionId": 4242})
+	// pending: no decision yet
+	Set pending = ..Person("c", {"NextDueAt": (due), "LastItemId": "itempending", "LastSnapshotKey": (quiet)})
+	// fallback, 30 minutes
+	Set fallen = ..Person("c", {"NextDueAt": (due), "LastItemId": "itemfallen", "LastSnapshotKey": (quiet)})
+	Do ..Decision(fallen, "itemfallen", {"Outcome": "tellnow", "Fallback": 1})
+	// fallback, a day
+	Set day = ..Person("c", {"NextDueAt": (due), "LastItemId": "itemday", "LastSnapshotKey": (quiet)})
+	Do ..Put(day, "interval", 1440)
+	Do ..Decision(day, "itemday", {"Outcome": "tellnow", "Fallback": 1})
+	Do $$$AssertStatusOK(..BDue(tick, .items, ignored_","_pending_","_fallen_","_day), "RunDue is OK")
+	Do $$$AssertEquals(items.Count(), 0, "no beat runs: none is due")
+	Set row = ..Open(ignored)
+	Do $$$AssertEquals(row.LastOutcome_"|"_row.LastFallback_"|"_row.LastCostUSD_"|"_row.LastDecisionRef_"|"_row.LastTraceSessionId, "ignore|0|.0004|"_decision_"|4242", "the row records the outcome, the fallback, the cost, the decision and its trace session")
+	Do $$$AssertEquals(row.LastQuietKey_"|"_row.BackoffUntil, quiet_"|", "an ignore copies the snapshot's key to the quiet key and sets no back-off")
+	Set row = ..Open(pending)
+	Do $$$AssertEquals(row.LastItemId_"|"_row.LastDecisionRef_"|"_row.LastQuietKey, "itempending||", "a beat with no decision yet stays pending")
+	Set row = ..Open(fallen)
+	Do $$$AssertEquals(row.LastFallback_"|"_row.BackoffUntil_"|"_row.LastQuietKey, "1|"_..Plus(tick, 14400)_"|", "a fallback holds the beats back for 4 hours and is no quiet reading")
+	Set row = ..Open(day)
+	Do $$$AssertEquals(row.BackoffUntil, ..Plus(tick, 86400), "and for an interval of a day, for a day")
+	Do $$$AssertStatusOK(..BDue(..Plus(tick, 60), .items, ignored_","_fallen), "RunDue is OK again")
+	Set row = ..Open(ignored)
+	Do $$$AssertEquals(row.LastDecisionRef, decision, "a recorded decision is not recorded again")
+}
+
+Method TestUnchangedAfterIgnore()
+{
+	Set noon = ..Local("12:00")
+	Set ref = ..Person("same as before", {"NextDueAt": (..Plus(noon, -60)), "LastQuietKey": (..BKey("same as before"))})
+	Do $$$AssertStatusOK(..BDue(noon, .items, ref), "RunDue is OK")
+	Do $$$AssertEquals(items.Count(), 0, "a checklist unchanged since the last ignore sends nothing")
+	Set row = ..Open(ref)
+	Do $$$AssertEquals(row.LastSkipAt_"|"_row.LastSkipReason_"|"_row.NextDueAt_"|"_row.LastItemId, noon_"|unchanged|"_..Plus(noon, 1800)_"|", "it is skipped as unchanged, one interval on")
+	Do ..Put(ref, "checklist", "changed since")
+	Do $$$AssertStatusOK(..BDue(..Plus(noon, 1800), .items, ref), "RunDue is OK at the next due time")
+	Do $$$AssertEquals(items.Count(), 1, "a changed checklist beats")
+}
+
+Method TestRunNow()
+{
+	Set noon = ..Local("12:00")
+	Set late = ..Local("21:00")
+	Set far = ..Plus(noon, 86400)
+
+	// hours and unchanged do not hold it; neither does an off person
+	Set ref = ..Person("c", {"NextDueAt": (far), "LastQuietKey": (..BKey("c"))})
+	Do ..Put(ref, "on", "0")
+	Set sc = ..BNow(ref, late, .item, .outcome, .availableAt)
+	Do $$$AssertStatusOK(sc, "RunNow is OK")
+	Do $$$AssertEquals(outcome_"|"_availableAt, "sent|", "outside the hours, with an unchanged snapshot and while off, the beat is sent")
+	Set row = ..Open(ref)
+	If $IsObject(item) Do $$$AssertEquals(row.LastRunNowAt_"|"_row.NextDueAt_"|"_row.LastItemId_"|"_row.LastBeatAt, late_"|"_..Plus(late, 1800)_"|"_item.ItemId_"|"_late, "the row records the request, moves the next due time to now plus one interval and records the beat")
+	Do $$$AssertTrue($IsObject(item), "an Item is returned")
+	If $IsObject(item) Do $$$AssertEquals(item.Channel_"|"_item.Text_"|"_item.SessionRef, "heartbeat|c|"_ref, "for the person's checklist")
+
+	// the held reasons
+	Set empty = ..Person("", {"NextDueAt": (far)})
+	Do ..BNow(empty, noon, .item, .outcome, .availableAt)
+	Do $$$AssertEquals(outcome_"|"_$IsObject(item), "empty|0", "an empty checklist holds it")
+	Set row = ..Open(empty)
+	Do $$$AssertEquals(row.LastRunNowAt_"|"_row.NextDueAt_"|"_row.LastSkipAt, noon_"|"_far_"|", "the request is recorded, the next due time is unchanged and no skip is recorded")
+	Set held = ..Person("c", {"NextDueAt": (far), "BackoffUntil": (..Plus(noon, 600))})
+	Do ..BNow(held, noon, .item, .outcome, .availableAt)
+	Do $$$AssertEquals(outcome_"|"_availableAt_"|"_$IsObject(item), "backoff|"_..Plus(noon, 600)_"|0", "a back-off holds it and says when it ends")
+	Set capped = ..Person("c", {"NextDueAt": (far)})
+	Do ..BNow(capped, noon, .item, .outcome, .availableAt, 1, 1)
+	Do $$$AssertEquals(outcome_"|"_availableAt_"|"_$IsObject(item), "cap||0", "the cap holds it")
+	Set keyless = ..Person("c", {"NextDueAt": (far)})
+	Do ..BNow(keyless, noon, .item, .outcome, .availableAt, 0, 0)
+	Do $$$AssertEquals(outcome_"|"_availableAt_"|"_$IsObject(item), "nokey||0", "so does a missing key")
+	Set row = ..Open(keyless)
+	Do $$$AssertEquals(row.LastRunNowAt_"|"_row.NextDueAt, noon_"|"_far, "and it is recorded without moving the next due time")
+
+	// the cooldown
+	Set cool = ..Person("c", {"NextDueAt": (far), "LastRunNowAt": (..Plus(noon, -119))})
+	Do ..BNow(cool, noon, .item, .outcome, .availableAt)
+	Do $$$AssertEquals(outcome_"|"_availableAt_"|"_$IsObject(item), "cooldown|"_..Plus(noon, 1)_"|0", "a request 119 seconds after the last one waits, and says when it may run")
+	Set row = ..Open(cool)
+	Do $$$AssertEquals(row.LastRunNowAt_"|"_row.NextDueAt_"|"_row.LastItemId, ..Plus(noon, -119)_"|"_far_"|", "and writes nothing")
+	Set ready = ..Person("c", {"NextDueAt": (far), "LastRunNowAt": (..Plus(noon, -120))})
+	Do ..BNow(ready, noon, .item, .outcome, .availableAt)
+	Do $$$AssertEquals(outcome_"|"_availableAt_"|"_$IsObject(item), "sent||1", "one 120 seconds after the last one runs")
+
+	// a pending decision is recorded first, also while the cooldown holds
+	Set pending = ..Person("c", {"NextDueAt": (far), "LastRunNowAt": (..Plus(noon, -30)), "LastItemId": "itemnow", "LastSnapshotKey": (..BKey("c"))})
+	Set decision = ..Decision(pending, "itemnow", {"Outcome": "ignore"})
+	Do ..BNow(pending, noon, .item, .outcome, .availableAt)
+	Set row = ..Open(pending)
+	Do $$$AssertEquals(outcome_"|"_row.LastDecisionRef_"|"_row.LastQuietKey, "cooldown|"_decision_"|"_..BKey("c"), "the cooldown comes after it")
+}
+
+Method TestOneFailureLeavesTheOthers()
+{
+	Set noon = ..Local("12:00")
+	Set a = ..Person("a", {"NextDueAt": ""})
+	Set b = ..Person("b", {"NextDueAt": ""})
+
+	// B's row cannot be opened (its node is not a list), so B's new row is refused: the SessionRef is not unique
+	Set id = ..Open(b).%Id()
+	Set node = ^OcuTalonP.HeartbeatBeatD(id)
+	Set ^OcuTalonP.HeartbeatBeatD(id) = "garbage"
+	Set sc = ..BDue(noon, .items, a_","_b)
+	Set ^OcuTalonP.HeartbeatBeatD(id) = node
+	Do $$$AssertStatusNotOK(sc, "RunDue answers an error status")
+	Set text = $SYSTEM.Status.GetErrorText(sc)
+	Do $$$AssertEquals($Piece(text, "error codes ", 2), "5808", "which holds the error code: "_text)
+	Do $$$AssertTrue(text [ "1 heartbeat beat failed", "and the count: "_text)
+	Do $$$AssertNotTrue((text [ a) || (text [ b), "and no SessionRef")
+	Do $$$AssertEquals(items.Count(), 1, "A still beats")
+	If items.Count() = 1 Do $$$AssertEquals(items.GetAt(1).SessionRef, a, "the one Item is A's")
+	Set row = ..Open(a)
+	Do $$$AssertEquals(row.LastBeatAt, noon, "and A's row records it")
+}
+
+Method TestInputsAreRead()
+{
+	Set noon = ..Local("12:00", "2099-07-01")
+	Set ..Day = ##class(OcuTalon.Bridge.Time).LocalDate(noon)
+	Do $$$AssertEquals(..BCapped(noon), 0, "the cap is not reached on a day with no mark")
+	Set ^OcuTalonBP.UsageCapped(..Day) = noon
+	Do $$$AssertEquals(..BCapped(noon), 1, "a day marked as capped reads as capped")
+	Do $$$AssertEquals(..BCapped(..Local("12:00", "2099-07-02")), 0, "and the next day does not")
+	Set ref = ..Person("c", {"NextDueAt": ""})
+	Do $$$AssertStatusOK(..BDue(noon, .items, ref, "", 1), "RunDue is OK with the cap left to be read")
+	Set row = ..Open(ref)
+	Do $$$AssertEquals(items.Count()_"|"_row.LastSkipReason, "0|cap", "it skips for the cap of that day")
+	Set other = ..Person("c", {"NextDueAt": ""})
+	Do $$$AssertStatusOK($ClassMethod(..#BEAT, "RunNow", other, noon, .item, .outcome, .availableAt), "RunNow is OK with the cap and the key left to be read")
+	Do $$$AssertEquals(outcome, "cap", "and it holds a run now for the cap of that day")
+	Kill ^OcuTalonBP.UsageCapped(..Day)
+	Set ..Day = ""
+	Do $$$AssertEquals(..BCapped(noon), 0, "a mark that is gone no longer caps")
+	Do $$$AssertEquals(..BKeyed(), +##class(OcuTalon.Bridge.Keys).Status("TriageAgent"), "Keyed is the TriageAgent's key state")
+}
+
 /// The HeartbeatBeat row of the session Ref, found by SQL (so that the test does not rely on the unique index), or "".
 Method Open(ref As %String) As OcuTalon.Data.HeartbeatBeat
 {
@@ -128,6 +522,136 @@ Method Rows(ref As %String) As %Integer
 	}
 	Do result.%Next()
 	Quit +result.%GetData(1)
+}
+
+/// --- helpers ---
+/// The values object of a test: a checklist, the window and the interval in minutes.
+ClassMethod V(checklist As %String, from As %String = "08:00", to As %String = "20:00", interval As %Integer = 30) As %DynamicObject [ Private ]
+{
+	Quit {"on": 1, "interval": (interval), "from": (from), "to": (to), "checklist": (checklist)}
+}
+
+/// The UTC time of the local clock (HH:MM) on the day (a date in 2099).
+ClassMethod Local(clock As %String, day As %String = "2099-06-15") As %String [ Private ]
+{
+	Quit ##class(OcuTalon.Data.Time).FromLocal(day_"T"_clock_":00")
+}
+
+/// The UTC time that many seconds after at.
+ClassMethod Plus(at As %String, seconds As %Integer) As %String [ Private ]
+{
+	Quit ##class(OcuTalon.Data.Time).AddSeconds(at, seconds)
+}
+
+/// A fixture session; its Ref. With fields (an object of HeartbeatBeat properties) it also gets its HeartbeatBeat row, made before the settings, and with
+/// a checklist its checklist setting.
+Method Person(checklist As %String = "", fields As %DynamicObject = "") As %String [ Private ]
+{
+	Set ref = ##class(OcuTalon.Test.Data.Fixture).Session("zzbeat"_$Increment(^OcuTalonTest("ChecksBeat", "n")))
+	Set ..Refs = ..Refs_$Select(..Refs = "": "", 1: ",")_ref
+	Set ..Sessions = ..Sessions_$Select(..Sessions = "": "", 1: ",")_ref
+	If $IsObject(fields) {
+		Set row = ##class(OcuTalon.Data.HeartbeatBeat).%New()
+		Set row.SessionRef = ref
+		Set iterator = fields.%GetIterator()
+		While iterator.%GetNext(.name, .value) {
+			Set $Property(row, name) = value
+		}
+		Do $$$AssertStatusOK(row.%Save(), "the fixture row is saved")
+	}
+	If checklist '= "" Do ..Put(ref, "checklist", checklist)
+	Quit ref
+}
+
+/// Writes the person's setting, and drops this process's cache entry of it.
+Method Put(ref As %String, name As %String, value As %String) [ Private ]
+{
+	Do $$$AssertStatusOK(##class(OcuTalon.Data.Setting).Set($ClassMethod(..#BEAT, "SettingKey", ref, name), value), "the setting "_name_" is written")
+}
+
+/// A decision of Kind decide for the person's beat item; its Ref (removed with the test).
+Method Decision(ref As %String, itemId As %String, fields As %DynamicObject) As %String [ Private ]
+{
+	Do fields.%Set("ItemId", itemId)
+	Set decision = ##class(OcuTalon.Test.Data.Fixture).Decision(ref, "decide", ##class(OcuTalon.Data.Time).NowUtc(), fields)
+	Set ..Refs = ..Refs_","_decision
+	Quit decision
+}
+
+/// Removes the HeartbeatBeat row and the Setting rows of the session, and the cache entries of the settings.
+ClassMethod Forget(ref As %String)
+{
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.HeartbeatBeat WHERE SessionRef = ?", ref)
+	Set keys = $ListFromString($Parameter(..#BEAT, "KEYS"))
+	Set position = 0
+	While $ListNext(keys, position, name) {
+		Set key = $ClassMethod(..#BEAT, "SettingKey", ref, name)
+		Kill ^||OcuTalon.Setting(key)
+		Set row = ##class(OcuTalon.Data.Setting).KeyIndexOpen(key)
+		If $IsObject(row) Do ##class(OcuTalon.Data.Setting).%DeleteId(row.%Id())
+	}
+}
+
+/// One case of the skip order: expected is the first reason (or ""), and each flag makes its rule hold alone (the rules, in order).
+Method Case(label As %String, expected As %String, empty As %Boolean, hours As %Boolean, backoff As %Boolean, cap As %Boolean, nokey As %Boolean, unchanged As %Boolean, runNow As %Boolean) [ Private ]
+{
+	Set at = ..Local($Select(hours: "21:00", 1: "12:00"))
+	Set row = ##class(OcuTalon.Data.HeartbeatBeat).%New()
+	Set row.BackoffUntil = $Select(backoff: ..Plus(at, 60), 1: "")
+	Set row.LastQuietKey = $Select(unchanged: "k", 1: "j")
+	Set reason = ..BSkip(..V($Select(empty: "  "_$Char(9, 10)_" ", 1: "c")), row, at, runNow, cap, 'nokey, "k")
+	Do $$$AssertEquals(reason, expected, label_": '"_expected_"'")
+}
+
+Method BValues(ref As %String) As %DynamicObject [ Private ]
+{
+	Quit $ClassMethod(..#BEAT, "Values", ref)
+}
+
+Method BHours(values As %DynamicObject, at As %String) As %Boolean [ Private ]
+{
+	Quit $ClassMethod(..#BEAT, "InHours", values, at)
+}
+
+Method BNext(values As %DynamicObject, at As %String, reason As %String) As %String [ Private ]
+{
+	Quit $ClassMethod(..#BEAT, "NextDue", values, at, reason)
+}
+
+Method BSkip(values As %DynamicObject, row As %RegisteredObject, at As %String, runNow As %Boolean, capped As %Boolean, keyed As %Boolean, key As %String) As %String [ Private ]
+{
+	Quit $ClassMethod(..#BEAT, "Skip", values, row, at, runNow, capped, keyed, key)
+}
+
+Method BKey(snapshot As %String) As %String [ Private ]
+{
+	Quit $ClassMethod(..#BEAT, "Key", snapshot)
+}
+
+Method BSnap(ref As %String, now As %String) As %String [ Private ]
+{
+	Quit $ClassMethod(..#BEAT, "Snapshot", ref, now)
+}
+
+Method BCapped(at As %String) As %Boolean [ Private ]
+{
+	Quit $ClassMethod(..#BEAT, "Capped", at)
+}
+
+Method BKeyed() As %Boolean [ Private ]
+{
+	Quit $ClassMethod(..#BEAT, "Keyed")
+}
+
+/// RunDue for the sessions (comma-separated) with the cap not reached and the key present unless given; the Items in items.
+Method BDue(tickAt As %String, Output items As %ListOfObjects, sessions As %String, capped As %String = 0, keyed As %String = 1) As %Status [ Private ]
+{
+	Quit $ClassMethod(..#BEAT, "RunDue", tickAt, .items, sessions, capped, keyed)
+}
+
+Method BNow(ref As %String, now As %String, Output item As OcuTalon.Msg.Item, Output outcome As %String, Output availableAt As %String, capped As %String = 0, keyed As %String = 1) As %Status [ Private ]
+{
+	Quit $ClassMethod(..#BEAT, "RunNow", ref, now, .item, .outcome, .availableAt, capped, keyed)
 }
 
 XData Contracts [ MimeType = application/json ]

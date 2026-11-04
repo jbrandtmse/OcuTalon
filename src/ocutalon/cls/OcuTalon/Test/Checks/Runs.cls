@@ -42,11 +42,19 @@
 ///   - TestTickRunsTheBeatsLast (Story 39.1; matrix row 1): the probe's BeatRunDue is called once with the Tick's time, after the quiet sweep's send and the due row's read, and the
 ///     row still runs (passed); nothing is added to the probe's Order;
 ///   - TestBeatsThatFailAreLogged (rows 2 and 3): a RunDue that throws, and one that answers an error status, each log one warning (LOGBEAT) that holds the test's marker, and the Tick still answers OK;
-///   - TestBeatNow (rows 4 and 5): a BeatNow is answered OK with no response, RunNow is called once with the request's SessionRef, and no send, no row read and no RunDue is made; a RunNow that throws
-///     logs one warning (LOGBEATNOW) that holds the marker and not the SessionRef, and so does a RunNow that answers an error status; the answer is OK;
+///   - TestTickSendsTheBeats (Story 39.3; AC 2): with the probe made to run the real Beat for a person, the Tick sends the beat's Item (channel heartbeat, untrusted) after the due row's read,
+///     in a trace session of its own (the process's session is cleared for the send) with the TraceRef of the person's session as SuperSession, and puts the process's own session back;
+///   - TestBeatSendFailureIsLogged (Story 39.3): a send of a beat that fails logs one warning (LOGBEATSEND) that names the ItemId and not the SessionRef, and the Tick answers OK;
+///   - TestBeatNow (rows 4 and 5, Story 39.3): a BeatNow is answered OK with a CommandResult that holds the outcome of RunNow, RunNow is called once with the request's SessionRef and the
+///     request's time (the current time when RequestedAt is not a UTC stamp), and no send, no row read and no RunDue is made; a RunNow that throws logs one warning (LOGBEATNOW) that holds the
+///     marker and not the SessionRef, and so does a RunNow that answers an error status, and the outcome is then failed;
+///   - TestBeatNowRunsOnce (Story 39.3; AC 4): a BeatNow sends one Item and answers sent with the ItemId as Ref; a second one within two minutes answers cooldown with availableAt and sends nothing;
+///   - TestTickSendsTheItemsOfAFailedRunDue (Story 39.3): a RunDue that returns an Item together with an error status logs one warning, and the Item is still sent;
+///   - TestBeatNowSendFailureAnswersFailed (Story 39.3): a BeatNow whose send fails answers failed with no Ref and logs one warning that names the ItemId and not the SessionRef;
 ///   - TestBeatsRunWhateverEarlierStepsDo (Story 39.1): a Sweep that throws and a due row that throws do not stop RunDue, and the Tick answers OK; a Tick whose TickAt is not a UTC stamp gives
 ///     RunDue the Tick's own current time (a UTC stamp), never the bad text; a CheckChanged calls neither RunDue nor RunNow;
-///   - TestBeatLogsAreRedacted: a secret in the error text of a RunDue or a RunNow is redacted from the LOGBEAT and LOGBEATNOW line, which still holds the text before it;
+///   - TestBeatLogsAreRedacted: a secret in the error text of a RunDue or a RunNow is redacted from the LOGBEAT and LOGBEATNOW line, which still holds the text before it, and a
+///     SessionRef in the error text of a RunNow is left out;
 ///   - TestBeatNowKeepsEachSession: two BeatNows of two sessions call RunNow twice, in order, each with its own SessionRef, and a repeated BeatNow is not collapsed;
 ///   - TestUnknownRequest ("Unknown request"): a request of another class is an error 5001 that names the class.
 /// The fixture rows, streams and the log lines that the tests made are removed after each test.
@@ -91,6 +99,9 @@ Property LogMark As %Integer;
 /// The public setting onlineDemo before the tests, "" when it was absent.
 Property SavedOnline As %String;
 
+/// The ItemIds of the beats of the test being run, comma-separated (the warnings of their sends name them).
+Property BeatItems As %String(MAXLEN = "");
+
 Method OnBeforeAllTests() As %Status
 {
 	Set ..Number = $Increment(^OcuTalonTest("ChecksRuns", "n"))
@@ -105,6 +116,7 @@ Method OnBeforeOneTest(testname As %String) As %Status
 	Set ..Incidents = ""
 	Set ..Requests = ""
 	Set ..Other = ""
+	Set ..BeatItems = ""
 	Set ..LogMark = ##class(OcuTalon.Test.Core.Observe).LastLog()
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
 	Do $ClassMethod(..#PROBE, "Reset")
@@ -114,6 +126,9 @@ Method OnBeforeOneTest(testname As %String) As %Status
 Method OnAfterOneTest(testname As %String) As %Status
 {
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", ..SavedOnline)
+	For i = 1:1:$Length(..Refs, ",") {
+		If $Piece(..Refs, ",", i) '= "" Do ##class(OcuTalon.Test.Checks.Beat).Forget($Piece(..Refs, ",", i))
+	}
 	If ..Refs '= "" Do ##class(OcuTalon.Test.Data.Fixture).Clean(..Refs)
 	Set ..Refs = ""
 	Do $ClassMethod(..#PROBE, "Reset")
@@ -953,20 +968,34 @@ Method TestBeatNow()
 	Set production = "Zz.BeatNowDue"
 	Set ref = ..Watch(a, production)
 	Do ..Feed(production, "read", "running")
+	Set host.BeatNowOutcome = "empty"
 	Set request = ##class(OcuTalon.Checks.Msg.BeatNow).%New()
 	Set request.SessionRef = a
 	Set request.RequestedAt = ..#TICK
 	Set response = "x"
 	Set sc = host.OnRequest(request, .response)
 	Do $$$AssertStatusOK(sc, "a BeatNow is answered OK")
-	Do $$$AssertEquals(response, "", "with no response object")
+	Do $$$AssertTrue($IsObject(response) && response.%IsA("OcuTalon.Msg.CommandResult"), "with a CommandResult")
+	If $IsObject(response) Do $$$AssertEquals(response.Ok_"|"_response.Outcome_"|"_response.Ref_"|"_response.Data_"|"_response.Message, "0|empty|||", "that holds the outcome of RunNow and nothing else")
 	Do $$$AssertEquals($Select($IsObject(host.BeatNows): host.BeatNows.%Size(), 1: 0), 1, "RunNow is called once")
-	If $IsObject(host.BeatNows) && (host.BeatNows.%Size() = 1) Do $$$AssertEquals(host.BeatNows.%Get(0).sessionRef, a, "with the request's SessionRef")
+	If $IsObject(host.BeatNows) && (host.BeatNows.%Size() = 1) Do $$$AssertEquals(host.BeatNows.%Get(0).sessionRef_"|"_host.BeatNows.%Get(0).now, a_"|"_..#TICK, "with the request's SessionRef and time")
 	Do $$$AssertEquals($Select($IsObject(host.Beats): host.Beats.%Size(), 1: 0), 0, "RunDue is not called")
 	Do $$$AssertEquals($Select($IsObject(host.Order): host.Order.%Size(), 1: 0), 0, "nothing is sent")
 	Do $$$AssertEquals(..Reads(), "", "and no row is read")
 
+	// a request with no time is run at the current time
+	Set request.RequestedAt = "not a stamp"
+	Set before = ##class(OcuTalon.Data.Time).NowUtc()
+	Do $$$AssertStatusOK(host.OnRequest(request, .response), "a BeatNow with a bad time is answered OK")
+	Set after = ##class(OcuTalon.Data.Time).NowUtc()
+	If host.BeatNows.%Size() = 2 {
+		Set given = host.BeatNows.%Get(1).now
+		Do $$$AssertTrue(given ? 4N1"-"2N1"-"2N1"T"2N1":"2N1":"2N1"Z", "RunNow gets a UTC stamp: "_given)
+		Do $$$AssertTrue('(before ] given) && '(given ] after), "that is the current time: "_given)
+	}
+
 	// RunNow throws
+	Set request.RequestedAt = ..#TICK
 	Set marker = "zzchk"_..Number_" beatnow refused"
 	Set host.BeatNowThrows = marker
 	Set sc = host.OnRequest(request, .response)
@@ -974,6 +1003,7 @@ Method TestBeatNow()
 	Do $$$AssertEquals(..Beaten("zzchk"_..Number_" beatnow ", .text, "BeatNow"), 1, "and logs one warning")
 	Do $$$AssertTrue(text [ marker, "which holds the marker: "_text)
 	Do $$$AssertNotTrue(text [ a,"and not the SessionRef")
+	Do $$$AssertEquals(response.Ok_"|"_response.Outcome, "0|failed", "the outcome is failed")
 
 	// RunNow answers an error status
 	Set host.BeatNowThrows = ""
@@ -984,6 +1014,116 @@ Method TestBeatNow()
 	Do $$$AssertEquals(..Beaten("zzchk"_..Number_" beatnow ", .text, "BeatNow"), 2, "and logs one more warning")
 	Do $$$AssertTrue(text [ marker, "which holds the marker: "_text)
 	Do $$$AssertNotTrue(text [ a,"and not the SessionRef")
+	Do $$$AssertEquals(response.Ok_"|"_response.Outcome, "0|failed", "the outcome is failed")
+}
+
+Method TestTickSendsTheBeats()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set a = ..Owner("beatsend")
+	Set production = "Zz.BeatSendDue"
+	Set ref = ..Watch(a, production)
+	Do ..Feed(production, "read", "running")
+	Do ..Beating(a, "check the orders")
+	Set host.BeatSessions = a
+	Do ..Tick(host, ..#TICK)
+	Set items = ..Items()
+	Do $$$AssertEquals(items.%Size(), 1, "the Tick sends the one beat's Item")
+	If items.%Size() = 1 {
+		Set item = items.%Get(0)
+		Do $$$AssertEquals(item.channel_"|"_item.provenance_"|"_item.sessionRef_"|"_item.subject_"|"_item.text, "heartbeat|untrusted|"_a_"|Heartbeat check-in|check the orders", "an untrusted Item of the heartbeat channel for the person")
+		Do $$$AssertEquals(item.sessionId, "", "in a trace session of its own: the process's session is cleared for the send")
+		Do $$$AssertEquals(item.superSession, ..TraceOf(a), "with the TraceRef of the person's session as SuperSession")
+		Set row = ##class(OcuTalon.Data.HeartbeatBeat).SessionRefIndexOpen(a)
+		Do $$$AssertTrue($IsObject(row) && (row.LastItemId = item.itemId), "the row was saved with the Item's ItemId")
+	}
+	Do $$$AssertEquals(host.%SessionId_"|"_host.%SuperSession, ..#SESSIONID_"|", "the process's own session and SuperSession are put back")
+	Do $$$AssertEquals($Select($IsObject(host.Beats): host.Beats.%Size(), 1: 0), 1, "RunDue is called once")
+	If $IsObject(host.Beats) && (host.Beats.%Size() = 1) Do $$$AssertEquals(host.Beats.%Get(0).reads, 1, "after the due row's read")
+	Do $$$AssertEquals(..Row(ref).Result, "passed", "the due row still runs")
+	Do $$$AssertEquals(host.Order.%Size(), 1, "and the Item is the only send")
+}
+
+Method TestBeatSendFailureIsLogged()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set a = ..Owner("beatfailsend")
+	Set text = "zzchk"_..Number_" beat text"
+	Do ..Beating(a, text)
+	Set host.BeatSessions = a
+	Do $ClassMethod(..#PROBE, "FailFindings", text)
+	Do ..Tick(host, ..#TICK)
+	Set items = ..Items()
+	Do $$$AssertEquals(items.%Size(), 1, "the send was tried")
+	If items.%Size() '= 1 Quit
+	Set ..BeatItems = items.%Get(0).itemId
+	Do $$$AssertEquals(..Warnings("Tick", $Parameter(..#PROBE, "LOGBEATSEND")_..BeatItems, .line), 1, "a send that fails logs one warning that names the ItemId")
+	Do $$$AssertNotTrue(line [ a, "and not the SessionRef")
+}
+
+Method TestBeatNowRunsOnce()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set a = ..Owner("beatonce")
+	Do ..Beating(a, "check the orders")
+	Set host.BeatSessions = a
+	Set request = ##class(OcuTalon.Checks.Msg.BeatNow).%New()
+	Set request.SessionRef = a
+	Set request.RequestedAt = ..#TICK
+	Do $$$AssertStatusOK(host.OnRequest(request, .response), "the BeatNow is answered OK")
+	Set items = ..Items()
+	Do $$$AssertEquals(items.%Size(), 1, "one Item is sent")
+	If items.%Size() '= 1 Quit
+	Do $$$AssertEquals(response.Ok_"|"_response.Outcome_"|"_response.Ref_"|"_response.Data, "1|sent|"_items.%Get(0).itemId_"|", "the answer is sent, with the ItemId as Ref")
+	Do $$$AssertEquals(items.%Get(0).sessionId_"|"_items.%Get(0).superSession, "|"_..TraceOf(a), "in a trace session of its own, with the TraceRef of the person's session as SuperSession")
+	Set request.RequestedAt = ##class(OcuTalon.Bridge.Time).PlusSeconds(..#TICK, 30)
+	Do $$$AssertStatusOK(host.OnRequest(request, .response), "a second BeatNow is answered OK")
+	Do $$$AssertEquals(..Items().%Size(), 1, "and sends nothing")
+	Do $$$AssertEquals(response.Ok_"|"_response.Outcome_"|"_response.Ref_"|"_response.Data, "0|cooldown||"_{"availableAt": (##class(OcuTalon.Bridge.Time).PlusSeconds(..#TICK, 120))}.%ToJSON(), "the answer is cooldown, with the time it may run again")
+}
+
+Method TestTickSendsTheItemsOfAFailedRunDue()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set a = ..Owner("beatpartial")
+	Do ..Beating(a, "check the orders")
+	Set host.BeatSessions = a
+	Set marker = "zzchk"_..Number_" beat refused with an item"
+	Set host.BeatError = marker
+	Do ..Tick(host, ..#TICK)
+	Do $$$AssertEquals(..Beaten(marker, .text), 1, "a RunDue that answers an error status logs one warning")
+	Set items = ..Items()
+	Do $$$AssertEquals(items.%Size(), 1, "and the Item that it returned with the error is still sent")
+	If items.%Size() = 1 {
+		Set row = ##class(OcuTalon.Data.HeartbeatBeat).SessionRefIndexOpen(a)
+		Do $$$AssertTrue($IsObject(row) && (row.LastItemId = items.%Get(0).itemId), "which is the Item of the saved pending row")
+	}
+}
+
+Method TestBeatNowSendFailureAnswersFailed()
+{
+	Set host = ..Host()
+	If '$IsObject(host) Quit
+	Set a = ..Owner("beatnowfail")
+	Set text = "zzchk"_..Number_" beatnow text"
+	Do ..Beating(a, text)
+	Set host.BeatSessions = a
+	Do $ClassMethod(..#PROBE, "FailFindings", text)
+	Set request = ##class(OcuTalon.Checks.Msg.BeatNow).%New()
+	Set request.SessionRef = a
+	Set request.RequestedAt = ..#TICK
+	Do $$$AssertStatusOK(host.OnRequest(request, .response), "a BeatNow whose send fails is answered OK")
+	Set items = ..Items()
+	Do $$$AssertEquals(items.%Size(), 1, "the send was tried")
+	If items.%Size() '= 1 Quit
+	Set ..BeatItems = items.%Get(0).itemId
+	Do $$$AssertEquals(response.Ok_"|"_response.Outcome_"|"_response.Ref_"|"_response.Data, "0|failed||", "the answer is failed, with no Ref")
+	Do $$$AssertEquals(..Warnings("BeatNow", $Parameter(..#PROBE, "LOGBEATSEND")_..BeatItems, .line), 1, "and one warning names the ItemId")
+	Do $$$AssertNotTrue(line [ a, "and not the SessionRef")
 }
 
 Method TestBeatsRunWhateverEarlierStepsDo()
@@ -1052,6 +1192,7 @@ Method TestBeatLogsAreRedacted()
 	Set marker = "zzchk"_..Number_" beatnow refused"
 	Set host.BeatNowThrows = marker_" "_secret
 	Do $$$AssertStatusOK(host.OnRequest(request, .response), "a RunNow that throws is answered OK")
+	Do $$$AssertEquals(response.Outcome, "failed", "with the outcome failed")
 	Do $$$AssertEquals(..Beaten(marker, .text, "BeatNow"), 1, "and logs one warning")
 	Do $$$AssertTrue(text [ marker, "that holds the text before the secret: "_text)
 	Do $$$AssertNotTrue(text [ "QaSecret", "and not the secret: "_text)
@@ -1060,6 +1201,10 @@ Method TestBeatLogsAreRedacted()
 	Do $$$AssertStatusOK(host.OnRequest(request, .response), "a RunNow that answers an error status is answered OK")
 	Do $$$AssertEquals(..Beaten(marker, .text, "BeatNow"), 2, "and logs one more warning")
 	Do $$$AssertNotTrue(text [ "QaSecret", "without the secret: "_text)
+	Set host.BeatNowError = "zzchk"_..Number_" beatnow names "_a_" twice "_a
+	Do $$$AssertStatusOK(host.OnRequest(request, .response), "a RunNow whose error names the SessionRef is answered OK")
+	Do $$$AssertEquals(..Beaten("zzchk"_..Number_" beatnow names ", .text, "BeatNow"), 1, "and logs one warning")
+	Do $$$AssertNotTrue(text [ a, "that does not name the SessionRef: "_text)
 }
 
 Method TestBeatNowKeepsEachSession()
@@ -1077,6 +1222,7 @@ Method TestBeatNowKeepsEachSession()
 	Set calls = $Select($IsObject(host.BeatNows): host.BeatNows.%Size(), 1: 0)
 	Do $$$AssertEquals(calls, 3, "RunNow is called for each request, a repeat included")
 	If calls = 3 Do $$$AssertEquals(host.BeatNows.%Get(0).sessionRef_"|"_host.BeatNows.%Get(1).sessionRef_"|"_host.BeatNows.%Get(2).sessionRef, a_"|"_b_"|"_a, "in order, each with its own SessionRef")
+	If calls = 3 Do $$$AssertEquals(host.BeatNows.%Get(0).now_"|"_host.BeatNows.%Get(1).now_"|"_host.BeatNows.%Get(2).now, ..#TICK_"|"_..#TICK_"|"_..#TICK, "and the request's time")
 	Do $$$AssertEquals($Select($IsObject(host.Beats): host.Beats.%Size(), 1: 0), 0, "and RunDue is never called")
 }
 
@@ -1344,6 +1490,14 @@ Method RanLine(ref As %String) As %String
 	Quit ""
 }
 
+/// All-day heartbeat settings for the session with the checklist (the beat then runs at any tick time, whatever the instance zone is).
+Method Beating(session As %String, checklist As %String) [ Private ]
+{
+	For name = "from", "to", "checklist" {
+		Do $$$AssertStatusOK(##class(OcuTalon.Data.Setting).Set($ClassMethod("OcuTalon.Checks.Beat", "SettingKey", session, name), $Select(name = "checklist": checklist, 1: "")), "the setting "_name_" is written")
+	}
+}
+
 /// Removes the lines that the tests made about their own rows and incidents: the warnings of the runs and the info lines of the runs, by the Refs of the
 /// checks, and the warnings of the sweep, by the Refs of the incidents.
 Method RemoveLogs()
@@ -1370,6 +1524,10 @@ Method RemoveLogs()
 	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE ID > ? AND Type = 3 AND SourceMethod = 'Tick' AND Text %STARTSWITH ? AND Text [ ?", ..LogMark, $Parameter(..#PROBE, "LOGFIXES"), "zzchk"_..Number_" sweep refused")
 	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE ID > ? AND Type = 3 AND SourceMethod = 'Tick' AND Text %STARTSWITH ? AND Text [ ?", ..LogMark, $Parameter(..#PROBE, "LOGBEAT"), "zzchk"_..Number_" beat refused")
 	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM Ens_Util.Log WHERE ID > ? AND Type = 3 AND SourceMethod = 'BeatNow' AND Text %STARTSWITH ? AND Text [ ?", ..LogMark, $Parameter(..#PROBE, "LOGBEATNOW"), "zzchk"_..Number_" beatnow ")
+	For i = 1:1:$Length(..BeatItems, ",") {
+		If $Piece(..BeatItems, ",", i) '= "" Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "Tick", $Parameter(..#PROBE, "LOGBEATSEND")_$Piece(..BeatItems, ",", i))
+		If $Piece(..BeatItems, ",", i) '= "" Do ##class(OcuTalon.Test.Core.Observe).RemoveWarnings(..LogMark, "BeatNow", $Parameter(..#PROBE, "LOGBEATSEND")_$Piece(..BeatItems, ",", i))
+	}
 }
 
 }
