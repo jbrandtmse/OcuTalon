@@ -4,7 +4,7 @@
 
 ## Goal
 
-A person keeps a short checklist that OcuTalon looks at on a schedule (the agent heartbeat, or beat), with an interval and active hours of their own. The existing one-minute tick only finds due beats and never calls the model; each due beat that isn't skipped becomes one attention decision over the checklist and a code-built status snapshot, so a person's beats call the model at most once per interval and only when something may need a decision. Ignore stays silent, a beat never gives an all-clear, and every beat and its cost shows in Visual Trace and on a new Heartbeat checklist card. The owner's hard constraint: the model is never called every minute.
+Each person keeps a short checklist that OcuTalon looks at on a schedule (the agent heartbeat, or beat), with their own interval and active hours. The existing one-minute tick only finds the beats that are due and never calls the model. Each due beat that isn't skipped becomes one attention decision over the checklist and a status snapshot built by code, so a person's beats call the model at most once per interval and only when something may need a decision. Ignore stays silent, a beat never gives an all-clear, and every beat and its cost shows in Visual Trace and on a new Heartbeat checklist card. The owner's hard constraint is that the model is never called every minute.
 
 ## Stories
 
@@ -18,45 +18,44 @@ A person keeps a short checklist that OcuTalon looks at on a schedule (the agent
 
 ## Requirements & Constraints
 
-- **Values, per person:** on/off; checklist up to 1,000 characters; interval of 30, 60, 120, 240, 480 or 1440 minutes (nothing shorter on any install); active hours as quarter-hour `HH:MM` in the instance zone, or both empty for all day. Defaults: on, 30, 08:00 to 20:00, empty checklist, so a new person costs nothing until they write one. Online demo: off, with a sample checklist that isn't stored until saved; values go at sign-out and the reset.
-- **Saving:** refuse `{{`, `@{` and control characters other than a line break, with a plain message and nothing written. Audit first (never the checklist's text), then write; a change applies within 60 seconds.
-- **Skips, in this order, with no model request:** empty checklist; outside active hours; back-off running; day capped; no key; snapshot unchanged since the last Ignore. A skip records its reason and moves the next due time on (the next active-hours start when outside hours, otherwise one interval).
-- **Run now:** an explicit request, at most every 2 minutes per session. Active hours and an unchanged snapshot don't hold it back; the other skip rules do. The route answers 409 with `availableAt` or the reason.
-- **Failure and restart:** a fallback notifies as for any item and backs off 4 hours, or one interval if longer. A beat missed across a restart runs once. Nothing that decides "due" lives in memory.
-- **Snapshot:** the checklist, a "Status at" line, then entry lines for open incidents, watches, pending approval requests, reminders due before the next beat, and at most 10 decisions since the last beat that made a decision. A watch's line holds its production and last check result, and no time: the run time moves every minute, so it would change the key at every beat and the unchanged skip could never fire.
-- **Snapshot limits:** it counts as untrusted arriving content and stops at 4,000 characters. It holds no model-written text, diagnosis cause, decision reasons, event-log or message text, keys or identities. A decision's code-written `Summary` stays as stored, and that can quote outside content.
-- **No all-clear:** a beat has no check row, check result or coverage entry, and no code renders a beat or an Ignore as "everything is fine". Reasons pass the all-clear guard.
-- **Cost:** each decision under $0.001 on Claude Haiku 5.5; a default day under $0.03. Act leads only to one read-only turn, with no approval request.
-- **Tests pin the model calls** through the CI mock's request log, with fixed clocks: none on a non-due tick or an unchanged-since-Ignore beat, exactly one on a changed beat, at most two in an hour on a 30-minute interval.
-- **Security overview** must say a beat sends the checklist and snapshot to the model provider, at most once per interval.
+- **Values, per person:** on/off; a checklist of up to 1,000 characters; an interval of 30, 60, 120, 240, 480 or 1440 minutes (nothing shorter on any install); active hours as quarter-hour `HH:MM` in the instance zone, or both empty for all day. Defaults are on, 30, 08:00 to 20:00 and an empty checklist, so a new person costs nothing until they write one. On the online demo it is off, with a sample checklist that isn't stored until saved, and the values go at sign-out and at the reset.
+- **Saving:** refuse `{{`, `@{` and any control character other than a line break, with a plain message and nothing written. Write the audit entry first (never the checklist's text), then the values. A change applies within 60 seconds.
+- **Skips, with no model request, checked in this order:** empty checklist; outside active hours; back-off running; day capped; no key; snapshot unchanged since the last Ignore. A skip records its reason and moves the next due time on: to the next active-hours start when outside hours, otherwise by one interval.
+- **Run now:** an explicit request, at most once every 2 minutes per session. Active hours and an unchanged snapshot don't hold it back; the other skip rules do. The route answers 409 with `availableAt`, or with the reason.
+- **Failure and restart:** a fallback notifies the person as for any item and backs off 4 hours, or one interval if that is longer. A beat missed across a restart runs once. Nothing that decides "due" lives in memory.
+- **Snapshot:** the checklist, a "Status at" line, then entry lines for open incidents, watches (production and last check result, with no time), pending approval requests, reminders due before the next beat, and at most 10 decisions since the last beat that made a decision. It counts as untrusted arriving content and stops at 4,000 characters. It never holds model-written text, a diagnosis cause, decision reasons, event-log or message text, keys or identities. A decision's code-written `Summary` stays as stored, and it can quote outside content.
+- **No all-clear:** a beat has no check row, check result or coverage entry, and no code renders a beat or an Ignore as "everything is fine". Beat reasons pass the all-clear guard.
+- **Cost:** each decision must cost under $0.001 on Claude Haiku 5.5, and a default day under $0.03. Act leads only to one read-only turn, with no approval request.
+- **Model-call tests** use the CI mock's request log and fixed clocks: no request on a tick that isn't a due beat or on a beat unchanged since an Ignore, exactly one on a changed beat, and at most two in an hour on a 30-minute interval.
+- **Security overview:** it must say that a beat sends the checklist and snapshot to the model provider at most once per interval. Once the run-now route ships, it must also name a beat the person runs now, with the 2-minute rule and the daily cap.
 
 ## Technical Decisions
 
-- **Home lanes:** A for 39.1, 39.3, 39.4 and 39.6; B for 39.2, 39.5 and 39.7. Each story keeps its home lane's files. `Checks`, `Checks.Beat`, `HeartbeatBeat`, `BeatNow` and Triage are Lane A; `Msg.Enum`, the command classes, `CommandsIn`, `SettingsOps`, `SessionOps`, `Web.Api`, `web/` and `Live/Publish.cls` are Lane B.
-- **Story 39.7 moved to Lane B** by orchestrator ruling, so it may create `Live/Payload/Heartbeat.cls` and edit `Live/Publish.cls` TYPES, `Test.Live.Payloads` and `web/src/app/live/payloads.ts`. All four land together, before the event is published. The ownership tables still list the payload and event as Lane A; the ruling governs. The publish call itself is `Checks`', a Lane A file the ruling doesn't name, so 39.7's spec must settle where it goes.
-- **Shared files:** `Agent.Input`, Triage's instructions, `Msg.Enum`, `SettingsOps`, `CommandsIn`, `SessionOps.End`, `Web.Api` and the rail are shared with Epics 40 and 41. Each epic appends its own entry.
+- **Home lanes:** Lane A owns 39.1, 39.3, 39.4 and 39.6; Lane B owns 39.2, 39.5 and 39.7 (re-homed by orchestrator ruling). Each story keeps its home lane's files. `Checks`, `Checks.Beat`, `HeartbeatBeat`, `BeatNow` and Triage are Lane A. `Msg.Enum`, the command classes, `CommandsIn`, `SettingsOps`, `SessionOps`, `Web.Api`, `web/` and `Live/Publish.cls` are Lane B.
+- **Story 39.7** may create `Live/Payload/Heartbeat.cls` and edit `Live/Publish.cls` TYPES, `Test.Live.Payloads` and `web/src/app/live/payloads.ts`. All four land together, before the event is published. The publish call itself belongs to `Checks`, a Lane A file, so 39.7's spec must settle where it goes.
+- **Shared with Epics 40 and 41:** `Agent.Input`, Triage's instructions, `Msg.Enum`, `SettingsOps`, `CommandsIn`, `SessionOps.End`, `Web.Api` and the rail. Each epic appends its own entry.
 - **No new scheduler, task or timer.** Beats run from `Checks` on the tick, after the due checks, in their own Try/Catch. Values are read through `Data.Setting.Get`.
-- **Settings:** keys `person.<SessionRef>.heartbeat.*`. `SettingsOps` is the only run-time writer, the `SessionRef` comes only from the server-side session, and an admin gets no right to another person's values.
-- **Commands:** `SetHeartbeat` goes to `SettingsOps` and `RunHeartbeat` to `Checks` as a `BeatNow`, both from origin `web_user` only, and the governance test refuses each from origin `tool`.
-- **A beat that runs** sends `Intake` one `Msg.Item` asynchronously (provenance `untrusted`, channel `heartbeat`) through Epic 30's send seam, in a new trace session under the session's `TraceRef`. A later tick reads its `Decision` by `ItemId` and records the result; on Ignore the sent key becomes `LastQuietKey`.
-- **Snapshot key:** `Beat.Key` is a SHA-256 of the checklist and the entry lines, leaving out the "Status at" line. The same records at different times match; a change to an entry line or the checklist changes it.
-- **Skip inputs:** hours through `Data.Time`, the cap through `Bridge.Budget.State()`, the key through `Bridge.Keys.Status`.
-- **Heartbeat event:** the row's public view on the session's stream, after each committed beat, skip or result. Never the `SessionRef`, checklist text or a snapshot key.
-- **Triage** gets a static heartbeat paragraph (no `{{`), and a test compares it with its UX source.
-- **Test data:** mock scenarios under `ci/mock/scenarios/A/`; evaluation cases under `eval/heartbeat-*/`, at least one held back from prompt work, run on the mock each push and on the real model per release candidate.
+- **Settings:** the keys are `person.<SessionRef>.heartbeat.on|interval|from|to|checklist`. `SettingsOps` is the only writer at run time. The `SessionRef` comes only from the server-side session, and an admin gets no right to another person's values.
+- **Commands:** `SetHeartbeat` (`On`, `Interval`, `From`, `To`, `Checklist`) goes to `SettingsOps`, and `RunHeartbeat` goes to `Checks` as a `BeatNow`. Both are accepted from origin `web_user` only, and the governance test refuses each from origin `tool`. The routes are `GET`/`PUT /api/v1/heartbeat` and `POST /api/v1/heartbeat/run` (202 or 409).
+- **A beat that runs** sends `Intake` one `Msg.Item` asynchronously (provenance `untrusted`, channel `heartbeat`, Subject "Heartbeat check-in") through Epic 30's send seam, in a new trace session under the session's `TraceRef`. A later tick reads its `Decision` by `ItemId` and records the result. On Ignore, the sent key becomes `LastQuietKey`.
+- **Snapshot key:** `Beat.Key` is a SHA-256 of the checklist and the entry lines, leaving out the "Status at" line.
+- **Heartbeat event:** the row's public view on the session's stream, after each committed beat, skip or result. It never carries the `SessionRef`, the checklist's text or a snapshot key.
+- **Evaluation:** cases go under `eval/heartbeat-*/` (channel `heartbeat`, recorded snapshot text) and at least one is held back from prompt work. They run on the mock on every push and on the real model for each release candidate; the existing cost gate covers them.
 
 ## UX & Interaction Patterns
 
-- Every card text, the sample checklist and Triage's paragraph are fixed in EXPERIENCE.md's Personality section under Later Steps. Use them exactly; no text ships that the author hasn't accepted.
-- The card is its own component under `web/src/app/rail/heartbeat-card/`, with one slot in `rail-view.ts`. It follows the status rail section pattern and updates from `heartbeat` events without a reload.
-- It shows state, the last check-in (time, outcome, cost, `TraceLink` link) or the last skip's reason, and today's cost. Edit opens in place; refusals show beside the field. Controls are labelled and work by keyboard.
-- The run button is disabled during a cooldown, and unavailable with its reason at the cap or with no key, the reason as a visible caption. The UX has no text for that unavailable state: reuse an accepted text or escalate.
-- Playwright specs live in `web/e2e/heartbeat-card.spec.ts` and leave the demo-path specs unchanged.
+- Every card text, the sample checklist and Triage's heartbeat paragraph are fixed in EXPERIENCE.md under Later Steps › Personality. Use them exactly: no text ships that the author hasn't accepted.
+- The card is its own component under `web/src/app/rail/heartbeat-card/`, with one slot in `rail-view.ts`. It follows the status rail card pattern and updates from `heartbeat` events without a reload.
+- It shows its state, then either the last check-in (time, outcome in the UX's terms, cost and a `TraceLink` link) or the last skip's reason, and today's cost. Edit opens in place, with a counter out of 1,000, and refusals show beside the field. Every control is labelled and works by keyboard.
+- The run button is disabled during a cooldown ("You can run it again at {time}."). At the cap or with no key it is unavailable, with the reason as a visible caption. The UX has no text for that unavailable state, so reuse an accepted text or escalate.
+- Playwright specs go in `web/e2e/heartbeat-card.spec.ts` and leave the demo-path specs unchanged.
 
 ## Cross-Story Dependencies
 
-- 39.1 and 39.3 are done: the names, stubs and beat logic are in place. Until 39.4 the Item's text is the checklist alone; 39.4 fills the snapshot, the key's input and Triage's paragraph.
-- 39.2 is held for Epic 40 by runner ruling: it extends Epic 40's per-person machinery in `SettingsOps` rather than duplicating it. Beats may therefore send channel `heartbeat` before the `Msg.Enum` append.
-- 39.7 follows 39.3 and no longer waits on Epic 31. 39.5 needs 39.2's routes and 39.7's event, and also Epic 31 (live client, `/state`). 39.6 needs 39.3 and 39.4 end to end, and Epic 14 (security overview).
-- The epic needs Epics 2, 5 and 8 (`Checks`, the tick, `Intake`) and Epic 30 (Story 30.4's send seam). 39.4 needs Epic 5 merged again (Story 5.12 changes the prompts).
-- It merges only once `release/1.0.0-rc1` exists, and ships in the first daily release after that, when the Contest Planner's hands-on pass runs each outcome.
+- **Done:** Stories 39.1, 39.3 and 39.4. The names, stubs, beat logic, snapshot, key and Triage's paragraph are in place. Story 39.6 is ready for development.
+- **Story 39.2** waits on Epic 40 by runner ruling: it extends Epic 40's per-person machinery in `SettingsOps`, `SessionOps.End` and `CommandsIn` rather than duplicating it. Beats may send channel `heartbeat` before the `Msg.Enum` append lands.
+- **Story 39.7** no longer waits on Epic 31.
+- **Story 39.5** needs 39.2's routes, 39.7's event and Epic 31 (the live client and `/state`).
+- **Story 39.6** needs 39.3 and 39.4 end to end, and Epic 14 (the security overview).
+- **The epic** needs Epics 2, 5 and 8 (`Checks`, the tick, `Intake`) and Epic 30's send seam (Story 30.4).
+- **Merge and release:** the epic merges only once `release/1.0.0-rc1` exists, and pushes are held until rc1 is cut. It ships in the first daily release after that, when the Contest Planner's hands-on pass runs each outcome, a quiet beat followed by a skip, and a run-now on the demo host.
