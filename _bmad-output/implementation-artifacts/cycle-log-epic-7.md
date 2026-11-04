@@ -313,3 +313,6 @@
 2026-11-04T20:23:40Z	Epic 7	epic_retro_skipped	reason=policy(gates.retrospective=skip)
 2026-11-04T20:23:47Z	Epic 7	epic_status_done	stories=8(7.1-7.8;re-open:7.7,7.8)
 2026-11-04T20:23:47Z	Epic 7	model_tier_checkpoint	armed=false stack_risk=none review_tier=full-opus implement_model=claude-sonnet-5-5 high_med_avg=4.5 unresolved_high_med_avg=1.0 metric=unresolved rework_stories=1(7.8:smoke,test_race) review_loop_thrash=0 rework_lang_defects=0 review_high=0 review_med=9 scope=re-open(7.7,7.8) result=hold applied=false note=gates.model_tier=record_only
+2026-11-04T20:34:05Z	Epic 7	integrated_forward	feature=749db383 head=58d24ba6 conflicts_resolved=none diagnosis=auto_merged(module.xml,src/module.xml_version_1.0.0,release/records/1.0.0/rc4.md) kind=final
+2026-11-04T20:34:05Z	Epic 7	merged_tree_verified	build=ok web_unit=1330_pass test-boundaries=10_pass test-class-rules=7_pass test-web-build=13_pass test-release-notes=pass smoke=live:demo-path(8_of_8_steps,0_skipped,floor_15_of_15,498s) env=lane-B_fresh_throwaway(tag=e7s8if,torn_down) note=the_full_IRIS_groups_run_in_CI_on_this_head model=claude-opus-5-5
+2026-11-04T20:34:05Z	Epic 7	epic_runner_complete	stories_completed=2(7.7,7.8_in_this_re-open;epic_total_8)
