@@ -144,7 +144,7 @@ Run: 2026-11-04T08:42:10Z to 2026-11-04T10:28:22Z
 
 Result: pass
 Candidate: 1.0.0 rc4 at 9a476db3c39053a32778074444843cb043b292e9
-Notes: /private/tmp/claude-501/-Users-jbrandt-git-contests/f189e7ba-662d-4f52-bda3-3b9f2cbc7884/scratchpad/dry5/rc4-notes.md
+Notes: release/records/1.0.0/rc4-notes.md
 Run: 2026-11-04T14:14:27Z
 Author's actions: Posts, articles, the video and bonus claims are the author's actions, done by hand. No script or workflow posts anything or claims a bonus.
 
