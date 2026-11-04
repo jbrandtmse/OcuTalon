@@ -1864,3 +1864,10 @@
 2026-11-04T17:47:13Z	Epic 7	runner_redispatched	agent=a0a593f1f2fa5d3b3 model=opus runner=B slot=ocutalon-slot-b reason=vscode_restart_1736 resume_at=7.8_smoke(tree_kept) prompt=prompts/redispatch-epic-7-1736.md
 2026-11-04T17:47:13Z	Epic 33	runner_redispatched	agent=ac44de5fe3884df10 model=opus runner=C slot=ocutalon-slot-c dead=aacd6dc76f58f9811 reason=vscode_restart_1736 resume_at=33.2_implement(stage_dead,rerun) prompt=prompts/redispatch-epic-33-1736.md
 2026-11-04T17:47:13Z	Epic 39	runner_redispatched	agent=a4e5ab74a5ea297ac model=opus runner=D slot=ocutalon-slot-d reason=vscode_restart_1736 resume_at=39.4_implement(stage_dead,rerun) prompt=prompts/redispatch-epic-39-1736.md
+2026-11-04T20:12:26Z	Epic 7	ci_wait_received	agent=a0a593f1f2fa5d3b3 sha=1add9783 runs=41900429153,41900429196 pushed=19:47:58Z result=pending local_head=2cb7f344(bookkeeping,unpushed) smoke=pass(rework_1,trigger=smoke) fresh_check=pass new_dw=DW-674,DW-675 action=poll_then_resume
+2026-11-04T20:23:06Z	Epic 7	ci_polled	sha=1add9783 result=success runs=41900429153,41900429196 completed=20:22:58Z ci_queue=35m action=resume_runner_B
+2026-11-04T20:34:34Z	Epic 7	ci_wait_received	agent=a0a593f1f2fa5d3b3 sha=5639a269 runs=41907840967,41907840312 pushed=20:34:07Z stage=epic_close(integrated_forward_58d24ba6) action=poll_then_resume
+2026-11-04T21:11:15Z	Epic 7	ci_polled	sha=5639a269 result=success runs=41907840967,41907840312 completed=21:11:07Z action=resume_runner_B_for_contract
+2026-11-04T21:12:56Z	Epic 7	ci_green_verified	sha=5639a269 runs=41907840967,41907840312 result=success note=epic_head_recorded_here_per_contract(no_write_after_final_push)
+2026-11-04T21:12:56Z	Epic 7	runner_complete	agent=a0a593f1f2fa5d3b3 head=5639a269 ci=success(41907840967,41907840312) stories=7.7,7.8 tokens=375499 model=opus unpushed=none ledger_drain=0.70 decisions_for_user=DW-653 applied=U-249,U-250,U-251,U-252 merge=held_U-253 contract_verified=head_matches_origin,tree_clean
+2026-11-04T21:12:56Z	Epic 7	merge_held	reason=U-253(Planner_5_real-model_trials_before_Nov_12) u253_handoff=sent_to_Planner decision_sheet_at_merge=DW-653 worktree=kept runner_B=freed
