@@ -2,7 +2,7 @@
 title: 'Story 39.4: Each beat carries your checklist and a status snapshot built by code'
 type: 'feature'
 created: '2026-11-04'
-status: 'blocked'
+status: 'draft'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -26,7 +26,7 @@ deferred: []
 - Every time in the text is the instance-zone local time as `YYYY-MM-DD HH:MM`, from `Data.Time.ToLocal`. `Data.Time.ForMessage` is never used here: its text depends on `now`, so an entry line would change at local midnight with no record changed.
 - An entry holds only these fields:
   - incident: the production, `State`, `Count`, `FirstAt`, for every row of `Ownership.Incidents` whose state is not `closed`;
-  - watch (rows of `Ownership.Checks` of `Kind` `production`): `DisplayName`, `Result`, `LastRunAt`. A watch that has not run says so;
+  - watch (rows of `Ownership.Checks` of `Kind` `production`): `DisplayName`, `Result`. A watch that has not run says so;
   - approval request (`Ownership.Approvals`): `Kind`, `FixKind` or `ToolName`, the production of its incident (`none` when it has no incident), `RaisedAt`, `ExpiresAt`;
   - reminder (`Ownership.Reminders`, `DueAt` at or before `now` plus one interval): `Text`, `DueAt`;
   - decision: `RecordedAt`, the channel, `Outcome`, `Summary`, at most `DECISIONSMAX` (10), newest first.
@@ -65,7 +65,7 @@ deferred: []
 | Past the cut | As above, and an entry past the cut changes | `LastSnapshotKey` of the next beat differs | none |
 | Same records, later time | One row of each kind; `now` and `now`+7 hours over a local midnight | The two status lines differ, the entry lines don't, and `Key` is equal | none |
 | Each kind changes | One field of one entry of each kind, the checklist | `Key` differs each time | none |
-| Watch runs (see Clarification Needed) | `LastRunAt` moves, `Result` the same | The line shows the new time; `LastSnapshotKey` is equal, so a quiet beat skips `unchanged` with no request | none |
+| Watch runs | `LastRunAt` moves, `Result` the same | The line is the same and shows no time; `LastSnapshotKey` is equal, so a quiet beat skips `unchanged` with no request | none |
 | Watch result changes | `Result` passed to failed | `LastSnapshotKey` differs and the beat runs | none |
 | Failed read | `Ownership` gives an error status | No Item, no `none` line, `RunDue` counts one failure, `NextDueAt` unchanged | error status with count and codes only |
 | Ignore | Marker `heartbeat-ignore` | `Decision` ignore; no `Notification`, `Delivery` or chat message; the next tick records it and sets `LastQuietKey` | none |
@@ -127,6 +127,10 @@ deferred: []
 
 ## Spec Change Log
 
+- 2026-11-04, lead at the spec gate, ruling on the plan's intent gap (veto U-274; U7 step 1, comply): option B. A watch's line carries no time, so it holds `DisplayName` and `Result` only and `Beat.Key` needs no special case; the key stays as AD-18 says, and AD-18 is not amended (open specs of Epics 33 and 7 cite it). Original AC wording: "its last check result with its time, from the row"; amended in `epics.md`. Options A and C are rejected: A needs an AD amendment that U14 stops, and C ships the skip dead for anyone with a watch.
+
+- 2026-11-04, lead at the spec gate, ruling (veto U-275): a mail decision's stored `Summary` is kept as the AC names it. Lead read of U-268: clear, confirmed in the code (`Core.Rule.Outcome` sends `digest` to `DigestStore`; `Bridge.Policy.Gate` denies a non-read-only call in an untrusted turn before `CommandsIn.TOOLVERBS`).
+
 ## Review Triage Log
 
 ## Design Notes
@@ -178,25 +182,6 @@ deferred: []
 **Ledger inbox:** none.
 
 **Footprint:** `ci/units.sh` and `docker/tests/test-triage-heartbeat.sh` are outside Epic 39's paths_hint and no open epic has changed them (Rule 11 (b), `footprint_extensions`). `Agent/Triage.cls` is shared with Epic 40 and unchanged there. Nothing else contended is edited.
-
-## Clarification Needed
-
-**Question (intent gap, AD-18 against this story's AC):** should a watch's run time count as a change to the snapshot?
-
-- **The conflict.** The AC puts "its last check result with its time, from the row" on each watch's entry line, and says "a change to any entry line ... changes" the key. AD-18 hashes "the checklist and the snapshot's entry lines, its time line left out".
-- **What the code does.** `Checks.Process` runs each watch every 60 seconds (`INTERVALSECONDS`, line 67) and its `UPDATE` (line 491) always sets `LastRunAt`. So every watch line differs at every beat, and the key always changes.
-- **The effect.** For anyone with a watch, which is every demo-path person, the `unchanged` skip can never fire. Every due beat calls the model, up to 24 a day, with nothing to decide. That defeats FR-64's skip, NFR-28's "fewer when the snapshot hasn't changed since a quiet beat" and the owner's "when a decision needs to be made". The cost target still holds (24 x $0.001), and every planned test would stay green, because a test's fixed rows don't run.
-- **No field solves it.** No stored field holds when a result last changed, and adding one is a schema change (veto item).
-
-| Option | What changes | Cost |
-|---|---|---|
-| **A (recommended, and the plan as written)** | The text keeps the time for the model. The text `Run` keys leaves a watch's run time out, so `Result` still counts. | AD-18's key and this AC's "any entry line" each need a clause: "a watch's run time left out". Skips can't hide anything new, because a new failure changes `Result` or adds an incident line. |
-| B | Drop the time from the watch line. | The AC loses a stated fact; the key stays as AD-18 says. |
-| C | Keep everything literal. | `unchanged` never fires for a person with a watch. |
-
-A and B both need an amendment, which is a veto-window item and not this stage's to make. C needs none, but it knowingly ships the skip dead on the demo path.
-
-**If A is ruled:** add the clause to AD-18 and the AC, then set this spec to `ready-for-dev` with no other change. **If B:** the Watch runs row expects no time, and `keyed` differs from the text only by the cut. **If C:** delete the Watch runs row, and `keyed` differs only by the cut.
 
 ## Verification
 

@@ -8467,7 +8467,7 @@ So that it tells me only what my list asks about, and never claims that all is w
 **When** `Beat.Snapshot(sessionRef, now)` builds the beat's text
 **Then** it writes the checklist first, then "Status at {local time} (built by OcuTalon):" and one line per entry (FR-64, AD-18):
 - each unclosed incident in scope: its production, state, failure count and first time;
-- each watch: its production and its last check result with its time, from the row;
+- each watch: its production and its last check result, from the row [AMENDED 2026-11-04, Story 39.4 spec gate, unattended ruling (veto U-274): it read "its last check result with its time, from the row". The run time moves every minute, so on an entry line it would change `Beat.Key` at every beat and the unchanged skip could never fire. FR-64 and AD-18 ask only for the latest check result. See the story change log]
 - each pending approval request: its kind, the fix kind or tool, the production, and its raised and expiry times;
 - each reminder due before the next beat: its text and due time;
 - the decisions since the last beat that made a decision, at most 10, beats excluded: each one's time, channel, outcome and code-written `Summary`.
