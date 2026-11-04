@@ -4680,9 +4680,13 @@ So that the browser job fails only when something is wrong, and a red on the tru
 **When** the checks run
 **Then** it is covered without further edits, or a check names it
 
+**Given** a helper wait in the specs under `web/e2e-online` (a page action, a navigation, a response wait, a request, or an IRIS script call through `irisScript`) that never returns because the page or IRIS answers slowly or not at all
+**When** the test runs
+**Then** the wait has its own bound, well under the test timeout, so the failure names its step within seconds instead of the 5-minute test timeout; the bound lives in the shared helpers or the shared configuration, never as per-spec copies, and a test pins one bounded wait (mutation shown) [AMENDED 2026-11-04, Rule 5 tier 1, the Contest Planner's ruling under the owner's delegation, relayed by the orchestrator: two different `web/e2e-online/session/leave.spec.ts` tests hit the 5-minute test timeout in `iris (shards)` `live:online-session` (L5 on feature f2b20ea0, ci run 41843673412; L6 on OCT-epic39 d701b6e6, ci run 41909512271 attempt 1); the runs upload no artifacts, so no error context or trace exists; the logs place both hangs in shared helper waits with no bound of their own (the browser configuration sets no action or navigation timeout, and `irisScript` bounds no `iris session`), not in a product path: a product failure would have failed a bounded poll with its message at 90 s; added]
+
 **Given** the fix on its branch
 **When** `iris (browser)` runs
-**Then** it is green three runs in a row, and every other group stays green
+**Then** it is green three runs in a row, and every other group stays green, and in the same three runs `iris (shards)`, which runs `live:online-session`, is green with leave.spec.ts L5 and L6 passing [AMENDED 2026-11-04, the same ruling: L5 and L6 and the online-session unit join the proof runs; it read "it is green three runs in a row, and every other group stays green"]
 - DW-640: web/e2e/live/live.spec.ts L9 reported `route.fetch: Test ended` from L8's route callback (ledger; routed by the Contest Planner 2026-11-04)
 - DW-665: web/e2e/live/socket.spec.ts W11 failed the same way on v1.0.0, twice (ledger; routed by the Contest Planner 2026-11-04)
 

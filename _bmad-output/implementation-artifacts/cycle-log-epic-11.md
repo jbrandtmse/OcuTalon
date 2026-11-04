@@ -435,3 +435,11 @@
 2026-11-04T21:18:30Z	Epic 11	launch_env	depth=4 watchdog=default bash_max_ms=default
 2026-11-04T21:18:30Z	Epic 11	runner_unattended_start	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec note=reopen_story_11.21_part_merge_runner_B lane=B slot=ocutalon-slot-b
 2026-11-04T21:18:30Z	Epic 11	epic_branch_checked_out	repos=. head=de6670fe note=reopen_part_merge_U-277;story_11.21;feature_9b66b35d_CI_pending_merge_before_implement
+2026-11-04T21:41:35Z	Epic 11	ci_resolved	sha=9b66b35d(feature) runs=41914019547,41914019630 result=success failed=none via=none resolved_at=integrate_forward ci_queue=0
+2026-11-04T21:41:35Z	Epic 11	integrated_forward	feature=9b66b35d head=d7bf269c conflicts_resolved=sprint-status.yaml(union;11.20_done_kept;11.21_backlog) note=v1.0.0_merge-back+Story_11.21_block;source_differs_from_feature_by_11.20_files_only stage=epic_start_11.21
+2026-11-04T21:41:35Z	Epic 11	spine_resolved	path=_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md ads=33 status=final
+2026-11-04T21:41:35Z	Epic 11	ledger_load	total=642 open=0 routed=88 escalated=0 decision_pending=2 terminal=552  reowned_none=0 owner_unknown=0
+2026-11-04T21:41:35Z	Epic 11	sprint_planning_complete	gate=PASS mode=generate(dispatch_step_1) new_entries=11-21(from_feature_merge) validate=valid model=claude-opus-5-5
+2026-11-04T21:41:35Z	Epic 11	retro_review_skipped	reason=skip(no_X.0_input)_reopen_for_11.21
+2026-11-04T21:41:35Z	Epic 11	ruling	question=orchestrator_note_leave.spec_L5_L6_5min_timeouts(Contest_Planner_ruling) choice=rides_with_11.21(Rule_5_tier1_amendment) rejected=flake;DW_to_burndown;product_path_stop why=no_artifacts_uploaded(runs_41843673412,41909512271:0_artifacts);L5_finally_ran_after_page_close=>hung_await_was_page-bound_Playwright_call(config_sets_no_actionTimeout/navigationTimeout);L6_TelegramIn_left_live_and_no_post-timeout_error=>hung_await_not_page-bound=>irisScript(iris_session_spawn_unbounded);product_failure_would_fail_bounded_90s_poll_with_its_message category=decide policy=5086036
+2026-11-04T21:41:35Z	Epic 11	amendment	file=_bmad-output/planning-artifacts/epics.md story=11.21 tier=1 what=new_AC(bounded_helper_waits_in_e2e-online)+AC4_adds_shards(online-session_L5,L6) by=runner_B ruling=Contest_Planner_2026-11-04(relayed)
