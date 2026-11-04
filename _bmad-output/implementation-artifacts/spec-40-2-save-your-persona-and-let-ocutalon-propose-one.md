@@ -2,7 +2,7 @@
 title: "Story 40.2: Save your persona, and let OcuTalon propose one"
 type: 'feature'
 created: '2026-11-02'
-status: 'done'
+status: 'in-progress'
 baseline_revision: 'f8fb317493072b9302c27a15019af2331bb51bcc'
 baseline_commit: 'f8fb317493072b9302c27a15019af2331bb51bcc'
 review_loop_iteration: 0
@@ -126,6 +126,8 @@ Messages: S = "Saved. Applies from your next message. Recorded in the audit log.
 4. Given an online-demo session that signs out, or a new visitor, when `SessionOps.End` runs or a new session is created, then the ended session's `person.<SessionRef>.` keys are deleted, another session's keys stay, and the new session reads as Professional.
 5. Given a tell-now notice whose reason holds a greeting, an exclamation mark and emoji, when `Catalog.Render` renders it on `web`, `phone`, `mailbox` and `telegram` in `Test.Msg.Catalog`, then those come out unchanged, the frame is exact, only control characters and line breaks are cleaned; and the three persona keys render their EXPERIENCE.md texts exactly.
 
+- [ ] [CI] iris (image), shard lane-b: `OcuTalon.Test.Data.Tables` TestSqlNames fails on `OcuTalon.Msg.Command.SetPersona` and `OcuTalon.Msg.Command.ProposePersona` ("projects no SQL reserved word"): `Language` is an SQL reserved word (measured, `$SYSTEM.SQL.IsReservedWord`) -- `src/ocutalon/cls/OcuTalon/Msg/Command/SetPersona.cls:12`, `ProposePersona.cls:11` -- keep the property name and give both `SqlFieldName = PersonaLanguage` (the spine's SQL reserved words convention); `OcuTalon.Test.Data.Tables` passes -- https://github.com/jbrandtmse/OcuTalon/actions/runs/41396068664
+
 ### Review Findings
 
 Code review 2026-11-02 (stage code-review; layers blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor; 18 normalized findings: 7 patch, 3 defer, 8 rejected).
@@ -152,6 +154,8 @@ Rejected:
 - `false` verification-gap: AC sub-clauses (Integration test, 60 s, pendingRef, new session, contracts) have no mutation line - every AC has at least one recorded mutation (Rule 19 is per AC); the same ruling as the implement-stage review.
 
 ## Spec Change Log
+
+- 2026-11-04, rework 1 (ci): the CI red on acad790c, one [CI] item.
 
 ## Review Triage Log
 

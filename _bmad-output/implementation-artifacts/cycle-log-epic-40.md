@@ -62,3 +62,14 @@
 2026-11-02T05:48:17Z	Story 40.7	story_waiting	story=40-7-evaluation-cases-for-the-persona on=40.3,40.5,40.6 reason=tests_those_stories
 2026-11-02T05:48:17Z	Epic 40	ruling	question=gap_fill_when_no_story_independent choice=no_gap_fill rejected=charter_gap-fill_from_DW-570 why=DW-570_and_DW-571_are_planned_AC_bullets_of_Story_40.6_whose_design_decides_them;DW-571_needs_contended_Web/Api.cls;no_other_closable_entry_owned_by_epic_40 category=decide policy=ff1bd1a
 2026-11-02T05:48:17Z	Epic 40	runner_ended	reason=waiting waiting_on=11 stories_done=40.1,40.2 note=40.2_ci_pending_runs_41396068664,41396068637_resolve_at_resume
+2026-11-04T11:16:44Z	Epic 40	runner_unattended_start	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec note=redispatch_rc4_cut_runner_A lane=A slot=ocutalon-slot-a
+2026-11-04T11:16:44Z	Epic 40	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-11-04T11:16:44Z	Epic 40	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh
+2026-11-04T11:16:44Z	Epic 40	launch_env	depth=4 watchdog=0 bash_max_ms=default
+2026-11-04T11:16:44Z	Epic 40	telemetry_gate	pending=1 action=none note=gates.model_tier_record_only
+2026-11-04T11:16:44Z	Epic 40	spine_resolved	path=_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md ads=33 status=final
+2026-11-04T11:16:44Z	Story 40.2	ci_red_classified	run=41396068664 workflow=.github/workflows/ci.yml class=story test=OcuTalon.Test.Data.Tables:TestSqlNames
+2026-11-04T11:16:44Z	Story 40.2	ci_red_classified	run=41396141895 workflow=.github/workflows/ci.yml class=story test=OcuTalon.Test.Data.Tables:TestSqlNames
+2026-11-04T11:16:44Z	Story 40.2	ci_resolved	story=40.2 sha=acad790c runs=41396068664,41396068637 failed=.github/workflows/ci.yml via=none result=failure resolved_at=resume ci_queue=3
+2026-11-04T11:16:44Z	Story 40.2	ci_resolved	story=40.2 sha=cb7b4233 runs=41396141895,41396141898 failed=.github/workflows/ci.yml via=none result=failure resolved_at=resume ci_queue=72
+2026-11-04T11:16:45Z	Story 40.2	rework_opened	cycle_iteration=2 iteration=1 trigger=ci items=CI-SqlNames-Language scope_baseline=cb7b4233
