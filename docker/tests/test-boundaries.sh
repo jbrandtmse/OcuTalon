@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # Scans the files of docker/, the compose files, src/, the text sources of web/, the repository-root files of the image,
 # install.sh (the install script, Story 10.1), .github/, ci/ and the release scripts (release/*.sh, Story 11.3) for the boundaries that no other test pins:
-#   - ASCII only;
+#   - ASCII only (the built page under src/ocutalon/csp/, which only a release candidate tracks, is not source and is left out of this rule alone);
 #   - no image push, save or export, no registry sign-in and no --cache-to (CON-1, REL-4);
 #   - `docker compose config` only with --quiet and `docker inspect` only with --format, because
 #     both print the values that env_file passes in (AD-22);
@@ -30,6 +30,9 @@ trap 'rm -rf "$tmp"' EXIT
 # --- scanners: print file:line for each offending line of the files given ---
 
 non_ascii() { LC_ALL=C grep -nH '[^[:print:][:space:]]' "$@" | cut -d: -f1,2; }
+# ascii_scope <files, one per line>: the files the ASCII rule reads. A release candidate's tree tracks the built page under src/ocutalon/csp/, with its
+# images and fonts; the other rules still read it.
+ascii_scope() { grep -v '^src/ocutalon/csp/' <<< "$1"; }
 
 # key_like (the key-like patterns) comes from docker/tests/lib-keys.sh, the one definition that eval/run.sh also reads.
 
@@ -183,7 +186,24 @@ mkdir -p "$tmp/OcuTalon/Channel/Telegram"
   printf 'Set ^OcuTalonP.Setting = 1\n'
 } > "$tmp/OcuTalon/Channel/Telegram/In.cls"
 
-scan_rule "ascii: only printable ASCII, spaces and tabs" non_ascii "$tmp/ascii.bad" "$tmp/ascii.good" "$files"
+scan_rule "ascii: only printable ASCII, spaces and tabs" non_ascii "$tmp/ascii.bad" "$tmp/ascii.good" "$(ascii_scope "$files")"
+
+# The built page is left out of the ASCII rule, and nothing beside it is. The files are made here, because only a candidate's tree holds the page.
+ac="$tmp/ascii-scope"
+mkdir -p "$ac/src/ocutalon/csp/media" "$ac/src/ocutalon/cspx" "$ac/src/ocutalon/cls"
+printf '\211PNG\r\n\032\n' > "$ac/src/ocutalon/csp/media/logo.png"
+printf 'caf\303\251\n' > "$ac/src/ocutalon/csp/main.js"
+printf 'caf\303\251\n' > "$ac/src/ocutalon/cspx/near.txt"
+printf 'caf\303\251\n' > "$ac/src/ocutalon/cls/Bad.cls"
+printf 'plain\n' > "$ac/src/ocutalon/cls/Good.cls"
+ascii_scan() { (cd "$ac" && fails=0; scan_rule "scope" non_ascii "$tmp/ascii.bad" "$tmp/ascii.good" "$(ascii_scope "$(printf '%s\n' src/ocutalon/csp/main.js src/ocutalon/csp/media/logo.png src/ocutalon/cls/Good.cls "$@")")" > /dev/null; echo "$fails"); }
+got="$(ascii_scan)/$(ascii_scan src/ocutalon/cls/Bad.cls)/$(ascii_scan src/ocutalon/cspx/near.txt)"
+if [ "$got" = "0/1/1" ]; then
+  echo "PASS ascii scope: the built page passes, text and binary alike, and a non-ASCII file anywhere else under src/ still fails"
+else
+  echo "FAIL ascii scope: wanted 0/1/1 (the page alone, a class, a folder with a like name), got $got"
+  fails=$((fails + 1))
+fi
 
 # The path scanner has more than one bad shape: a home folder, a volume, a private folder, a Windows user folder, a Linux home and a
 # macOS per-user temporary folder.
