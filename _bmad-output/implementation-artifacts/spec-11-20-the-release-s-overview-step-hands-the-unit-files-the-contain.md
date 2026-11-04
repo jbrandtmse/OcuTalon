@@ -124,6 +124,9 @@ The same tree under umask 022 passes the whole unit. The step also removed the f
 
 ## Spec Change Log
 
+- 2026-11-04 (lead, after QA): the implement stage's finalize write cut the spec at a quoted Auto Run Result heading inside the last Review Triage Log entry, dropping that entry's tail, Design Notes and Verification. Restored Design Notes and Verification from the validated spec (4177e276), added the implement stage's mutations from its report, kept QA's record as a subsection, and put Auto Run Result back as the last section. No requirement changed.
+- 2026-11-04 (lead, after the crash): VS Code killed the runner and its code-review stage. Their uncommitted source changes were saved as evidence and restored to HEAD (`stage_dead`, `rerun_from=qa`), so QA's stage record was replaced by a note and QA and code review re-run. No requirement changed.
+
 ## Review Triage Log
 
 ### 2026-11-04 - Review pass
@@ -144,7 +147,90 @@ The same tree under umask 022 passes the whole unit. The step also removed the f
   - `[low]` `[reject]` edge: the rerun case asserts only the log removal - it also asserts exit 0 and `NEXT ipm`.
   - `[low]` `[reject]` vgap: `overview rerun: the kept log is gone` depends on the preceding fail assertions - they run in the same case.
   - `[low]` `[patch]` vgap: mutation lines for PASS removal, WAIT and the umask stub were missing - added to `## Verification`.
-  - `[low]` `[reject]` vgap: `## Auto Run Result
+  - `[low]` `[reject]` vgap: (the rest of this entry was lost: the finalize write treated the quoted Auto Run Result heading in it as the section heading and replaced everything after it, Design Notes and Verification included; the lead restored both from the validated spec at 4177e276 - see the Spec Change Log)
+
+## Design Notes
+
+**U-256 (Contest Planner, owner's delegated authority, 2026-11-04T02:01:21Z#770): (b) for the one line, (a) for the rest.** AC 1's chmod line landed on the feature branch by U-256 (b); this story verifies and tests it. At plan time (HEAD `f552b73328b2a05d6e32e50d3cf1c908cf70dac4`) the line is not yet in `OCT-epic11`. The lead integrates it forward before implement.
+
+**Lead note (spec gate, 2026-11-04):** the U-256 (b) line arrived on the feature branch as commit 8d60ad43 (a three-line why-comment, then `chmod -R a+rX "$ctx"`, right after `candidate_export overview "$ctx" || return 1`); the lead integrates it forward before implement. The `static` rule "the overview step makes no ASK" counts the text `ask ` (with its trailing space) anywhere from `step_overview()` to `# --- the ipm step`, comments included: words such as `umask ` or `mask ` followed by a space trip it, so nothing added to `step_overview` (the doc comment sentence, the `LOG` line, the PASS cleanup) may contain them. Command 1 runs `static` and catches it.
+
+**Governing ADs (Rule 6):**
+- AD-22: testing and CI. Shell checks run on hosted runners, and no unit is added.
+- AD-29, with the lane-exception paragraph under AD-33 (spine L1035): `release/` is Lane A and `docker/tests/` is Lane B. Epic 11's exception lets it change the Lane B test file. No AC contradicts an AD.
+
+**Measured at plan (macOS bsdtar 3.5.3, harness umask 022, uid 501).** Under `umask 077`, `git archive HEAD release docs/security-overview.md | tar -x` left 21 paths that others could not read. After `chmod -R a+rX`, the find below returns 0. The script's own `umask 077` therefore decides the modes, whatever the harness umask, so removing the chmod reds the stub locally. Hosted CI runs GNU tar as a non-root user, and GNU tar applies the umask by default for non-root users (documented; inference for CI: it is not measured on the runner). The stub's check:
+```
+bad=$(find . -path ./web/node_modules -prune -o \( ! -perm -004 -o \( -type d ! -perm -001 \) \) -print | head -n 1)
+[ -z "$bad" ] || { echo "FAIL overview $bad is not readable by others"; exit 1; }
+```
+`bash docker/tests/test-release-sequence.sh overview` took 8.5 s. The full file took 3 min 40 s, with all 26 rules passing at HEAD.
+
+**Decided in-stage:**
+1. **The path goes on a separate `LOG overview <absolute path>` line, right after the FAIL line.** The detail stays as `step_fail` makes it, so the row, the record and `RESULT` are unchanged and free of local paths. `ARTIFACT <absolute path>` is the precedent. The header's `Output:` line is not edited, because the footprint is `step_overview` only. That line already omits WARN, NOTE and ASK, so it is not an exhaustive list.
+2. **The name is `overview-fail.log`, replaced by each new failure.** PASS also removes it, because a passed run supersedes the failure it documents. WAIT keeps it, because nothing superseded it.
+3. **The stub prunes `./web/node_modules`.** The step creates that empty folder after the chmod (L642), so it is not part of the export. No container reads it.
+4. **The umask pin is a line count in `t_overview`** (one `^umask 077$` per script). It also keeps the readability check meaningful: under umask 022 the check would pass with no chmod.
+5. **No helper.** The change is a few lines inside `step_overview`.
+6. **If the chmod line is missing at implement, HALT and do not add it.** U-256 (b) gives the line to the orchestrator.
+
+**Extend, don't copy (Rule 2).** The chmod mirrors `step_ipm`'s `chmod -R a+rX` (L748, L780) on the host side. The new stub check extends `stub_text pass`, and the new assertions extend `t_overview`'s existing cases. No copy. `step_ipmcheck` removes its log the same way (L982). Keeping that log too is outside U-256's footprint and is not tasked here.
+
+**Integration ACs, Consumes and Consumed-by (Rules 1 and 2):** no new service, module or shared component.
+- **Consumes:** `release/security-overview.sh` and its `docker/tests/test-security-overview.sh` (unchanged). The lead's smoke runs them for real.
+- **Consumed-by:**
+  - the Contest Planner's rc2 cut of 1.0.0, then Epic 38's real cut (38.1 to 38.3);
+  - part 2's 11.14 to 11.16 and 11.18, which add steps beside `step_overview`.
+
+**Ledger inbox (Rule 17):** none.
+
+**Shared surfaces with other files:** none. Only `docker/tests/test-release-sequence.sh` reads `release.sh`'s output. The checklist and notes tests share `lib-release.sh`, which this story leaves unchanged.
+
+## Verification
+
+Run every command from the worktree root, each in its own foreground call with `timeout: 600000`. No IRIS slot is needed. `<story_base>` is the baseline revision that the implement stage records in this spec's frontmatter (`baseline_commit`) at its start, after the lead's integrate-forward.
+
+**Commands:**
+1. `(loop)` `bash docker/tests/test-release-sequence.sh overview static`. Expected: `PASS overview`, `PASS static`, `PASS all rules` (about 15 s).
+2. `(loop)` Two checks of the chmod line.
+   - `awk '/^step_overview\(\)/{f=1} f&&/candidate_export overview "\$ctx" \|\| return 1/{g=1;next} g&&!/^[[:space:]]*#/{print;exit}' release/release.sh`. Expected: `  chmod -R a+rX "$ctx"`.
+   - `awk '/^step_overview\(\)/,/^}/' release/release.sh | grep -c 'chmod -R a+rX "\$ctx"'`. Expected: `1`.
+3. `(loop)` `grep -c '^umask 077$' release/release.sh release/lib-release.sh`. Expected: `:1` for each file.
+4. `(once)` `bash docker/tests/test-release-sequence.sh`. Expected: every rule passes and the last line is `PASS all rules` (about 4 min).
+5. `(once)` `bash docker/tests/test-release-checklist.sh`, then `bash docker/tests/test-release-notes.sh`, then `bash docker/tests/test-boundaries.sh`, one per call. Expected: exit 0 each.
+6. `(once)` `git diff --name-only <story_base> -- . ':(exclude)_bmad-output'`. Expected: only `release/release.sh` and `docker/tests/test-release-sequence.sh`. Also `git diff -U0 <story_base> -- release/release.sh`: every hunk lies inside `step_overview`'s block.
+
+**Mutations (Rule 19).** For each: back the file up to the stage scratchpad, mutate, run command 1, observe red, copy the backup back, check `cmp` identical, and check that `git status --short` and `git diff --stat` are unchanged. Record each as `mutation: <change> -> <test red>`.
+- AC1: delete the `chmod -R a+rX "$ctx"` line. Expected red: `overview pass: exit`, with `not readable by others`.
+- AC1 (umask): `umask 077` -> `umask 022` in `release/release.sh`. Expected red: the umask assertion.
+- AC2: `mv -f "$log" ...` -> `rm -f "$log"`. Expected red: the kept-log and `LOG` line assertions.
+- AC4: a blank line appended to `release/lib-release.sh`. Expected: the command 6 listing names it.
+
+**Lead-owned smoke (after review).**
+- Make a lane-A throwaway export the way the step makes it, inside the stage scratchpad: `(umask 077; mkdir -p X; git archive HEAD | tar -x -C X; chmod -R a+rX X; mkdir -p X/web/node_modules)`.
+- Then, in `X`, run one live unit: `OCUTALON_LOCK_DIR="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")/.worktrees/.coordination/locks/lane-a" OCUTALON_TEST_WEB_PORT=52801 OCUTALON_LOCK_OWNER='epic=11 stage=smoke' OCUTALON_RUN_TAG=e11s20smoke bash release/security-overview.sh`. Run it in its own call. Expected: exit 0 with a `PASS overview` line. The unit tears down its own run tag.
+- Optionally, run the same steps without the chmod as the negative control. Expected: the `Regenerate did not succeed` FAIL.
+
+**Shared surfaces:**
+- The `pass` stub of `stub_text`: every rule that passes the overview step runs it through the seed.
+- The state-folder listing after the overview step (pass: `rows.tsv state.env`; fail: plus `overview-fail.log`).
+- `release.sh next`'s output on an overview failure: the new `LOG` line.
+- No other test or script reads these.
+
+Every test added or changed passes on a fresh environment, in either order. Each case builds its own throwaway repositories and state folder.
+
+**Mutations (implement stage, from its report; its own lines were lost with the section).** Each applied, observed red, restored (`cmp` identical):
+- AC1: mutation: delete the chmod line -> `overview pass` red with `not readable by others`.
+- AC1 (umask): mutation: `umask 022` in `release/release.sh`, and in `release/lib-release.sh` -> the umask assertions red (line count, and the stub's recorded `0077`).
+- AC2: mutation: `rm -f "$log"` in place of the move -> the kept-log and `LOG` line assertions red.
+- AC2: mutation: drop the PASS cleanup; make WAIT remove the log; print `LOG` unconditionally -> each red (`overview rerun`, `overview wait`, `overview nolog`).
+- AC4: command 6 listing, no test.
+
+### QA stage record
+
+QA's first record (cases `overview refail` and `overview quiet`, the `quiet` stub, and the mutations that named them) was taken out with the dead code-review tree: its tests were never committed, and the crash left them mixed with an unfinished review. QA is re-running; its new record goes here.
+
+## Auto Run Result
 
 Status: done
 Blocking condition: none
