@@ -1,12 +1,12 @@
 /// Tests of the persona presets (Story 40.1, AD-7): the six presets of OcuTalon.Agent.Persona against a test-held copy of the
-/// UX table (EXPERIENCE.md, Personality), the rule that no PRESETS block holds a template token, and the Block stub. Nothing
+/// UX table (EXPERIENCE.md, Personality), the rule that no PRESETS block holds a template token, and Block with no stored rows. Nothing
 /// is written anywhere and no model is called.
 ///   - TestPresets: Presets() and Preset(id) give the six entries in PERSONAPRESET order (compared with Msg.Enum once it
 ///     has PERSONAPRESET) with exactly the five fields and their JSON types, the UX texts, the bends flag per id, and "" for
 ///     an unknown or empty id;
 ///   - TestNoTemplates: no compiled PRESETS block of an OcuTalon class holds {{, @{ or a control character other than a line
 ///     feed; the scanner flags a sample that breaks the rule, and passes one that keeps it;
-///   - TestBlock: Block() returns "" for an empty and for a 22-character session reference.
+///   - TestBlock: Block() returns "" for an empty reference and for a session reference with no stored rows.
 Class OcuTalon.Test.Agent.Persona Extends %UnitTest.TestCase
 {
 
@@ -157,7 +157,8 @@ Method TestNoTemplates()
 	Do $$$AssertTrue(persona, "OcuTalon.Agent.Persona's PRESETS block is among the blocks scanned: "_blocks)
 }
 
-/// Block() is a stub of this story: "" for an empty and for a 22-character session reference.
+/// Block() with no stored rows: "" for an empty reference, and for a 22-character session reference whose person has no row
+/// (Professional has no block). The block's text is tested by OcuTalon.Test.Agent.PersonaBlock.
 Method TestBlock()
 {
 	Do $$$AssertEquals(##class(OcuTalon.Agent.Persona).Block(""), "", "Block of an empty session reference is empty")

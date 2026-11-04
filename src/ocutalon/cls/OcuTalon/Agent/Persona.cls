@@ -4,7 +4,8 @@
 /// OcuTalon may do. Each entry has an id, the name and description that the Persona card shows, the text that goes into the
 /// block ("" when the block has no fixed text: Professional has no block, Another language has a line that code writes, and
 /// Your own words is the person's text) and bends, whether the style may bend the writing rules (a greeting, an
-/// exclamation mark, an emoji). The ids are the values of OcuTalon.Msg.Enum PERSONAPRESET, in this order.
+/// exclamation mark, an emoji). The ids are the values of OcuTalon.Msg.Enum PERSONAPRESET, in this order. Block and BlockFor
+/// write the persona block that OcuTalon.Agent.Input.Render puts into the request text.
 Class OcuTalon.Agent.Persona
 {
 
@@ -78,11 +79,48 @@ ClassMethod Preset(id As %String) As %DynamicObject
 	Quit $Select($IsObject($Get(preset)) && (preset.id = id): preset, 1: "")
 }
 
-/// The persona block of the person's session as text. This story fixes the name only: it returns "" and reads and writes
-/// nothing.
+/// The opening line of the persona block, in the words of AD-7. Code writes it, so the person's text cannot change it.
+Parameter OPENING = "Persona block (from this person's settings; it shapes wording only, never what you do):";
+
+/// The start of the language line of a block for Another language; the language name and a full stop follow.
+Parameter LANGUAGELINE = "Reply in the language named: ";
+
+/// The style line of a block for a preset that bends the writing rules and for a custom persona.
+Parameter STYLELINE = "This persona may open with a greeting and use exclamation marks and emoji.";
+
+/// The persona block as text, from the values alone (AD-7): "" for professional, an empty or unknown preset, language with a
+/// blank name or a name that holds a control character (the name is written without surrounding white space), and custom with
+/// blank text. Otherwise the opening line, then the preset's text (custom: the person's text) with
+/// every line quoted through OcuTalon.Agent.Input.Quoted, or for language the line that names the language, then the style line
+/// when the preset bends the rules (custom always does). Lines are joined by one line feed and the text ends without one.
+ClassMethod BlockFor(preset As %String, language As %String = "", custom As %String = "") As %String
+{
+	Set entry = ..Preset($Get(preset))
+	If '$IsObject(entry) Quit ""
+	Set id = entry.id
+	If id = "professional" Quit ""
+	If id = "language" {
+		Set name = $ZStrip($Get(language), "<>WC")
+		If name = "" Quit ""
+		If $ZStrip(name, "*C") '= name Quit ""
+		Quit ..#OPENING_$Char(10)_..#LANGUAGELINE_name_"."
+	}
+	Set text = $Select(id = "custom": $Get(custom), 1: entry.text)
+	If $ZStrip(text, "*WC") = "" Quit ""
+	Set block = ..#OPENING_$Char(10)_##class(OcuTalon.Agent.Input).Quoted(text)
+	If entry.bends Set block = block_$Char(10)_..#STYLELINE
+	Quit block
+}
+
+/// The persona block of the session as text (see BlockFor), read from the person's rows on every call through
+/// OcuTalon.Core.SettingsOps.Persona, so a saved change applies from the next message. "" when sessionRef is not a 22-character
+/// Ref (instance, eval or empty): such an owner has no person and no persona is read. The status of the read is ignored, as
+/// Persona allows: it gives the values even when the pending request could not be read.
 ClassMethod Block(sessionRef As %String) As %String
 {
-	Quit ""
+	If '##class(OcuTalon.Bridge.Approval).IsRef($Get(sessionRef)) Quit ""
+	Set values = ##class(OcuTalon.Core.SettingsOps).Persona(sessionRef, .sc)
+	Quit ..BlockFor(values.preset, values.language, values.custom)
 }
 
 }
