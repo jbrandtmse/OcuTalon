@@ -262,6 +262,7 @@ Method TestWatchRunsAgain()
 	Do $$$AssertEquals(row.LastSkipAt_"|"_row.LastSkipReason, ##class(OcuTalon.Data.Time).AddSeconds(case.t0, 1800)_"|unchanged", "the beat due one interval later is skipped as unchanged")
 	Do $$$AssertEquals(..Marked(mark, session), 0, "and makes no request")
 	Do $$$AssertEquals(row.LastItemId, item.itemId, "no further Item was made")
+	Do ..AssertNoCheck(case, 1)
 }
 
 /// A person with a beat due at a time no real Tick reaches, whose checklist holds the scenario's marker (named with the person's Ref): the Tick at that time is sent

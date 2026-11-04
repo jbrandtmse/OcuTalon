@@ -15,7 +15,9 @@
 ///     still changes the key that Run stores;
 ///   - TestSameRecordsLaterTime, TestEachKindChangesTheKey, TestWatchRuns, TestWatchResultChanges (AC 4): the key follows the records and the checklist, not the clock
 ///     and not the run time of a watch;
-///   - TestFailedRead: a read that fails throws, so that no none line is written and the beat stays due.
+///   - TestFailedRead, TestFailedReadRunNow: a read that fails throws, so that no none line is written, the beat stays due and a run now is not counted;
+///   - TestAMailAboutBeatsIsNotABeat: only a Summary that is exactly the beat's subject is a beat's row;
+///   - TestTheCutBoundary (AC 3): a status block of exactly 4,000 characters is not cut, and one of 4,001 is.
 Class OcuTalon.Test.Checks.Snapshot Extends %UnitTest.TestCase
 {
 
@@ -353,7 +355,7 @@ Method TestWatchRuns()
 	Set first = ..Snap(ref, noon)
 	Set row = ##class(OcuTalon.Data.BackgroundCheck).RefIndexOpen(watch)
 	Set row.LastRunAt = ..At("2099-06-15 12:01")
-	Do row.%Save()
+	Do $$$AssertStatusOK(row.%Save(), "the watch has run again")
 	Set second = ..Snap(ref, noon)
 	Do $$$AssertEquals(second, first, "a watch that runs again with the same result gives the same text: its line holds no time")
 	Do $$$AssertEquals(..Line(second, "Watch: "), "Watch: Orders feed | passed", "the line is the display name and the result")
@@ -365,7 +367,7 @@ Method TestWatchRuns()
 	Do ..Settled(ref, items.GetAt(1).ItemId)
 	Set row = ##class(OcuTalon.Data.BackgroundCheck).RefIndexOpen(watch)
 	Set row.LastRunAt = ..At("2099-06-15 12:29")
-	Do row.%Save()
+	Do $$$AssertStatusOK(row.%Save(), "the watch has run again")
 	Do $$$AssertStatusOK($ClassMethod(..#BEAT, "RunDue", ..Plus(noon, 1800), .items, ref, 0, 1), "RunDue is OK at the next due time")
 	Do $$$AssertEquals(items.Count(), 0, "the beat after an ignore, with the watch run again and the same result, sends nothing")
 	Set beat = ##class(OcuTalon.Data.HeartbeatBeat).SessionRefIndexOpen(ref)
@@ -428,6 +430,67 @@ Method TestFailedRead()
 	Do $$$AssertEquals(items.Count(), 0, "no Item is made")
 	Set row = ##class(OcuTalon.Data.HeartbeatBeat).SessionRefIndexOpen(ref)
 	Do $$$AssertEquals(row.NextDueAt_"|"_row.LastItemId_"|"_row.LastBeatAt, noon_"||", "and the beat stays due, with nothing recorded")
+}
+
+Method TestFailedReadRunNow()
+{
+	Set ref = ..Person("check the orders")
+	Set noon = ..At("2099-06-15 12:00")
+	Set ^||OcuTalon.BrokenBeat = "decisions"
+	Set threw = 0
+	Try {
+		Set sc = ##class(OcuTalon.Test.Checks.BrokenBeat).RunNow(ref, noon, .item, .outcome, .availableAt, 0, 1)
+	} Catch exception {
+		Set threw = 1
+	}
+	Kill ^||OcuTalon.BrokenBeat
+	Do $$$AssertTrue(threw, "a run now whose snapshot read fails throws, with no none line and no Item")
+	Set row = ##class(OcuTalon.Data.HeartbeatBeat).SessionRefIndexOpen(ref)
+	Do $$$AssertEquals(row.LastRunNowAt_"|"_row.LastItemId_"|"_row.LastBeatAt_"|"_row.LastSkipReason_"|"_row.NextDueAt, "||||2099-12-31T00:00:00Z", "and writes nothing: the request is not counted")
+	Set sc = $ClassMethod(..#BEAT, "RunNow", ref, noon, .item, .outcome, .availableAt, 0, 1)
+	Do $$$AssertStatusOK(sc, "so that the same request a moment later is OK")
+	Do $$$AssertEquals(outcome, "sent", "and is sent, not held back by the cooldown of a request that failed")
+}
+
+Method TestAMailAboutBeatsIsNotABeat()
+{
+	Set ref = ..Person("c")
+	Do ..Mail(ref, "2099-06-15 10:00", "A: older mail", "digest", "mailbox")
+	Do ..Mail(ref, "2099-06-15 10:30", "Ana: "_..Subject(), "digest", "mailbox")
+	Do ..Mail(ref, "2099-06-15 11:00", $ZConvert(..Subject(), "L"), "digest", "mailbox")
+	Do ..Mail(ref, "2099-06-15 11:30", ..Subject()_" again", "tellnow", "mailbox")
+	Set text = ..Snap(ref, ..At("2099-06-15 12:00"))
+	Do $$$AssertEquals(..Count(text, "Decision: "), 4, "a mail whose Summary only holds the beat's words, or differs in case, is no beat's row: all four have a line")
+	Do $$$AssertEquals(..Line(text, "Decision: "), "Decision: 2099-06-15 11:30 | mailbox | tellnow | Heartbeat check-in again", "the newest first")
+	Do $$$AssertTrue($Find(text, "Decision: 2099-06-15 10:00 | mailbox | digest | A: older mail"), "and the read goes on to the older mail")
+}
+
+Method TestTheCutBoundary()
+{
+	Set ref = ..Person("check the orders")
+	Do ..Reminders(ref, 25, "2099-06-15 12:10")
+	Set lf = $Char(10)
+	Set noon = ..At("2099-06-15 12:00")
+	Set short = $Piece(..Snap(ref, noon), lf_lf, 2)
+	// one more reminder, whose line makes the block exactly 4,000 characters: "Reminder: {text} | {time}" holds 29 characters besides the text
+	Set size = 4000 - $Length(short) - 1 - 29
+	Do $$$AssertTrue(size > 0, "the 25 reminders leave room for one more line: "_size)
+	If size '> 0 Quit
+	Set reminder = ..Keep(##class(OcuTalon.Test.Data.Fixture).Reminder(ref, ..At("2099-06-15 12:10"), "pending", {"Text": ($Translate($Justify("", size), " ", "x"))}))
+	Set text = ..Snap(ref, noon, .whole)
+	Set block = $Piece(text, lf_lf, 2)
+	Do $$$AssertEquals($Length(block), 4000, "the status block is exactly 4,000 characters")
+	Do $$$AssertEquals(text, whole, "and exactly 4,000 is not cut")
+	Do $$$AssertEquals($Find(block, "(more not shown)"), 0, "so it has no more line")
+	Set row = ##class(OcuTalon.Data.Reminder).RefIndexOpen(reminder)
+	Set row.Text = row.Text_"x"
+	Do $$$AssertStatusOK(row.%Save(), "the last reminder is one character longer")
+	Set text = ..Snap(ref, noon, .whole)
+	Set block = $Piece(text, lf_lf, 2)
+	Do $$$AssertEquals($Length($Piece(whole, lf_lf, 2)), 4001, "the whole status is 4,001 characters")
+	Do $$$AssertTrue($Length(block) '> 4000, "and the block is cut to at most 4,000: "_$Length(block))
+	Do $$$AssertEquals($Piece(block, lf, $Length(block, lf)), "(more not shown)", "ending with the more line")
+	Do $$$AssertEquals($Find(block, "xxxxxxxxxx"), 0, "which has dropped the whole line that went over")
 }
 
 /// One more key step: the key of the snapshot differs from every earlier key (keys, a list that grows).

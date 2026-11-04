@@ -3916,3 +3916,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: ci-run-41853141384 | severity: med | fix-risk: med | footprint: in-epic
 - evidence: Fingerprint changed and done was not 10000 inside a 0.6 s class; passed alone, in lane-b@Web and in lane-b@Schedule,Web, and in attempt 2 of the same head. Cause unknown: the fixture watch is not due for 3600 s, so a real tick does not run it, and a beat writes nothing the test reads
 - 2026-11-04T16:26:42Z status=routed owner=burndown by=harvest note=one occurrence on 092876ad; reads as a test race, cause not found
+
+### DW-676: Beat.Read: an error status from one Ownership read or the Usage SQL read is pinned only through the whole-Read override (BrokenBeat), not per branch
+- source: spec-39-4-each-beat-carries-your-checklist-and-a-status-snapshot-built.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Checks/Beat.cls Read: the rs.%SQLCODE<0 branches of the channel read and the .sc of each Ownership call have no test of their own; a SELECT by bound value on a fixed table cannot be made to fail hermetically
+- 2026-11-04T20:31:36Z status=wontfix-theoretical owner=39-4-each-beat-carries-your-checklist-and-a-status-snapshot-built by=cr note=real if the production job loses SELECT on OcuTalon_Bridge_Data.Usage or an Ownership read starts failing in CI
+
+### DW-677: Beat.Key drops any line of the person's own checklist that starts 'Status at ' and ends '(built by OcuTalon):', so an edit to only such a line leaves the key unchanged
+- source: spec-39-4-each-beat-carries-your-checklist-and-a-status-snapshot-built.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: Checks/Beat.cls Key (Story 39.3's design, unchanged here): a checklist line shaped like the status line is skipped; only the person can write it, and fields are cleaned of line breaks
+- 2026-11-04T20:31:36Z status=wontfix-theoretical owner=39-4-each-beat-carries-your-checklist-and-a-status-snapshot-built by=cr note=real if a person's checklist holds a line shaped like the status line and its edit is reported as not beating

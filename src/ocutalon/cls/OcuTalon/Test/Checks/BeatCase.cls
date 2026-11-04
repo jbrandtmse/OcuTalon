@@ -103,11 +103,12 @@ Method OnAfterOneTest(testname As %String) As %Status
 	Quit ##super(testname)
 }
 
-/// Sets the quiet key of the person's HeartbeatBeat row to the key of the snapshot that a beat at the UTC time builds now, as a settled ignore leaves it. The
-/// snapshot reads the person's saved checklist and rows, so the row and the settings come first (SeedBeat).
+/// Sets the quiet key of the person's HeartbeatBeat row to the key that a beat at the UTC time stores now (the key of the whole, uncut snapshot), as a settled
+/// ignore leaves it, and answers it. The snapshot reads the person's saved checklist and rows, so the row and the settings come first (SeedBeat).
 Method QuietNow(session As %String, at As %String) As %String [ Private ]
 {
-	Set key = ##class(OcuTalon.Checks.Beat).Key(##class(OcuTalon.Checks.Beat).Snapshot(session, at))
+	Do ##class(OcuTalon.Checks.Beat).Snapshot(session, at, .whole)
+	Set key = ##class(OcuTalon.Checks.Beat).Key(whole)
 	Set row = ..Beat(session)
 	Set row.LastQuietKey = key
 	Do $$$AssertStatusOK(row.%Save(), "the person's quiet key is the key of the snapshot")

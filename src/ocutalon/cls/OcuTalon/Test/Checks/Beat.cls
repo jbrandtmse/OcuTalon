@@ -417,7 +417,7 @@ Method TestUnchangedAfterIgnore()
 {
 	Set noon = ..Local("12:00")
 	Set ref = ..Person("same as before", {"NextDueAt": (..Plus(noon, -60))})
-	Do ..SetRow(ref, "LastQuietKey", ..BKey(..BSnap(ref, noon)))
+	Do ..SetRow(ref, "LastQuietKey", ..BWholeKey(ref, noon))
 	Do $$$AssertStatusOK(..BDue(noon, .items, ref), "RunDue is OK")
 	Do $$$AssertEquals(items.Count(), 0, "a checklist unchanged since the last ignore sends nothing")
 	Set row = ..Open(ref)
@@ -435,12 +435,14 @@ Method TestRunNow()
 
 	// hours and unchanged do not hold it; neither does an off person
 	Set ref = ..Person("c", {"NextDueAt": (far)})
-	Do ..SetRow(ref, "LastQuietKey", ..BKey(..BSnap(ref, late)))
+	Set quiet = ..BWholeKey(ref, late)
+	Do ..SetRow(ref, "LastQuietKey", quiet)
 	Do ..Put(ref, "on", "0")
 	Set sc = ..BNow(ref, late, .item, .outcome, .availableAt)
 	Do $$$AssertStatusOK(sc, "RunNow is OK")
 	Do $$$AssertEquals(outcome_"|"_availableAt, "sent|", "outside the hours, with an unchanged snapshot and while off, the beat is sent")
 	Set row = ..Open(ref)
+	Do $$$AssertEquals(row.LastSnapshotKey, quiet, "and the snapshot was unchanged: the key that the beat stores is the quiet key")
 	If $IsObject(item) Do $$$AssertEquals(row.LastRunNowAt_"|"_row.NextDueAt_"|"_row.LastItemId_"|"_row.LastBeatAt, late_"|"_..Plus(late, 1800)_"|"_item.ItemId_"|"_late, "the row records the request, moves the next due time to now plus one interval and records the beat")
 	Do $$$AssertTrue($IsObject(item), "an Item is returned")
 	If $IsObject(item) Do $$$AssertEquals(item.Channel_"|"_item.Text_"|"_item.SessionRef, "heartbeat|"_..BSnap(ref, late)_"|"_ref, "for the person's snapshot")
@@ -543,7 +545,7 @@ Method TestRecordedDecisionCountsInTheSameRunDue()
 	// ignore, and the beat is due at the same tick
 	Set ignored = ..Person("same", {"NextDueAt": (..Plus(noon, -60)), "LastItemId": "itemsame"})
 	Set ignoreRef = ..Decision(ignored, "itemsame", {"Outcome": "ignore", "Summary": "Heartbeat check-in"})
-	Set sameKey = ..BKey(..BSnap(ignored, noon))
+	Set sameKey = ..BWholeKey(ignored, noon)
 	Do ..SetRow(ignored, "LastSnapshotKey", sameKey)
 
 	// fallback, and the beat is due at the same tick
@@ -790,6 +792,13 @@ Method BKey(snapshot As %String) As %String [ Private ]
 Method BSnap(ref As %String, now As %String) As %String [ Private ]
 {
 	Quit $ClassMethod(..#BEAT, "Snapshot", ref, now)
+}
+
+/// The key that Run stores for the person's snapshot at the UTC time: the key of the whole, uncut text.
+Method BWholeKey(ref As %String, now As %String) As %String [ Private ]
+{
+	Do $ClassMethod(..#BEAT, "Snapshot", ref, now, .whole)
+	Quit ..BKey(whole)
 }
 
 Method BCapped(at As %String) As %Boolean [ Private ]
