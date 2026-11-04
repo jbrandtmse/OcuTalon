@@ -120,3 +120,10 @@
 2026-11-04T16:24:43Z	Story 40.8	story_cycle	plan_to_commit_min=206 implement_passes=1 reviews=1 rework=0 first_ci=pending models=plan:opus,implement:sonnet,qa:sonnet,cr:opus
 2026-11-04T16:24:43Z	Epic 40	owner_decision	id=U-272 at=2026-11-04T14:04:23Z#828 via=inbox by=relayed_by_orchestrator answer=kept_with_condition:persona_text_says_other-language_replies_have_the_models_own_check_only_until_the_language-aware_guard_lands;in_40.4_and_docs_that_describe_the_feature;wording_the_UX_lacks_goes_to_the_orchestrator
 2026-11-04T16:25:32Z	Epic 40	amendment	file=epics.md story=40.4 what=U-272_condition_persona_text_says_model_own_check_only wording=pending_orchestrator_veto docs=none_describe_the_feature
+2026-11-04T17:47:45Z	Epic 40	runner_unattended_start	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec note=redispatch_vscode_restart_1736_story_40.3_runner_A lane=A slot=ocutalon-slot-a
+2026-11-04T17:47:45Z	Epic 40	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-11-04T17:47:45Z	Epic 40	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh
+2026-11-04T17:47:45Z	Epic 40	launch_env	depth=4 watchdog=0 bash_max_ms=default
+2026-11-04T17:47:45Z	Epic 40	spine_resolved	path=_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md ads=33 status=final
+2026-11-04T17:48:37Z	Epic 40	owner_decision	id=U-278 at=2026-11-04T17:43:13Z#841 via=inbox by=relayed_by_orchestrator answer=reword_both_help_texts;placement_on_both_fields_kept;exact_sentences_given;conditions=(1)reword_40.4_And_line(2)no_ReplyGuard_BANNED_or_RESERVED_phrase_test_pins_it(3)before_merge_check_each_clause_against_ReplyGuard_and_Chat_instruction_on_merged_head
+2026-11-04T17:48:37Z	Epic 40	amendment	file=epics.md:8693 story=40.4 what=U-278_reworded_U-272_And_line;not_filtered_for_all-clear_phrases;model_only_instructed;two_exact_help_texts;test_pins_no_BANNED_or_RESERVED_phrase change_log=spec-40-3 ledger=DW-664 condition2_checked_now=neither_sentence_contains_all_good,everythings_fine,everything_is_fine,no_issues,no_problems,nothing_to_worry_about,or_a_RESERVED_sentence

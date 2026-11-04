@@ -3939,6 +3939,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-04T14:00:23Z status=decision-pending owner=burndown by=spec_gate note=raised to the orchestrator at 40.3's spec gate; not decided by the runner
 - 2026-11-04T14:04:16Z status=routed owner=burndown by=unattended note=inbox=U-272; a language-aware guard is its own story
 - 2026-11-04T16:25:32Z status=routed owner=burndown by=owner note=U-272 kept; until the language-aware guard lands the persona text says other-language replies have the model's own check only (Story 40.4)
+- 2026-11-04T17:48:31Z status=routed owner=burndown by=owner note=U-278 reworded the U-272 condition: the persona text says other-language replies are not filtered for all-clear phrases and the model is only instructed not to write one; Story 40.4 ships the two exact help texts
 
 ### DW-669: No API route bounds its body: PUT /v1/persona stores language and custom of any size in the SetPersona message, with no allowance
 - source: spec-40-8-the-persona-s-web-routes.md | severity: med | fix-risk: low | footprint: out-of-footprint
