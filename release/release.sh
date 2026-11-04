@@ -630,9 +630,10 @@ candidate_lock_dir() {
 # reads. The lane's throwaway lock folder, when the author's repository has one, is handed to the unit. Exit 0 of the unit is PASS, exit 75 is
 # WAIT (nothing is recorded; the next call runs the step again), anything else fails the step with the first DRIFT or FAIL line of the unit,
 # and the release stops. "Regenerates" means a fresh generation from the candidate's code compared with the candidate's committed sections;
-# the author runs the unit with --write on the integration branch, commits, and cuts the next candidate.
+# the author runs the unit with --write on the integration branch, commits, and cuts the next candidate. A failing unit's log is kept as
+# overview-fail.log in the release state folder (a pass removes it), and its absolute path is printed on a LOG line right after the FAIL line.
 step_overview() {
-  local ctx="$sdir/overview" log="$sdir/overview.log" lockdir code line
+  local ctx="$sdir/overview" log="$sdir/overview.log" lockdir code line kept
   candidate_export overview "$ctx" || return 1
   # The unit copies these files into a container whose IRIS user is not this one, and the owner-only file mode (077) this script sets
   # at its start leaves them readable by their owner alone (Story 11.20): open the export to other users, as step_ipm does inside its
@@ -654,7 +655,7 @@ step_overview() {
   rm -rf "$ctx"
   case $code in
     0)
-      rm -f "$log"
+      rm -f "$log" "$sdir/overview-fail.log"
       STEP_ROW=pass
       STEP_DETAIL="the generated sections equal a fresh generation from the candidate, and the overview tests pass"
       echo "PASS overview $STEP_DETAIL"
@@ -668,8 +669,15 @@ step_overview() {
   esac
   line=$(grep -m 1 -E '^(DRIFT |FAIL |CLASS .* failed)' "$log" 2> /dev/null)
   line=${line#FAIL overview }
-  rm -f "$log"
+  kept=0
+  if mv -f "$log" "$sdir/overview-fail.log" 2> /dev/null; then kept=1; else rm -f "$log"; fi
   step_fail overview "${line:-the overview unit ended with exit $code}"
+  if [ "$kept" = 1 ]; then
+    case $sdir in
+      /*) echo "LOG overview $sdir/overview-fail.log" ;;
+      *) echo "LOG overview $PWD/$sdir/overview-fail.log" ;;
+    esac
+  fi
   return 1
 }
 

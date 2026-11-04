@@ -21,7 +21,10 @@
 #   image     the image is built from the candidate's tree, its version is compared and the check image is removed; a lie, a missing
 #             base image or a failed build stops the sequence before the push question
 #   overview  (Story 14.1) the overview step runs release/security-overview.sh of the candidate (a stub in the seed repository, so no container is
-#             needed): a pass names ipm, a failure stops the release with its record and never reaches ipm, a busy lane lock waits (exit 5)
+#             needed): a pass names ipm, a failure stops the release with its record and never reaches ipm, a busy lane lock waits (exit 5);
+#             (Story 11.20) the stub fails when an exported file is not readable by others (or a folder not searchable by others), a failing
+#             unit's log is kept as overview-fail.log with its path on a LOG line after the FAIL line, and release.sh and lib-release.sh keep
+#             their one umask 077 line
 #   overviewunit  (Story 14.1) the real release/security-overview.sh in a temporary tree with a stub ci/iris.sh: pass, busy lock, a drift in
 #             the live step, a failed class step, --write, the run tag, and the teardown that follows every case
 #   overviewdrift (Story 14.1) docker/tests/lib-security-overview.sh on small overview files: the DRIFT line for a changed tool row, for a
@@ -417,19 +420,24 @@ leanpath() {
 
 # --- the throwaway repository ---
 
-# stub_text <pass|fail|busy|silent>: the text of a stub release/security-overview.sh, the callable unit of the overview step, which prints what the real
+# stub_text <pass|fail|busy|silent|nolog>: the text of a stub release/security-overview.sh, the callable unit of the overview step, which prints what the real
 # unit prints for that outcome and exits as it does. It makes no call outside its own folder.
 stub_text() {
   printf '%s\n' '#!/usr/bin/env bash' 'set -u'
   case $1 in
     pass)
-      printf '%s\n' 'grep -q "<Version>1.0.0</Version>" src/module.xml || { echo "FAIL overview the unit did not run in the cut candidate"; exit 1; }' \
+      printf '%s\n' 'bad=$(find . -path ./web/node_modules -prune -o \( ! -perm -004 -o \( -type d ! -perm -001 \) \) -print | head -n 1)' \
+        '[ -z "$bad" ] || { echo "FAIL overview $bad is not readable by others"; exit 1; }' \
+        'grep -q "<Version>1.0.0</Version>" src/module.xml || { echo "FAIL overview the unit did not run in the cut candidate"; exit 1; }' \
         '[ -d web/node_modules ] || { echo "FAIL overview the web dependencies would be installed"; exit 1; }' \
         '[ -z "${SHIMLOG:-}" ] || echo "${OCUTALON_LOCK_DIR:-}" > "$SHIMLOG/overview-lock-dir.txt"' \
+        '[ -z "${SHIMLOG:-}" ] || umask > "$SHIMLOG/overview-umask.txt"' \
         'echo "PASS overview stub: sections equal and tests pass"' 'exit 0'
       ;;
     fail)
-      printf '%s\n' 'echo "DRIFT tool recent_activity"' 'echo "FAIL the generated sections of docs/security-overview.md differ from a fresh generation"' \
+      printf '%s\n' '[ -z "${SHIMLOG:-}" ] || [ ! -f "$SHIMLOG/overview-pass" ] || { echo "PASS overview stub: sections equal and tests pass"; exit 0; }' \
+        '[ -z "${SHIMLOG:-}" ] || [ ! -f "$SHIMLOG/overview-busy" ] || { echo "WAIT overview the lane lock is busy"; exit 75; }' \
+        'echo "DRIFT tool recent_activity"' 'echo "FAIL the generated sections of docs/security-overview.md differ from a fresh generation"' \
         'echo "FAIL overview DRIFT tool recent_activity"' 'exit 1'
       ;;
     busy)
@@ -437,6 +445,9 @@ stub_text() {
       ;;
     silent)
       printf '%s\n' 'echo "FAIL overview a step ended with exit 3"' 'exit 1'
+      ;;
+    nolog)
+      printf '%s\n' 'rm -f "$OCUTALON_RELEASE_STATE"/*/overview.log' 'exit 1'
       ;;
   esac
 }
@@ -476,7 +487,7 @@ set_ipm_stub() {
   EXPECT_BASE=$(git -C "$W" rev-parse HEAD)
 }
 
-# set_stub <pass|fail|busy|silent>: replaces the stub in the case's checkout, commits it on the integration branch and pushes it, before start.
+# set_stub <pass|fail|busy|silent|nolog>: replaces the stub in the case's checkout, commits it on the integration branch and pushes it, before start.
 set_stub() {
   stub_text "$1" > "$W/release/security-overview.sh"
   git -C "$W" add release/security-overview.sh
@@ -1651,7 +1662,7 @@ t_pushes() {
 # --- overview ---
 
 t_overview() {
-  local before
+  local before kept
   # a pass: the unit ran in the cut candidate, the row is recorded and the next step is ipm
   # The author's repository has the coordination folder, and the case has no lock folder in its environment: the unit gets the lane lock folder
   # that the step derives from the author's repository.
@@ -1662,9 +1673,13 @@ t_overview() {
   rs '' next
   export OCUTALON_LOCK_DIR=$C/locks
   eq "overview pass: exit" "$rc" 0
+  lacks "overview pass: the export is readable by others" "$out" "not readable by others"
   has "overview pass: the line" "$out" "PASS overview "
   has "overview pass: the next step" "$out" "NEXT ipm"
   eq "overview pass: the unit received the lane lock folder of the author's repository" "$(cat "$SHIMLOG/overview-lock-dir.txt" 2> /dev/null)" "$W/.worktrees/.coordination/locks"
+  eq "overview pass: the unit runs under umask 077" "$(cat "$SHIMLOG/overview-umask.txt" 2> /dev/null)" 0077
+  eq "overview pass: release.sh keeps its one umask 077 line" "$(grep -c '^umask 077$' "$root/release/release.sh")" 1
+  eq "overview pass: lib-release.sh keeps its one umask 077 line" "$(grep -c '^umask 077$' "$root/release/lib-release.sh")" 1
   eq "overview pass: the export and the log are gone" "$(ls "$OCUTALON_RELEASE_STATE/1.0.0-rc1" | tr '\n' ' ')" "rows.tsv state.env "
   rs '' status
   has "overview pass: the state names ipm" "$out" "STATE 1.0.0 rc1 next ipm"
@@ -1682,9 +1697,27 @@ t_overview() {
   has "overview fail: the row" "$(cat "$(rec_file)")" "| overview | fail | DRIFT tool recent_activity |"
   lacks "overview fail: ipm never ran" "$(cat "$(rec_file)")" "| ipm |"
   lacks "overview fail: no local path in the record" "$(cat "$(rec_file)")" "$tmp"
+  kept="$OCUTALON_RELEASE_STATE/1.0.0-rc1/overview-fail.log"
+  has "overview fail: the log is kept" "$(cat "$kept" 2> /dev/null)" "DRIFT tool recent_activity"
+  eq "overview fail: no overview.log or export remains" "$(ls "$OCUTALON_RELEASE_STATE/1.0.0-rc1" | grep -c '^overview$\|^overview\.log$')" 0
+  has "overview fail: the LOG line" "$out" "LOG overview $kept"
+  eq "overview fail: the LOG line follows the FAIL line" "$(printf '%s\n' "$out" | grep -A 1 '^FAIL overview ' | tail -n 1)" "LOG overview $kept"
+  lacks "overview fail: the record does not name the kept log" "$(cat "$(rec_file)")" "overview-fail.log"
   eq "overview fail: nothing pushed" "$(git --git-dir="$R" for-each-ref --format='%(refname)' | tr '\n' ' ')" "refs/heads/$INTEG "
   rs '' status
   has "overview fail: the state still names overview" "$out" "STATE 1.0.0 rc1 next overview"
+  # a wait keeps the log of the earlier failure
+  : > "$SHIMLOG/overview-busy"
+  rs '' next
+  eq "overview wait: exit" "$rc" 5
+  has "overview wait: the kept log stays" "$(cat "$kept" 2> /dev/null)" "DRIFT tool recent_activity"
+  rm -f "$SHIMLOG/overview-busy"
+  # a rerun that passes removes the kept log
+  : > "$SHIMLOG/overview-pass"
+  rs '' next
+  eq "overview rerun: exit" "$rc" 0
+  has "overview rerun: the next step" "$out" "NEXT ipm"
+  eq "overview rerun: the kept log is gone" "$([ -e "$kept" ] && echo yes || echo no)" no
   # a failure whose first line is the unit's own FAIL overview line: its prefix is not repeated
   newcase
   set_stub silent
@@ -1694,6 +1727,15 @@ t_overview() {
   has "overview silent: the line" "$out" "FAIL overview a step ended with exit 3"
   lacks "overview silent: the unit's own prefix is not repeated" "$out" "FAIL overview FAIL overview"
   has "overview silent: the record" "$(cat "$(rec_file)")" "Result: failed at overview: a step ended with exit 3"
+  has "overview silent: the LOG line" "$out" "LOG overview /"
+  # a log that cannot be kept: the failure is reported and no LOG line is printed
+  newcase
+  set_stub nolog
+  to_step overview
+  rs "$N" next
+  eq "overview nolog: exit" "$rc" 1
+  has "overview nolog: the line" "$out" "FAIL overview the overview unit ended with exit 1"
+  lacks "overview nolog: no LOG line" "$out" "LOG overview"
   # a busy lane lock: WAIT, exit 5, nothing recorded, and the next call runs the step again
   newcase
   set_stub busy
