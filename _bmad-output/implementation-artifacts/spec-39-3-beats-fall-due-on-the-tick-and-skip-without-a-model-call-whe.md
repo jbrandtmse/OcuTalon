@@ -201,6 +201,10 @@ Clocks are fixed UTC stamps in 2099 (local times built with `Data.Time.FromLocal
 
 ## Spec Change Log
 
+- 2026-11-04, lead at the re-check on the merged tree: the (once) guard under `## Verification` diffed from the merge-base with feature, which counts 39.1's `Data/HeartbeatBeat.cls` and the orchestrator's ruled test edit (`docker/tests/test-release-notes.sh`); neither is this story's. It now diffs from b50f3add, the pushed head this story starts from. Line anchors, `Data.Ownership.DecisionOfItem`, `Data.Session` and `Test.Data.Fixture` checked against the merged tree: no spec change needed.
+
+- 2026-11-04, orchestrator ruling (decide): Story 39.7 re-homed to Lane B in `epics.md`; its line read "Home lane: A." and now reads "Home lane: B.". DW-633 stays with 39.7. This story is unaffected: its Event group stays out of scope.
+
 - 2026-11-03, lead at spec validation (unattended ruling, decide; Rule 5 split into a sibling in the same epic): AC 6 (the `heartbeat` event) and the Event group are split into the new Story 39.7 "Publish the heartbeat event" (epics.md); DW-633 is re-owned to 39-7-publish-the-heartbeat-event. This story implements AC 1-5 and AC 7 only.
 
 ## Review Triage Log
@@ -270,7 +274,7 @@ Clocks are fixed UTC stamps in 2099 (local times built with `Data.Time.FromLocal
 - (loop) `<lane> OCUTALON_WARM=1 OCUTALON_RUN_TAG=e39s3implw ci/iris.sh class OcuTalon.Test.Checks.Beat` -- expected: `CLASS ... passed`.
 - (loop) the same for `OcuTalon.Test.Checks.Runs` -- expected: passed.
 - (loop) `<lane> OCUTALON_RUN_TAG=e39s3impl ci/iris.sh class OcuTalon.Test.Checks.Heartbeat`, fresh (production) -- expected: passed; record the time.
-- (once) `git diff --exit-code "$(git merge-base origin/feature/OCT_OcuTalon_MVP HEAD)" -- src/ocutalon/cls/OcuTalon/Production.cls docker src/ocutalon/cls/OcuTalon/Live src/ocutalon/cls/OcuTalon/Test/Live web src/ocutalon/cls/OcuTalon/Core src/ocutalon/cls/OcuTalon/Data src/ocutalon/cls/OcuTalon/Msg src/ocutalon/cls/OcuTalon/Install src/module.xml src/cpf ci/mock` -- expected: exit 0 (the Event group, if assigned, adds `Live/Payload/Heartbeat.cls` only).
+- (once) `git diff --exit-code b50f3add -- src/ocutalon/cls/OcuTalon/Production.cls docker src/ocutalon/cls/OcuTalon/Live src/ocutalon/cls/OcuTalon/Test/Live web src/ocutalon/cls/OcuTalon/Core src/ocutalon/cls/OcuTalon/Data src/ocutalon/cls/OcuTalon/Msg src/ocutalon/cls/OcuTalon/Install src/module.xml src/cpf ci/mock` -- expected: exit 0 (the Event group, if assigned, adds `Live/Payload/Heartbeat.cls` only).
 - (once) the hosted checks in three parts: `. ci/units.sh; echo $CHECK_SCRIPTS`, then about a third per call, `for n in <part>; do bash docker/tests/test-$n.sh >/dev/null 2>&1 || echo "FAIL $n"; done` -- expected: no FAIL line.
 - (once) `<lane> OCUTALON_RUN_TAG=e39s3impl ci/iris.sh shard lane-a@Checks`, fresh, then again with `--reverse` -- expected: passed; record the time.
 - (once) `<lane> OCUTALON_RUN_TAG=e39s3implw ci/warm.sh down`, then `<lane> OCUTALON_RUN_TAG=e39s3impl ci/iris.sh teardown`, also after a failure.

@@ -8558,7 +8558,7 @@ So that "stay quiet unless something needs you" is measured, not hoped.
 
 ### Story 39.7: Publish the heartbeat event
 
-*Home lane: A.*
+*Home lane: B.* [AMENDED 2026-11-04, orchestrator ruling (decide; re-homed so the story may edit `Live/Publish.cls` TYPES, `Test.Live.Payloads` and `web/src/app/live/payloads.ts`, and create `Live/Payload/Heartbeat.cls`; it read "Home lane: A."; see Story 39.3's change log)]
 
 [ADDED 2026-11-03, split from Story 39.3 at its spec gate, unattended ruling (decide; Rule 5 split into a sibling in the same epic): the event needs `OcuTalon.Live.Payload.Heartbeat` together with Lane B edits that Story 39.3 cannot make]
 
