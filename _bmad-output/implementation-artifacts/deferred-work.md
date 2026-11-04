@@ -3881,3 +3881,4 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: CI run 41782092223 attempt 1, iris (shards), feature 24e6e9e9 | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: 19 of 20 passed; no assertion failed; relative of DW-550 (same project, same timeout shape)
 - 2026-11-04T06:28:48Z status=routed owner=burndown by=merge_gate note=first_daily_release_after_1.0.0; confirm by the attempt 2 result
+- 2026-11-04T06:30:47Z status=routed owner=burndown by=merge_gate note=possible link, unproven: the job ran on a runner on the CI host whose unattended upgrade restarted a runner in the same window (shards-2 cancel, 06:15Z); attempt 2 decides
