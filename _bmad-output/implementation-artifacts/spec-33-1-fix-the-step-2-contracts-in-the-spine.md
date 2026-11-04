@@ -371,6 +371,9 @@ Every IRIS line runs with the lane prefix `P` = `OCUTALON_LOCK_DIR="$(dirname "$
 - mutation: a `RetryOf` code line added to `OcuTalon.Web.TraceLink` (`Set request.RetryOf = "x"` in a new method) -> `Test.Bridge.CodeRules` red (TestOnlyTheRetryPathNamesRetryOf: no class outside Decide, the request, the runner, its adapter and the link names RetryOf); reverted, `cmp` against a saved copy identical, green again on the same warm stack.
 - mutation: `digest.savedNoSummary` in `Catalog.Watch` set back to "They're under Recent decisions..." -> `Test.Msg.Catalog` red (TestEveryKeyOnEveryChannel and TestLocalInstallEveryKey: not the fixture's text); reverted, `cmp` identical, green again on the same warm stack.
 
+**QA stage (QA), no test file created.** Each AC and matrix row was read against its pin; the implement stage's mutations cover the items, tables, APIs, texts and spine-lint ACs, and the document ACs (zone, S1-S18, retried reasons) have no automated falsifier for prose by design. The one candidate gap, the default of `Sent.AllClear` (a false all-clear if it were 1), is already pinned: `Test.Digest.Contracts.TestContracts` compares initial values.
+- mutation: `Sent.AllClear` `InitialExpression = 0` -> `1` -> `Test.Digest.Contracts` red (TestContracts: AllClear has no initial value 0); reverted from a saved copy, `git status --short` empty and HEAD unchanged.
+
 **Shared surfaces:** the production's item list (`Test.Install.Production` oracle; `Test.Install.Provider` runner count; `live:production`); `src/short-names.tsv` (`test-storage.sh`); `Test.Contract.Ac`'s signature list and floor; after acceptance, the `Catalog.Watch` key count, Keys list and Fixtures (`Test.Msg.Catalog`); the spine's ownership tables and Deferred list. Standing criterion: every test added or changed passes on a fresh environment, in either order.
 
 **Manual checks:**
