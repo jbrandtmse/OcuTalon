@@ -3876,3 +3876,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: U-258 follow-up (Contest Planner) | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: rc2 trials; see DW-483, which reads 6 of 156 (3.8 percent) on rc2
 - 2026-11-04T03:54:25Z status=routed owner=burndown by=merge_gate note=first_daily_release_after_1.0.0
+
+### DW-659: flake candidate: live:cards web/e2e/cards/incident-card.spec.ts:360 I7 (when the card compacts, focus moves from the removed footer button to the card) hit the 90 s test timeout
+- source: CI run 41782092223 attempt 1, iris (shards), feature 24e6e9e9 | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: 19 of 20 passed; no assertion failed; relative of DW-550 (same project, same timeout shape)
+- 2026-11-04T06:28:48Z status=routed owner=burndown by=merge_gate note=first_daily_release_after_1.0.0; confirm by the attempt 2 result
