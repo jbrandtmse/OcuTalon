@@ -2,8 +2,8 @@
 title: "Story 40.2: Save your persona, and let OcuTalon propose one"
 type: 'feature'
 created: '2026-11-02'
-status: 'in-progress'
-baseline_revision: 'f8fb317493072b9302c27a15019af2331bb51bcc'
+status: 'done'
+baseline_revision: '190e3c0850ce32f31d3db42b9acab287d4dbca90'
 baseline_commit: 'f8fb317493072b9302c27a15019af2331bb51bcc'
 review_loop_iteration: 0
 followup_review_recommended: false
@@ -126,7 +126,7 @@ Messages: S = "Saved. Applies from your next message. Recorded in the audit log.
 4. Given an online-demo session that signs out, or a new visitor, when `SessionOps.End` runs or a new session is created, then the ended session's `person.<SessionRef>.` keys are deleted, another session's keys stay, and the new session reads as Professional.
 5. Given a tell-now notice whose reason holds a greeting, an exclamation mark and emoji, when `Catalog.Render` renders it on `web`, `phone`, `mailbox` and `telegram` in `Test.Msg.Catalog`, then those come out unchanged, the frame is exact, only control characters and line breaks are cleaned; and the three persona keys render their EXPERIENCE.md texts exactly.
 
-- [ ] [CI] iris (image), shard lane-b: `OcuTalon.Test.Data.Tables` TestSqlNames fails on `OcuTalon.Msg.Command.SetPersona` and `OcuTalon.Msg.Command.ProposePersona` ("projects no SQL reserved word"): `Language` is an SQL reserved word (measured, `$SYSTEM.SQL.IsReservedWord`) -- `src/ocutalon/cls/OcuTalon/Msg/Command/SetPersona.cls:12`, `ProposePersona.cls:11` -- keep the property name and give both `SqlFieldName = PersonaLanguage` (the spine's SQL reserved words convention); `OcuTalon.Test.Data.Tables` passes -- https://github.com/jbrandtmse/OcuTalon/actions/runs/41396068664
+- [x] [CI] iris (image), shard lane-b: `OcuTalon.Test.Data.Tables` TestSqlNames fails on `OcuTalon.Msg.Command.SetPersona` and `OcuTalon.Msg.Command.ProposePersona` ("projects no SQL reserved word"): `Language` is an SQL reserved word (measured, `$SYSTEM.SQL.IsReservedWord`) -- `src/ocutalon/cls/OcuTalon/Msg/Command/SetPersona.cls:12`, `ProposePersona.cls:11` -- keep the property name and give both `SqlFieldName = PersonaLanguage` (the spine's SQL reserved words convention); `OcuTalon.Test.Data.Tables` passes -- https://github.com/jbrandtmse/OcuTalon/actions/runs/41396068664
 
 ### Review Findings
 
@@ -196,6 +196,17 @@ Rejected:
   - `[medium]` `[defer]` intent: ProposePersona is outside the bridge-context governance loop and has no owner check - the same deferred item
   - `[false]` `[reject]` intent: literal-reading choices (letters, line feeds and CR, check order), spine marker date, spec file modified - recorded under Decided in-stage; the spec file is the stage's own artifact
 
+### 2026-11-04 - Review pass (rework 1, CI)
+- verdicts: 6 findings - high 0, medium 0, low 5, false 1, maybe-false 0
+- findings:
+  - `[low]` `[reject]` blind: the `Test.Msg.Contracts` entries for the two verbs carry no `sql` map pinning `Language` to `PersonaLanguage` - the open [CI] item names `Data.Tables` as the pinning test and the lead's scope is that test; the column name is no wire contract, and a wrong rename still passes only if it is another unreserved name (negligible); the fix adds test surface beyond the item
+  - `[low]` `[reject]` blind: the `mutation (CI)` line mutates only `ProposePersona`, and the [x] item records no outcome note - the lead's brief asks for the mutation on one of the two classes; the scan loop in `AssertSqlNames` covers both identically; the fix edits this build's spec
+  - `[low]` `[reject]` blind: the spec still describes the property as plain `Language` and has no change-log entry for the rework - the property name is unchanged by design; the Spec Change Log already carries the rework 1 line; the fix edits this build's spec
+  - `[low]` `[reject]` edge: no `sql` map in the `Test.Msg.Contracts` entries - same as the first blind finding
+  - `[false]` `[reject]` edge: raw SQL or ODBC consumers of the old column `Language` would fail - the reviewer's own grep and mine of `src` find no query naming it, and the storage `<Value>` entries are keyed by property name and are unchanged
+  - `[low]` `[reject]` verification-gap (other): `SetPersona` is not mutated separately - same as the second blind finding
+  - intent-alignment: descriptive report only, no finding; the diff implements the CI-conformance reading (SQL projection only), no divergence from the contract.
+
 ## Design Notes
 
 **Architecture decisions:** AD-1 (verbs, origins, `TOOLVERBS`, governance test), AD-4 (`SessionOps.End`, SessionRef from the server session), AD-7 (presets, bends; the read feeds 40.3), AD-11 (`setting` kind), AD-17 (one audit writer, audit before write), AD-19 (per-person keys, validation, 60 s, sign-out deletion, SettingsOps the only writer), AD-29 (Epic 40's names, lanes), AD-32 (catalog keys `<prefix>.<name>`, one class per prefix, `Catalog.Render` cleaning), AD-33 (Setting table owned by Lane B; no new item or table).
@@ -255,6 +266,7 @@ mutation (QA): `SettingsOps.Persona` reading the preset with the cached `Setting
 mutation (QA): `SettingsOps.SavePersona` passing the unused custom value to validation and storage for a non-custom preset -> `SettingsPersona.TestUnusedFields` red (AC 2)
 mutation (QA): `persona.stale` text changed in `Catalog.Core` -> `Catalog.TestEveryKeyOnEveryChannel` red (all four channels and the JSON slots) (AC 5, the persona-text half)
 mutation (CR): `SessionOps.End` running `EndSettings` only when no earlier step failed (`If 'failed Set failed = ..EndSettings(sessionRef)`) -> `SessionOps.TestEndUnlinksWithoutNotice` red ("and the session's per-person settings are forgotten") (AC 4); applied, loaded to slot C, observed red, reverted with `git checkout --`, reloaded
+mutation (CI): `SqlFieldName = PersonaLanguage` removed from `Msg.Command.ProposePersona.Language` -> `Data.Tables.TestSqlNames` red ("OcuTalon.Msg.Command.ProposePersona projects no SQL reserved word"); applied, observed red, reverted so the file is byte-identical (same shasum)
 QA audit: each mutation above was applied to one file, loaded to slot C, observed red, then reverted with `git checkout -- <file>` and reloaded; `git status --short` afterwards lists only the QA test file below. Slot C after the QA changes: `CommandsRouting` 13/13, `SettingsPersona` 17/17.
 Test files changed (QA): `src/ocutalon/cls/OcuTalon/Test/Core/CommandsRouting.cls` (new `TestPersonaVerbsInsideAContext`, header bullet; the class was already in the default suite, `ci/iris.sh classes` lists it and `SettingsPersona`). No new test class.
 
@@ -265,18 +277,14 @@ Shared surfaces: `Msg.Enum`'s parameter set and `APPROVALKIND` (`Test.Msg.Contra
 Status: done
 Blocking condition: none
 
-**Summary:** both persona verbs, `PERSONAPRESET`, `setting` in both `APPROVALKIND` copies, their `CommandsIn` routes (`ProposePersona` joins `TOOLVERBS`; persona verbs get the not-allowed text, not the admin-only one), `SettingsOps` (validated, audited `SetPersona` write with the audit first and the three keys in one transaction; `ProposePersona` placeholder answering `not_built`; `Persona`, `PersonaKey`, `ForgetPerson`, `AuditForm`; `Apply` accepts the persona keys of a Ref; `CHANNELS` gains `web_user`), `SessionOps.End` forgetting the session's per-person values (through the private `Forget` seam), the three catalog keys, and the spine's Enumerations row (DW-564, DW-565).
+**Summary (rework 1, CI):** `Language` on `Msg.Command.SetPersona` and `Msg.Command.ProposePersona` now carries `SqlFieldName = PersonaLanguage`, because `Language` is an SQL reserved word. The property keeps its name, the `Storage` blocks and `Core/SettingsOps.cls` are unchanged.
 
 **Files changed:**
-- `src/ocutalon/cls/OcuTalon/Msg/Enum.cls`, `src/bridge/cls/OcuTalon/Bridge/Msg/Enum.cls` (footprint extension, one value): enumerations.
-- `src/ocutalon/cls/OcuTalon/Msg/Command/SetPersona.cls`, `ProposePersona.cls`: new verbs.
-- `src/ocutalon/cls/OcuTalon/Core/CommandsIn.cls`, `SettingsOps.cls`, `SessionOps.cls`: routes, persona write/read/forget, End step.
-- `src/ocutalon/cls/OcuTalon/Msg/Catalog/Core.cls`: `approval.persona`, `persona.applied`, `persona.stale`.
-- `ARCHITECTURE-SPINE.md`: line 1078 only.
-- Tests: new `Test/Core/SettingsPersona.cls` (17); updated `CommandsRouting`, `CommandsInProduction`, `SessionOps` (two new tests), `SessionOpsProbe` (`Forget` override), `SettingsOpsProbe` (`apply` answer `second`), `Msg/Contracts`, `Msg/Catalog`.
+- `src/ocutalon/cls/OcuTalon/Msg/Command/SetPersona.cls`, `ProposePersona.cls`: the SQL field name of `Language`.
+- This spec: the [CI] item ticked, one `mutation (CI)` line.
 
-**Review:** 33 findings from four layers: patches applied 1 entry (medium: End's failed-delete path untested; fixed with the `Forget` seam and `TestEndKeepsTheSessionWhenSettingsCannotBeForgotten`, mutation recorded), deferred 1 (ProposePersona owner binding, medium, for Story 40.5), rejected 27 with reasons in the Review Triage Log. Follow-up review recommended: false (one medium patched).
+**Review:** 6 findings from four layers: patches 0, deferred 0, rejected 6 with reasons in the Review Triage Log. Follow-up review recommended: false (no patch this pass).
 
-**Verification:** slot C (`ocutalon-slot-c`): `SettingsPersona` 17/17, `CommandsRouting` 12/12, `SessionOps` 29/29, `Contracts` 6/6, `Catalog` 23/23, `Agent.Persona` 3/3. Fresh throwaway stacks: `SettingsPersona`, `CommandsInProduction`, `SettingsOps`, `Msg.Catalog` and `SessionOpsProduction` passed; teardown clean. Spine greps (line 1078; count 1; numstat 1/1) and lint equal the baseline. `catalog.mjs --check` current, `catalog.test.mjs` 52/52, `ci/checks.sh` all scripts passed. Mutations: nine `mutation:` lines recorded; the first (origins alone) is equivalent and the effective form went red.
+**Verification:** lane A throwaways, tag `e40s2r1`: `Test.Data.Tables`, `Test.Core.SettingsPersona` and `Test.Msg.Contracts` passed; `bash ci/checks.sh` printed "all scripts passed"; teardown clean. Mutation: `SqlFieldName` removed from `ProposePersona` turned `Data.Tables.TestSqlNames` red; reverted byte-identical.
 
-**Residual risks:** ProposePersona's owner binding (deferred); `Test.Bridge.Audit` fails on slot C where instance auditing is off (unrelated, needs a throwaway); `ci/units.sh` was not edited (contended) and may need `Test.Core.SettingsPersona` listed.
+**Residual risks:** none beyond the earlier passes; `SetPersona` was not mutated separately (the same scan covers both classes).

@@ -9,7 +9,7 @@ Class OcuTalon.Msg.Command.SetPersona Extends OcuTalon.Msg.Command
 Property Preset As %String(MAXLEN = "");
 
 /// The language name, used when Preset is language.
-Property Language As %String(MAXLEN = "");
+Property Language As %String(MAXLEN = "") [ SqlFieldName = PersonaLanguage ];
 
 /// The person's own words, used when Preset is custom. Not offered on the online demo.
 Property Custom As %String(MAXLEN = "");
