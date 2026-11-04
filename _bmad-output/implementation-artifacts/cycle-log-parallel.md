@@ -1762,3 +1762,4 @@
 2026-11-04T03:54:59Z	Run	feature_pushed	head=10ce26ac verified=origin contains=24d49f5d(U-257),7ef83b10(U-258)+bookkeeping freeze=on_again_until_RC3_CUT remote_OCT-epic12_deleted=unused_ancestor_of_feature
 2026-11-04T03:56:25Z	Run	ci_note	browser_group_skipped_on_823bdf41_and_8a452f77(no_input_changed);real_demo-path_baseline=94bf26d6_run_41745125006:28_passed;compare_on_10ce26ac_run_41769982647
 2026-11-04T03:56:51Z	Epic 12	planner_note	diff_review_passed_24d49f5d_in_place_of_stages;7ef83b10_equals_measured_v3;condition_2_owed_before_rc3_cut;7.7_conflict:plain_union_keep_7ef83b10_wording_whole;Planner_uses_dev_bot_on_rehearsal_droplet,no_slot_or_throwaway_on_its_token
+2026-11-04T04:12:40Z	Run	ruling	question=test-boundaries_ascii_rule_on_candidate_tree choice=(a)_prepared_locally_uncommitted,push_only_after_inbox_answer_with_the_batch rejected=(b)_runner_story category=veto reversal=revert_commit policy=508603671b9598f59d04750db6b6cdad2d396167 inbox=U-259
