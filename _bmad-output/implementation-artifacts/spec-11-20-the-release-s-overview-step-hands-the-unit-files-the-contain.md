@@ -228,7 +228,24 @@ Every test added or changed passes on a fresh environment, in either order. Each
 
 ### QA stage record
 
-QA's first record (cases `overview refail` and `overview quiet`, the `quiet` stub, and the mutations that named them) was taken out with the dead code-review tree: its tests were never committed, and the crash left them mixed with an unfinished review. QA is re-running; its new record goes here.
+Re-run after the crash. Written afresh at HEAD (no patch applied). File changed: `docker/tests/test-release-sequence.sh` (QA); no new file, unit or group; `release/release.sh` untouched.
+
+Tests added (QA), all in rule `overview`:
+- `quiet` stub (`stub_text`, exit 2 after a line that is not DRIFT/FAIL) and case `overview quiet`: the FAIL line names `exit 2`, the `LOG` line follows it, the log is kept, no `overview.log` or export remains, the record names the exit code and no local path (matrix row "Fail with no matching line").
+- `overview refail` sub-case in the fail case: a planted stale `overview-fail.log` is replaced by the new failure, and the `LOG` line follows the FAIL line (matrix row "Fail with a DRIFT line", "replacing an earlier one").
+- `overview relative` case: with `OCUTALON_RELEASE_STATE=../state` the `LOG` line names the absolute path and the log exists there (the spec's absolute-path requirement, no matrix row).
+
+Runs: `overview static` pass; the whole file passes (`PASS all rules`).
+
+Mutations (each applied to `release/release.sh`, observed red with `overview`, restored from the stage backup, `cmp` identical, `git status --short` and `git diff --stat` unchanged):
+- mutation: delete the `chmod -R a+rX "$ctx"` line -> `overview pass: exit` and `overview pass: the export is readable by others` red (`not readable by others`).
+- mutation: `umask 077` -> `umask 022` in `release/release.sh` -> `overview pass: release.sh keeps its one umask 077 line` red.
+- mutation: `rm -f "$log"` in place of the move -> `overview fail: the log is kept`, `overview fail: the LOG line`, `overview refail`, `overview wait`, `overview silent`, `overview quiet` and `overview relative` red.
+- mutation: `mv -n` in place of `mv -f` (an earlier kept log is not replaced) -> `overview refail: the earlier log is replaced` red.
+- mutation: the fallback detail without the exit code -> `overview quiet: the exit code is named` red.
+- mutation: the relative-path `LOG` branch prints `$sdir/...` without `$PWD` -> `overview relative: the LOG line names an absolute path` red.
+- mutation: the PASS branch stops removing `overview-fail.log` -> `overview rerun: the kept log is gone` red.
+- mutation: the WAIT branch also removes `overview-fail.log` -> `overview wait: the kept log stays` red.
 
 ## Auto Run Result
 
