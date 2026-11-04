@@ -88,3 +88,5 @@
 2026-11-04T12:44:55Z	Epic 40	sprint_planning_complete	gate=PASS model=claude-opus-5-5 note=rc4_redispatch
 2026-11-04T12:48:26Z	Epic 40	epic_context_compiled	reason=planning_artifact_newer model=opus note=after_rc4_integrate_forward
 2026-11-04T12:48:40Z	Story 40.8	stage_spawned	stage=plan spawn_at=2026-11-04T12:48:40Z model=opus agent_name=40-8-the-persona-s-web-routes-plan-1 cycle_iteration=1
+2026-11-04T12:58:05Z	Story 40.8	story_created	spawn_at=2026-11-04T12:48:40Z model=opus path=_bmad-output/implementation-artifacts/spec-40-8-the-persona-s-web-routes.md build_status=ready-for-dev epic_context=reused
+2026-11-04T12:58:05Z	Story 40.8	spec_validated	service_introducing=true integration_ac=declared-none adr_constrained_acs=AD-1,AD-4,AD-13,AD-17,AD-19 decision_dependency=none sections_created=none owned_ledger=none addressed=0 declined=0 mutates_shared_runtime=false u268_read=AD-1_web_user_only,AD-14_not_relied_on model=claude-opus-5-5
