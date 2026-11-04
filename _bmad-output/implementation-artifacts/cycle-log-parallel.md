@@ -1736,3 +1736,6 @@
 2026-11-04T02:00:46Z	Epic 11	worktree_provisioned	branch=OCT-epic11 base=c07934a4 mode=reopen(SC-5,Story_11.20) branch_ci_cancelled=41757721710,41757721741
 2026-11-04T02:00:46Z	Epic 11	worktree_bootstrapped	epic=11 result=ok
 2026-11-04T02:00:46Z	Epic 11	runner_dispatched	agent=a6eb1b7336f4a9c3d model=opus runner=A slot=ocutalon-slot-a mode=reopen(SC-5,Story_11.20,rc2_blocker) base=c07934a4 prompt=prompts/dispatch-epic-11-1120.md
+2026-11-04T02:13:09Z	Epic 11	owner_decision	id=U-256 at=2026-11-04T02:01:21Z#770 via=inbox by=Contest_Planner_1(delegated) answer=(b)_one_line_direct_on_feature+(a)_rest_in_Story_11.20(merges_after_v1.0.0_with_Epic_11_part_2) apply=orchestrator(line)+runner_A(rest)
+2026-11-04T02:13:09Z	Epic 11	orchestrator_fix	commit=8d60ad43 file=release/release.sh change=chmod_-R_a+rX_after_candidate_export_in_step_overview+comment authorized_by=U-256(b) checks=bash_-n,test-release-sequence.sh_27/27_PASS(static_rule_caught_"ask_"_in_first_comment_wording,reworded),umask-077_export_proof(0600->0644,0_files_not_o+r)
+2026-11-04T02:13:09Z	Epic 11	runner_resumed	agent=a6eb1b7336f4a9c3d with=apply_U-256(#770):line_not_yours,rest_of_scope,integrate_forward,merge_after_tag
