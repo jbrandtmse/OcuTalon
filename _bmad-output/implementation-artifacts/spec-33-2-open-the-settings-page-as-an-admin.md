@@ -2,7 +2,7 @@
 title: 'Story 33.2: Open the settings page as an admin'
 type: 'feature'
 created: '2026-11-04'
-status: 'ready-for-dev'
+status: 'in-progress'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
