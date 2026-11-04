@@ -4635,6 +4635,29 @@ So that no heartbeat tick overwrites a seeded last run while a spec asserts it, 
 **Then** each gets the not-due default without its spec being edited (banners.spec.ts is changed only if the fix truly needs it), and one test pins the default on the web side as Test.Data.FixtureDefaults pins it on the IRIS side
 - DW-349: Specs that seed a production check row with no NextDueAt can have it run by a real heartbeat tick since Story 5.6, which overwrites its last run, result and finding: a Last-run assertion can flake (ledger; routed by merge_gate 2026-10-29; fix-forward 2026-11-02)
 
+### Story 11.20: The release's overview step hands the unit files the container can read
+
+As the author,
+I want the overview step's export of the candidate to be readable inside the overview unit's container,
+So that a release candidate's security overview is checked rather than failed by the release script's own file mode.
+
+[ADDED 2026-11-04, fix-forward (orchestrator ruling at the Contest Planner's request, reason fix_forward, veto U-256): the 1.0.0-rc1 cut failed at the overview step twice ("FAIL Regenerate did not succeed"). release.sh and lib-release.sh set umask 077, so step_overview's candidate_export writes docs/security-overview.md as 0600; test-security-overview.sh copies it into the container, where IRIS's user cannot read it, reads an empty file and reports the missing generated-tools marker (ERROR #5001). The same candidate tree under umask 022 passes the whole unit, so the product is fine. step_ipm already opens its files to others inside its container. rc1 was abandoned unpushed; rc2 is cut from this story's merge.]
+
+**Acceptance Criteria:**
+
+**Given** the overview step has exported the candidate's tree
+**When** it hands the tree to the overview unit
+**Then** every exported file and folder is readable (and every folder searchable) by other users (`chmod -R a+rX` on the export), with a comment in the file's style saying why: the unit copies files into a container whose IRIS user differs, and this script's umask 077 leaves them owner-only
+**And** the script's umask is unchanged: the release state files keep relying on it
+
+**Given** the overview unit fails
+**When** the step reports the failure
+**Then** the unit's log is kept in the release state folder (for example `overview-fail.log`) and its path is printed with the FAIL line, instead of being removed
+
+**Given** the release unit tests (no IRIS)
+**When** they run the overview step with the stub unit
+**Then** the stub fails if any exported file is not readable by others, so a regression of the mode fix reds the release sequence tests; and one case checks that a failing unit's log is kept and its path printed
+
 ## Epic 12: Approve from your own phone with Telegram
 
 A user scans the page's QR code to pair their Telegram private chat with their session, then chats, gets notifications and reminders, and answers approval requests with inline buttons from Telegram; unknown codes and a bare `/start` get polite instructions and link nothing; OcuTalon runs fully without a bot token, and pauses politely if another process polls the same bot. Built in Lane A after Epic 11 and shipped in 1.0.0, the first release; it merges into the integration branch when done, with no tag gate [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0": 0.1.0 and 0.1.1 are not cut; it read "shipped as 0.1.1, the release right after 0.1.0 and before the online demo goes public (PRD §7.2)", and the merge gate on the `v0.1.0` tag below is dropped]. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation (inbox U-67): built alongside Epic 11 by the first free runner once Epic 10 has merged, and merged only after the `v0.1.0` tag exists; still shipped as 0.1.1.]
