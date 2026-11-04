@@ -3903,3 +3903,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: CI run 41824429030 attempt 1, iris (install-fresh), OCT-epic33 b1f187da | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: 51 passed, 1 failed; status read not busy before the banner check; all 18 CI services busy at the time; passed on the one rerun (attempt 2); the branch has no web, Web or Demo change
 - 2026-11-04T13:22:23Z status=routed owner=burndown by=orchestrator note=first daily release after 1.0.0; one rerun then rework, like the other ledgered flakes
+
+### DW-665: flake candidate: live:sign-in web/e2e/live/socket.spec.ts:415 W11 failed with route.fetch: Test ended, raised in stripPollEvents' route callback (socket.spec.ts:39)
+- source: CI run 41843658900 attempt 1, iris (browser), main 8b3cac3c (v1.0.0) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: 253 passed, 1 failed; the poll answered 200 OK; the error names a route still in flight at a test's end and Playwright's unrouteAll advice; no assertion of W11 failed; not rerun, main is the Planner's
+- 2026-11-04T14:39:05Z status=routed owner=burndown by=orchestrator note=first daily release after 1.0.0; classification unproven until a rerun
