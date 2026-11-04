@@ -83,11 +83,11 @@ deferred: []
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] `_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md` -- apply the edits of `### Spine edits` that `### Rulings` clears (P1 to P5 wait on U-268) with the marker `[AMENDED 2026-11-04, Story 33.2, step 2 contracts]` (rows: `[ADDED 2026-11-04, Story 33.2]`); P1 and P2 only as U-268 answers. Then `lint_spine.py`: no new finding (8 existing `placeholder` findings). Append one `memlog.py append --type decision` line naming the new rows.
-- [ ] `src/ocutalon/cls/OcuTalon/Msg/Command/SendDigest.cls` -- new verb, base fields only -- AC 1.
+- [ ] `_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md` -- apply edits P1 to P9 of `### Spine edits`. P1 to P5 are additive sub-bullets marked `[AMENDED 2026-11-04, Story 33.2, orchestrator ruling (U-268)]`, and no existing sentence is rewritten; rows are marked `[ADDED 2026-11-04, Story 33.2]`. Then `lint_spine.py`: no new finding (8 existing `placeholder` findings). Append one `memlog.py append --type decision` line naming the new rows.
+- [ ] `src/ocutalon/cls/OcuTalon/Msg/Command/SendDigest.cls` -- new verb, base fields only: no recipient, channel or address field of any kind (U-268) -- AC 1.
 - [ ] `src/ocutalon/cls/OcuTalon/Msg/Command/GotIt.cls` -- new verb: `Ref` `%String(MAXLEN=22)` (the notice's Ref, P3), `Channel` `%String(MAXLEN=32)` -- AC 1.
 - [ ] `src/ocutalon/cls/OcuTalon/Msg/Command/SaveSettings.cls` -- new verb: `Slug` `%String(MAXLEN=32)` (the section), `Changes` `%String(MAXLEN="")` (JSON object of field to value), `ActingUser` `%String(MAXLEN=160)`. Neither `Section` nor `Values`: this is a persistent message class, and `VALUES` is an SQL reserved word (Conventions, SQL reserved words).
-- [ ] `src/ocutalon/cls/OcuTalon/Core/CommandsIn.cls` -- append `SendDigest` to `TOOLVERBS`; append routes `SendDigest` (owner `Digest`, origins `tool,web_admin`), `SaveSettings` (owner `SettingsOps`, origins `web_admin,system`), `GotIt` (owner `SessionOps`, origins `web_user,web_admin,telegram`); doc lines.
+- [ ] `src/ocutalon/cls/OcuTalon/Core/CommandsIn.cls` -- append `SendDigest` to `TOOLVERBS`; append routes `SendDigest` (owner `Digest`, origins `tool,web_admin`), `SaveSettings` (owner `SettingsOps`, origins `web_admin,system`), `GotIt` (owner `SessionOps`, origins `web_user,web_admin,telegram`); doc lines. In `Carry`, extend `Dismiss`'s context check to `SendDigest`: inside a bridge context a `SessionRef` that is not the context's `OwnerRef` answers `not_allowed` with the existing `MESSAGENOTFROMTOOL` and sends nothing (U-268; no new text).
 - [ ] `src/ocutalon/cls/OcuTalon/Core/SessionOps.cls` -- one line before the class check in `OnMessage`: a `GotIt` answers `$$$ERROR($$$NotImplemented)`, so CommandsIn gives `not_built` until Story 18.4.
 - [ ] `src/ocutalon/cls/OcuTalon/Msg/Enum.cls` -- append `handled` to `NOTIFICATIONKIND`.
 - [ ] `src/ocutalon/cls/OcuTalon/Data/Handled.cls` -- new `%Persistent`, `DEFAULTGLOBAL "^OcuTalonP.Handled"`: `Ref`, `SessionRef` `%String(COLLATION="EXACT", MAXLEN=22)`, `HandledAt` `%String(MAXLEN=20)`, `Channel` `%String(MAXLEN=32)`; `Index RefIndex On Ref [Unique]`; `ClassMethod Marked(ref) As %String` (the row's `HandledAt`, "" when unmarked). Commit the Storage block. The writer is Story 18.4's.
@@ -107,7 +107,7 @@ deferred: []
 - [ ] `web/scripts/ux-strings.test.mjs`, `web/scripts/settings-view.test.mjs` (new) -- add `settings/settings-view.ts` to `IMPORTED`; every new string gets its `SOURCES` entry (`ux`, `ac`, or `ruled` citing U-269 for T1 to T8 and T10, U-270 for T9); unit tests of the helpers.
 - [ ] `src/ocutalon/cls/OcuTalon/Test/Core/SettingsSave.cls` (new), `SettingsOpsProbe.cls` (seams `BridgeCheck`, `BridgeSet`) -- every matrix row of `SettingsOps`, all-or-nothing on a failure at each position, only changed values audited, allow-list, bridge path against a double and the bare stub.
 - [ ] `src/ocutalon/cls/OcuTalon/Test/Core/SettingsAudit.cls` (new) -- reads each kind back from the IRIS audit log with `AuditLog.Wait` and a 180 s limit (S8): a threshold, a digest key, a bridge value (double), demo mode (step stand-in). Throwaway and CI only.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Core/SettingsCommands.cls` (new, not the contended `CommandsRouting`) -- routes and origins of the three verbs; `SaveSettings` from `tool` and inside a bridge context refused; `SendDigest` from every origin; `GotIt` `not_built`.
+- [ ] `src/ocutalon/cls/OcuTalon/Test/Core/SettingsCommands.cls` (new, not the contended `CommandsRouting`) -- routes and origins of the three verbs; `SaveSettings` from `tool` and inside a bridge context refused; `SendDigest` from every origin; `GotIt` `not_built`. `TestSendDigestTakesNoRecipient`: the class's properties are exactly `Msg.Command`'s, read from `%Dictionary`. `TestSendDigestOwnSessionOnly`: inside a bridge context a foreign `SessionRef` is refused and nothing reaches the owner (U-268).
 - [ ] `src/ocutalon/cls/OcuTalon/Test/Web/SettingsApi.cls` (new), `ApiProbe.cls` (a `Roles` seam) -- GET shape with no key material, each route for admin and non-admin, each outcome's status and body, envelope, `@{`, `admin` in `/state`.
 - [ ] `src/ocutalon/cls/OcuTalon/Test/Data/NoticeRows.cls` (new) -- `Handled` and `FindByRef`; `Test/Msg/DailyCost.cls` and `Test/Msg/DailyCostCatalog.cls` (new; a `Catalog` subclass with its own `CLASSES`) -- two decimals, zero, rounding, refused values.
 - [ ] `src/ocutalon/cls/OcuTalon/Test/Core/SettingsOps.cls` (`TestAllowList`), `Test/Contract/Ac.cls` (3 verbs, 3 signatures, floor), `Test/Data/Tables.cls` (one contract, one registry row), `Test/Msg/Contracts.cls` (kind), `Test/Web/Api.cls:132`, `web/e2e/api/api.spec.ts:134`, `web/e2e/frame/frame.spec.ts:91`, `web/e2e/floor/*` -- update each old shape in the `Shared surfaces` list; search the test trees, `e2e-online` included.
@@ -126,11 +126,12 @@ deferred: []
 - Given `digest.time`, `digest.channels` and the five threshold keys, when `POST /v1/settings/daily-digest` or `/check-thresholds` is called, then `SettingsOps` validates and stores them, and no other class writes them.
 - Given `SendDigest`, when it is submitted from `tool` or `web_admin`, then `CommandsIn` sends it to `Digest`; from any other origin it is `not_allowed`.
 - Given the tests, when they run, then one reads each kind of settings change back from the IRIS audit log, one submits `SaveSettings` with origin `tool` and expects a refusal, and `ux-strings.test.mjs` covers every new label.
+- Given `SendDigest` from origin `tool` or `web_admin`, when it is built or submitted, then it carries no recipient, and a tool cannot name another session: destinations come only from the session's `digest.channels`, so neither the model nor an item can choose where a digest goes. A test pins each half, with its mutation shown (U-268).
 - Given Lane A's stub signatures, when a bridge section is saved through the real API, then `SettingsOps` calls `Bridge.Settings` by the spine's names and the answer is 501 with nothing changed.
 
 ## Spec Change Log
 
-- 2026-11-04, the lead: the orchestrator's rulings recorded under `### Rulings`; the AC on refused and failed saves amended for `step_failed` (U-270). The intent block is unchanged.
+- 2026-11-04, the lead: U-268's answer and conditions added as acceptance items, with the `SessionRef` check. The orchestrator's rulings recorded under `### Rulings`; the AC on refused and failed saves amended for `step_failed` (U-270). The intent block is unchanged.
 
 ## Review Triage Log
 
@@ -196,8 +197,15 @@ The orchestrator's rulings of 2026-11-04. They replace "planned default" and "ne
 - **T9, L2:** the default stands: keep the terminal path and show T9 (veto U-270). `epics.md`'s AC is amended to exclude `step_failed`.
 - **L1:** the default stands: this story adds the `dailyCost` slot type only and edits no Lane A file. `digest.cost` goes to Story 17.6 as DW-661, superseding 33.1's ruling 4 (veto U-271).
 - **L3, contended edits:** proceed. "Epic 33 first" covers small non-append edits in `Core/SettingsOps.cls`, `Core/SessionOps.cls`, `Test/Core/SettingsOpsProbe.cls` and `Test/Msg/Contracts.cls`. Keep each minimal; Epic 40 absorbs them. A conflict that needs a behaviour choice goes back to the lead.
-- **A1, A2, and P1 to P5:** waiting on U-268 (parked; other in-flight specs cite AD-1 and AD-14). Neither those spine edits nor the `SendDigest` routing are written until it is answered.
-- **P6, P7:** may proceed. **P8, P9:** not yet ruled; the lead has asked.
+- **A1, A2, P1 to P5:** allowed as additive sub-bullets (U-268, answered (a) at=2026-11-04T12:10:10Z#813), on these conditions:
+  1. `SendDigest` takes no recipient; destinations come only from the session's `digest.channels`, so neither the model nor an item chooses where a digest goes.
+  2. It stays non-risky only because it reaches the session's own channels. The AD-1 sub-bullet says so: any later external target is a new ruling.
+  3. The specs citing AD-1 and AD-14 in Epics 7, 39 and 40 were read before `spec_validated` (below).
+- **P6, P7:** may proceed. **P8, P9:** new rows, allowed by the project block's plain-union rule and required by the AC's "ownership tables in the same change".
+
+**The lead's reading of the citing specs (condition 3).** Epic 7 cites AD-1 for items by name only. Epic 39's verbs `SetHeartbeat` and `RunHeartbeat` take `web_user` and are refused from `tool`, which holds; its beat is an Item through `Intake` (AD-14), and its `digest` outcome goes to `DigestStore`, not a kind `digest` notification. Epic 40's `TestToolGovernanceRefused` names the verbs it refuses and no test pins the whole list; its narrowed admin-only refusal keeps `SaveSettings` (origins `web_admin,system`). None relies on the list being closed at its present verbs, or on digest routing. Epic 40's `ProposePersona` and this story's `SendDigest` both append to `TOOLVERBS`: a one-name union at the second merge.
+
+**`SessionRef` is a recipient path (the lead, under condition 1).** The verb has no recipient field, but its base `SessionRef` picks whose channels are used, so a tool naming another session would choose the destination. `Carry` therefore applies `Dismiss`'s context check to `SendDigest`. `web_admin` takes its `SessionRef` from `Ownership.SessionRef` (AD-4).
 
 ### Text needing a ruling
 
@@ -222,10 +230,10 @@ Verbatim, no ruling needed: "Chat", "Settings", "Settings \u00B7 OcuTalon", the 
 
 None. `^OcuTalonP.*` is mapped whole to the private database (`docker/merge.cpf:11`, `src/cpf/ocutalon.cpf:11`), so `Data.Handled` needs no install step. `OcuTalonAdmin` exists, the local README account holds it, the routes live in the existing `/ocutalon/api` application and the page uses hash routing, so no security, role or web-application change is needed. Story 17.5's step seeds the keys. The new e2e specs sit under `web/e2e/`, and existing scripts pick them up by folder.
 
-### AD changes needing a ruling
+### AD changes (ruled, U-268)
 
-- **A1. AD-1 (P1).** The Rule says `CommandsIn` accepts from origin `tool` "only" a closed list. The AC adds `SendDigest`. Planned as a new sub-bullet that leaves the sentence as it is: "From step 2 `CommandsIn` also accepts `SendDigest` from origin `tool` and `web_admin` (Story 17.6's digest tool, a safe action, FR-7)." The AC requires the outcome, but it widens a closed list, so it is raised.
-- **A2. AD-14 (P2).** The Rule says a notification goes to the web chat, the phone and the paired chat "except kind `allowance`". Planned as a new sub-bullet: "From step 2, kind `digest` goes only to the session's `digest.channels`, each where the session has it (Story 18.2)." Raised for the same reason.
+- **A1. AD-1 (P1).** The Rule says `CommandsIn` accepts from origin `tool` "only" a closed list. The AC adds `SendDigest`. A new sub-bullet that leaves the sentence as it is: "From step 2 `CommandsIn` also accepts `SendDigest` from origin `tool` and `web_admin` (Story 17.6's digest tool, a safe action, FR-7). It takes no recipient and reaches only the session's own `digest.channels`, which is the only reason it is not risky: any later external target needs a new ruling."
+- **A2. AD-14 (P2).** The Rule says a notification goes to the web chat, the phone and the paired chat "except kind `allowance`". A new sub-bullet: "From step 2, kind `digest` goes only to the session's `digest.channels`, each where the session has it (Story 18.2)."
 
 ### For the lead
 
@@ -272,7 +280,7 @@ Every `ci/iris.sh` and `ci/warm.sh` call carries `OCUTALON_LOCK_DIR="$(dirname "
 
 **Standing criterion:** every test added or changed passes on a fresh environment, in either order.
 
-**Pinning tests (Rule 19; the stage that adds each writes its `mutation:` line here):** the header and title -> `settings.spec.ts`; 403 on every call -> `Test.Web.SettingsApi` and `settings.spec.ts`, mutation: drop the check in `OnPreDispatch`; save and audit -> `Test.Core.SettingsAudit`, mutation: skip `WriteAudit`; all or nothing -> `Test.Core.SettingsSave`, mutation: remove `TROLLBACK`; tool refusal -> `Test.Core.SettingsCommands`, mutation: add `SaveSettings` to `TOOLVERBS`; `SendDigest` -> the same class, mutation: remove `web_admin`; `dailyCost` -> `Test.Msg.DailyCost`, mutation: use `Cost`'s tiers; `FindByRef` -> `Test.Data.NoticeRows`, mutation: drop the owner check; unsaved prompt -> `settings.spec.ts`, mutation: remove the guard; spine -> `lint_spine.py`, which pins the AD shape only, mutation: remove a `Rule` line -> `ad_fields` (33.1's demonstration); the rows themselves are read by the reviewer.
+**Pinning tests (Rule 19; the stage that adds each writes its `mutation:` line here):** the header and title -> `settings.spec.ts`; 403 on every call -> `Test.Web.SettingsApi` and `settings.spec.ts`, mutation: drop the check in `OnPreDispatch`; save and audit -> `Test.Core.SettingsAudit`, mutation: skip `WriteAudit`; all or nothing -> `Test.Core.SettingsSave`, mutation: remove `TROLLBACK`; tool refusal -> `Test.Core.SettingsCommands`, mutation: add `SaveSettings` to `TOOLVERBS`; `SendDigest` -> the same class, mutation: remove `web_admin`; no recipient (U-268) -> `TestSendDigestTakesNoRecipient`, mutation: add a `Recipient` property to `SendDigest`; own session only (U-268) -> `TestSendDigestOwnSessionOnly`, mutation: drop `SendDigest` from the context check in `Carry`; `dailyCost` -> `Test.Msg.DailyCost`, mutation: use `Cost`'s tiers; `FindByRef` -> `Test.Data.NoticeRows`, mutation: drop the owner check; unsaved prompt -> `settings.spec.ts`, mutation: remove the guard; spine -> `lint_spine.py`, which pins the AD shape only, mutation: remove a `Rule` line -> `ad_fields` (33.1's demonstration); the rows themselves are read by the reviewer.
 
 **Manual checks:** read `### Spine edits` against the spine diff; confirm `git status --short` shows no path under the watched list or a Lane A path.
 

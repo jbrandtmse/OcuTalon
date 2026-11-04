@@ -58,3 +58,5 @@
 2026-11-04T12:10:18Z	Story 33.2	ruling	question=L1_digest.cost choice=dailyCost_slot_only;key_to_17.6_as_DW-661 rejected=one_key_U-177_exception supersedes=33.1_ruling_4 category=veto inbox=U-271 by=orchestrator policy=5086036
 2026-11-04T12:10:18Z	Story 33.2	ruling	question=contended_non_append_edits choice=proceed_Epic_33_first category=decide by=orchestrator policy=5086036
 2026-11-04T12:10:18Z	Story 33.2	story_waiting	story=33.2 on=U-268 note=A1,A2,P1-P5_parked;P8,P9_unruled;spec_validated_held
+2026-11-04T12:12:54Z	Story 33.2	owner_decision	id=U-268 at=2026-11-04T12:10:10Z#813 via=orchestrator by=delegate answer=(a)_A1,A2,P2-P5_additive_sub-bullets;conditions=no_recipient,own_channels_only,read_citing_specs
+2026-11-04T12:12:54Z	Story 33.2	spec_validated	service_introducing=true integration_ac=present adr_constrained_acs=AD-1,AD-3,AD-4,AD-5,AD-13,AD-14,AD-17,AD-19,AD-22,AD-23,AD-29,AD-32,AD-33 decision_dependency=none sections_created=none owned_ledger=none addressed=0 declined=0 mutates_shared_runtime=true(throwaways_named) citing_specs_read=epics_7,39,40_no_reliance model=claude-opus-5-5
