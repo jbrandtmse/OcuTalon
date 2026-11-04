@@ -42,3 +42,7 @@
 2026-11-03T15:45:33Z	Story 39.3	ruling	question=heartbeat_event_AC_needs_Lane_B_Epic31-contended_edits choice=split_AC6_into_sibling_Story_39.7 rejected=wait_whole_39.3_on_epic31,edit_Lane_B_Publish.cls(U-177) why=Rule5_split_into_sibling_same_epic_within_split_children=6 category=decide policy=5086036
 2026-11-03T15:45:33Z	Story 39.7	story_waiting	story=39-7-publish-the-heartbeat-event on=31 code=none tracker=backlog note=or_an_orchestrator-arranged_Lane_B_append(Live/Publish.cls_TYPES,Test.Live.Payloads,web/src/app/live/payloads.ts)
 2026-11-03T15:45:33Z	Story 39.3	spec_validated	service_introducing=true integration_ac=present adr_constrained_acs=AD-18,AD-19,AD-20,AD-5,AD-14,AD-30,AD-26,AD-8,AD-28,AD-29 decision_dependency=none sections_created=none owned_ledger=DW-633 addressed=1 declined=0 mutates_shared_runtime=false lead_edits=AC6_split_to_39.7 model=claude-opus-5-5
+2026-11-04T11:14:37Z	Epic 39	runner_unattended_start	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec note=redispatch_rc4_cut_story_39.3_runner_D lane=D slot=ocutalon-slot-d
+2026-11-04T11:14:37Z	Epic 39	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-11-04T11:14:37Z	Epic 39	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh
+2026-11-04T11:14:37Z	Epic 39	launch_env	depth=4 watchdog=1 bash_max_ms=default
