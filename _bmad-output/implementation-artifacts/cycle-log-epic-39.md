@@ -100,3 +100,5 @@
 2026-11-04T19:53:50Z	Story 39.4	dev_complete	spawn_at=2026-11-04T17:51:22Z model=sonnet build_sha=010365e5 baseline_revision=7efce86c story_base=f7a7aa44 review_loop_iteration=0 followup_review_recommended=true deferred=0 files=16 loc_added=1511 loc_removed=128 nfr_tripwires=0 adr_violations_surfaced=0 cycle_iteration=2 note=rerun_after_stage_dead;self_review_37_rows_5_patched_32_rejected
 2026-11-04T19:53:50Z	Story 39.4	adr_verifications_complete	tool=none acs=none result=none_required evidence=none mutations=none model=claude-opus-5-5
 2026-11-04T19:53:55Z	Story 39.4	stage_spawned	stage=qa spawn_at=2026-11-04T19:53:55Z model=sonnet agent_name=39-4-qa-1 cycle_iteration=1
+2026-11-04T20:03:55Z	Story 39.4	qa_complete	spawn_at=2026-11-04T19:53:55Z model=sonnet tests=Test/Checks/Snapshot.cls,docker/tests/test-triage-heartbeat.sh tests_added=4 mutations_demonstrated=13 first_run_failures=0 clarifications=0 closing_sections_present=true note=3_Snapshot_methods_1_hosted_rule;8_of_13_reruns_of_implement_late_patches
+2026-11-04T20:03:55Z	Story 39.4	stage_spawned	stage=code-review spawn_at=2026-11-04T20:03:55Z model=opus agent_name=39-4-code-review-1 cycle_iteration=1
