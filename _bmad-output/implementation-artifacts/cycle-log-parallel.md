@@ -1760,3 +1760,4 @@
 2026-11-04T03:54:26Z	Run	orchestrator_fix	commit=7ef83b10 files=Agent/Triage.cls,Agent/Diagnosis.cls source=prompt-trial-v3.diff(sha256_801beec6) authorized_by=U-257_addendum,U-258 note=BridgeExample/Agent.cls_left_alone_as_ruled
 2026-11-04T03:54:26Z	Run	planner_note	rc2_5398735_abandoned_local;holds_B,C,D_until_RC3_CUT;Planner_runs_eval_override_on_rc3
 2026-11-04T03:54:59Z	Run	feature_pushed	head=10ce26ac verified=origin contains=24d49f5d(U-257),7ef83b10(U-258)+bookkeeping freeze=on_again_until_RC3_CUT remote_OCT-epic12_deleted=unused_ancestor_of_feature
+2026-11-04T03:56:25Z	Run	ci_note	browser_group_skipped_on_823bdf41_and_8a452f77(no_input_changed);real_demo-path_baseline=94bf26d6_run_41745125006:28_passed;compare_on_10ce26ac_run_41769982647
