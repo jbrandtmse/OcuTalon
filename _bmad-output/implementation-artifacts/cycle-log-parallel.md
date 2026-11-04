@@ -1725,3 +1725,5 @@
 2026-11-04T01:20:59Z	Epic 31	epic_retro_skipped	reason=policy
 2026-11-04T01:21:16Z	Epic 31	worktree_removed	epic=31
 2026-11-04T01:21:16Z	Epic 31	epic_branches_deleted	local=OCT-epic31 remote=after_push
+2026-11-04T01:21:51Z	Epic 31	epic_merged_to_feature	merge=2f5c4ebf feature_head=823bdf41 verified=merge-base_is_ancestor_origin remote_branch_deleted=yes planner_notified=yes parked=U-255(DW-416)
+2026-11-04T01:21:51Z	Epic 31	runner_reported	item=U-255
