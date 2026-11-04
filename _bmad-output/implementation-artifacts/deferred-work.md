@@ -3946,3 +3946,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-7-8-the-web-incident-card-shows-the-either-way-date-line-too.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: 7.8 rework re-review: web/e2e/cards/incident-card.spec.ts L127-135; E6 raced the same way once (After 52 px above Before); never seen red there
 - 2026-11-04T18:43:12Z status=wontfix-accepted owner=7-8-the-web-incident-card-shows-the-either-way-date-line-too by=adjudication note=reopen_if=a live:cards I-case red from inOrder with no product change; the fix is one evaluate as in either-way.spec.ts layoutOf
+
+### DW-675: flake: OcuTalon.Test.Fix.DryRun TestFiftyOrdersChangeNothing saw a new OCUTALON header from Ens.ScheduleService to Ens.ScheduleHandler during the test (a schedule call that started inside the window, not a timer already running)
+- source: spec-7-8-the-web-incident-card-shows-the-either-way-date-line-too.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: 7.8 fresh check: lane-a@Fix reversed part 2/2 on a fresh lane-B throwaway, red once (header 564), green on the unchanged rerun; Story 7.8 changed no Fix code
+- 2026-11-04T19:33:23Z status=routed owner=burndown by=adjudication note=flake candidate: Test.Fix.Snapshot exempts only a timer already running; a ScheduleService call is another background writer; note every occurrence
