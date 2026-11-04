@@ -1,0 +1,94 @@
+# CI of Lane A (AD-29; Story 0.7, Story 1.3, Stories 13.1, 13.2 and 13.3): the standalone-bridge job runs on the self-hosted IRIS runner, behind the
+# fork guard. It loads src/bridge/ alone into a clean Interoperability namespace of a throwaway stack and runs the whole example
+# there (release/standalone-bridge.sh, AD-2). The job follows docs/bridge-guide.md: it reads the marked blocks of the guide's install section
+# and governance steps and runs their commands verbatim, so the guide and the job cannot drift apart.
+# OcuTalon.BridgeExample.Production takes items through its own service, makes each
+# decision through the bridge against the model mock, routes on it, takes the four fallbacks, applies a model, a budget and a timer
+# change as settings rows, proves that the example's own tools are governed (a read-only tool runs, a risky or unclassified tool is held
+# as an approval request, an approved call is replayed once, a rejected or expired one never runs, an untrusted turn runs only the
+# read-only tool, and the approval entries are in the IRIS audit log), and checks that the run's dummy key is in no decision record,
+# event-log row or audit entry. The job fails unless every check
+# passes, and it builds its image on the runner with no cache, push or artifact. The evaluation job of Epic 9 joins this file. The
+# rules of docker/tests/test-ci-config.sh apply.
+name: lane-a
+
+on:
+  push:
+    branches:
+      - main
+      - feature/OCT_OcuTalon_MVP
+      - "OCT-epic*"
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.run_id }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+jobs:
+  standalone-bridge:
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, ocutalon]
+    timeout-minutes: 25
+    env:
+      IRIS_IMAGE: ocutalon-iris-base:2026.3.0AI.154.0
+      OCUTALON_RUN_TAG: ${{ github.run_id }}-${{ github.run_attempt }}-bridge
+      OCUTALON_LIVE_DEADLINE: "1200"
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build the web bundle
+        run: bash ci/iris.sh build
+      - name: Run the bridge alone
+        run: bash release/standalone-bridge.sh
+      - name: Tear down
+        if: always()
+        run: bash ci/iris.sh teardown
+
+  evaluation:
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, ocutalon]
+    timeout-minutes: 30
+    env:
+      IRIS_IMAGE: ocutalon-iris-base:2026.3.0AI.154.0
+      OCUTALON_RUN_TAG: ${{ github.run_id }}-${{ github.run_attempt }}-eval
+      OCUTALON_LIVE_DEADLINE: "1200"
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build the web bundle
+        run: bash ci/iris.sh build
+      - name: Run the evaluation set against the CI mock
+        run: bash eval/run.sh
+      - name: Prove the model key leaks nowhere (a fake key, on the CI mock)
+        run: bash eval/key-proof.sh
+      - name: Tear down
+        if: always()
+        run: bash ci/iris.sh teardown
+
+  ipm-install:
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: [self-hosted, ocutalon]
+    timeout-minutes: 35
+    env:
+      IRIS_IMAGE: ocutalon-iris-base:2026.3.0AI.154.0
+      OCUTALON_RUN_TAG: ${{ github.run_id }}-${{ github.run_attempt }}-ipm
+      OCUTALON_LIVE_DEADLINE: "1980"
+    steps:
+      - name: Check out
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          persist-credentials: false
+      - name: Build the web bundle
+        run: bash ci/iris.sh build
+      - name: Run the IPM install checks
+        run: bash release/ipm-install.sh
+      - name: Tear down
+        if: always()
+        run: bash ci/iris.sh teardown

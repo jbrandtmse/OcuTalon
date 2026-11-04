@@ -1,0 +1,12 @@
+{
+  "name": "diagnosis-unknown",
+  "match": {
+    "marker": "diagnosis-unknown"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "text": "{\"outcome\":\"act\",\"causeCategory\":\"unknown\",\"evidence\":[],\"cause\":\"The failed messages do not show what went wrong.\",\"itemNoun\":{\"one\":\"invoice\",\"other\":\"invoices\"},\"reasons\":[\"The messages hold no sign of one cause.\"],\"confidence\":0.3}"
+    }
+  ]
+}

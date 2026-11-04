@@ -1,0 +1,38 @@
+{
+  "name": "result-cap",
+  "match": {
+    "marker": "result-cap"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": [
+        {
+          "name": "zz_result_text",
+          "input": {
+            "chars": 30000
+          }
+        },
+        {
+          "name": "zz_result_object",
+          "input": {
+            "chars": 30000
+          }
+        }
+      ]
+    },
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "zz_result_text",
+        "input": {
+          "chars": 1000
+        }
+      }
+    },
+    {
+      "status": 200,
+      "text": "The CI mock read the results."
+    }
+  ]
+}

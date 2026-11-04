@@ -1,0 +1,29 @@
+# The judges' compose file: one service, no mocks.
+name: ocutalon
+
+services:
+  iris:
+    build:
+      context: .
+      dockerfile: docker/Dockerfile
+      args:
+        IRIS_IMAGE: ${IRIS_IMAGE:-ocutalon-iris-base:2026.3.0AI.154.0}
+    pull_policy: build
+    restart: unless-stopped
+    stop_grace_period: 60s
+    env_file:
+      - path: .env
+        required: false
+    ports:
+      - "${OCUTALON_WEB_PORT:-52773}:52773"
+    volumes:
+      - durable:/durable
+    healthcheck:
+      test: ["CMD", "/opt/ocutalon/healthcheck.sh"]
+      interval: 10s
+      timeout: 5s
+      retries: 3
+      start_period: 600s
+
+volumes:
+  durable:

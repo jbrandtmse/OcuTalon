@@ -1,0 +1,23 @@
+{
+  "name": "finding-results-stopped",
+  "kind": "item",
+  "heldOut": false,
+  "description": "A production state change in the finding shape (the Results production stopped): a current failure that OcuTalon can look into with its read-only tools, so it acts.",
+  "expectation": {
+    "outcome": "act"
+  },
+  "recordedBy": "written for the evaluation set (Story 9.3)",
+  "item": {
+    "itemId": "finding-results-stopped",
+    "channel": "system",
+    "provenance": "untrusted",
+    "sender": "",
+    "subject": "",
+    "text": "The Results production stopped at 07:30 UTC.\nWhy now: you asked me to watch the Results production.",
+    "catalogKey": "watch.productionStopped",
+    "slots": {
+      "production": "Results",
+      "time": "2026-10-17T07:30:00Z"
+    }
+  }
+}

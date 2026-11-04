@@ -1,0 +1,1610 @@
+diff --git a/src/bridge/cls/OcuTalon/Bridge/Approval.cls b/src/bridge/cls/OcuTalon/Bridge/Approval.cls
+index 88276e2d..6fdd92df 100644
+--- a/src/bridge/cls/OcuTalon/Bridge/Approval.cls
++++ b/src/bridge/cls/OcuTalon/Bridge/Approval.cls
+@@ -27,7 +27,8 @@ Include Ensemble
+ ///   - Reconcile (declared by Install.Step.Approvals, AD-23) cancels the Workflow tasks that no live hold of a pending row owns, starts
+ ///     a new hold for each pending row whose hold is gone, timed from the row's ExpiresAt, and starts a delivery hold for each row that owes
+ ///     a delivery whose hold is gone: an approved tool_call, and an approved, rejected or expired fix with a ResultTarget whose ApprovalOutcome
+-///     was not sent.
++///     was not sent. It also closes an executing tool_call whose replay is no longer alive, as failed with the result interrupted (Replay.CloseInterrupted,
++///     DW-444), and never runs the call again.
+ /// Nothing here makes a %AI call or runs Python (AD-6).
+ Class OcuTalon.Bridge.Approval
+ {
+@@ -766,8 +767,8 @@ ClassMethod IsLive(holdId As %String) As %Boolean [ Private ]
+ 	Quit 'hold.%IsCompleted && 'hold.%IsTerminated && (hold.%MasterPendingResponses.Count() > 0)
+ }
+ 
+-/// Re-arms the holds after a start (AD-5, AD-23), in three passes that try every task and every row and combine the failures into one status,
+-/// each naming its Ref. It is idempotent and fires no event.
++/// Re-arms the holds after a start (AD-5, AD-23), in four passes that try every task and every row and combine the failures into one status,
++/// each naming its Ref. It is idempotent; passes 1 to 3 fire no event, and pass 4 fires approval.result for each replay it closes.
+ ///   1. It cancels, with EnsLib.Workflow.Engine.%CancelRequest, every incomplete task of the role WORKFLOWROLE that is not the task of a live
+ ///      hold of a pending row. The hold that sent a task is the BusinessProcessId of its TaskRequest's message header.
+ ///   2. It starts, through ApprovalStartIn, a new hold for every pending row that has no live hold, in a new session whose SuperSession is the
+@@ -775,6 +776,9 @@ ClassMethod IsLive(holdId As %String) As %Boolean [ Private ]
+ ///   3. It starts a delivery hold, through ApprovalStartIn, for every row that owes a delivery and has no live hold (DW-192): an approved
+ ///      tool_call (its replay), and an approved, rejected or expired fix with a ResultTarget whose ExpiresAt lies within DELIVERYDAYS and for
+ ///      which no ApprovalOutcome message names the Ref. A cancelled, executing, done or failed row, and a row that is older, gets no hold.
++///   4. It closes, through Replay.CloseInterrupted, every executing tool_call row whose replay lock it can take at once, meaning that no replay is
++///      alive (DW-444): the row becomes failed with the result interrupted, the Action entry and the Approval entry are written and approval.result
++///      fires. It never runs the call again (NFR-13). A row whose replay is alive, and an executing fix row (Fix.Run closes it), are left alone.
+ /// The Lane A declaration OcuTalon.Install.Step.Approvals.Reconcile calls it, and the Reconcile step runs it after the production starts.
+ ClassMethod Reconcile() As %Status
+ {
+@@ -810,7 +814,8 @@ ClassMethod Reconcile() As %Status
+ 		Set one = ..StartHold(ref, "", $List(entry, 2))
+ 		If $$$ISERR(one) Set sc = ..Combine(sc, "the hold of " _ ref _ " did not start: " _ $SYSTEM.Status.GetErrorText(one))
+ 	}
+-	Quit ..ReconcileDeliveries(sc)
++	Set sc = ..ReconcileDeliveries(sc)
++	Quit $SYSTEM.Status.AppendStatus(sc, ##class(OcuTalon.Bridge.Replay).CloseInterrupted())
+ }
+ 
+ /// Reconcile's pass 3: starts a delivery hold for each row that owes a delivery and has no live hold; see Reconcile.
+diff --git a/src/bridge/cls/OcuTalon/Bridge/Process/Decide.cls b/src/bridge/cls/OcuTalon/Bridge/Process/Decide.cls
+index 83a3b6a8..372723e0 100644
+--- a/src/bridge/cls/OcuTalon/Bridge/Process/Decide.cls
++++ b/src/bridge/cls/OcuTalon/Bridge/Process/Decide.cls
+@@ -139,6 +139,10 @@ Parameter USERANSWERED = "The outcome was changed because a message the user wri
+ /// empty), which is closed failed instead of replayed (FailUnroutable). It is plain English for the person: no class name, no code, no status text.
+ Parameter HELDBEFOREUPDATE = "This request was held before an update and cannot be run again safely, so please ask again.";
+ 
++/// The reason line of the fallback Decision row of a replay that failed because no model key is set, before the approved call ran (ConcludeTool):
++/// plain English for the person, with the words of the catalog's fallbackReason.noKey and conversation.turnFallback.
++Parameter REPLAYNOKEY = "No model key is set, so the approved call did not run. Nothing was changed.";
++
+ /// The words of the online demo gateway's HTTP 403 for a reached daily cost cap, which Classify finds in a failure text: daily_cap
+ /// (source: AD-8; Story 1.6 Task 0 (b) measured the text that AI Hub raises for it). Matched without regard to case.
+ Parameter DAILYCAPTEXT = "daily cost cap reached";
+@@ -1099,7 +1103,8 @@ ClassMethod Conclude(request As OcuTalon.Bridge.Msg.Request, decisionRef As %Str
+ 
+ /// Conclude for kind tool: the reply of a replay holds no model text, so nothing is classified, filtered or checked. A failure (the text of the
+ /// runner's failure, or of a Reply whose FailureText is set) is a fallback with the reason error (RecordFallback), whatever the text says, so
+-/// that a tool's own error text never marks the day as capped. A failure while the approval row is still approved means the run never started
++/// that a tool's own error text never marks the day as capped. The one exception is a failure that holds both pieces of NOKEYTEXT in a Reply whose
++/// ToolsRun is 0 (the agent could not be built and the call did not run): its reason is no_key (AD-8) and its Reasons is REPLAYNOKEY. A failure while the approval row is still approved means the run never started
+ /// (the row's lock was not taken): no Decision row is recorded, so that a later replay of the row is not answered from a fallback, and the answer
+ /// is a Reply that holds only the FailureText. Otherwise one Decision row is saved with the outcome act, no reasons, no
+ /// confidence and no payload, decision.recorded is fired after the save (FireEvent), and the answer is the row's Reply (ResponseFromRow). A
+@@ -1113,7 +1118,13 @@ ClassMethod ConcludeTool(request As OcuTalon.Bridge.Msg.Request, decisionRef As
+ 			Set response.FailureText = ##class(OcuTalon.Bridge.Adapter.StepBuffer).Part(failure, ##class(OcuTalon.Bridge.Msg.Reply).#MAXFAILURE)
+ 			Quit $$$OK
+ 		}
+-		Quit ..RecordFallback(request, decisionRef, "error", reply, sinkClass, traceSessionId, .response, durationMs, stepCount)
++		Set reason = "error"
++		Set reasons = ""
++		If ..HoldsAll($ZConvert(failure, "L"), ..#NOKEYTEXT) && $IsObject(reply) && (reply.ToolsRun = 0) {
++			Set reason = "no_key"
++			Set reasons = ..#REPLAYNOKEY
++		}
++		Quit ..RecordFallback(request, decisionRef, reason, reply, sinkClass, traceSessionId, .response, durationMs, stepCount, 0, reasons)
+ 	}
+ 	If ##class(OcuTalon.Bridge.Data.Decision).ItemIdKindIndexExists(request.ItemId, request.Kind, .id) {
+ 		Quit ..ResponseFromId(id, .response)
+diff --git a/src/bridge/cls/OcuTalon/Bridge/Redact.cls b/src/bridge/cls/OcuTalon/Bridge/Redact.cls
+index 0747ed25..9703909d 100644
+--- a/src/bridge/cls/OcuTalon/Bridge/Redact.cls
++++ b/src/bridge/cls/OcuTalon/Bridge/Redact.cls
+@@ -9,9 +9,11 @@
+ ///     sensitive when the name is.
+ ///   - A text that is exactly one JSON string (a tool that returns text has its result encoded so) is redacted by its content, as a
+ ///     text of its own: JSON inside the string is parsed as above. A string that needs no change is returned as it is.
+-///   - Then, anywhere in the text, these patterns are replaced: sk-ant- keys and other sk- keys of 20 or more characters (the prefix included), Telegram
+-///     bot tokens (6 to 12 digits, a colon and 30 or more of A-Z, a-z, 0-9, _ and -), Bearer tokens, JWT-shaped tokens, GitHub
+-///     tokens (ghp_ and the other gh*_ forms, github_pat_), AWS access key ids (AKIA) and the user and password of a URL. A key of
++///   - Then, anywhere in the text, these patterns are replaced: sk-ant- keys and other sk- keys of 20 or more characters (the prefix included),
++///     DigitalOcean tokens (dop_v1_ and 20 or more hex digits), PEM private key blocks (from the BEGIN line through the first END line, or to the
++///     end of the text when there is none; real and escaped line breaks alike), Telegram bot tokens (6 or more digits, a colon and 30 or more of
++///     A-Z, a-z, 0-9, _ and -), Bearer tokens, JWT-shaped tokens, GitHub tokens (ghp_ and the other gh*_ forms, github_pat_), AWS access key ids
++///     (AKIA) and the user and password of a URL. A key of
+ ///     SENSITIVEKEYS followed by = or : and a value is replaced too, also when its quotes are escaped (JSON inside a text), in text that is
+ ///     not JSON and in the string values of JSON that is.
+ ///   - It is idempotent: Text(Text(x)) is Text(x).
+@@ -190,10 +192,13 @@ ClassMethod Patterns(text As %String, kv As %Boolean) As %String [ Private ]
+ ClassMethod PatternList(kv As %Boolean) As %List [ Private ]
+ {
+ 	Set mark = ..#REDACTED
++	Set pem = "-----BEG" _ "IN [A-Z ]*PRIV" _ "ATE KEY(?:[\s\S]*?-----E" _ "ND [A-Z ]*PRIV" _ "ATE KEY-----|[\s\S]*)"
+ 	Set patterns = $ListBuild(
+ 		$ListBuild("(?i)sk-ant-[A-Za-z0-9_-]+", mark),
+ 		$ListBuild("(?<![A-Za-z0-9])sk-[A-Za-z0-9_-]{17,}", mark),
+-		$ListBuild("(?<![0-9])[0-9]{6,12}:[A-Za-z0-9_-]{30,}", mark),
++		$ListBuild("dop_v1_[A-Fa-f0-9]{20,}", mark),
++		$ListBuild(pem, mark),
++		$ListBuild("(?<![0-9])[0-9]{6,}:[A-Za-z0-9_-]{30,}", mark),
+ 		$ListBuild("(?i)(\bBearer\s+)[^\s""',;]+", "$1"_mark),
+ 		$ListBuild("eyJ[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]*", mark),
+ 		$ListBuild("gh[pousr]_[A-Za-z0-9]{20,}", mark),
+diff --git a/src/bridge/cls/OcuTalon/Bridge/Replay.cls b/src/bridge/cls/OcuTalon/Bridge/Replay.cls
+index 4280da02..86ed5f4c 100644
+--- a/src/bridge/cls/OcuTalon/Bridge/Replay.cls
++++ b/src/bridge/cls/OcuTalon/Bridge/Replay.cls
+@@ -20,6 +20,10 @@ Include Ensemble
+ ///   4. The reply holds no text and no host data, Tainted 0, ToolsRun 1 (0 when the failure came before ExecuteTool was called), the step records and, for a call that failed, its redacted and cut error
+ ///      text as FailureText.
+ ///   5. The context and the step buffer end, and the throwaway session is released, on every path.
++/// A replay holds LOCK ^OcuTalon.Bridge.Replay(<Ref>) from before StartExecution until after Record, and releases it on every path, so the lock
++/// says whether a replay of the Ref is alive. CloseInterrupted, which Approval.Reconcile runs after an instance start, closes an executing tool_call
++/// row only when it can take that lock at once (no live replay): it writes the Action entry with the result interrupted and finishes the row as
++/// interrupted, and never runs the call again (NFR-13).
+ /// No Chat, no conversation link and no Usage row. This class names no other OcuTalon package (AD-2).
+ Class OcuTalon.Bridge.Replay
+ {
+@@ -39,6 +43,24 @@ ClassMethod Run(adapter As OcuTalon.Bridge.Adapter.Agent, request As OcuTalon.Br
+ 		Set reply = ..Failure("there is no tool_call approval request with this Ref, so nothing was run")
+ 		Quit $$$OK
+ 	}
++	Lock +^OcuTalon.Bridge.Replay(ref):0
++	If '$Test {
++		Set reply = ..Failure("another replay of this call is running, so nothing was run")
++		Quit $$$OK
++	}
++	Try {
++		Set sc = ..Execute(adapter, request, superSession, row, ref, .reply)
++	} Catch exception {
++		Lock -^OcuTalon.Bridge.Replay(ref)
++		Throw exception
++	}
++	Lock -^OcuTalon.Bridge.Replay(ref)
++	Quit sc
++}
++
++/// The part of Run that holds the replay lock: the start, the call and Record.
++ClassMethod Execute(adapter As OcuTalon.Bridge.Adapter.Agent, request As OcuTalon.Bridge.Msg.Request, superSession As %String, row As OcuTalon.Bridge.Data.ApprovalRequest, ref As %String, Output reply As OcuTalon.Bridge.Msg.Reply) As %Status [ Private ]
++{
+ 	Set sc = ##class(OcuTalon.Bridge.Approval).StartExecution(ref)
+ 	If $$$ISERR(sc) {
+ 		Do ..CloseUnstarted(ref)
+@@ -144,9 +166,11 @@ ClassMethod CloseUnstarted(ref As %String) [ Private ]
+ 	}
+ }
+ 
+-/// Writes the Action entry of a run that started and then finishes it with the result. A failed write or finish is a warning that names the Ref.
+-ClassMethod Record(row As OcuTalon.Bridge.Data.ApprovalRequest, ref As %String, result As %String) [ Private ]
++/// Writes the Action entry of a run that started and then finishes it with the result. A failed write or finish is a warning that names the Ref,
++/// and the errors are returned combined.
++ClassMethod Record(row As OcuTalon.Bridge.Data.ApprovalRequest, ref As %String, result As %String) As %Status [ Private ]
+ {
++	Set status = $$$OK
+ 	Try {
+ 		Set sc = $$$OK
+ 		If $$$ISOK(row.%Reload()) {
+@@ -154,18 +178,56 @@ ClassMethod Record(row As OcuTalon.Bridge.Data.ApprovalRequest, ref As %String,
+ 		}
+ 		If $$$ISERR(sc) {
+ 			$$$LOGWARNING("OcuTalon.Bridge.Replay: the Action entry of "_ref_" was not written: "_$SYSTEM.Status.GetErrorText(sc))
++			Set status = $SYSTEM.Status.AppendStatus(status, sc)
+ 		}
+ 	} Catch exception {
+ 		$$$LOGWARNING("OcuTalon.Bridge.Replay: the Action entry of "_ref_" was not written: "_exception.DisplayString())
++		Set status = $SYSTEM.Status.AppendStatus(status, exception.AsStatus())
+ 	}
+ 	Try {
+ 		Set sc = ##class(OcuTalon.Bridge.Approval).FinishExecution(ref, result)
+ 		If $$$ISERR(sc) {
+ 			$$$LOGWARNING("OcuTalon.Bridge.Replay: "_ref_" was not finished as "_result_": "_$SYSTEM.Status.GetErrorText(sc))
++			Set status = $SYSTEM.Status.AppendStatus(status, sc)
+ 		}
+ 	} Catch exception {
+ 		$$$LOGWARNING("OcuTalon.Bridge.Replay: "_ref_" was not finished as "_result_": "_exception.DisplayString())
++		Set status = $SYSTEM.Status.AppendStatus(status, exception.AsStatus())
++	}
++	Quit status
++}
++
++/// Closes the replays that an instance stop interrupted (DW-444): every tool_call row that is executing and whose replay lock can be taken at once,
++/// which means that no replay of it is alive. For each, the Action entry with the result interrupted is written and the row is finished as
++/// interrupted (failed, Result interrupted, FinishedAt set, approval.result fired), exactly as Record does; the call is never run again (NFR-13). A
++/// row whose lock is held (a live replay), and a row in any other state or kind, is left alone. Every row is tried; the errors are combined, each
++/// naming its Ref.
++ClassMethod CloseInterrupted() As %Status
++{
++	Set sc = $$$OK
++	Set rows = ##class(%SQL.Statement).%ExecDirect(, "SELECT Ref FROM OcuTalon_Bridge_Data.ApprovalRequest WHERE Kind = 'tool_call' AND State = 'executing'")
++	If rows.%SQLCODE < 0 Quit $SYSTEM.Status.Error(5001, "The executing tool calls cannot be read: SQLCODE " _ rows.%SQLCODE _ " " _ rows.%Message)
++	Set refs = ""
++	While rows.%Next() {
++		Set refs = refs _ $ListBuild(rows.%Get("Ref"))
++	}
++	If rows.%SQLCODE < 0 Quit $SYSTEM.Status.Error(5001, "The executing tool calls cannot be read: SQLCODE " _ rows.%SQLCODE _ " " _ rows.%Message)
++	Set position = 0
++	While $ListNext(refs, position, ref) {
++		Lock +^OcuTalon.Bridge.Replay(ref):0
++		If '$Test Continue
++		Try {
++			Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(ref)
++			If $IsObject(row) && $$$ISOK(row.%Reload()) && (row.Kind = "tool_call") && (row.State = "executing") {
++				Set one = ..Record(row, ref, "interrupted")
++				If $$$ISERR(one) Set sc = $SYSTEM.Status.AppendStatus(sc, $SYSTEM.Status.Error(5001, "The interrupted replay of " _ ref _ " was not closed: " _ $SYSTEM.Status.GetErrorText(one)))
++			}
++		} Catch exception {
++			Set sc = $SYSTEM.Status.AppendStatus(sc, $SYSTEM.Status.Error(5001, "The interrupted replay of " _ ref _ " was not closed: " _ exception.DisplayString()))
++		}
++		Lock -^OcuTalon.Bridge.Replay(ref)
+ 	}
++	Quit sc
+ }
+ 
+ /// The data of the Action entry of the run (the shape of the field's own entry, which the bridge cannot call, AD-2): the action is the tool's
+diff --git a/src/ocutalon/cls/OcuTalon/Data/Purge.cls b/src/ocutalon/cls/OcuTalon/Data/Purge.cls
+new file mode 100644
+index 00000000..bae4535e
+--- /dev/null
++++ b/src/ocutalon/cls/OcuTalon/Data/Purge.cls
+@@ -0,0 +1,140 @@
++Include %cspBuild
++
++/// The host's part of the purge (AD-27; Lane B's Data area): the Turn, Delivery and Session rows that are old enough. The Retention area calls
++/// Run(daysToKeep, now) right after the bridge's purge with the same now, so both parts use the same cutoff (Bridge.Time.DaysCutoff) and a turn that
++/// is kept never names a decision that the bridge's purge removed.
++///   - Turns: the rows created before the cutoff go. A turn created at the cutoff stays;
++///   - Deliveries: the rows recorded before the cutoff go;
++///   - Sessions: a Session row goes only when it was created before the cutoff, has no Turn, Delivery or Decision at or after the cutoff, and is not
++///     current: never by age alone. Current means any one of: a live CSP session holding its Ref (signed in, OcuTalon.Data.Ownership SESSIONKEY), a
++///     Telegram pairing, an approval request that is pending, approved or executing, a background check (a watch), or a pending reminder. The checks run
++///     again for each session right before it is deleted.
++/// The purge deletes only from the tables OcuTalon_Data.Turn, OcuTalon_Data.Delivery and OcuTalon_Data.Session. It reads the bridge's decision and
++/// approval tables, and it touches no IRIS system record, no AI session and no message (AD-17). Each part runs whatever an earlier part returned, and the
++/// errors are combined into one status.
++Class OcuTalon.Data.Purge
++{
++
++/// Deletes the turns created, and the deliveries recorded, more than daysToKeep days before now, and the sessions that qualify as the class doc says.
++/// daysToKeep must be a whole number of at least 1, and now (default the current time) a UTC time, YYYY-MM-DDThh:mm:ssZ: anything else is an error
++/// status, and nothing is deleted. A day count so large that the cutoff falls before the calendar deletes nothing. store is the CSP session store (by
++/// default ^%cspSession; a test passes a private global).
++ClassMethod Run(daysToKeep As %Integer, now As %String = "", store As %String = "^%cspSession") As %Status
++{
++	If now = "" Set now = ##class(OcuTalon.Bridge.Time).NowUtc()
++	Set sc = ##class(OcuTalon.Bridge.Time).DaysCutoff(daysToKeep, "OcuTalon.Data.Purge.Run", .cutoff, now)
++	If $$$ISERR(sc) || (cutoff = "") Quit sc
++	Set sc = $SYSTEM.Status.AppendStatus(sc, ..DeleteTurns(cutoff))
++	Set sc = $SYSTEM.Status.AppendStatus(sc, ..DeleteDeliveries(cutoff))
++	Set sc = $SYSTEM.Status.AppendStatus(sc, ..DeleteSessions(cutoff, store))
++	Quit sc
++}
++
++/// Deletes the turns created before the cutoff.
++ClassMethod DeleteTurns(cutoff As %String) As %Status [ Private ]
++{
++	Set sc = $$$OK
++	Try {
++		Set result = ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.Turn WHERE CreatedAt < ?", cutoff)
++		If result.%SQLCODE < 0 Set sc = $SYSTEM.Status.Error(5001, "Deleting the old turns failed: "_result.%Message)
++	} Catch exception {
++		Set sc = exception.AsStatus()
++	}
++	Quit sc
++}
++
++/// Deletes the deliveries recorded before the cutoff.
++ClassMethod DeleteDeliveries(cutoff As %String) As %Status [ Private ]
++{
++	Set sc = $$$OK
++	Try {
++		Set result = ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Data.Delivery WHERE RecordedAt < ?", cutoff)
++		If result.%SQLCODE < 0 Set sc = $SYSTEM.Status.Error(5001, "Deleting the old deliveries failed: "_result.%Message)
++	} Catch exception {
++		Set sc = exception.AsStatus()
++	}
++	Quit sc
++}
++
++/// Selects the sessions created before the cutoff, then checks each one again and deletes it when it is neither active nor current.
++ClassMethod DeleteSessions(cutoff As %String, store As %String) As %Status [ Private ]
++{
++	Set sc = $$$OK
++	Try {
++		Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT ID, %EXACT(Ref) AS Ref FROM OcuTalon_Data.Session WHERE CreatedAt < ?", cutoff)
++		If result.%SQLCODE < 0 $$$ThrowStatus($SYSTEM.Status.Error(5001, "Reading the old sessions failed: "_result.%Message))
++		While result.%Next() {
++			Set candidates(result.%Get("ID")) = result.%Get("Ref")
++		}
++		If result.%SQLCODE < 0 $$$ThrowStatus($SYSTEM.Status.Error(5001, "Reading the old sessions failed: "_result.%Message))
++		Set id = ""
++		For {
++			Set id = $Order(candidates(id), 1, ref)
++			Quit:id=""
++			If ..Keeps(ref, cutoff, store, .check) {
++				Set sc = $SYSTEM.Status.AppendStatus(sc, check)
++				Continue
++			}
++			Set sc = $SYSTEM.Status.AppendStatus(sc, ##class(OcuTalon.Data.Session).%DeleteId(id))
++		}
++	} Catch exception {
++		Set sc = $SYSTEM.Status.AppendStatus(sc, exception.AsStatus())
++	}
++	Quit sc
++}
++
++/// 1 when the session must be kept: it has a Turn, Delivery or Decision at or after the cutoff, or it is current. A read that fails keeps the session
++/// and returns its error in check (OK otherwise).
++ClassMethod Keeps(ref As %String, cutoff As %String, store As %String, Output check As %Status) As %Boolean [ Private ]
++{
++	Set check = $$$OK
++	If ..Found("SELECT TOP 1 1 FROM OcuTalon_Data.Turn WHERE SessionRef = ? AND CreatedAt >= ?", .check, ref, cutoff) Quit 1
++	If ..Found("SELECT TOP 1 1 FROM OcuTalon_Data.Delivery WHERE OwnerRef = ? AND RecordedAt >= ?", .check, ref, cutoff) Quit 1
++	If ..Found("SELECT TOP 1 1 FROM OcuTalon_Bridge_Data.Decision WHERE OwnerRef = ? AND RecordedAt >= ?", .check, ref, cutoff) Quit 1
++	If ..Found("SELECT TOP 1 1 FROM OcuTalon_Data.Pairing WHERE SessionRef = ?", .check, ref) Quit 1
++	If ..Found("SELECT TOP 1 1 FROM OcuTalon_Bridge_Data.ApprovalRequest WHERE OwnerRef = ? AND State IN ('pending', 'approved', 'executing')", .check, ref) Quit 1
++	If ..Found("SELECT TOP 1 1 FROM OcuTalon_Data.BackgroundCheck WHERE SessionRef = ?", .check, ref) Quit 1
++	If ..Found("SELECT TOP 1 1 FROM OcuTalon_Data.Reminder WHERE SessionRef = ? AND State = 'pending'", .check, ref) Quit 1
++	If ..Signed(ref, store) Quit 1
++	Quit 0
++}
++
++/// 1 when a live CSP session in the store holds the ref: an entry from subscript 0 onward (the nodes -2, -1 and 0 are the store's own) whose stored
++/// timeout (the list position sesOldTimeout, an absolute time in seconds) is ahead of now and whose data holds the ref under Ownership's SESSIONKEY.
++/// The reader takes no session and writes nothing.
++ClassMethod Signed(ref As %String, store As %String) As %Boolean [ Private ]
++{
++	Set stamp = $ZTimeStamp
++	Set now = ($Piece(stamp, ",") * 86400 + $Piece(stamp, ",", 2)) \ 1
++	Set key = ##class(OcuTalon.Data.Ownership).#SESSIONKEY
++	Set id = 0
++	For {
++		Set id = $Order(@store@(id))
++		If id = "" Quit
++		If $ListGet($Get(@store@(id)), $$$sesOldTimeout) > now, $Get(@store@(id, 0, key)) = ref Quit
++	}
++	Quit id '= ""
++}
++
++/// 1 when the query returns a row. An error is returned in check and counts as found, so that a failed read never deletes a session.
++ClassMethod Found(sql As %String, ByRef check As %Status, args... As %String) As %Boolean [ Private ]
++{
++	Set found = 1
++	Try {
++		Set result = ##class(%SQL.Statement).%ExecDirect(, sql, args...)
++		If result.%SQLCODE < 0 {
++			Set check = $SYSTEM.Status.AppendStatus(check, $SYSTEM.Status.Error(5001, "Checking a session before its purge failed: "_result.%Message))
++		} Else {
++			Set found = +result.%Next()
++			If result.%SQLCODE < 0 {
++				Set found = 1
++				Set check = $SYSTEM.Status.AppendStatus(check, $SYSTEM.Status.Error(5001, "Checking a session before its purge failed: "_result.%Message))
++			}
++		}
++	} Catch exception {
++		Set check = $SYSTEM.Status.AppendStatus(check, exception.AsStatus())
++	}
++	Quit found
++}
++
++}
+diff --git a/src/ocutalon/cls/OcuTalon/Install/Step/Retention.cls b/src/ocutalon/cls/OcuTalon/Install/Step/Retention.cls
+index 0a9847d1..b69ce295 100644
+--- a/src/ocutalon/cls/OcuTalon/Install/Step/Retention.cls
++++ b/src/ocutalon/cls/OcuTalon/Install/Step/Retention.cls
+@@ -1,10 +1,11 @@
+ /// The retention area's declaration of the purge tasks (AD-27, AD-23; NFR-19): three daily tasks at 03:00 instance time in the namespace OCUTALON, and
+-/// the bridge's part of the purge. The area is not in OcuTalon.Install.Registry Order(), so it runs no step; it only declares, and the registry finds
++/// the bridge's and the host's data part of the purge. The area is not in OcuTalon.Install.Registry Order(), so it runs no step; it only declares, and the registry finds
+ /// it by its name. The Tasks step creates each task once and leaves an existing one alone, so a day count or a time that an admin changed in the Task
+ /// Manager is kept (AD-19). No declaration names a namespace or a user: the step runs each task in the namespace it was created in, as the installing user.
+ ///   - the standard Ens.Util.Tasks.Purge for the heartbeat and check messages (the items HeartbeatIn and Checks), with their bodies, 7 days;
+ ///   - the standard Ens.Util.Tasks.Purge for all of OCUTALON's Interoperability data, 90 days; unfinished sessions are kept (KeepIntegrity);
+ ///   - the OcuTalon purge task (OcuTalon.Install.Task.Purge), 90 days, which calls the Purge(daysToKeep) of every area through the registry.
++/// This area's own Purge covers the bridge's records and the host's Turn, Delivery and Session rows (AD-27).
+ Class OcuTalon.Install.Step.Retention Extends OcuTalon.Install.Step
+ {
+ 
+@@ -62,10 +63,14 @@ ClassMethod Tasks() As %DynamicArray
+ }
+ 
+ /// Deletes the bridge's records older than daysToKeep days and the AI sessions that no conversation link has named for a day
+-/// (OcuTalon.Bridge.Purge.Run). The day count comes only from the caller: the purge task's DaysToKeep.
++/// (OcuTalon.Bridge.Purge.Run), then the host's old Turn, Delivery and Session rows (OcuTalon.Data.Purge.Run). Both parts get the same now, so they use
++/// the same cutoff: a turn that stays never names a decision that was purged. Each part runs whatever the other returned, and the errors are combined.
++/// The day count comes only from the caller: the purge task's DaysToKeep.
+ ClassMethod Purge(daysToKeep As %Integer) As %Status
+ {
+-	Quit ##class(OcuTalon.Bridge.Purge).Run(daysToKeep)
++	Set now = ##class(OcuTalon.Bridge.Time).NowUtc()
++	Set sc = ##class(OcuTalon.Bridge.Purge).Run(daysToKeep, now)
++	Quit $SYSTEM.Status.AppendStatus(sc, ##class(OcuTalon.Data.Purge).Run(daysToKeep, now))
+ }
+ 
+ /// The schedule of every task: daily at 03:00 instance time (DailyStartTime 10800). The Task Manager refuses a task whose first start (StartDate and
+diff --git a/src/ocutalon/cls/OcuTalon/Test/Bridge/Approval.cls b/src/ocutalon/cls/OcuTalon/Test/Bridge/Approval.cls
+index 62ba8b96..d8f3a5b0 100644
+--- a/src/ocutalon/cls/OcuTalon/Test/Bridge/Approval.cls
++++ b/src/ocutalon/cls/OcuTalon/Test/Bridge/Approval.cls
+@@ -13,6 +13,10 @@
+ /// tests, and Clean puts its agent class back. TestApprovedToolCallReplays (rows 1, 3, 4a, 4c, 10, 15, 16), TestReplayReachesTheLiveStream (row 2,
+ /// DW-99), TestReplayDeniesAnotherSource (6b), TestReplayOfAnUnroutableRow (9), TestHoldReArmsAfterATaskWithoutAnAnswer (11),
+ /// TestExpireRetriesWhenTheLockIsHeld (12), TestReconcileDeliversWhatLostHoldsOwed (13) and TestLateStartIsRefusedByItsAge (14).
++/// Story 30.7 (DW-444): TestInterruptedReplayIsClosed (row 11), TestLiveReplayIsLeftAlone (row 12) and TestExecutingFixIsLeftAlone (row 13) show that
++/// Reconcile closes an executing tool_call whose replay lock is free (failed, Result interrupted, the Approval and Action entries, approval.result, no
++/// tool request), leaves one whose replay holds the lock, and leaves an executing fix to Fix.Run. TestAnswerBeforeTheTaskExists (DW-462) keeps
++/// OcuTalonApprovals disabled while the answer job waits, so that no real task can appear in its window, and then lets one appear late.
+ /// Story 3.6: TestRaiseKeepsTheCallersJobIds (row 5a, DW-191) shows that Raise leaves the caller's session and current header ids as they were.
+ /// TestRaiseRefusesInATransaction (DW-187) shows that Raise itself refuses at $TLevel above 0 and leaves the caller's transaction open and uncommitted.
+ /// Its helpers Clean, TaskIds, WaitHoldSettled, Age, TrackOwner, WaitTask, HoldMessages, HoldRequests, HoldCount and StartsSince are public class methods, which
+@@ -49,7 +53,8 @@
+ ///     open, so a stale copy cannot win;
+ ///   - TestStartExecutionAtOnce (row 11): of two StartExecution calls through the gate exactly one succeeds;
+ ///   - TestAnswerReArmed (row 12): an answer completes the new task of a re-armed request, and the outcome comes from the new hold's session;
+-///   - TestAnswerBeforeTheTaskExists (row 13): an answer waits for the task, completes it once it appears, and the outcome is sent;
++///   - TestAnswerBeforeTheTaskExists (row 13, DW-462): an answer waits up to TASKSECONDS for the task while OcuTalonApprovals is disabled, finds a task
++///     that appears inside the wait and takes it as the Workflow user, and leaves a task that appears after the job returned open;
+ ///   - TestHoldReArmsAfterATaskWithoutAnAnswer (row 14, Story 30.3 row 11): a task completed directly while the row is pending arms the hold
+ ///     again and sends nothing, and a task completed with Approve on a row that shows rejected delivers the rejection;
+ ///   - TestTimerDeliversAnUndeliveredAnswer (row 15): the timer delivers an approved and a rejected answer whose task was never completed, and
+@@ -1385,8 +1390,14 @@ Method TestAnswerReArmed()
+ 	Do ..AssertOneOutcome(ref, "approved", info, newSession, "the outcome comes from the new hold's session")
+ }
+ 
+-/// Row 13: an answer that arrives before the task exists is recorded, waits for the task, and completes it once it appears: the hold ends and
+-/// sends one approved outcome.
++/// Row 13 (DW-462): an answer that arrives before the task exists is recorded and waits up to TASKSECONDS for the task. OcuTalonApprovals stays
++/// disabled through the whole wait, so the real task cannot appear in it and the test cannot race the production's item update:
++///   - (a) once the row shows the answer, a fake open task with the hold's subject is saved. The job finds it by its poll and takes it as
++///     OcuTalonWorkflow (AssignedTo), and returns done. (The Workflow engine then refuses to complete a task that has no deferred response to send, so
++///     the job logs a warning and the fake task stays open: the poll is what this shows.);
++///   - (b) the item is enabled again, without a time limit, and the real task appears. The job has returned, so the real task stays open and the row
++///     stays approved: the documented contract is that a task that appears after TASKSECONDS is not completed. Cleanup completes it, which ends the hold;
++///   - (c) the fake task is removed.
+ Method TestAnswerBeforeTheTaskExists()
+ {
+ 	If '..Ready() Quit
+@@ -1395,14 +1406,11 @@ Method TestAnswerBeforeTheTaskExists()
+ 	Set ..ApprovalsDisabled = 1
+ 	Do $$$AssertStatusOK(##class(Ens.Director).EnableConfigItem("OcuTalonApprovals", 0), "OcuTalonApprovals is disabled")
+ 	Set row = ..NewRow("fix")
+-	Set trace = row.TraceRef
+-	Set incident = row.IncidentRef
+ 	Set mark = ##class(OcuTalon.Test.Agent.RunnerFixture).HeaderMark()
+ 	Set sc = ..Raise(row, .ref)
+ 	Kill row
+ 	Do $$$AssertStatusOK(sc, "the fix request is raised")
+ 	If $$$ISERR(sc) Quit
+-	Set session = ..HoldMessages(mark, ref).session
+ 	Do $$$AssertEquals(..TaskCount(ref), 0, "no task exists")
+ 	Set number = ..StartJob("answer", ref, "approve", "web", user)
+ 	Set deadline = $ZHorolog + 10
+@@ -1411,17 +1419,183 @@ Method TestAnswerBeforeTheTaskExists()
+ 	}
+ 	Do $$$AssertEquals(..Prop(ref, "State"), "approved", "the row shows the answer while the job waits for the task")
+ 	Do $$$AssertEquals($Get(^OcuTalonTest("Approval", "job", number, "done")), "", "and the job has not returned yet")
+-	Do $$$AssertStatusOK(##class(Ens.Director).EnableConfigItem("OcuTalonApprovals", 1), "OcuTalonApprovals is enabled again")
+-	Set ..ApprovalsDisabled = 0
++
++	// (a) a task that appears inside the window is found by the poll and taken
++	Set fake = ..FakeHoldTask(ref)
++	Do $$$AssertTrue(fake '= "", "(a) a fake open task with the hold's subject is saved")
+ 	Set taskSeconds = ##class(OcuTalon.Bridge.Approval).#TASKSECONDS
+ 	Do ..WaitNode($Name(^OcuTalonTest("Approval", "job", number, "done")), taskSeconds + 15)
+-	Do $$$AssertEquals($Get(^OcuTalonTest("Approval", "job", number, "result"))_"|"_$Get(^OcuTalonTest("Approval", "job", number, "error")), "done|", "the job gets done")
+-	Set ids = ..TaskIds(ref)
+-	Do $$$AssertEquals($ListLength(ids), 1, "the task appeared within TASKSECONDS ("_taskSeconds_" seconds) of the answer")
+-	If $ListLength(ids) = 1 Do $$$AssertEquals(..TaskFacts($List(ids, 1)), "Approve|OcuTalonWorkflow|1|", "and was completed with Approve by OcuTalonWorkflow")
+-	Do $$$AssertEquals(..WaitHoldGone(ref, 15), 1, "the hold ends")
+-	Do $$$AssertTrue(session > mark, "the hold has its session: "_session)
+-	Do ..AssertOneOutcome(ref, "approved", {"incident": (incident), "trace": (trace)}, session, "the outcome, in the hold's session")
++	Do $$$AssertEquals($Get(^OcuTalonTest("Approval", "job", number, "result"))_"|"_$Get(^OcuTalonTest("Approval", "job", number, "error")), "done|", "(a) the job gets done")
++	If fake '= "" Do $$$AssertEquals(..AssignedTo(fake), ##class(OcuTalon.Bridge.Approval).#WORKFLOWUSER, "(a) and the poll found the task and assigned it to the Workflow user")
++
++	// (b) the real task appears late: the job has returned, and the task stays open
++	Do $$$AssertStatusOK(##class(Ens.Director).EnableConfigItem("OcuTalonApprovals", 1), "(b) OcuTalonApprovals is enabled again")
++	Set ..ApprovalsDisabled = 0
++	Set real = ""
++	Set limit = $ZHorolog + 60
++	While (real = "") && ($ZHorolog < limit) {
++		Set real = ..RealOpenTask(ref, fake)
++		If real = "" Hang 0.2
++	}
++	Do $$$AssertTrue(real '= "", "(b) the real task appears, whenever the item is updated: "_real)
++	If real '= "" Do $$$AssertEquals($Piece(..TaskFacts(real), "|", 3), 0, "(b) it is open, as the job had returned")
++	Do $$$AssertEquals(..Prop(ref, "State"), "approved", "(b) and the row is still approved")
++
++	// (c) the fake task is removed
++	Do ..RemoveFakeTasks()
++	Do $$$AssertEquals($Data(^OcuTalonTest("Approval", "fakeTask")), 0, "(c) the fake task is removed")
++}
++
++/// The id of the newest open task of the Ref other than the fake one, polled once, or "".
++ClassMethod RealOpenTask(ref As %String, fake As %String) As %String [ Private ]
++{
++	Set ids = ..TaskIds(ref, 1)
++	Set found = ""
++	Set position = 0
++	While $ListNext(ids, position, id) {
++		If id '= fake Set found = id
++	}
++	Quit found
++}
++
++/// The user a task is assigned to, or "".
++ClassMethod AssignedTo(taskId As %String) As %String [ Private ]
++{
++	Set task = ##class(EnsLib.Workflow.TaskResponse).%OpenId(taskId, 0)
++	Quit $Select($IsObject(task): task.%TaskStatus.AssignedTo, 1: "")
++}
++
++/// An open task of the role OcuTalonApprovals with the hold's subject for the Ref, which no hold sent. Tracked for RemoveFakeTasks. Returns its id, or "".
++Method FakeHoldTask(ref As %String) As %String [ Private ]
++{
++	Set request = ##class(EnsLib.Workflow.TaskRequest).%New()
++	Set request.%Subject = ##class(OcuTalon.Bridge.Approval).#TASKSUBJECT_ref
++	If $$$ISERR(request.%Save()) Quit ""
++	Set task = ##class(EnsLib.Workflow.TaskResponse).%New()
++	Set task.%Subject = request.%Subject
++	Set task.%TaskStatus.Role = ##class(EnsLib.Workflow.RoleDefinition).%OpenId(##class(OcuTalon.Bridge.Approval).#WORKFLOWROLE)
++	Set task.%TaskStatus.Request = request
++	If $$$ISERR(task.%Save()) Quit ""
++	Set ^OcuTalonTest("Approval", "fakeTask", task.%Id()) = request.%Id()
++	Quit task.%Id()
++}
++
++/// Deletes the tasks of FakeHoldTask and their requests, also those a failed earlier run left.
++ClassMethod RemoveFakeTasks() [ Private ]
++{
++	Set taskId = ""
++	For {
++		Set taskId = $Order(^OcuTalonTest("Approval", "fakeTask", taskId), 1, requestId)
++		Quit:taskId=""
++		Do ##class(EnsLib.Workflow.TaskResponse).%DeleteId(taskId)
++		Do ##class(EnsLib.Workflow.TaskRequest).%DeleteId(requestId)
++	}
++	Kill ^OcuTalonTest("Approval", "fakeTask")
++}
++
++/// Story 30.7, row 11 (DW-444): an executing tool_call row that no job holds the replay lock of is closed by Reconcile. The row is failed with the
++/// Result interrupted and its FinishedAt set, approval.result fires once, the Approval entry says finished with the outcome interrupted, an Action
++/// entry says interrupted, and no tool request is sent, so the call is not run again.
++Method TestInterruptedReplayIsClosed()
++{
++	If '..Ready() Quit
++	If '..UseSharedSink() Quit
++	If '..UseReplayAgent() Quit
++	Set ref = ..ReplayRow("executing")
++	If ref = "" Quit
++	Set owner = ..Prop(ref, "OwnerRef")
++	Set ran = ##class(OcuTalon.Test.Bridge.ZzReplayTool).Ran("zz_replay_send")
++	Set audit = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
++	Set before = ..RunnerRequests(ref)
++	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Approval).Reconcile(), "Reconcile runs")
++	Do $$$AssertEquals(..Prop(ref, "State")_"|"_..Prop(ref, "Result"), "failed|interrupted", "the row is failed with the Result interrupted")
++	Do $$$AssertTrue(..JustNow(..Prop(ref, "FinishedAt")), "and its FinishedAt is set: "_..Prop(ref, "FinishedAt"))
++	Set results = ..WaitSinkCalls("approval.result", 1, 15)
++	Do $$$AssertEquals(results.%Size(), 1, "approval.result fires once")
++	If results.%Size() = 1 Do $$$AssertEquals(results.%Get(0).ownerRef_"|"_results.%Get(0).payload, owner_"|{""ref"":"""_ref_"""}", "owned by the row's OwnerRef, with only the Ref")
++	Set entries = ##class(OcuTalon.Test.Bridge.AuditLog).Wait(audit, "OcuTalon", "Approval", "Approval", ref)
++	Do $$$AssertEquals(entries.%Size(), 1, "one Approval entry carries the Ref")
++	If entries.%Size() = 1 Do $$$AssertEquals(entries.%Get(0).data.change_"|"_entries.%Get(0).data.from_"|"_entries.%Get(0).data.to_"|"_entries.%Get(0).data.outcome, "finished|executing|failed|interrupted", "it says finished, with the outcome interrupted")
++	Set actions = ##class(OcuTalon.Test.Bridge.AuditLog).Wait(audit, "OcuTalon", "Action", "Action", ref)
++	Do $$$AssertEquals(actions.%Size(), 1, "one Action entry carries the Ref")
++	If actions.%Size() = 1 Do $$$AssertEquals(actions.%Get(0).data.result_"|"_actions.%Get(0).data.approvalRef, "interrupted|"_ref, "and says interrupted")
++	Do $$$AssertEquals(..RunnerRequests(ref), before, "no tool request was sent, so the call did not run again")
++	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.ZzReplayTool).Ran("zz_replay_send"), ran, "and the tool ran 0 times")
++	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Approval).Reconcile(), "a second Reconcile runs")
++	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).SinkCalls("approval.result").%Size(), 1, "and fires nothing more")
++}
++
++/// Saves an executing tool_call row for the replay tool and the runner ChatAgent (the source and runner of a call that a replay would send), so that a
++/// second run of the call would move the runner's request count and the tool's counter. Tracked for the cleanup; returns its Ref.
++Method ReplayRow(state As %String) As %String [ Private ]
++{
++	Set row = ##class(OcuTalon.Test.Bridge.ApprovalRows).NewRow("tool_call", "zz_replay_send", "{}", ..#TOOLCLASS, "ChatAgent")
++	Set sc = ##class(OcuTalon.Test.Bridge.ApprovalRows).Save(row, state, 3600, ..#ANSWERER, .ref)
++	If ref '= "" Set ^OcuTalonTest("Approval", "refs", ref) = ""
++	Do $$$AssertStatusOK(sc, "the replay-tool row "_state_" is saved")
++	Quit ref
++}
++
++/// Story 30.7, row 12 (DW-444): another job holds the replay lock of an executing tool_call, as a live replay does. Reconcile leaves the row executing
++/// and writes no entry and fires no event; once the job releases the lock, the next Reconcile closes it.
++Method TestLiveReplayIsLeftAlone()
++{
++	If '..Ready() Quit
++	If '..UseSharedSink() Quit
++	Set ref = ..FixtureRow("executing", 3600, "tool_call")
++	If ref = "" Quit
++	Set number = "j"_$Increment(^OcuTalonTest("Approval", "jobs"))
++	Kill ^OcuTalonTest("Approval", "job", number)
++	Set ^OcuTalonTest("Approval", "job", number, "spawned") = 1
++	Job ##class(OcuTalon.Test.Bridge.Approval).HoldReplayLockInJob(number, ref, 60)
++	Do ..WaitNode($Name(^OcuTalonTest("Approval", "job", number, "locked")), 20)
++	Do $$$AssertEquals($Get(^OcuTalonTest("Approval", "job", number, "locked")), 1, "a job holds the replay lock of the Ref")
++	Set audit = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
++	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Approval).Reconcile(), "Reconcile runs")
++	Do $$$AssertEquals(..Prop(ref, "State")_"|"_..Prop(ref, "Result")_"|"_..Prop(ref, "FinishedAt"), "executing||", "the row stays executing")
++	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).SinkCalls("approval.result").%Size(), 0, "no event fires")
++	Do ..AssertNoEntry(audit, ref, "no Approval entry names the Ref")
++	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Entries(audit, "OcuTalon", "Action", "Action", ref).%Size(), 0, "and no Action entry")
++	Set ^OcuTalonTest("Approval", "job", number, "release") = 1
++	Do ..WaitNode($Name(^OcuTalonTest("Approval", "job", number, "done")), 20)
++	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Approval).Reconcile(), "Reconcile runs again after the job released the lock")
++	Do $$$AssertEquals(..Prop(ref, "State")_"|"_..Prop(ref, "Result"), "failed|interrupted", "and now closes the row")
++}
++
++/// Story 30.7, row 13 (DW-444): an executing fix row is untouched by Reconcile (Fix.Run closes it).
++Method TestExecutingFixIsLeftAlone()
++{
++	If '..Ready() Quit
++	If '..UseSharedSink() Quit
++	Set ref = ..FixtureRow("executing", 3600, "fix")
++	If ref = "" Quit
++	Set text = ..RowText(ref)
++	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Approval).Reconcile(), "Reconcile runs")
++	Do $$$AssertEquals(..RowText(ref), text, "the executing fix row is unchanged")
++	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).SinkCalls("approval.result").%Size(), 0, "and no event fires")
++}
++
++/// The job body of TestLiveReplayIsLeftAlone: takes LOCK ^OcuTalon.Bridge.Replay(ref) as a live replay does, reports it, and keeps it until the
++/// test sets release or the seconds pass.
++ClassMethod HoldReplayLockInJob(number As %Integer, ref As %String, seconds As %Integer)
++{
++	Set run = $Name(^OcuTalonTest("Approval", "job", number))
++	Try {
++		Lock +^OcuTalon.Bridge.Replay(ref):10
++		If $Test {
++			Set @run@("locked") = 1
++			Set deadline = $ZHorolog + seconds
++			While '$Get(@run@("release")) && ($ZHorolog < deadline) {
++				Hang 0.05
++			}
++			Lock -^OcuTalon.Bridge.Replay(ref)
++		} Else {
++			Set @run@("error") = "the lock was not taken"
++		}
++	} Catch exception {
++		Set @run@("error") = exception.DisplayString()
++	}
++	Set @run@("done") = 1
+ }
+ 
+ /// Row 15: an answer that the row shows but whose task was never completed is delivered when the timer fires: for an approved and a rejected
+@@ -2436,6 +2610,7 @@ ClassMethod Clean()
+ 		Do ..Remove(ref)
+ 	}
+ 	Do ..RemoveOther()
++	Do ..RemoveFakeTasks()
+ 	If $Data(^OcuTalonTest("Approval", "outcomes")) {
+ 		Do ##class(OcuTalon.Bridge.Msg.ApprovalOutcome).%DeleteId(^OcuTalonTest("Approval", "outcomes"))
+ 		Kill ^OcuTalonTest("Approval", "outcomes")
+diff --git a/src/ocutalon/cls/OcuTalon/Test/Bridge/Decide.cls b/src/ocutalon/cls/OcuTalon/Test/Bridge/Decide.cls
+index 33bb0d98..dbba6992 100644
+--- a/src/ocutalon/cls/OcuTalon/Test/Bridge/Decide.cls
++++ b/src/ocutalon/cls/OcuTalon/Test/Bridge/Decide.cls
+@@ -9,6 +9,10 @@
+ ///     probe and no ReplyClass; a reply without a failure records the outcome act and a repeat is answered from the row with no send; a
+ ///     failure reply records a fallback with the reason error and is never sent again; a row with no runner is closed failed, a missing
+ ///     row and a fix row are left alone, and each is answered with a fallback;
++///   - TestToolFailureReasons (Story 30.7, DW-470, rows 14 to 16): a failed replay whose failure text is the provider's no-key error and whose
++///     Reply says the call did not run (ToolsRun 0) records a fallback with the reason no_key and the sentence REPLAYNOKEY as its Reasons; the
++///     same text with ToolsRun 1 (a tool's own error), a provider error that is not the no-key one and a failure with no Reply stay error with
++///     no reasons;
+ ///   - TestToolRowHeldBeforeAnUpdate (Story 30.3, row 9, owner decision U-170): an approved tool_call row with an empty ToolSource, and one with
+ ///     an empty Runner, is closed failed through FinishExecution and never sent to a runner (the tool runs 0 times); the fallback Decision row
+ ///     carries a plain-English reason (HELDBEFOREUPDATE) that holds no class name, no code and no status text;
+@@ -386,6 +390,51 @@ Method TestToolRequest()
+ 	Do ..RemoveToolRows()
+ }
+ 
++/// Story 30.7, DW-470 (rows 14 to 16): the reason and the Reasons of the fallback Decision row of a failed replay. The failure text of the no-key case
++/// is the one that Task 0 measured (the runner fails in BuildAgent, the call does not run, ToolsRun 0). An unreachable provider fails no replay (Task 0:
++/// the replay makes no provider request, so the tool ran), so no sentence is made for it.
++Method TestToolFailureReasons()
++{
++	Set class = "OcuTalon.Bridge.Process.Decide"
++	Set sentence = $Parameter(class, "REPLAYNOKEY")
++	Do $$$AssertEquals(sentence, "No model key is set, so the approved call did not run. Nothing was changed.", "the sentence is the agreed one")
++	Do $$$AssertTrue(sentence '[ "ERROR", "and it holds no code, class name or status text")
++	Set noKey = "ERROR <%AICore>ProviderConfigError: PROVIDERCONFIG is invalid    > ERROR <%AICore>InternalError: Internal AI-Core error: @{env:ZZ_UNSET_VARIABLE} has no value and no :-fallback was given"
++	Set cases = $ListBuild(
++		$ListBuild("no key, the call did not run", noKey, 0, 1, "1|no_key|" _ sentence),
++		$ListBuild("no key text from a tool that ran", noKey, 1, 1, "1|error|"),
++		$ListBuild("a tool's own error", "ZZ tool failure", 1, 1, "1|error|"),
++		$ListBuild("a provider error that is not the no-key one", "Connection refused", 0, 1, "1|error|"),
++		$ListBuild("no Reply at all", noKey, "", 0, "1|error|"))
++	Set position = 0
++	While $ListNext(cases, position, case) {
++		Set label = "(" _ $List(case, 1) _ ")"
++		Set ref = ..ToolRow("zz_replay_throw", "ZzRunner", "failed")
++		Set request = ..NewToolRequest(ref)
++		Kill ^||ZzDecideCalls, ^||ZzProbeSink
++		Set process = ..ToolRecorder()
++		Set process.%TimeCreated = ..Ago(3)
++		Do $$$AssertStatusOK(process.OnRequest(request, .nothing), label _ " the request is sent")
++		Set call = request.%ConstructClone()
++		Set call.DecisionRef = process.DecisionRef
++		Set reply = ""
++		If $List(case, 4) {
++			Set reply = ##class(OcuTalon.Bridge.Msg.Reply).%New()
++			Set reply.FailureText = $List(case, 2)
++			Set reply.ToolsRun = $List(case, 3)
++		}
++		Do $$$AssertStatusOK(process.OnResponse(request, .out, call, reply, "reply"), label _ " OnResponse takes the reply")
++		Set row = ..RowOf(ref, "tool")
++		Do $$$AssertTrue($IsObject(row), label _ " a Decision row of kind tool records it")
++		If $IsObject(row) Do $$$AssertEquals(row.Fallback _ "|" _ row.FallbackReason _ "|" _ row.Reasons, $List(case, 5), label _ " the fallback, its reason and its Reasons")
++		If $IsObject(row) Do $$$AssertEquals(row.Outcome, "tellnow", label _ " with the outcome tellnow")
++		If $IsObject(out) Do $$$AssertEquals(out.Fallback _ "|" _ out.FallbackReason, "1|" _ $Piece($List(case, 5), "|", 2), label _ " and the answer says the same reason")
++		Do $$$AssertEquals(..Calls("send"), 1, label _ " nothing was sent again")
++	}
++	Do $$$AssertEquals($Data(^OcuTalonBP.UsageCapped(##class(OcuTalon.Bridge.Time).LocalDate(##class(OcuTalon.Bridge.Time).NowUtc()))), 0, "no failure marked the day as capped")
++	Do ..RemoveToolRows()
++}
++
+ /// Story 30.3, row 9 (owner decision U-170): an approved tool_call row that was held before ToolSource and Runner existed, with either one empty,
+ /// is closed failed and is never sent to a runner. The person sees the reason in the Reasons of the fallback Decision row: plain English, with no
+ /// class name, no `%`, no `#` or ERROR code and no status text. A row with both set is still sent, and an executing row with nothing set is not closed
+diff --git a/src/ocutalon/cls/OcuTalon/Test/Bridge/Redact.cls b/src/ocutalon/cls/OcuTalon/Test/Bridge/Redact.cls
+index 71aa75af..9738d6ad 100644
+--- a/src/ocutalon/cls/OcuTalon/Test/Bridge/Redact.cls
++++ b/src/ocutalon/cls/OcuTalon/Test/Bridge/Redact.cls
+@@ -5,6 +5,11 @@
+ ///     array); a key that is not in the list keeps its value, and the text is the serialized JSON;
+ ///   - TestPatterns: the free-text patterns (a key followed by = or :, a quoted value, Bearer, sk-ant- and other sk- keys, a Telegram bot
+ ///     token also inside a URL, a JWT, ghp_ and github_pat_ tokens, an AKIA key) are replaced, and the text around them is kept;
++///   - TestDigitalOceanToken (DW-386): a dop_v1_ token of hex digits is replaced in text and in a JSON string, and a shorter one is kept;
++///   - TestPrivateKey (DW-386): a PEM private key block is replaced from its BEGIN line through its END line, or to the end of the text when the
++///     END line is missing, with real and with escaped line breaks, in text and in a JSON string;
++///   - TestAnthropicKey (DW-386): an sk-ant- key is replaced in text and in a JSON string, in either case;
++///   - TestTelegramToken (DW-386): a bot token with a 10-digit id and one with a 13-digit id are replaced in text and in a JSON string;
+ ///   - TestJsonString: a text that is exactly one JSON string, as AI Hub gives the result of a tool that returns text, is redacted by
+ ///     its content: JSON inside the string (also encoded twice) has its sensitive keys replaced, text inside it has its patterns
+ ///     replaced, and a string that needs no change, or that is not alone in the text, is returned as it is or by the free-text rules;
+@@ -90,6 +95,66 @@ Method TestPatterns()
+ 	Do $$$AssertEquals(..Text("{""list"":[""Bearer abc"",""fine""]}"), "{""list"":[""Bearer " _ mark _ """,""fine""]}", "and so are the strings of an array")
+ }
+ 
++/// A DigitalOcean token (DW-386): dop_v1_ and 20 or more hex digits, in text and inside a JSON string.
++Method TestDigitalOceanToken()
++{
++	Set mark = ..#MARK
++	Set token = "dop" _ "_v1_" _ $Translate($Justify("", 64), " ", "a")
++	Do ..Check("token " _ token _ " ok", "token " _ mark _ " ok", "a dop_v1_ token in text")
++	Do ..Check(token, mark, "a text that is the token")
++	Do ..Check({"note": ("made " _ token _ " today")}.%ToJSON(), {"note": ("made " _ mark _ " today")}.%ToJSON(), "and inside a JSON string")
++	Do ..Check({"outer": {"list": [(token)]}}.%ToJSON(), {"outer": {"list": [(mark)]}}.%ToJSON(), "and nested in an array")
++	Set upper = "dop" _ "_v1_" _ $Translate($Justify("", 30), " ", "F")
++	Do ..Check("t " _ upper, "t " _ mark, "with hex digits in upper case")
++	Set short = "dop" _ "_v1_" _ $Translate($Justify("", 19), " ", "a")
++	Do ..Check("t " _ short, "t " _ short, "a shorter run of hex digits is no token")
++}
++
++/// A PEM private key block (DW-386): replaced from its BEGIN line through its END line, or to the end of the text when the text has none.
++Method TestPrivateKey()
++{
++	Set mark = ..#MARK
++	Set lf = $Char(10)
++	Set begin = "-----" _ "BEGIN RSA PRIV" _ "ATE KEY-----"
++	Set end = "-----" _ "END RSA PRIV" _ "ATE KEY-----"
++	Set body = "ZmFrZWZha2VmYWtl" _ lf _ "ZmFrZWZha2VmYWtl"
++	Do ..Check("pem " _ begin _ lf _ body _ lf _ end _ " after", "pem " _ mark _ " after", "a block with an END line, with real line breaks")
++	Do ..Check("pem " _ begin _ "\n" _ $Translate(body, lf, "|") _ "\n" _ end _ " after", "pem " _ mark _ " after", "and with escaped line breaks")
++	Do ..Check("pem " _ begin _ lf _ body _ lf _ "tail text", "pem " _ mark, "a header-only block goes to the end of the text")
++	Do ..Check("pem " _ begin _ "\n" _ "ZmFrZQ==\ntail", "pem " _ mark, "also with escaped line breaks")
++	Set plain = "-----" _ "BEGIN PRIV" _ "ATE KEY-----" _ lf _ body _ lf _ "-----" _ "END PRIV" _ "ATE KEY-----"
++	Do ..Check("a " _ plain _ " b", "a " _ mark _ " b", "a block with no algorithm name")
++	Do ..Check({"pem": (begin _ lf _ body _ lf _ end _ " after")}.%ToJSON(), {"pem": (mark _ " after")}.%ToJSON(), "a block with an END line inside a JSON string")
++	Do ..Check({"pem": ("before " _ begin _ lf _ body)}.%ToJSON(), {"pem": ("before " _ mark)}.%ToJSON(), "a header-only block inside a JSON string")
++	Do ..Check(begin _ lf _ body _ lf _ end _ lf _ begin _ lf _ body _ lf _ end, mark _ lf _ mark, "two blocks are each replaced")
++	Do ..Check("-----" _ "BEGIN CERTIFI" _ "CATE-----" _ lf _ body, "-----" _ "BEGIN CERTIFI" _ "CATE-----" _ lf _ body, "a certificate is no private key")
++}
++
++/// An Anthropic key (DW-386): sk-ant- and the rest of the key, in text and inside a JSON string.
++Method TestAnthropicKey()
++{
++	Set mark = ..#MARK
++	Set key = "sk" _ "-ant-api03-" _ $Translate($Justify("", 40), " ", "x") _ "_-Z9"
++	Do ..Check("key " _ key _ " ok", "key " _ mark _ " ok", "an sk-ant- key in text")
++	Do ..Check("key " _ $ZConvert(key, "U") _ " ok", "key " _ mark _ " ok", "in upper case")
++	Do ..Check({"note": ("used " _ key _ " here")}.%ToJSON(), {"note": ("used " _ mark _ " here")}.%ToJSON(), "inside a JSON string")
++	Do ..Check({"list": [(key), "fine"]}.%ToJSON(), {"list": [(mark), "fine"]}.%ToJSON(), "inside an array")
++}
++
++/// A Telegram bot token (DW-386): the id may have 6 or more digits, in text and inside a JSON string.
++Method TestTelegramToken()
++{
++	Set mark = ..#MARK
++	Set secret = "AAH" _ $Translate($Justify("", 32), " ", "z")
++	For id = "1234567890", "1234567890123", "123456" {
++		Set token = id _ ":" _ secret
++		Do ..Check("token " _ token _ " end", "token " _ mark _ " end", "a token with a " _ $Length(id) _ "-digit id in text")
++		Do ..Check({"note": ("bot " _ token _ ".")}.%ToJSON(), {"note": ("bot " _ mark _ ".")}.%ToJSON(), "and inside a JSON string")
++	}
++	Do ..Check("https://api.example.test/bot1234567890123:" _ secret _ "/getMe", "https://api.example.test/bot" _ mark _ "/getMe", "a 13-digit id inside a URL")
++	Do ..Check("12345:" _ secret, "12345:" _ secret, "an id of 5 digits is no bot token")
++}
++
+ /// A text that is exactly one JSON string is redacted by its content, and is a JSON string again.
+ Method TestJsonString()
+ {
+diff --git a/src/ocutalon/cls/OcuTalon/Test/Bridge/Runner.cls b/src/ocutalon/cls/OcuTalon/Test/Bridge/Runner.cls
+index ebfd5df2..827de284 100644
+--- a/src/ocutalon/cls/OcuTalon/Test/Bridge/Runner.cls
++++ b/src/ocutalon/cls/OcuTalon/Test/Bridge/Runner.cls
+@@ -66,6 +66,10 @@
+ /// that name them. TestStepsRedacted and TestStepsRedactedText drop the session of their turn before they scan: the saved conversation holds what
+ /// the model was shown, the tools' results with their fake secrets included, and it is not a store of steps, logs or errors.
+ /// Added by Story 30.3 (an approved tool call runs exactly once, with no model; AD-6, AD-10, AD-11):
++///   - TestReplayThroughTheRunner also shows that the replay lock ^OcuTalon.Bridge.Replay(<Ref>) is free after every replay (done, a tool that raises, a refused start,
++///     a failure before the call), as a second job sees it (Story 30.7, DW-444);
++///   - TestReplayWithoutAKey (Story 30.7, DW-470, Task 0): a replay with an unset key fails in BuildAgent with the no-key text and ToolsRun 0, and a
++///     replay with an unreachable provider makes no provider request and succeeds;
+ ///   - TestReplayThroughTheRunner: a request of kind tool (the Ref of an approved tool_call in ItemId) to the shadow runner ZzRunner, whose agent is
+ ///     ZzReplayAgent: the stored call runs once (the reply holds no text, ToolsRun 1 and a tool step), the row is done, the grant is gone and the
+ ///     mock got no request (rows 4b, 7, 8 and the success reply); a second request for the same Ref is refused by StartExecution and runs nothing;
+@@ -1025,6 +1029,7 @@ Method TestReplayThroughTheRunner()
+ 	Do $$$AssertEquals(##class(OcuTalon.Bridge.Adapter.StepBuffer).Active(), 0, "and the step buffer")
+ 	Do $$$AssertEquals(##class(OcuTalon.Bridge.Context).TakeGrant("zz_replay_send", {}, tool), 0, "a call after the run finds no grant")
+ 	Do $$$AssertEquals(..ActionEntries(audit, ref, "done"), 1, "one Action entry says done")
++	Do ..AssertReplayLockFree(ref, "(done)")
+ 
+ 	// row 4b: the same request again
+ 	Set sc = host.OnMessage(..ToolRequest(ref), .again)
+@@ -1049,6 +1054,7 @@ Method TestReplayThroughTheRunner()
+ 	Do $$$AssertEquals(..Prop(thrown, "State")_"|"_..Prop(thrown, "Result"), "failed|failed", "(7) the row is failed")
+ 	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.ZzReplayTool).Ran("zz_replay_throw"), 1, "(7) the tool ran once, and is not retried")
+ 	Do $$$AssertEquals(..ActionEntries(audit, thrown, "failed"), 1, "(7) the Action entry says failed")
++	Do ..AssertReplayLockFree(thrown, "(7)")
+ 
+ 	// row 8: could not start
+ 	Set late = ..ApprovedRow("zz_replay_send", "{}", tool, -60)
+@@ -1057,6 +1063,7 @@ Method TestReplayThroughTheRunner()
+ 	Do $$$AssertTrue($IsObject(refused), "(8) with a Reply")
+ 	If $IsObject(refused) Do $$$AssertTrue((refused.FailureText '= "") && (refused.ToolsRun = 0), "(8) with a failure reply and ToolsRun 0: "_refused.FailureText)
+ 	Do $$$AssertEquals(..Prop(late, "State")_"|"_..Prop(late, "Result"), "failed|failed", "(8) the row is closed failed")
++	Do ..AssertReplayLockFree(late, "(8)")
+ 	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.ZzReplayTool).Ran("zz_replay_send"), 1, "(8) nothing ran")
+ 	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Wait(audit, "OcuTalon", "Approval", "Approval", late, , 2).%Size(), 1, "(8) the Approval finished entry is the only entry of the Ref")
+ 	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Entries(audit, "OcuTalon", "Action", "Action", late).%Size(), 0, "(8) no Action entry")
+@@ -1074,6 +1081,7 @@ Method TestReplayThroughTheRunner()
+ 	If $IsObject(duplicate) Do $$$AssertTrue((duplicate.FailureText '= "") && (duplicate.ToolsRun = 0), "(duplicate) with a failure reply and ToolsRun 0: "_duplicate.FailureText)
+ 	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.ZzReplayTool).Ran("zz_replay_send"), ran, "(duplicate) the tool did not run")
+ 	Do $$$AssertEquals(..Prop(busy, "State"), "executing", "(duplicate) and the row is as it was")
++	Do ..AssertReplayLockFree(busy, "(duplicate)")
+ 
+ 	// a failure before ExecuteTool is called: the tool did not run, so ToolsRun is 0, and the row is closed failed
+ 	Set broken = ..ApprovedRow("zz_replay_send", "this is not json", tool, 3600)
+@@ -1082,6 +1090,7 @@ Method TestReplayThroughTheRunner()
+ 	Do $$$AssertTrue($IsObject(unrun), "(before the call) with a Reply")
+ 	If $IsObject(unrun) Do $$$AssertTrue((unrun.FailureText '= "") && (unrun.ToolsRun = 0), "(before the call) with a failure reply and ToolsRun 0: "_unrun.FailureText)
+ 	Do $$$AssertEquals(..Prop(broken, "State")_"|"_..Prop(broken, "Result"), "failed|failed", "(before the call) the row is closed failed")
++	Do ..AssertReplayLockFree(broken, "(before the call)")
+ 	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.ZzReplayTool).Ran("zz_replay_send"), ran, "(before the call) the tool did not run")
+ 
+ 	// a fix row and a missing row are left alone
+@@ -1112,6 +1121,55 @@ Method TestReplayThroughTheRunner()
+ 	Do ..RemoveRows()
+ }
+ 
++/// Story 30.7, DW-470, Task 0 (rows 14 and 15): how a replay fails when the provider is not usable, as the shadow runner ZzRunner (agent
++/// ZzReplayAgent) shows it, and what Decide reads from it (TestToolFailureReasons).
++///   - No key (the key placeholder names a variable that is not set): the runner fails in BuildAgent, before the call: the failure text holds both
++///     pieces of Decide NOKEYTEXT, ToolsRun is 0, the tool did not run, the row is closed failed and its Action entry says failed;
++///   - Provider unreachable (the base URL is a closed port): a replay makes no provider request, so it does not fail: the tool ran once, ToolsRun
++///     is 1, the failure text is empty and the row is done. No sentence is made for an unreachable provider.
++Method TestReplayWithoutAKey()
++{
++	If ..Guard() Quit
++	Set tool = "OcuTalon.Test.Bridge.ZzReplayTool"
++	Set variable = ##class(OcuTalon.Test.Agent.RunnerFixture).#MOCKKEYVARIABLE
++	Do $$$AssertNotEquals($SYSTEM.Util.GetEnviron(variable), "", "the non-secret CI key variable is set")
++	Set audit = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
++	Set pieces = $Parameter("OcuTalon.Bridge.Process.Decide", "NOKEYTEXT")
++
++	// no key
++	Set unset = ..ProviderConfig("", "@{env:"_..#UNSETVARIABLE_"}")
++	Set host = ..NewRunner("OcuTalon.Test.Bridge.ZzReplayAgent", "low", unset)
++	Set ran = ##class(OcuTalon.Test.Bridge.ZzReplayTool).Ran("zz_replay_send")
++	Set ref = ..ApprovedRow("zz_replay_send", "{}", tool, 3600)
++	Set sc = host.OnMessage(..ToolRequest(ref), .reply)
++	Do $$$AssertStatusOK(sc, "(no key) the replay is answered")
++	Do $$$AssertTrue($IsObject(reply), "(no key) with a Reply")
++	If $IsObject(reply) {
++		Set text = $ZConvert(reply.FailureText, "L")
++		For i = 1:1:$Length(pieces, "|") {
++			Do $$$AssertTrue(text [ $ZConvert($Piece(pieces, "|", i), "L"), "(no key) the failure text holds '" _ $Piece(pieces, "|", i) _ "': " _ $Extract(reply.FailureText, 1, 200))
++		}
++		Do $$$AssertEquals(reply.ToolsRun _ "|" _ reply.AgentStepCount, "0|0", "(no key) ToolsRun is 0 and there are no steps")
++	}
++	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.ZzReplayTool).Ran("zz_replay_send"), ran, "(no key) the tool did not run")
++	Do $$$AssertEquals(..Prop(ref, "State") _ "|" _ ..Prop(ref, "Result"), "failed|failed", "(no key) the row is failed")
++	Do $$$AssertEquals(..ActionEntries(audit, ref, "failed"), 1, "(no key) the Action entry says failed")
++	Do ..AssertReplayLockFree(ref, "(no key)")
++
++	// provider unreachable
++	Set closed = {"model_provider": "anthropic", "api_key": ("@{env:" _ variable _ "}"), "base_url": "http://127.0.0.1:9/v1/"}.%ToJSON()
++	Set host = ..NewRunner("OcuTalon.Test.Bridge.ZzReplayAgent", "low", closed)
++	Set ran = ##class(OcuTalon.Test.Bridge.ZzReplayTool).Ran("zz_replay_send")
++	Set other = ..ApprovedRow("zz_replay_send", "{}", tool, 3600)
++	Set sc = host.OnMessage(..ToolRequest(other), .reply)
++	Do $$$AssertStatusOK(sc, "(unreachable) the replay is answered")
++	Do $$$AssertTrue($IsObject(reply), "(unreachable) with a Reply")
++	If $IsObject(reply) Do $$$AssertEquals(reply.FailureText _ "|" _ reply.ToolsRun, "|1", "(unreachable) no failure text and ToolsRun 1: the replay makes no provider request")
++	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.ZzReplayTool).Ran("zz_replay_send"), ran + 1, "(unreachable) the tool ran once")
++	Do $$$AssertEquals(..Prop(other, "State") _ "|" _ ..Prop(other, "Result"), "done|done", "(unreachable) the row is done")
++	Do ..RemoveRows()
++}
++
+ /// AD-6 read literally (DW-452): a replay opens a throwaway AI session before the call and releases it, unlinked and unsaved, on every path. The
+ /// text scan of Test.Bridge.CodeRules cannot tell a call that runs from one under `If 0`, so this runs a real replay through the runner with a
+ /// spy adapter (ZzSpyAdapter) in the shadow host: NewSession came once, before the tool ran; ReleaseThrowaway came once, after it; the agent held
+@@ -1202,6 +1260,31 @@ Method ApprovedRow(name As %String, arguments As %String, source As %String, exp
+ 	Quit ref
+ }
+ 
++/// Asserts that no job of this test holds the replay lock of the Ref (DW-444): a second job takes ^OcuTalon.Bridge.Replay(ref) at once. The lock is
++/// per process, so only another job can tell that this one left it held.
++Method AssertReplayLockFree(ref As %String, label As %String) [ Private ]
++{
++	Set node = $Name(^OcuTalonTest("Replay", "lock", ref))
++	Kill @node
++	Job ##class(OcuTalon.Test.Bridge.Runner).TakeReplayLock(ref)
++	Set deadline = $ZHorolog + 15
++	While ($Get(@node@("done")) = "") && ($ZHorolog < deadline) {
++		Hang 0.05
++	}
++	Do $$$AssertEquals($Get(@node@("taken")), 1, label_": the replay lock of the Ref is free")
++	Kill @node
++}
++
++/// The job body of AssertReplayLockFree: takes the replay lock of the Ref (waiting up to 5 seconds), reports whether it was taken and releases it.
++ClassMethod TakeReplayLock(ref As %String)
++{
++	Set node = $Name(^OcuTalonTest("Replay", "lock", ref))
++	Lock +^OcuTalon.Bridge.Replay(ref):5
++	Set @node@("taken") = $Test
++	If $Test Lock -^OcuTalon.Bridge.Replay(ref)
++	Set @node@("done") = 1
++}
++
+ /// Deletes the fixture rows of ApprovedRow.
+ ClassMethod RemoveRows() [ Private ]
+ {
+diff --git a/src/ocutalon/cls/OcuTalon/Test/Data/Purge.cls b/src/ocutalon/cls/OcuTalon/Test/Data/Purge.cls
+new file mode 100644
+index 00000000..b0e87166
+--- /dev/null
++++ b/src/ocutalon/cls/OcuTalon/Test/Data/Purge.cls
+@@ -0,0 +1,330 @@
++Include %cspBuild
++
++/// Tests of the host's purge, OcuTalon.Data.Purge.Run (Story 30.7; AD-27, AD-17, DW-437). THROWAWAY STACKS AND CI ONLY (Rule 21): Retention.Purge and Run
++/// delete the Turn, Delivery and Session rows of the whole namespace that are old enough, rows that these tests did not make. Every test works from one
++/// clock, Now, and gives Run that clock, so no test waits; every row a test made is removed after the test, also after a failure (Fixture.Clean).
++///   - TestTurnsReadNoPurgedDecision (matrix 1 to 3): after Retention.Purge, a turn 91 days old, its delivery, decisions and usage and its idle session
++///     are gone; a turn 89 days old keeps its decisions and usage, so ShownDecisionRef, Ownership.TurnCost and ChatMessage.FromRow still read them;
++///     with one now for both purges, a turn and a delivery at exactly the cutoff stay and those one second before go, and every kept turn's decisions
++///     exist after the bridge's purge;
++///   - TestSessionKeptWhileActiveOrCurrent (matrix 4 to 6): a session with a Turn, Delivery or Decision at or after the cutoff, or current through a
++///     live CSP session, a pairing, an open approval, a watch or a pending reminder, is kept; one with only an expired store entry, a finished approval
++///     or a reminder that is not pending is purged; a young session is kept, whatever its rows;
++///   - TestOnlyOwnTablesAndAuditKept (matrix 7): the approval and action entries of the IRIS audit log that name a purged session are still there, and
++///     the purge's source names no system namespace, no audit class and no table but the OcuTalon_Data and OcuTalon_Bridge_Data ones, and deletes
++///     only from Turn, Delivery and Session;
++///   - TestBadArguments (matrix 8): a day count of 0, x, "" or 1.5 and a malformed now give an error status that names OcuTalon.Data.Purge.Run and
++///     delete nothing.
++Class OcuTalon.Test.Data.Purge Extends %UnitTest.TestCase
++{
++
++/// The class under test.
++Parameter PURGE = "OcuTalon.Data.Purge";
++
++/// The private CSP session store of the tests.
++Parameter STORE = "^OcuTalonTestPurgeStore";
++
++/// One day, in seconds.
++Parameter DAY = 86400;
++
++/// The clock of the test: the UTC time at the start of each test.
++Property Now As %String;
++
++/// The Refs that the test's fixtures were recorded under, as a comma list.
++Property Refs As %String(MAXLEN = "");
++
++Method OnBeforeOneTest(testname As %String) As %Status
++{
++	Set ..Now = ##class(OcuTalon.Bridge.Time).NowUtc()
++	Set ..Refs = ""
++	Set store = ..#STORE
++	Kill @store
++	Quit $$$OK
++}
++
++Method OnAfterOneTest(testname As %String) As %Status
++{
++	If ..Refs '= "" Do ##class(OcuTalon.Test.Data.Fixture).Clean(..Refs)
++	Set store = ..#STORE
++	Kill @store
++	Quit $$$OK
++}
++
++/// Matrix 1 to 3 (the U-210 test). The decisions of a kept turn exist after the purge, and its cost is its usage.
++Method TestTurnsReadNoPurgedDecision()
++{
++	Set old = ..Session(91)
++	Set kept = ..Session(89)
++	Set oldTurn = ..Turn(old, ..Ago(91 * ..#DAY), .oldDecisions)
++	Set oldDelivery = ..Track(##class(OcuTalon.Test.Data.Fixture).Delivery(old, {"RecordedAt": (..Ago(91 * ..#DAY))}))
++	Set keptTurn = ..Turn(kept, ..Ago(89 * ..#DAY), .keptDecisions)
++	Set keptDelivery = ..Track(##class(OcuTalon.Test.Data.Fixture).Delivery(kept, {"RecordedAt": (..Ago(89 * ..#DAY))}))
++	Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Retention).Purge(90), "Retention.Purge(90) is OK")
++	Do $$$AssertEquals(##class(OcuTalon.Data.Turn).RefIndexExists(oldTurn), 0, "the turn 91 days old is gone")
++	Do $$$AssertEquals(..DeliveryCount(old), 0, "the delivery of the turn 91 days old is gone")
++	Do $$$AssertEquals(..DecisionsExist(oldDecisions), "0|0", "and its two decisions")
++	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.Purge).UsageExists($List(oldDecisions, 1)) _ "|" _ ##class(OcuTalon.Test.Bridge.Purge).UsageExists($List(oldDecisions, 2)), "0|0", "and their usage")
++	Do $$$AssertEquals(##class(OcuTalon.Data.Session).RefIndexExists(old), 0, "and the idle session 91 days old")
++	Do $$$AssertEquals(##class(OcuTalon.Data.Turn).RefIndexExists(keptTurn), 1, "the turn 89 days old is kept")
++	Do $$$AssertEquals(..DeliveryCount(kept), 1, "the delivery 89 days old is kept")
++	Do $$$AssertEquals(##class(OcuTalon.Data.Session).RefIndexExists(kept), 1, "and its session")
++	Do ..AssertReadable(keptTurn, "the turn 89 days old")
++	Do $$$AssertNotEquals(oldDelivery _ keptDelivery, "", "the deliveries were made")
++
++	// Matrix 3: one now for both purges. The session is young, so only the turn and the delivery are in question.
++	Set cutoff = ..Cutoff()
++	Set young = ..Session(0)
++	Set atTurn = ..Turn(young, cutoff, .atDecisions)
++	Set beforeTurn = ..Turn(young, ##class(OcuTalon.Bridge.Time).PlusSeconds(cutoff, -1), .beforeDecisions)
++	Do ##class(OcuTalon.Test.Data.Fixture).Delivery(young, {"RecordedAt": (cutoff), "ChannelMessageId": "zzat"})
++	Do ##class(OcuTalon.Test.Data.Fixture).Delivery(young, {"RecordedAt": (##class(OcuTalon.Bridge.Time).PlusSeconds(cutoff, -1)), "ChannelMessageId": "zzbefore"})
++	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Purge).Run(90, ..Now), "the bridge's purge at now is OK")
++	Do $$$AssertStatusOK(##class(OcuTalon.Data.Purge).Run(90, ..Now, ..#STORE), "and the host's purge at the same now")
++	Do $$$AssertEquals(##class(OcuTalon.Data.Turn).RefIndexExists(atTurn), 1, "the turn created at the cutoff stays")
++	Do $$$AssertEquals(##class(OcuTalon.Data.Turn).RefIndexExists(beforeTurn), 0, "the turn one second before it goes")
++	Do $$$AssertEquals(..DeliveryCount(young, "zzat"), 1, "the delivery recorded at the cutoff stays")
++	Do $$$AssertEquals(..DeliveryCount(young, "zzbefore"), 0, "the delivery one second before it goes")
++	Do $$$AssertEquals(..DecisionsExist(atDecisions), "1|1", "the decisions of the turn at the cutoff exist after the bridge's purge")
++	Do $$$AssertEquals(..DecisionsExist(beforeDecisions), "0|0", "and those of the turn one second before it do not")
++	Do ..AssertReadable(atTurn, "the turn at the cutoff")
++	Do $$$AssertEquals(##class(OcuTalon.Data.Session).RefIndexExists(young), 1, "the young session stays")
++}
++
++/// Matrix 4 to 6. One old session per signal; the purge keeps the ones with activity at or after the cutoff and the current ones.
++Method TestSessionKeptWhileActiveOrCurrent()
++{
++	Set fixture = "OcuTalon.Test.Data.Fixture"
++	Set store = ..#STORE
++	Set cutoff = ..Cutoff()
++	Set recent = ..Ago(10 * ..#DAY)
++	Set keys = ##class(OcuTalon.Data.Ownership).#SESSIONKEY
++	// 1: kept
++	Set keep("a Turn after the cutoff") = ..Session(91)
++	Do ..Track($ClassMethod(fixture, "Turn", keep("a Turn after the cutoff"), recent))
++	Set keep("a Turn at the cutoff") = ..Session(91)
++	Do ..Track($ClassMethod(fixture, "Turn", keep("a Turn at the cutoff"), cutoff))
++	Set keep("a Delivery after the cutoff") = ..Session(91)
++	Do ..Track($ClassMethod(fixture, "Delivery", keep("a Delivery after the cutoff"), {"RecordedAt": (recent)}))
++	Set keep("a Decision after the cutoff") = ..Session(91)
++	Do ..Track($ClassMethod(fixture, "Decision", keep("a Decision after the cutoff"), "decide", recent))
++	Set keep("a live CSP session") = ..Session(91)
++	Set @store@(1) = ..Stored(..Seconds() + 3600)
++	Set @store@(1, 0, keys) = keep("a live CSP session")
++	Set keep("a pairing") = ..Session(91)
++	Do ..Track($ClassMethod(fixture, "Pairing", keep("a pairing")))
++	Set keep("a pending approval") = ..Session(91)
++	Do ..Track($ClassMethod(fixture, "Approval", keep("a pending approval"), "", "pending"))
++	Set keep("an approved approval") = ..Session(91)
++	Do ..Track($ClassMethod(fixture, "Approval", keep("an approved approval"), "", "approved"))
++	Set keep("an executing approval") = ..Session(91)
++	Do ..Track($ClassMethod(fixture, "Approval", keep("an executing approval"), "", "executing"))
++	Set keep("a watch") = ..Session(91)
++	Do ..Track($ClassMethod(fixture, "Check", keep("a watch")))
++	Set keep("a pending reminder") = ..Session(91)
++	Do ..Track($ClassMethod(fixture, "Reminder", keep("a pending reminder"), "2030-01-01T10:00:00Z", "pending"))
++	// 5: purged
++	Set purge("no row at all") = ..Session(91)
++	Set purge("only an expired store entry") = ..Session(91)
++	Set @store@(2) = ..Stored(..Seconds() - 100)
++	Set @store@(2, 0, keys) = purge("only an expired store entry")
++	Set purge("only a done approval") = ..Session(91)
++	Do ..Track($ClassMethod(fixture, "Approval", purge("only a done approval"), "", "done"))
++	Set purge("only a failed approval") = ..Session(91)
++	Do ..Track($ClassMethod(fixture, "Approval", purge("only a failed approval"), "", "failed"))
++	Set purge("only a fired reminder") = ..Session(91)
++	Do ..Track($ClassMethod(fixture, "Reminder", purge("only a fired reminder"), "2030-01-01T10:00:00Z", "fired"))
++	Set purge("only a cancelled reminder") = ..Session(91)
++	Do ..Track($ClassMethod(fixture, "Reminder", purge("only a cancelled reminder"), "2030-01-01T10:00:00Z", "cancelled"))
++	Set purge("only a Turn before the cutoff") = ..Session(91)
++	Do ..Turn(purge("only a Turn before the cutoff"), ..Ago(91 * ..#DAY), .unused)
++	// 6: never by age alone
++	Set young = ..Session(0)
++	Do $$$AssertStatusOK(##class(OcuTalon.Data.Purge).Run(90, ..Now, ..#STORE), "the purge is OK")
++	Set name = ""
++	For {
++		Set name = $Order(keep(name))
++		Quit:name=""
++		Do $$$AssertEquals(##class(OcuTalon.Data.Session).RefIndexExists(keep(name)), 1, "a session with "_name_" is kept")
++	}
++	Set name = ""
++	For {
++		Set name = $Order(purge(name))
++		Quit:name=""
++		Do $$$AssertEquals(##class(OcuTalon.Data.Session).RefIndexExists(purge(name)), 0, "a session with "_name_" is purged")
++	}
++	Do $$$AssertEquals(##class(OcuTalon.Data.Session).RefIndexExists(young), 1, "a session created after the cutoff with no rows is kept")
++}
++
++/// Matrix 7. The audit entries of a purged session stay; the purge touches only OcuTalon's own tables.
++Method TestOnlyOwnTablesAndAuditKept()
++{
++	Set session = ..Session(91)
++	Set marker = ##class(OcuTalon.Bridge.Ids).NewRef()
++	Set mark = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
++	Set approval = {"ref": (marker), "kind": "fix", "change": "answered", "from": "pending", "to": "approved", "outcome": "", "target": "", "ownerRef": (session), "irisUser": "zzpurge", "sessionRef": (session), "channel": "web"}
++	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Audit).Record("Approval", approval), "an Approval entry that names the session is written")
++	Set action = {"action": "zz_tool", "target": "zz", "result": "ok", "counts": {}, "approvalRef": (marker), "irisUser": "zzpurge", "sessionRef": (session), "channel": "web"}
++	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Audit).Record("Action", action), "and an Action entry")
++	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Wait(mark, "OcuTalon", "Approval", "Approval", marker).%Size(), 1, "the Approval entry is found before the purge")
++	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Wait(mark, "OcuTalon", "Action", "Action", marker).%Size(), 1, "and the Action entry")
++	Do $$$AssertStatusOK(##class(OcuTalon.Data.Purge).Run(90, ..Now, ..#STORE), "the purge is OK")
++	Do $$$AssertEquals(##class(OcuTalon.Data.Session).RefIndexExists(session), 0, "the session is gone")
++	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Entries(mark, "OcuTalon", "Approval", "Approval", marker).%Size(), 1, "the Approval entry is still in the IRIS audit log")
++	Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.AuditLog).Entries(mark, "OcuTalon", "Action", "Action", marker).%Size(), 1, "and the Action entry")
++
++	Set source = "OcuTalon.Test.Bridge.Source"
++	Do $$$AssertStatusOK($ClassMethod(source, "Text", ..#PURGE, .text), "the purge has source")
++	Do $$$AssertEquals($ClassMethod(source, "Matches", text, "%sys(?![a-z])"), 0, "its code names no system namespace")
++	Do $$$AssertEquals($ClassMethod(source, "Matches", text, "audit"), 0, "and no audit class or table")
++	Set tables = ""
++	Set deletes = ""
++	Set lines = $ClassMethod(source, "CodeLines", text)
++	Set position = 0
++	While $ListNext(lines, position, line) {
++		Set start = 1
++		While $Locate(line, "(?i)\b(?:from|join) [A-Za-z_]+(?:\.[A-Za-z_]+)+", start, after, found) {
++			Set tables = tables _ $ListBuild($Piece(found, " ", 2))
++			Set start = after
++		}
++		Set start = 1
++		While $Locate(line, "(?i)\bdelete from [A-Za-z_]+(?:\.[A-Za-z_]+)+", start, after, found) {
++			Set deletes = deletes _ $ListBuild($Piece(found, " ", 3))
++			Set start = after
++		}
++		Set start = 1
++		While $Locate(line, "(?i)##class\([A-Za-z.]+\)\.%DeleteId", start, after, found) {
++			Set deletes = deletes _ $ListBuild($Piece($Piece(found, "(", 2), ")", 1))
++			Set start = after
++		}
++	}
++	Do $$$AssertTrue($ListLength(tables) > 0, "the scan found the tables the purge names")
++	Set position = 0
++	While $ListNext(tables, position, table) {
++		Do $$$AssertTrue($Extract(table, 1, 14) = "OcuTalon_Data." || ($Extract(table, 1, 21) = "OcuTalon_Bridge_Data."), "the table "_table_" is an OcuTalon_Data or OcuTalon_Bridge_Data table")
++	}
++	Do $$$AssertEquals(deletes, $ListBuild("OcuTalon_Data.Turn", "OcuTalon_Data.Delivery", "OcuTalon.Data.Session"), "it deletes only from Turn and Delivery (SQL) and Session (%DeleteId)")
++}
++
++/// Matrix 8. A bad day count or a malformed now is an error that names the method, and nothing is deleted.
++Method TestBadArguments()
++{
++	Set old = ..Session(91)
++	Set oldTurn = ..Turn(old, ..Ago(91 * ..#DAY), .decisions)
++	For days = 0, "x", "", 1.5, -1 {
++		Set sc = ##class(OcuTalon.Data.Purge).Run(days, ..Now, ..#STORE)
++		Do $$$AssertStatusNotOK(sc, "a day count of '"_days_"' is an error")
++		Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ "OcuTalon.Data.Purge.Run", "and it names OcuTalon.Data.Purge.Run")
++	}
++	For now = "2026-13-45T10:00:00Z", "yesterday", "2026-11-02 10:00:00", "2026-11-02T25:00:00Z" {
++		Set sc = ##class(OcuTalon.Data.Purge).Run(90, now, ..#STORE)
++		Do $$$AssertStatusNotOK(sc, "a now of '"_now_"' is an error")
++		Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ "OcuTalon.Data.Purge.Run", "and it names OcuTalon.Data.Purge.Run")
++	}
++	Do $$$AssertEquals(##class(OcuTalon.Data.Turn).RefIndexExists(oldTurn), 1, "the turn is still there")
++	Do $$$AssertEquals(##class(OcuTalon.Data.Session).RefIndexExists(old), 1, "and so is the session")
++	Do $$$AssertEquals(..DecisionsExist(decisions), "1|1", "and the decisions")
++}
++
++/// --- helpers ---
++/// The cutoff of a 90-day purge at the clock of the test.
++Method Cutoff() As %String
++{
++	$$$ThrowOnError(##class(OcuTalon.Bridge.Time).DaysCutoff(90, "OcuTalon.Test.Data.Purge", .cutoff, ..Now))
++	Quit cutoff
++}
++
++/// The UTC time that many seconds before the clock of the test.
++Method Ago(seconds As %Integer) As %String
++{
++	Quit ##class(OcuTalon.Bridge.Time).PlusSeconds(..Now, -seconds)
++}
++
++/// The seconds of the clock, as the CSP session store counts them.
++ClassMethod Seconds() As %Integer
++{
++	Set stamp = $ZTimeStamp
++	Quit ($Piece(stamp, ",") * 86400 + $Piece(stamp, ",", 2)) \ 1
++}
++
++/// The stored list of a CSP session, as the store keeps it, with the timeout at the position sesOldTimeout.
++ClassMethod Stored(timeout As %Integer) As %List
++{
++	Set stored = ""
++	For position = 1:1:$$$sesOldTimeout - 1 {
++		Set stored = stored_$ListBuild("")
++	}
++	Quit stored_$ListBuild(timeout)
++}
++
++/// Records the Ref for the clean-up and returns it.
++Method Track(ref As %String) As %String
++{
++	Set ..Refs = ..Refs _ $Select(..Refs = "": "", 1: ",") _ ref
++	Quit ref
++}
++
++/// A session row created that many days before the clock of the test.
++Method Session(days As %Integer) As %String
++{
++	Set ref = ##class(OcuTalon.Test.Data.Fixture).Session("zzpurge")
++	Do ..Track(ref)
++	Set row = ##class(OcuTalon.Data.Session).RefIndexOpen(ref)
++	Set row.CreatedAt = ..Ago(days * ..#DAY)
++	$$$ThrowOnError(row.%Save())
++	Quit ref
++}
++
++/// A turn of the session created at the time, with a triage decision and a reply decision recorded then, and a usage row for each. decisions is
++/// the list of the two decisions' Refs.
++Method Turn(session As %String, at As %String, Output decisions As %List) As %String
++{
++	Set fixture = "OcuTalon.Test.Data.Fixture"
++	Set triage = ..Track($ClassMethod(fixture, "Decision", session, "triage", at))
++	Set reply = ..Track($ClassMethod(fixture, "Decision", session, "reply", at))
++	Do ..Track($ClassMethod(fixture, "Usage", triage, session, {"RecordedAt": (at), "InputTokens": 100, "OutputTokens": 10, "CostUSD": 0.001}))
++	Do ..Track($ClassMethod(fixture, "Usage", reply, session, {"RecordedAt": (at), "InputTokens": 50, "OutputTokens": 5, "CostUSD": 0.0005}))
++	Set ref = ..Track($ClassMethod(fixture, "Turn", session, at))
++	Set row = ##class(OcuTalon.Data.Turn).RefIndexOpen(ref)
++	Set row.TriageDecisionRef = triage
++	Set row.TurnDecisionRef = reply
++	$$$ThrowOnError(row.%Save())
++	Set decisions = $ListBuild(triage, reply)
++	Quit ref
++}
++
++/// "1|0" style: whether each of the two decisions of the list exists.
++ClassMethod DecisionsExist(decisions As %List) As %String
++{
++	Quit ##class(OcuTalon.Bridge.Data.Decision).RefIndexExists($List(decisions, 1)) _ "|" _ ##class(OcuTalon.Bridge.Data.Decision).RefIndexExists($List(decisions, 2))
++}
++
++/// The number of Delivery rows of the owner, of the one message when channelMessageId is given.
++ClassMethod DeliveryCount(owner As %String, channelMessageId As %String = "") As %Integer
++{
++	If channelMessageId = "" {
++		Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Data.Delivery WHERE OwnerRef = ?", owner)
++	} Else {
++		Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Data.Delivery WHERE OwnerRef = ? AND ChannelMessageId = ?", owner, channelMessageId)
++	}
++	If result.%SQLCODE < 0 Throw ##class(%Exception.General).%New("Purge", 5001, , "SQLCODE "_result.%SQLCODE_" "_result.%Message)
++	Do result.%Next()
++	Quit result.%GetData(1)
++}
++
++/// What the readers of a kept turn show (U-210): the shown decision exists, TurnCost is the sum of the turn's two usage rows, and the live payload of
++/// the row carries the decision and the cost.
++Method AssertReadable(turnRef As %String, label As %String)
++{
++	Set turn = ##class(OcuTalon.Data.Turn).RefIndexOpen(turnRef)
++	Do $$$AssertTrue($IsObject(turn), label_" is there")
++	If '$IsObject(turn) Quit
++	Do $$$AssertEquals(##class(OcuTalon.Bridge.Data.Decision).RefIndexExists(turn.ShownDecisionRef()), 1, label_": ShownDecisionRef names an existing decision")
++	Set cost = ##class(OcuTalon.Data.Ownership).TurnCost(turnRef, .sc)
++	Do $$$AssertStatusOK(sc, label_": TurnCost is read")
++	Do $$$AssertEquals(cost.inputTokens _ "|" _ cost.outputTokens, "150|15", label_": TurnCost equals the usage sums, not 0")
++	Set payload = ##class(OcuTalon.Live.Payload.ChatMessage).FromRow(turn)
++	Do $$$AssertTrue($IsObject(payload.Decision) && (payload.Decision.Ref = turn.ShownDecisionRef()), label_": ChatMessage.FromRow carries the decision")
++	Do $$$AssertTrue($IsObject(payload.TurnCost) && (payload.TurnCost.InputTokens = 150), label_": and the cost")
++}
++
++}
+diff --git a/src/ocutalon/cls/OcuTalon/Test/Eval/KeyProof.cls b/src/ocutalon/cls/OcuTalon/Test/Eval/KeyProof.cls
+index 1587cbee..1310106b 100644
+--- a/src/ocutalon/cls/OcuTalon/Test/Eval/KeyProof.cls
++++ b/src/ocutalon/cls/OcuTalon/Test/Eval/KeyProof.cls
+@@ -15,7 +15,7 @@
+ ///     mock's log, each with a positive control (the demo case's name must be found in the globals, a stored placeholder in the stores, the demo case's
+ ///     name in the trace), and Print writes the CHK lines that eval/run.sh reads. A scan that finds nothing and whose control finds nothing fails there.
+ /// The tests are warm-safe: each writes a fresh control value and removes what it made.
+-///   - TestGlobalHits: a value is found as data and as a subscript when the scan is scoped to the database that holds the global, a value nobody holds
++///   - TestGlobalHits: a value in an element of a $List value (8-bit, 16-bit or nested, in data or in a subscript) is found too (DW-448); a value is found as data and as a subscript when the scan is scoped to the database that holds the global, a value nobody holds
+ ///     gives 0, an empty value gives -1 and a database that does not exist gives -1, and the database can be named by its name or its directory;
+ ///   - TestTraceHits: a message body and its header that hold a value are found after a mark and not before it, a value nobody holds gives 0, and an
+ ///     empty value gives -1, in the test's own namespace (the messages of the others are not the test's);
+@@ -28,6 +28,9 @@ Class OcuTalon.Test.Eval.KeyProof Extends %UnitTest.TestCase
+ /// The characters read at a time from an exported message.
+ Parameter CHUNK = 32000;
+ 
++/// The deepest level of lists inside lists that the global scan reads.
++Parameter LISTDEPTH = 10;
++
+ /// The most places that a result names.
+ Parameter MAXPLACES = 20;
+ 
+@@ -59,6 +62,14 @@ Method TestGlobalHits()
+ 		Do $$$AssertEquals(..GlobalHits(value_"-nobody", directory), 0, "a value nobody holds gives 0")
+ 		Do $$$AssertEquals(..GlobalHits("", directory), -1, "an empty value gives -1")
+ 		Do $$$AssertEquals(..GlobalHits(value, "zz-no-such-database"), -1, "a database that does not exist gives -1")
++		// DW-448: a value inside a $List element of a node's data or subscript is found
++		Set listed = "keyproof-list-"_##class(OcuTalon.Bridge.Ids).NewRef()
++		Set ^OcuTalonTest("KeyProof", "list8") = $ListBuild("a", "x"_listed_"y", "b")
++		Set ^OcuTalonTest("KeyProof", "list16") = $ListBuild("a", $Char(8364)_listed_$Char(8364))
++		Set ^OcuTalonTest("KeyProof", "nested") = $ListBuild("a", $ListBuild("b", $ListBuild("c", $Char(8364)_listed)))
++		Set ^OcuTalonTest("KeyProof", $ListBuild("s", $Char(8364)_listed)) = ""
++		Do $$$AssertEquals(..GlobalHits(listed, directory), 4, "a value in an 8-bit element, a 16-bit element, a nested list and a list subscript is found in each")
++		Do $$$AssertEquals(..GlobalHits(listed_"-nobody", directory), 0, "and a value that is not in them gives 0")
+ 	} Catch exception {
+ 		Do $$$AssertStatusOK(exception.AsStatus(), "the global scan runs without an exception")
+ 	}
+@@ -273,15 +284,15 @@ ClassMethod Walk(value As %String, control As %String, databases As %String, Out
+ 				Set data = ""
+ 				If $Data(@reference, data) # 2 {
+ 					Set nodes = 1
+-					If data [ value Set found = found + 1
+-					If (control '= "") && (data [ control) Set controlFound = controlFound + 1
++					If ..Holds(data, value) Set found = found + 1
++					If (control '= "") && ..Holds(data, control) Set controlFound = controlFound + 1
+ 				}
+ 				For {
+ 					Set reference = $Query(@reference, 1, data)
+ 					Quit:reference=""
+ 					Set nodes = nodes + 1
+-					If (reference [ value) || (data [ value) Set found = found + 1
+-					If (control '= "") && ((reference [ control) || (data [ control)) Set controlFound = controlFound + 1
++					If ..Holds(data, value) || ..HoldsSubscript(reference, value) Set found = found + 1
++					If (control '= "") && (..Holds(data, control) || ..HoldsSubscript(reference, control)) Set controlFound = controlFound + 1
+ 				}
+ 			} Catch exception {
+ 				Set readable = 0
+@@ -301,6 +312,35 @@ ClassMethod Walk(value As %String, control As %String, databases As %String, Out
+ 	Quit hits
+ }
+ 
++/// 1 when the text holds the value, as a substring or inside an element of a $List value in it (an element that is itself a $List is read the same
++/// way, to a depth of LISTDEPTH). The elements of a list are stored with length marks, and a wide-character element is not stored as the characters,
++/// so a plain substring match misses them.
++ClassMethod Holds(text As %String, value As %String, depth As %Integer = 0) As %Boolean [ Private ]
++{
++	If text [ value Quit 1
++	If (depth >= ..#LISTDEPTH) || '$ListValid(text) || ($ListLength(text) = 0) Quit 0
++	Set position = 0, holds = 0
++	While 'holds && $ListNext(text, position, element) {
++		If $Data(element) Set holds = ..Holds(element, value, depth + 1)
++		Kill element
++	}
++	Quit holds
++}
++
++/// 1 when the global reference holds the value in the text of a subscript, or inside a subscript that is a $List value (Holds).
++ClassMethod HoldsSubscript(reference As %String, value As %String) As %Boolean [ Private ]
++{
++	If reference [ value Quit 1
++	Set holds = 0
++	For i = 1:1:$QLength(reference) {
++		If ..Holds($QSubscript(reference, i), value) {
++			Set holds = 1
++			Quit
++		}
++	}
++	Quit holds
++}
++
+ /// The local databases to scan, as {name, directory} in list, and in stats the databases that were skipped as read-only or not mounted (stats.skipped) and
+ /// the ones that could not be listed or opened (stats.unreadable). selection is a comma-separated list of names or directories; empty means all. A
+ /// selected database that does not exist is unreadable.
+diff --git a/src/ocutalon/cls/OcuTalon/Test/Install/Retention.cls b/src/ocutalon/cls/OcuTalon/Test/Install/Retention.cls
+index bc8679fb..ed1243d4 100644
+--- a/src/ocutalon/cls/OcuTalon/Test/Install/Retention.cls
++++ b/src/ocutalon/cls/OcuTalon/Test/Install/Retention.cls
+@@ -16,7 +16,7 @@
+ ///   - TestOwnNamespaceOnly (matrix 4): every run of every task was in OCUTALON (the Task Manager's history, read in OnBeforeAllTests) and the 92-day
+ ///     message in OCUORDERS stays, with its body;
+ ///   - TestMessagesPurge (matrix 5), TestAllPurge (matrix 6): the 7-day and the 90-day standard purges;
+-///   - TestOcuTalonPurge (matrix 7): the Task Manager's run of the OcuTalon purge task reaches Bridge.Purge and the Digest and Watch areas with the task's days;
++///   - TestOcuTalonPurge (matrix 7): the Task Manager's run of the OcuTalon purge task reaches Bridge.Purge, Data.Purge (the turn created 61 days ago is gone and the one 59 days ago is kept) and the Digest and Watch areas with the task's days;
+ ///   - TestAuditUntouched (matrix 8), TestHistoryReadsTables (matrix 9: a decision whose trace session and an incident whose trace header are purged
+ ///     are still read through Data.Ownership).
+ Class OcuTalon.Test.Install.Retention Extends %UnitTest.TestCase
+@@ -149,7 +149,7 @@ Method TestNoSettingRead()
+ 	Set pattern = "ocutalon\.data\.setting"
+ 	Do $$$AssertTrue($ClassMethod(source, "Matches", $Char(9)_"Set days = ##class(OcuTalon.Data.Setting).Get(""PurgeDays"")", pattern), "the scanner flags a read of a setting")
+ 	Do $$$AssertTrue('$ClassMethod(source, "Matches", "/// reads no OcuTalon.Data.Setting"_$Char(10)_$Char(9)_"Quit ##class(OcuTalon.Bridge.Purge).Run(days)", pattern), "and passes a comment line and a purge")
+-	For class = "OcuTalon.Install.Task.Purge", "OcuTalon.Install.Step.Retention", "OcuTalon.Install.Step.Watch", "OcuTalon.Install.Step.Digest", "OcuTalon.Bridge.Purge", "OcuTalon.Bridge.Time", "OcuTalon.Install.Registry", "OcuTalon.Digest.Data.Item" {
++	For class = "OcuTalon.Install.Task.Purge", "OcuTalon.Install.Step.Retention", "OcuTalon.Install.Step.Watch", "OcuTalon.Install.Step.Digest", "OcuTalon.Bridge.Purge", "OcuTalon.Data.Purge", "OcuTalon.Bridge.Time", "OcuTalon.Install.Registry", "OcuTalon.Digest.Data.Item" {
+ 		Do $$$AssertStatusOK($ClassMethod(source, "Text", class, .text), class_" has source")
+ 		Do $$$AssertEquals($ClassMethod(source, "Matches", text, pattern), 0, class_" names OcuTalon.Data.Setting nowhere")
+ 	}
+@@ -252,6 +252,8 @@ Method TestOcuTalonPurge()
+ 	Do $$$AssertEquals(##class(OcuTalon.Bridge.Data.Decision).RefIndexExists(..Fx.dec59) _ "|" _ ##class(OcuTalon.Test.Bridge.Purge).UsageExists(..Fx.use59), "1|1", "the ones 59 days old are kept")
+ 	Do $$$AssertEquals(##class(OcuTalon.Data.Incident).RefIndexExists(..Fx.inc61), 0, "the incident closed 61 days ago is gone")
+ 	Do $$$AssertEquals(##class(OcuTalon.Data.Incident).RefIndexExists(..Fx.inc59), 1, "the one closed 59 days ago is kept")
++	Do $$$AssertEquals(##class(OcuTalon.Data.Turn).RefIndexExists(..Fx.turn61), 0, "the turn created 61 days ago is gone")
++	Do $$$AssertEquals(##class(OcuTalon.Data.Turn).RefIndexExists(..Fx.turn59), 1, "the one created 59 days ago is kept")
+ 	Do $$$AssertEquals(##class(OcuTalon.Digest.Data.Item).%ExistsId(..Fx.item61), 0, "the digest item 61 days old is gone")
+ 	Do $$$AssertEquals(##class(OcuTalon.Digest.Data.Item).%ExistsId(..Fx.item59), 1, "the one 59 days old is kept")
+ 	Do $$$AssertEquals(##class(%AI.Agent.Session).%ExistsId(..Fx.session), 0, "the AI session that no link has named for two days is gone")
+@@ -325,6 +327,10 @@ Method Seed()
+ 	Do ..Track("refs", ..Fx.use59)
+ 	Do ..Track("refs", ..Fx.inc61)
+ 	Do ..Track("refs", ..Fx.inc59)
++	Set ..Fx.turn61 = ##class(OcuTalon.Test.Data.Fixture).Turn(owner, ..Utc(61))
++	Set ..Fx.turn59 = ##class(OcuTalon.Test.Data.Fixture).Turn(owner, ..Utc(59))
++	Do ..Track("refs", ..Fx.turn61)
++	Do ..Track("refs", ..Fx.turn59)
+ 	// 9: an incident closed and noticed 30 days ago whose trace is the 9-day Checks message (a header that is its own session)
+ 	Set ..Fx.inc30 = ##class(OcuTalon.Test.Data.Fixture).Incident(owner, ..Utc(30), "ZZNS", "Zz.Retention30", {"State": "closed", "OpenVariant": "", "ClosedAt": (..Utc(30)), "TraceHeaderId": (..Fx.ck9)})
+ 	Do ..Track("refs", ..Fx.inc30)
+diff --git a/src/ocutalon/cls/OcuTalon/Test/Watch/Reader.cls b/src/ocutalon/cls/OcuTalon/Test/Watch/Reader.cls
+index fdcbb02d..8faf09ca 100644
+--- a/src/ocutalon/cls/OcuTalon/Test/Watch/Reader.cls
++++ b/src/ocutalon/cls/OcuTalon/Test/Watch/Reader.cls
+@@ -1,7 +1,7 @@
+ /// Tests of OcuTalon.Watch.Reader (Story 5.1; AD-3, AD-4). THEY RUN IN THROWAWAY STACKS AND IN CI ONLY (Rule 21), with demo mode on, through
+ /// Test.Watch.Case: they need the running production and the Orders demo production in OCUORDERS, and fail with the reason where they do not have them.
+ ///   - TestOrdersIsListed: Productions lists the Orders production, as {namespace OCUORDERS, production OcuTalon.Demo.Orders.Production, displayName
+-///     Orders}, once, and Find finds it by the display name in any case, with white space around it (a line break included, as Label treats it), with a
++///     Orders, state running}, once, and Find finds it by the display name in any case, with white space around it (a line break included, as Label treats it), with a
+ ///     trailing " production", by the class name, and with the namespace argument in any case; a name that is not Orders, an empty name and another
+ ///     namespace find nothing;
+ ///   - TestUnreadableNamespaceIsLeftOut: the service user cannot read OCUTALON's data database in a throwaway, and OCUTALON is not listed (a filter that
+@@ -27,7 +27,7 @@
+ ///     entered the namespace before the check would throw);
+ ///   - TestFailuresNotCurrent (DW-38): a production that is not its namespace's own gives not_current and no row: another production in OCUORDERS, and the
+ ///     Orders production asked for in OCUTALON, which is readable;
+-///   - TestStoppedProduction (DW-222; Story 30.4): with the Orders production cleanly stopped, Productions and Find still list it, Failures still reads the failures that it
++///   - TestStoppedProduction (DW-222; Story 30.4; DW-541): with the Orders production cleanly stopped, Productions and Find still list it (Productions with the state stopped, and running again after the restart), Failures still reads the failures that it
+ ///     made, gives the state stopped, the stop time that IRIS recorded (a stamp between just before and just after the stop) and no disabled item, and a StartWatch reaches
+ ///     WatchOps' shadow instance and is admitted (its row only records a baseline); the production is started again and the test asserts it runs;
+ ///   - TestDisabledItems (Story 30.4): with OrdersToWarehouse disabled in OCUORDERS Failures gives disabled ["OrdersToWarehouse"], with the stop time "" while Orders runs, and
+@@ -64,7 +64,8 @@ Method TestOrdersIsListed()
+ 		If entry.namespace = orders {
+ 			Set count = count + 1
+ 			Do $$$AssertEquals(entry.production_"|"_entry.displayName, production_"|Orders", "the entry of "_orders_" is the Orders production, named Orders")
+-			Do $$$AssertEquals(..SortedKeys(entry), "displayName,namespace,production", "and has those three fields")
++			Do $$$AssertEquals(..SortedKeys(entry), "displayName,namespace,production,state", "and has those four fields")
++			Do $$$AssertEquals(entry.state, "running", "and it runs")
+ 		}
+ 	}
+ 	Do $$$AssertEquals(count, 1, orders_" is listed once")
+@@ -289,6 +290,7 @@ Method TestStoppedProduction()
+ 		If (entry.namespace = ..#ORDERS) && (entry.production = ..#ORDERSPRODUCTION) {
+ 			Set count = count + 1
+ 			Do $$$AssertEquals(entry.displayName, "Orders", "the stopped production is listed as Orders")
++			Do $$$AssertEquals(entry.state, "stopped", "with the state stopped, from the status code of Ens.Director")
+ 		}
+ 	}
+ 	Do $$$AssertEquals(count, 1, "it is listed once")
+@@ -314,6 +316,11 @@ Method TestStoppedProduction()
+ 		Do $$$AssertEquals(response.Ok_"|"_response.Outcome, "1|started", "and admits it")
+ 	}
+ 	Do ..StartOrders()
++	Do $$$AssertEquals(..OrdersRunning(), 1, "the production is started again and runs")
++	Set iterator = $ClassMethod(..#READER, "Productions").%GetIterator()
++	While iterator.%GetNext(, .entry) {
++		If (entry.namespace = ..#ORDERS) && (entry.production = ..#ORDERSPRODUCTION) Do $$$AssertEquals(entry.state, "running", "and its entry says running again")
++	}
+ }
+ 
+ Method TestDisabledItems()
+diff --git a/src/ocutalon/cls/OcuTalon/Test/Watch/Tools.cls b/src/ocutalon/cls/OcuTalon/Test/Watch/Tools.cls
+index 382b35bb..7e6bfbba 100644
+--- a/src/ocutalon/cls/OcuTalon/Test/Watch/Tools.cls
++++ b/src/ocutalon/cls/OcuTalon/Test/Watch/Tools.cls
+@@ -260,7 +260,7 @@ Method TestListProductions()
+ 	Set session = ..Session("list")
+ 	Do ..Begin(session, ##class(OcuTalon.Bridge.Ids).NewRef())
+ 	Set answer = ##class(OcuTalon.Tools.WatchTools).ListProductions()
+-	Do ..AssertObject(answer, {"ok": true, "list": "Orders", "productions": [{"name": "Orders", "namespace": (..#ORDERS)}]}, "list_productions")
++	Do ..AssertObject(answer, {"ok": true, "list": "Orders", "productions": [{"name": "Orders", "namespace": (..#ORDERS), "state": "running"}]}, "list_productions")
+ 	Do $$$AssertEquals(..Calls().%Size(), 0, "nothing is submitted")
+ 	Do ##class(OcuTalon.Bridge.Context).End()
+ 	Set answer = ##class(OcuTalon.Tools.WatchTools).ListProductions()
+diff --git a/src/ocutalon/cls/OcuTalon/Tools/WatchAnswers.cls b/src/ocutalon/cls/OcuTalon/Tools/WatchAnswers.cls
+index 0c68fb3c..39117b10 100644
+--- a/src/ocutalon/cls/OcuTalon/Tools/WatchAnswers.cls
++++ b/src/ocutalon/cls/OcuTalon/Tools/WatchAnswers.cls
+@@ -270,10 +270,14 @@ ClassMethod Checked(results As %DynamicArray) As %DynamicObject
+ 	Quit {"ok": true, "checks": (checks)}
+ }
+ 
+-/// The answer of list_productions: {"ok": true, "list": the joined names, "productions": [{"name", "namespace"}, ...]} for the entries of the reader.
++/// The answer of list_productions: {"ok": true, "list": the joined names, "productions": [{"name", "namespace", "state"}, ...]} for the entries of the
++/// reader; state is the entry's running state (Watch.Reader Productions).
+ ClassMethod Listed(entries As %DynamicArray) As %DynamicObject
+ {
+ 	Set productions = ..Names(entries)
++	For i = 0:1:productions.%Size() - 1 {
++		Do productions.%Get(i).%Set("state", entries.%Get(i).state)
++	}
+ 	Quit {"ok": true, "list": (..Joined(productions)), "productions": (productions)}
+ }
+ 
+diff --git a/src/ocutalon/cls/OcuTalon/Tools/WatchTools.cls b/src/ocutalon/cls/OcuTalon/Tools/WatchTools.cls
+index bd25781d..dc37b70c 100644
+--- a/src/ocutalon/cls/OcuTalon/Tools/WatchTools.cls
++++ b/src/ocutalon/cls/OcuTalon/Tools/WatchTools.cls
+@@ -119,8 +119,8 @@ ClassMethod StopWatch(name As %String(DESCRIPTION = "The name of the production,
+ 	Quit ..Return(##class(OcuTalon.Tools.WatchAnswers).Submitted(result, match))
+ }
+ 
+-/// Lists the productions that can be watched: each one's name and namespace. Use it to answer which productions OcuTalon can watch. It starts
+-/// nothing.
++/// Lists the productions that can be watched: each one's name and namespace, and its running state (running, stopped and so on). Use it to answer which
++/// productions OcuTalon can watch, and whether each is running. It starts nothing.
+ ClassMethod ListProductions() As %DynamicObject
+ {
+ 	Quit ..Return(##class(OcuTalon.Tools.WatchAnswers).Listed(##class(OcuTalon.Watch.Reader).Productions()))
+diff --git a/src/ocutalon/cls/OcuTalon/Watch/IncidentManager.cls b/src/ocutalon/cls/OcuTalon/Watch/IncidentManager.cls
+index 79da517b..2a61d187 100644
+--- a/src/ocutalon/cls/OcuTalon/Watch/IncidentManager.cls
++++ b/src/ocutalon/cls/OcuTalon/Watch/IncidentManager.cls
+@@ -1268,18 +1268,13 @@ Method Drop(ref As %String, event As %String, state As %String) [ Private ]
+ }
+ 
+ /// Deletes the incidents that were closed before the cutoff, with their groups and their fix runs (AD-27), one incident per transaction. The cutoff is now (UTC) moved back
+-/// daysToKeep whole days; an incident closed at the cutoff stays, and so does every incident that is not closed, a closed one with no ClosedAt included.
++/// daysToKeep whole days (Bridge.Time.DaysCutoff); an incident closed at the cutoff stays, and so does every incident that is not closed, a closed one with no ClosedAt included.
+ /// daysToKeep must be a whole number of at least 1; anything else is an error status and nothing is deleted. The result is OK, or the errors of the
+ /// incidents that could not be deleted (the others are deleted).
+ ClassMethod Purge(daysToKeep As %Integer) As %Status
+ {
+-	Set bad = $SYSTEM.Status.Error(5001, "OcuTalon.Watch.IncidentManager.Purge needs a whole number of days, at least 1, not '"_$Extract(daysToKeep, 1, 40)_"'")
+-	If daysToKeep '? 1.N Quit bad
+-	If +daysToKeep < 1 Quit bad
+-	Set now = ##class(OcuTalon.Data.Time).NowUtc()
+-	Set day = $ZDateH($Piece(now, "T", 1), 3) - daysToKeep
+-	If day < 0 Quit $$$OK
+-	Set cutoff = $ZDate(day, 3)_"T"_$Piece(now, "T", 2)
++	Set sc = ##class(OcuTalon.Bridge.Time).DaysCutoff(daysToKeep, "OcuTalon.Watch.IncidentManager.Purge", .cutoff)
++	If $$$ISERR(sc) || (cutoff = "") Quit sc
+ 	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT ID FROM OcuTalon_Data.Incident WHERE State = 'closed' AND ClosedAt < ?", cutoff)
+ 	If rs.%SQLCODE < 0 Quit $SYSTEM.Status.Error(5001, "Reading the closed incidents failed: "_rs.%Message)
+ 	While rs.%Next() {
+diff --git a/src/ocutalon/cls/OcuTalon/Watch/Reader.cls b/src/ocutalon/cls/OcuTalon/Watch/Reader.cls
+index 672e7c37..ee68aaa8 100644
+--- a/src/ocutalon/cls/OcuTalon/Watch/Reader.cls
++++ b/src/ocutalon/cls/OcuTalon/Watch/Reader.cls
+@@ -8,8 +8,9 @@ Include (EnsConstants, EnsErrors)
+ ///     started there, or the one set to start automatically when none had started), so that a cleanly stopped production can still be watched and a
+ ///     watch on it stopped (DW-222). A namespace that never started a production has no entry, and no
+ ///     other Ens.Config.Production row is ever an entry (DW-38). An entry is
+-///     {"namespace", "production" (the class name), "displayName"}. The display name is the Description of the production's definition, or the
+-///     class name when the description is empty. A namespace is readable when the user of the ServiceUser setting of Decide holds Read on the
++///     {"namespace", "production" (the class name), "displayName", "state"}. The display name is the Description of the production's definition, or the
++///     class name when the description is empty. The state is the running state that Ens.Director.GetProductionStatus gives for the namespace (running,
++///     stopped, suspended, troubled, network_stopped, timeout or unknown), as Failures reads it, and no other field says it. A namespace is readable when the user of the ServiceUser setting of Decide holds Read on the
+ ///     resource of the namespace's default global database ($SYSTEM.Security.CheckUserPermission). An unreadable namespace, and one that
+ ///     cannot be entered, are left out. On the online demo (the public flag onlineDemo) the list holds only the Orders demo production, when
+ ///     it is readable.
+@@ -82,11 +83,11 @@ ClassMethod Productions() As %DynamicArray
+ 		If onlyOrders && (namespace '= orders) Continue
+ 		If '##class(%Library.EnsembleMgr).IsEnsembleNamespace(namespace) Continue
+ 		If '..Readable(user, namespace) Continue
+-		Set production = ..Current(namespace, .description)
++		Set production = ..Current(namespace, .description, , , , , , , , , , .state)
+ 		If production = "" Continue
+ 		If onlyOrders && (production '= ordersProduction) Continue
+ 		Set label = ..Label(description)
+-		Do list.%Push({"namespace": (namespace), "production": (production), "displayName": ($Select(label '= "": label, 1: production))})
++		Do list.%Push({"namespace": (namespace), "production": (production), "displayName": ($Select(label '= "": label, 1: production)), "state": (state)})
+ 	}
+ 	Quit list
+ }
+diff --git a/_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md b/_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md
+index fdd91640..cf90311a 100644
+--- a/_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md
++++ b/_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md
+@@ -7,7 +7,7 @@ paradigm: 'Message-driven Interoperability production (pipes and filters) with p
+ scope: 'OcuTalon: the 1.0.0 kit and release, build steps 2 to 6, the personality epics (39 to 41), and step 7 after the contest'
+ status: final
+ created: '2026-10-16'
+-updated: '2026-11-01'
++updated: '2026-11-02'
+ binds: [FR-1..FR-74, NFR-1..NFR-28, CON-1..CON-5, REL-1..REL-11, UJ-1, UJ-2]
+ sources:
+   - _bmad-output/planning-artifacts/prds/prd-OcuTalon-2026-10-16/prd.md
+@@ -910,6 +910,7 @@ Every layer submits commands through `OcuTalon.Core.Commands.Submit`, the one en
+ - **Rule:**
+   - Two standard `Ens.Util.Tasks.Purge` tasks. One, type `messages`, keeps 7 days for the heartbeat and check items, using `optionalMessageLimitToConfigItems` and `BodiesToo`. The other, type `all` (messages, business-process instances, rule logs, the event log, I/O logs, host monitor data and managed alerts; VDocs aren't used), keeps 90 days for everything else, with `KeepIntegrity` and `BodiesToo`. Their day counts are the tasks' own `NumberOfDaysToKeep`. All three purge tasks (these two and `OcuTalon.Install.Task.Purge`) run daily at 03:00 instance time.
+   - `OcuTalon.Bridge.Purge(daysToKeep)` keeps bridge decisions and usage for that many days, and deletes AI sessions that no conversation link has pointed to for a day (left behind by compaction and rotation, S18). One OcuTalon task, `OcuTalon.Install.Task.Purge` (Lane A), with the task property `DaysToKeep` (90), calls it and each area's `Purge(daysToKeep)` declaration: incidents for that many days (Lane A), and live events for 24 hours whatever the number (`OcuTalon.Live`, Lane B).
++  - With the same now, `OcuTalon.Data.Purge.Run(daysToKeep, now)` (called by the Retention area after the bridge's purge) deletes Turn rows created before the cutoff and Delivery rows recorded before it. It deletes a Session row created before it only when the session has no Turn, Delivery or Decision at or after the cutoff and is not current (signed in through a live CSP session, a live Telegram pairing, an open approval request, a watch or a pending reminder): never by age alone. It touches only OcuTalon's own tables and never an IRIS audit entry (AD-17). [AMENDED 2026-11-02, Story 30.7, orchestrator ruling U-210]
+   - **Day counts are task properties,** which the installer's task step writes only when it creates each task: an upgrade keeps a changed value, and an admin can change one in the Task Manager without a release (PRD NFR-19's "by default"). No purge reads `OcuTalon.Data.Setting`.
+   - History (FR-53) reads OcuTalon's and the bridge's tables, not messages.
+ 

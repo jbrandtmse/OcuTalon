@@ -1,0 +1,28 @@
+{
+  "name": "gate-taint-then-act",
+  "match": {
+    "marker": "gate-taint-then-act"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "zz_gate_read",
+        "input": {}
+      }
+    },
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "zz_change_endpoint",
+        "input": {
+          "url": "https://order-partner.example/new-orders"
+        }
+      }
+    },
+    {
+      "status": 200,
+      "text": "The CI mock read the text, and then asked to change the endpoint."
+    }
+  ]
+}

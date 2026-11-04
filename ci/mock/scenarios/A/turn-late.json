@@ -1,0 +1,13 @@
+{
+  "name": "turn-late",
+  "match": {
+    "marker": "turn-late"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "delayMs": 18000,
+      "text": "The CI mock answers this turn late."
+    }
+  ]
+}

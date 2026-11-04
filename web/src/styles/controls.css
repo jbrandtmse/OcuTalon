@@ -1,0 +1,146 @@
+/*
+  The shared controls' global rules: the button variants, the text link, and the panes of the overlays that the CDK
+  renders outside the app (a popover's pane, a dialog's scrim). Colours, sizes, radii and type come from the DESIGN.md
+  tokens of tokens.css (the font through base.css's --font-ui stack); the borders, the underline and the spinner's turn
+  are plain values. Every link is underlined at rest: .link, a.button and the links of the components. The focus ring comes from base.css and nothing here overrides it.
+*/
+
+/* A button: primary, secondary, attention, ghost or inactive. The height is the control height; ghost is the target minimum. */
+.button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-2);
+  padding: 0 var(--space-4);
+  border: 1px solid transparent;
+  font-family: var(--font-ui);
+  font-size: var(--button-primary-typography-font-size);
+  font-weight: var(--button-primary-typography-font-weight);
+  line-height: var(--button-primary-typography-line-height);
+  text-decoration: none;
+  cursor: pointer;
+}
+
+.button[aria-disabled='true'] {
+  cursor: default;
+}
+
+.button-primary {
+  min-height: var(--space-control-height);
+  border-radius: var(--rounded-sm);
+  background: var(--button-primary-background);
+  color: var(--button-primary-foreground);
+}
+
+/* A busy button (aria-disabled) ignores presses, so it shows no hover. */
+.button-primary:hover:not([aria-disabled='true']) {
+  background: var(--button-primary-background-hover);
+}
+
+.button-secondary {
+  min-height: var(--space-control-height);
+  border-radius: var(--rounded-sm);
+  border: var(--button-secondary-border);
+  background: var(--button-secondary-background);
+  color: var(--button-secondary-foreground);
+}
+
+.button-secondary:hover:not([aria-disabled='true']) {
+  background: var(--button-secondary-background-hover);
+}
+
+.button-attention {
+  min-height: var(--space-control-height);
+  border-radius: var(--rounded-sm);
+  background: var(--button-attention-background);
+  color: var(--button-attention-foreground);
+}
+
+.button-attention:hover:not([aria-disabled='true']) {
+  background: var(--button-attention-background-hover);
+}
+
+.button-ghost {
+  min-height: var(--space-target-min);
+  border-radius: var(--rounded-sm);
+  background: var(--button-ghost-background);
+  color: var(--button-ghost-foreground);
+}
+
+.button-ghost:hover:not([aria-disabled='true']) {
+  background: var(--button-ghost-background-hover);
+}
+
+/* A link styled as a button keeps the text link's underline: 1px with a 2px offset, 2px on hover and keyboard focus. */
+a.button {
+  text-decoration-line: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+a.button:hover,
+a.button:focus-visible {
+  text-decoration-thickness: 2px;
+}
+
+/* A button that cannot act now: dashed, with no hover. It stays focusable and says why elsewhere. */
+.button-inactive {
+  min-height: var(--space-control-height);
+  border-radius: var(--rounded-sm);
+  border: var(--button-inactive-border);
+  background: var(--button-inactive-background);
+  color: var(--button-inactive-foreground);
+  cursor: default;
+}
+
+/* The spinner of a busy button turns in the button's own colour; with reduced motion it stands still (and base.css stops every animation). */
+.button .spinner {
+  animation: button-spin 1s linear infinite;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .button .spinner {
+    animation: none;
+  }
+}
+
+@keyframes button-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* A skeleton block: a static stand-in for content on its way. It never shimmers, pulses or fades; the page that uses it
+   sets the size and marks the group aria-hidden. */
+.skeleton {
+  display: block;
+  background: var(--skeleton-background);
+  border-radius: var(--skeleton-radius);
+}
+
+/* A text link: underlined 1px with a 2px offset, 2px on hover and keyboard focus. */
+.link {
+  color: var(--link-foreground);
+  text-decoration-line: underline;
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+.link:hover,
+.link:focus-visible {
+  text-decoration-thickness: 2px;
+}
+
+/* A popover's pane. */
+.app-popover {
+  background: var(--popover-background);
+  border: var(--popover-border);
+  border-radius: var(--popover-radius);
+  box-shadow: var(--popover-shadow);
+  color: var(--ink);
+}
+
+/* A dialog's scrim. */
+.cdk-overlay-backdrop.app-dialog-scrim {
+  background: var(--dialog-scrim);
+}

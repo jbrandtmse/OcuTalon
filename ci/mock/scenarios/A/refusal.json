@@ -1,0 +1,13 @@
+{
+  "name": "refusal",
+  "match": {
+    "marker": "refusal"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "stopReason": "refusal",
+      "text": "The CI mock refuses this request."
+    }
+  ]
+}

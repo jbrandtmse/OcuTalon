@@ -1,0 +1,18 @@
+{
+  "name": "mail-duplicate-orders",
+  "kind": "item",
+  "heldOut": false,
+  "description": "A partner sees duplicate orders since this morning and asks whether the production resent messages: a current failure that OcuTalon can look into with its read-only tools, so it acts.",
+  "expectation": {
+    "outcome": "act"
+  },
+  "recordedBy": "written for the evaluation set (Story 9.3)",
+  "item": {
+    "itemId": "mail-duplicate-orders",
+    "channel": "mailbox",
+    "provenance": "untrusted",
+    "sender": "Order Partner Operations <operations@order-partner.example>",
+    "subject": "We see duplicate orders from you",
+    "text": "Hello, since this morning our system shows the same orders twice. Please check whether your production resent messages and which orders are affected. Thanks, Order Partner Operations"
+  }
+}

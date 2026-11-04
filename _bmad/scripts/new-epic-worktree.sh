@@ -83,7 +83,7 @@ fi
 # Clean-tree gate. The worktree base is excluded: it is normally gitignored, but other
 # epics' live worktrees must never read as dirt even when the ignore line is missing.
 DIRT="$(git status --short -- . ":(exclude)$WT_BASE")"
-[ -z "$DIRT" ] || { echo "ERROR: main checkout is dirty; commit or stash first" >&2; echo "$DIRT" >&2; exit 1; }
+[ -z "$DIRT" ] || { echo "ERROR: main checkout is dirty; commit or stash first (the orchestrator commits its own cycle-log-parallel.md / epic-dependencies.yaml writes before provisioning)" >&2; echo "$DIRT" >&2; exit 1; }
 for sp in $SUBS; do
   if [ -e "$sp/.git" ]; then
     [ -z "$(git -C "$sp" status --short)" ] || { echo "ERROR: submodule '$sp' is dirty; clean it first" >&2; exit 1; }
@@ -95,6 +95,11 @@ if [ "$RESUME" != "yes" ]; then
   [ -n "$FEATURE" ] || FEATURE="$(git branch --show-current)"
   if git show-ref --verify --quiet "refs/heads/$EPIC_BRANCH"; then
     git worktree add "$WT_PATH" "$EPIC_BRANCH"
+  elif git ls-remote --exit-code --heads origin "$EPIC_BRANCH" >/dev/null 2>&1; then
+    # The branch exists only on origin (another machine, or a pruned local ref): track it, never re-create it from the feature branch.
+    git fetch origin "$EPIC_BRANCH"
+    git worktree add "$WT_PATH" -b "$EPIC_BRANCH" "origin/$EPIC_BRANCH"
+    git -C "$WT_PATH" branch --set-upstream-to="origin/$EPIC_BRANCH"
   else
     git worktree add "$WT_PATH" -b "$EPIC_BRANCH" "$FEATURE"
     git -C "$WT_PATH" push -u origin "$EPIC_BRANCH"

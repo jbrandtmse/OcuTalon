@@ -1,0 +1,499 @@
+---
+title: 'Story 11.8: The chat cancels several reminders in one call and says it can set them'
+type: 'feature'
+created: '2026-10-31'
+status: 'done'
+baseline_revision: '497c85e7ef67a448264ef269ca1a46a4629ca35d'
+baseline_commit: '497c85e7ef67a448264ef269ca1a46a4629ca35d'
+review_loop_iteration: 0
+followup_review_recommended: false
+context:
+  - '{project-root}/_bmad-output/implementation-artifacts/epic-11-context.md'
+warnings: ['oversized']
+deferred:
+  - summary: >-
+      Records that name the retired BANDPERCENT in a reopen condition need rewording by the lead.
+    evidence: |-
+      `deferred-work.md` (the Story 1.9 entry, reopen_if "BANDPERCENT has to grow above 29") and `spec-1-9-no-model-request-goes-over-100-000-tokens.md` carry a reopen_if that names a parameter the test no longer has; the bound now follows the agent's system prompt (ENVELOPECHARS).
+    location: >-
+      _bmad-output/implementation-artifacts/deferred-work.md
+    severity: low
+---
+
+<intent-contract>
+
+## Intent
+
+**Problem:** `cancel_reminder` takes one ref per call. A "cancel all my reminders" turn with three pending reminders needs list, cancel, cancel, cancel and a reply: five model requests, over Chat's ceiling of 4 (AD-20), so the turn ends unusable after the cancels ran (DW-140). Chat's instructions also name no reminder ability, and their first rule tells the model to answer "a command" with "I can't run commands", so a live model may refuse to set a reminder (DW-142). The tests that check a turn's Visual Trace steps hold three copies of one checker (DW-316).
+
+**Approach:** `cancel_reminder` takes `reminderRefs`, one or more refs, and submits one `CancelReminder` per ref inside the one tool call. Each command gets its own `IdempotencyKey` at the next command position (U-118, owner). AD-20 is not changed. Chat's instructions gain a reminder block ahead of the no-commands rule, and the rule itself is unchanged. One public step checker in `Test.Agent.RunnerFixture` serves the three step-checking tests. Everything is pinned on the CI mock. The live check on Claude Haiku 5.5 is Story 38.1's.
+
+## Boundaries & Constraints
+
+**Always:**
+- **Thin tools (Story 1.10, decision 5).** The tool passes each ref to the owner as given, in order. It does not dedupe and does not stop at a refusal. `ReminderOps` decides each ref, and the tool reads and writes no table (AD-1, AD-33).
+- **One command per ref.** Each ref goes through `CommandCall.Run`, so each command carries origin `tool`, the session, and the key `<ItemId>:<n>`, where n is the next command position (`Bridge.Context.CommandCount`).
+- **Session check first.** `CommandCall.Session` runs before the refs are read. A call that is not a session's turn answers `NOSESSION`, whatever its arguments, and submits nothing.
+- **Private helpers.** Every helper in `ReminderTools` is `[ Private ]`. A public method of a `%AI.Tool` class becomes a tool, and `TestDeclarations` pins three.
+- **Text rules.** Model-facing texts are ASCII sentences. Comments state the contract (Rule 14).
+- **Mock scenarios.** New ones go under `ci/mock/scenarios/A/`.
+
+**Never:**
+- Change AD-20's ceiling (`Chat.MaxIterations` stays 4) or any AD text.
+- Change `CommandCall`'s key rule, or `src/bridge/cls/OcuTalon/Bridge/Context.cls` (Epic 30's file).
+- Change the catalog key `agent.noCommands`, or the instruction line that quotes it.
+- Change the step label "Cancelling a reminder".
+- Change `ci/mock/mock.mjs` or `ci/mock/scenarios.mjs` (AD-22, U-194).
+- Edit a file of Epics 15, 30, 12 or 13. Among them are `Test/Bridge/Gate.cls`, `Test/Bridge/CodeRules.cls` and `Bridge/Context.cls`.
+- Add a browser spec, or change `ci/units.sh`.
+- Use a real model key, or run any test on slot A.
+
+## I/O & Edge-Case Matrix
+
+| Scenario | Input / State | Expected Output / Behavior | Error Handling |
+|----------|--------------|---------------------------|----------------|
+| several refs (DW-140) | session turn; `reminderRefs` [R1,R2,R3]; next position p | three `CancelReminder` commands in order, keys `:p`, `:p+1`, `:p+2`; answer `{"ok": true, "results": [Answer(R1), Answer(R2), Answer(R3)]}`, each entry with its `ref` | none |
+| one refused | as above, owner refuses R2 | R1 and R3 still submitted; R2's entry is `{"ok": false, "message": <owner's>, "ref": R2}`; top `ok` false | refusal stays in its entry |
+| one ref | `["R"]` or the JSON string `"R"` | one command; flat answer exactly as today (`{"ok","message","ref","due","dueLocal"}` or the owner's refusal) | unchanged |
+| failed submit | double in fail mode, [R1,R2] | both recorded; two entries `{"ok": false, "message": NOTSENT, "ref": Ri}`; one warning each | NOTSENT per entry |
+| bad shape | left out, `[]`, `{}`, an entry that is not a string (`5`, `{}`, `null`) | `{"ok": false, "message": BADREFS}` | nothing submitted |
+| no session's turn | no context, any arguments | `{"ok": false, "message": NOSESSION}` | nothing submitted |
+| cancel all, real owner (DW-140, AD-20) | session A has three pending reminders, B has one; "Cancel all my reminders." | Chat makes 3 requests (list, one cancel call, reply), under the ceiling of 4; A's three rows cancelled with keys `:2`, `:3`, `:4`, waiters ended, rail empty; B untouched | no fallback |
+
+</intent-contract>
+
+## Code Map
+
+**The tool**
+- `src/ocutalon/cls/OcuTalon/Tools/ReminderTools.cls`:
+  - :1-14 is the class doc;
+  - :18-19 is `BADDELAY`, the pattern for `BADREFS`;
+  - :25 is `STEPLABELCANCELREMINDER`, unchanged;
+  - :71-80 is `CancelReminder(reminderRef)`, which this story changes. Its doc comment is the description the model reads. The argument's `DESCRIPTION` is what the model reads about it.
+- `src/ocutalon/cls/OcuTalon/Tools/CommandCall.cls`, read only:
+  - :36-62 `Run`: the key is `ItemId:(CommandCount+1)`, written back;
+  - :66-73 `Session(.context)`: public, "" or the NOSESSION object;
+  - :77-90 `Answer`;
+  - :132 `Refusal` is private, so the tool builds its own `{"ok": false, "message": ...}`.
+- `src/bridge/cls/OcuTalon/Bridge/Context.cls:4-5, 50-55`, read only (Epic 30): `CommandCount` is "the number of commands that the tools of the call have submitted".
+- `src/ocutalon/cls/OcuTalon/Tools/Reminders.cls`: the toolset `XData`. It needs no change.
+- `src/ocutalon/cls/OcuTalon/Schedule/ReminderOps.cls:172-209`, read only: `Cancel`. A key that an earlier cancel used for another ref is refused `reused_key`, which is why each ref needs its own key. A ref that is not one of the session's pending reminders is refused `no_reminder`.
+- Measured at plan time on slot A (build 154U):
+  - `%AI.Tool.Schema.%ParameterSchema("%Library.DynamicArray", ...)` gives `{"type":"array","items":{"type":"string"}}`;
+  - `%AI.ToolMgr.ExecuteTool` checks neither required nor unknown arguments nor their types: `cancel_reminder` with `{}`, an unknown key, or an array for a string all reached the method, which answered NOSESSION;
+  - `%AI.Tool.Generator.GenerateInvoke` passes a dynamic-class argument through as `args.<name>`.
+  - Whether the XData toolset compiler passes the argument the same way is Task 0's to confirm (inference until then).
+
+**The agent**
+- `src/ocutalon/cls/OcuTalon/Agent/Chat.cls`:
+  - :1-6 is the class doc;
+  - :21 is `MaxIterations` = 4, unchanged;
+  - :37-39 is "What you do:" and its no-commands line, unchanged. The reminder block goes between them.
+
+**The tests and fixtures**
+- `src/ocutalon/cls/OcuTalon/Test/Tools/Reminders.cls` (Lane A; area Tools, shard lane-a@rest, CI group `shards-2`):
+  - :1-57 is the header;
+  - :159-245 is `TestDeclarations`: :168 is `want("cancel_reminder")`, and :180 is the type pin of delaySeconds, the pattern for the new type pin;
+  - :329-386 are `TestCancel` and `TestCancelRefused`;
+  - :816-847 is `TestBadDelayThroughTheToolManager`, the pattern for a tool-manager test;
+  - :849-893 are `Prepare`, `Begin` and `CallTool`;
+  - :928-963 is `AssertSteps`, the DW-316 copy;
+  - :1103 is `RefOf(tag)`.
+- `src/ocutalon/cls/OcuTalon/Test/Tools/CommandsDouble.cls`:
+  - :1-25 is the doc of its modes;
+  - :50-60 is the `refuse` mode by verb. The new `refuseRef` mode sits beside it.
+- `src/ocutalon/cls/OcuTalon/Test/Schedule/ReminderChat.cls` (Lane B's file, changed under AD-29's Epic 11 exception; area Schedule, shard lane-b, CI group `image`):
+  - :1-20 is the header;
+  - :33-34 is `FIXEDREF`;
+  - :92-110 is `OnAfterOneTest`;
+  - :115-163 are `Turn` and `AssertChat`;
+  - :223-233 is `ListedRefs`;
+  - :237-292 are `WaitSteps` and `AssertToolSteps`, the DW-316 copy;
+  - :352-398 is `TestCancelThroughChat`, the pattern for the new test.
+- `src/ocutalon/cls/OcuTalon/Test/Watch/Turns.cls:264-291`: `AssertSteps(answer, session, label, tool, status)` is the third copy. Its callers (:64, :94, :154) all pass "ok". Area Watch, shard lane-a@Checks,Install,Watch, CI group `shards`.
+- `src/ocutalon/cls/OcuTalon/Test/Agent/RunnerFixture.cls`:
+  - :1-56 is the header;
+  - :323-333 `Headers`, :335-346 `StepsOf` and :415 `CountTo`;
+  - :823-861 is `FallbackProblems`, the "; "-joined problem-string pattern that the new checker follows.
+- `src/ocutalon/cls/OcuTalon/Test/Agent/Instructions.cls` (area Agent, shard lane-a@rest, CI group `shards-2`):
+  - :1-25 is the header;
+  - :67-115 is `TestChat`;
+  - :171 is the `cancel_reminder` argument in `TestToolsets`.
+- `src/ocutalon/cls/OcuTalon/Test/Schedule/ReminderOpsFixedRef.cls`, read only: `Next(ref)` gives the next set its Ref, once.
+- `src/ocutalon/cls/OcuTalon/Test/Schedule/ReminderFixture.cls`, read only: `Remove` :96, `RemoveAll` :143, `WaitEnded` :221.
+- Read only and unchanged, but they read what changes:
+  - `Test/Bridge/Gate.cls:1764` passes `{"reminderRef":"x"}`. The gate denies the call before the method runs, and ExecuteTool checks no argument (measured), so the test is unaffected. Epic 30's file.
+  - `Test/Bridge/CodeRules.cls:585-586` and `ToolCodeClean` scan ReminderTools: no SQL, table or global, and only the three command classes.
+  - `Test/Install/Tools.cls:89` pins the label.
+  - `Test/Agent/Runners.cls:305`: Chat's system block is already cache-marked, and it only grows.
+
+**The mock**
+- `ci/mock/scenarios/A/reminder-cancel.json:19` and `ci/mock/scenarios/B/reminder-cancel-chat.json:19` send `"reminderRef"`.
+- The B file is also read by `web/e2e/reminder/chat.spec.ts:142` (live:sign-in, CI group `browser`).
+- `ci/mock/scenarios/B/reminder-thursday.json` (marker `reminder-thursday`) sets "load the new certificate" at the local time 2030-11-07T10:00:00. It is read only.
+
+## Tasks & Acceptance
+
+**Execution:**
+- `ci/mock/scenarios/A/reminder-cancel-all.json` -- new, marker `reminder-cancel-all`. Three replies:
+  - `list_reminders`;
+  - `cancel_reminder` with `{"reminderRefs": ["zzReminderChatCancel02","zzReminderChatCancel03","zzReminderChatCancel04"]}`;
+  - the text "The CI mock cancelled the reminders.".
+- `ci/mock/scenarios/A/reminder-cancel.json`, `ci/mock/scenarios/B/reminder-cancel-chat.json` -- the input becomes `{"reminderRefs": ["<the same Ref>"]}`. The B edit is a key rename under AD-29's Epic 11 exception, with no behaviour change.
+- `src/ocutalon/cls/OcuTalon/Tools/ReminderTools.cls` -- the tool change (DW-140):
+  - `CancelReminder(reminderRefs As %DynamicArray(DESCRIPTION = "The refs of the reminders to cancel, each exactly as list_reminders gave it: one or more."))`. The argument stays required in the schema.
+  - Add `Parameter BADREFS = "reminderRefs must hold one or more refs, each as list_reminders gave it, so nothing was cancelled."`.
+  - The steps, in order:
+    1. `CommandCall.Session` (NOSESSION).
+    2. Read the refs: a non-empty `%DynamicArray` whose entries are all JSON strings, or a non-empty scalar (one ref). Anything else answers BADREFS.
+    3. One ref: return the flat answer of today's code.
+    4. Several refs: one `Run` per ref; each entry is `Answer` (or the `Run` refusal), with `ref` set to the given ref when the entry has none. The answer is `{"ok": <boolean: every entry ok>, "results": [...]}`, returned once through `Return`.
+  - Replace the method's doc comment with: "Cancels pending reminders of the user in this conversation. Give in reminderRefs the ref of every reminder to cancel, exactly as list_reminders gave it, all in this one call: one ref, or several, such as every pending one when the user asks to cancel all of them. With one ref, the answer says whether that reminder was cancelled. With several, ok is true only when every one was cancelled, and results holds one answer for each ref, in the order given, each with its ref. When a reminder was not cancelled, its message says why, in plain English, so tell the user."
+  - Update the class doc.
+- `(Task 0, measure)` -- once the `ReminderTools` change compiles on slot A, read `cancel_reminder`'s discovered `parameters` through a fresh `%AI.ToolMgr` with no bridge context (it answers NOSESSION and submits nothing). Record the schema under Verification. On the first warm run of `TestCancelThroughTheToolManager`, record what a JSON array and a JSON string reach the method as. If the toolset path decodes the array as anything other than a `%DynamicArray`, read that form into the same list of refs, and record it.
+- `src/ocutalon/cls/OcuTalon/Agent/Chat.cls` -- DW-142. Insert as the first bullet of "What you do:", before the unchanged no-commands line, exactly:
+  ```
+  - You can set, list and cancel the user's reminders in this conversation. A request about a reminder is never a request to run a command:
+    - If the user asks you to remind them of something, call set_reminder, then say what you set and when it is due, from the answer.
+    - If the user asks which reminders they have, call list_reminders and name each one with its due time.
+    - If the user asks you to cancel one or more reminders, call list_reminders first when you do not have their refs. Then call cancel_reminder once, with the refs of every reminder to cancel. Then say which reminders you cancelled and, for any that was not cancelled, why, from its message in the answer.
+  ```
+  The class doc says that the reminder block comes before the no-commands rule, and that a test pins both.
+- `src/ocutalon/cls/OcuTalon/Test/Agent/RunnerFixture.cls` -- add `ClassMethod StepProblems(decisionRef As %String, sessionId As %Integer, labels As %List, tools As %List, runner As %String = "", seconds As %Integer = 10) As %String` (DW-316). It polls `StepsOf` every 0.25 s, for at most `seconds`, until it has 1 + 2n steps. It then names, joined by "; ", or answers "" when there is nothing to name:
+  - kinds other than `model` followed by n pairs of `,tool,model`;
+  - a tool step i with a label other than labels(i), a summary that lacks tools(i), or a status other than `ok`;
+  - a step with a header outside `sessionId`;
+  - a step with no header in it;
+  - when `runner` is not empty, a count of the runner's replies to Decide in the session other than 1.
+  - Add it to the header.
+- `src/ocutalon/cls/OcuTalon/Test/Tools/Reminders.cls`, `src/ocutalon/cls/OcuTalon/Test/Schedule/ReminderChat.cls`, `src/ocutalon/cls/OcuTalon/Test/Watch/Turns.cls` -- each step checker becomes one `$$$AssertEquals(StepProblems(...), "", ...)` call:
+  - Reminders: `AssertSteps` passes runner `ChatAgent`;
+  - ReminderChat: `AssertToolSteps` opens `row.TraceHeaderId`, asserts that it exists, and passes its `SessionId`. `WaitSteps` goes;
+  - Turns: `AssertSteps` passes `ChatAgent`, and its `status` argument goes.
+- `src/ocutalon/cls/OcuTalon/Test/Tools/CommandsDouble.cls` -- add the mode `^OcuTalonTest("CommandsDouble","refuseRef",<ReminderRef>) = <message>`: a `CancelReminder` of that ref is refused with that message. Document it with the other modes.
+- `src/ocutalon/cls/OcuTalon/Test/Tools/Reminders.cls` -- `TestDeclarations`: the input is `reminderRefs`, required, of type `array` with items of type `string`. Add two tests and update the header:
+  - `TestCancelSeveral` (in process): the matrix rows "several refs", "one refused" (`refuseRef` on R2), "one ref" (`["R1"]`, and the string "R1") and "failed submit". Each checks the double's records (class, origin, session, key, `ReminderRef`) and the whole answer (`AssertObject` per entry).
+  - `TestCancelThroughTheToolManager` (in process, a fresh `%AI.ToolMgr`, as `TestBadDelayThroughTheToolManager` does): `{"reminderRefs": [R1,R2]}` gives two commands and the several-ref answer; `{"reminderRefs": "R3"}` gives one command and the flat answer; each bad shape of the matrix gives BADREFS and records nothing.
+- `src/ocutalon/cls/OcuTalon/Test/Schedule/ReminderChat.cls` -- add `TestCancelAllThroughChat`:
+  - A sets three reminders with the marker `reminder-thursday`, each after `ReminderOpsFixedRef.Next(zzReminderChatCancel0<k>)` for k = 2, 3, 4. B sets one the same way, with no fixed Ref.
+  - A sends "Cancel all my reminders. [[mock:reminder-cancel-all]]".
+  - It asserts the last matrix row, and also:
+    - `AssertChat(chat, 3, "marker")`;
+    - the last tool result of request 2 lists exactly A's three Refs, in any order;
+    - the last tool result of request 3 is `{"ok": true, "results": [...]}`, with each entry ok, in the scenario's order;
+    - each row's `CancelKey` is `<ItemId>:2`, `:3` and `:4`, and `WaitEnded`;
+    - A's events read `pending,pending,pending,cancelled,cancelled,cancelled`;
+    - `##class(OcuTalon.Agent.Chat).%New().MaxIterations` = 4;
+    - the steps are list, then cancel.
+  - Add the three Refs to the clean-up, before and after the test, and to the header.
+- `src/ocutalon/cls/OcuTalon/Test/Agent/Instructions.cls` -- `TestChat` pins the reminder block (AC5). `TestToolsets`' `cancel_reminder` argument becomes `{"reminderRefs": ["zzReminderStretch00001"]}`. Update the header.
+
+**Acceptance Criteria:**
+- **AC1 (DW-140, U-118).** Given a session's turn, when `cancel_reminder` gets several refs, then the "several refs", "one refused" and "failed submit" rows hold (`TestCancelSeveral`). Each command has its own key at the next position, in the order of the refs.
+- **AC2.** Given one ref, as a one-element list or a JSON string, when the tool runs, then it submits one command, and its answer is byte-for-byte today's flat answer. `TestCancel`, `TestCancelRefused`, `TestToolsPassOnWhatTheModelGave`, `TestRefusalsAreUnchanged` and the `TestSubmit*` tests pass with their assertions unchanged.
+- **AC3.** Given AI Hub's tool manager, when `cancel_reminder` is discovered and run, then:
+  - its input is `reminderRefs`, required, an array of strings;
+  - the bad shapes answer BADREFS and submit nothing;
+  - a call outside a session's turn answers NOSESSION first (`TestDeclarations`, `TestCancelThroughTheToolManager`, `TestNoSession`, `Instructions.TestToolsets`).
+- **AC4 (integration: consumer `ReminderOps`, real; AD-20).** Given three pending reminders in session A and one in B, when A sends "Cancel all my reminders." on the CI mock, then the turn finishes in 3 model requests with no fallback and Chat's ceiling still 4. A's three reminders are cancelled with keys `:2`, `:3` and `:4`, their waiters end, their cancelled events arrive, and A's rail is empty. B's reminder, waiter, events and rail are unchanged (`TestCancelAllThroughChat`).
+- **AC5 (DW-142).** Given Chat's compiled INSTRUCTIONS, when `TestChat` reads them, then they hold:
+  - "You can set, list and cancel the user's reminders in this conversation.";
+  - "A request about a reminder is never a request to run a command";
+  - "call set_reminder";
+  - "call list_reminders and name each one with its due time";
+  - "Then call cancel_reminder once, with the refs of every reminder to cancel.";
+  - all before the unchanged line "If the user asks you to run a command, reply with exactly this sentence and nothing else, and do not call a tool: " followed by the rendered `agent.noCommands`.
+- **AC6 (DW-316).** Given the three step-checking tests, when they check a turn's steps, then each calls `RunnerFixture.StepProblems` and holds no copy of its loops. `Tools.Reminders`, `ReminderChat` and `Watch.Turns` pass.
+- **AC7.** Given the renamed input in `A/reminder-cancel.json` and `B/reminder-cancel-chat.json`, when `TestCancel`, `TestCancelThroughChat` and `web/e2e/reminder/chat.spec.ts` C2 run, then they pass with their assertions unchanged.
+
+### Review Findings
+
+Code review of 2026-10-31 (four layers: Blind Hunter, Edge Case Hunter, Verification Gap, Acceptance Auditor; no model override). 22 rows: high 0, medium 2, low 17, false 3. Every finding below carries severity / fix-risk / footprint / spec-status and its Rule 15 disposition.
+
+- [x] [Review][Patch] ReminderTools' class doc misstated the cancel contract: "each tool submits one of Epic 0's reminder commands", and "refs that are not one or more strings answer BADREFS" while a top-level non-empty value is taken as one ref [src/ocutalon/cls/OcuTalon/Tools/ReminderTools.cls:2] -- low / low (doc only) / in-story / clear; patched (blind-hunter+edge-case-hunter)
+- [x] [Review][Patch] ReminderChat's header named only "the fixed Ref" in the clean-up; the spec asks for the three Refs there too [src/ocutalon/cls/OcuTalon/Test/Schedule/ReminderChat.cls:23] -- low / low / in-story / clear; patched (blind-hunter)
+- [x] [Review][Patch] `TestCancelAllThroughChat`'s `$ListLength(second) > 0` and `$ListLength(third) > 0` guards could not fail (A's history already holds three set results); they now pin 4 and 5, as `TestCancelThroughChat` pins 2 and 3 [src/ocutalon/cls/OcuTalon/Test/Schedule/ReminderChat.cls:402] -- low / low / in-story / clear; patched (verification-gap)
+- [x] [Review][Patch] `TestCancelAllThroughChat` compared the listed Refs as a set, so a Ref listed twice passed "exactly A's three"; it now also counts 3 [src/ocutalon/cls/OcuTalon/Test/Schedule/ReminderChat.cls:405] -- low / low / in-story / clear; patched (edge-case-hunter)
+- [x] [Review][Patch] `StepProblems` stopped polling on `$ZHorolog > end`, which never comes when the clock wraps at midnight, so a turn whose steps never arrive hung the test instead of failing it; it now polls a counted number of times [src/ocutalon/cls/OcuTalon/Test/Agent/RunnerFixture.cls:874] -- low / low / in-story / clear; patched (verification-gap)
+- [x] [Review][Patch] `TestCancelSeveral` checked class, origin, session, key and `ReminderRef` only in the three-ref case, though the task says each case does (the failed-submit case never showed which ref was submitted); one private `AssertCancels` now checks every record of every case [src/ocutalon/cls/OcuTalon/Test/Tools/Reminders.cls:1071] -- low / low / in-story / clear; patched (acceptance-auditor)
+- [x] [Review][Patch] `Test.Checks.Turns.AssertToolStep` was a fourth private step checker (read at once with no wait, no kinds, no trace-session check); it now calls `RunnerFixture.StepProblems` with the turn's trace session, as ReminderChat does for a WebChatIn turn (DW-316's one checker) [src/ocutalon/cls/OcuTalon/Test/Checks/Turns.cls:166] -- low / low (green warm and fresh; mutation red) / in-epic (Epic 11, not contended) / clear; patched (verification-gap)
+- [x] [Review][Defer] `Test.Bridge.Gate`'s untrusted-turn row still calls `cancel_reminder` with `{"reminderRef":"x"}`; the tool now answers BADREFS before `CommandCall.Run`, so the row's "its method did not run" half (`CommandCount '= 0`) can no longer fail for cancel_reminder (a shared surface left in its old shape) [src/ocutalon/cls/OcuTalon/Test/Bridge/Gate.cls:1764] -- deferred: med / low (one argument) / out-of-footprint (Epic 30's contended file, which the spec forbids editing) / clear; ledger DW-495 `escalated owner=burndown` (verification-gap)
+- [x] [Review][Defer] AD-1's Rule says a tool command's key is the turn's ItemId plus "the tool call's position", while the build keys each command at its command position (`CommandCall.Run`, since Story 1.10) and U-118 gives one several-ref call the keys `:2`, `:3`, `:4`; the code follows the owner's U-118 and AD-1's Prevents (a re-sent turn rebuilds the same keys), so the residue is the AD's wording [_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md AD-1] -- deferred: med / low (an as-built parenthetical) / out-of-footprint (the spine; an AD amendment is the lead's veto item, Rule 20) / clear; ledger DW-496 `escalated owner=burndown` (acceptance-auditor)
+
+**Rejected:**
+- `false` A failed header COUNT(*) query passes both header checks of `StepProblems` silently (edge-case-hunter) -- measured: a mutation that broke the in-session query made `%GetData` raise `<METHOD DOES NOT EXIST>` in four `Tools.Reminders` tests, so a broken query fails loudly; the `+` coercion tried first was reverted.
+- `false` `Test.Schedule.Reminders`' real-owner callers of `CancelReminder(<string>)` were not run (blind-hunter) -- run warm in this review: passed (86 s), so the scalar path keeps the confirmed answer, the key `<item>:1` and `no_reminder` against the real ReminderOps.
+- `false` The spec says `done` while the story is in review (acceptance-auditor) -- `status: done` is bmad-build-auto's contract; the tracker is sprint-status.yaml.
+- `low` A scalar holding several refs (a JSON-encoded array, a delimited list) or a ref over 22 characters goes to the owner as one ref, and the message's MAXLEN 22 save makes the answer MESSAGEFAILED (blind-hunter+edge-case-hunter) -- pre-existing for one ref; the spec reads any non-empty scalar as one ref; nothing is cancelled and nothing claims it was; wontfix-theoretical, real if DW-358's live run in Story 38.1 shows `reminderRefs` arriving as a string that holds a list.
+- `low` `[""]` is submitted while `""` answers BADREFS (blind-hunter) -- by-design (Design Notes, implement: an empty JSON string is a string), pinned by `TestCancelThroughTheToolManager`.
+- `low` The reminder block has no line for a refused or empty answer (blind-hunter) -- by-design: the spec fixes the block "exactly", "from the answer" covers a refusal, and the live phrasings are Story 38.1's (DW-142's live half).
+- `low` `agent.noCommands`' list of abilities leaves out reminders (blind-hunter) -- by-design: the Never list keeps that catalog sentence and its line byte-identical.
+- `low` DW-142's live half is not under Story 38.1's block, and DW-142's owner is this story (blind-hunter) -- not code: handed to the lead's `ledger_adjudicated` gate (re-own the live half to `38-1-...`, never `resolved-by` whole).
+- `low` Story 38.3's moved block keeps "this story" (blind-hunter) -- not this story's change: the orchestrator's verbatim move in `45ca0116`; noted for the lead.
+- `low` An owner that hangs makes the loop wait n times CommandsIn's timeout (edge-case-hunter) -- by-design ("does not stop at a refusal"); one ref already outlasts the turn's timer on a hang; wontfix-theoretical, real if CommandsIn hangs in practice.
+- `low` A turn re-run after a partial several-ref cancel shifts refs onto used keys and gets `reused_key` (edge-case-hunter) -- CommandCall's key rule is pre-existing and fixed by the spec; AD-8 re-sends only when no tool ran; wontfix-theoretical.
+- `low` A ref given twice makes the top `ok` false (edge-case-hunter) -- by-design (Design Notes: no dedupe; the second entry is the owner's `no_reminder`).
+- `low` `StepProblems` stops polling at 1 + 2n steps, so a later extra step can be missed (edge-case-hunter) -- the old copies read at once; an extra step present at read time is flagged; a settle wait would add time to every caller.
+
+- [x] [CI] iris (shards-2), shard lane-a@rest: `OcuTalon.Test.Bridge.Conversation` `TestPrecheckCountsHistory` failed "Decide's estimate, 5876, is within 29 percent of it, 4538" — https://github.com/jbrandtmse/OcuTalon/actions/runs/41217490277 — Story 11.8's reminder block grew Chat's INSTRUCTIONS, so the system-prompt gap the test's BANDPERCENT (29) was measured for (901 + 328 = 1,229 characters, Story 1.9) is now larger. Re-measure the gap with the new instructions, and fix the test so it stays a real bound (for example derive the band from `RequestSize.AgentChars` of Chat rather than a fixed 29, or re-measure and restate the constant and its doc comment); do not weaken what it pins (the estimate counts the agent part, the stored history and the input). Run `OcuTalon.Test.Bridge.Conversation` on a fresh stack, then the lane-a@rest shard in parts on a warm stack, and record a `mutation:` line for the changed assertion.
+
+Code review of 2026-10-31, CI rework re-review (iteration 1; diff `497c85e7..HEAD`; four layers: Blind Hunter, Edge Case Hunter, Verification Gap, Acceptance Auditor; no model override). 7 rows: high 0, medium 0, low 6, false 1. The `[CI]` item is confirmed fixed: the bound follows Chat's own prompt, is green on a fresh and a warm stack, and goes red on a history cut (in Decide or in `RequestSize.HistoryChars`) and on a doubled agent part. Rule 3: the rework is test-only, so it is exempt. Rule 6: no AD is touched (AD-20's ceiling and AD-6's estimate are unchanged).
+
+- [x] [Review][Patch] The bound counted the prompt raw, but the stored history holds it JSON-escaped (39 more characters for Chat today, growing with the prompt's lines), so those characters came out of the upper headroom [src/ocutalon/cls/OcuTalon/Test/Bridge/Conversation.cls:550] -- low / low (one line, green warm and fresh) / in-story / clear; patched: `prompt` is `$Length([(SystemPrompt)].%ToJSON()) - 4` (5,202), and the header and doc comments say so (edge-case-hunter)
+- [x] [Review][Patch] The recorded mutations were all in `Decide.EstimateTokens`, where the unchanged equality `estimate = Tokens(agent + history + input)` goes red as well, so none of them showed what the new bounds catch on their own (Rule 19, stale mutation line) [src/ocutalon/cls/OcuTalon/Test/Bridge/Conversation.cls:554] -- low / low / in-story / clear; closed in-pass: `RequestSize.HistoryChars` halved turns only the lower bound red, `RequestSize.AgentChars` doubled turns only the upper bound red, and both `mutation:` lines are under `## Verification` (blind-hunter+edge-case-hunter+verification-gap+acceptance-auditor)
+- [x] [Review][Patch] The figures behind ENVELOPECHARS did not add up: "exported messages 4,301" had been read after turn 2, not at estimate time, and the two readings of the tool catalog differ, so "about two and a half times what Chat shows" hid two terms that partly cancel [src/ocutalon/cls/OcuTalon/Test/Bridge/Conversation.cls:77] -- low / low (doc only) / in-story / clear; measured in one run: an envelope of 316 characters, a runner catalog 167 characters longer (8,786 against 8,619), so 149 beyond the escaped prompt. The doc comment now names these terms (blind-hunter+edge-case-hunter)
+- [x] [Review][Patch] The verification record did not say whether the fresh-stack `Bridge.Conversation` run was on the final code [spec `## Verification`, CI rework 1] -- low / low / in-story / clear; closed: `Bridge.Conversation` is green on a fresh stack (`e11s8c2`, 102 s) and on the warm stack, on 837f77f3 plus this review's patch (blind-hunter+edge-case-hunter+acceptance-auditor)
+- [x] [Review][Patch] DW-132's restated `reopen_if` (harvest, 17:47:57Z) dropped its Story 30.1 clause. Once Decide subtracts the stored prompt, the lower bound goes red, and the ledger no longer pointed there [_bmad-output/implementation-artifacts/deferred-work.md DW-132] -- low / low (one trailer line) / in-epic (the ledger) / clear; patched through `ledger.sh append` (by=cr): reopen_if names Story 30.1's subtraction, or a gap beyond Chat's escaped prompt over 500 (149 now). It stays `wontfix-accepted` because the over-count fails safe: about 1,301 tokens against the 100,000-token limit (blind-hunter+edge-case-hunter+verification-gap+acceptance-auditor)
+
+**Rejected:**
+- `false` "Whatever the conversation" was never measured; delta records could grow the envelope with each turn (blind-hunter) -- measured: stored size minus exported messages is 5,518 characters both before turn 2 (9,638 less about 4,120) and after it (9,819 less 4,301), so a second exchange adds no envelope. The test checks turn 2 only, and the doc now says the envelope is the same after a second exchange.
+- `low` Tighten the lower allowance to 200 characters, because a history cut under about 650 characters passes (edge-case-hunter) -- the residue is the difference of two terms (envelope 316, catalog -167), so a tighter window would flake when a tool is added. Small cuts are pinned exactly elsewhere: on Decide's side by the unchanged equality, and in `RequestSize.HistoryChars` by `Test/Bridge/Decide.cls:1662` (the stored size). The doc now states the lower bound's reach. Two sub-points are history, not edits: Story 1.9's spec still names `BANDPERCENT` in its own review record, and DW-132's body is written once (Rule 15).
+
+## Spec Change Log
+
+- 2026-10-31: rework iteration 1 (trigger ci): CI run 41217490277 red on Test.Bridge.Conversation TestPrecheckCountsHistory; one [CI] item under Tasks & Acceptance.
+
+## Review Triage Log
+
+### 2026-10-31 -- Review pass
+- verdicts: 14 rows (the same finding from several layers is one row) -- high 0, medium 2, low 12, false 0, maybe-false 0
+- findings:
+  - `[low]` `[patch]` `TestCancelAllThroughChat` set-up `Quit` inside the `For` leaves only the loop (Blind Hunter, Edge Case Hunter, Verification Gap) -- a flag now ends the test after the loop
+  - `[medium]` `[patch]` `[""]` in `reminderRefs` is unpinned and the double's `refuseRef` lookup raises a subscript error on an empty ref (Blind Hunter, Edge Case Hunter, Verification Gap) -- the double skips the lookup for an empty ref; `TestCancelThroughTheToolManager` pins one command with an empty ref
+  - `[medium]` `[patch]` `StepProblems` branches other than the label test have no mutation line (Verification Gap) -- six branch mutations applied one at a time, each red in `Tools.Reminders`, recorded in `## Verification`; the AC5 order half also mutated
+  - `[low]` `[reject]` a scalar number or boolean is submitted as a ref (Blind Hunter, Edge Case Hunter) -- the spec reads any non-empty scalar as one ref; the owner refuses an unknown ref as `no_reminder`
+  - `[low]` `[reject]` no cap and no dedupe of refs (Edge Case Hunter) -- thin tools by the spec's Boundaries; recorded in Design Notes
+  - `[low]` `[reject]` instructions are silent on "cancel all" with nothing pending (Blind Hunter, Edge Case Hunter) -- the block text is fixed by the spec ("exactly"); Story 38.1's live check covers phrasings
+  - `[low]` `[reject]` `TestChat` pins only the AC5 phrases (Blind Hunter) -- AC5 lists exactly those phrases
+  - `[low]` `[reject]` stale `reminderRef` in `Test/Bridge/Gate.cls:1764` (Blind Hunter, Edge Case Hunter, Verification Gap) -- Epic 30's file; harmless and decided in Design Notes
+  - `[low]` `[reject]` the new scenario is in `A/` while its test is Lane B (Blind Hunter) -- the spec places new scenarios under `A/`
+  - `[low]` `[reject]` `StepProblems` tightens two callers and `Turns.AssertSteps` drops its status argument (Blind Hunter) -- AC6 and the spec's Design Notes say so; no other caller exists
+  - `[low]` `[reject]` `StepProblems` with shorter `tools` than `labels`, or a late extra step (Edge Case Hunter) -- misuse of a test helper by a caller that is not in the repo
+  - `[low]` `[reject]` B's ref is never named in the cancel-all scenario, so cross-session isolation of the several-ref path is not seen (Verification Gap) -- the tool reads no table and `ReminderOps` decides; single-ref isolation is pinned by `TestCancelThroughChat` (no realistic failure)
+  - `[low]` `[reject]` AC3's NOSESSION-before-refs order, and the several-ref refusal and duplicate paths against the real owner (Verification Gap, Other findings) -- the order is pinned by the bad-call-without-session assertion; the paths are pinned against the double
+  - `[low]` `[reject]` intent audit: the model-side behaviour is pinned on the mock only (Intent Alignment) -- descriptive; the intent assigns the live check to Story 38.1
+
+### 2026-10-31 — Review pass (CI rework 1)
+- verdicts: 13 findings — high 0, medium 1, low 7, false 5, maybe-false 0
+- findings:
+  - `[medium]` `[patch]` The lower bound "not below the runner's" lets a history cut by less than the prompt pass (blind-hunter, edge-case-hunter) — patched: the bound is now "above the runner's by at least Tokens(prompt) - Tokens(ENVELOPECHARS)"; a half-history mutation went red.
+  - `[low]` `[patch]` Doc comment says "nothing large is counted twice" while the prompt is counted twice by design, and two doc lines run long (blind-hunter) — patched: the doc comment and header reworded and rewrapped.
+  - `[low]` `[defer]` `deferred-work.md` and the Story 1.9 spec carry a `reopen_if` naming the retired BANDPERCENT (blind-hunter, edge-case-hunter) — the ledger is the lead's; recorded under `deferred:`.
+  - `[false]` `[reject]` ENVELOPECHARS (500) has no recorded envelope measurement (blind-hunter) — the measured gap is in the report and Auto Run Result: prompt 5,163, gap about 5,349 characters, so about 186 beyond the prompt.
+  - `[false]` `[reject]` The prompt is read live, not from the stored session (blind-hunter) — turn 1 and turn 2 run on the same host and agent class in one method; no prompt change can sit between them.
+  - `[low]` `[reject]` No "Changed by Story 11.8" header note (blind-hunter) — comments state the contract, never the history (Rule 14).
+  - `[low]` `[reject]` Absolute bound does not scale with a longer history, and only a 4,000-character first exchange is exercised (blind-hunter) — the gap is the prompt whatever the history; a longer history adds nothing to what the bound pins.
+  - `[low]` `[reject]` The prompt is JSON-escaped in the stored history, so the bound uses the wrong length (edge-case-hunter) — the measured gap (about 186 characters beyond the raw prompt, escapes included) is far inside the 500-character allowance.
+  - `[low]` `[reject]` Derive the tool-catalog term instead of a flat 500 (edge-case-hunter) — the catalog is the same in both estimates; MCP tools (AD-21) are in neither, and a difference that grew would fail loudly.
+  - `[low]` `[reject]` The [x] item reads as verified with no green runs recorded (edge-case-hunter) — the runs are now recorded under `## Verification`.
+  - `[false]` `[reject]` Intent auditor: readings R2 (re-tune) and R3 (production over-count) — the item says to fix the test; R1 is the stated option and the production over-count is by design (Story 30.1).
+  - `[false]` `[reject]` Intent auditor: no mutation in the diff — the mutation lines are in `## Verification`, as Rule 19 places them.
+  - `[false]` `[reject]` Verification-gap layer — no gaps found.
+
+## Design Notes
+
+**Architecture decisions.**
+
+| AD | What it governs here |
+| --- | --- |
+| AD-1 | A tool's state change is a `CancelReminder` through `CommandsIn`, with its own `IdempotencyKey`. |
+| AD-4 | `ReminderOps` cancels only the session's own reminders. |
+| AD-6 | Tool code makes no AI Hub or Python call. |
+| AD-7 | Chat's static INSTRUCTIONS, with no `{{`, and its TOOLSETS. |
+| AD-8 | A turn that reaches the ceiling is unusable. |
+| AD-9 | One tool step per call, with its label. |
+| AD-10 | One gate decision per tool call; the classification is unchanged: safe, not read-only, trusted output. |
+| AD-18 | Reminders. |
+| AD-20 | The ceiling of 4 is unchanged (U-118). |
+| AD-22 | The CI mock; new scenarios under `A/`; `mock.mjs` unchanged. |
+| AD-26 | The steps are in the turn's trace session. |
+| AD-29 | The Epic 11 exception covers the B files `Test/Schedule/ReminderChat.cls` and `B/reminder-cancel-chat.json`. |
+
+**AD-1 compliance (U7 step 1).** AD-1's key is "the turn's ItemId plus the tool call's position". The merged build counts the commands (`Bridge.Context.CommandCount`, "the number of commands that the tools of the call have submitted"). A call that submits nothing, such as `list_productions` or `check_status`, takes no position, so the merged code already reads that position as the command's. The several-ref cancel follows that reading, and each ref takes the next position, as U-118 requires. The literal one-key-per-call reading would make `ReminderOps` refuse the second ref as `reused_key`. No AD changes. Whether to reword AD-1's parenthetical is for the lead to decide; this story does not need it.
+
+**Extend, don't copy (Rule 2).**
+- `StepProblems` replaces three copies:
+  - `Test.Tools.Reminders.AssertSteps`;
+  - `Test.Schedule.ReminderChat.AssertToolSteps` with its `WaitSteps`;
+  - `Test.Watch.Turns.AssertSteps`.
+  - It follows `RunnerFixture.FallbackProblems`' problem string. The strictest check of the three, that every step has a header in the session, now holds for all three callers.
+- `BADREFS` follows `BADDELAY`.
+- `refuseRef` sits beside the double's `refuse` mode.
+- `A/reminder-cancel-all.json` follows `A/reminder-cancel.json`'s three replies.
+
+**Integration ACs and links (Rule 1/2).** AC4 is the consumer `ReminderOps` against the real production. AC6 is the consumers of the shared checker.
+
+| Link | Who |
+| --- | --- |
+| Consumes | `CommandCall` (`Session`, `Run`, `Answer`), `ReminderOps` through `CommandsIn`, the CI mock, `RunnerFixture`, `ReminderOpsFixedRef`, `ReminderFixture` |
+| Consumed-by | the Chat agent: the model reads the description, the schema and the instruction lines |
+| Consumed-by | Story 38.1: DW-358's live "cancel all my reminders" with three or more pending, and DW-142's live phrasings, on Haiku 5.5 |
+| Consumed-by | `RunnerFixture.StepProblems`: the three tests above, and any later tool test |
+
+**Ledger (Rule 17).**
+- Addressed:
+  - DW-140 (AC1 to AC4, AC7);
+  - DW-142's instruction half (AC5);
+  - DW-316 (AC6).
+- Declined DW-142 (live-check half): the real-key check belongs to Story 38.1's pass
+
+**Decided in-stage.**
+- **One argument, plural.** `reminderRefs`, an array of strings, replaces `reminderRef`. A plural name and an array schema push the model to cancel in one call. The two existing cancel scenarios move to one-element arrays with their Refs unchanged.
+- **A JSON string counts as one ref.** A live model may send one. Existing callers in process, `CallTool` and `CancelReminder("no such reminder")`, keep working.
+- **Two answer shapes.** One ref keeps today's flat answer, the contract of Stories 1.10 and 8.6. Several refs answer `{"ok", "results"}`, and each entry names its ref, so a refusal maps to its reminder.
+- **No dedupe and no cap** (thin tools). A ref given twice is cancelled once, and its second entry is the owner's `no_reminder`. A session has few pending reminders, and `Return` cuts an oversized answer (inference).
+- **The label stays "Cancelling a reminder".** There is still one tool step per call, and four test classes pin the label.
+- **Two texts stay byte-identical:** the catalog sentence `agent.noCommands` and its instruction line (user-facing catalog text). The reminder block makes reminders an explicit exception ahead of it. The block claims only what the tools do.
+- **The cancel-all test sets its reminders with the Thursday marker** (due in 2030), so none fires during the test. The guide prompt's 60-second reminders could.
+- **`Test/Bridge/Gate.cls:1764`'s stale `reminderRef` stays.** It is harmless (measured), and the file is Epic 30's.
+
+**Decided in-stage (implement).**
+- **Helpers give their value through an output argument.** `Test.Bridge.CodeRules.TestToolsReturnThroughResult` (Epic 30's file) fails a tool-provider class that has any line `Quit <value>` other than `Quit ..Return(`. `ReminderTools.RefList(reminderRefs, Output refs)` and `CancelOne(ref, Output answer)` are `[ Private ]` and end with a bare `Quit`, so the rule holds with no change to that file.
+- **Reading the refs.** An entry that is an empty JSON string is a string, so it goes to the owner, which refuses it as `no_reminder`; an empty scalar (`""`, or a JSON null, which reaches the method as "") is BADREFS. A JSON boolean or number in a list is not a string: BADREFS.
+- **`StepProblems` also fixes the wait.** `Test.Tools.Reminders` and `Watch.Turns` did not wait for the steps before; they now poll up to 10 s like ReminderChat did, which only removes a race.
+- **Mutation 2 was applied in `CancelOne`** (the call's `CommandCount` reset to 0 before each `Run`), which resets it for a single ref too; that is why `TestCancelThroughChat` also went red in that run.
+
+**Contended paths (U14).**
+- No file planned here appears in `git diff origin/feature/OCT_OcuTalon_MVP...origin/OCT-epic<N>` for N = 15, 30, 12 or 13. The diffs were re-checked at plan time.
+- The new file sits in `ci/mock/scenarios/A/`.
+
+**CI budget (REL-4).**
+- No browser spec is added.
+- `TestCancelAllThroughChat` adds five mock turns to shard lane-b, about 10 to 15 s on ARM and about 30 to 45 s in CI group `image`, which runs about 1,660 s (inference).
+- The in-process tests add about 2 s to `shards-2`. `Watch.Turns` is unchanged in time.
+
+## Verification
+
+`<A>` stands for `OCUTALON_LOCK_DIR="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")/.worktrees/.coordination/locks/lane-a" OCUTALON_TEST_WEB_PORT=52801 OCUTALON_LOCK_OWNER='epic=11 stage=implement'`. QA uses `stage=qa` with the tags `e11s8q`/`e11s8qw`, and review uses `stage=review` with `e11s8c`/`e11s8cw`. `<scratch>` is the stage's own scratch folder, never a repository path.
+
+**Run discipline:**
+- Run everything from the epic-11 worktree root.
+- Each command runs in the foreground of its own call, with `timeout: 600000`. `ANTHROPIC_API_KEY` stays unset.
+- One test call per message. Never re-submit after a client-side timeout.
+- Every IRIS MCP call passes `server` `ocutalon-slot-a` and namespace `OCUTALON`.
+
+**Shared surfaces:**
+- `cancel_reminder`'s input schema and answer, read by `TestDeclarations`, `Instructions.TestToolsets`, `Bridge.Gate` (read only), `A/reminder-cancel.json`, `B/reminder-cancel-chat.json` and `web/e2e/reminder/chat.spec.ts`.
+- Chat's INSTRUCTIONS, read by `TestChat` and `Runners`' system-block cache mark.
+- `ci/mock/scenarios/A/` gains one scenario.
+- `^OcuTalonTest("CommandsDouble")` gains `refuseRef`, which the class's existing kill of that node clears.
+- ReminderChat's fixed Refs 02 to 04.
+- `RunnerFixture`'s step checker, used by three classes.
+
+**Standing criterion:** every test added or changed passes on a fresh environment, in either order. The lead's lane-a and lane-b shards, forward and `--reverse`, are the order check.
+
+**Commands:**
+- (once, first) `iris_server_info` on `ocutalon-slot-a` -- expected: build 154U.
+  - Then load and compile there: `Tools/ReminderTools.cls`, `Tools/Reminders.cls`, `Agent/Chat.cls`, and the test classes `Agent/RunnerFixture`, `Tools/CommandsDouble`, `Tools/Reminders`, `Schedule/ReminderChat`, `Watch/Turns` and `Agent/Instructions`. Then run Task 0's schema read -- expected: they compile, and `reminderRefs` is `{"type":"array","items":{"type":"string"}}` and required. No test runs on the slot.
+- (once) `<A> OCUTALON_RUN_TAG=e11s8i ci/iris.sh build` -- expected: the image and the bundle build.
+- (once, after the three scenario files are written) `<A> OCUTALON_RUN_TAG=e11s8iw ci/warm.sh up` -- expected: `LOCK acquired warm-iris`. Any later change under `ci/mock/` needs `ci/warm.sh down` and then `up`.
+- (loop) `<A> OCUTALON_WARM=1 OCUTALON_RUN_TAG=e11s8iw ci/iris.sh class <C>`, one call for each C of `OcuTalon.Test.Tools.Reminders`, `OcuTalon.Test.Schedule.ReminderChat`, `OcuTalon.Test.Agent.Instructions` and `OcuTalon.Test.Watch.Turns` -- expected: `CLASS <C> passed`.
+- (once) the same warm call for each of `OcuTalon.Test.Bridge.Gate`, `OcuTalon.Test.Bridge.CodeRules`, `OcuTalon.Test.Agent.Runners`, `OcuTalon.Test.Install.Tools` and `OcuTalon.Test.Contract.Ac` -- expected: passed.
+- (once) `<A> OCUTALON_RUN_TAG=e11s8i ci/iris.sh class <C>` for the four changed classes, one per call -- expected: passed on a fresh stack.
+- (once) `bash docker/tests/test-mock.sh` -- expected: passes, and the new scenario loads.
+- (once) `bash docker/tests/test-boundaries.sh`, then `bash docker/tests/test-class-rules.sh`, one per call -- expected: every PASS. These are the parts of `ci/checks.sh` that this story touches.
+- (once) the browser check of AC7:
+  - Write `npm --silent --prefix web run e2e -- --list --reporter=json` to `<scratch>/listing.json`.
+  - Run `node web/scripts/e2e-part.mjs k/3 <scratch>/listing.json` for k = 1, 2 and 3, to find the part that names `reminder/chat.spec.ts`.
+  - Run `<A> OCUTALON_RUN_TAG=e11s8i ci/iris.sh live sign-in --part k/3` for that k -- expected: the part passes.
+- (once, last; also after a failure) `<A> OCUTALON_RUN_TAG=e11s8iw ci/warm.sh down`, then `<A> OCUTALON_RUN_TAG=e11s8i ci/iris.sh teardown` -- expected: no lock of this stage is left in the lane-a folder.
+
+**Planned mutations (Rule 19).** For each one: apply it, see red, revert, check that `git status --short` and `git diff --stat` are unchanged, then see green again. A red that a leftover on the warm stack could explain counts only when the class is green again on the same stack. The AC4 mutation changes `ci/mock/`, so it runs on a fresh class run.
+
+| AC | Mutation | Expected red |
+|---|---|---|
+| AC1 | `CancelReminder` submits only the first ref of a list | `TestCancelSeveral` (one command recorded) |
+| AC1 | every ref of the call gets the call's first position (`CommandCount` put back before each `Run`) | `TestCancelSeveral` keys; `TestCancelAllThroughChat` (`reused_key`, rows still pending) |
+| AC2 | a one-element list answers the several-ref shape | `TestCancel` on the flat answer |
+| AC3 | an empty list answers `{"ok": true, "results": []}` | `TestCancelThroughTheToolManager` |
+| AC4 | `A/reminder-cancel-all.json` cancels one ref per call (three cancel replies) | `TestCancelAllThroughChat`: over the ceiling, a fallback reply |
+| AC5 | the reminder block removed from INSTRUCTIONS | `TestChat` |
+| AC6 | `StepProblems` compares each label with the label plus "x" | `TestCancel`, `TestCancelThroughChat` and `Watch.Turns` |
+| AC7 | `B/reminder-cancel-chat.json` keeps `"reminderRef"` | `TestCancelThroughChat` (refused BADREFS) |
+
+**Implementation record (implement stage, 2026-10-31).**
+- Task 0 (slot A, build 154U): `cancel_reminder`'s discovered `parameters` are `{"properties":{"reminderRefs":{"description":"...","items":{"type":"string"},"type":"array"}},"required":["reminderRefs"],"type":"object"}`. Through a fresh `%AI.ToolMgr` (the XData toolset path) a JSON array reaches the method as a `%DynamicArray` and a JSON string as a scalar string (`TestCancelThroughTheToolManager` green); `{}`, `[]`, `{}` as a value, `""`, null, and lists holding 5, `{}`, null or true all reach it as the bad shapes and answer BADREFS. No other decoded form had to be read.
+- Warm runs green: `Tools.Reminders`, `Schedule.ReminderChat`, `Agent.Instructions`, `Watch.Turns`, `Bridge.Gate`, `Bridge.CodeRules`, `Agent.Runners`, `Install.Tools`, `Contract.Ac`. Fresh-stack runs green: the first four. `test-mock.sh` (118 pass), `test-boundaries.sh`, `test-class-rules.sh`, and `ci/iris.sh live sign-in --part 3/3` (56 passed, which holds `reminder/chat.spec.ts`) pass.
+- Mutations (each applied, red seen, reverted to a byte-identical tree, green again):
+  - AC1 first ref only: red, `TestCancelSeveral` and `TestCancelThroughTheToolManager` (one command recorded);
+  - AC1 `CommandCount` reset before each `Run`: red, `TestCancelSeveral` keys and `TestCancelAllThroughChat` (the later cancels refused, rows still pending);
+  - AC2 a one-element list answers the several-ref shape: red, `TestCancel`, `TestCancelRefused`, `TestCancelSeveral`, `TestCancelThroughTheToolManager`;
+  - AC3 an empty list answers `{"ok": true, "results": []}`: red, `TestCancelThroughTheToolManager`;
+  - AC4 `A/reminder-cancel-all.json` with one cancel reply per ref (fresh warm stack): red, `TestCancelAllThroughChat` (4 requests, no scenario reply);
+  - AC5 reminder block removed: red, `TestChat`;
+  - AC6 `StepProblems` compares label plus "x": red, `TestCancel`, `TestCancelRefused`, `TestList`, `TestSetRelative`, `TestCancelThroughChat`, `TestCancelAllThroughChat`, `TestGuidePromptSetsReminder`, `TestThursdaySetsLocalReminder` and the three `Watch.Turns` tests;
+  - AC7 `B/reminder-cancel-chat.json` back to `"reminderRef"` (same stack restart as AC4): red, `TestCancelThroughChat`.
+
+**Observed mutations (Rule 19; implement stage 2026-10-31, each applied, red seen, reverted to a byte-identical tree, green again).**
+- mutation: AC1 `CancelReminder` submits only the first ref -- red in `TestCancelSeveral`, `TestCancelThroughTheToolManager`
+- mutation: AC1 `CommandCount` reset before each `Run` -- red in `TestCancelSeveral` (keys), `TestCancelAllThroughChat`
+- mutation: AC2 a one-element list answers the several-ref shape -- red in `TestCancel`, `TestCancelRefused`
+- mutation: AC3 an empty list answers `{"ok": true, "results": []}` -- red in `TestCancelThroughTheToolManager`
+- mutation: AC4 `A/reminder-cancel-all.json` cancels one ref per call -- red in `TestCancelAllThroughChat`
+- mutation: AC5 reminder block removed from INSTRUCTIONS -- red in `TestChat`
+- mutation: AC6 `StepProblems` compares each label with the label plus "x" -- red in `TestCancel`, `TestCancelThroughChat`, `Watch.Turns`
+- mutation: AC7 `B/reminder-cancel-chat.json` keeps `"reminderRef"` -- red in `TestCancelThroughChat`
+- mutation: AC6 `StepProblems` status test compares with `okx`, summary test with the tool name plus `x`, reply count against 2, the no-header test against 1, the outside-session test as `>= 0`, the kinds test inverted -- each applied alone, red in `Tools.Reminders`
+- mutation: AC5 the reminder block moved after the no-commands line -- red in `TestChat` (order)
+
+**QA stage (2026-10-31, `stage=qa`, warm tag `e11s8qw`, slot-free; no test file created or changed (QA)).**
+- Every AC has a pinning test whose red was observed by the implement stage (the `mutation:` lines above are current: HEAD `45ca0116` holds the implement commit `26f93f47`, and the tree was clean): AC1 `TestCancelSeveral`, AC2 `TestCancel`/`TestCancelRefused`, AC3 `TestCancelThroughTheToolManager`, AC4 `TestCancelAllThroughChat`, AC5 `TestChat`, AC6 `StepProblems` callers, AC7 `TestCancelThroughChat`. Warm re-runs green at QA: `Tools.Reminders`, `Schedule.ReminderChat`, `Agent.Instructions`, `Watch.Turns`.
+- Three extra mutations for behaviours no earlier line named (each applied on the warm stack, red seen, restored from the scratch backup, tree byte-identical, `Tools.Reminders` green again):
+- mutation: AC1 the loop stops at the first refusal (the tool "does not stop at a refusal") -- red in `TestCancelSeveral` (one refused, failed submit)
+- mutation: AC3 the session check runs after the refs are read (NOSESSION must win over BADREFS) -- red in `TestCancelThroughTheToolManager`
+- mutation: AC3 a non-string entry (`5`, `{}`) accepted as a ref -- red in `TestCancelThroughTheToolManager`
+
+**Code review stage (2026-10-31, `stage=code-review`, warm tag `e11s8cw`, fresh tag `e11s8c`, slot-free).**
+- After the review patches, warm runs green: `Tools.Reminders`, `Schedule.ReminderChat`, `Checks.Turns`, `Watch.Turns`, `Schedule.Reminders` (86 s), `Bridge.CodeRules`. Fresh-stack runs green: `Schedule.ReminderChat`, `Checks.Turns`. `test-class-rules.sh` and `test-boundaries.sh` pass. Warm and fresh stacks torn down; no lane-a lock left.
+- mutation: `Checks.Turns.AssertToolStep` expects the label plus "x" -- red in `TestFailingOrdersInTheChat`, `TestAllClearOnlyFromCode`, `TestNothingWatchedInTheChat` (restored, tree byte-identical, green again)
+- observed: `StepProblems`' in-session header query made invalid -- `<METHOD DOES NOT EXIST>` on `%GetData` in `TestCancel`, `TestCancelRefused`, `TestList`, `TestSetRelative` (a broken query fails loudly; restored, green again)
+
+**CI rework 1 (2026-10-31, `stage=implement`, warm tag `e11s8r1w`, fresh tag `e11s8r1`).**
+- mutation: `Decide.EstimateTokens` drops the stored history (`chars + 0`) -> red in `Bridge.Conversation` `TestPrecheckCountsHistory` (the lower-bound assertion, 3466 against 4538; the old 29 percent band would have passed it)
+- mutation: `Decide.EstimateTokens` counts half the stored history (`HistoryChars \ 2`) -> red in `Bridge.Conversation` `TestPrecheckCountsHistory` (the lower-bound assertion: 133 tokens above the runner's against at least 1166; the old 29 percent band would have passed 4671 against 4538)
+- mutation: `Decide.EstimateTokens` doubles the agent part -> red in `Bridge.Conversation` `TestPrecheckCountsHistory` (the upper-bound assertion, 4783 tokens over the runner's against 1416 allowed)
+- runs: `Bridge.Conversation` green on a fresh stack (tag `e11s8r1`, 96 s) and on the warm stack (`e11s8r1w`); the three mutations restored, tree byte-identical (`git status --short`, `git diff --stat`, `git diff` checksum). The `lane-a@rest` shard ran green in six parts on the warm stack (72 classes) before the lower bound was tightened; the tightening changes one assertion of `Bridge.Conversation` alone.
+
+**Code review, CI rework re-review (2026-10-31, `stage=code-review`, warm tag `e11s8c2w`, fresh tag `e11s8c2`, slot-free).**
+- Measured on the warm stack, in one run of `TestPrecheckCountsHistory` (a temporary probe assertion, since removed). Turn 2's estimate:
+  - prompt 5,163 characters raw and 5,202 JSON-escaped (39 line feeds);
+  - `AgentChars` 13,782, of which the catalog is 8,619 by Decide's reading and 8,786 by the runner's (`ToolManager.%Discover()`, 11 tools);
+  - stored history 9,638 before turn 2 and exported messages about 4,120 (derived from the runner's 4,538 tokens);
+  - input 81; estimate 5,876; runner 4,538.
+  - After turn 2: stored 9,819 and exported 4,301, so the stored size less the messages is 5,518 both times.
+  - The gap is the escaped prompt plus 149: an envelope of 316, less a catalog difference of 167.
+- The bound now runs from `Tokens(5202) - Tokens(500)` = 1,176 to `Tokens(5702)` = 1,426 tokens, against a gap of 1,338.
+- mutation: `RequestSize.HistoryChars` returns `+stream.Size \ 2` -> red only in `Bridge.Conversation` `TestPrecheckCountsHistory`'s lower bound (133 above the runner's against at least 1,176; the equalities stay green; the old 29 percent band would have passed)
+- mutation: `RequestSize.AgentChars` returns `chars * 2` -> red only in `TestPrecheckCountsHistory`'s upper bound (4,783 above against at most 1,426; the equalities stay green)
+- runs, on 837f77f3 plus this review's patch, all green: `Bridge.Conversation` on the warm stack before and after the mutations, then on a fresh stack (`e11s8c2`, 102 s). Both mutations were restored and the tree is byte-identical (`git status --short`, `git diff --stat`, `git diff` checksum). `test-class-rules.sh` passes. The warm and fresh stacks are torn down and no lane-a lock is left.
+
+## Auto Run Result
+
+Status: done
+Blocking condition: none
+
+**Summary.** `cancel_reminder` takes `reminderRefs` (one or more refs) and submits one `CancelReminder` per ref inside the one tool call, each with its own key at the next command position; a single ref keeps today's flat answer, several answer `{"ok", "results"}`. Chat's instructions gain the reminder block ahead of the unchanged no-commands rule (AD-20's ceiling stays 4). `RunnerFixture.StepProblems` replaces the three step checkers.
+
+**Files changed.**
+- `src/ocutalon/cls/OcuTalon/Tools/ReminderTools.cls`: the tool, `BADREFS`, two private helpers.
+- `src/ocutalon/cls/OcuTalon/Agent/Chat.cls`: the reminder block and its class-doc line.
+- `src/ocutalon/cls/OcuTalon/Test/Agent/RunnerFixture.cls`: `StepProblems`.
+- `src/ocutalon/cls/OcuTalon/Test/Tools/Reminders.cls`, `Test/Schedule/ReminderChat.cls`, `Test/Watch/Turns.cls`: step checks call `StepProblems`; `TestCancelSeveral`, `TestCancelThroughTheToolManager`, `TestCancelAllThroughChat`; `TestDeclarations` pins the array schema.
+- `src/ocutalon/cls/OcuTalon/Test/Tools/CommandsDouble.cls`: the `refuseRef` mode.
+- `src/ocutalon/cls/OcuTalon/Test/Agent/Instructions.cls`: `TestChat` pins the block; `TestToolsets` uses `reminderRefs`.
+- `ci/mock/scenarios/A/reminder-cancel-all.json` (new), `A/reminder-cancel.json`, `B/reminder-cancel-chat.json`.
+
+**Review.** 14 findings from four layers (duplicates merged); 3 patched (set-up `Quit` in the cancel-all test, empty-string ref in the double and a test for it, mutation lines for the `StepProblems` branches and the AC5 order), 0 deferred, 11 rejected, each with its reason in the triage log. Patched by verdict: medium 2, low 1.
+
+**Follow-up review recommended:** false (one medium patched pair is below the bar of two mediums plus a high; the patches are test-side only).
+
+**Verification.** Slot A build 154U: classes loaded and compiled; Task 0 schema read and decoding recorded above. Warm runs passed: `Tools.Reminders`, `Schedule.ReminderChat`, `Agent.Instructions`, `Watch.Turns`, `Bridge.Gate`, `Bridge.CodeRules`, `Agent.Runners`, `Install.Tools`, `Contract.Ac`. Fresh-stack runs passed for the four changed classes. `test-mock.sh`, `test-boundaries.sh`, `test-class-rules.sh` and `ci/iris.sh live sign-in --part 3/3` (56 passed, holds `reminder/chat.spec.ts`) passed. Warm and fresh stacks torn down; no lane-a lock left.
+
+**Residual risks.** The live model's behaviour on Haiku 5.5 (batching refs, not refusing a reminder) is Story 38.1's check; a "cancel all" with nothing pending relies on the model reading an empty list.
+
+**CI rework 1 (2026-10-31).** `Test.Bridge.Conversation` `TestPrecheckCountsHistory` no longer uses the fixed 29 percent band. Measured on the slot for turn 2: system prompt 5,163 characters, tool catalog 8,786, stored history 9,638, exported messages the runner counts 4,301; Decide's estimate 5,876 tokens against the runner's 4,538, a gap of about 5,349 characters, which is the prompt (held in the stored history, not in the exported messages) plus about 186. The bound now follows Chat's own prompt: the estimate is above the runner's by at least `Tokens(prompt) - Tokens(ENVELOPECHARS)` and by at most `Tokens(prompt + ENVELOPECHARS)` (`ENVELOPECHARS` = 500 replaces `BANDPERCENT`); every equality assertion is unchanged.
+- Files changed: `src/ocutalon/cls/OcuTalon/Test/Bridge/Conversation.cls` only.
+- Review: 13 findings from four layers; 2 patched (the lower bound tightened to follow the prompt, the doc wording), 1 deferred (stale `reopen_if` text naming `BANDPERCENT` in `deferred-work.md` and the Story 1.9 spec, for the lead), 10 rejected with reasons in the triage log.
+- Follow-up review recommended: false (the patches are test-side; no high was patched).
+- Verification: see `## Verification`, "CI rework 1": three mutations red and restored; `Bridge.Conversation` green on a fresh and a warm stack; `lane-a@rest` green in six parts before the final tightening of one assertion in the same class.
+

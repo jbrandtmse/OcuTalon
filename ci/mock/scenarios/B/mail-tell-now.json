@@ -1,0 +1,13 @@
+{
+  "name": "mail-tell-now",
+  "match": {
+    "marker": "mail-tell-now"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "delayMs": 2000,
+      "text": "{\"outcome\":\"tellnow\",\"reasons\":[\"The CI mock tells you about this email now.\"],\"confidence\":0.8}"
+    }
+  ]
+}

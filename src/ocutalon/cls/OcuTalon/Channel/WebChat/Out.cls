@@ -1,0 +1,122 @@
+/// WebChatOut, the business operation that delivers a message to the web chat (AD-12, AD-14, AD-32, AD-33). Its message map
+/// takes the two messages that Notify routes here, and it acts only when the message's SessionRef is a session (Session.Recipients
+/// gives it back); for any other owner it logs a warning and records nothing.
+///   - Notification of a card kind (tellnow, reminder, allowance): it renders Msg.Catalog.Render(CatalogKey, Slots, "web") and records the
+///     web chat's copy of the card on a Delivery row: a new Ref as ChannelMessageId, the kind, the whole rendered text, the
+///     DecisionRef, DueAt (the slot dueAt of a reminder) and FallbackReason (the value of the slot that the key's catalog entry
+///     declares as type fallbackReason). After the save it publishes one notification event on the session's stream, with
+///     Live.Payload.Notification.FromRow of the row: it is the only publisher of that event (AD-33). A render error is returned
+///     with no row and no event, and a failed publish is logged and leaves the row. A reload shows the card from the row (DW-62).
+///     An allowance card (Story 16.9) is the session's message allowance or the online demo's daily-cap message; its text is the
+///     catalog's, rendered for the web with the time in instance time and "ET", and its row keeps no FallbackReason;
+///   - Notification of a tool-call card (Story 31.6; ToolCallCard: kind approval or result, an ApprovalRef, and a CatalogKey that is
+///     one of Core.BridgeSink's five tool-call keys): it takes the same card path, so the chat shows the request with Approve and
+///     Reject, the result and DW-454's held-call reason from the one Notification that the bridge sink built (DW-601);
+///   - Notification of any other incident kind (INCIDENTKINDS: incident, approval, answered, result): only its Delivery row (the kind,
+///     the decision and the approval Ref), with no text and no event, because the web form of these kinds is the incident card,
+///     which the page draws from the incident event (Story 6.1). A fix's notices and the kind answered stay here;
+///   - Notification of any other kind: only its Delivery row, with no text and no event, until the story that designs that kind's
+///     web form;
+///   - Outbound (a reply): only its Delivery row for channel web, with the DecisionRef and no ChannelMessageId, because the page
+///     shows the turn itself.
+Class OcuTalon.Channel.WebChat.Out Extends OcuTalon.Channel.Operation
+{
+
+/// The channel of the Delivery rows: one of Msg.Enum CHANNEL.
+Parameter CHANNEL = "web";
+
+/// The notification kinds that the web chat shows as cards.
+Parameter CARDKINDS = "tellnow,reminder,allowance";
+
+/// The notification kinds whose web form is the incident card: they record their Delivery row only and never a card or an event.
+Parameter INCIDENTKINDS = "incident,approval,answered,result";
+
+/// The channel of the catalog text.
+Parameter TEXTCHANNEL = "web";
+
+Parameter LOGNOTASESSION = "WebChatOut dropped a message: its owner is not a session: ";
+
+Parameter LOGPUBLISH = "WebChatOut could not publish a notification: ";
+
+XData MessageMap
+{
+<MapItems>
+<MapItem MessageType="OcuTalon.Msg.Notification">
+<Method>OnNotification</Method>
+</MapItem>
+<MapItem MessageType="OcuTalon.Msg.Outbound">
+<Method>OnOutbound</Method>
+</MapItem>
+</MapItems>
+}
+
+/// A notification: a card kind or a tool-call card is rendered, recorded and published; an incident kind or any other kind is
+/// recorded only.
+Method OnNotification(request As OcuTalon.Msg.Notification, Output response As Ens.Response) As %Status
+{
+	Set response = ""
+	If '..IsSession(request.SessionRef) Quit $$$OK
+	If '$ListFind($ListFromString(..#CARDKINDS), request.Kind) && '..ToolCallCard(request) {
+		Quit ##class(OcuTalon.Data.Delivery).Record(request.SessionRef, ..#CHANNEL, "", request.ApprovalRef, request.Kind, "", request.DecisionRef)
+	}
+	Set text = ##class(OcuTalon.Msg.Catalog).Render(request.CatalogKey, request.Slots, ..#TEXTCHANNEL, .sc)
+	If $$$ISERR(sc) Quit sc
+	Set sc = ##class(OcuTalon.Data.Delivery).Record(request.SessionRef, ..#CHANNEL, ##class(OcuTalon.Bridge.Ids).NewRef(), request.ApprovalRef, request.Kind, text, request.DecisionRef, $Select(request.Kind = "reminder": ..SlotOf(request, "dueAt"), 1: ""), ..FallbackReasonOf(request), .row)
+	If $$$ISERR(sc) Quit sc
+	Do ..Announce(row.OwnerRef, "notification", "OcuTalon.Live.Payload.Notification", row)
+	Quit $$$OK
+}
+
+/// 1 when the notification is a tool-call card: kind approval or result, an ApprovalRef, and one of the bridge sink's five
+/// tool-call catalog keys (read from its parameters, never copied).
+Method ToolCallCard(request As OcuTalon.Msg.Notification) As %Boolean [ Private ]
+{
+	If (request.Kind '= "approval") && (request.Kind '= "result") Quit 0
+	If request.ApprovalRef = "" Quit 0
+	Set keys = $ListBuild($Parameter("OcuTalon.Core.BridgeSink", "KEYREQUEST"), $Parameter("OcuTalon.Core.BridgeSink", "KEYREQUESTON"), $Parameter("OcuTalon.Core.BridgeSink", "KEYDONE"), $Parameter("OcuTalon.Core.BridgeSink", "KEYFAILED"), $Parameter("OcuTalon.Core.BridgeSink", "KEYFAILEDWHY"))
+	Quit $ListFind(keys, request.CatalogKey) > 0
+}
+
+/// A reply: only its Delivery row.
+Method OnOutbound(request As OcuTalon.Msg.Outbound, Output response As Ens.Response) As %Status
+{
+	Set response = ""
+	If '..IsSession(request.SessionRef) Quit $$$OK
+	Quit ##class(OcuTalon.Data.Delivery).Record(request.SessionRef, ..#CHANNEL, "", "", "", "", request.DecisionRef)
+}
+
+/// The string slot of the notification, "" when the slots have none.
+Method SlotOf(request As OcuTalon.Msg.Notification, name As %String) As %String [ Private ]
+{
+	Set value = ""
+	Try {
+		Set slots = ##class(%DynamicAbstractObject).%FromJSON(request.Slots)
+		If $IsObject(slots) && (slots.%GetTypeOf(name) = "string") Set value = slots.%Get(name)
+	} Catch exception {
+		Set value = ""
+	}
+	Quit value
+}
+
+/// The value of the slot that the key's catalog entry declares as type fallbackReason, "" when it declares none.
+Method FallbackReasonOf(request As OcuTalon.Msg.Notification) As %String [ Private ]
+{
+	Set reason = ""
+	Try {
+		Set entry = ##class(OcuTalon.Msg.Catalog).Entry(request.CatalogKey, .sc)
+		If $$$ISOK(sc) && $IsObject(entry) && (entry.%GetTypeOf("slots") = "object") {
+			Set iterator = entry.slots.%GetIterator()
+			While iterator.%GetNext(.name, .type) {
+				If type = "fallbackReason" {
+					Set reason = ..SlotOf(request, name)
+					Quit
+				}
+			}
+		}
+	} Catch exception {
+		Set reason = ""
+	}
+	Quit reason
+}
+
+}

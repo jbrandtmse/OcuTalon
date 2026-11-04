@@ -1,0 +1,30 @@
+{
+  "name": "reminder-cancel-chat",
+  "match": {
+    "marker": "reminder-cancel-chat"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "list_reminders",
+        "input": {}
+      }
+    },
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "cancel_reminder",
+        "input": {
+          "reminderRefs": [
+            "zzReminderChatCancel01"
+          ]
+        }
+      }
+    },
+    {
+      "status": 200,
+      "text": "The CI mock cancelled the reminder."
+    }
+  ]
+}

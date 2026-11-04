@@ -1,0 +1,1557 @@
+{
+  "format": "ocutalon.readerSnapshot/1",
+  "recordedAt": "2026-10-20T10:37:46Z",
+  "source": {
+    "namespace": "OCUORDERS",
+    "production": "OcuTalon.Demo.Orders.Production",
+    "item": "PartnerOrdersIn",
+    "batch": {
+      "count": 50,
+      "dateFormat": "MM/DD/YYYY",
+      "orderDate": "2026-10-16"
+    }
+  },
+  "failures": [
+    {
+      "headerId": "2",
+      "sessionId": 2,
+      "superSession": "ydD-g08BPMKrFaFBasy8jg",
+      "timeCreated": "2026-10-20T10:37:45Z",
+      "timeProcessed": "2026-10-20T10:37:45Z",
+      "sourceConfigName": "PartnerOrdersIn",
+      "targetConfigName": "OrdersFromPartner",
+      "bodyClass": "OcuTalon.Demo.Orders.PartnerOrder",
+      "bodyId": "1",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.",
+      "body": {
+        "OrderNumber": "PO-0001",
+        "OrderDate": "10/16/2026",
+        "Sku": "SKU-1001",
+        "Quantity": 1
+      }
+    },
+    {
+      "headerId": "3",
+      "sessionId": 3,
+      "superSession": "ydD-g08BPMKrFaFBasy8jg",
+      "timeCreated": "2026-10-20T10:37:45Z",
+      "timeProcessed": "2026-10-20T10:37:45Z",
+      "sourceConfigName": "PartnerOrdersIn",
+      "targetConfigName": "OrdersFromPartner",
+      "bodyClass": "OcuTalon.Demo.Orders.PartnerOrder",
+      "bodyId": "2",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.",
+      "body": {
+        "OrderNumber": "PO-0002",
+        "OrderDate": "10/16/2026",
+        "Sku": "SKU-1002",
+        "Quantity": 2
+      }
+    },
+    {
+      "headerId": "4",
+      "sessionId": 4,
+      "superSession": "ydD-g08BPMKrFaFBasy8jg",
+      "timeCreated": "2026-10-20T10:37:45Z",
+      "timeProcessed": "2026-10-20T10:37:45Z",
+      "sourceConfigName": "PartnerOrdersIn",
+      "targetConfigName": "OrdersFromPartner",
+      "bodyClass": "OcuTalon.Demo.Orders.PartnerOrder",
+      "bodyId": "3",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.",
+      "body": {
+        "OrderNumber": "PO-0003",
+        "OrderDate": "10/16/2026",
+        "Sku": "SKU-1003",
+        "Quantity": 3
+      }
+    },
+    {
+      "headerId": "5",
+      "sessionId": 5,
+      "superSession": "ydD-g08BPMKrFaFBasy8jg",
+      "timeCreated": "2026-10-20T10:37:45Z",
+      "timeProcessed": "2026-10-20T10:37:45Z",
+      "sourceConfigName": "PartnerOrdersIn",
+      "targetConfigName": "OrdersFromPartner",
+      "bodyClass": "OcuTalon.Demo.Orders.PartnerOrder",
+      "bodyId": "4",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.",
+      "body": {
+        "OrderNumber": "PO-0004",
+        "OrderDate": "10/16/2026",
+        "Sku": "SKU-1004",
+        "Quantity": 4
+      }
+    },
+    {
+      "headerId": "6",
+      "sessionId": 6,
+      "superSession": "ydD-g08BPMKrFaFBasy8jg",
+      "timeCreated": "2026-10-20T10:37:45Z",
+      "timeProcessed": "2026-10-20T10:37:45Z",
+      "sourceConfigName": "PartnerOrdersIn",
+      "targetConfigName": "OrdersFromPartner",
+      "bodyClass": "OcuTalon.Demo.Orders.PartnerOrder",
+      "bodyId": "5",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.",
+      "body": {
+        "OrderNumber": "PO-0005",
+        "OrderDate": "10/16/2026",
+        "Sku": "SKU-1005",
+        "Quantity": 1
+      }
+    },
+    {
+      "headerId": "7",
+      "sessionId": 7,
+      "superSession": "ydD-g08BPMKrFaFBasy8jg",
+      "timeCreated": "2026-10-20T10:37:45Z",
+      "timeProcessed": "2026-10-20T10:37:45Z",
+      "sourceConfigName": "PartnerOrdersIn",
+      "targetConfigName": "OrdersFromPartner",
+      "bodyClass": "OcuTalon.Demo.Orders.PartnerOrder",
+      "bodyId": "6",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.",
+      "body": {
+        "OrderNumber": "PO-0006",
+        "OrderDate": "10/16/2026",
+        "Sku": "SKU-1001",
+        "Quantity": 2
+      }
+    },
+    {
+      "headerId": "8",
+      "sessionId": 8,
+      "superSession": "ydD-g08BPMKrFaFBasy8jg",
+      "timeCreated": "2026-10-20T10:37:45Z",
+      "timeProcessed": "2026-10-20T10:37:45Z",
+      "sourceConfigName": "PartnerOrdersIn",
+      "targetConfigName": "OrdersFromPartner",
+      "bodyClass": "OcuTalon.Demo.Orders.PartnerOrder",
+      "bodyId": "7",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.",
+      "body": {
+        "OrderNumber": "PO-0007",
+        "OrderDate": "10/16/2026",
+        "Sku": "SKU-1002",
+        "Quantity": 3
+      }
+    },
+    {
+      "headerId": "9",
+      "sessionId": 9,
+      "superSession": "ydD-g08BPMKrFaFBasy8jg",
+      "timeCreated": "2026-10-20T10:37:45Z",
+      "timeProcessed": "2026-10-20T10:37:45Z",
+      "sourceConfigName": "PartnerOrdersIn",
+      "targetConfigName": "OrdersFromPartner",
+      "bodyClass": "OcuTalon.Demo.Orders.PartnerOrder",
+      "bodyId": "8",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.",
+      "body": {
+        "OrderNumber": "PO-0008",
+        "OrderDate": "10/16/2026",
+        "Sku": "SKU-1003",
+        "Quantity": 4
+      }
+    },
+    {
+      "headerId": "10",
+      "sessionId": 10,
+      "superSession": "ydD-g08BPMKrFaFBasy8jg",
+      "timeCreated": "2026-10-20T10:37:45Z",
+      "timeProcessed": "2026-10-20T10:37:45Z",
+      "sourceConfigName": "PartnerOrdersIn",
+      "targetConfigName": "OrdersFromPartner",
+      "bodyClass": "OcuTalon.Demo.Orders.PartnerOrder",
+      "bodyId": "9",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.",
+      "body": {
+        "OrderNumber": "PO-0009",
+        "OrderDate": "10/16/2026",
+        "Sku": "SKU-1004",
+        "Quantity": 1
+      }
+    },
+    {
+      "headerId": "11",
+      "sessionId": 11,
+      "superSession": "ydD-g08BPMKrFaFBasy8jg",
+      "timeCreated": "2026-10-20T10:37:45Z",
+      "timeProcessed": "2026-10-20T10:37:45Z",
+      "sourceConfigName": "PartnerOrdersIn",
+      "targetConfigName": "OrdersFromPartner",
+      "bodyClass": "OcuTalon.Demo.Orders.PartnerOrder",
+      "bodyId": "10",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.",
+      "body": {
+        "OrderNumber": "PO-0010",
+        "OrderDate": "10/16/2026",
+        "Sku": "SKU-1005",
+        "Quantity": 2
+      }
+    },
+    {
+      "headerId": "12",
+      "sessionId": 12,
+      "superSession": "ydD-g08BPMKrFaFBasy8jg",
+      "timeCreated": "2026-10-20T10:37:45Z",
+      "timeProcessed": "2026-10-20T10:37:45Z",
+      "sourceConfigName": "PartnerOrdersIn",
+      "targetConfigName": "OrdersFromPartner",
+      "bodyClass": "OcuTalon.Demo.Orders.PartnerOrder",
+      "bodyId": "11",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.",
+      "body": {
+        "OrderNumber": "PO-0011",
+        "OrderDate": "10/16/2026",
+        "Sku": "SKU-1001",
+        "Quantity": 3
+      }
+    },
+    {
+      "headerId": "13",
+      "sessionId": 13,
+      "superSession": "ydD-g08BPMKrFaFBasy8jg",
+      "timeCreated": "2026-10-20T10:37:45Z",
+      "timeProcessed": "2026-10-20T10:37:45Z",
+      "sourceConfigName": "PartnerOrdersIn",
+      "targetConfigName": "OrdersFromPartner",
+      "bodyClass": "OcuTalon.Demo.Orders.PartnerOrder",
+      "bodyId": "12",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.",
+      "body": {
+        "OrderNumber": "PO-0012",
+        "OrderDate": "10/16/2026",
+        "Sku": "SKU-1002",
+        "Quantity": 4
+      }
+    },
+    {
+      "headerId": "14",
+      "sessionId": 14,
+      "superSession": "ydD-g08BPMKrFaFBasy8jg",
+      "timeCreated": "2026-10-20T10:37:45Z",
+      "timeProcessed": "2026-10-20T10:37:45Z",
+      "sourceConfigName": "PartnerOrdersIn",
+      "targetConfigName": "OrdersFromPartner",
+      "bodyClass": "OcuTalon.Demo.Orders.PartnerOrder",
+      "bodyId": "13",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.",
+      "body": {
+        "OrderNumber": "PO-0013",
+        "OrderDate": "10/16/2026",
+        "Sku": "SKU-1003",
+        "Quantity": 1
+      }
+    },
+    {
+      "headerId": "15",
+      "sessionId": 15,
+      "superSession": "ydD-g08BPMKrFaFBasy8jg",
+      "timeCreated": "2026-10-20T10:37:45Z",
+      "timeProcessed": "2026-10-20T10:37:45Z",
+      "sourceConfigName": "PartnerOrdersIn",
+      "targetConfigName": "OrdersFromPartner",
+      "bodyClass": "OcuTalon.Demo.Orders.PartnerOrder",
+      "bodyId": "14",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.",
+      "body": {
+        "OrderNumber": "PO-0014",
+        "OrderDate": "10/16/2026",
+        "Sku": "SKU-1004",
+        "Quantity": 2
+      }
+    },
+    {
+      "headerId": "16",
+      "sessionId": 16,
+      "superSession": "ydD-g08BPMKrFaFBasy8jg",
+      "timeCreated": "2026-10-20T10:37:45Z",
+      "timeProcessed": "2026-10-20T10:37:45Z",
+      "sourceConfigName": "PartnerOrdersIn",
+      "targetConfigName": "OrdersFromPartner",
+      "bodyClass": "OcuTalon.Demo.Orders.PartnerOrder",
+      "bodyId": "15",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.",
+      "body": {
+        "OrderNumber": "PO-0015",
+        "OrderDate": "10/16/2026",
+        "Sku": "SKU-1005",
+        "Quantity": 3
+      }
+    },
+    {
+      "headerId": "17",
+      "sessionId": 17,
+      "superSession": "ydD-g08BPMKrFaFBasy8jg",
+      "timeCreated": "2026-10-20T10:37:45Z",
+      "timeProcessed": "2026-10-20T10:37:45Z",
+      "sourceConfigName": "PartnerOrdersIn",
+      "targetConfigName": "OrdersFromPartner",
+      "bodyClass": "OcuTalon.Demo.Orders.PartnerOrder",
+      "bodyId": "16",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.",
+      "body": {
+        "OrderNumber": "PO-0016",
+        "OrderDate": "10/16/2026",
+        "Sku": "SKU-1001",
+        "Quantity": 4
+      }
+    },
+    {
+      "headerId": "18",
+      "sessionId": 18,
+      "superSession": "ydD-g08BPMKrFaFBasy8jg",
+      "timeCreated": "2026-10-20T10:37:45Z",
+      "timeProcessed": "2026-10-20T10:37:45Z",
+      "sourceConfigName": "PartnerOrdersIn",
+      "targetConfigName": "OrdersFromPartner",
+      "bodyClass": "OcuTalon.Demo.Orders.PartnerOrder",
+      "bodyId": "17",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.",
+      "body": {
+        "OrderNumber": "PO-0017",
+        "OrderDate": "10/16/2026",
+        "Sku": "SKU-1002",
+        "Quantity": 1
+      }
+    },
+    {
+      "headerId": "19",
+      "sessionId": 19,
+      "superSession": "ydD-g08BPMKrFaFBasy8jg",
+      "timeCreated": "2026-10-20T10:37:45Z",
+      "timeProcessed": "2026-10-20T10:37:45Z",
+      "sourceConfigName": "PartnerOrdersIn",
+      "targetConfigName": "OrdersFromPartner",
+      "bodyClass": "OcuTalon.Demo.Orders.PartnerOrder",
+      "bodyId": "18",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.",
+      "body": {
+        "OrderNumber": "PO-0018",
+        "OrderDate": "10/16/2026",
+        "Sku": "SKU-1003",
+        "Quantity": 2
+      }
+    },
+    {
+      "headerId": "20",
+      "sessionId": 20,
+      "superSession": "ydD-g08BPMKrFaFBasy8jg",
+      "timeCreated": "2026-10-20T10:37:45Z",
+      "timeProcessed": "2026-10-20T10:37:45Z",
+      "sourceConfigName": "PartnerOrdersIn",
+      "targetConfigName": "OrdersFromPartner",
+      "bodyClass": "OcuTalon.Demo.Orders.PartnerOrder",
+      "bodyId": "19",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.",
+      "body": {
+        "OrderNumber": "PO-0019",
+        "OrderDate": "10/16/2026",
+        "Sku": "SKU-1004",
+        "Quantity": 3
+      }
+    },
+    {
+      "headerId": "21",
+      "sessionId": 21,
+      "superSession": "ydD-g08BPMKrFaFBasy8jg",
+      "timeCreated": "2026-10-20T10:37:45Z",
+      "timeProcessed": "2026-10-20T10:37:45Z",
+      "sourceConfigName": "PartnerOrdersIn",
+      "targetConfigName": "OrdersFromPartner",
+      "bodyClass": "OcuTalon.Demo.Orders.PartnerOrder",
+      "bodyId": "20",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.",
+      "body": {
+        "OrderNumber": "PO-0020",
+        "OrderDate": "10/16/2026",
+        "Sku": "SKU-1005",
+        "Quantity": 4
+      }
+    },
+    {
+      "headerId": "22",
+      "sessionId": 22,
+      "superSession": "ydD-g08BPMKrFaFBasy8jg",
+      "timeCreated": "2026-10-20T10:37:45Z",
+      "timeProcessed": "2026-10-20T10:37:45Z",
+      "sourceConfigName": "PartnerOrdersIn",
+      "targetConfigName": "OrdersFromPartner",
+      "bodyClass": "OcuTalon.Demo.Orders.PartnerOrder",
+      "bodyId": "21",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.",
+      "body": {
+        "OrderNumber": "PO-0021",
+        "OrderDate": "10/16/2026",
+        "Sku": "SKU-1001",
+        "Quantity": 1
+      }
+    },
+    {
+      "headerId": "23",
+      "sessionId": 23,
+      "superSession": "ydD-g08BPMKrFaFBasy8jg",
+      "timeCreated": "2026-10-20T10:37:45Z",
+      "timeProcessed": "2026-10-20T10:37:45Z",
+      "sourceConfigName": "PartnerOrdersIn",
+      "targetConfigName": "OrdersFromPartner",
+      "bodyClass": "OcuTalon.Demo.Orders.PartnerOrder",
+      "bodyId": "22",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.",
+      "body": {
+        "OrderNumber": "PO-0022",
+        "OrderDate": "10/16/2026",
+        "Sku": "SKU-1002",
+        "Quantity": 2
+      }
+    },
+    {
+      "headerId": "24",
+      "sessionId": 24,
+      "superSession": "ydD-g08BPMKrFaFBasy8jg",
+      "timeCreated": "2026-10-20T10:37:45Z",
+      "timeProcessed": "2026-10-20T10:37:45Z",
+      "sourceConfigName": "PartnerOrdersIn",
+      "targetConfigName": "OrdersFromPartner",
+      "bodyClass": "OcuTalon.Demo.Orders.PartnerOrder",
+      "bodyId": "23",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.",
+      "body": {
+        "OrderNumber": "PO-0023",
+        "OrderDate": "10/16/2026",
+        "Sku": "SKU-1003",
+        "Quantity": 3
+      }
+    },
+    {
+      "headerId": "25",
+      "sessionId": 25,
+      "superSession": "ydD-g08BPMKrFaFBasy8jg",
+      "timeCreated": "2026-10-20T10:37:45Z",
+      "timeProcessed": "2026-10-20T10:37:45Z",
+      "sourceConfigName": "PartnerOrdersIn",
+      "targetConfigName": "OrdersFromPartner",
+      "bodyClass": "OcuTalon.Demo.Orders.PartnerOrder",
+      "bodyId": "24",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.",
+      "body": {
+        "OrderNumber": "PO-0024",
+        "OrderDate": "10/16/2026",
+        "Sku": "SKU-1004",
+        "Quantity": 4
+      }
+    },
+    {
+      "headerId": "26",
+      "sessionId": 26,
+      "superSession": "ydD-g08BPMKrFaFBasy8jg",
+      "timeCreated": "2026-10-20T10:37:45Z",
+      "timeProcessed": "2026-10-20T10:37:45Z",
+      "sourceConfigName": "PartnerOrdersIn",
+      "targetConfigName": "OrdersFromPartner",
+      "bodyClass": "OcuTalon.Demo.Orders.PartnerOrder",
+      "bodyId": "25",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.",
+      "body": {
+        "OrderNumber": "PO-0025",
+        "OrderDate": "10/16/2026",
+        "Sku": "SKU-1005",
+        "Quantity": 1
+      }
+    },
+    {
+      "headerId": "27",
+      "sessionId": 27,
+      "superSession": "ydD-g08BPMKrFaFBasy8jg",
+      "timeCreated": "2026-10-20T10:37:45Z",
+      "timeProcessed": "2026-10-20T10:37:45Z",
+      "sourceConfigName": "PartnerOrdersIn",
+      "targetConfigName": "OrdersFromPartner",
+      "bodyClass": "OcuTalon.Demo.Orders.PartnerOrder",
+      "bodyId": "26",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.",
+      "body": {
+        "OrderNumber": "PO-0026",
+        "OrderDate": "10/16/2026",
+        "Sku": "SKU-1001",
+        "Quantity": 2
+      }
+    },
+    {
+      "headerId": "28",
+      "sessionId": 28,
+      "superSession": "ydD-g08BPMKrFaFBasy8jg",
+      "timeCreated": "2026-10-20T10:37:45Z",
+      "timeProcessed": "2026-10-20T10:37:45Z",
+      "sourceConfigName": "PartnerOrdersIn",
+      "targetConfigName": "OrdersFromPartner",
+      "bodyClass": "OcuTalon.Demo.Orders.PartnerOrder",
+      "bodyId": "27",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.",
+      "body": {
+        "OrderNumber": "PO-0027",
+        "OrderDate": "10/16/2026",
+        "Sku": "SKU-1002",
+        "Quantity": 3
+      }
+    },
+    {
+      "headerId": "29",
+      "sessionId": 29,
+      "superSession": "ydD-g08BPMKrFaFBasy8jg",
+      "timeCreated": "2026-10-20T10:37:45Z",
+      "timeProcessed": "2026-10-20T10:37:45Z",
+      "sourceConfigName": "PartnerOrdersIn",
+      "targetConfigName": "OrdersFromPartner",
+      "bodyClass": "OcuTalon.Demo.Orders.PartnerOrder",
+      "bodyId": "28",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.",
+      "body": {
+        "OrderNumber": "PO-0028",
+        "OrderDate": "10/16/2026",
+        "Sku": "SKU-1003",
+        "Quantity": 4
+      }
+    },
+    {
+      "headerId": "30",
+      "sessionId": 30,
+      "superSession": "ydD-g08BPMKrFaFBasy8jg",
+      "timeCreated": "2026-10-20T10:37:45Z",
+      "timeProcessed": "2026-10-20T10:37:45Z",
+      "sourceConfigName": "PartnerOrdersIn",
+      "targetConfigName": "OrdersFromPartner",
+      "bodyClass": "OcuTalon.Demo.Orders.PartnerOrder",
+      "bodyId": "29",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.",
+      "body": {
+        "OrderNumber": "PO-0029",
+        "OrderDate": "10/16/2026",
+        "Sku": "SKU-1004",
+        "Quantity": 1
+      }
+    },
+    {
+      "headerId": "31",
+      "sessionId": 31,
+      "superSession": "ydD-g08BPMKrFaFBasy8jg",
+      "timeCreated": "2026-10-20T10:37:45Z",
+      "timeProcessed": "2026-10-20T10:37:45Z",
+      "sourceConfigName": "PartnerOrdersIn",
+      "targetConfigName": "OrdersFromPartner",
+      "bodyClass": "OcuTalon.Demo.Orders.PartnerOrder",
+      "bodyId": "30",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.",
+      "body": {
+        "OrderNumber": "PO-0030",
+        "OrderDate": "10/16/2026",
+        "Sku": "SKU-1005",
+        "Quantity": 2
+      }
+    },
+    {
+      "headerId": "32",
+      "sessionId": 32,
+      "superSession": "ydD-g08BPMKrFaFBasy8jg",
+      "timeCreated": "2026-10-20T10:37:45Z",
+      "timeProcessed": "2026-10-20T10:37:45Z",
+      "sourceConfigName": "PartnerOrdersIn",
+      "targetConfigName": "OrdersFromPartner",
+      "bodyClass": "OcuTalon.Demo.Orders.PartnerOrder",
+      "bodyId": "31",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.",
+      "body": {
+        "OrderNumber": "PO-0031",
+        "OrderDate": "10/16/2026",
+        "Sku": "SKU-1001",
+        "Quantity": 3
+      }
+    },
+    {
+      "headerId": "33",
+      "sessionId": 33,
+      "superSession": "ydD-g08BPMKrFaFBasy8jg",
+      "timeCreated": "2026-10-20T10:37:45Z",
+      "timeProcessed": "2026-10-20T10:37:45Z",
+      "sourceConfigName": "PartnerOrdersIn",
+      "targetConfigName": "OrdersFromPartner",
+      "bodyClass": "OcuTalon.Demo.Orders.PartnerOrder",
+      "bodyId": "32",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.",
+      "body": {
+        "OrderNumber": "PO-0032",
+        "OrderDate": "10/16/2026",
+        "Sku": "SKU-1002",
+        "Quantity": 4
+      }
+    },
+    {
+      "headerId": "34",
+      "sessionId": 34,
+      "superSession": "ydD-g08BPMKrFaFBasy8jg",
+      "timeCreated": "2026-10-20T10:37:45Z",
+      "timeProcessed": "2026-10-20T10:37:45Z",
+      "sourceConfigName": "PartnerOrdersIn",
+      "targetConfigName": "OrdersFromPartner",
+      "bodyClass": "OcuTalon.Demo.Orders.PartnerOrder",
+      "bodyId": "33",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.",
+      "body": {
+        "OrderNumber": "PO-0033",
+        "OrderDate": "10/16/2026",
+        "Sku": "SKU-1003",
+        "Quantity": 1
+      }
+    },
+    {
+      "headerId": "35",
+      "sessionId": 35,
+      "superSession": "ydD-g08BPMKrFaFBasy8jg",
+      "timeCreated": "2026-10-20T10:37:45Z",
+      "timeProcessed": "2026-10-20T10:37:45Z",
+      "sourceConfigName": "PartnerOrdersIn",
+      "targetConfigName": "OrdersFromPartner",
+      "bodyClass": "OcuTalon.Demo.Orders.PartnerOrder",
+      "bodyId": "34",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.",
+      "body": {
+        "OrderNumber": "PO-0034",
+        "OrderDate": "10/16/2026",
+        "Sku": "SKU-1004",
+        "Quantity": 2
+      }
+    },
+    {
+      "headerId": "36",
+      "sessionId": 36,
+      "superSession": "ydD-g08BPMKrFaFBasy8jg",
+      "timeCreated": "2026-10-20T10:37:45Z",
+      "timeProcessed": "2026-10-20T10:37:45Z",
+      "sourceConfigName": "PartnerOrdersIn",
+      "targetConfigName": "OrdersFromPartner",
+      "bodyClass": "OcuTalon.Demo.Orders.PartnerOrder",
+      "bodyId": "35",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.",
+      "body": {
+        "OrderNumber": "PO-0035",
+        "OrderDate": "10/16/2026",
+        "Sku": "SKU-1005",
+        "Quantity": 3
+      }
+    },
+    {
+      "headerId": "37",
+      "sessionId": 37,
+      "superSession": "ydD-g08BPMKrFaFBasy8jg",
+      "timeCreated": "2026-10-20T10:37:45Z",
+      "timeProcessed": "2026-10-20T10:37:45Z",
+      "sourceConfigName": "PartnerOrdersIn",
+      "targetConfigName": "OrdersFromPartner",
+      "bodyClass": "OcuTalon.Demo.Orders.PartnerOrder",
+      "bodyId": "36",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.",
+      "body": {
+        "OrderNumber": "PO-0036",
+        "OrderDate": "10/16/2026",
+        "Sku": "SKU-1001",
+        "Quantity": 4
+      }
+    },
+    {
+      "headerId": "38",
+      "sessionId": 38,
+      "superSession": "ydD-g08BPMKrFaFBasy8jg",
+      "timeCreated": "2026-10-20T10:37:45Z",
+      "timeProcessed": "2026-10-20T10:37:45Z",
+      "sourceConfigName": "PartnerOrdersIn",
+      "targetConfigName": "OrdersFromPartner",
+      "bodyClass": "OcuTalon.Demo.Orders.PartnerOrder",
+      "bodyId": "37",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.",
+      "body": {
+        "OrderNumber": "PO-0037",
+        "OrderDate": "10/16/2026",
+        "Sku": "SKU-1002",
+        "Quantity": 1
+      }
+    },
+    {
+      "headerId": "39",
+      "sessionId": 39,
+      "superSession": "ydD-g08BPMKrFaFBasy8jg",
+      "timeCreated": "2026-10-20T10:37:45Z",
+      "timeProcessed": "2026-10-20T10:37:45Z",
+      "sourceConfigName": "PartnerOrdersIn",
+      "targetConfigName": "OrdersFromPartner",
+      "bodyClass": "OcuTalon.Demo.Orders.PartnerOrder",
+      "bodyId": "38",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.",
+      "body": {
+        "OrderNumber": "PO-0038",
+        "OrderDate": "10/16/2026",
+        "Sku": "SKU-1003",
+        "Quantity": 2
+      }
+    },
+    {
+      "headerId": "40",
+      "sessionId": 40,
+      "superSession": "ydD-g08BPMKrFaFBasy8jg",
+      "timeCreated": "2026-10-20T10:37:45Z",
+      "timeProcessed": "2026-10-20T10:37:45Z",
+      "sourceConfigName": "PartnerOrdersIn",
+      "targetConfigName": "OrdersFromPartner",
+      "bodyClass": "OcuTalon.Demo.Orders.PartnerOrder",
+      "bodyId": "39",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.",
+      "body": {
+        "OrderNumber": "PO-0039",
+        "OrderDate": "10/16/2026",
+        "Sku": "SKU-1004",
+        "Quantity": 3
+      }
+    },
+    {
+      "headerId": "41",
+      "sessionId": 41,
+      "superSession": "ydD-g08BPMKrFaFBasy8jg",
+      "timeCreated": "2026-10-20T10:37:45Z",
+      "timeProcessed": "2026-10-20T10:37:45Z",
+      "sourceConfigName": "PartnerOrdersIn",
+      "targetConfigName": "OrdersFromPartner",
+      "bodyClass": "OcuTalon.Demo.Orders.PartnerOrder",
+      "bodyId": "40",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.",
+      "body": {
+        "OrderNumber": "PO-0040",
+        "OrderDate": "10/16/2026",
+        "Sku": "SKU-1005",
+        "Quantity": 4
+      }
+    },
+    {
+      "headerId": "42",
+      "sessionId": 42,
+      "superSession": "ydD-g08BPMKrFaFBasy8jg",
+      "timeCreated": "2026-10-20T10:37:45Z",
+      "timeProcessed": "2026-10-20T10:37:45Z",
+      "sourceConfigName": "PartnerOrdersIn",
+      "targetConfigName": "OrdersFromPartner",
+      "bodyClass": "OcuTalon.Demo.Orders.PartnerOrder",
+      "bodyId": "41",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.",
+      "body": {
+        "OrderNumber": "PO-0041",
+        "OrderDate": "10/16/2026",
+        "Sku": "SKU-1001",
+        "Quantity": 1
+      }
+    },
+    {
+      "headerId": "43",
+      "sessionId": 43,
+      "superSession": "ydD-g08BPMKrFaFBasy8jg",
+      "timeCreated": "2026-10-20T10:37:45Z",
+      "timeProcessed": "2026-10-20T10:37:45Z",
+      "sourceConfigName": "PartnerOrdersIn",
+      "targetConfigName": "OrdersFromPartner",
+      "bodyClass": "OcuTalon.Demo.Orders.PartnerOrder",
+      "bodyId": "42",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.",
+      "body": {
+        "OrderNumber": "PO-0042",
+        "OrderDate": "10/16/2026",
+        "Sku": "SKU-1002",
+        "Quantity": 2
+      }
+    },
+    {
+      "headerId": "44",
+      "sessionId": 44,
+      "superSession": "ydD-g08BPMKrFaFBasy8jg",
+      "timeCreated": "2026-10-20T10:37:45Z",
+      "timeProcessed": "2026-10-20T10:37:45Z",
+      "sourceConfigName": "PartnerOrdersIn",
+      "targetConfigName": "OrdersFromPartner",
+      "bodyClass": "OcuTalon.Demo.Orders.PartnerOrder",
+      "bodyId": "43",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.",
+      "body": {
+        "OrderNumber": "PO-0043",
+        "OrderDate": "10/16/2026",
+        "Sku": "SKU-1003",
+        "Quantity": 3
+      }
+    },
+    {
+      "headerId": "45",
+      "sessionId": 45,
+      "superSession": "ydD-g08BPMKrFaFBasy8jg",
+      "timeCreated": "2026-10-20T10:37:45Z",
+      "timeProcessed": "2026-10-20T10:37:45Z",
+      "sourceConfigName": "PartnerOrdersIn",
+      "targetConfigName": "OrdersFromPartner",
+      "bodyClass": "OcuTalon.Demo.Orders.PartnerOrder",
+      "bodyId": "44",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.",
+      "body": {
+        "OrderNumber": "PO-0044",
+        "OrderDate": "10/16/2026",
+        "Sku": "SKU-1004",
+        "Quantity": 4
+      }
+    },
+    {
+      "headerId": "46",
+      "sessionId": 46,
+      "superSession": "ydD-g08BPMKrFaFBasy8jg",
+      "timeCreated": "2026-10-20T10:37:45Z",
+      "timeProcessed": "2026-10-20T10:37:45Z",
+      "sourceConfigName": "PartnerOrdersIn",
+      "targetConfigName": "OrdersFromPartner",
+      "bodyClass": "OcuTalon.Demo.Orders.PartnerOrder",
+      "bodyId": "45",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.",
+      "body": {
+        "OrderNumber": "PO-0045",
+        "OrderDate": "10/16/2026",
+        "Sku": "SKU-1005",
+        "Quantity": 1
+      }
+    },
+    {
+      "headerId": "47",
+      "sessionId": 47,
+      "superSession": "ydD-g08BPMKrFaFBasy8jg",
+      "timeCreated": "2026-10-20T10:37:45Z",
+      "timeProcessed": "2026-10-20T10:37:45Z",
+      "sourceConfigName": "PartnerOrdersIn",
+      "targetConfigName": "OrdersFromPartner",
+      "bodyClass": "OcuTalon.Demo.Orders.PartnerOrder",
+      "bodyId": "46",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.",
+      "body": {
+        "OrderNumber": "PO-0046",
+        "OrderDate": "10/16/2026",
+        "Sku": "SKU-1001",
+        "Quantity": 2
+      }
+    },
+    {
+      "headerId": "48",
+      "sessionId": 48,
+      "superSession": "ydD-g08BPMKrFaFBasy8jg",
+      "timeCreated": "2026-10-20T10:37:45Z",
+      "timeProcessed": "2026-10-20T10:37:45Z",
+      "sourceConfigName": "PartnerOrdersIn",
+      "targetConfigName": "OrdersFromPartner",
+      "bodyClass": "OcuTalon.Demo.Orders.PartnerOrder",
+      "bodyId": "47",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.",
+      "body": {
+        "OrderNumber": "PO-0047",
+        "OrderDate": "10/16/2026",
+        "Sku": "SKU-1002",
+        "Quantity": 3
+      }
+    },
+    {
+      "headerId": "49",
+      "sessionId": 49,
+      "superSession": "ydD-g08BPMKrFaFBasy8jg",
+      "timeCreated": "2026-10-20T10:37:45Z",
+      "timeProcessed": "2026-10-20T10:37:45Z",
+      "sourceConfigName": "PartnerOrdersIn",
+      "targetConfigName": "OrdersFromPartner",
+      "bodyClass": "OcuTalon.Demo.Orders.PartnerOrder",
+      "bodyId": "48",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.",
+      "body": {
+        "OrderNumber": "PO-0048",
+        "OrderDate": "10/16/2026",
+        "Sku": "SKU-1003",
+        "Quantity": 4
+      }
+    },
+    {
+      "headerId": "50",
+      "sessionId": 50,
+      "superSession": "ydD-g08BPMKrFaFBasy8jg",
+      "timeCreated": "2026-10-20T10:37:45Z",
+      "timeProcessed": "2026-10-20T10:37:45Z",
+      "sourceConfigName": "PartnerOrdersIn",
+      "targetConfigName": "OrdersFromPartner",
+      "bodyClass": "OcuTalon.Demo.Orders.PartnerOrder",
+      "bodyId": "49",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.",
+      "body": {
+        "OrderNumber": "PO-0049",
+        "OrderDate": "10/16/2026",
+        "Sku": "SKU-1004",
+        "Quantity": 1
+      }
+    },
+    {
+      "headerId": "51",
+      "sessionId": 51,
+      "superSession": "ydD-g08BPMKrFaFBasy8jg",
+      "timeCreated": "2026-10-20T10:37:45Z",
+      "timeProcessed": "2026-10-20T10:37:45Z",
+      "sourceConfigName": "PartnerOrdersIn",
+      "targetConfigName": "OrdersFromPartner",
+      "bodyClass": "OcuTalon.Demo.Orders.PartnerOrder",
+      "bodyId": "50",
+      "status": "Error",
+      "isError": false,
+      "error": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.",
+      "body": {
+        "OrderNumber": "PO-0050",
+        "OrderDate": "10/16/2026",
+        "Sku": "SKU-1005",
+        "Quantity": 2
+      }
+    }
+  ],
+  "eventLog": [
+    {
+      "id": 11,
+      "timeLogged": "2026-10-20T10:37:45Z",
+      "type": "Error",
+      "configName": "OrdersFromPartner",
+      "sourceClass": "Ens.Actor",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 2,
+      "text": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'."
+    },
+    {
+      "id": 12,
+      "timeLogged": "2026-10-20T10:37:45Z",
+      "type": "Error",
+      "configName": "OrdersFromPartner",
+      "sourceClass": "Ens.Actor",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 3,
+      "text": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'."
+    },
+    {
+      "id": 13,
+      "timeLogged": "2026-10-20T10:37:45Z",
+      "type": "Error",
+      "configName": "OrdersFromPartner",
+      "sourceClass": "Ens.Actor",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 4,
+      "text": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'."
+    },
+    {
+      "id": 14,
+      "timeLogged": "2026-10-20T10:37:45Z",
+      "type": "Error",
+      "configName": "OrdersFromPartner",
+      "sourceClass": "Ens.Actor",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 5,
+      "text": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'."
+    },
+    {
+      "id": 15,
+      "timeLogged": "2026-10-20T10:37:45Z",
+      "type": "Error",
+      "configName": "OrdersFromPartner",
+      "sourceClass": "Ens.Actor",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 6,
+      "text": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'."
+    },
+    {
+      "id": 16,
+      "timeLogged": "2026-10-20T10:37:45Z",
+      "type": "Error",
+      "configName": "OrdersFromPartner",
+      "sourceClass": "Ens.Actor",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 7,
+      "text": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'."
+    },
+    {
+      "id": 17,
+      "timeLogged": "2026-10-20T10:37:45Z",
+      "type": "Error",
+      "configName": "OrdersFromPartner",
+      "sourceClass": "Ens.Actor",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 8,
+      "text": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'."
+    },
+    {
+      "id": 18,
+      "timeLogged": "2026-10-20T10:37:45Z",
+      "type": "Error",
+      "configName": "OrdersFromPartner",
+      "sourceClass": "Ens.Actor",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 9,
+      "text": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'."
+    },
+    {
+      "id": 19,
+      "timeLogged": "2026-10-20T10:37:45Z",
+      "type": "Error",
+      "configName": "OrdersFromPartner",
+      "sourceClass": "Ens.Actor",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 10,
+      "text": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'."
+    },
+    {
+      "id": 20,
+      "timeLogged": "2026-10-20T10:37:45Z",
+      "type": "Error",
+      "configName": "OrdersFromPartner",
+      "sourceClass": "Ens.Actor",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 11,
+      "text": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'."
+    },
+    {
+      "id": 21,
+      "timeLogged": "2026-10-20T10:37:45Z",
+      "type": "Error",
+      "configName": "OrdersFromPartner",
+      "sourceClass": "Ens.Actor",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 12,
+      "text": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'."
+    },
+    {
+      "id": 22,
+      "timeLogged": "2026-10-20T10:37:45Z",
+      "type": "Error",
+      "configName": "OrdersFromPartner",
+      "sourceClass": "Ens.Actor",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 13,
+      "text": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'."
+    },
+    {
+      "id": 23,
+      "timeLogged": "2026-10-20T10:37:45Z",
+      "type": "Error",
+      "configName": "OrdersFromPartner",
+      "sourceClass": "Ens.Actor",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 14,
+      "text": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'."
+    },
+    {
+      "id": 24,
+      "timeLogged": "2026-10-20T10:37:45Z",
+      "type": "Error",
+      "configName": "OrdersFromPartner",
+      "sourceClass": "Ens.Actor",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 15,
+      "text": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'."
+    },
+    {
+      "id": 25,
+      "timeLogged": "2026-10-20T10:37:45Z",
+      "type": "Error",
+      "configName": "OrdersFromPartner",
+      "sourceClass": "Ens.Actor",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 16,
+      "text": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'."
+    },
+    {
+      "id": 26,
+      "timeLogged": "2026-10-20T10:37:45Z",
+      "type": "Error",
+      "configName": "OrdersFromPartner",
+      "sourceClass": "Ens.Actor",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 17,
+      "text": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'."
+    },
+    {
+      "id": 27,
+      "timeLogged": "2026-10-20T10:37:45Z",
+      "type": "Error",
+      "configName": "OrdersFromPartner",
+      "sourceClass": "Ens.Actor",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 18,
+      "text": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'."
+    },
+    {
+      "id": 28,
+      "timeLogged": "2026-10-20T10:37:45Z",
+      "type": "Error",
+      "configName": "OrdersFromPartner",
+      "sourceClass": "Ens.Actor",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 19,
+      "text": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'."
+    },
+    {
+      "id": 29,
+      "timeLogged": "2026-10-20T10:37:45Z",
+      "type": "Error",
+      "configName": "OrdersFromPartner",
+      "sourceClass": "Ens.Actor",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 20,
+      "text": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'."
+    },
+    {
+      "id": 30,
+      "timeLogged": "2026-10-20T10:37:45Z",
+      "type": "Error",
+      "configName": "OrdersFromPartner",
+      "sourceClass": "Ens.Actor",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 21,
+      "text": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'."
+    },
+    {
+      "id": 31,
+      "timeLogged": "2026-10-20T10:37:45Z",
+      "type": "Error",
+      "configName": "OrdersFromPartner",
+      "sourceClass": "Ens.Actor",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 22,
+      "text": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'."
+    },
+    {
+      "id": 32,
+      "timeLogged": "2026-10-20T10:37:45Z",
+      "type": "Error",
+      "configName": "OrdersFromPartner",
+      "sourceClass": "Ens.Actor",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 23,
+      "text": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'."
+    },
+    {
+      "id": 33,
+      "timeLogged": "2026-10-20T10:37:45Z",
+      "type": "Error",
+      "configName": "OrdersFromPartner",
+      "sourceClass": "Ens.Actor",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 24,
+      "text": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'."
+    },
+    {
+      "id": 34,
+      "timeLogged": "2026-10-20T10:37:45Z",
+      "type": "Error",
+      "configName": "OrdersFromPartner",
+      "sourceClass": "Ens.Actor",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 25,
+      "text": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'."
+    },
+    {
+      "id": 35,
+      "timeLogged": "2026-10-20T10:37:45Z",
+      "type": "Error",
+      "configName": "OrdersFromPartner",
+      "sourceClass": "Ens.Actor",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 26,
+      "text": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'."
+    },
+    {
+      "id": 36,
+      "timeLogged": "2026-10-20T10:37:45Z",
+      "type": "Error",
+      "configName": "OrdersFromPartner",
+      "sourceClass": "Ens.Actor",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 27,
+      "text": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'."
+    },
+    {
+      "id": 37,
+      "timeLogged": "2026-10-20T10:37:45Z",
+      "type": "Error",
+      "configName": "OrdersFromPartner",
+      "sourceClass": "Ens.Actor",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 28,
+      "text": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'."
+    },
+    {
+      "id": 38,
+      "timeLogged": "2026-10-20T10:37:45Z",
+      "type": "Error",
+      "configName": "OrdersFromPartner",
+      "sourceClass": "Ens.Actor",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 29,
+      "text": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'."
+    },
+    {
+      "id": 39,
+      "timeLogged": "2026-10-20T10:37:45Z",
+      "type": "Error",
+      "configName": "OrdersFromPartner",
+      "sourceClass": "Ens.Actor",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 30,
+      "text": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'."
+    },
+    {
+      "id": 40,
+      "timeLogged": "2026-10-20T10:37:45Z",
+      "type": "Error",
+      "configName": "OrdersFromPartner",
+      "sourceClass": "Ens.Actor",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 31,
+      "text": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'."
+    },
+    {
+      "id": 41,
+      "timeLogged": "2026-10-20T10:37:45Z",
+      "type": "Error",
+      "configName": "OrdersFromPartner",
+      "sourceClass": "Ens.Actor",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 32,
+      "text": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'."
+    },
+    {
+      "id": 42,
+      "timeLogged": "2026-10-20T10:37:45Z",
+      "type": "Error",
+      "configName": "OrdersFromPartner",
+      "sourceClass": "Ens.Actor",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 33,
+      "text": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'."
+    },
+    {
+      "id": 43,
+      "timeLogged": "2026-10-20T10:37:45Z",
+      "type": "Error",
+      "configName": "OrdersFromPartner",
+      "sourceClass": "Ens.Actor",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 34,
+      "text": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'."
+    },
+    {
+      "id": 44,
+      "timeLogged": "2026-10-20T10:37:45Z",
+      "type": "Error",
+      "configName": "OrdersFromPartner",
+      "sourceClass": "Ens.Actor",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 35,
+      "text": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'."
+    },
+    {
+      "id": 45,
+      "timeLogged": "2026-10-20T10:37:45Z",
+      "type": "Error",
+      "configName": "OrdersFromPartner",
+      "sourceClass": "Ens.Actor",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 36,
+      "text": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'."
+    },
+    {
+      "id": 46,
+      "timeLogged": "2026-10-20T10:37:45Z",
+      "type": "Error",
+      "configName": "OrdersFromPartner",
+      "sourceClass": "Ens.Actor",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 37,
+      "text": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'."
+    },
+    {
+      "id": 47,
+      "timeLogged": "2026-10-20T10:37:45Z",
+      "type": "Error",
+      "configName": "OrdersFromPartner",
+      "sourceClass": "Ens.Actor",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 38,
+      "text": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'."
+    },
+    {
+      "id": 48,
+      "timeLogged": "2026-10-20T10:37:45Z",
+      "type": "Error",
+      "configName": "OrdersFromPartner",
+      "sourceClass": "Ens.Actor",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 39,
+      "text": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'."
+    },
+    {
+      "id": 49,
+      "timeLogged": "2026-10-20T10:37:45Z",
+      "type": "Error",
+      "configName": "OrdersFromPartner",
+      "sourceClass": "Ens.Actor",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 40,
+      "text": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'."
+    },
+    {
+      "id": 50,
+      "timeLogged": "2026-10-20T10:37:45Z",
+      "type": "Error",
+      "configName": "OrdersFromPartner",
+      "sourceClass": "Ens.Actor",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 41,
+      "text": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'."
+    },
+    {
+      "id": 51,
+      "timeLogged": "2026-10-20T10:37:45Z",
+      "type": "Error",
+      "configName": "OrdersFromPartner",
+      "sourceClass": "Ens.Actor",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 42,
+      "text": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'."
+    },
+    {
+      "id": 52,
+      "timeLogged": "2026-10-20T10:37:45Z",
+      "type": "Error",
+      "configName": "OrdersFromPartner",
+      "sourceClass": "Ens.Actor",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 43,
+      "text": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'."
+    },
+    {
+      "id": 53,
+      "timeLogged": "2026-10-20T10:37:45Z",
+      "type": "Error",
+      "configName": "OrdersFromPartner",
+      "sourceClass": "Ens.Actor",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 44,
+      "text": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'."
+    },
+    {
+      "id": 54,
+      "timeLogged": "2026-10-20T10:37:45Z",
+      "type": "Error",
+      "configName": "OrdersFromPartner",
+      "sourceClass": "Ens.Actor",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 45,
+      "text": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'."
+    },
+    {
+      "id": 55,
+      "timeLogged": "2026-10-20T10:37:45Z",
+      "type": "Error",
+      "configName": "OrdersFromPartner",
+      "sourceClass": "Ens.Actor",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 46,
+      "text": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'."
+    },
+    {
+      "id": 56,
+      "timeLogged": "2026-10-20T10:37:45Z",
+      "type": "Error",
+      "configName": "OrdersFromPartner",
+      "sourceClass": "Ens.Actor",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 47,
+      "text": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'."
+    },
+    {
+      "id": 57,
+      "timeLogged": "2026-10-20T10:37:45Z",
+      "type": "Error",
+      "configName": "OrdersFromPartner",
+      "sourceClass": "Ens.Actor",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 48,
+      "text": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'."
+    },
+    {
+      "id": 58,
+      "timeLogged": "2026-10-20T10:37:45Z",
+      "type": "Error",
+      "configName": "OrdersFromPartner",
+      "sourceClass": "Ens.Actor",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 49,
+      "text": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'."
+    },
+    {
+      "id": 59,
+      "timeLogged": "2026-10-20T10:37:45Z",
+      "type": "Error",
+      "configName": "OrdersFromPartner",
+      "sourceClass": "Ens.Actor",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 50,
+      "text": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'."
+    },
+    {
+      "id": 60,
+      "timeLogged": "2026-10-20T10:37:45Z",
+      "type": "Error",
+      "configName": "OrdersFromPartner",
+      "sourceClass": "Ens.Actor",
+      "sourceMethod": "MessageHeaderHandler",
+      "sessionId": 51,
+      "text": "ERROR <Ens>ErrBPTerminated: Terminating BP OrdersFromPartner # due to error: ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'.    > ERROR #5001: The order date was not in the expected format. Expected YYYY-MM-DD, got '10/16/2026'."
+    }
+  ],
+  "items": [
+    {
+      "name": "PartnerOrdersIn",
+      "className": "OcuTalon.Demo.Orders.Partner",
+      "enabled": 1,
+      "poolSize": 0,
+      "settings": {
+        "TargetConfigName": "OrdersFromPartner"
+      }
+    },
+    {
+      "name": "OrdersFromPartner",
+      "className": "OcuTalon.Demo.Orders.Translator",
+      "enabled": 1,
+      "poolSize": 1,
+      "settings": {
+        "TargetConfigName": "OrdersToWarehouse"
+      }
+    },
+    {
+      "name": "OrdersToWarehouse",
+      "className": "OcuTalon.Demo.Orders.Warehouse",
+      "enabled": 1,
+      "poolSize": 1,
+      "settings": {}
+    }
+  ],
+  "trace": [
+    {
+      "headerId": "2",
+      "type": "Request",
+      "sourceConfigName": "PartnerOrdersIn",
+      "targetConfigName": "OrdersFromPartner",
+      "bodyClass": "OcuTalon.Demo.Orders.PartnerOrder",
+      "status": "Error",
+      "timeCreated": "2026-10-20T10:37:45Z",
+      "isError": false
+    }
+  ]
+}

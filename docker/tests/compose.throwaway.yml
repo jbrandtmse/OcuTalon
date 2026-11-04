@@ -1,0 +1,12 @@
+# Test-only override for throwaway projects: publishes no host port, passes no keys into the container,
+# and never restarts on its own, so a run killed before its cleanup does not come back after a Docker restart.
+# It also mounts the evaluation set (eval/) read-only at /opt/ocutalon/eval, so that the IRIS tests can read the recorded
+# cases; the evaluation set is never in the image (.dockerignore) and the judges' compose file does not mount it. The
+# path is relative to the first compose file's folder, the repository root.
+services:
+  iris:
+    ports: !reset []
+    env_file: !reset []
+    restart: "no"
+    volumes:
+      - ./eval:/opt/ocutalon/eval:ro

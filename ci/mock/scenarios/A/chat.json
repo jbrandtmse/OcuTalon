@@ -1,0 +1,19 @@
+{
+  "name": "chat",
+  "match": {
+    "mockkey": "chat"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "list_productions",
+        "input": {}
+      }
+    },
+    {
+      "status": 200,
+      "text": "The CI mock looked at the productions."
+    }
+  ]
+}

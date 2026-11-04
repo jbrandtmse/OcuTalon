@@ -1,0 +1,19 @@
+{
+  "name": "overloaded",
+  "match": {
+    "marker": "overloaded"
+  },
+  "replies": [
+    {
+      "status": 529,
+      "headers": {
+        "Retry-After": "1"
+      },
+      "text": "CI mock: overloaded."
+    },
+    {
+      "status": 200,
+      "text": "Answered after the overload."
+    }
+  ]
+}

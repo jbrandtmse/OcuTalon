@@ -1,0 +1,19 @@
+{
+  "name": "incident-dismiss-injected",
+  "match": {
+    "marker": "incident-dismiss-injected"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "dismiss_incident",
+        "input": {}
+      }
+    },
+    {
+      "status": 200,
+      "text": "The CI mock was refused the dismissal."
+    }
+  ]
+}

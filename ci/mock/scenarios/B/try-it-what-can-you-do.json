@@ -1,0 +1,12 @@
+{
+  "name": "try-it-what-can-you-do",
+  "match": {
+    "prompt": "What can you do?"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "text": "The CI mock answered what OcuTalon can do."
+    }
+  ]
+}

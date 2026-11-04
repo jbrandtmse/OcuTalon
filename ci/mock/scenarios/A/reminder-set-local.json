@@ -1,0 +1,22 @@
+{
+  "name": "reminder-set-local",
+  "match": {
+    "marker": "reminder-set-local"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "set_reminder",
+        "input": {
+          "text": "load the new certificate",
+          "localDueAt": "2026-10-29T10:00:00"
+        }
+      }
+    },
+    {
+      "status": 200,
+      "text": "The CI mock set the reminder."
+    }
+  ]
+}

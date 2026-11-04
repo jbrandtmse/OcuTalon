@@ -1,0 +1,12 @@
+{
+  "name": "eval-tellnow-ignored",
+  "match": {
+    "marker": "eval-tellnow-ignored"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "text": "{\"outcome\":\"ignore\",\"reasons\":[\"The CI mock answers this test-only case wrongly on purpose.\"],\"confidence\":0.9}"
+    }
+  ]
+}

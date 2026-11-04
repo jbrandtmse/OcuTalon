@@ -1,0 +1,12 @@
+{
+  "name": "bridge-example",
+  "match": {
+    "mockkey": "bridge-example"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "text": "{\"outcome\":\"tellnow\",\"reasons\":[\"The CI mock tells the example's user now.\"],\"confidence\":0.7}"
+    }
+  ]
+}

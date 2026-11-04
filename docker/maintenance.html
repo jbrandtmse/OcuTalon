@@ -1,0 +1,77 @@
+<!DOCTYPE html>
+<!--
+  The online demo's maintenance page (Story 16.5; AD-13, AD-25). The demo host's proxy serves it while the demo resets, for every request
+  under /ocutalon/ except /ocutalon/api/. Its logo is the four files of logo/web/ that it names by bare file name,
+  OcuTalon-Logo-light-640.png, OcuTalon-Logo-light-1280.png, OcuTalon-Logo-dark-640.png and OcuTalon-Logo-dark-1280.png: the host serves
+  them beside this page, so that the names resolve where the page is served. It is otherwise one self-contained file, pure ASCII, with
+  no script, no style attribute and no external file. It reloads itself at the splash screen's address every 10 seconds until the demo
+  answers there. The styles restate the splash screen's resolved light and dark values; the public-text check
+  (web/scripts/host-pages.test.mjs) holds its texts to the UX's, and the boundaries check scans it. It names no host, address, port or
+  other infrastructure detail.
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta http-equiv="refresh" content="10; url=/ocutalon/">
+  <title>Resetting &middot; OcuTalon</title>
+  <link rel="icon" href="data:,">
+  <style>
+    :root { color-scheme: light dark; }
+    *, *::before, *::after { box-sizing: border-box; }
+    html { background: #FFFFFF; }
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: #FFFFFF;
+      color: #102A45;
+      font-family: system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+      font-size: 14px;
+      line-height: 1.5;
+    }
+    .page {
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      padding: 24px;
+    }
+    .logo { display: block; width: 320px; max-width: 100%; height: auto; margin: 0 auto -4px; }
+    .card {
+      width: 400px;
+      max-width: 100%;
+      padding: 24px;
+      background: #FFFFFF;
+      border: 1px solid #D3DCE5;
+      border-radius: 10px;
+    }
+    .card h1 {
+      margin: 0 0 16px;
+      color: #102A45;
+      font-family: 'Avenir Next', 'Segoe UI', system-ui, -apple-system, sans-serif;
+      font-size: 28px;
+      font-weight: 700;
+      line-height: 1.2;
+      letter-spacing: -0.01em;
+    }
+    .card p { margin: 0; color: #4A5C72; font-size: 15px; line-height: 1.55; }
+    @media (prefers-color-scheme: dark) {
+      html, body { background: #11192B; }
+      body { color: #EEF2F7; }
+      .card { background: #18233A; border-color: #2E3D5A; }
+      .card h1 { color: #EEF2F7; }
+      .card p { color: #AAB6C8; }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <picture><source media="(prefers-color-scheme: dark)" srcset="OcuTalon-Logo-dark-640.png 1x, OcuTalon-Logo-dark-1280.png 2x"><img class="logo" src="OcuTalon-Logo-light-640.png" srcset="OcuTalon-Logo-light-640.png 1x, OcuTalon-Logo-light-1280.png 2x" alt="OcuTalon" width="320" height="179"></picture>
+    <div class="card">
+      <h1>The demo is resetting.</h1>
+      <p>It usually takes a few minutes. This page returns to the sign-in screen by itself.</p>
+    </div>
+  </main>
+</body>
+</html>

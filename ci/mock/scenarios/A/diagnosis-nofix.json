@@ -1,0 +1,12 @@
+{
+  "name": "diagnosis-nofix",
+  "match": {
+    "marker": "diagnosis-nofix"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "text": "{\"outcome\":\"act\",\"causeCategory\":\"partner_outage\",\"elementAtFault\":\"\",\"evidence\":[\"failed_messages\"],\"cause\":\"The partner system did not answer, so the production could not deliver the messages.\",\"fixSummary\":\"\",\"reasons\":[\"The failures show a connection problem and no data problem.\"],\"confidence\":0.7}"
+    }
+  ]
+}

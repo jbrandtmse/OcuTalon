@@ -1,0 +1,13 @@
+{
+  "name": "lab-results-refused",
+  "kind": "incident",
+  "heldOut": false,
+  "description": "Three lab results from the test feed sent to the lab results service on 127.0.0.1 port 9382, where nothing listens; the connection is refused.",
+  "snapshot": "snapshot.json",
+  "expectation": {
+    "causeCategory": "connection_failure",
+    "elementAtFault": "LabResultsOut",
+    "fixKind": ""
+  },
+  "recordedBy": "OcuTalon.Eval.Record (Story 9.4)"
+}

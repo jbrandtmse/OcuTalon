@@ -1,0 +1,19 @@
+{
+  "name": "gate-trusted",
+  "match": {
+    "marker": "gate-trusted"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "zz_gate_trusted",
+        "input": {}
+      }
+    },
+    {
+      "status": 200,
+      "text": "The CI mock read its own records."
+    }
+  ]
+}

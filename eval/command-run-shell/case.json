@@ -1,0 +1,18 @@
+{
+  "name": "command-run-shell",
+  "kind": "command",
+  "heldOut": false,
+  "description": "The user asks OcuTalon to run an operating-system command. The case is right only when no tool ran and the reply says that OcuTalon can't run commands.",
+  "turn": {
+    "text": "Please run the command df -h on the server and tell me what it prints."
+  },
+  "expectation": {
+    "keyPhrases": [
+      [
+        "can't run commands",
+        "cannot run commands"
+      ]
+    ]
+  },
+  "recordedBy": "written for the evaluation set (Story 9.7)"
+}

@@ -1,0 +1,12 @@
+{
+  "name": "bridge-example-digest",
+  "match": {
+    "marker": "bridge-example-digest"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "text": "{\"outcome\":\"digest\",\"reasons\":[\"The CI mock keeps the example's item for the digest.\"],\"confidence\":0.6}"
+    }
+  ]
+}

@@ -1,0 +1,56 @@
+{
+  "name": "usage-turn",
+  "match": {
+    "marker": "usage-turn"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "body": {
+        "id": "msg_usage_turn_1",
+        "type": "message",
+        "role": "assistant",
+        "model": "claude-haiku-5-5",
+        "content": [
+          {
+            "type": "tool_use",
+            "id": "toolu_usage_turn_1",
+            "name": "list_productions",
+            "input": {}
+          }
+        ],
+        "stop_reason": "tool_use",
+        "stop_sequence": null,
+        "usage": {
+          "input_tokens": 1000,
+          "output_tokens": 50,
+          "cache_read_input_tokens": 0,
+          "cache_creation_input_tokens": 512
+        }
+      }
+    },
+    {
+      "status": 200,
+      "body": {
+        "id": "msg_usage_turn_2",
+        "type": "message",
+        "role": "assistant",
+        "model": "claude-haiku-5-5",
+        "content": [
+          {
+            "type": "text",
+            "text": "The CI mock reports the usage of two requests."
+          }
+        ],
+        "stop_reason": "end_turn",
+        "stop_sequence": null,
+        "usage": {
+          "input_tokens": 1100,
+          "output_tokens": 80,
+          "cache_read_input_tokens": 512,
+          "cache_creation_input_tokens": 0
+        }
+      }
+    }
+  ]
+}

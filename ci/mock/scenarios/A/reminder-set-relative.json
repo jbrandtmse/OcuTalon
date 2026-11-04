@@ -1,0 +1,22 @@
+{
+  "name": "reminder-set-relative",
+  "match": {
+    "marker": "reminder-set-relative"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "set_reminder",
+        "input": {
+          "text": "stretch",
+          "delaySeconds": 60
+        }
+      }
+    },
+    {
+      "status": 200,
+      "text": "The CI mock set the reminder."
+    }
+  ]
+}

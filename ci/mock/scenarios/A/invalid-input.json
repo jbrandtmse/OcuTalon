@@ -1,0 +1,12 @@
+{
+  "name": "invalid-input",
+  "match": {
+    "marker": "invalid-input"
+  },
+  "replies": [
+    {
+      "status": 400,
+      "text": "CI mock: messages: the stored conversation is not valid input."
+    }
+  ]
+}

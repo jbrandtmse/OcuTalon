@@ -1,0 +1,13 @@
+{
+  "name": "orders-date-format",
+  "kind": "incident",
+  "heldOut": false,
+  "description": "50 orders from the simulated partner with the order date as MM/DD/YYYY; the Orders transform expects YYYY-MM-DD.",
+  "snapshot": "snapshot.json",
+  "expectation": {
+    "causeCategory": "data_format_change",
+    "elementAtFault": "OrderDate",
+    "fixKind": "repair_resend"
+  },
+  "recordedBy": "docker/tests/record-eval.sh (Story 0.10)"
+}

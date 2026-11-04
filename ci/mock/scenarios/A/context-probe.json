@@ -1,0 +1,19 @@
+{
+  "name": "context-probe",
+  "match": {
+    "marker": "context-probe"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "zz_context_probe",
+        "input": {}
+      }
+    },
+    {
+      "status": 200,
+      "text": "The probe ran."
+    }
+  ]
+}

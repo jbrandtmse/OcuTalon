@@ -1,0 +1,21 @@
+{
+  "name": "watch-start-orders",
+  "match": {
+    "marker": "watch-start-orders"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "start_watch",
+        "input": {
+          "name": "Orders"
+        }
+      }
+    },
+    {
+      "status": 200,
+      "text": "I'll watch the Orders production and stay quiet unless something needs you."
+    }
+  ]
+}

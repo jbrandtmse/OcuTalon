@@ -1,0 +1,19 @@
+{
+  "name": "context-probe-fail",
+  "match": {
+    "marker": "context-probe-fail"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": {
+        "name": "zz_context_probe",
+        "input": {}
+      }
+    },
+    {
+      "status": 500,
+      "text": "CI mock: the provider failed after the probe."
+    }
+  ]
+}

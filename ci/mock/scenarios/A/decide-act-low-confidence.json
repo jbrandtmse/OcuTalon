@@ -1,0 +1,12 @@
+{
+  "name": "decide-act-low-confidence",
+  "match": {
+    "marker": "decide-act-low-confidence"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "text": "{\"outcome\":\"act\",\"reasons\":[\"The CI mock asks for an action.\"],\"confidence\":0.12}"
+    }
+  ]
+}

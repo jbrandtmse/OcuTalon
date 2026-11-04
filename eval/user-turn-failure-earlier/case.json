@@ -1,0 +1,33 @@
+{
+  "name": "user-turn-failure-earlier",
+  "kind": "user-turn",
+  "heldOut": false,
+  "description": "The user asks about an earlier failure, as the third Try it yourself chip does. The case is right only when Triage decides tell now and its reasons only classify the turn as the user's own message: they never describe the state of a production, what Triage can or cannot look up, or whether anything needs the user.",
+  "turn": {
+    "text": "What was that failure earlier?"
+  },
+  "expectation": {
+    "keyPhrases": [
+      [
+        "user"
+      ]
+    ],
+    "absentPhrases": [
+      "tool",
+      "access",
+      "look up",
+      "cannot",
+      "can't",
+      "unable",
+      "needs the user",
+      "need the user",
+      "nothing",
+      "healthy",
+      "all clear",
+      "everything is",
+      "no failure",
+      "no error"
+    ]
+  },
+  "recordedBy": "written for the evaluation set (Story 30.5, DW-500)"
+}

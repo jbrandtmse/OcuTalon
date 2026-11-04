@@ -1,0 +1,27 @@
+{
+  "name": "gate-taint-parallel",
+  "match": {
+    "marker": "gate-taint-parallel"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "toolUse": [
+        {
+          "name": "zz_gate_read",
+          "input": {}
+        },
+        {
+          "name": "zz_change_endpoint",
+          "input": {
+            "url": "https://order-partner.example/new-orders"
+          }
+        }
+      ]
+    },
+    {
+      "status": 200,
+      "text": "The CI mock read the text and asked to change the endpoint in one response."
+    }
+  ]
+}

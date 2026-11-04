@@ -1,0 +1,18 @@
+{
+  "name": "mail-webinar-invite",
+  "kind": "item",
+  "heldOut": false,
+  "description": "A vendor's marketing webinar invitation: nothing in it is for the user to do, so it is ignored.",
+  "expectation": {
+    "outcome": "ignore"
+  },
+  "recordedBy": "written for the evaluation set (Story 9.3)",
+  "item": {
+    "itemId": "mail-webinar-invite",
+    "channel": "mailbox",
+    "provenance": "untrusted",
+    "sender": "Integration Vendor Events <events@integration-vendor.example>",
+    "subject": "Join our webinar: modern routing patterns",
+    "text": "Hello, join our free webinar next month on modern routing patterns for integration engines. Seats are limited, and everyone who registers gets the recording. You are receiving this because your company is on our events list."
+  }
+}

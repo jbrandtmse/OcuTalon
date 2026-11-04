@@ -1,0 +1,12 @@
+{
+  "name": "summary-off-schema",
+  "match": {
+    "marker": "summary-off-schema"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "text": "The conversation was about the Orders production."
+    }
+  ]
+}
