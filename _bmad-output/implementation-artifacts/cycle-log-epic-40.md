@@ -87,3 +87,4 @@
 2026-11-04T12:44:29Z	Epic 40	ledger_load	total=644 open=0 routed=86 escalated=0 decision_pending=3 terminal=555 owner_unknown=0 burndown=51 reowned_none=0
 2026-11-04T12:44:55Z	Epic 40	sprint_planning_complete	gate=PASS model=claude-opus-5-5 note=rc4_redispatch
 2026-11-04T12:48:26Z	Epic 40	epic_context_compiled	reason=planning_artifact_newer model=opus note=after_rc4_integrate_forward
+2026-11-04T12:48:40Z	Story 40.8	stage_spawned	stage=plan spawn_at=2026-11-04T12:48:40Z model=opus agent_name=40-8-the-persona-s-web-routes-plan-1 cycle_iteration=1
