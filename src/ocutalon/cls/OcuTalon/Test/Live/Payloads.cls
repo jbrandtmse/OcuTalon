@@ -5,7 +5,7 @@
 /// message's shown decision, turn cost and check rows (Story 2.6), which build from fixture rows, which decision a turn
 /// shows (from unsaved rows), and the trace targets of a chat turn's decision and of an approval request (Story 2.13), which
 /// build from fixture sessions, turns, incidents and approval requests, and the result that the incident payload lists for a request whose run has ended (Story 7.4),
-/// read from the request's FixRun. The fixture incident rows are ZzPay<n> rows of Data.Incident, with n from
+/// read from the request's FixRun, and the either-way fields of the approval payload's dry run (Story 7.8), built from unsaved rows. The fixture incident rows are ZzPay<n> rows of Data.Incident, with n from
 /// ^OcuTalonTest("LivePayloads","n") (never reset); OnBeforeAllTests and OnAfterAllTests delete every row of that name.
 Class OcuTalon.Test.Live.Payloads Extends OcuTalon.Test.Contract
 {
@@ -780,6 +780,69 @@ Method TestNotificationFromRow()
 	Do $ClassMethod(fixture, "Clean", owner_","_other_","_mine_","_theirs)
 }
 
+/// The approval payload's either-way fields (Story 7.8; DW-645; U-249, U-250): FromRow asks the notice's rule, Watch.Notice Reading, over the row's stored dry run and
+/// FixParameters, so eitherWay is 1 with the reading exactly when the notice carries the either-way line, and 0 with no reading otherwise: a day above 12 in the example,
+/// the same date both ways, a source format that is not an order format, empty or unreadable parameters. The dry run's other fields stay in each case, the exported
+/// JSON holds reading only when eitherWay is true, and the row's stored DryRun text is never changed. The rows are not saved.
+Method TestApprovalEitherWay()
+{
+	Set request = ##class(OcuTalon.Bridge.Data.ApprovalRequest).%New()
+	Set request.Ref = "ZzEitherRef"_..Number
+	Set request.Kind = "fix"
+	Set request.State = "pending"
+	Set dry = {"affected": 50, "resend": 50, "leftOut": 0, "field": "OrderDate", "before": "11/04/2026", "after": "2026-11-04", "itemNoun": {"one": "order", "other": "orders"}}
+	Set request.DryRun = dry.%ToJSON()
+	Set stored = request.DryRun
+
+	Set request.FixParameters = {"sourceFormat": "MM/DD/YYYY", "targetFormat": "YYYY-MM-DD"}.%ToJSON()
+	Set payload = ##class(OcuTalon.Live.Payload.Approval).FromRow(request)
+	Do $$$AssertEquals(payload.DryRun.EitherWay_"|"_payload.DryRun.Reading, "1|month first", "an example that reads both ways, source month first: the flag and the reading")
+	Do $$$AssertEquals(payload.DryRun.Affected_"|"_payload.DryRun.Resend_"|"_payload.DryRun.LeftOut_"|"_payload.DryRun.Field_"|"_payload.DryRun.Before_"|"_payload.DryRun.After_"|"_payload.DryRun.ItemNoun.One, "50|50|0|OrderDate|11/04/2026|2026-11-04|order", "with the dry run's other fields")
+	Do $$$AssertEquals(request.DryRun, stored, "the row's stored dry run is unchanged")
+	Do $$$AssertStatusOK(payload.%JSONExportToString(.json), "the payload exports")
+	Set exported = ##class(%DynamicObject).%FromJSON(json).dryRun
+	Do $$$AssertEquals(exported.eitherWay_"|"_exported.reading, "1|month first", "and the JSON has eitherWay true with its reading")
+	Do $$$AssertEquals(exported.%GetTypeOf("eitherWay"), "boolean", "as a boolean")
+
+	Set request.FixParameters = {"sourceFormat": "DD/MM/YYYY"}.%ToJSON()
+	Set request.DryRun = {"affected": 1, "resend": 1, "leftOut": 0, "field": "OrderDate", "before": "03/11/2026", "after": "2026-11-03"}.%ToJSON()
+	Set payload = ##class(OcuTalon.Live.Payload.Approval).FromRow(request)
+	Do $$$AssertEquals(payload.DryRun.EitherWay_"|"_payload.DryRun.Reading, "1|day first", "source day first: the reading is day first")
+	Set request.DryRun = {"affected": 3, "resend": 3, "leftOut": 0, "field": "OrderDate", "before": "16/10/2026", "after": "2026-10-16"}.%ToJSON()
+	Set payload = ##class(OcuTalon.Live.Payload.Approval).FromRow(request)
+	Do $$$AssertEquals(payload.DryRun.EitherWay_"|"_payload.DryRun.Reading, "0|", "source day first, a day above 12: no flag, no reading")
+
+	Set request.DryRun = {"affected": 3, "resend": 3, "leftOut": 0, "field": "OrderDate", "before": "10/16/2026", "after": "2026-10-16"}.%ToJSON()
+	Set request.FixParameters = {"sourceFormat": "MM/DD/YYYY"}.%ToJSON()
+	Set payload = ##class(OcuTalon.Live.Payload.Approval).FromRow(request)
+	Do $$$AssertEquals(payload.DryRun.EitherWay_"|"_payload.DryRun.Reading_"|"_payload.DryRun.After, "0||2026-10-16", "a day above 12: no flag, no reading, the other fields stay")
+	Set request.DryRun = {"affected": 3, "resend": 3, "leftOut": 0, "field": "OrderDate", "before": "11/13/2026", "after": "2026-11-13"}.%ToJSON()
+	Do $$$AssertEquals(##class(OcuTalon.Live.Payload.Approval).FromRow(request).DryRun.EitherWay, 0, "an example with a day above 12 gives no flag, whatever else the set holds")
+	Set request.DryRun = {"affected": 3, "resend": 3, "leftOut": 0, "field": "OrderDate", "before": "11/11/2026", "after": "2026-11-11"}.%ToJSON()
+	Set payload = ##class(OcuTalon.Live.Payload.Approval).FromRow(request)
+	Do $$$AssertEquals(payload.DryRun.EitherWay_"|"_payload.DryRun.Reading, "0|", "the same date both ways: no flag, no reading")
+	Do $$$AssertStatusOK(payload.%JSONExportToString(.json), "that payload exports")
+	Set exported = ##class(%DynamicObject).%FromJSON(json).dryRun
+	Do $$$AssertEquals(exported.%GetTypeOf("eitherWay")_"|"_exported.%GetTypeOf("reading"), "boolean|unassigned", "the JSON has eitherWay false and no reading key")
+	Do $$$AssertEquals(exported.eitherWay, 0, "and it is false")
+
+	Set request.DryRun = dry.%ToJSON()
+	Set request.FixParameters = {"sourceFormat": "YYYY-MM-DD"}.%ToJSON()
+	Do $$$AssertEquals(##class(OcuTalon.Live.Payload.Approval).FromRow(request).DryRun.EitherWay, 0, "a source format that is not an order format: no flag")
+	Set request.FixParameters = ""
+	Do $$$AssertEquals(##class(OcuTalon.Live.Payload.Approval).FromRow(request).DryRun.EitherWay, 0, "a request with no parameters (a tool call, a setting): no flag")
+	Set request.FixParameters = "not json"
+	Set payload = ##class(OcuTalon.Live.Payload.Approval).FromRow(request)
+	Do $$$AssertEquals($IsObject(payload.DryRun) && (payload.DryRun.EitherWay = 0) && (payload.DryRun.Reading = "") && (payload.DryRun.Affected = 50) && (payload.DryRun.ItemNoun.One = "order"), 1, "unreadable parameters: no flag, and the dry run's other fields stay")
+
+	Set request.FixParameters = {"sourceFormat": "MM/DD/YYYY"}.%ToJSON()
+	Set request.DryRun = {"affected": 2}.%ToJSON()
+	Set payload = ##class(OcuTalon.Live.Payload.Approval).FromRow(request)
+	Do $$$AssertEquals($IsObject(payload.DryRun) && (payload.DryRun.Affected = 2) && (payload.DryRun.EitherWay = 0), 1, "a dry run with no example: no flag")
+	Set request.DryRun = ""
+	Do $$$AssertEquals(##class(OcuTalon.Live.Payload.Approval).FromRow(request).DryRun, "", "no dry run gives none")
+}
+
 /// --- helpers ---
 /// An open incident row of the owner on OCUORDERS, saved, with a Ref of its own.
 Method Incident(owner As %String) As OcuTalon.Data.Incident
@@ -1051,7 +1114,9 @@ XData Contracts [ MimeType = application/json ]
    "Field": "%String(%JSONFIELDNAME=field,MAXLEN=128)",
    "Before": "%String(%JSONFIELDNAME=before,MAXLEN=1000)",
    "After": "%String(%JSONFIELDNAME=after,MAXLEN=1000)",
-   "ItemNoun": "OcuTalon.Live.Payload.Part.ItemNoun(%JSONFIELDNAME=itemNoun)"
+   "ItemNoun": "OcuTalon.Live.Payload.Part.ItemNoun(%JSONFIELDNAME=itemNoun)",
+   "EitherWay": "%Boolean(%JSONFIELDNAME=eitherWay)",
+   "Reading": "%String(%JSONFIELDNAME=reading,MAXLEN=32)"
   }
  },
  "OcuTalon.Live.Payload.Part.GuideBreakFeed": {

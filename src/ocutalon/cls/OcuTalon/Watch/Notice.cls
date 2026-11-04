@@ -5,12 +5,19 @@
 ///       Fallback 1 (any reason)                     incident.fallback       open variant fallback
 ///       usable, category unknown                    incident.noFixUnknown   open variant no_fix
 ///       usable, data_format_change (with a fix)     "" : no notice here; the with-fix notice goes out with the dry run and the approval request
+///       usable, data_format_change with no fix      incident.noFix          open variant no_fix (a diagnosis that cannot tell which way a date reads, DW-644)
 ///       usable, any other category                  incident.noFix          open variant no_fix
 ///   - Slots, by key: count is the incident's NoticeCount (its Count while that is empty), time its FirstAt and itemNoun its ItemNoun, else the code noun
 ///     of an empty body class. incident.noFix adds cause and groups, incident.noFixUnknown groups, incident.fallback fallbackReason (the row's reason, unusable
 ///     when it is empty or not a Msg.Enum FALLBACKREASON) and groups. WithFixSlots is the builder of the with-fix notice: count, time, itemNoun, cause and
 ///     fixSummary, and, given the dry run, its field, before, after and resendCount (the dry run's resend as an integer). A key given to Slots replaces Key(incident):
 ///     the incident.noFix notice of a data-format incident whose fix cannot be proposed (the dry run is refused, finds nothing to resend, or its request is not raised).
+///   - Dates that read two ways (DW-644): WithFixKey gives the key of the with-fix notice. It is incident.withFixEitherWay (a later request:
+///     incident.laterRequestEitherWay) exactly when the request's sourceFormat is MM/DD/YYYY or DD/MM/YYYY and the dry run's before reads in both orders as two
+///     different dates (the dry run refuses a request whose dates read both ways with nothing to single out the reading, so every raised request of that kind
+///     has arrival evidence: Fix.Kind.RepairResend Evidence). WithFixSlots, given the parameters, then adds reading (month first or day first, the source
+///     format's, READINGS) and item (the one form of the itemNoun slot). Reading is public because it is the one rule: the approval payload
+///     (Live.Payload.Approval FromRow) asks it over the row's stored dry run and FixParameters, so the web card shows the line exactly when the notice does.
 ///   - The later request (Story 7.6, KEYLATER incident.laterRequest) takes the with-fix slots with its own round's count and time: WithFixSlots given a count and a
 ///     time replaces the slots count and time (the failures of the round, and the first of them), and renders "{count} more {itemNoun} failed since {time}, with
 ///     the same cause ...". It carries the cause slot too, which the catalog ignores.
@@ -46,6 +53,14 @@ Parameter KEYWITHFIX = "incident.withFix";
 
 /// The catalog key of the notice of a later request in the same incident (Story 7.6).
 Parameter KEYLATER = "incident.laterRequest";
+
+/// The variants of KEYWITHFIX and KEYLATER whose dry-run paragraph says that the dates read both ways and match the day each item arrived.
+Parameter KEYWITHFIXEITHER = "incident.withFixEitherWay";
+
+Parameter KEYLATEREITHER = "incident.laterRequestEitherWay";
+
+/// The source formats that read both ways, each with the words of its reading in the catalog line, separated by commas.
+Parameter READINGS = "MM/DD/YYYY:month first,DD/MM/YYYY:day first";
 
 /// The open variants (Msg.Enum INCIDENTOPENVARIANT).
 Parameter VARIANTFALLBACK = "fallback";
@@ -83,13 +98,13 @@ Parameter UNUSABLE = "unusable";
 /// The summary of a group whose error text is empty: the catalog needs a text, and the line stays (public text, veto U-94).
 Parameter NOERRORTEXT = "no error text";
 
-/// The catalog key of the notice for the diagnosed incident, "" when it gets none from this class (a usable data-format diagnosis: its notice is the
-/// with-fix notice, KEYWITHFIX).
+/// The catalog key of the notice for the diagnosed incident, "" when it gets none from this class (a usable data-format diagnosis with a fix summary: its
+/// notice is the with-fix notice, KEYWITHFIX; a data-format diagnosis with no fix summary gets KEYNOFIX).
 ClassMethod Key(incident As OcuTalon.Data.Incident) As %String
 {
 	If incident.Fallback Quit ..#KEYFALLBACK
 	If incident.CauseCategory = ..#UNKNOWNCATEGORY Quit ..#KEYUNKNOWN
-	If incident.CauseCategory = ..#WITHFIXCATEGORY Quit ""
+	If incident.CauseCategory = ..#WITHFIXCATEGORY Quit $Select(..Text(incident.FixSummary) = "": ..#KEYNOFIX, 1: "")
 	Quit ..#KEYNOFIX
 }
 
@@ -128,12 +143,45 @@ ClassMethod Slots(incident As OcuTalon.Data.Incident, groups As %ListOfObjects =
 	Quit slots
 }
 
+/// The catalog key of the with-fix notice for the dry run and the request's parameters (JSON text or a dynamic object): KEYWITHFIX, or KEYWITHFIXEITHER when the
+/// request's source format is an order format and the dry run's before reads in both orders as two different dates; with later 1, KEYLATER or KEYLATEREITHER. Pure.
+ClassMethod WithFixKey(dryRun As %DynamicObject, parameters As %String = "", later As %Boolean = 0) As %String
+{
+	Set eitherWay = ..Reading($Get(dryRun), $Get(parameters)) '= ""
+	If later Quit $Select(eitherWay: ..#KEYLATEREITHER, 1: ..#KEYLATER)
+	Quit $Select(eitherWay: ..#KEYWITHFIXEITHER, 1: ..#KEYWITHFIX)
+}
+
+/// The words of the source reading ("month first" or "day first") when WithFixKey gives an either-way key for the dry run and the parameters, else "". The
+/// notice and the approval payload (Live.Payload.Approval FromRow) both ask this method, so they agree. Pure.
+ClassMethod Reading(dryRun As %DynamicObject, parameters As %String = "") As %String
+{
+	If '$IsObject($Get(dryRun)) Quit ""
+	If '$IsObject(parameters) {
+		Try {
+			Set parameters = {}.%FromJSON(parameters)
+		} Catch {
+			Set parameters = ""
+		}
+	}
+	If '$IsObject(parameters) || 'parameters.%IsA("%Library.DynamicObject") Quit ""
+	Set source = parameters.%Get("sourceFormat")
+	If '##class(OcuTalon.Fix.Reformat).Readings(dryRun.before, source, .first, .second) || (first = second) Quit ""
+	Set words = ""
+	For i = 1:1:$Length(..#READINGS, ",") {
+		Set entry = $Piece(..#READINGS, ",", i)
+		If $Piece(entry, ":", 1) = source Set words = $Piece(entry, ":", 2)
+	}
+	Quit words
+}
+
 /// The slots of the with-fix notice that the incident's diagnosis gives: count, time, itemNoun, cause and fixSummary. Given the dry run (a dynamic object with the
 /// keys of ApprovalRequest DRYRUNKEYS), it adds field, before, after and resendCount (the dry run's resend as an integer). "" with the reason in sc when the cause
 /// or the fix summary is empty, or when the dry run has no field, before or after, or a resend below 1. A count given (a whole number of at least 1) replaces the
 /// count slot and a time given (not empty) replaces the time slot: the failures of a later round and the first of them (an argument that is passed counts as
-/// given, also when it is empty; an argument that is left out does not).
-ClassMethod WithFixSlots(incident As OcuTalon.Data.Incident, Output sc As %Status, dryRun As %DynamicObject = "", count As %Integer, time As %String) As %DynamicObject
+/// given, also when it is empty; an argument that is left out does not). Given the request's parameters (JSON text or a dynamic object) and a dry run for which
+/// WithFixKey gives an either-way key, it adds reading and item.
+ClassMethod WithFixSlots(incident As OcuTalon.Data.Incident, Output sc As %Status, dryRun As %DynamicObject = "", count As %Integer, time As %String, parameters As %String = "") As %DynamicObject
 {
 	Set slots = ..Common(incident, .sc)
 	If $$$ISERR(sc) Quit ""
@@ -172,6 +220,11 @@ ClassMethod WithFixSlots(incident As OcuTalon.Data.Incident, Output sc As %Statu
 		Do slots.%Set("before", before)
 		Do slots.%Set("after", after)
 		Do slots.%Set("resendCount", +resend)
+		Set reading = ..Reading(dryRun, parameters)
+		If reading '= "" {
+			Do slots.%Set("reading", reading)
+			Do slots.%Set("item", slots.itemNoun.one)
+		}
 	}
 	Quit slots
 }

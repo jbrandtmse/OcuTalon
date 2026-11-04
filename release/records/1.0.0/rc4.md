@@ -104,6 +104,22 @@ Candidate 9a476db3, cut from 5c864419. Its product files equal rc3's (5a1e98e5);
 - Build 109: README path on arm64 and on x64 walked to an approved fix; install-fresh, production and shards groups pass.
 - Package: an archive packed the way the registry packs a repository installed on a fresh instance through a local repository: pass. The test registry refused an upload of the package with 413.
 
+## Author confirmations
+
+Recorded by the Contest Planner for the author, under the author's delegation.
+
+- no-copied-code: confirmed 2026-11-04 recorded by the Contest Planner for the author
+- no-artwork: confirmed 2026-11-04 recorded by the Contest Planner for the author
+- no-ai-hub-copy: confirmed 2026-11-04 recorded by the Contest Planner for the author; irislib and irissys are ignored and untracked, and the checklist's iris-source row passed
+- public-review: confirmed 2026-11-04 recorded by the Contest Planner for the author; diff-only review to the candidate
+- public-links: confirmed 2026-11-04 recorded by the Contest Planner for the author
+- overview-review: confirmed 2026-11-04 recorded by the Contest Planner for the author; an independent check of the hand-written sections found eight sentences to correct, corrected before this candidate was cut
+- demo-protections: confirmed 2026-11-04 recorded by the Contest Planner for the author; the host checks passed 109 of 109 run on the running 1.0.0 demo, and session isolation, the email limit and Orders-only were checked by hand there
+
+## Release result
+
+The author chose to release this candidate on 2026-11-04 with the known limits above: rc3's 20 of 20 rehearsal stands for the identical product, and the author overrode the evaluation's blocked result for the item gap and one case timing out. Merged as 8b3cac3c, tagged v1.0.0. The online demo runs 1.0.0.
+
 ## Release sequence
 Result: stopped after notes: no gate has run (not a release)
 Mode: release
@@ -123,3 +139,34 @@ Run: 2026-11-04T08:42:10Z to 2026-11-04T10:28:22Z
 | push | pass | release/1.0.0-rc4 pushed to origin on the author's word |
 | notes | draft | release/notes.sh: RESULT draft; draft release/records/1.0.0/rc4-notes.md (not committed) |
 | record | pushed | committed to feature/OCT_OcuTalon_MVP and pushed on the author's word |
+
+## Release checklist
+
+Result: pass
+Candidate: 1.0.0 rc4 at 9a476db3c39053a32778074444843cb043b292e9
+Notes: release/records/1.0.0/rc4-notes.md
+Run: 2026-11-04T14:14:27Z
+Author's actions: Posts, articles, the video and bonus claims are the author's actions, done by hand. No script or workflow posts anything or claims a bonus.
+
+| Item | Result | Detail |
+| --- | --- | --- |
+| checkout | pass | the checkout is the candidate commit, with no uncommitted change outside release/records/ |
+| note-readme | pass | README.md holds the not-affiliated note word for word |
+| note-about | pass | the About dialog's source and the built page hold the note word for word |
+| product-name | pass | no product name holds the name from the note |
+| name-only-in-note | pass | outside the planning files, the name appears only in the note |
+| licences | pass | every font, icon and package licence notice is present |
+| web-bundle | pass | the built web bundle is in the checkout |
+| readme | pass | docker/tests/test-readme.sh passed: README links, anchors and headings checked offline |
+| bridge-guide | pass | docker/tests/test-bridge-guide.sh passed: the bridge guide matches the code of this release |
+| public-text | pass | docker/tests/test-boundaries.sh passed, and the draft notes hold no local path or key-like text |
+| iris-source | pass | irislib/ and irissys/ are ignored, and none of their files is tracked |
+| no-outward | pass | no script or workflow publishes a release, changes the repository's settings or posts to a public site |
+| no-copied-code | confirmed | the record says the author confirmed this on 2026-11-04 |
+| no-artwork | confirmed | the record says the author confirmed this on 2026-11-04 |
+| no-ai-hub-copy | confirmed | the record says the author confirmed this on 2026-11-04 |
+| public-review | confirmed | the record says the author confirmed this on 2026-11-04 |
+| public-links | confirmed | the record says the author confirmed this on 2026-11-04 |
+| overview-review | confirmed | the record says the author confirmed this on 2026-11-04 |
+| demo-protections | confirmed | the record says the author confirmed this on 2026-11-04 |
+| registry-install | later | After this version was published to the package registry, the README's two commands ran once against the registry on a clean build 154 instance and gave the same working OcuTalon; the result is in the release notes, and docs/install-ipm.md shows that run's output. |

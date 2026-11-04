@@ -7,7 +7,9 @@
 /// Decide filters every text of the model that the payload holds (FILTERED, AD-31). Import refuses a field that is not declared here.
 /// %OnValidateObject adds, after the parent's check: the outcome act; a category of the list; a cause that is not blank; the fixKind repair_resend
 /// exactly when the category is data_format_change (then elementAtFault, fixSummary and fixParameters.field are not blank; any other category has no
-/// fixKind, no fixParameters and no fixSummary); an itemNoun, when given, with neither form blank; and no clock time (h:mm, an hour of 0 to 23 and
+/// fixKind, no fixParameters and no fixSummary), except that a data_format_change may carry no fix at all, when fixKind, fixParameters and fixSummary are all
+/// absent or blank (a diagnosis that cannot tell which way a date reads, DW-644): it then still names its elementAtFault, and any one of the three alone is
+/// refused. It also requires an itemNoun, when given, with neither form blank, and no clock time (h:mm, an hour of 0 to 23 and
 /// minutes of 00 to 59, not part of a longer number or an address such as 10.0.0.5:1972) in cause or fixSummary. The fix kind is one that OcuTalon.Fix.Kind
 /// names (AD-16), and its check of the fix parameters is the last: the fields it is given are the keys of the sample body of the evidence pack that the
 /// request carried, read through OcuTalon.Bridge.ReplyCheck, which Decide begins before it checks a reply. With no check begun, or an input that is not a
@@ -66,7 +68,9 @@ Method %OnValidateObject() As %Status [ Private, ServerOnly = 1 ]
 	}
 	If ..Evidence.Count() > ..#MAXEVIDENCE Quit $$$ERROR($$$GeneralError, "The evidence holds more than "_..#MAXEVIDENCE_" references")
 	If ..Blank(..Cause) Quit $$$ERROR($$$GeneralError, "The cause is blank")
-	If ..CauseCategory = ..#FIXCATEGORY {
+	If (..CauseCategory = ..#FIXCATEGORY) && (..FixKind = "") && '$IsObject(..FixParameters) && ..Blank(..FixSummary) {
+		If ..Blank(..ElementAtFault) Quit $$$ERROR($$$GeneralError, "A data_format_change names its elementAtFault")
+	} ElseIf ..CauseCategory = ..#FIXCATEGORY {
 		If ##class(OcuTalon.Fix.Kind).ForName(..FixKind) = "" Quit $$$ERROR($$$GeneralError, "A data_format_change has a fixKind of "_$ListToString(##class(OcuTalon.Fix.Kind).Names(), ","))
 		If ..Blank(..ElementAtFault) Quit $$$ERROR($$$GeneralError, "A data_format_change names its elementAtFault")
 		If ..Blank(..FixSummary) Quit $$$ERROR($$$GeneralError, "A data_format_change has a fixSummary")
