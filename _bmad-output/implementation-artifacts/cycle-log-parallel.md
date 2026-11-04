@@ -1829,3 +1829,4 @@
 2026-11-04T14:03:46Z	Run	ruling	question=post-tag_queue choice=Epic_11(integrate_forward,11.20_merge_with_part_2:11.14,15,16,18)_to_the_first_of_B,C,D_free;on_Epic_33_merge:A_yields_to_17,34_to_the_next_free;then_31.4,30.7;Epic_40_to_a_freed_B,C,D_when_A_yields rejected=A_takes_part_2(U-Planner_A_stays_off_queue_epics_over_2_stories) category=decide policy=508603671b9598f59d04750db6b6cdad2d396167
 2026-11-04T14:20:47Z	Epic 40	runner_resumed	agent=a819e86da03cefa2c ci=d28ad811_success note=403_did_not_repeat;40.8_implement_local_until_14:45Z
 2026-11-04T14:39:05Z	Run	main_red	run=41843658900 sha=8b3cac3c job=iris(browser) unit=live:sign-in spec=socket.spec.ts:415_W11 error=route.fetch_Test_ended(stripPollEvents:39) ledger=DW-665 not_rerun=main_is_the_Planner_s;reported
+2026-11-04T14:39:38Z	Run	planner_note	main_rerun_started_by_Planner(41843658900_attempt_2);DW-665_linked_to_DW-640;cdf1cdfc_release_record_merged_forward;push_hold_ends_14:45Z
