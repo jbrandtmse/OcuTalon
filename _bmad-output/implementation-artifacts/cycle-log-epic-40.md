@@ -85,3 +85,4 @@
 2026-11-04T12:06:03Z	Story 40.2	story_cycle	plan_to_commit_min=56 implement_passes=1 reviews=1 rework=1 first_ci=story models=implement:sonnet,cr:opus
 2026-11-04T12:13:33Z	Epic 40	orchestrator_note	source=U-268 spec_gate=read_AD-1_and_AD-14_citations_against_33.2_additions(AD-1_SendDigest_origins_tool,web_admin;AD-14_kind_digest;AD-13_settings_routes;AD-19_SaveSettings;AD-32_dailyCost)_grep_alone_does_not_clear;spec_relying_on_closed_tool_list_or_digest_routing=clarification epic33_first=Core/SettingsOps.cls(AuditData,Carry),Core/SessionOps.cls(OnMessage),Test/Core/SettingsOpsProbe.cls,Test/Msg/Contracts.cls absorb_at_integrate_forward_after_33_merges behaviour_choice=clarification
 2026-11-04T12:44:29Z	Epic 40	ledger_load	total=644 open=0 routed=86 escalated=0 decision_pending=3 terminal=555 owner_unknown=0 burndown=51 reowned_none=0
+2026-11-04T12:44:55Z	Epic 40	sprint_planning_complete	gate=PASS model=claude-opus-5-5 note=rc4_redispatch
