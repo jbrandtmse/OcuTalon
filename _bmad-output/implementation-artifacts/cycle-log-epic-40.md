@@ -142,3 +142,5 @@
 2026-11-04T20:55:29Z	Story 40.3	ledger_adjudicated	owned=0 resolved=0 reowned=0 terminal=0 model=claude-opus-5-5 note=DW-678,DW-679_routed_to_40.7_with_bullets
 2026-11-04T21:15:34Z	Story 40.3	smoke_complete	method=other result=pass iterations=1 defects_caught=0 evidence=fresh_stack_e40s3sm_live_demo-path_8_of_8_floor_15_of_15_audit_pass(OCUTALON_LIVE_DEADLINE=700_busy_machine);persona_turns_through_WebChatIn_and_the_production_on_fresh_stacks model=claude-opus-5-5
 2026-11-04T21:15:34Z	Story 40.3	fresh_check	env=recipe(fresh_stack_e40s3fr) tests=15 result=pass order=forward,reverse classes=shard_lane-a@Agent_incl_Persona,PersonaBlock,PersonaTurns forward=365s reverse=369s boundaries=pass
+2026-11-04T21:16:20Z	Story 40.3	committed	sha=2a789066 submodules= ci=pending runs=41914403794,41914403947 amendments=epics.md:8693(U-278_40.4_And_line),epics.md_40.7_DW-678_DW-679_bullets
+2026-11-04T21:16:20Z	Story 40.3	story_cycle	plan_to_commit_min=453 implement_passes=1 reviews=1 rework=0 first_ci=pending models=plan:opus,implement:sonnet,qa:sonnet,cr:opus note=includes_DW-664_ruling_wait_and_40.8
