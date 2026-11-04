@@ -1778,3 +1778,4 @@
 2026-11-04T05:54:17Z	Run	orchestrator_fix	merge=ec04ac8d branch=rc3-root-manifest commits=49a0bf9c(U-260,U-262),f74a0309(U-263) authorized_by=U-260,U-262,U-263 review=Planner_diff_review_passed,go_given proof=root_load,artifact_install,ipm-install_a_r_b_p,checks_28_on_2_trees
 2026-11-04T05:54:17Z	Run	worktree_removed	worktree=.worktrees/rc3-root-manifest branch=rc3-root-manifest_local_deleted(merged,never_pushed)
 2026-11-04T05:54:43Z	Run	feature_pushed	head=24e6e9e9 verified=origin contains=2bec6879,fa4c549c,49a0bf9c,f74a0309,bookkeeping freeze=on_again_until_RC3_CUT ci=41782092223,41782092238 flake_rule=DW-453_class,DW-432:one_rerun_of_failed_job;second_red_stops_rc3;other_red_to_Planner
+2026-11-04T06:28:21Z	Run	ci_red_classified	run=41782092223 head=24e6e9e9 reds=shards(live:cards_I7_90s_test_timeout,no_ledger_entry),shards-2(operation_canceled_06:15:29Z,no_test_failed) class=unproven action=reported_to_Planner,no_rerun_until_their_word
