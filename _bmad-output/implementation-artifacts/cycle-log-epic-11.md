@@ -384,3 +384,16 @@
 2026-11-02T12:37:29Z	Epic 11	ledger_burndown_complete	part=1(owner_trim)_final_after_fix-forward_11.19 open_before=11 resolved=1(DW-349:11-19) terminal=0 chartered=0 chartered_size=0 overflow=3(DW-550,DW-555,DW-417:kept_owner=burndown_for_part_2) reowned=1(DW-417) to_decision_sheet=5(DW-495,DW-496,DW-532,DW-553,DW-554) held_out=2(DW-548,DW-27) open_after=10 cap=8 story_max=12 filed_this_epic=65 closed_this_epic=79 drain_ratio=1.22
 2026-11-02T12:37:29Z	Epic 11	integrated_forward	feature=0df06fd9 head=merge_of_this_commit conflicts_resolved=none note=the_feature_moved_by_two_bookkeeping_commits_only(cycle-log-parallel.md);the_code_tree_equals_36e92c9a;suite_and_smoke_on_the_code_tree_ran_after_the_213a08a6_integration(hermetic_suites,12_IRIS_classes,live_demo-path_8/8)_and_for_11.19(web_suite_1232,sign-in_1/2,2/2)
 2026-11-02T12:37:29Z	Epic 11	epic_runner_complete	stories_completed=17(11.0,11.1,11.7,11.10,11.8,11.9,11.2,11.3,11.11,11.12,11.4,11.13,11.5,11.17,11.19;+11.0_and_11.1_before_hold) partial=11.14,11.15,11.16,11.18_held_out(owner_trim,part_2) fix_forward=11.19(DW-349)
+2026-11-04T02:02:27Z	Epic 11	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-11-04T02:02:27Z	Epic 11	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh
+2026-11-04T02:02:27Z	Epic 11	launch_env	depth=4 watchdog=default bash_max_ms=default
+2026-11-04T02:02:27Z	Epic 11	runner_unattended_start	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec note=reopen_for_story_11.20_runner_A lane=A slot=ocutalon-slot-a
+2026-11-04T02:02:27Z	Epic 11	epic_branch_reopened	reason=story_11.20_veto_U-256 from=c07934a4
+2026-11-04T02:02:27Z	Epic 11	epic_branch_checked_out	repos=. head=c07934a4 bootstrap_check=ok
+2026-11-04T02:02:27Z	Epic 11	owner_decision	id=U-256 at=2026-11-04T02:01:21Z#770 via=inbox(relayed_by_orchestrator) by=Contest_Planner(owner_delegation) answer=(b)_for_the_chmod_line(the_orchestrator_commits_it_on_feature),(a)_for_the_rest(kept_overview-fail.log,no-IRIS_stub_check_with_mutation,kept-log_case,live_umask-077_smoke) timing=Epic_11_merges_after_the_v1.0.0_tag_with_part_2;push_story_head_to_OCT-epic11_only
+2026-11-04T02:02:27Z	Epic 11	spine_resolved	path=_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md ads=33 status=final
+2026-11-04T02:02:27Z	Epic 11	ledger_load	total=633 open=0 routed=79 escalated=0 decision_pending=3 terminal=551 owner_unknown=0 burndown=47 reowned_none=0
+2026-11-04T02:02:59Z	Epic 11	sprint_planning_complete	gate=PASS model=claude-opus-5-5 in_sync=true warnings=2(unparsed_title_and_epic_list_headings)
+2026-11-04T02:02:59Z	Epic 11	retro_review_skipped	reason=skip(no_X.0_input)_reopen_for_11.20
+2026-11-04T02:04:56Z	Epic 11	epic_context_compiled	reason=planning_artifact_newer(11.20_inserted) model=claude-opus lines=53 header=ok subagent_tokens=87823
+2026-11-04T02:04:56Z	Story 11.20	stage_spawned	stage=plan spawn_at=2026-11-04T02:04:56Z model=claude-opus agent_name=11-20-the-release-s-overview-step-hands-the-unit-files-the-contain-plan-1 cycle_iteration=1 ledger_inbox=none
