@@ -48,3 +48,4 @@
 2026-11-04T11:14:42Z	Epic 33	telemetry_gate	pending=1 action=none note=epic5_record_only(gates.model_tier)
 2026-11-04T11:49:18Z	Epic 33	epic_context_compiled	sha=886c500d reason=planning_artifact_newer model=opus
 2026-11-04T11:49:18Z	Epic 33	ruling	question=release_notes_real_tree_literal choice=three_line_edit_verbatim rejected=notes-areas_line_for_epic_33 why=rc4-release-common_ruling category=decide by=orchestrator sha=886c500d policy=5086036
+2026-11-04T11:52:10Z	Epic 33	merged_tree_suite	feature=1710b901 merge=5738aceb lane-a=136/136_fresh lane-b=87/88_warm,red=GuideApi.TestRunAgain=DW-453(passes_alone_on_one_rerun,occurrence_appended,shard_order_left_to_CI) checks=28_scripts_pass(release-notes_after_the_ruling) web=web-build,mock_pass smoke=slot-c:SettingsStubs_3/3,Digest.Contracts_4/4 slot=654_classes_no_stale
