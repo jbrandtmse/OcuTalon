@@ -1720,3 +1720,8 @@
 2026-11-04T01:20:04Z	Epic 31	runner_report_error	field=amendments reported=epics.md:7507 actual=epics.md:7567 impact=none
 2026-11-04T01:20:04Z	Epic 31	amendments_verified	amendments=2 extensions=22 ok=true note=U-242_marker_L7567,31.7_ADDED_L7648;extensions_no_overlap_with_open_epics(7,33,39 local;watch_files_unchanged:merge.cpf,after-start.sh,install.sh)
 2026-11-04T01:20:04Z	Epic 31	merge_enqueued	branch=OCT-epic31 head=94bf26d6 policy=when_green part_merge=U-239(31.4_backlog)
+2026-11-04T01:20:59Z	Epic 31	deps_hash_rerecorded	reason=fix_forward story=31.7(U-243) hash=e6eddd07
+2026-11-04T01:20:59Z	Epic 31	decision_sheet_recorded	decided=0 to_action_items=0 to_x0=0 parked=1(DW-416->U-255) by=unattended note=U-254(b)_reverses_U-177_placement_for_DW-34(->33.1),DW-207,DW-223(->burndown_first_daily_release);DW-612_verdict_trailer
+2026-11-04T01:20:59Z	Epic 31	epic_retro_skipped	reason=policy
+2026-11-04T01:21:16Z	Epic 31	worktree_removed	epic=31
+2026-11-04T01:21:16Z	Epic 31	epic_branches_deleted	local=OCT-epic31 remote=after_push
