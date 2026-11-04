@@ -428,3 +428,5 @@
 2026-11-04T05:01:25Z	Epic 11	epic_retro_skipped	reason=policy
 2026-11-04T05:01:25Z	Epic 11	epic_status_kept	status=in-progress reason=part_2(11.14,11.15,11.16,11.18_backlog;owner_trim) note=as_part_1;story_11.20_done
 2026-11-04T05:01:25Z	Epic 11	model_tier_checkpoint	armed=false stack_risk=none review_tier=full-opus implement_model=claude-sonnet unresolved_high_med_avg=0 metric=unresolved rework_stories=0 review_loop_thrash=0 rework_lang_defects=0 review_high=0 review_med=3 result=hold applied=false(record_only) note=reopen_scope(story_11.20)
+2026-11-04T05:13:05Z	Epic 11	integrated_forward	feature=10ce26ac head=8e382e19 conflicts_resolved=sprint-status.yaml(regenerated;11.20_done_re-set) checks=hermetic_release-sequence_PASS_all_rules(27),checklist,notes,boundaries;live_overview_unit_exit0_under_umask_077_on_the_merged_tree note=U-257_and_U-258;source_differs_from_feature_by_the_two_story_files_only stage=epic_close
+2026-11-04T05:13:05Z	Epic 11	epic_runner_complete	stories_completed=1(11.20) partial=11.14,11.15,11.16,11.18_held_out(owner_trim,part_2) applied=U-256_at=2026-11-04T02:01:21Z#770 merge=after_the_v1.0.0_tag_with_part_2
