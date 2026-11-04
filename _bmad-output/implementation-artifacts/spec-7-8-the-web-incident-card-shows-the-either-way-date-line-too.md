@@ -160,6 +160,23 @@ Code review, 2026-11-04: full tier, four layers (blind-hunter, edge-case-hunter,
 - `low`: the grid has no width condition. Spec-bound: Decided in-stage holds it to height alone, as ruling Q1 says; E8 now shows it does no harm.
 - `false`: the other live units were not re-run after QA. QA changed test files only, so they had nothing new to run against.
 
+#### Round 2 (rework re-review, iteration 1)
+
+Code review, 2026-11-04, of `09afe57a..HEAD` and the working tree: full tier, four layers (blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor), no failed layer. 17 raw findings, 0 entries: every finding rejected, so nothing to patch, defer or ledger. Clean review.
+
+- [x] [Review][Confirmed] The `[Smoke]` item is fixed. `layoutOf` reads the count line, Before, After and the note in one `evaluate`, so every rect comes from one synchronous layout and a scroll cannot fall between two reads; each assertion compares two edges with the same origin subtracted, so thresholds and meaning are unchanged. E4, E5 (through `beforeAndAfterShareALine`) and E6 use it; `edgesOf` has no caller left. The product cause is ruled out: `has-either` and `has-note` are bound to data alone, the card has no enter animation or transform, and a block without `has-either` has only the stacked arrangement, so the smoke's inversion (After 52 px above Before's bottom) could only come from reads in two scroll positions. The three Rework-stage `mutation:` lines match the card's CSS and their pass counts (25, 26, 27 of 28). One `live cards` run after `ci/iris.sh build` on a fresh lane-B throwaway (tag `e7s8rwc`): 28 passed, E6 included; torn down (0 left).
+
+**Rejected (round 2):**
+- `false`: the product cause was dismissed without evidence. See the Confirmed line: the classes are data-bound and the stacked block has one arrangement.
+- `false`: three passes are weak proof and a scroll-between-reads test should pin the fix. The fix is structural: rects read in one synchronous task see one layout, and scroll position only advances between tasks.
+- `false`: the AC 6 / answered re-observation used another mutation. A selector that never matches has the effect of the rule removed, and the line states the variant used.
+- `false`: E4 measures once right after `setViewportSize`. The arrangement is CSS only and `getBoundingClientRect` forces the style and layout pass for the new viewport, media queries included.
+- `false`: the spec says `done` before this review. That is build-auto's machine state; this review does not set it.
+- `low`: a hidden part reads as a zero rect at `-origin`. Nothing hides any of the four parts, and a guard adds a branch for an unreached state.
+- `low`: E6's "After is below Before" has no mutation of its own on the new helper. Rule 19 asks one mutation per AC; AC 4's is fresh, and E4's red under the disabled rule shows the helper reads Before and After apart.
+- `low`: `incident-card.spec.ts` `inOrder` compares separate `boundingBox` reads. Outside this rework's range and not high; reported to the lead.
+- `low` (spec edits, the reviewer does not make them): the Auto Run Result covers this pass only (Rule 14 asks exactly that), the story's Footprint extensions, residual risks and first baseline left the frontmatter and the result, the rework's mutation counts appear twice, the round-1 rework tally counts a no-action row, and two revert lines name no method.
+
 ## Spec Change Log
 
 - 2026-11-04, the lead: plan halted on Q1 and Q2; ruled (Design Notes, Rulings), U-266 and U-267 filed, the project block's scope item 5 corrected, status reset to draft for the re-plan.

@@ -3941,3 +3941,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-7-8-the-web-incident-card-shows-the-either-way-date-line-too.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: the header names I2-I11 and A2-A10 only; the spec's Never list keeps docker out of this story
 - 2026-11-04T16:32:06Z status=wontfix-accepted owner=7-8-the-web-incident-card-shows-the-either-way-date-line-too by=cr note=reopen_if=test-cards.sh is next edited and still omits either-way.spec.ts
+
+### DW-674: flake candidate: incident-card.spec.ts inOrder (Story 6.4) compares y from separate boundingBox calls in page coordinates, the pattern that raced E6 in Story 7.8
+- source: spec-7-8-the-web-incident-card-shows-the-either-way-date-line-too.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: 7.8 rework re-review: web/e2e/cards/incident-card.spec.ts L127-135; E6 raced the same way once (After 52 px above Before); never seen red there
+- 2026-11-04T18:43:12Z status=wontfix-accepted owner=7-8-the-web-incident-card-shows-the-either-way-date-line-too by=adjudication note=reopen_if=a live:cards I-case red from inOrder with no product change; the fix is one evaluate as in either-way.spec.ts layoutOf
