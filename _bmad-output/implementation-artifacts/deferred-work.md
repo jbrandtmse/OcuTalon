@@ -3735,6 +3735,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-02T21:03:11Z status=routed owner=31-3-the-readme-leads-to-the-demo-and-the-launched-demo-is-measur by=ci note=Lane_B_test(Epic_11_part_1);first_seen_on_Epic_30_integrate-forward;make_the_mixed_count_wait_for_the_first_turn's_last_header_or_scope_it
 - 2026-11-03T15:21:47Z status=routed owner=burndown by=spec_gate note=flake_class_kept;declined_by_31.3_plan(root_cause_unknown,passed_on_rerun;nothing_in_31.3_touches_ThreadProduction)
 - 2026-11-03T23:35:54Z status=routed owner=burndown by=burndown_gate note=U-254;first_daily_release_after_1.0.0;not_a_1.0.0_blocker
+- 2026-11-04T15:47:19Z occurrence=f2b20ea0 by=orchestrator note=run 41843673412 iris (image) shard:lane-b; not repeated on cdf1cdfc
 
 ### DW-600: The key proof's globals walk cannot read the saved AI session history (%AI.Agent.Session.ContextData, a compressed %Stream.GlobalCharacter), so a key stored there would read as clean
 - source: spec-30-8-the-redactor-and-the-key-proof-catch-every-key-shape.md | severity: low | fix-risk: med | footprint: out-of-footprint
