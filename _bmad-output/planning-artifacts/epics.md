@@ -8764,6 +8764,7 @@ So that I stay in charge of how OcuTalon talks to me.
 
 - DW-570: bind `ProposePersona`'s `SessionRef` to the bridge context's owner (as `CommandsIn` does for `Dismiss`) before it raises a request (AD-1) (ledger; routed by harvest 2026-11-02)
 - DW-571: a refused `setting` approval answered from the page must not get the tool-call approver text in `OcuTalon.Web.Api` (ledger; routed by cr 2026-11-02)
+- DW-669: `PUT /api/v1/persona` forwards only the values the preset uses: `SetPersona` carries `language` only for the language preset and `custom` only for the custom preset, other values dropped; a used value over its limit (language over 40 characters, custom over 1,000 UTF-16 units) is refused in the route with the same outcome code and message `SettingsOps` gives (`bad_language` / `bad_custom`), and nothing is submitted. Tests: Professional with a 100 KB custom answers 200 and the `SetPersona` message's `Custom` is empty; a 1,001-unit custom answers 400 `bad_custom` with no `SetPersona` sent (ledger; ruled by the Contest Planner under the owner's delegation at the merge gate, part (a); routed 2026-11-04)
 
 ### Story 40.7: Evaluation cases for the persona
 
