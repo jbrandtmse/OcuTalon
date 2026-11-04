@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from '../support/fixtures';
 
 import { STATE } from '../support/api';
 import { openTraceFromGuide } from '../support/demo-path';

@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page, type Request, type Route } from '@playwright/test';
+import { expect, test, type Locator, type Page, type Request, type Route } from '../support/fixtures';
 
 import { signIn, watchViolations } from '../sign-in/helpers';
 import { loadedAfter, settled, signInReadmeLoaded } from '../support/floor';
@@ -23,11 +23,6 @@ const EVENTS = /\/ocutalon\/api\/v1\/events\?/;
 const MESSAGES = '/ocutalon/api/v1/messages';
 
 test.use({ timezoneId: 'Asia/Kolkata', locale: 'en-US' });
-
-/** A poll that a routed /events handler is still answering when a test ends must not fail the next test. */
-test.afterEach(async ({ page }) => {
-  await page.unrouteAll({ behavior: 'ignoreErrors' });
-});
 
 type Json = Record<string, unknown>;
 interface Posted {

@@ -1,3 +1,4 @@
+import { TELEGRAM_FIXTURE_MS } from '../e2e/support/bounds';
 import { chk, irisScript, quoted } from '../e2e/support/iris';
 
 /**
@@ -32,6 +33,7 @@ async function fixture(call: string, outputs: string[] = []): Promise<{ reason: 
       'Write !,"CHK|reason|",$Translate(r,$Char(13,10),"  ")',
       ...outputs.map((name) => `Write !,"CHK|${name}|",${name}`),
     ].join('\n'),
+    TELEGRAM_FIXTURE_MS,
   );
   const reason = chk(lines, 'reason');
   if (reason === undefined) return { reason: 'the IRIS script printed no answer', values: {} };

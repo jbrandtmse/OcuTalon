@@ -2,13 +2,21 @@
 title: "Story 11.21: A test's route callback never outlives its test"
 type: 'bugfix'
 created: '2026-11-04'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '79a8aca3e2016d544fc3fc4f1e18f353a9629eb3'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-11-context.md'
 warnings: [oversized]
-deferred: []
+deferred:
+  - summary: >-
+      A local `ci/iris.sh live online-demo` run fails its Story 16.6 probe-phase check unless OCUTALON_LIVE_DEADLINE is raised to the CI value.
+    evidence: |-
+      lib-live.sh defaults the unit deadline to 540 s; the online-demo browser run alone uses about 414 s, so test-online-demo.sh reports "only 126 s are left of the deadline" and fails with every spec green. CI sets 1200. Seen in this story's implement run; the same unit passed with OCUTALON_LIVE_DEADLINE=1200.
+    location: >-
+      docker/tests/test-online-demo.sh:1306
+    severity: low
 ---
 
 <intent-contract>
@@ -92,32 +100,32 @@ deferred: []
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] `web/e2e/support/fixtures.ts`: create the shared `test` as in the Code Map, with a header that states its contract: every test ends with no live route callback on its page, its context or the context's pages. (AC1)
-- [ ] `web/e2e/support/bounds.ts`: create the bounds and `runBounded` as in the Code Map. (AC4)
-- [ ] `web/e2e/support/iris.ts`: change `runOnce` and `irisScript` only, as in the Code Map. (AC4)
-- [ ] `web/e2e-online/telegram.ts`: `fixture()` passes `TELEGRAM_FIXTURE_MS`. (AC4)
-- [ ] `web/playwright.config.ts`: give the five online projects `ONLINE_WAITS` and the `irisScriptMs` metadata. (AC4)
-- [ ] Every `*.spec.ts` under `web/e2e` and `web/e2e-online`: change the path of the one `@playwright/test` import line to the shared fixtures module. Change nothing else on the line or in the file. (AC1, DW-640, DW-665)
-- [ ] The 21 `test.afterEach` copies in the Code Map: delete them. (AC1)
-- [ ] `web/e2e/live/route-cleanup.spec.ts` (new, no stack and no `OCUTALON_` variable). The pinning spec. (AC2, DW-640, DW-665)
+- [x] `web/e2e/support/fixtures.ts`: create the shared `test` as in the Code Map, with a header that states its contract: every test ends with no live route callback on its page, its context or the context's pages. (AC1)
+- [x] `web/e2e/support/bounds.ts`: create the bounds and `runBounded` as in the Code Map. (AC4)
+- [x] `web/e2e/support/iris.ts`: change `runOnce` and `irisScript` only, as in the Code Map. (AC4)
+- [x] `web/e2e-online/telegram.ts`: `fixture()` passes `TELEGRAM_FIXTURE_MS`. (AC4)
+- [x] `web/playwright.config.ts`: give the five online projects `ONLINE_WAITS` and the `irisScriptMs` metadata. (AC4)
+- [x] Every `*.spec.ts` under `web/e2e` and `web/e2e-online`: change the path of the one `@playwright/test` import line to the shared fixtures module. Change nothing else on the line or in the file. (AC1, DW-640, DW-665)
+- [x] The 21 `test.afterEach` copies in the Code Map: delete them. (AC1)
+- [x] `web/e2e/live/route-cleanup.spec.ts` (new, no stack and no `OCUTALON_` variable). The pinning spec. (AC2, DW-640, DW-665)
   - `beforeAll` starts a `node:http` server on `127.0.0.1:0`. `/` serves a page whose `go()` fetches `/hang`. `/hang` never answers and counts its hits. `afterAll` runs `closeAllConnections()` and `close()`.
   - Four `test.describe.serial` pairs, each a leaver followed by a follower that passes on its own.
   - In pairs (a) to (c), the leaver installs a callback that awaits `route.fetch()` on `/hang`, triggers the fetch, polls until the server has the hit, and ends. The callback is on (a) the fixture page (`page.route`), (b) the context (`context.route`), or (c) a page from `context.newPage()` (`page.route`, using only the `context` fixture).
   - In pair (d), the leaver installs a `page.route` on the fixture page, triggers no fetch, and closes the page itself with `page.close()`.
   - The header states what it pins and that it needs only a local Chromium.
-- [ ] `web/scripts/route-cleanup.test.mjs` (new, hosted `web` job). (AC1, AC3)
+- [x] `web/scripts/route-cleanup.test.mjs` (new, hosted `web` job). (AC1, AC3)
   - It walks every `*.spec.ts` under `web/e2e` and `web/e2e-online`.
   - It fails, naming each offender, when a spec imports a value named `test` (or uses a default or namespace import) from `@playwright/test` or `playwright/test`, or does not import `test` from a path ending in `support/fixtures`.
   - It also fails when a spec's `test.afterEach` hook calls `unrouteAll`.
   - Source-pin `fixtures.ts`: overrides `page` and `context`, `ignoreErrors`, and the closed-target tolerance.
   - Self-test its classifier on inline samples: an offending `@playwright/test` line is flagged, the shared import passes, and a `type`-only import from `@playwright/test` passes. This keeps the check from being vacuous.
-- [ ] `web/scripts/bounded-waits.test.mjs` (new, hosted `web` job). It imports `bounds.ts` directly. (AC4)
+- [x] `web/scripts/bounded-waits.test.mjs` (new, hosted `web` job). It imports `bounds.ts` directly. (AC4)
   - `runBounded('sh', ['-c', 'exec sleep 30'], '', 500, 'step X')` rejects within 2 s with a message naming `step X` and `0.5 s`. The `it` has `{ timeout: 5000 }`.
   - A child that prints and exits resolves with its output.
   - `scriptBound` reads `irisScriptMs` and returns `undefined` for absent or non-positive values.
   - Bound sanity: `ONLINE_IRIS_SCRIPT_MS` and both `ONLINE_WAITS` values are at least 10 s and at most 120 s, and `TELEGRAM_FIXTURE_MS` is above 140 s and at most 150 s.
   - Source pins: each project of `web/playwright.config.ts` whose `testDir` starts with `./e2e-online` spreads `ONLINE_WAITS` and sets `irisScriptMs`, and no other project does. `iris.ts` `irisScript` takes the bound from `test.info().project.metadata`. `telegram.ts` `fixture()` passes `TELEGRAM_FIXTURE_MS`.
-- [ ] This spec: record the Verification results and the `mutation:` lines.
+- [x] This spec: record the Verification results and the `mutation:` lines.
 
 **Acceptance Criteria:**
 - AC1 (one mechanism, DW-640, DW-665). Given every spec under `web/e2e` and `web/e2e-online`, when a test ends, then its routes are removed by the shared fixtures with `unrouteAll({ behavior: 'ignoreErrors' })`, no spec carries its own `afterEach` copy, and `route-cleanup.test.mjs` is green.
@@ -130,6 +138,53 @@ deferred: []
 ## Spec Change Log
 
 ## Review Triage Log
+
+### 2026-11-04 - Review pass
+- verdicts: 43 findings - high 0, medium 3, low 35, false 5, maybe-false 0 (rows in the order of the layers: Blind, Edge, Verification, Intent)
+- findings:
+  - `[low]` `[reject]` Blind: runBounded kills only the local docker exec or sh client, not the in-container iris session - pre-existing (the session was never stopped before), the kill only improves it, and the fix needs container-side process control; the Boundaries bullet says "its child process", which is what is killed.
+  - `[medium]` `[patch]` Blind: bounded-waits.test.mjs never checks that the child is killed - patched: a pid-file test asserts the process is gone; mutation shown (kill deleted, red).
+  - `[low]` `[patch]` Blind: bounds.ts header says "well under" the test timeouts and puts waitForResponse under navigationTimeout - patched: header and option comment reworded (waitForResponse follows actionTimeout).
+  - `[low]` `[reject]` Blind: online waitForResponse calls without a timeout are now cut at 30 s - decided in Design Notes 5; all five online units ran green under the bounds.
+  - `[low]` `[reject]` Blind: the page override is dead code - recorded in Design Notes; the intent names both overrides and the source pin holds it.
+  - `[low]` `[reject]` Blind: browser.newContext() contexts are not unrouted - Design Notes 3; every such context is closed by its own test in finally, so no callback outlives the test.
+  - `[low]` `[reject]` Blind: irisScript cannot opt out of the project bound - no caller needs it; an explicit large ms does it.
+  - `[low]` `[reject]` Blind: route-cleanup.test.mjs misses double-quoted imports, afterAll and helper-based copies - contrived forms the repo's single-quote style and its "must import the shared test" rule already catch from the other side.
+  - `[low]` `[reject]` Blind: brittle indexOf slices, the 140 s chain only in a comment, chunks.length >= 12 - the config pin no longer reads text chunks; the others are negligible.
+  - `[low]` `[defer]` Blind: the local online-demo run needs OCUTALON_LIVE_DEADLINE=1200 - pre-existing harness default, outside the footprint; deferred (low).
+  - `[low]` `[reject]` Edge: SIGKILL reaches only the local client - same as the first Blind row.
+  - `[low]` `[reject]` Edge: an unroute error that is not "closed" in the pages loop skips the remaining targets - that error fails the test anyway; unlikely.
+  - `[false]` `[reject]` Edge: the closed-target message may be worded differently - Task 0 measured the wording and mutation D shows the swallow is needed and works.
+  - `[false]` `[reject]` Edge: a follower may pass vacuously before the leak surfaces - the mutations turn the followers red in the same run, so the race does not hide it.
+  - `[false]` `[reject]` Edge: hits and held persist across retries - each leaver compares against a snapshot taken before its own fetch.
+  - `[low]` `[reject]` Edge: importsOf only reads single-quoted imports, and the check has the same blind spots as above - contrived.
+  - `[low]` `[reject]` Edge: afterEach hooks delegating to a helper escape the check - contrived.
+  - `[false]` `[reject]` Edge: specs named *.test.ts escape the check - no such file exists under e2e or e2e-online, and Playwright's default testMatch is spec|test.
+  - `[low]` `[reject]` Edge: a caller can pass ms 0 or NaN to runBounded - internal helper, one caller path.
+  - `[false]` `[reject]` Edge: MOCK_MS (90 s) equals ONLINE_IRIS_SCRIPT_MS - MOCK_MS bounds page waits, not an irisScript session.
+  - `[low]` `[reject]` Edge: a slow-but-valid online wait now fails at 30 s - same as the Blind row (Design Notes 5).
+  - `[low]` `[reject]` Edge: browser.newContext() contexts are not guarded - same as the Blind row.
+  - `[low]` `[patch]` Edge: the fixtures.ts header says ignoreErrors lets a callback finish - patched: it does not wait for the callback and ignores its error.
+  - `[low]` `[reject]` Edge: the claim "stops its child process" - same as the first Blind row.
+  - `[low]` `[reject]` Edge: the page override is covered by the context loop - same as the Blind row.
+  - `[medium]` `[patch]` Verification: irisScript's default bound, no retry and first-line message are pinned by source regexes only - patched: the hermetic iris-script-bound.spec.ts drives irisScript through OCUTALON_E2E_IRIS_EXEC; three mutations shown red.
+  - `[medium]` `[patch]` Verification: the online projects' options are pinned by text over the config - patched: the test loads the config and compares use and metadata values; two mutations shown red (it also showed the first draft of the patch had dropped the test, caught by the mutation).
+  - `[low]` `[patch]` Verification: AC4 parts and the ignoreErrors option have no mutation line - patched: mutation lines added for each.
+  - `[low]` `[reject]` Verification: AC5 and AC6 have no mutation line - AC5 is the live proof, AC6 the diff check; recorded as such.
+  - `[low]` `[reject]` Verification: the page override has no failing test - same as the Blind row.
+  - `[low]` `[reject]` Verification: the hosted web job pins fixtures.ts by source only - the behaviour runs in live:sign-in; accepted.
+  - `[low]` `[reject]` Verification: the followers pass vacuously when run alone - serial pairs by design (Design Notes 7).
+  - `[low]` `[reject]` Verification: runBounded kills only the local client - same as the first Blind row.
+  - `[low]` `[reject]` Verification: each retry gets its own bound - a session that ends without CHK lines is not a hang; unchanged behaviour.
+  - `[low]` `[reject]` Verification: a double-quoted import escapes the classifier - same as the Blind row.
+  - `[low]` `[reject]` Verification: layout.spec.ts has a comment edit beyond the import - the comment named the deleted hook; layout.spec.ts is in the Code Map.
+  - `[low]` `[reject]` Intent: readings A, B and C; the diff implements A - descriptive; B and C are covered by Design Notes 3 and by the live units.
+  - `[low]` `[reject]` Intent: newContext contexts are not unrouted and the bounds' effect on them is untested - Task 0 measured the bounds on browser.newContext() pages.
+  - `[low]` `[patch]` Intent: the bounds have no behavioural test, and the first-line detail is untested - patched through iris-script-bound.spec.ts (page waits stay as measured in Task 0).
+  - `[low]` `[reject]` Intent: the evidence is a one-time run - the node and Chromium specs run in CI.
+  - `[low]` `[reject]` Intent: the page override is covered by the source pin only - same as the Blind row.
+  - `[low]` `[reject]` Intent: footprint extensions (tsconfig.e2e.json, rehearsal-support.test.mjs, the .ts import) - small and reversible, recorded in Design Notes; reported to the lead.
+  - `[low]` `[reject]` Intent: iris.ts reads test.info() in a try/catch that returns undefined - outside a test there is no project bound; a throw inside a test cannot occur.
 
 ## Design Notes
 
@@ -158,6 +213,14 @@ deferred: []
 5. Action and navigation bounds are 30 s and 60 s. Every online wait that needs longer already passes an explicit `timeout:` (for example `landedOn(..., 90_000)`, `landedOnSplash(second, 60_000)`), and an explicit timeout wins. The `(once)` runs of all five online units are the evidence.
 6. `page.close()` gets no bound. It takes no timeout, and the specs call it with no `runBeforeUnload`. (inference) It does not wait on the page, and it is not in the AC's list.
 7. The pinning spec goes in `web/e2e/live/`, the folder of both ledger sites, which the chromium project (`live:sign-in`) already runs. Each case is a serial leaver/follower pair, because the error lands on the test after the leaver. A reversed file order keeps each pair intact.
+
+**Decided in implement (small, reversible, inside the intent).**
+- `web/playwright.config.ts` imports `./e2e/support/bounds.ts` with the extension, because `web/scripts/playwright-projects.test.mjs` loads the config straight into Node, which resolves no extensionless relative import. `web/tsconfig.e2e.json` therefore gets `allowImportingTsExtensions: true` (it has `noEmit` and serves only the lint). Both files are footprint extensions.
+- `web/scripts/rehearsal-support.test.mjs`: its source pin on `runOnce` asserted `spawn(cmd, args,`; `runOnce` now delegates the spawn to `runBounded`, so the assertion reads `runBounded(cmd, args,`. The pinned line `irisSessionCommand(process.env, irisContainer)` stays in `runOnce`. Footprint extension.
+- `runBounded` takes an optional sixth parameter `detail`, so `irisScript` can add `from the script starting "<first line>"` to the message while the node test keeps the plain `<step>: no answer within <s> s` form.
+- The `page` override is redundant with the `context` override's loop over `context.pages()`: removing only `unroute(page)` leaves the pinning spec green. It stays because the intent names both overrides, and the source pin in `route-cleanup.test.mjs` holds it. The pinning spec goes red on removing the page unroute and the pages loop together, and on removing the whole shared test.
+- Review patches: `web/e2e/live/iris-script-bound.spec.ts` (new, hermetic, no browser: it points OCUTALON_E2E_IRIS_EXEC at a local command and sets the running project's metadata) pins `irisScript`'s message, the first line, no retry and the default bound; `bounded-waits.test.mjs` asserts the killed child is gone and reads the bounds from the loaded config instead of its text. Footprint extension: the new spec file.
+- Locally `ci/iris.sh live online-demo` needs `OCUTALON_LIVE_DEADLINE=1200`, as CI sets: with the 540 s default the unit's probe phase is skipped after the 52 browser tests (414 s used), a red that is not a spec failure.
 
 **Rule 1/2.**
 - Shared components: `web/e2e/support/fixtures.ts` and `web/e2e/support/bounds.ts`.
@@ -199,6 +262,22 @@ After each live unit, also after a failure, run `LANE bash ci/iris.sh teardown`.
 - AC1/AC3: put `web/e2e/live/live.spec.ts` back on `'@playwright/test'`. Expected red: `route-cleanup.test.mjs`, naming that file. Second mutation: put the `afterEach` copy back in `chat/chat.spec.ts`. Expected red: the same test, naming that file.
 - AC4: delete the timer in `runBounded`. Expected red: `bounded-waits.test.mjs`'s hang row (test timeout). Second mutation: drop the `ONLINE_WAITS` spread from the `online-session` project. Expected red: its config pin, naming `online-session`.
 
+**Mutation results (Rule 19; each applied, red observed, reverted, tree byte-identical to the pre-mutation diff):**
+- mutation: AC2 `unroute(page)` deleted from the `page` override: stays green (8 passed), because the `context` override unroutes every page. Together with the `context.pages()` loop deleted: red, pair (a) and pair (c) followers, `route.fetch: Test ended`. The base Playwright `test` with no overrides: red, the followers of (a), (b) and (c).
+- mutation: AC2 `context.pages()` loop deleted: red, pair (c) follower, `route.fetch: Test ended`. `unroute(context)` deleted: red, pair (b) follower, `route.fetch: Test ended`.
+- mutation: AC2 closed-target tolerance replaced by a plain call: red, pair (d) leaver, `page.unrouteAll: Target page, context or browser has been closed` (its follower did not run).
+- mutation: AC1/AC3 `live/live.spec.ts` back on `'@playwright/test'`: red, `route-cleanup.test.mjs` names `e2e/live/live.spec.ts`. An `afterEach` unroute copy back in `chat/chat.spec.ts`: red, same test, names `e2e/chat/chat.spec.ts:27`.
+- mutation: AC4 the timer in `runBounded` disabled: red, `bounded-waits.test.mjs` hang rows (5 s test timeout). `ONLINE_WAITS` spread dropped from `online-session`: red, config pin, `online-session`.
+
+- mutation: AC2 `unrouteAll({ behavior: 'ignoreErrors' })` reduced to `unrouteAll()` in `unroute`: red, pair (a), (b), (c) followers, `route.fetch: Test ended`, and the `fixtures.ts` source pin.
+- mutation: AC4 `child.kill('SIGKILL')` deleted from `runBounded`: red, `bounded-waits.test.mjs` "kills the command itself". `currentBound()` made to return undefined: red, `iris-script-bound.spec.ts` "the project bound applies when the call passes none" (45 s, the unbounded sleep). The detail dropped from `runOnce`'s step label: red, the first two `iris-script-bound.spec.ts` tests. `TELEGRAM_FIXTURE_MS` dropped from `telegram.ts` `fixture()`: red, its pin.
+- mutation: AC4 `metadata: { irisScriptMs }` dropped from `online-session`: red, `bounded-waits.test.mjs` "gives each online project ...", `online-session: metadata.irisScriptMs`. The `ONLINE_WAITS` spread dropped from it: red, same test, `online-session: use.actionTimeout`.
+- AC5 and AC6 have no mutation: AC5 is the live proof on the stack (the L5 and L6 hang this story bounds cannot be re-created cheaply), AC6 is the `git diff --stat` check.
+
+**Verification results (implement stage):**
+- `npm --prefix web run lint`: exit 0. `node --test` of the two new files: 25 passed. Hermetic `route-cleanup.spec.ts` and `iris-script-bound.spec.ts`: 11 passed. `npm --prefix web test`: 1330 of 1330. Hermetic `route-cleanup.spec.ts` on Chromium: 8 passed.
+- `ci/iris.sh build`, then each unit on its own lane-B throwaway, torn down after each: `live online-session` 13 passed (L5 and L6 among them); `live sign-in --part 1/2` 138 passed; `--part 2/2` 124 passed (re-run after the review patches: 138 and 127 passed, the new `iris-script-bound.spec.ts` among them; `live online-session` re-run: 13 passed; the other units ran before the patches, which touched no code they run: comments, tests and the config's already-loaded values) (`live.spec.ts`, `socket.spec.ts` and `route-cleanup.spec.ts` among them); `live demo-path` 28 passed; `live floor` 107 passed; `live online-demo` 52 passed (with `OCUTALON_LIVE_DEADLINE=1200`, see Design Notes); `live online-allowance` 12 passed; `live online-visitors` 1 passed; `live online-demo-path` 7 passed.
+
 **Shared surfaces:**
 - the import line of every spec under `web/e2e` and `web/e2e-online`
 - the chromium project's spec list and `live:sign-in`'s part cuts (one new file, `web/e2e/live/route-cleanup.spec.ts`, read from disk by `playwright-projects.test.mjs` and `e2e-part.mjs`)
@@ -211,5 +290,17 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** One shared Playwright `test` (`web/e2e/support/fixtures.ts`) overrides `page` and `context` and ends every test with `unrouteAll({ behavior: 'ignoreErrors' })` on the page, every page of the context and the context. All 70 specs under `web/e2e` and `web/e2e-online` import it, and the 21 `afterEach` copies are gone. The online projects bound actions (30 s), navigations (60 s) and `irisScript` sessions (90 s, 150 s for the Telegram fixture), and a timed-out session is killed, never retried, and named by its first line.
+
+**Files changed.** `web/e2e/support/fixtures.ts` (new, the shared test); `web/e2e/support/bounds.ts` (new, bounds and `runBounded`); `web/e2e/support/iris.ts` (`runOnce`, `irisScript`); `web/e2e-online/telegram.ts` (fixture bound); `web/playwright.config.ts` (online projects' waits and metadata); 70 spec files (one import line each, 21 hooks deleted); `web/e2e/live/route-cleanup.spec.ts` (new, the AC2 pairs); `web/e2e/live/iris-script-bound.spec.ts` (new, hermetic `irisScript` bound); `web/scripts/route-cleanup.test.mjs` and `web/scripts/bounded-waits.test.mjs` (new, hosted `web` job). Footprint extensions: `web/tsconfig.e2e.json` (`allowImportingTsExtensions`), `web/scripts/rehearsal-support.test.mjs` (one pin follows `runOnce`), `web/e2e-online/telegram.ts`, `web/e2e/live/iris-script-bound.spec.ts`.
+
+**Review.** Patches applied: 3 medium, 4 low (child-killed assertion, hermetic `irisScript` spec, config pin on loaded values, mutation lines, two comment corrections). Deferred: 1 low (local online-demo deadline default). Rejected: the rest, each with its reason in the triage log.
+
+**Follow-up review recommended:** false (no high patched, one medium-class patch group only).
+
+**Verification.** See the Verification section: lint, 1330 node tests, 11 hermetic Chromium tests, and every live unit named there green on lane-B throwaways, each torn down.
+
+**Residual risks.** A timed-out `irisScript` kills the local client only, not the in-container session. The `page` override is covered by the source pin, not by a failing test. Online waits that need more than 30 s must pass an explicit timeout. AC4 (three green `iris (browser)` runs) is the lead's after the push.

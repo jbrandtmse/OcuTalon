@@ -1,5 +1,7 @@
 import { defineConfig, devices } from '@playwright/test';
 
+import { ONLINE_IRIS_SCRIPT_MS, ONLINE_WAITS } from './e2e/support/bounds.ts';
+
 /**
  * Browser specs against a running stack. OCUTALON_URL is its origin, for example http://127.0.0.1:52800; the specs
  * open paths below it, such as /ocutalon/. One worker: the specs share one IRIS instance and its licence.
@@ -25,6 +27,7 @@ import { defineConfig, devices } from '@playwright/test';
  *   online-demo-path the specs of e2e-online/demo-path/ (the online-demo-path unit, docker/tests/test-online-demo-path.sh): REL-2's online run and
  *                  the second visitor, with the model keys at the CI mock, Story 29.4, Desktop Chrome.
  * The floor unit runs the three floor projects one after the other on its one stack (the e2e:floor script), Chromium first.
+ * The five online projects bound their waits (e2e/support/bounds.ts): a page action, a navigation and an irisScript session each fail on their own bound.
  * When OCUTALON_E2E_JSON names a file, a JSON report is written there beside the list reporter.
  */
 const jsonReport = process.env['OCUTALON_E2E_JSON'];
@@ -67,19 +70,40 @@ export default defineConfig({
       name: 'online-demo',
       testDir: './e2e-online',
       testIgnore: ['**/e2e-online/session/**', '**/e2e-online/allowance/**', '**/e2e-online/demo-path/**', '**/e2e-online/visitors/**'],
-      use: { ...devices['Desktop Chrome'] },
+      use: { ...devices['Desktop Chrome'], ...ONLINE_WAITS },
+      metadata: { irisScriptMs: ONLINE_IRIS_SCRIPT_MS },
     },
     // online-session: the specs of e2e-online/session/ (the online-session unit, docker/tests/test-online-session.sh, on its own flag-on
     // throwaway), Desktop Chrome.
-    { name: 'online-session', testDir: './e2e-online/session', use: { ...devices['Desktop Chrome'] } },
+    {
+      name: 'online-session',
+      testDir: './e2e-online/session',
+      use: { ...devices['Desktop Chrome'], ...ONLINE_WAITS },
+      metadata: { irisScriptMs: ONLINE_IRIS_SCRIPT_MS },
+    },
     // online-allowance: the specs of e2e-online/allowance/ (the online-allowance unit, docker/tests/test-online-allowance.sh, on its own flag-on
     // throwaway, because the daily cap is instance-wide), Desktop Chrome.
-    { name: 'online-allowance', testDir: './e2e-online/allowance', use: { ...devices['Desktop Chrome'] } },
+    {
+      name: 'online-allowance',
+      testDir: './e2e-online/allowance',
+      use: { ...devices['Desktop Chrome'], ...ONLINE_WAITS },
+      metadata: { irisScriptMs: ONLINE_IRIS_SCRIPT_MS },
+    },
     // online-demo-path: the specs of e2e-online/demo-path/ (the online-demo-path unit, docker/tests/test-online-demo-path.sh, on its own
     // flag-on throwaway with the runners' model keys at the CI mock), Desktop Chrome.
-    { name: 'online-demo-path', testDir: './e2e-online/demo-path', use: { ...devices['Desktop Chrome'] } },
+    {
+      name: 'online-demo-path',
+      testDir: './e2e-online/demo-path',
+      use: { ...devices['Desktop Chrome'], ...ONLINE_WAITS },
+      metadata: { irisScriptMs: ONLINE_IRIS_SCRIPT_MS },
+    },
     // online-visitors: the specs of e2e-online/visitors/ (the online-visitors unit, docker/tests/test-online-visitors.sh, on its own flag-on
     // throwaway whose proxy address is the address IRIS sees for the host's requests, Story 29.7), Desktop Chrome.
-    { name: 'online-visitors', testDir: './e2e-online/visitors', use: { ...devices['Desktop Chrome'] } },
+    {
+      name: 'online-visitors',
+      testDir: './e2e-online/visitors',
+      use: { ...devices['Desktop Chrome'], ...ONLINE_WAITS },
+      metadata: { irisScriptMs: ONLINE_IRIS_SCRIPT_MS },
+    },
   ],
 });

@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page, type Route } from '@playwright/test';
+import { expect, test, type Locator, type Page, type Route } from '../support/fixtures';
 
 import { signInReadmeLoaded } from '../support/floor';
 import { changeSnapshot, MESSAGES } from '../support/api';

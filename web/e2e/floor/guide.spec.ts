@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page, type Route } from '@playwright/test';
+import { expect, test, type Locator, type Page, type Route } from '../support/fixtures';
 
 import { post, STATE } from '../support/api';
 import { announcements, announcedTexts, recordAnnouncements, tokenColor } from '../support/page';
@@ -25,11 +25,6 @@ import { blockLiveSocket } from '../support/socket';
  */
 test.describe.configure({ timeout: 120_000 });
 test.use({ timezoneId: 'UTC', locale: 'en-GB' });
-
-/** A poll, a snapshot or a post that a routed handler is still holding when a test ends must not fail the next test. */
-test.afterEach(async ({ page }) => {
-  await page.unrouteAll({ behavior: 'ignoreErrors' });
-});
 
 const KIND = 'FLOOR';
 const BREAK_FEED = '**/ocutalon/api/v1/demo/break-feed';

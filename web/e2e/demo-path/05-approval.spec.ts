@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from '../support/fixtures';
 
 import { STATE, sessionEvents } from '../support/api';
 import { ON_MOCK, approveOnPhone, expectDecision, incidentCard } from '../support/demo-path';
