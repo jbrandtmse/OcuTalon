@@ -97,8 +97,8 @@ Parameter UNUSABLE = "unusable";
 /// The summary of a group whose error text is empty: the catalog needs a text, and the line stays (public text, veto U-94).
 Parameter NOERRORTEXT = "no error text";
 
-/// The catalog key of the notice for the diagnosed incident, "" when it gets none from this class (a usable data-format diagnosis: its notice is the
-/// with-fix notice, KEYWITHFIX).
+/// The catalog key of the notice for the diagnosed incident, "" when it gets none from this class (a usable data-format diagnosis with a fix summary: its
+/// notice is the with-fix notice, KEYWITHFIX; a data-format diagnosis with no fix summary gets KEYNOFIX).
 ClassMethod Key(incident As OcuTalon.Data.Incident) As %String
 {
 	If incident.Fallback Quit ..#KEYFALLBACK

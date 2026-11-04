@@ -32,11 +32,11 @@ Parameter PARAMETERS = "field,sourceFormat,targetFormat";
 
 Parameter RESOURCES = "%Ens_MessageResend:U";
 
-/// The plain reason of a run that cannot start without RESOURCES (Fix.Executor gives it as the Reason of the FixResult; the catalog renders it after "Nothing was resent: ").
 /// The days, either way, between a reading and the UTC date a message arrived within which the reading matches that arrival (a partner's own date can differ
 /// from the UTC date by up to a day either side).
 Parameter ARRIVALDAYS = 1;
 
+/// The plain reason of a run that cannot start without RESOURCES (Fix.Executor gives it as the Reason of the FixResult; the catalog renders it after "Nothing was resent: ").
 Parameter NOTALLOWED = "OcuTalon isn't allowed to resend messages in that production";
 
 /// The reason of a dry run that has no evidence for the source reading of its dates.

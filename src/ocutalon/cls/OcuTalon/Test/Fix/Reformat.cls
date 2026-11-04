@@ -10,7 +10,7 @@
 ///     malformed or empty one, and a format that has no other order;
 ///   - TestEvidence (DW-644; U-249 Conditions 1 and 2; Q1 ruled (a)): Fix.Kind.RepairResend Evidence over every outcome (n/a, oneway, arrival, same, none) and the count of
 ///     the two-way values: the tolerance edges (one day either side of the UTC date of the arrival, at the end and at the start of the day), the instance date against
-///     the UTC date (a value of the 3rd with an arrival at 02:00 UTC on the 4th), a set of only same-date values, both orders, and an arrival that is empty or malformed
+///     the UTC date (a value of the 3rd with an arrival at 02:00 UTC on the 4th), a set of only same-date values, a set of same-date values plus one value that matches through the tolerance only (U-250), both orders, and an arrival that is empty or malformed
 ///     (it never matches);
 ///   - TestNeverEvaluates: injection-shaped values are refused by every source format and leave the sentinel global undefined;
 ///   - TestStaticScan: the code of Reformat and of RepairResend has no Xecute (the command, as a whole word: RepairResend's own method Execute is none), no indirection,
@@ -237,6 +237,10 @@ Method TestEvidence()
 	Do ..AssertEvidence([{"value": "11/11/2026", "arrived": "2026-01-01T00:00:00Z"}], "MM/DD/YYYY", "same", 1, "also when the arrival does not match")
 	Do ..AssertEvidence([{"value": "11/11/2026", "arrived": "2026-11-04T02:00:00Z"}, {"value": "03/05/2026", "arrived": "2026-11-04T02:00:00Z"}], "MM/DD/YYYY", "none", 2, "a same-date value does not make evidence for a value whose readings differ")
 	Do ..AssertEvidence([{"value": "11/11/2026", "arrived": "2026-01-01T00:00:00Z"}, {"value": "11/03/2026", "arrived": "2026-11-03T15:00:00Z"}], "MM/DD/YYYY", "arrival", 2, "and a value whose readings differ and that matches is the evidence of a mixed set")
+	// U-250 (Condition 1), mixed: same-date values plus one value whose readings differ and that matches its arrival only through the one-day tolerance (the 3rd, arrived
+	// at 02:00 UTC on the 4th) is accepted as arrival evidence; with no tolerance, or with an arrival two days off, the same set has none.
+	Do ..AssertEvidence([{"value": "11/11/2026", "arrived": "2026-11-11T15:00:00Z"}, {"value": "11/11/2026", "arrived": "2026-11-11T15:00:00Z"}, {"value": "11/03/2026", "arrived": "2026-11-04T02:00:00Z"}], "MM/DD/YYYY", "arrival", 3, "same-date values and one value that matches its arrival through the tolerance only")
+	Do ..AssertEvidence([{"value": "11/11/2026", "arrived": "2026-11-11T15:00:00Z"}, {"value": "11/03/2026", "arrived": "2026-11-05T02:00:00Z"}], "MM/DD/YYYY", "none", 2, "and the same set with the arrival two days off has none")
 	// An arrival that cannot be read never matches.
 	For arrived = "", "garbage", "2026-11-03", "2026-11-03T15:00:00", "2026-13-45T00:00:00Z", "2026-11-03 15:00:00" {
 		Do ..AssertEvidence([{"value": "11/03/2026", "arrived": (arrived)}], "MM/DD/YYYY", "none", 1, "the arrival '"_arrived_"' never matches")

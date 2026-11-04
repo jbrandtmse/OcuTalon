@@ -91,7 +91,7 @@
 ///     the round's failures join the next round's window, and a round that gathers meanwhile takes their earlier time; a refused dry run, an empty Targets and an
 ///     open incident keep the marks, because those failures were judged. Otherwise one request of the incident is raised
 ///     as for the first (the same kind, its own targets and dry run), appended to RequestRefs, and Move saves the row and sends each recipient one Notification of
-///     kind approval with the key incident.laterRequest, the request's Ref as ApprovalRef and the slots of the round (Notice.WithFixSlots with the number of keys
+///     kind approval with the key incident.laterRequest (incident.laterRequestEitherWay when Notice.WithFixKey gives it), the request's Ref as ApprovalRef and the slots of the round (Notice.WithFixSlots with the number of keys
 ///     of the windows and the round's time), then publishes the incident event. A save that fails cancels the request. Execute goes out for one approved request
 ///     at a time (the table's rows, Apply).
 ///   - Purge deletes the incidents closed before a cutoff, with their groups and their fix runs (AD-27).

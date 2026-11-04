@@ -510,7 +510,7 @@ Method TestNotices()
 		Set answered = fixtures.%Get("answered.approved")
 		Do $$$AssertEquals(..EditsTo(chatId).%Size(), 0, "no message has been edited yet")
 		If ..ToNotify(..Notification(session, "answered", "answered.approved", answered.slots, "zzappr1"), trace) {
-			Do $$$AssertTrue(##class(OcuTalon.Test.Core.Observe).WaitProcessed(trace, "Notify", "TelegramOut", 20, 30), "TelegramOut has handled all 21 notifications and the answered one")
+			Do $$$AssertTrue(##class(OcuTalon.Test.Core.Observe).WaitProcessed(trace, "Notify", "TelegramOut", 22, 30), "TelegramOut has handled all 21 notifications and the answered one")
 			Do $$$AssertEquals(..CallsOf("sendMessage").%Size(), before, "an answered Notification sends no sendMessage")
 		}
 		Set status = ##class(OcuTalon.Msg.Catalog).Render("answered.approved", answered.slots.%ToJSON(), "telegram")

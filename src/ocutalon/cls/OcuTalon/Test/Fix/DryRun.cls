@@ -17,6 +17,8 @@
 ///   - TestNoEvidenceIsRefused: three orders dated 03/05/2026 that arrived on November 4 read both ways with nothing to choose: the dry run is refused with the reason that says so,
 ///     and no targets and no dry run;
 ///   - TestBothReadingsMatch (Q1): three orders dated 11/11/2026 that arrived on November 11 read as one date whichever way: accepted, all three targets;
+///     then (U-250, Condition 1) the third is dated 11/03/2026 and arrived at 02:00 UTC on November 4, so it matches month first through the one-day tolerance only: the mixed set
+///     is accepted too, all three targets, and its example is the value whose readings differ;
 ///   - TestTargetsAscendAcrossGroups: the keys of the incident's groups are descending and overlap, and one order is only in the second group: every group is read,
 ///     the targets are still ascending, and an order of two groups is counted once;
 ///   - TestAskedWindow (Story 7.6; AC 1): 5 failed orders in one group's Seen with the marks of an ask: a window from the 2nd key to the 4th holds the 3rd and 4th
@@ -287,9 +289,24 @@ Method TestBothReadingsMatch()
 	Do $$$AssertTrue($IsObject(response), "FixExecutor gives a DryRunResult")
 	If '$IsObject(response) Quit
 	Do $$$AssertEquals(response.Reason_"|"_response.Targets, "|"_ids, "the dry run is worked out: the two readings are one date, so nothing is chosen")
+	Do $$$AssertTrue(response.DryRun '= "", "and gives its dry run")
 	If response.DryRun = "" Quit
 	Set dryRun = {}.%FromJSON(response.DryRun)
 	Do $$$AssertEquals(dryRun.resend_"|"_dryRun.before_"|"_dryRun.after, "3|11/11/2026|2026-11-11", "all three are resent, with the example")
+	// U-250 (Condition 1), mixed: the third order is dated the 3rd and arrived at 02:00 UTC on the 4th (its instance-local date and the UTC date of its arrival differ), so it
+	// matches month first through the one-day tolerance only; with the two same-date orders the set has arrival evidence, and the differing value is the example.
+	Do $$$AssertStatusOK(..SetOrderDate($Piece(ids, ",", 3), "11/03/2026"), "the third order is dated November 3")
+	Do $$$AssertStatusOK(..SetArrival($Piece(ids, ",", 3), "2026-11-04T02:00:00Z"), "and arrived at 02:00 UTC on November 4")
+	Set mixed = ..Fixture(owner, ids)
+	Set response = ..AskDryRun(mixed.Ref, "repair_resend", ..Params(), super, .session, .sc)
+	Do $$$AssertStatusOK(sc, "FixExecutor answers the DryRun of the mixed set")
+	Do $$$AssertTrue($IsObject(response), "FixExecutor gives a DryRunResult for the mixed set")
+	If '$IsObject(response) Quit
+	Do $$$AssertEquals(response.Reason_"|"_response.Targets, "|"_ids, "the mixed set is worked out: the value that matches through the tolerance is the evidence")
+	Do $$$AssertTrue(response.DryRun '= "", "and gives its dry run")
+	If response.DryRun = "" Quit
+	Set dryRun = {}.%FromJSON(response.DryRun)
+	Do $$$AssertEquals(dryRun.resend_"|"_dryRun.before_"|"_dryRun.after, "3|11/03/2026|2026-11-03", "all three are resent, and the example is the value whose readings differ")
 }
 
 Method TestTargetsAscendAcrossGroups()

@@ -3713,8 +3713,24 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: Contest Planner field watch 2026-11-03 (relay) | severity: med | fix-risk: low | footprint: in-footprint
 - evidence: Demo partner (PartnerTrigger) sends today's date as MM/DD/YYYY; until Nov 13 every value has day <= 12, so 11/03/2026 also parses as 11 March; Reformat.cls:62,67,88 ParseDate accepts the given format only, so the format choice is the model's
 - 2026-11-03T21:31:48Z status=routed owner=7-7-a-date-repair-that-could-read-either-way-names-its-evidence by=orchestrator note=Story 7.7 (veto U-248); first daily release after 1.0.0; not rc1 scope
+- 2026-11-04T02:58:36Z status=resolved-by:7-7-a-date-repair-that-could-read-either-way-names-its-evidence by=adjudication note=a8c832da:Diagnosis_prompt_evidence_rule+RepairResend.Evidence_dry-run_refusal(arrival+-1day,oneway,same)+incident.withFixEitherWay/laterRequestEitherWay_line;pinned_by_Test.Fix.EitherWay,DryRun,Reformat.TestEvidence,NoticeText.TestEitherWay,Agent.Instructions.TestDiagnosisEvidence
 
 ### DW-645: The web incident card's dry-run block does not show U-249's either-way line (Story 7.7 shows it in the notice's Dry run paragraph only): needs an ambiguity flag and the reading on the approval payload (Live/Payload, Lane B) and a card row in web/src/app/approvals/approval-view.ts (Epic 31)
 - source: spec-7-7-a-date-repair-that-could-read-either-way-names-its-evidence.md | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: approval-view.ts L40-44,L181 builds the card's dry run from the stored DRYRUNKEYS fields; Live/Payload/Approval.cls L85-103 maps them key by key
 - 2026-11-03T22:11:50Z status=escalated owner=burndown by=spec_gate note=veto U-252; follow-on after Epic 31 merges; a Lane B payload field plus a web card row
+
+### DW-653: Eval.Record still refuses a data_format_change expectation with no fixKind (Story 7.7 V1 made that reply shape valid), so no eval case can expect the no-evidence date outcome
+- source: spec-7-7-a-date-repair-that-could-read-either-way-names-its-evidence.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: Eval/Record.cls L120 throws 'fixKind is empty for the category data_format_change'; Test/Eval/Record.cls L621-623 pins it; DiagnosisPayload now accepts all three fix keys absent (V1, U-251)
+- 2026-11-04T02:56:04Z status=escalated owner=burndown by=cr note=eval contract call next to U-253: allow empty fixKind for FIXCATEGORY or keep the eval set fix-only
+
+### DW-654: Test/Msg/Catalog.cls doc comments still give the pre-7.7 counts (four page wordings L445, 9 one forms L536-537 and L1093) after the assertions moved to six and 11
+- source: spec-7-7-a-date-repair-that-could-read-either-way-names-its-evidence.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: the asserted counts changed at diff L1163/L1173/L1182 while the comment lines stayed; the file is contended (Epics 31/33/40), so 7.7 may edit only its ruled blocks and counts
+- 2026-11-04T02:56:04Z status=wontfix-accepted owner=7-7-a-date-repair-that-could-read-either-way-names-its-evidence by=cr note=reopen_if=Test/Msg/Catalog.cls leaves the contended list and its doc still says 9 one forms or four page wordings
+
+### DW-655: incident.withFixEitherWay and incident.laterRequestEitherWay copy their parents' text, web wording, slots and one form byte for byte (the catalog has no composition), so a later edit to incident.withFix or incident.laterRequest must be repeated by hand in its variant
+- source: spec-7-7-a-date-repair-that-could-read-either-way-names-its-evidence.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: Msg/Catalog/Watch.cls block after incident.laterRequest: two entries equal to their parents plus U-249's line; forced by the spec ruling (an existing key's text may not change; no composition); Rule 2 forced copy
+- 2026-11-04T02:56:40Z status=routed owner=burndown by=cr note=unify when the catalog gains composition (a base key plus an appended line); no story owns that yet

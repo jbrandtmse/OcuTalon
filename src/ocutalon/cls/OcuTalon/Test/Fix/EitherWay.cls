@@ -10,16 +10,21 @@ Include Ensemble
 ///     instance-local date of the press is the 3rd, the UTC date the 4th) still get their repair request: one pending repair_resend request over the three ids, and
 ///     one incident Notification with the key incident.withFixEitherWay, the slots reading "month first" and item "order", and the phone message that SimPhoneOut kept
 ///     holds the line "All 3 dates are valid whether read month first or day first. Read month first, they match the day each order arrived."; the mock logged only
-///     the diagnosis requests. Task 0 of the story: the seconds from the failed headers' arrival being set to the DryRun header are logged;
+///     the diagnosis requests;
 ///   - TestNoEvidenceNoRequest (DW-644): 3 orders dated 03/05/2026 that arrived on November 4 read both ways with nothing to choose between them: the dry run is
 ///     refused, no request is raised, the incident is open with the variant no_fix and its notice is incident.noFix with the cause, with one Type 3 warning;
 ///   - TestBothReadingsMatch (Condition 1; Q1): 3 orders dated 11/11/2026 that arrived on November 11 read as one date whichever way: the request is raised with
 ///     incident.withFix, no reading and no item slot, and no line in the phone message;
+///   - TestBothReadingsMatchMixedWithTolerance (U-250, Condition 1): two orders dated 11/11/2026 that arrived on November 11 and one dated 11/03/2026 that arrived at 02:00 UTC on
+///     November 4 (it matches month first through the one-day tolerance only): the request is raised with incident.withFixEitherWay, the slots reading "month first", item
+///     "order" and resendCount 3, and the phone message holds the line as worded, after the example of the value whose readings differ;
 ///   - TestLaterRoundKeepsTheLine: after a first request over 3 orders dated 11/03/2026, 2 more such orders fail and arrive on November 4: the later request is raised over
 ///     the two alone, and its approval Notification has the key incident.laterRequestEitherWay, the slots reading "month first", item "order" and resendCount 2, and
 ///     the phone message holds "All 2 dates are valid whether read month first or day first. Read month first, they match the day each order arrived.";
 ///   - TestPressWritesTheLocalDate: the partner writes the date of the process's own zone: under a zone whose date differs from the UTC date, Partner.Orders with
 ///     an empty date gives the MM/DD/YYYY of the local date, not of the UTC date.
+/// Every test that sets arrivals asserts that the DryRun header it depends on was created after the arrivals were set (LogMargin), so a dry run that read the real
+/// arrivals is red on any date.
 Class OcuTalon.Test.Fix.EitherWay Extends OcuTalon.Test.Watch.Case
 {
 
@@ -35,7 +40,7 @@ Parameter NOEVIDENCE = "The dates read as valid dates both month first and day f
 /// The newest row of the event log before TestNoEvidenceNoRequest made its warning, or "": OnAfterOneTest removes the warning after it.
 Property WarningMark As %Integer;
 
-/// The time (UTC, to the second) at which the arrival of the failed headers was set.
+/// The time (UTC, as Ens.MessageHeader stores TimeCreated: YYYY-MM-DD hh:mm:ss.sss) at which the arrival of the failed headers was set.
 Property ArrivalSetAt As %String;
 
 Method OnAfterOneTest(testname As %String) As %Status
@@ -85,6 +90,7 @@ Method TestNoEvidenceNoRequest()
 	Set ..WarningMark = ##class(OcuTalon.Test.Core.Observe).LastLog()
 	If '..Press("noevidence", "2026-03-05", "2026-11-04T02:00:00Z", .a, .ref, .failed) Quit
 	If '..Noticed(ref, 1) Quit
+	Do ..LogMargin(ref)
 	Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(ref)
 	Do $$$AssertEquals(row.State_"|"_row.OpenVariant_"|"_row.RequestRefs_"|"_row.CauseCategory, "open|no_fix||data_format_change", "the incident is open with the variant no_fix and lists no request")
 	Do $$$AssertEquals(..Requests(ref).%Size(), 0, "no request names it")
@@ -108,6 +114,7 @@ Method TestBothReadingsMatch()
 {
 	If '..Press("same", "2026-11-11", "2026-11-11T15:00:00Z", .a, .ref, .failed) Quit
 	If '..Noticed(ref, 1) Quit
+	Do ..LogMargin(ref)
 	Set requests = ..Requests(ref)
 	Do $$$AssertEquals(requests.%Size(), 1, "one request names the incident")
 	If requests.%Size() '= 1 Quit
@@ -124,10 +131,34 @@ Method TestBothReadingsMatch()
 	}
 }
 
+Method TestBothReadingsMatchMixedWithTolerance()
+{
+	If '..Press("mixed", "2026-11-11", "2026-11-11T15:00:00Z", .a, .ref, .failed, "11/03/2026", "2026-11-04T02:00:00Z") Quit
+	If '..Noticed(ref, 1) Quit
+	Do ..LogMargin(ref)
+	Set requests = ..Requests(ref)
+	Do $$$AssertEquals(requests.%Size(), 1, "one request names the incident")
+	If requests.%Size() '= 1 Quit
+	Set request = requests.%Get(0)
+	Do $$$AssertEquals(request.kind_"|"_request.state_"|"_request.fixKind, "fix|pending|repair_resend", "it is a pending repair_resend fix: the tolerance match is the evidence")
+	Do $$$AssertEquals(request.fixTargets, ..SortedIds(failed), "over the three failed orders, ascending")
+	Set dryRun = {}.%FromJSON(request.dryRun)
+	Do $$$AssertEquals(dryRun.resend_"|"_dryRun.before_"|"_dryRun.after, "3|11/03/2026|2026-11-03", "the example is the value whose readings differ")
+	Set notes = ..NoticeBodies(ref)
+	Do $$$AssertEquals(notes.%Size(), 1, "S has one Notification of the incident")
+	If notes.%Size() = 1 {
+		Set note = notes.%Get(0)
+		Do $$$AssertEquals(note.catalogKey_"|"_note.slots.reading_"|"_note.slots.item_"|"_note.slots.resendCount, "incident.withFixEitherWay|month first|order|3", "the either-way key, with the reading, the noun of one item and the count")
+		Set phone = ..PhoneText(a, request.ref)
+		Do $$$AssertTrue(phone [ ("Example: order date 11/03/2026 becomes 2026-11-03. "_..#LINE_" I'll resend 3 repaired copies;"), "the phone message holds the line as worded: "_phone)
+	}
+}
+
 Method TestLaterRoundKeepsTheLine()
 {
 	If '..Press("laterround", "2026-11-03", "2026-11-04T02:00:00Z", .a, .ref, .failed) Quit
 	If '..Noticed(ref, 1) Quit
+	Do ..LogMargin(ref)
 	Set requests = ..Requests(ref)
 	Do $$$AssertEquals(requests.%Size(), 1, "one request names the incident before the later round")
 	If requests.%Size() '= 1 Quit
@@ -139,6 +170,7 @@ Method TestLaterRoundKeepsTheLine()
 	For i = 4:1:5 {
 		Do $$$AssertStatusOK(..SetArrival($Piece(ids, ",", i), "2026-11-04T02:00:00Z"), "the arrival of the later order "_$Piece(ids, ",", i)_" is November 4")
 	}
+	Set ..ArrivalSetAt = $ZDateTime($ZTimeStamp, 3, , 3)
 	Set end = $ZHorolog + ..#WAITLATER
 	For {
 		Set requests = ..Requests(ref)
@@ -148,6 +180,7 @@ Method TestLaterRoundKeepsTheLine()
 	Do $$$AssertEquals(requests.%Size(), 2, "a second request names the incident")
 	If requests.%Size() '= 2 Quit
 	Do ..WaitNotices(ref, 2)
+	Do ..LogMargin(ref, 2)
 	Set second = requests.%Get(1)
 	Do $$$AssertEquals(second.fixTargets, $Piece(ids, ",", 4, 5), "over the two later orders alone")
 	Set notes = ..NoticeBodies(ref, "approval")
@@ -191,8 +224,9 @@ Method TestPressWritesTheLocalDate()
 
 /// The set-up of a test with a press: the production is ready, the mock is pointed to, the approval role is ready, S watches Orders, 3 orders dated orderDate (YYYY-MM-DD,
 /// written MM/DD/YYYY) tagged with S's trace Ref fail, the arrival of their headers is set to arrival (UTC, YYYY-MM-DDThh:mm:ssZ) as soon as they are in the error status,
-/// and the burst becomes one incident of S. a is S, ref the incident and failed the failed headers. 1 when the set-up is done.
-Method Press(name As %String, orderDate As %String, arrival As %String, Output a As %String, Output ref As %String, Output failed As %DynamicArray) As %Boolean [ Private ]
+/// and the burst becomes one incident of S. a is S, ref the incident and failed the failed headers. 1 when the set-up is done. Given lastValue (MM/DD/YYYY), the third order's date
+/// is set to it and its arrival to lastArrival, before the incident forms (U-250's mixed set).
+Method Press(name As %String, orderDate As %String, arrival As %String, Output a As %String, Output ref As %String, Output failed As %DynamicArray, lastValue As %String = "", lastArrival As %String = "") As %Boolean [ Private ]
 {
 	Set (a, ref, failed) = ""
 	If '..Ready() Quit 0
@@ -206,9 +240,11 @@ Method Press(name As %String, orderDate As %String, arrival As %String, Output a
 	Set failed = ..WaitFailed(3)
 	If failed.%Size() '= 3 Quit 0
 	For i = 0:1:2 {
-		Do $$$AssertStatusOK(..SetArrival(failed.%Get(i).id, arrival), "the arrival of header "_failed.%Get(i).id_" is "_arrival)
+		Set when = $Select((i = 2) && (lastValue '= ""): lastArrival, 1: arrival)
+		If (i = 2) && (lastValue '= "") Do $$$AssertStatusOK(..SetOrderDate(failed.%Get(i).id, lastValue), "the order of header "_failed.%Get(i).id_" is dated "_lastValue)
+		Do $$$AssertStatusOK(..SetArrival(failed.%Get(i).id, when), "the arrival of header "_failed.%Get(i).id_" is "_when)
 	}
-	Set ..ArrivalSetAt = ##class(OcuTalon.Data.Time).NowUtc()
+	Set ..ArrivalSetAt = $ZDateTime($ZTimeStamp, 3, , 3)
 	Set rows = ..WaitIncident(a, ..#ORDERSPRODUCTION)
 	Do $$$AssertEquals(rows.%Size(), 1, "one incident for the burst of S")
 	If rows.%Size() < 1 Quit 0
@@ -216,19 +252,25 @@ Method Press(name As %String, orderDate As %String, arrival As %String, Output a
 	Quit 1
 }
 
-/// Logs the seconds from the setting of the arrival (Press) to the DryRun header of the incident's trace session: the margin that SetArrival has over the dry run, and asserts that it is not negative.
-Method LogMargin(ref As %String) [ Private ]
+/// Asserts that the nth DryRun header of the incident's trace session (in the order of their ids) exists and was created after ArrivalSetAt, so that the dry run
+/// read the arrivals that the test set, and logs the margin in seconds.
+Method LogMargin(ref As %String, nth As %Integer = 1) [ Private ]
 {
 	Set row = ##class(OcuTalon.Data.Incident).RefIndexOpen(ref)
-	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT MIN(TimeCreated) FROM Ens.MessageHeader WHERE SessionId = ? AND MessageBodyClassName = 'OcuTalon.Fix.Msg.DryRun'", row.TraceHeaderId)
-	If 'rs.%Next() || (rs.%GetData(1) = "") Quit
-	Set asked = $Translate($Extract(rs.%GetData(1), 1, 19), " ", "T")_"Z"
-	Set seconds = ##class(OcuTalon.Watch.Settle).Seconds(asked) - ##class(OcuTalon.Watch.Settle).Seconds(..ArrivalSetAt)
-	Do $$$LogMessage("The DryRun header was created "_seconds_" seconds after the arrival was set")
-	Do $$$AssertTrue(seconds '< 0, "the arrival was set before the dry run asked, so the dry run read the arrival that the test set")
+	Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT TimeCreated FROM Ens.MessageHeader WHERE SessionId = ? AND MessageBodyClassName = 'OcuTalon.Fix.Msg.DryRun' ORDER BY ID", row.TraceHeaderId)
+	Set asked = ""
+	For i = 1:1:nth {
+		If 'rs.%Next() Set asked = "" Quit
+		Set asked = rs.%GetData(1)
+	}
+	Do $$$AssertTrue(asked '= "", "the incident's trace session holds DryRun header "_nth)
+	If asked = "" Quit
+	If $Length(asked) = 19 Set asked = asked_".000"
+	Set seconds = ##class(OcuTalon.Watch.Settle).Seconds($Translate($Extract(asked, 1, 19), " ", "T")_"Z") - ##class(OcuTalon.Watch.Settle).Seconds($Translate($Extract(..ArrivalSetAt, 1, 19), " ", "T")_"Z")
+	Do $$$LogMessage("DryRun header "_nth_" was created about "_seconds_" seconds after the arrival was set ("_asked_" against "_..ArrivalSetAt_")")
+	Do $$$AssertTrue(asked ] ..ArrivalSetAt, "the arrival was set before the dry run asked ("_asked_" after "_..ArrivalSetAt_"), so the dry run read the arrival that the test set")
 }
 
-/// The ids of the failed headers, ascending, comma-separated.
 ClassMethod SortedIds(failed As %DynamicArray) As %String [ Private ]
 {
 	Set iterator = failed.%GetIterator()
