@@ -1885,3 +1885,11 @@
 2026-11-04T21:31:02Z	Epic 7	decision_sheet_recorded	decided=1 to_action_items=0 to_x0=0 by=Contest_Planner(delegated) note=DW-653_KEEP_narrowed_routed_to_39.6
 2026-11-04T21:31:02Z	Epic 7	ledger_routed_planned	story=39-6-evaluation-cases-for-the-heartbeat entries=1 excess=0 by=merge_gate
 2026-11-04T21:31:02Z	Run	deps_hash_rerecorded	reason=ledger_routed
+2026-11-04T21:31:25Z	Epic 7	worktree_removed	path=.worktrees/epic-7
+2026-11-04T21:31:25Z	Epic 7	epic_branches_deleted	branch=OCT-epic7 local=yes remote=yes
+2026-11-04T21:31:50Z	Epic 39	orchestrator_note	sent=DW-653_routed_to_39.6;integrate_forward_before_39.6_spec;Epic_7_contended_paths_plain_unions
+2026-11-04T21:31:50Z	Run	inbox_resolved	id=U-253 by=orchestrator ref=2026-11-04T21:29:21Z#843
+2026-11-04T21:32:15Z	Epic 39	runner_clarification	agent=a4e5ab74a5ea297ac head=981a458f(local,bookkeeping) origin=d701b6e6 story=39.4_done ci_wait=d701b6e6(41909512271_attempt2,lane-a_41909512414_green) reds_attempt1=iris(production)_production-restart_row20(not_reproduced_on_lane-D_throwaway),iris(shards)_online-session_leave.spec_L6_row4(+TelegramIn_live_job) queue_max=16m(shards-4) item=39.7_contended_paths applied=U-275 new_dw=DW-684(routed_39.2) evidence=39.4-dead-implement-20261104T174757Z.patch
+2026-11-04T21:32:15Z	Epic 39	ruling	question=39.7_contended_paths(Test/Live/Payloads.cls,web/src/app/live/payloads.ts,Checks/Process.cls,Test/Checks/Heartbeat.cls) choice=allow:Epic_7_merged_417f17c5_so_integrate_forward_first(once_feature_CI_green)_then_edit_on_the_merged_base(TYPES_16->17_and_EXPECTED_against_Epic_7_s_lines,regenerate_payloads.ts);Checks_files_are_Epic_39_footprint(record_as_footprint_extensions);11:49Z_Lane_B_home_stands rejected=wait_on_Epic_7(moot) category=decide policy=508603671b9598f59d04750db6b6cdad2d396167
+2026-11-04T21:32:15Z	Run	flake_watch	unit=live:online-session_row_4(C_s_CSP_sessions_not_both_gone_within_180s) occurrence=2(1:feature_f2b20ea0;2:OCT-epic39_d701b6e6_run_41909512271_att1_iris(shards)) extra=TelegramIn_live_job_against_mock action=Planner_told_per_rc4_note rerun=attempt2_by_runner
+2026-11-04T21:32:29Z	Run	planner_note	sent=Epic_7_merged(417f17c5,ac2c4549),row_4_second_occurrence(41909512271),Epic_39_status
