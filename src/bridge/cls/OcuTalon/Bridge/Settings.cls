@@ -7,12 +7,15 @@
 ///   - Check and Set: a value for one of DecisionTokenBudget, DailyCostCapUSD or InstanceZone (InstanceZone through Time.SetZone); Set returns the
 ///     value it replaced in old;
 ///   - CheckModel and SetModel: an agent's model, or its second model when second is 1, for a supported provider whose key is set and a model of the
-///     provider table; an empty provider and model clears a second model; SetModel returns the replaced values in old;
+///     provider table; an empty provider and model clears a second model; SetModel merges the agent's Config Store entry through
+///     ConfigStore.Merge with only the provider and @{env:<its key variable>}, sets the runner's Model (for a second model, the retry item's Model
+///     and the first runner's RetryItem), restarts the affected runner, and returns the replaced values in old;
 ///   - SetPrice: the non-negative prices of a model in Data.Price, returning the replaced prices in old;
-///   - TestRequest and TestAnswer: TestRequest builds one request of the agent's own kind with provenance untrusted, owner instance and a fixed
-///     code-written input, which the caller sends to Decide; TestAnswer reads the response and returns {answered, seconds, reason}.
-/// Every method refuses a value that holds "@{" or is off the allow-list, with a plain-English reason, and changes nothing. The bridge references no
-/// OcuTalon package outside the bridge (AD-2).
+///   - TestRequest and TestAnswer: TestRequest builds one request of the agent's own kind (decide, diagnose or turn) with provenance untrusted,
+///     owner instance, a fresh ItemId and a fixed code-written input, which the caller sends to Decide synchronously; TestAnswer reads the response
+///     and returns {answered, seconds, reason}, the reason a fallback reason.
+/// Every method refuses a value that holds "@{" or is off the allow-list, with a plain-English reason, and changes nothing; the bridge timer stays at
+/// or under 110 seconds. The bridge references no OcuTalon package outside the bridge (AD-2).
 Class OcuTalon.Bridge.Settings
 {
 

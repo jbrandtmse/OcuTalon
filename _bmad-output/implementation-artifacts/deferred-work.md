@@ -227,6 +227,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-24T02:57:20Z occurrence=1-10-the-chat-agent-sets-lists-and-cancels-reminders
 - 2026-10-31T00:03:53Z status=routed owner=31-3-the-readme-leads-to-the-demo-and-the-launched-demo-is-measur by=orchestrator note=U-177:_Lane_B_classes(AD-33);Lane_B_Story_31.3_fixes_it_before_1.0.0,proved_by_Lane_B's_own_tests;not_release/ipm-install.sh;AD-18's_wording_(the_OS_zone_where_TZ_is_unset)_is_ruled_at_31.3's_spec_gate
 - 2026-10-31T04:47:48Z status=routed owner=31-1-push-live-events-over-a-websocket-on-local-installs by=orchestrator note=U-177(answer_2026-10-31T00:05:17Z#535):_Lane_B_classes(AD-33);the_first_Lane_B_story_inside_1.0.0_that_runs_with_these_files_free(31.1),else_31.3;AD-18's_wording_(the_OS_zone_where_TZ_is_unset)_goes_to_the_orchestrator_at_that_story's_spec_gate
+- 2026-11-04T00:35:24Z occurrence=33-1-fix-the-step-2-contracts-in-the-spine
 
 ### DW-35: A failed Orders header has Status 8 (Error), IsError 0 and an empty ErrorStatus; its error text is only the event-log row inside the Terminating BP wrapper, so a reader that keys on IsError or GetErrorText finds no failure
 - source: spec-0-10-the-orders-demo-production-runs-in-ocuorders.md | severity: med | fix-risk: low | footprint: in-epic
@@ -2744,6 +2745,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-03T14:35:03Z occurrence=0-13-a-start-retries-the-cpf-merge-when-iris-cannot-quiesce note=CI run 41641201023 attempt 1, iris (image) shard:lane-b on OCT-epic0 c3d264c5: TestRunAgain and TestOnlyTheMarkerChanges (run_again and trace_opened) failed; green on the unchanged rerun of the failed jobs
 - 2026-11-03T18:26:01Z occurrence=0-14-a-start-that-recovers-through-the-merge-retry-passes-the-liv note=run_41688225535_iris(image)_shard_lane-b_GuideApi_TestRunAgain,TestOnlyTheMarkerChanges_head_9dd16cdc
 - 2026-11-03T19:58:41Z occurrence=0-14-a-start-that-recovers-through-the-merge-retry-passes-the-liv by=merge_gate note=CI run 41698083197 attempt 1, iris (image) shard:lane-b on OCT-epic0 3cd25ab0 (final head): GuideApi TestRunAgain failed; green on the rerun of the failed job
+- 2026-11-04T01:30:32Z occurrence=33-1-fix-the-step-2-contracts-in-the-spine by=fresh_check note=local_fresh_shard_lane-b_forward_e33s1f;story_touches_no_Web_class;rerun_below
 
 ### DW-454: U-170's plain-English reason for an old held tool call reaches a person only through the decision live event (decision strip, rail decision row, trace); the approval card and notices do not show it: Live.Payload.Approval.reason stays empty, approval.result is {ref}, Core.Rule.Notice reads only the fallback reason
 - source: spec-30-3-an-approved-tool-call-runs-exactly-once-with-no-model.md | severity: med | fix-risk: med | footprint: out-of-footprint
@@ -3732,3 +3734,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-33-1-fix-the-step-2-contracts-in-the-spine.md | severity: med | fix-risk: low | footprint: out-of-epic
 - evidence: Test.Bridge.CodeRules.TestOnlyTheRetryPathNamesRetryOf passes vacuously until 17.2 adds RetryOf
 - 2026-11-04T00:16:14Z status=routed owner=17-2-retry-once-on-a-second-model-before-falling-back by=harvest note=orchestrator adds the DW bullet to 17.2's epics.md block post-merge (cross-epic); 17.2 builds tests (a)-(d)
+
+### DW-651: AD-18 due rule leaves a session with no scheduled Sent row undefined: read as due, every new session (each online-demo visitor) gets a digest at the first tick after digest.time
+- source: spec-33-1-fix-the-step-2-contracts-in-the-spine.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: S6 'due when the latest digest.time has passed and its newest scheduled Sent row's DueAt is earlier' has no row on a new session; window text plans a first digest
+- 2026-11-04T00:35:24Z status=decision-pending owner=burndown by=cr note=product call: first digest of a new session at once, or at the next digest.time after its CreatedAt; 17.6 builds it
+
+### DW-652: AD-18/AD-32 digest text does not say that the vital-signs part's key (digest.healthy or digest.vitalsNotAll) is chosen by Checks.Render, though AD-28's Rule reserves that choice to it
+- source: spec-33-1-fix-the-step-2-contracts-in-the-spine.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: AD-28 Rule: the choice of 'Your IRIS system is healthy' comes only from Checks.Render; S9 says only when every vital-sign row passed; S11 lists it as a part
+- 2026-11-04T00:35:24Z status=wontfix-accepted owner=33-1-fix-the-step-2-contracts-in-the-spine by=cr note=AD-28's existing Rule binds 17.5/17.6; reopen_if=17.5 or 17.6 spec or code picks digest.healthy/vitalsNotAll outside Checks.Render

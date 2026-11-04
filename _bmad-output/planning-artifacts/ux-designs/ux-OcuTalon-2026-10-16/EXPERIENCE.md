@@ -789,7 +789,7 @@ No reply to an unpaired chat identifies a session, names anyone, or reveals any 
 
 ### Daily digest (FR-35 to FR-37)
 
-[ADDED 2026-11-03, Story 33.1, author's acceptance (orchestrator unattended ruling, veto U-245; the Planner may reverse)]
+[ADDED 2026-11-03, Story 33.1, author's acceptance (orchestrator unattended ruling, veto U-245; the Planner may reverse)] [AMENDED 2026-11-03, Story 33.1, Planner ruling U-245: the "summary request fell back" row reworded]
 
 The digest is one message to a session. Its parts come in this order: a greeting (by the hour in the instance zone), the vital signs, what was checked with its reserved sentence, what needs the person, what was saved for later, and the cost. The reserved sentences stay "Everything I checked passed." and "Everything else I checked passed."; a greeting appears nowhere else.
 

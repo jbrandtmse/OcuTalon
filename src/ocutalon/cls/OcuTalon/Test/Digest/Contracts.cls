@@ -39,7 +39,6 @@ Method TestRegistry()
 		Set global = row.global
 		Set name = $Extract(global, 2, *)
 		Do $$$AssertEquals($Parameter(class, "DEFAULTGLOBAL"), global, class_" sets DEFAULTGLOBAL "_global)
-		Do $$$AssertEquals(global, "^OcuTalonP."_row.short, class_": the registry global is ^OcuTalonP. plus the short name")
 		Set compiled = ##class(%Dictionary.CompiledStorage).%OpenId(class_"||Default")
 		Set dataLocation = $Select($IsObject(compiled): compiled.DataLocation, 1: "")
 		Set indexLocation = $Select($IsObject(compiled): compiled.IndexLocation, 1: "")

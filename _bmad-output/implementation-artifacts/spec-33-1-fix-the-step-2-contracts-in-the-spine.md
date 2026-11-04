@@ -148,21 +148,36 @@ deferred:
 - Given the compiled package, when the production starts, then `Digest` and the three retry items sit in Lane A's region with no job, `Test.Install.Production`, `Test.Install.ProductionRules` and `Test.Install.Provider` pass, and the live `production` unit passes.
 - Given the two new tables, when the static and contract checks run, then `test-storage.sh` passes (registry rows, `^OcuTalonP.` prefix, committed storage blocks, release diff) and `Test.Digest.Contracts` and `Test.Data.Tables` pass.
 - Given Lane B's `SettingsOps` calling the bridge, when it calls any `Bridge.Settings` or `Bridge.Time` zone method by the spine's name, then the call compiles and returns its stub answer, `Test.Contract.Ac` pins all 12 signatures, `Test.Bridge.SettingsStubs` passes, and `test-class-rules.sh` (bridge-refs, ai-allowlist) passes.
-- Given the proposal table, when the lead raises it, then no `digest.*` key or `EXPERIENCE.md` digest text lands before the lead records the author's acceptance in `### 2026-11-03 -- Review pass (rework iteration 1: U-245 wording, U-246 text and static pin)
-- verdicts: 10 rows for 20 reported items (Blind Hunter 7, Edge Case Hunter 9, Verification Gap 4; merged where they name the same defect) -- high 0, medium 1, low 8, false 1, maybe-false 0; the Intent Alignment Auditor reported readings and divergence notes only (it read the whole-story contract against a rework diff), no finding
-- findings:
-  - `[low]` `[patch]` Blind/Edge/Verification: RETRYOF was an unanchored substring, so a longer name such as RetryOffset in a web class would be flagged although the doc says look-alikes pass -- pattern anchored (`\bretryof\b`) and a look-alike sample added; CodeRules green and the TraceLink mutation red again.
-  - `[low]` `[reject]` Blind/Edge: names built at run time, generic JSON or clone copies, routines and include files are not scanned -- the owner's U-246 item defines the pin as the static allow-list scan; the behavioural half is Story 17.2's (a) to (d), tracked by the deferred item.
-  - `[medium]` `[defer]` Verification: Story 17.2's epics.md block has no criterion for tests (a) to (d), so case (c) is pinned nowhere until 17.2 -- deferred (epics.md blocks are the lead's).
-  - `[low]` `[reject]` Blind/Edge: the spine does not say where Decide looks up the conversation and ItemId of RetryOf, or the result for an unresolvable name -- the wording is the Planner's ruling verbatim; Story 17.2 designs the lookup.
-  - `[low]` `[reject]` Blind/Verification: no note that Story 17.2 must extend RETRYOFCLASSES, nothing asserts the allowed classes name the property, a stale entry is not caught -- the allow-list is fixed by the ruling; the scan failing on a new class is the intended prompt.
-  - `[low]` `[reject]` Blind: the paragraph is repeated in the AD-6 sub-bullet and the Conventions row and cites a test method name -- the ruling asks for both places.
-  - `[low]` `[reject]` Blind: frontmatter review_loop_iteration, baseline_commit and the ticked items lack evidence -- bookkeeping, not code; this pass's evidence is in Auto Run Result.
-  - `[false]` `[reject]` Edge: RetryOf behind a /* */ block comment is not flagged -- code inside a block comment does not execute, so it sets nothing.
-  - `[low]` `[reject]` Edge: the comment fixture joins three comment forms in one string -- the scanner treats them alike; splitting them adds assertions for no new defect.
-  - `[low]` `[reject]` Edge/Verification: EXPERIENCE.md and the spec table copies of digest.savedNoSummary have no automated check against the catalog -- no such check exists for any digest row; Watch.cls against its fixture is the pin.
+- Given the proposal table, when the lead raises it, then no `digest.*` key or `EXPERIENCE.md` digest text lands before the lead records the author's acceptance in `## Design Notes`, and after it exactly the accepted texts land with `Test.Msg.Catalog` green.
 
-## Design Notes`, and after it exactly the accepted texts land with `Test.Msg.Catalog` green.
+### Review Findings
+
+Code review 1 (2026-11-04, whole story `6fe91568..HEAD`; layers Blind Hunter, Edge Case Hunter, Verification Gap, Acceptance Auditor; 36 raw rows, 13 entries after grouping: high 0, medium 2, low 11; 18 rows rejected). Checked clean: S1-S18 each at its anchor with its marker, S2 additive and AD-6's existing sentences unchanged, only S1's label, S12's and S15's appended clauses and the three Deferred rows removed as old lines, Epic 39/40 lines untouched; the 21 `digest.*` texts equal the accepted wording (U-245 rewording, one-dot keys, `{itemNoun}`); no Lane B, `Install/**`, `docker/**`, `module.xml`, `cpf/**` or `install.sh` edit; contended files only appended; `lint_spine.py` shows only the 8 pre-existing `placeholder` findings (lines 462, 1024, 1037, 1101, 1107). Rule 3: no user-facing surface ships (exempt).
+
+- [x] [Review][Patch] The last AC was split by the rework triage block spliced into it, and the block was missing from the Review Triage Log -- AC restored byte-identical to d10ff688's text, block moved under `## Review Triage Log` [spec:151] (low, fix-risk low: tracking-doc move, no wording changed)
+- [x] [Review][Patch] `Bridge.Settings` class doc left out parts of S7's contract (SetModel's merge, Model/RetryItem and restart; TestRequest's fresh ItemId; TestAnswer's fallback reason; the 110 s timer) [src/bridge/cls/OcuTalon/Bridge/Settings.cls:9] (low, fix-risk low: doc comment only; compiled on slot C, test-class-rules and test-boundaries pass)
+- [x] [Review][Patch] EXPERIENCE.md digest block marker did not record the Planner's U-245 rewording of the fell-back row [EXPERIENCE.md:792] (low, fix-risk low: marker clause appended to this story's own block)
+- [x] [Review][Patch] `Test.Digest.Contracts.TestRegistry` compared the oracle's global with the oracle's short name, an assertion no product change can fail [src/ocutalon/cls/OcuTalon/Test/Digest/Contracts.cls:42] (low, fix-risk low: one line deleted; the row-count guard and the real DEFAULTGLOBAL/storage checks stay; class green on slot C)
+- [x] [Review][Defer] `Data.Time.Zone()` reads `TZ`, so after a run-time `InstanceZone` change the model preamble, `Web.Api` `instanceZone` and `CommandCall` would name the wrong zone; S5's Apply list does not cover `Zone()` [ARCHITECTURE-SPINE.md:547] -- deferred: same root cause as DW-34 (Zone() is not the converter's zone), occurrence appended (medium, fix-risk low, out-of-footprint: Lane B `Data.Time`)
+- [x] [Review][Defer] AD-18's due rule is undefined for a session with no scheduled `Sent` row; read as due, every new session (each online-demo visitor) gets a digest at the first tick after `digest.time` [ARCHITECTURE-SPINE.md:548] -- deferred: DW-651 `decision-pending owner=burndown` (medium, fix-risk low; a product call, and adding it would amend an AD)
+- [x] [Review][Defer] AD-18/AD-32 text does not say the vital-signs part's key (`digest.healthy`/`digest.vitalsNotAll`) comes from `Checks.Render` [ARCHITECTURE-SPINE.md:936] -- deferred: DW-652 `wontfix-accepted` (low, fix-risk low; AD-28's existing Rule already binds 17.5/17.6; reopen_if in the entry)
+- [x] [Review][Closed by-design] `Provider.TestEntries` asserts no `AI.LLM.OcuTalon<Agent>Retry` entry, which only a leftover could break -- the task requires "no entry of their own"; the pinning check is `withClass = 3` with its mutation (low, fix-risk low)
+- [x] [Review][Closed by-design] `SettingsStubs.TestNothingWritten` asserts environment-wide absence of `InstanceZone`/`RetryItem` rows -- the spec's stated check; no writer exists until 17.2/17.4 replace these stubs (low, fix-risk low; wontfix-theoretical otherwise)
+- [x] [Review][Closed by-design] ACs 1 and 3 and the U-246 spine item have no `mutation:` line -- document ACs pinned by the review read (Planned mutations); this review read S5 (one source, no restart fallback anywhere) and AD-8's two reason lists against the AC (low)
+- [x] [Review][Closed by-design] AC 2's `"ok": true` is unreachable -- the 8 `placeholder` findings are pre-existing (Decided in-stage 17); this story adds none (low)
+- [x] [Review][Closed by-design] S2/S13's first sentence ("skips `Held` only for a request with `RetryOf` set") reads looser than the U-246 clause after it -- ruling 2's verbatim text, extended additively as U-246 asked; (a)-(d) follow in the same bullet (low)
+- [x] [Review][Closed by-design] `Test/Install/ProductionRules.cls` changed although not in the confirmed footprint list -- forced by Decided in-stage 14 (empty `AgentClass`); reported to the lead as a footprint extension (low)
+
+Rejected (false or not worth a fix):
+- false: `Digest` calling `OcuTalon.Agent.Input` is unauthorised -- the layering graph has `Domain --> Input`, and Domain includes Digest.
+- false: the same-`ItemId` retry clashes with `Decide` refusing a repeated `ItemId` -- the AD-8 retry is sent by `Decide` itself inside the same decision (same `DecisionRef`), not a new request into `Decide`.
+- false: `SetZone("")` can never clear the zone -- `Bridge.Time.SetZone`'s contract stores "" for the container's `TZ`, as S5's "or empty" says.
+- false: `Test/Msg/Catalog.cls` `TestNounForms` 13 -> 14 breaks the contended-file rule -- counts are allowed appends.
+- false: `Sent.Kind`'s comment capitalises "Scheduled" -- sentence case; the stored values are 17.6's.
+- low, spec-bound: `Schedule.Heartbeat.Gaps` not pinned in `Test.Contract.Ac` -- Consumes says "named only"; 17.5 (the caller) pins it.
+- low, spec-bound: `digest.needsYou` with count 1, the 240-character cut's punctuation, the nothing-watched case wording, EXPERIENCE's Case column and Watch's `source` labels -- accepted U-245 texts and table; 17.6's composer picks the key.
+- low, theoretical: a zoneinfo directory or non-zone file name, a host with no `/usr/share/zoneinfo`, a `digest.time` in a DST gap, a retry item enabled by a System Default Setting before 17.2, a retry item's entry name colliding once it gets an agent class (S4 already names `AI.LLM.OcuTalon<Agent>Retry` for 17.2).
+- out of scope (lead bookkeeping or spec text): DW-34's owner after U-254, DW-647/DW-649 severity wording, the spec's `status` vs `sprint-status.yaml`, cycle-log iteration numbers, stale Code Map/task/acceptance wording already corrected by Decided in-stage 14 and 15.
 
 ## Spec Change Log
 
@@ -194,6 +209,20 @@ deferred:
   - `[low]` `[reject]` Verification: absolute-absence assertions on InstanceZone and RetryItem rows -- they are the spec's stated check; State() carries the before/after comparison.
   - `[low]` `[reject]` Verification: redundant last Zone assertion, missing mutation lines for the document ACs and the ProductionRules relaxation, oracle copy in TestRegistry -- the document ACs have no automated falsifier (planned mutations say so), the relaxation is pinned by the oracle row, and test-storage.sh is the real registry check.
   - `[low]` `[reject]` Verification/Intent: stub tests turn red when 17.3/17.4 build the classes, and no test ties catalog text to EXPERIENCE -- both are by design of a stub story.
+
+### 2026-11-03 -- Review pass (rework iteration 1: U-245 wording, U-246 text and static pin)
+- verdicts: 10 rows for 20 reported items (Blind Hunter 7, Edge Case Hunter 9, Verification Gap 4; merged where they name the same defect) -- high 0, medium 1, low 8, false 1, maybe-false 0; the Intent Alignment Auditor reported readings and divergence notes only (it read the whole-story contract against a rework diff), no finding
+- findings:
+  - `[low]` `[patch]` Blind/Edge/Verification: RETRYOF was an unanchored substring, so a longer name such as RetryOffset in a web class would be flagged although the doc says look-alikes pass -- pattern anchored (`\bretryof\b`) and a look-alike sample added; CodeRules green and the TraceLink mutation red again.
+  - `[low]` `[reject]` Blind/Edge: names built at run time, generic JSON or clone copies, routines and include files are not scanned -- the owner's U-246 item defines the pin as the static allow-list scan; the behavioural half is Story 17.2's (a) to (d), tracked by the deferred item.
+  - `[medium]` `[defer]` Verification: Story 17.2's epics.md block has no criterion for tests (a) to (d), so case (c) is pinned nowhere until 17.2 -- deferred (epics.md blocks are the lead's).
+  - `[low]` `[reject]` Blind/Edge: the spine does not say where Decide looks up the conversation and ItemId of RetryOf, or the result for an unresolvable name -- the wording is the Planner's ruling verbatim; Story 17.2 designs the lookup.
+  - `[low]` `[reject]` Blind/Verification: no note that Story 17.2 must extend RETRYOFCLASSES, nothing asserts the allowed classes name the property, a stale entry is not caught -- the allow-list is fixed by the ruling; the scan failing on a new class is the intended prompt.
+  - `[low]` `[reject]` Blind: the paragraph is repeated in the AD-6 sub-bullet and the Conventions row and cites a test method name -- the ruling asks for both places.
+  - `[low]` `[reject]` Blind: frontmatter review_loop_iteration, baseline_commit and the ticked items lack evidence -- bookkeeping, not code; this pass's evidence is in Auto Run Result.
+  - `[false]` `[reject]` Edge: RetryOf behind a /* */ block comment is not flagged -- code inside a block comment does not execute, so it sets nothing.
+  - `[low]` `[reject]` Edge: the comment fixture joins three comment forms in one string -- the scanner treats them alike; splitting them adds assertions for no new defect.
+  - `[low]` `[reject]` Edge/Verification: EXPERIENCE.md and the spec table copies of digest.savedNoSummary have no automated check against the catalog -- no such check exists for any digest row; Watch.cls against its fixture is the pin.
 
 ## Design Notes
 
