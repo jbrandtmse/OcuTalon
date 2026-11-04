@@ -1733,3 +1733,6 @@
 2026-11-04T01:59:04Z	Run	planner_note	rc1_NOT_CUT(release.sh_overview_step:umask_077->export_0600->container_reads_empty_file;rc1_9ba77d1f_abandoned_unpushed);fix-forward_requested;freeze_lifted_for_one_push;rc2_from_that_head
 2026-11-04T01:59:04Z	Epic 11	ruling	question=release.sh_overview_umask_fix_path choice=fix-forward_Story_11.20_in_Epic_11(owner_release/**),SC-5_reopen_on_runner_A_slot_A rejected=orchestrator_direct_edit_on_feature(no_stages,breaks_Rule_16) category=veto reversal=revert_11.20_merge policy=508603671b9598f59d04750db6b6cdad2d396167 inbox=U-256
 2026-11-04T01:59:04Z	Epic 11	deps_hash_rerecorded	reason=fix_forward story=11.20 hash=8df9cafe
+2026-11-04T02:00:46Z	Epic 11	worktree_provisioned	branch=OCT-epic11 base=c07934a4 mode=reopen(SC-5,Story_11.20) branch_ci_cancelled=41757721710,41757721741
+2026-11-04T02:00:46Z	Epic 11	worktree_bootstrapped	epic=11 result=ok
+2026-11-04T02:00:46Z	Epic 11	runner_dispatched	agent=a6eb1b7336f4a9c3d model=opus runner=A slot=ocutalon-slot-a mode=reopen(SC-5,Story_11.20,rc2_blocker) base=c07934a4 prompt=prompts/dispatch-epic-11-1120.md
