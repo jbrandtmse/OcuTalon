@@ -83,7 +83,7 @@ deferred: []
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] `_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md` -- apply edits P1 to P9 of `### Spine edits` with the marker `[AMENDED 2026-11-04, Story 33.2, step 2 contracts]` (rows: `[ADDED 2026-11-04, Story 33.2]`); P1 and P2 as ruled under `### AD changes needing a ruling`. Then `lint_spine.py`: no new finding (8 existing `placeholder` findings). Append one `memlog.py append --type decision` line naming the new rows.
+- [ ] `_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md` -- apply the edits of `### Spine edits` that `### Rulings` clears (P1 to P5 wait on U-268) with the marker `[AMENDED 2026-11-04, Story 33.2, step 2 contracts]` (rows: `[ADDED 2026-11-04, Story 33.2]`); P1 and P2 only as U-268 answers. Then `lint_spine.py`: no new finding (8 existing `placeholder` findings). Append one `memlog.py append --type decision` line naming the new rows.
 - [ ] `src/ocutalon/cls/OcuTalon/Msg/Command/SendDigest.cls` -- new verb, base fields only -- AC 1.
 - [ ] `src/ocutalon/cls/OcuTalon/Msg/Command/GotIt.cls` -- new verb: `Ref` `%String(MAXLEN=22)` (the notice's Ref, P3), `Channel` `%String(MAXLEN=32)` -- AC 1.
 - [ ] `src/ocutalon/cls/OcuTalon/Msg/Command/SaveSettings.cls` -- new verb: `Slug` `%String(MAXLEN=32)` (the section), `Changes` `%String(MAXLEN="")` (JSON object of field to value), `ActingUser` `%String(MAXLEN=160)`. Neither `Section` nor `Values`: this is a persistent message class, and `VALUES` is an SQL reserved word (Conventions, SQL reserved words).
@@ -104,7 +104,7 @@ deferred: []
 - [ ] `web/src/app/app.config.ts` -- routes `settings` and `settings/:section` before the wildcard, with `title`; the wildcard gets title `OcuTalon`.
 - [ ] `web/src/app/app.ts`, `web/src/app/header/skip-links.ts` -- show the skip links and `app-demo-guide` on the main page only (D8).
 - [ ] `web/src/app/header/header.ts`, new `web/src/app/header/header-nav.ts` -- `nav` with `RouterLink`s "Chat" and, when `admin`, "Settings", D `header-nav-item`, `aria-current="page"`, after the demo view switch; tokens through `scripts/tokens.mjs` if `header-nav-item` is not generated yet.
-- [ ] `web/scripts/ux-strings.test.mjs`, `web/scripts/settings-view.test.mjs` (new) -- add `settings/settings-view.ts` to `IMPORTED`; every new string gets its `SOURCES` entry (`ux`, `ac`, or `ruled` with the ruling's cycle-log line); unit tests of the helpers.
+- [ ] `web/scripts/ux-strings.test.mjs`, `web/scripts/settings-view.test.mjs` (new) -- add `settings/settings-view.ts` to `IMPORTED`; every new string gets its `SOURCES` entry (`ux`, `ac`, or `ruled` citing U-269 for T1 to T8 and T10, U-270 for T9); unit tests of the helpers.
 - [ ] `src/ocutalon/cls/OcuTalon/Test/Core/SettingsSave.cls` (new), `SettingsOpsProbe.cls` (seams `BridgeCheck`, `BridgeSet`) -- every matrix row of `SettingsOps`, all-or-nothing on a failure at each position, only changed values audited, allow-list, bridge path against a double and the bare stub.
 - [ ] `src/ocutalon/cls/OcuTalon/Test/Core/SettingsAudit.cls` (new) -- reads each kind back from the IRIS audit log with `AuditLog.Wait` and a 180 s limit (S8): a threshold, a digest key, a bridge value (double), demo mode (step stand-in). Throwaway and CI only.
 - [ ] `src/ocutalon/cls/OcuTalon/Test/Core/SettingsCommands.cls` (new, not the contended `CommandsRouting`) -- routes and origins of the three verbs; `SaveSettings` from `tool` and inside a bridge context refused; `SendDigest` from every origin; `GotIt` `not_built`.
@@ -119,7 +119,7 @@ deferred: []
 - Given a signed-in `OcuTalonAdmin`, when the page loads, then the header navigation landmark holds "Chat" and "Settings" as `header-nav-item`s with the current page marked `aria-current="page"`, and Settings opens a page titled "Settings \u00B7 OcuTalon" with section navigation on the left in the order Models, Budgets, Channels, Daily digest, Time zone, Check thresholds, Demo mode.
 - Given a signed-in user without `OcuTalonAdmin`, when they use the app or open `#/settings`, then no Settings link shows, the page shows "Only OcuTalon admins can open settings." with a link back to the chat, and `GET /v1/settings` and all seven save routes answer 403 in the error shape.
 - Given an admin changed a section's values, when they press **Save changes**, then one `SaveSettings` command (or `SetDemoMode`) reaches `SettingsOps` with origin `web_admin`, each changed value is written and audited with the admin's IRIS user, `SessionRef`, channel `web`, and old and new values, no restart happens, and the section shows "Saved. Applies within a minute. Recorded in the audit log."
-- Given a save is pressed, when it is refused or fails, then the button follows the busy pattern, the field error "Couldn't save. Nothing was changed." is linked and focused, and no value changed.
+- Given a save is pressed, when it is refused or fails, then the button follows the busy pattern, the field error "Couldn't save. Nothing was changed." is linked and focused, and no value changed; except a Demo mode save whose demo step fails (`step_failed`), which keeps the written value and shows T9 (U-270).
 - Given unsaved changes, when the admin leaves the section by a link or the browser's back, then the page asks first, and only Leave discards them.
 - Given the Check thresholds section, when an admin saves it, then the values land under `checks.thresholds.*`, `GET /v1/settings` shows them at once, and `Setting.Get` in a process with an expired cache entry reads them.
 - Given the Demo mode section, when an admin saves it, then the switch goes through `SetDemoMode` and the same `SettingsOps` path as `Core.Admin.SetDemoMode`, and the audit channel is `web`.
@@ -129,6 +129,8 @@ deferred: []
 - Given Lane A's stub signatures, when a bridge section is saved through the real API, then `SettingsOps` calls `Bridge.Settings` by the spine's names and the answer is 501 with nothing changed.
 
 ## Spec Change Log
+
+- 2026-11-04, the lead: the orchestrator's rulings recorded under `### Rulings`; the AC on refused and failed saves amended for `step_failed` (U-270). The intent block is unchanged.
 
 ## Review Triage Log
 
@@ -186,9 +188,20 @@ What each of the seven sections holds in this story:
 - **D13. The Demo step's time is no busy problem:** measured 1 to 3 s end to end (Story 4.1, ARM), under the 10 s busy limit; CI runners run about three times slower (inference).
 - **D14. Threshold ranges** are implementation values chosen here; the PRD fixes only the defaults.
 
+### Rulings
+
+The orchestrator's rulings of 2026-11-04. They replace "planned default" and "needing a ruling" wherever those appear below.
+
+- **T1 to T8, T10:** accepted as proposed (veto U-269).
+- **T9, L2:** the default stands: keep the terminal path and show T9 (veto U-270). `epics.md`'s AC is amended to exclude `step_failed`.
+- **L1:** the default stands: this story adds the `dailyCost` slot type only and edits no Lane A file. `digest.cost` goes to Story 17.6 as DW-661, superseding 33.1's ruling 4 (veto U-271).
+- **L3, contended edits:** proceed. "Epic 33 first" covers small non-append edits in `Core/SettingsOps.cls`, `Core/SessionOps.cls`, `Test/Core/SettingsOpsProbe.cls` and `Test/Msg/Contracts.cls`. Keep each minimal; Epic 40 absorbs them. A conflict that needs a behaviour choice goes back to the lead.
+- **A1, A2, and P1 to P5:** waiting on U-268 (parked; other in-flight specs cite AD-1 and AD-14). Neither those spine edits nor the `SendDigest` routing are written until it is answered.
+- **P6, P7:** may proceed. **P8, P9:** not yet ruled; the lead has asked.
+
 ### Text needing a ruling
 
-Not decided; the lead raises each before implement. The `ruled` source in `ux-strings.test.mjs` cites the ruling.
+Each row is now ruled (`### Rulings`). The `ruled` source in `ux-strings.test.mjs` cites the ruling.
 
 | # | Where it appears | Proposed wording |
 |---|---|---|

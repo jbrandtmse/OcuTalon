@@ -7940,7 +7940,7 @@ So that I can change OcuTalon's settings without a terminal or a restart.
 **Given** an admin changed a section's values
 **When** they press **Save changes**
 **Then** the web layer submits one command through `Commands.Submit` with origin `web_admin`; `SettingsOps` writes each value, audits it through `OcuTalon.Bridge.Audit` (type `Settings`, with the admin's IRIS user, `SessionRef`, channel, and old and new values, never a secret) and applies it within a minute without restarting IRIS or the production; and the section confirms "Saved. Applies within a minute. Recorded in the audit log." (FR-17, FR-9, AD-1, AD-17, AD-19, UX-DR141)
-**And** the button follows the busy pattern; a refused or failed save shows the field error "Couldn't save. Nothing was changed." and changes nothing; and leaving a section with unsaved changes asks first (UX-DR32, UX-DR36, UX-DR141)
+**And** the button follows the busy pattern; a refused or failed save shows the field error "Couldn't save. Nothing was changed." and changes nothing, except a Demo mode save whose demo step fails, which keeps the written value as the terminal path does and shows its own field message; and leaving a section with unsaved changes asks first (UX-DR32, UX-DR36, UX-DR141) [AMENDED 2026-11-04, Story 33.2, unattended ruling (U-270): the same-path AC keeps the value written on `step_failed` and re-runs the step at the next start, so "Nothing was changed." would be false there; it read "and changes nothing"]
 
 **Given** the Check thresholds and Demo mode sections
 **When** an admin saves them
