@@ -55,3 +55,4 @@
 2026-11-04T11:49:16Z	Story 39.7	ruling	question=home_lane_of_39.7 choice=re-home_to_lane_B rejected=wait_on_epic_31 why=no_open_branch_touches_Publish_Payloads_payloads.ts category=decide by=orchestrator policy=5086036 note=DW-633_stays amendment=epics.md_39.7_home_lane
 2026-11-04T11:49:16Z	Story 39.3	spec_rechecked	tree=b50f3add result=one_lead_edit edit=verification_guard_baseline neighbours=Ownership,Session,Fixture_additive_no_effect contended=none model=claude-opus-5-5
 2026-11-04T11:51:35Z	Epic 39	epic_context_compiled	reason=planning_artifact_newer model=opus
+2026-11-04T12:18:30Z	Story 39.3	spec_rechecked	check=U-268_AD-1_AD-14_additions method=read result=clear why=submits_no_command;AD-14_cited_for_Item_Intake_Decision_only;delivers_nothing;digest_decision_only_copied_to_LastOutcome model=claude-opus-5-5
