@@ -11,7 +11,7 @@ import { describe, it } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
-const { GUIDE_TEXTS, advance, currentOf, followSelection, guideOf, guideView, promptOf, runTotalText } = await import(pathToFileURL(join(here, '..', 'src', 'app', 'guide', 'guide-view.ts')).href);
+const { GUIDE_TEXTS, advance, currentOf, followSelection, guideOf, guideView, promptOf, runTotalText, telegramRowOf } = await import(pathToFileURL(join(here, '..', 'src', 'app', 'guide', 'guide-view.ts')).href);
 const { formatCost, formatTokens } = await import(pathToFileURL(join(here, '..', 'src', 'app', 'chat', 'decision-view.ts')).href);
 
 /** The page's token and cost formats, as the component hands them in. */
@@ -70,6 +70,7 @@ describe('the fixed strings', () => {
       quoted: '"{text}"',
       send: 'Send',
       telegram: 'Optional: scan the QR code in the Telegram card to get the notice on your own phone.',
+      telegramDrawer: 'Optional: press {status} at the top of the page, then scan the QR code in the Telegram card to get the notice on your own phone.',
       stepCurrent: 'Step {n}, {label}, current',
       stepDone: 'Step {n}, {label}, done',
       stepUpcoming: 'Step {n}, {label}, upcoming',
@@ -175,6 +176,32 @@ describe('guideView: the Telegram row and the collapsed bar', () => {
   it('names the current step in the collapsed bar', () => {
     assert.equal(guideView(view(0), 1).collapsed, 'step 1 of 5');
     assert.equal(guideView(view(2), 1).collapsed, 'step 3 of 5');
+  });
+});
+
+describe('telegramRowOf: the Telegram row for the band', () => {
+  const ORIGINAL = 'Optional: scan the QR code in the Telegram card to get the notice on your own phone.';
+  const HINT = 'Optional: press Status at the top of the page, then scan the QR code in the Telegram card to get the notice on your own phone.';
+
+  it('names the Status button and carries a Show me in the drawer band', () => {
+    assert.deepEqual(telegramRowOf(view(0, { telegramRow: true }), true, 'Status'), { text: HINT, showMe: true });
+  });
+
+  it('fills the button\'s word from the argument, never a copy of it', () => {
+    assert.match(telegramRowOf(view(0, { telegramRow: true }), true, 'Zustand').text, /^Optional: press Zustand at the top of the page, then /);
+  });
+
+  it('is the original line with no Show me outside the drawer band', () => {
+    assert.deepEqual(telegramRowOf(view(0, { telegramRow: true }), false, 'Status'), { text: ORIGINAL, showMe: false });
+    assert.equal(ORIGINAL, GUIDE_TEXTS.telegram);
+  });
+
+  it('is undefined unless the server\'s view says telegramRow, at every band', () => {
+    for (const drawer of [true, false]) {
+      assert.equal(telegramRowOf(view(0, { telegramRow: false }), drawer, 'Status'), undefined);
+      assert.equal(telegramRowOf({ step: 1 }, drawer, 'Status'), undefined);
+      assert.equal(telegramRowOf(undefined, drawer, 'Status'), undefined);
+    }
   });
 });
 

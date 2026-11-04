@@ -1606,3 +1606,83 @@
 2026-11-03T14:33:08Z	Epic 12	ledger_routed_planned	story=none entries=0 excess=0 by=merge_gate note=overflow_all_burndown
 2026-11-03T14:33:08Z	Epic 12	deps_hash_rerecorded	reason=split hash=00aa3aa5 note=12.9_split_from_12.7
 2026-11-03T14:33:08Z	Epic 12	worktree_removed	path=.worktrees/epic-12
+2026-11-03T14:33:13Z	Epic 12	epic_merged_to_feature	merge=55b1dfed head=65beb93c pushed=true verified_on_origin=true record=6093ed5b
+2026-11-03T14:33:13Z	Epic 12	epic_branches_deleted	branch=OCT-epic12 local=true remote=true
+2026-11-03T14:36:14Z	Epic 31	ruling	question=README_build_109_path(EAP_portal_dropped_154;Planner_spike:runs_unchanged_on_109) choice=31.3_applies_the_Planner_s_wording_verbatim(prompts/readme-build-109-wording.md,sha256:664be5f50be85356) rejected=leave_154-only(untrue_for_new_downloaders) category=veto reversal=revert_the_six_README_items inbox=U-241 policy=508603671b9598f59d04750db6b6cdad2d396167
+2026-11-03T14:36:57Z	Epic 31	ruling	question=dispatch_31.3_onto_feature_6093ed5b_while_its_CI_is_pending(runs_41654820345,41654820326) choice=dispatch_now:6093ed5b_non-bookkeeping_tree_identical_to_65beb93c(green_every_workflow;git_diff_name-only_outside__bmad*_empty);a_red_6093ed5b_stops_the_dispatch_per_the_rule rejected=wait_~30_min(on_the_rc1_critical_path_with_no_new_code_to_verify) category=decide policy=508603671b9598f59d04750db6b6cdad2d396167
+2026-11-03T14:36:57Z	Epic 31	owner_decision	id=U-238 at=2026-11-03T14:34:23Z#723 via=inbox by=Contest_Planner_1(delegated) answer=fix_before_tag_narrow(guide_hint->Status_button_at_1024-1279;Show_me_opens_drawer;1100px_test+1400px_control;UX-DR137_placement_burndown);README_step_5_phrase_in_31.3;vehicle=Epic_12_re-open_on_runner_B_after_13.4_merges;rc1_waits apply=31.3_prompt(README)+Story_12.10(re-open)
+2026-11-03T14:37:22Z	Epic 31	runner_dispatched	runner=a253617cd5fcd9dc8 model=opus slot=ocutalon-slot-a lane=A base=20fbca72 feature=6093ed5b prompt=prompts/dispatch-epic-31-313.md story=31.3 vetoes=U-239(kept),U-241
+2026-11-03T14:37:22Z	Epic 31	ledger_filed	ids=DW-636,DW-637 owner=burndown note=build_109(install.sh;minor_changes)
+2026-11-03T14:38:10Z	Epic 12	deps_hash_rerecorded	reason=fix_forward hash=b3846822 note=Story_12.10_inserted(U-238;re-opens_Epic_12_on_runner_B_after_13.4_merges)
+2026-11-03T14:39:12Z	Epic 31	owner_decision	id=U-241 at=2026-11-03T14:38:52Z#725 via=inbox by=Contest_Planner_1(delegated) answer=keep(wording_file_sha256_664be5f50be85356_verified)+two_doc_sentences(bridge-guide_What_you_need_bullet;install-ipm_L7)_verbatim;other_154_mentions_stay apply=31.3(sent_to_live_runner;wording_file_section_7) resolve=at_Epic_31_merge
+2026-11-03T15:07:12Z	Epic 31	runner_clarification	story=31.3 kind=public_text(Q1_L111)+AC_vs_binding(Q2_screenshots_DW-613)+six_in-stage_texts shas=03770e15,e75b90bc,a401f37b,4ea27b89(verified)
+2026-11-03T15:07:12Z	Epic 31	ruling	question=31.3_Q1_L111/L187+Q2_screenshots+six_public_texts choice=Q1_alternative(tool,its_MCP_server_when_it_has_one,inputs_via_redactor_cut_200,full_call_in_approval_record);L187_narrowing_as_proposed;Q2=(C)keep_10.5_vetted_hero,re-shoot_vt-decision.png_by_Playwright_spec,AC_marker;six_texts_kept;one_story_kept(oversized_warning) rejected=Q1_recommended(drops_the_server_a_bridge_MCP_tool_does_show),Q2(A)(unvetted_hero_on_public_README_at_rc1),Q2(B)(image_2_misses_the_AC) category=veto reversal=see_inbox inbox=U-242 policy=508603671b9598f59d04750db6b6cdad2d396167
+2026-11-03T15:07:48Z	Epic 31	runner_resumed	agent=a253617cd5fcd9dc8 with=U-242_rulings(Q1_L111_alt,L187,Q2_C,six_texts,one_story)
+2026-11-03T15:08:12Z	Epic 31	owner_decision	id=U-242 at=2026-11-03T15:07:51Z#727 via=inbox by=Contest_Planner_1(delegated) answer=keep_all_four;condition:re-shot_vt-decision.png_path_to_the_Planner_before_story_commit(whole_decision_with_Operations_lanes,>1_agent_step;no_mock/test/CI/host_names;no_localhost/port;nothing_secret;README_alt_text_describes_it);Planner_vets_within_15_min apply=sent_to_runner_A(IMAGE_VET_stop_at_story_commit)
+2026-11-03T15:47:04Z	Epic 39	runner_clarification	kind=RC1_PUSH_HOLD head=861cc2b8(local;origin_138d0066;15_unpushed) story_done=39.1(667c1845) next=39.3(spec_ready) shas_verified=861cc2b8,667c1845,29426992,20a61666
+2026-11-03T15:47:04Z	Epic 39	ruling	question=Epic_39_runner_rulings(Live.Payload.Heartbeat_deferred_DW-633;39.2_waits_on_40;39.7_split_waits_on_31)+39.7_Lane_B_files(Publish.cls_TYPES,Test.Live.Payloads,payloads.ts) choice=accept_the_three;Lane_B_question_ruled_when_39.7_is_next(after_Epic_31_merges,against_open_footprints_then);deps_hash_split_at_Epic_39_merge category=decide policy=508603671b9598f59d04750db6b6cdad2d396167
+2026-11-03T15:58:01Z	Epic 31	runner_clarification	story=31.3(blocked) kind=inherited_red(e75b90bc:telegram-page.spec.ts_T6_x2;cause_31.1_WebSocket_x_card_CODE_SPACING_MS) shas=e75b90bc,69905afb(verified) flakes=DW-639,DW-640
+2026-11-03T15:58:01Z	Epic 31	ruling	question=e75b90bc_red_T6(Epic_12_card_timing_under_Epic_31_WebSocket) choice=(A)_fix-forward_Story_31.7_before_31.3:first_code_request_after_an_unpair_goes_out_at_once;other_requests_keep_10s_spacing,30s_retry;T6_bound_unchanged;cross-lane_footprint_extension_web/src/app/rail/telegram-card/**(no_open_epic_touches_it) rejected=(B)widen_T6(weakens_a_test,ships_3s_blank),(C)stop_Epic_31(blocks_rc1) why=trigger_is_Epic_31_s_own_WebSocket;U5_fix-forward_extended_by_orchestrator_cross-epic_ruling category=veto reversal=(B)_or_(C) inbox=U-243 policy=508603671b9598f59d04750db6b6cdad2d396167
+2026-11-03T15:58:34Z	Epic 31	runner_resumed	agent=a253617cd5fcd9dc8 with=U-243_Story_31.7_then_31.3
+2026-11-03T15:58:34Z	Run	rc1_forecast	forecast=2026-11-03T21-23Z(likely_22Z) cause=31.7_fix-forward(T6_red) told_planner=true
+2026-11-03T15:59:20Z	Epic 31	owner_decision	id=U-243 at=2026-11-03T15:58:56Z#729 via=inbox by=Contest_Planner_1(delegated) answer=keep;conditions:(1)test_pins_immediate_first_request_after_unpair+unchanged_spacing_after;(2)T6_green_on_two_consecutive_CI_runs_of_Epic_31_head_before_merge;(3)DW-639,DW-640_flakes_with_run_ids;rc1_21-23Z_accepted apply=sent_to_runner_A
+2026-11-03T16:12:15Z	Epic 0	runner_complete	runner=ade3f6200bce18dda head=035be7d2 note=second_integrate_forward(6093ed5b) ready_for_merge=true tokens=425960 tool_uses=56 duration_ms=5893966
+2026-11-03T16:12:15Z	Epic 0	ci_green_verified	runs=41659785594,41659785532 head=035be7d2 result=success via=none note=shards_live:cards_I8_flake_rerun(DW-550/DW-497_class)
+2026-11-03T16:12:15Z	Epic 0	amendments_verified	amendments=1 extensions=0 ok=true detail=as_verified_at_c3d264c5;after-start.sh_only_product_change;merge.cpf_unchanged
+2026-11-03T16:12:15Z	Epic 0	epic_merge_started	branch=OCT-epic0 head=035be7d2 feature=04d028f8
+2026-11-03T16:12:53Z	Epic 0	decision_sheet_skipped	decided=0 reason=decisions_for_user_none
+2026-11-03T16:12:53Z	Epic 0	ledger_routed_planned	story=0-14 entries=1(DW-624) excess=0 by=merge_gate note=U-240
+2026-11-03T16:12:53Z	Epic 0	deps_hash_rerecorded	reason=fix_forward hash=e723b005 note=Story_0.14_inserted(U-240)
+2026-11-03T16:12:53Z	Epic 0	worktree_removed	path=.worktrees/epic-0
+2026-11-03T16:13:04Z	Epic 0	epic_merged_to_feature	merge=1457eccb head=035be7d2 pushed=true verified_on_origin=true record=f41e1be0
+2026-11-03T16:13:04Z	Epic 0	epic_branches_deleted	branch=OCT-epic0 local=true remote=true
+2026-11-03T16:22:42Z	Epic 0	worktree_provisioned	path=.worktrees/epic-0 branch=OCT-epic0 base=67b28aba note=SC-5_re-open_0.14;branch_push_runs_41672021318,41672021309_cancelled(bookkeeping-only_duplicate_of_feature)
+2026-11-03T16:22:42Z	Epic 0	worktree_bootstrapped	epic=0 result=ok
+2026-11-03T16:22:42Z	Epic 0	ruling	question=dispatch_0.14_onto_feature_f41e1be0_while_its_CI_is_pending choice=dispatch_now:f41e1be0/67b28aba_non-bookkeeping_tree_identical_to_035be7d2(green_every_workflow) category=decide policy=508603671b9598f59d04750db6b6cdad2d396167
+2026-11-03T16:22:42Z	Epic 0	runner_dispatched	runner=abc200f2c60ede140 model=opus slot=ocutalon-slot-c lane=C base=67b28aba prompt=prompts/dispatch-epic-0-014.md story=0.14 veto=U-240 rc1=conditional
+2026-11-03T16:55:26Z	Epic 13	runner_complete	runner=a6e144300449e4db0 head=66f98c6a note=final_integrate_forward(f41e1be0) ready_for_merge=true tokens=358373 tool_uses=24 duration_ms=2490823
+2026-11-03T16:55:26Z	Epic 13	ci_green_verified	runs=41673027056,41673027092 head=66f98c6a result=success via=none
+2026-11-03T16:55:26Z	Epic 13	amendments_verified	amendments=0 extensions=0 ok=true detail=U-237_sentence_exact_x3_on_66f98c6a;watch_unchanged;merge_tree=clean
+2026-11-03T16:55:26Z	Epic 13	epic_merge_started	branch=OCT-epic13 head=66f98c6a feature=c9d1846b
+2026-11-03T16:55:28Z	Epic 13	decision_sheet_skipped	decided=0 reason=decisions_for_user_none
+2026-11-03T16:55:28Z	Epic 13	ledger_routed_planned	story=none entries=0 excess=0 by=merge_gate note=overflow_DW-629,630,631_burndown
+2026-11-03T16:55:28Z	Epic 13	worktree_removed	path=.worktrees/epic-13
+2026-11-03T16:55:32Z	Epic 13	epic_merged_to_feature	merge=c7d1c4d6 head=66f98c6a pushed=true verified_on_origin=true record=679955b1
+2026-11-03T16:55:32Z	Epic 13	epic_branches_deleted	branch=OCT-epic13 local=true remote=true
+2026-11-03T16:56:30Z	Epic 12	worktree_provisioned	path=.worktrees/epic-12 branch=OCT-epic12 base=1f80d109 note=SC-5_re-open_12.10;branch_push_runs_41679154879,41679154770_cancelled(bookkeeping-only_duplicate)
+2026-11-03T16:56:30Z	Epic 12	worktree_bootstrapped	epic=12 result=ok
+2026-11-03T16:56:30Z	Epic 12	ruling	question=dispatch_12.10_onto_feature_679955b1_while_its_CI_is_pending choice=dispatch_now:non-bookkeeping_tree_identical_to_66f98c6a(green_every_workflow) category=decide policy=508603671b9598f59d04750db6b6cdad2d396167
+2026-11-03T16:56:30Z	Epic 12	runner_dispatched	runner=a97e4111acaf71f8b model=opus slot=ocutalon-slot-b lane=B base=1f80d109 prompt=prompts/dispatch-epic-12-1210.md story=12.10 decision=U-238
+2026-11-03T17:21:30Z	Epic 12	runner_clarification	story=12.10 kind=public_text(drawer-band_Telegram_hint) shas=12e697b1(verified)
+2026-11-03T17:21:30Z	Epic 12	ruling	question=12.10_hint_wording+gate_decisions(ux-strings_entry,new_spec_file) choice=recommended:"Optional:_press_Status_at_the_top_of_the_page,_then_scan_the_QR_code_in_the_Telegram_card_to_get_the_notice_on_your_own_phone."+Show_me;gate_decisions_kept rejected=open_variant(guide_never_uses_open_as_a_verb) category=veto reversal=change_one_string_and_its_three_pins inbox=U-244 policy=508603671b9598f59d04750db6b6cdad2d396167
+2026-11-03T17:21:48Z	Epic 12	runner_resumed	agent=a97e4111acaf71f8b with=U-244_hint_wording+gate_decisions_kept
+2026-11-03T19:58:13Z	Epic 12	owner_decision	id=U-244 at=2026-11-03T17:21:47Z#734 via=inbox by=Contest_Planner_1(delegated) answer=keep(hint_wording_exact;Show_me_opens_drawer;Status_from_header_label) resolve_at=12.10_merge
+2026-11-03T19:58:13Z	Epic 0	runner_complete	runner=abc200f2c60ede140 story=0.14 head=3cd25ab0 stories_completed=1 ready_for_merge=true applied=U-240 tokens=337747 tool_uses=134 duration_ms=12874592
+2026-11-03T19:58:13Z	Epic 0	ci_green_verified	runs=41698083197,41698083041 head=3cd25ab0 result=success via=ci-gate note=ci.yml_image_DW-453_rerun_attempt2
+2026-11-03T19:58:13Z	Epic 0	amendments_verified	amendments=0 extensions=0 ok=true note=integrated_forward(feature=679955b1,head=277895a7)+bookkeeping_only_to_3cd25ab0;merge.cpf+after-start.sh+install.sh_unchanged;no_overlap_with_epic31/epic12
+2026-11-03T19:58:13Z	Epic 0	runner_report_error	field=dev_complete.story_base reported=2cc47ab5 actual=50569b41 impact=none(runner_self_reported,cycle-log_line_only)
+2026-11-03T19:58:13Z	Epic 0	merge_enqueued	merge_order=0.14_before_31.3(rc1_takes_it,U-240_condition) push=single_batched_with_local_1f80d109,a43d99b3,f69b9f47
+2026-11-03T19:58:41Z	Epic 0	decision_sheet_skipped	decided=0 to_action_items=0 to_x0=0 note=no_decisions_for_user;DW-453_occurrence_trailer(3cd25ab0);deps_hash_current(0.14_recorded_at_insert)
+2026-11-03T19:58:50Z	Epic 0	worktree_removed	worktree=.worktrees/epic-0
+2026-11-03T19:58:50Z	Epic 0	epic_branches_deleted	branch=OCT-epic0 local+origin(after_push)
+2026-11-03T19:59:51Z	Epic 0	epic_merged_to_feature	merge=dc926d09 head=3cd25ab0 feature_head=75c23f0e verified=merge-base_is-ancestor feature_ci=41708296988,41708296963(pending) story=0.14 rc1=included(before_31.3)
+2026-11-03T20:04:17Z	Epic 33	worktree_provisioned	worktree=.worktrees/epic-33 branch=OCT-epic33 base=537984ab dup_ci_cancelled=41708871931,41708871826 reason=owner_nov2_first_free_runner_starts_epic33(Planner_relay_2026-11-03)
+2026-11-03T20:04:17Z	Epic 33	worktree_bootstrapped	epic=33 result=ok
+2026-11-03T20:04:26Z	Epic 33	runner_dispatched	runner=ac8d6e27567bb096b model=opus slot=ocutalon-slot-c lane=C base=537984ab prompt=prompts/dispatch-epic-33.md push_hold=rc1 story_waits=33.2:12.10 yield=on_message
+2026-11-03T21:04:33Z	Epic 33	runner_clarification	story=33.1 kind=plan_rulings(4) shas=c4504199,537984ab,713f4ab7(verified)
+2026-11-03T21:04:33Z	Epic 33	ruling	question=33.1_digest_text_variants(22_keys) choice=accept_as_proposed rejected=reword(none_needed:voice_rules_met,UJ-2_wording_kept,Recent_decisions_is_rail_section) category=veto reversal=reword_named_keys+EXPERIENCE_block+pins inbox=U-245 policy=508603671b9598f59d04750db6b6cdad2d396167
+2026-11-03T21:04:33Z	Epic 33	ruling	question=33.1_dailyCost_slot_type+digest.cost_placement choice=fourth_Lane_B_contract_in_spine(S16);digest.cost_lands_with_33.2 rejected=33.1_edits_Lane_B_Catalog.Render(U-177) category=decide policy=508603671b9598f59d04750db6b6cdad2d396167
+2026-11-03T21:04:33Z	Epic 33	ruling	question=33.1_spine_retry_vs_AD-6_lock(S1,S2,S12,S13) choice=allow_as_AC-mandated_resolution_of_Deferred_item;condition:AD-6_additive_sub-bullet_scoped_to_retry_of_same_request(RetryOf),new-turn_wait_rule_verbatim,test_pins_both rejected=retry_waits_for_first_lock(fails_AC_never_refused_as_busy);stop_as_re-architecture(no_ordinary-turn_rule_changed;no_in-flight_epic_own_spec_cites_AD-6) category=veto reversal=fix_story_before_17.2 inbox=U-246 policy=508603671b9598f59d04750db6b6cdad2d396167
+2026-11-03T21:04:33Z	Epic 33	ruling	question=33.1_instance_zone_storage choice=Decide_host_setting_InstanceZone(Bridge.Time.Zone/SetZone/Apply) rejected=Bridge.Data_table(Test/Data/Tables.cls_contended_with_Epic_39) category=veto reversal=bridge_table(33.1_stub+17.4) inbox=U-247 policy=508603671b9598f59d04750db6b6cdad2d396167
+2026-11-03T21:05:02Z	Epic 33	runner_resumed	agent=ac8d6e27567bb096b with=U-245,U-246(condition),U-247,dailyCost_decide
+2026-11-03T21:05:59Z	Epic 33	owner_decision	id=U-245 at=2026-11-03T21:05:48Z#739 via=inbox by=Contest_Planner_1(delegated) answer=keep+savedNoSummary_reworded(The_most_recent_are_under_Recent_decisions...) apply=runner_C_live
+2026-11-03T21:05:59Z	Epic 33	owner_decision	id=U-246 at=2026-11-03T21:05:48Z#740 via=inbox by=Contest_Planner_1(delegated) answer=keep+condition(RetryOf_server-only;same_conversation+ItemId_else_waits;test_web_API_RetryOf_still_waits_or_ignored) apply=runner_C_live
+2026-11-03T21:05:59Z	Epic 33	owner_decision	id=U-247 at=2026-11-03T21:05:48Z#741 via=inbox by=Contest_Planner_1(delegated) answer=keep resolved=now
+2026-11-03T21:06:11Z	Epic 33	runner_resumed	agent=ac8d6e27567bb096b with=apply_U-245(#739),apply_U-246(#740) note=queued_to_live_runner
+2026-11-03T21:25:28Z	Epic 12	runner_complete	runner=a97e4111acaf71f8b story=12.10 head=b4161594 stories_completed=1 ready_for_merge=true applied=U-244(orchestrator_item) tokens=394585 tool_uses=127 duration_ms=16101701
+2026-11-03T21:25:28Z	Epic 12	ci_green_verified	runs=41716277722,41716277637 head=b4161594 result=success via=ci-gate
+2026-11-03T21:25:28Z	Epic 12	amendments_verified	amendments=0 extensions=3 ok=true note=integrated_forward(feature=75c23f0e,head=f2d99d1a);extensions_guide-view.ts+demo-guide.ts(Telegram_row_only),layout.ts(RAIL_REGION_export),ux-strings.test.mjs(ruled_entry)=plain_unions_with_Epic31;hint_text_matches_U-244;merge.cpf+after-start.sh+install.sh_unchanged;feature_75c23f0e_green(41708296988,41708296963)
+2026-11-03T21:25:28Z	Epic 12	merge_enqueued	story=12.10 rc1=yes(U-238)
+2026-11-03T21:25:48Z	Epic 12	decision_sheet_skipped	decided=0 to_action_items=0 to_x0=0 note=no_decisions_for_user;DW-642_burndown(born_routed);DW-503_untouched(U-238);U-238+U-244_resolved
+2026-11-03T21:25:51Z	Epic 12	worktree_removed	worktree=.worktrees/epic-12
+2026-11-03T21:25:51Z	Epic 12	epic_branches_deleted	branch=OCT-epic12 local+origin(after_push)

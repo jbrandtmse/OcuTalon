@@ -2754,6 +2754,10 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-03T05:33:44Z occurrence=31-6-a-tool-call-s-approval-request-appears-in-the-web-chat-with
 - 2026-11-03T05:33:44Z status=routed owner=31-3-the-readme-leads-to-the-demo-and-the-launched-demo-is-measur by=harvest note=CI occurrence on 510ddbc9 (run 41577710442 image shard lane-b: TestOnlyTheMarkerChanges and TestRunAgain, 1 of 88 classes; green on rerun; passes alone on slot C)
 - 2026-11-03T02:38:20Z occurrence=13-2-the-example-s-own-tools-wait-for-approval-when-they-are-risk by=harvest note=failed_once_in_13.2_implement_fresh_shard_lane-b_part_2/2;passed_alone_and_on_rerun
+- 2026-11-03T12:55:18Z occurrence=0-13-a-start-retries-the-cpf-merge-when-iris-cannot-quiesce note=CI run 41629601732 iris (image) shard:lane-b on OCT-epic0 032a25c0 (integrate-forward head): TestRunAgain and TestOnlyTheMarkerChanges failed; passed on the unchanged rerun of the failed jobs
+- 2026-11-03T14:35:03Z occurrence=0-13-a-start-retries-the-cpf-merge-when-iris-cannot-quiesce note=CI run 41641201023 attempt 1, iris (image) shard:lane-b on OCT-epic0 c3d264c5: TestRunAgain and TestOnlyTheMarkerChanges (run_again and trace_opened) failed; green on the unchanged rerun of the failed jobs
+- 2026-11-03T18:26:01Z occurrence=0-14-a-start-that-recovers-through-the-merge-retry-passes-the-liv note=run_41688225535_iris(image)_shard_lane-b_GuideApi_TestRunAgain,TestOnlyTheMarkerChanges_head_9dd16cdc
+- 2026-11-03T19:58:41Z occurrence=0-14-a-start-that-recovers-through-the-merge-retry-passes-the-liv by=merge_gate note=CI run 41698083197 attempt 1, iris (image) shard:lane-b on OCT-epic0 3cd25ab0 (final head): GuideApi TestRunAgain failed; green on the rerun of the failed job
 
 ### DW-454: U-170's plain-English reason for an old held tool call reaches a person only through the decision live event (decision strip, rail decision row, trace); the approval card and notices do not show it: Live.Payload.Approval.reason stays empty, approval.result is {ref}, Core.Rule.Notice reads only the fallback reason
 - source: spec-30-3-an-approved-tool-call-runs-exactly-once-with-no-model.md | severity: med | fix-risk: med | footprint: out-of-footprint
@@ -3077,6 +3081,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: found by Story 12.3's plan: the card's unpaired state is built in Lane A's telegram-card/, but its position in the device column at 1024-1279 px is the rail layout's (Lane B's web files); no story in epics.md names UX-DR137
 - 2026-10-31T19:18:18Z status=escalated owner=burndown by=spec_gate note=for the decision sheet: route to a Lane B story (layout) or accept; not Epic 12's files
 - 2026-11-03T14:32:55Z status=decision-pending owner=burndown by=unattended note=inbox=U-238
+- 2026-11-03T14:37:22Z status=routed owner=burndown by=owner note=U-238:UX-DR137_device-column_placement_to_first_daily_release;the_narrow_fix(guide_hint_and_Show_me_open_the_Status_drawer_at_1024-1279)_is_Story_12.10_before_the_tag
 
 ### DW-504: Lane B's web/scripts/qr-pin.test.mjs header says nothing in web/src uses qrcode-generator yet, which Story 12.3's card makes untrue
 - source: spec-12-3-the-telegram-card-shows-a-fresh-pairing-code-as-a-qr-code.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -3265,6 +3270,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-01T22:44:24Z status=routed owner=burndown by=ci note=flake routed to the burn-down with priority: a sign-in that never answers /state within 90 s on a loaded host
 - 2026-11-02T11:13:19Z owner=burndown by=burndown note=Epic 11 part 1 burn-down (owner trim): no charter (2 story-closable entries plus this repaired owner, under the cap, no repeat occurrences); kept for Epic 11 part 2's burn-down gate, as Epic 30 part 1 did; flakes with priority
 - 2026-11-03T18:43:26Z occurrence=31-7-after-an-unpair-the-telegram-card-shows-its-fresh-code-witho by=lead note=CI_run_41689251949_iris(browser)_live:sign-in_web/e2e/live/socket.spec.ts:138_W2_45s_timeout_in_loadedAfter_/state_wait(floor.ts:141)_runner_19;flake_rerun
+- 2026-11-03T16:12:51Z status=routed owner=burndown by=merge_gate note=occurrence:035be7d2_run_41659785594_iris(shards)_live:cards_I8_incident-card.spec.ts:396_loadedAfter_/state_wait_at_sign-in;green_on_rerun
 
 ### DW-551: The release checklist does not check the draft notes for the inspiration's name outside the not-affiliated note (only the tracked tree's name-only-in-note row); the draft's own rules are Story 11.13's
 - source: spec-11-4-the-release-gets-draft-notes-and-a-checklist.md | severity: low | fix-risk: low | footprint: in-epic
@@ -3353,6 +3359,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-31T16:42:54Z status=routed owner=burndown by=ci note=flake class, filed at CI resolution point 1 (Story 5.12); fix: find why the first state GET can miss the 120 s window under the install-upgrade group's load (sign-in wait or the response predicate)
 - 2026-10-31T16:43:23Z owner=31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=burndown note=overflow at Epic 5's burn-down gate (re-open for Story 5.12): the approval-card spec is Lane B's (Epic 6); Story 31.2, Lane B's hardening story on approval requests, is the next story to touch that path; one occurrence, under the cap, so no burn-down story was chartered
 - 2026-11-02T15:14:11Z status=resolved-by:31-2-a-tool-call-s-approval-request-reaches-the-phone-with-approv by=adjudication note=A7_signs_in_over_HTTP(signInOverHttp),no_open();floor.ts_untouched
+- 2026-11-03T14:35:03Z occurrence=0-13-a-start-retries-the-cpf-merge-when-iris-cannot-quiesce note=CI run 41641201023 attempt 1, iris (browser) live:sign-in on OCT-epic0 c3d264c5: web/e2e/chat/chat.spec.ts:693 C7 timed out (45 s) in loadedAfter's /state wait at sign-in (support/floor.ts:141); green on the unchanged rerun
 
 ### DW-498: Story 5.12's invalid-reply warning logs $SYSTEM.Status.GetErrorText of the reply check, and for a MAXLEN or datatype failure that text quotes the offending value (the model's own reply content), which U-193's condition forbids: the warning must name the failing property and the limit (for example 'Evidence element 6: 42 > 32') and quote none of the reply
 - source: orchestrator: U-193's condition (#581) checked against Story 5.12's merged code (14de8018) | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -3767,6 +3774,38 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: chk_how_you_talk greps TALK_FACTS in the README section only; no read of device-view.ts or demo-view-texts.ts (outcomes reads chat-view.ts, the precedent). AC2 is a recorded check at the plan base by spec.
 - 2026-11-03T07:35:37Z status=by-design owner=10-5-the-readme-shows-the-product-and-says-how-you-talk-to-it by=cr note=AC2 is specified as a recorded check; reopen via spec amendment if a UI story renames a quoted product term
 
+### DW-629: The tool calls of a timed-out decision, and of a late runner reply, are written to no AgentStep: Decide's timer branch records the fallback and sends no step; record them as AgentSteps, then drop 'unless the decision times out' from docs/bridge-guide.md and docs/security-overview.md L100 (U-237's answer)
+- source: spec-13-4-the-guide-and-the-overview-say-exactly-what-is-audited-and-t.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: Decide.cls:331-337 (timer branch, no EmitSteps), :44 and :69-71 (a timer that fired and a late reply send no steps); Timeouts.cls:7-10 (reachable: a request in flight is not stopped)
+- 2026-11-03T12:13:10Z status=routed owner=burndown by=burndown note=first daily release after 1.0.0; U-237 answer (Contest Planner, 2026-11-03T10:46:10Z#712); not a 1.0.0 blocker (the docs state the timeout case)
+- 2026-11-03T13:25:42Z status=routed owner=burndown by=burndown note=prerequisite for MCP support: docs/security-overview.md's MCP rules (under 'When a release adds MCP support, these rules apply:') promise an agent step for every MCP call (spine 'Every MCP tool call is audited, read-only ones included'; FR-49), so this must land before or with the release that adds MCP support
+
+### DW-630: The bridge guide has no runnable block that reaches a held call: a user item that leads to a forward, reading the pending approval Ref, and calling OcuTalon.Bridge.Approval.Answer; add those blocks and run them in the standalone-bridge job (Story 13.4 gap (f))
+- source: spec-13-4-the-guide-and-the-overview-say-exactly-what-is-audited-and-t.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: U-233 bare-container run of docs/bridge-guide.md (Contest Planner); release/standalone-bridge.sh:787,933-937 reach the held call only through the job's own code, not through guide blocks
+- 2026-11-03T12:13:10Z status=routed owner=burndown by=burndown note=first daily release after 1.0.0; veto U-236 item (f); not a 1.0.0 blocker
+
+### DW-631: A bare-bridge production has no self re-arm at production start: after an abnormal end (killed jobs, a cleaned production) only Approval.Reconcile re-arms a lost approval hold and resends an approved call whose replay never started, and only OcuTalon's own install calls it; a lost hold fails safe but never expires
+- source: spec-13-4-the-guide-and-the-overview-say-exactly-what-is-audited-and-t.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: Approval.cls:769-813 (Reconcile; pass 2 L798-811 re-arm, pass 3 resend); Install/Step/Approvals.cls is the only non-test caller; a clean stop and start restores the alarm (irislib Ens/Director.cls:470-477, Ens/Alarm.cls:228-233,383-400)
+- 2026-11-03T12:13:10Z status=routed owner=burndown by=burndown note=first daily release after 1.0.0; Story 13.4 (g) finding, orchestrator ruling (decide): the guide says nothing; not a 1.0.0 blocker (fails safe)
+### DW-624: lib-live.sh log_steps keeps every ^STEP line, so a live start that recovers from #453 through Story 0.13's retry still fails check_log on a 'STEP merge RETRY 1 after #453' diff
+- source: spec-0-13-a-start-retries-the-cpf-merge-when-iris-cannot-quiesce.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: log_steps (docker/tests/lib-live.sh L590) greps '^(STEP|RESULT) ' and check_log diffs it against expected_run, which has only 'STEP merge OK'; callers: test-install-start rows 1-4, test-install-upgrade row 6, test-online-demo, test-audit, release/upgrade-harness.sh; the CI #453 hits (runs 41419787515, 41577358713, 41577710442) were in these tests
+- 2026-11-03T10:41:25Z status=routed owner=burndown by=cr note=fix: drop '^STEP merge RETRY ' lines in log_steps plus a test-lib-live fixture; Epic 12/15 files, outside 0.13
+- 2026-11-03T11:09:29Z status=routed owner=burndown by=burndown note=first daily release after 1.0.0; not a 1.0.0 blocker: a start that meets #453 failed these live tests before Story 0.13 too, so nothing regresses; flag to the Planner: release/upgrade-harness.sh (L934, L1213) uses the same log_steps, so a hand-gate start that recovers through the retry would read as a harness failure, and Epic 15 owns release/** and docker/tests/**
+- 2026-11-03T16:12:51Z status=routed owner=0-14-a-start-that-recovers-through-the-merge-retry-passes-the-liv by=merge_gate note=U-240:Story_0.14_re-opens_Epic_0
+- 2026-11-03T17:36:51Z status=resolved-by:0-14-a-start-that-recovers-through-the-merge-retry-passes-the-liv by=adjudication note=check_log_accepts_only_RETRY_1_after_#453_then_STEP_merge_OK(lib-live.sh);log_steps_unchanged;test-lib-live_rows1-11+near-misses;harness_Merge_retries_count(test-upgrade-harness_merge-retries)
+
+### DW-625: after-start.sh re-merges merge.cpf at every start, so even an unchanged start runs about five namespace activations, each able to wait about 120 s for a quiesce and fail with ERROR #453; skip the merge on an unchanged start and re-create only the missing CPF items
+- source: spec-0-13-a-start-retries-the-cpf-merge-when-iris-cannot-quiesce.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: U-235 (veto, kept by the Contest Planner 2026-11-03T09:22:15Z#706): the larger rework is out of 1.0.0; Story 0.13 retries once on #453 instead; the DW-612 check found #453 on a fresh first start (41419787515) and install-start row 2 (41577358713, 41577710442)
+- 2026-11-03T11:09:29Z status=routed owner=burndown by=burndown note=first daily release after 1.0.0 (U-235); keeps AD-23's merge-at-every-start promise (repair a mapping removed by hand) through a cheaper check
+
+### DW-632: flake: live:floor web/e2e/floor/guide.spec.ts:740 M12 (Show me with no pending notification focuses the phone feed; a jump to step 3 hands focus to an inactive box) hit the 120 s test timeout in the floor project in CI
+- source: cycle-log-epic-0.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: CI run 41629601732 iris (shards-3) attempt 1 on OCT-epic0 032a25c0, 105 of 106 floor specs passed; passed on the unchanged rerun (attempt 2); Epic 0's head changes no web or guide code
+- 2026-11-03T12:55:18Z status=routed owner=burndown by=burndown note=flake class; one rerun and an occurrence= trailer on a recurrence; first daily release after 1.0.0 unless it recurs
 ### DW-627: Shorten the waits of the lane-a Channel test classes: shard:lane-a@Channel took 704 s in CI (run 41618490851), mostly waits (TelegramIn about 98 s, TelegramPause about 82 s, TelegramPair about 63 s, TelegramApproval about 60 s locally), which needed its own iris group shards-4
 - source: orchestrator ruling at Epic 12's close (option d) | severity: med | fix-risk: med | footprint: src/ocutalon/cls/OcuTalon/Test/Channel/
 - evidence: CI run 41618490851 production group 38 min with the Channel unit 704 s; local one-stack shard 535-567 s
@@ -3797,3 +3836,22 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-31-7-after-an-unpair-the-telegram-card-shows-its-fresh-code-witho.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: telegram-card-view.test.mjs imports fakeClock for CodeSchedule; the fake-clock.mjs header (lines 1-3) names busy-state, contact-watch and announce-queue only. Outside the U-243 footprint.
 - 2026-11-03T17:45:14Z status=wontfix-accepted owner=31-7-after-an-unpair-the-telegram-card-shows-its-fresh-code-witho by=cr note=cosmetic list; reopen_if=a story edits web/scripts/fake-clock.mjs and leaves telegram-card-view.ts out of its header list
+### DW-636: install.sh looks only for build 154 (install.sh:29, :179, :285): make it find a build 109 image (irishealth-community:2027.1.0AI.109.0) too, then drop the README's separate 'Start it with build 109' path (U-241)
+- source: Contest Planner build 109 spike, 2026-11-03 | severity: low | fix-risk: low | footprint: small
+- evidence: spike-109: OcuTalon at 138d0066 runs unchanged on 109 (build, first start 91 s, restart 15 s, install-fresh/production/shards groups, real-model demo walk); only install.sh refuses the tag
+- 2026-11-03T14:37:22Z status=routed owner=burndown by=merge_gate note=first daily release after 1.0.0
+
+### DW-637: Build 109 changes to watch: %AI.Tool.%DecodeScalar rejects an array or object for a scalar tool argument (a malformed call becomes a tool error), and %AI.System, %AI.Utils.SettingStore, %AI.Shell.StreamRenderer, EnsLib.AI.Agent.OutboundAdapter and %AI.Policy.Audit/Authorization are now Hidden, Internal or EXPERIMENTAL; nothing changes at runtime today
+- source: Contest Planner build 109 spike, 2026-11-03 | severity: low | fix-risk: low | footprint: small
+- evidence: API diff of 145 referenced system classes: no removed member, no changed signature; these two notes only
+- 2026-11-03T14:37:22Z status=routed owner=burndown by=merge_gate note=first daily release after 1.0.0; note for any move to 109
+### DW-635: flake: live:floor web/e2e/floor/layout.spec.ts:483 G4 (at 1000x800 the page is one column with the rail after main, and only the header sticks) hit the 150 s test timeout in the floor project in CI
+- source: cycle-log-epic-0.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: CI run 41641201023 attempt 1, iris (shards-3) on OCT-epic0 c3d264c5: 105 of 106 floor specs passed; green on the unchanged rerun (attempt 2); Epic 0's head changes no web code
+- 2026-11-03T14:35:03Z status=routed owner=burndown by=burndown note=first daily release after 1.0.0
+
+### DW-642: Story 12.10's browser specs copy file-local e2e helpers: telegram-drawer.spec.ts fixture() is the third copy (telegram-page.spec.ts:118, telegram-approval.spec.ts:61) and telegram-drawer-view.spec.ts guideOf/serve copy guide.spec.ts guideOf:30 and liveEvents:75; one shared module in web/e2e/support/ should hold them
+- source: spec-12-10-in-a-narrower-window-the-telegram-step-leads-to-the-status-d.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Rule 2: near-copies (14-line fixture(), 9-line guideOf, 25-line poll router) forced by the footprint (siblings in Lane A or contended files, support/ outside it); a change to TelegramPageFixture or the events envelope must be made in every copy
+- 2026-11-03T19:57:30Z status=routed owner=burndown by=cr note=forced copy (Rule 2): unify all copies in web/e2e/support/ when the siblings' owners can edit them
+- 2026-11-03T20:50:08Z status=routed owner=burndown by=burndown note=not_a_1.0.0_blocker(test-helper_copies);first_daily_release_after_1.0.0

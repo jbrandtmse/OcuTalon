@@ -5,7 +5,9 @@
 #      any failure below leaves the container unhealthy (the image's CMD also deletes it before IRIS starts);
 #   2. re-applies the image's CPF merge file, because iris-main applies it only at the first start and when
 #      the file changes, so a mapping removed by hand would otherwise stay missing. `iris merge` itself does
-#      nothing for a file whose path has an unchanged `*.last_merge` record, so it merges a fresh copy;
+#      nothing for a file whose path has an unchanged `*.last_merge` record, so it merges a fresh copy.
+#      A merge that fails with `ERROR #453:` (IRIS cannot quiesce for a namespace activation) is retried once,
+#      on a fresh copy, after a 10 s pause, and the retry is logged as `STEP merge RETRY 1 after #453`;
 #   3. runs one IRIS session (after-start.cos) that clears readiness, installs IPM and the `ocutalon` package
 #      when the version gate says so, runs the installer-step registry and prints `RESULT OK <version>`;
 #   4. writes the ready marker, through a temporary file and a rename, only when that line names the image's version.
@@ -39,24 +41,41 @@ say "AFTER-START begin $(stamp)"
 drop_marker
 
 # 2. The merge, of a copy at a path that has no record. A failed merge starts no session.
+# At most two attempts, each on its own fresh copy that is removed right after it. Only a merge that ran, failed
+# and printed `ERROR #453:` (IRIS could not quiesce for a namespace activation) is retried, once, after a pause.
 SECONDS=0
-merge_dir=$(mktemp -d "${TMPDIR:-/tmp}/ocutalon-merge.XXXXXX") || merge_dir=""
-if [ -z "$merge_dir" ]; then
-  merge_out="could not create a temporary directory in ${TMPDIR:-/tmp}"
-  merge_rc=1
-elif cp "$merge_file" "$merge_dir/merge.cpf" 2>/dev/null; then
-  merge_out=$(iris merge IRIS "$merge_dir/merge.cpf" 2>&1)
-  merge_rc=$?
-else
-  merge_out="could not copy $merge_file"
-  merge_rc=1
-fi
-if [ -n "$merge_dir" ]; then rm -rf "$merge_dir"; fi
-log "$merge_out"
-if [ "$merge_rc" -ne 0 ]; then
+merge_attempt=1
+merge_attempts=2
+while :; do
+  merge_ran=0
+  merge_dir=$(mktemp -d "${TMPDIR:-/tmp}/ocutalon-merge.XXXXXX") || merge_dir=""
+  if [ -z "$merge_dir" ]; then
+    merge_out="could not create a temporary directory in ${TMPDIR:-/tmp}"
+    merge_rc=1
+  elif cp "$merge_file" "$merge_dir/merge.cpf" 2>/dev/null; then
+    merge_ran=1
+    merge_out=$(iris merge IRIS "$merge_dir/merge.cpf" 2>&1)
+    merge_rc=$?
+  else
+    merge_out="could not copy $merge_file"
+    merge_rc=1
+  fi
+  if [ -n "$merge_dir" ]; then rm -rf "$merge_dir"; fi
+  log "$merge_out"
+  if [ "$merge_rc" -eq 0 ]; then break; fi
+  if [ "$merge_ran" -eq 1 ] && [ "$merge_attempt" -lt "$merge_attempts" ]; then
+    case "$merge_out" in
+      *'ERROR #453:'*)
+        say "STEP merge RETRY $merge_attempt after #453"
+        sleep 10
+        merge_attempt=$((merge_attempt + 1))
+        continue
+        ;;
+    esac
+  fi
   say "STEP merge FAILED exit $merge_rc"
   finish "not ready"
-fi
+done
 say "STEP merge OK ${SECONDS}s"
 
 image_version=$(tr -d '\r' < "$version_file" 2>/dev/null)
