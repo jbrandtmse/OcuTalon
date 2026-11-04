@@ -97,3 +97,6 @@
 2026-11-04T17:48:51Z	Story 39.4	spec_reset	status=ready-for-dev reason=dead_stage_spec_edit_restored;nothing_since_db8cfca1_committed;ready-for-dev_routes_to_implement tracker=in-progress
 2026-11-04T17:51:22Z	Epic 39	slot_loaded	server=ocutalon-slot-d ns=OCUTALON bridge=56 ocutalon=596 compile=ok stale=OcuTalon.Test.Checks.BeatCase,BeatOutcomes,BrokenBeat,Snapshot_deleted_dead_stage_wip id=FE850E91 tree=d07f52a3
 2026-11-04T17:51:22Z	Story 39.4	stage_spawned	stage=implement spawn_at=2026-11-04T17:51:22Z model=sonnet agent_name=39-4-implement-2 cycle_iteration=2 story_base=f7a7aa44 note=rerun_after_stage_dead
+2026-11-04T19:53:50Z	Story 39.4	dev_complete	spawn_at=2026-11-04T17:51:22Z model=sonnet build_sha=010365e5 baseline_revision=7efce86c story_base=f7a7aa44 review_loop_iteration=0 followup_review_recommended=true deferred=0 files=16 loc_added=1511 loc_removed=128 nfr_tripwires=0 adr_violations_surfaced=0 cycle_iteration=2 note=rerun_after_stage_dead;self_review_37_rows_5_patched_32_rejected
+2026-11-04T19:53:50Z	Story 39.4	adr_verifications_complete	tool=none acs=none result=none_required evidence=none mutations=none model=claude-opus-5-5
+2026-11-04T19:53:55Z	Story 39.4	stage_spawned	stage=qa spawn_at=2026-11-04T19:53:55Z model=sonnet agent_name=39-4-qa-1 cycle_iteration=1
