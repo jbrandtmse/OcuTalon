@@ -135,3 +135,10 @@
 2026-11-04T20:33:42Z	Story 40.3	ledger_routed_planned	story=40-7-evaluation-cases-for-the-persona entries=1 excess=0 by=harvest ids=DW-678
 2026-11-04T20:33:50Z	Story 40.3	adr_verifications_complete	result=none_required mutations=none model=claude-opus-5-5
 2026-11-04T20:33:50Z	Story 40.3	stage_spawned	stage=qa spawn_at=2026-11-04T20:33:50Z model=sonnet agent_name=40-3-the-persona-reaches-chat-and-triage-as-a-data-block-qa-1 cycle_iteration=1
+2026-11-04T20:37:34Z	Story 40.3	qa_complete	spawn_at=2026-11-04T20:33:50Z model=sonnet tests_added=0 mutations_demonstrated=2 first_run_failures=0 clarifications=0 closing_sections_present=true
+2026-11-04T20:37:34Z	Story 40.3	stage_spawned	stage=code-review spawn_at=2026-11-04T20:37:34Z model=opus agent_name=40-3-the-persona-reaches-chat-and-triage-as-a-data-block-code-review-1 cycle_iteration=1
+2026-11-04T20:55:29Z	Story 40.3	cr_complete	spawn_at=2026-11-04T20:37:34Z model=opus resolved=5 fixed_at_source=5 by_design=2 wontfix_theoretical=1 wontfix_accepted=1 routed=2 escalated=0 decision_pending=0 deferred=0 dismissed=9 high=0 med=3 low=7 rows=24 unresolved_high_med=2 clarifications=0 closing_sections_present=true cycle_iteration=1 review_tier=full-opus ledger=DW-664_occurrence,DW-679..DW-683
+2026-11-04T20:55:29Z	Story 40.3	ledger_routed_planned	story=40-7-evaluation-cases-for-the-persona entries=1 excess=0 by=cr ids=DW-679
+2026-11-04T20:55:29Z	Story 40.3	ledger_adjudicated	owned=0 resolved=0 reowned=0 terminal=0 model=claude-opus-5-5 note=DW-678,DW-679_routed_to_40.7_with_bullets
+2026-11-04T21:15:34Z	Story 40.3	smoke_complete	method=other result=pass iterations=1 defects_caught=0 evidence=fresh_stack_e40s3sm_live_demo-path_8_of_8_floor_15_of_15_audit_pass(OCUTALON_LIVE_DEADLINE=700_busy_machine);persona_turns_through_WebChatIn_and_the_production_on_fresh_stacks model=claude-opus-5-5
+2026-11-04T21:15:34Z	Story 40.3	fresh_check	env=recipe(fresh_stack_e40s3fr) tests=15 result=pass order=forward,reverse classes=shard_lane-a@Agent_incl_Persona,PersonaBlock,PersonaTurns forward=365s reverse=369s boundaries=pass

@@ -107,6 +107,32 @@ deferred:
 8. Given `persona-pirate-style` on a Pirate session, when `Decide` runs the reply filter, then "Everything is fine." is removed, and the greeting, the exclamation mark and the emoji are unchanged in `Turn.ReplyText`, in the stored `Decision.Reasons` and in the done `chat.message` event.
 9. Given a session on Pirate, when the person saves Kind friend and sends a message, and then saves Professional and sends another, then each newest user message in the log carries the new persona's block, and the last carries none, with no wait between the save and the message.
 
+### Review Findings
+
+Code review 2026-11-04 (four layers, full-opus tier; 24 raw rows, 10 entries after grouping: high 0, medium 3, low 7; 9 rows rejected).
+
+- [x] [Review][Patch] AC 9: the Pirate-to-Kind-friend step could not fail, because no turn ran under Pirate before the save, so no job had cached Pirate [src/ocutalon/cls/OcuTalon/Test/Agent/PersonaTurns.cls:230] -- medium, fix-risk low (one Ask in the test). `TestNextMessage` now asks one turn under Pirate first; under the `Setting.Get` mutation both steps go red (fresh stack, reverted).
+- [x] [Review][Patch] `TestBlockOwners`' malformed-Ref owners had no stray row, so their assertions could not fail for a weakened guard [src/ocutalon/cls/OcuTalon/Test/Agent/PersonaBlock.cls:194] -- low, fix-risk low. The stray-row loop now also covers the 23-character and the 22-character `!` owner; a length-only guard turns it red (slot A, reverted).
+- [x] [Review][Patch] `TestStatus` opened the watch's row with no `$IsObject` check, so one bad preset ended the loop with `<INVALID OREF>` [src/ocutalon/cls/OcuTalon/Test/Agent/PersonaTurns.cls:128] -- low, fix-risk low. It now fails soft and continues, like the file's other steps.
+- [x] [Review][Patch] `TestNextMessage`'s last assertion message said "ran in the default voice", which the mock's fixed reply cannot show [src/ocutalon/cls/OcuTalon/Test/Agent/PersonaTurns.cls:244] -- low, fix-risk low. The message now says what it checks.
+- [x] [Review][Patch] `TestBadStoredValues`' header claimed every value the writer refuses gives no block, and `TestBlockFor` said "a line break" for a line-feed case [src/ocutalon/cls/OcuTalon/Test/Agent/PersonaBlock.cls:136] -- low, fix-risk low. Both now say what they pin. The narrower check itself (U+2028/U+2029 and punctuation pass `BlockFor`; the only writer refuses them) is DW-680 `wontfix-theoretical`.
+- [x] [Review][Defer] Frozen instruction lines meet the block unmeasured: Triage's own-message test ("not quoted") vs a user turn's quoted block lines, and the "plain English" lines vs the language line [src/ocutalon/cls/OcuTalon/Agent/Triage.cls] -- deferred: medium, unverified without a real model; DW-679 `routed owner=40-7-evaluation-cases-for-the-persona` (measure; a red is a clarification on an existing line).
+- [x] [Review][Defer] Triage reasons in another language pass `ReplyGuard`'s English lists [src/ocutalon/cls/OcuTalon/Agent/Persona.cls] -- deferred: the ruled DW-664 root cause; occurrence appended.
+- [x] [Review][Defer] `SettingsOps.Persona` reads its three keys unlocked; a turn rendered during a save can get no block for that one turn [src/ocutalon/cls/OcuTalon/Core/SettingsOps.cls:305] -- deferred: low, out-of-footprint, fail-safe; DW-681 `wontfix-accepted` (reopen_if in the entry).
+- [x] [Review][Defer] `Render` can throw if `Setting.KeyIndexOpen` faults inside `Persona.Block` [src/ocutalon/cls/OcuTalon/Agent/Persona.cls:122] -- deferred: spec-bound ("No `try` around the read in `Block`"); DW-682 `by-design`.
+- [x] [Review][Defer] AC 3's "every earlier line unchanged" is pinned by the diff command, not a test [src/ocutalon/cls/OcuTalon/Test/Agent/PersonaBlock.cls:207] -- deferred: spec-bound (QA note); re-verified at review: Triage removes 0 lines, Chat only the class comment; DW-683 `by-design`.
+
+Rejected:
+- `false` Edge, a stray `person.instance` row left if `Block` throws mid-test: the next run's `DropRow` before `Seed` removes it, and `Block` never reads a non-Ref owner's row.
+- `false` Edge, an empty phrase in `AssertNoAllClear`: `RESERVED` and `BANNED` are both non-empty, and an empty phrase would fail loudly, not pass.
+- `false` Gap, `Test.Agent.Persona:TestBlock` relies on no row for its literal Ref: nothing in `src/` or `ci/` writes that key, and the class promises it writes nothing.
+- `false` Auditor, `DropRow` departs from `ForgetPerson`/`Fixture.Clean`: `ForgetPerson` refuses non-Ref owners, which these stray rows are by design.
+- `low` Blind, the `live demo-path` default deadline: environment, not this story. CI runs with 1200 s, the local 540 s default is documented for raising on a slow machine, and no `web/` file changed.
+- `low` Blind, the DW-678 bullet in `epics.md` has no blank line before it: cosmetic; a list item interrupts the paragraph in CommonMark. The file is the lead's harvest bookkeeping.
+- `low` Blind, "covers five findings" in Auto Run Result: the fix edits the spec under review.
+- `low` Auditor, the `epics.md` DW-678 bullet is not in the Spec Change Log: it is harvest bookkeeping, not a spec change, and the fix edits the spec.
+- `low` Auditor, the Tasks line says "AC 3 to AC 7" for `PersonaTurns`: the fix edits the spec's frozen task text.
+
 ## Spec Change Log
 
 - 2026-11-04, spec gate, orchestrator ruling on DW-664 (veto U-272): the MED `deferred:` item is removed, since DW-664 holds it; the ruling is in Design Notes. No frozen text changed.
@@ -238,7 +264,12 @@ mutation: AC 6, `IncidentManager.DiagnoseRequest` putting `Persona.Block(owner)`
 mutation: AC 7, "which" for "that" in the `agent.noCommands` sentence of `persona-command.json` -> `PersonaTurns:TestCommand` red.
 mutation: AC 7, `ReplyGuard.BANNED` gaining "i can't run commands" -> `PersonaTurns:TestCommand` red under all six presets (the guard strips the catalog sentence from the reply).
 mutation: AC 8, `ReplyGuard.BANNED` gaining "ahoy" -> `PersonaTurns:TestPirateStyle` red; "everything is fine" removed from `BANNED` -> `TestPirateStyle` and `TestStatus` red.
-mutation: AC 9, `Block` reading `Setting.Get` instead of `SettingsOps.Persona` -> `PersonaTurns:TestNextMessage` red.
+mutation: AC 9, `Block` reading `Setting.Get` instead of `SettingsOps.Persona` -> `PersonaTurns:TestNextMessage` red on both steps (code review, after the added Pirate turn: "kindfriend ... quotes the preset's text" and "professional ... holds no persona block", Triage and Chat requests; fresh stack, reverted, tree byte-identical).
+mutation (code review): AC 2, `Persona.Block`'s guard weakened to a length check plus `instance`/`eval` -> `PersonaBlock:TestBlockOwners` red on the 22-character `!` owner's stray row; reverted, tree byte-identical.
+
+(QA) No test file added: every AC 1-9 and every matrix row is already pinned by `Test.Agent.PersonaBlock` or `Test.Agent.PersonaTurns` with a demonstrated mutation. The QA stage re-ran `PersonaBlock` on slot A (9 of 9) and `test-ci-config.sh` (passes), and confirmed the Triage diff removes 0 lines, Chat's removes only the class-comment line, and the five protected files show no diff. AC 3 "every earlier line unchanged" is pinned by that diff command and not by a test, because a test-held copy of the old lines would turn red on any later epic's edit of the contended `Triage.cls`.
+mutation (QA): AC 3, "outcomes" changed to "results" in Chat's persona paragraph -> `PersonaBlock:TestParagraphs` red (three assertions); reverted, tree byte-identical.
+mutation (QA): AC 1, `Persona.BlockFor` writing no style line (`If entry.bends` made `If 0`) -> `PersonaBlock` `TestEachPreset`, `TestBlockFor` and `TestCustomLines` red; reverted, tree byte-identical.
 
 **Standing criterion:** every test added or changed passes on a fresh environment, in either order.
 

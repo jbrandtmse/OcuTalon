@@ -126,6 +126,7 @@ Method TestStatus()
 		Set ref = ..Watch(session)
 		Set ranAt = ##class(OcuTalon.Data.Time).NowUtc()
 		Set check = ##class(OcuTalon.Data.BackgroundCheck).RefIndexOpen(ref)
+		If '$IsObject(check) { Do $$$AssertTrue(0, preset_": the watch's row opens") Continue }
 		Set check.Result = "passed"
 		Set check.Finding = ""
 		Set check.LastRunAt = ranAt
@@ -233,13 +234,15 @@ Method TestNextMessage()
 	If '..PointKeys() Quit
 	Set session = ..Session("next")
 	If '..Save(session, "pirate", "next0") Quit
+	Set row = ..Ask(session, "persona-command", "pirate", .entries, "p", 1)
+	If '$IsObject(row) Quit
 	If '..Save(session, "kindfriend", "next1") Quit
 	Set row = ..Ask(session, "persona-command", "kindfriend", .entries, "a", 1)
 	If '$IsObject(row) Quit
 	If '..Save(session, "professional", "next2") Quit
 	Set row = ..Ask(session, "persona-command", "professional", .entries, "b", 1)
 	If '$IsObject(row) Quit
-	Do $$$AssertEquals(row.ReplyText, ##class(OcuTalon.Msg.Catalog).Render("agent.noCommands", "", "web"), "the second turn ran in the default voice")
+	Do $$$AssertEquals(row.ReplyText, ##class(OcuTalon.Msg.Catalog).Render("agent.noCommands", "", "web"), "the last turn's reply is the catalog sentence")
 }
 
 /// --- helpers ---

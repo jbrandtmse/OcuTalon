@@ -3940,6 +3940,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-04T14:04:16Z status=routed owner=burndown by=unattended note=inbox=U-272; a language-aware guard is its own story
 - 2026-11-04T16:25:32Z status=routed owner=burndown by=owner note=U-272 kept; until the language-aware guard lands the persona text says other-language replies have the model's own check only (Story 40.4)
 - 2026-11-04T17:48:31Z status=routed owner=burndown by=owner note=U-278 reworded the U-272 condition: the persona text says other-language replies are not filtered for all-clear phrases and the model is only instructed not to write one; Story 40.4 ships the two exact help texts
+- 2026-11-04T20:54:02Z occurrence=40-3-the-persona-reaches-chat-and-triage-as-a-data-block
 
 ### DW-669: No API route bounds its body: PUT /v1/persona stores language and custom of any size in the SetPersona message, with no allowance
 - source: spec-40-8-the-persona-s-web-routes.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -3950,3 +3951,28 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-40-3-the-persona-reaches-chat-and-triage-as-a-data-block.md | severity: low | fix-risk: low | footprint: in-epic
 - evidence: A linked turn opens the saved AI session (Bridge.Adapter.Agent): earlier user messages keep their Pirate blocks after Pirate to Professional; the mock cannot show it
 - 2026-11-04T20:33:32Z status=routed owner=40-7-evaluation-cases-for-the-persona by=harvest note=40.7 measures it with a real model (a turn after a persona change), or the release check tries it
+
+### DW-679: Under a non-Professional persona, frozen instruction lines meet the block unmeasured: Triage's own-message test (not quoted) vs quoted block lines in a user turn; 'plain English' lines vs the language line
+- source: spec-40-3-the-persona-reaches-chat-and-triage-as-a-data-block.md | severity: med | fix-risk: med | footprint: in-epic
+- evidence: Triage.cls says the user's own message is not quoted and reasons are in plain English; a user turn now carries > -quoted preset text and Reply in the language named. Real-model behaviour unmeasured (inference); spec 40.3 Design Notes lists both as 40.7 sweep risks.
+- 2026-11-04T20:54:02Z status=routed owner=40-7-evaluation-cases-for-the-persona by=cr note=measure user-turn and language cases under each preset; a red is a clarification on an existing instruction line
+
+### DW-680: Persona.BlockFor's language check is narrower than the writer's rule: U+2028/U+2029 and punctuation in a stored name reach the block unquoted
+- source: spec-40-3-the-persona-reaches-chat-and-triage-as-a-data-block.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: BlockFor refuses only *C characters; Input.Quoted treats U+2028/2029 as line breaks; SettingsOps.PersonaProblem (private) refuses both, and it is the only writer.
+- 2026-11-04T20:54:02Z status=wontfix-theoretical owner=40-3-the-persona-reaches-chat-and-triage-as-a-data-block by=cr note=real only if a second writer of person.*.persona.language bypasses SettingsOps.PersonaProblem
+
+### DW-681: SettingsOps.Persona reads preset, language and custom unlocked, so a turn rendered during a SetPersona save can see a mixed set and get no block for that one turn
+- source: spec-40-3-the-persona-reaches-chat-and-triage-as-a-data-block.md | severity: low | fix-risk: med | footprint: out-of-footprint
+- evidence: Persona() calls Stored() three times with no lock; e.g. new preset language with the old blank language gives BlockFor no block (fail-safe default voice, one turn).
+- 2026-11-04T20:54:02Z status=wontfix-accepted owner=40-3-the-persona-reaches-chat-and-triage-as-a-data-block by=cr note=reopen_if=a trace shows a turn sent during a save with a block from a mixed preset/language pair or no block where one was saved
+
+### DW-682: Agent.Input.Render can now throw if Setting.KeyIndexOpen faults inside Persona.Block (no try around the read)
+- source: spec-40-3-the-persona-reaches-chat-and-triage-as-a-data-block.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Block calls SettingsOps.Persona, whose Stored read has no guard of its own; spec 40.3 Design Notes decide no try: a DB fault is answered by Conversation's and Intake's handlers.
+- 2026-11-04T20:54:03Z status=by-design owner=40-3-the-persona-reaches-chat-and-triage-as-a-data-block by=cr note=spec-bound: Design Notes 'No try around the read in Block'
+
+### DW-683: AC 3's 'every earlier instruction line unchanged' is pinned by the review-time git diff command, not by a test
+- source: spec-40-3-the-persona-reaches-chat-and-triage-as-a-data-block.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: TestParagraphs checks only the old last line before each paragraph; a test-held copy of earlier lines would go red on any later epic's edit of contended Triage.cls (spec QA note); verified 0 removed instruction lines at review.
+- 2026-11-04T20:54:03Z status=by-design owner=40-3-the-persona-reaches-chat-and-triage-as-a-data-block by=cr note=spec-bound: QA note under Verification records why
