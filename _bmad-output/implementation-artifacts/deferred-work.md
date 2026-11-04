@@ -2763,6 +2763,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-03T18:26:01Z occurrence=0-14-a-start-that-recovers-through-the-merge-retry-passes-the-liv note=run_41688225535_iris(image)_shard_lane-b_GuideApi_TestRunAgain,TestOnlyTheMarkerChanges_head_9dd16cdc
 - 2026-11-03T19:58:41Z occurrence=0-14-a-start-that-recovers-through-the-merge-retry-passes-the-liv by=merge_gate note=CI run 41698083197 attempt 1, iris (image) shard:lane-b on OCT-epic0 3cd25ab0 (final head): GuideApi TestRunAgain failed; green on the rerun of the failed job
 - 2026-11-04T01:30:32Z occurrence=33-1-fix-the-step-2-contracts-in-the-spine by=fresh_check note=local_fresh_shard_lane-b_forward_e33s1f;story_touches_no_Web_class;rerun_below
+- 2026-11-04T04:29:11Z occurrence=10ce26ac by=merge_gate note=run 41769982647 attempt 1 shard:lane-b Test.Web.GuideApi TestOnlyTheMarkerChanges (feature head)
 
 ### DW-454: U-170's plain-English reason for an old held tool call reaches a person only through the decision live event (decision strip, rail decision row, trace); the approval card and notices do not show it: Live.Payload.Approval.reason stays empty, approval.result is {ref}, Core.Rule.Notice reads only the fallback reason
 - source: spec-30-3-an-approved-tool-call-runs-exactly-once-with-no-model.md | severity: med | fix-risk: med | footprint: out-of-footprint
@@ -2887,6 +2888,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-31T04:03:11Z owner=31-3-the-readme-leads-to-the-demo-and-the-launched-demo-is-measur by=burndown note=overflow (declined by Story 29.9's plan): not a test flake but a product gap: a web process cannot read the day's Usage rows (no SQL privilege), so its /state misses the counted spend StatusMonitor sees; a visitor arriving between the spend reaching the cap and the day being marked never gets the daily-cap banner live; a story that makes /state and StatusMonitor agree owns it; until then D1 stays under the one-rerun flake rule
 - 2026-11-03T15:21:47Z status=routed owner=burndown by=spec_gate note=flake_class_kept;declined_by_31.3_plan(fix_in_web/e2e-online/allowance/daily-cap.spec.ts_D1_racing_Core/StatusMonitor.cls:47-75,not_an_AC-named_case)
 - 2026-11-03T23:35:54Z status=routed owner=burndown by=burndown_gate note=U-254;first_daily_release_after_1.0.0;not_a_1.0.0_blocker
+- 2026-11-04T04:29:11Z occurrence=10ce26ac by=merge_gate note=run 41769982647 attempt 1 live:online-allowance D1 (feature head)
 
 ### DW-433: The CI mock's guide-watch scenario (ci/mock/scenarios/B/guide-watch.json) answers the guide's watch prompt with text only and calls no start_watch, so under the mock the guide's watch button starts no watch and makes no Orders check (UJ-1 step 2)
 - source: spec-29-4-sessions-stay-isolated-under-load.md | severity: med | fix-risk: med | footprint: out-of-footprint
@@ -3040,6 +3042,9 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-31T11:55:11Z status=routed owner=30-1-long-conversations-are-compacted-under-the-limit by=orchestrator note=measure first:_the_invalid_rate_after_5.12_and_the_retry's_cost_and_time;veto_item
 - 2026-11-02T07:40:01Z status=decision-pending owner=burndown by=spec_gate note=human=measure_diagnose's_invalid_rate_after_5.12_on_host_Decision_rows_and_Story_9.5's_real-key_release-candidate_run;build_the_one_retry_only_if_above_about_1_in_50(U-191's_kept_condition);this_unattended_run_has_neither_host_access_nor_a_real_key(30.1_spec_declined_it)
 - 2026-11-02T22:47:05Z status=decision-pending owner=burndown by=merge_gate note=action_item:epic-30-decision-item-1-dw-483-measure-decide-invalid-rate(owner;decided_unattended_U9:human-only_entry_to_action_items)
+- 2026-11-04T03:54:25Z occurrence=rc2 by=merge_gate note=6 of 156 invalid (3.8 percent) on rc2; shipments-epoch-time, see DW-657
+- 2026-11-04T09:10:40Z occurrence=rc3 by=merge_gate note=6 of 156 invalid (3.8 percent) on rc3
+- 2026-11-04T09:10:41Z occurrence=rc4 by=merge_gate note=4 of 156 invalid (2.6 percent) on rc4; rc2, rc3 and rc4 are all above U-191's about 1 in 50, so the wording did not cause it; rc4 rehearsal run 8 failed on a diagnose fallback invalid; one-retry story prepared for the owner, not started
 
 ### DW-492: No test pins AC2's floor: a model-written text property of a reply class capped at 32 characters or fewer would pass CI (TestDiagnosisLengths checks only prompt and class agreement)
 - source: spec-5-12-a-correct-diagnosis-is-never-refused-for-an-over-long-eviden.md | severity: low | fix-risk: low | footprint: in-story
@@ -3855,6 +3860,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: cycle-log-epic-0.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: CI run 41641201023 attempt 1, iris (shards-3) on OCT-epic0 c3d264c5: 105 of 106 floor specs passed; green on the unchanged rerun (attempt 2); Epic 0's head changes no web code
 - 2026-11-03T14:35:03Z status=routed owner=burndown by=burndown note=first daily release after 1.0.0
+- 2026-11-04T08:01:25Z occurrence=rc3-pr by=merge_gate note=live:floor web/e2e/floor/layout.spec.ts:512 timed out on the rc3 release PR, iris (shards-3), 106 passed; same timeout family
 
 ### DW-643: Data.Time.FromLocal picks between the two instants of the repeated fall-back hour depending on what the job converted just before (measured: 3 zones, 6 preceding-call orders), against its doc comment's 'first instant'; Test.Schedule.ReminderZone's New York case may pass only by call order
 - source: evidence/33-1-task0-zone-measurement.md (Story 33.1 Task 0) | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -3905,3 +3911,25 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: Contest Planner field watch 2026-11-03 (relay) | severity: med | fix-risk: low | footprint: in-footprint
 - evidence: Demo partner (PartnerTrigger) sends today's date as MM/DD/YYYY; until Nov 13 every value has day <= 12, so 11/03/2026 also parses as 11 March; Reformat.cls:62,67,88 ParseDate accepts the given format only, so the format choice is the model's
 - 2026-11-03T21:31:48Z status=routed owner=7-7-a-date-repair-that-could-read-either-way-names-its-evidence by=orchestrator note=Story 7.7 (veto U-248); first daily release after 1.0.0; not rc1 scope
+
+### DW-656: Eval: review the expected answers (the finding-*-item-disabled labels, mail-partner-notice) and any further Triage and Diagnosis wording, held to SM-1 90 and SM-2 80 on the real model, with no examples that echo eval cases
+- source: U-258 (owner, via the Contest Planner) | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: rc2 real-model trials with the fixed wording: items 82-86 percent, incidents 90 percent
+- 2026-11-04T03:54:25Z status=routed owner=burndown by=merge_gate note=first_daily_release_after_1.0.0; owner's override covers only the item gap
+
+### DW-657: Eval case shipments-epoch-time gets an invalid diagnosis reply, a fallback in nearly every attempt
+- source: U-258 follow-up (Contest Planner) | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: rc2 trials; see DW-483, which reads 6 of 156 (3.8 percent) on rc2
+- 2026-11-04T03:54:25Z status=routed owner=burndown by=merge_gate note=first_daily_release_after_1.0.0
+
+### DW-659: flake candidate: live:cards web/e2e/cards/incident-card.spec.ts:360 I7 (when the card compacts, focus moves from the removed footer button to the card) hit the 90 s test timeout
+- source: CI run 41782092223 attempt 1, iris (shards), feature 24e6e9e9 | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: 19 of 20 passed; no assertion failed; relative of DW-550 (same project, same timeout shape)
+- 2026-11-04T06:28:48Z status=routed owner=burndown by=merge_gate note=first_daily_release_after_1.0.0; confirm by the attempt 2 result
+- 2026-11-04T06:30:47Z status=routed owner=burndown by=merge_gate note=possible link, unproven: the job ran on a runner on the CI host whose unattended upgrade restarted a runner in the same window (shards-2 cancel, 06:15Z); attempt 2 decides
+- 2026-11-04T06:56:29Z occurrence=24e6e9e9 by=merge_gate note=passed on the one rerun (run 41782092223 attempt 2)
+
+### DW-660: Cut the release candidate with CI's Node version: the Mac's Node 26 and CI's Node 24 build a different 3rdpartylicenses.txt
+- source: U-264 (Contest Planner) | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: rc3 release PR: test-web-build AC6 saw a modified src/ocutalon/csp/3rdpartylicenses.txt
+- 2026-11-04T08:01:25Z status=routed owner=burndown by=merge_gate note=first_daily_release_after_1.0.0

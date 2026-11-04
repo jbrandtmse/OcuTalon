@@ -247,7 +247,7 @@ test.describe('the Telegram card is paused while Telegram is paused (Story 12.8)
    * page's code requests: the unpaired card has asked for one code before the 409, the page asks for none from its onset to its clear (the
    * reload included), and it asks again after the clear and shows the link to the bot.
    */
-  test('T1: a 409 of TelegramIn pauses the banner and the card, a reload keeps them, the resume clears them, and the token is nowhere', { tag: '@floor' }, async ({ page }) => {
+  test('T1: a 409 of TelegramIn pauses the banner and the card, a reload keeps them, the resume clears them, and the token is nowhere', { tag: ['@floor', '@ci-only'] }, async ({ page }) => {
     test.setTimeout(240_000);
     const was = await setTelegramIncluded(1);
     let saved = '';
@@ -425,7 +425,7 @@ test.describe('the Telegram card shows a fresh pairing code as a QR code (Story 
    * production's stores for every code the page was given. The matrix rows "A fresh code", "The code
    * runs out while the user types", "A past expiry, with focus on the link", "The server side of the codes" and "No code anywhere else".
    */
-  test('T3: the card shows the real code as a link and a QR code, refreshes it in place, and no code is stored anywhere', { tag: '@floor' }, async ({ page }) => {
+  test('T3: the card shows the real code as a link and a QR code, refreshes it in place, and no code is stored anywhere', { tag: ['@floor', '@ci-only'] }, async ({ page }) => {
     test.setTimeout(180_000);
     const was = await setTelegramIncluded(1);
     let saved = '';
@@ -713,7 +713,7 @@ test.describe('a valid code pairs the chat with the session (Story 12.4)', () =>
    * unpaired again with a fresh code, and the chat has been told. The matrix rows "The page pairs within 5 s", "A reload while paired" and
    * "Unpair from the card".
    */
-  test('T5: a valid code pairs the chat within 5 s, the card shows it and says so once, the chat is told, and Unpair undoes it', { tag: '@floor' }, async ({ page }) => {
+  test('T5: a valid code pairs the chat within 5 s, the card shows it and says so once, the chat is told, and Unpair undoes it', { tag: ['@floor', '@ci-only'] }, async ({ page }) => {
     test.setTimeout(150_000);
     const was = await setTelegramIncluded(1);
     let saved = '';
@@ -898,7 +898,7 @@ test.describe('bad codes, a bare start command and unpairing get polite answers 
    * has focus, a chat that moves to a session of its own makes the card show "Telegram unpaired" again with the focus where it was. The
    * matrix rows "A bad code changes no page", "/stop from the chat" and "Pairing elsewhere, focus untouched".
    */
-  test('T6: a bad code changes no page, /stop and a move show "Telegram unpaired" for 5 s with the focus kept or sent to the heading', { tag: '@floor' }, async ({ page }) => {
+  test('T6: a bad code changes no page, /stop and a move show "Telegram unpaired" for 5 s with the focus kept or sent to the heading', { tag: ['@floor', '@ci-only'] }, async ({ page }) => {
     test.setTimeout(180_000);
     const was = await setTelegramIncluded(1);
     let saved = '';
@@ -999,7 +999,7 @@ test.describe('chat and notifications in the paired Telegram chat (Story 12.6)',
    * data-key shows the mock's reply, and the chat has been sent the confirmation and that reply. The matrix row "The web chat shows the
    * Telegram turn".
    */
-  test('T7: a Telegram message shows "via Telegram" in the web chat, with its reply, and the chat gets the reply', { tag: '@floor' }, async ({ page }) => {
+  test('T7: a Telegram message shows "via Telegram" in the web chat, with its reply, and the chat gets the reply', { tag: ['@floor', '@ci-only'] }, async ({ page }) => {
     test.setTimeout(120_000);
     const was = await setTelegramIncluded(1);
     let saved = '';

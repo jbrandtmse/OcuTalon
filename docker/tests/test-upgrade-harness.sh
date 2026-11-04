@@ -24,6 +24,7 @@
 #     down after any failed phase, and only down after a refused build;
 #   - static: the harness holds no docker push, login, save or export, no compose config without --quiet and no inspect without
 #     --format;
+#   - real-previous: real_previous on a plain commit, a pull request's merge commit, the merge back and a merge of two product sides;
 #   - real-tree: plan on this checkout writes a dry-run record, a version that is not the candidate's and a phase with no tag exit 2;
 #   - storage-base: test-storage.sh judges this checkout's storage blocks against the pinned pre-release commit, so a non-appending
 #     storage change since that commit fails this rule (a gate on the real tree), and the storage phase accepts only that verdict;
@@ -594,18 +595,65 @@ b_static() { static_violations() { :; }; }
 
 run_plan() { env -u OCUTALON_RUN_TAG bash "$root/release/upgrade-harness.sh" plan "$@"; }
 
+# real_previous [<repository>]: the first of HEAD~1 and HEAD^2~1 that holds src/module.xml, or nothing. On a pull request's merge commit, and on main's
+# merge commit, HEAD~1 is main's old tip, which has no product; at the merge back into the integration branch HEAD~1 is right and HEAD^2~1 is that old tip.
+real_previous() {
+  local ref
+  for ref in 'HEAD~1' 'HEAD^2~1'; do
+    if git -C "${1:-.}" cat-file -e "$ref:src/module.xml" 2> /dev/null; then
+      echo "$ref"
+      return 0
+    fi
+  done
+  return 1
+}
+
+# gmerge <dir> <branch>: a merge commit of the branch.
+gmerge() { git -C "$1" -c user.name=t -c user.email=t@example.invalid merge -q --no-ff -m "merge $2" "$2"; }
+
+t_real_previous() {
+  local bad=0 d=$tmp/real-previous
+  ginit "$d"
+  git -C "$d" checkout -q -b old-main
+  gcommit "$d" "main's old tip" > /dev/null
+  git -C "$d" checkout -q -b feature
+  mkdir -p "$d/src"
+  echo '<Module/>' > "$d/src/module.xml"
+  git -C "$d" add src
+  gcommit "$d" product > /dev/null
+  gcommit "$d" candidate > /dev/null
+  eq "a plain commit: HEAD~1" "$(real_previous "$d")" 'HEAD~1'
+  git -C "$d" checkout -q -b pr old-main
+  gmerge "$d" feature
+  eq "a pull request's merge commit: HEAD^2~1" "$(real_previous "$d")" 'HEAD^2~1'
+  git -C "$d" checkout -q feature
+  gcommit "$d" "after the cut" > /dev/null
+  gmerge "$d" pr
+  eq "the merge back: HEAD~1, though main's side is the second parent" "$(real_previous "$d")" 'HEAD~1'
+  git -C "$d" checkout -q -b epic HEAD~1
+  gcommit "$d" "an epic" > /dev/null
+  gcommit "$d" "and more" > /dev/null
+  git -C "$d" checkout -q feature
+  gmerge "$d" epic
+  eq "both sides hold the product: HEAD~1 first" "$(real_previous "$d")" 'HEAD~1'
+  git -C "$d" checkout -q old-main
+  eq "no side holds the product: nothing" "$(real_previous "$d")" ''
+  [ "$bad" -eq 0 ]
+}
+
 t_real() {
-  local bad=0 rec=$tmp/real-record.md out
-  if git rev-parse --verify --quiet 'HEAD~1^{commit}' > /dev/null; then
-    out=$(run_plan --previous HEAD~1 --rc 1 --record "$rec" 2>&1)
-    eq "plan --previous HEAD~1 exits 0" "$?" 0
+  local bad=0 rec=$tmp/real-record.md out previous
+  previous=$(real_previous)
+  if [ -n "$previous" ]; then
+    out=$(run_plan --previous "$previous" --rc 1 --record "$rec" 2>&1)
+    eq "plan --previous $previous exits 0" "$?" 0
     has "plan ends with RESULT not run" "$out" "RESULT not run"
     has "the record is a dry run" "$(cat "$rec" 2> /dev/null)" "Mode: dry run"
     has "the record's result is not run" "$(cat "$rec" 2> /dev/null)" "Result: not run"
-    has "the record names the explicit previous build" "$(cat "$rec" 2> /dev/null)" "Previous: explicit HEAD~1 at "
+    has "the record names the explicit previous build" "$(cat "$rec" 2> /dev/null)" "Previous: explicit $previous at "
     has "the record's candidate is this checkout's version" "$(cat "$rec" 2> /dev/null)" "Candidate: $(manifest_version src/module.xml) at $(git rev-parse HEAD)"
   else
-    echo "  this checkout has no parent commit (a shallow clone): the plan with --previous HEAD~1 cannot run here"
+    echo "  this checkout has no parent commit that holds the product (a shallow clone): the plan with --previous cannot run here"
     bad=1
   fi
   out=$(run_plan --rc 1 --record "$tmp/default-record.md" 2>&1)
@@ -1113,6 +1161,7 @@ rule chat-request t_chat_request b_chat_request
 rule storage-compare t_storage b_storage
 rule record t_record b_record
 rule static t_static b_static
+rule real-previous t_real_previous
 rule real-tree t_real b_real
 rule storage-base t_storage_base b_storage_base
 rule record-contract t_record_contract b_record_contract
