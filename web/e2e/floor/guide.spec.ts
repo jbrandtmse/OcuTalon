@@ -7,6 +7,7 @@ import { publishFixtureEvent } from '../support/devices';
 import { awaitOrdersPolls, dropBreakFeed, dropUsage, GUIDE_MARKERS, holdOrdersFailures, ORDERS, ordersFailuresHeld, pressIncidents, publishWatchProgress, refreshGuide, releaseOrdersFailures, rowCount, seedBreakFeedRun, setIncident, settleBatch, startEpochAt } from '../support/guide';
 import { cleanFixtureRows, fixtureUser, publishCheck, publishReminder, seedApproval, seedCheck, seedIncident, seedReminder, seedTurns, setApprovalState, turnRows } from '../support/iris';
 import { helpSeen, stubTraces, TRACE_PAGE } from '../support/trace';
+import { blockLiveSocket } from '../support/socket';
 
 /**
  * Story 4.4, the demo guide and the Break the feed box on the floor stack, as the FLOOR user (M1 to M6; the floor stack is in demo mode).
@@ -45,6 +46,7 @@ const DONE =
   'Done. You saw an AI Hub agent read 50 failed orders and name the cause. Every decision, with its cost, and every step it took landed in Visual Trace, and the fix waited for your approval and was recorded in the audit log.';
 const MORE = 'More to try: simulate an incoming email in the simulated mailbox and see what OcuTalon decides. On your own install, ask it to watch any production.';
 const README = 'https://github.com/jbrandtmse/OcuTalon#readme';
+const BRIDGE_GUIDE = 'https://github.com/jbrandtmse/OcuTalon/blob/HEAD/docs/bridge-guide.md';
 const SENT = 'Sent. OcuTalon usually notices within a minute.';
 const SENDING = 'Sending 50 orders\u2026';
 const NOTICED = 'OcuTalon noticed failures in the Orders production';
@@ -573,6 +575,12 @@ test('M9: Open the trace, then the finish state: the exact lines, the run total,
     await expect(install).toHaveAttribute('rel', 'noopener noreferrer');
     await expect(install.locator('[aria-hidden="true"]')).toHaveText('\u2197');
     expect(await install.evaluate((node) => getComputedStyle(node).textDecorationLine), 'underlined').toContain('underline');
+    const bridge = finish.locator(`a[href="${BRIDGE_GUIDE}"]`);
+    await expect(bridge, 'the bridge link, after the install link').toHaveAccessibleName('Use the same bridge in your own production (opens in a new tab)');
+    await expect(bridge).toHaveAttribute('target', '_blank');
+    await expect(bridge).toHaveAttribute('rel', 'noopener noreferrer');
+    await expect(bridge.locator('[aria-hidden="true"]')).toHaveText('\u2197');
+    await expect(finish.locator('.finish-links a').last(), 'the bridge link is the last of the finish links').toHaveAttribute('href', BRIDGE_GUIDE);
     await expect(finish.getByRole('button', { name: 'Run again', exact: true })).toBeVisible();
     await expect(guideOf(page).locator('ol .step'), 'the step list stays').toHaveCount(5);
 
@@ -580,6 +588,31 @@ test('M9: Open the trace, then the finish state: the exact lines, the run total,
     await expect(breakOf(page)).toHaveClass(/button-attention/);
     expect(await breakOf(page).evaluate((node) => getComputedStyle(node).backgroundColor), 'in the attention colour').toBe(await tokenColor(page, '--button-attention-background'));
     expect((await announcedTexts(page)).slice(before).filter((text) => text.includes('Done') || text.includes('This run')), 'the finish is not announced').toEqual([]);
+
+    // In a short, narrow window the finish state wraps under the step row and takes the full width.
+    const normal = page.viewportSize()!;
+    try {
+      await page.setViewportSize({ width: 640, height: 360 });
+      const boxes = (): Promise<{ rowBottom: number; finishTop: number; finishWidth: number; mainWidth: number }> =>
+        guideOf(page).evaluate((guide) => {
+          const main = guide.querySelector('.main')!;
+          const style = getComputedStyle(main);
+          return {
+            rowBottom: guide.querySelector('.row1')!.getBoundingClientRect().bottom,
+            finishTop: guide.querySelector('.finish')!.getBoundingClientRect().top,
+            finishWidth: guide.querySelector('.finish')!.getBoundingClientRect().width,
+            mainWidth: main.clientWidth - parseFloat(style.paddingLeft) - parseFloat(style.paddingRight),
+          };
+        });
+      await expect.poll(async () => {
+        const laidOut = await boxes();
+        return laidOut.finishTop - laidOut.rowBottom;
+      }, { message: 'at 640x360 the finish starts below the step row' }).toBeGreaterThanOrEqual(-0.5);
+      const laid = await boxes();
+      expect(Math.abs(laid.finishWidth - laid.mainWidth), `and spans the width of main's content (${laid.finishWidth} of ${laid.mainWidth})`).toBeLessThanOrEqual(2);
+    } finally {
+      await page.setViewportSize(normal);
+    }
   } finally {
     await dropUsage(usage);
     await cleanFixtureRows(refs);
@@ -620,6 +653,7 @@ test('M10: Run again returns the prompt bar at step 3 with focus on the box\'s B
   const refs: string[] = [];
   const usage: string[] = [];
   try {
+    await blockLiveSocket(page);
     await stubTraces(page.context());
     await recordAnnouncements(page);
     await seedFinishingRun(page, user, refs, usage);
@@ -687,6 +721,7 @@ test('M14: Run again returns the prompt bar at step 2 with focus on its Send, no
   const refs: string[] = [];
   const usage: string[] = [];
   try {
+    await blockLiveSocket(page);
     await stubTraces(page.context());
     const reminder = await seedFinishingRun(page, user, refs, usage);
     const marked = await post(page.request, GUIDE_MARKERS, { marker: 'trace_opened' });
@@ -805,6 +840,7 @@ test('M13: a failed marker write changes nothing and is written again by the nex
   const { user } = fixtureUser(KIND);
   const refs: string[] = [];
   try {
+    await blockLiveSocket(page);
     await stubTraces(page.context());
     await helpSeen(page);
     await openFloor(page);
@@ -843,7 +879,7 @@ test('M13: a failed marker write changes nothing and is written again by the nex
     await expect(finish, 'and the finish replaces the prompt bar').toBeVisible({ timeout: CARD_MS });
 
     // No turn with a trace: no conversation link, and a run total with no usage reads zeros and names no model.
-    await expect(finish.getByRole('link'), 'only the install link').toHaveCount(1);
+    await expect(finish.getByRole('link'), 'only the install link and the bridge link').toHaveCount(2);
     await expect(finish.getByRole('link', { name: /^See the whole conversation/ })).toHaveCount(0);
     await expect(finish.locator('.run-total')).toHaveText('This run: 0 decisions \u00B7 0 tokens \u00B7 <$0.0001.');
 

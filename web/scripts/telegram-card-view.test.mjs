@@ -2,15 +2,20 @@
 // paused first, then not set up, then paired, then just unpaired (for JUST_UNPAIRED_MS after the pairing ended, UX-DR14, UX-DR56), then none
 // or unpaired. The browser tests T5 and T6 see the just-unpaired view only after an unpairing, so none of them notices the view coming ahead
 // of the paired or paused branch; this pins every pair of neighbours on the framework-free view, as it is imported.
+// It also pins when the card asks for a code (CodeSchedule, on the fake clock): the first request after an unpair goes out at once,
+// every other request keeps the 10 s spacing, a failure asks again 30 s later, a 409 stops the asking, and the card hands the schedule
+// its `paired` value before it starts asking (a source pin on telegram-card.ts).
 // Run with: node --test web/scripts/
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { describe, it } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const app = (...parts) => pathToFileURL(join(here, '..', 'src', 'app', ...parts)).href;
-const { JUST_UNPAIRED_MS, TELEGRAM_CARD_TEXTS, telegramCardView } = await import(app('rail', 'telegram-card', 'telegram-card-view.ts'));
+const { CODE_RETRY_MS, CODE_SPACING_MS, CodeSchedule, JUST_UNPAIRED_MS, TELEGRAM_CARD_TEXTS, telegramCardView } = await import(app('rail', 'telegram-card', 'telegram-card-view.ts'));
+const { fakeClock } = await import(pathToFileURL(join(here, 'fake-clock.mjs')).href);
 
 const NOW = 1_800_000_000_000;
 const format = { time: (iso) => iso };
@@ -84,5 +89,270 @@ describe('the order of the card\'s states', () => {
     const gone = telegram({ paired: false, displayName: '' });
     assert.equal(kind(gone, undefined, own()), 'unpaired');
     assert.equal(kind(gone, undefined, own({ justUnpaired: true })), 'just-unpaired');
+  });
+});
+
+/** A schedule on a fake clock, and a request that records when it went out and keeps the reply it was given. */
+function scheduled() {
+  const clock = fakeClock();
+  const schedule = new CodeSchedule({ setTimeout: (h, ms) => clock.setTimeout(h, ms), clearTimeout: (h) => clock.clearTimeout(h), now: () => clock.now });
+  const sent = [];
+  let reply;
+  let cancelled = 0;
+  const request = (given) => {
+    sent.push(clock.now);
+    reply = given;
+    return () => {
+      cancelled += 1;
+    };
+  };
+  return { clock, schedule, sent, request, reply: () => reply, cancelled: () => cancelled };
+}
+
+/** Starts an asking, lets its first request go out at the clock's time 0, and answers it with a code due at `due`. */
+function firstRequest(t, due = 600_000) {
+  t.schedule.paired(false);
+  const stop = t.schedule.start(t.request);
+  t.clock.advance(0);
+  t.reply().code(due);
+  return stop;
+}
+
+describe('when the card asks for a code', () => {
+  it('keeps a 10 s spacing and a 30 s retry', () => {
+    assert.equal(CODE_SPACING_MS, 10_000);
+    assert.equal(CODE_RETRY_MS, 30_000);
+  });
+
+  it('sends the first request ever at once', () => {
+    const t = scheduled();
+    t.schedule.paired(true);
+    t.schedule.start(t.request);
+    t.clock.advance(0);
+    assert.deepEqual(t.sent, [0]);
+  });
+
+  it('the first value grants nothing: a card whose first value is unpaired still waits out the spacing', () => {
+    const t = scheduled();
+    const stop = t.schedule.start(t.request);
+    t.clock.advance(0);
+    t.reply().code(600_000);
+    t.clock.advance(2_000);
+    stop();
+    t.schedule.paired(false);
+    t.schedule.start(t.request);
+    t.clock.advance(CODE_SPACING_MS - 2_000 - 1);
+    assert.deepEqual(t.sent, [0]);
+    t.clock.advance(1);
+    assert.deepEqual(t.sent, [0, CODE_SPACING_MS]);
+  });
+
+  it('after an unpair, the request goes out at once, even 2 s after the last one', () => {
+    const t = scheduled();
+    t.schedule.paired(false);
+    const stop = t.schedule.start(t.request);
+    t.clock.advance(0);
+    t.reply().code(600_000);
+    t.clock.advance(1_000);
+    stop();
+    t.schedule.paired(true);
+    t.clock.advance(1_000);
+    t.schedule.paired(false);
+    t.schedule.start(t.request);
+    assert.equal(t.clock.now, 2_000);
+    t.clock.advance(0);
+    assert.deepEqual(t.sent, [0, 2_000]);
+  });
+
+  it('an unpair long after the last request asks at once, and the request after it is spaced again', () => {
+    const t = scheduled();
+    const stop = firstRequest(t);
+    t.clock.advance(12_000);
+    stop();
+    t.schedule.paired(true);
+    t.schedule.paired(false);
+    t.schedule.start(t.request);
+    t.clock.advance(0);
+    assert.deepEqual(t.sent, [0, 12_000]);
+    t.reply().code(t.clock.now);
+    t.clock.advance(CODE_SPACING_MS - 1);
+    assert.deepEqual(t.sent, [0, 12_000]);
+    t.clock.advance(1);
+    assert.deepEqual(t.sent, [0, 12_000, 12_000 + CODE_SPACING_MS]);
+  });
+
+  it('a new round with no unpair waits until exactly 10 s after the last request', () => {
+    const t = scheduled();
+    const stop = firstRequest(t);
+    t.clock.advance(2_000);
+    stop();
+    t.schedule.start(t.request);
+    t.clock.advance(CODE_SPACING_MS - 2_000 - 1);
+    assert.deepEqual(t.sent, [0]);
+    t.clock.advance(1);
+    assert.deepEqual(t.sent, [0, CODE_SPACING_MS]);
+  });
+
+  it('after the exempt request, a code that is due at once waits until 10 s after it', () => {
+    const t = scheduled();
+    const stop = firstRequest(t);
+    t.clock.advance(2_000);
+    stop();
+    t.schedule.paired(true);
+    t.schedule.paired(false);
+    t.schedule.start(t.request);
+    t.clock.advance(0);
+    assert.deepEqual(t.sent, [0, 2_000]);
+    t.reply().code(t.clock.now);
+    t.clock.advance(CODE_SPACING_MS - 1);
+    assert.deepEqual(t.sent, [0, 2_000]);
+    t.clock.advance(1);
+    assert.deepEqual(t.sent, [0, 2_000, 2_000 + CODE_SPACING_MS]);
+  });
+
+  it('a request after an exempt one is spaced again even when a new round starts with no unpair', () => {
+    const t = scheduled();
+    const stop = firstRequest(t);
+    t.clock.advance(2_000);
+    stop();
+    t.schedule.paired(true);
+    t.schedule.paired(false);
+    const second = t.schedule.start(t.request);
+    t.clock.advance(0);
+    second();
+    t.schedule.start(t.request);
+    t.clock.advance(CODE_SPACING_MS - 1);
+    assert.deepEqual(t.sent, [0, 2_000]);
+    t.clock.advance(1);
+    assert.deepEqual(t.sent, [0, 2_000, 2_000 + CODE_SPACING_MS]);
+  });
+
+  it('a failure asks again exactly 30 000 ms later, the exempt request included', () => {
+    const t = scheduled();
+    const stop = firstRequest(t);
+    t.clock.advance(2_000);
+    stop();
+    t.schedule.paired(true);
+    t.schedule.paired(false);
+    t.schedule.start(t.request);
+    t.clock.advance(0);
+    assert.deepEqual(t.sent, [0, 2_000]);
+    t.reply().failed();
+    t.clock.advance(CODE_RETRY_MS - 1);
+    assert.deepEqual(t.sent, [0, 2_000]);
+    t.clock.advance(1);
+    assert.deepEqual(t.sent, [0, 2_000, 2_000 + CODE_RETRY_MS]);
+    t.reply().failed();
+    t.clock.advance(CODE_RETRY_MS);
+    assert.deepEqual(t.sent, [0, 2_000, 2_000 + CODE_RETRY_MS, 2_000 + 2 * CODE_RETRY_MS]);
+  });
+
+  it('a request that is never answered leaves no timer, so a refusal (no reply) ends the asking', () => {
+    const t = scheduled();
+    t.schedule.start(t.request);
+    t.clock.advance(0);
+    assert.equal(t.clock.pending, 0);
+    t.clock.advance(CODE_RETRY_MS * 10);
+    assert.deepEqual(t.sent, [0]);
+  });
+
+  it('gives one exemption for each unpair', () => {
+    const t = scheduled();
+    const stop = firstRequest(t);
+    t.clock.advance(1_000);
+    stop();
+    t.schedule.paired(true);
+    t.schedule.paired(false);
+    const second = t.schedule.start(t.request);
+    t.clock.advance(0);
+    assert.deepEqual(t.sent, [0, 1_000]);
+    t.clock.advance(1_000);
+    second();
+    t.schedule.paired(true);
+    t.schedule.paired(false);
+    t.schedule.start(t.request);
+    t.clock.advance(0);
+    assert.deepEqual(t.sent, [0, 1_000, 2_000]);
+  });
+
+  it('gives one exemption for two unpairs with no request in between', () => {
+    const t = scheduled();
+    const stop = firstRequest(t);
+    t.clock.advance(1_000);
+    stop();
+    t.schedule.paired(true);
+    t.schedule.paired(false);
+    t.schedule.paired(true);
+    t.schedule.paired(false);
+    const second = t.schedule.start(t.request);
+    t.clock.advance(0);
+    assert.deepEqual(t.sent, [0, 1_000]);
+    second();
+    t.schedule.start(t.request);
+    t.clock.advance(CODE_SPACING_MS - 1);
+    assert.deepEqual(t.sent, [0, 1_000]);
+    t.clock.advance(1);
+    assert.deepEqual(t.sent, [0, 1_000, 1_000 + CODE_SPACING_MS]);
+  });
+
+  it('asks again at the code\'s due time, and stop clears the timer and cancels the latest request', () => {
+    const t = scheduled();
+    const stop = firstRequest(t, 40_000);
+    assert.equal(t.clock.pending, 1);
+    t.clock.advance(39_999);
+    assert.deepEqual(t.sent, [0]);
+    t.clock.advance(1);
+    assert.deepEqual(t.sent, [0, 40_000]);
+    t.reply().code(100_000);
+    assert.equal(t.clock.pending, 1);
+    stop();
+    assert.equal(t.clock.pending, 0);
+    assert.equal(t.cancelled(), 1);
+    t.clock.advance(1_000_000);
+    assert.deepEqual(t.sent, [0, 40_000]);
+  });
+
+  it('ignores a reply that comes after stop', () => {
+    const t = scheduled();
+    const stop = firstRequest(t);
+    t.clock.advance(100);
+    const late = t.reply();
+    stop();
+    late.code(0);
+    late.failed();
+    assert.equal(t.clock.pending, 0);
+  });
+});
+
+describe('the card hands its schedule the pairing', () => {
+  const source = readFileSync(join(here, '..', 'src', 'app', 'rail', 'telegram-card', 'telegram-card.ts'), 'utf8');
+  const askingFrom = source.indexOf('// The asking:');
+  const askingTo = source.indexOf("// The countdown's tick", askingFrom);
+  const asking = askingFrom >= 0 && askingTo > askingFrom ? source.slice(askingFrom, askingTo) : '';
+
+  it('builds the schedule, and keeps no spacing of its own', () => {
+    assert.match(source, /new CodeSchedule\(/);
+    assert.doesNotMatch(source, /lastRequest|CODE_SPACING_MS|CODE_RETRY_MS/);
+  });
+
+  it('tells it the paired value inside the asking effect, untracked, before it starts asking', () => {
+    assert.ok(asking.length > 0, 'the asking effect is found');
+    const untrackedAt = asking.indexOf('untracked(');
+    const toldAt = asking.search(/this\.schedule\.paired\(this\.telegram\(\)\.paired\)/);
+    const emptyKeyAt = asking.indexOf("if (key === '')");
+    const askingAt = asking.indexOf('this.ask(');
+    assert.ok(untrackedAt >= 0 && toldAt > untrackedAt, 'the value is read untracked');
+    assert.match(asking, /untracked\(\(\) => \{\s*this\.schedule\.paired\(this\.telegram\(\)\.paired\);/, 'the call is the first statement, with no condition');
+    assert.ok(emptyKeyAt > toldAt, 'the schedule is told on every run, before the early returns');
+    assert.ok(askingAt > emptyKeyAt, 'the schedule is told before the asking starts');
+  });
+
+  it('a 409 shows the not-set-up view and returns without a reply, so the schedule stops asking', () => {
+    const errorFrom = source.indexOf('error: (error: unknown)');
+    const errorTo = source.indexOf('return () => request.unsubscribe();', errorFrom);
+    assert.ok(errorFrom >= 0 && errorTo > errorFrom, 'the error handler is found');
+    const errorBranch = source.slice(errorFrom, errorTo);
+    assert.match(errorBranch, /status === 409\) \{\s*this\.refusedAt\.set\(key\);\s*return;\s*\}\s*reply\.failed\(\);/);
+    assert.equal(errorBranch.match(/reply\./g)?.length, 1, 'the error handler replies only after the 409 branch');
   });
 });

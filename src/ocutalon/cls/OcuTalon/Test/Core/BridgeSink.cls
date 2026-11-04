@@ -31,6 +31,13 @@
 ///     AD-20, AD-31): budget.capped and a session's daily_cap fallback in decision.recorded send the daily-cap Notification to the open
 ///     sessions with activity, once a day each, never with the flag off; they run on Test.Core.BridgeSinkNoticeProbe, which records the
 ///     notices instead of sending them.
+///   - TestToolCallNoticeKinds, TestToolCallServerForm, TestToolCallInputsLine, TestToolCallNoticesOnlyForReplayableSessionRows,
+///     TestHeldBeforeUpdateSaysWhy, TestHeldReasonIsCatalogOnly, TestToolCallNoticeFailureIsLogged (Story 31.5, AD-31, AD-32, U-212,
+///     DW-454): a replayable tool_call request of a session sends its approval, answered and result notices beside the approval event
+///     (the key from the row's AnsweredAction and Result, the server form of the request when the ToolSource names an MCP server,
+///     the inputs on one line and at most 200 characters), a fix, a setting, an old held row and any other owner send none, an old
+///     held row's fallback Decision sends the one result notice with the bridge's reason (and the approval event carries it) or, for
+///     any other line, toolCall.failed with no reason, and a failed or throwing send is one warning; they run on the probe.
 /// DW-300: the check rows that the approval tests seed are due a day ahead (the Check helper asserts it), and Events counts only the type
 /// that a caller names, so that a heartbeat tick cannot run a row or add a check event in the middle of a test.
 /// Every row comes from Test.Data.Fixture, and each test removes its own rows by Ref. The events are read from the fixture
@@ -803,6 +810,267 @@ Method TestBudgetCappedBadInputsSendNothing()
 	Do $$$AssertEquals(..Notices(session), 0, "and nothing is sent")
 }
 
+/// A tool_call request of a session that the bridge can replay sends its notices, built from the row as read (Story 31.5, U-212). The
+/// key of an answer comes from AnsweredAction, not from the state (the row is already done), and each type publishes its approval event
+/// as before.
+Method TestToolCallNoticeKinds()
+{
+	Set session = ..Session("toolkinds")
+	Set ref = ..ToolRow(session, "pending")
+	Set answeredAt = "2030-01-01T10:05:00Z"
+	Do ..Fire(session, "approval.raised", ref)
+	Do $$$AssertEquals(..Calls(), 1, "approval.raised sends one notice")
+	Do ..ExpectNotice(1, session, ref, "approval", "toolCall.request", "inputs,tool", "raised")
+	Do $$$AssertEquals(..Slot(1, "tool")_"|"_..Slot(1, "inputs"), "zz_send|{""to"":""ops""}", "with the tool and its inputs")
+	Do $$$AssertEquals(..Events(session, "approval").%Size(), 1, "and publishes its approval event")
+
+	Do ..Change(ref, {"State": "done", "AnsweredAction": "approve", "AnsweredChannel": "phone", "AnsweredAt": (answeredAt)})
+	Do ..Fire(session, "approval.answered", ref)
+	Do ..ExpectNotice(2, session, ref, "answered", "answered.approved", "channel,time", "approved")
+	Do $$$AssertEquals(..Slot(2, "channel")_"|"_..Slot(2, "time"), "phone|"_answeredAt, "the channel and time of the answer, whatever the state")
+	Do ..Change(ref, {"State": "rejected", "AnsweredAction": "reject", "AnsweredChannel": "telegram"})
+	Do ..Fire(session, "approval.answered", ref)
+	Do ..ExpectNotice(3, session, ref, "answered", "answered.rejected", "channel,time", "rejected")
+	Do $$$AssertEquals(..Slot(3, "channel"), "telegram", "from the channel that answered")
+	Do ..Change(ref, {"AnsweredAction": ""})
+	Do ..Fire(session, "approval.answered", ref)
+	Do $$$AssertEquals(..Calls(), 3, "an answered event for a row with no action sends nothing")
+
+	Do ..Change(ref, {"State": "expired"})
+	Do ..Fire(session, "approval.expired", ref)
+	Do ..ExpectNotice(4, session, ref, "answered", "answered.expired", "time", "expired")
+	Do $$$AssertEquals(..Slot(4, "time"), "2030-01-02T09:00:00Z", "with the request's ExpiresAt")
+
+	Set finishedAt = "2030-01-01T10:06:00Z"
+	Set n = 4
+	For result = "done", "failed", "interrupted" {
+		Do ..Change(ref, {"State": "done", "Result": (result), "FinishedAt": (finishedAt)})
+		Do ..Fire(session, "approval.result", ref)
+		Set n = n + 1
+		Do ..ExpectNotice(n, session, ref, "result", $Select(result = "done": "toolCall.done", 1: "toolCall.failed"), "time,tool", "result "_result)
+		Do $$$AssertEquals(..Slot(n, "tool")_"|"_..Slot(n, "time"), "zz_send|"_finishedAt, "result "_result_": the tool and when it finished")
+	}
+	Do ..Change(ref, {"Result": ""})
+	Do ..Fire(session, "approval.result", ref)
+	Do ..Change(ref, {"Result": "done", "FinishedAt": ""})
+	Do ..Fire(session, "approval.result", ref)
+	Do $$$AssertEquals(..Calls(), n, "a result event for a row with no Result, or no FinishedAt, sends nothing")
+	Do ..Fire(session, "approval.cancelled", ref)
+	Do $$$AssertEquals(..Calls(), n, "approval.cancelled sends nothing")
+	Do $$$AssertEquals(..Events(session, "approval").%Size(), 1 + 3 + 1 + 3 + 2 + 1, "and every event published its approval event")
+	Do $$$AssertEquals(..Warnings(), 0, "none of it logs a warning")
+}
+
+/// U-212 (1): the request names the MCP server of the held call when the ToolSource does, in any case of the prefix and in the attach
+/// form; a class source and a bare prefix name none (toolCall.request, no server slot).
+Method TestToolCallServerForm()
+{
+	Set session = ..Session("toolserver")
+	Set n = 0
+	For source = "mcp:zzserver", "MCP:zzserver", "mcp:remote:@{config:AI.MCP.OcuTalon_zzdocs}", "OcuTalon.Test.Bridge.ZzReplayTool", "mcp:" {
+		Set server = $Case(source, "mcp:zzserver": "zzserver", "MCP:zzserver": "zzserver", "mcp:remote:@{config:AI.MCP.OcuTalon_zzdocs}": "zzdocs", : "")
+		Set ref = ..ToolRow(session, "pending", {"ToolSource": (source)})
+		Do ..Fire(session, "approval.raised", ref)
+		Set n = n + 1
+		Do ..ExpectNotice(n, session, ref, "approval", $Select(server '= "": "toolCall.requestOnServer", 1: "toolCall.request"), $Select(server '= "": "inputs,server,tool", 1: "inputs,tool"), source)
+		Do $$$AssertEquals(..Slot(n, "server"), server, "the source "_source_" names the server '"_server_"'")
+	}
+	Do $$$AssertEquals(..Calls(), 5, "one notice for each")
+}
+
+/// U-212 (2): the inputs are the bridge's redacted text on one line, at most 200 characters, ending with U+2026 when cut; a text of
+/// exactly 200 characters is unchanged, one of 201 is cut, the cap applies to the redacted text (a long secret that shrinks is not cut),
+/// and no inputs are {}.
+Method TestToolCallInputsLine()
+{
+	Set session = ..Session("toolinputs")
+	Set words = ""
+	For i = 1:1:100 Set words = words_"ab "
+	Set long = ..ToolRow(session, "pending", {"ToolArguments": ("{""to"":""ops"",""password"":""zz-secret"",""note"":"""_words_"""}")})
+	Do ..Fire(session, "approval.raised", long)
+	Set inputs = ..Slot(1, "inputs")
+	Do $$$AssertEquals($Length(inputs), 200, "a long text is cut to 200 characters")
+	Do $$$AssertEquals($Ascii(inputs, 200), 8230, "ending with U+2026")
+	Do $$$AssertTrue(inputs '[ "zz-secret", "and holds not the secret")
+	Do $$$AssertTrue(inputs [ "[redacted]", "which the bridge's redactor replaced")
+
+	Set lines = ..ToolRow(session, "pending", {"ToolArguments": ("{""a"":""x"","_$Char(10)_"  ""b"":""y""}")})
+	Set note = ""
+	For i = 1:1:64 Set note = note_"ab "
+	Set exact = "{""a"":"""_note_"""}"
+	Do $$$AssertEquals($Length(exact), 200, "the fixture text has 200 characters")
+	Set edge = ..ToolRow(session, "pending", {"ToolArguments": (exact)})
+	Set plain = ..ToolRow(session, "pending", {"ToolArguments": ("one"_$Char(10)_"two"_$Char(13,10)_$Char(9)_"three")})
+	Set none = ..ToolRow(session, "pending", {"ToolArguments": ""})
+	Set over = "{""a"":"""_note_"x""}"
+	Do $$$AssertEquals($Length(over), 201, "the fixture text one over the limit has 201 characters")
+	Set overRow = ..ToolRow(session, "pending", {"ToolArguments": (over)})
+	Set secret = ""
+	For i = 1:1:300 Set secret = secret_"z"
+	Set shrunk = ..ToolRow(session, "pending", {"ToolArguments": ("{""password"":"""_secret_"""}")})
+	Do ..Fire(session, "approval.raised", lines)
+	Do $$$AssertEquals(..Slot(2, "inputs"), "{""a"":""x"",""b"":""y""}", "a JSON text with line breaks is on one line")
+	Do ..Fire(session, "approval.raised", edge)
+	Do $$$AssertEquals(..Slot(3, "inputs"), exact, "a text of exactly 200 characters is unchanged")
+	Do ..Fire(session, "approval.raised", plain)
+	Do $$$AssertEquals(..Slot(4, "inputs"), "one two three", "line breaks and tabs in a plain text fold to single spaces")
+	Do ..Fire(session, "approval.raised", none)
+	Do $$$AssertEquals(..Slot(5, "inputs"), "{}", "no arguments give {}")
+	Do ..Fire(session, "approval.raised", overRow)
+	Do $$$AssertEquals(..Slot(6, "inputs"), $Extract(over, 1, 199)_$Char(8230), "a text one character over the limit is cut to 199 characters and U+2026")
+	Do ..Fire(session, "approval.raised", shrunk)
+	Set redacted = ##class(OcuTalon.Bridge.Redact).Text("{""password"":"""_secret_"""}")
+	Do $$$AssertEquals(..Slot(7, "inputs"), redacted, "the cap applies to the redacted text: a long secret that shrinks to [redacted] is not cut")
+	Do $$$AssertTrue(..Slot(7, "inputs") '[ $Char(8230), "and carries no cut mark")
+	Do $$$AssertTrue(..Slot(7, "inputs") [ "[redacted]", "but the redactor's mark")
+
+	Set mixed = ..ToolRow(session, "pending", {"ToolArguments": ("to ops"_$Char(10)_"password=zz-secret"_$Char(13,10)_words)})
+	Do ..Fire(session, "approval.raised", mixed)
+	Set inputs = ..Slot(8, "inputs")
+	Do $$$AssertTrue((inputs '[ $Char(10)) && (inputs '[ $Char(13)), "a plain text with line breaks, a secret and over 200 characters is on one line")
+	Do $$$AssertTrue((inputs '[ "zz-secret") && (inputs [ "[redacted]"), "with the secret redacted")
+	Do $$$AssertEquals($Length(inputs)_"|"_$Ascii(inputs, 200), "200|8230", "and cut to 200 characters ending with U+2026")
+}
+
+/// A request that is not a replayable tool_call of a session that exists sends no notice, though its approval event is published as
+/// before: a fix, a setting, a held call with an empty ToolSource or Runner, the owners instance, eval and a Ref with no session,
+/// and another session's request.
+Method TestToolCallNoticesOnlyForReplayableSessionRows()
+{
+	Set session = ..Session("toolonly")
+	Set other = ..Session("toolother")
+	Set noSession = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set fix = ##class(OcuTalon.Test.Data.Fixture).Approval(session, , "pending")
+	Set setting = ..ToolRow(session, "pending", {"Kind": "setting"})
+	Set noSource = ..ToolRow(session, "pending", {"ToolSource": ""})
+	Set noRunner = ..ToolRow(session, "pending", {"Runner": ""})
+	Set instance = ..ToolRow("instance", "pending")
+	Set eval = ..ToolRow("eval", "pending")
+	Set lost = ..ToolRow(noSession, "pending")
+	Set theirs = ..ToolRow(other, "pending")
+	Set ..Refs = ..Refs_","_fix
+	Do ..Change(fix, {"ToolSource": "OcuTalon.Test.Bridge.ZzReplayTool", "Runner": "ChatAgent", "ToolName": "zz_send"})
+	Set sent = 0
+	Set types = $ListBuild("approval.raised", "approval.answered", "approval.expired", "approval.cancelled", "approval.result")
+	For row = fix, setting, noSource, noRunner, theirs {
+		Do ..Change(row, {"AnsweredAction": "approve", "AnsweredChannel": "phone", "AnsweredAt": "2030-01-01T10:05:00Z", "Result": "done", "FinishedAt": "2030-01-01T10:06:00Z"})
+		Set position = 0
+		While $ListNext(types, position, type) {
+			Do ..Fire(session, type, row)
+		}
+	}
+	For owner = "instance", "eval", noSession {
+		Set row = $Case(owner, "instance": instance, "eval": eval, : lost)
+		Do ..Change(row, {"AnsweredAction": "approve", "AnsweredChannel": "phone", "AnsweredAt": "2030-01-01T10:05:00Z", "Result": "done", "FinishedAt": "2030-01-01T10:06:00Z"})
+		Set position = 0
+		While $ListNext(types, position, type) {
+			Do ..Fire(owner, type, row)
+		}
+	}
+	Do $$$AssertEquals(..Calls(), 0, "no notice was sent for any of them")
+	Do $$$AssertEquals(..Events(session, "approval").%Size(), 4 * 5, "while the session's own four requests published their approval events as before (the other session's is not its)")
+	Do $$$AssertEquals(..Warnings(), 0, "and nothing is logged")
+}
+
+/// DW-454: an approved call held before ToolSource and Runner existed is closed failed by Decide, and approval.result sends nothing for
+/// it. Its fallback Decision then sends the one result notice with the bridge's reason (DecisionRef set, no buttons), and the approval
+/// event carries that reason. An empty reason, or a row that is not failed, sends nothing.
+Method TestHeldBeforeUpdateSaysWhy()
+{
+	Set session = ..Session("toolheld")
+	Set sentence = $Parameter("OcuTalon.Bridge.Process.Decide", "HELDBEFOREUPDATE")
+	Set finishedAt = "2030-01-01T10:06:00Z"
+	Set fields = {"ToolSource": "", "Result": "failed", "FinishedAt": (finishedAt)}
+	For variant = "source", "runner" {
+		Kill ^OcuTalonTest("BridgeSinkNotice")
+		Set row = ..ToolRow(session, "failed", $Select(variant = "source": fields, 1: {"Runner": "", "Result": "failed", "FinishedAt": (finishedAt)}))
+		Set decision = ##class(OcuTalon.Test.Data.Fixture).Decision(session, "tool", finishedAt, {"ItemId": (row), "Fallback": 1, "FallbackReason": "error", "Reasons": (sentence)})
+		Set ..Refs = ..Refs_","_decision
+		Set before = ..Events(session, "approval").%Size()
+		Do ..Fire(session, "approval.result", row)
+		Do $$$AssertEquals(..Calls(), 0, variant_": approval.result sends nothing for the old held row")
+		Do $$$AssertEquals(..Events(session, "approval").%Size(), before + 1, variant_": its approval event is published as before")
+		Do $$$AssertStatusOK(..NoticeSink("decision.recorded", session, {"ref": (decision)}), variant_": decision.recorded: OnEvent returns OK")
+		Do $$$AssertEquals(..Calls(), 1, variant_": exactly one notice is sent")
+		Do ..ExpectNotice(1, session, row, "result", "toolCall.failedWithReason", "reason,tool", variant, decision)
+		Do $$$AssertEquals(..Slot(1, "tool")_"|"_..Slot(1, "reason"), "zz_send|"_sentence, variant_": with the tool and the bridge's sentence")
+		Set events = ..Events(session, "approval")
+		Do $$$AssertEquals(events.%Size(), before + 2, variant_": one more approval event is published")
+		Set payload = events.%Get(events.%Size() - 1).payload
+		Do $$$AssertEquals(payload.ref_"|"_payload.state_"|"_payload.reason, row_"|failed|"_sentence, variant_": for the request, failed, with the reason")
+		Do $$$AssertEquals(events.%Get(events.%Size() - 2).payload.reason, "", variant_": the result event had none")
+	}
+
+	Kill ^OcuTalonTest("BridgeSinkNotice")
+	Set before = ..Events(session, "approval").%Size()
+	For case = "empty", "notFailed", "replayable", "plain", "decide", "fix", "noSession" {
+		Set owner = $Select(case = "noSession": ##class(OcuTalon.Bridge.Ids).NewRef(), 1: session)
+		Set row = $Case(case, "notFailed": ..ToolRow(owner, "approved", {"ToolSource": ""}), "replayable": ..ToolRow(owner, "failed", {"Result": "failed", "FinishedAt": (finishedAt)}), "fix": ..ToolRow(owner, "failed", {"Kind": "fix", "ToolSource": "", "Result": "failed", "FinishedAt": (finishedAt)}), : ..ToolRow(owner, "failed", fields))
+		Set decision = ##class(OcuTalon.Test.Data.Fixture).Decision(owner, $Select(case = "decide": "decide", 1: "tool"), finishedAt, {"ItemId": (row), "Fallback": ($Select(case = "plain": 0, 1: 1)), "Reasons": ($Select(case = "empty": "", 1: sentence))})
+		Set ..Refs = ..Refs_","_decision
+		Do $$$AssertStatusOK(..NoticeSink("decision.recorded", owner, {"ref": (decision)}), case_": a decision that does not describe an old held failure: OnEvent returns OK")
+	}
+	Do $$$AssertEquals(..Calls(), 0, "no reason, a row that is not failed, a replayable row, no fallback, another decision kind, a fix row and an owner with no session send nothing")
+	Do $$$AssertEquals(..Events(session, "approval").%Size(), before, "and publish no approval event")
+	Do $$$AssertEquals(..Warnings(), 0, "and log nothing")
+}
+
+/// U-212 (3): a reason in a notice is only ever one of the bridge's, never raw error text. A fallback Decision whose first Reasons line
+/// is raw error text sends toolCall.failed with the tool and the time only, and publishes no approval event.
+Method TestHeldReasonIsCatalogOnly()
+{
+	Set session = ..Session("toolraw")
+	Set raw = "ERROR #5002: ObjectScript error: <UNDEFINED>zRun+3^Zz.Tool"
+	Set finishedAt = "2030-01-01T10:06:00Z"
+	Set row = ..ToolRow(session, "failed", {"ToolSource": "", "Result": "failed", "FinishedAt": (finishedAt)})
+	Set decision = ##class(OcuTalon.Test.Data.Fixture).Decision(session, "tool", finishedAt, {"ItemId": (row), "Fallback": 1, "Reasons": (raw_$Char(10)_"second line")})
+	Set ..Refs = ..Refs_","_decision
+	Do $$$AssertStatusOK(..NoticeSink("decision.recorded", session, {"ref": (decision)}), "decision.recorded: OnEvent returns OK")
+	Do $$$AssertEquals(..Calls(), 1, "one notice is sent")
+	Do ..ExpectNotice(1, session, row, "result", "toolCall.failed", "time,tool", "raw reason", decision)
+	Do $$$AssertEquals(..Slot(1, "tool")_"|"_..Slot(1, "time"), "zz_send|"_finishedAt, "with the tool and when it finished")
+	Do $$$AssertTrue(..NoticeCall(1, "slots") '[ "ERROR", "no slot holds the raw text")
+	Do $$$AssertEquals(..Events(session, "approval").%Size(), 0, "and no approval event is published")
+	Do $$$AssertEquals(..Holding("ERROR #5002", "approval"), 0, "so no approval payload holds the raw text")
+}
+
+/// A notice that cannot be sent is one warning that names the event and the request, from a failed status and from a throw alike, for a
+/// tool call's request and for an old held call's reason. OnEvent still returns OK and the approval event is still published.
+Method TestToolCallNoticeFailureIsLogged()
+{
+	Set session = ..Session("toolfail")
+	Set ref = ..ToolRow(session, "pending")
+	Set count = 0
+	For mode = "failNotice", "throwNotice" {
+		Kill ^OcuTalonTest("BridgeSinkNotice")
+		Set ^OcuTalonTest("BridgeSinkNotice", mode) = 1
+		Set mark = ..LastLog()
+		Do $$$AssertStatusOK(..NoticeSink("approval.raised", session, {"ref": (ref)}), mode_": OnEvent returns OK")
+		Set found = ##class(OcuTalon.Test.Core.Observe).Warnings(mark, .text, "ToolNotice", ##class(OcuTalon.Core.BridgeSink).#ERRORTOOLNOTICE)
+		Do $$$AssertEquals(found, 1, mode_": one warning: "_text)
+		Do $$$AssertTrue($Find(text, "approval.raised") && $Find(text, ref), mode_": it names the event and the request")
+		Set count = count + 1
+		Do $$$AssertEquals(..Events(session, "approval").%Size(), count, mode_": the approval event is still published")
+	}
+
+	Set sentence = $Parameter("OcuTalon.Bridge.Process.Decide", "HELDBEFOREUPDATE")
+	Set finishedAt = "2030-01-01T10:06:00Z"
+	Set held = ..ToolRow(session, "failed", {"ToolSource": "", "Result": "failed", "FinishedAt": (finishedAt)})
+	Set decision = ##class(OcuTalon.Test.Data.Fixture).Decision(session, "tool", finishedAt, {"ItemId": (held), "Fallback": 1, "Reasons": (sentence)})
+	Set ..Refs = ..Refs_","_decision
+	For mode = "failNotice", "throwNotice" {
+		Kill ^OcuTalonTest("BridgeSinkNotice")
+		Set ^OcuTalonTest("BridgeSinkNotice", mode) = 1
+		Set mark = ..LastLog()
+		Set before = ..Events(session, "approval").%Size()
+		Do $$$AssertStatusOK(..NoticeSink("decision.recorded", session, {"ref": (decision)}), "held "_mode_": OnEvent returns OK")
+		Set found = ##class(OcuTalon.Test.Core.Observe).Warnings(mark, .text, "HeldNotice", ##class(OcuTalon.Core.BridgeSink).#ERRORTOOLNOTICE)
+		Do $$$AssertEquals(found, 1, "held "_mode_": one warning: "_text)
+		Do $$$AssertTrue($Find(text, "decision.recorded") && $Find(text, held), "held "_mode_": it names the event and the request")
+		Do $$$AssertEquals(..Events(session, "approval").%Size(), before + 1, "held "_mode_": the reason event is still published")
+	}
+}
+
 /// --- helpers ---
 /// A fixture session, recorded for the clean-up.
 Method Session(name As %String) As %String [ Private ]
@@ -820,6 +1088,62 @@ Method Visitor(name As %String) As %String [ Private ]
 	Set row.ResumeHash = ##class(OcuTalon.Data.Session).Hash("zzsink"_..Number_name)
 	Do $$$AssertStatusOK(row.%Save(), "the session "_name_" is open")
 	Quit ref
+}
+
+/// A tool_call request of the owner that the bridge can replay (tool zz_send with the arguments {"to":"ops"}, a class as its ToolSource and a
+/// runner), recorded for the clean-up; fields, an object of property names and values, is set after the defaults.
+Method ToolRow(owner As %String, state As %String, fields As %DynamicObject = "") As %String [ Private ]
+{
+	Set row = {"Kind": "tool_call", "ToolName": "zz_send", "ToolArguments": ("{""to"":""ops""}"), "ToolSource": "OcuTalon.Test.Bridge.ZzReplayTool", "Runner": "ChatAgent", "DryRun": ""}
+	If $IsObject(fields) {
+		Set iterator = fields.%GetIterator()
+		While iterator.%GetNext(.key, .value) {
+			Do row.%Set(key, value)
+		}
+	}
+	Set ref = ##class(OcuTalon.Test.Data.Fixture).Approval(owner, , state, , row)
+	Set ..Refs = ..Refs_$Select(..Refs = "": "", 1: ",")_ref
+	Quit ref
+}
+
+/// Sets the properties of the request's row (an object of names and values) and saves it.
+Method Change(ref As %String, fields As %DynamicObject) [ Private ]
+{
+	Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(ref)
+	Set iterator = fields.%GetIterator()
+	While iterator.%GetNext(.key, .value) {
+		Set $Property(row, key) = value
+	}
+	Do $$$AssertStatusOK(row.%Save(), "the request is changed")
+}
+
+/// OnEvent of the probe for the approval.* type of the request, which must return OK.
+Method Fire(owner As %String, type As %String, ref As %String) [ Private ]
+{
+	Do $$$AssertStatusOK(..NoticeSink(type, owner, {"ref": (ref)}), type_": OnEvent returns OK")
+}
+
+/// The number of notices that the probe recorded.
+Method Calls() As %Integer [ Private ]
+{
+	Quit +$Get(^OcuTalonTest("BridgeSinkNotice", "calls"))
+}
+
+/// A slot of a recorded notice.
+Method Slot(n As %Integer, name As %String) As %String [ Private ]
+{
+	Set slots = ..NoticeCall(n, "slots")
+	Quit $Select(slots = "": "", 1: {}.%FromJSON(slots).%Get(name))
+}
+
+/// Checks the recorded notice n: it is for the session and the request, of the kind and with the key, has exactly the slots (names,
+/// comma-separated and sorted), no IncidentRef and the DecisionRef given ("" for none).
+Method ExpectNotice(n As %Integer, session As %String, ref As %String, kind As %String, key As %String, slotNames As %String, label As %String, decisionRef As %String = "") [ Private ]
+{
+	Do $$$AssertEquals(..NoticeCall(n, "sessionRef")_"|"_..NoticeCall(n, "approvalRef")_"|"_..NoticeCall(n, "incidentRef"), session_"|"_ref_"|", label_": for the session and the request, with no incident")
+	Do $$$AssertEquals(..NoticeCall(n, "kind")_"|"_..NoticeCall(n, "catalogKey"), kind_"|"_key, label_": of kind "_kind_" with the key "_key)
+	Do $$$AssertEquals($Select(..NoticeCall(n, "slots") = "": "<no notice>", 1: ..Keys({}.%FromJSON(..NoticeCall(n, "slots")))), slotNames, label_": with the slots "_slotNames)
+	Do $$$AssertEquals(..NoticeCall(n, "decisionRef"), decisionRef, label_": and "_$Select(decisionRef = "": "no decision", 1: "the decision's Ref"))
 }
 
 /// OnEvent of the sink that records its notices (Test.Core.BridgeSinkNoticeProbe).
@@ -897,9 +1221,14 @@ Method Check(session As %String, namespace As %String, production As %String) As
 	Quit ref
 }
 
-/// The number of events of any stream whose payload holds the text.
-Method Holding(text As %String) As %Integer [ Private ]
+/// The number of events of any stream whose payload holds the text; with a type, only the events of that type.
+Method Holding(text As %String, type As %String = "") As %Integer [ Private ]
 {
+	If type '= "" {
+		Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Live.Event WHERE Payload [ ? AND Type = ?", text, type)
+		Do result.%Next()
+		Quit +result.%GetData(1)
+	}
 	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Live.Event WHERE Payload [ ?", text)
 	Do result.%Next()
 	Quit +result.%GetData(1)

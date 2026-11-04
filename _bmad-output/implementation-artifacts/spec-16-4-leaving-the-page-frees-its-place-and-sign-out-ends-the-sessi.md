@@ -88,7 +88,7 @@ deferred: []
     5. the row's `ResumeHash` is set to "".
   - It answers `Ok 1, "ended"`, or `Ok 0, "failed"` after trying every step. A session with no row answers `Ok 0, "no_session"`. A repeat changes nothing and answers `ended`.
   - It never edits `Unlink`, `Pairing.cls`, `ReminderOps`, `Watch.Ops` or `Bridge.Approval`.
-- **Closed page (AC 2).** Nothing new runs when a CSP session ends: no `OnTimeout`, `OnEndSession` or `OnLogout` callback, and no task.
+- **Closed page (AC 2).** Nothing new runs when a CSP session ends: no product class defines `OnTimeout` or `OnEndSession`, there is no task, and `OnLogout` is defined only in `Web.SessionEvents`, runs at a sign-out only, and changes nothing but the local install's sign-out mark [AMENDED 2026-11-02, Story 31.1, U-209 (veto kept by the Contest Planner for the owner, inbox 2026-11-02T00:43:58Z#633): was "no `OnTimeout`, `OnEndSession` or `OnLogout` callback" / "it has no `OnLogout` and none must be added". `OnLogout` does not run on a closed page, at the idle cap or on a timeout, so AD-4's "signing out ends only the CSP session" still holds; `Test.Web.LeavingThePage` `TestNoProductClassEndsASessionOnTimeout` pins the narrowed rule and `Test.Web.SessionEvents` `TestSignOutMark` pins that the epoch and every Session row field stay unchanged and that nothing is set on the online demo].
 - **Real paths (DW-291, AD-29).** The tests cancel reminders through the real `ReminderOps`, stop watches through the real `WatchOps` (Story 5.1 has merged) and cancel approvals through the real `Approval.Cancel`. There is no test double. Telegram cases are `notBuilt(..., '31.3')`.
 - **Test discipline (Stories 16.1 to 16.8):**
   - every context and curl jar ends with the group sign-out;
@@ -178,7 +178,7 @@ Where each row runs:
 - `src/ocutalon/cls/OcuTalon/Data/Session.cls`: `Epoch` :30, set in `NewRow` :100; `ResumeHash` :41 (unique; empty on local rows); `CspSessionId` :44.
 - `src/ocutalon/cls/OcuTalon/Web/SessionEvents.cls`:
   - `RESUMECOOKIE` :26; `AttachVisitor` :58-94; the `SetCookie` :91; `CookieExpiry` :110-117;
-  - it has no `OnLogout` and none must be added.
+  - its one `OnLogout` (Story 31.1) only raises the local install's sign-out mark and wakes the session's socket; no other callback may be added [AMENDED 2026-11-02, Story 31.1, U-209: was "it has no `OnLogout` and none must be added"].
 - `src/ocutalon/cls/OcuTalon/Web/Public/Shell.cls`: `REFUSALKEY` :27, the precedent for a public key; `RedirectUrl` :142-152 drops `since`.
 - `src/ocutalon/cls/OcuTalon/Web/Public/Splash.cls`:
   - the class doc :1-18; `RESETNOTICE` and `RESTARTNOTICE` :57-62;
@@ -433,6 +433,8 @@ Rejected:
 - 2026-10-29, rework iteration 1 (trigger ci, run 40866408272 on 0af9742): two [CI] items under Tasks & Acceptance (the image job's timeout, DW-220; L5's navigation race).
 
 - 2026-10-29, lead spec gate: the `(once)` `shard lane-a` run is split into `--part 1/3` to `3/3` (70 classes; 40 lane-b classes took 587 s in one call, so one call cannot hold the whole shard).
+
+- 2026-11-02, lead (runner C, Epic 31): U-209 applied (veto kept, the Contest Planner for the owner, 2026-11-02T00:43:58Z#633). The closed-page boundary (AC 2) and the `Web/SessionEvents.cls` code-map line are narrowed with `[AMENDED ...]` markers: no product class defines `OnTimeout` or `OnEndSession`; `OnLogout` only in `Web.SessionEvents`, changing nothing but the local install's sign-out mark. AC 2's guarantee and AD-4 are unchanged.
 
 ## Review Triage Log
 

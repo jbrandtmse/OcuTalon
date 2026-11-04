@@ -103,12 +103,12 @@ Content that didn't come from the user (for example a simulated email, or a fail
 
 - It is decided in a fresh session as untrusted.
 - In such a turn, and in any turn that a tool result that isn't trusted output has tainted, only safe read-only tools run. Any other call is denied, nothing runs, and no approval request is raised.
-- Such content can lead only to read-only checks, a notification to the user or an item saved for the digest.
+- Such content can lead only to read-only checks, a notification to the user, an item saved for the digest or, for a failed message, a proposed fix that waits for a person's approval.
 - Quarantine: a tainted turn's AI session isn't kept, and the next turn starts fresh from a recap that code writes.
 
 Each risky action is one approval request, held as one IRIS Workflow task:
 
-- It is fixed to exact targets and shows its dry run (a fix) or the exact call (a tool call).
+- It is fixed to exact targets and shows its dry run (a fix), or the tool, its MCP server when it has one, and its inputs through the redactor, cut to 200 characters, with the full call kept in the approval record (a tool call).
 - The first answer wins.
 - It is re-checked before acting: the row must still be approved and unexpired, the service user must hold the kind's resources, and the kind runs its own re-check.
 - It expires after 24 hours.
@@ -131,7 +131,7 @@ The audit log has one writer, the IRIS audit log, source `OcuTalon`. The types a
 - `MCP`: a server added or removed;
 - `Tool`: a tool's classification.
 
-Every entry carries its time (the audit log's own timestamp), the IRIS user who acted or answered, the session and the channel. A redactor removes every key, access token, password and Telegram identity, and a sensitive setting's values are blanked. Pairing, MCP and Tool entries are written only by the features that pair a chat, add or remove an MCP server, or classify an MCP tool, so a release without those features writes none of them.
+Every entry carries its time (the audit log's own timestamp), the IRIS user who acted or answered, the session and the channel. A redactor removes keys, access tokens, passwords and Telegram identities by their names and shapes, and a sensitive setting's values are blanked. Pairing, MCP and Tool entries are written only by the features that pair a chat, add or remove an MCP server, or classify an MCP tool, so a release without those features writes none of them.
 
 Roles and accounts:
 
@@ -146,14 +146,14 @@ Roles and accounts:
 
 Storage:
 
-- All data stays in OcuTalon's own IRIS databases: code, data (messages and Interoperability state), private, and a small public database (the sign-in page, the public status and the public settings only).
+- All data stays in OcuTalon's own IRIS databases: code, data (messages and Interoperability state), private, and a small public database (the sign-in page, the public status and the public settings only). Audit entries go to the instance's own audit log.
 - Private records go to the private database through global mappings: conversations, sessions, decisions, incidents and AI sessions. A start check fails if one would land elsewhere.
 - On an IPM install, OCUTALON also maps IPM's repository definitions (the globals `^IPM.Repo.Definition*`) from the namespace where the first install command ran, as they are, so the two namespaces share one list of repositories; uninstalling OcuTalon removes only that mapping.
 
 Data leaves the instance only:
 
-- In model requests to the configured provider (Anthropic; Claude Haiku 5.5 by default). A request carries the agent's fixed instructions, the local time, the user's message or the arriving item (quoted as data), the conversation's history or a recap written by code, the tool definitions and the tool results. For a diagnosis, the results are the failed messages, the event-log rows and the item settings, with credential settings left out and every value taken from the watched production passed through the redactor.
-- In messages on configured channels: OcuTalon's own web page, which IRIS serves to signed-in users, and, on an install with a Telegram bot token, the chat paired with a session, through the Telegram Bot API (its notices, reminders and approval requests, and the answers to them).
+- In model requests to the configured provider (Anthropic; Claude Haiku 5.5 by default). A request carries the agent's fixed instructions, the local time, the user's message or the arriving item (quoted as data), the conversation's history or a recap written by code, the tool definitions and the tool results. For a diagnosis, the results are the failed messages, the message headers of their trace, the event-log rows and the item settings, with credential settings left out and every value taken from the watched production passed through the redactor.
+- In messages on configured channels: OcuTalon's own web page, which IRIS serves to signed-in users, and, on an install with a Telegram bot token, the chat paired with a session, through the Telegram Bot API (its chat replies, notices, reminders and approval requests, and the answers to them).
 - In calls to configured MCP servers, which this release can't make.
 
 Model keys and bot tokens come only from environment variables. They are never stored in IRIS or shown. OcuTalon reports only whether a key is present.
@@ -172,7 +172,7 @@ Retention, by three daily tasks at 03:00 instance time:
 - live events after 24 hours;
 - AI sessions that no conversation points to after a day.
 
-The day counts are task settings, which an admin can change in the Task Manager. The chat history and the session records stay in the private database, and no scheduled purge removes them. Audit entries follow the instance's own audit retention. OcuTalon never changes the instance's auditing, and warns at start when auditing is off.
+The 7-day and 90-day counts are task settings, which an admin can change in the Task Manager. The chat history and the session records stay in the private database, and no scheduled purge removes them. Audit entries follow the instance's own audit retention. OcuTalon never changes the instance's auditing, and warns at start when auditing is off.
 
 ## MCP tools
 
@@ -184,14 +184,14 @@ This release can't connect to MCP servers. When a release adds MCP support, thes
 - Tools are identified by server and name and never take a built-in tool's classification.
 - A changed description or input schema makes a tool unclassified again. MCP annotations such as `readOnlyHint` are ignored.
 - An MCP tool that runs commands must be classified risky.
-- Every call passes the gate, an approval request when needed (showing the exact call), an audit entry (read-only calls included) and an agent step.
+- Every call passes the gate, an approval request when needed (showing the tool, its server and its inputs through the redactor, cut to 200 characters, with the full call kept in the approval record), an audit entry (read-only calls included) and an agent step.
 - Results are untrusted content.
 
 ## Online demo
 
 The protections:
 
-- Isolated sessions: each visitor sees only their own chat, decisions and approvals.
+- Isolated sessions: on the OcuTalon page, each visitor sees only their own chat, decisions and approvals.
 - A per-session message allowance, a public setting shown on the splash: 50 messages an hour by default.
 - 20 simulated incoming emails per session per hour.
 - 5 new sessions per client address per hour.
@@ -200,7 +200,7 @@ The protections:
 - Public accounts can't change their own passwords: a password-validation routine, a proxy that admits only the sign-in fields, and the probe's sign-in check.
 - The IRIS container has no general internet. Model traffic, and Telegram and allow-listed MCP traffic when the demo has them, leave only through an outbound gateway that holds the real model key and, when the demo has a bot, its token. The demo's IRIS holds only dummy values.
 - Only the Orders production can be watched.
-- OcuTalon puts no names, user names or phone numbers in production messages, which carry opaque references. The splash warns visitors not to type personal information, because Visual Trace is shared.
+- OcuTalon puts no names, user names or phone numbers in the production messages of a visitor's session, which carry opaque references. The splash warns visitors not to type personal information, because Visual Trace is shared.
 - Scheduled resets (every 4 hours by default) restore a clean copy with no visitor data.
 - A monitoring probe checks the demo every 15 minutes.
 

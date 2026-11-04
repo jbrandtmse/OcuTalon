@@ -17,6 +17,9 @@ import { pageTimeBeside } from './page-time';
  *   zone's short name when the browser's UTC offset at that time differs from the instance's (UX-DR123).
  * - An allowance card (Story 16.9: the session's message allowance, and the online demo's daily-cap message) has the danger accent bar and the
  *   circle-alert icon of the danger banner in the danger ink, and the text. It has no strip and no caption.
+ * - A tool call's notice (Story 31.6; kinds approval and result) has the info accent bar and the info icon, and its text keeps its
+ *   line breaks when it is a request. It is the plain form of a request that is no longer pending, and of a result: no label, badge
+ *   or pending colour, and no button (a pending request is drawn as the approval request card instead).
  * Every text is bound by interpolation, never as markup. The card is not a live region and takes focus only when the New messages
  * button sends it there.
  */
@@ -25,7 +28,7 @@ import { pageTimeBeside } from './page-time';
   imports: [DecisionStrip, Icon],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
-    <div class="notice" [class.tell-now]="notice().kind === 'tellnow'" [class.allowance]="notice().kind === 'allowance'" data-part="notice" [attr.data-key]="notice().key" tabindex="-1">
+    <div class="notice" [class.tell-now]="notice().kind === 'tellnow'" [class.allowance]="notice().kind === 'allowance'" [class.request]="notice().kind === 'approval'" data-part="notice" [attr.data-key]="notice().key" tabindex="-1">
       <app-icon class="bell" [name]="icon()" [size]="16" />
       <div class="body">
         <p class="text">{{ notice().text }}</p>
@@ -74,6 +77,9 @@ import { pageTimeBeside } from './page-time';
       margin-top: var(--space-1);
       color: var(--info-ink);
     }
+    .request .text {
+      white-space: pre-line;
+    }
     .tell-now .bell {
       color: var(--attention-ink);
     }
@@ -109,9 +115,12 @@ export class NoticeCard {
   /** The instance's time zone, from the snapshot: the caption's times name the browser's zone when its offset differs. */
   readonly instanceZone = input('');
 
-  /** The icon of the kind: bell-ring for a tell now, circle-alert for an allowance message, bell for a reminder. */
+  /** The icon of the kind: bell-ring for a tell now, circle-alert for an allowance message, info for a tool call's notice, bell for a reminder. */
   protected readonly icon = computed(() => {
     const kind = this.notice().kind;
+    if (kind === 'approval' || kind === 'result') {
+      return 'info';
+    }
     return kind === 'tellnow' ? 'bell-ring' : kind === 'allowance' ? 'circle-alert' : 'bell';
   });
 

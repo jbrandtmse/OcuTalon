@@ -3,6 +3,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 import { post, sessionEvents, MESSAGES } from '../../e2e/support/api';
 import { loadedAfter } from '../../e2e/support/floor';
 import { allowanceRow, epochOf, mailCounts, removeSession, seedAllowance, seedIncomingMail, signInFromSplash, signOutGroup, turnRowsOf } from '../support';
+import { CHAT_A, MOCK_MS, chatTurnsOf, finishTelegram, pairChat, repliesOf, sendFromChat, startTelegram, unpairChat } from '../telegram';
 
 /**
  * Story 16.9, the session's message allowance and the simulated-email limit on the page (A1, A2, E1 and E2; matrix rows 1 to 3, 10 to 12 and
@@ -24,6 +25,9 @@ import { allowanceRow, epochOf, mailCounts, removeSession, seedAllowance, seedIn
  * - A4 (QA): the same session state; a message is posted from the composer and, while its post is held, other text is typed in the field: the
  *   429 allowance does not take the text back over it. The message stays as "Not sent" with Retry sending, the newer text stays in the field, and
  *   the banner shows (matrix row 12: "A 429 while the composer already holds other text fails as today").
+ * - A5 (Story 31.3, the paired chat's side of A1): a session with a paired chat of the CI mock bot (a fixture pairing, TelegramIn and TelegramOut
+ *   started against the mock) whose rolling hour holds 50 entries: the chat's next message is refused, as a Turn of the channel telegram in the state
+ *   refused, with one allowance notice in the chat; a second refused message sends no second notice.
  * - E1: 20 simulated emails through the API (samples and typed), then a chip press: 429 email_limit, the chips and Send are aria-disabled with
  *   the email text in page time, and no 21st row or mailbox event exists.
  * - E2: a new session with 20 incoming emails about 3580 s old: a form Send is refused, and within 45 s the chips and Send return and a press
@@ -35,6 +39,8 @@ const INSTALL = 'https://github.com/jbrandtmse/OcuTalon#install-it-yourself';
 const USED_UP = /^You've used this session's 50 messages for the hour\. You can send more at .+\.$/;
 /** The notice card: the time reads as the clock alone on the day it falls on and with its day on another ("at 15:02 ET", "on Friday at 00:09 ET"). */
 const CARD_TEXT = /You've used this session's 50 messages for the hour\. You can send more (?:at|on (?:(?:Sun|Mon|Tues|Wednes|Thurs|Fri|Satur)day|(?:Jan|Feb|Mar|Apr|May|Jun|Jul|Aug|Sep|Oct|Nov|Dec) \d{1,2}(?:, \d{4})?) at) \d{2}:\d{2} ET, or install OcuTalon yourself to keep going: /;
+/** The allowance notice as the chat reads it. */
+const CHAT_NOTICE = /^You've used this session's 50 messages for the hour\. You can send more (?:at|on .+ at) .+, or install OcuTalon yourself to keep going: /;
 const EMAIL_LIMIT = /^You've simulated 20 emails this hour\. You can send more at (.+)\.$/;
 
 const composer = (page: Page): Locator => page.getByRole('textbox', { name: 'Message OcuTalon' });
@@ -244,6 +250,40 @@ test('A4: a 429 does not take the text back over other text in the composer, so 
     await page.unrouteAll({ behavior: 'ignoreErrors' });
     await signOutGroup(page);
     if (epoch !== '') await removeSession(epoch);
+  }
+});
+
+test("A5: a paired chat's 51st message in the hour is refused, with one allowance notice in the chat", async ({ page }) => {
+  let epoch = '';
+  let saved = '';
+  let pairing = '';
+  try {
+    epoch = await open(page);
+    const ref = (await allowanceRow(epoch)).ref;
+    saved = await startTelegram();
+    pairing = await pairChat(ref, CHAT_A);
+    await seedAllowance(epoch, 50, 3000);
+
+    const first = 'zz A5 the 51st from the chat';
+    await sendFromChat(CHAT_A, first);
+    await expect
+      .poll(async () => (await repliesOf(CHAT_A)).filter((text) => CHAT_NOTICE.test(text)).length, { message: 'one allowance notice reaches the chat', timeout: MOCK_MS, intervals: [2000] })
+      .toBe(1);
+    expect(await chatTurnsOf(ref, first), 'the message is a refused Turn of the channel telegram').toEqual(['refused:telegram']);
+
+    const second = 'zz A5 the 52nd from the chat';
+    await sendFromChat(CHAT_A, second);
+    await expect.poll(() => chatTurnsOf(ref, second), { message: 'the second message is refused too', timeout: MOCK_MS, intervals: [2000] }).toEqual(['refused:telegram']);
+    await page.waitForTimeout(6000);
+    expect((await repliesOf(CHAT_A)).filter((text) => CHAT_NOTICE.test(text)), 'and sends no second notice').toHaveLength(1);
+  } finally {
+    try {
+      if (saved !== '') await finishTelegram(saved);
+    } finally {
+      if (pairing !== '') await unpairChat(pairing);
+      await signOutGroup(page);
+      if (epoch !== '') await removeSession(epoch);
+    }
   }
 });
 

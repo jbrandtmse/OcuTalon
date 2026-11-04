@@ -8,18 +8,22 @@ Watch the 35-second teaser: https://youtu.be/wycbyfnXFMU
 
 ## Try it in two minutes
 
-Start with the online demo, at https://demo.ocutalon.com (nothing to install, and no Early Access image needed). Its sign-in details are on the splash screen.
+Start with the online demo, at https://demo.ocutalon.com (nothing to install, and no Early Access image needed). Its sign-in details are on the splash screen. The splash screen also shows a read-only Visual Trace account, for opening Visual Trace in the portal yourself; on the demo, the trace links on the page open Visual Trace without a second sign-in.
 
 To run OcuTalon on your own machine instead:
 
-1. Load the IRIS for Health AI Hub Early Access build 154 image into Docker ([where to get it](#get-the-image)).
-2. Clone this repository and run `./install.sh` in its folder ([what it does](#start-it-with-the-install-script)).
+1. Load the IRIS for Health AI Hub Early Access image into Docker: build 154, or build 109, which the download portal now offers ([where to get it](#get-the-image)).
+2. Clone this repository and run `./install.sh` in its folder ([what it does](#start-it-with-the-install-script)). With build 109, follow [Start it with build 109](#start-it-with-build-109) instead.
 3. Sign in at http://localhost:52773/ocutalon/ with user name `ocutalon` and password `ocutalon` ([more on signing in](#sign-in)).
 4. Follow the demo guide at the top of the page.
 
 ## What's interesting
 
 OcuTalon runs as an IRIS Interoperability production, so the agent is an Interoperability workflow, and its work shows in Visual Trace, the tool you already use for your feeds. For each item that arrives, an IRIS AI Hub agent makes one attention decision, with its reasons and cost. Nothing risky runs without your yes: you get a dry run with counts first, you approve in the web chat, and every answer lands in the IRIS audit log. It was built this way so that you can audit and debug your assistant in the same place as the rest of your integrations.
+
+![The OcuTalon page on the online demo: an incident card for 50 failed orders names the cause and shows a dry run of the fix waiting for approval; the simulated phone shows the same approval request.](docs/images/page-incident.png)
+
+![Visual Trace of one whole decision: the incident manager hands the incident to the decision process, which calls the diagnosis agent, and each of the agent's model requests and tool calls shows as an agent step of its own; then come the dry run, the approval request held as a Workflow task and its answer, the fix run, and the notices to the web chat and the simulated phone, each a production message.](docs/images/vt-decision.png)
 
 ## What you can use it for
 
@@ -36,6 +40,7 @@ The web chat page is OcuTalon on every install. Demo mode adds four parts to it 
 | The web chat page | Chat with OcuTalon, answer its approval requests, and follow its decisions, background checks and reminders as they happen | Every install |
 | The demo guide and Break the feed | Follow one incident in about two minutes: Break the feed makes a simulated partner's orders fail for real | Demo mode |
 | The Simulated phone and the Simulated mailbox | See OcuTalon's notices, reminders and approval requests on a phone simulated on the page, and simulate an incoming email to see what OcuTalon decides | Demo mode |
+| Telegram | Chat with OcuTalon and answer its approval requests on your phone, on your own install with your own bot token ([how to set up Telegram](#telegram)) | Your own install |
 
 Demo mode is on in the online demo, and on the Docker install until an admin switches it off ([Demo mode](#demo-mode)). Email comes in a later release.
 
@@ -56,7 +61,7 @@ Each decision shows its reasons, its confidence and its cost.
 
 - **Chat on a live page.** You talk to OcuTalon in a web page that updates as things happen. A reply shows its decision and a link that opens it in Visual Trace.
 
-  ![Visual Trace of the decision: the incident goes to the decision process, which calls the diagnosis agent; each agent step and the dry run is a production message.](docs/images/vt-decision.png)
+  ![Visual Trace of one whole decision: the incident manager hands the incident to the decision process, which calls the diagnosis agent, and each of the agent's model requests and tool calls shows as an agent step of its own; then come the dry run, the approval request held as a Workflow task and its answer, the fix run, and the notices to the web chat and the simulated phone, each a production message.](docs/images/vt-decision.png)
 
 - **Break the feed.** In demo mode the page has a Break the feed button. It makes a simulated partner send 50 orders in a changed date format into the Orders production, where they fail for real. OcuTalon groups the failures into one incident, explains the cause in plain English and proposes a fix with a dry run: how many orders it would resend, with an example. Nothing is resent until you press Approve in the chat or on the page's Simulated phone. Reject leaves everything as it was. After an approval, OcuTalon reports how many orders went through.
 
@@ -88,7 +93,9 @@ macOS and Linux are what OcuTalon's author and its automated tests use. On Windo
 
 ### Get the image
 
-OcuTalon runs on IRIS for Health AI Hub Early Access build 154 (`irishealth-community:2026.3.0AI.154.0`). Download it from the InterSystems Early Access Program portal: https://evaluation.intersystems.com/Eval/early-access/AIHub
+OcuTalon 1.0.0 is built and tested on IRIS for Health AI Hub Early Access build 154 (`irishealth-community:2026.3.0AI.154.0`). The InterSystems Early Access Program portal now offers build 109 (`irishealth-community:2027.1.0AI.109.0`) in its place: https://evaluation.intersystems.com/Eval/early-access/AIHub
+
+OcuTalon 1.0.0 also runs unchanged on build 109: its install, production and test checks and the demo guide pass on it. In this release, `./install.sh` looks only for build 154, so with build 109, start OcuTalon as [Start it with build 109](#start-it-with-build-109) shows.
 
 Choose the file that ends in `docker.tar.gz` for your CPU: arm64 for Apple silicon and ARM Linux, x64 for Intel or AMD. `docker info --format '{{.Architecture}}'` tells which one Docker runs: `aarch64` for arm64, `x86_64` for x64.
 
@@ -99,6 +106,8 @@ docker load -i <the archive file>
 ```
 
 ### Start it with the install script
+
+The install script needs build 154. With build 109, see [Start it with build 109](#start-it-with-build-109).
 
 ```
 git clone https://github.com/jbrandtmse/OcuTalon.git
@@ -130,9 +139,23 @@ docker compose up -d
 
 The `cp` step is optional: without `.env`, OcuTalon starts with no model key ([Set a model key](#set-a-model-key)). Skip it when `.env` already exists, because `cp` would replace that file and the key in it.
 
+### Start it with build 109
+
+`docker load` printed the loaded image's name; for the IRIS for Health archive it is `docker.iscinternal.com/docker-intersystems/intersystems/irishealth-community:2027.1.0AI.109.0`. Name it in `.env` as `IRIS_IMAGE`, so that OcuTalon builds from it, then start OcuTalon:
+
+```
+git clone https://github.com/jbrandtmse/OcuTalon.git
+cd OcuTalon
+cp .env.example .env
+echo 'IRIS_IMAGE=<the name docker load printed>' >> .env
+docker compose up -d
+```
+
+Skip the `cp` step when `.env` already exists. Keep the `IRIS_IMAGE` line in `.env`, because every `docker compose up -d` reads it, an update included. Then [check that it is ready](#check-that-it-is-ready) and [sign in](#sign-in).
+
 ### The IRIS (non-Health) image
 
-OcuTalon also runs on the plain IRIS AI Hub build 154 image (`iris-community:2026.3.0AI.154.0`). It differs from IRIS for Health only by the HealthShare libraries and the HSCUSTOM namespace. It is supported and verified on ARM64. OcuTalon's automated tests use only the IRIS for Health image.
+OcuTalon also runs on the plain IRIS AI Hub build 154 image (`iris-community:2026.3.0AI.154.0`). It differs from IRIS for Health only by the HealthShare libraries and the HSCUSTOM namespace. It is supported and verified on ARM64. OcuTalon's automated tests use only the IRIS for Health image. Build 109's plain IRIS image has not been tested.
 
 `./install.sh` uses the plain IRIS image when no IRIS for Health image for your CPU is loaded. By hand, give it the same name, then start as above:
 
@@ -150,6 +173,31 @@ docker compose ps
 OcuTalon is ready when the STATUS of the `iris` service ends in `(healthy)`, for example `Up About a minute (healthy)`. Then open http://localhost:52773/ocutalon/.
 
 The first start took 47 to 78 seconds in five measurements on an Apple silicon Mac, and about 3 minutes (160 seconds) on an x64 Linux machine with 4 CPUs. The install script waits up to 15 minutes. A slower machine can take longer; run `docker compose ps` again to see.
+
+### Install it with IPM
+
+To install OcuTalon into an IRIS instance you already run (AI Hub build 154 with IPM 0.10.10), use the InterSystems Package Manager. In an IRIS terminal in %SYS, point IPM at the community package registry:
+
+```
+zpm "enable -community"
+```
+
+This command first removes the package repositories that are already set up in %SYS, so note any you use before you run it.
+
+Then open an IRIS terminal in USER, an Interoperability-enabled namespace, and run:
+
+```
+zpm "install ocutalon"
+```
+
+This first run ends early by design: it creates the namespace OCUTALON and stops with a line that says what to do next. Switch to OCUTALON and run the same command:
+
+```
+zn "OCUTALON"
+zpm "install ocutalon"
+```
+
+This second run installs OcuTalon with demo mode off. [Install OcuTalon with IPM](docs/install-ipm.md) shows the output of both runs, and the install from the package folder, for developers.
 
 ## Set a model key
 
@@ -171,7 +219,7 @@ Open http://localhost:52773/ocutalon/ and sign in with the README account:
 
 OcuTalon does not ask you to change the password when you first sign in.
 
-**Change the README account's password after your first sign-in.** OcuTalon publishes its web port on every network interface of your machine, so the IRIS Management Portal can be reached from your LAN until the passwords of the default IRIS accounts and of the README account are changed. [How to change the README account's password](#change-the-readme-accounts-password). The user name stays `ocutalon`.
+**Change the README account's password after your first sign-in.** OcuTalon publishes its web port on every network interface of your machine, so the IRIS Management Portal can be reached from your LAN until the passwords of the default IRIS accounts and of the README account are changed. [How to change the README account's password](#change-the-readme-accounts-password). The user name stays `ocutalon`. [How to change the default IRIS accounts' passwords](#change-the-default-iris-accounts-passwords).
 
 **Visual Trace.** A trace link on the page opens the IRIS Management Portal in a new tab. The first time, the page shows "Sign in to Visual Trace", and the portal may ask you to sign in with the same account, which holds the trace role.
 
@@ -183,7 +231,7 @@ Telegram is optional, and these steps are for your own install. With a bot of yo
 2. Turn groups off for the bot: send `/setjoingroups` to @BotFather, choose your bot, then Disable. OcuTalon answers only private chats.
 3. In `.env`, set `TELEGRAM_BOT_TOKEN=<your token>`. Copy `.env.example` to `.env` first if there is no `.env` (`./install.sh` already did). Git ignores `.env`, so the token is never committed.
 4. Restart OcuTalon, from the OcuTalon folder: `docker compose up -d --force-recreate`.
-5. When `docker compose ps` shows the `iris` service `(healthy)` again, open http://localhost:52773/ocutalon/ and sign in if it asks. In the Status section, the Telegram card shows a QR code. Scan it with your phone's camera, then tap Start in Telegram. The card then shows "Telegram paired" with your Telegram name, and an "Unpair" button. If it still says "Telegram not set up", check the token in `.env` and repeat step 4.
+5. When `docker compose ps` shows the `iris` service `(healthy)` again, open http://localhost:52773/ocutalon/ and sign in if it asks. In the Status section (in a narrower window, open it with the Status button at the top of the page), the Telegram card shows a QR code. Scan it with your phone's camera, then tap Start in Telegram. The card then shows "Telegram paired" with your Telegram name, and an "Unpair" button. If it still says "Telegram not set up", check the token in `.env` and repeat step 4.
 
 Each OcuTalon needs its own bot. If another process polls the same bot, OcuTalon pauses Telegram and tries again after 5 minutes.
 
@@ -197,7 +245,7 @@ Each OcuTalon needs its own bot. If another process polls the same bot, OcuTalon
 
 These are the usual causes and fixes. Most entries are messages that `./install.sh` prints when a check or the start fails; the last two are about the page.
 
-**"No IRIS build 154 image is loaded in Docker"**: download the archive for your CPU ([Get the image](#get-the-image)), load it with `docker load -i <the archive file>`, then run `./install.sh`.
+**"No IRIS build 154 image is loaded in Docker"**: download the archive for your CPU ([Get the image](#get-the-image)), load it with `docker load -i <the archive file>`, then run `./install.sh`. With build 109, follow [Start it with build 109](#start-it-with-build-109) instead of running `./install.sh`.
 
 **"The IRIS build 154 image that is loaded is for another CPU than this machine's"**: download and load the archive for your CPU. `docker info --format '{{.Architecture}}'` tells which one Docker runs. If the message says that `ocutalon-iris-base:2026.3.0AI.154.0` exists but is for another CPU, point the name at the right image: `docker tag <the loaded image's name> ocutalon-iris-base:2026.3.0AI.154.0`.
 
@@ -262,6 +310,14 @@ kill p set p("Password")="<new password>" write ##class(Security.Users).Modify("
 
 It prints `1` when the password was changed; if it prints anything else, the password was not changed. If your new password contains a double quotation mark, write it twice. Sign in again with the new password. The user name stays `ocutalon`.
 
+### Change the default IRIS accounts' passwords
+
+IRIS also comes with predefined accounts, among them `SuperUser` and `_SYSTEM`, which hold every right, and `Admin`. Change their passwords in the Management Portal: open http://localhost:52773/csp/sys/UtilHome.csp and sign in as `SuperUser` (its first sign-in asks for a new password).
+
+Then open System Administration, then Security, then Users. For `_SYSTEM`, `Admin` and any other enabled account you don't use, choose its name, select Enter new password, enter a new password in Password and Password (confirm), and press Save.
+
+Leave `CSPSystem`, the web gateway's account, and the accounts marked for internal use as they are.
+
 ### Repository layout
 
 - `src/ocutalon`: OcuTalon's classes: the production, its agents, the web service behind the page and the install steps.
@@ -280,6 +336,8 @@ It prints `1` when the password was changed; if it prints anything else, the pas
 Built with the BMAD Method and Claude Code. More about them: [the BMAD Method](https://github.com/bmad-code-org/BMAD-METHOD) and [Claude Code](https://claude.com/product/claude-code).
 
 OcuTalon is inspired by OpenClaw and is not affiliated with or endorsed by the OpenClaw Foundation.
+
+OcuTalon is under the MIT License: [LICENSE](LICENSE).
 
 Third-party licence notices:
 

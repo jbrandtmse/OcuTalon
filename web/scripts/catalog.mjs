@@ -14,9 +14,9 @@
 // sentences checks.allPassed, checks.everythingElsePassed, checks.nothingWatched, checks.notEverything and
 // checks.notEverythingRestPassed, the ten banner.* texts, the three bannerAction.* texts the page renders (installYourself,
 // howToSetKey and setUpBot), the nine answered.* texts (approved, approvedBy, rejected, rejectedBy, expired, alreadyApproved,
-// alreadyRejected, alreadyApprovedBy and alreadyRejectedBy), the seven result.* texts (allThrough, failedAgain, skipped,
-// failedAndSkipped, stillResending, interrupted and couldNotStart), audit.recorded and every fallbackReason.*. An entry's web text
-// is used, else its text. The module holds PAGE_TEXTS, PAGE_SLOTS (the slot types of each listed key), MESSAGE_TEXTS (the text
+// alreadyRejected, alreadyApprovedBy and alreadyRejectedBy), the eight result.* texts (allThrough, failedAgain, skipped,
+// failedAndSkipped, stillResending, interrupted, couldNotStart and stoppedPartway), audit.recorded and every fallbackReason.*. An
+// entry's web text is used, else its text. The module holds PAGE_TEXTS, PAGE_SLOTS (the slot types of each listed key), MESSAGE_TEXTS (the text
 // form of each listed key that has a web form: the wording of a message, which the phone shows), PAGE_ONE_FORMS (the count-of-one
 // form of each listed key that has one: the slot that decides it and the text), REASON_KEYS, CHANNEL_NAMES, renderPageText and
 // renderMessageText. renderMessageText fills MESSAGE_TEXTS[key], else PAGE_TEXTS[key], as renderPageText does, and applies the
@@ -87,6 +87,7 @@ export const LISTED_KEYS = [
   'result.stillResending',
   'result.interrupted',
   'result.couldNotStart',
+  'result.stoppedPartway',
   'audit.recorded',
 ];
 export const REASON_PREFIX = 'fallbackReason.';

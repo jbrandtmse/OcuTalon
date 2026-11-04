@@ -12,7 +12,8 @@
 ///     Live.Payload.Phone.FromRow of the message: it is the only publisher of that event (AD-33). A render error is
 ///     returned with no row and no event, and a failed publish is logged and leaves the rows;
 ///   - a notification of kind answered edits the delivered message in place (AD-14): Delivery.FindByApproval(ApprovalRef,
-///     "phone", SessionRef) gives the message's Ref, and the message must be this session's phone message. Its Answer
+///     "phone", SessionRef) gives the message's Ref, and the message must be this session's phone message and carry the notification's
+///     ApprovalRef, so that a result message (it keeps none) is never edited. Its Answer
 ///     becomes the rendered text, its Ref and Text stay, and the edit and a Delivery row (kind answered, the message's Ref as
 ///     ChannelMessageId) are saved in one transaction, followed by one more phone event. The first answer stays: a message
 ///     that already has an Answer records the Delivery row only (the message's Ref as ChannelMessageId), with no edit and no
@@ -73,7 +74,7 @@ Method EditAnswered(request As OcuTalon.Msg.Notification) As %Status [ Private ]
 		Set messageRef = ##class(OcuTalon.Data.Delivery).FindByApproval(request.ApprovalRef, ..#CHANNEL, request.SessionRef)
 		If messageRef '= "" Set message = ##class(OcuTalon.Data.SimMessage).RefIndexOpen(messageRef)
 	}
-	If '$IsObject(message) || (message.SessionRef '= request.SessionRef) || (message.Kind '= "phone") {
+	If '$IsObject(message) || (message.SessionRef '= request.SessionRef) || (message.Kind '= "phone") || (message.ApprovalRef '= request.ApprovalRef) {
 		Quit ##class(OcuTalon.Data.Delivery).Record(request.SessionRef, ..#CHANNEL, "", request.ApprovalRef, request.Kind, "", request.DecisionRef)
 	}
 	If message.Answer '= "" {

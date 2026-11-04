@@ -354,6 +354,8 @@ env_example_has_keys_without_values() {
 # -v also prints a matching negation, so the ignore itself is checked with -q.
 # A tracked path is never reported as ignored unless --no-index is given.
 git_ignores() { git check-ignore -q "$1" && git check-ignore -v "$1" 2>/dev/null | grep -q '^\.gitignore:[0-9]*:[^!]'; }
+# The same .gitignore rule, whether or not the path is tracked: a release candidate tracks the built bundle that the rule keeps out of every other branch.
+git_ignore_rule() { git check-ignore -q --no-index "$1" && git check-ignore -v --no-index "$1" 2>/dev/null | grep -q '^\.gitignore:[0-9]*:[^!]'; }
 git_does_not_ignore() { git check-ignore -q --no-index "$1"; [ $? -eq 1 ]; }
 
 check "env.example: both keys, no values, nothing else" env_example_has_keys_without_values
@@ -362,7 +364,7 @@ check "git: .env.example is not ignored" git_does_not_ignore .env.example
 
 # --- the web bundle and the web sources ---
 
-check "git: the built bundle src/ocutalon/csp/ is ignored" git_ignores src/ocutalon/csp/index.html
+check "git: the built bundle src/ocutalon/csp/ is ignored" git_ignore_rule src/ocutalon/csp/index.html
 check "git: the copied brand images are ignored" git_ignores web/public/assets/brand/icon-192.png
 check "git: the Playwright results are ignored" git_ignores web/test-results/x
 check "git: the Playwright report is ignored" git_ignores web/playwright-report/index.html
