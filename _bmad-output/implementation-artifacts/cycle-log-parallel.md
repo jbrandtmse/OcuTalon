@@ -1777,3 +1777,4 @@
 2026-11-04T05:44:46Z	Epic 11	runner_complete	agent=ac56ea0cb6b1a3024 head=de6670fe ci=success(41777896267,41777896260) story=11.20 tokens=345460 model=opus merge=held_until_v1.0.0_with_part_2(U-256) note=DW-518_reowned_burndown;crash_rollback_done_rerun_from_qa
 2026-11-04T05:54:17Z	Run	orchestrator_fix	merge=ec04ac8d branch=rc3-root-manifest commits=49a0bf9c(U-260,U-262),f74a0309(U-263) authorized_by=U-260,U-262,U-263 review=Planner_diff_review_passed,go_given proof=root_load,artifact_install,ipm-install_a_r_b_p,checks_28_on_2_trees
 2026-11-04T05:54:17Z	Run	worktree_removed	worktree=.worktrees/rc3-root-manifest branch=rc3-root-manifest_local_deleted(merged,never_pushed)
+2026-11-04T05:54:43Z	Run	feature_pushed	head=24e6e9e9 verified=origin contains=2bec6879,fa4c549c,49a0bf9c,f74a0309,bookkeeping freeze=on_again_until_RC3_CUT ci=41782092223,41782092238 flake_rule=DW-453_class,DW-432:one_rerun_of_failed_job;second_red_stops_rc3;other_red_to_Planner
