@@ -90,7 +90,8 @@
 # Story 15.4 adds part p, the exact release artifact installed from an IPM repository on a fresh instance with no Node.js:
 #   The artifact is OCUTALON_IPM_ARTIFACT (the .tgz that the release sequence's ipm step made), or, when that is unset, the module that
 #   path A's second run installed, packaged with `zpm "package ocutalon -only"` (TIME package) and checked with lib-release's
-#   ipm_artifact_check; ARTIFACT <name> <bytes> bytes is printed and a problem line fails the part.
+#   ipm_artifact_check, with the layout of what packed it: root for OCUTALON_IPM_ARTIFACT (the ipm step loads the root manifest), src for
+#   the module of path A (this script loads src/module.xml); ARTIFACT <name> <bytes> bytes is printed and a problem line fails the part.
 #   26. the container has no node and no npm;
 #   27. the artifact is unpacked into a local filesystem repository (a repository added in USER with its output discarded), and
 #       `zpm "install ocutalon"` in USER ends with the stop line and the snapshot of check 3, repository mappings included;
@@ -1274,13 +1275,15 @@ defs_hash() {
 
 # artifact_prepare: sets $art to the checked artifact ocutalon-<version>.tgz, or to nothing after a failure. It is OCUTALON_IPM_ARTIFACT
 # when that is set; otherwise the module that path A's second run installed in OCUTALON, packaged with `zpm "package ocutalon -only"`
-# (TIME package) and copied out. ipm_artifact_check reads it (module name and version, FileCopy, the web bundle byte for byte).
+# (TIME package) and copied out. ipm_artifact_check reads it (module name and version, FileCopy, the web bundle byte for byte) in the
+# layout of what packed it: root for OCUTALON_IPM_ARTIFACT, src for this script's own package.
 artifact_prepare() {
-  local ver problems bytes
+  local ver problems bytes layout=src
   art=""
   ver=$(manifest_version "$root/src/module.xml")
   if [ -n "${OCUTALON_IPM_ARTIFACT:-}" ]; then
     if [ -f "$OCUTALON_IPM_ARTIFACT" ]; then
+      layout=root
       art="$(cd "$(dirname "$OCUTALON_IPM_ARTIFACT")" && pwd)/$(basename "$OCUTALON_IPM_ARTIFACT")"
     else
       fail "artifact: OCUTALON_IPM_ARTIFACT names no file"
@@ -1298,7 +1301,7 @@ artifact_prepare() {
   fi
   bytes=$(wc -c < "$art" | tr -d ' ')
   echo "ARTIFACT ocutalon-$ver.tgz $bytes bytes"
-  problems=$(ipm_artifact_check "$art" "$ver" "$root")
+  problems=$(ipm_artifact_check "$art" "$ver" "$root" "$layout")
   if [ -n "$problems" ]; then
     printf '%s\n' "$problems" | sed 's/^/  artifact: /'
     fail "artifact: ocutalon-$ver.tgz does not carry the module and the web bundle ($(printf '%s\n' "$problems" | head -n 1))"

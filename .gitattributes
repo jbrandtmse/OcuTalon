@@ -4,6 +4,8 @@ src/short-names.tsv merge=union
 docker/** text=auto eol=lf
 ci/** text=auto eol=lf
 src/module.xml text eol=lf
+module.xml text eol=lf
+preload/** eol=lf
 src/** text=auto eol=lf
 .dockerignore text eol=lf
 .env.example text eol=lf
