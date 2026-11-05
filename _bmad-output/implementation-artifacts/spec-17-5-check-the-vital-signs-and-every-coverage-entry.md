@@ -2,7 +2,7 @@
 title: 'Story 17.5: Check the vital signs and every coverage entry'
 type: 'feature'
 created: '2026-11-05'
-status: 'ready-for-dev'
+status: 'draft'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -106,6 +106,8 @@ deferred: []
 | Run recorded | `Checks.Process` runs a due watch (timeout) | one CheckRun: `not_checked`, `timeout`, HeaderId = the run's session | a CheckRun failure only warns |
 | Admin threshold | `licenseUsePercent` saved 95 through `SettingsOps`; cache expired | license 91% `passed` | none |
 
+
+**Owner rulings of 2026-11-05 (binding on re-derivation).** U-290 REVERSED by the Contest Planner (owner's delegation): OcuTalon does NOT grant `%Admin_Operate:U` (or any new privilege) to `OcuTalonServiceRole`. Database space is read without it (the volume's free share); a database that has a maximum size the service user cannot read is reported `not_checked` with one plain reason, and never counted as passed, so a capped database can never give a false all-clear. That reason's text is new user-facing text: propose it verbatim under Design Notes as "Proposed text (for the Planner)"; the lead sends it to the Planner before the code is committed. U-291 KEPT: the vital-sign texts listed under Design Notes stand. AD-28 extension ALLOWED (orchestrator ruling under U7, the Planner agreeing; written into the spine): `Checks.Coverage.Build` has the optional sixth output `vitals`.
 </intent-contract>
 
 ## Code Map
@@ -186,6 +188,8 @@ Paths are under `src/ocutalon/cls/OcuTalon/`.
 - Given `CheckRun` and `Sent` rows 61 and 59 days old, when the OcuTalon purge task runs with `DaysToKeep` 60, then the 61-day rows are gone (except a session's newest `Sent`) and the 59-day rows remain (DW-646).
 
 ## Spec Change Log
+
+- 2026-11-05 lead: re-plan for the U-290 reversal (no new privilege; capped database not_checked with a plain reason); U-291 kept; AD-28 `vitals` allowed. Status reset to draft.
 
 ## Review Triage Log
 

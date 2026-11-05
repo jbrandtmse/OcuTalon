@@ -125,3 +125,13 @@
 2026-11-05T22:03:23Z	Story 17.4	ruling	question=DW-647_retry_entry_vs_T2 choice=by-design(AD-8_split_stands) category=decide policy=5086036
 2026-11-05T22:03:23Z	Story 17.4	spine_updated	ad=conv:Provider_endpoints(new_row) reason=DW-758 by=runner story=17-4 lint=ok_false_preexisting_8_placeholder
 2026-11-05T22:03:23Z	Story 17.4	spec_validated	service_introducing=true integration_ac=present adr_constrained_acs=AD-5,AD-6,AD-8,AD-18,AD-19,AD-20 decision_dependency=none owned_ledger=DW-647,DW-727,DW-757,DW-758 addressed=3(DW-727,DW-758,DW-757_by_ruling) declined=1(DW-647_by-design) mutates_shared_runtime=false pending=orchestrator(Lane_B_tests_U-177;AD-8_model_test_never_retried) implement_blocked_until_ruled=yes
+2026-11-05T22:06:02Z	Story 17.5	owner_decision	id=A(AD-28_vitals_output) via=orchestrator by=orchestrator(U7)+planner answer=ALLOWED(additive_spine_extension_17.5_marker)
+2026-11-05T22:06:02Z	Story 17.4	owner_decision	id=B(U-177_exception_TestBridgeRoutesAre501,TestBridgeStub) via=orchestrator by=planner answer=YES conditions=assert_built_behaviour;restore_every_value_proven_by_re-read_of_budget,cap,zone;U-177_markers;no_other_Lane_B_edit
+2026-11-05T22:06:02Z	Story 17.4	owner_decision	id=C(AD-8_model_test_never_retried) via=orchestrator by=orchestrator(U7)+planner answer=ALLOWED(AD-8_extension_17.4_marker)
+2026-11-05T22:06:02Z	Story 17.4	owner_decision	id=U-292 at=#883 via=orchestrator by=planner answer=KEEP
+2026-11-05T22:06:02Z	Story 17.4	owner_decision	id=U-293 at=#884 via=orchestrator by=planner answer=KEEP condition=shipping_release_upgrade_harness_shows_seeded_row_corrected_and_edited_row_untouched(contract_upgrade_harness_line)
+2026-11-05T22:06:02Z	Story 17.5	owner_decision	id=U-290 at=#885 via=orchestrator by=planner answer=REVERSED:no_%Admin_Operate_grant;capped_database_reported_not_checked_with_plain_reason(PUBLIC_TEXT_before_commit);re-plan_17.5
+2026-11-05T22:06:02Z	Story 17.5	owner_decision	id=U-291 at=#886 via=orchestrator by=planner answer=KEEP
+2026-11-05T22:06:41Z	Epic 17	spine_updated	ad=AD-28(Coverage.Build_vitals),AD-8(model_test_never_retried) reason=orchestrator_rulings_A,C by=runner story=17-5,17-4 lint=ok_false_preexisting_8_placeholder
+2026-11-05T22:06:41Z	Story 17.5	plan_clarification_requested	reason=U-290_reversed(re-plan) status_reset=draft
+2026-11-05T22:06:41Z	Story 17.5	stage_spawned	stage=plan spawn_at=2026-11-05T22:06:41Z model=opus agent_name=17-5-check-the-vital-signs-and-every-coverage-entry-plan-2 cycle_iteration=2
