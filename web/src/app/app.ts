@@ -3,6 +3,7 @@ import { RouterOutlet } from '@angular/router';
 
 import { BannerStack } from './banners/banner-stack';
 import { DemoGuide } from './guide/demo-guide';
+import { CurrentPage } from './header/current-page';
 import { Header } from './header/header';
 import { SkipLinks } from './header/skip-links';
 import { LiveState } from './live/live-state';
@@ -23,7 +24,8 @@ const RESETTING_RULE: FocusRule = {};
  * banners (Story 2.10), which takes the height it needs and leaves the routed page the rest. The snapshot loads once
  * per page load, through LiveState, and every part of the page reads it from there. From 1024px wide the app is the viewport's height,
  * so the routed page's regions scroll on their own; below it (the stacked column, Story 2.15) it is at least the viewport's height and
- * the page itself scrolls. At the reset (ResetWatch) the whole app gives way to the resetting view (Story 16.8); the focus rule moves a
+ * the page itself scrolls. The skip links and the demo guide belong to the main page, because their targets are its regions: the settings page (Story 33.2)
+ * shows neither (CurrentPage). At the reset (ResetWatch) the whole app gives way to the resetting view (Story 16.8); the focus rule moves a
  * focus that the switch removed to the view's main region.
  */
 @Component({
@@ -34,10 +36,14 @@ const RESETTING_RULE: FocusRule = {};
     @if (reset.resetting()) {
       <app-resetting-view />
     } @else {
-      <app-skip-links />
+      @if (page.onMain()) {
+        <app-skip-links />
+      }
       <app-header />
       <div class="banner-slot"><app-banner-stack /></div>
-      <app-demo-guide />
+      @if (page.onMain()) {
+        <app-demo-guide />
+      }
       <router-outlet />
     }
   `,
@@ -61,6 +67,7 @@ const RESETTING_RULE: FocusRule = {};
 })
 export class App {
   protected readonly reset = inject(ResetWatch);
+  protected readonly page = inject(CurrentPage);
   private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
   private readonly injector = inject(Injector);
   private readonly popovers = inject(Popovers);

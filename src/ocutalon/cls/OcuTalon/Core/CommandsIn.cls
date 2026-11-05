@@ -6,7 +6,9 @@
 ///   - the origin is "tool" whenever a bridge context is active in this process, whatever the command says, and otherwise the
 ///     command's Origin. A tool may send only the verbs of TOOLVERBS, and Dismiss only for an incident that
 ///     Ownership.Incident returns for the command's SessionRef, which inside a bridge context must be the context's OwnerRef;
-///     any other origin must be one the table names for the verb;
+///     any other origin must be one the table names for the verb. SendDigest, the one step 2 verb a tool may also send, takes no
+///     recipient: it reaches only the session's own digest.channels, and inside a bridge context its SessionRef must be the context's
+///     OwnerRef, so a tool cannot name another session;
 ///   - a refusal changes nothing: nothing is sent, and the caller gets a CommandResult with Ok 0, an Outcome (not_allowed,
 ///     not_found or unknown_command) and a plain-English Message;
 ///   - an accepted command is sent synchronously to its owner in the right trace session (AD-26): inside a turn the session
@@ -27,7 +29,7 @@ Class OcuTalon.Core.CommandsIn Extends Ens.BusinessService
 Parameter VERBPACKAGE = "OcuTalon.Msg.Command.";
 
 /// The verbs that origin tool may send (AD-1, FR-24, NFR-14). Dismiss is further limited to an incident the session can see.
-Parameter TOOLVERBS = "SetReminder,CancelReminder,ListReminders,StartWatch,StopWatch,Dismiss";
+Parameter TOOLVERBS = "SetReminder,CancelReminder,ListReminders,StartWatch,StopWatch,Dismiss,SendDigest";
 
 /// How long the gate waits for the owner's answer, in seconds.
 Parameter TIMEOUT = 120;
@@ -76,6 +78,7 @@ Method Carry(command As %RegisteredObject) As OcuTalon.Msg.CommandResult [ Priva
 		Set incident = ##class(OcuTalon.Data.Ownership).Incident(command.IncidentRef, command.SessionRef, .sc)
 		If '$IsObject(incident) Quit ..Result("not_found", ..#MESSAGENOTFOUND)
 	}
+	If (origin = "tool") && (verb = "SendDigest") && ##class(OcuTalon.Bridge.Context).Active() && (command.SessionRef '= ##class(OcuTalon.Bridge.Context).Current().OwnerRef) Quit ..Result("not_allowed", ..#MESSAGENOTFROMTOOL)
 	Do ..Join(command)
 	Set request = $Select(verb = "Dismiss": ..Dismissal(command), 1: command)
 	Set sc = ..Send(owner, request, .response)
@@ -159,7 +162,7 @@ ClassMethod Result(outcome As %String, message As %String) As OcuTalon.Msg.Comma
 
 /// The verbs, one entry each: the owner item that carries the verb out, and the origins that may send it (Msg.Enum ORIGIN).
 /// A verb that is not here is not routed. Every settings verb, now and later, goes to SettingsOps with the origins
-/// system and web_admin.
+/// system and web_admin. SendDigest goes to Digest, and GotIt to SessionOps (a stub answer until Story 18.4).
 XData Routes [ MimeType = application/json ]
 {
 [
@@ -172,7 +175,10 @@ XData Routes [ MimeType = application/json ]
  {"verb": "SetDemoMode", "owner": "SettingsOps", "origins": "web_admin,system"},
  {"verb": "Pair", "owner": "SessionOps", "origins": "telegram"},
  {"verb": "Unpair", "owner": "SessionOps", "origins": "web_user,web_admin,telegram,timer,system"},
- {"verb": "EndSession", "owner": "SessionOps", "origins": "web_user,web_admin,telegram,timer,system"}
+ {"verb": "EndSession", "owner": "SessionOps", "origins": "web_user,web_admin,telegram,timer,system"},
+ {"verb": "SendDigest", "owner": "Digest", "origins": "tool,web_admin"},
+ {"verb": "SaveSettings", "owner": "SettingsOps", "origins": "web_admin,system"},
+ {"verb": "GotIt", "owner": "SessionOps", "origins": "web_user,web_admin,telegram"}
 ]
 }
 

@@ -131,7 +131,7 @@ test('row 13: the page loads /state and marks the snapshot loaded', async ({ pag
   expect(answered.map((response) => response.status()), 'the page asked for /state once and got 200').toEqual([200]);
 
   const body = (await answered[0].json()) as Record<string, unknown>;
-  expect(Object.keys(body)).toEqual(['version', 'instanceZone', 'epoch', 'streams', 'chat', 'rail', 'user', 'onlineDemo', 'demoMode', 'models', 'telegram', 'status', 'phone', 'mailbox', 'guide']);
+  expect(Object.keys(body)).toEqual(['version', 'instanceZone', 'epoch', 'streams', 'chat', 'rail', 'user', 'admin', 'onlineDemo', 'demoMode', 'models', 'telegram', 'status', 'phone', 'mailbox', 'guide']);
   expect(body['version']).toBe(SEEDED.version);
   expect(body['instanceZone']).toBe(SEEDED.zone);
   expect(body['epoch']).toBe(SEEDED.epoch);
@@ -139,6 +139,7 @@ test('row 13: the page loads /state and marks the snapshot loaded', async ({ pag
   expect(body['chat']).toEqual([]);
   expect(body['rail']).toEqual({ approvals: [], checks: [], reminders: [], decisions: [] });
   expect(body['user'], "the session row's user, not the client's").toBe(README_ACCOUNT.user);
+  expect(body['admin'], 'the README account holds OcuTalonAdmin').toBe(true);
   expect(body['onlineDemo'], 'a local install is not the online demo').toBe(false);
   expect(body['demoMode'], 'every Docker throwaway runs in demo mode').toBe(true);
   expect(body['models']).toEqual({ triage: 'Claude Haiku 5.5', diagnosis: 'Claude Haiku 5.5', chat: 'Claude Haiku 5.5' });

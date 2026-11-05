@@ -511,7 +511,7 @@ Method TestRowsRefuses()
 		Do $$$AssertStatusNotOK(sc, "'"_$ZConvert(owner, "O", "URL")_"' (URL-encoded) is not a session's Ref")
 		Do $$$AssertEquals(rows.Count(), 0, "with no rows")
 	}
-	For kind = "turnByClient", "turnOfItem", "turnQueue", "lastReplied", "recentTurns", "recentIncidents", "decision", "turnUsage", "runUsage", "runDecisions", "recentNotices", "recentPhone", "recentMail", "incomingMail", "finishedToolCalls", "decisionOfItem", "deliveryByApproval" {
+	For kind = "turnByClient", "turnOfItem", "turnQueue", "lastReplied", "recentTurns", "recentIncidents", "decision", "turnUsage", "runUsage", "runDecisions", "recentNotices", "recentPhone", "recentMail", "incomingMail", "finishedToolCalls", "decisionOfItem", "deliveryByApproval", "deliveryByRef" {
 		Set rows = $ClassMethod(probe, "Call", kind, "", .sc, "zzownshared", "zzownshared")
 		Do $$$AssertStatusNotOK(sc, kind_": an empty owner Ref is an error")
 		Do $$$AssertEquals(rows.Count(), 0, kind_": with no rows")
