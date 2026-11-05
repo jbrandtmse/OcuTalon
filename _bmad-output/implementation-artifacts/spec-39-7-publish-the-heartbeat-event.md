@@ -2,7 +2,7 @@
 title: 'Story 39.7: Publish the heartbeat event'
 type: 'feature'
 created: '2026-11-04'
-status: 'done'
+status: 'in-progress'
 baseline_revision: '5bc59f8b26d2e8f573e47984a7319392861e43d1'
 baseline_commit: '5bc59f8b26d2e8f573e47984a7319392861e43d1'
 review_loop_iteration: 0
@@ -61,7 +61,8 @@ deferred: []
 | Scenario | Input / State | Expected Output / Behavior | Error Handling |
 |----------|--------------|---------------------------|----------------|
 | Beat runs | Due person, checklist, keyed, not capped; Tick at T | One `heartbeat` event equal to `FromRow(row, values)`. `lastBeatAt` T, `nextDueAt` T+interval, no `lastOutcome` | none |
-| Skip | Due person, empty checklist (or outside hours) | One event with `lastSkipAt` T, its reason and the moved `nextDueAt` | none |
+| Skip | Due person with a checklist, outside hours | One event with `lastSkipAt` T, its reason and the moved `nextDueAt` | none |
+| Skip, empty checklist (tick) | Due person, empty checklist, on a Tick | The row is saved with `lastSkipAt` T and reason `empty`; NO event (CI rework, veto ruling) | none |
 | Recorded result | Pending beat; its `Decision` exists; next Tick | One event: `lastOutcome`, `lastFallback`, `lastCostUSD`, `traceHeaderId` = the decision's `TraceSessionId`, `traceNamespace`. A fallback also shows `backoffUntil` | none |
 | Two commits in one call | Pending ignore and a due beat at the same Tick (39.3's `TestRecordedDecisionCountsInTheSameRunDue` shape) | Two events, in order: the recorded `ignore`, then the `unchanged` skip | none |
 | Off, pending | Heartbeat off, decision pending | One event, `on` false, the result recorded | none |
@@ -167,11 +168,13 @@ deferred: []
   Each event's JSON holds neither the ref nor the checklist. Update the class doc.
 
 **Acceptance Criteria:**
-- AC 1 -- Given a beat, a skip or a recorded result, when its row is committed, then `Checks` publishes one `heartbeat` event to the session's stream with the row's public view: on, the interval, the hours, next due, the last result and the last skip (AD-12, AD-18).
+- AC 1 -- Given a beat, a skip or a recorded result, when its row is committed, then `Checks` publishes one `heartbeat` event to the session's stream with the row's public view: on, the interval, the hours, next due, the last result and the last skip (AD-12, AD-18). Except: a Tick's skip with reason `empty` (no checklist) publishes no event; its row is still saved, and a run-now still publishes [AMENDED 2026-11-05, CI rework, veto ruling].
 - AC 2 -- Given a row whose `SessionRef`, checklist and keys hold distinct tokens, when its heartbeat event is published, then the payload holds none of them. And when the publish fails, then the warning names no `SessionRef` in any case (AD-12, AD-33).
 - AC 3 -- Given a person for whom a Tick or BeatNow commits nothing, when it runs, then no event is published for them.
 - AC 4 (DW-633) -- Given the new class and TYPES pair, when the IRIS payload tests and the web checks run, then all of these agree: TYPES, `Test.Live.Payloads` (17 types, 31 contract classes), `payloads.ts` (`--check` clean, `HeartbeatPayload` with `traceUrl?`) and the live store (17 entries). And `npm --prefix web test`, `lint` and `build` pass.
 - [x] [Clarification] Add `'HeartbeatPayload'` to the list of interfaces that carry `traceUrl` in `web/scripts/payloads.test.mjs` (the test "is on exactly the interfaces that have both traceHeaderId and traceNamespace", about line 110), and nothing else in that file; then `npm --prefix web test` is green (AC 4).
+- [ ] [CI] browser `live:sign-in` L10 (`web/e2e/live/live.spec.ts:405`) red on f20a41c2: `data-session-seq` 4, expected 3. Cause: a session with no checklist (heartbeat on by default) gets a Tick `empty` skip on its first tick, and 39.7 published it, moving the session stream's seq under the test. Fix in `Checks/Beat.cls`: a Tick's (RunDue's) skip with reason `SKIPEMPTY` adds no view (the row is still saved; Settle's recorded result, other skips, beats and RunNow, including a run-now held by an empty checklist, still add one). Pin it: a Tick test that a due person with an empty checklist gets a saved `empty` row and NO view/event (mutation: add the view back -> red), and update any existing test that expected an event for a Tick `empty` skip. Do NOT edit `web/e2e/**` (contended by Epic 11).
+- [ ] [CI] `.github/workflows/ci.yml`: the `checks` job's `timeout-minutes` from 15 to 20 (the Contest Planner's pre-ruling; a clean run takes about 13.7 minutes; same job, same name). Change no other job. `ci/checks.sh` already prints each script's elapsed seconds (`==== <name> passed|failed <n>s`): no change there. Run `docker/tests/test-ci-config.sh` after the edit.
 - Integration AC -- Given a real Tick that runs a beat, when the page polls, then `Web.Api.EventsBody` (the real `/api/v1/events` body) serves it as `{type: "heartbeat", stream: "session", payload}`. The generated `HeartbeatPayload` types it, and the live store accepts the type.
 
 ### Review Findings
@@ -202,6 +205,8 @@ Rejected:
 - Bookkeeping status and dates disagree; `payloads.test.mjs` listed as "unchanged" under Shared surfaces (Blind, Auditor) -- not code; the fix edits the spec.
 
 ## Spec Change Log
+
+- 2026-11-05, lead, rework iteration 1 (trigger ci): CI on f20a41c2 failed browser `live:sign-in` L10 because every session without a checklist got a heartbeat event at its first Tick. Ruling (veto): a Tick's `empty` skip publishes no event; AC 1 and the Matrix are amended, and epics.md's 39.7 block carries the same amendment. Also the `checks` job's timeout 15 -> 20 per the Planner's pre-ruling.
 
 - 2026-11-05, lead, answering the implement stage's intent gap (decide, round 1): `web/scripts/payloads.test.mjs` hardcodes the interfaces that carry `traceUrl`, and `HeartbeatPayload` has both trace fields, so AC 4 needs one name added there. The file is Lane B like this story, in no open epic's diff (11, 33, 40), and the change is a one-name append to a list (standing precedent), so it is allowed and reported as a footprint extension. The Never line is amended and one open task added; the earlier pass's implementation stays in the working tree, uncommitted, for this pass to finish.
 

@@ -8603,6 +8603,7 @@ So that what it shows is current without a reload.
 **Given** any beat, skip or recorded result
 **When** its row is committed
 **Then** `Checks` publishes the `heartbeat` event to the session's stream with the row's public view: on, the interval, the hours, next due, the last result and the last skip, but never the `SessionRef`, the checklist's text or a snapshot key (AD-12, AD-33)
+**And** a tick's skip because the checklist is empty publishes nothing, so a person who never wrote a checklist gets no heartbeat events (the row is still saved; a run-now still publishes) [AMENDED 2026-11-05, Story 39.7 rework after CI, unattended ruling (veto): on a local install every session has the heartbeat on by default, so each one's first tick and every interval after published an event no card shows; it read only the Given/When/Then above]
 
 - DW-633: OcuTalon.Live.Payload.Heartbeat not yet created; the class, the Live.Publish TYPES pair, the Test.Live.Payloads counts and web/src/app/live/payloads.ts land together before this story publishes the heartbeat event (ledger; routed by harvest 2026-11-03; moved with the split)
 
