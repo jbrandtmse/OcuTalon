@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 11-05-2026 20:12
+last_updated: 11-05-2026 21:05
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -249,7 +249,7 @@ development_status:
 
   epic-17: in-progress
   17-2-retry-once-on-a-second-model-before-falling-back: done
-  17-3-run-each-agent-on-a-supported-provider: review
+  17-3-run-each-agent-on-a-supported-provider: done
   17-4-apply-model-price-budget-and-zone-changes-through-the-bridge: backlog
   17-5-check-the-vital-signs-and-every-coverage-entry: ready-for-dev
   17-6-send-the-daily-digest-at-the-set-time-and-on-request: backlog

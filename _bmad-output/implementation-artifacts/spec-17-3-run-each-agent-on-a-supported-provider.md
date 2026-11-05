@@ -248,7 +248,38 @@ All of it applies to the retry runners too.
 
 - [x] [Owner] IG-2: update `src/ocutalon/cls/OcuTalon/Test/Web/SettingsApi.cls` `TestGetShape` exactly as the IG-2 ruling under Design Notes says (shape-only providers assertion; key-value scan with the three planted shapes and the configured key value, built at run time; the U-177 exception comment); demonstrate one mutation per planted shape; nothing else in any Lane B file.
 - [x] [Owner] U-288: confirm no text this story adds claims a provider other than Anthropic runs decisions; record the check in `## Decisions` of the review.
+
+### Review Findings
+
+Code review 2026-11-05 (bmad-code-review, full-opus, four layers; baseline `cc12bd0e` plus the uncommitted QA test). 38 rows, 6 entries after grouping (high 0, medium 1, low 5), all patched; 29 rows rejected (below). No `decision-needed`, no new ledger entry (DW-755, DW-757 and DW-758 already hold the deferred items).
+
+- [x] [Review][Patch] A key used as a field name was echoed in Merge's refusal (a Google-shaped name passed the "plain name" test) — `FieldName` now echoes only lower-case entry-style names of at most 32 characters; `TestModelChangeShape` plants a key-shaped name (built at run time) at three depths [src/bridge/cls/OcuTalon/Bridge/ConfigStore.cls:198] (low, fix-risk low: one pattern, every asserted name is lower case)
+- [x] [Review][Patch] Rule 19 hermeticity: the live tests read `old.model` and resolution's default from the Model rows as found — `AtDefault(item)` remembers the row and sets it to the agent's `MODEL` in `TestSetModelNextRequest`, `TestSecondModel`, `TestSetModelEveryAgent` and `TestResolvedLive` [src/ocutalon/cls/OcuTalon/Test/Bridge/ModelChange.cls:532] (medium, fix-risk low: test-only, restored by OnAfterOneTest)
+- [x] [Review][Patch] `SetModel`'s clear of a second model left its written RetryItem row behind when the read-back failed, against "a failure after the first write puts back what was written" — the clear path now puts the row back; `TestSetModelFailureRestores` adds the failing clear [src/bridge/cls/OcuTalon/Bridge/Settings.cls:138] (low, fix-risk low)
+- [x] [Review][Patch] IG-2: the configured-key leg of `TestGetShape` was demonstrated on `KeyShape` while the real body was checked by a separate inline `$Find` — the real body now goes through `KeyShape(body, configuredValues)` too, so the demonstrated path is the used path (in a throwaway no key is set, as the ruling's "if one is set" foresees) [src/ocutalon/cls/OcuTalon/Test/Web/SettingsApi.cls:161] (low, fix-risk low; inside `TestGetShape`, the IG-2 exception)
+- [x] [Review][Patch] U-288: the `Providers` class doc called all four rows providers "an agent can run on" — now "can be configured for; an agent runs only on a provider whose supported flag is set" [src/bridge/cls/OcuTalon/Bridge/Providers.cls:1] (low, fix-risk low)
+- [x] [Review][Patch] `Test.Bridge.Providers` header said the tests write no row, but `TestTable` seeds missing Price rows — header corrected [src/ocutalon/cls/OcuTalon/Test/Bridge/Providers.cls:1] (low, fix-risk low)
+
+Rejected (one line each):
+- Endpoint fields (`base_url`, headers, TLS) kept across a provider change or resolution (BH, EC x3) — already ledgered DW-758 (routed to 17.4); not re-filed. EC's claim that the ConfigStore doc denies it: false, the doc says the entry's other fields stay.
+- Installed `claude-sonnet-5-5` row keeps cache-read 0.2 (BH, EC, VG) — already ledgered DW-757.
+- No job-side resolution or key scan; the decide halves of `TestAdminModelNeverResolves`/`TestNoSupportedKey` pass on release-1 behaviour (BH, VG x2) — IG-1 ruled (option B, U-288); already ledgered DW-755.
+- Case-sensitive `refusal`/`max_tokens`, `length`/`MAX_TOKENS`/`tool_calls` give `unusable` (BH, EC) — by-design until REL-7 flags a provider supported (carried BH-9/EC-6/EC-7).
+- `ConfigStore.Restore` is unguarded (BH) — carried BH-2: entries hold placeholders only.
+- An admin's explicit choice of the default model can resolve away (BH, EC claim) — by-design: the contract defines "default" as Model = MODEL; Decided in-stage 4 records that the two cannot be told apart.
+- The clear needs the retry item's entry; `Entries` validates every runner (BH, EC x2) — carried EC-1/EC-2, wontfix-theoretical (the production installs all six).
+- Neither Merge nor the Provider step checks `supported` (BH) — by-design (carried BH-4): `CheckModel` is the supported gate.
+- Three tests hold the process's key variable values in `..Env` to put them back (BH) — wontfix-theoretical: the values stay in the test process's memory and no assertion, log or store receives them; real if an assertion text or a global held `..Env`.
+- Bedrock Claude profiles get no effort (BH) — by-design, Decided in-stage 9.
+- Resolution on an empty or missing entry gives a config without `http_config` (EC) — wontfix-theoretical: every product runner has an installed `@{config:}` entry; real if a runner item had an empty ProviderConfig while Anthropic's key is set (it would then run on AI Hub's default timeouts, still bounded by Decide's timer).
+- The entry's own provider is skipped even when its own variable is set under another placeholder (EC) — by-design, Decided in-stage 4 (Merge refuses such an entry and the Provider step rewrites it).
+- No lock around `SetModel` (EC) — carried BH-8.
+- The second-model rollback's second restart is unpinned (VG, BH) — low, not a two-way door: a job snapshot cannot tell one restart from two; wontfix-accepted, reopen_if=a failed second-model SetModel leaves TriageAgentRetry answering on the refused model.
+- `TestGetShape` rewrote its class-doc bullet and leaves a `^OcuTalonTest("SettingsApi","plant")` counter (AA) — the bullet documents `TestGetShape` alone (inside the IG-2 exception); the counter is a test-global uniqueness counter that test-boundaries allows; negligible.
+- The Spec Change Log says `deferred` is empty and the footprint note says `SettingsApi` is not edited (AA) — the fix edits the spec under review; noted for the lead.
 ## Spec Change Log
+
+- 2026-11-05 lead (after code review): the frontmatter `deferred:` entries were harvested into the ledger (DW-757 and DW-758 routed to 17.4; the live key-env gap is an occurrence on DW-755), so any earlier line here saying `deferred` is empty is superseded. `Test/Web/SettingsApi.cls` (Lane B) IS edited, inside `TestGetShape` and its `KeyShape` helper only, under the Contest Planner's one-time U-177 exception (IG-2); this supersedes any footprint note saying it is not edited.
 
 - 2026-11-05 implement (re-dispatch): the queued patches, the IG-1 pin test and the IG-2 edit of `Test.Web.SettingsApi.TestGetShape` are applied; `deferred` is empty (its three entries are settled: IG-2 and IG-1 by the rulings, the Sonnet price by the patch).
 - 2026-11-05 lead: IG-2 ruled (one-time U-177 exception) and U-288 kept; attempt-1 patch re-applied; status in-review (re-dispatch protocol, review-step patch path).
@@ -519,6 +550,29 @@ Every test added or changed passes on a fresh environment, in either order.
 - mutation: `RecordKey` records the entry's own configuration, ignoring `Resolved` → `Providers.TestRecordKeyResolved` red. Done: red on "once OpenAI's key is set the job records the resolved configuration: Status is 1", green after the revert.
 - mutation: the rollback of `SetModel` restarts the item whether or not it was restarted → `ModelChange.TestSetModelFailureRestores` red. Done: red on "no item was restarted: the change failed before its restart", green after the revert.
 - mutation: the `gpt-5.4` row of `Installer.Prices` with a long-tier output rate of 20 → `Usage.TestSeedPrices` red. Done: red on the independent pin of gpt-5.4 (the self-comparison to `Prices()` stays green), green after the revert.
+
+**QA stage (Story 17.3, warm tags `e17s3qw`; each mutation applied on the warm stack, red observed, reverted byte-identical, `git status --short` and `git diff --stat` unchanged):**
+- Test added (QA): `src/ocutalon/cls/OcuTalon/Test/Bridge/ModelChange.cls` `TestSetModelEveryAgent` (QA): the first model, second model and clear on `DiagnosisAgent` and `ChatAgent`, which no other test changed through `SetModel` (only `TriageAgent` was, and `ChatAgent` for a first model in `TestNoKeyValueAnywhere`).
+- mutation: `SetModel` always changes the `TriageAgent` item (`item = "TriageAgent"_...`) -> `ModelChange.TestSetModelEveryAgent` red on "DiagnosisAgent: old holds the provider and the model...", "its entry holds the provider and the placeholder, and no model" and "its Model row is the new model" (the mutated run left the throwaway's `TriageAgent` rows changed, so the stack was recreated; green on the fresh stack).
+- mutation: `Choose` ignores the key variable being set (AC "no supported key") -> `Providers.TestChoose` red on "with no key set, nothing resolves" and three more.
+- mutation: `Choose` ignores `isDefault` (matrix "Admin model") -> `Providers.TestChoose` red on "an admin's model (not the default) never resolves" and `Providers.TestResolvedShadowRunner` red on the admin-model build.
+- mutation: `Resolve` treats every model as the default -> `ModelChange.TestAdminModelNeverResolves` red on "Absent is 1: the model that an admin chose is never resolved away" and "Resolve names none".
+- mutation: `Choose` ignores the key state (a present, unknown or missing state resolves) -> `Providers.TestChoose` red on "a present key never resolves", "an unknown key state never resolves" and "and neither does a missing state".
+- mutation: `CheckModel` skips the key-variable-set refusal (matrix "Refused change", key variable unset) -> `Providers.TestCheckModelRefusals` red on "a supported provider whose key variable is not set is refused".
+- mutation: `CheckModel` skips the `supported` refusal (matrix "Refused change", provider `openai`) -> `ModelChange.TestRefusedChangeKeepsEverything` red on "SetModel(TriageAgent, openai, gpt-5.4, 0) is refused", "the entries and the Model and RetryItem rows are as they were" and "no item was restarted" (stack recreated afterwards, green on the fresh stack).
+- mutation: `SetModel` does not call `CheckModel` -> `Providers.TestCheckModelRefusals` red on "case 1 ...: old is empty" (the call fails before any write).
+- mutation: `Provider.KeepChosen` keeps any placeholder (matrix "Step keeps provider", the second row) -> `Install.Provider.TestKeepsChosenProvider` red on "the pair is Anthropic and its placeholder" and "the entry is exactly the computed one".
+- mutation: the model shape accepts any `api_key` (matrix "Merge shapes", another variable) -> `ConfigStore.TestMergeKeyNameCharacters` red on "the api_key of case 1 ... is refused" (and the `TestModelChangeShape` cases of `@{env:PATH}` and another provider's variable).
+- mutation: the timeouts shape accepts any `http_config` field (matrix "Merge shapes", timeouts shape plus a field) -> `ConfigStore.TestMergeRefused` red on "case 2 is refused" (and the `TestModelChangeShape` timeouts cases).
+- mutation: `Merge` writes the validated `model` into the entry (AD-7) -> `ConfigStore.TestModelChangeShape` red on "and never the model: the runner's Model setting carries it".
+- mutation: `Classify` compares the finish reason without lower-casing (matrix "Unclassified stop", `STOP` stays usable) -> `Fallback.TestUnclassifiedStop` red on "the normal end STOP with a text stays usable" and the `End_Turn` and `TOOL_USE` rows.
+- Checked green after the mutations on a fresh warm stack: `Test.Bridge.ModelChange`, `Test.Bridge.Providers`; `docker/tests/test-boundaries.sh` and `test-class-rules.sh` pass.
+
+**Code review stage (Story 17.3, warm tag `e17s3cw`; each mutation applied on the warm stack, red observed, reverted byte-identical (`cmp` against the backup, `git diff --stat` unchanged), the class green again on the same stack):**
+- mutation: `ConfigStore.FieldName` back to `^[A-Za-z0-9_.]{1,64}\z` (DW-52 AC, a refusal names the field and never holds a value) -> `ConfigStore.TestModelChangeShape` red on "and the reason does not echo its name" at depth 1, 2 and 3.
+- mutation: `SetModel`'s clear path without its `PutBack` (Always: a failure after the first write puts back what was written) -> `ModelChange.TestSetModelFailureRestores` red on "and the RetryItem row is put back as it was".
+- mutation (IG-2, again after the scan of the real body was moved onto `KeyShape(body, configuredValues)`): the configured-value match of `KeyShape` made to never match -> `Web.SettingsApi.TestGetShape` red on "a planted configured key is found in the body"; the same `KeyShape` path now scans the real body.
+- Green after the reverts: `Test.Bridge.{ConfigStore,ModelChange,Providers,SettingsStubs}`, `Test.Web.SettingsApi`; `docker/tests/test-boundaries.sh` and `test-class-rules.sh` pass.
 
 ## Auto Run Result
 

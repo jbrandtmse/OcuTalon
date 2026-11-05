@@ -109,3 +109,9 @@
 2026-11-05T20:12:18Z	Story 17.3	adr_verifications_complete	tool=none acs=none result=none_required mutations=none
 2026-11-05T20:12:18Z	Story 17.3	ledger_routed_planned	story=17-3-run-each-agent-on-a-supported-provider/17-4 entries=2(DW-757,DW-758) excess=0 by=harvest
 2026-11-05T20:12:18Z	Story 17.3	stage_spawned	stage=qa spawn_at=2026-11-05T20:12:18Z model=sonnet agent_name=17-3-run-each-agent-on-a-supported-provider-qa-1 cycle_iteration=2
+2026-11-05T20:41:09Z	Story 17.3	qa_complete	spawn_at=2026-11-05T20:12:18Z model=sonnet tests=Test/Bridge/ModelChange.cls(TestSetModelEveryAgent) tests_added=1 mutations_demonstrated=13 first_run_failures=0 clarifications=0 closing_sections_present=true note=two_mutations_dirtied_throwaway_state_recreated
+2026-11-05T20:41:09Z	Story 17.3	stage_spawned	stage=code-review spawn_at=2026-11-05T20:41:09Z model=opus agent_name=17-3-run-each-agent-on-a-supported-provider-code-review-1 cycle_iteration=2
+2026-11-05T21:06:45Z	Story 17.3	cr_complete	spawn_at=2026-11-05T20:41:09Z model=opus final=done resolved=6 fixed_at_source=6 wontfix_accepted=1 dismissed=29 deferred=0 high=0 med=1 low=5 rows=38 unresolved_high_med=0 clarifications=0 closing_sections_present=true U-288=pass IG-2=pass(only_Lane_B_file:Test/Web/SettingsApi.cls)
+2026-11-05T21:06:45Z	Story 17.3	ledger_adjudicated	owned=1 resolved=1(DW-52) reowned=0 terminal=0
+2026-11-05T21:37:59Z	Story 17.3	smoke_complete	method=cli(fresh_live_install-start) result=pass iterations=2 defects_caught=0 evidence=e17s3s:row4_start_not_ready_within_200s(host_load_7.6,10_stacks:infra);rerun_e17s3s2:95_PASS_rc=0;ModelChange_live_runner_jobs_in_fresh_check
+2026-11-05T21:37:59Z	Story 17.3	fresh_check	env=recipe(fresh_warm_stacks_e17s3fw,e17s3rw) tests=11(Bridge.ConfigStore,Fallback,Keys,ModelChange,Providers,SessionConfig,SettingsStubs,UnclassifiedStop,Usage,Install.Provider,Web.SettingsApi) result=pass order=forward,reverse

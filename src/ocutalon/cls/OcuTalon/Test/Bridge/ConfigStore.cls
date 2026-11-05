@@ -12,7 +12,8 @@
 ///   - TestMergePlaceholder: the model-change shape with the placeholder of the provider is accepted and stored as the literal placeholder;
 ///   - TestModelChangeShape (Story 17.3, DW-52): each way of putting anything but the provider, its own key placeholder and a model of that provider
 ///     into a model change is refused, naming the field, with the entry unchanged; the valid shape is accepted, and the entry never holds the model;
-///     the timeouts shape plus another field is refused; the shapes cannot be mixed;
+///     the timeouts shape plus another field is refused; the shapes cannot be mixed; a field whose name is shaped like a key is refused without the name
+///     in the reason;
 ///   - TestRestore (Story 17.3): Restore puts back the details that Details read after a Merge, byte for byte; details that are no dynamic object and a
 ///     missing entry are refused, and nothing is created;
 ///   - TestMergeKeyNameCharacters: an api_key placeholder is exactly @{env:<the provider's variable>}; any other variable, a hyphen, a dot, a colon,
@@ -214,6 +215,26 @@ Method TestModelChangeShape()
 	Do $$$AssertEquals(details."model_provider"_"|"_details."api_key", "openai|@{env:OPENAI_API_KEY}", "the entry holds the provider and the placeholder")
 	Do $$$AssertEquals(details.%IsDefined("model"), 0, "and never the model: the runner's Model setting carries it")
 	Do $$$AssertEquals(details."base_url", "http://old.invalid/v1/", "the other fields stay")
+	// a field named like a key (a Google-shaped name, built here so that no key-shaped text sits in this file) is refused, and the reason never echoes the name
+	Set keyName = "AI"_"za"_"SyZzFieldName0123456789abcdefghijk"
+	Set unchanged = ..EntryDetails().%ToJSON()
+	For depth = 1:1:3 {
+		Set fields = {}
+		Set target = fields
+		If depth > 1 {
+			Do target.%Set("http_config", {})
+			Set target = target."http_config"
+		}
+		If depth > 2 {
+			Do target.%Set("retry", {})
+			Set target = target.retry
+		}
+		Do target.%Set(keyName, "x")
+		Set sc = $ClassMethod(store, "Merge", name, fields)
+		Do $$$AssertStatusNotOK(sc, "a field named like a key is refused at depth "_depth)
+		Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) '[ keyName, "and the reason does not echo its name (depth "_depth_")")
+		Do $$$AssertEquals(..EntryDetails().%ToJSON(), unchanged, "and the entry is unchanged (depth "_depth_")")
+	}
 	For provider = "anthropic", "openai", "gemini", "bedrock" {
 		Set row = ##class(OcuTalon.Bridge.Providers).Row(provider)
 		Do $$$AssertStatusOK($ClassMethod(store, "Merge", name, {"model_provider": (provider), "api_key": ("@{env:"_row.keyVariable_"}"), "model": (row.defaultModel)}), provider_" with its key variable and its default model is accepted")

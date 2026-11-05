@@ -1,5 +1,5 @@
-/// The provider table of the bridge (AD-7, AD-8, AD-19): the fixed list of the providers that an agent can run on, in the order that
-/// resolution tries them. Each row holds the provider's name, its default model (its cheap tier), the models that can be selected, the
+/// The provider table of the bridge (AD-7, AD-8, AD-19): the fixed list of the providers that an agent can be configured for, in the order
+/// that resolution tries them; an agent runs only on a provider whose supported flag is set. Each row holds the provider's name, its default model (its cheap tier), the models that can be selected, the
 /// environment variable that holds its key and the supported flag.
 ///   - The key variable is the only form in which a key reaches a provider: the entry holds @{env:<the variable>} and AI Hub resolves
 ///     it inside its provider. This class asks only whether a variable is set (KeySet) and never reads, returns, stores or logs a value.

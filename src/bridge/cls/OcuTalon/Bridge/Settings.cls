@@ -133,12 +133,16 @@ ClassMethod SetModel(agent As %String, provider As %String, model As %String, se
 	Do was.%Set("model", ##class(OcuTalon.Bridge.Operation.AgentRunner).ResolveModel(item, production))
 	If second Do was.%Set("retryItem", ##class(OcuTalon.Bridge.Ext.Accessor).ValueFor("RetryItem", production, agent))
 	Set old = was
-	If clear Quit ..WriteRow(production, agent, "RetryItem", "", ..#RETRYROW)
+	Set retryId = production_"||"_agent_"||*||RetryItem"
+	Set retryRow = ..RowState(retryId)
+	If clear {
+		Set sc = ..WriteRow(production, agent, "RetryItem", "", ..#RETRYROW)
+		If $$$ISERR(sc) Set sc = $$$ADDSC(sc, ..PutBack(retryId, retryRow, production, agent, "RetryItem"))
+		Return sc
+	}
 
 	Set modelId = production_"||"_item_"||*||Model"
 	Set modelRow = ..RowState(modelId)
-	Set retryId = production_"||"_agent_"||*||RetryItem"
-	Set retryRow = ..RowState(retryId)
 	Set fields = {"model_provider": (provider), "api_key": ("@{env:"_##class(OcuTalon.Bridge.Providers).Row(provider).%Get("keyVariable")_"}"), "model": (model)}
 	Set sc = ##class(OcuTalon.Bridge.ConfigStore).Merge(entry, fields)
 	If $$$ISERR(sc) Quit sc

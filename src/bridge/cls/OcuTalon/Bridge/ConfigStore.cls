@@ -193,11 +193,11 @@ ClassMethod ModelShape(fields As %DynamicObject) As %String [ Private ]
 	Quit ""
 }
 
-/// The name of a field for a refusal: the name when it is a plain one (letters, digits, underscores and dots, at most 64 characters), so that
-/// a reason never echoes a value that was put in a field name; otherwise a description.
+/// The name of a field for a refusal: the name when it is a plain one, as the fields of an entry are (lower-case letters, digits, underscores
+/// and dots, at most 32 characters), so that a reason never echoes a value that was put in a field name, such as a key; otherwise a description.
 ClassMethod FieldName(name As %String) As %String [ Private ]
 {
-	If $Match($Get(name), "^[A-Za-z0-9_.]{1,64}\z") Quit $Get(name)
+	If $Match($Get(name), "^[a-z0-9_.]{1,32}\z") Quit $Get(name)
 	Quit "whose name is not a plain name"
 }
 

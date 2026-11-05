@@ -1,5 +1,5 @@
 /// Tests of the provider table, provider resolution and the model-change checks (Story 17.3; AD-7, AD-8, AD-19). In process: they send nothing to a provider and
-/// write no setting, entry or row. They need the CI mock only for the shadow runner (TestResolvedShadowRunner), which builds an agent for another provider and
+/// write no setting or entry; the only rows they write are the Price rows that Installer.SeedPrices creates when they are missing (TestTable), as the install does. They need the CI mock only for the shadow runner (TestResolvedShadowRunner), which builds an agent for another provider and
 /// must send nothing, so that test fails with the reason where the environment is not the CI override's (RunnerFixture GuardReason). Every test that sets a key
 /// variable sets a fake, non-secret text in this process only and puts every variable back as it found it (OnBeforeOneTest and OnAfterOneTest).
 ///   - TestTable: the table has its four rows in order, with the default model, the selectable models and the key variable of each; only Anthropic is

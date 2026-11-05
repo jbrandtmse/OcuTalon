@@ -9,9 +9,11 @@
 ///     restarts TriageAgent alone, and returns old as {provider, model}; the next decide's mock log model and Decision.Model are claude-sonnet-5-5;
 ///   - TestSecondModel: a second model sets the Model row of TriageAgentRetry and the RetryItem row of TriageAgent; with a refused first attempt the retry answers on
 ///     the second model; an empty provider and model clear RetryItem, leave the retry item as it is, and the next refusal is a fallback with no retry;
+///   - TestSetModelEveryAgent (QA): the same changes for DiagnosisAgent and ChatAgent, a first model, a second model and the clear: each writes its own entry, Model row and
+///     RetryItem row, restarts only its own item, and leaves the other agents' models alone;
 ///   - TestSetModelFailureRestores: a write that fails after the entry was merged (a more specific System Default Settings row of Model, and for a second model of
 ///     RetryItem, which the read-back finds) returns the error and puts back the entry and the rows as they were, and restarts the item again only when
-///     it was restarted;
+///     it was restarted; a clear that fails the same way puts the RetryItem row back;
 ///   - TestRefusedChangeKeepsEverything: refused changes leave the entries, the Model and RetryItem rows and the jobs of every item as they were;
 ///   - TestResolvedLive: with Anthropic's key variable set in the test's process, and the entries of TriageAgent and TriageAgentRetry on OpenAI with no key, Keys.Absent is 0 for
 ///     both items and Providers.Resolve names Anthropic with its default model; with the variable unset Absent is 1 again;
@@ -159,7 +161,7 @@ Method TestSetModelNextRequest()
 	If '..Prepare() Quit
 	Set fixture = ..#FIXTURE
 	Do $ClassMethod(..#SCAN, "SetEnv", "ANTHROPIC_API_KEY", ..#FAKE)
-	Do ..Remember("TriageAgent", "Model")
+	Do ..AtDefault("TriageAgent")
 	Set jobs = ..Jobs()
 	Set old = ""
 	Set sc = $ClassMethod(..#SETTINGS, "SetModel", "TriageAgent", "anthropic", ..#SECOND, 0, .old)
@@ -191,7 +193,8 @@ Method TestSecondModel()
 	If '..Prepare() Quit
 	Set fixture = ..#FIXTURE
 	Do $ClassMethod(..#SCAN, "SetEnv", "ANTHROPIC_API_KEY", ..#FAKE)
-	Do ..Remember("TriageAgentRetry", "Model")
+	Do ..AtDefault("TriageAgent")
+	Do ..AtDefault("TriageAgentRetry")
 	Do ..Remember("TriageAgent", "RetryItem")
 	Set old = ""
 	Set sc = $ClassMethod(..#SETTINGS, "SetModel", "TriageAgent", "anthropic", ..#SECOND, 1, .old)
@@ -235,6 +238,64 @@ Method TestSecondModel()
 	Do $$$AssertEquals($ClassMethod(fixture, "CountTo", headers, "TriageAgentRetry"), 0, "and no retry was sent")
 }
 
+/// Every agent that has a model to change, not only TriageAgent: a first model, a second model and the clear on DiagnosisAgent and ChatAgent each write that agent's
+/// own entry, Model row and RetryItem row, restart only the item that changed, and leave the models of the other agents as they were.
+Method TestSetModelEveryAgent()
+{
+	If '..Prepare() Quit
+	Do $ClassMethod(..#SCAN, "SetEnv", "ANTHROPIC_API_KEY", ..#FAKE)
+	Set agents = $ListBuild("DiagnosisAgent", "ChatAgent")
+	Set position = 0
+	While $ListNext(agents, position, agent) {
+		Set retry = agent_"Retry"
+		Do ..AtDefault(agent)
+		Do ..AtDefault(retry)
+		Do ..Remember(agent, "RetryItem")
+		Set ..Touched = ..Touched _ $ListBuild(agent, retry)
+		Set ..Restarts = ..Restarts _ $ListBuild(agent, retry)
+		Set label = agent_": "
+		Set otherModels = ..ModelsExcept(agent)
+
+		// a first model
+		Set jobs = ..Jobs()
+		Set old = ""
+		Set sc = $ClassMethod(..#SETTINGS, "SetModel", agent, "anthropic", ..#SECOND, 0, .old)
+		Do $$$AssertStatusOK(sc, label_"SetModel changes the model")
+		Do $$$AssertEquals($Select($IsObject(old): old.%ToJSON(), 1: ""), "{""provider"":""anthropic"",""model"":""claude-haiku-5-5""}", label_"old holds the provider and the model that were replaced")
+		Set details = ..Details(agent)
+		Do $$$AssertEquals(details."model_provider"_"|"_details."api_key"_"|"_details.%IsDefined("model"), "anthropic|@{env:ANTHROPIC_API_KEY}|0", label_"its entry holds the provider and the placeholder, and no model")
+		Do $$$AssertEquals(##class(OcuTalon.Bridge.Operation.AgentRunner).ResolveModel(agent, ..#PRODUCTION), ..#SECOND, label_"its Model row is the new model")
+		Do $$$AssertEquals(##class(OcuTalon.Bridge.Operation.AgentRunner).ResolveModel(retry, ..#PRODUCTION), "claude-haiku-5-5", label_"and its retry item keeps its own")
+		Do $$$AssertEquals(##class(OcuTalon.Bridge.Ext.Accessor).ValueFor("RetryItem", ..#PRODUCTION, agent), "", label_"and no RetryItem is set")
+		Do ..AssertOnlyRestarted(jobs, agent)
+		Do $$$AssertEquals(..ModelsExcept(agent), otherModels, label_"the models of the other agents are as they were")
+
+		// a second model
+		Set jobs = ..Jobs()
+		Set old = ""
+		Set sc = $ClassMethod(..#SETTINGS, "SetModel", agent, "anthropic", ..#SECOND, 1, .old)
+		Do $$$AssertStatusOK(sc, label_"SetModel names a second model")
+		Do $$$AssertEquals($Select($IsObject(old): old.%ToJSON(), 1: ""), "{""provider"":""anthropic"",""model"":""claude-haiku-5-5"",""retryItem"":""""}", label_"old holds the retry item's provider and model and the RetryItem that were replaced")
+		Set details = ..Details(retry)
+		Do $$$AssertEquals(details."model_provider"_"|"_details."api_key"_"|"_details.%IsDefined("model"), "anthropic|@{env:ANTHROPIC_API_KEY}|0", label_"the retry entry holds the provider and the placeholder, and no model")
+		Do $$$AssertEquals(##class(OcuTalon.Bridge.Operation.AgentRunner).ResolveModel(retry, ..#PRODUCTION), ..#SECOND, label_"the Model of the retry item is the second model")
+		Do $$$AssertEquals(##class(OcuTalon.Bridge.Operation.AgentRunner).ResolveModel(agent, ..#PRODUCTION), ..#SECOND, label_"and the first model stays")
+		Do $$$AssertEquals(##class(OcuTalon.Bridge.Ext.Accessor).ValueFor("RetryItem", ..#PRODUCTION, agent), retry, label_"RetryItem is the retry item")
+		Do ..AssertOnlyRestarted(jobs, retry)
+		Do $$$AssertEquals(..ModelsExcept(agent), otherModels, label_"the models of the other agents are still as they were")
+
+		// the clear
+		Set jobs = ..Jobs()
+		Set old = ""
+		Set sc = $ClassMethod(..#SETTINGS, "SetModel", agent, "", "", 1, .old)
+		Do $$$AssertStatusOK(sc, label_"an empty provider and model clear the second model")
+		Do $$$AssertEquals($Select($IsObject(old): old.retryItem, 1: ""), retry, label_"old names the retry item that was set")
+		Do $$$AssertEquals(##class(OcuTalon.Bridge.Ext.Accessor).ValueFor("RetryItem", ..#PRODUCTION, agent), "", label_"RetryItem is empty")
+		Do $$$AssertEquals(##class(OcuTalon.Bridge.Operation.AgentRunner).ResolveModel(retry, ..#PRODUCTION), ..#SECOND, label_"and the retry item is left as it is")
+		Do $$$AssertEquals(..Jobs(), jobs, label_"and no item was restarted")
+	}
+}
+
 /// A write that fails after the entry was merged returns the error, with the entry, the rows and the item as they were. A more specific System Default Settings row
 /// (the class of the adapter for Model, the class of the runner for RetryItem) wins over the row that SetModel writes, so the read-back finds another value.
 Method TestSetModelFailureRestores()
@@ -265,6 +326,10 @@ Method TestSetModelFailureRestores()
 	Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ "RetryItem", "and the reason names the setting: "_$SYSTEM.Status.GetErrorText(sc))
 	Do $$$AssertEquals(..State(), before, "the retry entry, the Model row of the retry item and the RetryItem row are as they were")
 	Do $$$AssertEquals($ClassMethod(fixture, "NotRunningNow"), "", "and every item runs again")
+
+	Set sc = $ClassMethod(..#SETTINGS, "SetModel", "TriageAgent", "", "", 1, .old)
+	Do $$$AssertStatusNotOK(sc, "a clear fails when RetryItem is not the empty value that it wrote")
+	Do $$$AssertEquals(..State(), before, "and the RetryItem row is put back as it was")
 }
 
 /// Refused changes change nothing: not an entry, not a row, not a job.
@@ -301,6 +366,8 @@ Method TestResolvedLive()
 	If '..Prepare() Quit
 	Set keys = "OcuTalon.Bridge.Keys"
 	Set providers = "OcuTalon.Bridge.Providers"
+	Do ..AtDefault("TriageAgent")
+	Do ..AtDefault("TriageAgentRetry")
 	Do ..UseOpenAI("TriageAgent")
 	Do ..UseOpenAI("TriageAgentRetry")
 	For item = "TriageAgent", "TriageAgentRetry" {
@@ -460,6 +527,17 @@ Method Remember(item As %String, setting As %String) [ Private ]
 	Set ..SavedRows = saved
 }
 
+/// Remembers the Model row of the item and sets it to the MODEL of the item's agent class, its default, so that a test that reads the model it replaces, or
+/// that needs the default for resolution, does not depend on the row as it found it.
+Method AtDefault(item As %String) [ Private ]
+{
+	Do ..Remember(item, "Model")
+	Set agentClass = ##class(Ens.Director).GetAdapterSettingValue(..#PRODUCTION_"||"_item, "AgentClass", .sc)
+	Set model = $Select($$$ISOK(sc) && (agentClass '= ""): $Parameter(agentClass, "MODEL"), 1: "")
+	Do $$$AssertTrue(model '= "", item_" has an agent class with a MODEL")
+	Do $$$AssertStatusOK($ClassMethod(..#FIXTURE, "PutDefault", item, "Model", model), item_" is on its agent's own model, the default")
+}
+
 /// Inserts a System Default Settings row of the setting for the item on the host class (more specific than the row of any class), and remembers its id to be deleted.
 Method InsertSpecific(item As %String, class As %String, setting As %String, value As %String) [ Private ]
 {
@@ -504,6 +582,19 @@ ClassMethod Details(item As %String) As %DynamicObject [ Private ]
 {
 	Do ##class(OcuTalon.Bridge.ConfigStore).Details(..EntryOf(item), .details)
 	Quit details
+}
+
+/// The Model of every runner item except the agent and its retry item, as one text, to compare before and after.
+ClassMethod ModelsExcept(agent As %String) As %String [ Private ]
+{
+	Set text = ""
+	Set items = $ListFromString(..Runners())
+	Set position = 0
+	While $ListNext(items, position, item) {
+		If (item = agent) || (item = (agent_"Retry")) Continue
+		Set text = text _ $Select(text = "": "", 1: ";") _ item _ "=" _ ##class(OcuTalon.Bridge.Operation.AgentRunner).ResolveModel(item, ..#PRODUCTION)
+	}
+	Quit text
 }
 
 /// The jobs of Decide and the six runner items, as one text, to compare before and after.

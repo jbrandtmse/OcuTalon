@@ -147,6 +147,7 @@ Method TestGetShape()
 	// U-177 exception: this Lane B test is edited by Lane A's Story 17.3 once, as ruled by the Contest Planner (2026-11-05). The providers are asserted by their built shape only.
 	Do $$$AssertEquals(json.providers.%GetTypeOf(0), "object", "the providers are built: the first row is an object")
 	Do $$$AssertTrue(json.providers.%Size() > 0, "and the list is not empty")
+	Set configuredValues = ""
 	Set iterator = json.providers.%GetIterator()
 	While iterator.%GetNext(, .row) {
 		Set fields = ""
@@ -157,13 +158,13 @@ Method TestGetShape()
 		Do $$$AssertEquals(fields, "provider,defaultModel,models,keyVariable,keySet,supported", "a provider row holds these fields: "_row.provider)
 		Do $$$AssertEquals(row.%GetTypeOf("keySet")_"|"_row.%GetTypeOf("supported"), "boolean|boolean", "with keySet and supported as booleans: "_row.provider)
 		Set configured = $SYSTEM.Util.GetEnviron(row.keyVariable)
-		If configured '= "" Do $$$AssertEquals($Find(body, configured), 0, "the body does not hold the key value configured in "_row.keyVariable)
+		If configured '= "" Set configuredValues = configuredValues_$ListBuild(configured)
 	}
 	Set lower = $ZConvert(body, "L")
 	For word = "secret", "apikey", "password", "token_value" {
 		Do $$$AssertTrue(lower '[ word, "the body holds no '"_word_"'")
 	}
-	Do $$$AssertEquals(..KeyShape(body, ""), "", "the body holds no value shaped like a key (the names of the key variables are allowed)")
+	Do $$$AssertEquals(..KeyShape(body, configuredValues), "", "the body holds no value shaped like a key and no key value configured in a key variable (the names of the key variables are allowed)")
 
 	// the scan fails on each shape of key value planted in the body; the keys are built here, so that no key-shaped text sits in this file
 	Set configuredFake = "zz-configured-"_$Increment(^OcuTalonTest("SettingsApi", "plant"))

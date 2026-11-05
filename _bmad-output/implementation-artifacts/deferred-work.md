@@ -321,6 +321,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-21T17:28:39Z status=open owner=1-1-every-agent-runs-on-claude-haiku-5-5-through-the-config-stor by=harvest note=deferred by 1.1 implement; adjudicate at 1.1's gate (likely route to 17-3 with the residual)
 - 2026-10-21T18:26:41Z occurrence=1-1-every-agent-runs-on-claude-haiku-5-5-through-the-config-stor
 - 2026-10-21T18:39:25Z status=routed owner=17-3-run-each-agent-on-a-supported-provider by=adjudication note=residual: 17.3's model-change API must validate env var name, base_url, headers, model, secret:// before Merge (1.1 checks api_key, @{ only)
+- 2026-11-05T21:06:45Z status=resolved-by:17-3-run-each-agent-on-a-supported-provider by=adjudication note=ConfigStore.Merge accepts only the timeouts and model-change shapes; base_url, headers, secret://, foreign env and other @{ refused (Test.Bridge.ConfigStore)
 
 ### DW-53: cycle-log-epic-1.md line 1 held a local absolute path (state=), which test-boundaries.sh flags in every tracked file, so the hosted checks job would go red on the next push
 - source: _bmad-output/implementation-artifacts/spec-1-1-every-agent-runs-on-claude-haiku-5-5-through-the-config-stor.md | severity: med | fix-risk: low | footprint: in-story
