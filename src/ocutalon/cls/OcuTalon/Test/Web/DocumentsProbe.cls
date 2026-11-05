@@ -5,7 +5,7 @@
 /// uploadSessionRef (that row's SessionRef), sessionRef and documentRef. It answers by
 /// ^OcuTalonTest("DocumentsProbe", "answer"): "" is a done command (Ok 1, Ref zzDocRef0123456789abcd; a done AddDocument takes its Upload row,
 /// as DocumentOps does, unless ^OcuTalonTest("DocumentsProbe", "keep") is set), "not_built", "not_found", "failed" and
-/// any other word are a CommandResult with Ok 0 and that Outcome, "status" is an error status, "throw" throws an error, "okerror" is an Ok result with an error status and "none" is OK with no result. The route's sweep measures its hour from ^OcuTalonTest("DocumentsProbe", "now") when it is set, and "throw" there makes the sweep throw (SweepNow). The owner item is running
+/// any other word are a CommandResult with Ok 0 and that Outcome, "status" is an error status, "throw" throws an error, "okerror" is an Ok result with an error status and "none" is OK with no result. The route's sweep measures its hour from ^OcuTalonTest("DocumentsProbe", "now") when it is set, else from SLOTNOW (2000-01-01, so it deletes no real row), and "throw" there makes the sweep throw (SweepNow). The owner item is running
 /// unless ^OcuTalonTest("DocumentsProbe", "owner") is "off". The roles of the
 /// signed-in user are the text in ^OcuTalonTest("DocumentsProbe", "roles") when it is set (comma-separated, as $Roles is), which the OcuTalon
 /// user role check and the admin check of OnPreDispatch read, and the process's own $Roles otherwise.
@@ -55,13 +55,17 @@ ClassMethod Submit(command As OcuTalon.Msg.Command, Output result As OcuTalon.Ms
 	Quit $SYSTEM.Status.OK()
 }
 
-/// The time the route's sweep measures from: ^OcuTalonTest("DocumentsProbe", "now") when the test set it, else the current time ("").
+/// The time the route's sweep measures from: ^OcuTalonTest("DocumentsProbe", "now") when the test set it, else SLOTNOW, so that a test that
+/// does not set it purges no row of the slot (a purge at the real clock runs only on a throwaway).
 ClassMethod SweepNow() As %String [ Private ]
 {
-	Set now = $Get(^OcuTalonTest("DocumentsProbe", "now"))
+	Set now = $Get(^OcuTalonTest("DocumentsProbe", "now"), ..#SLOTNOW)
 	If now = "throw" Throw ##class(%Exception.StatusException).CreateFromStatus($SYSTEM.Status.Error(5001, "The sweep's clock failed"))
 	Quit now
 }
+
+/// The sweep's clock when the test set none: an hour before it, no upload is made.
+Parameter SLOTNOW = "2000-01-01T00:00:00Z";
 
 /// 1 unless the test set ^OcuTalonTest("DocumentsProbe", "owner") to "off": the owner item is running (the slot has no production to ask).
 ClassMethod OwnerRunning() As %Boolean [ Private ]

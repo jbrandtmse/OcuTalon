@@ -10,6 +10,7 @@ Measured 2026-11-05 by the Epic 34 runner (lane C), evidence for DW-754 and the 
 - the first start is ready (at 227 s)
 - golden copy: stop, copy ocutalon-upload-reset-e34s3r-1793910804-56369_durable to ocutalon-upload-reset-e34s3r-1793910804-56369_golden (at 229 s)
 - ready again after the golden copy (at 265 s)
+- two uploads stored through `Upload.Put`, one fresh and one dated two hours back (between 265 s and 267 s; not timed separately)
 - GET /v1/documents as the demo account (at 267 s)
 - reset: stop, restore ocutalon-upload-reset-e34s3r-1793910804-56369_golden into ocutalon-upload-reset-e34s3r-1793910804-56369_durable (at 269 s)
 - ready after the restore (at 294 s)
@@ -31,5 +32,7 @@ CHK|data|0
 CHK|index|0
 CHK|stream|0
 ```
+
+In order: before the golden copy, the upload data global's database (`dest`), the row count (`rows` 0) and `$Data` of the three upload globals summed (`nodes` 0); after the two uploads, both stores OK (`put|1|1`, the fresh one, then the aged one with its date change) and the row count (`rows` 2); the GET's HTTP status (`get` 200) and, after it, the aged session's and the fresh session's row counts (`aged` 0, `fresh` 1); after the restore, the row count (`rows` 0) and `$Data` of `^OcuTalonP.UploadD`, `UploadI` and `UploadS` (`data`, `index`, `stream` 0). The golden volume was removed just before `done`, and the throwaway was torn down after it (`ci/iris.sh teardown` with the tag).
 
 **Result.** 296 s in all; failed checks: 0. The route's sweep (the GET above, over real HTTP as the demo account) deleted the upload made two hours ago and kept the fresh one.

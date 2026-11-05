@@ -12,9 +12,9 @@ RUN mkdir -p /durable && chown 51773:51773 /durable
 # pip line installs fastembed, pdfplumber and python-docx with their dependencies, wheels only, where IRIS's Python imports them, and every
 # dependency is held to the version measured for the build's architecture by a constraints file (docker/licences/constraints-arm64.txt or
 # constraints-x64.txt, chosen by uname -m; any other architecture fails the build). The licence gate then lists every installed
-# distribution with its licence and fails the build on any outside the allowed set (docker/licences/allowed.txt) and on any that the
-# constraints file does not name at the installed version, and the notices file is written from the installed licence files; no licence
-# file is deleted.
+# distribution with its licence and fails the build on any outside the allowed set (docker/licences/allowed.txt), on any that the
+# constraints file does not name at the installed version and on any pin of the file that is not installed, and the notices file is
+# written from the installed licence files; no licence file is deleted.
 # The model AllMiniLM-L6-v2 is downloaded now, so that no first use needs the network, into a root-owned read-only folder that
 # FASTEMBED_CACHE_DIR names (files 444, folders 555); it sits outside /opt/ocutalon so that the mode step below never copies it again.
 COPY docker/licences/allowed.txt docker/licences/gate.py docker/licences/constraints-arm64.txt docker/licences/constraints-x64.txt /opt/ocutalon/licences/

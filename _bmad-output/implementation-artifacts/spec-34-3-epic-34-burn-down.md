@@ -106,6 +106,38 @@ deferred:
 - **Integration (Rule 1):** given aged and fresh uploads, when the Web area's `Purge` (consumer, the daily task's registry path) runs, then only the aged one is gone (`TestPurgeUploads`); when the documents routes (consumer) are called, through the probe and over real HTTP on the throwaway, then only the aged one is gone (`TestSweepOnEveryRoute`, the reset script's GET); when `Upload.Take` (consumer of `Ownership.Upload`) is called with another session's Ref, then it returns nothing (`TestTakeIsOwnerScoped`).
 - Every test added or changed passes on a fresh environment, in either order.
 
+### Review Findings
+
+Code review 2026-11-05 (first review; four layers: blind, edge case, verification gap, acceptance). 25 findings: 13 patched (medium 1, low 12), 0 decision-needed, 0 deferred, 12 rejected (2 false). No HIGH: every AD the Design Notes cite holds (AD-4 governs per-session reads and commands; an age purge across sessions is AD-27's pattern, like the live events and the address counter). Rule 3: no user-facing surface, exempt.
+
+- [x] [Review][Patch] (medium) The "a row already gone is not an error" clause of the shared delete loop was unpinned (QA's survivor) -- new `TestRowAlreadyGone` plants an index node naming an id with no row and drops the session through `DropSession`; mutation recorded under Verification [src/ocutalon/cls/OcuTalon/Test/Core/UploadContract.cls]
+- [x] [Review][Patch] `Upload.Drop` returned `%DeleteId`'s not-found error when a row went between its read and its delete, against its doc -- it now deletes through the shared loop [src/ocutalon/cls/OcuTalon/Data/Upload.cls:71]
+- [x] [Review][Patch] The Always constraint "the purge reads and deletes without SQL" had no falsifiable pin (a rewrite with checked SQL would fail silently on the routes) -- new `TestPurgeUsesNoSql`; mutation recorded [src/ocutalon/cls/OcuTalon/Test/Core/UploadContract.cls]
+- [x] [Review][Patch] Every `DocumentsApi` test that sets no sweep clock purged the slot's rows at the real clock, against "a test that purges at the real clock runs only on a throwaway" -- the probe's default clock is now `SLOTNOW` (2000-01-01) [src/ocutalon/cls/OcuTalon/Test/Web/DocumentsProbe.cls:59]
+- [x] [Review][Patch] The `DocumentsApi` header said the `OnPreDispatch` 413 cases assert no row; they assert that the dispatch stops before any route [src/ocutalon/cls/OcuTalon/Test/Web/DocumentsApi.cls:18]
+- [x] [Review][Patch] The AC 4 `mutation:` line said the reset mutant was not run, while the run (restore skipped, after-restore CHK red) exists -- line corrected [spec Verification]
+- [x] [Review][Patch] The Dockerfile comment omitted the gate's failure on a pin that is not installed [docker/Dockerfile:16]
+- [x] [Review][Patch] The x64 evidence claimed the build always prints the installed set; with `-c` pip fails first, by name, on a pin x64 cannot install -- stated, with DW-765 occurrence [_bmad-output/implementation-artifacts/evidence/34-3-x64-installed-set.md]
+- [x] [Review][Patch] The x64 evidence did not say that pip judged environment markers on the host [_bmad-output/implementation-artifacts/evidence/34-3-x64-installed-set.md]
+- [x] [Review][Patch] The x64 evidence asked for CI's set without saying it replaces the table that `test-compose-file.sh` reads as the pin list [_bmad-output/implementation-artifacts/evidence/34-3-x64-installed-set.md]
+- [x] [Review][Patch] The reset evidence lacked the store step, a key to its CHK lines and the cleanup [_bmad-output/implementation-artifacts/evidence/34-3-upload-reset.md]
+- [x] [Review][Patch] `NOTFOUND` is the system's `$$$DeleteObjectNotFound` (5810, `%occErrors.inc`), now named in its doc [src/ocutalon/cls/OcuTalon/Data/Upload.cls:32]
+- [x] [Review][Patch] DW-747's trailer still gave 19.4 Take's session check, which this story delivers -- trailer appended (owner unchanged, the timeout case stays) [deferred-work.md DW-747]
+
+Rejected:
+- false: AD-4 exception for the route sweep -- AD-4 binds per-session reads and commands; purges by age across sessions are AD-27's (live events, address counter), and AD-21/AD-27 record this one.
+- false: `TestPurgeUploads` does not show the address counter still purged -- `TestPurgeAddressCounter` runs the same `Install.Step.Web.Purge` in the same class.
+- low: the sweep opens every `Upload` row on each documents call -- rows live at most an hour (taken within seconds when DocumentOps runs, 120 s route timeout); `%OpenId` does not read the stream; Design Notes 3 forbid an index. Acceptable.
+- low: a failing route sweep leaves no trace -- the Matrix makes the route ignore it; `TestPurgeUsesNoSql` now pins the one silent-failure cause found (SQL under the signed-in user).
+- low: the fresh-environment shards ran before the review patches -- the lead's Rule 19 pre-push fresh run, forward and reversed, covers the final tests; the patched classes ran green on the slot.
+- low: 2001-dated fixtures could be purged by a concurrent real-clock purge on a shared slot -- one test run per slot at a time, CI runs a fresh instance, and the probe no longer purges at the real clock.
+- low: `Owned` drops `Ownership.Upload`'s status -- the shape of `Ownership.Document`; a row left by a failed read is purged within the hour.
+- low: a malformed non-empty `CreatedAt` is never purged -- `Put` always writes a valid time.
+- low: the spine's REST table does not name the sweep -- AD-21 states it; a plain union only where the story's tasks named it.
+- low: the AD-27 union also names the address counter -- accurate, and a plain union.
+- low: the evidence files carry no revision -- the commit that adds them is the revision.
+- low: `TestSweepOnEveryRoute` compares statuses, not bodies; `Drop`'s scoping has no mutation of its own -- `Purge` writes nothing to the device; Rule 19 asks one mutation per AC and AC 3 has two.
+
 ## Spec Change Log
 
 - 2026-11-05 (lead, before implement): DW-738 added by the Contest Planner's ruling (pin the image's transitive Python packages per architecture; evidence equals constraints; gate unchanged in force; IPM path; version-bump rule). Re-validated for this item only.
@@ -207,9 +239,27 @@ Shared surfaces: the `OcuTalon.Data.Upload` table (row counts in `DocumentsApi`,
 - mutation: `Upload.Purge` call removed from `Install.Step.Web.Purge` -> `Test.Web.Install` TestPurgeUploads red (days 90 and 0).
 - mutation: `Sweep` removed from `Documents.List`, then from `Documents.Remove` -> `DocumentsApi` TestSweepOnEveryRoute red (the list, then a remove).
 - mutation: `Upload.Put` added in `Documents.Add` right after `ParseBody`, before the refusals -> `DocumentsApi` TestRefusedAddsStoreNothing red (wrong_type, empty, ...).
-- mutation: reset check (AC 4): its CHK lines read `rows 2` before the restore and `rows 0`, `data/index/stream 0` after it, in the evidence `34-3-upload-reset.md`; the check's own red (a restore that left a row) is the `after the restore` CHK, which compares to 0 (not re-run as a separate mutation).
+- mutation: reset check (AC 4): the restore replaced by `true` (the golden copy never restored) -> the check's `after the restore` CHK red, 4 of 4 values (`rows 1`, `data 11`, `index 10`, `stream 11` against 0), 242 s on its own throwaway, torn down; run by the implement stage's review pass, whose output the code review read (corrected 2026-11-05 by code review: this line had said the mutant was not run).
 - mutation: DW-738 one version changed in `constraints-x64.txt` (`numpy==2.5.4` -> `2.5.3`) -> `test-compose-file.sh` check "constraints: each architecture's file pins exactly the distributions and versions of its evidence table" red.
 - mutation: DW-738 `gate.py check` with the constraints comparison disabled -> `test-compose-file.sh` check "licences: the gate refuses an installed distribution that the constraints lack ..." red.
+
+**QA audit (stage qa, 2026-11-05; slot `ocutalon-slot-c`, no test file changed):** every AC and Matrix row has a pinning test; the implement stage's 10 recorded mutations were reused, and 11 more were demonstrated for pins that had none in this section (each reverted byte-identical, class green again after):
+- mutation: `Documents.Dispatch` drops the failed add's row with `Drop(upload, "")` instead of the command's SessionRef -> `DocumentsApi` TestUploadRows red (every failed-submit case left a row).
+- mutation: `Sweep` removed from `Documents.Add` -> `DocumentsApi` TestSweepOnEveryRoute red (refused add, accepted add).
+- mutation: `Sweep` without its `Try`/`Catch` -> `DocumentsApi` TestSweepOnEveryRoute red (`List returns OK` with the throwing clock).
+- mutation: `Upload.Purge` skips a row with no `CreatedAt` -> `UploadContract` TestPurgeBoundary red (an upload with no time counts as old).
+- mutation: `Upload.Purge` without the unreadable-time error -> `UploadContract` TestPurgeBoundary red.
+- mutation: `gate.py` no longer reports an installed distribution that is not pinned -> `test-compose-file.sh` "licences: the gate refuses an installed distribution that the constraints lack ..." red.
+- mutation: `gate.py` ignores a version that differs from the pin -> the same check red.
+- mutation: `gate.py` ignores a pin that is not installed -> the same check red.
+- mutation: Dockerfile pip line without `-c "$constraints"` -> `test-compose-file.sh` "dockerfile: one pip line installs exactly ..." red.
+- mutation: Dockerfile architecture switch lets an unknown architecture fall through to x64 -> `test-compose-file.sh` "dockerfile: the pip line holds every dependency ..." and "the architecture switch ... picks constraints-x64.txt ..." red.
+- mutation: Dockerfile gate call without the constraints file -> `test-compose-file.sh` "dockerfile: the licence gate runs right after the install ..." red.
+- survivor, not closable from a test: `Upload.DeleteAll` without its `NOTFOUND` clause (a row deleted meanwhile becomes an error) leaves all 7 `UploadContract` tests green. `DeleteAll` is `[ Private ]` (`$ClassMethod` raises `<PRIVATE METHOD>` from a test), no single-process sequence makes a row vanish between the walk and the delete, and the existing assertion pins only the status code `Purge` ignores. Closing it needs a production seam (for example a `Protected` or public `DeleteAll`), which is outside QA's file scope; recorded as an open point.
+
+**Code review (2026-11-05; slot `ocutalon-slot-c`, each mutant reverted byte-identical, class green again after: UploadContract 9 of 9, DocumentsApi 17 of 17):**
+- mutation: `Upload.DeleteAll` without its `NOTFOUND` clause -> `UploadContract` TestRowAlreadyGone red ("DropSession is OK although one of its rows is already gone" => ERROR #5810). Closes the QA survivor with no production seam: the test plants an index node of ZzUploadGone that names an id with no row, which `DropSession`'s query reads, so the shared loop meets a row that is already gone (the state a Take or purge leaves between the read and the delete).
+- mutation: `Upload.Purge` runs `%SQL.Statement.%ExecDirect` in its walk -> `UploadContract` TestPurgeUsesNoSql red ("Purge names no %sql", "... no %execdirect"): the Always constraint "the purge reads and deletes without SQL".
 
 **Run record (implement stage, 2026-11-05):** loop classes green on the warm stack (UploadContract, DocumentsApi, Web.Install, SessionOpsDocuments, Data.Ownership, Web.BodyLimit); `test-class-rules`, `test-storage`, `test-boundaries`, `test-compose-file`, `test-lib-live` green; `lint_spine.py` only the 8 pre-existing `placeholder` findings; reset check `e34s3r` all CHK ok (296 s) and torn down; `shard lane-b` fresh parts 1/2 and 2/2, forward and `--reverse`, all passed (51, 50, 51, 50 classes); `live sign-in` parts 1/3 (118), 2/3 (107) and 3/3 (111) passed. Part 2/3 first ran into the local 540 s deadline twice on a busy machine (other lanes' stacks, load 6 to 7) with no failed test, and passed with `OCUTALON_LIVE_DEADLINE=585`. The image built on arm64 with the pins, and `gate.py check` inside it printed `the installed set equals constraints-arm64.txt` (36 distributions).
 

@@ -16,8 +16,9 @@
 ///     holds no bytes; the row stays while the owner answers Ok (DocumentOps takes it); a failed submit (every answer but Ok, an error status, a thrown
 ///     error, an Ok result with an error status, no result), a refusal, an owner that is not running and a remove leave no row;
 ///   - TestRefusedAddsStoreNothing (DW-753): with the owner running, so that an accepted add would store a row, every refusal (wrong type, empty, a malformed body,
-///     too_large for a .md, .txt, .pdf and .docx of 10,485,761 bytes, the route's 413 at BODYMAX plus one byte and OnPreDispatch's 413 for both dispatch
-///     classes) leaves the session with no Upload row and nothing submitted, and one accepted add then stores exactly one row;
+///     too_large for a .md, .txt, .pdf and .docx of 10,485,761 bytes, and the route's 413 at BODYMAX plus one byte) leaves the session with no Upload
+///     row and nothing submitted, OnPreDispatch's 413 for both dispatch classes stops the dispatch before any route runs, and one accepted add then
+///     stores exactly one row;
 ///   - TestSweepOnEveryRoute (DW-752): with the sweep's clock set (the probe's SweepNow), the list, a refused add, an accepted add and a remove each delete
 ///     another session's upload that is over the hour and keep one exactly an hour old and a fresh one, and the route answers as before, also when the sweep fails or throws;
 ///   - TestBodyBound: a body of BODYMAX bytes is parsed and one byte more is 413 body_too_large before it is parsed, with nothing submitted;

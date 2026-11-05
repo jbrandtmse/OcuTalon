@@ -29,7 +29,7 @@ Property CreatedAt As %String(MAXLEN = 20);
 /// within CommandsIn's timeout, 120 seconds, so no upload that a command in flight still needs is that old.
 Parameter KEEP [ Final ] = 3600;
 
-/// The status code of %DeleteId for an id that has no row (the row was deleted meanwhile).
+/// The status code of %DeleteId for an id that has no row (the row was deleted meanwhile): $$$DeleteObjectNotFound of %occErrors.inc.
 Parameter NOTFOUND [ Final ] = 5810;
 
 Index RefIndex On Ref [ Unique ];
@@ -67,14 +67,14 @@ ClassMethod Take(ref As %String, sessionRef As %String) As %Stream.Object
 }
 
 /// Deletes the session's upload with the Ref, if there is one. Returns OK when it is gone or when the session has no such upload (an
-/// upload of another session is left alone).
+/// upload of another session is left alone, and a row deleted meanwhile is not an error).
 ClassMethod Drop(ref As %String, sessionRef As %String) As %Status
 {
 	Set row = ..Owned($Get(ref), $Get(sessionRef))
 	If '$IsObject(row) Quit $$$OK
-	Set id = row.%Id()
+	Set ids(1) = row.%Id()
 	Kill row
-	Quit ..%DeleteId(id)
+	Quit ..DeleteAll(.ids)
 }
 
 /// Deletes every upload of the session (its sign-out; AD-4) and no other. Returns OK when none is left, else the first error.
@@ -117,7 +117,7 @@ ClassMethod Owned(ref As %String, sessionRef As %String) As OcuTalon.Data.Upload
 	Quit ##class(OcuTalon.Data.Ownership).Upload(ref, sessionRef)
 }
 
-/// Deletes the rows whose ids are the values of ids, each with %DeleteId, which deletes its stream. A row already gone is not an error.
+/// Deletes the rows whose ids are the values of ids (for Drop, DropSession and Purge), each with %DeleteId, which deletes its stream. A row already gone is not an error.
 /// Returns OK, or the first error.
 ClassMethod DeleteAll(ByRef ids) As %Status [ Private ]
 {

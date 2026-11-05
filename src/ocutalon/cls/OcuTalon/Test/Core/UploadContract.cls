@@ -11,8 +11,12 @@
 ///     nothing, and with the owner's SessionRef Take returns the bytes and deletes the row and Drop deletes it (DW-754; Ownership.Upload);
 ///   - TestPurgeBoundary: Purge deletes the rows made before now minus 3,600 seconds and a row with no time, keeps a row exactly that old and every younger one, whatever
 ///     daysToKeep says, for every session, and never touches a fresh row; a delete of a missing row answers the status that Purge ignores (DW-752; the fixture rows are dated 2001);
-///   - TestDropSession: DropSession deletes every upload of the session and no other session's, and a call with no SessionRef deletes nothing.
-/// The rows are made for the SessionRefs ZzUploadA and ZzUploadB and are deleted before each test and after the tests.
+///   - TestDropSession: DropSession deletes every upload of the session and no other session's, and a call with no SessionRef deletes nothing;
+///   - TestRowAlreadyGone: the delete loop that Drop, DropSession and Purge share counts a row that is already gone as deleted: a session whose
+///     index names a row with no data (a row deleted between the read of its id and its delete) is dropped with OK, and its real row is gone;
+///   - TestPurgeUsesNoSql: Purge and the delete loop name no SQL (the documents routes run them as the signed-in user, who holds no SQL privilege).
+/// The rows are made for the SessionRefs ZzUploadA, ZzUploadB and ZzUploadGone and are deleted before each test and after the tests, with
+/// ZzUploadGone's index nodes.
 Class OcuTalon.Test.Core.UploadContract Extends OcuTalon.Test.Contract
 {
 
@@ -207,11 +211,50 @@ Method TestPurgeBoundary()
 	Do $$$AssertEquals(..Count("Ref = '"_fresh_"'"), 1, "and deletes nothing")
 }
 
-/// Deletes the rows that the tests make.
+/// A row that is gone when the shared delete loop reaches it is not an error. The index of ZzUploadGone names a row id with no data (the
+/// state a Take or a purge leaves when it deletes the row between DropSession's read and its delete); DropSession reads that id from the
+/// index and still answers OK, and the session's real row is gone.
+Method TestRowAlreadyGone()
+{
+	Set source = ##class(%Stream.TmpBinary).%New()
+	Do source.Write("gone")
+	Do source.Rewind()
+	Set ref = ##class(OcuTalon.Data.Upload).Put("ZzUploadGone", source, .sc)
+	Do $$$AssertStatusOK(sc, "an upload of ZzUploadGone is stored")
+	Set missing = $Get(^OcuTalonP.UploadD) + 1000000
+	Do $$$AssertEquals($Data(^OcuTalonP.UploadD(missing)), 0, "the id "_missing_" has no row")
+	Set ^OcuTalonP.UploadI("SessionRefIndex", "ZzUploadGone", missing) = ""
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT ID FROM OcuTalon_Data.Upload WHERE SessionRef = ?", "ZzUploadGone")
+	Set read = ""
+	While result.%Next() { Set read = read_","_result.%GetData(1) }
+	Do $$$AssertTrue((read_",") [ (","_missing_","), "DropSession's query reads the id of the row that is gone ("_read_")")
+	Do $$$AssertStatusOK(##class(OcuTalon.Data.Upload).DropSession("ZzUploadGone"), "DropSession is OK although one of its rows is already gone")
+	Do $$$AssertEquals(##class(OcuTalon.Data.Upload).RefIndexExists(ref), 0, "and the session's real row is gone")
+	Kill ^OcuTalonP.UploadI("SessionRefIndex", "ZzUploadGone")
+}
+
+/// Purge and the delete loop it shares hold no SQL: the documents routes run Purge as the signed-in user, who holds no SQL privilege, and
+/// the route ignores a failed sweep, so SQL there would fail on the online demo with nothing red.
+Method TestPurgeUsesNoSql()
+{
+	For name = "Purge", "DeleteAll" {
+		Set method = ##class(%Dictionary.MethodDefinition).%OpenId("OcuTalon.Data.Upload||"_name)
+		Do $$$AssertTrue($IsObject(method), "OcuTalon.Data.Upload has "_name)
+		If '$IsObject(method) Continue
+		Set code = $ZConvert(method.Implementation.Read(32000), "L")
+		For word = "%sql", "&sql(", "%execdirect", "%prepare" {
+			Do $$$AssertNotTrue(code [ word, name_" names no "_word)
+		}
+	}
+}
+
+/// Deletes the rows that the tests make, and the index nodes of ZzUploadGone.
 ClassMethod DeleteFixtures() [ Private ]
 {
 	Do ##class(OcuTalon.Data.Upload).DropSession("ZzUploadA")
 	Do ##class(OcuTalon.Data.Upload).DropSession("ZzUploadB")
+	Do ##class(OcuTalon.Data.Upload).DropSession("ZzUploadGone")
+	Kill ^OcuTalonP.UploadI("SessionRefIndex", "ZzUploadGone")
 }
 
 /// The number of upload rows that meet a condition, or -1 when the count fails.

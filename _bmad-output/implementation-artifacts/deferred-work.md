@@ -4268,6 +4268,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: docker/Dockerfile pip line has three pins and no constraints file; the gate fails closed on any new licence (34.2 review, Blind); Decided 9 and U-285 chose re-measuring over pinning
 - 2026-11-05T13:03:31Z status=escalated owner=burndown by=cr note=owner call: a constraints file per architecture (aarch64, x86_64) for the 36 measured distributions vs re-measure on every build; demo path risk
 - 2026-11-05T19:34:48Z status=routed owner=34-3-epic-34-burn-down by=Contest_Planner(delegated) note=decided_YES_2026-11-05_(relayed_by_the_orchestrator):one_constraints_file_per_architecture_pinning_every_distribution_of_the_measured_set_(arm64_from_Task_0;x64_measured_on_x64_or_in_a_CI_step_that_prints_the_installed_set,_never_assumed);image_build_installs_with_pip_-c;tests:evidence_list_equals_constraints_(mutation)_and_the_licence_gate_still_fails_outside_the_families;IPM_path_uses_the_same_pins_or_the_contract_says_it_installs_none;a_version_bump_re-measures_licences_in_the_same_commit_(comment_atop_each_file);before_Epic_34_merges
+- 2026-11-05T22:46:20Z status=resolved-by:34-3-epic-34-burn-down by=adjudication note=docker/licences/constraints-arm64.txt_and_constraints-x64.txt_pin_36_distributions_each_(version-bump_rule_atop_each);Dockerfile_pip_install_-c_by_uname_-m;gate.py_check_fails_on_unpinned,differing,missing_and_outside_the_licence_families;test-compose-file.sh_pins_evidence==constraints(mutation);arm64_image_gate_passed;IPM_installs_no_Python_packages;x64_confirmation_by_CI_image_build_tracked_as_DW-765
 
 ### DW-739: No test executes the real Web.Documents route -> Commands.Submit -> CommandsIn path: while DocumentOps is disabled the OwnerRunning guard answers 501 first, the unit tests use DocumentsProbe's Submit, and TestRealSubmitOrigin only reads the method's source text
 - source: spec-34-2-add-and-remove-documents-on-a-documents-page.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -4285,6 +4286,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-05T16:51:33Z status=routed owner=19-4-answer-from-documents-with-citations by=harvest note=19.4 builds DocumentOps's Take and decides the sweep, the timeout case and the session check
 - 2026-11-05T17:39:16Z occurrence=34-2-add-and-remove-documents-on-a-documents-page
 - 2026-11-05T19:14:52Z occurrence=34-3-epic-34-burn-down by=burndown note=its_sweep_part_(orphaned_rows)_is_DW-752,built_in_34.3;the_timeout_case_and_Take's_session_check_stay_with_19.4
+- 2026-11-05T22:44:46Z status=routed owner=19-4-answer-from-documents-with-citations by=cr note=34.3 delivered Take's session check (Take(ref,sessionRef) via Ownership.Upload) and the sweep; 19.4 keeps the timeout case
 
 ### DW-741: Epic 34 merge: Web.Api's OnPreDispatch refuses a POST /v1/documents body over 256 KB with 413 before OcuTalon.Web.Documents (Map-forwarded) runs; 34.2 must declare XData BodyBounds in Api.cls (url /v1/documents) and in Documents.cls (url "")
 - source: spec-11-22-first-daily-release-burn-down.md (cr) | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -4323,20 +4325,24 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: owner ruling U-287 at=2026-11-05T19:09:13Z#874; Data.Upload.CreatedAt is stored and never read (DW-747)
 - 2026-11-05T19:14:18Z status=routed owner=burndown by=owner note=Epic 34 burn-down story
 - 2026-11-05T19:14:51Z owner=34-3-epic-34-burn-down by=burndown note=chartered_into_34.3_(U-287_conditions)
+- 2026-11-05T22:46:12Z status=resolved-by:34-3-epic-34-burn-down by=adjudication note=Upload.Purge_deletes_rows_older_than_1h:_daily_via_Install.Step.Web.Purge_and_a_sweep_at_every_documents_route_call;TestPurgeBoundary(3601s_deleted,3600s_kept),TestSweepOnEveryRoute,TestPurgeUsesNoSql;reset-stack_HTTP_GET_deleted_the_aged_row
 
 ### DW-753: U-287 condition 2: the 10 MB file limit and the documents route's ~14 MB body bound are enforced before any Data.Upload row is written, pinned by tests (no row exists after a refused add)
 - source: spec-34-2-add-and-remove-documents-on-a-documents-page.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: owner ruling U-287 at=2026-11-05T19:09:13Z#874
 - 2026-11-05T19:14:18Z status=routed owner=burndown by=owner note=Epic 34 burn-down story
 - 2026-11-05T19:14:52Z owner=34-3-epic-34-burn-down by=burndown note=chartered_into_34.3_(U-287_conditions)
+- 2026-11-05T22:46:12Z status=resolved-by:34-3-epic-34-burn-down by=adjudication note=TestRefusedAddsStoreNothing:wrong_type,too_large_per_family,empty,both_413_paths_leave_no_Upload_row;positive_control_stores_one
 
 ### DW-754: U-287 condition 3: Data.Upload rows are owner-scoped like other session data (Ownership checks), and the online demo's reset clears them (golden restore); checked once on a throwaway reset with recorded evidence
 - source: spec-34-2-add-and-remove-documents-on-a-documents-page.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: owner ruling U-287 at=2026-11-05T19:09:13Z#874; AD-4, AD-25
 - 2026-11-05T19:14:18Z status=routed owner=burndown by=owner note=Epic 34 burn-down story
 - 2026-11-05T19:14:52Z owner=34-3-epic-34-burn-down by=burndown note=chartered_into_34.3_(U-287_conditions)
+- 2026-11-05T22:46:12Z status=resolved-by:34-3-epic-34-burn-down by=adjudication note=Upload.Take(ref,sessionRef)_and_Drop_owner-checked_via_Ownership.Upload;TestTakeIsOwnerScoped;reset_on_throwaway_e34s3r:2_rows_before,0_after_golden_restore;mutant_(restore_skipped)_red;evidence/34-3-upload-reset.md
 
 ### DW-765: constraints-x64.txt is a starting set resolved with host pip for x86_64 platform tags (equals the arm64 set), not a measured installed x64 set; CI's x64 image build (the licence gate compares the installed set to it and fails on any difference) is the confirmation, and its printed set becomes evidence/34-3-x64-installed-set.md
 - source: spec-34-3-epic-34-burn-down.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: pip evaluates markers against the host; no x64 Python image runs locally (34.3 implement)
 - 2026-11-05T22:27:17Z status=routed owner=burndown by=harvest note=the lead records CI's printed set and run id at the burn-down gate; a differing set reds the image build by name
+- 2026-11-05T22:44:47Z occurrence=34-3-epic-34-burn-down by=cr note=with pip -c a pinned version that x64 cannot install fails pip first, by name, before the gate prints a set
