@@ -4178,3 +4178,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Story 17.2 rework re-review 2 (rejected as outside the rework range): Adapter.Agent SaveLinked on a fresh/compacted turn after Decide's timer; pre-existing release 1 behaviour
 - 2026-11-05T11:39:48Z status=escalated owner=burndown by=lead note=for the Planner with DW-729: one arbiter (Decide points the link on accepting a reply) would close both; AD-6/AD-8 decision
 - 2026-11-05T11:53:12Z status=routed owner=17-8-only-decide-moves-a-conversation-s-link by=orchestrator note=decided by=Contest_Planner(delegated): a reply Decide does not accept moves nothing, any turn type; fix-forward 17.8
+
+### DW-746: HistoryCount (GetContext().%Size() of the opened session) may not index RequestSize.StoredMessages for a session holding tool-call messages, so the retry seed's cut could be off (DW-726 seed)
+- source: spec-17-8-only-decide-moves-a-conversation-s-link.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: Task 0 agreed for plain turns only; no test covers a session with tool messages, delta records or a compacted history; probe: a tool-using continue turn on the CI mock
+- 2026-11-05T15:20:50Z status=open owner=17-8-only-decide-moves-a-conversation-s-link by=harvest note=QA/CR of 17.8 probes it; resolve or fix in-story
