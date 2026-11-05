@@ -583,3 +583,4 @@
 2026-11-05T20:16:27Z	Epic 11	retro_review_skipped	reason=skip(no_X.0_input)_redispatch_for_11.24
 2026-11-05T20:16:27Z	Epic 11	deps_hash_rerecorded	reason=fix_forward note=Story_11.24_inserted_in_Epic_11(no_boundary_or_dependency_change);orchestrator_records_the_graph_hash epics_md_sha256=0e7d487d216cac3a
 2026-11-05T20:17:41Z	Epic 11	epic_context_compiled	reason=planning_artifact_newer(11.24_inserted) model=claude-opus lines=61 header=ok subagent_tokens=78523
+2026-11-05T20:18:39Z	Story 11.24	stage_spawned	stage=plan spawn_at=2026-11-05T20:18:39Z model=claude-opus agent_name=11-24-readme-ipm-install-plan-1 cycle_iteration=1 ledger_inbox=none task0=fresh_154_and_109_throwaways(lane-B)
