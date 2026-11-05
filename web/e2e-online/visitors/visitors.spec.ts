@@ -1,4 +1,4 @@
-import { expect, test, type APIRequestContext, type BrowserContext, type Page } from '@playwright/test';
+import { expect, test, type APIRequestContext, type BrowserContext, type Page } from '../../e2e/support/fixtures';
 
 import { STATE } from '../../e2e/support/api';
 import { chk, irisScript } from '../../e2e/support/iris';

@@ -1,5 +1,8 @@
-import { execFileSync, spawn } from 'node:child_process';
+import { execFileSync } from 'node:child_process';
 
+import { test } from '@playwright/test';
+
+import { runBounded, scriptBound } from './bounds';
 import { irisSessionCommand } from './rehearsal';
 
 /**
@@ -69,31 +72,40 @@ export function fixtureUser(kind: FixtureKind): { user: string; password: string
   return { user: required(`OCUTALON_${kind}_USER`), password: required(`OCUTALON_${kind}_PASSWORD`) };
 }
 
-/** Runs one script in a session of the container (or of the rehearsal's exec channel, e2e/support/rehearsal.ts) and returns whatever it printed. */
-function runOnce(script: string): Promise<string> {
-  return new Promise((resolve, reject) => {
-    const { cmd, args } = irisSessionCommand(process.env, irisContainer);
-    const child = spawn(cmd, args, {
-      stdio: ['pipe', 'pipe', 'ignore'],
-    });
-    let out = '';
-    child.stdout.setEncoding('utf8');
-    child.stdout.on('data', (chunk: string) => (out += chunk));
-    child.on('error', reject);
-    child.on('close', () => resolve(out));
-    child.stdin.end(`${script}\nHalt\n`);
-  });
+/**
+ * Runs one script in a session of the container (or of the rehearsal's exec channel, e2e/support/rehearsal.ts) and returns whatever it printed.
+ * With ms set, a session that has not ended by then is killed and the call rejects naming the bound and the script's first line.
+ */
+function runOnce(script: string, ms: number | undefined): Promise<string> {
+  const { cmd, args } = irisSessionCommand(process.env, irisContainer);
+  const first = (script.split('\n').find((line) => line.trim() !== '') ?? '').trim().slice(0, 80);
+  return runBounded(cmd, args, `${script}\nHalt\n`, ms, 'irisScript', ` from the script starting "${first}"`);
+}
+
+/** The bound of the running test's project (metadata irisScriptMs, set by the online projects of playwright.config.ts), or undefined outside a test or a bounded project. */
+function currentBound(): number | undefined {
+  try {
+    return scriptBound(test.info().project.metadata);
+  } catch {
+    return undefined;
+  }
 }
 
 /**
  * Runs a script of ObjectScript lines in the OCUTALON namespace of the IRIS container, as docker/tests/lib-live.sh's
  * iris_script does, and returns the lines that start with `CHK|` (the script prints them with Write !,"CHK|...").
  * A session that prints no such line is tried again, at most three tries 5 s apart.
+ * A session that gives no answer within ms is never tried again: its local command (the docker exec client, or the OCUTALON_E2E_IRIS_EXEC
+ * shell) is killed, which does not stop an iris session already running in the container, and the call rejects with
+ * `irisScript: no answer within <s> s from the script starting "<first line>"`. ms defaults to the running test's project bound (the
+ * online projects set one) and is unbounded without it. In a test of the shared test, the bound (or no bound) never outlasts the test's
+ * deadline (bounds.ts capToDeadline: the time left less the clean-up reserve, or less a small margin inside asCleanup), and a session
+ * that takes 10 s or more prints a `SLOW irisScript ...` line.
  */
-export async function irisScript(script: string): Promise<string[]> {
+export async function irisScript(script: string, ms: number | undefined = currentBound()): Promise<string[]> {
   let lines: string[] = [];
   for (let attempt = 1; attempt <= 3; attempt += 1) {
-    const out = await runOnce(script);
+    const out = await runOnce(script, ms);
     lines = out
       .replace(/\r/g, '')
       .split('\n')

@@ -2007,3 +2007,8 @@
 2026-11-05T08:56:59Z	Run	epic40_runner_choice	decided_at=2026-11-05T08:56:59Z D_boundary=08:56:44Z(39.7 CI green) B_state="11.21 part not merged (integrate-forward + proof series)" outcome=D_takes_40_at_40.5 then="B takes the first-daily-release burn-down after its part-merge" rule=Planner_05:20Z
 2026-11-05T08:57:34Z	Epic 39	runner_reported	reason=waiting waiting_on=40 head=c9e078d4 applied=U-275,U-283 stories_done=39.1,39.3,39.4,39.6,39.7 waiting=39.2(on 40),39.5(on 39.2)
 2026-11-05T08:57:40Z	Epic 40	runner_redispatched	runner=adb395f62df832415 model=opus lane=D slot=ocutalon-slot-d prompt=prompts/redispatch-epic-40-lane-d.md from=40.5
+2026-11-05T10:11:11Z	Epic 11	runner_complete	part_merge=11.20+11.21 head=f0d75a14 ready_for_merge=true applied=U-277 browser_runs=127115759778,127139996987,127154394131(run 41988777549 on e5536511) shards=127128851329 decisions_for_user=none ledger="resolved=4 terminal=8 open_after=1 drain_ratio=1.33"
+2026-11-05T10:11:11Z	Epic 11	ci_green_verified	runs=42005120199,42005120210 head=f0d75a14 result=success via=none
+2026-11-05T10:11:11Z	Epic 11	amendments_verified	amendments=3 extensions=7 ok=true
+2026-11-05T10:11:11Z	Epic 11	merge_enqueued	policy=when_green part_merge=U-277 waiver=U9_every_story_done(this merge only) feature_moved=bookkeeping_only
+2026-11-05T10:11:11Z	Epic 11	epic_merge_started	head=f0d75a14

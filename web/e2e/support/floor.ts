@@ -2,6 +2,7 @@ import { expect, type Locator, type Page } from '@playwright/test';
 
 import { signIn, signInReadme } from '../sign-in/helpers';
 import { STATE } from './api';
+import { WAIT_SLACK_MS, boundedStep, waitsFor } from './bounds';
 import {
   cleanFixtureRows,
   fixtureUser,
@@ -15,6 +16,7 @@ import {
   seedTurns,
   turnRows,
 } from './iris';
+import { currentWaits } from './navigate';
 import { tokenColor } from './page';
 
 /**
@@ -136,13 +138,20 @@ export function settled(page: Page): Promise<void> {
  * Runs the sign-in action and waits until the page has loaded its snapshot (DW-333). The wait is on the answer: the GET of /state is armed
  * before the action and awaited with its status, and only then does the page get its time to show the snapshot, so a /state that a loaded
  * host answers late is waited for and a failed one is named. The action may be any sign-in that ends at the application's page.
+ * Both steps have a bound of their own, shorter than the test's timeout (currentWaits: the navigation wait for the sign-in, the action wait
+ * for the snapshot), and a step that does not end in time fails naming itself: `loadedAfter the sign-in` or
+ * `loadedAfter the snapshot GET /ocutalon/api/v1/state`, with the bound.
  */
 export async function loadedAfter(page: Page, signInAction: () => Promise<unknown>): Promise<void> {
-  const state = page.waitForResponse((response) => response.request().method() === 'GET' && new URL(response.url()).pathname === STATE);
+  const waits = currentWaits() ?? { action: waitsFor(0).actionTimeout, navigation: waitsFor(0).navigationTimeout };
+  const state = page.waitForResponse((response) => response.request().method() === 'GET' && new URL(response.url()).pathname === STATE, {
+    timeout: waits.navigation + waits.action + WAIT_SLACK_MS,
+  });
   // The wait is awaited below; a sign-in that fails first must not leave its timeout unhandled.
   state.catch(() => undefined);
-  await signInAction();
-  expect((await state).status(), 'the snapshot is served').toBe(200);
+  await boundedStep(signInAction(), waits.navigation, 'loadedAfter the sign-in');
+  const answered = await boundedStep(state, waits.action, `loadedAfter the snapshot GET ${STATE}`);
+  expect(answered.status(), 'the snapshot is served').toBe(200);
   await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
 }
 

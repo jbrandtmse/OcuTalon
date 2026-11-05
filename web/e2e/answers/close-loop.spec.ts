@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 
-import { expect, test, type Locator, type Page, type Route } from '@playwright/test';
+import { expect, test, type Locator, type Page, type Route } from '../support/fixtures';
 
 import { signIn } from '../sign-in/helpers';
 import { post } from '../support/api';
