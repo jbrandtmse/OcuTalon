@@ -191,3 +191,5 @@
 2026-11-05T07:57:32Z	Epic 39	spine_updated	ad=AD-18 reason=clarification by=runner story=39-7-publish-the-heartbeat-event lint=unchanged_8_findings_before_and_after note=Event_bullet_U-283_exception_marker_orchestrator;memlog_not_installed
 2026-11-05T07:57:32Z	Story 39.7	rework_opened	cycle_iteration=4 iteration=2 trigger=high items=HIGH_AD-18_Event_bullet(done_by_lead),LOW_class_docs_Checks/Process.cls_Live/Payload/Heartbeat.cls,LOW_epics_marker_wording(done_by_lead) scope_baseline=pending
 2026-11-05T07:57:32Z	Story 39.7	stage_spawned	stage=implement spawn_at=2026-11-05T07:57:32Z model=sonnet agent_name=39-7-implement-4 cycle_iteration=4
+2026-11-05T08:03:43Z	Story 39.7	dev_complete	spawn_at=2026-11-05T07:57:32Z model=sonnet build_sha=1f4d0c31 baseline_revision=f67aebff review_loop_iteration=0 followup_review_recommended=false deferred=0 files=2 loc_added=8 loc_removed=4 nfr_tripwires=0 adr_violations_surfaced=0 cycle_iteration=4 note=rework_2_class_docs_only
+2026-11-05T08:03:43Z	Story 39.7	stage_spawned	stage=code-review spawn_at=2026-11-05T08:03:43Z model=opus agent_name=39-7-code-review-3 cycle_iteration=4
