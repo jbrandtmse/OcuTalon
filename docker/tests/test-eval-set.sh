@@ -12,8 +12,9 @@
 #                 FIXKINDS), the case kinds, the finding keys and the demo case (Eval.Report CASEKINDS, FINDINGKEYS and DEMOCASE), the
 #                 words that make a setting name a credential (Watch.Reader CREDENTIALPARTS), the four catalog keys of Checks.Render
 #                 (KEYALLPASSED, KEYRESTPASSED, KEYNOTEVERYTHING and KEYNOTHINGWATCHED) and the namespace and production of the Orders
-#                 demo (Install.Step.Demo NAMESPACE and PRODUCTION) and the namespace and production of the test feed (Test.Eval.Feed.Fixture
-#                 NAMESPACE and PRODUCTION) are read from their classes, and each is found;
+#                 demo (Install.Step.Demo NAMESPACE and PRODUCTION), the namespace and production of the test feed (Test.Eval.Feed.Fixture
+#                 NAMESPACE and PRODUCTION) and the channel, subject, status line start and status line end of a beat (Checks.Beat CHANNEL,
+#                 SUBJECT, STATUSPREFIX and STATUSSUFFIX) are read from their classes, and each is found;
 #   cases         eval/ holds a case.json, and every one is a JSON object that has a name equal to its folder's, a kind of the case kinds, a boolean
 #                 heldOut, a description, a recordedBy and an expectation with the fields of its kind, and its kind's record; and every
 #                 folder below eval/ that holds a file holds a case.json:
@@ -21,15 +22,21 @@
 #                                       (a test-only case below eval/mock-wrong/ is exempt) and a provenance that is
 #                                       absent or untrusted, and either the channel mailbox with no catalogKey, or the channel system
 #                                       (a finding) with a catalogKey of the finding keys, a slots object, an empty sender and subject
-#                                       and a text;
-#                   injection           expectation.keyPhrases, a non-empty array whose elements are each a non-empty string or a
-#                                       non-empty array of them (alternatives), and no expectation.outcome (an injection is not scored
-#                                       by outcome); the item record of an item (itemId and provenance), without the channel rules;
+#                                       and a text, or the channel heartbeat (Story 39.6) with no catalogKey, an empty sender, the
+#                                       beat's subject and a text that holds a line that starts with the status line start and ends
+#                                       with its end, after a blank line;
+#                   injection           an expectation with expectation.keyPhrases, a non-empty array whose elements are each a non-empty
+#                                       string or a non-empty array of them (alternatives), or expectation.outcome of the outcomes, or
+#                                       both (Story 39.6), and a keyPhrases or an outcome that is present must be valid; the item record
+#                                       of an item (itemId and provenance), without the channel rules (an injection on the channel
+#                                       heartbeat has the heartbeat rules);
 #                                       and, when it has one, a watch (the production that an evaluation run watches for the case): an
 #                                       object whose namespace and production are non-blank strings, with no other member. No other
 #                                       kind has a watch;
 #                   incident            expectation.causeCategory of the categories, an elementAtFault, and a fixKind of the fix kinds
-#                                       when the category is the fix category and empty otherwise; a snapshot, the name of a file in the
+#                                       when the category is the fix category and empty otherwise, except that an expectation.noFix
+#                                       (DW-653), when present, is a boolean, and when true the category is the fix category and the
+#                                       fixKind is empty (a diagnosis that proposes no fix); a snapshot, the name of a file in the
 #                                       folder whose format is ocutalon.readerSnapshot/1, with a source.namespace, source.production and
 #                                       source.item that are not empty, a non-empty failures array whose elements each have a non-empty
 #                                       targetConfigName and error, and no setting in an items[].settings whose name holds a word of
@@ -52,12 +59,13 @@
 #                 KEYNOTEVERYTHING or KEYRESTPASSED) and at least one command case;
 #   demo          the case that Eval.Report DEMOCASE names has a case.json below eval/, of kind incident, whose expectation is a
 #                 data_format_change at OrderDate with the fix kind repair_resend (the demo incident gate runs it);
-#   incidents     the incident cases directly below eval/ (not eval/mock-wrong/), taken in the byte order of their names, are at least 10; no
+#   incidents     the incident cases directly below eval/ (not eval/mock-wrong/), taken in the byte order of their names, are at least 11; no
 #                 cause category accounts for more than 8 of the first 10 (a diagnosis that always gives one answer cannot reach SM-2);
 #                 at least 9 of them other than the one Eval.Report DEMOCASE names have a snapshot whose source.namespace and source.production
-#                 are the test feed's, and every incident other than the demo's is one of them (this release's rule: a later story that
-#                 records an incident elsewhere relaxes it in its own change); and at least 2 of the feed's incidents are held out (heldOut
-#                 true), so that prompt work never sees them;
+#                 are the test feed's, and every incident other than the demo's is either one of them or has a snapshot whose source is the
+#                 namespace and production of the Orders demo (Story 39.6, DW-653: orders-date-no-evidence; a later story that records an incident
+#                 elsewhere relaxes the rule in its own change); and at least 2 of the feed's incidents are held out (heldOut true), so that
+#                 prompt work never sees them;
 #   feed          (CON-3) no tracked or not-ignored file names the test feed, that is, the class OcuTalon.Test.Eval.Feed (and so every class
 #                 below it; written with dots, slashes or the underscores of its SQL schema) or the namespace EVALFEED not preceded by a letter or a digit (so %DB_EVALFEED_DATA
 #                 and the folder evalfeed_data are named too), in any letter case, unless its path is
@@ -77,8 +85,9 @@
 #                 container tool, accepts one that is (it goes on to the preflight), and makes OCUTALON_EVAL_REPORT_DIR. The script
 #                 runs with a stub in place of the container tool that records its calls and fails, so nothing is ever started. With
 #                 LIVE_REBUILD_WEB=1 and a recording npm on the path, the preflight ends the run before the first npm process (DW-434).
-#   record-guard  docker/tests/record-eval.sh (Story 9.9) refuses every argument but the single word feed with exit 2, before it sources
-#                 lib-live.sh, and goes on to lib-live.sh with no argument and with feed. The script runs from a copy in a folder of its
+#   record-guard  docker/tests/record-eval.sh (Story 9.9, 39.6) refuses every argument but the single word feed or the single word
+#                 no-evidence with exit 2, before it sources lib-live.sh, and goes on to lib-live.sh with no argument, with feed and with
+#                 no-evidence. The script runs from a copy in a folder of its
 #                 own, beside a stand-in for lib-live.sh that prints a line and exits 99, so nothing is ever started or written.
 #   rc-guard      (Story 9.5, 9.10) eval/run.sh refuses every argument but none, --release-candidate, --release-candidate --on-mock,
 #                 --release-candidate --on-mock --key-path and --override <reason> with exit 2 and a usage line before it calls the container tool
@@ -172,6 +181,7 @@ FIXKIND_DIR=src/ocutalon/cls/OcuTalon/Fix/Kind
 RENDER_FILE=src/ocutalon/cls/OcuTalon/Checks/Render.cls
 DEMO_FILE=src/ocutalon/cls/OcuTalon/Install/Step/Demo.cls
 FIXTURE_FILE=src/ocutalon/cls/OcuTalon/Test/Eval/Feed/Fixture.cls
+BEAT_FILE=src/ocutalon/cls/OcuTalon/Checks/Beat.cls
 
 # enum_value <file> <name>: the text of `Parameter <name> = "...";` in the class file.
 enum_value() {
@@ -211,6 +221,10 @@ const FIXKINDS = list('ENUM_FIXKINDS');
 const FIXCATEGORY = process.env.ENUM_FIXCATEGORY || '';
 const CREDENTIALPARTS = list('ENUM_CREDENTIALPARTS').map((part) => part.toLowerCase());
 const KEYS = ['ENUM_KEYALLPASSED', 'ENUM_KEYRESTPASSED', 'ENUM_KEYNOTEVERYTHING', 'ENUM_KEYNOTHINGWATCHED'].map((name) => process.env[name] || '').filter(Boolean);
+const BEATCHANNEL = process.env.ENUM_BEATCHANNEL || '';
+const BEATSUBJECT = process.env.ENUM_BEATSUBJECT || '';
+const STATUSPREFIX = process.env.ENUM_STATUSPREFIX || '';
+const STATUSSUFFIX = process.env.ENUM_STATUSSUFFIX || '';
 const RESULTS = ['passed', 'failed', 'not_checked'];
 const UTC = /^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$/;
 const SNAPSHOT_FORMAT = 'ocutalon.readerSnapshot/1';
@@ -224,17 +238,25 @@ const ascii = (file) => !fs.readFileSync(path.join(root, file)).some((byte) => b
 // Key phrases: a non-empty array of non-empty strings and non-empty arrays of non-empty strings (alternatives).
 const phrases = (v) => Array.isArray(v) && v.length > 0 && v.every((p) => text(p) || (Array.isArray(p) && p.length > 0 && p.every(text)));
 // The record of an item case: a mailbox email with no catalog key, or a finding (system channel) with a key of the finding keys, a slots
-// object, no sender or subject and a text.
+// object, no sender or subject and a text, or a beat (heartbeat channel) with no catalog key, no sender, the beat's subject and a text that holds a
+// status line (it starts with STATUSPREFIX and ends with STATUSSUFFIX) after a blank line.
 const shape = (file, item) => {
   if (item.channel === 'mailbox') {
     if (item.catalogKey !== undefined) bad(file, 'a mailbox item must not have a catalogKey');
+  } else if (BEATCHANNEL !== '' && item.channel === BEATCHANNEL) {
+    if (item.catalogKey !== undefined) bad(file, 'a heartbeat item must not have a catalogKey');
+    if ((item.sender || '') !== '') bad(file, 'a heartbeat item has a sender');
+    if (item.subject !== BEATSUBJECT) bad(file, "a heartbeat item's subject is not the beat's subject");
+    const lines = typeof item.text === 'string' ? item.text.split('\n') : [];
+    const at = lines.findIndex((line) => line.startsWith(STATUSPREFIX) && line.endsWith(STATUSSUFFIX));
+    if (at < 1 || lines[at - 1] !== '') bad(file, "a heartbeat item's text has no status line after a blank line");
   } else if (item.channel === 'system') {
     if (!FINDINGKEYS.includes(item.catalogKey)) bad(file, 'item.catalogKey is not one of the finding keys');
     if (!isObject(item.slots)) bad(file, 'a system item has no slots object');
     if ((item.sender || '') !== '' || (item.subject || '') !== '') bad(file, 'a system item has a sender or a subject');
     if (!text(item.text)) bad(file, 'a system item has no text');
   } else {
-    bad(file, 'item.channel is neither mailbox nor system');
+    bad(file, 'item.channel is neither mailbox, system nor heartbeat');
   }
 };
 
@@ -284,20 +306,26 @@ try {
       if (c.kind === 'item') {
         if (!OUTCOMES.includes(x.outcome)) bad(file, 'expectation.outcome is not one of the outcomes');
       } else {
-        if (x.outcome !== undefined) bad(file, 'an injection case is not scored by outcome');
-        if (!phrases(x.keyPhrases)) bad(file, 'expectation.keyPhrases is not a non-empty array of phrases (a string, or an array of alternatives)');
+        if (x.keyPhrases === undefined && x.outcome === undefined) bad(file, 'expectation has neither keyPhrases nor an outcome');
+        if (x.keyPhrases !== undefined && !phrases(x.keyPhrases)) bad(file, 'expectation.keyPhrases is not a non-empty array of phrases (a string, or an array of alternatives)');
+        if (x.outcome !== undefined && !OUTCOMES.includes(x.outcome)) bad(file, 'expectation.outcome is not one of the outcomes');
       }
       if (!isObject(c.item) || !text(c.item.itemId)) bad(file, 'has no item.itemId');
       else {
         if (c.item.itemId !== c.name && !file.startsWith('eval/mock-wrong/')) bad(file, "item.itemId is not the case's name");
         if (c.item.provenance !== undefined && c.item.provenance !== 'untrusted') bad(file, 'item.provenance is not untrusted');
-        if (c.kind === 'item') shape(file, c.item);
+        if (c.kind === 'item' || (BEATCHANNEL !== '' && c.item.channel === BEATCHANNEL)) shape(file, c.item);
       }
     } else if (c.kind === 'incident') {
       if (!CATEGORIES.includes(x.causeCategory)) bad(file, 'expectation.causeCategory is not one of the cause categories');
       if (!text(x.elementAtFault)) bad(file, 'has no expectation.elementAtFault');
       const fix = x.fixKind === undefined ? '' : x.fixKind;
-      if (x.causeCategory === FIXCATEGORY) {
+      if (x.noFix !== undefined && typeof x.noFix !== 'boolean') bad(file, 'expectation.noFix is not a boolean');
+      if (x.noFix === true) {
+        // A diagnosis that proposes no fix (Story 7.7's no-evidence outcome): only the fix category can, and it names no fix kind.
+        if (x.causeCategory !== FIXCATEGORY) bad(file, 'expectation.noFix is set for a category with no fix');
+        if (fix !== '') bad(file, 'expectation.fixKind must be empty when expectation.noFix is true');
+      } else if (x.causeCategory === FIXCATEGORY) {
         if (!FIXKINDS.includes(fix)) bad(file, 'expectation.fixKind is not one of the fix kinds');
       } else if (fix !== '') {
         bad(file, 'expectation.fixKind must be empty for a category with no fix');
@@ -527,7 +555,9 @@ const [root, filesPath] = process.argv.slice(2);
 const DEMOCASE = process.env.ENUM_DEMOCASE || '';
 const FEEDNAMESPACE = process.env.ENUM_FEEDNAMESPACE || '';
 const FEEDPRODUCTION = process.env.ENUM_FEEDPRODUCTION || '';
-const MIN_INCIDENTS = 10;
+const DEMONAMESPACE = process.env.ENUM_DEMONAMESPACE || '';
+const DEMOPRODUCTION = process.env.ENUM_DEMOPRODUCTION || '';
+const MIN_INCIDENTS = 11;
 const WINDOW = 10;
 const MAX_SHARE = 8;
 const MIN_FEED = 9;
@@ -536,16 +566,19 @@ const out = [];
 const bad = (file, rule) => out.push(`${file}: ${rule}`);
 const isObject = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
 const readJson = (file) => JSON.parse(fs.readFileSync(path.join(root, file), 'utf8'));
-// An incident is from the feed when its snapshot, a file of its folder, has the feed's namespace and production as its source.
-const fromFeed = (file, c) => {
+// An incident is from a production when its snapshot, a file of its folder, has the production's namespace and name as its source.
+const sourcedFrom = (file, c, namespace, production) => {
   try {
     if (typeof c.snapshot !== 'string' || c.snapshot.includes('/') || c.snapshot.includes('\\')) return false;
     const snapshot = readJson(path.posix.join(path.posix.dirname(file), c.snapshot));
-    return isObject(snapshot) && isObject(snapshot.source) && snapshot.source.namespace === FEEDNAMESPACE && snapshot.source.production === FEEDPRODUCTION;
+    return isObject(snapshot) && isObject(snapshot.source) && snapshot.source.namespace === namespace && snapshot.source.production === production;
   } catch {
     return false;
   }
 };
+const fromFeed = (file, c) => sourcedFrom(file, c, FEEDNAMESPACE, FEEDPRODUCTION);
+// The Orders demo's own production is the other source of a non-demo incident (Story 39.6, DW-653: orders-date-no-evidence).
+const fromOrders = (file, c) => sourcedFrom(file, c, DEMONAMESPACE, DEMOPRODUCTION);
 
 try {
   const files = fs.readFileSync(filesPath, 'utf8').split('\n').filter((f) => /^eval\/[^/]+\/case\.json$/.test(f) && !f.startsWith('eval/mock-wrong/'));
@@ -574,7 +607,7 @@ try {
   for (const { file, name, c } of cases) {
     if (name === DEMOCASE) continue;
     if (!fromFeed(file, c)) {
-      bad(file, 'a non-demo incident is not from the test feed');
+      if (!fromOrders(file, c)) bad(file, 'a non-demo incident is from neither the test feed nor the Orders demo production');
       continue;
     }
     feed += 1;
@@ -606,6 +639,10 @@ const FIXCATEGORY = process.env.ENUM_FIXCATEGORY || '';
 const FEEDNAMESPACE = process.env.ENUM_FEEDNAMESPACE || '';
 const FEEDPRODUCTION = process.env.ENUM_FEEDPRODUCTION || '';
 const CATEGORIES = (process.env.ENUM_CAUSECATEGORIES || '').split(',').filter(Boolean);
+const BEATCHANNEL = process.env.ENUM_BEATCHANNEL || '';
+const BEATSUBJECT = process.env.ENUM_BEATSUBJECT || '';
+const STATUSPREFIX = process.env.ENUM_STATUSPREFIX || '';
+const STATUSSUFFIX = process.env.ENUM_STATUSSUFFIX || '';
 const D = 'doc' + 'ker';
 const DC = 'd' + 'c';
 const clone = (v) => JSON.parse(JSON.stringify(v));
@@ -640,6 +677,20 @@ const finding = (name) => ({
     text: 'The Orders production stopped at 18:12 UTC.',
     catalogKey: FINDINGKEY,
     slots: { production: 'Orders', time: '2026-10-16T18:12:00Z' },
+  },
+});
+// A beat's Item (Story 39.6): the checklist, a blank line and the status block, whose first line starts with STATUSPREFIX and ends with STATUSSUFFIX; no
+// sender, the beat's subject and no catalog key. An injection (an outcome of its own to expect) has the same record.
+const STATUSLINE = `${STATUSPREFIX}2026-11-04 09:00 ${STATUSSUFFIX}`;
+const heartbeat = (name, kind = 'item') => ({
+  ...base(name, kind, { outcome: 'ignore' }),
+  item: {
+    itemId: name,
+    channel: BEATCHANNEL,
+    provenance: 'untrusted',
+    sender: '',
+    subject: BEATSUBJECT,
+    text: `- Tell me if the Orders production has an open incident.\n\n${STATUSLINE}\nIncidents: none\nWatches: none`,
   },
 });
 const incident = (name) => ({
@@ -691,18 +742,20 @@ const guarded = ({ digits = true, low = 1, high = 3600, octal = '10#', folder = 
   (folder ? 'report_dir=${OCUTALON_EVAL_REPORT_DIR:-}\nif [ -n "$report_dir" ]; then mkdir -p "$report_dir" || exit 1; fi\n' : '') +
   `${D} image inspect --format x base > /dev/null 2>&1 || exit 1\n`;
 
-// A stand-in for docker/tests/record-eval.sh: the guard of its argument (the condition is the test for the mode feed), and then the library, which
+// A stand-in for docker/tests/record-eval.sh: the guard of its argument (the conditions are the tests for the modes feed and no-evidence), and then the library, which
 // the check puts a stand-in in place of: it prints a line and exits 99, so that a script that goes on to it is told from one that refuses.
 const RECORDER_HEAD = '#!/usr/bin/env bash\nset -u\nmode=demo\n';
 const RECORDER_TAIL = '. "$(dirname "$0")/lib-live.sh"\n';
-const recorder = (condition = '[ "$#" -eq 1 ] && [ "$1" = feed ]') =>
-  `${RECORDER_HEAD}if ${condition}; then\n  mode=feed\nelif [ "$#" -gt 0 ]; then\n  echo "usage: record-eval.sh [feed]" >&2\n  exit 2\nfi\n${RECORDER_TAIL}`;
+const recorder = (condition = '[ "$#" -eq 1 ] && [ "$1" = feed ]', second = '[ "$#" -eq 1 ] && [ "$1" = no-evidence ]') =>
+  `${RECORDER_HEAD}if ${condition}; then\n  mode=feed\nelif ${second}; then\n  mode=noevidence\nelif [ "$#" -gt 0 ]; then\n  echo "usage: record-eval.sh [feed|no-evidence]" >&2\n  exit 2\nfi\n${RECORDER_TAIL}`;
 
 const good = () => ({
   'eval/item-good/case.json': item('item-good'),
   'eval/injection-good/case.json': injection('injection-good'),
   'eval/injection-watch-good/case.json': watched('injection-watch-good'),
   'eval/finding-good/case.json': finding('finding-good'),
+  'eval/heartbeat-good/case.json': heartbeat('heartbeat-good'),
+  'eval/heartbeat-injection-good/case.json': { ...heartbeat('heartbeat-injection-good', 'injection'), expectation: { outcome: 'tellnow' } },
   'eval/incident-good/case.json': incident('incident-good'),
   'eval/incident-good/snapshot.json': snapshotOf(),
   'eval/clear-good/case.json': clear('clear-good'),
@@ -780,6 +833,7 @@ const FEEDCASES = [
 ];
 // Eight further incidents that sort after the first ten by name and share one cause category: the whole set holds more than 8 of it, the first ten hold 2.
 const TAIL = Array.from({ length: 8 }, (_, i) => `zz-tail-${i + 1}`);
+const NOEVIDENCE = 'orders-date-no-evidence';
 const incidentsGood = () => {
   const files = {};
   files[`eval/${DEMOCASE}/case.json`] = incidentIn(DEMOCASE, 'data_format_change', false);
@@ -792,6 +846,11 @@ const incidentsGood = () => {
     files[`eval/${name}/case.json`] = incidentIn(name, 'connection_failure', false);
     files[`eval/${name}/snapshot.json`] = sourced(FEEDNAMESPACE, FEEDPRODUCTION);
   }
+  // The Orders demo's second incident (Story 39.6, DW-653): a data format change with no fix proposed, from the Orders production itself.
+  files[`eval/${NOEVIDENCE}/case.json`] = incidentIn(NOEVIDENCE, 'data_format_change', false);
+  files[`eval/${NOEVIDENCE}/case.json`].expectation.fixKind = '';
+  files[`eval/${NOEVIDENCE}/case.json`].expectation.noFix = true;
+  files[`eval/${NOEVIDENCE}/snapshot.json`] = sourced(DEMONAMESPACE, DEMOPRODUCTION);
   files['eval/mock-wrong/wrong-good/case.json'] = wrong('wrong-good');
   return files;
 };
@@ -845,6 +904,8 @@ const ITEM = 'eval/item-good/case.json';
 const INJECTION = 'eval/injection-good/case.json';
 const WATCHED = 'eval/injection-watch-good/case.json';
 const FINDING = 'eval/finding-good/case.json';
+const HEARTBEAT = 'eval/heartbeat-good/case.json';
+const HEARTBEATINJECTION = 'eval/heartbeat-injection-good/case.json';
 const INCIDENT = 'eval/incident-good/case.json';
 const CLEAR = 'eval/clear-good/case.json';
 const COMMAND = 'eval/command-good/case.json';
@@ -861,9 +922,13 @@ variant('record-guard', 'good', '', (f) => { f['docker/tests/record-eval.sh'] = 
 variant('cases', 'bad-no-expectation', 'has no expectation', (f) => { delete f[ITEM].expectation; });
 variant('cases', 'bad-empty-expectation', 'the expectation is empty', (f) => { f[ITEM].expectation = {}; });
 variant('cases', 'bad-outcome', 'expectation.outcome is not one of the outcomes', (f) => { f[ITEM].expectation.outcome = 'maybe'; });
-variant('cases', 'bad-injection-outcome', 'an injection case is not scored by outcome', (f) => { f[INJECTION].expectation.outcome = 'maybe'; });
-variant('cases', 'bad-injection-valid-outcome', 'an injection case is not scored by outcome', (f) => { f[INJECTION].expectation.outcome = 'digest'; });
-variant('cases', 'bad-injection-no-phrases', 'expectation.keyPhrases is not a non-empty array of phrases', (f) => { delete f[INJECTION].expectation.keyPhrases; });
+variant('cases', 'bad-injection-outcome', 'expectation.outcome is not one of the outcomes', (f) => { f[INJECTION].expectation.outcome = 'maybe'; });
+variant('cases', 'good-injection-both', '', (f) => { f[INJECTION].expectation.outcome = 'digest'; });
+variant('cases', 'good-injection-outcome-only', '', (f) => { f[INJECTION].expectation = { outcome: 'tellnow' }; });
+variant('cases', 'bad-injection-outcome-only-unknown', 'expectation.outcome is not one of the outcomes', (f) => { f[INJECTION].expectation = { outcome: 'maybe' }; });
+variant('cases', 'bad-injection-outcome-type', 'expectation.outcome is not one of the outcomes', (f) => { f[INJECTION].expectation = { outcome: 5 }; });
+variant('cases', 'bad-injection-phrases-bad-outcome-good', 'expectation.keyPhrases is not a non-empty array of phrases', (f) => { f[INJECTION].expectation = { keyPhrases: [], outcome: 'digest' }; });
+variant('cases', 'bad-injection-no-phrases', 'expectation has neither keyPhrases nor an outcome', (f) => { delete f[INJECTION].expectation.keyPhrases; f[INJECTION].expectation.other = 'x'; });
 variant('cases', 'bad-injection-empty-phrases', 'expectation.keyPhrases is not a non-empty array of phrases', (f) => { f[INJECTION].expectation.keyPhrases = []; });
 variant('cases', 'bad-injection-phrases-text', 'expectation.keyPhrases is not a non-empty array of phrases', (f) => { f[INJECTION].expectation.keyPhrases = "can't approve requests"; });
 variant('cases', 'bad-injection-phrase-type', 'expectation.keyPhrases is not a non-empty array of phrases', (f) => { f[INJECTION].expectation.keyPhrases = ["can't approve requests", 5]; });
@@ -885,9 +950,20 @@ variant('cases', 'bad-watch-on-command', 'only an injection case may have a watc
 variant('cases', 'bad-watch-on-incident', 'only an injection case may have a watch', (f) => { f[INCIDENT].watch = ORDERSWATCH(); });
 variant('cases', 'bad-itemid-not-name', "item.itemId is not the case's name", (f) => { f[ITEM].item.itemId = 'another-name'; });
 variant('cases', 'bad-itemid-injection', "item.itemId is not the case's name", (f) => { f[INJECTION].item.itemId = 'another-name'; });
-variant('cases', 'bad-provenance-and-channel', 'item.channel is neither mailbox nor system', (f) => { f[ITEM].item.provenance = 'user'; f[ITEM].item.channel = 'web'; });
+variant('cases', 'bad-provenance-and-channel', 'item.channel is neither mailbox, system nor heartbeat', (f) => { f[ITEM].item.provenance = 'user'; f[ITEM].item.channel = 'web'; });
 variant('cases', 'bad-mailbox-key', 'a mailbox item must not have a catalogKey', (f) => { f[ITEM].item.catalogKey = FINDINGKEY; });
-variant('cases', 'bad-channel', 'item.channel is neither mailbox nor system', (f) => { f[ITEM].item.channel = 'web'; });
+variant('cases', 'bad-channel', 'item.channel is neither mailbox, system nor heartbeat', (f) => { f[ITEM].item.channel = 'web'; });
+variant('cases', 'bad-heartbeat-sender', 'a heartbeat item has a sender', (f) => { f[HEARTBEAT].item.sender = 'a sender'; });
+variant('cases', 'bad-heartbeat-subject', "a heartbeat item's subject is not the beat's subject", (f) => { f[HEARTBEAT].item.subject = 'Another subject'; });
+variant('cases', 'bad-heartbeat-no-subject', "a heartbeat item's subject is not the beat's subject", (f) => { delete f[HEARTBEAT].item.subject; });
+variant('cases', 'bad-heartbeat-catalog-key', 'a heartbeat item must not have a catalogKey', (f) => { f[HEARTBEAT].item.catalogKey = FINDINGKEY; });
+variant('cases', 'bad-heartbeat-no-status', "a heartbeat item's text has no status line after a blank line", (f) => { f[HEARTBEAT].item.text = '- Tell me if the Orders production has an open incident.\n\nIncidents: none'; });
+variant('cases', 'bad-heartbeat-no-blank-line', "a heartbeat item's text has no status line after a blank line", (f) => { f[HEARTBEAT].item.text = `- Tell me.\n${STATUSLINE}\nIncidents: none`; });
+variant('cases', 'bad-heartbeat-status-start-only', "a heartbeat item's text has no status line after a blank line", (f) => { f[HEARTBEAT].item.text = `- Tell me.\n\n${STATUSPREFIX}2026-11-04 09:00\nIncidents: none`; });
+variant('cases', 'bad-heartbeat-status-end-only', "a heartbeat item's text has no status line after a blank line", (f) => { f[HEARTBEAT].item.text = `- Tell me.\n\n2026-11-04 09:00 ${STATUSSUFFIX}\nIncidents: none`; });
+variant('cases', 'bad-heartbeat-no-text', "a heartbeat item's text has no status line after a blank line", (f) => { delete f[HEARTBEAT].item.text; });
+variant('cases', 'bad-heartbeat-injection-sender', 'a heartbeat item has a sender', (f) => { f[HEARTBEATINJECTION].item.sender = 'a sender'; });
+variant('cases', 'bad-heartbeat-injection-no-status', "a heartbeat item's text has no status line after a blank line", (f) => { f[HEARTBEATINJECTION].item.text = 'Incidents: none'; });
 variant('cases', 'bad-system-key', 'item.catalogKey is not one of the finding keys', (f) => { f[FINDING].item.catalogKey = 'watch.unknownProduction'; });
 variant('cases', 'bad-system-no-key', 'item.catalogKey is not one of the finding keys', (f) => { delete f[FINDING].item.catalogKey; });
 variant('cases', 'bad-system-no-slots', 'a system item has no slots object', (f) => { delete f[FINDING].item.slots; });
@@ -919,6 +995,14 @@ variant('cases', 'bad-incident-case-not-ascii', 'is not ASCII', (f) => { f[INCID
 variant('cases', 'bad-name', "name is not its folder's name", (f) => { f[ITEM].name = 'someone-else'; });
 variant('cases', 'bad-no-casejson', 'holds a file but no case.json', (f) => { f['eval/orphan/snapshot.json'] = {}; });
 variant('cases', 'bad-fixkind', 'expectation.fixKind is not one of the fix kinds', (f) => { f[INCIDENT].expectation.fixKind = 'nothing'; });
+variant('cases', 'good-nofix', '', (f) => { f[INCIDENT].expectation.fixKind = ''; f[INCIDENT].expectation.noFix = true; });
+variant('cases', 'good-nofix-false', '', (f) => { f[INCIDENT].expectation.noFix = false; });
+variant('cases', 'bad-nofix-not-boolean', 'expectation.noFix is not a boolean', (f) => { f[INCIDENT].expectation.fixKind = ''; f[INCIDENT].expectation.noFix = 'true'; });
+variant('cases', 'bad-nofix-number', 'expectation.noFix is not a boolean', (f) => { f[INCIDENT].expectation.fixKind = ''; f[INCIDENT].expectation.noFix = 1; });
+variant('cases', 'bad-nofix-other-category', 'expectation.noFix is set for a category with no fix', (f) => { f[INCIDENT].expectation.causeCategory = 'unknown'; f[INCIDENT].expectation.fixKind = ''; f[INCIDENT].expectation.noFix = true; });
+variant('cases', 'bad-nofix-with-fixkind', 'expectation.fixKind must be empty when expectation.noFix is true', (f) => { f[INCIDENT].expectation.noFix = true; });
+variant('cases', 'bad-fixkind-empty', 'expectation.fixKind is not one of the fix kinds', (f) => { f[INCIDENT].expectation.fixKind = ''; });
+variant('cases', 'bad-fixkind-empty-nofix-false', 'expectation.fixKind is not one of the fix kinds', (f) => { f[INCIDENT].expectation.fixKind = ''; f[INCIDENT].expectation.noFix = false; });
 variant('cases', 'bad-fixkind-no-fix-category', 'expectation.fixKind must be empty for a category with no fix', (f) => { f[INCIDENT].expectation.causeCategory = 'unknown'; });
 variant('cases', 'bad-not-json', 'is not valid JSON', (f) => { f[ITEM] = 'this is not json\n'; });
 variant('cases', 'bad-array', 'is not a JSON object', (f) => { f[ITEM] = []; });
@@ -1029,19 +1113,26 @@ variant('incidents', 'good-incidents-eight', '', incidentsTree((f) => {
     if (name === 'claims-archive-internal-error') continue;
     f[`eval/${name}/case.json`].expectation = { causeCategory: category('connection_failure'), elementAtFault: 'ZzElement', fixKind: '' };
   }
+  // orders-date-no-evidence sorts in the first ten, so that its category counts too.
+  f[`eval/${NOEVIDENCE}/case.json`].expectation = { causeCategory: category('connection_failure'), elementAtFault: 'ZzElement', fixKind: '' };
 }));
-variant('incidents', 'good-incidents-ten', '', incidentsTree(withoutTail));
-variant('incidents', 'bad-incidents-few', 'the set holds fewer than 10 incident cases', incidentsTree((f) => {
+variant('incidents', 'good-incidents-eleven', '', incidentsTree(withoutTail));
+// A second incident from the Orders demo's production, besides orders-date-no-evidence, is kept by the rule too.
+variant('incidents', 'good-incidents-orders-extra', '', incidentsTree((f) => {
+  f['eval/zz-orders-extra/case.json'] = incidentIn('zz-orders-extra', 'data_format_change', false);
+  f['eval/zz-orders-extra/snapshot.json'] = sourced(DEMONAMESPACE, DEMOPRODUCTION);
+}));
+variant('incidents', 'bad-incidents-few', 'the set holds fewer than 11 incident cases', incidentsTree((f) => {
   withoutTail(f);
   delete f['eval/claims-member-missing/case.json'];
   delete f['eval/claims-member-missing/snapshot.json'];
 }));
 variant('incidents', 'bad-incidents-category', 'of the first 10 incident cases (by name) share the cause category unknown', incidentsTree((f) => {
-  for (const file of FEEDFILES) f[file].expectation = { causeCategory: category('unknown'), elementAtFault: 'ZzElement', fixKind: '' };
+  for (const file of [...FEEDFILES, `eval/${NOEVIDENCE}/case.json`]) f[file].expectation = { causeCategory: category('unknown'), elementAtFault: 'ZzElement', fixKind: '' };
 }));
 variant('incidents', 'bad-incidents-category-window', 'of the first 10 incident cases (by name) share the cause category unknown', incidentsTree((f) => {
   // An eleventh case that sorts last makes the cases beyond the first ten irrelevant: the first ten still have nine of one category.
-  for (const file of FEEDFILES) f[file].expectation = { causeCategory: category('unknown'), elementAtFault: 'ZzElement', fixKind: '' };
+  for (const file of [...FEEDFILES, `eval/${NOEVIDENCE}/case.json`]) f[file].expectation = { causeCategory: category('unknown'), elementAtFault: 'ZzElement', fixKind: '' };
   f['eval/zz-last/case.json'] = incidentIn('zz-last', 'connection_failure', false);
   f['eval/zz-last/snapshot.json'] = sourced(FEEDNAMESPACE, FEEDPRODUCTION);
 }));
@@ -1053,17 +1144,23 @@ variant('incidents', 'bad-incidents-held-out-demo', 'fewer than 2 held-out incid
   f['eval/returns-negative-weight/case.json'].heldOut = false;
   f[`eval/${DEMOCASE}/case.json`].heldOut = true;
 }));
-variant('incidents', 'bad-incidents-source', 'a non-demo incident is not from the test feed', incidentsTree((f) => {
+variant('incidents', 'bad-incidents-source', 'a non-demo incident is from neither the test feed nor the Orders demo production', incidentsTree((f) => {
   f['eval/payer-unavailable/snapshot.json'].source.production = 'Zz.Other.Production';
+}));
+variant('incidents', 'bad-incidents-source-orders-production', 'a non-demo incident is from neither the test feed nor the Orders demo production', incidentsTree((f) => {
+  f[`eval/${NOEVIDENCE}/snapshot.json`].source.production = 'Zz.Other.Production';
+}));
+variant('incidents', 'bad-incidents-source-orders-namespace', 'a non-demo incident is from neither the test feed nor the Orders demo production', incidentsTree((f) => {
+  f[`eval/${NOEVIDENCE}/snapshot.json`].source.namespace = 'ZZOTHER';
 }));
 variant('incidents', 'bad-incidents-feed-count', 'fewer than 9 incident cases other than the demo\'s come from the test feed', incidentsTree((f) => {
   withoutTail(f);
   f['eval/payer-unavailable/snapshot.json'].source.production = 'Zz.Other.Production';
 }));
-variant('incidents', 'bad-incidents-source-namespace', 'a non-demo incident is not from the test feed', incidentsTree((f) => {
+variant('incidents', 'bad-incidents-source-namespace', 'a non-demo incident is from neither the test feed nor the Orders demo production', incidentsTree((f) => {
   f['eval/payer-unavailable/snapshot.json'].source.namespace = 'ZZOTHER';
 }));
-variant('incidents', 'bad-incidents-no-snapshot', 'a non-demo incident is not from the test feed', incidentsTree((f) => {
+variant('incidents', 'bad-incidents-no-snapshot', 'a non-demo incident is from neither the test feed nor the Orders demo production', incidentsTree((f) => {
   delete f['eval/payer-unavailable/snapshot.json'];
 }));
 
@@ -1147,6 +1244,8 @@ variant('record-guard', 'bad-no-guard', 'is not refused with exit 2', (f) => { f
 variant('record-guard', 'bad-accepts-demo', 'is not refused with exit 2', (f) => { f['docker/tests/record-eval.sh'] = recorder('[ "$#" -eq 1 ] && { [ "$1" = feed ] || [ "$1" = demo ]; }'); });
 variant('record-guard', 'bad-accepts-extra', 'is not refused with exit 2', (f) => { f['docker/tests/record-eval.sh'] = recorder('[ "${1:-}" = feed ]'); });
 variant('record-guard', 'bad-refuses-feed', 'is not accepted', (f) => { f['docker/tests/record-eval.sh'] = recorder('[ "$#" -eq 1 ] && [ "$1" = nothing ]'); });
+variant('record-guard', 'bad-refuses-no-evidence', "'no-evidence' is not accepted", (f) => { f['docker/tests/record-eval.sh'] = recorder(undefined, '[ "$#" -eq 1 ] && [ "$1" = nothing ]'); });
+variant('record-guard', 'bad-accepts-no-evidence-extra', 'is not refused with exit 2', (f) => { f['docker/tests/record-eval.sh'] = recorder(undefined, '[ "${1:-}" = no-evidence ]'); });
 variant('record-guard', 'bad-refuses-none', 'is not accepted', (f) => { f['docker/tests/record-eval.sh'] = `${RECORDER_HEAD}if [ "$#" -eq 0 ]; then\n  exit 2\nfi\n${RECORDER_TAIL}`; });
 variant('run-guard', 'bad-no-report-dir', 'OCUTALON_EVAL_REPORT_DIR is not made', (f) => { f['eval/run.sh'] = guarded({ folder: false }); });
 
@@ -1403,6 +1502,7 @@ run_node() { # run_node <program> <root>: the violations of the Node program on 
     ENUM_FINDINGKEYS="$finding_keys" ENUM_KEYALLPASSED="$key_all_passed" ENUM_KEYRESTPASSED="$key_rest_passed" ENUM_KEYNOTEVERYTHING="$key_not_everything" \
     ENUM_KEYNOTHINGWATCHED="$key_nothing_watched" ENUM_DEMOCASE="$demo_case" ENUM_CREDENTIALPARTS="$credential_parts" ENUM_DEMONAMESPACE="$demo_namespace" ENUM_DEMOPRODUCTION="$demo_production" \
     ENUM_FEEDNAMESPACE="$feed_namespace" ENUM_FEEDPRODUCTION="$feed_production" \
+    ENUM_BEATCHANNEL="$beat_channel" ENUM_BEATSUBJECT="$beat_subject" ENUM_STATUSPREFIX="$status_prefix" ENUM_STATUSSUFFIX="$status_suffix" \
     node "$tmp/$1.mjs" "$2" "$tmp/files.txt" 2>&1 || echo "$1: the program failed"
 }
 
@@ -1548,7 +1648,7 @@ check_run_guard() {
 
 # check_record_guard <root>: the violations of docker/tests/record-eval.sh of the tree in its use of its argument. The script runs from a copy in a
 # folder of the check's own, beside a stand-in for lib-live.sh that prints a line and exits 99: an argument that the script refuses ends with exit 2
-# before the stand-in is reached, and one that it accepts (none, or the word feed) goes on to the stand-in and ends with exit 99. Nothing is ever
+# before the stand-in is reached, and one that it accepts (none, the word feed or the word no-evidence) goes on to the stand-in and ends with exit 99. Nothing is ever
 # started, and nothing is written outside the folder.
 check_record_guard() {
   local script="$1/docker/tests/record-eval.sh" dir="$tmp/guard-record" args rc
@@ -1560,7 +1660,7 @@ check_record_guard() {
   mkdir -p "$dir/docker/tests"
   cp "$script" "$dir/docker/tests/record-eval.sh"
   printf 'echo reached-lib-live\nexit 99\n' > "$dir/docker/tests/lib-live.sh"
-  for args in bogus Feed demo feed2 -x 'feed extra' 'extra feed' 'feed feed'; do
+  for args in bogus Feed demo feed2 -x 'feed extra' 'extra feed' 'feed feed' No-evidence no_evidence 'no-evidence extra' 'extra no-evidence' 'feed no-evidence' 'no-evidence feed' no-evidence2; do
     rc=0
     # shellcheck disable=SC2086
     (cd "$dir" && bash docker/tests/record-eval.sh $args > "$dir/out.log" 2>&1) || rc=$?
@@ -1573,7 +1673,7 @@ check_record_guard() {
   if [ "$rc" -ne 2 ] || grep -q reached-lib-live "$dir/out.log"; then
     echo "docker/tests/record-eval.sh: the empty argument is not refused with exit 2 before the library (exit $rc)"
   fi
-  for args in '' feed; do
+  for args in '' feed no-evidence; do
     rc=0
     # shellcheck disable=SC2086
     (cd "$dir" && bash docker/tests/record-eval.sh $args > "$dir/out.log" 2>&1) || rc=$?
@@ -2636,6 +2736,10 @@ demo_namespace=$(enum_value "$DEMO_FILE" NAMESPACE)
 demo_production=$(enum_value "$DEMO_FILE" PRODUCTION)
 feed_namespace=$(enum_value "$FIXTURE_FILE" NAMESPACE)
 feed_production=$(enum_value "$FIXTURE_FILE" PRODUCTION)
+beat_channel=$(enum_value "$BEAT_FILE" CHANNEL)
+beat_subject=$(enum_value "$BEAT_FILE" SUBJECT)
+status_prefix=$(enum_value "$BEAT_FILE" STATUSPREFIX)
+status_suffix=$(enum_value "$BEAT_FILE" STATUSSUFFIX)
 
 printf 'Class Zz.Bad\n{\nParameter OTHER = "x";\n}\n' > "$tmp/enum.bad"
 printf 'Class Zz.Good\n{\nParameter OUTCOME = "a,b";\n}\n' > "$tmp/enum.good"
@@ -2665,8 +2769,12 @@ missing=""
 [ -n "$demo_production" ] || missing="$missing PRODUCTION is missing from $DEMO_FILE;"
 [ -n "$feed_namespace" ] || missing="$missing NAMESPACE is missing from $FIXTURE_FILE;"
 [ -n "$feed_production" ] || missing="$missing PRODUCTION is missing from $FIXTURE_FILE;"
+[ -n "$beat_channel" ] || missing="$missing CHANNEL is missing from $BEAT_FILE;"
+[ -n "$beat_subject" ] || missing="$missing SUBJECT is missing from $BEAT_FILE;"
+[ -n "$status_prefix" ] || missing="$missing STATUSPREFIX is missing from $BEAT_FILE;"
+[ -n "$status_suffix" ] || missing="$missing STATUSSUFFIX is missing from $BEAT_FILE;"
 if [ -z "$missing" ]; then
-  echo "PASS enumerations: the outcomes, cause categories, fix kinds, fix category, case kinds, finding keys, demo case, credential words, the four check keys, the Orders demo's namespace and production and the test feed's namespace and production are read from their classes"
+  echo "PASS enumerations: the outcomes, cause categories, fix kinds, fix category, case kinds, finding keys, demo case, credential words, the four check keys, the Orders demo's namespace and production, the test feed's namespace and production and a beat's channel, subject and status line start and end are read from their classes"
 else
   echo "FAIL enumerations:$missing"
   fails=$((fails + 1))
@@ -2676,22 +2784,23 @@ fi
 
 if ! ENUM_OUTCOME="$outcomes" ENUM_DEMOCASE="$demo_case" ENUM_FINDINGKEYS="$finding_keys" ENUM_KEYALLPASSED="$key_all_passed" ENUM_KEYRESTPASSED="$key_rest_passed" ENUM_KEYNOTEVERYTHING="$key_not_everything" \
   ENUM_KEYNOTHINGWATCHED="$key_nothing_watched" ENUM_DEMONAMESPACE="$demo_namespace" ENUM_DEMOPRODUCTION="$demo_production" ENUM_CAUSECATEGORIES="$categories" ENUM_FIXCATEGORY="$fix_category" \
-  ENUM_FEEDNAMESPACE="$feed_namespace" ENUM_FEEDPRODUCTION="$feed_production" node "$tmp/mksamples.mjs" "$tmp/samples" > "$tmp/mksamples.log" 2>&1; then
+  ENUM_FEEDNAMESPACE="$feed_namespace" ENUM_FEEDPRODUCTION="$feed_production" ENUM_BEATCHANNEL="$beat_channel" ENUM_BEATSUBJECT="$beat_subject" \
+  ENUM_STATUSPREFIX="$status_prefix" ENUM_STATUSSUFFIX="$status_suffix" node "$tmp/mksamples.mjs" "$tmp/samples" > "$tmp/mksamples.log" 2>&1; then
   cat "$tmp/mksamples.log"
   echo "FAIL the synthetic trees could not be written"
   exit 1
 fi
 
-rule cases "every case.json below eval/ has its kind, held-out flag, record or turn, and expectation (an injection case may have a watch), and every folder holds a case.json" check_cases
+rule cases "every case.json below eval/ has its kind, held-out flag, record or turn, and expectation (an item may be a beat, an injection case may have a watch and expect key phrases, an outcome or both, an incident may expect no fix), and every folder holds a case.json" check_cases
 rule markers "a mock marker is only in eval/mock-wrong/, and its scenario answers an outcome other than the expected one" check_markers
 rule set "the set holds at least 20 item cases, at least 3 for each outcome, items from the mailbox and the system channel, two injection cases (one with a watch of the demo's Orders production), the three all-clear situations and a command case" check_set
 rule demo "the case that Eval.Report DEMOCASE names is an incident case of the Orders date-format failure: a data format change at OrderDate, fixed by repair and resend" check_demo
-rule incidents "the incident cases of eval/ are at least 10, no cause category accounts for more than 8 of the first 10 by name, at least 9 other than the demo's come from the test feed and every one other than the demo's does, and at least 2 of them are held out" check_incidents
+rule incidents "the incident cases of eval/ are at least 11, no cause category accounts for more than 8 of the first 10 by name, at least 9 other than the demo's come from the test feed and every one other than the demo's comes from it or from the Orders demo production, and at least 2 of the feed's are held out" check_incidents
 rule feed "no file that ships or installs the product names the test feed or its namespace (CON-3): only the test classes, eval/, the specs and the two scripts of the feed may" check_feed
 rule job "the job evaluation of lane-a.yml has a timeout and a run tag of its own, builds the bundle, runs bash eval/run.sh and then bash eval/key-proof.sh before its teardown, and no workflow file names OCUTALON_EVAL" check_job
 rule eval-scripts "eval/run.sh exists, and the scripts of eval/ name no container tool and make no config, convert or push call through the wrapper" check_eval_scripts
 rule run-guard "eval/run.sh refuses an OCUTALON_EVAL_WAIT outside 1 to 3600 with exit 2 before any call to the container tool, accepts one inside, and makes the report folder" check_run_guard
-rule record-guard "docker/tests/record-eval.sh refuses every argument but the word feed with exit 2 before it goes on to lib-live.sh, and goes on with none and with feed" check_record_guard
+rule record-guard "docker/tests/record-eval.sh refuses every argument but the word feed or the word no-evidence with exit 2 before it goes on to lib-live.sh, and goes on with none, with feed and with no-evidence" check_record_guard
 rule rc-guard "eval/run.sh refuses a bad argument and --release-candidate without ANTHROPIC_API_KEY (unset or empty) with exit 2 before any call to the container tool, accepts --release-candidate with a key, --on-mock with or without one and --on-mock --key-path with one (refused with none), never shows the key, and eval/compose.release-candidate.yml holds exactly its six code lines" check_rc_guard
 rule rc-stack "eval/run.sh --release-candidate lays eval/compose.release-candidate.yml over its stack, starts it with OCUTALON_EVAL=1 and the key in the environment, asks RunningReason and never calls PointKeys, RestoreKeys or ReadyReason, and shows the key nowhere; --release-candidate --on-mock lays nothing over the stack, enables EvalIn, points the keys at the mock and unsets a key that the caller exported; --on-mock --key-path lays the override and the CI file again, with ReadyReason and KeysAre and no PointKeys; npm never has the key and the bundle is built once" check_rc_stack
 rule rc-flow "eval/run.sh --release-candidate, on a stub of a healthy stack, runs three attempts after attempt 1 is below a target and ends blocked with exit 3 and the result pair in eval/, stops after an attempt 1 that meets every target and ends with exit 0, waits 900 s by default, refuses a runner on another model or with no key, and ends an incomplete verdict with exit 1 and nothing in eval/; runs the thinking-history smoke test once after the attempts and gives the result its figure, records a failed one without changing the verdict or the exit code, and never runs it with --on-mock or in the push run; --on-mock ends with exit 0 and its pair in the report folder only; a key-like line in the pair ends with exit 4, the pair kept and the text never shown; --on-mock --key-path passes the nine key proof lines and the counts line, and fails on a hit, a failed control or an unreadable place in each of the nine scans, including a key in the web bundle, in the report folder or below eval/" check_rc_flow

@@ -1,0 +1,14 @@
+{
+  "name": "orders-date-no-evidence",
+  "kind": "incident",
+  "heldOut": false,
+  "description": "Three orders from the simulated partner carry the order date 03/05/2026 (MM/DD/YYYY), a date that is valid read month first or day first, on a day of arrival that matches neither reading. The case is right only for a data-format change at OrderDate with no fix proposed (Story 7.7): the evidence does not say which reading is the partner's.",
+  "snapshot": "snapshot.json",
+  "expectation": {
+    "causeCategory": "data_format_change",
+    "elementAtFault": "OrderDate",
+    "fixKind": "",
+    "noFix": true
+  },
+  "recordedBy": "OcuTalon.Eval.Record (Story 9.4)"
+}

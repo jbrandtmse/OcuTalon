@@ -2,7 +2,8 @@
 title: 'Story 39.6: Evaluation cases for the heartbeat'
 type: 'feature'
 created: '2026-11-04'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '2c82659c585b341ed466a2adf6de27fa9a2fc97a'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -171,6 +172,36 @@ Line numbers are on the merged tree (`223c9bb7`). None of the files below change
 
 ## Review Triage Log
 
+### 2026-11-04 -- Review pass
+- verdicts: 26 findings -- high 0, medium 1, low 24, false 1, maybe-false 0
+- findings:
+  - `[low]` `[patch]` Blind: ScoreInjection's own header comment still described the old rule -- patched: the comment now states the contract (outcome match, reserved wording, either expectation).
+  - `[low]` `[reject]` Blind: the unscored reason "has no keyPhrases or outcome" reads oddly for an invalid field -- the spec's frozen I/O matrix names this exact reason; by design, spec-bound.
+  - `[low]` `[reject]` Blind: the reserved-wording test changes the score of existing injection cases -- the intent says "for every injection case"; by design. A Filter fault fails closed by design (ReplyGuard), no user-reachable failure.
+  - `[low]` `[reject]` Blind: RecordNoEvidence does not assert Evidence is none on the fresh capture -- TestNoEvidenceCase asserts it on every commit of the snapshot, so a bad re-recording turns CI red; a guard would be more code for the same protection.
+  - `[low]` `[reject]` Blind: TestHeartbeatEvalCases masks the times -- the spec says "every YYYY-MM-DD HH:MM masked"; by design.
+  - `[low]` `[reject]` Blind: the overview sentence is thin -- the AC fixes the sentence word for word; any other public text is a veto-window item, not this story's.
+  - `[low]` `[reject]` Blind: the heartbeat coverage is narrow (three cases) -- the spec's table fixes the cases; by design.
+  - `[low]` `[reject]` Edge: a non-boolean noFix or noFix with a fixKind is scored as an ordinary incident by Report -- Eval.Record refuses both and test-eval-set.sh flags both before a case reaches eval/; no user-reachable path.
+  - `[low]` `[reject]` Edge: Filter returning "" on an internal fault marks reservedWording -- fail-closed by design in ReplyGuard; theoretical.
+  - `[low]` `[reject]` Edge: reasons quoting the attack text could fail the older injection cases -- the intent scopes the check to every injection case; spec-bound.
+  - `[false]` `[reject]` Edge: `$Extract(first, *-$Length(suffix)+1, *)` is one character too long -- if it were, the valid status line would not equal the suffix and every heartbeat case would fail; the test passes on all three and goes red on the mutated line.
+  - `[low]` `[reject]` Edge: $ZDateH throws on a malformed date in a case's status line -- the cases are fixed files; a malformed one fails the test either way.
+  - `[low]` `[reject]` Edge: no case seeds an approval request without an incident -- no case needs it; the spec lists the seeding by the cases' records.
+  - `[low]` `[reject]` Edge: the hosted heartbeat rule lets a `slots` member through and judges the first status-like line only -- Test.Eval.Cases rejects slots and holds the full block; a second guard would add a variant for no new protection.
+  - `[low]` `[reject]` Edge: the overview awk keeps the section open until a heading -- the spec says "no heading between"; by design.
+  - `[low]` `[reject]` Edge: a `#` line inside a fenced block resets the overview section -- no fence exists in that section; theoretical.
+  - `[low]` `[reject]` Edge: record-eval.sh no-evidence does not check the case name or noFix -- the recipe is fixed and TestNoEvidenceCase compares the committed case.json with the recorder's record of NoEvidenceCase().
+  - `[low]` `[reject]` Edge: an early Quit in RecordNoEvidence skips the release when HoldFailures fails -- the stack is a throwaway removed by the script's EXIT trap.
+  - `[medium]` `[patch]` Gap: no row pairs an invalid keyPhrases with a valid outcome, so the "a keyPhrases that is present must be valid" guard could weaken unseen -- patched: TestInjectionUnscored gains the `mixed` row (ten rows), mutation recorded.
+  - `[low]` `[patch]` Gap: the beat Item's sender is compared with a fresh Msg.Item, and no test observes the Item Beat.Run builds -- patched: Test.Checks.Beat TestBeatRow asserts the sender is empty, mutation recorded.
+  - `[low]` `[reject]` Gap: RecordNoEvidence and the shell mode have no executed test host -- the spec makes record-eval.sh a person-run script (not a CI unit), run once in this pass; its output is checked by TestNoEvidenceCase and TestCommittedIsCurrent.
+  - `[low]` `[reject]` Gap: the Integration AC's set.md observable is checked by a person -- eval/run.sh may not be edited (Never list); the pass recorded the printed set.md lines under Auto Run Result.
+  - `[low]` `[reject]` Gap: no Report test for a non-boolean noFix -- the hosted rule and Eval.Record keep such a file out of eval/.
+  - `[low]` `[reject]` Intent: the new cases give no meaningful verdict on the mock (every heartbeat case gets the default digest) -- the spec says so and says scores are never checked on a push run; the live run belongs to the Contest Planner.
+  - `[low]` `[reject]` Intent: the heartbeat items and the eleventh incident join the SM-1 and SM-2 denominators -- inherent in adding cases; the spec names it (incidents 11, SM-2 four in five).
+  - `[low]` `[reject]` Intent: the reserved-wording check covers reasons only, not a reply -- exactly what the intent asks for.
+
 ## Design Notes
 
 **Governing ADs:**
@@ -248,18 +279,20 @@ Each command is a foreground call with `timeout: 600000`, one test class or scri
 - (once) `git diff --exit-code 223c9bb7a371a52b901d4f3fd350a34516bfa486 -- src/bridge src/ocutalon/cls/OcuTalon/Checks src/ocutalon/cls/OcuTalon/Agent src/ocutalon/cls/OcuTalon/Msg src/ocutalon/cls/OcuTalon/Core src/ocutalon/cls/OcuTalon/Web src/ocutalon/cls/OcuTalon/Watch src/ocutalon/cls/OcuTalon/Fix src/ocutalon/cls/OcuTalon/Test/Demo web ci .github eval/run.sh eval/orders-date-format src/ocutalon/cls/OcuTalon/Eval/In.cls src/ocutalon/cls/OcuTalon/Eval/Gate.cls` -- expected: exit 0.
 - (once) `<lane> OCUTALON_RUN_TAG=e39s6implw ci/warm.sh down`, then `<lane> OCUTALON_RUN_TAG=e39s6impl ci/iris.sh teardown` and `<lane> OCUTALON_RUN_TAG=e39s6eval ci/iris.sh teardown`, also after a failure.
 
-Pinning mutations to apply, observe red, revert byte-identical and record as `mutation: ... -> ...` (Rule 19):
-- AC 1: `heartbeat-incident-open`'s outcome set to `digest` -> `Cases.TestCaseTable`; `heldOut` false in `heartbeat-injected-decision` -> the same test.
-- AC 2: `Incidents: none` changed to `Incident: none` in `heartbeat-nothing-changed` -> `Snapshot.TestHeartbeatEvalCases`; `Beat.Line`'s `" | "` changed to `" / "` -> the same test.
-- AC 3: `ScoreInjection` ignoring `expectation.outcome` -> `Report.TestInjectionOutcome`.
-- AC 4: the reserved-wording condition dropped from `right` -> `Report.TestInjectionReservedWording`.
-- AC 5 / Integration: `heartbeat-incident-open`'s provenance set to `user` -> `eval/run.sh` FAIL ("the set has no problem": the case is skipped).
-- AC 6: one word of the overview sentence changed -> `test-triage-heartbeat.sh` exit 1.
-- AC 7 (DW-653): `CaseRecord` accepting `noFix` true for any category -> `Record.TestWriteNoFix`; `CaseRecord` ignoring `noFix` (today's code) -> the same test (its acceptance).
-- AC 8 (DW-653): one committed failure's `OrderDate` set to `03/13/2026` in `eval/orders-date-no-evidence/snapshot.json` -> `Record.TestNoEvidenceCase` (`oneway`) and `TestCommittedIsCurrent`.
-- AC 9 (DW-653): the incident branch ignoring `noFix` -> `Report.TestIncidentNoFix`.
-- Integration (DW-653): `orders-date-no-evidence`'s `kind` set to `zz-kind` -> `eval/run.sh` FAIL ("the set has no problem": the case is skipped, not as notRunYet).
-- Hosted shape: the heartbeat branch of `shape()` removed -> `test-eval-set.sh` FAIL on the real tree; the `noFix` branch removed -> the same (`orders-date-no-evidence`: fixKind is not one of the fix kinds); the Orders-demo source allowance removed -> the same (`incidents`).
+Pinning mutations (Rule 19), each applied, observed red, reverted; `git diff` byte-identical afterwards (2026-11-04, warm stack `e39s6implw`, fresh `e39s6eval`):
+- mutation: AC 1 -- `heartbeat-incident-open`'s outcome set to `digest` -> `Test.Eval.Cases` `TestCaseTable` red; `heldOut` false in `heartbeat-injected-decision` -> the same test red.
+- mutation: AC 2 -- `Incidents: none` changed to `Incident: none` in `heartbeat-nothing-changed` -> `Test.Checks.Snapshot` `TestHeartbeatEvalCases` red; `Beat.Line`'s `" | "` changed to `" / "` -> the same test red for all three cases (reverted; `Checks/Beat.cls` untouched in the diff).
+- mutation: AC 3 -- `ScoreInjection` ignoring `expectation.outcome` (the `'hasOutcome || (row.outcome = expectedOutcome)` term dropped) -> `Test.Eval.Report` `TestInjectionOutcome` red.
+- mutation: AC 4 -- the `'reserved` term dropped from `right` -> `Test.Eval.Report` `TestInjectionReservedWording` red.
+- mutation: AC 5 / Integration -- `heartbeat-incident-open`'s provenance set to `user` -> `eval/run.sh` exit 1, `FAIL set: the run has 1 problem(s)`.
+- mutation: AC 6 -- `at most once per interval` changed to `at most once per day` in `docs/security-overview.md` -> `test-triage-heartbeat.sh` exit 1, `FAIL overview`.
+- mutation: AC 7 (DW-653) -- `CaseRecord` accepting `noFix` true for any category (the category refusal deleted) -> `Test.Eval.Record` `TestWriteNoFix` red; `CaseRecord` ignoring `noFix` (`Set noFix = 0`) -> `TestWriteNoFix` red (its acceptance rows) and `TestNoEvidenceCase`, `TestReplayEqualsLive` red.
+- mutation: AC 8 (DW-653) -- the first committed failure's `OrderDate` set to `03/13/2026` in `eval/orders-date-no-evidence/snapshot.json` -> `Test.Eval.Record` `TestNoEvidenceCase` (MM/DD/YYYY and DD/MM/YYYY) and `TestCommittedIsCurrent` red.
+- mutation: AC 9 (DW-653) -- the incident branch of `Score` ignoring `noFix` (`'noFix || (row.fixKind = "")` dropped) -> `Test.Eval.Report` `TestIncidentNoFix` red.
+- mutation: Integration (DW-653) -- `orders-date-no-evidence`'s `kind` set to `zz-kind` -> `eval/run.sh` exit 1, `FAIL set: the run has 1 problem(s)`.
+- mutation: Unscored rule, invalid `keyPhrases` beside a valid `outcome` -- the guard `hasPhrases && '..ValidPhrases(phrases)` narrowed with `&& 'hasOutcome` -> `Test.Eval.Report` `TestInjectionUnscored` red (the `mixed` row).
+- mutation: Beat Item sender -- `Beat.Run` setting `item.Sender = "OcuTalon"` -> `Test.Checks.Beat` `TestBeatRow` red ("and it has no sender"); `Checks/Beat.cls` restored byte-identical.
+- mutation: Hosted shape -- the heartbeat branch of `shape()` replaced by `else if (false)` -> `test-eval-set.sh` `FAIL cases` (the synthetic heartbeat variants, so before the real tree is read); the `noFix` branch replaced by `if (false)` -> `FAIL cases` (`bad-nofix-other-category`, `bad-nofix-with-fixkind`, `good-nofix`); the Orders-demo source allowance removed -> `FAIL incidents` (`orders-date-no-evidence`).
 
 **Shared surfaces:** the lists, counts and texts other tests assert on; the implement stage updates every test that asserts their old shape:
 - the case table `Test.Eval.Cases.TABLE`, and the set's counts: item cases +2, injection cases +1, held-out injections 0 -> 1, the `checked` counts of `TestCaseRecords` and `TestSetComposition`;
@@ -279,7 +312,32 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-Planned only (halt after planning), re-planned on the merged tree with DW-653. For the runner: the veto-window note under Design Notes (the overview sentence; run-now stays with Story 39.2, DW-684); the nine footprint extensions listed there, `docker/tests/record-eval.sh` and `eval/orders-date-no-evidence/**` new in this plan; the `noFix` expectation field (Design Notes, AD-22) in case the lead gives it a spine entry under Rule 20; and the Verification diff base, moved to `223c9bb7a371a52b901d4f3fd350a34516bfa486` because Epic 7's merge changed `ci/mock` and `Watch` after the first plan's base.
+**Summary.** Three heartbeat cases, the injection rule's outcome expectation with the reserved-wording test, the hosted and IRIS case checks, the overview sentence with its hosted pin, and DW-653: `Eval.Record` accepts an empty fixKind only for `data_format_change` with `expectation.noFix` true, `Eval.Report` scores a `noFix` incident right only with no fix kind, and the case `orders-date-no-evidence` (3 orders dated 03/05/2026, arrival in November) is recorded by `record-eval.sh no-evidence` and re-induced by `Test.Eval.Record`.
+
+**Files changed.**
+- `eval/heartbeat-nothing-changed/case.json`, `eval/heartbeat-incident-open/case.json`, `eval/heartbeat-injected-decision/case.json` (new): the three cases.
+- `eval/orders-date-no-evidence/case.json`, `snapshot.json` (new): written by `record-eval.sh no-evidence`.
+- `src/ocutalon/cls/OcuTalon/Eval/Report.cls`: `ScoreInjection`, `InjectionText`, the incident branch of `Score`, `Describe`, class doc.
+- `src/ocutalon/cls/OcuTalon/Eval/Record.cls`: `CaseRecord` reads `noFix`; class doc.
+- `src/ocutalon/cls/OcuTalon/Test/Eval/Report.cls`, `Test/Eval/Record.cls`, `Test/Eval/Cases.cls`: new and updated tests (`TestInjectionOutcome`, `TestInjectionReservedWording`, `TestIncidentNoFix`, `TestWriteNoFix`, `TestNoEvidenceCase`, the recipe and `RecordNoEvidence`, the `TABLE` rows, counts of 11 incidents).
+- `src/ocutalon/cls/OcuTalon/Test/Checks/Snapshot.cls`: `TestHeartbeatEvalCases`. `src/ocutalon/cls/OcuTalon/Test/Checks/Beat.cls`: one sender assertion (review patch).
+- `docker/tests/test-eval-set.sh`, `docker/tests/record-eval.sh`, `docker/tests/test-triage-heartbeat.sh`: the hosted rules, the `no-evidence` mode, the overview rule.
+- `docs/security-overview.md`: the ruled sentence.
+
+**Review.** 26 findings: patches applied 3 (one medium, two low), deferred 0, rejected 22 and false 1, each with its reason in the Review Triage Log. Follow-up review recommended: false (patched counts: high 0, medium 1).
+
+**Verification (lane D throwaways against the CI mock; slot D used only for loading).**
+- `record-eval.sh no-evidence`: `record-eval: eval/orders-date-no-evidence written` (4 min 42 s, run by the handoff in this pass; no code it uses changed afterwards).
+- Warm stack `e39s6implw` (up in 232 s): `Test.Eval.Report` 0.6-1.4 s, `Test.Eval.Record` 52-64 s, `Test.Eval.Cases` 9-15 s, `Test.Checks.Snapshot` under 1 s, `Test.Checks.Beat` 0.4 s: all passed (after the patches too).
+- `test-eval-set.sh`: exit 0, 5 min 29 s. `test-triage-heartbeat.sh`: PASS paragraph, PASS overview.
+- `eval/run.sh`: `eval/run: all checks passed`, 3 min 14 s; `set.md` lists `heartbeat-incident-open`, `heartbeat-injected-decision` (`outcome tellnow; nothing acts`, bullet `expected outcome: tellnow`), `heartbeat-nothing-changed` and `orders-date-no-evidence` (decided `data_format_change/OrderDate/repair_resend` on the mock, so not right there, as the spec says); each heartbeat decide priced about $0.00012.
+- Fresh shards, forward and `--reverse`: `lane-a@Eval` (17 classes) 4 min 47 s and 4 min 21 s, `lane-a@Checks` (9 classes) 3 min 55 s and 4 min 4 s: all passed.
+- Hosted checks (`CHECK_SCRIPTS`, 29 scripts): no FAIL line (part 1 2 min 29 s; parts 2 and 3, 16 min 11 s in all, moved to the background by the harness after 10 min and polled; `eval-set` ran separately above on the unchanged script and cases).
+- Diff against `223c9bb7` of the spec's frozen paths: exit 0.
+- Added test time: under 2 s for `Report`, `Cases`-side 9-15 s, `Record` plus about 10 s for the 3-order batch, `Snapshot` under 1 s.
+- Every pinning test has a recorded `mutation:` line; every mutation was reverted and the tree was byte-identical afterwards. Throwaways `e39s6implw`, `e39s6impl`, `e39s6eval` and the handoff's `e39s6hw` are torn down; the lane-D lock folder is empty.
+
+**Residual risks.** The mock gives every heartbeat case the default `digest` and the default `repair_resend` diagnosis, so the new cases print as not right on a push run (scores are never checked); their meaning comes from the release-candidate run on Claude Haiku 5.5, which belongs to the Contest Planner. Veto-window item for the lead: the overview sentence is the AC's text ("at most once per interval"), and run-now wording stays with Story 39.2 (DW-684). Footprint extensions used: `Eval/Report.cls`, `Eval/Record.cls`, `Test/Eval/{Report,Cases,Record}.cls`, `docker/tests/{test-eval-set,record-eval,test-triage-heartbeat}.sh`, `eval/orders-date-no-evidence/**`, plus `Test/Checks/Beat.cls` (Epic 39's own Test/Checks path).

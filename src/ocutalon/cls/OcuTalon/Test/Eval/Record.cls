@@ -3,14 +3,14 @@
 /// Where either is missing, every test fails with that reason, so that a broken stack can never give a green shard.
 /// OnBeforeAllTests holds the Orders WatchMark, installs the evaluation set's test feed (Story 9.9; Test.Eval.Feed.Fixture: the production
 /// OcuTalon.Test.Eval.Feed in the namespace EVALFEED) and sends its nine cases, then re-induces each incident of Recipes() (the demo's: a batch of 50
-/// orders in MM/DD/YYYY, and the feed's nine), builds the live pack itself from Reader.Evidence and EvidencePack.Build, independently of Eval.Record,
+/// orders in MM/DD/YYYY, and a batch of 3 orders dated 03/05/2026 that the evidence does not settle, and the feed's nine), builds the live pack itself from Reader.Evidence and EvidencePack.Build, independently of Eval.Record,
 /// and captures the same failures with Eval.Record into a folder of its own below TMP. OnAfterAllTests takes out fixture settings that a test left in
 /// the Orders definition, removes the feed, and runs Clean, which releases the mark and deletes its folder and its messages, and returns their status.
 /// The tests then read what was kept:
 ///   - TestCaptureWritesCase: the demo capture's two files, field by field; snapshot.json is the reader's own answer after Redact.Text, with nothing
 ///     added and nothing dropped; case.json is the committed case except recordedBy; the committed expectation; Eval.Report DEMOCASE names the case;
 ///   - TestReplayEqualsLive: the pack that Build gives the file just written, and the pack that Capture returned, equal the live pack exactly, for the
-///     demo and for each case of the feed; (QA) and the packs replayed are those of the incident cases of eval/, at least 10;
+///     demo (both of its recipes) and for each case of the feed; (QA) and the packs replayed are those of the incident cases of eval/, at least 11;
 ///   - TestCommittedIsCurrent: the incident cases of eval/ and Recipes() are the same set, and the pack of each committed snapshot equals the live pack
 ///     once VOLATILE (row ids and times, which a re-induced incident cannot repeat) is removed from both;
 ///   - (QA) TestVolatileIsRowIdsAndTimesOnly: VOLATILE is exactly the six row ids and times, so no field of the evidence is masked in a comparison;
@@ -27,6 +27,11 @@
 ///     left in the Orders definition, with an OK status;
 ///   - TestWriteRedacts and TestWriteRefuses: the redaction and the refusals of Write on synthetic snapshots (no failure is induced), each leaving no
 ///     folder behind;
+///   - (DW-653) TestWriteNoFix: a case with noFix true, the fix category and an empty or absent fixKind is recorded as {causeCategory, elementAtFault,
+///     fixKind "", noFix true}, and is refused, with no folder, with the fix category and no noFix (or false), with a fixKind, for each other category, and
+///     with a noFix that is not a boolean; TestNoEvidenceCase: eval/orders-date-no-evidence (recipe orders-date-no-evidence: SendNoEvidence's 3 orders dated
+///     03/05/2026, recorded by RecordNoEvidence for docker/tests/record-eval.sh) is the record of NoEvidenceCase(), and RepairResend.Evidence over its
+///     committed dates and arrivals is none both ways;
 ///   - TestCaptureRefuses: the refusals of Capture against the Orders production (a production that is not the namespace's own, keys that give no
 ///     failure, a case that is not valid), each with no pack and no folder;
 ///   - (QA) TestWriteKeepsCaseFields: Write puts the case in case.json as the recorder's record (heldOut as a JSON boolean, an empty fixKind for a
@@ -43,7 +48,7 @@ Class OcuTalon.Test.Eval.Record Extends %UnitTest.TestCase [ DependsOn = OcuTalo
 
 /// The incident cases of the Orders demo that this class re-induces, comma-separated: one recipe in Induce for each. Recipes() adds the cases of the
 /// test feed.
-Parameter RECIPES = "orders-date-format";
+Parameter RECIPES = "orders-date-format,orders-date-no-evidence";
 
 /// The fields of an evidence pack that a re-induced incident cannot repeat (row ids and times), comma-separated. A dotted name is a field of an object
 /// field, and a field of every entry of a list.
@@ -229,8 +234,60 @@ Method Make(name As %String) [ Private ]
 	Do ..Recorded.%Set(name, {"error": ($Select($$$ISOK(sc): "", 1: $SYSTEM.Status.GetErrorText(sc))), "live": (live), "captured": ($Select($IsObject(captured): captured, 1: "")), "answer": (snapshot)})
 }
 
+/// The case of orders-date-no-evidence (DW-653; Story 7.7's no-evidence outcome): the recipe's own record of it. The committed case.json is what
+/// Eval.Record makes of it, and RecordNoEvidence captures it.
+ClassMethod NoEvidenceCase() As %DynamicObject
+{
+	Set case = {"name": "orders-date-no-evidence", "description": "Three orders from the simulated partner carry the order date 03/05/2026 (MM/DD/YYYY), a date that is valid read month first or day first, on a day of arrival that matches neither reading. The case is right only for a data-format change at OrderDate with no fix proposed (Story 7.7): the evidence does not say which reading is the partner's."}
+	Do case.%Set("heldOut", 0, "boolean")
+	Set case.expectation = {"causeCategory": "data_format_change", "elementAtFault": "OrderDate", "fixKind": ""}
+	Do case.expectation.%Set("noFix", 1, "boolean")
+	Quit case
+}
+
+/// Sends the batch of orders-date-no-evidence into the Orders production with the reference: 3 orders dated 03/05/2026 in MM/DD/YYYY, waits for their 3
+/// failures at ORDERSITEM and gives their failed headers as keys (h<id>, ascending). The recording and the re-induction both send through it. An error
+/// status says what failed.
+ClassMethod SendNoEvidence(ref As %String, Output keys As %String) As %Status
+{
+	Set keys = ""
+	Set demo = "OcuTalon.Test.Demo.Production"
+	Set item = ..#ORDERSITEM
+	Set text = $ClassMethod(demo, "Send", 3, "MM/DD/YYYY", ref, "2026-03-05")
+	If text '= "" Quit $$$ERROR($$$GeneralError, "The batch was not sent: "_text)
+	Set count = $ClassMethod(demo, "WaitCount", ref, item, 8, 3)
+	If count '= 3 Quit $$$ERROR($$$GeneralError, "The batch has "_count_" failures at "_item_", not 3")
+	Set headers = $ClassMethod(demo, "Headers", ref)
+	For i = 0:1:headers.%Size() - 1 {
+		Set header = headers.%Get(i)
+		If (header.target = item) && (header.status = 8) Set keys = keys_$Select(keys = "": "", 1: ",")_"h"_header.id
+	}
+	If $Length(keys, ",") '= 3 Quit $$$ERROR($$$GeneralError, "The batch has "_$Length(keys, ",")_" failed headers at "_item_", not 3")
+	Quit $$$OK
+}
+
+/// Records orders-date-no-evidence into the folder (docker/tests/record-eval.sh no-evidence): holds the Orders failures, sends the batch (SendNoEvidence),
+/// captures its failures with Eval.Record as NoEvidenceCase() into <folder>/orders-date-no-evidence/, then always releases the hold and removes the
+/// batch's messages (Clean, without the folder). The status is the recording's, with the clean-up's.
+ClassMethod RecordNoEvidence(folder As %String) As %Status
+{
+	Set demo = "OcuTalon.Test.Demo.Production"
+	Set sc = $ClassMethod(demo, "HoldFailures")
+	If $$$ISERR(sc) Quit sc
+	Set refs = []
+	Try {
+		Set ref = ##class(OcuTalon.Bridge.Ids).NewRef()
+		Do refs.%Push(ref)
+		$$$ThrowOnError(..SendNoEvidence(ref, .keys))
+		$$$ThrowOnError(##class(OcuTalon.Eval.Record).Capture(..NoEvidenceCase(), $Parameter(demo, "NAMESPACE"), $Parameter(demo, "PRODUCTION"), ..#ORDERSITEM, keys, folder, .pack))
+	} Catch exception {
+		Set sc = exception.AsStatus()
+	}
+	Quit $SYSTEM.Status.AppendStatus(sc, ..Clean(refs, "", 1))
+}
+
 /// Gives where and which the failures of the incident are: the namespace, production and item they are at and the keys of their failed headers (h<id>,
-/// ascending). For the demo it sends the failures into the Orders production and keeps the batch's reference in Refs; for a case of the test feed it
+/// ascending). For the demo's incidents it sends the failures into the Orders production (the date-format batch of 50, or SendNoEvidence's batch of 3) and keeps the batch's reference in Refs; for a case of the test feed it
 /// waits for the failures that OnBeforeAllTests sent. An unknown name is an error.
 Method Induce(name As %String, Output namespace As %String, Output production As %String, Output item As %String, Output keys As %String) As %Status
 {
@@ -240,13 +297,14 @@ Method Induce(name As %String, Output namespace As %String, Output production As
 		If ref = "" Quit $$$ERROR($$$GeneralError, "The test feed sent no batch for the case "_name)
 		Quit ##class(OcuTalon.Test.Eval.Feed.Fixture).Keys(name, ref, .namespace, .production, .item, .keys)
 	}
-	If name '= "orders-date-format" Quit $$$ERROR($$$GeneralError, "No recipe induces the incident "_name)
+	If '$ListFind($ListFromString(..#RECIPES), name) Quit $$$ERROR($$$GeneralError, "No recipe induces the incident "_name)
 	Set demo = "OcuTalon.Test.Demo.Production"
 	Set namespace = $Parameter(demo, "NAMESPACE")
 	Set production = $Parameter(demo, "PRODUCTION")
 	Set item = ..#ORDERSITEM
 	Set ref = ##class(OcuTalon.Bridge.Ids).NewRef()
 	Do ..Refs.%Push(ref)
+	If name = "orders-date-no-evidence" Quit ..SendNoEvidence(ref, .keys)
 	Set text = $ClassMethod(demo, "Send", 50, "MM/DD/YYYY", ref, "2026-10-16")
 	If text '= "" Quit $$$ERROR($$$GeneralError, "The batch was not sent: "_text)
 	Set count = $ClassMethod(demo, "WaitCount", ref, item, 8, 50)
@@ -313,7 +371,7 @@ Method TestCaptureWritesCase()
 }
 
 /// The pack that Build gives the file just written, and the pack that Capture returned, equal the live pack exactly (no field is masked), for each
-/// recipe. The live pack is not empty. (QA) The recipes replayed are the incident cases of eval/, at least 10, so that a recipe left out of the loop, or a
+/// recipe. The live pack is not empty. (QA) The recipes replayed are the incident cases of eval/, at least 11, so that a recipe left out of the loop, or a
 /// case with no recipe, fails here too.
 Method TestReplayEqualsLive()
 {
@@ -327,6 +385,7 @@ Method TestReplayEqualsLive()
 		Do $$$AssertTrue(live.count > 0, name_": the live pack counts failures: "_live.count)
 		Do $$$AssertTrue($IsObject(live.sample) && ($IsObject(live.settings)) && (live.trace.%Size() > 0), name_": the live pack holds a sample, settings and a trace")
 		If name = "orders-date-format" Do $$$AssertEquals(live.count_"|"_live.sample.body.OrderDate_"|"_live.item, "50|10/16/2026|"_..#ORDERSITEM, name_": the live pack is the 50 failures of the changed date")
+		If name = "orders-date-no-evidence" Do $$$AssertEquals(live.count_"|"_live.sample.body.OrderDate_"|"_live.item, "3|03/05/2026|"_..#ORDERSITEM, name_": the live pack is the 3 failures of the date that reads both ways")
 		Set file = ##class(%File).NormalizeFilename(##class(OcuTalon.Eval.Record).#SNAPSHOTFILE, ##class(%File).SubDirectoryName(..Folder, name))
 		Do $$$AssertStatusOK(##class(OcuTalon.Watch.EvidencePack).Load(file, .snapshot), name_": the file is a reader snapshot")
 		If '$IsObject(snapshot) Continue
@@ -337,7 +396,7 @@ Method TestReplayEqualsLive()
 		If $IsObject(replay) && $IsObject(entry.captured) Set replayed = replayed + 1
 	}
 	Set cases = ..IncidentCases(##class(%File).NormalizeDirectory(##class(OcuTalon.Eval.In).#FOLDER))
-	Do $$$AssertTrue($ListLength(cases) >= 10, "eval/ holds at least 10 incident cases: "_$ListLength(cases))
+	Do $$$AssertTrue($ListLength(cases) >= 11, "eval/ holds at least 11 incident cases: "_$ListLength(cases))
 	Do $$$AssertEquals(replayed, $ListLength(cases), "the pack of every incident case of eval/ was replayed and compared: "_replayed_" of "_$ListToString(cases))
 }
 
@@ -637,6 +696,88 @@ Method TestWriteRefuses()
 	Set allowed = ..Folder_"allowed/"
 	Do $$$AssertStatusOK(##class(OcuTalon.Eval.Record).Write(valid, ..Synthetic({"OrderNumber": ("/hom"_"e/irisowner/x")}), allowed), "the home folder of the image's user is not refused")
 	Do $$$AssertTrue(##class(%File).Exists(##class(%File).NormalizeFilename(##class(OcuTalon.Eval.Record).#SNAPSHOTFILE, ##class(%File).SubDirectoryName(allowed, "zz-refused"))), "and its snapshot was written")
+}
+
+/// (DW-653) A case that expects no fix is recorded: with the category DiagnosisPayload FIXCATEGORY, a fixKind that is empty or absent and noFix true,
+/// Write puts exactly {causeCategory, elementAtFault, fixKind "", noFix true} in case.json. Each of these is refused with its reason and no folder: the
+/// fix category with an empty fixKind and noFix absent or false (today's refusal), noFix true with a fixKind, noFix true for each of the other
+/// categories, and a noFix that is the string "true" or the number 1.
+Method TestWriteNoFix()
+{
+	If '..Guard() Quit
+	Set base = ..Folder_"nofix/"
+	Set recordedBy = ##class(OcuTalon.Eval.Record).#RECORDEDBY
+	Set fix = ##class(OcuTalon.Watch.Msg.DiagnosisPayload).#FIXCATEGORY
+	For form = "empty", "absent" {
+		Set name = "zz-nofix-"_form
+		Set case = ..NoFixCase(name)
+		If form = "absent" Do case.expectation.%Remove("fixKind")
+		Set before = case.%ToJSON()
+		Do $$$AssertStatusOK(##class(OcuTalon.Eval.Record).Write(case, ..Synthetic(), base), form_": Write accepts noFix true with a fixKind that is "_form)
+		Set caseFile = ##class(%File).NormalizeFilename(##class(OcuTalon.Eval.Record).#CASEFILE, ##class(%File).SubDirectoryName(base, name))
+		Set expected = {"name": (name), "kind": "incident", "heldOut": false, "description": (case.description), "snapshot": "snapshot.json", "expectation": {"causeCategory": (fix), "elementAtFault": "OrderDate", "fixKind": "", "noFix": true}, "recordedBy": (recordedBy)}
+		Do $$$AssertEquals(..ReadText(caseFile), expected.%ToJSON()_$Char(10), form_": case.json holds the expectation with fixKind empty and noFix true, and nothing else")
+		Do $$$AssertEquals(case.%ToJSON(), before, form_": the case that the caller holds is unchanged")
+	}
+	Set refused = "zz-nofix-refused"
+	Set case = ..NoFixCase(refused)
+	Do case.expectation.%Remove("noFix")
+	Do ..AssertRefused("the fix category with an empty fixKind and noFix absent", case, ..Synthetic(), base, "fixKind is empty for the category "_fix)
+	Set case = ..NoFixCase(refused)
+	Do case.expectation.%Set("noFix", 0, "boolean")
+	Do ..AssertRefused("the fix category with an empty fixKind and noFix false", case, ..Synthetic(), base, "fixKind is empty for the category "_fix)
+	Set case = ..NoFixCase(refused)
+	Set case.expectation.fixKind = "repair_resend"
+	Do ..AssertRefused("noFix true with the fixKind repair_resend", case, ..Synthetic(), base, "fixKind 'repair_resend' is set for an expectation of no fix")
+	Set categories = $ListFromString(##class(OcuTalon.Watch.Msg.DiagnosisPayload).#CAUSECATEGORIES), position = 0, others = 0
+	While $ListNext(categories, position, category) {
+		If category = fix Continue
+		Set others = others + 1
+		Set case = ..NoFixCase(refused)
+		Set case.expectation.causeCategory = category
+		Do ..AssertRefused("noFix true for the category "_category, case, ..Synthetic(), base, "noFix is set for the category "_category_", which has no fix")
+	}
+	Do $$$AssertEquals(others, 5, "the five other categories were each refused")
+	Set case = ..NoFixCase(refused)
+	Do case.expectation.%Set("noFix", "true", "string")
+	Do ..AssertRefused("a noFix that is the string true", case, ..Synthetic(), base, "noFix is not a boolean")
+	Set case = ..NoFixCase(refused)
+	Do case.expectation.%Set("noFix", 1, "number")
+	Do ..AssertRefused("a noFix that is the number 1", case, ..Synthetic(), base, "noFix is not a boolean")
+	Do $$$AssertNotTrue(##class(%File).DirectoryExists(##class(%File).SubDirectoryName(base, refused)), "no folder was made for any refused case")
+}
+
+/// (DW-653) eval/orders-date-no-evidence is the recipe's case: the committed case.json equals the record that Eval.Record makes of NoEvidenceCase() (compact
+/// JSON), and over the failures of the committed snapshot, taken as {value: the body's OrderDate, arrived: the failure's timeCreated}, RepairResend.Evidence
+/// is none for MM/DD/YYYY and for DD/MM/YYYY, with the three values reading both ways each time. (TestCommittedIsCurrent checks that a fresh recording of
+/// the batch has the same pack.)
+Method TestNoEvidenceCase()
+{
+	If '..Guard() Quit
+	Set name = "orders-date-no-evidence"
+	Set folder = ##class(%File).NormalizeDirectory(##class(OcuTalon.Eval.In).#FOLDER)
+	Set committed = ##class(OcuTalon.Test.Eval.Cases).Read(folder, name)
+	Do $$$AssertTrue($IsObject(committed), "eval/"_name_"/case.json exists")
+	Set file = ##class(%File).NormalizeFilename(##class(OcuTalon.Eval.Record).#SNAPSHOTFILE, ##class(%File).SubDirectoryName(folder, name))
+	Do $$$AssertTrue(##class(%File).Exists(file), "and so does its snapshot")
+	If '$IsObject(committed) || '##class(%File).Exists(file) Quit
+	Do $$$AssertStatusOK(##class(OcuTalon.Watch.EvidencePack).Load(file, .snapshot), "the committed snapshot is a reader snapshot")
+	If '$IsObject(snapshot) Quit
+	Set base = ..Folder_"noevidence/"
+	Do $$$AssertStatusOK(##class(OcuTalon.Eval.Record).Write(..NoEvidenceCase(), snapshot, base), "Eval.Record records NoEvidenceCase() over the committed snapshot")
+	Set written = ##class(%DynamicAbstractObject).%FromJSONFile(##class(%File).NormalizeFilename(##class(OcuTalon.Eval.Record).#CASEFILE, ##class(%File).SubDirectoryName(base, name)))
+	Do $$$AssertEquals(committed.%ToJSON(), written.%ToJSON(), "the committed case.json is the record that Eval.Record makes of NoEvidenceCase()")
+	Do $$$AssertEquals(committed.expectation.%ToJSON(), {"causeCategory": "data_format_change", "elementAtFault": "OrderDate", "fixKind": "", "noFix": true}.%ToJSON(), "it expects a data-format change at OrderDate with no fix")
+	Set values = []
+	For i = 0:1:snapshot.failures.%Size() - 1 {
+		Set failure = snapshot.failures.%Get(i)
+		Do values.%Push({"value": (failure.body.OrderDate), "arrived": (failure.timeCreated)})
+	}
+	Do $$$AssertEquals(values.%Size(), 3, "the committed snapshot holds the 3 failures")
+	For format = "MM/DD/YYYY", "DD/MM/YYYY" {
+		Set evidence = ##class(OcuTalon.Fix.Kind.RepairResend).Evidence(values, format, .twoWay)
+		Do $$$AssertEquals(evidence_"|"_twoWay, "none|3", format_": the arrival days match neither reading, so the evidence is none, and the 3 values read both ways")
+	}
 }
 
 /// Capture refuses a production that is not the namespace's own (not_current) and keys that give no failure, each with its reason, returns no pack and
@@ -980,6 +1121,15 @@ ClassMethod SyntheticCase(name As %String) As %DynamicObject [ Private ]
 {
 	Set case = {"name": (name), "description": "A synthetic case for the recorder's tests.", "expectation": {"causeCategory": "data_format_change", "elementAtFault": "OrderDate", "fixKind": "repair_resend"}}
 	Do case.%Set("heldOut", 0, "boolean")
+	Quit case
+}
+
+/// A valid case for the name that expects no fix: a data-format change at OrderDate, fixKind empty and noFix true.
+ClassMethod NoFixCase(name As %String) As %DynamicObject [ Private ]
+{
+	Set case = ..SyntheticCase(name)
+	Set case.expectation.fixKind = ""
+	Do case.expectation.%Set("noFix", 1, "boolean")
 	Quit case
 }
 

@@ -17,7 +17,11 @@
 ///     and not the run time of a watch;
 ///   - TestFailedRead, TestFailedReadRunNow: a read that fails throws, so that no none line is written, the beat stays due and a run now is not counted;
 ///   - TestAMailAboutBeatsIsNotABeat: only a Summary that is exactly the beat's subject is a beat's row;
-///   - TestTheCutBoundary (AC 3): a status block of exactly 4,000 characters is not cut, and one of 4,001 is.
+///   - TestTheCutBoundary (AC 3): a status block of exactly 4,000 characters is not cut, and one of 4,001 is;
+///   - TestHeartbeatEvalCases (Story 39.6, AC 2): each eval/heartbeat-* case holds the text that Beat.Snapshot builds from the records its status block lists. The test
+///     seeds those records for a fixture person on 2099-06-15 (the case's times moved to that day, in the case's own order), builds the snapshot and compares it with
+///     the case's item.text once every YYYY-MM-DD HH:MM is masked, and compares the item's channel, subject, sender and provenance with the beat Item's. A
+///     heartbeat-* folder that the test does not know is a failed assertion.
 Class OcuTalon.Test.Checks.Snapshot Extends %UnitTest.TestCase
 {
 
@@ -499,6 +503,99 @@ Method Differs(ref As %String, now As %String, ByRef keys As %List, what As %Str
 	Set key = $ClassMethod(..#BEAT, "Key", ..Snap(ref, now))
 	Do $$$AssertEquals($ListFind(keys, key), 0, "a change to "_what_" changes the key")
 	Set keys = keys_$ListBuild(key)
+}
+
+/// The snapshot of the person on 2099-06-15 equals the text of each eval/heartbeat-* case (the records its status block lists are seeded with the case's
+/// times moved to that day), once every YYYY-MM-DD HH:MM is masked; the case's Item is the beat Item: its channel, subject, sender and provenance. A
+/// heartbeat-* folder with no seeding here fails the test.
+Method TestHeartbeatEvalCases()
+{
+	Set folder = ##class(%File).NormalizeDirectory(##class(OcuTalon.Eval.In).#FOLDER)
+	Do $$$AssertTrue(##class(%File).DirectoryExists(folder), "the repository's eval/ is mounted at "_folder_" (a throwaway or CI stack)")
+	If '##class(%File).DirectoryExists(folder) Quit
+	Set prefix = $Parameter(..#BEAT, "STATUSPREFIX"), suffix = $Parameter(..#BEAT, "STATUSSUFFIX")
+	Set known = $ListBuild("heartbeat-nothing-changed", "heartbeat-incident-open", "heartbeat-injected-decision")
+	Set names = ##class(OcuTalon.Eval.In).CaseNames(folder, "")
+	Set seen = "", lf = $Char(10)
+	Set position = 0
+	While $ListNext(names, position, name) {
+		If $Extract(name, 1, 10) '= "heartbeat-" Continue
+		Do $$$AssertTrue($ListFind(known, name), name_": the test knows which records the case lists")
+		If '$ListFind(known, name) Continue
+		Set seen = seen_$ListBuild(name)
+		Set case = ##class(OcuTalon.Test.Eval.Cases).Read(folder, name)
+		Do $$$AssertTrue($IsObject(case), name_": the case is read")
+		If '$IsObject(case) Continue
+		Set item = case.item
+		Set beat = ##class(OcuTalon.Msg.Item).%New()
+		Do $$$AssertEquals(item.channel_"|"_item.subject_"|"_item.sender_"|"_item.provenance, $Parameter(..#BEAT, "CHANNEL")_"|"_..Subject()_"|"_beat.Sender_"|untrusted", name_": its Item has the channel, subject, sender and provenance of the beat's")
+		Set text = item.text
+		Set cut = $Find(text, lf_lf)
+		Do $$$AssertTrue(cut > 0, name_": the text is the checklist, a blank line and the status block")
+		If 'cut Continue
+		Set checklist = $Extract(text, 1, cut - 3)
+		Set block = $Extract(text, cut, *)
+		Set first = $Piece(block, lf, 1)
+		Do $$$AssertTrue(($Extract(first, 1, $Length(prefix)) = prefix) && ($Extract(first, *-$Length(suffix)+1, *) = suffix), name_": the block starts with the status line")
+		Set anchor = $Extract(first, $Length(prefix) + 1, $Length(prefix) + 10)
+		Set ref = ..Person(checklist)
+		Do ..SeedBlock(ref, block, anchor)
+		Set moved = ..Moved($Extract(first, $Length(prefix) + 1, $Length(prefix) + 16), anchor)
+		Set snapshot = ..Snap(ref, ..At(moved))
+		Do $$$AssertEquals(..Masked(snapshot), ..Masked(text), name_": the snapshot of the records the case lists is the case's text, with the times masked")
+	}
+	Set position = 0
+	While $ListNext(known, position, name) {
+		Do $$$AssertTrue($ListFind(seen, name), name_": the case is in eval/")
+	}
+}
+
+/// Seeds the records that the lines of the status block list for the person: an incident, a watch, a pending approval request of the incident of the
+/// production it names, a reminder or a decision. A line that says none seeds nothing. The times are those of the block moved to 2099-06-15 (Moved);
+/// anchor is the day of the block's status line.
+Method SeedBlock(ref As %String, block As %String, anchor As %String) [ Private ]
+{
+	Set fixture = "OcuTalon.Test.Data.Fixture"
+	Set lf = $Char(10)
+	For i = 2:1:$Length(block, lf) {
+		Set line = $Piece(block, lf, i)
+		Set label = $Piece(line, ": ", 1)
+		Set fields = $ListFromString($Piece(line, ": ", 2, 999), " | ")
+		Set wanted = $Case(label, "Incident": 4, "Watch": 2, "Approval request": 5, "Reminder": 2, "Decision": 4, : 0)
+		If wanted && ($ListLength(fields) '= wanted) {
+			Do $$$AssertTrue(0, "the line has the "_wanted_" fields of its kind: "_line)
+			Continue
+		}
+		If label = "Incident" {
+			Set production = $List(fields, 1)
+			Set incident(production) = ..Keep($ClassMethod(fixture, "Incident", ref, ..Now(), "ZZNS", production, {"State": ($List(fields, 2)), "Count": ($List(fields, 3)), "FirstAt": (..At(..Moved($List(fields, 4), anchor)))}))
+		} ElseIf label = "Watch" {
+			Do ..Keep($ClassMethod(fixture, "Check", ref, "ZZNS", "OcuTalon.Demo.Orders.Production", {"DisplayName": ($List(fields, 1)), "Result": ($List(fields, 2))}))
+		} ElseIf label = "Approval request" {
+			Set production = $List(fields, 3)
+			Do $$$AssertTrue($Data(incident($Get(production))), "the approval request names the production of an incident of the block: "_production)
+			Do ..Keep($ClassMethod(fixture, "Approval", ref, $Get(incident(production)), "pending", ..At(..Moved($List(fields, 4), anchor)), {"Kind": ($List(fields, 1)), "FixKind": ($List(fields, 2)), "ExpiresAt": (..At(..Moved($List(fields, 5), anchor)))}))
+		} ElseIf label = "Reminder" {
+			Do ..Keep($ClassMethod(fixture, "Reminder", ref, ..At(..Moved($List(fields, 2), anchor)), "pending", {"Text": ($List(fields, 1))}))
+		} ElseIf label = "Decision" {
+			Do ..Mail(ref, ..Moved($List(fields, 1), anchor), $List(fields, 4), $List(fields, 3), $List(fields, 2))
+		} Else {
+			Do $$$AssertTrue($ListFind($ListBuild("Incidents", "Watches", "Approval requests", "Reminders", "Decisions"), label) && ($List(fields, 1) = "none"), "the line seeds nothing, so it says none: "_line)
+		}
+	}
+}
+
+/// The time YYYY-MM-DD HH:MM (or its first 10 characters, a day) moved by the same number of days that takes the day anchor to 2099-06-15.
+ClassMethod Moved(stamp As %String, anchor As %String) As %String [ Private ]
+{
+	Set days = $ZDateH($Extract(stamp, 1, 10), 3) - $ZDateH(anchor, 3)
+	Quit $ZDate($ZDateH("2099-06-15", 3) + days, 3)_$Extract(stamp, 11, *)
+}
+
+/// The text with every YYYY-MM-DD HH:MM replaced by a mask.
+ClassMethod Masked(text As %String) As %String [ Private ]
+{
+	Quit ##class(%Regex.Matcher).%New("\d{4}-\d{2}-\d{2} \d{2}:\d{2}", text).ReplaceAll("YYYY-MM-DD HH:MM")
 }
 
 /// Makes the person's HeartbeatBeat row due at the UTC time (before the settings, so that a real tick leaves it).
