@@ -1971,3 +1971,12 @@
 2026-11-05T04:48:13Z	Epic 34	dispatch_blocked	reason=feature_pending head=d76c9e79 note="Epic 33 merged; Epic 34 prompt ready (prompts/dispatch-epic-34.md), runner C provisions on green"
 2026-11-05T04:48:43Z	Run	planner_ruling	subject=epic34_early_dispatch rule="dispatch Epic 34 to C now on d76c9e79 (feature CI pending) for 34.1 spec/plan only, no code commits; implement starts on green feature CI; red from Epic 33 content -> C stops, Planner told; known flake -> rerun, C continues" overrides=dispatch_onto_green_feature_only
 2026-11-05T04:48:43Z	Run	planner_ruling	subject=ci_group_split_trigger rule="split a group when any is over 35 min on 2 clean runs" note="browser 36.0 min on 57723efa = sighting 1"
+2026-11-05T04:49:38Z	Epic 34	worktree_provisioned	branch=OCT-epic34 base=d76c9e79 submodules=none note=duplicate_branch_runs_cancelled(41970121347,41970121360)
+2026-11-05T04:49:38Z	Epic 34	worktree_bootstrapped	epic=34 result=ok
+2026-11-05T04:49:52Z	Epic 34	runner_dispatched	runner=a235dc8e0bab7778b model=opus lane=C slot=ocutalon-slot-c prompt=prompts/dispatch-epic-34.md gate=feature_ci_wait_d76c9e79(plan_only)
+2026-11-05T04:52:47Z	Epic 40	ci_red_classified	sha=960ea5d3 run=41966773001 job=127045478389 group=iris_image class=flake known=DW-670 test=Test.Web.GuideApi action=rerun_failed_job_once
+2026-11-05T04:53:04Z	Epic 40	ci_red_classified	sha=960ea5d3 run=41966773001 job=127045478389 group=iris_image class=flake known=DW-453(/DW-670_on_epic39) test=Test.Web.GuideApi action=rerun_failed_job_once
+2026-11-05T05:11:43Z	Run	ci_green_verified	runs=41969776674,41969776634 head=d76c9e79 result=success via=none note=feature_after_epic33_merge
+2026-11-05T05:11:43Z	Epic 34	gate_released	feature_green=d76c9e79 implement_allowed=yes
+2026-11-05T05:19:01Z	Epic 40	ci_polled	story=40.4 sha=960ea5d3 result=success runs=41966773001(attempt2),41966772999 note=DW-453_flake_rerun_green
+2026-11-05T05:19:01Z	Run	epic17_runner_choice	decided_at=2026-11-05T05:19:01Z A_boundary=05:18:43Z(40.4 CI resolved) B_state="11.21 rework iteration 3 implement since 04:24Z; no part close, no integrate-forward, no CI running" outcome=A_takes_17 then="B takes Epic 40 after 11.21 rework and part-merge" rule=Planner_2026-11-05
