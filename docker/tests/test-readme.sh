@@ -1075,6 +1075,7 @@ chk_ipm() {
     echo "ipm: $IPM_DOC has no registry reload line in its registry install"
   fi
   if ! grep -qF -- "$IPM_USER_SENTENCE" "$2"; then echo "ipm: $IPM_DOC does not say what to do when IPM was installed in USER itself"; fi
+  if grep -qE -- 'when USER already had IPM\.([[:space:]]|$)' "$2"; then echo "ipm: $IPM_DOC claims the same result for any IPM in USER"; fi
   # The linked page gives the registry install first and the folder install second.
   registry=$(grep -nF -m 1 'zpm "install ocutalon"' "$2" | cut -d: -f1)
   folder=$(grep -nF -m 1 'zpm "load' "$2" | cut -d: -f1)
@@ -1807,6 +1808,7 @@ rule_ipm() {
   st 'the page registry reload line only in the folder install' 2 "$ipmdoc_p" '/^\[OCUTALON\|ocutalon\]\tReload START \(\/usr\/irissys\/ipm\/ocutalon\// { held = $0; next } { print } /^## Install from the package folder/ { print held }' chk_ipm
   st 'the page without the USER-installed IPM sentence' 2 "$ipmdoc_p" '{ sub(/ If IPM was installed in USER itself, they leave/, " They leave") } { print }' chk_ipm
   st 'the page claiming the same result for any USER IPM' 2 "$ipmdoc_p" '{ sub(/ mapped from %SYS\./, ".") } { print }' chk_ipm
+  st 'the page with the any-USER-IPM sentence beside the new one' 2 "$ipmdoc_p" '{ sub(/The two commands give the same result when USER already had IPM mapped/, "The two commands give the same result when USER already had IPM. &") } { print }' chk_ipm
   finish ipm 'the IPM section follows the image sections: IPM load line, map step, registry line, then the first install in USER, a link to the page with the same lines, no "any namespace"' chk_ipm
 }
 

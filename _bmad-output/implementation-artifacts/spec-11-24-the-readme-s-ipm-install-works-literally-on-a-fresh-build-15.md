@@ -100,6 +100,23 @@ Code review 2026-11-05 (layers: blind-hunter, edge-case-hunter, verification-gap
 - `[false]` Spec says done while sprint-status says review (edge-case-hunter, acceptance-auditor) - the spec's `status` is build-auto's machine state; sprint-status tracks the review stage.
 - `[low]` The spec's QA note says "two gaps" and lists three (blind-hunter) - fix edits the spec's narrative; negligible.
 
+### Review Findings (rework 1)
+
+Code review 2026-11-05 of the DW-760 rework (`b609d015..HEAD`; layers: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor; full-opus, no `model-overrides.yaml`). 0 decision-needed, 1 patch, 0 defer, 9 rejected; the acceptance auditor found no AC or constraint violation, and the hunks avoid Epic 34's regions. DW-760 checked: line 56 is the approved text byte for byte, `README.md` unchanged, the three sentences pinned by `IPM_USER_SENTENCE`; sentence 1 is borne out by Run 3 (USER mapped from %SYS, then the README block: `Mapping IPM repository in %SYS equivalently to USER`, `Activate SUCCESS`, 200), sentences 2 and 3 by Run 4 (`Skipping repository mapping of USER`, USER `No repositories found.`; `enable -community` in USER starts with `repo -delete-all`; then `Activate SUCCESS`, 200). No evidence contradicts any of them.
+
+- [x] [Review][Patch] The old "same result when USER already had IPM." sentence could come back beside the approved text with the suite green: the pin checks only that the new text is present, so the rework's own triage row "fixed by the same patch" did not hold (low, fix-risk low: one negative check and one self-test) [docker/tests/test-readme.sh:1078,1811]
+
+**Rejected:**
+- `[low]` The triage row says `baseline_commit` is the story's original base, but the frontmatter moved it to `b609d015` (blind-hunter, edge-case-hunter) - fix edits the spec's review narrative; no behaviour depends on it.
+- `[low]` The rework triage verdict tally ("medium 1, low 2") does not match its rows (3 medium of one root cause, 10 low) (blind-hunter, edge-case-hunter) - fix edits the spec's narrative only.
+- `[low]` The Auto Run Result still says "three literal runs" and "both mutations" where Run 4 and four mutation lines exist (blind-hunter) - fix edits the spec's narrative only; the Verification section records all of them.
+- `[low]` Run 4 saw USER's repositories empty before and after, so "left as they are" and "deletes" were not seen on a non-empty list (blind-hunter, acceptance-auditor) - not contradicted: the product printed `Skipping repository mapping of USER` and `repo -delete-all`; the Planner's Run 4 condition is met; approved text.
+- `[low]` Run 4 does not run block 3 before the USER `enable -community` (acceptance-auditor) - the failure is the lead's smoke, quoted in the [Smoke] task; not part of the Planner's condition; nothing contradicts the sentence.
+- `[low]` "This is the output of `enable -community` on build 154" now follows the USER sentence and could be read as the USER run (blind-hunter) - the sentence is true (the sample is the %SYS run it always was) and is approved public text; a rewording is not a patch.
+- `[low]` DW-760's spec defer bullet and ledger trailer are not updated (blind-hunter) - the lead adjudicates the ledger entry; this review confirms it under the paragraph above.
+- `[low]` The pinned text could move out of its paragraph with the suite green (edge-case-hunter) - unlikely; a position check adds complexity for no AC.
+- `[false]` Spec says `done` while sprint-status says `review` (edge-case-hunter, verification-gap) - the spec's `status` is build-auto's machine state; this review syncs sprint-status.
+
 ## Spec Change Log
 
 - 2026-11-05, lead spec gate: public text approved by the Contest Planner (owner's delegation) exactly as drafted; Task 0's "samples are final" replaced by the Planner's condition 3 (refresh sample blocks from the implement stage's build 154 case 1 run where they differ); one Tasks item added for it.
@@ -434,6 +451,8 @@ All commands run from the worktree root after `git rev-parse --show-toplevel` ma
 - Review patch (2026-11-05): `IPM_USER_SENTENCE` widened to the three approved sentences; `rule_ipm` self-test 'the page claiming the same result for any USER IPM' (slot 2) added above `finish ipm`; `test-readme.sh` -> all rules passed, `test-cpf.sh` -> all checks passed; `git diff -U0` of the file: three hunks, none in Epic 34's regions.
 - mutation: the guide's first sentence reverted to "...when USER already had IPM." -> `FAIL ipm` (observed red, restored from backup, sha256 identical).
 - mutation: the `chk_ipm` USER-sentence check deleted -> both self-tests 'the page without the USER-installed IPM sentence' and 'the page claiming the same result for any USER IPM' `not flagged`, `FAIL ipm: a broken copy was not flagged` (observed red, restored from backup, sha256 identical).
+- Code review patch (rework 1, 2026-11-05): `chk_ipm` gains a negative check, `grep -qE 'when USER already had IPM\.([[:space:]]|$)'` (message `ipm: docs/install-ipm.md claims the same result for any IPM in USER`), and `rule_ipm` the self-test 'the page with the any-USER-IPM sentence beside the new one' (slot 2) above `finish ipm`; `test-readme.sh` -> all rules passed, `test-cpf.sh` -> all checks passed; `git diff -U0` adds two lines (1078, 1811), none in Epic 34's regions.
+- mutation: the new negative check deleted -> `self-test: the page with the any-USER-IPM sentence beside the new one: not flagged`, `FAIL ipm: a broken copy was not flagged` (observed red, restored from backup, sha256 identical).
 
 ## Auto Run Result
 
