@@ -206,6 +206,8 @@ Rejected:
 
 ## Spec Change Log
 
+- 2026-11-05, lead, applying U-283 (KEEP, at=2026-11-05T07:37:07Z#857, the Contest Planner under the owner's delegation): the veto ruling stands. Conditions pinned: (1) a Tick's empty-checklist skip saves its row, publishes no event and makes no model request (`Test.Checks.Beat.TestRunDueEmptySkipGivesNoView`); (2) a run-now on an empty checklist still publishes (`Test.Checks.Runs.TestPublishedEventsHoldNoRefChecklistOrKey`). epics.md's 39.7 AC carries the U-283 marker.
+
 - 2026-11-05, lead, rework iteration 1 (trigger ci): CI on f20a41c2 failed browser `live:sign-in` L10 because every session without a checklist got a heartbeat event at its first Tick. Ruling (veto): a Tick's `empty` skip publishes no event; AC 1 and the Matrix are amended, and epics.md's 39.7 block carries the same amendment. Also the `checks` job's timeout 15 -> 20 per the Planner's pre-ruling.
 
 - 2026-11-05, lead, answering the implement stage's intent gap (decide, round 1): `web/scripts/payloads.test.mjs` hardcodes the interfaces that carry `traceUrl`, and `HeartbeatPayload` has both trace fields, so AC 4 needs one name added there. The file is Lane B like this story, in no open epic's diff (11, 33, 40), and the change is a one-name append to a list (standing precedent), so it is allowed and reported as a footprint extension. The Never line is amended and one open task added; the earlier pass's implementation stays in the working tree, uncommitted, for this pass to finish.
