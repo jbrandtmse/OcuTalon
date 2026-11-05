@@ -2,7 +2,7 @@
 title: 'Story 17.2: Retry once on a second model before falling back'
 type: 'feature'
 created: '2026-11-05'
-status: 'done'
+status: 'in-progress'
 baseline_revision: '4f2cb72a7daef03f4e3ec9ed6c0b915ceb02a89b'
 baseline_commit: '4f2cb72a7daef03f4e3ec9ed6c0b915ceb02a89b'
 review_loop_iteration: 0
@@ -312,7 +312,11 @@ Rejected (re-review):
 - `low` "Its tokens, cost and steps are the sums of both attempts" undercounts a first attempt whose timer fired (its steps arrive after the retry is sent): the next paragraph already says a late reply counts its cost and is dropped, and the case needs a read-only decide or diagnose whose timer fired.
 - `low` A retry runner with an empty `Model` uses its agent class's model, so the "second model" can equal the first: the sentence "whose `Model` setting is the second model" is true, and the `Model` row of "Settings" gives the default.
 - `low` A request sent straight to the retry runner, not through `Decide`, keeps its `RetryOf`: the guide's contract sends requests to `Decide`, and the runner still acts only when the named runner's `RetryItem` names it.
+- [ ] [Owner] DW-725 (ruled by the Contest Planner under the owner's delegation, 2026-11-05; spine AD-8 "A late reply moves nothing", AD-6 and Conventions "Retried turns" amended): a reply that reaches `Decide` after its timer -- the first attempt's or the retry's -- is counted for cost and dropped and moves nothing. A retried turn's conversation link moves to the retry's session ONLY when the retry answers within its timer `T2` and its turn is not tainted; otherwise the conversation stays on the session it named. Change the unconditional `Point` in the retry path (`SaveRetried` / `AnswerRetried`) so a late retry never points the link (how the runner learns it is late is the implement stage's choice within the spine, e.g. `Decide` has already recorded the decision for the `DecisionRef`, or a deadline the retry request carries; record the choice in Design Notes). Tests (live through `Test.Bridge.SecondModel` or in process, whichever pins it deterministically): (1) a late retry leaves the link unchanged and its cost counted in `Usage`; (2) an on-time retry moves the link; (3) a late first attempt after an on-time retry still does not undo the move (the existing test stays green). Demonstrate a mutation: the retry path points the link regardless of lateness -> test (1) red; write the `mutation:` line under `## Verification`.
+- [ ] [Owner] U-286 (approved by the Contest Planner with one change): in `docs/bridge-guide.md`'s `## Second-model retry` section, replace the last paragraph's second sentence `When the retry completes and its turn is not tainted, the conversation moves to that session.` with exactly `When the retry answers within its timer and its turn is not tainted, the conversation moves to that session; a retry that answers after its timer moves nothing.` Change nothing else in the file. Then `bash docker/tests/test-bridge-guide.sh` and `bash docker/tests/test-boundaries.sh` pass.
 ## Spec Change Log
+
+- 2026-11-05 rework iteration 2 (trigger owner ruling): DW-725 ruled (a late retry moves nothing) and the U-286 guide sentence change; two [Owner] items added; spine AD-6, AD-8 and Conventions "Retried turns" amended with the DW-725 marker. 17.2 is pushed only with both in.
 
 - 2026-11-05 rework iteration 1 (trigger ci): CI red on fa7a154f (checks: test-bridge-guide reference, RetryItem and RetryOf not named in docs/bridge-guide.md); one [CI] item added (ruling U-286).
 

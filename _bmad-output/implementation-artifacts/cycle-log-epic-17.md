@@ -49,3 +49,8 @@
 2026-11-05T10:49:04Z	Story 17.2	ledger_adjudicated	owned=0 resolved=0 reowned=0 terminal=0 cycle_iteration=2 note=slice_empty;DW-725,DW-726_set_aside_for_decision_sheet;DW-728_burndown(U-286_condition)
 2026-11-05T10:49:04Z	Story 17.2	smoke_complete	method=cli result=pass iterations=2 defects_caught=0 evidence=docker/tests/test-bridge-guide.sh_pass(4_rules_incl_reference),test-boundaries.sh_pass;guide_section_ASCII cycle_iteration=2
 2026-11-05T10:49:04Z	Story 17.2	fresh_check	env=clean-checkout tests=0(rework_changed_no_test;doc_checks_only) result=pass order=forward,reverse note=static_doc_scripts
+2026-11-05T10:56:52Z	Story 17.2	owner_decision	id=U-286 via=orchestrator by=planner note=PUBLIC_TEXT_approved_with_one_sentence_change(last_paragraph_sentence_2) push_order=with_DW-725_code_in_same_push
+2026-11-05T10:56:52Z	Story 17.2	ruling	question=DW-725_late_retry_moves_link choice=a_reply_after_its_timer_is_counted_and_dropped_and_moves_nothing(first_attempt_and_retry);link_moves_only_when_retry_answers_within_T2_and_untainted rejected=unconditional_Point why=AD-6/AD-8_late_reply_rule category=decided_by_Contest_Planner(delegated) via=orchestrator apply=17.2_rework_iteration_2 policy=5086036
+2026-11-05T10:57:31Z	Story 17.2	rework_opened	cycle_iteration=3 iteration=2 trigger=owner_ruling(DW-725,U-286_sentence) items=DW-725,U-286_guide_sentence scope_baseline=7938238a
+2026-11-05T10:57:31Z	Story 17.2	spine_updated	ad=AD-6,AD-8,conv:Retried_turns reason=decision_sheet(DW-725_Planner_ruling) by=runner story=17-2 lint=ok_false_preexisting_8_placeholder
+2026-11-05T10:57:31Z	Story 17.2	stage_spawned	stage=implement spawn_at=2026-11-05T10:57:31Z model=sonnet agent_name=17-2-retry-once-on-a-second-model-before-falling-back-implement-3 cycle_iteration=3
