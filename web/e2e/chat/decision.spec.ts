@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '../support/fixtures';
 
 import { signIn } from '../sign-in/helpers';
 import { loadedAfter } from '../support/floor';
@@ -19,11 +19,6 @@ import { blockLiveSocket } from '../support/socket';
  * turns to be the newest on a stack that ran the cases before, in any order of the cases.
  */
 test.use({ timezoneId: 'Asia/Kolkata', locale: 'en-US' });
-
-/** A poll that a routed /events handler is still answering when a test ends must not fail the next test. */
-test.afterEach(async ({ page }) => {
-  await page.unrouteAll({ behavior: 'ignoreErrors' });
-});
 
 const EVENTS = /\/ocutalon\/api\/v1\/events\?/;
 const LIVE_REGIONS = '[aria-live], [role="log"], [role="status"], [role="alert"]';

@@ -1,4 +1,4 @@
-import { expect, test, type Page, type Route } from '@playwright/test';
+import { expect, test, type Page, type Route } from '../support/fixtures';
 
 import { MESSAGES, STATE } from '../support/api';
 import { signIn } from '../sign-in/helpers';
@@ -31,11 +31,6 @@ import { countFocusins, focusinCount } from '../support/page';
  */
 test.describe.configure({ timeout: 90_000 });
 test.use({ timezoneId: 'UTC', locale: 'en-GB' });
-
-/** A poll or a post that a routed handler is still holding when a test ends must not fail the next test. */
-test.afterEach(async ({ page }) => {
-  await page.unrouteAll({ behavior: 'ignoreErrors' });
-});
 
 const KIND = 'FLOOR';
 

@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page, type Response } from '@playwright/test';
+import { expect, test, type Locator, type Page, type Response } from '../support/fixtures';
 
 import { README_ACCOUNT, signIn } from '../sign-in/helpers';
 import { CARD_MS, loadedAfter, signInReadmeLoaded, unique } from '../support/floor';

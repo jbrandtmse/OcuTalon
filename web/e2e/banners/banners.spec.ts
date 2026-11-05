@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page, type Route } from '@playwright/test';
+import { expect, test, type Locator, type Page, type Route } from '../support/fixtures';
 
 import { signIn } from '../sign-in/helpers';
 import { changeSnapshot, EVENTS, STATE } from '../support/api';
@@ -38,11 +38,6 @@ import { announcedTexts, announcementCount, announcements, plain, recordAnnounce
  * stand, after B12.
  */
 test.use({ timezoneId: 'Asia/Kolkata', locale: 'en-GB' });
-
-/** A poll that a routed /events handler is still answering when a test ends must not fail the next test. */
-test.afterEach(async ({ page }) => {
-  await page.unrouteAll({ behavior: 'ignoreErrors' });
-});
 
 const INSTALL = 'https://github.com/jbrandtmse/OcuTalon#install-it-yourself';
 const SET_KEY = 'https://github.com/jbrandtmse/OcuTalon#set-a-model-key';

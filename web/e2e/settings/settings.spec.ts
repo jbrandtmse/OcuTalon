@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '../support/fixtures';
 
 import { envelope, signIn } from '../sign-in/helpers';
 import { loadedAfter, signInReadmeLoaded } from '../support/floor';

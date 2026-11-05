@@ -1,4 +1,4 @@
-import { expect, test, type APIRequestContext } from '@playwright/test';
+import { expect, test, type APIRequestContext } from '../support/fixtures';
 
 import { STATE } from '../support/api';
 import { chk, fixtureUser, irisScript, setTraceSettings, type TraceSettings } from '../support/iris';

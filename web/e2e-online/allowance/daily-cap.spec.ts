@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '../../e2e/support/fixtures';
 
 import { post, MESSAGES } from '../../e2e/support/api';
 import { readApproval } from '../../e2e/support/iris';

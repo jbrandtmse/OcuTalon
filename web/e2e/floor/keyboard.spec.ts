@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '../support/fixtures';
 
 import { MESSAGES, changeSnapshot, holdState } from '../support/api';
 import { freeze } from '../support/clock';
@@ -49,11 +49,6 @@ import { expectNamed } from '../support/scan';
  */
 test.describe.configure({ timeout: 90_000 });
 test.use({ timezoneId: 'UTC', locale: 'en-GB' });
-
-/** A poll, a snapshot or a post that a routed handler is still holding when a test ends must not fail the next test. */
-test.afterEach(async ({ page }) => {
-  await page.unrouteAll({ behavior: 'ignoreErrors' });
-});
 
 const KIND = 'FLOOR';
 
