@@ -93,6 +93,8 @@ Parameter STYLELINE = "This persona may open with a greeting and use exclamation
 /// blank text. Otherwise the opening line, then the preset's text (custom: the person's text) with
 /// every line quoted through OcuTalon.Agent.Input.Quoted, or for language the line that names the language, then the style line
 /// when the preset bends the rules (custom always does). Lines are joined by one line feed and the text ends without one.
+/// The evaluation set reaches it through OcuTalon.Eval.Data.CaseResult.PersonaBlock: an eval item whose case names a preset (EvalPresetOk)
+/// has the block of that preset and language, and Block (which reads a session's rows) is not used for it.
 ClassMethod BlockFor(preset As %String, language As %String = "", custom As %String = "") As %String
 {
 	Set entry = ..Preset($Get(preset))
@@ -110,6 +112,24 @@ ClassMethod BlockFor(preset As %String, language As %String = "", custom As %Str
 	Set block = ..#OPENING_$Char(10)_##class(OcuTalon.Agent.Input).Quoted(text)
 	If entry.bends Set block = block_$Char(10)_..#STYLELINE
 	Quit block
+}
+
+/// 1 when the name is a language name as SettingsOps accepts it: a letter, then up to 39 letters, spaces, parentheses or hyphens, and
+/// nothing else (no control character, no line break, no brace). The same rule as SettingsOps.PersonaProblem.
+ClassMethod LanguageOk(name As %String) As %Boolean
+{
+	If '$Data(name) || $IsObject(name) Quit 0
+	Quit $Match(name, "^\p{L}[\p{L} ()-]{0,39}\z")
+}
+
+/// 1 when an evaluation case or run may name the preset and language: the preset is one of professional, starship, pirate, kindfriend
+/// and language (custom never is), and a language is given exactly when the preset is language, and passes LanguageOk.
+ClassMethod EvalPresetOk(preset As %String, language As %String = "") As %Boolean
+{
+	If '$Data(preset) || $IsObject(preset) || $IsObject(language) Quit 0
+	If '$ListFind($ListBuild("professional", "starship", "pirate", "kindfriend", "language"), preset) Quit 0
+	If preset = "language" Quit ..LanguageOk(language)
+	Quit (language = "")
 }
 
 /// The persona block of the session as text (see BlockFor), read from the person's rows on every call through

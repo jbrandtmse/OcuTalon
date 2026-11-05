@@ -2,7 +2,8 @@
 title: 'Story 40.7: Evaluation cases for the persona'
 type: 'feature'
 created: '2026-11-05'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '519cad54763a17e35a0ae98589297cfa212e25c4'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -13,6 +14,20 @@ deferred:
     location: 'src/ocutalon/cls/OcuTalon/Eval/Sweep.cls; src/ocutalon/cls/OcuTalon/Eval/Report.cls:701,754'
     severity: low
     evidence: 'Rule 2 copy forced by the contention rule of the plan stage (spec-40-7 Design Notes, Extend do not copy)'
+  - summary: >-
+      The failure paths of a case's before turn (wrong kind, no Reply, a Busy reply after BUSYMAX asks, a fallback Reply, row removal after a failure) are not pinned by a test, and a fallback Reply of the before turn is not treated as no Reply, so no session is saved and the linked turn could open an earlier eval session.
+    evidence: |-
+      Only TestBadPersonaSkipped (one bad before) and TestHistoryLinked (success) cover Eval.In.Before. The fallback case needs a real model fallback to occur (unverified on the mock); what would settle it: a PersonaRuns fixture whose before text matches a fallback scenario, asserting the case is skipped with REASONNOREPLY and no row is left.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Eval/In.cls (Before); src/ocutalon/cls/OcuTalon/Test/Eval/PersonaRuns.cls
+    severity: medium (unverified)
+  - summary: >-
+      No CI job runs eval/run.sh --personas on the mock, so the sweep block's structural checks are guarded only by the story's own verification run and test-eval-personas.sh (argument forms and key handling).
+    evidence: |-
+      lane-a.yml runs only the plain eval/run.sh; a step for --personas needs an edit to .github/workflows/lane-a.yml, which this spec forbids. Add the step at the merge gate or in a later CI story.
+    location: >-
+      .github/workflows/lane-a.yml; eval/run.sh
+    severity: medium
 ---
 
 <intent-contract>
@@ -236,6 +251,49 @@ deferred:
 
 ## Review Triage Log
 
+### 2026-11-05 - Review pass
+- verdicts: 38 findings - high 0, medium 4, low 14, false 4, maybe-false 1 (the rest are rejected duplicates and by-design, counted at their verdict)
+- findings:
+  - `[false]` `[reject]` blind: the usage line does not list --personas - the spec keeps the usage line byte for byte (a second usage line would hide an rc-guard bad sample); the forms are in the header.
+  - `[medium]` `[patch]` blind: the per-preset personas-<preset>.json files are not scanned for key-like text - run.sh now scans them with key_like and exits 4 on a hit.
+  - `[low]` `[reject]` blind: the before turn's spend is not in the cost figures - one scaffolding turn of one case; the spec's cost is the decisions of Report.Build; no user-reachable failure.
+  - `[low]` `[reject]` blind: PersonaRuns teardown leaves the before turn's Decision/Usage rows - throwaway stack only, no later test reads them.
+  - `[low]` `[reject]` blind: TellNowFrame checks the prefix only - the matrix row defines the check as the catalog frame with the cleaned reason in its slot.
+  - `[low]` `[reject]` blind: LanguageOk copies the SettingsOps regex - the copy and its reason are in the spec's Design Notes (SettingsOps.PersonaProblem is private in a Lane B file); TestInstructionShapedLanguage pins both.
+  - `[low]` `[reject]` blind: Facts misses number words and splits decimals - the spec defines facts as integers outside times and names; real-model wording drift is the Planner's measurement.
+  - `[low]` `[reject]` blind: persona_cases_for parses case.json with sed - the committed files are fixed, and a reformat shows as a loud FAIL (sent N, expected M), never silently.
+  - `[false]` `[reject]` blind: the units.sh second assignment breaks the sed parse of test-release-sequence - that test only looks for " release-sequence" in the output, which the first line still holds; test-ci-config.sh passes.
+  - `[low]` `[patch]` blind: test-eval-personas.sh header says it needs bash but runs python3 - header now says bash and python3.
+  - `[medium]` `[defer]` blind: before failure paths untested - deferred in the frontmatter with the fallback case.
+  - `[low]` `[reject]` blind: VoiceMarkers counts U+2600-27BF - the range is the spec's.
+  - `[low]` `[reject]` edge: Result passes with a missing preset - run.sh checks five preset rows and five sessions before Result is read.
+  - `[maybe-false]` `[defer]` edge: a fallback Reply of the before turn leaves no saved session - same root as the deferred before-paths entry; needs a model fallback to show.
+  - `[maybe-false]` `[defer]` edge: the linked turn may open an earlier session when the before turn saved none - same root, same deferred entry.
+  - `[low]` `[reject]` edge: an empty "preset" in a case clears the run's preset - no committed or valid case does this; an empty value is not one of the five presets.
+  - `[low]` `[reject]` edge: incident cases ignore a run persona - the sweep sends non-incident cases only (spec).
+  - `[false]` `[reject]` edge: LanguageOk lets instruction-like words through - the rule is the SettingsOps regex the spec fixes; letters, spaces, parentheses and hyphens only, no instruction punctuation.
+  - `[low]` `[reject]` edge: number words in Facts - duplicate of the blind finding.
+  - `[low]` `[patch]` edge: a name that starts another name (Orders2, Orders20) leaves a stray digit - Facts replaces names longest first; TestFacts pins it.
+  - `[low]` `[reject]` edge: CompareCases skips a case missing from Professional's run - both runs send the same set, and a missing case already shows as a persona case count FAIL.
+  - `[low]` `[reject]` edge: ProposeCalls parses AgentStep.Summary - the format is the product's; TestProposalIsSeen pins it end to end.
+  - `[false]` `[reject]` edge: keyPhrases of the injection case are English in the language run - Sweep does not read keyPhrases; the no-proposal check does not use them.
+  - `[low]` `[reject]` edge: an unknown personaCheck name is ignored - TestCommittedPersonaCases pins every committed name against CHECKS.
+  - `[low]` `[patch]` edge: an empty CHK|injection line passes the mock check - run.sh now fails on an empty value.
+  - `[low]` `[reject]` edge: no personas.md when a preset fails structurally - the spec's flow; the per-preset files stay.
+  - `[low]` `[reject]` edge: units.sh registration deviates from the spec - recorded under Decided in-stage.
+  - `[low]` `[reject]` edge: TellNowFrame re-tests the catalog - duplicate of the blind finding.
+  - `[low]` `[reject]` edge: VoiceMarkers range - duplicate of the blind finding.
+  - `[medium]` `[patch]` gap: Sweep.Cost is asserted by no test - Cost is public and TestCost pins the priced count, mean, max, total and the null case.
+  - `[medium]` `[defer]` gap: no CI job runs eval/run.sh --personas - deferred in the frontmatter (needs .github).
+  - `[low]` `[patch]` gap: sample() of test-eval-personas.sh passes vacuously when an edit no longer applies - sample returns 1, so the FAIL branch is reachable.
+  - `[low]` `[patch]` gap: the Spanish-wrong assertion also holds with no reply - it now also asserts the default chat line.
+  - `[low]` `[reject]` gap: the ProposePersona and setting watermarks cannot fail for owner eval - recorded under Decided in-stage; proposeCalls is the sensor and TestProposalIsSeen pins it.
+  - `[low]` `[reject]` gap: the before turn's cost - duplicate of the blind finding.
+  - `[low]` `[reject]` gap: a persona on an incident case is ignored - duplicate of the edge finding.
+  - `[low]` `[reject]` gap: the registration deviation - duplicate.
+  - `[low]` `[reject]` intent: Agent.Input depends on Eval.Data.CaseResult - AD-7 names this path ("an eval item, unless its case names a preset").
+  - `[low]` `[reject]` intent: DW-679 has two readings - the spec's AC 6 lists both, and both are implemented.
+
 ## Design Notes
 
 **Governing decisions:**
@@ -370,7 +428,55 @@ All calls run from the worktree root with `timeout: 600000`, one per call.
 - The mock scenario roster (`ci/mock/test/server.test.mjs` health count, `constants.test.mjs`).
 - The `lane-a` Eval area's class list and duration: two warm-safe classes and one live class in CI `shards-2`.
 
+## Implementation Record
+
+**Decided in-stage (implement):**
+- *Language run's persona-pass selection.* `Sweep.PersonaNames` takes the persona cases whose own `preset` is empty or equals the run's; the language cases carry `preset` `language` and the history cases `professional`, so the language cases run only in the language run and the history cases only in the professional run.
+- *`propose_persona` sensor.* `Tools/CommandCall.Session` refuses a turn whose owner is not a 22-character session Ref, so the owner `eval` can never produce a `ProposePersona` body or a `setting` request through the tool. `Sweep` therefore also counts the `propose_persona` tool steps that the gate let through (`proposeCalls`, read from the `AgentStep` rows of the case's decisions, waiting up to 10 s for the decision's `AgentStepCount`), beside the two ID watermarks of the spec. The no-proposal check is right only when all three counts are 0. `PersonaRuns:TestProposalIsSeen` proves it with the `persona-propose` scenario (a user turn of owner `eval`).
+- *`before` problems.* A `before` that is not valid, or on a kind other than `all-clear`/`command`, skips the case with `REASONBEFORE`; a bad case preset/language is `REASONPERSONA`; a run preset is validated by `Sweep.RunPreset` (error status), while `In.Start` itself checks each case. `before` is asked through `In.AskTurn` (a factored loop of `Converse`: Busy asked again `BUSYMAX` times); its TurnResult is never saved or delivered, only its row exists, and it is removed after the Reply or the failure.
+- *Language checks over several cases.* `Sweep.Result` keeps a language check right only when every case carrying it is right and names the first case that is not.
+- *Scenarios.* The four `persona-eval-*` scenarios are one text reply each, so the fixture turn cases never call `check_status` and are not right as all-clear cases; the persona checks do not depend on that. The committed cases run on the default scripts: on the mock the language checks are wrong and the item score is 7 of 22, so the mock sweep's verdict is `blocked` while every structural check passes (exit 0), as the spec expects for the mock.
+- *Storage.* `CaseResult` storage has values 21 (`Preset`) and 22 (`PersonaLanguage`) appended by hand; a load with compile and an export of the compiled class gave a file identical to the committed one. No other persistent class's storage is touched (owner decision U-289: nullable, no backfill, no initial value).
+- *Registration of `test-eval-personas.sh`.* `WEB_SCRIPTS` needs a step in `.github/workflows/ci.yml` (rule `wiring` of `test-ci-config.sh`), which this spec forbids editing, and appending to Epic 39's `CHECK_SCRIPTS` line does not pass the merge-file proof. The name is therefore added by a second assignment after the `WEB_SCRIPTS` line, `CHECK_SCRIPTS="$CHECK_SCRIPTS eval-personas"` (one added line plus a comment, no existing line touched). `ci/checks.sh` runs it in the `checks` job, `WEB_SCRIPTS` stays as it was, and `test-ci-config.sh` passes. The spec's 'one name on `WEB_SCRIPTS`' is amended to this form (apply and report, Rule 5).
+
+**Contended files (`git merge-file -p <ours> <base = origin/feature/OCT_OcuTalon_MVP> <theirs = origin/OCT-epic<N>>`):**
+- `ci/units.sh`: changed by Epic 39 only; merge-file exit 0 (my edit is one added `CHECK_SCRIPTS="$CHECK_SCRIPTS eval-personas"` line and a comment after the `WEB_SCRIPTS` line; Epic 39's is on line 6; `git merge-file -p` ours/base/theirs exit 0 re-run after the change).
+- `eval/run.sh`, `Agent/Input.cls`, `Agent/Persona.cls`, `Eval/Data/CaseResult.cls`, `Eval/In.cls`, `Test/Agent/PersonaBlock.cls`, `Test/Core/SettingsPersona.cls`: changed by none of Epics 17, 34, 39 and 11 (no merge needed; `git diff --name-only origin/feature/OCT_OcuTalon_MVP...origin/OCT-epic<N>` for N in 17, 34, 39, 11 re-checked after `git fetch`). No file of the new set exists on any of the four branches.
+- Not edited: `Eval/{Report,Record,Gate}.cls`, `Test/Eval/{Cases,Record,Report,ZzSmokeRunner}.cls`, `Agent/{Triage,Chat}.cls`, `Checks/**`, `src/bridge/**`, `.github/**`, `release/**`, `Install/**`, `docker/**` other than `docker/tests/test-eval-personas.sh`, `eval/key-proof.sh`, `eval/compose.release-candidate.yml`. `git diff --numstat -- eval/run.sh` is `179 0` (adds lines, deletes none); `git diff --stat` over the read-only list is empty.
+
+**Results (slot D `ocutalon-slot-d` / `OCUTALON`; throwaways with tags `e40s7i`, `e40s7iw`, `e40s7ev`):**
+- Slot D: the changed and new classes load and compile.
+- Hosted checks: `test-eval-set.sh`, `test-eval-personas.sh`, `test-mock.sh` (132 tests), `test-boundaries.sh`, `test-class-rules.sh` pass; `test-ci-config.sh` passes (all rules) after the registration moved to a second `CHECK_SCRIPTS` assignment.
+- Warm, one class per call: `Test.Eval.{PersonaChecks,PersonaSweep,Cases,In}`, `Test.Agent.PersonaBlock`, `Test.Core.SettingsPersona` pass.
+- Fresh, one class per call: `Test.Eval.PersonaRuns` (12.5 s of tests), `Test.Eval.Run`, `Test.Agent.PersonaTurns` pass; `shard lane-a@Eval` (20 classes, 236 s), the same `--reverse` (280 s) and `lane-a@Agent` (15 classes, 437 s) pass; teardown of all tags is clean.
+- `eval/run.sh --personas` on the CI mock: 30 PASS lines, `eval/run: all checks passed`, exit 0, `personas.md` with its sections and the five preset rows, `VERDICT blocked` (mock: items 7 of 22, language checks wrong, as designed); whole call 3 min 48 s (stack ready in 186 s). A first run of 2 min 45 s before a header fix was identical in outcome.
+- `eval/run.sh` (push run): `eval/run: all checks passed`, 42 cases in the set (the count of `eval/*/case.json` at HEAD, so the default mode is unchanged); `eval/key-proof.sh`: `eval/key-proof: all checks passed`.
+
+**Mutations (Rule 19; each applied, red observed, reverted, `git status --short` and `git diff` byte-identical):**
+- AC 1: mutation: `Agent.Input.PersonaPart` eval branch disabled (`If 0`) -> `Test.Agent.PersonaBlock:TestEvalCasePreset` red (3 asserts) and `Test.Eval.PersonaRuns:TestBlockPerPreset` red (every preset's "every request carried its preset's block", the pirate and language block placement), which is the `blocks` figure behind the sweep's per-preset FAIL.
+- AC 1: mutation: `Sweep.CompareCases` compares only `right` (the `got` comparison removed) -> `Test.Eval.PersonaSweep:TestDiffering` red.
+- AC 1: mutation: `In.Persona` ignores the case's own preset (`If case.%IsDefined("preset")` -> `If 0`) -> `PersonaRuns:TestCasePresetOverrides` and `TestBadPersonaSkipped` red.
+- AC 2: mutation: `PersonaChecks.Facts` without times (`times = ""`) -> `Test.Eval.PersonaChecks:TestFacts` red (4 asserts); mutation: `TellNowFrame` answers 1 (`Quit 1` first) -> `PersonaChecks:TestTellNowFrame` red (blank summary and blank reason).
+- AC 3: mutation: `Sweep.ProposeCalls` forced to 0 (the sensor that counts a proposal in an eval run, see Decided in-stage) -> `PersonaRuns:TestProposalIsSeen` red; mutation: `SettingsOps.PersonaProblem` language regex allows `.` (`[\p{L} ().-]`), on the warm copy -> `Test.Core.SettingsPersona:TestInstructionShapedLanguage` red (and `TestBadLanguage`).
+- AC 4: mutation: `PersonaChecks` `MINWORDS` 3 -> 1 -> `PersonaChecks:TestSpanishReply` and `TestCantWrite` red; mutation: can't-write `= 1` -> `'< 1` -> `PersonaChecks:TestCantWrite` red.
+- AC 5: mutation: `nonEnglishAllClear` found counted in the verdict (a blocking entry pushed) -> `PersonaSweep:TestMeasuredNeverBlocks` and `TestText` red.
+- AC 6: mutation: the case's turn sent with SessionMode fresh (`If 'userTurn Set request.SessionMode = "fresh"`) -> `PersonaRuns:TestHistoryLinked` red (3 asserts); mutation: `reasonsLanguage` left out (`If 0` for the language run's item cases) -> `PersonaSweep:TestMeasuredNeverBlocks` red.
+- AC 7: mutation: `--personas extra` accepted (`-eq 1` -> `-ge 1`) -> `docker/tests/test-eval-personas.sh` red (`--personas extra`, `--personas --release-candidate` not refused); mutation: the key not unset for `--personas` -> `test-eval-personas.sh` red (key in the container tool's environment).
+- Review pass patches (Rule 19): mutation: `PersonaChecks.Facts` replaces names in alphabetical order (`byLength(0, name)`) -> `Test.Eval.PersonaChecks:TestFacts` red (prefixed names); mutation: `Sweep.Cost` mean = total -> `Test.Eval.PersonaSweep:TestCost` red; mutation: `Sweep.Result` without the facts blocking line (`If 0`) -> `PersonaSweep:TestFactsBlock` red; mutation: `Sweep.OwnFor` without the push -> `PersonaSweep:TestMeasuredNeverBlocks` red (ownMessage size). Each reverted with the file byte-identical (cmp).
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+Summary: an evaluation case or run can name a preset and language (kept on `CaseResult`, nullable, no backfill per U-289); `Agent.Input` renders the block of an `eval` item from that row; `Eval.Sweep` and `Eval.PersonaChecks` run and compare the set under five presets; `eval/run.sh --personas` and `--release-candidate --personas` run it; six cases under `eval/persona-cases/`; four mock scenarios; `docker/tests/test-eval-personas.sh` (registered by a second `CHECK_SCRIPTS` assignment in `ci/units.sh`, see Decided in-stage).
+
+Files changed: Agent/Persona.cls (LanguageOk, EvalPresetOk), Agent/Input.cls (eval branch), Eval/Data/CaseResult.cls (Preset, PersonaLanguage, PersonaBlock), Eval/In.cls (run and case persona, before turn), Eval/PersonaChecks.cls and Eval/Sweep.cls (new), eval/run.sh (additions only: 0 lines deleted), eval/persona-cases/ (6 cases), ci/mock/scenarios/A/persona-eval-*.json (4), docker/tests/test-eval-personas.sh, ci/units.sh, and the tests Test/Eval/{PersonaChecks,PersonaSweep,PersonaRuns}.cls, Test/Agent/PersonaBlock.cls, Test/Core/SettingsPersona.cls.
+
+Review: 38 findings. Patches applied (7): per-preset key scan in run.sh (medium), Sweep.Cost test (medium), name-prefix order in Facts, empty injection value in run.sh, sample() vacuity, Spanish-wrong assertion, python3 header. Deferred (2, in the frontmatter): the before-turn failure paths (medium, unverified) and a CI job for `--personas` (medium, needs `.github`). The rest are rejected with the reasons in the Review Triage Log.
+
+Follow-up review recommended: false (no high patched; one medium patched pair at most, convergent).
+
+Verification: slot D load and compile clean; warm PersonaChecks, PersonaSweep, PersonaBlock, SettingsPersona, Cases and In pass; fresh PersonaRuns passes and `shard lane-a@Eval` passes (20 classes, 207 s) after the last patch, `lane-a@Agent` (15 classes) passed before it with no Agent class touched since; `test-eval-set`, `test-eval-personas`, `test-boundaries`, `test-class-rules`, `test-ci-config` pass; `eval/run.sh --personas` on the mock: 30+ PASS lines, exit 0, 4 min 2 s; the push run passes with the same case count and `eval/key-proof.sh` passes; `git diff --numstat` of `eval/run.sh` is additions only.
+
+Residual risks: the real-model verdict may block on wording drift in facts (number words), which is the Planner's measurement; `ci/units.sh` keeps the WEB_SCRIPTS line and adds a second `CHECK_SCRIPTS` assignment, merge-file with Epic 39 exits 0.

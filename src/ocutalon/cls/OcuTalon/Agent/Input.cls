@@ -8,8 +8,10 @@
 ///     item's owner has one;
 ///   - the persona block (AD-7) is OcuTalon.Agent.Persona.Block of item.SessionRef: data about wording that goes after the
 ///     preamble and before the item, for every item that a session owns, whatever its provenance or channel. Nothing else decides
-///     it. An owner that is not a session (instance, eval, empty) and a Professional session have no block, and their text is
-///     what it would be without this paragraph. The values are read on every call;
+///     it. An owner that is not a session (instance, empty) and a Professional session have no block, and their text is
+///     what it would be without this paragraph. The owner eval has one only when the evaluation case of the item names a preset: then it is
+///     OcuTalon.Eval.Data.CaseResult.PersonaBlock of item.ItemId, and an eval item whose case names none, or professional, has none. The
+///     values are read on every call;
 ///   - an item with no text, sender or subject, and a user's item with no text, render "", so that Decide refuses it rather than
 ///     send a bare preamble.
 Class OcuTalon.Agent.Input
@@ -40,7 +42,11 @@ ClassMethod Render(item As OcuTalon.Msg.Item, now As %String = "") As %String
 /// The persona block of the item's owner and the blank line that follows it, or "" when the owner has none.
 ClassMethod PersonaPart(item As OcuTalon.Msg.Item) As %String [ Private ]
 {
-	Set block = ##class(OcuTalon.Agent.Persona).Block(item.SessionRef)
+	If item.SessionRef = ##class(OcuTalon.Data.Ownership).#EVAL {
+		Set block = ##class(OcuTalon.Eval.Data.CaseResult).PersonaBlock(item.ItemId)
+	} Else {
+		Set block = ##class(OcuTalon.Agent.Persona).Block(item.SessionRef)
+	}
 	Quit $Select(block = "": "", 1: block_$Char(10, 10))
 }
 

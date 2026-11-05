@@ -312,4 +312,47 @@ ClassMethod Preamble(now As %String) As %String [ Private ]
 	Quit "Local time: "_weekday_" "_date_" "_$Extract(local, 12, 16)_" (time zone "_##class(OcuTalon.Data.Time).Zone()_")"
 }
 
+/// An eval item renders the block of the preset its case's CaseResult row names (Story 40.7, AD-7): the block of that preset and language, after
+/// the preamble and before the item, for an untrusted item and a user turn alike. With no row, an empty preset or professional it has none, and a stray
+/// person.eval.persona.* key changes nothing.
+Method TestEvalCasePreset()
+{
+	Set run = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set key = ##class(OcuTalon.Core.SettingsOps).PersonaKey("eval", "preset")
+	Do ..DropRow(key)
+	Try {
+		Set pre = ..Preamble(..#NOW)
+		Set item = ..Item("eval", "untrusted", "mailbox", "Hello.")
+		Set item.Sender = "Bob"
+		Set item.ItemId = ##class(OcuTalon.Bridge.Ids).NewRef()
+		Set bare = ##class(OcuTalon.Agent.Input).Render(item, ..#NOW)
+		Do $$$AssertTrue(bare '[ "Persona block", "with no row the eval item has no block")
+		Do $$$AssertStatusOK(##class(OcuTalon.Data.Setting).Seed(key, "pirate"), "a stray pirate row is stored for the owner eval")
+		Do $$$AssertEquals(##class(OcuTalon.Agent.Input).Render(item, ..#NOW), bare, "and changes nothing")
+		Do ..DropRow(key)
+		Set rest = $Extract(bare, $Length(pre) + 3, *)
+		For preset = "", "professional" {
+			Set item.ItemId = ##class(OcuTalon.Bridge.Ids).NewRef()
+			Do $$$AssertStatusOK(##class(OcuTalon.Eval.Data.CaseResult).Open(run, "pb-"_preset, "pb", item.ItemId, preset, ""), "a row is opened with preset '"_preset_"'")
+			Do $$$AssertEquals(##class(OcuTalon.Agent.Input).Render(item, ..#NOW), bare, "preset '"_preset_"' renders no block")
+		}
+		Set item.ItemId = ##class(OcuTalon.Bridge.Ids).NewRef()
+		Do $$$AssertStatusOK(##class(OcuTalon.Eval.Data.CaseResult).Open(run, "pb-pirate", "pb", item.ItemId, "pirate", ""), "a row is opened with the preset pirate")
+		Set block = ##class(OcuTalon.Agent.Persona).BlockFor("pirate")
+		Do $$$AssertTrue(block '= "", "pirate has a block")
+		Do $$$AssertEquals(##class(OcuTalon.Agent.Input).Render(item, ..#NOW), pre_$Char(10, 10)_block_$Char(10, 10)_rest, "an untrusted eval item renders the pirate block after the preamble and before the item")
+		Set item.Provenance = "user", item.Text = "Is everything fine?"
+		Do $$$AssertEquals(##class(OcuTalon.Agent.Input).Render(item, ..#NOW), pre_$Char(10, 10)_block_$Char(10, 10)_"Is everything fine?", "and so does an eval user turn")
+		Set item.Provenance = "untrusted", item.Text = "Hello."
+		Set item.ItemId = ##class(OcuTalon.Bridge.Ids).NewRef()
+		Do $$$AssertStatusOK(##class(OcuTalon.Eval.Data.CaseResult).Open(run, "pb-language", "pb", item.ItemId, "language", "Spanish"), "a row is opened with the language Spanish")
+		Do $$$AssertEquals(##class(OcuTalon.Agent.Input).Render(item, ..#NOW), pre_$Char(10, 10)_##class(OcuTalon.Agent.Persona).BlockFor("language", "Spanish")_$Char(10, 10)_rest, "a language row renders the language line")
+		Do $$$AssertEquals(##class(OcuTalon.Eval.Data.CaseResult).PersonaBlock(""), "", "an empty ItemId has no block")
+	} Catch exception {
+		Do $$$AssertEquals(exception.DisplayString(), "", "no error")
+	}
+	Do ##class(OcuTalon.Eval.Data.CaseResult).Remove(run)
+	Do ..DropRow(key)
+}
+
 }

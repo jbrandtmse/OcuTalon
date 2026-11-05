@@ -1,0 +1,12 @@
+{
+  "name": "persona-eval-pirate",
+  "match": {
+    "marker": "persona-eval-pirate"
+  },
+  "replies": [
+    {
+      "status": 200,
+      "text": "Ahoy, matey! The ship's log is clear! \ud83d\udea2"
+    }
+  ]
+}
