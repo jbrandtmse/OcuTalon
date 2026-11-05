@@ -46,7 +46,6 @@ Method TestBothDropsCalled()
 	Do $$$AssertEquals(..Calls(), "documents|"_mine_",memories|"_mine, "both drops were called once, documents first, with the session's SessionRef")
 	Do $$$AssertEquals(##class(OcuTalon.Data.Session).RefIndexOpen(mine).ResumeHash, "", "the resume hash is cleared")
 	Do $$$AssertTrue(##class(OcuTalon.Data.Session).RefIndexOpen(other).%Id() '= "", "another session's row is untouched")
-	Do $$$AssertEquals(..Calls() [ other, 0, "and its SessionRef was never passed")
 }
 
 /// A failing drop is a failed End that keeps the session resumable and still tries every other step.

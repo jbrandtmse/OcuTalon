@@ -18,6 +18,7 @@ CREDITS = (
 )
 NOT_LICENCE_NAME = re.compile(r"^(notice|authors?)", re.I)
 LICENCE_NAME = re.compile(r"^(licen[cs]e|copying|unlicense)", re.I)
+NOTICE_NAME = re.compile(r"^(notice|thirdpartynotices)", re.I)
 
 
 def read(path):
@@ -26,8 +27,9 @@ def read(path):
 
 
 def load_allowed(path):
-    """The rules of allowed.txt: (allowed ids by lower case, aliases by lower case, texts [(id, regex)], ignored phrases)."""
-    allowed, aliases, texts, ignored = {}, {}, [], set()
+    """The rules of allowed.txt: (allowed ids by lower case, aliases by lower case, texts [(id, regex)], ignored phrases,
+    documentation-only ids by lower case)."""
+    allowed, aliases, texts, ignored, docs = {}, {}, [], set(), set()
     for number, line in enumerate(read(path).splitlines(), 1):
         line = line.strip()
         if not line or line.startswith("#"):
@@ -43,9 +45,11 @@ def load_allowed(path):
             texts.append((ident.strip(), re.compile(regex.strip())))
         elif word == "ignore" and rest:
             ignored.add(rest.strip().lower())
+        elif word == "docs" and rest:
+            docs.add(rest.strip().lower())
         else:
             raise SystemExit("licence gate: %s:%d is not a rule" % (path, number))
-    return allowed, aliases, texts, ignored
+    return allowed, aliases, texts, ignored, docs
 
 
 def parse_metadata(text):
@@ -62,18 +66,19 @@ def parse_metadata(text):
 
 
 def declared_licence(fields):
-    """What the package declares: the License-Expression, else a one-line License, else its License :: classifiers (all of them)."""
-    for value in fields.get("license-expression", []):
-        if value:
-            return value
-    for value in fields.get("license", []):
-        if value and len(value) <= 200 and value.upper() != "UNKNOWN":
-            return value
-    names = []
-    for value in fields.get("classifier", []):
-        if value.startswith("License ::"):
-            names.append(value.split("::")[-1].strip())
-    return " AND ".join(names)
+    """What the package declares, every declaration of it: its License-Expression, the first line of its License (when that is at
+    most 200 characters and not UNKNOWN) and each of its License :: classifiers, joined with AND (each in parentheses when there are
+    several), so that a licence named anywhere must be allowed; "" when it declares none."""
+    parts = [value for value in fields.get("license-expression", []) if value]
+    parts += [value for value in fields.get("license", []) if value and len(value) <= 200 and value.upper() != "UNKNOWN"]
+    parts += [value.split("::")[-1].strip() for value in fields.get("classifier", []) if value.startswith("License ::")]
+    unique = []
+    for part in parts:
+        if part not in unique:
+            unique.append(part)
+    if len(unique) == 1:
+        return unique[0]
+    return " AND ".join("(%s)" % part for part in unique)
 
 
 RANK = {"ok": 0, "files": 1, "no": 2}
@@ -83,12 +88,14 @@ def evaluate(expression, rules):
     """(verdict, how): verdict 'ok', 'files' (every other name is allowed, but a phrase needs the licence files) or 'no'.
 
     The expression is read with parentheses, AND (also a comma or a semicolon) binding tighter than OR: an AND is as bad as its worst
-    side and an OR as good as its best. Anything that does not parse is 'no'."""
-    allowed, aliases, _, ignored = rules
+    side; an OR is 'ok' when one side is, else 'no' when one side is (a phrase never stands in for a refused alternative), else
+    'files'. A documentation-only licence (a docs line) is 'no' here. Anything that does not parse (an unbalanced parenthesis, an
+    operator with no name on one side) is 'no'."""
+    allowed, aliases, _, ignored, _ = rules
     text = expression
-    for alias in sorted((a for a in aliases if "," in a), key=len, reverse=True):
+    for alias in sorted((a for a in aliases if re.search(r"[,;()]", a)), key=len, reverse=True):
         text = re.sub(r"(?<![\w.-])" + re.escape(alias) + r"(?![\w.-])", aliases[alias], text, flags=re.I)
-    items = [re.sub(r"\s+", " ", item).strip() for item in re.split(r"(\(|\)|\s+AND\s+|\s+OR\s+|[,;])", text)]
+    items = [re.sub(r"\s+", " ", item).strip() for item in re.split(r"(\(|\)|(?<![^\s()])(?:AND|OR)(?![^\s()])|[,;])", text)]
     items = [item for item in items if item]
     state = {"at": 0}
 
@@ -101,12 +108,13 @@ def evaluate(expression, rules):
             return "ok"
         return "files" if token.lower() in ignored else "no"
 
-    def combine(left, right, pick):
-        if left is None:
-            return right
-        if right is None:
-            return left
-        return pick(left, right, key=RANK.get)
+    def worst(left, right):
+        return max(left, right, key=RANK.get)
+
+    def either(left, right):
+        if "ok" in (left, right):
+            return "ok"
+        return "no" if "no" in (left, right) else "files"
 
     def parse_atom():
         item = peek()
@@ -118,7 +126,7 @@ def evaluate(expression, rules):
             state["at"] += 1
             return inner
         if item is None or item in (")", "AND", "OR", ",", ";"):
-            return None
+            raise ValueError("a name is missing")
         state["at"] += 1
         return name_verdict(item)
 
@@ -126,14 +134,14 @@ def evaluate(expression, rules):
         verdict = parse_atom()
         while peek() in ("AND", ",", ";"):
             state["at"] += 1
-            verdict = combine(verdict, parse_atom(), max)
+            verdict = worst(verdict, parse_atom())
         return verdict
 
     def parse_or():
         verdict = parse_and()
         while peek() == "OR":
             state["at"] += 1
-            verdict = combine(verdict, parse_and(), min)
+            verdict = either(verdict, parse_and())
         return verdict
 
     try:
@@ -168,11 +176,33 @@ def notice_files(info):
     return sorted(os.path.join(info, name) for name in os.listdir(info) if name.lower().startswith("notice") and os.path.isfile(os.path.join(info, name)))
 
 
+def package_licence_files(target, info):
+    """The licence and notice files that the wheel installed outside its .dist-info folder, as its RECORD lists them (onnxruntime keeps
+    its LICENSE and ThirdPartyNotices.txt in its package folder): a file named LICENSE, COPYING, NOTICE or ThirdPartyNotices (any
+    case, any extension but .py) under target."""
+    record = os.path.join(info, "RECORD")
+    if not os.path.isfile(record):
+        return []
+    own = os.path.basename(info) + "/"
+    found = []
+    for line in read(record).splitlines():
+        path = line.split(",")[0].strip()
+        parts = path.split("/")
+        name = parts[-1]
+        if not path or path.startswith(own) or path.startswith("/") or ".." in parts or name.lower().endswith(".py"):
+            continue
+        if LICENCE_NAME.match(name) or NOTICE_NAME.match(name):
+            full = os.path.join(target, *parts)
+            if os.path.isfile(full):
+                found.append(full)
+    return sorted(found)
+
+
 def recognised(path, rules):
-    """The allowed identifiers whose text the file holds."""
-    allowed, _, texts, _ = rules
+    """The allowed identifiers (documentation-only ones included) whose text the file holds."""
+    allowed, _, texts, _, docs = rules
     text = normalise(read(path))
-    return [ident for ident, regex in texts if ident.lower() in allowed and regex.search(text)]
+    return [ident for ident, regex in texts if (ident.lower() in allowed or ident.lower() in docs) and regex.search(text)]
 
 
 def distributions(target):
@@ -233,7 +263,7 @@ def notices(target, out, rules):
         "",
         "The Python packages in this image (fastembed, pdfplumber and python-docx, with their dependencies and the libraries bundled",
         "with PDFium) were installed unmodified from their published wheels when the image was built. This file lists each one with",
-        "its licence and holds the licence texts that its wheel ships. Packages under the MPL-2.0 are installed unmodified.",
+        "its licence and holds the licence and notice texts that its wheel ships. Packages under the MPL-2.0 are installed unmodified.",
         "",
     ]
     lines.extend(CREDITS)
@@ -242,9 +272,9 @@ def notices(target, out, rules):
         lines.append("=" * 78)
         lines.append("%s %s" % (name, version))
         lines.append("licence: %s" % (declared_licence(fields) or "see the licence files below"))
-        for path in sorted(set(licence_files(info) + notice_files(info))):
+        for path in sorted(set(licence_files(info) + notice_files(info))) + package_licence_files(target, info):
             lines.append("-" * 78)
-            lines.append("file: %s" % os.path.relpath(path, info).replace(os.sep, "/"))
+            lines.append("file: %s" % os.path.relpath(path, info if path.startswith(info + os.sep) else target).replace(os.sep, "/"))
             lines.append("")
             lines.append(read(path).replace("\r\n", "\n").rstrip())
         lines.append("")

@@ -185,9 +185,11 @@ check "dockerfile: no pip uninstall and no deletion under /usr/irissys/mgr/pytho
 gate=docker/licences/gate.py
 allowed_set_is_ruled() {
   local want got
-  want="0BSD AGG-2.3 Apache-2.0 Apache-2.0_WITH_LLVM-exception BSD-2-Clause BSD-3-Clause CC-BY-4.0 CC0-1.0 FTL HPND IJG ISC MIT MIT-0 MIT-CMU MPL-2.0 PSF-2.0 Unicode-3.0 Unlicense Zlib libpng-2.0"
+  want="0BSD AGG-2.3 Apache-2.0 Apache-2.0_WITH_LLVM-exception BSD-2-Clause BSD-3-Clause CC0-1.0 FTL HPND IJG ISC MIT MIT-0 MIT-CMU MPL-2.0 PSF-2.0 Unicode-3.0 Unlicense Zlib libpng-2.0"
   got=$(grep '^allow ' docker/licences/allowed.txt | sed 's/^allow //; s/ /_/g' | LC_ALL=C sort | tr '\n' ' ' | sed 's/ $//')
-  [ "$got" = "$want" ]
+  [ "$got" = "$want" ] || return 1
+  # CC-BY-4.0 is ruled for documentation only: a docs line, never an allow line.
+  [ "$(grep '^docs ' docker/licences/allowed.txt)" = 'docs CC-BY-4.0' ]
 }
 
 # mkdist <folder> <name> <metadata lines> [licence text]: a .dist-info folder, with a LICENSE under licenses/ when a text is given.
@@ -212,6 +214,12 @@ gate_rules() {
   mkdist "$w/good" zeta 'License-Expression: (GPL-3.0-only OR MIT) AND BSD-3-Clause'
   mkdist "$w/good" eta 'Classifier: License :: OSI Approved :: Apache License, Version 2.0'
   printf 'Apache notice line of eta\n' > "$w/good/eta-1.0.dist-info/NOTICE"
+  mkdist "$w/good" theta $'License: MPL-2.0\nClassifier: License :: OSI Approved :: Mozilla Public License 2.0 (MPL 2.0)'
+  mkdist "$w/good" iota '' 'Creative Commons Attribution 4.0 International Public License'
+  # A licence file that the wheel installs in its package folder (listed in RECORD) goes to the notices too.
+  mkdist "$w/good" kappa 'License-Expression: MIT'
+  mkdir -p "$w/good/kappa"; printf 'Notices of the libraries bundled in kappa\n' > "$w/good/kappa/ThirdPartyNotices.txt"
+  printf 'kappa/ThirdPartyNotices.txt,,\nkappa-1.0.dist-info/METADATA,,\n' > "$w/good/kappa-1.0.dist-info/RECORD"
   python3 "$gate" check "$w/good" >/dev/null 2>&1 || { echo "the good set was refused" >&2; ok=1; }
   # Refused, each alone in a folder with an allowed neighbour: the planted licence names the one that failed.
   local planted
@@ -222,6 +230,11 @@ gate_rules() {
     'License-Expression: (MIT OR Apache-2.0) AND GPL-3.0-only' \
     'License-Expression: GPL-3.0-only AND (MIT OR Apache-2.0)' \
     'Classifier: License :: OSI Approved :: GNU General Public License v3 (GPLv3)' \
+    $'License: MIT\nClassifier: License :: OSI Approved :: GNU General Public License v3 (GPLv3)' \
+    'License-Expression: GPL-3.0-only OR dependency licenses' \
+    'License-Expression: MIT,' \
+    'License-Expression: MIT OR OR GPL-3.0-only' \
+    'License-Expression: CC-BY-4.0' \
     'License: Proprietary'; do
     mkdir -p "$w/bad"; rm -rf "$w/bad"/*
     mkdist "$w/bad" neighbour 'License-Expression: MIT'
@@ -246,6 +259,7 @@ gate_rules() {
   grep -qF 'This software is based in part on the work of the Independent JPEG Group.' "$w/NOTICES" || ok=1
   grep -qF "$mit_text" "$w/NOTICES" || ok=1
   grep -qF 'Apache notice line of eta' "$w/NOTICES" || ok=1
+  grep -qF 'Notices of the libraries bundled in kappa' "$w/NOTICES" || ok=1
   rm -rf "$w"
   return $ok
 }

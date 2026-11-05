@@ -138,6 +138,20 @@ describe('the rows', () => {
     assert.deepEqual(rows([], {}, [removed]), [], 'a removed entry is no row itself');
   });
 
+  it('drops a pending add for good once its document is removed, by the user or by a live payload', () => {
+    const pending = { id: 1, kind: 'pending', name: 'plan.md', size: 9, at: '2030-01-04T10:00:00Z', ref: 'r1' };
+    const removed = { id: 2, kind: 'removed', name: '', size: 0, at: '', ref: 'r1' };
+    assert.deepEqual(rows([], {}, [removed, pending]), [], 'the user removed it: no Indexing row comes back');
+    assert.deepEqual(rows([], { r1: { ref: 'r1', removed: true } }, [pending]), [], 'a live payload removed it');
+  });
+
+  it('ignores a field of a payload that it does not know (the Live row of the Matrix)', () => {
+    const known = rows([], { a: doc('a', { state: 'ready' }) }, []);
+    const extra = rows([], { a: doc('a', { state: 'ready', zzUnknown: 'x', nested: { y: 1 } }) }, []);
+    assert.deepEqual(extra, known);
+    assert.deepEqual(Object.keys(extra[0]).sort(), ['addedAt', 'key', 'local', 'name', 'ref', 'removable', 'size', 'state', 'status']);
+  });
+
   it('keeps the given order for rows of the same time', () => {
     const same = '2030-01-01T10:00:00Z';
     const list = rows([doc('a', { addedAt: same }), doc('b', { addedAt: same })], {}, []);

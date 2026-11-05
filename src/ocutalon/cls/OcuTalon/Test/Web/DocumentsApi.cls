@@ -15,6 +15,10 @@
 ///   - TestBodyBound: a body of BODYMAX bytes is parsed and one byte more is 413 body_too_large before it is parsed, with nothing submitted;
 ///   - TestLargeBody: a request stream with a 10 MB PDF and a non-ASCII name parses with the exact size and name;
 ///   - TestOutcomes: not_built is 501, not_found is 404 (remove), failed, an unknown outcome, an error status and no result are 500;
+///   - TestNoSession: a CSP session with no OcuTalon session of the signed-in user (a failed read) is 500 server_error on the list, the add and the
+///     remove, with nothing submitted;
+///   - TestRealSubmitOrigin: the class's real Submit (which no test reaches while DocumentOps is disabled) names ORIGIN, web_user, as the origin it
+///     passes to Commands.Submit;
 ///   - TestOwnerNotRunning: while the owner item is not running (DocumentOps is disabled until Story 19.4) a valid add and a remove of an own document
 ///     are 501 not_built at once and nothing is submitted;
 ///   - TestOwnerRunningReadsTheItem: the real OwnerRunning is 1 for an enabled item and 0 for a disabled or unknown one (a stand-in item of the test);
@@ -152,10 +156,12 @@ Method TestList()
 	Set body = ..Call("List", b, , .response)
 	Do $$$AssertEquals(..Refs(body), theirs, "online demo: B gets only its own row")
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
+	// On a local install every instance row is listed, so only the rows this test made are compared.
+	Set mine = $ListBuild(shared, new, mid, old, theirs)
 	Set body = ..Call("List", a, , .response)
-	Do $$$AssertEquals(..Refs(body), shared_","_new_","_mid_","_old, "local install: A gets the instance's row and its own, newest first, and not B's")
+	Do $$$AssertEquals(..Refs(body, mine), shared_","_new_","_mid_","_old, "local install: A gets the instance's row and its own, newest first, and not B's")
 	Set body = ..Call("List", b, , .response)
-	Do $$$AssertEquals(..Refs(body), shared_","_theirs, "local install: B gets the instance's row and its own")
+	Do $$$AssertEquals(..Refs(body, mine), shared_","_theirs, "local install: B gets the instance's row and its own")
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1)
 	Set empty = ..Session("empty")
 	Set body = ..Call("List", empty, , .response)
@@ -303,6 +309,41 @@ Method TestOutcomes()
 	Set ^OcuTalonTest("DocumentsProbe", "answer") = "not_built"
 	Set body = ..Call("Add", a, {"name": "a.md", "content": "aGVsbG8="}.%ToJSON(), .response)
 	Do $$$AssertEquals({}.%FromJSON(body).error.message, "This part of OcuTalon isn't built yet.", "the not_built text is the API's own")
+}
+
+/// A read that fails (the CSP session has no OcuTalon session of the signed-in user) is 500 server_error, whatever the route, and nothing is submitted.
+Method TestNoSession()
+{
+	Set own = ##class(OcuTalon.Test.Data.Fixture).Document(..Session("a"), "zz own.md")
+	Set nobody = "zzNoSuchSession"
+	Set body = ..Call("List", nobody, , .response)
+	Do $$$AssertEquals(+response.Status, 500, "List is 500")
+	Do $$$AssertEquals({}.%FromJSON(body).error.code, "server_error", "List: server_error")
+	Set body = ..Call("Add", nobody, {"name": "a.md", "content": "aGVsbG8="}.%ToJSON(), .response)
+	Do $$$AssertEquals(+response.Status, 500, "Add is 500")
+	Do $$$AssertEquals({}.%FromJSON(body).error.code, "server_error", "Add: server_error")
+	Set body = ..Call("Remove", nobody, , .response, own)
+	Do $$$AssertEquals(+response.Status, 500, "Remove is 500")
+	Do $$$AssertEquals({}.%FromJSON(body).error.code, "server_error", "Remove: server_error")
+	Do $$$AssertEquals(..Submits(), 0, "nothing was submitted")
+}
+
+/// The real Submit is reached by no other test until Story 19.4 enables DocumentOps (the guard answers first), so its source is read: it hands the
+/// command to Commands.Submit with ORIGIN, which is web_user (AD-1: CommandsIn takes AddDocument and RemoveDocument from that origin only).
+Method TestRealSubmitOrigin()
+{
+	Do $$$AssertEquals(##class(OcuTalon.Web.Documents).#ORIGIN, "web_user", "ORIGIN is web_user")
+	Set method = ##class(%Dictionary.MethodDefinition).%OpenId("OcuTalon.Web.Documents||Submit")
+	Do $$$AssertTrue($IsObject(method), "Web.Documents defines its own Submit")
+	If '$IsObject(method) Quit
+	Set code = ""
+	Do method.Implementation.Rewind()
+	While 'method.Implementation.AtEnd {
+		Set code = code_method.Implementation.Read(2000)
+	}
+	Set code = $Translate(code, $Char(9, 10, 13)_" ")
+	Do $$$AssertTrue(code [ "##class(OcuTalon.Core.Commands).Submit(command,..#ORIGIN,.result)", "Submit passes ORIGIN, and no other origin, to Commands.Submit: "_code)
+	Do $$$AssertEquals($Length(code, "Submit("), 2, "and calls Commands.Submit once")
 }
 
 /// While DocumentOps is not running, nothing is submitted and the answer is 501 not_built (the send would wait for CommandsIn's timeout).
@@ -502,12 +543,16 @@ Method Submit(n As %Integer, field As %String) As %String [ Private ]
 	Quit $Get(^OcuTalonTest("DocumentsProbe", "submits", n, field))
 }
 
-/// The refs of a list body, in order, comma-separated.
-Method Refs(body As %String) As %String [ Private ]
+/// The refs of a list body, in order, comma-separated; only those in the list only when it is given.
+Method Refs(body As %String, only As %List = "") As %String [ Private ]
 {
 	Set refs = ""
 	Set documents = {}.%FromJSON(body).documents
-	For i = 0:1:documents.%Size() - 1 Set refs = refs_$Select(refs = "": "", 1: ",")_documents.%Get(i).ref
+	For i = 0:1:documents.%Size() - 1 {
+		Set ref = documents.%Get(i).ref
+		If (only '= "") && '$ListFind(only, ref) Continue
+		Set refs = refs_$Select(refs = "": "", 1: ",")_ref
+	}
 	Quit refs
 }
 

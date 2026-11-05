@@ -80,7 +80,8 @@ export interface DocumentView {
 /**
  * A row of the page's own: a file that was given, while its add is in flight (`pending`) or after the route refused it (`refused`, with the
  * reason's code, or "" for a body the route could not read), or a document the user removed (`removed`, which hides its ref). A pending
- * row takes the ref of the 200 answer and stays until the server's or the live row with that ref replaces it.
+ * row takes the ref of the 200 answer and shows until the server's or the live row with that ref replaces it, and never again once that
+ * document is removed (by the user, or by a live payload with `removed`).
  */
 export interface LocalRow {
   id: number;
@@ -155,7 +156,8 @@ function newestFirst(a: DocumentRow, b: DocumentRow): number {
 /**
  * The page's rows. The server's list is overlaid by the live payloads by ref: a payload replaces the row with its ref, or adds one, and one with
  * `removed` takes the row away. The rows of documents the user removed are hidden, and a pending add whose ref the server or the live payloads
- * now hold is replaced by that row. The page's own pending and refused rows come first, newest first, then the documents, newest first.
+ * now hold is replaced by that row; one whose document was removed is gone. The page's own pending and refused rows come first, newest first,
+ * then the documents, newest first.
  */
 export function rows(server: readonly DocumentView[], live: Readonly<Record<string, DocumentView>>, local: readonly LocalRow[]): DocumentRow[] {
   const hidden = new Set(local.filter((entry) => entry.kind === 'removed').map((entry) => entry.ref ?? ''));
@@ -166,13 +168,14 @@ export function rows(server: readonly DocumentView[], live: Readonly<Record<stri
   for (const view of Object.values(live)) {
     if (view.removed === true) {
       byRef.delete(view.ref ?? '');
+      hidden.add(view.ref ?? '');
     } else {
       byRef.set(view.ref ?? '', view);
     }
   }
   const documents = [...byRef.values()].filter((view) => !hidden.has(view.ref ?? '')).map(documentRow).sort(newestFirst);
   const own = local
-    .filter((entry) => entry.kind !== 'removed' && !(entry.ref !== undefined && byRef.has(entry.ref)))
+    .filter((entry) => entry.kind !== 'removed' && !(entry.ref !== undefined && (byRef.has(entry.ref) || hidden.has(entry.ref))))
     .map(localRow)
     .sort(newestFirst);
   return [...own, ...documents];

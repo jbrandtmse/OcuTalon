@@ -1,14 +1,14 @@
 import { expect, test, type Locator, type Page, type Response } from '@playwright/test';
 
-import { README_ACCOUNT } from '../sign-in/helpers';
-import { CARD_MS, signInReadmeLoaded, unique } from '../support/floor';
+import { README_ACCOUNT, signIn } from '../sign-in/helpers';
+import { CARD_MS, loadedAfter, signInReadmeLoaded, unique } from '../support/floor';
 import { publishFixtureEvent } from '../support/devices';
-import { chk, cleanFixtureRows, irisScript, quoted } from '../support/iris';
+import { chk, cleanFixtureRows, fixtureUser, irisScript, quoted } from '../support/iris';
 import { announcements, recordAnnouncements } from '../support/page';
 
 /**
- * Story 34.2, the Documents page (D1 to D12), in a real browser against a real stack: the README account is signed in, the fixture documents
- * are owned by `instance` (a local install shows them to every user) and are removed after each case. Until Story 19.4 builds DocumentOps, a
+ * Story 34.2, the Documents page (D1 to D13), in a real browser against a real stack: the README account is signed in (D13: a user without
+ * OcuTalonAdmin), the fixture documents are owned by `instance` (a local install shows them to every user) and are removed after each case. Until Story 19.4 builds DocumentOps, a
  * valid add and a remove reach a disabled item, so the real routes answer an error; the cases that need the done answer fulfil it in the
  * browser (page.route). The refusals (D5 to D7) and the 10 MB case (D8, which also measures that the web layer lets a 10 MB PDF through,
  * FR-54) use the real route.
@@ -19,6 +19,7 @@ const INDEXING = 'Indexing\u2026';
 const EMPTY = 'No documents yet. Add a runbook to get cited answers.';
 const WRONG_TYPE = "Couldn't read it: it isn't a Markdown, plain-text, PDF or Word (.docx) file.";
 const FAILED = "Couldn't read it: something went wrong inside OcuTalon.";
+const UNREADABLE = "Couldn't read it: OcuTalon found no text in it.";
 const NOT_BUILT = "Couldn't read it: this part of OcuTalon isn't built yet.";
 const MB = 1048576;
 
@@ -96,6 +97,7 @@ test('D3: listed documents show their name, date, size and status', async ({ pag
   await seed(`${indexing}.md`, { Size: '512' });
   await seed(`${ready}.pdf`, { State: 'ready', ContentType: 'pdf', Size: String(3 * MB) });
   await seed(`${failed}.txt`, { State: 'failed', Reason: 'unreadable', ContentType: 'text', Size: '2048' });
+  await recordAnnouncements(page);
   await openDocuments(page);
   const one = rowsOf(page, indexing);
   await expect(one).toHaveCount(1);
@@ -107,9 +109,12 @@ test('D3: listed documents show their name, date, size and status', async ({ pag
   await expect(two.locator('.status')).toHaveText('Ready');
   await expect(two.locator('.size')).toHaveText('3 MB');
   const three = rowsOf(page, failed);
-  await expect(three.locator('.status')).toHaveText("Couldn't read it: OcuTalon found no text in it.");
+  await expect(three.locator('.status')).toHaveText(UNREADABLE);
   await expect(three.locator('.size')).toHaveText('2 KB');
   await expect(page.getByText(EMPTY), 'the empty text is gone').toHaveCount(0);
+  await expect(page.getByRole('button', { name: 'Add documents', exact: true }), 'the picker is there beside the rows').toBeVisible();
+  await page.waitForTimeout(2500);
+  expect(await announcements(page, UNREADABLE), 'a failed row that is not of the user\'s own add is never announced').toBe(0);
 });
 
 /** D4: a published `document` event changes a row, and a removed one takes it away, with no reload. */
@@ -149,16 +154,19 @@ test('D5: Add documents works by keyboard, and a .png is refused with its reason
   const row = rowsOf(page, 'photo.png');
   await expect(row.locator('.status')).toHaveText(WRONG_TYPE);
   await expect(row.getByRole('button', { name: /^Remove/ }), 'a refused file has no Remove').toHaveCount(0);
-  await expect.poll(() => announcements(page, WRONG_TYPE), 'the refusal is announced once').toBe(1);
+  await expect.poll(() => announcements(page, WRONG_TYPE), 'the refusal is announced').toBe(1);
+  await page.waitForTimeout(2500);
+  expect(await announcements(page, WRONG_TYPE), 'and announced once').toBe(1);
 });
 
-/** D6: a file dropped on the page goes through the same route; the outline shows while it is over the page. */
-test('D6: a dropped .exe is refused with its reason', async ({ page }) => {
+/** D6: files dropped on the page each go through the same route; the outline shows while they are over the page. */
+test('D6: a dropped .exe and .png are each refused with their reason', async ({ page }) => {
   await openDocuments(page);
   const main = page.locator('main.documents');
   const transfer = await page.evaluateHandle(() => {
     const data = new DataTransfer();
     data.items.add(new File(['MZ'], 'setup.exe', { type: 'application/octet-stream' }));
+    data.items.add(new File(['not a document'], 'diagram.png', { type: 'image/png' }));
     return data;
   });
   await main.dispatchEvent('dragover', { dataTransfer: transfer });
@@ -168,6 +176,7 @@ test('D6: a dropped .exe is refused with its reason', async ({ page }) => {
   expect((await answer).status()).toBe(400);
   await expect(main, 'and not after the drop').not.toHaveClass(/dragging/);
   await expect(rowsOf(page, 'setup.exe').locator('.status')).toHaveText(WRONG_TYPE);
+  await expect(rowsOf(page, 'diagram.png').locator('.status'), 'the second file went through the route as well').toHaveText(WRONG_TYPE);
 });
 
 /** D7: a PDF of 11 MB is too large; the page says so with its size. */
@@ -194,10 +203,14 @@ test('D8: a 10 MB .pdf reaches the route', async ({ page }) => {
   expect(text, 'or as a body that is too large').not.toContain('body_too_large');
 });
 
-/** D9: a .md whose add is answered done shows Indexing, and then the document's row and its Ready event take over. */
+/**
+ * D9: a .md whose add is answered done shows Indexing, and then the document's row and its Ready event take over; a later failed event of
+ * the user's own add is announced once.
+ */
 test('D9: an accepted .md reads Indexing and then Ready', async ({ page }) => {
   const name = `${unique('added')}.md`;
   const ref = `zzAdded${Date.now().toString(36)}`;
+  await recordAnnouncements(page);
   await openDocuments(page);
   await page.route(`**${DOCUMENTS}`, async (route) => {
     if (route.request().method() !== 'POST') return route.fallback();
@@ -210,11 +223,17 @@ test('D9: an accepted .md reads Indexing and then Ready', async ({ page }) => {
   const row = rowsOf(page, name);
   await expect(row.locator('.status'), 'the page\'s own row reads Indexing').toHaveText(INDEXING);
   await expect(row.getByRole('button', { name: /^Remove/ }), 'and has no Remove yet').toHaveCount(0);
-  made.push(await seed(name, { Ref: ref }));
-  await publish(ref, name, { AddedAt: new Date().toISOString().replace(/\.\d{3}Z$/, 'Z'), Size: '17', State: 'ready' });
+  await seed(name, { Ref: ref });
+  const addedAt = new Date().toISOString().replace(/\.\d{3}Z$/, 'Z');
+  await publish(ref, name, { AddedAt: addedAt, Size: '17', State: 'ready' });
   await expect(row.locator('.status'), 'the document\'s row reads Ready').toHaveText('Ready', { timeout: CARD_MS });
   await expect(row, 'there is one row for it').toHaveCount(1);
   await expect(row.getByRole('button', { name: `Remove ${name}`, exact: true })).toBeVisible();
+  await publish(ref, name, { AddedAt: addedAt, Size: '17', State: 'failed', Reason: 'unreadable' });
+  await expect(row.locator('.status'), 'a failed event of the user\'s own add').toHaveText(UNREADABLE, { timeout: CARD_MS });
+  await expect.poll(() => announcements(page, UNREADABLE), 'is announced').toBe(1);
+  await page.waitForTimeout(2500);
+  expect(await announcements(page, UNREADABLE), 'once').toBe(1);
 });
 
 /** D10: Remove asks first; Esc and Cancel keep the row; a failed remove says so; a done one removes the row and focuses the list. */
@@ -255,12 +274,13 @@ test('D10: Remove asks first, and a removed row leaves', async ({ page }) => {
   await expect(listRegion(page), 'focus goes to the list').toBeFocused();
 });
 
-/** D11: an add the route answers 501 or 500 reads as the not-built and failed reasons. */
+/** D11: an add the route answers 501 or 500 reads as the not-built and failed reasons, and a 413 from anything in front of the route as failed. */
 test('D11: a 501 and a 500 answer to an add read as their reasons', async ({ page }) => {
   await openDocuments(page);
   await page.route(`**${DOCUMENTS}`, async (route) => {
     if (route.request().method() !== 'POST') return route.fallback();
     const named = (route.request().postDataJSON() as { name: string }).name;
+    if (named.startsWith('proxied')) return route.fulfill({ status: 413, contentType: 'text/html', body: '<html><body>413 Request Entity Too Large</body></html>' });
     const unbuilt = named.startsWith('unbuilt');
     return route.fulfill({
       status: unbuilt ? 501 : 500,
@@ -272,6 +292,8 @@ test('D11: a 501 and a 500 answer to an add read as their reasons', async ({ pag
   await expect(rowsOf(page, 'unbuilt.md').locator('.status')).toHaveText(NOT_BUILT);
   await fileInput(page).setInputFiles({ name: 'broken.md', mimeType: 'text/markdown', buffer: Buffer.from('# two') });
   await expect(rowsOf(page, 'broken.md').locator('.status')).toHaveText(FAILED);
+  await fileInput(page).setInputFiles({ name: 'proxied.md', mimeType: 'text/markdown', buffer: Buffer.from('# three') });
+  await expect(rowsOf(page, 'proxied.md').locator('.status'), 'a 413 that is not the route\'s body_too_large is not read as a size').toHaveText(FAILED);
 });
 
 /** D12: a remove the route answers 404 (the document is already gone) closes the dialog and takes the row away. */
@@ -291,4 +313,15 @@ test('D12: a 404 answer to a remove closes the dialog and the row leaves', async
   await expect(dialog).toHaveCount(0);
   await expect(row, 'the row leaves').toHaveCount(0);
   await expect(listRegion(page), 'focus goes to the list').toBeFocused();
+});
+
+/** D13: a signed-in user without OcuTalonAdmin has the Documents link too, and it opens the page. */
+test('D13: a user who is not an admin has Documents in the header and opens the page', async ({ page }) => {
+  const { user, password } = fixtureUser('LIVE');
+  await loadedAfter(page, () => signIn(page, user, password));
+  await expect(pagesNav(page).getByRole('link'), 'the header navigation holds Chat and Documents, and no Settings').toHaveText(['Chat', 'Documents']);
+  await documentsLink(page).click();
+  expect(new URL(page.url()).hash, 'at the address #/documents').toBe('#/documents');
+  await expect(page.getByRole('heading', { level: 1 }), 'the page opens').toHaveText('Documents');
+  await expect(page.getByRole('button', { name: 'Add documents', exact: true })).toBeVisible();
 });

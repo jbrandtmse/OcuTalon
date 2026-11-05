@@ -3,8 +3,8 @@
 ///   - GET /v1/documents lists the session's documents through Ownership.Documents (its own on the online demo, the instance's on a local
 ///     install), newest first: 200 {"documents":[Live.Payload.Document.FromRow ...]}; a failed read is 500 server_error.
 ///   - POST /v1/documents takes {"name","content"}: the file's name and its bytes in base64. The body is parsed from the request stream,
-///     never through a string (a 10 MB file is a 14 MB body). A body over BODYMAX is 413 body_too_large before it is parsed (every other
-///     route keeps its own bound, DW-687). Then, before any command: a body that is not an object with a string name of 1 to 255 characters
+///     never through a string (a 10 MB file is a 14 MB body). A body over BODYMAX, this route's own bound, is 413 body_too_large before it
+///     is parsed. Then, before any command: a body that is not an object with a string name of 1 to 255 characters
 ///     and a string content of valid base64 is 400 bad_document with no reason; a name whose extension is not in EXTENSIONS is 400
 ///     bad_document with reason wrong_type; no bytes is reason empty; more than FILEMAX bytes (10,485,760) is reason too_large. A refused
 ///     file writes no row and submits nothing. An accepted file submits one AddDocument (Name, the ContentType of the extension, the
@@ -133,7 +133,7 @@ ClassMethod Remove(ref As %String) As %Status
 
 /// Hands the command to its owner. While the owner item is not running (DocumentOps is disabled until Story 19.4) nothing is submitted and the
 /// answer is a CommandResult with Ok 0 and the outcome not_built: a send to a disabled item is queued and waits for CommandsIn's whole timeout,
-/// longer than the web server waits (measured on a throwaway stack, evidence 34-2-task0-image.md), so the page would wait in vain.
+/// longer than the web server waits, so the page would wait in vain.
 ClassMethod Dispatch(command As OcuTalon.Msg.Command, Output result As OcuTalon.Msg.CommandResult) As %Status [ Private ]
 {
 	If '..OwnerRunning() {

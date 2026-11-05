@@ -4155,11 +4155,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-34-1-settle-step-3-ownership-and-fix-its-contracts.md | severity: med | fix-risk: med | footprint: in-epic
 - evidence: S2 (spine AD-21 Documents 'Names' sub-bullet) fixes the Reason field as a code but lists no codes or texts; Lane B renders {reason}, Lane A writes it; DocumentOps answers 5003 until 19.4
 - 2026-11-05T07:18:19Z status=routed owner=34-2-add-and-remove-documents-on-a-documents-page by=cr note=34.2 names the codes and their texts in the spine (UX/PRD wording only) and decides who writes a refused row before 19.4
+- 2026-11-05T13:05:24Z status=resolved-by:34-2-add-and-remove-documents-on-a-documents-page by=adjudication note=Web.Documents_refuses_wrong_type,too_large,empty_(400_bad_document)_and_body_too_large_(413)_before_any_command,writing_no_row;page_texts_ruled_U-284/U-285_pinned_by_documents-view.test.mjs_and_DocumentsApi.TestAddRefused;DocumentOps_writes_its_own_failed_rows_(unreadable,not_built,failed)_from_19.4_(spine_S2)
 
 ### DW-731: CommandsIn waits its whole TIMEOUT (120 s) on a send to a disabled owner item: a tool's SaveMemory/ForgetMemory to the disabled MemoryOps stub waits 120 s until Story 19.3 enables it (Web.Documents guards its own routes with 501 not_built); a CommandsIn not_built answer for a disabled owner is the general fix
 - source: spec-34-2-add-and-remove-documents-on-a-documents-page.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: measured in 34.2 Task 0 on DocumentOps (web server gave up at 60 s, CommandsIn waits 120 s)
 - 2026-11-05T12:23:42Z status=routed owner=19-3-remember-recall-list-and-forget-in-the-chat by=harvest note=CommandsIn is contended with Epic 40; 19.3 enabling MemoryOps removes the case for memory verbs
+- 2026-11-05T13:03:31Z occurrence=34-2-add-and-remove-documents-on-a-documents-page
 
 ### DW-732: /usr/irissys/mgr/python is irisowner-owned (mode 555) in the base image, so the IRIS user could chmod it and replace the installed Python packages; the packages inside are root-owned and read-only
 - source: spec-34-2-add-and-remove-documents-on-a-documents-page.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -4180,3 +4182,18 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-34-2-add-and-remove-documents-on-a-documents-page.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: D10 failure-notice step and D8 accepted statuses rely on the stub era
 - 2026-11-05T12:23:42Z status=routed owner=19-4-answer-from-documents-with-citations by=harvest note=19.4 changes them when it builds DocumentOps
+
+### DW-738: The image's transitive Python packages are not pinned (only fastembed, pdfplumber and python-docx are), so a judge's local image build resolves newer dependencies than CI measured; a new dependency or an upstream licence change fails the licence gate and the build, and the model download relies on huggingface_hub's cache layout
+- source: spec-34-2-add-and-remove-documents-on-a-documents-page.md | severity: med | fix-risk: high | footprint: out-of-footprint
+- evidence: docker/Dockerfile pip line has three pins and no constraints file; the gate fails closed on any new licence (34.2 review, Blind); Decided 9 and U-285 chose re-measuring over pinning
+- 2026-11-05T13:03:31Z status=escalated owner=burndown by=cr note=owner call: a constraints file per architecture (aarch64, x86_64) for the 36 measured distributions vs re-measure on every build; demo path risk
+
+### DW-739: No test executes the real Web.Documents route -> Commands.Submit -> CommandsIn path: while DocumentOps is disabled the OwnerRunning guard answers 501 first, the unit tests use DocumentsProbe's Submit, and TestRealSubmitOrigin only reads the method's source text
+- source: spec-34-2-add-and-remove-documents-on-a-documents-page.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Test.Web.DocumentsApi TestRealSubmitOrigin is a source-text match; e2e D8/D10 stop at the guard's 501 (34.2 review, verification-gap and acceptance auditor)
+- 2026-11-05T13:03:31Z status=routed owner=19-4-answer-from-documents-with-citations by=cr note=when 19.4 enables DocumentOps add an executed test that CommandsIn receives AddDocument and RemoveDocument from the route as web_user
+
+### DW-740: ForgetMemory carries a MemoryRef but nothing in Lane B checks that the memory belongs to the command's SessionRef: CommandsIn's context check compares SessionRef with the context's OwnerRef only, so MemoryOps must refuse another session's memory
+- source: spec-34-2-add-and-remove-documents-on-a-documents-page.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Msg/Command/ForgetMemory.cls doc says a tool forgets only its own session's memory; CommandsIn Carry checks SessionRef only; MemoryOps is Lane A's 5003 stub (34.2 review, Blind)
+- 2026-11-05T13:03:31Z status=routed owner=19-3-remember-recall-list-and-forget-in-the-chat by=cr note=MemoryOps answers ForgetMemory not_found unless Data.Memory's owner is the command's SessionRef; test it with another session's MemoryRef

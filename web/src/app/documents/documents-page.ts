@@ -265,8 +265,9 @@ export class DocumentsPage {
   }
 
   /**
-   * The route's reason for a 400 `bad_document`, `too_large` for a 413 (the route's own bound on the body, which is the 10 MB limit's size in base64
-   * and the JSON around it, so a body over it is a file over the limit), `not_built` for a 501, and `failed` for every other answer or failure.
+   * The route's reason for a 400 `bad_document`, `too_large` for the route's own 413 `body_too_large` (its bound on the body is the 10 MB limit's
+   * size in base64 and the JSON around it, so a body over it is a file over the limit), `not_built` for a 501, and `failed` for every other answer
+   * or failure, a 413 from anything in front of the route among them.
    */
   private reasonOf(error: unknown): string {
     if (error instanceof HttpErrorResponse) {
@@ -274,7 +275,7 @@ export class DocumentsPage {
       if (error.status === 400 && body?.error?.code === 'bad_document' && typeof body.reason === 'string') {
         return body.reason;
       }
-      if (error.status === 413) {
+      if (error.status === 413 && body?.error?.code === 'body_too_large') {
         return 'too_large';
       }
       if (error.status === 501) {
