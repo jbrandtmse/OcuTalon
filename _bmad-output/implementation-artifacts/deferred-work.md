@@ -4259,3 +4259,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-34-2-add-and-remove-documents-on-a-documents-page.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Msg/Command/ForgetMemory.cls doc says a tool forgets only its own session's memory; CommandsIn Carry checks SessionRef only; MemoryOps is Lane A's 5003 stub (34.2 review, Blind)
 - 2026-11-05T13:03:31Z status=routed owner=19-3-remember-recall-list-and-forget-in-the-chat by=cr note=MemoryOps answers ForgetMemory not_found unless Data.Memory's owner is the command's SessionRef; test it with another session's MemoryRef
+
+### DW-747: Data.Upload has no lifecycle beyond Take, the route's own delete and sign-out: nothing sweeps an abandoned row (a local install has no sign-out), a CommandsIn timeout drops the row while the AddDocument may still reach DocumentOps (whose Take then returns nothing), and Take is at-most-once with no session check
+- source: spec-34-2-add-and-remove-documents-on-a-documents-page.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: Data.Upload.CreatedAt stored, never read; Web.Documents.Dispatch drops the row on any non-Ok end (34.2 rework 1 review)
+- 2026-11-05T16:51:33Z status=routed owner=19-4-answer-from-documents-with-citations by=harvest note=19.4 builds DocumentOps's Take and decides the sweep, the timeout case and the session check
