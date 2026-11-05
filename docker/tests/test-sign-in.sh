@@ -5,8 +5,7 @@
 #   - rows 1 and 2 of Story 0.3, from the security tables: the roles, the README account, InvalidLoginAction and the
 #     four web applications (check_security);
 #   - rows 3 to 13 of Story 0.3 in a real browser, through the Playwright project chromium, which is every spec under web/e2e/
-#     except web/e2e/demo-path/ and web/e2e/floor/ (those folders are the demo-path unit's, test-demo-path.sh, and the floor unit's,
-#     test-floor.sh): what answers without
+#     outside the folders that have a project of their own (web/playwright.config.ts): what answers without
 #     a session, the sign-in page, a wrong password, the password toggle, the README sign-in, the tokens and fonts, one
 #     sign-in group, Sign out, a user without the OcuTalon user role, and a deep link;
 #   - rows 13 to 19 of Story 0.5, through web/e2e/api/api.spec.ts, on a stack that this script seeds: the README
@@ -47,7 +46,14 @@
 # get random passwords that are passed by environment variable and never printed. An EXIT trap removes the project with its volume and images.
 # Every wait ends by an overall deadline (OCUTALON_LIVE_DEADLINE, 540 s by default and 1200 s in CI, counted from the moment the
 # throwaway lock is held), so even a failing run ends within it; the browser run's global timeout is what is left of it minus 20 s.
-# Prints one PASS or FAIL line per check; exits 0 only when all pass.
+# Prints one PASS or FAIL line per check, and after the browser run one "SPEC <file> <n> tests <s>s" line per spec file that ran (the
+# list reporter's times summed by file; a file's beforeAll counts in its first test), so that the two sign-in units can be balanced
+# from CI's own numbers; exits 0 only when all pass.
+# The browser specs are split by spec file into two units (the Contest Planner's ruling of 2026-11-05: the one unit took 1047 s in CI,
+# over the 1,000 s line), each on its own stack with the whole setup above: live:sign-in runs the Playwright project chromium, and
+# live:sign-in-2 (docker/tests/test-sign-in-2.sh, which runs this script with --project sign-in-2) runs the project sign-in-2, whose
+# folders web/playwright.config.ts names in SIGN_IN_2_DIRS and the chromium project ignores. With --project chromium|sign-in-2 (or
+# --project=...) it runs that project; chromium is the default. The texts below that name the chromium project name the project run.
 # With --part k/n (or --part=k/n) it runs part k of n of the chromium project's spec files on its own fresh stack, with the whole
 # setup above, so that a stage can run the unit in calls that each fit the foreground cap. A part is a run of whole spec files, in
 # path order, cut by the project's tests the way ci/iris.sh shard --part cuts its classes (web/scripts/e2e-part.mjs, which reads
@@ -65,15 +71,43 @@ script_dir=$(cd "$(dirname "$0")" && pwd)
 
 part=""
 part_given=0
+project=chromium
+project_given=0
 while [ "$#" -gt 0 ]; do
   case $1 in
+    --project | --project=*)
+      if [ "$1" = --project ]; then
+        if [ "$#" -lt 2 ]; then
+          echo "test-sign-in: --project needs one value, chromium or sign-in-2 (usage: test-sign-in.sh [--project chromium|sign-in-2] [--part k/n])"
+          exit 2
+        fi
+        value=$2
+        shift 2
+      else
+        value=${1#--project=}
+        shift
+      fi
+      if [ "$project_given" -eq 1 ]; then
+        echo "test-sign-in: --project is given once, and again as '$value' (usage: test-sign-in.sh [--project chromium|sign-in-2] [--part k/n])"
+        exit 2
+      fi
+      case $value in
+        chromium | sign-in-2) ;;
+        *)
+          echo "test-sign-in: unknown project '$value': use chromium or sign-in-2 (usage: test-sign-in.sh [--project chromium|sign-in-2] [--part k/n])"
+          exit 2
+          ;;
+      esac
+      project=$value
+      project_given=1
+      ;;
     --part)
       if [ "$part_given" -eq 1 ]; then
-        echo "test-sign-in: --part is given once, and again as '${2:-}' (usage: test-sign-in.sh [--part k/n])"
+        echo "test-sign-in: --part is given once, and again as '${2:-}' (usage: test-sign-in.sh [--project chromium|sign-in-2] [--part k/n])"
         exit 2
       fi
       if [ "$#" -lt 2 ]; then
-        echo "test-sign-in: --part needs one value k/n (usage: test-sign-in.sh [--part k/n])"
+        echo "test-sign-in: --part needs one value k/n (usage: test-sign-in.sh [--project chromium|sign-in-2] [--part k/n])"
         exit 2
       fi
       part=$2
@@ -82,7 +116,7 @@ while [ "$#" -gt 0 ]; do
       ;;
     --part=*)
       if [ "$part_given" -eq 1 ]; then
-        echo "test-sign-in: --part is given once, and again as '${1#--part=}' (usage: test-sign-in.sh [--part k/n])"
+        echo "test-sign-in: --part is given once, and again as '${1#--part=}' (usage: test-sign-in.sh [--project chromium|sign-in-2] [--part k/n])"
         exit 2
       fi
       part=${1#--part=}
@@ -90,11 +124,25 @@ while [ "$#" -gt 0 ]; do
       shift
       ;;
     *)
-      echo "test-sign-in: unknown argument '$1' (usage: test-sign-in.sh [--part k/n])"
+      echo "test-sign-in: unknown argument '$1' (usage: test-sign-in.sh [--project chromium|sign-in-2] [--part k/n])"
       exit 2
       ;;
   esac
 done
+
+# The unit of the project: its npm script, the label of its throwaway and the name of its summary.
+case $project in
+  chromium)
+    e2e_script=e2e
+    unit_label=t03
+    unit_name=test-sign-in
+    ;;
+  sign-in-2)
+    e2e_script=e2e:sign-in-2
+    unit_label=t03b
+    unit_name=test-sign-in-2
+    ;;
+esac
 
 part_label=""
 part_tests=""
@@ -103,11 +151,11 @@ if [ "$part_given" -eq 1 ]; then
   cd "$script_dir/../.." || exit 1
   part_listing=$(mktemp "${TMPDIR:-/tmp}/ocutalon-part.XXXXXX") || exit 1
   part_errors="$part_listing.err"
-  if ! npm --silent --prefix web run e2e -- --list --reporter=json > "$part_listing" 2> "$part_errors"; then
+  if ! npm --silent --prefix web run "$e2e_script" -- --list --reporter=json > "$part_listing" 2> "$part_errors"; then
     tail -n 30 "$part_listing" | cut -c1-300
     tail -n 30 "$part_errors" | cut -c1-300
     rm -f "$part_listing" "$part_errors"
-    echo "FAIL the chromium project's spec files could not be listed"
+    echo "FAIL the $project project's spec files could not be listed"
     exit 1
   fi
   part_out=$(node web/scripts/e2e-part.mjs "$part" "$part_listing")
@@ -126,14 +174,14 @@ if [ "$part_given" -eq 1 ]; then
   esac
   echo "$part_line"
 fi
-chromium_specs="the specs of the chromium project"
-[ -z "$part_label" ] || chromium_specs="of these rows, those in the spec files of part $part_label of the chromium project"
-summary="test-sign-in"
-[ -z "$part_label" ] || summary="test-sign-in part $part_label"
+chromium_specs="the specs of the $project project"
+[ -z "$part_label" ] || chromium_specs="of these rows, those in the spec files of part $part_label of the $project project"
+summary=$unit_name
+[ -z "$part_label" ] || summary="$unit_name part $part_label"
 
 LIVE_REBUILD_WEB=1
 . "$script_dir/lib-live.sh"
-live_start t03
+live_start "$unit_label"
 live_web_port || exit 1
 
 noroleuser=ZzNoRole
@@ -308,8 +356,30 @@ OCUTALON_URL="http://127.0.0.1:$web_port" \
   OCUTALON_E2E_EPOCH="$seeded_epoch" \
   OCUTALON_E2E_MARKER="$marker" \
   OCUTALON_E2E_TIMEOUT_MS=$(((remaining - 20) * 1000)) \
-  npm --prefix web run e2e ${part_args[@]+"${part_args[@]}"} > "$e2e_log" 2>&1
+  npm --prefix web run "$e2e_script" ${part_args[@]+"${part_args[@]}"} > "$e2e_log" 2>&1
 e2e_status=$?
+# Each spec file's seconds, in run order: the list reporter's line of each test that ran ends with its time, (525ms), (1.8s) or (1.2m).
+LC_ALL=C awk '
+  {
+    line = $0
+    gsub(/\033\[[0-9;]*m/, "", line)
+    if (!match(line, /[A-Za-z0-9_.\/-]+\.spec\.ts:[0-9]/)) next
+    file = substr(line, RSTART, RLENGTH - 2)
+    sub(/^e2e\//, "", file)
+    if (!match(line, /\([0-9.]+(ms|s|m|h)\)$/)) next
+    text = substr(line, RSTART + 1, RLENGTH - 2)
+    unit = text
+    sub(/^[0-9.]+/, "", unit)
+    value = text + 0
+    if (unit == "ms") value /= 1000
+    else if (unit == "m") value *= 60
+    else if (unit == "h") value *= 3600
+    if (!(file in seconds)) order[++files] = file
+    seconds[file] += value
+    tests[file]++
+  }
+  END { for (i = 1; i <= files; i++) printf "SPEC %s %d tests %.0fs\n", order[i], tests[order[i]], seconds[order[i]] }
+' "$e2e_log"
 # A test list that matches nothing exits 0, so a part passes only when its passed and skipped tests are the part's.
 part_ran=""
 if [ "$e2e_status" -eq 0 ] && [ -n "$part_label" ]; then

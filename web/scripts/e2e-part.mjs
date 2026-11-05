@@ -1,11 +1,12 @@
 #!/usr/bin/env node
-// Cuts the spec files of the Playwright chromium project into n parts and names the files of part k, so that the sign-in unit
-// (docker/tests/test-sign-in.sh --part k/n) runs one part on its own stack. Dependency-free.
+// Cuts the spec files of a Playwright project of the sign-in units, chromium or sign-in-2, into n parts and names the files of part k, so
+// that the sign-in unit (docker/tests/test-sign-in.sh --part k/n) or the sign-in-2 unit (docker/tests/test-sign-in-2.sh --part k/n) runs
+// one part on its own stack. Dependency-free.
 //
 //   node scripts/e2e-part.mjs <k/n> <listing.json>
 //
 // The listing is Playwright's own JSON listing of the project, made with
-//   npm --silent --prefix web run e2e -- --list --reporter=json
+//   npm --silent --prefix web run e2e -- --list --reporter=json              (chromium; e2e:sign-in-2 for sign-in-2)
 // so that playwright.config.ts's testIgnore stays the one source of which files belong to the project, and a spec file that
 // is added to the project joins a part with no change to any list.
 //
