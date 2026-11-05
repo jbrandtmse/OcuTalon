@@ -8,10 +8,12 @@
 # runs this test; with OCUTALON_TEST_BASH_MAJOR=3 (the macOS job, which runs /bin/bash) the test fails unless that bash has the major
 # version 3.
 # Rows, as in the matrix of the spec:
-#   - images: Health first; only non-Health (its own reference is the build argument); prefixes and look-alikes; ties go to the first
+#   - images: the accepted refs are exactly irishealth-community:2026.3.0AI.154.0, iris-community:2026.3.0AI.154.0 and
+#     irishealth-community:2027.1.0AI.109.0 (any registry prefix) and every other ref is refused (no-image row); Health build 154 first,
+#     then Health build 109, then non-Health (its own reference is the build argument); prefixes and look-alikes; ties go to the first
 #     reference in LC_ALL=C order; mixed CPUs; no image; wrong CPU; an image whose CPU cannot be read is never a match; architecture
 #     names (aarch64, x86_64) for the daemon, an image and the base; IRIS_IMAGE names the base;
-#   - an existing base: never re-tagged, named by ID match (Health, non-Health, neither) with the reference, refused on the wrong CPU
+#   - an existing base: never re-tagged, named by ID match (Health build 154, Health build 109, non-Health, neither) with the reference, refused on the wrong CPU
 #     with the fix (a loaded Health or non-Health image of this CPU named in it);
 #   - the checks, all before any change: run by a shell that is not bash (dash, where the machine has it), no docker, daemon
 #     unreachable or answering nothing, no Compose plugin or one answering nothing, Compose older than 2.24 (DW-2) or unreadable,
@@ -63,6 +65,7 @@ if [ ! -f "$script" ]; then
 fi
 
 TAG=2026.3.0AI.154.0
+TAG_109=2027.1.0AI.109.0
 BASE="ocutalon-iris-base:$TAG"
 HEALTH_ID=aaaaaaaaaaaa
 NON_HEALTH_ID=bbbbbbbbbbbb
@@ -319,8 +322,80 @@ add_image "irishealth-community:2026.2" $ID_X arm64
 add_image "iris-community:latest" $ID_Y arm64
 run_install
 check "look-alikes: never candidates, so it is the no-image row (exit 1)" exit_is 1
-check "look-alikes: says no image is loaded" out_has "No IRIS build 154 image is loaded"
+check "look-alikes: says no image is loaded" out_has "No IRIS build 154 or build 109 image is loaded"
 check "look-alikes: nothing changed" no_change
+
+# Build 109: the one accepted ref beside the build 154 refs.
+new_case build-109-only
+add_image "registry.example/irishealth-community:$TAG_109" $ID_X arm64
+printf '%s\n' 'running starting' 'running healthy' > "$d/health"
+run_install
+check "build 109 only: exit 0" exit_is 0
+check "build 109 only: names the build 109 image and its reference" out_has "Image: IRIS for Health, build 109 (registry.example/irishealth-community:$TAG_109)."
+check "build 109 only: the base name is tagged once, from the image id" tagged_once $ID_X
+check "build 109 only: compose up runs with IRIS_IMAGE set to the base name" up_env_is "$BASE"
+check "build 109 only: the ready block holds the port and the account" ready_block 52773
+
+n=0
+for ref in "irishealth-community:$TAG_109" "one/irishealth-community:$TAG_109" "a/b/c/irishealth-community:$TAG_109" "localhost:5000/team/irishealth-community:$TAG_109"; do
+  n=$((n + 1))
+  new_case "prefix-109-$n"
+  add_image "$ref" $ID_X arm64
+  run_install
+  check "prefix: $ref is a Health build 109 candidate" tagged_once $ID_X
+done
+
+# Refused refs: a third ref never takes the place of an accepted one.
+n=0
+for ref in "iris-community:$TAG_109" "irishealth-community:2027.1.0AI.110.0" "irishealth-community:2027.1.0AI.109.1" "irishealth-community:2027.1.0AI.109" "irishealth-community:2027.1" "irishealth-community-x:$TAG_109" "x/iris-community:$TAG_109"; do
+  n=$((n + 1))
+  new_case "refused-$n"
+  add_image "$ref" $ID_X arm64
+  run_install
+  check "refused ref: $ref is no candidate (exit 1)" exit_is 1
+  check "refused ref: $ref takes the no-image path" out_has "No IRIS build 154 or build 109 image is loaded in Docker"
+  check "refused ref: $ref changes nothing" no_change
+done
+
+# Both Health builds: build 154 is the source, whatever the sort order of the references.
+n=0
+for pair in "a/irishealth-community:$TAG_109|irishealth-community:$TAG" "irishealth-community:$TAG_109|z/irishealth-community:$TAG" "z/irishealth-community:$TAG_109|irishealth-community:$TAG" "irishealth-community:$TAG_109|a/irishealth-community:$TAG"; do
+  n=$((n + 1))
+  new_case "both-health-$n"
+  add_image "${pair%%|*}" $ID_X arm64
+  add_image "${pair##*|}" $HEALTH_ID arm64
+  run_install
+  check "both Health builds: ${pair%%|*} beside ${pair##*|}: exit 0" exit_is 0
+  check "both Health builds: ${pair%%|*} beside ${pair##*|}: build 154 is the tag source" tagged_once $HEALTH_ID
+  check "both Health builds: ${pair%%|*} beside ${pair##*|}: IRIS_IMAGE is the base name" up_env_is "$BASE"
+  check "both Health builds: ${pair%%|*} beside ${pair##*|}: build 154 is named" out_has "Image: IRIS for Health, build 154 (${pair##*|})."
+done
+
+new_case health-109-with-non-health
+add_image "x/irishealth-community:$TAG_109" $ID_X arm64
+add_image "x/iris-community:$TAG" $NON_HEALTH_ID arm64
+run_install
+check "Health build 109 beside non-Health: exit 0" exit_is 0
+check "Health build 109 beside non-Health: Health build 109 is the tag source" tagged_once $ID_X
+check "Health build 109 beside non-Health: names build 109" out_has "Image: IRIS for Health, build 109 (x/irishealth-community:$TAG_109)."
+check "Health build 109 beside non-Health: IRIS_IMAGE is the base name" up_env_is "$BASE"
+
+new_case mixed-cpus-109
+add_image "x/irishealth-community:$TAG_109" $ID_X amd64
+add_image "x/iris-community:$TAG" $NON_HEALTH_ID arm64
+run_install
+check "mixed CPUs, Health build 109 for x64: exit 0" exit_is 0
+check "mixed CPUs, Health build 109 for x64: uses the non-Health image of this CPU" tagged_once $NON_HEALTH_ID
+check "mixed CPUs, Health build 109 for x64: IRIS_IMAGE is the non-Health reference" up_env_is "x/iris-community:$TAG"
+check "mixed CPUs, Health build 109 for x64: says the Health image is for another CPU" out_has "The IRIS for Health image x/irishealth-community:$TAG_109 is for x64, not for this machine's arm64, so the non-Health image is used."
+
+new_case health-154-other-cpu-with-109
+add_image "x/irishealth-community:$TAG" $HEALTH_ID amd64
+add_image "y/irishealth-community:$TAG_109" $ID_X arm64
+run_install
+check "Health build 154 for another CPU beside Health build 109 for this CPU: exit 0" exit_is 0
+check "Health build 154 for another CPU beside Health build 109 for this CPU: build 109 is the tag source" tagged_once $ID_X
+check "Health build 154 for another CPU beside Health build 109 for this CPU: names build 109" out_has "Image: IRIS for Health, build 109 (y/irishealth-community:$TAG_109)."
 
 new_case tie-first-in-order
 add_image "b/irishealth-community:$TAG" $ID_Y arm64
@@ -348,8 +423,8 @@ check "mixed CPUs: says the Health image is for another CPU" out_has "x/irisheal
 new_case no-image
 run_install
 check "no image: exit 1" exit_is 1
-check "no image: names the problem" out_has "No IRIS build 154 image is loaded in Docker"
-check "no image: names the archive for this CPU" out_has "IRIS for Health AI Hub build 154 archive for this machine's CPU (arm64; the archives are for arm64 or x64)"
+check "no image: names the problem" out_has "No IRIS build 154 or build 109 image is loaded in Docker (no irishealth-community:$TAG, no irishealth-community:$TAG_109, and no iris-community:$TAG)."
+check "no image: names the archive for this CPU" out_has "IRIS for Health AI Hub build 154 or build 109 archive for this machine's CPU (arm64; the archives are for arm64 or x64)"
 check "no image: gives the load command" out_has "docker load -i <the archive file>"
 check "no image: nothing changed" no_change
 
@@ -368,6 +443,15 @@ check "wrong CPU: names the machine's CPU and the archive for it" out_has "archi
 check "wrong CPU: gives the load command" out_has "docker load -i <the archive file>"
 check "wrong CPU: nothing changed" no_change
 check "wrong CPU: no line for an unknown CPU (one line for each image, and no more)" out_lacks "an unknown CPU"
+
+new_case wrong-cpu-109
+add_image "x/irishealth-community:$TAG_109" $ID_X amd64
+run_install
+check "wrong CPU, only Health build 109: exit 1" exit_is 1
+check "wrong CPU, only Health build 109: says the loaded image is for another CPU" out_has "The IRIS build 154 or build 109 image that is loaded is for another CPU than this machine's. This machine's Docker runs arm64."
+check "wrong CPU, only Health build 109: names the image's CPU" out_has "x/irishealth-community:$TAG_109 is for x64"
+check "wrong CPU, only Health build 109: names the archive for this CPU" out_has "IRIS for Health AI Hub build 154 or build 109 archive for arm64 and load it:"
+check "wrong CPU, only Health build 109: nothing changed" no_change
 
 new_case unreadable-cpu
 printf '%s %s\n' "x/irishealth-community:$TAG" $HEALTH_ID >> "$d/images"
@@ -413,6 +497,15 @@ check "existing base, Health: no docker tag" test "$(call_count '^tag ')" -eq 0
 check "existing base, Health: says IRIS for Health, its reference and the existing wording" out_has "Image: IRIS for Health, build 154 (x/irishealth-community:$TAG). The existing $BASE is that image"
 check "existing base, Health: IRIS_IMAGE is the base name" up_env_is "$BASE"
 
+new_case base-109
+add_image "x/irishealth-community:$TAG_109" $ID_X arm64
+add_base $ID_X arm64
+run_install
+check "existing base, Health build 109: exit 0" exit_is 0
+check "existing base, Health build 109: no docker tag" no_tag
+check "existing base, Health build 109: says build 109, its reference and the existing wording" out_has "Image: IRIS for Health, build 109 (x/irishealth-community:$TAG_109). The existing $BASE is that image, so it is not tagged again."
+check "existing base, Health build 109: IRIS_IMAGE is the base name" up_env_is "$BASE"
+
 new_case base-non-health
 add_image "x/iris-community:$TAG" $NON_HEALTH_ID arm64
 add_base $NON_HEALTH_ID arm64
@@ -427,7 +520,7 @@ add_base $ID_X arm64
 run_install
 check "existing base, unknown: exit 0" exit_is 0
 check "existing base, unknown: no docker tag" test "$(call_count '^tag ')" -eq 0
-check "existing base, unknown: says it matches neither" out_has "Image: the existing $BASE. No IRIS for Health or IRIS (non-Health) build 154 image loaded here has its ID"
+check "existing base, unknown: says it matches neither" out_has "Image: the existing $BASE. No IRIS build 154 or build 109 image loaded here has its ID"
 check "existing base, unknown: IRIS_IMAGE is the base name" up_env_is "$BASE"
 
 new_case base-unknown-no-candidate
@@ -435,7 +528,7 @@ add_base $ID_X arm64
 run_install
 check "existing base, no candidate loaded: exit 0" exit_is 0
 check "existing base, no candidate loaded: no docker tag" no_tag
-check "existing base, no candidate loaded: claims no loaded image, only that none has its ID" out_has "No IRIS for Health or IRIS (non-Health) build 154 image loaded here has its ID"
+check "existing base, no candidate loaded: claims no loaded image, only that none has its ID" out_has "No IRIS build 154 or build 109 image loaded here has its ID, so it is used as it is."
 
 new_case base-wrong-cpu
 add_image "x/irishealth-community:$TAG" $HEALTH_ID arm64
@@ -445,6 +538,19 @@ check "existing base, wrong CPU: exit 1" exit_is 1
 check "existing base, wrong CPU: says what is wrong" out_has "The image $BASE exists, but it is for x64, and this machine's Docker runs arm64."
 check "existing base, wrong CPU: names the loaded image in the docker tag fix" out_has "docker tag x/irishealth-community:$TAG $BASE"
 check "existing base, wrong CPU: nothing changed" no_change
+
+new_case base-wrong-cpu-109
+add_image "x/irishealth-community:$TAG_109" $ID_X arm64
+add_base $ID_Y amd64
+run_install
+check "existing base, wrong CPU, Health build 109 of this CPU: names it in the docker tag fix, nothing changed" test "$(exit_is 1 && out_has "docker tag x/irishealth-community:$TAG_109 $BASE" && no_change && echo ok)" = ok
+
+new_case base-wrong-cpu-109-before-non-health
+add_image "x/irishealth-community:$TAG_109" $ID_X arm64
+add_image "x/iris-community:$TAG" $NON_HEALTH_ID arm64
+add_base $ID_Y amd64
+run_install
+check "existing base, wrong CPU, Health build 109 and non-Health of this CPU: the docker tag fix names the Health build 109 image, nothing changed" test "$(exit_is 1 && out_has "docker tag x/irishealth-community:$TAG_109 $BASE" && no_change && echo ok)" = ok
 
 new_case base-wrong-cpu-non-health
 add_image "x/iris-community:$TAG" $NON_HEALTH_ID arm64
@@ -456,7 +562,8 @@ new_case base-wrong-cpu-none
 add_base $ID_X amd64
 run_install
 check "existing base, wrong CPU, no image loaded: exit 1" exit_is 1
-check "existing base, wrong CPU, no image loaded: gives the load and the tag commands" test "$(out_has 'docker load -i <the archive file>' && out_has "irishealth-community:$TAG> $BASE" && echo ok)" = ok
+check "existing base, wrong CPU, no image loaded: gives the load and the tag commands" test "$(out_has 'docker load -i <the archive file>' && out_has "irishealth-community:$TAG or irishealth-community:$TAG_109> $BASE" && echo ok)" = ok
+check "existing base, wrong CPU, no image loaded: the download line names build 154 or build 109 and this CPU" out_has "Download the IRIS for Health AI Hub build 154 or build 109 archive for arm64 and load it:  docker load -i <the archive file>"
 check "existing base, wrong CPU, no image loaded: nothing changed" no_change
 
 # --- the checks that come before any change ---
@@ -840,6 +947,8 @@ fi
 eol=$(git check-attr eol -- install.sh 2>/dev/null | sed 's/.*: //')
 check ".gitattributes: install.sh keeps LF on every checkout" test "$eol" = lf
 script_tag=$(sed -n 's/^TAG=//p' "$script")
+script_tag_109=$(sed -n 's/^TAG_109=//p' "$script")
+check "install.sh: its TAG_109 is this test's build 109 tag" test "$script_tag_109" = "$TAG_109"
 check "install.sh: its TAG is this test's tag and the tag of the compose file's default image" test "$(test "$script_tag" = "$TAG" && grep -qF "IRIS_IMAGE:-ocutalon-iris-base:$script_tag}" "$root/docker-compose.yml" && echo ok)" = ok
 check "docker-compose.yml: the service is iris and it publishes container port 52773 (what install.sh polls and asks about)" test "$(grep -qE '^  iris:$' "$root/docker-compose.yml" && grep -qF ':52773"' "$root/docker-compose.yml" && echo ok)" = ok
 sed -n '/^fmt_time() {/,/^}/p' "$script" > "$tmp/fmt_time.sh"
