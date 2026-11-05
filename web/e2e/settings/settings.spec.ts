@@ -139,6 +139,7 @@ test('S1f: a failed load shows the load error, and Retry loads the page', async 
 
 /** S2: a save of two thresholds is written, shown, announced and read back by GET /v1/settings. */
 test('S2: saving two thresholds shows the saved text, and GET /v1/settings returns the new values', async ({ page }) => {
+  await recordAnnouncements(page);
   await openThresholds(page);
   const before = await thresholds(page);
   try {
@@ -152,6 +153,8 @@ test('S2: saving two thresholds shows the saved text, and GET /v1/settings retur
     await saveButton(page).click();
     await expect(savedText(page), 'the saved text shows').toBeVisible();
     await expect(page.locator('p.saved'), 'and it is exactly the shared text, without the Demo mode sentence').toHaveText(SAVED);
+    await expect.poll(() => announcements(page, SAVED), 'the shared text is announced').toBe(1);
+    expect(await announcements(page, DEMO_SAVED), 'never the Demo mode text').toBe(0);
     await expect(page.getByText(FAILED), 'and no error').toHaveCount(0);
     const after = await thresholds(page);
     expect(after.diskFreePercent, 'GET shows the first new value at once').toBe(diskFree);
@@ -478,7 +481,9 @@ test('S7c: a Demo mode save shows and announces its own confirmation with the re
     await expect(toggle).toHaveAttribute('aria-checked', String(!was));
     await saveButton(page).click();
     await expect(page.locator('p.saved'), "the section's own confirmation").toHaveText(DEMO_SAVED);
-    await expect.poll(() => announcements(page, DEMO_SAVED), 'announced once').toBe(1);
+    await expect.poll(() => announcements(page, DEMO_SAVED), 'it is announced').toBe(1);
+    await page.waitForTimeout(2500);
+    expect(await announcements(page, DEMO_SAVED), 'and announced once').toBe(1);
   } finally {
     await page.unroute('**/api/v1/settings/demo-mode');
   }

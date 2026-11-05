@@ -57,6 +57,24 @@ deferred: []
 - Given the Check thresholds section, when a save succeeds, then it shows exactly "Saved. Applies within a minute. Recorded in the audit log.", and no other section's text changes.
 - Given the tests, when they run, then `ux-strings.test.mjs` covers the new key and `settings.spec.ts` pins both texts (S7c, S2).
 
+### Review Findings
+
+Code review 2026-11-04 (four layers: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor; tier full-opus). 0 decision-needed, 2 patch, 1 defer, 8 rejected.
+
+- [x] [Review][Patch] S2 never checked the Check thresholds announcement, so thresholds announcing the Demo text would pass; S2 now records announcements and asserts the shared text is announced and the Demo text never is (low, fix-risk low, in-story) [web/e2e/settings/settings.spec.ts:156]
+- [x] [Review][Patch] S7c's "announced once" poll passed at its first reading of 1; it now settles 2.5 s and re-reads, the repo's once pattern (banners.spec.ts) (low, fix-risk low, in-story) [web/e2e/settings/settings.spec.ts:484]
+- [x] [Review][Defer] EXPERIENCE.md:951's Saving rule names only the shared text, while Demo mode now adds the ruled reload sentence [_bmad-output/planning-artifacts/ux-designs/ux-OcuTalon-2026-10-16/EXPERIENCE.md:951] -- deferred: spec-bound (the spec forbids an EXPERIENCE.md edit; text ruled through the AC), ledger DW-708 `by-design`
+
+Rejected:
+- `false` blind-hunter+edge-case-hunter: `z-settings-save.spec.ts` matches by substring, so no real-stack test pins `demoSaved` -- the text is a client constant chosen in the 200 handler; S7c drives that handler in a real browser and went red on the `saved` mutation, and the real-stack spec proves the same handler runs on the real path.
+- `low` blind-hunter: the Auto Run Result says "Residual risks: none known" and then names one -- the fix is a spec edit.
+- `low` blind-hunter: the cycle log's `adr_verifications_complete` line for 33.3 carries no `evidence=` -- a lead-owned record that this stage may not write; no product or test harm.
+- `false` edge-case-hunter + acceptance-auditor: spec `status: done` vs sprint-status `review` -- the spec status is `bmad-build-auto`'s contract; the tracker is synced by this review.
+- `low` verification-gap: `ac` sources in `ux-strings.test.mjs` are never checked against `epics.md` -- pre-existing design of the test, the fix adds an epics.md parser; checked by hand, `demoSaved` equals epics.md:7969.
+- `false` verification-gap: AC 1's announcement assertion was never shown to fail -- Rule 19 asks one mutation per AC (recorded); this review's double-announce mutation turned that assertion red too.
+- `false` acceptance-auditor: `demoSaved` sits in `SETTINGS_TEXTS`, not `Catalog.Core` -- sanctioned under Design Notes (33.2's page texts live there; AD-32 governs server-rendered notifications).
+- `false` acceptance-auditor: the thresholds announcement is unpinned -- duplicate of the first patch, now pinned.
+
 ## Spec Change Log
 
 ## Review Triage Log
@@ -102,6 +120,8 @@ Each `ci/iris.sh` call sets `OCUTALON_LOCK_DIR="$(dirname "$(git rev-parse --pat
 **Pinning tests (Rule 19; implement writes each `mutation:` line):** AC 1 -> S7c, mutation: the section uses `saved`; AC 2 -> S2, mutation: thresholds use `demoSaved` (both in one extra `live sign-in --part 3/3`, exactly S2 and S7c red, restored from backup, `git status --short` unchanged, bundle rebuilt); AC 3 -> `ux-strings.test.mjs`, mutation: drop the `ac` entry; exact text -> `settings-view.test.mjs`, mutation: change one word of `demoSaved`.
 
 **Mutation results (observed at implement):** `mutation:` the section uses `saved` and thresholds use `demoSaved` -> `live sign-in --part 3/3` red on exactly S2 and S7c (71 passed, 2 failed); `mutation:` drop the `ac` entry -> `ux-strings.test.mjs` red ("has an entry for every inventory string"); `mutation:` `demoSaved` ends "after an hour" -> `settings-view.test.mjs` red. Each restored from a backup in the scratchpad; the diff was byte-identical afterwards, and the bundle was rebuilt.
+
+**Mutation results (observed at code review):** `mutation:` `check-thresholds-section.ts` announces `demoSaved` and `demo-mode-section.ts` announces `demoSaved` a second time after 1 s -> `live sign-in --part 3/3` red on exactly S2 ("never the Demo mode text", 1 vs 0) and S7c ("and announced once", 2 vs 1), 71 passed, 2 failed; sources restored from backup, `git status --short` and `git diff --stat` unchanged, bundle rebuilt, part 3/3 then 73 passed.
 
 ## Auto Run Result
 

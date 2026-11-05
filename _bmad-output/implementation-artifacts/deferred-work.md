@@ -3953,6 +3953,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: LiveState loads /state once per page load and no event carries demo.mode; keepDemoMode updates only the settings page, so Chat keeps the old pill, guide and devices; /state reads Setting.Get (60 s cache), so a refresh at once would still be stale
 - 2026-11-05T01:02:21Z status=decision-pending owner=burndown by=cr note=product call: refresh the snapshot after the cache window, or tell the admin to reload (new text needs a ruling)
 - 2026-11-05T02:18:29Z status=routed owner=33-3-epic-33-burn-down by=burndown note=ruled_2026-11-05_by_the_Contest_Planner_under_delegation(orchestrator):tell_the_admin_with_a_Demo_mode_confirmation_key;no_live_refresh_now;chartered_into_33.3
+- 2026-11-05T03:00:07Z status=resolved-by:33-3-epic-33-burn-down by=adjudication note=commit_3218c2ef+CR_patch:Demo_mode_section_shows_and_announces_the_ruled_text(SETTINGS_TEXTS.demoSaved);pinned_by_settings.spec.ts_S7c,S2,ux-strings,settings-view;live_refresh_is_DW-707
 
 ### DW-700: SaveBridge passes old to BridgeSet without clearing it, so a Set that returns OK without setting old would audit the previous field's value
 - source: spec-33-2-open-the-settings-page-as-an-admin.md | severity: low | fix-risk: low | footprint: in-story
@@ -3988,3 +3989,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: cycle-log-epic-33 (burn-down ruling 2026-11-05) | severity: med | fix-risk: high | footprint: in-epic
 - evidence: LiveState loads /state once per page load and no live event carries demo.mode; /state reads Setting.Get behind a 60 s cache; ruled for later (low priority) by the Contest Planner under the owner's delegation
 - 2026-11-05T02:18:29Z status=routed owner=burndown by=burndown note=priority_low_by_ruling;own_installs_only(the_online_demo_account_has_no_OcuTalonAdmin);cites_the_DW-699_ruling_of_2026-11-05
+
+### DW-708: EXPERIENCE.md's Settings Saving rule (line 951) says every section confirms with the shared saved text; the Demo mode section now adds the ruled reload sentence
+- source: spec-33-3-epic-33-burn-down.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: SETTINGS_TEXTS.demoSaved (Story 33.3 AC, epics.md:7969, ruled for DW-699) differs from EXPERIENCE.md:951; the spec forbids an EXPERIENCE.md edit and sources the text as ac in ux-strings.test.mjs
+- 2026-11-05T02:59:00Z status=by-design owner=33-3-epic-33-burn-down by=cr note=spec-bound: text ruled via the AC, EXPERIENCE.md edit forbidden; DW-707 may drop the reload sentence and end the drift
