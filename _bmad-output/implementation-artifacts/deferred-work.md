@@ -4288,3 +4288,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-11-22-first-daily-release-burn-down.md (cr) | severity: low | fix-risk: low | footprint: in-story
 - evidence: irisScript (Story 11.21) has no abort signal; boundedStep rejects at DIAG_BOUND_MS while the retry loop continues; failure path of a failure path only
 - 2026-11-05T14:50:17Z status=wontfix-accepted owner=11-22-first-daily-release-burn-down by=cr note=reopen_if=a CI log shows a DIAG /state unavailable line followed by a docker exec left running after the test ended
+
+### DW-755: While only Anthropic is marked supported, no public text (README, bridge guide, settings page, release notes) may say another provider runs decisions; a live proof with that provider is required before any such claim
+- source: spec-17-3-run-each-agent-on-a-supported-provider.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: U-288 KEEP condition (Contest Planner, 2026-11-05T19:09:13Z#875): IG-1 accepted the in-process and shadow-runner proof instead of a live decision through a resolved runner
+- 2026-11-05T19:27:45Z status=routed owner=burndown by=lead note=owner condition U-288; re-own to the release-check story that marks a second provider supported
