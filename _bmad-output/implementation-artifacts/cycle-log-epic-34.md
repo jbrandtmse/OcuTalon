@@ -105,3 +105,5 @@
 2026-11-05T19:31:57Z	Story 34.2	ci_red_classified	run=42086496017 workflow=.github/workflows/ci.yml class=flake test=browser:live:sign-in_session.spec.ts:135_S3 flake=DW-550(orchestrator) note=no_DIAG_/state_output_in_CI;one_rerun
 2026-11-05T19:35:09Z	Story 34.3	owner_decision	id=DW-738 via=orchestrator by=Contest_Planner(delegated) note=YES:constraints_per_architecture_in_34.3_before_merge
 2026-11-05T19:35:09Z	Story 34.3	spec_validated	item=DW-738_only owned_ledger=+DW-738 addressed=1 amendment=epics.md:34.3_DW-738_bullet x64=measured_on_x64_or_from_CI_image_build_output model=claude-opus-5-5
+2026-11-05T20:02:39Z	Story 34.2	ci_resolved	story=34.2 sha=2651a548 runs=42086496017,42086495970 result=success failed=none via=none resolved_at=next_plan attempts=ci:2(DW-550_flake_rerun:session.spec_S3) first_ci=story(6508ddc3:4_jobs,reworked) note=D5_red_on_6508ddc3_did_not_recur
+2026-11-05T20:02:40Z	Story 34.3	stage_spawned	stage=implement spawn_at=2026-11-05T20:02:40Z model=sonnet agent_name=34-3-epic-34-burn-down-implement-1 cycle_iteration=1 story_base=90748e4e
