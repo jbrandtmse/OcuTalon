@@ -12,3 +12,10 @@
 2026-11-05T04:55:11Z	Epic 34	slot_loaded	server=ocutalon-slot-c namespace=OCUTALON build=154U bridge=57 ocutalon=609 compiled=ok stale_deleted=none model=sonnet
 2026-11-05T04:55:11Z	Epic 34	epic_context_compiled	sha=7d6b8552 reason=initial model=opus words=1234
 2026-11-05T04:55:29Z	Story 34.1	stage_spawned	stage=plan spawn_at=2026-11-05T04:55:29Z model=opus agent_name=34-1-settle-step-3-ownership-and-fix-its-contracts-plan-1 cycle_iteration=1
+2026-11-05T05:17:55Z	Epic 34	gate_released	feature_green=d76c9e79 runs=41969776674,41969776634 by=orchestrator read_at=2026-11-05T05:11Z
+2026-11-05T05:17:55Z	Story 34.1	story_created	spawn_at=2026-11-05T04:55:29Z model=opus path=_bmad-output/implementation-artifacts/spec-34-1-settle-step-3-ownership-and-fix-its-contracts.md build_status=ready-for-dev spec_bytes=44477 warnings=oversized epic_context=reused
+2026-11-05T05:17:55Z	Story 34.1	ruling	question=ux_dr144_pdf_word_s6_wording_and_local_install_rule choice=put_to_author_proposed_wording;no_edit_(EXPERIENCE.md_contended_epic40) rejected=edit_now category=veto inbox=U-279 policy=5086036
+2026-11-05T05:17:55Z	Story 34.1	ruling	question=reply_marking_semantics choice=code_built_from_turn_tool_results_max5 rejected=model_marked why=honest_by_construction category=veto inbox=U-280 policy=5086036
+2026-11-05T05:17:55Z	Story 34.1	ruling	question=live_payload_document_owner choice=story_34.2_creates_Live.Payload.Document_and_TYPES_entry rejected=lane_a_now why=Live/Publish.cls_is_lane_B;payloads.mjs_refuses_missing_TYPES category=decide policy=5086036
+2026-11-05T05:17:55Z	Story 34.1	ruling	question=ipm_python_packages_gap choice=no_entry_already_covered_by_19.2_and_19.6_ACs category=decide policy=5086036
+2026-11-05T05:17:55Z	Story 34.1	spec_validated	service_introducing=true integration_ac=declared-none(first_consumer=34.2) adr_constrained_acs=AD-1,AD-2,AD-3,AD-4,AD-5,AD-12,AD-21,AD-23,AD-25,AD-29,AD-31,AD-33 decision_dependency=none sections_created=none owned_ledger=none addressed=0 declined=0 mutates_shared_runtime=false task0=fastembed_path_stop_rule contended=spine,Test/Data/Tables.cls(insert),src/short-names.tsv(append) model=claude-opus-5-5
