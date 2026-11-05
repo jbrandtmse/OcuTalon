@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from '../support/fixtures';
 
 import { unique } from '../support/floor';
 import { chk, cleanFixtureRows, fixtureUser, irisScript, quoted, seedTurns, turnRows } from '../support/iris';

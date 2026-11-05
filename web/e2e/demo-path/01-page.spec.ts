@@ -1,4 +1,4 @@
-import { expect, test, type Response } from '@playwright/test';
+import { expect, test, type Response } from '../support/fixtures';
 
 import { README_ACCOUNT, watchViolations } from '../sign-in/helpers';
 import { signInReadmeLoaded } from '../support/floor';

@@ -131,11 +131,11 @@ describe('irisSessionCommand', () => {
 });
 
 describe('by source', () => {
-  it('runOnce in iris.ts spawns what irisSessionCommand gives', () => {
+  it('runOnce in iris.ts runs what irisSessionCommand gives', () => {
     const iris = read('iris.ts');
     const body = iris.slice(iris.indexOf('function runOnce'), iris.indexOf('export async function irisScript'));
     assert.match(body, /irisSessionCommand\(process\.env, irisContainer\)/);
-    assert.match(body, /spawn\(cmd, args,/);
+    assert.match(body, /runBounded\(cmd, args,/);
     assert.doesNotMatch(body, /spawn\('docker'/, 'the docker argv lives in rehearsal.ts only');
   });
 

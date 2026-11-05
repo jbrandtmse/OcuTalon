@@ -1,4 +1,4 @@
-import { expect, test, type APIRequestContext, type APIResponse, type Response } from '@playwright/test';
+import { expect, test, type APIRequestContext, type APIResponse, type Response } from '../support/fixtures';
 
 import { EVENTS, MESSAGES, STATE, post, sessionEvents } from '../support/api';
 import { loadedAfter } from '../support/floor';

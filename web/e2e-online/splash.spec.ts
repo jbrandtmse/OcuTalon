@@ -1,6 +1,6 @@
 import { createHash } from 'node:crypto';
 
-import { expect, test, type Locator, type Page, type Response } from '@playwright/test';
+import { expect, test, type Locator, type Page, type Response } from '../e2e/support/fixtures';
 
 import { countdownText, pageTime, WHEN_TEXTS } from '../src/app/chat/page-time';
 import { README_URL } from '../src/app/links';

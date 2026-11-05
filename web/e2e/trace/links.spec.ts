@@ -1,4 +1,4 @@
-import { expect, test, type APIRequestContext, type Locator, type Page } from '@playwright/test';
+import { expect, test, type APIRequestContext, type Locator, type Page } from '../support/fixtures';
 
 import { STATE, changeSnapshot } from '../support/api';
 import {
@@ -94,11 +94,6 @@ test.beforeAll(async ({ playwright }) => {
 
 test.afterAll(async () => {
   await api?.dispose();
-});
-
-/** A poll that a routed /state handler is still answering when a test ends must not fail the next test. */
-test.afterEach(async ({ page }) => {
-  await page.unrouteAll({ behavior: 'ignoreErrors' });
 });
 
 /**

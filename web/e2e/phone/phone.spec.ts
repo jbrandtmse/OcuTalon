@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '../support/fixtures';
 
 import { changeSnapshot } from '../support/api';
 import { clock, tokenColor } from '../support/page';
@@ -15,11 +15,6 @@ import { signInReadmeLoaded } from '../support/floor';
  *   P4  demo mode off with a `phone` key present: no region and no middle skip link.
  */
 test.use({ timezoneId: 'Asia/Kolkata', locale: 'en-US', viewport: { width: 1280, height: 720 } });
-
-/** A poll or a snapshot that a routed handler is still holding when a test ends must not fail the next test. */
-test.afterEach(async ({ page }) => {
-  await page.unrouteAll({ behavior: 'ignoreErrors' });
-});
 
 const PHONE_TAB = 'Simulated phone';
 const MAILBOX_TAB = 'Simulated mailbox';

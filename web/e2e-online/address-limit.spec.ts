@@ -1,4 +1,4 @@
-import { expect, test } from '@playwright/test';
+import { expect, test } from '../e2e/support/fixtures';
 
 import { pageTime } from '../src/app/chat/page-time';
 import { irisScript, chk, quoted } from '../e2e/support/iris';

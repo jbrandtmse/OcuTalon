@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { expect, test, type Locator, type Page } from '../support/fixtures';
 
 import { signIn } from '../sign-in/helpers';
 import {
@@ -30,11 +30,6 @@ import { plain, tokenColor } from '../support/page';
  * specs run.
  */
 test.use({ timezoneId: 'UTC', locale: 'en-GB' });
-
-/** A poll that a routed /events handler is still answering when a test ends must not fail the next test. */
-test.afterEach(async ({ page }) => {
-  await page.unrouteAll({ behavior: 'ignoreErrors' });
-});
 
 const LIVE_REGIONS = '[aria-live], [role="log"], [role="status"], [role="alert"]';
 
