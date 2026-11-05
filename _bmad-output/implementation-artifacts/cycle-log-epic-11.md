@@ -564,3 +564,11 @@
 2026-11-05T18:57:52Z	Story 11.23	smoke_complete	method=cli result=pass iterations=2 defects_caught=0 evidence=_bmad-output/implementation-artifacts/evidence/11-23-build-109-install.md(real_install.sh_on_the_loaded_109_image,lane-B_tag_e11s23b109:image_line_build_109,exit_0_in_164s,sign-in_200,demo-path_01-page.spec_6_passed;run_1_rail_test_red_on_the_CI_dummy_bot_token,run_2_with_live_no_bot_token_green;torn_down) model=claude-opus-5-5
 2026-11-05T18:57:52Z	Story 11.23	fresh_check	env=clean-checkout tests=test-install-script.sh,test-readme.sh result=pass order=forward,reverse model=claude-opus-5-5
 2026-11-05T18:59:31Z	Epic 11	integrated_forward	feature=e62a5844 head=8b24c3ed conflicts_resolved=none checks=test-install-script,test-readme,test-boundaries_pass stage=before_11.23_push
+2026-11-05T18:59:41Z	Story 11.23	committed	sha=47466210 submodules= ci=pending runs=42089560414,42089560821 amendments=AD-23_retag_sentence(U7) footprint_extensions=none
+2026-11-05T18:59:41Z	Story 11.23	story_cycle	plan_to_commit_min=180 implement_passes=1 reviews=1 rework=0 first_ci=pending models=plan:claude-opus,implement:claude-sonnet,qa:claude-sonnet,cr:claude-opus
+2026-11-05T19:47:50Z	Story 11.23	ci_resolved	story=11.23 sha=47466210 runs=42089560414,42089560821 result=success failed=none via=none resolved_at=burndown ci_queue=11
+2026-11-05T19:47:50Z	Epic 11	ledger_burndown_complete	part=11.23 open_before=1(DW-636) resolved=1 terminal=1(DW-751:wontfix-accepted_at_emission) chartered=0 chartered_size=0 overflow=0 reowned=0 to_decision_sheet=0 open_after=0 cap=8 story_max=12 filed_this_epic=1 closed_this_epic=2 drain_ratio=2.00
+2026-11-05T19:47:50Z	Epic 11	epic_retro_skipped	reason=policy
+2026-11-05T19:47:50Z	Epic 11	epic_status_kept	status=in-progress reason=part_merge_11.23;11.24_to_be_chartered(Planner);11.14,11.15,11.16,11.18_backlog
+2026-11-05T19:47:50Z	Epic 11	model_tier_checkpoint	armed=false stack_risk=none review_tier=full-opus implement_model=claude-sonnet high_med_avg=1 unresolved_high_med_avg=0 metric=unresolved rework_stories=0 review_loop_thrash=0 rework_lang_defects=0 review_high=0 review_med=1 result=hold applied=false(record_only) note=part_11.23
+2026-11-05T19:47:50Z	Epic 11	epic_runner_complete	stories_completed=1(11.23) part_merge=11.23 note=11.24_reported_separately(not_chartered_in_this_run;fresh_runner_context_for_it)
