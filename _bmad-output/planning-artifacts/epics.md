@@ -8160,6 +8160,20 @@ So that OcuTalon can answer from my own documents.
 - DW-741: With Story 11.22's `Web.BodyLimit` (256 KB on every API route, checked in `Web.Api`'s `OnPreDispatch`), the documents upload declares its larger bound in `XData BodyBounds` in `Web.Api` (url `/v1/documents`) and in `Web.Documents` (url `""`), with the route's ~14 MB bound; tests prove both sides of that bound and the 256 KB limit on another route (ledger; routed by the orchestrator 2026-11-05) [AMENDED 2026-11-05, Story 34.2 lead, orchestrator ruling on DW-741: an acceptance bullet added for a ledger entry routed to this story; no other text changed]
 
 
+### Story 34.3: Epic 34 burn-down
+
+[AMENDED 2026-11-05, chartered by the burn-down gate, Rule 17, on the owner's ruling U-287 (decided by the Contest Planner under the owner's delegation, 2026-11-05T19:09:13Z#874): Story 34.2 keeps an uploaded file in the Lane B table `OcuTalon.Data.Upload` until `DocumentOps` takes it, and the ruling kept that design on three conditions, made tests here; Lane B's files, like Story 34.2]
+
+As a user who adds documents,
+I want an upload that was never indexed to leave nothing behind, and nobody else to see it,
+So that my files are kept only as long as OcuTalon needs them.
+
+**Acceptance Criteria:**
+
+- DW-752: an orphaned `Data.Upload` row (older than 1 hour, never taken) is deleted by an existing purge task or by the documents route's next call, with a test, so a crash between storing an upload and its `Take` leaves nothing behind (ledger; routed by burndown 2026-11-05)
+- DW-753: the 10 MB file limit and the documents route's ~14 MB body bound are enforced before any `Data.Upload` row is written, pinned by tests (no row exists after a refused add) (ledger; routed by burndown 2026-11-05)
+- DW-754: `Data.Upload` rows are owner-scoped like other session data (Ownership checks), and the online demo's reset clears them (golden restore); checked once on a throwaway reset with recorded evidence (ledger; routed by burndown 2026-11-05)
+
 ## Epic 35: Step 4's contracts: MCP servers attach, and webhooks bring events in (step 4)
 
 [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." a new epic: Stories 22.1 and 21.1, moved whole and verbatim as Stories 35.1 and 35.2, because whole-epic merges made AD-29's step pairing a deadlock] Both lanes get step 4's names fixed in the spine and in code as stubs, the MCP servers an admin registers are attached to OcuTalon's agents with every new tool unclassified, and webhooks with their own secrets turn JSON events into items, so that Epics 21 and 22 build in parallel. This epic only groups the merge: each story keeps its home lane's files and its text, and only its cross-references name the new numbers. Where a story here speaks of "this epic", "these stories", "the stories below" or "the first story of Lane B's step epic", it means the step's feature epics (Epics 21 and 22) and its partner in this epic.
