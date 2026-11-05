@@ -4716,7 +4716,7 @@ So that the harness reds the release found are gone and the API refuses oversize
 
 **Given** a request body larger than 256 KB on any API route
 **When** the route reads it (`BodyText`, the shared request-body reader)
-**Then** it answers 413 `body_too_large` before parsing; a route can declare a larger bound of its own (the documents upload route of Story 34.2 declares about 14 MB, the encoded size of its 10 MB file limit, U-285) without a change to the shared reader; a test on each side of 256 KB pins it; `Web/Api.cls` gets appended blocks only
+**Then** it answers 413 `body_too_large` before routing; a route can declare a larger bound of its own in its dispatch class's `XData BodyBounds` (the documents upload route of Story 34.2 declares about 14 MB, the encoded size of its 10 MB file limit, U-285) without a change to the shared check; a test on each side of 256 KB pins it; `Web/Api.cls` gets one line in `OnPreDispatch` and nothing else, the logic lives in `OcuTalon.Web.BodyLimit` [AMENDED 2026-11-05, Story 11.22 spec validation, apply-and-report, orchestrator ruling: `%CSP.REST.DispatchRequest` is Final and every `BodyText` caller maps a failure to 400, so the check sits in `OnPreDispatch`; it read "before parsing ... without a change to the shared reader ... `Web/Api.cls` gets appended blocks only"]
 
 **Given** the leaked resolved Orders incident of DW-698 in lane-a@rest
 **When** it is replayed in CI order on one warm stack for at most 60 minutes
@@ -4745,6 +4745,25 @@ So that the harness reds the release found are gone and the API refuses oversize
 - DW-710: CI uploads no Playwright test-results on a browser-unit failure (ledger; routed by the orchestrator 2026-11-05)
 - DW-550: `/state` not answering after a sign-in: investigate held CSP sessions and licence units (ledger; routed by the orchestrator 2026-11-05)
 - DW-706: the web/e2e request fixture has no timeout (ledger; routed by the orchestrator 2026-11-05)
+
+### Story 11.23: install.sh accepts build 109
+
+As a judge,
+I want install.sh to accept the build 109 image that the Early Access portal offers today,
+So that a local install does not stop at its first step.
+
+[ADDED 2026-11-05, Epic 11 burn-down follow-on (the Contest Planner's ruling under the owner's delegation, relayed by the orchestrator): DW-636 was declined from Story 11.22 on size (2 to 2.5 h); the Planner charters it anyway, because the Early Access portal now offers only build 109 and install.sh refuses it. Chartered as its own story so 11.22's validated spec stands.]
+
+**Acceptance Criteria:**
+
+**Given** a Docker host with the build 109 image `irishealth-community:2027.1.0AI.109.0`, or with today's exact build 154 image ref
+**When** install.sh checks the image
+**Then** it accepts either one by its exact image ref, and refuses every other ref as it does today; a test pins it, and a mutation shows a third ref is refused
+
+**Given** the README's separate "Start it with build 109" path (U-241)
+**When** install.sh accepts build 109
+**Then** the README's build-109 text is changed, sent to the Contest Planner verbatim as public text before it is committed, and committed only once approved; `docker/tests/test-readme.sh`'s build-109 pins are updated, never deleted
+- DW-636: install.sh looks only for build 154; make it find a build 109 image too, then drop the README's separate build-109 path (U-241) (ledger; chartered by the Contest Planner 2026-11-05)
 
 ## Epic 12: Approve from your own phone with Telegram
 
