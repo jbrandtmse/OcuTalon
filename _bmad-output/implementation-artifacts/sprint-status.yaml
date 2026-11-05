@@ -198,7 +198,7 @@ development_status:
   11-19-seeded-check-rows-stay-out-of-the-heartbeat-s-way-unless-a-c: done
   11-20-the-release-s-overview-step-hands-the-unit-files-the-contain: done
   11-21-a-test-s-route-callback-never-outlives-its-test: done
-  11-22-first-daily-release-burn-down: ready-for-dev
+  11-22-first-daily-release-burn-down: in-progress
   11-23-install-sh-accepts-build-109: backlog
   epic-11-retrospective: optional
 
