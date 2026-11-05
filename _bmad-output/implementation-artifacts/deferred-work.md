@@ -3899,6 +3899,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-03T23:07:37Z status=routed owner=17-2-retry-once-on-a-second-model-before-falling-back by=harvest note=17.2 states which timer wins and whether TimerSeconds is capped at 98 when RetryItem is set
 - 2026-11-05T09:40:26Z occurrence=17-2-retry-once-on-a-second-model-before-falling-back note=retry timeouts use RetryTimer(TimerSeconds), T2 uses T1=TimerFor: flagged turn T2 30s < ~42s worst; no_key T2=T
 - 2026-11-05T09:42:46Z status=routed owner=17-4-apply-model-price-budget-and-zone-changes-through-the-bridge by=adjudication note=TimerSeconds>98 resolved in 17.2 (MINTIMER clamp, RETRYSKIPPED); residual: retry entries use RetryTimer(TimerSeconds) but T2 uses T1=TimerFor (flagged turn)
+- 2026-11-05T22:03:09Z status=by-design by=spec_gate note=AD-8 timer split stands (T2 = min(TimerSeconds, 110 - T1)); 110 s limit holds; aligning the retry entry would cut each chat retry attempt to 10 s; DW-727 test kept
 
 ### DW-648: Coverage edge cases left to 17.5: a check with no run at all in the window, the key for a not_checked run with an empty or unknown Reason, non-whole percentages for digest.healthy's count slots
 - source: spec-33-1-fix-the-step-2-contracts-in-the-spine.md | severity: low | fix-risk: low | footprint: out-of-footprint

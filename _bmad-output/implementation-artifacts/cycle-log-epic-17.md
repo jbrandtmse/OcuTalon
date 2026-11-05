@@ -119,3 +119,9 @@
 2026-11-05T21:38:31Z	Story 17.3	story_cycle	plan_to_commit_min=696 implement_passes=2 reviews=1 rework=0 set_aside=1(waiting_IG-2) first_ci=pending models=plan:opus,implement:sonnet,qa:sonnet,cr:opus applied=IG-2,U-288 rulings=IG-1(U-288)
 2026-11-05T21:41:16Z	Epic 17	epic_context_compiled	sha=d10a5713 reason=planning_artifact_newer(17.4_bullets,AD-20) model=opus
 2026-11-05T21:41:16Z	Story 17.4	stage_spawned	stage=plan spawn_at=2026-11-05T21:41:16Z model=opus agent_name=17-4-apply-model-price-budget-and-zone-changes-through-the-bridge-plan-1 cycle_iteration=1
+2026-11-05T22:03:23Z	Story 17.4	story_created	spawn_at=2026-11-05T21:41:16Z model=opus path=_bmad-output/implementation-artifacts/spec-17-4-apply-model-price-budget-and-zone-changes-through-the-bridge.md build_status=ready-for-dev warnings=oversized epic_context=reused
+2026-11-05T22:03:23Z	Story 17.4	ruling	question=model_test_texts choice=accept category=veto inbox=U-292 policy=5086036
+2026-11-05T22:03:23Z	Story 17.4	ruling	question=DW-757_one-time_price_correction_on_upgrade choice=correct_only_never-edited_seeded_row category=veto inbox=U-293 policy=5086036
+2026-11-05T22:03:23Z	Story 17.4	ruling	question=DW-647_retry_entry_vs_T2 choice=by-design(AD-8_split_stands) category=decide policy=5086036
+2026-11-05T22:03:23Z	Story 17.4	spine_updated	ad=conv:Provider_endpoints(new_row) reason=DW-758 by=runner story=17-4 lint=ok_false_preexisting_8_placeholder
+2026-11-05T22:03:23Z	Story 17.4	spec_validated	service_introducing=true integration_ac=present adr_constrained_acs=AD-5,AD-6,AD-8,AD-18,AD-19,AD-20 decision_dependency=none owned_ledger=DW-647,DW-727,DW-757,DW-758 addressed=3(DW-727,DW-758,DW-757_by_ruling) declined=1(DW-647_by-design) mutates_shared_runtime=false pending=orchestrator(Lane_B_tests_U-177;AD-8_model_test_never_retried) implement_blocked_until_ruled=yes
