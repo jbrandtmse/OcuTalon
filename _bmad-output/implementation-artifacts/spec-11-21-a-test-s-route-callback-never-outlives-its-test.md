@@ -351,6 +351,14 @@ After each live unit, also after a failure, run `LANE bash ci/iris.sh teardown`.
 - After the amend patches, each on its own lane-B throwaway (`e11s21impl2`), torn down after each: `ci/iris.sh build`; `live online-session` 13 passed (L5 and L6 among them); `live sign-in --part 1/2` 138 passed; `--part 2/2` 132 passed (`helper-waits.spec.ts` among them); `live demo-path` 28 passed; `live floor` 107 passed. No spec needed an explicit timeout.
 - After the review patches (the helper cases added, `effectiveWaits` and `WAIT_SLACK_MS` extracted, no behaviour change): lint exit 0; `npm --prefix web test` 1366 of 1366; hermetic `route-cleanup`, `iris-script-bound` and `helper-waits` (8 cases) 19 passed; `live online-session` 13 passed; `live sign-in --part 2/2` 135 passed; `live online-allowance` 12 passed; `live online-visitors` 1 passed and `live online-demo-path` 7 passed (`OCUTALON_LIVE_DEADLINE=1200`); `live online-demo` 52 passed (same deadline). `live demo-path` and `live floor` were not re-run after the review patches: the patches changed no code that unit runs other than a behaviour-identical extraction.
 
+**QA gap audit (qa stage):** no AC or matrix row lacked a pinning test, so no test file was added; AC5 (live proof) and AC6 (`git diff` footprint) have no mutation. `web/e2e/live/iris-script-bound.spec.ts` lost one elapsed-time assertion (`< 4000` ms; the spec's own test timeout already fails an unbounded run). Re-run: lint exit 0; 47 node tests (`route-cleanup`, `bounded-waits`, `goto-settled`) passed; 19 hermetic Chromium tests passed.
+- mutation (QA): AC1 `e2e/live/socket.spec.ts` back on `'@playwright/test'` → `route-cleanup.test.mjs` red, naming `e2e/live/socket.spec.ts`.
+- mutation (QA): AC2 `context.pages()` loop deleted from the `context` override → `route-cleanup.spec.ts` pair (c) follower red, `route.fetch: Test ended`.
+- mutation (QA): AC3 a new `e2e/zz-qa-probe.spec.ts` importing `test` from `@playwright/test` → `route-cleanup.test.mjs` red, naming that file.
+- mutation (QA): AC4 `metadata.irisScriptMs` dropped from `online-visitors` → `bounded-waits.test.mjs` red, `online-visitors: metadata.irisScriptMs`.
+- mutation (QA): AC7 `loadedAfter`'s sign-in `boundedStep` replaced by `await signInAction()` → `helper-waits.spec.ts` "loadedAfter: a sign-in that never ends" red (`Test timeout of 12000ms exceeded`).
+- Each reverted from a copy taken first; `git status --short` showed only the `iris-script-bound.spec.ts` edit afterwards.
+
 **Shared surfaces:**
 - the import line of every spec under `web/e2e` and `web/e2e-online`
 - the chromium project's spec list and `live:sign-in`'s part cuts (one new file, `web/e2e/live/route-cleanup.spec.ts`, read from disk by `playwright-projects.test.mjs` and `e2e-part.mjs`)
