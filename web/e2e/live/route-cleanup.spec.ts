@@ -6,8 +6,7 @@ import { expect, test, type Page, type Route } from '../support/fixtures';
 /**
  * A test's route callback never outlives its test (Story 11.21; DW-640, DW-665). Each pair is a leaver followed by a follower: the
  * leaver ends while a route callback is still waiting on route.fetch to an upstream that never answers, and the follower must pass.
- * Without the shared test's unroute (e2e/support/fixtures.ts) the follower fails with `route.fetch: Test ended`, as live.spec.ts L9 and
- * socket.spec.ts W11 did. The pairs cover the callback on the fixture page (a), on the context (b) and on a second page of the context
+ * Without the shared test's unroute (e2e/support/fixtures.ts) the follower fails with `route.fetch: Test ended`. The pairs cover the callback on the fixture page (a), on the context (b) and on a second page of the context
  * (c), and a page that the test closed itself (d), which must make no error. Needs a local Chromium only: it serves its own page and
  * its own upstream, so it reads no OCUTALON_ variable and needs no stack.
  */

@@ -95,7 +95,8 @@ function currentBound(): number | undefined {
  * Runs a script of ObjectScript lines in the OCUTALON namespace of the IRIS container, as docker/tests/lib-live.sh's
  * iris_script does, and returns the lines that start with `CHK|` (the script prints them with Write !,"CHK|...").
  * A session that prints no such line is tried again, at most three tries 5 s apart.
- * A session that gives no answer within ms is killed and never tried again: the call rejects with
+ * A session that gives no answer within ms is never tried again: its local command (the docker exec client, or the OCUTALON_E2E_IRIS_EXEC
+ * shell) is killed, which does not stop an iris session already running in the container, and the call rejects with
  * `irisScript: no answer within <ms/1000> s from the script starting "<first line>"`. ms defaults to the running test's project bound
  * (the online projects set one) and is unbounded without it.
  */

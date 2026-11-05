@@ -3279,6 +3279,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-02T11:13:19Z owner=burndown by=burndown note=Epic 11 part 1 burn-down (owner trim): no charter (2 story-closable entries plus this repaired owner, under the cap, no repeat occurrences); kept for Epic 11 part 2's burn-down gate, as Epic 30 part 1 did; flakes with priority
 - 2026-11-03T18:43:26Z occurrence=31-7-after-an-unpair-the-telegram-card-shows-its-fresh-code-witho by=lead note=CI_run_41689251949_iris(browser)_live:sign-in_web/e2e/live/socket.spec.ts:138_W2_45s_timeout_in_loadedAfter_/state_wait(floor.ts:141)_runner_19;flake_rerun
 - 2026-11-03T16:12:51Z status=routed owner=burndown by=merge_gate note=occurrence:035be7d2_run_41659785594_iris(shards)_live:cards_I8_incident-card.spec.ts:396_loadedAfter_/state_wait_at_sign-in;green_on_rerun
+- 2026-11-05T02:11:01Z owner=burndown by=adjudication note=Story 11.21 bounds loadedAfter's /state wait (named failure below the test timeout); a recurrence now fails naming the snapshot GET, the slow /state itself is not addressed
 
 ### DW-551: The release checklist does not check the draft notes for the inspiration's name outside the not-affiliated note (only the tracked tree's name-only-in-note row); the draft's own rules are Story 11.13's
 - source: spec-11-4-the-release-gets-draft-notes-and-a-checklist.md | severity: low | fix-risk: low | footprint: in-epic
@@ -3844,6 +3845,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-03T23:35:54Z status=routed owner=burndown by=burndown_gate note=U-254(b)_reverses_U-177_placement;flake;first_daily_release_after_1.0.0;the_unrouteAll_fix_first;CI_run_41656484374(sign-in)
 - 2026-11-04T14:39:38Z status=routed owner=burndown by=orchestrator note=DW-665 (W11, socket.spec.ts) is the same class; one unrouteAll fix covers both specs
 - 2026-11-04T15:25:09Z status=routed owner=11-21-a-test-s-route-callback-never-outlives-its-test by=orchestrator note=not a flake: main red twice on v1.0.0 (Planner); first burndown item of the first daily release; Story 11.21
+- 2026-11-05T02:11:01Z status=resolved-by:11-21-a-test-s-route-callback-never-outlives-its-test by=adjudication note=shared fixture web/e2e/support/fixtures.ts unroutes page, context pages and context at every test end; live.spec.ts imports it; pinned by web/e2e/live/route-cleanup.spec.ts pairs (a),(c) and route-cleanup.test.mjs; mutations shown in the spec
 
 ### DW-641: web/scripts/fake-clock.mjs header lists the modules whose tests use it and omits telegram-card-view.ts, which Story 31.7's card spec now drives on it
 - source: spec-31-7-after-an-unpair-the-telegram-card-shows-its-fresh-code-witho.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -3942,6 +3944,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-04T14:39:05Z status=routed owner=burndown by=orchestrator note=first daily release after 1.0.0; classification unproven until a rerun
 - 2026-11-04T14:39:38Z status=routed owner=burndown by=orchestrator note=same class as DW-640 (route.fetch: Test ended), per the Planner; the unrouteAll fix goes in the first daily release's burndown and covers both specs
 - 2026-11-04T15:25:09Z status=routed owner=11-21-a-test-s-route-callback-never-outlives-its-test by=orchestrator note=not a flake: main red twice on v1.0.0 (Planner); first burndown item of the first daily release; Story 11.21
+- 2026-11-05T02:11:01Z status=resolved-by:11-21-a-test-s-route-callback-never-outlives-its-test by=adjudication note=socket.spec.ts imports the shared fixture; stripPollEvents' callback is unrouted at test end; pinned by route-cleanup.spec.ts (page pair) with mutation shown
 
 ### DW-667: release/checklist.sh:510 writes the notes path as given into the committed release record, so a run from a scratch folder publishes a local path
 - source: cdf1cdfc, test-boundaries rule paths | severity: med | fix-risk: low | footprint: small
@@ -3989,3 +3992,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-7-8-the-web-incident-card-shows-the-either-way-date-line-too.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: 7.8 fresh check: lane-a@Fix reversed part 2/2 on a fresh lane-B throwaway, red once (header 564), green on the unchanged rerun; Story 7.8 changed no Fix code
 - 2026-11-04T19:33:23Z status=routed owner=burndown by=adjudication note=flake candidate: Test.Fix.Snapshot exempts only a timer already running; a ScheduleService call is another background writer; note every occurrence
+
+### DW-706: In the web/e2e projects the Playwright request fixture (and playwright.request.newContext()) has no timeout, so signInOverHttp in sign-in/helpers.ts (12 callers) and other APIRequestContext waits still run to the test timeout unnamed (AC7 covers page waits only)
+- source: spec-11-21-a-test-s-route-callback-never-outlives-its-test.md | severity: med | fix-risk: high | footprint: in-story
+- evidence: playwright 1.64.1 lib/index.js:360 sets _defaultContextTimeout = actionTimeout || 0 and coreBundle.js:60714 applies it to new request contexts: 0 (no limit) in every non-online project; the online projects get 30 s
+- 2026-11-05T02:09:35Z status=escalated owner=burndown by=cr note=fix-risk high: replaces the built-in request fixture; APIRequestContext cannot follow a later test.setTimeout, so green long request waits could be cut

@@ -1,3 +1,7 @@
+import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
 import { expect, test } from '../support/fixtures';
 import { irisScript } from '../support/iris';
 
@@ -23,11 +27,16 @@ async function withSession<T>(command: string, run: () => Promise<T>): Promise<T
 }
 
 test('a session that never answers rejects at the bound, naming the first line, and is not tried again', async () => {
-  const started = Date.now();
-  await withSession('exec sleep 30', async () => {
-    await expect(irisScript(SCRIPT, 500)).rejects.toThrow(MESSAGE);
-  });
-  expect(Date.now() - started).toBeLessThan(4000);
+  const dir = mkdtempSync(join(tmpdir(), 'iris-script-bound-'));
+  const starts = join(dir, 'starts');
+  try {
+    await withSession(`echo started >> '${starts}'; exec sleep 30`, async () => {
+      await expect(irisScript(SCRIPT, 500)).rejects.toThrow(MESSAGE);
+    });
+    expect(readFileSync(starts, 'utf8').split('\n').filter(Boolean), 'the session was started once').toHaveLength(1);
+  } finally {
+    rmSync(dir, { recursive: true, force: true });
+  }
 });
 
 test('the project bound applies when the call passes none', async () => {

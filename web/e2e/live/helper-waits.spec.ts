@@ -10,7 +10,7 @@ import { epochOf, signInFromSplash } from '../../e2e-online/support';
 /**
  * A wait of the shared helpers that never ends fails on its own bound, shorter than the test's timeout, and names its step (Story 11.21,
  * AC7; DW-690, DW-691): loadedAfter's sign-in and its snapshot GET, gotoSettled's navigation, the online sign-in helpers' POST answer and
- * state GET (signInFromSplash, epochOf), and a page wait with no timeout of its own, which the shared test (e2e/support/fixtures.ts) bounds by a share of the test's timeout (e2e/support/bounds.ts waitsFor). Each case sets
+ * state GET (signInFromSplash, epochOf), and a page wait with no timeout of its own, which the shared test (e2e/support/fixtures.ts) bounds by a share of the test's timeout (e2e/support/bounds.ts waitsFor) unless the project sets its own waits. Each case sets
  * a short test timeout, so the bound is a few seconds; with the bound removed, the case runs into its test timeout instead. The pages of
  * the helper cases come from browser.newContext(), whose default waits are unbounded in this project, so only the helper's own bound
  * stops the wait. Needs a local Chromium only: its server answers the pages at once and never answers /slow, /state or the sign-in POST.
@@ -97,6 +97,16 @@ test('the shared test bounds a navigation of a second page of its context', asyn
 test('the shared test bounds a navigation that has no timeout of its own', async ({ page }) => {
   test.setTimeout(9_000);
   await expect(page.goto(`${origin}/slow`)).rejects.toThrow(/page\.goto: Timeout 6000ms exceeded/);
+});
+
+test.describe('a project that sets its own waits', () => {
+  test.use({ actionTimeout: 2_000, navigationTimeout: 3_000 });
+
+  test('keeps them: the shared test gives the page no default of its own', async ({ page }) => {
+    test.setTimeout(9_000);
+    await expect(page.waitForResponse(() => false)).rejects.toThrow(/Timeout 2000ms exceeded/);
+    await expect(page.goto(`${origin}/slow`)).rejects.toThrow(/page\.goto: Timeout 3000ms exceeded/);
+  });
 });
 
 test('signInFromSplash: a sign-in POST that is never answered fails at its bound, naming the answer', async ({ browser }) => {

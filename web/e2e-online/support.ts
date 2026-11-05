@@ -57,7 +57,7 @@ export async function signInFromSplash(page: Page, user?: string, password?: str
   if (user !== undefined) await page.getByLabel('User name', { exact: true }).fill(user);
   if (password !== undefined) await page.getByLabel('Password', { exact: true }).fill(password);
   const wait = currentWaits()?.action;
-  const answered = page.waitForResponse((response) => response.request().method() === 'POST', wait === undefined ? undefined : { timeout: wait + WAIT_SLACK_MS });
+  const answered = page.waitForResponse((response) => response.request().method() === 'POST', wait === undefined ? undefined : { timeout: 2 * wait + WAIT_SLACK_MS });
   answered.catch(() => undefined);
   await page.getByRole('button', { name: 'Sign in and start', exact: true }).click();
   return wait === undefined ? answered : boundedStep(answered, wait, 'signInFromSplash the answer to the sign-in POST');

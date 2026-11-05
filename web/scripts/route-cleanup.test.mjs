@@ -69,16 +69,24 @@ function afterEachUnroutes(source) {
   return found;
 }
 
-/** Every *.spec.ts file under e2e/ and e2e-online/, as a path from web/. */
+/** The file names Playwright runs as tests when the config sets no testMatch: its default takes *.spec.* and *.test.* with a js, ts, cjs, mjs, cts, mts, jsx or tsx extension. */
+const TEST_FILE = /\.(?:spec|test)\.[cm]?[jt]sx?$/;
+
+/** Every test file under e2e/ and e2e-online/ that Playwright would run, as a path from web/. */
 function specs() {
   return ['e2e', 'e2e-online'].flatMap((dir) =>
     readdirSync(join(webRoot, dir), { recursive: true })
-      .filter((name) => String(name).endsWith('.spec.ts'))
+      .filter((name) => TEST_FILE.test(String(name)))
       .map((name) => relative(webRoot, join(webRoot, dir, String(name))).split('\\').join('/')),
   );
 }
 
 describe('the classifier', () => {
+  it('walks every file name that Playwright runs as a test', () => {
+    for (const name of ['a.spec.ts', 'a.test.ts', 'a.spec.js', 'a.test.mjs', 'a.spec.tsx']) assert.ok(TEST_FILE.test(name), name);
+    for (const name of ['helpers.ts', 'fixtures.ts', 'a.spec.ts.snap']) assert.ok(!TEST_FILE.test(name), name);
+  });
+
   it('flags a spec that imports test from Playwright', () => {
     assert.notDeepEqual(importProblems("import { expect, test, type Page } from '@playwright/test';\n"), []);
     assert.notDeepEqual(importProblems("import { expect, test as t } from '@playwright/test';\n"), []);
