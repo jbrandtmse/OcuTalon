@@ -474,6 +474,9 @@ const SOURCES = {
     'Story 2.8: Show the status rail (the approval request row, "Raised 14:13 \u00b7 expires tomorrow at 14:13")': ['Raised {when}'],
     'Story 2.13: Open Visual Trace from the page (the optional "Open Visual Trace" button of the popover)': ['Open Visual Trace'],
     'Story 16.8: The page counts down to the reset (the reset countdown reads "Next reset {time} \u00b7 in {countdown}")': ['Next reset {time} \u00b7 in {countdown}'],
+    'Story 33.3: Epic 33 burn-down (the Demo mode section\'s own confirmation, DW-699)': [
+      'Saved. Applies within a minute. Recorded in the audit log. Reload the chat page after a minute to see the change.',
+    ],
   },
   ruled: {
     'Story 33.2 ruling U-269 (T1 to T8: the unsaved prompt and its Leave button, the denied view\'s link back to the chat, the line of a section that is not built yet, the five threshold labels, T7 the UX\'s Demo mode sentence without its FR reference, and the name of the settings navigation; T2\'s Stay, T6\'s On and Off, T8\'s Pages and T10\'s two API messages are sentences or words that the UX holds, and sit under ux)': [

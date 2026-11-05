@@ -2,7 +2,8 @@
 title: 'Story 33.3: Epic 33 burn-down'
 type: 'bugfix'
 created: '2026-11-04'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '58ecea1eea2b9302f0df94b10a5242f29bfa79ae'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -59,6 +60,17 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-11-04 -- Review pass
+- verdicts: 7 findings -- high 0, medium 0, low 4, false 3, maybe-false 0
+- findings:
+  - `[false]` `[reject]` Blind 1, no component test ties the section to `demoSaved` -- S7c asserts both the shown text and the announcement in a real browser, and the live mutation (section back on `saved`) turned S7c red.
+  - `[low]` `[reject]` Blind 2, "announced once" is a poll that passes at the first reading of 1 -- the display and the announcement are one handler call in `demo-mode-section.ts`, so a later duplicate has no path; a settle-and-recheck would add a wait for a case with no route.
+  - `[false]` `[reject]` Blind 3, no check that `demoSaved` is absent on the pending-edit and 409 paths -- those branches are untouched by the diff (they never reach the saved text), and S7b already pins the 409 text.
+  - `[false]` `[reject]` Blind 4, the 409 path gives no reload hint -- the intent limits the new text to the saved confirmation and forbids any other new text; spec-bound, by design.
+  - `[low]` `[reject]` Blind 5, the sentence is spelled out in five places -- the tests state the text literally on purpose, so a drift in `demoSaved` turns them red; deriving it from `SAVED` would weaken the pin.
+  - `[low]` `[reject]` Blind 6, the e2e file header still opens "Story 33.2" -- the header's case list now names S7c as the spec's task asks; a rename is cosmetic.
+  - `[low]` `[reject]` Edge 1, the same claim as Blind 2 -- rejected for the same reason.
+
 ## Design Notes
 
 **Governing ADs (Rule 6):** AD-12 (the page decides nothing; no live refresh added), AD-13, AD-22, AD-29 (Lane B files), AD-32 (wording from the planning documents). No conflict; no NFR tripwire.
@@ -88,7 +100,24 @@ Each `ci/iris.sh` call sets `OCUTALON_LOCK_DIR="$(dirname "$(git rev-parse --pat
 
 **Pinning tests (Rule 19; implement writes each `mutation:` line):** AC 1 -> S7c, mutation: the section uses `saved`; AC 2 -> S2, mutation: thresholds use `demoSaved` (both in one extra `live sign-in --part 3/3`, exactly S2 and S7c red, restored from backup, `git status --short` unchanged, bundle rebuilt); AC 3 -> `ux-strings.test.mjs`, mutation: drop the `ac` entry; exact text -> `settings-view.test.mjs`, mutation: change one word of `demoSaved`.
 
+**Mutation results (observed at implement):** `mutation:` the section uses `saved` and thresholds use `demoSaved` -> `live sign-in --part 3/3` red on exactly S2 and S7c (71 passed, 2 failed); `mutation:` drop the `ac` entry -> `ux-strings.test.mjs` red ("has an entry for every inventory string"); `mutation:` `demoSaved` ends "after an hour" -> `settings-view.test.mjs` red. Each restored from a backup in the scratchpad; the diff was byte-identical afterwards, and the bundle was rebuilt.
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary:** The Demo mode section shows and announces its own confirmation (`demoSaved`, the ruled text verbatim); Check thresholds keeps `saved`. No other text, server, IRIS, Lane A or stability-watch file changed.
+
+**Files changed:**
+- `web/src/app/settings/settings-view.ts` -- `SETTINGS_TEXTS.demoSaved` and a header line naming its source.
+- `web/src/app/settings/demo-mode-section.ts` -- `savedText` and the announcement use `demoSaved`; doc updated.
+- `web/scripts/ux-strings.test.mjs` -- one `ac` entry for the new text.
+- `web/scripts/settings-view.test.mjs` -- asserts `demoSaved` exactly.
+- `web/e2e/settings/settings.spec.ts` -- S2 pins the shared text exactly; new S7c pins the Demo text shown and announced.
+
+**Review:** 0 patches applied, 0 deferred, 7 findings rejected (reasons in the triage log). Follow-up review recommended: false (nothing patched).
+
+**Verification:** `node --test` of settings-view and ux-strings, 25 pass; web build passes; `ci/iris.sh live sign-in --part 3/3` 73 passed (S2 and S7c included); `docker/tests/test-boundaries.sh` all rules passed. Mutations: section on `saved` plus thresholds on `demoSaved` turned exactly S2 and S7c red; dropping the `ac` entry and changing one word of `demoSaved` turned the two node tests red; each restored byte-identical.
+
+**Residual risks:** none known. The real-stack save in `z-settings-save.spec.ts` matches by substring and was not re-run (unchanged, per the spec).

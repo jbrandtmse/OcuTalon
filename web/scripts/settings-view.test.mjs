@@ -109,6 +109,10 @@ describe('the texts', () => {
   it('are the UX\'s sentences where the UX writes them', () => {
     assert.equal(SETTINGS_TEXTS.title, 'Settings \u00B7 OcuTalon');
     assert.equal(SETTINGS_TEXTS.saved, 'Saved. Applies within a minute. Recorded in the audit log.');
+    assert.equal(
+      SETTINGS_TEXTS.demoSaved,
+      'Saved. Applies within a minute. Recorded in the audit log. Reload the chat page after a minute to see the change.',
+    );
     assert.equal(SETTINGS_TEXTS.failed, "Couldn't save. Nothing was changed.");
     assert.equal(SETTINGS_TEXTS.denied, 'Only OcuTalon admins can open settings.');
     assert.equal(SETTINGS_TEXTS.save, 'Save changes');

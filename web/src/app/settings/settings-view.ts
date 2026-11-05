@@ -6,6 +6,7 @@
  *
  * - SETTINGS_TEXTS is every fixed string of the page. The strings that EXPERIENCE.md does not write are ruled (U-269 for the unsaved prompt, the
  *   denied view's link, the "not built" line, the threshold labels, the Demo mode texts and the landmark names; U-270 for the Demo step's text).
+ *   demoSaved, the Demo mode section's own confirmation, is the text of Story 33.3's AC (DW-699): a saved mode reaches an open chat page only after a reload.
  * - SETTINGS_SECTIONS is the seven sections in the UX's order, each with its address slug.
  * - sectionSlug turns an address part into a section's slug: an unknown or missing one opens Models.
  * - pageOf says which page an address is: the settings page or the chat.
@@ -30,6 +31,7 @@ export const SETTINGS_TEXTS = {
   notBuilt: "This part of OcuTalon isn't built yet.",
   save: 'Save changes',
   saved: 'Saved. Applies within a minute. Recorded in the audit log.',
+  demoSaved: 'Saved. Applies within a minute. Recorded in the audit log. Reload the chat page after a minute to see the change.',
   failed: "Couldn't save. Nothing was changed.",
   denied: 'Only OcuTalon admins can open settings.',
   back: 'Back to the chat',

@@ -2,15 +2,17 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 
 import { envelope, signIn } from '../sign-in/helpers';
 import { loadedAfter, signInReadmeLoaded } from '../support/floor';
+import { announcements, recordAnnouncements } from '../support/page';
 import { fixtureUser } from '../support/iris';
 
 /**
- * Story 33.2, the settings page for an admin (S1 to S8, with S1t, S1f, S3b, S4b, S5b, S6b, S6c and S7b), in a real browser against a real stack: the README account holds OcuTalonAdmin, and the live
+ * Story 33.2, the settings page for an admin (S1 to S8, with S1t, S1f, S3b, S4b, S5b, S6b, S6c, S7b and S7c), in a real browser against a real stack: the README account holds OcuTalonAdmin, and the live
  * fixture user (OCUTALON_LIVE_USER, test-sign-in.sh) holds OcuTalonUser only. The cases that save restore the five thresholds they change.
  */
 const SETTINGS = '/ocutalon/api/v1/settings';
 const SECTIONS = ['check-thresholds', 'budgets', 'models', 'channels', 'daily-digest', 'time-zone', 'demo-mode'] as const;
 const SAVED = 'Saved. Applies within a minute. Recorded in the audit log.';
+const DEMO_SAVED = 'Saved. Applies within a minute. Recorded in the audit log. Reload the chat page after a minute to see the change.';
 const FAILED = "Couldn't save. Nothing was changed.";
 const BUSY_NOTICE = "Couldn't reach OcuTalon. Try again. Nothing was changed.";
 const DENIED = 'Only OcuTalon admins can open settings.';
@@ -149,6 +151,7 @@ test('S2: saving two thresholds shows the saved text, and GET /v1/settings retur
     await field(page, 'queueMessages').fill(String(queue));
     await saveButton(page).click();
     await expect(savedText(page), 'the saved text shows').toBeVisible();
+    await expect(page.locator('p.saved'), 'and it is exactly the shared text, without the Demo mode sentence').toHaveText(SAVED);
     await expect(page.getByText(FAILED), 'and no error').toHaveCount(0);
     const after = await thresholds(page);
     expect(after.diskFreePercent, 'GET shows the first new value at once').toBe(diskFree);
@@ -447,6 +450,35 @@ test('S7b: a failed Demo step shows its own text and keeps the written value', a
     );
     await expect(page.locator('#demo-mode-error'), 'never the text that says nothing changed').not.toContainText('Nothing was changed.');
     await expect(toggle, 'the switch keeps the written value').toHaveAttribute('aria-checked', String(!was));
+  } finally {
+    await page.unroute('**/api/v1/settings/demo-mode');
+  }
+});
+
+/** S7c: a saved Demo mode shows and announces its own confirmation, which adds the reload sentence (DW-699); the 200 is stubbed like S7 and S7b, so the real mode is not changed. */
+test('S7c: a Demo mode save shows and announces its own confirmation with the reload sentence', async ({ page }) => {
+  await recordAnnouncements(page);
+  await signInReadmeLoaded(page);
+  await pagesNav(page).getByRole('link', { name: 'Settings', exact: true }).click();
+  await sectionsNav(page).getByRole('link', { name: 'Demo mode', exact: true }).click();
+  const toggle = page.getByRole('switch', { name: /^Demo mode/ });
+  await expect(toggle).toBeVisible();
+  const was = (await toggle.getAttribute('aria-checked')) === 'true';
+  await page.route('**/api/v1/settings/demo-mode', (route) =>
+    route.request().method() === 'POST'
+      ? route.fulfill({
+          status: 200,
+          contentType: 'application/json',
+          body: JSON.stringify({ result: 'done', sections: { 'demo-mode': { demoMode: !was } } }),
+        })
+      : route.continue(),
+  );
+  try {
+    await toggle.click();
+    await expect(toggle).toHaveAttribute('aria-checked', String(!was));
+    await saveButton(page).click();
+    await expect(page.locator('p.saved'), "the section's own confirmation").toHaveText(DEMO_SAVED);
+    await expect.poll(() => announcements(page, DEMO_SAVED), 'announced once').toBe(1);
   } finally {
     await page.unroute('**/api/v1/settings/demo-mode');
   }

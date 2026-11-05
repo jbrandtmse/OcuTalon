@@ -18,7 +18,7 @@ const ERROR_ID = 'demo-mode-error';
  * (hidden from assistive technology, which hears aria-checked), its help line, and
  * **Save changes**. A press posts {demoMode} to POST /v1/settings/demo-mode through the busy pattern; the server switches it through the same
  * SettingsOps path as the terminal. The answers:
- *   - 200: "Saved. Applies within a minute. Recorded in the audit log." (announced once), and the saved value is the new baseline; a switch changed
+ *   - 200: "Saved. Applies within a minute. Recorded in the audit log. Reload the chat page after a minute to see the change." (announced once), and the saved value is the new baseline; a switch changed
  *     while the save was pending keeps its position, stays unsaved, and no saved text shows or is announced;
  *   - 409 `demo_step_failed`: the Demo step failed after the value was written, so the value stands (it is the new baseline) and the field shows the
  *     text of the step, never "Nothing was changed.";
@@ -157,7 +157,7 @@ export class DemoModeSection {
   protected readonly onText = SETTINGS_TEXTS.on;
   protected readonly offText = SETTINGS_TEXTS.off;
   protected readonly help = SETTINGS_TEXTS.demoHelp;
-  protected readonly savedText = SETTINGS_TEXTS.saved;
+  protected readonly savedText = SETTINGS_TEXTS.demoSaved;
   protected readonly saveLabel = SETTINGS_TEXTS.save;
   protected readonly helpId = HELP_ID;
   protected readonly errorId = ERROR_ID;
@@ -221,7 +221,7 @@ export class DemoModeSection {
     }
     this.done.set(!edited);
     if (!edited) {
-      this.announcer.announce(SETTINGS_TEXTS.saved);
+      this.announcer.announce(SETTINGS_TEXTS.demoSaved);
     }
     this.saved.emit(value);
   }
