@@ -572,3 +572,13 @@
 2026-11-05T19:47:50Z	Epic 11	epic_status_kept	status=in-progress reason=part_merge_11.23;11.24_to_be_chartered(Planner);11.14,11.15,11.16,11.18_backlog
 2026-11-05T19:47:50Z	Epic 11	model_tier_checkpoint	armed=false stack_risk=none review_tier=full-opus implement_model=claude-sonnet high_med_avg=1 unresolved_high_med_avg=0 metric=unresolved rework_stories=0 review_loop_thrash=0 rework_lang_defects=0 review_high=0 review_med=1 result=hold applied=false(record_only) note=part_11.23
 2026-11-05T19:47:50Z	Epic 11	epic_runner_complete	stories_completed=1(11.23) part_merge=11.23 note=11.24_reported_separately(not_chartered_in_this_run;fresh_runner_context_for_it)
+2026-11-05T20:16:02Z	Epic 11	lead_model_gate	model=claude-opus-5-5 action=proceed
+2026-11-05T20:16:02Z	Epic 11	runtime_gate	bmad=6.12.4 uv=0.12.9 ci=gh
+2026-11-05T20:16:02Z	Epic 11	launch_env	depth=4 watchdog=default bash_max_ms=default
+2026-11-05T20:16:02Z	Epic 11	runner_unattended_start	run=20261026T1518Z-1-37 policy=5086036 doctrine=3d11cec note=redispatch_story_11.24_runner_B lane=B slot=ocutalon-slot-b
+2026-11-05T20:16:02Z	Epic 11	spine_resolved	path=_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md ads=33 status=final
+2026-11-05T20:16:02Z	Epic 11	ledger_load	total=696 open=0 routed=102 escalated=1 decision_pending=2 terminal=591 owner_unknown=0 reowned_none=0
+2026-11-05T20:16:02Z	Epic 11	ruling	question=next_work choice=charter_Story_11.24(README_IPM_install_literal_on_fresh_154_and_109) rejected=none why=orchestrator_dispatch(Contest_Planner_charter_under_owner_delegation_2026-11-05) category=decide policy=5086036 head=139885a2 feature=a85e3399(CI_pending)
+2026-11-05T20:16:27Z	Epic 11	sprint_planning_complete	gate=PASS mode=generate(readiness_re-check) new_entries=11-24 validate=valid dropped_orphans=0 model=claude-opus-5-5
+2026-11-05T20:16:27Z	Epic 11	retro_review_skipped	reason=skip(no_X.0_input)_redispatch_for_11.24
+2026-11-05T20:16:27Z	Epic 11	deps_hash_rerecorded	reason=fix_forward note=Story_11.24_inserted_in_Epic_11(no_boundary_or_dependency_change);orchestrator_records_the_graph_hash epics_md_sha256=0e7d487d216cac3a

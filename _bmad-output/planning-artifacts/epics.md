@@ -4765,6 +4765,32 @@ So that a local install does not stop at its first step.
 **Then** the README's build-109 text is changed, sent to the Contest Planner verbatim as public text before it is committed, and committed only once approved; `docker/tests/test-readme.sh`'s build-109 pins are updated, never deleted
 - DW-636: install.sh looks only for build 154; make it find a build 109 image too, then drop the README's separate build-109 path (U-241) (ledger; chartered by the Contest Planner 2026-11-05)
 
+### Story 11.24: The README's IPM install works literally on a fresh build 154 and build 109 instance
+
+As a judge,
+I want the README's IPM commands to install OcuTalon on a fresh AI Hub instance exactly as written,
+So that an IPM install check on build 154 or build 109 passes with no extra command.
+
+[ADDED 2026-11-05, Epic 11 fix-forward, high priority (the Contest Planner's charter under the owner's delegation, relayed by the orchestrator): the registry check of 1.0.1 installed the package (Activate SUCCESS, production running, page 200), but the README's path stopped on a fresh AI Hub image: the image has no IPM and neither the README nor `docs/install-ipm.md` gives a command for it; with IPM loaded in %SYS only, the first `zpm "enable -community"` skipped the repository mapping of USER and the USER install failed with "ERROR! No repositories are configured and enabled in this namespace."; a second `enable -community` fixed it. Organizers check IPM installs on build 154 during judging.]
+
+**Acceptance Criteria:**
+
+**Given** a fresh instance from the plain AI Hub build 154 image, and another from the plain build 109 Health image (throwaway containers, never OcuTalon's built image)
+**When** the README's "Install it with IPM" commands are copied in literally, in order
+**Then** they install IPM 0.10.10, enable it for USER and install ocutalon from the public registry with no extra command; each run ends with OCUTALON Activate SUCCESS and the page answering 200; the evidence of both runs is committed under `_bmad-output/implementation-artifacts/evidence/`
+
+**Given** the step that points USER at the community registry
+**When** USER was, or was not, IPM-mapped before it ran
+**Then** the one documented sequence works in both cases (for example a `-map` step before `enable -community`), shown by a run of each case, not assumed
+
+**Given** `docs/install-ipm.md`
+**When** it gives the install
+**Then** it carries the same exact commands as the README, the stale sentence "Until the package is published, these outputs come from ... a local IPM repository." is gone, and its sample outputs come from a real public-registry run
+
+**Given** the README and `docs/install-ipm.md` changes are public text
+**When** they are ready
+**Then** both diffs go to the Contest Planner verbatim before they are committed, and are committed only once approved; `docker/tests/test-readme.sh`'s pins are updated in place, never deleted; Epic 34's README and test-readme.sh hunks (the licence notices and the licence check) stay separate from this story's
+
 ## Epic 12: Approve from your own phone with Telegram
 
 A user scans the page's QR code to pair their Telegram private chat with their session, then chats, gets notifications and reminders, and answers approval requests with inline buttons from Telegram; unknown codes and a bare `/start` get polite instructions and link nothing; OcuTalon runs fully without a bot token, and pauses politely if another process polls the same bot. Built in Lane A after Epic 11 and shipped in 1.0.0, the first release; it merges into the integration branch when done, with no tag gate [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0": 0.1.0 and 0.1.1 are not cut; it read "shipped as 0.1.1, the release right after 0.1.0 and before the online demo goes public (PRD §7.2)", and the merge gate on the `v0.1.0` tag below is dropped]. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation (inbox U-67): built alongside Epic 11 by the first free runner once Epic 10 has merged, and merged only after the `v0.1.0` tag exists; still shipped as 0.1.1.]
