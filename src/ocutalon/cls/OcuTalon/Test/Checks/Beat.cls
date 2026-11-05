@@ -763,7 +763,8 @@ Method TestRunDueEmptySkipGivesNoView()
 	Set alone = ..Person("", {"NextDueAt": (noon)})
 	Do $$$AssertStatusOK(..BDue(noon, .items, alone, 0, 1, .views), "RunDue is OK for a row that is due")
 	Do $$$AssertEquals(+$Get(views), 0, "an empty skip of a person with a row gives no view")
-	Do $$$AssertEquals(..Open(alone).LastSkipReason, "empty", "and the row is saved with the reason")
+	Set row = ..Open(alone)
+	Do $$$AssertEquals($Select($IsObject(row): row.LastSkipReason, 1: "no row"), "empty", "and the row is saved with the reason")
 
 	// a pending decision is still viewed, the empty skip after it is not
 	Set pending = ..Person("", {"NextDueAt": (..Plus(noon, -60)), "LastItemId": "itemempty"})
@@ -772,7 +773,8 @@ Method TestRunDueEmptySkipGivesNoView()
 	Do $$$AssertEquals(..ViewRefs(.views, pending), "1:1", "the recorded result gives one view")
 	Set recorded = ##class(%DynamicObject).%FromJSON(..ViewJson(.views, 1))
 	Do $$$AssertEquals(recorded.lastOutcome_"|"_recorded.%IsDefined("lastSkipAt"), "ignore|0", "which holds the result and no skip")
-	Do $$$AssertEquals(..Open(pending).LastSkipReason, "empty", "while the row has the empty skip")
+	Set row = ..Open(pending)
+	Do $$$AssertEquals($Select($IsObject(row): row.LastSkipReason, 1: "no row"), "empty", "while the row has the empty skip")
 }
 
 /// Story 39.7 (QA; AC 3): a commit that fails gives no view. RunDue and RunNow view only a row that was saved: a person whose recorded decision cannot be saved

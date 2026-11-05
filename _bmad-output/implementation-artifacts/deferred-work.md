@@ -4037,3 +4037,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-39-7-publish-the-heartbeat-event.md | severity: low | fix-risk: high | footprint: in-story
 - evidence: the stacks run the production; a real RunDue with no session list records any test row's pending decision; window is milliseconds between the fixture Decision and the test's own call (same shape as Story 39.3's tests)
 - 2026-11-05T06:05:07Z status=wontfix-accepted owner=39-7-publish-the-heartbeat-event by=cr note=reopen_if=a CI or fresh red in Test.Checks.Beat or Runs on a view count or backoffUntil with a real Tick logged in that second
+
+### DW-723: No test pins the ci.yml checks job timeout-minutes 20; reverting it to 15 or deleting the line passes test-ci-config.sh
+- source: spec-39-7-publish-the-heartbeat-event.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: test-ci-config.sh reads every job's timeout but checks only install-macos; a pin needs a timeouts[checks] check plus a wiring mutation in docker/tests/test-ci-config.sh, outside Story 39.7's footprint
+- 2026-11-05T07:54:32Z status=wontfix-accepted owner=39-7-publish-the-heartbeat-event by=cr note=reopen_if=a ci checks job run is cancelled at its timeout-minutes limit, or its timeout changes without a ruling
