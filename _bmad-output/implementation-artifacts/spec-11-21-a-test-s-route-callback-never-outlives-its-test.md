@@ -2,7 +2,7 @@
 title: "Story 11.21: A test's route callback never outlives its test"
 type: 'bugfix'
 created: '2026-11-04'
-status: 'done'
+status: 'in-progress'
 baseline_revision: 'b5128e27f03ebcea042f78d4c3b4a0c91bbcb545'
 baseline_commit: 'ac2c4549cc5890433ad22bdf9743f30c4b1b64be'
 review_loop_iteration: 0
@@ -137,6 +137,13 @@ deferred:
   - A pinning test (hermetic, no stack, in `web/e2e/live/` like `route-cleanup.spec.ts`, so `live:sign-in` runs it): a response that never comes makes `loadedAfter` (and `gotoSettled`'s bound) fail within its bound with the named step in the message, well before the test timeout; mutation shown (remove the bound: the test times out instead), never committed. Plus a node source pin in `web/scripts/bounded-waits.test.mjs` if it fits.
   - Verification: re-run `live:online-session` (L5, L6), `live:sign-in` both parts, `live:demo-path` and `live:floor` (the units whose specs use these helpers most; `focus.spec.ts` P1 is in `live:floor`) on lane-B throwaways, one at a time, after the last patch.
 
+- [ ] [CI] `iris (shards)` `live:online-session`, run 41957022331 attempt 3 (job 127036912190, head a8868ad8, the AC4 proof's second run): `leave.spec.ts:354` L6 hit the 300 s test timeout again ("Test timeout of 300000ms exceeded.", no other error, no named step), and the docker check after it found "TelegramIn has a live job" (L6's `finally` never put the Telegram fixture back). Attempt 1 of the same run passed L6 in 9.5 s. Every bounded step of L6 is below 150 s, so either one call has no bound (for example `page.close()` at leave.spec.ts:367, which takes no timeout in Playwright) or a chain of slow but bounded steps summed past the test timeout. Either way AC7 / the Planner's condition ("fails with a message naming the step") was not met. Fix, in the shared layer (no per-spec copies; at most a one-line call change in a spec where a bare Playwright call must go through a shared bounded helper):
+  - Deadline-aware bounds: every shared bounded wait (`boundedStep`, `runBounded` / `irisScript`, the Telegram fixture calls, `loadedAfter`, `gotoSettled`, `signInFromSplash`, `epochOf`) uses the smaller of its own bound and the time left before the running test's timeout minus a margin (about 10 s), so the last step of a slow chain fails naming itself before the test timeout, and the spec's `finally` (which puts the Telegram fixture back) still runs. Outside a test (no `test.info()`), the own bound alone.
+  - Unbounded calls on the L5/L6 path: bound `page.close()` / `second.close()` and any other bare call there that takes no timeout, through a shared helper (named step).
+  - Breadcrumbs for the next red: each shared bounded wait that takes longer than about 10 s prints one stdout line naming its step and its seconds (for example `SLOW irisScript "Set r=..." 37 s`), so a CI log shows where the time went even when no artifact is uploaded.
+  - Pin the deadline cap with a hermetic test (a test with a short timeout whose bounded step would outlast it fails with the step's name, not the test timeout; mutation shown, never committed).
+  - Verification after the last patch: lint; `npm --prefix web test`; the hermetic specs; `live:online-session` at least twice on lane-B throwaways (one at a time, torn down after each), with L5 and L6 passing; `live:sign-in` both parts once.
+
 **Acceptance Criteria:**
 - AC1 (one mechanism, DW-640, DW-665). Given every spec under `web/e2e` and `web/e2e-online`, when a test ends, then its routes are removed by the shared fixtures with `unrouteAll({ behavior: 'ignoreErrors' })`, no spec carries its own `afterEach` copy, and `route-cleanup.test.mjs` is green.
 - AC2 (pinned). Given a route callback still waiting on `route.fetch` when its test ends (on the page, the context, or a second page of the context), when the next test runs, then neither fails with `route.fetch: Test ended`, and a page the test closed itself makes no error. `route-cleanup.spec.ts` is green in Chromium with no stack.
@@ -164,6 +171,8 @@ Code review 2026-11-04 (bmad-code-review, first review; four layers; diff `ac2c4
 - Rule 3: exempt (test harness, no user-facing surface). Rule 6: AD-22 and AD-29 match; no CI job, unit or matrix change; no product path touched. `web/e2e/sign-in/helpers.ts` untouched; Epic 7's lines in `web/e2e/support/iris.ts` intact.
 
 ## Spec Change Log
+
+- 2026-11-05 (rework iteration 3 of 3, trigger=ci, by the lead): the AC4 proof's second `iris (shards)` run went red on L6's test timeout with no named step; added the `[CI]` item (deadline-aware shared bounds, bounded closes, slow-step breadcrumbs).
 
 - 2026-11-04 (rework iteration 1, trigger=scope_amendment, by the lead): epics.md Story 11.21 gained the Contest Planner's condition (bounded shared sign-in helper waits, named failures; DW-690, DW-691; `loadedAfter` in scope) after the implement pass; Epic 7's merge (4238dc8f) brought `web/e2e/cards/either-way.spec.ts`. Added the two `[Amend]` items and AC7. `web/e2e/sign-in/helpers.ts` stays untouched (Epic 40's open path).
 
