@@ -223,3 +223,4 @@
 2026-11-05T14:06:33Z	Story 40.5	ledger_adjudicated	owned=0 resolved=0 reowned=0 terminal=0 model=claude-opus-5-5
 2026-11-05T14:06:33Z	Story 40.5	smoke_complete	method=cli result=pass iterations=2 defects_caught=0 evidence=rework_changed_one_test_only;fresh_class_Test.Bridge.Decide_e40s5c2;demo-path_8_of_8_and_sign-in_1-3_on_merged_tree_cf111ec8_with_40.5_product_code model=claude-opus-5-5
 2026-11-05T14:06:33Z	Story 40.5	fresh_check	env=recipe(fresh_e40s5c2) tests=Test.Bridge.Decide result=pass order=forward
+2026-11-05T14:06:54Z	Story 40.5	committed	sha=c7ec1963 submodules= ci=pending runs=42041828974,42041829102 fix_for=40-5-a-setting-approval-in-the-bridge-and-ocutalon-s-proposal-too amendments=none note=push_also_carries_integrate_forward_cf111ec8_and_b08f531a footprint_extensions=Test/Bridge/Decide.cls(Epic_17_also_changed;distinct_hunks)
