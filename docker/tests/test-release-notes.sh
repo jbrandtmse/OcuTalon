@@ -912,10 +912,16 @@ t_static() {
   [ "$(grep -c -F -- "$NOTE" README.md)" -gt 0 ] || { echo "  README.md does not hold the note word for word"; bad=1; }
   # names_outside_section is the README's own developer-section rule (dev_names of test-readme.sh): it finds nothing there either,
   # except the line that equals IPM_LOAD of test-readme.sh word for word (read from that one line; a changed load line is reported).
+  local ipm_load s
   ipm_load=$(sed -n "s/^IPM_LOAD='\(.*\)'\$/\1/p" docker/tests/test-readme.sh)
   [ -n "$ipm_load" ] || { echo "  static: docker/tests/test-readme.sh holds no IPM_LOAD='...' line"; bad=1; }
-  eq "names_outside_section on README.md" "$(. docker/tests/lib-scan.sh; names_outside_section '## For admins and developers' README.md |
-    while IFS=: read -r f n; do [ -n "$ipm_load" ] && [ "$(sed -n "${n}p" "$f")" = "$ipm_load" ] || printf '%s:%s\n' "$f" "$n"; done)" ""
+  printf '%s\n%sx\nThe class %s does it.\n' "$ipm_load" "$ipm_load" "$PLANT_CLASS" > "$tmp/ipm.md"
+  for s in "$tmp/ipm.md" README.md; do
+    o=$(. docker/tests/lib-scan.sh; names_outside_section '## For admins and developers' "$s" |
+      while IFS=: read -r f n; do [ -n "$ipm_load" ] && [ "$(sed -n "${n}p" "$f")" = "$ipm_load" ] || printf '%s:%s\n' "$f" "$n"; done)
+    if [ "$s" = README.md ]; then eq "names_outside_section on README.md" "$o" ""
+    else eq "break: the load line changed and a class name are reported" "$(printf '%s' "$o" | tr '\n' ' ')" "$s:2 $s:3"; fi
+  done
 }
 
 areas_ok_real() { # areas_ok_real: the areas row of $out passes, or fails only for unmapped epics outside RELEASE1_EPICS

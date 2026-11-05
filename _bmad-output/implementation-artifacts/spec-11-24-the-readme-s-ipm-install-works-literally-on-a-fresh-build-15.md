@@ -118,6 +118,22 @@ Code review 2026-11-05 of the DW-760 rework (`b609d015..HEAD`; layers: blind-hun
 - `[low]` The pinned text could move out of its paragraph with the suite green (edge-case-hunter) - unlikely; a position check adds complexity for no AC.
 - `[false]` Spec says `done` while sprint-status says `review` (edge-case-hunter, verification-gap) - the spec's `status` is build-auto's machine state; this review syncs sprint-status.
 
+### Review Findings (rework 2)
+
+Code review 2026-11-05 of the CI rework (`907dc7cb..HEAD`; layers: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor; full-opus, no `model-overrides.yaml`). 0 decision-needed, 2 patch (both applied), 0 defer, 7 rejected; no HIGH or MED; the acceptance auditor found no AC, ruling or AD-22/23/29 violation. CI red (run 42121035820, `static`) confirmed fixed: `bash docker/tests/test-release-notes.sh` all 16 rules PASS on the real tree. Still two hunks only (header 29-30, `t_static` 913-925); Epic 39's lines (now ~1004) untouched; `lib-scan.sh` and `release/**` unchanged; `release/notes.sh` runs `names_outside_section` on its own draft, which never copies README text, so the exemption cannot reach it.
+
+- [x] [Review][Patch] The exemption filter had no in-suite sample: swapping its `&&` for `||` (or a prefix match) drops every hit with the suite green, since the real README's only hit is the load line (blind-hunter, verification-gap; low, fix-risk low: a sample file run through the same loop, inside hunk 2) [docker/tests/test-release-notes.sh:918-924]
+- [x] [Review][Patch] `ipm_load` leaked from `t_static` as a global (blind-hunter; low, fix-risk low: `local`, inside hunk 2) [docker/tests/test-release-notes.sh:915]
+
+**Rejected:**
+- `[low]` AC5 and the Boundaries "Never" list still name three files, the ruled extension is only in the Spec Change Log (blind-hunter, acceptance-auditor) - fix edits the spec; the ruling is recorded there.
+- `[low]` Verification "Commands" and the Rule 19 shared surfaces omit `test-release-notes.sh` (blind-hunter) - fix edits the spec; the CI task and this review name and run it.
+- `[low]` The self-review's two "the fix edits this spec" rejections and the missing `grep -ln` output (blind-hunter) - spec narrative only.
+- `[low]` A failed source of `lib-scan.sh` leaves the pipe empty and the assertion green (edge-case-hunter) - pre-existing (the old line had the same shape); `library` sources the same file and fails loudly.
+- `[low]` A backslash in `IPM_LOAD` would be unescaped by `awk -v` in `dev_names` but not by `sed` here (edge-case-hunter) - not reachable today; test-readme.sh's own exemption would go red first, loudly.
+- `[false]` Spec `status: done` while sprint-status says `review` (verification-gap) - build-auto's machine state; this review syncs sprint-status.
+- `[false]` The "Review pass (rework 2, CI)" triage entry is a self-review dressed as independent layers (verification-gap) - it is build-auto's own review-layer pass, as in the earlier iterations; this section is the independent review.
+
 ## Spec Change Log
 
 - 2026-11-05, lead spec gate: public text approved by the Contest Planner (owner's delegation) exactly as drafted; Task 0's "samples are final" replaced by the Planner's condition 3 (refresh sample blocks from the implement stage's build 154 case 1 run where they differ); one Tasks item added for it.
@@ -476,6 +492,8 @@ All commands run from the worktree root after `git rev-parse --show-toplevel` ma
 - mutation: `IPM_LOAD=` renamed `IPM_LOADX=` in docker/tests/test-readme.sh -> `static: docker/tests/test-readme.sh holds no IPM_LOAD='...' line` and `FAIL static` (observed red, restored from backup, sha256 identical).
 - mutation: a second `##class(` line added to README.md outside "For admins and developers" (line 163) -> `names_outside_section on README.md: got 'README.md:163', wanted ''` and `FAIL static` (observed red, restored from backup, sha256 identical).
 - `bash docker/tests/test-release-notes.sh` -> all 16 rules PASS, exit 0; `bash docker/tests/test-readme.sh` -> `test-readme: all rules passed`; `bash docker/tests/test-cpf.sh` -> `test-cpf: all checks passed`. No container, IRIS or network used.
+- Code review patch (rework 2, 2026-11-05): inside hunk 2, `local ipm_load s`, and the filter now runs over a sample (`$tmp/ipm.md`: the load line, the load line plus `x`, a class-name line) before README.md; `break: the load line changed and a class name are reported` expects lines 2 and 3. `test-release-notes.sh` 16/16 PASS, `test-readme.sh` all rules passed, `test-cpf.sh` all checks passed.
+- mutation: the filter's `[ -n "$ipm_load" ] &&` changed to `||` -> `break: the load line changed and a class name are reported: got '', wanted '<tmp>/ipm.md:2 <tmp>/ipm.md:3'`, `FAIL static` (observed red, restored from backup, sha256 identical, `git status` unchanged). Re-run by the review: README.md line 162 `0.10.10` -> `0.10.11` -> `got 'README.md:162'`, `FAIL static`; `IPM_LOAD=` renamed `IPM_LOADX=` -> `static: docker/tests/test-readme.sh holds no IPM_LOAD='...' line`, `FAIL static` (each restored byte-identical).
 
 ## Auto Run Result
 
