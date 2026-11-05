@@ -54,3 +54,6 @@
 2026-11-05T10:57:31Z	Story 17.2	rework_opened	cycle_iteration=3 iteration=2 trigger=owner_ruling(DW-725,U-286_sentence) items=DW-725,U-286_guide_sentence scope_baseline=7938238a
 2026-11-05T10:57:31Z	Story 17.2	spine_updated	ad=AD-6,AD-8,conv:Retried_turns reason=decision_sheet(DW-725_Planner_ruling) by=runner story=17-2 lint=ok_false_preexisting_8_placeholder
 2026-11-05T10:57:31Z	Story 17.2	stage_spawned	stage=implement spawn_at=2026-11-05T10:57:31Z model=sonnet agent_name=17-2-retry-once-on-a-second-model-before-falling-back-implement-3 cycle_iteration=3
+2026-11-05T11:23:11Z	Story 17.2	dev_complete	spawn_at=2026-11-05T10:57:31Z model=sonnet build_sha=60835e2d baseline_revision=c9879504 review_loop_iteration=1 followup_review_recommended=false deferred=0 files=4 cycle_iteration=3 residual=late_retry_race_between_T2_and_Decide_timer_processing
+2026-11-05T11:23:11Z	Story 17.2	adr_verifications_complete	tool=none acs=none result=none_required mutations=none cycle_iteration=3
+2026-11-05T11:23:11Z	Story 17.2	stage_spawned	stage=code-review spawn_at=2026-11-05T11:23:11Z model=opus agent_name=17-2-retry-once-on-a-second-model-before-falling-back-code-review-3 cycle_iteration=3
