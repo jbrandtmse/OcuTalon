@@ -313,7 +313,7 @@ Code review 2026-11-04 (bmad-code-review, first review; four layers; diff `ac2c4
 
 ## Verification
 
-Run every command from the worktree root `/Users/jbrandt/git/contests/contest-49/OcuTalon/.worktrees/epic-11`, in the foreground with `timeout: 600000`, one live unit per call and never two in one message. `LANE` stands for this prefix:
+Run every command from the epic worktree root (the `OCT-epic11` checkout), in the foreground with `timeout: 600000`, one live unit per call and never two in one message. `LANE` stands for this prefix:
 
 `env OCUTALON_LOCK_DIR="$(dirname "$(git rev-parse --path-format=absolute --git-common-dir)")/.worktrees/.coordination/locks/lane-b" OCUTALON_TEST_WEB_PORT=52802 OCUTALON_LOCK_OWNER='epic=11 stage=<stage>' OCUTALON_RUN_TAG=e11s21<stage>`
 
