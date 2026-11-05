@@ -2,7 +2,8 @@
 title: 'Story 34.1: Settle step 3 ownership and fix its contracts'
 type: 'feature'
 created: '2026-11-04'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '735b6652114b5c53b62396165e3e609f8d38825f'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -74,7 +75,7 @@ deferred: []
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] **Task 0 -- FastEmbed model path on an IPM install (measure; stop rule).** Write a scratch script (stage scratchpad `e34s1implement/`, never committed) and run it in ONE foreground call (`timeout: 600000`) with `OCUTALON_LOCK_DIR=<lane-c lock folder> OCUTALON_TEST_WEB_PORT=52803 OCUTALON_LOCK_OWNER='epic=34 stage=implement' OCUTALON_RUN_TAG=e34s1f OCUTALON_LIVE_DEADLINE=570`. Print `TIME <step> <s>s` and one `CHK|<step>|...` line per observation. Steps:
+- [x] **Task 0 -- FastEmbed model path on an IPM install (measure; stop rule). DONE by the implement stage's lead before the handoff: verdict PASS, evidence `_bmad-output/implementation-artifacts/evidence/34-1-task0-fastembed-path.md`, stack `e34s1f` torn down. The handoff subagent must not re-run it; it writes S5 from the evidence's Verdict.** Write a scratch script (stage scratchpad `e34s1implement/`, never committed) and run it in ONE foreground call (`timeout: 600000`) with `OCUTALON_LOCK_DIR=<lane-c lock folder> OCUTALON_TEST_WEB_PORT=52803 OCUTALON_LOCK_OWNER='epic=34 stage=implement' OCUTALON_RUN_TAG=e34s1f OCUTALON_LIVE_DEADLINE=570`. Print `TIME <step> <s>s` and one `CHK|<step>|...` line per observation. Steps:
   1. Stack: source the worktree's `ci/iris.sh`, then exactly as `release/ipm-install.sh` 1420-1433 (`setup_tag`, `preflight`, `live_start ipm`, `live_add_file release/ipm/compose.ipm.yml`, `live_web_port`, `dc up -d --build --wait`, `live_track_image`); `cid=$(dc ps -q iris)`. Session helper: `printf '%s\nHalt\n' "$cmd" | dc exec -T iris iris session IRIS -U <ns>`.
   2. Precondition: `dc exec -T iris printenv FASTEMBED_CACHE_DIR` exits 1, and `$SYSTEM.Util.GetEnviron("FASTEMBED_CACHE_DIR")` is empty.
   3. IPM install: `zpm "load /opt/ocutalon-ipm/src"` in USER (ends with the next-command sentence), then in OCUTALON (every `STEP <name> OK`, none FAILED). `F` = `$SYSTEM.Util.ManagerDirectory()_"fastembed/"`.
@@ -87,22 +88,22 @@ deferred: []
   10. Order (recorded, not the stop rule): new job offline: build VectorStore `Probe.FastEmbedLate` first (loads the AI Hub library), then `putenv`, then `Create()` -> record ok or error.
   11. F's file count and size equal step 5's after steps 7-10 (no new download). Teardown: the script's exit trap, then `<prefix> ci/iris.sh teardown` with tag `e34s1f`; `docker ps -a --format '{{.Names}}' | grep e34s1f` prints nothing.
   **Verdict:** PASS when 8 and 9 are ok, 7 errors, 6's block is verified and 11 holds. FAIL when 8 or 9 errors, 7 succeeds, or F changed -> HALT `blocked`, `intent gap: AI Hub's FastEmbed does not find the model by <mgr>/fastembed/ offline on an IPM install (evidence 34-1-task0-fastembed-path.md); the author decides before any document code`, and write no other task. Steps 1-5 failing is not a verdict: HALT `blocked` with `TOOLING: Task 0 could not run: <step and error>`. Write `_bmad-output/implementation-artifacts/evidence/34-1-task0-fastembed-path.md` (structure of `33-1-task0-zone-measurement.md`: title, Date, Target (throwaway, tag, image build, IPM version), Repo, `## Verdict`, then one section per step with its CHK and TIME lines and error texts; container paths allowed, no host paths, ASCII).
-- [ ] `_bmad-output/planning-artifacts/prds/prd-OcuTalon-2026-10-16/prd.md` -- after FR-15's reset bullet (460) add one bullet: "- **Step 3 data:** from step 3, a session's memories and documents are its own too (FR-41, FR-42), and the scheduled reset clears them with the session (P6, decided through P23 on October 17). [AMENDED 2026-11-05, Story 34.1: confirms P6; no other text changed]" -- P6 confirmation (FR-41 862 and FR-42 875 already state the owners; record both lines in the Spec Change Log as "already recorded").
-- [ ] `ARCHITECTURE-SPINE.md` -- apply S1-S16 of `### Spine edits` with `### Spine content`, Task 0's result in S5; then `uv run --no-cache _bmad/scripts/memlog.py append --workspace _bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16 --type decision --text "Story 34.1: step 3 contracts (AD-21, AD-23, AD-31, AD-33 extensions; MemoryOps, DocumentOps, document event, Memory and Document tables, KB naming, tool names, ranking, reply citations and memories, extraction names; FastEmbed IPM path measured)"` and `lint_spine.py` (no new finding); refresh the spine's `updated:`.
-- [ ] `src/ocutalon/cls/OcuTalon/Memory/Ops.cls` -- new `Ens.BusinessOperation` stub, `Parameter STUB = 1`, `OnMessage` answers 5003; doc comment states S3's contract (answers `SaveMemory`/`ForgetMemory` from `CommandsIn` with a `CommandResult`; built in Story 19.3).
-- [ ] `src/ocutalon/cls/OcuTalon/Docs/Ops.cls` -- the same for documents (answers `AddDocument`/`RemoveDocument`, keeps `Data.Document`, the `document` event's single publisher; built in Story 19.4).
-- [ ] `src/ocutalon/cls/OcuTalon/Memory.cls` and `src/ocutalon/cls/OcuTalon/Docs.cls` -- new classes, each `ClassMethod DropSession(sessionRef As %String) As %Status { Quit $$$OK }`; doc comment: called by `SessionOps.End` on an online-demo sign-out, drops the session's memories (resp. its knowledge base `OcuTalonKB.S<id>`, `_Config` and `Document` rows), changes nothing until Story 19.5.
-- [ ] `src/ocutalon/cls/OcuTalon/Data/Memory.cls` -- new `%Persistent`, `DEFAULTGLOBAL "^OcuTalonP.Memory"`: `Ref`, `SessionRef` `%String(COLLATION = "EXACT", MAXLEN = 22)`; `Text` `%String(MAXLEN = 2000)`; `SavedAt` `%String(MAXLEN = 20)`; `ItemId` `%String(COLLATION = "EXACT", MAXLEN = 22)`; `Origin` `%String(MAXLEN = 16)`; `Embedding` `%Library.Vector(DATATYPE = "DOUBLE", LEN = 384)`; `Index RefIndex On Ref [ Unique ]`, `Index SessionRefSavedAtIndex On (SessionRef, SavedAt)`; compile, commit Storage.
-- [ ] `src/ocutalon/cls/OcuTalon/Data/Document.cls` -- new `%Persistent`, `DEFAULTGLOBAL "^OcuTalonP.Document"`: `Ref`, `OwnerRef`, `AddedBy` `%String(COLLATION = "EXACT", MAXLEN = 22)`; `Name` `%String(MAXLEN = 255)`; `ContentType` `%String(MAXLEN = 16)`; `Size` `%Integer`; `AddedAt` `%String(MAXLEN = 20)`; `State` `%String(MAXLEN = 16) [ InitialExpression = "indexing" ]`; `Reason` `%String(MAXLEN = 32)`; `KnowledgeBase` `%String(MAXLEN = 128)`; `Text` `%Stream.GlobalCharacter`; `Index RefIndex On Ref [ Unique ]`, `Index OwnerRefAddedAtIndex On (OwnerRef, AddedAt)`; compile, commit Storage.
-- [ ] `src/short-names.tsv` -- append `Memory<TAB>^OcuTalonP.Memory<TAB>OcuTalon.Data.Memory<TAB>A` and `Document<TAB>^OcuTalonP.Document<TAB>OcuTalon.Data.Document<TAB>A` (`<TAB>` is a tab character).
-- [ ] `src/ocutalon/cls/OcuTalon/Production.cls` -- Lane A region only, after `ReconcileIn` (61): `<Item Name="MemoryOps" ClassName="OcuTalon.Memory.Ops" PoolSize="1" Enabled="false"/>` and `<Item Name="DocumentOps" ClassName="OcuTalon.Docs.Ops" PoolSize="1" Enabled="false"/>`.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Install/Production.cls` -- two oracle rows after `ReconcileIn`'s, `"enabled": 0, "stub": 1, "settings": []`; doc line naming them.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Data/Tables.cls` -- insert the `Memory` and `Document` registry rows (`{"short","global","class"}`) right after the `Handled` row (699-703), touching no existing line; nothing else (contended).
-- [ ] `src/ocutalon/cls/OcuTalon/Install/Step/PrivateData.cls` -- `StorageGlobals` also reads classes `%STARTSWITH 'OcuTalonKB.'` and, for those only, keeps every global of the class whatever its prefix (Data, Id, Index, Stream, `ExtentLocation` when set, and each `%Dictionary.CompiledStorageIndex.Location`), so a knowledge-base global outside `^OcuTalonP.` fails `Check`'s resolution test with the class named; existing behaviour for `OcuTalon.*` unchanged; doc comment names memory, document and knowledge-base globals and `^IRIS.IF.*` (S7).
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Install/PrivateData.cls` -- `TestStep3Globals`: `StorageGlobals` lists `^OcuTalonP.MemoryD` and `^OcuTalonP.DocumentD` (and the stream global), and `PREFIXES`/`SAMPLES` still hold `IRIS.IF.`; `TestKnowledgeBaseTables`: in OCUTALON create `OcuTalonKB.Zz341` with `WITH %CLASSPARAMETER DEFAULTGLOBAL = '^OcuTalonP.KBZz341'` -> `StorageGlobals` lists its globals and `Run()` is OK; create `OcuTalonKB.Zz341Bad` without it -> `Run()` fails naming it; both dropped in `OnAfterOneTest` whatever the outcome (hermetic).
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Contract/Step3.cls` -- new, extends `OcuTalon.Test.Contract` (copy `Test.Digest.Contracts`' shape): `TestContracts` (`XData Contracts` for both tables, types and indexes, `AssertSqlNames`); `TestRefCollation`; `TestRegistry` (DEFAULTGLOBAL equals the tsv row, data global plus D, globals private); `TestDropSession` (both return OK for a fixture SessionRef; `Memory` and `Document` row counts unchanged).
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Contract/Ac.cls` -- append `{"class": "OcuTalon.Docs", "method": "DropSession", "args": "sessionRef", "returns": "%Status"}` and the same for `OcuTalon.Memory`; floor 79 -> 81 and the doc's count.
-- [ ] `docker/tests/test-class-rules.sh` -- new rule `kb-ddl` (copy `public_global`'s shape and fixtures): (a) a code line (comments skipped) of a `.cls` or `.py` file under `src/`, outside `src/ocutalon/cls/OcuTalon/Test/`, that holds `CREATE TABLE` (any case) must hold `DEFAULTGLOBAL` and `^OcuTalonP.` (`^OcuTalonBP.` under `src/bridge/`) on the same line; (b) `%AI.RAG.VectorStore.IRIS` appears only in classes under `src/ocutalon/cls/OcuTalon/Docs/` or the Test package; bad, good and comment-only samples self-tested; header lists the rule.
+- [x] `_bmad-output/planning-artifacts/prds/prd-OcuTalon-2026-10-16/prd.md` -- after FR-15's reset bullet (460) add one bullet: "- **Step 3 data:** from step 3, a session's memories and documents are its own too (FR-41, FR-42), and the scheduled reset clears them with the session (P6, decided through P23 on October 17). [AMENDED 2026-11-05, Story 34.1: confirms P6; no other text changed]" -- P6 confirmation (FR-41 862 and FR-42 875 already state the owners; record both lines in the Spec Change Log as "already recorded").
+- [x] `ARCHITECTURE-SPINE.md` -- apply S1-S16 of `### Spine edits` with `### Spine content`, Task 0's result in S5; then `uv run --no-cache _bmad/scripts/memlog.py append --workspace _bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16 --type decision --text "Story 34.1: step 3 contracts (AD-21, AD-23, AD-31, AD-33 extensions; MemoryOps, DocumentOps, document event, Memory and Document tables, KB naming, tool names, ranking, reply citations and memories, extraction names; FastEmbed IPM path measured)"` and `lint_spine.py` (no new finding); refresh the spine's `updated:`.
+- [x] `src/ocutalon/cls/OcuTalon/Memory/Ops.cls` -- new `Ens.BusinessOperation` stub, `Parameter STUB = 1`, `OnMessage` answers 5003; doc comment states S3's contract (answers `SaveMemory`/`ForgetMemory` from `CommandsIn` with a `CommandResult`; built in Story 19.3).
+- [x] `src/ocutalon/cls/OcuTalon/Docs/Ops.cls` -- the same for documents (answers `AddDocument`/`RemoveDocument`, keeps `Data.Document`, the `document` event's single publisher; built in Story 19.4).
+- [x] `src/ocutalon/cls/OcuTalon/Memory.cls` and `src/ocutalon/cls/OcuTalon/Docs.cls` -- new classes, each `ClassMethod DropSession(sessionRef As %String) As %Status { Quit $$$OK }`; doc comment: called by `SessionOps.End` on an online-demo sign-out, drops the session's memories (resp. its knowledge base `OcuTalonKB.S<id>`, `_Config` and `Document` rows), changes nothing until Story 19.5.
+- [x] `src/ocutalon/cls/OcuTalon/Data/Memory.cls` -- new `%Persistent`, `DEFAULTGLOBAL "^OcuTalonP.Memory"`: `Ref`, `SessionRef` `%String(COLLATION = "EXACT", MAXLEN = 22)`; `Text` `%String(MAXLEN = 2000)`; `SavedAt` `%String(MAXLEN = 20)`; `ItemId` `%String(COLLATION = "EXACT", MAXLEN = 22)`; `Origin` `%String(MAXLEN = 16)`; `Embedding` `%Library.Vector(DATATYPE = "DOUBLE", LEN = 384)`; `Index RefIndex On Ref [ Unique ]`, `Index SessionRefSavedAtIndex On (SessionRef, SavedAt)`; compile, commit Storage.
+- [x] `src/ocutalon/cls/OcuTalon/Data/Document.cls` -- new `%Persistent`, `DEFAULTGLOBAL "^OcuTalonP.Document"`: `Ref`, `OwnerRef`, `AddedBy` `%String(COLLATION = "EXACT", MAXLEN = 22)`; `Name` `%String(MAXLEN = 255)`; `ContentType` `%String(MAXLEN = 16)`; `Size` `%Integer`; `AddedAt` `%String(MAXLEN = 20)`; `State` `%String(MAXLEN = 16) [ InitialExpression = "indexing" ]`; `Reason` `%String(MAXLEN = 32)`; `KnowledgeBase` `%String(MAXLEN = 128)`; `Text` `%Stream.GlobalCharacter`; `Index RefIndex On Ref [ Unique ]`, `Index OwnerRefAddedAtIndex On (OwnerRef, AddedAt)`; compile, commit Storage.
+- [x] `src/short-names.tsv` -- append `Memory<TAB>^OcuTalonP.Memory<TAB>OcuTalon.Data.Memory<TAB>A` and `Document<TAB>^OcuTalonP.Document<TAB>OcuTalon.Data.Document<TAB>A` (`<TAB>` is a tab character).
+- [x] `src/ocutalon/cls/OcuTalon/Production.cls` -- Lane A region only, after `ReconcileIn` (61): `<Item Name="MemoryOps" ClassName="OcuTalon.Memory.Ops" PoolSize="1" Enabled="false"/>` and `<Item Name="DocumentOps" ClassName="OcuTalon.Docs.Ops" PoolSize="1" Enabled="false"/>`.
+- [x] `src/ocutalon/cls/OcuTalon/Test/Install/Production.cls` -- two oracle rows after `ReconcileIn`'s, `"enabled": 0, "stub": 1, "settings": []`; doc line naming them.
+- [x] `src/ocutalon/cls/OcuTalon/Test/Data/Tables.cls` -- insert the `Memory` and `Document` registry rows (`{"short","global","class"}`) right after the `Handled` row (699-703), touching no existing line; nothing else (contended).
+- [x] `src/ocutalon/cls/OcuTalon/Install/Step/PrivateData.cls` -- `StorageGlobals` also reads classes `%STARTSWITH 'OcuTalonKB.'` and, for those only, keeps every global of the class whatever its prefix (Data, Id, Index, Stream, `ExtentLocation` when set, and each `%Dictionary.CompiledStorageIndex.Location`), so a knowledge-base global outside `^OcuTalonP.` fails `Check`'s resolution test with the class named; existing behaviour for `OcuTalon.*` unchanged; doc comment names memory, document and knowledge-base globals and `^IRIS.IF.*` (S7).
+- [x] `src/ocutalon/cls/OcuTalon/Test/Install/PrivateData.cls` -- `TestStep3Globals`: `StorageGlobals` lists `^OcuTalonP.MemoryD` and `^OcuTalonP.DocumentD` (and the stream global), and `PREFIXES`/`SAMPLES` still hold `IRIS.IF.`; `TestKnowledgeBaseTables`: in OCUTALON create `OcuTalonKB.Zz341` with `WITH %CLASSPARAMETER DEFAULTGLOBAL = '^OcuTalonP.KBZz341'` -> `StorageGlobals` lists its globals and `Run()` is OK; create `OcuTalonKB.Zz341Bad` without it -> `Run()` fails naming it; both dropped in `OnAfterOneTest` whatever the outcome (hermetic).
+- [x] `src/ocutalon/cls/OcuTalon/Test/Contract/Step3.cls` -- new, extends `OcuTalon.Test.Contract` (copy `Test.Digest.Contracts`' shape): `TestContracts` (`XData Contracts` for both tables, types and indexes, `AssertSqlNames`); `TestRefCollation`; `TestRegistry` (DEFAULTGLOBAL equals the tsv row, data global plus D, globals private); `TestDropSession` (both return OK for a fixture SessionRef; `Memory` and `Document` row counts unchanged).
+- [x] `src/ocutalon/cls/OcuTalon/Test/Contract/Ac.cls` -- append `{"class": "OcuTalon.Docs", "method": "DropSession", "args": "sessionRef", "returns": "%Status"}` and the same for `OcuTalon.Memory`; floor 79 -> 81 and the doc's count.
+- [x] `docker/tests/test-class-rules.sh` -- new rule `kb-ddl` (copy `public_global`'s shape and fixtures): (a) a code line (comments skipped) of a `.cls` or `.py` file under `src/`, outside `src/ocutalon/cls/OcuTalon/Test/`, that holds `CREATE TABLE` (any case) must hold `DEFAULTGLOBAL` and `^OcuTalonP.` (`^OcuTalonBP.` under `src/bridge/`) on the same line; (b) `%AI.RAG.VectorStore.IRIS` appears only in classes under `src/ocutalon/cls/OcuTalon/Docs/` or the Test package; bad, good and comment-only samples self-tested; header lists the rule.
 
 **Acceptance Criteria:**
 - Given Task 0's evidence, when the spine update is written, then AD-21's model-path bullet records the measured result (S5) and the verdict is PASS; on FAIL the run has stopped with the intent gap and nothing else is written.
@@ -115,7 +116,44 @@ deferred: []
 
 ## Spec Change Log
 
+- P6 confirmation: PRD FR-41 (line 862) and FR-42 (line 875) already recorded the owners ("already recorded"); FR-15 gained the step 3 bullet.
+
 ## Review Triage Log
+
+### 2026-11-04 -- Review pass
+- verdicts: 31 findings -- high 0, medium 3, low 21, false 7, maybe-false 0
+- findings (Blind Hunter, 12; Edge Case Hunter, 10; Verification Gap, 6; Intent Alignment, 3):
+  - `[low]` `[patch]` kb-ddl part (b) exempts only `OcuTalon/Docs/`, not `OcuTalon/Docs.cls` -- the spine says class `OcuTalon.Docs` creates the tables; fixed in `docker/tests/test-class-rules.sh` with a `Docs.cls` sample and a mutation line
+  - `[low]` `[patch]` kb-ddl header says a split statement "is not read" but it is flagged -- header reworded (Decided in-stage 16)
+  - `[low]` `[patch]` spine S8 clause omits `^OcuTalonBP.` and the one-line reading -- clause extended in the spine
+  - `[low]` `[patch]` `Data.Memory.SessionRef` comment says "or the literal instance on a local install", against P23 (memories are each user's) -- comment replaced
+  - `[low]` `[patch]` spine S5 drops the evidence's ARM64-only and by-hand caveats -- one sentence appended, labelled inference for x64
+  - `[low]` `[reject]` `Test.Install.Registry` fails 3 tests on slot C -- slot C has no OCUORDERS database or role (environment, not this diff); it passes on the fresh warm stack, which is the standing criterion
+  - `[low]` `[reject]` `lint_spine.py` accepts a deleted `**Rule:**` line -- tooling under `.claude/`, pre-existing, recorded as Decided in-stage 14; not met in everyday use
+  - `[low]` `[reject]` Spec Change Log line numbers (862, 875) shifted by the FR-15 bullet -- the fix edits this build's spec
+  - `[medium]` `[patch]` `TestDropSession` can pass vacuously (rows never seeded, `Count` returns -1 on both reads) -- test now seeds a memory and a document for two sessions, asserts the counts are at least 2, that each row is still there after both calls, and deletes the rows in the test and in OnAfterAllTests; mutation line added
+  - `[false]` `[reject]` `TestStep3Globals`/`TestRegistry` depend on unseen `#PREFIXES` delimiter -- the parameters are comma lists (the class passes on a fresh stack, which a wrong delimiter would fail); the hard-coded values are the measured storage layout
+  - `[low]` `[reject]` the `document` event row has no owner-side test -- the payload class and its TYPES entry are Story 34.2's (the intent forbids building them here)
+  - `[false]` `[reject]` dates 2026-11-05 are ahead of the session -- the runner clock was 2026-11-05 UTC when the evidence was taken
+  - `[low]` `[reject]` kb-ddl scans `/* */` blocks, trailing comments and docstrings as code -- none exists in `src/` today and the fix adds a comment parser
+  - `[low]` `[patch]` split `CREATE TABLE` is flagged, `GLOBAL TEMPORARY` is not read -- the header now states the one-line reading (patched with the header row); `GLOBAL TEMPORARY` is no knowledge-base table and is rejected
+  - `[low]` `[reject]` `DEFAULTGLOBAL` and `^OcuTalonP.` are tested independently on a line -- the spec says "on the same line"; `PrivateData` catches a non-private global at start
+  - `[low]` `[patch]` rule reads only `.cls` and `.py` -- widened to `.cos`, `.inc`, `.mac`, `.int` with a `.mac` sample
+  - `[false]` `[reject]` the `/OcuTalon/Test/` exemption is wider than `src/ocutalon/cls/OcuTalon/Test/` -- no path outside `src/ocutalon/cls` contains `OcuTalon/Test/` (searched `src/`)
+  - `[medium]` `[patch]` `Count` returns -1 on a failed SELECT -- same root cause as the vacuous `TestDropSession`; `Count` is still -1 on failure but the test now asserts the counts are at least 2
+  - `[low]` `[reject]` `StorageGlobals` newly lists `ExtentLocation` of `OcuTalon.*` classes -- only an `^OcuTalonP.` extent location is kept, and it should be private; strengthens the check
+  - `[false]` `[reject]` extended references (`^|"ns"|X`) in a KB storage location -- DDL tables do not use them; theoretical
+  - `[low]` `[reject]` the planned `**Rule:**`-line mutation stays green -- recorded as Decided in-stage 14 with the substitute mutation
+  - `[low]` `[reject]` `Document.State` has no VALUELIST -- by design: the property definition is the spec's; Story 19.4 writes it through `DocumentOps`
+  - `[medium]` `[patch]` row-count assertions of `TestDropSession` cannot fail -- same root cause as the patched row above
+  - `[low]` `[reject]` ACs lack a mutation line per assertion group -- Rule 19 asks one per AC; the two uncovered parts of AC 7 (part b, the `Docs.cls` exemption) were mutated and their lines added; the document ACs are read against the checklists
+  - `[low]` `[reject]` `TestStep3Globals` stays green without the change -- it is a regression pin; the knowledge-base filter is pinned by `TestKnowledgeBaseTables`, which has a mutation line
+  - `[low]` `[reject]` `TestKnowledgeBaseTables` depends on the namespace being clean -- the standing criterion (fresh environment, either order) holds: the test drops its tables in `OnBeforeAllTests`, `OnAfterOneTest` and `OnAfterAllTests`
+  - `[low]` `[patch]` `Docs.cls` outside the `Docs/` folder (verification-gap's note) -- fixed with the first row
+  - `[low]` `[patch]` other code file types (verification-gap's note) -- fixed with the file-types row
+  - `[false]` `[reject]` Intent Alignment: production starts and stub answers are exercised through the oracle -- `live:production` row 14 ("the disabled items have no job") passed on a fresh stack and `TestStubsAnswer` covers the 5003 answer
+  - `[false]` `[reject]` Intent Alignment: the sign-out path is not exercised -- `SessionOps.End` is Lane B's (Story 34.2); the intent builds only the stubs
+  - `[false]` `[reject]` Intent Alignment: Task 0's answer is conditional on the explicit variable -- that is the measured result and the spine records it
 
 ## Design Notes
 
@@ -137,6 +175,11 @@ deferred: []
 9. **The contract test lives in `Test/Contract/`** (already in shard lane-b), so `ci/units.sh` (contended) is not edited; `Test.Memory`/`Test.Docs` areas start with Epic 19.
 10. **Task 0 uses a fresh job and a WorkMgr worker** as "its own worker"; the install's download step itself is Story 19.2's, done as step 5 does it. The Python package reading that folder is not measured here (S5 marks it inference; Story 19.2 measures it).
 11. **Stub `DropSession` returns OK**, not 5003, because `SessionOps.End` clears the resume cookie only when nothing failed.
+12. **DDL storage names:** a table made by DDL stores in generated globals (`^OcuTalonP.KBZz341.1`, `.I`, `.S`, and one per storage index), not in `...D`; without `DEFAULTGLOBAL` they are hash names (`^EOF0.uveX.1`). `PrivateData.StorageGlobals` therefore lists every location of a knowledge-base class (data, index, id, stream, extent) and of its storage indexes, and `Test.Install.PrivateData` asserts the prefix and the count, and that the failure names the class and one of its globals.
+13. **`kb-ddl` reads one line:** a `CREATE TABLE` statement that spans lines is not read; a `.py` line starting with `#` is a comment; the package `OcuTalon.Test` (any `/OcuTalon/Test/` path) is exempt from both parts.
+14. **Spine lint mutation:** `lint_spine.py` tests each required field word anywhere in an AD block, so deleting AD-21's `**Rule:**` line stays green; the mutation removes every `binds` in the block instead, which goes red (`ad_fields`).
+15. **Memlog:** `.memlog.md` is gitignored and was absent from this worktree; `memlog.py init` created it with the main log's frontmatter fields before the append.
+16. **`kb-ddl` scope after review:** the rule reads `.cls`, `.cos`, `.inc`, `.mac`, `.int` and `.py` files of `src/` (not only `.cls` and `.py`), accepts `%AI.RAG.VectorStore.IRIS` in the class `OcuTalon.Docs` (`Docs.cls`) as well as in the package `OcuTalon/Docs/` (the spine says `OcuTalon.Docs` creates the tables), and flags (does not skip) a statement split over lines; its header says so.
 
 **For the lead (items to raise; none blocks this plan):**
 - **To the author (UX, contended with Epic 40, not edited here):** UX-DR144 still reads "PDF, Word from S6" and `EXPERIENCE.md` 963 "then PDF and Word from step 6"; the owner moved them to step 3 (PRD OQ3, 2026-10-25). Proposed: "accepting Markdown, plain text, PDF and Word (.docx) files." The UX also never states the local-install rule; proposed for the assumptions (1122): "On a local install, memories belong to each user and documents are shared by every user of the install (P23)."
@@ -226,6 +269,21 @@ Lane prefix `P` = `OCUTALON_LOCK_DIR="$(dirname "$(git rev-parse --path-format=a
 
 **Planned mutations (Rule 19):** items: `MemoryOps` `Enabled="true"` -> `Test.Install.Production` red; tables: drop the `Memory` tsv row -> `test-storage.sh` red, `Document.Name` MAXLEN 255 -> 128 -> `Test.Contract.Step3` red, remove the `Document` row from `Tables` Registry -> `Test.Data.Tables` red; drop stubs: `Memory.DropSession` returns 5003 -> `Test.Contract.Step3` red, rename `Docs.DropSession`'s argument -> `Test.Contract.Ac` red; private data: restore `StorageGlobals`' `OcuTalon.`-only filter -> `Test.Install.PrivateData` (KB case) red; CI rule: a `CREATE TABLE OcuTalonKB.S1 (id VARCHAR(64))` code line in `Docs/Ops.cls` -> `test-class-rules.sh` red; spine: remove AD-21's `**Rule:**` line -> `lint_spine` red (`ad_fields`). The P6, spine-content and Task 0 ACs are document ACs, pinned by the reviewer's read against the checklists and the evidence. Record each as `mutation: <change> -> <test went red>`.
 
+**Mutations run (Rule 19):**
+- mutation: `MemoryOps` `Enabled="true"` in `Production.cls` -> `Test.Install.Production` TestDefinition went red (item 24 is MemoryOps as the ownership table says)
+- mutation: drop the `Memory` row of `src/short-names.tsv` -> `test-storage.sh` went red (`FAIL registry-row`)
+- mutation: `Document.Name` MAXLEN 255 -> 128 -> `Test.Contract.Step3` TestContracts went red
+- mutation: remove the `Document` row from `Test.Data.Tables` Registry -> `Test.Data.Tables` TestEveryTableIsRegistered went red
+- mutation: `Memory.DropSession` returns 5003 -> `Test.Contract.Step3` TestDropSession went red
+- mutation: rename `Docs.DropSession`'s argument `sessionRef` -> `ref` -> `Test.Contract.Ac` TestCrossLaneSignatures went red
+- mutation: `StorageGlobals` back to the `OcuTalon.`-only filter -> `Test.Install.PrivateData` TestKnowledgeBaseTables went red
+- mutation: a `CREATE TABLE OcuTalonKB.S1 (id VARCHAR(64))` code line in `Docs/Ops.cls` -> `test-class-rules.sh` went red (`FAIL kb-ddl`, with `file:line`)
+- mutation: every `binds` removed from AD-21's block in the spine -> `lint_spine.py` went red (`ad_fields`, "AD-21 missing required field(s): binds"); the planned deletion of the `**Rule:**` line alone stays green (Decided in-stage 14)
+- mutation: `Memory.DropSession` deletes the session's `Data.Memory` rows (seeded fixture rows) -> `Test.Contract.Step3` TestDropSession went red ("the dropped session's memory is still there")
+- mutation: `kb_ddl` part (b) switched off (`!docs &&` -> `0 &&`) -> `test-class-rules.sh` went red (`FAIL kb-ddl: the scanner does not flag the sample .../ZzVector.cls`)
+- mutation: the `OcuTalon/Docs.cls` exemption removed from `docs` -> `test-class-rules.sh` went red (`FAIL kb-ddl: the scanner flags the sample .../OcuTalon/Docs.cls`)
+Each file was backed up to a scratch folder, restored from that backup and compared byte for byte; the loop classes passed again afterwards. On slot C `Test.Install.Registry` fails 3 tests (OCUTALON role and OCUORDERS database missing from that slot); it passes on the warm stack.
+
 **Shared surfaces:** the production's item list (`Test.Install.Production` oracle, `live:production`); `src/short-names.tsv` (`test-storage.sh`); `Test.Data.Tables` `XData Registry`; `Test.Contract.Ac` signatures and floor; `PrivateData.StorageGlobals`' list (read by `Test.Install.PrivateData`, `Test.Digest.Contracts`, `Test.Data.Tables`; a leftover `OcuTalonKB.*` table on a stack changes it, so the new test drops its tables whatever the outcome); `test-class-rules.sh`'s rule list; the spine's ownership tables and Deferred rows. Standing criterion: every test added or changed passes on a fresh environment, in either order.
 
 **Manual checks:**
@@ -234,5 +292,39 @@ Lane prefix `P` = `OCUTALON_LOCK_DIR="$(dirname "$(git rev-parse --path-format=a
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** Task 0 measured the FastEmbed model path on an IPM-installed throwaway (verdict PASS: with `FASTEMBED_CACHE_DIR` set to `<mgr>/fastembed/` before `FastEmbed.Create()`, AI Hub's FastEmbed embeds offline in a fresh job and in a `%SYSTEM.WorkMgr` worker; without it, it fails; no new download after the block). The spine gained S1-S16 as marked unions (S5 from the evidence), the PRD gained the FR-15 step 3 bullet, and Lane A landed the two disabled operation stubs, the `Memory` and `Document` tables, the two `DropSession` stubs, the private-data check widened to knowledge-base tables, and rule `kb-ddl`.
+
+**Files changed.**
+- `_bmad-output/implementation-artifacts/evidence/34-1-task0-fastembed-path.md` (new): Task 0's evidence and verdict.
+- `_bmad-output/planning-artifacts/architecture/architecture-OcuTalon-2026-10-16/ARCHITECTURE-SPINE.md`: S1-S16, each with its marker; only appended clauses on existing lines.
+- `_bmad-output/planning-artifacts/prds/prd-OcuTalon-2026-10-16/prd.md`: the FR-15 step 3 bullet.
+- `src/ocutalon/cls/OcuTalon/Memory/Ops.cls`, `Docs/Ops.cls` (new): disabled operation stubs answering 5003.
+- `src/ocutalon/cls/OcuTalon/Memory.cls`, `Docs.cls` (new): `DropSession` stubs returning OK.
+- `src/ocutalon/cls/OcuTalon/Data/Memory.cls`, `Data/Document.cls` (new): the step 3 tables with private `DEFAULTGLOBAL`.
+- `src/short-names.tsv`: two rows appended.
+- `src/ocutalon/cls/OcuTalon/Production.cls`: `MemoryOps`, `DocumentOps` in Lane A's region.
+- `src/ocutalon/cls/OcuTalon/Install/Step/PrivateData.cls`: `StorageGlobals` also reads classes of schema `OcuTalonKB`.
+- `src/ocutalon/cls/OcuTalon/Test/Contract/Step3.cls` (new), `Test/Contract/Ac.cls`, `Test/Install/Production.cls`, `Test/Install/PrivateData.cls`, `Test/Data/Tables.cls`: the tests and oracles.
+- `docker/tests/test-class-rules.sh`: rule `kb-ddl`.
+- This spec.
+
+**Review.** 31 findings (high 0, medium 3, low 21, false 7): patched 1 entry of medium (`TestDropSession` seeds rows and asserts on them) and 6 of low (`kb-ddl` scope and header, spine S5 and S8 clauses, `Data.Memory` owner comment); deferred 0; the rest rejected with the reasons in the triage log.
+
+**Follow-up review recommended:** false (one medium entry patched, no high).
+
+**Verification performed.**
+- `lint_spine.py`: only the 8 pre-existing placeholder findings. `test-storage.sh`, `test-class-rules.sh`, `test-boundaries.sh`, `test-ci-config.sh`: pass (again after the review patches).
+- Warm stack `e34s1iw`: `Test.Contract.Step3`, `Contract.Ac`, `Install.Production`, `Install.ProductionRules`, `Install.PrivateData`, `Install.Registry`, `Data.Tables`, `Digest.Contracts` pass; after the review patches `Contract.Step3` passes again.
+- Shards: `lane-a` parts 1-4 passed (35, 34, 34 and 34 classes), `lane-b` parts 1-2 passed (48 and 47 classes); `live production` and `live install-start` passed (start steps in order, ending in RESULT OK).
+- Mutations: eleven demonstrated red and restored byte for byte (see `## Verification`).
+
+**Residual risks.**
+- `Test.Install.Registry` fails 3 tests on slot C (that slot has no OCUORDERS database); it passes on a fresh stack.
+- Skips in `lane-a` come from existing DW-399 and `NotRunning` tests, not from this story.
+- The x64 runner is not measured for Task 0; the spine says so (inference).
+- `lint_spine.py` accepts a deleted `**Rule:**` line (Decided in-stage 14).
+
+**Items for the lead (from the plan, unchanged):** UX-DR144 and `EXPERIENCE.md` wording (inbox U-279), reply marking (U-280), Story 34.2 scope (`Live.Payload.Document` and the TYPES entry).

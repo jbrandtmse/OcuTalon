@@ -701,6 +701,16 @@ XData Registry [ MimeType = application/json ]
   "class": "OcuTalon.Data.Handled"
  },
  {
+  "short": "Memory",
+  "global": "^OcuTalonP.Memory",
+  "class": "OcuTalon.Data.Memory"
+ },
+ {
+  "short": "Document",
+  "global": "^OcuTalonP.Document",
+  "class": "OcuTalon.Data.Document"
+ },
+ {
   "short": "Reminder",
   "global": "^OcuTalonP.Reminder",
   "class": "OcuTalon.Data.Reminder"
