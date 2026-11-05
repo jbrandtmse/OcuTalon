@@ -2,8 +2,8 @@
 title: 'Story 39.7: Publish the heartbeat event'
 type: 'feature'
 created: '2026-11-04'
-status: 'in-progress'
-baseline_revision: '6c00ff1d392f1e7817caa650bb9ab9e11f22ac35'
+status: 'done'
+baseline_revision: 'f67aebff9059a842f252e60b0d5045f5c86ba952'
 baseline_commit: '6c00ff1d392f1e7817caa650bb9ab9e11f22ac35'
 review_loop_iteration: 0
 followup_review_recommended: false
@@ -211,7 +211,7 @@ Code review 2026-11-05 (runner D; re-review of the CI rework, diff `6c00ff1d..HE
 Checklist from round 1: [CI] browser `live:sign-in` L10 -- fixed in code (`Beat.Run`'s guard) and pinned (`Beat.TestRunDueEmptySkipGivesNoView`, `Runs.TestTickPublishesTheBeats`; mutations below); the browser evidence is the rework pass's `sign-in` parts 1/2 and 2/2 (L10 in 2/2), not re-run here because this pass changed only an IRIS test class; the next CI run confirms. [CI] `checks` job limit -- fixed: `timeout-minutes: 20` (`ci.yml` line 32, no other job changed), `test-ci-config.sh` exit 0. U-283's two conditions are pinned by tests that fail under a named mutation: condition 1 (row saved, no event, no model request) by `Beat.TestRunDueEmptySkipGivesNoView` (three mutations below, two added in this pass), condition 2 (a run now on an empty checklist publishes) by `Beat.TestViewsInCommitOrder` and `Runs.TestPublishedEventsHoldNoRefChecklistOrKey` (the `runNow ||` mutation).
 
 - [x] [Review][Patch] (HIGH, Rule 6; fix-risk low, documents only; owner: the lead, Rule 20) U-283's exception is not carried into the spine: AD-18's Rule bullet **Event** still reads "After each beat, skip or result, `Checks` publishes the `heartbeat` live event", with no marker, while `Beat.Run` (`If runNow || (reason '= ..#SKIPEMPTY)`) saves a Tick's empty-checklist skip and publishes nothing. epics.md's 39.7 AC carries the U-283 marker, so the planning artifact and the spine now disagree. The same omission leaves this spec's frozen Always bullet ("Row changes include: a skip ...") and its Design Notes line "No AD's Rule changes" (and the AD-18 quote "after each beat, skip or result") contradicting AC 1 and the code [ARCHITECTURE-SPINE.md AD-18 Event; this spec, Boundaries "Always" and Design Notes]. Fix: amend AD-18's Event bullet with the exception and a `[AMENDED 2026-11-05, Story 39.7, U-283 ...]` marker (the lead classifies whether U-283's KEEP already covers the AD text or whether it takes the veto window, unattended policy "amending an architecture decision"), then the spec's Always bullet and the Design Notes line. No code change. This reviewer may not edit the spine. -- Done by the lead (rework 2): the AD-18 Event bullet carries the U-283 exception and marker (orchestrator's U7 ruling), lint findings unchanged; the spec's Always bullet and Design Notes line amended.
-- [ ] [Review][Patch] (low; fix-risk low, two class docs; joins the rework the HIGH opens, outside this pass's footprint) Two contract comments still say every committed row is published: `Checks/Process.cls` class doc ("each view that RunDue gave (one for each committed row of a person's HeartbeatBeat: a skip, a beat or a recorded decision) is published") and `Live/Payload/Heartbeat.cls` line 2 ("after each commit of the row") [src/ocutalon/cls/OcuTalon/Checks/Process.cls:21; src/ocutalon/cls/OcuTalon/Live/Payload/Heartbeat.cls:2]. Rule 14: correct the claim in place (name the Tick's empty-checklist skip as the exception, as `Beat.cls` does).
+- [x] [Review][Patch] (low; fix-risk low, two class docs; joins the rework the HIGH opens, outside this pass's footprint) Two contract comments still say every committed row is published: `Checks/Process.cls` class doc ("each view that RunDue gave (one for each committed row of a person's HeartbeatBeat: a skip, a beat or a recorded decision) is published") and `Live/Payload/Heartbeat.cls` line 2 ("after each commit of the row") [src/ocutalon/cls/OcuTalon/Checks/Process.cls:21; src/ocutalon/cls/OcuTalon/Live/Payload/Heartbeat.cls:2]. Rule 14: correct the claim in place (name the Tick's empty-checklist skip as the exception, as `Beat.cls` does).
 - [x] [Review][Patch] (low; cosmetic; with the HIGH's lead edit) epics.md's new 39.7 marker attaches the original reason ("on a local install every session has the heartbeat on by default ...") after a colon to the list of what the tests pin, so it reads as a pinned claim [_bmad-output/planning-artifacts/epics.md:8606]. Split the reason into its own sentence when the marker is next touched. -- Done by the lead (rework 2): the reason is its own sentence.
 - [x] [Review][Patch] (low; Edge) `TestRunDueEmptySkipGivesNoView` dereferenced `..Open(alone)` and `..Open(pending)` directly, so a regression that saved no row ended the test with an `<INVALID OREF>` error instead of a named failure [src/ocutalon/cls/OcuTalon/Test/Checks/Beat.cls:766,776] -- guarded with `$Select($IsObject(row): ..., 1: "no row")`; mutation B below now goes red on "and the row is saved with the reason".
 - [x] [Review][Patch] (low, Rule 19; VGap, Auditor) U-283 condition 1's "makes no model request" and "saves its row" clauses had no `mutation:` line (only the view guard had) [src/ocutalon/cls/OcuTalon/Test/Checks/Beat.cls] -- both mutations applied, observed red, reverted byte-identical; lines added under Verification. The pin of "no model request" is `items.Count() = 0` (no Item, so nothing reaches Intake or the model).
@@ -292,6 +292,20 @@ Rejected:
   - `[low]` `[reject]` Intent 1: the `Process.cls` class comment does not mention the `empty` exception -- outside this pass's footprint; `Beat.cls` states it, and the comment's "committed row" still holds.
   - `[low]` `[reject]` Intent 2: the matrix row "Skip" is now exercised by a back-off, not hours -- same as Edge 4.
   - `[low]` `[reject]` Intent 3: the browser surface is not exercised by the diff's tests -- same as VGap 4.
+
+### 2026-11-05 -- Review pass (rework iteration 2, follow-up pass; four layers, class docs only)
+- verdicts: 10 findings -- high 0, medium 0, low 10, false 0, maybe-false 0
+- findings:
+  - `[low]` `[reject]` Blind: the `[x]` on the two-class-docs item has no resolution note -- the fix is an edit to this build's spec; the pass's Auto Run Result records what changed and how it was verified.
+  - `[low]` `[reject]` Blind: the earlier reject entry (round 1, "outside this pass's footprint ... 'committed row' still holds") is stale now -- the fix is an edit to this build's spec; the rework item reverses it by design and the triage log is history.
+  - `[low]` `[patch]` Blind: the new `Heartbeat.cls` line 2 clause is about 210 characters and its exception sits in a citation list -- rewrapped, the exception is its own sentence.
+  - `[low]` `[patch]` Blind: the `Process.cls` exception sits inside the "one for each" count parenthetical and does not say the run now still publishes -- the count stands alone and the exception is a following sentence naming the run now.
+  - `[low]` `[reject]` Blind: `baseline_commit` stays at `6c00ff1d`, `review_loop_iteration` and `followup_review_recommended` are untouched -- the fix is an edit to this build's spec; `baseline_revision` is the field the diff reads, and the loop counter counts bad_spec loopbacks (none).
+  - `[low]` `[reject]` Edge: the page's card keeps a stale `nextDueAt` and skip fields after a silent empty Tick skip -- spec-bound and already logged By-design (amended AC 1, matrix row "Skip, empty checklist (tick)", U-283); no code changes in this pass.
+  - `[low]` `[patch]` Edge: the `Process.cls` exception is read as part of the count definition -- the same root cause as the Process.cls row above, one fix.
+  - `[low]` `[reject]` Edge: the Intent and Approach text carries no U-283 marker -- inside the read-only `<intent-contract>`, and the fix is an edit to this build's spec; AC 1, the Always bullet and the matrix carry the marker.
+  - `[low]` `[patch]` Verification-gap (other findings): the `Heartbeat.cls` line 2 is one long line -- the same root cause as the Heartbeat.cls row above, one fix. No verification gap was filed; no test changed.
+  - `[low]` `[reject]` Intent: descriptive only; under the strict reading the `Heartbeat.cls` doc is thinner than the `Process.cls` doc -- no defect named; the doc names the exception and the run now, and the sole-publisher and after-the-sends points are in the `Process.cls` doc.
 
 ## Design Notes
 
@@ -466,3 +480,20 @@ Pass: rework iteration 1 of the implement stage (2026-11-04, runner D; baseline 
 - Browser: `ci/iris.sh live sign-in` as one unit passed 247 of 254 tests and stopped at the harness's global timeout (about 408 s; 7 not run, none failed). Run as `--part 1/2` (138 passed) and `--part 2/2` (116 passed; it holds `live.spec.ts`, so L10) on fresh stacks, both exit 0.
 
 **Residual risks.** The `checks` timeout is pinned by no test. `GuideRefresh.TestHeldLock` (DW-349) can flake on a fresh `lane-b@Live` shard.
+
+Pass: rework iteration 2 of the implement stage (2026-11-05, runner D; baseline `f67aebff9059a842f252e60b0d5045f5c86ba952`). It covers only the one open `[Review]` item: two class docs.
+
+**Summary.** The `Checks.Process` class doc and the `Live.Payload.Heartbeat` class doc now state the contract: every committed row change publishes, except a Tick's skip because the checklist is empty, which saves its row and publishes nothing; a run now still publishes. Comments only: no code and no test changed.
+
+**Files changed in this pass.**
+- `src/ocutalon/cls/OcuTalon/Checks/Process.cls`: the class doc's publish sentence and its exception.
+- `src/ocutalon/cls/OcuTalon/Live/Payload/Heartbeat.cls`: the class doc's first lines.
+- This spec: the item ticked, `baseline_revision`, the triage entry.
+
+**Review.** Patches applied: 2 entries at low (two comment rewraps; four findings, two root causes). Deferred: none. Rejected: 6 low, each with its reason in the Review Triage Log (five edit the spec or its frozen intent, one is by-design).
+
+**Follow-up review recommended:** false. No high was patched on this follow-up pass.
+
+**Verification performed (lane D; tag `e39s7r2w` warm, torn down: 0 leftovers).** Warm `Test.Checks.Runs` and `Test.Live.Payloads` passed; `docker/tests/test-class-rules.sh` and `docker/tests/test-boundaries.sh` passed. No `mutation:` line changes (no test changed).
+
+**Residual risks.** None new.

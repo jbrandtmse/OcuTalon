@@ -18,8 +18,9 @@
 ///     was saved before, and a send that fails logs one Type 3 warning (LOGBEATSEND, with the ItemId). The Tick itself never calls the model: every request
 ///     comes from Intake. The quiet sweep, the fixes, the due checks and the beats each have their own Try/Catch. A beat is no background check (AD-28): it
 ///     adds no row, check result or coverage entry. After the Items are sent (outside any transaction), each view that RunDue gave (one for each committed row
-///     of a person's HeartbeatBeat: a skip, a beat or a recorded decision) is published, in commit order, as a heartbeat event on that person's stream
-///     (Live.Payload.Heartbeat, AnnounceBeat; Story 39.7). The views that were made before an error status or an exception from RunDue go out too. A publish that
+///     change of a person's HeartbeatBeat: a skip, a beat or a recorded decision) is published, in commit order, as a heartbeat event on that person's stream
+///     (Live.Payload.Heartbeat, AnnounceBeat; Story 39.7). The one exception is a Tick's skip because the checklist is empty: it saves its row, gives no view
+///     and publishes nothing, while a run now with an empty checklist still publishes. The views that were made before an error status or an exception from RunDue go out too. A publish that
 ///     fails or throws logs one Type 3 warning (LOGBEATPUBLISH, without the SessionRef), and the other views still go.
 ///   - An OcuTalon.Checks.Msg.CheckChanged (WatchOps sends one after a watch is started or stopped): Checks publishes the change as a check event
 ///     on the owner's stream, FromRow of the row it opens by Ref for a start (nothing when the row is gone), and for a stop a payload of the message's
