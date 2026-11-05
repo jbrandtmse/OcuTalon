@@ -4,16 +4,17 @@
 
 ## Goal
 
-Step 2's Lane A feature epic. Once a day, and whenever the user asks, OcuTalon sends one short digest. It holds the vital signs, a coverage list in which every entry is passed, failed or not checked with a reason, what needs the user, what was saved for later, and the previous day's cost. Only code may give an all-clear. On the model side, an admin can run each agent on Anthropic, OpenAI, Gemini or Bedrock, set prices, budgets, a daily cost cap and the time zone through bridge APIs, and name a second model that `Decide` retries once before it falls back. The epic builds on the names and stubs from Epic 33 (Story 33.1 is Lane A's contracts, Story 33.2 is Lane B's verbs and settings page). Story 17.1 moved to Story 33.1.
+Step 2's Lane A feature epic. Once a day, and whenever the user asks, OcuTalon sends one short digest. It holds the vital signs, a coverage list in which every entry is passed, failed or not checked with a reason, what needs the user, what was saved for later, and the previous day's cost. Only code may give an all-clear. On the model side, an admin can run each agent on Anthropic, OpenAI, Gemini or Bedrock, set prices, budgets, a daily cost cap and the time zone through bridge APIs, and name a second model that `Decide` retries once before it falls back. Story 17.8 makes `Decide` the only code that moves a conversation's link, so a late, superseded or failed reply never changes what OcuTalon remembers of a chat. The epic builds on the names and stubs from Epic 33 (Story 33.1 is Lane A's contracts, Story 33.2 is Lane B's verbs and settings page). Story 17.1 moved to Story 33.1.
 
 ## Stories
 
-- Story 17.2: Retry once on a second model before falling back
+- Story 17.2: Retry once on a second model before falling back (done)
 - Story 17.3: Run each agent on a supported provider
 - Story 17.4: Apply model, price, budget and zone changes through the bridge
 - Story 17.5: Check the vital signs and every coverage entry
 - Story 17.6: Send the daily digest at the set time and on request
 - Story 17.7: Give an all-clear only when every check passed
+- Story 17.8: Only Decide moves a conversation's link
 
 ## Requirements & Constraints
 
@@ -37,15 +38,19 @@ Step 2's Lane A feature epic. Once a day, and whenever the user asks, OcuTalon s
   - **Turning a retry on.** The first runner's `RetryItem` setting names its retry runner; empty means no retry. The second model is the retry runner's `Model`.
   - **Retried once:** `timeout`, `rate_limited`, `error`, `refusal`, `cut_off`, `empty`, `invalid`, `unusable` and `no_key`.
   - **Never retried:** `daily_cap`, `budget`, `too_large`, an attempt in which a tool ran (`ToolsRun`), and a `SessionBroken` attempt.
-  - **The retry timer.** T1 = `TimerFor(request)`. T2 = min(TimerSeconds, 110 − T1). The retry is sent only when T2 ≥ 12. A skipped retry says so in the decision's reasons.
+  - **A timed-out first attempt** has an unknown `ToolsRun`. A timed-out `turn` is never retried (chat-turn fallback, reason `timeout`). A timed-out `decide` or `diagnose` is retried only when every tool its agent can call is read-only, judged in code from the agent's tool sets.
+  - **The retry timer.** T1 = `TimerFor(request)`. T2 = min(TimerSeconds, 110 − T1). The retry is sent only when T2 ≥ `MINTIMER` (12); a skipped retry puts the one sentence "The second model was not tried, because too little time was left within the decision's 110-second limit." in the decision's reasons.
+  - **The retry entries' timeouts.** `Timeouts.Apply` gives the retry runners' Config Store entries `Derive(max(MINTIMER, min(TimerSeconds, 110 − TimerSeconds)))` (`Timeouts.RetryTimer`), so the entry's worst case agrees with Decide's T2 wait and never derives from less than 12 s (DW-647, DW-727; Story 17.4).
+  - **A late reply moves nothing.** A reply reaching `Decide` after its timer, first attempt's or retry's, is counted for cost and dropped.
   - **One decision.** The retry keeps the same `DecisionRef`. The one `Decision` row records the model that answered, and both attempts' usage rows sum into the totals.
   - **A retried turn.**
     - It carries `RetryOf`, which names the first runner.
     - It runs in a fresh AI session that the retry runner never links. That session is seeded with `Compaction.Seed` of the first runner's stored conversation, or with `SeedText` when the turn was `fresh`.
     - It takes no conversation lock.
-    - After a completed, untainted `Chat`, the retry runner points the first runner's link at its session. `ConversationLink.Point` is a compare-and-set, so a late first attempt never moves the link off the retry's session.
+    - Its seed is the stored conversation up to and including the current user message; nothing the first attempt produced (partial reply, tool call or result, error text) goes in (DW-726, Story 17.8).
     - Tests must show four cases: (a) a `RetryOf` for the same conversation and `ItemId` skips `Held`; (b) a request without `RetryOf` waits; (c) a `RetryOf` that arrives through the web API is ignored, and the request waits; (d) a `RetryOf` naming another conversation or `ItemId` waits.
     - Only `Decide`, `Bridge.Msg.Request`, `AgentRunner`, `Adapter.Agent`, `ConversationLink` and the tests may name `RetryOf`.
+  - **One arbiter moves the link** (Story 17.8; DW-729, DW-730). Only `Decide` moves a conversation's link, when it accepts a reply as the decision's answer, on time and untainted. Runners never move it: `SaveRetried` and `SaveLinked` record their own session only. A reply `Decide` doesn't accept (late, superseded, first attempt or retry) moves nothing, for a fresh, compacted or saved turn alike. Until 17.8 lands, the retry runner points the link through the compare-and-set `ConversationLink.Point` only when the retry answered within T2.
   - **The CI mock key.** With `OCUTALON_MOCK_KEY_HEADER=1`, `Install.Step.Provider` also adds `x-ocutalon-mockkey` to the retry runners' `custom_headers`. A test in which the retry answers arms the mock's countdown (`POST /_mock/countdown`).
 - **Providers**
   - **The provider table.** It is `OcuTalon.Bridge.Providers`, a fixed XData table in the order `anthropic`, `openai`, `gemini`, `bedrock`. Each row holds a default model, the selectable models, a key variable and a supported flag.
@@ -130,4 +135,6 @@ Step 2's Lane A feature epic. Once a day, and whenever the user asks, OcuTalon s
   - Story 17.2's retry runners depend on Story 17.3's family-based session config.
 - **Lane B work.** Story 18.2 (`Notify` routing to the digest channels, and `Data.Time`) and Story 18.4 (setting **Got it** markers, and the web and phone copies) are Lane B's. Until they merge, the tests use fixture notifications and markers.
 - **The digest tool.** Its name is added to `OcuTalon.Tools.Names` and to the CI mock's scripts. The tool submits `SendDigest` with origin `tool` and an idempotency key.
+- **Story 17.8** builds on Story 17.2 and must merge into Epic 17's branch before the epic completes. Its tests show a mutation going red for each case: a retry finishing just after its timer while `Decide` is busy, a late first attempt with no retry (fresh and compacted turns), an accepted on-time reply, and a seed with no first-attempt content; Story 17.2's three late-retry tests must still pass.
+- **Public text.** `docs/bridge-guide.md`'s "Second-model retry" section must say only what the code does; any wording change needs the Contest Planner's approval before it is pushed (U-286).
 - **Ledger items.** DW-696: `SendDigest` sent to the disabled `Digest` item answers `failed`, not `not_built`. DW-100 moved to Story 18.3.
