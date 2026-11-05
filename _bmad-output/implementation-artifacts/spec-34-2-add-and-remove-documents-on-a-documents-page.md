@@ -143,6 +143,7 @@ deferred: []
 
 **Lead rulings at the spec gate (2026-11-05, runner C, policy 5086036):**
 - **Texts (DW-722):** the proposed reason codes and texts above are ruled as proposed (veto item U-284). The route refuses `wrong_type`, `too_large` and `empty` before any command and writes no row; `DocumentOps` writes its own failed rows from Story 19.4.
+- **U-284 answer (2026-11-05T08:20:52Z#862, keep with a condition):** the `too_large` text and the route message state the limit that applies to the file's type. Markdown and plain text have no size limit at the route (Decided 4), so `too_large` only ever applies to PDF and Word, and its text stays "that file is {size}; the limit is 10 MB."; the route message already names the PDF and Word limit and no other ("... with PDF and Word files up to 10 MB."). Pinned by the fixed-strings test (both texts verbatim) and one `too_large` test per file family (a `.pdf` and a `.docx` of 10,485,761 bytes refused), plus one test that a `.md` file over 10 MB is not refused as `too_large`.
 - **Transitive Python licences:** owner-only (a dependency under a licence outside `licences_allowed`), parked as U-285 with the recommendation (a). Implement does not start until it is answered.
 - **Online demo proxy (14 MB body):** an owner-side check on the demo host (outward-facing), passed to the orchestrator; nothing in this story changes for it.
 - **Contended files:** the table below goes to the orchestrator for a ruling before implement.
