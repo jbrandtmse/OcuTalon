@@ -137,7 +137,7 @@ describe('every spec of e2e and e2e-online', () => {
 
 describe('e2e/support/fixtures.ts', () => {
   const source = readFileSync(FIXTURES, 'utf8');
-  const extend = source.slice(source.indexOf('base.extend('));
+  const extend = source.slice(source.search(/base\.extend(?:<[^>]*>)?\(/));
 
   it('overrides the page and the context fixtures', () => {
     assert.match(extend, /^\s*page: async \(\{ page \}, use\) => \{/m);
@@ -156,6 +156,6 @@ describe('e2e/support/fixtures.ts', () => {
 
   it('exports the Playwright API beside its own test', () => {
     assert.match(source, /^export \* from '@playwright\/test';$/m);
-    assert.match(source, /^export const test = base\.extend\(/m);
+    assert.match(source, /^export const test = base\.extend(?:<[^>]*>)?\(/m);
   });
 });

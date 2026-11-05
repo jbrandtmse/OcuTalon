@@ -124,3 +124,21 @@ describe('the shared navigation sites', () => {
     });
   }
 });
+
+describe('gotoSettled breadcrumb', () => {
+  it('prints one SLOW line naming the url and the whole seconds when a navigation took 10 s or more, whether it answered or failed', async () => {
+    const realNow = Date.now;
+    let clock = 0;
+    Date.now = () => (clock += 11_000);
+    try {
+      capture();
+      await gotoSettled(fakePage([{ status: 200 }]), URL_);
+      assert.deepEqual(lines, [`SLOW gotoSettled ${URL_} 11 s`]);
+      capture();
+      await assert.rejects(gotoSettled(fakePage([new Error('page.goto: net::ERR_CONNECTION_REFUSED')]), URL_), /ERR_CONNECTION_REFUSED/);
+      assert.deepEqual(lines, [`SLOW gotoSettled ${URL_} 11 s`]);
+    } finally {
+      Date.now = realNow;
+    }
+  });
+});

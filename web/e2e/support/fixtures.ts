@@ -1,6 +1,6 @@
 import { test as base, type BrowserContext, type Page } from '@playwright/test';
 
-import { waitsFor } from './bounds';
+import { boundedStep, effectiveWaits, markTestStart, waitsFor } from './bounds';
 
 export * from '@playwright/test';
 
@@ -16,7 +16,19 @@ export * from '@playwright/test';
  * (bounds.ts waitsFor of the timeout in force, kept current when the test calls test.setTimeout), so a wait that has no timeout of its
  * own, in a helper or in a spec, fails with Playwright's call name and the line of the call and not at the test timeout. A project
  * that sets actionTimeout or navigationTimeout keeps its own, and a wait that passes a timeout keeps that.
+ *
+ * Its third contract: every test is marked with the time it began (bounds.ts markTestStart), so that a bounded wait never outlasts the time
+ * the test has left (capToDeadline).
+ *
+ * Its fourth contract: page.close() on a page of the test's context takes no timeout in Playwright, so it is bounded here by the action
+ * wait in force (and by the time the test has left, bounds.ts boundedStep) and fails naming `page.close`.
  */
+
+/** Makes the page's close() reject with `page.close: no answer within <s> s` when the page has not closed within waitMs() (at the time of the call). */
+export function boundedClose(page: Page, waitMs: () => number): void {
+  const close = page.close.bind(page);
+  page.close = (options) => boundedStep(close(options), waitMs(), 'page.close');
+}
 
 /** Removes every route of the target and lets the callbacks in flight end quietly; a target that is already closed has none to remove. */
 async function unroute(target: Page | BrowserContext): Promise<void> {
@@ -27,7 +39,14 @@ async function unroute(target: Page | BrowserContext): Promise<void> {
   }
 }
 
-export const test = base.extend({
+export const test = base.extend<{ testClock: void }>({
+  testClock: [
+    async ({}, use, testInfo) => {
+      markTestStart(testInfo);
+      await use();
+    },
+    { auto: true },
+  ],
   page: async ({ page }, use) => {
     await use(page);
     await unroute(page);
@@ -39,6 +58,8 @@ export const test = base.extend({
       if (!navigationTimeout) context.setDefaultNavigationTimeout(waits.navigationTimeout);
     };
     giveWaits();
+    const closeWait = (): number => effectiveWaits(testInfo.timeout, { actionTimeout, navigationTimeout }).action;
+    context.on('page', (page) => boundedClose(page, closeWait));
     const setTestTimeout = testInfo.setTimeout.bind(testInfo);
     testInfo.setTimeout = (timeout: number): void => {
       setTestTimeout(timeout);

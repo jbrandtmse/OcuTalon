@@ -98,7 +98,8 @@ function currentBound(): number | undefined {
  * A session that gives no answer within ms is never tried again: its local command (the docker exec client, or the OCUTALON_E2E_IRIS_EXEC
  * shell) is killed, which does not stop an iris session already running in the container, and the call rejects with
  * `irisScript: no answer within <ms/1000> s from the script starting "<first line>"`. ms defaults to the running test's project bound
- * (the online projects set one) and is unbounded without it.
+ * (the online projects set one) and is unbounded without it. A bound never outlasts the time the running test has left less the margin
+ * of bounds.ts capToDeadline (DEADLINE_MARGIN_MS, with its floor), and a session that takes 10 s or more prints a `SLOW irisScript ...` line.
  */
 export async function irisScript(script: string, ms: number | undefined = currentBound()): Promise<string[]> {
   let lines: string[] = [];

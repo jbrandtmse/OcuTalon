@@ -6,13 +6,29 @@ import assert from 'node:assert/strict';
 import { mkdtempSync, readFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { dirname, join } from 'node:path';
-import { describe, it } from 'node:test';
+import { afterEach, describe, it } from 'node:test';
 import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const webRoot = join(here, '..');
 const { default: playwrightConfig } = await import(pathToFileURL(join(webRoot, 'playwright.config.ts')).href);
-const { ONLINE_IRIS_SCRIPT_MS, ONLINE_WAITS, TELEGRAM_FIXTURE_MS, WAIT_CAPS, boundedStep, effectiveWaits, runBounded, scriptBound, waitsFor } = await import(
+const {
+  DEADLINE_FLOOR_MS,
+  DEADLINE_MARGIN_MS,
+  ONLINE_IRIS_SCRIPT_MS,
+  ONLINE_WAITS,
+  SLOW_STEP_MS,
+  TELEGRAM_FIXTURE_MS,
+  WAIT_CAPS,
+  boundedStep,
+  capToDeadline,
+  effectiveWaits,
+  runBounded,
+  scriptBound,
+  slowLine,
+  testTimeLeftMs,
+  waitsFor,
+} = await import(
   pathToFileURL(join(webRoot, 'e2e', 'support', 'bounds.ts')).href
 );
 
@@ -185,6 +201,96 @@ describe('by source', () => {
     const navigate = read('e2e/support/navigate.ts');
     assert.match(navigate, /currentWaits\(\)\?\.navigation/);
     assert.match(navigate, /effectiveWaits\(info\.timeout, info\.project\.use\)/);
-    assert.match(navigate, /gotoSettled: no answer within \$\{wait \/ 1000\} s from \$\{url\}/);
+    assert.match(navigate, /gotoSettled: no answer within \$\{capped\.ms \/ 1000\} s from \$\{url\}\$\{capped\.note\}/);
+    assert.match(navigate, /capToDeadline\(own\)/);
+  });
+});
+
+describe('the deadline cap', () => {
+  it('shortens a bound to the time left before the test timeout minus the margin, never below the floor, and says so', () => {
+    assert.deepEqual(capToDeadline(90_000, undefined), { ms: 90_000, note: '' });
+    assert.deepEqual(capToDeadline(30_000, 100_000), { ms: 30_000, note: '' });
+    const capped = capToDeadline(90_000, 40_000);
+    assert.equal(capped.ms, 40_000 - DEADLINE_MARGIN_MS);
+    assert.match(capped.note, /capped by the test timeout: 40 s left, the own bound is 90 s/);
+    assert.equal(capToDeadline(90_000, 12_000).ms, DEADLINE_FLOOR_MS, 'the floor holds when the margin would leave nothing');
+    assert.equal(capToDeadline(90_000, 3000).ms, 2000, 'and never exceeds the time left less a second');
+    assert.equal(capToDeadline(90_000, -3000).ms, 1000);
+    assert.equal(capToDeadline(2000, 12_000).ms, 2000, 'a bound below the floor is never lengthened');
+  });
+
+  it('has no time left to count outside a running test', () => {
+    assert.equal(testTimeLeftMs(), undefined);
+  });
+
+  it('is applied by boundedStep and runBounded, and marked by the shared test', () => {
+    const bounds = read('e2e/support/bounds.ts');
+    assert.match(bounds, /const \{ ms: bound, note \} = capToDeadline\(ms\);/);
+    assert.match(bounds, /const capped = ms === undefined \? undefined : capToDeadline\(ms\);/);
+    assert.match(read('e2e/support/fixtures.ts'), /markTestStart\(testInfo\);/);
+  });
+});
+
+describe('the slow-step breadcrumb', () => {
+  it('names the step and the whole seconds of a step that took SLOW_STEP_MS or more, and nothing for a faster one', () => {
+    assert.equal(slowLine('irisScript from the script starting "Set r=1"', 37_400), 'SLOW irisScript from the script starting "Set r=1" 37 s');
+    assert.equal(slowLine('step', SLOW_STEP_MS), 'SLOW step 10 s');
+    assert.equal(slowLine('step', SLOW_STEP_MS - 1), undefined);
+  });
+
+  it('is printed by boundedStep, runBounded and gotoSettled', () => {
+    const bounds = read('e2e/support/bounds.ts');
+    assert.match(bounds, /if \(!over\) reportSlow\(step, startedAt\);/);
+    assert.match(bounds, /if \(!timedOut\) reportSlow\(`\$\{step\}\$\{detail\}`, startedAt\);/);
+    assert.match(read('e2e/support/navigate.ts'), /reportSlow\(`gotoSettled \$\{url\}`, startedAt\)/);
+  });
+});
+
+describe('the close of a page', () => {
+  it('goes through boundedClose for every page of the context', () => {
+    const fixtures = read('e2e/support/fixtures.ts');
+    assert.match(fixtures, /page\.close = \(options\) => boundedStep\(close\(options\), waitMs\(\), 'page\.close'\);/);
+    assert.match(fixtures, /context\.on\('page', \(page\) => boundedClose\(page, closeWait\)\);/);
+  });
+});
+
+describe('the slow-step breadcrumb in use', () => {
+  const realLog = console.log;
+  const realNow = Date.now;
+  let lines = [];
+  afterEach(() => {
+    console.log = realLog;
+    Date.now = realNow;
+  });
+  /** Every Date.now() call moves a fake clock on by 11 s, so a step reads as 11 s long. */
+  const slowClock = () => {
+    let clock = 0;
+    lines = [];
+    console.log = (...args) => lines.push(args.join(' '));
+    Date.now = () => (clock += 11_000);
+  };
+
+  it('boundedStep prints it for a step that settled, in value or in error, and not for one that already timed out', async () => {
+    slowClock();
+    await boundedStep(Promise.resolve(1), 5000, 'step A');
+    await assert.rejects(boundedStep(Promise.reject(new Error('no')), 5000, 'step B'), /no/);
+    assert.deepEqual(lines, ['SLOW step A 11 s', 'SLOW step B 11 s']);
+    slowClock();
+    let late;
+    const work = new Promise((resolve) => (late = resolve));
+    await assert.rejects(boundedStep(work, 100, 'step C'), /step C: no answer within 0\.1 s/);
+    late(1);
+    await new Promise((resolve) => setImmediate(resolve));
+    assert.deepEqual(lines, [], 'a step that timed out is named by its error alone');
+  });
+
+  it('runBounded prints it with the step and the detail for a command that closed, and not for one it killed', async () => {
+    slowClock();
+    await runBounded('sh', ['-c', 'cat > /dev/null'], 'x', undefined, 'irisScript', ' from the script starting "Set a=1"');
+    assert.deepEqual(lines, ['SLOW irisScript from the script starting "Set a=1" 11 s']);
+    slowClock();
+    await assert.rejects(runBounded('sh', ['-c', 'exec sleep 30'], '', 200, 'step K'), /step K: no answer within 0\.2 s/);
+    await new Promise((resolve) => setTimeout(resolve, 100));
+    assert.deepEqual(lines, []);
   });
 });

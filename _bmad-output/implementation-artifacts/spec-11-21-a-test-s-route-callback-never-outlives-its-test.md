@@ -2,8 +2,8 @@
 title: "Story 11.21: A test's route callback never outlives its test"
 type: 'bugfix'
 created: '2026-11-04'
-status: 'in-progress'
-baseline_revision: 'b5128e27f03ebcea042f78d4c3b4a0c91bbcb545'
+status: 'done'
+baseline_revision: '84cf459bad86fbdf36de3568deb0941417669e14'
 baseline_commit: 'ac2c4549cc5890433ad22bdf9743f30c4b1b64be'
 review_loop_iteration: 0
 followup_review_recommended: false
@@ -137,7 +137,7 @@ deferred:
   - A pinning test (hermetic, no stack, in `web/e2e/live/` like `route-cleanup.spec.ts`, so `live:sign-in` runs it): a response that never comes makes `loadedAfter` (and `gotoSettled`'s bound) fail within its bound with the named step in the message, well before the test timeout; mutation shown (remove the bound: the test times out instead), never committed. Plus a node source pin in `web/scripts/bounded-waits.test.mjs` if it fits.
   - Verification: re-run `live:online-session` (L5, L6), `live:sign-in` both parts, `live:demo-path` and `live:floor` (the units whose specs use these helpers most; `focus.spec.ts` P1 is in `live:floor`) on lane-B throwaways, one at a time, after the last patch.
 
-- [ ] [CI] `iris (shards)` `live:online-session`, run 41957022331 attempt 3 (job 127036912190, head a8868ad8, the AC4 proof's second run): `leave.spec.ts:354` L6 hit the 300 s test timeout again ("Test timeout of 300000ms exceeded.", no other error, no named step), and the docker check after it found "TelegramIn has a live job" (L6's `finally` never put the Telegram fixture back). Attempt 1 of the same run passed L6 in 9.5 s. Every bounded step of L6 is below 150 s, so either one call has no bound (for example `page.close()` at leave.spec.ts:367, which takes no timeout in Playwright) or a chain of slow but bounded steps summed past the test timeout. Either way AC7 / the Planner's condition ("fails with a message naming the step") was not met. Fix, in the shared layer (no per-spec copies; at most a one-line call change in a spec where a bare Playwright call must go through a shared bounded helper):
+- [x] [CI] `iris (shards)` `live:online-session`, run 41957022331 attempt 3 (job 127036912190, head a8868ad8, the AC4 proof's second run): `leave.spec.ts:354` L6 hit the 300 s test timeout again ("Test timeout of 300000ms exceeded.", no other error, no named step), and the docker check after it found "TelegramIn has a live job" (L6's `finally` never put the Telegram fixture back). Attempt 1 of the same run passed L6 in 9.5 s. Every bounded step of L6 is below 150 s, so either one call has no bound (for example `page.close()` at leave.spec.ts:367, which takes no timeout in Playwright) or a chain of slow but bounded steps summed past the test timeout. Either way AC7 / the Planner's condition ("fails with a message naming the step") was not met. Fix, in the shared layer (no per-spec copies; at most a one-line call change in a spec where a bare Playwright call must go through a shared bounded helper):
   - Deadline-aware bounds: every shared bounded wait (`boundedStep`, `runBounded` / `irisScript`, the Telegram fixture calls, `loadedAfter`, `gotoSettled`, `signInFromSplash`, `epochOf`) uses the smaller of its own bound and the time left before the running test's timeout minus a margin (about 10 s), so the last step of a slow chain fails naming itself before the test timeout, and the spec's `finally` (which puts the Telegram fixture back) still runs. Outside a test (no `test.info()`), the own bound alone.
   - Unbounded calls on the L5/L6 path: bound `page.close()` / `second.close()` and any other bare call there that takes no timeout, through a shared helper (named step).
   - Breadcrumbs for the next red: each shared bounded wait that takes longer than about 10 s prints one stdout line naming its step and its seconds (for example `SLOW irisScript "Set r=..." 37 s`), so a CI log shows where the time went even when no artifact is uploaded.
@@ -260,6 +260,45 @@ Code review 2026-11-04 (bmad-code-review, first review; four layers; diff `ac2c4
   - `[low]` `[reject]` Intent: pages of browser.newContext() get no fixture default - Design Notes 3 and the amend pass: the helpers bound themselves through currentWaits.
   - `[low]` `[reject]` Intent: boundedStep cannot cancel the work it bounds - the late outcome is dropped and caught; the page is closed with its test.
 
+### 2026-11-05 - Review pass (rework iteration 3: the [CI] item)
+- verdicts: 35 findings - high 0, medium 5, low 27, false 3, maybe-false 0
+- findings:
+  - `[low]` `[patch]` Blind: the cap docs promise "minus 10 s" while the 5 s floor can exceed the time left - `capToDeadline` clamps the floor to the time left less a second (at least 1 s); docs reworded; node row added.
+  - `[low]` `[reject]` Blind: a fixed 10 s margin cuts a step in a test under about 25 s - the item names a margin of about 10 s; the online units' tests run 120 to 300 s, the `web/e2e` default 45 s.
+  - `[medium]` `[patch]` Blind: `helper-waits.spec.ts` no longer tests the helpers' own bounds (the 12 s test hits the 5 s floor first) - the five helper cases set the running project's waits (3 s and 4 s, as the online projects do) and assert the anchored message with no cap note.
+  - `[low]` `[patch]` Blind: SLOW inconsistent across `boundedStep`, `runBounded`, `gotoSettled` - `runBounded` skips it after its own kill, `gotoSettled` reports in `finally`; a double report is not possible (`irisScript` is not wrapped in `boundedStep`).
+  - `[low]` `[patch]` Blind: new tests mostly read source text - behavioural SLOW rows (stubbed clock and log), the elapsed-time row and the retry row added; the `reportSlow` count pin replaced by two exact pins.
+  - `[low]` `[patch]` Blind: module-level `startedAt` shadowed by locals - map renamed `testStarts`.
+  - `[low]` `[reject]` Blind: page.close bound covers only the fixture context; `context.close()` and an explicit `gotoSettled` timeout stay unbounded - the item scopes the close to the L5/L6 path (fixture page and context); no close hang is evidenced elsewhere.
+  - `[medium]` `[reject]` Edge: cleanup in a `finally` after a body cut at the margin gets at most the 5 s floor, so `finishTelegram` may be killed - the item fixes the margin at about 10 s; the `finally` runs and the next red's SLOW lines show its time; recorded under residual risks.
+  - `[low]` `[patch]` Edge: floor can exceed the time left - same fix as the first row.
+  - `[low]` `[reject]` Edge: `markTestStart` runs after earlier fixture setup, so time left is overestimated - the shared test's auto fixture is the first to run; the margin absorbs the rest.
+  - `[false]` `[reject]` Edge: an unmarked test gets no cap - `route-cleanup.test.mjs` fails any spec not on the shared test, and hooks use no bounded wait.
+  - `[low]` `[reject]` Edge: `gotoSettled` with an explicit `options.timeout` is not capped - an explicit timeout wins by the story's own rule.
+  - `[low]` `[reject]` Edge: `runBounded` with no bound (the `web/e2e` projects) is not capped - their fixtures wait up to 240 s on purpose; the cap only shortens a bound that exists.
+  - `[low]` `[patch]` Edge: a SLOW line prints after the kill in `runBounded` - guarded by `timedOut`.
+  - `[low]` `[patch]` Edge: a slow `gotoSettled` that fails prints no SLOW line - reported in `finally`.
+  - `[low]` `[reject]` Edge: explicit-timeout waits in `leave.spec.ts` (`expect.poll`, `landedOn`) are not capped - they are not shared bounded waits of the item; the `irisScript` calls inside the polls are capped.
+  - `[low]` `[reject]` Edge: `boundedClose` skips `browser.newContext()` pages - same as the seventh row.
+  - `[false]` `[reject]` Edge: `ownMs` of 0 becomes an unbounded timeout - no caller passes 0 (`waitsFor` returns the caps; `effectiveWaits` falls back on 0).
+  - `[medium]` `[reject]` Edge (claim): the `finally` "still runs" but its calls get 5 s - same as the eighth row.
+  - `[low]` `[reject]` Edge (claim): not every shared wait is capped - see the explicit-timeout and unbounded rows; documented in the docs of `gotoSettled` and `irisScript`.
+  - `[medium]` `[patch]` Gap: `testTimeLeftMs`'s elapsed-time arithmetic is unpinned - `deadline-cap.spec.ts` marks the test as begun 8 s earlier and expects `12 s left` and a 5 s bound.
+  - `[medium]` `[patch]` Gap: the `gotoSettled` retry bound and the explicit-timeout pass-through are unpinned - a spec case with a recording fake: first attempt about 10 s, retry 5 s, explicit 99 s unchanged.
+  - `[low]` `[patch]` Gap: SLOW emission pinned by source text only - node rows with a stubbed clock and log for `boundedStep`, `runBounded` and `gotoSettled`.
+  - `[low]` `[patch]` Gap: the close bound's options and `context.pages()` loop unpinned - a row asserts the options reach `close`; the loop was dead (a new context has no pages) and is deleted.
+  - `[low]` `[reject]` Gap: pages of `browser.newContext()` have no bounded close - same as the seventh row.
+  - `[low]` `[patch]` Other: source-text pins - the `reportSlow` count and the pages-loop pin replaced by exact pins and behavioural rows.
+  - `[low]` `[patch]` Other: `assert.equal(DEADLINE_MARGIN_MS, 10_000)` can only fail on an edit - removed.
+  - `[low]` `[patch]` Other: stale `mutation:` lines for the AC7 pins - rewritten below.
+  - `[low]` `[patch]` Other: `page.close` case had no bound of its own, and the header said "Chromium only" - the case sets 12 s; the header names the one browser case.
+  - `[low]` `[reject]` Other: `irisScript` is unbounded and uncapped in the non-online projects - by the story's rule (their fixtures wait up to 240 s).
+  - `[low]` `[patch]` Other: SLOW after the kill in `runBounded` - same as the fourteenth row.
+  - `[low]` `[reject]` Other: time left is overestimated by the setup before the auto fixture - same as the tenth row.
+  - `[false]` `[reject]` Other: `capToDeadline` is evaluated at the call, after the wait was armed - `WAIT_SLACK_MS` keeps the helper's message first.
+  - `[low]` `[reject]` Intent: native Playwright calls with their own timeouts stay static - the item lists the shared bounded waits; the SLOW lines name where the time goes if L6 goes red again.
+  - `[low]` `[reject]` Intent: a chain of steps adding up to the deadline is not exercised live - `deadline-cap.spec.ts` "the time the test has already used" and the retry case pin the late-start shape without a stack.
+
 ## Design Notes
 
 **Governing ADs.**
@@ -308,6 +347,13 @@ Code review 2026-11-04 (bmad-code-review, first review; four layers; diff `ac2c4
 - `effectiveWaits(testMs, use)` in `bounds.ts` is the one rule for which waits are in force (the project's option when set, else `waitsFor`); `currentWaits()` calls it, and a node test pins it. `WAIT_SLACK_MS` (5 s) is the one margin by which a wait armed before its step outlasts the helper's bound, so that the helper's message names the step.
 - AC7 and the Spec Change Log supersede the Always bullet "the `web/e2e` projects keep today's waits" for the default page waits only: their fixtures' own long waits (240 s) are untouched.
 - Footprint extensions of this pass: `web/e2e/live/helper-waits.spec.ts` (new pinning spec), `web/scripts/goto-settled.test.mjs` and `web/scripts/route-cleanup.test.mjs` (one pin follows the new `context` signature).
+
+**Decided in the [CI] pass (deadline-aware bounds).**
+- The cap is `capToDeadline(own)` in `bounds.ts`: `min(own, max(timeLeft - 10 s, floor))`, the floor being 5 s but never more than the time left less a second (at least 1 s). Time left is `testInfo.timeout` less the time since the shared test's auto fixture `testClock` marked the test (Playwright's `TestInfo` exposes no start time). A test that is not marked, or has no timeout, gets its own bound. `boundedStep`, `runBounded` (so `irisScript` and the Telegram fixture) and `gotoSettled` apply it at each call, so a retry and every step of a chain read the time then left. An explicit `timeout:` passed to `gotoSettled`, a bound-less `irisScript` (the `web/e2e` projects) and the waits that Playwright times itself are left as they were.
+- `page.close()` of every page of the shared context is bounded by the action wait in force and the cap, in the `context` fixture (`boundedClose`, a listener on the context's `page` event), so L5's and L6's closes need no spec edit.
+- A shared wait that settles after 10 s or more prints `SLOW <step> <s> s`; one that timed out prints only its error.
+- Helper cases in `helper-waits.spec.ts` set the running project's waits (3 s and 4 s) so that the helper's own bound, not the cap, ends them.
+- Not found: a product-path cause for L6's hang. The CI log holds no step name and no artifact; L6 passed in 8 to 9 s on four local throwaways. (inference) The hang is a chain of slow but individually bounded steps (the fixture calls are up to 150 s each) that summed past 300 s.
 
 **Rule 1/2.**
 - Shared components: `web/e2e/support/fixtures.ts` and `web/e2e/support/bounds.ts`.
@@ -389,6 +435,17 @@ After each live unit, also after a failure, run `LANE bash ci/iris.sh teardown`.
 - mutation (code review): AC3 `route-cleanup.test.mjs` `TEST_FILE` narrowed back to `/\.spec\.ts$/` → its row "walks every file name that Playwright runs as a test" red.
 - Code review re-run after the patches: lint exit 0; `npm --prefix web test` 1367 of 1367; hermetic `route-cleanup`, `iris-script-bound` and `helper-waits` 20 passed; `live cards` 28, `live answers` 23, `live demo-switch` 6 + 23 passed on lane-B throwaways. Each mutation reverted from a copy; `git status --short` and `git diff --stat` identical to before.
 
+- mutation: [CI] `boundedStep` without `capToDeadline`: red, `deadline-cap.spec.ts` "boundedStep: a step with a long bound ..." (`Test timeout of 12000ms exceeded`). `runBounded` without it: red, the `irisScript` case (same). `gotoSettled` without it: red, its case (same).
+- mutation: [CI] `markTestStart` removed from the shared test: red, the `boundedStep`, `irisScript` and `gotoSettled` cases (test timeout). `testTimeLeftMs` ignoring the elapsed time: red, "the time the test has already used is counted" (10 s bound against the expected 5 s) and the retry case. The cap hoisted out of `gotoSettled`'s `go` (stale for the retry): red, the retry case.
+- mutation: [CI] the `context.on('page', ...)` listener of `boundedClose` removed: red, "the shared test bounds the close of the fixture page and of a page of the context" (`Object.hasOwn(page, 'close')` false).
+- mutation: [CI] `if (!over)` and `if (!timedOut)` removed from the SLOW reports: red, `bounded-waits.test.mjs` "boundedStep prints it ..." and "runBounded prints it ...". The `slowLine` threshold `>` instead of `>=`: red, its row. The margin dropped from `capToDeadline`, and the floor clamp removed: red, "shortens a bound to the time left ...".
+- mutation: [CI] `loadedAfter`'s snapshot bound lengthened (`waits.action * 20`): red, `helper-waits.spec.ts` "loadedAfter: a snapshot that is never answered ..." (5 s with the cap note, against the own 3 s). This replaces the AC7 lines above for the helper cases: with a bound removed they now fail on the message and on the test timeout alike.
+- Every [CI] mutation was reverted from a copy taken first; `bounds.ts`, `navigate.ts`, `floor.ts` and `fixtures.ts` were compared byte for byte afterwards.
+
+**Verification results ([CI] pass):**
+- `npm --prefix web run lint`: exit 0. `npm --prefix web test`: 1376 of 1376 (before the last two-line deletion; the touched files re-ran: `bounded-waits` and `route-cleanup` 42 passed). Hermetic Chromium: `route-cleanup`, `iris-script-bound`, `helper-waits` and `deadline-cap` 27 passed, then `deadline-cap` 7 passed after the last patch.
+- Lane-B throwaways (tag `e11s21impl3`), one per call, torn down after each: `live online-session` 13 passed with L5 and L6 green (L6 8 to 9 s), six runs in all, the last two after the last patch; `live sign-in --part 1/2` 142 passed and `--part 2/2` 139 passed after the review patches (142 and 137 before them). No `SLOW` line appeared in any run.
+
 **Shared surfaces:**
 - the import line of every spec under `web/e2e` and `web/e2e-online`
 - the chromium project's spec list and `live:sign-in`'s part cuts (one new file, `web/e2e/live/route-cleanup.spec.ts`, read from disk by `playwright-projects.test.mjs` and `e2e-part.mjs`)
@@ -404,16 +461,16 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 Status: done
 Blocking condition: none
 
-This section covers the rework pass (iteration 1: the two `[Amend]` items and AC7) only.
+This section covers the rework pass of iteration 3 (the `[CI]` item) only.
 
-**Summary.** The shared fixture now gives every page of a test's context default action and navigation waits of `min(cap, 2/3 of the test timeout)` (caps 60 s and 90 s), kept current when the test calls `test.setTimeout`; a project that sets its own waits (the online projects) keeps them. `loadedAfter` bounds the sign-in and the snapshot GET of `/ocutalon/api/v1/state` separately and names the failing step; `gotoSettled` is bounded, names the URL, and retries once on `net::ERR_ABORTED` as well as `net::ERR_NETWORK_CHANGED`; `signInFromSplash` (its POST answer) and `epochOf` (so `openSession`) are bounded and named. `web/e2e/sign-in/helpers.ts` is untouched: its waits are bounded through `loadedAfter` and the fixture default. `either-way.spec.ts` is on the shared import.
+**Summary.** Every shared bounded wait now also stops at the time its test has left less 10 s (floor 5 s, never more than the time left less a second): `boundedStep` (so `loadedAfter`, `signInFromSplash`, `epochOf`), `runBounded` (so `irisScript` and the Telegram fixture) and `gotoSettled`, so the last step of a slow chain fails naming itself and the spec's `finally` runs. The shared test marks each test's start (auto fixture) and bounds `page.close()` of every page of its context (`page.close: no answer within <s> s`), which covers L5's and L6's closes with no spec edit. A shared wait that took 10 s or more prints `SLOW <step> <s> s`. No product path was found behind L6's hang (see Design Notes).
 
-**Files changed.** `web/e2e/support/{bounds,fixtures,floor,navigate}.ts`, `web/e2e-online/support.ts`, `web/e2e/cards/either-way.spec.ts` (import), `web/e2e/live/helper-waits.spec.ts` (new, hermetic, 8 cases), `web/scripts/{bounded-waits,goto-settled,route-cleanup}.test.mjs`.
+**Files changed.** `web/e2e/support/{bounds,fixtures,navigate,iris}.ts` (iris.ts: the doc comment of `irisScript` only), `web/e2e/live/deadline-cap.spec.ts` (new, hermetic, 7 cases), `web/e2e/live/helper-waits.spec.ts` (helper cases run under the project's own waits), `web/scripts/{bounded-waits,goto-settled,route-cleanup}.test.mjs`.
 
-**Review.** 31 findings (medium 2, low 29). Patches applied: 2 medium and 7 low-class rows (cases for `signInFromSplash` and `epochOf`, a second-page case without an explicit timeout, elapsed-time assertions removed, `effectiveWaits` and `WAIT_SLACK_MS` extracted into `bounds.ts`, mutation lines for `waitsFor`, `boundedStep` and `effectiveWaits`, a shadowed name renamed). Deferred: none new. Rejected: the rest, each with its reason in the triage log.
+**Review.** 35 findings (medium 5, low 27, false 3). Patched 17 rows (medium 3, low 14): floor clamp and docs, helper cases pinning their own bounds, SLOW consistency, rows for the elapsed time, the retry, the SLOW lines and the close options, a dead loop deleted. Deferred: none. Rejected: 18 rows, each with its reason in the triage log (the margin and the cleanup floor are the item's own; explicit timeouts and bound-less `irisScript` stay as the story set them).
 
 **Follow-up review recommended:** false (this pass patched no high).
 
-**Verification.** See Verification results (amend pass): lint, 1366 node tests, 19 hermetic Chromium tests, and the live units `online-session`, `sign-in` both parts, `online-allowance`, `online-visitors`, `online-demo-path`, `online-demo` after the last patch, each on a lane-B throwaway torn down after each; `demo-path` and `floor` ran green after the amend patches and were not re-run after the review patches.
+**Verification.** See Verification results ([CI] pass).
 
-**Residual risks.** `test.slow()` called in a test body is not seen by the default waits (three `chat.spec.ts` tests keep the 30 s default; green). A healthy sign-in plus a hung snapshot can still reach the test timeout unnamed when the sign-in itself takes most of the budget. The intent-contract's Always bullet that the `web/e2e` projects keep today's waits is superseded by AC7 for the default page waits; the lead may restate it. `ci/iris.sh live online-demo`, `online-visitors` locally need `OCUTALON_LIVE_DEADLINE=1200` (deferred earlier).
+**Residual risks.** (1) The root cause of the CI hang is unconfirmed: it did not reproduce locally and the log names no step. (2) A `finally` that starts after the body was cut at the margin gets at most the 5 s floor per call, so `finishTelegram` may still be killed and leave TelegramIn live; that red would now name the step and carry SLOW lines. (3) Playwright's own waits with an explicit timeout (`expect.poll`, `landedOn`) are not capped. (4) `page.close()` is bounded only on the shared context's pages.
