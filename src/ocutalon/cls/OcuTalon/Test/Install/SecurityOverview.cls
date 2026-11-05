@@ -15,6 +15,12 @@ Parameter PRODUCTION = "OcuTalon.Production";
 /// The statement of the tools section, word for word (AD-10).
 Parameter STATEMENT = "No built-in tool runs operating-system commands, arbitrary ObjectScript or Python, or data-changing SQL, and AI Hub's shell, filesystem, SQL and web-search tools are never registered. The automated tool-inventory test `OcuTalon.Test.Agent.Runners` (`TestToolInventory`) checks this on every running runner.";
 
+/// The runner items of the production, the first runners and their retry runners (Story 17.2), comma-separated.
+ClassMethod AllRunners() As %String [ Private ]
+{
+	Quit ##class(OcuTalon.Test.Agent.RunnerFixture).#RUNNERS_","_##class(OcuTalon.Test.Agent.RunnerFixture).#RETRYRUNNERS
+}
+
 /// 1 while the entries of the runners are pointed at the CI mock key variable.
 Property Pointed As %Boolean [ InitialExpression = 0 ];
 
@@ -23,7 +29,7 @@ Method OnAfterOneTest(testname As %String) As %Status
 {
 	If ..Pointed {
 		Set ..Pointed = 0
-		Do ##class(OcuTalon.Test.Agent.RunnerFixture).RestoreKeys()
+		Do ##class(OcuTalon.Test.Agent.RunnerFixture).RestoreKeys(..AllRunners())
 	}
 	Quit $$$OK
 }
@@ -381,7 +387,8 @@ Method TestInventoryStatement()
 		If $List(runners(i), 3) Set enabled = enabled _ $ListBuild($List(runners(i), 1))
 	}
 	Set checked = $ListFromString($Parameter("OcuTalon.Test.Agent.Runners", "RUNNERS"))
-	Do $$$AssertEquals($ListToString(..Sorted(checked)), $ListToString(..Sorted(enabled)), "the runners that TestToolInventory checks are every enabled agent runner of the production, so the statement's every running runner holds")
+	Do $$$AssertEquals($ListToString(..Sorted($ListFromString(..AllRunners()))), $ListToString(..Sorted(enabled)), "the runners are every enabled agent runner of the production: the three that TestToolInventory checks and their three retry runners (Story 17.2), which TestToolsMatchRunners checks, so the statement's every running runner holds")
+	Do $$$AssertEquals($ListToString(..Sorted(checked)), $ListToString(..Sorted($ListFromString($Parameter("OcuTalon.Test.Agent.RunnerFixture", "RUNNERS")))), "and the runners that TestToolInventory checks are the first runners of the fixture")
 }
 
 /// The sections are made of ASCII alone, and the check that says so finds a character outside ASCII.
@@ -411,8 +418,8 @@ Method TestToolsMatchRunners()
 		Quit
 	}
 	Set ..Pointed = 1
-	Set sc = $ClassMethod(fixture, "PointKeys")
-	Do $$$AssertStatusOK(sc, "the entries of the runners are pointed at the CI mock key variable")
+	Set sc = $ClassMethod(fixture, "PointKeys", ..AllRunners())
+	Do $$$AssertStatusOK(sc, "the entries of the runners, the retry runners included, are pointed at the CI mock key variable")
 	If $$$ISERR(sc) Quit
 	Do $$$AssertTrue($ClassMethod(fixture, "WaitRecords"), "and every runner has recorded its key state")
 	Set sc = ##class(OcuTalon.Install.Step.Production).Runners(..#PRODUCTION, .runners)

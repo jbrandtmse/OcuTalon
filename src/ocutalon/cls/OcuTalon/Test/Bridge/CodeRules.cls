@@ -351,8 +351,8 @@ Method TestOnlyChecksPublishesCheck()
 }
 
 /// Only the AD-8 retry path names RetryOf (Story 33.1, veto U-246): the scanner flags the property in each form a client class could use it, passes look-alike words and
-/// comment lines, and the scan finds no class outside the allow-list that names it. RetryOf does not exist yet (Story 17.2 builds it in the allowed classes), so the
-/// scan finds none today; the allowed classes are not required to name it.
+/// comment lines, and the scan finds no class outside the allow-list that names it. Story 17.2 built RetryOf in the allowed classes (the retry decision, the request, the runner, its adapter and the link), so the
+/// scan finds it only there; the allowed classes are not required to name it.
 Method TestOnlyTheRetryPathNamesRetryOf()
 {
 	Set pattern = ..#RETRYOF
@@ -548,7 +548,7 @@ Method TestOnlyTheRunnerWritesLinks()
 	For method = "Point", "SessionOf", "Lock", "Unlock" {
 		Do $$$AssertTrue($ListFind(used, method), "the adapter calls "_method)
 	}
-	Do $$$AssertEquals($ListLength($ClassMethod(source, "Lines", adapter, "conversationlink\)\.point\(")), 2, "and it calls Point in two places: the save of a linked turn and the switch to a compaction fork (Story 30.1)")
+	Do $$$AssertEquals($ListLength($ClassMethod(source, "Lines", adapter, "conversationlink\)\.point\(")), 3, "and it calls Point in three places: the save of a linked turn, the switch to a compaction fork (Story 30.1) and the save of a retried turn (Story 17.2)")
 	Do $$$AssertEquals(..LinkMentions(adapter, calls), 0, "and its code names the link class nowhere but in those calls")
 	Do $$$AssertEquals($ClassMethod(source, "Matches", adapter, "ocutalonbp\.conv"), 0, "nor the globals of its rows and its lock")
 	Do $$$AssertStatusOK($ClassMethod(source, "Text", "OcuTalon.Bridge.Purge", .purge), "the bridge purge has source")

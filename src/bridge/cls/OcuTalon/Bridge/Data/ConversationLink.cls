@@ -9,7 +9,8 @@
 ///   - Decide takes it only to probe: it Locks and at once Unlocks, to learn whether an earlier turn, even one that Decide gave up on,
 ///     still holds the conversation (Process.Decide);
 ///   - Unlock runs outside any transaction.
-/// Only the adapter calls Point, which writes the link. Decide also calls SessionOf, which only reads, to size the stored history of a
+/// Only the adapter calls Point, which writes the link; it is a compare-and-set for every writer that holds the conversation lock, and the
+/// retry runner's unconditional write is the only one that does not. Decide also calls SessionOf, which only reads, to size the stored history of a
 /// turn that continues a conversation (RequestSize). The adapter and Decide are the only callers of Lock, Unlock and SessionOf. No other
 /// product class names this class, except Bridge.Purge, which reads the SessionId of every link through one SELECT to tell which AI sessions
 /// are still named, and writes nothing.
@@ -40,21 +41,56 @@ ClassMethod SessionOf(ownerRef As %String, agent As %String) As %String
 	Quit ..SessionIdGetStored(id)
 }
 
-/// Makes the link of the owner and the agent name the AI session: creates the row, or updates the SessionId of the row that exists.
-/// This is the only writer of the class. The caller holds the conversation lock (Lock).
-ClassMethod Point(ownerRef As %String, agent As %String, sessionId As %String) As %Status
+/// Makes the link of the owner and the agent name the AI session: creates the row, or updates the SessionId of the row that exists. This is
+/// the only writer of the class.
+///   - With no expected argument the link moves unconditionally. That is the retry's Point (AD-6, AD-8): the retry runner points the first
+///     runner's link at the session it ran in, and holds no conversation lock.
+///   - With expected, even "", Point is a compare-and-set: under the lock of the link row itself (the row's ID node, never the conversation
+///     lock), the link moves only while it still names expected ("" for a link that does not exist). moved says whether it moved. A runner
+///     that holds the conversation lock passes the session it opened, or the session the link named when it began a fresh turn or found no
+///     link, so a late attempt whose retry already moved the link leaves the link where the retry put it.
+/// A link row that exists is changed under its lock in both forms, so a compare and a write never interleave with the other form's write; a link
+/// that does not exist is created without one, and the unique index lets one creator win while the other tries again against the row that now exists.
+/// The status is an error when an unconditional write did not happen.
+ClassMethod Point(ownerRef As %String, agent As %String, sessionId As %String, expected As %String, Output moved As %Boolean) As %Status
 {
+	Set moved = 0
 	If ownerRef = "" Quit $$$ERROR($$$GeneralError, "A conversation link needs an OwnerRef")
 	If agent = "" Quit $$$ERROR($$$GeneralError, "A conversation link needs an agent")
 	If sessionId = "" Quit $$$ERROR($$$GeneralError, "A conversation link needs an AI session id")
-	Set link = ..OwnerRefAgentIndexOpen(ownerRef, agent)
-	If '$IsObject(link) {
-		Set link = ..%New()
-		Set link.OwnerRef = ownerRef
-		Set link.Agent = agent
+	Set compare = $Data(expected)
+	Set sc = $$$OK
+	For attempt = 1:1:2 {
+		Set exists = ..OwnerRefAgentIndexExists(ownerRef, agent, .id)
+		If exists {
+			Lock +^OcuTalonBP.ConvLinkD(id):..#LOCKSECONDS
+			If '$Test {
+				Set sc = $$$ERROR($$$GeneralError, "The conversation link row is locked by another process, so it is not moved")
+				Quit
+			}
+			Set link = ..%OpenId(id, , .sc)
+			If $$$ISERR(sc) || (compare && (link.SessionId '= $Get(expected))) {
+				Lock -^OcuTalonBP.ConvLinkD(id)
+				Quit
+			}
+		} Else {
+			If compare && ($Get(expected) '= "") Quit
+			Set link = ..%New()
+			Set link.OwnerRef = ownerRef
+			Set link.Agent = agent
+		}
+		Set link.SessionId = sessionId
+		Set sc = link.%Save()
+		If exists Lock -^OcuTalonBP.ConvLinkD(id)
+		If $$$ISOK(sc) {
+			Set moved = 1
+			Quit
+		}
+		If exists || '..OwnerRefAgentIndexExists(ownerRef, agent) Quit
+		Set sc = $$$OK
 	}
-	Set link.SessionId = sessionId
-	Quit link.%Save()
+	If $$$ISOK(sc) && 'moved && 'compare Set sc = $$$ERROR($$$GeneralError, "The conversation link was not written, because another process wrote it first")
+	Quit sc
 }
 
 /// Takes the conversation lock of the owner and the agent, waiting up to seconds (LOCKSECONDS by default). 1 when it is taken, 0 when

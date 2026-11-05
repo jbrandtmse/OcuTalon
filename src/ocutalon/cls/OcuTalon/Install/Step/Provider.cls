@@ -1,12 +1,14 @@
 /// The Provider step (AD-19, AD-23): the only install-time writer of the Config Store entries of the agent runners, one
 /// AI.LLM.OcuTalon<Agent> entry per runner of OcuTalon.Production, where <Agent> is the last part of the runner's agent
-/// class name (AI.LLM.OcuTalonTriage). It then writes each runner's ProviderConfig setting, @{config:OcuTalon<Agent>}.
+/// class name (AI.LLM.OcuTalonTriage), and for a retry runner (an item whose name ends in Retry) AI.LLM.OcuTalon<Agent>Retry, so that
+/// a retry runner never shares its first runner's entry. It then writes each runner's ProviderConfig setting, @{config:OcuTalon<Agent>}
+/// (@{config:OcuTalon<Agent>Retry} for a retry runner).
 /// An entry holds the provider, the key placeholder @{env:ANTHROPIC_API_KEY}, the endpoint overrides of the environment and the
 /// timeouts of the bridge timer, and never a model (the model is the runner's Model setting, AD-7) and never a key: the placeholder
 /// stays unresolved through the Config Store and AI Hub's provider resolves it. No code here reads the key's value.
 /// The timeouts are the request timeout and the whole retry block of OcuTalon.Bridge.Timeouts.Derive (AD-8), for the TimerSeconds
 /// setting of Decide in OcuTalon.Production (the System Default Settings row, else the initial value), written into http_config of
-/// every entry, never a part of the block. A timer that Timeouts.Check refuses fails the step, naming TimerSeconds.
+/// every entry, never a part of the block; the entry of a retry runner derives from Timeouts.RetryTimer of that timer (DW-647). A timer that Timeouts.Check refuses fails the step, naming TimerSeconds.
 /// Every value the step writes is structural: it is rewritten whole at every start, so a stale field disappears, and every
 /// entry gets the Config Store's default read and edit resource, %Admin_ConfigStore, again.
 /// The overrides, read from the environment at every start (AD-19, DW-39):
@@ -134,9 +136,10 @@ ClassMethod CheckCaFile(caFile As %String) As %Status
 }
 
 /// The name of the entry of an agent class, without the area and type: OcuTalon plus the last part of the class name.
-ClassMethod EntryName(agentClass As %String) As %String
+/// A retry runner item (its name ends in Retry, Timeouts.IsRetryItem) adds Retry, so that its entry is its own.
+ClassMethod EntryName(agentClass As %String, item As %String = "") As %String
 {
-	Quit ..#NAMEPREFIX_$Piece(agentClass, ".", $Length(agentClass, "."))
+	Quit ..#NAMEPREFIX_$Piece(agentClass, ".", $Length(agentClass, "."))_$Select(##class(OcuTalon.Bridge.Timeouts).IsRetryItem(item): ##class(OcuTalon.Bridge.Timeouts).#RETRYSUFFIX, 1: "")
 }
 
 /// Writes one runner's entry with the default resources, checks that it exists, and then writes the runner's ProviderConfig
@@ -147,9 +150,10 @@ ClassMethod WriteRunner(production As %String, item As %String, agentClass As %S
 		If 'enabled Quit $SYSTEM.Status.OK()
 		Quit $SYSTEM.Status.Error(5001, "The runner "_item_" has no usable agent class: its AgentClass is '"_agentClass_"'")
 	}
-	Set name = ..EntryName(agentClass)
+	Set retry = ##class(OcuTalon.Bridge.Timeouts).IsRetryItem(item)
+	Set name = ..EntryName(agentClass, item)
 	Set fqn = ..#ENTRYPREFIX_name
-	Set details = ..Details(agentClass, baseUrl, caFile, mockKeyFlag, timer)
+	Set details = ..Details(agentClass, baseUrl, caFile, mockKeyFlag, $Select(retry: ##class(OcuTalon.Bridge.Timeouts).RetryTimer(timer), 1: timer))
 	If ##class(%ConfigStore.Configuration).Exists(fqn) {
 		Set sc = ##class(%ConfigStore.Configuration).Modify(fqn, details, , , ..#ENTRYRESOURCE, ..#ENTRYRESOURCE)
 	} Else {

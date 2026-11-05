@@ -870,6 +870,9 @@ Method TestSessionTimeout()
 	Do $$$AssertEquals(adapter.TimeoutMs(), 7000, "TimeoutMs gives 7000 for the shortest timer")
 	Do $$$AssertStatusOK($ClassMethod(fixture, "PutDefault", "Decide", "TimerSeconds", 110), "a TimerSeconds row of 110 is written")
 	Do $$$AssertEquals(adapter.TimeoutMs(), 105000, "and 105000 for the longest")
+	Do $$$AssertEquals(adapter.TimeoutMs(1), 7000, "a request with RetryOf gets the retry runner's timer: with a timer of 110 only 12 s are left, so 7000 as well")
+	Do $$$AssertStatusOK($ClassMethod(fixture, "PutDefault", "Decide", "TimerSeconds", 60), "a TimerSeconds row of 60 is written")
+	Do $$$AssertEquals(adapter.TimeoutMs()_"|"_adapter.TimeoutMs(1), "55000|45000", "and with a timer of 60 the first runner gets 55000 and the retry runner 45000 (a timer of 50)")
 }
 
 /// The Reply says whether a tool ran (DW-56): ToolsRun is 1 for a turn that called two tools, and for a call that failed with a rate limit after

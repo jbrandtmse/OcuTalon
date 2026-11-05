@@ -2,13 +2,22 @@
 title: 'Story 17.2: Retry once on a second model before falling back'
 type: 'feature'
 created: '2026-11-05'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'a2854087e67c56213ae550d895d3e5da62878fdb'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-17-context.md'
 warnings: ['oversized']
-deferred: []
+deferred:
+  - summary: >-
+      ToolsReadOnly judges only the compiled TOOLSETS of an agent, so MCP servers attached at step 4 (AD-21) are invisible to the R2 rule for a timed-out decide or diagnose.
+    evidence: |-
+      Decide.ToolsReadOnly reads the TOOLSETS parameter and the tool classes' CLASSIFICATION and READONLY parameters; tools that an MCP server adds at run time are known only to a live tool manager (RequestSize notes the same limit). No agent has an MCP server in this release, so nothing is wrong today; once Epic 22/35 attaches servers to Triage or Diagnosis, a timed-out attempt could be retried after a state-changing MCP tool ran.
+    location: >-
+      src/bridge/cls/OcuTalon/Bridge/Process/Decide.cls ToolsReadOnly
+    severity: medium
+
 ---
 
 <intent-contract>
@@ -137,19 +146,19 @@ deferred: []
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] Task 0 (measure, slot A read-only or a warm throwaway): run one linked turn through a shadow runner (the `Test.Bridge.Conversation` pattern) and read the saved session's `ContextData` stream. Record in `## Design Notes` whether it parses to the same message array `GetContext()` returns, which `Compaction.Seed` needs. Also confirm that the mock answers `GET /v1/models/claude-sonnet-5-5`. Record the timing of `retry-overloaded-late` on the developer machine.
-- [ ] `src/bridge/cls/OcuTalon/Bridge/Msg/Request.cls`: add `Property RetryOf As %String(MAXLEN = 128)`, the first runner item of a retried attempt. Its doc says that only `Decide` sets it, and that it is cleared on every first send and re-send. Append the storage slot.
-- [ ] `src/bridge/cls/OcuTalon/Bridge/Operation/AgentRunner.cls`: add the host setting `RetryItem` (`SETTINGS` `RetryItem:Basic`). Its doc says that it names this runner's retry item, that empty means no second model, and that a retry runner's own `RetryItem` is never followed.
-- [ ] `src/bridge/cls/OcuTalon/Bridge/Timeouts.cls`:
+- [x] Task 0 (measure, slot A read-only or a warm throwaway): run one linked turn through a shadow runner (the `Test.Bridge.Conversation` pattern) and read the saved session's `ContextData` stream. Record in `## Design Notes` whether it parses to the same message array `GetContext()` returns, which `Compaction.Seed` needs. Also confirm that the mock answers `GET /v1/models/claude-sonnet-5-5`. Record the timing of `retry-overloaded-late` on the developer machine.
+- [x] `src/bridge/cls/OcuTalon/Bridge/Msg/Request.cls`: add `Property RetryOf As %String(MAXLEN = 128)`, the first runner item of a retried attempt. Its doc says that only `Decide` sets it, and that it is cleared on every first send and re-send. Append the storage slot.
+- [x] `src/bridge/cls/OcuTalon/Bridge/Operation/AgentRunner.cls`: add the host setting `RetryItem` (`SETTINGS` `RetryItem:Basic`). Its doc says that it names this runner's retry item, that empty means no second model, and that a retry runner's own `RetryItem` is never followed.
+- [x] `src/bridge/cls/OcuTalon/Bridge/Timeouts.cls`:
   - add `RetryTimer(timer)` = max(`MINTIMER`, min(timer, `MAXTIMER` - timer)) for a timer that `Check` accepts, else "";
   - `Entries` also returns, for each first runner of `Decide.#RUNNERS`, the item `<runner>Retry` when it exists in the production with an entry. This is the same name rule as the Provider step's, and it does not depend on `RetryItem`.
   - `Apply` merges `Derive(RetryTimer(timer)).http_config` into those retry entries and `Derive(timer).http_config` into the first runners' entries, and restarts the retry items that have jobs together with the rest. Cites DW-647.
-- [ ] `src/bridge/cls/OcuTalon/Bridge/Data/ConversationLink.cls`: `Point(ownerRef, agent, sessionId, expected)`.
+- [x] `src/bridge/cls/OcuTalon/Bridge/Data/ConversationLink.cls`: `Point(ownerRef, agent, sessionId, expected)`.
   - When `expected` is passed (`$Data`), the link moves only if `SessionOf` still equals `expected` ("" for no link), under the row's own lock, never `^OcuTalonBP.Conv`.
   - The `Output moved` argument says whether it moved.
   - With no `expected`, it moves unconditionally (the retry's point).
   - Doc: the retry's `Point` and the CAS rule.
-- [ ] `src/bridge/cls/OcuTalon/Bridge/Adapter/Agent.cls`:
+- [x] `src/bridge/cls/OcuTalon/Bridge/Adapter/Agent.cls`:
   - (a) `SaveLinked` and `SwitchTo` pass `expected`: the id opened or read at the start of `AnswerLinked`, and the fork's id after `SwitchTo`.
   - (b) `Answer`: for a request with `RetryOf` set, first check `RetryAllowed(retryOf)`. It is a method that `Zz` runners can override: the item `retryOf`'s `RetryItem` setting (Accessor `ValueFor`, Host) equals this item's config name. Otherwise return an error status naming `RetryOf`, with no Chat.
   - (c) A linked turn with `RetryOf` goes to a new `AnswerRetried`:
@@ -159,7 +168,7 @@ deferred: []
     - after a completed, untainted `Chat`: `%Save`, `Point(OwnerRef, RetryOf, id)` with no expected value, and `SessionRotated` 1;
     - it ignores `Compact`.
   - (d) The session config of a request with `RetryOf` takes `timeout_ms` from `Derive(Timeouts.RetryTimer(TimerSeconds))`.
-- [ ] `src/bridge/cls/OcuTalon/Bridge/Process/Decide.cls`. Add the stored properties `RetryRunner` (the retry item sent to, "" until sent) and `FirstSeconds` (T1), with their storage. Then add:
+- [x] `src/bridge/cls/OcuTalon/Bridge/Process/Decide.cls`. Add the stored properties `RetryRunner` (the retry item sent to, "" until sent) and `FirstSeconds` (T1), with their storage. Then add:
   - `RetryItemOf(runner, kind)`: reads `RetryItem` through Accessor. It gives one warning and "" when the value names:
     - a missing, disabled or non-`AgentRunner` item;
     - the runner itself;
@@ -179,20 +188,20 @@ deferred: []
   - `EstimateTokens` counts a continue turn with `RetryOf` as min(`HistoryChars(SessionOf(OwnerRef, RetryOf))`, `SEEDCHARS`) plus the input.
   - `NewRow`/`Conclude` set `Model` from the answering `Reply.Model` when it is not empty.
   - Update the class doc.
-- [ ] `src/ocutalon/cls/OcuTalon/Install/Step/Provider.cls`:
+- [x] `src/ocutalon/cls/OcuTalon/Install/Step/Provider.cls`:
   - `EntryName(agentClass, item = "")` adds `Retry` for an item whose name ends in `Retry`;
   - `WriteRunner` passes the item;
   - `Details` gets `RetryTimer(timer)` for a retry item;
   - the mock-key header comes from the same `Details`, unchanged. Each entry is still written before its `ProviderConfig` row.
-- [ ] `src/ocutalon/cls/OcuTalon/Production.cls`: enable the three retry items with `AgentClass` (`OcuTalon.Agent.Triage`/`Diagnosis`/`Chat`), and `ReplyClass` for Triage and Diagnosis (as on their first runners). No `RetryItem` anywhere.
-- [ ] `ci/mock/scenarios/A/`: add new scenarios, each `{name, match:{marker}, replies}` with `name` equal to the file name.
+- [x] `src/ocutalon/cls/OcuTalon/Production.cls`: enable the three retry items with `AgentClass` (`OcuTalon.Agent.Triage`/`Diagnosis`/`Chat`), and `ReplyClass` for Triage and Diagnosis (as on their first runners). No `RetryItem` anywhere.
+- [x] `ci/mock/scenarios/A/`: add new scenarios, each `{name, match:{marker}, replies}` with `name` equal to the file name.
   - Two replies, the second valid: `retry-refusal`, `retry-max-tokens`, `retry-empty`, `retry-provider-error`, `retry-held` (a valid decide reply after 20 s).
   - `retry-overloaded-late` (529 after 10.5 s, then a valid decide reply).
   - `retry-refusal-then-error`.
   - `retry-diagnosis` (500, then a valid diagnosis payload shaped like `diagnosis.json`'s).
   - `retry-chat` (refusal, then text) and `retry-chat-held` (text after 20 s, then text).
   - The decide replies are copied in shape from `decide-ignore.json`.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Bridge/Decide.cls`, in process: add tests for `Retryable` and `RetrySeconds` (T=60 gives 50; T=100 gives 0; T1=80 gives 12), and for `Held` cases (a), (b) and (d), with `StartHolder`. Add `ZzDecide` wiring tests for:
+- [x] `src/ocutalon/cls/OcuTalon/Test/Bridge/Decide.cls`, in process: add tests for `Retryable` and `RetrySeconds` (T=60 gives 50; T=100 gives 0; T1=80 gives 12), and for `Held` cases (a), (b) and (d), with `StartHolder`. Add `ZzDecide` wiring tests for:
   - each never-retried reason, `ToolsRun` and `Broken`;
   - `no_key` retried with the retry runner's key checked;
   - a second retry never sent, and the retry's `rate_limited` not re-sent;
@@ -202,14 +211,14 @@ deferred: []
   - `Model` from the answering reply.
 
   Cites DW-647 and DW-650.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Bridge/Conversation.cls`: retried-turn tests on shadow runners.
+- [x] `src/ocutalon/cls/OcuTalon/Test/Bridge/Conversation.cls`: retried-turn tests on shadow runners.
   - With another job holding the first runner's lock, the retry answers. It is not Busy.
   - The seed comes from the stored session (continue) or `SeedText` (fresh). The link moves to the retry's session, with `SessionRotated` 1.
   - A late first `SaveLinked` CAS leaves the link.
   - The next turn's logged messages carry the seeded history.
   - A `RetryOf` that `RetryAllowed` refuses gives an error and no mock request.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Bridge/Timeouts.cls`: `RetryTimer` values for 12, 55, 60, 98, 99 and 110. `Apply` merges `Derive(RetryTimer(T))` into the retry entries.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Bridge/SecondModel.cls` (new, live). It uses the production and the mock, with `Prepare` as `Test.Agent.Decide` does. Each test writes the first runner's `RetryItem` and the retry item's `Model` (`claude-sonnet-5-5`) as System Default rows, restarts them, and deletes the rows in `OnAfterOneTest`. Tests:
+- [x] `src/ocutalon/cls/OcuTalon/Test/Bridge/Timeouts.cls`: `RetryTimer` values for 12, 55, 60, 98, 99 and 110. `Apply` merges `Derive(RetryTimer(T))` into the retry entries.
+- [x] `src/ocutalon/cls/OcuTalon/Test/Bridge/SecondModel.cls` (new, live). It uses the production and the mock, with `Prepare` as `Test.Agent.Decide` does. Each test writes the first runner's `RetryItem` and the retry item's `Model` (`claude-sonnet-5-5`) as System Default rows, restarts them, and deletes the rows in `OnAfterOneTest`. Tests:
   - `TestRetryAnswers`: refusal, `max-tokens`, empty, provider-error, timeout (T=12) and rate-limit (T=12) on decide, each with the retry answering.
   - `TestRetryFails`: the same cases with the retry failing (one-reply scenarios, `decide-late` and `overloaded`, plus `retry-refusal-then-error` for the retry's own reason).
   - `TestNeverRetried`: budget, precheck daily cap, `too_large` and gateway 403. Each falls back with zero requests to the retry runner.
@@ -220,14 +229,14 @@ deferred: []
   - The Integration AC through `WebChatIn`.
 
   Every case asserts exactly one Decision row and one answer from `Decide`, plus the headers to each runner.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Agent/RunnerFixture.cls` (footprint extension, not contended): `SetKeys`/`PointKeys`/`RestoreKeys`/`KeysAre` take an optional runner list, so the retry entries can be pointed and restored. Do not copy them.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Install/Provider.cls`: rewrite `TestEntries` for six entries.
+- [x] `src/ocutalon/cls/OcuTalon/Test/Agent/RunnerFixture.cls` (footprint extension, not contended): `SetKeys`/`PointKeys`/`RestoreKeys`/`KeysAre` take an optional runner list, so the retry entries can be pointed and restored. Do not copy them.
+- [x] `src/ocutalon/cls/OcuTalon/Test/Install/Provider.cls`: rewrite `TestEntries` for six entries.
   - Each `ProviderConfig` names its own entry, and the retry items name `@{config:OcuTalon<Agent>Retry}`.
   - With the flag, the retry entries carry the mock header.
   - The retry entries' timeouts are `Derive(RetryTimer(60))`.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Install/Production.cls`: oracle rows with the retry items enabled and their settings. Fix the doc at :13.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Bridge/CodeRules.cls`: correct the doc lines that say "RetryOf does not exist yet". Do not change the allow-list.
-- [ ] Search the test trees and `docker/tests/` for assertions on the shape of the production's enabled runner items or the count of jobs and entries, and update them (Rule 19).
+- [x] `src/ocutalon/cls/OcuTalon/Test/Install/Production.cls`: oracle rows with the retry items enabled and their settings. Fix the doc at :13.
+- [x] `src/ocutalon/cls/OcuTalon/Test/Bridge/CodeRules.cls`: correct the doc lines that say "RetryOf does not exist yet". Do not change the allow-list.
+- [x] Search the test trees and `docker/tests/` for assertions on the shape of the production's enabled runner items or the count of jobs and entries, and update them (Rule 19).
 
 **Acceptance Criteria:**
 - Given `RetryItem` names the agent's retry runner, the retry runner has a second model, and `Install.Step.Provider` wrote its `AI.LLM.OcuTalon<Agent>Retry` entry before its `ProviderConfig` row, when the first attempt ends with a retried reason, then `Decide` sends the same request once to the retry runner (same `DecisionRef`, `RetryOf` = the first runner). A usable answer becomes the decision, diagnosis or reply, and its row and answer record the second model plus the sum of both attempts' tokens, cost and steps.
@@ -250,6 +259,41 @@ deferred: []
 - 2026-11-05 spec gate (lead): rulings R1 (U-281) and R2 (U-282) added under Design Notes; R2 replaces decided-in-stage 10 (timed-out turns are not retried).
 
 ## Review Triage Log
+
+### 2026-11-05 - Review pass
+- verdicts: 30 findings - high 0, medium 3, low 26, false 1, maybe-false 0
+- findings:
+  - `[low]` `[reject]` Blind: SaveRetried moves the link unconditionally, so a retry that finishes after Decide's retry timer could overwrite a newer link - the unconditional Point is the spec's rule (the retry must win over a late first attempt); under R2 a retried turn's first attempt has already finished, and the window needs a second message inside T2.
+  - `[low]` `[reject]` Blind: TryRetry's Held call can never return 1 - the call is the spec's task text; it probes when the ItemId is empty, and a Busy there cannot arise in the pipeline (ItemId is always set).
+  - `[low]` `[reject]` Blind: RetryItemOf does not check that the retry item runs the same agent as the first runner - the spec lists the checks (missing, disabled, non-runner, self, ReplyClass); the value is written by Stories 17.3/17.4, not by a user.
+  - `[low]` `[reject]` Blind: the retry budget uses the configured T1, not the elapsed time - AD-8 and the DW-647 AC fix T2 = min(TimerSeconds, MAXTIMER - T1); the RETRYSKIPPED text is lead ruling R1.
+  - `[low]` `[patch]` Blind: StoredMessages loses the whole history on one bad record - patched: each record parses in its own Try and an unreadable one is skipped; pinned by Conversation TestStoredMessagesSkipsBadRecords.
+  - `[medium]` `[defer]` Blind: ToolsReadOnly sees only compiled toolsets, not MCP tools attached later (AD-21) - no MCP server exists in this release, so it is a future-epic hazard; deferred with the evidence.
+  - `[low]` `[reject]` Blind: Point hard-codes the row lock name - the class's DataLocation is committed append-only storage and test-storage pins it; a rename is not a realistic change.
+  - `[low]` `[reject]` Blind: no unit-level positive test of RetryAllowed on the real adapter - the live SecondModel tests drive the real AgentRunner.Answer with RetryOf and pass.
+  - `[low]` `[reject]` Blind: Test.Agent.Models does not list the retry runners - they are the same agent classes and model seeds as the first runners, checked by Test.Install.Production and SecurityOverview.TestToolsMatchRunners.
+  - `[low]` `[reject]` Blind: NewRow takes Model from the reply for every decision - the spec's task says so (NewRow/Conclude set Model from the answering Reply.Model when not empty), and TestTotals/TestTurnKeepsReply pin it.
+  - `[low]` `[patch]` Edge: StoredMessages - empty piece or malformed record discards the history - same root cause as the Blind finding above; one patch.
+  - `[low]` `[patch]` Edge: RetryAllowed does not strip whitespace although Decide does - patched with the same $ZStrip.
+  - `[low]` `[patch]` Edge: SaveRetried sets SessionRotated 1 although Point may not have moved the link - patched: Point's moved output decides.
+  - `[low]` `[patch]` Edge: Point can return OK with moved 0 after a double create race for an unconditional write - patched: it returns an error status then (only reachable in a three-way race).
+  - `[low]` `[reject]` Edge: Busy from TryRetry's Held leaves spent Usage rows with no Decision row - only reachable with an empty ItemId, which does not occur.
+  - `[low]` `[reject]` Edge: the retry seed holds the refused exchange the first attempt saved, so the user message appears twice - the spec seeds from the stored history of the linked session; dropping the last message would change specified behaviour. Residual risk, reopen_if the second model's answers show the duplication confuses it.
+  - `[false]` `[reject]` Edge: a timed-out turn and a non-read-only decide are not retried although the spec lists timeout - lead ruling R2 of the spec gate (Spec Change Log) replaces that; the code follows R2.
+  - `[low]` `[patch]` Edge: Point's doc claims both forms take the row lock - patched: the doc now says that the create path takes none and why that is safe.
+  - `[medium]` `[patch]` Verification gap: TryRetry's Held wiring (DW-650 a through Decide) is pinned by no test - patched: Decide TestRetryTurnSkipsHeld, with mutations recorded.
+  - `[medium]` `[patch]` Verification gap: no test observes the retry session's timeout_ms (Adapter task d) - patched: Runner TestSessionTimeout pins TimeoutMs(1) and ZzRetryAdapter records the config of Conversation TestRetriedContinueTurn; mutation recorded.
+  - `[low]` `[reject]` Verification gap: SwitchTo's compare-and-set failure branch is untested - reaching it needs a compaction scenario with a link moved in between; the branch only returns the existing SwitchTo failure text, and R2 makes the race hard to reach.
+  - `[low]` `[reject]` Verification gap: ReplyClassOf of the answering retry runner is untested with a differing ReplyClass - both retry runners carry the first runner's ReplyClass by install; no user path differs.
+  - `[low]` `[reject]` Verification gap: row-lock atomicity of Point is not exercised - a deterministic two-process test is costly; the sequential logic is pinned by TestLinkCompareAndSet.
+  - `[low]` `[patch]` Verification gap: mutation lines are missing or combined for the no-sampling AC, the never-retried guards, DW-650 (a) and (b), and no restore statement - patched: eight mutations applied, observed red and restored (md5), lines written under Verification.
+  - `[low]` `[reject]` Verification gap: TestRetryOfFromTheWebIsIgnored asserts a negative after a fixed Hang 8 - its positive assertion afterwards (a request reached ChatAgent with an empty RetryOf) fails if the turn never proceeds.
+  - `[low]` `[reject]` Verification gap: TestNoSecondModel relies on no RetryItem row from an earlier crashed run - OnAfterOneTest and SettingsStubs clean and check the rows; a crash is not an order dependency.
+  - `[low]` `[reject]` Verification gap: TestApplyRetryEntries' before-value assertion is conditional - the after-value assertions that matter are unconditional.
+  - `[low]` `[reject]` Verification gap: SecondModel's late-first-attempt case is covered by shadow runners only, and the spec matrix is stale against R2 - R2 is logged in the Spec Change Log; the concurrent case is pinned in Conversation.
+  - `[low]` `[reject]` Verification gap (other): the SecurityOverview statement says TestToolInventory checks every running runner, while the retry runners are checked by TestToolsMatchRunners - the statement is AD-10 fixed public text; the retry runners are the same agent classes. Reopen_if the statement is next revised.
+  - `[low]` `[reject]` Verification gap (other): TryRetry's Busy branch is effectively unreachable - same as the Blind finding on Held.
+  - intent-alignment: descriptive, no finding; its divergences (dormant by default, R2 scope for runner-reported timeouts, full Precheck on the retry, Model for every decision) are spec-directed or follow R2.
 
 ## Design Notes
 
@@ -294,6 +338,27 @@ deferred: []
 - R2 (veto, inbox U-282), replacing decided-in-stage 10: a timed-out first attempt has an unknown `ToolsRun`, and AD-8 never retries an attempt in which a tool ran (this story's AC: no tool runs twice). So a timed-out first attempt of kind `turn` is NOT retried: it falls back exactly as in release 1, with its timeout reason. A timed-out `decide` or `diagnose` attempt is retried only when every tool its agent can call is read-only (AD-10's read-only tool sets); if any of its tools can change state, or the implement stage cannot establish that from code, it is not retried either. Every other retried reason (a reply that arrived, with `ToolsRun` known) follows AD-8 as written. The matrix and the live timeout cases follow this: `turn` timeout -> no retry, one fallback; `decide`/`diagnose` timeout -> retry. Add the mutation: `Retryable` retries a timed-out `turn` -> the turn-timeout case goes red.
 
 **For the lead (veto window).** The text of `RETRYSKIPPED`, proposed as "The second model was not tried, because no time was left within the 110-second limit." The spine requires the sentence, but the UX does not word it. It shows in the trace's decision reasons, as `HELDBEFOREUPDATE` does.
+
+**Task 0 results (implement stage, warm throwaway `e17s2iw`, the CI mock).**
+- The saved session's `ContextData` stream, after two linked turns, is one record of 5,853 characters: a full export, a JSON object with the keys `version`, `messages`, `checkpoints`, `stats` and `base_system_prompt`. AI Hub's source says later saves may append delta records (each a JSON array of new messages) after the record separator `$Char(30)`; the late first attempt of `TestRetriedContinueTurn` saved such a session, and the reader copes with both.
+- The `messages` of the full export are the same JSON as `GetContext().%ToJSON()` of the opened session (checked in `TestRetriedContinueTurn`, 2 messages and then 4), so `Compaction.Seed` of them equals `Compaction.Seed` of `GetContext()`. `RequestSize.StoredMessages(sessionId)` reads them from the database with no lock, no native call and no open session.
+- The mock answers `GET /v1/models/claude-sonnet-5-5` with 200 and a model object (`{"type":"model","id":"claude-sonnet-5-5",...}`), given an `x-api-key` header.
+- `retry-overloaded-late` at `TimerSeconds` 12 (entries at the block of 60), one developer-machine run: the first request reached the mock at 0 s, the 529 left it at 10.5 s, and AI Hub made no second request (the mock logged one 529 for the attempt). The reply reached Decide with 1.5 s of the timer left, under the 2 s that a re-send needs, so `Conclude` classified `rate_limited`, the retry went out at once to `claude-sonnet-5-5`, and the whole decision was answered 10.52 s after the send. If a slow host stretches the 529 past 12 s, the timer fires instead and a decide request is retried by the timer path; the test asserts only that the retry answered.
+
+**Decided in-stage (implement stage, 2026-11-05).** These add to the list above; item 10 stays superseded by R2.
+13. `Ens.BusinessProcess` has a property `Retry`, so the retry path is `TryRetry` (not `Retry`) and the cheap RetryItem probe is `RetryConfigured` (not `RetrySet`). `TryRetry(request, runner, reason, reply, .response, failure = "", timedOut = 0)` is the one place that decides, validates the setting (`RetryItemOf`, one warning for a bad value) and sends.
+14. R2 is built as `Retryable(reason, toolsRun, broken, kind, timedOut, readOnly)` and `ToolsReadOnly(runner)`. `ToolsReadOnly` reads the runner's `AgentClass`, each class of its `TOOLSETS`, and each tool the toolset offers; a tool counts only when its class parameters say `CLASSIFICATION` `safe` and `READONLY` 1 and it has no per-call `Classify` hook, and a toolset named by a URI counts as unknown. Triage (no tool) and Diagnosis (three read-only watch tools) qualify; Chat does not. A timed-out `turn` is refused by `Retryable` itself, whatever its tools are; for Chat `ToolsReadOnly` also says no. `ZzDecide` can force `ToolsReadOnly`, so that each layer is tested alone.
+15. T1 is 0 when no first attempt was sent (a `no_key` precheck refusal), so that retry gets `min(TimerSeconds, 110)`; otherwise T1 is `TimerFor` of the first attempt.
+16. `EstimateTokens` and `Precheck` take the first runner as an argument (`retryOf`) for the retry's estimate, and never read `RetryOf` from the request they are given, so a client's value changes neither the estimate nor `Held`.
+17. `ConversationLink.Point` keeps the repository's rule that the link class saves in one place (`TestOnlyTheRunnerWritesLinks`): one `%Save` in `Point`, under an incremental lock on `^OcuTalonBP.ConvLinkD(id)` for an existing row; the adapter now calls `Point` in three places (save, fork, retry), and the test says so. A lost compare-and-set is no error, no warning, and leaves `SessionRotated` at 0.
+18. The retry's seed is the stored history of the first runner's session as it stands. A first attempt that completed with a refusal or an empty reply saved its exchange, so that exchange is part of the seed and the retry's own exchange follows it (observed in `TestRetriedTurnKeepsTheConversation`). The spec does not exclude it; it is a residual oddity of the conversation text, not a state problem.
+19. Retry entries derive from `Timeouts.RetryTimer(60)` = 50, so a default install has retry entries with a request timeout of 20 seconds (the first runners keep 25).
+20. A timed-out `turn` is not retried (R2), so the matrix row "Retried continue turn" with a first attempt that times out while still holding the lock cannot be reached through `Decide`: a first attempt whose reply arrived has released the lock. The lock-free path, the seed, the link move and the late first attempt's lost compare-and-set are tested at the runner (`Test.Bridge.Conversation`, with the first attempt held in a job), and through `Decide` with a refused first attempt (`TestRetriedTurnKeepsTheConversation`, `TestIntegrationWebChat`); the live timeout part of that test asserts the R2 outcome (a timeout fallback, no request to `ChatAgentRetry`, and the late first attempt's exchange saved into the conversation it opened).
+21. In the Integration test the triage request of the message carries the scenario marker too and takes the first reply of the countdown, so `retry-chat` is armed at 2. A seed that holds an earlier marker (`[[mock:...]]`) also sets the scenario of the retry, so the retry tests use markers only in the turn that the retry answers.
+22. Existing tests whose subject changed shape were updated: `Test.Bridge.Decide` `TestTotals` and `TestTurnKeepsReply` (the Model is the answering reply's), `Test.Bridge.Contracts` (the `Request` contract gains `RetryOf`), `Test.Install.SecurityOverview` (the retry runners are runners: keys pointed for six, the inventory check covers them), `docker/tests/test-production.sh` (the row 16 job pattern matched `TriageAgentRetry`), `Test.Bridge.CodeRules` (the adapter calls `Point` in three places) and `Test.Install.Provider` and `Production`.
+23. Mutation results that differ from the plan are written in the mutation lines under `## Verification`.
+
+**Footprint extensions (Rule 11), reported for the lead.** Outside the epic's `paths_hint` list: `src/bridge/cls/OcuTalon/Bridge/Msg/Request.cls`, `.../Bridge/Data/ConversationLink.cls`, `.../Bridge/RequestSize.cls` (`StoredMessages`; the spec's Code Map names it as the sibling of `HistoryChars`, but its task list did not), `src/ocutalon/cls/OcuTalon/Production.cls` (Lane A region), `.../Test/Agent/RunnerFixture.cls`, `.../Test/Bridge/Contracts.cls`, `.../Test/Install/SecurityOverview.cls`, `docker/tests/test-production.sh`, and the new test helpers `Test/Bridge/ZzRetryAdapter.cls` and `ZzRetryRunner.cls`. None is on the contended list; none is a Lane B class, and `Test/Bridge/ZzDecide.cls` (Lane A) gained a recorder field. Not touched: `Bridge/Msg/Enum.cls`, `Bridge/Ext/**`, `ci/units.sh`, `src/short-names.tsv`, the spine.
 
 **Footprint (Rule 11).**
 - Extensions, none contended:
@@ -357,23 +422,44 @@ The tags are `e17s2iw` (warm) and `e17s2i` (fresh) for implement; QA and code re
 
 Every test added or changed passes on a fresh environment, in either order.
 
-**Planned mutations (Rule 19), one per AC:**
-- `Retryable` returns 0 for `refusal` -> `SecondModel.TestRetryAnswers` red.
-- `SentRequest` stops clearing `RetryOf` and `OnRequest` passes the request's `ItemId` to `Held` -> `SecondModel.TestRetryOfFromTheWebIsIgnored` red.
-- `Held` ignores the `ItemId` comparison -> `Bridge.Decide` Held (d) red.
-- `Point` ignores `expected` -> `Bridge.Conversation` late-first-attempt red.
-- `Retryable` returns 1 for `budget` -> `TestNeverRetried` red.
-- `RetrySeconds` drops the `MINTIMER` check -> `Bridge.Decide` T=100 red.
-- `RetryTimer` without the clamp -> `Bridge.Timeouts` red.
-- `NewRow` keeps `Totals.model` -> `TestRetryAnswers` model assertion red.
-- `EntryName` ignores the item -> `Install.Provider` red.
-- The Provider's mock header dropped for retry items -> `Install.Provider` red.
-- `RetryItemOf` falls back to `<runner>Retry` when `RetryItem` is empty -> `TestNoSecondModel` red (two runner headers).
-- `RecordFallback` after a failed retry records the first attempt's reason -> `TestRetryFails` (`retry-refusal-then-error` expects `error`) red.
-- `RetrySeconds` returns `TimerSeconds` -> `Bridge.Decide` (T1=80 expects 12) red.
-- `AnswerRetried` skips the `Point` -> the Integration test's next-turn history assertion red.
+**Mutations (Rule 19), one per AC, run in the implement stage on the warm throwaway `e17s2iw`.** Each line names the mutation, the test that went red, and says that the file was restored byte for byte (`md5` before and after). `Bridge.X` is `OcuTalon.Test.Bridge.X`.
+- mutation: `Retryable` returns 0 for `refusal` (`refusal` out of `RETRIED`) -> `Bridge.SecondModel` `TestRetryAnswers` red (also `TestRetryFails`, `TestRetriedTurnKeepsTheConversation`, `TestIntegrationWebChat`).
+- mutation: `SentRequest` stops clearing `RetryOf` (`Set clone.RetryOf = ""` removed) -> `Bridge.Decide` `TestSentRequestRetryOf` red (and `Bridge.SecondModel` `TestRetryOfFromTheWebIsIgnored`, run with the combined mutation of the first implement pass).
+- mutation: `OnRequest` passes the request's `ItemId` to `Held` -> `Bridge.Decide` `TestHeldRetryOf` (c) red (the request that carries a `RetryOf` is no longer Busy).
+- mutation (DW-650 a): `Held` never skips on `RetryOf` (the `RetryOf` comparison replaced by 0) -> `Bridge.Decide` `TestHeldRetryOf` (a) and `TestRetryTurnSkipsHeld` red.
+- mutation (DW-650 a through `TryRetry`): `TryRetry` calls `Held(clone, runner)` without the `ItemId` -> `Bridge.Decide` `TestRetryTurnSkipsHeld` red.
+- mutation (never retried: a tool ran): `Retryable` drops the `ToolsRun` test -> `Bridge.Decide` `TestRetryable` and `TestRetryNeverCases` red.
+- mutation (retry session config): `Adapter.Agent.Answer` never sets `Retrying` -> `Bridge.Conversation` `TestRetriedContinueTurn` red (the retry's config carries the first runner's `timeout_ms`); `Bridge.Runner` `TestSessionTimeout` pins the values of `TimeoutMs(1)`.
+- mutation (no sampling parameters): `ClearSampling` keeps the agent's Temperature -> `Bridge.SessionConfig` `TestNoSampling` red. The retry runner composes its config through the same `Compose` and `ClearSampling`.
+- mutation (stored history): `StoredMessages` lets one unreadable record throw -> `Bridge.Conversation` `TestStoredMessagesSkipsBadRecords` red.
+Each mutation above was applied to one file, the class named was run on the warm throwaway `e17s2iw`, and the file was restored from a backup and found byte-identical (`md5`); `git status --short` was unchanged after the last one.
+- mutation: `Held` ignores the `ItemId` comparison -> `Bridge.Decide` `TestHeldRetryOf` (d) red.
+- mutation: `Point` ignores `expected` (`compare` is 0) -> `Bridge.Conversation` `TestRetriedContinueTurn` (the late first attempt moves the link) and `TestLinkCompareAndSet` red.
+- mutation: `daily_cap` added to `RETRIED` -> `Bridge.SecondModel` `TestNeverRetried` red (the gateway's 403 reaches the retry runner). The planned mutation on `budget` cannot go red: the retry's own precheck repeats the budget, so no request is sent either way; the `daily_cap` of the gateway has no precheck at the retry, so it is the mutation that tests the rule.
+- mutation: `RetrySeconds` drops the `MINTIMER` check -> `Bridge.Decide` `TestRetrySeconds` (T=100) and `TestRetrySkipped` red.
+- mutation: `RetryTimer` without the clamp -> `Bridge.Timeouts` `TestRetryTimer` and `TestApplyRetryEntries` red.
+- mutation: `NewRow` keeps `Totals.model` (the reply's `Model` is not used) -> `Bridge.Decide` `TestRetryWiring`, `TestTotals` and `TestTurnKeepsReply` red. The live `TestRetryAnswers` stays green under it: in every live case the retry's Usage row is the newest, so `Totals.model` is the second model's anyway; the case where the newest row is the first attempt's is `TestRetryWiring`.
+- mutation: `EntryName` ignores the item -> `Install.Provider` `TestEntries`, `TestEntryNames` and others red (the stack was healed by the next unmutated run of the class).
+- mutation: the Provider's mock header dropped for retry items -> `Install.Provider` `TestEntries` and `TestApplyCaFile` red.
+- mutation: `RetryItemOf` falls back to `<runner>Retry` when `RetryItem` is empty (and `RetryConfigured` is always 1) -> `Bridge.SecondModel` `TestNoSecondModel` red.
+- mutation: the failure text of the retry's reply is dropped (`failure = ""` once the retry was sent), so a failed retry is not recorded with its own reason -> `Bridge.SecondModel` `TestRetryFails` red (`retry-refusal-then-error` expects `error`).
+- mutation: `RetrySeconds` returns `TimerSeconds` (no `110 - T1` split) -> `Bridge.Decide` `TestRetrySeconds` (T1 80 expects 30 for a timer of 60 and 12 for a timer of 12) and `TestRetryWiring` red.
+- mutation: `AnswerRetried` skips the `Point` (`SaveRetried` does not move the link) -> `Bridge.SecondModel` `TestIntegrationWebChat` (the next turn's history) and `TestRetriedTurnKeepsTheConversation` red.
+- mutation (R2): `Retryable` retries a timed-out `turn` (the `kind` test is dropped from the `timedOut` branch) -> `Bridge.Decide` `TestRetryable` and `TestRetryAfterTimer` (the turn case, with `ToolsReadOnly` forced to 1) red. `Bridge.SecondModel` stays green under it, because `ToolsReadOnly("ChatAgent")` is 0 and refuses the turn a second time; the two layers are tested apart in process.
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** The second-model retry is built. `Decide.TryRetry` sends the same request once to the retry runner named by the first runner's `RetryItem` (same `DecisionRef` and `ItemId`, `RetryOf` the first runner, timer T2 from `RetrySeconds`), and falls back as release 1 otherwise. Lead rulings R1 and R2 are followed (a timed-out `turn` is never retried; a timed-out decide or diagnose only when `ToolsReadOnly` holds). A retried linked turn runs unlocked in a new seeded session and points the link at it; `ConversationLink.Point` is a compare-and-set for the other writers. Retry entries, `RetryTimer`, enabled retry items and ten `retry-*` mock scenarios are in.
+
+**Files changed (footprint extensions outside the epic's `paths_hint`, none contended):** `Bridge/Msg/Request.cls`, `Bridge/Data/ConversationLink.cls`, `Bridge/RequestSize.cls` (`StoredMessages`), `src/ocutalon/cls/OcuTalon/Production.cls` (Lane A region), `Test/Agent/RunnerFixture.cls`, `Test/Bridge/Contracts.cls`, `Test/Install/SecurityOverview.cls`, `docker/tests/test-production.sh` (row 16's job pattern matched `TriageAgentRetry`). Epic 17 files: `Bridge/Process/Decide.cls`, `Bridge/Adapter/Agent.cls`, `Bridge/Operation/AgentRunner.cls`, `Bridge/Timeouts.cls`, `Install/Step/Provider.cls`, `ci/mock/scenarios/A/retry-*.json` (10 files), and the tests `Test/Bridge/{Decide,Conversation,Timeouts,Runner,CodeRules,ZzDecide,SecondModel,ZzRetryAdapter,ZzRetryRunner}.cls`, `Test/Install/{Provider,Production}.cls`.
+
+**Review.** 30 findings: patches applied 8 (StoredMessages bad record, RetryAllowed whitespace, SaveRetried and Point on a lost write, Point doc, `TestRetryTurnSkipsHeld`, retry `timeout_ms` pin, missing mutation lines), deferred 1 (ToolsReadOnly and MCP tools of step 4, in frontmatter), rejected 21 (each reason is in the Review Triage Log).
+
+**Follow-up review recommended: true.** Patched mediums: 2. Unverified risk: the new error return of `ConversationLink.Point` for an unconditional write that lost a create race, and `SaveRetried` reading its `moved` output, are reachable only in a three-way race and have no test; `RetryAllowed`'s whitespace strip has none either.
+
+**Verification.** Warm stack `e17s2iw` (torn down; lane A lock folder empty): `Test.Bridge.{Decide,Conversation,Runner,SessionConfig,SecondModel,CodeRules,SettingsStubs}` and `Test.Agent.{Decide,Models}` pass after the review patches; `test-storage`, `test-class-rules` and `test-boundaries` pass. The first implement pass ran every `## Verification` line (11 classes, mock, five static scripts, fresh `install-start`, `production` and the Bridge, Agent and Install shards). Mutations: see `## Verification`.
+
+**Residual risks.** (1) The retry's seed holds the refused exchange the first attempt saved (the spec seeds from the stored history). (2) A default install's retry entries derive from `RetryTimer(60)` = 50 s (a 45 s request timeout). (3) If a slow host stretches the 529 of `retry-overloaded-late` past 12 s, the timer path retries instead of the `rate_limited` path. (4) The late-first-attempt case is pinned with shadow runners, not by the production (R2). (5) The `SecurityOverview` statement names `TestToolInventory`, which still checks the three first runners; the retry runners are checked by `TestToolsMatchRunners`.

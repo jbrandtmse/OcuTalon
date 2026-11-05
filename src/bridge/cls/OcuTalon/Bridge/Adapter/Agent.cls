@@ -28,6 +28,15 @@ Include Ensemble
 /// request: Answer clears the agent's Session (ReleaseSession) before the lock is released, so that every linked turn, a re-sent one
 /// included, opens the saved history from the database. decide, diagnose and untrusted turns chat in a throwaway session that is never
 /// saved or linked. ChatInput composes what Chat gets: the seed of a fresh turn, the system note and the input.
+/// The retried turn (AD-6, AD-8): a request with RetryOf is the second-model retry of the attempt of the runner item that RetryOf names, and this
+/// runner (the retry runner) answers it only when that item's RetryItem setting names this runner (RetryAllowed); any other RetryOf is an error
+/// status, with no Chat. A linked turn with RetryOf takes no conversation lock (AnswerRetried): it chats in a new AI session, seeded with the
+/// SeedText of the request when the turn is fresh, else with Compaction.Seed of the stored history of the session that the first runner's link
+/// names (RequestSize.StoredMessages, read from the database), and after a completed, untainted Chat it saves the session and points the first
+/// runner's link at it unconditionally, so the reply's SessionRotated is 1. The retry runner never links a conversation of its own, and the first
+/// runner's late attempt, which still holds the conversation lock, cannot move the link back: every writer that holds the lock points the link
+/// compare-and-set (SaveLinked, SwitchTo; Data.ConversationLink Point). The session config of a request with RetryOf takes timeout_ms from
+/// Timeouts.RetryTimer of the bridge timer.
 /// Compaction (AD-6, AD-20): a request that Decide flags (Compact 1) and that continues a linked conversation is compacted by Compact in
 /// AnswerLinked, in the runner's job, under the conversation lock, after the session is opened and before Converse. The runner cuts the
 /// stored history so that the last user turn stays whole (Compaction.Cut, CutOf), calls ForkAndSummarize on the session with the
@@ -74,6 +83,13 @@ Property Effort As %String(MAXLEN = 32);
 
 /// The agent classes that this adapter may run, comma-separated, each an exact class name (AD-6). Empty refuses every class.
 Property AgentAllowList As %String(MAXLEN = 2000);
+
+/// The id of the AI session that the conversation link named when AnswerLinked began, or that it was moved to by a compaction fork: the value
+/// that the compare-and-set writes of the link expect (SaveLinked, SwitchTo). "" for a link that did not exist. Not stored.
+Property Expected As %String(MAXLEN = 128) [ Internal, Private, Transient ];
+
+/// 1 while Answer serves a request with RetryOf, so that the session config takes the timeout of the retry runner (SessionConfigFor). Not stored.
+Property Retrying As %Boolean [ InitialExpression = 0, Internal, Private, Transient ];
 
 /// 1 while BuildAgent runs AI Hub's OnInit.
 Property Building As %Boolean [ InitialExpression = 0, Internal, Private, Transient ];
@@ -238,21 +254,23 @@ ClassMethod SetPath(target As %DynamicObject, path As %String, value, type As %S
 }
 
 /// The session config for the built agent: Compose for its MaxIterations, its model, the Effort setting and the timeout_ms of the
-/// bridge timer (TimeoutMs). The agent is built.
+/// bridge timer (TimeoutMs), which is that of the retry runner's timer while a request with RetryOf is served. The agent is built.
 Method SessionConfigFor(Output config As %DynamicObject) As %Status
 {
-	Quit ..Compose(..Agent.MaxIterations, ..Agent.Model, ..Effort, .config, ..TimeoutMs())
+	Quit ..Compose(..Agent.MaxIterations, ..Agent.Model, ..Effort, .config, ..TimeoutMs(..Retrying))
 }
 
 /// The timeout_ms that Timeouts.Derive gives for the TimerSeconds setting of the Decide item of the active production, as Ext.Accessor
 /// ValueFor reads it now, or "" when the setting cannot be read or Timeouts.Check refuses it: the config then carries no timeout_ms.
 /// Decide checks its own TimerSeconds (CheckSettings), which it takes when it starts: once it runs with such a value it refuses every
 /// request. Timeouts.Apply restarts it with every change, and a row written another way reaches the runners' sessions at once and
-/// Decide at its next start.
-ClassMethod TimeoutMs() As %String
+/// Decide at its next start. With retry 1 (a request with RetryOf) the timer is Timeouts.RetryTimer of the setting, the timer that the
+/// entry of the retry runner derives from (DW-647).
+ClassMethod TimeoutMs(retry As %Boolean = 0) As %String
 {
 	Set timer = ##class(OcuTalon.Bridge.Ext.Accessor).ValueFor("TimerSeconds", "", "Decide", .sc)
 	If $$$ISERR(sc) Quit ""
+	If retry Set timer = ##class(OcuTalon.Bridge.Timeouts).RetryTimer(timer)
 	Quit ##class(OcuTalon.Bridge.Timeouts).Derive(timer).%Get("timeout_ms")
 }
 
@@ -299,12 +317,14 @@ Method OpenSession(id As %String, Output session As %AI.Agent.Session) As %Statu
 	Quit sc
 }
 
-/// Answers a request with a reply. A request of kind tool is the replay of an approved tool call and is answered by Replay.Run (no model request,
+/// Answers a request with a reply. A request with RetryOf that RetryAllowed refuses is an error status that names RetryOf, with no Chat and no
+/// context. A request of kind tool is the replay of an approved tool call and is answered by Replay.Run (no model request,
 /// no Chat, no conversation link; the context it sets carries the runner item and a grant). It refuses any kind that is not a request kind, an Input that is
 /// empty once white space is removed, and a linked turn (IsLinked) with an empty OwnerRef, which names OwnerRef; builds the agent if
 /// needed; sets the context with the super session before Chat; and answers in one of two ways.
 ///   - A turn with provenance user is linked to its conversation (AnswerLinked): the runner holds the conversation lock, opens the AI
-///     session that Data.ConversationLink names, or creates one, chats in it, and saves it after a completed Chat that is not tainted.
+///     session that Data.ConversationLink names, or creates one, chats in it, and saves it after a completed Chat that is not tainted. A
+///     linked turn with RetryOf is the retry of another runner's attempt and takes no lock (AnswerRetried).
 ///   - Every other request chats in a throwaway session that is never saved or linked.
 /// Both chat through Converse, which starts the step buffer (StepBuffer.Start, with BaseChars), passes the step renderer to Chat and
 /// fills the reply with the text, the provider's finish_reason, the host data and taint of the context, the usage of the call
@@ -320,16 +340,22 @@ Method Answer(request As OcuTalon.Bridge.Msg.Request, superSession As %String = 
 	If '$ListFind($ListFromString(##class(OcuTalon.Bridge.Msg.Enum).#REQUESTKIND), kind) {
 		Quit $$$ERROR($$$GeneralError, "The request kind '"_kind_"' is not one of "_##class(OcuTalon.Bridge.Msg.Enum).#REQUESTKIND)
 	}
+	If (request.RetryOf '= "") && '..RetryAllowed(request.RetryOf) {
+		Quit $$$ERROR($$$GeneralError, "The RetryOf '"_request.RetryOf_"' of the request does not name an item whose RetryItem setting is "_..BusinessHost.%ConfigName_", so nothing is sent")
+	}
 	If kind = "tool" Quit ##class(OcuTalon.Bridge.Replay).Run($this, request, superSession, .reply)
 	If $ZStrip(request.Input, "<>WC") = "" Quit $$$ERROR($$$GeneralError, "The request of kind "_kind_" has an empty Input, so nothing is sent")
 	Set linked = ..IsLinked(request)
 	If linked && (request.OwnerRef = "") Quit $$$ERROR($$$GeneralError, "The turn of the user has an empty OwnerRef, so it has no conversation to open or link, and nothing is sent")
 	Set sc = ..BuildAgent()
 	If $$$ISERR(sc) Quit sc
+	Set ..Retrying = (request.RetryOf '= "")
 	Set sc = ##class(OcuTalon.Bridge.Context).Begin(request, superSession, ..BusinessHost.%ConfigName)
 	If $$$ISOK(sc) {
 		Try {
-			If linked {
+			If linked && (request.RetryOf '= "") {
+				Set sc = ..AnswerRetried(request, .reply)
+			} ElseIf linked {
 				Set sc = ..AnswerLinked(request, .reply)
 			} Else {
 				Set sc = ..NewSession(.session)
@@ -341,11 +367,21 @@ Method Answer(request As OcuTalon.Bridge.Msg.Request, superSession As %String = 
 		}
 	}
 	Set session = ""
+	Set ..Retrying = 0
 	Do ..ReleaseSession()
 	Do ##class(OcuTalon.Bridge.Context).End()
 	Do ##class(OcuTalon.Bridge.Adapter.StepBuffer).End()
 	If $$$ISERR(sc) Set reply = ""
 	Quit sc
+}
+
+/// 1 when the runner item retryOf names this runner as its retry runner: the RetryItem setting of that item (Ext.Accessor ValueFor, Host target)
+/// is the config name of this item. A setting that cannot be read, an unknown item and any other value are 0. A method of its own so that a
+/// test runner, whose host is not an item of the production, can say yes or no.
+Method RetryAllowed(retryOf As %String) As %Boolean
+{
+	Set item = $ZStrip(##class(OcuTalon.Bridge.Ext.Accessor).ValueFor("RetryItem", "", retryOf, .sc), "<>WC")
+	Quit $$$ISOK(sc) && (item '= "") && (item = ..BusinessHost.%ConfigName)
 }
 
 /// 1 when the request is linked to a conversation (AD-6): a turn with provenance user. Every other request runs in a throwaway AI
@@ -382,7 +418,8 @@ Method AnswerLinked(request As OcuTalon.Bridge.Msg.Request, Output reply As OcuT
 	Set sc = $$$OK
 	Try {
 		Set fresh = (request.SessionMode = "fresh")
-		Set id = $Select(fresh: "", 1: ##class(OcuTalon.Bridge.Data.ConversationLink).SessionOf(owner, runner))
+		Set ..Expected = ##class(OcuTalon.Bridge.Data.ConversationLink).SessionOf(owner, runner)
+		Set id = $Select(fresh: "", 1: ..Expected)
 		Set opened = (id '= "")
 		Set seed = ""
 		Set outcome = ""
@@ -409,6 +446,54 @@ Method AnswerLinked(request As OcuTalon.Bridge.Msg.Request, Output reply As OcuT
 	Do ..ReleaseSession()
 	Do ##class(OcuTalon.Bridge.Data.ConversationLink).Unlock(owner, runner)
 	Quit sc
+}
+
+/// The answer to a linked turn that retries another runner's attempt (RetryOf, AD-6, AD-8); the context is set and the agent is built. It takes no
+/// conversation lock, because the first runner's attempt may still hold it. The AI session is a new one that this runner never links:
+///   - the seed of a fresh turn is its SeedText; the seed of a continue turn is Compaction.Seed of the messages that the stored history of the
+///     session named by the link of (OwnerRef, RetryOf) holds, read from the database (RequestSize.StoredMessages) with no lock and no
+///     change, "" when the link names none;
+///   - Converse chats with ChatInput seeded with that text;
+///   - after a Chat that completed and is not tainted, the session is saved and the link of (OwnerRef, RetryOf) points at it unconditionally
+///     (SaveRetried), and the reply's SessionRotated is 1.
+/// The request's Compact flag is ignored: the seed is short by construction.
+Method AnswerRetried(request As OcuTalon.Bridge.Msg.Request, Output reply As OcuTalon.Bridge.Msg.Reply) As %Status [ Private ]
+{
+	Set reply = ""
+	Set sc = $$$OK
+	Try {
+		If request.SessionMode = "fresh" {
+			Set seed = request.SeedText
+		} Else {
+			Set seed = ##class(OcuTalon.Bridge.Compaction).Seed(##class(OcuTalon.Bridge.RequestSize).StoredMessages(##class(OcuTalon.Bridge.Data.ConversationLink).SessionOf(request.OwnerRef, request.RetryOf)))
+		}
+		Set sc = ..NewSession(.session)
+		If $$$ISOK(sc) Set sc = ..Converse(request, session, ..ChatInput(request, 1, seed), 0, .reply, .completed)
+		If $$$ISOK(sc) && completed && 'reply.Tainted Do ..SaveRetried(request, session, reply)
+	} Catch exception {
+		Set reply = ""
+		Set sc = ##class(%AI.System).HandleError(exception, 1)
+	}
+	Set session = ""
+	Do ..ReleaseSession()
+	Quit sc
+}
+
+/// Saves the AI session of a retried turn and points the link of (OwnerRef, RetryOf) at it unconditionally, so that the user's next turn of the
+/// first runner opens it (AnswerRetried). The reply's SessionRotated is set to 1 when the link names the session. A problem (the save, the link
+/// or an exception) is one warning that names the runner item, the OwnerRef and the DecisionRef, and never changes the reply.
+Method SaveRetried(request As OcuTalon.Bridge.Msg.Request, session As %AI.Agent.Session, reply As OcuTalon.Bridge.Msg.Reply) [ Private ]
+{
+	Try {
+		Set sc = session.%Save()
+		If $$$ISOK(sc) Set sc = ##class(OcuTalon.Bridge.Data.ConversationLink).Point(request.OwnerRef, request.RetryOf, session.%Id(), , .moved)
+		If $$$ISOK(sc) && $Get(moved) Set reply.SessionRotated = 1
+	} Catch exception {
+		Set sc = exception.AsStatus()
+	}
+	If $$$ISERR(sc) {
+		$$$LOGWARNING("The AI session of "_..BusinessHost.%ConfigName_" for the OwnerRef "_request.OwnerRef_" and the decision "_request.DecisionRef_" is not saved or linked: "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
+	}
 }
 
 /// The call: chats in the session with the input, passing the step renderer, and returns the reply. opened is 1 for a session that was
@@ -468,13 +553,16 @@ Method Converse(request As OcuTalon.Bridge.Msg.Request, session As %AI.Agent.Ses
 /// Saves the AI session of a completed, untainted linked turn and points the link at it (AD-6). The reply's SessionRotated is set to 1
 /// when the turn was fresh and the link now names the new session, whether Point created the link or moved it; it stays 0 for a
 /// continue turn. A problem (the save, the link or an exception) is one warning that names the runner item, the OwnerRef and the
-/// DecisionRef, and never changes the reply, whose SessionRotated is then 0.
+/// DecisionRef, and never changes the reply, whose SessionRotated is then 0. The link moves only while it still names the session this
+/// turn began with (Expected: the session it opened, or the one that the link named when the turn was fresh or found no link, or the
+/// compaction fork): a link that a retry runner has moved meanwhile stays where the retry put it, which is no problem and no warning, and the
+/// reply's SessionRotated stays 0.
 Method SaveLinked(request As OcuTalon.Bridge.Msg.Request, session As %AI.Agent.Session, fresh As %Boolean, reply As OcuTalon.Bridge.Msg.Reply) [ Private ]
 {
 	Try {
 		Set sc = session.%Save()
-		If $$$ISOK(sc) Set sc = ##class(OcuTalon.Bridge.Data.ConversationLink).Point(request.OwnerRef, ..BusinessHost.%ConfigName, session.%Id())
-		If $$$ISOK(sc) && fresh Set reply.SessionRotated = 1
+		If $$$ISOK(sc) Set sc = ##class(OcuTalon.Bridge.Data.ConversationLink).Point(request.OwnerRef, ..BusinessHost.%ConfigName, session.%Id(), ..Expected, .moved)
+		If $$$ISOK(sc) && fresh && moved Set reply.SessionRotated = 1
 	} Catch exception {
 		Set sc = exception.AsStatus()
 	}
@@ -609,8 +697,8 @@ ClassMethod ForkIsSafe(fork As %AI.Agent.Session) As %Boolean [ Private ]
 }
 
 /// The switch to a fork that passed (AD-20), in this order: the fork is saved, every reference to the original session is released (the
-/// caller's session and the agent's), the fork is opened again with OpenSession, and the link names it (Data.ConversationLink Point, under
-/// the conversation lock that the caller holds). Returns "" when all four worked, otherwise the text of the problem, with step naming the
+/// caller's session and the agent's), the fork is opened again with OpenSession, and the link names it (Data.ConversationLink Point as a
+/// compare-and-set on the session that the turn opened, under the conversation lock that the caller holds; Expected then names the fork). Returns "" when all four worked, otherwise the text of the problem, with step naming the
 /// one that failed; the fork that was saved stays unlinked and the purge removes it (AD-27).
 Method SwitchTo(request As OcuTalon.Bridge.Msg.Request, ByRef session As %AI.Agent.Session, ByRef fork As %AI.Agent.Session, ByRef step As %String) As %String [ Private ]
 {
@@ -625,8 +713,10 @@ Method SwitchTo(request As OcuTalon.Bridge.Msg.Request, ByRef session As %AI.Age
 	Set sc = ..OpenSession(forkId, .session)
 	If $$$ISERR(sc) Quit $SYSTEM.Status.GetErrorText(sc)
 	Set step = "linking the fork"
-	Set sc = ##class(OcuTalon.Bridge.Data.ConversationLink).Point(request.OwnerRef, ..BusinessHost.%ConfigName, forkId)
+	Set sc = ##class(OcuTalon.Bridge.Data.ConversationLink).Point(request.OwnerRef, ..BusinessHost.%ConfigName, forkId, ..Expected, .moved)
 	If $$$ISERR(sc) Quit $SYSTEM.Status.GetErrorText(sc)
+	If 'moved Quit "the conversation link no longer names the session that the turn opened"
+	Set ..Expected = forkId
 	Quit ""
 }
 

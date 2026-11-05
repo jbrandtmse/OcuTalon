@@ -9,9 +9,12 @@
 ///     were;
 ///   - TestApplyCaFile: a CA file that exists, given to the step, reaches every entry as the tls block of http_config, and a
 ///     run from the environment puts the entries back;
-///   - TestEntries: after the start, each runner of OcuTalon.Production has the entry that Details gives for this environment,
-///     with the default read and edit resources, and its ProviderConfig row is @{config:OcuTalon<Agent>}, which expands to
-///     the entry with the key still a placeholder; the three disabled retry items, which have no agent class, get no entry and no row (Story 33.1);
+///   - TestEntries: after the start, each of the six runners of OcuTalon.Production has the entry that Details gives for this environment,
+///     with the default read and edit resources, and its ProviderConfig row is @{config:OcuTalon<Agent>} (@{config:OcuTalon<Agent>Retry}
+///     for a retry item, which has an entry of its own), which expands to the entry with the key still a placeholder; a retry entry holds the
+///     mock-key header of its agent under the flag, and the timeouts of Timeouts.RetryTimer of the timer of Decide (Story 17.2, DW-647);
+///   - TestEntryNames: EntryName gives OcuTalon<Agent> for a first runner and OcuTalon<Agent>Retry for an item whose name ends in Retry,
+///     so that no two runners share an entry (Story 17.2);
 ///   - TestRerun: stale fields in an entry (a model, a base URL, a header, a typed key) are gone after Run(), which modifies
 ///     the entry where a create would fail, and empty read and edit resources are the default ones again;
 ///   - TestEntryBeforeSetting: with an entry and its row deleted, Run() writes both, and the row can only be written after the
@@ -193,10 +196,12 @@ Method TestApplyCaFile()
 	Do ..AssertWritten("before the run")
 	Try {
 		Do $$$AssertStatusOK($ClassMethod(provider, "Apply", url, file, flag), "Apply accepts a CA file that exists")
-		For class = "OcuTalon.Agent.Triage", "OcuTalon.Agent.Diagnosis", "OcuTalon.Agent.Chat" {
-			Set name = "OcuTalon"_$Piece(class, ".", $Length(class, "."))
+		For class = "OcuTalon.Agent.Triage", "OcuTalon.Agent.Diagnosis", "OcuTalon.Agent.Chat", "OcuTalon.Agent.Triage:Retry", "OcuTalon.Agent.Diagnosis:Retry", "OcuTalon.Agent.Chat:Retry" {
+			Set retry = ($Piece(class, ":", 2) = "Retry")
+			Set class = $Piece(class, ":", 1)
+			Set name = "OcuTalon"_$Piece(class, ".", $Length(class, "."))_$Select(retry: "Retry", 1: "")
 			Set stored = ..EntryJson(name)
-			Do $$$AssertEquals(stored, $ClassMethod(provider, "Details", class, url, file, flag, ..Timer()).%ToJSON(), name_" is the entry of Details for the file")
+			Do $$$AssertEquals(stored, $ClassMethod(provider, "Details", class, url, file, flag, $Select(retry: ##class(OcuTalon.Bridge.Timeouts).RetryTimer(..Timer()), 1: ..Timer())).%ToJSON(), name_" is the entry of Details for the file")
 			Set tls = {}.%FromJSON(stored)."http_config".tls
 			Do $$$AssertEquals(tls."ca_certificates".%Get(0), file, name_" lists the file as its CA certificate")
 			Do $$$AssertEquals(tls."accept_invalid_certs", 0, name_" accepts no invalid certificate")
@@ -211,51 +216,69 @@ Method TestApplyCaFile()
 }
 
 /// After the start, each runner has the entry of Details for this environment, with the default resources, and its
-/// ProviderConfig row names the entry.
+/// ProviderConfig row names its own entry. A retry item (Story 17.2) has the entry of its agent with Retry added to the name, the timeouts
+/// of Timeouts.RetryTimer of the timer of Decide and, under the flag, the mock key of its agent.
 Method TestEntries()
 {
 	Set sc = ##class(OcuTalon.Install.Step.Production).Runners(..#PRODUCTION, .runners)
 	Do $$$AssertStatusOK(sc, "the runners are read")
-	Do $$$AssertEquals(runners, 6, "there are six runner items: the three agents and the three disabled retry items")
+	Do $$$AssertEquals(runners, 6, "there are six runner items: the three agents and their three retry items")
 	Do $$$AssertStatusOK(##class(%AI.Utils.SettingStore).RegisterDefaults(), "the setting stores are registered")
 	Set names = ""
 	Set withClass = 0
+	Set flag = $SYSTEM.Util.GetEnviron("OCUTALON_MOCK_KEY_HEADER")
 	For i = 1:1:runners {
 		Set item = $List(runners(i), 1)
 		Set class = $List(runners(i), 2)
-		If class = "" {
-			Do $$$AssertEquals($List(runners(i), 3), 0, item_" has no agent class and is disabled")
-			Do $$$AssertEquals($Extract(item, $Length(item) - 4, *), "Retry", item_" is a retry item")
-			Do $$$AssertEquals(..Row(item), "", item_" has no ProviderConfig row")
-			Do $$$AssertEquals(..EntryJson("OcuTalon"_$Extract(item, 1, $Length(item) - 10)_"Retry"), "", item_" has no entry under its agent's name either")
-			Continue
-		}
+		Set retry = ($Extract(item, $Length(item) - 4, *) = "Retry")
+		Do $$$AssertTrue($List(runners(i), 3), item_" is enabled")
+		Do $$$AssertTrue(class '= "", item_" has an agent class: "_class)
+		If class = "" Continue
 		Set withClass = withClass + 1
-		Set name = "OcuTalon"_$Piece(class, ".", $Length(class, "."))
+		Set name = "OcuTalon"_$Piece(class, ".", $Length(class, "."))_$Select(retry: "Retry", 1: "")
 		Set names = names _ $Select(names = "": "", 1: ",") _ name
 		Set fqn = "AI.LLM."_name
 		Do $$$AssertTrue(##class(%ConfigStore.Configuration).Exists(fqn), item_" has the entry "_fqn)
 		Set sc = ##class(%ConfigStore.Configuration).GetDetails(fqn, .details, 0, 0)
 		Do $$$AssertStatusOK(sc, "the entry "_fqn_" is read")
 		If $$$ISERR(sc) Continue
-		Do $$$AssertEquals(details.%ToJSON(), ..ForEnv(class).%ToJSON(), fqn_" is the entry of Details for this environment")
-		Set derived = ##class(OcuTalon.Bridge.Timeouts).Derive(..Timer()).%Get("http_config")
-		Do $$$AssertTrue($IsObject(derived) && $IsObject(details."http_config"), fqn_" has an http_config, and the timer of Decide gives a block")
+		Set timer = $Select(retry: ##class(OcuTalon.Bridge.Timeouts).RetryTimer(..Timer()), 1: ..Timer())
+		Do $$$AssertEquals(details.%ToJSON(), ##class(OcuTalon.Install.Step.Provider).Details(class, $SYSTEM.Util.GetEnviron("OCUTALON_MODEL_BASE_URL"), $SYSTEM.Util.GetEnviron("OCUTALON_EXTRA_CA_FILE"), flag, timer).%ToJSON(), fqn_" is the entry of Details for this environment"_$Select(retry: " and the timer of the retry runner", 1: ""))
+		Set derived = ##class(OcuTalon.Bridge.Timeouts).Derive(timer).%Get("http_config")
+		Do $$$AssertTrue($IsObject(derived) && $IsObject(details."http_config"), fqn_" has an http_config, and its timer gives a block")
 		If $IsObject(derived) && $IsObject(details."http_config") {
-			Do $$$AssertEquals(details."http_config"."request_timeout_secs", derived."request_timeout_secs", fqn_" holds the request timeout of the timer of Decide")
-			Set retry = details."http_config".%Get("retry")
-			Do $$$AssertEquals($Select($IsObject(retry): retry.%ToJSON(), 1: "none"), derived.retry.%ToJSON(), "and the whole retry block of that timer")
+			Do $$$AssertEquals(details."http_config"."request_timeout_secs", derived."request_timeout_secs", fqn_" holds the request timeout of its timer")
+			Set retryBlock = details."http_config".%Get("retry")
+			Do $$$AssertEquals($Select($IsObject(retryBlock): retryBlock.%ToJSON(), 1: "none"), derived.retry.%ToJSON(), "and the whole retry block of that timer")
+			Set headers = details."http_config".%Get("custom_headers")
+			If flag = 1 {
+				Do $$$AssertEquals($Select($IsObject(headers): headers."x-ocutalon-mockkey", 1: ""), $Parameter(class, "MOCKKEY"), fqn_" carries the mock key of its agent in custom_headers")
+			} Else {
+				Do $$$AssertEquals($IsObject(headers), 0, fqn_" has no custom_headers without the flag")
+			}
 		}
 		Do $$$AssertTrue('details.%IsDefined("model"), fqn_" has no model")
 		Do $$$AssertEquals(details."api_key", ..#PLACEHOLDER, fqn_" holds the literal placeholder")
 		Do $$$AssertEquals(..Resources(fqn), "%Admin_ConfigStore %Admin_ConfigStore", fqn_" has the default read and edit resources")
 		Set row = ..Row(item)
-		Do $$$AssertEquals(row, "@{config:"_name_"}", item_"'s ProviderConfig row names the entry")
+		Do $$$AssertEquals(row, "@{config:"_name_"}", item_"'s ProviderConfig row names its own entry")
 		Set expanded = {}.%FromJSON(##class(%AI.Utils.SettingStore).Expand(row))
 		Do $$$AssertEquals(expanded."api_key", ..#PLACEHOLDER, "and expands to the entry with the key still a placeholder")
 	}
-	Do $$$AssertEquals(withClass, 3, "three runners have an agent class: "_withClass)
-	Do $$$AssertEquals(names, "OcuTalonTriage,OcuTalonDiagnosis,OcuTalonChat", "the entries are those of the three agents, in the order of the runners: "_names)
+	Do $$$AssertEquals(withClass, 6, "six runners have an agent class: "_withClass)
+	Do $$$AssertEquals(names, "OcuTalonTriage,OcuTalonDiagnosis,OcuTalonChat,OcuTalonTriageRetry,OcuTalonDiagnosisRetry,OcuTalonChatRetry", "the entries are those of the three agents and then those of their retry items, in the order of the runners: "_names)
+}
+
+/// EntryName: the entry of an agent class is OcuTalon plus the last part of its name, with Retry added for an item whose name ends in Retry, so that a
+/// retry item never points at its first runner's entry.
+Method TestEntryNames()
+{
+	Set provider = "OcuTalon.Install.Step.Provider"
+	Do $$$AssertEquals($ClassMethod(provider, "EntryName", "OcuTalon.Agent.Triage"), "OcuTalonTriage", "an agent class alone gives its entry")
+	Do $$$AssertEquals($ClassMethod(provider, "EntryName", "OcuTalon.Agent.Triage", "TriageAgent"), "OcuTalonTriage", "a first runner gives its agent's entry")
+	Do $$$AssertEquals($ClassMethod(provider, "EntryName", "OcuTalon.Agent.Triage", "TriageAgentRetry"), "OcuTalonTriageRetry", "a retry item gives an entry of its own")
+	Do $$$AssertEquals($ClassMethod(provider, "EntryName", "OcuTalon.Agent.Chat", "ChatAgentRetry"), "OcuTalonChatRetry", "for the Chat agent too")
+	Do $$$AssertEquals($ClassMethod(provider, "EntryName", "OcuTalon.Agent.Chat", "Retry"), "OcuTalonChat", "the bare word is no retry item")
 }
 
 /// Stale fields in the Triage entry are gone after Run(): the entry is modified, where a create would fail, and gets the
@@ -340,13 +363,15 @@ Method TestTimerRow()
 			Do $$$AssertStatusOK($ClassMethod(fixture, "PutDefault", "Decide", "TimerSeconds", timer), "a TimerSeconds row of "_timer_" is written")
 			Do $$$AssertStatusOK($ClassMethod(provider, "Run"), "the step runs")
 			Set attempt = (timer - 10) \ 2
-			For class = "OcuTalon.Agent.Triage", "OcuTalon.Agent.Diagnosis", "OcuTalon.Agent.Chat" {
-				Set name = "OcuTalon"_$Piece(class, ".", $Length(class, "."))
+			For class = "OcuTalon.Agent.Triage", "OcuTalon.Agent.Diagnosis", "OcuTalon.Agent.Chat", "OcuTalon.Agent.Triage:Retry", "OcuTalon.Agent.Diagnosis:Retry", "OcuTalon.Agent.Chat:Retry" {
+				Set retry = ($Piece(class, ":", 2) = "Retry")
+				Set class = $Piece(class, ":", 1)
+				Set name = "OcuTalon"_$Piece(class, ".", $Length(class, "."))_$Select(retry: "Retry", 1: "")
 				Set stored = {}.%FromJSON(..EntryJson(name))
 				Do $$$AssertEquals(stored.%Get("http_config")."request_timeout_secs", attempt, name_" has the request timeout of "_timer_": "_attempt)
 				Do $$$AssertEquals(stored.%Get("http_config").retry."attempt_timeout_secs"_"|"_stored.%Get("http_config").retry."max_retries"_"|"_stored.%Get("http_config").retry."max_backoff_ms", attempt_"|1|2000", name_" has the whole retry block of "_timer)
 				Do $$$AssertEquals(stored.%Get("http_config").%Size(), 2 + (flag = 1) + (file '= ""), name_" has nothing else in http_config than the headers and tls of the environment, and the two timeouts")
-				Do $$$AssertEquals(..EntryJson(name), $ClassMethod(provider, "Details", class, url, file, flag, timer).%ToJSON(), name_" is the entry of Details for the timer "_timer)
+				Do $$$AssertEquals(..EntryJson(name), $ClassMethod(provider, "Details", class, url, file, flag, $Select(retry: ##class(OcuTalon.Bridge.Timeouts).RetryTimer(timer), 1: timer)).%ToJSON(), name_" is the entry of Details for the timer "_timer_$Select(retry: " (its RetryTimer)", 1: ""))
 			}
 		}
 		Do $ClassMethod(fixture, "RestoreDefault", $ListBuild("Decide", "TimerSeconds", 0))
@@ -435,8 +460,8 @@ ClassMethod Row(item As %String) As %String
 /// Asserts that each runner's entry and its ProviderConfig row exist.
 Method AssertWritten(when As %String) [ Private ]
 {
-	For item = "TriageAgent", "DiagnosisAgent", "ChatAgent" {
-		Do $$$AssertTrue(..EntryJson("OcuTalon"_$Extract(item, 1, $Length(item) - 5)) '= "", "the entry of "_item_" exists "_when)
+	For item = "TriageAgent", "DiagnosisAgent", "ChatAgent", "TriageAgentRetry", "DiagnosisAgentRetry", "ChatAgentRetry" {
+		Do $$$AssertTrue(..EntryJson(..EntryOf(item)) '= "", "the entry of "_item_" exists "_when)
 		Do $$$AssertTrue(..Row(item) '= "", "and so does its ProviderConfig row")
 	}
 }
@@ -445,11 +470,19 @@ Method AssertWritten(when As %String) [ Private ]
 ClassMethod State() As %String [ Private ]
 {
 	Set state = ""
-	For item = "TriageAgent", "DiagnosisAgent", "ChatAgent" {
-		Set name = "OcuTalon"_$Extract(item, 1, $Length(item) - 5)
+	For item = "TriageAgent", "DiagnosisAgent", "ChatAgent", "TriageAgentRetry", "DiagnosisAgentRetry", "ChatAgentRetry" {
+		Set name = ..EntryOf(item)
 		Set state = state _ $Char(10) _ name _ " " _ ..EntryJson(name) _ " " _ ..Row(item)
 	}
 	Quit state
+}
+
+/// The name of the entry of a runner item: OcuTalon, the agent's name (the item without Agent and Retry) and Retry for a retry item.
+ClassMethod EntryOf(item As %String) As %String [ Private ]
+{
+	Set retry = ($Extract(item, $Length(item) - 4, *) = "Retry")
+	Set base = $Select(retry: $Extract(item, 1, $Length(item) - 5), 1: item)
+	Quit "OcuTalon"_$Extract(base, 1, $Length(base) - 5)_$Select(retry: "Retry", 1: "")
 }
 
 /// Puts an entry back as it was found: its details modified when it exists, created with the description otherwise.

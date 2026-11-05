@@ -34,14 +34,16 @@ XData ProductionDefinition
   <Item Name="ChatAgent" ClassName="OcuTalon.Bridge.Operation.AgentRunner" PoolSize="1" Enabled="true">
     <Setting Target="Adapter" Name="AgentClass">OcuTalon.Agent.Chat</Setting>
   </Item>
-  <Item Name="TriageAgentRetry" ClassName="OcuTalon.Bridge.Operation.AgentRunner" PoolSize="1" Enabled="false">
-    <Setting Target="Adapter" Name="AgentClass"></Setting>
+  <Item Name="TriageAgentRetry" ClassName="OcuTalon.Bridge.Operation.AgentRunner" PoolSize="1" Enabled="true">
+    <Setting Target="Adapter" Name="AgentClass">OcuTalon.Agent.Triage</Setting>
+    <Setting Target="Host" Name="ReplyClass">OcuTalon.Bridge.Msg.DecisionPayload</Setting>
   </Item>
-  <Item Name="DiagnosisAgentRetry" ClassName="OcuTalon.Bridge.Operation.AgentRunner" PoolSize="1" Enabled="false">
-    <Setting Target="Adapter" Name="AgentClass"></Setting>
+  <Item Name="DiagnosisAgentRetry" ClassName="OcuTalon.Bridge.Operation.AgentRunner" PoolSize="1" Enabled="true">
+    <Setting Target="Adapter" Name="AgentClass">OcuTalon.Agent.Diagnosis</Setting>
+    <Setting Target="Host" Name="ReplyClass">OcuTalon.Watch.Msg.DiagnosisPayload</Setting>
   </Item>
-  <Item Name="ChatAgentRetry" ClassName="OcuTalon.Bridge.Operation.AgentRunner" PoolSize="1" Enabled="false">
-    <Setting Target="Adapter" Name="AgentClass"></Setting>
+  <Item Name="ChatAgentRetry" ClassName="OcuTalon.Bridge.Operation.AgentRunner" PoolSize="1" Enabled="true">
+    <Setting Target="Adapter" Name="AgentClass">OcuTalon.Agent.Chat</Setting>
   </Item>
   <Item Name="AgentSteps" ClassName="OcuTalon.Bridge.Operation.Steps" PoolSize="1" Enabled="true"/>
   <Item Name="OcuTalonApprovals" ClassName="EnsLib.Workflow.Operation" PoolSize="1" Enabled="true"/>

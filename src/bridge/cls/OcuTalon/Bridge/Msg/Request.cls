@@ -54,6 +54,13 @@ Property SystemNote As %String(MAXLEN = "");
 /// not a fresh one) before it chats, in its own job (Adapter.Agent, AD-20); it ignores the flag on every other request.
 Property Compact As %Boolean [ InitialExpression = 0 ];
 
+/// The runner item whose attempt this request retries (AD-6, AD-8): the first runner of a second-model retry, set by Decide on the clone it
+/// sends to the retry runner and by nothing else. Decide clears it on every first send and on every re-send, and a Held probe ignores the value
+/// a caller set, so a client can never skip the conversation lock with it. The retry runner acts on it only when its first runner's RetryItem
+/// setting names the retry runner (Adapter.Agent RetryAllowed), and only a linked turn changes: it runs unlocked in a new AI session that is
+/// seeded from the first runner's stored conversation.
+Property RetryOf As %String(MAXLEN = 128);
+
 Storage Default
 {
 <Data name="RequestDefaultData">
@@ -99,6 +106,9 @@ Storage Default
 </Value>
 <Value name="14">
 <Value>Compact</Value>
+</Value>
+<Value name="15">
+<Value>RetryOf</Value>
 </Value>
 </Data>
 <DefaultData>RequestDefaultData</DefaultData>

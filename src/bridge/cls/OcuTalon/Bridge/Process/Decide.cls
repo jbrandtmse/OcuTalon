@@ -95,9 +95,25 @@ Include Ensemble
 ///   - SessionBroken (AD-8): a user's turn whose failure text holds INVALIDINPUTTEXT is answered with a fallback Reply whose SessionBroken
 ///     is 1 (Broken). The reason stays error, the row is recorded like any fallback, and the runner saved nothing, so the stored history
 ///     and the link stay as they were. A fallback Reply also carries the runner's SessionRotated, as it carries Tainted and ToolsRun.
+///   - The second-model retry (AD-6, AD-8): a runner whose RetryItem setting names a retry runner (RetryItemOf) is retried once. When the
+///     attempt ends with a reason that Retryable lists (timeout, rate_limited, error, refusal, cut_off, empty, invalid, unusable, no_key), Decide
+///     sends a clone of the request, with the same DecisionRef and ItemId and with RetryOf set to the first runner, once, to the retry runner (TryRetry).
+///     Never retried: daily_cap, budget and too_large, a reply in which a tool ran (Reply.ToolsRun), a SessionBroken turn, a request of kind tool and
+///     the retry itself. A timer that fired leaves it unknown whether a tool ran, so a timed-out turn is not retried (it falls back as in release
+///     1), and a timed-out decide or diagnose is retried only when every tool of its agent is read-only code-classified safe (ToolsReadOnly). The
+///     timers (AD-8): T1 is TimerFor of the first attempt, kept in FirstSeconds; the retry waits RetrySeconds, the least of TimerSeconds and
+///     MAXTIMER - T1, and is sent only when that is at least MINTIMER, so the whole decision stays within MAXTIMER; otherwise the fallback keeps
+///     the first reason and carries RETRYSKIPPED as its reasons. The retry takes the precheck of its own runner (Precheck: its key, the daily cap,
+///     the budget and the size limit), is never sent again, and its reply is neither weighed for a re-send nor retried; a fallback after it
+///     carries its reason. A user's linked turn is sent with no Held probe when it carries RetryOf for the same runner and ItemId (Held), because
+///     the retry runs unlocked in a session of its own. The decision is still one row and one answer: its totals are the sums of the Usage rows
+///     of the DecisionRef, its steps continue across the attempts, and its Model is that of the reply that answered.
+///   - A RetryOf that a caller sets is never honoured: Held and EstimateTokens do not read it for the request that arrives, and SentRequest
+///     clears it on every first send and every re-send. Only the clone that TryRetry builds carries RetryOf.
 ///   - A request that is refused (Admit, the settings) ends with an error status, and no row is recorded; the late reply of a runner
 ///     after the timer is discarded by the business process framework.
-/// The state of a decision that outlasts one message is stored with the process (AD-5): DecisionRef, Resends, StepCount and StepsSent.
+/// The state of a decision that outlasts one message is stored with the process (AD-5): DecisionRef, Resends, StepCount, StepsSent, RetryRunner and
+/// FirstSeconds.
 /// None is a setting. The three extension settings name the classes through which the bridge reaches its host (AD-31); the production
 /// definition sets the first two, and OcuTalon.Bridge.Ext.Accessor reads them in any job. The three budget settings (AD-19, AD-20) are
 /// System Default Settings that OcuTalon.Bridge.Budget reads through the same accessor; DecisionTokenBudget and RequestTokenLimit are
@@ -131,6 +147,13 @@ Parameter RESENDMAX = 8;
 
 /// The operation that records the agent steps (AD-9).
 Parameter STEPSITEM = "AgentSteps";
+
+/// The reasons that Decide retries once on a second model, comma-separated (AD-8). The others (daily_cap, budget, too_large) never are.
+Parameter RETRIED = "timeout,rate_limited,error,refusal,cut_off,empty,invalid,unusable,no_key";
+
+/// The reason line of the fallback of a decision whose second-model retry was skipped for lack of time (AD-8, DW-647, veto U-281): plain English for
+/// the person, shown in the trace as the reasons of the decision.
+Parameter RETRYSKIPPED = "The second model was not tried, because no time was left within the 110-second limit.";
 
 /// The first reason line of a user's decide request whose outcome was ignore or digest (AD-6).
 Parameter USERANSWERED = "The outcome was changed because a message the user writes is always answered.";
@@ -230,6 +253,13 @@ Property StepCount As %Integer [ InitialExpression = 0 ];
 /// across its attempts. Not a setting.
 Property StepsSent As %Integer [ InitialExpression = 0 ];
 
+/// The retry runner item that the second-model retry was sent to, or "" until it is sent (TryRetry). A decision is retried at most once. Not a setting.
+Property RetryRunner As %String(MAXLEN = 128);
+
+/// T1, the timer in whole seconds of the first attempt as it was set (TimerFor), or "" when no first attempt was sent (a precheck refused it). The
+/// retry's timer follows from it (RetrySeconds). Not a setting.
+Property FirstSeconds As %Integer;
+
 /// Assigns a setting as Ens.Settings does, except for the five budget and size settings (AD-20, DW-76). A value of DailyCostCapUSD,
 /// GatewaySpendUSD or GatewaySpendDate that its property's datatype refuses, and a DecisionTokenBudget or RequestTokenLimit that is not
 /// made of digits only, is assigned as "", so that the process can still be saved before OnRequest and the setting counts as off (a
@@ -281,20 +311,24 @@ Method OnRequest(request As %Library.Persistent, Output response As %Library.Per
 	Set estimate = 0
 	Set reason = $Select(tool: "", 1: ..Precheck(request, runner, ..SettingText("DecisionTokenBudget"), ..SettingText("RequestTokenLimit"), .estimate))
 	If reason '= "" {
-		Quit ..RecordFallback(request, decisionRef, reason, "", ..HostSinkClass, ..%SessionId, .response, ##class(OcuTalon.Bridge.Time).MsSince(..%TimeCreated))
+		Quit ..TryRetry(request, runner, reason, "", .response)
 	}
 	Set sc = ..SendRequestAsync(runner, ..SentRequest(request, decisionRef, estimate), 1, "reply")
 	If $$$ISERR(sc) Quit sc
-	Quit ..SetTimer(..TimerFor(request, ..Flagged(request, estimate)), "timer")
+	Set ..FirstSeconds = ..TimerFor(request, ..Flagged(request, estimate))
+	Quit ..SetTimer(..FirstSeconds, "timer")
 }
 
 /// 1 when the request is linked to a conversation by the runner's own rule (Adapter.Agent IsLinked: a turn with provenance user) and its
 /// conversation lock, (OwnerRef, the runner item), is not taken in the lock's seconds (Data.ConversationLink LOCKSECONDS): an earlier turn,
 /// even one that Decide gave up on, still holds the conversation (AD-6). The lock is taken only to probe and released at once. Every other
-/// request is never held.
-ClassMethod Held(request As OcuTalon.Bridge.Msg.Request, runner As %String) As %Boolean
+/// request is never held. The one exception is the second-model retry (AD-6, AD-8): the request is not probed, and the answer is 0, only when it
+/// carries RetryOf naming this runner and its ItemId is the non-empty itemId that the caller vouches for, because the retry runs unlocked in a session
+/// of its own. OnRequest passes no itemId, so a RetryOf that a client set never skips the probe; TryRetry passes the ItemId of the decision it retries.
+ClassMethod Held(request As OcuTalon.Bridge.Msg.Request, runner As %String, itemId As %String = "") As %Boolean
 {
 	If '##class(OcuTalon.Bridge.Adapter.Agent).IsLinked(request) Quit 0
+	If (itemId '= "") && (request.RetryOf = runner) && (request.ItemId = itemId) Quit 0
 	If ##class(OcuTalon.Bridge.Data.ConversationLink).Lock(request.OwnerRef, runner) {
 		Do ##class(OcuTalon.Bridge.Data.ConversationLink).Unlock(request.OwnerRef, runner)
 		Quit 0
@@ -316,7 +350,8 @@ Method OnError(request As %Library.Persistent, ByRef response As %Library.Persis
 
 /// The completion keys (AD-6, AD-8):
 ///   - timer: the timer ended the attempt, so the decision is recorded as a fallback for the stored DecisionRef (RecordFallback), with
-///     the reason that Classify gives for a timer that fired (timeout, or rate_limited after a re-send), and the caller is answered;
+///     the reason that Classify gives for a timer that fired (timeout, or rate_limited after a re-send; once the retry was sent, always
+///     timeout), and the caller is answered, unless the second-model retry applies to the attempt (TryRetry), which is sent instead;
 ///   - resend: the back-off of a re-send is over (Resend);
 ///   - reply: the runner answered. The steps are sent first (EmitSteps), so that a reply that is then refused, or a call that failed,
 ///     still shows its steps in the trace. A Reply whose Busy is 1 is then answered with Reply.NewBusy(), with no row, no event and no
@@ -331,8 +366,8 @@ Method OnResponse(request As %Library.Persistent, ByRef response As %Library.Per
 	If pCompletionKey = "timer" {
 		Set facts = {}
 		Do facts.%Set("timedOut", 1, "boolean")
-		Do facts.%Set("resends", ..Resends, "number")
-		Quit ..RecordFallback(request, ..DecisionRef, ..Classify(facts), "", ..HostSinkClass, ..%SessionId, .response, ##class(OcuTalon.Bridge.Time).MsSince(..%TimeCreated), ..StepCount)
+		Do facts.%Set("resends", $Select(..RetryRunner '= "": 0, 1: ..Resends), "number")
+		Quit ..TryRetry(request, runner, ..Classify(facts), "", .response, "", 1)
 	}
 	If pCompletionKey = "resend" Quit ..Resend(request, runner, .response)
 	If pCompletionKey '= "reply" Quit $$$ERROR($$$GeneralError, "Decide got a response with the unknown completion key '"_pCompletionKey_"'")
@@ -350,7 +385,7 @@ Method OnResponse(request As %Library.Persistent, ByRef response As %Library.Per
 		Set failure = callresponse.FailureText
 		Set answered = 1
 	}
-	If answered && (failure '= "") && (kind '= "tool") {
+	If answered && (failure '= "") && (kind '= "tool") && (..RetryRunner = "") {
 		Set facts = {}
 		Do facts.%Set("failure", failure)
 		Set delay = ..ResendDelay(..Classify(facts), callresponse.ToolsRun, ..Resends, ..RemainingMs(request))
@@ -361,15 +396,18 @@ Method OnResponse(request As %Library.Persistent, ByRef response As %Library.Per
 	}
 	Set replyClass = ""
 	If (kind '= "turn") && (kind '= "tool") {
-		Set replyClass = ..ReplyClassOf(runner, .sc)
+		Set replyClass = ..ReplyClassOf($Select(..RetryRunner '= "": ..RetryRunner, 1: runner), .sc)
 		If $$$ISERR(sc) Quit sc
 	}
-	Quit ..Conclude(request, callrequest.DecisionRef, callresponse, replyClass, ..ReplyFilterClass, ..HostSinkClass, ..%SessionId, .response, ##class(OcuTalon.Bridge.Time).MsSince(..%TimeCreated), failure, ..StepCount)
+	Set retryReason = ""
+	Set sc = ..Conclude(request, callrequest.DecisionRef, callresponse, replyClass, ..ReplyFilterClass, ..HostSinkClass, ..%SessionId, .response, ##class(OcuTalon.Bridge.Time).MsSince(..%TimeCreated), failure, ..StepCount, (kind '= "tool") && (..RetryRunner = "") && ..RetryConfigured(runner), .retryReason)
+	If $$$ISERR(sc) || (retryReason = "") Quit sc
+	Quit ..TryRetry(request, runner, retryReason, callresponse, .response, failure)
 }
 
 /// The key resend (AD-8, AD-20): prechecks the request again with the token budget and the request-size limit of OnRequest
 /// (SettingText), and records a reason with RecordFallback, so that a daily_cap marks the day. With less than a second of the timer left
-/// it records rate_limited at once and sends nothing. Otherwise it sends the request that SentRequest builds, with the stored DecisionRef,
+/// it records rate_limited at once and sends nothing. A reason that the second-model retry covers goes to TryRetry instead (no_key and rate_limited). Otherwise it sends the request that SentRequest builds, with the stored DecisionRef,
 /// to the runner (the key reply), adds 1 to Resends and sets the timer for the whole seconds left, because the framework dropped the
 /// first timer's pending entry when the runner's reply arrived.
 Method Resend(request As OcuTalon.Bridge.Msg.Request, runner As %String, Output response As %Persistent) As %Status
@@ -380,7 +418,7 @@ Method Resend(request As OcuTalon.Bridge.Msg.Request, runner As %String, Output 
 	Set seconds = ..RemainingMs(request, estimate) \ 1000
 	If (reason = "") && (seconds < 1) Set reason = "rate_limited"
 	If reason '= "" {
-		Quit ..RecordFallback(request, ..DecisionRef, reason, "", ..HostSinkClass, ..%SessionId, .response, elapsed, ..StepCount)
+		Quit ..TryRetry(request, runner, reason, "", .response)
 	}
 	Set sc = ..SendRequestAsync(runner, ..SentRequest(request, ..DecisionRef, estimate), 1, "reply")
 	If $$$ISERR(sc) Quit sc
@@ -399,12 +437,23 @@ Method SettingText(name As %String) As %String
 
 /// The request that goes to a runner, for the first send and for every re-send (AD-6, AD-20): a clone of the request that carries the
 /// DecisionRef and the Compact flag, 1 exactly when the request is a turn (any provenance and any SessionMode) and the estimate that the
-/// precheck worked out is above COMPACTTOKENS, otherwise 0, whatever the caller set. The request itself is not changed.
+/// precheck worked out is above COMPACTTOKENS, otherwise 0, whatever the caller set, and an empty RetryOf, whatever the caller set (AD-6: only the
+/// retry's clone carries one, RetryRequest). The request itself is not changed.
 ClassMethod SentRequest(request As OcuTalon.Bridge.Msg.Request, decisionRef As %String, estimate As %Integer) As OcuTalon.Bridge.Msg.Request
 {
 	Set clone = request.%ConstructClone()
 	Set clone.DecisionRef = decisionRef
 	Set clone.Compact = ..Flagged(request, estimate)
+	Set clone.RetryOf = ""
+	Quit clone
+}
+
+/// The request that goes to the retry runner (AD-6, AD-8): SentRequest, with the same DecisionRef and ItemId, and RetryOf set to the first
+/// runner. It is the only request that Decide sends with RetryOf.
+ClassMethod RetryRequest(request As OcuTalon.Bridge.Msg.Request, decisionRef As %String, estimate As %Integer, runner As %String) As OcuTalon.Bridge.Msg.Request
+{
+	Set clone = ..SentRequest(request, decisionRef, estimate)
+	Set clone.RetryOf = runner
 	Quit clone
 }
 
@@ -426,6 +475,171 @@ Method TimerFor(request As OcuTalon.Bridge.Msg.Request, compact As %Boolean) As 
 	If ##class(OcuTalon.Bridge.Data.ConversationLink).SessionOf(request.OwnerRef, ..RunnerFor(request.Kind, request)) = "" Quit seconds
 	Set seconds = seconds + ##class(OcuTalon.Bridge.Compaction).#SUMMARIZERSECONDS
 	Quit $Select(seconds > ..#MAXTIMER: ..#MAXTIMER, 1: seconds)
+}
+
+/// 1 when the reason is one that Decide retries once on a second model and nothing forbids it (AD-8): reason is one of RETRIED; no tool ran (toolsRun
+/// is 0: Reply.ToolsRun of the attempt's reply); the attempt is not a SessionBroken turn (broken is 0: Broken); and the request is not of kind tool.
+/// A timer that fired (timedOut 1) leaves it unknown whether a tool ran, so a turn is not retried then (it falls back as in release 1, lead ruling
+/// R2 of Story 17.2), and a decide or diagnose request is retried only when readOnly says that every tool of its agent is read-only (ToolsReadOnly).
+/// It is pure.
+ClassMethod Retryable(reason As %String, toolsRun As %Boolean = 0, broken As %Boolean = 0, kind As %String = "", timedOut As %Boolean = 0, readOnly As %Boolean = 1) As %Boolean
+{
+	If $Get(kind) = "tool" Quit 0
+	If '$ListFind($ListFromString(..#RETRIED), $Get(reason)) Quit 0
+	If +$Get(toolsRun) || +$Get(broken) Quit 0
+	If +$Get(timedOut) Quit ($Get(kind) '= "turn") && +$Get(readOnly)
+	Quit 1
+}
+
+/// The seconds that the second-model retry waits, or 0 when it is not sent (AD-8, DW-647): T2, the least of timer (TimerSeconds) and MAXTIMER - t1 (T1,
+/// the first attempt's timer), when T2 is at least MINTIMER, so that both attempts together stay within MAXTIMER. t1 "" counts as 0 (no first attempt was
+/// sent). It is pure.
+ClassMethod RetrySeconds(t1 As %Integer, timer As %Integer) As %Integer
+{
+	Set left = ..#MAXTIMER - +$Get(t1)
+	Set seconds = $Select(+$Get(timer) < left: +$Get(timer), 1: left)
+	Quit $Select(seconds < ..#MINTIMER: 0, 1: seconds)
+}
+
+/// 1 when the runner has a RetryItem setting that is not empty (Ext.Accessor ValueFor), and the retry has not been sent. It judges nothing about the
+/// value: RetryItemOf does, only when a retry is considered.
+Method RetryConfigured(runner As %String) As %Boolean
+{
+	If ..RetryRunner '= "" Quit 0
+	Set value = ##class(OcuTalon.Bridge.Ext.Accessor).ValueFor("RetryItem", "", runner, .sc)
+	Quit $$$ISOK(sc) && ($ZStrip(value, "<>WC") '= "")
+}
+
+/// The retry runner item of the runner for a request of the kind (AD-6, AD-8): the RetryItem setting, when it names an item of the active production that
+/// is an enabled agent runner other than the runner itself and, for decide and diagnose, whose ReplyClass passes CheckReplyClass. "" for an empty or unreadable
+/// setting, with no warning. Any other value gives "" and one warning that names the setting and what is wrong with it, never an error status (an error would
+/// make Decide refuse every request): the request then falls back as in release 1.
+ClassMethod RetryItemOf(runner As %String, kind As %String) As %String
+{
+	Set item = ##class(OcuTalon.Bridge.Ext.Accessor).ValueFor("RetryItem", "", runner, .sc)
+	Set item = $ZStrip(item, "<>WC")
+	If $$$ISERR(sc) || (item = "") Quit ""
+	Set problem = ""
+	Try {
+		Set problem = ..RetryItemProblem(runner, kind, item)
+	} Catch exception {
+		Set problem = "it cannot be checked"
+	}
+	If problem = "" Quit item
+	$$$LOGWARNING(##class(OcuTalon.Bridge.Redact).Text("The setting RetryItem of "_runner_" is '"_$Extract(item, 1, 60)_"': "_problem_", so the second-model retry is not used"))
+	Quit ""
+}
+
+/// What is wrong with the item as the retry runner of the runner (RetryItemOf), in words, or "": it is the runner itself, it is not an item of the active
+/// production, it is not an AgentRunner, it is disabled (a System Default Settings row of Enabled counts), or, for decide and diagnose, its ReplyClass is refused.
+ClassMethod RetryItemProblem(runner As %String, kind As %String, item As %String) As %String [ Private ]
+{
+	If item = runner Quit "it names the runner itself"
+	Set production = ##class(Ens.Director).GetActiveProductionName()
+	Set config = $Select(production = "": "", 1: ##class(Ens.Config.Production).%OpenId(production))
+	If '$IsObject(config) Quit "there is no active production"
+	Set found = ""
+	For i = 1:1:config.Items.Count() {
+		If config.Items.GetAt(i).Name = item Set found = config.Items.GetAt(i)
+	}
+	If '$IsObject(found) Quit "it is not an item of the production"
+	If '##class(%Dictionary.CompiledClass).%ExistsId(found.ClassName) || '$ClassMethod(found.ClassName, "%Extends", "OcuTalon.Bridge.Operation.AgentRunner") Quit "it is not an agent runner"
+	Set enabled = $Select(##class(Ens.Config.DefaultSettings).%GetSetting(production, found.Name, found.ClassName, "", "Enabled", .override): override, 1: found.Enabled)
+	If 'enabled Quit "it is disabled"
+	If (kind '= "decide") && (kind '= "diagnose") Quit ""
+	Set replyClass = ..ReplyClassOf(item, .sc)
+	If $$$ISOK(sc) Set sc = ..CheckReplyClass(kind, item, replyClass)
+	If $$$ISERR(sc) Quit "its ReplyClass is not usable"
+	Quit ""
+}
+
+/// 1 when every tool of the agent class of the runner is read-only by what code declares (AD-10), so that an attempt in which one ran, and whose outcome
+/// is unknown because its timer fired, did not change anything: the AgentClass setting of the runner (Ext.Accessor ValueFor, Adapter target) is a
+/// compiled class, each class of its TOOLSETS parameter is a toolset (a name with a colon is a URI, whose tools are unknown, so 0) and each tool that the
+/// toolset offers is classified safe with READONLY 1 by its class parameters (StepBuffer ToolParameter), with no Classify method that decides per call
+/// (Policy.Gate HookFor). An agent with no toolset has no tool and counts as read-only. 0 for anything that cannot be established from code.
+ClassMethod ToolsReadOnly(runner As %String) As %Boolean
+{
+	Set readOnly = 0
+	Try {
+		Set agentClass = ##class(OcuTalon.Bridge.Ext.Accessor).ValueFor("AgentClass", "", runner, .sc, "Adapter")
+		If $$$ISERR(sc) || (agentClass = "") || '##class(%Dictionary.CompiledClass).%ExistsId(agentClass) Quit
+		Set toolsets = $Parameter(agentClass, "TOOLSETS")
+		Set readOnly = 1
+		For i = 1:1:$Length(toolsets, ",") {
+			Set toolset = $ZStrip($Piece(toolsets, ",", i), "<>W")
+			If toolset = "" Continue
+			If (toolset [ ":") || '##class(%Dictionary.CompiledClass).%ExistsId(toolset) {
+				Set readOnly = 0
+				Quit
+			}
+			Set iterator = $ClassMethod(toolset, "%New").%Discover().%Get("tools").%GetIterator()
+			While iterator.%GetNext(, .tool) {
+				Set source = tool.provider
+				Set name = tool.name
+				If (source = "") || (name = "") || (##class(OcuTalon.Bridge.Policy.Gate).HookFor(source, name) '= "") || (##class(OcuTalon.Bridge.Adapter.StepBuffer).ToolParameter(source, name, "CLASSIFICATION") '= "safe") || (##class(OcuTalon.Bridge.Adapter.StepBuffer).ToolParameter(source, name, "READONLY") '= 1) {
+					Set readOnly = 0
+				}
+			}
+			If 'readOnly Quit
+		}
+	} Catch {
+		Set readOnly = 0
+	}
+	Quit readOnly
+}
+
+/// The second-model retry (AD-6, AD-8, DW-647; the method is not called Retry, which is a property of Ens.BusinessProcess), or the fallback as release 1 records it. reason is why the attempt is unusable: Classify of a precheck
+/// (OnRequest, Resend), of the timer (timedOut 1) or of the reply (Conclude's retryReason); reply is the attempt's Reply, "" when there is none; failure
+/// is its failure text. The retry is sent when all of these hold, and otherwise the fallback is recorded with the reason (RecordFallback; the answer is
+/// in response):
+///   - the request is not of kind tool, the retry has not been sent, and Retryable accepts the reason (with ToolsRun of the reply, Broken, and for a
+///     timer that fired the rule of lead ruling R2);
+///   - RetryItemOf names a retry runner;
+///   - RetrySeconds of FirstSeconds and TimerSeconds is not 0; when it is, the fallback keeps the reason and carries RETRYSKIPPED as its reasons.
+/// The retry is the RetryRequest clone, with the DecisionRef of the decision, sent to the retry runner with the key reply, after the precheck of the
+/// retry runner (Precheck, whose reason is the fallback's; a reason of the retry runner, such as no_key, is the last attempt's), with the steps of
+/// the reply added to StepCount and a timer of the seconds of the retry, whose controlled keys discard the reply of an attempt whose timer fired. A
+/// linked turn goes through Held with the ItemId of the decision first, which skips the probe for it.
+Method TryRetry(request As OcuTalon.Bridge.Msg.Request, runner As %String, reason As %String, reply As %RegisteredObject, Output response As %Persistent, failure As %String = "", timedOut As %Boolean = 0) As %Status
+{
+	Set response = ""
+	Set kind = request.Kind
+	Set isReply = $IsObject(reply) && reply.%IsA("OcuTalon.Bridge.Msg.Reply")
+	Set broken = ..Broken(request, failure)
+	Set elapsed = ##class(OcuTalon.Bridge.Time).MsSince(..%TimeCreated)
+	Set reasons = ""
+	Set retryItem = ""
+	If (..RetryRunner = "") && ..Retryable(reason, isReply && reply.ToolsRun, broken, kind, timedOut) {
+		Set retryItem = ..RetryItemOf(runner, kind)
+	}
+	If (retryItem '= "") && timedOut && '..Retryable(reason, 0, 0, kind, 1, ..ToolsReadOnly(runner)) Set retryItem = ""
+	If retryItem '= "" {
+		Set seconds = ..RetrySeconds(..FirstSeconds, ..TimerSeconds)
+		If seconds = 0 {
+			Set retryItem = ""
+			Set reasons = ..#RETRYSKIPPED
+		}
+	}
+	If retryItem '= "" {
+		Set limit = ..SettingText("RequestTokenLimit")
+		Set clone = ..RetryRequest(request, ..DecisionRef, 0, runner)
+		If ##class(OcuTalon.Bridge.Adapter.Agent).IsLinked(clone) && ..Held(clone, runner, request.ItemId) {
+			Set response = ##class(OcuTalon.Bridge.Msg.Reply).NewBusy()
+			Quit $$$OK
+		}
+		Set precheck = ..Precheck(clone, retryItem, ..SettingText("DecisionTokenBudget"), limit, .estimate, runner)
+		If precheck '= "" {
+			Quit ..RecordFallback(request, ..DecisionRef, precheck, reply, ..HostSinkClass, ..%SessionId, .response, elapsed, ..StepCount, broken)
+		}
+		Set clone = ..RetryRequest(request, ..DecisionRef, estimate, runner)
+		Set sc = ..SendRequestAsync(retryItem, clone, 1, "reply")
+		If $$$ISERR(sc) Quit sc
+		Set ..RetryRunner = retryItem
+		If isReply Set ..StepCount = ..StepCount + reply.AgentStepCount
+		Quit ..SetTimer(seconds, "timer")
+	}
+	Quit ..RecordFallback(request, ..DecisionRef, reason, reply, ..HostSinkClass, ..%SessionId, .response, elapsed, ..StepCount, broken, reasons)
 }
 
 /// The milliseconds of the attempt's timer (TimerFor) that are left: the timer x 1000 minus the milliseconds since Decide began (0 at least,
@@ -620,6 +834,12 @@ ClassMethod CheckSettings(kind As %String, runner As %String, replyClass As %Str
 	If $$$ISERR(sc) Quit sc
 	Set sc = ##class(OcuTalon.Bridge.Ext.Accessor).Check("ReplyFilterClass", filterClass)
 	If $$$ISERR(sc) Quit sc
+	Quit ..CheckReplyClass(kind, runner, replyClass)
+}
+
+/// OK when the ReplyClass of the runner suits the kind: a turn and a tool request need none; a decide or diagnose request needs a compiled %JSON.Adaptor class.
+ClassMethod CheckReplyClass(kind As %String, runner As %String, replyClass As %String) As %Status
+{
 	If (kind = "turn") || (kind = "tool") Quit $$$OK
 	If replyClass = "" {
 		Quit $$$ERROR($$$GeneralError, "The runner "_runner_" has no ReplyClass setting, so a "_kind_" request cannot be sent: ReplyClass names the %JSON.Adaptor class that the reply is checked against")
@@ -864,8 +1084,9 @@ ClassMethod Unfenced(text As %String) As %String
 /// 0). A turn that is flagged for compaction (Flagged) and continues its conversation is judged for too_large on the request of the
 /// runner's seeded path: its characters with the stored history counted as the least of the history and Compaction.#SEEDCHARS (AD-8,
 /// AD-20); the runner checks the session as it stands and the fork against the limit itself. The token budget and the estimate that it
-/// gives back keep the full estimate. Nothing is sent or recorded here.
-ClassMethod Precheck(request As OcuTalon.Bridge.Msg.Request, runner As %String, tokenBudget As %String, requestLimit As %String = "", Output estimate As %Integer) As %String
+/// gives back keep the full estimate. retryOf is the first runner when the request is the second-model retry (TryRetry), else "" (EstimateTokens). Nothing is
+/// sent or recorded here.
+ClassMethod Precheck(request As OcuTalon.Bridge.Msg.Request, runner As %String, tokenBudget As %String, requestLimit As %String = "", Output estimate As %Integer, retryOf As %String = "") As %String
 {
 	Set facts = {}
 	Do facts.%Set("noKey", ##class(OcuTalon.Bridge.Keys).Absent(runner), "boolean")
@@ -885,7 +1106,7 @@ ClassMethod Precheck(request As OcuTalon.Bridge.Msg.Request, runner As %String, 
 	}
 	Set limit = ..RequestLimit(requestLimit, .limitWarning)
 	If limitWarning '= "" $$$LOGWARNING(##class(OcuTalon.Bridge.Redact).Text(limitWarning))
-	Set estimate = ..EstimateTokens(request, runner, , .sc, .history, .chars)
+	Set estimate = ..EstimateTokens(request, runner, , .sc, .history, .chars, retryOf)
 	If $$$ISERR(sc) {
 		$$$LOGWARNING(##class(OcuTalon.Bridge.Redact).Text("The system prompt or the tool schemas of "_runner_" could not be read in full, so the estimate of the request may count too few tokens: "_$SYSTEM.Status.GetErrorText(sc)))
 	}
@@ -920,12 +1141,14 @@ ClassMethod RequestLimit(text As %String = "", Output warning As %String) As %In
 ///      means the AgentClass setting of the runner item (Ext.Accessor ValueFor, a setting of the adapter).
 ///   2. The history: RequestSize.HistoryChars of the session that the conversation link of the request's OwnerRef and the runner names
 ///      (Data.ConversationLink SessionOf), only for a linked turn (Adapter.Agent IsLinked) whose SessionMode is not fresh. It is 0 for
-///      every other request, and for a turn with no link.
+///      every other request, and for a turn with no link. For the second-model retry of such a turn (retryOf names the first runner, which the
+///      retry runner reads the conversation of) it is the history of the first runner's session, at most Compaction.#SEEDCHARS: the retry sends a
+///      seed of that size in its place. The request's own RetryOf is never read, so a RetryOf that a caller set changes nothing.
 ///   3. The input: the length of what the runner sends (Adapter.Agent ChatInput), with the seed only on a linked fresh turn.
 /// history is the characters of part 2 and chars the characters of the whole sum, which Precheck weighs for a flagged turn. sc is an error
 /// when the agent part could not be read in full: the setting cannot be read or the class is unknown (the part counts 0), or its
 /// INSTRUCTIONS or a toolset cannot be read (that piece counts 0 and the rest is counted, RequestSize.AgentChars).
-ClassMethod EstimateTokens(request As OcuTalon.Bridge.Msg.Request, runner As %String, agentClass As %String = "", Output sc As %Status, Output history As %Integer, Output chars As %Integer) As %Integer
+ClassMethod EstimateTokens(request As OcuTalon.Bridge.Msg.Request, runner As %String, agentClass As %String = "", Output sc As %Status, Output history As %Integer, Output chars As %Integer, retryOf As %String = "") As %Integer
 {
 	Set sc = $$$OK
 	Set chars = 0
@@ -934,7 +1157,15 @@ ClassMethod EstimateTokens(request As OcuTalon.Bridge.Msg.Request, runner As %St
 	If $$$ISOK(sc) Set chars = ##class(OcuTalon.Bridge.RequestSize).AgentChars(agentClass, .sc)
 	Set linked = ##class(OcuTalon.Bridge.Adapter.Agent).IsLinked(request)
 	Set fresh = linked && (request.SessionMode = "fresh")
-	If linked && 'fresh Set history = ##class(OcuTalon.Bridge.RequestSize).HistoryChars(##class(OcuTalon.Bridge.Data.ConversationLink).SessionOf(request.OwnerRef, runner))
+	If linked && 'fresh {
+		If retryOf '= "" {
+			Set history = ##class(OcuTalon.Bridge.RequestSize).HistoryChars(##class(OcuTalon.Bridge.Data.ConversationLink).SessionOf(request.OwnerRef, retryOf))
+			Set cap = ##class(OcuTalon.Bridge.Compaction).#SEEDCHARS
+			If history > cap Set history = cap
+		} Else {
+			Set history = ##class(OcuTalon.Bridge.RequestSize).HistoryChars(##class(OcuTalon.Bridge.Data.ConversationLink).SessionOf(request.OwnerRef, runner))
+		}
+	}
 	Set chars = chars + history
 	Set chars = chars + $Length(##class(OcuTalon.Bridge.Adapter.Agent).ChatInput(request, fresh))
 	Quit ##class(OcuTalon.Bridge.Adapter.StepBuffer).Tokens(chars)
@@ -1015,7 +1246,9 @@ ClassMethod HoldsAll(text As %String, pieces As %String) As %Boolean [ Private ]
 ///      or nothing is left of it once the filter has run. For decide and diagnose, the check is CheckReply against replyClass; for a
 ///      turn, the text itself;
 ///   2. calls Classify once. A reason goes to RecordFallback, which records the fallback and answers (below); for an invalid decide or diagnose
-///      reply, what the check refused (problem, see Interpret: RefusalText's words, never the reply) is first logged, redacted, as one warning in the decision's trace session;
+///      reply, what the check refused (problem, see Interpret: RefusalText's words, never the reply) is first logged, redacted, as one warning in the decision's trace session.
+///      With retry 1 (a retry runner is set and not yet used, RetryConfigured) a reason that Retryable accepts for the reply (its ToolsRun, Broken) is not
+///      recorded: Conclude records nothing, answers nothing, and gives the reason in retryReason, and the caller sends the retry (TryRetry);
 ///   3. otherwise, the reply is usable and each model-written text was filtered once with filterClass (each reason; each property that
 ///      the reply class names in its FILTERED parameter that is not empty, each item of a list, after which the payload is validated again; a
 ///      turn's reply text),
@@ -1033,8 +1266,9 @@ ClassMethod HoldsAll(text As %String, pieces As %String) As %Boolean [ Private ]
 ///      row's totals (CarryTotals), and with no Steps (Decide sent them) and no FailureText.
 /// An unusable reply is recorded and answered by RecordFallback; only a filter class that fails its check, a row that cannot be saved
 /// and a payload that cannot be exported end with an error status.
-ClassMethod Conclude(request As OcuTalon.Bridge.Msg.Request, decisionRef As %String, reply As OcuTalon.Bridge.Msg.Reply, replyClass As %String, filterClass As %String, sinkClass As %String, traceSessionId As %Integer, Output response As %Persistent, durationMs As %Integer = "", failure As %String = "", stepCount As %Integer = 0) As %Status
+ClassMethod Conclude(request As OcuTalon.Bridge.Msg.Request, decisionRef As %String, reply As OcuTalon.Bridge.Msg.Reply, replyClass As %String, filterClass As %String, sinkClass As %String, traceSessionId As %Integer, Output response As %Persistent, durationMs As %Integer = "", failure As %String = "", stepCount As %Integer = 0, retry As %Boolean = 0, Output retryReason As %String) As %Status
 {
+	Set retryReason = ""
 	Set response = ""
 	Set kind = request.Kind
 	Set turn = (kind = "turn")
@@ -1069,6 +1303,10 @@ ClassMethod Conclude(request As OcuTalon.Bridge.Msg.Request, decisionRef As %Str
 	Set reason = ..Classify(facts)
 	If reason '= "" {
 		If (reason = "invalid") && (problem '= "") $$$LOGWARNING(##class(OcuTalon.Bridge.Redact).Text("The reply check refused the reply of the decision "_decisionRef_": "_problem))
+		If retry && ..Retryable(reason, isReply && reply.ToolsRun, ..Broken(request, failure), kind) {
+			Set retryReason = reason
+			Quit $$$OK
+		}
 		Quit ..RecordFallback(request, decisionRef, reason, reply, sinkClass, traceSessionId, .response, durationMs, stepCount, ..Broken(request, failure))
 	}
 	If ##class(OcuTalon.Bridge.Data.Decision).ItemIdKindIndexExists(request.ItemId, kind, .id) {
@@ -1277,7 +1515,8 @@ ClassMethod RecordFallback(request As OcuTalon.Bridge.Msg.Request, decisionRef A
 }
 
 /// A new Decision row for the request: Ref, Kind, ItemId, OwnerRef, Summary, traceSessionId as TraceSessionId, RecordedAt (now, UTC), the
-/// totals of the decision (the sums of the Usage rows of decisionRef, Usage.Totals), AgentStepCount (stepCount, the steps of the earlier
+/// totals of the decision (the sums of the Usage rows of decisionRef, Usage.Totals, except the Model: the Model of the reply that answered, the one
+/// of the second model after a retry, when the reply holds one, because the newest Usage row can be a late first attempt's), AgentStepCount (stepCount, the steps of the earlier
 /// attempts, plus the reply's, which is 0 when there is none) and durationMs as DurationMs. The caller sets the outcome, the reasons, the
 /// confidence, the fallback and the payload.
 ClassMethod NewRow(request As OcuTalon.Bridge.Msg.Request, decisionRef As %String, reply As %RegisteredObject, traceSessionId As %Integer, durationMs As %Integer = "", stepCount As %Integer = 0) As OcuTalon.Bridge.Data.Decision
@@ -1298,6 +1537,7 @@ ClassMethod NewRow(request As OcuTalon.Bridge.Msg.Request, decisionRef As %Strin
 	Set row.CostUSD = totals.costUSD
 	Set row.Model = totals.model
 	If $IsObject(reply) && reply.%IsA("OcuTalon.Bridge.Msg.Reply") {
+		If reply.Model '= "" Set row.Model = reply.Model
 		Set row.AgentStepCount = $Select(+stepCount: stepCount + reply.AgentStepCount, 1: reply.AgentStepCount)
 	} Else {
 		Set row.AgentStepCount = +stepCount
@@ -1454,6 +1694,12 @@ Storage Default
 </Value>
 <Value name="16">
 <Value>ApprovalRole</Value>
+</Value>
+<Value name="17">
+<Value>RetryRunner</Value>
+</Value>
+<Value name="18">
+<Value>FirstSeconds</Value>
 </Value>
 </Data>
 <DefaultData>DecideDefaultData</DefaultData>

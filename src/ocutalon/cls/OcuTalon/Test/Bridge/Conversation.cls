@@ -51,12 +51,29 @@
 ///     Tainted and leaves the link and the saved session as they were; the next turn, fresh with a code-written recap, rotates the link and its first request
 ///     holds neither the tool result nor the tool's name; an untrusted turn of the owner leaves the link and the data alone; and the user's next turn
 ///     continues the conversation of the rotation without the tool result.
-/// Every test removes the AI sessions it saved (and the links that name them) and the Usage rows that ZzRunner wrote.
+/// Added by Story 17.2 (AD-6, AD-8, DW-650), with the shadow retry runner ZzRetry (Test.Bridge.ZzRetryRunner, whose adapter allows a RetryOf of ZzRunner only):
+///   - TestRetriedContinueTurn: while the first attempt (a job on ZzRunner) holds the conversation lock and waits to save, the retry answers at once, unlocked,
+///     in a new session whose one user message is the Compaction.Seed of the first runner's stored history, a blank line and the input; the link moves to the
+///     retry's session, SessionRotated is 1, and the late first attempt's save leaves the link there (its compare-and-set fails) although it saves its own
+///     session; the owner's next turn on ZzRunner opens the retry's session and carries the seeded history and the retried exchange;
+///   - TestRetriedFreshTurn: a retried fresh turn is seeded with SeedText and takes no lock either, and moves the link to a new session;
+///   - TestRetryOfRefused: a RetryOf that RetryAllowed refuses is an error status and no model request, for the real adapter (the item is no first runner that names
+///     it) and for the shadow adapter (another item); the link and the saved sessions stay as they were;
+///   - TestLinkCompareAndSet: ConversationLink.Point with expected moves the link only while it names expected ("" for no link), says whether it moved, never
+///     takes the conversation lock, and with no expected argument moves it unconditionally;
+///   - TestRetriedThrowawayKinds: a retried decide and a retried untrusted turn chat in a throwaway session and change no link.
+/// Every test removes the AI sessions it saved (and the links that name them) and the Usage rows that ZzRunner and ZzRetry wrote.
 Class OcuTalon.Test.Bridge.Conversation Extends %UnitTest.TestCase
 {
 
 /// The config name of the shadow runner, which is the agent of its links.
 Parameter AGENT = "ZzRunner";
+
+/// The config name of the shadow retry runner (Story 17.2).
+Parameter RETRYAGENT = "ZzRetry";
+
+/// The runner class of the shadow runners of the retry tests: its adapter allows a RetryOf of ZzRunner, and can hold the first attempt's save.
+Parameter RETRYRUNNER = "OcuTalon.Test.Bridge.ZzRetryRunner";
 
 /// The runner test class, whose helpers make the shadow runner.
 Parameter RUNNERTEST = "OcuTalon.Test.Bridge.Runner";
@@ -99,6 +116,8 @@ Method OnAfterOneTest(testname As %String) As %Status
 	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Bridge_Data.ConversationLink WHERE Agent = ?", ..#AGENT)
 	Do ##class(OcuTalon.Test.Agent.RunnerFixture).DropSince(..SessionMark)
 	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Bridge_Data.Usage WHERE Agent = ?", ..#AGENT)
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Bridge_Data.Usage WHERE Agent = ?", ..#RETRYAGENT)
+	Kill ^IRIS.Temp.ZzLate
 	Quit $$$OK
 }
 
@@ -134,6 +153,242 @@ Method TestFirstAndNextTurn()
 		Do $$$AssertTrue(saved [ piece, "the saved session now holds '"_piece_"'")
 	}
 	Do $$$AssertEquals(..UsageRows() - usage, 2, "one Usage row was written for each turn")
+}
+
+/// The first attempt of a retried turn, run in a job (RunLate): a turn on ZzRunner, with an adapter whose save waits for the test (ZzRetryAdapter LateToken).
+/// It notes ^IRIS.Temp.ZzLate(token, "waiting") when it holds the conversation lock and is about to save, and ^IRIS.Temp.ZzLate(token, "done") with the
+/// status and SessionRotated of its reply when it is over.
+ClassMethod RunLate(owner As %String, token As %String, input As %String)
+{
+	Try {
+		Set host = $ClassMethod(..#RUNNERTEST, "NewRunner", "OcuTalon.Agent.Chat", "low", , ..#AGENT, ..#RETRYRUNNER)
+		Set host.Adapter.LateToken = token
+		Set sc = host.OnMessage(..NewTurn(input, owner), .reply)
+		Set ^IRIS.Temp.ZzLate(token, "result") = $Select($$$ISOK(sc) && $IsObject(reply): "ok|"_reply.SessionRotated_"|"_reply.Busy_"|"_reply.Text, 1: "error")
+	} Catch exception {
+		Set ^IRIS.Temp.ZzLate(token, "result") = "exception "_exception.DisplayString()
+	}
+	Set ^IRIS.Temp.ZzLate(token, "done") = 1
+}
+
+/// Waits up to seconds until ^IRIS.Temp.ZzLate(token, name) exists. 1 when it does.
+ClassMethod WaitLate(token As %String, name As %String, seconds As %Integer = 60) As %Boolean [ Private ]
+{
+	Set deadline = $ZHorolog + seconds
+	While '$Data(^IRIS.Temp.ZzLate(token, name)) && ($ZHorolog < deadline) {
+		Hang 0.1
+	}
+	Quit ''$Data(^IRIS.Temp.ZzLate(token, name))
+}
+
+/// The shadow retry runner (ZzRetry): a runner of the retry runner class that allows a RetryOf of ZzRunner.
+ClassMethod NewRetryHost() As OcuTalon.Bridge.Operation.AgentRunner [ Private ]
+{
+	Quit $ClassMethod(..#RUNNERTEST, "NewRunner", "OcuTalon.Agent.Chat", "low", , ..#RETRYAGENT, ..#RETRYRUNNER)
+}
+
+/// A retried continue turn takes no lock and keeps the conversation the user saw (Story 17.2; AD-6, AD-8, DW-650).
+Method TestRetriedContinueTurn()
+{
+	If ..Guard() Quit
+	Set fixture = ..#FIXTURE
+	Set host = ..NewHost()
+	Set retryHost = ..NewRetryHost()
+	Set owner = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set one = ..NewTurn("[[mock:recall-tell]] My build server is called ORION-7.", owner)
+	Do $$$AssertStatusOK(..Send(host, one, .first), "the first turn is answered by ZzRunner")
+	Set s1 = ..LinkOf(owner)
+	Do $$$AssertTrue(s1 '= "", "the link names the session S1: "_s1)
+	Set seed = ##class(OcuTalon.Bridge.Compaction).Seed(##class(OcuTalon.Bridge.RequestSize).StoredMessages(s1))
+	Do $$$AssertTrue((seed [ "ORION-7") && (seed [ "Noted."), "the stored history of S1 reads as messages that Compaction.Seed turns into a seed: "_$Translate($Extract(seed, 1, 200), $Char(10), "~"))
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.RequestSize).StoredMessages(s1).%Size(), 2, "S1 holds the user's message and the reply")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.RequestSize).StoredMessages(s1).%ToJSON(), ..ContextOf(host, s1), "and they are the messages that GetContext gives for the opened session")
+
+	// the first attempt holds the lock and waits to save
+	Set token = $Increment(^IRIS.Temp.ZzLate)
+	Job ##class(OcuTalon.Test.Bridge.Conversation).RunLate(owner, token, "[[mock:recall-ask]] What is my build server called? (the first attempt)")
+	Do $$$AssertTrue(..WaitLate(token, "waiting"), "the first attempt reaches its save")
+	Do $$$AssertEquals(..LockFree(owner), 0, "and holds the conversation lock")
+
+	// the retry
+	Set ask = ..NewTurn("[[mock:recall-ask]] What is my build server called?", owner)
+	Set retry = ##class(OcuTalon.Bridge.Process.Decide).RetryRequest(ask, ##class(OcuTalon.Bridge.Ids).NewRef(), 0, ..#AGENT)
+	Do $$$AssertEquals(retry.RetryOf, ..#AGENT, "the retry names the first runner")
+	Set started = $ZHorolog
+	Kill ^||ZzRetryConfig
+	Set sc = ..Send(retryHost, retry, .answer, .logged)
+	Do $$$AssertStatusOK(sc, "the retry runner answers while the first attempt holds the lock")
+	Do $$$AssertEquals($Get(^||ZzRetryConfig), 1, "its session config was composed once")
+	Do $$$AssertEquals($Get(^||ZzRetryConfig(1)), ##class(OcuTalon.Bridge.Adapter.Agent).TimeoutMs(1)_"|1", "with the timeout_ms of the retry runner's timer (Timeouts.RetryTimer), because the request carries a RetryOf")
+	Do $$$AssertTrue($ZHorolog - started < 8, "at once: "_$Number($ZHorolog - started, 1)_" s")
+	Do $$$AssertEquals($Select($IsObject(answer): answer.Busy_"|"_(answer.Text '= "")_"|"_answer.SessionRotated_"|"_answer.FailureText, 1: "none"), "0|1|1|", "not Busy, with a text, SessionRotated 1 and no failure")
+	Do $$$AssertEquals(logged.%Size(), 1, "the retry made one model request")
+	If logged.%Size() = 1 Do $$$AssertEquals($ClassMethod(fixture, "Messages", logged.%Get(0)), "user:"_seed_$Char(10, 10)_ask.Input, "whose one user message is the seed of S1, a blank line and the input: a new session, seeded")
+	Set s2 = ..LinkOf(owner)
+	Do $$$AssertTrue((s2 '= "") && (s2 '= s1), "the link names the retry's new session S2: "_s2)
+	Do $$$AssertTrue(##class(%AI.Agent.Session).%ExistsId(s2), "which is saved")
+	Do $$$AssertEquals(..Links(owner), 1, "the owner has one link")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Data.ConversationLink).SessionOf(owner, ..#RETRYAGENT), "", "and no link names ZzRetry")
+
+	// the late first attempt saves its own session and cannot move the link
+	Set ^IRIS.Temp.ZzLate(token, "go") = 1
+	Do $$$AssertTrue(..WaitLate(token, "done"), "the first attempt ends")
+	Do $$$AssertEquals($Piece($Get(^IRIS.Temp.ZzLate(token, "result")), "|", 1, 3), "ok|0|0", "its reply is answered, with SessionRotated 0")
+	Do $$$AssertEquals(..LinkOf(owner), s2, "its compare-and-set failed: the link still names S2")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.RequestSize).StoredMessages(s1).%Size(), 4, "although the first attempt saved its exchange in the session it opened, S1")
+	Do $$$AssertEquals(..LockFree(owner), 1, "and the lock is free")
+
+	// the next turn answers from the conversation the user saw
+	Set three = ..NewTurn("[[mock:recall-tell]] And what else?", owner)
+	Do $$$AssertStatusOK(..Send(host, three, .next, .loggedNext), "the owner's next turn is answered by ZzRunner")
+	Do $$$AssertEquals(loggedNext.%Size(), 1, "with one model request")
+	If loggedNext.%Size() = 1 Do $$$AssertEquals($ClassMethod(fixture, "Messages", loggedNext.%Get(0)), "user:"_seed_$Char(10, 10)_ask.Input_$Char(1)_"assistant:"_answer.Text_$Char(1)_"user:"_three.Input, "which carries the seed, the retried exchange and the new input: the conversation of the retry's session")
+	Do $$$AssertEquals(..LinkOf(owner), s2, "and the link still names S2")
+}
+
+/// The JSON of the messages that the opened session gives (GetContext), read through the host's adapter, which does not keep the session.
+Method ContextOf(host As OcuTalon.Bridge.Operation.AgentRunner, id As %String) As %String [ Private ]
+{
+	Do host.Adapter.OpenSession(id, .session)
+	Set json = session.GetContext().%ToJSON()
+	Set session = ""
+	Do host.Adapter.ReleaseThrowaway()
+	Quit json
+}
+
+/// A retried fresh turn is seeded with its SeedText, takes no lock, and moves the first runner's link to the new session (Story 17.2).
+Method TestRetriedFreshTurn()
+{
+	If ..Guard() Quit
+	Set fixture = ..#FIXTURE
+	Set host = ..NewHost()
+	Set retryHost = ..NewRetryHost()
+	Set owner = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Do $$$AssertStatusOK(..Send(host, ..NewTurn("[[mock:recall-tell]] My build server is called ORION-7.", owner), .first), "the first turn is answered by ZzRunner")
+	Set s1 = ..LinkOf(owner)
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Decide).StartHolder(owner, ..#AGENT), "another process holds the conversation lock of (owner, ZzRunner)")
+	Set recap = "Earlier, the user said that the build server is called ORION-7."
+	Set ask = ..NewTurn("[[mock:recall-tell]] A fresh start.", owner, , "turn", "user", "fresh", recap, "A note.")
+	Set retry = ##class(OcuTalon.Bridge.Process.Decide).RetryRequest(ask, ##class(OcuTalon.Bridge.Ids).NewRef(), 0, ..#AGENT)
+	Set sc = ..Send(retryHost, retry, .answer, .logged)
+	Do ##class(OcuTalon.Test.Bridge.Decide).StopHolder(owner)
+	Do $$$AssertStatusOK(sc, "the retry of a fresh turn is answered while the lock is held")
+	Do $$$AssertEquals($Select($IsObject(answer): answer.Busy_"|"_answer.SessionRotated, 1: "none"), "0|1", "not Busy, and SessionRotated is 1")
+	Do $$$AssertEquals(logged.%Size(), 1, "one model request")
+	If logged.%Size() = 1 Do $$$AssertEquals($ClassMethod(fixture, "Messages", logged.%Get(0)), "user:"_recap_$Char(10, 10)_"A note."_$Char(10, 10)_ask.Input, "carrying the SeedText, the note and the input in one user message")
+	Set s2 = ..LinkOf(owner)
+	Do $$$AssertTrue((s2 '= "") && (s2 '= s1), "the link names a new session: "_s2)
+	Do $$$AssertTrue(##class(%AI.Agent.Session).%ExistsId(s1), "and the old session's row stays")
+
+	// a first turn whose first attempt made no link: the retry creates it
+	Set stranger = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set ask2 = ..NewTurn("[[mock:recall-tell]] A first turn.", stranger)
+	Set retry2 = ##class(OcuTalon.Bridge.Process.Decide).RetryRequest(ask2, ##class(OcuTalon.Bridge.Ids).NewRef(), 0, ..#AGENT)
+	Do $$$AssertStatusOK(..Send(retryHost, retry2, .answer2, .logged2), "the retry of a first turn is answered")
+	Do $$$AssertEquals(logged2.%Size(), 1, "with one model request")
+	If logged2.%Size() = 1 Do $$$AssertEquals($ClassMethod(fixture, "Messages", logged2.%Get(0)), "user:"_ask2.Input, "that carries the input alone: there was no history to seed")
+	Do $$$AssertTrue(..LinkOf(stranger) '= "", "and the link of the first runner now names the retry's session")
+}
+
+/// A RetryOf that RetryAllowed refuses is an error status that names RetryOf, and nothing reaches the mock (Story 17.2; DW-650 d). The real adapter refuses
+/// a RetryOf whose item does not name this runner as its RetryItem; the shadow adapter allows only ZzRunner.
+Method TestRetryOfRefused()
+{
+	If ..Guard() Quit
+	Set host = ..NewHost()
+	Set retryHost = ..NewRetryHost()
+	Set owner = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Do $$$AssertStatusOK(..Send(host, ..NewTurn("[[mock:recall-tell]] My build server is called ORION-7.", owner), .first), "the first turn is answered by ZzRunner")
+	Set s1 = ..LinkOf(owner)
+	Set sessions = ##class(OcuTalon.Test.Agent.RunnerFixture).SessionMark()
+	For case = 1, 2, 3 {
+		Set label = $Select(case = 1: "the real adapter, RetryOf TriageAgent", case = 2: "the real adapter, RetryOf ZzRunner", 1: "the shadow adapter, RetryOf TriageAgent")
+		Set request = ..NewTurn("[[mock:recall-ask]] What is my build server called?", owner)
+		Set retry = ##class(OcuTalon.Bridge.Process.Decide).RetryRequest(request, ##class(OcuTalon.Bridge.Ids).NewRef(), 0, $Select(case = 2: ..#AGENT, 1: "TriageAgent"))
+		Set sc = ..Send($Select(case = 3: retryHost, 1: host), retry, .answer, .logged)
+		Do $$$AssertStatusNotOK(sc, label_": the request is refused")
+		Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ "RetryOf", label_": with an error that names RetryOf: "_$SYSTEM.Status.GetErrorText(sc))
+		Do $$$AssertEquals($IsObject(answer), 0, label_": and no reply")
+		Do $$$AssertEquals(logged.%Size(), 0, label_": nothing reached the mock")
+	}
+	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).SessionMark(), sessions, "no AI session was saved")
+	Do $$$AssertEquals(..LinkOf(owner), s1, "and the link is as it was")
+	Do $$$AssertEquals(..LockFree(owner), 1, "and the lock is free")
+}
+
+/// StoredMessages (Story 17.2) keeps the messages of the records it can read: an empty piece and a record that does not parse are skipped, not the whole history.
+Method TestStoredMessagesSkipsBadRecords()
+{
+	Set session = ##class(%AI.Agent.Session).%New()
+	Do session.ContextData.Write("{""version"":1,""messages"":[{""role"":""user"",""content"":""a""}]}"_$Char(30)_"{""broken"""_$Char(30))
+	Do $$$AssertStatusOK(session.%Save(), "a session whose stored value ends in a record that does not parse and an empty piece is saved")
+	Set messages = ##class(OcuTalon.Bridge.RequestSize).StoredMessages(session.%Id())
+	Do $$$AssertEquals(messages.%Size(), 1, "the message of the record that parses is kept")
+}
+
+/// Point (Story 17.2): with expected it is a compare-and-set, under the row's lock and not the conversation lock; with none it moves the link unconditionally.
+Method TestLinkCompareAndSet()
+{
+	Set link = "OcuTalon.Bridge.Data.ConversationLink"
+	Set owner = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set a = ..NewStoredSession()
+	Set b = ..NewStoredSession()
+	Set c = ..NewStoredSession()
+	// no link
+	Do $$$AssertStatusOK($ClassMethod(link, "Point", owner, ..#AGENT, a, "zz", .moved), "Point with an expected id, for an owner with no link")
+	Do $$$AssertEquals(moved_"|"_..LinkOf(owner), "0|", "makes no link: the link was not what was expected")
+	Do $$$AssertStatusOK($ClassMethod(link, "Point", owner, ..#AGENT, a, "", .moved), "Point expecting no link")
+	Do $$$AssertEquals(moved_"|"_..LinkOf(owner), "1|"_a, "creates it")
+	// a link that moved meanwhile
+	Do $$$AssertStatusOK($ClassMethod(link, "Point", owner, ..#AGENT, b, "", .moved), "Point expecting no link, when the link exists")
+	Do $$$AssertEquals(moved_"|"_..LinkOf(owner), "0|"_a, "does not move it")
+	Do $$$AssertStatusOK($ClassMethod(link, "Point", owner, ..#AGENT, b, c, .moved), "Point expecting another id")
+	Do $$$AssertEquals(moved_"|"_..LinkOf(owner), "0|"_a, "does not move it either")
+	// under the row's lock, never the conversation lock
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Decide).StartHolder(owner, ..#AGENT), "another process holds the conversation lock of the owner")
+	Set started = $ZHorolog
+	Do $$$AssertStatusOK($ClassMethod(link, "Point", owner, ..#AGENT, b, a, .moved), "Point expecting the session it names")
+	Do $$$AssertTrue($ZHorolog - started < 1.5, "does not wait for the conversation lock")
+	Do $$$AssertEquals(moved_"|"_..LinkOf(owner), "1|"_b, "and moves the link")
+	Do $$$AssertStatusOK($ClassMethod(link, "Point", owner, ..#AGENT, c), "Point with no expected id (the retry's)")
+	Do $$$AssertEquals(..LinkOf(owner), c, "moves the link unconditionally")
+	Do ##class(OcuTalon.Test.Bridge.Decide).StopHolder(owner)
+	Do $$$AssertEquals(..Links(owner), 1, "and the owner still has one link")
+	Do $$$AssertStatusNotOK($ClassMethod(link, "Point", owner, ..#AGENT, "", a, .moved), "an empty session id is refused")
+	Do $$$AssertEquals(moved, 0, "and moves nothing")
+}
+
+/// A retried decide request and a retried untrusted turn chat in a throwaway session: no link is made or moved and no session saved (Story 17.2).
+Method TestRetriedThrowawayKinds()
+{
+	If ..Guard() Quit
+	Set fixture = ..#FIXTURE
+	Set host = ..NewHost()
+	Set retryHost = ..NewRetryHost()
+	Set owner = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Do $$$AssertStatusOK(..Send(host, ..NewTurn("[[mock:recall-tell]] My build server is called ORION-7.", owner), .first), "the first turn is answered by ZzRunner")
+	Set s1 = ..LinkOf(owner)
+	Set mark = ##class(OcuTalon.Test.Agent.RunnerFixture).SessionMark()
+	For case = $ListBuild("decide", "user"), $ListBuild("turn", "untrusted"), $ListBuild("diagnose", "untrusted") {
+		Set label = $List(case, 1)_" ("_$List(case, 2)_")"
+		Set request = ..NewTurn("[[mock:recall-tell]] Say something.", owner, , $List(case, 1), $List(case, 2))
+		Set retry = ##class(OcuTalon.Bridge.Process.Decide).RetryRequest(request, ##class(OcuTalon.Bridge.Ids).NewRef(), 0, ..#AGENT)
+		Do $$$AssertStatusOK(..Send(retryHost, retry, .answer, .logged), label_" is answered by the retry runner")
+		Do $$$AssertEquals($Select($IsObject(answer): answer.Text_"|"_answer.SessionRotated, 1: "none"), "Noted.|0", label_": with the mock's text and no rotation")
+		Do $$$AssertEquals(logged.%Size(), 1, label_": one model request")
+		If logged.%Size() = 1 Do $$$AssertEquals($ClassMethod(fixture, "Messages", logged.%Get(0)), "user:"_request.Input, label_": carries its input alone")
+		Do $$$AssertEquals(..LinkOf(owner), s1, label_": the link is as it was")
+	}
+	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).SessionMark(), mark, "and no AI session was saved")
+}
+
+/// Saves an AI session without an agent and returns its id (the pattern of Test.Bridge.Decide NewSession); OnAfterOneTest deletes it.
+ClassMethod NewStoredSession() As %String [ Private ]
+{
+	Set session = ##class(%AI.Agent.Session).%New()
+	Do session.ContextData.Write("{""version"":1,""messages"":[]}")
+	If $$$ISERR(session.%Save()) Quit ""
+	Quit session.%Id()
 }
 
 /// decide, diagnose and an untrusted turn run in a session that is never saved or linked, for an owner with no link and for an owner with one:

@@ -5,6 +5,7 @@
 ///   - AgentChars: the system prompt of an agent class and the tool schemas of its toolsets, as the agent loads them. The tools that an
 ///     MCP server adds later (AD-21) are known only to a live tool manager and are not counted.
 ///   - HistoryChars: the stored history of a saved AI session, read from the stored value of the session.
+///   - StoredMessages: the messages of that stored history as a JSON array, read from the same value.
 /// A part that cannot be read counts 0, so that the estimate stays a number.
 Class OcuTalon.Bridge.RequestSize
 {
@@ -82,6 +83,55 @@ ClassMethod HistoryChars(sessionId As %String) As %Integer
 		Set chars = 0
 	}
 	Quit chars
+}
+
+/// The messages of the history that the saved AI session stores, as a dynamic array in the order GetContext() gives them, or [] for an empty
+/// id, an id that no saved session has, a session that stores no history and a value that cannot be read. Measured (Story 17.2, Task 0): the
+/// stored ContextData stream is one full export of the session, a JSON object with its messages, followed by zero or more delta records, each
+/// a JSON array of new messages, all separated by the record separator $Char(30); the messages of the full export are the same JSON as
+/// GetContext() of the opened session. The session is not opened or attached, so the read takes no native call, no live agent and no lock.
+ClassMethod StoredMessages(sessionId As %String) As %DynamicArray
+{
+	Set messages = []
+	If sessionId = "" Quit messages
+	Try {
+		Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT ContextData FROM %AI_Agent.Session WHERE ID = ?", sessionId)
+		If result.%Next() {
+			Set oid = result.%GetData(1)
+			If $ListValid(oid) {
+				Set stream = ##class(%Stream.GlobalCharacter).%Open(oid)
+				If $IsObject(stream) {
+					Set text = ""
+					Do stream.Rewind()
+					While 'stream.AtEnd {
+						Set text = text _ stream.Read(32000)
+					}
+					Set found = []
+					For i = 1:1:$Length(text, $Char(30)) {
+						Set record = ""
+						Try {
+							Set record = {}.%FromJSON($Piece(text, $Char(30), i))
+						} Catch {
+							Set record = ""
+						}
+						If '$IsObject(record) Continue
+						If record.%IsA("%Library.DynamicArray") {
+							Set iterator = record.%GetIterator()
+							While iterator.%GetNext(, .message) {
+								Do found.%Push(message)
+							}
+						} ElseIf record.%IsA("%Library.DynamicObject") && (record.%GetTypeOf("messages") = "array") {
+							Set found = record.messages
+						}
+					}
+					Set messages = found
+				}
+			}
+		}
+	} Catch {
+		Set messages = []
+	}
+	Quit messages
 }
 
 }

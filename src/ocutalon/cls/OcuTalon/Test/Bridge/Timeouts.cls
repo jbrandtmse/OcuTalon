@@ -20,6 +20,14 @@
 ///     leaves the running production as it was: its row, its entries and its jobs;
 ///   - TestRestartError: Restart of an item that the production cannot stop (Ens.Alarm, which the production adds itself and its definition does
 ///     not list) is an error that names the item, and the item is not left stopped.
+/// Added by Story 17.2 (AD-8, DW-647):
+///   - TestRetryTimer: RetryTimer, the timer that the entries of the retry runners derive from, is the least of the timer and what MAXTIMER leaves
+///     after it, and at least MINTIMER: 12, 55, 60, 98, 99 and 110 give 12, 55, 50, 12, 12 and 12; every timer from 12 to 110 gives a timer that Check
+///     accepts and that is the same on both sides of the middle; a timer that Check refuses gives "";
+///   - TestEntriesWithRetries: Entries lists the three first runners and then their retry runners that have an entry, as $ListBuild(item, entry), and
+///     IsRetryItem tells them by name;
+///   - TestApplyRetryEntries: Apply of 100 merges Derive(100) into the entries of the first runners and Derive(RetryTimer(100)) = Derive(12) into those
+///     of the retry runners, which keep their key placeholder, and restarts the retry runners that have a job together with the rest.
 /// Every row that a test puts is put back by OnAfterOneTest, and so are the definition of the test production that a test loaded and the
 /// Config Store entry that a test created.
 Class OcuTalon.Test.Bridge.Timeouts Extends %UnitTest.TestCase
@@ -297,6 +305,96 @@ Method TestRestartError()
 	Do $$$AssertTrue((text [ "The item Ens.Alarm could not be restarted") && (text '[ "within"), "that names the item and says that it could not be restarted, not that it did not run again in time: "_text)
 	Do $$$AssertEquals($ClassMethod(fixture, "Jobs", "Ens.Alarm"), alarm, "control: Ens.Alarm keeps the job it had (its stop fails before any stop flag is set, so this does not exercise the clean-up of a stop that set one)")
 	Do $$$AssertTrue($ClassMethod(fixture, "WaitAllRun"), "and every item of the production runs")
+}
+
+/// RetryTimer (DW-647): max(MINTIMER, min(timer, MAXTIMER - timer)) for a timer that Check accepts, else "". Pure.
+Method TestRetryTimer()
+{
+	Set timeouts = ..#TIMEOUTS
+	For case = $ListBuild(12, 12), $ListBuild(55, 55), $ListBuild(60, 50), $ListBuild(98, 12), $ListBuild(99, 12), $ListBuild(110, 12), $ListBuild(100, 12), $ListBuild(86, 24) {
+		Do $$$AssertEquals($ClassMethod(timeouts, "RetryTimer", $List(case, 1)), $List(case, 2), "RetryTimer("_$List(case, 1)_") is "_$List(case, 2))
+	}
+	Set bad = ""
+	For timer = 12:1:110 {
+		Set retry = $ClassMethod(timeouts, "RetryTimer", timer)
+		If $$$ISERR($ClassMethod(timeouts, "Check", retry)) Set bad = bad _ $ListBuild(timer_": "_retry_" is no timer")
+		If '$IsObject($ClassMethod(timeouts, "Derive", retry)) || ($ClassMethod(timeouts, "Derive", retry).%Size() '= 2) Set bad = bad _ $ListBuild(timer_": no block")
+		If (timer < 99) && (retry '= $ClassMethod(timeouts, "RetryTimer", 110 - timer)) Set bad = bad _ $ListBuild(timer_": not symmetric")
+		If (retry > 12) && (retry > (110 - timer)) Set bad = bad _ $ListBuild(timer_": over what is left")
+	}
+	Do $$$AssertEquals($ListToString(bad, "; "), "", "every timer from 12 to 110 gives a timer Check accepts, a real block, the same value as its complement (up to 98), and never more than what is left of 110 unless that is under 12")
+	For timer = 11, 111, 0, "", "x", "60.5" {
+		Do $$$AssertEquals($ClassMethod(timeouts, "RetryTimer", timer), "", "RetryTimer of '"_timer_"' is empty")
+	}
+	Do $$$AssertEquals($ClassMethod(timeouts, "RetryTimer", "60"), 50, "a timer given as text gives the same as the number")
+}
+
+/// Entries lists the runners of Decide.#RUNNERS and, after them, the retry runner of each that the production has with an entry.
+Method TestEntriesWithRetries()
+{
+	Set reason = ##class(OcuTalon.Test.Agent.RunnerFixture).RunningReason()
+	If reason '= "" {
+		Do $$$AssertTrue(0, reason)
+		Quit
+	}
+	Set timeouts = ..#TIMEOUTS
+	Do $$$AssertStatusOK($ClassMethod(timeouts, "Entries", ..#PRODUCTION, .runners), "Entries reads the production")
+	Set items = ""
+	Set entries = ""
+	For i = 1:1:$ListLength(runners) {
+		Set items = items _ $ListBuild($List($List(runners, i), 1))
+		Set entries = entries _ $ListBuild($List($List(runners, i), 2))
+	}
+	Do $$$AssertEquals($ListToString(items, ","), "TriageAgent,DiagnosisAgent,ChatAgent,TriageAgentRetry,DiagnosisAgentRetry,ChatAgentRetry", "the three runners and then their three retry runners")
+	Do $$$AssertEquals($ListToString(entries, ","), "OcuTalonTriage,OcuTalonDiagnosis,OcuTalonChat,OcuTalonTriageRetry,OcuTalonDiagnosisRetry,OcuTalonChatRetry", "each with its own entry")
+	For name = "TriageAgentRetry", "DiagnosisAgentRetry", "ChatAgentRetry" {
+		Do $$$AssertTrue($ClassMethod(timeouts, "IsRetryItem", name), name_" is a retry item")
+	}
+	For name = "TriageAgent", "Retry", "", "RetryAgent", "Decide" {
+		Do $$$AssertTrue('$ClassMethod(timeouts, "IsRetryItem", name), "'"_name_"' is not")
+	}
+}
+
+/// Apply merges the block of the timer into the entries of the first runners and the block of RetryTimer of the timer into those of the retry runners
+/// (DW-647): Apply(100) gives the first runners a request timeout of 45 and the retry runners one of 1, the derivation of 12, because 100 leaves 10
+/// seconds for a second model, which Decide does not send. Each retry runner has a new job, and each entry keeps its key placeholder and its headers.
+/// The timer is put back after the test.
+Method TestApplyRetryEntries()
+{
+	Set reason = ##class(OcuTalon.Test.Agent.RunnerFixture).RunningReason()
+	If reason '= "" {
+		Do $$$AssertTrue(0, reason)
+		Quit
+	}
+	Set fixture = "OcuTalon.Test.Agent.RunnerFixture"
+	Set jobs("TriageAgentRetry") = $ClassMethod(fixture, "Jobs", "TriageAgentRetry")
+	Set jobs("ChatAgentRetry") = $ClassMethod(fixture, "Jobs", "ChatAgentRetry")
+	Do $$$AssertTrue((jobs("TriageAgentRetry") '= "") && (jobs("ChatAgentRetry") '= ""), "control: the retry runners have jobs")
+	Do ##class(OcuTalon.Bridge.ConfigStore).Details("OcuTalonTriageRetry", .beforeDetails)
+	Set sc = $ClassMethod(fixture, "UseTimer", 100, .saved)
+	Try {
+		Do $$$AssertStatusOK(sc, "Apply(100) is OK")
+		For name = "OcuTalonTriage", "OcuTalonDiagnosis", "OcuTalonChat" {
+			Do $$$AssertStatusOK(##class(OcuTalon.Bridge.ConfigStore).Details(name, .details), name_" is read")
+			Do $$$AssertEquals(details."http_config"."request_timeout_secs", 45, name_" has the block of 100: a request timeout of 45")
+		}
+		For name = "OcuTalonTriageRetry", "OcuTalonDiagnosisRetry", "OcuTalonChatRetry" {
+			Do $$$AssertStatusOK(##class(OcuTalon.Bridge.ConfigStore).Details(name, .details), name_" is read")
+			Do $$$AssertEquals(details."http_config"."request_timeout_secs", 1, name_" has the block of RetryTimer(100) = 12: a request timeout of 1")
+			Do $$$AssertEquals(details."http_config".retry."attempt_timeout_secs", 1, "and the whole retry block of 12")
+			Do $$$AssertEquals(details."api_key", ##class(OcuTalon.Install.Step.Provider).#KEYPLACEHOLDER, "and keeps its key placeholder")
+		}
+		If $IsObject($Get(beforeDetails)) Do $$$AssertEquals(beforeDetails."http_config"."request_timeout_secs", 20, "control: before, the retry entry held the block of RetryTimer(60) = 50: a request timeout of 20")
+		Set triageJobs = $ClassMethod(fixture, "Jobs", "TriageAgentRetry")
+		Do $$$AssertTrue((triageJobs '= "") && (triageJobs '= jobs("TriageAgentRetry")), "the Triage retry runner runs in a new job")
+		Set chatJobs = $ClassMethod(fixture, "Jobs", "ChatAgentRetry")
+		Do $$$AssertTrue((chatJobs '= "") && (chatJobs '= jobs("ChatAgentRetry")), "and so does the Chat retry runner")
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the test runs without an exception")
+	}
+	Do $$$AssertStatusOK($ClassMethod(fixture, "RestoreTimer", saved), "the timer is put back")
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.ConfigStore).Details("OcuTalonTriageRetry", .afterDetails), "the retry entry is read again")
+	Do $$$AssertEquals(afterDetails."http_config"."request_timeout_secs", 20, "and holds the block of RetryTimer(60) again")
 }
 
 /// Creates the Config Store entry ZZENTRY, the one that the TriageAgent of the test productions names, with the details start, after the

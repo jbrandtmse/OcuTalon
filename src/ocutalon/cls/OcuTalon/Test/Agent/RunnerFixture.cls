@@ -70,6 +70,9 @@ Parameter PRODUCTION = "OcuTalon.Production";
 /// The runners of the production, in the order of the production.
 Parameter RUNNERS = "TriageAgent,DiagnosisAgent,ChatAgent";
 
+/// The retry runners of the production (Story 17.2), in the order of the runners; PointKeys, RestoreKeys and KeysAre take them as a runner list.
+Parameter RETRYRUNNERS = "TriageAgentRetry,DiagnosisAgentRetry,ChatAgentRetry";
+
 /// The longest to wait for every item to run, in seconds. A ceiling, not a delay: the wait polls once a second and returns as soon
 /// as the items run, so a slow machine takes longer and does not fail.
 Parameter WAITSECONDS = 120;
@@ -506,25 +509,25 @@ ClassMethod SessionSince(mark As %Integer, target As %String) As %Integer
 }
 
 /// Points the Config Store entry of each runner at the placeholder of OCUTALON_MOCK_KEY_HEADER and restarts the runners. The
-/// status is the first error.
-ClassMethod PointKeys() As %Status
+/// status is the first error. runners is a comma-separated list of runner items; empty means RUNNERS (Story 17.2 passes RUNNERS and RETRYRUNNERS).
+ClassMethod PointKeys(runners As %String = "") As %Status
 {
-	Quit ..SetKeys("@{env:"_..#MOCKKEYVARIABLE_"}")
+	Quit ..SetKeys("@{env:"_..#MOCKKEYVARIABLE_"}", runners)
 }
 
 /// Puts the entry of each runner back to the placeholder of the Provider step and restarts the runners. The status is the first
-/// error.
-ClassMethod RestoreKeys() As %Status
+/// error. runners is as in PointKeys.
+ClassMethod RestoreKeys(runners As %String = "") As %Status
 {
-	Quit ..SetKeys(##class(OcuTalon.Install.Step.Provider).#KEYPLACEHOLDER)
+	Quit ..SetKeys(##class(OcuTalon.Install.Step.Provider).#KEYPLACEHOLDER, runners)
 }
 
-/// 1 when the api_key of the Config Store entry of every runner is exactly the placeholder. The entries hold a placeholder only
-/// (ConfigStore.Merge refuses anything else), so no key is read.
-ClassMethod KeysAre(placeholder As %String) As %Boolean
+/// 1 when the api_key of the Config Store entry of every runner (runners as in PointKeys) is exactly the placeholder. The entries hold a
+/// placeholder only (ConfigStore.Merge refuses anything else), so no key is read.
+ClassMethod KeysAre(placeholder As %String, runners As %String = "") As %Boolean
 {
 	Set are = 1
-	Set runners = $ListFromString(..#RUNNERS)
+	Set runners = $ListFromString($Select(runners = "": ..#RUNNERS, 1: runners))
 	Set position = 0
 	While $ListNext(runners, position, item) {
 		Set entry = ..EntryOf(item, .sc)
@@ -548,11 +551,11 @@ ClassMethod EntryOf(item As %String, Output sc As %Status) As %String [ Private 
 	Quit entry
 }
 
-/// Merges the api_key into the entry of each runner, then restarts the runners one after the other.
-ClassMethod SetKeys(placeholder As %String) As %Status [ Private ]
+/// Merges the api_key into the entry of each runner (runners as in PointKeys), then restarts the runners one after the other.
+ClassMethod SetKeys(placeholder As %String, runners As %String = "") As %Status [ Private ]
 {
 	Set sc = $$$OK
-	Set runners = $ListFromString(..#RUNNERS)
+	Set runners = $ListFromString($Select(runners = "": ..#RUNNERS, 1: runners))
 	Set position = 0
 	While $ListNext(runners, position, item) {
 		Set entry = ..EntryOf(item, .status)
