@@ -5794,6 +5794,9 @@ So that I control what OcuTalon spends without restarting anything.
 
 **DW-100 moved to Story 18.3** [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." step readiness review M7: the routed ledger bullet became an acceptance criterion of Story 18.3, the Lane B story that owns `OcuTalon.Msg.Catalog.Core`, where both texts live]
 
+- DW-647: Retry entries' timeouts derive from RetryTimer(TimerSeconds) while Decide's retry wait T2 uses T1 = TimerFor(request): for a flagged turn T2 (about 30 s) is shorter than the retry entry's worst case (about 42 s); Timeouts.Apply makes the two agree (ledger; routed by adjudication 2026-11-05)
+- DW-727: Spine AD-8 now gives the retry entries Derive(max(MINTIMER, min(TimerSeconds, 110 - TimerSeconds))) (Timeouts.RetryTimer); Timeouts.Apply applies exactly that to the retry runners' entries (ledger; routed by cr 2026-11-05)
+
 ### Story 17.5: Check the vital signs and every coverage entry
 
 As a user,

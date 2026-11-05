@@ -28,6 +28,8 @@
 ///   - TestBadTimer: a TimerSeconds row that Timeouts.Check refuses (111, 11, x) fails the step, naming TimerSeconds, and every entry and
 ///     row stays as it was.
 /// Every System Default Settings row that a test puts is put back.
+/// TestApplyCaFile, TestTimerRow and TestBadTimer run the step from the environment before they take the state they compare against, so a
+/// state that an earlier test or run left behind cannot fail them or make them pass.
 Class OcuTalon.Test.Install.Provider Extends %UnitTest.TestCase
 {
 
@@ -192,6 +194,7 @@ Method TestApplyCaFile()
 	Set url = $SYSTEM.Util.GetEnviron("OCUTALON_MODEL_BASE_URL")
 	Set flag = $SYSTEM.Util.GetEnviron("OCUTALON_MOCK_KEY_HEADER")
 	Set file = ##class(%File).TempFilename("pem")
+	Do $$$AssertStatusOK($ClassMethod(provider, "Run"), "the step runs from the environment first, so the state compared below is the one it writes, not what an earlier test left")
 	Set before = ..State()
 	Do ..AssertWritten("before the run")
 	Try {
@@ -355,6 +358,7 @@ Method TestTimerRow()
 	Do $ClassMethod(fixture, "RememberDefault", .saved, "Decide", "TimerSeconds")
 	Set ..SavedRows = saved
 	Do $ClassMethod(fixture, "RestoreDefault", $ListBuild("Decide", "TimerSeconds", 0))
+	Do $$$AssertStatusOK($ClassMethod(provider, "Run"), "the step runs from the environment first, so the state compared below is the one it writes, not what an earlier test left")
 	Set before = ..State()
 	Do ..AssertWritten("before the runs")
 	Try {
@@ -394,6 +398,7 @@ Method TestBadTimer()
 	Do $ClassMethod(fixture, "RememberDefault", .saved, "Decide", "TimerSeconds")
 	Set ..SavedRows = saved
 	Do $ClassMethod(fixture, "RestoreDefault", $ListBuild("Decide", "TimerSeconds", 0))
+	Do $$$AssertStatusOK($ClassMethod(provider, "Run"), "the step runs from the environment first, so the state compared below is the one it writes, not what an earlier test left")
 	Set before = ..State()
 	Do ..AssertWritten("before the runs")
 	For timer = 111, 11, "x" {

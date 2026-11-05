@@ -151,8 +151,8 @@
 ///   - TestRequestLimitThroughOnRequest: the limit that OnRequest and the key resend apply is the one the setting row gives (an empty row, 5000 and the
 ///     invalid 0, -1, abc, 1.5 and 100001 as 100000 with one warning that names RequestTokenLimit), so a decide one token above it sends nothing.
 /// Added by Story 17.2 (AD-6, AD-8, DW-647, DW-650; lead rulings U-281 and U-282), with the recorder (Test.Bridge.ZzDecide) for the second-model retry:
-///   - TestRetryable, TestRetrySeconds, TestToolsReadOnly: the pure rules: which reasons are retried, T2 = min(timer, 110 - T1) and 0 under 12, and the
-///     read-only tools of an agent; a timed-out turn is not retried (R2);
+///   - TestRetryable, TestRetrySeconds, TestToolsReadOnly, TestToolsetsReadOnly: the pure rules: which reasons are retried, T2 = min(timer, 110 - T1) and 0
+///     under 12, and the read-only tools of an agent, each clause of that rule on its own toolset (Test.Bridge.ZzReadOnly*); a timed-out turn is not retried (R2);
 ///   - TestHeldRetryOf (DW-650 a, b, c, d) and TestSentRequestRetryOf: a retry skips the conversation-lock probe only for the same runner and ItemId; a RetryOf
 ///     that a client sets skips nothing and is cleared on every send and re-send;
 ///   - TestRetryWiring: the retry's request, timer and answer; one row, the Model of the reply that answered, the sums of both attempts, the retry's own reason
@@ -3158,6 +3158,23 @@ Method TestToolsReadOnly()
 	Do $$$AssertEquals($ClassMethod(decide, "ToolsReadOnly", ""), 0, "and neither is no item at all")
 }
 
+/// ToolsetsReadOnly (R2), one clause at a time, on toolsets of one tool each (Test.Bridge.ZzReadOnlyTool): a safe, read-only tool with no per-call
+/// classification is read-only, and so is no toolset; a read-only tool classified risky, a safe read-only tool with a Classify method, a toolset named by a URI
+/// and a name that is no compiled class are not, and one such toolset in a list makes the whole list not read-only.
+Method TestToolsetsReadOnly()
+{
+	Set decide = "OcuTalon.Bridge.Process.Decide"
+	Set safe = "OcuTalon.Test.Bridge.ZzReadOnlySafe"
+	Do $$$AssertEquals($ClassMethod(decide, "ToolsetsReadOnly", ""), 1, "no toolset is no tool, so read-only")
+	Do $$$AssertEquals($ClassMethod(decide, "ToolsetsReadOnly", safe), 1, "control: a safe, read-only tool with no per-call classification is read-only")
+	Do $$$AssertEquals($ClassMethod(decide, "ToolsetsReadOnly", " "_safe_" , ,"), 1, "and so is the same list with white space and empty names")
+	Do $$$AssertEquals($ClassMethod(decide, "ToolsetsReadOnly", "OcuTalon.Test.Bridge.ZzReadOnlyRisky"), 0, "a read-only tool classified risky is not read-only")
+	Do $$$AssertEquals($ClassMethod(decide, "ToolsetsReadOnly", "OcuTalon.Test.Bridge.ZzReadOnlyHooked"), 0, "a safe read-only tool whose Classify method decides per call is not read-only")
+	Do $$$AssertEquals($ClassMethod(decide, "ToolsetsReadOnly", safe_",mcp:docs"), 0, "a toolset named by a URI has unknown tools, so the list is not read-only")
+	Do $$$AssertEquals($ClassMethod(decide, "ToolsetsReadOnly", safe_",OcuTalon.Test.Bridge.ZzNoSuchToolset"), 0, "nor is a list with a name that is no compiled class")
+	Do $$$AssertEquals($ClassMethod(decide, "ToolsetsReadOnly", safe_",OcuTalon.Test.Bridge.ZzReadOnlyRisky"), 0, "one toolset that is not read-only makes the list not read-only")
+}
+
 /// Held with a RetryOf (Story 17.2; DW-650 a, b and d): with another process holding the conversation lock of (owner, ChatAgent), a retry request that
 /// carries RetryOf ChatAgent and the ItemId the caller vouches for is not held (a); the same request without RetryOf waits (b); a RetryOf that names another
 /// runner, another ItemId or no ItemId (what OnRequest passes) waits (d). OnRequest ignores the RetryOf of a request it is given: it is answered Busy.
@@ -3531,7 +3548,7 @@ Method TestRetrySkipped()
 	Set sc = process.OnResponse(request, .response, sent, ..NewReply("The CI mock refuses this request.", "refusal"), "reply")
 	Set row = ..RowOf(request.ItemId, "decide")
 	Do $$$AssertEquals($Select($IsObject(row): row.Fallback_"|"_row.FallbackReason_"|"_row.Reasons, 1: "no row"), "1|refusal|"_##class(OcuTalon.Bridge.Process.Decide).#RETRYSKIPPED, "the fallback keeps the first attempt's reason and says that the second model was not tried")
-	Do $$$AssertEquals(##class(OcuTalon.Bridge.Process.Decide).#RETRYSKIPPED, "The second model was not tried, because no time was left within the 110-second limit.", "in the words the lead ruled (U-281)")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Process.Decide).#RETRYSKIPPED, "The second model was not tried, because too little time was left within the decision's 110-second limit.", "in the words the lead ruled (U-281)")
 	Do $$$AssertEquals(..Calls("send"), 1, "and no request reached the retry runner")
 	If $IsObject(response) && $IsObject(row) Do $$$AssertEquals(response.Reasons, row.Reasons, "the answer carries the reasons")
 	Do ..RestoreRows()
@@ -3566,6 +3583,18 @@ Method TestRetryBadItem()
 		Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).Warnings(mark, "OcuTalon.Test.Bridge.ZzDecide", "RetryItemOf", $ListBuild("RetryItem", value)), 1, "RetryItem '"_value_"': one warning names the setting and the value")
 		Do ..RestoreRows()
 	}
+	// a disabled retry runner: a System Default Settings row of Enabled 0 for TriageAgentRetry, which RetryItemProblem reads before the item's own Enabled
+	Do ..Put("TriageAgentRetry", "Enabled", 0)
+	Set process = ..RetryProcess(60)
+	Set request = ..NewRequest("decide")
+	Set sc = process.OnRequest(request, .response)
+	Set sent = request.%ConstructClone()
+	Set sent.DecisionRef = process.DecisionRef
+	Set mark = ..LogMark()
+	Set sc = process.OnResponse(request, .response, sent, ..NewReply("The CI mock refuses this request.", "refusal"), "reply")
+	Do $$$AssertEquals(..Calls("send"), 1, "a disabled retry runner is not used")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).Warnings(mark, "OcuTalon.Test.Bridge.ZzDecide", "RetryItemOf", $ListBuild("RetryItem", "TriageAgentRetry", "disabled")), 1, "and one warning names the setting and says it is disabled")
+	Do ..RestoreRows()
 	// a ReplyClass that is refused: the diagnose runner's retry for a decide request would take DiagnosisPayload, which is a %JSON.Adaptor class, so use
 	// the Chat retry runner, which has none
 	Set process = ..RetryProcess(60, "ChatAgentRetry")

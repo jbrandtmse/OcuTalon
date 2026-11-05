@@ -386,9 +386,8 @@ Method TestInventoryStatement()
 	For i = 1:1:$Get(runners) {
 		If $List(runners(i), 3) Set enabled = enabled _ $ListBuild($List(runners(i), 1))
 	}
-	Set checked = $ListFromString($Parameter("OcuTalon.Test.Agent.Runners", "RUNNERS"))
-	Do $$$AssertEquals($ListToString(..Sorted($ListFromString(..AllRunners()))), $ListToString(..Sorted(enabled)), "the runners are every enabled agent runner of the production: the three that TestToolInventory checks and their three retry runners (Story 17.2), which TestToolsMatchRunners checks, so the statement's every running runner holds")
-	Do $$$AssertEquals($ListToString(..Sorted(checked)), $ListToString(..Sorted($ListFromString($Parameter("OcuTalon.Test.Agent.RunnerFixture", "RUNNERS")))), "and the runners that TestToolInventory checks are the first runners of the fixture")
+	Set checked = $ListFromString($Parameter("OcuTalon.Test.Agent.Runners", "INVENTORYRUNNERS"))
+	Do $$$AssertEquals($ListToString(..Sorted(checked)), $ListToString(..Sorted(enabled)), "the runners that TestToolInventory checks are every enabled agent runner of the production, the retry runners included, so the statement's every running runner holds")
 }
 
 /// The sections are made of ASCII alone, and the check that says so finds a character outside ASCII.

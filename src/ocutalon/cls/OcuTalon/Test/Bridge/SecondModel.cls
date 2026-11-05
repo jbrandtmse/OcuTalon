@@ -241,10 +241,12 @@ Method TestNeverRetried()
 	Do $$$AssertEquals(..SentTo(session, "TriageAgent"), 1, "daily_cap (gateway 403): the first runner was asked once")
 }
 
-/// With no RetryItem (what the install leaves) a refused reply is release 1's fallback after one runner request, and Decide never touches the retry runner.
+/// With no RetryItem (what the install leaves; the test writes the empty row itself, so a row that another run left cannot decide it) a refused reply is
+/// release 1's fallback after one runner request, and Decide never touches the retry runner.
 Method TestNoSecondModel()
 {
 	If '..Prepare() Quit
+	Do ..Put("TriageAgent", "RetryItem", "")
 	Set request = ..Ask("decide", "[[mock:refusal]] Triage this item.", .ref)
 	Set sc = $ClassMethod(..#FIXTURE, "Run", request, .response, .session)
 	Do $$$AssertStatusOK(sc, "Decide answers")
@@ -353,6 +355,7 @@ Method TestRetriedTurnKeepsTheConversation()
 	Do ..Arm("retry-chat-held", 1)
 	Set four = $ClassMethod(fixture, "NewRequest", "turn", "user", "[[mock:retry-chat-held]] Take your time.", .ref4, owner)
 	Set ..ItemIds = ..ItemIds _ $ListBuild(ref4)
+	Set mark = $ClassMethod(..#MOCK, "LogMark")
 	Set started = $ZHorolog
 	Set sc = $ClassMethod(fixture, "Run", four, .held, .session4)
 	Set elapsed = $ZHorolog - started
@@ -362,6 +365,11 @@ Method TestRetriedTurnKeepsTheConversation()
 	Set row = $ClassMethod(fixture, "DecisionOf", ref4, "turn")
 	Do $$$AssertEquals($ClassMethod(fixture, "FallbackProblems", held, row, "turn", "timeout"), "", "a timeout fallback with every guarantee, as in release 1")
 	Do $$$AssertEquals($ClassMethod(fixture, "CountTo", $ClassMethod(fixture, "Headers", session4, "Decide"), "ChatAgent")_"|"_$ClassMethod(fixture, "CountTo", $ClassMethod(fixture, "Headers", session4, "Decide"), "ChatAgentRetry"), "1|0", "after one request, none to the retry runner: it is unknown whether a tool ran (R2)")
+	// U-282: the mock received exactly one request for the turn's marker, so no second request was sent to any model
+	Do $ClassMethod(..#MOCK, "LogSince", mark, .entries)
+	Set logged = $ClassMethod(fixture, "FindRequests", entries, ref4)
+	Do $$$AssertEquals(logged.%Size(), 1, "the mock received exactly one model request for the timed-out turn")
+	If logged.%Size() = 1 Do $$$AssertEquals(logged.%Get(0).model, "claude-haiku-5-5", "on the first model, none on the second")
 	Do $$$AssertTrue(..WaitLate(session4, "ChatAgent"), "the late first attempt is answered")
 	Do $$$AssertEquals(##class(OcuTalon.Bridge.Data.ConversationLink).SessionOf(owner, "ChatAgent"), s2, "and the link still names S2, where the late attempt saved its exchange")
 }
@@ -406,6 +414,18 @@ Method TestRetryOfFromTheWebIsIgnored()
 	Do $$$AssertTrue($ListLength(retries) '< 1, "a request reached ChatAgent: "_..ChatOwners(mark))
 	Do $$$AssertEquals($ListToString(retries, ""), "", "and its RetryOf is empty")
 	If $IsObject(row) Set ..ItemIds = ..ItemIds _ $ListBuild(row.ItemId)
+
+	// QA: with the lock free, a request straight to Decide that carries a RetryOf is sent without it, whatever the client put there (SentRequest), and ChatAgent
+	// answers it as a first attempt
+	Set again = $ClassMethod(fixture, "NewRequest", "turn", "user", "[[mock:recall-tell]] Straight to Decide, lock free.", .refAgain, session)
+	Set again.RetryOf = "ChatAgent"
+	Set ..ItemIds = ..ItemIds _ $ListBuild(refAgain)
+	Set markAgain = $ClassMethod(fixture, "HeaderMark")
+	Set sc = $ClassMethod(fixture, "Send", "Decide", again, .answered)
+	Do $$$AssertStatusOK(sc, "Decide answers the request that carries a RetryOf once the lock is free")
+	Do $$$AssertEquals($Select($IsObject(answered): answered.%ClassName(1)_"|"_answered.Busy_"|"_answered.Fallback_"|"_(answered.Text '= ""), 1: "none"), "OcuTalon.Bridge.Msg.Reply|0|0|1", "with the answer of ChatAgent: not Busy, no fallback, a text")
+	Set sentAgain = ..ChatRequestsOf(markAgain, session)
+	Do $$$AssertEquals($ListLength(sentAgain)_"|"_$ListToString(sentAgain, ""), "1|", "one request reached ChatAgent, and its RetryOf is empty")
 }
 
 /// Rule 1: a message through WebChatIn to the real Conversation and Decide, with a second model on ChatAgent. The first attempt is refused (retry-chat, armed at 1), so the

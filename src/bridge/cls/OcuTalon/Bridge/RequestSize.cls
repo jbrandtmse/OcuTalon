@@ -69,16 +69,9 @@ ClassMethod InstructionsChars(agentClass As %String, ByRef sc As %Status) As %In
 ClassMethod HistoryChars(sessionId As %String) As %Integer
 {
 	Set chars = 0
-	If sessionId = "" Quit 0
 	Try {
-		Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT ContextData FROM %AI_Agent.Session WHERE ID = ?", sessionId)
-		If result.%Next() {
-			Set oid = result.%GetData(1)
-			If $ListValid(oid) {
-				Set stream = ##class(%Stream.GlobalCharacter).%Open(oid)
-				If $IsObject(stream) Set chars = +stream.Size
-			}
-		}
+		Set stream = ..StoredContext(sessionId)
+		If $IsObject(stream) Set chars = +stream.Size
 	} Catch {
 		Set chars = 0
 	}
@@ -93,45 +86,51 @@ ClassMethod HistoryChars(sessionId As %String) As %Integer
 ClassMethod StoredMessages(sessionId As %String) As %DynamicArray
 {
 	Set messages = []
-	If sessionId = "" Quit messages
 	Try {
-		Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT ContextData FROM %AI_Agent.Session WHERE ID = ?", sessionId)
-		If result.%Next() {
-			Set oid = result.%GetData(1)
-			If $ListValid(oid) {
-				Set stream = ##class(%Stream.GlobalCharacter).%Open(oid)
-				If $IsObject(stream) {
-					Set text = ""
-					Do stream.Rewind()
-					While 'stream.AtEnd {
-						Set text = text _ stream.Read(32000)
+		Set stream = ..StoredContext(sessionId)
+		If $IsObject(stream) {
+			Set text = ""
+			Do stream.Rewind()
+			While 'stream.AtEnd {
+				Set text = text _ stream.Read(32000)
+			}
+			Set found = []
+			For i = 1:1:$Length(text, $Char(30)) {
+				Set record = ""
+				Try {
+					Set record = {}.%FromJSON($Piece(text, $Char(30), i))
+				} Catch {
+					Set record = ""
+				}
+				If '$IsObject(record) Continue
+				If record.%IsA("%Library.DynamicArray") {
+					Set iterator = record.%GetIterator()
+					While iterator.%GetNext(, .message) {
+						Do found.%Push(message)
 					}
-					Set found = []
-					For i = 1:1:$Length(text, $Char(30)) {
-						Set record = ""
-						Try {
-							Set record = {}.%FromJSON($Piece(text, $Char(30), i))
-						} Catch {
-							Set record = ""
-						}
-						If '$IsObject(record) Continue
-						If record.%IsA("%Library.DynamicArray") {
-							Set iterator = record.%GetIterator()
-							While iterator.%GetNext(, .message) {
-								Do found.%Push(message)
-							}
-						} ElseIf record.%IsA("%Library.DynamicObject") && (record.%GetTypeOf("messages") = "array") {
-							Set found = record.messages
-						}
-					}
-					Set messages = found
+				} ElseIf record.%IsA("%Library.DynamicObject") && (record.%GetTypeOf("messages") = "array") {
+					Set found = record.messages
 				}
 			}
+			Set messages = found
 		}
 	} Catch {
 		Set messages = []
 	}
 	Quit messages
+}
+
+/// The stored ContextData stream of the saved AI session, read from the stored value with no open session, or "" for an empty id, an id that no saved
+/// session has and a session that stores no history. It is the one read of that value for HistoryChars and StoredMessages; an error is the caller's.
+ClassMethod StoredContext(sessionId As %String) As %Stream.GlobalCharacter [ Private ]
+{
+	If sessionId = "" Quit ""
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT ContextData FROM %AI_Agent.Session WHERE ID = ?", sessionId)
+	If 'result.%Next() Quit ""
+	Set oid = result.%GetData(1)
+	If '$ListValid(oid) Quit ""
+	Set stream = ##class(%Stream.GlobalCharacter).%Open(oid)
+	Quit $Select($IsObject(stream): stream, 1: "")
 }
 
 }

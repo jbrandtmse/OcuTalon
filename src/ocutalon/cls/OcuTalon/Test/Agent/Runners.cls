@@ -23,7 +23,7 @@
 ///     literals: none for Triage, cancel_reminder, list_reminders and set_reminder for Chat since Story 1.10, read_event_log, read_failed_messages and
 ///     read_item_settings for Diagnosis), and Diagnosis's second
 ///     request carries the result of its tool as the JSON object {"items":[]}, not as a JSON string;
-///   - TestToolInventory: the live ToolManager of each runner holds the tools of its agent (none for Triage, the three reminder tools and the four watching tools for Chat and the three
+///   - TestToolInventory: the live ToolManager of each runner, the retry runners included (INVENTORYRUNNERS), holds the tools of its agent (none for Triage, the three reminder tools and the four watching tools for Chat and the three
 ///     read-only watch tools for Diagnosis) and no AI Hub shell, filesystem, SQL or web-search tool, and every tool is an OcuTalon tool of source iris whose
 ///     code is clean (Test.Bridge.CodeRules.ToolCodeClean) and whose provider is the class that implements it;
 ///   - TestForeignMessage: a message of a class the runner does not handle gets "not implemented" and no response, and the runner
@@ -60,6 +60,10 @@ Parameter PRODUCTION = "OcuTalon.Production";
 /// The runners of the production.
 Parameter RUNNERS = "TriageAgent,DiagnosisAgent,ChatAgent";
 
+/// The runners whose tools TestToolInventory checks: every agent runner of the production, the first runners and their retry runners (Story 17.2),
+/// each of which runs the agent class of its first runner.
+Parameter INVENTORYRUNNERS = "TriageAgent,DiagnosisAgent,ChatAgent,TriageAgentRetry,DiagnosisAgentRetry,ChatAgentRetry";
+
 /// The environment variable of the model key, which the entries name as a placeholder.
 Parameter KEYVARIABLE = "ANTHROPIC_API_KEY";
 
@@ -85,6 +89,9 @@ Property AllowDescription As %String(MAXLEN = "");
 
 /// 1 while the entries of the runners are pointed at the CI mock key variable.
 Property Pointed As %Boolean [ InitialExpression = 0 ];
+
+/// The runners whose entries Point pointed, comma-separated; empty means RunnerFixture RUNNERS.
+Property PointedRunners As %String(MAXLEN = "");
 
 /// The ItemIds of the requests that the test sent through Decide, whose rows OnAfterOneTest deletes.
 Property ItemIds As %List;
@@ -128,7 +135,8 @@ Method OnAfterOneTest(testname As %String) As %Status
 	If '##class(OcuTalon.Test.Agent.RunnerFixture).Running() Quit $$$OK
 	If ..Pointed {
 		Set ..Pointed = 0
-		Do ##class(OcuTalon.Test.Agent.RunnerFixture).RestoreKeys()
+		Do ##class(OcuTalon.Test.Agent.RunnerFixture).RestoreKeys(..PointedRunners)
+		Set ..PointedRunners = ""
 	}
 	Set runners = $ListFromString(..#RUNNERS)
 	Set position = 0
@@ -305,14 +313,14 @@ Method TestRequestsUnderTheModelRules()
 	Do ..AssertRequests(requests, "", "OcuTalon.Agent.Chat", ..#REMINDERTOOLS, "Chat", 1, 1)
 }
 
-/// Every tool that a running runner holds is an OcuTalon tool of source iris whose code is clean, and the three runners hold exactly
-/// the tools of their agents: none for Triage, the three reminder tools and the five watching tools (each a method of Tools.WatchTools) for Chat, the
+/// Every tool that a running runner holds is an OcuTalon tool of source iris whose code is clean, and every runner of INVENTORYRUNNERS holds exactly
+/// the tools of its agent (a retry runner those of its first runner): none for Triage, the three reminder tools and the five watching tools (each a method of Tools.WatchTools) for Chat, the
 /// three read-only watch tools for Diagnosis. No AI Hub shell, filesystem,
 /// SQL or web-search tool is registered.
 Method TestToolInventory()
 {
 	If '..Ready() Quit
-	If '..Point() Quit
+	If '..Point(..#INVENTORYRUNNERS) Quit
 	Set watch = $ListBuild(##class(OcuTalon.Tools.Names).#READEVENTLOG, ##class(OcuTalon.Tools.Names).#READFAILEDMESSAGES, ##class(OcuTalon.Tools.Names).#READITEMSETTINGS)
 	Set reminders = $ListBuild(##class(OcuTalon.Tools.Names).#CANCELREMINDER, ##class(OcuTalon.Tools.Names).#LISTREMINDERS, ##class(OcuTalon.Tools.Names).#SETREMINDER, ##class(OcuTalon.Tools.Names).#STARTWATCH, ##class(OcuTalon.Tools.Names).#STOPWATCH, ##class(OcuTalon.Tools.Names).#LISTPRODUCTIONS, ##class(OcuTalon.Tools.Names).#DISMISSINCIDENT, ##class(OcuTalon.Tools.Names).#CHECKSTATUS, ##class(OcuTalon.Tools.Names).#RECENTACTIVITY)
 	Set expected("TriageAgent") = ""
@@ -327,7 +335,12 @@ Method TestToolInventory()
 	Set providerOf("ChatAgent", ##class(OcuTalon.Tools.Names).#DISMISSINCIDENT) = "OcuTalon.Tools.WatchTools"
 	Set providerOf("ChatAgent", ##class(OcuTalon.Tools.Names).#CHECKSTATUS) = "OcuTalon.Tools.WatchTools"
 	Set providerOf("ChatAgent", ##class(OcuTalon.Tools.Names).#RECENTACTIVITY) = "OcuTalon.Tools.RecentActivity"
-	Set runners = $ListFromString(..#RUNNERS)
+	For first = "TriageAgent", "DiagnosisAgent", "ChatAgent" {
+		Set expected(first_"Retry") = expected(first)
+		Set provider(first_"Retry") = provider(first)
+		Merge providerOf(first_"Retry") = providerOf(first)
+	}
+	Set runners = $ListFromString(..#INVENTORYRUNNERS)
 	Set position = 0
 	While $ListNext(runners, position, item) {
 		Set sc = ##class(OcuTalon.Test.Agent.RunnerFixture).Send(item, ##class(OcuTalon.Bridge.Msg.ToolInventory).%New(), .response)
@@ -475,10 +488,11 @@ Method EnsureKeysAtPlaceholder(placeholder As %String) As %Boolean [ Private ]
 
 /// Points the keys of the runners at the CI mock key variable, and remembers to put them back. 1 when it worked and every runner
 /// has recorded its key state.
-Method Point() As %Boolean [ Private ]
+Method Point(runners As %String = "") As %Boolean [ Private ]
 {
 	Set ..Pointed = 1
-	Set sc = ##class(OcuTalon.Test.Agent.RunnerFixture).PointKeys()
+	Set ..PointedRunners = runners
+	Set sc = ##class(OcuTalon.Test.Agent.RunnerFixture).PointKeys(runners)
 	Do $$$AssertStatusOK(sc, "the entries of the runners are pointed at the CI mock key variable")
 	If $$$ISERR(sc) Quit 0
 	Set recorded = ##class(OcuTalon.Test.Agent.RunnerFixture).WaitRecords()

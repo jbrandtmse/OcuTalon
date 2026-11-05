@@ -153,7 +153,7 @@ Parameter RETRIED = "timeout,rate_limited,error,refusal,cut_off,empty,invalid,un
 
 /// The reason line of the fallback of a decision whose second-model retry was skipped for lack of time (AD-8, DW-647, veto U-281): plain English for
 /// the person, shown in the trace as the reasons of the decision.
-Parameter RETRYSKIPPED = "The second model was not tried, because no time was left within the 110-second limit.";
+Parameter RETRYSKIPPED = "The second model was not tried, because too little time was left within the decision's 110-second limit.";
 
 /// The first reason line of a user's decide request whose outcome was ignore or digest (AD-6).
 Parameter USERANSWERED = "The outcome was changed because a message the user writes is always answered.";
@@ -555,16 +555,28 @@ ClassMethod RetryItemProblem(runner As %String, kind As %String, item As %String
 
 /// 1 when every tool of the agent class of the runner is read-only by what code declares (AD-10), so that an attempt in which one ran, and whose outcome
 /// is unknown because its timer fired, did not change anything: the AgentClass setting of the runner (Ext.Accessor ValueFor, Adapter target) is a
-/// compiled class, each class of its TOOLSETS parameter is a toolset (a name with a colon is a URI, whose tools are unknown, so 0) and each tool that the
-/// toolset offers is classified safe with READONLY 1 by its class parameters (StepBuffer ToolParameter), with no Classify method that decides per call
-/// (Policy.Gate HookFor). An agent with no toolset has no tool and counts as read-only. 0 for anything that cannot be established from code.
+/// compiled class and ToolsetsReadOnly holds for its TOOLSETS parameter. 0 for anything that cannot be established from code.
 ClassMethod ToolsReadOnly(runner As %String) As %Boolean
 {
 	Set readOnly = 0
 	Try {
 		Set agentClass = ##class(OcuTalon.Bridge.Ext.Accessor).ValueFor("AgentClass", "", runner, .sc, "Adapter")
 		If $$$ISERR(sc) || (agentClass = "") || '##class(%Dictionary.CompiledClass).%ExistsId(agentClass) Quit
-		Set toolsets = $Parameter(agentClass, "TOOLSETS")
+		Set readOnly = ..ToolsetsReadOnly($Parameter(agentClass, "TOOLSETS"))
+	} Catch {
+		Set readOnly = 0
+	}
+	Quit readOnly
+}
+
+/// 1 when every tool of the toolsets (a TOOLSETS parameter: names, comma-separated, white space and empty names ignored) is read-only by what code
+/// declares (AD-10): each name is a compiled toolset class (a name with a colon is a URI, whose tools are unknown, so 0) and each tool that the toolset
+/// offers is classified safe with READONLY 1 by its class parameters (StepBuffer ToolParameter), with no Classify method that decides per call (Policy.Gate
+/// HookFor). No toolset means no tool, which counts as read-only. 0 for anything that cannot be established from code.
+ClassMethod ToolsetsReadOnly(toolsets As %String) As %Boolean
+{
+	Set readOnly = 0
+	Try {
 		Set readOnly = 1
 		For i = 1:1:$Length(toolsets, ",") {
 			Set toolset = $ZStrip($Piece(toolsets, ",", i), "<>W")

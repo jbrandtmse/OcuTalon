@@ -3882,6 +3882,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-33-1-fix-the-step-2-contracts-in-the-spine.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: S4 text; Timeouts.Apply would derive an empty timeout set when 110 - TimerSeconds < 12 (unverified)
 - 2026-11-03T23:07:37Z status=routed owner=17-2-retry-once-on-a-second-model-before-falling-back by=harvest note=17.2 states which timer wins and whether TimerSeconds is capped at 98 when RetryItem is set
+- 2026-11-05T09:40:26Z occurrence=17-2-retry-once-on-a-second-model-before-falling-back note=retry timeouts use RetryTimer(TimerSeconds), T2 uses T1=TimerFor: flagged turn T2 30s < ~42s worst; no_key T2=T
+- 2026-11-05T09:42:46Z status=routed owner=17-4-apply-model-price-budget-and-zone-changes-through-the-bridge by=adjudication note=TimerSeconds>98 resolved in 17.2 (MINTIMER clamp, RETRYSKIPPED); residual: retry entries use RetryTimer(TimerSeconds) but T2 uses T1=TimerFor (flagged turn)
 
 ### DW-648: Coverage edge cases left to 17.5: a check with no run at all in the window, the key for a not_checked run with an empty or unknown Reason, non-whole percentages for digest.healthy's count slots
 - source: spec-33-1-fix-the-step-2-contracts-in-the-spine.md | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -3897,6 +3899,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-33-1-fix-the-step-2-contracts-in-the-spine.md | severity: med | fix-risk: low | footprint: out-of-epic
 - evidence: Test.Bridge.CodeRules.TestOnlyTheRetryPathNamesRetryOf passes vacuously until 17.2 adds RetryOf
 - 2026-11-04T00:16:14Z status=routed owner=17-2-retry-once-on-a-second-model-before-falling-back by=harvest note=orchestrator adds the DW bullet to 17.2's epics.md block post-merge (cross-epic); 17.2 builds tests (a)-(d)
+- 2026-11-05T09:42:46Z status=resolved-by:17-2-retry-once-on-a-second-model-before-falling-back by=adjudication note=RetryOf cases (a)-(d) pinned in Test.Bridge.SecondModel, Decide (Held d), Conversation; 905b0336 + QA
 
 ### DW-651: AD-18 due rule leaves a session with no scheduled Sent row undefined: read as due, every new session (each online-demo visitor) gets a digest at the first tick after digest.time
 - source: spec-33-1-fix-the-step-2-contracts-in-the-spine.md | severity: med | fix-risk: low | footprint: in-story
@@ -4138,3 +4141,18 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-17-2-retry-once-on-a-second-model-before-falling-back.md | severity: med | fix-risk: med | footprint: out-of-footprint
 - evidence: Decide.ToolsReadOnly reads TOOLSETS and the tool classes' CLASSIFICATION/READONLY; run-time MCP tools are known only to a live tool manager; no agent has an MCP server in this release
 - 2026-11-05T08:23:16Z status=routed owner=22-2-classify-mcp-tools-by-server-and-name by=harvest note=when MCP servers are attached to an agent, ToolsReadOnly must count them (unclassified or non-read-only server -> not read-only); 22.2 classifies MCP tools by server and name
+
+### DW-725: A second-model retry that ends after Decide's T2 timer still points the link at its session (SaveRetried, unconditional Point): the next turn continues from an answer the user never saw, and a next turn already running loses its compare-and-set save
+- source: spec-17-2-retry-once-on-a-second-model-before-falling-back.md | severity: med | fix-risk: high | footprint: in-story
+- evidence: SaveRetried points unconditionally (Conventions: a retry's point always applies); nothing bounds the retry by T2 (flagged turn T2 30 s vs ~42 s, multi-step loops); Conversation starts the next turn once Decide answers
+- 2026-11-05T09:40:35Z status=escalated owner=burndown by=cr note=spine-level: a late retry should not move the link (e.g. no Point once the Decision row exists); needs an AD-6/AD-8 ruling
+
+### DW-726: The retry's seed holds the first attempt's refused, cut-off or empty exchange (AnswerLinked saved it), so the second model sees the user's message twice and the user's history keeps an exchange the user never saw
+- source: spec-17-2-retry-once-on-a-second-model-before-falling-back.md | severity: med | fix-risk: med | footprint: in-story
+- evidence: Decided-in-stage 18; live SecondModel run: the next turn's history reads '...user:[[mock:retry-chat]] What is my build server called?...assistant:The CI mock refuses this request.user:...'
+- 2026-11-05T09:40:35Z status=decision-pending owner=burndown by=cr note=product call: seed from the history before the turn (drop the unseen first exchange) or as Conventions Retried turns says
+
+### DW-727: Spine AD-8 says Timeouts.Apply gives the retry entries Derive(min(TimerSeconds, 110 - TimerSeconds)), but the DW-647 AC and Timeouts.RetryTimer clamp it at MINTIMER (100 gives Derive(12), not {}): the spine lags the approved spec
+- source: spec-17-2-retry-once-on-a-second-model-before-falling-back.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: ARCHITECTURE-SPINE.md AD-8 'The retry timer' bullet vs Timeouts.RetryTimer and the spec's DW-647 AC ('the retry entries hold Derive(12)')
+- 2026-11-05T09:40:35Z status=routed owner=17-4-apply-model-price-budget-and-zone-changes-through-the-bridge by=cr note=lead writes AD-8's max(MINTIMER, ...) clamp into the spine (Rule 20); 17.4's Timeouts.Apply work reads it

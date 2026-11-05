@@ -62,6 +62,13 @@
 ///   - TestLinkCompareAndSet: ConversationLink.Point with expected moves the link only while it names expected ("" for no link), says whether it moved, never
 ///     takes the conversation lock, and with no expected argument moves it unconditionally;
 ///   - TestRetriedThrowawayKinds: a retried decide and a retried untrusted turn chat in a throwaway session and change no link.
+/// Added by the QA stage of Story 17.2 (AD-6, AD-8):
+///   - TestLinkPointRefusals (QA): ConversationLink.Point returns an error status, and moves nothing, for an empty OwnerRef or agent, and for a link row that another
+///     process holds the lock of, in both forms (compare-and-set and unconditional); once the lock is let go it moves the link again;
+///   - TestRetriedPointFailureKeepsTheReply (QA): when the retry's Point fails (the link row is locked by another process), SaveRetried logs a warning and the retry's
+///     reply stands, with its text, status OK and SessionRotated 0, and the link still names the session the user saw;
+///   - TestRetryAllowedStripsWhitespace (QA): the real adapter's RetryAllowed strips the surrounding white space of the RetryItem setting, as Decide does, and says
+///     no for another name, an empty setting and an item that has none.
 /// Every test removes the AI sessions it saved (and the links that name them) and the Usage rows that ZzRunner and ZzRetry wrote.
 Class OcuTalon.Test.Bridge.Conversation Extends %UnitTest.TestCase
 {
@@ -317,6 +324,8 @@ Method TestRetryOfRefused()
 }
 
 /// StoredMessages (Story 17.2) keeps the messages of the records it can read: an empty piece and a record that does not parse are skipped, not the whole history.
+/// The records are read in order: a delta record (a JSON array) adds its messages after those before it, and a full export (a JSON object with messages) starts
+/// the history again from its own messages.
 Method TestStoredMessagesSkipsBadRecords()
 {
 	Set session = ##class(%AI.Agent.Session).%New()
@@ -324,6 +333,18 @@ Method TestStoredMessagesSkipsBadRecords()
 	Do $$$AssertStatusOK(session.%Save(), "a session whose stored value ends in a record that does not parse and an empty piece is saved")
 	Set messages = ##class(OcuTalon.Bridge.RequestSize).StoredMessages(session.%Id())
 	Do $$$AssertEquals(messages.%Size(), 1, "the message of the record that parses is kept")
+	For case = "{""version"":1,""messages"":[{""role"":""user"",""content"":""a""}]}"_$Char(30)_"[{""role"":""assistant"",""content"":""b""},{""role"":""user"",""content"":""c""}]|a,b,c", "[{""role"":""user"",""content"":""old""}]"_$Char(30)_"{""version"":1,""messages"":[{""role"":""user"",""content"":""x""}]}"_$Char(30)_"[{""role"":""assistant"",""content"":""y""}]|x,y" {
+		Set session = ##class(%AI.Agent.Session).%New()
+		Do session.ContextData.Write($Piece(case, "|", 1))
+		Do $$$AssertStatusOK(session.%Save(), "a session with a full export and delta records is saved")
+		Set messages = ##class(OcuTalon.Bridge.RequestSize).StoredMessages(session.%Id())
+		Set contents = ""
+		Set iterator = messages.%GetIterator()
+		While iterator.%GetNext(, .message) {
+			Set contents = contents _ $ListBuild(message.content)
+		}
+		Do $$$AssertEquals($ListToString(contents), $Piece(case, "|", 2), "the records give the messages in order, a full export starting again: "_$ListToString(contents))
+	}
 }
 
 /// Point (Story 17.2): with expected it is a compare-and-set, under the row's lock and not the conversation lock; with none it moves the link unconditionally.
@@ -356,6 +377,93 @@ Method TestLinkCompareAndSet()
 	Do $$$AssertEquals(..Links(owner), 1, "and the owner still has one link")
 	Do $$$AssertStatusNotOK($ClassMethod(link, "Point", owner, ..#AGENT, "", a, .moved), "an empty session id is refused")
 	Do $$$AssertEquals(moved, 0, "and moves nothing")
+}
+
+/// Point refuses what it cannot do (Story 17.2, QA): an empty OwnerRef, agent or session id is an error status, and so is a link row whose lock another process
+/// holds for longer than LOCKSECONDS, in the compare-and-set form and in the unconditional one. Nothing moves in any of them, and moved says 0. When the
+/// lock is let go the same calls move the link.
+Method TestLinkPointRefusals()
+{
+	Set link = "OcuTalon.Bridge.Data.ConversationLink"
+	Set owner = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set a = ..NewStoredSession()
+	Set b = ..NewStoredSession()
+	Set c = ..NewStoredSession()
+	Do $$$AssertStatusNotOK($ClassMethod(link, "Point", "", ..#AGENT, a, , .moved), "an empty OwnerRef is refused")
+	Do $$$AssertEquals(moved, 0, "and moves nothing")
+	Do $$$AssertStatusNotOK($ClassMethod(link, "Point", owner, "", a, "", .moved), "an empty agent is refused")
+	Do $$$AssertEquals(moved_"|"_..Links(owner), "0|0", "and makes no link")
+	Do $$$AssertStatusOK($ClassMethod(link, "Point", owner, ..#AGENT, a, , .moved), "Point makes the link")
+	Do $$$AssertEquals(moved_"|"_..LinkOf(owner), "1|"_a, "which names the session")
+
+	Set id = ..LinkRowId(owner)
+	Do $$$AssertTrue(id '= "", "the link row has an id: "_id)
+	Do $$$AssertTrue(..StartRowHolder(id), "another process holds the lock of the link row")
+	Set started = $ZHorolog
+	Do $$$AssertStatusNotOK($ClassMethod(link, "Point", owner, ..#AGENT, b, a, .moved), "the compare-and-set cannot take the row lock, so it is an error")
+	Do $$$AssertEquals(moved_"|"_..LinkOf(owner), "0|"_a, "and the link stays as it was")
+	Do $$$AssertTrue($ZHorolog - started < 10, "after the wait of LOCKSECONDS, not for good: "_$Number($ZHorolog - started, 1)_" s")
+	Do $$$AssertStatusNotOK($ClassMethod(link, "Point", owner, ..#AGENT, b, , .moved), "the unconditional Point cannot take it either")
+	Do $$$AssertEquals(moved_"|"_..LinkOf(owner), "0|"_a, "and it leaves the link as well")
+	Do $$$AssertTrue(..StopRowHolder(id), "the other process lets the row go")
+	Do $$$AssertStatusOK($ClassMethod(link, "Point", owner, ..#AGENT, b, , .moved), "now the unconditional Point is OK")
+	Do $$$AssertEquals(moved_"|"_..LinkOf(owner), "1|"_b, "and moves the link")
+	Do $$$AssertStatusOK($ClassMethod(link, "Point", owner, ..#AGENT, c, b, .moved), "and so is the compare-and-set")
+	Do $$$AssertEquals(moved_"|"_..LinkOf(owner)_"|"_..Links(owner), "1|"_c_"|1", "which moves the link: the owner has one link")
+}
+
+/// A retry whose Point fails still answers (Story 17.2, QA; SaveRetried): the link row is locked by another process, so the retry's unconditional Point is an error.
+/// The reply is the retry runner's answer, with a text, status OK and SessionRotated 0, a warning names the failure, and the link still names the session the user
+/// saw.
+Method TestRetriedPointFailureKeepsTheReply()
+{
+	If ..Guard() Quit
+	Set host = ..NewHost()
+	Set retryHost = ..NewRetryHost()
+	Set owner = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Do $$$AssertStatusOK(..Send(host, ..NewTurn("[[mock:recall-tell]] My build server is called ORION-7.", owner), .first), "the first turn is answered by ZzRunner")
+	Set s1 = ..LinkOf(owner)
+	Do $$$AssertTrue(s1 '= "", "the link names the session S1: "_s1)
+	Set id = ..LinkRowId(owner)
+	Set ask = ..NewTurn("[[mock:recall-ask]] What is my build server called?", owner)
+	Set retry = ##class(OcuTalon.Bridge.Process.Decide).RetryRequest(ask, ##class(OcuTalon.Bridge.Ids).NewRef(), 0, ..#AGENT)
+	Do $$$AssertTrue(..StartRowHolder(id), "another process holds the lock of the link row")
+	Set mark = ##class(OcuTalon.Test.Agent.RunnerFixture).EventMark()
+	Set sc = ..Send(retryHost, retry, .answer, .logged)
+	Do $$$AssertTrue(..StopRowHolder(id), "the other process lets the row go")
+	Do $$$AssertStatusOK(sc, "the retry runner answers with status OK although the link was not moved")
+	Do $$$AssertEquals($Select($IsObject(answer): answer.Busy_"|"_(answer.Text '= "")_"|"_answer.SessionRotated_"|"_answer.FailureText, 1: "none"), "0|1|0|", "its reply stands: a text, no failure, and SessionRotated 0 (the user's conversation did not move)")
+	Do $$$AssertEquals(logged.%Size(), 1, "the retry made one model request")
+	Do $$$AssertEquals(..LinkOf(owner), s1, "and the link still names S1")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).Warnings(mark, "OcuTalon.Test.Bridge.ZzRetryAdapter", "SaveRetried", $ListBuild("is not saved or linked")), 1, "SaveRetried logged one warning")
+}
+
+/// RetryAllowed of the real adapter strips the white space around the RetryItem setting, as Decide does when it reads the same setting (Story 17.2, QA): a value that
+/// is the runner's config name with spaces and tabs around it allows the RetryOf; another name, an empty setting and an item with no such row do not.
+Method TestRetryAllowedStripsWhitespace()
+{
+	If ..Guard() Quit
+	Set fixture = ..#FIXTURE
+	Set host = ..NewHost()
+	Do $$$AssertEquals($ClassName(host.Adapter), "OcuTalon.Bridge.Adapter.Agent", "the adapter is the real one")
+	Set item = "TriageAgent"
+	Set saved = ""
+	Do $ClassMethod(fixture, "RememberDefault", .saved, item, "RetryItem")
+	Set sc = $ClassMethod(fixture, "PutDefault", item, "RetryItem", ..#AGENT)
+	Do $$$AssertStatusOK(sc, "RetryItem of "_item_" names the runner")
+	If $$$ISOK(sc) {
+		Do $$$AssertEquals(host.Adapter.RetryAllowed(item), 1, "exact: allowed")
+		For value = " "_..#AGENT, ..#AGENT_" ", $Char(9)_..#AGENT_$Char(9), " "_$Char(9)_..#AGENT_$Char(13, 10) {
+			Do $$$AssertStatusOK($ClassMethod(fixture, "PutDefault", item, "RetryItem", value), "RetryItem is set with white space around the name")
+			Do $$$AssertEquals(host.Adapter.RetryAllowed(item), 1, "allowed with white space around the name (length "_$Length(value)_")")
+		}
+		Do $$$AssertStatusOK($ClassMethod(fixture, "PutDefault", item, "RetryItem", ..#RETRYAGENT), "RetryItem names another runner")
+		Do $$$AssertEquals(host.Adapter.RetryAllowed(item), 0, "another name is not allowed")
+		Do $$$AssertStatusOK($ClassMethod(fixture, "PutDefault", item, "RetryItem", "  "), "RetryItem holds only white space")
+		Do $$$AssertEquals(host.Adapter.RetryAllowed(item), 0, "nothing but white space is not allowed")
+	}
+	Do $ClassMethod(fixture, "RestoreDefaults", saved)
+	Do $$$AssertEquals(host.Adapter.RetryAllowed("ZzNoSuchItem"), 0, "an item that is not in the production allows nothing")
 }
 
 /// A retried decide request and a retried untrusted turn chat in a throwaway session: no link is made or moved and no session saved (Story 17.2).
@@ -1136,6 +1244,54 @@ Method SessionStats(host As OcuTalon.Bridge.Operation.AgentRunner, id As %String
 ClassMethod LinkOf(owner As %String) As %String
 {
 	Quit ##class(OcuTalon.Bridge.Data.ConversationLink).SessionOf(owner, ..#AGENT)
+}
+
+/// The id of the link row of the owner and ZzRunner, or "".
+ClassMethod LinkRowId(owner As %String) As %String [ Private ]
+{
+	If ##class(OcuTalon.Bridge.Data.ConversationLink).OwnerRefAgentIndexExists(owner, ..#AGENT, .id) Quit id
+	Quit ""
+}
+
+/// Starts a process that holds the lock of the link row with the id (RowHolder) and waits up to 30 seconds until it holds it. 1 when it does. Each StartRowHolder is
+/// paired with a StopRowHolder on every path.
+ClassMethod StartRowHolder(id As %String) As %Boolean
+{
+	Kill ^IRIS.Temp.ZzConversationRow(id)
+	Job ##class(OcuTalon.Test.Bridge.Conversation).RowHolder(id)
+	Set deadline = $ZHorolog + 30
+	While ($Get(^IRIS.Temp.ZzConversationRow(id)) '= "held") && ($ZHorolog < deadline) {
+		Hang 0.1
+	}
+	Quit $Get(^IRIS.Temp.ZzConversationRow(id)) = "held"
+}
+
+/// Tells the process of StartRowHolder to let the row go and end, and waits up to 30 seconds until it has. 1 when it has. Its marks are removed.
+ClassMethod StopRowHolder(id As %String) As %Boolean
+{
+	Set ^IRIS.Temp.ZzConversationRow(id, "stop") = 1
+	Set deadline = $ZHorolog + 30
+	While ($Get(^IRIS.Temp.ZzConversationRow(id)) '= "") && ($ZHorolog < deadline) {
+		Hang 0.1
+	}
+	Set stopped = ($Get(^IRIS.Temp.ZzConversationRow(id)) = "")
+	Kill ^IRIS.Temp.ZzConversationRow(id)
+	Quit stopped
+}
+
+/// The job of StartRowHolder: holds the lock of the link row (the one that ConversationLink Point takes) until StopRowHolder says stop, reporting through
+/// ^IRIS.Temp.ZzConversationRow(id) while it holds it. It gives up after 60 seconds on its own.
+ClassMethod RowHolder(id As %String)
+{
+	Lock +^OcuTalonBP.ConvLinkD(id):5
+	If '$Test Quit
+	Set ^IRIS.Temp.ZzConversationRow(id) = "held"
+	Set deadline = $ZHorolog + 60
+	While '$Data(^IRIS.Temp.ZzConversationRow(id, "stop")) && ($ZHorolog < deadline) {
+		Hang 0.1
+	}
+	Lock -^OcuTalonBP.ConvLinkD(id)
+	Kill ^IRIS.Temp.ZzConversationRow(id)
 }
 
 /// The number of link rows of the owner.
