@@ -15,6 +15,8 @@
 ///       StartWatch: Outcome started, the message "The CI double started the watch.", and WATCHREF as Ref;
 ///       StopWatch: Outcome stopped, the message "The CI double stopped the watch.", and WATCHREF as Ref;
 ///       Dismiss: Outcome closed, the message DISMISSMESSAGE, the command's IncidentRef as Ref and the Data {"state":"closed","openVariant":""};
+///       ProposePersona: Outcome proposed, the message "The CI double raised the request.", and PROPOSEREF as Ref (Story 40.5; Story 40.6's
+///         SettingsOps answers with the ApprovalRef of the request it raises);
 ///       any other verb: Ok 0, Outcome not_handled.
 ///   - It follows the modes that a test sets (the test that sets one kills ^OcuTalonTest("CommandsDouble")):
 ///       ^OcuTalonTest("CommandsDouble","refuse",<the verb's class name without its package>) = <message>: Ok 0, Outcome refused, and that message;
@@ -35,6 +37,9 @@ Parameter WATCHREF = "zzWatchDouble000000001";
 
 /// The due time that the double gives a reminder it "sets": in 2027, so that ForMessage gives a dated form whatever today's date is.
 Parameter SETDUEAT = "2027-03-04T15:00:00Z";
+
+/// The Ref that the double gives a persona proposal it "raises": 22 characters.
+Parameter PROPOSEREF = "zzProposalDouble000001";
 
 /// The message of the double's answer to a Dismiss (Test.Bridge.Gate reads it as one of the code's own texts).
 Parameter DISMISSMESSAGE = "The CI double dismissed the incident.";
@@ -84,6 +89,11 @@ Method OnProcessInput(pInput As %RegisteredObject, Output pOutput As %Registered
 		Set result.Message = ..#DISMISSMESSAGE
 		Set result.Ref = pInput.IncidentRef
 		Set result.Data = {"state": "closed", "openVariant": ""}.%ToJSON()
+	} ElseIf verb = "ProposePersona" {
+		Set result.Ok = 1
+		Set result.Outcome = "proposed"
+		Set result.Message = "The CI double raised the request."
+		Set result.Ref = ..#PROPOSEREF
 	} ElseIf verb = "ListReminders" {
 		Set result.Ok = 1
 		Set result.Outcome = "listed"

@@ -23,7 +23,8 @@
 ///     (Story 1.10) Chat has OcuTalon.Tools.Reminders, whose three tools a fresh tool manager discovers, each once, and runs with no bridge context, each
 ///     returning the dynamic object that says there is no session's turn and that nothing was done (the NOSESSION text of OcuTalon.Tools.CommandCall),
 ///     and (Story 5.1) OcuTalon.Tools.Watching, whose six tools (start_watch, stop_watch, list_productions, dismiss_incident (Story 5.9), check_status (Story 5.7), recent_activity (Story 5.13)) are
-///     discovered once each, and start_watch, stop_watch, dismiss_incident and check_status answer NOSESSION with no context, before anything is looked up;
+///     discovered once each, and start_watch, stop_watch, dismiss_incident and check_status answer NOSESSION with no context, before anything is looked up,
+///     and (Story 40.5) OcuTalon.Tools.Persona, whose tool propose_persona is discovered once and answers NOSESSION with no context, before anything is submitted;
 ///   - TestNoTemplates: no INSTRUCTIONS block of an OcuTalon class holds {{, and no OcuTalon class calls the AI Hub template
 ///     class on a code line (AD-7). Both scanners are first shown to flag a sample that breaks the rule.
 Class OcuTalon.Test.Agent.Instructions Extends %UnitTest.TestCase
@@ -193,14 +194,14 @@ ClassMethod MaxLen(class As %String, property As %String) As %String [ Private ]
 }
 
 /// Triage has no toolset, Diagnosis has the Watch toolset, and a fresh tool manager discovers exactly the three tools
-/// of OcuTalon.Tools.Names, each once, with the ReadOnly requirement 1, and runs each one, which takes no argument and has no bridge context here, to the dynamic object {"items":[]}. Chat has the Reminders and the Watching toolsets,
-/// and a fresh tool manager discovers exactly the other eight tools of OcuTalon.Tools.Names, each once; with no bridge context each of them that takes
+/// of OcuTalon.Tools.Names, each once, with the ReadOnly requirement 1, and runs each one, which takes no argument and has no bridge context here, to the dynamic object {"items":[]}. Chat has the Reminders, Watching and Persona (Story 40.5) toolsets,
+/// and a fresh tool manager discovers exactly the other nine tools of OcuTalon.Tools.Names, each once; with no bridge context each of them that takes
 /// arguments (all but list_productions, which lists the productions and submits nothing; check_status takes none and answers NOSESSION too) runs to the dynamic object {"ok": false, "message": NOSESSION}
 /// and submits nothing.
 Method TestToolsets()
 {
 	Do $$$AssertEquals($Parameter("OcuTalon.Agent.Triage", "TOOLSETS"), "", "Triage has no toolset")
-	Do $$$AssertEquals($Parameter("OcuTalon.Agent.Chat", "TOOLSETS"), "OcuTalon.Tools.Reminders,OcuTalon.Tools.Watching", "Chat has OcuTalon.Tools.Reminders and OcuTalon.Tools.Watching")
+	Do $$$AssertEquals($Parameter("OcuTalon.Agent.Chat", "TOOLSETS"), "OcuTalon.Tools.Reminders,OcuTalon.Tools.Watching,OcuTalon.Tools.Persona", "Chat has OcuTalon.Tools.Reminders, OcuTalon.Tools.Watching and OcuTalon.Tools.Persona")
 	Set toolsets = $Parameter("OcuTalon.Agent.Diagnosis", "TOOLSETS")
 	Do $$$AssertEquals(toolsets, "OcuTalon.Tools.Watch", "Diagnosis has OcuTalon.Tools.Watch only")
 	Set expected = $ListBuild(##class(OcuTalon.Tools.Names).#READFAILEDMESSAGES, ##class(OcuTalon.Tools.Names).#READEVENTLOG, ##class(OcuTalon.Tools.Names).#READITEMSETTINGS)
@@ -231,7 +232,7 @@ Method TestToolsets()
 	}
 	Do manager.Cleanup()
 
-	Set expected = $ListBuild(##class(OcuTalon.Tools.Names).#SETREMINDER, ##class(OcuTalon.Tools.Names).#LISTREMINDERS, ##class(OcuTalon.Tools.Names).#CANCELREMINDER, ##class(OcuTalon.Tools.Names).#STARTWATCH, ##class(OcuTalon.Tools.Names).#STOPWATCH, ##class(OcuTalon.Tools.Names).#LISTPRODUCTIONS, ##class(OcuTalon.Tools.Names).#DISMISSINCIDENT, ##class(OcuTalon.Tools.Names).#CHECKSTATUS, ##class(OcuTalon.Tools.Names).#RECENTACTIVITY)
+	Set expected = $ListBuild(##class(OcuTalon.Tools.Names).#SETREMINDER, ##class(OcuTalon.Tools.Names).#LISTREMINDERS, ##class(OcuTalon.Tools.Names).#CANCELREMINDER, ##class(OcuTalon.Tools.Names).#STARTWATCH, ##class(OcuTalon.Tools.Names).#STOPWATCH, ##class(OcuTalon.Tools.Names).#LISTPRODUCTIONS, ##class(OcuTalon.Tools.Names).#DISMISSINCIDENT, ##class(OcuTalon.Tools.Names).#CHECKSTATUS, ##class(OcuTalon.Tools.Names).#RECENTACTIVITY, ##class(OcuTalon.Tools.Names).#PROPOSEPERSONA)
 	Set arguments("set_reminder") = {"text": "stretch", "delaySeconds": 60}
 	Set arguments("list_reminders") = {}
 	Set arguments("cancel_reminder") = {"reminderRefs": ["zzReminderStretch00001"]}
@@ -239,6 +240,7 @@ Method TestToolsets()
 	Set arguments("stop_watch") = {"name": "Orders"}
 	Set arguments("dismiss_incident") = {}
 	Set arguments("check_status") = {}
+	Set arguments("propose_persona") = {"preset": "pirate"}
 	Do ##class(OcuTalon.Bridge.Context).End()
 	Set manager = ##class(%AI.ToolMgr).%New()
 	For toolset = 1:1:$Length($Parameter("OcuTalon.Agent.Chat", "TOOLSETS"), ",") {

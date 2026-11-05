@@ -8,7 +8,8 @@ Parameter ANSWERER = "ocutalon";
 
 /// An unsaved request of the kind with new OwnerRef and TraceRef. A tool_call holds the call: name, arguments, source and runner (the defaults are
 /// the gate fixture's held call zz_gate_held with {"value":1} from ZzGateTool and no runner). A fix has IncidentRef, ResultTarget IncidentManager, a
-/// DryRun and the fix's FixKind zz_fix, FixParameters {"field":"OrderDate"} and FixTargets 101,102,103.
+/// DryRun and the fix's FixKind zz_fix, FixParameters {"field":"OrderDate"} and FixTargets 101,102,103. A setting has the OwnerRef as its session Ref,
+/// ResultTarget SettingsOps and the DryRun of SettingDryRun, and no incident, tool or fix field.
 ClassMethod NewRow(kind As %String, name As %String = "zz_gate_held", arguments As %String = "{""value"":1}", source As %String = "OcuTalon.Test.Bridge.ZzGateTool", runner As %String = "") As OcuTalon.Bridge.Data.ApprovalRequest
 {
 	Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).%New()
@@ -20,6 +21,9 @@ ClassMethod NewRow(kind As %String, name As %String = "zz_gate_held", arguments 
 		Set row.ToolArguments = arguments
 		Set row.ToolSource = source
 		Set row.Runner = runner
+	} ElseIf kind = "setting" {
+		Set row.ResultTarget = "SettingsOps"
+		Set row.DryRun = ..SettingDryRun(row.OwnerRef)
 	} Else {
 		Set row.IncidentRef = ##class(OcuTalon.Bridge.Ids).NewRef()
 		Set row.ResultTarget = "IncidentManager"
@@ -29,6 +33,12 @@ ClassMethod NewRow(kind As %String, name As %String = "zz_gate_held", arguments 
 		Set row.FixTargets = "101,102,103"
 	}
 	Quit row
+}
+
+/// The DryRun of a setting request of the session Ref owner: {"key","ownerRef","old","new"} for the persona of the session.
+ClassMethod SettingDryRun(owner As %String) As %String
+{
+	Quit {"key": ("person."_owner_".persona"), "ownerRef": (owner), "old": "Professional (default)", "new": "Pirate"}.%ToJSON()
 }
 
 /// Saves the unsaved row in the state with a new Ref, returned in ref: RequiredRole OcuTalonUser, RaisedAt a minute ago and ExpiresAt expiresIn

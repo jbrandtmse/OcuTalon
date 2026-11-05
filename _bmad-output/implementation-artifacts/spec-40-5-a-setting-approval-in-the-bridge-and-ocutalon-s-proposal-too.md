@@ -2,13 +2,21 @@
 title: 'Story 40.5: A `setting` approval in the bridge, and OcuTalon''s proposal tool'
 type: 'feature'
 created: '2026-11-05'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '1f1b53757543aa468c67d9096213dadd2572ec1c'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-40-context.md'
 warnings: [oversized]
-deferred: []
+deferred:
+  - summary: >-
+      Web/Api.cls AnswerResponse picks the not-approver 403 text by `kind = "fix"`, so a not-allowed answer to a setting request gets the tool-call wording.
+    evidence: |-
+      Web/Api.cls:580 `$Select(kind = "fix": MESSAGENOTAPPROVER, 1: MESSAGENOTAPPROVERTOOL)`. Nothing raises a setting request until Story 40.6, and the intent forbids any Web/Api.cls edit in 40.5.
+    location: >-
+      src/ocutalon/cls/OcuTalon/Web/Api.cls:580
+    severity: low
 ---
 
 <intent-contract>
@@ -145,6 +153,31 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-11-05 — Review pass
+- verdicts: 28 findings reported (blind 11, edge-case 10, verification-gap 6, intent-alignment 1), in 21 rows (a finding that several layers or one layer repeated shares a row) — high 0, medium 3 rows, low 18 rows, false 0, maybe-false 0
+- findings:
+  - `[low]` `patch` Raise doc comment splices the setting clause into the fix clause (blind) — rewritten with `;` separators in Approval.cls.
+  - `[low]` `defer` Web/Api.cls 403 wording for a setting request (blind, verification-gap) — intent forbids Web/Api.cls in 40.5; deferred to 40.6's area.
+  - `[low]` `reject` ValidateSetting bounds nothing on key/old/new (blind) — the owner validates values (spec Decided in-stage); a bridge cap adds a rule the spec does not name.
+  - `[low]` `reject` cancel, re-arm and SettingKey-catch paths untested (blind) — kind-agnostic paths already pinned for the other kinds; fix is more than a direct correction.
+  - `[medium]` `patch` TestReconcileDeliversASettingOutcome second Reconcile cannot observe a duplicate; `again` unused (blind, verification-gap) — now waits for the delivery holds to end and asserts `StartsOf(again, ref) = 0`.
+  - `[medium]` `patch` TestSettingOwnerOnly acts before the hold is ready, no empty-role guard, no wait for the outcome (blind, edge-case, verification-gap) — now waits for the task, guards an empty role, waits for the hold end and one outcome; owner-clause mutation recorded.
+  - `[low]` `reject` preset list hard-coded in PersonaTools, not pinned to Msg.Enum PERSONAPRESET (blind) — the spec fixes the six ids in the doc comment; a pin is added surface.
+  - `[low]` `patch` garbled counts in the Instructions test comment (persona toolset named twice) (blind, edge-case) — rewritten; the Runners.cls comment chain is left (Epic 17 changed that comment).
+  - `[low]` `reject` Chat instruction does not mention language/custom arguments; no refusal scenario (blind) — the paragraph is verbatim UX text (spec-bound); the tool description carries the arguments.
+  - `[low]` `reject` mock scenario text coupled to the turn test (blind) — same pattern as the reminder scenarios.
+  - `[low]` `reject` TestToolRows count hard-coded as RELEASE1 plus PROPOSEPERSONA (blind) — decided in-stage; the spine keeps the name out of RELEASE1.
+  - `[low]` `reject` bare Else in Validate and ReconcileDeliveries would take a future kind as a setting (edge-case) — APPROVALKIND holds exactly the three kinds today; a new kind needs its own rules in its story.
+  - `[low]` `reject` ResultTarget only checked non-empty (edge-case) — as for a fix; the spec says a name string only.
+  - `[low]` `reject` repeated delivery holds for 7 days when the target cannot take the outcome (edge-case) — the existing fix behavior (DELIVERYDAYS), not caused by this story.
+  - `[low]` `reject` outcome `proposed` when Ok even if the owner's outcome differs; empty outcome when not Ok (edge-case x2) — spec: `outcome` is `proposed` on Ok, else the owner's Outcome.
+  - `[low]` `reject` stray language/custom reach the owner (edge-case) — the tool validates nothing; the owner does (spec).
+  - `[low]` `reject` AnswerAs, roles-empty and RaiseHeld key fragility (edge-case x3) — test helpers fail loudly; the roles guard was patched with TestSettingOwnerOnly.
+  - `[low]` `reject` spec says 9 Chat names, test expects 10 (edge-case) — 9 was the count before this tool; recorded in Design Notes.
+  - `[medium]` `patch` ValidateSetting's IncidentRef entry masked by the generic IncidentRef check (verification-gap) — new `Refusals()` row with a valid Ref; mutation recorded.
+  - `[low]` `reject` extra mutation lines for the DryRun rules, Facts target and AssertRefused field-only check (verification-gap x2) — one demonstrated mutation per AC is the bar; AC 1 has four.
+  - `[low]` `reject` intent-alignment: readings A to D enumerated; the diff implements A and C with the owner behind CommandsIn doubled (descriptive, 4 rows) — no divergence from the intent; the real producer and consumer are 40.6's.
+
 ## Design Notes
 
 **Governing decisions:**
@@ -173,6 +206,7 @@ deferred: []
 - *Security overview count.* `TestToolRows` compares against `RELEASE1` plus `PROPOSEPERSONA`, because the spine keeps the name out of `RELEASE1`.
 - *Test target.* The bridge tests use the real `SettingsOps` as `ResultTarget`, which AD-11 names, and assert only the outcome message, because 40.6 will act on it. The real-`SettingsOps` turn (today `not_built`) is not pinned, so 40.6 changes no 40.5 assertion except the double's.
 - *Tool tests use the double.* Its `ProposePersona` answer is 40.6's contract (Ok, Ref = the request's `ApprovalRef`).
+- *Implement-stage decisions.* `ValidateSetting` and `SettingKey` are private helpers of `Approval`, and `ApprovalRows.SettingDryRun(owner)` builds the matrix `DryRun` once for `NewRow` and the owner-only test. The "Setting refused" rows write the row's own OwnerRef as the token `{OWNER}` in a `DryRun` value, which `TestRefused` replaces. `Test.Bridge.Approval.AnswerAs` is a short private copy of `Test.Core.AnswersInProduction.FromPageAs` (that one is private and the class needs a production base). `Instructions.TestToolsets` expects 10 Chat names (the spec's "9" was the count before this tool). In `Test.Agent.Runners` the offered-name literal `REMINDERTOOLS`, the inventory's expected list and one provider-map line changed; the class comment line that lists the tools (Epic 17 changed it) was left as it was. `SecurityOverview.TestProposePersonaRow` is new (see the AC 8 mutation).
 
 **Integration ACs (Rule 1/2).** `TestProposeThroughATurn` (AC 4) runs a real `ChatAgent` turn against the mock: the consumer, Chat, offers the toolset and its call reaches `CommandsIn`. The `setting` kind has no product consumer in this story; the first is Story 40.6 (`SettingsOps` raises and handles the outcome).
 - Consumes:
@@ -225,6 +259,20 @@ All calls run from the worktree root with `timeout: 600000`, one per call. `<D>`
 - AC 7: one word of the proposals paragraph changed -> `PersonaBlock:TestParagraphs` red.
 - AC 8: `Persona` removed from Chat's `TOOLSETS` -> `SecurityOverview:TestToolRows` red.
 
+Recorded by the implement stage (each applied, observed red, reverted with the file byte-identical by md5):
+- AC 1: mutation: ValidateSetting's OwnerRef check `If '..IsRef(...)` replaced by `If 0` (instance/eval pass it) -> `Test.Bridge.Approval:TestRefused` red (the OwnerRef `instance` and `eval` rows name DryRun, not OwnerRef).
+- AC 1: mutation: the `setting` branch of `Validate` replaced by one fix rule (setting falls to the fix rules) -> `TestRefused`, `TestRaiseSetting`, `TestSettingOutcomes` and `TestSettingOwnerOnly` red (the setting row is refused for FixKind).
+- AC 2: mutation: `HoldResponse` `(row.Kind = "tool_call")` -> `(row.Kind '= "fix")` (every approved non-fix kind replayed) -> `TestSettingOutcomes` (a) red (no outcome; a Request is sent) and `TestReconcileDeliversASettingOutcome` red; fresh run.
+- AC 2: mutation: `ReconcileDeliveries` SQL `Kind IN ('fix', 'setting')` -> `Kind = 'fix'` -> `TestReconcileDeliversASettingOutcome` red (the approved, rejected and expired rows get no outcome).
+- AC 3: mutation: code line `Set x = ##class(OcuTalon.Core.SettingsOps).%ClassName()` in `Approval.cls` -> `test-class-rules.sh` `bridge-refs` FAIL.
+- AC 4: mutation: `PersonaTools` answer `outcome` = `result.Outcome` always, with the double answering `created` -> `Test.Tools.Persona` `TestProposeUserTurn`, `TestProposeFields`, `TestOnlineDemo` (control) and `TestProposeThroughATurn` red.
+- AC 5: mutation: `READONLYPROPOSEPERSONA = 1` -> `Test.Bridge.Gate` `TestFlagsAreListed`, `TestUntrustedTurnRunsOnlySafeReadOnly` and `TestTaintedTurnRunsOnlySafeReadOnly` red.
+- AC 6: mutation: the `OnlineDemo()` check replaced by `If 0` -> `Test.Tools.Persona:TestOnlineDemo` red.
+- AC 7: mutation: "because" -> "when" in the proposals paragraph of Chat -> `PersonaBlock:TestParagraphs` red.
+- AC 1: mutation: `"IncidentRef"` removed from `ValidateSetting`'s empty-field loop (the new `Refusals()` row gives a setting a valid 22-character IncidentRef) -> `Test.Bridge.Approval:TestRefused` red (the row is accepted and saved).
+- AC 1: mutation: `Ownership.APPROVALVISIBLE` owner clause loosened to `(a.OwnerRef = ? OR a.OwnerRef <> 'instance')` -> `Test.Bridge.Approval:TestSettingOwnerOnly` red (T lists the row, and T's answer is not `not_found`); both files restored byte-identical (md5), run in one fresh stack.
+- AC 8: mutation: `Persona` removed from Chat's `TOOLSETS` -> `SecurityOverview:TestToolRows` stayed green (the generator lists every toolset of the Tools package, held or not), so `TestProposePersonaRow` was added (the row's agent column and its table line) -> `TestProposePersonaRow` red.
+
 **Standing criterion:** every test added or changed passes on a fresh environment, in either order.
 
 **Shared surfaces:**
@@ -236,5 +284,23 @@ All calls run from the worktree root with `timeout: 600000`, one per call. `<D>`
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** The bridge validates a `setting` approval request (`ValidateSetting`, `SETTINGKEYS`), audits the DryRun key as `target`, and `Reconcile` redelivers a lost setting outcome; the hold needed no code change. Chat gains the `propose_persona` tool (`Tools.PersonaTools`, `Tools.Persona`), the UX proposals paragraph, one generated security-overview row and a mock scenario.
+
+**Files changed.**
+- `src/bridge/cls/OcuTalon/Bridge/Approval.cls` -- setting rules, audit target, Reconcile set, comments.
+- `src/bridge/cls/OcuTalon/Bridge/{Process/ApprovalHold,Msg/ApprovalOutcome,Data/ApprovalRequest}.cls` -- comments only.
+- `src/ocutalon/cls/OcuTalon/Tools/{PersonaTools,Persona}.cls` -- new tool and toolset.
+- `src/ocutalon/cls/OcuTalon/Agent/Chat.cls` -- TOOLSETS, comments, proposals paragraph.
+- `docs/security-overview.md` -- one tool row. `ci/mock/scenarios/A/persona-propose.json` -- new scenario.
+- Tests: new `Test/Tools/Persona.cls`; changed `Test/Bridge/{Approval,ApprovalRows,Gate,CodeRules}.cls`, `Test/Tools/{CommandsDouble,Reminders}.cls`, `Test/Agent/{Instructions,PersonaBlock,Runners}.cls`, `Test/Install/SecurityOverview.cls`, `Test/Watch/{Tools,Turns}.cls`.
+
+**Review.** 28 findings in 21 rows: patches applied 5 (3 medium test gaps, 2 low comment fixes), deferred 1 (Web/Api.cls 403 wording, 40.6's area), rejected 15 with reasons in the triage log. Patched by hand (Rule 18): the Raise doc comment, the Instructions test comment, `TestReconcileDeliversASettingOutcome` (waits, `StartsOf`), `TestSettingOwnerOnly` (task wait, role guard, hold-end and outcome waits), and a valid-Ref IncidentRef refusal row.
+
+**Follow-up review recommended: true.** Three medium test patches were made on a first pass (the second Reconcile pass and the owner-only waits in `Test.Bridge.Approval`); they are pinned by one green fresh run and one two-mutation run only.
+
+**Verification.** `(loop)`: slot D load and compile OK; Chat byte-check True; protected-file diff empty; `test-class-rules`, `test-boundaries`, `test-mock`, `test-ci-config` pass; warm CodeRules, PersonaBlock, Instructions, Constants, Bridge.Contracts, Msg.Contracts pass; fresh Approval (126 s, re-run after the patches), Tools.Persona, Bridge.Gate, Tools.Reminders, Agent.Runners, Install.SecurityOverview, Watch.Tools, Watch.Turns pass. `(once)`: `shard lane-a@Tools` forward and `--reverse`, `shard lane-a@Agent`, `live security-overview` (no DRIFT) and `live demo-path` (8 of 8 steps) pass; they ran before the review patches, which changed comments and `Test.Bridge.Approval` only, and after them `Test.Bridge.Approval` (fresh) and `Test.Agent.Instructions` (fresh) were green. Mutations are recorded under `## Verification`. Footprint extensions reported: `Bridge/Msg/ApprovalOutcome.cls`, `Bridge/Data/ApprovalRequest.cls` (comments), `Test/Watch/{Tools,Turns}.cls`, `Test/Install/SecurityOverview.cls`, `Test/Agent/Runners.cls`, `Test/Bridge/CodeRules.cls` (one-name additions, none on a line Epic 17 changed), and one row in `docs/security-overview.md`.
+
+**Residual risks.** The `Test/Agent/Runners.cls` class-comment line that lists Chat's tools (Epic 17 changed it) still omits `propose_persona`. The AC 8 mutation in the spec does not turn `TestToolRows` red (it lists every toolset of the package), so `TestProposePersonaRow` pins the agent column instead. The tool tests run against `CommandsDouble`; the real owner is Story 40.6's.
