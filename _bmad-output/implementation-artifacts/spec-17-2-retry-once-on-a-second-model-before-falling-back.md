@@ -2,7 +2,7 @@
 title: 'Story 17.2: Retry once on a second model before falling back'
 type: 'feature'
 created: '2026-11-05'
-status: 'done'
+status: 'in-progress'
 baseline_revision: 'a2854087e67c56213ae550d895d3e5da62878fdb'
 baseline_commit: 'a2854087e67c56213ae550d895d3e5da62878fdb'
 review_loop_iteration: 0
@@ -291,7 +291,10 @@ Rejected:
 - `low` AC8(b), AC1's sub-clauses and the retry's no-re-send guard have no mutation lines of their own: Rule 19 asks for one mutation per AC, AC8 and AC1 have theirs, and the guard is a task, not an AC.
 - `low` The spec contradicts itself (residual risk 2's "45 s", the matrix arming 0, "Not touched: the spine", `status` beside the unticked U-281): fixing these means editing the spec under review. U-281 is now ticked, and the spine edit was the lead's, under U-282.
 
+- [ ] [CI] checks: `docker/tests/test-bridge-guide.sh` rule `reference` fails on fa7a154f: "the guide does not name `RetryItem`" and "the guide does not name `RetryOf`" -- https://github.com/jbrandtmse/OcuTalon/actions/runs/42007140091 -- fix: append ONE self-contained section at the very END of `docs/bridge-guide.md` (after "## Where to go next"; contended with Epic 40, so touch nothing else in the file), titled `## Second-model retry`, in the guide's reference style, ASCII only: name the first runner's `Decide` host setting `RetryItem` (empty by default: no retry; set by the model-change API) and the `Request` field `RetryOf` (set by `Decide` on the one retry it sends; a client's value is ignored and cleared), the retried and never-retried reasons as AD-8 and the spine's 2026-11-05 extension give them (a timed-out `turn` is never retried), and the timer split with the sentence `RETRYSKIPPED` gives. Claim only what Story 17.2 built. Then `bash docker/tests/test-bridge-guide.sh` passes (ruling U-286, veto).
 ## Spec Change Log
+
+- 2026-11-05 rework iteration 1 (trigger ci): CI red on fa7a154f (checks: test-bridge-guide reference, RetryItem and RetryOf not named in docs/bridge-guide.md); one [CI] item added (ruling U-286).
 
 - 2026-11-05 after implement (lead): owner answers applied to the spec: U-281 REWORD (R1 text), U-282 KEEP with conditions; two `[Owner]` items added under Tasks & Acceptance for the QA / code-review stages; AD-8 extended in the spine.
 
