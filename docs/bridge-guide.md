@@ -329,3 +329,27 @@ Two parts of AI Hub that the bridge builds on are experimental in build 154, so 
 ## Where to go next
 
 OcuTalon's own README describes the product that is built on this bridge. The bridge's classes are in `src/bridge/cls/OcuTalon/Bridge`, and the example is in `src/bridge/cls/OcuTalon/BridgeExample`.
+
+## Second-model retry
+
+A decision that gets no usable answer from the first model can be tried once on a second model before `Decide` takes the fallback route. Nothing turns this on by default: the install sets no second model, so `Decide` behaves as "The fallback route" says.
+
+- `RetryItem` is a setting of a runner item, and `Decide` reads it. It names the retry runner of that runner: another enabled `OcuTalon.Bridge.Operation.AgentRunner` item of the production, whose `Model` setting is the second model. An empty value means no second model, and it is empty by default. A value that names the runner itself, a missing, disabled or non-runner item, or (for a decision or a diagnosis) an item whose `ReplyClass` is refused is not used: `Decide` logs one warning that names the setting and takes the fallback route. A retry runner's own `RetryItem` is never followed, so a retry is never retried. Write `RetryItem` as any setting in "Settings" is written, and update the production. The retry runner is set up like any runner: `AgentClass`, `AgentAllowList`, `ProviderConfig`, and `ReplyClass` for a decision.
+- `RetryOf` is a property of `OcuTalon.Bridge.Msg.Request`. `Decide` sets it, on the one retry request it sends, to the first runner's item. A value that a caller sets is ignored: `Decide` clears it on every first send and every re-send, and a request that carries one does not skip the wait for a conversation that is in use. The retry runner acts on `RetryOf` only when the named runner's `RetryItem` names it.
+
+The retry is the same request, with the same `DecisionRef` and `ItemId`, sent once. The retry runner takes its session config from its own model's family, and the bridge sets no `temperature`, `top_p` or `top_k` on it. The retry runner has its own key check and its own budget and size checks before the request is sent.
+
+The reasons that are retried once are `timeout`, `rate_limited`, `error`, `refusal`, `cut_off`, `empty`, `invalid`, `unusable` and `no_key` (for `no_key`, the retry runner's own key is the one that is checked). After `rate_limited`, `Decide` re-sends to the same runner as before while time remains, and the retry follows when no re-send fits. These are never retried:
+
+- `daily_cap`, `budget` and `too_large`.
+- An attempt in which a tool ran (`ToolsRun`).
+- A turn whose session is broken, and a request of the kind `tool`.
+- The retry itself. `Decide` does not send it again after `rate_limited`, and a fallback after it carries its reason.
+
+A timer that fired leaves it unknown whether a tool ran, so an attempt whose timer fired is retried only when no tool can have changed anything. A `turn` whose timer fired is never retried: it takes the fallback route with the reason `timeout` (`rate_limited` when it had been re-sent after a rate limit). A `decide` or `diagnose` request whose timer fired is retried only when every tool of its agent is read-only by what the tool classes declare, and a toolset that this cannot be judged for counts as not read-only.
+
+The two attempts share the 110 seconds. The first attempt keeps its timer T1, and the retry waits T2, the lesser of `TimerSeconds` and 110 seconds minus T1. The retry is sent only when T2 is at least 12 seconds: with the default `TimerSeconds` of 60 seconds the retry waits 50 seconds, and when T1 is more than 98 seconds the retry is never sent. When it is not sent, the fallback route is taken with the first attempt's reason, and the decision's reasons read: "The second model was not tried, because too little time was left within the decision's 110-second limit." The retry runner's Config Store entry holds the `http_config` of `Timeouts.Derive` for the greater of 12 and the lesser of the timer and 110 minus the timer, and `Timeouts.Apply(timer)` keeps it so. A reply that reaches `Decide` after its timer counts its cost and is dropped.
+
+The decision is still one record and one answer. Its tokens, cost and steps are the sums of both attempts, its `Model` is the model of the reply that answered, and, when both attempts fail, its reason is the last attempt's.
+
+A retried turn of a conversation that the bridge saves runs without the conversation lock, in a new AI session that is seeded from the stored conversation (or from `SeedText` when the turn starts fresh). When the retry completes, the conversation moves to that session. The later writers of a conversation move it only if it still names the session they opened, so a late first attempt does not undo the retry.

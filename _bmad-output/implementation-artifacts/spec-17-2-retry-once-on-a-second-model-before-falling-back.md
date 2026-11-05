@@ -2,11 +2,11 @@
 title: 'Story 17.2: Retry once on a second model before falling back'
 type: 'feature'
 created: '2026-11-05'
-status: 'in-progress'
-baseline_revision: 'a2854087e67c56213ae550d895d3e5da62878fdb'
+status: 'done'
+baseline_revision: '4f2cb72a7daef03f4e3ec9ed6c0b915ceb02a89b'
 baseline_commit: 'a2854087e67c56213ae550d895d3e5da62878fdb'
 review_loop_iteration: 0
-followup_review_recommended: true
+followup_review_recommended: false
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-17-context.md'
 warnings: ['oversized']
@@ -291,7 +291,7 @@ Rejected:
 - `low` AC8(b), AC1's sub-clauses and the retry's no-re-send guard have no mutation lines of their own: Rule 19 asks for one mutation per AC, AC8 and AC1 have theirs, and the guard is a task, not an AC.
 - `low` The spec contradicts itself (residual risk 2's "45 s", the matrix arming 0, "Not touched: the spine", `status` beside the unticked U-281): fixing these means editing the spec under review. U-281 is now ticked, and the spine edit was the lead's, under U-282.
 
-- [ ] [CI] checks: `docker/tests/test-bridge-guide.sh` rule `reference` fails on fa7a154f: "the guide does not name `RetryItem`" and "the guide does not name `RetryOf`" -- https://github.com/jbrandtmse/OcuTalon/actions/runs/42007140091 -- fix: append ONE self-contained section at the very END of `docs/bridge-guide.md` (after "## Where to go next"; contended with Epic 40, so touch nothing else in the file), titled `## Second-model retry`, in the guide's reference style, ASCII only: name the first runner's `Decide` host setting `RetryItem` (empty by default: no retry; set by the model-change API) and the `Request` field `RetryOf` (set by `Decide` on the one retry it sends; a client's value is ignored and cleared), the retried and never-retried reasons as AD-8 and the spine's 2026-11-05 extension give them (a timed-out `turn` is never retried), and the timer split with the sentence `RETRYSKIPPED` gives. Claim only what Story 17.2 built. Then `bash docker/tests/test-bridge-guide.sh` passes (ruling U-286, veto).
+- [x] [CI] checks: `docker/tests/test-bridge-guide.sh` rule `reference` fails on fa7a154f: "the guide does not name `RetryItem`" and "the guide does not name `RetryOf`" -- https://github.com/jbrandtmse/OcuTalon/actions/runs/42007140091 -- fix: append ONE self-contained section at the very END of `docs/bridge-guide.md` (after "## Where to go next"; contended with Epic 40, so touch nothing else in the file), titled `## Second-model retry`, in the guide's reference style, ASCII only: name the first runner's `Decide` host setting `RetryItem` (empty by default: no retry; set by the model-change API) and the `Request` field `RetryOf` (set by `Decide` on the one retry it sends; a client's value is ignored and cleared), the retried and never-retried reasons as AD-8 and the spine's 2026-11-05 extension give them (a timed-out `turn` is never retried), and the timer split with the sentence `RETRYSKIPPED` gives. Claim only what Story 17.2 built. Then `bash docker/tests/test-bridge-guide.sh` passes (ruling U-286, veto).
 ## Spec Change Log
 
 - 2026-11-05 rework iteration 1 (trigger ci): CI red on fa7a154f (checks: test-bridge-guide reference, RetryItem and RetryOf not named in docs/bridge-guide.md); one [CI] item added (ruling U-286).
@@ -336,6 +336,20 @@ Rejected:
   - `[low]` `[reject]` Verification gap (other): the SecurityOverview statement says TestToolInventory checks every running runner, while the retry runners are checked by TestToolsMatchRunners - the statement is AD-10 fixed public text; the retry runners are the same agent classes. Reopen_if the statement is next revised.
   - `[low]` `[reject]` Verification gap (other): TryRetry's Busy branch is effectively unreachable - same as the Blind finding on Held.
   - intent-alignment: descriptive, no finding; its divergences (dormant by default, R2 scope for runner-reported timeouts, full Precheck on the retry, Model for every decision) are spec-directed or follow R2.
+
+### 2026-11-05 - Review pass (rework iteration 1, [CI] item: the guide's Second-model retry section)
+- verdicts: 9 findings - high 0, medium 0, low 9, false 0, maybe-false 0
+- findings:
+  - `[low]` `[reject]` Blind: the section is not tied into the Settings tables, "The fallback route" or "Timeouts", and sits after "Where to go next" - the rework item (U-286) fixes the placement at the very end and forbids touching anything else in the file (contended with Epic 40).
+  - `[low]` `[patch]` Blind: the section never says how to set `RetryItem` or that the retry runner is configured like any runner - patched: one sentence says to write it as any setting and update the production, and names the runner settings.
+  - `[low]` `[patch]` Blind: the timer arithmetic has no practical result - patched: the default 60 s gives a 50 s retry, and a T1 above 98 s means no retry.
+  - `[low]` `[patch]` Edge: a turn that timed out after a rate-limit re-send falls back with `rate_limited`, not `timeout` (`Classify`, Decide.cls:1212) - patched: the guide says so.
+  - `[low]` `[patch]` Edge: "a timed-out turn is never retried" could be read to cover a provider-reported timeout, which is retried (`timedOut` 0) - patched: the sentence now says "a turn whose timer fired"; same root cause as the row above (the timeout wording).
+  - `[low]` `[patch]` Edge: the section does not say that a `rate_limited` reply is re-sent to the same runner first - patched: one sentence, from AD-8 and `Decide.Resend`.
+  - `[low]` `[reject]` Edge: the Settings table and "Timeouts" describe release 1's single attempt - they are true while `RetryItem` is empty, and the first paragraph of the new section says what changes when it is set; editing them is forbidden by U-286.
+  - `[low]` `[reject]` Verification gap: no `reference` check pins the `RETRYSKIPPED` sentence or the `RETRIED` list in the guide - this pass makes no pinning test change (Rule 19 override), and a new check is more than a direct correction; reopen_if the sentence or the list changes again.
+  - `[low]` `[reject]` Verification gap: the open [CI] item has no `mutation:` line - it is a CI-repair item and not an acceptance criterion, and its test changed nothing in this pass; the failing state before the section (the two missing names) is the CI run's red.
+  - intent-alignment: descriptive, no finding. It reads the intent as a reference-style prose section only. Its divergences are spec-directed: `RetryItem` is documented as a setting of the runner item that `Decide` reads (the code declares it on `AgentRunner`, not `Decide`), and "set by the model-change API" is omitted because Stories 17.3 and 17.4 build it.
 
 ## Design Notes
 
@@ -529,14 +543,14 @@ Mutations of the QA stage (each applied to one file or, where said, to the edits
 Status: done
 Blocking condition: none
 
-**Summary.** The second-model retry is built. `Decide.TryRetry` sends the same request once to the retry runner named by the first runner's `RetryItem` (same `DecisionRef` and `ItemId`, `RetryOf` the first runner, timer T2 from `RetrySeconds`), and falls back as release 1 otherwise. Lead rulings R1 and R2 are followed (a timed-out `turn` is never retried; a timed-out decide or diagnose only when `ToolsReadOnly` holds). A retried linked turn runs unlocked in a new seeded session and points the link at it; `ConversationLink.Point` is a compare-and-set for the other writers. Retry entries, `RetryTimer`, enabled retry items and ten `retry-*` mock scenarios are in.
+**Summary.** Rework iteration 1 closes the [CI] item. A `## Second-model retry` section is appended at the very end of `docs/bridge-guide.md`, after "## Where to go next", and nothing else in the file changed. It names the runner setting `RetryItem` (empty by default, read by `Decide`; the guide says only what Story 17.2 built, so it does not name the model-change API) and the `Request` property `RetryOf` (set by `Decide` on the one retry, cleared on every first send and re-send, ignored when a client sets it), the retried and never-retried reasons, the rule for a timer that fired (a `turn` is never retried), the timer split T2 = min(`TimerSeconds`, 110 - T1) with the 12-second minimum and the `RETRYSKIPPED` sentence, and the one-decision totals and the retried turn's unlocked seeded session. The facts were checked against `Decide.cls`, `Request.cls`, `AgentRunner.cls`, `Timeouts.cls` and the spine's AD-8.
 
-**Files changed (footprint extensions outside the epic's `paths_hint`, none contended):** `Bridge/Msg/Request.cls`, `Bridge/Data/ConversationLink.cls`, `Bridge/RequestSize.cls` (`StoredMessages`), `src/ocutalon/cls/OcuTalon/Production.cls` (Lane A region), `Test/Agent/RunnerFixture.cls`, `Test/Bridge/Contracts.cls`, `Test/Install/SecurityOverview.cls`, `docker/tests/test-production.sh` (row 16's job pattern matched `TriageAgentRetry`). Epic 17 files: `Bridge/Process/Decide.cls`, `Bridge/Adapter/Agent.cls`, `Bridge/Operation/AgentRunner.cls`, `Bridge/Timeouts.cls`, `Install/Step/Provider.cls`, `ci/mock/scenarios/A/retry-*.json` (10 files), and the tests `Test/Bridge/{Decide,Conversation,Timeouts,Runner,CodeRules,ZzDecide,SecondModel,ZzRetryAdapter,ZzRetryRunner}.cls`, `Test/Install/{Provider,Production}.cls`.
+**Files changed.** `docs/bridge-guide.md` (one appended section), and this spec.
 
-**Review.** 30 findings: patches applied 8 (StoredMessages bad record, RetryAllowed whitespace, SaveRetried and Point on a lost write, Point doc, `TestRetryTurnSkipsHeld`, retry `timeout_ms` pin, missing mutation lines), deferred 1 (ToolsReadOnly and MCP tools of step 4, in frontmatter), rejected 21 (each reason is in the Review Triage Log).
+**Review.** 9 findings: patches applied 5 (all low: how to set `RetryItem`, the practical timer result, the `rate_limited` reason of a re-sent turn that timed out, "a turn whose timer fired", the re-send before the retry), deferred 0, rejected 4 (each reason is in the Review Triage Log).
 
-**Follow-up review recommended: true.** Patched mediums: 2. Unverified risk: the new error return of `ConversationLink.Point` for an unconditional write that lost a create race, and `SaveRetried` reading its `moved` output, are reachable only in a three-way race and have no test; `RetryAllowed`'s whitespace strip has none either.
+**Follow-up review recommended: false.** Patched counts: high 0, medium 0, low 5. No high was patched in this follow-up pass.
 
-**Verification.** Warm stack `e17s2iw` (torn down; lane A lock folder empty): `Test.Bridge.{Decide,Conversation,Runner,SessionConfig,SecondModel,CodeRules,SettingsStubs}` and `Test.Agent.{Decide,Models}` pass after the review patches; `test-storage`, `test-class-rules` and `test-boundaries` pass. The first implement pass ran every `## Verification` line (11 classes, mock, five static scripts, fresh `install-start`, `production` and the Bridge, Agent and Install shards). Mutations: see `## Verification`.
+**Verification.** `bash docker/tests/test-bridge-guide.sh`: all four rules pass (blocks, reference, u229, public), before and after the review patches. `bash docker/tests/test-boundaries.sh`: all rules pass. No IRIS runtime or stack was used.
 
-**Residual risks.** (1) The retry's seed holds the refused exchange the first attempt saved (the spec seeds from the stored history). (2) A default install's retry entries derive from `RetryTimer(60)` = 50 s (a 45 s request timeout). (3) If a slow host stretches the 529 of `retry-overloaded-late` past 12 s, the timer path retries instead of the `rate_limited` path. (4) The late-first-attempt case is pinned with shadow runners, not by the production (R2). (5) The `SecurityOverview` statement names `TestToolInventory`, which still checks the three first runners; the retry runners are checked by `TestToolsMatchRunners`.
+**Residual risks.** The guide's retried-reason list and the `RETRYSKIPPED` sentence are not pinned by `test-bridge-guide.sh` (rejected as a test change outside this pass), so they can drift from `Decide.cls`.
