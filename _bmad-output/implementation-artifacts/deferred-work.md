@@ -3836,6 +3836,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: web/scripts/payloads.mjs fails closed on a payload class not in TYPES; Test.Live.Payloads pins 16 types and 30 classes; Live/Publish.cls and web/src/app/live are Epic 31-contended Lane B files (U-177); spine ownership row names Story 39.1
 - 2026-11-03T14:18:41Z status=routed owner=39-3-beats-fall-due-on-the-tick-and-skip-without-a-model-call-whe by=harvest note=39.3 plan: arrange the Lane B append (a ruling, or wait on Epic 31's merge for Publish.cls/payloads.ts); correct the spine Built-in cell for Live.Payload.Heartbeat
 - 2026-11-03T15:45:22Z status=routed owner=39-7-publish-the-heartbeat-event by=spec_gate note=Story 39.3's event AC split into sibling Story 39.7 (unattended ruling, decide); 39.7 waits on Epic 31 (Live/Publish.cls TYPES, web/src/app/live, Test.Live.Payloads are Lane B and Epic 31-contended) or an orchestrator-arranged Lane B append
+- 2026-11-05T06:06:22Z status=resolved-by:39-7-publish-the-heartbeat-event by=adjudication note=4d4e50e7 lands Live.Payload.Heartbeat, the heartbeat:Heartbeat TYPES pair, Test.Live.Payloads at 17 types and 31 classes and the regenerated payloads.ts together; Test.Live.Payloads.TestHeartbeatFromRow and TestContracts pin them
 
 ### DW-634: UX lists no text for the Run the heartbeat now button while it is unavailable (daily cost cap reached or no model key)
 - source: _bmad-output/implementation-artifacts/spec-39-1-fix-the-heartbeat-s-names-and-contracts.md | severity: low | fix-risk: low | footprint: in-epic
@@ -4031,3 +4032,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: cycle-log-epic-39.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: run 41930634318 attempt 1 on OCT-epic39 149a8d8d (iris shards-2); same 84 classes and order green on feature ac2c4549 (41916844884); not reproduced on fresh or warm lane-D replays of the Fix tail and Eval.Record; incident window 23:32-23:38 matches Eval.KeyProof/Eval.Record then Fix.EitherWay (ended 23:35:29) and Fix.Later (ended 23:38:06)
 - 2026-11-05T00:11:45Z status=routed owner=burndown by=lead note=inference: an Epic 7 Fix.EitherWay cleanup and Fix.Later approval race; a second occurrence on any branch or on feature is real: replay lane-a@rest's 84 classes in CI order on one warm stack
+
+### DW-711: Test.Checks.Beat and Runs heartbeat fixtures (a pending decision then RunDue, RunNow, a probe Tick or BeatNow) can be settled first by a real HeartbeatIn Tick, whose RunDue settles every pending row
+- source: spec-39-7-publish-the-heartbeat-event.md | severity: low | fix-risk: high | footprint: in-story
+- evidence: the stacks run the production; a real RunDue with no session list records any test row's pending decision; window is milliseconds between the fixture Decision and the test's own call (same shape as Story 39.3's tests)
+- 2026-11-05T06:05:07Z status=wontfix-accepted owner=39-7-publish-the-heartbeat-event by=cr note=reopen_if=a CI or fresh red in Test.Checks.Beat or Runs on a view count or backoffUntil with a real Tick logged in that second

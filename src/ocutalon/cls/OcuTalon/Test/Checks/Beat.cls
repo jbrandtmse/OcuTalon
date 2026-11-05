@@ -24,7 +24,9 @@
 ///   - TestViewsInCommitOrder (Story 39.7): the views of RunDue and RunNow, one for each commit of a row and in commit order, each equal to Heartbeat.FromRow of the
 ///     reopened row at that point: a recorded ignore then the unchanged skip of one RunDue (two views), an off person's recorded decision, nothing for a person
 ///     who is not due or is off with nothing pending, a run now that sends (also after a recorded decision), a run now that is held, and a cooldown (nothing, or
-///     only the recorded result of a pending decision).
+///     only the recorded result of a pending decision);
+///   - TestFailedCommitsGiveNoView (Story 39.7, QA; AC 3): a recorded decision that cannot be saved, a row refused as a duplicate and a RunNow that cannot settle give no view,
+///     and the person after a failure still gives a view for each of its commits.
 Class OcuTalon.Test.Checks.Beat Extends OcuTalon.Test.Contract
 {
 
@@ -736,6 +738,36 @@ Method TestViewsInCommitOrder()
 	Do $$$AssertEquals(view.lastRunNowAt_"|"_view.%IsDefined("lastSkipAt")_"|"_view.%IsDefined("lastBeatAt"), noon_"|0|0", "with lastRunNowAt, and no skip and no beat")
 }
 
+/// Story 39.7 (QA; AC 3): a commit that fails gives no view. RunDue and RunNow view only a row that was saved: a person whose recorded decision cannot be saved
+/// (a stored LastSnapshotKey one character longer than its MAXLEN), whose row is refused as a duplicate, or whose RunNow cannot settle gets none, while the person after it
+/// still gives a view for each of its commits.
+Method TestFailedCommitsGiveNoView()
+{
+	Set noon = ..Local("12:00")
+
+	// RunDue: B's recorded decision cannot be saved (a 65-character LastSnapshotKey, MAXLEN 64, written straight into its node), so it gives no view and stays pending; A's two commits give two
+	Set b = ..Person("b", {"NextDueAt": (noon), "LastItemId": "itemb", "LastSnapshotKey": (..BKey("b"))})
+	Set a = ..Person("a", {"NextDueAt": (noon), "LastItemId": "itema", "LastSnapshotKey": (..BKey("an earlier text"))})
+	Do ..Decision(b, "itemb", {"Outcome": "ignore"})
+	Do ..Decision(a, "itema", {"Outcome": "ignore"})
+	Set id = ..Open(b).%Id()
+	Set $List(^OcuTalonP.HeartbeatBeatD(id), 15) = ..BKey("b")_"0"
+	Do $$$AssertStatusNotOK(..BDue(noon, .items, b_","_a, 0, 1, .views), "RunDue answers an error status for B")
+	Do $$$AssertEquals(..ViewRefs(.views, b_","_a), "2:2,2", "and gives A's two views and none of B's")
+	Do $$$AssertEquals(..ViewJson(.views, 2), ..RowJson(a), "the last is FromRow of A's reopened row")
+
+	// RunNow: the same row cannot be settled, so the answer is an error status, with no outcome, no Item and no view
+	Do $$$AssertStatusNotOK(..BNow(b, noon, .item, .outcome, .availableAt, 0, 1, .views), "RunNow answers an error status for B")
+	Do $$$AssertEquals(+$Get(views)_"|"_outcome_"|"_$IsObject(item), "0||0", "with no view, no outcome and no Item")
+
+	// RunDue: B's row is refused as a duplicate (its node is gone), so it gives no view, while A beats and gives one
+	Set b2 = ..Person("b", {"NextDueAt": (noon)})
+	Set a2 = ..Person("a", {"NextDueAt": (noon)})
+	Do $$$AssertStatusNotOK(..BDueBroken(b2, "", noon, .items, b2_","_a2, .views), "RunDue answers an error status for the refused row")
+	Do $$$AssertEquals(..ViewRefs(.views, b2_","_a2), "1:2", "and gives A's one view and none for the refused row")
+	Do $$$AssertEquals(..ViewJson(.views, 1), ..RowJson(a2), "which is FromRow of A's reopened row")
+}
+
 /// The HeartbeatBeat row of the session Ref, found by SQL (so that the test does not rely on the unique index), or "".
 Method Open(ref As %String) As OcuTalon.Data.HeartbeatBeat
 {
@@ -819,14 +851,14 @@ Method Decision(ref As %String, itemId As %String, fields As %DynamicObject) As 
 }
 
 /// BDue while the node of the person's row holds broken ("" removes it); the node is put back after the call, also after a throw.
-Method BDueBroken(ref As %String, broken As %String, tickAt As %String, Output items As %ListOfObjects, sessions As %String) As %Status [ Private ]
+Method BDueBroken(ref As %String, broken As %String, tickAt As %String, Output items As %ListOfObjects, sessions As %String, Output views) As %Status [ Private ]
 {
 	Set id = ..Open(ref).%Id()
 	Set node = ^OcuTalonP.HeartbeatBeatD(id)
 	Kill ^OcuTalonP.HeartbeatBeatD(id)
 	If broken '= "" Set ^OcuTalonP.HeartbeatBeatD(id) = broken
 	Try {
-		Set sc = ..BDue(tickAt, .items, sessions)
+		Set sc = ..BDue(tickAt, .items, sessions, 0, 1, .views)
 	} Catch exception {
 		Set sc = exception.AsStatus()
 	}

@@ -174,6 +174,33 @@ deferred: []
 - [x] [Clarification] Add `'HeartbeatPayload'` to the list of interfaces that carry `traceUrl` in `web/scripts/payloads.test.mjs` (the test "is on exactly the interfaces that have both traceHeaderId and traceNamespace", about line 110), and nothing else in that file; then `npm --prefix web test` is green (AC 4).
 - Integration AC -- Given a real Tick that runs a beat, when the page polls, then `Web.Api.EventsBody` (the real `/api/v1/events` body) serves it as `{type: "heartbeat", stream: "session", payload}`. The generated `HeartbeatPayload` types it, and the live store accepts the type.
 
+### Review Findings
+
+Code review 2026-11-05 (runner D; four layers, full-opus; 25 rows, 9 entries after grouping and rejection: high 0, med 2, low 7).
+
+- [x] [Review][Patch] (med; fix-risk low, test-only) `TestBeatNowReachesIntake` (and `TestBeatReachesIntake`'s first read) asserted exactly one event, but a real Tick may record the decision and publish the outcome before the read: a timing red [src/ocutalon/cls/OcuTalon/Test/Checks/Heartbeat.cls:397,497] -- the first read now accepts one or two events, asserts event 0 is the beat or run now and a second is the recorded outcome; "exactly two" after the cooldown stays.
+- [x] [Review][Patch] (med; fix-risk low, test-only) `TestBeatPublishFailureIsLogged` counted and `RemoveLogs` deleted every `AnnounceBeat` warning since the mark, so a real Checks job's warning would be counted and removed (Rule 19 hermeticity) [src/ocutalon/cls/OcuTalon/Test/Checks/Runs.cls] -- `BeatPublishWarnings` and the removal now match only lines holding the probe's own error text (`BEATPUBLISHREFUSED`).
+- [x] [Review][Patch] (low) BeatNow's "publish after the send" was not pinned (Tick only) [src/ocutalon/cls/OcuTalon/Test/Checks/Runs.cls] -- `TestBeatPublishFailureIsLogged` asserts the BeatNow's publish saw its Item kept; mutation below.
+- [x] [Review][Patch] (low) `TestFailedCommitsGiveNoView`'s comments said the save fails "for its copy to LastQuietKey"; it fails on LastSnapshotKey's own MAXLEN [src/ocutalon/cls/OcuTalon/Test/Checks/Beat.cls] -- comments corrected.
+- [x] [Review][Patch] (low) `Test.Live.Payloads` class doc did not name Heartbeat among the 31 classes or `TestHeartbeatFromRow` [src/ocutalon/cls/OcuTalon/Test/Live/Payloads.cls:2] -- doc updated.
+- [x] [Review][Patch] (low) `Test.Checks.Runs` class doc omitted `TestTickPublishesEachCommitInOrder` [src/ocutalon/cls/OcuTalon/Test/Checks/Runs.cls] -- listed.
+- [x] [Review][Patch] (low, Rule 19) AC 4's contract half (`TestContracts`, the Heartbeat contract entry) had no mutation line and the live-store mutation's `ng build` half was not shown red -- both demonstrated below.
+- [x] [Review][Defer] (low; fix-risk high) The Beat and Runs fixtures' pending decisions can be settled first by a real HeartbeatIn Tick (milliseconds window; Story 39.3's tests have the same shape) [src/ocutalon/cls/OcuTalon/Test/Checks/Runs.cls] -- deferred: pre-existing shape; DW-711 `wontfix-accepted` with `reopen_if`.
+- [x] [Review][By-design] (low) `web/scripts/payloads.test.mjs` still lists 16 event pairs, so the generated `'heartbeat': HeartbeatPayload` map line is pinned only by `--check` and the traced list -- the spec's Never line allows exactly one name in that file; reopens only by a spec amendment.
+
+Rejected:
+- Settings writes publish no heartbeat event (Blind, Edge) -- spec-bound: "No event for a settings write (Story 39.2's)"; AD-33 keeps `SettingsOps` from publishing this type; the PUT answer carries it.
+- Views made before a RunDue/RunNow exception are untested (Blind, VGap) -- low: the Output array is passed by reference, so the claim holds by construction; a test needs a new probe mode.
+- `lastFallback` is `false` on a beat with no result while `lastOutcome` is absent (Blind) -- low: `lastOutcome` decides; the card is Story 39.5's.
+- `Settle` reads `Values` for every recorded decision, a second read in the same RunDue (Blind) and a failed read blocks a decision (Edge) -- low/theoretical, as the implement triage found (Blind 2).
+- `AddView` throwing after the save (Edge) -- theoretical (implement triage Blind 1).
+- `FromRow` with a non-object `values` (Edge) -- theoretical: `values` is typed `%DynamicObject` and `Values` always answers one.
+- The Tick's Items loop has no Try, so a throwing send loses the views (Edge) -- theoretical: `SendOwn` answers a status; the loop is unchanged from the base.
+- The live-store test name "accepts" overstates (Blind) -- low: the store ignores the type until Story 39.5, which the test pins.
+- `live-store.test.mjs` gained a QA test beyond "one number" (Auditor) -- false as a defect: the file is in the Footprint and adding tests is QA's role.
+- No `ref` key in the payload against AD-12's "keyed by its public Ref" (Auditor) -- by design (Decided in-stage): the only Ref is the SessionRef, which AD-12/AD-33 forbid.
+- Bookkeeping status and dates disagree; `payloads.test.mjs` listed as "unchanged" under Shared surfaces (Blind, Auditor) -- not code; the fix edits the spec.
+
 ## Spec Change Log
 
 - 2026-11-05, lead, answering the implement stage's intent gap (decide, round 1): `web/scripts/payloads.test.mjs` hardcodes the interfaces that carry `traceUrl`, and `HeartbeatPayload` has both trace fields, so AC 4 needs one name added there. The file is Lane B like this story, in no open epic's diff (11, 33, 40), and the change is a one-name append to a list (standing precedent), so it is allowed and reported as a footprint extension. The Never line is amended and one open task added; the earlier pass's implementation stays in the working tree, uncommitted, for this pass to finish.
@@ -327,6 +354,28 @@ Mutation results (this pass; each applied, observed red, reverted byte-identical
 Standing criterion: every test added or changed passes on a fresh environment, in either order.
 
 **Added test time (inference):** about 2 s in `shards` (the `Heartbeat` additions only read events after the synchronous Ticks) and under 1 s in `image` (lane-b's `Payloads`).
+
+**QA stage (2026-11-04, runner D; lane D, tags `e39s7qa` fresh and `e39s7qaw` warm, both torn down).** Files created or changed (QA):
+- `src/ocutalon/cls/OcuTalon/Test/Checks/Beat.cls` (QA): new `TestFailedCommitsGiveNoView` (AC 3: a recorded decision that cannot be saved, a refused duplicate row and a RunNow that cannot settle give no view; the person after a failure still gives its views); `BDueBroken` gains a trailing `Output views`.
+- `src/ocutalon/cls/OcuTalon/Test/Checks/Runs.cls` (QA): new `TestPublishedEventsHoldNoRefChecklistOrKey` (AC 2, over a recorded ignore with the unchanged skip, a beat with its recorded fallback, a sent run now, a skip with a held run now; helper `NoLeaks`) and `TestOffPersonsRecordedResultIsPublishedWithTheirSettings` (AC 1, AC 3).
+- `src/ocutalon/cls/OcuTalon/Test/Checks/Heartbeat.cls` (QA): `TestBeatReachesIntake` also pins the polled body (the published payloads, `traceUrl` on the recorded outcome, no ref, checklist, Item Id, decision Ref or snapshot key).
+- `web/scripts/live-store.test.mjs` (QA): new test `accepts a heartbeat event` (the entry, the cursor, no other collection changes).
+
+Mutation results (QA stage; each applied, observed red, reverted from a backup, `git status --short` and `git diff` identical to before):
+- mutation: `Heartbeat.FromRow` fills `LastSkipReason` from `LastItemId` when the row has none (AC 2) -> red `Runs.TestPublishedEventsHoldNoRefChecklistOrKey` and `TestOffPersonsRecordedResultIsPublishedWithTheirSettings` ("does not hold ..."); no earlier test saw it.
+- mutation: `Beat.Settle` adds its view without the `$$$ISOK(sc)` guard, so a failed save is viewed (AC 3) -> red `Beat.TestFailedCommitsGiveNoView` only.
+- mutation: `Process.AnnounceBeats` publishes only the views of people who are on (AC 1) -> red `Runs.TestOffPersonsRecordedResultIsPublishedWithTheirSettings` only.
+- mutation: `Heartbeat.FromRow` fills `LastSkipReason` from `LastDecisionRef` when the row has none (Integration AC, polled body), fresh -> red `Heartbeat.TestBeatReachesIntake` ("no polled event holds <decision Ref>") only.
+- mutation: the live-store entry for `heartbeat` names the collection `chat` (Integration AC, store accepts the type) -> red `live-store.test.mjs` "accepts a heartbeat event".
+
+Runs after the changes: warm `Test.Checks.Beat` and `Test.Checks.Runs` passed; fresh `Test.Checks.Heartbeat` passed (13.4 s); fresh `shard lane-a@Checks` passed forward and `--reverse`; `npm --prefix web test` 1331 pass. Added test time: about 0.2 s in `Beat`, 0.4 s in `Runs`, none measurable in `Heartbeat`.
+
+Mutation results (code review, 2026-11-05; lane D, tags `e39s7crw` warm and `e39s7cr` fresh, both torn down; each applied, observed red, reverted from a backup, `git status --short` and `git diff --stat` identical to before):
+- mutation: `BeatNow` calls `AnnounceBeats` before the `SendOwn` block -> red `Runs.TestBeatPublishFailureIsLogged` ("and publishes only after its Item is sent").
+- mutation: `Live.Payload.Heartbeat.LastOutcome` MAXLEN 32 -> 33 (AC 4, 31 contract classes) -> red `Payloads.TestContracts` ("OcuTalon.Live.Payload.Heartbeat has exactly its contract: LastOutcome has MAXLEN '33', not '32'").
+- mutation: drop the `heartbeat` entry from `COLLECTIONS` in `live-store.ts` (AC 4) -> `npm --prefix web run build` exit 1 (TS2741 "Property 'heartbeat' is missing ... Readonly<Record<LiveEventType, CollectionRule>>").
+
+Runs after the review patches: warm `Test.Checks.Runs`, `Test.Live.Payloads` and `Test.Checks.Beat` passed; fresh `Test.Checks.Heartbeat` passed (13.5 s); `npm --prefix web run build` exit 0 and `npm --prefix web test` 1331 pass.
 
 ## Auto Run Result
 
