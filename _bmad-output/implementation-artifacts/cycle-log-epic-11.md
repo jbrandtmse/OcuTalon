@@ -558,3 +558,4 @@
 2026-11-05T17:39:16Z	Story 11.23	adr_verifications_complete	tool=none acs=none result=none_required evidence= mutations=none model=claude-opus-5-5
 2026-11-05T17:39:20Z	Story 11.23	stage_spawned	stage=qa spawn_at=2026-11-05T17:39:20Z model=claude-sonnet agent_name=11-23-install-sh-accepts-build-109-qa-1 cycle_iteration=1
 2026-11-05T18:00:29Z	Story 11.23	qa_complete	spawn_at=2026-11-05T17:39:20Z model=claude-sonnet tests=test-install-script.sh(+1_check_B3_download_line) tests_added=1 mutations_demonstrated=6 first_run_failures=0 clarifications=0 closing_sections_present=true subagent_tokens=84251 duration_min=21
+2026-11-05T18:00:29Z	Story 11.23	stage_spawned	stage=code-review spawn_at=2026-11-05T18:00:29Z model=claude-opus agent_name=11-23-install-sh-accepts-build-109-code-review-1 cycle_iteration=1 scope=0242c7b2..HEAD+worktree
