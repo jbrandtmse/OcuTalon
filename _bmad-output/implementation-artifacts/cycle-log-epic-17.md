@@ -7,3 +7,6 @@
 2026-11-05T05:21:51Z	Epic 17	ledger_load	total=680 open=0 routed=110 escalated=0 decision_pending=2 terminal=568 owner_unknown=0 reowned_none=0 owned_epic17=9(17.2:DW-647,DW-650;17.3:DW-52;17.5:DW-646,DW-648;17.6:DW-649,DW-651,DW-661,DW-696)
 2026-11-05T05:22:09Z	Epic 17	sprint_planning_complete	gate=PASS model=claude-opus-5-5 in_sync=true
 2026-11-05T05:22:09Z	Epic 17	retro_review_skipped	reason=skip_no_x0_input dispatch=first_dispatch
+2026-11-05T05:24:05Z	Epic 17	epic_context_compiled	sha=55fc5ee2 reason=initial model=opus words=2480
+2026-11-05T05:26:09Z	Epic 17	slot_loaded	server=ocutalon-slot-a namespace=OCUTALON build=154U bridge=57 ocutalon=609 compiled=ok stale_deleted=OcuTalon.Agent.Persona,OcuTalon.Msg.Command.ProposePersona,OcuTalon.Msg.Command.SetPersona,OcuTalon.Test.Agent.Persona,OcuTalon.Test.Agent.PersonaBlock,OcuTalon.Test.Agent.PersonaTurns,OcuTalon.Test.Core.SettingsPersona,OcuTalon.Test.Web.PersonaApi,OcuTalon.Test.Web.PersonaApiProbe classes=710(666+44_generated)
+2026-11-05T05:28:23Z	Story 17.2	stage_spawned	stage=plan spawn_at=2026-11-05T05:28:23Z model=opus agent_name=17-2-retry-once-on-a-second-model-before-falling-back-plan-1 cycle_iteration=1
