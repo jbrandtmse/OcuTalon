@@ -62,6 +62,7 @@ deferred: []
 - [ ] `docker/tests/test-readme.sh` -- make P1-P9 of "Pins changed" exactly; touch no other line. -- AC4
 - [ ] Live literal runs (Verification, once) on fresh build 154 and build 109 throwaways (case 1) and the case 2 run on build 154; tear down and release the lock after each, failures included. -- AC1, AC2
 - [ ] `_bmad-output/implementation-artifacts/evidence/11-24-readme-ipm-literal-runs.md` -- new: for each run the image ref, `$ZVersion` build, the commands as extracted from README.md, the lines quoted in Verification, durations, and the plan's Task 0 table (Design Notes); no secret, path, IP, host or container name. -- AC1, AC2
+- [ ] `docs/install-ipm.md` sample blocks -- after the build 154 case 1 literal run, replace every sample block whose lines differ from that run's real output (timestamps and durations included) with the run's output, trimmed as in Design Notes; record which blocks changed in the evidence file; re-run `test-readme.sh` and `test-cpf.sh`. -- AC3 (Planner's approval condition 3)
 - [ ] This spec -- record Verification results and `mutation:` lines.
 
 **Acceptance Criteria:**
@@ -72,6 +73,8 @@ deferred: []
 - AC5 (footprint). Given the diff since `baseline_revision` without `_bmad-output`, when listed, then it holds only `README.md`, `docs/install-ipm.md` and `docker/tests/test-readme.sh`.
 
 ## Spec Change Log
+
+- 2026-11-05, lead spec gate: public text approved by the Contest Planner (owner's delegation) exactly as drafted; Task 0's "samples are final" replaced by the Planner's condition 3 (refresh sample blocks from the implement stage's build 154 case 1 run where they differ); one Tasks item added for it.
 
 ## Review Triage Log
 
@@ -89,7 +92,9 @@ deferred: []
 - (c) Case 1 (IPM in %SYS only): `zpm "enable -map -ns USER"` printed `Mapping %IPM package in %SYS equivalently to USER`; `zpm "enable -community"` then printed `Mapping IPM repository in %SYS equivalently to USER` (both builds). Case 2 (the old README's state): `IPM_LOAD` then a single `zpm "enable -community"` printed `Mapping %IPM package in %SYS equivalently to USER` and `Skipping repository mapping of USER - IPM not mapped from source namespace.`; USER's install then printed `ERROR! No repositories are configured and enabled in this namespace.` (both builds; reproduces the Planner's finding). The full block then (IPM line again, map, community) mapped USER's repositories (and HSCUSTOM's, HSSYS's, HSSYSLOCALTEMP's), and both installs succeeded (both builds).
 - (d) All four containers: USER run stops with `ERROR! OcuTalon created namespace OCUTALON. Now run: zn "OCUTALON" then the same install command.`; OCUTALON run `Reload START (/usr/irissys/ipm/ocutalon/1.0.1/)` ... `Activate SUCCESS`; `GET /ocutalon/` 200. The 109 case 1 run was the drafted block pasted literally, session by session; the 154 case 1 run had read-only probe lines between the commands.
 - Durations (s), 154 c1 / 154 c2 / 109 c1 / 109 c2: container ready 73 / 31 / 38 / 13; %SYS block 27 (IPM line alone) / 6 / 19 / 6; USER run 90 / 53 / 58 / 96; OCUTALON run 57 / 54 / 47 / 56.
-- The guide's samples are the build 154 case 1 run's output, colour codes and banner removed, trailing spaces trimmed, tabs kept. They are final: the implement stage does not refresh them.
+- The guide's samples are the build 154 case 1 run's output, colour codes and banner removed, trailing spaces trimmed, tabs kept. [AMENDED 2026-11-05 at the lead's spec gate, the Contest Planner's approval condition 3] The implement stage's build 154 case 1 literal run (from the committed README text) is the samples' source: wherever that run's output differs from a sample block in `docs/install-ipm.md` (timestamps and durations included), replace that block's lines with the run's real output, trimmed the same way; prose and the README stay exactly as approved. The changed samples need no second approval as long as they are the real output of that run; the evidence file records which blocks changed.
+
+**Lead gate (2026-11-05): public text APPROVED.** The Contest Planner, under the owner's delegation (relayed by the orchestrator), approved both diffs of "Public text for approval" exactly as written (spec at cfd880cb): yes to the D4 `dev-only` exemption of exactly the `IPM_LOAD` line, word for word, with the self-test showing a changed line is still flagged; yes to pinning `/packages/zpm/0.10.10/installer`, not `latest`. The README's and guide's claims about both builds stand on one condition: the implement stage's literal runs from the COMMITTED README text (154 case 1, 109 case 1, 154 case 2) pass, with the evidence committed; a failing run is a HALT (`blocked`), never a text change. D9 (DW-759) is not this story's: the Planner or the burn-down fixes it.
 
 **Decided in-stage.**
 - D1. `IPM_LOAD` is exactly: `s r=##class(%Net.HttpRequest).%New(),r.Server="pm.community.intersystems.com",r.SSLConfiguration="ISC.FeatureTracker.SSL.Config" d r.Get("/packages/zpm/0.10.10/installer"),$system.OBJ.LoadStream(r.HttpResponse.Data,"c")` -- the standard IPM installer one-liner with the version pinned (`latest` would move with the registry).
