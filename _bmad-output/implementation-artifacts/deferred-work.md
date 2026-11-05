@@ -3292,6 +3292,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-05T07:36:42Z by=lead note=detail of the 2026-11-05T07:29:16Z occurrence (Planner's request): elapsed 30 s at the bound (the GET /state after sign-in never answered within it; test timeout 45 s); the live:sign-in log shows no licence or CSP-session line, so no limit is evidenced either way; classed DW-550 flake by the orchestrator's ruling, Planner kept it
 - 2026-11-05T10:38:22Z status=routed owner=11-22-first-daily-release-burn-down by=burndown note=chartered: first daily release burn-down (owner via the Planner 2026-11-05T01:51Z; orchestrator dispatch); Story 11.22
 - 2026-11-05T14:52:20Z owner=burndown by=adjudication note=Story 11.22 investigation: no held CSP session or licence unit was evidenced in the occurrences; a held ^%cspSession lock does delay /state (mechanism measured); loadedAfter now prints a DIAG /state dump (licence, CSP processes, session locks) when the snapshot GET passes its bound, so the next occurrence names the holder; the slowness itself is not fixed
+- 2026-11-05T21:23:01Z occurrence=ci-signin-split by=orchestrator note=OCT-epicci-signin-split@0e4348a0 run 42102775939 attempt 1 iris (browser) live:answers X9/X10/X12 loadedAfter /state no answer within 60 s; DIAG /state lines DID print this time (in the job log); rerun green
 
 ### DW-551: The release checklist does not check the draft notes for the inspiration's name outside the not-affiliated note (only the tracked tree's name-only-in-note row); the draft's own rules are Story 11.13's
 - source: spec-11-4-the-release-gets-draft-notes-and-a-checklist.md | severity: low | fix-risk: low | footprint: in-epic
@@ -4240,6 +4241,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: OCT-epic34@2651a548 run 42086496017 iris (browser) job 127452898026 S3 session.spec.ts:135 | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: runner C searched the job log and the artifact's error-context.md: no DIAG, licence or CSP text; floor.ts:145 says the lines print before the error
 - 2026-11-05T19:38:00Z status=routed owner=burndown by=Contest_Planner note=Planner 2026-11-05: follow-up for the next burn-down; make the dump reach the CI log or the uploaded artifact (e.g. testInfo.attach or stderr), proven by a forced-bound test in CI
+- 2026-11-05T21:23:01Z status=routed owner=burndown by=orchestrator note=partial: on run 42102775939 (live:answers) the DIAG /state lines did print in the job log, but on 42086496017 (sign-in S3) none appeared; the burn-down checks which path drops them
 ### DW-751: release/notes-areas.txt has no story 11.23 line, so the draft notes file install.sh accepting build 109 under developer stories (epic 11 developer)
 - source: spec-11-23-install-sh-accepts-build-109.md cr | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: notes-areas.txt maps 'epic 11 developer' and overrides only 11.2 and 11.8; 11.23 is judge-facing (install). release/ is outside 11.23's footprint (spec Never).
