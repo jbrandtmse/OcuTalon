@@ -4024,3 +4024,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-7-8-the-web-incident-card-shows-the-either-way-date-line-too.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: 7.8 fresh check: lane-a@Fix reversed part 2/2 on a fresh lane-B throwaway, red once (header 564), green on the unchanged rerun; Story 7.8 changed no Fix code
 - 2026-11-04T19:33:23Z status=routed owner=burndown by=adjudication note=flake candidate: Test.Fix.Snapshot exempts only a timer already running; a ScheduleService call is another background writer; note every occurrence
+
+### DW-698: flake: lane-a@rest Tools.RecentActivity and RecentActivityTurn saw a leaked resolved Orders/OrdersFromPartner incident (count 50, approved on web, 50 resent); TestPoisoned hit INVALID OREF in Test.Watch.Case.SortedKeys
+- source: cycle-log-epic-39.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: run 41930634318 attempt 1 on OCT-epic39 149a8d8d (iris shards-2); same 84 classes and order green on feature ac2c4549 (41916844884); not reproduced on fresh or warm lane-D replays of the Fix tail and Eval.Record; incident window 23:32-23:38 matches Eval.KeyProof/Eval.Record then Fix.EitherWay (ended 23:35:29) and Fix.Later (ended 23:38:06)
+- 2026-11-05T00:11:45Z status=routed owner=burndown by=lead note=inference: an Epic 7 Fix.EitherWay cleanup and Fix.Later approval race; a second occurrence on any branch or on feature is real: replay lane-a@rest's 84 classes in CI order on one warm stack
