@@ -42,6 +42,7 @@ export const RAIL_TEXTS = {
   repair: 'Repair and resend',
   repairCount: 'Repair and resend {n} {noun}',
   runTool: 'Run {toolName}',
+  changePersona: 'Change how OcuTalon talks to you',
   showInChat: 'Show in the chat: {action}',
   raised: 'Raised {when}',
   expires: 'expires {when}',
@@ -169,9 +170,12 @@ export function readmeSection(readmeUrl: string, anchor: string): string {
 
 /**
  * The title of an approval request: "Repair and resend 50 orders" for a fix with a dry run (the noun by the count), "Repair and
- * resend" without one, and "Run zz_tool" for a tool call.
+ * resend" without one, "Run zz_tool" for a tool call, and "Change how OcuTalon talks to you" for a setting request (a proposed persona).
  */
 export function approvalTitle(approval: ApprovalPayload): string {
+  if (approval.kind === 'setting') {
+    return RAIL_TEXTS.changePersona;
+  }
   if (approval.kind === 'tool_call') {
     return fill(RAIL_TEXTS.runTool, { toolName: approval.toolName ?? '' }).trim();
   }

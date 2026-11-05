@@ -9,8 +9,15 @@
 /// For every accepted SetPersona (origin web_user, the session's own persona) it checks that the session has a row, validates the
 /// values (PersonaProblem), writes the Settings audit entry first (setting persona, from and to in the form of AuditForm: the preset id
 /// or the language name, never the custom text), then writes person.<SessionRef>.persona.preset, .language and .custom in one
-/// transaction. A value that the chosen preset does not use is neither validated nor stored: its key is written empty. ProposePersona
-/// (origin tool) checks the session, the online-demo flag and the values like SetPersona and writes and audits nothing.
+/// transaction (WritePersona). A value that the chosen preset does not use is neither validated nor stored: its key is written empty.
+/// ProposePersona (origin tool, Story 40.6) checks the session, the online-demo flag and the values like SetPersona, writes and audits no
+/// persona key, and raises a request of kind setting (Bridge.Approval.Raise, ResultTarget SettingsOps, the DryRun {key, ownerRef, old, new}
+/// whose old and new are the objects {preset, language, custom, text}) and sends one approval.persona notice to Notify (kind approval,
+/// ApprovalRef the request's Ref). The request's outcome comes back as an ApprovalOutcome (Outcome): approved, it re-reads the request
+/// through StartExecution and, when the stored persona still equals old, writes the stored new values as WritePersona does (the audit
+/// entry names the request's AnsweredBy and AnsweredChannel), records done and sends the answered notice and then persona.applied; when
+/// the persona changed since, it writes nothing, records failed and sends the answered notice and then persona.stale; rejected or
+/// expired, it sends only the answered notice. An outcome that is not its own, or a repeat, is dropped with one warning.
 /// It answers every command with a CommandResult (Ok, Outcome and Message) and never an error status. The outcomes:
 ///   - on, off: carried out; off_kept: off, and the step kept an OCUORDERS that is not its own (Ok 1);
 ///   - step_failed: the value is written and the step failed; the next start runs the step again (Ok 0);
@@ -20,9 +27,11 @@
 ///   - no_session: the command's session has no row (Ok 0);
 ///   - not_audited: the audit entry could not be written (Record refuses it, for example when the command has no ActingUser), so nothing
 ///     was written (Ok 0);
-///   - not_available: ProposePersona on the online demo; not_built: ProposePersona with valid values, which is not built yet (Ok 0);
+///   - proposed: ProposePersona raised the request (Ok 1; Ref is its Ref and the Message the pending note); not_available: ProposePersona
+///     on the online demo (Ok 0);
 ///   - unknown_command: a command class that this operation does not carry out (Ok 0);
-///   - failed: an error was thrown, or a value could not be saved; a persona write that fails changes no key (Ok 0).
+///   - failed: an error was thrown, the request could not be raised, or a value could not be saved; a persona write that fails changes no
+///     key (Ok 0).
 /// Persona(sessionRef) reads a person's values from their rows, ForgetPerson(sessionRef) deletes every per-person key of a session
 /// (SessionOps.End calls it), and PersonaKey names a persona key. A written value applies to other processes when their 60-second
 /// Setting cache entries expire.
@@ -56,6 +65,30 @@ Parameter MESSAGECUSTOMNOTOFFERED = "On the online demo you can choose a preset 
 
 Parameter MESSAGENOTSAVED = "Couldn't save. Nothing was changed.";
 
+/// The Message of a proposal that was raised (the pending note of the Persona card).
+Parameter MESSAGEPROPOSED = "OcuTalon suggested a change. It waits for your answer in Approval requests.";
+
+/// The item that receives the outcome of this operation's requests: its name in the production.
+Parameter RESULTTARGET = "SettingsOps";
+
+/// The catalog keys of the persona notices: the proposal (kind approval), and the applied and stale results (kind result).
+Parameter KEYPROPOSED = "approval.persona";
+
+Parameter KEYAPPLIED = "persona.applied";
+
+Parameter KEYSTALE = "persona.stale";
+
+/// The catalog keys of the answered notices (kind answered), as for any request.
+Parameter KEYAPPROVED = "answered.approved";
+
+Parameter KEYREJECTED = "answered.rejected";
+
+Parameter KEYEXPIRED = "answered.expired";
+
+Parameter LOGDROPPED = "SettingsOps dropped an approval outcome: ";
+
+Parameter LOGNOTICE = "SettingsOps could not send a notice: ";
+
 /// The audit event data's channel for each origin: system is the terminal, web_admin and web_user the web page.
 Parameter CHANNELS = "system:system,web_admin:web,web_user:web";
 
@@ -82,10 +115,14 @@ Method OnMessage(pRequest As %Library.Persistent, Output pResponse As %Library.P
 	Quit $$$OK
 }
 
-/// Carries out the command and returns the CommandResult to answer.
+/// Carries out the command and returns the CommandResult to answer; an ApprovalOutcome is handled by Outcome and answers "".
 Method Carry(command As %RegisteredObject) As OcuTalon.Msg.CommandResult [ Private ]
 {
 	Set class = $Select($IsObject(command): $ClassName(command), 1: "")
+	If class = "OcuTalon.Bridge.Msg.ApprovalOutcome" {
+		Do ..Outcome(command)
+		Quit ""
+	}
 	If class = "OcuTalon.Msg.Command.SaveSettings" Quit ..Save(command)
 	If class = "OcuTalon.Msg.Command.SetDemoMode" Quit ..SwitchDemo(command)
 	If class = "OcuTalon.Msg.Command.SetPersona" Quit ..SavePersona(command)
@@ -122,11 +159,11 @@ Method SwitchDemo(command As OcuTalon.Msg.Command.SetDemoMode) As OcuTalon.Msg.C
 
 /// The audit event data of a change, in the shape of the Settings type (Bridge.Audit.Record): setting, from (the stored value before
 /// the write, "" when the row is absent), to, irisUser, sessionRef (possibly empty) and channel (where the command came from, by its
-/// origin; "" for an origin that is not in CHANNELS, which Record refuses). Every member is typed as a JSON string, as
+/// origin, or the channel given, which overrides it; "" for an origin that is not in CHANNELS, which Record refuses). Every member is typed as a JSON string, as
 /// Record requires (a value such as "1" would otherwise become a number). Record redacts and describes it.
-ClassMethod AuditData(origin As %String, irisUser As %String, sessionRef As %String, setting As %String, from As %String, to As %String) As %DynamicObject [ Private ]
+ClassMethod AuditData(origin As %String, irisUser As %String, sessionRef As %String, setting As %String, from As %String, to As %String, channel As %String = "") As %DynamicObject [ Private ]
 {
-	Set channel = $Piece($Piece(","_..#CHANNELS, ","_origin_":", 2), ",", 1)
+	If channel = "" Set channel = $Piece($Piece(","_..#CHANNELS, ","_origin_":", 2), ",", 1)
 	Set data = {}
 	Do data.%Set("setting", setting, "string")
 	Do data.%Set("from", from, "string")
@@ -202,11 +239,28 @@ Method SavePersona(command As OcuTalon.Msg.Command.SetPersona) As OcuTalon.Msg.C
 	Set custom = $Select(preset = "custom": command.Custom, 1: "")
 	Set message = ..PersonaProblem(preset, language, custom, ..OnlineDemo(), .outcome)
 	If message '= "" Quit ..Result(0, outcome, message)
+	Set sc = ..WritePersona(irisUser, sessionRef, "", command.Origin, preset, language, custom, .outcome)
+	If $$$ISERR(sc) Quit ..Result(0, outcome, ..#MESSAGENOTSAVED)
+	Set data = {}
+	Do data.%Set("preset", preset, "string")
+	Do data.%Set("language", language, "string")
+	Do data.%Set("custom", custom, "string")
+	Quit ..Result(1, "saved", ..#MESSAGESAVED, data.%ToJSON())
+}
+
+/// The persona write of SavePersona and of an approved proposal: the Settings audit entry first (setting persona, from the stored form and
+/// to the new form of AuditForm, never the custom text; channel overrides the origin's when given), then the three keys in one
+/// transaction. Returns an error status for a refused audit entry (outcome not_audited, logged) or a failed write (outcome failed, logged,
+/// every key as it was); outcome is "" when it succeeds.
+Method WritePersona(irisUser As %String, sessionRef As %String, channel As %String, origin As %String, preset As %String, language As %String, custom As %String, Output outcome As %String) As %Status [ Private ]
+{
+	Set outcome = ""
 	Set from = ..AuditForm(..Stored(..PersonaKey(sessionRef, "preset")), ..Stored(..PersonaKey(sessionRef, "language")))
-	Set sc = ..WriteAudit(..AuditData(command.Origin, irisUser, sessionRef, "persona", from, ..AuditForm(preset, language)))
+	Set sc = ..WriteAudit(..AuditData(origin, irisUser, sessionRef, "persona", from, ..AuditForm(preset, language), channel))
 	If $$$ISERR(sc) {
 		$$$LOGERROR("The Settings audit entry could not be written"_$Select($SYSTEM.Status.GetErrorText(sc) = "": "", 1: ": "_$SYSTEM.Status.GetErrorText(sc)))
-		Quit ..Result(0, "not_audited", ..#MESSAGENOTSAVED)
+		Set outcome = "not_audited"
+		Quit sc
 	}
 	Set values = $ListBuild(preset, language, custom)
 	Set level = $TLevel
@@ -223,36 +277,210 @@ Method SavePersona(command As OcuTalon.Msg.Command.SetPersona) As OcuTalon.Msg.C
 	If $$$ISERR(sc) {
 		If $TLevel > level TROLLBACK 1
 		$$$LOGERROR($SYSTEM.Status.GetErrorText(sc))
-		Quit ..Result(0, "failed", ..#MESSAGENOTSAVED)
+		Set outcome = "failed"
+		Quit sc
 	}
 	TCOMMIT
-	Set data = {}
-	Do data.%Set("preset", preset, "string")
-	Do data.%Set("language", language, "string")
-	Do data.%Set("custom", custom, "string")
-	Quit ..Result(1, "saved", ..#MESSAGESAVED, data.%ToJSON())
+	Quit $$$OK
 }
 
-/// Carries out a ProposePersona and returns the CommandResult to answer: the session check, the online-demo refusal and the
-/// values' validation of SetPersona, then not_built. Nothing is written or audited.
+/// Carries out a ProposePersona and returns the CommandResult to answer: the session check, the online-demo refusal and the values'
+/// validation of SetPersona, then the request: it raises a request of kind setting for the session (OwnerRef, the session row's TraceRef,
+/// ResultTarget SettingsOps, the DryRun {key, ownerRef, old, new} with old and new as PersonaPart builds them) and sends the
+/// approval.persona notice. It answers proposed with the request's Ref; a raise that fails answers failed and sends nothing; a notice
+/// that cannot be sent is logged and the answer is still proposed. No persona key is written and nothing is audited.
 Method Propose(command As OcuTalon.Msg.Command.ProposePersona) As OcuTalon.Msg.CommandResult [ Private ]
 {
-	If '..HasSession(command.SessionRef) Quit ..Result(0, "no_session", ..#MESSAGENOTSAVED)
+	Set sessionRef = command.SessionRef
+	If '..HasSession(sessionRef, , .traceRef) Quit ..Result(0, "no_session", ..#MESSAGENOTSAVED)
 	If ..OnlineDemo() Quit ..Result(0, "not_available", ##class(OcuTalon.Core.CommandsIn).#MESSAGENOTALLOWED)
 	Set preset = command.Preset
-	Set message = ..PersonaProblem(preset, $Select(preset = "language": command.Language, 1: ""), $Select(preset = "custom": command.Custom, 1: ""), 0, .outcome)
+	Set language = $Select(preset = "language": command.Language, 1: "")
+	Set custom = $Select(preset = "custom": command.Custom, 1: "")
+	Set message = ..PersonaProblem(preset, language, custom, 0, .outcome)
 	If message '= "" Quit ..Result(0, outcome, message)
-	Quit ..Result(0, "not_built", ##class(OcuTalon.Core.CommandsIn).#MESSAGENOTBUILT)
+	Set before = ..PersonaPart(..Stored(..PersonaKey(sessionRef, "preset")), ..Stored(..PersonaKey(sessionRef, "language")), ..Stored(..PersonaKey(sessionRef, "custom")))
+	Set after = ..PersonaPart(preset, language, custom)
+	Set dryRun = {}
+	Do dryRun.%Set("key", ..PersonaRoot(sessionRef), "string")
+	Do dryRun.%Set("ownerRef", sessionRef, "string")
+	Do dryRun.%Set("old", before)
+	Do dryRun.%Set("new", after)
+	Set row = ##class(OcuTalon.Bridge.Data.ApprovalRequest).%New()
+	Set row.Kind = "setting"
+	Set row.OwnerRef = sessionRef
+	Set row.TraceRef = traceRef
+	Set row.DryRun = dryRun.%ToJSON()
+	Set row.ResultTarget = ..#RESULTTARGET
+	Set sc = ..RaiseRequest(row, .ref)
+	If $$$ISERR(sc) {
+		$$$LOGERROR("The persona request could not be raised: "_$SYSTEM.Status.GetErrorText(sc))
+		Quit ..Result(0, "failed", ##class(OcuTalon.Core.CommandsIn).#MESSAGEFAILED)
+	}
+	Set notice = ..Notice("approval", ..#KEYPROPOSED, {"old": (before.%Get("text")), "new": (after.%Get("text"))}, sessionRef, ref)
+	Do ..Send(notice)
+	Set result = ..Result(1, "proposed", ..#MESSAGEPROPOSED)
+	Set result.Ref = ref
+	Quit result
+}
+
+/// The persona as the DryRun holds it: {preset, language, custom, text}. An empty preset is professional. text is what the person reads:
+/// the preset's name, the language name for the language preset, or the custom text for the custom preset.
+ClassMethod PersonaPart(preset As %String, language As %String, custom As %String) As %DynamicObject [ Private ]
+{
+	If preset = "" Set preset = "professional"
+	Set entry = ##class(OcuTalon.Agent.Persona).Preset(preset)
+	Set text = $Select(preset = "language": language, preset = "custom": custom, $IsObject(entry): entry.%Get("name"), 1: preset)
+	Set part = {}
+	Do part.%Set("preset", preset, "string")
+	Do part.%Set("language", language, "string")
+	Do part.%Set("custom", custom, "string")
+	Do part.%Set("text", text, "string")
+	Quit part
+}
+
+/// The DryRun key of a session's persona: person.<sessionRef>.persona.
+ClassMethod PersonaRoot(sessionRef As %String) As %String [ Private ]
+{
+	Quit "person."_sessionRef_".persona"
+}
+
+/// Raises the request of the row (a seam for the tests): OcuTalon.Bridge.Approval.Raise with the session and the SuperSession of this job. ref is
+/// the new request's Ref.
+Method RaiseRequest(row As OcuTalon.Bridge.Data.ApprovalRequest, Output ref As %String) As %Status [ Private ]
+{
+	Quit ##class(OcuTalon.Bridge.Approval).Raise(row, .ref, , ..%SessionId, ..%SuperSession)
+}
+
+/// Sends the notification to the Notify item, asynchronously, with no answer wanted (a seam for the tests).
+Method SendNotice(notification As OcuTalon.Msg.Notification) As %Status [ Private ]
+{
+	Quit ..SendRequestAsync("Notify", notification, 0)
+}
+
+/// A notification of the kind with the catalog key and the slots, for the session and the request's Ref.
+ClassMethod Notice(kind As %String, key As %String, slots As %DynamicObject, sessionRef As %String, approvalRef As %String) As OcuTalon.Msg.Notification [ Private ]
+{
+	Set notice = ##class(OcuTalon.Msg.Notification).%New()
+	Set notice.Kind = kind
+	Set notice.CatalogKey = key
+	Set notice.Slots = slots.%ToJSON()
+	Set notice.SessionRef = sessionRef
+	Set notice.ApprovalRef = approvalRef
+	Quit notice
+}
+
+/// Sends the notice; an error, or a throw, is logged and changes nothing else.
+Method Send(notice As OcuTalon.Msg.Notification) [ Private ]
+{
+	Try {
+		Set sc = ..SendNotice(notice)
+	} Catch exception {
+		Set sc = exception.AsStatus()
+	}
+	If $$$ISERR(sc) $$$LOGWARNING(..#LOGNOTICE_notice.CatalogKey_": "_$SYSTEM.Status.GetErrorText(sc))
+}
+
+/// An ApprovalOutcome from ApprovalHold for a request that this operation raised: approved, rejected or expired, as the request's row shows
+/// it. Anything else is dropped with one warning and nothing is written, sent or changed: an unknown request, a request that is not a
+/// setting request of this operation for its owner's own persona (Kind, ResultTarget, the DryRun's key and ownerRef), another outcome
+/// (cancelled included), or an outcome that the row does not show (a repeat or a stale one).
+///   - rejected, expired: the answered notice only;
+///   - approved: Bridge.Approval.StartExecution (which refuses a request past its expiry), then, when the stored persona still equals the
+///     DryRun's old (an empty stored preset is professional), WritePersona of the DryRun's new values and FinishExecution done; the
+///     answered notice and then persona.applied. Otherwise nothing is written, FinishExecution says failed, and the notices are the
+///     answered notice and then persona.stale. A start that is refused, a write that fails or throws, or a session that has ended is
+///     logged, closes the request failed and sends the answered notice only.
+Method Outcome(outcome As OcuTalon.Bridge.Msg.ApprovalOutcome) As %Status [ Private ]
+{
+	Set event = outcome.Outcome
+	Set row = $Select(##class(OcuTalon.Bridge.Approval).IsRef(outcome.ApprovalRef): ##class(OcuTalon.Bridge.Data.ApprovalRequest).RefIndexOpen(outcome.ApprovalRef), 1: "")
+	If '$ListFind($ListBuild("approved", "rejected", "expired"), event) || '..Owns(row, .dryRun) || (row.State '= event) {
+		$$$LOGWARNING(..#LOGDROPPED_$Extract(outcome.ApprovalRef, 1, 64)_" "_$Extract(event, 1, 32)_" "_$Select($IsObject(row): row.State, 1: "none"))
+		Quit $$$OK
+	}
+	Set ref = row.Ref
+	Set sessionRef = row.OwnerRef
+	Set answered = ..AnswerNotice(event, row)
+	Set result = ""
+	If event = "approved" {
+		Set sc = ##class(OcuTalon.Bridge.Approval).StartExecution(ref)
+		If $$$ISERR(sc) {
+			$$$LOGERROR("The persona request "_ref_" could not be started: "_$SYSTEM.Status.GetErrorText(sc))
+			Set sc = ##class(OcuTalon.Bridge.Approval).FinishExecution(ref, "failed")
+			If $$$ISERR(sc) $$$LOGERROR("The persona request "_ref_" could not be closed: "_$SYSTEM.Status.GetErrorText(sc))
+		} Else {
+			Set finish = "failed"
+			Try {
+				Set stored = dryRun.%Get("new")
+				If '..HasSession(sessionRef) {
+					$$$LOGERROR("The persona request "_ref_" is for a session that has ended: nothing is written")
+				} ElseIf ..PersonaIs(sessionRef, dryRun.%Get("old")) {
+					Set sc = ..WritePersona(row.AnsweredBy, sessionRef, row.AnsweredChannel, "", stored.%Get("preset"), stored.%Get("language"), stored.%Get("custom"))
+					Set finish = $Select($$$ISOK(sc): "done", 1: "failed")
+					Set result = $Select($$$ISOK(sc): ..#KEYAPPLIED, 1: "")
+				} Else {
+					Set result = ..#KEYSTALE
+				}
+			} Catch exception {
+				$$$LOGERROR("The persona request "_ref_" could not be carried out: "_$SYSTEM.Status.GetErrorText(exception.AsStatus()))
+				Set finish = "failed", result = ""
+			}
+			Set sc = ##class(OcuTalon.Bridge.Approval).FinishExecution(ref, finish)
+			If $$$ISERR(sc) $$$LOGERROR("The persona request "_ref_" could not be closed: "_$SYSTEM.Status.GetErrorText(sc))
+		}
+	}
+	Do ..Send(answered)
+	If result '= "" Do ..Send(..Notice("result", result, {}, sessionRef, ref))
+	Quit $$$OK
+}
+
+/// 1 when the row is a setting request of this operation for its owner's own persona: Kind setting, ResultTarget RESULTTARGET, and a
+/// DryRun whose key is person.<OwnerRef>.persona and whose ownerRef is the OwnerRef. dryRun is then the DryRun as an object.
+ClassMethod Owns(row As OcuTalon.Bridge.Data.ApprovalRequest, Output dryRun As %DynamicObject) As %Boolean [ Private ]
+{
+	Set dryRun = ""
+	If '$IsObject(row) || (row.Kind '= "setting") || (row.ResultTarget '= ..#RESULTTARGET) Quit 0
+	Try {
+		Set dryRun = {}.%FromJSON(row.DryRun)
+		Set owns = (dryRun.%Get("key") = ..PersonaRoot(row.OwnerRef)) && (dryRun.%Get("ownerRef") = row.OwnerRef) && (dryRun.%GetTypeOf("old") = "object") && (dryRun.%GetTypeOf("new") = "object")
+	} Catch exception {
+		Set owns = 0
+	}
+	Quit owns
+}
+
+/// 1 when the stored persona of the session equals the DryRun's old object in preset, language and custom (an empty stored preset is
+/// professional).
+ClassMethod PersonaIs(sessionRef As %String, old As %DynamicObject) As %Boolean [ Private ]
+{
+	Set stored = ..PersonaPart(..Stored(..PersonaKey(sessionRef, "preset")), ..Stored(..PersonaKey(sessionRef, "language")), ..Stored(..PersonaKey(sessionRef, "custom")))
+	Quit (stored.%Get("preset") = old.%Get("preset")) && (stored.%Get("language") = old.%Get("language")) && (stored.%Get("custom") = old.%Get("custom"))
+}
+
+/// The notification that answers an approved, rejected or expired request (kind answered): answered.approved and answered.rejected
+/// with the channel and time of the answer, or answered.expired with the request's ExpiresAt; the request's Ref as ApprovalRef.
+Method AnswerNotice(event As %String, row As OcuTalon.Bridge.Data.ApprovalRequest) As OcuTalon.Msg.Notification [ Private ]
+{
+	If event = "expired" {
+		Set key = ..#KEYEXPIRED
+		Set slots = {"time": (row.ExpiresAt)}
+	} Else {
+		Set key = $Select(event = "approved": ..#KEYAPPROVED, 1: ..#KEYREJECTED)
+		Set slots = {"channel": (row.AnsweredChannel), "time": (row.AnsweredAt)}
+	}
+	Quit ..Notice("answered", key, slots, row.OwnerRef, row.Ref)
 }
 
 /// 1 when the session has a Session row; irisUser is then the row's IRIS user, else the user of this job (the rule of
-/// SessionOps.IrisUser).
-ClassMethod HasSession(sessionRef As %String, Output irisUser As %String) As %Boolean [ Private ]
+/// SessionOps.IrisUser), and traceRef the row's TraceRef.
+ClassMethod HasSession(sessionRef As %String, Output irisUser As %String, Output traceRef As %String) As %Boolean [ Private ]
 {
-	Set irisUser = $Username
+	Set irisUser = $Username, traceRef = ""
 	Set session = $Select(sessionRef = "": "", 1: ##class(OcuTalon.Data.Session).RefIndexOpen(sessionRef))
 	If '$IsObject(session) Quit 0
 	If session.IrisUser '= "" Set irisUser = session.IrisUser
+	Set traceRef = session.TraceRef
 	Quit 1
 }
 

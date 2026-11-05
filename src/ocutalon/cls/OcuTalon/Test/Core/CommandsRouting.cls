@@ -262,6 +262,42 @@ Method TestToolDismissOwnIncident()
 	Do ##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", "")
 }
 
+/// Inside a bridge context a tool may send ProposePersona only for the context's own session (Story 40.6; DW-570, as U-268 for SendDigest):
+/// a SessionRef that is not the context's OwnerRef, an empty one and the owner's in another case included, is not_allowed with the
+/// chat refusal text and nothing is sent. The owner's own SessionRef is routed to SettingsOps.
+Method TestProposePersonaOwnSessionOnly()
+{
+	Set a = ..Session("proposea")
+	Set b = ..Session("proposeb")
+	Set variant = $ZConvert(a, "U")
+	If variant = a Set variant = $ZConvert(a, "L")
+	Do $$$AssertTrue(variant '= a, "the case variant of A's reference differs from it")
+	Set probe = ..NewProbe("ok")
+	Set request = ##class(OcuTalon.Bridge.Msg.Request).%New()
+	Set request.OwnerRef = a
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Context).Begin(request, "zzss"_..Number), "a context of session A begins")
+	Try {
+		For session = b, "", variant {
+			Set command = ..NewCommand("ProposePersona", "tool", session, "zzkey"_..Number)
+			Set command.Preset = "pirate"
+			Do probe.OnProcessInput(command, .output)
+			Set label = "ProposePersona for '"_session_"'"
+			Do $$$AssertEquals(output.Ok_"|"_output.Outcome, "0|not_allowed", label_" is not_allowed inside A's context")
+			Do $$$AssertEquals(output.Message, "That can't be done from the chat. Nothing was changed.", label_" says so")
+			Do $$$AssertEquals(..Calls(), 0, label_" reaches no owner")
+		}
+		Set command = ..NewCommand("ProposePersona", "tool", a, "zzkey"_..Number)
+		Set command.Preset = "pirate"
+		Do probe.OnProcessInput(command, .output)
+		Do $$$AssertEquals(output.Ok, 1, "A's own proposal is routed inside its context")
+		Do $$$AssertEquals(..Calls(), 1, "and sent once")
+		Do $$$AssertEquals(..Call(1, "target"), "SettingsOps", "to SettingsOps")
+	} Catch exception {
+		Do $$$AssertTrue(0, "a call inside a context threw: "_exception.DisplayString())
+	}
+	Do ##class(OcuTalon.Bridge.Context).End()
+}
+
 /// While a bridge context is active the origin is tool whatever the command says, so a Dismiss that says web_user is limited
 /// the same way: the session's own noticed incident is sent to IncidentManager, another session's incident is not_found and
 /// nothing is sent. A Dismiss that names session B inside session A's context is not_found too, although B can see the

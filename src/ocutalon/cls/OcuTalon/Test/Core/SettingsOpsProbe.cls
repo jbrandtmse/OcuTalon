@@ -15,6 +15,11 @@
 /// "not implemented" (code 5003), "error" for an error status and "error:<name>" for an error status for that name only; the answer "set" is "" for
 /// OK and "error" for an error status, "setAt" (a number n) fails the nth Set call only and "throwAt" (a number n) makes it throw. A Set stores the value in
 /// ^OcuTalonTest("SettingsOpsProbe", "bridgeValue", name) and answers the value it replaced in old. The product never refers to it.
+/// The persona seams (Story 40.6): RaiseRequest raises nothing; it records the row's Kind, OwnerRef, TraceRef, DryRun and ResultTarget under
+/// ^OcuTalonTest("SettingsOpsProbe", "raised", n, ...) and answers OK with the Ref in ^OcuTalonTest("SettingsOpsProbe", "raiseRef") (a fixed
+/// Ref when there is none), or an error status when ^OcuTalonTest("SettingsOpsProbe", "raise") is "error". SendNotice sends nothing; it
+/// records the Kind, CatalogKey, Slots, ApprovalRef and SessionRef of each notice in the order sent under
+/// ^OcuTalonTest("SettingsOpsProbe", "notices", n, ...) and answers an error status when ^OcuTalonTest("SettingsOpsProbe", "notice") is "error".
 Class OcuTalon.Test.Core.SettingsOpsProbe Extends OcuTalon.Core.SettingsOps
 {
 
@@ -28,6 +33,28 @@ Method WriteAudit(data As %DynamicObject) As %Status [ Private ]
 	If $Get(^OcuTalonTest("SettingsOpsProbe", "answer", "audit")) = "record" Quit ##class(OcuTalon.Bridge.Audit).Record("Settings", data)
 	If $Get(^OcuTalonTest("SettingsOpsProbe", "answer", "audit")) = "throw" Throw ##class(%Exception.StatusException).CreateFromStatus($SYSTEM.Status.Error(5001, "zz audit threw"))
 	Quit $Select($Get(^OcuTalonTest("SettingsOpsProbe", "answer", "audit")) = "error": $SYSTEM.Status.Error(5001, "zz audit failed"), 1: $$$OK)
+}
+
+Method RaiseRequest(row As OcuTalon.Bridge.Data.ApprovalRequest, Output ref As %String) As %Status [ Private ]
+{
+	Set ref = ""
+	Set n = $Increment(^OcuTalonTest("SettingsOpsProbe", "raised"))
+	For name = "Kind", "OwnerRef", "TraceRef", "DryRun", "ResultTarget" {
+		Set ^OcuTalonTest("SettingsOpsProbe", "raised", n, name) = $Property(row, name)
+	}
+	If $Get(^OcuTalonTest("SettingsOpsProbe", "raise")) = "error" Quit $SYSTEM.Status.Error(5001, "zz raise failed")
+	Set ref = $Get(^OcuTalonTest("SettingsOpsProbe", "raiseRef"), "zzRaisedRef0000000000A")
+	Quit $$$OK
+}
+
+Method SendNotice(notification As OcuTalon.Msg.Notification) As %Status [ Private ]
+{
+	Set n = $Increment(^OcuTalonTest("SettingsOpsProbe", "notices"))
+	For name = "Kind", "CatalogKey", "Slots", "ApprovalRef", "SessionRef" {
+		Set ^OcuTalonTest("SettingsOpsProbe", "notices", n, name) = $Property(notification, name)
+	}
+	If $Get(^OcuTalonTest("SettingsOpsProbe", "notice")) = "error" Quit $SYSTEM.Status.Error(5001, "zz notice failed")
+	Quit $$$OK
 }
 
 Method RunDemo() As %Status [ Private ]

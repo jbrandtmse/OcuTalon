@@ -16,6 +16,9 @@
 ///     result, with an ApprovalRef) are cards: rendered for the web, recorded with a ChannelMessageId and the ApprovalRef, published as
 ///     one notification event and in RecentNotices; a toolCall key with no ApprovalRef, the kind answered, a fix's request
 ///     (incident.laterRequest) and a fix's result (result.allThrough) record their Delivery row only;
+///   - TestPersonaCards (Story 40.6): the persona notices of Core.SettingsOps (approval.persona with kind approval, persona.applied and
+///     persona.stale with kind result), with an ApprovalRef, are cards as a tool call's are; without an ApprovalRef, or with the kind
+///     answered, they record their Delivery row only;
 ///   - TestOtherKindsRecordOnly: any other kind records its Delivery row, with no text and no event;
 ///   - TestReplyRecordsItsDeliveryOnly: a reply records its Delivery row for the web, with its DecisionRef and no event;
 ///   - TestRenderErrorRecordsNothing: a text that cannot be rendered is an error with no row and no event;
@@ -240,6 +243,52 @@ Method TestToolCallCards()
 	}
 	Do $$$AssertEquals(..Notifications(quiet).%Size(), 0, "none publishes an event")
 	Do $$$AssertEquals(##class(OcuTalon.Data.Ownership).RecentNotices(quiet, 10).Count(), 0, "and none is a card of the chat")
+}
+
+/// The persona notices (Story 40.6) are cards of the web chat: approval.persona (kind approval) and persona.applied and persona.stale
+/// (kind result), with an ApprovalRef, are rendered for the web, recorded with a ChannelMessageId and the ApprovalRef, and published as
+/// one notification event with the text. The same keys with no ApprovalRef, and any of them with the kind answered, record their
+/// Delivery row only, with no text and no event.
+Method TestPersonaCards()
+{
+	Set session = ..Session("persona")
+	Set cases = $ListBuild($ListBuild("approval", "approval.persona", "{""old"":""Professional (default)"",""new"":""Pirate""}", "OcuTalon suggests a new persona for you. Now: Professional (default). Proposed: Pirate. Nothing changes unless you approve."))
+	Set cases = cases_$ListBuild($ListBuild("result", "persona.applied", "{}", "Persona updated. It applies from your next message."))
+	Set cases = cases_$ListBuild($ListBuild("result", "persona.stale", "{}", "Your persona changed after this was suggested. Nothing was changed."))
+	Set position = 0, n = 0
+	While $ListNext(cases, position, case) {
+		Set n = n + 1
+		Set kind = $List(case, 1), key = $List(case, 2), expected = $List(case, 4)
+		Set notification = ..Notification(session, kind, key, {}.%FromJSON($List(case, 3)))
+		Set notification.ApprovalRef = "ZzPersonaApproval"_n
+		Do $$$AssertStatusOK(..Out().OnNotification(notification, .response), key_": the notification is delivered")
+		Set row = ..Newest(session)
+		Do $$$AssertEquals(..Rows(session), n, key_": one row more")
+		Do $$$AssertTrue($IsObject(row), key_": the newest card of the session exists")
+		If '$IsObject(row) Continue
+		Do $$$AssertEquals(row.Channel_"|"_row.Kind_"|"_row.ApprovalRef, "web|"_kind_"|ZzPersonaApproval"_n, key_": its channel, kind and ApprovalRef")
+		Do $$$AssertEquals(row.Text, expected, key_": the text rendered for the web")
+		Do $$$AssertTrue(row.ChannelMessageId ? 22(1AN,1"-",1"_"), key_": a new message id")
+		Set events = ..Notifications(session)
+		Do $$$AssertEquals(events.%Size(), n, key_": one more notification event")
+		If events.%Size() = n {
+			Set payload = events.%Get(n - 1).payload
+			Do $$$AssertEquals(payload.approvalRef_"|"_payload.kind_"|"_payload.text, "ZzPersonaApproval"_n_"|"_kind_"|"_expected, key_": the payload carries the approvalRef, kind and text")
+		}
+	}
+	Set quiet = ..Session("personaquiet")
+	Set noRef = ..Notification(quiet, "approval", "approval.persona", {"old": "A", "new": "B"})
+	Set answered = ..Notification(quiet, "answered", "persona.applied", {})
+	Set answered.ApprovalRef = "ZzPersonaAnswered"
+	Set resultNoRef = ..Notification(quiet, "result", "persona.stale", {})
+	For notification = noRef, answered, resultNoRef {
+		Set before = ..Rows(quiet)
+		Do $$$AssertStatusOK(..Out().OnNotification(notification, .response), notification.CatalogKey_" (kind "_notification.Kind_"): delivered")
+		Do $$$AssertEquals(..Rows(quiet), before + 1, notification.CatalogKey_": one row is recorded")
+		Set row = ..LastRow(quiet)
+		Do $$$AssertEquals(row.Text_"|"_row.ChannelMessageId, "|", notification.CatalogKey_": no text and no message id")
+	}
+	Do $$$AssertEquals(..Notifications(quiet).%Size(), 0, "none publishes an event")
 }
 
 /// Any other kind records its Delivery row only: the kind, the DecisionRef and the ApprovalRef, with no text, no ChannelMessageId

@@ -108,6 +108,7 @@ describe('the fixed strings', () => {
         repair: 'Repair and resend',
         repairCount: 'Repair and resend {n} {noun}',
         runTool: 'Run {toolName}',
+        changePersona: 'Change how OcuTalon talks to you',
         showInChat: 'Show in the chat: {action}',
         raised: 'Raised {when}',
         expires: 'expires {when}',
@@ -252,6 +253,8 @@ describe('approval requests', () => {
     assert.equal(approvalTitle(approval('a', { dryRun: { affected: 0, itemNoun: { one: 'order', other: 'orders' } } })), 'Repair and resend 0 orders');
     assert.equal(approvalTitle(approval('a', { dryRun: undefined })), 'Repair and resend');
     assert.equal(approvalTitle(approval('a', { kind: 'tool_call', toolName: 'zz_tool', dryRun: undefined })), 'Run zz_tool');
+    assert.equal(approvalTitle(approval('a', { kind: 'setting', dryRun: { before: 'Professional (default)', after: 'Pirate' } })), 'Change how OcuTalon talks to you');
+    assert.equal(approvalTitle(approval('a', { kind: 'setting', dryRun: undefined })), 'Change how OcuTalon talks to you');
     const view = viewOf({ approvals: [approval('a1'), approval('a2', { dryRun: { affected: 1, itemNoun: { one: 'order', other: 'orders' } } })] });
     assert.deepEqual(titles(section(view, 'approvals')), ['Repair and resend 50 orders', 'Repair and resend 1 order']);
   });

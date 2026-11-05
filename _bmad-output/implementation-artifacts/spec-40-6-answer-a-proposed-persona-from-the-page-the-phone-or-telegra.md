@@ -2,9 +2,10 @@
 title: 'Story 40.6: Answer a proposed persona from the page, the phone or Telegram'
 type: 'feature'
 created: '2026-11-05'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '202e947e7a37d5b65f9d5d0e0f63a997e39be48a'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-40-context.md'
 warnings: [oversized]
@@ -210,6 +211,40 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-11-05 — Review pass
+- verdicts: 29 findings — high 0, medium 2, low 13, false 14, maybe-false 0
+- findings:
+  - `[low]` `reject` Blind: approved but unapplied outcomes get no explanation (answered only) — the spec's Design Notes decide it ("no accepted sentence"), and a new catalog key is forbidden.
+  - `[medium]` `patch` Blind, Edge: a throw between StartExecution and FinishExecution leaves the request executing — the apply block now has a Try/Catch that closes the request failed and sends the answered notice only; `TestOutcomeWriteFails` has a throwing-audit case (mutation recorded).
+  - `[false]` `reject` Blind: empty AnsweredChannel/AnsweredBy — `Approval.Answer` always sets both (L375-376), so an approved row has them.
+  - `[low]` `reject` Blind, Edge: no dedup or no-op refusal for a proposal — decided in-stage (Design Notes, Duplicates).
+  - `[low]` `reject` Blind: PutPersona repeats the 40/1,000 limits as literals — both are pinned by tests and mutations (AC7); a shared parameter would be new public surface.
+  - `[low]` `reject` Blind: TestSettingPayload lacks absent or malformed DryRun cases — the code is a plain Catch to an absent part; not worth a guard or case.
+  - `[low]` `reject` Blind: ToolCallCard name unchanged — cosmetic.
+  - `[low]` `reject` Blind, VG: fixed Hang 2 in TestTelegramFirstRejects and the immediate absence in PA2 — the same absence is pinned deterministically by TestOutcomeRejectedOrExpired.
+  - `[false]` `reject` Blind: a tool-origin ProposePersona outside a bridge context can name any session — the spec says outside a context nothing changes, as for SendDigest.
+  - `[low]` `reject` Edge: the apply does not re-run PersonaProblem/OnlineDemo — the DryRun is server-written and validated at the proposal; the demo mode is a host install setting, not toggled between a proposal and its answer.
+  - `[medium]` `patch` Edge: an approval for an ended session would write orphan person.<S>.persona keys (ForgetPerson already ran) — `HasSession` is checked before the write; the request closes failed with the answered notice only (mutation recorded).
+  - `[low]` `reject` Edge: a repeated rejected/expired outcome sends the answered notice again — the same pattern as `IncidentManager.Outcome`; TelegramOut re-edits the same Delivery row, so nothing is shown twice.
+  - `[false]` `reject` Edge: empty text cards ("Now: ") — a custom or language persona with empty text is refused at `PersonaProblem`, so no stored or proposed value is empty.
+  - `[false]` `reject` Edge: a non-object DryRun in `FromRow` — the Catch leaves the dry run absent, which is the intended contract.
+  - `[false]` `reject` Edge claims 1 and 2 (repeat; refusals bypassed at apply) — covered by the rows above.
+  - `[low]` `patch` VG: no mutation line for the FromRow setting branch — mutation applied (red) and recorded.
+  - `[low]` `patch` VG: no mutation line for the card template block — the `setting-proposed` line removed, PA1 red, recorded.
+  - `[low]` `patch` VG: `Owns` type checks unpinned — a string-DryRun row added to `TestOutcomeNotOurs`; mutation red, recorded.
+  - `[low]` `reject` VG: "edited once" asserted at the first edit only — not vacuous; a late duplicate edit is not a defect this story causes.
+  - `[low]` `reject` VG: 2030 fixture dates — the fixtures follow the sibling tests' pattern.
+  - `[false]` `reject` Intent: reading R1/R2/R3 enumeration, rail draws only the title, payload carries text — descriptive; the spec's Card row says the rail and phone title is the setting title.
+  - `[false]` `reject` Intent: PA1 does not assert the Persona card shows Pirate after approval — GET /v1/persona reads pirate and the card's own tests are 40.4's.
+  - `[false]` `reject` Intent: CI-only tests — LiveCase classes run on throwaway stacks by Rule 21; they were run on fresh stacks.
+  - `[false]` `reject` Intent: DW-570 refuses rather than binds — AC 5 says refuse.
+  - `[false]` `reject` Intent: seams in SettingsOps unit tests — real rows and real Start/FinishExecution; Raise and Notify run in PersonaAnswers.
+  - `[false]` `reject` Intent: web chat card relies on the existing live approval path — covered by PersonaAnswers and PA1.
+  - `[false]` `reject` Intent: DW-669 pre-check duplicates SettingsOps validation — by design (route-side bound).
+  - `[false]` `reject` Intent: AC 4 across three channels is in PersonaAnswers only — by design (e2e covers web).
+  - `[false]` `reject` Intent: tests with seams vs live surfaces — same as above.
+
+
 ## Design Notes
 
 **Governing decisions:**
@@ -265,6 +300,14 @@ deferred: []
 - No edit to `web/e2e/support/**` (Epic 11), the bridge or `Msg/Catalog/Watch.cls` (Epic 17), or `Test/Live/Payloads.cls`, `Live/Publish.cls` or `payloads.ts` (Epic 39).
 - The implement stage re-checks `git diff --name-only origin/feature/OCT_OcuTalon_MVP...origin/OCT-epic<N>` (17, 34, 11, 39) before its first edit.
 
+**Decided in-stage (implement):**
+- *Contended files (lead's ruling).* DW-570's check is its own line before the Dismiss block in `CommandsIn` (not after the SendDigest line), and the `TOOLVERBS` comment is untouched: the class header comment carries the sentence. `Api.cls` has the new `$Select` arm, the `PutPersona` edit and the new parameter at the class end only. DW-709's strings are in `ux-strings.test.mjs` in a `fromSource` block after the theme labels and in the `ux` list after the pending note. `git merge-file -p <ours> <base> <theirs>` (base `origin/feature/OCT_OcuTalon_MVP`, theirs `origin/OCT-epic34`): `Web/Api.cls` exit 0, 0 conflicts; `web/scripts/ux-strings.test.mjs` exit 0, 0 conflicts; `Core/CommandsIn.cls` exit 1 with 1 conflict, which is NOT this story's: it is the `TOOLVERBS` line (and the comment line above it) that Stories 40.2 and 40.5 already changed on this branch and Epic 34 changed too. The conflict hunk of `HEAD:CommandsIn.cls` (before this story) and of the working file is byte-identical (same md5), so the story adds none and the one that exists is for the merge of the two epics to resolve.
+- *`WritePersona`'s extra output.* It has a trailing `Output outcome` (`not_audited` or `failed`) so that `SavePersona` keeps its two outcomes. `AuditData`'s trailing `channel` overrides the origin's.
+- *`Carry` and an outcome.* `Carry` handles an `ApprovalOutcome` through `Outcome` and answers "" (the hold wants no answer); `OnMessage` is unchanged.
+- *Test sessions of `PersonaAnswers`.* A page's session must belong to the CSP user (`Ownership.SessionRef`), so the fixture sessions belong to this process's user, and the raised request's `RequiredRole` is set to a role that user holds right after the proposal (the bridge's role rule is not under test).
+- *`PersonaApi.TestPutSaveFailed`* now sends the preset `language` with the unused custom text: its old expectation (every body value forwarded) is what DW-669 changes.
+- *Web `approvalView` for a setting.* The `request` text is ignored for kind `setting`, `dryRun` is undefined and the card draws the three lines in a block of its own (`.setting-note` for the note, so that the dry-note rule of `approval-sources.test.mjs` still holds).
+
 **Ledger inbox (Rule 17):** DW-570 → AC 5; DW-571 → AC 6; DW-669 → AC 7; DW-709 → AC 8. None is declined.
 
 ## Verification
@@ -306,6 +349,22 @@ All calls run from the worktree root with `timeout: 600000`, one per call.
 - AC 8: one preset description word changed in `persona-card-view.ts` -> `ux-strings.test.mjs` red.
 - AC 9: `WritePersona` call removed from the approved path -> PA1 red.
 
+**Mutations observed (Rule 19), each applied, seen red, reverted (the file's md5 equal before and after):**
+- mutation: AC1 `Propose` with no `RaiseRequest` -> `SettingsPersona:TestProposeRaises` red (11 asserts).
+- mutation: AC1 `ToolCallCard` without the three persona keys -> `WebChatOut:TestPersonaCards` red (the three cards do not exist). The first version of that test passed vacuously (a `Continue` with no assert of the row); the assert was added and the mutation re-run.
+- mutation: AC2 `approvalTitle` without the setting branch -> `rail-view.test.mjs` and `approval-view.test.mjs` red; `approvalView` honouring the request text for a setting -> `approval-view.test.mjs` red; PA1 is the page's own pin and was red with the AC9 mutation.
+- mutation: AC3 stale comparison removed (`If 1`) -> `TestOutcomeStale` red; the result notice sent before the answered one -> `TestOutcomeApplies` and `TestOutcomeStale` red; the `row.State` repeat guard removed -> `TestOutcomeNotOurs` red.
+- mutation: AC4 `Outcome` with no `StartExecution` -> `PersonaAnswers:TestWebFirstWins` red on a fresh stack (the request is not done). A warm stack's production jobs kept the old code, so only a fresh run proves it.
+- mutation: AC5 the new `CommandsIn` line removed -> `CommandsRouting:TestProposePersonaOwnSessionOnly` red.
+- mutation: AC6 the setting arm mapped to `MESSAGENOTAPPROVER` -> `AnswersInProduction:TestRoleRefusalsComeBeforeTheOtherChecks` red (the setting row).
+- mutation: AC7 the drop of unused values removed -> `PersonaApi:TestPutDropsUnusedValues` red; the 1,000 bound changed to 1,001 -> `TestPutBoundsUsedValues` red.
+- mutation: AC8 one preset description word changed in `persona-card-view.ts` -> `ux-strings.test.mjs` red.
+- mutation: AC9 the `WritePersona` call removed from the approved path -> PA1 red on a fresh stack (`live sign-in --part 6/8`: PA1 failed at the GET of the preset, 44 passed).
+- mutation: AC2/payload `Live.Payload.Approval.FromRow` without the setting branch (`If 0`) -> `PersonaAnswers:TestSettingPayload` and `TestProposalReachesEveryChannel` red on a fresh stack (before/after empty).
+- mutation: AC2 the `setting-proposed` line removed from the `approval-request-card.ts` template -> PA1 red on a fresh stack (`live sign-in --part 6/8`, 44 passed, 1 failed at `.setting-proposed`).
+- mutation: AC3 `Owns` without the old/new object type checks -> `SettingsPersona:TestOutcomeNotOurs` red (the string-DryRun row).
+- mutation: AC3 `Outcome` without the ended-session check (`If 0`) -> `TestOutcomeWriteFails` red; the apply block's Catch rethrowing -> `TestOutcomeWriteFails` red (a throwing audit write leaves the row executing).
+
 **Standing criterion:** every test added or changed passes on a fresh environment, in either order.
 
 **Shared surfaces:**
@@ -320,5 +379,28 @@ All calls run from the worktree root with `timeout: 600000`, one per call.
 
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** `SettingsOps` now raises the `setting` request for `ProposePersona`, sends the `approval.persona` notice, answers `proposed`, and handles the `ApprovalOutcome` (apply the stored new values through the shared `WritePersona`, or report stale, or answered-only for rejected, expired, a refused start, a failed or throwing write, or an ended session). The web chat shows the persona notices as cards, the live approval payload carries old/new as `dryRun.before`/`after`, and the card and the rail draw the setting card. DW-570 (owner check in `CommandsIn`), DW-571 (setting's own 403 text), DW-669 (PUT drops unused values and bounds used ones) and DW-709 (preset strings in the UX inventory) are closed.
+
+**Files changed.**
+- `src/ocutalon/cls/OcuTalon/Core/SettingsOps.cls`: Propose, Outcome, WritePersona, seams, parameters.
+- `src/ocutalon/cls/OcuTalon/Core/CommandsIn.cls`: DW-570 check line before the Dismiss block; the sentence in the class header.
+- `src/ocutalon/cls/OcuTalon/Web/Api.cls`: setting 403 arm, `MESSAGENOTAPPROVERSETTING`, PutPersona bounds.
+- `src/ocutalon/cls/OcuTalon/Channel/WebChat/Out.cls`: ToolCallCard takes the persona keys.
+- `src/ocutalon/cls/OcuTalon/Live/Payload/Approval.cls`: setting rows fill before/after.
+- `web/src/app/rail/rail-view.ts`, `web/src/app/approvals/approval-view.ts`, `web/src/app/approvals/approval-request-card.ts`: the setting title and card.
+- `web/scripts/{ux-strings,approval-view,rail-view,approval-sources}.test.mjs`: the card rows and DW-709's strings.
+- Tests: new `Test/Core/PersonaAnswers.cls` and `web/e2e/persona-approval.spec.ts`; extended `SettingsOpsProbe`, `SettingsPersona`, `CommandsRouting`, `AnswersInProduction`, `WebChatOut`, `PersonaApi`.
+
+**Review (first pass).** 29 findings: high 0, medium 2, low 13, false 14. Patches applied: 2 medium (a throw between StartExecution and FinishExecution left the request executing; an approval for an ended session would write orphan persona keys), and three missing Rule 19 mutation lines closed in-pass (low). Nothing deferred. Rejected findings and their reasons are in the Review Triage Log.
+
+**Verification.**
+- Loop: slot D reloaded and compiled; forbidden-path diff empty; class-rules and boundaries pass; the five node tests, lint and build passed earlier in the stage; warm `SettingsPersona`, `CommandsRouting`, `SettingsCommands` and `SettingsOps` passed before the patch, and `SettingsPersona` after it (mutations red, then green).
+- Once (after the last patch): `npm --prefix web test` 1415 passed; `shard lane-b@Core` and `--reverse` passed (36 classes each, `PersonaAnswers` inside); `TelegramApproval` passed; `live sign-in` parts 1/8 to 8/8 all passed; `live demo-path` passed; `ci/iris.sh teardown` clean; `test-web-build` and `test-readme` pass. Warm stack e40s6iw was brought down.
+- Mutations (Rule 19): all recorded under `## Verification`, each applied, red, reverted with md5 equal.
+
+**Contended files (lead's ruling).** `git merge-file -p <ours> <base> <theirs>` with base `origin/feature/OCT_OcuTalon_MVP` and theirs `origin/OCT-epic34`: `Web/Api.cls` exit 0, `web/scripts/ux-strings.test.mjs` exit 0, `Core/CommandsIn.cls` exit 1 with one conflict. That conflict is the `TOOLVERBS` line (and its comment) that Stories 40.2 and 40.5 already changed on this branch and Epic 34 also changed; the same hunk is produced by `HEAD:CommandsIn.cls` (before this story), so this story adds none. It needs resolving when Epic 34 and Epic 40 merge (take the union: Epic 34's added verbs plus `ProposePersona`).
+
+**Residual risks.** The Outcome failure paths (ended session, a throw) are exercised through the probe's seams, not on a live production. The Angular build warns that `approval-request-card.ts` is 96 bytes over its 4 kB style budget (a warning; the build passes). Follow-up review recommended because two medium findings were patched: the unverified risk is the new Try/Catch and ended-session branch in `SettingsOps.Outcome`.

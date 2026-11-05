@@ -577,7 +577,7 @@ ClassMethod AnswerResponse(ref As %String, kind As %String, sessionRef As %Strin
 {
 	Set code = result.Result
 	If code = "not_found" Quit ..Fail(404, "not_found", ..#MESSAGENOTFOUND)
-	If code = "not_allowed" Quit ..Fail(403, "not_allowed", $Select(kind = "fix": ..#MESSAGENOTAPPROVER, 1: ..#MESSAGENOTAPPROVERTOOL))
+	If code = "not_allowed" Quit ..Fail(403, "not_allowed", $Select(kind = "fix": ..#MESSAGENOTAPPROVER, kind = "setting": ..#MESSAGENOTAPPROVERSETTING, 1: ..#MESSAGENOTAPPROVERTOOL))
 	If code = "bad_answer" Quit ..Fail(400, "bad_answer", ..#MESSAGEBADANSWER)
 	If '$ListFind($ListBuild("done", "already_answered", "expired"), code) {
 		Quit ..ServerError($SYSTEM.Status.Error(5001, "AnswerOps answered a result that the route doesn't know: "_code))
@@ -1234,8 +1234,11 @@ ClassMethod GetPersona() As %Status
 
 /// PUT /v1/persona (AD-1, AD-4, AD-19; Epic 40): saves the signed-in session's persona. The session is Ownership.SessionRef's and a
 /// sessionRef in the body is ignored. In order: the session (a failure is 500 server_error); the body (PersonaBody; a bad one is 400
-/// bad_persona and nothing is submitted); a SetPersona with the body's preset, language and custom unchanged, submitted with origin
-/// web_user (an error status or no result is 500 server_error). SettingsOps validates and writes, and the answer follows its result:
+/// bad_persona and nothing is submitted); the values the preset does not use are dropped (language is "" unless the preset is language,
+/// custom is "" unless it is custom: DW-669) and a used language of more than 40 characters or a used custom of more than 1,000
+/// (UTF-16 units, as SettingsOps counts them) is 400 bad_language or bad_custom with SettingsOps' message, nothing submitted; a
+/// SetPersona with the preset and the used values, submitted with origin web_user (an error status or no result is 500 server_error).
+/// SettingsOps validates and writes, and the answer follows its result:
 ///   - Ok: 200 {"result":"done","message","preset","language","custom"}, the message as the owner gave it (the Saved sentence when it gave
 ///     none) and the values as it saved them; Data that can't be read is 500 server_error;
 ///   - bad_preset, bad_language, bad_custom, custom_not_offered: 400 with the outcome as the code and the owner's message;
@@ -1247,6 +1250,10 @@ ClassMethod PutPersona() As %Status
 	Set sessionRef = ##class(OcuTalon.Data.Ownership).SessionRef(.sc)
 	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
 	If '..PersonaBody(.preset, .language, .custom) Quit ..Fail(400, "bad_persona", ##class(OcuTalon.Core.SettingsOps).#MESSAGENOTSAVED)
+	If preset '= "language" Set language = ""
+	If preset '= "custom" Set custom = ""
+	If $Length(language) > 40 Quit ..Fail(400, "bad_language", ##class(OcuTalon.Core.SettingsOps).#MESSAGEBADLANGUAGE)
+	If $Length(custom) > 1000 Quit ..Fail(400, "bad_custom", ##class(OcuTalon.Core.SettingsOps).#MESSAGEBADCUSTOM)
 	Set command = ##class(OcuTalon.Msg.Command.SetPersona).%New()
 	Set command.SessionRef = sessionRef
 	Set command.Preset = preset
@@ -1314,5 +1321,9 @@ ClassMethod SubmitPersona(command As OcuTalon.Msg.Command.SetPersona, Output res
 {
 	Quit ##class(OcuTalon.Core.Commands).Submit(command, "web_user", .result)
 }
+
+/// The 403 text of a refused page answer to a setting request (U-114: the owner kept this sentence for the API); its own parameter, so
+/// that a change of the tool-call wording cannot reach it.
+Parameter MESSAGENOTAPPROVERSETTING = "Only an approver can answer this request.";
 
 }

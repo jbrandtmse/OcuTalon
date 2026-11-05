@@ -196,6 +196,19 @@ describe('the texts', () => {
     assert.match(view.code, /ctx\.render\('incident\.eitherWayLine'/);
   });
 
+  it('prints a setting request\'s three lines (Story 40.6) by interpolation, in the dry run\'s place and above it, and types none of their words', () => {
+    const order = ['view().action', 'setting.now', 'setting.proposed', 'setting.note'];
+    let last = -1;
+    for (const name of order) {
+      const at = template.indexOf(`{{ ${name} }}`);
+      assert.ok(at > last, `{{ ${name} }} is printed, below the one before`);
+      last = at;
+    }
+    assert.match(template, /@if \(view\(\)\.setting; as setting\) \{/);
+    assert.ok(template.indexOf('{{ setting.note }}') < template.indexOf('{{ texts.dryRun }}'), 'before the dry run block');
+    assert.doesNotMatch(template, /Nothing changes unless you approve|Now:|Proposed:/, 'the template types none of the lines\' words');
+  });
+
   it('binds no markup: not as innerHTML, outerHTML, a bypass or a sanitizer', () => {
     for (const one of files) assert.doesNotMatch(one.code, /innerhtml|outerhtml|bypassSecurity|DomSanitizer/i, one.name);
   });

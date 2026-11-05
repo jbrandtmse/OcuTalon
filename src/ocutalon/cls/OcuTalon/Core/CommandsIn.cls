@@ -9,7 +9,9 @@
 ///     any other origin must be one the table names for the verb (a refusal of a settings verb says "admin only" unless the verb's
 ///     origins include web_user or tool, as the persona verbs' do). SendDigest, the one step 2 verb a tool may also send, takes no
 ///     recipient: it reaches only the session's own digest.channels, and inside a bridge context its SessionRef must be the context's
-///     OwnerRef, so a tool cannot name another session;
+///     OwnerRef, so a tool cannot name another session. ProposePersona, the one settings verb a tool may send, is held to the same rule:
+///     inside a bridge context its SessionRef must be the context's OwnerRef (DW-570), so a tool proposes only the persona of the
+///     session whose turn it is in, and the refusal is not_allowed and nothing reaches SettingsOps;
 ///   - a refusal changes nothing: nothing is sent, and the caller gets a CommandResult with Ok 0, an Outcome (not_allowed,
 ///     not_found or unknown_command) and a plain-English Message;
 ///   - an accepted command is sent synchronously to its owner in the right trace session (AD-26): inside a turn the session
@@ -75,6 +77,7 @@ Method Carry(command As %RegisteredObject) As OcuTalon.Msg.CommandResult [ Priva
 	If '$ListFind($ListFromString(origins), origin) {
 		Quit ..Result("not_allowed", $Select((owner = "SettingsOps") && '$ListFind($ListFromString(origins), "web_user") && '$ListFind($ListFromString(origins), "tool"): ..#MESSAGEADMINONLY, verb = "Pair": ..#MESSAGETELEGRAMONLY, 1: ..#MESSAGENOTALLOWED))
 	}
+	If (origin = "tool") && (verb = "ProposePersona") && ##class(OcuTalon.Bridge.Context).Active() && (command.SessionRef '= ##class(OcuTalon.Bridge.Context).Current().OwnerRef) Quit ..Result("not_allowed", ..#MESSAGENOTFROMTOOL)
 	If (origin = "tool") && (verb = "Dismiss") {
 		If ##class(OcuTalon.Bridge.Context).Active() && (command.SessionRef '= ##class(OcuTalon.Bridge.Context).Current().OwnerRef) Quit ..Result("not_found", ..#MESSAGENOTFOUND)
 		Set incident = ##class(OcuTalon.Data.Ownership).Incident(command.IncidentRef, command.SessionRef, .sc)

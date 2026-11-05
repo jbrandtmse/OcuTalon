@@ -105,6 +105,15 @@ const themeLabels = [...codeOf('header/header.ts').matchAll(new RegExp(`\\{ valu
 assert.equal(themeLabels.length, 3, 'header.ts: the theme menu has three options');
 for (const label of themeLabels) fromSource.push(['THEME_OPTIONS', label]);
 
+// The Persona card's six presets (DW-709): the name and the description of each, read from the source as the theme labels are. The ids are
+// not UX text, so PRESETS is not imported with the constants above.
+const presets = [...codeOf('rail/persona-card/persona-card-view.ts').matchAll(new RegExp(`\\{ id: ${QUOTED}, name: ${QUOTED}, description: ${QUOTED} \\}`, 'g'))];
+assert.equal(presets.length, 6, 'persona-card-view.ts: PRESETS has six entries');
+for (const match of presets) {
+  fromSource.push(['PRESETS name', match[3] ?? match[4]]);
+  fromSource.push(['PRESETS description', match[5] ?? match[6]]);
+}
+
 /** Collapses white space to one space and trims, as the page's text nodes render. */
 const collapse = (text) => text.replace(/\s+/g, ' ').trim();
 const SLOT = '{slot}';
@@ -463,6 +472,21 @@ const SOURCES = {
     'Your own words',
     '{n} of 1,000 characters',
     'OcuTalon suggested a change. It waits for your answer in Approval requests.',
+    'Professional (default)',
+    'Calm, short and plain.',
+    'Starship computer',
+    'Crisp status reports, formal and brief.',
+    'Pirate',
+    'Sailing words and a good-humoured tone; the facts stay exact.',
+    'Kind friend',
+    'Warm, patient and encouraging.',
+    'Another language',
+    'Replies and reasons in the language you name.',
+    'Describe the tone, style and preferences you want.',
+    'Change how OcuTalon talks to you',
+    'Now: {old}',
+    'Proposed: {new}',
+    'Nothing changes unless you approve.',
     'On the online demo you can choose a preset or a language. Your choice lasts for this visit.',
   ],
   design: [

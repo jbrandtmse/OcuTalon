@@ -317,10 +317,70 @@ Method TestPutBodyNamesSession()
 	Do $$$AssertEquals(..KeyValues(theirs), "(none)|(none)|(none)", "the named session's keys did not")
 }
 
+/// Values that the preset does not use never reach SetPersona (Story 40.6; DW-669): a 100 KB custom text and language with the preset
+/// professional are answered 200 and the SetPersona sent has Language and Custom empty; a language preset drops the custom text and a
+/// custom preset drops the language. Nothing is judged about a value the preset does not use.
+Method TestPutDropsUnusedValues()
+{
+	If '..Guard() Quit
+	Set session = ..Session()
+	Set trace = ..TraceOf(session)
+	Set big = $Translate($Justify("", 100000), " ", "x")
+	Set body = ..Put({"preset": "professional", "language": (big), "custom": (big)}.%ToJSON(), .response)
+	Do $$$AssertEquals(response.Status, "200 OK", "professional with a 100 KB language and custom text is 200")
+	Set command = ..SentCommand(trace, 1)
+	Do $$$AssertEquals(command.Preset_"|"_command.Language_"|"_command.Custom, "professional||", "the SetPersona has empty Language and Custom")
+	Do $$$AssertEquals(..KeyValues(session), "professional||", "and the keys hold professional alone")
+	Set body = ..Put({"preset": "language", "language": "Spanish", "custom": (big)}.%ToJSON(), .response)
+	Do $$$AssertEquals(response.Status, "200 OK", "a language preset with a 100 KB custom text is 200")
+	Set command = ..SentCommand(trace, 2)
+	Do $$$AssertEquals(command.Preset_"|"_command.Language_"|"_command.Custom, "language|Spanish|", "the SetPersona has an empty Custom")
+	Set body = ..Put({"preset": "custom", "language": (big), "custom": "Speak plainly."}.%ToJSON(), .response)
+	Do $$$AssertEquals(response.Status, "200 OK", "a custom preset with a 100 KB language is 200")
+	Set command = ..SentCommand(trace, 3)
+	Do $$$AssertEquals(command.Preset_"|"_command.Language_"|"_command.Custom, "custom||Speak plainly.", "the SetPersona has an empty Language")
+}
+
+/// A used value over its limit is refused in the route with SettingsOps' code and message and nothing is submitted: a custom text of 1,001
+/// units is 400 bad_custom and a language of 41 characters is 400 bad_language. A custom text of 1,000 units and a language of 40
+/// characters are forwarded and saved.
+Method TestPutBoundsUsedValues()
+{
+	If '..Guard() Quit
+	Set session = ..Session()
+	Set trace = ..TraceOf(session)
+	Set body = ..Put({"preset": "custom", "custom": ($Translate($Justify("", 1001), " ", "x"))}.%ToJSON(), .response)
+	Do $$$AssertEquals(response.Status_"|"_body, "400 Bad Request|"_..ErrorBody("bad_custom", "Use up to 1,000 characters, without {{ or @{."), "a custom text of 1,001 units: 400 bad_custom")
+	Set body = ..Put({"preset": "language", "language": ($Translate($Justify("", 41), " ", "a"))}.%ToJSON(), .response)
+	Do $$$AssertEquals(response.Status_"|"_body, "400 Bad Request|"_..ErrorBody("bad_language", "Use a language name only: letters, spaces, hyphens and parentheses, up to 40 characters."), "a language of 41 characters: 400 bad_language")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Data.Fixture).Between(##class(OcuTalon.Test.Data.Fixture).Headers(trace), 1, "CommandsIn", "SettingsOps").%Size(), 0, "nothing was submitted")
+	Do $$$AssertEquals(..KeyValues(session), "(none)|(none)|(none)", "and no key was written")
+	Set custom = $Translate($Justify("", 1000), " ", "x")
+	Set body = ..Put({"preset": "custom", "custom": (custom)}.%ToJSON(), .response)
+	Do $$$AssertEquals(response.Status, "200 OK", "a custom text of 1,000 units is 200")
+	Set command = ..SentCommand(trace, 1)
+	Do $$$AssertEquals($Length(command.Custom)_"|"_command.Preset, "1000|custom", "and it is forwarded whole")
+	Set language = $Translate($Justify("", 40), " ", "a")
+	Set body = ..Put({"preset": "language", "language": (language)}.%ToJSON(), .response)
+	Do $$$AssertEquals(response.Status, "200 OK", "a language of 40 characters is 200")
+	Set command = ..SentCommand(trace, 2)
+	Do $$$AssertEquals(command.Language_"|"_command.Preset, language_"|language", "and it is forwarded whole")
+}
+
+/// The nth SetPersona that went from CommandsIn to SettingsOps in the trace session, as the command object, or "".
+Method SentCommand(trace As %String, n As %Integer) As OcuTalon.Msg.Command.SetPersona [ Private ]
+{
+	Set sent = ##class(OcuTalon.Test.Data.Fixture).Between(##class(OcuTalon.Test.Data.Fixture).Headers(trace), 1, "CommandsIn", "SettingsOps")
+	Do $$$AssertTrue(sent.%Size() >= n, "at least "_n_" command(s) went to SettingsOps")
+	If sent.%Size() < n Quit ""
+	Quit $ClassMethod(sent.%Get(n - 1).bodyClass, "%OpenId", sent.%Get(n - 1).bodyId)
+}
+
 /// An outcome that is a failure is 500 not_saved with the owner's message as given: SettingsOps' sentence for its own outcomes,
 /// CommandsIn's for a failed command, and a message of the owner that this route does not know. An owner that gave no message gets the
-/// server_error sentence, never a claim that nothing changed. The command carries the caller's session and the body's three values
-/// unchanged, those that the preset does not use among them.
+/// server_error sentence, never a claim that nothing changed. The command carries the caller's session, the body's preset and the values
+/// that the preset uses unchanged (the language of the language preset, here one that SettingsOps would refuse: the route does not judge
+/// its characters); a value that the preset does not use is dropped (Story 40.6, DW-669).
 Method TestPutSaveFailed()
 {
 	If '..Guard() Quit
@@ -335,13 +395,13 @@ Method TestPutSaveFailed()
 	While $ListNext(cases, position, case) {
 		Set message = $List(case, 2)
 		Set ^OcuTalonTest("PersonaApiProbe", "submit") = {"ok": 0, "outcome": ($List(case, 1)), "message": (message)}.%ToJSON()
-		Set body = ..Put("{""preset"":""pirate"",""language"":""zz !!"",""custom"":""zz {{""}", .response, 0, 1, ..#PROBE)
+		Set body = ..Put("{""preset"":""language"",""language"":""zz !!"",""custom"":""zz {{""}", .response, 0, 1, ..#PROBE)
 		Set expected = $Select(message = "": "Something went wrong inside OcuTalon. Try again.", 1: message)
 		Do $$$AssertEquals(response.Status_"|"_body, "500 Internal Server Error|"_..ErrorBody("not_saved", expected), $List(case, 1)_" with '"_message_"': 500 not_saved with the owner's message")
 	}
 	Do $$$AssertEquals($Get(^OcuTalonTest("PersonaApiProbe", "submitted")), $ListLength(cases), "each PUT submitted one command")
-	Do $$$AssertEquals(^OcuTalonTest("PersonaApiProbe", "submitted", 1, "session")_"|"_^OcuTalonTest("PersonaApiProbe", "submitted", 1, "preset"), session_"|pirate", "for the caller's session, with the body's preset")
-	Do $$$AssertEquals(^OcuTalonTest("PersonaApiProbe", "submitted", 1, "language")_"|"_^OcuTalonTest("PersonaApiProbe", "submitted", 1, "custom"), "zz !!|zz {{", "and the body's language and custom unchanged")
+	Do $$$AssertEquals(^OcuTalonTest("PersonaApiProbe", "submitted", 1, "session")_"|"_^OcuTalonTest("PersonaApiProbe", "submitted", 1, "preset"), session_"|language", "for the caller's session, with the body's preset")
+	Do $$$AssertEquals(^OcuTalonTest("PersonaApiProbe", "submitted", 1, "language")_"|"_^OcuTalonTest("PersonaApiProbe", "submitted", 1, "custom"), "zz !!|", "and the used language unchanged, the unused custom text dropped")
 }
 
 /// not_built is 501 not_built with the not-built sentence, as for Unpair and DismissIncident.
