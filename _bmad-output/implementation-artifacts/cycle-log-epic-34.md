@@ -51,3 +51,4 @@
 2026-11-05T08:24:52Z	Story 34.2	story_unparked	story=34-2-add-and-remove-documents-on-a-documents-page via=inbox(U-285) stage=spec_validated note=no_code;spec_amended_with_U-285_conditions_and_size_ruling
 2026-11-05T08:28:39Z	Story 34.2	ruling	question=third_party_notices_path choice=/opt/ocutalon/THIRD-PARTY-NOTICES category=decide policy=5086036
 2026-11-05T08:28:39Z	Story 34.1	ci_wait	sha=de02fc38 run=41989403902 attempt=2 job=iris(shards-3) started=2026-11-05T08:19:04Z pushed=07:45Z queue_rule=not_passed(60min) action=end_turn_CI_WAIT
+2026-11-05T08:29:25Z	Story 34.2	ruling	question=README_licence_sentence(PUBLIC_TEXT) choice=approved_verbatim_4th_bullet;path_identity_test category=veto applied=planner_approval by=orchestrator policy=5086036
