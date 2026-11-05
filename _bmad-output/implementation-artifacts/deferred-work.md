@@ -4335,3 +4335,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: owner ruling U-287 at=2026-11-05T19:09:13Z#874; AD-4, AD-25
 - 2026-11-05T19:14:18Z status=routed owner=burndown by=owner note=Epic 34 burn-down story
 - 2026-11-05T19:14:52Z owner=34-3-epic-34-burn-down by=burndown note=chartered_into_34.3_(U-287_conditions)
+
+### DW-765: constraints-x64.txt is a starting set resolved with host pip for x86_64 platform tags (equals the arm64 set), not a measured installed x64 set; CI's x64 image build (the licence gate compares the installed set to it and fails on any difference) is the confirmation, and its printed set becomes evidence/34-3-x64-installed-set.md
+- source: spec-34-3-epic-34-burn-down.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: pip evaluates markers against the host; no x64 Python image runs locally (34.3 implement)
+- 2026-11-05T22:27:17Z status=routed owner=burndown by=harvest note=the lead records CI's printed set and run id at the burn-down gate; a differing set reds the image build by name
