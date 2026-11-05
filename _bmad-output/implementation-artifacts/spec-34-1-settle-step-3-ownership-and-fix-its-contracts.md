@@ -4,6 +4,7 @@ type: 'feature'
 created: '2026-11-04'
 status: 'done'
 baseline_revision: '735b6652114b5c53b62396165e3e609f8d38825f'
+baseline_commit: '735b6652114b5c53b62396165e3e609f8d38825f'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -192,6 +193,7 @@ deferred: []
 - **Reply marking (decided 6):** kept as decided; recorded as veto item U-280 (claims about what the product does). Reversal: one Conventions row, before Story 20.2 builds the chips.
 - **`OcuTalon.Live.Payload.Document` and the `document:Document` TYPES entry go to Story 34.2** (decide: the same epic, and within 34.2's AC "updated live from `document` events"). The lead carries it into 34.2's plan prompt.
 - **IPM and Python packages:** no gap to file. Story 19.2's AC already has the package declare `fastembed==0.9.0` for an IPM install, and Story 19.6's declares `pdfplumber==0.11.10` and `python-docx==1.1.2` (decide; no ledger entry).
+- **Owner answers (Contest Planner under the owner's delegation, applied by the lead after implement, before QA):** U-279 (a) kept: the UX text goes into UX-DR144 and `EXPERIENCE.md` only after Epic 40 merges, recorded as DW-719 (routed to Story 19.7). U-280 (a) kept with three conditions (consistency of "None of your documents cover that." with citations, provenance-only labels, FR-41 met by the chip): written into the spine Conventions row "Citations and memories" with the U-280 marker, and routed as DW-720 (Story 19.4) and DW-721 (Story 20.2).
 - **Task 0 runs in the implement stage as written**, first, with its stop rule. On FAIL the implement stage HALTs `blocked` with the intent gap and writes nothing else.
 
 **Integration ACs (Rule 1):** No consumers in this story; the first consumer will be Story 34.2 (`SessionOps.End` calling both `DropSession` stubs; `CommandsIn` routing the four verbs to the `MemoryOps`/`DocumentOps` stubs, which answer 5003 until Epic 19).

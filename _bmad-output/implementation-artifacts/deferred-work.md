@@ -4133,3 +4133,18 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: OCT-epic11 a8868ad8 run 41957022331 iris (shards) job 127036912190 | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: the run's artifact list is empty; the log names only 'Test timeout of 300000ms exceeded' and the error-context path
 - 2026-11-05T04:38:50Z status=routed owner=burndown by=Contest_Planner note=Contest Planner (delegated) 2026-11-05: first-daily-release burn-down story; on failure, upload the Playwright test-results (error-context.md, traces) of the browser units as a CI artifact, no secrets (CI dummy key/token only), short retention
+
+### DW-719: UX text after Epic 40 merges (owner ruling U-279): UX-DR144 and EXPERIENCE.md Step 3 Documents 'Adding' must accept 'Markdown, plain text, PDF and Word (.docx) files.' (replacing 'then PDF and Word from step 6'), and the UX assumptions add 'On a local install, memories belong to each user and documents are shared by every user of the install (P23).'
+- source: spec-34-1-settle-step-3-ownership-and-fix-its-contracts.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: U-279 at=2026-11-05T05:37:42Z#848 (a) keep; EXPERIENCE.md is contended with Epic 40, so not edited by 34.1; checked against prd.md P23
+- 2026-11-05T07:02:58Z status=routed owner=19-7-answer-from-pdf-and-word-documents by=spec_gate note=apply only after Epic 40 merges; exact text above; epics.md UX-DR144 line and EXPERIENCE.md Step 3 Documents bullet
+
+### DW-720: Owner ruling U-280 consistency: a reply that says 'None of your documents cover that.' carries no document citations, and a reply with document citations never says it; code decides both from the same turn's documents-tool results, and tests cover both directions
+- source: spec-34-1-settle-step-3-ownership-and-fix-its-contracts.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: U-280 at=2026-11-05T05:37:42Z#849 condition 1; spine Conventions row 'Citations and memories'
+- 2026-11-05T07:02:58Z status=routed owner=19-4-answer-from-documents-with-citations by=spec_gate note=19.7 inherits it for PDF and Word answers
+
+### DW-721: Owner ruling U-280 chips: citation and memory chips are built by code from the turn's tool results (at most 5 each); labels state provenance, never 'used', 'relied on' or 'based on' ('Sources' and 'From memory' are fine); the UI shows 'None of your documents cover that.' and document citations never together, with tests in both directions; FR-41 is met by the 'From memory' chip
+- source: spec-34-1-settle-step-3-ownership-and-fix-its-contracts.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: U-280 at=2026-11-05T05:37:42Z#849 conditions 1-3; spine Conventions row 'Citations and memories'
+- 2026-11-05T07:02:58Z status=routed owner=20-2-see-citations-and-memories-in-answers by=spec_gate note=carry into 20.2's ACs and tests
