@@ -92,3 +92,4 @@
 2026-11-05T02:19:42Z	Story 33.3	stage_spawned	stage=plan spawn_at=2026-11-05T02:19:42Z model=opus agent_name=33-3-epic-33-burn-down-plan-1 cycle_iteration=1
 2026-11-05T02:25:30Z	Story 33.3	story_created	spawn_at=2026-11-05T02:19:42Z model=opus path=_bmad-output/implementation-artifacts/spec-33-3-epic-33-burn-down.md build_status=ready-for-dev spec_tokens=1530 epic_context=reused
 2026-11-05T02:25:30Z	Story 33.3	spec_validated	service_introducing=false integration_ac=n/a adr_constrained_acs=AD-12,AD-13,AD-22,AD-29,AD-32 decision_dependency=none(DW-699_ruled) sections_created=none owned_ledger=DW-699 addressed=1 declined=0 mutates_shared_runtime=false(S7c_fakes_the_200;live_part_3/3_on_a_lane-C_throwaway) text=ruled_verbatim model=claude-opus-5-5
+2026-11-05T02:25:32Z	Story 33.3	stage_spawned	stage=implement spawn_at=2026-11-05T02:25:32Z model=sonnet agent_name=33-3-epic-33-burn-down-implement-1 cycle_iteration=1 story_base=7f0e96cd
