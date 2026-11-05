@@ -5900,6 +5900,37 @@ So that a quiet digest really means everything I watch was checked and passed.
 **When** its Slots are composed
 **Then** the vital-sign figures, the production summary ("all running, no errors, no backlog"), "Your IRIS system is healthy" and "Everything I checked passed." all come from code, as the flow requires (FR-37, UX-DR106, UX-DR120)
 
+### Story 17.8: Only Decide moves a conversation's link
+
+[ADDED 2026-11-05, fix-forward inside Epic 17: the Contest Planner's rulings on DW-729, DW-730 and DW-726 under the owner's delegation ("I have delegated authority to the Contest Planner. That agent is allowed to make decision on my behalf."), placed by runner A as a fix-forward story because Stories 17.3 and 17.4 do not touch the conversation-link path; it builds on Story 17.2 and must be merged into Epic 17's branch before the epic completes]
+
+As a user,
+I want the conversation to continue only from an answer I actually got,
+So that a late, superseded or failed model reply never changes what OcuTalon remembers of our chat.
+
+**Acceptance Criteria:**
+
+**Given** a `turn` whose reply `Decide` accepts as the decision's answer, on time and untainted
+**When** `Decide` accepts it
+**Then** `Decide`, and only `Decide`, points the conversation's link at that reply's session; runners never move the link (`SaveRetried` and `SaveLinked` record their session only), for a fresh, a compacted and a saved turn alike (AD-6, AD-8)
+
+**Given** a reply `Decide` does not accept (late, superseded, the first attempt or the retry)
+**When** it arrives
+**Then** its cost is counted and it moves nothing: the link keeps naming the session it named, whatever the turn type (AD-6, AD-8, AD-20)
+**And** tests pin, each with a mutation shown going red: a retry that finishes just after its timer while `Decide` is busy leaves the link unchanged (the race); a late first attempt with no retry, on a fresh turn and on a compacted turn, leaves it unchanged; an accepted on-time reply moves it; and Story 17.2's three late-retry tests still pass
+
+**Given** a second-model retry of a `turn`
+**When** its seed is built
+**Then** the seed is the stored conversation up to and including the current user message, and nothing the first attempt produced goes in (no partial reply, tool call or result, or error text); a test shows the seed holds no first-attempt content, with a mutation shown (AD-6, AD-8; an attempt in which a tool ran is never retried, so nothing the user saw is lost)
+
+**Given** `docs/bridge-guide.md`'s "Second-model retry" section
+**When** the arbiter is in place
+**Then** the section still says only what the code does; any wording change is public text that the Contest Planner approves before it is pushed (U-286)
+
+- DW-729: A retry that ends just after T2 while Decide is busy can still move the link (the runner reads lateness once); one arbiter: only Decide moves the link, on accepting a reply (ledger; ruled by the Contest Planner 2026-11-05)
+- DW-730: A late first attempt with no retry can move the link through SaveLinked on a fresh or compacted turn; closed by the same arbiter (ledger; ruled by the Contest Planner 2026-11-05)
+- DW-726: The retry's seed holds the first attempt's unseen exchange; the seed is the stored conversation up to and including the current user message, nothing from the first attempt (ledger; ruled by the Contest Planner 2026-11-05)
+
 ## Epic 18: An admin changes settings in the web app (step 2)
 
 An admin opens a settings page to change models, budgets, channels, the digest time and channels, the time zone and check thresholds; each change takes effect within a minute without a restart and is audited; non-admins can't open it.
