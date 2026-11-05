@@ -2048,3 +2048,7 @@
 2026-11-05T16:05:14Z	Epic 11	epic_merged_to_feature	merge=32686b09 head=3379fbb9 part=11.22 verified_on_origin=yes note=push_succeeded_on_3rd_try(transient commit_refs_rules)
 2026-11-05T16:05:14Z	Epic 11	decision_sheet_recorded	decided=1(DW-741_to_34-2) to_action_items=0 to_x0=0 by=unattended
 2026-11-05T16:05:14Z	Epic 11	teardown_skipped	reason="11.23 next on runner B, then 31.4, Epic 11 part 2"
+2026-11-05T16:19:27Z	Epic 11	ad_amendment_ruled	ad=AD-23 scope=install-script_retag_sentence_only ruling=allow(U7) why="no in-flight open-story spec relies on the retag clause (34.1 cites release/ipm-install.sh only)"
+2026-11-05T16:19:27Z	Epic 11	public_text_raised	item=11.23_README_blockA(P1-P9)+install.sh_blockB(B1-B4) to=Contest_Planner note=flagged_1.0.0_wording_in_P2
+2026-11-05T16:20:00Z	Run	ci_untriggered	head=62a7e675 (and 32686b09) runs=none note="pushes after the transient commit_refs_rules rejection started no workflows; ci.yml/lane-a.yml have no workflow_dispatch; re-trigger by a bookkeeping push"
+2026-11-05T16:20:00Z	Epic 11	public_text_ruled	item=11.23 result="A approved with P2 replaced; B approved as written" by=Contest_Planner(delegated) conditions="install.sh smoke on build 109 recorded as evidence (image line, start, sign-in 200, demo guide step 1); test-readme updated in place"
