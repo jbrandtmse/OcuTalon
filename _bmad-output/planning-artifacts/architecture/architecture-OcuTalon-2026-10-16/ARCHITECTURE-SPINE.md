@@ -568,7 +568,7 @@ Every layer submits commands through `OcuTalon.Core.Commands.Submit`, the one en
       - No code path renders a beat, or an Ignore, as "everything is fine".
       - Its reasons pass the guard like every model text.
       - Status answers in the chat still come only from `check_status` and `Checks.Render`.
-    - **Event.** After each beat, skip or result, `Checks` publishes the `heartbeat` live event (`OcuTalon.Live.Payload.Heartbeat`, the row's public view) to the session's stream.
+    - **Event.** After each beat, skip or result, `Checks` publishes the `heartbeat` live event (`OcuTalon.Live.Payload.Heartbeat`, the row's public view) to the session's stream, except a tick's skip because the checklist is empty, which saves its row and publishes nothing; a run-now still publishes [AMENDED 2026-11-05, Story 39.7, U-283 (the Contest Planner under the owner's delegation, at=2026-11-05T07:37:07Z#857), orchestrator].
     - **The online demo.** Values are per session and go with sign-out and the reset. The periodic beat is off until the visitor turns it on, the card offers a sample checklist, the 30-minute floor holds as everywhere, run-now follows the 2-minute rule, and every beat counts against the daily cost cap.
 
 ### AD-19: Configuration and secrets have fixed homes
