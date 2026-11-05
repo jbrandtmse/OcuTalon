@@ -30,7 +30,15 @@
 ///     Commands.Submit (origin web_user): 200 {"result":"done"}, 409 not_dismissible (IncidentManager's not_allowed, the owner's refusal
 ///     of a dismissal that the incident's state or its approval request forbids), 501 not_built for a stub owner, 404 not_found and 500
 ///     server_error.
-///     The snapshot also tells the page who is signed in, which mode
+///     The settings routes (Story 33.2; AD-13, AD-19) are for OcuTalonAdmin only, and the check is the whole name of the role in $Roles, never %All: a
+///     call to /v1/settings or below it from a user without the role is 403 not_admin, answered before the browser envelope, the body and the
+///     route. GET /v1/settings answers SettingsOps.Values: {"sections", "bridge", "providers", "instanceZone"}. Each POST /v1/settings/<section>
+///     (budgets, daily-digest, time-zone, check-thresholds, demo-mode; models and channels answer 501 not_built) takes the section's fields as a JSON
+///     object of field to value, submits one SaveSettings command (a SetDemoMode for demo-mode) with origin web_admin, the IRIS user of the call and
+///     the CSP session's Ref (AD-4), and answers: Ok 200 {"result":"done","sections"}; a refused value, a missing or unknown field or a body that is not an object 400
+///     bad_settings with "fields", the names of the refused fields; not_built 501; step_failed (the demo step failed after the value was written)
+///     409 demo_step_failed; not_audited, failed and any other outcome or status 500 server_error.
+///     The snapshot also tells the page who is signed in, whether that user holds OcuTalonAdmin (admin), which mode
 ///     the instance runs in (onlineDemo, demoMode), the display names of the models its agents use, the Telegram block
 ///     and the active status conditions, then, only while demo mode is on, the simulated phone, the simulated mailbox
 ///     and the guide that Demo.Guide.Compute derives, and, on the online demo only, idleSeconds: the page's idle cap,
@@ -111,6 +119,15 @@ Parameter MESSAGESERVERERROR = "Something went wrong inside OcuTalon. Try again.
 
 Parameter MESSAGENOTBUILT = "This part of OcuTalon isn't built yet.";
 
+/// The message of the 403 not_admin of every settings call.
+Parameter MESSAGENOTADMIN = "Only OcuTalon admins can open settings.";
+
+/// The message of the 400 bad_settings of a save.
+Parameter MESSAGEBADSETTINGS = "Couldn't save. Nothing was changed.";
+
+/// The message of the 409 demo_step_failed of a demo mode save; {v} is on or off.
+Parameter MESSAGEDEMOSTEPFAILED = "Demo mode is set to {v}, but the switch didn't finish. OcuTalon tries again at its next start.";
+
 Parameter MESSAGENOTDISMISSIBLE = "OcuTalon can't dismiss this incident now. Nothing was changed.";
 
 /// The message of the 409 not_available of the code route while Telegram is not on.
@@ -139,16 +156,28 @@ XData UrlMap [ XMLNamespace = "http://www.intersystems.com/urlmap" ]
 <Route Url="/v1/pairing" Method="DELETE" Call="Pairing"/>
 <Route Url="/v1/persona" Method="GET" Call="GetPersona"/>
 <Route Url="/v1/persona" Method="PUT" Call="PutPersona"/>
+<Route Url="/v1/settings" Method="GET" Call="Settings"/>
+<Route Url="/v1/settings/models" Method="POST" Call="NotBuilt"/>
+<Route Url="/v1/settings/budgets" Method="POST" Call="SaveBudgets"/>
+<Route Url="/v1/settings/channels" Method="POST" Call="NotBuilt"/>
+<Route Url="/v1/settings/daily-digest" Method="POST" Call="SaveDailyDigest"/>
+<Route Url="/v1/settings/time-zone" Method="POST" Call="SaveTimeZone"/>
+<Route Url="/v1/settings/check-thresholds" Method="POST" Call="SaveCheckThresholds"/>
+<Route Url="/v1/settings/demo-mode" Method="POST" Call="SaveDemoMode"/>
 </Routes>
 }
 
-/// Every request, before the route is matched: the role check first, then the browser envelope. A refusal
-/// writes its error and stops the dispatch.
+/// Every request, before the route is matched: the role check first, then, for /v1/settings and below it, the admin check, then the browser
+/// envelope. A refusal writes its error and stops the dispatch.
 ClassMethod OnPreDispatch(url As %String, method As %String, ByRef continue As %Boolean) As %Status
 {
-	If '##class(OcuTalon.Web.Public.Shell).HasRole() {
+	If '..HasUserRole() {
 		Set continue = 0
 		Quit ..Fail(403, "no_role", ##class(OcuTalon.Web.Public.Login).#ERRORNOROLE)
+	}
+	If ..IsSettingsUrl(url) && '..IsAdmin() {
+		Set continue = 0
+		Quit ..Fail(403, "not_admin", ..#MESSAGENOTADMIN)
 	}
 	Set code = ..EnvelopeError(%request.Method, %request.ContentType, %request.GetCgiEnv("HTTP_X_OCUTALON_REQUEST"), %request.GetCgiEnv("HTTP_ORIGIN"), %request.GetCgiEnv("HTTP_HOST"), %request.Secure)
 	If code '= "" {
@@ -156,6 +185,31 @@ ClassMethod OnPreDispatch(url As %String, method As %String, ByRef continue As %
 		Quit ..Fail(403, code, ..EnvelopeMessage(code))
 	}
 	Quit $SYSTEM.Status.OK()
+}
+
+/// 1 when the signed-in user holds the OcuTalon user role. A test subclass overrides it.
+ClassMethod HasUserRole() As %Boolean [ Private ]
+{
+	Quit ##class(OcuTalon.Web.Public.Shell).HasRole()
+}
+
+/// The roles of the signed-in user. A test subclass overrides it.
+ClassMethod Roles() As %String [ Private ]
+{
+	Quit $Roles
+}
+
+/// 1 when the signed-in user holds OcuTalonAdmin, by its whole name; %All does not count (AD-19), because a holder of %All could grant itself the role.
+ClassMethod IsAdmin() As %Boolean [ Private ]
+{
+	Quit (","_..Roles()_",") [ (","_##class(OcuTalon.Core.Admin).#ROLE_",")
+}
+
+/// 1 when the URL (below the application) is /v1/settings or below it.
+ClassMethod IsSettingsUrl(url As %String) As %Boolean [ Private ]
+{
+	Set path = $ZConvert($Piece($Get(url), "?", 1), "L")
+	Quit (path = "/v1/settings") || ($Extract(path, 1, $Length("/v1/settings/")) = "/v1/settings/")
 }
 
 /// The error body for 404, 405 and 500; the cause of a 500 is logged, never sent. Every other status is the
@@ -638,6 +692,130 @@ ClassMethod MarkerBody(Output marker As %String) As %Boolean [ Private ]
 	Quit 1
 }
 
+/// GET /v1/settings: the settings page's values (SettingsOps.Values). The admin check was made before the route.
+ClassMethod Settings() As %Status
+{
+	Try {
+		Set body = ##class(OcuTalon.Core.SettingsOps).Values()
+	} Catch exception {
+		Return ..ServerError(exception.AsStatus())
+	}
+	Set %response.ContentType = ..#CONTENTTYPE
+	Write body.%ToJSON()
+	Quit $SYSTEM.Status.OK()
+}
+
+/// POST /v1/settings/budgets: see SaveSection.
+ClassMethod SaveBudgets() As %Status
+{
+	Quit ..SaveSection("budgets")
+}
+
+/// POST /v1/settings/daily-digest: see SaveSection.
+ClassMethod SaveDailyDigest() As %Status
+{
+	Quit ..SaveSection("daily-digest")
+}
+
+/// POST /v1/settings/time-zone: see SaveSection.
+ClassMethod SaveTimeZone() As %Status
+{
+	Quit ..SaveSection("time-zone")
+}
+
+/// POST /v1/settings/check-thresholds: see SaveSection.
+ClassMethod SaveCheckThresholds() As %Status
+{
+	Quit ..SaveSection("check-thresholds")
+}
+
+/// The save of one settings section (AD-1, AD-4, AD-19): the body is a JSON object of the section's field to value, and anything else is 400
+/// bad_settings with no field and nothing submitted. The route submits one SaveSettings command (the section's slug, the body as it is, the IRIS user of
+/// the call and the CSP session's Ref) through Commands.Submit with origin web_admin, and SettingsOps decides what is acceptable. The answers are
+/// those of Answer.
+ClassMethod SaveSection(section As %String) As %Status [ Private ]
+{
+	If '..SettingsBody(.body) Quit ..BadSettings([])
+	Set sessionRef = ##class(OcuTalon.Data.Ownership).SessionRef(.sc)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	Set command = ##class(OcuTalon.Msg.Command.SaveSettings).%New()
+	Set command.Slug = section
+	Set command.Changes = body.%ToJSON()
+	Set command.ActingUser = $USERNAME
+	Set command.SessionRef = sessionRef
+	Set sc = ##class(OcuTalon.Core.Commands).Submit(command, "web_admin", .result)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	Quit ..Answer(result, "")
+}
+
+/// POST /v1/settings/demo-mode: the body is {"demoMode": true or false} and nothing else; any other body is 400 bad_settings, naming demoMode
+/// unless it is a boolean. The route submits a
+/// SetDemoMode command with origin web_admin, which SettingsOps carries out as it does for the terminal (audit, value, Demo step). The answers are those of
+/// Answer; a Demo step that failed after the value was written (step_failed) is 409 demo_step_failed with MESSAGEDEMOSTEPFAILED.
+ClassMethod SaveDemoMode() As %Status
+{
+	If '..SettingsBody(.body) || (body.%Size() '= 1) || (body.%GetTypeOf("demoMode") '= "boolean") Quit ..BadSettings($Select(body = "": [], body.%GetTypeOf("demoMode") = "boolean": [], 1: ["demoMode"]))
+	Set sessionRef = ##class(OcuTalon.Data.Ownership).SessionRef(.sc)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	Set command = ##class(OcuTalon.Msg.Command.SetDemoMode).%New()
+	Set command.DemoMode = body.demoMode
+	Set command.ActingUser = $USERNAME
+	Set command.SessionRef = sessionRef
+	Set sc = ##class(OcuTalon.Core.Commands).Submit(command, "web_admin", .result)
+	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
+	Quit ..Answer(result, $Select(command.DemoMode: "on", 1: "off"))
+}
+
+/// The answer to a save from the CommandResult (word is "on" or "off" for a demo mode save): Ok is 200 {"result":"done","sections"} with the
+/// sections read fresh; refused is 400 bad_settings with the refused fields (Data); not_built is 501; step_failed is 409 demo_step_failed; no result,
+/// not_audited, failed, unknown_command and any other outcome are 500 server_error.
+ClassMethod Answer(result As OcuTalon.Msg.CommandResult, word As %String) As %Status [ Private ]
+{
+	If '$IsObject(result) Quit ..ServerError($SYSTEM.Status.Error(5001, "CommandsIn answered no result"))
+	If result.Ok {
+		Try {
+			Set answer = {"result": "done", "sections": (##class(OcuTalon.Core.SettingsOps).Values().sections)}
+		} Catch exception {
+			Return ..ServerError(exception.AsStatus())
+		}
+		Set %response.ContentType = ..#CONTENTTYPE
+		Write answer.%ToJSON()
+		Quit $SYSTEM.Status.OK()
+	}
+	Set outcome = result.Outcome
+	If outcome = "refused" {
+		Try {
+			Set fields = ##class(%DynamicAbstractObject).%FromJSON(result.Data).fields
+		} Catch {
+			Set fields = []
+		}
+		Quit ..BadSettings($Select($IsObject(fields): fields, 1: []))
+	}
+	If outcome = "not_built" Quit ..Fail(501, "not_built", ..#MESSAGENOTBUILT)
+	If (outcome = "step_failed") && (word '= "") Quit ..Fail(409, "demo_step_failed", $Replace(..#MESSAGEDEMOSTEPFAILED, "{v}", word))
+	Quit ..ServerError($SYSTEM.Status.Error(5001, "The settings save was answered "_outcome))
+}
+
+/// 400 bad_settings with MESSAGEBADSETTINGS and the names of the refused fields.
+ClassMethod BadSettings(fields As %DynamicArray) As %Status [ Private ]
+{
+	Quit ..Fail(400, "bad_settings", ..#MESSAGEBADSETTINGS, , {"fields": (fields)})
+}
+
+/// The request body as a JSON object, and 1 when it is one; otherwise 0, with body empty.
+ClassMethod SettingsBody(Output body As %DynamicObject) As %Boolean [ Private ]
+{
+	Set body = ""
+	Try {
+		Set parsed = ##class(%DynamicAbstractObject).%FromJSON(..BodyText())
+	} Catch {
+		Set parsed = ""
+	}
+	If '$IsObject(parsed) || 'parsed.%IsA("%Library.DynamicObject") Quit 0
+	Set body = parsed
+	Quit 1
+}
+
 /// Every route whose story hasn't shipped: 501 not_built. arg is the route's :ref or :name.
 ClassMethod NotBuilt(arg As %String = "") As %Status
 {
@@ -730,7 +908,8 @@ ClassMethod Unpair() As %Status [ Private ]
 /// last Seq (read before any section, so that every change after the cursors is an event the page will apply), the chat
 /// and the rail (read through Ownership: the chat holds the newest CHATMAX of the session's turns, visible noticed
 /// incidents and web notice cards merged by time, oldest first; the rail its pending approval requests, checks, pending
-/// reminders and newest decisions), the signed-in user (the session row's, never the client's), the booleans onlineDemo and demoMode, models:
+/// reminders and newest decisions), the signed-in user (the session row's, never the client's), admin (whether the signed-in user holds OcuTalonAdmin, which only decides the page's
+/// Settings link), the booleans onlineDemo and demoMode, models:
 /// the display names of the triage, diagnosis and chat agents' models, telegram: whether the release includes Telegram
 /// and the session's pairing, status: the active status conditions, and, only while demo mode is on, phone: the session's
 /// newest PHONEMAX simulated-phone messages, oldest first, mailbox: the session's newest MAILMAX simulated-mailbox emails,
@@ -761,6 +940,7 @@ ClassMethod StateBody(session As OcuTalon.Data.Session, instanceStream As %Strin
 		"rail": (rail),
 		"user": (session.IrisUser)
 	}
+	Do body.%Set("admin", ..IsAdmin(), "boolean")
 	Do body.%Set("onlineDemo", ##class(OcuTalon.Data.Setting).Get("onlineDemo") = 1, "boolean")
 	Do body.%Set("demoMode", ##class(OcuTalon.Data.Setting).Get(##class(OcuTalon.Install.Step.Demo).#MODEKEY) = "1", "boolean")
 	Set body.models = {
@@ -997,7 +1177,11 @@ ClassMethod Fail(status As %Integer, code As %String, message As %String, approv
 	If $IsObject(extra) {
 		Set iterator = extra.%GetIterator()
 		While iterator.%GetNext(.name, .value, .type) {
-			Do body.%Set(name, value, type)
+			If $IsObject(value) {
+				Do body.%Set(name, value)
+			} Else {
+				Do body.%Set(name, value, type)
+			}
 		}
 	}
 	Write body.%ToJSON()

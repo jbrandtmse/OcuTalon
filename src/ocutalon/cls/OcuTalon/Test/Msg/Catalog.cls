@@ -1,6 +1,6 @@
 /// Tests of the message catalog and its one renderer (Story 0.9; AD-29, AD-32). The XData blocks hold the expectations, typed
 /// apart from the catalog's templates:
-///   - Keys: the 105 keys of OcuTalon.Msg.Catalog.Core and the 28 of OcuTalon.Msg.Catalog.Watch;
+///   - Keys: the 105 keys of OcuTalon.Msg.Catalog.Core and the 49 of OcuTalon.Msg.Catalog.Watch;
 ///   - Gaps: the keys whose entry carries a gap field, the forms the UX does not fix (none now);
 ///   - OneForms: for each of the 11 entries with a count-of-one form, its slots with the form's slot at 1, the exact text of the
 ///     form on the message channels (and on the page where it differs), and the plural fragment that the other counts keep;
@@ -78,9 +78,9 @@ Method TestEntries()
 	Set core = ..Read("Entries", "OcuTalon.Msg.Catalog.Core")
 	Set watch = ..Read("Entries", "OcuTalon.Msg.Catalog.Watch")
 	Do $$$AssertEquals(keys.core.%Size(), 105, "the expected Core list has 105 keys")
-	Do $$$AssertEquals(keys.watch.%Size(), 28, "the expected Watch list has 28 keys")
+	Do $$$AssertEquals(keys.watch.%Size(), 49, "the expected Watch list has 49 keys")
 	Do $$$AssertEquals(..SortedKeys(core), ..SortedList(keys.core), "Core holds exactly its 105 keys")
-	Do $$$AssertEquals(..SortedKeys(watch), ..SortedList(keys.watch), "Watch holds exactly its 28 keys")
+	Do $$$AssertEquals(..SortedKeys(watch), ..SortedList(keys.watch), "Watch holds exactly its 49 keys")
 	Set corePrefixes = ..Prefixes(..SortedKeys(core))
 	Set watchPrefixes = ..Prefixes(..SortedKeys(watch))
 	Set shared = ""
@@ -118,7 +118,7 @@ Method TestEveryKeyOnEveryChannel()
 {
 	Set fixtures = ..Read("Fixtures")
 	Set catalogKeys = ..SortedKeys(..Read("Entries", "OcuTalon.Msg.Catalog.Core"))_","_..SortedKeys(..Read("Entries", "OcuTalon.Msg.Catalog.Watch"))
-	Do $$$AssertEquals(..SortedList($ListFromString(catalogKeys)), ..SortedKeys(fixtures), "the fixtures cover exactly the 133 keys of the catalog")
+	Do $$$AssertEquals(..SortedList($ListFromString(catalogKeys)), ..SortedKeys(fixtures), "the fixtures cover exactly the 154 keys of the catalog")
 	Set refused = ..RefusedChannels()
 	Do $$$AssertEquals(refused, "email,webhook,slack,system", "four Msg.Enum channels are refused")
 	Set iterator = fixtures.%GetIterator()
@@ -544,7 +544,7 @@ Method TestNounForms()
 			Do $$$AssertTrue((text [ picked) && (text '[ other), key_" with the count "_count_" shows only the form '"_picked_"'")
 		}
 	}
-	Do $$$AssertEquals(keys, 15, "the keys with a noun are swept")
+	Do $$$AssertEquals(keys, 16, "the keys with a noun are swept")
 }
 
 /// Rows 1 to 9: the count-of-one forms. Exactly the 9 entries of the OneForms block carry a one form. With the form's slot at 1 each
@@ -1101,7 +1101,28 @@ XData Keys [ MimeType = application/json ]
   "result.couldNotStart",
   "watch.time",
   "button.approve",
-  "button.reject"
+  "button.reject",
+  "digest.greetingMorning",
+  "digest.greetingAfternoon",
+  "digest.greetingEvening",
+  "digest.healthy",
+  "digest.vitalsNotAll",
+  "digest.checkedQuiet",
+  "digest.checked",
+  "digest.nothingWatched",
+  "digest.passed",
+  "digest.failed",
+  "digest.notCheckedUnreachable",
+  "digest.notCheckedError",
+  "digest.notCheckedTimeout",
+  "digest.notCheckedMissed",
+  "digest.notCheckedPaused",
+  "digest.notCheckedStale",
+  "digest.needsYouOne",
+  "digest.needsYou",
+  "digest.saved",
+  "digest.savedNoSummary",
+  "digest.savedNone"
  ]
 }
 }
@@ -1371,7 +1392,28 @@ XData Fixtures [ MimeType = application/json ]
  "result.couldNotStart": {"slots": {"reason": "OcuTalon isn't allowed to resend messages in that production"}, "text": "Nothing was resent: OcuTalon isn't allowed to resend messages in that production. Nothing was changed."},
  "watch.time": {"slots": {"time": "2026-10-16T18:12:00Z"}, "text": "14:12 ET"},
  "button.approve": {"slots": {}, "text": "Approve"},
- "button.reject": {"slots": {}, "text": "Reject"}
+ "button.reject": {"slots": {}, "text": "Reject"},
+ "digest.greetingMorning": {"slots": {}, "text": "Good morning."},
+ "digest.greetingAfternoon": {"slots": {}, "text": "Good afternoon."},
+ "digest.greetingEvening": {"slots": {}, "text": "Good evening."},
+ "digest.healthy": {"slots": {"count": 12, "itemNoun": {"one": "day", "other": "days"}, "databasesFull": 41, "licenseUse": 23}, "text": "Your IRIS system is healthy: up 12 days, databases 41% full, journal space fine, license use 23%."},
+ "digest.vitalsNotAll": {"slots": {"whatFailed": "the journal disk is 94% full"}, "text": "Not every vital sign passed: the journal disk is 94% full."},
+ "digest.checkedQuiet": {"slots": {"checked": "the ADT, Orders and Results productions"}, "text": "I checked the ADT, Orders and Results productions (all running, no errors, no backlog)."},
+ "digest.checked": {"slots": {"checked": "the Orders and Results productions"}, "text": "I checked the Orders and Results productions."},
+ "digest.nothingWatched": {"slots": {}, "text": "I'm not watching any productions yet, so this digest covers the vital signs only. Ask me to watch one."},
+ "digest.passed": {"slots": {"entry": "the Orders production", "time": "2026-10-16T18:12:00Z"}, "text": "Passed: the Orders production (at 14:12 ET)."},
+ "digest.failed": {"slots": {"entry": "the Orders production", "finding": "50 failed orders", "time": "2026-10-16T18:12:00Z"}, "text": "Failed: the Orders production (50 failed orders, at 14:12 ET)."},
+ "digest.notCheckedUnreachable": {"slots": {"entry": "the Billing source", "time": "2026-10-16T18:12:00Z"}, "text": "Not checked: the Billing source (unreachable since 14:12 ET)."},
+ "digest.notCheckedError": {"slots": {"entry": "the Orders production", "time": "2026-10-16T18:12:00Z"}, "text": "Not checked: the Orders production (the check stopped with an error at 14:12 ET)."},
+ "digest.notCheckedTimeout": {"slots": {"entry": "the Orders production", "time": "2026-10-16T18:12:00Z"}, "text": "Not checked: the Orders production (the check timed out at 14:12 ET)."},
+ "digest.notCheckedMissed": {"slots": {"entry": "the Orders production", "from": "2026-10-16T18:00:00Z", "to": "2026-10-16T18:12:00Z"}, "text": "Not checked: the Orders production (the check didn't run between 14:00 ET and 14:12 ET)."},
+ "digest.notCheckedPaused": {"slots": {"entry": "the Orders production", "from": "2026-10-16T18:00:00Z", "to": "2026-10-16T18:12:00Z"}, "text": "Not checked: the Orders production (background checks were paused between 14:00 ET and 14:12 ET)."},
+ "digest.notCheckedStale": {"slots": {"entry": "the Orders production", "time": "2026-10-16T18:12:00Z"}, "text": "Not checked: the Orders production (its last check was at 14:12 ET, too long ago to count)."},
+ "digest.needsYouOne": {"slots": {"what": "the Orders production has 50 failed orders"}, "text": "One thing needs you: the Orders production has 50 failed orders."},
+ "digest.needsYou": {"slots": {"count": 2, "what": "the Orders production has 50 failed orders; the Billing source is unreachable"}, "text": "2 things need you: the Orders production has 50 failed orders; the Billing source is unreachable."},
+ "digest.saved": {"slots": {"count": 3, "summary": "Two newsletters and a shipping notice."}, "text": "Saved for later (3): Two newsletters and a shipping notice."},
+ "digest.savedNoSummary": {"slots": {"count": 3, "fallbackReason": "timeout"}, "text": "Saved for later (3): I couldn't summarize them this time (the model didn't answer within 60 seconds). The most recent are under Recent decisions on your OcuTalon page."},
+ "digest.savedNone": {"slots": {}, "text": "Nothing was saved for later."}
 }
 }
 

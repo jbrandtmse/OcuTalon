@@ -97,7 +97,7 @@ describe('the page speaks only through the Announcer', () => {
     assert.deepEqual(silent.filter((one) => /\bAnnouncer\b|\.announce\(/.test(one.code)).map((one) => one.name), []);
   });
 
-  it('has these speakers and no others: banners, the chat and its outbox, the demo guide and the Break the feed box, the load failure, the simulated mailbox (a decided email and a sample that arrived), the busy notice, the narrow-window note, the press of Approve and Reject (the notices of the user\'s own press, on the chat\'s request card and on the simulated phone: busy, late, refused and failed), the approval request card (an answer that came from elsewhere, once), Dismiss (the message of an error reply, once, Story 6.4), the credential rows (Story 16.1) and the Telegram card (the pairing and the unpairing, once each, Stories 12.4 and 12.5)', () => {
+  it('has these speakers and no others: banners, the chat and its outbox, the demo guide and the Break the feed box, the load failure, the simulated mailbox (a decided email and a sample that arrived), the busy notice, the narrow-window note, the press of Approve and Reject (the notices of the user\'s own press, on the chat\'s request card and on the simulated phone: busy, late, refused and failed), the approval request card (an answer that came from elsewhere, once), Dismiss (the message of an error reply, once, Story 6.4), the credential rows (Story 16.1) and the Telegram card (the pairing and the unpairing, once each, Stories 12.4 and 12.5) and the settings page (the saved text of a section, once, a failed save of the thresholds, and the load failure, Story 33.2)', () => {
     assert.deepEqual(filesWith(/\bannouncer\.announce\(|\.announce\(/).sort(), [
       'app/approvals/answer-press.ts',
       'app/approvals/approval-request-card.ts',
@@ -111,6 +111,9 @@ describe('the page speaks only through the Announcer', () => {
       'app/live/live-state.ts',
       'app/mailbox/simulated-mailbox.ts',
       'app/rail/telegram-card/telegram-card.ts',
+      'app/settings/check-thresholds-section.ts',
+      'app/settings/demo-mode-section.ts',
+      'app/settings/settings-page.ts',
       'app/shared/announcer.ts',
       'app/shared/narrow-note.ts',
       'app/shared/server-button.ts',
@@ -132,6 +135,8 @@ describe('focus moves only for the user or through the focus rule', () => {
     'app/shared/focus-rule.ts': [1, 'the page\'s one focus rule, for an update that removed the focused element'],
     'app/shared/layout.ts': [2, 'the region that the user\'s skip link or Status press reveals, and the Status button when the user closes the drawer from inside it (Story 2.15)'],
     'app/main-page/main-page.ts': [1, 'a focused element of the rail keeps its focus when the layout moves the rail (Story 2.15)'],
+    'app/settings/check-thresholds-section.ts': [1, 'the first field in error takes focus after the user\'s own Save changes (Story 33.2)'],
+    'app/settings/demo-mode-section.ts': [1, 'the switch takes focus when the user\'s own Save changes is refused or the Demo step fails (Story 33.2)'],
     'signin/splash.js': [1, 'a copy that fails on the splash gives the focus to the input whose value it selects, after the user pressed the copy button (Story 16.2)'],
   };
 
@@ -144,8 +149,8 @@ describe('focus moves only for the user or through the focus rule', () => {
     assert.deepEqual(filesWith(/\bautofocus\b|cdkTrapFocus|cdkFocusInitial|FocusTrap|FocusMonitor|focusVia|focusInitialElement|\.select\(\)/), []);
   });
 
-  it('waits for a render only to scroll the chat, to focus a popover, the drawer, a mailbox view or the phone\'s notification (Show me) that the user opened, for the focus rule, and for the request card to read where focus is before it announces an answer from elsewhere', () => {
-    assert.deepEqual(filesWith(/\bafterNextRender\(|\bafterEveryRender\(|\bafterRenderEffect\(/).sort(), ['app/approvals/approval-request-card.ts', 'app/chat/chat-panel.ts', 'app/guide/demo-guide.ts', 'app/mailbox/simulated-mailbox.ts', 'app/shared/focus-rule.ts', 'app/shared/layout.ts', 'app/shared/popover.ts']);
+  it('waits for a render only to scroll the chat, to focus a popover, the drawer, a mailbox view or the phone\'s notification (Show me) that the user opened, the first field in error of a settings form that the user saved, for the focus rule, and for the request card to read where focus is before it announces an answer from elsewhere', () => {
+    assert.deepEqual(filesWith(/\bafterNextRender\(|\bafterEveryRender\(|\bafterRenderEffect\(/).sort(), ['app/approvals/approval-request-card.ts', 'app/chat/chat-panel.ts', 'app/guide/demo-guide.ts', 'app/mailbox/simulated-mailbox.ts', 'app/settings/check-thresholds-section.ts', 'app/settings/demo-mode-section.ts', 'app/shared/focus-rule.ts', 'app/shared/layout.ts', 'app/shared/popover.ts']);
   });
 
   it('gives the banner stack, the rail, the chat panel, the device panel, the approval request card, the phone\'s request message, the demo guide, the main page, the header and the app (the resetting view, Story 16.8) the shared rule, and each its own rule only', () => {

@@ -7,7 +7,10 @@
 /// ^OcuTalonTest("ApiProbe", "output") is set, Post answers that text as the service's output, as it is (QA, Story 16.9: an output that
 /// is not a JSON object). Press (Story 4.3) answers instead of BreakFeedIn: it records the session of each press under
 /// ^OcuTalonTest("ApiProbe", "presses", n) and answers the text in ^OcuTalonTest("ApiProbe", "press"): "fail" is an error status, any
-/// other text is the service's output as it is, and an absent value is a sent press.
+/// other text is the service's output as it is, and an absent value is a sent press. The roles of the signed-in user (Story 33.2) are
+/// the text in ^OcuTalonTest("ApiProbe", "roles") when it is set (comma-separated, as $Roles is), which both the OcuTalon user role check and
+/// the admin check of OnPreDispatch read, and the process's own $Roles otherwise. AnswerFor makes Answer, the private mapping of a save's
+/// CommandResult to the HTTP answer, callable.
 Class OcuTalon.Test.Web.ApiProbe Extends OcuTalon.Web.Api
 {
 
@@ -26,6 +29,26 @@ ClassMethod Post(input As %RegisteredObject, Output output As %String) As %Statu
 	If refuse = 1 Set probe.Refuse = 1
 	If refuse = "busy" Set probe.RefuseBusy = 1
 	Quit probe.OnProcessInput(input, .output)
+}
+
+/// The roles of the signed-in user: the test's, when it set them.
+ClassMethod Roles() As %String [ Private ]
+{
+	If $Data(^OcuTalonTest("ApiProbe", "roles")) Quit ^OcuTalonTest("ApiProbe", "roles")
+	Quit ##super()
+}
+
+/// 1 when the test's roles hold the OcuTalon user role, else the process's own check.
+ClassMethod HasUserRole() As %Boolean [ Private ]
+{
+	If $Data(^OcuTalonTest("ApiProbe", "roles")) Quit (","_^OcuTalonTest("ApiProbe", "roles")_",") [ (","_##class(OcuTalon.Web.Public.Shell).#ROLE_",")
+	Quit ##super()
+}
+
+/// Answer, for the tests: the HTTP answer to a save's CommandResult.
+ClassMethod AnswerFor(result As OcuTalon.Msg.CommandResult, word As %String = "") As %Status
+{
+	Quit ..Answer(result, word)
 }
 
 /// The press that BreakFeedIn would carry out, answered from ^OcuTalonTest("ApiProbe", "press").

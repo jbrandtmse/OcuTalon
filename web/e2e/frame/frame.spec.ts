@@ -31,6 +31,9 @@ const accountButton = (page: Page): Locator => page.getByRole('button', { name: 
 const traceButton = (page: Page): Locator => page.getByRole('button', { name: 'Visual Trace', exact: true });
 /** The header's Demo view switch (Story 4.9). */
 const demoViewSwitch = (page: Page): Locator => page.getByRole('switch', { name: 'Demo view', exact: true });
+/** The header navigation's two links for an admin (Story 33.2): Chat and Settings. */
+const navChat = (page: Page): Locator => page.getByRole('navigation', { name: 'Pages', exact: true }).getByRole('link', { name: 'Chat', exact: true });
+const navSettings = (page: Page): Locator => page.getByRole('navigation', { name: 'Pages', exact: true }).getByRole('link', { name: 'Settings', exact: true });
 
 /** The heading that the About dialog names itself with, for a snapshot's version. */
 const aboutTitle = (version: unknown): string => (typeof version === 'string' && version !== '' ? `OcuTalon ${version}` : 'OcuTalon');
@@ -89,7 +92,8 @@ test('F1: landmarks, headings and order', async ({ page }) => {
   await expect(status, 'the rail is the region Status').toHaveCount(1);
   await expect(status).toHaveClass(/rail/);
   await expect(page.getByRole('main')).toHaveCount(1);
-  await expect(page.getByRole('navigation'), 'the page has no nav landmark').toHaveCount(0);
+  await expect(page.getByRole('navigation'), 'the page has one nav landmark, the header navigation').toHaveCount(1);
+  await expect(page.locator('app-header').getByRole('navigation', { name: 'Pages', exact: true }), 'in the header, named Pages').toHaveCount(1);
 
   const guide = page.getByRole('region', { name: 'Demo guide' });
   await expect(guide, 'the demo guide (demo mode on) is the region Demo guide, there once').toHaveCount(1);
@@ -128,12 +132,12 @@ test('F2: demo mode off', async ({ page }) => {
   expect(main.x + main.width, "main ends at the viewport's right edge").toBeCloseTo(viewport, 0);
 });
 
-/** F3: the header, left to right, on the real stack (demo mode on): the Demo view switch follows the badge, and the Visual Trace button sits between the switch and the theme button. */
+/** F3: the header, left to right, on the real stack (demo mode on): the Demo view switch follows the badge, the header navigation (Chat and, for the README admin, Settings; Story 33.2) follows the switch, and the Visual Trace button sits between the navigation and the theme button. */
 test('F3: the header', async ({ page }) => {
   await signInReadmeLoaded(page);
   await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
 
-  const home = page.locator('app-header a[href="#/"]');
+  const home = page.locator('app-header a.home');
   const mark = home.locator('img.mark');
   const wordmark = home.locator('.wordmark');
   await expect(mark).toHaveCount(1);
@@ -147,6 +151,7 @@ test('F3: the header', async ({ page }) => {
     wordmark: (await wordmark.boundingBox())!,
     badge: (await badge.boundingBox())!,
     demoView: (await demoViewSwitch(page).boundingBox())!,
+    nav: (await page.getByRole('navigation', { name: 'Pages', exact: true }).boundingBox())!,
     trace: (await traceButton(page).boundingBox())!,
     theme: (await themeButton(page).boundingBox())!,
     account: (await accountButton(page).boundingBox())!,
@@ -154,7 +159,8 @@ test('F3: the header', async ({ page }) => {
   expect(boxes.mark.x + boxes.mark.width, 'the mark, then the wordmark').toBeLessThanOrEqual(boxes.wordmark.x + 2);
   expect(boxes.wordmark.x + boxes.wordmark.width, 'then the badge').toBeLessThanOrEqual(boxes.badge.x);
   expect(boxes.badge.x + boxes.badge.width, 'then the Demo view switch').toBeLessThanOrEqual(boxes.demoView.x);
-  expect(boxes.demoView.x + boxes.demoView.width, 'then the Visual Trace, theme and account buttons at the right').toBeLessThanOrEqual(boxes.trace.x);
+  expect(boxes.demoView.x + boxes.demoView.width, 'then the header navigation').toBeLessThanOrEqual(boxes.nav.x);
+  expect(boxes.nav.x + boxes.nav.width, 'then the Visual Trace, theme and account buttons at the right').toBeLessThanOrEqual(boxes.trace.x);
   expect(boxes.trace.x + boxes.trace.width, 'the Visual Trace button comes before the theme button').toBeLessThanOrEqual(boxes.theme.x);
   expect(boxes.theme.x + boxes.theme.width).toBeLessThanOrEqual(boxes.account.x);
   const viewport = await page.evaluate(() => document.documentElement.clientWidth);
@@ -164,6 +170,10 @@ test('F3: the header', async ({ page }) => {
   await home.focus();
   await page.keyboard.press('Tab');
   await expect(demoViewSwitch(page), 'Tab goes from the home link to the Demo view switch, past the badge').toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(navChat(page), 'then to the Chat link of the header navigation').toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(navSettings(page), 'and the Settings link, which the README account sees as an admin').toBeFocused();
   await page.keyboard.press('Tab');
   await expect(traceButton(page), 'then to the Visual Trace button').toBeFocused();
   await page.keyboard.press('Tab');
@@ -420,6 +430,9 @@ test('F7: ghost buttons and the focus ring', async ({ page }) => {
   await page.keyboard.press('Tab');
   await expect(demoViewSwitch(page), 'the Demo view switch follows the home link').toBeFocused();
   await page.keyboard.press('Tab');
+  await page.keyboard.press('Tab');
+  await expect(navSettings(page), 'the two header navigation links follow the switch').toBeFocused();
+  await page.keyboard.press('Tab');
   await expect(traceButton(page)).toBeFocused();
   await expectRing(traceButton(page), 'the Visual Trace button');
   await page.keyboard.press('Tab');
@@ -527,7 +540,7 @@ test('F9: /state is requested once and answers the new keys', async ({ page }) =
   await signInReadmeLoaded(page);
   await expect(page.locator('main.main')).toHaveAttribute('data-snapshot', 'loaded');
   const body = (await answered[0]!.json()) as Snapshot;
-  expect(Object.keys(body)).toEqual(['version', 'instanceZone', 'epoch', 'streams', 'chat', 'rail', 'user', 'onlineDemo', 'demoMode', 'models', 'telegram', 'status', 'phone', 'mailbox', 'guide']);
+  expect(Object.keys(body)).toEqual(['version', 'instanceZone', 'epoch', 'streams', 'chat', 'rail', 'user', 'admin', 'onlineDemo', 'demoMode', 'models', 'telegram', 'status', 'phone', 'mailbox', 'guide']);
   expect(body['user']).toBe(README_ACCOUNT.user);
   expect(body['onlineDemo']).toBe(false);
   expect(body['demoMode']).toBe(true);

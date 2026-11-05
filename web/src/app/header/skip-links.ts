@@ -22,7 +22,7 @@ export const SKIP_LINKS: readonly SkipLink[] = [
 ];
 
 /**
- * The skip links (Story 2.14; NFR-25, UX-DR11): the first tab stops of the page, before the header. Each is a link with the
+ * The skip links (Story 2.14; NFR-25, UX-DR11; they show on the main page only, Story 33.2, because their targets are its regions): the first tab stops of the page, before the header. Each is a link with the
  * page's own address (href="#/"), so a middle-click opens the same page; a press, by click or by Enter, never follows it. It moves
  * focus to the region through Layout.focusRegion, which is the user's own move: "Skip to status" opens a closed drawer first (Story
  * 2.15). It does nothing when the page has no such region. The link to the simulated devices exists only while demo mode is on. A skip link is visually

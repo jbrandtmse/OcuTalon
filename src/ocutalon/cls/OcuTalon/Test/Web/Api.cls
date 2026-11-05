@@ -129,7 +129,7 @@ Method TestStateBody()
 	While iterator.%GetNext(.key) {
 		Set keys = keys_$Select(keys = "": "", 1: ",")_key
 	}
-	Do $$$AssertEquals(keys, "version,instanceZone,epoch,streams,chat,rail,user,onlineDemo,demoMode,models,telegram,status,phone,mailbox,guide", "the snapshot's keys, with the phone, the mailbox and then the guide last while demo mode is on")
+	Do $$$AssertEquals(keys, "version,instanceZone,epoch,streams,chat,rail,user,admin,onlineDemo,demoMode,models,telegram,status,phone,mailbox,guide", "the snapshot's keys, with the phone, the mailbox and then the guide last while demo mode is on")
 	Do $$$AssertEquals(body.%GetTypeOf("mailbox")_"|"_body.mailbox.%Size(), "array|0", "mailbox is an empty array for a session with no mail")
 	Do $$$AssertEquals(body.%GetTypeOf("phone")_"|"_body.phone.%Size(), "array|0", "phone is an empty array for a session with no phone message")
 	Do ##class(OcuTalon.Demo.Guide).Compute(session.Ref).%JSONExportToString(.guideJson)
@@ -944,12 +944,12 @@ Method TestErrorTexts()
 	Do $$$AssertEquals(##class(OcuTalon.Web.Public.Login).#ERRORNOROLE, "This IRIS account doesn't have the OcuTalon user role. Ask an OcuTalon admin to add it.", "no_role is the sign-in page's text")
 }
 
-/// The URL map holds exactly the 14 routes, each with its call.
+/// The URL map holds exactly the 22 routes, each with its call.
 Method TestRoutes()
 {
 	Set found = ..Routes("OcuTalon.Web.Api")
-	Set expected = $ListBuild("GET /v1/state State", "GET /v1/events Events", "POST /v1/messages Messages", "POST /v1/approvals/:ref/answer AnswerApproval", "POST /v1/incidents/:ref/dismiss DismissIncident", "POST /v1/demo/break-feed BreakFeed", "POST /v1/mailbox/incoming MailboxIncoming", "POST /v1/mailbox/samples/:name MailboxSample", "POST /v1/guide/markers GuideMarkers", "POST /v1/session/end EndSession", "POST /v1/pairing/code Pairing", "DELETE /v1/pairing Pairing", "GET /v1/persona GetPersona", "PUT /v1/persona PutPersona")
-	Do $$$AssertEquals($ListLength(found), 14, "14 routes")
+	Set expected = $ListBuild("GET /v1/state State", "GET /v1/events Events", "POST /v1/messages Messages", "POST /v1/approvals/:ref/answer AnswerApproval", "POST /v1/incidents/:ref/dismiss DismissIncident", "POST /v1/demo/break-feed BreakFeed", "POST /v1/mailbox/incoming MailboxIncoming", "POST /v1/mailbox/samples/:name MailboxSample", "POST /v1/guide/markers GuideMarkers", "POST /v1/session/end EndSession", "POST /v1/pairing/code Pairing", "DELETE /v1/pairing Pairing", "GET /v1/persona GetPersona", "PUT /v1/persona PutPersona", "GET /v1/settings Settings", "POST /v1/settings/models NotBuilt", "POST /v1/settings/budgets SaveBudgets", "POST /v1/settings/channels NotBuilt", "POST /v1/settings/daily-digest SaveDailyDigest", "POST /v1/settings/time-zone SaveTimeZone", "POST /v1/settings/check-thresholds SaveCheckThresholds", "POST /v1/settings/demo-mode SaveDemoMode")
+	Do $$$AssertEquals($ListLength(found), 22, "22 routes")
 	Do $$$AssertEquals($ListToString(found, "|"), $ListToString(expected, "|"), "the routes, in order")
 	Do $$$AssertEquals($Parameter("OcuTalon.Web.Api", "HandleCorsRequest"), 0, "no CORS handling")
 	Do $$$AssertEquals($Parameter("OcuTalon.Web.Api", "CHARSET"), "utf-8", "utf-8")

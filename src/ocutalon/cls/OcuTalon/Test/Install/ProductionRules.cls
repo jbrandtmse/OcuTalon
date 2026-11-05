@@ -4,7 +4,8 @@
 ///   - TestSingleDefinitionBlock: the class holds exactly one XData block, ProductionDefinition (AD-29);
 ///   - TestLanesFollowThePackageSplit: every item sits in the region of the lane that owns its class by AD-29's package
 ///     split (the Workflow operation and the two routers by the ownership table), the routers by the package of their
-///     rule class, and the runners by the package of their agent class;
+///     rule class, and the runners by the package of their agent class (a runner whose AgentClass setting is empty, as the disabled
+///     retry runners of step 2 are until Story 17.2, has none to check and sits in lane A by its own class);
 ///   - TestDisabledItems: TelegramIn, TelegramOut and EvalIn are disabled in the definition (AD-29, AD-23);
 ///   - TestPoolSizes: an adapterless business service has pool size 0, and every other item has a pool of at least 1;
 ///   - TestRoutingRules: the two routers are routing engines whose rule classes are rule definitions for the routing engine.
@@ -56,7 +57,7 @@ Method TestLanesFollowThePackageSplit()
 			If setting.Name = "BusinessRuleName" {
 				Do $$$AssertEquals(..LaneOfClass(setting.Value), expected, name_": its rule class "_setting.Value_" belongs to the same lane")
 			}
-			If setting.Name = "AgentClass" {
+			If (setting.Name = "AgentClass") && (setting.Value '= "") {
 				Do $$$AssertEquals(..LaneOfClass(setting.Value), expected, name_": its agent class "_setting.Value_" belongs to the same lane")
 			}
 		}

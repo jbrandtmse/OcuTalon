@@ -67,6 +67,7 @@ Method OnMessage(pRequest As %Library.Persistent, Output pResponse As %Library.P
 	Set pResponse = ""
 	Set command = $Get(pRequest)
 	Set class = $Select($IsObject(command): $ClassName(command), 1: "")
+	If class = "OcuTalon.Msg.Command.GotIt" Quit $$$ERROR($$$NotImplemented)
 	If '$ListFind($ListBuild("OcuTalon.Msg.Command.Pair", "OcuTalon.Msg.Command.Unpair", "OcuTalon.Msg.Command.EndSession"), class) {
 		$$$LOGERROR("OcuTalon.Core.SessionOps: it carries out no " _ $Select(class = "": "message that is not an object", 1: class))
 		Quit $SYSTEM.Status.Error(5001, "SessionOps carries out only Pair, Unpair and EndSession")

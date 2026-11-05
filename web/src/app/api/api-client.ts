@@ -16,6 +16,8 @@ import type {
   MessagePost,
   PairingCode,
   PublicStatus,
+  SettingsBody,
+  SettingsSaved,
   StateSnapshot,
   UnpairDone,
 } from './api-types';
@@ -34,6 +36,20 @@ export class ApiClient {
   /** The snapshot of the signed-in user's session. */
   state(): Observable<StateSnapshot> {
     return this.http.get<StateSnapshot>(`${BASE}/state`);
+  }
+
+  /** The settings page's values (admins only): a 403 for anyone else fails as an HttpErrorResponse whose `error` is the body. */
+  settings(): Observable<SettingsBody> {
+    return this.http.get<SettingsBody>(`${BASE}/settings`);
+  }
+
+  /**
+   * Saves one settings section: a POST of the section's fields as a JSON object (the session and the user are the caller's, never in the body).
+   * The answer is {result: 'done', sections}; a 400 `bad_settings` (with `fields`), a 409 `demo_step_failed`, a 501 and a 500 fail as an
+   * HttpErrorResponse whose `error` is the body (SettingsError).
+   */
+  saveSettings(section: string, values: object): Observable<SettingsSaved> {
+    return this.http.post<SettingsSaved>(`${BASE}/settings/${encodeURIComponent(section)}`, values);
   }
 
   /** Signs the user out: the server ends the CSP session and the whole sign-in group (204, no body). */
