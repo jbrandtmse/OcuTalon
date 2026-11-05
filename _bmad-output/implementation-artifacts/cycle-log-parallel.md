@@ -2067,3 +2067,8 @@
 2026-11-05T19:38:25Z	Run	planner_ruling	subject=live_sign-in_unit_time rule="measure live:sign-in on 34.2 clean rerun (~20:05Z): <=1000s no action, keep logging; >1000s on any clean run -> split live:sign-in into two units by spec file (<800s each) as Story 11.25 on B after 11.24, or orchestrator CI-only change on feature (ci/units.sh + ci.yml matrix, union with Epic 39 units lines, one green run) if B busy; never raise 1200s; any unit timeout to Planner at once"
 2026-11-05T20:02:26Z	Epic 34	ci_polled	story=34.2 sha=2651a548 result=success runs=42086496017(attempt2),42086495970 units="demo-path 550s, sign-in 1047s, answers 446s, group 2043s"
 2026-11-05T20:02:26Z	Run	threshold_crossed	unit=live:sign-in clean_run=1047s line=1000s action=split_by_spec_file(<800s each) by=orchestrator(B busy) rule=Planner
+2026-11-05T20:03:29Z	Run	ci_change_dispatched	change=split_live:sign-in(by spec file, <800s each) branch=OCT-epicci-signin-split worktree=.worktrees/ci-signin-split base=d7ccf6bc agent=helper(opus) rule=Planner merge=orchestrator_after_green
+2026-11-05T20:13:19Z	Epic 11	runner_complete	part_merge=11.23 head=139885a2 ready_for_merge=true decisions_for_user=none evidence=evidence/11-23-build-109-install.md
+2026-11-05T20:13:19Z	Epic 11	ci_green_verified	runs=42097306664,42097307405 head=139885a2 result=success via=none
+2026-11-05T20:13:19Z	Epic 11	merge_enqueued	policy=when_green part_merge=11.23 authority="Planner charter (DW-636) ships next daily" feature_moved=bookkeeping_only
+2026-11-05T20:13:19Z	Epic 11	epic_merge_started	head=139885a2

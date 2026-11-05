@@ -13,7 +13,7 @@ Start with the online demo, at https://demo.ocutalon.com (nothing to install, an
 To run OcuTalon on your own machine instead:
 
 1. Load the IRIS for Health AI Hub Early Access image into Docker: build 154, or build 109, which the download portal now offers ([where to get it](#get-the-image)).
-2. Clone this repository and run `./install.sh` in its folder ([what it does](#start-it-with-the-install-script)). With build 109, follow [Start it with build 109](#start-it-with-build-109) instead.
+2. Clone this repository and run `./install.sh` in its folder ([what it does](#start-it-with-the-install-script)).
 3. Sign in at http://localhost:52773/ocutalon/ with user name `ocutalon` and password `ocutalon` ([more on signing in](#sign-in)).
 4. Follow the demo guide at the top of the page.
 
@@ -91,7 +91,7 @@ macOS and Linux are what OcuTalon's author and its automated tests use. On Windo
 
 OcuTalon 1.0.0 is built and tested on IRIS for Health AI Hub Early Access build 154 (`irishealth-community:2026.3.0AI.154.0`). The InterSystems Early Access Program portal now offers build 109 (`irishealth-community:2027.1.0AI.109.0`) in its place: https://evaluation.intersystems.com/Eval/early-access/AIHub
 
-OcuTalon 1.0.0 also runs unchanged on build 109: its install, production and test checks and the demo guide pass on it. In this release, `./install.sh` looks only for build 154, so with build 109, start OcuTalon as [Start it with build 109](#start-it-with-build-109) shows.
+OcuTalon also runs on build 109: at release 1.0.0 its install, production and test checks and the demo guide passed on it, and `./install.sh` accepts either build.
 
 Choose the file that ends in `docker.tar.gz` for your CPU: arm64 for Apple silicon and ARM Linux, x64 for Intel or AMD. `docker info --format '{{.Architecture}}'` tells which one Docker runs: `aarch64` for arm64, `x86_64` for x64.
 
@@ -103,15 +103,13 @@ docker load -i <the archive file>
 
 ### Start it with the install script
 
-The install script needs build 154. With build 109, see [Start it with build 109](#start-it-with-build-109).
-
 ```
 git clone https://github.com/jbrandtmse/OcuTalon.git
 cd OcuTalon
 ./install.sh
 ```
 
-The script checks that Docker and Docker Compose work and that a build 154 image for your CPU is loaded. It gives the image the name OcuTalon builds from, creates `.env` from `.env.example` when there is none, and starts OcuTalon with `docker compose up -d`. It shows a progress line every 10 seconds, waits up to 15 minutes, and prints the address and the sign-in details. When a check fails, it says what is wrong and the exact fix, and changes nothing.
+The script checks that Docker and Docker Compose work and that a build 154 or build 109 image for your CPU is loaded; when both are, it uses build 154. It gives the image the name OcuTalon builds from, creates `.env` from `.env.example` when there is none, and starts OcuTalon with `docker compose up -d`. It shows a progress line every 10 seconds, waits up to 15 minutes, and prints the address and the sign-in details. When a check fails, it says what is wrong and the exact fix, and changes nothing.
 
 When OcuTalon is ready, it prints:
 
@@ -125,7 +123,7 @@ OcuTalon is ready after <time>.
 
 ### Start it by hand
 
-Without the script, give the loaded image the name OcuTalon builds from, then start it. `docker load` printed the loaded image's name; for the IRIS for Health archive it is `docker.iscinternal.com/docker-intersystems/intersystems/irishealth-community:2026.3.0AI.154.0`.
+Without the script, give the loaded image the name OcuTalon builds from, then start it. `docker load` printed the loaded image's name; for the IRIS for Health archive of build 154 it is `docker.iscinternal.com/docker-intersystems/intersystems/irishealth-community:2026.3.0AI.154.0`, and for build 109 it is `docker.iscinternal.com/docker-intersystems/intersystems/irishealth-community:2027.1.0AI.109.0`. The name is `ocutalon-iris-base:2026.3.0AI.154.0` for both builds.
 
 ```
 docker tag <the name docker load printed> ocutalon-iris-base:2026.3.0AI.154.0
@@ -135,23 +133,9 @@ docker compose up -d
 
 The `cp` step is optional: without `.env`, OcuTalon starts with no model key ([Set a model key](#set-a-model-key)). Skip it when `.env` already exists, because `cp` would replace that file and the key in it.
 
-### Start it with build 109
-
-`docker load` printed the loaded image's name; for the IRIS for Health archive it is `docker.iscinternal.com/docker-intersystems/intersystems/irishealth-community:2027.1.0AI.109.0`. Name it in `.env` as `IRIS_IMAGE`, so that OcuTalon builds from it, then start OcuTalon:
-
-```
-git clone https://github.com/jbrandtmse/OcuTalon.git
-cd OcuTalon
-cp .env.example .env
-echo 'IRIS_IMAGE=<the name docker load printed>' >> .env
-docker compose up -d
-```
-
-Skip the `cp` step when `.env` already exists. Keep the `IRIS_IMAGE` line in `.env`, because every `docker compose up -d` reads it, an update included. Then [check that it is ready](#check-that-it-is-ready) and [sign in](#sign-in).
-
 ### The IRIS (non-Health) image
 
-OcuTalon also runs on the plain IRIS AI Hub build 154 image (`iris-community:2026.3.0AI.154.0`). It differs from IRIS for Health only by the HealthShare libraries and the HSCUSTOM namespace. It is supported and verified on ARM64. OcuTalon's automated tests use only the IRIS for Health image. Build 109's plain IRIS image has not been tested.
+OcuTalon also runs on the plain IRIS AI Hub build 154 image (`iris-community:2026.3.0AI.154.0`). It differs from IRIS for Health only by the HealthShare libraries and the HSCUSTOM namespace. It is supported and verified on ARM64. OcuTalon's automated tests use only the IRIS for Health image. Build 109's plain IRIS image has not been tested, and `./install.sh` does not use it.
 
 `./install.sh` uses the plain IRIS image when no IRIS for Health image for your CPU is loaded. By hand, give it the same name, then start as above:
 
@@ -241,9 +225,9 @@ Each OcuTalon needs its own bot. If another process polls the same bot, OcuTalon
 
 These are the usual causes and fixes. Most entries are messages that `./install.sh` prints when a check or the start fails; the last two are about the page.
 
-**"No IRIS build 154 image is loaded in Docker"**: download the archive for your CPU ([Get the image](#get-the-image)), load it with `docker load -i <the archive file>`, then run `./install.sh`. With build 109, follow [Start it with build 109](#start-it-with-build-109) instead of running `./install.sh`.
+**"No IRIS build 154 or build 109 image is loaded in Docker"**: download the archive for your CPU ([Get the image](#get-the-image)), load it with `docker load -i <the archive file>`, then run `./install.sh`.
 
-**"The IRIS build 154 image that is loaded is for another CPU than this machine's"**: download and load the archive for your CPU. `docker info --format '{{.Architecture}}'` tells which one Docker runs. If the message says that `ocutalon-iris-base:2026.3.0AI.154.0` exists but is for another CPU, point the name at the right image: `docker tag <the loaded image's name> ocutalon-iris-base:2026.3.0AI.154.0`.
+**"The IRIS build 154 or build 109 image that is loaded is for another CPU than this machine's"**: download and load the archive for your CPU. `docker info --format '{{.Architecture}}'` tells which one Docker runs. If the message says that `ocutalon-iris-base:2026.3.0AI.154.0` exists but is for another CPU, point the name at the right image: `docker tag <the loaded image's name> ocutalon-iris-base:2026.3.0AI.154.0`.
 
 **"Docker is not installed (the docker command was not found)"**: install Docker Desktop (macOS, or Windows with WSL 2) or Docker Engine (Linux), then run `./install.sh`.
 

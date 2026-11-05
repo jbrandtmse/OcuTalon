@@ -8,8 +8,8 @@
 #                  you can use it for" and "How you talk to it" in this order; the other H2 sections are there; no "Contest task"
 #                  heading and no header row of its table
 #   try-it         the online demo link comes before ./install.sh, with "nothing to install, and no Early Access image needed"
-#                  beside it, the splash screen and its read-only Visual Trace account; the local path is four numbered steps
-#                  and leads to the build 109 section; steps 1 and 2 are the ruled build 109 steps, word for word (U-241 item 1)
+#                  beside it, the splash screen and its read-only Visual Trace account; the local path is four numbered steps;
+#                  steps 1 and 2 are pinned word for word (U-241 item 1, Story 11.23), and the section never links #start-it-with-build-109
 #   interesting    "What's interesting" has at most 120 words (its image lines are not counted) and names Interoperability, Visual
 #                  Trace, AI Hub, a dry run and the audit log; it shows at least one image line, and every image line in it is the
 #                  decision trace, docs/images/vt-decision.png (the owner's decision of 2026-11-05, reversing U-242 Q2's layout)
@@ -28,9 +28,9 @@
 #                  decision of 2026-11-05)
 #   outcomes       the four outcomes, with the meanings that web/src/app/chat/chat-view.ts shows
 #   install        the facts of the install sections: Compose 2.24 (DW-2), both image names, load and retag, the portal, the CPUs,
-#                  and the build 109 facts (U-241): its image name, IRIS_IMAGE=, its section between "Start it by hand" and "The IRIS
-#                  (non-Health) image", and the sentence that its plain IRIS image has not been tested; the ruled build 109 paragraphs
-#                  of "Get the image" and "Start it with build 109" and its .env line, word for word (U-241 items 2 and 4)
+#                  and the build 109 facts (U-241, Story 11.23): its image name, one install path for both builds (no "Start it with
+#                  build 109" section, no link to it, no IRIS_IMAGE= line), its plain IRIS image untested and not used by install.sh, and
+#                  the passages of "Get the image", "Start it with the install script", "Start it by hand" and Troubleshooting, word for word
 #   ipm            the section "Install it with IPM" is there after "Check that it is ready": the community-registry line comes before
 #                  the first install command, which is said to run in USER; docs/install-ipm.md is linked and itself gives the registry
 #                  install before the folder install; the section never says "any namespace" (AD-23, U-231); it warns that the
@@ -433,23 +433,27 @@ TRY_FACTS="https://demo.ocutalon.com
 ./install.sh
 $DEMO_PHRASE
 splash
-#start-it-with-build-109
+#get-the-image
 read-only Visual Trace account"
-# The ruled build 109 steps (U-241 item 1), word for word; a heredoc, because the lines hold backticks.
+# The ruled steps 1 and 2 (U-241 item 1, Story 11.23), word for word; a heredoc, because the lines hold backticks.
 IFS= read -r -d '' TRY_B109 <<'B109' || true
 1. Load the IRIS for Health AI Hub Early Access image into Docker: build 154, or build 109, which the download portal now offers ([where to get it](#get-the-image)).
-2. Clone this repository and run `./install.sh` in its folder ([what it does](#start-it-with-the-install-script)). With build 109, follow [Start it with build 109](#start-it-with-build-109) instead.
+2. Clone this repository and run `./install.sh` in its folder ([what it does](#start-it-with-the-install-script)).
 B109
 TRY_FACTS="$TRY_FACTS
 $TRY_B109"
 chk_try_it() {
-  local sec="$tmp/sec.try" demo install n
+  local sec="$tmp/sec.try" demo install n line
   section "$1" "$H_TRY" > "$sec"
   if [ ! -s "$sec" ]; then
     echo "$1: no section '$H_TRY'"
     return
   fi
   chk_facts try-it "$sec" "$TRY_FACTS"
+  # The ruled steps are whole lines of the section: nothing is added to them.
+  printf '%s\n' "$TRY_B109" | while IFS= read -r line; do
+    if ! grep -qxF -e "$line" "$sec"; then echo "try-it: the ruled step \"${line:0:50}...\" is not a line of the section, word for word"; fi
+  done
   demo=$(grep -nF -m 1 'https://demo.ocutalon.com' "$sec" | cut -d: -f1)
   install=$(grep -nF -m 1 './install.sh' "$sec" | cut -d: -f1)
   if [ -n "$demo" ] && [ -n "$install" ] && [ "$demo" -ge "$install" ]; then
@@ -462,6 +466,7 @@ chk_try_it() {
     if ! grep -q "^$n\\. " "$sec"; then echo "try-it: the local path has no step $n"; fi
   done
   if grep -q '^5\. ' "$sec"; then echo "try-it: the local path has more than four steps"; fi
+  if grep -qF '#start-it-with-build-109' "$sec"; then echo "try-it: step 2 still sends build 109 to a separate path"; fi
 }
 
 # interesting
@@ -632,42 +637,39 @@ ARM64
 15 minutes
 (healthy)
 irishealth-community:2027.1.0AI.109.0
-IRIS_IMAGE=
-#start-it-with-build-109'
+build 154 or build 109
+The name is `ocutalon-iris-base:2026.3.0AI.154.0` for both builds.'
 INSTALL_FACTS="$INSTALL_FACTS
-Build 109's plain IRIS image has not been tested.
-The install script needs build 154. With build 109, see [Start it with build 109](#start-it-with-build-109)."
-# The ruled build 109 paragraphs (U-241 items 2 and 4) and the .env line of its code block, word for word.
+Build 109's plain IRIS image has not been tested, and \`./install.sh\` does not use it.
+The script checks that Docker and Docker Compose work and that a build 154 or build 109 image for your CPU is loaded; when both are, it uses build 154."
+# The ruled build 109 paragraphs (U-241 items 2 and 4, Story 11.23), whole lines, word for word.
 IFS= read -r -d '' INSTALL_B109 <<'B109' || true
 OcuTalon 1.0.0 is built and tested on IRIS for Health AI Hub Early Access build 154 (`irishealth-community:2026.3.0AI.154.0`). The InterSystems Early Access Program portal now offers build 109 (`irishealth-community:2027.1.0AI.109.0`) in its place: https://evaluation.intersystems.com/Eval/early-access/AIHub
-OcuTalon 1.0.0 also runs unchanged on build 109: its install, production and test checks and the demo guide pass on it. In this release, `./install.sh` looks only for build 154, so with build 109, start OcuTalon as [Start it with build 109](#start-it-with-build-109) shows.
-`docker load` printed the loaded image's name; for the IRIS for Health archive it is `docker.iscinternal.com/docker-intersystems/intersystems/irishealth-community:2027.1.0AI.109.0`. Name it in `.env` as `IRIS_IMAGE`, so that OcuTalon builds from it, then start OcuTalon:
-echo 'IRIS_IMAGE=<the name docker load printed>' >> .env
-Skip the `cp` step when `.env` already exists. Keep the `IRIS_IMAGE` line in `.env`, because every `docker compose up -d` reads it, an update included. Then [check that it is ready](#check-that-it-is-ready) and [sign in](#sign-in).
+OcuTalon also runs on build 109: at release 1.0.0 its install, production and test checks and the demo guide passed on it, and `./install.sh` accepts either build.
+Without the script, give the loaded image the name OcuTalon builds from, then start it. `docker load` printed the loaded image's name; for the IRIS for Health archive of build 154 it is `docker.iscinternal.com/docker-intersystems/intersystems/irishealth-community:2026.3.0AI.154.0`, and for build 109 it is `docker.iscinternal.com/docker-intersystems/intersystems/irishealth-community:2027.1.0AI.109.0`. The name is `ocutalon-iris-base:2026.3.0AI.154.0` for both builds.
+OcuTalon also runs on the plain IRIS AI Hub build 154 image (`iris-community:2026.3.0AI.154.0`). It differs from IRIS for Health only by the HealthShare libraries and the HSCUSTOM namespace. It is supported and verified on ARM64. OcuTalon's automated tests use only the IRIS for Health image. Build 109's plain IRIS image has not been tested, and `./install.sh` does not use it.
 B109
 INSTALL_FACTS="$INSTALL_FACTS
 $INSTALL_B109"
-T_B109='With build 109, follow [Start it with build 109](#start-it-with-build-109) instead of running `./install.sh`.'
+T_B109='**"No IRIS build 154 or build 109 image is loaded in Docker"**: download the archive for your CPU ([Get the image](#get-the-image)), load it with `docker load -i <the archive file>`, then run `./install.sh`.'
+T_B109_CPU='**"The IRIS build 154 or build 109 image that is loaded is for another CPU than this machine'"'"'s"**:'
 H_B109='### Start it with build 109'
 chk_install() {
-  local sec="$tmp/sec.install" hand build plain
+  local sec="$tmp/sec.install" line
   section "$1" 'Install it yourself' > "$sec"
   chk_facts install "$sec" "$INSTALL_FACTS"
-  # The build 109 section sits between "Start it by hand" and "The IRIS (non-Health) image", and its code block names IRIS_IMAGE.
-  hand=$(grep -nxF -m 1 '### Start it by hand' "$sec" | cut -d: -f1)
-  build=$(grep -nxF -m 1 "$H_B109" "$sec" | cut -d: -f1)
-  plain=$(grep -nxF -m 1 '### The IRIS (non-Health) image' "$sec" | cut -d: -f1)
-  if [ -z "$build" ]; then
-    echo "install: no section '$H_B109'"
-  elif [ -z "$hand" ] || [ -z "$plain" ] || [ "$build" -le "$hand" ] || [ "$build" -ge "$plain" ]; then
-    echo "install: '$H_B109' is not between 'Start it by hand' and 'The IRIS (non-Health) image'"
-  elif ! sed -n "${build},${plain}p" "$sec" | grep -qF 'IRIS_IMAGE='; then
-    echo "install: '$H_B109' does not name IRIS_IMAGE="
-  fi
-  # The Troubleshooting entry for a missing build 154 image sends a build 109 reader to the build 109 section.
+  # The ruled paragraphs are whole lines of the section: nothing is added to them.
+  printf '%s\n' "$INSTALL_B109" | while IFS= read -r line; do
+    if ! grep -qxF -e "$line" "$sec"; then echo "install: the ruled paragraph \"${line:0:50}...\" is not a line of the section, word for word"; fi
+  done
+  # One install path for both builds: no separate build 109 section, no .env line for IRIS_IMAGE, no link to the removed anchor.
+  if grep -qxF "$H_B109" "$sec"; then echo "install: the separate '$H_B109' path is back"; fi
+  if grep -qF 'IRIS_IMAGE=' "$sec"; then echo "install: IRIS_IMAGE= is back in the install sections"; fi
+  if grep -qF '(#start-it-with-build-109)' "$1"; then echo "install: a link to the removed '#start-it-with-build-109' is back"; fi
+  # The Troubleshooting entries quote install.sh's first lines word for word.
   section "$1" 'Troubleshooting' > "$tmp/sec.trouble"
-  if ! grep -qF "$T_B109" "$tmp/sec.trouble"; then
-    echo "install: the Troubleshooting entry for a missing build 154 image does not send build 109 to '$H_B109'"
+  if ! grep -qxF -e "$T_B109" "$tmp/sec.trouble" || ! grep -qF -e "$T_B109_CPU" "$tmp/sec.trouble"; then
+    echo "install: the Troubleshooting entries do not quote install.sh's build 154 or build 109 messages word for word"
   fi
 }
 
@@ -1223,6 +1225,8 @@ rule_try_it() {
     st "step $n removed" 1 "$README" "!/^$n\\. /" chk_try_it
   done
   st 'step 4 removed' 1 "$README" '!/^4\. /' chk_try_it
+  st 'the separate build 109 step back' 1 "$README" '/^2\. / { print $0 " With build 109, follow [Start it with build 109](#start-it-with-build-109) instead."; next } { print }' chk_try_it
+  st 'text added to step 2' 1 "$README" '/^2\. / { print $0 " With build 109, follow [Start it by hand](#start-it-by-hand) instead."; next } { print }' chk_try_it
   st 'a fifth step' 1 "$README" '/^4\. / { print; print "5. One more." ; next } { print }' chk_try_it
   st_move 'step 2 moved out of the section' "$H_TRY" '2. ' chk_try_it
   st 'the phrase away from the demo link' 1 "$README" "{ i = index(\$0, \"$DEMO_PHRASE\"); if (i && index(\$0, \"https://demo.ocutalon.com\")) { print substr(\$0, 1, i - 1) \"zz\" substr(\$0, i + length(\"$DEMO_PHRASE\")); print \"\"; print \"$DEMO_PHRASE\"; next } print }" chk_try_it
@@ -1380,13 +1384,14 @@ rule_install() {
   rule_begin install "$README" || return
   st_facts chk_install "$INSTALL_FACTS"
   st_move 'the Compose version moved out of the section' 'Install it yourself' '- Docker Compose 2.24' chk_install
-  st 'the build 109 section removed' 1 "$README" '!/^### Start it with build 109$/' chk_install
-  st 'the build 109 section renamed' 1 "$README" '/^### Start it with build 109$/ { print "### Start it with build 109 now"; next } { print }' chk_install
-  st 'the build 109 section below the non-Health image' 1 "$README" '/^### Start it with build 109$/ { print "### The IRIS (non-Health) image"; next } /^### The IRIS \(non-Health\) image$/ { print "### Start it with build 109"; next } { print }' chk_install
-  st 'the build 109 section above Start it by hand' 1 "$README" '/^### Start it with build 109$/ { print "### Start it by hand"; next } /^### Start it by hand$/ { print "### Start it with build 109"; next } { print }' chk_install
-  st 'the Troubleshooting build 109 sentence removed' 1 "$README" '{ sub(/ With build 109, follow \[Start it with build 109\].*instead of running `\.\/install\.sh`\./, ""); print }' chk_install
-  st 'IRIS_IMAGE= out of the build 109 section' 1 "$README" '/^### / { s = ($0 == "### Start it with build 109") } s { gsub(/IRIS_IMAGE=/, "ZZ=") } { print }' chk_install
-  finish install 'Compose 2.24, both image names, load and retag, the portal, the CPUs and the 15-minute wait' chk_install
+  st 'the build 109 heading back before the non-Health image' 1 "$README" '/^### The IRIS \(non-Health\) image$/ { print "### Start it with build 109"; print "" } { print }' chk_install
+  st 'the old second sentence of the Get the image paragraph back' 1 "$README" '/^OcuTalon also runs on build 109: / { print $0 " In this release, `./install.sh` looks only for build 154, so with build 109, start OcuTalon as [Start it with build 109](#start-it-with-build-109) shows."; next } { print }' chk_install
+  st 'the IRIS_IMAGE line back after the cp step of Start it by hand' 1 "$README" '/^cp \.env\.example \.env$/ { print; print "echo \047IRIS_IMAGE=<the name docker load printed>\047 >> .env"; next } { print }' chk_install
+  st 'the install script paragraph back to a build 154 image' 1 "$README" '{ sub(/a build 154 or build 109 image for your CPU is loaded; when both are, it uses build 154\./, "a build 154 image for your CPU is loaded.") } { print }' chk_install
+  st 'the old Troubleshooting sentence back' 1 "$README" '/^\*\*"No IRIS build 154 or build 109 image is loaded in Docker"\*\*: / { print $0 " With build 109, follow [Start it with build 109](#start-it-with-build-109) instead of running `./install.sh`."; next } { print }' chk_install
+  st 'the Troubleshooting quote back to build 154 only' 1 "$README" '{ sub(/"No IRIS build 154 or build 109 image is loaded in Docker"/, "\"No IRIS build 154 image is loaded in Docker\"") } { print }' chk_install
+  st 'the Troubleshooting CPU quote back to build 154 only' 1 "$README" '{ sub(/"The IRIS build 154 or build 109 image that is loaded/, "\"The IRIS build 154 image that is loaded") } { print }' chk_install
+  finish install 'Compose 2.24, both image names, load and retag, the portal, the CPUs, the 15-minute wait and one install path for build 154 and build 109' chk_install
 }
 
 rule_install_pointer() {
