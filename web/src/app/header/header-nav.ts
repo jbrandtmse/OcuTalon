@@ -5,7 +5,8 @@ import { LiveState } from '../live/live-state';
 import { CurrentPage } from './current-page';
 
 /**
- * The header navigation (Story 33.2; UX-DR21): a navigation landmark named "Pages" with "Chat" and, for an admin, "Settings", each a link
+ * The header navigation (Stories 33.2 and 34.2; UX-DR21): a navigation landmark named "Pages" with "Chat", for an admin "Settings", and "Documents" for every
+ * signed-in user (step 3), each a link
  * (header-nav-item) whose current page is marked aria-current="page". Whether the user is an admin is the snapshot's `admin`; it only decides the
  * link, since the settings API refuses anyone else (403 not_admin). It sits after the Demo view switch.
  */
@@ -19,6 +20,7 @@ import { CurrentPage } from './current-page';
       @if (admin()) {
         <a class="header-nav-item" routerLink="/settings" [attr.aria-current]="page.page() === 'settings' ? 'page' : null">Settings</a>
       }
+      <a class="header-nav-item" routerLink="/documents" [attr.aria-current]="page.page() === 'documents' ? 'page' : null">Documents</a>
     </nav>
   `,
   styles: `

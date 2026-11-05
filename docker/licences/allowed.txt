@@ -1,0 +1,74 @@
+# The licences that the Python packages of the Docker image may be under (Story 34.2; owner answer U-285, 2026-11-05).
+# They cover the transitive set of fastembed 0.9.0, pdfplumber 0.11.10 and python-docx 1.1.2 only. gate.py reads this file and
+# nothing else; the image build fails on a distribution whose licence is not covered here. ASCII only.
+#
+# Lines:
+#   allow <identifier>            a licence the gate accepts, by SPDX identifier (matched without regard to case)
+#   alias <declared text> = <id>  a licence as a package declares it (the License field or a classifier), read as <id>
+#   text <id> :: <regex>          a licence file that holds this text is read as <id>; the regex is matched against the
+#                                 file's text in lower case, quotes straightened and white space collapsed
+#   ignore <phrase>               a declared phrase that is not a licence name (pypdfium2 says "dependency licenses" for
+#                                 the PDFium libraries it bundles); a distribution that declares it passes only when every
+#                                 licence file it ships is read as an allowed licence
+# A declaration that names a licence outside the allow lines fails, whatever files the package ships. A package that
+# declares nothing passes only through its licence files. OR means a dual licence: one alternative that is allowed is enough
+# (so FreeType's GPL option is never needed and never taken: the FTL is the alternative that counts).
+
+allow MIT
+allow MIT-0
+allow MIT-CMU
+allow HPND
+allow BSD-2-Clause
+allow BSD-3-Clause
+allow 0BSD
+allow Apache-2.0
+allow Apache-2.0 WITH LLVM-exception
+allow ISC
+allow PSF-2.0
+allow MPL-2.0
+allow Unlicense
+allow CC0-1.0
+allow Zlib
+allow libpng-2.0
+allow IJG
+allow Unicode-3.0
+allow AGG-2.3
+allow FTL
+allow CC-BY-4.0
+
+alias MIT License = MIT
+alias Apache 2.0 = Apache-2.0
+alias Apache Software License = Apache-2.0
+alias Apache License 2.0 = Apache-2.0
+alias Apache License, Version 2.0 = Apache-2.0
+alias 3-Clause BSD License = BSD-3-Clause
+alias BSD License = BSD-3-Clause
+alias BSD = BSD-3-Clause
+alias Mozilla Public License 2.0 (MPL 2.0) = MPL-2.0
+alias Python Software Foundation License = PSF-2.0
+alias ISC License (ISCL) = ISC
+alias The Unlicense (Unlicense) = Unlicense
+alias zlib/libpng License = Zlib
+alias Zlib License = Zlib
+
+ignore dependency licenses
+
+text MIT :: permission is hereby granted, free of charge, to any person obtaining a copy
+text MIT-0 :: permission is hereby granted, free of charge, to any person obtaining a copy of this software.{0,80}to deal in the software without restriction.{0,400}the software is provided "as is"
+text BSD-2-Clause :: redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met
+text BSD-3-Clause :: redistribution and use in source and binary forms, with or without modification, are permitted provided that the following conditions are met
+text Apache-2.0 :: apache license\s*version 2\.0
+text Apache-2.0 WITH LLVM-exception :: apache license v2\.0 with llvm exceptions
+text ISC :: permission to use, copy, modify, and/or distribute this software for any purpose with or without fee is hereby granted
+text HPND :: permission to use, copy, modify,? and distribute this software and its documentation for any purpose and without fee is hereby granted
+text PSF-2.0 :: python software foundation license
+text MPL-2.0 :: mozilla public license,? version 2\.0
+text Unlicense :: this is free and unencumbered software released into the public domain
+text CC0-1.0 :: cc0 1\.0 universal
+text Zlib :: this software is provided 'as-is', without any express or implied warranty
+text libpng-2.0 :: png reference library license version 2
+text IJG :: independent jpeg group
+text Unicode-3.0 :: unicode license v3
+text AGG-2.3 :: anti-grain geometry
+text FTL :: the freetype project license
+text CC-BY-4.0 :: creative commons attribution 4\.0 international public license

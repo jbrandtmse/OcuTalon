@@ -46,6 +46,8 @@
 ///     POST /v1/session/end signs out: on a local install only the CSP session ends; on the online demo it submits an EndSession
 ///     command for the session (SessionOps.End, through CommandsIn), expires the resume cookie and then signs out, 204; a failed
 ///     End is 500 server_error, which neither expires the cookie nor signs out, so the session stays resumable (EndSession).
+///   - The documents routes (Story 34.2; GET and POST /v1/documents, DELETE /v1/documents/:ref) are OcuTalon.Web.Documents', forwarded by
+///     the map at the end of the URL map.
 ///   - A request without a session is answered 401 signed_out with no WWW-Authenticate header, so that no browser
 ///     opens its own password prompt; the public superclass OcuTalon.Web.Public.ApiBase does that, because the
 ///     answer comes before any role exists. A signed-in user without the OcuTalon user role is answered 403
@@ -162,6 +164,7 @@ XData UrlMap [ XMLNamespace = "http://www.intersystems.com/urlmap" ]
 <Route Url="/v1/settings/time-zone" Method="POST" Call="SaveTimeZone"/>
 <Route Url="/v1/settings/check-thresholds" Method="POST" Call="SaveCheckThresholds"/>
 <Route Url="/v1/settings/demo-mode" Method="POST" Call="SaveDemoMode"/>
+<Map Prefix="/v1/documents" Forward="OcuTalon.Web.Documents"/>
 </Routes>
 }
 

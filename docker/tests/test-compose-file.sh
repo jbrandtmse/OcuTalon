@@ -117,11 +117,142 @@ check "dockerfile: the version comes from the copied manifest" has_line "$docker
 bundle_guard_before_chmod() {
   local guard chmod_at
   guard=$(code "$dockerfile" | grep -n 'test -f /opt/ocutalon/src/ocutalon/csp/index\.html.*web bundle missing: run npm --prefix web run build.*exit 1' | head -n 1 | cut -d: -f1)
-  chmod_at=$(code "$dockerfile" | grep -n 'chmod 444' | head -n 1 | cut -d: -f1)
+  chmod_at=$(code "$dockerfile" | grep -n 'find /opt/ocutalon -type f -exec chmod 444' | head -n 1 | cut -d: -f1)
   [ -n "$guard" ] && [ -n "$chmod_at" ] && [ "$guard" -lt "$chmod_at" ] \
     && [ "$(code "$dockerfile" | awk -v g="$guard" 'NR < g && /^USER / { n++ } END { print n + 0 }')" -eq 1 ]
 }
 check "dockerfile: a tree without src/ocutalon/csp/index.html fails the build, before the modes are set and the last USER" bundle_guard_before_chmod
+# --- docker/Dockerfile: step 3's Python packages, the baked model and the licence gate (Story 34.2; AD-21, AD-23) ---
+
+# runs: each RUN instruction of the Dockerfile as one line (continuation lines joined), in order; copies: each COPY, in order.
+runs() { code "$dockerfile" | awk '/^RUN / { cur = $0; while (cur ~ /\\$/) { sub(/[[:space:]]*\\$/, "", cur); getline nxt; sub(/^[[:space:]]+/, "", nxt); cur = cur " " nxt } print cur }'; }
+# The line number of the first instruction that starts with the word, and of the first line that holds the text.
+line_of() { code "$dockerfile" | grep -n -m 1 -e "$1" | cut -d: -f1; }
+# The one RUN that installs the packages.
+pip_run() { runs | grep -F 'pip install' ; }
+
+pip_pins() {
+  local n
+  n=$(pip_run | wc -l | tr -d ' ')
+  [ "$n" -eq 1 ] || return 1
+  pip_run | grep -qF -e 'python3 -m pip install --break-system-packages --no-cache-dir --target /usr/irissys/mgr/python --only-binary=:all: fastembed==0.9.0 pdfplumber==0.11.10 python-docx==1.1.2' || return 1
+  # Exactly the three pins follow the options: no other package, no other pin.
+  [ "$(pip_run | sed 's/.*--only-binary=:all: //; s/ &&.*//' | tr ' ' '\n' | grep -c .)" -eq 3 ]
+}
+
+model_in_the_same_run() {
+  local r
+  r=$(pip_run)
+  printf '%s\n' "$r" | grep -qF "snapshot_download('Qdrant/all-MiniLM-L6-v2-onnx', cache_dir='/opt/fastembed'" || return 1
+  printf '%s\n' "$r" | grep -qF 'chown -R root:root /opt/fastembed' || return 1
+  printf '%s\n' "$r" | grep -qF 'find /opt/fastembed -type d -exec chmod 555 {} +' || return 1
+  printf '%s\n' "$r" | grep -qF 'find /opt/fastembed -type f -exec chmod 444 {} +'
+}
+
+# The packages and the model come before the sources are copied, so that a source change reuses their layer.
+model_before_sources() {
+  local pip copy
+  pip=$(line_of 'pip install')
+  copy=$(line_of '^COPY src/ /opt/ocutalon/src/$')
+  [ -n "$pip" ] && [ -n "$copy" ] && [ "$pip" -lt "$copy" ]
+}
+
+# The gate runs after the install and before the notices, in the same RUN, and its allowed list is copied before it.
+gate_after_pip() {
+  local r
+  r=$(pip_run)
+  printf '%s\n' "$r" | grep -qF 'pip install' || return 1
+  printf '%s\n' "$r" | grep -q 'pip install .*&& python3 /opt/ocutalon/licences/gate.py check /usr/irissys/mgr/python &&.*gate.py notices /usr/irissys/mgr/python /opt/ocutalon/THIRD-PARTY-NOTICES &&' || return 1
+  [ "$(line_of '^COPY docker/licences/ /opt/ocutalon/licences/$')" -lt "$(line_of 'pip install')" ]
+}
+
+# The packages' licence files are kept: nothing is uninstalled and nothing is deleted under the packages' folder.
+no_licence_deletion() {
+  ! code "$dockerfile" | grep -q 'pip uninstall' || return 1
+  ! code "$dockerfile" | grep -E '(^|[[:space:]&;|])(rm|unlink|shred)[[:space:]]' | grep -q '/usr/irissys/mgr/python' || return 1
+  ! code "$dockerfile" | grep -q -e '-delete' -e 'find /usr/irissys/mgr/python.*-exec rm'
+}
+
+check "dockerfile: one pip line installs exactly fastembed==0.9.0 pdfplumber==0.11.10 python-docx==1.1.2, wheels only, into /usr/irissys/mgr/python" pip_pins
+check "dockerfile: FASTEMBED_CACHE_DIR is /opt/fastembed" \
+  bash -c "grep -v '^[[:space:]]*#' '$dockerfile' | grep -q 'FASTEMBED_CACHE_DIR=/opt/fastembed'"
+check "dockerfile: the model is downloaded into /opt/fastembed in the pip RUN, root-owned, folders 555 and files 444" model_in_the_same_run
+check "dockerfile: the packages and the model come before the sources are copied" model_before_sources
+check "dockerfile: the licence gate runs right after the install, then the notices, and its folder is copied first" gate_after_pip
+check "dockerfile: no pip uninstall and no deletion under /usr/irissys/mgr/python (the licence files stay)" no_licence_deletion
+
+# The licence gate (docker/licences/gate.py and allowed.txt): the allowed set is the ruled one, and planted distributions are judged as ruled.
+gate=docker/licences/gate.py
+allowed_set_is_ruled() {
+  local want got
+  want="0BSD AGG-2.3 Apache-2.0 Apache-2.0_WITH_LLVM-exception BSD-2-Clause BSD-3-Clause CC-BY-4.0 CC0-1.0 FTL HPND IJG ISC MIT MIT-0 MIT-CMU MPL-2.0 PSF-2.0 Unicode-3.0 Unlicense Zlib libpng-2.0"
+  got=$(grep '^allow ' docker/licences/allowed.txt | sed 's/^allow //; s/ /_/g' | LC_ALL=C sort | tr '\n' ' ' | sed 's/ $//')
+  [ "$got" = "$want" ]
+}
+
+# mkdist <folder> <name> <metadata lines> [licence text]: a .dist-info folder, with a LICENSE under licenses/ when a text is given.
+mkdist() {
+  local d="$1/$2-1.0.dist-info"
+  mkdir -p "$d"
+  printf 'Metadata-Version: 2.4\nName: %s\nVersion: 1.0\n%s\n' "$2" "$3" > "$d/METADATA"
+  if [ -n "${4:-}" ]; then mkdir -p "$d/licenses"; printf '%s\n' "$4" > "$d/licenses/LICENSE"; fi
+}
+
+gate_rules() {
+  command -v python3 >/dev/null 2>&1 || return 1
+  local w ok=0 mit_text='Permission is hereby granted, free of charge, to any person obtaining a copy of this software' out
+  w=$(mktemp -d "${TMPDIR:-/tmp}/ocutalon-gate.XXXXXX") || return 1
+  # Allowed: an SPDX id, a dual licence with one allowed side, a package with no declaration whose file is MIT, a phrase that needs files.
+  mkdir -p "$w/good"
+  mkdist "$w/good" alpha 'License-Expression: MIT'
+  mkdist "$w/good" beta 'License: GPL-2.0-or-later OR MIT'
+  mkdist "$w/good" gamma 'Classifier: License :: OSI Approved :: Apache Software License'
+  mkdist "$w/good" delta '' "$mit_text"
+  mkdist "$w/good" epsilon 'License: BSD-3-Clause, dependency licenses' "$mit_text"
+  mkdist "$w/good" zeta 'License-Expression: (GPL-3.0-only OR MIT) AND BSD-3-Clause'
+  mkdist "$w/good" eta 'Classifier: License :: OSI Approved :: Apache License, Version 2.0'
+  printf 'Apache notice line of eta\n' > "$w/good/eta-1.0.dist-info/NOTICE"
+  python3 "$gate" check "$w/good" >/dev/null 2>&1 || { echo "the good set was refused" >&2; ok=1; }
+  # Refused, each alone in a folder with an allowed neighbour: the planted licence names the one that failed.
+  local planted
+  for planted in \
+    'License-Expression: GPL-3.0-only' \
+    'License: AGPL-3.0-or-later' \
+    'License-Expression: MIT AND GPL-2.0-only' \
+    'License-Expression: (MIT OR Apache-2.0) AND GPL-3.0-only' \
+    'License-Expression: GPL-3.0-only AND (MIT OR Apache-2.0)' \
+    'Classifier: License :: OSI Approved :: GNU General Public License v3 (GPLv3)' \
+    'License: Proprietary'; do
+    mkdir -p "$w/bad"; rm -rf "$w/bad"/*
+    mkdist "$w/bad" neighbour 'License-Expression: MIT'
+    mkdist "$w/bad" planted "$planted" "$mit_text"
+    out=$(python3 "$gate" check "$w/bad" 2>&1) && { echo "'$planted' was allowed" >&2; ok=1; }
+    printf '%s\n' "$out" | grep -q '^FAIL planted 1.0 ' || { echo "'$planted' was not named" >&2; ok=1; }
+  done
+  # Nothing declared and no licence file, or a file the gate cannot read as an allowed licence, or a phrase over such a file: refused.
+  mkdir -p "$w/bad"; rm -rf "$w/bad"/*
+  mkdist "$w/bad" planted ''
+  python3 "$gate" check "$w/bad" >/dev/null 2>&1 && { echo "an undeclared package without a file was allowed" >&2; ok=1; }
+  rm -rf "$w/bad"/*; mkdist "$w/bad" planted '' 'GNU GENERAL PUBLIC LICENSE Version 3, 29 June 2007'
+  python3 "$gate" check "$w/bad" >/dev/null 2>&1 && { echo "an undeclared package with an unreadable file was allowed" >&2; ok=1; }
+  rm -rf "$w/bad"/*; mkdist "$w/bad" planted 'License: MIT, dependency licenses' 'GNU GENERAL PUBLIC LICENSE Version 3, 29 June 2007'
+  python3 "$gate" check "$w/bad" >/dev/null 2>&1 && { echo "a phrase over an unreadable file was allowed" >&2; ok=1; }
+  # An empty folder is refused: nothing was installed.
+  rm -rf "$w/bad"/*
+  python3 "$gate" check "$w/bad" >/dev/null 2>&1 && { echo "an empty folder was allowed" >&2; ok=1; }
+  # The notices come from the installed licence files and carry the two credit lines.
+  python3 "$gate" notices "$w/good" "$w/NOTICES" >/dev/null 2>&1 || ok=1
+  grep -qF 'Portions of this software are copyright (c) The FreeType Project (www.freetype.org). All rights reserved.' "$w/NOTICES" || ok=1
+  grep -qF 'This software is based in part on the work of the Independent JPEG Group.' "$w/NOTICES" || ok=1
+  grep -qF "$mit_text" "$w/NOTICES" || ok=1
+  grep -qF 'Apache notice line of eta' "$w/NOTICES" || ok=1
+  rm -rf "$w"
+  return $ok
+}
+
+check "licences: the allowed set is the ruled one (U-285), in one file" allowed_set_is_ruled
+check "licences: the gate allows the ruled kinds, fails a planted disallowed, unknown or missing licence, and writes the notices with the credit lines" gate_rules
+
 check "module: the bundle is copied to the durable csp/ocutalon-web/ folder" \
   grep -q '<FileCopy Name="ocutalon/csp/" Target="${dataDir}csp/ocutalon-web/"/>' src/module.xml
 check "healthcheck.sh: POSIX sh" test "$(head -n 1 docker/healthcheck.sh)" = '#!/bin/sh'
@@ -163,7 +294,7 @@ dockerignore_is_allow_list() {
   [ "$(code .dockerignore | head -n 1)" = '*' ] || return 1
   ! code .dockerignore | grep -v '^\*$' \
     | grep -v -x -e '!docker/merge.cpf' -e '!docker/healthcheck.sh' -e '!docker/after-start.sh' -e '!docker/after-start.cos' \
-      -e '!docker/ipm/zpm-0.10.10.xml' -e '!docker/ipm/LICENSE' -e '!src' \
+      -e '!docker/ipm/zpm-0.10.10.xml' -e '!docker/ipm/LICENSE' -e '!docker/licences/allowed.txt' -e '!docker/licences/gate.py' -e '!src' \
     | grep -q .
 }
 
@@ -171,7 +302,7 @@ dockerignore_is_allow_list() {
 dockerignore_names_every_exception() {
   local rule
   for rule in '!docker/merge.cpf' '!docker/healthcheck.sh' '!docker/after-start.sh' '!docker/after-start.cos' \
-    '!docker/ipm/zpm-0.10.10.xml' '!docker/ipm/LICENSE' '!src'; do
+    '!docker/ipm/zpm-0.10.10.xml' '!docker/ipm/LICENSE' '!docker/licences/allowed.txt' '!docker/licences/gate.py' '!src'; do
     code .dockerignore | grep -qx -e "$rule" || return 1
   done
 }

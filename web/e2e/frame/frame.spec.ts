@@ -31,9 +31,10 @@ const accountButton = (page: Page): Locator => page.getByRole('button', { name: 
 const traceButton = (page: Page): Locator => page.getByRole('button', { name: 'Visual Trace', exact: true });
 /** The header's Demo view switch (Story 4.9). */
 const demoViewSwitch = (page: Page): Locator => page.getByRole('switch', { name: 'Demo view', exact: true });
-/** The header navigation's two links for an admin (Story 33.2): Chat and Settings. */
+/** The header navigation's links for an admin (Stories 33.2 and 34.2): Chat, Settings and Documents. */
 const navChat = (page: Page): Locator => page.getByRole('navigation', { name: 'Pages', exact: true }).getByRole('link', { name: 'Chat', exact: true });
 const navSettings = (page: Page): Locator => page.getByRole('navigation', { name: 'Pages', exact: true }).getByRole('link', { name: 'Settings', exact: true });
+const navDocuments = (page: Page): Locator => page.getByRole('navigation', { name: 'Pages', exact: true }).getByRole('link', { name: 'Documents', exact: true });
 
 /** The heading that the About dialog names itself with, for a snapshot's version. */
 const aboutTitle = (version: unknown): string => (typeof version === 'string' && version !== '' ? `OcuTalon ${version}` : 'OcuTalon');
@@ -173,6 +174,8 @@ test('F3: the header', async ({ page }) => {
   await expect(navChat(page), 'then to the Chat link of the header navigation').toBeFocused();
   await page.keyboard.press('Tab');
   await expect(navSettings(page), 'and the Settings link, which the README account sees as an admin').toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(navDocuments(page), 'and the Documents link, which every signed-in user sees').toBeFocused();
   await page.keyboard.press('Tab');
   await expect(traceButton(page), 'then to the Visual Trace button').toBeFocused();
   await page.keyboard.press('Tab');
@@ -430,7 +433,9 @@ test('F7: ghost buttons and the focus ring', async ({ page }) => {
   await expect(demoViewSwitch(page), 'the Demo view switch follows the home link').toBeFocused();
   await page.keyboard.press('Tab');
   await page.keyboard.press('Tab');
-  await expect(navSettings(page), 'the two header navigation links follow the switch').toBeFocused();
+  await expect(navSettings(page), 'the header navigation links follow the switch').toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(navDocuments(page), 'and the Documents link follows Settings').toBeFocused();
   await page.keyboard.press('Tab');
   await expect(traceButton(page)).toBeFocused();
   await expectRing(traceButton(page), 'the Visual Trace button');

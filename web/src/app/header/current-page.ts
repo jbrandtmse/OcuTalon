@@ -7,7 +7,7 @@ import { filter, map } from 'rxjs';
 import { pageOf } from '../settings/settings-view';
 
 /**
- * Which page the app shows (Story 33.2): the chat (the main page) or the settings page. It starts from the address the page was opened with, which
+ * Which page the app shows (Stories 33.2 and 34.2): the chat (the main page), the settings page or the Documents page. It starts from the address the page was opened with, which
  * the hash location puts after the #, so that a deep link to #/settings never shows the main page's skip links for a moment, and follows the router.
  * The header navigation marks the current page with it, and the app shows the skip links and the demo guide on the main page only (D8).
  */
@@ -21,7 +21,7 @@ export class CurrentPage {
     { initialValue: inject(DOCUMENT).location?.hash ?? '' },
   );
 
-  /** The page: settings or chat. */
+  /** The page: settings, documents or chat. */
   readonly page = computed(() => pageOf(this.address()));
 
   /** True on the main page, the chat. */

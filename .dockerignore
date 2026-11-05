@@ -7,4 +7,6 @@
 !docker/after-start.cos
 !docker/ipm/zpm-0.10.10.xml
 !docker/ipm/LICENSE
+!docker/licences/allowed.txt
+!docker/licences/gate.py
 !src

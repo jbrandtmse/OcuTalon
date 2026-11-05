@@ -37,7 +37,9 @@
 #                  registry line removes the repositories already set up, and gives the second run in OCUTALON
 #   licence        LICENSE holds the MIT grant, condition and warranty paragraphs and exactly the holder line "Copyright (c) 2026
 #                  jbrandtmse", and
-#                  "Credits and licences" holds the README's LICENSE line
+#                  "Credits and licences" holds the README's LICENSE line and, as the fourth bullet under "Third-party licence
+#                  notices:", the ruled sentence about the Docker image's Python packages (Story 34.2), whose path in backticks is
+#                  the file that docker/Dockerfile's notices step writes (the same path on both sides)
 #   docs           the sentences this story added to other public files, word for word: the build 109 sentence at the end of the
 #                  bridge guide's build 154 bullet and of the IPM page's build 154 bullet (U-241 item 7), and the two ruled lines of
 #                  the security overview (U-242): what an approval request shows for a tool call, in the approval section and in the
@@ -130,6 +132,7 @@ LICENSE_FILE=LICENSE
 IPM_DOC=docs/install-ipm.md
 BRIDGE_DOC=docs/bridge-guide.md
 SECOV_DOC=docs/security-overview.md
+DOCKERFILE=docker/Dockerfile
 
 listing=$(scan_files)
 if [ -z "$listing" ]; then
@@ -161,6 +164,7 @@ license_p=$(of "$LICENSE_FILE")
 ipmdoc_p=$(of "$IPM_DOC")
 bridgedoc_p=$(of "$BRIDGE_DOC")
 secov_p=$(of "$SECOV_DOC")
+dockerfile_p=$(of "$DOCKERFILE")
 
 # product_files: from a list of paths on standard input, the files whose README anchors the product can show: the page's sources
 # and the server's classes, none of the tests.
@@ -1055,17 +1059,32 @@ chk_ipm() {
   fi
 }
 
-# licence (Story 31.3): chk_licence <readme> <LICENSE>
+# licence (Story 31.3, Story 34.2): chk_licence <readme> <LICENSE> <Dockerfile>
 LICENCE_LINE='OcuTalon is under the MIT License: [LICENSE](LICENSE).'
 HOLDER_LINE='Copyright (c) 2026 jbrandtmse'
+# The ruled bullet (the Contest Planner, 2026-11-05), byte for byte; its path in backticks is the file that the Dockerfile writes.
+NOTICES_BULLET='- The Docker image'"'"'s Python packages for documents and memory (fastembed, pdfplumber and python-docx, with their dependencies and the libraries bundled with PDFium) are listed with their licence texts and credits in `/opt/ocutalon/THIRD-PARTY-NOTICES`, which the image build writes from the installed packages.'
 chk_licence() {
-  local sec="$tmp/sec.licence"
+  local sec="$tmp/sec.licence" readme_path docker_path
   if ! grep -qF 'Permission is hereby granted, free of charge, to any person obtaining a copy' "$2"; then echo "licence: $LICENSE_FILE has no MIT grant paragraph"; fi
   if ! grep -qF 'The above copyright notice and this permission notice shall be included in all' "$2"; then echo "licence: $LICENSE_FILE has no MIT condition paragraph"; fi
   if ! grep -qF 'THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND' "$2"; then echo "licence: $LICENSE_FILE has no MIT warranty paragraph"; fi
   if [ "$(grep -c '^Copyright' "$2")" -ne 1 ] || ! grep -qxF -- "$HOLDER_LINE" "$2"; then echo "licence: $LICENSE_FILE does not hold exactly the line '$HOLDER_LINE'"; fi
   section "$1" 'Credits and licences' > "$sec"
   if ! grep -qxF -- "$LICENCE_LINE" "$sec"; then echo "licence: 'Credits and licences' does not hold the line '$LICENCE_LINE'"; fi
+  # The notices bullet: exactly once, the fourth bullet after "Third-party licence notices:", and its path is the Dockerfile's.
+  if [ "$(grep -cxF -- "$NOTICES_BULLET" "$sec")" -ne 1 ]; then
+    echo "licence: 'Credits and licences' does not hold the notices bullet word for word, once"
+  elif [ "$(awk '/^Third-party licence notices:$/ { on = 1; next } on && /^- / { n++; if (n == 4) { print; exit } }' "$sec")" != "$NOTICES_BULLET" ]; then
+    echo "licence: the notices bullet is not the fourth bullet under 'Third-party licence notices:'"
+  fi
+  readme_path=$(grep -xF -- "$NOTICES_BULLET" "$sec" | sed -n 's/^[^`]*`\([^`]*\)`.*$/\1/p')
+  docker_path=$(grep -v '^[[:space:]]*#' "$3" | sed -n 's/^.*gate\.py notices [^ ]* \([^ ]*\).*$/\1/p')
+  if [ -z "$docker_path" ]; then
+    echo "licence: $DOCKERFILE has no notices step (gate.py notices <folder> <file>)"
+  elif [ "$readme_path" != "$docker_path" ]; then
+    echo "licence: the README names '$readme_path' and $DOCKERFILE writes '$docker_path'"
+  fi
 }
 
 # docs (Story 31.3, AC 2 and AC 7): chk_docs <docs/bridge-guide.md> <docs/install-ipm.md> <docs/security-overview.md>
@@ -1760,7 +1779,7 @@ rule_ipm() {
 }
 
 rule_licence() {
-  rule_begin licence "$README" "$license_p" || return
+  rule_begin licence "$README" "$license_p" "$dockerfile_p" || return
   st 'the holder changed' 2 "$license_p" '/^Copyright/ { sub(/jbrandtmse/, "someone") } { print }' chk_licence
   st 'the year changed' 2 "$license_p" '/^Copyright/ { sub(/2026/, "2025") } { print }' chk_licence
   st 'a second copyright line' 2 "$license_p" '{ print } /^Copyright/ { print "Copyright (c) 2026 someone else" }' chk_licence
@@ -1771,7 +1790,14 @@ rule_licence() {
   st 'the README line removed' 1 "$README" '!/^OcuTalon is under the MIT License: /' chk_licence
   st 'the README line changed' 1 "$README" '/^OcuTalon is under the MIT License: / { sub(/MIT/, "Apache") } { print }' chk_licence
   st 'the README line moved to another section' 1 "$README" '/^OcuTalon is under the MIT License: / { next } { print } /^## Stop, start and update$/ { print ""; print "OcuTalon is under the MIT License: [LICENSE](LICENSE)." }' chk_licence
-  finish licence 'LICENSE holds the MIT grant, the warranty and the holder line, and Credits and licences links it' chk_licence
+  st 'the notices bullet removed' 1 "$README" '!/^- The Docker image.s Python packages for documents and memory/' chk_licence
+  st 'the notices bullet changed' 1 "$README" '/^- The Docker image.s Python packages for documents and memory/ { sub(/credits in/, "credits at") } { print }' chk_licence
+  st 'the notices path changed in the README' 1 "$README" '/^- The Docker image.s Python packages for documents and memory/ { sub(/THIRD-PARTY-NOTICES/, "THIRD-PARTY-NOTICES.txt") } { print }' chk_licence
+  st 'the notices bullet moved above the IPM bullet' 1 "$README" '/^- The Docker image.s Python packages for documents and memory/ { held = $0; next } /^- The web page.s fonts/ { print held } { print }' chk_licence
+  st 'the notices bullet twice' 1 "$README" '{ print } /^- The Docker image.s Python packages for documents and memory/ { print }' chk_licence
+  st 'the notices path changed in the Dockerfile' 3 "$dockerfile_p" '/gate\.py notices/ { sub(/THIRD-PARTY-NOTICES/, "NOTICES") } { print }' chk_licence
+  st 'the notices step removed from the Dockerfile' 3 "$dockerfile_p" '!/gate\.py notices/' chk_licence
+  finish licence 'LICENSE holds the MIT grant, the warranty and the holder line, Credits and licences links it and names the image notices file the Dockerfile writes' chk_licence
 }
 
 rule_docs() {

@@ -27,6 +27,7 @@ Include Ensemble
 /// chat's ChatRef, a catalog key and no text; Notify decides where it goes. An error thrown while carrying out a command is logged and
 /// answers failed. The pool of the item is 1, so its commands are handled one at a time.
 /// Unlink is the one way a chat is unlinked, and End calls it.
+/// From step 3, End first drops the session's documents and memories (OcuTalon.Docs.DropSession and OcuTalon.Memory.DropSession, AD-4, AD-21).
 Class OcuTalon.Core.SessionOps Extends Ens.BusinessOperation
 {
 
@@ -230,9 +231,10 @@ Method Unpair(command As OcuTalon.Msg.Command.Unpair) As OcuTalon.Msg.CommandRes
 	Quit ..Result(0, "not_paired", ..#MESSAGENOTPAIRED)
 }
 
-/// Carries out an EndSession command and returns the CommandResult to answer (see the class description). Unlink, the reminders, the
-/// watches and the approval requests each run even when an earlier one failed or threw, and a failure is a warning with the step's reason;
-/// the resume hash is cleared last, and only when none of them failed, so a failed End leaves the session resumable.
+/// Carries out an EndSession command and returns the CommandResult to answer (see the class description). The document and memory drops,
+/// Unlink, the reminders, the watches and the approval requests each run even when an earlier one failed or threw, and a failure is a
+/// warning with the step's reason; the resume hash is cleared last, and only when none of them failed, so a failed End leaves the session
+/// resumable.
 Method End(command As OcuTalon.Msg.Command.EndSession) As OcuTalon.Msg.CommandResult [ Private ]
 {
 	Set sessionRef = command.SessionRef
@@ -240,7 +242,7 @@ Method End(command As OcuTalon.Msg.Command.EndSession) As OcuTalon.Msg.CommandRe
 	If '$IsObject(row) Quit ..Result(0, "no_session", ..#MESSAGENOSESSION)
 	Set row = ""
 	Set channel = ..ChannelOf(command.Origin)
-	Set failed = 0
+	Set failed = ..EndDocumentsAndMemories(sessionRef)
 	Try {
 		Set sc = ..Unlink(sessionRef, "", "session_end", channel, "", .changed)
 		If $$$ISERR(sc) Set failed = 1 Do ..Warn("the chat could not be unlinked at the end of session " _ sessionRef, sc)
@@ -458,6 +460,40 @@ ClassMethod Result(ok As %Boolean, outcome As %String, message As %String) As Oc
 	Set result.Outcome = outcome
 	Set result.Message = message
 	Quit result
+}
+
+/// End's step 3 drops: the session's documents, then its memories, each in its own Try. The result is the number of drops that failed
+/// (an error status or an error thrown), each a warning.
+Method EndDocumentsAndMemories(sessionRef As %String) As %Integer [ Private ]
+{
+	Set failed = 0
+	Try {
+		Set sc = ..DropDocuments(sessionRef)
+		If $$$ISERR(sc) Set failed = failed + 1 Do ..Warn("the documents of session " _ sessionRef _ " could not be dropped", sc)
+	} Catch exception {
+		Set failed = failed + 1
+		Do ..Warn("the documents of session " _ sessionRef _ " could not be dropped", exception.AsStatus())
+	}
+	Try {
+		Set sc = ..DropMemories(sessionRef)
+		If $$$ISERR(sc) Set failed = failed + 1 Do ..Warn("the memories of session " _ sessionRef _ " could not be dropped", sc)
+	} Catch exception {
+		Set failed = failed + 1
+		Do ..Warn("the memories of session " _ sessionRef _ " could not be dropped", exception.AsStatus())
+	}
+	Quit failed
+}
+
+/// The one call that drops a session's documents (AD-21; a seam for the tests).
+Method DropDocuments(sessionRef As %String) As %Status [ Private ]
+{
+	Quit ##class(OcuTalon.Docs).DropSession(sessionRef)
+}
+
+/// The one call that drops a session's memories (AD-21; a seam for the tests).
+Method DropMemories(sessionRef As %String) As %Status [ Private ]
+{
+	Quit ##class(OcuTalon.Memory).DropSession(sessionRef)
 }
 
 }

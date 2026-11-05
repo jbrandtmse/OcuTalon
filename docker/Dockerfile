@@ -8,6 +8,22 @@ USER root
 # The mount directory is owned by the IRIS user (UID 51773), so a fresh named volume inherits that ownership.
 RUN mkdir -p /durable && chown 51773:51773 /durable
 
+# Step 3's Python packages and embedding model (AD-21, AD-23), before the sources so that a source change reuses this layer. One pinned
+# pip line installs fastembed, pdfplumber and python-docx with their dependencies, wheels only, where IRIS's Python imports them.
+# The licence gate then lists every installed distribution with its licence and fails the build on any outside the allowed set
+# (docker/licences/allowed.txt), and the notices file is written from the installed licence files; no licence file is deleted.
+# The model AllMiniLM-L6-v2 is downloaded now, so that no first use needs the network, into a root-owned read-only folder that
+# FASTEMBED_CACHE_DIR names (files 444, folders 555); it sits outside /opt/ocutalon so that the mode step below never copies it again.
+COPY docker/licences/ /opt/ocutalon/licences/
+RUN python3 -m pip install --break-system-packages --no-cache-dir --target /usr/irissys/mgr/python --only-binary=:all: fastembed==0.9.0 pdfplumber==0.11.10 python-docx==1.1.2 \
+ && python3 /opt/ocutalon/licences/gate.py check /usr/irissys/mgr/python \
+ && python3 /opt/ocutalon/licences/gate.py notices /usr/irissys/mgr/python /opt/ocutalon/THIRD-PARTY-NOTICES \
+ && mkdir -p /opt/fastembed \
+ && PYTHONPATH=/usr/irissys/mgr/python HF_HUB_DISABLE_TELEMETRY=1 python3 -c "from huggingface_hub import snapshot_download; snapshot_download('Qdrant/all-MiniLM-L6-v2-onnx', cache_dir='/opt/fastembed', allow_patterns=['config.json', 'tokenizer.json', 'tokenizer_config.json', 'special_tokens_map.json', '*.onnx'])" \
+ && chown -R root:root /opt/fastembed \
+ && find /opt/fastembed -type d -exec chmod 555 {} + \
+ && find /opt/fastembed -type f -exec chmod 444 {} +
+
 COPY src/ /opt/ocutalon/src/
 COPY docker/ipm/ /opt/ocutalon/ipm/
 COPY docker/merge.cpf docker/healthcheck.sh docker/after-start.sh docker/after-start.cos /opt/ocutalon/
@@ -24,7 +40,8 @@ RUN version="$(sed -n 's:.*<Version>\(.*\)</Version>.*:\1:p' /opt/ocutalon/src/m
 
 USER 51773
 ENV ISC_DATA_DIRECTORY=/durable/iris \
-    ISC_CPF_MERGE_FILE=/opt/ocutalon/merge.cpf
+    ISC_CPF_MERGE_FILE=/opt/ocutalon/merge.cpf \
+    FASTEMBED_CACHE_DIR=/opt/fastembed
 # iris-main deletes the ready marker before IRIS starts, so no health probe of this start sees the previous
 # start's marker, then runs the after-start script once IRIS is up.
 CMD ["--before", "rm -f /durable/ocutalon.ready", "--after", "/opt/ocutalon/after-start.sh"]

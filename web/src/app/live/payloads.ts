@@ -226,6 +226,16 @@ export interface ReminderPayload {
   traceUrl?: string;
 }
 
+export interface DocumentPayload {
+  ref?: string;
+  name?: string;
+  addedAt?: string;
+  size?: number;
+  state?: string;
+  reason?: string;
+  removed?: boolean;
+}
+
 export interface PairingPayload {
   paired?: boolean;
   displayName?: string;
@@ -310,6 +320,7 @@ export type LiveEventType =
   | 'approval'
   | 'turn.step'
   | 'reminder'
+  | 'document'
   | 'pairing'
   | 'status'
   | 'reset'
@@ -328,6 +339,7 @@ export interface LivePayloads {
   'approval': ApprovalPayload;
   'turn.step': TurnStepPayload;
   'reminder': ReminderPayload;
+  'document': DocumentPayload;
   'pairing': PairingPayload;
   'status': StatusPayload;
   'reset': ResetPayload;

@@ -38,6 +38,8 @@
 ///   - The online demo's allowances (Story 16.9) read through three more: IncomingMail, the session's own count of incoming
 ///     simulated emails since a time (a Rows kind), and ActiveVisitors and AllowanceHeld above. RecentTurns leaves out a refused
 ///     turn, and RecentNotices includes the allowance cards.
+///   - The Documents page's reads (Story 34.2) are Rows kinds too: Documents, the session's own documents (and on a local install those of
+///     owner instance, which every user shares), newest first, and Document, one by its Ref; a document the session can't see answers "".
 ///   - FinishedToolCalls (Story 31.2) is the session's own tool_call approval requests that finished in a window of FinishedAt, oldest
 ///     first: Conversation's code-written note to the next turn reads it (AD-30). It is a Rows kind like the others.
 Class OcuTalon.Data.Ownership
@@ -276,6 +278,24 @@ ClassMethod Reminders(sessionRef As %String, Output sc As %Status) As %ListOfObj
 ClassMethod Checks(sessionRef As %String, Output sc As %Status) As %ListOfObjects
 {
 	Quit ..Rows("checks", sessionRef, .sc)
+}
+
+/// The session's documents, newest AddedAt first and then newest ID first: its own on the online demo, and on a local install the
+/// documents of owner instance, which every session shares (AD-4, AD-21). sc is an error status when the read failed.
+ClassMethod Documents(sessionRef As %String, Output sc As %Status) As %ListOfObjects
+{
+	Quit ..Rows("documents", sessionRef, .sc, ..LocalFlag())
+}
+
+/// The document with this Ref when the session can see it (its own, or on a local install one of owner instance), otherwise "": a
+/// document of another session answers like a missing one. ref may come from request input; it is only ever a bound value.
+ClassMethod Document(ref As %String, sessionRef As %String, Output sc As %Status) As OcuTalon.Data.Document
+{
+	Set sc = $SYSTEM.Status.OK()
+	If ref = "" Quit ""
+	Set rows = ..Rows("document", sessionRef, .sc, ref, ..LocalFlag())
+	If rows.Count() = 0 Quit ""
+	Quit rows.GetAt(1)
 }
 
 /// The session's newest decisions of Kind decide (the attention decision), newest RecordedAt first, at most max.
@@ -856,6 +876,14 @@ ClassMethod Statement(kind As %String, Output class As %String, Output binds As 
 	If kind = "lastEvent" {
 		Set class = "OcuTalon.Live.Event", binds = "oa"
 		Quit "SELECT TOP 1 ID FROM OcuTalon_Live.Event WHERE Stream = ? AND Type = ? ORDER BY Seq DESC"
+	}
+	If kind = "documents" {
+		Set class = "OcuTalon.Data.Document", binds = "oa"
+		Quit "SELECT d.ID FROM OcuTalon_Data.Document d WHERE (d.OwnerRef = ? OR (? = 1 AND d.OwnerRef = 'instance')) ORDER BY d.AddedAt DESC, d.ID DESC"
+	}
+	If kind = "document" {
+		Set class = "OcuTalon.Data.Document", binds = "aoa"
+		Quit "SELECT d.ID FROM OcuTalon_Data.Document d WHERE d.Ref = ? AND (d.OwnerRef = ? OR (? = 1 AND d.OwnerRef = 'instance'))"
 	}
 	Quit ""
 }
