@@ -96,3 +96,5 @@
 2026-11-05T02:41:12Z	Story 33.3	dev_complete	spawn_at=2026-11-05T02:25:32Z model=sonnet build_sha=3218c2ef baseline_revision=58ecea1e story_base=7f0e96cd review_loop_iteration=0 followup_review_recommended=false deferred=0 files=5 loc_added=45 loc_removed=4 mutations=4 live=sign-in_part_3/3_73_pass throwaways=e33s3i_down cycle_iteration=1
 2026-11-05T02:41:12Z	Story 33.3	adr_verifications_complete	tool=none acs=none result=none_required mutations=none model=claude-opus-5-5
 2026-11-05T02:41:12Z	Story 33.3	stage_spawned	stage=qa spawn_at=2026-11-05T02:41:12Z model=sonnet agent_name=33-3-epic-33-burn-down-qa-1 cycle_iteration=1
+2026-11-05T02:42:15Z	Story 33.3	qa_complete	spawn_at=2026-11-05T02:41:12Z model=sonnet tests_added=0 mutations_demonstrated=0(every_AC_already_pinned_with_a_demonstrated_mutation_by_implement) first_run_failures=0 clarifications=0 closing_sections_present=true note=thresholds_announcement_unpinned(out_of_AC_scope)
+2026-11-05T02:42:15Z	Story 33.3	stage_spawned	stage=code-review spawn_at=2026-11-05T02:42:15Z model=opus agent_name=33-3-epic-33-burn-down-code-review-1 cycle_iteration=1
