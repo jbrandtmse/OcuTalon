@@ -227,7 +227,9 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-10-24T02:57:20Z occurrence=1-10-the-chat-agent-sets-lists-and-cancels-reminders
 - 2026-10-31T00:03:53Z status=routed owner=31-3-the-readme-leads-to-the-demo-and-the-launched-demo-is-measur by=orchestrator note=U-177:_Lane_B_classes(AD-33);Lane_B_Story_31.3_fixes_it_before_1.0.0,proved_by_Lane_B's_own_tests;not_release/ipm-install.sh;AD-18's_wording_(the_OS_zone_where_TZ_is_unset)_is_ruled_at_31.3's_spec_gate
 - 2026-10-31T04:47:48Z status=routed owner=31-1-push-live-events-over-a-websocket-on-local-installs by=orchestrator note=U-177(answer_2026-10-31T00:05:17Z#535):_Lane_B_classes(AD-33);the_first_Lane_B_story_inside_1.0.0_that_runs_with_these_files_free(31.1),else_31.3;AD-18's_wording_(the_OS_zone_where_TZ_is_unset)_goes_to_the_orchestrator_at_that_story's_spec_gate
+- 2026-11-04T00:35:24Z occurrence=33-1-fix-the-step-2-contracts-in-the-spine
 - 2026-11-03T23:35:54Z status=routed owner=33-1-fix-the-step-2-contracts-in-the-spine by=burndown_gate note=U-254(b)_reverses_U-177_placement;goes_with_U-247's_InstanceZone_work;AD-18's_wording_(the_OS_zone_where_TZ_is_unset)_goes_to_the_Planner_at_33.1's_spec_gate
+- 2026-11-04T02:22:24Z status=routed owner=18-2-set-the-time-zone-and-the-daily-digest-at-run-time by=adjudication note=U-254_disposition:33.1_was_committed_(0196aafd)_and_ships_Bridge.Time.Zone/SetZone/Apply_as_stubs_only;Data.Time_is_Lane_B(U-177);residual:Data.Time.Zone()_and_ToLocal_must_both_follow_Bridge.Time.Zone()(AD-18_S5_InstanceZone),and_with_an_empty_InstanceZone_on_a_TZ-unset_non-UTC_host_report_the_OS_zone;test_on_a_non-UTC_process_zone;18.2_builds_Data.Time's_Apply_call
 
 ### DW-35: A failed Orders header has Status 8 (Error), IsError 0 and an empty ErrorStatus; its error text is only the event-log row inside the Terminating BP wrapper, so a reader that keys on IsError or GetErrorText finds no failure
 - source: spec-0-10-the-orders-demo-production-runs-in-ocuorders.md | severity: med | fix-risk: low | footprint: in-epic
@@ -2760,7 +2762,9 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-03T14:35:03Z occurrence=0-13-a-start-retries-the-cpf-merge-when-iris-cannot-quiesce note=CI run 41641201023 attempt 1, iris (image) shard:lane-b on OCT-epic0 c3d264c5: TestRunAgain and TestOnlyTheMarkerChanges (run_again and trace_opened) failed; green on the unchanged rerun of the failed jobs
 - 2026-11-03T18:26:01Z occurrence=0-14-a-start-that-recovers-through-the-merge-retry-passes-the-liv note=run_41688225535_iris(image)_shard_lane-b_GuideApi_TestRunAgain,TestOnlyTheMarkerChanges_head_9dd16cdc
 - 2026-11-03T19:58:41Z occurrence=0-14-a-start-that-recovers-through-the-merge-retry-passes-the-liv by=merge_gate note=CI run 41698083197 attempt 1, iris (image) shard:lane-b on OCT-epic0 3cd25ab0 (final head): GuideApi TestRunAgain failed; green on the rerun of the failed job
+- 2026-11-04T01:30:32Z occurrence=33-1-fix-the-step-2-contracts-in-the-spine by=fresh_check note=local_fresh_shard_lane-b_forward_e33s1f;story_touches_no_Web_class;rerun_below
 - 2026-11-04T04:29:11Z occurrence=10ce26ac by=merge_gate note=run 41769982647 attempt 1 shard:lane-b Test.Web.GuideApi TestOnlyTheMarkerChanges (feature head)
+- 2026-11-04T11:49:15Z occurrence=33-1-fix-the-step-2-contracts-in-the-spine by=lead note=merged_tree_warm_shard_lane-b_red_once_1_of_88;passes_alone_on_one_rerun;shard_order_not_reproved_locally,CI_lane-b_decides
 
 ### DW-454: U-170's plain-English reason for an old held tool call reaches a person only through the decision live event (decision strip, rail decision row, trace); the approval card and notices do not show it: Live.Payload.Approval.reason stays empty, approval.result is {ref}, Core.Rule.Notice reads only the fallback reason
 - source: spec-30-3-an-approved-tool-call-runs-exactly-once-with-no-model.md | severity: med | fix-risk: med | footprint: out-of-footprint
@@ -3835,6 +3839,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: run 41656484374 attempt 1 image shard:lane-b; attempt 2 green; passes alone on a fresh lane-A throwaway with the merged tree (84.6 s)
 - 2026-11-03T15:56:29Z status=routed owner=burndown by=lead note=flake: first occurrence; order or timing dependence in the shard
 - 2026-11-03T23:35:54Z status=routed owner=burndown by=burndown_gate note=U-254(b)_reverses_U-177_placement;flake;first_daily_release_after_1.0.0;CI_run_41656484374(image_job)
+- 2026-11-04T23:50:45Z occurrence=33-2-open-the-settings-page-as-an-admin by=harvest note=red_2_of_4_local_shard_lane-b_part_2/2_runs_in_the_implement_stage(e33s2i);green_alone_fresh_and_warm
 
 ### DW-640: flake: web/e2e/live/live.spec.ts L9 reported 'route.fetch: Test ended' from L8's events route callback (live.spec.ts:349): L8 ends with a route callback in flight; fix: await page.unrouteAll({ behavior: 'ignoreErrors' }) at the end of L8
 - source: cycle-log-epic-31 (ci run 41656484374) | severity: low | fix-risk: low | footprint: in-epic
@@ -3863,6 +3868,46 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-03T14:35:03Z status=routed owner=burndown by=burndown note=first daily release after 1.0.0
 - 2026-11-04T08:01:25Z occurrence=rc3-pr by=merge_gate note=live:floor web/e2e/floor/layout.spec.ts:512 timed out on the rc3 release PR, iris (shards-3), 106 passed; same timeout family
 
+### DW-643: Data.Time.FromLocal picks between the two instants of the repeated fall-back hour depending on what the job converted just before (measured: 3 zones, 6 preceding-call orders), against its doc comment's 'first instant'; Test.Schedule.ReminderZone's New York case may pass only by call order
+- source: evidence/33-1-task0-zone-measurement.md (Story 33.1 Task 0) | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Task 0 Probe.Ambig on slot C build 154: Static() returned the second instant in all 3 zones; Python fold 0 gives the first
+- 2026-11-03T20:24:25Z status=routed owner=18-2-set-the-time-zone-and-the-daily-digest-at-run-time by=harvest note=Data.Time is Lane B's (U-177); 18.2 changes it for the run-time zone; fix with the Bridge.Time.Apply() reading that 33.1 fixes
+
+### DW-646: Digest.Data.CheckRun and Digest.Data.Sent have no purge yet although their docs and the spine (AD-27) say they are purged with the digest area's rows
+- source: spec-33-1-fix-the-step-2-contracts-in-the-spine.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: Install.Step.Digest.Purge calls only Digest.Data.Item.Purge; both tables stay empty until 17.5/17.6 write them; Install/** is under the stability watch
+- 2026-11-03T23:07:37Z status=routed owner=17-5-check-the-vital-signs-and-every-coverage-entry by=harvest note=add both purges (and Test.Install.Retention rows) with the first writer; 17.6 for Sent if 17.5 lands first without it
+
+### DW-647: AD-8 retry timer: the retry entries derive from 110 - TimerSeconds while the wait is min(TimerSeconds, 110 - T1); a TimerSeconds above 98 leaves less than MINTIMER (12) for the retry
+- source: spec-33-1-fix-the-step-2-contracts-in-the-spine.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: S4 text; Timeouts.Apply would derive an empty timeout set when 110 - TimerSeconds < 12 (unverified)
+- 2026-11-03T23:07:37Z status=routed owner=17-2-retry-once-on-a-second-model-before-falling-back by=harvest note=17.2 states which timer wins and whether TimerSeconds is capped at 98 when RetryItem is set
+
+### DW-648: Coverage edge cases left to 17.5: a check with no run at all in the window, the key for a not_checked run with an empty or unknown Reason, non-whole percentages for digest.healthy's count slots
+- source: spec-33-1-fix-the-step-2-contracts-in-the-spine.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: AD-18 The daily digest fixes missed/stale/paused and three reasons only
+- 2026-11-03T23:07:37Z status=routed owner=17-5-check-the-vital-signs-and-every-coverage-entry by=harvest note=Coverage.Build maps Reason through a fixed table, treats no run since span start as missed, rounds percentages
+
+### DW-649: Digest.Data.Sent's due lookup reads the newest scheduled row's DueAt but SessionRefDueAtIndex has no Kind and the spine does not say what DueAt holds for a requested row
+- source: spec-33-1-fix-the-step-2-contracts-in-the-spine.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: a requested row with DueAt set could be taken for the newest scheduled row
+- 2026-11-03T23:07:37Z status=routed owner=17-6-send-the-daily-digest-at-the-set-time-and-on-request by=harvest note=store an empty DueAt for requested digests or add an index on (SessionRef, Kind, DueAt)
+
+### DW-650: Story 17.2 has no acceptance criterion for the RetryOf behavioural tests (a)-(d) the spine records as notes (AD-6 sub-bullet, Conventions Retried turns, veto U-246); the 33.1 static pin cannot see a client value reaching RetryOf through a generic copy (case c)
+- source: spec-33-1-fix-the-step-2-contracts-in-the-spine.md | severity: med | fix-risk: low | footprint: out-of-epic
+- evidence: Test.Bridge.CodeRules.TestOnlyTheRetryPathNamesRetryOf passes vacuously until 17.2 adds RetryOf
+- 2026-11-04T00:16:14Z status=routed owner=17-2-retry-once-on-a-second-model-before-falling-back by=harvest note=orchestrator adds the DW bullet to 17.2's epics.md block post-merge (cross-epic); 17.2 builds tests (a)-(d)
+
+### DW-651: AD-18 due rule leaves a session with no scheduled Sent row undefined: read as due, every new session (each online-demo visitor) gets a digest at the first tick after digest.time
+- source: spec-33-1-fix-the-step-2-contracts-in-the-spine.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: S6 'due when the latest digest.time has passed and its newest scheduled Sent row's DueAt is earlier' has no row on a new session; window text plans a first digest
+- 2026-11-04T00:35:24Z status=decision-pending owner=burndown by=cr note=product call: first digest of a new session at once, or at the next digest.time after its CreatedAt; 17.6 builds it
+- 2026-11-05T02:18:29Z status=routed owner=17-6-send-the-daily-digest-at-the-set-time-and-on-request by=burndown note=ruled_2026-11-05_by_the_Contest_Planner_under_delegation(orchestrator):first_scheduled_digest_at_the_first_digest.time_after_CreatedAt;AD-18_amended_in_Epic_33_burn-down;DW-651_bullet_under_17.6;17.6_builds_and_tests_it
+
+### DW-652: AD-18/AD-32 digest text does not say that the vital-signs part's key (digest.healthy or digest.vitalsNotAll) is chosen by Checks.Render, though AD-28's Rule reserves that choice to it
+- source: spec-33-1-fix-the-step-2-contracts-in-the-spine.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: AD-28 Rule: the choice of 'Your IRIS system is healthy' comes only from Checks.Render; S9 says only when every vital-sign row passed; S11 lists it as a part
+- 2026-11-04T00:35:24Z status=wontfix-accepted owner=33-1-fix-the-step-2-contracts-in-the-spine by=cr note=AD-28's existing Rule binds 17.5/17.6; reopen_if=17.5 or 17.6 spec or code picks digest.healthy/vitalsNotAll outside Checks.Render
 ### DW-642: Story 12.10's browser specs copy file-local e2e helpers: telegram-drawer.spec.ts fixture() is the third copy (telegram-page.spec.ts:118, telegram-approval.spec.ts:61) and telegram-drawer-view.spec.ts guideOf/serve copy guide.spec.ts guideOf:30 and liveEvents:75; one shared module in web/e2e/support/ should hold them
 - source: spec-12-10-in-a-narrower-window-the-telegram-step-leads-to-the-status-d.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: Rule 2: near-copies (14-line fixture(), 9-line guideOf, 25-line poll router) forced by the footprint (siblings in Lane A or contended files, support/ outside it); a change to TelegramPageFixture or the events envelope must be made in every copy
@@ -3920,6 +3965,63 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: rc3 release PR: test-web-build AC6 saw a modified src/ocutalon/csp/3rdpartylicenses.txt
 - 2026-11-04T08:01:25Z status=routed owner=burndown by=merge_gate note=first_daily_release_after_1.0.0
 
+### DW-695: Data.Handled has no purge or end-of-session delete, and no purge owner is named (AD-27)
+- source: spec-33-2-open-the-settings-page-as-an-admin.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: Data/Handled.cls keyed by SessionRef; SessionOps.End and the spine purge list do not cover it; first writer is Story 18.4
+- 2026-11-04T23:50:45Z status=routed owner=18-4-read-the-digest-on-every-channel-and-mark-notices-as-handled by=harvest note=the writer story adds the purge with its first row (unverified: whether the purge list already covers every ^OcuTalonP table)
+
+### DW-696: SendDigest sent to the disabled Digest item answers failed, not not_built
+- source: spec-33-2-open-the-settings-page-as-an-admin.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: Production lists Digest Enabled=false; CommandsIn.IsStub recognises code 5003 only; tests route to a recording owner; no route submits SendDigest yet
+- 2026-11-04T23:50:45Z status=routed owner=17-6-send-the-daily-digest-at-the-set-time-and-on-request by=harvest note=first caller runs it against the real production once Lane A enables the item, or CommandsIn maps the disabled-item error to not_built
+- 2026-11-05T01:02:21Z occurrence=33-2-open-the-settings-page-as-an-admin
+
+### DW-699: A demo mode saved on the settings page does not reach the open main page until a reload
+- source: spec-33-2-open-the-settings-page-as-an-admin.md | severity: med | fix-risk: high | footprint: in-story
+- evidence: LiveState loads /state once per page load and no event carries demo.mode; keepDemoMode updates only the settings page, so Chat keeps the old pill, guide and devices; /state reads Setting.Get (60 s cache), so a refresh at once would still be stale
+- 2026-11-05T01:02:21Z status=decision-pending owner=burndown by=cr note=product call: refresh the snapshot after the cache window, or tell the admin to reload (new text needs a ruling)
+- 2026-11-05T02:18:29Z status=routed owner=33-3-epic-33-burn-down by=burndown note=ruled_2026-11-05_by_the_Contest_Planner_under_delegation(orchestrator):tell_the_admin_with_a_Demo_mode_confirmation_key;no_live_refresh_now;chartered_into_33.3
+- 2026-11-05T03:00:07Z status=resolved-by:33-3-epic-33-burn-down by=adjudication note=commit_3218c2ef+CR_patch:Demo_mode_section_shows_and_announces_the_ruled_text(SETTINGS_TEXTS.demoSaved);pinned_by_settings.spec.ts_S7c,S2,ux-strings,settings-view;live_refresh_is_DW-707
+
+### DW-700: SaveBridge passes old to BridgeSet without clearing it, so a Set that returns OK without setting old would audit the previous field's value
+- source: spec-33-2-open-the-settings-page-as-an-admin.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: SettingsOps.SaveBridge reuses old across loop iterations (Output by reference); the 33.1 contract says Set returns old, so today no path leaves it unset
+- 2026-11-05T01:02:21Z status=wontfix-theoretical owner=33-2-open-the-settings-page-as-an-admin by=cr note=real if 17.4's Bridge.Settings.Set has an OK path that leaves old unset; then Kill old before each call
+
+### DW-701: SaveBridge compares a posted bridge value with Values() as raw strings, so 7.50 against 7.5 counts as a change and is audited
+- source: spec-33-2-open-the-settings-page-as-an-admin.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: SettingsOps.SaveBridge: to(name) = BridgeCurrent(name) is a string compare; no page posts bridge values yet and the stubs hold none
+- 2026-11-05T01:02:21Z status=wontfix-theoretical owner=33-2-open-the-settings-page-as-an-admin by=cr note=real when 18.3's Budgets form posts a value whose text differs from Values()'s for the same number
+
+### DW-702: A product save rolled back after its first audit entries leaves Settings entries for values that were not changed
+- source: spec-33-2-open-the-settings-page-as-an-admin.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Bridge.Audit.Record writes through %SYS.Audit, which a TROLLBACK does not undo; D5 states this trade (entry first, never a change without an entry, AD-17)
+- 2026-11-05T01:02:21Z status=by-design owner=33-2-open-the-settings-page-as-an-admin by=cr note=spec D5: an entry with no change is the accepted side; reopens only by amending D5 or AD-17
+
+### DW-703: z-settings-save.spec.ts depends on running last in its folder and on the stack starting in demo mode on
+- source: spec-33-2-open-the-settings-page-as-an-admin.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: the spec task names the file order because Setting.Get in a CSP job can hold the old mode 60 s; it runs only with OCUTALON_E2E_DEMO_MODE=1
+- 2026-11-05T01:02:21Z status=by-design owner=33-2-open-the-settings-page-as-an-admin by=cr note=spec-forced order (Tasks: z-settings-save.spec.ts); reopens if the folder's other specs stop reading the mode
+
+### DW-704: SettingsApi and SettingsSave bridge tests assert Lane A's stub answers and go red when Story 17.4 replaces the stubs
+- source: spec-33-2-open-the-settings-page-as-an-admin.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: TestGetShape, TestBridgeRoutesAre501 and TestBridgeStub's bare-stub half read the real stubs (empty providers, 5003); the matrix asks for the real stub instance
+- 2026-11-05T01:02:21Z status=by-design owner=33-2-open-the-settings-page-as-an-admin by=cr note=matrix row 'Bridge section by API' requires the real stub; 17.4 updates these assertions with the real bridge
+
+### DW-705: UnsavedDialog copies SignOutDialog's shape (template, styles, Dialogs wiring) instead of one shared two-button confirm dialog
+- source: spec-33-2-open-the-settings-page-as-an-admin.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: web/src/app/settings/unsaved-dialog.ts and web/src/app/header/sign-out-dialog.ts differ only in texts, button handlers and result; the spec's reason (buttons and result differ) fits a parameterised dialog
+- 2026-11-05T01:02:21Z status=wontfix-accepted owner=33-2-open-the-settings-page-as-an-admin by=cr note=reopen_if=a third two-button confirm dialog copies the same shape (unsaved-dialog.ts, sign-out-dialog.ts)
+
+### DW-707: An open main page keeps the old demo mode after an admin saves it: an event carrying demo.mode would update it without a reload (the real fix behind DW-699)
+- source: cycle-log-epic-33 (burn-down ruling 2026-11-05) | severity: med | fix-risk: high | footprint: in-epic
+- evidence: LiveState loads /state once per page load and no live event carries demo.mode; /state reads Setting.Get behind a 60 s cache; ruled for later (low priority) by the Contest Planner under the owner's delegation
+- 2026-11-05T02:18:29Z status=routed owner=burndown by=burndown note=priority_low_by_ruling;own_installs_only(the_online_demo_account_has_no_OcuTalonAdmin);cites_the_DW-699_ruling_of_2026-11-05
+
+### DW-708: EXPERIENCE.md's Settings Saving rule (line 951) says every section confirms with the shared saved text; the Demo mode section now adds the ruled reload sentence
+- source: spec-33-3-epic-33-burn-down.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: SETTINGS_TEXTS.demoSaved (Story 33.3 AC, epics.md:7969, ruled for DW-699) differs from EXPERIENCE.md:951; the spec forbids an EXPERIENCE.md edit and sources the text as ac in ux-strings.test.mjs
+- 2026-11-05T02:59:00Z status=by-design owner=33-3-epic-33-burn-down by=cr note=spec-bound: text ruled via the AC, EXPERIENCE.md edit forbidden; DW-707 may drop the reload sentence and end the drift
 ### DW-661: Story 17.6 adds the catalog key digest.cost to Msg/Catalog/Watch.cls; Story 33.2 adds only the dailyCost slot type
 - source: Story 33.2 spec gate (L1) | severity: low | fix-risk: low | footprint: small
 - evidence: spec-33-2 L1; Test.Msg.Catalog refuses the prefix in Catalog.Core

@@ -1960,3 +1960,4 @@
 2026-11-05T04:44:26Z	Epic 33	ci_green_verified	runs=41965727602,41965727688 head=57723efa result=success via=none
 2026-11-05T04:44:26Z	Epic 33	amendments_verified	amendments=5 extensions=10 ok=true note="AD-18 When clause only; DW-651 bullet under 17.6; 33.3 chartered block"
 2026-11-05T04:44:26Z	Epic 33	merge_enqueued	policy=when_green feature_moved=bookkeeping_only(52e4134a..)
+2026-11-05T04:44:34Z	Epic 33	epic_merge_started	head=57723efa feature_local=c1d7aea8

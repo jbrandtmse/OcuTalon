@@ -53,6 +53,8 @@ export interface StateSnapshot {
     decisions: DecisionPayload[];
   };
   user: string;
+  /** True when the signed-in user holds OcuTalonAdmin; it only decides whether the header shows the Settings link (Story 33.2). */
+  admin: boolean;
   onlineDemo: boolean;
   demoMode: boolean;
   models: { triage: string; diagnosis: string; chat: string };
@@ -159,4 +161,38 @@ export interface PublicStatus {
   busy: boolean;
   lastReset: string | null;
   lastResetKind: string | null;
+}
+
+/** GET /ocutalon/api/v1/settings: the values of the settings page (admins only; a 403 `not_admin` for anyone else). */
+export interface SettingsBody {
+  sections: SettingsSections;
+  /** The bridge values (Budgets); empty until the bridge builds them. */
+  bridge: Record<string, string | number>;
+  providers: unknown[];
+  instanceZone: string;
+}
+
+/** The values of the sections that hold some. */
+export interface SettingsSections {
+  'check-thresholds': {
+    diskFreePercent: number;
+    journalFreePercent: number;
+    licenseUsePercent: number;
+    queueMessages: number;
+    queueWaitMinutes: number;
+  };
+  'daily-digest': { time: string; channels: string };
+  'demo-mode': { demoMode: boolean };
+}
+
+/** The 200 answer to a save: `{result: 'done', sections}`. */
+export interface SettingsSaved {
+  result: 'done';
+  sections: SettingsSections;
+}
+
+/** The error body of a refused or failed save: `{error: {code, message}}`, and for `bad_settings` the names of the refused fields. */
+export interface SettingsError {
+  error: { code: string; message: string };
+  fields?: string[];
 }

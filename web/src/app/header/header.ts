@@ -34,6 +34,7 @@ import { conversationUrl, TRACE_TEXTS } from '../shared/trace-view';
 import { Theme, type ThemeChoice } from '../theme/theme';
 import { CredentialRows } from './credential-rows';
 import { DemoViewSwitch } from './demo-view-switch';
+import { HeaderNav } from './header-nav';
 import { SignOutDialog, SIGN_OUT_FOCUS } from './sign-out-dialog';
 import { SIGN_OUT_TEXT_ID } from './sign-out-texts';
 import { ResetCountdown } from './reset-countdown';
@@ -56,6 +57,8 @@ const STATUS_RULE: FocusRule = { within: '.status-button' };
  * or Demo mode, or none). Right: the Visual Trace menu, the theme menu and the account menu, which holds About and Sign
  * out. Sign out goes through the API (SessionGate), which ends the CSP session and the whole sign-in group; on the online demo it asks
  * first, in a small dialog (SignOutDialog, Story 16.4), and ends the OcuTalon session too.
+ *
+ * After the Demo view switch sits the header navigation (HeaderNav, Story 33.2): "Chat" and, for an admin, "Settings".
  *
  * The Visual Trace menu (UX-DR29, UX-DR39) is a ghost button with aria-haspopup="dialog" and aria-expanded; a press opens
  * one popover through Popovers and a press while it is open closes it. The popover holds "Open my conversation in Visual
@@ -89,7 +92,7 @@ const STATUS_RULE: FocusRule = { within: '.status-button' };
  */
 @Component({
   selector: 'app-header',
-  imports: [CdkMenuTrigger, CdkMenu, CdkMenuItem, CdkMenuItemRadio, CredentialRows, DemoViewSwitch, Icon, ResetCountdown, TraceHelpBlock, Tooltip],
+  imports: [CdkMenuTrigger, CdkMenu, CdkMenuItem, CdkMenuItemRadio, CredentialRows, DemoViewSwitch, HeaderNav, Icon, ResetCountdown, TraceHelpBlock, Tooltip],
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     <header class="header">
@@ -102,6 +105,7 @@ const STATUS_RULE: FocusRule = { within: '.status-button' };
           <span class="context-badge">{{ text }}</span>
         }
         <app-demo-view-switch />
+        <app-header-nav />
       </div>
       <div class="side right">
         @if (layout.band() === 'drawer') {

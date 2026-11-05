@@ -13,7 +13,8 @@
 ///   channel        web, phone or telegram, as "the web chat", "the simulated phone" or "Telegram";
 ///   fallbackReason a Msg.Enum FALLBACKREASON value, as the text of its fallbackReason.* key;
 ///   groups         a non-empty array of {itemName, count, errorSummary, firstAt}, one line per group;
-///   cost           US dollars of 0 or more, as the UX's Formats rule says.
+///   cost           US dollars of 0 or more, as the UX's Formats rule says;
+///   dailyCost      US dollars of 0 or more, always with two decimals (the digest's cost of a day), such as "$0.00" or "$12.35".
 /// A string slot is trimmed, loses its control characters (the bidirectional controls, the zero-width space and the other
 /// invisible format characters that Clean lists among them; the zero-width joiner and non-joiner stay), and has each whitespace
 /// run, line breaks and Unicode spaces included, collapsed to one space. Where the text continues with a period, one trailing
@@ -189,6 +190,7 @@ ClassMethod SlotText(context As %String, name As %String, types As %DynamicObjec
 		Quit ..Find("fallbackReason."_suffix).text
 	}
 	If type = "cost" Quit ..Cost(context, name, values)
+	If type = "dailyCost" Quit ..DailyCost(context, name, values)
 	If type = "groups" Quit ..Groups(context, name, values, now, onlineDemo)
 	Do ..Fail(context_": the slot '"_name_"' has the unknown type '"_type_"'")
 }
@@ -227,13 +229,27 @@ ClassMethod Groups(context As %String, name As %String, values As %DynamicObject
 /// tier is the one of the amount as shown, so 0.99996 is "$1.00" and 0.009996 is "$0.010".
 ClassMethod Cost(context As %String, name As %String, values As %DynamicObject) As %String [ Private ]
 {
-	Set value = ..Value(context, name, values, "number")
-	If value < 0 Do ..Fail(context_": the slot '"_name_"' is a negative amount")
+	Set value = ..Amount(context, name, values)
 	If value < 0.0001 Quit "<$0.0001"
 	Set places = $Select(value < 0.01: 4, value < 1: 3, 1: 2)
 	If (places = 4) && ($FNumber(value, "", 4) >= 0.01) Set places = 3
 	If (places = 3) && ($FNumber(value, "", 3) >= 1) Set places = 2
 	Quit "$"_$FNumber(value, "", places)
+}
+
+/// US dollars with two decimals, whatever the amount: "$0.00" for zero and for an amount under half a cent. The value checks are
+/// Cost's (Amount).
+ClassMethod DailyCost(context As %String, name As %String, values As %DynamicObject) As %String [ Private ]
+{
+	Quit "$"_$FNumber(..Amount(context, name, values), "", 2)
+}
+
+/// The slot of a dollar type as a number of 0 or more: the value checks that Cost and DailyCost share.
+ClassMethod Amount(context As %String, name As %String, values As %DynamicObject) As %Numeric [ Private ]
+{
+	Set value = ..Value(context, name, values, "number")
+	If value < 0 Do ..Fail(context_": the slot '"_name_"' is a negative amount")
+	Quit value
 }
 
 /// The slot as a whole number of 0 or more.
