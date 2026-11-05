@@ -4018,3 +4018,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: Contest Planner request 2026-11-04 (first daily release) | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: 1.0.0 README, 'What's interesting' section, first paragraph
 - 2026-11-04T23:33:35Z status=routed owner=burndown by=orchestrator note=Add exactly, after '...in the same place as the rest of your integrations.': 'It implements the community idea [Use InterSystems Interoperability as a Traceability tool for GenAI LLM pipelines](https://ideas.intersystems.com/ideas/DPI-I-689).' Nothing else changes; README tests and the link check pass; the Planner reviews it in the release's public-text pass.
+
+### DW-697: flake (UTC-midnight crossing): web/e2e/support/approvals.ts takes DAY once at module load (UTC), so a spec module loaded before 00:00Z whose case runs after it seeds 'today 14:12' on the previous day; close-loop.spec.ts:499 C7 then reads '50 orders failed since Wednesday at 14:12' instead of '50 orders failed since 14:12'
+- source: OCT-epic40 5d96d2f6 run 41929230934 attempt 2, iris (browser) live:answers, 00:03:28Z | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: support/approvals.ts L15 DAY = new Date().toISOString().slice(0,10) at load; the page (timezoneId UTC) reads the incident as yesterday; any spec using today()/TOMORROW_AT_1413 shares the window
+- 2026-11-05T00:05:02Z status=routed owner=burndown by=orchestrator note=Fix: take the day per case (or pin the page clock with page.clock to the module's DAY), as DW-413 did with instanceDay/clearOfMidnight; one occurrence
