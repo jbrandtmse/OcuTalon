@@ -199,3 +199,5 @@
 2026-11-05T08:23:58Z	Story 39.7	fresh_check	env=recipe tests=4 result=pass order=forward,reverse shard=lane-a@Checks_fwd_155s_rev_156s hosted=class-rules,boundaries,ci-config post_rework=2
 2026-11-05T08:24:09Z	Story 39.7	committed	sha=e02ca205 submodules= ci=pending runs=41994157111,41994157054 pushed=true fix_for=39-7-publish-the-heartbeat-event amendments=spine_AD-18_heartbeat_Event_bullet(U-283,orchestrator_U7),epics.md_39.7_AC1(U-283),.github/workflows/ci.yml_checks_timeout-minutes_15-20(planner_pre-ruling) footprint_extensions=.github/workflows/ci.yml
 2026-11-05T08:24:09Z	Story 39.7	story_cycle	plan_to_commit_min=546 implement_passes=4 reviews=3 rework=2 first_ci=story models=plan:opus,implement:sonnet,qa:sonnet,cr:opus note=rework_1_ci_L10,rework_2_high_AD-18_bullet
+2026-11-05T08:57:07Z	Story 39.7	ci_resolved	story=39.7 sha=e02ca205 runs=41994157111,41994157054 result=success failed=none via=none resolved_at=next_plan checks_job_min=13.6_of_20
+2026-11-05T08:57:07Z	Epic 39	runner_ended	reason=waiting waiting_on=40 stories_done=39.1,39.3,39.4,39.6,39.7 waiting=39.2(on_40),39.5(on_39.2) applied=U-275,U-283 lane_d=free
