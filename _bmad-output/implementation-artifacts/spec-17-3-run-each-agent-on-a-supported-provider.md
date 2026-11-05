@@ -2,7 +2,7 @@
 title: 'Story 17.3: Run each agent on a supported provider'
 type: 'feature'
 created: '2026-11-05'
-status: 'blocked'
+status: 'in-review'
 baseline_revision: 'cc12bd0ed1ec133415b5446bf653ef975105fc87'
 review_loop_iteration: 0
 followup_review_recommended: false
@@ -227,7 +227,11 @@ All of it applies to the retry runners too.
 - Given a second model set with `SetModel(..., 1)`, when the first runner's attempt is refused, then the retry runner answers on the second model; and after the clear, no retry is sent.
 - Integration (Rule 1): given the built `Settings.Providers()`, when Lane B's unchanged `SettingsOps.Values()` runs, then its `providers` holds the four rows in table order with `keySet` and `supported`.
 
+- [ ] [Owner] IG-2: update `src/ocutalon/cls/OcuTalon/Test/Web/SettingsApi.cls` `TestGetShape` exactly as the IG-2 ruling under Design Notes says (shape-only providers assertion; key-value scan with the three planted shapes and the configured key value, built at run time; the U-177 exception comment); demonstrate one mutation per planted shape; nothing else in any Lane B file.
+- [ ] [Owner] U-288: confirm no text this story adds claims a provider other than Anthropic runs decisions; record the check in `## Decisions` of the review.
 ## Spec Change Log
+
+- 2026-11-05 lead: IG-2 ruled (one-time U-177 exception) and U-288 kept; attempt-1 patch re-applied; status in-review (re-dispatch protocol, review-step patch path).
 
 - 2026-11-05 lead: IG-1 ruled (option B, veto U-288); IG-2 sent to the orchestrator.
 
@@ -294,6 +298,9 @@ Footprint (Rule 11). No existing file outside Epic 17's footprint was edited, an
     - `[false]` `[reject]` IA-6 other choices (`Keys.Absent` reads the key in Decide's process; the Bedrock price; booleans) — all recorded under Decided in-stage; the key variable is read in the same instance environment for Decide and the jobs (Task 0 measurement), so no divergence.
 
 ## Design Notes
+
+**IG-2 ruled by the Contest Planner (owner's delegation, 2026-11-05 ~17:2xZ): a one-time U-177 exception for `Test.Web.SettingsApi.TestGetShape` only.** Conditions: (1) the providers assertion checks the built shape only (non-empty; each row has the built fields), never a row count or a price; (2) the secret scan targets key VALUES and must still fail on each of these planted in the body: an Anthropic-shaped key (`sk-ant-` prefix), an OpenAI-shaped key (`sk-` prefix), a Google-shaped key (`AIza` prefix), and the literal value of any key configured in the test instance if one is set; `keyVariable` names such as `ANTHROPIC_API_KEY` are allowed; each planted shape gets a demonstrated mutation (red), and the planted keys are built at run time (concatenation) so no key-shaped literal sits in the committed file; (3) the test carries a comment marking the U-177 exception and citing this ruling (Contest Planner, 2026-11-05); no other Lane B file changes -- a second Lane B edit is `## Clarification Needed`.
+**U-288 (IG-1) KEEP, with a condition:** while only Anthropic is marked supported, no public text (README, bridge guide, settings page, release notes, the bridge's own reason texts) may say another provider runs decisions; check every text this story adds (ledger DW-755 holds the condition for later stories).
 
 **Lead ruling IG-1 (2026-11-05, runner A, veto U-288).** Option B: the "Resolved (live)" row and the resolution AC are met by the in-process proof (`Providers.Resolve`, `Keys.Status`/`Keys.Absent`) plus the shadow-runner proof that the built agent uses the resolved provider; "decisions run normally" is carried by the existing live Anthropic-path tests, since resolution yields the same session config as a direct choice of that provider (pin that equality in process). No new CI unit and no dummy key. IG-2 (the Lane B test `Test.Web.SettingsApi.TestGetShape`) is with the orchestrator (U-177, cross-lane).
 
