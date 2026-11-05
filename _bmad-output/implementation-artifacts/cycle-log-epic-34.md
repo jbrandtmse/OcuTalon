@@ -49,3 +49,5 @@
 2026-11-05T08:23:01Z	Story 34.2	ruling	question=U-284_condition_limit_per_type choice=text_no_route_limit_so_too_large_is_PDF/Word_only;texts_unchanged;tests_per_family category=decide policy=5086036
 2026-11-05T08:24:52Z	Story 34.2	owner_decision	id=U-285 at=2026-11-05T08:23:53Z#864 via=orchestrator by=planner note=(a)_extended:+Zlib,libpng-2.0,IJG,Unicode-3.0,AGG-2.3,0BSD,MIT-0,FTL(not_GPL),Apache-2.0_WITH_LLVM-exception,CC-BY-4.0(docs);image_build_licence_gate;THIRD-PARTY-NOTICES;README_sentence_for_review;size_ruling:10MB_all_four_types,route_message,documents_route_body_bound_~14MB(DW-687_amended)
 2026-11-05T08:24:52Z	Story 34.2	story_unparked	story=34-2-add-and-remove-documents-on-a-documents-page via=inbox(U-285) stage=spec_validated note=no_code;spec_amended_with_U-285_conditions_and_size_ruling
+2026-11-05T08:28:39Z	Story 34.2	ruling	question=third_party_notices_path choice=/opt/ocutalon/THIRD-PARTY-NOTICES category=decide policy=5086036
+2026-11-05T08:28:39Z	Story 34.1	ci_wait	sha=de02fc38 run=41989403902 attempt=2 job=iris(shards-3) started=2026-11-05T08:19:04Z pushed=07:45Z queue_rule=not_passed(60min) action=end_turn_CI_WAIT
