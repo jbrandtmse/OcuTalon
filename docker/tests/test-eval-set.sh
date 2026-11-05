@@ -802,9 +802,9 @@ const demoTree = (mutate) => (f) => {
   mutate(f);
 };
 
-// A good tree for the rule `incidents`: the demo incident and the nine incidents of the test feed with this release's spread (data format change 3 with the
-// demo's, validation error 2, connection failure 2, partner outage 2, unknown 1) and two held out, a tail of later incidents, and a test-only case, which
-// the rule does not read.
+// A good tree for the rule `incidents`: the demo incident, the Orders demo's no-fix incident and the nine incidents of the test feed with this release's
+// spread (data format change 4 with the two Orders incidents, validation error 2, connection failure 2, partner outage 2, unknown 1) and two held out, a
+// tail of later incidents, and a test-only case, which the rule does not read.
 const category = (name) => {
   if (!CATEGORIES.includes(name)) throw new Error(`${name} is not a cause category`);
   return name;
@@ -1107,7 +1107,7 @@ const withoutTail = (f) => {
   }
 };
 // On the edge of the rule, and kept by it: the first ten hold 8 incidents of one cause category, and the eleventh and the later ones hold the same category
-// (9 of the first 11 and 16 of the 18); and a set of exactly 10 incidents, 9 of them from the feed, with 2 held out.
+// (9 of the first 11 and 17 of the 19); and a set of exactly 11 incidents, 9 of them from the feed, with 2 held out.
 variant('incidents', 'good-incidents-eight', '', incidentsTree((f) => {
   for (const [name] of FEEDCASES) {
     if (name === 'claims-archive-internal-error') continue;

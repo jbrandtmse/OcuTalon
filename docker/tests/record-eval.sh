@@ -42,6 +42,15 @@ fi
 . "$(dirname "$0")/lib-live.sh"
 
 repo=$(cd "$(dirname "$0")/../.." && pwd)
+# copy_out <file in the container> <local file> <label>: copies the file out through jq (pretty-printed) and dies unless it is JSON, is not empty,
+# is ASCII and names no home folder.
+copy_out() {
+  if ! dc exec -T iris cat "$1" | tr -d '\r' | jq . > "$2"; then die "$3 is not JSON"; fi
+  if [ ! -s "$2" ]; then die "$3 is empty"; fi
+  if LC_ALL=C grep -q '[^ -~]' "$2"; then die "$3 holds a character that is not ASCII"; fi
+  if grep -q '/Users/\|/home/' "$2"; then die "$3 holds an absolute path"; fi
+}
+
 if ! command -v jq >/dev/null 2>&1; then die "jq is not installed"; fi
 if [ "$mode" = demo ] && [ ! -f "$repo/eval/orders-date-format/case.json" ]; then die "eval/orders-date-format/case.json does not exist"; fi
 
@@ -86,12 +95,7 @@ if [ "$mode" = feed ]; then
     esac
     mkdir -p "$tmp/feed/$name"
     for file in case.json snapshot.json; do
-      if ! dc exec -T iris cat "/tmp/zz-eval-feed/$name/$file" | tr -d '\r' | jq . > "$tmp/feed/$name/$file"; then
-        die "$name/$file is not JSON"
-      fi
-      if [ ! -s "$tmp/feed/$name/$file" ]; then die "$name/$file is empty"; fi
-      if LC_ALL=C grep -q '[^ -~]' "$tmp/feed/$name/$file"; then die "$name/$file holds a character that is not ASCII"; fi
-      if grep -q '/Users/\|/home/' "$tmp/feed/$name/$file"; then die "$name/$file holds an absolute path"; fi
+      copy_out "/tmp/zz-eval-feed/$name/$file" "$tmp/feed/$name/$file" "$name/$file"
     done
     count=$((count + 1))
   done
@@ -115,12 +119,7 @@ if [ "$mode" = noevidence ]; then
   if [ "$result" != ok ]; then die "the recording failed: ${result:-no answer from the session}"; fi
   mkdir -p "$tmp/noevidence"
   for file in case.json snapshot.json; do
-    if ! dc exec -T iris cat "/tmp/zz-eval-noevidence/$name/$file" | tr -d '\r' | jq . > "$tmp/noevidence/$file"; then
-      die "$name/$file is not JSON"
-    fi
-    if [ ! -s "$tmp/noevidence/$file" ]; then die "$name/$file is empty"; fi
-    if LC_ALL=C grep -q '[^ -~]' "$tmp/noevidence/$file"; then die "$name/$file holds a character that is not ASCII"; fi
-    if grep -q '/Users/\|/home/' "$tmp/noevidence/$file"; then die "$name/$file holds an absolute path"; fi
+    copy_out "/tmp/zz-eval-noevidence/$name/$file" "$tmp/noevidence/$file" "$name/$file"
   done
   mkdir -p "eval/$name" || die "eval/$name could not be made"
   cp "$tmp/noevidence/case.json" "$tmp/noevidence/snapshot.json" "eval/$name/" || die "eval/$name could not be written"

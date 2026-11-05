@@ -36,7 +36,7 @@
 ///     for any tool step whatever its status, a denied or failed call included, and right with only the model's own steps);
 ///   - TestIncidents: an incident is right on its cause category and element at fault together, the element ignoring case and spaces, and
 ///     the fix kind is shown and not scored; TestIncidentNoFix (DW-653): a case whose expectation has noFix true is also right only with no fix kind,
-///     and shows "no fix";
+///     and shows "no fix"; (QA) TestIncidentNoFixNotBoolean: a noFix that is the number 1 or the string "true" is no marker;
 ///   - TestShares: SM-1 and SM-2 are met at 9 of 10 items and 8 of 10 incidents and not met below, and a kind with no row is not measured;
 ///   - TestHeldOut: the held-out rows are also counted on their own, in items and in incidents, and the text shows each held-out line;
 ///   - TestTellNowMissed: a tell-now case decided Ignore or Digest is listed, one decided Act is not;
@@ -923,6 +923,28 @@ Method TestIncidentNoFix()
 	Do $$$AssertTrue(text [ ("| "_none_" | incident | no | data_format_change, OrderDate, no fix | data_format_change, OrderDate | yes |"), "the Markdown cell reads no fix")
 	Do $$$AssertTrue(text [ ("| "_fix_" | incident | no | data_format_change, OrderDate, no fix | data_format_change, OrderDate, repair_resend | no |"), "and a fix that was proposed is shown and not right")
 	Do $$$AssertEquals(..Line(report.scores.incidents), "3 of 4 share .75 met 0", "the incidents score follows")
+}
+
+/// (QA) Only a JSON boolean true makes a case a no-fix case: a noFix that is the number 1 or the string "true" is no marker, so the case is scored as any
+/// other incident (right with the right cause and element whatever the fix kind), and its expected does not show noFix or "no fix". (Eval.Record and the hosted
+/// check keep such a file out of eval/; this pins the report's own reading.)
+Method TestIncidentNoFixNotBoolean()
+{
+	Set numeric = ..N("numeric"), string = ..N("string")
+	Set case = {"name": (numeric), "kind": "incident", "heldOut": false, "snapshot": "snapshot.json", "expectation": {"causeCategory": "data_format_change", "elementAtFault": "OrderDate", "fixKind": "", "noFix": 1}}
+	Do ..WriteCase(numeric, case.%ToJSON())
+	Do ..WriteCase(string, {"name": (string), "kind": "incident", "heldOut": false, "snapshot": "snapshot.json", "expectation": {"causeCategory": "data_format_change", "elementAtFault": "OrderDate", "fixKind": "", "noFix": "true"}}.%ToJSON())
+	Set run = ..NewRun()
+	Do ..Row(run, numeric, {"Outcome": "", "CauseCategory": "data_format_change", "ElementAtFault": "OrderDate", "FixKind": "repair_resend"})
+	Do ..Row(run, string, {"Outcome": "", "CauseCategory": "data_format_change", "ElementAtFault": "OrderDate", "FixKind": "repair_resend"})
+	Set report = ##class(OcuTalon.Eval.Report).Build(run, ..Folder)
+	Do $$$AssertEquals(..Rights(report), numeric_":1;"_string_":1", "a noFix that is not a JSON boolean is no marker: a row with a fix kind is still right")
+	Set iterator = report.cases.%GetIterator()
+	While iterator.%GetNext(, .entry) {
+		Do $$$AssertEquals(entry.expected.%GetTypeOf("noFix"), "unassigned", entry.case_": its expected does not hold noFix")
+	}
+	Set text = ##class(OcuTalon.Eval.Report).Text(report, "NotBoolean")
+	Do $$$AssertTrue(text '[ "no fix", "and the Markdown does not say no fix")
 }
 
 /// SM-1 is met at 9 of 10 items and not at 8 of 9; SM-2 is met at 8 of 10 incidents and not at 7 of 10; a kind with no row is not measured.

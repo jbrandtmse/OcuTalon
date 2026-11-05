@@ -167,6 +167,27 @@ Line numbers are on the merged tree (`223c9bb7`). None of the files below change
 - Integration AC -- `eval/run.sh`'s push run (consumer) sends the three heartbeat cases through `EvalIn`, `Intake`, Triage on the mock and `EvalSink` (real instances), and `Eval.Report` produces the observable effect: two rows in the cases table and one bullet under "Injection cases" with `expected outcome: tellnow`, all in `set.md`, and no problem.
 - Integration AC (DW-653) -- the same push run sends `orders-date-no-evidence` through `EvalIn`, `IncidentManager`'s evaluation path, Diagnosis on the mock and `EvalSink`, and `set.md`'s cases table lists it with the expectation `data_format_change, OrderDate, no fix`, and no problem.
 
+### Review Findings
+
+Code review 2026-11-04 (stage code-review, layers blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor, all at the session's tier; 15 rows, 4 entries kept, 10 rejected, 0 deferred, 0 decision-needed).
+
+- [x] [Review][Patch] MED (Rule 2, fix-risk low: test-only helper, class re-run green) `SendNoEvidence` repeated the send, wait and header loop of `Induce`'s 50-order branch with no stated reason -- both now call one `SendBatch(count, orderDate, ref, .keys)` [src/ocutalon/cls/OcuTalon/Test/Eval/Record.cls:251]
+- [x] [Review][Patch] MED (Rule 2, fix-risk low: mechanical extraction, the no-evidence mode re-run) the `no-evidence` mode of `record-eval.sh` copied the feed mode's copy-out checks (jq, not empty, ASCII, no home folder) -- both now call `copy_out` [docker/tests/record-eval.sh:45]
+- [x] [Review][Patch] LOW (fix-risk low: comments only) two comments in `test-eval-set.sh` still described the incident trees before `orders-date-no-evidence` (the good tree's spread, and "16 of the 18" / "exactly 10 incidents" for `good-incidents-eight` / `good-incidents-eleven`) [docker/tests/test-eval-set.sh:805]
+- [x] [Review][Patch] LOW (fix-risk low: one counter) the batch's "failed headers" error counted `$Length(keys, ",")`, which names 1 when no header was found -- `SendBatch` counts the headers it keeps [src/ocutalon/cls/OcuTalon/Test/Eval/Record.cls:262]
+
+Rejected:
+- `false` Blind: re-recording `no-evidence` within a day of March 5 or May 3 breaks the case -- the orders are dated 2026, and both days are past, so no future recording day is within `ARRIVALDAYS` of either reading.
+- `low` Blind: the hosted heartbeat shape accepts a text with an empty checklist -- the case files are fixed and `TestHeartbeatEvalCases` compares the whole text with `Beat.Snapshot`; the fix adds a guard and a variant (`wontfix-accepted`, reopen_if: a heartbeat case with no checklist line passes both checks).
+- `low` Edge: `SeedBlock` throws on an empty production or an empty `none` field -- the case files are fixed and the throw fails the test loudly.
+- `false` Edge: the commit calls the heartbeat cases recorded -- the spec calls them recorded Item cases and their `recordedBy` says they were written for the set.
+- `low` Gap: `RecordNoEvidence` and the `no-evidence` mode have no executed test host -- a person-run recorder whose only output is committed files that `TestNoEvidenceCase` and `TestCommittedIsCurrent` check on every run; run once in this review after the patch (`wontfix-accepted`, reopen_if: a re-recording commits files those two tests do not reject and that differ from the recipe).
+- `false` Gap: `RecordNoEvidence` sends before confirming the hold -- `HoldFailures`' status is checked and it sets the mark; nothing shows an OK status with no hold.
+- `by-design` Auditor: the reserved-wording check reads reasons the bridge already filtered -- the intent names `ReplyGuard.Filter` over the recorded reasons, as `ScoreTurn` does for replies; it measures what leaves Decide (AD-28).
+- `by-design` Auditor: the incident minimum rose to 11 -- the spec's Shared surfaces line names the incident set 10 -> 11.
+- `false` Auditor: QA's edits are uncommitted -- the stage commits nothing; the lead commits them.
+- Rule 3: the story's surfaces (the evaluation set and report, the overview) have real-runtime evidence in the `evaluation` job's push run and the hosted checks; no UI.
+
 ## Spec Change Log
 
 - 2026-11-04, lead, re-plan: Epic 7 merged into feature and its merge gate routed DW-653 to this story (Planner ruling, delegated). The runner integrated forward from feature (ac2c4549, merge 62f2002e) and added DW-653 to the intent block; status set to draft for a re-plan on the merged tree. The earlier plan's other choices stand unless the merged tree changes them.
@@ -294,6 +315,15 @@ Pinning mutations (Rule 19), each applied, observed red, reverted; `git diff` by
 - mutation: Unscored rule, invalid `keyPhrases` beside a valid `outcome` -- the guard `hasPhrases && '..ValidPhrases(phrases)` narrowed with `&& 'hasOutcome` -> `Test.Eval.Report` `TestInjectionUnscored` red (the `mixed` row).
 - mutation: Beat Item sender -- `Beat.Run` setting `item.Sender = "OcuTalon"` -> `Test.Checks.Beat` `TestBeatRow` red ("and it has no sender"); `Checks/Beat.cls` restored byte-identical.
 - mutation: Hosted shape -- the heartbeat branch of `shape()` replaced by `else if (false)` -> `test-eval-set.sh` `FAIL cases` (the synthetic heartbeat variants, so before the real tree is read); the `noFix` branch replaced by `if (false)` -> `FAIL cases` (`bad-nofix-other-category`, `bad-nofix-with-fixkind`, `good-nofix`); the Orders-demo source allowance removed -> `FAIL incidents` (`orders-date-no-evidence`).
+
+QA stage (2026-11-04, warm stack `e39s6qaw`, lane D; each mutation applied, observed red, reverted from a backup, the two product files byte-identical afterwards):
+- (QA) Test files changed: `src/ocutalon/cls/OcuTalon/Test/Eval/Report.cls` (new `TestIncidentNoFixNotBoolean`; class doc), `src/ocutalon/cls/OcuTalon/Test/Eval/Record.cls` (`TestWriteNoFix` gains the `noFix` false acceptance row; method doc). No other file changed. Added time: `Test.Eval.Report` under 1 s, `Test.Eval.Record` none measurable (one more `Write`).
+- mutation: AC 9 (DW-653), the `noFix` scoring rule -- the `'noFix || (row.fixKind = "")` term dropped from `right` in the incident branch of `Score` -> `Test.Eval.Report` `TestIncidentNoFix` red (3 asserts: rights, the "not right" Markdown row, the incidents share).
+- mutation: AC 9 (DW-653), `noFix` must be a JSON boolean (QA) -- `Set noFix = +expectation.%Get("noFix")` (type check dropped) -> `Test.Eval.Report` `TestIncidentNoFixNotBoolean` red (3 asserts).
+- mutation: Unscored rule (AC 3), invalid `keyPhrases` beside a valid `outcome` -- the guard narrowed with `&& 'hasOutcome` -> `Test.Eval.Report` `TestInjectionUnscored` red (the `mixed` row, 4 asserts); confirmed again at QA.
+- mutation: AC 7 (DW-653), explicit `noFix` false leaves the record unchanged (QA) -- `CaseRecord` writing a `noFix` key whenever the field is a boolean (`If expectation.%GetTypeOf("noFix") = "boolean" Do ...%Set("noFix", noFix, "boolean")`) -> `Test.Eval.Record` `TestWriteNoFix` red on the new row only (no earlier test caught it).
+- mutation: AC 8 (DW-653), after the review's `SendBatch` extraction (code review, 2026-11-04, warm stack `e39s6crw`) -- `SendNoEvidence` sending `2026-03-06` -> `Test.Eval.Record` `TestCommittedIsCurrent` and `TestReplayEqualsLive` red (orders-date-no-evidence); reverted byte-identical, class green again on the same stack.
+- Reviewed and left as is (already pinned, no new test): reserved wording in a second reason line and in an outcome-only case (`TestInjectionReservedWording`), both-expectation rows, hosted heartbeat/noFix/overview variants (bad and good pairs for each rule), per-test dates (`TestHeartbeatEvalCases` uses the fixed day 2099-06-15; the other new tests use no "now").
 
 **Shared surfaces:** the lists, counts and texts other tests assert on; the implement stage updates every test that asserts their old shape:
 - the case table `Test.Eval.Cases.TABLE`, and the set's counts: item cases +2, injection cases +1, held-out injections 0 -> 1, the `checked` counts of `TestCaseRecords` and `TestSetComposition`;

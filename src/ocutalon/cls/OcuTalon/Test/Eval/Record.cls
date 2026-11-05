@@ -245,24 +245,30 @@ ClassMethod NoEvidenceCase() As %DynamicObject
 	Quit case
 }
 
-/// Sends the batch of orders-date-no-evidence into the Orders production with the reference: 3 orders dated 03/05/2026 in MM/DD/YYYY, waits for their 3
-/// failures at ORDERSITEM and gives their failed headers as keys (h<id>, ascending). The recording and the re-induction both send through it. An error
-/// status says what failed.
+/// Sends the batch of orders-date-no-evidence into the Orders production with the reference: 3 orders dated 03/05/2026 in MM/DD/YYYY (SendBatch).
+/// The recording and the re-induction both send through it.
 ClassMethod SendNoEvidence(ref As %String, Output keys As %String) As %Status
+{
+	Quit ..SendBatch(3, "2026-03-05", ref, .keys)
+}
+
+/// Sends count orders with the order date (YYYY-MM-DD, written MM/DD/YYYY) into the Orders production with the reference, waits for their count
+/// failures at ORDERSITEM and gives their failed headers as keys (h<id>, ascending). An error status says what failed.
+ClassMethod SendBatch(count As %Integer, orderDate As %String, ref As %String, Output keys As %String) As %Status
 {
 	Set keys = ""
 	Set demo = "OcuTalon.Test.Demo.Production"
 	Set item = ..#ORDERSITEM
-	Set text = $ClassMethod(demo, "Send", 3, "MM/DD/YYYY", ref, "2026-03-05")
+	Set text = $ClassMethod(demo, "Send", count, "MM/DD/YYYY", ref, orderDate)
 	If text '= "" Quit $$$ERROR($$$GeneralError, "The batch was not sent: "_text)
-	Set count = $ClassMethod(demo, "WaitCount", ref, item, 8, 3)
-	If count '= 3 Quit $$$ERROR($$$GeneralError, "The batch has "_count_" failures at "_item_", not 3")
-	Set headers = $ClassMethod(demo, "Headers", ref)
+	Set failed = $ClassMethod(demo, "WaitCount", ref, item, 8, count)
+	If failed '= count Quit $$$ERROR($$$GeneralError, "The batch has "_failed_" failures at "_item_", not "_count)
+	Set headers = $ClassMethod(demo, "Headers", ref), found = 0
 	For i = 0:1:headers.%Size() - 1 {
 		Set header = headers.%Get(i)
-		If (header.target = item) && (header.status = 8) Set keys = keys_$Select(keys = "": "", 1: ",")_"h"_header.id
+		If (header.target = item) && (header.status = 8) Set keys = keys_$Select(keys = "": "", 1: ",")_"h"_header.id, found = found + 1
 	}
-	If $Length(keys, ",") '= 3 Quit $$$ERROR($$$GeneralError, "The batch has "_$Length(keys, ",")_" failed headers at "_item_", not 3")
+	If found '= count Quit $$$ERROR($$$GeneralError, "The batch has "_found_" failed headers at "_item_", not "_count)
 	Quit $$$OK
 }
 
@@ -287,7 +293,7 @@ ClassMethod RecordNoEvidence(folder As %String) As %Status
 }
 
 /// Gives where and which the failures of the incident are: the namespace, production and item they are at and the keys of their failed headers (h<id>,
-/// ascending). For the demo's incidents it sends the failures into the Orders production (the date-format batch of 50, or SendNoEvidence's batch of 3) and keeps the batch's reference in Refs; for a case of the test feed it
+/// ascending). For the demo's incidents it sends the failures into the Orders production (SendBatch: the date-format batch of 50, or SendNoEvidence's batch of 3) and keeps the batch's reference in Refs; for a case of the test feed it
 /// waits for the failures that OnBeforeAllTests sent. An unknown name is an error.
 Method Induce(name As %String, Output namespace As %String, Output production As %String, Output item As %String, Output keys As %String) As %Status
 {
@@ -305,17 +311,7 @@ Method Induce(name As %String, Output namespace As %String, Output production As
 	Set ref = ##class(OcuTalon.Bridge.Ids).NewRef()
 	Do ..Refs.%Push(ref)
 	If name = "orders-date-no-evidence" Quit ..SendNoEvidence(ref, .keys)
-	Set text = $ClassMethod(demo, "Send", 50, "MM/DD/YYYY", ref, "2026-10-16")
-	If text '= "" Quit $$$ERROR($$$GeneralError, "The batch was not sent: "_text)
-	Set count = $ClassMethod(demo, "WaitCount", ref, item, 8, 50)
-	If count '= 50 Quit $$$ERROR($$$GeneralError, "The batch has "_count_" failures at "_item_", not 50")
-	Set headers = $ClassMethod(demo, "Headers", ref)
-	For i = 0:1:headers.%Size() - 1 {
-		Set header = headers.%Get(i)
-		If (header.target = item) && (header.status = 8) Set keys = keys_$Select(keys = "": "", 1: ",")_"h"_header.id
-	}
-	If $Length(keys, ",") '= 50 Quit $$$ERROR($$$GeneralError, "The batch has "_$Length(keys, ",")_" failed headers at "_item_", not 50")
-	Quit $$$OK
+	Quit ..SendBatch(50, "2026-10-16", ref, .keys)
 }
 
 /// The files of the demo capture, field by field: the snapshot is the reader's answer (the source, 50 failures at OrdersFromPartner with the changed
@@ -699,7 +695,7 @@ Method TestWriteRefuses()
 }
 
 /// (DW-653) A case that expects no fix is recorded: with the category DiagnosisPayload FIXCATEGORY, a fixKind that is empty or absent and noFix true,
-/// Write puts exactly {causeCategory, elementAtFault, fixKind "", noFix true} in case.json. Each of these is refused with its reason and no folder: the
+/// Write puts exactly {causeCategory, elementAtFault, fixKind "", noFix true} in case.json; (QA) a case with noFix false and a fixKind is recorded without a noFix key. Each of these is refused with its reason and no folder: the
 /// fix category with an empty fixKind and noFix absent or false (today's refusal), noFix true with a fixKind, noFix true for each of the other
 /// categories, and a noFix that is the string "true" or the number 1.
 Method TestWriteNoFix()
@@ -719,6 +715,14 @@ Method TestWriteNoFix()
 		Do $$$AssertEquals(..ReadText(caseFile), expected.%ToJSON()_$Char(10), form_": case.json holds the expectation with fixKind empty and noFix true, and nothing else")
 		Do $$$AssertEquals(case.%ToJSON(), before, form_": the case that the caller holds is unchanged")
 	}
+	// (QA) An explicit noFix false is today's expectation: a case that expects a fix is recorded, and its record has no noFix key.
+	Set name = "zz-nofix-false"
+	Set case = ..SyntheticCase(name)
+	Do case.expectation.%Set("noFix", 0, "boolean")
+	Do $$$AssertStatusOK(##class(OcuTalon.Eval.Record).Write(case, ..Synthetic(), base), "Write accepts noFix false with a fixKind")
+	Set caseFile = ##class(%File).NormalizeFilename(##class(OcuTalon.Eval.Record).#CASEFILE, ##class(%File).SubDirectoryName(base, name))
+	Set expected = {"name": (name), "kind": "incident", "heldOut": false, "description": (case.description), "snapshot": "snapshot.json", "expectation": {"causeCategory": (fix), "elementAtFault": "OrderDate", "fixKind": "repair_resend"}, "recordedBy": (recordedBy)}
+	Do $$$AssertEquals(..ReadText(caseFile), expected.%ToJSON()_$Char(10), "case.json has no noFix key: the record is as it was before noFix")
 	Set refused = "zz-nofix-refused"
 	Set case = ..NoFixCase(refused)
 	Do case.expectation.%Remove("noFix")
