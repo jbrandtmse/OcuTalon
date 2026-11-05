@@ -11,7 +11,11 @@
 ///     [{"method": "POST", "url": "/v1/documents", "bytes": 14680064}]
 ///     }
 ///
-/// url is written as in the class's UrlMap (":name" stands for one path segment) and method is the HTTP method. Only a bound larger than
+/// url is the path as that class's OnPreDispatch receives it, written as in its UrlMap (":name" stands for one path segment), and method
+/// is the HTTP method. A route behind a <Map Prefix="..." Forward="..."/> is checked once in the class that holds the Map, with the full
+/// path (for example "/v1/documents"), and again in the forwarded class when it extends OcuTalon.Web.Api, with the rest of the path after
+/// the prefix (for example ""). The forwarded class inherits its superclass's XData, so it declares the route in an XData BodyBounds of
+/// its own, and the class that holds the Map declares the full path. Only a bound larger than
 /// MAXBYTES takes effect, and only for the route and method it names; every other route keeps MAXBYTES. The declaration is read only when
 /// a body is over MAXBYTES. A declaration that is missing, is not valid JSON or is not an array means MAXBYTES, and an entry that is
 /// malformed is skipped.

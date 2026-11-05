@@ -105,6 +105,41 @@ deferred: []
 - AC7 (DW-698). Given the 60-minute replay, when it ends, then either a reproduction has its fix and a green replay, or the implement summary lists what was tried.
 - AC8 (footprint). Given the diff since `story_base` without `_bmad-output`, when listed, then it holds only this Code Map's files and the tasks' new files; in `Web/Api.cls` only the `OnPreDispatch` lines changed.
 
+### Review Findings
+
+Code review 2026-11-05 (full mode, four layers: blind, edge, verification-gap, acceptance-auditor; 26 rows: high 0, medium 5, low 3 patched, 18 rejected). Binding rulings confirmed: `Web/Api.cls` changes only in `OnPreDispatch` (the call and its doc clause), `body_too_large` / `XData BodyBounds` as named, traces off, failure-only 3-day upload of `web/test-results/` with no secret, job names and matrix unchanged, DW-692 fails on an entry in any state. No AD mismatch (AD-13, AD-22, AD-29, AD-3). Rule 3: real HTTP (`body-limit.spec.ts`) and real IRIS (`state-diagnosis.spec.ts`) evidence present.
+
+- [x] [Review][Patch] (medium) The `DIAG` CSP-process filter matched `csp` case-sensitively on the routine, so a busy CSP process (class code under the gateway's `CSPa24.so`, for example a request waiting in `%CSP.Session`) was never listed; seen on build 154: pid running `%SYS.sqlcq...` dropped [web/e2e/support/diagnose.ts] - fixed: routine or executable, any case.
+- [x] [Review][Patch] (medium) A lock or process query that cannot be opened (`%ResultSet.%New` returns no object) or fails in `Next` still printed "session lock: none held" (QA LOW, verification-gap, acceptance-auditor, edge) [web/e2e/support/diagnose.ts] - fixed: `$IsObject` guard and `Next(.sc)` status into `CHK|error|<csp|lock>|`; `diagnosisScript(queries)` exported; new real-IRIS case in `state-diagnosis.spec.ts`, which also now asserts a `csp process` line.
+- [x] [Review][Patch] (medium) No test read the failure count of `check_items_run`'s wait, so reporting through `fail_line` (prints, counts nothing) left rows 14/19/20/21 green on a stuck entry [docker/tests/test-lib-live.sh] - fixed: the stuck-Dead and silent-session cases assert `FAILS=1`.
+- [x] [Review][Patch] (medium) The Story 11.21 `helper-waits.spec.ts` cases whose snapshot GET passes its bound now ran the diagnosis against the live sign-in stack's real IRIS (`OCUTALON_E2E_IRIS_CONTAINER`), no longer hermetic [web/e2e/live/helper-waits.spec.ts] - fixed: file-level hooks, appended at the end, give every case a stand-in session; the diagnosis describe keeps its own.
+- [x] [Review][Patch] (medium) The `XData BodyBounds` contract did not say how a `<Map>`-forwarded route is declared: the class that holds the Map checks the full path, and a forwarded subclass of `Web.Api` checks again with the leftover url and inherits the superclass's XData (seen on slot B) [src/ocutalon/cls/OcuTalon/Web/BodyLimit.cls] - fixed: the header states both declarations; the Epic 34 merge item is DW-741 (escalated, merge gate).
+- [x] [Review][Patch] (low) "An explicit `timeout` (0 included) is kept" had no case [web/e2e/live/request-waits.spec.ts] - fixed: a `{ timeout: 0 }` context is still waiting after 7 s.
+- [x] [Review][Patch] (low) `image-actions`' `||` guard had no bad sample of its own [docker/tests/test-ci-config.sh] - fixed: `failure() || success()` sample.
+- [x] [Review][Patch] (low) The new disabled-items cases used the file-wide `deadline`, so a slower earlier case could turn them red [docker/tests/test-lib-live.sh] - fixed: each case sets its own.
+
+Footprint note for the lead: QA's `web/e2e/api/state-diagnosis.spec.ts` (new, uncommitted) is a new file outside the Code Map, to report as a footprint extension with `web/scripts/ci-results.test.mjs`; `helper-waits.spec.ts` carries one import at the top beside its appended blocks (no open epic touches it).
+
+Rejected:
+- `false` `BodyLimit.Size()` counts characters on a character stream (blind, edge) - `Web.Api` inherits `CONVERTINPUTSTREAM = 0` (`%CSP.Page`), so `%request.Content` is a `%CSP.BinaryStream` and `Size` is bytes.
+- `false` the uncommitted QA files are missing from the branch (blind) - the lead commits QA's files; not a code defect.
+- `false` the probe mutates production state through `MarkDeadJobs`, and "it never removes an entry" is wrong (edge) - `check_items_run`'s sample and `item_jobs` already ran `Ens.Job:Enumerate` before this story; `MarkDeadJobs` moves a gone job to a ghost entry, it removes none.
+- `low` a Dead entry is permanent while the production runs, so the wait burns its whole bound (blind, edge) - only the time to fail an already-red row; the Matrix orders failing on the bound. DW-742 wontfix-accepted.
+- `low` `DISABLED_QUIET_SECONDS` counts sleeps, not wall-clock time (blind, edge) - the spec orders extending `wait_until`; the FAIL text prints the true elapsed time. DW-743 wontfix-accepted.
+- `low` the FAIL text's "after it was disabled" counts from the wait's start, and the park labels any disabled item "Telegram park" (blind, edge) - the text is the task's wording, and the line names the item.
+- `low` no upload when the job is cancelled by its timeout (blind, edge) - spec-bound (no `always()`, `if: failure()`). DW-744 by-design.
+- `low` `irisScript` retries after the diagnosis bound rejected (edge) - Story 11.21 helper, failure path only. DW-745 wontfix-accepted.
+- `low` `LockQuery:Detail` would list the waiters and the page's session id is not printed (blind) - an addition; with the filter fix the waiting request shows as a CSP process.
+- `low` a partial `Ens.Job:Enumerate` read still prints `CHK|probed|done` (edge) - no reachable error shown; the first review's rejection of the same family stands.
+- `low` the dump can use the clean-up reserve (edge) - capped by `capToDeadline`; rejected in the first review.
+- `low` hook-made contexts get the 60 s cap (edge) - D10; rejected in the first review.
+- `low` `demo-switch`'s second Playwright run clears the first's results (edge) - D7, accepted at planning.
+- `low` `image-actions` accepts several conforming uploads (edge) - `ci-results.test.mjs` pins the single `upload-artifact`.
+- `low` the per-call-timeout case and the hook case of `request-waits.spec.ts` cannot fail through the wrapper (verification-gap) - not AC5's pinning tests (the 2000 ms and the new 0 ms context cases are); hooks are outside AC5 (D10).
+- `low` `state-diagnosis.spec.ts` outside the Code Map (acceptance-auditor, verification-gap) - a QA test file, new and uncontended; reported above.
+- `low` `helper-waits.spec.ts` changes more than "one appended test" (acceptance-auditor) - descriptive; appended blocks plus one import, file uncontended.
+- `low` `BodyLimitProbe` declares more entries than the task names (acceptance-auditor) - adds `:name` and skipped-entry coverage; recorded under Residual risks.
+
 ## Spec Change Log
 
 ## Review Triage Log
@@ -267,6 +302,11 @@ Run from the epic worktree with the lane-B variables, tags `e11s22i` (fresh) and
 - (QA) mutation: AC6 remove the KeyEnforcedUnits reading from the diagnosis script -> `state-diagnosis.spec.ts` licence case red (live). Reverted, identical.
 - (QA) mutation: AC6 `stateDiagnosis` rethrows in its catch -> `state-diagnosis.spec.ts` unreachable-container case red (live). Reverted, identical.
 - (QA) equivalent mutant: removing the `bytes` type check in `Bound` stays green because the integer check right after it also refuses a string. Surviving mutant, not a gap: a misspelled `%SYS.LockQuery` query name in the diagnosis script prints `session lock: none held` (`%New` returns an empty oref, the script's `Execute` then raises INVALID OREF and the run goes on to `CHK|done`); a broken lock read is therefore not told from no lock. Recorded as a finding for the reviewer (LOW).
+- (CR) mutation: AC1 `check_items_run` reports through `fail_line` (prints, counts nothing) instead of `fail` -> `test-lib-live.sh` cases "stuck Dead entry" and "silent session" red (`FAILS=0`). Reverted, `cmp` identical.
+- (CR) mutation: AC4 drop the `||` clause of the `image-actions` rule -> `test-ci-config.sh` red naming the sample `image-upload-or-success`. Reverted, identical.
+- (CR) mutation: AC5 the wrapper treats `timeout: 0` as absent (`options?.timeout ?`) -> `request-waits.spec.ts` case "a context made with a timeout of 0 keeps it" red. Reverted, identical.
+- (CR) mutation: AC6 drop the `$IsObject` guard of `openQuery` in `diagnose.ts` -> `state-diagnosis.spec.ts` case "a query that cannot be opened ..." red against build 154 IRIS (slot B's container, read-only script). Reverted, identical.
+- (CR) Runs after the review patches: `test-lib-live.sh` all pass (52 s); `test-ci-config.sh` all pass; `npm --prefix web run lint` exit 0; `npm --prefix web test` 1401 pass; `request-waits.spec.ts` + `helper-waits.spec.ts` 27 passed with no stack; `state-diagnosis.spec.ts` 3 passed against slot B's IRIS; `Web.BodyLimit` compiled on slot B; `ci/checks.sh` all 28 scripts passed. The CSP-process filter change has no pinning test (an idle `%SYS.cspServer` process satisfies the old filter too); its evidence is the build 154 listing (a busy CSP process listed by the new filter, dropped by the old).
 
 ## Auto Run Result
 

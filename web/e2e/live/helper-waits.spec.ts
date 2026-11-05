@@ -292,3 +292,20 @@ test.describe('loadedAfter: the /state diagnosis', () => {
     ]);
   });
 });
+
+/**
+ * Every case of this file that lets loadedAfter's snapshot GET pass its bound runs the /state diagnosis; outside the describe above, which
+ * sets a stand-in of its own, the diagnosis reads this stand-in, never the IRIS of a stack the unit may have started, so these cases stay
+ * hermetic and take no time of their own for the read.
+ */
+let execBefore: string | undefined;
+
+test.beforeEach(() => {
+  execBefore = process.env['OCUTALON_E2E_IRIS_EXEC'];
+  process.env['OCUTALON_E2E_IRIS_EXEC'] = "cat > /dev/null; printf '%s\\n' 'CHK|done|1'";
+});
+
+test.afterEach(() => {
+  if (execBefore === undefined) delete process.env['OCUTALON_E2E_IRIS_EXEC'];
+  else process.env['OCUTALON_E2E_IRIS_EXEC'] = execBefore;
+});

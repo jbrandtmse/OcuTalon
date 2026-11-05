@@ -270,14 +270,14 @@ LIVE_TELEGRAM=started
 probe_reset
 printf '%s\n' 'CHK|entry|TelegramOut|Alive|running' 'CHK|probed|done' > "$tmp/probe.1"
 printf '%s\n' 'CHK|entry|TelegramOut|Dead|last was: running' 'CHK|probed|done' > "$tmp/probe.2"
-r=$( ( park_answer='CHK|park|done'; iris_script() { probe_stub; }; out=$(live_park_telegram); echo "RC=$? PROBES=$(cat "$tmp/probe-n") OUT=$out" ) )
+r=$( ( deadline=$((SECONDS + 60)); park_answer='CHK|park|done'; iris_script() { probe_stub; }; out=$(live_park_telegram); echo "RC=$? PROBES=$(cat "$tmp/probe-n") OUT=$out" ) )
 if printf '%s' "$r" | grep -Eq '^RC=0 PROBES=3 OUT=PARK done [0-9]+s$'; then
   pass "disabled items: after PARK done the park waits until no entry of any state is left, then succeeds"
 else
   fail "disabled items: the park did not wait for the entries to clear (3 probes expected) ($r)"
 fi
 probe_reset
-r=$( ( park_answer='CHK|park|skipped'; iris_script() { probe_stub; }; out=$(live_park_telegram); echo "RC=$? PROBES=$(cat "$tmp/probe-n" 2>/dev/null || echo 0) OUT=$out" ) )
+r=$( ( deadline=$((SECONDS + 60)); park_answer='CHK|park|skipped'; iris_script() { probe_stub; }; out=$(live_park_telegram); echo "RC=$? PROBES=$(cat "$tmp/probe-n" 2>/dev/null || echo 0) OUT=$out" ) )
 if [ "$r" = "RC=0 PROBES=0 OUT=PARK skipped" ]; then
   pass "disabled items: after PARK skipped the park does not probe"
 else
@@ -285,7 +285,7 @@ else
 fi
 probe_reset
 printf '%s\n' 'CHK|entry|TelegramOut|Dead|last was: running' 'CHK|probed|done' > "$tmp/probe.last"
-r=$( ( DISABLED_QUIET_SECONDS=1; park_answer='CHK|park|done'; iris_script() { probe_stub; }; out=$(live_park_telegram); echo "RC=$? OUT=$out" ) )
+r=$( ( deadline=$((SECONDS + 60)); DISABLED_QUIET_SECONDS=1; park_answer='CHK|park|done'; iris_script() { probe_stub; }; out=$(live_park_telegram); echo "RC=$? OUT=$out" ) )
 if printf '%s\n' "$r" | grep -Eq '^RC=1 OUT=FAIL Telegram park: TelegramOut still has an Ens.Job entry \(Dead, last was: running\) [0-9]+ s after it was disabled$'; then
   pass "disabled items: a Dead entry that stays fails the park, naming the item, its state and its status"
 else
@@ -296,7 +296,7 @@ fi
 probe_reset
 printf '%s\n' 'CHK|entry|TelegramIn|Alive|running' 'CHK|probed|done' > "$tmp/probe.1"
 printf '%s\n' 'CHK|entry|TelegramIn|Dead|last was: running' 'CHK|probed|done' > "$tmp/probe.2"
-r=$( ( iris_script() { probe_stub; }; check_items_run "items probe" ) 2>&1 )
+r=$( ( deadline=$((SECONDS + 60)); iris_script() { probe_stub; }; check_items_run "items probe" ) 2>&1 )
 if printf '%s' "$r" | grep -q '^PASS items probe: ' && [ "$(cat "$tmp/sample-after" 2>/dev/null)" = 3 ]; then
   pass "disabled items: check_items_run waits through two probes that list an entry and samples after the third, which lists none"
 else
@@ -306,10 +306,10 @@ fi
 # (b) a Dead entry that never clears fails the row naming the item, Dead and its status, and the sample never runs.
 probe_reset
 printf '%s\n' 'CHK|entry|TelegramOut|Dead|last was: running' 'CHK|probed|done' > "$tmp/probe.last"
-r=$( ( DISABLED_QUIET_SECONDS=1; iris_script() { probe_stub; }; check_items_run "items probe" ) 2>&1 )
+r=$( ( deadline=$((SECONDS + 60)); fails=0; DISABLED_QUIET_SECONDS=1; iris_script() { probe_stub; }; check_items_run "items probe"; echo "FAILS=$fails" ) 2>&1 )
 if printf '%s\n' "$r" | grep -Eq '^FAIL items probe: TelegramOut still has an Ens.Job entry \(Dead, last was: running\) [0-9]+ s after it was disabled$' \
-  && [ ! -f "$tmp/sample-after" ]; then
-  pass "disabled items: a Dead entry that stays fails the item check naming the item, Dead and its status, and nothing is sampled"
+  && printf '%s\n' "$r" | grep -qx 'FAILS=1' && [ ! -f "$tmp/sample-after" ]; then
+  pass "disabled items: a Dead entry that stays fails the item check naming the item, Dead and its status, counts one failure, and nothing is sampled"
 else
   fail "disabled items: the stuck Dead entry was not reported as it should ($r)"
 fi
@@ -317,7 +317,7 @@ fi
 # An entry that clears during the last sleep of the wait is not reported: one more probe follows the wait.
 probe_reset
 printf '%s\n' 'CHK|entry|TelegramIn|Dead|last was: running' 'CHK|probed|done' > "$tmp/probe.1"
-r=$( ( DISABLED_QUIET_SECONDS=1; iris_script() { probe_stub; }; check_items_run "items probe" ) 2>&1 )
+r=$( ( deadline=$((SECONDS + 60)); DISABLED_QUIET_SECONDS=1; iris_script() { probe_stub; }; check_items_run "items probe" ) 2>&1 )
 if printf '%s' "$r" | grep -q '^PASS items probe: ' && [ "$(cat "$tmp/sample-after" 2>/dev/null)" = 2 ]; then
   pass "disabled items: an entry that clears during the wait's last sleep passes on the closing probe"
 else
@@ -327,9 +327,9 @@ fi
 # A session that answers nothing is not a quiet one.
 probe_reset
 : > "$tmp/probe.last"
-r=$( ( DISABLED_QUIET_SECONDS=1; iris_script() { probe_stub; }; check_items_run "items probe" ) 2>&1 )
-if printf '%s\n' "$r" | grep -Eq '^FAIL items probe: the session did not answer the probe'; then
-  pass "disabled items: a silent session fails the wait instead of counting as quiet"
+r=$( ( deadline=$((SECONDS + 60)); fails=0; DISABLED_QUIET_SECONDS=1; iris_script() { probe_stub; }; check_items_run "items probe"; echo "FAILS=$fails" ) 2>&1 )
+if printf '%s\n' "$r" | grep -Eq '^FAIL items probe: the session did not answer the probe' && printf '%s\n' "$r" | grep -qx 'FAILS=1'; then
+  pass "disabled items: a silent session fails the wait, counting one failure, instead of counting as quiet"
 else
   fail "disabled items: a silent session was taken for a quiet one ($r)"
 fi

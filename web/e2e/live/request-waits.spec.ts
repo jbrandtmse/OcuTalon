@@ -85,6 +85,21 @@ test('a context made with a timeout of its own keeps it', async ({ playwright })
   }
 });
 
+test('a context made with a timeout of 0 keeps it: no wait is added', async ({ playwright }) => {
+  const context = await playwright.request.newContext({ timeout: 0 });
+  const call = context.get(`${origin}/slow`).then(
+    () => 'answered',
+    (error: unknown) => (error instanceof Error ? error.message : String(error)),
+  );
+  try {
+    const first = await Promise.race([call, new Promise<string>((done) => setTimeout(() => done('still waiting'), 7_000))]);
+    expect(first, 'past the 6000 ms that a context without a timeout gets').toBe('still waiting');
+  } finally {
+    await context.dispose();
+    await call;
+  }
+});
+
 test('a call that passes a timeout of its own keeps it', async ({ request }) => {
   const result = await failure(() => request.get(`${origin}/slow`, { timeout: 1_500 }));
   expect(result.message).toContain('apiRequestContext.get: Timeout 1500ms exceeded');

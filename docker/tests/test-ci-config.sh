@@ -432,6 +432,7 @@ upload_sample upload-good-bare "failure()" "web/test-results" "7"
 upload_sample image-upload-no-if "" "web/test-results/" "3"
 upload_sample image-upload-always "always()" "web/test-results/" "3"
 upload_sample image-upload-always-or "failure() || always()" "web/test-results/" "3"
+upload_sample image-upload-or-success "failure() || success()" "web/test-results/" "3"
 upload_sample image-upload-success "success()" "web/test-results/" "3"
 upload_sample image-upload-path "failure()" "web/dist/" "3"
 upload_sample image-upload-path-up "failure()" "web/test-results/../.." "3"
@@ -507,7 +508,7 @@ rule fork-guard "every self-hosted job keeps a fork's pull request off the IRIS 
 rule secrets "no secrets reference (a run block, any case, a bracket or the whole context included), and github.token only as GH_TOKEN" secret-ref token-other secret-block secret-bracket token-block secret-context token-context
 rule image-actions "no docker/* action, no actions/cache, and no upload-artifact in a self-hosted job but a failure-only one of web/test-results kept 1 to 7 days" \
   image-docker image-cache image-cache-restore image-upload image-docker-upper image-cache-upper image-upload-upper \
-  image-upload-no-if image-upload-always image-upload-always-or image-upload-success image-upload-path image-upload-path-up image-upload-path-prefix \
+  image-upload-no-if image-upload-always image-upload-always-or image-upload-or-success image-upload-success image-upload-path image-upload-path-up image-upload-path-prefix \
   image-upload-no-retention image-upload-retention-30 image-upload-retention-0
 for good_upload in upload-good upload-good-bare; do
   hits=$(wf_check "$samples/$good_upload.yml" "install production")
