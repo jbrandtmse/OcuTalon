@@ -4025,3 +4025,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: OCT-epic40 5d96d2f6 run 41929230934 attempt 2, iris (browser) live:answers, 00:03:28Z | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: support/approvals.ts L15 DAY = new Date().toISOString().slice(0,10) at load; the page (timezoneId UTC) reads the incident as yesterday; any spec using today()/TOMORROW_AT_1413 shares the window
 - 2026-11-05T00:05:02Z status=routed owner=burndown by=orchestrator note=Fix: take the day per case (or pin the page clock with page.clock to the module's DAY), as DW-413 did with instanceDay/clearOfMidnight; one occurrence
+
+### DW-710: CI uploads no Playwright test-results on a browser-unit failure, so a bare test timeout (leave.spec L6, run 41957022331) cannot be located from CI: no error-context.md, no trace
+- source: OCT-epic11 a8868ad8 run 41957022331 iris (shards) job 127036912190 | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: the run's artifact list is empty; the log names only 'Test timeout of 300000ms exceeded' and the error-context path
+- 2026-11-05T04:38:50Z status=routed owner=burndown by=Contest_Planner note=Contest Planner (delegated) 2026-11-05: first-daily-release burn-down story; on failure, upload the Playwright test-results (error-context.md, traces) of the browser units as a CI artifact, no secrets (CI dummy key/token only), short retention
