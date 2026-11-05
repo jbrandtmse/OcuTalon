@@ -53,7 +53,7 @@ USER>  zpm 0.10.10
        Installed In: %SYS
 ```
 
-`enable -community` first deletes the repositories configured in %SYS (`repo -delete-all` in its output), then adds the community registry and maps it into USER (`Mapping IPM repository in %SYS equivalently to USER`). Run the two commands in this order. Without `enable -map -ns USER` first, `enable -community` maps IPM into USER but skips USER's repositories (`Skipping repository mapping of USER - IPM not mapped from source namespace.`), and the install in USER then stops with `ERROR! No repositories are configured and enabled in this namespace.` The two commands give the same result when USER already had IPM. This is the output of `enable -community` on build 154, with the terminal's colour codes removed:
+`enable -community` first deletes the repositories configured in %SYS (`repo -delete-all` in its output), then adds the community registry and maps it into USER (`Mapping IPM repository in %SYS equivalently to USER`). Run the two commands in this order. Without `enable -map -ns USER` first, `enable -community` maps IPM into USER but skips USER's repositories (`Skipping repository mapping of USER - IPM not mapped from source namespace.`), and the install in USER then stops with `ERROR! No repositories are configured and enabled in this namespace.` The two commands give the same result when USER already had IPM mapped from %SYS. If IPM was installed in USER itself, they leave USER's repositories as they are: then also run `zpm "enable -community"` in an IRIS terminal in USER before the install. There it first deletes the repositories configured in USER. This is the output of `enable -community` on build 154, with the terminal's colour codes removed:
 
 ```
 Version of IPM in current namespace:

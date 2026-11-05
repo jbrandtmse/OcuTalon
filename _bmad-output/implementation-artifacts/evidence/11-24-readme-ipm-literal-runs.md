@@ -95,6 +95,52 @@ ERROR! OcuTalon created namespace OCUTALON. Now run: zn "OCUTALON" then the same
 - `GET /ocutalon/` on the published web port: HTTP 200.
 - Result: PASS (the old single-command state fails with `No repositories`; the README block repairs it and both installs succeed).
 
+## Run 4: build 154, IPM installed in USER itself (DW-760: the guide's USER command)
+
+Recorded 2026-11-05 by the implement stage's rework pass, on arm64, in a lane-B throwaway container started from the plain image, under the same hygiene as Runs 1 to 3. The README blocks are the four above, unchanged. Block 1 here is the same line as in Run 1, but it is first run in a USER session, so IPM is installed in USER itself and not in %SYS. The step after the README blocks is the command the guide's new sentence gives, `zpm "enable -community"` in an IRIS terminal in USER.
+
+- Image: `irishealth-community:2026.3.0AI.154.0`
+- `$ZVersion`: IRIS for UNIX (Ubuntu Server LTS for ARM64 Containers) 2026.3.0AI (Build 154U)
+- Durations: container ready 69 s; block 1 in USER 17 s; blocks 1 and 2 in %SYS 21 s; `enable -community` in USER 3 s; block 3 in USER 44 s; block 4 in USER 47 s.
+- Step 1, block 1 in a USER session: IPM was installed in USER itself.
+
+```
+Load finished successfully.
+[USER|ZPM] Activate SUCCESS2026-11-05 21:57:41 0 IPM.Installer: Installation succeeded at 2026-11-05 21:57:41
+```
+
+  After it, `zpm "version"` in a %SYS session printed `IPM is not enabled in namespace %SYS.` (the list it gave showed `USER>  zpm 0.10.10`, HSLIB and HSSYS with their own 0.10.5-SNAPSHOT), so %SYS had no IPM of its own. In USER, `zpm "repo -list"` printed `No repositories found.`
+
+- Step 2, README blocks 1 and 2 in one %SYS session. Block 1 installed IPM in %SYS (`Installation succeeded at 2026-11-05 21:58:08`, then `Load finished successfully.`); block 2 printed:
+
+```
+Skipping IPM mapping of USER - IPM already installed.
+Skipping repository mapping of USER - IPM not mapped from source namespace.
+```
+
+  Afterwards, in USER, `zpm "repo -list"` printed `No repositories found.` (USER's repositories were left as they were).
+
+- Step 3, `zpm "enable -community"` in a USER session. The output begins, after the version line, with:
+
+```
+RUNNING command: "repo -delete-all"
+Command "repo -delete-all" finished successfull
+RUNNING command: "repo -reset-defaults"
+```
+
+  and lists the community registry (`https://pm.community.intersystems.com`, enabled, available). Afterwards `zpm "repo -list"` in USER listed that registry.
+
+- Step 4, block 3 in USER printed the OCUTALON stop line; block 4 in USER ended with the reload and the activation:
+
+```
+ERROR! OcuTalon created namespace OCUTALON. Now run: zn "OCUTALON" then the same install command.
+[OCUTALON|ocutalon] Reload START (/usr/irissys/ipm/ocutalon/1.0.1/)
+[OCUTALON|ocutalon] Activate SUCCESS
+```
+
+- `GET /ocutalon/` on the published web port: HTTP 200.
+- Result: PASS. The two %SYS commands left USER's repositories as they were, `enable -community` in USER deleted the repositories first (`repo -delete-all`) and set up the registry, and the install then worked, as the guide's sentence says.
+
 ## Task 0 table (plan stage, 2026-11-05, four fresh lane-B throwaways, arm64, plain images)
 
 | Case | Build | IPM line | Enable step | USER install | OCUTALON install | `GET /ocutalon/` |

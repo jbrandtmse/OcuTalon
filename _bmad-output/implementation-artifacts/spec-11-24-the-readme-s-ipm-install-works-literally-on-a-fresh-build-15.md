@@ -2,8 +2,8 @@
 title: "Story 11.24: The README's IPM install works literally on a fresh build 154 and build 109 instance"
 type: 'bugfix'
 created: '2026-11-05'
-status: 'in-progress'
-baseline_revision: '2f7d0ec10cc70fba63d55caf5305add0db77e2c1'
+status: 'done'
+baseline_revision: 'b609d0156714f5cc3095b9262eb5943035cca9e1'
 baseline_commit: '2f7d0ec10cc70fba63d55caf5305add0db77e2c1'
 review_loop_iteration: 0
 followup_review_recommended: false
@@ -65,7 +65,7 @@ deferred: []
 - [x] `_bmad-output/implementation-artifacts/evidence/11-24-readme-ipm-literal-runs.md` -- new: for each run the image ref, `$ZVersion` build, the commands as extracted from README.md, the lines quoted in Verification, durations, and the plan's Task 0 table (Design Notes); no secret, path, IP, host or container name. -- AC1, AC2
 - [x] `docs/install-ipm.md` sample blocks -- after the build 154 case 1 literal run, replace every sample block whose lines differ from that run's real output (timestamps and durations included) with the run's output, trimmed as in Design Notes; record which blocks changed in the evidence file; re-run `test-readme.sh` and `test-cpf.sh`. -- AC3 (Planner's approval condition 3)
 - [x] This spec -- record Verification results and `mutation:` lines.
-- [ ] [Smoke] DW-760: the guide's sentence "The two commands give the same result when USER already had IPM." is false when IPM was installed in USER itself — `docs/install-ipm.md:56` — the lead's smoke (2026-11-05, fresh build 154, the IPM line run in USER, then README blocks 1-2 in %SYS literally) printed `Skipping IPM mapping of USER - IPM already installed.` and `Skipping repository mapping of USER - IPM not mapped from source namespace.`; USER's `zpm "repo -list"` gave `No repositories found.` and block 3 stopped with `ERROR! No repositories are configured and enabled in this namespace.`; then `zpm "enable -community"` run in USER set up the registry there and blocks 3 and 4 succeeded (`Activate SUCCESS`, page 200). Fix: replace that one sentence with the Planner-approved text recorded under Spec Change Log (nothing else in README or the guide changes); add a whole-line-or-substring pin for the new text in `chk_ipm` (page side) with a self-test above `finish ipm` that removes it; re-run that case literally on a fresh build 154 throwaway (the IPM line in USER, README blocks 1-2 in %SYS, the guide's new USER command, blocks 3 and 4, page 200) and add it to the evidence file as Run 4. -- AC3
+- [x] [Smoke] DW-760: the guide's sentence "The two commands give the same result when USER already had IPM." is false when IPM was installed in USER itself — `docs/install-ipm.md:56` — the lead's smoke (2026-11-05, fresh build 154, the IPM line run in USER, then README blocks 1-2 in %SYS literally) printed `Skipping IPM mapping of USER - IPM already installed.` and `Skipping repository mapping of USER - IPM not mapped from source namespace.`; USER's `zpm "repo -list"` gave `No repositories found.` and block 3 stopped with `ERROR! No repositories are configured and enabled in this namespace.`; then `zpm "enable -community"` run in USER set up the registry there and blocks 3 and 4 succeeded (`Activate SUCCESS`, page 200). Fix: replace that one sentence with the Planner-approved text recorded under Spec Change Log (nothing else in README or the guide changes); add a whole-line-or-substring pin for the new text in `chk_ipm` (page side) with a self-test above `finish ipm` that removes it; re-run that case literally on a fresh build 154 throwaway (the IPM line in USER, README blocks 1-2 in %SYS, the guide's new USER command, blocks 3 and 4, page 200) and add it to the evidence file as Run 4. -- AC3
 
 **Acceptance Criteria:**
 - AC1 (literal install, both builds). Given fresh throwaways from the plain build 154 and build 109 Health images, when the fenced commands of README.md's "Install it with IPM" are extracted from the committed text and pasted in order (the first two blocks in one %SYS terminal, the third in USER, the fourth in USER), then each run prints `Load finished successfully.`, `Mapping IPM repository in %SYS equivalently to USER`, the OCUTALON stop line, and ends `[OCUTALON|ocutalon]	Activate SUCCESS`, and `GET /ocutalon/` answers 200; the evidence file records both.
@@ -132,6 +132,23 @@ Code review 2026-11-05 (layers: blind-hunter, edge-case-hunter, verification-gap
   - `[low]` `reject` intent expectations sit at the runtime surface, the tests at the text surface (intent-alignment) - descriptive; the runtime surface is exercised by the three literal runs in the evidence file.
   - `[low]` `reject` `$ZVersion` and `<SYNTAX>` claims rest on the Task 0 table only (intent-alignment) - the evidence file includes Task 0 and the runs' `$ZVersion`.
   - `[low]` `reject` evidence lines condensed or paraphrased (intent-alignment) - each quoted line is verbatim from the run, tabs shown as spaces, as the file says.
+
+### 2026-11-05 - Review pass (rework iteration 1, DW-760)
+- verdicts: 13 findings - high 0, medium 1, low 2, false 0, maybe-false 0 (10 rejected on their stated reasons below)
+- findings:
+  - `[medium]` `[patch]` Blind Hunter: the pin covers only the new "If IPM was installed in USER itself..." text, so the false first sentence ("same result when USER already had IPM.") could return next to it with the suite green -- same root cause as the Edge Case and Verification Gap rows below. Patched: `IPM_USER_SENTENCE` now starts at "The two commands give the same result when USER already had IPM mapped from %SYS." (all three approved sentences), and `rule_ipm` gained the self-test 'the page claiming the same result for any USER IPM'.
+  - `[low]` `[reject]` Blind Hunter: the guide text hides the destructive step and names no failure symptom -- the sentence is the Planner-approved text, word for word; the spec forbids rewording (by-design).
+  - `[low]` `[reject]` Blind Hunter: "This is the output of `enable -community` on build 154" now ambiguous -- the sentence is outside the one approved sentence, public text may not change in this pass; the sample is the %SYS run it always was, and the USER run's difference is stated in the new sentence.
+  - `[low]` `[reject]` Blind Hunter: the case is verified on build 154 only -- the Planner's condition names one fresh build 154 throwaway; the 109 runs of the story stand in the evidence.
+  - `[low]` `[reject]` Blind Hunter: `baseline_commit` differs from `baseline_revision`, Auto Run Result still says done -- `baseline_commit` is the story's original base by design; the result section is rewritten in this pass.
+  - `[low]` `[reject]` Edge Case Hunter: "left as they are" untested with a seeded USER repository -- the %SYS run printed `Skipping repository mapping of USER`, which is the product's own statement; a seeded run is beyond the Planner's condition; no realistic harm (the sentence then still tells the reader to run the USER command).
+  - `[low]` `[reject]` Edge Case Hunter: the evidence's empty `repo -list` before and after cannot tell untouched from never populated -- the observed outputs are quoted as they were; the claim in the evidence is limited to those lines.
+  - `[medium]` `[patch]` Edge Case Hunter: nothing forbids the old false sentence beside the new one -- same root cause as the first row; fixed by the same patch.
+  - `[low]` `[reject]` Edge Case Hunter: README has no pointer to the USER case -- README stays byte-identical by the Planner's approval (by-design).
+  - `[medium]` `[patch]` Verification Gap: the pin leaves the first half of the replaced sentence unguarded -- same root cause as the first row; fixed by the same patch, mutation lines below.
+  - `[low]` `[reject]` Verification Gap (other): the [Smoke] task cites AC3 though AC3 does not name the sentence -- the fix is a spec edit, which review does not make.
+  - `[low]` `[reject]` Verification Gap (other): Run 4 is manual evidence only -- by design (AD-22: live behaviour is proven by committed literal runs, the hermetic suite pins text).
+  - `[low]` `[reject]` Intent Alignment Auditor (descriptive): the change is guide-only prose plus a pin, the USER-installed state lies outside the fresh-image premise, and the README is untouched -- the Planner approved exactly this scope; no divergence to fix.
 
 ## Design Notes
 
@@ -408,6 +425,16 @@ All commands run from the worktree root after `git rev-parse --show-toplevel` ma
 - mutation: (AC3, no `/tmp/ocutalon-repo`) `-e '/tmp/ocutalon-repo'` removed from `chk_ipm`'s stale-text grep -> `self-test: the page naming the local-repository path elsewhere: not flagged`, `FAIL ipm` (red, restored from backup, byte-identical).
 - mutation: (AC3, reload line in the registry install) `/^## Install from the package folder/ { exit }` removed from `chk_ipm`'s reload-line awk -> `self-test: the page registry reload line only in the folder install: not flagged`, `FAIL ipm` (red, restored from backup, byte-identical).
 
+**Rework results (2026-11-05, DW-760; Run 4 on a fresh build 154 throwaway, removed, lock released):**
+- `docs/install-ipm.md` line 56: the one sentence replaced by the approved text (`git diff -U0` shows one hunk); `README.md` unchanged (`git diff --quiet HEAD -- README.md`).
+- `docker/tests/test-readme.sh`: `IPM_USER_SENTENCE` (next to `IPM_MAP`), a page-side `grep -qF` in `chk_ipm` above the `# The linked page gives...` comment (message `ipm: docs/install-ipm.md does not say what to do when IPM was installed in USER itself`), and the self-test 'the page without the USER-installed IPM sentence' (slot 2) in `rule_ipm` above `finish ipm`. Three hunks, none in Epic 34's regions. `bash docker/tests/test-readme.sh` -> all rules passed; `bash docker/tests/test-cpf.sh` -> all checks passed.
+- mutation: the guide's new sentence cut back to "They leave USER's repositories..." -> `FAIL ipm` with the new message (observed red, restored from backup, sha256 identical).
+- mutation: the new `chk_ipm` check deleted -> `self-test: the page without the USER-installed IPM sentence: not flagged`, `FAIL ipm: a broken copy was not flagged` (observed red, restored from backup, byte-identical).
+- (once) Run 4, README blocks literally: block 1 in USER (IPM in USER, none in %SYS); blocks 1 and 2 in %SYS printed `Skipping IPM mapping of USER - IPM already installed.` and `Skipping repository mapping of USER - IPM not mapped from source namespace.`, USER `repo -list` -> `No repositories found.`; `zpm "enable -community"` in USER began with `repo -delete-all`; block 3 -> the OCUTALON stop line; block 4 -> `Activate SUCCESS` (reload from `/usr/irissys/ipm/ocutalon/1.0.1/`); HTTP 200. Evidence: Run 4 in `_bmad-output/implementation-artifacts/evidence/11-24-readme-ipm-literal-runs.md`.
+- Review patch (2026-11-05): `IPM_USER_SENTENCE` widened to the three approved sentences; `rule_ipm` self-test 'the page claiming the same result for any USER IPM' (slot 2) added above `finish ipm`; `test-readme.sh` -> all rules passed, `test-cpf.sh` -> all checks passed; `git diff -U0` of the file: three hunks, none in Epic 34's regions.
+- mutation: the guide's first sentence reverted to "...when USER already had IPM." -> `FAIL ipm` (observed red, restored from backup, sha256 identical).
+- mutation: the `chk_ipm` USER-sentence check deleted -> both self-tests 'the page without the USER-installed IPM sentence' and 'the page claiming the same result for any USER IPM' `not flagged`, `FAIL ipm: a broken copy was not flagged` (observed red, restored from backup, sha256 identical).
+
 ## Auto Run Result
 
 Status: done
@@ -428,3 +455,5 @@ Blocking condition: none
 **Verification.** `test-readme.sh` all rules passed; `test-cpf.sh` all checks passed; `test-boundaries.sh` and `test-bridge-guide.sh` exit 0; `git diff -U0` hunks avoid lines 37-45 and the licence functions; the three literal runs passed (evidence file); containers removed and the lane-B lock released after each run.
 
 **Residual risks.** The README claim rests on the three runs of 2026-11-05 (arm64); `release/checklist.sh:463` is DW-759 (out of footprint).
+
+**Rework pass 1 (DW-760, 2026-11-05).** The guide's line 56 carries the Planner-approved three sentences (one hunk; README unchanged); `chk_ipm` pins them and `rule_ipm` has two self-tests for them; Run 4 (fresh build 154, IPM installed in USER itself) passed and is in the evidence file. Review: 13 findings, 1 root cause patched (the pin now covers all three sentences; medium), 10 rejected with reasons in the triage log, none deferred. Follow-up review recommended: false (no high patched). Verification: `test-readme.sh` all rules passed; `test-cpf.sh` all checks passed; both mutations observed red and restored byte-identical. Teardown: no container with label `ocutalon.run=e11s24implement`; lane-B lock released.

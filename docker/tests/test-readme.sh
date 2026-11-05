@@ -1026,6 +1026,8 @@ H_IPM='### Install it with IPM'
 IPM_WARNING='`enable -community` first removes the package repositories that are already set up in %SYS, so note any you use before you run it.'
 IPM_LOAD='s r=##class(%Net.HttpRequest).%New(),r.Server="pm.community.intersystems.com",r.SSLConfiguration="ISC.FeatureTracker.SSL.Config" d r.Get("/packages/zpm/0.10.10/installer"),$system.OBJ.LoadStream(r.HttpResponse.Data,"c")'
 IPM_MAP='zpm "enable -map -ns USER"'
+# The guide's three sentences on IPM mapped from %SYS versus IPM installed in USER itself.
+IPM_USER_SENTENCE='The two commands give the same result when USER already had IPM mapped from %SYS. If IPM was installed in USER itself, they leave USER'\''s repositories as they are: then also run `zpm "enable -community"` in an IRIS terminal in USER before the install. There it first deletes the repositories configured in USER.'
 # ipm_in_order <file>: succeeds when the IPM load line, the map step, the registry line and the first install are whole lines in this order.
 ipm_in_order() {
   local a b c d
@@ -1072,6 +1074,7 @@ chk_ipm() {
   if ! awk '/^## Install from the package folder/ { exit } /^\[OCUTALON\|ocutalon\]\tReload START \(\/usr\/irissys\/ipm\/ocutalon\// { f = 1 } END { exit !f }' "$2"; then
     echo "ipm: $IPM_DOC has no registry reload line in its registry install"
   fi
+  if ! grep -qF -- "$IPM_USER_SENTENCE" "$2"; then echo "ipm: $IPM_DOC does not say what to do when IPM was installed in USER itself"; fi
   # The linked page gives the registry install first and the folder install second.
   registry=$(grep -nF -m 1 'zpm "install ocutalon"' "$2" | cut -d: -f1)
   folder=$(grep -nF -m 1 'zpm "load' "$2" | cut -d: -f1)
@@ -1802,6 +1805,8 @@ rule_ipm() {
   st 'the page registry reload line from another folder' 2 "$ipmdoc_p" '/^\[OCUTALON\|ocutalon\]\tReload START \(\/usr\/irissys\/ipm\/ocutalon\// { sub(/\/ocutalon\/1\.0\.1\//, "/other/1.0.1/") } { print }' chk_ipm
   st 'the page naming the local-repository path elsewhere' 2 "$ipmdoc_p" '{ print } END { print ""; print "The package was in /tmp/ocutalon-repo/ before." }' chk_ipm
   st 'the page registry reload line only in the folder install' 2 "$ipmdoc_p" '/^\[OCUTALON\|ocutalon\]\tReload START \(\/usr\/irissys\/ipm\/ocutalon\// { held = $0; next } { print } /^## Install from the package folder/ { print held }' chk_ipm
+  st 'the page without the USER-installed IPM sentence' 2 "$ipmdoc_p" '{ sub(/ If IPM was installed in USER itself, they leave/, " They leave") } { print }' chk_ipm
+  st 'the page claiming the same result for any USER IPM' 2 "$ipmdoc_p" '{ sub(/ mapped from %SYS\./, ".") } { print }' chk_ipm
   finish ipm 'the IPM section follows the image sections: IPM load line, map step, registry line, then the first install in USER, a link to the page with the same lines, no "any namespace"' chk_ipm
 }
 
