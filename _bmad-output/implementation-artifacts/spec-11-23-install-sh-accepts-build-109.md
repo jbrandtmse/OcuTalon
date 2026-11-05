@@ -25,7 +25,7 @@ deferred: []
 - Accepted refs are exactly: `irishealth-community:2026.3.0AI.154.0` and `iris-community:2026.3.0AI.154.0` (today's two, unchanged) and `irishealth-community:2027.1.0AI.109.0`. A ref matches when its repository's last path segment and its tag equal one of these exactly, with or without a registry prefix, as today's 154 refs already match (Design Notes D1). No pattern or prefix on the tag.
 - Preference among loaded images for this CPU: Health 154, then Health 109, then non-Health 154. A base name that exists is never moved (unchanged).
 - A Health 109 image is handled like a Health 154 image: tagged once as `ocutalon-iris-base:2026.3.0AI.154.0` (the base name every compose file expects), and `docker compose up -d` gets `IRIS_IMAGE` set to that name.
-- README.md and install.sh's printed messages use exactly the wording in Design Notes, "README text for approval", as approved by the Contest Planner (if the lead relays amended wording, exactly that). No other user-facing text changes.
+- README.md and install.sh's printed messages use exactly the wording in Design Notes, "README text for approval", as APPROVED by the Contest Planner (P2 as amended there). No other user-facing text changes. `docker/tests/test-readme.sh` gains pins for P2's new wording; no pin is deleted.
 - Every pin changed in `docker/tests/test-readme.sh` is updated in place, never deleted (Design Notes, "Pins changed"); every other pin stays as it is.
 - Exit codes and every other message, check, wait and change of install.sh stay as they are; bash 3.2 rules of its header hold; ASCII only.
 
@@ -111,6 +111,8 @@ deferred: []
 
 ### README text for approval
 
+**[Lead, 2026-11-05] APPROVED by the Contest Planner under the owner's delegation (relayed by the orchestrator): Block A with one change (P2's new text, below, replaces the drafted one; P1 and P3 to P9 and the anchor removals exactly as listed); Block B as written. Use this text verbatim; no other user-facing wording. Conditions: (1) the lead's manual install.sh smoke on the build 109 throwaway is committed as evidence (`_bmad-output/implementation-artifacts/evidence/11-23-build-109-install.md`: the image line printed, the start, the sign-in page answering 200, demo guide step 1); (2) test-readme is updated in place, no pin deleted, and pins are ADDED for P2's new wording.**
+
 Two blocks of public text for the Contest Planner, word for word. Block A is README.md (old, new, per passage, with its section); block B is install.sh's printed lines (`<cpu>`, `<ref>` and `<base>` are filled in by the script at run time). Every line not listed stays as it is.
 
 **Block A: README.md**
@@ -121,7 +123,7 @@ P1. "Try it in two minutes", step 2 (line 16). Step 1 stays as it is.
 
 P2. "Get the image", second paragraph (line 94). The first paragraph stays as it is.
 - Old: ``OcuTalon 1.0.0 also runs unchanged on build 109: its install, production and test checks and the demo guide pass on it. In this release, `./install.sh` looks only for build 154, so with build 109, start OcuTalon as [Start it with build 109](#start-it-with-build-109) shows.``
-- New: ``OcuTalon 1.0.0 also runs unchanged on build 109: its install, production and test checks and the demo guide pass on it. `./install.sh` accepts either build.``
+- New (APPROVED with the Planner's change): ``OcuTalon also runs on build 109: at release 1.0.0 its install, production and test checks and the demo guide passed on it, and `./install.sh` accepts either build.``
 
 P3. "Start it with the install script", first line (line 106).
 - Old: ``The install script needs build 154. With build 109, see [Start it with build 109](#start-it-with-build-109).``
