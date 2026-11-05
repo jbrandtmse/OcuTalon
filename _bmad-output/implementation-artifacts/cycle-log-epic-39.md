@@ -144,3 +144,5 @@
 2026-11-05T00:10:58Z	Epic 39	ci_triage_repro	unit=lane-a@rest_tail env=fresh_lane-d(e39ra1)+warm_lane-d(e39raw) result=not_reproduced detail=RecentActivity_alone_pass;warm:Fix.DryRun..Fix.Waits_all_19_in_CI_order_then_RecentActivity_after_each_group_pass;Eval.Record_then_RecentActivity_pass;Fix.Raise_failed_once_on_warm_then_passed_unchanged sha=149a8d8d_source
 2026-11-05T00:11:50Z	Epic 39	ruling	question=rerun_149a8d8d_lane-a@rest_red choice=one_rerun_and_a_flake_entry rejected=full_84-class_replay_first why=not_reproduced_and_not_attributable category=decide by=orchestrator policy=5086036
 2026-11-05T00:11:50Z	Epic 39	ci_rerun	run=41930634318 attempt=2 jobs=iris(shards-2) ledger=DW-698 note=second_red_on_the_same_tests_->_replay_84_classes_on_one_warm_lane-D_stack
+2026-11-05T00:40:43Z	Epic 39	ci_resolved	story=integrate_forward sha=149a8d8d runs=41930634318,41930634064 result=success failed=none via=none resolved_at=next_plan ci_queue=13 note=attempt_2;DW-698_flake_one_occurrence
+2026-11-05T00:40:44Z	Story 39.6	stage_spawned	stage=implement spawn_at=2026-11-05T00:40:44Z model=sonnet agent_name=39-6-implement-1 cycle_iteration=1 story_base=72c165b3
