@@ -226,6 +226,28 @@ Rejected:
 - `.github/workflows/ci.yml` is outside the listed Footprint (Auditor) -- false as a defect: the `[CI]` task names it and the Planner's pre-ruling records the extension.
 - The Tick-level test exercises a back-off skip, not an hours skip (Auditor) -- already adjudicated (rework triage Edge 4, Intent 2): the guard keys on `empty` alone, and `Beat` covers the other reasons' views.
 
+### Review Findings (Round 3)
+
+Code review 2026-11-05 (runner D; re-review of rework 2, diff `f67aebff..HEAD` plus the working tree; four layers, no model override because `_bmad/custom/model-overrides.yaml` does not exist; 15 rows, 9 entries after grouping, 6 of them rejected: high 0, med 0, low 3). Rule 3: this rework changes only comments and tracking documents, so no new runtime evidence is needed. Round 1 established the Integration test (`Web.Api.EventsBody`), and rework 1 established browser L10. Rule 19: no test changed, so no `mutation:` line changes.
+
+Checklist from round 2:
+- (1) HIGH, AD-18 Event: **fixed**. The spine's AD-18 **Event** bullet (ARCHITECTURE-SPINE.md line 571) carries the exception and the `[AMENDED 2026-11-05, Story 39.7, U-283 ...]` marker. It matches `Beat.Run`'s guard `If runNow || (reason '= ..#SKIPEMPTY)` (Beat.cls:502), AC 1, epics.md's 39.7 `**And**` and this spec's Always bullet. `lint_spine` reports the same 8 low `placeholder` findings, all at spine lines 454-1092 and all pre-existing; none is in AD-18, and there is no `ad_id` or `ad_fields` finding.
+- (2) LOW, class docs: **fixed**. Build `1f4d0c31` fixed it; patches 1-3 below finish the wording.
+- (3) LOW, epics.md marker wording: **fixed**. epics.md:8606 now gives the reason in its own sentence ("Why: ...").
+
+- [x] [Review][Patch] (low; fix-risk low, comment only; Blind, VGap, Auditor) The `Process.cls` class doc's new exception sentence was not reflowed. Line 23 ran to 190 characters, with the old "The views that were made before ..." text joined onto it [src/ocutalon/cls/OcuTalon/Checks/Process.cls:22-25]. Fixed: the paragraph is reflowed and every line is at most 161 characters.
+- [x] [Review][Patch] (low; fix-risk low, comment only; Blind, Auditor) The exception sentences named neither the AD that carries the exception nor `Beat`'s term for it, and the `Heartbeat.cls` citation list left out AD-18 [src/ocutalon/cls/OcuTalon/Live/Payload/Heartbeat.cls:2; src/ocutalon/cls/OcuTalon/Checks/Process.cls:22]. Fixed: `Heartbeat.cls` cites "AD-12, AD-18, AD-33", and `Process.cls` reads "(Beat's SKIPEMPTY, AD-18)".
+- [x] [Review][Patch] (low; fix-risk low, comment only; Edge x2) "A run now still publishes" (`Heartbeat.cls`) and "a run now with an empty checklist still publishes" (`Process.cls`) left out the case of a run now on cooldown. `RunNow` returns COOLDOWN before `Run` (Beat.cls:465-468), commits nothing for it and publishes nothing [src/ocutalon/cls/OcuTalon/Live/Payload/Heartbeat.cls:3; src/ocutalon/cls/OcuTalon/Checks/Process.cls:23]. Fixed: both docs now read "a run now that the empty checklist holds still publishes", which is the matrix row "Run now held".
+
+Verification of the patches (lane D, warm tag `e39s7c3w`, built from the patched tree, then torn down with 0 leftovers and the lock released): `OcuTalon.Test.Checks.Runs` passed and `OcuTalon.Test.Live.Payloads` passed; `docker/tests/test-class-rules.sh` passed; `payloads.mjs --check` reports "generated files are current" (the class doc is not part of `payloads.ts`). Both files are ASCII only.
+
+Rejected:
+- The rework-2 triage entry says "`baseline_commit` stays at `6c00ff1d`", but the same diff moves it to `f67aebff`; the pass's "Files changed" list also leaves out `baseline_commit`, `status` and the Auto Run Result block (Blind, Edge x2). Real but low: this is run-record history in the spec, and the fix would edit the spec under review.
+- The `dev_complete` cycle-log line records `files=2 loc_added=8 loc_removed=4`, while `git show --numstat 1f4d0c31` gives +5/-3 for the two classes and +39/-6 with the spec (Blind, Edge). Real but low: it is telemetry in the lead's append-only cycle log, which this stage does not write.
+- The Auto Run Result's rejection tally ("five edit the spec or its frozen intent, one is by-design") does not match the triage log's 4 / 1 / 1 split (Blind). Low: the fix would edit the spec's run record.
+- The ticked class-docs item from round 2 has no resolution note (Blind). Low: the fix would edit the spec, and this round's checklist (2) now records the resolution.
+- The Design Notes line "No AD's Rule changes. One AD-18 bullet changes: ..." contradicts itself, because the Event bullet sits under AD-18's Rule (Auditor). This is outside the diff (the lead's `f67aebff`). Low: the spine, which is the contract, is correct, and the fix would edit the spec.
+
 ## Spec Change Log
 
 - 2026-11-05, lead, rework iteration 2 (trigger high, re-review round 2): the spine's AD-18 heartbeat Event bullet now carries U-283's exception (orchestrator's U7 ruling, allowed; lint_spine findings unchanged, 8 before and after); this spec's Always bullet and Design Notes line say the same; epics.md's 39.7 marker reworded. The two class-doc LOWs go to the implement re-dispatch.
@@ -316,7 +338,7 @@ Rejected:
 - AD-29 and U-177: lanes, with the orchestrator's rulings.
 - AD-26: the trace target. AD-28: no rendered text.
 
-No AD's Rule changes. One AD-18 bullet changes: its heartbeat **Event** bullet now carries U-283's exception (a Tick's empty-checklist skip publishes nothing), written by the lead under the orchestrator's U7 ruling of 2026-11-05 [AMENDED 2026-11-05, rework 2]. The spine's event-table row (line 1322) and payload row (1299) already exist. Their "Story 39.1 / 39.3" cells may be corrected to 39.7 by the lead: that is bookkeeping, not this story's edit. AD-1 and AD-14 are not cited (U-268: nothing relies on Story 33.2).
+AD-18's Rule changes only in its heartbeat **Event** bullet (no other AD changes, and AD-18's Binds and Prevents are untouched): its heartbeat **Event** bullet now carries U-283's exception (a Tick's empty-checklist skip publishes nothing), written by the lead under the orchestrator's U7 ruling of 2026-11-05 [AMENDED 2026-11-05, rework 2]. The spine's event-table row (line 1322) and payload row (1299) already exist. Their "Story 39.1 / 39.3" cells may be corrected to 39.7 by the lead: that is bookkeeping, not this story's edit. AD-1 and AD-14 are not cited (U-268: nothing relies on Story 33.2).
 
 **Lanes:** this is a Lane B story by the 11:49Z ruling. `Live.Payload.Heartbeat` stays Lane A in the ownership table, published by `Checks`. The Lane A edits (`Checks/{Process,Beat}.cls`, `Test/Checks/**`) run under the 2026-11-04 evening ruling and Epic 39's paths_hint.
 

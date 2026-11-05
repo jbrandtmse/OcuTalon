@@ -1,7 +1,7 @@
 /// The payload of the heartbeat live event: one person's heartbeat, the public view of their HeartbeatBeat row and their settings. Lane A publishes it (Checks,
-/// after each commit of the row, AD-12, AD-33). The one exception is a Tick's skip because the checklist is empty, which saves its row and publishes nothing; a run now
-/// still publishes. Story 39.2's GET reuses FromRow, so that the event and the GET can't drift. It never holds the SessionRef (the
-/// person is the stream), the checklist's text, the snapshot keys, the Item's Id or the decision's Ref, and no rendered text.
+/// after each commit of the row, AD-12, AD-18, AD-33). The one exception is a Tick's skip because the checklist is empty, which saves its row and publishes
+/// nothing; a run now that the empty checklist holds still publishes. Story 39.2's GET reuses FromRow, so that the event and the GET can't drift. It never
+/// holds the SessionRef (the person is the stream), the checklist's text, the snapshot keys, the Item's Id or the decision's Ref, and no rendered text.
 Class OcuTalon.Live.Payload.Heartbeat Extends (%RegisteredObject, %JSON.Adaptor)
 {
 
