@@ -18,6 +18,10 @@
 ///     still pass.
 ///   - TestHistoryLinked: the old turn is a pirate turn, and its row is gone; the case's turn is sent with no SessionMode, its model request carries
 ///     the old turn's assistant message, and only the case's turn is in the report.
+///   - TestBeforeWrongShapeSkipped (QA, DW-762): a before on a user-turn case, and a before that is a string, skip the case with the before reason; the mock
+///     is asked for nothing and no row is left.
+///   - TestBeforeFallbackSkipped (QA, DW-762): a before whose Reply is a fallback (the mock fails it) skips the case with the no-Reply reason and leaves no
+///     row, the temporary before row included; a control case in the same run is sent.
 ///   - TestProposalIsSeen: a turn that makes the Chat agent propose a persona is seen by the no-proposal check, which is then wrong, and the plain
 ///     injection case is right.
 /// OnAfterAllTests removes the rows, bodies, decisions, usage, steps, sessions, messages and fixture folders the tests made, puts the EvalIn row and
@@ -42,7 +46,7 @@ Property Saved As %List;
 
 Property SessionMark As %Integer;
 
-/// The marks of the tables a test writes: {caseRow, approval, proposal}.
+/// The marks of the tables a test writes: {caseRow, approval}.
 Property Marks As %DynamicObject;
 
 /// The fixture folders, with a trailing separator.
@@ -89,7 +93,7 @@ Method Prepare() As %String [ Private ]
 	If $$$ISERR(sc) Quit "switching EvalIn on failed: "_$SYSTEM.Status.GetErrorText(sc)
 	Set sc = ..Apply(1)
 	If $$$ISERR(sc) Quit "switching EvalIn on failed: "_$SYSTEM.Status.GetErrorText(sc)
-	Set ..Marks = {"caseRow": (..MaxId("OcuTalon_Eval_Data.CaseResult")), "approval": (..MaxId("OcuTalon_Bridge_Data.ApprovalRequest")), "proposal": (..MaxId("OcuTalon_Msg_Command.ProposePersona"))}
+	Set ..Marks = {"caseRow": (..MaxId("OcuTalon_Eval_Data.CaseResult")), "approval": (..MaxId("OcuTalon_Bridge_Data.ApprovalRequest"))}
 	Quit ..WriteFixture()
 }
 
@@ -138,7 +142,7 @@ Method WriteFixture() As %String [ Private ]
 	Quit reason
 }
 
-/// Writes one turn case below the folder: the checks, the expectation, the members of own (preset, language), the personaCheck and the before.
+/// Writes one turn case below the folder: the checks, the expectation, the members of own (preset, language), the personaCheck and the before (an object, or a string for a case whose before is not an object).
 Method WriteTurn(folder As %String, name As %String, kind As %String, text As %String, checks As %DynamicArray, expectation As %DynamicObject, own As %DynamicObject = "", check As %String = "", before As %DynamicObject = "") As %String [ Private ]
 {
 	Set body = {"name": (name), "kind": (kind), "heldOut": false}
@@ -149,7 +153,7 @@ Method WriteTurn(folder As %String, name As %String, kind As %String, text As %S
 		}
 	}
 	If check '= "" Set body.personaCheck = check
-	If $IsObject(before) Set body.before = before
+	If $IsObject(before) || (before '= "") Set body.before = before
 	Set body.turn = {"text": (text)}
 	Set body.checks = checks
 	Set body.expectation = expectation
@@ -205,6 +209,7 @@ Method OnAfterAllTests() As %Status
 	Set left = ""
 	If $IsObject(..Marks) && ..Count("OcuTalon_Eval_Data.CaseResult", "ID > "_..Marks.caseRow) Set left = left_", case rows"
 	If (..Folder '= "") && ##class(%File).DirectoryExists(..Folder) Set left = left_", the fixture folder"
+	If (..ProposeFolder '= "") && ##class(%File).DirectoryExists(..ProposeFolder) Set left = left_", the proposal fixture folder"
 	If left '= "" Set sc = $$$ADDSC(sc, $SYSTEM.Status.Error(5001, "The clean-up left"_$Extract(left, 2, *)))
 	Set super = ##super()
 	Quit $$$ADDSC(sc, super)
@@ -303,6 +308,66 @@ Method TestBadPersonaSkipped()
 		Do $$$AssertTrue($$$ISERR(sc) && ('$IsObject(result)), "RunPreset refuses '"_$List(pair, 1)_"' with '"_$List(pair, 2)_"'")
 	}
 	Do $$$AssertEquals(..Count("OcuTalon_Eval_Data.CaseResult", "ID > 0"), before, "and sends nothing")
+}
+
+/// (QA, Story 40.7, DW-762) A before turn that is not valid is refused before it is asked: a before on a user-turn case, and a before that is not an object
+/// (a string) skip the case with the before reason; the mock is never asked for either old turn or for the case's turn, and no row is made, not even the
+/// temporary <name>/before row.
+Method TestBeforeWrongShapeSkipped()
+{
+	If '..Guard() Quit
+	Set folder = ##class(%File).NormalizeDirectory("beforeshape", ..Folder)
+	Set passed = [{"result": "passed", "entry": "Orders production", "finding": "", "checkedAt": "2026-10-16T18:13:00Z"}]
+	Set expectation = {"catalogKey": "checks.allPassed"}
+	Do $$$AssertEquals(..WriteTurn(folder, "zz-bs-kind", "user-turn", "Is everything fine? (zz-bs-kind)", passed, expectation, {}, "", {"text": "Old turn. (zz-bs-kind-old) [[mock:persona-eval-pirate]]", "preset": "pirate"}), "", "a user-turn case with a before is written")
+	Do $$$AssertEquals(..WriteTurn(folder, "zz-bs-string", "all-clear", "Is everything fine? (zz-bs-string)", passed, expectation, {}, "", "Old turn. (zz-bs-string-old) [[mock:persona-eval-pirate]]"), "", "and an all-clear case whose before is a string")
+	Set mark = ..MaxId("OcuTalon_Eval_Data.CaseResult")
+	Set sc = ##class(OcuTalon.Eval.In).Start(folder, "zz-bs-kind,zz-bs-string", .run, .sent, .skipped, .watches, "professional", "")
+	Do $$$AssertStatusOK(sc, "the run starts")
+	Do ##class(OcuTalon.Eval.In).Finish(watches)
+	Do $$$AssertEquals(sent, 0, "neither case is sent")
+	Do $$$AssertEquals(skipped.%Size(), 2, "and both are skipped: "_skipped.%ToJSON())
+	Set why = $Piece(##class(OcuTalon.Eval.In).#REASONBEFORE, "{why}", 1)
+	Set iterator = skipped.%GetIterator()
+	While iterator.%GetNext(, .one) {
+		Do $$$AssertTrue($Extract(one.reason, 1, $Length(why)) = why, one.case_": the reason is the before reason: "_one.reason)
+	}
+	Do $$$AssertEquals(..Count("OcuTalon_Eval_Data.CaseResult", "ID > "_mark), 0, "no row is left, the temporary before row included")
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Contract.Mock).LogSince(..LogMark, .entries), "the mock's log is read")
+	Set fixture = "OcuTalon.Test.Agent.RunnerFixture"
+	For marker = "(zz-bs-kind-old)", "(zz-bs-kind)", "(zz-bs-string-old)", "(zz-bs-string)" {
+		Do $$$AssertEquals($ClassMethod(fixture, "FindRequests", entries, marker).%Size(), 0, "the mock was not asked for "_marker)
+	}
+}
+
+/// (QA, Story 40.7, DW-762) A before turn whose Reply is a fallback (the mock answers it with a provider failure, so Decide gives a fallback Reply and the
+/// agent saves no session) is no Reply: the case is skipped with the no-Reply reason, the mock is never asked for the case's own turn, and no row is left,
+/// the temporary <name>/before row included. A control case in the same run, whose before gets a real answer, is sent.
+Method TestBeforeFallbackSkipped()
+{
+	If '..Guard() Quit
+	Set folder = ##class(%File).NormalizeDirectory("beforefallback", ..Folder)
+	Set passed = [{"result": "passed", "entry": "Orders production", "finding": "", "checkedAt": "2026-10-16T18:13:00Z"}]
+	Set expectation = {"catalogKey": "checks.allPassed"}
+	Do $$$AssertEquals(..WriteTurn(folder, "zz-bf-fallback", "all-clear", "Is everything fine? (zz-bf-fallback)", passed, expectation, {}, "", {"text": "Old turn. (zz-bf-fallback-old) [[mock:provider-error]]", "preset": "pirate"}), "", "a case whose before the mock fails is written")
+	Do $$$AssertEquals(..WriteTurn(folder, "zz-bf-control", "all-clear", "Is everything fine? (zz-bf-control)", passed, expectation, {}, "", {"text": "Old turn. (zz-bf-control-old) [[mock:persona-eval-pirate]]", "preset": "pirate"}), "", "and a control case whose before is answered")
+	Set mark = ..MaxId("OcuTalon_Eval_Data.CaseResult")
+	Set sc = ##class(OcuTalon.Eval.In).Start(folder, "zz-bf-fallback,zz-bf-control", .run, .sent, .skipped, .watches, "professional", "")
+	Do $$$AssertStatusOK(sc, "the run starts")
+	Do ##class(OcuTalon.Eval.In).Wait(run, ..#WAITRUN)
+	Do ##class(OcuTalon.Eval.In).Finish(watches)
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Contract.Mock).LogSince(..LogMark, .entries), "the mock's log is read")
+	Set fixture = "OcuTalon.Test.Agent.RunnerFixture"
+	Do $$$AssertTrue($ClassMethod(fixture, "FindRequests", entries, "(zz-bf-fallback-old)").%Size() >= 1, "control: the mock was asked for the old turn that it fails")
+	Do $$$AssertEquals(sent, 1, "only the control case is sent: "_skipped.%ToJSON())
+	Do $$$AssertEquals(skipped.%Size(), 1, "and the fallback case is skipped")
+	If skipped.%Size() {
+		Do $$$AssertEquals(skipped.%Get(0).case_"|"_skipped.%Get(0).reason, "zz-bf-fallback|"_##class(OcuTalon.Eval.In).#REASONNOREPLY, "with the no-Reply reason")
+	}
+	Do $$$AssertEquals($ClassMethod(fixture, "FindRequests", entries, "(zz-bf-fallback)").%Size(), 0, "the mock was never asked for the skipped case's own turn")
+	Do $$$AssertEquals(..Count("OcuTalon_Eval_Data.CaseResult", "ID > "_mark_" AND CaseName [ 'zz-bf-fallback'"), 0, "no row of the skipped case is left, the temporary before row included")
+	Do $$$AssertEquals(..Count("OcuTalon_Eval_Data.CaseResult", "ID > "_mark_" AND CaseName [ '/before'"), 0, "and no before row is left")
+	Do $$$AssertEquals(..Count("OcuTalon_Eval_Data.CaseResult", "ID > "_mark_" AND CaseName = 'zz-bf-control'"), 1, "control: the case whose before was answered has its row")
 }
 
 Method TestLanguageChecks()

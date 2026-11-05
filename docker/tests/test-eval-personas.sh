@@ -7,9 +7,12 @@
 #   key        --release-candidate --personas with the key unset or empty exits 2 and names ANTHROPIC_API_KEY, and calls nothing;
 #   refused    --personas extra, --on-mock --personas, --personas --release-candidate and --release-candidate --on-mock --personas exit 2 with a
 #              usage line and no call;
+#   print      the sweep block prints personas.md only after it has checked the file for key-like text and for the key's value (key_like and
+#              key_value_hits), as the release candidate's result is;
 #   cases      the files of eval/persona-cases/ hold no [[mock: marker and are printable ASCII (the other rules of a case are test-eval-set's).
 # Each rule first runs on copy trees of the real script with one edit each (a form accepted that must be refused, the key kept for --personas, the key
-# check dropped for --release-candidate --personas, the key printed, a call before the guard), which it must flag; only then does it read the real tree.
+# check dropped for --release-candidate --personas, the key printed, a call before the guard, personas.md printed unchecked), which it must flag; only then
+# does it read the real tree.
 set -u
 
 root=$(cd "$(dirname "$0")/../.." && pwd)
@@ -91,6 +94,11 @@ check_forms() {
       echo "eval/run.sh: the key appears in the output of the refused arguments '$args'"
     fi
   done
+  sed -n '/^# --- the persona sweep/,/^# --- the release-candidate run ---/p' "$tree/eval/run.sh" | awk '
+    /key_like "\$report_dir\/\$name\.md"/ { k = 1 }
+    /key_value_hits "\$report_dir\/\$name\.md"/ { v = 1 }
+    /^ *cat "\$report_dir\/\$name\.md"$/ { n++; if (!(k && v)) bad = 1 }
+    END { if (!n || bad) print "eval/run.sh: the persona sweep prints personas.md without checking it for key-like text and the key first" }'
 }
 
 # sample <name> <python expression on s>: a copy tree of the real script with one edit; the tree's other folders are the real ones.
@@ -130,10 +138,11 @@ flagged key-kept "s.replace('if [ \"\$keypath\" -eq 0 ] && {', 'if [ \"\$keypath
 flagged key-not-needed "s.replace('if [ \"\$mode\" = rc ] && { [ \"\$onmock\" -eq 0 ] || [ \"\$keypath\" -eq 1 ]; } && [ -z', 'if [ \"\$mode\" = rc ] && [ \"\$personas\" -eq 0 ] && { [ \"\$onmock\" -eq 0 ] || [ \"\$keypath\" -eq 1 ]; } && [ -z')"
 flagged prints-key "s.replace('. \"\$root/docker/tests/lib-keys.sh\"\n', '. \"\$root/docker/tests/lib-keys.sh\"\necho \"key \${ANTHROPIC_API_KEY:-}\"\n', 1)"
 flagged calls-before-guard "s.replace('set -u\n\nroot=', 'set -u\n$tool version > /dev/null 2>&1\n\nroot=', 1)"
+flagged prints-unchecked "s.replace('      if [ -n \"\$(key_like \"\$report_dir/\$name.md\")\" ]; then', '      if false; then', 1)"
 
 found=$(check_forms "$root")
 if [ -z "$found" ]; then
-  pass "forms: eval/run.sh goes on with --personas and --release-candidate --personas, refuses the other forms and a missing key, and never shows the key"
+  pass "forms: eval/run.sh goes on with --personas and --release-candidate --personas, refuses the other forms and a missing key, never shows the key, and checks personas.md before it prints it"
 else
   fail "forms: $found"
 fi

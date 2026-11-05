@@ -122,6 +122,8 @@
 # or frame differs and the injection case is right under every preset. The DW-664, DW-678 and DW-679 measurements are reported and judge nothing.
 # Exit codes: 0 when the checks pass (a real run: and the verdict is pass), 1 a structural failure, 2 a refused argument or key, 3 a real run whose
 # verdict is blocked, 4 the result pair holds key-like text (the files are kept; they are not in eval/).
+# personas.md is printed and appended to $GITHUB_STEP_SUMMARY only when it holds neither key-like text nor the value of the key in the
+# environment, as the release candidate's result is (otherwise a NOTE line says it is not printed).
 set -u
 
 root=$(cd "$(dirname "$0")/.." && pwd)
@@ -827,9 +829,15 @@ if [ "$personas" -eq 1 ]; then
   for name in personas; do
     if [ -s "$report_dir/$name.md" ]; then
       echo "==== report $name"
-      cat "$report_dir/$name.md"
-      if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
-        { cat "$report_dir/$name.md"; echo; } >> "$GITHUB_STEP_SUMMARY"
+      if [ -n "$(key_like "$report_dir/$name.md")" ]; then
+        echo "NOTE the text of $name is not printed: it holds key-like text (the scan below names the place)"
+      elif [ -n "$(key_value_hits "$report_dir/$name.md" 2> /dev/null)" ]; then
+        echo "NOTE the text of $name is not printed: it holds the value of the model key"
+      else
+        cat "$report_dir/$name.md"
+        if [ -n "${GITHUB_STEP_SUMMARY:-}" ]; then
+          { cat "$report_dir/$name.md"; echo; } >> "$GITHUB_STEP_SUMMARY"
+        fi
       fi
     fi
   done

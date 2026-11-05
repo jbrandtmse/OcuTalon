@@ -50,8 +50,10 @@
 ///   - A turn case of the kind all-clear or command may carry before {text, preset, language} (Story 40.7, DW-678): the old turn. It is asked first
 ///     as a fresh turn of its own preset under a temporary row <name>/before, and that row is removed after its Reply. Then the case's turn is
 ///     asked linked (SessionMode empty), so it opens the session that the old turn saved (AD-6), and only the case's turn is scored. A before
-///     that is not valid, or that gets no Reply, ends the case with REASONBEFORE or REASONNOREPLY and leaves no row.
-///   - The trace: each case is its own trace session, and every message of the run carries the run's Ref as its SuperSession (AD-26).
+///     that is not valid, or that gets no Reply (none, a Busy one after BUSYMAX asks, or a fallback, which saves no session), ends the case with
+///     REASONBEFORE or REASONNOREPLY and leaves no row.
+///   - The trace: each case is its own trace session, and every message of the run carries the run's Ref as its SuperSession (AD-26), the old turn
+///     of a before included.
 /// Wait polls the rows of a run until none is still sent, or the seconds have passed.
 Class OcuTalon.Eval.In Extends Ens.BusinessService
 {
@@ -452,6 +454,7 @@ Method SendTurn(case As %DynamicObject, kind As %String, name As %String, preset
 		If '$IsObject(checks) || 'checks.%IsA("%Library.DynamicArray") Quit ..#REASONNOCHECKS
 		Set recorded = checks.%ToJSON()
 	}
+	Set ..%SuperSession = ..RunRef
 	Set linked = 0
 	If case.%IsDefined("before") {
 		Set reason = ..Before(case.before, kind, name)
@@ -469,7 +472,6 @@ Method SendTurn(case As %DynamicObject, kind As %String, name As %String, preset
 		Do ##class(OcuTalon.Eval.Msg.TurnResult).%DeleteId(result.%Id())
 		Quit $SYSTEM.Status.GetOneStatusText(sc)
 	}
-	Set ..%SuperSession = ..RunRef
 	Set reason = ""
 	Try {
 		Set reason = ..Converse(result, text, name, kind, linked)
@@ -548,7 +550,8 @@ Method Persona(case As %DynamicObject, Output preset As %String, Output language
 }
 
 /// The old turn of a case (DW-678): asked first as a fresh turn of its own preset under the temporary row <name>/before. Returns "" when it got
-/// a Reply (the row is removed), or the reason the case is not sent; the row is removed in every case. A before is an object with a non-blank text
+/// a Reply that is neither Busy nor a fallback (so the agent saved its session), or the reason the case is not sent (a Busy or fallback Reply is
+/// REASONNOREPLY); the row is removed in every case. A before is an object with a non-blank text
 /// and a preset and language that EvalPresetOk takes; only the kinds all-clear and command carry one.
 Method Before(before As %DynamicObject, kind As %String, name As %String) As %String [ Private ]
 {
@@ -566,7 +569,7 @@ Method Before(before As %DynamicObject, kind As %String, name As %String) As %St
 		Set sc = ..AskTurn(itemId, text, 0, 0, .reply)
 		If $$$ISERR(sc) {
 			Set reason = $SYSTEM.Status.GetOneStatusText(sc)
-		} ElseIf '$IsObject($Get(reply)) || 'reply.%IsA("OcuTalon.Bridge.Msg.Reply") || reply.Busy {
+		} ElseIf '$IsObject($Get(reply)) || 'reply.%IsA("OcuTalon.Bridge.Msg.Reply") || reply.Busy || reply.Fallback {
 			Set reason = ..#REASONNOREPLY
 		}
 	} Catch exception {

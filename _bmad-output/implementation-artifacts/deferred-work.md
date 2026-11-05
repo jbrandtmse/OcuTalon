@@ -4042,11 +4042,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-40-3-the-persona-reaches-chat-and-triage-as-a-data-block.md | severity: low | fix-risk: low | footprint: in-epic
 - evidence: A linked turn opens the saved AI session (Bridge.Adapter.Agent): earlier user messages keep their Pirate blocks after Pirate to Professional; the mock cannot show it
 - 2026-11-04T20:33:32Z status=routed owner=40-7-evaluation-cases-for-the-persona by=harvest note=40.7 measures it with a real model (a turn after a persona change), or the release check tries it
+- 2026-11-05T22:53:30Z status=decision-pending owner=burndown by=adjudication note=human=Contest_Planner_real-model_measurement;delivered:persona-history-carry/-fresh_cases,measured.voiceCarry;run:eval/run.sh_--release-candidate_--personas(real_key;see_DW-766_on_the_10-min_cap);never_a_pass_requirement
 
 ### DW-679: Under a non-Professional persona, frozen instruction lines meet the block unmeasured: Triage's own-message test (not quoted) vs quoted block lines in a user turn; 'plain English' lines vs the language line
 - source: spec-40-3-the-persona-reaches-chat-and-triage-as-a-data-block.md | severity: med | fix-risk: med | footprint: in-epic
 - evidence: Triage.cls says the user's own message is not quoted and reasons are in plain English; a user turn now carries > -quoted preset text and Reply in the language named. Real-model behaviour unmeasured (inference); spec 40.3 Design Notes lists both as 40.7 sweep risks.
 - 2026-11-04T20:54:02Z status=routed owner=40-7-evaluation-cases-for-the-persona by=cr note=measure user-turn and language cases under each preset; a red is a clarification on an existing instruction line
+- 2026-11-05T22:53:30Z status=decision-pending owner=burndown by=adjudication note=human=Contest_Planner_real-model_measurement;delivered:measured.ownMessage,measured.reasonsLanguage;run:eval/run.sh_--release-candidate_--personas;a_red_is_a_clarification_on_an_existing_instruction_line
 
 ### DW-680: Persona.BlockFor's language check is narrower than the writer's rule: U+2028/U+2029 and punctuation in a stored name reach the block unquoted
 - source: spec-40-3-the-persona-reaches-chat-and-triage-as-a-data-block.md | severity: low | fix-risk: low | footprint: in-story
@@ -4321,13 +4323,26 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-40-7-evaluation-cases-for-the-persona.md | severity: low | fix-risk: low | footprint: in-epic
 - evidence: Rule 2 copy forced by the contention rule (spec-40-7 Design Notes); Eval/Report.cls:701,754
 - 2026-11-05T22:05:02Z status=wontfix-accepted owner=40-7-evaluation-cases-for-the-persona by=harvest note=reopen_if=after_Epic_39_merges_Eval/Sweep.cls_still_holds_copies_of_Report.TurnOf/ReasonsOf;the_story_that_next_edits_Report.cls_unifies_them
+- 2026-11-05T22:52:20Z occurrence=40-7-evaluation-cases-for-the-persona
 
 ### DW-762: The failure paths of a case's before turn (wrong kind, no Reply, Busy after BUSYMAX, fallback Reply, row removal) are not pinned, and a fallback Reply of the before turn is not treated as no Reply
 - source: spec-40-7-evaluation-cases-for-the-persona.md | severity: med | fix-risk: low | footprint: in-story
 - evidence: Eval/In.cls Before; only TestBadPersonaSkipped and TestHistoryLinked cover it; settle with a PersonaRuns fixture whose before text matches a fallback scenario
 - 2026-11-05T22:05:02Z status=open owner=40-7-evaluation-cases-for-the-persona by=harvest note=in-story_MED:for_the_40.7_code_review_to_patch
+- 2026-11-05T22:53:30Z status=resolved-by:40-7-evaluation-cases-for-the-persona by=adjudication note=Eval.In.Before_treats_a_Fallback_Reply_as_no_Reply;Test.Eval.In:TestBeforeFallback,PersonaRuns:TestBeforeFallbackSkipped(fresh);mutation_recorded
 
 ### DW-763: No CI job runs eval/run.sh --personas on the mock; the sweep block's structural checks are guarded only by the story's verification run and test-eval-personas.sh
 - source: spec-40-7-evaluation-cases-for-the-persona.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: lane-a.yml runs only the plain eval/run.sh; a --personas step needs an edit to .github/workflows/lane-a.yml (out of Epic 40's footprint; CI budget REL-4)
 - 2026-11-05T22:05:02Z status=escalated owner=burndown by=harvest note=for_the_decision_sheet:add_a_lane-a.yml_step(about_4_min_on_the_mock)_or_leave_it_to_the_release_runs
+- 2026-11-05T22:52:20Z occurrence=40-7-evaluation-cases-for-the-persona
+
+### DW-766: The Planner's real-model persona sweep (eval/run.sh --release-candidate --personas) cannot run inside one 10-minute call and has no per-preset form
+- source: spec-40-7-evaluation-cases-for-the-persona.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Ten passes (5 presets x set and persona) wait up to 900 s each on the real model; the spec names one command and expects tens of minutes; the owner keeps the 10-minute Bash cap for agent sessions
+- 2026-11-05T22:52:20Z status=wontfix-accepted owner=40-7-evaluation-cases-for-the-persona by=cr note=reopen_if=the_Planner_reports_it_cannot_run_the_real-model_sweep_in_its_session;add_a_per-preset_form_to_eval/run.sh_then
+
+### DW-767: Test.Eval.PersonaRuns copies Test.Eval.Run's EvalIn switch-on block (Prepare) and Apply instead of sharing them, and the copy's reason was not recorded
+- source: spec-40-7-evaluation-cases-for-the-persona.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: Rule 2: PersonaRuns.Apply equals Test.Eval.Run.Apply line for line, and Prepare repeats Run's PointKeys/PutDefault/Apply block (about 12 lines); the spec asked implement to record a copy under 15 lines; nothing recorded
+- 2026-11-05T22:52:20Z status=wontfix-accepted owner=40-7-evaluation-cases-for-the-persona by=cr note=reopen_if=a_third_test_class_copies_the_EvalIn_switch-on_block,or_Test.Eval.Run.Apply_changes_without_PersonaRuns.Apply

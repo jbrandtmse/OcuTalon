@@ -248,6 +248,39 @@ deferred:
    - the language run's item reasons written in Spanish (the "plain English" lines against the language line).
 7. Integration: given `eval/run.sh --personas`, when it reads `Sweep`'s files in a real throwaway on the CI mock, then it prints the structural PASS lines, the per-preset rows and `REPORT <folder>` with `personas.json`/`.md`, and exits 0. Run with no argument, it behaves as before (`test-eval-set.sh` and the push run pass unchanged).
 
+### Review Findings
+
+Code review 2026-11-05 (four layers: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor; 30 rows, 9 entries after grouping: 4 medium, 5 low; 0 high).
+
+- [x] [Review][Patch] (medium, DW-762) A fallback Reply of the before turn was taken as a good Reply, so no session was saved and the linked turn could open an earlier eval session; `Before` now treats `reply.Fallback` like Busy (REASONNOREPLY, both rows removed) [src/ocutalon/cls/OcuTalon/Eval/In.cls Before]. Delivered and pinned by `Test.Eval.In:TestBeforeFallback` (warm) and `Test.Eval.PersonaRuns:TestBeforeFallbackSkipped` (fresh).
+- [x] [Review][Patch] (medium, AD-26) The before turn was asked before `%SuperSession` was set, and the service base clears it per input, so the old turn's messages carried no run Ref (trace and `RemoveMessages(run)` missed them); `SendTurn` now sets it before the before turn [src/ocutalon/cls/OcuTalon/Eval/In.cls SendTurn]. Pinned by `Test.Eval.In:TestBeforeRefused` (control round, SuperSession cleared first).
+- [x] [Review][Patch] (medium, AD-19) The persona sweep printed `personas.md` and appended it to `$GITHUB_STEP_SUMMARY` before any key check, unlike the release candidate's result; it now prints only when `key_like` and `key_value_hits` find nothing (NOTE line otherwise) [eval/run.sh persona block]. Pinned by the new `print` rule and the `prints-unchecked` sample of `docker/tests/test-eval-personas.sh`.
+- [x] [Review][Patch] (medium, AC 3/AC 4, Rule 19) `Sweep.Check`'s "decided, not a fallback" and "refused" conditions had no pinning test; `Check` is now public and pure-documented, and `PersonaSweep:TestCheck` pins no-proposal (state sent, fallback, not refused, a propose call, a proposal, a setting request each wrong), spanish-reply and cant-write (wrong for a fallback) and spanish-all-clear (measured, never wrong) [src/ocutalon/cls/OcuTalon/Eval/Sweep.cls Check].
+- [x] [Review][Patch] (low) `PersonaRuns` kept an unused `proposal` mark and its clean-up check missed `ProposeFolder` [src/ocutalon/cls/OcuTalon/Test/Eval/PersonaRuns.cls OnAfterAllTests].
+- [x] [Review][Patch] (low) Two QA assertion messages claimed "no row was made" where the count can only show "no row is left" [Test/Eval/PersonaRuns.cls TestBeforeWrongShapeSkipped, Test/Eval/In.cls TestBeforeRefused].
+- [x] [Review][Patch] (low) `Test/Eval/In.cls`'s class doc did not list the three QA `TestBefore*` tests [src/ocutalon/cls/OcuTalon/Test/Eval/In.cls header].
+- [x] [Review][Defer] (low) The Planner's real-model sweep cannot run in one 10-minute call and has no per-preset form [eval/run.sh] — DW-766 wontfix-accepted, reopen_if the Planner reports it cannot run it.
+- [x] [Review][Defer] (low, Rule 2) `PersonaRuns` copies `Test.Eval.Run`'s EvalIn switch-on block and `Apply` without the recorded reason the spec asked for [Test/Eval/PersonaRuns.cls Prepare/Apply; Test/Eval/Run.cls Prepare/Apply] — DW-767 wontfix-accepted, reopen_if a third class copies it.
+- Occurrences appended: DW-761 (Rule 2 re-sighting of `Sweep.TurnOf`), DW-763 (AC 7's `--personas` run has no executed CI host).
+
+Rejected:
+- `false` blind: run.sh hides a `RunPreset` error - `run_started` reads `CHK|run` and fails with `CHK|error`'s text.
+- `low`/spec-bound blind: proposals of the set pass are not counted - the spec takes the watermarks before the persona pass, and owner eval cannot create either row (Decided in-stage).
+- spec-bound blind: the language preset is not compared for facts and frames - the spec limits `facts[]`/`frames[]` to the bends presets (AC 2).
+- `low` edge: `CaseResult.Remove` of the before row ignores its status - the row was just opened by this job; no reachable failure shown.
+- `low` edge: facts compared when one side is a fallback - a rare real-model rate limit after BUSYMAX asks; the case shows its fallback in `cases` and `differing`; a guard adds a branch.
+- `low` edge: injection count per preset only by total - one committed injection case, and run.sh checks each preset's persona case count.
+- `low` edge: a set case and a persona case with one name overwrite each other - no set case is named `persona-*`.
+- `low` edge: integers over about 19 digits collapse in `Facts` - not a count a reason or reply holds.
+- `low` edge: a summary holding "Marker" cuts the tell-now frame early - no realistic summary.
+- `low` edge: `leftwatches` counts all eval rows, so a leak repeats on later presets - the first FAIL names the preset.
+- duplicate verification-gap: the watermark counts cannot fail - adjudicated at the implement review (Decided in-stage); `proposeCalls` is the sensor.
+- verification-gap: AC sub-clauses without their own `mutation:` line - each AC has one demonstrated mutation (Rule 19 scopes to one per AC); AC 7's run is DW-763.
+- acceptance (spec edits): the Tasks text of `ci/units.sh` and the Implementation Record's `179 0` numstat are stale (now `200 0`) - the fix edits the spec; the amendment is recorded under Decided in-stage.
+- spec-bound acceptance: the old key-handling header lines do not name `--personas` - existing lines stay byte for byte.
+- spec-bound acceptance: a real-model injection failure exits 1 (structural), not 3 - the spec makes "both passes have no problem" structural.
+- blind: tracking documents disagree (status done while QA tests were red) - resolved by the DW-762 patch; the spec's status is build-auto's.
+
 ## Spec Change Log
 
 ## Review Triage Log
@@ -417,6 +450,22 @@ All calls run from the worktree root with `timeout: 600000`, one per call.
 - AC 5: `nonEnglishAllClear` counted in the verdict -> `PersonaSweep` measured-never-blocks test red.
 - AC 6: the case's turn sent with SessionMode fresh -> `TestHistoryLinked` red; `reasonsLanguage` left out -> `PersonaSweep` measurements test red.
 - AC 7: `--personas extra` accepted -> `test-eval-personas.sh` red; the key not unset for `--personas` -> `test-eval-personas.sh` red.
+
+**QA stage additions (DW-762; Rule 19):**
+- (QA) `src/ocutalon/cls/OcuTalon/Test/Eval/In.cls` (existing; warm-safe, on the `ZzIn` double): `TestBeforeRefused`, `TestBeforeNoReply`, `TestBeforeFallback`. No new test file was created.
+- (QA) `src/ocutalon/cls/OcuTalon/Test/Eval/PersonaRuns.cls` (mock, fresh or warm): `TestBeforeWrongShapeSkipped`, `TestBeforeFallbackSkipped`; `WriteTurn` now also writes a string `before`.
+- mutation: `Eval.In.Before` kind check removed -> `Test.Eval.In:TestBeforeRefused` red and `PersonaRuns:TestBeforeWrongShapeSkipped` red.
+- mutation: `Eval.In.Before` no longer removes the `<name>/before` row -> `Test.Eval.In:TestBeforeNoReply` red (five asserts) and `PersonaRuns:TestHistoryLinked` red.
+- mutation: `Eval.In.Before` stops treating a Busy Reply as no Reply -> `Test.Eval.In:TestBeforeNoReply` red.
+- mutation: none needed for the fallback tests; they are red on the unmutated product (a fallback Reply of the before turn is not no Reply, `Eval.In.Before`), and go green when `|| reply.Fallback` is added to its Busy test (candidate fix, reverted; the tree was identical afterwards).
+- Status at the end of QA: `Test.Eval.In:TestBeforeFallback` and `PersonaRuns:TestBeforeFallbackSkipped` FAIL on the product (defect named for code review); every other test of both classes passes (warm and, for PersonaRuns, fresh).
+
+**Code review additions (Rule 19; each applied on the warm stack `e40s7cw`, red observed, reverted from a backup with `cmp` identical, green again on the same stack):**
+- mutation: `Eval.In.Before` without `|| reply.Fallback` (the product before the patch) -> `Test.Eval.In:TestBeforeFallback` red (3 asserts); with the patch both `TestBeforeFallback` (warm) and `PersonaRuns:TestBeforeFallbackSkipped` (fresh `e40s7c`) pass. DW-762 is delivered by these two tests.
+- mutation: `SendTurn` sets `%SuperSession` after the before turn again (the old place) -> `Test.Eval.In:TestBeforeRefused` red (the SuperSession assert of the control round).
+- mutation: `Sweep.Check` no-proposal right without `decided &&` -> `Test.Eval.PersonaSweep:TestCheck` red (state sent, fallback).
+- mutation: the persona block's `key_like` print guard replaced by `if false` (sample `prints-unchecked`) -> `docker/tests/test-eval-personas.sh` flags it; the real tree passes.
+- Runs after the patches: warm `Test.Eval.In`, `Test.Eval.PersonaSweep`, `Test.Eval.Cases` pass; fresh `Test.Eval.PersonaRuns` (12.7 s of tests) and `Test.Eval.Run` pass; `test-eval-personas.sh`, `test-eval-set.sh`, `test-boundaries.sh`, `test-class-rules.sh` pass; `eval/run.sh --personas` on the mock: every PASS line, `personas.md` printed, `VERDICT blocked`, `eval/run: all checks passed`, exit 0, 155 s; slot D loads and compiles the five changed classes. `git diff --numstat 519cad54 -- eval/run.sh` is `200 0`.
 
 **Standing criterion:** every test added or changed passes on a fresh environment, in either order.
 

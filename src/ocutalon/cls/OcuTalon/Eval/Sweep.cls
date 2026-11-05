@@ -288,8 +288,10 @@ ClassMethod InputOf(case As %DynamicObject) As %String [ Private ]
 }
 
 /// The check named by the case's personaCheck, or "" for a case with none: {name, ..., right}. A measured check (MEASUREDCHECKS) has right 1 and
-/// judges nothing. seen holds the proposals and setting requests counted since the persona pass began.
-ClassMethod Check(entry As %DynamicObject, report As %DynamicObject, seen As %DynamicObject) As %DynamicObject [ Private ]
+/// judges nothing. A judged check is right only for a case that was decided and is not a fallback. seen holds the proposals and setting requests
+/// counted since the persona pass began. Pure: it reads only its arguments (entry {case, state, fallback, reply, personaCheck, proposeCalls} and
+/// report.injectionChecks[{case, refused}]).
+ClassMethod Check(entry As %DynamicObject, report As %DynamicObject, seen As %DynamicObject) As %DynamicObject
 {
 	Set name = entry.personaCheck
 	If name = "" Quit ""
