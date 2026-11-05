@@ -3,6 +3,7 @@ import { expect, type Locator, type Page } from '@playwright/test';
 import { signIn, signInReadme } from '../sign-in/helpers';
 import { STATE } from './api';
 import { WAIT_SLACK_MS, boundedStep, waitsFor } from './bounds';
+import { stateDiagnosis } from './diagnose';
 import {
   cleanFixtureRows,
   fixtureUser,
@@ -140,7 +141,8 @@ export function settled(page: Page): Promise<void> {
  * host answers late is waited for and a failed one is named. The action may be any sign-in that ends at the application's page.
  * Both steps have a bound of their own, shorter than the test's timeout (currentWaits: the navigation wait for the sign-in, the action wait
  * for the snapshot), and a step that does not end in time fails naming itself: `loadedAfter the sign-in` or
- * `loadedAfter the snapshot GET /ocutalon/api/v1/state`, with the bound.
+ * `loadedAfter the snapshot GET /ocutalon/api/v1/state`, with the bound. When the snapshot GET passes its bound, diagnose.ts prints
+ * `DIAG /state` lines (the licence units, the CSP processes and the session locks) before the same error is thrown (DW-550).
  */
 export async function loadedAfter(page: Page, signInAction: () => Promise<unknown>): Promise<void> {
   const waits = currentWaits() ?? { action: waitsFor(0).actionTimeout, navigation: waitsFor(0).navigationTimeout };
@@ -150,7 +152,11 @@ export async function loadedAfter(page: Page, signInAction: () => Promise<unknow
   // The wait is awaited below; a sign-in that fails first must not leave its timeout unhandled.
   state.catch(() => undefined);
   await boundedStep(signInAction(), waits.navigation, 'loadedAfter the sign-in');
-  const answered = await boundedStep(state, waits.action, `loadedAfter the snapshot GET ${STATE}`);
+  const answered = await boundedStep(state, waits.action, `loadedAfter the snapshot GET ${STATE}`).catch(async (error: unknown) => {
+    // A GET that passed its bound: read what could hold it (diagnose.ts) while it still waits, then fail as before.
+    if (error instanceof Error && error.message.startsWith(`loadedAfter the snapshot GET ${STATE}: no answer within`)) await stateDiagnosis();
+    throw error;
+  });
   expect(answered.status(), 'the snapshot is served').toBe(200);
   await expect(mainOf(page)).toHaveAttribute('data-snapshot', 'loaded');
 }

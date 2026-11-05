@@ -455,7 +455,8 @@ cmd_live() {
     *" $name "*) npx --prefix web playwright install firefox webkit || exit 1 ;;
   esac
   shift
-  bash "docker/tests/test-$name.sh" "$@"
+  # Each unit keeps its Playwright results in its own folder (web/playwright.config.ts outputDir), so that a later unit of the job does not clear them.
+  OCUTALON_E2E_OUTPUT="test-results/$name" bash "docker/tests/test-$name.sh" "$@"
 }
 
 # fresh_only <what>: a command whose units all start fresh stacks. A warm request is dropped with one line, and no unit sees it.
