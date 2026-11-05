@@ -5836,6 +5836,8 @@ So that one message tells me how my IRIS system is doing and what needs me.
 **Then** the button carries an unguessable reference, and `TelegramIn` submits Lane B's **Got it** command through `CommandsIn` only for a press from the paired chat, so the notice's handled marker is set once (the first press wins); a press from any other chat changes nothing (FR-20, FR-35, AD-1, AD-14, AD-29)
 **And** whenever the marker is set, from Telegram or any other channel, the Telegram message is edited in place to show "Marked as handled at {time}" with its button removed, within one live update, as Lane B's Story 18.4 does for the web and phone copies; until Story 18.4 merges, tests check the submitted command and use fixture markers (FR-35, UX-DR143)
 
+- DW-651: A new session's first scheduled digest is at the first `digest.time` after its `CreatedAt` (AD-18 as amended 2026-11-05): created before today's `digest.time`, today's digest; created after, none until tomorrow's; `SendDigest` is unaffected (ledger; routed by orchestrator ruling 2026-11-05, decided by the Contest Planner under the owner's delegation)
+
 ### Story 17.7: Give an all-clear only when every check passed
 
 As a user,
@@ -7951,6 +7953,27 @@ So that I can change OcuTalon's settings without a terminal or a restart.
 **When** they run
 **Then** one reads each kind of settings change back from the IRIS audit log, one submits a settings command with origin `tool` and expects a refusal, and the fixed-strings test covers every new label (FR-9, AD-1, AD-22, UX-DR117)
 
+
+### Story 33.3: Epic 33 burn-down
+
+[AMENDED 2026-11-05, chartered by the burn-down gate, Rule 17, on the orchestrator's ruling (decided by the Contest Planner under the owner's delegation, DW-699): a demo mode saved on the settings page reaches an open main page only after a reload; the live refresh is a high-risk fix and the online demo's account holds no OcuTalonAdmin, so for now the Demo mode section tells the admin, and the real fix is filed in the ledger for later.]
+
+As an admin,
+I want the Demo mode section to tell me when a saved change shows on the chat page,
+So that I don't think the switch failed when the open chat page still shows the old mode.
+
+**Acceptance Criteria:**
+
+**Given** an admin on the settings page's Demo mode section
+**When** a save of the switch succeeds
+**Then** the section shows its own confirmation, a new text key whose text is exactly "Saved. Applies within a minute. Recorded in the audit log. Reload the chat page after a minute to see the change."
+**And** the Check thresholds section keeps the shared saved text of `settings-view.ts`, unchanged, and no other section's text changes
+
+**Given** the tests
+**When** they run
+**Then** the fixed-strings test covers the new key, and a browser test pins that a Demo mode save shows the new text and a Check thresholds save the shared one
+
+- DW-699: A demo mode saved on the settings page does not reach the open main page until a reload; ruled: tell the admin with the Demo mode section's own confirmation text, no live refresh now (ledger; routed by orchestrator ruling 2026-11-05)
 
 ## Epic 34: Step 3's contracts, and a Documents page (step 3)
 
