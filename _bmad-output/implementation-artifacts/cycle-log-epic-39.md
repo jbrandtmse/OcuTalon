@@ -149,3 +149,5 @@
 2026-11-05T02:42:24Z	Story 39.6	dev_complete	spawn_at=2026-11-05T00:40:44Z model=sonnet build_sha=bf459e2a baseline_revision=2c82659c story_base=72c165b3 review_loop_iteration=0 followup_review_recommended=false deferred=0 files=16 loc_added=919 loc_removed=100 nfr_tripwires=0 adr_violations_surfaced=0 cycle_iteration=1 note=self_review_26_rows_3_patched
 2026-11-05T02:42:24Z	Story 39.6	adr_verifications_complete	tool=none acs=none result=none_required evidence=none mutations=none model=claude-opus-5-5
 2026-11-05T02:42:24Z	Story 39.6	stage_spawned	stage=qa spawn_at=2026-11-05T02:42:24Z model=sonnet agent_name=39-6-qa-1 cycle_iteration=1
+2026-11-05T02:51:18Z	Story 39.6	qa_complete	spawn_at=2026-11-05T02:42:24Z model=sonnet tests=Test/Eval/Report.cls,Test/Eval/Record.cls tests_added=2 mutations_demonstrated=4 first_run_failures=0 clarifications=0 closing_sections_present=true
+2026-11-05T02:51:18Z	Story 39.6	stage_spawned	stage=code-review spawn_at=2026-11-05T02:51:18Z model=opus agent_name=39-6-code-review-1 cycle_iteration=1
