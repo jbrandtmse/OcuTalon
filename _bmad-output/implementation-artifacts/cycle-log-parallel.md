@@ -2015,3 +2015,8 @@
 2026-11-05T10:11:41Z	Epic 11	epic_merged_to_feature	merge=6154909a head=f0d75a14 part=11.20+11.21 verified_on_origin=yes
 2026-11-05T10:11:41Z	Epic 11	decision_sheet_recorded	decided=0 to_action_items=0 to_x0=0 by=unattended note=decisions_for_user_none
 2026-11-05T10:11:41Z	Epic 11	teardown_skipped	reason="worktree and branch kept: runner B charters the first-daily-release burn-down story in Epic 11 next (owner_decision 01:51Z), then Epic 11 part 2 (11.14-11.18)"
+2026-11-05T10:12:08Z	Epic 11	runner_resumed	for=first_daily_release_burndown_story_11.22 scope="DW-692 strict, DW-687(669b)+documents-route hook, DW-698 repro 60m, size DW-416/DW-636 <=2h, DW-710, DW-550 investigate, DW-706 if non-contended" ships=next_daily
+2026-11-05T10:37:17Z	Epic 17	answers_relayed	items=U-286(#867 KEEP: one section at END of docs/bridge-guide.md naming RetryItem/RetryOf; PUBLIC TEXT to Planner before commit; low burndown DW to fold names into Settings/Messages tables after Epic 40) to=runner_A
+2026-11-05T10:38:21Z	Run	ci_green_verified	runs=42008660120,42008660116 head=a745aa6a result=success via=none note=feature_after_epic11_part_merge
+2026-11-05T10:40:38Z	Run	feature_push_hold	by=Contest_Planner reason=release_1.0.1_cut_from_a745aa6a until="cut done" scope=all_pushes_to_feature_incl_bookkeeping epic_branches=free
+2026-11-05T10:40:59Z	Run	feature_push_hold_released	by=Contest_Planner candidate=release/1.0.1-rc1@639f3e43 from=a745aa6a note=merge-back_later_as_one_Planner_push_announced_first
