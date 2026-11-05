@@ -135,9 +135,31 @@ pip_pins() {
   local n
   n=$(pip_run | wc -l | tr -d ' ')
   [ "$n" -eq 1 ] || return 1
-  pip_run | grep -qF -e 'python3 -m pip install --break-system-packages --no-cache-dir --target /usr/irissys/mgr/python --only-binary=:all: fastembed==0.9.0 pdfplumber==0.11.10 python-docx==1.1.2' || return 1
-  # Exactly the three pins follow the options: no other package, no other pin.
-  [ "$(pip_run | sed 's/.*--only-binary=:all: //; s/ &&.*//' | tr ' ' '\n' | grep -c .)" -eq 3 ]
+  pip_run | grep -qF -e 'python3 -m pip install --break-system-packages --no-cache-dir --target /usr/irissys/mgr/python --only-binary=:all: fastembed==0.9.0 pdfplumber==0.11.10 python-docx==1.1.2 -c "$constraints" &&' || return 1
+  # Exactly the three pins follow the options: no other package, no other pin (the constraints file holds the rest).
+  [ "$(pip_run | sed 's/.*--only-binary=:all: //; s/ -c .*//' | tr ' ' '\n' | grep -c .)" -eq 3 ]
+}
+
+# The constraints file is chosen by the build's architecture (uname -m): x86_64 is x64, aarch64 is arm64, and any other architecture
+# fails the build with a message that names the missing file.
+constraints_by_architecture() {
+  local r
+  r=$(pip_run)
+  printf '%s\n' "$r" | grep -qF 'case "$(uname -m)" in x86_64) arch=x64 ;; aarch64) arch=arm64 ;; *) echo "no Python constraints file for architecture $(uname -m)' || return 1
+  printf '%s\n' "$r" | grep -qF 'exit 1 ;; esac && constraints="/opt/ocutalon/licences/constraints-$arch.txt" && python3 -m pip install' || return 1
+  [ "$(line_of '^COPY docker/licences/allowed.txt docker/licences/gate.py docker/licences/constraints-arm64.txt docker/licences/constraints-x64.txt /opt/ocutalon/licences/$')" -lt "$(line_of 'pip install')" ]
+}
+
+# The architecture switch of the pip line is run with a stubbed uname: x86_64 picks constraints-x64.txt, aarch64 constraints-arm64.txt, and any
+# other architecture exits 1 with a message that names the missing file.
+constraints_switch_runs() {
+  local snippet out
+  snippet=$(pip_run | sed 's/^RUN //; s/ && constraints=.*//; s/ \\$//')
+  [ -n "$snippet" ] || return 1
+  out=$(sh -c "uname() { echo x86_64; }; $snippet; echo \"\$arch\"" 2>&1) && [ "$out" = x64 ] || return 1
+  out=$(sh -c "uname() { echo aarch64; }; $snippet; echo \"\$arch\"" 2>&1) && [ "$out" = arm64 ] || return 1
+  out=$(sh -c "uname() { echo riscv64; }; $snippet; echo \"\$arch\"" 2>&1) && return 1
+  printf '%s\n' "$out" | grep -qF 'no Python constraints file for architecture riscv64: add docker/licences/constraints-<arch>.txt'
 }
 
 model_in_the_same_run() {
@@ -162,8 +184,9 @@ gate_after_pip() {
   local r
   r=$(pip_run)
   printf '%s\n' "$r" | grep -qF 'pip install' || return 1
-  printf '%s\n' "$r" | grep -q 'pip install .*&& python3 /opt/ocutalon/licences/gate.py check /usr/irissys/mgr/python &&.*gate.py notices /usr/irissys/mgr/python /opt/ocutalon/THIRD-PARTY-NOTICES &&' || return 1
-  [ "$(line_of '^COPY docker/licences/allowed.txt docker/licences/gate.py /opt/ocutalon/licences/$')" -lt "$(line_of 'pip install')" ]
+  printf '%s\n' "$r" | grep -qF 'pip install ' || return 1
+  printf '%s\n' "$r" | grep -q 'pip install .*&& python3 /opt/ocutalon/licences/gate.py check /usr/irissys/mgr/python "\$constraints" &&.*gate.py notices /usr/irissys/mgr/python /opt/ocutalon/THIRD-PARTY-NOTICES &&' || return 1
+  [ "$(line_of '^COPY docker/licences/allowed.txt docker/licences/gate.py docker/licences/constraints-arm64.txt docker/licences/constraints-x64.txt /opt/ocutalon/licences/$')" -lt "$(line_of 'pip install')" ]
 }
 
 # The packages' licence files are kept: nothing is uninstalled and nothing is deleted under the packages' folder.
@@ -174,6 +197,8 @@ no_licence_deletion() {
 }
 
 check "dockerfile: one pip line installs exactly fastembed==0.9.0 pdfplumber==0.11.10 python-docx==1.1.2, wheels only, into /usr/irissys/mgr/python" pip_pins
+check "dockerfile: the pip line holds every dependency to the constraints file of the build's architecture (uname -m), and any other architecture fails the build" constraints_by_architecture
+check "dockerfile: the architecture switch of the pip line picks constraints-x64.txt for x86_64 and constraints-arm64.txt for aarch64, and fails any other architecture with a message" constraints_switch_runs
 check "dockerfile: FASTEMBED_CACHE_DIR is /opt/fastembed" \
   bash -c "grep -v '^[[:space:]]*#' '$dockerfile' | grep -q 'FASTEMBED_CACHE_DIR=/opt/fastembed'"
 check "dockerfile: the model is downloaded into /opt/fastembed in the pip RUN, root-owned, folders 555 and files 444" model_in_the_same_run
@@ -267,6 +292,113 @@ gate_rules() {
 check "licences: the allowed set is the ruled one (U-285), in one file" allowed_set_is_ruled
 check "licences: the gate allows the ruled kinds, fails a planted disallowed, unknown or missing licence, and writes the notices with the credit lines" gate_rules
 
+# --- the constraints files (Story 34.3, DW-738): one pin for every distribution of an architecture's installed set ---
+
+evidence_dir=_bmad-output/implementation-artifacts/evidence
+arm64_evidence="$evidence_dir/34-2-task0-licences.md"
+x64_evidence="$evidence_dir/34-3-x64-installed-set.md"
+rule_sentence='Any version change here re-measures the licences (docker/licences/gate.py on the installed set) and updates the evidence in the same commit.'
+
+# same_set <evidence file> <constraints file>: the evidence table's distributions and versions equal the constraints file's pins, exactly,
+# and the file is sorted (by name, any case), holds nothing but comments and name==version lines, and carries the rule in a comment.
+same_set() {
+  python3 -I -c '
+import re, sys
+evidence, constraints, rule = sys.argv[1:4]
+table = []
+for line in open(evidence, encoding="ascii"):
+    m = re.match(r"^\| ([A-Za-z0-9_.-]+) \| ([0-9][^ |]*) \|", line)
+    if m:
+        table.append("%s==%s" % m.groups())
+pins, comments = [], []
+for line in open(constraints, encoding="ascii").read().splitlines():
+    if line.startswith("#"):
+        comments.append(line)
+    elif line.strip():
+        if not re.match(r"^[A-Za-z0-9][A-Za-z0-9._-]*==[A-Za-z0-9][A-Za-z0-9._+!-]*$", line):
+            sys.exit("not a pin: " + line)
+        pins.append(line)
+if not table or len(set(table)) != len(table):
+    sys.exit("the evidence table is empty or lists a distribution twice")
+if sorted(pins, key=str.lower) != pins:
+    sys.exit("the constraints file is not sorted")
+if sorted(table) != sorted(pins):
+    sys.exit("the evidence and the constraints differ: " + ", ".join(sorted(set(table) ^ set(pins))))
+if "# " + rule not in comments:
+    sys.exit("the rule comment is missing")
+' "$1" "$2" "$rule_sentence" 2>&1
+}
+
+constraints_equal_evidence() {
+  same_set "$arm64_evidence" docker/licences/constraints-arm64.txt || return 1
+  same_set "$x64_evidence" docker/licences/constraints-x64.txt
+}
+
+# The check is shown red on a planted difference: one version changed in a copy of each constraints file, one pin dropped, one added.
+constraints_check_can_fail() {
+  local w ok=0
+  w=$(mktemp -d "${TMPDIR:-/tmp}/ocutalon-constraints.XXXXXX") || return 1
+  for arch in arm64 x64; do
+    case "$arch" in arm64) ev=$arm64_evidence ;; x64) ev=$x64_evidence ;; esac
+    sed 's/^anyio==.*/anyio==0.0.1/' "docker/licences/constraints-$arch.txt" > "$w/version.txt"
+    same_set "$ev" "$w/version.txt" >/dev/null && { echo "$arch: a changed version was accepted" >&2; ok=1; }
+    grep -v '^anyio==' "docker/licences/constraints-$arch.txt" > "$w/dropped.txt"
+    same_set "$ev" "$w/dropped.txt" >/dev/null && { echo "$arch: a dropped pin was accepted" >&2; ok=1; }
+    { cat "docker/licences/constraints-$arch.txt"; echo 'zzextra==1.0'; } > "$w/added.txt"
+    same_set "$ev" "$w/added.txt" >/dev/null && { echo "$arch: an added pin was accepted" >&2; ok=1; }
+    grep -v '^# Any version change' "docker/licences/constraints-$arch.txt" > "$w/norule.txt"
+    same_set "$ev" "$w/norule.txt" >/dev/null && { echo "$arch: a file without the rule comment was accepted" >&2; ok=1; }
+  done
+  rm -rf "$w"
+  return $ok
+}
+
+# The gate holds an installed set to a constraints file: a planted distribution that the file lacks, one at another version and a pin
+# that is not installed are refused, and an installed set that equals the file is accepted.
+gate_constraints() {
+  command -v python3 >/dev/null 2>&1 || return 1
+  local w out ok=0
+  w=$(mktemp -d "${TMPDIR:-/tmp}/ocutalon-gate.XXXXXX") || return 1
+  mkdir -p "$w/set"
+  mkdist "$w/set" alpha 'License-Expression: MIT'
+  mkdist "$w/set" beta 'License-Expression: Apache-2.0'
+  printf '# comment\nalpha==1.0\nBeta==1.0\n' > "$w/equal.txt"
+  python3 -I "$gate" check "$w/set" "$w/equal.txt" >/dev/null 2>&1 || { echo "an installed set equal to its constraints was refused" >&2; ok=1; }
+  printf 'alpha==1.0\n' > "$w/missing.txt"
+  out=$(python3 -I "$gate" check "$w/set" "$w/missing.txt" 2>&1) && { echo "a distribution absent from the constraints was accepted" >&2; ok=1; }
+  printf '%s\n' "$out" | grep -q 'FAIL constraints: beta 1.0 is installed but not pinned' || { echo "the absent distribution was not named" >&2; ok=1; }
+  printf 'alpha==1.0\nbeta==2.0\n' > "$w/differs.txt"
+  out=$(python3 -I "$gate" check "$w/set" "$w/differs.txt" 2>&1) && { echo "a distribution at another version was accepted" >&2; ok=1; }
+  printf '%s\n' "$out" | grep -q 'FAIL constraints: beta is installed at 1.0 but pinned at 2.0' || { echo "the differing version was not named" >&2; ok=1; }
+  printf 'alpha==1.0\nbeta==1.0\ngamma==3.0\n' > "$w/stale.txt"
+  out=$(python3 -I "$gate" check "$w/set" "$w/stale.txt" 2>&1) && { echo "a pin that is not installed was accepted" >&2; ok=1; }
+  printf '%s\n' "$out" | grep -q 'FAIL constraints: gamma==3.0 is pinned but not installed' || { echo "the stale pin was not named" >&2; ok=1; }
+  printf 'alpha==1.0\nbeta==1.0\ngamma>=1.0\n' > "$w/range.txt"
+  python3 -I "$gate" check "$w/set" "$w/range.txt" >/dev/null 2>&1 && { echo "a range instead of a pin was accepted" >&2; ok=1; }
+  # A disallowed licence still fails with a matching constraints file.
+  mkdist "$w/set" gamma 'License-Expression: GPL-3.0-only'
+  printf 'alpha==1.0\nbeta==1.0\ngamma==1.0\n' > "$w/all.txt"
+  python3 -I "$gate" check "$w/set" "$w/all.txt" >/dev/null 2>&1 && { echo "a disallowed licence passed with a matching constraints file" >&2; ok=1; }
+  # The real files parse the way the build reads them.
+  for arch in arm64 x64; do
+    python3 -I -c '
+import importlib.util, sys
+sys.dont_write_bytecode = True
+spec = importlib.util.spec_from_file_location("gate", sys.argv[1])
+gate = importlib.util.module_from_spec(spec)
+spec.loader.exec_module(gate)
+if len(gate.load_constraints(sys.argv[2])) < 30:
+    sys.exit("too few pins")
+' "$gate" "docker/licences/constraints-$arch.txt" >/dev/null 2>&1 || { echo "constraints-$arch.txt is not read by gate.py" >&2; ok=1; }
+  done
+  rm -rf "$w"
+  return $ok
+}
+
+check "constraints: each architecture's file pins exactly the distributions and versions of its evidence table, sorted, with the rule in a comment" constraints_equal_evidence
+check "constraints: the evidence check goes red on a changed version, a dropped pin, an added pin and a missing rule comment" constraints_check_can_fail
+check "licences: the gate refuses an installed distribution that the constraints lack or pin at another version, a pin that is not installed, a range, and still refuses a disallowed licence" gate_constraints
+
 check "module: the bundle is copied to the durable csp/ocutalon-web/ folder" \
   grep -q '<FileCopy Name="ocutalon/csp/" Target="${dataDir}csp/ocutalon-web/"/>' src/module.xml
 check "healthcheck.sh: POSIX sh" test "$(head -n 1 docker/healthcheck.sh)" = '#!/bin/sh'
@@ -308,7 +440,8 @@ dockerignore_is_allow_list() {
   [ "$(code .dockerignore | head -n 1)" = '*' ] || return 1
   ! code .dockerignore | grep -v '^\*$' \
     | grep -v -x -e '!docker/merge.cpf' -e '!docker/healthcheck.sh' -e '!docker/after-start.sh' -e '!docker/after-start.cos' \
-      -e '!docker/ipm/zpm-0.10.10.xml' -e '!docker/ipm/LICENSE' -e '!docker/licences/allowed.txt' -e '!docker/licences/gate.py' -e '!src' \
+      -e '!docker/ipm/zpm-0.10.10.xml' -e '!docker/ipm/LICENSE' -e '!docker/licences/allowed.txt' -e '!docker/licences/gate.py' \
+      -e '!docker/licences/constraints-arm64.txt' -e '!docker/licences/constraints-x64.txt' -e '!src' \
     | grep -q .
 }
 
@@ -316,7 +449,8 @@ dockerignore_is_allow_list() {
 dockerignore_names_every_exception() {
   local rule
   for rule in '!docker/merge.cpf' '!docker/healthcheck.sh' '!docker/after-start.sh' '!docker/after-start.cos' \
-    '!docker/ipm/zpm-0.10.10.xml' '!docker/ipm/LICENSE' '!docker/licences/allowed.txt' '!docker/licences/gate.py' '!src'; do
+    '!docker/ipm/zpm-0.10.10.xml' '!docker/ipm/LICENSE' '!docker/licences/allowed.txt' '!docker/licences/gate.py' \
+    '!docker/licences/constraints-arm64.txt' '!docker/licences/constraints-x64.txt' '!src'; do
     code .dockerignore | grep -qx -e "$rule" || return 1
   done
 }

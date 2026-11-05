@@ -9,14 +9,19 @@ USER root
 RUN mkdir -p /durable && chown 51773:51773 /durable
 
 # Step 3's Python packages and embedding model (AD-21, AD-23), before the sources so that a source change reuses this layer. One pinned
-# pip line installs fastembed, pdfplumber and python-docx with their dependencies, wheels only, where IRIS's Python imports them.
-# The licence gate then lists every installed distribution with its licence and fails the build on any outside the allowed set
-# (docker/licences/allowed.txt), and the notices file is written from the installed licence files; no licence file is deleted.
+# pip line installs fastembed, pdfplumber and python-docx with their dependencies, wheels only, where IRIS's Python imports them, and every
+# dependency is held to the version measured for the build's architecture by a constraints file (docker/licences/constraints-arm64.txt or
+# constraints-x64.txt, chosen by uname -m; any other architecture fails the build). The licence gate then lists every installed
+# distribution with its licence and fails the build on any outside the allowed set (docker/licences/allowed.txt) and on any that the
+# constraints file does not name at the installed version, and the notices file is written from the installed licence files; no licence
+# file is deleted.
 # The model AllMiniLM-L6-v2 is downloaded now, so that no first use needs the network, into a root-owned read-only folder that
 # FASTEMBED_CACHE_DIR names (files 444, folders 555); it sits outside /opt/ocutalon so that the mode step below never copies it again.
-COPY docker/licences/allowed.txt docker/licences/gate.py /opt/ocutalon/licences/
-RUN python3 -m pip install --break-system-packages --no-cache-dir --target /usr/irissys/mgr/python --only-binary=:all: fastembed==0.9.0 pdfplumber==0.11.10 python-docx==1.1.2 \
- && python3 /opt/ocutalon/licences/gate.py check /usr/irissys/mgr/python \
+COPY docker/licences/allowed.txt docker/licences/gate.py docker/licences/constraints-arm64.txt docker/licences/constraints-x64.txt /opt/ocutalon/licences/
+RUN case "$(uname -m)" in x86_64) arch=x64 ;; aarch64) arch=arm64 ;; *) echo "no Python constraints file for architecture $(uname -m): add docker/licences/constraints-<arch>.txt" >&2; exit 1 ;; esac \
+ && constraints="/opt/ocutalon/licences/constraints-$arch.txt" \
+ && python3 -m pip install --break-system-packages --no-cache-dir --target /usr/irissys/mgr/python --only-binary=:all: fastembed==0.9.0 pdfplumber==0.11.10 python-docx==1.1.2 -c "$constraints" \
+ && python3 /opt/ocutalon/licences/gate.py check /usr/irissys/mgr/python "$constraints" \
  && python3 /opt/ocutalon/licences/gate.py notices /usr/irissys/mgr/python /opt/ocutalon/THIRD-PARTY-NOTICES \
  && mkdir -p /opt/fastembed \
  && PYTHONPATH=/usr/irissys/mgr/python HF_HUB_DISABLE_TELEMETRY=1 python3 -c "from huggingface_hub import snapshot_download; snapshot_download('Qdrant/all-MiniLM-L6-v2-onnx', cache_dir='/opt/fastembed', allow_patterns=['config.json', 'tokenizer.json', 'tokenizer_config.json', 'special_tokens_map.json', '*.onnx'])" \

@@ -15,6 +15,11 @@
 ///   - TestUploadRows: an accepted file is stored as one OcuTalon.Data.Upload row of the CSP session, and the AddDocument names it (UploadRef) and
 ///     holds no bytes; the row stays while the owner answers Ok (DocumentOps takes it); a failed submit (every answer but Ok, an error status, a thrown
 ///     error, an Ok result with an error status, no result), a refusal, an owner that is not running and a remove leave no row;
+///   - TestRefusedAddsStoreNothing (DW-753): with the owner running, so that an accepted add would store a row, every refusal (wrong type, empty, a malformed body,
+///     too_large for a .md, .txt, .pdf and .docx of 10,485,761 bytes, the route's 413 at BODYMAX plus one byte and OnPreDispatch's 413 for both dispatch
+///     classes) leaves the session with no Upload row and nothing submitted, and one accepted add then stores exactly one row;
+///   - TestSweepOnEveryRoute (DW-752): with the sweep's clock set (the probe's SweepNow), the list, a refused add, an accepted add and a remove each delete
+///     another session's upload that is over the hour and keep one exactly an hour old and a fresh one, and the route answers as before, also when the sweep fails or throws;
 ///   - TestBodyBound: a body of BODYMAX bytes is parsed and one byte more is 413 body_too_large before it is parsed, with nothing submitted;
 ///   - TestBodyBounds: Web.Api's XData BodyBounds and Web.Documents' each declare POST of the documents route (/v1/documents, and "" after the
 ///     Map's prefix) at BODYMAX; through the OnPreDispatch of each (the role check, the envelope, then Web.BodyLimit) a body of BODYMAX bytes goes on
@@ -264,7 +269,7 @@ Method TestUploadRows()
 	Do $$$AssertTrue($IsObject(row), "the AddDocument names the row (UploadRef "_ref_")")
 	Do $$$AssertEquals(..Submit(1, "uploadSessionRef")_"|"_..Submit(1, "size"), a_"|5", "which holds the CSP session's Ref and the decoded bytes when the command arrives")
 	Kill row
-	Set taken = ##class(OcuTalon.Data.Upload).Take(ref)
+	Set taken = ##class(OcuTalon.Data.Upload).Take(ref, a)
 	Do $$$AssertEquals($Select($IsObject(taken): taken.Read(5), 1: "(no upload)"), "hello", "and the owner takes the bytes")
 	Do $$$AssertEquals(..Uploads(a), 0, "which leaves no row")
 	Kill ^OcuTalonTest("DocumentsProbe")
@@ -300,6 +305,100 @@ Method TestUploadRows()
 	Set body = ..Call("Remove", a, , .response, doc)
 	Do $$$AssertEquals(response.Status_"|"_..Uploads(a), "200 OK|0", "a remove stores nothing")
 	Do ##class(OcuTalon.Data.Upload).DropSession(a)
+}
+
+/// With the owner running, a refused add writes no Upload row (an accepted one would) and submits nothing.
+Method TestRefusedAddsStoreNothing()
+{
+	Set a = ..Session("a")
+	Do ##class(OcuTalon.Data.Upload).DropSession(a)
+	Set limit = ##class(OcuTalon.Web.Documents).#FILEMAX
+	Set max = ##class(OcuTalon.Web.Documents).#BODYMAX
+	Do $$$AssertEquals($Get(^OcuTalonTest("DocumentsProbe", "owner")), "", "the owner item is running (the probe's default)")
+	Set b64 = "aGVsbG8="
+	Set texts = $ListBuild("photo.png", "noextension", "old.doc")
+	For i = 1:1:$ListLength(texts) {
+		Set body = ..Call("Add", a, {"name": ($List(texts, i)), "content": (b64)}.%ToJSON(), .response)
+		Do $$$AssertEquals(response.Status, "400 Bad Request", $List(texts, i)_" is 400 wrong_type")
+		Do ..AssertNothingStored(a, $List(texts, i)_" (wrong_type)")
+	}
+	For name = "empty.md", "empty.pdf" {
+		Set body = ..Call("Add", a, {"name": (name), "content": ""}.%ToJSON(), .response)
+		Do $$$AssertEquals(response.Status, "400 Bad Request", name_" is 400 empty")
+		Do ..AssertNothingStored(a, name_" (empty)")
+	}
+	For json = "not json", "[]", "{}", "{""name"":""a.md""}", "{""name"":5,""content"":""aGVsbG8=""}", "{""name"":""a.md"",""content"":""!!!not base64!!!""}" {
+		Set body = ..Call("Add", a, json, .response)
+		Do $$$AssertEquals(response.Status, "400 Bad Request", "malformed body '"_json_"' is 400")
+		Do ..AssertNothingStored(a, "malformed body '"_json_"'")
+	}
+	For name = "over.md", "over.txt", "over.pdf", "over.docx" {
+		Set body = ..CallStream("Add", a, ..Body(name, limit + 1), .response)
+		Do $$$AssertEquals(response.Status, "400 Bad Request", name_" of 10,485,761 bytes is 400 too_large")
+		Do ..AssertNothingStored(a, name_" (too_large)")
+	}
+	Set body = ..CallStream("Add", a, ..Body("bound.md", 5, max + 1), .response)
+	Do $$$AssertEquals(response.Status, "413 Content Too Large", "a body of BODYMAX plus one byte is 413 at the route")
+	Do ..AssertNothingStored(a, "the route's 413")
+	// OnPreDispatch refuses an over-bound body before the route: the class that holds the Map and the forwarded class.
+	Set savedApi = $Get(^OcuTalonTest("ApiProbe", "roles"))
+	Set hadApi = $Data(^OcuTalonTest("ApiProbe", "roles"))
+	Set role = "%DB_OCUTALON," _ ##class(OcuTalon.Web.Public.Shell).#ROLE
+	Set ^OcuTalonTest("ApiProbe", "roles") = role
+	Set ^OcuTalonTest("DocumentsProbe", "roles") = role
+	For case = $ListBuild("OcuTalon.Test.Web.ApiProbe", "/v1/documents"), $ListBuild(..#PROBE, "") {
+		Set written = ..SizedDispatch($List(case, 1), $List(case, 2), "POST", max + 1, .response, .continue)
+		Do $$$AssertEquals(response.Status _ "|" _ continue, "413 Content Too Large|0", $List(case, 1)_" refuses BODYMAX plus one byte: 413, and the dispatch stops before the route")
+	}
+	Kill ^OcuTalonTest("DocumentsProbe", "roles")
+	If hadApi Set ^OcuTalonTest("ApiProbe", "roles") = savedApi
+	If 'hadApi Kill ^OcuTalonTest("ApiProbe", "roles")
+	// The same owner and session do store a row for an accepted add (the owner keeps it), so the checks above can fail.
+	Set ^OcuTalonTest("DocumentsProbe", "keep") = 1
+	Set body = ..Call("Add", a, {"name": "fine.md", "content": (b64)}.%ToJSON(), .response)
+	Do $$$AssertEquals(response.Status, "200 OK", "an accepted add is 200: "_body)
+	Do $$$AssertEquals(..Uploads(a)_"|"_..Submits(), "1|1", "and stores exactly one row and submits once")
+	Do ##class(OcuTalon.Data.Upload).DropSession(a)
+}
+
+/// Every route call deletes the uploads over an hour old, whoever owns them, with the sweep's clock set to 2001-01-01T01:00:01Z: a row made at
+/// 00:00:00 is gone, one made at 00:00:01 (exactly an hour old) and a row made now stay. The route's answer is the one it gives anyway.
+Method TestSweepOnEveryRoute()
+{
+	Set a = ..Session("a")
+	Set owner = "ZzSweep"_..Number
+	Set ..Sessions = ..Sessions_","_owner
+	Set ^OcuTalonTest("DocumentsProbe", "now") = "2001-01-01T01:00:01Z"
+	Set b64 = "aGVsbG8="
+	Set fresh = ..PlantUpload(owner, "")
+	Set boundary = ..PlantUpload(owner, "2001-01-01T00:00:01Z")
+	Set old = ..PlantUpload(owner, "2001-01-01T00:00:00Z")
+	Do $$$AssertTrue((fresh '= "") && (boundary '= "") && (old '= ""), "three uploads of another session are stored")
+	Set body = ..Call("List", a, , .response)
+	Do $$$AssertEquals(response.Status, "200 OK", "the list is answered as before")
+	Do ..AssertSwept(owner, old, boundary, fresh, "the list")
+	Set old = ..PlantUpload(owner, "2001-01-01T00:00:00Z")
+	Set body = ..Call("Add", a, {"name": "photo.png", "content": (b64)}.%ToJSON(), .response)
+	Do $$$AssertEquals(response.Status, "400 Bad Request", "a refused add is answered as before")
+	Do ..AssertSwept(owner, old, boundary, fresh, "a refused add")
+	Set old = ..PlantUpload(owner, "2001-01-01T00:00:00Z")
+	Set body = ..Call("Add", a, {"name": "fine.md", "content": (b64)}.%ToJSON(), .response)
+	Do $$$AssertEquals(response.Status, "200 OK", "an accepted add is answered as before: "_body)
+	Do ..AssertSwept(owner, old, boundary, fresh, "an accepted add")
+	Set old = ..PlantUpload(owner, "2001-01-01T00:00:00Z")
+	Set doc = ##class(OcuTalon.Test.Data.Fixture).Document(a, "zz sweep.md")
+	Set body = ..Call("Remove", a, , .response, doc)
+	Do $$$AssertEquals(response.Status, "200 OK", "a remove is answered as before")
+	Do ..AssertSwept(owner, old, boundary, fresh, "a remove")
+	// A sweep that fails (an unreadable clock, or a thrown error) changes nothing and does not fail the call.
+	Set old = ..PlantUpload(owner, "2001-01-01T00:00:00Z")
+	For clock = "not a time", "throw" {
+		Set ^OcuTalonTest("DocumentsProbe", "now") = clock
+		Set body = ..Call("List", a, , .response)
+		Do $$$AssertEquals(response.Status _ "|" _ ##class(OcuTalon.Data.Upload).RefIndexExists(old), "200 OK|1", "a failed sweep ('"_clock_"') leaves the rows and the list is still answered")
+	}
+	Kill ^OcuTalonTest("DocumentsProbe")
+	Do ##class(OcuTalon.Data.Upload).DropSession(owner)
 }
 
 /// A body of BODYMAX bytes is read; one byte more is refused 413 before parsing.
@@ -671,6 +770,33 @@ Method SizedDispatch(class As %String, url As %String, method As %String, bytes 
 	Do $$$AssertStatusOK(sc, "OnPreDispatch returns OK")
 	Set response = %response
 	Quit written
+}
+
+/// The upload rows of the session are 0 and no command was submitted.
+Method AssertNothingStored(session As %String, label As %String) [ Private ]
+{
+	Do $$$AssertEquals(..Uploads(session)_"|"_..Submits(), "0|0", label_": no Upload row and nothing submitted")
+}
+
+/// An upload of the session with that CreatedAt ("" keeps the time it was made at); returns its Ref, or "" when it could not be stored.
+Method PlantUpload(session As %String, createdAt As %String) As %String [ Private ]
+{
+	Set bytes = ##class(%Stream.TmpBinary).%New()
+	Do bytes.Write("zz")
+	Do bytes.Rewind()
+	Set ref = ##class(OcuTalon.Data.Upload).Put(session, bytes, .sc)
+	If (ref = "") || (createdAt = "") Quit ref
+	Set row = ##class(OcuTalon.Data.Upload).RefIndexOpen(ref)
+	Set row.CreatedAt = createdAt
+	If $SYSTEM.Status.IsError(row.%Save()) Quit ""
+	Quit ref
+}
+
+/// After a route call the over-the-hour upload is gone and the one exactly an hour old and the fresh one are still there.
+Method AssertSwept(session As %String, old As %String, boundary As %String, fresh As %String, label As %String) [ Private ]
+{
+	Set exists = ##class(OcuTalon.Data.Upload).RefIndexExists(old)_##class(OcuTalon.Data.Upload).RefIndexExists(boundary)_##class(OcuTalon.Data.Upload).RefIndexExists(fresh)
+	Do $$$AssertEquals(exists, "011", label_": the upload over the hour is gone, the one exactly an hour old and the fresh one stay")
 }
 
 /// The number of Upload rows of the session.

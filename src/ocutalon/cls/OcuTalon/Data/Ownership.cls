@@ -40,6 +40,8 @@
 ///     turn, and RecentNotices includes the allowance cards.
 ///   - The Documents page's reads (Story 34.2) are Rows kinds too: Documents, the session's own documents (and on a local install those of
 ///     owner instance, which every user shares), newest first, and Document, one by its Ref; a document the session can't see answers "".
+///   - Upload (Story 34.3) is the session's own upload by its Ref, a Rows kind too; Data.Upload's Take and Drop read through it, and an upload of
+///     another session answers "", exactly as for a missing one.
 ///   - FinishedToolCalls (Story 31.2) is the session's own tool_call approval requests that finished in a window of FinishedAt, oldest
 ///     first: Conversation's code-written note to the next turn reads it (AD-30). It is a Rows kind like the others.
 Class OcuTalon.Data.Ownership
@@ -285,6 +287,17 @@ ClassMethod Checks(sessionRef As %String, Output sc As %Status) As %ListOfObject
 ClassMethod Documents(sessionRef As %String, Output sc As %Status) As %ListOfObjects
 {
 	Quit ..Rows("documents", sessionRef, .sc, ..LocalFlag())
+}
+
+/// The upload with this Ref when it is the session's own, otherwise "": an upload of another session answers like a missing one. Ref and
+/// SessionRef compare exactly (EXACT collation). ref may come from a command or request input; it is only ever a bound value.
+ClassMethod Upload(ref As %String, sessionRef As %String, Output sc As %Status) As OcuTalon.Data.Upload
+{
+	Set sc = $SYSTEM.Status.OK()
+	If ref = "" Quit ""
+	Set rows = ..Rows("upload", sessionRef, .sc, ref)
+	If rows.Count() = 0 Quit ""
+	Quit rows.GetAt(1)
 }
 
 /// The document with this Ref when the session can see it (its own, or on a local install one of owner instance), otherwise "": a
@@ -884,6 +897,10 @@ ClassMethod Statement(kind As %String, Output class As %String, Output binds As 
 	If kind = "document" {
 		Set class = "OcuTalon.Data.Document", binds = "aoa"
 		Quit "SELECT d.ID FROM OcuTalon_Data.Document d WHERE d.Ref = ? AND (d.OwnerRef = ? OR (? = 1 AND d.OwnerRef = 'instance'))"
+	}
+	If kind = "upload" {
+		Set class = "OcuTalon.Data.Upload", binds = "ao"
+		Quit "SELECT u.ID FROM OcuTalon_Data.Upload u WHERE u.Ref = ? AND u.SessionRef = ?"
 	}
 	Quit ""
 }

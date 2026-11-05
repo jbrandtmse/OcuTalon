@@ -16,6 +16,8 @@
 ///   - DELETE /v1/documents/:ref answers 404 not_found first for a ref the session can't see (Ownership.Document), nothing submitted;
 ///     otherwise it submits one RemoveDocument with origin web_user: Ok is 200 {"result":"done"}, not_found 404, not_built 501, any
 ///     other outcome or status 500.
+/// Every call of the three routes first sweeps the uploads that nobody took and that are more than an hour old (Upload.Purge, with no SQL);
+/// a failed sweep never fails the call.
 /// No call takes a SessionRef from the client, and the routes publish nothing: DocumentOps is the one publisher of the document event (AD-33).
 Class OcuTalon.Web.Documents Extends OcuTalon.Web.Api
 {
@@ -69,6 +71,7 @@ XData BodyBounds [ MimeType = application/json ]
 /// GET /v1/documents: the session's documents, newest first.
 ClassMethod List() As %Status
 {
+	Do ..Sweep()
 	Set sessionRef = ##class(OcuTalon.Data.Ownership).SessionRef(.sc)
 	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
 	Set rows = ##class(OcuTalon.Data.Ownership).Documents(sessionRef, .sc)
@@ -89,6 +92,7 @@ ClassMethod List() As %Status
 /// POST /v1/documents: see the class description.
 ClassMethod Add() As %Status
 {
+	Do ..Sweep()
 	Set content = %request.Content
 	If $IsObject(content) && (content.Size > ..#BODYMAX) Quit ..BodyTooLarge()
 	Set sessionRef = ##class(OcuTalon.Data.Ownership).SessionRef(.sc)
@@ -117,6 +121,7 @@ ClassMethod Add() As %Status
 /// DELETE /v1/documents/:ref: see the class description.
 ClassMethod Remove(ref As %String) As %Status
 {
+	Do ..Sweep()
 	Set sessionRef = ##class(OcuTalon.Data.Ownership).SessionRef(.sc)
 	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
 	Set row = ##class(OcuTalon.Data.Ownership).Document(ref, sessionRef, .sc)
@@ -167,8 +172,24 @@ ClassMethod Dispatch(command As OcuTalon.Msg.Command, Output result As OcuTalon.
 	} Catch exception {
 		Set sc = exception.AsStatus()
 	}
-	If (upload '= "") && ($SYSTEM.Status.IsError(sc) || '$IsObject(result) || 'result.Ok) Do ##class(OcuTalon.Data.Upload).Drop(upload)
+	If (upload '= "") && ($SYSTEM.Status.IsError(sc) || '$IsObject(result) || 'result.Ok) Do ##class(OcuTalon.Data.Upload).Drop(upload, command.SessionRef)
 	Quit sc
+}
+
+/// Deletes the uploads that nobody took within the hour (Upload.Purge); the status is ignored, because the sweep is housekeeping and a failed
+/// one must not fail the call.
+ClassMethod Sweep() [ Private ]
+{
+	Try {
+		Do ##class(OcuTalon.Data.Upload).Purge(0, ..SweepNow())
+	} Catch {
+	}
+}
+
+/// The time the sweep measures its hour from: "" is the current time (a test subclass overrides it).
+ClassMethod SweepNow() As %String [ Private ]
+{
+	Quit ""
 }
 
 /// 1 when the owner item is enabled in the running production (a test subclass overrides it).

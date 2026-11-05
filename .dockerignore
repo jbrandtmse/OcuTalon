@@ -9,4 +9,6 @@
 !docker/ipm/LICENSE
 !docker/licences/allowed.txt
 !docker/licences/gate.py
+!docker/licences/constraints-arm64.txt
+!docker/licences/constraints-x64.txt
 !src

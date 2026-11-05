@@ -1,8 +1,12 @@
 #!/usr/bin/env python3
 """The licence gate and the notices of the Docker image's Python packages (Story 34.2; AD-23).
 
-  gate.py check <dir>              list every distribution installed in <dir> (a pip --target folder) with its licence, and exit 1
-                                   when one is outside the allowed set of allowed.txt, or when <dir> holds no distribution
+  gate.py check <dir> [<constraints>]
+                                   list every distribution installed in <dir> (a pip --target folder) with its licence, and exit 1
+                                   when one is outside the allowed set of allowed.txt, or when <dir> holds no distribution; with a
+                                   constraints file (name==version lines, as pip -c reads them) it also exits 1 for an installed
+                                   distribution that the file does not name or names at another version, and for a pin of the file
+                                   that is not installed (Story 34.3, DW-738)
   gate.py notices <dir> <file>     write <file>: the licence texts and credits of every distribution in <dir>
 
 The allowed set lives in allowed.txt beside this script (its format is described there). ASCII only; Python 3 standard library only.
@@ -221,7 +225,44 @@ def distributions(target):
     return sorted(found, key=lambda item: item[0].lower())
 
 
-def check(target, rules):
+def canonical(name):
+    return re.sub(r"[-_.]+", "-", name).lower()
+
+
+def load_constraints(path):
+    """{canonical name: (name, version)} of a constraints file: one name==version per line, # comments and blank lines skipped.
+    Raises SystemExit for any other line or a name pinned twice."""
+    pins = {}
+    for number, line in enumerate(read(path).splitlines(), 1):
+        line = line.strip()
+        if not line or line.startswith("#"):
+            continue
+        match = re.match(r"^([A-Za-z0-9][A-Za-z0-9._-]*)==([A-Za-z0-9][A-Za-z0-9._+!-]*)$", line)
+        if not match or canonical(match.group(1)) in pins:
+            raise SystemExit("licence gate: %s:%d is not a name==version pin, or its name is pinned twice" % (path, number))
+        pins[canonical(match.group(1))] = (match.group(1), match.group(2))
+    return pins
+
+
+def constraint_failures(dists, pins):
+    """The lines that tell how the installed distributions differ from the pins: an installed one that is not pinned or at another
+    version, and a pin that is not installed."""
+    lines = []
+    seen = set()
+    for name, version, _, _ in dists:
+        key = canonical(name)
+        seen.add(key)
+        if key not in pins:
+            lines.append("FAIL constraints: %s %s is installed but not pinned" % (name, version))
+        elif pins[key][1] != version:
+            lines.append("FAIL constraints: %s is installed at %s but pinned at %s" % (name, version, pins[key][1]))
+    for key in sorted(pins):
+        if key not in seen:
+            lines.append("FAIL constraints: %s==%s is pinned but not installed" % pins[key])
+    return lines
+
+
+def check(target, rules, constraints=None):
     dists = distributions(target)
     if not dists:
         print("FAIL licence gate: %s holds no installed distribution" % target)
@@ -246,8 +287,18 @@ def check(target, rules):
         print("%s %s %s | declared: %s | by %s" % ("OK  " if verdict == "ok" else "FAIL", name, version, declared or "(nothing)", via))
         if verdict != "ok":
             failures += 1
+    differences = []
+    if constraints is not None:
+        differences = constraint_failures(dists, load_constraints(constraints))
+        for line in differences:
+            print(line)
+        if differences:
+            print("FAIL licence gate: the installed set differs from %s in %d places" % (os.path.basename(constraints), len(differences)))
+        else:
+            print("licence gate: the installed set equals %s" % os.path.basename(constraints))
     if failures:
         print("FAIL licence gate: %d of %d distributions are outside the allowed licences (docker/licences/allowed.txt)" % (failures, len(dists)))
+    if failures or differences:
         return 1
     print("licence gate: all %d distributions are under an allowed licence" % len(dists))
     return 0
@@ -286,8 +337,8 @@ def notices(target, out, rules):
 
 def main(argv):
     rules = load_allowed(os.environ.get("OCUTALON_LICENCES_ALLOWED", os.path.join(HERE, "allowed.txt")))
-    if len(argv) == 3 and argv[1] == "check":
-        return check(argv[2], rules)
+    if len(argv) in (3, 4) and argv[1] == "check":
+        return check(argv[2], rules, argv[3] if len(argv) == 4 else None)
     if len(argv) == 4 and argv[1] == "notices":
         return notices(argv[2], argv[3], rules)
     print(__doc__)
