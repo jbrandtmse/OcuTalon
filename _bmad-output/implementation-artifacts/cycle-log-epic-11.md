@@ -548,3 +548,6 @@
 2026-11-05T16:07:12Z	Story 11.23	stage_spawned	stage=plan spawn_at=2026-11-05T16:07:12Z model=claude-opus agent_name=11-23-install-sh-accepts-build-109-plan-1 cycle_iteration=1 ledger_inbox=DW-636
 2026-11-05T16:18:09Z	Story 11.23	story_created	spawn_at=2026-11-05T16:07:12Z model=claude-opus path=_bmad-output/implementation-artifacts/spec-11-23-install-sh-accepts-build-109.md build_status=ready-for-dev epic_context=reused(fresh) measured=build_109_loaded_locally(arm64);install.sh_scan_images_accepts_2_refs_today subagent_tokens=257727 duration_min=10
 2026-11-05T16:18:09Z	Story 11.23	plan_clarification_requested	to=orchestrator items=PUBLIC_TEXT(README_P1-P9,install.sh_B1-B4),AD-23_Rule_wording(adds_the_109_ref;veto_window) note=implement_waits_for_the_approved_text
+2026-11-05T16:19:32Z	Epic 11	decision	by=orchestrator(U7) what=AD-23_retag_sentence_amended(adds_irishealth-community:2027.1.0AI.109.0;build_154_before_109) scope=that_sentence_only
+2026-11-05T16:19:32Z	Epic 11	spine_updated	ad=AD-23 reason=clarification by=runner story=11-23-install-sh-accepts-build-109 lint=unchanged(8_pre-existing_low_placeholders)
+2026-11-05T16:19:32Z	Epic 11	ci_wait	note=feature_62a7e675_has_no_CI_run_registered_yet(missing=ci.yml,lane-a.yml);integrate_forward_after_it_is_green
