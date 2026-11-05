@@ -7,7 +7,7 @@
 //   banned   none of the patterns UX-DR129 bans appears (toasts, sounds, drag and drop, progress bars, intersection observers,
 //            self-switching tabs, native dialogs and alerts, celebrations, modal notifications, controls that exist only on hover);
 //   bands    every width @media of the page is one of the four queries of layout-view.ts, and Layout reads matchMedia with them only
-//            (Story 2.15); the one height query of layout-view.ts (the demo guide's compact row, Story 4.4) is not a width band;
+//            (Story 2.15); the one height query of layout-view.ts (the demo guide's compact row, Story 4.4, and the approval card's short-screen arrangement, Story 7.8) is not a width band;
 //   sticky   nothing is sticky but the compact header below 1024px, and nothing fixed but the skip links (Story 2.15).
 // The browser cases K1 to K6, W1 to W4 and G1 to G7 (web/e2e/floor/) pin what the running page does in the states they reach; this reads all the
 // sources, so a state no case reaches cannot bring one of these back without a test turning red. Each list below names the files that
@@ -459,7 +459,7 @@ describe('the width bands (Story 2.15)', () => {
       [],
     );
     const used = files.filter((one) => /^app\/.*\.ts$/.test(one.name) && /\$\{HEIGHT_QUERIES\./.test(one.code)).map((one) => one.name);
-    assert.deepEqual(used, ['app/guide/demo-guide.ts']);
+    assert.deepEqual(used, ['app/approvals/approval-request-card.ts', 'app/guide/demo-guide.ts']);
   });
 
   it('has only the four queries of layout-view.ts as the width condition of an @media in app/ and styles/', () => {

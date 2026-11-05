@@ -3,11 +3,12 @@
 /// Each test runs with a ReplyCheck begun (OcuTalon.Bridge.ReplyCheck, as Decide begins it) for a diagnose request whose input is an evidence pack with the sample
 /// body of an order (OrderNumber, OrderDate 10/16/2026, Sku, Quantity), so that the fix kind can check the usable reply's field and formats (Story 7.1); OnAfterOneTest ends it.
 ///   - TestPayloadAccepted (row Payload check): a usable data-format reply with its fix and noun, a usable partner_outage without a fix or a noun, an
-///     unknown, and a connection_failure whose cause names an address with a port (10.0.0.5:1972, no time of day), are accepted and keep their values;
+///     unknown, and a connection_failure whose cause names an address with a port (10.0.0.5:1972, no time of day), are accepted and keep their values; so is a
+///     data-format diagnosis with no fix at all (no fixKind, fixParameters or fixSummary, or those empty: a reply that cannot tell which way a date reads, Story 7.7);
 ///   - TestPayloadRefused (row Payload check): outcome tellnow, an unlisted category, a fixKind on partner_outage, a data-format change without fixKind,
 ///     fixSummary, fixParameters.field or elementAtFault, a blank cause, a noun with a blank form, an unknown field, a confidence of 2, no reasons, more than 20
 ///     evidence references, a fixSummary on partner_outage and a cause that holds "since 14:12" (or a fixSummary that holds a time) are refused, each with an
-///     error that names the reply check;
+///     error that names the reply check; so is a fix-less data-format diagnosis without its elementAtFault, and one with only one of the three fix fields;
 ///   - TestHostReplies (rows Host reply 11:45:50Z and 12:01:54Z): the two recorded replies of the online demo host, whose evidence references are longer than 32
 ///     characters (42 and 33), go through Decide.Conclude with DiagnosisPayload and the production's filter ReplyGuard and give no fallback, and the answer's payload holds
 ///     the evidence, cause, category, element, fix kind, fix parameters, fix summary and noun of the reply;
@@ -127,6 +128,16 @@ Method TestPayloadAccepted()
 	Set sc = ..Check(..Outage(), .payload)
 	Do $$$AssertStatusOK(sc, "a usable partner_outage with no fix and no noun is accepted")
 	If $IsObject(payload) Do $$$AssertEquals(payload.FixKind_"|"_$IsObject(payload.FixParameters)_"|"_$IsObject(payload.ItemNoun), "|0|0", "it has no fix kind, no parameters and no noun")
+	Set fixless = ..Usable()
+	Do fixless.%Remove("fixKind")
+	Do fixless.%Remove("fixParameters")
+	Do fixless.%Remove("fixSummary")
+	Set sc = ..Check(fixless, .payload)
+	Do $$$AssertStatusOK(sc, "a data-format diagnosis with no fix kind, no parameters and no fix summary is accepted")
+	If $IsObject(payload) Do $$$AssertEquals(payload.CauseCategory_"|"_payload.ElementAtFault_"|"_payload.FixKind_"|"_$IsObject(payload.FixParameters)_"|"_payload.FixSummary, "data_format_change|OrderDate||0|", "and keeps its category and element, with no fix")
+	Set fixless.fixSummary = ""
+	Set fixless.fixKind = ""
+	Do $$$AssertStatusOK(..Check(fixless), "also when the fix fields are empty")
 	Set unknown = {"outcome": "act", "causeCategory": "unknown", "cause": "The messages show no one cause.", "reasons": ["Nothing links them."], "confidence": 0.2}
 	Do $$$AssertStatusOK(..Check(unknown), "an unknown diagnosis is accepted")
 	Set connection = {"outcome": "act", "causeCategory": "connection_failure", "cause": "The partner at 10.0.0.5:1972 refused the connection.", "reasons": ["The error names the address."], "confidence": 0.8}
@@ -161,6 +172,19 @@ Method TestPayloadRefused()
 	Set reply = ..Usable()
 	Set reply.fixParameters.field = ""
 	Do ..AssertRefused(reply, "a data-format change without fixParameters.field")
+	Set reply = ..Usable()
+	Do reply.%Remove("fixKind")
+	Do reply.%Remove("fixParameters")
+	Do reply.%Remove("fixSummary")
+	Do reply.%Remove("elementAtFault")
+	Do ..AssertRefused(reply, "a data-format change with no fix and no elementAtFault")
+	For name = "fixKind", "fixParameters", "fixSummary" {
+		Set reply = ..Usable()
+		For other = "fixKind", "fixParameters", "fixSummary" {
+			If other '= name Do reply.%Remove(other)
+		}
+		Do ..AssertRefused(reply, "a data-format change with only "_name_" of the fix fields")
+	}
 	Set reply = ..Usable()
 	Set reply.cause = "  "
 	Do ..AssertRefused(reply, "a blank cause")

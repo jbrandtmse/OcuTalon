@@ -174,13 +174,26 @@ describe('an answer from elsewhere', () => {
 
 describe('the texts', () => {
   it('prints every text by interpolation: the label, action, fixed-targets line, dry run, status, expiry and notice', () => {
-    const order = ['view().label', 'view().action', 'view().fixedTargets', 'texts.dryRun', 'dry.countLine', 'dry.before', 'dry.after', 'dry.resendLine', 'dry.nothingYet', 'texts.approve', 'texts.reject', 'status.text', 'showDetails', 'view().expiry', 'notice()'];
+    const order = ['view().label', 'view().action', 'view().fixedTargets', 'texts.dryRun', 'dry.countLine', 'dry.before', 'dry.after', 'dry.eitherWay', 'dry.resendLine', 'dry.nothingYet', 'texts.approve', 'texts.reject', 'status.text', 'showDetails', 'view().expiry', 'notice()'];
     let last = -1;
     for (const name of order) {
       const at = template.indexOf(`{{ ${name} }}`);
       assert.ok(at > last, `{{ ${name} }} is printed, below the one before`);
       last = at;
     }
+  });
+
+  it('prints the either-way row (Story 7.8) as its own element between After and Will resend, never as the dry-note, and types none of its words on the page', () => {
+    assert.match(template, /@if \(dry\.eitherWay\) \{\s*<div class="dry-either">\{\{ dry\.eitherWay \}\}<\/div>\s*\}/);
+    assert.ok(!/class="dry-note"[^>]*>\{\{ dry\.eitherWay/.test(template), 'not in the dry-note');
+    assert.equal(template.match(/class="dry-note"/g).length, 1, 'the dry-note is still the one element of the note');
+    assert.ok(template.indexOf('{{ dry.eitherWay }}') < template.indexOf('{{ texts.willResend }}'), 'before Will resend');
+    assert.ok(template.indexOf('{{ dry.eitherWay }}') > template.indexOf('{{ texts.after }}'), 'after After');
+    assert.ok(!/<span class="dry-key">[^<]*dry\.eitherWay/.test(template), 'with no label');
+    for (const one of files) {
+      assert.doesNotMatch(one.code, /valid whether read|they match the day/i, `${one.name} holds none of the line's words`);
+    }
+    assert.match(view.code, /ctx\.render\('incident\.eitherWayLine'/);
   });
 
   it('binds no markup: not as innerHTML, outerHTML, a bypass or a sanitizer', () => {
