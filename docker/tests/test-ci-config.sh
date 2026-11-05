@@ -13,7 +13,9 @@
 #   - fork-guard: every self-hosted job carries the job-level guard that keeps a fork's pull request off the IRIS runner;
 #   - secrets: no secrets reference (a run block, any case, a bracket or the whole context, as in toJSON(secrets), included), and
 #     github.token only as GH_TOKEN (the whole github context, which holds the token, counts as a use of it);
-#   - image-actions: no docker/* action and no actions/cache anywhere, and no upload-artifact in a self-hosted job;
+#   - image-actions: no docker/* action and no actions/cache anywhere, and no upload-artifact in a self-hosted job except the one that keeps
+#     a failed browser unit's Playwright results (Story 11.22): its `if:` starts with failure() and holds no always() or ||, its `path` is
+#     web/test-results or below it, and its `retention-days` is 1 to 7;
 #   - teardown: every job that runs ci/iris.sh has a step with `if: always()` that runs ci/iris.sh teardown after the steps that
 #     run it;
 #   - matrix: the group list of ci.yml is `ci/iris.sh groups` (a matrix that is missing or not a flow list fails);
@@ -229,10 +231,14 @@ kind == "step:uses" {
   else { sha = text; sub(/^[^@]*@/, "", sha); sub(/ .*$/, "", sha); if (length(sha) != 40) bad(ln, "pins") }
   action = tolower(text); sub(/@.*$/, "", action)
   if (action ~ /^docker\// || action ~ /^actions\/cache($|\/)/) bad(ln, "image-actions")
-  if (action ~ /upload-artifact$/) { uploads[job] = uploads[job] " " ln }
+  if (action ~ /upload-artifact$/) { upl[job SUBSEP st] = ln }
   if (action == "actions/checkout") { checkout[job, st] = ln }
 }
-kind == "step:with" { if (text == "persist-credentials: false") persist[job, st] = 1 }
+kind == "step:with" {
+  if (text == "persist-credentials: false") persist[job, st] = 1
+  if (text ~ /^path: /) { withpath[job, st] = text; sub(/^path: /, "", withpath[job, st]) }
+  if (text ~ /^retention-days: /) { withret[job, st] = text; sub(/^retention-days: /, "", withret[job, st]) }
+}
 kind == "step:if" { stepif[job, st] = text }
 kind == "step:run" || kind == "step:runline" {
   runtext[job, st] = runtext[job, st] " " text
@@ -253,8 +259,16 @@ END {
     if (!(j in runsline)) bad(jobs[j], "runners")
     if (j in selfhosted) {
       if (jobif[j] != guard) bad(jobs[j], "fork-guard")
-      n = split(uploads[j], u, " ")
-      for (i = 1; i <= n; i++) bad(u[i], "image-actions")
+      for (key in upl) {
+        split(key, kk, SUBSEP)
+        if (kk[1] != j) continue
+        # The one upload a self-hosted job may make: the Playwright results of a failure, kept for at most 7 days.
+        s2 = stepif[j, kk[2]]; p2 = withpath[j, kk[2]]; r2 = withret[j, kk[2]]
+        good = (index(s2, "failure()") == 1 && index(s2, "always()") == 0 && index(s2, "||") == 0 && index(s2, "cancelled()") == 0)
+        good = good && (p2 ~ /^web\/test-results(\/[A-Za-z0-9_.\/-]*)?$/ && index(p2, "..") == 0)
+        good = good && (r2 ~ /^[1-7]$/)
+        if (!good) bad(upl[key], "image-actions")
+      }
     }
     if ((j in hosted) && jobif[j] != "") bad(jobs[j], "never-skipped")
     if (j in jobblock && !(j in jobcontents)) bad(jobs[j], "permissions")
@@ -398,6 +412,34 @@ insert_after image-upload "      - name: Run" "        uses: actions/upload-arti
 insert_after image-docker-upper "      - name: Run" "        uses: Docker/Login-Action@$sha # v3.0.0"
 insert_after image-cache-upper "      - name: Run" "        uses: Actions/Cache@$sha # v4.0.0"
 insert_after image-upload-upper "      - name: Run" "        uses: Actions/Upload-Artifact@$sha # v4.0.0"
+# upload_sample <name> <if line or empty> <path> <retention line or empty> [<uses>]: good.yml with a step that uploads an artifact before Tear down.
+upload_sample() {
+  local uses=${5:-actions/upload-artifact@$sha # v7.0.2}
+  awk -v cond="$2" -v path="$3" -v ret="$4" -v uses="$uses" '
+    $0 == "      - name: Tear down" {
+      print "      - name: Keep the results"
+      if (cond != "") print "        if: " cond
+      print "        uses: " uses
+      print "        with:"
+      print "          name: playwright-results"
+      print "          path: " path
+      if (ret != "") print "          retention-days: " ret
+    }
+    { print }' "$samples/good.yml" > "$samples/$1.yml"
+}
+upload_sample upload-good "failure() && steps.changes.outputs.run != 'false'" "web/test-results/" "3"
+upload_sample upload-good-bare "failure()" "web/test-results" "7"
+upload_sample image-upload-no-if "" "web/test-results/" "3"
+upload_sample image-upload-always "always()" "web/test-results/" "3"
+upload_sample image-upload-always-or "failure() || always()" "web/test-results/" "3"
+upload_sample image-upload-or-success "failure() || success()" "web/test-results/" "3"
+upload_sample image-upload-success "success()" "web/test-results/" "3"
+upload_sample image-upload-path "failure()" "web/dist/" "3"
+upload_sample image-upload-path-up "failure()" "web/test-results/../.." "3"
+upload_sample image-upload-path-prefix "failure()" "web/test-results-all" "3"
+upload_sample image-upload-no-retention "failure()" "web/test-results/" ""
+upload_sample image-upload-retention-30 "failure()" "web/test-results/" "30"
+upload_sample image-upload-retention-0 "failure()" "web/test-results/" "0"
 make_bad skip-hosted-job '$0 == "  hosted:" { print; print "    if: github.event_name == '"'"'push'"'"'"; next } { print }'
 make_bad skip-macos-job '$0 == "    runs-on: ubuntu-24.04" { print "    runs-on: macos-15"; print "    if: github.event_name == '"'"'push'"'"'"; next } { print }'
 make_bad coe-job '$0 == "    runs-on: ubuntu-24.04" { print; print "    continue-on-error: true"; next } { print }'
@@ -464,8 +506,19 @@ rule persist-credentials "every checkout sets persist-credentials: false" persis
 rule runners "ubuntu-24.04, macos-15 or [self-hosted, ocutalon]" runner-latest runner-macos-latest runner-macos-14 runner-label
 rule fork-guard "every self-hosted job keeps a fork's pull request off the IRIS runner" fork-guard-missing fork-guard-weak
 rule secrets "no secrets reference (a run block, any case, a bracket or the whole context included), and github.token only as GH_TOKEN" secret-ref token-other secret-block secret-bracket token-block secret-context token-context
-rule image-actions "no docker/* action, no actions/cache, and no upload-artifact in a self-hosted job, whatever the case of the name" \
-  image-docker image-cache image-cache-restore image-upload image-docker-upper image-cache-upper image-upload-upper
+rule image-actions "no docker/* action, no actions/cache, and no upload-artifact in a self-hosted job but a failure-only one of web/test-results kept 1 to 7 days" \
+  image-docker image-cache image-cache-restore image-upload image-docker-upper image-cache-upper image-upload-upper \
+  image-upload-no-if image-upload-always image-upload-always-or image-upload-or-success image-upload-success image-upload-path image-upload-path-up image-upload-path-prefix \
+  image-upload-no-retention image-upload-retention-30 image-upload-retention-0
+for good_upload in upload-good upload-good-bare; do
+  hits=$(wf_check "$samples/$good_upload.yml" "install production")
+  if [ -z "$hits" ]; then
+    echo "PASS image-actions: the sample $good_upload (a failure-only upload of web/test-results kept for days) is clean"
+  else
+    echo "FAIL image-actions: the sample $good_upload is flagged ($(printf '%s' "$hits" | tr '\t\n' ': '))"
+    fails=$((fails + 1))
+  fi
+done
 rule never-skipped "no hosted job (macOS included) has a job-level if, and no job or step ignores a failure with continue-on-error" skip-hosted-job skip-macos-job coe-job coe-step
 rule teardown "every job that runs ci/iris.sh has an if: always() step that runs ci/iris.sh teardown" teardown-no-always teardown-missing teardown-early
 rule matrix "the group list of ci.yml is ci/iris.sh groups" matrix-extra matrix-order matrix-block matrix-missing

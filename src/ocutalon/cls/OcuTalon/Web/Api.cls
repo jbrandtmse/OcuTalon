@@ -169,7 +169,7 @@ XData UrlMap [ XMLNamespace = "http://www.intersystems.com/urlmap" ]
 }
 
 /// Every request, before the route is matched: the role check first, then, for /v1/settings and below it, the admin check, then the browser
-/// envelope. A refusal writes its error and stops the dispatch.
+/// envelope, then the body size (Web.BodyLimit). A refusal writes its error and stops the dispatch.
 ClassMethod OnPreDispatch(url As %String, method As %String, ByRef continue As %Boolean) As %Status
 {
 	If '..HasUserRole() {
@@ -184,6 +184,10 @@ ClassMethod OnPreDispatch(url As %String, method As %String, ByRef continue As %
 	If code '= "" {
 		Set continue = 0
 		Quit ..Fail(403, code, ..EnvelopeMessage(code))
+	}
+	If ##class(OcuTalon.Web.BodyLimit).TooLarge($classname(), url, method) {
+		Set continue = 0
+		Quit ..Fail(##class(OcuTalon.Web.BodyLimit).#HTTP413CONTENTTOOLARGE, "body_too_large", ##class(OcuTalon.Web.BodyLimit).#MESSAGEBODYTOOLARGE)
 	}
 	Quit $SYSTEM.Status.OK()
 }

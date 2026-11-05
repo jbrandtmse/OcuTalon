@@ -2,6 +2,7 @@ import { createServer, type Server, type ServerResponse } from 'node:http';
 import type { AddressInfo } from 'node:net';
 
 import { STATE } from '../support/api';
+import { describeDiagnosis } from '../support/diagnose';
 import { loadedAfter } from '../support/floor';
 import { expect, test, type Browser, type Page } from '../support/fixtures';
 import { gotoSettled } from '../support/navigate';
@@ -196,4 +197,115 @@ test.describe('the helpers, in a project that sets no waits', () => {
       await context.close();
     }
   });
+});
+
+/**
+ * DW-550 (Story 11.22): when loadedAfter's snapshot GET passes its bound, diagnose.ts prints `DIAG /state` lines from one read of the stack's
+ * IRIS before the same named error is thrown; the read is best effort and its failure is one `DIAG /state unavailable` line. The session is
+ * the OCUTALON_E2E_IRIS_EXEC stand-in, a shell command that prints the CHK lines a real read would.
+ */
+test.describe('loadedAfter: the /state diagnosis', () => {
+  const SESSION_VARIABLES = ['OCUTALON_E2E_IRIS_EXEC', 'OCUTALON_E2E_IRIS_CONTAINER', 'OCUTALON_URL'] as const;
+  const saved: Partial<Record<(typeof SESSION_VARIABLES)[number], string>> = {};
+  const logged: string[] = [];
+  let log = console.log;
+  const failure = new RegExp(`^loadedAfter the snapshot GET ${STATE.replace(/\//g, '\\/')}: no answer within 5 s \\(capped by the test timeout: \\d+ s left, the own bound is 8 s\\)$`);
+
+  test.beforeEach(() => {
+    for (const name of SESSION_VARIABLES) {
+      saved[name] = process.env[name];
+      delete process.env[name];
+    }
+    logged.length = 0;
+    log = console.log;
+    console.log = (...args: unknown[]) => void logged.push(args.join(' '));
+  });
+
+  test.afterEach(() => {
+    console.log = log;
+    for (const name of SESSION_VARIABLES) {
+      const value = saved[name];
+      if (value === undefined) delete process.env[name];
+      else process.env[name] = value;
+    }
+  });
+
+  test('the dump runs, shows the licence, the CSP processes and the lock, and the error text is unchanged', async ({ browser }) => {
+    test.setTimeout(12_000);
+    process.env['OCUTALON_E2E_IRIS_EXEC'] =
+      "cat > /dev/null; printf '%s\\n' 'CHK|licence|LUAvailable=7|LUConsumed=1|KeyEnforcedUnits=8|CSPUsers=0|InstanceConnections=1' " +
+      "'CHK|csp|3248|EVTW|%SYS.cspServer3' 'CHK|lock|3222|X|1|uLFv' 'CHK|done|1'";
+    await withPage(browser, async (page) => {
+      await expect(loadedAfter(page, async () => void (await page.goto(`${origin}/`)))).rejects.toThrow(failure);
+    });
+    expect(logged).toEqual([
+      'DIAG /state licence: LUAvailable=7, LUConsumed=1, KeyEnforcedUnits=8, CSPUsers=0, InstanceConnections=1',
+      'DIAG /state csp process: pid=3248 state=EVTW routine=%SYS.cspServer3',
+      'DIAG /state session lock: held by pid 3222 (mode X, count 1) on session uLFv...',
+    ]);
+  });
+
+  test('a session with no lock says so', async ({ browser }) => {
+    test.setTimeout(12_000);
+    process.env['OCUTALON_E2E_IRIS_EXEC'] = "cat > /dev/null; printf '%s\\n' 'CHK|licence|LUAvailable=7|LUConsumed=1' 'CHK|done|1'";
+    await withPage(browser, async (page) => {
+      await expect(loadedAfter(page, async () => void (await page.goto(`${origin}/`)))).rejects.toThrow(failure);
+    });
+    expect(logged).toEqual(['DIAG /state licence: LUAvailable=7, LUConsumed=1', 'DIAG /state session lock: none held']);
+  });
+
+  test('a dump that cannot run prints one unavailable line, and the error text is unchanged', async ({ browser }) => {
+    test.setTimeout(12_000);
+    await withPage(browser, async (page) => {
+      await expect(loadedAfter(page, async () => void (await page.goto(`${origin}/`)))).rejects.toThrow(failure);
+    });
+    expect(logged).toHaveLength(1);
+    expect(logged[0]).toMatch(/^DIAG \/state unavailable: OCUTALON_URL must be set/);
+  });
+
+  test('a sign-in that never ends is not diagnosed: only a snapshot GET that passed its bound is', async ({ browser }) => {
+    test.setTimeout(12_000);
+    process.env['OCUTALON_E2E_IRIS_EXEC'] = "cat > /dev/null; printf '%s\\n' 'CHK|licence|LUAvailable=7' 'CHK|done|1'";
+    await withPage(browser, async (page) => {
+      await expect(loadedAfter(page, () => new Promise<void>(() => undefined))).rejects.toThrow(/^loadedAfter the sign-in: no answer within 5 s/);
+    });
+    expect(logged).toEqual([]);
+  });
+
+  test('a snapshot wait that fails for another reason than its bound is not diagnosed', async ({ browser }) => {
+    test.setTimeout(12_000);
+    process.env['OCUTALON_E2E_IRIS_EXEC'] = "cat > /dev/null; printf '%s\\n' 'CHK|licence|LUAvailable=7' 'CHK|done|1'";
+    await withPage(browser, async (page) => {
+      const closing = async (): Promise<void> => {
+        await page.goto(`${origin}/`);
+        await page.close();
+      };
+      await expect(loadedAfter(page, closing)).rejects.toThrow(/closed/i);
+    });
+    expect(logged).toEqual([]);
+  });
+
+  test('a read that the session refuses is named, and an unread lock is not reported as none held', async () => {
+    expect(describeDiagnosis(['CHK|licence|LUAvailable=7', 'CHK|error|lock|<PROTECT> no use of %SYS.LockQuery', 'CHK|done|1'])).toEqual([
+      'DIAG /state licence: LUAvailable=7',
+      'DIAG /state lock unavailable: <PROTECT> no use of %SYS.LockQuery',
+    ]);
+  });
+});
+
+/**
+ * Every case of this file that lets loadedAfter's snapshot GET pass its bound runs the /state diagnosis; outside the describe above, which
+ * sets a stand-in of its own, the diagnosis reads this stand-in, never the IRIS of a stack the unit may have started, so these cases stay
+ * hermetic and take no time of their own for the read.
+ */
+let execBefore: string | undefined;
+
+test.beforeEach(() => {
+  execBefore = process.env['OCUTALON_E2E_IRIS_EXEC'];
+  process.env['OCUTALON_E2E_IRIS_EXEC'] = "cat > /dev/null; printf '%s\\n' 'CHK|done|1'";
+});
+
+test.afterEach(() => {
+  if (execBefore === undefined) delete process.env['OCUTALON_E2E_IRIS_EXEC'];
+  else process.env['OCUTALON_E2E_IRIS_EXEC'] = execBefore;
 });
