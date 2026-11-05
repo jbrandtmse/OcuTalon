@@ -4,137 +4,55 @@
 
 ## Goal
 
-Step 2's Lane A feature epic. Once a day, and whenever the user asks, OcuTalon sends one short digest. It holds the vital signs, a coverage list in which every entry is passed, failed or not checked with a reason, what needs the user, what was saved for later, and the previous day's cost. Only code may give an all-clear. On the model side, an admin can run each agent on Anthropic, OpenAI, Gemini or Bedrock, set prices, budgets, a daily cost cap and the time zone through bridge APIs, and name a second model that `Decide` retries once before it falls back. Story 17.8 makes `Decide` the only code that moves a conversation's link, so a late, superseded or failed reply never changes what OcuTalon remembers of a chat. The epic builds on the names and stubs from Epic 33 (Story 33.1 is Lane A's contracts, Story 33.2 is Lane B's verbs and settings page). Story 17.1 moved to Story 33.1.
+Step 2's Lane A feature epic. Once a day, and whenever the user asks, OcuTalon sends one short digest: the vital signs, a coverage list in which every entry is passed, failed or not checked with a reason, what needs the user, what was saved for later, and the previous day's cost. Only code may give an all-clear. On the model side, an admin runs each agent on a provider from a fixed table, names a second model that `Decide` retries once before falling back, and sets prices, budgets, a daily cost cap and the time zone through bridge APIs that apply within a minute. The epic builds on Epic 33's names and stubs (Story 17.1 moved to Story 33.1).
 
 ## Stories
 
 - Story 17.2: Retry once on a second model before falling back (done)
-- Story 17.3: Run each agent on a supported provider
+- Story 17.3: Run each agent on a supported provider (done)
 - Story 17.4: Apply model, price, budget and zone changes through the bridge
-- Story 17.5: Check the vital signs and every coverage entry
+- Story 17.5: Check the vital signs and every coverage entry (spec ready)
 - Story 17.6: Send the daily digest at the set time and on request
 - Story 17.7: Give an all-clear only when every check passed
-- Story 17.8: Only Decide moves a conversation's link
+- Story 17.8: Only Decide moves a conversation's link (done)
 
 ## Requirements & Constraints
 
-- **No sampling parameters.** No request sets `temperature`, `top_p` or `top_k`. The output cap is 8,000 tokens, in the key the model family takes: `max_tokens`, or `extra_params.max_completion_tokens` for GPT-5-class models. Effort is set for Anthropic models only. The cache block is always present. Unit tests check the composed config for every listed model, with no network access.
-- **Keys stay out of storage.** A key never appears in a Config Store entry, a saved AI session, a production setting, a log, an audit entry or an API answer. It reaches a provider only as an `@{env:VAR}` placeholder.
-- **Admin values are checked.** Any admin-submitted value containing `@{`, or off the allow-list, is refused with a plain-English reason and changes nothing. Accepted values are `seed` values, so they survive a restart and an upgrade.
-- **The time limit.** The whole decision, retry included, stays at or under the 110-second bridge timer.
-- **When changes apply.** A change applies within a minute with no restart. The exception is a model or provider change: the bridge restarts the affected runner itself.
-- **Prices.** A price change applies to later usage rows only. Decision and turn totals always equal the sum of their usage rows.
-- **Classifying replies.** A provider that doesn't report refusals or cut-offs gets `unusable` for a reply the bridge can't classify. Such a reply is never treated as an answer.
-- **Fallbacks.** A fallback never leads to an action, fix or approval request. It is flagged in Visual Trace with its reason.
-- **The digest's limit.** A digest in which everything passed and nothing needs the user is at most 150 words when rendered.
-- **Check thresholds.** The defaults are: disk or journal free space below 10%, licence use above 90%, and a queue backlog above 100 messages or with its oldest message waiting more than 10 minutes. An admin can change each one.
-- **Tests.** They use the CI model mock with scenarios under `ci/mock/scenarios/A/`, on the shipped Anthropic provider path. The digest all-clear cases are also evaluation cases in `eval/`, with owner `eval`. These cases write no `Notification`, `Delivery` or live event.
-- **Provider support.** A provider's `supported` flag is set only after the Contest Planner's hands-on pass with real keys at release. That pass is not a story gate.
+- **Model requests.** No `temperature`, `top_p` or `top_k`; output cap 8,000 in the family's key; effort only for Anthropic; the cache block always present. The whole decision, retry included, stays at or under the 110-second bridge timer.
+- **Keys stay out of storage.** A key reaches a provider only as `@{env:<that provider's own variable>}`, never in an entry, setting, saved session, log, audit entry or API answer.
+- **Admin values.** A value holding `@{` or off the allow-list is refused with a plain-English reason and changes nothing. Accepted values are `seed` values that `SettingsOps` owns, so they survive restart and upgrade. A change applies within a minute with no restart, except a model or provider change, where the bridge restarts the affected runner itself.
+- **Prices** apply to later usage rows only; decision and turn totals always equal the sum of their usage rows.
+- **Fallbacks** never lead to an action, fix or approval request, and are flagged in Visual Trace with their reason. A reply the bridge can't classify is `unusable`, never an answer.
+- **Provider support.** Only `anthropic` is `supported`; the other flags flip only at the Release check's hands-on pass with real keys, which is not a story gate. Until then no public or reason text (README, bridge guide, settings page, release notes) may say another provider runs decisions (U-288, DW-755).
+- **The digest** in which everything passed and nothing needs the user is at most 150 words rendered. Default thresholds: disk or journal free below 10%, licence use above 90%, a queue above 100 messages or oldest message over 10 minutes; each admin-changeable.
+- **Tests** use the CI model mock (`ci/mock/scenarios/A/`) on the shipped Anthropic path in throwaway stacks, no network. The digest all-clear cases are also `eval/` cases with owner `eval`, writing no `Notification`, `Delivery` or live event.
 
 ## Technical Decisions
 
-- **Second-model retry**
-  - **The retry runners.** Each agent has one retry runner: `TriageAgentRetry`, `DiagnosisAgentRetry` and `ChatAgentRetry`. Each is class `AgentRunner`, with its own Config Store entry `AI.LLM.OcuTalon<Agent>Retry`, written by `Install.Step.Provider` before any setting names it.
-  - **Turning a retry on.** The first runner's `RetryItem` setting names its retry runner; empty means no retry. The second model is the retry runner's `Model`.
-  - **Retried once:** `timeout`, `rate_limited`, `error`, `refusal`, `cut_off`, `empty`, `invalid`, `unusable` and `no_key`.
-  - **Never retried:** `daily_cap`, `budget`, `too_large`, an attempt in which a tool ran (`ToolsRun`), and a `SessionBroken` attempt.
-  - **A timed-out first attempt** has an unknown `ToolsRun`. A timed-out `turn` is never retried (chat-turn fallback, reason `timeout`). A timed-out `decide` or `diagnose` is retried only when every tool its agent can call is read-only, judged in code from the agent's tool sets.
-  - **The retry timer.** T1 = `TimerFor(request)`. T2 = min(TimerSeconds, 110 − T1). The retry is sent only when T2 ≥ `MINTIMER` (12); a skipped retry puts the one sentence "The second model was not tried, because too little time was left within the decision's 110-second limit." in the decision's reasons.
-  - **The retry entries' timeouts.** `Timeouts.Apply` gives the retry runners' Config Store entries `Derive(max(MINTIMER, min(TimerSeconds, 110 − TimerSeconds)))` (`Timeouts.RetryTimer`), so the entry's worst case agrees with Decide's T2 wait and never derives from less than 12 s (DW-647, DW-727; Story 17.4).
-  - **A late reply moves nothing.** A reply reaching `Decide` after its timer, first attempt's or retry's, is counted for cost and dropped.
-  - **One decision.** The retry keeps the same `DecisionRef`. The one `Decision` row records the model that answered, and both attempts' usage rows sum into the totals.
-  - **A retried turn.**
-    - It carries `RetryOf`, which names the first runner.
-    - It runs in a fresh AI session that the retry runner never links. That session is seeded with `Compaction.Seed` of the first runner's stored conversation, or with `SeedText` when the turn was `fresh`.
-    - It takes no conversation lock.
-    - Its seed is the stored conversation up to and including the current user message; nothing the first attempt produced (partial reply, tool call or result, error text) goes in (DW-726, Story 17.8).
-    - Tests must show four cases: (a) a `RetryOf` for the same conversation and `ItemId` skips `Held`; (b) a request without `RetryOf` waits; (c) a `RetryOf` that arrives through the web API is ignored, and the request waits; (d) a `RetryOf` naming another conversation or `ItemId` waits.
-    - Only `Decide`, `Bridge.Msg.Request`, `AgentRunner`, `Adapter.Agent`, `ConversationLink` and the tests may name `RetryOf`.
-  - **One arbiter moves the link** (Story 17.8; DW-729, DW-730). Only `Decide` moves a conversation's link, when it accepts a reply as the decision's answer, on time and untainted. Runners never move it: `SaveRetried` and `SaveLinked` record their own session only. A reply `Decide` doesn't accept (late, superseded, first attempt or retry) moves nothing, for a fresh, compacted or saved turn alike. Until 17.8 lands, the retry runner points the link through the compare-and-set `ConversationLink.Point` only when the retry answered within T2.
-  - **The CI mock key.** With `OCUTALON_MOCK_KEY_HEADER=1`, `Install.Step.Provider` also adds `x-ocutalon-mockkey` to the retry runners' `custom_headers`. A test in which the retry answers arms the mock's countdown (`POST /_mock/countdown`).
-- **Providers**
-  - **The provider table.** It is `OcuTalon.Bridge.Providers`, a fixed XData table in the order `anthropic`, `openai`, `gemini`, `bedrock`. Each row holds a default model, the selectable models, a key variable and a supported flag.
-  - **Key variables:** `ANTHROPIC_API_KEY`, `OPENAI_API_KEY`, `GEMINI_API_KEY`, and `AWS_BEARER_TOKEN_BEDROCK` with `AWS_REGION`.
-  - **Defaults.** Anthropic's default model is `claude-haiku-5-5`, and `claude-sonnet-5-5` is also selectable.
-  - **Where config lives.** The cap and effort keys per model family come from `Bridge.Data.ModelFamily`. Prices live in `Bridge.Data.Price`.
-  - **Resolving a provider when the key is missing.** This happens before the `no_key` check, and only when a runner still uses its agent's default `MODEL` and that provider's key is missing. The runner then uses the first supported provider in table order whose key is set, with that provider's default model. The provider config lives in memory and nothing is written. `Keys.Status` answers for the provider it resolved to. A model the admin chose never resolves away.
-- **The bridge settings APIs** (`OcuTalon.Bridge.Settings`)
-  - **The methods:** `Providers()`, `Values()`, `Check` and `Set` for `DecisionTokenBudget`, `DailyCostCapUSD` and `InstanceZone`, `CheckModel` and `SetModel(agent, provider, model, second, *old)`, `SetPrice`, `TestRequest`, and `TestAnswer` → `{answered, seconds, reason}`.
-  - **`SetModel`** merges the entry through `ConfigStore.Merge`, sets the runner's `Model` (and `RetryItem` for a second model), and restarts the runner.
-  - **What `ConfigStore.Merge` accepts.** It accepts only the provider, the model, and `@{env:<that provider's own variable>}`. Any other variable, a `base_url`, a header, a `secret://` value or any other `@{` form is refused.
-  - **The Test button.** It sends one minimal request through `Decide`, with owner `instance` and provenance `untrusted`, and never returns the key.
-  - **The daily cost cap.** `DailyCostCapUSD` is a `Decide` host setting, where 0 means off, the local default. `Budget.State()` reports the new cap.
-- **Time.** The instance zone has one run-time source: `Decide`'s host setting `InstanceZone`.
-  - **Reading and writing it.** It is read only through `Bridge.Time.Zone()` and written only through `Bridge.Time.SetZone(name)`.
-  - **What `SetZone` refuses.** A name must match the IANA pattern and have a file under `/usr/share/zoneinfo/`, because an unknown zone silently becomes UTC.
-  - **Applying it.** `Bridge.Time.Apply()` switches `$SYSTEM.Process.TimeZone` when the zone changes. Never use `$ZTIMEZONE` or Python for this.
-  - **The test.** A test compares `Bridge.Time` and `Data.Time` across a daylight-saving change, with a changed zone.
-  - **The fallback case.** If Story 33.1 fell back to the process zone, the new zone applies after a restart, and the tests check it after the restart.
-- **Coverage**
-  - **Recording runs.** `Checks` writes one `OcuTalon.Digest.Data.CheckRun` row per run, beside the `BackgroundCheck` update. Each row holds `CheckRef`, `SessionRef`, `RanAt`, `Result`, `Reason`, `Finding` and `HeaderId`.
-  - **The one builder.** `OcuTalon.Checks.Coverage.Build(sessionRef, fromUtc, toUtc, Output rows, Output lines)` builds the coverage. Vital signs are read live through `Watch.Reader` with the `checks.thresholds.*` values. Background checks are read from `CheckRun` rows plus `Schedule.Heartbeat.Gaps`. The sources section stays empty until step 4.
-  - **Not-checked reasons.**
-    - `paused`: a heartbeat gap overlaps the span.
-    - `missed`: there is a gap of more than 3 minutes between two runs, between the start of the span and the first run, or between the last run and the end of the window.
-    - `stale`: the latest run is before the span.
-    - Otherwise the latest run's own reason or result applies.
-  - **Output shapes.** Rows are `{result, entry, finding, checkedAt}`. Lines are `{key, slots}`, using `digest.failed`, `digest.notChecked<Reason>` and `digest.passed`.
-  - **Privileges.** Reads go only through `Watch.Reader`, and any privilege they add appears in the security overview's generated list.
-  - **Seeding thresholds.** The digest install step seeds the `checks.thresholds.*` keys (`diskFreePercent`, `journalFreePercent`, `licenseUsePercent`, `queueMessages`, `queueWaitMinutes`), `digest.time` (08:00) and `digest.channels` (`web`, `phone`, `telegram`) as `seed` values. Code reads them through `Data.Setting.Get`, which has a 60-second cache.
-- **The digest process.** `Digest` is `OcuTalon.Digest.Process`. It handles one message and ends, and keeps no private text.
-  - **What it handles.** It takes the `Tick` that `Checks` forwards, and `SendDigest` from `CommandsIn`.
-  - **When a session is due:**
-    - the latest `digest.time` (in the instance zone) has passed;
-    - that latest `digest.time` is later than the session's `CreatedAt`;
-    - the session has no scheduled `Sent` row with that `DueAt` or later.
-
-    So a new session's first scheduled digest is at the first `digest.time` after it was created (DW-651).
-  - **After a restart.** A digest that fell due while IRIS was down is sent once, never repeated. `Digest` checks the due time under a lock.
-  - **The window.** It runs from the newest `Sent.SentAt`, or covers the last 24 hours for a first digest. A digest of either kind starts the next window.
-  - **The record.** `Digest` alone writes `OcuTalon.Digest.Data.Sent`: `Ref`, `SessionRef`, `Kind` (`scheduled` or `requested`), `DueAt`, `WindowStart`, `SentAt`, `ItemId`, `DecisionRef`, `CatalogKey`, `Slots` and `AllClear`.
-  - **The model request.** `Digest` makes at most one, and only when `Digest.Data.Item.Since(sessionRef, windowStart)` is non-empty.
-    - It is kind `turn` to `ChatAgent`, provenance `untrusted`, `SessionMode` `fresh` with no `SeedText`, owned by the session, with a fresh `ItemId`.
-    - Its input is rendered by `Agent.Input` from an Item with channel `system` and subject "Saved for later", built from the stored summaries.
-    - Only read-only tools run, the guard filters the reply, and code cuts it to 240 characters.
-    - On any fallback, the digest uses `digest.savedNoSummary` and still goes out.
-  - **Needs you.** This part lists failed checks first, then tell-now items that neither an answered approval request nor **Got it** has dealt with.
-  - **Cost.** The previous day runs from midnight to midnight in the instance zone. The cost is summed from `Usage` rows owned by the session or `instance`, never `eval`.
-- **The digest notification.** A digest is one `Notification` of kind `digest`.
-  - **Its catalog key** is the key that `Checks.Render` returns.
-  - **Its `Slots`** are `{"parts":[{key,slots}…],"lines":[…],"rows":[…]}`.
-  - **The parts, in order:** greeting, vital signs, what was checked with the reserved sentence, needs you, saved for later, and cost.
-  - **The keys** live in `Catalog.Watch` under the prefix `digest.`, plus `checks.allPassed` and `checks.everythingElsePassed`. `digest.cost` uses the slot type `dailyCost`, always two decimals.
-  - **Rendering.** Producers never render text. The `*Out` operations render each part through `Catalog.Render`.
-- **All-clear.** The flag and the reserved sentence come only from `Checks.Render`, over the rows from `Coverage.Build`.
-  - **No watches.** When a session watches nothing, `Checks.Render` runs over an empty array and gives `checks.nothingWatched`, which is never an all-clear.
-  - **Vital signs.** "Your IRIS system is healthy" appears only when every vital-sign row passed.
-  - **The guard.** `Checks.ReplyGuard` runs once, on every model text that leaves `Decide`, and removes the reserved sentences and the banned phrases.
+- **Providers (built).** `OcuTalon.Bridge.Providers` is a fixed XData table in the order `anthropic`, `openai`, `gemini`, `bedrock`, each row with a default model (the cheap tier; Anthropic's is `claude-haiku-5-5`), its selectable models, its key variable and `supported`. Every selectable model has a seeded `Bridge.Data.Price` row (seed values are never overwritten on upgrade). An entry never holds a model; the runner's `Model` setting does.
+- **`ConfigStore.Merge(entry, fields)` accepts exactly two shapes** and refuses anything else, naming the field, writing nothing: the timeouts shape (`http_config.request_timeout_secs`, `http_config.retry`), used by `Timeouts.Apply`; and the model-change shape (`model_provider` from the table, `api_key` exactly its own placeholder, optional `model` validated but not written).
+- **`Bridge.Settings` (built):** `Providers()` (rows with `keySet` and `supported`); `CheckModel`/`SetModel(agent, provider, model, second, *old)`, where `agent` is a first runner item (`TriageAgent`, `DiagnosisAgent`, `ChatAgent`); `second` 1 targets `<agent>Retry` and sets the first runner's `RetryItem`, an empty provider and model clearing it. `old` never holds a key; a failure after the first write puts everything back.
+- **`Bridge.Settings` (still stubs, Story 17.4):** `Values()` (the three bridge values, and per agent its provider, model and second model); `Check`/`Set(name, value, *old)` for `DecisionTokenBudget`, `DailyCostCapUSD` (0 = off, the local default; `Budget.State()` reports the new cap) and `InstanceZone` (through `Bridge.Time.SetZone`); `SetPrice(model, prices, *old)` (non-negative, on `Bridge.Data.Price`); `TestRequest(agent, *request)` builds one request of the agent's own kind, provenance `untrusted`, owner `instance`, fresh `ItemId`, fixed code-written input, which `SettingsOps` sends through `Decide` synchronously; `TestAnswer(response, durationMs)` → `{answered, seconds, reason}`. `old` feeds `SettingsOps`' audit entry.
+- **Story 17.4's ledger.** DW-647: `Timeouts.Apply` already gives retry entries `Derive(Timeouts.RetryTimer(TimerSeconds))` = `Derive(max(MINTIMER, min(T, 110 − T)))` (DW-727, matching the spine), but `Decide`'s retry wait uses T1 = `TimerFor(request)`, so for a compaction-flagged turn T2 (about 30 s) is shorter than the entry's worst case (about 42 s); make them agree. DW-757: an installed `claude-sonnet-5-5` Price row keeps cache-read 0.2 (the seed is now 0.1); decide whether a never-edited seeded price is corrected on upgrade (a stored-data change). DW-758: a resolved or newly chosen provider keeps the entry's `base_url`, headers and TLS; drop or refuse those that belong to another provider.
+- **Provider resolution (built)**, before `no_key`, for any runner (retry runners too), only when the entry's key is absent and the runner's `Model` is its agent's default `MODEL`: the first other supported row with its key set, on its default model, in memory only. `Keys.Status`/`Absent` answer for the resolved provider. An admin-chosen model never resolves away.
+- **Second-model retry (built).** Retry runners `TriageAgentRetry`, `DiagnosisAgentRetry`, `ChatAgentRetry`; the first runner's `RetryItem` turns it on. Retried once: `timeout`, `rate_limited`, `error`, `refusal`, `cut_off`, `empty`, `invalid`, `unusable`, `no_key`. Never: `daily_cap`, `budget`, `too_large`, an attempt where a tool ran, a broken session, a timed-out `turn` (a timed-out `decide` or `diagnose` only when every tool its agent can call is read-only). T2 = min(TimerSeconds, 110 − T1), sent only when T2 ≥ 12. Same `DecisionRef`; both attempts' usage rows sum into the totals; a late reply is counted for cost and dropped.
+- **One arbiter moves the link (built).** Only `Decide` (`PointLink`, the compare-and-set `ConversationLink.Point`, in `Conclude`) moves a conversation's link, on accepting a usable, untainted, on-time reply of a linked turn. Runners save their session and report it on the `Reply`; a compaction fork becomes the turn's session after its check, but the link moves only on `Decide`'s acceptance. A retry's seed is the stored conversation up to the current user message. `decide`, `diagnose` and untrusted turns (the Test button, the digest's request) use throwaway, never-linked sessions. `CodeRules` tests pin who may write links and name `RetryOf`.
+- **Time.** The instance zone's one run-time source is `Decide`'s host setting `InstanceZone`, read only through `Bridge.Time.Zone()`, written only through `SetZone(name)` (IANA pattern plus a file under `/usr/share/zoneinfo/`); `Bridge.Time.Apply()` switches `$SYSTEM.Process.TimeZone`, never `$ZTIMEZONE` or Python. The daily cap's day ends at midnight in that zone. If Story 33.1 fell back to the process zone, the new zone applies after a restart and tests check it there.
+- **Coverage (Story 17.5's spec).** `OcuTalon.Checks.Coverage.Build(sessionRef, fromUtc, toUtc, Output rows, Output lines[, Output vitals])` is the one builder: five vital-sign rows (read live through `Watch.Reader`), then one row per `BackgroundCheck` of the session, sources empty until step 4. Rows `{result, entry, finding, checkedAt}`; lines `{key, slots}` (`digest.passed`, `digest.failed`, `digest.notChecked<Reason>`). Not-checked reasons: `paused` (heartbeat gap), `missed` (gap over 3 minutes, or never ran), `stale`, or the latest run's `error`/`timeout`/`unreachable`. `CheckRun` rows are written by a trigger on the `BackgroundCheck` update. Thresholds come through `Data.Setting.Get` (60-second cache) with `Coverage.THRESHOLDS` defaults. The optional `vitals` output (`rows`, `figures`) awaits an orchestrator ruling; if refused, it becomes `Checks.Coverage.Vitals()` from the same read. `Install.Step.Digest` seeds the thresholds; `digest.time` (08:00) and `digest.channels` seeds are Story 17.6's.
+- **The digest process.** `Digest` (`OcuTalon.Digest.Process`) handles one message and ends, keeping no private text; it takes `Checks`' forwarded `Tick` and `SendDigest`. A session is due when the latest `digest.time` (instance zone) has passed, is later than its `CreatedAt` (DW-651), and it has no scheduled `Sent` row with that `DueAt` or later; a digest missed while down goes once after restart (due time checked under a lock). The window runs from the newest `Sent.SentAt` (or 24 hours); either kind starts the next. `Digest` alone writes `Digest.Data.Sent`. At most one model request, only when `Digest.Data.Item.Since` is non-empty: a `turn` to `ChatAgent`, `untrusted`, `fresh`, read-only tools, guard-filtered, cut to 240 characters; on fallback, `digest.savedNoSummary`. Cost: previous day midnight to midnight, `Usage` rows owned by the session or `instance`, never `eval`.
+- **The digest notification** is one `Notification` of kind `digest`, catalog key from `Checks.Render`, `Slots` `{"parts":[{key,slots}…],"lines":[…],"rows":[…]}`, parts in order greeting, vital signs, what was checked, needs you, saved for later, cost. Keys live in `Catalog.Watch` under `digest.`; `digest.cost` uses slot type `dailyCost`. Producers never render text; the `*Out` operations do through `Catalog.Render`.
+- **All-clear.** The flag and reserved sentence come only from `Checks.Render` over `Build`'s rows; with no watches it gives `checks.nothingWatched`, never an all-clear. "Your IRIS system is healthy" only when every vital row passed. `Checks.ReplyGuard` removes reserved sentences and banned phrases from every model text leaving `Decide`.
 
 ## UX & Interaction Patterns
 
-- **Tone and format.** The digest is prose in Telegram and on the phone, with a time-of-day greeting. Check lines start "Passed:", "Failed:" or "Not checked:", and the cost is shown with two decimals.
-- **Telegram.** The digest is one plain-text message with no Markdown, and its text matches the simulated phone's copy.
-- **Reserved sentences.** "Everything I checked passed." appears only when every entry passed, together with what was checked. Otherwise the failed and not-checked entries come first, followed by "Everything else I checked passed." only if other entries passed.
-- **Banned phrases.** These are removed: "all good", "everything's fine", "everything is fine", "no issues", "no problems" and "nothing to worry about".
-- **The Got it button.** On Telegram tell-now messages it carries an unguessable reference and is accepted only from the paired chat; the first press wins. Whenever the handled marker is set, from any channel, the message is edited in place to "Marked as handled at {time}" and the button is removed.
-- **No watches.** With no watched productions and no sources, the digest reports the vital signs and says OcuTalon isn't watching any productions yet.
+- The digest is prose in Telegram and on the phone, with a time-of-day greeting; check lines start "Passed:", "Failed:" or "Not checked:"; cost has two decimals. In Telegram it is one plain-text message, no Markdown, matching the simulated phone's copy.
+- "Everything I checked passed." only when every entry passed, with what was checked; otherwise failed and not-checked entries first, then "Everything else I checked passed." only if others passed. Banned: "all good", "everything's fine", "everything is fine", "no issues", "no problems", "nothing to worry about".
+- **Got it** on Telegram tell-now messages: an unguessable reference, accepted only from the paired chat, first press wins; once the handled marker is set from any channel, the message is edited to "Marked as handled at {time}" and the button removed.
+- With no watched productions and no sources, the digest reports the vital signs and says OcuTalon isn't watching any productions yet.
 
 ## Cross-Story Dependencies
 
-- **Before this epic starts:** Epic 33 must have merged. Story 33.1 supplies the names, stubs and setting keys. Story 33.2 supplies the `SendDigest` and **Got it** verbs, the settings save path, `dailyCost` and the handled-marker table.
-- **Epic 12 (Telegram).** It must have merged, because the digest goes out through `TelegramOut` and **Got it** comes in through `TelegramIn`.
-- **The merge gate.** This epic merges only once `release/1.0.0-rc1` exists.
-- **Story-level needs.**
-  - Story 17.5 needs Epic 14 (the security overview's privilege list).
-  - Stories 17.2 to 17.7 need Epic 30, whose footprint covers the bridge, `Checks`, `Catalog.Watch` and `eval/`.
-  - Stories 17.2, 17.3 and 17.5 need Epic 15, whose footprint covers the installer's `Provider` and `Digest` steps.
-- **Within this epic.**
-  - Story 17.4's APIs build on Story 17.3's provider table and `ConfigStore.Merge` rules.
-  - Story 17.6 composes from Story 17.5's coverage.
-  - Story 17.7's all-clear covers Story 17.6's digest.
-  - Story 17.2's retry runners depend on Story 17.3's family-based session config.
-- **Lane B work.** Story 18.2 (`Notify` routing to the digest channels, and `Data.Time`) and Story 18.4 (setting **Got it** markers, and the web and phone copies) are Lane B's. Until they merge, the tests use fixture notifications and markers.
-- **The digest tool.** Its name is added to `OcuTalon.Tools.Names` and to the CI mock's scripts. The tool submits `SendDigest` with origin `tool` and an idempotency key.
-- **Story 17.8** builds on Story 17.2 and must merge into Epic 17's branch before the epic completes. Its tests show a mutation going red for each case: a retry finishing just after its timer while `Decide` is busy, a late first attempt with no retry (fresh and compacted turns), an accepted on-time reply, and a seed with no first-attempt content; Story 17.2's three late-retry tests must still pass.
-- **Public text.** `docs/bridge-guide.md`'s "Second-model retry" section must say only what the code does; any wording change needs the Contest Planner's approval before it is pushed (U-286).
-- **Ledger items.** DW-696: `SendDigest` sent to the disabled `Digest` item answers `failed`, not `not_built`. DW-100 moved to Story 18.3.
+- **Gates.** The epic merges only once `release/1.0.0-rc1` exists. Story 17.5 needs Epic 14 (the generated privilege list; 17.5 adds `%Admin_Operate:U` through `Digest.Grants()`); Stories 17.4 to 17.7 need Epic 30; Story 17.5 needs Epic 15.
+- **Within the epic.** 17.4 builds on 17.3's table, `CheckModel` and `ConfigStore.Merge`; 17.6 composes from 17.5's `Build`; 17.7's all-clear covers 17.6's digest.
+- **Lane B.** No Lane B class or test is edited (U-177). Story 18.3's Models section consumes `Providers`/`CheckModel`/`SetModel`/`Values`; Story 18.2 (`Notify` routing, `Data.Time`) and Story 18.4 (**Got it** markers, web and phone copies) are Lane B's, so tests use fixture notifications and markers until they merge.
+- **The digest tool** (Story 17.6): its name joins `OcuTalon.Tools.Names` and the CI mock's scripts; it submits `SendDigest` with origin `tool` and an idempotency key. DW-696: `SendDigest` to the disabled `Digest` item answers `failed`, not `not_built`.
