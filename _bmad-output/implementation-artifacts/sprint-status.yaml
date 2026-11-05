@@ -29,7 +29,7 @@
 # - Dev moves story to 'review', then runs code-review (fresh context, different LLM recommended)
 # - Retrospective appends its action items to action_items; the status view surfaces open ones
 generated: 10-18-2026 06:43
-last_updated: 11-04-2026 03:54
+last_updated: 11-05-2026 06:33
 project: OcuTalon
 project_key: NOKEY
 tracking_system: file-system
@@ -141,8 +141,8 @@ development_status:
   7-3-approved-repairs-are-re-checked-and-resent: done
   7-4-ocutalon-reports-how-many-orders-went-through: done
   7-5-a-resend-cut-short-by-a-restart-says-how-far-it-got: done
-  7-7-a-date-repair-that-could-read-either-way-names-its-evidence: backlog
-  7-8-the-web-incident-card-shows-the-either-way-date-line-too: backlog
+  7-7-a-date-repair-that-could-read-either-way-names-its-evidence: done
+  7-8-the-web-incident-card-shows-the-either-way-date-line-too: done
   epic-7-retrospective: optional
 
   epic-8: done
@@ -196,7 +196,8 @@ development_status:
   11-17-the-release-s-ipm-artifact-carries-the-built-page: done
   11-18-the-update-hook-updates-the-online-demo-and-a-rehearsal-cand: backlog
   11-19-seeded-check-rows-stay-out-of-the-heartbeat-s-way-unless-a-c: done
-  11-20-the-release-s-overview-step-hands-the-unit-files-the-contain: backlog
+  11-20-the-release-s-overview-step-hands-the-unit-files-the-contain: done
+  11-21-a-test-s-route-callback-never-outlives-its-test: done
   epic-11-retrospective: optional
 
   epic-12: done
@@ -366,9 +367,10 @@ development_status:
   32-4-the-developer-loop-reuses-one-warm-throwaway-per-lane: done
   epic-32-retrospective: optional
 
-  epic-33: backlog
-  33-1-fix-the-step-2-contracts-in-the-spine: backlog
-  33-2-open-the-settings-page-as-an-admin: backlog
+  epic-33: done
+  33-1-fix-the-step-2-contracts-in-the-spine: done
+  33-2-open-the-settings-page-as-an-admin: done
+  33-3-epic-33-burn-down: done
   epic-33-retrospective: optional
 
   epic-34: backlog

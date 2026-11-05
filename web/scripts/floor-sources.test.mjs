@@ -7,7 +7,7 @@
 //   banned   none of the patterns UX-DR129 bans appears (toasts, sounds, drag and drop, progress bars, intersection observers,
 //            self-switching tabs, native dialogs and alerts, celebrations, modal notifications, controls that exist only on hover);
 //   bands    every width @media of the page is one of the four queries of layout-view.ts, and Layout reads matchMedia with them only
-//            (Story 2.15); the one height query of layout-view.ts (the demo guide's compact row, Story 4.4) is not a width band;
+//            (Story 2.15); the one height query of layout-view.ts (the demo guide's compact row, Story 4.4, and the approval card's short-screen arrangement, Story 7.8) is not a width band;
 //   sticky   nothing is sticky but the compact header below 1024px, and nothing fixed but the skip links (Story 2.15).
 // The browser cases K1 to K6, W1 to W4 and G1 to G7 (web/e2e/floor/) pin what the running page does in the states they reach; this reads all the
 // sources, so a state no case reaches cannot bring one of these back without a test turning red. Each list below names the files that
@@ -298,7 +298,7 @@ describe('scrollers keep the gutter', () => {
         if (!/scroll-padding\s*:\s*var\(--space-scroll-gutter\)/.test(rule.body)) unpadded.push(one.name);
       }
     }
-    assert.deepEqual([...new Set(scrollers)].sort(), ['app/about/about-dialog.ts', 'app/chat/chat-panel.ts', 'app/chat/composer.ts', 'app/devices/device-panel.ts', 'app/main-page/main-page.ts', 'app/phone/simulated-phone.ts']);
+    assert.deepEqual([...new Set(scrollers)].sort(), ['app/about/about-dialog.ts', 'app/chat/chat-panel.ts', 'app/chat/composer.ts', 'app/devices/device-panel.ts', 'app/main-page/main-page.ts', 'app/phone/simulated-phone.ts', 'app/settings/settings-page.ts']);
     assert.deepEqual(unpadded.sort(), Object.keys(NO_GUTTER));
     for (const [name, why] of Object.entries(NO_GUTTER)) assert.ok(why.length > 20, `${name} says why`);
   });
@@ -376,6 +376,7 @@ describe('the banned patterns (UX-DR129)', () => {
       sample: 'this.dialogs.open(AboutDialog, options)',
       allowed: {
         'app/header/header.ts': 'the user\'s About and, on the online demo, Sign out: the only dialogs, opened by the user from the account menu',
+        'app/settings/unsaved-guard.ts': 'the settings page\'s unsaved-changes prompt (Story 33.2): opened by the guard when the user leaves a section with unsaved changes',
         'app/shared/dialogs.ts': 'the one place that opens a dialog, over the CDK dialog',
       },
     },
@@ -389,9 +390,9 @@ describe('the banned patterns (UX-DR129)', () => {
     });
   }
 
-  it('opens a dialog (Dialogs.open) only from the header, for the user\'s About and the online demo\'s Sign out', () => {
+  it('opens a dialog (Dialogs.open) only from the header, for the user\'s About and the online demo\'s Sign out, and from the settings guard, for the unsaved-changes prompt', () => {
     assert.deepEqual(filesWith(/\bdialogs\.open\(/), ['app/header/header.ts']);
-    assert.deepEqual(filesWith(/inject\(Dialogs\)/), ['app/header/header.ts']);
+    assert.deepEqual(filesWith(/inject\(Dialogs\)/).sort(), ['app/header/header.ts', 'app/settings/unsaved-guard.ts']);
   });
 
   it('lets no :hover rule set display, visibility or opacity, so that no control exists only on hover', () => {
@@ -458,7 +459,7 @@ describe('the width bands (Story 2.15)', () => {
       [],
     );
     const used = files.filter((one) => /^app\/.*\.ts$/.test(one.name) && /\$\{HEIGHT_QUERIES\./.test(one.code)).map((one) => one.name);
-    assert.deepEqual(used, ['app/guide/demo-guide.ts']);
+    assert.deepEqual(used, ['app/approvals/approval-request-card.ts', 'app/guide/demo-guide.ts']);
   });
 
   it('has only the four queries of layout-view.ts as the width condition of an @media in app/ and styles/', () => {

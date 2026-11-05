@@ -1,5 +1,5 @@
-// Tests gotoSettled (e2e/support/navigate.ts, Story 11.9; DW-415): a navigation that fails with net::ERR_NETWORK_CHANGED is made once more and
-// logs `NAV retry <url>`; a second failure, and every other error, is thrown unchanged with no retry. The rows run on a fake page, so that the
+// Tests gotoSettled (e2e/support/navigate.ts, Story 11.9; DW-415): a navigation that fails with net::ERR_NETWORK_CHANGED or net::ERR_ABORTED
+// (Story 11.21, DW-690) is made once more and logs `NAV retry <url>`; a second failure, and every other error, is thrown unchanged with no retry. The rows run on a fake page, so that the
 // error is hermetic (route.abort has no such code). The source pin reads the five shared navigation sites of the browser units and holds that
 // each goes through gotoSettled. The module is imported as it is: Node strips its types, which holds only while it keeps to erasable syntax.
 // Run with: node --test web/scripts/
@@ -70,7 +70,23 @@ describe('gotoSettled', () => {
     assert.equal(page.calls.length, 2);
   });
 
-  for (const message of ['page.goto: net::ERR_CONNECTION_REFUSED at x', 'page.goto: Timeout 30000ms exceeded.', 'page.goto: net::ERR_NETWORK_CHANGED_LATER is not the code']) {
+  it('retries once when the page aborted the navigation (net::ERR_ABORTED): the second answer and one NAV retry line', async () => {
+    capture();
+    const page = fakePage([new Error(`page.goto: net::ERR_ABORTED at ${URL_}`), { status: 200, second: true }]);
+    assert.deepEqual(await gotoSettled(page, URL_), { status: 200, second: true });
+    assert.equal(page.calls.length, 2);
+    assert.deepEqual(lines, [`NAV retry ${URL_}`]);
+  });
+
+  it('throws the second error when the navigation was aborted twice, after 2 calls', async () => {
+    capture();
+    const second = new Error(`page.goto: net::ERR_ABORTED at ${URL_} (second)`);
+    const page = fakePage([new Error(`page.goto: net::ERR_ABORTED at ${URL_}`), second]);
+    await assert.rejects(gotoSettled(page, URL_), (error) => error === second);
+    assert.equal(page.calls.length, 2);
+  });
+
+  for (const message of ['page.goto: net::ERR_CONNECTION_REFUSED at x', 'page.goto: Timeout 30000ms exceeded.', 'page.goto: net::ERR_NETWORK_CHANGED_LATER is not the code', 'page.goto: net::ERR_ABORTED_LATER is not the code']) {
     it(`throws "${message}" unchanged after 1 call, with no retry`, async () => {
       capture();
       const error = new Error(message);
@@ -107,4 +123,36 @@ describe('the shared navigation sites', () => {
       assert.doesNotMatch(text, /\.goto\(/, `${name} does not call goto`);
     });
   }
+});
+
+describe('gotoSettled breadcrumb', () => {
+  it('prints one SLOW line naming the url and the whole seconds when a navigation took 10 s or more, whether it answered or failed', async () => {
+    const realNow = Date.now;
+    let clock = 0;
+    Date.now = () => (clock += 11_000);
+    try {
+      capture();
+      await gotoSettled(fakePage([{ status: 200 }]), URL_);
+      assert.deepEqual(lines, [`SLOW gotoSettled ${URL_} 11 s`]);
+      capture();
+      await assert.rejects(gotoSettled(fakePage([new Error('page.goto: net::ERR_CONNECTION_REFUSED')]), URL_), /ERR_CONNECTION_REFUSED/);
+      assert.deepEqual(lines, [`SLOW gotoSettled ${URL_} 11 s`]);
+    } finally {
+      Date.now = realNow;
+    }
+  });
+
+  it('prints none for a navigation that timed out at its bound: its error names it', async () => {
+    const realNow = Date.now;
+    let clock = 0;
+    Date.now = () => (clock += 11_000);
+    try {
+      capture();
+      const timedOut = Object.assign(new Error('page.goto: Timeout 5000ms exceeded.'), { name: 'TimeoutError' });
+      await assert.rejects(gotoSettled(fakePage([timedOut]), URL_, { timeout: 5000 }), /^Error: gotoSettled: no answer within 5 s from http:\/\/stack\.invalid\/ocutalon\/\n/);
+      assert.deepEqual(lines, []);
+    } finally {
+      Date.now = realNow;
+    }
+  });
 });

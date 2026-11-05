@@ -1,4 +1,4 @@
-import { expect, test, type BrowserContext, type Locator, type Page } from '@playwright/test';
+import { expect, test, type BrowserContext, type Locator, type Page } from '../e2e/support/fixtures';
 
 import { EVENTS, MESSAGES, STATE } from '../e2e/support/api';
 import { loadedAfter } from '../e2e/support/floor';

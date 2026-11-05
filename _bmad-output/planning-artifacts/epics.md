@@ -4658,6 +4658,48 @@ So that a release candidate's security overview is checked rather than failed by
 **When** they run the overview step with the stub unit
 **Then** the stub fails if any exported file is not readable by others, so a regression of the mode fix reds the release sequence tests; and one case checks that a failing unit's log is kept and its path printed
 
+### Story 11.21: A test's route callback never outlives its test
+
+As the author,
+I want every end-to-end test to remove its route callbacks before it ends,
+So that the browser job fails only when something is wrong, and a red on the trunk means a defect.
+
+[ADDED 2026-11-04, fix-forward (orchestrator ruling at the Contest Planner's request, reason fix_forward): main's `iris (browser)` was red twice on v1.0.0 (run 41843658900, attempts 1 and 2; 253 passed, 1 failed, `route.fetch: Test ended` from a route callback still in flight at a test's end; the demo path passed 28 of 28 in the same job and no product check failed). First burndown item of the first daily release. A test-harness defect, not a flake; no product code changes.]
+
+**Acceptance Criteria:**
+
+**Given** every spec under `web/e2e` and `web/e2e-online` that installs a route callback calling `route.fetch`
+**When** a test ends
+**Then** its callbacks are removed through one shared mechanism, in the shared route helper or a shared `afterEach`, with `page.unrouteAll({ behavior: 'ignoreErrors' })`, and no spec carries its own copy of the fix
+
+**Given** a route callback still in flight when its test ends
+**When** the test ends
+**Then** the run does not fail with `route.fetch: Test ended`; a test pins this, and removing the shared mechanism turns it red (mutation shown)
+
+**Given** a spec added later that installs such a callback
+**When** the checks run
+**Then** it is covered without further edits, or a check names it
+
+**Given** a helper wait in the specs under `web/e2e-online` (a page action, a navigation, a response wait, a request, or an IRIS script call through `irisScript`) that never returns because the page or IRIS answers slowly or not at all
+**When** the test runs
+**Then** the wait has its own bound, well under the test timeout, so the failure names its step within seconds instead of the 5-minute test timeout; the bound lives in the shared helpers or the shared configuration, never as per-spec copies, and a test pins one bounded wait (mutation shown) [AMENDED 2026-11-04, Rule 5 tier 1, the Contest Planner's ruling under the owner's delegation, relayed by the orchestrator: two different `web/e2e-online/session/leave.spec.ts` tests hit the 5-minute test timeout in `iris (shards)` `live:online-session` (L5 on feature f2b20ea0, ci run 41843673412; L6 on OCT-epic39 d701b6e6, ci run 41909512271 attempt 1); the runs upload no artifacts, so no error context or trace exists; the logs place both hangs in shared helper waits with no bound of their own (the browser configuration sets no action or navigation timeout, and `irisScript` bounds no `iris session`), not in a product path: a product failure would have failed a bounded poll with its message at 90 s; added]
+
+**Given** a wait in the shared sign-in helpers (`loadedAfter` in `web/e2e/support/floor.ts`, `gotoSettled` in `web/e2e/support/navigate.ts`, the sign-in helpers of `web/e2e/sign-in/helpers.ts` and of `web/e2e-online/support.ts`) that never ends
+**When** the test runs
+**Then** the wait has its own bound, shorter than the test timeout, and fails with a message naming the step and the response it waited for (for example the sign-in's POST answer or the snapshot's GET of `/ocutalon/api/v1/state`), so a hang shows as a named failure, not a test timeout that cascades into the next check; a test pins it (mutation shown) [AMENDED 2026-11-04, the Contest Planner's condition under the owner's delegation, relayed by the orchestrator; with it, `loadedAfter`'s unbounded `waitForResponse` (OCT-epic40 run 41929230934, `02-watch.spec.ts`; DW-691's `focus.spec.ts` P1) and `gotoSettled`'s re-sign-in abort (DW-690, `net::ERR_ABORTED` at `/ocutalon/`) are in this story's scope; added]
+- DW-690: demo-path 07-failure-paths L60 failed at L77's re-sign-in with `page.goto net::ERR_ABORTED` at `/ocutalon/` (gotoSettled retries only NETWORK_CHANGED); a second sighting timed out in `loadedAfter` (ledger; routed by the orchestrator 2026-11-04)
+- DW-691: floor `focus.spec.ts` P1 hit the 90 s test timeout in `page.waitForResponse` (ledger; routed by the orchestrator 2026-11-04)
+
+**Given** a shared helper wait (in `web/e2e-online/telegram.ts`, `web/e2e-online/support.ts` or `web/e2e/support/*`) that is still waiting when its test is close to its timeout
+**When** the test runs
+**Then** the wait is bounded by the smaller of its own bound and the test's remaining time (its timeout minus the time elapsed, from `test.info()`) less a cleanup reserve of about 60 s, and fails first, naming the step and the awaited call, never as a bare test timeout; the `finally` clean-ups (`finishTelegram`, `unpairChat`, `removeSession`, the group sign-out) get that reserve and always run, so a failed L6 leaves no live TelegramIn or TelegramOut job; one shared mechanism; proven by a synthetic case (an `irisScript` stalled past the remaining budget fails with the named step before the test timeout, and its clean-up leaves no live Telegram job), by L6 replayed locally green three times, and by the proof runs below [AMENDED 2026-11-05, the Contest Planner's refinement of the 2026-11-04 condition under the owner's delegation, relayed by the orchestrator, after L6 hit the bare 300 s test timeout on this story's own head (ci run 41957022331 attempt 3, job 127036912190): the helper bounds added up past the test timeout, so no step was named and L6's `finally` never put the Telegram fixture back; uploading Playwright results as a CI artifact is DW-710, not this story; added]
+
+**Given** the fix on its branch
+**When** `iris (browser)` runs
+**Then** it is green three runs in a row, and every other group stays green, and in the same three runs `iris (shards)`, which runs `live:online-session`, is green with leave.spec.ts L5 and L6 passing [AMENDED 2026-11-04, the same ruling: L5 and L6 and the online-session unit join the proof runs; it read "it is green three runs in a row, and every other group stays green"]
+- DW-640: web/e2e/live/live.spec.ts L9 reported `route.fetch: Test ended` from L8's route callback (ledger; routed by the Contest Planner 2026-11-04)
+- DW-665: web/e2e/live/socket.spec.ts W11 failed the same way on v1.0.0, twice (ledger; routed by the Contest Planner 2026-11-04)
+
 ## Epic 12: Approve from your own phone with Telegram
 
 A user scans the page's QR code to pair their Telegram private chat with their session, then chats, gets notifications and reminders, and answers approval requests with inline buttons from Telegram; unknown codes and a bare `/start` get polite instructions and link nothing; OcuTalon runs fully without a bot token, and pauses politely if another process polls the same bot. Built in Lane A after Epic 11 and shipped in 1.0.0, the first release; it merges into the integration branch when done, with no tag gate [AMENDED 2026-10-31, owner decision, relayed by the Contest Planner; the owner: "One check, at 1.0.0": 0.1.0 and 0.1.1 are not cut; it read "shipped as 0.1.1, the release right after 0.1.0 and before the online demo goes public (PRD §7.2)", and the merge gate on the `v0.1.0` tag below is dropped]. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation (inbox U-67): built alongside Epic 11 by the first free runner once Epic 10 has merged, and merged only after the `v0.1.0` tag exists; still shipped as 0.1.1.]
@@ -5836,6 +5878,9 @@ So that one message tells me how my IRIS system is doing and what needs me.
 **Then** the button carries an unguessable reference, and `TelegramIn` submits Lane B's **Got it** command through `CommandsIn` only for a press from the paired chat, so the notice's handled marker is set once (the first press wins); a press from any other chat changes nothing (FR-20, FR-35, AD-1, AD-14, AD-29)
 **And** whenever the marker is set, from Telegram or any other channel, the Telegram message is edited in place to show "Marked as handled at {time}" with its button removed, within one live update, as Lane B's Story 18.4 does for the web and phone copies; until Story 18.4 merges, tests check the submitted command and use fixture markers (FR-35, UX-DR143)
 
+- DW-651: A new session's first scheduled digest is at the first `digest.time` after its `CreatedAt` (AD-18 as amended 2026-11-05): created before today's `digest.time`, today's digest; created after, none until tomorrow's; `SendDigest` is unaffected (ledger; routed by orchestrator ruling 2026-11-05, decided by the Contest Planner under the owner's delegation)
+- DW-696: SendDigest sent to the disabled Digest item answers failed, not not_built (ledger; routed by Epic 33 burn-down 2026-11-05)
+
 ### Story 17.7: Give an all-clear only when every check passed
 
 As a user,
@@ -5968,6 +6013,8 @@ So that I read the day at a glance and "needs you" holds only what still needs m
 **Then** the demo path still passes, and a Playwright test covers the Settings page as the README account, a fixture digest card and **Got it** (REL-2, UX-DR117)
 
 **On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the Contest Planner's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
+
+- DW-695: Data.Handled has no purge or end-of-session delete, and no purge owner is named (AD-27) (ledger; routed by Epic 33 burn-down 2026-11-05)
 
 ## Epic 19: OcuTalon remembers, and answers from your documents (step 3)
 
@@ -7940,7 +7987,7 @@ So that I can change OcuTalon's settings without a terminal or a restart.
 **Given** an admin changed a section's values
 **When** they press **Save changes**
 **Then** the web layer submits one command through `Commands.Submit` with origin `web_admin`; `SettingsOps` writes each value, audits it through `OcuTalon.Bridge.Audit` (type `Settings`, with the admin's IRIS user, `SessionRef`, channel, and old and new values, never a secret) and applies it within a minute without restarting IRIS or the production; and the section confirms "Saved. Applies within a minute. Recorded in the audit log." (FR-17, FR-9, AD-1, AD-17, AD-19, UX-DR141)
-**And** the button follows the busy pattern; a refused or failed save shows the field error "Couldn't save. Nothing was changed." and changes nothing; and leaving a section with unsaved changes asks first (UX-DR32, UX-DR36, UX-DR141)
+**And** the button follows the busy pattern; a refused or failed save shows the field error "Couldn't save. Nothing was changed." and changes nothing, except a Demo mode save whose demo step fails, which keeps the written value as the terminal path does and shows its own field message; and leaving a section with unsaved changes asks first (UX-DR32, UX-DR36, UX-DR141) [AMENDED 2026-11-04, Story 33.2, unattended ruling (U-270): the same-path AC keeps the value written on `step_failed` and re-runs the step at the next start, so "Nothing was changed." would be false there; it read "and changes nothing"]
 
 **Given** the Check thresholds and Demo mode sections
 **When** an admin saves them
@@ -7951,6 +7998,27 @@ So that I can change OcuTalon's settings without a terminal or a restart.
 **When** they run
 **Then** one reads each kind of settings change back from the IRIS audit log, one submits a settings command with origin `tool` and expects a refusal, and the fixed-strings test covers every new label (FR-9, AD-1, AD-22, UX-DR117)
 
+
+### Story 33.3: Epic 33 burn-down
+
+[AMENDED 2026-11-05, chartered by the burn-down gate, Rule 17, on the orchestrator's ruling (decided by the Contest Planner under the owner's delegation, DW-699): a demo mode saved on the settings page reaches an open main page only after a reload; the live refresh is a high-risk fix and the online demo's account holds no OcuTalonAdmin, so for now the Demo mode section tells the admin, and the real fix is filed in the ledger for later.]
+
+As an admin,
+I want the Demo mode section to tell me when a saved change shows on the chat page,
+So that I don't think the switch failed when the open chat page still shows the old mode.
+
+**Acceptance Criteria:**
+
+**Given** an admin on the settings page's Demo mode section
+**When** a save of the switch succeeds
+**Then** the section shows its own confirmation, a new text key whose text is exactly "Saved. Applies within a minute. Recorded in the audit log. Reload the chat page after a minute to see the change."
+**And** the Check thresholds section keeps the shared saved text of `settings-view.ts`, unchanged, and no other section's text changes
+
+**Given** the tests
+**When** they run
+**Then** the fixed-strings test covers the new key, and a browser test pins that a Demo mode save shows the new text and a Check thresholds save the shared one
+
+- DW-699: A demo mode saved on the settings page does not reach the open main page until a reload; ruled: tell the admin with the Demo mode section's own confirmation text, no live refresh now (ledger; routed by orchestrator ruling 2026-11-05)
 
 ## Epic 34: Step 3's contracts, and a Documents page (step 3)
 
@@ -8552,6 +8620,8 @@ So that "stay quiet unless something needs you" is measured, not hoped.
 **Given** the security overview (Epic 14)
 **When** this story updates its section on what data leaves the instance
 **Then** that section says that a beat sends the person's checklist and a status snapshot to the configured model provider, at most once per interval (FR-61, NFR-18)
+
+- DW-653: Eval.Record accepts an empty fixKind only for a data_format_change case expecting no repair (refusals pinned), plus one ambiguous-date eval case whose arrival days match neither reading, expecting no repair proposed (ledger; routed by merge_gate 2026-11-04, Planner ruling)
 
 **Release check:** at the first daily release that ships this epic, the Contest Planner's hands-on pass with real keys runs one beat of each outcome on the web app, sees a quiet beat followed by a skipped one while nothing changes, and does a run-now on the demo host (REL-7, as amended 2026-10-31).
 

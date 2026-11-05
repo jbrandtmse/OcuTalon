@@ -1,4 +1,4 @@
-import { expect, test, type Page, type Route } from '@playwright/test';
+import { expect, test, type Page, type Route } from '../support/fixtures';
 
 import { holdState } from '../support/api';
 import { signIn } from '../sign-in/helpers';

@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from '../support/fixtures';
 
 import { STATE } from '../support/api';
 import { signIn } from '../sign-in/helpers';
@@ -20,11 +20,6 @@ import { scanPage } from '../support/scan';
  */
 test.describe.configure({ timeout: 90_000 });
 test.use({ timezoneId: 'UTC', locale: 'en-GB' });
-
-/** A held poll or a held snapshot that a routed handler still holds when a test ends must not fail the next test. */
-test.afterEach(async ({ page }) => {
-  await page.unrouteAll({ behavior: 'ignoreErrors' });
-});
 
 const KIND = 'FLOOR';
 const SCHEMES = ['light', 'dark'] as const;

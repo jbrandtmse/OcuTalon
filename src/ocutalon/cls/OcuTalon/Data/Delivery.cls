@@ -77,6 +77,17 @@ ClassMethod FindByApproval(approvalRef As %String, channel As %String, ownerRef 
 	Quit row.ChannelMessageId
 }
 
+/// Finds the channel message id of a notice's copy to edit in place: the newest row of the owner and channel whose DecisionRef is
+/// exactly ref (case-sensitive), the notice's Ref being its Decision's Ref, read through Ownership.DeliveryByRef. "" when there is
+/// none, for an empty value and for the owners instance and eval, which have no rows to read (AD-14).
+ClassMethod FindByRef(ref As %String, channel As %String, ownerRef As %String) As %String
+{
+	If ($Get(ref) = "") || ($Get(channel) = "") || ($Get(ownerRef) = "") Quit ""
+	Set row = ##class(OcuTalon.Data.Ownership).DeliveryByRef(ref, channel, ownerRef, .sc)
+	If $SYSTEM.Status.IsError(sc) || '$IsObject(row) Quit ""
+	Quit row.ChannelMessageId
+}
+
 Storage Default
 {
 <Data name="DeliveryDefaultData">

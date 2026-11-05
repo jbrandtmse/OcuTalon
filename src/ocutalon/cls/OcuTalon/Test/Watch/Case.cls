@@ -37,6 +37,8 @@ Include Ensemble
 ///     Test.Bridge.Approval's instance-wide row and hold counts stay its own; Requests, HeadersBetween and HoldInSession read the request rows and the trace
 ///     session; AssertDelivered waits for WebChatOut's Delivery row of a kind and a request's Ref, StateIncident gives the incident as /state lists it, and Listed
 ///     the requests that an incident payload lists (Listed reads the index-th one, the first by default).
+///   - for the tests of dates that read two ways (Story 7.7): Fail and SendOrders take the date of the orders (2026-10-16 by default), SetArrival sets the arrival
+///     (TimeCreated, UTC) of a failed header, and SetOrderDate sets a body's date;
 ///   - for the tests that start from a raised request (Story 7.2, lifted here by Story 7.6): Raised (S watches Orders and failing orders tagged with S's trace Ref become an
 ///     incident that is noticed with its fix and one pending request; its trailing argument is the number of orders, 3 by default), Noticed (waits for the diagnosis, the
 ///     answer and the notifications), Answered (the answered Notification of an incident) and NoticeSessionOf (the trace session of a Notification).
@@ -712,24 +714,24 @@ ClassMethod Top(table As %String, namespace As %String) As %Integer
 	Quit +rs.%GetData(1)
 }
 
-/// Sends count orders dated 2026-10-16 in the date format that fails (MM/DD/YYYY), so that each one fails with the sentence ORDERDATETEXT, every message tagged
+/// Sends count orders dated orderDate (2026-10-16 by default) in the date format that fails (MM/DD/YYYY), so that each one fails with the sentence ORDERDATETEXT, every message tagged
 /// with the trace reference (none when empty), through the Orders partner of OCUORDERS (a copy of the Demo test's private three-line Send, which is Epic 4's). Asserts that the partner accepts them.
-Method Fail(count As %Integer, traceRef As %String = "") As %Boolean [ Private ]
+Method Fail(count As %Integer, traceRef As %String = "", orderDate As %String = "2026-10-16") As %Boolean [ Private ]
 {
 	If ..OrdersFloor = "" {
 		Set ..OrdersFloor = ..Top("Ens.MessageHeader", ..#ORDERS)
 		Set ..OrdersLogFloor = ..Top("Ens_Util.Log", ..#ORDERS)
 	}
-	Set sc = ..SendOrders(count, traceRef)
+	Set sc = ..SendOrders(count, traceRef, orderDate)
 	Do $$$AssertStatusOK(sc, count_" failing orders are sent"_$Select(traceRef '= "": " with a trace reference", 1: " with none"))
 	Quit $$$ISOK(sc)
 }
 
-ClassMethod SendOrders(count As %Integer, traceRef As %String) As %Status [ Private ]
+ClassMethod SendOrders(count As %Integer, traceRef As %String, orderDate As %String = "2026-10-16") As %Status [ Private ]
 {
 	New $NAMESPACE
 	Set $NAMESPACE = ..#ORDERS
-	Quit ##class(OcuTalon.Demo.Orders.Partner).Send(count, "MM/DD/YYYY", traceRef, "2026-10-16")
+	Quit ##class(OcuTalon.Demo.Orders.Partner).Send(count, "MM/DD/YYYY", traceRef, orderDate)
 }
 
 /// The failed headers (Status 8) of OCUORDERS after the first Fail of the test, as a dynamic array of {"id", "superSession", "at", "sessionId", "source",
@@ -2028,6 +2030,18 @@ ClassMethod SetOrderDate(headerId As %Integer, value As %String) As %Status [ Pr
 	If '$IsObject(order) Quit $SYSTEM.Status.Error(5001, "No order for header "_headerId)
 	Set order.OrderDate = value
 	Quit order.%Save()
+}
+
+/// Sets the arrival of the failed header in OCUORDERS: its TimeCreated, which the dry run reads as the message's arrival, to the UTC time (YYYY-MM-DDThh:mm:ssZ), stored
+/// as IRIS stores it (YYYY-MM-DD hh:mm:ss). The test edits only the headers it made.
+ClassMethod SetArrival(headerId As %Integer, utc As %String) As %Status [ Private ]
+{
+	New $NAMESPACE
+	Set $NAMESPACE = ..#ORDERS
+	Set header = ##class(Ens.MessageHeader).%OpenId(headerId)
+	If '$IsObject(header) Quit $SYSTEM.Status.Error(5001, "No header "_headerId)
+	Set header.TimeCreated = $Translate($Extract(utc, 1, 19), "TZ", " ")
+	Quit header.%Save()
 }
 
 /// Sends an Execute for the request's Ref to the item FixExecutor by name, synchronously, from the SimMailboxIn service (an adapterless host, in a session of its own),

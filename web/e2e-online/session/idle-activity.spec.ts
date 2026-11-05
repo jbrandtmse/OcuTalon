@@ -1,4 +1,4 @@
-import { expect, test, type Page } from '@playwright/test';
+import { expect, test, type Page } from '../../e2e/support/fixtures';
 
 import { STATE } from '../../e2e/support/api';
 import { recordTraffic } from '../../e2e/support/clock';

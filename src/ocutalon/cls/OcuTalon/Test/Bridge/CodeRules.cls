@@ -14,6 +14,9 @@
 ///     entry has its one shape. The scanner is first shown to flag the three calls and to pass Record, a look-alike and comment lines;
 ///   - TestOnlyChecksPublishesCheck (Story 5.6; AD-33): no OcuTalon class outside the Test package, except OcuTalon.Checks.Process, calls Publish with the event type check
 ///     (the literal, or Checks' CHECKEVENT parameter). The scanner is first shown to flag those forms and to pass the payload class, reads, other event types and comment lines;
+///   - TestOnlyTheRetryPathNamesRetryOf (Story 33.1, veto U-246; AD-6, AD-8): no OcuTalon class outside the Test package, except Decide, the request message, the runner, the
+///     adapter and the conversation link, names RetryOf on a code line, so that no web, channel, core, tool or MCP class can set the request property that lets a retry skip the
+///     conversation lock. The scanner is first shown to flag a reference in each form and to pass look-alikes and comment lines;
 ///   - TestOnlyIncidentManagerWritesIncidents (Story 5.3; AD-15, AD-33): no OcuTalon class outside the Test package, except OcuTalon.Watch.IncidentManager,
 ///     creates or deletes a row of OcuTalon.Data.Incident or OcuTalon.Data.FailureGroup (%New, %Delete or %DeleteId, also through $ClassMethod), runs SQL
 ///     that inserts, updates or deletes in their tables (with or without INTO or FROM, and with % keyword options), or calls Publish with the literal event type incident or watch.progress. The scanner is first shown
@@ -74,8 +77,9 @@ Parameter CALLBACKBASES = "%AI.Tool,%AI.ToolSet,%AI.Policy.Authorization,%AI.Pol
 /// receives it and the converter of times, and, since the gate (Story 3.2), the classes that it calls inside the callback: the settings accessor, Decide
 /// (FireEvent) and OcuTalon's sink (also scanned as a host sink, CALLBACKBASES), and, since the gate holds a risky call (Story 3.6), the classes that
 /// Approval.Raise runs inside the callback: the approval API, the service that starts the hold, the reference generator, the clock, the request row
-/// that it validates and saves, and the start message that the service sends.
-Parameter CALLBACKHELPERS = "OcuTalon.Bridge.Adapter.StepBuffer,OcuTalon.Bridge.Context,OcuTalon.Tools.CommandCall,OcuTalon.Bridge.Redact,OcuTalon.Core.Commands,OcuTalon.Core.CommandsIn,OcuTalon.Data.Time,OcuTalon.Bridge.Ext.Accessor,OcuTalon.Bridge.Process.Decide,OcuTalon.Core.BridgeSink,OcuTalon.Bridge.Approval,OcuTalon.Bridge.Service.ApprovalStart,OcuTalon.Bridge.Ids,OcuTalon.Bridge.Time,OcuTalon.Bridge.Data.ApprovalRequest,OcuTalon.Bridge.Msg.ApprovalStart,OcuTalon.Watch.Reader,OcuTalon.Tools.WatchAnswers,OcuTalon.Data.BackgroundCheck,OcuTalon.Data.Setting,OcuTalon.Data.Public.Settings,OcuTalon.Install.Step.Demo,OcuTalon.Watch.EvidencePack,OcuTalon.Data.FailureGroup,OcuTalon.Watch.ErrorText,OcuTalon.Watch.Settle,OcuTalon.Live.Publish,OcuTalon.Live.Event,OcuTalon.Data.Ownership,OcuTalon.Data.Session,OcuTalon.Data.Turn,OcuTalon.Data.Incident,OcuTalon.Live.Payload.Approval,OcuTalon.Live.Payload.Decision,OcuTalon.Live.Payload.TurnStep,OcuTalon.Live.Payload.Part.ItemNoun,OcuTalon.Live.Payload.Part.DryRun";
+/// that it validates and saves, and the start message that the service sends. Since the approval payload asks the notice's rule for the either-way line
+/// (Story 7.8), the notice (Watch.Notice, whose Reading FromRow calls) and the date reader it calls (Fix.Reformat).
+Parameter CALLBACKHELPERS = "OcuTalon.Bridge.Adapter.StepBuffer,OcuTalon.Bridge.Context,OcuTalon.Tools.CommandCall,OcuTalon.Bridge.Redact,OcuTalon.Core.Commands,OcuTalon.Core.CommandsIn,OcuTalon.Data.Time,OcuTalon.Bridge.Ext.Accessor,OcuTalon.Bridge.Process.Decide,OcuTalon.Core.BridgeSink,OcuTalon.Bridge.Approval,OcuTalon.Bridge.Service.ApprovalStart,OcuTalon.Bridge.Ids,OcuTalon.Bridge.Time,OcuTalon.Bridge.Data.ApprovalRequest,OcuTalon.Bridge.Msg.ApprovalStart,OcuTalon.Watch.Reader,OcuTalon.Tools.WatchAnswers,OcuTalon.Data.BackgroundCheck,OcuTalon.Data.Setting,OcuTalon.Data.Public.Settings,OcuTalon.Install.Step.Demo,OcuTalon.Watch.EvidencePack,OcuTalon.Data.FailureGroup,OcuTalon.Watch.ErrorText,OcuTalon.Watch.Settle,OcuTalon.Live.Publish,OcuTalon.Live.Event,OcuTalon.Data.Ownership,OcuTalon.Data.Session,OcuTalon.Data.Turn,OcuTalon.Data.Incident,OcuTalon.Live.Payload.Approval,OcuTalon.Live.Payload.Decision,OcuTalon.Live.Payload.TurnStep,OcuTalon.Live.Payload.Part.ItemNoun,OcuTalon.Live.Payload.Part.DryRun,OcuTalon.Watch.Notice,OcuTalon.Fix.Reformat";
 
 /// The classes that the watch tools call inside the callback (Story 5.1): the answer shaping (Tools.WatchAnswers), the reader, the settings that it reads (the online-demo flag) and the Demo step, whose parameters name the Orders production; and, since stop_watch resolves from the session's own watches (Story 5.2), the ownership API (Data.Ownership.Checks) and the watch rows that it opens (Data.BackgroundCheck). Since the read tools of the Diagnosis agent (Story 5.4) read an incident's evidence: the evidence pack (Watch.EvidencePack), the group row it reads (Data.FailureGroup) and the pure helpers it calls for an error sentence and a pattern (Watch.ErrorText, Watch.Settle).
 Parameter READERCLASSES = "OcuTalon.Watch.Reader,OcuTalon.Tools.WatchAnswers,OcuTalon.Data.Ownership,OcuTalon.Data.BackgroundCheck,OcuTalon.Data.Setting,OcuTalon.Data.Public.Settings,OcuTalon.Install.Step.Demo,OcuTalon.Watch.EvidencePack,OcuTalon.Data.FailureGroup,OcuTalon.Watch.ErrorText,OcuTalon.Watch.Settle";
@@ -85,8 +89,9 @@ Parameter READERCLASSES = "OcuTalon.Watch.Reader,OcuTalon.Tools.WatchAnswers,Ocu
 Parameter WATCHREADS = "OcuTalon.Tools.WatchReads,OcuTalon.Watch.EvidencePack,OcuTalon.Watch.Reader,OcuTalon.Watch.ErrorText,OcuTalon.Watch.Settle";
 
 /// The classes that BridgeSink calls once it publishes, from the gate's callback (DW-177): the publisher and its event, the owner of the rows it reads, the session and
-/// the turn and incident rows behind them, and the payload builders of the events.
-Parameter SINKCLASSES = "OcuTalon.Live.Publish,OcuTalon.Live.Event,OcuTalon.Data.Ownership,OcuTalon.Data.Session,OcuTalon.Data.Turn,OcuTalon.Data.Incident,OcuTalon.Live.Payload.Approval,OcuTalon.Live.Payload.Decision,OcuTalon.Live.Payload.TurnStep,OcuTalon.Live.Payload.Part.ItemNoun,OcuTalon.Live.Payload.Part.DryRun";
+/// the turn and incident rows behind them, and the payload builders of the events, with the notice's Reading and the date reader behind it that the approval
+/// payload calls (Story 7.8).
+Parameter SINKCLASSES = "OcuTalon.Live.Publish,OcuTalon.Live.Event,OcuTalon.Data.Ownership,OcuTalon.Data.Session,OcuTalon.Data.Turn,OcuTalon.Data.Incident,OcuTalon.Live.Payload.Approval,OcuTalon.Live.Payload.Decision,OcuTalon.Live.Payload.TurnStep,OcuTalon.Live.Payload.Part.ItemNoun,OcuTalon.Live.Payload.Part.DryRun,OcuTalon.Watch.Notice,OcuTalon.Fix.Reformat";
 
 /// The Reminder table and its owner (AD-33): the class, its table, its globals, the schedule package and the reminder operations. A tool never names one.
 Parameter REMINDERREFERENCE = "ocutalon[._]data[._]reminder|ocutalonp\.reminder|ocutalon\.schedule|ocutalon_schedule|reminderops";
@@ -131,6 +136,13 @@ Parameter INCIDENTWRITES = "ocutalon\.data\.(incident|failuregroup)\s*\)\s*\.\s*
 
 /// The one class that may write the incident tables and publish those events.
 Parameter INCIDENTWRITERS = "OcuTalon.Watch.IncidentManager";
+
+/// A code line that names RetryOf, the request property that lets the AD-8 second-model retry skip the conversation lock (AD-6, veto U-246).
+Parameter RETRYOF = "\bretryof\b";
+
+/// The only classes that may name RetryOf (the Test package is never scanned): the retry decision, the request that carries the property, the runner, its adapter and
+/// the conversation link. No client-facing entry (the web API, Telegram, mail, the bridge's entry points, MCP) may name it.
+Parameter RETRYOFCLASSES = "OcuTalon.Bridge.Process.Decide,OcuTalon.Bridge.Msg.Request,OcuTalon.Bridge.Operation.AgentRunner,OcuTalon.Bridge.Adapter.Agent,OcuTalon.Bridge.Data.ConversationLink";
 
 /// A line that publishes the check event: Publish with the type check as a literal or as Checks' CHECKEVENT parameter (AD-33).
 Parameter CHECKPUBLISHES = "publish\(.*([""']check[""']|\.#checkevent\b)";
@@ -336,6 +348,25 @@ Method TestOnlyChecksPublishesCheck()
 	Do $$$AssertEquals(offending, "", "no class but Checks publishes the check event")
 	Do $$$AssertStatusOK(##class(OcuTalon.Test.Bridge.Source).Text(..#CHECKPUBLISHERS, .text), ..#CHECKPUBLISHERS_" has source")
 	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(text, pattern), "and the scan sees the one class that does publish it, Checks")
+}
+
+/// Only the AD-8 retry path names RetryOf (Story 33.1, veto U-246): the scanner flags the property in each form a client class could use it, passes look-alike words and
+/// comment lines, and the scan finds no class outside the allow-list that names it. RetryOf does not exist yet (Story 17.2 builds it in the allowed classes), so the
+/// scan finds none today; the allowed classes are not required to name it.
+Method TestOnlyTheRetryPathNamesRetryOf()
+{
+	Set pattern = ..#RETRYOF
+	Set tab = $Char(9)
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(tab_"Set request.RetryOf = ""TriageAgent""", pattern), "the scanner flags a property assignment")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(tab_"Set request.RetryOf = body.%Get(""retryOf"")", pattern), "and a client value mapped onto it")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(tab_"Do request.%SetProperty(""RetryOf"", value)", pattern), "and a name in a string")
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Source).Matches(tab_"SET REQUEST.RETRYOF = 1", pattern), "in any case")
+	Do $$$AssertTrue('##class(OcuTalon.Test.Bridge.Source).Matches(tab_"Set retry = request.RetryItem, offset = request.RetryOffset"_$Char(10)_"/// RetryOf is set by Decide only"_$Char(10)_tab_"// Set request.RetryOf = 1"_$Char(10)_tab_"; Set request.RetryOf = 1", pattern), "and passes other properties (a longer name included), a doc comment and comment lines")
+
+	Set offending = ..Offenders(pattern, ..#RETRYOFCLASSES, .scanned, .unreadable)
+	Do $$$AssertTrue(scanned > 50, "the scan read the source of the OcuTalon classes: "_scanned)
+	Do $$$AssertEquals(unreadable, "", "and every class of the scan has source, except the generated stub classes of the process message tracking, which hold no code")
+	Do $$$AssertEquals(offending, "", "no class outside Decide, the request, the runner, its adapter and the link names RetryOf (no web, channel, core, tool or MCP class sets it)")
 }
 
 /// No class outside the Test package calls the chat family, except the runner and its adapter.

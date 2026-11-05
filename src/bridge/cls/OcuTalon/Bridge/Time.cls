@@ -11,9 +11,32 @@
 ///   - SecondsUntil: the whole seconds, rounded down, from now to a UTC time, negative for a time in the past, which a re-armed
 ///     approval timer reads (AD-5). Ens.Util.Time.SecondsUntil reads a time that ends in Z as local time, so the bridge never calls it;
 ///   - DaysCutoff: the day check and UTC cutoff of a purge, which Bridge.Purge and the host's purges share (AD-27, DW-371): now moved back a whole number of days, at least 1.
+///   - Zone, SetZone and Apply: the instance zone's single run-time source (AD-18, Story 33.1). The source is the IANA name in the Decide host
+///     setting InstanceZone, empty for the container's TZ. Zone reads it (through Ext.Accessor.ValueFor), SetZone writes it after refusing a name
+///     that is not an IANA zone name with a file under /usr/share/zoneinfo, and Apply makes the process convert in the zone when the name changed since
+///     the process last applied one. THESE THREE ARE STUBS until Story 17.4: Zone returns "", SetZone answers "not implemented" (code 5003) and writes
+///     nothing, and Apply does nothing, so the process zone is untouched.
 /// Each returns "" for an unreadable input, except DaysCutoff, which returns an error status.
 Class OcuTalon.Bridge.Time
 {
+
+/// The instance zone's name as the setting InstanceZone holds it: an IANA zone name, or "" for the container's TZ. A stub until Story 17.4: "".
+ClassMethod Zone() As %String
+{
+	Quit ""
+}
+
+/// Stores the instance zone, an IANA zone name or "" for the container's TZ. A stub until Story 17.4: not implemented (code 5003), nothing written.
+ClassMethod SetZone(name As %String) As %Status
+{
+	Quit $$$ERROR($$$NotImplemented)
+}
+
+/// Makes this process convert in the instance zone when the zone changed since the process last applied one. A stub until Story 17.4: does nothing.
+ClassMethod Apply()
+{
+	Quit
+}
 
 /// The current time in UTC, YYYY-MM-DDThh:mm:ssZ, whatever the process zone.
 ClassMethod NowUtc() As %String
