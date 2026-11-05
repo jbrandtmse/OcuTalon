@@ -57,6 +57,15 @@ XData UrlMap [ XMLNamespace = "http://www.intersystems.com/urlmap" ]
 </Routes>
 }
 
+/// The request body this class's POST route takes, checked again here by the inherited OnPreDispatch with the path after the Map's prefix, ""
+/// (Web.BodyLimit); the same number as BODYMAX, which Test.Web.DocumentsApi TestBodyBounds pins, and as Web.Api's entry for /v1/documents.
+XData BodyBounds [ MimeType = application/json ]
+{
+[
+{"method": "POST", "url": "", "bytes": 13985112}
+]
+}
+
 /// GET /v1/documents: the session's documents, newest first.
 ClassMethod List() As %Status
 {

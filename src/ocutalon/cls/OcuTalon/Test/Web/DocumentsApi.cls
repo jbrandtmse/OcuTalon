@@ -16,6 +16,9 @@
 ///     holds no bytes; the row stays while the owner answers Ok (DocumentOps takes it); a failed submit (every answer but Ok, an error status, a thrown
 ///     error, an Ok result with an error status, no result), a refusal, an owner that is not running and a remove leave no row;
 ///   - TestBodyBound: a body of BODYMAX bytes is parsed and one byte more is 413 body_too_large before it is parsed, with nothing submitted;
+///   - TestBodyBounds: Web.Api's XData BodyBounds and Web.Documents' each declare POST of the documents route (/v1/documents, and "" after the
+///     Map's prefix) at BODYMAX; through the OnPreDispatch of each (the role check, the envelope, then Web.BodyLimit) a body of BODYMAX bytes goes on
+///     to the route and one byte more is 413 body_too_large, while POST /v1/messages still refuses 262,145 bytes and a GET of the list keeps 262,144;
 ///   - TestLargeBody: a request stream with a 10 MB PDF and a non-ASCII name parses with the exact size and name;
 ///   - TestOutcomes: not_built is 501, not_found is 404 (remove), failed, an unknown outcome, an error status and no result are 500;
 ///   - TestNoSession: a CSP session with no OcuTalon session of the signed-in user (a failed read) is 500 server_error on the list, the add and the
@@ -318,6 +321,49 @@ Method TestBodyBound()
 	Do $$$AssertEquals(response.Status, "413 Content Too Large", "a junk body over the bound is 413, not 400")
 }
 
+/// The documents upload is declared in both dispatch classes (Web.Api for the full path, Web.Documents for the remainder after the Map's prefix)
+/// at BODYMAX, so Web.BodyLimit lets a body of that size through each OnPreDispatch and refuses one byte more; another route keeps 262,144 bytes.
+Method TestBodyBounds()
+{
+	Set max = ##class(OcuTalon.Web.Documents).#BODYMAX
+	Set default = ##class(OcuTalon.Web.BodyLimit).#MAXBYTES
+	Do $$$AssertEquals(default, 262144, "the default bound is 262,144 bytes")
+	Do $$$AssertEquals(##class(OcuTalon.Web.BodyLimit).Bound("OcuTalon.Web.Api", "/v1/documents", "POST"), max, "Web.Api declares POST /v1/documents at BODYMAX")
+	Do $$$AssertEquals(##class(OcuTalon.Web.BodyLimit).Bound("OcuTalon.Web.Documents", "", "POST"), max, "Web.Documents declares POST of the remainder at BODYMAX")
+	Do $$$AssertEquals(##class(OcuTalon.Web.BodyLimit).Bound(..#PROBE, "", "POST"), max, "and so does the probe that extends it")
+	Do $$$AssertEquals(##class(OcuTalon.Web.BodyLimit).Bound("OcuTalon.Web.Api", "/v1/documents", "GET"), default, "a GET of the documents route keeps the default")
+	Do $$$AssertEquals(##class(OcuTalon.Web.BodyLimit).Bound("OcuTalon.Web.Api", "/v1/documents/zzRef", "DELETE"), default, "a DELETE of a document keeps the default")
+	Do $$$AssertEquals(##class(OcuTalon.Web.BodyLimit).Bound("OcuTalon.Web.Api", "/v1/messages", "POST"), default, "another POST route of Web.Api keeps the default")
+	Do $$$AssertEquals(##class(OcuTalon.Web.BodyLimit).Bound("OcuTalon.Web.Documents", "/zzRef", "DELETE"), default, "and so does a DELETE of the forwarded class")
+	Set savedApi = $Get(^OcuTalonTest("ApiProbe", "roles"))
+	Set hadApi = $Data(^OcuTalonTest("ApiProbe", "roles"))
+	Set role = "%DB_OCUTALON," _ ##class(OcuTalon.Web.Public.Shell).#ROLE
+	Set ^OcuTalonTest("ApiProbe", "roles") = role
+	Set ^OcuTalonTest("DocumentsProbe", "roles") = role
+	Set refused = {"error": {"code": "body_too_large", "message": (##class(OcuTalon.Web.BodyLimit).#MESSAGEBODYTOOLARGE)}}.%ToJSON()
+	// The class that holds the Map (a subclass of Web.Api with no declaration of its own) and the forwarded class, each with its url.
+	For case = $ListBuild("OcuTalon.Test.Web.ApiProbe", "/v1/documents"), $ListBuild(..#PROBE, "") {
+		Set class = $List(case, 1), url = $List(case, 2)
+		Set label = $Piece(class, ".", *) _ " POST '" _ url _ "'"
+		For size = default, default + 1, max {
+			Set written = ..SizedDispatch(class, url, "POST", size, .response, .continue)
+			Do $$$AssertEquals(continue _ "|" _ written, "1|", label _ " takes " _ size _ " bytes: goes on to the route")
+		}
+		Set written = ..SizedDispatch(class, url, "POST", max + 1, .response, .continue)
+		Do $$$AssertEquals(response.Status _ "|" _ continue _ "|" _ written, "413 Content Too Large|0|" _ refused, label _ " refuses " _ (max + 1) _ " bytes: 413 body_too_large, the dispatch stops")
+	}
+	// Another route keeps the default bound.
+	Set written = ..SizedDispatch("OcuTalon.Test.Web.ApiProbe", "/v1/messages", "POST", default, .response, .continue)
+	Do $$$AssertEquals(continue _ "|" _ written, "1|", "POST /v1/messages takes 262,144 bytes")
+	Set written = ..SizedDispatch("OcuTalon.Test.Web.ApiProbe", "/v1/messages", "POST", default + 1, .response, .continue)
+	Do $$$AssertEquals(response.Status _ "|" _ continue _ "|" _ written, "413 Content Too Large|0|" _ refused, "POST /v1/messages refuses 262,145 bytes: 413 body_too_large")
+	Set written = ..SizedDispatch("OcuTalon.Test.Web.ApiProbe", "/v1/documents", "GET", default + 1, .response, .continue)
+	Do $$$AssertEquals(response.Status _ "|" _ continue, "413 Content Too Large|0", "a GET of the documents route is still refused over 262,144 bytes")
+	Kill ^OcuTalonTest("DocumentsProbe", "roles")
+	If hadApi Set ^OcuTalonTest("ApiProbe", "roles") = savedApi
+	If 'hadApi Kill ^OcuTalonTest("ApiProbe", "roles")
+}
+
 /// The request stream with a 10 MB PDF and a non-ASCII name is parsed from the stream, never through a string.
 Method TestLargeBody()
 {
@@ -584,6 +630,40 @@ ClassMethod Body(name As %String, size As %Integer, total As %Integer = 0) As %C
 	}
 	Do stream.Rewind()
 	Quit stream
+}
+
+/// Runs OnPreDispatch of the class for a request of the method whose body is a stream of exactly bytes bytes (never held in a string), with the
+/// whole browser envelope, and returns what it wrote. response is the %response and continue the dispatch flag it left.
+Method SizedDispatch(class As %String, url As %String, method As %String, bytes As %Integer, Output response, Output continue) As %String [ Private ]
+{
+	New %request, %response, %session
+	Set %request = ##class(OcuTalon.Test.Web.StubRequest).MakeCall("/ocutalon/api/", method, "application/json", "1", "http://localhost:52773", "localhost:52773")
+	Set stream = ##class(%CSP.BinaryStream).%New()
+	Set chunk = $Translate($Justify("", 30000), " ", "x")
+	Set left = bytes
+	While left > 0 {
+		Set part = $Select(left > 30000: 30000, 1: left)
+		Do stream.Write($Extract(chunk, 1, part))
+		Set left = left - part
+	}
+	Do stream.Rewind()
+	Set %request.Content = stream
+	Set %response = ##class(%CSP.Response).%New()
+	Set %response.ContentType = ""
+	Set %session = ##class(%CSP.Session).%New("ZzDocumentsApiSized"_..Number, 0)
+	Set continue = 1
+	Set sc = ##class(OcuTalon.Test.Web.Api).Capture(.capture)
+	If $SYSTEM.Status.IsOK(sc) {
+		Try {
+			Set sc = $ClassMethod(class, "OnPreDispatch", url, method, .continue)
+		} Catch exception {
+			Set sc = exception.AsStatus()
+		}
+	}
+	Set written = ##class(OcuTalon.Test.Web.Api).Collect(.capture)
+	Do $$$AssertStatusOK(sc, "OnPreDispatch returns OK")
+	Set response = %response
+	Quit written
 }
 
 /// The number of Upload rows of the session.

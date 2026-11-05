@@ -168,6 +168,16 @@ XData UrlMap [ XMLNamespace = "http://www.intersystems.com/urlmap" ]
 </Routes>
 }
 
+/// The request bodies larger than Web.BodyLimit's default that a route takes (Web.BodyLimit): POST /v1/documents takes a file in base64, up to
+/// OcuTalon.Web.Documents' BODYMAX (Test.Web.DocumentsApi TestBodyBounds pins the two equal). The forwarded class declares
+/// the same route with the remainder of the path.
+XData BodyBounds [ MimeType = application/json ]
+{
+[
+{"method": "POST", "url": "/v1/documents", "bytes": 13985112}
+]
+}
+
 /// Every request, before the route is matched: the role check first, then, for /v1/settings and below it, the admin check, then the browser
 /// envelope, then the body size (Web.BodyLimit). A refusal writes its error and stops the dispatch.
 ClassMethod OnPreDispatch(url As %String, method As %String, ByRef continue As %Boolean) As %Status
