@@ -1,16 +1,22 @@
-/// Tests of OcuTalon.Bridge.ConfigStore.Merge (Story 1.1; AD-19). Each test works on its own entry, AI.LLM.OcuTalonZzMerge<n>
+/// Tests of OcuTalon.Bridge.ConfigStore.Merge (Story 1.1, changed by Story 17.3; AD-19, AD-7). Each test works on its own entry, AI.LLM.OcuTalonZzMerge<n>
 /// (n from ^OcuTalonTest("ConfigStore","n"), never reset), which it creates after RebuildRegistry() and deletes at the end; no
-/// other entry is touched. The entry holds the placeholder key only, and no test writes a real key anywhere.
-///   - TestMerge: only the given fields change; nested objects merge and other keys of http_config stay; a JSON null removes a
-///     field, also a nested one; an array and a scalar replace; the short name and the full name name the same entry;
+/// other entry is touched. The entry holds the placeholder key only, and no test writes a real key anywhere. Merge accepts two shapes of fields
+/// (the timeouts shape and the model-change shape) and refuses everything else.
+///   - TestMerge: the timeouts shape changes only the fields it names; nested objects merge and other keys of http_config stay; the short name and the
+///     full name name the same entry; an empty object merges nothing;
 ///   - TestMergeRefused: a literal api_key at any depth, an api_key that is not exactly one @{env:NAME}, an @{ in any other
-///     string (value, array element or field name), and fields that are not a dynamic object are refused with a text that says
-///     why and holds no value, and the entry stays unchanged after each;
+///     string (value, array element or field name), any field outside the two shapes and fields that are not a dynamic object are refused with a text
+///     that says why and holds no value, and the entry stays unchanged after each;
 ///   - TestMergeRefusedAmongValidFields: a refused field that follows valid fields, at the top level and inside an object, an
 ///     array or a field name, refuses the whole call, and the valid fields are not written either;
-///   - TestMergePlaceholder: api_key @{env:OPENAI_API_KEY} is accepted, because Story 17.3 sends that form;
-///   - TestMergeKeyNameCharacters: an api_key placeholder names a variable of letters, digits and underscores only; a hyphen, a
-///     dot, a colon, a dollar sign, a letter outside ASCII, a line end or a space around the placeholder is refused;
+///   - TestMergePlaceholder: the model-change shape with the placeholder of the provider is accepted and stored as the literal placeholder;
+///   - TestModelChangeShape (Story 17.3, DW-52): each way of putting anything but the provider, its own key placeholder and a model of that provider
+///     into a model change is refused, naming the field, with the entry unchanged; the valid shape is accepted, and the entry never holds the model;
+///     the timeouts shape plus another field is refused; the shapes cannot be mixed;
+///   - TestRestore (Story 17.3): Restore puts back the details that Details read after a Merge, byte for byte; details that are no dynamic object and a
+///     missing entry are refused, and nothing is created;
+///   - TestMergeKeyNameCharacters: an api_key placeholder is exactly @{env:<the provider's variable>}; any other variable, a hyphen, a dot, a colon,
+///     a dollar sign, a letter outside ASCII, a line end or a space around the placeholder is refused;
 ///   - TestMissingEntry: a missing entry is an error that names it, and nothing is created;
 ///   - TestDetails (Story 1.6): Details reads the entry with its placeholders unresolved, by its short or its full name; a missing entry
 ///     is an error that names it and leaves details empty; Merge and Keys read through it;
@@ -55,39 +61,31 @@ Method OnAfterOneTest() As %Status
 	Quit $SYSTEM.Status.OK()
 }
 
-/// Only the given fields change, and the entry keeps its other fields.
+/// The timeouts shape changes only the fields it names, and the entry keeps its other fields.
 Method TestMerge()
 {
 	Set name = ..EntryName()
-	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.ConfigStore).Merge(name, {"base_url": "x", "http_config": {"custom_headers": {"a": "1"}}}), "Merge accepts the fields")
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.ConfigStore).Merge(name, {"http_config": {"request_timeout_secs": 20, "retry": {"max_retries": 1, "attempt_timeout_secs": 5}}}), "Merge accepts the timeouts shape")
 	Set details = ..EntryDetails()
-	Do $$$AssertEquals(details."base_url", "x", "base_url is replaced")
-	Do $$$AssertEquals(details."http_config"."custom_headers".a, "1", "the nested header is replaced")
-	Do $$$AssertEquals(details."http_config"."custom_headers"."x-keep", "1", "the other header stays")
-	Do $$$AssertEquals(details."http_config"."request_timeout_secs", 10, "the other key of http_config stays, with its type")
+	Do $$$AssertEquals(details."http_config"."request_timeout_secs", 20, "request_timeout_secs is replaced, with its type")
+	Do $$$AssertEquals(details."http_config".retry.%ToJSON(), "{""max_retries"":1,""attempt_timeout_secs"":5}", "the retry block is added")
+	Do $$$AssertEquals(details."http_config"."custom_headers"."x-keep", "1", "the headers of http_config stay")
+	Do $$$AssertEquals(details."base_url", "http://old.invalid/v1/", "base_url stays")
 	Do $$$AssertEquals(details."model_provider", "anthropic", "the provider stays")
 	Do $$$AssertEquals(details."api_key", "@{env:ANTHROPIC_API_KEY}", "the key placeholder stays")
 	Do $$$AssertEquals(details.extra.%ToJSON(), "[1,2]", "an untouched array stays")
 
-	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.ConfigStore).Merge("AI.LLM."_name, {"base_url": null, "http_config": {"custom_headers": {"a": null}, "tls": {"accept_invalid_certs": false}}, "extra": [3], "flag": true, "count": 2}), "the full name names the same entry; null, a new object, an array and scalars are accepted")
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.ConfigStore).Merge("AI.LLM."_name, {"http_config": {"retry": {"max_retries": 2, "max_backoff_ms": 2000}}}), "the full name names the same entry, and the retry block merges deep")
 	Set details = ..EntryDetails()
-	Do $$$AssertTrue('details.%IsDefined("base_url"), "a null removes base_url")
-	Do $$$AssertTrue('details."http_config"."custom_headers".%IsDefined("a"), "a nested null removes the header")
-	Do $$$AssertEquals(details."http_config"."custom_headers"."x-keep", "1", "the other header still stays")
-	Do $$$AssertEquals(details."http_config".tls."accept_invalid_certs", 0, "a new nested object is added")
-	Do $$$AssertEquals(details."http_config".tls.%GetTypeOf("accept_invalid_certs"), "boolean", "with its boolean type")
-	Do $$$AssertEquals(details.extra.%ToJSON(), "[3]", "an array replaces the array")
-	Do $$$AssertEquals(details.%GetTypeOf("flag"), "boolean", "a boolean keeps its type")
-	Do $$$AssertEquals(details.count, 2, "a number is added")
+	Do $$$AssertEquals(details."http_config".retry.%ToJSON(), "{""max_retries"":2,""attempt_timeout_secs"":5,""max_backoff_ms"":2000}", "a field of retry is replaced, another stays and a new one is added")
+	Do $$$AssertEquals(details."http_config"."request_timeout_secs", 20, "request_timeout_secs stays")
+	Do $$$AssertEquals(details."http_config"."custom_headers"."x-keep", "1", "the headers still stay")
 	Do $$$AssertEquals(details."model_provider", "anthropic", "the provider still stays")
 
-	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.ConfigStore).Merge(name, {"http_config": {"tls": {"x": {"y": null}}}}), "a null under an object that is new removes nothing and adds no null")
-	Set details = ..EntryDetails()
-	Do $$$AssertEquals(details."http_config".tls.x.%ToJSON(), "{}", "the new object is empty")
 	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.ConfigStore).Merge(name, {}), "an empty object is a merge of nothing")
 	Do $$$AssertEquals(..EntryDetails().%ToJSON(), details.%ToJSON(), "and changes nothing")
-	Do $$$AssertStatusNotOK(##class(OcuTalon.Bridge.ConfigStore).Merge(name, {"model_provider": null}), "a merge that leaves the entry invalid is an error")
-	Do $$$AssertEquals(..EntryDetails().%ToJSON(), details.%ToJSON(), "and leaves it as it was")
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.ConfigStore).Merge(name, {"http_config": {}}), "an empty http_config is accepted")
+	Do $$$AssertEquals(..EntryDetails().%ToJSON(), details.%ToJSON(), "and changes nothing")
 }
 
 /// A literal key, an api_key that is not one placeholder, an @{ in any other string and fields that are not an object are
@@ -163,31 +161,106 @@ Method TestMergeRefusedAmongValidFields()
 	}
 }
 
-/// api_key @{env:OPENAI_API_KEY} is accepted: it is the form that Story 17.3 sends.
+/// The model-change shape with the placeholder of the provider is accepted and stored as the literal placeholder.
 Method TestMergePlaceholder()
 {
-	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.ConfigStore).Merge(..EntryName(), {"api_key": "@{env:OPENAI_API_KEY}"}), "a placeholder is accepted")
-	Do $$$AssertEquals(..EntryDetails()."api_key", "@{env:OPENAI_API_KEY}", "and stored as the literal placeholder")
-	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.ConfigStore).Merge(..EntryName(), {"http_config": {"api_key": "@{env:Some_Key_2}"}}), "also at a depth")
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.ConfigStore).Merge(..EntryName(), {"model_provider": "openai", "api_key": "@{env:OPENAI_API_KEY}"}), "a provider and its placeholder are accepted")
+	Set details = ..EntryDetails()
+	Do $$$AssertEquals(details."api_key", "@{env:OPENAI_API_KEY}", "the key is stored as the literal placeholder")
+	Do $$$AssertEquals(details."model_provider", "openai", "and the provider is changed")
+	Do $$$AssertEquals(details."base_url", "http://old.invalid/v1/", "the other fields stay")
 }
 
-/// The variable that an api_key placeholder names has letters, digits and underscores only: other characters, a line end or a
-/// space around the placeholder make it a refused api_key, and the entry is unchanged.
+/// Story 17.3 (DW-52, AD-7): the model-change shape is exactly model_provider, api_key and optionally model. Each case is refused with a reason that names
+/// the field and holds no value, and the entry is the same after it; the valid shapes are accepted, and the entry never holds a model.
+Method TestModelChangeShape()
+{
+	Set store = "OcuTalon.Bridge.ConfigStore"
+	Set name = ..EntryName()
+	Set before = ..EntryDetails().%ToJSON()
+	Set good = {"model_provider": "anthropic", "api_key": "@{env:ANTHROPIC_API_KEY}"}
+	Set cases = []
+	Do cases.%Push({"fields": {"model_provider": "anthropic", "api_key": "@{env:PATH}"}, "names": "api_key"})
+	Do cases.%Push({"fields": {"model_provider": "anthropic", "api_key": "@{env:OPENAI_API_KEY}"}, "names": "api_key"})
+	Do cases.%Push({"fields": {"model_provider": "anthropic", "api_key": "@{env:ANTHROPIC_API_KEY}", "base_url": "http://x.invalid/v1/"}, "names": "base_url"})
+	Do cases.%Push({"fields": {"model_provider": "anthropic", "api_key": "@{env:ANTHROPIC_API_KEY}", "http_config": {"custom_headers": {"x": "1"}}}, "names": "http_config"})
+	Do cases.%Push({"fields": {"model_provider": "anthropic", "api_key": "secret://zz.zz"}, "names": "api_key"})
+	Do cases.%Push({"fields": {"model_provider": "anthropic", "api_key": "@{config:zz}"}, "names": "api_key"})
+	Do cases.%Push({"fields": {"model_provider": "anthropic", "api_key": "@{env:ANTHROPIC_API_KEY}", "org_id": "zz"}, "names": "org_id"})
+	Do cases.%Push({"fields": {"model_provider": "nope", "api_key": "@{env:ANTHROPIC_API_KEY}"}, "names": "model_provider"})
+	Do cases.%Push({"fields": {"model_provider": "@{env:PATH}", "api_key": "@{env:ANTHROPIC_API_KEY}"}, "names": "model_provider"})
+	Do cases.%Push({"fields": {"model_provider": "anthropic", "api_key": "@{env:ANTHROPIC_API_KEY}", "model": "gpt-5.4"}, "names": "model"})
+	Do cases.%Push({"fields": {"model_provider": "anthropic", "api_key": "@{env:ANTHROPIC_API_KEY}", "model": "@{env:PATH}"}, "names": "model"})
+	Do cases.%Push({"fields": {"api_key": "@{env:ANTHROPIC_API_KEY}"}, "names": "model_provider"})
+	Do cases.%Push({"fields": {"model_provider": "anthropic"}, "names": "api_key"})
+	Do cases.%Push({"fields": {"model": "claude-haiku-5-5"}, "names": "model_provider"})
+	Do cases.%Push({"fields": {"http_config": {"request_timeout_secs": 5}, "base_url": "http://x.invalid/v1/"}, "names": "base_url"})
+	Do cases.%Push({"fields": {"http_config": {"request_timeout_secs": 5, "custom_headers": {"x": "1"}}}, "names": "custom_headers"})
+	Do cases.%Push({"fields": {"http_config": {"retry": {"max_retries": "1"}}}, "names": "retry"})
+	Do cases.%Push({"fields": {"http_config": {"request_timeout_secs": "5"}}, "names": "request_timeout_secs"})
+	Do cases.%Push({"fields": {"base_url": "http://x.invalid/v1/"}, "names": "base_url"})
+	For i = 1:1:cases.%Size() {
+		Set one = cases.%Get(i - 1)
+		Set sc = $ClassMethod(store, "Merge", name, one.fields)
+		Do $$$AssertStatusNotOK(sc, "case "_i_" is refused: "_one.fields.%ToJSON())
+		Set text = $SYSTEM.Status.GetErrorText(sc)
+		Do $$$AssertTrue(text [ one.names, "case "_i_" names the field "_one.names_": "_text)
+		Do $$$AssertTrue((text '[ "PATH") && (text '[ "secret://") && (text '[ "x.invalid") && (text '[ "gpt-5.4"), "case "_i_" holds no value in the error")
+		Do $$$AssertEquals(..EntryDetails().%ToJSON(), before, "case "_i_" leaves the entry unchanged")
+	}
+	Do $$$AssertStatusOK($ClassMethod(store, "Merge", name, good), "the provider and its own placeholder are accepted")
+	Do $$$AssertStatusOK($ClassMethod(store, "Merge", name, {"model_provider": "openai", "api_key": "@{env:OPENAI_API_KEY}", "model": "gpt-5.4"}), "so is a model of the provider, with another provider")
+	Set details = ..EntryDetails()
+	Do $$$AssertEquals(details."model_provider"_"|"_details."api_key", "openai|@{env:OPENAI_API_KEY}", "the entry holds the provider and the placeholder")
+	Do $$$AssertEquals(details.%IsDefined("model"), 0, "and never the model: the runner's Model setting carries it")
+	Do $$$AssertEquals(details."base_url", "http://old.invalid/v1/", "the other fields stay")
+	For provider = "anthropic", "openai", "gemini", "bedrock" {
+		Set row = ##class(OcuTalon.Bridge.Providers).Row(provider)
+		Do $$$AssertStatusOK($ClassMethod(store, "Merge", name, {"model_provider": (provider), "api_key": ("@{env:"_row.keyVariable_"}"), "model": (row.defaultModel)}), provider_" with its key variable and its default model is accepted")
+	}
+	Do $$$AssertStatusOK($ClassMethod(store, "Merge", name, {"http_config": {"request_timeout_secs": 7, "retry": {"max_retries": 1}}}), "the timeouts shape is accepted")
+}
+
+/// Restore writes back exactly the details that Details read, after a Merge changed the entry; a missing entry and details that are no dynamic object
+/// are errors, and nothing is created.
+Method TestRestore()
+{
+	Set store = "OcuTalon.Bridge.ConfigStore"
+	Set name = ..EntryName()
+	Do $$$AssertStatusOK($ClassMethod(store, "Details", name, .before), "Details reads the entry")
+	Set expected = ..EntryDetails().%ToJSON()
+	Do $$$AssertStatusOK($ClassMethod(store, "Merge", name, {"model_provider": "openai", "api_key": "@{env:OPENAI_API_KEY}"}), "Merge changes the provider and the key placeholder")
+	Do $$$AssertTrue(..EntryDetails().%ToJSON() '= expected, "so the entry is no longer as it was")
+	Do $$$AssertStatusOK($ClassMethod(store, "Restore", name, before), "Restore puts the details back")
+	Do $$$AssertEquals(..EntryDetails().%ToJSON(), expected, "and the entry is byte-equal to what Details read")
+	Do $$$AssertStatusNotOK($ClassMethod(store, "Restore", name, "not an object"), "details that are no dynamic object are refused")
+	Do $$$AssertStatusNotOK($ClassMethod(store, "Restore", name, ""), "so are empty details")
+	Do $$$AssertEquals(..EntryDetails().%ToJSON(), expected, "and the entry stays as it was")
+	Set missing = name_"Missing"
+	Set sc = $ClassMethod(store, "Restore", missing, before)
+	Do $$$AssertStatusNotOK(sc, "a missing entry is an error")
+	Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ missing, "that names the entry: "_$SYSTEM.Status.GetErrorText(sc))
+	Do $$$AssertEquals(##class(%ConfigStore.Configuration).Exists("AI.LLM."_missing), 0, "and nothing is created")
+}
+
+/// An api_key placeholder is exactly @{env:<the provider's variable>}: another variable, other characters, a line end or a space around the
+/// placeholder make it a refused api_key, and the entry is unchanged.
 Method TestMergeKeyNameCharacters()
 {
 	Set name = ..EntryName()
-	For variable = "A", "a1_B2", "_x", "9", "ANTHROPIC_API_KEY" {
-		Do $$$AssertStatusOK(##class(OcuTalon.Bridge.ConfigStore).Merge(name, {"api_key": ("@{env:" _ variable _ "}")}), "the variable '"_variable_"' is accepted")
+	For provider = "anthropic", "openai", "gemini", "bedrock" {
+		Set variable = ##class(OcuTalon.Bridge.Providers).Row(provider).keyVariable
+		Do $$$AssertStatusOK(##class(OcuTalon.Bridge.ConfigStore).Merge(name, {"model_provider": (provider), "api_key": ("@{env:" _ variable _ "}")}), "the variable '"_variable_"' of "_provider_" is accepted")
 		Do $$$AssertEquals(..EntryDetails()."api_key", "@{env:" _ variable _ "}", "and stored as the placeholder")
 	}
-	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.ConfigStore).Merge(name, {"api_key": "@{env:ANTHROPIC_API_KEY}"}), "the key is put back to the start value")
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.ConfigStore).Merge(name, {"model_provider": "anthropic", "api_key": "@{env:ANTHROPIC_API_KEY}"}), "the key is put back to the start value")
 	Set before = ..EntryDetails().%ToJSON()
-	Set refused = $ListBuild("@{env:A-B}", "@{env:A.B}", "@{env:A:B}", "@{env:A$B}", "@{env:A/B}", "@{env:A"_$Char(233)_"}", "@{env:A}"_$Char(10), "@{env:A}"_$Char(13, 10), $Char(10)_"@{env:A}", " @{env:A}", "@{env:A} ", "@{ env:A}", "@{env: A}", "@{env:A")
+	Set refused = $ListBuild("@{env:A}", "@{env:a1_B2}", "@{env:_x}", "@{env:9}", "@{env:OPENAI_API_KEY}", "@{env:A-B}", "@{env:A.B}", "@{env:A:B}", "@{env:A$B}", "@{env:A/B}", "@{env:A"_$Char(233)_"}", "@{env:ANTHROPIC_API_KEY}"_$Char(10), "@{env:ANTHROPIC_API_KEY}"_$Char(13, 10), $Char(10)_"@{env:ANTHROPIC_API_KEY}", " @{env:ANTHROPIC_API_KEY}", "@{env:ANTHROPIC_API_KEY} ", "@{ env:ANTHROPIC_API_KEY}", "@{env: ANTHROPIC_API_KEY}", "@{env:ANTHROPIC_API_KEY")
 	Set position = 0
 	Set n = 0
 	While $ListNext(refused, position, value) {
 		Set n = n + 1
-		Set sc = ##class(OcuTalon.Bridge.ConfigStore).Merge(name, {"api_key": (value)})
+		Set sc = ##class(OcuTalon.Bridge.ConfigStore).Merge(name, {"model_provider": "anthropic", "api_key": (value)})
 		Do $$$AssertStatusNotOK(sc, "the api_key of case "_n_" ("_$Length(value)_" characters) is refused")
 		Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ "refuses the fields", "and the error says why")
 		Do $$$AssertEquals(..EntryDetails().%ToJSON(), before, "and the entry is unchanged")
@@ -198,11 +271,11 @@ Method TestMergeKeyNameCharacters()
 Method TestMissingEntry()
 {
 	Set missing = "OcuTalonZzMissing"_..Number
-	Set sc = ##class(OcuTalon.Bridge.ConfigStore).Merge(missing, {"base_url": "x"})
+	Set sc = ##class(OcuTalon.Bridge.ConfigStore).Merge(missing, {"http_config": {"request_timeout_secs": 5}})
 	Do $$$AssertStatusNotOK(sc, "Merge of a missing entry is an error")
 	Do $$$AssertTrue($SYSTEM.Status.GetErrorText(sc) [ ("AI.LLM."_missing), "which names the entry")
 	Do $$$AssertTrue('##class(%ConfigStore.Configuration).Exists("AI.LLM."_missing), "and creates nothing")
-	Do $$$AssertStatusNotOK(##class(OcuTalon.Bridge.ConfigStore).Merge("", {"base_url": "x"}), "an empty name is an error")
+	Do $$$AssertStatusNotOK(##class(OcuTalon.Bridge.ConfigStore).Merge("", {"http_config": {"request_timeout_secs": 5}}), "an empty name is an error")
 }
 
 /// An entry that holds a reference to a secret that cannot be resolved is merged and written back with the reference as it was:
@@ -214,21 +287,22 @@ Method TestKeepsSecretReference()
 	Set start = {}.%FromJSON(..#START)
 	Do start.%Set("note", reference)
 	Do $$$AssertStatusOK(##class(%ConfigStore.Configuration).Create("AI", "LLM", "", ..EntryName(), start), "an entry that holds a secret reference is created")
-	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.ConfigStore).Merge(..EntryName(), {"base_url": "x"}), "Merge reads it without resolving the reference")
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.ConfigStore).Merge(..EntryName(), {"http_config": {"request_timeout_secs": 7}}), "Merge reads it without resolving the reference")
 	Set details = ..EntryDetails()
 	Do $$$AssertEquals(details.note, reference, "and writes the reference back as it was")
-	Do $$$AssertEquals(details."base_url", "x", "and the given field changed")
+	Do $$$AssertEquals(details."http_config"."request_timeout_secs", 7, "and the given field changed")
 }
 
 /// AI Hub's @{config:} expansion shows the merged fields and the untouched ones, and the key stays a placeholder.
 Method TestExpansionSeesMerge()
 {
 	Do $$$AssertStatusOK(##class(%AI.Utils.SettingStore).RegisterDefaults(), "the setting stores are registered")
-	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.ConfigStore).Merge(..EntryName(), {"base_url": "http://merged.invalid/v1/", "http_config": {"custom_headers": {"a": "1"}}}), "Merge accepts the fields")
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.ConfigStore).Merge(..EntryName(), {"http_config": {"request_timeout_secs": 31, "retry": {"max_retries": 1}}}), "Merge accepts the fields")
 	Set expanded = {}.%FromJSON(##class(%AI.Utils.SettingStore).Expand("@{config:"_..EntryName()_"}"))
-	Do $$$AssertEquals(expanded."base_url", "http://merged.invalid/v1/", "the expansion shows the merged base_url")
-	Do $$$AssertEquals(expanded."http_config"."custom_headers".a, "1", "and the merged header")
+	Do $$$AssertEquals(expanded."http_config"."request_timeout_secs", 31, "the expansion shows the merged timeout")
+	Do $$$AssertEquals(expanded."http_config".retry."max_retries", 1, "and the merged retry block")
 	Do $$$AssertEquals(expanded."http_config"."custom_headers"."x-keep", "1", "and the untouched header")
+	Do $$$AssertEquals(expanded."base_url", "http://old.invalid/v1/", "and the untouched base_url")
 	Do $$$AssertEquals(expanded."model_provider", "anthropic", "and the provider")
 	Do $$$AssertEquals(expanded."api_key", "@{env:ANTHROPIC_API_KEY}", "and the key still as the literal placeholder")
 }

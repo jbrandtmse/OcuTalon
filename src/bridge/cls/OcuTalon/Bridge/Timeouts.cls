@@ -181,15 +181,15 @@ ClassMethod IsRetryItem(item As %String) As %Boolean
 	Quit ($Length(item) > length) && ($Extract(item, $Length(item) - length + 1, $Length(item)) = ..#RETRYSUFFIX)
 }
 
-/// When the production runs, stops Decide and each runner item that has a job and starts it again (Ens.Director.TempStopConfigItem), and
+/// When the production runs, stops Decide (unless decide is 0) and each runner item of runners that has a job and starts it again (Ens.Director.TempStopConfigItem), and
 /// waits, up to RESTARTSECONDS, until every one of them has a job that is not one of the jobs it had. An item with no job is not
 /// restarted: it is not running, and its next start applies the writes. A stop or a start that fails lifts the temporary stop again, so
 /// that the item is not left stopped. The error names the item that could not be stopped or started, or the items that did not run
 /// again in time. Decisions in flight when an item restarts end at their timers.
-ClassMethod Restart(production As %String, runners As %List) As %Status
+ClassMethod Restart(production As %String, runners As %List, decide As %Boolean = 1) As %Status
 {
 	If '##class(Ens.Director).IsProductionRunning(.running) || (running '= production) Quit $$$OK
-	Set items = $ListBuild("Decide")
+	Set items = $Select(decide: $ListBuild("Decide"), 1: "")
 	For i = 1:1:$ListLength(runners) {
 		Set items = items _ $ListBuild($List($List(runners, i), 1))
 	}
@@ -203,7 +203,7 @@ ClassMethod Restart(production As %String, runners As %List) As %Status
 		If $$$ISOK(sc) Set sc = ##class(Ens.Director).TempStopConfigItem(production_"||"_item, 0)
 		If $$$ISERR(sc) {
 			Do ##class(Ens.Director).TempStopConfigItem(production_"||"_item, 0)
-			Set sc = $$$ERROR($$$GeneralError, "The item "_item_" could not be restarted, so the new timer applies at the next restart: "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
+			Set sc = $$$ERROR($$$GeneralError, "The item "_item_" could not be restarted, so the change applies at the next restart: "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
 		}
 		Set restarted = restarted _ $ListBuild($ListBuild(item, old))
 	}
@@ -219,7 +219,7 @@ ClassMethod Restart(production As %String, runners As %List) As %Status
 		Hang 1
 	}
 	If missing '= "" {
-		Quit $$$ERROR($$$GeneralError, "These items did not run again within "_..#RESTARTSECONDS_" seconds, so the new timer applies at their next start: "_$ListToString(missing, ", "))
+		Quit $$$ERROR($$$GeneralError, "These items did not run again within "_..#RESTARTSECONDS_" seconds, so the change applies at their next start: "_$ListToString(missing, ", "))
 	}
 	Quit $$$OK
 }

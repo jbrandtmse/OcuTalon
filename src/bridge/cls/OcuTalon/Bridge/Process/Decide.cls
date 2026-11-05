@@ -198,6 +198,10 @@ Parameter INVALIDINPUTTEXT = "Invalid input";
 /// on tool results that bring nothing new). Matched without regard to case.
 Parameter ITERATIONCODES = "<%AICore>MaxIterationsReached,<%AICore>LoopDetected";
 
+/// The finish reasons that end a reply normally, comma-separated and in lower case (Classify rule 6): a reply with text and any other
+/// non-empty finish reason, refusal and max_tokens apart, is unusable.
+Parameter FINISHED = "end_turn,stop_sequence,tool_use,stop";
+
 /// The class that receives the bridge's events; it extends OcuTalon.Bridge.Ext.HostSink.
 Property HostSinkClass As %String(MAXLEN = 128) [ InitialExpression = "OcuTalon.Bridge.Ext.HostSink" ];
 
@@ -1220,7 +1224,10 @@ ClassMethod EstimateTokens(request As OcuTalon.Bridge.Msg.Request, runner As %St
 ///   5. a text fact that is blank once white space and control characters are removed gives empty when finishReason is not empty,
 ///      and unusable when it is, because a provider that reports no stop reason cannot tell an empty reply from a refusal or a cut-off
 ///      (with no text fact at all there is no reply to judge, so the rule does not apply);
-///   6. invalid gives invalid.
+///   6. a reply that has text and a finishReason that is not empty, is not refusal or max_tokens and is not one of FINISHED (compared without
+///      regard to case) gives unusable, because the bridge cannot tell what the provider's other stop reasons (pause_turn, content_filter,
+///      length, SAFETY) mean, and such a reply is never an answer;
+///   7. invalid gives invalid.
 ClassMethod Classify(facts As %DynamicObject) As %String
 {
 	If '$IsObject($Get(facts)) Quit ""
@@ -1247,6 +1254,7 @@ ClassMethod Classify(facts As %DynamicObject) As %String
 	If finishReason = "refusal" Quit "refusal"
 	If finishReason = "max_tokens" Quit "cut_off"
 	If facts.%IsDefined("text") && ($ZStrip(facts.%Get("text"), "*WC") = "") Quit $Select(finishReason '= "": "empty", 1: "unusable")
+	If facts.%IsDefined("text") && (finishReason '= "") && '$ListFind($ListFromString(..#FINISHED, ","), $ZConvert(finishReason, "L")) Quit "unusable"
 	If +facts.%Get("invalid") Quit "invalid"
 	Quit ""
 }

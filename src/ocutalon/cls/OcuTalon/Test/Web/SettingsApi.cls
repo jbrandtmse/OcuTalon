@@ -7,7 +7,8 @@
 ///   - TestNonAdminIs403Everywhere: with the OcuTalon user role only, or with %All, GET /v1/settings and each of the seven POST routes (also written
 ///     with another case, a trailing slash and a query) answer 403 not_admin and stop the dispatch, before the browser envelope, whatever the
 ///     headers, while an admin passes to the envelope check and a path that is not a settings path is not asked for the role;
-///   - TestGetShape: the body is SettingsOps.Values and holds no key material;
+///   - TestGetShape: the body is SettingsOps.Values, its providers are asserted by their built shape, and it holds no key value (a scan that is shown to find a planted
+///     Anthropic-shaped, OpenAI-shaped and Google-shaped key and a configured key value; the names of the key variables are allowed);
 ///   - TestSaveThresholds: an admin's save through the production answers 200, writes the rows with the audit entries, and the page's GET and
 ///     Setting.Get in a process whose cache entry has expired show the saved values, and the production is not restarted (its start time stays);
 ///     the command is the CSP session's, not the body's;
@@ -143,11 +144,53 @@ Method TestGetShape()
 	Do $$$AssertEquals(json.sections.%Get("check-thresholds").%ToJSON(), "{""diskFreePercent"":10,""journalFreePercent"":10,""licenseUsePercent"":90,""queueMessages"":100,""queueWaitMinutes"":10}", "the thresholds")
 	Do $$$AssertEquals(json.sections.%Get("daily-digest").channels, "web,phone,telegram", "the digest channels")
 	Do $$$AssertEquals(json.sections.%Get("demo-mode").%GetTypeOf("demoMode"), "boolean", "demoMode is a boolean")
-	Do $$$AssertEquals(json.providers.%GetTypeOf(0), "unassigned", "the stub's providers are empty")
+	// U-177 exception: this Lane B test is edited by Lane A's Story 17.3 once, as ruled by the Contest Planner (2026-11-05). The providers are asserted by their built shape only.
+	Do $$$AssertEquals(json.providers.%GetTypeOf(0), "object", "the providers are built: the first row is an object")
+	Do $$$AssertTrue(json.providers.%Size() > 0, "and the list is not empty")
+	Set iterator = json.providers.%GetIterator()
+	While iterator.%GetNext(, .row) {
+		Set fields = ""
+		Set names = row.%GetIterator()
+		While names.%GetNext(.name) {
+			Set fields = fields_$Select(fields = "": "", 1: ",")_name
+		}
+		Do $$$AssertEquals(fields, "provider,defaultModel,models,keyVariable,keySet,supported", "a provider row holds these fields: "_row.provider)
+		Do $$$AssertEquals(row.%GetTypeOf("keySet")_"|"_row.%GetTypeOf("supported"), "boolean|boolean", "with keySet and supported as booleans: "_row.provider)
+		Set configured = $SYSTEM.Util.GetEnviron(row.keyVariable)
+		If configured '= "" Do $$$AssertEquals($Find(body, configured), 0, "the body does not hold the key value configured in "_row.keyVariable)
+	}
 	Set lower = $ZConvert(body, "L")
-	For word = "secret", "apikey", "api_key", "password", "token_value", "sk-" {
+	For word = "secret", "apikey", "password", "token_value" {
 		Do $$$AssertTrue(lower '[ word, "the body holds no '"_word_"'")
 	}
+	Do $$$AssertEquals(..KeyShape(body, ""), "", "the body holds no value shaped like a key (the names of the key variables are allowed)")
+
+	// the scan fails on each shape of key value planted in the body; the keys are built here, so that no key-shaped text sits in this file
+	Set configuredFake = "zz-configured-"_$Increment(^OcuTalonTest("SettingsApi", "plant"))
+	Set planted = $ListBuild(
+		$ListBuild("anthropic", "sk-"_"ant-"_"api03-zzplanted0001"),
+		$ListBuild("openai", "sk-"_"proj-zzplanted0002"),
+		$ListBuild("google", "AI"_"za"_"SyZzPlanted0003"),
+		$ListBuild("configured", configuredFake))
+	Set position = 0
+	While $ListNext(planted, position, one) {
+		Do $$$AssertEquals(..KeyShape(body_" "_$List(one, 2)_" ", $ListBuild(configuredFake)), $List(one, 1), "a planted "_$List(one, 1)_" key is found in the body")
+	}
+}
+
+/// The shape of key value that the text holds, or "": anthropic (sk-ant- prefix), openai (sk- prefix), google (AIza prefix) or configured (one of the values in the list).
+/// The names of the key variables (ANTHROPIC_API_KEY and the others) are no key values and are not found.
+ClassMethod KeyShape(text As %String, configured As %List) As %String [ Private ]
+{
+	If $Find(text, "sk-"_"ant-") Quit "anthropic"
+	If $Find(text, "sk-") Quit "openai"
+	If $Find(text, "AI"_"za") Quit "google"
+	Set found = 0
+	Set position = 0
+	While 'found && $ListNext(configured, position, value) {
+		If (value '= "") && $Find(text, value) Set found = 1
+	}
+	Quit $Select(found: "configured", 1: "")
 }
 
 /// An admin's save of two thresholds through the production: 200 {"result":"done","sections"}, the two rows, the GET at once, and Setting.Get in a

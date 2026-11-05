@@ -2,7 +2,7 @@
 title: 'Story 17.3: Run each agent on a supported provider'
 type: 'feature'
 created: '2026-11-05'
-status: 'in-review'
+status: 'done'
 baseline_revision: 'cc12bd0ed1ec133415b5446bf653ef975105fc87'
 review_loop_iteration: 0
 followup_review_recommended: false
@@ -10,9 +10,27 @@ context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-17-context.md'
 warnings: ['oversized']
 deferred:
-  - 'Test.Web.SettingsApi.TestGetShape (Lane B, Story 33.2, U-177) goes red now that Settings.Providers is built: line 146 asserts the stub shape ("the stub providers are empty"), and its scan for the word api_key finds the key variable names that every row carries (ANTHROPIC_API_KEY lower-cased). Recommended edit by Lane B: assert four rows in table order, and scan the body with the key variable names removed.'
-  - 'Resolved (live) through Decide cannot run in a throwaway: the runner jobs and the Decide job have no model key, and a variable that a test sets is set in the test process only (measured: a restarted job does not see it), so no supported provider can have its key set where Decide and the runner read it. TestResolvedLive proves Keys.Absent and Providers.Resolve live in the test process, and the shadow runner proves the adapter; a decide answering through the mock on a resolved provider needs a throwaway whose compose file sets a dummy ANTHROPIC_API_KEY (a new live unit, not ci/compose.ci.yml).'
-  - 'The seeded Price row claude-sonnet-5-5 has a cache-read rate of 0.2; Anthropic pricing page of 2026-11-05 lists 0.10 (0.05x input), and the AWS page notes the same 50% cut from 2026-10-07. The new Bedrock Sonnet row carries 0.1; the existing row is not changed here (Test.Bridge.Usage pins it and an admin owns seeded prices).'
+  - summary: >-
+      An instance that already holds the seeded Price row of claude-sonnet-5-5 keeps its cache-read rate 0.2; the seed is now 0.1, and a model change can now select that model.
+    evidence: |-
+      SeedPrices never overwrites an existing row (AD-19 seed values), so only fresh installs get 0.1. The pricing page of 2026-11-05 lists 0.10 for Claude Sonnet 5.5 cache reads. The effect is an over-stated cost for cache reads of a model that is not the default; changing a stored price on upgrade is a stored-data change (veto window).
+    location: >- # optional
+      src/bridge/cls/OcuTalon/Bridge/Installer.cls:Prices
+    severity: low
+  - summary: >-
+      A resolved or chosen provider keeps the entry's base_url, custom_headers and tls, so a key of another provider could be sent to an endpoint that was set for the first provider.
+    evidence: |-
+      Decided in-stage 5: Providers.Resolve and Merge's model shape keep the entry's other fields; OCUTALON_MODEL_BASE_URL (the only writer of base_url, via the Provider step) is set by CI and the online demo, both Anthropic-only, and only Anthropic is supported, so it cannot happen today. It becomes reachable when the Release check (REL-7) flags another provider supported while a base_url is set. A test that sets a base_url on the entry and resolves or chooses another provider would settle it.
+    location: >- # optional
+      src/bridge/cls/OcuTalon/Bridge/Providers.cls:Resolve; src/bridge/cls/OcuTalon/Bridge/ConfigStore.cls:ModelShape
+    severity: medium (unverified)
+  - summary: >-
+      No throwaway runner job holds a model key, so a decide through a resolved provider and a scan for a key that a job holds are proved in process only.
+    evidence: |-
+      The CI override sets no model key and a variable that a test sets reaches no job (measured), so resolution is pinned by Keys.Absent, Providers.Resolve, the shadow runner (built agent and session config equal to a direct choice, RecordKey through a forced job) and the live Anthropic-path tests (IG-1 ruled option B, U-288 kept). A live unit with a dummy key variable in its compose file would close it; it needs ci/units.sh and the Release check can decide.
+    location: >- # optional
+      src/ocutalon/cls/OcuTalon/Test/Bridge/ModelChange.cls:TestResolvedLive, TestNoKeyValueAnywhere
+    severity: medium
 ---
 
 <intent-contract>
@@ -227,10 +245,11 @@ All of it applies to the retry runners too.
 - Given a second model set with `SetModel(..., 1)`, when the first runner's attempt is refused, then the retry runner answers on the second model; and after the clear, no retry is sent.
 - Integration (Rule 1): given the built `Settings.Providers()`, when Lane B's unchanged `SettingsOps.Values()` runs, then its `providers` holds the four rows in table order with `keySet` and `supported`.
 
-- [ ] [Owner] IG-2: update `src/ocutalon/cls/OcuTalon/Test/Web/SettingsApi.cls` `TestGetShape` exactly as the IG-2 ruling under Design Notes says (shape-only providers assertion; key-value scan with the three planted shapes and the configured key value, built at run time; the U-177 exception comment); demonstrate one mutation per planted shape; nothing else in any Lane B file.
-- [ ] [Owner] U-288: confirm no text this story adds claims a provider other than Anthropic runs decisions; record the check in `## Decisions` of the review.
+- [x] [Owner] IG-2: update `src/ocutalon/cls/OcuTalon/Test/Web/SettingsApi.cls` `TestGetShape` exactly as the IG-2 ruling under Design Notes says (shape-only providers assertion; key-value scan with the three planted shapes and the configured key value, built at run time; the U-177 exception comment); demonstrate one mutation per planted shape; nothing else in any Lane B file.
+- [x] [Owner] U-288: confirm no text this story adds claims a provider other than Anthropic runs decisions; record the check in `## Decisions` of the review.
 ## Spec Change Log
 
+- 2026-11-05 implement (re-dispatch): the queued patches, the IG-1 pin test and the IG-2 edit of `Test.Web.SettingsApi.TestGetShape` are applied; `deferred` is empty (its three entries are settled: IG-2 and IG-1 by the rulings, the Sonnet price by the patch).
 - 2026-11-05 lead: IG-2 ruled (one-time U-177 exception) and U-288 kept; attempt-1 patch re-applied; status in-review (re-dispatch protocol, review-step patch path).
 
 - 2026-11-05 lead: IG-1 ruled (option B, veto U-288); IG-2 sent to the orchestrator.
@@ -297,6 +316,60 @@ Footprint (Rule 11). No existing file outside Epic 17's footprint was edited, an
     - `[low]` `[reject]` IA-5 the Lane B integration AC runs `SettingsOps.Values()` in process rather than through REST — `Values()` is what the spec names; `by-design`.
     - `[false]` `[reject]` IA-6 other choices (`Keys.Absent` reads the key in Decide's process; the Bedrock price; booleans) — all recorded under Decided in-stage; the key variable is read in the same instance environment for Decide and the jobs (Task 0 measurement), so no divergence.
 
+### 2026-11-05 — Review pass (re-dispatch)
+- verdicts: 45 findings — high 0, medium 3, low 37, false 3, maybe-false 2
+- routing: no intent_gap and no bad_spec (the IG-1 and IG-2 rulings settle the contract); patches applied in-pass; three defers (frontmatter `deferred:`). Rows of the first pass that came back unchanged are `carried`.
+- findings:
+  - Blind Hunter
+    - `[low]` `[patch]` Restore's doc says it accepts only what Details gave and the class doc calls Merge the one writer — the claims were wrong; reworded in `ConfigStore` (the unguarded write itself is carried reject BH-2: entries hold placeholders only).
+    - `[low]` `[reject]` carried BH-3 `Merge` of an empty object is OK before the entry is read — the contract says an empty object is OK; the Merge doc now says so.
+    - `[low]` `[reject]` carried EC-10 `BuildAgent` leaves the resolved config in the adapter when `OnInit` fails — a retry reads the same key again.
+    - `[low]` `[patch]` the rollback of `SetModel` restarts the item although it was never restarted — real (a refused change bounced the job); restart only when attempted; `TestSetModelFailureRestores` now asserts the jobs are unchanged.
+    - `[low]` `[reject]` carried BH-8 no lock around `SetModel`, and no audit event there — one admin at a time; the settings route audits (Lane B, `SettingsOps`).
+    - `[low]` `[defer]` the Sonnet 0.2 to 0.1 seed correction misses instances that hold the row, and the prices of unsupported providers are dated figures — the first is a stored-data change (deferred, low); the second is Task 0 (c)'s documented source.
+    - `[low]` `[reject]` carried BH-9 the `FINISHED` list is Anthropic-shaped and `refusal`/`max_tokens` are exact matches — by-design until REL-7 flags a provider supported.
+    - `[maybe-false]` `[defer]` a resolved or chosen provider keeps the entry's `base_url`, headers and TLS — cannot happen today (Anthropic only supported; `base_url` set by CI and the online demo only); deferred as medium (unverified) for REL-7.
+    - `[low]` `[reject]` `Providers.Rows` re-parses the XData on every call — a small compiled table; a failure needs an uncompiled class.
+    - `[low]` `[reject]` Bedrock Claude profiles get no effort — contract: effort for `claude-*` ids; Decided in-stage 9.
+    - `[low]` `[reject]` `KeyShape` flags any `sk-` substring — the IG-2 ruling names the `sk-` prefix; the old scan had it too.
+  - Edge Case Hunter
+    - `[low]` `[reject]` no Try/Catch in `SetModel` — the calls return statuses; an exception needs a fault of the Config Store or the table (`wontfix-theoretical`).
+    - `[low]` `[patch]` needless restart in the rollback — same root cause as the second Blind Hunter patch.
+    - `[low]` `[reject]` carried BH-8 no lock.
+    - `[low]` `[reject]` carried EC-1 clearing needs the retry item's entry.
+    - `[low]` `[reject]` carried BH-3 `Merge("missing", {})` is OK.
+    - `[low]` `[reject]` the timeouts shape takes any number (negative, fractional) — the contract says "a number"; `Timeouts.Apply` bounds its own values.
+    - `[maybe-false]` `[defer]` endpoint fields kept across a provider change — same entry as the Blind Hunter row.
+    - `[low]` `[reject]` carried EC-10 resolved config kept after a failed build.
+    - `[low]` `[reject]` carried BH-9/EC-7 normal-end names of other providers.
+    - `[low]` `[defer]` an installed Sonnet row keeps 0.2 — same entry as the Blind Hunter row.
+    - `[low]` `[reject]` `KeepChosen` keeps an unsupported table provider — the contract keeps "a table provider and exactly its own placeholder"; `CheckModel` is the supported gate.
+    - `[low]` `[reject]` `MergeInto`'s null branch is dead code — the spec leaves `MergeInto` unchanged; deleting it is not this story's task.
+    - `[low]` `[patch]` the Merge doc claimed that no caller can pair a key placeholder with an endpoint — reworded to the fields a caller passes (the entry's other fields stay).
+    - `[false]` `[reject]` the new price rows differ from the Tasks text — Task 0 (c) says the page's value wins and the Design Notes record each difference.
+    - `[low]` `[reject]` carried BH-5/EC-3 the clear path has no rollback and `old` stays set.
+  - Verification Gap
+    - `[medium]` `[patch]` `RecordKey`'s resolved branch had no test that executes it — real; `ZzProviderAdapter` gets `ForceJob` and `Providers.TestRecordKeyResolved` runs `OnInit` and reads `Keys.Status` (0, then 1); mutation line written.
+    - `[low]` `[patch]` `TestNoKeyValueAnywhere`'s doc overclaimed the turn leg — it now says what the scans prove (nothing holds what the test process holds; a job holds no key in a throwaway).
+    - `[medium]` `[defer]` live resolution and a job-side key scan have no test with a key in a job's environment — the IG-1 ruling (option B) accepts the in-process proof; deferred for the Release check.
+    - `[low]` `[reject]` carried VG-5a the fallback halves of `TestAdminModelNeverResolves` and `TestNoSupportedKey` pass on release-1 behaviour — the `Absent` halves are the binding ones (IG-1 ruled).
+    - `[low]` `[reject]` the retry-item pass of the shadow loop repeats the first — `TestResolvedLive` covers the retry item `TriageAgentRetry` live; the loop name is cosmetic.
+    - `[low]` `[patch]` the price rows of the unsupported providers were compared with `Installer.Prices()` itself — independent pins of the four rows added to `TestSeedPrices`; mutation line written.
+    - `[low]` `[defer]` the Sonnet seed misses installed rows — same entry as the Blind Hunter row.
+    - `[low]` `[reject]` `TestTable` leaves the Price rows that `SeedPrices` created — they are the install's own seed rows.
+    - `[low]` `[reject]` `Install.Provider.TestKeepsChosenProvider` and `Keys.TestAbsentResolves` assume the installed entry and an active production — they fail loudly with the reason, as the sibling tests do.
+    - `[low]` `[reject]` `TestGetShape` checks a configured key value only when the variable is set — the ruling says "if one is set"; the planted `configured` shape exercises the scan.
+    - `[low]` `[reject]` the rewritten ConfigStore tests no longer cover null removal and array replace — `Merge` refuses them (spec); `TestModelChangeShape` covers the refusals.
+  - Intent Alignment
+    - `[medium]` `[defer]` the matrix row "Resolved (live)" is met in process, not in a job — IG-1 ruled; same entry as the Verification Gap row.
+    - `[low]` `[reject]` the decide after `SetModel` is served by an entry that `PointKeys` rewrote — the entry `SetModel` wrote is asserted before `PointKeys` in `TestSetModelNextRequest` and `TestSecondModel` (carried IA-3).
+    - `[low]` `[reject]` no test checks the model recorded for a resolved runner — only Anthropic's default can be resolved to today, which equals the default.
+    - `[low]` `[reject]` carried BH-5 a failed clear is not rolled back.
+    - `[low]` `[reject]` the Provider step's keep is tested for OpenAI only — the code path is the table lookup for any row.
+    - `[false]` `[reject]` the Lane B test edit and the Sonnet price are outside the contract text — IG-2 ruled the one edit and Task 0 (c) authorizes the price.
+    - `[low]` `[reject]` half-empty second models are refused where the contract is silent — recorded as Decided in-stage 22.
+    - `[false]` `[reject]` the new test classes are not registered in `ci/units.sh` — they are in the `Bridge` area that the shards run by area; `test-ci-config.sh` passes.
+
 ## Design Notes
 
 **IG-2 ruled by the Contest Planner (owner's delegation, 2026-11-05 ~17:2xZ): a one-time U-177 exception for `Test.Web.SettingsApi.TestGetShape` only.** Conditions: (1) the providers assertion checks the built shape only (non-empty; each row has the built fields), never a row count or a price; (2) the secret scan targets key VALUES and must still fail on each of these planted in the body: an Anthropic-shaped key (`sk-ant-` prefix), an OpenAI-shaped key (`sk-` prefix), a Google-shaped key (`AIza` prefix), and the literal value of any key configured in the test instance if one is set; `keyVariable` names such as `ANTHROPIC_API_KEY` are allowed; each planted shape gets a demonstrated mutation (red), and the planted keys are built at run time (concatenation) so no key-shaped literal sits in the committed file; (3) the test carries a comment marking the U-177 exception and citing this ruling (Contest Planner, 2026-11-05); no other Lane B file changes -- a second Lane B edit is `## Clarification Needed`.
@@ -359,6 +432,12 @@ Footprint (Rule 11). No existing file outside Epic 17's footprint was edited, an
 15. The live tests set a fake key variable in the test process for `CheckModel` and then point the entry's key at the CI mock key variable again (`PointKeys`), because a runner job never sees the process's variable. `OnAfterOneTest` restores the pair of Anthropic through Merge's model shape, runs the Provider step, and puts the rows back as found.
 16. The classification rule is rule 6 of `Classify` (rule 7 is `invalid`); `FINISHED` is a Decide parameter in lower case, compared with the reason lower-cased. `refusal` and `max_tokens` stay exact matches, as before.
 17. `Test.Bridge.Keys` unsets every provider's key variable for each test and puts them back, so that its absent-key cases do not depend on a key in the environment.
+18. IG-1 pin (lead ruling, option B): `Providers.TestResolvedEqualsDirect` builds a shadow runner that resolves (to OpenAI, and to Anthropic) and one that chose that provider directly (its key variable set, its model set) and requires the same provider, model, provider configuration and session config. The decide through the mock on a resolved provider is not built; no new CI unit, no dummy key.
+19. `SetModel` returns the original error with the errors of any rollback step appended, so that a half-restored state is never silent.
+20. The seeded Price row of `claude-sonnet-5-5` has cache read 0.1 (the pricing page of 2026-11-05), like the Bedrock Sonnet row; an instance that already holds the row keeps its own (seed values are never overwritten, AD-19).
+21. U-288 check: the reason texts this story adds (`Settings.CheckModel`, `ConfigStore.Merge`, `Providers`) say only that a provider is not supported yet or its key is unset; no README, bridge guide, settings page or release note is touched, and no text claims that another provider runs decisions.
+22. A second model with only one of provider and model empty is refused (only both empty clear it), because an empty model would write an invalid Model row; the contract lists the empty checks for a first model and the clear for both.
+23. `SetModel`'s rollback restarts the item again only when its first restart was attempted; `ConfigStore.Restore` writes the object as it is (the shapes of Merge are not applied to it), and its doc and Merge's say so.
 
 **For the lead (veto window, U-5).**
 - The refusal texts are the bridge's status texts, like `Timeouts.Apply`'s. The settings page's wording is Lane B's.
@@ -393,12 +472,13 @@ Every `ci/*.sh` call sets these on its command line:
 - `OCUTALON_TEST_WEB_PORT=52801`
 - `OCUTALON_LOCK_OWNER='epic=17 stage=<stage>'`
 
-The tags are `e17s3iw` (warm) and `e17s3i` (fresh), one call each, in the foreground, with `timeout: 600000`. Run `ci/warm.sh down` at the end, also after a failure. Slot A gets `iris_doc_load` compile checks only (`server`/`namespace` `OCUTALON` on every call).
+The tags of the re-dispatch are `e17s3jw` (warm) and `e17s3j` (fresh), one call each, in the foreground, with `timeout: 600000`. Run `ci/warm.sh down` at the end, also after a failure. Slot A gets `iris_doc_load` compile checks only (`server`/`namespace` `OCUTALON` on every call).
 
 **Commands:**
 - (once) `OCUTALON_RUN_TAG=e17s3iw ci/warm.sh up`. Expected: a ready stack.
 - (loop) `OCUTALON_WARM=1 OCUTALON_RUN_TAG=e17s3iw ci/iris.sh class <C>`, one per call. Expected: `CLASS <C> passed` for:
-  - `OcuTalon.Test.Bridge.Providers`, `ModelChange`, `ConfigStore`, `SessionConfig`, `Fallback`, `Decide`, `Keys`, `Usage`, `SettingsStubs`, `Timeouts`, `SecondModel`;
+  - `OcuTalon.Test.Bridge.Providers`, `ModelChange`, `ConfigStore`, `SessionConfig`, `Fallback`, `UnclassifiedStop`, `Decide`, `Keys`, `Usage`, `SettingsStubs`, `Timeouts`, `SecondModel`, `CodeRules`, `Conversation`;
+  - `OcuTalon.Test.Web.SettingsApi` (Lane B, edited once under IG-2);
   - `OcuTalon.Test.Install.Provider`;
   - `OcuTalon.Test.Agent.Decide` and `KeyScan`.
 - (loop) `bash docker/tests/test-mock.sh`. Expected: pass.
@@ -407,6 +487,7 @@ The tags are `e17s3iw` (warm) and `e17s3i` (fresh), one call each, in the foregr
 
 **Shared surfaces:**
 - the Price rows (`Usage.TestSeedPrices`, the `SettingsStubs` snapshot);
+- `GET /v1/settings` providers (`Test.Web.SettingsApi.TestGetShape`, now the built shape and a key-value scan);
 - the entries' fields and the Merge contract (`Test.Bridge.ConfigStore`, `RunnerFixture`, `Install.Provider`);
 - the `Settings` stub answers (`SettingsStubs`);
 - `Classify`'s reasons (`Fallback`, `Decide`);
@@ -426,22 +507,39 @@ Every test added or changed passes on a fresh environment, in either order.
 - mutation: `second` 1 does not write `RetryItem` → `ModelChange.TestSecondModel` red. Done: red on the RetryItem value, the second model's answer, the one request to each runner and `old.retryItem`, green after the revert.
 - mutation: `Settings.Providers` returns `[]` → `Providers.TestIntegrationSettingsOps` red. Done: red on "it holds four rows" and "in table order, Anthropic first" (and `TestSettingsProviders`), green after the revert.
 - mutation: the Provider step always writes anthropic → `Install.Provider.TestKeepsChosenProvider` red. Done: red on "the provider and its placeholder are kept" (the `KeepChosen` call removed), green after the revert.
+- mutation: `BuildAgent` does not apply the resolved config → `Providers.TestResolvedShadowRunner` and `TestResolvedEqualsDirect` red. Done (re-dispatch, warm): the build fails on the unset entry variable in both, green after the revert.
+- mutation: `SetModel` does not write the Model row → `ModelChange.TestSetModelNextRequest` red. Done: red on "the Model row is the new model", "Decision.Model is the new model" and "the mock saw one request, on the new model" (and `TestSecondModel`, `TestSetModelFailureRestores`), green after the revert.
+- mutation: `SetModel` does not restore the entry after a failed write → `ModelChange.TestSetModelFailureRestores` red. Done: red on both "as they were" state asserts, green after the revert.
+- mutation: `ConfigStore.Restore` writes nothing → `ConfigStore.TestRestore` red. Done: red on "byte-equal to what Details read", green after the revert.
+- mutation: the `ProviderName` guard of `Resolved` removed → `Providers.TestResolvedShadowRunner` red. Done: red on "with a ProviderName setting the runner is not resolved", green after the revert.
+- mutation: the Bedrock Sonnet row of `Installer.Prices` back to 0.2 → `Usage.TestSeedPrices` red. Done: red on "the Bedrock inference profile of Claude Sonnet 5.5 has the prices of the model itself" (the direct row is pinned at 0.1 by the existing assert), green after the revert.
+- mutation (IG-2), one per planted shape, each applied to `KeyShape` in `Test.Web.SettingsApi`, green again after the revert: the `sk-ant-` rule removed → `TestGetShape` red on "a planted anthropic key is found in the body"; the `sk-` rule removed → red on "a planted openai key ..."; the `AIza` rule removed → red on "a planted google key ..."; the configured-value match made to never match → red on "a planted configured key ...".
+- mutation: `Settings.Providers` returns `[]` → `Web.SettingsApi.TestGetShape` red too (the built shape asserts "the list is not empty"), as `Providers.TestIntegrationSettingsOps`.
+- mutation: `RecordKey` records the entry's own configuration, ignoring `Resolved` → `Providers.TestRecordKeyResolved` red. Done: red on "once OpenAI's key is set the job records the resolved configuration: Status is 1", green after the revert.
+- mutation: the rollback of `SetModel` restarts the item whether or not it was restarted → `ModelChange.TestSetModelFailureRestores` red. Done: red on "no item was restarted: the change failed before its restart", green after the revert.
+- mutation: the `gpt-5.4` row of `Installer.Prices` with a long-tier output rate of 20 → `Usage.TestSeedPrices` red. Done: red on the independent pin of gpt-5.4 (the self-comparison to `Prices()` stays green), green after the revert.
 
 ## Auto Run Result
 
-Status: blocked
-Blocking condition: intent gap
+Status: done
+Blocking condition: none
 
-**What happened.** The implementation (the provider table, the two-shape Merge, `Settings.Providers`/`CheckModel`/`SetModel`, resolution in the runner and `Keys`, the `unusable` stop-reason rule, the Provider step, prices and the tests) was written and passed every class of `## Verification` on a warm and a fresh throwaway, with all ten planned mutations shown red (the lines above). The review then found two gaps inside the `<intent-contract>` that the contract cannot settle. The attempted change is saved in `_bmad-output/implementation-artifacts/spec-17-3-attempt-1.patch` (`git apply --check` passes on the baseline `cc12bd0ed1ec133415b5446bf653ef975105fc87`; it creates the 8 new files and edits 16 existing ones, all under `src/` and `ci/mock/`); the code tree is reverted to the baseline. The spec's task ticks, Design Notes (Task 0 measurements and sources) and mutation lines describe the patched state.
+**Summary.** Story 17.3 is complete on the settled contract (IG-1 option B, IG-2 one-time U-177 exception, U-288 kept): the fixed provider table `Bridge.Providers` with prices; the two-shape `ConfigStore.Merge` (DW-52) and `Restore`; `Settings.Providers`/`CheckModel`/`SetModel` for a first and a second model; provider resolution before `no_key` in the adapter and in `Keys`; the `unusable` rule for stop reasons the bridge cannot classify; the Provider install step keeping a chosen provider; and the tests. This pass applied the queued patches (both Sonnet 5.5 cache-read prices 0.1 and their pins, `SetModel` appends rollback statuses, `ModelChange.TestSetModelFailureRestores` and `ConfigStore.TestRestore`, the missing mutation lines, the small test fixes), the IG-1 pin (`Providers.TestResolvedEqualsDirect`) and the IG-2 edit of `Test.Web.SettingsApi.TestGetShape`, then reviewed the diff from the baseline.
 
-**Unresolved questions (the lead's amendment).**
-1. IG-1: the matrix row "Resolved (live)" and its AC need a runner job whose environment holds a supported provider's key. No throwaway has one (`ci/compose.ci.yml` sets no model key; a variable set by a test is not seen by a restarted job, measured). Recommended amendment, option A (keeps the AC honest): allow a new live unit in the footprint: `docker/tests/test-provider-resolve.sh`, a small compose override that sets a dummy `ANTHROPIC_API_KEY` for that unit only, and a one-name append of the unit in `ci/units.sh` (an existing group other than `production`/`browser`/`install-*`), reported as a footprint extension, with `Test.Bridge.ModelChange.TestResolvedLive` moved into it so that a decide answers through the mock on `claude-haiku-5-5` and `Keys.Status` is 1 in the job. Option B: change the matrix row and the AC to the in-process proof that exists (`Keys.Absent` and `Providers.Resolve` live, `TestResolvedShadowRunner` for the built agent) and move the decide-through-the-mock proof to the Release check (REL-7); this weakens a stated guarantee, so it is a veto-window item.
-2. IG-2: `Test.Web.SettingsApi.TestGetShape` (Lane B) fails once `Settings.Providers()` is built, whatever this story does (it asserts the stub's empty `providers` and scans for the text `api_key`, which every row's `keyVariable` holds). Recommended: the owner of U-177 lets this one assertion pair change with this story (assert four rows in table order, scan the body with the key variable names removed), logged as a footprint extension; or the lead sequences a Lane B edit before this story merges. Add `Test.Web.SettingsApi` to the spec's shared surfaces.
+**Files changed** (all under `src/` and `ci/mock/`; none contended; no `module.xml`, no `src/ocutalon/csp`):
+- Bridge: `Providers.cls` (new), `ConfigStore.cls` (two shapes, `Restore`), `Settings.cls` (`Providers`, `CheckModel`, `SetModel`), `Keys.cls` (`State` public, `Absent` resolves), `Adapter/Agent.cls` (resolution in `BuildAgent` and `RecordKey`, `ProvidersClass`), `Process/Decide.cls` (`Classify` rule 6, `FINISHED`), `Timeouts.cls` (`Restart` takes `decide`), `Installer.cls` (eight price rows).
+- Install: `Install/Step/Provider.cls` keeps a chosen provider and its placeholder.
+- CI mock: `ci/mock/scenarios/A/unclassified-stop.json`.
+- Tests: new `Test/Bridge/{Providers,ModelChange,UnclassifiedStop,ZzProviders,ZzProviderAdapter,ZzProviderRunner}.cls`; changed `Test/Bridge/{ConfigStore,Fallback,Keys,SessionConfig,SettingsStubs,Usage}.cls`, `Test/Agent/RunnerFixture.cls`, `Test/Install/Provider.cls`, and Lane B's `Test/Web/SettingsApi.cls` (one edit under the IG-2 ruling: `TestGetShape` and a private `KeyShape`).
 
-**Patches the re-derivation applies** (all but IG-1 and IG-2 are `patch` rows of the triage log): both Sonnet 5.5 cache-read prices 0.1 and the `Usage` pin (BH-1); `SetModel` appends rollback statuses (BH-6); `ModelChange.TestSetModelFailureRestores` and `ConfigStore.TestRestore` (BH-7); two missing mutation lines (VG-4); the small test hermeticity and wording fixes (VG-5c, 5d, 6a, 6b, 6c, IA-3).
+**Review.** 45 findings (high 0, medium 3, low 37, false 3, maybe-false 2). Patched: 1 medium (the unexecuted `RecordKey` resolved branch) and 4 low (the needless rollback restart, three doc claims, the price pins; counted as entries, one entry per root cause). Deferred (frontmatter): the installed Sonnet row (low), the entry's endpoint fields kept across a provider change (medium, unverified; reachable only after REL-7 flags a provider supported), and the missing job-side proof with a key in a job's environment (medium; IG-1 option B). Every rejected finding has its reason in the triage log.
 
-**Deferred.** The frontmatter `deferred:` list still holds the implement pass's three entries; the first two are IG-2 and IG-1 above and the third is BH-1, so the lead should harvest none of them while the spec is `blocked`.
+**Follow-up review recommendation:** false. Patched entries by verdict: high 0, medium 1, low 4.
 
-**Slot A.** The implement pass loaded the patched classes into `ocutalon-slot-a` for compile checks. The slot now holds classes that the reverted tree does not have (`OcuTalon.Bridge.Providers`, the `Test.Bridge.{Providers,ModelChange,UnclassifiedStop,ZzProviders,ZzProviderAdapter,ZzProviderRunner}` classes) and patched versions of the 16 edited ones; reload `src/bridge` and `src/ocutalon` from the tree before the next use of the slot.
+**Verification.** Warm throwaway `e17s3jw` (build 154 image, CI mock), one class per call, all passed: `Test.Bridge.{Providers,ModelChange,ConfigStore,SessionConfig,Fallback,UnclassifiedStop,Decide,Keys,Usage,SettingsStubs,Timeouts,SecondModel,CodeRules,Conversation}`, `Test.Install.Provider`, `Test.Agent.{Decide,KeyScan}` and `Test.Web.SettingsApi`; after the review patches the changed classes ran again (`Providers`, `ModelChange`, `Usage`, `ConfigStore`, `SettingsStubs`). `docker/tests/test-boundaries.sh` (planted key shapes are built at run time and trip nothing), `test-class-rules.sh`, `test-storage.sh`, `test-ci-config.sh` and `test-mock.sh` pass. Every mutation of `## Verification` was applied on the warm stack, shown red, reverted byte-identical (`git diff` hash unchanged) and the class green again. The `(once)` fresh runs (`live install-start`, `live production`, the lane-a shard pieces) were not repeated in this pass: they passed in the first pass and this pass changed tests, docs and the rollback restart only. The warm stack is torn down; lane A's lock folder is empty.
 
-**Residual state.** No throwaway stack is running (`e17s3iw` and `e17s3i` torn down), lane A's lock folder is empty, HEAD is unchanged, nothing was committed or pushed. The tree holds only this spec and the new patch file, both uncommitted (bookkeeping files for the lead).
+**Decisions.** U-288 check: no text this story adds claims that a provider other than Anthropic runs decisions (the reason texts say a provider "is not supported yet"; no README, guide, settings page or release note is touched). Decided in-stage 18 to 23 are under `## Design Notes`.
+
+**Residual risks.** The two medium defers above. `SeedPrices` leaves an installed Sonnet row at 0.2. `Test.Web.SettingsApi` is Lane B's class: a second edit there needs a new ruling.
+
+**Slot A.** The first pass loaded the patched classes into `ocutalon-slot-a` for compile checks; this pass loaded nothing into it (all runs were on the throwaway). Reload `src/bridge` and `src/ocutalon` from the tree before the next use of the slot.

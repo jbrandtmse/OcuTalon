@@ -4,11 +4,14 @@ Include Ensemble
 ///   - It refuses to start (OnInit) when a setting would put a policy, a tool, a skill, a system prompt or a session
 ///     configuration on the agent, or when its agent class is not on its allow-list. OnInit calls nothing in AI Hub, so a runner
 ///     item starts and keeps running with no model key (FR-38). In the item's own job, before it checks the settings, OnInit
-///     records whether the item can tell that its key is set (Keys.Record), and OnTearDown forgets that record (Keys.Forget), so that
+///     records whether the item can tell that its key is set (Keys.Record; the resolved provider's configuration when the item resolves to
+///     another provider, below), and OnTearDown forgets that record (Keys.Forget), so that
 ///     Keys.Status is the state that the last start of the item recorded, until the item stops normally. A shadow host, which runs
 ///     no OnInit of its own, records nothing.
 ///   - It builds the agent on the first request that needs it (BuildAgent), by running AI Hub's own OnInit. A build that fails is
-///     not kept, so the next request builds again. The built agent has no Temperature, so that AI Hub adds no temperature to a
+///     not kept, so the next request builds again. A runner whose entry key is absent and whose model is its agent's default is built on
+///     the first supported provider whose key is set, with that provider's default model (Providers.Resolve; AD-7, AD-8): BuildAgent puts
+///     the resolved configuration and model in the adapter's own settings before AI Hub's OnInit reads them. Nothing is written. The built agent has no Temperature, so that AI Hub adds no temperature to a
 ///     session.
 ///   - It composes the session config in one place (Compose) and uses it for every AI session it creates (NewSession) or opens
 ///     (OpenSession), because a session that is resumed without its config loses the cap and the effort. The config carries timeout_ms,
@@ -117,16 +120,35 @@ Method OnTearDown() As %Status
 	Quit ##super()
 }
 
-/// Records the key state of the item in its job (Keys.Record, with the raw ProviderConfig setting). The outcome never changes the
-/// status of OnInit.
+/// Records the key state of the item in its job (Keys.Record, with the ProviderConfig setting, or with the resolved configuration when the
+/// item resolves to another provider, Resolved). The outcome never changes the status of OnInit.
 Method RecordKey() [ Private ]
 {
 	If ..IsJob() {
 		Try {
-			Do ##class(OcuTalon.Bridge.Keys).Record(..BusinessHost.%ConfigName, ..ProviderConfig)
+			Set text = ..ProviderConfig
+			If ..Resolved(.config, .model) '= "" Set text = config.%ToJSON()
+			Do ##class(OcuTalon.Bridge.Keys).Record(..BusinessHost.%ConfigName, text)
 		} Catch {
 		}
 	}
+}
+
+/// The class that holds the provider table, Providers: a test class overrides it to run the resolution on its own table.
+ClassMethod ProvidersClass() As %String
+{
+	Quit "OcuTalon.Bridge.Providers"
+}
+
+/// The provider that this runner resolves to when its own key is absent (Providers.Resolve), or "" for none: config is the in-memory
+/// provider configuration and model the provider's default model. The runner's agent class and Model setting are its own, so that a shadow
+/// runner resolves too. A runner whose ProviderName setting names a provider never resolves.
+Method Resolved(Output config As %DynamicObject, Output model As %String) As %String [ Private ]
+{
+	Set config = ""
+	Set model = ""
+	If ..ProviderName '= "" Quit ""
+	Quit $ClassMethod(..ProvidersClass(), "Resolve", ..BusinessHost.%ConfigName, "", ..ProviderConfig, .config, .model, ..AgentClass, ..Model)
 }
 
 /// 1 when the host of this adapter is an object that is not a shadow host. Ens.Host makes such a host for any %New of an item of the
@@ -169,10 +191,16 @@ Method CheckSettings() As %Status
 }
 
 /// Builds the agent when it is not built yet, by running AI Hub's OnInit, and clears the agent's Temperature. A build that
-/// fails leaves no agent, so that the next call builds again.
+/// fails leaves no agent, so that the next call builds again. Before it runs AI Hub's OnInit, a runner whose own key is absent and whose model
+/// is its agent's default is given the provider configuration and the model of the provider it resolves to (Resolved), in memory: AI Hub's
+/// OnInit reads them from the adapter's settings, and nothing is written.
 Method BuildAgent() As %Status
 {
 	If $IsObject(..Agent) Quit $$$OK
+	If ..Resolved(.config, .model) '= "" {
+		Set ..ProviderConfig = config.%ToJSON()
+		Set ..Model = model
+	}
 	Set ..Building = 1
 	Try {
 		Set sc = ..OnInit()

@@ -1,9 +1,10 @@
-/// The stubs of the bridge's settings API (Story 33.1; AD-18, AD-19). Until Stories 17.3 and 17.4 build them, every OcuTalon.Bridge.Settings method
-/// that returns a %Status answers "not implemented" (code 5003) and writes nothing, Providers is an empty array, Values and TestAnswer are empty
-/// objects, and an Output argument comes back empty; OcuTalon.Bridge.Time.Zone is "", SetZone answers 5003 and Apply does nothing.
-///   - TestSettingsStubs: each Settings method gives its stub answer, with old and request empty;
-///   - TestNothingWritten: the calls leave the System Default Settings rows, the Config Store entries (the retry entries included, absent or present) and the Price rows (by value) as they were, and no row named
-///     InstanceZone or RetryItem exists after them;
+/// The stubs of the bridge's settings API (Story 33.1; AD-18, AD-19). Until Story 17.4 builds them, the OcuTalon.Bridge.Settings methods that Story 17.3 does
+/// not build (Check, Set, SetPrice, TestRequest, TestAnswer and Values) are stubs: every one that returns a %Status answers "not implemented" (code 5003)
+/// and writes nothing, Values and TestAnswer are empty objects, and an Output argument comes back empty; OcuTalon.Bridge.Time.Zone is "", SetZone answers
+/// 5003 and Apply does nothing. Providers, CheckModel and SetModel are built (Test.Bridge.Providers, Test.Bridge.ModelChange).
+///   - TestSettingsStubs: each remaining stub gives its stub answer, with old and request empty;
+///   - TestNothingWritten: the calls, SetModel calls that CheckModel refuses included, leave the System Default Settings rows, the Config Store entries (the
+///     retry entries included, absent or present) and the Price rows (by value) as they were, and no row named InstanceZone or RetryItem exists after them;
 ///   - TestTimeStubs: Zone is "", SetZone answers 5003, and after Apply the conversions give what they gave before the calls, under the process
 ///     zone that the test sets (the base puts the zone back).
 Class OcuTalon.Test.Bridge.SettingsStubs Extends OcuTalon.Test.Bridge.ZoneCase
@@ -19,12 +20,6 @@ Method TestSettingsStubs()
 	Set sc = $ClassMethod(class, "Set", "DailyCostCapUSD", "5", .old)
 	Do $$$AssertEquals($SYSTEM.Status.GetErrorCodes(sc), 5003, "Set answers 5003")
 	Do $$$AssertEquals(old, "", "and old is empty")
-	Do $$$AssertEquals($SYSTEM.Status.GetErrorCodes($ClassMethod(class, "CheckModel", "Chat", "anthropic", "claude-haiku-5-5")), 5003, "CheckModel answers 5003")
-	Do $$$AssertEquals($SYSTEM.Status.GetErrorCodes($ClassMethod(class, "CheckModel", "Chat", "anthropic", "claude-haiku-5-5", 1)), 5003, "also for a second model")
-	Set old = "x"
-	Set sc = $ClassMethod(class, "SetModel", "Chat", "anthropic", "claude-haiku-5-5", 0, .old)
-	Do $$$AssertEquals($SYSTEM.Status.GetErrorCodes(sc), 5003, "SetModel answers 5003")
-	Do $$$AssertTrue($IsObject(old) && (old.%ToJSON() = "{}"), "and old is an empty object")
 	Set old = "x"
 	Set sc = $ClassMethod(class, "SetPrice", "claude-haiku-5-5", {"input": 1}, .old)
 	Do $$$AssertEquals($SYSTEM.Status.GetErrorCodes(sc), 5003, "SetPrice answers 5003")
@@ -33,8 +28,6 @@ Method TestSettingsStubs()
 	Set sc = $ClassMethod(class, "TestRequest", "Chat", .request)
 	Do $$$AssertEquals($SYSTEM.Status.GetErrorCodes(sc), 5003, "TestRequest answers 5003")
 	Do $$$AssertEquals(request, "", "and request is empty")
-	Set providers = $ClassMethod(class, "Providers")
-	Do $$$AssertTrue($IsObject(providers) && (providers.%ToJSON() = "[]"), "Providers is an empty array")
 	Set values = $ClassMethod(class, "Values")
 	Do $$$AssertTrue($IsObject(values) && (values.%ToJSON() = "{}"), "Values is an empty object")
 	Set answer = $ClassMethod(class, "TestAnswer", "", 12)
@@ -65,7 +58,8 @@ Method TestTimeStubs()
 	Do $$$AssertEquals($ClassMethod(time, "Zone"), "", "Zone is still empty")
 }
 
-/// Calls every method of the settings API and the zone writer once.
+/// Calls every method of the settings API and the zone writer once, SetModel with arguments that CheckModel refuses (an agent outside the three, an
+/// unsupported provider, a placeholder) included.
 Method CallEverything() [ Private ]
 {
 	Set class = ..#SETTINGS
@@ -76,6 +70,9 @@ Method CallEverything() [ Private ]
 	Do $ClassMethod(class, "Set", "DailyCostCapUSD", "5", .old)
 	Do $ClassMethod(class, "CheckModel", "Chat", "anthropic", "claude-haiku-5-5", 1)
 	Do $ClassMethod(class, "SetModel", "Chat", "anthropic", "claude-haiku-5-5", 1, .old)
+	Do $ClassMethod(class, "SetModel", "ChatAgent", "openai", "gpt-5.4", 1, .old)
+	Do $ClassMethod(class, "SetModel", "ChatAgent", "anthropic", "@{env:ZZ}", 0, .old)
+	Do $ClassMethod(class, "SetModel", "ChatAgentRetry", "anthropic", "claude-haiku-5-5", 1, .old)
 	Do $ClassMethod(class, "SetPrice", "claude-haiku-5-5", {"input": 1}, .old)
 	Do $ClassMethod(class, "TestRequest", "Chat", .request)
 	Do $ClassMethod(class, "TestAnswer", "", 12)

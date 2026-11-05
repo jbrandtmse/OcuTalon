@@ -1,7 +1,7 @@
 /// Tests of the Usage row, the Price and the installer's prices (Story 1.4; AD-19, AD-20; FR-2), in process: nothing is sent and no
-/// production runs. THIS CLASS RUNS IN THROWAWAY STACKS AND IN CI ONLY (Rule 21): TestSeedPrices deletes the two Price rows of the
+/// production runs. THIS CLASS RUNS IN THROWAWAY STACKS AND IN CI ONLY (Rule 21): TestSeedPrices deletes the Price rows of the
 /// product and runs Installer.Run(). The tests write rows of their own (Usage rows with a DecisionRef of their own, a Price row of a
-/// model that no product uses), delete them again, and put the two Price rows of the product back as they were (OnAfterOneTest).
+/// model that no product uses), delete them again, and put the Price rows of the product back as they were (OnAfterOneTest).
 ///   - TestCost: the cost of one turn at the seeded rates of Claude Haiku 5.5 and Claude Sonnet 5.5, each tier at its own rate, the
 ///     long tier above 100,000 tokens (not at 100,000), the average request when the largest is unknown, the rounding to 6 decimals
 ///     (up and down), a model with no Price row (empty cost, never 0) and the exact model match;
@@ -11,8 +11,8 @@
 ///     of the turn, a counter that falls, a missing first reading and a missing second;
 ///   - TestRecordedAtIsUtc: RecordedAt of a row is the current UTC time, whatever the zone of the process (UTC+14 and UTC-11);
 ///   - TestHasSpend: a request or a token is spend; a tool call alone and no change are not;
-///   - TestSeedPrices: Installer.Run() creates both rows with the values of the table, leaves an edited row alone and creates a deleted
-///     row again;
+///   - TestSeedPrices: Installer.Run() creates every row of Installer.Prices() with the values of the table (Story 17.3 adds the models of the provider table),
+///     leaves an edited row alone and creates a deleted row again;
 ///   - TestTotals: Usage.Totals sums the rows of a decision, takes the model of the newest, is empty for no row and for no ref, and has no
 ///     cost when any row has none.
 /// Added by Story 1.5 (DW-77; AD-20):
@@ -53,7 +53,7 @@ Method OnAfterOneTest(testname As %String) As %Status
 }
 
 /// The cost of one turn: hand-computed at every tier of Claude Haiku 5.5 (input 0.10, output 0.50, cache read 0.01, cache write 0.125,
-/// and above 100,000 tokens input 0.50 and output 2.50 with each cache rate times 5), and for Claude Sonnet 5.5 (2, 10, 0.20, 2.50,
+/// and above 100,000 tokens input 0.50 and output 2.50 with each cache rate times 5), and for Claude Sonnet 5.5 (2, 10, 0.10, 2.50,
 /// no long tier). Rates are those of Installer.Prices().
 Method TestCost()
 {
@@ -71,7 +71,7 @@ Method TestCost()
 	Do $$$AssertEquals(haiku.Cost("", "", "", "", "", ""), 0, "and so does an empty count")
 
 	Set sonnet = ..NewPrice(..#SONNET)
-	Do $$$AssertEquals(sonnet.Cost(1000, 1000, 0, 1000, 3000, 1), .0122, "Sonnet: 2000 + 200 + 10000 micro-dollars")
+	Do $$$AssertEquals(sonnet.Cost(1000, 1000, 0, 1000, 3000, 1), .0121, "Sonnet: 2000 + 100 + 10000 micro-dollars")
 	Do $$$AssertEquals(sonnet.Cost(1000, 1000, 0, 1000, 3000, 1), sonnet.Cost(1000, 1000, 0, 1000, 500000, 1), "Sonnet has no long tier, so a large request costs the same")
 	Do $$$AssertEquals(sonnet.Cost(0, 0, 1000, 0, 1000, 1), .0025, "a Sonnet cache write costs 2.50 a million")
 
@@ -235,17 +235,40 @@ Method TestHasSpend()
 	Do $$$AssertEquals($ClassMethod(has, "HasSpend", {}, {}), 0, "readings with no counters are no spend")
 }
 
-/// Installer.Run() creates the Price rows of Claude Haiku 5.5 and Claude Sonnet 5.5 with the values of the story's table, and
-/// returns OK. A row that an admin edited keeps its edit, and a deleted row is created again.
+/// Installer.Run() creates the Price row of every model of Installer.Prices() (the two Claude models and, since Story 17.3, every selectable model of
+/// the provider table) with the values of the table, and returns OK. A row that an admin edited keeps its edit, and a deleted row is created again.
 Method TestSeedPrices()
 {
-	For model = ..#HAIKU, ..#SONNET {
-		Set ..Saved = ..Saved _ $ListBuild(..Snapshot(model))
-		Do ..Remove(model)
+	Set prices = ##class(OcuTalon.Bridge.Installer).Prices()
+	Do $$$AssertEquals($ListLength(prices), 8, "Installer.Prices() has eight rows")
+	Set position = 0
+	While $ListNext(prices, position, price) {
+		Set ..Saved = ..Saved _ $ListBuild(..Snapshot($List(price, 1)))
+		Do ..Remove($List(price, 1))
 	}
 	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Installer).Run(), "Installer.Run() returns OK with the rows absent")
+	Set position = 0
+	While $ListNext(prices, position, price) {
+		Set expected = ""
+		For i = 2:1:8 Set expected = expected _ $Select(i = 2: "", 1: "|") _ $List(price, i)
+		Do $$$AssertEquals(..Values($List(price, 1)), expected, $List(price, 1)_" has the values of Installer.Prices()")
+		Do $$$AssertEquals(..Rows($List(price, 1)), 1, $List(price, 1)_" has one row")
+	}
+	Set row = ##class(OcuTalon.Bridge.Providers).Rows().%GetIterator()
+	While row.%GetNext(, .provider) {
+		Set models = provider.models.%GetIterator()
+		While models.%GetNext(, .model) {
+			Do $$$AssertEquals(..Rows(model), 1, "the selectable model "_model_" of "_provider.provider_" has a Price row")
+		}
+	}
 	Do $$$AssertEquals(..Values(..#HAIKU), ".1|.5|.01|.125|100000|.5|2.5", "Claude Haiku 5.5: 0.10, 0.50, 0.01, 0.125, long tier above 100,000 at 0.50 and 2.50")
-	Do $$$AssertEquals(..Values(..#SONNET), "2|10|.2|2.5|||", "Claude Sonnet 5.5: 2, 10, 0.20, 2.50 and no long tier")
+	Do $$$AssertEquals(..Values(..#SONNET), "2|10|.1|2.5|||", "Claude Sonnet 5.5: 2, 10, 0.10, 2.50 and no long tier")
+	Do $$$AssertEquals(..Values("gpt-5.4-mini"), ".75|4.5|.075|0|||", "gpt-5.4-mini: 0.75, 4.50, cache read 0.075, no long tier")
+	Do $$$AssertEquals(..Values("gpt-5.4"), "2.5|15|.25|0|272000|5|22.5", "gpt-5.4: 2.50, 15, cache read 0.25, long tier above 272,000 at 5 and 22.50")
+	Do $$$AssertEquals(..Values("gemini-3.1-flash-lite"), ".25|1.5|.025|0|||", "gemini-3.1-flash-lite: 0.25, 1.50, cache read 0.025, no long tier")
+	Do $$$AssertEquals(..Values("gemini-3.1-pro-preview"), "2|12|.2|0|200000|4|18", "gemini-3.1-pro-preview: 2, 12, cache read 0.20, long tier above 200,000 at 4 and 18")
+	Do $$$AssertEquals(..Values("us.anthropic.claude-sonnet-5-5"), ..Values(..#SONNET), "the Bedrock inference profile of Claude Sonnet 5.5 has the prices of the model itself")
+	Do $$$AssertEquals(..Values("us.anthropic.claude-haiku-5-5"), ..Values(..#HAIKU), "and so does the profile of Claude Haiku 5.5")
 	Do $$$AssertEquals(..Rows(..#HAIKU)_"|"_..Rows(..#SONNET), "1|1", "each model has one row")
 
 	Set row = ##class(OcuTalon.Bridge.Data.Price).ModelIndexOpen(..#HAIKU)
@@ -256,7 +279,7 @@ Method TestSeedPrices()
 	Do ..Remove(..#SONNET)
 	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Installer).Run(), "Installer.Run() returns OK again")
 	Do $$$AssertEquals(..Values(..#HAIKU), ".2|.5|.01|.125|50000|.5|2.5", "the edited values stay")
-	Do $$$AssertEquals(..Values(..#SONNET), "2|10|.2|2.5|||", "and the deleted row is created again")
+	Do $$$AssertEquals(..Values(..#SONNET), "2|10|.1|2.5|||", "and the deleted row is created again")
 	Do $$$AssertEquals(..Rows(..#HAIKU)_"|"_..Rows(..#SONNET), "1|1", "with one row for each model")
 }
 

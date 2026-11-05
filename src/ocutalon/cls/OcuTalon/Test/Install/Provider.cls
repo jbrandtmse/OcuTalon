@@ -19,6 +19,9 @@
 ///     the entry where a create would fail, and empty read and edit resources are the default ones again;
 ///   - TestEntryBeforeSetting: with an entry and its row deleted, Run() writes both, and the row can only be written after the
 ///     entry, because the setting's validation expands @{config:}.
+/// Added by Story 17.3 (AD-19):
+///   - TestKeepsChosenProvider: an existing entry keeps a provider of the provider table and exactly its own placeholder across a run, with every other
+///     field structural; another variable, or a provider the table lacks, gets Anthropic and its placeholder.
 /// Added by Story 1.7 (AD-8, AD-19, AD-23):
 ///   - every entry holds the timeouts of the bridge timer in http_config, after custom_headers and tls, in the judges' install too: the
 ///     request timeout and the whole retry block (TestDetails for the timers 60 and 30, TestEntries and TestRerun for the stored
@@ -314,6 +317,60 @@ Method TestRerun()
 	Do ..RestoreEntry("OcuTalonTriage", snapshot)
 	Do $$$AssertEquals(..EntryJson("OcuTalonTriage"), snapshot.%ToJSON(), "the entry is as it was found")
 	Do $$$AssertEquals(..Resources(fqn), resources, "with the resources it had")
+}
+
+/// Story 17.3 (AD-19): an entry that holds a provider of the provider table and exactly its own placeholder keeps the pair across a run of the step, and the
+/// other fields are structural: the stale http_config is rewritten. An entry whose placeholder is another variable, or whose provider the table does not have,
+/// gets the structural pair, anthropic and its placeholder. The entry is put back as found, through ConfigStore.Restore.
+Method TestKeepsChosenProvider()
+{
+	Set fqn = "AI.LLM.OcuTalonTriage"
+	Set expected = ..ForEnv("OcuTalon.Agent.Triage")
+	Set found = ##class(%ConfigStore.Configuration).Exists(fqn)
+	Do $$$AssertTrue(found, "the Triage entry exists")
+	If 'found Quit
+	Do $$$AssertStatusOK(##class(%ConfigStore.Configuration).GetDetails(fqn, .snapshot, 0, 0), "the entry is read")
+	Try {
+		// a chosen provider with its own placeholder is kept, and the stale timeouts are rewritten
+		Do $$$AssertStatusOK(##class(OcuTalon.Bridge.ConfigStore).Merge("OcuTalonTriage", {"model_provider": "openai", "api_key": "@{env:OPENAI_API_KEY}", "model": "gpt-5.4"}), "the entry is changed to OpenAI through Merge's model shape")
+		Do $$$AssertStatusOK(##class(OcuTalon.Bridge.ConfigStore).Merge("OcuTalonTriage", {"http_config": {"request_timeout_secs": 99, "retry": {"max_retries": 7}}}), "and its timeouts are made stale")
+		Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Provider).Run(), "the step runs")
+		Set details = ..Details("OcuTalonTriage")
+		Do $$$AssertEquals(details."model_provider"_"|"_details."api_key", "openai|@{env:OPENAI_API_KEY}", "the provider and its placeholder are kept")
+		Do $$$AssertEquals(details."http_config".%ToJSON(), expected."http_config".%ToJSON(), "and the http_config is rewritten whole")
+		Do $$$AssertEquals(details.%IsDefined("model"), 0, "and the entry holds no model")
+		Set kept = {}.%FromJSON(expected.%ToJSON())
+		Do kept.%Set("model_provider", "openai")
+		Do kept.%Set("api_key", "@{env:OPENAI_API_KEY}")
+		Do $$$AssertEquals(details.%ToJSON(), kept.%ToJSON(), "every other field is the structural one")
+
+		// another variable is not kept
+		Set other = {}.%FromJSON(details.%ToJSON())
+		Do other.%Set("api_key", "@{env:OCUTALON_ZZ_OTHER_KEY}")
+		Do $$$AssertStatusOK(##class(%ConfigStore.Configuration).Modify(fqn, other), "the entry names a variable that is not OpenAI's")
+		Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Provider).Run(), "the step runs again")
+		Set details = ..Details("OcuTalonTriage")
+		Do $$$AssertEquals(details."model_provider"_"|"_details."api_key", "anthropic|"_..#PLACEHOLDER, "the pair is Anthropic and its placeholder")
+		Do $$$AssertEquals(details.%ToJSON(), expected.%ToJSON(), "and the entry is exactly the computed one")
+
+		// a provider that the table does not have is not kept
+		Set unknown = {}.%FromJSON(details.%ToJSON())
+		Do unknown.%Set("model_provider", "zznosuchprovider")
+		Do $$$AssertStatusOK(##class(%ConfigStore.Configuration).Modify(fqn, unknown), "the entry names a provider that the table lacks")
+		Do $$$AssertStatusOK(##class(OcuTalon.Install.Step.Provider).Run(), "the step runs once more")
+		Do $$$AssertEquals(..Details("OcuTalonTriage").%ToJSON(), expected.%ToJSON(), "and the entry is exactly the computed one again")
+	} Catch exception {
+		Do $$$AssertStatusOK(exception.AsStatus(), "the test runs without an exception")
+	}
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.ConfigStore).Restore("OcuTalonTriage", snapshot), "the entry is put back as it was found")
+	Do $$$AssertEquals(..Details("OcuTalonTriage").%ToJSON(), snapshot.%ToJSON(), "and it reads back as it was found")
+}
+
+/// The details of the entry as stored, with the key unresolved.
+ClassMethod Details(name As %String) As %DynamicObject [ Private ]
+{
+	Do ##class(OcuTalon.Bridge.ConfigStore).Details(name, .details)
+	Quit details
 }
 
 /// With the Triage entry and its row deleted, Run() writes both. The row is validated against the entry, so it only saves
