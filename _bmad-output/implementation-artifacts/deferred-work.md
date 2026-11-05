@@ -3522,6 +3522,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-40-2-save-your-persona-and-let-ocutalon-propose-one.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: Web/Api.cls:523 $Select(kind = "fix": MESSAGENOTAPPROVER, 1: MESSAGENOTAPPROVERTOOL); APPROVALKIND gains setting in 40.2; unreachable until a setting request can be answered on the page
 - 2026-11-02T05:38:56Z status=routed owner=40-6-answer-a-proposed-persona-from-the-page-the-phone-or-telegra by=cr note=fix-risk low: one $Select arm plus its text (from EXPERIENCE.md if it names one, else the plain approver sentence) and a 403 row in Test.Web.Api; Web/Api.cls is contended for 40.2, and 40.6 is the story that lets the page answer a setting request
+- 2026-11-05T11:56:31Z occurrence=40-5-a-setting-approval-in-the-bridge-and-ocutalon-s-proposal-too by=harvest note=same_root_cause_reported_by_40.5_implement_at_Web/Api.cls:580
 
 ### DW-572: A SetPersona carried out after SessionOps.End's ForgetPerson for the same SessionRef recreates per-person keys of an ended session, which nothing deletes later
 - source: spec-40-2-save-your-persona-and-let-ocutalon-propose-one.md | severity: low | fix-risk: med | footprint: in-story
