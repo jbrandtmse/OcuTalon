@@ -25,3 +25,5 @@
 2026-11-05T07:02:24Z	Story 34.1	owner_decision	id=U-280 at=2026-11-05T05:37:42Z#849 via=orchestrator by=planner note=keep_(a);three_conditions:consistency_none_cover_vs_citations,provenance_labels,FR-41_met_by_chip
 2026-11-05T07:03:11Z	Story 34.1	spine_updated	ad=conv reason=owner_decision(U-280) by=runner story=34-1-settle-step-3-ownership-and-fix-its-contracts lint=ok(8_preexisting_placeholder)
 2026-11-05T07:03:11Z	Story 34.1	ledger_routed_planned	story=19-7-answer-from-pdf-and-word-documents,19-4-answer-from-documents-with-citations,20-2-see-citations-and-memories-in-answers entries=DW-719,DW-720,DW-721 excess=0 by=spec_gate note=cross_epic_bullets_by_orchestrator_post_merge
+2026-11-05T07:03:24Z	Story 34.1	adr_verifications_complete	tool=none acs=none result=none_required note=AD-21_model_path_measured_in_stage_task0_PASS_with_control(no_var=fail)_evidence/34-1-task0-fastembed-path.md mutations=none model=claude-opus-5-5
+2026-11-05T07:03:24Z	Story 34.1	stage_spawned	stage=qa spawn_at=2026-11-05T07:03:24Z model=sonnet agent_name=34-1-settle-step-3-ownership-and-fix-its-contracts-qa-1 cycle_iteration=1
