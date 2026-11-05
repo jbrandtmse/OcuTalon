@@ -543,3 +543,6 @@
 2026-11-05T15:38:15Z	Epic 11	epic_status_kept	status=in-progress reason=part_merge_11.22;11.23_backlog(chartered,PUBLIC_TEXT_pending);11.14,11.15,11.16,11.18_backlog note=no_epic_status_done
 2026-11-05T15:38:15Z	Epic 11	model_tier_checkpoint	armed=false stack_risk=none review_tier=full-opus implement_model=claude-sonnet high_med_avg=5 unresolved_high_med_avg=0 metric=unresolved rework_stories=0 review_loop_thrash=0 rework_lang_defects=0 review_high=0 review_med=5 result=hold applied=false(record_only) note=part_11.22
 2026-11-05T15:38:15Z	Epic 11	epic_runner_complete	stories_completed=1(11.22) part_merge=11.22 applied=none head_before_push=d8a32b4b
+2026-11-05T16:07:12Z	Epic 11	ruling	question=next_work choice=Story_11.23(DW-636)_after_11.22_merge(32686b09) why=orchestrator_dispatch category=decide policy=5086036 note=DW-741_left_open(34.2_resolves)
+2026-11-05T16:07:12Z	Epic 11	epic_context_compiled	reason=planning_artifact_newer(11.23_inserted) model=claude-opus lines=59 header=ok subagent_tokens=65578
+2026-11-05T16:07:12Z	Story 11.23	stage_spawned	stage=plan spawn_at=2026-11-05T16:07:12Z model=claude-opus agent_name=11-23-install-sh-accepts-build-109-plan-1 cycle_iteration=1 ledger_inbox=DW-636
