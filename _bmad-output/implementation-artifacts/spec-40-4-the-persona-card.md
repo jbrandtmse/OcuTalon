@@ -2,9 +2,10 @@
 title: 'Story 40.4: The Persona card'
 type: 'feature'
 created: '2026-11-04'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'e2260b61734686341e3c36bc56e8d1accd93b91c'
 review_loop_iteration: 0
-followup_review_recommended: false
+followup_review_recommended: true
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-40-context.md'
 warnings: [oversized]
@@ -126,6 +127,46 @@ deferred: []
 
 ## Review Triage Log
 
+### 2026-11-04 - Review pass
+- verdicts: 36 findings - high 0, medium 6, low 28, false 2, maybe-false 0
+- findings:
+  - `[low]` `[reject]` Blind 1: a failed re-read removes the whole card and a just-shown refusal - the Read fails row decides it (heading only, no false state, a stale pending line must not outlive its request); it needs the server unreachable, which the page's banners already show.
+  - `[low]` `[reject]` Blind 2: a failed first read has no message and no retry - the Read fails row and the "card announces nothing" rule decide it; the next pending change tries again (PC11 pins that).
+  - `[low]` `[reject]` Blind 3: a field refusal is not announced and does not move focus - by design: the card announces nothing and focus moves only on the user's own press (Always); the refusal is linked by aria-describedby.
+  - `[low]` `[reject]` Blind 4: `saved()` drops an in-flight read, so a stale `pendingRef` can stay - needs a pending change inside the PUT's round trip; re-reading instead would make a failed read erase a saved card.
+  - `[medium]` `[patch]` Blind 5: browser cases missing for the generic save failure, a failed read, a live pending change, `Popovers.hasOpen` and a non-offered stored preset - PC8 to PC12 and PC7b added; the `hasOpen` branch stays pinned by the source test only, and the preset case is false (see 6).
+  - `[false]` `[reject]` Blind 6: an unknown or non-offered stored preset renders a half-empty card - `PutPersona` validates the preset (bad_preset, custom_not_offered) and `SettingsOps.Persona` answers `professional` for no key, so the state cannot be stored through the product.
+  - `[low]` `[reject]` Blind 7: the spec's footprint text is out of date - a fix edits this build's spec; the Decided in implement notes carry it and the final report lists the files.
+  - `[low]` `[reject]` Blind 8: G4's taller window will break again with the next rail addition - the test's own premise is a tall window; the case states the reason and no future story is named.
+  - `[low]` `[patch]` Blind 9: `withCard`'s `rows` is unused and PC5's cleanup is fragile - `before` now receives `rows`; PC5 and PC8 to PC11 push their requests into it and `.finally` is gone.
+  - `[low]` `[reject]` Blind 10: the heading ids are duplicated between the card and the rail - PC1 (the group's name) and PC5/PC9 (focus) pin both in a real browser.
+  - `[false]` `[reject]` Edge 1: a stored preset that is not offered leaves no radio checked - same as Blind 6, not reachable.
+  - `[low]` `[reject]` Edge 2: a re-read that changes the persona while the form is open leaves old values in the form - the open form is the person's draft and Save sends what they chose; the fix would add form-merge rules.
+  - `[low]` `[reject]` Edge 3: a failed re-read after an earlier success erases the open form - same as Blind 1.
+  - `[low]` `[reject]` Edge 4: the dropped read leaves `pendingRef` stale - same as Blind 4.
+  - `[low]` `[patch]` Edge 5: "Saved." stays beside a form that has since changed - `choose`, `typedLanguage` and `typedCustom` clear the line; PC3 pins it (mutation recorded).
+  - `[low]` `[reject]` Edge 6: Esc then Change discards typed values - the Open Change row fills the form from the stored persona; Esc is a cancel.
+  - `[low]` `[patch]` Edge 7: PC5's cleanup runs on '' when seeding throws - same fix as Blind 9.
+  - `[low]` `[reject]` Edge 8: the loading placeholder rail lists four headings - `main-page.ts` is outside the spec's footprint and the placeholder already omits Telegram; no spec asserts it.
+  - `[low]` `[reject]` Edge 9: the preset names are not in `ux-strings` - they are in `PRESETS`, not in a `*_TEXTS`, as the spec has it, and `persona-card-view.test.mjs` pins them word for word.
+  - `[medium]` `[patch]` VGap 1: the re-read when the pending Refs change is unpinned - PC8 (raised and answered live) and PC11; mutation recorded.
+  - `[medium]` `[patch]` VGap 2: Esc not closing the drawer is unpinned - PC7b; mutation recorded.
+  - `[low]` `[patch]` VGap 3: the drawn-chat-card branch of the pending link is unpinned - PC9 with the real approval card; mutation recorded.
+  - `[medium]` `[patch]` VGap 4: no case for other refusals or for a missing message - PC10; mutation recorded.
+  - `[medium]` `[patch]` VGap 5: no case for a failed read - PC11; mutation recorded.
+  - `[low]` `[patch]` VGap 6: AC 7 has no `mutation:` line - recorded (PC6's stub).
+  - `[low]` `[reject]` VGap 7: AC 4 has only the Esc mutation - PC1 and PC2 pin the labels and the arrows, and the PC7b mutation adds the drawer case.
+  - `[low]` `[reject]` VGap 8: AC 1's mutation turns every case red - the node test `rail-view.test.mjs` is red on its own row too, and each PC case asserts one thing.
+  - `[low]` `[patch]` VGap 9: `withCard`'s `rows` is dead - same fix as Blind 9.
+  - `[low]` `[patch]` VGap 10: R10 captures the live rail before the card has read - the wait now comes before the capture and after the reload.
+  - `[low]` `[reject]` VGap 11: R10 relies on the RAIL user holding the default persona - nothing writes that user's persona; a note, not a defect.
+  - `[low]` `[reject]` VGap 12: G4's brittleness - same as Blind 8.
+  - `[low]` `[reject]` VGap 13: the placeholder rail's headings - same as Edge 8.
+  - `[low]` `[reject]` Intent 1: AC 3 is pinned against strings retyped in the tests - the spec asks for them "written out literally"; `ux-strings.test.mjs` ties them to the inventory, and the guard lists are read from `ReplyGuard.cls`.
+  - `[medium]` `[patch]` Intent 2: Matrix rows with no browser case (other failure, no message, slow call, pending changes, read fails, the drawn-card link) - same as Blind 5 and VGap 1 to 5; PC8 to PC12 cover them.
+  - `[low]` `[reject]` Intent 3: PC6 rewrites one field of the real answer - decided in Design Notes (the real flag switches the whole page to the online demo).
+  - `[low]` `[reject]` Intent 4: the diff touches files beyond the intent's list - each is recorded under Decided in implement and in the final report; none is an Epic 7 file other than the two ruled ones.
+
 ## Design Notes
 
 **Governing decisions:**
@@ -166,6 +207,19 @@ deferred: []
 
 **Lead ruling at the spec gate (2026-11-04, runner A, category decide).** The plan's intent gap is resolved by its option (b), now met: Epic 7 merged to the feature branch at 417f17c5 (record ac2c4549, 2026-11-04 about 21:3xZ), so `web/scripts/ux-strings.test.mjs` and `web/scripts/floor-sources.test.mjs` are no longer another open epic's in-flight files (Epics 33 and 39 do not change them). The lead integrates `origin/feature/OCT_OcuTalon_MVP` forward into `OCT-epic40` before this story's implement spawn; the implement stage then makes the edits the Tasks mark "ONLY IF RULED" as ordinary edits: the `IMPORTED` row, the `ux` entries, the U-278 `ac` key, and the line-155 binding. Each stays an append (no existing entry changes), and the implement stage re-checks `git diff --name-only origin/feature/OCT_OcuTalon_MVP...origin/OCT-epic<N>` for N in 33 and 39 before editing them. The reuse of "{n} of 1,000 characters", "Your own words", "Change" and "Save" is decided as planned: each is author-accepted text already in EXPERIENCE.md, and the 40.4 acceptance criteria name each part (Change, Save, "Your own words", a counter up to 1,000 characters), so no new public text is introduced.
 
+**Decided in implement (2026-11-04):**
+- `persona-card.spec.ts` lands in part 2/3, not 3/3 (the estimate was wrong): the part's file list is `... live/socket.spec.ts persona-card.spec.ts`. `--part 16/24` runs it alone (7 tests), used for the mutation runs.
+- Existing test files edited beyond the ruling's list, each an append or a count: `floor-sources.test.mjs` also holds the persona card in `KEY_HANDLERS` and `ESC_HOSTS` (its Esc handler asks `Popovers.hasOpen()` first, as `decision-row` does); `rail-view.test.mjs` also pins `RAIL_TEXTS.persona` and the Persona section; `frame/frame.spec.ts` and `demo-path/01-page.spec.ts` count six rail headings with Persona last (the Design Notes' "floor specs read headings by id only" held for the floor project, not for these two); `rail/rail.spec.ts` R1 also counts six `h3[tabindex]`, R1's `headings` filter leaves Persona out, and R10 waits for the card's own read before it compares a reload with the live rail (the card fetches after the rail renders).
+- `floor/layout.spec.ts` G4: the window is 1000x2100 instead of 1000x1900. In the stacked layout main takes what the rail leaves, and the Persona section took the case's margin from over 40px to 38px; the test's own premise is "a tall window, so main has room".
+- The pending link's selector (`app-chat-panel [data-part="approval"][data-key=...]`) is written in the card, not exported from `status-rail.ts`: that would make the two components import each other. Its fallback differs from `jump()`'s anyway (the Approval requests heading, not the chat list).
+- The radio group's name comes from the section heading's id (`rail-heading-persona`), held as `PERSONA_HEADING_ID` in the view module and pinned by PC1 (the group is named "Persona").
+- A refusal with no message beside a field shows the busy notice's sentence there too.
+- The first read failing, or a re-read failing, leaves the heading only; the form values the person typed stay in signals, so the form comes back with them if the read later answers.
+- Review pass 1 added cases to `persona-card.spec.ts`, each a Matrix row that had no browser case: PC7b (Esc in the drawer band leaves the drawer open), PC8 (a request raised and answered live), PC9 (the press focuses the request's drawn chat card; the real card, with only `pendingRef` of the real `GET` rewritten), PC10 (other refusals, a failure with no message, a field refusal with no message), PC11 (a failed read, then the next pending change reads again) and PC12 (a save with no answer in 11 s: the 10 s notice, then the late saved line; it takes about 12 s). PC5 now seeds its request through `withCard`'s `rows`.
+- Editing the form takes the saved line away (`choose`, `typedLanguage`, `typedCustom`), so a stale "Saved." never sits beside a changed form. PC3 pins it.
+- R10 (`rail.spec.ts`) waits for the card's own read before it captures the live rail, as well as after the reload.
+- `OCUTALON_LIVE_DEADLINE=700` was needed locally for `ci/iris.sh live demo-path` (the first run, with the default, hit the 270 s suite wait on a slow machine; the run with 700 passed 28 of 28).
+
 **Footprint:**
 - Contended paths touched: `rail-view.ts`, plus `api-client.ts` (`api/**`), as the lead's plan allows.
 - Outside the contended list: `status-rail.ts`, `announce-focus-sources.test.mjs`, `rail-view.test.mjs` and `rail.spec.ts`. Report them under `footprint_extensions` if they count as such.
@@ -199,11 +253,44 @@ Run every call from the worktree root with `timeout: 600000`, one per call. Pref
 - AC 6: the options ignore `customOffered` -> PC6 red.
 - AC 7: the test list itself.
 
+**Mutation record (Rule 19, implement stage; each applied, observed red, reverted; the four touched files were byte-identical to the backup after each revert):**
+- mutation: AC 1, the `sections.push` of `persona` removed from `rail-view.ts` -> `rail-view.test.mjs` red (3 tests) and, on `--part 16/24`, PC1 red (every case is red then, as no card is drawn).
+- mutation: AC 2, `savePersona` sends `post` instead of `put` -> PC2 red (PC3 and PC4 red with it, as they save too).
+- mutation: AC 2, `failureOf` routes `bad_language` to `save` -> `persona-card-view.test.mjs` red (2 tests) and PC3 red.
+- mutation: AC 3, "a different" for "another" in `customAllClear` -> the node test's exact pins red (the texts and (a)); "There are no problems." appended to `languageAllClear` -> the BANNED check (b) red as well as the exact pins.
+- mutation: AC 4, `(keydown.escape)` removed from the panel -> PC7 red, and `floor-sources.test.mjs` red (the key-binding list and the `(keydown.escape)` hosts).
+- mutation: AC 5, the pending line gated on `pendingRef === 'ignored'` -> PC5 red.
+- mutation: AC 6, `optionsFor` returns all six whatever `customOffered` says -> PC6 red and the node test of the options red.
+- The last four e2e mutations (failureOf, Esc, pendingRef, options) were applied together in one run of `--part 16/24` (persona-card.spec.ts alone): exactly PC3, PC5, PC6 and PC7 were red and PC1, PC2 and PC4 green, so each is attributed by its own case.
+- mutation: AC 5 and the Pending changes row, `this.pendingRefs();` removed from the card's effect (it reads once) -> PC8, PC9 and PC11 red; PC1 to PC7, PC10, PC12 and PC7b green.
+- mutation: AC 5, the pending link's selector `data-key` -> `data-ref` -> PC9 red (PC5 stays green: its fallback is the heading).
+- mutation: Other refusal and No readable message rows, `failed()` shows `BUSY_NOTICE` whatever the message -> PC10 red (and PC3, PC4, which read a server message beside a field).
+- mutation: AC 4, `event.stopPropagation()` removed from the Esc handler -> PC7b red (the drawer closes with the disclosure).
+- mutation: Read fails row, a failed read sets a default state instead of none -> PC11 red.
+- mutation: AC 7, the stub of PC6 passes `customOffered: true` (the real answer) -> PC6 red, so the demo variant is held by the spec itself.
+- mutation: Slow call row, the save's answer dropped after 10 s (`takeUntil(timer(10_000))`) -> PC12 red.
+- mutation: the saved line stays while the Language field is edited (`line.set(undefined)` removed from `typedLanguage`) -> PC3 red.
+- The mutations above ran in three groups on `--part 16/24` (persona-card.spec.ts alone), then every touched file was restored from the backup and was byte-identical to it (same sha as before each group).
+
 **Standing criterion:** every test added or changed passes on a fresh environment, in either order.
 
 Shared surfaces: the rail's section list goes from 5 to 6 (`rail-view.test.mjs`, `rail.spec.ts` R1 and the Telegram case; the floor specs read headings by id only). The `*_TEXTS` inventory and its `SOURCES` (`ux-strings.test.mjs`). `FOCUS_CALLS` and the key-binding list. The README account's persona keys and `setting` rows on the sign-in stack, which both persona specs clear before and after themselves.
 
 ## Auto Run Result
 
-Status: ready-for-dev
-Blocking condition: none (the plan's intent gap was ruled at the spec gate; see Design Notes)
+Status: done
+Blocking condition: none
+
+**Summary.** The status rail ends with a Persona section whose card (`app-persona-card`) reads `GET /api/v1/persona`, shows the current preset's name and description, offers the presets in a Change disclosure with the Language field and (on a local install) the "Your own words" text area with its counter, sends `PUT` through `app-server-button`, and shows the server's saved line or refusal (beside the field for `bad_language` and `bad_custom`). It shows the pending-request line as a button that focuses the request's chat card, else the Approval requests heading, and reads again when the pending approval Refs change. The two U-278 help texts ship word for word and a node test pins that neither holds a `ReplyGuard` BANNED or RESERVED phrase.
+
+**Files.**
+- New: `web/src/app/api/persona-types.ts` (the three body types), `web/src/app/rail/persona-card/persona-card-view.ts` (texts, presets, pure rules), `web/src/app/rail/persona-card/persona-card.ts` (the component), `web/scripts/persona-card-view.test.mjs`, `web/e2e/support/persona.ts` (helpers moved from 40.8's spec), `web/e2e/persona-card.spec.ts` (PC1 to PC12 and PC7b).
+- Changed in the contended set: `web/src/app/rail/rail-view.ts` (text, section id, appended section, doc), `web/src/app/api/api-client.ts` (one import, two methods).
+- Changed outside it: `web/src/app/rail/status-rail.ts` (import, `@else if`, doc), `web/scripts/rail-view.test.mjs`, `web/scripts/announce-focus-sources.test.mjs`, `web/scripts/ux-strings.test.mjs` and `web/scripts/floor-sources.test.mjs` (ruled appends), `web/e2e/rail/rail.spec.ts`, `web/e2e/frame/frame.spec.ts`, `web/e2e/demo-path/01-page.spec.ts` (six rail headings), `web/e2e/floor/layout.spec.ts` (G4 window), `web/e2e/api/persona.spec.ts` (imports the moved helpers).
+
+**Review.** 36 findings from the four layers: high 0, medium 6, low 28, false 2. Patched: the missing browser cases (PC7b, PC8 to PC12), the stale saved line, PC5's cleanup, R10's wait, and the AC 7 mutation line (13 rows). Deferred: none. Rejected: 23 rows with reasons in the Review Triage Log (by design under the matrix or Always rules, not reachable, or negligible).
+- Follow-up review recommended: true. This pass patched six medium rows; the unreviewed risk is the new e2e cases PC8 to PC12 and PC7b and the three-line change that clears the saved line.
+
+**Verification (all passed).** Node: `persona-card-view`, `rail-view`, `ux-strings`, `announce-focus-sources`, `floor-sources`, `playwright-projects`, and `npm --prefix web test` (1344 tests). `npm --prefix web run lint` and `run build`. `ci/iris.sh live sign-in` parts 1/3 (91), 2/3 (96, holds `persona-card.spec.ts`), 3/3 (81, holds `rail/rail.spec.ts`), `live floor` (107), `live demo-path` (8 of 8 steps; `OCUTALON_LIVE_DEADLINE=700` locally), `teardown` (nothing left). `docker/tests` boundaries, readme, ci-config and web-build. Mutations: see Verification. The fresh tag `e40s4i` on lane A only; no IRIS MCP call.
+
+**Residual risks.** PC12 waits 11 s of real time (about 12 s). The `Popovers.hasOpen` branch of Esc is pinned by the source test only. A failed read after a failed save shows the heading only, as the matrix says.

@@ -118,6 +118,7 @@ describe('the fixed strings', () => {
         titleWithCountdown: '{text}{separator}{countdown}',
         telegramNotSetUp: 'Telegram not set up',
         telegramHowTo: 'How to set it up',
+        persona: 'Persona',
       },
     );
     for (const value of Object.values(RAIL_TEXTS)) {
@@ -138,22 +139,32 @@ describe('the fixed strings', () => {
 });
 
 describe('the sections', () => {
-  it('come in order without Telegram: Approval requests, Background checks, Reminders, Recent decisions', () => {
+  it('come in order without Telegram: Approval requests, Background checks, Reminders, Recent decisions, Persona', () => {
     const view = viewOf();
-    assert.deepEqual(view.sections.map((one) => one.id), ['approvals', 'checks', 'reminders', 'decisions']);
-    assert.deepEqual(view.sections.map((one) => one.label), ['Approval requests', 'Background checks', 'Reminders', 'Recent decisions']);
+    assert.deepEqual(view.sections.map((one) => one.id), ['approvals', 'checks', 'reminders', 'decisions', 'persona']);
+    assert.deepEqual(view.sections.map((one) => one.label), ['Approval requests', 'Background checks', 'Reminders', 'Recent decisions', 'Persona']);
     assert.equal(view.telegramShown, false);
   });
 
   it('start with Telegram, with no count, when the release includes it', () => {
     const view = viewOf({}, { ...TELEGRAM_OFF, included: true });
-    assert.deepEqual(view.sections.map((one) => one.id), ['telegram', 'approvals', 'checks', 'reminders', 'decisions']);
+    assert.deepEqual(view.sections.map((one) => one.id), ['telegram', 'approvals', 'checks', 'reminders', 'decisions', 'persona']);
     assert.equal(view.telegramShown, true);
     const telegram = section(view, 'telegram');
     assert.equal(telegram.count, undefined);
     assert.equal(telegram.heading, 'Telegram');
     assert.equal(telegram.spoken, 'Telegram');
     assert.deepEqual(telegram.rows, []);
+  });
+
+  it('end with Persona, with no count and no rows, whatever the store holds (Story 40.4)', () => {
+    for (const view of [viewOf(), viewOf({ approvals: [approval('a1')], checks: [check('c1')] }, { ...TELEGRAM_OFF, included: true })]) {
+      const persona = view.sections.at(-1);
+      assert.equal(persona.id, 'persona');
+      assert.equal(persona.count, undefined);
+      assert.deepEqual([persona.label, persona.heading, persona.spoken], ['Persona', 'Persona', 'Persona']);
+      assert.deepEqual([persona.rows, persona.empty, persona.hint], [[], '', '']);
+    }
   });
 
   it('show "(0)" and "None waiting." and the other empty texts, with both hints, when there is nothing', () => {

@@ -5,7 +5,7 @@
  * through RailFormat, which the component builds from the real modules; the components render what it returns by interpolation only.
  *
  * - railView(store, format) gives the sections in order: Telegram (only when the release includes it), Approval requests,
- *   Background checks, Reminders and Recent decisions. It shows the store as a reload of the page would (the views filter and
+ *   Background checks, Reminders, Recent decisions and Persona (Story 40.4: a heading and no rows, for the Persona card). It shows the store as a reload of the page would (the views filter and
  *   sort the store, and the store keeps everything): approvals and reminders that are pending, by raised and due time and then
  *   in store order; every check in store order; the 20 newest attention decisions, newest first.
  * - Each list section carries its count, its visible heading "Background checks (1)" and its spoken heading "Background checks, 1".
@@ -52,6 +52,7 @@ export const RAIL_TEXTS = {
   titleWithCountdown: '{text}{separator}{countdown}',
   telegramNotSetUp: 'Telegram not set up',
   telegramHowTo: 'How to set it up',
+  persona: 'Persona',
 } as const;
 
 /** The anchor of the README's Telegram section. */
@@ -79,7 +80,7 @@ export interface RailFormat {
 }
 
 /** The sections of the rail. */
-export type SectionId = 'telegram' | 'approvals' | 'checks' | 'reminders' | 'decisions';
+export type SectionId = 'telegram' | 'approvals' | 'checks' | 'reminders' | 'decisions' | 'persona';
 
 /** The kinds of row. */
 export type RowKind = 'approval' | 'check' | 'reminder' | 'decision';
@@ -118,7 +119,7 @@ export interface RailRow {
   jumpName?: string;
 }
 
-/** One section of the rail. A list section has a count and a spoken heading; Telegram has neither. */
+/** One section of the rail. A list section has a count and a spoken heading; Telegram and Persona have neither. */
 export interface RailSection {
   id: SectionId;
   label: string;
@@ -340,5 +341,6 @@ export function railView(store: LiveStore, format: RailFormat, demo = false): Ra
     listSection('reminders', RAIL_TEXTS.reminders, reminders.map((reminder) => reminderRow(reminder, format)), RAIL_TEXTS.emptyReminders, RAIL_TEXTS.hintReminders),
     listSection('decisions', RAIL_TEXTS.decisions, decisions.map((decision) => decisionRow(decision, format)), RAIL_TEXTS.emptyDecisions, ''),
   );
+  sections.push({ id: 'persona', label: RAIL_TEXTS.persona, heading: RAIL_TEXTS.persona, spoken: RAIL_TEXTS.persona, rows: [], empty: '', hint: '' });
   return { sections, telegramShown };
 }

@@ -100,12 +100,13 @@ test('shows the status rail with its sections, counts and empty states', { tag: 
   const rail = page.getByRole('region', { name: 'Status', exact: true });
   await expect(rail, 'the rail is the region Status').toHaveCount(1);
   const headings = rail.getByRole('heading', { level: 3 });
-  await expect(headings, 'five sections in order, Telegram first').toHaveCount(5);
+  await expect(headings, 'six sections in order, Telegram first and Persona last').toHaveCount(6);
   await expect(headings.first(), 'the first section is Telegram, with no count').toHaveAccessibleName('Telegram');
   const names = ['Approval requests', 'Background checks', 'Reminders', 'Recent decisions'];
   for (const [i, label] of names.entries()) {
     await expect(headings.nth(i + 1), `heading ${i + 2} is named with its count`).toHaveAccessibleName(`${label}, 0`);
   }
+  await expect(headings.last(), 'the last section is Persona, with no count').toHaveAccessibleName('Persona');
   await expect(rail.locator('h3 > [aria-hidden="true"]'), 'and shows it').toHaveText(names.map((label) => `${label} (0)`));
   await expect(rail.locator('.empty'), 'each list shows its empty text').toHaveText([
     'None waiting.',

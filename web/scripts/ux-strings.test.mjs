@@ -43,6 +43,7 @@ const IMPORTED = [
   ['chat/decision-view.ts', ['DECISION_TEXTS']],
   ['rail/rail-view.ts', ['RAIL_TEXTS']],
   ['rail/telegram-card/telegram-card-view.ts', ['TELEGRAM_CARD_TEXTS']],
+  ['rail/persona-card/persona-card-view.ts', ['PERSONA_TEXTS']],
   ['shared/trace-view.ts', ['TRACE_TEXTS']],
   ['banners/banner-view.ts', ['BANNER_TEXTS']],
   ['shared/layout-view.ts', ['LAYOUT_TEXTS']],
@@ -436,6 +437,16 @@ const SOURCES = {
     'The resend stopped when OcuTalon restarted: {completed} of {count} {itemNoun} went through. The other {remaining} need a new approval.',
     'Nothing was resent: {reason}. Nothing was changed.',
     'Recorded in the IRIS audit log.',
+    'Persona',
+    'Choose how OcuTalon words its chat replies and the reasons for its decisions. What OcuTalon may do, and what needs your approval, never changes.',
+    'Change',
+    'Save',
+    'Language',
+    'Name a language, such as Spanish or Portuguese (Brazil). Notices, cards and buttons stay in English.',
+    'Your own words',
+    '{n} of 1,000 characters',
+    'OcuTalon suggested a change. It waits for your answer in Approval requests.',
+    'On the online demo you can choose a preset or a language. Your choice lasts for this visit.',
   ],
   design: [
     'Unread',
@@ -447,6 +458,10 @@ const SOURCES = {
     '{count} {noun} affected',
   ],
   ac: {
+    'Story 40.4 (U-278: the two help sentences of the Language and Your own words fields)': [
+      "OcuTalon deletes common English phrases that say all is well from the model's replies, so its own checks give the verdict. In another language, the model is only told not to say so.",
+      "OcuTalon deletes common English phrases that say all is well from the model's replies, so its own checks give the verdict. If this persona writes in another language, the model is only told not to say so.",
+    ],
     'Story 6.2: Approve or reject a fix from the web chat (the expiry caption "Expires {when}" and the busy notice of an unanswered press, which adds "The request is still waiting." to the busy and failure rule of EXPERIENCE.md)': [
       'Expires {when}',
       "Couldn't reach OcuTalon. Try again. Nothing was changed. The request is still waiting.",
