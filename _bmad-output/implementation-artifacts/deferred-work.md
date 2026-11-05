@@ -4146,6 +4146,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-17-2-retry-once-on-a-second-model-before-falling-back.md | severity: med | fix-risk: high | footprint: in-story
 - evidence: SaveRetried points unconditionally (Conventions: a retry's point always applies); nothing bounds the retry by T2 (flagged turn T2 30 s vs ~42 s, multi-step loops); Conversation starts the next turn once Decide answers
 - 2026-11-05T09:40:35Z status=escalated owner=burndown by=cr note=spine-level: a late retry should not move the link (e.g. no Point once the Decision row exists); needs an AD-6/AD-8 ruling
+- 2026-11-05T10:47:33Z occurrence=17-2-retry-once-on-a-second-model-before-falling-back by=cr note=docs/bridge-guide.md Second-model retry section states the current behaviour (a completed, untainted retry moves the conversation); revise that sentence when DW-725 is ruled
 
 ### DW-726: The retry's seed holds the first attempt's refused, cut-off or empty exchange (AnswerLinked saved it), so the second model sees the user's message twice and the user's history keeps an exchange the user never saw
 - source: spec-17-2-retry-once-on-a-second-model-before-falling-back.md | severity: med | fix-risk: med | footprint: in-story
@@ -4161,3 +4162,4 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-17-2-retry-once-on-a-second-model-before-falling-back.md | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: U-286 answer (Contest Planner, 2026-11-05T10:37:03Z#867): the section was appended at the end because docs/bridge-guide.md is contended with Epic 40
 - 2026-11-05T10:40:07Z status=routed owner=burndown by=lead note=owner condition U-286 (2): after Epic 40 merges
+- 2026-11-05T10:47:33Z occurrence=17-2-retry-once-on-a-second-model-before-falling-back by=cr note=widen the fold: the TimerSeconds row, the DecisionTokenBudget row (checked per attempt, so a retried decision may use up to twice it), the Timeouts section, The fallback route and the DecisionResponse.Model row still describe one attempt
