@@ -4,7 +4,7 @@
 
 ## Goal
 
-Epic 11 is release 1's merge point: the web demo path passes end to end in the REL-2 test, an in-place upgrade and a container restart keep every record, the clean-machine rehearsal times the demo path, and one scripted sequence (`release/release.sh`) cuts a candidate with its gates, notes, checklist and the Contest Planner's hands-on pass. Part 1 is built, including Story 11.20's fix-forward of the overview step's file mode, from which 1.0.0 was cut. After v1.0.0, `main`'s `iris (browser)` job went red twice on a test-harness defect, not a product failure: a route callback still in flight when its test ended (`route.fetch: Test ended`, 253 passed, 1 failed, demo path 28 of 28). Story 11.21 is that fix-forward and the first burndown item of the first daily release; it also bounds the online specs' helper waits so a hang names its step in seconds. The gates, hands-on gate, outward steps and update hook (11.14 to 11.16, 11.18) stay in part 2.
+Epic 11 is release 1's merge point: the web demo path passes end to end in the REL-2 test, an in-place upgrade and a container restart keep every record, the clean-machine rehearsal times the demo path, and one scripted sequence (`release/release.sh`) cuts a candidate with its gates, notes, checklist and the Contest Planner's hands-on pass. Part 1 is built and 1.0.0 was cut from it; fix-forwards 11.20 (the overview step's file mode) and 11.21 (route callbacks removed at test end, bounded helper waits) are merged. Story 11.22 is the first daily release's burn-down: it fixes, or closes on evidence, the harness reds and small product gaps that release found (a disabled Telegram item's lingering job, an unbounded request body, a leaked incident, CI uploading no Playwright results, `/state` not answering after sign-in, the request fixture's missing timeout), merges when done and ships in the next daily release, ahead of part 2. The gates, hands-on gate, outward steps and update hook (11.14 to 11.16, 11.18) stay in part 2.
 
 ## Stories
 
@@ -24,7 +24,8 @@ Epic 11 is release 1's merge point: the web demo path passes end to end in the R
 - Story 11.17: The release's IPM artifact carries the built page (done)
 - Story 11.19: Seeded check rows stay out of the heartbeat's way (done)
 - Story 11.20: The overview step hands the unit files the container can read (done)
-- Story 11.21: A test's route callback never outlives its test (next, backlog)
+- Story 11.21: A test's route callback never outlives its test (done)
+- Story 11.22: First daily release burn-down (next, backlog)
 - Story 11.14: The release sequence runs every gate on the pushed candidate (part 2, backlog)
 - Story 11.15: The hands-on gate and its resume command (part 2, backlog)
 - Story 11.16: The sequence asks before each outward step after the gates (part 2, backlog)
@@ -32,25 +33,28 @@ Epic 11 is release 1's merge point: the web demo path passes end to end in the R
 
 ## Requirements & Constraints
 
-- **One shared unroute (11.21).** Every spec under `web/e2e` and `web/e2e-online` that installs a route callback calling `route.fetch` has its callbacks removed when the test ends through one shared mechanism (the shared route helper or a shared `afterEach`) using `page.unrouteAll({ behavior: 'ignoreErrors' })`. No spec carries its own copy of the fix.
-- **Pinned with a mutation.** A test proves a callback still in flight at test end no longer fails the run with `route.fetch: Test ended`; removing the shared mechanism turns it red, and the mutation is shown.
-- **Future specs covered.** A spec added later that installs such a callback is covered with no further edits, or a check names it.
-- **Bounded helper waits (online specs).** In `web/e2e-online`, every helper wait (page action, navigation, response wait, request, and the IRIS script call through `irisScript`, which today bounds no `iris session`) gets its own bound well under the 5-minute test timeout, so a hang fails naming its step within seconds. The bound lives in the shared helpers or the shared Playwright configuration (which today sets no action or navigation timeout), never as per-spec copies; one bounded wait is pinned by a test with a mutation shown.
-- **Proof runs.** On the fix branch, `iris (browser)` is green three runs in a row with every other group green, and in the same three runs `iris (shards)` (which runs `live:online-session`) is green with `web/e2e-online/session/leave.spec.ts` L5 and L6 passing.
-- **No product change.** This is a test-harness defect; no product code changes. Ledger items DW-640 (`live/live.spec.ts` L9 failed from L8's callback) and DW-665 (`live/socket.spec.ts` W11, twice on v1.0.0) close with it.
+- **Disabled items sampled only when quiet (11.22).** Before `check_items_run` or `live_park_telegram` samples a disabled production item (TelegramIn, TelegramOut), it waits on its own bound of about 30 s until the item has no `Ens.Job` entry in any state; on the bound it fails naming the item and the entry's state. Never count only Alive jobs (the strict fix).
+- **Request body cap (11.22).** The shared request-body reader (`BodyText`) answers 413 `body_too_large` for any body over 256 KB, before parsing, in the API's standard error shape (`{"error": {"code", "message"}}`). A route may declare a larger bound of its own without changing the shared reader (the documents upload route declares about 14 MB, the encoded size of its 10 MB file limit). A test on each side of 256 KB pins it. `Web/Api.cls` is a shared file: append blocks only.
+- **Timeboxed and sized items (11.22).** The leaked resolved Orders incident in lane-a@rest is replayed in CI order on one warm stack for at most 60 minutes: a reproduction gets its fix, otherwise the entry returns to the ledger with what was tried. The TLS-proxy origin check (online-demo API POST behind a TLS-terminating proxy) and install.sh finding the right IRIS build image are each fixed here only if sized at 2 hours or less; otherwise returned to the ledger with the size.
+- **CI evidence (11.22).** A browser unit that fails in CI uploads its Playwright test-results (error-context.md, traces) as a short-retention artifact holding no secret except the CI dummy key and token.
+- **`/state` after sign-in (11.22).** Investigate the occurrences against held CSP sessions and licence units (CI's Community licence, the demo's 8 units); record the finding, fix here only if small.
+- **Request fixture bound (11.22).** The web/e2e request fixture's waits fail on a bound of their own, through an append-only edit or a shared-support alternative to `web/e2e/sign-in/helpers.ts` (that file is on Epic 40's open path); otherwise this item waits for Epic 40's merge.
+- **Shared harness rules (from 11.21, still binding).** Route callbacks are removed at test end through one shared mechanism (`page.unrouteAll({ behavior: 'ignoreErrors' })`); helper waits carry bounds in the shared helpers or shared Playwright configuration, never per-spec copies, bounded by the smaller of their own bound and the test's remaining time less a cleanup reserve of about 60 s, failing with a message naming the step. A new bound is pinned by a test with the mutation shown.
 - **Release-wide rules.** No step pushes an image or signs in to a registry; no step prints an environment value (`docker compose config` only with `--quiet`, `docker inspect` only with `--format`). Records describe machines only by OS, CPU architecture and memory. Nothing outward happens without the author's word.
 - Every command fits one 10-minute call; prefer warm mode and split long runs.
 
 ## Technical Decisions
 
-- **Test layout.** Playwright 1.64.x. Specs live under `web/e2e/` (demo-path specs are one per UJ-1 step under `web/e2e/demo-path/`; the accessibility floor's specs under `web/e2e/floor/` run only in their own unit `live:floor`, never in `live:sign-in`), online-demo specs under `web/e2e-online/`. A turned-on test that must never skip again carries `@floor`; an unbuilt part is a `notBuilt(title, 'N.M')` call.
-- **Lanes (AD-29).** `web/` (including the e2e specs, runner configuration and fixtures), `docker/` and `docker/tests/`, `.github/workflows/ci.yml` and the rest of `ci/` are Lane B; `release/`, the release records and the `docs/` security overview are Lane A. Epic 11 may change either lane's files; the orchestrator serializes it against any epic whose files overlap.
+- **Test layout.** Playwright 1.64.x. Specs live under `web/e2e/` (demo-path specs one per UJ-1 step under `web/e2e/demo-path/`; the accessibility floor's specs under `web/e2e/floor/` run only in their own unit `live:floor`), online-demo specs under `web/e2e-online/`. A turned-on test that must never skip again carries `@floor`; an unbuilt part is a `notBuilt(title, 'N.M')` call.
+- **API errors.** REST errors are `{"error": {"code": "...", "message": "..."}}` in plain English with snake_case codes; a new code (such as `body_too_large`) follows that shape.
+- **Lanes (AD-29).** `web/` (e2e specs, runner configuration, fixtures), `docker/` and `docker/tests/`, `.github/workflows/ci.yml` and the rest of `ci/` are Lane B; `release/`, the release records and the `docs/` security overview are Lane A. Epic 11 may change either lane's files; the orchestrator serializes it against any epic whose files overlap. Shared files (`Web.Api` among them) take one appended entry per story.
 - **Candidate model.** A candidate is identified by version and commit SHA on `release/<version>-rc<n>`, never changed after the cut; a failed gate means a fix on the integration branch and a new `rc<n+1>`. Rehearsal candidates are `rehearsal/<v>-rc<n>`, local bare remote only, never pushed to origin. After 1.0.0 a release goes out daily with whatever has merged (minor bump for a feature, patch for fixes only), each on the owner's word.
 - **Records.** `release/records/<version>/rc<n>.md` on the integration branch holds the SHA, each gate's result, the hands-on pass and hands-on time; stage only `rc<n>.md` by explicit pathspec, never the folder (the draft notes beside it are never published).
-- **Release script file mode.** `release.sh` and `lib-release.sh` keep `umask 077` (the state files rely on it); anything handed to a container whose user differs must be opened with `chmod -R a+rX`, as the overview and IPM steps do.
+- **Release script file mode.** `release.sh` and `lib-release.sh` keep `umask 077`; anything handed to a container whose user differs is opened with `chmod -R a+rX`.
 
 ## Cross-Story Dependencies
 
-- 11.21 touches only the shared e2e helpers and configuration (Lane B) and is independent of the part 2 release stories; its proof runs depend on the `iris (browser)` and `iris (shards)` CI groups.
-- Part 2 stories add steps to 11.5's `release.sh`: 11.14's rehearsal gate calls `rehearse.sh run` once per phase with `OCUTALON_RUN_TAG` (exit 4 until the last phase, DW-548); 11.16 carries DW-27 and DW-532; 11.18 needs 11.14 to 11.16.
+- 11.22's request-fixture item depends on Epic 40 (which has `web/e2e/sign-in/helpers.ts` open) unless done append-only or through shared support; its body-size bound must leave room for the documents upload route's larger declared bound (Epic 34).
+- 11.22 is independent of the part 2 release stories and merges first, shipping in the next daily release.
+- Part 2 stories add steps to 11.5's `release.sh`: 11.14's rehearsal gate calls `rehearse.sh run` once per phase with `OCUTALON_RUN_TAG` (exit 4 until the last phase); 11.16 carries the fork-PR demo-path guard and the tracked web bundle's dirty-tree issue; 11.18 needs 11.14 to 11.16.
 - Epic 38 runs the real-key and hands-on passes (38.1 to 38.3) through this sequence.

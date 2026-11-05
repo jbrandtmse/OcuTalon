@@ -514,3 +514,5 @@
 2026-11-05T10:38:22Z	Epic 11	deps_hash_rerecorded	reason=burndown_inserted note=orchestrator_records_the_graph_hash;epics.md_sha256=533ada8d67498bb8
 2026-11-05T10:38:22Z	Epic 11	ledger_routed_planned	story=11.22 entries=8 excess=0 by=burndown
 2026-11-05T10:38:22Z	Epic 11	ruling	question=runner_B_next_work choice=charter_Story_11.22_first_daily_release_burn-down rejected=none why=orchestrator_dispatch_(owner_via_Planner) category=decide policy=5086036
+2026-11-05T10:40:27Z	Epic 11	epic_context_compiled	reason=planning_artifact_newer(11.22_inserted) model=claude-opus lines=60 header=ok subagent_tokens=86402
+2026-11-05T10:40:27Z	Story 11.22	stage_spawned	stage=plan spawn_at=2026-11-05T10:40:27Z model=claude-opus agent_name=11-22-first-daily-release-burn-down-plan-1 cycle_iteration=1 ledger_inbox=DW-692,DW-687,DW-416,DW-636,DW-710,DW-550,DW-706
