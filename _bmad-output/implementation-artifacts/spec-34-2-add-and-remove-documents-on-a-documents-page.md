@@ -4,6 +4,7 @@ type: 'feature'
 created: '2026-11-05'
 status: 'done'
 baseline_revision: 'f619baf037d29afc999a7476a65111da2b84d2d6'
+baseline_commit: 'f619baf037d29afc999a7476a65111da2b84d2d6'
 review_loop_iteration: 0
 followup_review_recommended: true
 context:
@@ -220,6 +221,8 @@ deferred:
      (the inner path is in backticks in the README). Condition: the path in this sentence and the build's output path stay identical: a check in `docker/tests/test-readme.sh` (or the image check) reads the path from the README bullet and from the Dockerfile's notices step and fails when they differ; demonstrate its mutation (change one side) and record the `mutation:` line.
 - **Size ruling (Planner, with U-285 #864; replaces Decided 4's no-limit and the U-284 bullet's text):** Markdown, plain-text, PDF and Word files all have the 10 MB (10,485,760 bytes) file limit. The route's message is exactly "OcuTalon can add Markdown, plain-text, PDF and Word (.docx) files up to 10 MB." `too_large` ("that file is {size}; the limit is 10 MB.") applies to all four families, with one test per family (10,485,761 bytes refused, 10,485,760 accepted), and the fixed-strings test pins both texts.
 - **Body bound on the documents upload route (DW-687 amended):** every route will keep a 256 KB body limit (DW-687, a burn-down item NOT yet built on this branch) EXCEPT `POST /v1/documents`, whose bound is the 10 MB file limit's base64-encoded size plus the JSON envelope (about 14 MB; compute it, name it as a parameter). This story builds the documents route's own bound: a body over it is refused with 413 `body_too_large` before parsing, one test on each side of the bound. Build it so the general 256 KB limit can be added later (DW-687) without changing the documents route.
+
+**Orchestrator coordination note (2026-11-05, after implement; decide):** Story 11.22 (Epic 11 burn-down, DW-687) builds the general 256 KB body limit as `OcuTalon.Web.BodyLimit`, called from `Web.Api`'s `OnPreDispatch`, with per-route larger bounds declared in an `XData BodyBounds` block and the 413 code `body_too_large` in the spine's REST convention row. This story's documents bound uses the same code (`body_too_large`) and stays self-contained in `Web.Documents` (`BODYMAX`), not in `OnPreDispatch`; it becomes the documents route's `XData BodyBounds` entry once 11.22 merges. Whichever epic merges second switches the documents route to the shared mechanism (a plain change); if 11.22 lands on feature before this epic integrates forward, the lead uses its mechanism directly. The route message stays the Planner's ruled text; `body_too_large` is a code, not user text.
 
 **Contended files (for the orchestrator's ruling; not a HALT):**
 

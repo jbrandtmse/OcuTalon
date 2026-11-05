@@ -4155,3 +4155,28 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-34-1-settle-step-3-ownership-and-fix-its-contracts.md | severity: med | fix-risk: med | footprint: in-epic
 - evidence: S2 (spine AD-21 Documents 'Names' sub-bullet) fixes the Reason field as a code but lists no codes or texts; Lane B renders {reason}, Lane A writes it; DocumentOps answers 5003 until 19.4
 - 2026-11-05T07:18:19Z status=routed owner=34-2-add-and-remove-documents-on-a-documents-page by=cr note=34.2 names the codes and their texts in the spine (UX/PRD wording only) and decides who writes a refused row before 19.4
+
+### DW-731: CommandsIn waits its whole TIMEOUT (120 s) on a send to a disabled owner item: a tool's SaveMemory/ForgetMemory to the disabled MemoryOps stub waits 120 s until Story 19.3 enables it (Web.Documents guards its own routes with 501 not_built); a CommandsIn not_built answer for a disabled owner is the general fix
+- source: spec-34-2-add-and-remove-documents-on-a-documents-page.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: measured in 34.2 Task 0 on DocumentOps (web server gave up at 60 s, CommandsIn waits 120 s)
+- 2026-11-05T12:23:42Z status=routed owner=19-3-remember-recall-list-and-forget-in-the-chat by=harvest note=CommandsIn is contended with Epic 40; 19.3 enabling MemoryOps removes the case for memory verbs
+
+### DW-732: /usr/irissys/mgr/python is irisowner-owned (mode 555) in the base image, so the IRIS user could chmod it and replace the installed Python packages; the packages inside are root-owned and read-only
+- source: spec-34-2-add-and-remove-documents-on-a-documents-page.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: evidence/34-2-task0-image.md (34.2 Task 0 b)
+- 2026-11-05T12:23:42Z status=routed owner=19-2-compute-embeddings-offline-in-a-worker by=harvest note=decide whether to tighten the folder (Dockerfile) when 19.2 uses the packages
+
+### DW-733: flake candidate: Test.Live.GuideRefresh TestHookPublishesOnChange and TestEventsBodyServesTheGuide fail when the class runs alone on a warm stack the lane-b shard already used; pass in the shard on every fresh stack (order or state dependence of the test itself)
+- source: spec-34-2-add-and-remove-documents-on-a-documents-page.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: 34.2 implement, warm stack e34s2iw; not seen on fresh stacks
+- 2026-11-05T12:23:42Z status=routed owner=burndown by=harvest note=Rule 19 hermeticity; Epic 39 also edits Test/Live/GuideRefresh.cls
+
+### DW-734: AddDocument.Content (up to 10 MB, a %Stream.GlobalBinary on a persistent command message) stays in the message-body store; neither RemoveDocument nor DropSession is known to delete it, so the remove and sign-out promises may not hold for the stored message copy
+- source: spec-34-2-add-and-remove-documents-on-a-documents-page.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: src/ocutalon/cls/OcuTalon/Msg/Command/AddDocument.cls; message purge coverage not measured
+- 2026-11-05T12:23:42Z status=routed owner=19-5-keep-each-online-demo-session-s-documents-and-memories-to-it by=harvest note=measure the purge; drop the message bodies with the session or remove, or keep content out of the message
+
+### DW-735: Web e2e D8 and D10 (web/e2e/documents/documents.spec.ts) expect the real routes to answer an error while DocumentOps is disabled and go red once Story 19.4 enables it; switch them to fulfilled answers (page.route)
+- source: spec-34-2-add-and-remove-documents-on-a-documents-page.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: D10 failure-notice step and D8 accepted statuses rely on the stub era
+- 2026-11-05T12:23:42Z status=routed owner=19-4-answer-from-documents-with-citations by=harvest note=19.4 changes them when it builds DocumentOps
