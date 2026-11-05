@@ -3284,6 +3284,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-02T11:13:19Z owner=burndown by=burndown note=Epic 11 part 1 burn-down (owner trim): no charter (2 story-closable entries plus this repaired owner, under the cap, no repeat occurrences); kept for Epic 11 part 2's burn-down gate, as Epic 30 part 1 did; flakes with priority
 - 2026-11-03T18:43:26Z occurrence=31-7-after-an-unpair-the-telegram-card-shows-its-fresh-code-witho by=lead note=CI_run_41689251949_iris(browser)_live:sign-in_web/e2e/live/socket.spec.ts:138_W2_45s_timeout_in_loadedAfter_/state_wait(floor.ts:141)_runner_19;flake_rerun
 - 2026-11-03T16:12:51Z status=routed owner=burndown by=merge_gate note=occurrence:035be7d2_run_41659785594_iris(shards)_live:cards_I8_incident-card.spec.ts:396_loadedAfter_/state_wait_at_sign-in;green_on_rerun
+- 2026-11-05T07:30:44Z status=routed owner=burndown by=Contest_Planner(delegated) note=record each occurrence's elapsed time and whether a CSP session or licence limit was near; the burn-down checks whether /state waits on a held CSP session or licence unit (CI Community licence; the demo's 8 units). Occurrence 2026-11-05 OCT-epic11@5be5cc9e run 41983575716 chat.spec.ts:133 C1, named failure at the 30 s bound (11.21)
 
 ### DW-551: The release checklist does not check the draft notes for the inspiration's name outside the not-affiliated note (only the tracked tree's name-only-in-note row); the draft's own rules are Story 11.13's
 - source: spec-11-4-the-release-gets-draft-notes-and-a-checklist.md | severity: low | fix-risk: low | footprint: in-epic
@@ -4098,6 +4099,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: Contest Planner ruling on DW-669 (b), 2026-11-04 | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: DW-669 (Epic 40 review): no API route limits its request body size; the largest legitimate body is a 10,000-character simulated email with subject and sender
 - 2026-11-04T21:37:09Z status=routed owner=burndown by=orchestrator note=First daily release: BodyText refuses any body over 256 KB with 413 body_too_large before parsing, on every route; one test per route family. Related: DW-669 (a) in Epic 40; the demo host's Caddy limit is the Planner's (c).
+- 2026-11-05T08:24:09Z status=routed owner=burndown by=Contest_Planner(delegated) note=amended 2026-11-05 (U-285 #864): every route keeps the 256 KB body limit EXCEPT the documents upload route (Story 34.2), whose bound is the 10 MB file limit's encoded size (~14 MB), one test each side; 34.2 builds the documents-route exception
 
 ### DW-690: flake: demo-path 07-failure-paths L60 (mocked refusal) failed at L77 re-sign-in after the trace sign-out with page.goto net::ERR_ABORTED at /ocutalon/; 08-quiet-outcomes L73 failed as its cascade (07 skipped, so no replay request was pending)
 - source: feature 417f17c5 (Epic 7 merge) run 41916766312 iris (browser) attempt 1 | severity: low | fix-risk: low | footprint: out-of-footprint
@@ -4109,6 +4111,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: feature 417f17c5 (Epic 7 merge) run 41916766312 iris (shards-3) attempt 1 | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: same code green on ac2c4549 (run 41916844884); an unbounded helper wait, as in the Planner's leave.spec hypothesis
 - 2026-11-04T22:31:36Z status=routed owner=burndown by=orchestrator note=candidate for Story 11.21's bounded helper waits (Planner ruling 2026-11-04); a second occurrence is a real red
+- 2026-11-05T06:49:41Z occurrence=39-7 by=orchestrator note=OCT-epic39@f20a41c2 run 41979433905 iris (shards-3) job 127085863536 live:floor focus.spec.ts:53 P1 floor.ts:141 waitForResponse 90 s; failed job rerun once
 
 ### DW-692: A disabled Telegram item had a live job in CI: live:production row 14 got 'CHK|disabled|running=TelegramOut' (wanted none), and live:online-session logged 'TelegramIn has a live job' against the mock
 - source: OCT-epic40 5d96d2f6 run 41929230934 iris (production) att 1; OCT-epic39 d701b6e6 run 41909512271 iris (shards) att 1 | severity: med | fix-risk: med | footprint: out-of-footprint
