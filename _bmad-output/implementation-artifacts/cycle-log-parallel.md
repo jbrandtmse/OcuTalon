@@ -2072,3 +2072,7 @@
 2026-11-05T20:13:19Z	Epic 11	ci_green_verified	runs=42097306664,42097307405 head=139885a2 result=success via=none
 2026-11-05T20:13:19Z	Epic 11	merge_enqueued	policy=when_green part_merge=11.23 authority="Planner charter (DW-636) ships next daily" feature_moved=bookkeeping_only
 2026-11-05T20:13:19Z	Epic 11	epic_merge_started	head=139885a2
+2026-11-05T20:14:25Z	Epic 11	epic_merged_to_feature	merge=a85e3399 head=139885a2 part=11.23 verified_on_origin=yes ci_triggered=yes(42101365825,42101365782)
+2026-11-05T20:14:25Z	Epic 11	decision_sheet_recorded	decided=0 to_action_items=0 to_x0=0 by=unattended
+2026-11-05T20:14:25Z	Epic 11	runner_redispatched	runner=aa30eed6c8db92977 model=opus lane=B story=11.24 prompt=prompts/redispatch-epic-11-1124.md reason=predecessor_long_context
+2026-11-05T20:40:12Z	Run	ci_green_verified	runs=42101365782,42101365825 head=a85e3399 result=success via=none note=feature_after_11.23
