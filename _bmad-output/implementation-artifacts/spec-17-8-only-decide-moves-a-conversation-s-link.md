@@ -161,7 +161,7 @@ deferred: []
 - [ ] `src/ocutalon/cls/OcuTalon/Test/Bridge/Contracts.cls`: add the three `Reply` properties. `src/ocutalon/cls/OcuTalon/Test/Bridge/ZzRetryAdapter.cls`: follow the `SaveLinked` signature.
 - [ ] `src/ocutalon/cls/OcuTalon/Test/Eval/ZzSmokeRunner.cls` (contended with Epic 39; the append rule): add one self-contained `OnMessage` override as the class's last member. It calls `##super` and then, for an answered linked turn, calls `Test.Bridge.Runner.Accept`, as `Decide` accepts each on-time smoke turn. Report it in the closing summary. Make no other edit under `Test/Eval/**`; anything more needs `## Clarification Needed`.
 - [ ] Rule 19 search: find every test that drives a runner directly (`OnMessage` or `Answer` on a shadow host) and asserts a link or `SessionRotated` (for example `Test.Bridge.Gate` `LinkRows`, `Test.Bridge.Runner`, `Test.Agent.*`). Adapt it through `Accept`. A contended file other than the one above is `## Clarification Needed`.
-- [ ] [GATED, U-286: only after the lead records the Planner's approval of the text under Design Notes] `docs/bridge-guide.md`: replace the last paragraph of "## Second-model retry" with the approved text, verbatim, and change nothing else (contended with Epic 40).
+- [ ] [APPROVED 2026-11-05, U-286: the Planner approved the text under Design Notes] `docs/bridge-guide.md`: replace the last paragraph of "## Second-model retry" with the approved text, verbatim, and change nothing else (contended with Epic 40).
 
 **Acceptance Criteria:**
 - Given a linked turn whose reply `Decide` accepts, on time and untainted (fresh, compacted, saved or retried), when `Conclude` records it, then `Decide.PointLink` points the link at that reply's session through the compare-and-set `Point`, and the runner moved nothing before that (the link is asserted unchanged between the runner's reply and acceptance).
@@ -174,6 +174,8 @@ deferred: []
 - Given `docs/bridge-guide.md`, when the story is pushed, then the section says only what the code does (the gated text, once approved).
 
 ## Spec Change Log
+
+- 2026-11-05 (lead): the Planner approved the guide paragraph verbatim; the guide task is ungated; two pre-push truth checks recorded under Design Notes.
 
 ## Review Triage Log
 
@@ -237,7 +239,7 @@ No AC contradicts an AD's Rule: AD-6's and AD-8's 17.8 amendments state this sto
 
 **Integration ACs (Rule 1).** The consumer `Conversation` (through `WebChatIn`, `SecondModel` `TestIntegrationWebChat`) gets an accepted retry. The user's next message is answered from the retry's session, with no first-attempt content. Consumes: 17.2's retry path, `ConversationLink.Point`, `Compaction.Seed`, `RequestSize.StoredMessages`. Consumed-by: 17.3/17.4 (the retry runners they configure inherit the arbiter); 30.7 (the purge reads links that only `Decide` writes).
 
-**Proposed guide text (for the Planner, U-286; the gated task applies it only once approved).** The last sentence of the current paragraph becomes untrue: no "later writers" move the link any more. "Seeded from the stored conversation" also needs the DW-726 precision. The replacement, verbatim:
+**Guide text APPROVED by the Contest Planner (owner's delegation, 2026-11-05, relayed by the orchestrator) exactly as below; the guide task is ungated.** Approval condition: before the push, the lead checks two sentences against the final code, and any that is not literally true goes back to the Planner instead of being pushed: (1) "a code-written recap of the stored conversation as it stood before the turn" -- the seed is built by code from the stored rows, with no model call; (2) "Only `Decide` moves a conversation to another AI session" -- compaction's session change also goes through `Decide`'s acceptance, never a runner's own `Point`. The implement stage must keep both true (e.g. compaction's `SwitchTo` stops calling `Point`, and the seed uses `Compaction.Seed`-style code over stored messages, never a summarizer call); if it cannot, it HALTs with an intent gap. **Proposed guide text (for the Planner, U-286; the gated task applies it only once approved).** The last sentence of the current paragraph becomes untrue: no "later writers" move the link any more. "Seeded from the stored conversation" also needs the DW-726 precision. The replacement, verbatim:
 
 > A retried turn of a conversation that the bridge saves runs without the conversation lock, in a new AI session. `Decide` seeds it with a code-written recap of the stored conversation as it stood before the turn (or with `SeedText` when the turn starts fresh), and the turn's input follows; nothing that the first attempt produced goes in. Only `Decide` moves a conversation to another AI session, and only when it accepts a reply as the decision's answer: a reply that reached it within its timer, is usable and is not tainted. A reply that `Decide` does not accept, the first attempt's or the retry's, moves nothing: the conversation stays in the AI session it was in.
 
