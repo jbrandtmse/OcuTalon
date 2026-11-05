@@ -65,3 +65,5 @@
 2026-11-05T13:05:24Z	Story 34.2	ledger_adjudicated	owned=1 resolved=1 reowned=0 terminal=0 model=claude-opus-5-5
 2026-11-05T13:40:28Z	Story 34.2	smoke_complete	method=browser result=pass iterations=1 defects_caught=0 evidence=fresh_throwaway_e34s2s_rebuilt_image:live_sign-in_part_1/2(151_passed;documents.spec_D1-D13)+part_2/2(all_checks_passed) model=claude-opus-5-5
 2026-11-05T13:40:28Z	Story 34.2	fresh_check	env=recipe(ci/iris.sh_fresh_shard_lane-b@Core,Web,Live_tag_e34s2f2) tests=61_classes(CommandsStep3,SessionOpsDocuments,DocumentsApi,DocumentsImage,Live.Payloads,GuideRefresh...)+node_npm_test+static(boundaries,class-rules,storage,readme,compose-file,ci-config) result=pass order=forward,reverse note=4_fresh_stacks(parts_1/2,2/2_each_order);no_red;nothing_left_running
+2026-11-05T13:40:39Z	Story 34.2	committed	sha=6508ddc3 submodules= ci=pending runs=42037863035,42037862867 amendments=README.md:licence_bullet(approved_public_text),ARCHITECTURE-SPINE.md:S1-S9
+2026-11-05T13:40:39Z	Story 34.2	story_cycle	plan_to_commit_min=354 implement_passes=1 reviews=1 rework=0 first_ci=pending models=plan:opus,implement:sonnet,qa:sonnet,cr:opus
