@@ -94,3 +94,5 @@
 2026-11-05T19:14:18Z	Story 34.2	owner_decision	id=U-287 at=2026-11-05T19:09:13Z#874 via=orchestrator by=planner note=keep;conditions_as_tests:(1)orphan_Upload_rows_older_than_1h_purged,(2)size_limits_before_any_row_is_written,(3)rows_owner-scoped_and_the_online-demo_reset_clears_them(throwaway_evidence)
 2026-11-05T19:14:52Z	Epic 34	ruling	question=U-287_conditions_placement choice=charter_34.3_burn-down(DW-752,753,754) rejected=route_to_19.4/19.5 why=owner_conditions_on_this_epic's_own_new_table;the_merge_should_carry_them category=decide policy=5086036
 2026-11-05T19:14:52Z	Epic 34	burndown_chartered	story=34-3-epic-34-burn-down entries=DW-752,DW-753,DW-754 size=3 amendment=epics.md:Story_34.3_inserted deps_hash=burndown_inserted
+2026-11-05T19:16:51Z	Epic 34	epic_context_compiled	sha=33698948 reason=burndown_inserted(34.3) model=opus words=1264
+2026-11-05T19:16:51Z	Story 34.3	stage_spawned	stage=plan spawn_at=2026-11-05T19:16:51Z model=opus agent_name=34-3-epic-34-burn-down-plan-1 cycle_iteration=1
