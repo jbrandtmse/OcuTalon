@@ -3,7 +3,7 @@
 ///   - RetryAllowed is 1 only for a RetryOf that is ZzRunner, the shadow first runner of the tests;
 ///   - with a LateToken, SaveLinked of a linked turn first notes ^IRIS.Temp.ZzLate(token, "waiting") and waits, up to a minute, for
 ///     ^IRIS.Temp.ZzLate(token, "go"), so that a test can run the retry while the first attempt still holds the conversation lock, and then
-///     lets the late attempt save and point the link;
+///     lets the late attempt save its session (the adapter points no link: only Decide does);
 ///   - SessionConfigFor notes the timeout_ms of each config it composes, and whether the request being served carries a RetryOf, in
 ///     ^||ZzRetryConfig(n), as "timeout_ms|retrying".
 /// Nothing else differs from the adapter.
@@ -25,7 +25,7 @@ Method SessionConfigFor(Output config As %DynamicObject) As %Status
 	Quit sc
 }
 
-Method SaveLinked(request As OcuTalon.Bridge.Msg.Request, session As %AI.Agent.Session, fresh As %Boolean, reply As OcuTalon.Bridge.Msg.Reply) [ Private ]
+Method SaveLinked(request As OcuTalon.Bridge.Msg.Request, session As %AI.Agent.Session, reply As OcuTalon.Bridge.Msg.Reply) [ Private ]
 {
 	If ..LateToken '= "" {
 		Set ^IRIS.Temp.ZzLate(..LateToken, "waiting") = 1
@@ -34,7 +34,7 @@ Method SaveLinked(request As OcuTalon.Bridge.Msg.Request, session As %AI.Agent.S
 			Hang 0.1
 		}
 	}
-	Do ##super(request, session, fresh, reply)
+	Do ##super(request, session, reply)
 }
 
 }

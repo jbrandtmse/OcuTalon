@@ -83,7 +83,9 @@ ClassMethod HistoryChars(sessionId As %String) As %Integer
 /// stored ContextData stream is one full export of the session, a JSON object with its messages, followed by zero or more delta records, each
 /// a JSON array of new messages, all separated by the record separator $Char(30); the messages of the full export are the same JSON as
 /// GetContext() of the opened session. The session is not opened or attached, so the read takes no native call, no live agent and no lock.
-ClassMethod StoredMessages(sessionId As %String) As %DynamicArray
+/// With count a whole number, only the first count messages are returned: the messages the session held when it held that many, because a
+/// session that is saved in place appends to what it stored (Story 17.8, Task 0). An empty count, or any other value, returns all of them.
+ClassMethod StoredMessages(sessionId As %String, count As %String = "") As %DynamicArray
 {
 	Set messages = []
 	Try {
@@ -113,6 +115,12 @@ ClassMethod StoredMessages(sessionId As %String) As %DynamicArray
 				}
 			}
 			Set messages = found
+			If (count ? 1.N) && (count < messages.%Size()) {
+				Set messages = []
+				For i = 0:1:count - 1 {
+					Do messages.%Push(found.%Get(i))
+				}
+			}
 		}
 	} Catch {
 		Set messages = []

@@ -252,8 +252,9 @@ Method TestBusyWhileHeld()
 
 /// A turn whose Chat outlives Decide's timer keeps the conversation (AD-6; Story 1.7's second question). With Decide's TimerSeconds row at 12, written
 /// directly with Decide started again, turn 1 (turn-late: the reply comes after 18 s) gets a timeout fallback. Turn 2, sent as soon as turn 1 is answered, is
-/// Busy, because the late Chat holds the lock until it has saved. After ChatAgent has answered the late request, turn 3 is answered, and its first request
-/// carries turn 1's input and the late reply, which the late Chat saved.
+/// Busy, because the late Chat holds the lock until it has saved. After ChatAgent has answered the late request, turn 3 is answered. Turn 1 had no link, and
+/// Decide did not accept its late reply (Story 17.8: only Decide moves a link, and only for a reply it accepts on time), so the late Chat's session is named by no
+/// link and turn 3's first request carries its own input alone.
 Method TestBusyAfterTimedOutTurn()
 {
 	If '..Prepare() Quit
@@ -295,7 +296,7 @@ Method TestBusyAfterTimedOutTurn()
 	Do $$$AssertStatusOK($ClassMethod(mock, "LogSince", mark, .entries), "the mock's log is read")
 	Set requests = $ClassMethod(fixture, "FindRequests", entries, ref3)
 	Do $$$AssertEquals(requests.%Size(), 1, "turn 3 made one model request")
-	If requests.%Size() = 1 Do $$$AssertEquals($ClassMethod(fixture, "Messages", requests.%Get(0)), "user:"_late.Input_$Char(1)_"assistant:"_..#LATETEXT_$Char(1)_"user:"_third.Input, "which carries turn 1's input and the late reply that the late Chat saved, before turn 3's input")
+	If requests.%Size() = 1 Do $$$AssertEquals($ClassMethod(fixture, "Messages", requests.%Get(0)), "user:"_third.Input, "which carries turn 3's input alone: the late Chat saved its session, but no link names it, because Decide never accepted its late reply")
 }
 
 /// A linked turn sent straight to ChatAgent, with the conversation lock held by the test, gets a Busy Reply after about 2 seconds: the runner takes the lock with

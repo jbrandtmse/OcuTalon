@@ -6,13 +6,15 @@
 /// a turn that calls a tool, and turn 3 is flagged (Compact 1). The mock's log shows what each request carried. A summarizer request is a
 /// logged request whose scenario is a summary one; the log keeps the size of its system text (the compaction prompt) and not the text.
 ///   - TestGuardedCompaction (row 1): one summarizer request with the low effort and the transcript of turn 1; turn 3 starts from the summary,
-///     then turn 2's messages, and holds none of turn 1; one compaction Usage row with the estimated costs; the link names the fork; the
-///     original session is kept; SessionRotated 1;
+///     then turn 2's messages, and holds none of turn 1; one compaction Usage row with the estimated costs; the reply names the fork and the link
+///     names the original until Decide accepts the reply (Story 17.8), then the fork; the original session is kept; SessionRotated 1;
 ///   - TestNothingOlder (row 2), TestNotCompactable (row 8): no summarizer request, no compaction row;
 ///   - TestSummarizerOffSchema, TestCheckFails, TestReopenFails, TestSummarizerRateLimited (rows 3 to 5): the seeded fallback, one warning, never a
 ///     FailureText;
 ///   - TestSummarizerOverLimit, TestHistoryOverLimit, TestFirstRequestOverLimit (rows 6 and 7): the over-the-limit guards;
-///   - TestAfterTheSwitch (row 9): a tainted Chat, a Chat that fails and an exception after the link moved to the fork;
+///   - TestAfterTheSwitch (row 9): a tainted Chat, a Chat that fails and an exception after the fork was saved: the link stays on the original session;
+///   - TestLateCompactionMovesNothing (Story 17.8, DW-730): a compacted turn that finishes after its timer saves the fork and leaves the link on the original
+///     session, as does the timer's fallback, and the next accepted turn opens the original;
 ///   - TestFourIterations (row 10): the fourth request of a tool loop after a compaction stays under 100,000 tokens;
 ///   - TestCutRules, TestCheckRules, TestSeedRules, TestSettingsRules, TestSizes, TestUsageEstimate (row 11): the pure rules.
 /// Every test removes the AI sessions it saved (and the links that name them), the Usage rows it wrote and the settings rows it put.
@@ -64,6 +66,7 @@ Method OnAfterOneTest(testname As %String) As %Status
 	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Bridge_Data.ConversationLink WHERE Agent = ?", ..#AGENT)
 	Do ##class(OcuTalon.Test.Agent.RunnerFixture).DropSince(..SessionMark)
 	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Bridge_Data.Usage WHERE ID > ?", ..UsageMark)
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Bridge_Data.Decision WHERE Summary = ?", $Parameter("OcuTalon.Test.Bridge.Conversation", "LATEMARK"))
 	Quit $$$OK
 }
 
@@ -84,7 +87,7 @@ Method TestGuardedCompaction()
 
 	Set eventMark = ##class(OcuTalon.Test.Agent.RunnerFixture).EventMark()
 	Set request = ..Flagged("[[mock:recall-tell]] And a third thing.", owner)
-	Do $$$AssertStatusOK(..Go(host, request, .reply, .entries), "the flagged turn is answered")
+	Do $$$AssertStatusOK(..Go(host, request, .reply, .entries, 0), "the flagged turn is answered")
 	Set summaries = ..Summarizers(entries)
 	Do $$$AssertEquals(summaries.%Size(), 1, "exactly one summarizer request is logged")
 	Set summary = summaries.%Get(0)
@@ -100,10 +103,13 @@ Method TestGuardedCompaction()
 	Do $$$AssertTrue($Piece(messages, $Char(1), 1) [ "user:[[mock:reminder-list]]", "it starts with turn 2's user message (the summary is in the system text)")
 	Do $$$AssertEquals(sent.request.%ToJSON() [ "FILLERONE", 0, "and holds none of turn 1's filler")
 	Do $$$AssertTrue(sent.request.system.chars - systemChars > 100, "the system text carries the summary: "_systemChars_" characters before, "_sent.request.system.chars_" now")
-	Do $$$AssertEquals(reply.Text_"|"_reply.FailureText_"|"_reply.SessionRotated_"|"_reply.Tainted, "Noted.||1|0", "the reply is usable and SessionRotated is 1")
-
-	Set fork = ..LinkOf(owner)
-	Do $$$AssertTrue((fork '= "") && (fork '= old), "the link names the fork: "_old_" then "_fork)
+	Do $$$AssertEquals(reply.Text_"|"_reply.FailureText_"|"_reply.SessionRotated_"|"_reply.Tainted, "Noted.||0|0", "the reply is usable, and SessionRotated is 0: only Decide sets it")
+	Set fork = reply.SessionId
+	Do $$$AssertTrue((fork '= "") && (fork '= old) && (reply.SessionFrom = old), "the reply names the fork, and the original as the session it began from: "_old_" then "_fork)
+	Do $$$AssertEquals(..LinkOf(owner), old, "the link still names the original session before Decide accepts the reply")
+	Do $$$AssertStatusOK(##class(OcuTalon.Test.Bridge.Runner).Accept(request, reply, ..#AGENT), "Decide accepts the reply")
+	Do $$$AssertEquals(reply.SessionRotated, 1, "SessionRotated is 1")
+	Do $$$AssertEquals(..LinkOf(owner), fork, "and the link names the fork")
 	Do $$$AssertTrue(##class(%AI.Agent.Session).%ExistsId(old), "the original session is kept for the purge")
 	Do $$$AssertEquals(..Warnings(eventMark), 0, "a compaction that worked logs no warning")
 
@@ -304,8 +310,9 @@ Method TestNotCompactable()
 	Do $$$AssertTrue(##class(%AI.Agent.Session).%ExistsId(old), "the owner's session is still there")
 }
 
-/// Row 9: after the switch the link names the fork, as saved before the Chat. A tainted Chat saves nothing more, a Chat that fails gives the
-/// usual failure reply, and an exception leaves the lock free; SessionRotated is 1 where there is a reply.
+/// Row 9: after the switch the fork is saved, and the link is not touched (Story 17.8). A tainted Chat saves nothing more, a Chat that fails gives the usual
+/// failure reply, and an exception leaves the lock free; in each the link still names the original session, the reply names no session and has SessionRotated
+/// 0, and the fork, which nothing names, is the newest saved session and holds none of the turn.
 Method TestAfterTheSwitch()
 {
 	If ..Guard() Quit
@@ -326,27 +333,62 @@ Method TestAfterTheSwitch()
 		Do ..BuildPlain(host, owner)
 		If which = 3 Set host = ##class(OcuTalon.Test.Bridge.Runner).NewRunner(..#CHAT, "low", "", ..#AGENT, "OcuTalon.Test.Bridge.ZzThrowRunner")
 		Set old = ..LinkOf(owner)
+		Set sessions = ##class(OcuTalon.Test.Agent.RunnerFixture).SessionMark()
 		Set request = ..Flagged(text, owner)
 		Set sc = ..Go(host, request, .reply, .entries)
-		Set fork = ..LinkOf(owner)
-		Do $$$AssertTrue((fork '= "") && (fork '= old), label_": the link names the fork: "_old_" then "_fork)
+		Set fork = ##class(OcuTalon.Test.Agent.RunnerFixture).SessionMark()
+		Do $$$AssertEquals(..LinkOf(owner), old, label_": the link still names the original session")
+		Do $$$AssertEquals(fork - sessions, 1, label_": the fork was saved, and nothing names it: "_fork)
 		Do $$$AssertEquals(..Summarizers(entries).%Size(), 1, label_": the summarizer was asked once")
 		Do $$$AssertTrue($IsObject(..CompactionRow(request)), label_": the compaction row was written")
 		Do $$$AssertEquals(##class(OcuTalon.Test.Bridge.Conversation).LockFree(owner, ..#AGENT), 1, label_": the lock is free")
 		If which = 1 {
 			Do $$$AssertStatusOK(sc, label_": answered")
-			Do $$$AssertEquals(reply.Tainted_"|"_reply.SessionRotated, "1|1", label_": the reply is tainted and rotated")
+			Do $$$AssertEquals(reply.Tainted_"|"_reply.SessionRotated_"|"_reply.SessionId, "1|0|", label_": the reply is tainted, not rotated, and names no session")
 			Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).SessionExport(fork) [ request.ItemId, 0, label_": the tainted turn is not in the fork")
 		} ElseIf which = 2 {
 			Do $$$AssertStatusOK(sc, label_": answered")
 			Do $$$AssertTrue(reply.FailureText [ "ProviderError", label_": the failure reply of the provider: "_$Extract(reply.FailureText, 1, 200))
-			Do $$$AssertEquals(reply.Text_"|"_reply.SessionRotated, "|1", label_": no text, SessionRotated 1")
+			Do $$$AssertEquals(reply.Text_"|"_reply.SessionRotated_"|"_reply.SessionId, "|0|", label_": no text, SessionRotated 0, and no session named")
 			Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).SessionExport(fork) [ request.ItemId, 0, label_": the failed turn is not in the fork")
 		} Else {
 			Do $$$AssertStatusNotOK(sc, label_": an error status, as for any exception")
 		}
 		Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Bridge_Data.ConversationLink WHERE Agent = ?", ..#AGENT)
 	}
+}
+
+/// DW-730 (AD-6, AD-8), the compacted case, in process: a flagged turn that finishes after its timer saves its fork and names it, but Decide never accepts the
+/// reply, so the link names the original session S1 after the turn and after the timer's fallback, and the owner's next accepted turn opens S1 and not the
+/// fork.
+Method TestLateCompactionMovesNothing()
+{
+	If ..Guard() Quit
+	Set host = ..NewHost()
+	Set owner = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Do ..Build(host, owner, "[[mock:recall-tell]] ", .two)
+	Set s1 = ..LinkOf(owner)
+	Set request = ..Flagged("[[mock:recall-tell]] And a third thing.", owner)
+	Do $$$AssertStatusOK(..Go(host, request, .reply, .entries, 0), "the flagged turn finishes late")
+	Do $$$AssertEquals(..Summarizers(entries).%Size(), 1, "it was compacted: one summarizer request")
+	Do $$$AssertTrue($IsObject(reply) && (reply.SessionId '= "") && (reply.SessionId '= s1) && (reply.SessionFrom = s1), "its reply names the fork F, and S1 as the session it began from")
+	Do $$$AssertEquals(..LinkOf(owner), s1, "the link names S1")
+	Set conversation = "OcuTalon.Test.Bridge.Conversation"
+	Do $$$AssertStatusOK($ClassMethod(conversation, "TimerFallback", request, request.DecisionRef, .fallback), "the timer's fallback is recorded")
+	Do $$$AssertEquals($Select($IsObject(fallback): fallback.Fallback_"|"_fallback.FallbackReason_"|"_fallback.SessionRotated, 1: "none"), "1|timeout|0", "the timer's fallback is recorded with SessionRotated 0")
+	Do $$$AssertEquals(..LinkOf(owner), s1, "the link still names S1 after the timer's fallback")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Data.Decision).RefIndexExists(request.DecisionRef), 1, "(the decision is recorded)")
+
+	Set next = ..Plain("[[mock:recall-tell]] And what is next?", owner)
+	Do $$$AssertStatusOK(..Go(host, next, .nextReply, .nextEntries), "the owner's next turn is answered and accepted")
+	Set chat = ##class(OcuTalon.Test.Agent.RunnerFixture).FindRequests(nextEntries, next.ItemId)
+	Do $$$AssertEquals(chat.%Size(), 1, "with one model request")
+	If chat.%Size() = 1 {
+		Set messages = ##class(OcuTalon.Test.Agent.RunnerFixture).Messages(chat.%Get(0))
+		Do $$$AssertTrue(messages [ "FILLERONE", "which carries S1's whole history, turn 1's filler included, as the fork's summary replaced it")
+		Do $$$AssertEquals(messages [ request.ItemId, 0, "and nothing of the late turn")
+	}
+	Do $$$AssertEquals(..LinkOf(owner), s1, "and the link still names S1")
 }
 
 /// Row 10 (DW-130): after a compaction the four requests of a tool loop whose results are 40,000 characters each stay under 100,000 tokens,
@@ -616,12 +658,14 @@ ClassMethod Flagged(input As %String, owner As %String) As OcuTalon.Bridge.Msg.R
 }
 
 /// Sends the request through the host's OnMessage and returns the status; reply is the runner's Reply (or ""), and entries holds every line of the
-/// mock's log written during the call, the summarizer's requests included.
-ClassMethod Go(host As OcuTalon.Bridge.Operation.AgentRunner, request As OcuTalon.Bridge.Msg.Request, Output reply As OcuTalon.Bridge.Msg.Reply, Output entries As %DynamicArray) As %Status
+/// mock's log written during the call, the summarizer's requests included. With accept 1 (the default) the reply is then accepted as Decide would accept an
+/// on-time one (Test.Bridge.Runner Accept), which moves the link to the session the reply names; with accept 0 the link is where the runner left it.
+ClassMethod Go(host As OcuTalon.Bridge.Operation.AgentRunner, request As OcuTalon.Bridge.Msg.Request, Output reply As OcuTalon.Bridge.Msg.Reply, Output entries As %DynamicArray, accept As %Boolean = 1) As %Status
 {
 	Set mark = $ClassMethod(..#MOCK, "LogMark")
 	Set sc = host.OnMessage(request, .reply)
 	Do $ClassMethod(..#MOCK, "LogSince", mark, .entries)
+	If accept && $$$ISOK(sc) Do ##class(OcuTalon.Test.Bridge.Runner).Accept(request, reply, ..#AGENT)
 	Quit sc
 }
 

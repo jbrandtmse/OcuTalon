@@ -2,14 +2,23 @@
 title: "Story 17.8: Only Decide moves a conversation's link"
 type: 'bugfix'
 created: '2026-11-05'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: 'ac774e0d1aeb4e302b75780170e51476314dc89d'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-17-context.md'
   - '{project-root}/_bmad-output/implementation-artifacts/spec-17-2-retry-once-on-a-second-model-before-falling-back.md'
 warnings: ['oversized']
-deferred: []
+deferred:
+  - summary: >-
+      HistoryCount (GetContext().%Size() of the opened session) may not index RequestSize.StoredMessages for a session that holds tool-call messages, so the retry seed's cut could be off.
+    evidence: |-
+      Task 0 measured that the counts agree for plain user and assistant turns (N=2, k=2), and StoredMessages documents that its messages are the same JSON as GetContext(); no test covers a session with tool messages, delta records or a compacted history.
+      A probe settles it: a tool-using continue turn on the CI mock, then compare GetContext().%Size() before Chat with the stored count.
+    location: >-
+      src/bridge/cls/OcuTalon/Bridge/Adapter/Agent.cls MessagesIn; src/bridge/cls/OcuTalon/Bridge/RequestSize.cls StoredMessages
+    severity: medium (unverified)
 ---
 
 <intent-contract>
@@ -107,22 +116,22 @@ deferred: []
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] Task 0 (measure, warm throwaway `e17s8iw`, CI mock). For one opened linked session, check that `MessageCount()`, `GetContext().%Size()` and `RequestSize.StoredMessages(id).%Size()` agree before Chat. After a continue turn refused through `retry-chat` (armed 1) and saved in place, check that `StoredMessages` holds N+k and that its first N equal the pre-Chat messages. Record N, k and the method chosen under Design Notes. If the counts disagree, stop with `## Clarification Needed`.
-- [ ] `src/bridge/cls/OcuTalon/Bridge/Msg/Reply.cls`:
+- [x] Task 0 (measure, warm throwaway `e17s8iw`, CI mock). For one opened linked session, check that `MessageCount()`, `GetContext().%Size()` and `RequestSize.StoredMessages(id).%Size()` agree before Chat. After a continue turn refused through `retry-chat` (armed 1) and saved in place, check that `StoredMessages` holds N+k and that its first N equal the pre-Chat messages. Record N, k and the method chosen under Design Notes. If the counts disagree, stop with `## Clarification Needed`.
+- [x] `src/bridge/cls/OcuTalon/Bridge/Msg/Reply.cls`:
   - add `SessionId` (MAXLEN 128): the AI session this turn saved, "" when none;
   - add `SessionFrom` (MAXLEN 128): the session the link named when the runner began, "" for none;
   - add `HistoryCount` (`%Integer`): the messages that session held when it was opened, before compaction and Chat, "" when not opened;
   - append the storage slots;
   - rewrite the `SessionRotated` doc as the Always rule says.
-- [ ] `src/bridge/cls/OcuTalon/Bridge/RequestSize.cls`: extend `StoredMessages(sessionId, count = "")` so that a whole-number count returns the first `count` messages. Extend; do not copy.
-- [ ] `src/bridge/cls/OcuTalon/Bridge/Adapter/Agent.cls`:
+- [x] `src/bridge/cls/OcuTalon/Bridge/RequestSize.cls`: extend `StoredMessages(sessionId, count = "")` so that a whole-number count returns the first `count` messages. Extend; do not copy.
+- [x] `src/bridge/cls/OcuTalon/Bridge/Adapter/Agent.cls`:
   - `AnswerLinked` fills `SessionFrom` (= `Expected`, the link read at the start) and `HistoryCount` (per Task 0) on the reply. It drops the fork's `SessionRotated`.
   - `SaveLinked` saves the session and sets `SessionId` on success. It makes no `Point` and sets no `SessionRotated`. Its warning stays, and its signature may drop `fresh`.
   - `SwitchTo` saves the fork, releases and reopens it, and points nothing (the `moved` branch goes). `Expected` keeps the original link value.
   - `AnswerRetried` seeds with `ChatInput(request, 1)`, that is, the request's `SeedText`, which `Decide` built. It reads no stored history. It sets `SessionFrom` = `SessionOf(OwnerRef, RetryOf)`.
   - `SaveRetried` saves, unless `RetryIsLate`, and sets `SessionId`; it makes no `Point`.
   - Rewrite the class doc, `Expected` and the `Compact`/`SwitchTo` docs.
-- [ ] `src/bridge/cls/OcuTalon/Bridge/Process/Decide.cls`:
+- [x] `src/bridge/cls/OcuTalon/Bridge/Process/Decide.cls`:
   - Add `PointLink(request, runner, reply, Output rotated) As %Status` per Always. It warns on an error or a lost compare-and-set.
   - `Conclude` gets an optional `runner` (the link's agent; default `RunnerFor`). After `Record` saves a turn's row, it calls `PointLink`. The answer's `SessionRotated` is `rotated`, and the answer clears `SessionId`, `SessionFrom` and `HistoryCount`.
   - `OnResponse` passes `runner`.
@@ -130,38 +139,38 @@ deferred: []
   - `RetryRequest(request, decisionRef, estimate, runner, reply = "")`: for a linked turn that is not `fresh`, the clone is `fresh` with `SeedText` = the new `RetrySeed(request, runner, reply)`. `TryRetry` passes the first attempt's reply and builds the seed once.
   - `EstimateTokens` drops the `retryOf` history branch (the clone now carries its seed), along with the argument where it becomes unused.
   - Update the class doc.
-- [ ] `src/bridge/cls/OcuTalon/Bridge/Data/ConversationLink.cls`: doc only. `Decide.PointLink` is the only product caller of `Point` (the compare-and-set). The unconditional form has no product caller and is kept for test fixtures. The adapter reads the link and locks it.
-- [ ] `src/bridge/cls/OcuTalon/Bridge/Purge.cls`: doc only.
+- [x] `src/bridge/cls/OcuTalon/Bridge/Data/ConversationLink.cls`: doc only. `Decide.PointLink` is the only product caller of `Point` (the compare-and-set). The unconditional form has no product caller and is kept for test fixtures. The adapter reads the link and locks it.
+- [x] `src/bridge/cls/OcuTalon/Bridge/Purge.cls`: doc only.
   - A saved session is named when `Decide` accepts its turn, within the decision's 110 s.
   - A session whose reply was not accepted stays unnamed and is deleted after a day.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Bridge/Runner.cls`: add one helper, `Accept(request, reply, runner = "ZzRunner")`. It calls `Decide.PointLink` and sets `reply.SessionRotated`, as `Decide`'s answer would. The shadow-runner tests model an accepted reply with it.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Bridge/Conversation.cls`:
+- [x] `src/ocutalon/cls/OcuTalon/Test/Bridge/Runner.cls`: add one helper, `Accept(request, reply, runner = "ZzRunner")`. It calls `Decide.PointLink` and sets `reply.SessionRotated`, as `Decide`'s answer would. The shadow-runner tests model an accepted reply with it.
+- [x] `src/ocutalon/cls/OcuTalon/Test/Bridge/Conversation.cls`:
   - `Send` accepts by default (an `accept` argument, 1). Adapt the tests that expect links (Code Map); each asserts the link before acceptance (unchanged) and after it.
   - `TestRetryMovesTheLinkOnlyWhenOnTime`, `TestRetriedContinueTurn` and the late-retry cost assertion keep every assertion; the on-time move is now checked after `Accept`.
   - Move `TestRetriedPointFailureKeepsTheReply` to the `Decide` test below.
   - Add `TestBusyDecideMovesNothing` (DW-729): a retry with no `Decision` row yet answers and saves S2, and the link stays S1. Then the timer fallback is recorded (`RecordFallback` for that DecisionRef), and the link stays S1.
   - Add `TestLateFreshTurnMovesNothing` (DW-730, in process): a `fresh` turn saves S2 and leaves the link on S1; then its timer fallback is recorded.
   - Add `TestRetrySeedHoldsNoFirstAttempt` (DW-726), per the matrix row, with `retry-chat` armed 1. The first reply's `HistoryCount` goes to `RetryRequest`.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Bridge/Compaction.cls`:
+- [x] `src/ocutalon/cls/OcuTalon/Test/Bridge/Compaction.cls`:
   - `Go` accepts by default; adapt `TestGuardedCompaction`, `TestAfterTheSwitch` and the rest.
   - Add `TestLateCompactionMovesNothing` (DW-730, compacted): after the compacted turn the link names S1, `SessionId` is F and `SessionFrom` is S1. After the timer fallback the link is still S1, and the next accepted turn opens S1.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Bridge/Decide.cls`:
+- [x] `src/ocutalon/cls/OcuTalon/Test/Bridge/Decide.cls`:
   - Add `TestPointLink`, covering the matrix rows accepted fresh, accepted continue, first link, tainted, lost compare-and-set and Point error.
   - Add `TestConcludeAccepts`: through `Conclude` and the `ZzDecide` `OnResponse` path, a usable reply moves the link, a refused one does not, and the answer carries no session fields.
   - Rewrite `TestFallbackCarriesRotation` as `TestFallbackMovesNothing`. Adapt `TestTurnKeepsReply` and `TestConcludeFallbacks`/`AssertFallback`.
   - Extend `TestRetryWiring`: the clone of a linked continue turn is `fresh`, with the seed of the first `HistoryCount` messages.
   - Update the `TestEstimateTokens` retry cases.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Bridge/SecondModel.cls`:
+- [x] `src/ocutalon/cls/OcuTalon/Test/Bridge/SecondModel.cls`:
   - In `TestRetriedTurnKeepsTheConversation` (and `TestIntegrationWebChat` where it asserts the seed), the retry's seed is the stored first exchange only, and neither the seed nor the next turn holds "The CI mock refuses this request."
   - Add `TestLateFreshTurnMovesNothing` (live, DW-730), with no `RetryItem` and `UseTimer(12)`. On an owner whose link is S1, a `fresh` turn with `retry-chat-held` armed 1 takes the timeout fallback. After `WaitLate`, the link still names S1, and the next turn's logged history is S1's without the late exchange.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Bridge/CodeRules.cls`:
+- [x] `src/ocutalon/cls/OcuTalon/Test/Bridge/CodeRules.cls`:
   - Rename the test to `TestOnlyDecideWritesLinks`.
   - `Decide` calls `Lock`, `Unlock`, `SessionOf` and `Point`, with `Point` in one place. The adapter calls `SessionOf`, `Lock` and `Unlock`, and never `Point`.
   - Update the doc.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Bridge/Contracts.cls`: add the three `Reply` properties. `src/ocutalon/cls/OcuTalon/Test/Bridge/ZzRetryAdapter.cls`: follow the `SaveLinked` signature.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Eval/ZzSmokeRunner.cls` (contended with Epic 39; the append rule): add one self-contained `OnMessage` override as the class's last member. It calls `##super` and then, for an answered linked turn, calls `Test.Bridge.Runner.Accept`, as `Decide` accepts each on-time smoke turn. Report it in the closing summary. Make no other edit under `Test/Eval/**`; anything more needs `## Clarification Needed`.
-- [ ] Rule 19 search: find every test that drives a runner directly (`OnMessage` or `Answer` on a shadow host) and asserts a link or `SessionRotated` (for example `Test.Bridge.Gate` `LinkRows`, `Test.Bridge.Runner`, `Test.Agent.*`). Adapt it through `Accept`. A contended file other than the one above is `## Clarification Needed`.
-- [ ] [APPROVED 2026-11-05, U-286: the Planner approved the text under Design Notes] `docs/bridge-guide.md`: replace the last paragraph of "## Second-model retry" with the approved text, verbatim, and change nothing else (contended with Epic 40).
+- [x] `src/ocutalon/cls/OcuTalon/Test/Bridge/Contracts.cls`: add the three `Reply` properties. `src/ocutalon/cls/OcuTalon/Test/Bridge/ZzRetryAdapter.cls`: follow the `SaveLinked` signature.
+- [x] `src/ocutalon/cls/OcuTalon/Test/Eval/ZzSmokeRunner.cls` (contended with Epic 39; the append rule): add one self-contained `OnMessage` override as the class's last member. It calls `##super` and then, for an answered linked turn, calls `Test.Bridge.Runner.Accept`, as `Decide` accepts each on-time smoke turn. Report it in the closing summary. Make no other edit under `Test/Eval/**`; anything more needs `## Clarification Needed`.
+- [x] Rule 19 search: find every test that drives a runner directly (`OnMessage` or `Answer` on a shadow host) and asserts a link or `SessionRotated` (for example `Test.Bridge.Gate` `LinkRows`, `Test.Bridge.Runner`, `Test.Agent.*`). Adapt it through `Accept`. A contended file other than the one above is `## Clarification Needed`.
+- [x] [APPROVED 2026-11-05, U-286: the Planner approved the text under Design Notes] `docs/bridge-guide.md`: replace the last paragraph of "## Second-model retry" with the approved text, verbatim, and change nothing else (contended with Epic 40).
 
 **Acceptance Criteria:**
 - Given a linked turn whose reply `Decide` accepts, on time and untainted (fresh, compacted, saved or retried), when `Conclude` records it, then `Decide.PointLink` points the link at that reply's session through the compare-and-set `Point`, and the runner moved nothing before that (the link is asserted unchanged between the runner's reply and acceptance).
@@ -178,6 +187,42 @@ deferred: []
 - 2026-11-05 (lead): the Planner approved the guide paragraph verbatim; the guide task is ungated; two pre-push truth checks recorded under Design Notes.
 
 ## Review Triage Log
+
+### 2026-11-05 - Review pass
+- verdicts: 32 findings - high 0, medium 1, low 29, false 1, maybe-false 1 (the Intent Alignment Auditor's report is descriptive and files no finding; its divergence, that most link assertions run through `Runner.Accept`, is the spec's Design Notes 8 and 10)
+- findings:
+  - `[low]` `[patch]` blind: a late or refused continue turn still changes the stored conversation, against the docs' "changes nothing" - Agent and Purge docs reworded: no link moves, a new session stays unlinked, a continue turn saves in place (the Residual risks of the spec)
+  - `[low]` `[reject]` blind: the link move is outside the conversation lock - spec Residual risks (a caller other than `Conversation` that sends two concurrent turns); the loser's compare-and-set warns
+  - `[low]` `[reject]` blind: a retry with no `HistoryCount` seeds with the whole stored history - the spec's Always rule ("all of them when there is no first reply or no count"); the timer path reads the database before the first attempt can save
+  - `[low]` `[reject]` blind: `RetrySeed` reads the link at retry time, not `SessionFrom` - they differ only when a concurrent decision moved the link in between (the same residual risk); the spec names the first runner's link
+  - `[maybe-false]` `[defer]` blind: `HistoryCount` (`GetContext().%Size()`) may not index `StoredMessages` for sessions with tool messages - Task 0 measured plain turns and `StoredMessages` documents the same JSON; unverified medium; a probe on a tool-using session would settle it
+  - `[low]` `[patch]` blind: `Msg/Request.cls` `SessionMode` doc says the runner moves the link - reworded, and the `RetryOf` doc names Decide's seed
+  - `[low]` `[reject]` blind: the guide says nothing of the three `Reply` fields - the spec's guide task replaces one paragraph and changes nothing else; the guide check names `Request` properties only
+  - `[low]` `[reject]` blind: `SwitchTo` keeps an unused `request` argument and `Expected` keeps its name - no user-visible harm; a signature change touches every caller
+  - `[false]` `[reject]` blind: the `Compact` assignment in `TryRetry` is untested and may lose state - `SentRequest` sets `Compact` from `Flagged(request, estimate)` and nothing else depends on the estimate; the assignment is the same expression
+  - `[low]` `[reject]` blind: the race tests are single-process simulations - the spec's Design Notes 8 pins the race in process and the fresh late case live
+  - `[low]` `[reject]` edge: the next turn in the gap before `PointLink` opens the stale session - the same residual risk as the second blind finding
+  - `[low]` `[reject]` edge: a timer-triggered retry has no count - the same as the third blind finding
+  - `[low]` `[reject]` edge: `MessagesIn` catches silently - `OpenSession` has just read the session, so the count fails only when the whole open failed; a warning adds a branch for nothing
+  - `[low]` `[reject]` edge: a lost or failed move is not visible to the caller - the matrix row says one warning and the answer stands
+  - `[low]` `[reject]` edge: a stop between `Record` and `PointLink` leaves no move - a process stop inside one method; a retry of the same item hits the stored row, and the next turn starts from the old session
+  - `[low]` `[patch]` edge (claim): "moves nothing" is false for a continue turn saved in place - the same root and patch as the first blind finding
+  - `[low]` `[reject]` edge (claim): "nothing the first attempt produced goes in" holds only with a count - the same as the third blind finding; the guide text is the Planner's, verbatim
+  - `[medium]` `[patch]` gap: `Conclude`'s handling of a `PointLink` that fails was not tested through `Conclude` - a leg added to `TestConcludeAccepts` (link row held by another process: status OK, text, SessionRotated 0, link unchanged); mutation line written and red
+  - `[low]` `[reject]` gap: the assertions after the timer's fallback pass whatever Decide does - the pre-fallback assertion (the runner moved nothing) is the pin and has its mutation lines; the later assertions state the matrix row
+  - `[low]` `[reject]` gap: `TestRetriedContinueTurn`'s late-attempt assertion passes under the old Point - other tests carry that pin (`TestRetryMovesTheLinkOnlyWhenOnTime`, its mutation line)
+  - `[low]` `[reject]` gap: the `Runner` and `Gate` `LinkCount` assertions can no longer fail from a runner regression - they stay true and protect the "runner links nothing" rule beside `CodeRules`
+  - `[low]` `[reject]` gap: `TestBusyAfterTimedOutTurn`'s new expectation is true even if the late Chat saved nothing - the saved session is asserted by the in-process late tests
+  - `[low]` `[patch]` gap: no mutation line for "a fallback moves nothing" (`RecordFallback` copying `SessionRotated`) - mutation applied, `TestFallbackMovesNothing` and `TestConcludeFallbacks` red, line written
+  - `[low]` `[patch]` gap: no mutation line for a reply superseded by another call's row - `PointLink` moved before the existing-row check; `TestConcludeAccepts` red, line written (the `'saved` branch after `Record` is the narrow concurrent window and is not reachable in one process)
+  - `[low]` `[patch]` gap: no mutation line for the first runner keying the link of a retry - `OnResponse` passed the retry runner; a retry leg added to `TestConcludeAccepts` was needed to see it red; line written
+  - `[low]` `[patch]` gap: no mutation line for "a fresh turn keeps its own SeedText" - the clone always re-seeded; `TestRetryWiring` red, line written
+  - `[low]` `[patch]` gap: no mutation line for the Point error through `Conclude` - covered by the new leg and its line (see the medium row)
+  - `[low]` `[patch]` gap: no mutation line for AC4's "in one place" - a second `Point` call in `Conclude`; `CodeRules` red, line written
+  - `[low]` `[reject]` gap: the `SessionMark` counters assume no other process saves a session - the same helper pattern as the tests of 17.2; a late job of an earlier test is waited for by its own test
+  - `[low]` `[reject]` gap: `TestRetrySeedHoldsNoFirstAttempt` disarms the mock at its end, not in `OnAfterOneTest` - the arm is consumed by the first attempt before any assertion can end the test
+  - `[low]` `[reject]` gap: `Send` re-derives the link agent that Decide chooses - `TestConcludeAccepts` now proves Decide's own choice, including the retry's
+  - `[low]` `[reject]` gap: `TestBusyAfterTimedOutTurn` is a consumer the spec lists as unedited - the spec's own rule (Design Notes 7) makes its old assertion false; Decided in-stage 17, reported to the lead
 
 ## Design Notes
 
@@ -220,9 +265,30 @@ No AC contradicts an AD's Rule: AD-6's and AD-8's 17.8 amendments state this sto
 9. Test placement: existing classes in shards `lane-a@Bridge` and `@rest`.
 10. Shadow tests model `Decide`'s acceptance through one helper (`Test.Bridge.Runner.Accept`).
 
+**Task 0 results (implement stage, warm throwaway `e17s8iw`, the CI mock).**
+- For one opened linked session, `MessageCount()`, `GetContext().%Size()` and `RequestSize.StoredMessages(id).%Size()` agree: N = 2 (the user's message and the reply), and the JSON of `GetContext()` equals the JSON of the stored messages.
+- After a continue turn that `retry-chat` (armed 1) refused and that saved in place, `StoredMessages` holds N + k = 4 messages (k = 2: the input and the refusal), and its first N are byte for byte the pre-Chat messages. A session saved in place appends; it does not rewrite.
+- Method chosen: `Adapter.Agent.MessagesIn(session)` = `session.GetContext().%Size()`, read right after `OpenSession` and before `Compact` and Chat, and "" when it cannot be read (the seed is then the whole stored history). `RequestSize.StoredMessages(id, count)` returns the first `count` messages.
+
+**Decided in-stage (implement, 2026-11-05).** These add to the list above.
+11. `PointLink(request, runner, reply, Output rotated, decisionRef = "")` has one optional fifth argument, so that its warnings name the DecisionRef without `Conclude` writing into the runner's own reply; its status is Point's (an error for a Point that failed), and `Conclude` ignores it.
+12. `Conclude(..., Output retryReason, runner = "")` takes the first runner last, so that every existing positional caller still works; `OnResponse` passes the runner of the request.
+13. `RetryRequest(request, decisionRef, estimate, runner, reply = "")` builds the seed once (`RetrySeed`); `TryRetry` builds the clone, prechecks it, and sets `Compact` on the same clone for the estimate, so the seed is not built twice. `Precheck` and `EstimateTokens` lose their `retryOf` argument.
+14. The warning of a save that fails now reads "is not saved" (it no longer says "or linked", because the runner links nothing). `SaveLinked` and `SwitchTo` keep their position in the flow; `SaveLinked` drops its `fresh` argument, and the shadow adapters `ZzRetryAdapter` and `ZzLockSpyAdapter` follow.
+15. `Test.Bridge.Conversation` `TimerFallback` (a class method, `RecordFallback` with the reason `timeout`) is shared by `Test.Bridge.Compaction`, whose `OnAfterOneTest` deletes the Decision rows it leaves (Summary `ZzLateRetry`).
+16. `Test.Bridge.ZzDecide` records the `SessionMode` and the `SeedText` of each sent request (`"mode"`, `"seed"`), so that `TestRetryWiring` can see the clone.
+17. `Test.Agent.Conversation` `TestBusyAfterTimedOutTurn` asserted the old rule (a late first attempt of a first turn creates the link, so turn 3 carries turn 1's exchange). The spec's own rule (Design Notes 7: a first turn that falls back leaves no link; Always: "What moves nothing") makes that false, so the test now asserts that turn 3's request carries its own input alone. This is an edit to a consumer that Verification lists as unedited; it is reported to the lead.
+18. Review patches: the `Agent` class doc and the `Purge` doc now say that a late, refused or superseded reply moves no link and that a *new* session of such a reply stays unlinked (a continue turn saves into the session it opened, which the link keeps naming); `Bridge/Msg/Request.cls` (doc only, a footprint extension, not contended) no longer says the runner moves the link, and says that the retry's `SeedText` is Decide's; `TestConcludeAccepts` gains the retry's accepted reply (keyed by the first runner) and the move that fails through `Conclude`.
+
 **Residual risks:**
 - A continue turn still saves into its open session late or not (Conventions "Saved conversations"). So a late or refused continue reply's exchange stays in S1 when no retry replaces it, as in release 1.
 - Two concurrent linked requests for one conversation from a caller other than `Conversation` (which serializes its turns) can start from the old session in the window between a runner's lock release and `Decide`'s `Point`. The later one's compare-and-set then fails with a warning.
+
+**Footprint extensions found in implement (Rule 11).** None is contended by Epics 39, 40, 34 or 11 except where said (`git diff --name-only origin/feature/OCT_OcuTalon_MVP...origin/OCT-epic<N>` for N = 39, 40, 34, 11, run 2026-11-05):
+- `src/ocutalon/cls/OcuTalon/Test/Agent/Conversation.cls` (`TestBusyAfterTimedOutTurn`, see Decided 17) and `src/ocutalon/cls/OcuTalon/Test/Bridge/ZzDecide.cls`, `ZzLockSpyAdapter.cls`: Lane A tests, not contended.
+- `src/ocutalon/cls/OcuTalon/Test/Eval/ZzSmokeRunner.cls`: the one self-contained `OnMessage` override appended as the last member (Epic 39 does not touch this file on its branch).
+- `src/ocutalon/cls/OcuTalon/Test/Bridge/CodeRules.cls`: Epic 40 edits `TOOLVERBS` (about line 108) on its branch; this story edits the class doc (about line 40) and the link-writer test (about line 500), so the hunks do not overlap.
+- `docs/bridge-guide.md`: the last paragraph of "## Second-model retry", replaced verbatim with the approved text, and nothing else (Epic 40 contended).
 
 **Footprint (Rule 11):**
 - Extensions, not contended: `Bridge/Msg/Reply.cls`, `Bridge/Data/ConversationLink.cls` (doc), `Bridge/RequestSize.cls`, `Bridge/Purge.cls` (doc).
@@ -283,11 +349,55 @@ Every test added or changed passes on a fresh environment, in either order.
 - `RetrySeed` ignores the count -> `Bridge.Conversation` `TestRetrySeedHoldsNoFirstAttempt` and live `TestRetriedTurnKeepsTheConversation` red; `TryRetry` passes "" as the reply -> `Bridge.Decide` `TestRetryWiring` red.
 - 17.2's: `RetryIsLate` always 1 -> `TestRetryMovesTheLinkOnlyWhenOnTime` red. Restored, the three DW-725 tests pass.
 
+**Mutations demonstrated (implement stage, warm throwaway `e17s8iw`, 2026-11-05).** Each was applied to one file from a backup in the scratchpad, the class named was run and went red, and the file was restored from the backup (`md5` equal before and after, `git status --short` showing only the story's own modified files). `Bridge.X` is `OcuTalon.Test.Bridge.X`.
+- mutation: `Conclude` skips `PointLink` (`If turn Do ..PointLink` -> `If 0 Do ..PointLink`) -> `Bridge.Decide` `TestConcludeAccepts` red (the link, the rotation and the through-OnResponse legs); live `SecondModel` `TestRetriedTurnKeepsTheConversation`, `TestIntegrationWebChat` and `TestLateFreshTurnMovesNothing` red.
+- mutation: `SaveLinked` calls `Point` again -> `Bridge.Conversation` `TestFirstAndNextTurn`, `TestFresh`, `TestLateFreshTurnMovesNothing` and `TestLockHeldFromOpenToSave` red; `Bridge.CodeRules` `TestOnlyDecideWritesLinks` red; `Agent.Conversation` `TestBusyAfterTimedOutTurn` red; live `SecondModel` `TestLateFreshTurnMovesNothing` and `TestIntegrationWebChat` red.
+- mutation: `SaveRetried` points the link when not `RetryIsLate` -> `Bridge.Conversation` `TestBusyDecideMovesNothing` red (also `TestRetriedContinueTurn`, `TestRetriedFreshTurn`, `TestRetryMovesTheLinkOnlyWhenOnTime`, whose before-acceptance assertions pin the link).
+- mutation: `SwitchTo` points the fork -> `Bridge.Compaction` `TestLateCompactionMovesNothing` red (also `TestGuardedCompaction`, `TestAfterTheSwitch`).
+- mutation: `PointLink` passes no `expected` -> `Bridge.Decide` `TestPointLink` (the lost compare-and-set) red.
+- mutation: `rotated` = `moved` -> `Bridge.Decide` `TestPointLink` (the first link of a continue turn) red.
+- mutation: `PointLink` without the tainted test -> `TestPointLink` red. mutation: without the in-place test (`SessionId` = `SessionFrom`) -> `TestPointLink` red. mutation: no warning for a lost compare-and-set -> `TestPointLink` red.
+- mutation: `RetrySeed` ignores the count -> `Bridge.Conversation` `TestRetrySeedHoldsNoFirstAttempt` red; live `SecondModel` `TestRetriedTurnKeepsTheConversation` red. mutation: `TryRetry` passes "" as the reply -> `Bridge.Decide` `TestRetryWiring` (case 1) red.
+- mutation: the retry clone is not made fresh -> `Bridge.Decide` `TestRetryWiring` and `TestRetryEstimate` red.
+- mutation: `StoredMessages` ignores the count -> `Bridge.Conversation` `TestRetrySeedHoldsNoFirstAttempt` and `TestStoredMessagesSkipsBadRecords` red.
+- mutation: `AnswerLinked` sets no `HistoryCount` -> `Bridge.Conversation` `TestRetrySeedHoldsNoFirstAttempt` red.
+- mutation: `Conclude` leaves `SessionId` in the answer -> `Bridge.Decide` `TestConcludeAccepts` and `TestTurnKeepsReply` red.
+- mutation: `ZzSmokeRunner` accepts nothing (the guard `IsLinked` -> 0) -> `Eval.ThinkingSmoke` `TestOnTheMock` red.
+- mutation: `Reply.HistoryCount` declared `%String` -> `Bridge.Contracts` `TestContracts` red.
+- mutation: `Conclude` calls `PointLink` before the existing-row check (`ItemIdKindIndexExists`) -> `Bridge.Decide` `TestConcludeAccepts` red (the item another call already decided).
+- mutation: `Conclude` returns `PointLink`'s status -> `Bridge.Decide` `TestConcludeAccepts` red (the move that fails leg: the answer must stand).
+- mutation: `OnResponse` passes the retry runner as the link's agent -> `Bridge.Decide` `TestConcludeAccepts` red (the retry's accepted reply moves the first runner's link).
+- mutation: the retry clone of a fresh turn is re-seeded with `RetrySeed` -> `Bridge.Decide` `TestRetryWiring` red (a fresh turn keeps its own SeedText).
+- mutation: a second `Point` call in `Conclude` -> `Bridge.CodeRules` `TestOnlyDecideWritesLinks` red.
+- mutation: `RecordFallback` copies the runner's `SessionRotated` -> `Bridge.Decide` `TestFallbackMovesNothing` and `TestConcludeFallbacks` red.
+- mutation (17.2's): `RetryIsLate` always 1 -> `Bridge.Conversation` `TestBusyDecideMovesNothing`, `TestRetriedContinueTurn`, `TestRetriedFreshTurn`, `TestRetryMovesTheLinkOnlyWhenOnTime` and `TestRetrySeedHoldsNoFirstAttempt` red. Restored, `Bridge.Conversation` passes, DW-725's three tests included.
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-Planned; halted after planning as directed. The lead has two gates before the implement stage:
-- The guide paragraph under Design Notes ("Proposed guide text") needs the Planner's approval (U-286). Until then the guide task stays gated.
-- The `Test/Eval/ZzSmokeRunner.cls` append block (contended with Epic 39, under the project block's append rule) is reported here for the orchestrator.
+**Summary.** `Decide` is the one arbiter of a conversation's link. Runners save their AI session and report it on the `Reply` (`SessionId`, `SessionFrom`, `HistoryCount`, slots 11-13); `Decide.PointLink` points the link through the compare-and-set `Point`, in `Conclude` after the Decision row is saved, only for a linked, usable, untainted reply that names a session other than `SessionFrom`. `SaveLinked`, `SwitchTo` and `SaveRetried` no longer call `Point`, and a fallback, a late, tainted or superseded reply moves nothing (DW-729, DW-730). The retry of a linked continue turn is sent fresh, seeded by `Decide.RetrySeed` (`Compaction.Seed` of the first `HistoryCount` stored messages, code only, no model call), so the first attempt's exchange is not in it (DW-726). The Planner's approved guide paragraph is in `docs/bridge-guide.md`. Both truth checks hold: the seed is built from stored rows with no model call, and every session change reaches the link only through `Decide`'s acceptance (`CodeRules` `TestOnlyDecideWritesLinks`).
+
+**Files changed.**
+- `src/bridge/cls/OcuTalon/Bridge/Msg/Reply.cls`: three properties and their storage slots; `SessionRotated` is Decide's.
+- `src/bridge/cls/OcuTalon/Bridge/Process/Decide.cls`: `PointLink`, `RetrySeed`, `Conclude`/`OnResponse`/`RetryRequest`/`TryRetry`/`RecordFallback`, `EstimateTokens` and `Precheck` without `retryOf`.
+- `src/bridge/cls/OcuTalon/Bridge/Adapter/Agent.cls`: the runner saves and reports; no `Point`.
+- `src/bridge/cls/OcuTalon/Bridge/RequestSize.cls`: `StoredMessages(sessionId, count)`.
+- `src/bridge/cls/OcuTalon/Bridge/Data/ConversationLink.cls`, `Purge.cls`, `Msg/Request.cls`: documentation only.
+- `docs/bridge-guide.md`: the approved paragraph, one line.
+- Tests: `Test/Bridge/{Conversation,Compaction,Decide,SecondModel,CodeRules,Contracts,Runner,ZzDecide,ZzLockSpyAdapter,ZzRetryAdapter}.cls`, `Test/Agent/Conversation.cls`, and the appended `OnMessage` of `Test/Eval/ZzSmokeRunner.cls` (contended with Epic 39, the append rule).
+
+**Footprint extensions (Rule 11).** `Bridge/Msg/Reply.cls`, `Bridge/Msg/Request.cls` (doc), `Bridge/Data/ConversationLink.cls` (doc), `Bridge/RequestSize.cls`, `Bridge/Purge.cls` (doc), `Test/Agent/Conversation.cls` (a consumer the spec lists as unedited; see Decided in-stage 17), `Test/Bridge/ZzDecide.cls`, `ZzLockSpyAdapter.cls`. None is contended. Contended and edited under the rules: `Test/Eval/ZzSmokeRunner.cls` (Epic 39, one appended member) and `docs/bridge-guide.md` (Epic 40, the approved paragraph); `Test/Bridge/CodeRules.cls` is also edited by Epic 40, in a different hunk.
+
+**Review findings.** 32 findings: patches applied 10 (one medium, nine low: the `Agent`/`Purge`/`Request` docs, the `Conclude` Point-error leg and the retry leg of `TestConcludeAccepts`, six mutation lines), deferred 1 (a maybe-false medium, `HistoryCount` against `StoredMessages` for tool-message sessions), rejected 21 (each with its reason in the Review Triage Log: the residual risks of the spec, the matrix rows and Design Notes 8, 10 and 17).
+
+**Verification performed (all on the CI mock, lane A throwaways).**
+- Warm: `Test.Bridge.{Decide, Conversation, Compaction, SecondModel, CodeRules, Contracts, Runner, Link, Purge, Gate}`, `Test.Agent.Runners`, `Test.Eval.ThinkingSmoke`, and the consumers `Test.Agent.{Conversation, Compaction, Decide, RequestSize}`, `Test.Eval.Run`, `Test.Checks.Turns`, `Test.Core.ConversationTurns` all pass.
+- `test-storage`, `test-class-rules`, `test-boundaries` and `test-bridge-guide` pass.
+- Fresh: `shard lane-a@Bridge` parts 1/2 and 2/2 pass (31 classes). `shard lane-a@rest` ran green (parts 1/3, 2/4, 3/4, 4/4) before the review patches; the patches touch only documentation of three bridge classes and one test class of `Bridge`, so `rest` was not run again.
+- Mutations (Rule 19): about 30 applied, each observed red and restored from a backup with the md5 and `git status` unchanged; the lines are under `## Verification`.
+
+**Residual risks.** As the spec states them (a continue turn saves in place late or not; the window between a runner's lock release and `Decide`'s `Point` for concurrent turns of one conversation). The deferred item above. A first turn that times out and finishes late leaves no link (the spec's rule), which changed `Test.Agent.Conversation` `TestBusyAfterTimedOutTurn`.
+
+**For the lead.** The stale spine sentences listed under Design Notes ("For the lead: spine conformance"), and the two truth checks above, before the push. Follow-up review recommended: false (one medium patched, no high).

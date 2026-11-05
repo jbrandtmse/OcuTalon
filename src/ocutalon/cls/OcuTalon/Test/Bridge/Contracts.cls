@@ -1,5 +1,5 @@
 /// Tests of the bridge's message contracts and shared helpers (Story 0.4; Story 1.2 adds Reply.FinishReason and the ToolInventory
-/// request; Story 3.4 adds the ApprovalStart request and Story 3.5 the ApprovalOutcome message; Story 1.5 adds Reply.Steps, and Story 1.6 Reply.FailureText, which a busy reply leaves empty; Story 1.9 adds Request.Compact, and Story 17.2 Request.RetryOf): every OcuTalon.Bridge.Msg class has
+/// request; Story 3.4 adds the ApprovalStart request and Story 3.5 the ApprovalOutcome message; Story 1.5 adds Reply.Steps, and Story 1.6 Reply.FailureText, which a busy reply leaves empty; Story 1.9 adds Request.Compact, Story 17.2 Request.RetryOf, and Story 17.8 Reply.SessionId, SessionFrom and HistoryCount): every OcuTalon.Bridge.Msg class has
 /// exactly its contract, a busy reply is only busy, NewRef gives 22-character base64url references, and the audit
 /// writer's API names the six events and refuses any other type, and Shape gives each type's data members, which the other lanes write by (Story 3.7).
 /// Nothing is written to the audit log.
@@ -26,7 +26,7 @@ Method TestNewBusy()
 	For name = "Tainted", "SessionRotated", "ToolsRun", "SessionBroken" {
 		Do $$$AssertEquals($Property(reply, name), 0, name_" is 0")
 	}
-	For name = "HostData", "Steps", "FailureText", "FallbackReason", "Confidence", "InputTokens", "OutputTokens", "CacheReadTokens", "CacheWriteTokens", "AgentStepCount", "DurationMs", "CostUSD", "Model" {
+	For name = "SessionId", "SessionFrom", "HistoryCount", "HostData", "Steps", "FailureText", "FallbackReason", "Confidence", "InputTokens", "OutputTokens", "CacheReadTokens", "CacheWriteTokens", "AgentStepCount", "DurationMs", "CostUSD", "Model" {
 		Do $$$AssertEquals($Property(reply, name), "", name_" is empty")
 	}
 	Set sc = reply.%Save()
@@ -198,6 +198,9 @@ XData Contracts [ MimeType = application/json ]
    "Text": "%String(MAXLEN=)",
    "Tainted": "%Boolean",
    "SessionRotated": "%Boolean",
+   "SessionId": "%String(MAXLEN=128)",
+   "SessionFrom": "%String(MAXLEN=128)",
+   "HistoryCount": "%Integer",
    "ToolsRun": "%Boolean",
    "SessionBroken": "%Boolean",
    "Busy": "%Boolean",

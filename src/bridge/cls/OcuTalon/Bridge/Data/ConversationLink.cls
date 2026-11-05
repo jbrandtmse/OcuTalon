@@ -1,4 +1,4 @@
-/// Maps (OwnerRef, agent) to an AI session; only the runner writes it, and only for turn requests with provenance user (AD-6). Lane A.
+/// Maps (OwnerRef, agent) to an AI session; only Decide writes it, on accepting a reply, and only for turn requests with provenance user (AD-6). Lane A.
 /// The agent of a link is the name of the runner item (ChatAgent in OcuTalon). The class also owns the conversation lock, so that the
 /// runner and Decide cannot drift apart on its name:
 ///   - the lock is the incremental lock ^OcuTalonBP.Conv(OwnerRef, agent), the link's own unique key. The key exists before the first
@@ -9,11 +9,12 @@
 ///   - Decide takes it only to probe: it Locks and at once Unlocks, to learn whether an earlier turn, even one that Decide gave up on,
 ///     still holds the conversation (Process.Decide);
 ///   - Unlock runs outside any transaction.
-/// Only the adapter calls Point, which writes the link; it is a compare-and-set for every writer that holds the conversation lock, and the
-/// retry runner's unconditional write is the only one that does not. Decide also calls SessionOf, which only reads, to size the stored history of a
-/// turn that continues a conversation (RequestSize). The adapter and Decide are the only callers of Lock, Unlock and SessionOf. No other
-/// product class names this class, except Bridge.Purge, which reads the SessionId of every link through one SELECT to tell which AI sessions
-/// are still named, and writes nothing.
+/// Only Decide calls Point, which writes the link (Process.Decide PointLink), and only when it accepts a reply as the decision's answer (AD-6, AD-8): it is
+/// the compare-and-set below, expecting the session that the runner began the turn from. The form with no expected argument has no product caller and is kept
+/// for test fixtures. The adapter only reads the link (SessionOf) and takes the conversation lock (Lock, Unlock); Decide also calls Lock and Unlock to probe
+/// and SessionOf to size the stored history of a turn that continues a conversation (RequestSize) and to seed the second-model retry. No other
+/// product class names this class, except Bridge.Purge, which reads the SessionId of every link through one SELECT to tell which AI sessions are still
+/// named, and writes nothing.
 Class OcuTalon.Bridge.Data.ConversationLink Extends %Persistent
 {
 
@@ -42,13 +43,11 @@ ClassMethod SessionOf(ownerRef As %String, agent As %String) As %String
 }
 
 /// Makes the link of the owner and the agent name the AI session: creates the row, or updates the SessionId of the row that exists. This is
-/// the only writer of the class.
-///   - With no expected argument the link moves unconditionally. That is the retry's Point (AD-6, AD-8): the retry runner points the first
-///     runner's link at the session it ran in, and holds no conversation lock.
+/// the only writer of the class, and Decide (PointLink) the only product caller.
 ///   - With expected, even "", Point is a compare-and-set: under the lock of the link row itself (the row's ID node, never the conversation
-///     lock), the link moves only while it still names expected ("" for a link that does not exist). moved says whether it moved. A runner
-///     that holds the conversation lock passes the session it opened, or the session the link named when it began a fresh turn or found no
-///     link, so a late attempt whose retry already moved the link leaves the link where the retry put it.
+///     lock), the link moves only while it still names expected ("" for a link that does not exist). moved says whether it moved. Decide passes
+///     the session the runner began the turn from (the reply's SessionFrom), so a stale attempt never overwrites a newer link.
+///   - With no expected argument the link moves unconditionally. That form has no product caller; test fixtures use it.
 /// A link row that exists is changed under its lock in both forms, so a compare and a write never interleave with the other form's write; a link
 /// that does not exist is created without one, and the unique index lets one creator win while the other tries again against the row that now exists.
 /// The status is an error when an unconditional write did not happen.

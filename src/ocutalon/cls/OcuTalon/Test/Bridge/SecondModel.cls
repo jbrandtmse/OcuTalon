@@ -13,12 +13,15 @@
 ///   - TestNeverRetried: a token budget of 1, a day that is capped, a request-size limit of 1 and the gateway's 403 fall back with no request to the retry runner;
 ///   - TestNoSecondModel: with no RetryItem a refusal is release 1's fallback after one runner request;
 ///   - TestDiagnosisRetried: a diagnose request is retried on DiagnosisAgentRetry;
-///   - TestRetriedTurnKeepsTheConversation: a user's turn that is refused is answered by the second model in a seeded session, and the next turn carries that
-///     exchange; a turn whose timer fires is not retried (R2), and its late first attempt still saves its conversation;
+///   - TestRetriedTurnKeepsTheConversation: a user's turn that is refused is answered by the second model in a session seeded with the messages the first attempt
+///     began with, neither the seed nor the next turn holds the refused exchange (DW-726), and the next turn carries the retried exchange; a turn whose timer fires
+///     is not retried (R2), and its late first attempt still saves its conversation;
+///   - TestLateFreshTurnMovesNothing (Story 17.8, DW-730): a fresh turn that takes the timeout fallback and finishes late saves its session and moves nothing, so
+///     the link still names the session the user saw and the next turn's history is that session's, without the late exchange;
 ///   - TestRetryOfFromTheWebIsIgnored (DW-650 c): a RetryOf in the body of POST /v1/messages is dropped, and a request with a RetryOf sent to Decide waits for the
 ///     conversation lock, so the request that reaches ChatAgent has none;
 ///   - TestIntegrationWebChat (Rule 1): a message through WebChatIn to the real Conversation and Decide, with a second model on ChatAgent and a refused first
-///     attempt, is answered by the second model with no fallback, and the next message is answered with that exchange in its history.
+///     attempt, is answered by the second model with no fallback, and the next message is answered with that exchange in its history and none of the refused one.
 Class OcuTalon.Test.Bridge.SecondModel Extends OcuTalon.Test.Core.InProduction
 {
 
@@ -308,6 +311,9 @@ Method TestRetriedTurnKeepsTheConversation()
 	Do $$$AssertEquals($Select($IsObject(told): told.Text_"|"_told.Fallback, 1: "none"), "The CI mock looked at the productions.|0", "by ChatAgent, with the text of its default script")
 	Set s1 = ##class(OcuTalon.Bridge.Data.ConversationLink).SessionOf(owner, "ChatAgent")
 	Do $$$AssertTrue(s1 '= "", "the link names the session S1: "_s1)
+	Set refusal = "The CI mock refuses this request."
+	Set seed = ##class(OcuTalon.Bridge.Compaction).Seed(##class(OcuTalon.Bridge.RequestSize).StoredMessages(s1))
+	Do $$$AssertTrue((seed [ "ORION-7") && (seed '[ refusal), "the seed of S1 as the turn finds it holds the first turn only: "_$Translate($Extract(seed, 1, 300), $Char(10), "~"))
 
 	Do ..Arm("retry-chat", 1)
 	Set two = $ClassMethod(fixture, "NewRequest", "turn", "user", "[[mock:retry-chat]] What is my build server called?", .ref2, owner)
@@ -326,13 +332,15 @@ Method TestRetriedTurnKeepsTheConversation()
 	Do $ClassMethod(..#MOCK, "LogSince", mark, .entries)
 	Set logged = $ClassMethod(fixture, "FindRequests", entries, ref2)
 	Do $$$AssertEquals(logged.%Size(), 2, "the mock saw two model requests for the turn")
-	// the first attempt completed (a refusal is an answer), so it saved its exchange into S1, and the retry's seed holds it
-	Set seed = ##class(OcuTalon.Bridge.Compaction).Seed(##class(OcuTalon.Bridge.RequestSize).StoredMessages(s1))
-	Do $$$AssertTrue((seed [ "ORION-7") && (seed [ "The CI mock refuses this request."), "S1 holds the first turn and the refused exchange: "_$Translate($Extract(seed, 1, 300), $Char(10), "~"))
+	// the first attempt completed (a refusal is an answer), so it saved its exchange into S1, and the retry's seed is cut before it (DW-726)
+	Set stored = ##class(OcuTalon.Bridge.Compaction).Seed(##class(OcuTalon.Bridge.RequestSize).StoredMessages(s1))
+	Do $$$AssertTrue((stored [ "ORION-7") && (stored [ refusal), "S1 holds the first turn and the refused exchange: "_$Translate($Extract(stored, 1, 300), $Char(10), "~"))
 	If logged.%Size() = 2 {
 		Set firstMessages = $ClassMethod(fixture, "Messages", logged.%Get(0))
 		Do $$$AssertTrue(($Extract(firstMessages, 1, $Length("user:"_one.Input)) = ("user:"_one.Input)) && ($Extract(firstMessages, $Length(firstMessages) - $Length("user:"_two.Input) + 1, $Length(firstMessages)) = ("user:"_two.Input)), "the first carried the conversation of S1 and the input: "_firstMessages)
-		Do $$$AssertEquals($ClassMethod(fixture, "Messages", logged.%Get(1)), "user:"_seed_$Char(10, 10)_two.Input, "and the retry's one user message is the seed, a blank line and the input: a new session: "_$ClassMethod(fixture, "Messages", logged.%Get(1)))
+		Do $$$AssertEquals($ClassMethod(fixture, "Messages", logged.%Get(1)), "user:"_seed_$Char(10, 10)_two.Input, "and the retry's one user message is the seed of the stored first exchange, a blank line and the input: a new session: "_$ClassMethod(fixture, "Messages", logged.%Get(1)))
+		Do $$$AssertTrue($ClassMethod(fixture, "Messages", logged.%Get(1)) '[ refusal, "with no refused text in it")
+		Do $$$AssertEquals($Length($ClassMethod(fixture, "Messages", logged.%Get(1)), ref2) - 1, 1, "and the input once")
 		Do $$$AssertEquals(logged.%Get(0).model_"|"_logged.%Get(1).model, "claude-haiku-5-5|"_..#SECOND, "on the first model and then the second")
 	}
 	Set s2 = ##class(OcuTalon.Bridge.Data.ConversationLink).SessionOf(owner, "ChatAgent")
@@ -347,7 +355,10 @@ Method TestRetriedTurnKeepsTheConversation()
 	Do $ClassMethod(..#MOCK, "LogSince", mark, .entries)
 	Set logged = $ClassMethod(fixture, "FindRequests", entries, ref3)
 	Do $$$AssertEquals(logged.%Size(), 1, "with one model request")
-	If logged.%Size() = 1 Do $$$AssertEquals($ClassMethod(fixture, "Messages", logged.%Get(0)), "user:"_seed_$Char(10, 10)_two.Input_$Char(1)_"assistant:"_answerText_$Char(1)_"user:"_three.Input, "which carries the seed, the retried exchange and its own input: "_$ClassMethod(fixture, "Messages", logged.%Get(0)))
+	If logged.%Size() = 1 {
+		Do $$$AssertEquals($ClassMethod(fixture, "Messages", logged.%Get(0)), "user:"_seed_$Char(10, 10)_two.Input_$Char(1)_"assistant:"_answerText_$Char(1)_"user:"_three.Input, "which carries the seed, the retried exchange and its own input: "_$ClassMethod(fixture, "Messages", logged.%Get(0)))
+		Do $$$AssertTrue($ClassMethod(fixture, "Messages", logged.%Get(0)) '[ refusal, "and no refused text")
+	}
 	Do $$$AssertEquals(##class(OcuTalon.Bridge.Data.ConversationLink).SessionOf(owner, "ChatAgent"), s2, "and the link still names S2")
 
 	// a turn whose timer fires is not retried
@@ -372,6 +383,58 @@ Method TestRetriedTurnKeepsTheConversation()
 	If logged.%Size() = 1 Do $$$AssertEquals(logged.%Get(0).model, "claude-haiku-5-5", "on the first model, none on the second")
 	Do $$$AssertTrue(..WaitLate(session4, "ChatAgent"), "the late first attempt is answered")
 	Do $$$AssertEquals(##class(OcuTalon.Bridge.Data.ConversationLink).SessionOf(owner, "ChatAgent"), s2, "and the link still names S2, where the late attempt saved its exchange")
+}
+
+/// DW-730 (AD-6, AD-8), live: with no second model, a fresh turn whose first attempt is held past the timer (retry-chat-held, T 12) takes the timeout fallback; the
+/// late attempt then saves its session, which nothing names. The link still names the session S1 that the user saw, and the owner's next turn is answered from S1
+/// with its history alone, without the late exchange.
+Method TestLateFreshTurnMovesNothing()
+{
+	If '..Prepare() Quit
+	Set fixture = ..#FIXTURE
+	Set owner = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set one = $ClassMethod(fixture, "NewRequest", "turn", "user", "My build server is called ORION-7.", .ref1, owner)
+	Set ..ItemIds = ..ItemIds _ $ListBuild(ref1)
+	Do $$$AssertStatusOK($ClassMethod(fixture, "Run", one, .told, .session1), "the first turn is answered")
+	Set s1 = ##class(OcuTalon.Bridge.Data.ConversationLink).SessionOf(owner, "ChatAgent")
+	Do $$$AssertTrue(s1 '= "", "the link names the session S1: "_s1)
+
+	Do ..UseTimer(12)
+	Do ..Arm("retry-chat-held", 1)
+	Set fresh = $ClassMethod(fixture, "NewRequest", "turn", "user", "[[mock:retry-chat-held]] A fresh start.", .ref2, owner)
+	Set fresh.SessionMode = "fresh"
+	Set fresh.SeedText = "Earlier, the user said that the build server is called ORION-7."
+	Set ..ItemIds = ..ItemIds _ $ListBuild(ref2)
+	Set sessions = $ClassMethod(fixture, "SessionMark")
+	Set started = $ZHorolog
+	Set sc = $ClassMethod(fixture, "Run", fresh, .held, .session2)
+	Set elapsed = $ZHorolog - started
+	Set ..Late = ..Late _ $ListBuild($ListBuild(session2, "ChatAgent"))
+	Do $$$AssertStatusOK(sc, "the held turn is answered")
+	Do $$$AssertTrue((elapsed '< 11) && (elapsed < 20), "when the timer fires: "_$Number(elapsed, 1)_" s")
+	Set row = $ClassMethod(fixture, "DecisionOf", ref2, "turn")
+	Do $$$AssertEquals($ClassMethod(fixture, "FallbackProblems", held, row, "turn", "timeout"), "", "a timeout fallback with every guarantee")
+	Do $$$AssertEquals($Select($IsObject(held): held.SessionRotated, 1: "none"), 0, "that rotated nothing")
+	Do $$$AssertEquals($ClassMethod(fixture, "CountTo", $ClassMethod(fixture, "Headers", session2, "Decide"), "ChatAgentRetry"), 0, "and no request went to a retry runner")
+	Do $$$AssertTrue(..WaitLate(session2, "ChatAgent"), "the late attempt is answered")
+	Do $$$AssertEquals($ClassMethod(fixture, "SessionMark") - sessions, 1, "it saved its session")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Data.ConversationLink).SessionOf(owner, "ChatAgent"), s1, "and the link still names S1")
+
+	Do ..UseTimer(60)
+	Set three = $ClassMethod(fixture, "NewRequest", "turn", "user", "[[mock:recall-tell]] And what else?", .ref3, owner)
+	Set ..ItemIds = ..ItemIds _ $ListBuild(ref3)
+	Set mark = $ClassMethod(..#MOCK, "LogMark")
+	Do $$$AssertStatusOK($ClassMethod(fixture, "Run", three, .next, .session3), "the next turn is answered")
+	Do $ClassMethod(..#MOCK, "LogSince", mark, .entries)
+	Set logged = $ClassMethod(fixture, "FindRequests", entries, ref3)
+	Do $$$AssertEquals(logged.%Size(), 1, "with one model request")
+	If logged.%Size() = 1 {
+		Set messages = $ClassMethod(fixture, "Messages", logged.%Get(0))
+		Do $$$AssertTrue(($Extract(messages, 1, $Length("user:"_one.Input)) = ("user:"_one.Input)) && ($Extract(messages, $Length(messages) - $Length("user:"_three.Input) + 1, $Length(messages)) = ("user:"_three.Input)), "whose history is S1's, the first turn before the input: "_messages)
+		Do $$$AssertTrue(messages [ ("assistant:"_told.Text), "with the reply of the first turn")
+		Do $$$AssertTrue((messages '[ ref2) && (messages '[ "A fresh start.") && (messages '[ fresh.SeedText), "and nothing of the late fresh turn or its seed")
+	}
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Data.ConversationLink).SessionOf(owner, "ChatAgent"), s1, "and the link still names S1")
 }
 
 /// DW-650 (c): a retryOf in the body of POST /v1/messages is dropped by the handler, and a request with a RetryOf that is sent to Decide waits for the conversation lock.
@@ -464,12 +527,17 @@ Method TestIntegrationWebChat()
 	Do $ClassMethod(..#MOCK, "LogSince", mark, .entries)
 	Set logged = $ClassMethod(..#FIXTURE, "FindRequests", entries, "zz17next")
 	Set held = 0
+	Set refused = 0
+	Set repeated = 0
 	Set iterator = logged.%GetIterator()
 	While iterator.%GetNext(, .entry) {
 		Set messages = $ClassMethod(..#FIXTURE, "Messages", entry)
 		If (messages [ "zz17first") && (messages [ ("assistant:"_..#SECONDTEXT)) && (messages [ "zz17next") Set held = held + 1
+		If messages [ "The CI mock refuses this request." Set refused = refused + 1
+		If $Length(messages, "zz17first") > 2 Set repeated = repeated + 1
 	}
 	Do $$$AssertEquals(held, 1, "one model request of the next turn holds the first message, the second model's reply and the new message in its history ("_logged.%Size()_" requests carry the new message)")
+	Do $$$AssertEquals(refused_"|"_repeated, "0|0", "none holds the refused exchange, and none holds the first message twice (DW-726)")
 }
 
 /// --- helpers ---

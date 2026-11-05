@@ -36,8 +36,8 @@ Property Channel As %String(MAXLEN = 32);
 Property ThreadSessionId As %Integer;
 
 /// continue or fresh (AD-6), or empty for continue (SESSIONMODES). Only a turn with provenance user has a conversation to continue. The
-/// runner opens the linked AI session for a continue turn, and moves the link to a new AI session for a fresh turn, after that turn is
-/// answered and saved.
+/// runner opens the linked AI session for a continue turn, and starts a new AI session for a fresh turn; Decide points the link at the
+/// session a turn saved when it accepts the reply (Process.Decide PointLink).
 Property SessionMode As %String(MAXLEN = 32);
 
 /// A code-written recap for a fresh session. The runner sends it only on a fresh turn of a conversation, as the start of the turn's one
@@ -58,7 +58,7 @@ Property Compact As %Boolean [ InitialExpression = 0 ];
 /// sends to the retry runner and by nothing else. Decide clears it on every first send and on every re-send, and a Held probe ignores the value
 /// a caller set, so a client can never skip the conversation lock with it. The retry runner acts on it only when its first runner's RetryItem
 /// setting names the retry runner (Adapter.Agent RetryAllowed), and only a linked turn changes: it runs unlocked in a new AI session that is
-/// seeded from the first runner's stored conversation.
+/// seeded with the SeedText that Decide wrote from the first runner's stored conversation.
 Property RetryOf As %String(MAXLEN = 128);
 
 Storage Default

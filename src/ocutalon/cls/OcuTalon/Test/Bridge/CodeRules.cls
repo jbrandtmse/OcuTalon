@@ -37,10 +37,10 @@
 ///   - TestReplayOpensTheThrowawaySession (Story 30.3, DW-452; AD-6): Replay.Run, the replay of an approved tool call, calls the adapter's NewSession once
 ///     before it calls ExecuteTool and its ReleaseThrowaway once after, and ReleaseThrowaway drops the session (ReleaseSession), so that the throwaway AI
 ///     session that AD-6 asks for cannot be deleted without this test failing. The scanner is first shown to flag the order and to ignore comment lines;
-///   - TestOnlyTheRunnerWritesLinks (Story 1.8; AD-6, AD-33): no OcuTalon class outside the Test package, except ConversationLink, the adapter,
-///     Decide and Bridge.Purge, names the link class (as a class, as the table, or by the globals that hold its rows and its lock); Decide calls Lock, Unlock and
-///     SessionOf of it (Story 1.9: SessionOf only reads) and nothing else, a system method such as %New or %DeleteId included, and never Point; the
-///     adapter, the only caller of Point, calls Point, SessionOf, Lock and Unlock, and Point in one place; no line of either names the link class more often than it calls one of its methods, and none names its
+///   - TestOnlyDecideWritesLinks (Story 1.8, Story 17.8; AD-6, AD-8, AD-33): no OcuTalon class outside the Test package, except ConversationLink, the adapter,
+///     Decide and Bridge.Purge, names the link class (as a class, as the table, or by the globals that hold its rows and its lock); Decide, the only caller of
+///     Point, calls Lock, Unlock, SessionOf and Point of it and nothing else, a system method such as %New or %DeleteId included, and Point in one place
+///     (PointLink); the adapter only reads and locks: it calls SessionOf, Lock and Unlock and never Point; no line of either names the link class more often than it calls one of its methods, and none names its
 ///     table or its globals; Bridge.Purge (Story 30.2) calls no method of the link class, names its table on one line only, a SELECT that writes nothing,
 ///     and names neither its globals nor its lock; and Point is the only writer of the link class, which runs no SQL and touches no global directly;
 ///   - TestToolsReturnThroughResult (Story 1.9; AD-10, Consistency Conventions: Tool results): every product tool provider (a class of OcuTalon.Tools that
@@ -493,12 +493,12 @@ ClassMethod ThrowawayOrder(text As %String) As %String [ Private ]
 	Quit $ListToString(order, ">")
 }
 
-/// Only the runner writes conversation links (AD-6, AD-33). No class outside the Test package, except ConversationLink, the adapter, Decide and Bridge.Purge
+/// Only Decide writes conversation links (AD-6, AD-8, AD-33). No class outside the Test package, except ConversationLink, the adapter, Decide and Bridge.Purge
 /// (which only reads the SessionId of every link), names the
-/// link class, its table or the globals of its rows and its lock. Decide calls Lock and Unlock of the class and nothing else (it takes the lock only to
-/// probe it); the adapter calls Point, SessionOf, Lock and Unlock and nothing else, and Point in one place; and Point is the only method of
+/// link class, its table or the globals of its rows and its lock. Decide calls Lock, Unlock, SessionOf and Point of the class and nothing else, and Point in one
+/// place; the adapter calls SessionOf, Lock and Unlock and nothing else, never Point; and Point is the only method of
 /// ConversationLink that saves or deletes a row. The scanners are first shown to flag samples and to pass look-alikes and comment lines.
-Method TestOnlyTheRunnerWritesLinks()
+Method TestOnlyDecideWritesLinks()
 {
 	Set pattern = ..#LINKREFERENCE
 	Set tab = $Char(9)
@@ -535,20 +535,21 @@ Method TestOnlyTheRunnerWritesLinks()
 
 	Do $$$AssertStatusOK($ClassMethod(source, "Text", "OcuTalon.Bridge.Process.Decide", .decide), "Decide has source")
 	Set used = ..LinkCalls(decide, calls)
-	Do $$$AssertEquals($ListLength(used), 3, "Decide calls three methods of the link class and nothing else")
-	For method = "Lock", "Unlock", "SessionOf" {
+	Do $$$AssertEquals($ListLength(used), 4, "Decide calls four methods of the link class and nothing else")
+	For method = "Lock", "Unlock", "SessionOf", "Point" {
 		Do $$$AssertTrue($ListFind(used, method), "Decide calls "_method)
 	}
-	Do $$$AssertEquals($ListFind(used, "Point"), 0, "and never Point: it only reads the link")
+	Do $$$AssertEquals($ListLength($ClassMethod(source, "Lines", decide, "conversationlink\)\.point\(")), 1, "and it calls Point in one place: PointLink, the acceptance of a reply")
 	Do $$$AssertEquals(..LinkMentions(decide, calls), 0, "and its code names the link class nowhere but in those calls")
 	Do $$$AssertEquals($ClassMethod(source, "Matches", decide, "ocutalonbp\.conv"), 0, "nor the globals of its rows and its lock")
 	Do $$$AssertStatusOK($ClassMethod(source, "Text", "OcuTalon.Bridge.Adapter.Agent", .adapter), "the adapter has source")
 	Set used = ..LinkCalls(adapter, calls)
-	Do $$$AssertEquals($ListLength(used), 4, "the adapter calls four methods of the link class")
-	For method = "Point", "SessionOf", "Lock", "Unlock" {
+	Do $$$AssertEquals($ListLength(used), 3, "the adapter calls three methods of the link class: it only reads and locks")
+	For method = "SessionOf", "Lock", "Unlock" {
 		Do $$$AssertTrue($ListFind(used, method), "the adapter calls "_method)
 	}
-	Do $$$AssertEquals($ListLength($ClassMethod(source, "Lines", adapter, "conversationlink\)\.point\(")), 3, "and it calls Point in three places: the save of a linked turn, the switch to a compaction fork (Story 30.1) and the save of a retried turn (Story 17.2)")
+	Do $$$AssertEquals($ListFind(used, "Point"), 0, "and never Point: only Decide moves a link")
+	Do $$$AssertEquals($ListLength($ClassMethod(source, "Lines", adapter, "conversationlink\)\.point\(")), 0, "so no line of it calls Point")
 	Do $$$AssertEquals(..LinkMentions(adapter, calls), 0, "and its code names the link class nowhere but in those calls")
 	Do $$$AssertEquals($ClassMethod(source, "Matches", adapter, "ocutalonbp\.conv"), 0, "nor the globals of its rows and its lock")
 	Do $$$AssertStatusOK($ClassMethod(source, "Text", "OcuTalon.Bridge.Purge", .purge), "the bridge purge has source")

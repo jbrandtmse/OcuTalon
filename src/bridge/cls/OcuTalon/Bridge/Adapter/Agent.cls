@@ -19,36 +19,36 @@ Include Ensemble
 ///     the gate decides every tool call and every tool call is a step (AD-6, AD-9, AD-10).
 /// Answer is the runner's answer to a Request: the context is set before Chat and ended on every path, and the reply holds the
 /// text, the provider's stop reason, and the host data and taint that the tools put in the context.
-/// The conversation (AD-6, AD-10): only a turn with provenance user is linked (IsLinked), under the key (OwnerRef, the name of the runner
-/// item). AnswerLinked holds the conversation lock (Data.ConversationLink Lock, 2 seconds) from the open or creation of the AI session
-/// to its save, and answers a Reply whose Busy is 1 when it cannot take it. It opens the session that the link names with a newly
-/// composed config every time, or creates and links one (and a turn with SessionMode fresh moves the link to a new session, seeded with
-/// the request's SeedText). SaveLinked saves the session, and points the link at it, only after a Chat that completed and whose context
-/// is not tainted; a Chat that threw, or a tainted one, saves nothing and leaves the link as it was. No AI session object outlives a
-/// request: Answer clears the agent's Session (ReleaseSession) before the lock is released, so that every linked turn, a re-sent one
-/// included, opens the saved history from the database. decide, diagnose and untrusted turns chat in a throwaway session that is never
-/// saved or linked. ChatInput composes what Chat gets: the seed of a fresh turn, the system note and the input.
+/// The conversation (AD-6, AD-10): only a turn with provenance user is linked (IsLinked), under the key (OwnerRef, the name of the runner item). AnswerLinked
+/// holds the conversation lock (Data.ConversationLink Lock, 2 seconds) from the open or creation of the AI session to its save, and answers a Reply whose
+/// Busy is 1 when it cannot take it. It opens the session that the link names with a newly composed config every time, or creates one (a turn with
+/// SessionMode fresh starts a new session, seeded with the request's SeedText). SaveLinked saves the session only after a Chat that completed and whose
+/// context is not tainted, and names it in the reply: SessionId is the saved session, SessionFrom the session the link named when the turn began, and
+/// HistoryCount the messages that session held when it was opened. A Chat that threw, or a tainted one, saves nothing. The runner never moves the link
+/// and never calls Data.ConversationLink Point: Decide does, once, when it accepts the reply as the decision's answer (Process.Decide PointLink), so a
+/// late, refused or superseded reply moves no link: a new session that it saved stays unlinked until the purge removes it (AD-27), and a continue turn
+/// saves into the session it opened, which the link keeps naming. No AI session object outlives a request: Answer clears the agent's Session (ReleaseSession) before the lock is released, so
+/// that every linked turn, a re-sent one included, opens the saved history from the database. decide, diagnose and untrusted turns chat in a throwaway
+/// session that is never saved or linked. ChatInput composes what Chat gets: the seed of a fresh turn, the system note and the input.
 /// The retried turn (AD-6, AD-8): a request with RetryOf is the second-model retry of the attempt of the runner item that RetryOf names, and this
 /// runner (the retry runner) answers it only when that item's RetryItem setting names this runner (RetryAllowed); any other RetryOf is an error
-/// status, with no Chat. A linked turn with RetryOf takes no conversation lock (AnswerRetried): it chats in a new AI session, seeded with the
-/// SeedText of the request when the turn is fresh, else with Compaction.Seed of the stored history of the session that the first runner's link
-/// names (RequestSize.StoredMessages, read from the database), and after a completed, untainted Chat that is not late (RetryIsLate) it saves the
-/// session and points the first runner's link at it unconditionally, so the reply's SessionRotated is 1. A late retry (Decide has already recorded
-/// the decision of its DecisionRef, because the retry's timer fired) moves nothing: it saves no session and leaves the link and SessionRotated as
-/// they were; its cost is counted and its reply is dropped by Decide (AD-8). The retry runner never links a conversation of its own, and the first
-/// runner's late attempt, which still holds the conversation lock, cannot move the link back: every writer that holds the lock points the link
-/// compare-and-set (SaveLinked, SwitchTo; Data.ConversationLink Point). The session config of a request with RetryOf takes timeout_ms from
-/// Timeouts.RetryTimer of the bridge timer.
+/// status, with no Chat. Decide sends the retry of a linked turn as a fresh one, whose SeedText it wrote from the stored messages that the first attempt
+/// began with (DW-726). A linked turn with RetryOf takes no conversation lock (AnswerRetried): it chats in a new AI session, seeded through ChatInput with
+/// that SeedText, and after a completed, untainted Chat that is not late (RetryIsLate) it saves the session and names it in the reply (SessionId;
+/// SessionFrom is the session that the first runner's link names). A late retry (Decide has already recorded the decision of its DecisionRef, because the
+/// retry's timer fired) saves no session: its cost is counted and its reply is dropped by Decide (AD-8). The retry runner never links a conversation of its
+/// own, and Decide points the first runner's link at the retry's session only when it accepts the reply. The session config of a request with RetryOf
+/// takes timeout_ms from Timeouts.RetryTimer of the bridge timer.
 /// Compaction (AD-6, AD-20): a request that Decide flags (Compact 1) and that continues a linked conversation is compacted by Compact in
 /// AnswerLinked, in the runner's job, under the conversation lock, after the session is opened and before Converse. The runner cuts the
 /// stored history so that the last user turn stays whole (Compaction.Cut, CutOf), calls ForkAndSummarize on the session with the
 /// compaction prompt and a low-effort summarizer provider (SummarizerProvider), writes one Usage row for the summarizer's request
-/// (RecordCompaction), and moves the link to the fork only after Compaction.Check passes: the fork is saved, every reference to the original
-/// is released, the fork is opened again with OpenSession, and the link names it. Any exception, a failed check, save or reopen, a summarizer
-/// request whose estimate would pass the request-size limit (Decide RequestLimit) and a first request that would still pass it start a
-/// fresh AI session seeded with a code-written summary instead (Compaction.Seed), which is saved and linked after a completed, untainted
-/// Chat like the session of a fresh turn. A compaction that fails is one warning (CompactWarning), never the reply's FailureText. The reply
-/// of a compaction that moved the link has SessionRotated 1. No callback compacts, and no AI Hub call runs inside one.
+/// (RecordCompaction), and switches to the fork only after Compaction.Check passes: the fork is saved, every reference to the original
+/// is released and the fork is opened again with OpenSession; the link is not touched, and Decide points it at the fork when it accepts the reply. Any
+/// exception, a failed check, save or reopen, a summarizer request whose estimate would pass the request-size limit (Decide RequestLimit) and a first
+/// request that would still pass it start a fresh AI session seeded with a code-written summary instead (Compaction.Seed), which is saved after a
+/// completed, untainted Chat like the session of a fresh turn. A compaction that fails is one warning (CompactWarning), never the reply's FailureText.
+/// No callback compacts, and no AI Hub call runs inside one.
 /// Converse counts the call (AD-6, AD-9, AD-20): it reads the session's GetStats() after the session is made and again after Chat,
 /// outside every callback, and RecordUsage writes one Usage row from the difference, priced from Price. That happens after every Chat
 /// that returns, whether or not Decide still waits for it, and after a Chat that threw when the difference holds a model request or a
@@ -86,8 +86,8 @@ Property Effort As %String(MAXLEN = 32);
 /// The agent classes that this adapter may run, comma-separated, each an exact class name (AD-6). Empty refuses every class.
 Property AgentAllowList As %String(MAXLEN = 2000);
 
-/// The id of the AI session that the conversation link named when AnswerLinked began, or that it was moved to by a compaction fork: the value
-/// that the compare-and-set writes of the link expect (SaveLinked, SwitchTo). "" for a link that did not exist. Not stored.
+/// The id of the AI session that the conversation link named when AnswerLinked began, "" for a link that did not exist: the reply's SessionFrom,
+/// which Decide's compare-and-set of the link expects. It keeps that value through a compaction fork. Not stored.
 Property Expected As %String(MAXLEN = 128) [ Internal, Private, Transient ];
 
 /// 1 while Answer serves a request with RetryOf, so that the session config takes the timeout of the retry runner (SessionConfigFor). Not stored.
@@ -398,14 +398,13 @@ ClassMethod IsLinked(request As OcuTalon.Bridge.Msg.Request) As %Boolean
 ///      the reply is Reply.NewBusy() with status OK, and nothing else happens: no Chat, no Usage row, no steps.
 ///   2. The session: a turn with SessionMode fresh, or one whose conversation has no link, gets NewSession. Any other turn opens the AI
 ///      session that the link names (OpenSession), composing the config as for a new session, with the agent's model and system prompt. A
-///      failure keeps its error status.
-///   2a. The compaction (Compact), for an opened session of a request with Compact 1: the session becomes the reopened fork, whose link was
-///      moved before the call (SessionRotated is then 1), or a new session with the seed of the fallback (the turn then runs as a fresh
-///      one); or it stays as it is.
-///   3. The call (Converse) with ChatInput, whose seed is sent on a fresh turn only.
-///   4. The save (SaveLinked), after a completed Chat whose context is not tainted: the session is saved and the link points at it.
-///      Nothing is saved after a Chat that threw or a tainted one, and the link stays as it was (after a compaction fork, as the fork
-///      moved it).
+///      failure keeps its error status. The count of the messages the opened session holds (MessagesIn) is the reply's HistoryCount.
+///   2a. The compaction (Compact), for an opened session of a request with Compact 1: the session becomes the reopened fork, or a new session
+///      with the seed of the fallback (the turn then runs as a fresh one); or it stays as it is. The link is not touched.
+///   3. The call (Converse) with ChatInput, whose seed is sent on a fresh turn only. The reply names the session the link named when the turn
+///      began (SessionFrom).
+///   4. The save (SaveLinked), after a completed Chat whose context is not tainted: the session is saved and the reply names it (SessionId).
+///      Nothing is saved after a Chat that threw or a tainted one. The link stays as it was in every case: Decide moves it.
 ///   5. On every path, an exception included, the session object is released and the agent's Session cleared (ReleaseSession), and then
 ///      the lock is released, so that the next request opens the session from the database and a waiting turn finds it saved.
 Method AnswerLinked(request As OcuTalon.Bridge.Msg.Request, Output reply As OcuTalon.Bridge.Msg.Reply) As %Status [ Private ]
@@ -425,8 +424,10 @@ Method AnswerLinked(request As OcuTalon.Bridge.Msg.Request, Output reply As OcuT
 		Set opened = (id '= "")
 		Set seed = ""
 		Set outcome = ""
+		Set count = ""
 		If opened {
 			Set sc = ..OpenSession(id, .session)
+			If $$$ISOK(sc) Set count = ..MessagesIn(session)
 			If $$$ISOK(sc) && request.Compact Set sc = ..Compact(request, .session, .seed, .outcome)
 			If outcome = "seed" {
 				Set fresh = 1
@@ -437,9 +438,12 @@ Method AnswerLinked(request As OcuTalon.Bridge.Msg.Request, Output reply As OcuT
 		}
 		If $$$ISOK(sc) {
 			Set sc = ..Converse(request, session, $Select(outcome = "seed": ..ChatInput(request, 1, seed), 1: ..ChatInput(request, fresh)), opened, .reply, .completed)
-			If $$$ISOK(sc) && $IsObject(reply) && (outcome = "fork") Set reply.SessionRotated = 1
+			If $$$ISOK(sc) && $IsObject(reply) {
+				Set reply.SessionFrom = ..Expected
+				Set reply.HistoryCount = count
+			}
 		}
-		If $$$ISOK(sc) && completed && 'reply.Tainted Do ..SaveLinked(request, session, fresh, reply)
+		If $$$ISOK(sc) && completed && 'reply.Tainted Do ..SaveLinked(request, session, reply)
 	} Catch exception {
 		Set reply = ""
 		Set sc = ##class(%AI.System).HandleError(exception, 1)
@@ -452,25 +456,21 @@ Method AnswerLinked(request As OcuTalon.Bridge.Msg.Request, Output reply As OcuT
 
 /// The answer to a linked turn that retries another runner's attempt (RetryOf, AD-6, AD-8); the context is set and the agent is built. It takes no
 /// conversation lock, because the first runner's attempt may still hold it. The AI session is a new one that this runner never links:
-///   - the seed of a fresh turn is its SeedText; the seed of a continue turn is Compaction.Seed of the messages that the stored history of the
-///     session named by the link of (OwnerRef, RetryOf) holds, read from the database (RequestSize.StoredMessages) with no lock and no
-///     change, "" when the link names none;
-///   - Converse chats with ChatInput seeded with that text;
-///   - after a Chat that completed and is not tainted, and that is not late (RetryIsLate), the session is saved and the link of (OwnerRef, RetryOf)
-///     points at it unconditionally (SaveRetried), and the reply's SessionRotated is 1; a late retry saves and points nothing.
+///   - Converse chats with ChatInput seeded with the SeedText of the request, which Decide wrote (Process.Decide RetrySeed): the recap of the stored
+///     messages that the first attempt began with for a continue turn, or the turn's own SeedText for a fresh one. This runner reads no stored history;
+///   - the reply names the session that the first runner's link names (SessionFrom), read before the call;
+///   - after a Chat that completed and is not tainted, and that is not late (RetryIsLate), the session is saved and the reply names it (SessionId,
+///     SaveRetried); a late retry saves nothing. The link is Decide's to move.
 /// The request's Compact flag is ignored: the seed is short by construction.
 Method AnswerRetried(request As OcuTalon.Bridge.Msg.Request, Output reply As OcuTalon.Bridge.Msg.Reply) As %Status [ Private ]
 {
 	Set reply = ""
 	Set sc = $$$OK
 	Try {
-		If request.SessionMode = "fresh" {
-			Set seed = request.SeedText
-		} Else {
-			Set seed = ##class(OcuTalon.Bridge.Compaction).Seed(##class(OcuTalon.Bridge.RequestSize).StoredMessages(##class(OcuTalon.Bridge.Data.ConversationLink).SessionOf(request.OwnerRef, request.RetryOf)))
-		}
+		Set from = ##class(OcuTalon.Bridge.Data.ConversationLink).SessionOf(request.OwnerRef, request.RetryOf)
 		Set sc = ..NewSession(.session)
-		If $$$ISOK(sc) Set sc = ..Converse(request, session, ..ChatInput(request, 1, seed), 0, .reply, .completed)
+		If $$$ISOK(sc) Set sc = ..Converse(request, session, ..ChatInput(request, 1), 0, .reply, .completed)
+		If $$$ISOK(sc) && $IsObject(reply) Set reply.SessionFrom = from
 		If $$$ISOK(sc) && completed && 'reply.Tainted Do ..SaveRetried(request, session, reply)
 	} Catch exception {
 		Set reply = ""
@@ -481,24 +481,23 @@ Method AnswerRetried(request As OcuTalon.Bridge.Msg.Request, Output reply As Ocu
 	Quit sc
 }
 
-/// Saves the AI session of a retried turn and points the link of (OwnerRef, RetryOf) at it unconditionally, so that the user's next turn of the
-/// first runner opens it (AnswerRetried). The reply's SessionRotated is set to 1 when the link names the session. A late retry (RetryIsLate)
-/// saves nothing and points nothing, so the conversation stays on the session it named. A problem (the save, the link or an exception) is one
-/// warning that names the runner item, the OwnerRef and the DecisionRef, and never changes the reply.
+/// Saves the AI session of a retried turn and names it in the reply (SessionId), so that Decide can point the link of (OwnerRef, RetryOf) at it when it
+/// accepts the reply (AnswerRetried). The link is not touched here. A late retry (RetryIsLate) saves nothing, so the reply names no session and the
+/// conversation stays on the session it named. A problem (the save or an exception) is one warning that names the runner item, the OwnerRef and the
+/// DecisionRef, and never changes the reply.
 Method SaveRetried(request As OcuTalon.Bridge.Msg.Request, session As %AI.Agent.Session, reply As OcuTalon.Bridge.Msg.Reply) [ Private ]
 {
 	Set sc = $$$OK
 	Try {
 		If '..RetryIsLate(request) {
 			Set sc = session.%Save()
-			If $$$ISOK(sc) Set sc = ##class(OcuTalon.Bridge.Data.ConversationLink).Point(request.OwnerRef, request.RetryOf, session.%Id(), , .moved)
-			If $$$ISOK(sc) && $Get(moved) Set reply.SessionRotated = 1
+			If $$$ISOK(sc) Set reply.SessionId = session.%Id()
 		}
 	} Catch exception {
 		Set sc = exception.AsStatus()
 	}
 	If $$$ISERR(sc) {
-		$$$LOGWARNING("The AI session of "_..BusinessHost.%ConfigName_" for the OwnerRef "_request.OwnerRef_" and the decision "_request.DecisionRef_" is not saved or linked: "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
+		$$$LOGWARNING("The AI session of "_..BusinessHost.%ConfigName_" for the OwnerRef "_request.OwnerRef_" and the decision "_request.DecisionRef_" is not saved: "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
 	}
 }
 
@@ -565,25 +564,33 @@ Method Converse(request As OcuTalon.Bridge.Msg.Request, session As %AI.Agent.Ses
 	Quit $$$OK
 }
 
-/// Saves the AI session of a completed, untainted linked turn and points the link at it (AD-6). The reply's SessionRotated is set to 1
-/// when the turn was fresh and the link now names the new session, whether Point created the link or moved it; it stays 0 for a
-/// continue turn. A problem (the save, the link or an exception) is one warning that names the runner item, the OwnerRef and the
-/// DecisionRef, and never changes the reply, whose SessionRotated is then 0. The link moves only while it still names the session this
-/// turn began with (Expected: the session it opened, or the one that the link named when the turn was fresh or found no link, or the
-/// compaction fork): a link that a retry runner has moved meanwhile stays where the retry put it, which is no problem and no warning, and the
-/// reply's SessionRotated stays 0.
-Method SaveLinked(request As OcuTalon.Bridge.Msg.Request, session As %AI.Agent.Session, fresh As %Boolean, reply As OcuTalon.Bridge.Msg.Reply) [ Private ]
+/// Saves the AI session of a completed, untainted linked turn and names it in the reply (SessionId), for Decide to point the link at when it accepts
+/// the reply (AD-6). The link is not touched here, so a reply that Decide does not accept (late, refused, superseded) moves nothing; a session that the
+/// turn opened is saved in place and is its own SessionFrom. A problem (the save or an exception) is one warning that names the runner item, the
+/// OwnerRef and the DecisionRef, and never changes the reply, whose SessionId is then empty.
+Method SaveLinked(request As OcuTalon.Bridge.Msg.Request, session As %AI.Agent.Session, reply As OcuTalon.Bridge.Msg.Reply) [ Private ]
 {
 	Try {
 		Set sc = session.%Save()
-		If $$$ISOK(sc) Set sc = ##class(OcuTalon.Bridge.Data.ConversationLink).Point(request.OwnerRef, ..BusinessHost.%ConfigName, session.%Id(), ..Expected, .moved)
-		If $$$ISOK(sc) && fresh && moved Set reply.SessionRotated = 1
+		If $$$ISOK(sc) Set reply.SessionId = session.%Id()
 	} Catch exception {
 		Set sc = exception.AsStatus()
 	}
 	If $$$ISERR(sc) {
-		$$$LOGWARNING("The AI session of "_..BusinessHost.%ConfigName_" for the OwnerRef "_request.OwnerRef_" and the decision "_request.DecisionRef_" is not saved or linked: "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
+		$$$LOGWARNING("The AI session of "_..BusinessHost.%ConfigName_" for the OwnerRef "_request.OwnerRef_" and the decision "_request.DecisionRef_" is not saved: "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
 	}
+}
+
+/// The number of messages that the opened session holds (GetContext), or "" when they cannot be read: the reply's HistoryCount.
+Method MessagesIn(session As %AI.Agent.Session) As %String [ Private ]
+{
+	Set count = ""
+	Try {
+		Set count = session.GetContext().%Size()
+	} Catch {
+		Set count = ""
+	}
+	Quit count
 }
 
 /// The compaction of a conversation that continues (AD-6, AD-20), for the opened session of a request that Decide flagged. It reads the
@@ -591,7 +598,7 @@ Method SaveLinked(request As OcuTalon.Bridge.Msg.Request, session As %AI.Agent.S
 ///   - "" (the session is untouched): the history holds no message older than the last user turn, and the request as it stands is within the
 ///     request-size limit; or the history cannot be read (one warning);
 ///   - "fork": the older messages were summarized (Condense), the fork passed the check and the size guard, and it was saved, the original
-///     released, the fork opened again with OpenSession (a newly composed config) and the link pointed at it; session is the reopened fork;
+///     released and the fork opened again with OpenSession (a newly composed config); session is the reopened fork, and the link is not touched;
 ///   - "seed": any step failed (one warning that names it, CompactWarning), so session is a new AI session (NewSession) and seed is the
 ///     code-written summary of the stored user and assistant texts (Compaction.Seed); the caller runs the turn as a fresh one.
 /// The status is an error only when the fallback's NewSession fails. Nothing here changes the reply.
@@ -711,10 +718,10 @@ ClassMethod ForkIsSafe(fork As %AI.Agent.Session) As %Boolean [ Private ]
 	Quit ##class(OcuTalon.Bridge.Compaction).Check(fork.GetContext())
 }
 
-/// The switch to a fork that passed (AD-20), in this order: the fork is saved, every reference to the original session is released (the
-/// caller's session and the agent's), the fork is opened again with OpenSession, and the link names it (Data.ConversationLink Point as a
-/// compare-and-set on the session that the turn opened, under the conversation lock that the caller holds; Expected then names the fork). Returns "" when all four worked, otherwise the text of the problem, with step naming the
-/// one that failed; the fork that was saved stays unlinked and the purge removes it (AD-27).
+/// The switch to a fork that passed (AD-20), in this order: the fork is saved, every reference to the original session is released (the caller's
+/// session and the agent's), and the fork is opened again with OpenSession. The link is not touched: Decide points it at the fork when it accepts the
+/// reply, and Expected keeps the value the link had when the turn began. Returns "" when all three worked, otherwise the text of the problem, with step
+/// naming the one that failed; the fork that was saved stays unlinked and the purge removes it (AD-27).
 Method SwitchTo(request As OcuTalon.Bridge.Msg.Request, ByRef session As %AI.Agent.Session, ByRef fork As %AI.Agent.Session, ByRef step As %String) As %String [ Private ]
 {
 	Set step = "saving the fork"
@@ -727,11 +734,6 @@ Method SwitchTo(request As OcuTalon.Bridge.Msg.Request, ByRef session As %AI.Age
 	Set step = "opening the fork again"
 	Set sc = ..OpenSession(forkId, .session)
 	If $$$ISERR(sc) Quit $SYSTEM.Status.GetErrorText(sc)
-	Set step = "linking the fork"
-	Set sc = ##class(OcuTalon.Bridge.Data.ConversationLink).Point(request.OwnerRef, ..BusinessHost.%ConfigName, forkId, ..Expected, .moved)
-	If $$$ISERR(sc) Quit $SYSTEM.Status.GetErrorText(sc)
-	If 'moved Quit "the conversation link no longer names the session that the turn opened"
-	Set ..Expected = forkId
 	Quit ""
 }
 

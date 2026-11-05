@@ -1243,6 +1243,17 @@ ClassMethod LinkCount() As %Integer [ Private ]
 	Quit result.%GetData(1)
 }
 
+/// Models Decide's acceptance of a runner's reply for the tests that drive a shadow runner without Decide (Story 17.8): it calls Decide PointLink for the
+/// reply of the request and sets the reply's SessionRotated as Decide's answer would. runner is the first runner, the agent of the link (a retried
+/// request's RetryOf). The reply keeps its SessionId, SessionFrom and HistoryCount, which Decide's answer clears. The status is PointLink's.
+ClassMethod Accept(request As OcuTalon.Bridge.Msg.Request, reply As OcuTalon.Bridge.Msg.Reply, runner As %String = "ZzRunner") As %Status
+{
+	If '$IsObject(reply) Quit $$$OK
+	Set sc = ##class(OcuTalon.Bridge.Process.Decide).PointLink(request, runner, reply, .rotated)
+	Set reply.SessionRotated = $Get(rotated)
+	Quit sc
+}
+
 /// A runner host made in memory, a shadow named configName (ZzRunner unless another is given), whose adapter has the agent class, an
 /// allow-list of that class, the effort and the provider configuration. The key is the non-secret CI variable. Test.Bridge.Conversation
 /// makes its runners with it too, with the runner class it names (an AgentRunner class, RUNNER by default).

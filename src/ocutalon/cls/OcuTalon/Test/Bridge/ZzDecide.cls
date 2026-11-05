@@ -4,7 +4,8 @@
 ///   - ^||ZzDecideCalls("send", n) is $ListBuild(dispatch name, DecisionRef of the request, response required, completion key, ItemId) of the nth
 ///     SendRequestAsync, with the Position of the step as a sixth member when the message is an AgentStep (which has no ItemId, so its fifth
 ///     member is empty), and, for a Request, an empty sixth member and the Compact flag of the sent request as its seventh;
-///   - ^||ZzDecideCalls("send", n, "retryOf") is the RetryOf of the nth sent Request (Story 17.2), apart from the list so that the list keeps its members;
+///   - ^||ZzDecideCalls("send", n, "retryOf"), "mode" and "seed" are the RetryOf, the SessionMode and the SeedText of the nth sent Request (Stories 17.2 and
+///     17.8), apart from the list so that the list keeps its members;
 ///   - the count of each is the value of ^||ZzDecideCalls("timer") and ^||ZzDecideCalls("send").
 ///   - ToolsReadOnly answers ^||ZzDecideReadOnly (1 or 0) when the test sets it, so that a test can ask the timer rule about an agent whose tools are or are not
 ///     read-only, and the real answer otherwise (Story 17.2, R2).
@@ -27,7 +28,11 @@ Method SendRequestAsync(pTargetDispatchName As %String, pRequest As Ens.Request,
 	If pRequest.%IsA("OcuTalon.Bridge.Msg.AgentStep") Set call = call _ $ListBuild(pRequest.Position)
 	If pRequest.%IsA("OcuTalon.Bridge.Msg.Request") Set call = call _ $ListBuild("", pRequest.Compact)
 	Set ^||ZzDecideCalls("send", n) = call
-	If pRequest.%IsA("OcuTalon.Bridge.Msg.Request") Set ^||ZzDecideCalls("send", n, "retryOf") = pRequest.RetryOf
+	If pRequest.%IsA("OcuTalon.Bridge.Msg.Request") {
+		Set ^||ZzDecideCalls("send", n, "retryOf") = pRequest.RetryOf
+		Set ^||ZzDecideCalls("send", n, "mode") = pRequest.SessionMode
+		Set ^||ZzDecideCalls("send", n, "seed") = pRequest.SeedText
+	}
 	Quit $$$OK
 }
 

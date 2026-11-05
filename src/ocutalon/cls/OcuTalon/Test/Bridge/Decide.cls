@@ -121,12 +121,21 @@
 ///   - TestSessionBroken: Broken (pure) is 1 for a user's turn whose failure text holds "Invalid input" in any case, and 0 for an untrusted turn, a
 ///     decide, a diagnose request and any other text; Conclude and OnResponse answer such a user's turn with an error fallback Reply whose
 ///     SessionBroken is 1, and the untrusted turn and the decide with the same text with the reason error and no SessionBroken;
-///   - TestFallbackCarriesRotation: RecordFallback carries the runner's SessionRotated as it carries Tainted and ToolsRun, sets none of them when
-///     there is no runner reply, and sets SessionBroken only when told; a usable answer is a clone that keeps every flag;
+///   - TestFallbackMovesNothing (Story 17.8): RecordFallback carries the runner's Tainted and ToolsRun, sets neither when there is no runner reply, always
+///     answers SessionRotated 0 and moves no link, whatever the runner's reply says, and sets SessionBroken only when told; a usable answer is a clone that
+///     keeps the other flags and carries the SessionRotated of Decide, not the runner's;
 ///   - TestAdmitSessionMode: Admit accepts a SessionMode of "", continue and fresh, for a turn and for the other kinds, and refuses any other
 ///     value, Fresh and a trailing space included, with an error that names SessionMode;
-///   - TestConcludeFallbacks and AssertFallback: a fallback Reply carries the runner's SessionRotated (a reply with SessionRotated 1 is carried),
-///     and carries SessionBroken and Busy as the case says.
+///   - TestConcludeFallbacks and AssertFallback: a fallback Reply carries SessionRotated 0 (a reply with SessionRotated 1 is not carried), and
+///     carries SessionBroken and Busy as the case says.
+/// Added by Story 17.8 (AD-6, AD-8: only Decide moves a conversation's link; DW-726, DW-729, DW-730):
+///   - TestPointLink: PointLink moves the link by the compare-and-set for an accepted fresh turn, an accepted continue turn (no move in place, a move to a
+///     fork or a retry's session), the first link, and moves nothing for a tainted reply, a reply that names no session, an unlinked request, a lost
+///     compare-and-set (one warning) and a Point that fails (one warning), with SessionRotated as the Always rule gives it;
+///   - TestConcludeAccepts: a usable reply moves the link through Conclude and through OnResponse of the recorder, a refused one and a late one do not, and
+///     the answer carries no session field;
+///   - TestRetryWiring (extended): the retry of a linked continue turn is a fresh turn whose SeedText is the recap of the first HistoryCount stored
+///     messages, and a fresh turn keeps its own SeedText.
 /// Added by Story 1.9 (AD-6, AD-8, AD-19, AD-20, NFR-3):
 ///   - TestEstimateTokens: RequestSize.AgentChars of Triage and Chat is the system prompt of the live agent, of Diagnosis that and the JSON of the
 ///     Watch toolset's tools, and 0 with an error status for a class that does not exist; the estimate of a decide, a diagnose, an untrusted turn, a
@@ -1137,6 +1146,9 @@ Method TestTurnKeepsReply()
 	Set reply = ..NewReply("Everything is fine.", "end_turn")
 	Set reply.Tainted = 1
 	Set reply.SessionRotated = 1
+	Set reply.SessionId = "42"
+	Set reply.SessionFrom = "41"
+	Set reply.HistoryCount = 2
 	Set reply.ToolsRun = 1
 	Set reply.HostData = "{""rows"":[1]}"
 	Set reply.Model = "claude-haiku-5-5"
@@ -1152,7 +1164,8 @@ Method TestTurnKeepsReply()
 	}
 	Do $$$AssertTrue(response.%IsA("OcuTalon.Bridge.Msg.Reply"), "the answer is a Reply")
 	Do $$$AssertEquals(response.Text, "[f] Everything is fine.", "its Text is the filtered text")
-	Do $$$AssertEquals(response.Tainted_"|"_response.SessionRotated_"|"_response.ToolsRun, "1|1|1", "the taint, session-rotated and tools-run flags of the runner reach the caller")
+	Do $$$AssertEquals(response.Tainted_"|"_response.SessionRotated_"|"_response.ToolsRun, "1|0|1", "the taint and tools-run flags of the runner reach the caller, and SessionRotated is Decide's: 0, because a tainted reply moves nothing")
+	Do $$$AssertEquals(response.SessionId_"|"_response.SessionFrom_"|"_response.HistoryCount, "||", "and the answer names no session")
 	Do $$$AssertEquals(response.HostData_"|"_response.FinishReason, "{""rows"":[1]}|end_turn", "and so do the host data and the finish reason")
 	Do $$$AssertEquals(..Totals(response), "777|88|9|10|.0042|claude-haiku-5-5|4|250", "the token counts and the cost are the sums of the Usage rows of the decision, the model the reply's that answered, the step count the runner's, the duration the one given")
 	Set row = ..RowOf(request.ItemId, "turn")
@@ -1163,6 +1176,7 @@ Method TestTurnKeepsReply()
 	}
 	Do $$$AssertEquals(reply.Text_"|"_reply.Outcome_"|"_reply.DecisionRef, "Everything is fine.||", "the runner's own Reply is not changed")
 	Do $$$AssertEquals(reply.InputTokens_"|"_reply.OutputTokens_"|"_reply.Model_"|"_reply.AgentStepCount, "123|45|claude-haiku-5-5|4", "not even its totals")
+	Do $$$AssertEquals(reply.SessionRotated_"|"_reply.SessionId_"|"_reply.SessionFrom_"|"_reply.HistoryCount, "1|42|41|2", "or its session fields")
 	Do $$$AssertEquals(response.Steps, "", "the answer does not carry the runner's Steps: Decide has sent them as messages")
 	Do $$$AssertTrue(reply.Steps [ "Model request 1", "and the runner's own Reply keeps them")
 }
@@ -1472,7 +1486,7 @@ Method TestRecordedAtIsUtc()
 /// status OK; one row with the outcome tellnow, Fallback true and the reason, no reasons, confidence or payload, the DecisionRef given and
 /// the totals of its Usage rows; one decision.recorded after the save, outside any transaction; and the answer: a DecisionResponse of the row
 /// for a decide or diagnose request, and for a turn a new Reply that holds no text, host data, steps, failure text or finish reason, with
-/// the model's refused text in no field of it, but the DecisionRef, the totals and the runner's Tainted, ToolsRun and SessionRotated.
+/// the model's refused text in no field of it, but the DecisionRef, the totals and the runner's Tainted and ToolsRun, with SessionRotated 0.
 Method TestConcludeFallbacks()
 {
 	Set json = ..#DIGEST
@@ -3034,21 +3048,31 @@ Method TestSessionBroken()
 	Do $$$AssertEquals($Select($IsObject(response): response.Fallback_"|"_response.FallbackReason_"|"_response.SessionBroken, 1: "none"), "1|error|0", "an untrusted turn with the same failure: the reason error and no SessionBroken")
 }
 
-/// A fallback Reply carries the runner's SessionRotated, as it carries Tainted and ToolsRun (Story 1.8; AD-6): a fresh turn whose reply is then refused did
-/// move the link, and the caller must know. A fallback with no runner reply (a precheck, or the timer) sets none of them; SessionBroken is set only when
-/// RecordFallback is told (Broken). A usable answer is a clone of the runner's reply and keeps every flag.
-Method TestFallbackCarriesRotation()
+/// A fallback moves no link (Story 17.8; AD-6, AD-8), so RecordFallback always answers SessionRotated 0, whatever the runner's reply says, and carries the
+/// runner's Tainted and ToolsRun. A fallback with no runner reply (a precheck, or the timer) sets none of them; SessionBroken is set only when RecordFallback
+/// is told (Broken). A usable answer is a clone of the runner's reply and keeps the other flags, with the SessionRotated of Decide and no session fields.
+Method TestFallbackMovesNothing()
 {
 	Set class = "OcuTalon.Bridge.Process.Decide"
 	Set sink = "OcuTalon.Bridge.Ext.HostSink"
+	Set owner = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set s1 = ..NewSession(10)
+	Set s2 = ..NewSession(10)
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Data.ConversationLink).Point(owner, "ChatAgent", s1), "a link names the session S1 for (owner, ChatAgent)")
 	Set request = ..NewRequest("turn", "user")
+	Set request.OwnerRef = owner
+	Set request.SessionMode = "fresh"
 	Set reply = ..NewReply("zzrefusedtext I cannot help with that.", "refusal")
 	Set reply.SessionRotated = 1
+	Set reply.SessionId = s2
+	Set reply.SessionFrom = s1
 	Set reply.Tainted = 1
 	Set reply.ToolsRun = 1
 	Set sc = $ClassMethod(class, "RecordFallback", request, ##class(OcuTalon.Bridge.Ids).NewRef(), "refusal", reply, sink, 4263, .response)
 	Do $$$AssertStatusOK(sc, "a refusal of a fresh turn is recorded")
-	Do $$$AssertEquals(response.SessionRotated_"|"_response.Tainted_"|"_response.ToolsRun_"|"_response.SessionBroken_"|"_response.Busy, "1|1|1|0|0", "the fallback Reply carries SessionRotated, Tainted and ToolsRun of the runner's reply, and says neither SessionBroken nor Busy")
+	Do $$$AssertEquals(response.SessionRotated_"|"_response.Tainted_"|"_response.ToolsRun_"|"_response.SessionBroken_"|"_response.Busy, "0|1|1|0|0", "the fallback Reply carries Tainted and ToolsRun of the runner's reply, SessionRotated 0, and says neither SessionBroken nor Busy")
+	Do $$$AssertEquals(response.SessionId_"|"_response.SessionFrom_"|"_response.HistoryCount, "||", "and names no session")
+	Do $$$AssertEquals(##class(OcuTalon.Bridge.Data.ConversationLink).SessionOf(owner, "ChatAgent"), s1, "the link still names S1: a fallback moves nothing")
 
 	Set request = ..NewRequest("turn", "user")
 	Set reply = ..NewReply("zzrefusedtext I cannot help with that.", "refusal")
@@ -3065,7 +3089,7 @@ Method TestFallbackCarriesRotation()
 	Set reply = ..NewReply("zzrefusedtext I cannot help with that.", "refusal")
 	Set reply.SessionRotated = 1
 	Set sc = $ClassMethod(class, "RecordFallback", request, ##class(OcuTalon.Bridge.Ids).NewRef(), "error", reply, sink, 4263, .response, , , 1)
-	Do $$$AssertEquals(response.SessionBroken_"|"_response.SessionRotated, "1|1", "and both are carried together")
+	Do $$$AssertEquals(response.SessionBroken_"|"_response.SessionRotated, "1|0", "SessionBroken is carried with SessionRotated 0")
 
 	// the other kinds answer with a DecisionResponse of the row, which has no such flag
 	Set request = ..NewRequest("decide", "user")
@@ -3082,7 +3106,210 @@ Method TestFallbackCarriesRotation()
 	Set reply.SessionBroken = 1
 	Set sc = ..Conclude(request, reply, .response)
 	Do $$$AssertStatusOK(sc, "a usable turn is concluded")
-	Do $$$AssertEquals($Select($IsObject(response): response.Fallback_"|"_response.SessionRotated_"|"_response.Tainted_"|"_response.ToolsRun_"|"_response.SessionBroken_"|"_response.Busy, 1: "none"), "0|1|1|1|1|0", "the answer is a clone that keeps every flag of the runner's reply")
+	Do $$$AssertEquals($Select($IsObject(response): response.Fallback_"|"_response.SessionRotated_"|"_response.Tainted_"|"_response.ToolsRun_"|"_response.SessionBroken_"|"_response.Busy, 1: "none"), "0|0|1|1|1|0", "the answer is a clone that keeps the other flags of the runner's reply, and its SessionRotated is Decide's: 0, because the reply is tainted and moved nothing")
+}
+
+/// A turn of the owner for the link tests: a user's turn of the owner with the session mode (empty means continue) and a DecisionRef of its own.
+Method PointRequest(owner As %String, mode As %String = "", provenance As %String = "user") As OcuTalon.Bridge.Msg.Request [ Private ]
+{
+	Set request = ..NewRequest("turn", provenance)
+	Set request.OwnerRef = owner
+	Set request.SessionMode = mode
+	Set request.DecisionRef = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Quit request
+}
+
+/// A runner's usable reply that names the session it saved (SessionId) and the session the link named when it began (SessionFrom).
+ClassMethod PointReply(id As %String, from As %String) As OcuTalon.Bridge.Msg.Reply [ Private ]
+{
+	Set reply = ..NewReply("An answer.", "end_turn")
+	Set reply.SessionId = id
+	Set reply.SessionFrom = from
+	Quit reply
+}
+
+/// PointLink (Story 17.8; AD-6, AD-8), the one place where a link moves, for the first runner ChatAgent: the compare-and-set expects SessionFrom.
+///   - an accepted fresh turn moves the link to the new session and says SessionRotated; so does a continue turn that began from a session and names another
+///     (a compaction fork, a retry's session);
+///   - a continue turn that saved into the session it opened (SessionId is SessionFrom) points nothing and says 0;
+///   - the first link of a conversation is created, and says 0 for a continue turn and 1 for a fresh one;
+///   - a tainted reply, a reply that names no session and a request that is not a user's turn move nothing;
+///   - a link that no longer names SessionFrom is not moved: one warning that names the runner, the OwnerRef and the DecisionRef, status OK, and 0;
+///   - a link row that another process holds the lock of makes Point fail: one warning, an error status, 0, and the link as it was. Once the lock is let
+///     go the same call moves it.
+Method TestPointLink()
+{
+	Set decide = "OcuTalon.Bridge.Process.Decide"
+	Set link = "OcuTalon.Bridge.Data.ConversationLink"
+	Set agent = "ChatAgent"
+	// an accepted fresh turn
+	Set owner = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set s1 = ..NewSession(10)
+	Set s2 = ..NewSession(10)
+	Set s3 = ..NewSession(10)
+	Set s4 = ..NewSession(10)
+	Do $$$AssertStatusOK($ClassMethod(link, "Point", owner, agent, s1), "the link names S1")
+	Set request = ..PointRequest(owner, "fresh")
+	Set reply = ..PointReply(s2, s1)
+	Set sc = $ClassMethod(decide, "PointLink", request, agent, reply, .rotated)
+	Do $$$AssertStatusOK(sc, "PointLink of an accepted fresh turn is OK")
+	Do $$$AssertEquals($ClassMethod(link, "SessionOf", owner, agent)_"|"_rotated, s2_"|1", "the link names the new session S2, and the turn rotated")
+	Do $$$AssertEquals(reply.SessionId_"|"_reply.SessionFrom_"|"_reply.SessionRotated, s2_"|"_s1_"|0", "the reply is not changed")
+
+	// a continue turn that saved into the session it opened
+	Set owner = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Do $ClassMethod(link, "Point", owner, agent, s1)
+	Set request = ..PointRequest(owner)
+	Set sc = $ClassMethod(decide, "PointLink", request, agent, ..PointReply(s1, s1), .rotated)
+	Do $$$AssertEquals($ClassMethod(link, "SessionOf", owner, agent)_"|"_rotated, s1_"|0", "an accepted continue turn that saved in place: the link names S1, no rotation")
+	Do $ClassMethod(link, "Point", owner, agent, s3)
+	Set sc = $ClassMethod(decide, "PointLink", request, agent, ..PointReply(s1, s1), .rotated)
+	Do $$$AssertEquals($ClassMethod(link, "SessionOf", owner, agent), s3, "and it points nothing: a link that was elsewhere stays where it was")
+
+	// a continue turn that names another session: a fork or a retry's session
+	Set owner = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Do $ClassMethod(link, "Point", owner, agent, s1)
+	Set sc = $ClassMethod(decide, "PointLink", ..PointRequest(owner), agent, ..PointReply(s2, s1), .rotated)
+	Do $$$AssertEquals($ClassMethod(link, "SessionOf", owner, agent)_"|"_rotated, s2_"|1", "a continue turn that began from S1 and names S2 moves the link, and rotated")
+
+	// the first link of a conversation
+	Set owner = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set sc = $ClassMethod(decide, "PointLink", ..PointRequest(owner), agent, ..PointReply(s1, ""), .rotated)
+	Do $$$AssertEquals($ClassMethod(link, "SessionOf", owner, agent)_"|"_rotated, s1_"|0", "the first link of a continue turn is created, with no rotation")
+	Set owner = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set sc = $ClassMethod(decide, "PointLink", ..PointRequest(owner, "fresh"), agent, ..PointReply(s1, ""), .rotated)
+	Do $$$AssertEquals($ClassMethod(link, "SessionOf", owner, agent)_"|"_rotated, s1_"|1", "the first link of a fresh turn is created, and rotated")
+
+	// nothing to accept
+	Set owner = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Do $ClassMethod(link, "Point", owner, agent, s1)
+	Set tainted = ..PointReply(s2, s1)
+	Set tainted.Tainted = 1
+	Set sc = $ClassMethod(decide, "PointLink", ..PointRequest(owner, "fresh"), agent, tainted, .rotated)
+	Do $$$AssertEquals($ClassMethod(link, "SessionOf", owner, agent)_"|"_rotated, s1_"|0", "a tainted reply moves nothing")
+	Set sc = $ClassMethod(decide, "PointLink", ..PointRequest(owner, "fresh"), agent, ..PointReply("", s1), .rotated)
+	Do $$$AssertEquals($ClassMethod(link, "SessionOf", owner, agent)_"|"_rotated, s1_"|0", "a reply that names no session moves nothing")
+	Set sc = $ClassMethod(decide, "PointLink", ..PointRequest(owner, "fresh", "untrusted"), agent, ..PointReply(s2, s1), .rotated)
+	Do $$$AssertEquals($ClassMethod(link, "SessionOf", owner, agent)_"|"_rotated, s1_"|0", "an untrusted turn is not linked: nothing moves")
+	Set decision = ..NewRequest("decide", "user")
+	Set decision.OwnerRef = owner
+	Set sc = $ClassMethod(decide, "PointLink", decision, agent, ..PointReply(s2, s1), .rotated)
+	Do $$$AssertEquals($ClassMethod(link, "SessionOf", owner, agent)_"|"_rotated, s1_"|0", "and neither is a decide request")
+
+	// a lost compare-and-set
+	Set owner = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Do $ClassMethod(link, "Point", owner, agent, s4)
+	Set request = ..PointRequest(owner, "fresh")
+	Set mark = ##class(OcuTalon.Test.Agent.RunnerFixture).EventMark()
+	Set sc = $ClassMethod(decide, "PointLink", request, agent, ..PointReply(s2, s1), .rotated)
+	Do $$$AssertStatusOK(sc, "a link that no longer names SessionFrom is no error")
+	Do $$$AssertEquals($ClassMethod(link, "SessionOf", owner, agent)_"|"_rotated, s4_"|0", "it stays where it is, with no rotation")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).Warnings(mark, decide, "PointLink", $ListBuild(agent, owner, request.DecisionRef)), 1, "one warning names the runner, the OwnerRef and the DecisionRef")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).Warnings(mark, decide, "PointLink"), 1, "and it is the only one")
+
+	// a Point that fails: the link row is locked by another process
+	Set owner = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Do $ClassMethod(link, "Point", owner, agent, s1)
+	Do $ClassMethod(link, "OwnerRefAgentIndexExists", owner, agent, .rowId)
+	Set request = ..PointRequest(owner, "fresh")
+	Set mark = ##class(OcuTalon.Test.Agent.RunnerFixture).EventMark()
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Conversation).StartRowHolder(rowId), "another process holds the lock of the link row")
+	Set sc = $ClassMethod(decide, "PointLink", request, agent, ..PointReply(s2, s1), .rotated)
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Conversation).StopRowHolder(rowId), "the other process lets the row go")
+	Do $$$AssertStatusNotOK(sc, "the move fails")
+	Do $$$AssertEquals($ClassMethod(link, "SessionOf", owner, agent)_"|"_rotated, s1_"|0", "the link names S1 still, with no rotation")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).Warnings(mark, decide, "PointLink", $ListBuild(agent, owner, request.DecisionRef, "is not moved")), 1, "one warning names the runner, the OwnerRef and the DecisionRef")
+	Set sc = $ClassMethod(decide, "PointLink", request, agent, ..PointReply(s2, s1), .rotated)
+	Do $$$AssertEquals($ClassMethod(link, "SessionOf", owner, agent)_"|"_rotated, s2_"|1", "once the row is free the same call moves the link")
+}
+
+/// Conclude is Decide's acceptance of a reply (Story 17.8): after it records the row of a linked turn's usable reply, the link of (OwnerRef, ChatAgent) names the
+/// session the reply names. The answer carries the rotation of the move and none of the session fields, and the runner's own reply is not changed. A refused
+/// reply, a timer's fallback (the late reply is discarded by the framework) and a reply for an item that already has a row move nothing. The same through OnResponse
+/// of the recorder, whose runner is the first runner of the request. A move that fails (the link row is locked) leaves the answer as it is.
+Method TestConcludeAccepts()
+{
+	Set link = "OcuTalon.Bridge.Data.ConversationLink"
+	Set agent = "ChatAgent"
+	Set owner = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set s1 = ..NewSession(10)
+	Set s2 = ..NewSession(10)
+	Set s3 = ..NewSession(10)
+	Set s4 = ..NewSession(10)
+	Do $$$AssertStatusOK($ClassMethod(link, "Point", owner, agent, s1), "the link names S1")
+
+	// through Conclude
+	Set request = ..PointRequest(owner)
+	Set reply = ..PointReply(s2, s1)
+	Set reply.HistoryCount = 2
+	Set sc = ..Conclude(request, reply, .response)
+	Do $$$AssertStatusOK(sc, "a usable reply is concluded")
+	Do $$$AssertEquals($ClassMethod(link, "SessionOf", owner, agent), s2, "the link names the session of the reply, S2")
+	Do $$$AssertEquals($Select($IsObject(response): response.Fallback_"|"_response.SessionRotated_"|"_response.SessionId_"|"_response.SessionFrom_"|"_response.HistoryCount, 1: "none"), "0|1|||", "the answer says SessionRotated and holds no session field")
+	Do $$$AssertEquals(reply.SessionId_"|"_reply.SessionFrom_"|"_reply.HistoryCount_"|"_reply.DecisionRef, s2_"|"_s1_"|2|", "and the runner's own reply is not changed")
+
+	// a refused reply moves nothing
+	Set request = ..PointRequest(owner)
+	Set refused = ..PointReply(s3, s2)
+	Set refused.FinishReason = "refusal"
+	Set sc = ..Conclude(request, refused, .response)
+	Do $$$AssertEquals($ClassMethod(link, "SessionOf", owner, agent), s2, "a refused reply leaves the link on S2")
+	Do $$$AssertEquals($Select($IsObject(response): response.Fallback_"|"_response.FallbackReason_"|"_response.SessionRotated, 1: "none"), "1|refusal|0", "and its fallback says SessionRotated 0")
+
+	// the item has a row already: the reply is not the decision's answer
+	Set again = ..PointReply(s3, s2)
+	Set sc = ##class(OcuTalon.Bridge.Process.Decide).Conclude(request, ##class(OcuTalon.Bridge.Ids).NewRef(), again, ..#REPLYCLASS, "OcuTalon.Bridge.Ext.ReplyFilter", "OcuTalon.Bridge.Ext.HostSink", 4242, .response)
+	Do $$$AssertEquals($ClassMethod(link, "SessionOf", owner, agent), s2, "a usable reply for an item that another call already decided moves nothing")
+
+	// through OnResponse of the recorder
+	Set process = ..RetryProcess(60, "", agent)
+	Set request = ..PointRequest(owner)
+	Set sc = process.OnRequest(request, .response)
+	Do $$$AssertStatusOK(sc, "OnRequest sends the turn to ChatAgent")
+	Set sent = request.%ConstructClone()
+	Set sent.DecisionRef = process.DecisionRef
+	Set sc = process.OnResponse(request, .response, sent, ..PointReply(s3, s2), "reply")
+	Do $$$AssertStatusOK(sc, "the usable reply is answered")
+	Do $$$AssertEquals($ClassMethod(link, "SessionOf", owner, agent), s3, "the link names S3")
+	Do $$$AssertEquals($Select($IsObject(response): response.Fallback_"|"_response.SessionRotated_"|"_response.SessionId, 1: "none"), "0|1|", "the answer says SessionRotated and names no session")
+	Do ..RestoreRows()
+
+	// the timer fired: Decide records the fallback, and the late reply moves nothing
+	Set process = ..RetryProcess(60, "", agent)
+	Set request = ..PointRequest(owner)
+	Set sc = process.OnRequest(request, .response)
+	Set sc = process.OnResponse(request, .response, "", "", "timer")
+	Do $$$AssertStatusOK(sc, "the timer's fallback is answered")
+	Do $$$AssertEquals($Select($IsObject(response): response.Fallback_"|"_response.FallbackReason_"|"_response.SessionRotated, 1: "none"), "1|timeout|0", "a timeout fallback with SessionRotated 0")
+	Do $$$AssertEquals($ClassMethod(link, "SessionOf", owner, agent), s3, "the link still names S3")
+	Do ..RestoreRows()
+
+	// the retry's usable reply is accepted as well, and it moves the link of the first runner
+	Set process = ..RetryProcess(60, agent_"Retry", agent)
+	Set request = ..PointRequest(owner)
+	Set sc = process.OnRequest(request, .response)
+	Set sent = request.%ConstructClone()
+	Set sent.DecisionRef = process.DecisionRef
+	Set sc = process.OnResponse(request, .response, sent, ..NewReply("The CI mock refuses this request.", "refusal"), "reply")
+	Do $$$AssertEquals(process.RetryRunner_"|"_$ClassMethod(link, "SessionOf", owner, agent), agent_"Retry|"_s3, "a refusal is retried on the retry runner and the link still names S3")
+	Set sc = process.OnResponse(request, .response, sent, ..PointReply(s4, s3), "reply")
+	Do $$$AssertStatusOK(sc, "the retry's reply is answered")
+	Do $$$AssertEquals($ClassMethod(link, "SessionOf", owner, agent)_"|"_$ClassMethod(link, "SessionOf", owner, agent_"Retry"), s4_"|", "the link of the first runner names S4, and the retry runner has none")
+	Do $$$AssertEquals($Select($IsObject(response): response.Fallback_"|"_response.SessionRotated, 1: "none"), "0|1", "and the answer says SessionRotated")
+	Do ..RestoreRows()
+
+	// a move that fails does not fail the answer: the link row is locked by another process
+	Set owner = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Do $ClassMethod(link, "Point", owner, agent, s1)
+	Do $ClassMethod(link, "OwnerRefAgentIndexExists", owner, agent, .rowId)
+	Set request = ..PointRequest(owner)
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Conversation).StartRowHolder(rowId), "another process holds the lock of the link row")
+	Set sc = ..Conclude(request, ..PointReply(s2, s1), .response)
+	Do $$$AssertTrue(##class(OcuTalon.Test.Bridge.Conversation).StopRowHolder(rowId), "the other process lets the row go")
+	Do $$$AssertStatusOK(sc, "the usable reply is still concluded")
+	Do $$$AssertEquals($Select($IsObject(response): response.Fallback_"|"_response.SessionRotated_"|"_(response.Text '= ""), 1: "none"), "0|0|1", "and answered with its text and SessionRotated 0")
+	Do $$$AssertEquals($ClassMethod(link, "SessionOf", owner, agent), s1, "while the link names S1 still")
+	Do ..RestoreRows()
 }
 
 /// Admit refuses a SessionMode other than "", continue and fresh (Request SESSIONMODES; Story 1.8; AD-6), naming SessionMode, for every kind: a mode that
@@ -3332,6 +3559,44 @@ Method TestRetryWiring()
 	Set row = ..RowOf(request.ItemId, "decide")
 	Do $$$AssertEquals($Select($IsObject(row): row.Fallback_"|"_row.FallbackReason, 1: "no row"), "1|rate_limited", "the retry's rate limit is a rate_limited fallback")
 	Do $$$AssertEquals(..Calls("send")_"|"_..Calls("timer")_"|"_process.Resends, "2|2|0", "with no back-off timer, no third request and no re-send")
+	Do ..RestoreRows()
+
+	// a linked continue turn: the retry is a fresh turn whose SeedText is the recap of the first HistoryCount stored messages (Story 17.8, DW-726)
+	Set owner = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set stored = ..NewMessagesSession($ListBuild("FIRSTQUESTION", "FIRSTANSWER", "SECONDQUESTION", "REFUSEDTEXT"))
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Data.ConversationLink).Point(owner, "ChatAgent", stored), "a link names a stored conversation of four messages for (owner, ChatAgent)")
+	Set cut = ##class(OcuTalon.Bridge.Compaction).Seed(##class(OcuTalon.Bridge.RequestSize).StoredMessages(stored, 2))
+	Set whole = ##class(OcuTalon.Bridge.Compaction).Seed(##class(OcuTalon.Bridge.RequestSize).StoredMessages(stored))
+	Do $$$AssertTrue((cut [ "FIRSTQUESTION") && (cut [ "FIRSTANSWER") && (cut '[ "SECONDQUESTION") && (cut '[ "REFUSEDTEXT"), "the seed of the first two messages holds the first exchange and nothing after it")
+	Do $$$AssertTrue(whole [ "REFUSEDTEXT", "(control: the seed of all four holds the refusal)")
+	For case = 1, 2 {
+		Set process = ..RetryProcess(60, "ChatAgentRetry", "ChatAgent")
+		Set request = ..PointRequest(owner)
+		Set request.Input = "The next question."
+		Set sc = process.OnRequest(request, .response)
+		Set sent = request.%ConstructClone()
+		Set sent.DecisionRef = process.DecisionRef
+		Set refused = ..NewReply("The CI mock refuses this request.", "refusal")
+		If case = 1 Set refused.HistoryCount = 2
+		Set sc = process.OnResponse(request, .response, sent, refused, "reply")
+		Do $$$AssertEquals(..Calls("send"), 2, "case "_case_": the retry is sent")
+		Do $$$AssertEquals($Get(^||ZzDecideCalls("send", 2, "retryOf"))_"|"_$Get(^||ZzDecideCalls("send", 2, "mode")), "ChatAgent|fresh", "case "_case_": to the retry runner as a fresh turn, naming the first runner")
+		Do $$$AssertEquals($Get(^||ZzDecideCalls("send", 2, "seed")), $Select(case = 1: cut, 1: whole), "case "_case_": whose SeedText is the recap of "_$Select(case = 1: "the first 2 stored messages, the count of the first reply", 1: "the whole stored history, since the reply holds no count"))
+		Do $$$AssertEquals(request.SessionMode_"|"_request.SeedText, "|", "case "_case_": the request itself is not changed")
+		Do ..RestoreRows()
+	}
+
+	// a fresh turn keeps its own SeedText
+	Set process = ..RetryProcess(60, "ChatAgentRetry", "ChatAgent")
+	Set request = ..PointRequest(owner, "fresh")
+	Set request.SeedText = "A recap of my own."
+	Set sc = process.OnRequest(request, .response)
+	Set sent = request.%ConstructClone()
+	Set sent.DecisionRef = process.DecisionRef
+	Set refused = ..NewReply("The CI mock refuses this request.", "refusal")
+	Set refused.HistoryCount = 2
+	Set sc = process.OnResponse(request, .response, sent, refused, "reply")
+	Do $$$AssertEquals($Get(^||ZzDecideCalls("send", 2, "mode"))_"|"_$Get(^||ZzDecideCalls("send", 2, "seed")), "fresh|A recap of my own.", "a fresh turn is retried with its own SeedText")
 	Do ..RestoreRows()
 }
 
@@ -3637,33 +3902,32 @@ Method TestRetryNoKey()
 	Do ..RestoreRows()
 }
 
-/// The estimate of a retried continue turn (Story 17.2): with RetryOf the stored history of the first runner's session counts at most Compaction.#SEEDCHARS
-/// characters, because the retry sends a seed in its place; a RetryOf that the request carries by itself changes nothing.
+/// The estimate of the retry of a linked continue turn (Stories 17.2 and 17.8): the retry is a fresh turn whose SeedText carries the recap of the stored history, so
+/// Decide counts the agent part and the input that Chat gets with the seed, and no stored history; a RetryOf that the request carries by itself changes nothing.
 Method TestRetryEstimate()
 {
 	Set decide = "OcuTalon.Bridge.Process.Decide"
-	Set cap = ##class(OcuTalon.Bridge.Compaction).#SEEDCHARS
 	Set owner = ##class(OcuTalon.Bridge.Ids).NewRef()
-	Set long = ..NewSession(cap + 20000)
-	Do $$$AssertTrue(long '= "", "a saved AI session with a stored history over the seed cap: "_long)
-	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Data.ConversationLink).Point(owner, "ChatAgent", long), "a link names it for (owner, ChatAgent)")
+	Set long = ""
+	For i = 1:1:8 {
+		Set long = long _ $ListBuild($Translate($Justify("", 5000), " ", "a"))
+	}
+	Set stored = ..NewMessagesSession(long)
+	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Data.ConversationLink).Point(owner, "ChatAgent", stored), "a link names a stored history of 8 long messages for (owner, ChatAgent)")
 	Set turn = ..NewRequest("turn", "user")
 	Set turn.OwnerRef = owner
 	Set full = $ClassMethod(decide, "EstimateTokens", turn, "ChatAgent", , .sc, .fullHistory)
-	Set retried = $ClassMethod(decide, "EstimateTokens", turn, "ChatAgentRetry", , .sc, .retryHistory, .retryChars, "ChatAgent")
-	Do $$$AssertEquals(fullHistory, cap + 20000, "the first runner's estimate counts the whole stored history")
-	Do $$$AssertEquals(retryHistory, cap, "the retry's estimate counts at most the seed cap")
-	Do $$$AssertTrue(retried < full, "so the retry's estimate is smaller")
+	Do $$$AssertTrue(fullHistory > 40000, "the first runner's estimate counts the whole stored history: "_fullHistory_" characters")
+	Set retry = $ClassMethod(decide, "RetryRequest", turn, ##class(OcuTalon.Bridge.Ids).NewRef(), 0, "ChatAgent")
+	Do $$$AssertTrue((retry.SessionMode = "fresh") && (retry.SeedText '= ""), "the retry is a fresh turn with a seed")
+	Set retried = $ClassMethod(decide, "EstimateTokens", retry, "ChatAgentRetry", , .sc, .retryHistory, .retryChars)
+	Do $$$AssertEquals(retryHistory, 0, "the retry's estimate counts no stored history")
+	Set agentChars = $ClassMethod("OcuTalon.Bridge.RequestSize", "AgentChars", "OcuTalon.Agent.Chat")
+	Do $$$AssertEquals(retried, ##class(OcuTalon.Bridge.Adapter.StepBuffer).Tokens(agentChars + $Length(##class(OcuTalon.Bridge.Adapter.Agent).ChatInput(retry, 1))), "it is the agent part and the input that Chat gets, the seed included")
+	Do $$$AssertTrue(retried < full, "so the retry's estimate is smaller: "_retried_" against "_full)
 	Set carried = turn.%ConstructClone()
 	Set carried.RetryOf = "ChatAgent"
 	Do $$$AssertEquals($ClassMethod(decide, "EstimateTokens", carried, "ChatAgent", , .sc, .carriedHistory), full, "a RetryOf that the request carries does not shorten the estimate of the first attempt")
-	Set short = ..NewSession(1000)
-	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Data.ConversationLink).Point(owner, "ChatAgent", short), "the link names a short session")
-	Do $$$AssertEquals($ClassMethod(decide, "EstimateTokens", turn, "ChatAgentRetry", , .sc, .shortHistory, , "ChatAgent")_"|"_shortHistory, $ClassMethod(decide, "EstimateTokens", turn, "ChatAgent")_"|1000", "a history under the cap counts whole")
-	Set fresh = turn.%ConstructClone()
-	Set fresh.SessionMode = "fresh"
-	Set fresh.SeedText = "A recap."
-	Do $$$AssertEquals($ClassMethod(decide, "EstimateTokens", fresh, "ChatAgentRetry", , .sc, .freshHistory, , "ChatAgent")_"|"_freshHistory, $ClassMethod(decide, "EstimateTokens", fresh, "ChatAgent")_"|0", "a fresh turn counts its SeedText, with no history")
 }
 
 /// --- helpers ---
@@ -3726,6 +3990,23 @@ ClassMethod NewSession(chars As %Integer) As %String [ Private ]
 {
 	Set session = ##class(%AI.Agent.Session).%New()
 	Do session.ContextData.Write($Translate($Justify("", chars), " ", "a"))
+	If $$$ISERR(session.%Save()) Quit ""
+	Quit session.%Id()
+}
+
+/// Saves an AI session that stores the messages as a full export (a user message, then an assistant message, and so on; the texts are the list), built without
+/// an agent, and returns its id. OnAfterOneTest deletes it, and the link that names it.
+ClassMethod NewMessagesSession(texts As %List) As %String [ Private ]
+{
+	Set messages = []
+	Set position = 0
+	Set role = "user"
+	While $ListNext(texts, position, text) {
+		Do messages.%Push({"role": (role), "content": (text)})
+		Set role = $Select(role = "user": "assistant", 1: "user")
+	}
+	Set session = ##class(%AI.Agent.Session).%New()
+	Do session.ContextData.Write({"version": 1, "messages": (messages)}.%ToJSON())
 	If $$$ISERR(session.%Save()) Quit ""
 	Quit session.%Id()
 }
@@ -4002,7 +4283,7 @@ Method AssertWarning(mark As %Integer, class As %String, ref As %String, label A
 /// assertions that every fallback shares: status OK; one row with the outcome tellnow, Fallback true, the reason expected and no reasons,
 /// confidence or payload; the totals of the decision; one decision.recorded, after the save and outside any transaction; and an answer
 /// that holds none of the model's refused text (the marker zzrefusedtext), is a new Reply with nothing but the verdict, the totals and the
-/// flags of the runner's reply (Tainted, ToolsRun and SessionRotated; SessionBroken as broken says, and never Busy) for a turn, and a
+/// flags of the runner's reply (Tainted and ToolsRun; SessionRotated 0, SessionBroken as broken says, and never Busy) for a turn, and a
 /// DecisionResponse of the row otherwise.
 Method AssertFallback(label As %String, request As OcuTalon.Bridge.Msg.Request, reply As %RegisteredObject, failure As %String, expected As %String, filter As %String = "OcuTalon.Bridge.Ext.ReplyFilter", broken As %Boolean = 0) [ Private ]
 {
@@ -4036,7 +4317,7 @@ Method AssertFallback(label As %String, request As OcuTalon.Bridge.Msg.Request, 
 	If request.Kind = "turn" {
 		Do $$$AssertTrue(response.%IsA("OcuTalon.Bridge.Msg.Reply"), label_": a turn is answered with a Reply")
 		Do $$$AssertEquals(response.Text_"|"_response.HostData_"|"_response.Steps_"|"_response.FailureText_"|"_response.FinishReason, "||||", label_": with no text, host data, steps, failure text or finish reason")
-		Do $$$AssertEquals(response.SessionRotated_"|"_response.SessionBroken_"|"_response.Busy, $Select(isReply: +reply.SessionRotated, 1: 0)_"|"_(+broken)_"|0", label_": the runner's SessionRotated is carried, SessionBroken is Decide's ("_(+broken)_") and the answer is not Busy")
+		Do $$$AssertEquals(response.SessionRotated_"|"_response.SessionBroken_"|"_response.Busy, "0|"_(+broken)_"|0", label_": SessionRotated is 0 whatever the runner's reply says, SessionBroken is Decide's ("_(+broken)_") and the answer is not Busy")
 		Do $$$AssertEquals(response.Tainted_"|"_response.ToolsRun, $Select(isReply: +reply.Tainted_"|"_+reply.ToolsRun, 1: "0|0"), label_": but the taint and the tools-run flag of the runner's reply (none when there is no reply)")
 		If $IsObject(reply) Do $$$AssertTrue(response '= reply, label_": it is a new Reply, not the runner's")
 		If isReply Do $$$AssertEquals(reply.Text_"|"_reply.FinishReason_"|"_reply.Steps_"|"_reply.HostData_"|"_reply.FailureText_"|"_reply.Tainted, before, label_": and the runner's own Reply is not changed")
