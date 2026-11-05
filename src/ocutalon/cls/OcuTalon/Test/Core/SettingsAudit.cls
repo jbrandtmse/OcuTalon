@@ -116,7 +116,7 @@ Method TestBridgeValueAudited()
 	Do $$$AssertEquals(second.setting_"|"_second.from_"|"_second.to, "DailyCostCapUSD|3|4", "the second value, with the one that Set replaced")
 }
 
-/// A SetDemoMode from web_admin: the entry has the channel web, and the step stand-in ran after the write.
+/// A SetDemoMode from web_admin: the entry has the channel web.
 Method TestDemoModeAudited()
 {
 	Do ##class(OcuTalon.Test.Demo.Step).Put("0", "2000-01-01T00:00:00Z")

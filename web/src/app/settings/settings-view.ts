@@ -87,6 +87,17 @@ export function sectionPath(slug: string): string[] {
   return ['/settings', slug];
 }
 
+/**
+ * The route matcher of the settings page: #/settings and #/settings/<section> are one route, so that moving between sections keeps the
+ * page (its values and the focus of the link pressed) instead of building it again. The section is the parameter `section`.
+ */
+export function settingsMatch<T extends { path: string }>(segments: T[]): { consumed: T[]; posParams: Record<string, T> } | null {
+  if (segments.length < 1 || segments.length > 2 || segments[0].path !== 'settings') {
+    return null;
+  }
+  return { consumed: segments, posParams: segments.length === 2 ? { section: segments[1] } : {} };
+}
+
 /** A field of Check thresholds: its name in the API, its label and its range. */
 export interface ThresholdField {
   name: ThresholdName;

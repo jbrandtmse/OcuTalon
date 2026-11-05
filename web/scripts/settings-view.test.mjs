@@ -9,7 +9,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const view = await import(pathToFileURL(join(here, '..', 'src', 'app', 'settings', 'settings-view.ts')).href);
-const { SETTINGS_TEXTS, SETTINGS_SECTIONS, THRESHOLD_FIELDS, bodyOf, firstInError, isDirty, pageOf, sectionLabel, sectionPath, sectionSlug, stepFailedText, textsOf } = view;
+const { SETTINGS_TEXTS, SETTINGS_SECTIONS, THRESHOLD_FIELDS, bodyOf, firstInError, isDirty, pageOf, sectionLabel, sectionPath, sectionSlug, settingsMatch, stepFailedText, textsOf } = view;
 
 const DEFAULTS = { diskFreePercent: 10, journalFreePercent: 10, licenseUsePercent: 90, queueMessages: 100, queueWaitMinutes: 10 };
 
@@ -118,10 +118,22 @@ describe('the texts', () => {
 describe('the routes', () => {
   const config = readFileSync(join(here, '..', 'src', 'app', 'app.config.ts'), 'utf8');
 
-  it('open the settings page at #/settings and at #/settings/:section, before the wildcard, each titled and guarded against leaving with unsaved changes', () => {
-    const settings = [...config.matchAll(/\{ path: '(settings(?:\/:section)?)', component: SettingsPage, title: SETTINGS_TEXTS\.title, canDeactivate: \[unsavedGuard\] \}/g)].map((match) => match[1]);
-    assert.deepEqual(settings, ['settings', 'settings/:section'], 'both settings routes carry the title and the unsaved-changes guard');
-    assert.ok(config.indexOf("path: 'settings/:section'") < config.indexOf("path: '**'"), 'the wildcard comes last');
+  it('open the settings page at #/settings and at #/settings/:section as one route, before the wildcard, titled and guarded against leaving with unsaved changes', () => {
+    const settings = [...config.matchAll(/\{ matcher: settingsMatch, component: SettingsPage, title: SETTINGS_TEXTS\.title, canDeactivate: \[unsavedGuard\] \}/g)];
+    assert.equal(settings.length, 1, 'one settings route, with the matcher, the title and the unsaved-changes guard');
+    assert.doesNotMatch(config, /path: 'settings/, 'no second settings route, which would build the page again on a section change');
+    assert.ok(config.indexOf('matcher: settingsMatch') < config.indexOf("path: '**'"), 'the wildcard comes last');
     assert.match(config, /\{ path: '\*\*', component: MainPage, title: 'OcuTalon' \}/, 'the wildcard is titled OcuTalon');
+    assert.match(config, /withRouterConfig\(\{ canceledNavigationResolution: 'computed' \}\)/, 'a cancelled back keeps the history as it was');
+  });
+
+  it('match #/settings and #/settings/<section>, and nothing else', () => {
+    const at = (...paths) => paths.map((path) => ({ path }));
+    assert.deepEqual(settingsMatch(at('settings')), { consumed: at('settings'), posParams: {} });
+    const two = at('settings', 'budgets');
+    assert.deepEqual(settingsMatch(two), { consumed: two, posParams: { section: two[1] } });
+    for (const paths of [[], ['chat'], ['Settings'], ['settings', 'budgets', 'x'], ['x', 'settings']]) {
+      assert.equal(settingsMatch(at(...paths)), null, paths.join('/'));
+    }
   });
 });

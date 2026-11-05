@@ -3945,3 +3945,39 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-33-2-open-the-settings-page-as-an-admin.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: Production lists Digest Enabled=false; CommandsIn.IsStub recognises code 5003 only; tests route to a recording owner; no route submits SendDigest yet
 - 2026-11-04T23:50:45Z status=routed owner=17-6-send-the-daily-digest-at-the-set-time-and-on-request by=harvest note=first caller runs it against the real production once Lane A enables the item, or CommandsIn maps the disabled-item error to not_built
+- 2026-11-05T01:02:21Z occurrence=33-2-open-the-settings-page-as-an-admin
+
+### DW-699: A demo mode saved on the settings page does not reach the open main page until a reload
+- source: spec-33-2-open-the-settings-page-as-an-admin.md | severity: med | fix-risk: high | footprint: in-story
+- evidence: LiveState loads /state once per page load and no event carries demo.mode; keepDemoMode updates only the settings page, so Chat keeps the old pill, guide and devices; /state reads Setting.Get (60 s cache), so a refresh at once would still be stale
+- 2026-11-05T01:02:21Z status=decision-pending owner=burndown by=cr note=product call: refresh the snapshot after the cache window, or tell the admin to reload (new text needs a ruling)
+
+### DW-700: SaveBridge passes old to BridgeSet without clearing it, so a Set that returns OK without setting old would audit the previous field's value
+- source: spec-33-2-open-the-settings-page-as-an-admin.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: SettingsOps.SaveBridge reuses old across loop iterations (Output by reference); the 33.1 contract says Set returns old, so today no path leaves it unset
+- 2026-11-05T01:02:21Z status=wontfix-theoretical owner=33-2-open-the-settings-page-as-an-admin by=cr note=real if 17.4's Bridge.Settings.Set has an OK path that leaves old unset; then Kill old before each call
+
+### DW-701: SaveBridge compares a posted bridge value with Values() as raw strings, so 7.50 against 7.5 counts as a change and is audited
+- source: spec-33-2-open-the-settings-page-as-an-admin.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: SettingsOps.SaveBridge: to(name) = BridgeCurrent(name) is a string compare; no page posts bridge values yet and the stubs hold none
+- 2026-11-05T01:02:21Z status=wontfix-theoretical owner=33-2-open-the-settings-page-as-an-admin by=cr note=real when 18.3's Budgets form posts a value whose text differs from Values()'s for the same number
+
+### DW-702: A product save rolled back after its first audit entries leaves Settings entries for values that were not changed
+- source: spec-33-2-open-the-settings-page-as-an-admin.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: Bridge.Audit.Record writes through %SYS.Audit, which a TROLLBACK does not undo; D5 states this trade (entry first, never a change without an entry, AD-17)
+- 2026-11-05T01:02:21Z status=by-design owner=33-2-open-the-settings-page-as-an-admin by=cr note=spec D5: an entry with no change is the accepted side; reopens only by amending D5 or AD-17
+
+### DW-703: z-settings-save.spec.ts depends on running last in its folder and on the stack starting in demo mode on
+- source: spec-33-2-open-the-settings-page-as-an-admin.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: the spec task names the file order because Setting.Get in a CSP job can hold the old mode 60 s; it runs only with OCUTALON_E2E_DEMO_MODE=1
+- 2026-11-05T01:02:21Z status=by-design owner=33-2-open-the-settings-page-as-an-admin by=cr note=spec-forced order (Tasks: z-settings-save.spec.ts); reopens if the folder's other specs stop reading the mode
+
+### DW-704: SettingsApi and SettingsSave bridge tests assert Lane A's stub answers and go red when Story 17.4 replaces the stubs
+- source: spec-33-2-open-the-settings-page-as-an-admin.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: TestGetShape, TestBridgeRoutesAre501 and TestBridgeStub's bare-stub half read the real stubs (empty providers, 5003); the matrix asks for the real stub instance
+- 2026-11-05T01:02:21Z status=by-design owner=33-2-open-the-settings-page-as-an-admin by=cr note=matrix row 'Bridge section by API' requires the real stub; 17.4 updates these assertions with the real bridge
+
+### DW-705: UnsavedDialog copies SignOutDialog's shape (template, styles, Dialogs wiring) instead of one shared two-button confirm dialog
+- source: spec-33-2-open-the-settings-page-as-an-admin.md | severity: low | fix-risk: med | footprint: in-story
+- evidence: web/src/app/settings/unsaved-dialog.ts and web/src/app/header/sign-out-dialog.ts differ only in texts, button handlers and result; the spec's reason (buttons and result differ) fits a parameterised dialog
+- 2026-11-05T01:02:21Z status=wontfix-accepted owner=33-2-open-the-settings-page-as-an-admin by=cr note=reopen_if=a third two-button confirm dialog copies the same shape (unsaved-dialog.ts, sign-out-dialog.ts)

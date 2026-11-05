@@ -26,10 +26,12 @@ const FORM_ERROR_ID = 'thresholds-error';
  * The Check thresholds section (Story 33.2; FR-39): five fields of whole numbers and **Save changes**. A press posts the five values to
  * POST /v1/settings/check-thresholds through the busy pattern (ServerButton). The server judges every value:
  *   - 200: the section shows "Saved. Applies within a minute. Recorded in the audit log." and the announcer reads it once; the saved values are the
- *     form's new baseline and the page is told (`saved`);
+ *     form's new baseline and the page is told (`saved`); a field edited while the save was pending keeps its value, the form stays dirty and no
+ *     saved text shows or is announced;
  *   - 400 `bad_settings`: each named field shows the field error "Couldn't save. Nothing was changed." linked to it (aria-describedby) and marked
- *     invalid, and the first of them takes focus; a refusal that names no field shows the error under the button;
- *   - 403: the user is no longer an admin, and the page is told (`denied`); any other failure shows the error under the button.
+ *     invalid, and the first of them takes focus; a refusal that names no field shows the error under the button, and the announcer reads it;
+ *   - 403: the user is no longer an admin, and the page is told (`denied`); any other failure shows the error under the button, and the announcer
+ *     reads it.
  * Typing in a field clears its error and the saved text. `dirtyChange` tells the page whether the form differs from its saved values.
  */
 @Component({
@@ -207,7 +209,9 @@ export class CheckThresholdsSection {
       this.texts.set(texts);
     }
     this.done.set(!edited);
-    this.announcer.announce(SETTINGS_TEXTS.saved);
+    if (!edited) {
+      this.announcer.announce(SETTINGS_TEXTS.saved);
+    }
     if (stored !== undefined) {
       this.saved.emit(stored);
     }
@@ -224,6 +228,7 @@ export class CheckThresholdsSection {
     const names = named.filter((name) => known.includes(name)) as ThresholdName[];
     if (names.length === 0) {
       this.formError.set(true);
+      this.announcer.announce(SETTINGS_TEXTS.failed);
       return;
     }
     this.errors.set(Object.fromEntries(names.map((name) => [name, true])));

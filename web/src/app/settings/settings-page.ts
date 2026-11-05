@@ -56,11 +56,11 @@ const LOAD_ERROR_TEXT_ID = 'settings-load-error-text';
                     [values]="thresholds()"
                     (saved)="keepThresholds($event)"
                     (dirtyChange)="dirty.set($event)"
-                    (denied)="status.set('denied')"
+                    (denied)="deny()"
                   />
                 }
                 @case ('demo-mode') {
-                  <app-demo-mode-section [value]="demoMode()" (saved)="keepDemoMode($event)" (dirtyChange)="dirty.set($event)" (denied)="status.set('denied')" />
+                  <app-demo-mode-section [value]="demoMode()" (saved)="keepDemoMode($event)" (dirtyChange)="dirty.set($event)" (denied)="deny()" />
                 }
                 @default {
                   <p class="not-built">{{ texts.notBuilt }}</p>
@@ -231,6 +231,12 @@ export class SettingsPage {
         subscriber.complete();
       });
     });
+
+  /** A save answered 403: the user is no longer an admin, so the page shows the denied view and nothing is left unsaved to ask about. */
+  protected deny(): void {
+    this.dirty.set(false);
+    this.status.set('denied');
+  }
 
   protected keepThresholds(values: SettingsSections['check-thresholds']): void {
     this.data.update((one) => (one === undefined ? one : { ...one, sections: { ...one.sections, 'check-thresholds': values } }));

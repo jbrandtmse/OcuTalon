@@ -145,6 +145,48 @@ deferred:
 - Given `SendDigest` from origin `tool` or `web_admin`, when it is built or submitted, then it carries no recipient, and a tool cannot name another session: destinations come only from the session's `digest.channels`, so neither the model nor an item can choose where a digest goes. A test pins each half, with its mutation shown (U-268).
 - Given Lane A's stub signatures, when a bridge section is saved through the real API, then `SettingsOps` calls `Bridge.Settings` by the spine's names and the answer is 501 with nothing changed.
 
+### Review Findings
+
+Code review of 2026-11-05 (first review; four layers, full tier). 36 rows, 22 entries after grouping: 0 high, 6 medium, 16 low; 13 rejected. Status: done (every patch applied; the two open mediums are ledgered with an owner).
+
+- [x] [Review][Patch] MED: #/settings and #/settings/<section> were two route configs, so the first section link rebuilt the page (a second GET, a loading flash, keyboard focus lost to the body) [web/src/app/app.config.ts:18] -- one route with `settingsMatch` (settings-view.ts); S1 pins focus and one load. fix-risk low.
+- [x] [Review][Patch] MED: a browser back answered with Stay overwrote the previous history entry (Angular's default `canceledNavigationResolution: 'replace'`), so a later back skipped that page [web/src/app/app.config.ts:27] -- `withRouterConfig({ canceledNavigationResolution: 'computed' })`; S6c. fix-risk low.
+- [x] [Review][Patch] MED (Rule 19): AC 4's "no restart happens" had no pinning test [src/ocutalon/cls/OcuTalon/Test/Web/SettingsApi.cls:157] -- `TestSaveThresholds` asserts `^Ens.Runtime("StartTime")` is unchanged by the save. fix-risk low.
+- [x] [Review][Patch] MED (Rule 19 hermeticity): `TestSaveDemoModeAudited` read "the stack's own mode" through this process's 60 s `Setting.Get` cache, so a stale entry would switch demo mode for the whole stack [src/ocutalon/cls/OcuTalon/Test/Web/SettingsApi.cls:197] -- the cache entry is killed first, so the mode is the row's. fix-risk low. Its link to DW-639 (Heartbeat): none found; Heartbeat runs before it in name order, and the Demo step at the stack's own mode touches only OCUORDERS, never OcuTalon.Production's items.
+- [x] [Review][Patch] LOW: "Saved" was announced while the saved text was hidden (an edit made during the save) [web/src/app/settings/check-thresholds-section.ts:210, demo-mode-section.ts:221] -- announced only when shown.
+- [x] [Review][Patch] LOW: a failed thresholds save (no field named) showed the error under the button with no announcement [web/src/app/settings/check-thresholds-section.ts:226] -- the announcer reads the existing field-error text (no new text).
+- [x] [Review][Patch] LOW: the Demo mode switch's accessible name carried its On/Off state ("Demo mode On"), unlike the Demo view switch [web/src/app/settings/demo-mode-section.ts:46] -- the state text is `aria-hidden`; aria-checked carries the state.
+- [x] [Review][Patch] LOW: a save answered 403 showed the denied view but left `dirty` set, so Back to the chat opened the unsaved prompt [web/src/app/settings/settings-page.ts:59] -- `deny()` clears it; S4b.
+- [x] [Review][Patch] LOW: the in-flight-edit fix of the implement review had no test [web/e2e/settings/settings.spec.ts] -- S5b.
+- [x] [Review][Patch] LOW: the load failure and Retry had no test [web/e2e/settings/settings.spec.ts] -- S1f.
+- [x] [Review][Patch] LOW (Rule 19): S4's and S7's "nothing changed" read-backs could not fail (the POST never left the browser) [web/e2e/settings/settings.spec.ts] -- removed.
+- [x] [Review][Patch] LOW (Rule 19): `TestBridgeRoutesAre501`'s `Rows() = 0` could not fail (no bridge path writes a product row) [src/ocutalon/cls/OcuTalon/Test/Web/SettingsApi.cls:243] -- removed with its doc claim.
+- [x] [Review][Patch] LOW: `TestDemoModeAudited`'s doc claimed an unasserted ordering [src/ocutalon/cls/OcuTalon/Test/Core/SettingsAudit.cls:119] -- claim removed.
+- [x] [Review][Patch] LOW (Rule 19): S2 (AC 4's saved text, Rule 1's integration row) had no `mutation:` line -- demonstrated and written under `## Verification`.
+- [x] [Review][Defer] MED: a demo mode saved on the page does not reach the open main page until a reload [web/src/app/settings/settings-page.ts:239] -- DW-699 decision-pending (product call; a fix needs a refresh design against the 60 s cache, or new text). fix-risk high.
+- [x] [Review][Defer] MED: `SendDigest` to the disabled `Digest` item answers `failed` [src/ocutalon/cls/OcuTalon/Core/CommandsIn.cls:179] -- DW-696 (occurrence appended; owner 17-6).
+- [x] [Review][Defer] LOW: `SaveBridge` does not clear `old` before `BridgeSet` -- DW-700 wontfix-theoretical.
+- [x] [Review][Defer] LOW: `SaveBridge` compares bridge values as raw strings -- DW-701 wontfix-theoretical.
+- [x] [Review][Defer] LOW: audit entries of a rolled-back product save stay -- DW-702 by-design (D5).
+- [x] [Review][Defer] LOW: `z-settings-save.spec.ts` runs last by name and needs demo mode on -- DW-703 by-design (spec task).
+- [x] [Review][Defer] LOW: the bridge tests assert Lane A's stub answers -- DW-704 by-design (matrix row); 17.4 updates them.
+- [x] [Review][Defer] LOW (Rule 2): `UnsavedDialog` copies `SignOutDialog`'s shape -- DW-705 wontfix-accepted, reopen_if a third copy.
+
+Rejected:
+- `false` Edge: `SendDigest` from `tool` outside a bridge context skips the own-session check -- `Carry` makes the origin `tool` only while a context is active; the spec's check is the context's, as `Dismiss`'s.
+- `false` Edge: the time-zone save reads `Bridge.Time.Zone` but writes through `Bridge.Settings.Set` -- the spine (AD-19 bridge settings APIs) routes `InstanceZone` through `Time.SetZone`, and `Apply` runs at each conversion.
+- `false` Gap: `TestAllOrNothingAudit` at position 1 is trivial -- it pins `not_audited` and an empty write when the first audit fails; positions 2 to 5 pin the rollback.
+- `false` Auditor info: a failed thresholds save does not move focus -- matrix row "Failed write or audit": the text under the button, which describes the focused button.
+- `false` Auditor info: AC 4 "no restart" and DW-695/DW-696 -- the same as the entries above.
+- `low` Edge: an out-of-range stored int is shown and refused on save -- only `SettingsOps` writes those rows, with the range check.
+- `low` Edge: a bridge value sent as a JSON number is canonicalised (7.50 to 7.5) -- the same number; the bridge's Check judges it.
+- `low` Edge: a put-back after a failed audit write audits a reversal of an unaudited change -- a double failure, and the entry records a real Set.
+- `low` Gap: a 403 save never reaches the denied view in a test -- covered now by S4b with the dirty fix.
+- `low` Blind: the triage log's "7 low patched" disagrees with six entries -- the fix edits the spec's own narrative.
+- `low` Auditor: doc lines of the contended `SettingsOps` and `CommandsIn` were edited in place -- ruling L3 covers small non-append edits; the `CommandsIn` task names doc lines.
+- `low` Edge: entries of the hunters that repeat a finding above (announce while hidden x2, Digest disabled) -- grouped.
+- `low` Gap: AC 1's mutation is Story 33.1's `ad_fields` -- the spine rows were read against `### Spine edits` by the acceptance auditor (plain unions; one changed line, P7's append).
+
 ## Spec Change Log
 
 - 2026-11-04, the lead: U-268's answer and conditions added as acceptance items, with the `SessionRef` check. The orchestrator's rulings recorded under `### Rulings`; the AC on refused and failed saves amended for `step_failed` (U-270). The intent block is unchanged.
@@ -364,6 +406,12 @@ Every `ci/iris.sh` and `ci/warm.sh` call carries `OCUTALON_LOCK_DIR="$(dirname "
 - `mutation:` `SaveDemoMode` omits `Set command.SessionRef = sessionRef` -> `Test.Web.SettingsApi` `TestSaveDemoModeAudited` red (the entry has no session Ref); submits with origin `system` instead of `web_admin` -> the same test red (channel `system`, not `web`); `SaveSection` omits `Set command.SessionRef` -> `TestSaveThresholds` red.
 - `mutation:` `Field` drops the `@{` refusal -> `Test.Core.SettingsSave` `TestBridgeRefused` red (a bridge string with `@{` reaches Check; the numeric, time and channel fields refuse it by their format); `Values` reads `Setting.Get` instead of the row -> `TestValues` red; the time pattern accepts hour 24 -> `TestDigestSection` red; `NotImplemented` always 0 -> `TestBridgeStub` red; the `Catch` of `SaveBridge` sets no outcome -> `TestBridgeSetThrows` red; `SaveBridge` ignores the bridge's current value -> `TestBridgeUnchangedValueIsSkipped` red; no `TROLLBACK` on a failed audit write of `SaveProduct` -> `TestAllOrNothingAudit` red; `Answer` maps `step_failed` to 500 -> `TestAnswerMapping` red.
 - `mutation:` a label changed in `SETTINGS_TEXTS` -> `web/scripts/ux-strings.test.mjs` "has an entry for every inventory string" red; `pageOf` lower-cases the path again -> `settings-view.test.mjs` "is the chat for every other address" red.
+- `mutation:` (QA) the thresholds section focuses the last refused field instead of `firstInError` -> `settings.spec.ts` S3b red (the first refused field in the form, `licenseUsePercent`, is not focused); the Demo mode section's `(dirtyChange)` binding removed from `settings-page.ts` -> S6b red (a changed switch no longer asks before a section link leaves). Both ran together in one `ci/iris.sh live sign-in --part 2/2` on a fresh throwaway (126 passed, exactly these two red); both files restored from backup with matching SHA-1, `git status --short` unchanged, bundle rebuilt.
+
+- `mutation:` (code review) `SaveSection` restarts the production after the submit (a jobbed `Ens.Director.RestartProduction`, waiting for the new start time) -> `Test.Web.SettingsApi` `TestSaveThresholds` red ("no restart: the production's start time is the same after the save"); AC 4's "no restart happens". Applied on the warm stack, red, restored from backup (`cmp` identical), class green again.
+- `mutation:` (code review) the thresholds section never sets `done` -> `settings.spec.ts` S2 red ("the saved text shows"; S5 red too); AC 4's saved text and Rule 1's integration row. Together, in one `ci/iris.sh live sign-in --part 10/12` (the settings file alone) on a fresh throwaway: the two settings routes put back (no matcher) -> S1 red ("the Budgets link keeps the keyboard focus"); `canceledNavigationResolution` back to the default -> S6c red ("goes to the page before the section"); `deny()` without clearing `dirty` -> S4b red ("Back to the chat leaves"); `succeeded()` with `edited` always false -> S5b red ("the edit made meanwhile is kept"). Exactly those six red, ten green; files restored from snapshot (`cmp` identical, `git status --short` and `git diff --stat` unchanged), bundle rebuilt, part 10/12 then `sign-in --part 1/2` (138), `--part 2/2` (132) and `live floor` (107) green.
+
+**QA stage audit (Story 33.2).** Every AC and matrix row has a pinning test with a `mutation:` line above, except "no restart happens" (no test can tell a restart from none without a production-start marker; not added). Two gaps were closed, both in `web/e2e/settings/settings.spec.ts` (QA): S3b (two refused values: both fields marked, the first in the form focused; before it only a single refused field ran in a browser) and S6b (the Demo mode section's unsaved-switch prompt and its return to clean; S6 covered the thresholds form only). Both green on a fresh throwaway (`live sign-in --part 2/2`: 128 passed).
 
 **Manual checks:** read `### Spine edits` against the spine diff; confirm `git status --short` shows no path under the watched list or a Lane A path.
 

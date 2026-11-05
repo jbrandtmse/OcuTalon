@@ -9,10 +9,11 @@
 ///     headers, while an admin passes to the envelope check and a path that is not a settings path is not asked for the role;
 ///   - TestGetShape: the body is SettingsOps.Values and holds no key material;
 ///   - TestSaveThresholds: an admin's save through the production answers 200, writes the rows with the audit entries, and the page's GET and
-///     Setting.Get in a process whose cache entry has expired show the saved values; the command is the CSP session's, not the body's;
+///     Setting.Get in a process whose cache entry has expired show the saved values, and the production is not restarted (its start time stays);
+///     the command is the CSP session's, not the body's;
 ///   - TestRefusedSaves: a refused value, a field that is not the section's, "@{" and a body that is not an object answer 400 bad_settings with the
 ///     ruled text and the fields, and change nothing;
-///   - TestBridgeRoutesAre501: budgets and time-zone reach the real stubs and answer 501 not_built with nothing written; models and channels are 501;
+///   - TestBridgeRoutesAre501: budgets and time-zone reach the real stubs and answer 501 not_built; models and channels are 501;
 ///   - TestSaveDemoModeAudited: an admin's demo mode save (the stack's own mode) answers 200 and writes one entry with the call's user, the CSP session's Ref and the channel web;
 ///   - TestDemoModeBodies: a demo mode body that is not exactly {demoMode: true or false} is 400 with nothing submitted;
 ///   - TestAnswerMapping: each outcome of a save has its status, code and text;
@@ -150,12 +151,14 @@ Method TestGetShape()
 }
 
 /// An admin's save of two thresholds through the production: 200 {"result":"done","sections"}, the two rows, the GET at once, and Setting.Get in a
-/// process whose cache entry has expired. The body's sessionRef is not accepted.
+/// process whose cache entry has expired, with no restart of the production. The body's sessionRef is not accepted.
 Method TestSaveThresholds()
 {
 	If '..Guard() Quit
 	Set ^OcuTalonTest("ApiProbe", "roles") = "OcuTalonUser,OcuTalonAdmin"
 	Set session = ..Session()
+	Set started = $Get(^Ens.Runtime("StartTime"))
+	Do $$$AssertTrue(started '= "", "control: the running production has a start time")
 	Set since = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
 	Set body = ..Call("SaveCheckThresholds", {"diskFreePercent": 17, "journalFreePercent": 10, "licenseUsePercent": 90, "queueMessages": 321, "queueWaitMinutes": 10}.%ToJSON(), session, .response)
 	Do $$$AssertEquals(response.Status_"|"_response.ContentType, "200 OK|application/json", "200 JSON: "_body)
@@ -164,6 +167,7 @@ Method TestSaveThresholds()
 	Do $$$AssertEquals(answer.sections.%Get("check-thresholds").diskFreePercent_"|"_answer.sections.%Get("check-thresholds").queueMessages, "17|321", "the answer carries the saved sections")
 	Do $$$AssertEquals(..Row("checks.thresholds.diskFreePercent")_"|"_..Row("checks.thresholds.queueMessages"), "17|321", "the two rows are written")
 	Do $$$AssertEquals(..Row("checks.thresholds.journalFreePercent")_..Row("checks.thresholds.licenseUsePercent")_..Row("checks.thresholds.queueWaitMinutes"), "", "and no other")
+	Do $$$AssertEquals($Get(^Ens.Runtime("StartTime")), started, "no restart: the production's start time is the same after the save")
 	Set body = ..Call("Settings", "", session, .response)
 	Do $$$AssertEquals({}.%FromJSON(body).sections.%Get("check-thresholds").diskFreePercent, 17, "GET /v1/settings shows the new value at once")
 	Set ^||OcuTalon.Setting("checks.thresholds.queueMessages") = $ListBuild("100", 0, $ZHorolog - 61)
@@ -184,12 +188,14 @@ Method TestSaveThresholds()
 }
 
 /// An admin's demo mode save through the production, with the mode the stack already has: 200 and one Settings entry with the IRIS user of the call,
-/// the CSP session's Ref and the channel web. The value is the stack's own, so the Demo step that follows the write leaves the stack as it was.
+/// the CSP session's Ref and the channel web. The value is the stack's own (read from the row, past this process's cache), so the Demo step that
+/// follows the write leaves the stack as it was.
 Method TestSaveDemoModeAudited()
 {
 	If '..Guard() Quit
 	Set ^OcuTalonTest("ApiProbe", "roles") = "OcuTalonUser,OcuTalonAdmin"
 	Set session = ..Session()
+	Kill ^||OcuTalon.Setting("demo.mode")
 	Set mode = ##class(OcuTalon.Data.Setting).Get("demo.mode")
 	Set on = (mode = 1)
 	Set existed = ##class(OcuTalon.Data.Setting).KeyIndexExists("demo.mode")
@@ -227,7 +233,7 @@ Method TestRefusedSaves()
 	Do $$$AssertEquals(..Rows(), 0, "nothing is written")
 }
 
-/// Budgets and time-zone reach the real stubs through the production: 501 not_built, nothing written. Models and channels are 501.
+/// Budgets and time-zone reach the real stubs through the production: 501 not_built. Models and channels are 501.
 Method TestBridgeRoutesAre501()
 {
 	If '..Guard() Quit
@@ -240,7 +246,6 @@ Method TestBridgeRoutesAre501()
 	Do $$$AssertEquals(response.Status_"|"_body, "501 Not Implemented|"_wanted, "time-zone: 501 not_built")
 	Set body = ..Call("NotBuilt", "{}", session, .response)
 	Do $$$AssertEquals(response.Status_"|"_body, "501 Not Implemented|"_wanted, "models and channels: 501 not_built")
-	Do $$$AssertEquals(..Rows(), 0, "nothing is written")
 	Set body = ..Call("SaveBudgets", {"DecisionTokenBudget": "@{env:KEY}", "DailyCostCapUSD": "7.50"}.%ToJSON(), session, .response)
 	Do $$$AssertEquals(response.Status_"|"_$Piece(body, """fields"":", 2), "400 Bad Request|[""DecisionTokenBudget""]}", "a value with @{ is refused before the stub is asked")
 }

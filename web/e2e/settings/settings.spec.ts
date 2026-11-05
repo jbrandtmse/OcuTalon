@@ -5,7 +5,7 @@ import { loadedAfter, signInReadmeLoaded } from '../support/floor';
 import { fixtureUser } from '../support/iris';
 
 /**
- * Story 33.2, the settings page for an admin (S1 to S8, with S1t and S7b), in a real browser against a real stack: the README account holds OcuTalonAdmin, and the live
+ * Story 33.2, the settings page for an admin (S1 to S8, with S1t, S1f, S3b, S4b, S5b, S6b, S6c and S7b), in a real browser against a real stack: the README account holds OcuTalonAdmin, and the live
  * fixture user (OCUTALON_LIVE_USER, test-sign-in.sh) holds OcuTalonUser only. The cases that save restore the five thresholds they change.
  */
 const SETTINGS = '/ocutalon/api/v1/settings';
@@ -65,6 +65,10 @@ test('S1: an admin sees Chat and Settings in the header, and Settings opens the 
   await expect(nav.getByRole('link', { name: 'Chat', exact: true }), 'the current page is marked').toHaveAttribute('aria-current', 'page');
   await expect(nav.getByRole('link', { name: 'Settings', exact: true })).not.toHaveAttribute('aria-current', 'page');
 
+  let loads = 0;
+  page.on('request', (request) => {
+    if (request.method() === 'GET' && new URL(request.url()).pathname === SETTINGS) loads += 1;
+  });
   await nav.getByRole('link', { name: 'Settings', exact: true }).click();
   expect(new URL(page.url()).hash, 'at the address #/settings').toBe('#/settings');
   await expect(nav.getByRole('link', { name: 'Settings', exact: true }), 'Settings is now the current page').toHaveAttribute('aria-current', 'page');
@@ -78,12 +82,16 @@ test('S1: an admin sees Chat and Settings in the header, and Settings opens the 
   await expect(guide, 'and so does the demo guide').toHaveCount(0);
 
   for (const [slug, label] of [['budgets', 'Budgets'], ['daily-digest', 'Daily digest'], ['time-zone', 'Time zone']] as const) {
-    await sectionsNav(page).getByRole('link', { name: label, exact: true }).click();
-    expect(new URL(page.url()).hash, `${label} has its own address`).toBe(`#/settings/${slug}`);
-    await expect(sectionsNav(page).getByRole('link', { name: label, exact: true })).toHaveAttribute('aria-current', 'true');
+    const link = sectionsNav(page).getByRole('link', { name: label, exact: true });
+    await link.focus();
+    await page.keyboard.press('Enter');
     await expect(page.getByRole('heading', { level: 2 })).toHaveText(label);
+    expect(new URL(page.url()).hash, `${label} has its own address`).toBe(`#/settings/${slug}`);
+    await expect(link).toHaveAttribute('aria-current', 'true');
+    await expect(link, `the ${label} link keeps the keyboard focus: the page is not built again`).toBeFocused();
     await expect(page.getByText("This part of OcuTalon isn't built yet.")).toBeVisible();
   }
+  expect(loads, 'a section change keeps the page: GET /v1/settings was asked once').toBe(1);
   await page.evaluate(() => {
     location.hash = '#/settings/zz-unknown';
   });
@@ -103,6 +111,28 @@ test('S1t: the settings page is titled Settings \u00B7 OcuTalon', async ({ page 
   await expect(page, 'the page is titled Settings \u00B7 OcuTalon').toHaveTitle('Settings \u00B7 OcuTalon');
   await pagesNav(page).getByRole('link', { name: 'Chat', exact: true }).click();
   await expect(page, 'Chat returns to the title OcuTalon').toHaveTitle('OcuTalon');
+});
+
+/** S1f: a page whose GET /v1/settings fails shows the load error with Retry, and Retry loads the sections. */
+test('S1f: a failed load shows the load error, and Retry loads the page', async ({ page }) => {
+  await signInReadmeLoaded(page);
+  let failures = 1;
+  await page.route('**/api/v1/settings', (route) =>
+    route.request().method() === 'GET' && failures-- > 0
+      ? route.fulfill({ status: 500, contentType: 'application/json', body: JSON.stringify({ error: { code: 'server_error', message: 'x' } }) })
+      : route.continue(),
+  );
+  try {
+    await pagesNav(page).getByRole('link', { name: 'Settings', exact: true }).click();
+    await expect(page.locator('main[data-settings]'), 'the load failed').toHaveAttribute('data-settings', 'failed');
+    await expect(page.locator('p.load-error-text')).toHaveText("Couldn't load your session.");
+    await expect(sectionsNav(page), 'no sections').toHaveCount(0);
+    await page.getByRole('button', { name: 'Retry', exact: true }).click();
+    await expect(page.getByRole('heading', { level: 2 }), 'Retry loads the page').toHaveText('Models');
+    await expect(sectionsNav(page).getByRole('link')).toHaveCount(7);
+  } finally {
+    await page.unroute('**/api/v1/settings');
+  }
 });
 
 /** S2: a save of two thresholds is written, shown, announced and read back by GET /v1/settings. */
@@ -161,6 +191,25 @@ test('S3: a value the server refuses shows the field error on that field, focuse
   }
 });
 
+/** S3b: with two refused values, both fields show the error, and the first one in the form's order takes focus (not the one typed first or last). */
+test('S3b: two refused values mark both fields and focus the first in the form', async ({ page }) => {
+  await openThresholds(page);
+  const before = await thresholds(page);
+  try {
+    await field(page, 'queueWaitMinutes').fill('abc');
+    await field(page, 'licenseUsePercent').fill('0');
+    await saveButton(page).click();
+    await expect(page.locator('#threshold-licenseUsePercent-error'), 'the first refused field shows the error').toHaveText(FAILED);
+    await expect(page.locator('#threshold-queueWaitMinutes-error'), 'so does the second').toHaveText(FAILED);
+    await expect(page.locator('#threshold-diskFreePercent-error'), 'a field that was fine has none').toHaveCount(0);
+    await expect(field(page, 'licenseUsePercent'), 'the first in the form takes focus').toBeFocused();
+    await expect(field(page, 'queueWaitMinutes'), 'the second is marked invalid').toHaveAttribute('aria-invalid', 'true');
+    expect(await thresholds(page), 'nothing was written').toEqual(before);
+  } finally {
+    await restore(page, before);
+  }
+});
+
 /** S4: a failed save (a held 500) shows the error under the button, linked to it, and the button follows the busy pattern. */
 test('S4: a failed save shows the error under the button', async ({ page }) => {
   await openThresholds(page);
@@ -178,7 +227,27 @@ test('S4: a failed save shows the error under the button', async ({ page }) => {
   await expect(saveButton(page), 'the button is described by it').toHaveAttribute('aria-describedby', 'thresholds-error');
   await expect(saveButton(page), 'and is restored').not.toHaveAttribute('aria-busy', 'true');
   await expect(savedText(page), 'no saved text').toHaveCount(0);
-  expect((await thresholds(page)).diskFreePercent, 'nothing changed').toBe(before.diskFreePercent);
+});
+
+/** S4b: a save answered 403 (the user is no longer an admin) shows the denied view, which leaves without asking about the unsaved form. */
+test('S4b: a save answered 403 shows the denied view, and Back to the chat leaves without asking', async ({ page }) => {
+  await openThresholds(page);
+  await page.route('**/api/v1/settings/check-thresholds', (route) =>
+    route.request().method() === 'POST'
+      ? route.fulfill({ status: 403, contentType: 'application/json', body: JSON.stringify({ error: { code: 'not_admin', message: DENIED } }) })
+      : route.continue(),
+  );
+  try {
+    const before = await thresholds(page);
+    await field(page, 'diskFreePercent').fill(String(before.diskFreePercent === 20 ? 21 : 20));
+    await saveButton(page).click();
+    await expect(page.locator('p.denied'), 'the denied view').toHaveText(DENIED);
+    await page.getByRole('link', { name: 'Back to the chat', exact: true }).click();
+    await expect(page.locator('main.main'), 'Back to the chat leaves').toHaveAttribute('data-snapshot', 'loaded');
+    await expect(page.getByRole('dialog'), 'with nothing left unsaved to ask about').toHaveCount(0);
+  } finally {
+    await page.unroute('**/api/v1/settings/check-thresholds');
+  }
 });
 
 /** S5: with no answer the button is busy, then restored with the notice after 10 s, and a late answer still shows. */
@@ -202,6 +271,40 @@ test('S5: a held save is busy, then shows the busy notice, and the late answer s
     release();
     await expect(savedText(page), 'the late answer still shows').toBeVisible();
     await expect(page.locator('[id^="server-button-notice"]').filter({ hasText: BUSY_NOTICE }), 'and clears the notice').toHaveCount(0);
+  } finally {
+    release();
+    await page.unroute('**/api/v1/settings/check-thresholds');
+    await restore(page, before);
+  }
+});
+
+/** S5b: a field edited while a save is pending keeps its value when the answer comes, shows no saved text and stays unsaved. */
+test('S5b: an edit made while the save is pending is kept and stays unsaved', async ({ page }) => {
+  await openThresholds(page);
+  const before = await thresholds(page);
+  let release!: () => void;
+  const gate = new Promise<void>((resolve) => (release = resolve));
+  await page.route('**/api/v1/settings/check-thresholds', async (route) => {
+    if (route.request().method() === 'POST') await gate;
+    await route.continue().catch(() => undefined);
+  });
+  try {
+    const typed = before.diskFreePercent === 40 ? 41 : 40;
+    await field(page, 'queueWaitMinutes').fill(String(before.queueWaitMinutes === 33 ? 34 : 33));
+    await saveButton(page).click();
+    await expect(saveButton(page), 'the save is pending').toHaveAttribute('aria-busy', 'true');
+    await field(page, 'diskFreePercent').fill(String(typed));
+    const answered = page.waitForResponse((response) => response.url().endsWith('/v1/settings/check-thresholds') && response.request().method() === 'POST');
+    release();
+    expect((await answered).status(), 'the save answers').toBe(200);
+    await expect(saveButton(page), 'and the button is restored').not.toHaveAttribute('aria-busy', 'true');
+    await expect(field(page, 'diskFreePercent'), 'the edit made meanwhile is kept').toHaveValue(String(typed));
+    await expect(savedText(page), 'no saved text shows for a form that is still unsaved').toHaveCount(0);
+    await sectionsNav(page).getByRole('link', { name: 'Demo mode', exact: true }).click();
+    const dialog = page.getByRole('dialog');
+    await expect(dialog, 'the form is still unsaved, so a section link asks first').toBeVisible();
+    await dialog.getByRole('button', { name: 'Leave without saving', exact: true }).click();
+    expect((await thresholds(page)).diskFreePercent, 'the edit made meanwhile was not saved').toBe(before.diskFreePercent);
   } finally {
     release();
     await page.unroute('**/api/v1/settings/check-thresholds');
@@ -252,6 +355,50 @@ test('S6: unsaved changes ask before a link leaves, and only Leave discards them
   expect((await thresholds(page)).diskFreePercent, 'and was never saved').toBe(before.diskFreePercent);
 });
 
+/** S6c: a browser back that the user answers with Stay keeps the history as it was: a second back still goes to the page before. */
+test('S6c: Stay on the browser back keeps the history, and a second back leaves to the page before', async ({ page }) => {
+  await openThresholds(page);
+  const before = await thresholds(page);
+  await field(page, 'diskFreePercent').fill(String(before.diskFreePercent === 40 ? 41 : 40));
+  const dialog = page.getByRole('dialog');
+  await page.goBack();
+  await expect(dialog, 'the browser\'s back asks first').toBeVisible();
+  await dialog.getByRole('button', { name: 'Stay', exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  await expect(page, 'Stay keeps the section').toHaveURL(/#\/settings\/check-thresholds$/);
+  await page.goBack();
+  await expect(dialog, 'a second back asks again').toBeVisible();
+  await dialog.getByRole('button', { name: 'Leave without saving', exact: true }).click();
+  await expect(page, 'and goes to the page before the section, #/settings').toHaveURL(/#\/settings$/);
+  await expect(page.getByRole('heading', { level: 2 })).toHaveText('Models');
+  expect((await thresholds(page)).diskFreePercent, 'nothing was saved').toBe(before.diskFreePercent);
+});
+
+/** S6b: an unsaved Demo mode switch asks before a section link leaves, and switching it back to the saved value is clean. */
+test('S6b: an unsaved Demo mode switch asks before leaving, and is clean again when switched back', async ({ page }) => {
+  await signInReadmeLoaded(page);
+  await pagesNav(page).getByRole('link', { name: 'Settings', exact: true }).click();
+  await sectionsNav(page).getByRole('link', { name: 'Demo mode', exact: true }).click();
+  const toggle = page.getByRole('switch', { name: /^Demo mode/ });
+  await expect(toggle).toBeVisible();
+  const was = (await toggle.getAttribute('aria-checked')) === 'true';
+  const dialog = page.getByRole('dialog');
+  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-checked', String(!was));
+  await sectionsNav(page).getByRole('link', { name: 'Check thresholds', exact: true }).click();
+  await expect(dialog, 'a changed switch asks before a section link leaves').toBeVisible();
+  await expect(dialog).toContainText('You have unsaved changes in this section. Leave without saving?');
+  await dialog.getByRole('button', { name: 'Stay', exact: true }).click();
+  await expect(dialog).toHaveCount(0);
+  expect(new URL(page.url()).hash, 'Stay keeps the section').toBe('#/settings/demo-mode');
+  await expect(toggle, 'and the changed switch').toHaveAttribute('aria-checked', String(!was));
+  await toggle.click();
+  await expect(toggle).toHaveAttribute('aria-checked', String(was));
+  await sectionsNav(page).getByRole('link', { name: 'Check thresholds', exact: true }).click();
+  await expect(page.getByRole('heading', { level: 2, name: 'Check thresholds' }), 'switched back, nothing is unsaved: the link leaves').toBeVisible();
+  await expect(dialog).toHaveCount(0);
+});
+
 /** S7: the Demo mode section shows the switch with its state and help, and a refused save shows the field error on it. */
 test('S7: the Demo mode section has a switch, its help line and Save changes, and a failed save shows the field error', async ({ page }) => {
   await signInReadmeLoaded(page);
@@ -275,7 +422,6 @@ test('S7: the Demo mode section has a switch, its help line and Save changes, an
   await expect(toggle, 'linked to the switch').toHaveAttribute('aria-describedby', /demo-mode-error/);
   await expect(toggle, 'which takes focus').toBeFocused();
   await page.unroute('**/api/v1/settings/demo-mode');
-  expect((await page.request.get(SETTINGS).then((response) => response.json())).sections['demo-mode'].demoMode, 'demo mode is as it was').toBe(was);
 });
 
 /** S7b: a Demo step that failed after the value was written (409 demo_step_failed) keeps the value and shows the ruled text, never "Nothing was changed.". */

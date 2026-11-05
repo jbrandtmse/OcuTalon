@@ -14,10 +14,12 @@ const HELP_ID = 'demo-mode-help';
 const ERROR_ID = 'demo-mode-error';
 
 /**
- * The Demo mode section (Story 33.2; FR-16): one switch (role="switch", aria-checked) named "Demo mode" with its state, On or Off, its help line, and
+ * The Demo mode section (Story 33.2; FR-16): one switch (role="switch", aria-checked) named "Demo mode", which shows its state, On or Off
+ * (hidden from assistive technology, which hears aria-checked), its help line, and
  * **Save changes**. A press posts {demoMode} to POST /v1/settings/demo-mode through the busy pattern; the server switches it through the same
  * SettingsOps path as the terminal. The answers:
- *   - 200: "Saved. Applies within a minute. Recorded in the audit log." (announced once), and the saved value is the new baseline;
+ *   - 200: "Saved. Applies within a minute. Recorded in the audit log." (announced once), and the saved value is the new baseline; a switch changed
+ *     while the save was pending keeps its position, stays unsaved, and no saved text shows or is announced;
  *   - 409 `demo_step_failed`: the Demo step failed after the value was written, so the value stands (it is the new baseline) and the field shows the
  *     text of the step, never "Nothing was changed.";
  *   - 403: the page is told (`denied`); any other answer (400, 500, 501, no answer) shows the field error "Couldn't save. Nothing was changed." linked
@@ -43,7 +45,7 @@ const ERROR_ID = 'demo-mode-error';
       >
         <span class="track" aria-hidden="true"><span class="thumb"></span></span>
         <span class="label">{{ label }}</span>
-        <span class="state">{{ on() ? onText : offText }}</span>
+        <span class="state" aria-hidden="true">{{ on() ? onText : offText }}</span>
       </button>
       <p class="help" [id]="helpId">{{ help }}</p>
       @if (error() !== '') {
@@ -218,7 +220,9 @@ export class DemoModeSection {
       this.on.set(value);
     }
     this.done.set(!edited);
-    this.announcer.announce(SETTINGS_TEXTS.saved);
+    if (!edited) {
+      this.announcer.announce(SETTINGS_TEXTS.saved);
+    }
     this.saved.emit(value);
   }
 
