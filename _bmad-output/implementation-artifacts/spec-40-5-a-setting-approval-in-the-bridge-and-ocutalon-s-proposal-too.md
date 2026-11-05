@@ -2,7 +2,7 @@
 title: 'Story 40.5: A `setting` approval in the bridge, and OcuTalon''s proposal tool'
 type: 'feature'
 created: '2026-11-05'
-status: 'done'
+status: 'in-progress'
 baseline_revision: '1f1b53757543aa468c67d9096213dadd2572ec1c'
 baseline_commit: '1f1b53757543aa468c67d9096213dadd2572ec1c'
 review_loop_iteration: 0
@@ -170,8 +170,11 @@ Rejected:
 - `low` test helpers would error, not assert, if role lookup or `RefIndexOpen` failed (edge-case) -- a loud failure; adding guards adds complexity for no realistic case.
 - `low` `TestRaiseSetting` compares `RequiredRole` with the seeded `OcuTalonUser` rather than reading `ApprovalRole` (acceptance) -- same as `TestRaiseFix`; the role assignment is kind-agnostic.
 - `low` the Tasks text says `Instructions.TestToolsets` expects 9 Chat names, the test 10 (acceptance) -- recorded in Design Notes; the fix would edit the spec.
+- [ ] [CI] iris (shards-2): `OcuTalon.Test.Bridge.Decide:TestEstimateTokens` fails on 6f09f0eb -- `src/ocutalon/cls/OcuTalon/Test/Bridge/Decide.cls` L1840-1856 and its comment L1825 -- Chat's `AgentChars` now includes the JSON of the Persona toolset's tool (`propose_persona`), and the test still equates Chat with the prompt plus the Reminders and Watching JSON only. Measure the Persona toolset's tool JSON too, assert Chat = prompt + Reminders + Watching + Persona and the catalog bound on that sum, update the comment, and record its `mutation:` line. https://github.com/jbrandtmse/OcuTalon/actions/runs/42032277355/job/127261449968
 
 ## Spec Change Log
+
+- 2026-11-05, rework 1 (CI red on 6f09f0eb): one `[CI]` item under Tasks & Acceptance.
 
 ## Review Triage Log
 
