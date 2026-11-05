@@ -474,3 +474,4 @@
 2026-11-05T03:21:13Z	Epic 11	epic_retro_skipped	reason=policy
 2026-11-05T03:21:13Z	Epic 11	epic_status_kept	status=in-progress reason=part_merge_U-277(11.14,11.15,11.16,11.18_backlog) note=no_epic_status_done
 2026-11-05T03:21:13Z	Epic 11	model_tier_checkpoint	armed=false stack_risk=none review_tier=full-opus implement_model=claude-sonnet high_med_avg=3 unresolved_high_med_avg=1 metric=unresolved rework_stories=1(scope_amendment+ci_bookkeeping) review_loop_thrash=0 rework_lang_defects=0 review_high=0 review_med=3 result=hold applied=false(record_only) note=reopen_scope(story_11.21)
+2026-11-05T03:24:28Z	Epic 11	integrated_forward	feature=b2f465b9 head=87bd6ab9 conflicts_resolved=none checks=test-readme,test-boundaries,web_lint_pass;source_differs_from_feature_by_11.20_and_11.21_files_only;live_units_not_rerun(feature_change=README+test-readme_only) note=DW-690,DW-691_resolved-by_11.21_on_ledger stage=epic_close
