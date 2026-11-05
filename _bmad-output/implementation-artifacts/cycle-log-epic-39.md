@@ -167,3 +167,5 @@
 2026-11-05T05:27:30Z	Story 39.7	ruling	question=Test/Live/GuideRefresh.cls_count_8-9_and_doc_line_for_the_17th_event_type choice=allow_as_footprint_extension rejected=clarification(not_contended,count_bump_precedent) why=TestNonTriggerTypes_counts_every_non-trigger_type;no_open_epic_diff_holds_it category=decide policy=5086036
 2026-11-05T05:27:30Z	Story 39.7	adr_verifications_complete	tool=none acs=none result=none_required evidence=none mutations=none model=claude-opus-5-5
 2026-11-05T05:27:30Z	Story 39.7	stage_spawned	stage=qa spawn_at=2026-11-05T05:27:30Z model=sonnet agent_name=39-7-qa-1 cycle_iteration=1
+2026-11-05T05:49:15Z	Story 39.7	qa_complete	spawn_at=2026-11-05T05:27:30Z model=sonnet tests=Test/Checks/Beat.cls,Test/Checks/Runs.cls,Test/Checks/Heartbeat.cls,web/scripts/live-store.test.mjs tests_added=5 mutations_demonstrated=5 first_run_failures=0 clarifications=0 closing_sections_present=true
+2026-11-05T05:49:15Z	Story 39.7	stage_spawned	stage=code-review spawn_at=2026-11-05T05:49:15Z model=opus agent_name=39-7-code-review-1 cycle_iteration=1
