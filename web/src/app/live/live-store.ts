@@ -54,6 +54,7 @@ export const COLLECTIONS: Readonly<Record<LiveEventType, CollectionRule>> = {
   'guide.state': { collection: 'guideState', key: null },
   reset: { collection: 'reset', key: null },
   'breakfeed.progress': { collection: 'breakfeedProgress', key: null },
+  heartbeat: { collection: 'heartbeat', key: null },
 };
 
 /** One cursor for each stream: the Seq of the last event applied. */

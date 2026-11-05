@@ -303,7 +303,7 @@ describe('COLLECTIONS', () => {
     const text = readFileSync(join(live, 'payloads.ts'), 'utf8');
     const union = /export type LiveEventType =([\s\S]*?);/.exec(text)?.[1] ?? '';
     const types = [...union.matchAll(/'([^']+)'/g)].map((match) => match[1]);
-    assert.equal(types.length, 16, `the 16 event types are read: ${types.join(' ')}`);
+    assert.equal(types.length, 17, `the 17 event types are read: ${types.join(' ')}`);
     for (const type of types) {
       assert.ok(COLLECTIONS[type], `${type} has an entry`);
       assert.ok(COLLECTIONS[type].collection, `${type} names a collection`);

@@ -20,7 +20,11 @@
 ///   - TestOneFailureLeavesTheOthers: a person whose row cannot be saved leaves the person after it to beat, and the status holds the count and an error code only;
 ///   - TestFailedDecisionHoldsTheBeat: a person whose decision cannot be recorded does not beat over it and counts once, and the person after it is recorded and beats;
 ///   - TestUnreadableRowIsReported: a row that stops the read of the rows gives an error status, and the people still beat;
-///   - TestInputsAreRead: Capped follows the day's mark, Keyed follows Bridge.Keys, and RunDue and RunNow read both when they are given none.
+///   - TestInputsAreRead: Capped follows the day's mark, Keyed follows Bridge.Keys, and RunDue and RunNow read both when they are given none;
+///   - TestViewsInCommitOrder (Story 39.7): the views of RunDue and RunNow, one for each commit of a row and in commit order, each equal to Heartbeat.FromRow of the
+///     reopened row at that point: a recorded ignore then the unchanged skip of one RunDue (two views), an off person's recorded decision, nothing for a person
+///     who is not due or is off with nothing pending, a run now that sends (also after a recorded decision), a run now that is held, and a cooldown (nothing, or
+///     only the recorded result of a pending decision).
 Class OcuTalon.Test.Checks.Beat Extends OcuTalon.Test.Contract
 {
 
@@ -642,6 +646,96 @@ Method TestInputsAreRead()
 	Do $$$AssertEquals(..BKeyed(), +##class(OcuTalon.Bridge.Keys).Status("TriageAgent"), "Keyed is the TriageAgent's key state")
 }
 
+/// Story 39.7: RunDue and RunNow give one view for each commit of a row, in commit order, each Heartbeat.FromRow of the row as saved and the settings. Nothing is
+/// viewed for a call that commits nothing.
+Method TestViewsInCommitOrder()
+{
+	Set noon = ..Local("12:00")
+	Set far = ..Plus(noon, 86400)
+
+	// RunDue: a recorded ignore then the unchanged skip (two commits of one person), an off person's recorded decision, a person who is not due and an off person
+	Set ignored = ..Person("same", {"NextDueAt": (..Plus(noon, -60)), "LastItemId": "itemsame"})
+	Do ..Decision(ignored, "itemsame", {"Outcome": "ignore", "Summary": "Heartbeat check-in"})
+	Do ..SetRow(ignored, "LastSnapshotKey", ..BWholeKey(ignored, noon))
+	Set off = ..Person("same", {"NextDueAt": (far), "LastItemId": "itemoff", "LastSnapshotKey": (..BKey("same"))})
+	Do ..Put(off, "on", "0")
+	Do ..Decision(off, "itemoff", {"Outcome": "ignore"})
+	Set idle = ..Person("c", {"NextDueAt": (far)})
+	Set silent = ..Person("c", {"NextDueAt": (..Plus(noon, -60))})
+	Do ..Put(silent, "on", "0")
+	Set all = ignored_","_off_","_idle_","_silent
+	Do $$$AssertStatusOK(..BDue(noon, .items, all, 0, 1, .views), "RunDue is OK")
+	Do $$$AssertEquals(..ViewRefs(.views, all), "3:1,2,1", "three views: the recorded ignore, the off person's recorded decision and the unchanged skip, and none for the idle and the off person")
+	Set first = ..ViewJson(.views, 1)
+	Set exported = ##class(%DynamicObject).%FromJSON(first)
+	Do $$$AssertEquals(exported.lastOutcome_"|"_exported.%IsDefined("lastSkipAt")_"|"_exported.%IsDefined("lastBeatAt")_"|"_exported.traceHeaderId_"|"_exported.traceNamespace, "ignore|0|0|42|"_$Namespace, "the first view holds the recorded result and no skip yet, with the decision's trace")
+	Set second = ##class(%DynamicObject).%FromJSON(..ViewJson(.views, 2))
+	Do $$$AssertEquals(second.on_"|"_second.lastOutcome_"|"_second.nextDueAt, "0|ignore|"_far, "the off person's view says off, with the result recorded and the schedule as it was")
+	Do $$$AssertEquals(..ViewJson(.views, 2), ..RowJson(off), "and it is FromRow of the reopened row")
+	Do $$$AssertEquals(..ViewJson(.views, 3), ..RowJson(ignored), "the last view is FromRow of the reopened row")
+	Set third = ##class(%DynamicObject).%FromJSON(..ViewJson(.views, 3))
+	Do $$$AssertEquals(third.lastSkipAt_"|"_third.lastSkipReason_"|"_third.lastOutcome_"|"_third.nextDueAt, noon_"|unchanged|ignore|"_..Plus(noon, 1800), "which holds the skip, the recorded result and the moved schedule")
+
+	// RunDue with nothing to commit
+	Do $$$AssertStatusOK(..BDue(noon, .items, idle_","_silent, 0, 1, .views), "RunDue is OK for a person who is not due and an off person with nothing pending")
+	Do $$$AssertEquals(+$Get(views), 0, "and gives no view")
+
+	// a beat that runs: one view, FromRow of the row, with the beat's time and schedule and no result
+	Set beats = ..Person("c", {"NextDueAt": (noon)})
+	Do $$$AssertStatusOK(..BDue(noon, .items, beats, 0, 1, .views), "RunDue is OK for a due beat")
+	Do $$$AssertEquals(..ViewRefs(.views, beats), "1:1", "one view")
+	Do $$$AssertEquals(..ViewJson(.views, 1), ..RowJson(beats), "which is FromRow of the reopened row")
+	Set beat = ##class(%DynamicObject).%FromJSON(..ViewJson(.views, 1))
+	Do $$$AssertEquals(beat.lastBeatAt_"|"_beat.nextDueAt_"|"_beat.%IsDefined("lastOutcome"), noon_"|"_..Plus(noon, 1800)_"|0", "with the beat's time, the schedule and no result")
+
+	// a run now that sends, for a person with no row
+	Set sent = ..Person("c")
+	Do $$$AssertStatusOK(..BNow(sent, noon, .item, .outcome, .availableAt, 0, 1, .views), "RunNow is OK")
+	Do $$$AssertEquals(outcome, "sent", "the beat is sent")
+	Do $$$AssertEquals(..ViewRefs(.views, sent), "1:1", "one view")
+	Do $$$AssertEquals(..ViewJson(.views, 1), ..RowJson(sent), "which is FromRow of the reopened row")
+	Set view = ##class(%DynamicObject).%FromJSON(..ViewJson(.views, 1))
+	Do $$$AssertEquals(view.lastRunNowAt_"|"_view.lastBeatAt_"|"_view.nextDueAt, noon_"|"_noon_"|"_..Plus(noon, 1800), "with lastRunNowAt, the beat's time and the schedule")
+
+	// a cooldown with a pending decision: only the recorded result, and lastRunNowAt as it was
+	Set pendingItem = ..Open(sent).LastItemId
+	Do ..Decision(sent, pendingItem, {"Outcome": "ignore"})
+	Set soon = ..Plus(noon, 30)
+	Do $$$AssertStatusOK(..BNow(sent, soon, .item, .outcome, .availableAt, 0, 1, .views), "RunNow is OK on the cooldown")
+	Do $$$AssertEquals(outcome, "cooldown", "the outcome is cooldown")
+	Do $$$AssertEquals(..ViewRefs(.views, sent), "1:1", "and its Settle gave one view")
+	Do $$$AssertEquals(..ViewJson(.views, 1), ..RowJson(sent), "which is FromRow of the reopened row")
+	Set view = ##class(%DynamicObject).%FromJSON(..ViewJson(.views, 1))
+	Do $$$AssertEquals(view.lastOutcome_"|"_view.lastRunNowAt, "ignore|"_noon, "with the recorded result and lastRunNowAt unchanged")
+
+	// a cooldown with nothing pending: no view
+	Do $$$AssertStatusOK(..BNow(sent, soon, .item, .outcome, .availableAt, 0, 1, .views), "RunNow is OK on the cooldown again")
+	Do $$$AssertEquals(outcome_"|"_+$Get(views), "cooldown|0", "a cooldown with nothing pending gives no view")
+
+	// a run now that records a pending decision first: two views, the result then the new state
+	Set later = ..Plus(noon, 600)
+	Do $$$AssertStatusOK(..BNow(sent, later, .item, .outcome, .availableAt, 0, 1, .views), "RunNow is OK after the cooldown")
+	Do $$$AssertEquals(outcome_"|"_+$Get(views), "sent|1", "with nothing pending the beat gives one view")
+	Set pendingItem = ..Open(sent).LastItemId
+	Do ..Decision(sent, pendingItem, {"Outcome": "ignore"})
+	Set muchLater = ..Plus(noon, 1200)
+	Do $$$AssertStatusOK(..BNow(sent, muchLater, .item, .outcome, .availableAt, 0, 1, .views), "RunNow is OK with a pending decision")
+	Do $$$AssertEquals(outcome_"|"_..ViewRefs(.views, sent), "sent|2:1,1", "the decision and the beat give two views")
+	Set one = ##class(%DynamicObject).%FromJSON(..ViewJson(.views, 1))
+	Set two = ##class(%DynamicObject).%FromJSON(..ViewJson(.views, 2))
+	Do $$$AssertEquals(one.lastOutcome_"|"_one.lastRunNowAt, "ignore|"_later, "the first holds the recorded result, before the new run now")
+	Do $$$AssertEquals(two.%IsDefined("lastOutcome")_"|"_two.lastRunNowAt_"|"_two.lastBeatAt, "0|"_muchLater_"|"_muchLater, "the second holds the new state")
+	Do $$$AssertEquals(..ViewJson(.views, 2), ..RowJson(sent), "which is FromRow of the reopened row")
+
+	// a run now that is held: one view with lastRunNowAt and no skip
+	Set held = ..Person("")
+	Do $$$AssertStatusOK(..BNow(held, noon, .item, .outcome, .availableAt, 0, 1, .views), "RunNow is OK for an empty checklist")
+	Do $$$AssertEquals(outcome_"|"_..ViewRefs(.views, held), "empty|1:1", "it is held, with one view")
+	Do $$$AssertEquals(..ViewJson(.views, 1), ..RowJson(held), "which is FromRow of the reopened row")
+	Set view = ##class(%DynamicObject).%FromJSON(..ViewJson(.views, 1))
+	Do $$$AssertEquals(view.lastRunNowAt_"|"_view.%IsDefined("lastSkipAt")_"|"_view.%IsDefined("lastBeatAt"), noon_"|0|0", "with lastRunNowAt, and no skip and no beat")
+}
+
 /// The HeartbeatBeat row of the session Ref, found by SQL (so that the test does not rely on the unique index), or "".
 Method Open(ref As %String) As OcuTalon.Data.HeartbeatBeat
 {
@@ -813,14 +907,38 @@ Method BKeyed() As %Boolean [ Private ]
 }
 
 /// RunDue for the sessions (comma-separated) with the cap not reached and the key present unless given; the Items in items.
-Method BDue(tickAt As %String, Output items As %ListOfObjects, sessions As %String, capped As %String = 0, keyed As %String = 1) As %Status [ Private ]
+Method BDue(tickAt As %String, Output items As %ListOfObjects, sessions As %String, capped As %String = 0, keyed As %String = 1, Output views) As %Status [ Private ]
 {
-	Quit $ClassMethod(..#BEAT, "RunDue", tickAt, .items, sessions, capped, keyed)
+	Quit $ClassMethod(..#BEAT, "RunDue", tickAt, .items, sessions, capped, keyed, .views)
 }
 
-Method BNow(ref As %String, now As %String, Output item As OcuTalon.Msg.Item, Output outcome As %String, Output availableAt As %String, capped As %String = 0, keyed As %String = 1) As %Status [ Private ]
+Method BNow(ref As %String, now As %String, Output item As OcuTalon.Msg.Item, Output outcome As %String, Output availableAt As %String, capped As %String = 0, keyed As %String = 1, Output views) As %Status [ Private ]
 {
-	Quit $ClassMethod(..#BEAT, "RunNow", ref, now, .item, .outcome, .availableAt, capped, keyed)
+	Quit $ClassMethod(..#BEAT, "RunNow", ref, now, .item, .outcome, .availableAt, capped, keyed, .views)
+}
+
+/// The JSON of the nth view of a Beat call.
+Method ViewJson(ByRef views, n As %Integer) As %String [ Private ]
+{
+	Do views(n, "payload").%JSONExportToString(.json)
+	Quit json
+}
+
+/// The JSON of Heartbeat.FromRow of the person's row as stored now and the person's settings.
+Method RowJson(ref As %String) As %String [ Private ]
+{
+	Do ##class(OcuTalon.Live.Payload.Heartbeat).FromRow(..Open(ref), ..BValues(ref)).%JSONExportToString(.json)
+	Quit json
+}
+
+/// The refs of a Beat call's views, in order, as "count:ref,ref" with each ref named by its place in the list (refs, comma-separated).
+Method ViewRefs(ByRef views, refs As %String) As %String [ Private ]
+{
+	Set text = ""
+	For n = 1:1:+$Get(views) {
+		Set text = text_$Select(n = 1: "", 1: ",")_$Select($ListFind($ListFromString(refs), views(n)): $ListFind($ListFromString(refs), views(n)), 1: "?")
+	}
+	Quit +$Get(views)_":"_text
 }
 
 XData Contracts [ MimeType = application/json ]

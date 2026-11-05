@@ -18,6 +18,10 @@
 ///   - The decision of a pending beat (Kind decide, same ItemId, the person as owner) is recorded on the row by the next RunDue or RunNow: the outcome,
 ///     the fallback, the cost, the decision's Ref and trace session. An ignore copies LastSnapshotKey to LastQuietKey, and a fallback sets BackoffUntil to
 ///     the time plus the longer of BACKOFFSECONDS and one interval.
+///   - RunDue and RunNow also give views, a local array that Checks publishes as the heartbeat event (Story 39.7): views is the count, views(n) the SessionRef and
+///     views(n, "payload") the Live.Payload.Heartbeat (FromRow of the row as just saved and Values) of the nth row commit of the call, in commit order. A skip, a beat
+///     that runs and a recorded decision (also for a person whose heartbeat is off) each commit once, so a Settle then a Run in one call give two views. A call that
+///     commits nothing (not due, nothing pending, a run now on cooldown with nothing pending, a read that threw before the save) gives none. This class publishes nothing.
 ///   - Each person runs in its own Try/Catch. A person whose pending decision could not be recorded does not run in that RunDue, so that a new beat never
 ///     overwrites a decision that is still to be recorded (RunNow stops there too). RunDue answers an error status that holds only the count of failures and
 ///     their error codes, never a SessionRef; a read of the rows that stops partway counts as one failure.
@@ -382,9 +386,11 @@ ClassMethod Key(snapshot As %String) As %String
 /// %ListOfObjects of the Items to send, one for each beat that ran, whatever the status is. sessions limits the people to the comma-separated Refs (a test
 /// seam; empty means everyone), and capped and keyed give what Capped and Keyed would ("" means read them, once, when the first due person needs them).
 /// Each person runs in its own Try/Catch; the status is an error that holds the number of failures and their error codes (see the class description).
-ClassMethod RunDue(tickAt As %String, Output items As %ListOfObjects, sessions As %String = "", capped As %String = "", keyed As %String = "") As %Status
+ClassMethod RunDue(tickAt As %String, Output items As %ListOfObjects, sessions As %String = "", capped As %String = "", keyed As %String = "", Output views) As %Status
 {
 	Set items = ##class(%ListOfObjects).%New()
+	Kill views
+	Set views = 0
 	Set failed = 0
 	Set codes = ""
 	Set limit = ##class(OcuTalon.Data.Time).AddSeconds(tickAt, ##class(OcuTalon.Checks.Process).#DUESLACKSECONDS)
@@ -398,7 +404,7 @@ ClassMethod RunDue(tickAt As %String, Output items As %ListOfObjects, sessions A
 		If (sessions '= "") && '$ListFind($ListFromString(sessions), ref) Continue
 		Try {
 			Set row = ##class(OcuTalon.Data.HeartbeatBeat).SessionRefIndexOpen(ref)
-			If $IsObject(row) $$$ThrowOnError(..Settle(row, tickAt))
+			If $IsObject(row) $$$ThrowOnError(..Settle(row, tickAt, .views))
 		} Catch exception {
 			Set unsettled(ref) = 1
 			Do ..Failed(exception.AsStatus(), .failed, .codes)
@@ -423,7 +429,7 @@ ClassMethod RunDue(tickAt As %String, Output items As %ListOfObjects, sessions A
 					Set row = ##class(OcuTalon.Data.HeartbeatBeat).%New()
 					Set row.SessionRef = ref
 				}
-				Set item = ..Run(row, values, tickAt, 0, capped, keyed, .reason)
+				Set item = ..Run(row, values, tickAt, 0, capped, keyed, .reason, .views)
 				If $IsObject(item) Do items.Insert(item)
 			}
 		} Catch exception {
@@ -438,15 +444,17 @@ ClassMethod RunDue(tickAt As %String, Output items As %ListOfObjects, sessions A
 /// Runs a beat now for the session at the UTC time now (see the class description): its pending decision is recorded first, then a request within RUNNOWSECONDS
 /// of LastRunNowAt gives the outcome COOLDOWN with availableAt = LastRunNowAt plus RUNNOWSECONDS and writes nothing; else LastRunNowAt becomes now, on is
 /// ignored, and the outcome is SENT (item is the Item to send, NextDueAt is now plus one interval) or the first reason that holds (no Item; availableAt is
-/// BackoffUntil for backoff). capped and keyed as in RunDue.
-ClassMethod RunNow(sessionRef As %String, now As %String, Output item As OcuTalon.Msg.Item, Output outcome As %String, Output availableAt As %String, capped As %String = "", keyed As %String = "") As %Status
+/// BackoffUntil for backoff). capped and keyed as in RunDue, and views as RunDue gives it.
+ClassMethod RunNow(sessionRef As %String, now As %String, Output item As OcuTalon.Msg.Item, Output outcome As %String, Output availableAt As %String, capped As %String = "", keyed As %String = "", Output views) As %Status
 {
 	Set item = ""
 	Set outcome = ""
 	Set availableAt = ""
+	Kill views
+	Set views = 0
 	Set row = ##class(OcuTalon.Data.HeartbeatBeat).SessionRefIndexOpen(sessionRef)
 	If $IsObject(row) {
-		Set sc = ..Settle(row, now)
+		Set sc = ..Settle(row, now, .views)
 		If $$$ISERR(sc) Quit sc
 	} Else {
 		Set row = ##class(OcuTalon.Data.HeartbeatBeat).%New()
@@ -461,7 +469,7 @@ ClassMethod RunNow(sessionRef As %String, now As %String, Output item As OcuTalo
 	Set row.LastRunNowAt = now
 	If capped = "" Set capped = ..Capped(now)
 	If keyed = "" Set keyed = ..Keyed()
-	Set item = ..Run(row, ..Values(sessionRef), now, 1, capped, keyed, .outcome)
+	Set item = ..Run(row, ..Values(sessionRef), now, 1, capped, keyed, .outcome, .views)
 	If '$IsObject(item) {
 		If outcome = ..#SKIPBACKOFF Set availableAt = row.BackoffUntil
 	} Else {
@@ -471,9 +479,9 @@ ClassMethod RunNow(sessionRef As %String, now As %String, Output item As OcuTalo
 }
 
 /// One beat of the person's row at the UTC time at: the Item to send after the row is saved, or "" after a skip. For a run now (runNow 1) a skip writes only
-/// LastRunNowAt, which the caller has set, and reason is the code that held it; otherwise a skip writes LastSkipAt, LastSkipReason and NextDueAt. Throws
-/// when the row cannot be saved.
-ClassMethod Run(row As OcuTalon.Data.HeartbeatBeat, values As %DynamicObject, at As %String, runNow As %Boolean, capped As %Boolean, keyed As %Boolean, Output reason As %String) As OcuTalon.Msg.Item [ Private ]
+/// LastRunNowAt, which the caller has set, and reason is the code that held it; otherwise a skip writes LastSkipAt, LastSkipReason and NextDueAt. Each saved row adds
+/// one view to views (AddView). Throws when the row cannot be saved.
+ClassMethod Run(row As OcuTalon.Data.HeartbeatBeat, values As %DynamicObject, at As %String, runNow As %Boolean, capped As %Boolean, keyed As %Boolean, Output reason As %String, ByRef views) As OcuTalon.Msg.Item [ Private ]
 {
 	Set reason = ..Skip(values, row, at, runNow, capped, keyed)
 	Set snapshot = ""
@@ -490,6 +498,7 @@ ClassMethod Run(row As OcuTalon.Data.HeartbeatBeat, values As %DynamicObject, at
 			Set row.NextDueAt = ..NextDue(values, at, reason)
 		}
 		$$$ThrowOnError(row.%Save())
+		Do ..AddView(row, values, .views)
 		Quit ""
 	}
 	Set item = ##class(OcuTalon.Msg.Item).%New()
@@ -509,11 +518,12 @@ ClassMethod Run(row As OcuTalon.Data.HeartbeatBeat, values As %DynamicObject, at
 	Set row.LastDecisionRef = ""
 	Set row.LastTraceSessionId = ""
 	$$$ThrowOnError(row.%Save())
+	Do ..AddView(row, values, .views)
 	Quit item
 }
 
-/// Records the decision of the row's pending beat when there is one (see the class description), and saves the row.
-ClassMethod Settle(row As OcuTalon.Data.HeartbeatBeat, at As %String) As %Status [ Private ]
+/// Records the decision of the row's pending beat when there is one (see the class description), and saves the row, which adds one view to views (AddView).
+ClassMethod Settle(row As OcuTalon.Data.HeartbeatBeat, at As %String, ByRef views) As %Status [ Private ]
 {
 	If (row.LastItemId = "") || (row.LastDecisionRef '= "") Quit $$$OK
 	Set decision = ##class(OcuTalon.Data.Ownership).DecisionOfItem(row.LastItemId, row.SessionRef, .sc)
@@ -525,11 +535,23 @@ ClassMethod Settle(row As OcuTalon.Data.HeartbeatBeat, at As %String) As %Status
 	Set row.LastDecisionRef = decision.Ref
 	Set row.LastTraceSessionId = decision.TraceSessionId
 	If decision.Outcome = "ignore" Set row.LastQuietKey = row.LastSnapshotKey
+	Set values = ..Values(row.SessionRef)
 	If decision.Fallback {
-		Set wait = ..Values(row.SessionRef).interval * 60
+		Set wait = values.interval * 60
 		Set row.BackoffUntil = ##class(OcuTalon.Data.Time).AddSeconds(at, $Select(wait > ..#BACKOFFSECONDS: wait, 1: ..#BACKOFFSECONDS))
 	}
-	Quit row.%Save()
+	Set sc = row.%Save()
+	If $$$ISOK(sc) Do ..AddView(row, values, .views)
+	Quit sc
+}
+
+/// Appends the view of the row as just saved to views: the count is views, the SessionRef views(n) and the Live.Payload.Heartbeat views(n, "payload") (FromRow of the
+/// row and the values). Called right after each successful save, so that the views are in commit order.
+ClassMethod AddView(row As OcuTalon.Data.HeartbeatBeat, values As %DynamicObject, ByRef views) [ Private ]
+{
+	Set n = $Increment(views)
+	Set views(n) = row.SessionRef
+	Set views(n, "payload") = ##class(OcuTalon.Live.Payload.Heartbeat).FromRow(row, values)
 }
 
 /// Counts one failure and adds the error codes of the status to the comma-separated codes.

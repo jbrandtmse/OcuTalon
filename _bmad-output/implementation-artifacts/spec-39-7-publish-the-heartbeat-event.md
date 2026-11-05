@@ -2,7 +2,7 @@
 title: 'Story 39.7: Publish the heartbeat event'
 type: 'feature'
 created: '2026-11-04'
-status: 'in-progress'
+status: 'done'
 baseline_revision: '5bc59f8b26d2e8f573e47984a7319392861e43d1'
 review_loop_iteration: 0
 followup_review_recommended: false
@@ -170,7 +170,7 @@ deferred: []
 - AC 2 -- Given a row whose `SessionRef`, checklist and keys hold distinct tokens, when its heartbeat event is published, then the payload holds none of them. And when the publish fails, then the warning names no `SessionRef` in any case (AD-12, AD-33).
 - AC 3 -- Given a person for whom a Tick or BeatNow commits nothing, when it runs, then no event is published for them.
 - AC 4 (DW-633) -- Given the new class and TYPES pair, when the IRIS payload tests and the web checks run, then all of these agree: TYPES, `Test.Live.Payloads` (17 types, 31 contract classes), `payloads.ts` (`--check` clean, `HeartbeatPayload` with `traceUrl?`) and the live store (17 entries). And `npm --prefix web test`, `lint` and `build` pass.
-- [ ] [Clarification] Add `'HeartbeatPayload'` to the list of interfaces that carry `traceUrl` in `web/scripts/payloads.test.mjs` (the test "is on exactly the interfaces that have both traceHeaderId and traceNamespace", about line 110), and nothing else in that file; then `npm --prefix web test` is green (AC 4).
+- [x] [Clarification] Add `'HeartbeatPayload'` to the list of interfaces that carry `traceUrl` in `web/scripts/payloads.test.mjs` (the test "is on exactly the interfaces that have both traceHeaderId and traceNamespace", about line 110), and nothing else in that file; then `npm --prefix web test` is green (AC 4).
 - Integration AC -- Given a real Tick that runs a beat, when the page polls, then `Web.Api.EventsBody` (the real `/api/v1/events` body) serves it as `{type: "heartbeat", stream: "session", payload}`. The generated `HeartbeatPayload` types it, and the live store accepts the type.
 
 ## Spec Change Log
@@ -178,6 +178,39 @@ deferred: []
 - 2026-11-05, lead, answering the implement stage's intent gap (decide, round 1): `web/scripts/payloads.test.mjs` hardcodes the interfaces that carry `traceUrl`, and `HeartbeatPayload` has both trace fields, so AC 4 needs one name added there. The file is Lane B like this story, in no open epic's diff (11, 33, 40), and the change is a one-name append to a list (standing precedent), so it is allowed and reported as a footprint extension. The Never line is amended and one open task added; the earlier pass's implementation stays in the working tree, uncommitted, for this pass to finish.
 
 ## Review Triage Log
+
+### 2026-11-04 -- Review pass
+- verdicts: 29 findings -- high 0, medium 6, low 22, false 1, maybe-false 0 (a duplicate keeps its own row and verdict)
+- findings:
+  - `[low]` `[reject]` Blind 1: `AddView` after the save can throw and lose the Item -- `FromRow` only copies properties and `Values` is plain settings reads that the same person's own `Run` already did; a guard adds a branch for a failure that no input reaches.
+  - `[low]` `[reject]` Blind 2: `Settle` now reads `Values` for every recorded decision -- `RunDue` counts a throw as that person's failure and `BeatNow` answers failed; the same read already precedes the person's beat; theoretical.
+  - `[low]` `[reject]` Blind 3: a crash between commit and publish loses the event with no replay -- by design (AD-12 publishes after the commit): the next commit republishes the whole view (store key null) and Story 39.2's GET is the reconciliation.
+  - `[medium]` `[patch]` Blind 4: no test for a publish failure in the BeatNow path -- real; `TestBeatPublishFailureIsLogged` now also runs a BeatNow whose publish fails (answers sent, one more warning, no ref, no secret); mutation recorded.
+  - `[low]` `[reject]` Blind 5: `TestBeatNowReachesIntake` leaves open whether Settle or a Tick wrote the second event -- the spec's task text allows either; the count is 2 on both paths.
+  - `[low]` `[reject]` Blind 6: `FromRow` not tested for a row with no decision or cost -- `TestTickPublishesTheBeats` and `TestBeatNowPublishes` assert a beaten row's payload (no `lastOutcome`) against `FromRow`; a missing cost cannot hurt a reader.
+  - `[low]` `[reject]` Blind 7: the FromRow JSON helper is repeated in four test classes -- real but not a two-way door (the classes have different bases); accepted, reopen_if a fifth copy is added.
+  - `[low]` `[reject]` Blind 8: no web test of the `heartbeat` collection -- `live-store.test.mjs` pins an entry for every type and the store ignores the type until Story 39.5.
+  - `[low]` `[reject]` Edge 1: same root cause as Blind 1.
+  - `[low]` `[reject]` Edge 2: same root cause as Blind 2.
+  - `[low]` `[reject]` Edge 3: a view for a `HeartbeatBeat` row whose Session row is gone goes to an orphan stream -- harmless like any publisher's; no user-reachable path.
+  - `[low]` `[reject]` Edge 4: a busy stream drops the view and stalls the Tick up to the lock wait -- the same bound as every `Publish` caller; the next commit republishes the full view.
+  - `[medium]` `[patch]` Edge 5: an all-day person's payload shape is not pinned -- real; `TestHeartbeatFromRow` now asserts that empty `from`/`to` are absent from the JSON; mutation recorded.
+  - `[medium]` `[patch]` Edge 6: BeatNow's publish error and throw path is untested -- same root cause as Blind 4, fixed with it.
+  - `[low]` `[patch]` Edge 7: the Beat class doc says a cooldown commits nothing, but one with a pending decision gives the result's view -- the doc now reads "a run now on cooldown with nothing pending".
+  - `[low]` `[reject]` Edge 8: "Never throws" on `AnnounceBeat` but the log call in the Catch is unguarded -- the same shape as `Announce` and the other `LOG*` sites; a throwing logger is not a reachable input.
+  - `[medium]` `[patch]` VGap 1: the redaction of the `LOGBEATPUBLISH` text is not pinned -- real; the probe's errors can end with a secret (`BeatPublishSecret`) and the test asserts it is absent; mutation recorded.
+  - `[medium]` `[patch]` VGap 2: views made before a RunDue error status are published but untested -- real (the class doc claims it); `TestBeatPublishesWhatRunDueCommittedBeforeAnError`; mutation recorded.
+  - `[low]` `[patch]` VGap 3: "publish after the sends" is not verified -- the probe records the kept Items at each publish and the failure test asserts `3,3,3`; mutation recorded.
+  - `[medium]` `[patch]` VGap 4: the all-day shape is not pinned -- same root cause as Edge 5.
+  - `[low]` `[patch]` VGap 5: pinning tests without a `mutation:` line (the `payloads.test.mjs` entry, GuideRefresh, redaction, the publish-fails and error-status paths) -- lines written for each new or changed one; the Heartbeat contract entry is pinned by the TYPES mutation and `Contract.Checker`.
+  - `[low]` `[reject]` VGap 6: `GuideRefresh.cls` is outside the spec's Footprint -- true and needed (a shared surface); no epic's diff (11, 33, 40) holds it; reported as a footprint extension.
+  - `[low]` `[reject]` VGap 7: no IRIS test that a served heartbeat event carries `traceUrl` -- `TraceLink.Add` is generic and tested in Epic 2; the Integration test asserts the trace pair.
+  - `[low]` `[reject]` VGap 8: no single-publisher scanner for `heartbeat` in `Test.Bridge.CodeRules` -- outside the Footprint and no AC; `Checks.Process` is the only caller by construction.
+  - `[low]` `[reject]` VGap 9: no test that `Values` failing in `Settle` blocks a decision -- same root cause as Blind 2.
+  - `[false]` `[reject]` Intent 1: "outside any transaction" is not asserted -- `Live.Publish.Publish` refuses an open transaction, so the call cannot run inside one.
+  - `[low]` `[reject]` Intent 2: the single publisher is not enforced by a test -- same as VGap 8.
+  - `[low]` `[reject]` Intent 3: cross-person commit order inside one RunDue is tested only at the Beat level -- `AnnounceBeats` iterates the array in order and the Tick-level test pins the order of one person's two commits.
+  - `[low]` `[reject]` Intent 4: the BeatNow publish-failure path is untested -- same root cause as Blind 4, fixed with it.
 
 ## Design Notes
 
@@ -272,7 +305,17 @@ Mutation results (implement stage; each applied, observed red, reverted byte-ide
 - mutation: drop the live-store entry -- red `live-store.test.mjs` ("has an entry for every event type"); `ng build` was not re-run for this mutation.
 - mutation: publish to `Live.Publish.#INSTANCE` -- red, fresh, `Heartbeat.TestBeatReachesIntake` ("Web.Api.EventsBody serves both heartbeat events"), `TestBeatNowReachesIntake` and `TestAnHourOfTicks`.
 
+Mutation results (this pass; each applied, observed red, reverted byte-identical, `git diff --stat` unchanged by the reverts):
+- mutation: `AnnounceBeat` logs the error text without `Redact.Text` (both branches) -- red `Runs.TestBeatPublishFailureIsLogged` ("and none holds the secret").
+- mutation: `Tick` publishes the views before the Items loop -- red `Runs.TestBeatPublishFailureIsLogged` ("and publishes only after all three are sent").
+- mutation: `Tick` drops the views when RunDue answers an error status -- red `Runs.TestBeatPublishesWhatRunDueCommittedBeforeAnError`. (A first try, skipping `AnnounceBeats` on `$$$ISOK(sc)`, stayed green because the Items loop reassigns `sc`; it was not the mutation.)
+- mutation: `BeatNow` does not call `AnnounceBeats` -- red `Runs.TestBeatNowPublishes` and `TestBeatPublishFailureIsLogged` ("and logs one more warning"), fresh.
+- mutation: `FromRow` gives an all-day person the default `from` -- red `Payloads.TestHeartbeatFromRow` ("an all-day person's empty from and to are left out of the JSON").
+- mutation: `HeartbeatPayload` removed from the traced list in `payloads.test.mjs` -- red "is on exactly the interfaces that have both traceHeaderId and traceNamespace" (the same test was red before the edit, at the implement halt).
+- mutation: `GuideRefresh.TestNonTriggerTypes` at 8 instead of 9 -- red on the first fresh `shard lane-b@Live` after the pair joined TYPES ("eight types are neither a trigger nor guide.state").
+
 **Shared surfaces:**
+- `Test.Live.GuideRefresh.TestNonTriggerTypes` counts the types that are neither a trigger nor `guide.state` (8 to 9); it is outside the listed Footprint and in no open epic's diff (11, 33, 40), a footprint extension;
 - `Live.Publish` TYPES and its count (`Test.Live.Payloads` `EXPECTED`, `TestEventTable`);
 - the payload contract classes (`TestContracts` 31, `Test.Contract.Checker`);
 - `web/src/app/live/payloads.ts` (`payloads.mjs --check`, `payloads.test.mjs`, unchanged and green);
@@ -286,7 +329,34 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 
 ## Auto Run Result
 
-Status: blocked
-Blocking condition: intent gap: AC 4 requires `npm --prefix web test` to pass, and the spec says `web/scripts/payloads.test.mjs` stays green unchanged and must not be edited. It does not: its test "is on exactly the interfaces that have both traceHeaderId and traceNamespace" (line 110) hardcodes the traced interface list, and `HeartbeatPayload` (traceHeaderId and traceNamespace, as the spec requires) now gets `traceUrl`. Recommended amendment: rule `web/scripts/payloads.test.mjs` into this story's allowed files for one added `'HeartbeatPayload'` in that list (no open epic touches the file), then re-dispatch; the rest of the web suite, lint, build and `payloads.mjs --check` pass.
+Status: done
+Blocking condition: none
 
-Implement stage (2026-11-04, runner D, baseline `5bc59f8b26d2e8f573e47984a7319392861e43d1`). The handoff subagent implemented the whole Footprint and ran the loop checks (Payloads, Beat, Runs, Contract.Checker, Bridge.CodeRules, Live.Publish warm; Heartbeat fresh: passed) and all eight pinning mutations. The work is uncommitted in the tree for the lead to set aside or pick up. Not yet run: review layers, the `(once)` shard/CI-config/boundary commands, the finalize commit. Nothing was committed or pushed; no stack of this stage is left running.
+Pass: the continuation of the implement stage (2026-11-04, runner D; baseline `5bc59f8b26d2e8f573e47984a7319392861e43d1`). It covers only this pass; the earlier pass's implementation was already in the tree.
+
+**Summary.** The `[Clarification]` item is done (`'HeartbeatPayload'` added to the traced list in `web/scripts/payloads.test.mjs`, nothing else in that file). The remaining Verification then ran: `npm --prefix web test` (1330 pass), `lint`, `build` and `payloads.mjs --check` are green; `ci/iris.sh build`; the `lane-a@Checks` and `lane-b@Live` shards pass fresh, forward and `--reverse`, on lane-D throwaways; `test-ci-config.sh` and `test-boundaries.sh` pass. The review layers (four, in parallel) reported 29 findings: 6 medium, 22 low, 1 false, no high. The fresh `lane-b@Live` run found one more shared surface, `Test.Live.GuideRefresh.TestNonTriggerTypes` (8 to 9 non-trigger types), fixed here.
+
+**Files changed in this pass.**
+- `web/scripts/payloads.test.mjs`: one name in the traced-interface list.
+- `src/ocutalon/cls/OcuTalon/Test/Live/GuideRefresh.cls`: the count of non-trigger types, 8 to 9 (footprint extension, in no epic's diff for 11, 33 or 40).
+- `src/ocutalon/cls/OcuTalon/Test/Checks/Probe.cls`: `BeatPublishSecret` and `BeatPublishedAfter` (the kept Items at each publish).
+- `src/ocutalon/cls/OcuTalon/Test/Checks/Runs.cls`: `TestBeatPublishFailureIsLogged` now covers the redaction, the order after the sends and a BeatNow; new `TestBeatPublishesWhatRunDueCommittedBeforeAnError`.
+- `src/ocutalon/cls/OcuTalon/Test/Live/Payloads.cls`: the all-day shape in `TestHeartbeatFromRow`.
+- `src/ocutalon/cls/OcuTalon/Checks/Beat.cls`: one doc phrase (a cooldown with nothing pending).
+
+**Review.** Patches applied: 4 entries at medium (BeatNow publish failure, all-day shape, redaction, views after a RunDue error) and 2 at low (the order after the sends, the Beat doc phrase; the missing mutation lines). Deferred: none. Rejected, each with its reason in the Review Triage Log: the `AddView` and `Settle` throw cases (theoretical, a guard adds a branch), the crash-before-publish replay (by design, the next commit republishes the full view), the helper duplication in four test classes (LOW, accepted), the web-store test, the orphan stream, the busy-stream stall, the unguarded log call, the traceUrl and CodeRules scanner requests, and the transaction claim (`Publish` refuses an open transaction).
+
+**Open points (c), judged.** (1) An all-day person's empty `from`/`to` are omitted from the JSON, as in the sibling payloads; pinned now. (2) `BeatPublishError` and `BeatPublishThrows` are lists of refs, so one person's publish fails while the others succeed; sound. (3) The throw path is covered.
+
+**Follow-up review recommended:** false. Four medium entries were patched (two or more would make it true), but each is pinned by a mutation that was observed red and reverted, so no unverified risk can be named.
+
+**Verification performed (all foreground; lane D, tags `e39s7i2` fresh and `e39s7i2w` warm, both torn down).**
+- `npm --prefix web run payloads` then `payloads.mjs --check`: current. `npm --prefix web test`: 1330 pass, 0 fail. `lint` 0, `build` 0 (only the existing style-budget warnings).
+- `ci/iris.sh build`: OK. Fresh shards after the last change: `lane-a@Checks` forward and reverse (8 classes each; `Runs` 1.9 s, `Heartbeat` 12.3 s) and `lane-b@Live` forward and reverse (4 classes), all passed. One earlier fresh `lane-b@Live` run failed `GuideRefresh.TestHeldLock` ("its event is committed") and passed on the next forward and reverse runs with no code change: the held-lock flake already ledgered as DW-349 (this change touches `Publish.cls` on the TYPES line only).
+- Warm: `Test.Checks.Runs`, `Test.Live.Payloads`, `Test.Checks.Beat` and `Test.Contract.Checker` passed.
+- `test-ci-config.sh` and `test-boundaries.sh`: exit 0. No non-ASCII byte in a changed file. `git diff --name-only 5bc59f8b` lists the Footprint files, `GuideRefresh.cls`, the spec and the lead's cycle log (committed earlier).
+- Mutations: seven, listed under Verification, each red and reverted byte-identical.
+
+**Residual risks.** The `GuideRefresh.TestHeldLock` flake (DW-349) can show red on a fresh shard. Added test time: about 1 s in `lane-a` (`Runs`) and under 1 s in `lane-b`.
+
+**footprint_extensions:** `web/scripts/payloads.test.mjs` (ruled), `src/ocutalon/cls/OcuTalon/Test/Live/GuideRefresh.cls` (new, a shared-surface count).

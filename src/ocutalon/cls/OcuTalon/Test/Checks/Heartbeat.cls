@@ -31,11 +31,15 @@
 ///   - TestBeatReachesIntake (Story 39.3; AC 2, AC 5; Integration AC; FR-64, AD-18, AD-26): a person with a checklist that holds a mock marker has a row due at T0; the Tick at T0 sends one Item from
 ///     Checks to Intake (channel heartbeat, untrusted, the subject and the snapshot as text, which starts with the checklist) in a trace session of its own with the TraceRef as SuperSession; Intake records a Decision for it,
 ///     the CI mock's log holds exactly one request with the marker, and the Tick a minute later records the outcome, cost, decision and trace session on the row.
+///     (Story 39.7; AC 1, AC 2; Integration AC) The Tick at T0 publishes one heartbeat event on the person's stream (the beat) and the Tick a minute later a second (the recorded outcome, with the
+///     decision's trace), each FromRow of the row, holding neither the SessionRef nor the checklist, and Web.Api.EventsBody serves both as {type heartbeat, stream session, payload}.
 ///   - TestAnHourOfTicks (Story 39.3; AC 5): an hour of Ticks, a minute apart, for a person on a 30-minute interval whose checklist changed since the last ignore: one request at the first Tick,
-///     none at the 59 after it (the second due beat, at 30 minutes, is unchanged since the Ignore and is skipped), and the hour holds one request.
+///     none at the 59 after it (the second due beat, at 30 minutes, is unchanged since the Ignore and is skipped), and the hour holds one request. (Story 39.7) The hour publishes exactly
+///     three heartbeat events (the beat, the recorded outcome at the first minute, the skip at 30 minutes): the other Ticks publish nothing.
 ///   - TestBeatNowReachesIntake (Story 39.3; AC 4; Integration AC; AD-18): through the real seam, with the key and the cap read by Beat, a BeatNow for a person with a checklist, unchanged since the
 ///     last ignore (the quiet key is the key of the real snapshot), answers sent with the ItemId as Ref; the Item reaches Intake, which records a Decision, and the CI mock's log holds exactly one request. A second BeatNow 119 seconds later answers
-///     cooldown with availableAt, sends nothing and makes no request.
+///     cooldown with availableAt, sends nothing and makes no request. (Story 39.7) The BeatNow publishes one heartbeat event with lastRunNowAt = T0; after the cooldown BeatNow there are
+///     exactly two, the second being the recorded outcome (written by that BeatNow's Settle or by a real Tick before it) with lastRunNowAt still T0.
 /// The tests of the beat start with the preconditions that make a beat run: the TriageAgent's key is present (the entries point at the CI mock key variable) and the daily cap is not reached.
 Class OcuTalon.Test.Checks.Heartbeat Extends OcuTalon.Test.Checks.BeatCase
 {
@@ -388,6 +392,13 @@ Method TestBeatReachesIntake()
 	Do $$$AssertEquals($Piece(item.text, $Char(10, 10), 1), text, "which starts with the checklist")
 	Do $$$AssertEquals(item.superSession, trace, "with the person's TraceRef as SuperSession")
 	Do $$$AssertTrue((item.sessionId = item.headerId) && (item.sessionId '= tick), "in a trace session of its own, not the Tick's (AD-26): "_item.sessionId_" (Tick "_tick_")")
+	Set events = ##class(OcuTalon.Test.Core.Observe).Events(session, "heartbeat")
+	Do $$$AssertEquals(events.%Size(), 1, "the Tick at T0 publishes one heartbeat event on the person's stream")
+	If events.%Size() = 1 {
+		Set payload = events.%Get(0).payload
+		Do $$$AssertEquals(payload.lastBeatAt_"|"_payload.nextDueAt_"|"_payload.%IsDefined("lastOutcome"), t0_"|"_##class(OcuTalon.Data.Time).AddSeconds(t0, 1800)_"|0", "the beat: its time and its next due time, and no result yet")
+		Do $$$AssertTrue((payload.%ToJSON() '[ session) && (payload.%ToJSON() '[ "zz beat"), "holding neither the SessionRef nor the checklist")
+	}
 	Set decision = ..WaitDecision(item.itemId, session)
 	Do $$$AssertTrue($IsObject(decision), "Intake records a Decision for the Item")
 	Set marked = ..Marked(mark, session)
@@ -400,6 +411,34 @@ Method TestBeatReachesIntake()
 	Do $$$AssertEquals(decision.Outcome, "ignore", "which is the mock's ignore")
 	Do $$$AssertEquals(+row.LastCostUSD, +decision.CostUSD, "with its cost")
 	Do $$$AssertEquals(row.LastItemId_"|"_row.NextDueAt, item.itemId_"|"_##class(OcuTalon.Data.Time).AddSeconds(t0, 1800), "and the row still names the beat and its next due time")
+	Set events = ##class(OcuTalon.Test.Core.Observe).Events(session, "heartbeat")
+	Do $$$AssertEquals(events.%Size(), 2, "the Tick a minute later publishes a second heartbeat event")
+	If events.%Size() = 2 {
+		Set payload = events.%Get(1).payload
+		Do $$$AssertEquals(payload.lastOutcome_"|"_payload.lastFallback_"|"_payload.traceHeaderId_"|"_payload.traceNamespace, decision.Outcome_"|0|"_decision.TraceSessionId_"|"_$Namespace, "the recorded outcome, with the decision's trace")
+		Do $$$AssertEquals(payload.%ToJSON(), ..ViewOf(session), "and it is FromRow of the row")
+		Do $$$AssertTrue((payload.%ToJSON() '[ session) && (payload.%ToJSON() '[ "zz beat"), "holding neither the SessionRef nor the checklist")
+	}
+
+	// the page's poll serves both
+	Set body = ##class(OcuTalon.Web.Api).EventsBody(##class(OcuTalon.Data.Session).RefIndexOpen(session), 0, 0)
+	Set served = []
+	Set iterator = body.events.%GetIterator()
+	While iterator.%GetNext(, .event) {
+		If event.type = "heartbeat" Do served.%Push(event)
+	}
+	Do $$$AssertEquals(served.%Size(), 2, "Web.Api.EventsBody serves both heartbeat events")
+	If served.%Size() = 2 {
+		Do $$$AssertEquals(served.%Get(0).stream_"|"_served.%Get(1).stream, "session|session", "on the session stream")
+		Do $$$AssertEquals(served.%Get(0).payload.lastBeatAt_"|"_served.%Get(1).payload.lastOutcome_"|"_served.%Get(1).payload.traceHeaderId, t0_"|"_decision.Outcome_"|"_decision.TraceSessionId, "with the payloads that were published")
+	}
+}
+
+/// The JSON of Heartbeat.FromRow of the person's row as stored now and the person's settings.
+ClassMethod ViewOf(session As %String) As %String [ Private ]
+{
+	Do ##class(OcuTalon.Live.Payload.Heartbeat).FromRow(##class(OcuTalon.Data.HeartbeatBeat).SessionRefIndexOpen(session), ##class(OcuTalon.Checks.Beat).Values(session)).%JSONExportToString(.json)
+	Quit json
 }
 
 Method TestBeatNowReachesIntake()
@@ -432,6 +471,12 @@ Method TestBeatNowReachesIntake()
 	Set decision = ..WaitDecision(item.itemId, session)
 	Do $$$AssertTrue($IsObject(decision), "Intake records a Decision for the Item")
 	Do $$$AssertEquals(..Marked(mark, session), 1, "and the CI mock's log holds exactly one request with the marker")
+	Set events = ##class(OcuTalon.Test.Core.Observe).Events(session, "heartbeat")
+	Do $$$AssertEquals(events.%Size(), 1, "the BeatNow published one heartbeat event")
+	If events.%Size() = 1 {
+		Do $$$AssertEquals(events.%Get(0).payload.lastRunNowAt, t0, "with lastRunNowAt = T0")
+		Do $$$AssertTrue((events.%Get(0).payload.%ToJSON() '[ session) && (events.%Get(0).payload.%ToJSON() '[ "zz run now"), "holding neither the SessionRef nor the checklist")
+	}
 	Set again = ##class(OcuTalon.Checks.Msg.BeatNow).%New()
 	Set again.SessionRef = session
 	Set again.RequestedAt = ##class(OcuTalon.Data.Time).AddSeconds(t0, 119)
@@ -440,6 +485,13 @@ Method TestBeatNowReachesIntake()
 	Do $$$AssertEquals(response.Ok_"|"_response.Outcome_"|"_response.Ref_"|"_response.Data, "0|cooldown||"_{"availableAt": (##class(OcuTalon.Data.Time).AddSeconds(t0, 120))}.%ToJSON(), "119 seconds later the answer is cooldown, with the time it may run")
 	Do $$$AssertEquals(..Findings(trace, session, floor).%Size(), 1, "and no further Item goes")
 	Do $$$AssertEquals(..Marked(mark, session), 1, "and no further request")
+	Set events = ##class(OcuTalon.Test.Core.Observe).Events(session, "heartbeat")
+	Do $$$AssertEquals(events.%Size(), 2, "after the cooldown BeatNow there are exactly two heartbeat events")
+	If events.%Size() = 2 {
+		Set payload = events.%Get(1).payload
+		Do $$$AssertEquals(payload.lastOutcome_"|"_payload.lastRunNowAt, decision.Outcome_"|"_t0, "the second is the recorded outcome, with lastRunNowAt still T0")
+		Do $$$AssertTrue((payload.%ToJSON() '[ session) && (payload.%ToJSON() '[ "zz run now"), "holding neither the SessionRef nor the checklist")
+	}
 }
 
 Method TestAnHourOfTicks()
@@ -477,6 +529,13 @@ Method TestAnHourOfTicks()
 	Do $$$AssertEquals(..Findings(trace, session, floor).%Size(), 0, "and send no further Item")
 	Do $$$AssertEquals(..Beat(session).NextDueAt, ##class(OcuTalon.Data.Time).AddSeconds(t0, 3600), "the next beat is due an hour after T0")
 	Do $$$AssertEquals(first + ..Marked(mark, session), 1, "the hour holds one request")
+	Set events = ##class(OcuTalon.Test.Core.Observe).Events(session, "heartbeat")
+	Do $$$AssertEquals(events.%Size(), 3, "and exactly three heartbeat events: the beat, the recorded outcome and the skip at 30 minutes")
+	If events.%Size() = 3 {
+		Do $$$AssertEquals(events.%Get(0).payload.lastBeatAt_"|"_events.%Get(0).payload.%IsDefined("lastOutcome"), t0_"|0", "the first is the beat")
+		Do $$$AssertEquals(events.%Get(1).payload.lastOutcome_"|"_events.%Get(1).payload.%IsDefined("lastSkipAt"), decision.Outcome_"|0", "the second is the recorded outcome")
+		Do $$$AssertEquals(events.%Get(2).payload.lastSkipAt_"|"_events.%Get(2).payload.lastSkipReason, ##class(OcuTalon.Data.Time).AddSeconds(t0, 1800)_"|unchanged", "and the third is the skip")
+	}
 }
 
 /// The closeQuiet requests from Checks to IncidentManager whose IncidentCommand names the incident, in any session, as a dynamic array of {sessionId,
