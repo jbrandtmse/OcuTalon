@@ -2,13 +2,17 @@
 title: 'Story 17.3: Run each agent on a supported provider'
 type: 'feature'
 created: '2026-11-05'
-status: 'ready-for-dev'
+status: 'blocked'
+baseline_revision: 'cc12bd0ed1ec133415b5446bf653ef975105fc87'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
   - '{project-root}/_bmad-output/implementation-artifacts/epic-17-context.md'
 warnings: ['oversized']
-deferred: []
+deferred:
+  - 'Test.Web.SettingsApi.TestGetShape (Lane B, Story 33.2, U-177) goes red now that Settings.Providers is built: line 146 asserts the stub shape ("the stub providers are empty"), and its scan for the word api_key finds the key variable names that every row carries (ANTHROPIC_API_KEY lower-cased). Recommended edit by Lane B: assert four rows in table order, and scan the body with the key variable names removed.'
+  - 'Resolved (live) through Decide cannot run in a throwaway: the runner jobs and the Decide job have no model key, and a variable that a test sets is set in the test process only (measured: a restarted job does not see it), so no supported provider can have its key set where Decide and the runner read it. TestResolvedLive proves Keys.Absent and Providers.Resolve live in the test process, and the shadow runner proves the adapter; a decide answering through the mock on a resolved provider needs a throwaway whose compose file sets a dummy ANTHROPIC_API_KEY (a new live unit, not ci/compose.ci.yml).'
+  - 'The seeded Price row claude-sonnet-5-5 has a cache-read rate of 0.2; Anthropic pricing page of 2026-11-05 lists 0.10 (0.05x input), and the AWS page notes the same 50% cut from 2026-10-07. The new Bedrock Sonnet row carries 0.1; the existing row is not changed here (Test.Bridge.Usage pins it and an admin owns seeded prices).'
 ---
 
 <intent-contract>
@@ -142,11 +146,11 @@ All of it applies to the retry runners too.
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] **Task 0 (measure).** On a warm throwaway, read-only on slot A, record the results under `## Design Notes`:
+- [x] **Task 0 (measure).** On a warm throwaway, read-only on slot A, record the results under `## Design Notes`:
   - (a) AI Hub's `Response.Extra.finish_reason` for a mock reply with `stopReason` `pause_turn` and text (a new scenario `unclassified-stop`).
   - (b) Whether a shadow agent built with `model_provider` `openai` and a fake key from `SetEnv` sends nothing (mock log unchanged).
   - (c) Re-confirm each new model id and its list price on the official pricing pages. Record the date. Where a page differs, use the page's value.
-- [ ] `src/bridge/cls/OcuTalon/Bridge/Providers.cls` (new):
+- [x] `src/bridge/cls/OcuTalon/Bridge/Providers.cls` (new):
   - `XData Table` (the rows above);
   - `Rows()`, which reads the `XData` of the calling class (`$ClassName()`), so that a test subclass can replace it;
   - `Row(provider)`;
@@ -155,43 +159,43 @@ All of it applies to the retry runners too.
   - `Resolve(item, production, providerConfig, .config, .model)`.
 
   Class doc: AD-7's resolution rule and REL-7's supported flags.
-- [ ] `src/bridge/cls/OcuTalon/Bridge/ConfigStore.cls`: replace the guard with the two shapes (Always). The model shape takes the variable from `Providers.Row`. `MergeInto` is unchanged. Rewrite the class doc. This closes DW-52.
-- [ ] `src/bridge/cls/OcuTalon/Bridge/Keys.cls`:
+- [x] `src/bridge/cls/OcuTalon/Bridge/ConfigStore.cls`: replace the guard with the two shapes (Always). The model shape takes the variable from `Providers.Row`. `MergeInto` is unchanged. Rewrite the class doc. This closes DW-52.
+- [x] `src/bridge/cls/OcuTalon/Bridge/Keys.cls`:
   - make `State` public;
   - in `Absent`, an `absent` state is 0 when `Providers.Resolve` finds a provider.
   - `Record` keeps its signature. The adapter passes it the resolved config's JSON.
-- [ ] `src/bridge/cls/OcuTalon/Bridge/Adapter/Agent.cls`:
+- [x] `src/bridge/cls/OcuTalon/Bridge/Adapter/Agent.cls`:
   - add `ProvidersClass()` (default `OcuTalon.Bridge.Providers`), which a Zz adapter overrides;
   - `RecordKey` records the resolved config when `Resolve` finds one;
   - `BuildAgent`, before `##super()` `OnInit`, sets the in-memory `ProviderConfig` (the resolved JSON) and `Model`.
 
   Nothing is persisted. Update the class doc.
-- [ ] `src/bridge/cls/OcuTalon/Bridge/Process/Decide.cls`:
+- [x] `src/bridge/cls/OcuTalon/Bridge/Process/Decide.cls`:
   - in `Classify`, add the unknown-finish rule after rule 5, with a `FINISHED` parameter;
   - update the doc list.
-- [ ] `src/bridge/cls/OcuTalon/Bridge/Timeouts.cls`: give `Restart` an optional `decide` argument (default 1). Make the error texts neutral ("the change applies at the next restart"). `Timeouts` tests still pass (they check the item names).
-- [ ] `src/bridge/cls/OcuTalon/Bridge/Settings.cls`:
+- [x] `src/bridge/cls/OcuTalon/Bridge/Timeouts.cls`: give `Restart` an optional `decide` argument (default 1). Make the error texts neutral ("the change applies at the next restart"). `Timeouts` tests still pass (they check the item names).
+- [x] `src/bridge/cls/OcuTalon/Bridge/Settings.cls`:
   - build `Providers()` (rows in order, each `{provider, defaultModel, models, keyVariable, keySet, supported}`), `CheckModel` and `SetModel` (Always);
   - update the class doc (which methods are still stubs, and the agent identifiers).
-- [ ] `src/bridge/cls/OcuTalon/Bridge/Installer.cls`: add `Prices()` seed rows. All have an empty long tier except Bedrock Haiku, which copies the Claude Haiku row:
+- [x] `src/bridge/cls/OcuTalon/Bridge/Installer.cls`: add `Prices()` seed rows. All have an empty long tier except Bedrock Haiku, which copies the Claude Haiku row:
   - `gpt-5.4-mini` .75/4.5/.075/0;
   - `gpt-5.4` 2.5/15/.25/0;
   - `gemini-3.1-flash-lite` .125/.5/.0125/0;
   - `gemini-3.1-pro-preview` 2/12/.2/0;
   - `us.anthropic.claude-haiku-5-5` (the `claude-haiku-5-5` row);
   - `us.anthropic.claude-sonnet-5-5` (the `claude-sonnet-5-5` row).
-- [ ] `src/ocutalon/cls/OcuTalon/Install/Step/Provider.cls`: `WriteRunner`/`Details` keep a valid chosen pair (Always). Update the doc.
-- [ ] `ci/mock/scenarios/A/unclassified-stop.json`: one reply, 200, `stopReason` `pause_turn`, text.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Agent/RunnerFixture.cls`: `SetKeys` writes the entry's `api_key` through `ConfigStore.Details` plus `%ConfigStore.Configuration.Modify`. Merge now refuses its test placeholders. The API is unchanged.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Bridge/ConfigStore.cls`: rewrite the mechanics tests on the timeouts shape (deep merge into `retry`). Add `TestModelChangeShape` (every Merge-shapes row; entry details compared before and after).
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Bridge/Providers.cls` (new, in process):
+- [x] `src/ocutalon/cls/OcuTalon/Install/Step/Provider.cls`: `WriteRunner`/`Details` keep a valid chosen pair (Always). Update the doc.
+- [x] `ci/mock/scenarios/A/unclassified-stop.json`: one reply, 200, `stopReason` `pause_turn`, text.
+- [x] `src/ocutalon/cls/OcuTalon/Test/Agent/RunnerFixture.cls`: `SetKeys` writes the entry's `api_key` through `ConfigStore.Details` plus `%ConfigStore.Configuration.Modify`. Merge now refuses its test placeholders. The API is unchanged.
+- [x] `src/ocutalon/cls/OcuTalon/Test/Bridge/ConfigStore.cls`: rewrite the mechanics tests on the timeouts shape (deep merge into `retry`). Add `TestModelChangeShape` (every Merge-shapes row; entry details compared before and after).
+- [x] `src/ocutalon/cls/OcuTalon/Test/Bridge/Providers.cls` (new, in process):
   - `TestTable`: order, values, only anthropic supported, a Price row for every model;
   - `TestChoose`: order, skips the entry's own provider, the unsupported and the unset; no resolution for an admin model, a present key or an unknown key;
   - `TestResolvedShadowRunner`, the "Resolved (AC literal)" row, with `ZzProviders` plus `ZzProviderAdapter`/`ZzProviderRunner` (new, on the `ZzRetry*` pattern) and `KeyScan.SetEnv`/`UnsetEnv`;
   - `TestSettingsProviders`: `Providers()` order, `keySet` and `supported`;
   - `TestCheckModelRefusals`: every refused input, each with nothing written;
   - `TestIntegrationSettingsOps` (Rule 1): Lane B's real `SettingsOps.Values().providers` equals `Settings.Providers()`, four rows with anthropic first.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Bridge/ModelChange.cls` (new, live, the `Test.Agent.Decide` `Prepare` pattern). `OnAfterOneTest` restores, in this order:
+- [x] `src/ocutalon/cls/OcuTalon/Test/Bridge/ModelChange.cls` (new, live, the `Test.Agent.Decide` `Prepare` pattern). `OnAfterOneTest` restores, in this order:
   - each touched entry's pair, through Merge's model shape (`anthropic`, `@{env:ANTHROPIC_API_KEY}`). This comes first, because the Provider step now keeps a valid `openai` pair;
   - then the Provider step `Run()`;
   - the `Model` and `RetryItem` rows as found, with no `RetryItem` row left;
@@ -199,18 +203,18 @@ All of it applies to the retry runners too.
   - `TestSetModelNextRequest`;
   - `TestSecondModel`;
   - `TestRefusedChangeKeepsEverything`;
-  - `TestResolvedLive` (both items);
+  - `TestResolvedLive` (both items; `Keys.Absent` and `Providers.Resolve` live in the test process, not a decide through the mock: see `deferred` in the frontmatter);
   - `TestAdminModelNeverResolves`;
   - `TestNoSupportedKey`;
   - `TestUnclassifiedStopLive`, as Task 0 (a) found: `unusable` if `pause_turn` passes through; otherwise assert fallback with no answer and record the reason;
   - `TestNoKeyValueAnywhere`, after `SetModel` and one linked `ChatAgent` turn: `KeyScan.Find(key)` names no store, `KeyProof.GlobalHits(key)` is 0, and neither `old` nor the status text holds the key. The test fails with a reason when the key variable is empty.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Bridge/SessionConfig.cls`: add `TestEveryListedModel` (every selectable model of `Providers.Rows()`: cap key, 8000, effort only for `claude-*`, cache block, no sampling key at any depth).
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Bridge/Fallback.cls` and `Test/Bridge/Decide.cls`: the unclassified-stop rows (`Classify`, and `Conclude` for a turn and a decide).
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Bridge/Keys.cls`: `Absent` with resolution (the openai entry with an unset variable: 0, via the real table), and an unknown state never resolves.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Bridge/SettingsStubs.cls`: drop the assertions of `Providers`/`CheckModel`/`SetModel`. `CallEverything` calls the remaining stubs plus refused `SetModel` calls. `TestNothingWritten` keeps its snapshot.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Bridge/Usage.cls`: `TestSeedPrices` covers every row of `Installer.Prices()`.
-- [ ] `src/ocutalon/cls/OcuTalon/Test/Install/Provider.cls`: add `TestKeepsChosenProvider` (the matrix row).
-- [ ] Search `src/ocutalon/cls/OcuTalon/Test` and `docker/tests` for assertions on the count of Price rows, on Merge accepting `base_url`, headers or an arbitrary `@{env:}`, or on `Settings` stub answers, and update them (Rule 19).
+- [x] `src/ocutalon/cls/OcuTalon/Test/Bridge/SessionConfig.cls`: add `TestEveryListedModel` (every selectable model of `Providers.Rows()`: cap key, 8000, effort only for `claude-*`, cache block, no sampling key at any depth).
+- [x] `src/ocutalon/cls/OcuTalon/Test/Bridge/Fallback.cls` and `Test/Bridge/Decide.cls`: the unclassified-stop rows (`Classify`, and `Conclude` for a turn and a decide). `Classify` rows are in `Fallback.cls` (`TestUnclassifiedStop`); the `Conclude` rows are in the new `Test/Bridge/UnclassifiedStop.cls`, because Epic 40 changes `Test/Bridge/Decide.cls` (Spec Change Log).
+- [x] `src/ocutalon/cls/OcuTalon/Test/Bridge/Keys.cls`: `Absent` with resolution (the openai entry with an unset variable: 0, via the real table), and an unknown state never resolves.
+- [x] `src/ocutalon/cls/OcuTalon/Test/Bridge/SettingsStubs.cls`: drop the assertions of `Providers`/`CheckModel`/`SetModel`. `CallEverything` calls the remaining stubs plus refused `SetModel` calls. `TestNothingWritten` keeps its snapshot.
+- [x] `src/ocutalon/cls/OcuTalon/Test/Bridge/Usage.cls`: `TestSeedPrices` covers every row of `Installer.Prices()`.
+- [x] `src/ocutalon/cls/OcuTalon/Test/Install/Provider.cls`: add `TestKeepsChosenProvider` (the matrix row).
+- [x] Search `src/ocutalon/cls/OcuTalon/Test` and `docker/tests` for assertions on the count of Price rows, on Merge accepting `base_url`, headers or an arbitrary `@{env:}`, or on `Settings` stub answers, and update them (Rule 19).
 
 **Acceptance Criteria:**
 - Given the provider table with Anthropic (Claude Haiku 5.5 default, Claude Sonnet 5.5), OpenAI, Google Gemini and Amazon Bedrock, each with its default model, selectable models, prices and key variable, when a runner composes the session config for every listed model, then the config has no `temperature`, `top_p` or `top_k`, a cap of 8,000 in the family's key, effort only for Anthropic models and the cache block, and the unit tests prove it with no network access.
@@ -225,9 +229,73 @@ All of it applies to the retry runners too.
 
 ## Spec Change Log
 
+- 2026-11-05 lead: IG-1 ruled (option B, veto U-288); IG-2 sent to the orchestrator.
+
+Footprint (Rule 11). No existing file outside Epic 17's footprint was edited, and no contended path. New files: `Bridge/Providers.cls`, `Test/Bridge/Providers.cls`, `Test/Bridge/ModelChange.cls`, `Test/Bridge/UnclassifiedStop.cls`, `Test/Bridge/ZzProviders.cls`, `Test/Bridge/ZzProviderAdapter.cls`, `Test/Bridge/ZzProviderRunner.cls` and `ci/mock/scenarios/A/unclassified-stop.json`. Edited existing files: the bridge classes the spec names (`Settings`, `ConfigStore` (also a new `Restore`), `Keys`, `Adapter.Agent`, `Process.Decide`, `Timeouts`, `Installer`), `Install/Step/Provider.cls`, and the tests the spec names (`Test/Agent/RunnerFixture`, `Test/Bridge/{ConfigStore,SessionConfig,Fallback,Keys,SettingsStubs,Usage}`, `Test/Install/Provider`). `Test/Bridge/Decide.cls` and `Test/Install/Production.cls` were not touched.
+- `Test/Web/SettingsApi.cls` (Lane B) asserts the 33.1 stub shape and is not edited (U-177): it fails until Lane B changes it (frontmatter `deferred`).
+- The `Conclude` rows of the unclassified stop are in a new class, `Test.Bridge.UnclassifiedStop`, not `Test/Bridge/Decide.cls` (Epic 40 changes it).
+- `Test.Bridge.ModelChange` has its own small helpers (`Prepare`, `Ask`, `Arm`, `Remember`) instead of extending `Test.Bridge.SecondModel`: those helpers are private instance methods of a class whose tests would run again in a subclass.
+- `Resolve` has two more optional trailing arguments, `agentClass` and `configured`, which the adapter passes (its own `AgentClass` and `Model`), because a shadow runner is no item of the production; with none, `Resolve` reads them from the item. It returns the provider's name, or "".
+- Task 0 (c): prices follow the pages where they differ from the spec (Design Notes).
+
 ## Review Triage Log
 
+### 2026-11-05 — Review pass
+- verdicts: 41 findings — high 2, medium 7, low 30, false 2, maybe-false 0 (IG-1 and IG-2 group rows VG-1, VG-2, VG-5a, VG-5b, VG-7, IA-1 and IA-2; they are not extra findings)
+- routing: one `intent_gap` entry (rows IG-1 and IG-2) decides the pass; every other entry is moot until the contract is settled and is recorded with the route it would take (`patch` unless noted). The attempted change is saved in `_bmad-output/implementation-artifacts/spec-17-3-attempt-1.patch` and the code tree is reverted to `baseline_revision`.
+- intent gaps (root cause inside `<intent-contract>`):
+  - IG-1 `[high]` `[intent_gap]` The matrix row "Resolved (live)" and the AC "live on the Anthropic path ... its decisions answer normally" cannot be verified at the runner-job surface. A runner job reads its key from the instance's own environment, and a variable that a test sets is set in the test process only (Task 0 measurement: a restarted job does not see it). `ci/compose.ci.yml` sets no model key by design, so in every throwaway no supported provider has its key set where `Decide` and the runner jobs read it. The built code resolves in process (`TestResolvedLive`: `Keys.Absent`, `Providers.Resolve`; `TestResolvedShadowRunner`: the built agent), but nothing sends a decide through a resolved runner or runs `RecordKey` in a job (`Keys.Status` 1 for a resolved runner is checked by the test calling `Keys.Record` itself). The only way to observe it is a throwaway whose compose file sets a dummy `ANTHROPIC_API_KEY`, which needs a new live unit (a `docker/tests` script, a compose override and a one-name append of the unit in the contended `ci/units.sh`) and the contract's "Never" lists `ci/units.sh`. The matrix test audit therefore cannot be satisfied inside the contract.
+  - IG-2 `[medium]` `[intent_gap]` `Test.Web.SettingsApi.TestGetShape` (Lane B, line 146) asserts the 33.1 stub shape (`json.providers` unassigned, "the stub's providers are empty") and scans the body for `api_key`, which now matches the `ANTHROPIC_API_KEY`-style `keyVariable` field the contract requires of every `Providers()` row. It goes red as soon as `Settings.Providers()` is built, and the contract forbids editing a Lane B test (U-177). The spec's shared-surfaces list missed `Test.Web.SettingsApi`.
+- findings (one row per finding, in the order the layers reported them):
+  - Blind Hunter
+    - `[medium]` `[patch]` BH-1 the two Sonnet 5.5 cache-read prices differ (direct row 0.2, `us.anthropic.claude-sonnet-5-5` 0.1) — real (Installer.Prices; `Usage` pins 0.2); the pricing page of 2026-11-05 says 0.10, so fix: both rows 0.1 and the `Usage` pin, as Task 0 (c) says the page's value wins.
+    - `[low]` `[reject]` BH-2 `ConfigStore.Restore` writes back whatever `Details` gave without the Merge shapes — Restore is the rollback of an entry Merge or the installer wrote, entries hold placeholders only (AD-19), and any caller can already call `Modify` directly; a guard adds branches for no reachable harm. Its missing test is VG-3.
+    - `[low]` `[reject]` BH-3 `Merge(missing, {})` is OK before the existence check — the contract says an empty object merges nothing and is OK; only the method comment ("the entry does not exist") should say it applies to non-empty fields.
+    - `[low]` `[reject]` BH-4 the model shape does not check `supported` — by design (contract: `model_provider` is "a provider of the table"; `CheckModel` is the supported gate), `by-design`.
+    - `[low]` `[reject]` BH-5 `SetModel` clear path has no rollback — the only failure is a more specific `RetryItem` row overriding the read-back, and the leftover is an empty system default row; `wontfix-theoretical`.
+    - `[low]` `[patch]` BH-6 rollback statuses are swallowed — real (`Settings.cls` lines 148-151): a failed undo leaves a half state with no signal; append the rollback statuses to the returned status.
+    - `[medium]` `[patch]` BH-7 the failure and rollback path of `SetModel` and `Restore` have no test — real: the whole `If $$$ISERR(sc)` block can be deleted with every test green (confirmed by VG-3); add `ModelChange.TestSetModelFailureRestores` (a more specific `Model` row makes `WriteRow` fail after the Merge) and `ConfigStore.TestRestore`.
+    - `[low]` `[reject]` BH-8 `SetModel` is not serialized — one admin at a time on a settings page; `wontfix-theoretical`.
+    - `[low]` `[reject]` BH-9 Classify rule 6 maps `length`, `MAX_TOKENS` and `tool_calls` to `unusable` — spec-bound (matrix row: `length` is `unusable`; the allow-list is the contract's four names), all of them are fallbacks and none is an answer; the per-provider mapping is for REL-7 when a `supported` flag flips. `by-design`.
+    - `[low]` `[reject]` BH-10 a resolved runner's model is invisible to `ResolveModel` — Decided in-stage 10 (Lane B's choice), `by-design`.
+  - Edge Case Hunter
+    - `[low]` `[reject]` EC-1 clearing the second model fails when the retry item has no entry — the retry items are installed with the production; `wontfix-theoretical`.
+    - `[low]` `[reject]` EC-2 `Entries` validates every runner through `Timeouts.Entries` — the production's six items always carry entries; `wontfix-theoretical`.
+    - `[low]` `[reject]` EC-3 `old` is populated when the clear-path write fails — same unlikely failure as BH-5; `wontfix-theoretical`.
+    - `[low]` `[reject]` EC-4 no lock around `SetModel` — as BH-8.
+    - `[low]` `[patch]` EC-5 rollback statuses swallowed — same root cause as BH-6.
+    - `[low]` `[reject]` EC-6 the `refusal` and `max_tokens` comparisons are case-sensitive while `FINISHED` is not — both outcomes are fallbacks (`cut_off` against `unusable` is a label); Anthropic is the only supported provider and its values are lower case. `wontfix-accepted` `reopen_if=a provider with upper-case finish reasons is flagged supported`.
+    - `[low]` `[reject]` EC-7 `tool_calls` and `function_call` are not in `FINISHED` — as BH-9, REL-7.
+    - `[false]` `[reject]` EC-8 any numeric `retry` key is merged — the contract says "an object of numbers"; a number cannot carry `@{`.
+    - `[low]` `[reject]` EC-9 `Keys.Absent` calls `Resolve` for an item whose `ProviderName` is set — no product item sets `ProviderName`; `wontfix-theoretical`.
+    - `[low]` `[reject]` EC-10 `BuildAgent` leaves the resolved config in the adapter when `OnInit` fails — a failed build is retried from the same adapter state, where the resolution reads the same key again; no observable difference.
+    - `[low]` `[reject]` EC-11 the Provider step's `base_url` and CA overrides reach a kept non-Anthropic entry — Decided in-stage 5: only CI and the online demo set them and both are Anthropic-only.
+    - `[medium]` `[patch]` EC-12 the Sonnet price rows differ — same root cause as BH-1.
+  - Verification Gap
+    - `[high]` `[intent_gap]` VG-1 `RecordKey`'s resolved branch has no executing test — same root cause as IG-1 (`Keys.Status` for a resolved job runner).
+    - `[high]` `[intent_gap]` VG-2 AC4's live half is not verified by any test — IG-1.
+    - `[medium]` `[patch]` VG-3 `SetModel` rollback and `ConfigStore.Restore` unpinned — as BH-7.
+    - `[low]` `[patch]` VG-4 mutation lines missing for AC4's adapter half (`BuildAgent` not applying the resolved config -> `TestResolvedShadowRunner`) and AC2's Model-row write (`SetModel` not writing the Model row -> `TestSetModelNextRequest`) — write both lines (Rule 19) in the re-derivation.
+    - `[medium]` `[intent_gap]` VG-5a the decide halves of `TestAdminModelNeverResolves` and `TestNoSupportedKey` pass on release-1 behaviour (the Decide job has no key anyway) — IG-1; only the `Keys.Absent` halves observe the rule.
+    - `[low]` `[intent_gap]` VG-5b `TestNoKeyValueAnywhere` holds its fake key in the test process only, so its scans after the turn cannot see a job-side leak — IG-1.
+    - `[low]` `[patch]` VG-5c `TestResolvedShadowRunner`'s "nothing was sent" holds with no request path run — the story's Task 0 (b) measured the send path; word the assertion as the build only and drop the claim.
+    - `[low]` `[patch]` VG-5d the `ProviderName` guard of `Resolved` is never executed by a test — one case on `ZzProviderAdapter` with `ProviderName` set.
+    - `[low]` `[patch]` VG-6a `Keys.TestAbsentResolves` relies on the `Model` row being the default — set the row at the start of the test.
+    - `[low]` `[patch]` VG-6b `Providers.TestTable` relies on seeded Price rows and its doc claims a family cap-key check the code lacks — correct the doc and keep the seed check as the `Installer.SeedPrices` precondition (call it first).
+    - `[low]` `[patch]` VG-6c `Install.Provider.TestKeepsChosenProvider` restores by running the step and so depends on the entry state found — record the entry's details first and restore them through `ConfigStore.Restore`.
+    - `[medium]` `[intent_gap]` VG-7 `Test.Web.SettingsApi.TestGetShape` goes red — IG-2.
+    - `[low]` `[patch]` VG-8 the Sonnet cache-read deferral — BH-1.
+  - Intent Alignment
+    - `[medium]` `[intent_gap]` IA-1 resolution on the real table in a runner job is not driven end to end — IG-1.
+    - `[low]` `[intent_gap]` IA-2 "request built for that provider" is checked as the built agent on `ZzProviders`, never as a request — IG-1 (a request for another provider needs network, so the built agent is the strongest in-process proof).
+    - `[low]` `[patch]` IA-3 after `SetModel` the live tests overwrite the key with `PointKeys` (the CI mock variable) — needed so the mock can answer; the final check of the entry `SetModel` wrote is `TestSetModelNextRequest`'s read of the entry before `PointKeys`. Make that read explicit in `TestSecondModel` too.
+    - `[low]` `[reject]` IA-4 "the API's answer" is checked at the `SetModel` status and `old`, not through REST — the settings routes are Lane B's (`Web/Api.cls` is contended); `by-design`.
+    - `[low]` `[reject]` IA-5 the Lane B integration AC runs `SettingsOps.Values()` in process rather than through REST — `Values()` is what the spec names; `by-design`.
+    - `[false]` `[reject]` IA-6 other choices (`Keys.Absent` reads the key in Decide's process; the Bedrock price; booleans) — all recorded under Decided in-stage; the key variable is read in the same instance environment for Decide and the jobs (Task 0 measurement), so no divergence.
+
 ## Design Notes
+
+**Lead ruling IG-1 (2026-11-05, runner A, veto U-288).** Option B: the "Resolved (live)" row and the resolution AC are met by the in-process proof (`Providers.Resolve`, `Keys.Status`/`Keys.Absent`) plus the shadow-runner proof that the built agent uses the resolved provider; "decisions run normally" is carried by the existing live Anthropic-path tests, since resolution yields the same session config as a direct choice of that provider (pin that equality in process). No new CI unit and no dummy key. IG-2 (the Lane B test `Test.Web.SettingsApi.TestGetShape`) is with the orchestrator (U-177, cross-lane).
 
 **Governing ADs (Rule 6).** No AC contradicts an AD's Rule.
 - AD-2: the bridge names no OcuTalon package.
@@ -254,6 +322,18 @@ All of it applies to the retry runners too.
 - The spine's `GEMINI_API_KEY` works unchanged, because the entry passes `api_key` explicitly. The lead may clear AD-7's "(inference; Story 17.3 confirms each)" marker (Rule 20). No AD changes.
 - The new model ids and prices come from the official pricing pages (looked up 2026-11-05, labelled as such): `developers.openai.com/api/docs/pricing`, `ai.google.dev/gemini-api/docs/pricing`, and Anthropic's model pages for the Bedrock rows. Task 0 (c) re-confirms them.
 
+**Task 0, measured on the warm throwaway (tag `e17s3iw`, build 154, 2026-11-05).**
+- (a) The mock reply with `stopReason` `pause_turn` and text (scenario `unclassified-stop`) reaches the runner's `Reply` with `FinishReason` `pause_turn` and the text, so AI Hub passes the stop reason through unchanged (`ModelChange.TestUnclassifiedStopLive` asserts it). Decide then falls back with `unusable`, and the answer holds no text.
+- (b) A shadow agent built with `model_provider` `openai`, a fake key from `KeyScan.SetEnv` and the mock's base URL is built, its session config is composed, and the mock's log is unchanged: nothing is sent (`Providers.TestResolvedShadowRunner` asserts it).
+- (c) Prices, from the providers' own pages, looked up 2026-11-05: OpenAI `developers.openai.com/api/docs/pricing`; Gemini `aistudio.google.com/docs/pricing` (the old `ai.google.dev/gemini-api/docs/pricing` redirects there); Anthropic `platform.claude.com/docs/en/about-claude/pricing`; Bedrock `aws.amazon.com/bedrock/pricing/` (it lists no per-token figures for these two models, so the Bedrock rows follow Anthropic's page).
+  - `gpt-5.4-mini` 0.75 / 4.5 / 0.075: as planned.
+  - `gpt-5.4` 2.5 / 15 / 0.25, **and a long tier above 272,000 tokens: 5 / 22.5** (cached 0.50, which is the input scale that `Price.Cost` applies): the page differs from the plan, so the row has the tier.
+  - `gemini-3.1-flash-lite` **0.25 / 1.5 / 0.025** (text; the plan had .125 / .5 / .0125): the page's value.
+  - `gemini-3.1-pro-preview` 2 / 12 / 0.2, **and a long tier above 200,000 tokens: 4 / 18** (cached 0.40): the page's value.
+  - Claude Haiku 5.5 0.10 / 0.50 / 0.01 / 0.125 with the tier above 100,000 at 0.50 / 2.50: as seeded. Claude Sonnet 5.5 2 / 10 / 2.50 as seeded, but its cache-read rate is **0.10** on the page (0.2 in the seeded row; frontmatter `deferred`); the new Bedrock Sonnet row has 0.1.
+  - All eight model ids appear on the pages (the two Bedrock ids are the inference-profile names of the Claude models).
+- Also measured: a restarted runner job does not see an environment variable that the test process set (`Keys.Status` stayed absent for an entry that named it), so a variable that a test sets reaches no runner job and not Decide.
+
 **Decided in-stage.**
 1. `agent` is the first runner item (`TriageAgent`, `DiagnosisAgent`, `ChatAgent`), as `Keys.Status(agent)` and `Decide.#RUNNERS` name it. The settings page maps its own labels.
 2. Merge keeps `(entry, fields)`, because `Test/Contract/Ac.cls` pins it and Epic 34 changes that file. The strictness comes from the shape of the fields. `RunnerFixture` writes its test placeholders directly (a fixture write, not a copy of Merge: Merge refuses them on purpose).
@@ -266,6 +346,12 @@ All of it applies to the retry runners too.
 9. Each provider's default is its cheap tier (AD-7: "a silent fall back to an expensive default model"). The Bedrock `us.` inference profiles match AI Hub's naming. Bedrock models fall to the `default` family, so they get `max_tokens` and no effort until a story tests their field.
 10. `ResolveModel` stays the configured model (Web/Api's state shows it). Showing the resolved model is Lane B's choice.
 11. `Restart` gains `decide`, so that `SetModel` restarts only the affected items (AD-19).
+12. `SetModel` writes in this order: Merge, the Model row (read back), the item's restart, then the RetryItem row (second model). A failure after the first write puts back the entry (`ConfigStore.Restore`, which writes the details that `Details` read: Merge cannot, because the old pair may not be a valid shape), the rows, and restarts the item again. An empty second model writes the RetryItem row "" and restarts nothing: Decide reads RetryItem live.
+13. `Merge` of an empty object returns OK before it reads the entry; a refusal names a field only by a plain name (letters, digits, underscores, dots), so that a value placed in a field name is never echoed.
+14. `Providers.Resolve` returns the provider's name; the adapter does not resolve for a runner whose `ProviderName` setting names a provider (AI Hub gives that setting priority over `model_provider`).
+15. The live tests set a fake key variable in the test process for `CheckModel` and then point the entry's key at the CI mock key variable again (`PointKeys`), because a runner job never sees the process's variable. `OnAfterOneTest` restores the pair of Anthropic through Merge's model shape, runs the Provider step, and puts the rows back as found.
+16. The classification rule is rule 6 of `Classify` (rule 7 is `invalid`); `FINISHED` is a Decide parameter in lower case, compared with the reason lower-cased. `refusal` and `max_tokens` stay exact matches, as before.
+17. `Test.Bridge.Keys` unsets every provider's key variable for each test and puts them back, so that its absent-key cases do not depend on a key in the environment.
 
 **For the lead (veto window, U-5).**
 - The refusal texts are the bridge's status texts, like `Timeouts.Apply`'s. The settings page's wording is Lane B's.
@@ -322,19 +408,33 @@ The tags are `e17s3iw` (warm) and `e17s3i` (fresh), one call each, in the foregr
 
 Every test added or changed passes on a fresh environment, in either order.
 
-**Planned mutations (Rule 19), one per AC:**
-- mutation: `Compose` always uses `max_tokens` → `SessionConfig.TestEveryListedModel` red.
-- mutation: `SetModel` skips `Restart` → `ModelChange.TestSetModelNextRequest` red.
-- mutation: `old` gets the key's value → `TestNoKeyValueAnywhere` red.
-- mutation: `Keys.Absent` ignores `Resolve` → `TestResolvedLive` red.
-- mutation: `Choose` does not skip the entry's own provider → `TestNoSupportedKey` and `TestChoose` red.
-- mutation: the `FINISHED` check dropped → `Fallback`/`Decide` unclassified rows red.
-- mutation: the model shape allows `base_url` → `ConfigStore.TestModelChangeShape` red.
-- mutation: `second` 1 does not write `RetryItem` → `ModelChange.TestSecondModel` red.
-- mutation: `Settings.Providers` returns `[]` → `Providers.TestIntegrationSettingsOps` red.
-- mutation: the Provider step always writes anthropic → `Install.Provider.TestKeepsChosenProvider` red.
+**Mutations (Rule 19), one per AC, each applied on the warm stack, red observed, reverted, the tree byte-identical after (`git status --short`, `git diff --stat` and `cmp` against the backup), and the class green again on the same stack:**
+- mutation: `Compose` always uses `max_tokens` → `SessionConfig.TestEveryListedModel` red. Done: red on the four gpt-5 asserts (cap in `extra_params.max_completion_tokens`, and no other key), green after the revert.
+- mutation: `SetModel` skips `Restart` → `ModelChange.TestSetModelNextRequest` red. Done: red on "TriageAgent was restarted" (the same job before and after), green after the revert.
+- mutation: `old` gets the key's value → `TestNoKeyValueAnywhere` red. Done: red on "old holds no key" (and on the two `old` shape asserts of `TestSetModelNextRequest` and `TestSecondModel`), green after the revert.
+- mutation: `Keys.Absent` ignores `Resolve` → `TestResolvedLive` red. Done: red for both items ("Absent is 0: the runner resolves to Anthropic"), green after the revert.
+- mutation: `Choose` does not skip the entry's own provider → `TestNoSupportedKey` and `TestChoose` red. Done: `Providers.TestChoose` red on "the entry's own provider is skipped even when its variable is set", and `ModelChange.TestNoSupportedKey` red for all six items (Absent is 0 instead of 1), green after the revert.
+- mutation: the `FINISHED` check dropped → `Fallback`/`Decide` unclassified rows red. Done: `Fallback.TestUnclassifiedStop` and `UnclassifiedStop.TestUnclassifiedStopFallsBack` red for every unclassified reason, green after the revert.
+- mutation: the model shape allows `base_url` → `ConfigStore.TestModelChangeShape` red. Done: red from the `base_url` case on (it is written), green after the revert.
+- mutation: `second` 1 does not write `RetryItem` → `ModelChange.TestSecondModel` red. Done: red on the RetryItem value, the second model's answer, the one request to each runner and `old.retryItem`, green after the revert.
+- mutation: `Settings.Providers` returns `[]` → `Providers.TestIntegrationSettingsOps` red. Done: red on "it holds four rows" and "in table order, Anthropic first" (and `TestSettingsProviders`), green after the revert.
+- mutation: the Provider step always writes anthropic → `Install.Provider.TestKeepsChosenProvider` red. Done: red on "the provider and its placeholder are kept" (the `KeepChosen` call removed), green after the revert.
 
 ## Auto Run Result
 
-Status: ready-for-dev
-Blocking condition: none
+Status: blocked
+Blocking condition: intent gap
+
+**What happened.** The implementation (the provider table, the two-shape Merge, `Settings.Providers`/`CheckModel`/`SetModel`, resolution in the runner and `Keys`, the `unusable` stop-reason rule, the Provider step, prices and the tests) was written and passed every class of `## Verification` on a warm and a fresh throwaway, with all ten planned mutations shown red (the lines above). The review then found two gaps inside the `<intent-contract>` that the contract cannot settle. The attempted change is saved in `_bmad-output/implementation-artifacts/spec-17-3-attempt-1.patch` (`git apply --check` passes on the baseline `cc12bd0ed1ec133415b5446bf653ef975105fc87`; it creates the 8 new files and edits 16 existing ones, all under `src/` and `ci/mock/`); the code tree is reverted to the baseline. The spec's task ticks, Design Notes (Task 0 measurements and sources) and mutation lines describe the patched state.
+
+**Unresolved questions (the lead's amendment).**
+1. IG-1: the matrix row "Resolved (live)" and its AC need a runner job whose environment holds a supported provider's key. No throwaway has one (`ci/compose.ci.yml` sets no model key; a variable set by a test is not seen by a restarted job, measured). Recommended amendment, option A (keeps the AC honest): allow a new live unit in the footprint: `docker/tests/test-provider-resolve.sh`, a small compose override that sets a dummy `ANTHROPIC_API_KEY` for that unit only, and a one-name append of the unit in `ci/units.sh` (an existing group other than `production`/`browser`/`install-*`), reported as a footprint extension, with `Test.Bridge.ModelChange.TestResolvedLive` moved into it so that a decide answers through the mock on `claude-haiku-5-5` and `Keys.Status` is 1 in the job. Option B: change the matrix row and the AC to the in-process proof that exists (`Keys.Absent` and `Providers.Resolve` live, `TestResolvedShadowRunner` for the built agent) and move the decide-through-the-mock proof to the Release check (REL-7); this weakens a stated guarantee, so it is a veto-window item.
+2. IG-2: `Test.Web.SettingsApi.TestGetShape` (Lane B) fails once `Settings.Providers()` is built, whatever this story does (it asserts the stub's empty `providers` and scans for the text `api_key`, which every row's `keyVariable` holds). Recommended: the owner of U-177 lets this one assertion pair change with this story (assert four rows in table order, scan the body with the key variable names removed), logged as a footprint extension; or the lead sequences a Lane B edit before this story merges. Add `Test.Web.SettingsApi` to the spec's shared surfaces.
+
+**Patches the re-derivation applies** (all but IG-1 and IG-2 are `patch` rows of the triage log): both Sonnet 5.5 cache-read prices 0.1 and the `Usage` pin (BH-1); `SetModel` appends rollback statuses (BH-6); `ModelChange.TestSetModelFailureRestores` and `ConfigStore.TestRestore` (BH-7); two missing mutation lines (VG-4); the small test hermeticity and wording fixes (VG-5c, 5d, 6a, 6b, 6c, IA-3).
+
+**Deferred.** The frontmatter `deferred:` list still holds the implement pass's three entries; the first two are IG-2 and IG-1 above and the third is BH-1, so the lead should harvest none of them while the spec is `blocked`.
+
+**Slot A.** The implement pass loaded the patched classes into `ocutalon-slot-a` for compile checks. The slot now holds classes that the reverted tree does not have (`OcuTalon.Bridge.Providers`, the `Test.Bridge.{Providers,ModelChange,UnclassifiedStop,ZzProviders,ZzProviderAdapter,ZzProviderRunner}` classes) and patched versions of the 16 edited ones; reload `src/bridge` and `src/ocutalon` from the tree before the next use of the slot.
+
+**Residual state.** No throwaway stack is running (`e17s3iw` and `e17s3i` torn down), lane A's lock folder is empty, HEAD is unchanged, nothing was committed or pushed. The tree holds only this spec and the new patch file, both uncommitted (bookkeeping files for the lead).
