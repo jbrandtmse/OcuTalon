@@ -4139,6 +4139,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-04T22:31:36Z status=routed owner=burndown by=orchestrator note=candidate for Story 11.21's shared-helper bounds; a second occurrence is a real red
 - 2026-11-04T23:33:06Z occurrence=epic-40 by=orchestrator note=OCT-epic40@5d96d2f6 run 41929230934 att 1, iris (browser) live:demo-path 02-watch.spec.ts:61 'Orders production' check row; page.waitForResponse 180 s test timeout in support/floor.ts:141 loadedAfter (same shared sign-in helper family)
 - 2026-11-05T03:23:54Z status=resolved-by:11-21-a-test-s-route-callback-never-outlives-its-test by=adjudication note=gotoSettled retries once on net::ERR_ABORTED (web/e2e/support/navigate.ts; goto-settled.test.mjs) and loadedAfter bounds the sign-in and the /state GET with named failures (helper-waits.spec.ts); a recurrence of the slowness now fails naming its step; orchestrator asked to note it resolved-by 11.21
+- 2026-11-05T16:05:14Z occurrence=40-5 by=orchestrator note=OCT-epic40@6f09f0eb demo-path 07/08 page.goto ERR_ABORTED (before the branch had 11.21); green on c7ec1963 with 11.21
 
 ### DW-691: flake: floor focus.spec.ts:53 P1 (Retry sending leaves focus on its message) hit the 90 s test timeout in page.waitForResponse
 - source: feature 417f17c5 (Epic 7 merge) run 41916766312 iris (shards-3) attempt 1 | severity: low | fix-risk: low | footprint: out-of-footprint
