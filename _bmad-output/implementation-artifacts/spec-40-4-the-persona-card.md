@@ -122,6 +122,31 @@ deferred: []
 - Given `customOffered` false (the online demo), when the card is opened, then it offers the presets and the Language field only, and the online-demo note (FR-67, FR-68).
 - Given `web/e2e/persona-card.spec.ts` on the sign-in stack, when it runs, then it covers these states, a refused language name and the demo variant, against the real routes (Rule 3).
 
+### Review Findings
+
+Code review 2026-11-04 (four layers, full-opus; 28 raw rows, 8 entries after grouping: high 0, medium 4, low 4).
+
+- [x] [Review][Patch] (med, fix-risk med) Focus fell to the body when the card's own read removed the focused element: the pending line leaving with its answered request, or the whole card after a failed save's failed re-read. The rail's `keepFocus` runs only on its own view changes, before the card's GET answers (UX-DR131, spine convention "Announcements and focus") [web/src/app/rail/persona-card/persona-card.ts] -- fixed: the card calls the shared `keepFocus` from an effect on `state()` with its own rule (items `[data-focus-key]`: current, pending, panel; `whenGone` the Persona heading). No new `.focus(`. PC16 and PC17 added; mutation recorded.
+- [x] [Review][Patch] (med, fix-risk low) PC11 asserted "heading only" without waiting for the 500 to be served, so it could pass before the first GET answered (Rule 19) [web/e2e/persona-card.spec.ts:330] -- fixed: `page.waitForResponse` on the failed GET, set up in `withCard`'s `before`, awaited first.
+- [x] [Review][Patch] (med, fix-risk low) PC14 ended with its last PUT in flight, so `withCard`'s `forget` could reach IRIS first and leave `language`/`Spanish` stored for the next spec (Rule 19) [web/e2e/persona-card.spec.ts:430] -- fixed: the case waits for the saved line after the last save.
+- [x] [Review][Patch] (low, fix-risk low) PC14's two `stored(...)` checks could not fail on a client regression: `SettingsOps` blanks unused values whatever is sent; the wire assertion is the pin [web/e2e/persona-card.spec.ts:430] -- fixed: removed.
+- [x] [Review][Patch] (low, fix-risk low) PC12's busy-notice window was about 1 s wide (10 s notice, 11 s hold, 10.5 s wait), a flake risk on a loaded runner (inference) [web/e2e/persona-card.spec.ts:358] -- fixed: the hold is 13 s and the wait 12 s.
+- [x] [Review][Patch] (low, fix-risk low) `withCard`'s cleanup skipped `cleanFixtureRows` when `forget` or `prepare` threw [web/e2e/persona-card.spec.ts:71] -- fixed: nested `try/finally`.
+- [x] [Review][Patch] (low, fix-risk low) Stale doc comments: the spec file's header ("PC1 to PC7", "PC6 alone rewrites") and the demo-path rail case ("five sections") [web/e2e/persona-card.spec.ts:10, web/e2e/demo-path/01-page.spec.ts:89] -- fixed.
+- [x] [Review][Defer] (med, fix-risk low) The six preset names and descriptions (`PRESETS`) are not registered in the `ux-strings.test.mjs` inventory (UX-DR117; review pass 1's Edge 9 rejected it, against the Tasks line "ux entries for every new string EXPERIENCE.md holds") [web/src/app/rail/persona-card/persona-card-view.ts] -- deferred: routed DW-709 owner=40-6-answer-a-proposed-persona-from-the-page-the-phone-or-telegra; not patched here because Epic 33 has since changed `ux-strings.test.mjs` (unmerged). The strings are word for word EXPERIENCE.md's and pinned by `persona-card-view.test.mjs`, so nothing unaccepted ships.
+
+Rejected:
+- by-design: the card re-reads only on a pending-Refs change, so a failed first read waits for the next change (the Read fails row).
+- by-design: no real online-demo browser case; PC6 rewrites `customOffered` (Design Notes; the real refusal is pinned by `Test.Web.PersonaApi`).
+- wontfix-theoretical: pending Refs changing faster than one GET round trip would cancel every read; real only if approvals churn continuously for longer than a read.
+- low, unlikely: a late PUT answer applied after the form was edited, or after Esc and Change reopened the form ("Saved." beside a changed form; a second PUT from an un-busy Save). Needs an edit inside the round trip; the fix adds a sent-body guard.
+- low, unlikely: two PUTs out of order after the 10 s restore; a field refusal arriving after another preset was chosen; a PUT success while a failed re-read left no state.
+- low: the demo-path run with `OCUTALON_LIVE_DEADLINE=700` and its count wording; the spec's Auto Run Result, Verification counts and Footprint lists are stale (spec record edits, not code).
+- low: the commit narrative says "real routes" while PC9 to PC12 stub or hold a call (the spec header now says so).
+- false: `prepare()` resets `onlineDemo` to ""; it is moved code and the sign-in stack seeds the flag off.
+- low: `rail-view.ts`'s `RailSection` doc line and `floor-sources.test.mjs`'s `KEY_HANDLERS`/`ESC_HOSTS` appends exceed the listed footprint; both keep docs and the file's own checks true, and are recorded under Decided in implement.
+- not a finding: G4's taller window (1000x2100) is in the "empty chat list" case, whose premise is a tall window; the one-column case (1000x800) is unchanged and layout is chosen by width only, so the guarantee is not weakened.
+
 ## Spec Change Log
 
 - 2026-11-04, spec gate (lead): the plan's intent gap on the two Epic 7 test files is ruled by option (b), met because Epic 7 merged; the `## Clarification Needed` section is replaced by the ruling under Design Notes. No frozen text changed.
@@ -272,6 +297,17 @@ Run every call from the worktree root with `timeout: 600000`, one per call. Pref
 - mutation: Slow call row, the save's answer dropped after 10 s (`takeUntil(timer(10_000))`) -> PC12 red.
 - mutation: the saved line stays while the Language field is edited (`line.set(undefined)` removed from `typedLanguage`) -> PC3 red.
 - The mutations above ran in three groups on `--part 16/24` (persona-card.spec.ts alone), then every touched file was restored from the backup and was byte-identical to it (same sha as before each group).
+
+**QA stage (Rule 19; `e40s4q`, lane A, `--part 16/24`, persona-card.spec.ts alone):**
+- (QA) `web/e2e/persona-card.spec.ts` gains PC13 (Change opens with the stored language and words, prefilled, counter counting them; Esc is a cancel), PC14 (the PUT body carries only the values the chosen preset uses, read off the wire; the implement stage pinned this only in the node test of `saveBody` and through a stored value that was never typed) and PC15 (Esc with focus on Change, outside the open disclosure, leaves it open: the matrix's "only while focus is inside"). Fresh stack: 16 passed. Each case clears and restores the persona keys through `withCard`.
+- mutation: Language and Your own words rows, `toggle()` no longer fills `language` from the stored persona -> PC13 red.
+- mutation: Values a preset does not use row, `save` sends `{preset, language, custom}` raw instead of `saveBody(...)` -> PC14 red (the node test of `saveBody` stays green, so only the wiring was unpinned).
+- mutation: Esc row, `(keydown.escape)="collapse($event)"` also bound on the Change button -> PC15 red.
+- The three were applied together in one run: exactly PC13, PC14 and PC15 red, the other 13 cases green; `persona-card.ts` was restored from the backup and was byte-identical (same sha), `git diff --stat` showed only the spec file; the bundle was rebuilt and the stack torn down (0 leftovers).
+- Every other AC and matrix row was already pinned with a recorded mutation (above); `docker/tests/test-ci-config.sh` passes (the spec is in the default `chromium` project, `live:sign-in`).
+
+**Code review (`e40s4c`, lane A, `--part 16/24`, persona-card.spec.ts alone):** with the review's patches, 18 passed on a fresh stack.
+- mutation: AC 4 and UX-DR131, the card's `keepFocus` call removed from its `state()` effect -> PC16 and PC17 red (focus stays on the body), the other 16 green; `persona-card.ts` restored byte-identical (same sha), the bundle rebuilt, no stack left.
 
 **Standing criterion:** every test added or changed passes on a fresh environment, in either order.
 

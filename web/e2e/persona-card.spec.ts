@@ -7,11 +7,12 @@ import { chk, cleanFixtureRows, irisScript, quoted, seedApproval, setApprovalSta
 import { forget, prepare, sessionRef } from './support/persona';
 
 /**
- * Story 40.4 (PC1 to PC7), the Persona card in the status rail, in a real browser against the stack that test-sign-in.sh seeds, signed in as the
+ * Story 40.4 (PC1 to PC17, and PC7b), the Persona card in the status rail, in a real browser against the stack that test-sign-in.sh seeds, signed in as the
  * README account. Every case clears the account's persona keys and its `setting` requests first and removes them again in `finally`, because
  * other specs expect the defaults. The saved line and the refusals are the server's own texts (OcuTalon.Core.SettingsOps), so these cases hold
- * them as the routes' spec (api/persona.spec.ts) does. The values behind the page are read through irisScript. PC6 alone rewrites one field of
- * the real GET answer, `customOffered`: the real onlineDemo flag would switch the whole page to the online demo.
+ * them as the routes' spec (api/persona.spec.ts) does. The values behind the page are read through irisScript. PC6 rewrites one field of
+ * the real GET answer, `customOffered`: the real onlineDemo flag would switch the whole page to the online demo. PC9 to PC12 and PC17
+ * rewrite, stub or hold a call to reach states the real stack does not give on demand.
  */
 test.use({ timezoneId: 'UTC', locale: 'en-GB' });
 
@@ -78,9 +79,12 @@ async function withCard(page: Page, body: (ref: string, rows: string[]) => Promi
     await signInReadmeLoaded(page);
     await body(ref, rows);
   } finally {
-    await forget(ref);
-    await prepare(ref);
-    await cleanFixtureRows(rows);
+    try {
+      await forget(ref);
+      await prepare(ref);
+    } finally {
+      await cleanFixtureRows(rows);
+    }
   }
 }
 
@@ -328,18 +332,26 @@ test('PC11: when the read fails the Persona section shows its heading only, and 
   await page.route(`**${PERSONA}`, (route) =>
     failing && route.request().method() === 'GET' ? route.fulfill({ status: 500, json: { error: { code: 'server_error', message: 'zz The read failed.' } } }) : route.continue(),
   );
-  await withCard(page, async (_ref, rows) => {
-    await expect(rail(page).getByRole('heading', { level: 3, name: 'Persona', exact: true }), 'the heading shows').toBeVisible();
-    await expect(card(page), 'the card is drawn').toHaveCount(1);
-    await expect(changeOf(page), 'with no Change').toHaveCount(0);
-    expect(((await card(page).textContent()) ?? '').trim(), 'and no text').toBe('');
-    failing = false;
-    const request = await seedApproval(README_ACCOUNT.user, { kind: 'setting' });
-    rows.push(request);
-    await applied(page, await sinkEvent(README_ACCOUNT.user, 'approval.raised', { ref: request }));
-    await expect(titleOf(page), 'the next pending change reads again').toHaveText('Professional (default)');
-    await expect(changeOf(page)).toBeVisible();
-  });
+  let failed: Promise<unknown> | undefined;
+  await withCard(
+    page,
+    async (_ref, rows) => {
+      await failed;
+      await expect(rail(page).getByRole('heading', { level: 3, name: 'Persona', exact: true }), 'the heading shows').toBeVisible();
+      await expect(card(page), 'the card is drawn').toHaveCount(1);
+      await expect(changeOf(page), 'with no Change').toHaveCount(0);
+      expect(((await card(page).textContent()) ?? '').trim(), 'and no text').toBe('');
+      failing = false;
+      const request = await seedApproval(README_ACCOUNT.user, { kind: 'setting' });
+      rows.push(request);
+      await applied(page, await sinkEvent(README_ACCOUNT.user, 'approval.raised', { ref: request }));
+      await expect(titleOf(page), 'the next pending change reads again').toHaveText('Professional (default)');
+      await expect(changeOf(page)).toBeVisible();
+    },
+    async () => {
+      failed = page.waitForResponse((response) => new URL(response.url()).pathname === PERSONA && response.request().method() === 'GET' && response.status() === 500);
+    },
+  );
 });
 
 /** PC12: a call with no answer in 10 seconds shows the busy notice, and the late answer still shows its line. */
@@ -347,14 +359,14 @@ test('PC12: a save with no answer in 10 seconds shows the busy notice, and the l
   test.setTimeout(75_000);
   await page.route(`**${PERSONA}`, async (route) => {
     if (route.request().method() !== 'PUT') return route.continue();
-    await new Promise((resolve) => setTimeout(resolve, 11_000));
+    await new Promise((resolve) => setTimeout(resolve, 13_000));
     return route.continue();
   });
   await withCard(page, async (ref) => {
     await changeOf(page).click();
     await radioOf(page, 'Pirate').check();
     await saveOf(page).click();
-    await expect(card(page).getByText(BUSY, { exact: true }), 'the notice shows at 10 seconds').toBeVisible({ timeout: 10_500 });
+    await expect(card(page).getByText(BUSY, { exact: true }), 'the notice shows at 10 seconds').toBeVisible({ timeout: 12_000 });
     await expect(card(page).getByText(SAVED, { exact: true }), 'the late answer shows its line').toBeVisible({ timeout: 10_000 });
     await expect(card(page).getByText(BUSY, { exact: true }), 'and the notice leaves').toHaveCount(0);
     await expect(titleOf(page)).toHaveText('Pirate');
@@ -377,5 +389,118 @@ test('PC7b: in the drawer band the first Esc collapses the disclosure only, and 
     await expect(status, 'and the drawer stays open').toHaveAttribute('aria-expanded', 'true');
     await page.keyboard.press('Escape');
     await expect(status, 'the next Esc closes the drawer').toHaveAttribute('aria-expanded', 'false');
+  });
+});
+
+/** PC13: opening Change fills the form from what is stored (the Language and Your own words rows of the matrix). */
+test('PC13: after a reload, Change opens with the stored language and the stored words in their fields, and a discarded edit does not come back', async ({ page }) => {
+  await withCard(page, async () => {
+    await changeOf(page).click();
+    await radioOf(page, 'Another language').check();
+    await languageOf(page).fill('Spanish');
+    await saveOf(page).click();
+    await expect(card(page).getByText(SAVED, { exact: true })).toBeVisible();
+
+    await page.reload();
+    await expect(titleOf(page)).toHaveText('Another language');
+    await changeOf(page).click();
+    await expect(radioOf(page, 'Another language'), 'the stored preset is checked').toBeChecked();
+    await expect(languageOf(page), 'the Language field is prefilled with the stored name').toHaveValue('Spanish');
+
+    await languageOf(page).fill('Portuguese (Brazil)');
+    await page.keyboard.press('Escape');
+    await expect(changeOf(page)).toHaveAttribute('aria-expanded', 'false');
+    await changeOf(page).click();
+    await expect(languageOf(page), 'Esc is a cancel: the stored name is back').toHaveValue('Spanish');
+
+    await radioOf(page, 'Your own words').check();
+    await wordsOf(page).fill('Ahoy!');
+    await saveOf(page).click();
+    await expect(card(page).getByText(SAVED, { exact: true })).toBeVisible();
+
+    await page.reload();
+    await expect(titleOf(page)).toHaveText('Your own words');
+    await changeOf(page).click();
+    await expect(wordsOf(page), 'the text area is prefilled with the stored words').toHaveValue('Ahoy!');
+    await expect(card(page).getByText('5 of 1,000 characters', { exact: true }), 'and the counter counts them').toBeVisible();
+  });
+});
+
+/** PC14: the body that goes on the wire carries only the values the chosen preset uses. */
+test('PC14: a language or words typed and then left for another preset are not sent: the body is the preset alone', async ({ page }) => {
+  const putBody = async (): Promise<unknown> => {
+    const sent = page.waitForRequest((request) => request.method() === 'PUT' && new URL(request.url()).pathname === PERSONA);
+    await saveOf(page).click();
+    return (await sent).postDataJSON();
+  };
+  await withCard(page, async () => {
+    await changeOf(page).click();
+    await radioOf(page, 'Another language').check();
+    await languageOf(page).fill('Spanish');
+    await radioOf(page, 'Pirate').check();
+    expect(await putBody(), 'Pirate after a typed language sends no language').toEqual({ preset: 'pirate', language: '', custom: '' });
+    await expect(card(page).getByText(SAVED, { exact: true })).toBeVisible();
+
+    await radioOf(page, 'Your own words').check();
+    await wordsOf(page).fill('Ahoy!');
+    await radioOf(page, 'Another language').check();
+    await languageOf(page).fill('Spanish');
+    await radioOf(page, 'Kind friend').check();
+    expect(await putBody(), 'Kind friend after typed words and a language sends neither').toEqual({ preset: 'kindfriend', language: '', custom: '' });
+    await expect(card(page).getByText(SAVED, { exact: true })).toBeVisible();
+
+    await radioOf(page, 'Another language').check();
+    await languageOf(page).fill('Spanish');
+    expect(await putBody(), 'Another language sends its name alone').toEqual({ preset: 'language', language: 'Spanish', custom: '' });
+    await expect(card(page).getByText(SAVED, { exact: true }), 'answered before the cleanup runs').toBeVisible();
+  });
+});
+
+/** PC15: Esc collapses the disclosure only while focus is inside it. */
+test('PC15: Esc with focus on Change, outside the open disclosure, leaves it open', async ({ page }) => {
+  await withCard(page, async () => {
+    await changeOf(page).click();
+    await expect(changeOf(page)).toHaveAttribute('aria-expanded', 'true');
+    await changeOf(page).focus();
+    await expect(changeOf(page)).toBeFocused();
+    await page.keyboard.press('Escape');
+    await expect(changeOf(page), 'the disclosure is still open').toHaveAttribute('aria-expanded', 'true');
+    await expect(card(page).getByRole('radio'), 'with its radios drawn').toHaveCount(6);
+  });
+});
+
+/** PC16: focus on the suggestion line goes to the Persona heading when the line leaves with its answered request (UX-DR131). */
+test('PC16: when the suggestion line that holds focus leaves with its answered request, focus goes to the Persona heading', async ({ page }) => {
+  await withCard(page, async (_ref, rows) => {
+    await expect(titleOf(page)).toHaveText('Professional (default)');
+    const request = await seedApproval(README_ACCOUNT.user, { kind: 'setting' });
+    rows.push(request);
+    await applied(page, await sinkEvent(README_ACCOUNT.user, 'approval.raised', { ref: request }));
+    const pending = card(page).getByRole('button', { name: PENDING, exact: true });
+    await pending.focus();
+    await expect(pending, 'the line holds focus').toBeFocused();
+    await setApprovalState(request, 'approved');
+    await applied(page, await sinkEvent(README_ACCOUNT.user, 'approval.answered', { ref: request }));
+    await expect(pending, 'the line leaves').toHaveCount(0);
+    await expect(page.locator('#rail-heading-persona'), 'and focus goes to the Persona heading').toBeFocused();
+  });
+});
+
+/** PC17: a failed save whose re-read fails too takes the card away, and focus on Save goes to the Persona heading (UX-DR131). */
+test('PC17: when a failed save reads again and that read fails, the card leaves and focus on Save goes to the Persona heading', async ({ page }) => {
+  let failing = false;
+  await page.route(`**${PERSONA}`, (route) => {
+    if (route.request().method() === 'PUT') return route.fulfill({ status: 500, json: { error: { code: 'server_error', message: 'zz The save failed.' } } });
+    return failing ? route.fulfill({ status: 500, json: { error: { code: 'server_error', message: 'zz The read failed.' } } }) : route.continue();
+  });
+  await withCard(page, async () => {
+    await changeOf(page).click();
+    await radioOf(page, 'Pirate').check();
+    failing = true;
+    await saveOf(page).focus();
+    await expect(saveOf(page), 'Save holds focus').toBeFocused();
+    await page.keyboard.press('Enter');
+    await expect(changeOf(page), 'the card leaves with the failed read').toHaveCount(0);
+    await expect(page.locator('#rail-heading-persona'), 'and focus goes to the Persona heading').toBeFocused();
   });
 });

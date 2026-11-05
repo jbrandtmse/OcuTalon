@@ -4070,3 +4070,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-7-8-the-web-incident-card-shows-the-either-way-date-line-too.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: 7.8 fresh check: lane-a@Fix reversed part 2/2 on a fresh lane-B throwaway, red once (header 564), green on the unchanged rerun; Story 7.8 changed no Fix code
 - 2026-11-04T19:33:23Z status=routed owner=burndown by=adjudication note=flake candidate: Test.Fix.Snapshot exempts only a timer already running; a ScheduleService call is another background writer; note every occurrence
+
+### DW-709: Persona card: the six preset names and descriptions (PRESETS in persona-card-view.ts) are not registered in the ux-strings.test.mjs inventory (UX-DR117)
+- source: spec-40-4-the-persona-card.md | severity: med | fix-risk: low | footprint: in-epic
+- evidence: ux-strings.test.mjs builds its inventory from *_TEXTS, fromSource grabs and template text only; PRESETS is read by none, so 11 strings have no SOURCES entry (pinned word for word only by persona-card-view.test.mjs)
+- 2026-11-05T03:58:33Z status=routed owner=40-6-answer-a-proposed-persona-from-the-page-the-phone-or-telegra by=cr note=not patched in 40.4: Epic 33 has since changed ux-strings.test.mjs (unmerged); fix after the integrate-forward with a fromSource grab of PRESETS (as SKIP_LINKS/THEME_OPTIONS) plus 11 ux SOURCES entries, when 40.6 adds its own strings to that file

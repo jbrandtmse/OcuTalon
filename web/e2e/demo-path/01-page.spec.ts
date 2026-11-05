@@ -87,9 +87,9 @@ test('shows the empty chat panel and the composer', { tag: '@floor' }, async ({ 
 });
 
 /**
- * The floor of the status rail (REL-2, UX-DR51): on a fresh install the README account sees the rail as the region Status with its five
- * sections in order, the Telegram card first (not set up, with its README link) and then the four lists, each with its count and its empty
- * state, both hints, and no live region in the rail.
+ * The floor of the status rail (REL-2, UX-DR51): on a fresh install the README account sees the rail as the region Status with its six
+ * sections in order, the Telegram card first (not set up, with its README link), then the four lists, each with its count and its empty
+ * state, both hints, and the Persona card last, and no live region in the rail.
  */
 test('shows the status rail with its sections, counts and empty states', { tag: '@floor' }, async ({ page }) => {
   const violations = watchViolations(page);

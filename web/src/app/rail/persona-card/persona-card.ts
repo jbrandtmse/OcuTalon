@@ -1,11 +1,12 @@
 import { DOCUMENT } from '@angular/common';
-import { ChangeDetectionStrategy, Component, computed, DestroyRef, effect, ElementRef, inject, signal, untracked, viewChild } from '@angular/core';
+import { ChangeDetectionStrategy, Component, computed, DestroyRef, effect, ElementRef, inject, Injector, signal, untracked, viewChild } from '@angular/core';
 import { type Observable, type Subscription, tap } from 'rxjs';
 
 import { ApiClient } from '../../api/api-client';
 import type { PersonaSaved, PersonaState } from '../../api/persona-types';
 import { Icon } from '../../icon/icon';
 import { LiveState } from '../../live/live-state';
+import { type FocusRule, keepFocus } from '../../shared/focus-rule';
 import { Layout } from '../../shared/layout';
 import { Popovers } from '../../shared/popover';
 import { BUSY_NOTICE, ServerButton } from '../../shared/server-button';
@@ -24,6 +25,19 @@ import {
 
 /** The count of the cards that have been made, which gives each one's ids a prefix of its own. */
 let lastCard = 0;
+
+/** The attribute that names the card's parts for its focus rule: the current choice, the pending line and the disclosure. */
+const FOCUS_KEY = 'data-focus-key';
+
+/**
+ * Where focus goes when the card's own read removes the element that holds it (UX-DR131): the pending line that leaves with its
+ * request, or the whole card after a failed read. Focus then goes to the Persona heading, as the rail's rule does for a row that leaves.
+ */
+const FOCUS_RULE: FocusRule = {
+  item: `[${FOCUS_KEY}]`,
+  keyOf: (item) => item.getAttribute(FOCUS_KEY) ?? '',
+  whenGone: ({ host }) => host.ownerDocument.getElementById(PERSONA_HEADING_ID),
+};
 
 /** The line under Save or under a field: the text, and whether it is a refusal. */
 interface Line {
@@ -53,8 +67,9 @@ interface FieldLine {
  *   shows under Save; a `bad_language` or `bad_custom` refusal shows beside its field instead, marked aria-invalid and linked through
  *   aria-describedby; any other failure shows its message under Save, or the busy notice when it has none, and the card reads again. The
  *   page holds no copy of a message of the server.
- * The card announces nothing and is no live region. It moves focus only for the user's own press (Esc, and the pending link). Every text
- * is bound by interpolation from persona-card-view.ts or is the server's.
+ * The card announces nothing and is no live region. It moves focus only for the user's own press (Esc, and the pending link), and through
+ * the page's focus rule when its own read removes the focused element (the pending line, or the card after a failed read): to the Persona
+ * heading. Every text is bound by interpolation from persona-card-view.ts or is the server's.
  */
 @Component({
   selector: 'app-persona-card',
@@ -62,13 +77,13 @@ interface FieldLine {
   changeDetection: ChangeDetectionStrategy.OnPush,
   template: `
     @if (state(); as persona) {
-      <div class="current">
+      <div class="current" data-focus-key="current">
         @if (current(); as preset) {
           <span class="current-name">{{ preset.name }}</span>
           <span class="current-description">{{ preset.description }}</span>
         }
         @if (persona.pendingRef !== '') {
-          <button type="button" class="pending" (click)="jump(persona.pendingRef)">{{ texts.pending }}</button>
+          <button type="button" class="pending" data-focus-key="pending" (click)="jump(persona.pendingRef)">{{ texts.pending }}</button>
         }
         <button
           #change
@@ -81,7 +96,7 @@ interface FieldLine {
           {{ texts.change }}
         </button>
       </div>
-      <div class="panel" [class.open]="open()" [id]="panelId" (keydown.escape)="collapse($event)">
+      <div class="panel" data-focus-key="panel" [class.open]="open()" [id]="panelId" (keydown.escape)="collapse($event)">
         @if (open()) {
           <p class="note" [id]="introId">{{ texts.intro }}</p>
           @if (!persona.customOffered) {
@@ -286,6 +301,8 @@ export class PersonaCard {
   private readonly layout = inject(Layout);
   private readonly document = inject(DOCUMENT);
   private readonly popovers = inject(Popovers);
+  private readonly host = inject<ElementRef<HTMLElement>>(ElementRef);
+  private readonly injector = inject(Injector);
 
   protected readonly texts = PERSONA_TEXTS;
   protected readonly headingId = PERSONA_HEADING_ID;
@@ -341,6 +358,10 @@ export class PersonaCard {
     effect(() => {
       this.pendingRefs();
       untracked(() => this.read());
+    });
+    effect(() => {
+      this.state();
+      untracked(() => keepFocus(this.host.nativeElement, this.injector, this.popovers, FOCUS_RULE));
     });
     inject(DestroyRef).onDestroy(() => this.reading?.unsubscribe());
   }
