@@ -12,6 +12,9 @@
 ///     the body is ignored) and origin web_user, and 200 {"result":"done","ref"};
 ///   - TestAddRefused: every refusal of the Matrix is a 400 bad_document with its reason (none for a malformed body) and submits nothing; a file
 ///     of 10,485,760 bytes is accepted and one of 10,485,761 refused too_large, for a .md, .txt, .pdf and .docx alike;
+///   - TestUploadRows: an accepted file is stored as one OcuTalon.Data.Upload row of the CSP session, and the AddDocument names it (UploadRef) and
+///     holds no bytes; the row stays while the owner answers Ok (DocumentOps takes it); a failed submit (every answer but Ok, an error status, a thrown
+///     error, an Ok result with an error status, no result), a refusal, an owner that is not running and a remove leave no row;
 ///   - TestBodyBound: a body of BODYMAX bytes is parsed and one byte more is 413 body_too_large before it is parsed, with nothing submitted;
 ///   - TestLargeBody: a request stream with a 10 MB PDF and a non-ASCII name parses with the exact size and name;
 ///   - TestOutcomes: not_built is 501, not_found is 404 (remove), failed, an unknown outcome, an error status and no result are 500;
@@ -237,6 +240,58 @@ Method TestAddRefused()
 	// 255 characters is allowed.
 	Set body = ..Call("Add", a, {"name": (long), "content": "aGVsbG8="}.%ToJSON(), .response)
 	Do $$$AssertEquals(response.Status, "200 OK", "a name of 255 characters is accepted: "_body)
+}
+
+/// The bytes of an accepted file are an Upload row, kept for the owner on Ok and deleted on every other end.
+Method TestUploadRows()
+{
+	Set a = ..Session("a")
+	Do ##class(OcuTalon.Data.Upload).DropSession(a)
+	// An Ok answer leaves the row to the owner.
+	Set ^OcuTalonTest("DocumentsProbe", "keep") = 1
+	Set body = ..Call("Add", a, {"name": "keep.md", "content": "aGVsbG8="}.%ToJSON(), .response)
+	Do $$$AssertEquals(response.Status, "200 OK", "an accepted add is 200: "_body)
+	Do $$$AssertEquals(..Uploads(a), 1, "one upload row of the session")
+	Set ref = ..Submit(1, "uploadRef")
+	Set row = ##class(OcuTalon.Data.Upload).RefIndexOpen(ref)
+	Do $$$AssertTrue($IsObject(row), "the AddDocument names the row (UploadRef "_ref_")")
+	Do $$$AssertEquals(..Submit(1, "uploadSessionRef")_"|"_..Submit(1, "size"), a_"|5", "which holds the CSP session's Ref and the decoded bytes when the command arrives")
+	Kill row
+	Do $$$AssertEquals(##class(OcuTalon.Data.Upload).Take(ref).Read(5), "hello", "and the owner takes the bytes")
+	Do $$$AssertEquals(..Uploads(a), 0, "which leaves no row")
+	Kill ^OcuTalonTest("DocumentsProbe")
+	// A failed submit leaves no row.
+	For answer = "not_built", "not_found", "failed", "zzother", "status", "throw", "okerror", "none" {
+		Set ^OcuTalonTest("DocumentsProbe", "answer") = answer
+		Set body = ..Call("Add", a, {"name": "fails.md", "content": "aGVsbG8="}.%ToJSON(), .response)
+		Do $$$AssertEquals(response.Status '= "200 OK", 1, "the owner says "_answer_": not 200")
+		Do $$$AssertEquals(..Uploads(a), 0, "the owner says "_answer_": no upload row is left")
+	}
+	Do $$$AssertEquals(..Submits(), 8, "all eight were submitted")
+	Kill ^OcuTalonTest("DocumentsProbe")
+	// A refusal stores nothing.
+	Set limit = ##class(OcuTalon.Web.Documents).#FILEMAX
+	Set body = ..CallStream("Add", a, ..Body("over.pdf", limit + 1), .response)
+	Set statuses = response.Status
+	Set body = ..Call("Add", a, {"name": "photo.png", "content": "aGVsbG8="}.%ToJSON(), .response)
+	Set statuses = statuses_"|"_response.Status
+	Set body = ..Call("Add", a, {"name": "empty.md", "content": ""}.%ToJSON(), .response)
+	Set statuses = statuses_"|"_response.Status
+	Set body = ..Call("Add", a, "not json", .response)
+	Set statuses = statuses_"|"_response.Status
+	Do $$$AssertEquals(statuses, "400 Bad Request|400 Bad Request|400 Bad Request|400 Bad Request", "an oversize, a wrong-type, an empty and a malformed file are each refused 400")
+	Do $$$AssertEquals(..Uploads(a)_"|"_..Submits(), "0|0", "refused files store nothing and submit nothing")
+	// So does an owner that is not running, and a remove.
+	Set ^OcuTalonTest("DocumentsProbe", "owner") = "off"
+	Set ^OcuTalonTest("DocumentsProbe", "keep") = 1
+	Set body = ..Call("Add", a, {"name": "off.md", "content": "aGVsbG8="}.%ToJSON(), .response)
+	Do $$$AssertEquals(+response.Status, 501, "an add with the owner not running is 501")
+	Do $$$AssertEquals(..Uploads(a)_"|"_..Submits(), "0|0", "and stores nothing")
+	Kill ^OcuTalonTest("DocumentsProbe", "owner")
+	Set doc = ##class(OcuTalon.Test.Data.Fixture).Document(a, "zz remove.md")
+	Set body = ..Call("Remove", a, , .response, doc)
+	Do $$$AssertEquals(response.Status_"|"_..Uploads(a), "200 OK|0", "a remove stores nothing")
+	Do ##class(OcuTalon.Data.Upload).DropSession(a)
 }
 
 /// A body of BODYMAX bytes is read; one byte more is refused 413 before parsing.
@@ -529,6 +584,14 @@ ClassMethod Body(name As %String, size As %Integer, total As %Integer = 0) As %C
 	}
 	Do stream.Rewind()
 	Quit stream
+}
+
+/// The number of Upload rows of the session.
+Method Uploads(session As %String) As %Integer [ Private ]
+{
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Data.Upload WHERE SessionRef = ?", session)
+	Do result.%Next()
+	Quit result.%GetData(1)
 }
 
 /// The number of commands the probe recorded.

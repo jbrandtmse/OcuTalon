@@ -27,7 +27,7 @@ Include Ensemble
 /// chat's ChatRef, a catalog key and no text; Notify decides where it goes. An error thrown while carrying out a command is logged and
 /// answers failed. The pool of the item is 1, so its commands are handled one at a time.
 /// Unlink is the one way a chat is unlinked, and End calls it.
-/// From step 3, End first drops the session's documents and memories (OcuTalon.Docs.DropSession and OcuTalon.Memory.DropSession, AD-4, AD-21).
+/// From step 3, End first drops the session's documents, memories and uploads (OcuTalon.Docs.DropSession, OcuTalon.Memory.DropSession and OcuTalon.Data.Upload.DropSession, AD-4, AD-21).
 Class OcuTalon.Core.SessionOps Extends Ens.BusinessOperation
 {
 
@@ -231,7 +231,7 @@ Method Unpair(command As OcuTalon.Msg.Command.Unpair) As OcuTalon.Msg.CommandRes
 	Quit ..Result(0, "not_paired", ..#MESSAGENOTPAIRED)
 }
 
-/// Carries out an EndSession command and returns the CommandResult to answer (see the class description). The document and memory drops,
+/// Carries out an EndSession command and returns the CommandResult to answer (see the class description). The document, memory and upload drops,
 /// Unlink, the reminders, the watches and the approval requests each run even when an earlier one failed or threw, and a failure is a
 /// warning with the step's reason; the resume hash is cleared last, and only when none of them failed, so a failed End leaves the session
 /// resumable.
@@ -462,7 +462,7 @@ ClassMethod Result(ok As %Boolean, outcome As %String, message As %String) As Oc
 	Quit result
 }
 
-/// End's step 3 drops: the session's documents, then its memories, each in its own Try. The result is the number of drops that failed
+/// End's step 3 drops: the session's documents, then its memories, then its uploads (the bytes of files not yet taken by DocumentOps), each in its own Try. The result is the number of drops that failed
 /// (an error status or an error thrown), each a warning.
 Method EndDocumentsAndMemories(sessionRef As %String) As %Integer [ Private ]
 {
@@ -481,6 +481,13 @@ Method EndDocumentsAndMemories(sessionRef As %String) As %Integer [ Private ]
 		Set failed = failed + 1
 		Do ..Warn("the memories of session " _ sessionRef _ " could not be dropped", exception.AsStatus())
 	}
+	Try {
+		Set sc = ..DropUploads(sessionRef)
+		If $$$ISERR(sc) Set failed = failed + 1 Do ..Warn("the uploads of session " _ sessionRef _ " could not be dropped", sc)
+	} Catch exception {
+		Set failed = failed + 1
+		Do ..Warn("the uploads of session " _ sessionRef _ " could not be dropped", exception.AsStatus())
+	}
 	Quit failed
 }
 
@@ -494,6 +501,12 @@ Method DropDocuments(sessionRef As %String) As %Status [ Private ]
 Method DropMemories(sessionRef As %String) As %Status [ Private ]
 {
 	Quit ##class(OcuTalon.Memory).DropSession(sessionRef)
+}
+
+/// The one call that drops a session's uploads (Lane B; a seam for the tests).
+Method DropUploads(sessionRef As %String) As %Status [ Private ]
+{
+	Quit ##class(OcuTalon.Data.Upload).DropSession(sessionRef)
 }
 
 }

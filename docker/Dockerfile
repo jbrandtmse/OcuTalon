@@ -14,7 +14,7 @@ RUN mkdir -p /durable && chown 51773:51773 /durable
 # (docker/licences/allowed.txt), and the notices file is written from the installed licence files; no licence file is deleted.
 # The model AllMiniLM-L6-v2 is downloaded now, so that no first use needs the network, into a root-owned read-only folder that
 # FASTEMBED_CACHE_DIR names (files 444, folders 555); it sits outside /opt/ocutalon so that the mode step below never copies it again.
-COPY docker/licences/ /opt/ocutalon/licences/
+COPY docker/licences/allowed.txt docker/licences/gate.py /opt/ocutalon/licences/
 RUN python3 -m pip install --break-system-packages --no-cache-dir --target /usr/irissys/mgr/python --only-binary=:all: fastembed==0.9.0 pdfplumber==0.11.10 python-docx==1.1.2 \
  && python3 /opt/ocutalon/licences/gate.py check /usr/irissys/mgr/python \
  && python3 /opt/ocutalon/licences/gate.py notices /usr/irissys/mgr/python /opt/ocutalon/THIRD-PARTY-NOTICES \

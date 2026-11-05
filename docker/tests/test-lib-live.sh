@@ -244,6 +244,8 @@ expected_files="docker/Dockerfile
 docker/after-start.cos
 docker/after-start.sh
 docker/healthcheck.sh
+docker/licences/allowed.txt
+docker/licences/gate.py
 docker/ipm/LICENSE
 docker/ipm/zpm-0.10.10.xml
 docker/merge.cpf
@@ -252,7 +254,7 @@ expected_files=$(printf '%s\n' "$expected_files" | sort)
 copy_build_context "$tmp/ctx"
 copied=$(cd "$tmp/ctx" && find . -type f | sed 's:^\./::' | sort)
 if [ "$copied" = "$expected_files" ]; then
-  pass "build context: the Dockerfile, its scripts, the IPM files and every file below src/, and nothing else"
+  pass "build context: the Dockerfile, its scripts, the IPM files, the licence gate's two files and every file below src/, and nothing else"
 else
   echo "  copied:   $(echo "$copied" | tr '\n' ' ')"
   echo "  expected: $(echo "$expected_files" | tr '\n' ' ')"

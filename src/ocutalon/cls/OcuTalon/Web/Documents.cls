@@ -7,10 +7,12 @@
 ///     is parsed. Then, before any command: a body that is not an object with a string name of 1 to 255 characters
 ///     and a string content of valid base64 is 400 bad_document with no reason; a name whose extension is not in EXTENSIONS is 400
 ///     bad_document with reason wrong_type; no bytes is reason empty; more than FILEMAX bytes (10,485,760) is reason too_large. A refused
-///     file writes no row and submits nothing. An accepted file submits one AddDocument (Name, the ContentType of the extension, the
-///     decoded bytes, the CSP session's Ref) through Commands.Submit with origin web_user, and Ok is 200 {"result":"done","ref"};
-///     not_built is 501 not_built (also while DocumentOps is not running, when nothing is submitted); any other outcome or status is 500 server_error. DocumentOps (Lane A) checks the file again, finds an
-///     unreadable one and writes the row (AD-21).
+///     file writes no row and submits nothing. An accepted file is stored as an OcuTalon.Data.Upload row of the CSP session, just before the
+///     submit, and submits one AddDocument (Name, the ContentType of the extension, the row's Ref as UploadRef, the CSP session's Ref)
+///     through Commands.Submit with origin web_user, and Ok is 200 {"result":"done","ref"}; the upload row is deleted again when the submit
+///     fails or the owner does not answer Ok (DocumentOps takes it with Upload.Take). not_built is 501 not_built (also while DocumentOps is
+///     not running, when nothing is stored or submitted); any other outcome or status is 500 server_error. DocumentOps (Lane A) checks the
+///     file again, finds an unreadable one and writes the row (AD-21).
 ///   - DELETE /v1/documents/:ref answers 404 not_found first for a ref the session can't see (Ownership.Document), nothing submitted;
 ///     otherwise it submits one RemoveDocument with origin web_user: Ok is 200 {"result":"done"}, not_found 404, not_built 501, any
 ///     other outcome or status 500.
@@ -90,11 +92,8 @@ ClassMethod Add() As %Status
 	Set command = ##class(OcuTalon.Msg.Command.AddDocument).%New()
 	Set command.Name = name
 	Set command.ContentType = contentType
-	Set sc = command.Content.CopyFrom(bytes)
-	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
 	Set command.SessionRef = sessionRef
-	Set bytes = ""
-	Set sc = ..Dispatch(command, .result)
+	Set sc = ..Dispatch(command, .result, bytes)
 	If $SYSTEM.Status.IsError(sc) Quit ..ServerError(sc)
 	If '$IsObject(result) Quit ..ServerError($SYSTEM.Status.Error(5001, "CommandsIn answered no result"))
 	If result.Ok {
@@ -131,10 +130,12 @@ ClassMethod Remove(ref As %String) As %Status
 	Quit ..ServerError($SYSTEM.Status.Error(5001, "The removal was answered "_result.Outcome))
 }
 
-/// Hands the command to its owner. While the owner item is not running (DocumentOps is disabled until Story 19.4) nothing is submitted and the
+/// Hands the command to its owner. While the owner item is not running (DocumentOps is disabled until Story 19.4) nothing is stored or submitted and the
 /// answer is a CommandResult with Ok 0 and the outcome not_built: a send to a disabled item is queued and waits for CommandsIn's whole timeout,
-/// longer than the web server waits, so the page would wait in vain.
-ClassMethod Dispatch(command As OcuTalon.Msg.Command, Output result As OcuTalon.Msg.CommandResult) As %Status [ Private ]
+/// longer than the web server waits, so the page would wait in vain. When bytes are given (an AddDocument) they are stored as an
+/// OcuTalon.Data.Upload row just before the submit, the command carries the row's Ref as UploadRef (a message body holds no global stream), and
+/// the row is deleted again when the submit fails or the owner does not answer Ok; an Ok answer leaves it to the owner, which takes it.
+ClassMethod Dispatch(command As OcuTalon.Msg.Command, Output result As OcuTalon.Msg.CommandResult, bytes As %Stream.Object = "") As %Status [ Private ]
 {
 	If '..OwnerRunning() {
 		Set result = ##class(OcuTalon.Msg.CommandResult).%New()
@@ -143,7 +144,21 @@ ClassMethod Dispatch(command As OcuTalon.Msg.Command, Output result As OcuTalon.
 		Set result.Message = ..#MESSAGENOTBUILT
 		Quit $SYSTEM.Status.OK()
 	}
-	Quit ..Submit(command, .result)
+	Set upload = ""
+	If $IsObject(bytes) {
+		Set upload = ##class(OcuTalon.Data.Upload).Put(command.SessionRef, bytes, .sc)
+		If $SYSTEM.Status.IsError(sc) Quit sc
+		Set $Property(command, "UploadRef") = upload
+		Set bytes = ""
+	}
+	Set result = ""
+	Try {
+		Set sc = ..Submit(command, .result)
+	} Catch exception {
+		Set sc = exception.AsStatus()
+	}
+	If (upload '= "") && ($SYSTEM.Status.IsError(sc) || '$IsObject(result) || 'result.Ok) Do ##class(OcuTalon.Data.Upload).Drop(upload)
+	Quit sc
 }
 
 /// 1 when the owner item is enabled in the running production (a test subclass overrides it).

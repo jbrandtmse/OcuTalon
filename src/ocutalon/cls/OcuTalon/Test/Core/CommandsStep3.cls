@@ -219,7 +219,7 @@ XData Contracts [ MimeType = application/json ]
    "SessionRef": "%String(MAXLEN=22)",
    "Name": "%String(MAXLEN=255)",
    "ContentType": "%String(MAXLEN=16)",
-   "Content": "%Stream.GlobalBinary"
+   "UploadRef": "%String(MAXLEN=22)"
   }
  },
  "OcuTalon.Msg.Command.RemoveDocument": {

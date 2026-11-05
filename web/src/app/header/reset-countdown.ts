@@ -33,7 +33,7 @@ const FORMAT: PillFormat = {
   styles: `
     .reset-countdown {
       display: inline-block;
-      padding: 2px var(--space-3);
+      padding: 2px var(--reset-countdown-inline, var(--space-3));
       border-radius: var(--reset-countdown-radius);
       background: var(--reset-countdown-background);
       color: var(--reset-countdown-foreground);

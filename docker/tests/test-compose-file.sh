@@ -163,7 +163,7 @@ gate_after_pip() {
   r=$(pip_run)
   printf '%s\n' "$r" | grep -qF 'pip install' || return 1
   printf '%s\n' "$r" | grep -q 'pip install .*&& python3 /opt/ocutalon/licences/gate.py check /usr/irissys/mgr/python &&.*gate.py notices /usr/irissys/mgr/python /opt/ocutalon/THIRD-PARTY-NOTICES &&' || return 1
-  [ "$(line_of '^COPY docker/licences/ /opt/ocutalon/licences/$')" -lt "$(line_of 'pip install')" ]
+  [ "$(line_of '^COPY docker/licences/allowed.txt docker/licences/gate.py /opt/ocutalon/licences/$')" -lt "$(line_of 'pip install')" ]
 }
 
 # The packages' licence files are kept: nothing is uninstalled and nothing is deleted under the packages' folder.
