@@ -10,7 +10,7 @@ Parameter DEFAULTGLOBAL = "^OcuTalonP.Document";
 /// The document's public Ref (AD-14), the source of each chunk in the knowledge base. Refs are case-sensitive.
 Property Ref As %String(COLLATION = "EXACT", MAXLEN = 22);
 
-/// The owner of the document: a session's Ref on the online demo, the literal instance on a local install (AD-2).
+/// The owner of the document: a session's Ref on the online demo, the literal instance on a local install (AD-4).
 Property OwnerRef As %String(COLLATION = "EXACT", MAXLEN = 22);
 
 /// The Ref of the session that added the document.

@@ -115,7 +115,49 @@ deferred: []
 - Given a start, when `PrivateData` runs, then it covers memory, document and knowledge-base globals and `^IRIS.IF.*`, and `Test.Install.PrivateData` and `live:install-start` (`STEP PrivateData OK`) pass.
 - Given `test-class-rules.sh`, when a product line creates a table without the private `DEFAULTGLOBAL`, then rule `kb-ddl` fails; on the tree as committed it passes.
 
+### Review Findings
+
+Code review 2026-11-05 (bmad-code-review, full mode; layers blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor, all at the session's tier). 38 raw findings -> 11 entries (high 0, medium 3, low 8); 27 rejected. Rule 3: no user-facing surface (exempt). Rule 1: the Integration ACs note names Story 34.2 as first consumer; both `DropSession(sessionRef As %String) As %Status` stubs are callable as 34.2 needs. Rule 6: AD-2, AD-3, AD-5, AD-21, AD-23, AD-29, AD-31 and AD-33 checked; spine and PRD hunks are plain unions (only `updated:` replaced; every other `-` line returns intact with an appended clause and marker); the U-280 row is worded faithfully with its marker.
+
+- [x] [Review][Patch] `kb-ddl` exempted the class `OcuTalon.Docs` (`Docs.cls`) for `%AI.RAG.VectorStore.IRIS` and spine S8 said "the class and package `OcuTalon.Docs`", but that class is in package `OcuTalon`, outside AD-2's allow-list (`ai-allowlist` flags it), as this spec's Design Notes say [docker/tests/test-class-rules.sh:106] -- med, fix-risk low (one regex alternative and one clause of this story's own S8), in-story; fixed: exemption removed, the `Docs.cls` sample is now a flagged sample, header and S8 say "the package `OcuTalon.Docs`"; mutation line updated
+- [x] [Review][Patch] `kb-ddl` samples never pinned the `DEFAULTGLOBAL` half of the rule (every bad sample also lacked the prefix) [docker/tests/test-class-rules.sh:412] -- med, fix-risk low (one sample), in-story; fixed: sample `Docs/ZzNoDefault` (prefix, no `DEFAULTGLOBAL`); mutation recorded
+- [x] [Review][Defer] Document refusal reason codes and their page text are unnamed, and with `DocumentOps` a 5003 stub until Story 19.4 nothing writes the failed row Story 34.2's refusal AC shows [ARCHITECTURE-SPINE.md, AD-21 Documents "Names"] -- deferred: med, fix-risk med, in-epic (Lane B renders, 34.2 decides) -> DW-722 routed owner=34-2-add-and-remove-documents-on-a-documents-page
+- [x] [Review][Patch] `StorageGlobals`' storage-index query had no recorded mutation [src/ocutalon/cls/OcuTalon/Install/Step/PrivateData.cls:46] -- low (Rule 19 missing mutation line), fix-risk low; closed: mutation run on slot C, red, recorded
+- [x] [Review][Patch] Spine S8 omitted the test-package exemption the script applies [ARCHITECTURE-SPINE.md:1070] -- low, fix-risk low; fixed with the S8 rewording ("outside the test package")
+- [x] [Review][Patch] `kb-ddl` header claimed "a statement split over several lines is flagged" though a `CREATE`/`TABLE` split is not read [docker/tests/test-class-rules.sh:13] -- low, fix-risk low; header reworded to the one-line reading
+- [x] [Review][Patch] `PrivateData` doc comment called `^IRIS.IF.*` "AI Hub's index-free storage" (it is `%iFind`'s word dictionary, AD-3) [src/ocutalon/cls/OcuTalon/Install/Step/PrivateData.cls:7] -- low, fix-risk low; fixed
+- [x] [Review][Patch] `Data.Memory` doc said a memory "is dropped at its sign-out" without the online-demo qualifier [src/ocutalon/cls/OcuTalon/Data/Memory.cls:3] -- low, fix-risk low; fixed
+- [x] [Review][Patch] `Data.Document.OwnerRef` doc cited AD-2 for the owner literal (AD-4 owns P23 owners) [src/ocutalon/cls/OcuTalon/Data/Document.cls:13] -- low, fix-risk low; fixed
+- [x] [Review][Patch] `TestKnowledgeBaseTables` checked a 15-character prefix (`OcuTalonP.KBZz3`) while its message claims `^OcuTalonP.KBZz341` [src/ocutalon/cls/OcuTalon/Test/Install/PrivateData.cls:116] -- low, fix-risk low; fixed (17 characters); class passes on slot C
+- [x] [Review][Patch] `Test.Contract.Step3.SeedRows` ignored both `%Save()` statuses, so a fixture failure read as a `DropSession` failure [src/ocutalon/cls/OcuTalon/Test/Contract/Step3.cls:93] -- low, fix-risk low; fixed: `SeedRows` returns the first failed status and the test asserts it; class passes on slot C
+
+Note: Design Notes "Decided in-stage" 13 and 16 still describe the removed `Docs.cls` exemption and the old header reading; the rule and the spine now read as above (review does not edit Design Notes).
+
+**Rejected (27):**
+- false: no plan for `FASTEMBED_CACHE_DIR` in the runner job -- S5 states "The variable must be set before `FastEmbed.Create()` in the job", which covers every job
+- false: web layer has no read path for documents -- the read method is Story 34.2's (Lane B `Data/Ownership.cls`), which already has the local-install `instance` pattern (`INCIDENTVISIBLE`); the ER line is the spec's S14
+- spec-bound: `Live.Payload.Document` built by Lane B -- lead ruling at the spec gate (34.2 creates it, Lane A owns it from 19.4); S13 is the spec's text
+- low: per-session KB tables not checked after `Build()` at run time -- `kb-ddl` and pre-created tables cover it; Story 19.4/19.5 territory, no failure shown
+- false: `StorageGlobals` skips `CounterLocation`/`VersionLocation` (blind-hunter, edge-case-hunter) -- measured on slot C: an AI Hub-shaped DDL table has both empty
+- false: the KB test fixture is not AI Hub's shape -- measured: AI Hub's columns store the same way (`.1`, `.I`, `.S`, storage indexes `.2`, `.3`)
+- low: spine says "about 97 MB" against the measured 89,012 KB -- fixing it edits an existing sentence; no reader harmed
+- spec edit: Auto Run Result counts, review date, frontmatter status, "only appended clauses" summary, stale Decided 13 (blind-hunter, edge-case-hunter, 6 rows) -- the fix edits the spec under review
+- theoretical: a lower-case `ocutalonkb.` schema -- nothing creates one
+- theoretical: orphaned hashed-name globals after a KB class is deleted -- `DROP TABLE` removes the globals
+- spec-bound: `CREATE` and `TABLE` split over lines, or concatenated -- one-line reading is Decided 13/16; the start-time check still names the table (header now says so)
+- theoretical: Python test files under `src/` not exempt -- none exists
+- spec-bound: no size cap for Markdown/plain text -- FR-54 caps PDF and Word only
+- low: RRF ties with equal `SavedAt` -- rare; Story 19.3 fixes its own order
+- false: a session row id reused after the reset meets a stale `OcuTalonKB.S<id>` class -- the reset restores the whole durable volume's golden copy (AD-25)
+- spec-bound: `DEFAULTGLOBAL` and the prefix need only be on the same line -- the task's wording; the start check catches a public global
+- false: `TestRegistry` size assertion cannot fail, and it reads a copy of the tsv (verification-gap, acceptance-auditor) -- the size guards the loop against an emptied oracle; the copy is the sibling's shape and `test-storage.sh` pins the file
+- false: S2 cites AD-6 where the spec says S11 -- AD-6 is the spine's statement of the S11 hazard
+- false: S5 drops "at install" -- the evidence says the folder was made by hand; the added sentence says so
+- informational: S4 says "used" beside U-280 -- spec text; condition 2 governs UI labels (owner-decided)
+
 ## Spec Change Log
+
+- 2026-11-05 (lead, after code review): Design Notes 13 and 16 are superseded where they describe `kb-ddl`'s exemption of the class `OcuTalon.Docs` and its old line reading: review removed the exemption (AD-2's `%AI` allow-list names the package `OcuTalon.Docs`, not the class) and reworded the rule header and the spine's S8 clause; `### Review Findings` holds the detail.
 
 - P6 confirmation: PRD FR-41 (line 862) and FR-42 (line 875) already recorded the owners ("already recorded"); FR-15 gained the step 3 bullet.
 
@@ -283,7 +325,14 @@ Lane prefix `P` = `OCUTALON_LOCK_DIR="$(dirname "$(git rev-parse --path-format=a
 - mutation: every `binds` removed from AD-21's block in the spine -> `lint_spine.py` went red (`ad_fields`, "AD-21 missing required field(s): binds"); the planned deletion of the `**Rule:**` line alone stays green (Decided in-stage 14)
 - mutation: `Memory.DropSession` deletes the session's `Data.Memory` rows (seeded fixture rows) -> `Test.Contract.Step3` TestDropSession went red ("the dropped session's memory is still there")
 - mutation: `kb_ddl` part (b) switched off (`!docs &&` -> `0 &&`) -> `test-class-rules.sh` went red (`FAIL kb-ddl: the scanner does not flag the sample .../ZzVector.cls`)
-- mutation: the `OcuTalon/Docs.cls` exemption removed from `docs` -> `test-class-rules.sh` went red (`FAIL kb-ddl: the scanner flags the sample .../OcuTalon/Docs.cls`)
+- (CR, replaces the implement stage's `Docs.cls` exemption line: code review removed that exemption, AD-2) mutation: the `OcuTalon/Docs.cls` exemption put back into `docs` (`|| FILENAME ~ /\/OcuTalon\/Docs\.cls$/`) -> `test-class-rules.sh` went red (`FAIL kb-ddl: the scanner does not flag the sample kb/src/ocutalon/cls/OcuTalon/Docs.cls`)
+- (QA) mutation: `Docs.DropSession` deletes the session's `Data.Document` rows -> `Test.Contract.Step3` TestDropSession went red ("no Document row changed in number", "the dropped session's document is still there")
+- (QA) mutation: `Memory.Ops.OnMessage` answers `$$$OK` instead of 5003 -> `Test.Install.Production` TestStubsAnswer went red ("MemoryOps answers code 5003")
+- (QA) mutation: `IRIS.IF.` removed from `PrivateData` `PREFIXES` -> `Test.Install.PrivateData` TestStep3Globals and TestPlantedGlobalFails went red
+- (CR) mutation: `index(low, "defaultglobal") == 0 ||` removed from `kb_ddl` -> `test-class-rules.sh` went red (`FAIL kb-ddl: the scanner does not flag the sample kb/src/ocutalon/cls/OcuTalon/Docs/ZzNoDefault.cls`, the new sample whose `CREATE TABLE` line holds `^OcuTalonP.` but no `DEFAULTGLOBAL`)
+- (CR) mutation: the `%Dictionary.CompiledStorageIndex` query removed from `PrivateData.StorageGlobals` -> `Test.Install.PrivateData` TestKnowledgeBaseTables went red on slot C ("... and its storage indexes (3)": a DDL table's class-level locations are 3 globals, `.1`, `.I`, `.S`; its storage indexes add `.2`, `.3`, measured on an AI Hub-shaped table too)
+(CR) Each file was backed up to the review scratch folder, restored from it and compared byte for byte (`cmp`); `PrivateData.cls` was reloaded on slot C and TestKnowledgeBaseTables passed again.
+(QA) No test file was created or changed: every AC and matrix row already had a pinning test; the three mutations above close the matrix rows (stub answers, Docs sign-out stub) and the `^IRIS.IF.*` part of the private-data AC that had none recorded. Each file was backed up to the QA scratch folder, restored from that backup, and `git status --short` / `git diff --stat` compared equal to the pre-mutation state; the classes were reloaded on slot C and passed again.
 Each file was backed up to a scratch folder, restored from that backup and compared byte for byte; the loop classes passed again afterwards. On slot C `Test.Install.Registry` fails 3 tests (OCUTALON role and OCUORDERS database missing from that slot); it passes on the warm stack.
 
 **Shared surfaces:** the production's item list (`Test.Install.Production` oracle, `live:production`); `src/short-names.tsv` (`test-storage.sh`); `Test.Data.Tables` `XData Registry`; `Test.Contract.Ac` signatures and floor; `PrivateData.StorageGlobals`' list (read by `Test.Install.PrivateData`, `Test.Digest.Contracts`, `Test.Data.Tables`; a leftover `OcuTalonKB.*` table on a stack changes it, so the new test drops its tables whatever the outcome); `test-class-rules.sh`'s rule list; the spine's ownership tables and Deferred rows. Standing criterion: every test added or changed passes on a fresh environment, in either order.

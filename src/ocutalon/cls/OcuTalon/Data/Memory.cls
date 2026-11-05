@@ -1,6 +1,6 @@
 /// One memory a session saved (AD-21, AD-33): a short text the agent keeps for later turns, with its vector. Lane A. The only writer is
 /// OcuTalon.Memory.Ops (Story 19.3); reads go through OcuTalon.Memory.Search and OcuTalon.Memory.List. A memory belongs to the session
-/// that saved it (SessionRef) and is dropped at its sign-out (OcuTalon.Memory.DropSession). Row ids never leave the server.
+/// that saved it (SessionRef) and is dropped at its online-demo sign-out (OcuTalon.Memory.DropSession). Row ids never leave the server.
 Class OcuTalon.Data.Memory Extends %Persistent
 {
 

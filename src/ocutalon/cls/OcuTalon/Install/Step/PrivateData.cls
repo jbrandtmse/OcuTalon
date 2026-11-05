@@ -4,7 +4,7 @@
 ///     memory and document globals of OcuTalon.Data.Memory and OcuTalon.Data.Document (AD-21);
 ///   - every storage global of a knowledge-base table (a class of schema OcuTalonKB, AD-21), whatever its prefix, resolves there too,
 ///     so a table made without the private DEFAULTGLOBAL fails and is named;
-///   - OCUTALON_DATA holds no global with a private prefix, ^IRIS.IF.* (AI Hub's index-free storage) among them.
+///   - OCUTALON_DATA holds no global with a private prefix, ^IRIS.IF.* (%iFind's word dictionary) among them.
 Class OcuTalon.Install.Step.PrivateData Extends OcuTalon.Install.Step
 {
 

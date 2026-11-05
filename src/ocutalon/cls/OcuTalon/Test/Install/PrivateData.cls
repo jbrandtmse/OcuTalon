@@ -113,7 +113,7 @@ Method TestKnowledgeBaseTables()
 		Quit:global=""
 		If storage(global) '= good Continue
 		Set listed = listed + 1
-		If $Extract(global, 1, 15) '= "OcuTalonP.KBZz3" Set outside = outside + 1
+		If $Extract(global, 1, 17) '= "OcuTalonP.KBZz341" Set outside = outside + 1
 	}
 	Do $$$AssertTrue(listed >= 4, "the knowledge-base table lists its data, index and id globals and its storage indexes ("_listed_")")
 	Do $$$AssertEquals(outside, 0, "every global of the private knowledge-base table is under ^OcuTalonP.KBZz341")

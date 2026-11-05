@@ -8077,6 +8077,7 @@ So that OcuTalon can answer from my own documents.
 **Given** an online-demo session that signs out
 **When** `SessionOps.End` (Story 16.4) runs
 **Then** it also calls Lane A's `OcuTalon.Docs.DropSession(sessionRef)` and `OcuTalon.Memory.DropSession(sessionRef)`, so the session's documents and memories go at sign-out, not only at the reset; until Lane A's Story 19.5 merges, the tests run against Story 34.1 (was 19.1)'s stubs and check that both are called with the session's `SessionRef` (FR-14, FR-15, AD-4, AD-21, AD-29)
+- DW-722: Document refusal reason codes and their page text are unnamed (AD-21 Documents says only 'Reason a code'), and with DocumentOps a stub until Story 19.4 nothing writes the failed row that the refusal AC shows; name the codes and their text, and say which side writes the refused row (ledger; routed by cr 2026-11-05)
 
 
 ## Epic 35: Step 4's contracts: MCP servers attach, and webhooks bring events in (step 4)

@@ -67,7 +67,7 @@ Method TestDropSession()
 	Set ref = "ZzStep3Fixture"
 	Set other = "ZzStep3Other"
 	Do ..DeleteFixtures()
-	Do ..SeedRows(ref, other)
+	Do $$$AssertStatusOK(..SeedRows(ref, other), "the fixture memories and documents are saved")
 	Set memories = ..Count("OcuTalon_Data.Memory", "")
 	Set documents = ..Count("OcuTalon_Data.Document", "")
 	Do $$$AssertTrue(memories >= 2, "the memory table is read and holds the two seeded rows ("_memories_")")
@@ -89,24 +89,26 @@ Method OnAfterAllTests() As %Status
 	Quit $SYSTEM.Status.OK()
 }
 
-/// One memory and one document for each of the two sessions, with references that start with ZzStep3.
-ClassMethod SeedRows(first As %String, second As %String) [ Private ]
+/// One memory and one document for each of the two sessions, with references that start with ZzStep3; the first failed save's status.
+ClassMethod SeedRows(first As %String, second As %String) As %Status [ Private ]
 {
 	Set owners = $ListBuild(first, second)
+	Set sc = $SYSTEM.Status.OK()
 	For index = 1:1:2 {
 		Set owner = $List(owners, index)
 		Set memory = ##class(OcuTalon.Data.Memory).%New()
 		Set memory.Ref = "ZzStep3M"_index
 		Set memory.SessionRef = owner
 		Set memory.Text = "fixture"
-		Do memory.%Save()
+		If $$$ISOK(sc) Set sc = memory.%Save()
 		Set document = ##class(OcuTalon.Data.Document).%New()
 		Set document.Ref = "ZzStep3D"_index
 		Set document.OwnerRef = owner
 		Set document.AddedBy = owner
 		Set document.Name = "fixture.md"
-		Do document.%Save()
+		If $$$ISOK(sc) Set sc = document.%Save()
 	}
+	Quit sc
 }
 
 /// Deletes the rows that SeedRows makes.

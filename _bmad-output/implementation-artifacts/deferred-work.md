@@ -4148,3 +4148,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-34-1-settle-step-3-ownership-and-fix-its-contracts.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: U-280 at=2026-11-05T05:37:42Z#849 conditions 1-3; spine Conventions row 'Citations and memories'
 - 2026-11-05T07:02:58Z status=routed owner=20-2-see-citations-and-memories-in-answers by=spec_gate note=carry into 20.2's ACs and tests
+
+### DW-722: Document refusal reason codes and their page text are unnamed: spine AD-21 Documents says only 'Reason a code', and with DocumentOps a 5003 stub until Story 19.4 nothing writes the failed row that Story 34.2's refusal AC (wrong type, PDF/Word over 10 MB: 'Couldn't read it: {reason}') shows
+- source: spec-34-1-settle-step-3-ownership-and-fix-its-contracts.md | severity: med | fix-risk: med | footprint: in-epic
+- evidence: S2 (spine AD-21 Documents 'Names' sub-bullet) fixes the Reason field as a code but lists no codes or texts; Lane B renders {reason}, Lane A writes it; DocumentOps answers 5003 until 19.4
+- 2026-11-05T07:18:19Z status=routed owner=34-2-add-and-remove-documents-on-a-documents-page by=cr note=34.2 names the codes and their texts in the spine (UX/PRD wording only) and decides who writes a refused row before 19.4

@@ -10,10 +10,11 @@
 #     that maps the global (a CPF file) is not one;
 #   - kb-ddl (AD-21, AD-33, Story 34.1): a code line of a .cls, .cos, .inc, .mac, .int or .py file of src/ outside the package OcuTalon.Test
 #     that holds CREATE TABLE (in any case) also holds DEFAULTGLOBAL and the private prefix ^OcuTalonP. (^OcuTalonBP. under src/bridge/) on
-#     that same line, so a knowledge-base table cannot be made with globals in the data database (the lines are read one at a time, so a
-#     statement split over several lines is flagged: write CREATE TABLE, DEFAULTGLOBAL and the prefix on one line); and
-#     %AI.RAG.VectorStore.IRIS appears on a code line only in the class OcuTalon.Docs, the package OcuTalon.Docs and OcuTalon.Test, because
-#     only OcuTalon.Docs makes the tables;
+#     that same line, so a knowledge-base table cannot be made with globals in the data database (the lines are read one at a time: a
+#     CREATE TABLE line is flagged even when DEFAULTGLOBAL or the prefix follows on a later line, so write the three on one line, and a
+#     statement that splits CREATE and TABLE over two lines is not read); and %AI.RAG.VectorStore.IRIS appears on a code line only in the
+#     package OcuTalon.Docs and OcuTalon.Test, because only OcuTalon.Docs makes the tables (the class OcuTalon.Docs is in package OcuTalon,
+#     outside the AD-2 allow-list);
 #   - unchecked-prepare (AD-13, DW-17): outside the methods of ALLOW_UNCHECKED, no %Prepare whose second argument is not 1,
 #     no %PrepareClassQuery whose third argument is not 1, and no %ExecDirectNoPriv or %ExecDirectNoPrivNoAudit, even when the
 #     call spans lines or its SQL text holds commas and parentheses; and no entry of ALLOW_UNCHECKED that matches no such call.
@@ -102,7 +103,7 @@ kb_ddl() {
       code = (FILENAME ~ /\.(cls|cos|inc|mac|int|py)$/)
       py = (FILENAME ~ /\.py$/)
       test = (FILENAME ~ /\/OcuTalon\/Test\//)
-      docs = (FILENAME ~ /\/OcuTalon\/Docs\// || FILENAME ~ /\/OcuTalon\/Docs\.cls$/)
+      docs = (FILENAME ~ /\/OcuTalon\/Docs\//)
       prefix = (FILENAME ~ /(^|\/)src\/bridge\//) ? "^OcuTalonBP." : "^OcuTalonP."
     }
     test || !code || /^[ \t]*(\/\/|;|#;|##;)/ || (py && /^[ \t]*#/) { next }
@@ -407,11 +408,12 @@ printf 'import iris\n# create table OcuTalonKB.S1 (id INT)\nx = 1\n' > "$tmp/kb/
 kb_good1=$(write_class kb/src/ocutalon/cls OcuTalon/Docs/ZzOk 'ClassMethod A()' '{' '	Do ##class(%SQL.Statement).%ExecDirect(, "CREATE TABLE OcuTalonKB.S1 (id VARCHAR(64)) WITH %CLASSPARAMETER DEFAULTGLOBAL = '"'"'^OcuTalonP.KBS1'"'"'")' '	Quit ##class(%AI.RAG.VectorStore.IRIS).%New("OcuTalonKB.S1", 384)' '}')
 kb_good2=$(write_class kb/src/bridge/cls OcuTalon/Bridge/ZzOk 'ClassMethod A()' '{' '	Do ##class(%SQL.Statement).%ExecDirect(, "CREATE TABLE OcuTalonBridge.T (id INT) WITH %CLASSPARAMETER DEFAULTGLOBAL = '"'"'^OcuTalonBP.T'"'"'")' '}')
 kb_good3=$(write_class kb/src/ocutalon/cls OcuTalon/Watch/ZzComment '/// A CREATE TABLE statement and %AI.RAG.VectorStore.IRIS in a comment only.' 'ClassMethod A()' '{' '	// CREATE TABLE OcuTalonKB.S1 (id INT) and %AI.RAG.VectorStore.IRIS' '	Quit 1' '}')
-kb_good5=$(write_class kb/src/ocutalon/cls OcuTalon.Docs 'ClassMethod A()' '{' '	Quit ##class(%AI.RAG.VectorStore.IRIS).%New("OcuTalonKB.S1", 384)' '}')
+kb_bad5=$(write_class kb/src/ocutalon/cls OcuTalon.Docs 'ClassMethod A()' '{' '	Quit ##class(%AI.RAG.VectorStore.IRIS).%New("OcuTalonKB.S1", 384)' '}')
+kb_bad6=$(write_class kb/src/ocutalon/cls OcuTalon/Docs/ZzNoDefault 'ClassMethod A()' '{' '	Set sql = "CREATE TABLE OcuTalonKB.S1 (id INT)", global = "^OcuTalonP.KBS1"' '}')
 kb_good4=$(write_class kb/src/ocutalon/cls OcuTalon/Test/Docs/ZzFixture 'ClassMethod A()' '{' '	Do ##class(%SQL.Statement).%ExecDirect(, "CREATE TABLE OcuTalonKB.Zz (id INT)")' '	Quit ##class(%AI.RAG.VectorStore.IRIS).%New("OcuTalonKB.Zz", 384)' '}')
 samples_ok=1
-for f in "$kb_bad1" "$kb_bad2" "$kb_bad3" "$kb_bad4" "$tmp/kb/src/ocutalon/python/bad.py" "$tmp/kb/src/ocutalon/mac/ZzBad.mac"; do expect_flagged "kb-ddl" kb_ddl "$f" 1; done
-for f in "$kb_good1" "$kb_good2" "$kb_good3" "$kb_good4" "$kb_good5" "$tmp/kb/src/ocutalon/python/ok.py"; do expect_clean "kb-ddl" kb_ddl "$f"; done
+for f in "$kb_bad1" "$kb_bad2" "$kb_bad3" "$kb_bad4" "$kb_bad5" "$kb_bad6" "$tmp/kb/src/ocutalon/python/bad.py" "$tmp/kb/src/ocutalon/mac/ZzBad.mac"; do expect_flagged "kb-ddl" kb_ddl "$f" 1; done
+for f in "$kb_good1" "$kb_good2" "$kb_good3" "$kb_good4" "$tmp/kb/src/ocutalon/python/ok.py"; do expect_clean "kb-ddl" kb_ddl "$f"; done
 if [ "$samples_ok" -eq 1 ]; then
   scan_rule "kb-ddl: a product CREATE TABLE line carries DEFAULTGLOBAL and the private prefix, and only OcuTalon.Docs names %AI.RAG.VectorStore.IRIS" kb_ddl \
     "$kb_bad1" "$kb_good1" "$(scan_files src | grep -E '\.(cls|cos|inc|mac|int|py)$')"
