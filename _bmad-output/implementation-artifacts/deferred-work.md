@@ -4017,6 +4017,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: cycle-log-epic-33 (burn-down ruling 2026-11-05) | severity: med | fix-risk: high | footprint: in-epic
 - evidence: LiveState loads /state once per page load and no live event carries demo.mode; /state reads Setting.Get behind a 60 s cache; ruled for later (low priority) by the Contest Planner under the owner's delegation
 - 2026-11-05T02:18:29Z status=routed owner=burndown by=burndown note=priority_low_by_ruling;own_installs_only(the_online_demo_account_has_no_OcuTalonAdmin);cites_the_DW-699_ruling_of_2026-11-05
+- 2026-11-05T04:45:26Z status=routed owner=burndown by=merge_gate note=kept in the run's burndown pool (first daily release burn-down or later), low priority per the DW-699 ruling; own installs only
 
 ### DW-708: EXPERIENCE.md's Settings Saving rule (line 951) says every section confirms with the shared saved text; the Demo mode section now adds the ruled reload sentence
 - source: spec-33-3-epic-33-burn-down.md | severity: low | fix-risk: low | footprint: out-of-footprint

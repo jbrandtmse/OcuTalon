@@ -5865,6 +5865,7 @@ So that one message tells me how my IRIS system is doing and what needs me.
 **And** whenever the marker is set, from Telegram or any other channel, the Telegram message is edited in place to show "Marked as handled at {time}" with its button removed, within one live update, as Lane B's Story 18.4 does for the web and phone copies; until Story 18.4 merges, tests check the submitted command and use fixture markers (FR-35, UX-DR143)
 
 - DW-651: A new session's first scheduled digest is at the first `digest.time` after its `CreatedAt` (AD-18 as amended 2026-11-05): created before today's `digest.time`, today's digest; created after, none until tomorrow's; `SendDigest` is unaffected (ledger; routed by orchestrator ruling 2026-11-05, decided by the Contest Planner under the owner's delegation)
+- DW-696: SendDigest sent to the disabled Digest item answers failed, not not_built (ledger; routed by Epic 33 burn-down 2026-11-05)
 
 ### Story 17.7: Give an all-clear only when every check passed
 
@@ -5998,6 +5999,8 @@ So that I read the day at a glance and "needs you" holds only what still needs m
 **Then** the demo path still passes, and a Playwright test covers the Settings page as the README account, a fixture digest card and **Got it** (REL-2, UX-DR117)
 
 **On a runner without a bot:** this story uses the CI Telegram mock; a real bot only in the Contest Planner's hands-on pass. [AMENDED 2026-10-25, decided by the Contest Planner under the owner's delegation; the owner: "Yes prepare those epics so that we continue to run without pause." slot C has no bot, and this pool epic may run on runner C]
+
+- DW-695: Data.Handled has no purge or end-of-session delete, and no purge owner is named (AD-27) (ledger; routed by Epic 33 burn-down 2026-11-05)
 
 ## Epic 19: OcuTalon remembers, and answers from your documents (step 3)
 

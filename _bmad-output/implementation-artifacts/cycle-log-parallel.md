@@ -1961,3 +1961,8 @@
 2026-11-05T04:44:26Z	Epic 33	amendments_verified	amendments=5 extensions=10 ok=true note="AD-18 When clause only; DW-651 bullet under 17.6; 33.3 chartered block"
 2026-11-05T04:44:26Z	Epic 33	merge_enqueued	policy=when_green feature_moved=bookkeeping_only(52e4134a..)
 2026-11-05T04:44:34Z	Epic 33	epic_merge_started	head=57723efa feature_local=c1d7aea8
+2026-11-05T04:45:27Z	Epic 33	epic_merged_to_feature	merge=f9b0e744 head=57723efa verified_on_origin=yes
+2026-11-05T04:45:27Z	Epic 33	decision_sheet_recorded	decided=0 to_action_items=0 to_x0=0 by=unattended note="decisions_for_user none; DW-707 kept owner=burndown (low, by ruling)"
+2026-11-05T04:45:27Z	Epic 33	ledger_routed_planned	story=17-6 entries=1 excess=0 by=merge_gate ids=DW-696
+2026-11-05T04:45:27Z	Epic 33	ledger_routed_planned	story=18-4 entries=1 excess=0 by=merge_gate ids=DW-695
+2026-11-05T04:45:27Z	Run	deps_hash_rerecorded	reason=ledger_routed hash=07e7c8cb
