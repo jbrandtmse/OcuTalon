@@ -4293,3 +4293,14 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-17-3-run-each-agent-on-a-supported-provider.md | severity: med | fix-risk: low | footprint: out-of-footprint
 - evidence: U-288 KEEP condition (Contest Planner, 2026-11-05T19:09:13Z#875): IG-1 accepted the in-process and shadow-runner proof instead of a live decision through a resolved runner
 - 2026-11-05T19:27:45Z status=routed owner=burndown by=lead note=owner condition U-288; re-own to the release-check story that marks a second provider supported
+- 2026-11-05T20:12:06Z occurrence=17-3-run-each-agent-on-a-supported-provider note=no test runs a runner job with a model key in its environment; live resolution and a job-side key scan proved in process only (IG-1 option B)
+
+### DW-757: An instance that already holds the claude-sonnet-5-5 Price row keeps cache-read 0.2 after upgrade (seed never overwrites a stored price); the pricing page of 2026-11-05 says 0.10, so its cache-read cost is over-stated
+- source: spec-17-3-run-each-agent-on-a-supported-provider.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: Installer.SeedPrices never overwrites (AD-19 seed values); fresh installs get 0.1; Sonnet is not the default model
+- 2026-11-05T20:12:06Z status=routed owner=17-4-apply-model-price-budget-and-zone-changes-through-the-bridge by=harvest note=17.4 price edits: decide whether a seeded-but-never-edited price row is corrected on upgrade (stored-data change: veto window)
+
+### DW-758: A resolved or newly chosen provider keeps the entry's base_url, http headers and TLS: unreachable today (only Anthropic supported; OCUTALON_MODEL_BASE_URL set only by CI and the online demo), reachable once REL-7 marks another provider supported while a base_url is set
+- source: spec-17-3-run-each-agent-on-a-supported-provider.md | severity: med | fix-risk: med | footprint: in-epic
+- evidence: 17.3 decided in-stage 5: resolved config keeps base_url and http_config from the entry (AD-19)
+- 2026-11-05T20:12:06Z status=routed owner=17-4-apply-model-price-budget-and-zone-changes-through-the-bridge by=harvest note=17.4's bridge checks: a provider change drops a base_url/headers that belong to another provider (or refuses the change)

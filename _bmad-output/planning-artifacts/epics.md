@@ -5876,6 +5876,9 @@ So that I control what OcuTalon spends without restarting anything.
 - DW-647: Retry entries' timeouts derive from RetryTimer(TimerSeconds) while Decide's retry wait T2 uses T1 = TimerFor(request): for a flagged turn T2 (about 30 s) is shorter than the retry entry's worst case (about 42 s); Timeouts.Apply makes the two agree (ledger; routed by adjudication 2026-11-05)
 - DW-727: Spine AD-8 now gives the retry entries Derive(max(MINTIMER, min(TimerSeconds, 110 - TimerSeconds))) (Timeouts.RetryTimer); Timeouts.Apply applies exactly that to the retry runners' entries (ledger; routed by cr 2026-11-05)
 
+- DW-757: An instance that already holds the claude-sonnet-5-5 Price row keeps cache-read 0.2 after upgrade (the page says 0.10); decide with the price edits whether a never-edited seeded price is corrected on upgrade (ledger; routed by harvest 2026-11-05)
+- DW-758: A resolved or newly chosen provider keeps the entry's base_url and headers; the bridge's provider change drops (or refuses) a base_url or headers that belong to another provider (ledger; routed by harvest 2026-11-05)
+
 ### Story 17.5: Check the vital signs and every coverage entry
 
 As a user,
