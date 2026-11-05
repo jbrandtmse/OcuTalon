@@ -320,6 +320,17 @@ export function pendingApprovals(store: LiveStore): ApprovalPayload[] {
   );
 }
 
+/**
+ * What the Persona card reads its persona again on: the Refs of the pending requests, and the Ref and state of every setting request,
+ * so that the card reads again when a request comes or goes and when an approved proposal has been applied (its request becomes done).
+ */
+export function personaReadKey(store: LiveStore): string {
+  const settings = inStoreOrder(store.approvals)
+    .filter((approval) => approval.kind === 'setting')
+    .map((approval) => `${approval.ref ?? ''}:${approval.state ?? ''}`);
+  return [...pendingApprovals(store).map((approval) => approval.ref ?? ''), ...settings].join('\n');
+}
+
 /** The rail for the store: the sections in order and whether Telegram is one of them. In demo mode the empty checks point at the demo guide. */
 export function railView(store: LiveStore, format: RailFormat, demo = false): RailView {
   const approvals = pendingApprovals(store);

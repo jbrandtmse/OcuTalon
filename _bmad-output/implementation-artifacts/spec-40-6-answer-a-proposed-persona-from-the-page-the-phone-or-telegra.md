@@ -208,6 +208,33 @@ deferred: []
 8. Given the UX inventory, when `ux-strings.test.mjs` runs, then the six preset names and descriptions and the four new card strings are inventoried with `ux` sources, and the test passes (DW-709).
 9. Integration: given a real Chat turn whose model (CI mock) calls `propose_persona`, when the person approves the card on the page, then the persona card and GET `/v1/persona` show Pirate, and the chat shows `persona.applied`.
 
+### Review Findings
+
+Code review 2026-11-05 (stage code-review, tier full-opus; layers blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor). 25 rows, 6 entries kept (med 2, low 4), 14 rejected. No HIGH; no AD mismatch (AD-1, 4, 11, 14, 17, 19, 26, 31, 32, 33); Rule 3 met by PA1/PA2 (Playwright, real stack).
+
+- [x] [Review][Patch] (med, fix-risk low, AC 9) The Persona card kept "Professional (default)" after an approved proposal: it read `GET /v1/persona` again only when the set of pending requests changed, which happens at the answer, before `SettingsOps` writes; seen on a fresh stack (PA1 with the new card assertion: "Received: Professional (default)" for 30 s). Fixed: `rail-view.ts` `personaReadKey` (pending Refs plus each setting request's Ref and state), used by `persona-card.ts`, so the card reads again when the request becomes done; PA1 asserts the card shows Pirate with no pending note; `rail-view.test.mjs` pins the key. `persona-card.ts` is 40.4's file (Epic 40, uncontended); patched here because the failing AC is this story's. [web/src/app/rail/persona-card/persona-card.ts:349]
+- [x] [Review][Patch] (med, fix-risk low, Rule 19 hermeticity) `TestPhoneFirstApproves` never waited for its own Telegram `persona.applied`, and the next test by name (`TestProposalReachesEveryChannel`) reads `sendMessage` by global index. Fixed: it waits for `sends + 2` and asserts the text, as its three siblings do. [src/ocutalon/cls/OcuTalon/Test/Core/PersonaAnswers.cls:642]
+- [x] [Review][Patch] (low, fix-risk low) `PersonaAnswers.Tidy` deleted still-pending requests, leaving a live `ApprovalHold` and its Workflow task (`TestProposalReachesEveryChannel` always ends pending). Fixed: it cancels each pending request of its sessions and waits until `LiveHold` is empty (as `Test.Fix.Raise` does). The e2e half (Epic 11's `support/persona.ts`) is DW-749, `wontfix-accepted`. [src/ocutalon/cls/OcuTalon/Test/Core/PersonaAnswers.cls:104]
+- [x] [Review][Patch] (low, fix-risk low) `PersonaAnswers.Phone` returned the last phone message when none matched the Ref (an ObjectScript `For` leaves `i` at `Count()`; measured on slot D: `after3=3`), so `WaitPhone` could pass on an unrelated message. Fixed with a `found` variable. [src/ocutalon/cls/OcuTalon/Test/Core/PersonaAnswers.cls:244]
+- [x] [Review][Patch] (low, fix-risk low, AC 6) The setting row in `AnswersInProduction` said it pinned "the setting's own sentence"; the arm's text equals `MESSAGENOTAPPROVERTOOL`, so removing the arm is not observable. The comment and label now say what is pinned: the approver sentence, never the fix text (the recorded mutation stays valid). [src/ocutalon/cls/OcuTalon/Test/Core/AnswersInProduction.cls:168]
+- [x] [Review][Defer] (low) `approval-request-card.ts` styles about 96 bytes over the 4 kB warning budget; the story added one selector, the error budget is 8 kB. DW-750 `wontfix-accepted` with reopen_if. [web/src/app/approvals/approval-request-card.ts:338]
+
+Rejected:
+- false: a tool-origin ProposePersona outside a bridge context can name any session. Spec and AD-1's SendDigest pattern: outside a context nothing changes.
+- false: the test header overstates the phone's buttons. The header says the phone message carries the Ref; the buttons are Telegram's.
+- false: the `CommandsIn` line is placed before Dismiss and not after the SendDigest line. This is the lead's recorded ruling, with the same behaviour.
+- low: `PUT /v1/persona`'s custom bound answers `bad_custom` before `custom_not_offered` on the online demo. Only a crafted body can reach it (the page offers no custom preset there), and the fix adds a branch.
+- low: `StartExecution` refused by a lock timeout closes the request failed. This needs one request's lock held past LOCKSECONDS+TASKSECONDS (theoretical).
+- low: a custom persona's full text fills the notice and can double its period. The spec's Display-text row fixes the text, and the catalog is out of bounds.
+- low: `TestSettingPayload` lives in a LiveCase class. It runs on every fresh run and in CI; this is placement only.
+- low: a repeated rejected or expired outcome resends the answered notice. It follows the matrix's definition of a repeat and `IncidentManager`'s pattern, and every channel edits in place.
+- low: the apply step does not re-run `PersonaProblem` or the online-demo check. The DryRun is server-written and validated at the proposal, and the demo flag is an install setting.
+- low: `ForgetPerson` could run between `HasSession` and `WritePersona`. This is a theoretical race that would need locking.
+- low: a failed `FinishExecution` leaves the request executing. This is theoretical; the Move lock is the only failure source.
+- low: no refusal of a no-op proposal. Design Notes record this choice ("Duplicates").
+- low: the expired in-place edit is not tested end to end. It is the same path as rejection and is pinned by `TestOutcomeRejectedOrExpired`.
+- low: a raw preset id could reach a notice from a corrupt stored preset. Valid rows always match an `Agent.Persona` entry.
+
 ## Spec Change Log
 
 ## Review Triage Log
@@ -365,6 +392,20 @@ All calls run from the worktree root with `timeout: 600000`, one per call.
 - mutation: AC2 the `setting-proposed` line removed from the `approval-request-card.ts` template -> PA1 red on a fresh stack (`live sign-in --part 6/8`, 44 passed, 1 failed at `.setting-proposed`).
 - mutation: AC3 `Owns` without the old/new object type checks -> `SettingsPersona:TestOutcomeNotOurs` red (the string-DryRun row).
 - mutation: AC3 `Outcome` without the ended-session check (`If 0`) -> `TestOutcomeWriteFails` red; the apply block's Catch rethrowing -> `TestOutcomeWriteFails` red (a throwing audit write leaves the row executing).
+
+**QA additions (Rule 19; the QA stage, gaps against AC 2, 3 and 4):**
+- (QA) `src/ocutalon/cls/OcuTalon/Test/Core/PersonaAnswers.cls` (extended; fixture chats 84017734154 and 84017734155): `TestTelegramFirstApproves` (a Telegram approval wins with no toast text and no alert, the late web answer names Telegram, the three copies and `persona.applied`, the answered and Settings audit entries name the channel telegram) and `TestPhoneFirstApproves` (the phone's approval wins, the late web answer and the late Telegram alert name the simulated phone, the audit entries name the channel phone). The web-first and Telegram-reject cases left these two winners and the approve press path untested.
+- (QA) `web/scripts/phone-setting-request.test.mjs` (new): the phone's reading of a setting request (AC 2, the phone surface): one plain paragraph with no inset, buttons named by the setting title, one title whatever the payload carries, the answer line of its own press, a late press and the server's line.
+- mutation: AC4 `Outcome` passes the channel "web" to `WritePersona` instead of the row's `AnsweredChannel` -> `PersonaAnswers:TestTelegramFirstApproves` and `TestPhoneFirstApproves` red on a fresh stack (`e40s6q`), `TestWebFirstWins` stays green; reverted, md5 equal, `git status --short` unchanged.
+- mutation: AC2 `approvalTitle` with the setting branch disabled -> `phone-setting-request.test.mjs` red (2 of 4); reverted, md5 equal.
+- Passing after the additions: fresh `ci/iris.sh class OcuTalon.Test.Core.PersonaAnswers` passed; `npm --prefix web test` 1419 passed; `test-class-rules` and `test-boundaries` pass.
+
+**Code review additions (Rule 19):**
+- mutation: AC9 `Outcome` with `Set sc = $$$OK` in place of the `WritePersona` call (the applied notice still sent) -> PA1 red at "the Persona card shows Pirate" on a fresh stack (`e40s6c`, `live sign-in --part 16/25`); reverted, md5 equal.
+- mutation: AC9 the Persona card re-reading on the pending set only (the code before the review's fix) -> PA1 red ("Received: Professional (default)"); with `personaReadKey`, PA1 and PA2 pass, and part 13/20 (with `persona-card.spec.ts`) passes 20/20.
+- mutation: AC9 `personaReadKey` without the setting states -> `rail-view.test.mjs` red (1 of 52); reverted, md5 equal.
+- AC6: the setting arm cannot be told apart by behaviour while `MESSAGENOTAPPROVERSETTING` equals `MESSAGENOTAPPROVERTOOL`; its pin is the mutation to the fix text above.
+- Passing after the review's patches: fresh `ci/iris.sh class OcuTalon.Test.Core.PersonaAnswers` passed; `npm --prefix web test` 1420 passed; lint, `test-class-rules` and `test-boundaries` pass.
 
 **Standing criterion:** every test added or changed passes on a fresh environment, in either order.
 

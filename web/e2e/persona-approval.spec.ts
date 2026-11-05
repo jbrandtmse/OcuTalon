@@ -13,8 +13,8 @@ import { forget, prepare, sessionRef } from './support/persona';
  * approval.persona notice, and nothing here stands in for them:
  *   - PA1: the chat shows the request as a setting card (the title, "Now: Professional (default)", "Proposed: Pirate", the note and both
  *     buttons), the rail lists it under its title, and the Persona card shows the pending note. Approve: the card's status line reads
- *     "Approved from the web chat at ..." with no note, the chat shows "Persona updated. It applies from your next message." and GET
- *     /v1/persona reads pirate;
+ *     "Approved from the web chat at ..." with no note, the chat shows "Persona updated. It applies from your next message.", GET
+ *     /v1/persona reads pirate and the Persona card shows Pirate with no pending note;
  *   - PA2: the same with Reject: "Rejected from the web chat at ... Nothing was changed.", the persona stays Professional and no applied
  *     notice shows.
  * beforeAll points the runners' keys at the CI mock; afterAll puts them back, drops the AI sessions the turns saved and waits until the
@@ -130,6 +130,8 @@ test('PA1: a proposed persona shows as a setting card in the chat, the rail and 
     await expect(card.locator('p.status'), "the card's status line").toHaveText(/^Approved from the web chat at \S+/, { timeout: WAIT_MS });
     await expect(card.locator('.setting-note'), 'the note is gone').toHaveCount(0);
     await expect(page.locator('app-chat-panel').getByText(APPLIED, { exact: true }), 'the chat shows the applied notice').toBeVisible({ timeout: WAIT_MS });
+    await expect(personaOf(page).locator('.current-name'), 'the Persona card shows Pirate').toHaveText('Pirate', { timeout: WAIT_MS });
+    await expect(personaOf(page).getByRole('button', { name: PENDING, exact: true }), 'and no pending note').toHaveCount(0);
     await expect.poll(() => presetRead(page), { message: 'GET /v1/persona reads pirate', timeout: WAIT_MS }).toBe('pirate');
   });
 });

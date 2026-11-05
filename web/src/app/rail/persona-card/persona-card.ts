@@ -10,7 +10,7 @@ import { type FocusRule, keepFocus } from '../../shared/focus-rule';
 import { Layout } from '../../shared/layout';
 import { Popovers } from '../../shared/popover';
 import { BUSY_NOTICE, ServerButton } from '../../shared/server-button';
-import { pendingApprovals } from '../rail-view';
+import { personaReadKey } from '../rail-view';
 import {
   APPROVALS_HEADING_ID,
   counterText,
@@ -53,8 +53,9 @@ interface FieldLine {
 
 /**
  * The Persona card (Story 40.4; FR-67, FR-68, FR-70, UX-DR117, AD-29): the body of the rail's Persona section. It reads `GET /api/v1/persona`
- * when it is made and whenever the set of pending approval requests in the live store changes, so that the pending line comes and goes with
- * the request. While that read has not answered, or failed, it shows nothing (the section's heading only) and tries again on the next change.
+ * when it is made, whenever the set of pending approval requests in the live store changes, so that the pending line comes and goes with
+ * the request, and whenever a setting request's state changes, so that an approved proposal shows once it has been applied. While that
+ * read has not answered, or failed, it shows nothing (the section's heading only) and tries again on the next change.
  * - Collapsed, it shows the current preset's name and description (the row title and detail of the rail's rows), the pending line when
  *   a proposal waits ("OcuTalon suggested a change. ..." as a link-styled button, whose press moves focus to the request's card in the chat
  *   when it is drawn, else to the Approval requests heading), and Change.
@@ -345,10 +346,10 @@ export class PersonaCard {
   );
   protected readonly saveDescribed = computed(() => (this.line() ? [this.resultId] : []));
 
-  /** The Refs of the pending approval requests, joined: the card reads again when they change. */
+  /** The pending requests' Refs and the setting requests' states (personaReadKey): the card reads again when they change. */
   private readonly pendingRefs = computed(() => {
     const store = this.live.store();
-    return store === undefined ? '' : pendingApprovals(store).map((approval) => approval.ref ?? '').join('\n');
+    return store === undefined ? '' : personaReadKey(store);
   });
 
   private readonly changeButton = viewChild<ElementRef<HTMLButtonElement>>('change');

@@ -3524,12 +3524,14 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Core/CommandsIn.cls Carry: owner check only for Dismiss; ProposePersona answers not_built today so nothing is reachable (AD-1: a tool proposes only for the session's own persona)
 - 2026-11-02T04:59:55Z status=routed owner=40-6-answer-a-proposed-persona-from-the-page-the-phone-or-telegra by=harvest note=40.6 makes ProposePersona raise a setting request; bind SessionRef to the context owner there (or in 40.5's tool) before it is reachable
 - 2026-11-02T05:38:55Z occurrence=40-2-save-your-persona-and-let-ocutalon-propose-one by=cr note=re-raised by three review layers; CommandsRouting.TestPersonaVerbsInsideAContext now begins its context with OwnerRef = the command's session, so the binding keeps it green; the fix adds a row for a ProposePersona whose SessionRef is not the context's OwnerRef (expected not_found, nothing sent)
+- 2026-11-05T18:12:31Z status=resolved-by:40-6-answer-a-proposed-persona-from-the-page-the-phone-or-telegra by=adjudication note=CommandsIn_check_refuses_ProposePersona_for_another_session_inside_a_bridge_context;Test.Core.CommandsRouting:TestProposePersonaOwnSessionOnly(mutation_recorded)
 
 ### DW-571: Web.Api AnswerResponse gives a not_allowed answer for an approval request of the new kind setting the tool-call approver text (its $Select knows only fix)
 - source: spec-40-2-save-your-persona-and-let-ocutalon-propose-one.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: Web/Api.cls:523 $Select(kind = "fix": MESSAGENOTAPPROVER, 1: MESSAGENOTAPPROVERTOOL); APPROVALKIND gains setting in 40.2; unreachable until a setting request can be answered on the page
 - 2026-11-02T05:38:56Z status=routed owner=40-6-answer-a-proposed-persona-from-the-page-the-phone-or-telegra by=cr note=fix-risk low: one $Select arm plus its text (from EXPERIENCE.md if it names one, else the plain approver sentence) and a 403 row in Test.Web.Api; Web/Api.cls is contended for 40.2, and 40.6 is the story that lets the page answer a setting request
 - 2026-11-05T11:56:31Z occurrence=40-5-a-setting-approval-in-the-bridge-and-ocutalon-s-proposal-too by=harvest note=same_root_cause_reported_by_40.5_implement_at_Web/Api.cls:580
+- 2026-11-05T18:12:31Z status=resolved-by:40-6-answer-a-proposed-persona-from-the-page-the-phone-or-telegra by=adjudication note=Web.Api_AnswerResponse_setting_arm_with_its_own_403_parameter;AnswersInProduction_setting_row(texts_equal_today_so_arm_removal_is_not_observable;noted_in_spec)
 
 ### DW-572: A SetPersona carried out after SessionOps.End's ForgetPerson for the same SessionRef recreates per-person keys of an ended session, which nothing deletes later
 - source: spec-40-2-save-your-persona-and-let-ocutalon-propose-one.md | severity: low | fix-risk: med | footprint: in-story
@@ -4033,6 +4035,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: BodyText's only limit is the longest string, SetPersona's fields are MAXLEN empty, and no body limit is tracked in docker/, ci/ or release/; the demo proxy is off-repo, so its limit is unmeasured.
 - 2026-11-04T16:10:05Z status=escalated owner=burndown by=cr note=fix sits in shared BodyText or the host proxy; a cap in the block would answer bad_persona where AC 2 says bad_custom
 - 2026-11-04T22:03:02Z status=routed owner=40-6-answer-a-proposed-persona-from-the-page-the-phone-or-telegra by=merge_gate-ruling note=part (a) ruled by the Contest Planner under the owner's delegation (orchestrator, 2026-11-04T21:5xZ): PersonaBody forwards only the values the preset uses (language only for language, custom only for custom; others dropped); a used value over its limit (language over 40 chars, custom over 1,000 UTF-16 units) is refused in the route with SettingsOps' outcome code and message (bad_language / bad_custom) and nothing is submitted; tests: professional + 100 KB custom answers 200 and SetPersona.Custom is empty; a 1,001-unit custom answers 400 bad_custom with no SetPersona sent. Routed to Story 40.6 (it already owns Web/Api.cls persona work, DW-570/571). Part (b) is DW-687, part (c) the Planner's demo-host limit
+- 2026-11-05T18:12:31Z status=resolved-by:40-6-answer-a-proposed-persona-from-the-page-the-phone-or-telegra by=adjudication note=PUT_/v1/persona_forwards_only_used_values_and_refuses_over-limit_bad_language/bad_custom;Test.Web.PersonaApi:TestPutDropsUnusedValues,TestPutBoundsUsedValues
 
 ### DW-678: After a change of persona, Chat's saved history still holds the old blocks and the old voice; a real model may carry the old voice on for a while
 - source: spec-40-3-the-persona-reaches-chat-and-triage-as-a-data-block.md | severity: low | fix-risk: low | footprint: in-epic
@@ -4197,6 +4200,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-40-4-the-persona-card.md | severity: med | fix-risk: low | footprint: in-epic
 - evidence: ux-strings.test.mjs builds its inventory from *_TEXTS, fromSource grabs and template text only; PRESETS is read by none, so 11 strings have no SOURCES entry (pinned word for word only by persona-card-view.test.mjs)
 - 2026-11-05T03:58:33Z status=routed owner=40-6-answer-a-proposed-persona-from-the-page-the-phone-or-telegra by=cr note=not patched in 40.4: Epic 33 has since changed ux-strings.test.mjs (unmerged); fix after the integrate-forward with a fromSource grab of PRESETS (as SKIP_LINKS/THEME_OPTIONS) plus 11 ux SOURCES entries, when 40.6 adds its own strings to that file
+- 2026-11-05T18:12:31Z status=resolved-by:40-6-answer-a-proposed-persona-from-the-page-the-phone-or-telegra by=adjudication note=six_preset_names_and_descriptions_in_ux-strings.test.mjs_inventory(mutation_red)
 ### DW-706: In the web/e2e projects the Playwright request fixture (and playwright.request.newContext()) has no timeout, so signInOverHttp in sign-in/helpers.ts (12 callers) and other APIRequestContext waits still run to the test timeout unnamed (AC7 covers page waits only)
 - source: spec-11-21-a-test-s-route-callback-never-outlives-its-test.md | severity: med | fix-risk: high | footprint: in-story
 - evidence: playwright 1.64.1 lib/index.js:360 sets _defaultContextTimeout = actionTimeout || 0 and coreBundle.js:60714 applies it to new request contexts: 0 (no limit) in every non-online project; the online projects get 30 s
@@ -4301,3 +4305,13 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Runners.cls L26 and the TestToolInventory doc comment omit propose_persona (and undercount watching tools); Epic 17 changed both lines (git diff origin/feature/OCT_OcuTalon_MVP...origin/OCT-epic17), so 40.5 left them; L45's provider list was patched in review
 - 2026-11-05T12:53:54Z status=routed owner=burndown by=cr note=lead ruling: a fix on a line Epic 17 changed is routed to burndown; one-name edits once Epic 17 has merged into OCT-epic40
 - 2026-11-05T12:58:11Z status=wontfix-accepted by=adjudication note=LOW_doc-comment_omission_on_lines_Epic_17_changed;burndown_never_owns_a_LOW;reopen_if=after_Epic_17_merges_Test/Agent/Runners.cls_L26_or_TestToolInventory_comment_still_omits_propose_persona
+
+### DW-749: e2e persona-approval: a PA case that fails before answering leaves a live ApprovalHold and its Workflow task, because support/persona.ts prepare deletes setting rows without Approval.Cancel
+- source: spec-40-6-answer-a-proposed-persona-from-the-page-the-phone-or-telegra.md | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: persona-approval.spec.ts withProposal -> forget/prepare (web/e2e/support/persona.ts, Epic 11-owned, not editable here) delete rows only; the IRIS half (PersonaAnswers.Tidy) now cancels and waits out the hold
+- 2026-11-05T18:11:19Z status=wontfix-accepted owner=40-6-answer-a-proposed-persona-from-the-page-the-phone-or-telegra by=cr note=reopen_if=a CI run shows an open OcuTalonApprovals task or live ApprovalHold whose ApprovalRequest row is missing after live:sign-in
+
+### DW-750: approval-request-card.ts component styles are about 96 bytes over the 4 kB anyComponentStyle warning budget (build warns, passes)
+- source: spec-40-6-answer-a-proposed-persona-from-the-page-the-phone-or-telegra.md | severity: low | fix-risk: low | footprint: in-story
+- evidence: 40.6 added one selector (.setting-note beside .dry-note); angular.json error budget is 8 kB; the rest predates the story (inference, baseline not rebuilt)
+- 2026-11-05T18:11:19Z status=wontfix-accepted owner=40-6-answer-a-proposed-persona-from-the-page-the-phone-or-telegra by=cr note=reopen_if=ng build reports approval-request-card.ts over its 8 kB error budget or CI treats budget warnings as failures

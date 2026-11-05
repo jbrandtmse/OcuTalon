@@ -13,7 +13,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const here = dirname(fileURLToPath(import.meta.url));
 const app = (...parts) => pathToFileURL(join(here, '..', 'src', 'app', ...parts)).href;
-const { RAIL_TEXTS, TELEGRAM_ANCHOR, approvalTitle, checkTitle, pendingApprovals, railView, readmeSection } = await import(app('rail', 'rail-view.ts'));
+const { RAIL_TEXTS, TELEGRAM_ANCHOR, approvalTitle, checkTitle, pendingApprovals, personaReadKey, railView, readmeSection } = await import(app('rail', 'rail-view.ts'));
 const { countdownText, pageWhen } = await import(app('chat', 'page-time.ts'));
 const { DECISION_TEXTS, confidenceText, formatCost, outcomeOf, reasonLines } = await import(app('chat', 'decision-view.ts'));
 const { CHAT_TEXTS, NOTICE_TEXTS } = await import(app('chat', 'chat-view.ts'));
@@ -226,6 +226,16 @@ describe('approval requests', () => {
     assert.deepEqual(pendingApprovals(store).map((one) => one.ref), ['early', 'a-pending']);
     assert.equal(pendingApprovals(fromSnapshot(snapshot())).length, 0);
     assert.equal(pendingApprovals(store).length, section(railView(store, format()), 'approvals').count);
+  });
+
+  it('gives the Persona card a new personaReadKey when a request comes or goes and when a setting request changes state, and no other time', () => {
+    const at = (approvals) => personaReadKey(fromSnapshot(snapshot({ approvals })));
+    const proposed = at([approval('fix1', { state: 'done' }), approval('set1', { kind: 'setting', state: 'pending' })]);
+    const approved = at([approval('fix1', { state: 'done' }), approval('set1', { kind: 'setting', state: 'approved' })]);
+    const applied = at([approval('fix1', { state: 'done' }), approval('set1', { kind: 'setting', state: 'done' })]);
+    assert.equal(new Set([proposed, approved, applied]).size, 3, 'a setting request reads again at each state: pending, approved, done');
+    assert.equal(at([approval('fix1', { state: 'approved' })]), at([approval('fix1', { state: 'done' })]), 'a fix that changes state reads nothing');
+    assert.notEqual(at([approval('fix1')]), at([]), 'a pending request of any kind reads again');
   });
 
   it('lists the pending ones only', () => {

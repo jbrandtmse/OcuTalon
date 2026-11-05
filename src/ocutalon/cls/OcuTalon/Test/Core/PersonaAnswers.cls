@@ -14,10 +14,16 @@
 ///     Approval entry and one Settings persona entry;
 ///   - TestTelegramFirstRejects: a Telegram rejection wins; the late web and phone answers name Telegram; every copy shows the rejection, the
 ///     persona is unchanged and no result notice is sent;
+///   - TestTelegramFirstApproves (QA): a Telegram approval wins with no toast text (a setting has no count); the late web answer names
+///     Telegram; the persona is Pirate; every copy shows the approval; persona.applied reaches the channels; the audit's answered and
+///     Settings entries both name the channel telegram;
+///   - TestPhoneFirstApproves (QA): the simulated phone's approval wins; the late web answer and the late Telegram press name the phone;
+///     the persona is Pirate; every copy shows the approval; persona.applied reaches the web chat and Telegram; the audit's answered and
+///     Settings entries name the channel phone;
 ///   - TestStaleProposal: the persona changed after the proposal; the approval writes nothing, the request is failed and persona.stale reaches
 ///     the channels;
 ///   - TestSettingPayload: the live approval payload of a setting row, with object, string and missing old and new values.
-/// The fixture chats are 84017734150 to 84017734159, and the fixture sessions zzpansw....
+/// The fixture chats are 84017734150 to 84017734159 (the QA tests use 84017734154 and 84017734155), and the fixture sessions zzpansw....
 Class OcuTalon.Test.Core.PersonaAnswers Extends OcuTalon.Test.Channel.LiveCase
 {
 
@@ -95,13 +101,23 @@ ClassMethod HeldRole() As %String [ Private ]
 	Quit $Piece(roles, ",", 1)
 }
 
-/// Removes what the test made, on every path: the requests and persona keys of its sessions, then the sessions with their rows.
+/// Removes what the test made, on every path: its sessions' pending requests are cancelled and their holds waited out (up to SECONDS),
+/// then the requests and persona keys of its sessions are deleted, then the sessions with their rows.
 Method Tidy() [ Private ]
 {
 	Do ##class(OcuTalon.Bridge.Context).End()
 	For i = 1:1:$Length(..Owners, ",") {
 		Set owner = $Piece(..Owners, ",", i)
 		If owner = "" Continue
+		Set rs = ##class(%SQL.Statement).%ExecDirect(, "SELECT Ref FROM OcuTalon_Bridge_Data.ApprovalRequest WHERE OwnerRef = ? AND State = 'pending'", owner)
+		While rs.%Next() {
+			Set ref = rs.%Get("Ref")
+			Do ##class(OcuTalon.Bridge.Approval).Cancel(ref)
+			Set deadline = $ZHorolog + ..#SECONDS
+			While (##class(OcuTalon.Bridge.Approval).LiveHold(ref) '= "") && ($ZHorolog < deadline) {
+				Hang 0.25
+			}
+		}
 		Do ##class(OcuTalon.Core.SettingsOps).ForgetPerson(owner)
 		Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Bridge_Data.ApprovalRequest WHERE OwnerRef = ?", owner)
 	}
@@ -232,10 +248,11 @@ Method WaitWeb(session As %String, ref As %String, count As %Integer) As %String
 ClassMethod Phone(session As %String, ref As %String) As OcuTalon.Data.SimMessage [ Private ]
 {
 	Set rows = ##class(OcuTalon.Data.Ownership).RecentPhone(session, 100)
+	Set found = ""
 	For i = 1:1:rows.Count() {
-		If rows.GetAt(i).ApprovalRef = ref Quit
+		If rows.GetAt(i).ApprovalRef = ref Set found = rows.GetAt(i) Quit
 	}
-	Quit $Select(i <= rows.Count(): rows.GetAt(i), 1: "")
+	Quit found
 }
 
 /// The texts of the simulated phone's messages of the session, joined by ";".
@@ -512,6 +529,125 @@ Method TestTelegramFirstRejects()
 		Do $$$AssertEquals(..Entries(audit, "Settings", session).%Size(), 0, "and no Settings entry")
 	} Catch ex {
 		Do $$$AssertTrue(0, "the Telegram-first test failed: "_..Safe(ex))
+	}
+}
+
+/// AC3, AC4 (QA): Telegram approves first. The press is answered with no text and no alert (a setting has no count, so there is no
+/// toast); the late web answer names Telegram; the persona is Pirate; every copy shows the approval; persona.applied reaches the channels;
+/// the audit holds one answered entry and one Settings entry, each naming the channel telegram.
+Method TestTelegramFirstApproves()
+{
+	If '..Go() Quit
+	Try {
+		Set chatId = 84017734154
+		Set session = ..Paired(chatId, "Zqtgapprove")
+		Set audit = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
+		Set sends = ..CallsOf("sendMessage").%Size()
+		Set result = ..Propose(session, "pirate")
+		If '$IsObject(result) Quit
+		Set ref = result.Ref
+		Do $$$AssertEquals(result.Outcome, "proposed", "proposed")
+		Do $$$AssertTrue($IsObject(..WaitPhone(session, ref)), "the phone has the request")
+		Set calls = ..WaitCalls("sendMessage", sends + 1, ..#SECONDS)
+		Do $$$AssertEquals(calls.%Size(), sends + 1, "Telegram has the request")
+		If calls.%Size() < (sends + 1) Quit
+		Set sent = calls.%Get(sends).params.text
+
+		Set answers = ..CallsOf("answerCallbackQuery").%Size()
+		Do ..Press(chatId, "Zqtgapprove", "approve:"_ref)
+		Set found = ..WaitAnswers(answers, 1)
+		Do $$$AssertEquals(found.%Size(), 1, "the press is answered")
+		If found.%Size() = 1 Do $$$AssertEquals($Select(found.%Get(0).%IsDefined("text"): found.%Get(0).text, 1: "(no text)")_"|"_+found.%Get(0)."show_alert", "(no text)|0", "with no text and no alert: a setting has no count to report")
+		Do $$$AssertEquals(..WaitRequest(ref, "done"), "done", "the request is done")
+		Set row = ..Row(ref)
+		Set at = row.AnsweredAt
+		Do $$$AssertEquals(row.AnsweredChannel_"|"_row.AnsweredAction_"|"_row.AnsweredBy, "telegram|approve|"_$Username, "approved from Telegram by the session's user")
+		Do $$$AssertEquals(..Keys(session), "pirate||", "the persona is Pirate")
+		Set web = ..FromPageAs(session, ref, "reject", "web")
+		Do $$$AssertEquals(web.Result_"|"_web.WinnerAction_"|"_web.WinnerChannel_"|"_web.WinnerAt, "already_answered|approve|telegram|"_at, "the web chat's answer is late and names Telegram ["_..Said(web)_"]")
+		Do $$$AssertEquals(..Keys(session), "pirate||", "the late rejection changed nothing")
+
+		Set status = "Approved from Telegram "_..Shown(at)_"."
+		Set edits = ..WaitEdits(chatId, 1)
+		Do $$$AssertEquals(edits.%Size(), 1, "the Telegram copy is edited once")
+		If edits.%Size() = 1 Do $$$AssertEquals(edits.%Get(0).text, sent_$Char(10, 10)_status, "with the approval as its last line")
+		Do $$$AssertEquals(..WaitAnswer(session, ref), status, "the phone copy's Answer is the approval")
+		Set rows = ..WaitWeb(session, ref, 3)
+		Do $$$AssertEquals($Piece(rows, ";", 2)_"|"_$Piece(rows, ";", 3), "answered:|result:Persona updated. It applies from your next message.", "the web chat: the answered notice, then persona.applied")
+		Set calls = ..WaitCalls("sendMessage", sends + 2, ..#SECONDS)
+		Do $$$AssertEquals(calls.%Size(), sends + 2, "Telegram gets one new message")
+		If calls.%Size() = (sends + 2) Do $$$AssertEquals(calls.%Get(sends + 1).params.text, "Persona updated. It applies from your next message.", "persona.applied")
+
+		Set answered = ..Entries(audit, "Approval", ref, "answered")
+		Do $$$AssertEquals(answered.%Size(), 1, "one answered Approval entry names the request")
+		If answered.%Size() = 1 Do $$$AssertEquals(answered.%Get(0).data.channel_"|"_answered.%Get(0).data.sessionRef, "telegram|"_session, "from Telegram, for the session")
+		Set settings = ##class(OcuTalon.Test.Bridge.AuditLog).Wait(audit, "OcuTalon", "Settings", "Settings", session, "", 1, ..#SECONDS)
+		Do $$$AssertEquals(settings.%Size(), 1, "one Settings entry names the session")
+		If settings.%Size() = 1 Do $$$AssertEquals(settings.%Get(0).data.setting_"|"_settings.%Get(0).data.from_"|"_settings.%Get(0).data.to_"|"_settings.%Get(0).data.channel_"|"_settings.%Get(0).data.irisUser, "persona|professional|pirate|telegram|"_$Username, "persona, professional to pirate, approved from Telegram")
+	} Catch ex {
+		Do $$$AssertTrue(0, "the Telegram-first approval test failed: "_..Safe(ex))
+	}
+}
+
+/// AC3, AC4 (QA): the simulated phone approves first. The late web answer and the late Telegram press name the phone; the persona is Pirate;
+/// every copy shows the approval; the audit holds one answered entry and one Settings entry, each naming the channel phone.
+Method TestPhoneFirstApproves()
+{
+	If '..Go() Quit
+	Try {
+		Set chatId = 84017734155
+		Set session = ..Paired(chatId, "Zqphapprove")
+		Set audit = ##class(OcuTalon.Test.Bridge.AuditLog).Now()
+		Set sends = ..CallsOf("sendMessage").%Size()
+		Set result = ..Propose(session, "pirate")
+		If '$IsObject(result) Quit
+		Set ref = result.Ref
+		Do $$$AssertEquals(result.Outcome, "proposed", "proposed")
+		Do $$$AssertTrue($IsObject(..WaitPhone(session, ref)), "the phone has the request")
+		Set calls = ..WaitCalls("sendMessage", sends + 1, ..#SECONDS)
+		Do $$$AssertEquals(calls.%Size(), sends + 1, "Telegram has the request")
+		If calls.%Size() < (sends + 1) Quit
+		Set sent = calls.%Get(sends).params.text
+
+		Set won = ..FromPageAs(session, ref, "approve", "phone")
+		Do $$$AssertEquals($Select($IsObject(won): won.Result, 1: "(none)"), "done", "the phone's approval is the first answer ["_..Said(won)_"]")
+		Do $$$AssertEquals(..WaitRequest(ref, "done"), "done", "the request is done")
+		Set row = ..Row(ref)
+		Set at = row.AnsweredAt
+		Do $$$AssertEquals(row.AnsweredChannel_"|"_row.AnsweredAction_"|"_row.AnsweredBy, "phone|approve|"_$Username, "approved from the phone by the session's user")
+		Do $$$AssertEquals(..Keys(session), "pirate||", "the persona is Pirate")
+		Set web = ..FromPageAs(session, ref, "reject", "web")
+		Do $$$AssertEquals(web.Result_"|"_web.WinnerAction_"|"_web.WinnerChannel_"|"_web.WinnerAt, "already_answered|approve|phone|"_at, "the web chat's answer is late and names the phone ["_..Said(web)_"]")
+		Set answers = ..CallsOf("answerCallbackQuery").%Size()
+		Do ..Press(chatId, "Zqphapprove", "reject:"_ref)
+		Set found = ..WaitAnswers(answers, 1)
+		Do $$$AssertEquals(found.%Size(), 1, "the press is answered")
+		If found.%Size() = 1 {
+			Do $$$AssertEquals(found.%Get(0).text, "Already answered: approved from the simulated phone "_..Shown(at)_".", "with the winner's action, channel and time")
+			Do $$$AssertEquals(+found.%Get(0)."show_alert", 1, "as an alert")
+		}
+		Do $$$AssertEquals(..Keys(session), "pirate||", "the late rejections changed nothing")
+		Do $$$AssertEquals(..State(ref), "done", "and the request stays done")
+
+		Set status = "Approved from the simulated phone "_..Shown(at)_"."
+		Set edits = ..WaitEdits(chatId, 1)
+		Do $$$AssertEquals(edits.%Size(), 1, "the Telegram copy is edited once")
+		If edits.%Size() = 1 Do $$$AssertEquals(edits.%Get(0).text, sent_$Char(10, 10)_status, "with the approval as its last line")
+		Do $$$AssertEquals(..WaitAnswer(session, ref), status, "the phone copy's Answer is the approval")
+		Set rows = ..WaitWeb(session, ref, 3)
+		Do $$$AssertEquals($Piece(rows, ";", 2)_"|"_$Piece(rows, ";", 3), "answered:|result:Persona updated. It applies from your next message.", "the web chat: the answered notice, then persona.applied")
+		Set calls = ..WaitCalls("sendMessage", sends + 2, ..#SECONDS)
+		Do $$$AssertEquals(calls.%Size(), sends + 2, "Telegram gets one new message")
+		If calls.%Size() = (sends + 2) Do $$$AssertEquals(calls.%Get(sends + 1).params.text, "Persona updated. It applies from your next message.", "persona.applied")
+
+		Set answered = ..Entries(audit, "Approval", ref, "answered")
+		Do $$$AssertEquals(answered.%Size(), 1, "one answered Approval entry names the request")
+		If answered.%Size() = 1 Do $$$AssertEquals(answered.%Get(0).data.channel_"|"_answered.%Get(0).data.sessionRef, "phone|"_session, "from the phone, for the session")
+		Set settings = ##class(OcuTalon.Test.Bridge.AuditLog).Wait(audit, "OcuTalon", "Settings", "Settings", session, "", 1, ..#SECONDS)
+		Do $$$AssertEquals(settings.%Size(), 1, "one Settings entry names the session")
+		If settings.%Size() = 1 Do $$$AssertEquals(settings.%Get(0).data.setting_"|"_settings.%Get(0).data.from_"|"_settings.%Get(0).data.to_"|"_settings.%Get(0).data.channel_"|"_settings.%Get(0).data.irisUser, "persona|professional|pirate|phone|"_$Username, "persona, professional to pirate, approved from the phone")
+	} Catch ex {
+		Do $$$AssertTrue(0, "the phone-first approval test failed: "_..Safe(ex))
 	}
 }
 
