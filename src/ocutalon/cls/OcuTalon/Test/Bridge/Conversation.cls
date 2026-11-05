@@ -69,7 +69,12 @@
 ///     reply stands, with its text, status OK and SessionRotated 0, and the link still names the session the user saw;
 ///   - TestRetryAllowedStripsWhitespace (QA): the real adapter's RetryAllowed strips the surrounding white space of the RetryItem setting, as Decide does, and says
 ///     no for another name, an empty setting and an item that has none.
-/// Every test removes the AI sessions it saved (and the links that name them) and the Usage rows that ZzRunner and ZzRetry wrote.
+/// Added for DW-725 (AD-6, AD-8: a late reply moves nothing):
+///   - TestRetryMovesTheLinkOnlyWhenOnTime: a retry whose DecisionRef already has a Decision row (Decide recorded the decision when the retry's timer
+///     fired) is late: it answers, its Usage row is counted under the DecisionRef, and it saves no session, leaves the link on the session it named and
+///     leaves SessionRotated 0; a retry with no Decision row yet is on time and moves the link (SessionRotated 1); and a late retry after an on-time one
+///     leaves the link on the on-time retry's session. The late first attempt that follows an on-time retry is TestRetriedContinueTurn's.
+/// Every test removes the AI sessions it saved (and the links that name them), the Decision rows it recorded and the Usage rows that ZzRunner and ZzRetry wrote.
 Class OcuTalon.Test.Bridge.Conversation Extends %UnitTest.TestCase
 {
 
@@ -81,6 +86,9 @@ Parameter RETRYAGENT = "ZzRetry";
 
 /// The runner class of the shadow runners of the retry tests: its adapter allows a RetryOf of ZzRunner, and can hold the first attempt's save.
 Parameter RETRYRUNNER = "OcuTalon.Test.Bridge.ZzRetryRunner";
+
+/// The Summary of the Decision rows that TestRetryMovesTheLinkOnlyWhenOnTime records, which OnAfterOneTest deletes.
+Parameter LATEMARK = "ZzLateRetry";
 
 /// The runner test class, whose helpers make the shadow runner.
 Parameter RUNNERTEST = "OcuTalon.Test.Bridge.Runner";
@@ -124,6 +132,7 @@ Method OnAfterOneTest(testname As %String) As %Status
 	Do ##class(OcuTalon.Test.Agent.RunnerFixture).DropSince(..SessionMark)
 	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Bridge_Data.Usage WHERE Agent = ?", ..#AGENT)
 	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Bridge_Data.Usage WHERE Agent = ?", ..#RETRYAGENT)
+	Do ##class(%SQL.Statement).%ExecDirect(, "DELETE FROM OcuTalon_Bridge_Data.Decision WHERE Summary = ?", ..#LATEMARK)
 	Kill ^IRIS.Temp.ZzLate
 	Quit $$$OK
 }
@@ -436,6 +445,77 @@ Method TestRetriedPointFailureKeepsTheReply()
 	Do $$$AssertEquals(logged.%Size(), 1, "the retry made one model request")
 	Do $$$AssertEquals(..LinkOf(owner), s1, "and the link still names S1")
 	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).Warnings(mark, "OcuTalon.Test.Bridge.ZzRetryAdapter", "SaveRetried", $ListBuild("is not saved or linked")), 1, "SaveRetried logged one warning")
+}
+
+/// The retry's Point is the retry's own only while the retry is on time (DW-725; AD-6, AD-8). A retry whose DecisionRef already has a Decision row is late,
+/// because Decide records the decision when the retry's timer fires: its reply is dropped there, so it must move nothing here. It still answers and its model
+/// request is still counted (one Usage row under the DecisionRef), but it saves no AI session, leaves the link on the session it named and leaves SessionRotated 0.
+/// A retry with no Decision row yet is on time and moves the link; a later late retry then leaves the link on the on-time retry's session.
+Method TestRetryMovesTheLinkOnlyWhenOnTime()
+{
+	If ..Guard() Quit
+	Set host = ..NewHost()
+	Set retryHost = ..NewRetryHost()
+	Set owner = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Do $$$AssertStatusOK(..Send(host, ..NewTurn("[[mock:recall-tell]] My build server is called ORION-7.", owner), .first), "the first turn is answered by ZzRunner")
+	Set s1 = ..LinkOf(owner)
+	Do $$$AssertTrue(s1 '= "", "the link names the session S1: "_s1)
+
+	// (1) a late retry: the decision of its DecisionRef is recorded already
+	Set ask = ..NewTurn("[[mock:recall-ask]] What is my build server called?", owner)
+	Set ref = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set retry = ##class(OcuTalon.Bridge.Process.Decide).RetryRequest(ask, ref, 0, ..#AGENT)
+	Do ..RecordDecision(ref, ask.ItemId, owner)
+	Set sessions = ##class(OcuTalon.Test.Agent.RunnerFixture).SessionMark()
+	Set sc = ..Send(retryHost, retry, .late, .logged)
+	Do $$$AssertStatusOK(sc, "the late retry runner answers")
+	Do $$$AssertEquals(logged.%Size(), 1, "with one model request")
+	Do $$$AssertEquals($Select($IsObject(late): late.Busy_"|"_(late.Text '= "")_"|"_late.SessionRotated_"|"_late.FailureText, 1: "none"), "0|1|0|", "a reply with a text and SessionRotated 0")
+	Do $$$AssertEquals(..LinkOf(owner), s1, "the link still names S1: the late retry did not point it")
+	Do $$$AssertEquals(##class(OcuTalon.Test.Agent.RunnerFixture).SessionMark(), sessions, "and the late retry saved no AI session")
+	Do $$$AssertEquals(..UsageRowsOf(ref), 1, "its model request is counted: one Usage row under the DecisionRef")
+
+	// (2) an on-time retry: no decision is recorded yet
+	Set ask2 = ..NewTurn("[[mock:recall-ask]] What is my build server called, once more?", owner)
+	Set ref2 = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set retry2 = ##class(OcuTalon.Bridge.Process.Decide).RetryRequest(ask2, ref2, 0, ..#AGENT)
+	Do $$$AssertStatusOK(..Send(retryHost, retry2, .onTime, .logged2), "the on-time retry runner answers")
+	Do $$$AssertEquals($Select($IsObject(onTime): onTime.SessionRotated, 1: "none"), 1, "with SessionRotated 1")
+	Set s2 = ..LinkOf(owner)
+	Do $$$AssertTrue((s2 '= "") && (s2 '= s1), "and the link names the retry's new session S2: "_s2)
+	Do $$$AssertEquals(..UsageRowsOf(ref2), 1, "its model request is counted too")
+
+	// a late retry after the on-time one
+	Set ask3 = ..NewTurn("[[mock:recall-ask]] And once more?", owner)
+	Set ref3 = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set retry3 = ##class(OcuTalon.Bridge.Process.Decide).RetryRequest(ask3, ref3, 0, ..#AGENT)
+	Do ..RecordDecision(ref3, ask3.ItemId, owner)
+	Do $$$AssertStatusOK(..Send(retryHost, retry3, .late3, .logged3), "a second late retry answers")
+	Do $$$AssertEquals($Select($IsObject(late3): late3.SessionRotated, 1: "none"), 0, "with SessionRotated 0")
+	Do $$$AssertEquals(..LinkOf(owner), s2, "and the link still names S2, the session of the on-time retry")
+}
+
+/// Records the Decision row of the DecisionRef, as Decide does when it concludes, so that a retry of the decision is late (Adapter.Agent RetryIsLate).
+Method RecordDecision(ref As %String, itemId As %String, owner As %String) [ Private ]
+{
+	Set row = ##class(OcuTalon.Bridge.Data.Decision).%New()
+	Set row.Ref = ref
+	Set row.Kind = "turn"
+	Set row.ItemId = itemId
+	Set row.OwnerRef = owner
+	Set row.Summary = ..#LATEMARK
+	Set row.Outcome = "tellnow"
+	Set row.Fallback = 1
+	Set row.FallbackReason = "timeout"
+	Do $$$AssertStatusOK(row.%Save(), "the decision of "_ref_" is recorded")
+}
+
+/// The number of Usage rows of the DecisionRef.
+ClassMethod UsageRowsOf(ref As %String) As %Integer [ Private ]
+{
+	Set result = ##class(%SQL.Statement).%ExecDirect(, "SELECT COUNT(*) FROM OcuTalon_Bridge_Data.Usage WHERE DecisionRef = ?", ref)
+	Do result.%Next()
+	Quit result.%GetData(1)
 }
 
 /// RetryAllowed of the real adapter strips the white space around the RetryItem setting, as Decide does when it reads the same setting (Story 17.2, QA): a value that

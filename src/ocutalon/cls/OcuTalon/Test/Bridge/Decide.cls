@@ -3464,6 +3464,7 @@ Method TestRetryAfterTimer()
 	Set sc = process.OnResponse(request, .response, "", "", "timer")
 	Set row = ..RowOf(request.ItemId, "decide")
 	Do $$$AssertEquals($Select($IsObject(row): row.Fallback_"|"_row.FallbackReason, 1: "no row"), "1|timeout", "the retry's timer is a timeout fallback, although the first attempt was re-sent")
+	Do $$$AssertEquals($ListGet($Get(^||ZzDecideCalls("send", 1)), 2)_"|"_$Select($IsObject(row): row.Ref, 1: "no row"), process.DecisionRef_"|"_process.DecisionRef, "the row of that fallback has the DecisionRef that the retry request carried, so a late retry finds the decision recorded (Adapter.Agent RetryIsLate)")
 	Do $$$AssertEquals(..Calls("send"), 1, "and no second request is sent")
 	Do ..RestoreRows()
 

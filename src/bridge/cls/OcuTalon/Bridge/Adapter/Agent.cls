@@ -32,8 +32,10 @@ Include Ensemble
 /// runner (the retry runner) answers it only when that item's RetryItem setting names this runner (RetryAllowed); any other RetryOf is an error
 /// status, with no Chat. A linked turn with RetryOf takes no conversation lock (AnswerRetried): it chats in a new AI session, seeded with the
 /// SeedText of the request when the turn is fresh, else with Compaction.Seed of the stored history of the session that the first runner's link
-/// names (RequestSize.StoredMessages, read from the database), and after a completed, untainted Chat it saves the session and points the first
-/// runner's link at it unconditionally, so the reply's SessionRotated is 1. The retry runner never links a conversation of its own, and the first
+/// names (RequestSize.StoredMessages, read from the database), and after a completed, untainted Chat that is not late (RetryIsLate) it saves the
+/// session and points the first runner's link at it unconditionally, so the reply's SessionRotated is 1. A late retry (Decide has already recorded
+/// the decision of its DecisionRef, because the retry's timer fired) moves nothing: it saves no session and leaves the link and SessionRotated as
+/// they were; its cost is counted and its reply is dropped by Decide (AD-8). The retry runner never links a conversation of its own, and the first
 /// runner's late attempt, which still holds the conversation lock, cannot move the link back: every writer that holds the lock points the link
 /// compare-and-set (SaveLinked, SwitchTo; Data.ConversationLink Point). The session config of a request with RetryOf takes timeout_ms from
 /// Timeouts.RetryTimer of the bridge timer.
@@ -454,8 +456,8 @@ Method AnswerLinked(request As OcuTalon.Bridge.Msg.Request, Output reply As OcuT
 ///     session named by the link of (OwnerRef, RetryOf) holds, read from the database (RequestSize.StoredMessages) with no lock and no
 ///     change, "" when the link names none;
 ///   - Converse chats with ChatInput seeded with that text;
-///   - after a Chat that completed and is not tainted, the session is saved and the link of (OwnerRef, RetryOf) points at it unconditionally
-///     (SaveRetried), and the reply's SessionRotated is 1.
+///   - after a Chat that completed and is not tainted, and that is not late (RetryIsLate), the session is saved and the link of (OwnerRef, RetryOf)
+///     points at it unconditionally (SaveRetried), and the reply's SessionRotated is 1; a late retry saves and points nothing.
 /// The request's Compact flag is ignored: the seed is short by construction.
 Method AnswerRetried(request As OcuTalon.Bridge.Msg.Request, Output reply As OcuTalon.Bridge.Msg.Reply) As %Status [ Private ]
 {
@@ -480,20 +482,32 @@ Method AnswerRetried(request As OcuTalon.Bridge.Msg.Request, Output reply As Ocu
 }
 
 /// Saves the AI session of a retried turn and points the link of (OwnerRef, RetryOf) at it unconditionally, so that the user's next turn of the
-/// first runner opens it (AnswerRetried). The reply's SessionRotated is set to 1 when the link names the session. A problem (the save, the link
-/// or an exception) is one warning that names the runner item, the OwnerRef and the DecisionRef, and never changes the reply.
+/// first runner opens it (AnswerRetried). The reply's SessionRotated is set to 1 when the link names the session. A late retry (RetryIsLate)
+/// saves nothing and points nothing, so the conversation stays on the session it named. A problem (the save, the link or an exception) is one
+/// warning that names the runner item, the OwnerRef and the DecisionRef, and never changes the reply.
 Method SaveRetried(request As OcuTalon.Bridge.Msg.Request, session As %AI.Agent.Session, reply As OcuTalon.Bridge.Msg.Reply) [ Private ]
 {
+	Set sc = $$$OK
 	Try {
-		Set sc = session.%Save()
-		If $$$ISOK(sc) Set sc = ##class(OcuTalon.Bridge.Data.ConversationLink).Point(request.OwnerRef, request.RetryOf, session.%Id(), , .moved)
-		If $$$ISOK(sc) && $Get(moved) Set reply.SessionRotated = 1
+		If '..RetryIsLate(request) {
+			Set sc = session.%Save()
+			If $$$ISOK(sc) Set sc = ##class(OcuTalon.Bridge.Data.ConversationLink).Point(request.OwnerRef, request.RetryOf, session.%Id(), , .moved)
+			If $$$ISOK(sc) && $Get(moved) Set reply.SessionRotated = 1
+		}
 	} Catch exception {
 		Set sc = exception.AsStatus()
 	}
 	If $$$ISERR(sc) {
 		$$$LOGWARNING("The AI session of "_..BusinessHost.%ConfigName_" for the OwnerRef "_request.OwnerRef_" and the decision "_request.DecisionRef_" is not saved or linked: "_##class(OcuTalon.Bridge.Redact).Text($SYSTEM.Status.GetErrorText(sc)))
 	}
+}
+
+/// 1 when the retry of the request is late (AD-8, DW-725): Decide has already recorded the decision of the request's DecisionRef, which it does
+/// only when the retry's timer fired (or the decision ended another way), so the user was answered without this retry and its reply is dropped.
+/// An on-time retry saves and points before its reply reaches Decide, so no row exists yet. A retry with no DecisionRef is never late.
+Method RetryIsLate(request As OcuTalon.Bridge.Msg.Request) As %Boolean [ Private ]
+{
+	Quit (request.DecisionRef '= "") && ##class(OcuTalon.Bridge.Data.Decision).RefIndexExists(request.DecisionRef)
 }
 
 /// The call: chats in the session with the input, passing the step renderer, and returns the reply. opened is 1 for a session that was
