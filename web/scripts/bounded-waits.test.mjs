@@ -12,7 +12,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const here = dirname(fileURLToPath(import.meta.url));
 const webRoot = join(here, '..');
 const { default: playwrightConfig } = await import(pathToFileURL(join(webRoot, 'playwright.config.ts')).href);
-const { ONLINE_IRIS_SCRIPT_MS, ONLINE_WAITS, TELEGRAM_FIXTURE_MS, runBounded, scriptBound } = await import(
+const { ONLINE_IRIS_SCRIPT_MS, ONLINE_WAITS, TELEGRAM_FIXTURE_MS, WAIT_CAPS, boundedStep, effectiveWaits, runBounded, scriptBound, waitsFor } = await import(
   pathToFileURL(join(webRoot, 'e2e', 'support', 'bounds.ts')).href
 );
 
@@ -79,6 +79,46 @@ describe('scriptBound', () => {
   });
 });
 
+describe('boundedStep', () => {
+  it('rejects at its bound, naming the step and the bound, and drops the late outcome', { timeout: 5000 }, async () => {
+    const started = Date.now();
+    await assert.rejects(boundedStep(new Promise(() => undefined), 300, 'step Z'), /^Error: step Z: no answer within 0\.3 s$/);
+    assert.ok(Date.now() - started < 2000);
+  });
+
+  it('settles like the work when it ends in time, with its value or its error', async () => {
+    assert.equal(await boundedStep(Promise.resolve(7), 5000, 'step'), 7);
+    const failure = new Error('the work failed');
+    await assert.rejects(boundedStep(Promise.reject(failure), 5000, 'step'), (error) => error === failure);
+  });
+});
+
+describe('waitsFor', () => {
+  it('gives a test a share of its timeout, capped, so that a wait fails before the test does', () => {
+    assert.deepEqual(waitsFor(45_000), { actionTimeout: 30_000, navigationTimeout: 30_000 });
+    assert.deepEqual(waitsFor(90_000), { actionTimeout: 60_000, navigationTimeout: 60_000 });
+    assert.deepEqual(waitsFor(240_000), { actionTimeout: WAIT_CAPS.actionTimeout, navigationTimeout: WAIT_CAPS.navigationTimeout });
+    for (const testMs of [1_000, 9_000, 45_000, 120_000, 300_000]) {
+      const waits = waitsFor(testMs);
+      assert.ok(waits.actionTimeout < testMs && waits.navigationTimeout < testMs, `${testMs} ms`);
+    }
+  });
+
+  it('gives a test with no timeout the caps', () => {
+    for (const testMs of [0, -1, Number.NaN, Infinity]) assert.deepEqual(waitsFor(testMs), WAIT_CAPS, String(testMs));
+  });
+});
+
+describe('effectiveWaits', () => {
+  it('keeps the waits that the project sets (the online projects) and derives the rest from the test timeout', () => {
+    assert.deepEqual(effectiveWaits(120_000, ONLINE_WAITS), { action: ONLINE_WAITS.actionTimeout, navigation: ONLINE_WAITS.navigationTimeout });
+    assert.deepEqual(effectiveWaits(45_000, { actionTimeout: 4_000 }), { action: 4_000, navigation: 30_000 });
+    assert.deepEqual(effectiveWaits(45_000, {}), { action: 30_000, navigation: 30_000 });
+    assert.deepEqual(effectiveWaits(240_000, { actionTimeout: 0, navigationTimeout: 0 }), { action: WAIT_CAPS.actionTimeout, navigation: WAIT_CAPS.navigationTimeout });
+    assert.deepEqual(effectiveWaits(45_000, undefined), { action: 30_000, navigation: 30_000 });
+  });
+});
+
 describe('the bounds', () => {
   it('keep a hang well under the 120 to 300 s test timeouts and above the waits they must not cut', () => {
     for (const ms of [ONLINE_IRIS_SCRIPT_MS, ONLINE_WAITS.actionTimeout, ONLINE_WAITS.navigationTimeout]) {
@@ -119,5 +159,32 @@ describe('by source', () => {
     const body = telegram.slice(telegram.indexOf('async function fixture('), telegram.indexOf('export async function startTelegram'));
     assert.match(body, /\n\s*TELEGRAM_FIXTURE_MS,\n\s*\);/);
     assert.match(telegram, /import \{ TELEGRAM_FIXTURE_MS \} from '\.\.\/e2e\/support\/bounds';/);
+  });
+
+  it('the shared test gives the page its waits and keeps them current when the test sets a new timeout', () => {
+    const fixtures = read('e2e/support/fixtures.ts');
+    assert.match(fixtures, /waitsFor\(testInfo\.timeout\)/);
+    assert.match(fixtures, /if \(!actionTimeout\) context\.setDefaultTimeout\(/);
+    assert.match(fixtures, /if \(!navigationTimeout\) context\.setDefaultNavigationTimeout\(/);
+    assert.match(fixtures, /testInfo\.setTimeout = /);
+  });
+
+  it('loadedAfter bounds the sign-in and the snapshot GET, each by name', () => {
+    const floor = read('e2e/support/floor.ts');
+    assert.match(floor, /boundedStep\(signInAction\(\), waits\.navigation, 'loadedAfter the sign-in'\)/);
+    assert.match(floor, /boundedStep\(state, waits\.action, `loadedAfter the snapshot GET \$\{STATE\}`\)/);
+  });
+
+  it('the online sign-in helpers bound their waits by name', () => {
+    const support = read('e2e-online/support.ts');
+    assert.match(support, /boundedStep\(answered, wait, 'signInFromSplash the answer to the sign-in POST'\)/);
+    assert.match(support, /boundedStep\(asked, wait, `epochOf the GET \$\{STATE\}`\)/);
+  });
+
+  it('gotoSettled passes the navigation wait in force to goto and names the url when it ends', () => {
+    const navigate = read('e2e/support/navigate.ts');
+    assert.match(navigate, /currentWaits\(\)\?\.navigation/);
+    assert.match(navigate, /effectiveWaits\(info\.timeout, info\.project\.use\)/);
+    assert.match(navigate, /gotoSettled: no answer within \$\{wait \/ 1000\} s from \$\{url\}/);
   });
 });

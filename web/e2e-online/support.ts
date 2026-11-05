@@ -6,7 +6,8 @@ import { STATE } from '../e2e/support/api';
 import { pageNow, runUntil } from '../e2e/support/clock';
 import { chk, fixtureUser, irisScript, quoted } from '../e2e/support/iris';
 import { loadedAfter } from '../e2e/support/floor';
-import { gotoSettled } from '../e2e/support/navigate';
+import { WAIT_SLACK_MS, boundedStep } from '../e2e/support/bounds';
+import { currentWaits, gotoSettled } from '../e2e/support/navigate';
 import { drawnMessages, TRACE_PAGE, type Turn } from '../e2e/support/trace';
 import { signInOverHttp } from '../e2e/sign-in/helpers';
 
@@ -49,15 +50,17 @@ const probedSplash = (): string => probed('/ocutalon/');
  * Signs in from the splash at path (by default the splash with a fresh probe): it opens the page, fills a field only when its value is
  * given (the exact labels "User name" and "Password"; the fields are prefilled with the published values), presses **Sign in and
  * start** and returns the server's answer to the form. The caller then asserts what the next page shows, with an assertion that waits
- * for it.
+ * for it. The wait for the answer is bounded by the action wait in force (currentWaits) and names itself when it ends.
  */
 export async function signInFromSplash(page: Page, user?: string, password?: string, path = probedSplash()): Promise<Response> {
   await gotoSettled(page, path);
   if (user !== undefined) await page.getByLabel('User name', { exact: true }).fill(user);
   if (password !== undefined) await page.getByLabel('Password', { exact: true }).fill(password);
-  const answered = page.waitForResponse((response) => response.request().method() === 'POST');
+  const wait = currentWaits()?.action;
+  const answered = page.waitForResponse((response) => response.request().method() === 'POST', wait === undefined ? undefined : { timeout: wait + WAIT_SLACK_MS });
+  answered.catch(() => undefined);
   await page.getByRole('button', { name: 'Sign in and start', exact: true }).click();
-  return answered;
+  return wait === undefined ? answered : boundedStep(answered, wait, 'signInFromSplash the answer to the sign-in POST');
 }
 
 /**
@@ -83,14 +86,17 @@ export async function landedOnSplash(page: Page, timeout: number): Promise<void>
   expect(landed.pathname + landed.search, 'the plain splash shows, at the plain address').toBe('/ocutalon/');
 }
 
-/** The epoch of the page's own /state (Story 16.4): the request carries the page's cookies. */
+/** The epoch of the page's own /state (Story 16.4): the request carries the page's cookies. The request is bounded by the action wait in force and names itself when it ends. */
 export async function epochOf(page: Pick<Page, 'request'>): Promise<string> {
-  const response = await page.request.get(STATE);
+  const wait = currentWaits()?.action;
+  const asked = page.request.get(STATE, wait === undefined ? undefined : { timeout: wait + WAIT_SLACK_MS });
+  asked.catch(() => undefined);
+  const response = await (wait === undefined ? asked : boundedStep(asked, wait, `epochOf the GET ${STATE}`));
   expect(response.status(), 'the state is served').toBe(200);
   return ((await response.json()) as { epoch: string }).epoch;
 }
 
-/** Signs the page in from the splash and returns its epoch, once the page has loaded its snapshot (loadedAfter: the answer of /state first, DW-333). */
+/** Signs the page in from the splash and returns its epoch, once the page has loaded its snapshot (loadedAfter: the answer of /state first, DW-333). Each step is bounded and named (loadedAfter, epochOf). */
 export async function openSession(page: Page): Promise<string> {
   await loadedAfter(page, () => signInFromSplash(page));
   return epochOf(page);

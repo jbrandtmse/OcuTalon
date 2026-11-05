@@ -133,7 +133,7 @@ describe('e2e/support/fixtures.ts', () => {
 
   it('overrides the page and the context fixtures', () => {
     assert.match(extend, /^\s*page: async \(\{ page \}, use\) => \{/m);
-    assert.match(extend, /^\s*context: async \(\{ context \}, use\) => \{/m);
+    assert.match(extend, /^\s*context: async \(\{ context(?:, \w+)* \}, use(?:, testInfo)?\) => \{/m);
   });
 
   it('unroutes the page, every page of the context and the context after the test', () => {

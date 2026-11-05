@@ -2,8 +2,8 @@
 title: "Story 11.21: A test's route callback never outlives its test"
 type: 'bugfix'
 created: '2026-11-04'
-status: 'in-progress'
-baseline_revision: '79a8aca3e2016d544fc3fc4f1e18f353a9629eb3'
+status: 'done'
+baseline_revision: 'b5128e27f03ebcea042f78d4c3b4a0c91bbcb545'
 baseline_commit: '79a8aca3e2016d544fc3fc4f1e18f353a9629eb3'
 review_loop_iteration: 0
 followup_review_recommended: false
@@ -128,8 +128,8 @@ deferred:
   - Source pins: each project of `web/playwright.config.ts` whose `testDir` starts with `./e2e-online` spreads `ONLINE_WAITS` and sets `irisScriptMs`, and no other project does. `iris.ts` `irisScript` takes the bound from `test.info().project.metadata`. `telegram.ts` `fixture()` passes `TELEGRAM_FIXTURE_MS`.
 - [x] This spec: record the Verification results and the `mutation:` lines.
 
-- [ ] [Amend] `web/e2e/cards/either-way.spec.ts` (arrived with Epic 7's merge, 4238dc8f): change its one `@playwright/test` import line to the shared fixtures module, like the other 70 specs, so `route-cleanup.test.mjs` passes. Nothing else in the file. (AC1, AC3)
-- [ ] [Amend] Shared sign-in helper waits, each with its own bound shorter than the test timeout and a failure message naming the step and the response it waited for (AC7; epics.md Story 11.21, the Contest Planner's condition of 2026-11-04; DW-690, DW-691):
+- [x] [Amend] `web/e2e/cards/either-way.spec.ts` (arrived with Epic 7's merge, 4238dc8f): change its one `@playwright/test` import line to the shared fixtures module, like the other 70 specs, so `route-cleanup.test.mjs` passes. Nothing else in the file. (AC1, AC3)
+- [x] [Amend] Shared sign-in helper waits, each with its own bound shorter than the test timeout and a failure message naming the step and the response it waited for (AC7; epics.md Story 11.21, the Contest Planner's condition of 2026-11-04; DW-690, DW-691):
   - `web/e2e/support/floor.ts` `loadedAfter`: the `waitForResponse` for the snapshot's GET of `/ocutalon/api/v1/state` and the sign-in action it wraps are bounded; on expiry it fails naming the step ("the sign-in" or "the snapshot GET /ocutalon/api/v1/state") and its bound. (OCT-epic40 run 41929230934 `02-watch.spec.ts:61` timed out at 180 s inside `loadedAfter`'s `waitForResponse`.)
   - `web/e2e/support/navigate.ts` `gotoSettled`: bounded, naming the URL; and it also retries once on `net::ERR_ABORTED` (logging `NAV retry <url>` as for NETWORK_CHANGED): the page's own `location.replace` after a sign-out aborts the next navigation (DW-690: `07-failure-paths` L77's re-sign-in failed with `page.goto net::ERR_ABORTED` at `/ocutalon/`). Decided by the lead (decide, within intent): a second failure, and every other error, is still thrown.
   - `web/e2e-online/support.ts` `signInFromSplash` (its POST answer wait) and `openSession`: bounded and named.
@@ -199,6 +199,41 @@ deferred:
   - `[low]` `[reject]` Intent: footprint extensions (tsconfig.e2e.json, rehearsal-support.test.mjs, the .ts import) - small and reversible, recorded in Design Notes; reported to the lead.
   - `[low]` `[reject]` Intent: iris.ts reads test.info() in a try/catch that returns undefined - outside a test there is no project bound; a throw inside a test cannot occur.
 
+### 2026-11-04 - Review pass (rework iteration 1: the [Amend] items and AC7)
+- verdicts: 31 findings - high 0, medium 2, low 29, false 0, maybe-false 0 (rows in the order of the layers: Blind, Edge, Verification, Intent)
+- findings:
+  - `[low]` `[reject]` Blind: loadedAfter bounds the sign-in by the navigation wait alone, though the action is goto then a POST wait, so a slow sign-in is cut and may blame the wrong step - a sign-in that needs more than 60 s (online) or 30 s (45 s tests) is already unhealthy, the inner steps are bounded by the same waits and also name themselves, and a longer outer bound would leave no room under the test timeout (AC7).
+  - `[low]` `[reject]` Blind: the ERR_ABORTED retry is broad (re-navigates after a redirect, repeats a deliberate abort) and doubles the worst case - the retry is the lead's decision in the [Amend] item (DW-690); no gotoSettled site aborts on purpose.
+  - `[low]` `[reject]` Blind: gotoSettled's bounded path has no unit-level test - `helper-waits.spec.ts` drives it in Chromium and its mutation is shown.
+  - `[low]` `[reject]` Blind: navigate.ts imports `test` and swallows every error of `test.info()`; mixed `./bounds.ts` and `./bounds` imports - the catch is the "outside a test" case, the extension is explained in its comment; narrowing adds complexity for no reachable harm.
+  - `[low]` `[patch]` Blind: test.slow() is not tracked and the setTimeout wrapper shadows the global timer - patched: the local is renamed `setTestTimeout`; test.slow() is recorded in Design Notes and ran green.
+  - `[low]` `[patch]` Blind: loose elapsed-time assertions, a second-page assertion that proves nothing of the change, no case for signInFromSplash or epochOf - patched: the elapsed assertions are removed (the test timeout already detects a missing bound), the second-page case is split out without an explicit timeout, and two cases for the online helpers are added.
+  - `[low]` `[reject]` Edge: the sign-in bound and the snapshot bound run in sequence, so their sum can exceed the test timeout - each bound is shorter than the test timeout as AC7 asks; it takes a slow sign-in and a hang together to reach the test timeout unnamed.
+  - `[low]` `[reject]` Edge: a composite sign-in (goto, fill, POST) is bounded by the navigation wait only - same as the first Blind row.
+  - `[low]` `[reject]` Edge: currentWaits ignores a spec's test.use({ actionTimeout }) - no spec under e2e or e2e-online sets such an option (searched).
+  - `[low]` `[reject]` Edge: test.slow() leaves the waits sized to the old timeout - Design Notes record it; the three chat.spec.ts tests ran green on the 30 s default.
+  - `[low]` `[reject]` Edge: the wait is a fixed share of the whole timeout and ignores the time already spent - same family as the sequence row; a share is what the item asks for, and a remaining-time rule adds a moving bound.
+  - `[low]` `[reject]` Edge: the caps (60 s, 90 s) may cut a legitimate longer wait in a web/e2e spec - measured: the live units named in the item and all four online units ran green with no explicit timeout added.
+  - `[low]` `[reject]` Edge: a wrapped TimeoutError message may match the retry pattern through its call log - theoretical: Playwright's goto call log holds no net::ERR_ABORTED line.
+  - `[low]` `[reject]` Edge: no opt-out from the abort retry - same as the second Blind row.
+  - `[low]` `[reject]` Edge: epochOf does not bound the body read after the headers - pre-existing and theoretical; the request, not the body, is what hangs in the incidents.
+  - `[low]` `[reject]` Edge: the retry's own timeout error carries the gotoSettled prefix, not "unchanged" - the prefix is the contract of the bound; the error is still thrown.
+  - `[low]` `[reject]` Edge: claim that each wait has a bound shorter than the test timeout but the chain does not - same as the sequence row.
+  - `[low]` `[reject]` Edge: claim that helper bounds and page defaults disagree under test.use - same as the test.use row.
+  - `[medium]` `[patch]` Verification: the signInFromSplash and epochOf bounds are pinned by source text only, with no mutation - patched: two hermetic cases in `helper-waits.spec.ts` (a held sign-in POST, a held state GET); both mutations shown red.
+  - `[low]` `[patch]` Verification: the project-options branch of currentWaits is never exercised - patched: the rule is the pure `effectiveWaits` in bounds.ts, pinned by a node row; mutation shown red.
+  - `[low]` `[reject]` Verification: the online units that use the changed helpers were not re-run after the amend - closed: online-session, online-allowance, online-visitors, online-demo-path and online-demo ran green after the last patch (Verification results).
+  - `[medium]` `[patch]` Verification: the second-page assertion carries an explicit timeout and cannot fail from the fixture - patched: its own case with no explicit timeout; `giveWaits` as a no-op turns it red.
+  - `[low]` `[reject]` Verification: gotoSettled retries after a near-full bound, so up to two bounds - same as the second Blind row.
+  - `[low]` `[reject]` Verification: test.slow() is not seen - same as the test.slow rows.
+  - `[low]` `[patch]` Verification: no mutation line for waitsFor and boundedStep - patched: three mutations shown red and written in Verification.
+  - `[low]` `[patch]` Verification: the elapsed-time assertions give 1 to 2 s of margin on a loaded runner and detect nothing the test timeout does not - patched: removed (see the sixth Blind row).
+  - `[low]` `[reject]` Intent: the diff changes web/e2e behaviour although the contract says those projects keep today's waits - AC7 and the Spec Change Log (epics.md Story 11.21, the Planner's condition) add exactly that; recorded in Design Notes, and the contract text is the lead's to restate.
+  - `[low]` `[patch]` Intent: the 5 s margin and the share sit outside bounds.ts - patched: `WAIT_SLACK_MS` and `effectiveWaits` live in bounds.ts.
+  - `[low]` `[patch]` Intent: no test runs a helper under an online project's options - patched through `effectiveWaits` (see the Verification rows); the online units ran green.
+  - `[low]` `[reject]` Intent: pages of browser.newContext() get no fixture default - Design Notes 3 and the amend pass: the helpers bound themselves through currentWaits.
+  - `[low]` `[reject]` Intent: boundedStep cannot cancel the work it bounds - the late outcome is dropped and caught; the page is closed with its test.
+
 ## Design Notes
 
 **Governing ADs.**
@@ -234,6 +269,19 @@ deferred:
 - The `page` override is redundant with the `context` override's loop over `context.pages()`: removing only `unroute(page)` leaves the pinning spec green. It stays because the intent names both overrides, and the source pin in `route-cleanup.test.mjs` holds it. The pinning spec goes red on removing the page unroute and the pages loop together, and on removing the whole shared test.
 - Review patches: `web/e2e/live/iris-script-bound.spec.ts` (new, hermetic, no browser: it points OCUTALON_E2E_IRIS_EXEC at a local command and sets the running project's metadata) pins `irisScript`'s message, the first line, no retry and the default bound; `bounded-waits.test.mjs` asserts the killed child is gone and reads the bounds from the loaded config instead of its text. Footprint extension: the new spec file.
 - Locally `ci/iris.sh live online-demo` needs `OCUTALON_LIVE_DEADLINE=1200`, as CI sets: with the 540 s default the unit's probe phase is skipped after the 52 browser tests (414 s used), a red that is not a spec failure.
+
+**Decided in the amend pass (bounded sign-in helper waits, AC7).**
+- The shared test gives the page a default wait of a share of the test's own timeout: `waitsFor(testMs)` in `bounds.ts`, `min(cap, floor(2/3 x testMs))` with caps of 60 s (action, the default of `waitForResponse`, `waitForEvent`, `locator` waits, `page.request`) and 90 s (navigation, `goto`, `waitForURL`, `waitForLoadState`). The `context` fixture sets it with `setDefaultTimeout` and `setDefaultNavigationTimeout`, so the fixture page and every `context.newPage()` page inherit it. Results: a 45 s test (the config default) gets 30 s and 30 s; 90 s gets 60 s and 60 s; 120 s to 300 s get the caps. The expect timeout (10 s) is a separate setting and is untouched.
+- Why 2/3 and these caps: every wait must fail before the test does, yet not cut a wait that is green today. Measured, not assumed: all of `live:online-session`, `live:sign-in` both parts, `live:demo-path` and `live:floor` ran green under it, with no spec given an explicit timeout (no one-line edits were needed). A looser share would leave a 45 s test almost no time to report; a smaller cap would cut the waits of the 120 s to 240 s tests that wait on a model turn without a timeout of their own.
+- A project that sets `actionTimeout` or `navigationTimeout` (the five online projects: 30 s and 60 s) keeps its own: the fixture reads the option and sets nothing. A wait that passes `timeout:` keeps it.
+- Many tests raise their timeout in the body (`test.setTimeout(150_000)` after the page exists), so the fixture wraps `testInfo.setTimeout` and recomputes the waits from the timeout in force. `test.slow()` called in a test body (three tests of `chat.spec.ts`) is not seen: those tests keep the share of their 45 s (30 s), and ran green. A `describe.configure({ timeout })` or a `test.slow(condition)` before the fixtures is seen at setup.
+- Contexts from `browser.newContext()` are not fixtures and get no default wait in the `web/e2e` projects, as before (Design Notes 3). The shared helpers do not rely on the default: `loadedAfter`, `gotoSettled`, `signInFromSplash` and `epochOf` read the waits in force (`currentWaits()` in `navigate.ts`: the project's option when set, else `waitsFor` of the test timeout) and bound themselves.
+- `loadedAfter` bounds the sign-in action with the navigation wait and the snapshot GET with the action wait, each through `boundedStep`, and fails with `loadedAfter the sign-in: no answer within <s> s` or `loadedAfter the snapshot GET /ocutalon/api/v1/state: no answer within <s> s`. The `waitForResponse` is armed before the sign-in, so its own timeout is the sum of both bounds plus 5 s: only `boundedStep`'s message can win. This is how `submitSignIn`'s POST answer and `signInReadme`'s load (in `web/e2e/sign-in/helpers.ts`, untouched) are bounded for every `loadedAfter` caller, and by the fixture default for the others.
+- `gotoSettled` passes the navigation wait in force unless the options carry a timeout, turns Playwright's `TimeoutError` into `gotoSettled: no answer within <s> s from <url>` and retries once on `net::ERR_NETWORK_CHANGED` or `net::ERR_ABORTED`. Outside a test (the node test) it passes the options as they are. `navigate.ts` imports `./bounds.ts` with its extension, because `goto-settled.test.mjs` loads it straight into Node.
+- `signInFromSplash` (the POST answer) and `epochOf` (so `openSession`) are bounded by the action wait in force and named (`signInFromSplash the answer to the sign-in POST`, `epochOf the GET /ocutalon/api/v1/state`).
+- `effectiveWaits(testMs, use)` in `bounds.ts` is the one rule for which waits are in force (the project's option when set, else `waitsFor`); `currentWaits()` calls it, and a node test pins it. `WAIT_SLACK_MS` (5 s) is the one margin by which a wait armed before its step outlasts the helper's bound, so that the helper's message names the step.
+- AC7 and the Spec Change Log supersede the Always bullet "the `web/e2e` projects keep today's waits" for the default page waits only: their fixtures' own long waits (240 s) are untouched.
+- Footprint extensions of this pass: `web/e2e/live/helper-waits.spec.ts` (new pinning spec), `web/scripts/goto-settled.test.mjs` and `web/scripts/route-cleanup.test.mjs` (one pin follows the new `context` signature).
 
 **Rule 1/2.**
 - Shared components: `web/e2e/support/fixtures.ts` and `web/e2e/support/bounds.ts`.
@@ -286,10 +334,22 @@ After each live unit, also after a failure, run `LANE bash ci/iris.sh teardown`.
 - mutation: AC4 `child.kill('SIGKILL')` deleted from `runBounded`: red, `bounded-waits.test.mjs` "kills the command itself". `currentBound()` made to return undefined: red, `iris-script-bound.spec.ts` "the project bound applies when the call passes none" (45 s, the unbounded sleep). The detail dropped from `runOnce`'s step label: red, the first two `iris-script-bound.spec.ts` tests. `TELEGRAM_FIXTURE_MS` dropped from `telegram.ts` `fixture()`: red, its pin.
 - mutation: AC4 `metadata: { irisScriptMs }` dropped from `online-session`: red, `bounded-waits.test.mjs` "gives each online project ...", `online-session: metadata.irisScriptMs`. The `ONLINE_WAITS` spread dropped from it: red, same test, `online-session: use.actionTimeout`.
 - AC5 and AC6 have no mutation: AC5 is the live proof on the stack (the L5 and L6 hang this story bounds cannot be re-created cheaply), AC6 is the `git diff --stat` check.
+- mutation: AC7 the `testInfo.setTimeout` wrapper removed from the `context` override: red, `helper-waits.spec.ts` "the shared test bounds a wait that has no timeout of its own" and "... a navigation ..." (`Test timeout of 9000ms exceeded`, the 30 s default being in force). `giveWaits` made a no-op: red, the same two.
+- mutation: AC7 the `boundedStep` of the snapshot GET in `loadedAfter` replaced by `await state`: red, `helper-waits.spec.ts` "a snapshot that is never answered" (`Test timeout of 12000ms exceeded`). The `boundedStep` of the sign-in replaced by `await signInAction()`: red, "a sign-in that never ends" (same).
+- mutation: AC7 `gotoSettled`'s bound removed (`wait` always undefined): red, `helper-waits.spec.ts` "gotoSettled: a navigation that is never answered" (`Test timeout of 12000ms exceeded`). The ERR_ABORTED retry removed from `RETRYABLE`: red, `goto-settled.test.mjs`, the two ERR_ABORTED rows.
+- mutation: AC7 `signInFromSplash` returning `answered` unbounded (the `boundedStep` removed): red, `helper-waits.spec.ts` "signInFromSplash: a sign-in POST that is never answered" (`Test timeout of 12000ms exceeded`). `epochOf` awaiting `asked` unbounded: red, "epochOf: a state GET that is never answered" (same).
+- mutation: AC7 `giveWaits` made a no-op (checked on `helper-waits.spec.ts` "the shared test bounds ..."): red, the wait case, the second-page navigation case and the navigation case (test timeout), so the context-wide default is pinned for a `context.newPage()` page too.
+- mutation: AC7 `effectiveWaits` ignoring the project's options: red, `bounded-waits.test.mjs` "keeps the waits that the project sets". `boundedStep`'s timer delay multiplied by 1000: red, "rejects at its bound" (5 s test timeout). `WAIT_SHARE` set to 1: red, "gives a test a share of its timeout" and the `effectiveWaits` row.
+- Every mutation above was reverted; `fixtures.ts`, `floor.ts`, `navigate.ts`, `bounds.ts` and `e2e-online/support.ts` were compared byte for byte with copies taken before the mutations.
 
 **Verification results (implement stage):**
 - `npm --prefix web run lint`: exit 0. `node --test` of the two new files: 25 passed. Hermetic `route-cleanup.spec.ts` and `iris-script-bound.spec.ts`: 11 passed. `npm --prefix web test`: 1330 of 1330. Hermetic `route-cleanup.spec.ts` on Chromium: 8 passed.
 - `ci/iris.sh build`, then each unit on its own lane-B throwaway, torn down after each: `live online-session` 13 passed (L5 and L6 among them); `live sign-in --part 1/2` 138 passed; `--part 2/2` 124 passed (re-run after the review patches: 138 and 127 passed, the new `iris-script-bound.spec.ts` among them; `live online-session` re-run: 13 passed; the other units ran before the patches, which touched no code they run: comments, tests and the config's already-loaded values) (`live.spec.ts`, `socket.spec.ts` and `route-cleanup.spec.ts` among them); `live demo-path` 28 passed; `live floor` 107 passed; `live online-demo` 52 passed (with `OCUTALON_LIVE_DEADLINE=1200`, see Design Notes); `live online-allowance` 12 passed; `live online-visitors` 1 passed; `live online-demo-path` 7 passed.
+
+**Verification results (amend pass, AC7):**
+- `npm --prefix web run lint`: exit 0. `npm --prefix web test`: 1365 of 1365 (`route-cleanup`, `bounded-waits` and `goto-settled` among them; `route-cleanup.test.mjs` is green with `either-way.spec.ts` on the shared import). Hermetic `helper-waits.spec.ts` (5 passed), `route-cleanup.spec.ts` and `iris-script-bound.spec.ts` (11 passed) on Chromium.
+- After the amend patches, each on its own lane-B throwaway (`e11s21impl2`), torn down after each: `ci/iris.sh build`; `live online-session` 13 passed (L5 and L6 among them); `live sign-in --part 1/2` 138 passed; `--part 2/2` 132 passed (`helper-waits.spec.ts` among them); `live demo-path` 28 passed; `live floor` 107 passed. No spec needed an explicit timeout.
+- After the review patches (the helper cases added, `effectiveWaits` and `WAIT_SLACK_MS` extracted, no behaviour change): lint exit 0; `npm --prefix web test` 1366 of 1366; hermetic `route-cleanup`, `iris-script-bound` and `helper-waits` (8 cases) 19 passed; `live online-session` 13 passed; `live sign-in --part 2/2` 135 passed; `live online-allowance` 12 passed; `live online-visitors` 1 passed and `live online-demo-path` 7 passed (`OCUTALON_LIVE_DEADLINE=1200`); `live online-demo` 52 passed (same deadline). `live demo-path` and `live floor` were not re-run after the review patches: the patches changed no code that unit runs other than a behaviour-identical extraction.
 
 **Shared surfaces:**
 - the import line of every spec under `web/e2e` and `web/e2e-online`
@@ -306,14 +366,16 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 Status: done
 Blocking condition: none
 
-**Summary.** One shared Playwright `test` (`web/e2e/support/fixtures.ts`) overrides `page` and `context` and ends every test with `unrouteAll({ behavior: 'ignoreErrors' })` on the page, every page of the context and the context. All 70 specs under `web/e2e` and `web/e2e-online` import it, and the 21 `afterEach` copies are gone. The online projects bound actions (30 s), navigations (60 s) and `irisScript` sessions (90 s, 150 s for the Telegram fixture), and a timed-out session is killed, never retried, and named by its first line.
+This section covers the rework pass (iteration 1: the two `[Amend]` items and AC7) only.
 
-**Files changed.** `web/e2e/support/fixtures.ts` (new, the shared test); `web/e2e/support/bounds.ts` (new, bounds and `runBounded`); `web/e2e/support/iris.ts` (`runOnce`, `irisScript`); `web/e2e-online/telegram.ts` (fixture bound); `web/playwright.config.ts` (online projects' waits and metadata); 70 spec files (one import line each, 21 hooks deleted); `web/e2e/live/route-cleanup.spec.ts` (new, the AC2 pairs); `web/e2e/live/iris-script-bound.spec.ts` (new, hermetic `irisScript` bound); `web/scripts/route-cleanup.test.mjs` and `web/scripts/bounded-waits.test.mjs` (new, hosted `web` job). Footprint extensions: `web/tsconfig.e2e.json` (`allowImportingTsExtensions`), `web/scripts/rehearsal-support.test.mjs` (one pin follows `runOnce`), `web/e2e-online/telegram.ts`, `web/e2e/live/iris-script-bound.spec.ts`.
+**Summary.** The shared fixture now gives every page of a test's context default action and navigation waits of `min(cap, 2/3 of the test timeout)` (caps 60 s and 90 s), kept current when the test calls `test.setTimeout`; a project that sets its own waits (the online projects) keeps them. `loadedAfter` bounds the sign-in and the snapshot GET of `/ocutalon/api/v1/state` separately and names the failing step; `gotoSettled` is bounded, names the URL, and retries once on `net::ERR_ABORTED` as well as `net::ERR_NETWORK_CHANGED`; `signInFromSplash` (its POST answer) and `epochOf` (so `openSession`) are bounded and named. `web/e2e/sign-in/helpers.ts` is untouched: its waits are bounded through `loadedAfter` and the fixture default. `either-way.spec.ts` is on the shared import.
 
-**Review.** Patches applied: 3 medium, 4 low (child-killed assertion, hermetic `irisScript` spec, config pin on loaded values, mutation lines, two comment corrections). Deferred: 1 low (local online-demo deadline default). Rejected: the rest, each with its reason in the triage log.
+**Files changed.** `web/e2e/support/{bounds,fixtures,floor,navigate}.ts`, `web/e2e-online/support.ts`, `web/e2e/cards/either-way.spec.ts` (import), `web/e2e/live/helper-waits.spec.ts` (new, hermetic, 8 cases), `web/scripts/{bounded-waits,goto-settled,route-cleanup}.test.mjs`.
 
-**Follow-up review recommended:** false (no high patched, one medium-class patch group only).
+**Review.** 31 findings (medium 2, low 29). Patches applied: 2 medium and 7 low-class rows (cases for `signInFromSplash` and `epochOf`, a second-page case without an explicit timeout, elapsed-time assertions removed, `effectiveWaits` and `WAIT_SLACK_MS` extracted into `bounds.ts`, mutation lines for `waitsFor`, `boundedStep` and `effectiveWaits`, a shadowed name renamed). Deferred: none new. Rejected: the rest, each with its reason in the triage log.
 
-**Verification.** See the Verification section: lint, 1330 node tests, 11 hermetic Chromium tests, and every live unit named there green on lane-B throwaways, each torn down.
+**Follow-up review recommended:** false (this pass patched no high).
 
-**Residual risks.** A timed-out `irisScript` kills the local client only, not the in-container session. The `page` override is covered by the source pin, not by a failing test. Online waits that need more than 30 s must pass an explicit timeout. AC4 (three green `iris (browser)` runs) is the lead's after the push.
+**Verification.** See Verification results (amend pass): lint, 1366 node tests, 19 hermetic Chromium tests, and the live units `online-session`, `sign-in` both parts, `online-allowance`, `online-visitors`, `online-demo-path`, `online-demo` after the last patch, each on a lane-B throwaway torn down after each; `demo-path` and `floor` ran green after the amend patches and were not re-run after the review patches.
+
+**Residual risks.** `test.slow()` called in a test body is not seen by the default waits (three `chat.spec.ts` tests keep the 30 s default; green). A healthy sign-in plus a hung snapshot can still reach the test timeout unnamed when the sign-in itself takes most of the budget. The intent-contract's Always bullet that the `web/e2e` projects keep today's waits is superseded by AC7 for the default page waits; the lead may restate it. `ci/iris.sh live online-demo`, `online-visitors` locally need `OCUTALON_LIVE_DEADLINE=1200` (deferred earlier).
