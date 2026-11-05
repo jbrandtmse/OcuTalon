@@ -4,6 +4,7 @@ type: 'feature'
 created: '2026-11-05'
 status: 'done'
 baseline_revision: 'a2854087e67c56213ae550d895d3e5da62878fdb'
+baseline_commit: 'a2854087e67c56213ae550d895d3e5da62878fdb'
 review_loop_iteration: 0
 followup_review_recommended: true
 context:
@@ -254,7 +255,12 @@ deferred:
 - Given `OCUTALON_MOCK_KEY_HEADER=1`, when the Provider step runs, then each retry entry's `custom_headers` holds `x-ocutalon-mockkey`, and the retry-answers tests arm `POST /_mock/countdown` for their marker so that the first attempt fails and the retry answers.
 - Integration (Rule 1): given a session with a second model on `ChatAgent`, when the user's message goes through `WebChatIn` to the real `Conversation` and `Decide`, and the first attempt is refused (`retry-chat` armed 1), then the Turn is done with the retry's reply and no fallback, and the user's next message is answered with that exchange in its history.
 
+
+- [ ] [Owner] U-281: change the bridge constant `RETRYSKIPPED` to exactly "The second model was not tried, because too little time was left within the decision's 110-second limit." and pin the new text in the fixed-strings test (the test that pins the bridge's reason sentences); mutation: revert the constant's wording -> that test red. (Applied in the code-review stage as a required patch.)
+- [ ] [Owner] U-282: a test pins that a timed-out first attempt of kind `turn` sends no second request (the mock receives exactly one request for the turn's marker; no retry runner header) and that the user gets the existing chat-turn fallback with reason `timeout` ("I couldn't answer that: ... Nothing was changed."); mutation: `Retryable` retries a timed-out `turn` -> red. (Reuse the R2 test if it already pins both; otherwise add the missing assertion. Applied in QA or code review.)
 ## Spec Change Log
+
+- 2026-11-05 after implement (lead): owner answers applied to the spec: U-281 REWORD (R1 text), U-282 KEEP with conditions; two `[Owner]` items added under Tasks & Acceptance for the QA / code-review stages; AD-8 extended in the spine.
 
 - 2026-11-05 spec gate (lead): rulings R1 (U-281) and R2 (U-282) added under Design Notes; R2 replaces decided-in-stage 10 (timed-out turns are not retried).
 
@@ -334,8 +340,8 @@ deferred:
     - `Test.Agent.RunnerFixture` is extended, not copied.
 
 **Lead rulings at the spec gate (2026-11-05, runner A, unattended; policy 5086036).**
-- R1 (veto, inbox U-281): `RETRYSKIPPED` reads exactly "The second model was not tried, because no time was left within the 110-second limit." Keep it as the one constant; no other new user-facing text.
-- R2 (veto, inbox U-282), replacing decided-in-stage 10: a timed-out first attempt has an unknown `ToolsRun`, and AD-8 never retries an attempt in which a tool ran (this story's AC: no tool runs twice). So a timed-out first attempt of kind `turn` is NOT retried: it falls back exactly as in release 1, with its timeout reason. A timed-out `decide` or `diagnose` attempt is retried only when every tool its agent can call is read-only (AD-10's read-only tool sets); if any of its tools can change state, or the implement stage cannot establish that from code, it is not retried either. Every other retried reason (a reply that arrived, with `ToolsRun` known) follows AD-8 as written. The matrix and the live timeout cases follow this: `turn` timeout -> no retry, one fallback; `decide`/`diagnose` timeout -> retry. Add the mutation: `Retryable` retries a timed-out `turn` -> the turn-timeout case goes red.
+- R1 (veto U-281, answered REWORD by the Contest Planner 2026-11-05T06:37:23Z#852): `RETRYSKIPPED` reads exactly "The second model was not tried, because too little time was left within the decision's 110-second limit." (the retry is skipped when T2 < MINTIMER, so some time may be left). Keep it as the one constant; no other new user-facing text.
+- R2 (veto, inbox U-282), replacing decided-in-stage 10: a timed-out first attempt has an unknown `ToolsRun`, and AD-8 never retries an attempt in which a tool ran (this story's AC: no tool runs twice). So a timed-out first attempt of kind `turn` is NOT retried: it falls back exactly as in release 1, with its timeout reason. A timed-out `decide` or `diagnose` attempt is retried only when every tool its agent can call is read-only (AD-10's read-only tool sets); if any of its tools can change state, or the implement stage cannot establish that from code, it is not retried either. Every other retried reason (a reply that arrived, with `ToolsRun` known) follows AD-8 as written. The matrix and the live timeout cases follow this: `turn` timeout -> no retry, one fallback; `decide`/`diagnose` timeout -> retry. Add the mutation: `Retryable` retries a timed-out `turn` -> the turn-timeout case goes red. Answered KEEP by the Contest Planner (U-282, 2026-11-05T06:37:23Z#853) with conditions: the timed-out turn's fallback is the existing chat-turn fallback with reason `timeout` ("I couldn't answer that: ... Nothing was changed."), a test pins that a timed-out turn sends no second request, and AD-8 records the tightening (spine, [AMENDED 2026-11-05, Story 17.2, ... U-282]).
 
 **For the lead (veto window).** The text of `RETRYSKIPPED`, proposed as "The second model was not tried, because no time was left within the 110-second limit." The spine requires the sentence, but the UX does not word it. It shows in the trace's decision reasons, as `HELDBEFOREUPDATE` does.
 

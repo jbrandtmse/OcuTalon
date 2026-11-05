@@ -4133,3 +4133,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: OCT-epic11 a8868ad8 run 41957022331 iris (shards) job 127036912190 | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: the run's artifact list is empty; the log names only 'Test timeout of 300000ms exceeded' and the error-context path
 - 2026-11-05T04:38:50Z status=routed owner=burndown by=Contest_Planner note=Contest Planner (delegated) 2026-11-05: first-daily-release burn-down story; on failure, upload the Playwright test-results (error-context.md, traces) of the browser units as a CI artifact, no secrets (CI dummy key/token only), short retention
+
+### DW-724: Decide.ToolsReadOnly judges only an agent's compiled TOOLSETS, so MCP servers attached at step 4 (AD-21) are invisible to the U-282 rule: once Triage or Diagnosis get an MCP server, a timed-out attempt could be retried after a state-changing MCP tool ran
+- source: spec-17-2-retry-once-on-a-second-model-before-falling-back.md | severity: med | fix-risk: med | footprint: out-of-footprint
+- evidence: Decide.ToolsReadOnly reads TOOLSETS and the tool classes' CLASSIFICATION/READONLY; run-time MCP tools are known only to a live tool manager; no agent has an MCP server in this release
+- 2026-11-05T08:23:16Z status=routed owner=22-2-classify-mcp-tools-by-server-and-name by=harvest note=when MCP servers are attached to an agent, ToolsReadOnly must count them (unclassified or non-read-only server -> not read-only); 22.2 classifies MCP tools by server and name
