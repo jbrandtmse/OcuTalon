@@ -1966,3 +1966,8 @@
 2026-11-05T04:45:27Z	Epic 33	ledger_routed_planned	story=17-6 entries=1 excess=0 by=merge_gate ids=DW-696
 2026-11-05T04:45:27Z	Epic 33	ledger_routed_planned	story=18-4 entries=1 excess=0 by=merge_gate ids=DW-695
 2026-11-05T04:45:27Z	Run	deps_hash_rerecorded	reason=ledger_routed hash=07e7c8cb
+2026-11-05T04:45:41Z	Epic 33	worktree_removed	path=.worktrees/epic-33
+2026-11-05T04:45:41Z	Epic 33	epic_branches_deleted	local=OCT-epic33 remote=OCT-epic33
+2026-11-05T04:48:13Z	Epic 34	dispatch_blocked	reason=feature_pending head=d76c9e79 note="Epic 33 merged; Epic 34 prompt ready (prompts/dispatch-epic-34.md), runner C provisions on green"
+2026-11-05T04:48:43Z	Run	planner_ruling	subject=epic34_early_dispatch rule="dispatch Epic 34 to C now on d76c9e79 (feature CI pending) for 34.1 spec/plan only, no code commits; implement starts on green feature CI; red from Epic 33 content -> C stops, Planner told; known flake -> rerun, C continues" overrides=dispatch_onto_green_feature_only
+2026-11-05T04:48:43Z	Run	planner_ruling	subject=ci_group_split_trigger rule="split a group when any is over 35 min on 2 clean runs" note="browser 36.0 min on 57723efa = sighting 1"
