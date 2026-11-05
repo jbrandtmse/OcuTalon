@@ -2012,3 +2012,6 @@
 2026-11-05T10:11:11Z	Epic 11	amendments_verified	amendments=3 extensions=7 ok=true
 2026-11-05T10:11:11Z	Epic 11	merge_enqueued	policy=when_green part_merge=U-277 waiver=U9_every_story_done(this merge only) feature_moved=bookkeeping_only
 2026-11-05T10:11:11Z	Epic 11	epic_merge_started	head=f0d75a14
+2026-11-05T10:11:41Z	Epic 11	epic_merged_to_feature	merge=6154909a head=f0d75a14 part=11.20+11.21 verified_on_origin=yes
+2026-11-05T10:11:41Z	Epic 11	decision_sheet_recorded	decided=0 to_action_items=0 to_x0=0 by=unattended note=decisions_for_user_none
+2026-11-05T10:11:41Z	Epic 11	teardown_skipped	reason="worktree and branch kept: runner B charters the first-daily-release burn-down story in Epic 11 next (owner_decision 01:51Z), then Epic 11 part 2 (11.14-11.18)"
