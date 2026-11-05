@@ -2,7 +2,8 @@
 title: 'Story 39.7: Publish the heartbeat event'
 type: 'feature'
 created: '2026-11-04'
-status: 'ready-for-dev'
+status: 'in-progress'
+baseline_revision: '5bc59f8b26d2e8f573e47984a7319392861e43d1'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -48,7 +49,8 @@ deferred: []
 - No hand edit of `payloads.ts`. It is only regenerated, with `npm --prefix web run payloads`.
 - Only the files under Code Map, Footprint. In particular, none of these change:
   - `Web/Api.cls` (Epic 40's diff), `Core/**`, `Msg/**`, `Data/**`;
-  - `web/src/app/api/**`, `web/src/app/rail/**`, `web/scripts/payloads.test.mjs`, `ci/**`, `docker/**`.
+  - `web/src/app/api/**`, `web/src/app/rail/**`, `ci/**`, `docker/**`.
+  - `web/scripts/payloads.test.mjs` changes by exactly one name: `'HeartbeatPayload'` added to the list of interfaces that carry `traceUrl` (the test at about line 110), nothing else [AMENDED 2026-11-05, lead ruling at the implement halt, decide: it read as a never-change file, which contradicted AC 4].
 - No new production item, table, setting, route or test class. No stored field added. No `GUIDETRIGGERS` change.
 - No route (`GET /api/v1/heartbeat` is Story 39.2's) and no card (Story 39.5's).
 - No unit test on slot D. No real key and no real bot.
@@ -168,9 +170,12 @@ deferred: []
 - AC 2 -- Given a row whose `SessionRef`, checklist and keys hold distinct tokens, when its heartbeat event is published, then the payload holds none of them. And when the publish fails, then the warning names no `SessionRef` in any case (AD-12, AD-33).
 - AC 3 -- Given a person for whom a Tick or BeatNow commits nothing, when it runs, then no event is published for them.
 - AC 4 (DW-633) -- Given the new class and TYPES pair, when the IRIS payload tests and the web checks run, then all of these agree: TYPES, `Test.Live.Payloads` (17 types, 31 contract classes), `payloads.ts` (`--check` clean, `HeartbeatPayload` with `traceUrl?`) and the live store (17 entries). And `npm --prefix web test`, `lint` and `build` pass.
+- [ ] [Clarification] Add `'HeartbeatPayload'` to the list of interfaces that carry `traceUrl` in `web/scripts/payloads.test.mjs` (the test "is on exactly the interfaces that have both traceHeaderId and traceNamespace", about line 110), and nothing else in that file; then `npm --prefix web test` is green (AC 4).
 - Integration AC -- Given a real Tick that runs a beat, when the page polls, then `Web.Api.EventsBody` (the real `/api/v1/events` body) serves it as `{type: "heartbeat", stream: "session", payload}`. The generated `HeartbeatPayload` types it, and the live store accepts the type.
 
 ## Spec Change Log
+
+- 2026-11-05, lead, answering the implement stage's intent gap (decide, round 1): `web/scripts/payloads.test.mjs` hardcodes the interfaces that carry `traceUrl`, and `HeartbeatPayload` has both trace fields, so AC 4 needs one name added there. The file is Lane B like this story, in no open epic's diff (11, 33, 40), and the change is a one-name append to a list (standing precedent), so it is allowed and reported as a footprint extension. The Never line is amended and one open task added; the earlier pass's implementation stays in the working tree, uncommitted, for this pass to finish.
 
 ## Review Triage Log
 
@@ -257,6 +262,16 @@ Run rules:
 - AC 4: drop the live-store entry. Expected red: `live-store.test.mjs`, and `ng build` fails.
 - Integration: publish to `Live.Publish.#INSTANCE`. Expected red: `TestBeatReachesIntake`'s `EventsBody` assertion (`stream` is not `session`).
 
+Mutation results (implement stage; each applied, observed red, reverted byte-identical; `git status --short` and `git diff --stat` unchanged by the reverts):
+- mutation: drop the view append after `Settle`'s save -- red `Beat.TestViewsInCommitOrder` (warm) and, fresh, `Heartbeat.TestBeatReachesIntake` (second event, EventsBody), `TestAnHourOfTicks` (3 events) and `TestBeatNowReachesIntake` (two events).
+- mutation: publish the views in reverse order (`AnnounceBeats`) -- red `Runs.TestTickPublishesEachCommitInOrder` (the two-commit case; `TestTickPublishesTheBeats` has one event per stream, so it stays green). `Beat.TestViewsInCommitOrder` cannot see it: `Beat` publishes nothing.
+- mutation: `FromRow` sets `LastSkipReason` from `row.LastSnapshotKey` -- red `Payloads.TestHeartbeatFromRow`.
+- mutation: `AnnounceBeat` logs without `WithoutRef` -- red `Runs.TestBeatPublishFailureIsLogged`.
+- mutation: `RunDue` appends a view for every person it reads -- red `Beat.TestViewsInCommitOrder` (the Nothing committed rows) and, fresh, `Heartbeat.TestAnHourOfTicks` (and `TestBeatReachesIntake`).
+- mutation: TYPES without the pair -- red `Payloads.TestEventTable`; `payloads.mjs --check` fails ("not in the TYPES parameter").
+- mutation: drop the live-store entry -- red `live-store.test.mjs` ("has an entry for every event type"); `ng build` was not re-run for this mutation.
+- mutation: publish to `Live.Publish.#INSTANCE` -- red, fresh, `Heartbeat.TestBeatReachesIntake` ("Web.Api.EventsBody serves both heartbeat events"), `TestBeatNowReachesIntake` and `TestAnHourOfTicks`.
+
 **Shared surfaces:**
 - `Live.Publish` TYPES and its count (`Test.Live.Payloads` `EXPECTED`, `TestEventTable`);
 - the payload contract classes (`TestContracts` 31, `Test.Contract.Checker`);
@@ -271,7 +286,7 @@ Standing criterion: every test added or changed passes on a fresh environment, i
 
 ## Auto Run Result
 
-Status: ready-for-dev
-Blocking condition: none
+Status: blocked
+Blocking condition: intent gap: AC 4 requires `npm --prefix web test` to pass, and the spec says `web/scripts/payloads.test.mjs` stays green unchanged and must not be edited. It does not: its test "is on exactly the interfaces that have both traceHeaderId and traceNamespace" (line 110) hardcodes the traced interface list, and `HeartbeatPayload` (traceHeaderId and traceNamespace, as the spec requires) now gets `traceUrl`. Recommended amendment: rule `web/scripts/payloads.test.mjs` into this story's allowed files for one added `'HeartbeatPayload'` in that list (no open epic touches the file), then re-dispatch; the rest of the web suite, lint, build and `payloads.mjs --check` pass.
 
-Plan stage (2026-11-04, runner D, worktree `OCT-epic39` at `35a326d064fe7d80e450b6ad4af50407cab653a0`). The spec passed the READY FOR DEVELOPMENT gate. Epic context: the committed `epic-39-context.md` (valid). Continuity: Story 39.4's spec (the latest `done` story below 39.7), plus Story 39.3's Event group. The ledger inbox (DW-633) is addressed. The spine already has the `heartbeat` rows, so it needs no change. The open-epic diffs (11, 33, 40) were checked and touch no Footprint file. Nothing was implemented, nothing was run against IRIS, and nothing was committed.
+Implement stage (2026-11-04, runner D, baseline `5bc59f8b26d2e8f573e47984a7319392861e43d1`). The handoff subagent implemented the whole Footprint and ran the loop checks (Payloads, Beat, Runs, Contract.Checker, Bridge.CodeRules, Live.Publish warm; Heartbeat fresh: passed) and all eight pinning mutations. The work is uncommitted in the tree for the lead to set aside or pick up. Not yet run: review layers, the `(once)` shard/CI-config/boundary commands, the finalize commit. Nothing was committed or pushed; no stack of this stage is left running.
