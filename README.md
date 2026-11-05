@@ -156,13 +156,20 @@ The first start took 47 to 78 seconds in five measurements on an Apple silicon M
 
 ### Install it with IPM
 
-To install OcuTalon into an IRIS instance you already run (AI Hub build 154 with IPM 0.10.10), use the InterSystems Package Manager. In an IRIS terminal in %SYS, point IPM at the community package registry:
+To install OcuTalon into an IRIS instance you already run, use the InterSystems Package Manager (IPM) 0.10.10. These commands were run as written on fresh IRIS for Health instances of AI Hub build 154 and build 109. A fresh instance has no IPM in %SYS, so first open an IRIS terminal in %SYS and load IPM 0.10.10 from the community package registry:
 
 ```
+s r=##class(%Net.HttpRequest).%New(),r.Server="pm.community.intersystems.com",r.SSLConfiguration="ISC.FeatureTracker.SSL.Config" d r.Get("/packages/zpm/0.10.10/installer"),$system.OBJ.LoadStream(r.HttpResponse.Data,"c")
+```
+
+Its output is long and ends with `Load finished successfully.` If %SYS already has IPM 0.10.10, the line installs nothing new. Then, still in %SYS, enable IPM for USER and point it at the community package registry:
+
+```
+zpm "enable -map -ns USER"
 zpm "enable -community"
 ```
 
-This command first removes the package repositories that are already set up in %SYS, so note any you use before you run it.
+`enable -community` first removes the package repositories that are already set up in %SYS, so note any you use before you run it.
 
 Then open an IRIS terminal in USER, an Interoperability-enabled namespace, and run:
 
@@ -177,7 +184,7 @@ zn "OCUTALON"
 zpm "install ocutalon"
 ```
 
-This second run installs OcuTalon with demo mode off. [Install OcuTalon with IPM](docs/install-ipm.md) shows the output of both runs, and the install from the package folder, for developers.
+This second run installs OcuTalon with demo mode off. [Install OcuTalon with IPM](docs/install-ipm.md) shows the output of each command, and the install from the package folder, for developers.
 
 ## Set a model key
 

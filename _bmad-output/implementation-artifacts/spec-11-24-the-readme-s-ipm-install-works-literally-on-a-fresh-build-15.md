@@ -2,8 +2,8 @@
 title: "Story 11.24: The README's IPM install works literally on a fresh build 154 and build 109 instance"
 type: 'bugfix'
 created: '2026-11-05'
-status: 'ready-for-dev'
-baseline_revision: 'a504f41fefccb47e5c9128033c07efbf52be96ef'
+status: 'done'
+baseline_revision: '2f7d0ec10cc70fba63d55caf5305add0db77e2c1'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -58,12 +58,12 @@ deferred: []
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] `README.md`, `docs/install-ipm.md` -- apply the two diffs of "Public text for approval" exactly (`git apply`), after confirming with the lead that the Planner approved them. -- AC1-AC3
-- [ ] `docker/tests/test-readme.sh` -- make P1-P9 of "Pins changed" exactly; touch no other line. -- AC4
-- [ ] Live literal runs (Verification, once) on fresh build 154 and build 109 throwaways (case 1) and the case 2 run on build 154; tear down and release the lock after each, failures included. -- AC1, AC2
-- [ ] `_bmad-output/implementation-artifacts/evidence/11-24-readme-ipm-literal-runs.md` -- new: for each run the image ref, `$ZVersion` build, the commands as extracted from README.md, the lines quoted in Verification, durations, and the plan's Task 0 table (Design Notes); no secret, path, IP, host or container name. -- AC1, AC2
-- [ ] `docs/install-ipm.md` sample blocks -- after the build 154 case 1 literal run, replace every sample block whose lines differ from that run's real output (timestamps and durations included) with the run's output, trimmed as in Design Notes; record which blocks changed in the evidence file; re-run `test-readme.sh` and `test-cpf.sh`. -- AC3 (Planner's approval condition 3)
-- [ ] This spec -- record Verification results and `mutation:` lines.
+- [x] `README.md`, `docs/install-ipm.md` -- apply the two diffs of "Public text for approval" exactly (`git apply`), after confirming with the lead that the Planner approved them. -- AC1-AC3
+- [x] `docker/tests/test-readme.sh` -- make P1-P9 of "Pins changed" exactly; touch no other line. -- AC4
+- [x] Live literal runs (Verification, once) on fresh build 154 and build 109 throwaways (case 1) and the case 2 run on build 154; tear down and release the lock after each, failures included. -- AC1, AC2
+- [x] `_bmad-output/implementation-artifacts/evidence/11-24-readme-ipm-literal-runs.md` -- new: for each run the image ref, `$ZVersion` build, the commands as extracted from README.md, the lines quoted in Verification, durations, and the plan's Task 0 table (Design Notes); no secret, path, IP, host or container name. -- AC1, AC2
+- [x] `docs/install-ipm.md` sample blocks -- after the build 154 case 1 literal run, replace every sample block whose lines differ from that run's real output (timestamps and durations included) with the run's output, trimmed as in Design Notes; record which blocks changed in the evidence file; re-run `test-readme.sh` and `test-cpf.sh`. -- AC3 (Planner's approval condition 3)
+- [x] This spec -- record Verification results and `mutation:` lines.
 
 **Acceptance Criteria:**
 - AC1 (literal install, both builds). Given fresh throwaways from the plain build 154 and build 109 Health images, when the fenced commands of README.md's "Install it with IPM" are extracted from the committed text and pasted in order (the first two blocks in one %SYS terminal, the third in USER, the fourth in USER), then each run prints `Load finished successfully.`, `Mapping IPM repository in %SYS equivalently to USER`, the OCUTALON stop line, and ends `[OCUTALON|ocutalon]	Activate SUCCESS`, and `GET /ocutalon/` answers 200; the evidence file records both.
@@ -77,6 +77,30 @@ deferred: []
 - 2026-11-05, lead spec gate: public text approved by the Contest Planner (owner's delegation) exactly as drafted; Task 0's "samples are final" replaced by the Planner's condition 3 (refresh sample blocks from the implement stage's build 154 case 1 run where they differ); one Tasks item added for it.
 
 ## Review Triage Log
+
+### 2026-11-05 - Review pass
+- verdicts: 20 findings - high 0, medium 0, low 15, false 5, maybe-false 0
+- findings:
+  - `[low]` `patch` dev-only exemption of the IPM load line is not tied to the section (blind-hunter, verification-gap) - verified: an exact copy of the line in another README section is skipped by `dev_names`, and `chk_ipm` counted only the section; patched: `chk_ipm` now also requires exactly one occurrence in the whole README, with a self-test for a copy in another section.
+  - `[low]` `patch` no self-test isolates "load line exactly once" (verification-gap) - added the self-test 'the IPM load line twice in the section'; the section count already flagged it, so the test now pins it.
+  - `[low]` `patch` the spec records "mutation," lines, not `mutation:` lines (verification-gap, other findings) - prefix corrected, and a `mutation:` line added for the new self-tests.
+  - `[false]` `reject` the result block of the spec still reads ready-for-dev against status in-review (blind-hunter, edge-case-hunter) - finalize writes the result block and the status together.
+  - `[false]` `reject` evidence quotes the IPM folder path and mentions loopback publishing (blind-hunter, edge-case-hunter) - the path is inside the container, not a host path, and AC3 requires it; no IP address is written.
+  - `[false]` `reject` "same result when USER already had IPM" is unmeasured (edge-case-hunter) - case 2 (USER mapped first) is that state, run here on build 154 and in Task 0 on both builds.
+  - `[false]` `reject` AC1/AC2 evidence has no raw transcripts and does not quote the unchanged map and community blocks (verification-gap) - the spec designates the evidence file as prose with quoted lines; the blocks were compared line by line by script against the full run output; negligible.
+  - `[false]` `reject` guide samples differ from the plan's run, against the intent contract (intent-alignment) - the Spec Change Log and the Planner's condition 3 direct the refresh from the implement run.
+  - `[low]` `reject` the load line does not check the status of `r.Get` (edge-case-hunter) - the intent fixes the line word for word and excludes other wording; out of scope of the intent.
+  - `[low]` `reject` another IPM version already in %SYS is not covered (blind-hunter, edge-case-hunter) - the text claims only none or 0.10.10 (D5); unmeasured and unclaimed.
+  - `[low]` `reject` arm64 only; "AI Hub" versus "IRIS for Health" naming across the texts (blind-hunter, edge-case-hunter) - approved text; the claim is limited to the instances actually run.
+  - `[low]` `reject` the guide's folder-install note links a section that contains `enable -community` (blind-hunter) - approved text.
+  - `[low]` `reject` `ipm_in_order` checks first occurrences; the guide's reload pin hard-codes the IPM folder and a tab (blind-hunter) - spec P6 asks for exactly that; a changed folder is a real change the pin should flag.
+  - `[low]` `reject` the first guide sample holds the run-together `Activate SUCCESS2026...` line; "several hundred lines" has no count (blind-hunter) - the sample is the real output, as the spec requires; the run printed 736 lines.
+  - `[low]` `reject` spec `review_loop_iteration` and flags not updated (blind-hunter) - finalize sets them.
+  - `[low]` `reject` AC5 has no pinning test (verification-gap) - AC5 is a footprint criterion checked by `git diff --name-only` (done: README.md, docs/install-ipm.md, docker/tests/test-readme.sh only, outside the bookkeeping folder).
+  - `[low]` `reject` `release/checklist.sh:463` still says "two commands" (verification-gap, other findings) - D9, already filed as DW-759, out of footprint.
+  - `[low]` `reject` intent expectations sit at the runtime surface, the tests at the text surface (intent-alignment) - descriptive; the runtime surface is exercised by the three literal runs in the evidence file.
+  - `[low]` `reject` `$ZVersion` and `<SYNTAX>` claims rest on the Task 0 table only (intent-alignment) - the evidence file includes Task 0 and the runs' `$ZVersion`.
+  - `[low]` `reject` evidence lines condensed or paraphrased (intent-alignment) - each quoted line is verbatim from the run, tabs shown as spaces, as the file says.
 
 ## Design Notes
 
@@ -324,7 +348,34 @@ All commands run from the worktree root after `git rev-parse --show-toplevel` ma
 - Shared surfaces: README "Install it with IPM" and `docs/install-ipm.md`, asserted by `test-readme.sh` (`ipm`, `docs`, `dev-only`, `install`, `readme-links`) and `test-cpf.sh` rules 9, 11, 12. Every test added or changed passes on a fresh environment, in either order (`test-readme.sh` is hermetic and reads only tracked files).
 - mutation lines (implement records each, observed red, reverted, tree byte-identical): AC1/AC4 the README load line pinned to `latest` -> `FAIL ipm` and `FAIL dev-only`; AC2 the map line moved after `zpm "enable -community"` in README -> `FAIL ipm`; AC3 the stale sentence appended to the guide -> `FAIL ipm`; AC4 the guide's build 109 sentence reverted to "has not been tested with the IPM install yet." -> `FAIL docs`; D4 the `dev_names` exemption widened to any line starting `s r=` -> `FAIL dev-only: a broken copy was not flagged`.
 
+**Implement-stage results (2026-11-05, README/guide diffs applied with `git apply`; `test-readme.sh` P1-P9 in place):**
+- (loop) `bash docker/tests/test-readme.sh` -> `test-readme: all rules passed`; `bash docker/tests/test-cpf.sh` -> `test-cpf: all checks passed`; `git diff -U0 docker/tests/test-readme.sh | grep '^@@'` -> hunks at 34, 62, 860-870, 1019-1026, 1051-1068, 1077, 1525, 1760-1764, 1787-1788 (old numbering); none in 37-45, the DOCKERFILE/dockerfile_p area, `chk_licence` or `rule_licence`.
+- mutation: README load line pinned to `latest` -> `FAIL dev-only` and `FAIL ipm` (observed red, reverted, byte-identical).
+- mutation: README map line moved after `zpm "enable -community"` -> `FAIL ipm` (observed red, reverted, byte-identical).
+- mutation: stale "Until the package is published" sentence appended to the guide -> `FAIL ipm` (observed red, reverted, byte-identical).
+- mutation: guide's build 109 sentence reverted to "has not been tested with the IPM install yet." -> `FAIL docs` (observed red, reverted, byte-identical).
+- mutation: `dev_names` exemption widened to any line starting `s r=` -> `FAIL dev-only: a broken copy was not flagged` (observed red, reverted, byte-identical).
+- mutation: the IPM load line copied into another README section (outside "Install it with IPM") -> before the `chk_ipm` whole-README count, `FAIL ipm: a broken copy was not flagged`; after it, flagged; the load line twice in the section is flagged too (observed red, reverted, byte-identical).
+- (once) Live literal runs from README.md's committed blocks, one lane-B throwaway at a time, each removed and the lock released after its run: 154 case 1 PASS (Load finished successfully., Mapping IPM repository in %SYS equivalently to USER, the OCUTALON stop line, Activate SUCCESS, HTTP 200; ready 49 s, %SYS 34 s, USER 89 s, OCUTALON 62 s); 109 case 1 PASS (same lines; ready 29 s, %SYS 29 s, USER 78 s, OCUTALON 73 s); 154 case 2 PASS (the old single `enable -community` state gave `Skipping repository mapping of USER` and `ERROR! No repositories are configured and enabled in this namespace.`; the whole README block then ended Activate SUCCESS, HTTP 200; %SYS 8 s, USER 138 s, OCUTALON 77 s). Evidence: `_bmad-output/implementation-artifacts/evidence/11-24-readme-ipm-literal-runs.md`.
+- (once) Sample refresh from the 154 case 1 run: `docs/install-ipm.md` blocks changed are the IPM load tail, the USER sample and the OCUTALON sample (time stamps, durations); the `enable -map -ns USER` and `enable -community` outputs were identical. After it `test-readme.sh` and `test-cpf.sh` pass; `test-boundaries.sh` and `test-bridge-guide.sh` exit 0.
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
+
+**Summary.** README "Install it with IPM" and `docs/install-ipm.md` carry the Planner-approved text (applied with `git apply`), the guide's IPM load tail, USER and OCUTALON samples are refreshed from the build 154 case 1 run, and `docker/tests/test-readme.sh` pins P1-P9 are in place plus two self-tests and a whole-README count for the load line. The README block ran literally on fresh build 154 (case 1), build 109 (case 1) and build 154 (case 2); each ended Activate SUCCESS with HTTP 200.
+
+**Files changed.**
+- `README.md` - "Install it with IPM": load line, map step, community line, adjusted prose.
+- `docs/install-ipm.md` - same three lines, stale sentence and local path removed, samples refreshed from the real run.
+- `docker/tests/test-readme.sh` - pins P1-P9 in place, `IPM_LOAD`/`IPM_MAP`, `ipm_in_order`, new `rule_ipm` self-tests, load-line exemption in `dev_names`.
+- `_bmad-output/implementation-artifacts/evidence/11-24-readme-ipm-literal-runs.md` - new: the three runs, Task 0 table, refreshed blocks.
+
+**Review.** 20 findings: 3 patched (low), 17 rejected with reasons in the triage log; none deferred.
+
+**Follow-up review recommended:** false (no high patched; no two mediums patched).
+
+**Verification.** `test-readme.sh` all rules passed; `test-cpf.sh` all checks passed; `test-boundaries.sh` and `test-bridge-guide.sh` exit 0; `git diff -U0` hunks avoid lines 37-45 and the licence functions; the three literal runs passed (evidence file); containers removed and the lane-B lock released after each run.
+
+**Residual risks.** The README claim rests on the three runs of 2026-11-05 (arm64); `release/checklist.sh:463` is DW-759 (out of footprint).
