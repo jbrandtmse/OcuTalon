@@ -2,7 +2,8 @@
 title: 'Story 11.23: install.sh accepts build 109'
 type: 'bugfix'
 created: '2026-11-05'
-status: 'ready-for-dev'
+status: 'done'
+baseline_revision: '0242c7b2f922c97a46015b44d7a4b484c399075b'
 review_loop_iteration: 0
 followup_review_recommended: false
 context:
@@ -65,12 +66,12 @@ deferred: []
 ## Tasks & Acceptance
 
 **Execution:**
-- [ ] `install.sh` -- add `TAG_109=2027.1.0AI.109.0` beside `TAG`; in `scan_images` accept a Health ref at `TAG_109` (no non-Health 109) and record each candidate's build; make every records reader follow; pick by the preference Health 154, Health 109, non-Health 154 (both at 268-271 and in the existing-base wrong-CPU fix at 236); print the build of the chosen or matched image; replace the changed messages with the approved texts (Design Notes, block B); update the header and scan comments to the accepted refs (contract only). -- DW-636, AC1-AC3
-- [ ] `docker/tests/test-install-script.sh` -- add `TAG_109`; new cases: build 109 only (prefixed): exit 0, `tagged_once`, `up_env_is "$BASE"`, the build 109 image line; the prefix loop over the four forms at `TAG_109`; both Health builds in both sort orders (bare 154 with `a/...:$TAG_109`, and `z/...:$TAG` with bare 109): 154 is the source; Health 109 beside non-Health 154: Health 109 used; Health 109 for x64 with non-Health 154 for arm64: the mixed-CPU line names the 109 ref; refused third refs (the Matrix row) each in its own case: exit 1, the new no-image message, `no_change`; existing base with the 109 image's ID: the build 109 existing line; wrong CPU with only Health 109: the new wrong-CPU line; a source pin that `^TAG_109=` is `2027.1.0AI.109.0`. Update pins 322, 351, 352, 430, 438, 459 to the approved texts, and header rows 9-13 to name build 109 and the refused refs. -- AC1-AC3 pins
-- [ ] `README.md` -- apply passages P1 to P9 of block A exactly; remove the whole "Start it with build 109" section (P6). -- AC4
-- [ ] `docker/tests/test-readme.sh` -- apply "Pins changed" R1 to R12 in place: new texts word for word, the negative pins that the separate path is gone, the self-tests rewritten so each still breaks its rule; touch no other line. -- AC5
+- [x] `install.sh` -- add `TAG_109=2027.1.0AI.109.0` beside `TAG`; in `scan_images` accept a Health ref at `TAG_109` (no non-Health 109) and record each candidate's build; make every records reader follow; pick by the preference Health 154, Health 109, non-Health 154 (both at 268-271 and in the existing-base wrong-CPU fix at 236); print the build of the chosen or matched image; replace the changed messages with the approved texts (Design Notes, block B); update the header and scan comments to the accepted refs (contract only). -- DW-636, AC1-AC3
+- [x] `docker/tests/test-install-script.sh` -- add `TAG_109`; new cases: build 109 only (prefixed): exit 0, `tagged_once`, `up_env_is "$BASE"`, the build 109 image line; the prefix loop over the four forms at `TAG_109`; both Health builds in both sort orders (bare 154 with `a/...:$TAG_109`, and `z/...:$TAG` with bare 109): 154 is the source; Health 109 beside non-Health 154: Health 109 used; Health 109 for x64 with non-Health 154 for arm64: the mixed-CPU line names the 109 ref; refused third refs (the Matrix row) each in its own case: exit 1, the new no-image message, `no_change`; existing base with the 109 image's ID: the build 109 existing line; wrong CPU with only Health 109: the new wrong-CPU line; a source pin that `^TAG_109=` is `2027.1.0AI.109.0`. Update pins 322, 351, 352, 430, 438, 459 to the approved texts, and header rows 9-13 to name build 109 and the refused refs. -- AC1-AC3 pins
+- [x] `README.md` -- apply passages P1 to P9 of block A exactly; remove the whole "Start it with build 109" section (P6). -- AC4
+- [x] `docker/tests/test-readme.sh` -- apply "Pins changed" R1 to R12 in place: new texts word for word, the negative pins that the separate path is gone, the self-tests rewritten so each still breaks its rule; touch no other line. -- AC5
 - [ ] Manual build 109 run (once) -- see Verification; record the result in this spec. -- AC6
-- [ ] This spec -- record Verification results and the `mutation:` lines.
+- [x] This spec -- record Verification results and the `mutation:` lines.
 
 **Acceptance Criteria:**
 - AC1 (DW-636, accepted refs). Given a Docker host with `irishealth-community:2027.1.0AI.109.0` (bare or with a registry prefix) or today's exact build 154 refs for its CPU, when install.sh checks the image, then it accepts each by its exact ref, and every other ref (the Matrix's refused rows included) takes today's no-image path, exit 1, nothing changed; `test-install-script.sh` pins both accepted builds and the refused refs, and the mutations below turn it red.
@@ -85,6 +86,31 @@ deferred: []
 ## Spec Change Log
 
 ## Review Triage Log
+
+### 2026-11-05 -- Review pass
+- verdicts: 19 findings -- high 0, medium 3, low 16, false 0, maybe-false 0
+- findings:
+  - `[low]` `[reject]` Blind: a stale existing base name wins silently over a newly loaded build 109 image -- the spec's Always rule keeps "a base name that exists is never moved (unchanged)"; a fix is new behaviour and new public text.
+  - `[low]` `[reject]` Blind: an `IRIS_IMAGE=` line in `.env` left by the removed README section is not mentioned -- spec-bound: P3/P6 are the approved text and no other user-facing wording may be added; install.sh reads the env, not `.env`, as before.
+  - `[low]` `[reject]` Blind: `docker/Dockerfile` line 1 comment still says build 154 -- Design Notes D7 leaves it on purpose (Epic 34 edits that file; Boundaries forbid touching it).
+  - `[low]` `[reject]` Blind: AC6's manual build 109 run is unrecorded and the Auto Run Result looked stale -- the manual run is the lead's committed evidence by the stage prompt; the Auto Run Result is rewritten at finalize.
+  - `[medium]` `[patch]` Blind: no case for Health 154 of another CPU beside Health 109 of this CPU -- real gap in `pick_health`'s fall-through; patched: case `health-154-other-cpu-with-109` added, mutation recorded (grouped with the two rows below).
+  - `[low]` `[reject]` Blind: the mixed-CPU line names only the first Health ref -- Design Notes D5 decided it.
+  - `[low]` `[reject]` Blind: `T_B109_CPU` pins only the heading prefix of the CPU Troubleshooting entry -- P9 changes only the quoted message and the spec says the rest of the line stays; the quote is pinned word for word.
+  - `[low]` `[reject]` Blind: `#get-the-image` in `TRY_FACTS` duplicates a link in step 1 -- R2 mandates it (spec-bound).
+  - `[low]` `[reject]` Blind: no README way to force build 109 when both are loaded -- spec-bound (preference rule and approved text; any new sentence is unapproved public text).
+  - `[low]` `[patch]` Edge: the existing-base wrong-CPU fix with Health 109 and non-Health 154 of this CPU is unpinned -- patched: case `base-wrong-cpu-109-before-non-health`, mutation recorded.
+  - `[medium]` `[patch]` Edge: Health 154 of another CPU beside Health 109 of this CPU is untested -- same root cause as the Blind row above; patched with that case.
+  - `[low]` `[patch]` Edge: `mixed-cpus-109` checks neither the exit code nor `IRIS_IMAGE` -- patched: both checks added, mirroring `mixed-cpus`.
+  - `[low]` `[reject]` Edge: the existing-base ID match takes the first record, not the preferred one -- refs that share an ID are the same image, and builds 154 and 109 cannot share an ID; the line stays true; unchanged behaviour.
+  - `[low]` `[reject]` Edge: README P4 says "when both are, it uses build 154" while Health 109 beats non-Health 154 -- approved text (P4); the spec's preference rule is Health 154, Health 109, non-Health 154.
+  - `[low]` `[reject]` Edge: a stale base with only build 109 loaded -- same as the first Blind row; unchanged behaviour.
+  - `[medium]` `[patch]` VG: same Health 154 other-CPU beside Health 109 gap -- patched with the same case.
+  - `[low]` `[reject]` VG: no mutation lines for B2, B3, B4 and the call site -- Rule 19 asks one demonstrated mutation per AC; AC3 has one; a mutation for the call site is added with the patch above.
+  - `[low]` `[reject]` VG: AC6 has no automated proof and was not run -- the lead's committed evidence (Planner condition 1).
+  - `[low]` `[patch]` VG (other findings): no self-test rewrites P9's quote alone -- patched: self-test 'the Troubleshooting CPU quote back to build 154 only' added in `rule_install`; it must flag, and `test-readme.sh` passes with it.
+  - Intent alignment: descriptive only, no finding; it reports the 109 runtime on real Docker (AC6) as the lead's pending smoke.
+
 
 ## Design Notes
 
@@ -229,9 +255,45 @@ After each live run, also after a failure, run `LANE bash ci/iris.sh teardown`. 
 - AC4/AC5: put back P1's old sentence in README.md -> `test-readme.sh` `try-it` red; put back the `### Start it with build 109` section -> `install` red; put back P8's old quote -> `install` red.
 - AC6 and AC7 carry no mutation (a measured run and a diff listing).
 
+### Implement-stage results
+
+- `bash docker/tests/test-install-script.sh`: all checks passed (297 PASS before the final pin; run again after the mutations, green). Under `OCUTALON_TEST_BASH_MAJOR=3 /bin/bash` (3.2.57): passed.
+- `bash docker/tests/test-readme.sh`: all rules passed, no self-test note. Both orders (readme then install, install then readme) passed.
+- `bash ci/checks.sh`: `checks: all scripts passed`.
+- `ci/iris.sh live install-script-live` (lane B, run tag e11s23impl): `test-install-script-live: all checks passed`; the line printed was `Image: IRIS for Health, build 154 (docker.iscinternal.com/...irishealth-community:2026.3.0AI.154.0). The existing <throwaway base> is that image, so it is not tagged again.` (build 154 preferred with the 109 image loaded). `ci/iris.sh teardown` afterwards: 0 projects, containers, volumes, networks and images left.
+- Manual build 109 run: not run by the implement stage (the lead's, committed as evidence).
+- ShellCheck: not installed here (CI's `checks` job runs it).
+- mutation: AC1 `scan_images` accepts any tag for `irishealth-community` -> `test-install-script.sh` red (15 FAIL: look-alikes and the refused-refs cases); reverted byte-identically.
+- mutation: AC1 the 109 entry dropped from `scan_images` -> red (18 FAIL: build 109 only, the four prefix forms, 109 beside non-Health, existing base, wrong CPU and mixed CPU cases); reverted byte-identically.
+- mutation: AC1 `iris-community` accepted at `TAG_109` -> red (6 FAIL: the `iris-community:2027.1.0AI.109.0` and `x/iris-community:...109.0` refused cases); reverted byte-identically.
+- mutation: AC2 `pick` takes the first Health ref in sort order whatever its build -> red (6 FAIL: the both-builds cases with `a/...:$TAG_109` and bare 109 beside `z/...:$TAG`); reverted byte-identically.
+- mutation: AC3 B1's old first line put back (`No IRIS build 154 image is loaded in Docker (no`) -> red (9 FAIL: the no-image pin, look-alikes and the refused-refs cases); reverted byte-identically.
+- mutation: AC4 P1's old sentence put back in README.md -> `test-readme.sh` `try-it` red (`install` and `readme-links` red too); reverted byte-identically.
+- mutation: AC5 the `### Start it with build 109` section put back in README.md -> `install` red; reverted byte-identically.
+- mutation: AC5 P8's old quote (`No IRIS build 154 image is loaded in Docker`) put back in README.md -> `install` red; reverted byte-identically.
+- mutation: AC2 (review patch) `pick_health` falls through to Health 109 only when no Health 154 record exists, whatever its CPU -> `health-154-other-cpu-with-109` red (3 FAIL); reverted byte-identically.
+- mutation: AC2/AC3 (review patch) the existing-base wrong-CPU fix calls `pick h 154 || pick n 154` instead of `pick_health || pick n 154` -> `base-wrong-cpu-109` and `base-wrong-cpu-109-before-non-health` red (2 FAIL); reverted byte-identically.
+- After the review patches (four test additions: `health-154-other-cpu-with-109`, `base-wrong-cpu-109-before-non-health`, exit and `IRIS_IMAGE` checks in `mixed-cpus-109`, and the self-test 'the Troubleshooting CPU quote back to build 154 only'): `test-install-script.sh` passed (also under `OCUTALON_TEST_BASH_MAJOR=3 /bin/bash`, 3.2.57), `test-readme.sh` passed, both orders passed, `bash ci/checks.sh` printed `checks: all scripts passed`, and `ci/iris.sh live install-script-live` (lane B, tag e11s23i2) printed `test-install-script-live: all checks passed` with `Image: IRIS for Health, build 154 (...)` (build 154 preferred beside the loaded build 109 image); `ci/iris.sh teardown` left nothing.
+- After the mutations: `git status --short` lists only README.md, install.sh, `docker/tests/test-install-script.sh`, `docker/tests/test-readme.sh` and this spec; each mutated file was `cmp`-identical to the pre-mutation backup.
+
 ## Auto Run Result
 
-Status: ready-for-dev
+Status: done
 Blocking condition: none
 
-Planned and halted after planning, as dispatched. For the lead: (1) block A (README) and block B (install.sh's printed lines) under "README text for approval" go to the Contest Planner before the implement stage; (2) AD-23's Rule names the accepted archives, and the recommended wording under "For the lead (Rule 20, AD-23's Rule text)" is the lead's to apply (veto-window: AD wording); (3) measured: the build 109 image is loaded on this machine (arm64, beside the build 154 refs), and install.sh today matches only the tag 2026.3.0AI.154.0 with the repository irishealth-community or iris-community, with or without a registry prefix.
+**Summary.** `install.sh` accepts exactly the three refs (`irishealth-community:2026.3.0AI.154.0`, `iris-community:2026.3.0AI.154.0`, `irishealth-community:2027.1.0AI.109.0`, with or without a registry prefix) and refuses every other ref. It prefers Health 154, Health 109, then non-Health 154, tags a Health 109 image to the same base name, and prints Block B's lines. README.md has one install path for both builds (P1 to P9, the Planner's P2), and `test-readme.sh` follows (R1 to R12 in place, no pin deleted, P2's new wording pinned as a whole line).
+
+**Files changed.**
+- `install.sh`: `TAG_109`, a build field in the scan records, `pick <kind> <build>`, `pick_health`, the Block B messages and the matching comments.
+- `README.md`: passages P1 to P9; the "Start it with build 109" section and its links are gone; Credits and licences untouched.
+- `docker/tests/test-install-script.sh`: build 109 cases (only, four prefix forms, refused refs, both Health builds in four sort orders, beside non-Health, mixed CPUs, other-CPU 154 beside this-CPU 109, existing base, wrong CPU, existing-base wrong CPU, source pin of `TAG_109`) and the changed message pins.
+- `docker/tests/test-readme.sh`: R1 to R12 and one extra self-test; Epic 34's regions untouched.
+- This spec: Verification results, mutation lines, triage log.
+
+**Review findings.** 19 findings: patches applied 4 entries (one medium, three low; all test additions), deferred 0, rejected 15 with their reasons in the triage log (spec-bound text, unchanged behaviour, the lead's AC6 run, Design Notes D5 and D7).
+
+**Follow-up review recommended:** false (one medium entry patched, no high).
+
+**Verification.** See "Implement-stage results" under `## Verification`: both hermetic scripts, bash 3.2, both orders, `bash ci/checks.sh` and `ci/iris.sh live install-script-live` all pass; ten mutations went red and were reverted byte-identically.
+
+**Residual risks / for the lead.** (1) The manual install.sh run on the loaded build 109 image (AC6, Planner condition 1, evidence file) is the lead's smoke; until it is committed, the README claim that `./install.sh` accepts build 109 rests on the stubbed tests and the live unit's 154 preference. (2) AD-23's Rule wording (see "For the lead (Rule 20)") is the lead's to apply. (3) ShellCheck runs only in CI. (4) `test-readme.sh` prints three pre-existing "Broken pipe" lines from the `in_tree` helper (line 139), which this story did not touch.
