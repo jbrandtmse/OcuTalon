@@ -2036,3 +2036,10 @@
 2026-11-05T12:41:04Z	Run	ci_red_classified	head=8345cfca run=42021667697 job=127225676199 group=iris_browser class=flake known=DW-555 action=rerun_failed_job_once note=lane-a_42021667575_green
 2026-11-05T12:52:26Z	Epic 17	ci_polled	story=17.2 sha=bd0b1316 result=success runs=42022267634,42022267538 attempt=1 note=queued_behind_main_post-release_run
 2026-11-05T13:15:46Z	Run	ci_green_verified	runs=42021667697(attempt2),42021667575 head=8345cfca result=success via=none note=v1.0.1_merge-back;DW-555_rerun_green
+2026-11-05T14:07:35Z	Epic 40	ci_wait	story=40.5 sha=c7ec1963 runs=42041828974,42041829102 runner=D note=40.5_done(rework1_TestEstimateTokens);demo-path_ERR_ABORTED_on_6f09f0eb_being_classified(DW-690_class);integrated_cf9e4e51
+2026-11-05T14:41:17Z	Epic 40	ci_polled	story=40.5 sha=c7ec1963 result=success runs=42041828974,42041829102 note=6f09f0eb_demo-path_ERR_ABORTED=DW-690_class_occurrence(no_rework)
+2026-11-05T16:03:10Z	Epic 11	runner_complete	part_merge=11.22 head=3379fbb9 ready_for_merge=true ledger="resolved=4 terminal=4 chartered=1 open_after=2 drain_ratio=1.60" decisions_for_user=DW-741
+2026-11-05T16:03:10Z	Epic 11	ci_green_verified	runs=42056997916,42056999388 head=3379fbb9 result=success via=none
+2026-11-05T16:03:10Z	Epic 11	amendments_verified	amendments=3 extensions=3 ok=true
+2026-11-05T16:03:10Z	Epic 11	merge_enqueued	policy=when_green part_merge=11.22 authority="owner_decision first_daily_release_burndown 01:51Z: merges when done, ships next daily"
+2026-11-05T16:03:10Z	Epic 11	epic_merge_started	head=3379fbb9

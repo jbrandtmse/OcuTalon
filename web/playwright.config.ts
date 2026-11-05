@@ -43,7 +43,8 @@ export default defineConfig({
   expect: { timeout: 10_000 },
   globalTimeout: Number(process.env['OCUTALON_E2E_TIMEOUT_MS'] ?? 300_000),
   reporter: jsonReport ? [['list'], ['json', { outputFile: jsonReport }]] : [['list']],
-  outputDir: 'test-results',
+  // A unit keeps its own results: ci/iris.sh sets OCUTALON_E2E_OUTPUT to test-results/<unit>, so a later unit of the same job does not clear them.
+  outputDir: process.env['OCUTALON_E2E_OUTPUT'] || 'test-results',
   use: {
     baseURL: process.env['OCUTALON_URL'],
     trace: 'off',

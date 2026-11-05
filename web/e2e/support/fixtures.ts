@@ -1,4 +1,4 @@
-import { expect as baseExpect, test as base, type BrowserContext, type Page } from '@playwright/test';
+import { expect as baseExpect, test as base, type APIRequest, type BrowserContext, type Page } from '@playwright/test';
 
 import { boundedStep, capToDeadline, effectiveWaits, markTestStart, waitsFor } from './bounds';
 
@@ -23,6 +23,13 @@ export * from '@playwright/test';
  *
  * Its fourth contract: page.close() on a page of the test's context takes no timeout in Playwright, so it is bounded here by the action
  * wait in force (and by the time the test has left, bounds.ts boundedStep) and fails naming `page.close`.
+ *
+ * Its fifth contract (DW-706): an APIRequestContext made without a timeout of its own (the built-in `request` fixture, a
+ * `playwright.request.newContext()` in a spec or a helper) waits no longer than the action wait in force, bounds.ts effectiveWaits: in a
+ * test, the project's or the test's actionTimeout, else a share of the test's timeout (waitsFor); in a hook, the project's actionTimeout, else
+ * the action cap. A call that never answers then fails with Playwright's call name (apiRequestContext.get: Timeout ...ms exceeded) before the
+ * test timeout. An explicit `timeout` option (0 included) is kept. A context's timeout is fixed when it is made, so a test that raises its
+ * timeout later keeps the earlier wait for a context made before.
  */
 
 /** Makes the page's close() reject with `page.close: no answer within <s> s` when the page has not closed within waitMs() (at the time of the call). */
@@ -55,7 +62,42 @@ async function unroute(target: Page | BrowserContext): Promise<void> {
   }
 }
 
-export const test = base.extend<{ testClock: void }>({
+/** What the running test says about its waits, for requestWait; set by the auto fixture `requestWaitSource` and cleared when the test ends. */
+let waitSource: { timeout: () => number; use: { actionTimeout?: number; navigationTimeout?: number } } | undefined;
+
+/** The action wait, in ms, that an APIRequestContext made now gets when its maker passes no timeout (see the fifth contract above). */
+export function requestWait(): number {
+  if (waitSource) return effectiveWaits(waitSource.timeout(), waitSource.use).action;
+  let use: { actionTimeout?: number; navigationTimeout?: number } | undefined;
+  try {
+    use = base.info().project.use;
+  } catch {
+    use = undefined;
+  }
+  return effectiveWaits(0, use).action;
+}
+
+export const test = base.extend<{ testClock: void; requestWaitSource: void }, { requestWaits: void }>({
+  requestWaits: [
+    async ({ playwright }, use) => {
+      const request: APIRequest = playwright.request;
+      const original = request.newContext;
+      request.newContext = function (this: APIRequest, options?: Parameters<APIRequest['newContext']>[0]) {
+        return original.call(this, options?.timeout !== undefined ? options : { ...options, timeout: requestWait() });
+      };
+      await use();
+      request.newContext = original;
+    },
+    { scope: 'worker', auto: true },
+  ],
+  requestWaitSource: [
+    async ({ actionTimeout, navigationTimeout }, use, testInfo) => {
+      waitSource = { timeout: () => testInfo.timeout, use: { actionTimeout, navigationTimeout } };
+      await use();
+      waitSource = undefined;
+    },
+    { auto: true },
+  ],
   testClock: [
     async ({}, use, testInfo) => {
       markTestStart(testInfo);
