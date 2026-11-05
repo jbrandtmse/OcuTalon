@@ -365,7 +365,9 @@ for pair in "a/irishealth-community:$TAG_109|irishealth-community:$TAG" "irishea
   add_image "${pair%%|*}" $ID_X arm64
   add_image "${pair##*|}" $HEALTH_ID arm64
   run_install
+  check "both Health builds: ${pair%%|*} beside ${pair##*|}: exit 0" exit_is 0
   check "both Health builds: ${pair%%|*} beside ${pair##*|}: build 154 is the tag source" tagged_once $HEALTH_ID
+  check "both Health builds: ${pair%%|*} beside ${pair##*|}: IRIS_IMAGE is the base name" up_env_is "$BASE"
   check "both Health builds: ${pair%%|*} beside ${pair##*|}: build 154 is named" out_has "Image: IRIS for Health, build 154 (${pair##*|})."
 done
 
@@ -561,6 +563,7 @@ add_base $ID_X amd64
 run_install
 check "existing base, wrong CPU, no image loaded: exit 1" exit_is 1
 check "existing base, wrong CPU, no image loaded: gives the load and the tag commands" test "$(out_has 'docker load -i <the archive file>' && out_has "irishealth-community:$TAG or irishealth-community:$TAG_109> $BASE" && echo ok)" = ok
+check "existing base, wrong CPU, no image loaded: the download line names build 154 or build 109 and this CPU" out_has "Download the IRIS for Health AI Hub build 154 or build 109 archive for arm64 and load it:  docker load -i <the archive file>"
 check "existing base, wrong CPU, no image loaded: nothing changed" no_change
 
 # --- the checks that come before any change ---
@@ -945,7 +948,7 @@ eol=$(git check-attr eol -- install.sh 2>/dev/null | sed 's/.*: //')
 check ".gitattributes: install.sh keeps LF on every checkout" test "$eol" = lf
 script_tag=$(sed -n 's/^TAG=//p' "$script")
 script_tag_109=$(sed -n 's/^TAG_109=//p' "$script")
-check "install.sh: its TAG_109 is the build 109 tag, and only that tag is accepted besides TAG" test "$script_tag_109" = "$TAG_109"
+check "install.sh: its TAG_109 is this test's build 109 tag" test "$script_tag_109" = "$TAG_109"
 check "install.sh: its TAG is this test's tag and the tag of the compose file's default image" test "$(test "$script_tag" = "$TAG" && grep -qF "IRIS_IMAGE:-ocutalon-iris-base:$script_tag}" "$root/docker-compose.yml" && echo ok)" = ok
 check "docker-compose.yml: the service is iris and it publishes container port 52773 (what install.sh polls and asks about)" test "$(grep -qE '^  iris:$' "$root/docker-compose.yml" && grep -qF ':52773"' "$root/docker-compose.yml" && echo ok)" = ok
 sed -n '/^fmt_time() {/,/^}/p' "$script" > "$tmp/fmt_time.sh"

@@ -84,6 +84,22 @@ deferred: []
 - AC7 (footprint). Given the diff since `story_base` without `_bmad-output`, when listed, then it holds only `install.sh`, `README.md`, `docker/tests/test-install-script.sh` and `docker/tests/test-readme.sh`.
 - DW-636 (ledger): closed by AC1 to AC5 (install.sh finds the build 109 image; the README's separate path is dropped).
 
+### Review Findings
+
+Code review 2026-11-05 (four layers; diff `0242c7b2..` working tree, `_bmad-output` excluded). Verdicts: high 0, medium 1, low 5, false 3, theoretical 1, rejected 4. Approved texts (Block A, Block B) match word for word; AD-23's amended Rule matches; Epic 34's regions untouched; AC7 footprint holds.
+- [x] [Review][Patch] [med] `chk_try_it` pinned steps 1 and 2 only as substrings, so text added to step 2 without the removed anchor stayed green (VG) -- `docker/tests/test-readme.sh` `chk_try_it` now checks each `TRY_B109` line whole-line (`grep -qxF`, as `chk_install` does), self-test 'text added to step 2' added.
+- [x] [Review][Patch] [low] the four `both-health-*` cases checked neither exit code nor `IRIS_IMAGE` (Blind) -- `exit_is 0` and `up_env_is "$BASE"` added.
+- [x] [Review][Patch] [low] the `TAG_109` source pin's label claimed "only that tag is accepted" (VG) -- label now says what it checks; the refused-ref cases pin the rest.
+- [x] [Review][Defer] [low] `release/notes-areas.txt` files 11.23 under developer stories (Blind) -- out of footprint (`release/`): DW-751 `wontfix-accepted`, reopen_if in the ledger.
+- [x] [Review][Dismiss] [low] an existing base tagged from build 109 stays on 109 after build 154 is loaded, against P4's "when both are, it uses build 154" (Blind, Edge) -- by-design: Always "a base name that exists is never moved" and approved P4; the image line names build 109; repeat of the first review's row.
+- [x] [Review][Dismiss] [low] users of the removed section keep `IRIS_IMAGE=<109 ref>` in `.env` (Blind, Edge) -- spec-bound (approved text, no new wording); that ref still builds a supported image.
+- [x] [Review][Dismiss] P2 reads as a 1.0.0 claim (Blind) -- approved public text; no wording change.
+- [x] [Review][Dismiss] AC6 build 109 evidence file absent and spec `status` done with AC6 open (Blind, Acceptance) -- the lead's smoke after review (Planner condition 1); the fix edits the spec status.
+- [x] [Review][Dismiss] QA's pin uncommitted (Blind) -- false: stages may not commit; the lead commits.
+- [x] [Review][Dismiss] no case with both Health builds for another CPU only; compound checks fold three parts (Blind) -- false: `other_cpu_lines` is per record and pinned by the 154 and 109 wrong-CPU cases; any failing part fails the check.
+- [x] [Review][Dismiss] an existing base ID shared by a 154 and a 109 ref names whichever sorts first (Edge) -- wontfix-theoretical: real only if one image is hand-tagged as the other build's ref.
+- [x] [Review][Dismiss] the README-wide `(#start-it-with-build-109)` check has no isolated self-test (VG) -- covered: QA's mutation turned `install` and `readme-links` red.
+
 ## Spec Change Log
 
 ## Review Triage Log
@@ -282,6 +298,7 @@ After each live run, also after a failure, run `LANE bash ci/iris.sh teardown`. 
 - mutation: AC1 (QA) `scan_images` compares the 109 tag as a prefix (`2027.1.0AI.109` and more) instead of exactly -> red (6 FAIL: the refused `.109.1` cases); reverted byte-identically.
 - mutation: AC4/AC5 (QA) `109` changed to `10X` on each of the README lines that carry the build 109 wording (15, 92, 94, 112, 126, 138, 228, 230), one at a time -> `try-it` red for line 15, `install` red for every other; reverted byte-identically.
 - mutation: AC4 (QA) a link to `#start-it-with-build-109` appended at the end of README.md, outside the try-it and install sections -> `install` and `readme-links` red; reverted byte-identically.
+- mutation: AC4 (code review) " With build 109, follow [Start it by hand](#start-it-by-hand) instead." appended to README step 2 (no removed anchor) -> `test-readme.sh` `try-it` red (the new whole-line check); reverted byte-identically.
 - QA gap audit: every AC1-AC5 and Matrix row has a pinning test; the one gap (B3 download line) is closed. After the QA edits `test-install-script.sh` passed (also under `OCUTALON_TEST_BASH_MAJOR=3 /bin/bash`, 3.2.57) and `test-readme.sh` passed; install.sh and README.md are `cmp`-identical to their pre-mutation copies; the diff since `0242c7b2` still touches no line of Epic 34's regions of `test-readme.sh`.
 
 ## Auto Run Result

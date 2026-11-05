@@ -3871,6 +3871,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - 2026-11-03T14:37:22Z status=routed owner=burndown by=merge_gate note=first daily release after 1.0.0
 - 2026-11-05T10:38:22Z status=routed owner=11-22-first-daily-release-burn-down by=burndown note=chartered: first daily release burn-down (owner via the Planner 2026-11-05T01:51Z; orchestrator dispatch); Story 11.22
 - 2026-11-05T11:01:19Z status=routed owner=11-23-install-sh-accepts-build-109 by=spec_gate note=chartered: declined from 11.22 on size (2-2.5 h; test-readme pins build 109 in 47 places), chartered anyway by the Contest Planner 2026-11-05 as Story 11.23 (the portal offers only build 109)
+- 2026-11-05T18:55:08Z status=resolved-by:11-23-install-sh-accepts-build-109 by=adjudication note=install.sh accepts irishealth-community:2027.1.0AI.109.0 beside the two build 154 refs (Health 154 first), refuses every other ref (test-install-script.sh with mutations); the README's separate build-109 path is gone (Planner-approved text); evidence/11-23-build-109-install.md: the real install.sh on the loaded 109 image printed the build 109 image line, started, the sign-in page answered 200, demo-path step 1 passed
 
 ### DW-637: Build 109 changes to watch: %AI.Tool.%DecodeScalar rejects an array or object for a scalar tool argument (a malformed call becomes a tool error), and %AI.System, %AI.Utils.SettingStore, %AI.Shell.StreamRenderer, EnsLib.AI.Agent.OutboundAdapter and %AI.Policy.Audit/Authorization are now Hidden, Internal or EXPERIMENTAL; nothing changes at runtime today
 - source: Contest Planner build 109 spike, 2026-11-03 | severity: low | fix-risk: low | footprint: small
@@ -4233,3 +4234,8 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-11-22-first-daily-release-burn-down.md (cr) | severity: low | fix-risk: low | footprint: in-story
 - evidence: irisScript (Story 11.21) has no abort signal; boundedStep rejects at DIAG_BOUND_MS while the retry loop continues; failure path of a failure path only
 - 2026-11-05T14:50:17Z status=wontfix-accepted owner=11-22-first-daily-release-burn-down by=cr note=reopen_if=a CI log shows a DIAG /state unavailable line followed by a docker exec left running after the test ended
+
+### DW-751: release/notes-areas.txt has no story 11.23 line, so the draft notes file install.sh accepting build 109 under developer stories (epic 11 developer)
+- source: spec-11-23-install-sh-accepts-build-109.md cr | severity: low | fix-risk: low | footprint: out-of-footprint
+- evidence: notes-areas.txt maps 'epic 11 developer' and overrides only 11.2 and 11.8; 11.23 is judge-facing (install). release/ is outside 11.23's footprint (spec Never).
+- 2026-11-05T18:32:17Z status=wontfix-accepted owner=11-23-install-sh-accepts-build-109 by=cr note=draft notes are reviewed at the cut; reopen_if=the cut notes for the release shipping 11.23 list it under admins and developers

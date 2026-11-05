@@ -443,13 +443,17 @@ B109
 TRY_FACTS="$TRY_FACTS
 $TRY_B109"
 chk_try_it() {
-  local sec="$tmp/sec.try" demo install n
+  local sec="$tmp/sec.try" demo install n line
   section "$1" "$H_TRY" > "$sec"
   if [ ! -s "$sec" ]; then
     echo "$1: no section '$H_TRY'"
     return
   fi
   chk_facts try-it "$sec" "$TRY_FACTS"
+  # The ruled steps are whole lines of the section: nothing is added to them.
+  printf '%s\n' "$TRY_B109" | while IFS= read -r line; do
+    if ! grep -qxF -e "$line" "$sec"; then echo "try-it: the ruled step \"${line:0:50}...\" is not a line of the section, word for word"; fi
+  done
   demo=$(grep -nF -m 1 'https://demo.ocutalon.com' "$sec" | cut -d: -f1)
   install=$(grep -nF -m 1 './install.sh' "$sec" | cut -d: -f1)
   if [ -n "$demo" ] && [ -n "$install" ] && [ "$demo" -ge "$install" ]; then
@@ -1222,6 +1226,7 @@ rule_try_it() {
   done
   st 'step 4 removed' 1 "$README" '!/^4\. /' chk_try_it
   st 'the separate build 109 step back' 1 "$README" '/^2\. / { print $0 " With build 109, follow [Start it with build 109](#start-it-with-build-109) instead."; next } { print }' chk_try_it
+  st 'text added to step 2' 1 "$README" '/^2\. / { print $0 " With build 109, follow [Start it by hand](#start-it-by-hand) instead."; next } { print }' chk_try_it
   st 'a fifth step' 1 "$README" '/^4\. / { print; print "5. One more." ; next } { print }' chk_try_it
   st_move 'step 2 moved out of the section' "$H_TRY" '2. ' chk_try_it
   st 'the phrase away from the demo link' 1 "$README" "{ i = index(\$0, \"$DEMO_PHRASE\"); if (i && index(\$0, \"https://demo.ocutalon.com\")) { print substr(\$0, 1, i - 1) \"zz\" substr(\$0, i + length(\"$DEMO_PHRASE\")); print \"\"; print \"$DEMO_PHRASE\"; next } print }" chk_try_it
