@@ -2,7 +2,7 @@
 title: "Story 11.24: The README's IPM install works literally on a fresh build 154 and build 109 instance"
 type: 'bugfix'
 created: '2026-11-05'
-status: 'done'
+status: 'in-progress'
 baseline_revision: '2f7d0ec10cc70fba63d55caf5305add0db77e2c1'
 baseline_commit: '2f7d0ec10cc70fba63d55caf5305add0db77e2c1'
 review_loop_iteration: 0
@@ -65,6 +65,7 @@ deferred: []
 - [x] `_bmad-output/implementation-artifacts/evidence/11-24-readme-ipm-literal-runs.md` -- new: for each run the image ref, `$ZVersion` build, the commands as extracted from README.md, the lines quoted in Verification, durations, and the plan's Task 0 table (Design Notes); no secret, path, IP, host or container name. -- AC1, AC2
 - [x] `docs/install-ipm.md` sample blocks -- after the build 154 case 1 literal run, replace every sample block whose lines differ from that run's real output (timestamps and durations included) with the run's output, trimmed as in Design Notes; record which blocks changed in the evidence file; re-run `test-readme.sh` and `test-cpf.sh`. -- AC3 (Planner's approval condition 3)
 - [x] This spec -- record Verification results and `mutation:` lines.
+- [ ] [Smoke] DW-760: the guide's sentence "The two commands give the same result when USER already had IPM." is false when IPM was installed in USER itself — `docs/install-ipm.md:56` — the lead's smoke (2026-11-05, fresh build 154, the IPM line run in USER, then README blocks 1-2 in %SYS literally) printed `Skipping IPM mapping of USER - IPM already installed.` and `Skipping repository mapping of USER - IPM not mapped from source namespace.`; USER's `zpm "repo -list"` gave `No repositories found.` and block 3 stopped with `ERROR! No repositories are configured and enabled in this namespace.`; then `zpm "enable -community"` run in USER set up the registry there and blocks 3 and 4 succeeded (`Activate SUCCESS`, page 200). Fix: replace that one sentence with the Planner-approved text recorded under Spec Change Log (nothing else in README or the guide changes); add a whole-line-or-substring pin for the new text in `chk_ipm` (page side) with a self-test above `finish ipm` that removes it; re-run that case literally on a fresh build 154 throwaway (the IPM line in USER, README blocks 1-2 in %SYS, the guide's new USER command, blocks 3 and 4, page 200) and add it to the evidence file as Run 4. -- AC3
 
 **Acceptance Criteria:**
 - AC1 (literal install, both builds). Given fresh throwaways from the plain build 154 and build 109 Health images, when the fenced commands of README.md's "Install it with IPM" are extracted from the committed text and pasted in order (the first two blocks in one %SYS terminal, the third in USER, the fourth in USER), then each run prints `Load finished successfully.`, `Mapping IPM repository in %SYS equivalently to USER`, the OCUTALON stop line, and ends `[OCUTALON|ocutalon]	Activate SUCCESS`, and `GET /ocutalon/` answers 200; the evidence file records both.
@@ -73,9 +74,36 @@ deferred: []
 - AC4 (pins in place). Given `test-readme.sh`, when run, then every rule passes, the changed pins are P1-P9 changed in place (none deleted), each new self-test flags its broken copy, and no line in Epic 34's regions changed (`git diff -U0` hunks of the file avoid 37-45 and the licence functions).
 - AC5 (footprint). Given the diff since `baseline_revision` without `_bmad-output`, when listed, then it holds only `README.md`, `docs/install-ipm.md` and `docker/tests/test-readme.sh`.
 
+### Review Findings
+
+Code review 2026-11-05 (layers: blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor; full-opus). 0 decision-needed, 4 patch, 1 defer, 14 rejected. Evidence hygiene (no host path, IP, private host, container name, secret) and Epic 34's regions checked clean. The approved README and guide text was not edited.
+
+- [x] [Review][Patch] The guide's "no `/tmp/ocutalon-repo`" check had no self-test of its own (low, fix-risk low: one self-test line) [docker/tests/test-readme.sh:1803]
+- [x] [Review][Patch] The registry reload-line check's "before the folder install" boundary had no self-test (low, fix-risk low: one self-test line) [docker/tests/test-readme.sh:1804]
+- [x] [Review][Patch] The evidence did not tie the literal runs to the committed README; it now names commit dc1d0f09 and README's blob, whose fenced blocks equal the evidence's command blocks (low, fix-risk low: evidence wording) [_bmad-output/implementation-artifacts/evidence/11-24-readme-ipm-literal-runs.md:3]
+- [x] [Review][Patch] The evidence's quoted lines were described as whole lines; Run 1's note named a second `Load finished successfully.` the block omits; Run 3 prefixes a `USER install:` label (low, fix-risk low: evidence wording) [_bmad-output/implementation-artifacts/evidence/11-24-readme-ipm-literal-runs.md:3,15]
+- [x] [Review][Defer] The guide's "The two commands give the same result when USER already had IPM" is measured only for USER mapped from %SYS, not for an IPM installed in USER itself [docs/install-ipm.md:56] — deferred: DW-760 escalated owner=burndown (med unverified, fix-risk high: Planner-approved public text); settled by a run with IPM installed in USER, or by narrowing the sentence
+
+**Rejected:**
+- `[low]` README gives no precondition for another IPM version in %SYS (blind-hunter, edge-case-hunter) - approved text; it claims only none or 0.10.10 (D5), which is not false; a rewording is not a patch.
+- `[low]` The repositories warning names only %SYS, and USER's own repositories are shadowed by the mapping (blind-hunter, edge-case-hunter) - approved text, no false claim; the guide's `SHARED_SENTENCE` (pre-existing, test-cpf pin) stays true ("changes both").
+- `[low]` Neither text says `enable -community` maps %IPM into every namespace (blind-hunter) - the guide's sample shows `enable -map -repos -globally` and each mapping; "changes no service" is about the installer; approved text.
+- `[low]` The folder-install prerequisite links a section that also runs `enable -community` (blind-hunter) - approved text; the section carries the repositories warning; not a false claim.
+- `[low]` The README removed "(AI Hub build 154 with IPM 0.10.10)" (edge-case-hunter) - approved text; it now names the two builds run.
+- `[low]` The load line discards `r.Get`'s status (edge-case-hunter) - approved word for word; the guide states the registry-reachable precondition; a failure errors loudly, the command is not broken.
+- `[low]` The README's "run as written on ... build 154 and build 109" sentence has no pin (blind-hunter) - unlikely to drift silently; a pin adds a check and a constant for no AC; the guide's equivalent is pinned.
+- `[low]` The section-count half of the load-line check can never fail alone (verification-gap) - redundant with the whole-README count and `ipm_in_order`, no behavior unprotected; fix edits the triage log only.
+- `[low]` AC5 has no suite test; QA lines use `mutation (QA, ACn):` (verification-gap) - AC5 is a diff property checked by `git diff --name-only`, its mutation recorded; prefix cosmetic.
+- `[low]` AC1/AC2's runtime claim has no automated test (verification-gap) - by design (AD-22: the AI Hub image never enters CI); the committed literal-run evidence is the Rule 3 real-runtime evidence.
+- `[low]` P6's message and the whole-README count differ from spec P6 wording (acceptance-auditor) - added by the implement review's patch, recorded in the triage log; AC4 holds.
+- `[low]` Cycle log says 21 self-review findings, the spec 20 (blind-hunter, edge-case-hunter, acceptance-auditor) - the spec's triage log lists 20; the cycle log is the lead's append-only record.
+- `[false]` Spec says done while sprint-status says review (edge-case-hunter, acceptance-auditor) - the spec's `status` is build-auto's machine state; sprint-status tracks the review stage.
+- `[low]` The spec's QA note says "two gaps" and lists three (blind-hunter) - fix edits the spec's narrative; negligible.
+
 ## Spec Change Log
 
 - 2026-11-05, lead spec gate: public text approved by the Contest Planner (owner's delegation) exactly as drafted; Task 0's "samples are final" replaced by the Planner's condition 3 (refresh sample blocks from the implement stage's build 154 case 1 run where they differ); one Tasks item added for it.
+- 2026-11-05, rework iteration 1 (trigger: smoke, DW-760): the lead's smoke showed the guide's "same result when USER already had IPM" false for an IPM installed in USER itself; one `[Smoke]` task added. Replacement text: PENDING the Contest Planner's approval (the lead fills it in here before the implement re-spawn).
 
 ## Review Triage Log
 
@@ -359,6 +387,24 @@ All commands run from the worktree root after `git rev-parse --show-toplevel` ma
 - mutation: the IPM load line copied into another README section (outside "Install it with IPM") -> before the `chk_ipm` whole-README count, `FAIL ipm: a broken copy was not flagged`; after it, flagged; the load line twice in the section is flagged too (observed red, reverted, byte-identical).
 - (once) Live literal runs from README.md's committed blocks, one lane-B throwaway at a time, each removed and the lock released after its run: 154 case 1 PASS (Load finished successfully., Mapping IPM repository in %SYS equivalently to USER, the OCUTALON stop line, Activate SUCCESS, HTTP 200; ready 49 s, %SYS 34 s, USER 89 s, OCUTALON 62 s); 109 case 1 PASS (same lines; ready 29 s, %SYS 29 s, USER 78 s, OCUTALON 73 s); 154 case 2 PASS (the old single `enable -community` state gave `Skipping repository mapping of USER` and `ERROR! No repositories are configured and enabled in this namespace.`; the whole README block then ended Activate SUCCESS, HTTP 200; %SYS 8 s, USER 138 s, OCUTALON 77 s). Evidence: `_bmad-output/implementation-artifacts/evidence/11-24-readme-ipm-literal-runs.md`.
 - (once) Sample refresh from the 154 case 1 run: `docs/install-ipm.md` blocks changed are the IPM load tail, the USER sample and the OCUTALON sample (time stamps, durations); the `enable -map -ns USER` and `enable -community` outputs were identical. After it `test-readme.sh` and `test-cpf.sh` pass; `test-boundaries.sh` and `test-bridge-guide.sh` exit 0.
+
+**QA-stage results (2026-11-05; no container started; README and guide text untouched):**
+- Discoverable: `readme` and `cpf` are in `CHECK_SCRIPTS` (`ci/units.sh`), which the hosted `checks` job runs through `ci/checks.sh` as `docker/tests/test-<name>.sh`; no ignore file or tag excludes them. `bash docker/tests/test-readme.sh` -> all rules passed; `bash docker/tests/test-cpf.sh` -> all checks passed.
+- Audit: AC1/AC2 (the README's three lines, once, whole, in order, pinned to 0.10.10) pinned by `chk_ipm` + `dev_names`; AC3 pinned by `chk_ipm` (the guide's lines in order, no stale sentence or path, registry reload line) and test-cpf rules 9, 11, 12; AC4 by the `st` self-tests; AC5 and the Epic 34 region separation are diff properties with no suite test (audited below). Two gaps found and closed (QA): the guide's own load line on `latest` had no self-test (only removal), and the reload-line pin was only exercised together with the stale-path pin; the dev-only exemption had no self-test for the load line with extra text on the same line.
+- (QA) Added to `docker/tests/test-readme.sh`: `rule_ipm` 'the page IPM load line on the latest version' and 'the page registry reload line from another folder' (above `finish ipm`); `rule_dev_only` 'the IPM load line with a second call on its line' (after the P4 line, above `st_append`). `git diff -U0` of the QA edit: two hunks (one in `rule_dev_only`, one in `rule_ipm`), none in Epic 34's regions.
+- mutation (QA, AC1): README load line pinned to `latest` -> `FAIL ipm` and `FAIL dev-only` (observed red, restored from backup, byte-identical).
+- mutation (QA, AC2): README map line moved after `zpm "enable -community"` -> `FAIL ipm` (red, reverted, byte-identical).
+- mutation (QA, AC3): the guide's registry reload line `/usr/irissys/ipm/ocutalon/1.0.1/` moved to `/usr/irissys/ipm/other/1.0.1/` -> `FAIL ipm`; the guide's load line on `latest` -> `FAIL ipm` (red, reverted, byte-identical). The pin takes the prefix `/usr/irissys/ipm/ocutalon/`, not the version, on purpose (a later package version keeps the page true).
+- mutation (QA, AC4): the guide-order line `if ! ipm_in_order "$2"` deleted from `chk_ipm` -> `FAIL ipm: a broken copy was not flagged` (the page self-tests bite); the implement stage's guide build 109 sentence mutation -> `FAIL docs` stands above (red, reverted, byte-identical).
+- mutation (QA, D4 dev-only exemption scope): `dev_names` exemption widened from `$0 == ipmload` to a 40-character prefix match -> `FAIL dev-only: a broken copy was not flagged` (the new second-call self-test, besides the 0.10.9 one; red, reverted, byte-identical).
+- Epic 34 regions (AC4): the baseline's header lines 37-45 (now 39-47 after the story's two added header lines), the `DOCKERFILE`/`dockerfile_p` lines, `chk_licence` and `rule_licence` bodies hash identically at `2f7d0ec1` and now (sha256 8c3a2f9e...); mutation: a byte appended to header line 38 of the new numbering -> hash changes (red, reverted, byte-identical).
+- mutation (QA, AC5): `git diff --name-only 2f7d0ec1 -- . ':(exclude)_bmad-output'` lists exactly README.md, docs/install-ipm.md, docker/tests/test-readme.sh; with a newline appended to `docs/bridge-guide.md` it also lists that file (red, reverted, byte-identical). No suite test covers AC5; this is the audit command.
+- `mutations_demonstrated=6` (AC1, AC2, AC3, AC4, D4 exemption, AC5), plus the Epic 34 region check.
+
+**Code-review results (2026-11-05; no container started; README and guide text untouched):**
+- (CR) Added to `rule_ipm` above `finish ipm`: 'the page naming the local-repository path elsewhere' and 'the page registry reload line only in the folder install'. `bash docker/tests/test-readme.sh` -> all rules passed.
+- mutation: (AC3, no `/tmp/ocutalon-repo`) `-e '/tmp/ocutalon-repo'` removed from `chk_ipm`'s stale-text grep -> `self-test: the page naming the local-repository path elsewhere: not flagged`, `FAIL ipm` (red, restored from backup, byte-identical).
+- mutation: (AC3, reload line in the registry install) `/^## Install from the package folder/ { exit }` removed from `chk_ipm`'s reload-line awk -> `self-test: the page registry reload line only in the folder install: not flagged`, `FAIL ipm` (red, restored from backup, byte-identical).
 
 ## Auto Run Result
 

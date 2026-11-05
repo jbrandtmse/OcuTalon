@@ -1,6 +1,6 @@
 # Story 11.24: the README's IPM install, run literally
 
-Evidence for AC1 (literal install on a fresh build 154 and a fresh build 109 instance), AC2 (one sequence, both cases) and AC3 (the guide's samples). Recorded 2026-11-05 by the implement stage, on arm64, in lane-B throwaway containers started from the plain AI Hub images (one container at a time, web port published on the loopback interface only, each container removed after its run). The commands were extracted from the fenced blocks of README.md's "Install it with IPM" section as committed to the working tree, in this order: blocks 1 and 2 pasted into one terminal session in %SYS, block 3 into a session in USER, block 4 into a session in USER. Colour codes are removed from every quoted line; tabs in quoted lines are shown as one space.
+Evidence for AC1 (literal install on a fresh build 154 and a fresh build 109 instance), AC2 (one sequence, both cases) and AC3 (the guide's samples). Recorded 2026-11-05 by the implement stage, on arm64, in lane-B throwaway containers started from the plain AI Hub images (one container at a time, web port published on the loopback interface only, each container removed after its run). The commands were extracted from the fenced blocks of README.md's "Install it with IPM" section in the working tree, which held the approved text, before that text was committed, in this order: blocks 1 and 2 pasted into one terminal session in %SYS, block 3 into a session in USER, block 4 into a session in USER. The four blocks below are identical to the fenced blocks of that section in README.md as committed in dc1d0f09 (git blob 715253dd460d09ea7793a7344a7ff90b150dc34c). Each run's block quotes selected lines, not the whole output: colour codes are removed, tabs are shown as one space, a line that is the end of a longer output line is quoted from the text shown, and a `USER install:` prefix names the session, not output.
 
 ## The commands, as extracted from README.md
 
@@ -35,7 +35,7 @@ zpm "install ocutalon"
 - Image: `irishealth-community:2026.3.0AI.154.0`
 - `$ZVersion`: IRIS for UNIX (Ubuntu Server LTS for ARM64 Containers) 2026.3.0AI (Build 154U)
 - Durations: container ready 49 s; blocks 1 and 2 in %SYS 34 s; block 3 in USER 89 s; block 4 in USER 62 s.
-- Lines printed (first `Load finished successfully.` is the installer class import; the IPM install itself ended with the `Installation succeeded` line and the second `Load finished successfully.`):
+- Lines printed (first `Load finished successfully.` is the installer class import; the IPM install itself ended with the `Installation succeeded` line and a second `Load finished successfully.`, not repeated below):
 
 ```
 Load finished successfully.

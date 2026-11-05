@@ -1547,6 +1547,7 @@ an error code|It failed with ERROR #5001 today.
 an error name|It showed <UNDEFINED> there.
 EOF
   st 'the IPM load line changed above the section' 1 "$README" '{ sub(/zpm\/0\.10\.10\/installer/, "zpm/0.10.9/installer") } { print }' dev_names_1
+  st 'the IPM load line with a second call on its line' 1 "$README" '/^s r=##class\(%Net\.HttpRequest\)/ { $0 = $0 " d ##class(Foo.Bar).Baz()" } { print }' dev_names_1
   st_append 'a class name after the admin section' '## After\n\nThe class OcuTalon.Core.X does it.' dev_names_1
   if [ "$st_bad" -ne 0 ] && [ -z "$(dev_names "$README")" ]; then
     printf '%s' "$st_msgs"
@@ -1797,6 +1798,10 @@ rule_ipm() {
   st 'the page with the map step after the registry line' 2 "$ipmdoc_p" '/^zpm "enable -map -ns USER"$/ { next } { print } /^zpm "enable -community"$/ { print "zpm \"enable -map -ns USER\"" }' chk_ipm
   st 'the local-repository sentence back' 2 "$ipmdoc_p" '{ print } END { print ""; print "Until the package is published, these outputs come from the same package installed from a local IPM repository." }' chk_ipm
   st 'the page reloading from a local repository' 2 "$ipmdoc_p" '{ sub(/\/usr\/irissys\/ipm\/ocutalon\/1\.0\.1\//, "/tmp/ocutalon-repo/ocutalon-0.1.0/") } { print }' chk_ipm
+  st 'the page IPM load line on the latest version' 2 "$ipmdoc_p" '{ sub(/zpm\/0\.10\.10\/installer/, "zpm/latest/installer") } { print }' chk_ipm
+  st 'the page registry reload line from another folder' 2 "$ipmdoc_p" '/^\[OCUTALON\|ocutalon\]\tReload START \(\/usr\/irissys\/ipm\/ocutalon\// { sub(/\/ocutalon\/1\.0\.1\//, "/other/1.0.1/") } { print }' chk_ipm
+  st 'the page naming the local-repository path elsewhere' 2 "$ipmdoc_p" '{ print } END { print ""; print "The package was in /tmp/ocutalon-repo/ before." }' chk_ipm
+  st 'the page registry reload line only in the folder install' 2 "$ipmdoc_p" '/^\[OCUTALON\|ocutalon\]\tReload START \(\/usr\/irissys\/ipm\/ocutalon\// { held = $0; next } { print } /^## Install from the package folder/ { print held }' chk_ipm
   finish ipm 'the IPM section follows the image sections: IPM load line, map step, registry line, then the first install in USER, a link to the page with the same lines, no "any namespace"' chk_ipm
 }
 
