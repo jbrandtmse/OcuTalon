@@ -2,9 +2,9 @@
 title: 'Story 39.7: Publish the heartbeat event'
 type: 'feature'
 created: '2026-11-04'
-status: 'in-progress'
-baseline_revision: '5bc59f8b26d2e8f573e47984a7319392861e43d1'
-baseline_commit: '5bc59f8b26d2e8f573e47984a7319392861e43d1'
+status: 'done'
+baseline_revision: '6c00ff1d392f1e7817caa650bb9ab9e11f22ac35'
+baseline_commit: '6c00ff1d392f1e7817caa650bb9ab9e11f22ac35'
 review_loop_iteration: 0
 followup_review_recommended: false
 context: []
@@ -173,8 +173,8 @@ deferred: []
 - AC 3 -- Given a person for whom a Tick or BeatNow commits nothing, when it runs, then no event is published for them.
 - AC 4 (DW-633) -- Given the new class and TYPES pair, when the IRIS payload tests and the web checks run, then all of these agree: TYPES, `Test.Live.Payloads` (17 types, 31 contract classes), `payloads.ts` (`--check` clean, `HeartbeatPayload` with `traceUrl?`) and the live store (17 entries). And `npm --prefix web test`, `lint` and `build` pass.
 - [x] [Clarification] Add `'HeartbeatPayload'` to the list of interfaces that carry `traceUrl` in `web/scripts/payloads.test.mjs` (the test "is on exactly the interfaces that have both traceHeaderId and traceNamespace", about line 110), and nothing else in that file; then `npm --prefix web test` is green (AC 4).
-- [ ] [CI] browser `live:sign-in` L10 (`web/e2e/live/live.spec.ts:405`) red on f20a41c2: `data-session-seq` 4, expected 3. Cause: a session with no checklist (heartbeat on by default) gets a Tick `empty` skip on its first tick, and 39.7 published it, moving the session stream's seq under the test. Fix in `Checks/Beat.cls`: a Tick's (RunDue's) skip with reason `SKIPEMPTY` adds no view (the row is still saved; Settle's recorded result, other skips, beats and RunNow, including a run-now held by an empty checklist, still add one). Pin it: a Tick test that a due person with an empty checklist gets a saved `empty` row and NO view/event (mutation: add the view back -> red), and update any existing test that expected an event for a Tick `empty` skip. Do NOT edit `web/e2e/**` (contended by Epic 11).
-- [ ] [CI] `.github/workflows/ci.yml`: the `checks` job's `timeout-minutes` from 15 to 20 (the Contest Planner's pre-ruling; a clean run takes about 13.7 minutes; same job, same name). Change no other job. `ci/checks.sh` already prints each script's elapsed seconds (`==== <name> passed|failed <n>s`): no change there. Run `docker/tests/test-ci-config.sh` after the edit.
+- [x] [CI] browser `live:sign-in` L10 (`web/e2e/live/live.spec.ts:405`) red on f20a41c2: `data-session-seq` 4, expected 3. Cause: a session with no checklist (heartbeat on by default) gets a Tick `empty` skip on its first tick, and 39.7 published it, moving the session stream's seq under the test. Fix in `Checks/Beat.cls`: a Tick's (RunDue's) skip with reason `SKIPEMPTY` adds no view (the row is still saved; Settle's recorded result, other skips, beats and RunNow, including a run-now held by an empty checklist, still add one). Pin it: a Tick test that a due person with an empty checklist gets a saved `empty` row and NO view/event (mutation: add the view back -> red), and update any existing test that expected an event for a Tick `empty` skip. Do NOT edit `web/e2e/**` (contended by Epic 11).
+- [x] [CI] `.github/workflows/ci.yml`: the `checks` job's `timeout-minutes` from 15 to 20 (the Contest Planner's pre-ruling; a clean run takes about 13.7 minutes; same job, same name). Change no other job. `ci/checks.sh` already prints each script's elapsed seconds (`==== <name> passed|failed <n>s`): no change there. Run `docker/tests/test-ci-config.sh` after the edit.
 - Integration AC -- Given a real Tick that runs a beat, when the page polls, then `Web.Api.EventsBody` (the real `/api/v1/events` body) serves it as `{type: "heartbeat", stream: "session", payload}`. The generated `HeartbeatPayload` types it, and the live store accepts the type.
 
 ### Review Findings
@@ -244,6 +244,28 @@ Rejected:
   - `[low]` `[reject]` Intent 2: the single publisher is not enforced by a test -- same as VGap 8.
   - `[low]` `[reject]` Intent 3: cross-person commit order inside one RunDue is tested only at the Beat level -- `AnnounceBeats` iterates the array in order and the Tick-level test pins the order of one person's two commits.
   - `[low]` `[reject]` Intent 4: the BeatNow publish-failure path is untested -- same root cause as Blind 4, fixed with it.
+
+### 2026-11-04 -- Review pass (CI rework, iteration 1; four layers)
+- verdicts: 18 findings -- high 0, medium 2, low 16, false 0, maybe-false 0 (a duplicate keeps its own row and verdict)
+- findings:
+  - `[low]` `[reject]` Blind 1: the Settle view goes stale when an empty skip follows it in one RunDue -- by design: the veto ruling makes the empty Tick skip silent, the row keeps it, and the next published commit carries it; spec-bound (AC 1, matrix row "Skip, empty checklist (tick)").
+  - `[low]` `[reject]` Blind 2: the page's schedule for an empty-checklist person lags the row -- same root cause as Blind 1; the amended AC 1 states it.
+  - `[medium]` `[patch]` Blind 3: the `runNow ||` half of the guard has no recorded mutation -- real (Rule 19); mutation A applied, red in `Beat.TestViewsInCommitOrder` and two `Runs` tests, lines added under Verification.
+  - `[low]` `[reject]` Blind 4: nothing pins `timeout-minutes` 20 -- the pin would live in `docker/tests/test-ci-config.sh`, outside the footprint (`docker/**`), and a config value has no AC to pin; closed with reopen_if a `checks` run is cancelled at the limit.
+  - `[low]` `[patch]` Blind 5: the new mutation heading carried a date ahead of the session date -- heading corrected to 2026-11-04 (the lead's own dated entries are left as written).
+  - `[low]` `[patch]` Blind 6: the test header says "the other skips ... each give one" and tests one -- reworded to the back-off skip it exercises; a whitespace-only checklist case is not added (`Skip` is covered by `TestSkipOrder`).
+  - `[low]` `[reject]` Edge 1: stale state after an earlier skip when the checklist is cleared -- same root cause as Blind 1.
+  - `[low]` `[reject]` Edge 2: suggestion to publish once when the reason changes to empty -- would contradict the veto ruling (no event for the empty Tick skip); every event moves the session seq.
+  - `[low]` `[reject]` Edge 3: the unamended "Always" bullet lists a skip as publishing -- the fix edits the spec's intent block, which this build does not do; AC 1 and the matrix row carry the exception.
+  - `[low]` `[reject]` Edge 4: the Tick test no longer pins an hours skip -- the guard keys on the reason `empty` alone, and `Beat.TestSkipsAreRecordedByRunDue` and `TestViewsInCommitOrder` cover the other reasons' views; a back-off exercises the same branch.
+  - `[low]` `[reject]` Edge 5: `ci.yml` is not in the Footprint -- the `[CI]` task names it; the fix edits the spec.
+  - `[low]` `[reject]` VGap 1: nothing pins `timeout-minutes` 20 -- same as Blind 4.
+  - `[medium]` `[patch]` VGap 2: mutations for `runNow ||` and for a guard widened to every RunDue skip are not recorded -- same root cause as Blind 3; both applied and observed red, lines added.
+  - `[low]` `[reject]` VGap 3: the pending-decision block repeats the DW-711 shape (a production's Tick could settle first) -- the throwaway test stack runs no production, so no Tick can reach the seeded row; no further entry.
+  - `[low]` `[reject]` VGap 4 (other): the browser symptom is not run by any check in the diff -- run in this pass: `ci/iris.sh live sign-in --part 2/2` (holds `live.spec.ts`, L10) passed, 116 tests.
+  - `[low]` `[reject]` Intent 1: the `Process.cls` class comment does not mention the `empty` exception -- outside this pass's footprint; `Beat.cls` states it, and the comment's "committed row" still holds.
+  - `[low]` `[reject]` Intent 2: the matrix row "Skip" is now exercised by a back-off, not hours -- same as Edge 4.
+  - `[low]` `[reject]` Intent 3: the browser surface is not exercised by the diff's tests -- same as VGap 4.
 
 ## Design Notes
 
@@ -347,6 +369,12 @@ Mutation results (this pass; each applied, observed red, reverted byte-identical
 - mutation: `HeartbeatPayload` removed from the traced list in `payloads.test.mjs` -- red "is on exactly the interfaces that have both traceHeaderId and traceNamespace" (the same test was red before the edit, at the implement halt).
 - mutation: `GuideRefresh.TestNonTriggerTypes` at 8 instead of 9 -- red on the first fresh `shard lane-b@Live` after the pair joined TYPES ("eight types are neither a trigger nor guide.state").
 
+Mutation results (CI rework, 2026-11-04; lane D, tag `e39s7rww` warm, torn down; applied, observed red, reverted from a backup, the file byte-identical afterwards):
+- mutation: `Beat.Run` adds the view for a RunDue skip with reason `empty` again (the `If runNow || (reason '= ..#SKIPEMPTY)` guard removed) -> red `Beat.TestRunDueEmptySkipGivesNoView` ("but only the back-off skip gives a view, and the empty one gives none", "an empty skip of a person with a row gives no view", "the recorded result gives one view") and `Runs.TestTickPublishesTheBeats` ("and publishes no event", "the others, not due, publish nothing more") and `Runs.TestPublishedEventsHoldNoRefChecklistOrKey` (H's event count).
+- mutation: `Beat.Run` drops `runNow ||` from the guard (a held run now adds no view) -> red `Beat.TestViewsInCommitOrder` ("it is held, with one view") and `Runs.TestBeatNowPublishes` ("and publishes one event") and `TestPublishedEventsHoldNoRefChecklistOrKey` ("H's held run now (its Tick skip published none) holds no SessionRef"); warm.
+- mutation: `Beat.Run` widens the guard to `If runNow` (every RunDue skip adds no view) -> red `Beat.TestRunDueEmptySkipGivesNoView` ("but only the back-off skip gives a view, and the empty one gives none") and `TestViewsInCommitOrder` ("three views: ..."), `Runs.TestTickPublishesTheBeats` ("a skip publishes one event"), `TestTickPublishesEachCommitInOrder` ("two commits publish two events") and `TestPublishedEventsHoldNoRefChecklistOrKey`; warm. `Beat.cls` restored from the backup, `cmp` identical, both classes green again.
+- no mutation for the `checks` job's `timeout-minutes` (15 to 20): a config value no test pins; checked by the one-line diff and `docker/tests/test-ci-config.sh` (exit 0).
+
 **Shared surfaces:**
 - `Test.Live.GuideRefresh.TestNonTriggerTypes` counts the types that are neither a trigger nor `guide.state` (8 to 9); it is outside the listed Footprint and in no open epic's diff (11, 33, 40), a footprint extension;
 - `Live.Publish` TYPES and its count (`Test.Live.Payloads` `EXPECTED`, `TestEventTable`);
@@ -387,31 +415,24 @@ Runs after the review patches: warm `Test.Checks.Runs`, `Test.Live.Payloads` and
 Status: done
 Blocking condition: none
 
-Pass: the continuation of the implement stage (2026-11-04, runner D; baseline `5bc59f8b26d2e8f573e47984a7319392861e43d1`). It covers only this pass; the earlier pass's implementation was already in the tree.
+Pass: rework iteration 1 of the implement stage (2026-11-04, runner D; baseline `6c00ff1d392f1e7817caa650bb9ab9e11f22ac35`). It covers only the two `[CI]` items.
 
-**Summary.** The `[Clarification]` item is done (`'HeartbeatPayload'` added to the traced list in `web/scripts/payloads.test.mjs`, nothing else in that file). The remaining Verification then ran: `npm --prefix web test` (1330 pass), `lint`, `build` and `payloads.mjs --check` are green; `ci/iris.sh build`; the `lane-a@Checks` and `lane-b@Live` shards pass fresh, forward and `--reverse`, on lane-D throwaways; `test-ci-config.sh` and `test-boundaries.sh` pass. The review layers (four, in parallel) reported 29 findings: 6 medium, 22 low, 1 false, no high. The fresh `lane-b@Live` run found one more shared surface, `Test.Live.GuideRefresh.TestNonTriggerTypes` (8 to 9 non-trigger types), fixed here.
+**Summary.** `Beat.Run` adds no view for a RunDue skip with reason `empty` (the row is still saved); Settle's result, the other skips, beats and every RunNow (a run now held by an empty checklist too) still add one. The `checks` job's `timeout-minutes` is 20.
 
 **Files changed in this pass.**
-- `web/scripts/payloads.test.mjs`: one name in the traced-interface list.
-- `src/ocutalon/cls/OcuTalon/Test/Live/GuideRefresh.cls`: the count of non-trigger types, 8 to 9 (footprint extension, in no epic's diff for 11, 33 or 40).
-- `src/ocutalon/cls/OcuTalon/Test/Checks/Probe.cls`: `BeatPublishSecret` and `BeatPublishedAfter` (the kept Items at each publish).
-- `src/ocutalon/cls/OcuTalon/Test/Checks/Runs.cls`: `TestBeatPublishFailureIsLogged` now covers the redaction, the order after the sends and a BeatNow; new `TestBeatPublishesWhatRunDueCommittedBeforeAnError`.
-- `src/ocutalon/cls/OcuTalon/Test/Live/Payloads.cls`: the all-day shape in `TestHeartbeatFromRow`.
-- `src/ocutalon/cls/OcuTalon/Checks/Beat.cls`: one doc phrase (a cooldown with nothing pending).
+- `src/ocutalon/cls/OcuTalon/Checks/Beat.cls`: the guard in `Run` and the `Run` and class docs.
+- `src/ocutalon/cls/OcuTalon/Test/Checks/Beat.cls`: new `TestRunDueEmptySkipGivesNoView`.
+- `src/ocutalon/cls/OcuTalon/Test/Checks/Runs.cls`: `TestTickPublishesTheBeats` (a back-off skip, plus an empty-checklist person with a saved row and no event) and `TestPublishedEventsHoldNoRefChecklistOrKey` (H gives one event).
+- `.github/workflows/ci.yml`: `checks` job `timeout-minutes` 15 to 20.
+- This spec: the `[CI]` items ticked, the mutation lines, the triage entry.
 
-**Review.** Patches applied: 4 entries at medium (BeatNow publish failure, all-day shape, redaction, views after a RunDue error) and 2 at low (the order after the sends, the Beat doc phrase; the missing mutation lines). Deferred: none. Rejected, each with its reason in the Review Triage Log: the `AddView` and `Settle` throw cases (theoretical, a guard adds a branch), the crash-before-publish replay (by design, the next commit republishes the full view), the helper duplication in four test classes (LOW, accepted), the web-store test, the orphan stream, the busy-stream stall, the unguarded log call, the traceUrl and CodeRules scanner requests, and the transaction claim (`Publish` refuses an open transaction).
+**Review.** Patches applied: 2 at medium (the same root cause: two missing mutation lines, both mutations run) and 2 at low (the test header wording, a heading date). Deferred: none. Rejected: 14 low, each with its reason in the Review Triage Log.
 
-**Open points (c), judged.** (1) An all-day person's empty `from`/`to` are omitted from the JSON, as in the sibling payloads; pinned now. (2) `BeatPublishError` and `BeatPublishThrows` are lists of refs, so one person's publish fails while the others succeed; sound. (3) The throw path is covered.
+**Follow-up review recommended:** false. No high was patched on this follow-up pass.
 
-**Follow-up review recommended:** false. Four medium entries were patched (two or more would make it true), but each is pinned by a mutation that was observed red and reverted, so no unverified risk can be named.
+**Verification performed (lane D; tags `e39s7rw` fresh, `e39s7rww` warm, both torn down).**
+- Warm: `Test.Checks.Beat` and `Test.Checks.Runs` passed; three mutations observed red and reverted (`Beat.cls` byte-identical).
+- Fresh: `shard lane-a@Checks` forward and `--reverse` (8 classes each) and `shard lane-b@Live` (4 classes) passed. `npm --prefix web test` 1331 pass. `test-ci-config.sh` and `test-boundaries.sh` exit 0.
+- Browser: `ci/iris.sh live sign-in` as one unit passed 247 of 254 tests and stopped at the harness's global timeout (about 408 s; 7 not run, none failed). Run as `--part 1/2` (138 passed) and `--part 2/2` (116 passed; it holds `live.spec.ts`, so L10) on fresh stacks, both exit 0.
 
-**Verification performed (all foreground; lane D, tags `e39s7i2` fresh and `e39s7i2w` warm, both torn down).**
-- `npm --prefix web run payloads` then `payloads.mjs --check`: current. `npm --prefix web test`: 1330 pass, 0 fail. `lint` 0, `build` 0 (only the existing style-budget warnings).
-- `ci/iris.sh build`: OK. Fresh shards after the last change: `lane-a@Checks` forward and reverse (8 classes each; `Runs` 1.9 s, `Heartbeat` 12.3 s) and `lane-b@Live` forward and reverse (4 classes), all passed. One earlier fresh `lane-b@Live` run failed `GuideRefresh.TestHeldLock` ("its event is committed") and passed on the next forward and reverse runs with no code change: the held-lock flake already ledgered as DW-349 (this change touches `Publish.cls` on the TYPES line only).
-- Warm: `Test.Checks.Runs`, `Test.Live.Payloads`, `Test.Checks.Beat` and `Test.Contract.Checker` passed.
-- `test-ci-config.sh` and `test-boundaries.sh`: exit 0. No non-ASCII byte in a changed file. `git diff --name-only 5bc59f8b` lists the Footprint files, `GuideRefresh.cls`, the spec and the lead's cycle log (committed earlier).
-- Mutations: seven, listed under Verification, each red and reverted byte-identical.
-
-**Residual risks.** The `GuideRefresh.TestHeldLock` flake (DW-349) can show red on a fresh shard. Added test time: about 1 s in `lane-a` (`Runs`) and under 1 s in `lane-b`.
-
-**footprint_extensions:** `web/scripts/payloads.test.mjs` (ruled), `src/ocutalon/cls/OcuTalon/Test/Live/GuideRefresh.cls` (new, a shared-surface count).
+**Residual risks.** The `checks` timeout is pinned by no test. `GuideRefresh.TestHeldLock` (DW-349) can flake on a fresh `lane-b@Live` shard.

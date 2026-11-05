@@ -25,6 +25,8 @@
 ///     reopened row at that point: a recorded ignore then the unchanged skip of one RunDue (two views), an off person's recorded decision, nothing for a person
 ///     who is not due or is off with nothing pending, a run now that sends (also after a recorded decision), a run now that is held, and a cooldown (nothing, or
 ///     only the recorded result of a pending decision);
+///   - TestRunDueEmptySkipGivesNoView (Story 39.7, CI rework; AC 1): a RunDue skip for an empty checklist is saved with its reason and gives no view, a back-off skip still does,
+///     and a pending decision's recorded result is still viewed;
 ///   - TestFailedCommitsGiveNoView (Story 39.7, QA; AC 3): a recorded decision that cannot be saved, a row refused as a duplicate and a RunNow that cannot settle give no view,
 ///     and the person after a failure still gives a view for each of its commits.
 Class OcuTalon.Test.Checks.Beat Extends OcuTalon.Test.Contract
@@ -736,6 +738,41 @@ Method TestViewsInCommitOrder()
 	Do $$$AssertEquals(..ViewJson(.views, 1), ..RowJson(held), "which is FromRow of the reopened row")
 	Set view = ##class(%DynamicObject).%FromJSON(..ViewJson(.views, 1))
 	Do $$$AssertEquals(view.lastRunNowAt_"|"_view.%IsDefined("lastSkipAt")_"|"_view.%IsDefined("lastBeatAt"), noon_"|0|0", "with lastRunNowAt, and no skip and no beat")
+}
+
+/// Story 39.7 (CI rework; AC 1): a RunDue skip for an empty checklist saves the row (the skip's time, the reason empty and the moved schedule) and gives no view, while
+/// a back-off skip of the same RunDue gives one, and a run now held for the same empty checklist still gives one (TestViewsInCommitOrder). A person with an empty
+/// checklist and a recorded decision pending still gives the recorded result's view, and no view for the empty skip after it. The times are fixed (2099).
+Method TestRunDueEmptySkipGivesNoView()
+{
+	Set noon = ..Local("12:00")
+
+	// a due person with an empty checklist (no row yet), and one with a back-off: only the back-off is viewed
+	Set bare = ..Person("")
+	Set backoff = ..Person("c", {"NextDueAt": (noon), "BackoffUntil": (..Plus(noon, 600))})
+	Set both = bare_","_backoff
+	Do $$$AssertStatusOK(..BDue(noon, .items, both, 0, 1, .views), "RunDue is OK")
+	Do $$$AssertEquals(items.Count(), 0, "no beat runs")
+	Set row = ..Open(bare)
+	Do $$$AssertTrue($IsObject(row), "the person with an empty checklist gets a row")
+	If $IsObject(row) Do $$$AssertEquals(row.LastSkipAt_"|"_row.LastSkipReason_"|"_row.NextDueAt, noon_"|empty|"_..Plus(noon, 1800), "which holds the empty skip and the moved schedule")
+	Do $$$AssertEquals(..ViewRefs(.views, both), "1:2", "but only the back-off skip gives a view, and the empty one gives none")
+	Do $$$AssertEquals(..ViewJson(.views, 1), ..RowJson(backoff), "which is FromRow of the reopened row")
+
+	// the empty person alone: no view at all
+	Set alone = ..Person("", {"NextDueAt": (noon)})
+	Do $$$AssertStatusOK(..BDue(noon, .items, alone, 0, 1, .views), "RunDue is OK for a row that is due")
+	Do $$$AssertEquals(+$Get(views), 0, "an empty skip of a person with a row gives no view")
+	Do $$$AssertEquals(..Open(alone).LastSkipReason, "empty", "and the row is saved with the reason")
+
+	// a pending decision is still viewed, the empty skip after it is not
+	Set pending = ..Person("", {"NextDueAt": (..Plus(noon, -60)), "LastItemId": "itemempty"})
+	Do ..Decision(pending, "itemempty", {"Outcome": "ignore"})
+	Do $$$AssertStatusOK(..BDue(noon, .items, pending, 0, 1, .views), "RunDue is OK for a pending decision")
+	Do $$$AssertEquals(..ViewRefs(.views, pending), "1:1", "the recorded result gives one view")
+	Set recorded = ##class(%DynamicObject).%FromJSON(..ViewJson(.views, 1))
+	Do $$$AssertEquals(recorded.lastOutcome_"|"_recorded.%IsDefined("lastSkipAt"), "ignore|0", "which holds the result and no skip")
+	Do $$$AssertEquals(..Open(pending).LastSkipReason, "empty", "while the row has the empty skip")
 }
 
 /// Story 39.7 (QA; AC 3): a commit that fails gives no view. RunDue and RunNow view only a row that was saved: a person whose recorded decision cannot be saved

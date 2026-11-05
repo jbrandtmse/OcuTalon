@@ -54,7 +54,7 @@
 ///   - TestBeatsRunWhateverEarlierStepsDo (Story 39.1): a Sweep that throws and a due row that throws do not stop RunDue, and the Tick answers OK; a Tick whose TickAt is not a UTC stamp gives
 ///     RunDue the Tick's own current time (a UTC stamp), never the bad text; a CheckChanged calls neither RunDue nor RunNow;
 ///   - TestTickPublishesTheBeats (Story 39.7; AC 1-3): with the probe made to run the real Beat, a Tick publishes one heartbeat event for each committed row, FromRow of the row, on the
-///     person's stream and in commit order: a beat that runs, a skip, a recorded result (with a fallback's back-off and the decision's trace), and a recorded ignore then the
+///     person's stream and in commit order: a beat that runs, a skip (a back-off; the skip for an empty checklist is saved and publishes none), a recorded result (with a fallback's back-off and the decision's trace), and a recorded ignore then the
 ///     unchanged skip of one person (two events, in that order); a Tick that commits nothing publishes nothing, and no event holds the SessionRef or the checklist;
 ///   - TestTickPublishesEachCommitInOrder (Story 39.7; AC 1): a pending ignore and the beat due at the same Tick commit twice, so two events go out, the recorded ignore
 ///     first and the unchanged skip second, the second FromRow of the row;
@@ -63,7 +63,7 @@
 ///     case and without a secret in the error text, the Tick answers OK, the Item is still sent, the events go out only after the sends and the other people's events are still
 ///     published, and a BeatNow whose publish fails still answers sent and publishes only after its Item is sent; the warnings counted and removed are those that hold the probe's own error text;
 ///   - TestPublishedEventsHoldNoRefChecklistOrKey (Story 39.7, QA; AC 2): every event of a recorded ignore with the unchanged skip, a beat with its recorded fallback, a run now
-///     that is sent, and a skip with a held run now holds none of the SessionRef (in any case), the checklist, the Item's Id, the decision's Ref and the snapshot keys of the row, and only keys of the view;
+///     that is sent, and a run now that is held holds none of the SessionRef (in any case), the checklist, the Item's Id, the decision's Ref and the snapshot keys of the row, and only keys of the view;
 ///   - TestOffPersonsRecordedResultIsPublishedWithTheirSettings (Story 39.7, QA; AC 1, AC 3): an off person's recorded decision is published with off, the interval, the hours, the cost
 ///     and the trace of the person's own settings and decision, and a later Tick publishes nothing for them;
 ///   - TestBeatPublishesWhatRunDueCommittedBeforeAnError (Story 39.7): the view of a beat that committed before RunDue answered an error status is published;
@@ -1093,12 +1093,17 @@ Method TestTickPublishesTheBeats()
 	Set b = ..Owner("pubskip")
 	Set c = ..Owner("pubquiet")
 	Set d = ..Owner("pubresult")
+	Set e = ..Owner("pubempty")
 	Do ..Beating(a, "check the orders zzsecret"_..Number)
-	Do ..Beating(b, "")
+	Do ..Beating(b, "check the orders")
+	Set row = ##class(OcuTalon.Data.HeartbeatBeat).SessionRefIndexOpen(b)
+	Set row.BackoffUntil = ##class(OcuTalon.Bridge.Time).PlusSeconds(..#TICK, 600)
+	Do $$$AssertStatusOK(row.%Save(), "B is in a back-off")
+	Do ..Beating(e, "")
 	Do ..Beating(c, "check the orders")
 	Do ##class(OcuTalon.Data.Setting).Set($ClassMethod("OcuTalon.Checks.Beat", "SettingKey", c, "on"), 0)
 	Do ..Beating(d, "check the queue")
-	Set host.BeatSessions = a_","_b_","_c_","_d
+	Set host.BeatSessions = a_","_b_","_c_","_d_","_e
 	Do ..Tick(host, ..#TICK)
 
 	// a beat that runs
@@ -1116,9 +1121,14 @@ Method TestTickPublishesTheBeats()
 	Do $$$AssertEquals(events.%Size(), 1, "a skip publishes one event")
 	If events.%Size() = 1 {
 		Set payload = events.%Get(0).payload
-		Do $$$AssertEquals(payload.lastSkipAt_"|"_payload.lastSkipReason_"|"_payload.nextDueAt_"|"_payload.%IsDefined("lastBeatAt"), ..#TICK_"|empty|"_tail_"|0", "with the skip's time and reason and the moved schedule")
+		Do $$$AssertEquals(payload.lastSkipAt_"|"_payload.lastSkipReason_"|"_payload.nextDueAt_"|"_payload.%IsDefined("lastBeatAt"), ..#TICK_"|backoff|"_tail_"|0", "with the skip's time and reason and the moved schedule")
 		Do $$$AssertEquals(payload.%ToJSON(), ..BeatViewOf(b), "and it is FromRow of the row")
 	}
+
+	// a skip for an empty checklist: saved, and no event
+	Set row = ##class(OcuTalon.Data.HeartbeatBeat).SessionRefIndexOpen(e)
+	Do $$$AssertEquals(row.LastSkipAt_"|"_row.LastSkipReason_"|"_row.NextDueAt, ..#TICK_"|empty|"_tail, "a Tick's skip for an empty checklist is saved with its reason and the moved schedule")
+	Do $$$AssertEquals(..BeatEvents(e).%Size(), 0, "and publishes no event")
 
 	// nothing committed: an off person with nothing pending
 	Do $$$AssertEquals(..BeatEvents(c).%Size(), 0, "an off person with nothing pending publishes nothing")
@@ -1136,7 +1146,7 @@ Method TestTickPublishesTheBeats()
 		Do $$$AssertEquals(payload.backoffUntil, ##class(OcuTalon.Bridge.Time).PlusSeconds(..#NEXT, 14400), "and the back-off a fallback sets")
 		Do $$$AssertEquals(payload.%ToJSON(), ..BeatViewOf(d), "and it is FromRow of the row")
 	}
-	Do $$$AssertEquals(..BeatEvents(a).%Size()_"|"_..BeatEvents(b).%Size()_"|"_..BeatEvents(c).%Size(), "1|1|0", "the others, not due, publish nothing more")
+	Do $$$AssertEquals(..BeatEvents(a).%Size()_"|"_..BeatEvents(b).%Size()_"|"_..BeatEvents(c).%Size()_"|"_..BeatEvents(e).%Size(), "1|1|0|0", "the others, not due, publish nothing more")
 	Do ..Tick(host, ..#NEXT)
 	Do $$$AssertEquals(..BeatEvents(d).%Size(), 2, "and a Tick that commits nothing publishes nothing")
 }
@@ -1276,7 +1286,7 @@ Method TestBeatPublishesWhatRunDueCommittedBeforeAnError()
 }
 
 /// Story 39.7 (QA; AC 2): every heartbeat event that a real Tick or BeatNow publishes, whichever way its row was committed (a recorded ignore and the unchanged skip of
-/// one Tick, a beat and its recorded fallback, a run now that is sent, a skip and a run now that is held), holds none of the SessionRef (in any case), the checklist,
+/// one Tick, a beat and its recorded fallback, a run now that is sent, a run now that is held), holds none of the SessionRef (in any case), the checklist,
 /// the Item's Id, the decision's Ref and the two snapshot keys that the row holds then, and no key outside the view's. TestTickPublishesTheBeats and
 /// TestBeatNowPublishes look for the SessionRef and the checklist in a beat's event only.
 Method TestPublishedEventsHoldNoRefChecklistOrKey()
@@ -1312,11 +1322,11 @@ Method TestPublishedEventsHoldNoRefChecklistOrKey()
 	Do ..Tick(host, ..#NEXT)
 	Do $$$AssertEquals(..NoLeaks(f, checklist, 5), 2, "F's beat and its recorded fallback hold none of them")
 
-	// n: a run now that is sent; h: a skip, then a run now that is held
+	// n: a run now that is sent; h: a Tick's skip for its empty checklist (no event), then a run now that is held
 	Do $$$AssertEquals(..BeatNowOf(host, n, ..At(5)).Outcome, "sent", "N's run now is sent")
 	Do $$$AssertEquals(..NoLeaks(n, checklist, 4), 2, "N's beat and its run now hold none of them")
 	Do $$$AssertEquals(..BeatNowOf(host, h, ..At(5)).Outcome, "empty", "H's run now is held")
-	Do $$$AssertEquals(..NoLeaks(h, "", 1), 2, "H's skip and its held run now hold no SessionRef")
+	Do $$$AssertEquals(..NoLeaks(h, "", 1), 1, "H's held run now (its Tick skip published none) holds no SessionRef")
 }
 
 /// Story 39.7 (QA; AC 1, AC 3): an off person's recorded decision is published with the person's own settings (off, the interval and the hours) and the result's cost and
