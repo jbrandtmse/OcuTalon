@@ -180,3 +180,6 @@
 2026-11-05T04:16:20Z	Epic 40	planner_ruling	subject=yield_at_40.4_boundary by=Contest_Planner_owner_delegation via=orchestrator at=2026-11-05T04:1xZ rule=no_yield_on_Epic_33_merge;at_40.4_boundary(committed,pushed,CI_resolved)_report_Clarification_Needed;do_not_start_40.5_implement_until_answered
 2026-11-05T04:17:01Z	Story 40.4	committed	sha=960ea5d3 submodules= ci=pending runs=41966773001,41966772999 amendments=epics.md_40.6_DW-709_bullet
 2026-11-05T04:17:01Z	Story 40.4	story_cycle	plan_to_commit_min=495 implement_passes=1 reviews=1 rework=0 first_ci=pending models=plan:opus,implement:sonnet,qa:sonnet,cr:opus note=includes_integrate_forward_and_DW-692_diagnosis_waits
+2026-11-05T05:19:29Z	Story 40.4	ci_red_classified	run=41966773001 attempt=1 workflow=.github/workflows/ci.yml class=flake test=iris(image)_shard_lane-b_Test.Web.GuideApi ledger=DW-453_occurrence(logged_by_orchestrator) action=rerun_by_orchestrator
+2026-11-05T05:19:29Z	Story 40.4	ci_resolved	story=40.4 sha=960ea5d3 runs=41966773001,41966772999 result=success failed=none via=none resolved_at=next_plan ci_queue=0 note=attempt_2_green_after_DW-453_flake_rerun
+2026-11-05T05:19:29Z	Epic 40	yield	story_boundary=40.4 to=epic-17 decided_by=orchestrator(Planner_rule_2026-11-05) note=runner_B_not_within_2h_of_Epic_11_part-merge;Epic_40_moves_to_runner_B_lane_B_slot_B_after_that
