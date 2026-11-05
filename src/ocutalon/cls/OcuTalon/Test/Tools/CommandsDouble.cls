@@ -23,6 +23,7 @@
 ///       ^OcuTalonTest("CommandsDouble","refuseRef",<a reminder's Ref>) = <message>: a CancelReminder of that ReminderRef is refused the same way, and one of
 ///         any other Ref is answered as usual;
 ///       ^OcuTalonTest("CommandsDouble","data") = <text>: ListReminders is answered with that text as its Data;
+///       ^OcuTalonTest("CommandsDouble","outcome") = <word>: ProposePersona is answered Ok with that word as its Outcome;
 ///       ^OcuTalonTest("CommandsDouble","fail") = 1: OnProcessInput returns an error status, after it has recorded the command; any other text is the
 ///         message of that status;
 ///       ^OcuTalonTest("CommandsDouble","empty") = 1: OnProcessInput returns an OK status and no result, after it has recorded the command.
@@ -91,7 +92,7 @@ Method OnProcessInput(pInput As %RegisteredObject, Output pOutput As %Registered
 		Set result.Data = {"state": "closed", "openVariant": ""}.%ToJSON()
 	} ElseIf verb = "ProposePersona" {
 		Set result.Ok = 1
-		Set result.Outcome = "proposed"
+		Set result.Outcome = $Get(^OcuTalonTest("CommandsDouble", "outcome"), "proposed")
 		Set result.Message = "The CI double raised the request."
 		Set result.Ref = ..#PROPOSEREF
 	} ElseIf verb = "ListReminders" {

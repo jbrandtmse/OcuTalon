@@ -1,6 +1,6 @@
 /// The Chat agent (AD-6, AD-7): answers the user's messages in a conversation. Its instructions fix the writing rules, which a persona block may bend only as their persona paragraph says. Its tools are the
 /// reminder tools of OcuTalon.Tools.Reminders (set_reminder, list_reminders and cancel_reminder), the watch tools of OcuTalon.Tools.Watching
-/// (start_watch, stop_watch, list_productions, dismiss_incident and check_status) (AD-18, AD-28) and the persona tool of OcuTalon.Tools.Persona
+/// (start_watch, stop_watch, list_productions, dismiss_incident, check_status and recent_activity) (AD-18, AD-28) and the persona tool of OcuTalon.Tools.Persona
 /// (propose_persona, Epic 40). The tools' descriptions tell the model the two ways to give a due time, so the
 /// instructions say nothing of them. The instructions carry the sentences of the watch answers (AD-32: the tools return outcomes and values,
 /// never sentences): the confirmation of a started watch is the UX text, and the texts for an unknown production and for the online demo are those

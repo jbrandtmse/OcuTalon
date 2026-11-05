@@ -8,6 +8,7 @@
 ///     none names a session, an owner or an origin; the toolset holds no Requirement;
 ///   - TestProposeUserTurn (AC4): in a user turn of owner S, propose_persona submits one ProposePersona with origin tool, SessionRef S, the key <ItemId>:1 and the
 ///     preset pirate and no other field, and answers ok, outcome proposed, the owner's message and the owner's Ref;
+///   - TestProposedWhateverTheOwnerSays (AC4): with the double answering Ok and the outcome raised, the model still reads proposed;
 ///   - TestProposeFields (AC4): language and custom reach the owner as given, each only when the model gave it;
 ///   - TestOwnerRefuses (AC4): the owner's refusal reaches the model with its message, its outcome and no ref;
 ///   - TestNoSession (AC4): no context, an owner that is not a session's Ref or an empty ItemId submits nothing and answers NOSESSION;
@@ -16,6 +17,11 @@
 ///   - TestProposeThroughATurn (AC4): a real turn of the Chat agent against the CI mock (scenario persona-propose) submits one ProposePersona with origin tool, the
 ///     turn's owner and the key <ItemId>:1; the model's second request offers propose_persona and carries the tool result; the steps are model, tool (Suggesting
 ///     a persona) and model.
+/// Added by the QA stage (AC4, AC5, AC6), each a real turn of the Chat agent against the same mock scenario:
+///   - TestOnlineDemoThroughATurn (AC6): with onlineDemo 1 the model reads not_available with the owner's MESSAGENOTALLOWED and the double records nothing;
+///   - TestOwnerRefusalThroughATurn (AC4): the owner's refusal reaches the model as {"ok": false, "outcome": "refused", "message": M} with no ref;
+///   - TestUntrustedTurnDenied (AC5): an untrusted turn of Chat has its propose_persona call denied with UNTRUSTED, the double records nothing and the model
+///     reads the sentence.
 Class OcuTalon.Test.Tools.Persona Extends %UnitTest.TestCase
 {
 
@@ -169,6 +175,20 @@ Method TestProposeUserTurn()
 	If calls.%Size() = 1 Do $$$AssertEquals(calls.%Get(0).fields.Preset, "pirate", "with the preset that the model gave")
 }
 
+/// The model reads proposed whatever word the owner's Ok answer carries (AC4): the double answers Ok with the outcome raised, and the answer is still
+/// ok, outcome proposed, the owner's message and the owner's Ref.
+Method TestProposedWhateverTheOwnerSays()
+{
+	If '..Prepare() Quit
+	Set owner = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set itemId = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set ^OcuTalonTest("CommandsDouble", "outcome") = "raised"
+	Do ..Begin(owner, itemId)
+	Set answer = ##class(OcuTalon.Tools.PersonaTools).ProposePersona("pirate")
+	Do ..AssertObject(answer, ..Proposed(), "the model reads proposed, not the owner's word raised")
+	Do $$$AssertEquals(..Calls().%Size(), 1, "the double recorded the command")
+}
+
 /// The language and the custom text reach the owner as given, each only when the model gave it (AC4): the tool validates nothing.
 Method TestProposeFields()
 {
@@ -281,6 +301,93 @@ Method TestProposeThroughATurn()
 	Do $$$AssertEquals($ClassMethod(..#FIXTURE, "StepProblems", answer.DecisionRef, session, $ListBuild("Suggesting a persona"), $ListBuild("propose_persona"), "ChatAgent"), "", "the steps of the turn are right")
 }
 
+/// With the online demo on (AC6; scenario persona-propose), a real turn of the Chat agent that calls propose_persona gets not_available with the owner's own
+/// message (CommandsIn MESSAGENOTALLOWED): the double records no command, the context's tool still ran (the tool answered), and the model's second request
+/// carries exactly that answer and offers the tool. The setting is put back by OnAfterOneTest.
+Method TestOnlineDemoThroughATurn()
+{
+	If '..Prepare() Quit
+	Set ..Before = ##class(OcuTalon.Data.Public.Settings).Get("onlineDemo")
+	Set ..Saved = 1
+	Do $$$AssertStatusOK(##class(OcuTalon.Data.Public.Settings).Set("onlineDemo", 1), "the online demo is on")
+	Set owner = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set sc = ..Turn("Please talk like a pirate. [[mock:persona-propose]]", owner, .request, .answer, .session, .requests)
+	If '..AssertTurn(sc, answer, request, "The CI mock suggested the persona.") Quit
+	Do $$$AssertEquals(..Calls().%Size(), 0, "the double recorded no command")
+	Do $$$AssertEquals(requests.%Size(), 2, "the mock logged two requests")
+	If requests.%Size() = 2 {
+		Do $$$AssertTrue(","_##class(OcuTalon.Test.Agent.RunnerFixture).ToolNames(requests.%Get(1))_"," [ ",propose_persona,", "the second request offers propose_persona")
+		Set results = ##class(OcuTalon.Test.Agent.RunnerFixture).ToolResults(requests.%Get(1))
+		Do $$$AssertEquals($ListLength(results), 1, "and carries one tool result")
+		If $ListLength(results) = 1 Do ..AssertObject($List(results, 1), {"ok": false, "outcome": "not_available", "message": ($Parameter("OcuTalon.Core.CommandsIn", "MESSAGENOTALLOWED"))}, "the model reads not_available with the owner's message")
+	}
+	Do $$$AssertEquals($ClassMethod(..#FIXTURE, "StepProblems", answer.DecisionRef, session, $ListBuild("Suggesting a persona"), $ListBuild("propose_persona"), "ChatAgent"), "", "the steps of the turn are right")
+}
+
+/// The owner's refusal in a real turn (AC4; scenario persona-propose): the double refuses ProposePersona with a message M, and the model's second request
+/// carries {"ok": false, "outcome": "refused", "message": M} with no ref. The tool still submitted once, with origin tool, the turn's owner and the key
+/// <ItemId>:1.
+Method TestOwnerRefusalThroughATurn()
+{
+	If '..Prepare() Quit
+	Set message = "That is not a persona OcuTalon has. Nothing was changed."
+	Set ^OcuTalonTest("CommandsDouble", "refuse", "ProposePersona") = message
+	Set owner = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set sc = ..Turn("Please talk like a pirate. [[mock:persona-propose]]", owner, .request, .answer, .session, .requests)
+	If '..AssertTurn(sc, answer, request, "The CI mock suggested the persona.") Quit
+	Set calls = ..Calls()
+	Do $$$AssertEquals(calls.%Size(), 1, "the double recorded one command")
+	If calls.%Size() = 1 Do ..AssertCall(calls.%Get(0), owner, request.ItemId_":1", "IdempotencyKey,Origin,Preset,SessionRef", "ProposePersona")
+	Do $$$AssertEquals(requests.%Size(), 2, "the mock logged two requests")
+	If requests.%Size() = 2 {
+		Set results = ##class(OcuTalon.Test.Agent.RunnerFixture).ToolResults(requests.%Get(1))
+		Do $$$AssertEquals($ListLength(results), 1, "the second request carries one tool result")
+		If $ListLength(results) = 1 Do ..AssertObject($List(results, 1), {"ok": false, "outcome": "refused", "message": (message)}, "the model reads the owner's refusal, with no ref")
+	}
+}
+
+/// An untrusted turn of the Chat agent (AC5; scenario persona-propose): the model calls propose_persona, the gate denies it with UNTRUSTED through AI Hub, the
+/// method does not run and the double records no command, the turn has one denied tool step, and the model's second request carries the sentence of the
+/// denial, not an answer of the owner.
+Method TestUntrustedTurnDenied()
+{
+	If '..Prepare() Quit
+	Set untrusted = $Parameter("OcuTalon.Bridge.Policy.Gate", "UNTRUSTED")
+	Set owner = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Set sc = ..Turn("Please talk like a pirate. [[mock:persona-propose]]", owner, .request, .answer, .session, .requests, "untrusted")
+	Do $$$AssertStatusOK(sc, "Decide answers the untrusted turn")
+	If '$IsObject(answer) || 'answer.%IsA("OcuTalon.Bridge.Msg.Reply") {
+		Do $$$AssertTrue(0, "the answer is a Reply")
+		Quit
+	}
+	Set tools = []
+	For poll = 0:1:40 {
+		Set steps = ##class(OcuTalon.Test.Agent.RunnerFixture).StepsOf(answer.DecisionRef)
+		Set tools = []
+		Set iterator = steps.%GetIterator()
+		While iterator.%GetNext(, .step) {
+			If step.kind = "tool" Do tools.%Push(step)
+		}
+		If (tools.%Size() >= 1) && (steps.%Size() >= 3) Quit
+		Hang 0.25
+	}
+	Do $$$AssertEquals(tools.%Size(), 1, "the turn made one tool step")
+	If tools.%Size() = 1 {
+		Do $$$AssertEquals(tools.%Get(0).status, "denied", "the step is denied")
+		Do $$$AssertTrue(tools.%Get(0).summary [ (". Denied: Tool access denied: "_$Extract(untrusted, 1, *-1)_". About "), "with UNTRUSTED after AI Hub's prefix: "_tools.%Get(0).summary)
+	}
+	Do $$$AssertEquals(..Calls().%Size(), 0, "the double recorded no command: the method did not run")
+	Do $$$AssertEquals(requests.%Size(), 2, "the mock logged two requests")
+	If requests.%Size() = 2 {
+		Set results = ##class(OcuTalon.Test.Agent.RunnerFixture).ToolResults(requests.%Get(1))
+		Do $$$AssertEquals($ListLength(results), 1, "the second request carries one tool result")
+		If $ListLength(results) = 1 {
+			Do $$$AssertTrue($List(results, 1) [ untrusted, "which holds the sentence UNTRUSTED: "_$List(results, 1))
+			Do $$$AssertTrue($List(results, 1) '[ "proposed", "and no proposal: "_$List(results, 1))
+		}
+	}
+}
+
 /// --- helpers ---
 /// 1 when the production runs with every item in the CI override's environment, the entries of the runners are pointed at the mock key variable and the
 /// double sits behind the CommandsIn item. Otherwise the test fails with the reason, and quits. The item and the entries are put back by OnAfterAllTests.
@@ -322,12 +429,12 @@ Method Begin(owner As %String, itemId As %String) [ Private ]
 	Do $$$AssertStatusOK(##class(OcuTalon.Bridge.Context).Begin(request, ""), "a context begins for the turn of '"_owner_"'")
 }
 
-/// Sends a user turn of the owner through Decide (RunnerFixture.Run) and reads the mock's log for it: request is the Request, answer the Reply, session the
+/// Sends a turn of the owner (a user's unless the provenance is given) through Decide (RunnerFixture.Run) and reads the mock's log for it: request is the Request, answer the Reply, session the
 /// session of the request and requests the entries of the mock's log for the turn, in order. The turn's ItemId is remembered for OnAfterOneTest.
-Method Turn(text As %String, owner As %String, Output request As OcuTalon.Bridge.Msg.Request, Output answer As %Persistent, Output session As %Integer, Output requests As %DynamicArray) As %Status [ Private ]
+Method Turn(text As %String, owner As %String, Output request As OcuTalon.Bridge.Msg.Request, Output answer As %Persistent, Output session As %Integer, Output requests As %DynamicArray, provenance As %String = "user") As %Status [ Private ]
 {
 	Set fixture = ..#FIXTURE
-	Set request = $ClassMethod(fixture, "NewRequest", "turn", "user", text, .ref, owner)
+	Set request = $ClassMethod(fixture, "NewRequest", "turn", provenance, text, .ref, owner)
 	Set ..ItemIds = ..ItemIds _ $ListBuild(ref)
 	Set mark = $ClassMethod(..#MOCK, "LogMark")
 	Set sc = $ClassMethod(fixture, "Run", request, .answer, .session)

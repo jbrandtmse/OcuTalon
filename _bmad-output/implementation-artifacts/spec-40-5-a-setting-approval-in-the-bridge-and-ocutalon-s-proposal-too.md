@@ -150,6 +150,27 @@ deferred:
 7. Given the compiled Chat class, when its `XData INSTRUCTIONS` is read, then the EXPERIENCE.md "Chat, proposals" text is its last paragraph, once, after the persona paragraph, and every earlier line is unchanged.
 8. Given the package built in a throwaway, when the security overview is generated, then its tool table names `propose_persona` with source, toolset, agent, label, `safe`, read-only `no`, trusted output `yes`, and `live security-overview` passes with no DRIFT.
 
+### Review Findings
+
+Code review 2026-11-05 (stage tag `e40s5c`/`e40s5cw`; layers blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor, full-opus tier; 19 rows in 14 entries: high 0, medium 3, low 10, false 1).
+
+- [x] [Review][Patch] (medium) AC4's `proposed` mapping was pinned only because the double also says `proposed`: `answer.outcome = result.Outcome` stayed green with the committed tests [src/ocutalon/cls/OcuTalon/Tools/PersonaTools.cls:42] -- `CommandsDouble` gains the mode `^OcuTalonTest("CommandsDouble","outcome")`, and `Test.Tools.Persona:TestProposedWhateverTheOwnerSays` has the owner answer Ok `raised` and expects `proposed`; mutation recorded under Verification.
+- [x] [Review][Patch] (medium) A setting `DryRun` whose `old`/`new` are JSON objects is accepted by `ValidateSetting` but no test raised one [src/bridge/cls/OcuTalon/Bridge/Approval.cls:275] -- `TestRaiseSetting` raises a second setting with object values and asserts it pending with its DryRun; mutation recorded under Verification.
+- [x] [Review][Patch] (medium) QA's added tests and the implement review's patched tests had no run beside their neighbours or in reverse order (the `(once)` shard runs predate them) [src/ocutalon/cls/OcuTalon/Test/Tools/Persona.cls] -- after this review's patches: fresh `shard lane-a@Tools` forward and `--reverse` passed (6 classes each, Persona 7.0 s / 6.5 s), fresh `Test.Bridge.Approval` passed (134.6 s). The `Bridge` area's shard order stays the lead's fresh-environment check and CI.
+- [x] [Review][Patch] (low) `Instructions.TestToolsets` doc comment said Chat discovers "the other nine tools"; it is ten [src/ocutalon/cls/OcuTalon/Test/Agent/Instructions.cls:198]
+- [x] [Review][Patch] (low) `Test.Agent.Runners` class comment's provider list for `TestToolInventory` omitted `PersonaTools` [src/ocutalon/cls/OcuTalon/Test/Agent/Runners.cls:45] -- L45 patched (a line Epic 17 did not change); L26 and the `TestToolInventory` doc comment are Epic 17's changed lines: DW-737 `routed owner=burndown` (lead ruling).
+- [x] [Review][Patch] (low) Chat's class comment, now the one list of all its tools, left out `recent_activity` [src/ocutalon/cls/OcuTalon/Agent/Chat.cls:3]
+- [x] [Review][Patch] (low) `PersonaTools` class comment listed "custom text on the online demo" among the owner's checks for this command, contradicting its next sentence (the tool answers `not_available` itself) [src/ocutalon/cls/OcuTalon/Tools/PersonaTools.cls:4]
+- [x] [Review][Patch] (low) `TestParagraphs` conjunct `ux.chatProposals '[ "{{"` checked the test's own fixture, not product code (Rule 19); removed, the compiled-block check `chat '[ "{{"` stays [src/ocutalon/cls/OcuTalon/Test/Agent/PersonaBlock.cls:229]
+- [x] [Review][Defer] (low) `docs/bridge-guide.md` names the `setting` kind but documents none of its contract [docs/bridge-guide.md:302] -- deferred: contended (Epic 17 changed the file); DW-736 `wontfix-accepted`, reopen_if the guide's approvals section is next edited (DW-630) or the standalone bridge listing is prepared.
+
+Rejected:
+- `false` DryRun `key` not bound to the OwnerRef's own setting (edge-case) -- the bridge is host-free (AD-2) and does not parse host key formats; only the owner (`SettingsOps`, 40.6) raises a setting, building the key from the bound session; no tool or user path reaches `Raise`.
+- `low` by-design: an owner Ok answer with another outcome word is shown to the model as `proposed` (edge-case) -- spec-bound (Decided in-stage: `outcome` is `proposed` on Ok); 40.6 defines its Ok answer as a raised request.
+- `low` test helpers would error, not assert, if role lookup or `RefIndexOpen` failed (edge-case) -- a loud failure; adding guards adds complexity for no realistic case.
+- `low` `TestRaiseSetting` compares `RequiredRole` with the seeded `OcuTalonUser` rather than reading `ApprovalRole` (acceptance) -- same as `TestRaiseFix`; the role assignment is kind-agnostic.
+- `low` the Tasks text says `Instructions.TestToolsets` expects 9 Chat names, the test 10 (acceptance) -- recorded in Design Notes; the fix would edit the spec.
+
 ## Spec Change Log
 
 ## Review Triage Log
@@ -273,6 +294,20 @@ Recorded by the implement stage (each applied, observed red, reverted with the f
 - AC 1: mutation: `"IncidentRef"` removed from `ValidateSetting`'s empty-field loop (the new `Refusals()` row gives a setting a valid 22-character IncidentRef) -> `Test.Bridge.Approval:TestRefused` red (the row is accepted and saved).
 - AC 1: mutation: `Ownership.APPROVALVISIBLE` owner clause loosened to `(a.OwnerRef = ? OR a.OwnerRef <> 'instance')` -> `Test.Bridge.Approval:TestSettingOwnerOnly` red (T lists the row, and T's answer is not `not_found`); both files restored byte-identical (md5), run in one fresh stack.
 - AC 8: mutation: `Persona` removed from Chat's `TOOLSETS` -> `SecurityOverview:TestToolRows` stayed green (the generator lists every toolset of the Tools package, held or not), so `TestProposePersonaRow` was added (the row's agent column and its table line) -> `TestProposePersonaRow` red.
+
+Recorded by the QA stage (tag `e40s5q`, each applied, observed red in a fresh stack, reverted with the file byte-identical by md5; the test files are listed here as `(QA)`):
+- (QA) `src/ocutalon/cls/OcuTalon/Test/Tools/Persona.cls` (existing, extended): `TestOnlineDemoThroughATurn`, `TestOwnerRefusalThroughATurn`, `TestUntrustedTurnDenied`, and `Turn` gains an optional provenance argument. `src/ocutalon/cls/OcuTalon/Test/Bridge/Approval.cls` (existing, extended): `TestSettingTwoAnswersAtOnce`, `TestSettingAnswerPastExpiry`. No new class.
+- AC 5 (real runtime, Chat): mutation: `READONLYPROPOSEPERSONA = 1` -> `Test.Tools.Persona:TestUntrustedTurnDenied` red (the step is ok, the double records the command, the model reads `proposed`), also `TestDeclarations`.
+- AC 6 (real runtime, Chat): mutation: the `OnlineDemo()` check replaced by `If 0` -> `Test.Tools.Persona:TestOnlineDemoThroughATurn` red (the double records a command, the model reads `proposed`), also `TestOnlineDemo`.
+- AC 4 (owner refusal in a real turn): mutation: `outcome` always `"proposed"` instead of `$Select(result.Ok: "proposed", 1: result.Outcome)` -> `Test.Tools.Persona:TestOwnerRefusalThroughATurn` red (outcome is not `refused`), also `TestOwnerRefuses`. The three PersonaTools mutations ran in one fresh stack; each test names its own failing assertion.
+- AC 2 (first answer wins, setting): mutation: `AnswerLocked`'s `If row.State '= "pending" {` replaced by `If 0 {` -> `Test.Bridge.Approval:TestSettingTwoAnswersAtOnce` red (both jobs `done`, two answers recorded), also the kind-agnostic `TestEveryOtherTransitionIsRefused`, `TestApprovedToolCallReplays`, `TestAnswerRefusals`.
+- AC 2 (setting expired by an answer, outcome redelivered): mutation: `AnswerLocked`'s `If '(seconds > 0) {` replaced by `If 0 {` -> `Test.Bridge.Approval:TestSettingAnswerPastExpiry` red (the answer approves an expired row; no expired outcome).
+- Fresh runs after the QA tests: `Test.Tools.Persona` passed (7 tests became 10, 122 s), `Test.Bridge.Approval` passed (130 s). `test-boundaries.sh` and `test-class-rules.sh` pass.
+
+Recorded by the code-review stage (warm tag `e40s5cw`: baseline green, mutation red, reverted byte-identical by md5, green again on the same stack):
+- AC 4 (the Ok answer reads `proposed` whatever the owner's word): mutation: `PersonaTools` `Set answer.outcome = result.Outcome` -> `Test.Tools.Persona:TestProposedWhateverTheOwnerSays` red (outcome is `raised`); every other test stayed green, which was the gap.
+- AC 1 (a setting whose `old` and `new` are objects is accepted): mutation: `ValidateSetting`'s `If (type '= "string") && (type '= "object")` -> `If (type '= "string")` -> `Test.Bridge.Approval:TestRaiseSetting` red (Raise refuses "DryRun old is neither a string nor an object").
+- After the review patches (tag `e40s5c`, fresh): `Test.Bridge.Approval` passed (134.6 s); `shard lane-a@Tools` forward and `--reverse` passed. Warm: `Test.Agent.PersonaBlock`, `Test.Agent.Instructions` passed. `test-class-rules.sh`, `test-boundaries.sh` pass.
 
 **Standing criterion:** every test added or changed passes on a fresh environment, in either order.
 

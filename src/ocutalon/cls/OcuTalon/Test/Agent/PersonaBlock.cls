@@ -226,7 +226,7 @@ Method TestParagraphs()
 	Do $$$AssertEquals($Extract(triage, $Length(triage) - $Length(ux.triage) + 1, $Length(triage)), ux.triage, "Triage's paragraph is the block's last text")
 	Do $$$AssertTrue(chat [ (lastChat_$Char(10, 10)_ux.chat), "Chat's paragraph follows its old last line after one blank line")
 	Do $$$AssertTrue(triage [ (lastTriage_$Char(10, 10)_ux.triage), "Triage's paragraph follows its old last line after one blank line")
-	Do $$$AssertTrue((chat '[ "{{") && (triage '[ "{{") && (ux.chatProposals '[ "{{"), "neither block holds {{, nor does the proposals paragraph")
+	Do $$$AssertTrue((chat '[ "{{") && (triage '[ "{{"), "neither block holds {{, so neither does the proposals paragraph it holds")
 	Do $$$AssertTrue($ZConvert(diagnosis, "L") '[ "persona", "Diagnosis's block does not mention a persona")
 	Set description = ##class(%Dictionary.CompiledClass).%OpenId("OcuTalon.Agent.Chat").Description
 	Do $$$AssertTrue(description '[ "fix the voice of every reply", "Chat's class description no longer says that its instructions fix the voice of every reply")

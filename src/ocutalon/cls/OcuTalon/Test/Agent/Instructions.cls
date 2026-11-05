@@ -195,7 +195,7 @@ ClassMethod MaxLen(class As %String, property As %String) As %String [ Private ]
 
 /// Triage has no toolset, Diagnosis has the Watch toolset, and a fresh tool manager discovers exactly the three tools
 /// of OcuTalon.Tools.Names, each once, with the ReadOnly requirement 1, and runs each one, which takes no argument and has no bridge context here, to the dynamic object {"items":[]}. Chat has the Reminders, Watching and Persona (Story 40.5) toolsets,
-/// and a fresh tool manager discovers exactly the other nine tools of OcuTalon.Tools.Names, each once; with no bridge context each of them that takes
+/// and a fresh tool manager discovers exactly the other ten tools of OcuTalon.Tools.Names, each once; with no bridge context each of them that takes
 /// arguments (all but list_productions, which lists the productions and submits nothing; check_status takes none and answers NOSESSION too) runs to the dynamic object {"ok": false, "message": NOSESSION}
 /// and submits nothing.
 Method TestToolsets()

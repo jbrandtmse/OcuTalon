@@ -1,7 +1,7 @@
 /// The method behind OcuTalon.Tools.Persona (AD-1, AD-4, AD-6, AD-7, AD-9, AD-10, AD-32): the propose_persona tool of the Chat agent. The tool
 /// submits Epic 40's ProposePersona command through OcuTalon.Tools.CommandCall and returns the owner's answer, so it never reads or writes a
 /// persona itself: SettingsOps owns the persona and every check of a value (an unknown preset, a language name that is not a name, text that
-/// is too long, custom text on the online demo).
+/// is too long).
 /// The session comes from the bridge context of the call, never from an argument. A call that is not a session's turn answers NOSESSION and
 /// submits nothing. On the online demo the answer is not_available with the owner's own message, and nothing is submitted.
 /// The presets are professional, starship, pirate, kindfriend, language and custom. The language argument is used only for the preset language and

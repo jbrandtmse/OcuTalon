@@ -4229,3 +4229,14 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: OCT-epic11 a8868ad8 run 41957022331 iris (shards) job 127036912190 | severity: low | fix-risk: low | footprint: out-of-footprint
 - evidence: the run's artifact list is empty; the log names only 'Test timeout of 300000ms exceeded' and the error-context path
 - 2026-11-05T04:38:50Z status=routed owner=burndown by=Contest_Planner note=Contest Planner (delegated) 2026-11-05: first-daily-release burn-down story; on failure, upload the Playwright test-results (error-context.md, traces) of the browser units as a CI artifact, no secrets (CI dummy key/token only), short retention
+
+### DW-736: docs/bridge-guide.md names the approval kind setting but documents none of its contract (SETTINGKEYS DryRun with ownerRef = OwnerRef, a session-Ref OwnerRef, a required ResultTarget, ApprovalOutcome on approve/reject/expiry with no replay, Reconcile redelivery)
+- source: spec-40-5-a-setting-approval-in-the-bridge-and-ocutalon-s-proposal-too.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: bridge-guide.md:265 lists setting; the Workflow approvals paragraph (L302) describes only the tool_call replay; the contract lives only in Approval.cls Raise/ValidateSetting doc comments
+- 2026-11-05T12:53:54Z status=wontfix-accepted owner=40-5-a-setting-approval-in-the-bridge-and-ocutalon-s-proposal-too by=cr note=contended: Epic 17 changed bridge-guide.md; reopen_if=the guide's Workflow approvals section is next edited (DW-630) or the standalone bridge listing is prepared
+
+### DW-737: Test/Agent/Runners.cls comments still list Chat's tools without propose_persona: class comment L26 (the three reminder and four watching tools) and the TestToolInventory doc comment (three reminder and five watching tools)
+- source: spec-40-5-a-setting-approval-in-the-bridge-and-ocutalon-s-proposal-too.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: Runners.cls L26 and the TestToolInventory doc comment omit propose_persona (and undercount watching tools); Epic 17 changed both lines (git diff origin/feature/OCT_OcuTalon_MVP...origin/OCT-epic17), so 40.5 left them; L45's provider list was patched in review
+- 2026-11-05T12:53:54Z status=routed owner=burndown by=cr note=lead ruling: a fix on a line Epic 17 changed is routed to burndown; one-name edits once Epic 17 has merged into OCT-epic40
+- 2026-11-05T12:58:11Z status=wontfix-accepted by=adjudication note=LOW_doc-comment_omission_on_lines_Epic_17_changed;burndown_never_owns_a_LOW;reopen_if=after_Epic_17_merges_Test/Agent/Runners.cls_L26_or_TestToolInventory_comment_still_omits_propose_persona
