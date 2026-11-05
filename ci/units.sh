@@ -63,6 +63,17 @@ IRIS_GROUPS="install-fresh install-upgrade production browser shards shards-2 im
 # group shards-4 for shard:lane-a@Channel alone: that unit took 704 s in CI (ci run 41618490851), and on feature run 41612880963 the
 # eight groups' steps took 24 to 31 minutes, so it fitted under 33 minutes in none of them; beside production-restart and
 # reminder-restart it had also met the 40-minute job timeout (DW-591).
+# Split by Contest Planner ruling 2026-11-05: live:sign-in 1047 s over the 1,000 s line. On ci run 42086496017 (OCT-epic34, attempt 2)
+# browser took 2,043 s (demo-path 550, sign-in 1047, answers 446) and its job 34.5 minutes, and on 42087551083 (OCT-epic40, attempt 2)
+# sign-in took 1,118 s and browser 2,206 s (37.3 minutes), against the 1,200 s deadline and the 35-minute budget (REL-4). About 260 s
+# of each run was the unit's own build, start and setup and the rest the browser run (786 s and 834 s). The unit's spec files are now
+# two Playwright projects, each on its own stack with the whole setup of docker/tests/test-sign-in.sh: live:sign-in keeps the project
+# chromium in browser, and live:sign-in-2 (test-sign-in-2.sh) runs the project sign-in-2, the folders live/, phone/, rail/, reminder/,
+# session/ and settings/ (web/playwright.config.ts SIGN_IN_2_DIRS; 129 of today's 323 tests, the stack-free wait specs of live/
+# among them, about 160 s of wall-clock waits), in shards-4, the group with the most room: shard:lane-a@Channel alone took 729 s and
+# 725 s on those runs (jobs of 12.7 minutes). Each half was aimed at about 400 s of browser run and so about 680 s a unit (under the
+# 800 s that the ruling sets for each); browser becomes about 1,680 s and shards-4 about 1,410 s. Each unit prints one SPEC line per
+# spec file with its seconds, so that a later move between the two projects can be made by spec file from CI's own numbers.
 group_units() {
   case $1 in
     install-fresh) echo "live:install-start live:online-demo live:install-script-live" ;;
@@ -73,7 +84,7 @@ group_units() {
     shards-2) echo "shard:lane-a@rest" ;;
     image) echo "live:storage-roundtrip live:build-inputs shard:lane-b live:online-demo-path" ;;
     shards-3) echo "live:floor live:demo-switch live:bundle-folder live:audit" ;;
-    shards-4) echo "shard:lane-a@Channel" ;;
+    shards-4) echo "shard:lane-a@Channel live:sign-in-2" ;;
     *) return 1 ;;
   esac
 }
@@ -125,7 +136,7 @@ shard_unit_areas() {
 }
 
 # The live units that drive Playwright and need its Chromium: ci/iris.sh live installs the browser before each of them.
-BROWSER_UNITS="demo-path sign-in floor online-demo demo-switch answers cards online-session online-allowance online-demo-path online-visitors"
+BROWSER_UNITS="demo-path sign-in sign-in-2 floor online-demo demo-switch answers cards online-session online-allowance online-demo-path online-visitors"
 
 # The browser units that also run in Firefox and WebKit: ci/iris.sh live installs both after Chromium before each of them. Every name is in BROWSER_UNITS.
 FIREFOX_WEBKIT_UNITS="floor"
@@ -135,10 +146,11 @@ FIREFOX_WEBKIT_UNITS="floor"
 # Msg/Catalog/Watch.cls, whose check sentences the page renders, and Msg/Enum.cls, whose fallback reasons the tests compare
 # with the module) and the generated sign-in assets that the web build reads or writes, the UX design documents, the logo,
 # the CI recipe (which holds the model mock and its scenarios) and the scripts that build the web and run the mock's tests,
+# the two sign-in unit scripts (test-sign-in.sh and test-sign-in-2.sh, which the e2e-part tests of web/scripts/ read and run),
 # the files that the mock's tests read (the agent classes' MOCKKEY, the tool names, the compaction prefix and the example
 # agent of the bridge), the workflow itself, and the root .gitignore and .gitattributes, which decide whether the build
 # leaves the checkout clean and how git checks out the files it reads.
-WEB_INPUT_PATTERN='^(web/|src/ocutalon/cls/OcuTalon/Live/|src/ocutalon/cls/OcuTalon/Msg/Catalog\.cls$|src/ocutalon/cls/OcuTalon/Msg/Catalog/Core\.cls$|src/ocutalon/cls/OcuTalon/Msg/Catalog/Watch\.cls$|src/ocutalon/cls/OcuTalon/Msg/Enum\.cls$|src/ocutalon/cls/OcuTalon/Web/Public/SignInAssets\.cls$|_bmad-output/planning-artifacts/ux-designs/|logo/|ci/|docker/tests/test-web-build\.sh$|docker/tests/test-mock\.sh$|docker/tests/test-sign-in\.sh$|src/ocutalon/cls/OcuTalon/Agent/[^/]+\.cls$|src/bridge/cls/OcuTalon/BridgeExample/.+\.cls$|src/ocutalon/cls/OcuTalon/Tools/Names\.cls$|src/bridge/cls/OcuTalon/Bridge/Compaction\.cls$|\.github/workflows/ci\.yml$|\.gitignore$|\.gitattributes$)'
+WEB_INPUT_PATTERN='^(web/|src/ocutalon/cls/OcuTalon/Live/|src/ocutalon/cls/OcuTalon/Msg/Catalog\.cls$|src/ocutalon/cls/OcuTalon/Msg/Catalog/Core\.cls$|src/ocutalon/cls/OcuTalon/Msg/Catalog/Watch\.cls$|src/ocutalon/cls/OcuTalon/Msg/Enum\.cls$|src/ocutalon/cls/OcuTalon/Web/Public/SignInAssets\.cls$|_bmad-output/planning-artifacts/ux-designs/|logo/|ci/|docker/tests/test-web-build\.sh$|docker/tests/test-mock\.sh$|docker/tests/test-sign-in\.sh$|docker/tests/test-sign-in-2\.sh$|src/ocutalon/cls/OcuTalon/Agent/[^/]+\.cls$|src/bridge/cls/OcuTalon/BridgeExample/.+\.cls$|src/ocutalon/cls/OcuTalon/Tools/Names\.cls$|src/bridge/cls/OcuTalon/Bridge/Compaction\.cls$|\.github/workflows/ci\.yml$|\.gitignore$|\.gitattributes$)'
 
 # Bookkeeping: the pipeline's own folders. The UX design documents are not bookkeeping, because the web build reads them.
 BOOKKEEPING_PATTERN='^(_bmad/|_bmad-output/)'
@@ -171,7 +183,8 @@ NO_WEB_BUNDLE_UNITS="live:audit live:production live:production-restart live:sto
 NOT_IRIS_INPUT_PATTERN='^(\.claude/|[^/]+\.md$|LICENSE[^/]*$|NOTICE[^/]*$|docs/|release/|\.github/workflows/lane-a\.yml$|\.env\.example$|docker/tests/record-eval\.sh$|docker/tests/test-[^/]+\.sh$)'
 
 # group_input_pattern <group>: the anchored ERE of the paths whose change makes the group run: IRIS_INPUT, WEB_BUNDLE_INPUT unless
-# every unit of the group is in NO_WEB_BUNDLE_UNITS, and the script of each live unit of group_units. Returns 1 for an unknown group.
+# every unit of the group is in NO_WEB_BUNDLE_UNITS, and the script of each live unit of group_units, with docker/tests/test-sign-in.sh for
+# live:sign-in-2, whose script runs it. Returns 1 for an unknown group.
 group_input_pattern() {
   local units u pattern all_without_bundle=1
   units=$(group_units "$1") || return 1
@@ -185,6 +198,7 @@ group_input_pattern() {
   if [ "$all_without_bundle" -eq 0 ]; then pattern="$pattern|$WEB_BUNDLE_INPUT"; fi
   for u in $units; do
     case $u in
+      live:sign-in-2) pattern="$pattern|docker/tests/test-sign-in-2"'\.sh$'"|docker/tests/test-sign-in"'\.sh$' ;;
       live:*) pattern="$pattern|docker/tests/test-${u#live:}"'\.sh$' ;;
     esac
   done
