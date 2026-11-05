@@ -480,3 +480,4 @@
 2026-11-05T04:24:15Z	Story 11.21	proof_run	run=2 workflow_run=41957022331 attempt=3 job=iris(shards):127036912190 result=failure group_ran=true head=a8868ad8 failed=live:online-session_leave.spec.ts:354_L6_300s_test_timeout(no_named_step);row4_cascade(TelegramIn_live_job,CSP_gone_409s)
 2026-11-05T04:24:15Z	Story 11.21	ci_red_classified	run=41957022331 workflow=.github/workflows/ci.yml class=story test=leave.spec.ts:354_L6 note=not_a_flake_by_dispatch(proof_run_red_is_evidence);AC7_named-step_not_met
 2026-11-05T04:24:15Z	Story 11.21	rework_opened	cycle_iteration=4 iteration=3 trigger=ci items=[CI]deadline-aware_shared_bounds,bounded_page_close,slow-step_breadcrumbs scope_baseline=b483a22b note=last_iteration_under_the_cap
+2026-11-05T04:24:15Z	Story 11.21	stage_spawned	stage=implement spawn_at=2026-11-05T04:24:15Z model=claude-sonnet agent_name=11-21-a-test-s-route-callback-never-outlives-its-test-implement-3 cycle_iteration=4 rework=3
