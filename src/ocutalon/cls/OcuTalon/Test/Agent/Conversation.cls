@@ -14,8 +14,9 @@
 ///     send, with nothing else set, no Decision row, no request to ChatAgent and no step; an untrusted turn of the same owner is answered at once, not Busy,
 ///     with no history in its request; and, with the lock released, the same user turn sent again with the same ItemId is answered, with its row;
 ///   - TestBusyAfterTimedOutTurn: with Decide's TimerSeconds row at 12, a turn whose reply comes after 18 seconds (turn-late) is answered with a timeout
-///     fallback; the next turn, sent as soon as that is answered, is Busy, because the late Chat still holds the conversation; once ChatAgent has answered
-///     the late request, a third turn is answered and carries the late exchange (turn 1's input and the late reply), which the late Chat saved;
+///     fallback; the next turn, sent as soon as that is answered, is Busy, because the late Chat still holds the conversation lock; once ChatAgent has
+///     answered the late request, a third turn is answered and carries its own input alone, because Decide never accepted the late reply, so no link names
+///     the late Chat's session (Story 17.8);
 ///   - TestRunnerBusy: with the lock held by the test, a linked turn sent straight to ChatAgent gets a Busy Reply after about 2 seconds, writes no Usage row and
 ///     sends nothing to the mock; sent again with the lock released, it is answered, with a Usage row;
 ///   - TestResendReopens: turn 2 with overloaded:<key> armed 1 is answered after Decide sent ChatAgent two requests, and the two logged requests have equal
@@ -250,7 +251,8 @@ Method TestBusyWhileHeld()
 	If $IsObject(row) && $IsObject(answered) Do $$$AssertEquals(row.Ref, answered.DecisionRef, "whose Ref is the answer's DecisionRef")
 }
 
-/// A turn whose Chat outlives Decide's timer keeps the conversation (AD-6; Story 1.7's second question). With Decide's TimerSeconds row at 12, written
+/// A turn whose Chat outlives Decide's timer holds the conversation lock until it has saved, and moves no link (AD-6, AD-8; Story 1.7's second question,
+/// Story 17.8). With Decide's TimerSeconds row at 12, written
 /// directly with Decide started again, turn 1 (turn-late: the reply comes after 18 s) gets a timeout fallback. Turn 2, sent as soon as turn 1 is answered, is
 /// Busy, because the late Chat holds the lock until it has saved. After ChatAgent has answered the late request, turn 3 is answered. Turn 1 had no link, and
 /// Decide did not accept its late reply (Story 17.8: only Decide moves a link, and only for a reply it accepts on time), so the late Chat's session is named by no
@@ -296,7 +298,7 @@ Method TestBusyAfterTimedOutTurn()
 	Do $$$AssertStatusOK($ClassMethod(mock, "LogSince", mark, .entries), "the mock's log is read")
 	Set requests = $ClassMethod(fixture, "FindRequests", entries, ref3)
 	Do $$$AssertEquals(requests.%Size(), 1, "turn 3 made one model request")
-	If requests.%Size() = 1 Do $$$AssertEquals($ClassMethod(fixture, "Messages", requests.%Get(0)), "user:"_third.Input, "which carries turn 3's input alone: the late Chat saved its session, but no link names it, because Decide never accepted its late reply")
+	If requests.%Size() = 1 Do $$$AssertEquals($ClassMethod(fixture, "Messages", requests.%Get(0)), "user:"_third.Input, "which carries turn 3's input alone: no link names the late Chat's session, because Decide never accepted its late reply")
 }
 
 /// A linked turn sent straight to ChatAgent, with the conversation lock held by the test, gets a Busy Reply after about 2 seconds: the runner takes the lock with

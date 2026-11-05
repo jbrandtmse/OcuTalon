@@ -183,6 +183,36 @@ deferred:
 - Given CodeRules, when it scans the product classes, then `Decide` is the only caller of `Point`, and in one place.
 - Given `docs/bridge-guide.md`, when the story is pushed, then the section says only what the code does (the gated text, once approved).
 
+### Review Findings
+
+Code review 2026-11-05 (full-opus; layers blind-hunter, edge-case-hunter, verification-gap, acceptance-auditor; 34 raw findings, 19 entries: 0 high, 1 medium, 17 low, 1 false; all patches applied, nothing deferred).
+
+Truth checks of the approved guide paragraph (both TRUE):
+- (1) The seed is code over stored rows, with no model call: `Decide.RetryRequest` -> `Decide.RetrySeed` -> `Compaction.Seed` (pure text code) of `RequestSize.StoredMessages(id, HistoryCount)` (one SQL read of the stored ContextData; the session is not opened). `AnswerRetried` reads no history and sends `ChatInput(request, 1)`.
+- (2) Only `Decide` moves a conversation: the one product call to `ConversationLink.Point` is in `Decide.PointLink`, called only from `Conclude` after the row is saved; `SaveLinked`, `SaveRetried` and `SwitchTo` (compaction's session change) call no `Point`; the adapter calls only `SessionOf`, `Lock`, `Unlock`; `Purge` only selects. Pinned by `CodeRules` `TestOnlyDecideWritesLinks`.
+
+- [x] [Review][Patch] (medium, Rule 2) QA's `ContextSize` helper was a near-copy of the class's own `ContextOf` [src/ocutalon/cls/OcuTalon/Test/Bridge/Conversation.cls:677] -- removed; `TestHistoryCountIndexesTheStoredHistory` counts `ContextOf`'s JSON. fix-risk low.
+- [x] [Review][Patch] (low, Rule 14) Test docs still stated the old link rule: `Test.Agent.Conversation` class doc and `TestBusyAfterTimedOutTurn` doc and label, `Test.Bridge.Conversation` class doc and `TestRetryMovesTheLinkOnlyWhenOnTime` doc, `Test.Agent.RunnerFixture.FallbackProblems` doc ("SessionRotated ... which a fallback carries") -- reworded. fix-risk low (comments and one assertion label).
+- [x] [Review][Patch] (low, Rule 14) `RequestSize.StoredMessages` doc justified the count cut by "saved in place appends", which QA measured as a rewrite of one full export [src/bridge/cls/OcuTalon/Bridge/RequestSize.cls:86] -- now states the actual invariant (the earlier messages stay first, in order). fix-risk low (doc only).
+- [x] [Review][Patch] (low) The late-retry legs of `TestRetryMovesTheLinkOnlyWhenOnTime` modelled Decide accepting a late reply, and `Test.Bridge.Runner.Accept` did not say it classifies nothing [Conversation.cls:470, :503; Runner.cls:1249] -- the late legs pass `accept` 0; `Accept`'s doc states the caller passes only replies Decide would accept. fix-risk low.
+- [x] [Review][Patch] (low, Rule 19) AC2's "its cost is counted" had no `mutation:` line -- mutation applied, observed red, restored, line written under Verification.
+
+Rejected (with disposition):
+- false: a timer-triggered retry of a continue turn seeds from the whole stored history after the first attempt saved -- `Decide.Retryable` never retries a timed-out `turn` (`If timedOut Quit kind '= "turn" && readOnly`); a turn retried with no reply comes only from a precheck refusal before the first send or a resend, when no first-attempt Chat saved anything.
+- wontfix-theoretical: `MessagesIn` swallowing a `GetContext()` error leaves no count, so the seed is uncut -- `OpenSession` has just opened the same session; real if `GetContext()` can throw on an opened session.
+- by-design (spec Residual risks 2): concurrent linked turns of one conversation from a caller other than `Conversation` (the Held window before `PointLink`, `RetrySeed`/`AnswerRetried` reading the link at retry time, no warning for an in-place save whose link moved).
+- by-design (Conventions "Saved conversations", Residual risks 1): a refused or late continue turn saves into the session it opened.
+- wontfix-theoretical: a process stop between `Record` and `PointLink` -- real if a production job can die inside one ClassMethod and the item be redelivered.
+- wontfix-theoretical: a non-fresh `RetryOf` request reaching `AnswerRetried` (no stored-history fallback) -- only `RetryRequest` sets `RetryOf` and sends every linked continue retry fresh; real for a clone queued across the upgrade.
+- low: `TryRetry` builds the seed before the `Held` probe -- `Precheck` needs the seeded clone for its estimate; one database read.
+- low: the post-timer-fallback link assertions cannot fail (no reply reaches `RecordFallback`) -- the pre-fallback assertions are the pins and carry mutation lines (as triaged before).
+- low: two QA assertions duplicate a neighbour's pin -- harmless.
+- by-design: AC5 has no automated pin -- prose; the lead's two truth checks are its pin (above).
+- low: DW-746 bookkeeping (spec `deferred:`, ledger `open`) -- the lead's adjudication; confirmed settled by QA's two tests (tool-call session saved in place, and across compaction).
+- low: Auto Run Result's "parts 1/3, 2/4" and the fresh-order run of QA's tests -- spec text and the lead's pre-push fresh check.
+- by-design: `Test.Agent.Conversation.TestBusyAfterTimedOutTurn`'s new assertion -- follows AD-6 ("Only `Decide` writes it, on accepting a reply") and AD-8 ("A late reply moves nothing") as amended 2026-11-05, Always "What moves nothing" and Design Notes 7.
+- low: AD-20's "the conversation link moves to the fork only after a check passes" is missing from the lead's spine list -- the spine is the lead's (Rule 20); `Test/Bridge/Link.cls`'s "the runner and Decide call" is false as a finding (the runner still calls `SessionOf`, `Lock`, `Unlock`).
+
 ## Spec Change Log
 
 - 2026-11-05 (lead): the Planner approved the guide paragraph verbatim; the guide task is ungated; two pre-push truth checks recorded under Design Notes.
@@ -372,6 +402,27 @@ Every test added or changed passes on a fresh environment, in either order.
 - mutation: a second `Point` call in `Conclude` -> `Bridge.CodeRules` `TestOnlyDecideWritesLinks` red.
 - mutation: `RecordFallback` copies the runner's `SessionRotated` -> `Bridge.Decide` `TestFallbackMovesNothing` and `TestConcludeFallbacks` red.
 - mutation (17.2's): `RetryIsLate` always 1 -> `Bridge.Conversation` `TestBusyDecideMovesNothing`, `TestRetriedContinueTurn`, `TestRetriedFreshTurn`, `TestRetryMovesTheLinkOnlyWhenOnTime` and `TestRetrySeedHoldsNoFirstAttempt` red. Restored, `Bridge.Conversation` passes, DW-725's three tests included.
+
+**QA stage (2026-11-05, warm throwaway `e17s8qw`, the CI mock).** Tests added (QA): `src/ocutalon/cls/OcuTalon/Test/Bridge/Conversation.cls` `TestHistoryCountIndexesTheStoredHistory` and `src/ocutalon/cls/OcuTalon/Test/Bridge/Compaction.cls` `TestHistoryCountAcrossCompaction` (both in existing classes: no `ci/units.sh` change). DW-746 is settled by them: on a session with tool-call messages, saved in place by two continue turns, `GetContext().%Size()` of the opened session, the reply's `HistoryCount` and `RequestSize.StoredMessages` agree (4, 8, 12 messages before turns 2, 3 and after turn 3), and the first `HistoryCount` stored messages equal the pre-turn history message for message; after a compaction the original's count is 6 and 8 (with the extra turn), the fork's pre-turn history counts the same through `GetContext()`, the stored messages and `HistoryCount`. Each mutation below was applied to one file from a backup in the QA scratchpad, the classes named were run and went red, and the file was restored (`md5` equal, `git status --short` unchanged). `Bridge.X` is `OcuTalon.Test.Bridge.X`.
+- mutation: `MessagesIn` returns `GetContext().%Size() - 1` -> `Bridge.Conversation` `TestHistoryCountIndexesTheStoredHistory` and `TestRetrySeedHoldsNoFirstAttempt` red, `Bridge.Compaction` `TestHistoryCountAcrossCompaction` red (QA).
+- mutation: `HistoryCount` read after `Compact` (the fork's count instead of the original's) -> `Bridge.Compaction` `TestHistoryCountAcrossCompaction` red (QA; with a conversation whose older messages the compaction shortens: first built with two turns it stayed green, because the fork's pre-turn history held as many messages as the original, so a third turn was added).
+- mutation (observed again by QA): `Conclude` skips `PointLink` -> `Bridge.Decide` `TestConcludeAccepts` red.
+- mutation (QA): `SaveLinked` calls `Point` again -> `Bridge.Conversation` `TestFirstAndNextTurn`, `TestFresh`, `TestLateFreshTurnMovesNothing`, `TestLockHeldFromOpenToSave`, `TestQuarantineAfterTaint`, `TestRetriedContinueTurn` red; `Bridge.CodeRules` `TestOnlyDecideWritesLinks` red; live `Bridge.SecondModel` `TestLateFreshTurnMovesNothing` and `TestIntegrationWebChat` red.
+- mutation (QA): `SaveRetried` points when not late -> `Bridge.Conversation` `TestBusyDecideMovesNothing`, `TestRetriedContinueTurn`, `TestRetriedFreshTurn`, `TestRetryMovesTheLinkOnlyWhenOnTime` red.
+- mutation (QA): `SwitchTo` points the fork -> `Bridge.Compaction` `TestLateCompactionMovesNothing`, `TestGuardedCompaction`, `TestAfterTheSwitch`, `TestReopenFails` red.
+- mutation (QA): `RetrySeed` ignores the count -> `Bridge.Conversation` `TestRetrySeedHoldsNoFirstAttempt` red.
+- mutation (QA): a second `Point` call in `Conclude` -> `Bridge.CodeRules` `TestOnlyDecideWritesLinks` red.
+- mutation (QA): `PointLink` passes no `expected` -> `Bridge.Decide` `TestPointLink` red.
+- mutation (QA): `RecordFallback` copies the runner's `SessionRotated` -> `Bridge.Decide` `TestFallbackMovesNothing` and `TestConcludeFallbacks` red.
+- mutation (QA): `RecordFallback` calls `PointLink` (a fallback moves the link) -> `Bridge.Decide` `TestConcludeAccepts` red.
+- mutation (QA): `AnswerRetried` leaves `SessionFrom` empty -> `Bridge.Conversation` `TestRetriedContinueTurn`, `TestRetriedFreshTurn`, `TestRetryMovesTheLinkOnlyWhenOnTime` red.
+- mutation (QA): `AnswerLinked` leaves `SessionFrom` empty -> `Bridge.Conversation` `TestFresh`, `TestHistoryCountIndexesTheStoredHistory`, `TestLateFreshTurnMovesNothing` red.
+- mutation (QA): a tainted Chat is still saved -> `Bridge.Conversation` `TestTaintedTurn`, `TestFreshFailsOrTainted`, `TestQuarantineAfterTaint` red.
+- AC 5 (the guide's paragraph) has no automated pin beyond `test-bridge-guide.sh`, which lists `Request`, `Result`, `DecisionResponse` and `AgentStep` properties only: no mutation applies; the two truth checks stay the lead's, and `CodeRules` `TestOnlyDecideWritesLinks` pins the second sentence's claim.
+mutations_demonstrated=14 (QA).
+
+**Code review (2026-11-05, warm throwaway `e17s8cw`, the CI mock).**
+- mutation (AC2, "its cost is counted"): `Adapter.Agent` `Converse` writes no Usage row for a request with `RetryOf` -> `Bridge.Conversation` `TestBusyDecideMovesNothing` ("the retry's model request is counted under the DecisionRef") and `TestRetryMovesTheLinkOnlyWhenOnTime` red; restored from the scratchpad backup (`md5` equal, `git status --short` unchanged), the class passes.
 
 ## Auto Run Result
 

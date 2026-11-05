@@ -4155,6 +4155,7 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Decided-in-stage 18; live SecondModel run: the next turn's history reads '...user:[[mock:retry-chat]] What is my build server called?...assistant:The CI mock refuses this request.user:...'
 - 2026-11-05T09:40:35Z status=decision-pending owner=burndown by=cr note=product call: seed from the history before the turn (drop the unseen first exchange) or as Conventions Retried turns says
 - 2026-11-05T11:53:12Z status=routed owner=17-8-only-decide-moves-a-conversation-s-link by=orchestrator note=decided by=Contest_Planner(delegated): retry seed = stored conversation up to the current user message, nothing from the first attempt; 17.8
+- 2026-11-05T16:03:42Z status=resolved-by:17-8-only-decide-moves-a-conversation-s-link by=adjudication note=only Decide.PointLink (Conclude) moves the link; SaveLinked/SaveRetried/SwitchTo never Point; tests+mutations; ee860dfe+QA+CR
 
 ### DW-727: Spine AD-8 says Timeouts.Apply gives the retry entries Derive(min(TimerSeconds, 110 - TimerSeconds)), but the DW-647 AC and Timeouts.RetryTimer clamp it at MINTIMER (100 gives Derive(12), not {}): the spine lags the approved spec
 - source: spec-17-2-retry-once-on-a-second-model-before-falling-back.md | severity: med | fix-risk: low | footprint: out-of-footprint
@@ -4172,14 +4173,17 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - evidence: Adapter.Agent SaveRetried checks RetryIsLate, then %Save and Point, then returns; Decide (PoolSize 1) handles the T2 alarm and the reply in queue order, so a reply queued after the alarm is dropped while the link has moved. Window: the save/Point/enqueue time plus Decide's queue latency, around T2; reachable because timeout_ms is checked per loop iteration and in-flight calls run on
 - 2026-11-05T11:38:35Z status=escalated owner=burndown by=cr note=close needs a single arbiter (Decide points on accepting the reply, or a claim Decide's timer honours): AD-6/AD-8 call; a deadline alone inverts the race
 - 2026-11-05T11:53:12Z status=routed owner=17-8-only-decide-moves-a-conversation-s-link by=orchestrator note=decided by=Contest_Planner(delegated): single arbiter, only Decide moves the link on accepting a reply; fix-forward 17.8
+- 2026-11-05T16:03:42Z status=resolved-by:17-8-only-decide-moves-a-conversation-s-link by=adjudication note=only Decide.PointLink (Conclude) moves the link; SaveLinked/SaveRetried/SwitchTo never Point; tests+mutations; ee860dfe+QA+CR
 
 ### DW-730: A late first attempt with no retry can still move the link: SaveLinked rotates it on a fresh or compacted turn whose reply Decide has already dropped after its timer; the DW-725 ruling and AD-8 (2026-11-05) say a late reply of the first attempt moves nothing too
 - source: spec-17-2-retry-once-on-a-second-model-before-falling-back.md | severity: med | fix-risk: high | footprint: in-epic
 - evidence: Story 17.2 rework re-review 2 (rejected as outside the rework range): Adapter.Agent SaveLinked on a fresh/compacted turn after Decide's timer; pre-existing release 1 behaviour
 - 2026-11-05T11:39:48Z status=escalated owner=burndown by=lead note=for the Planner with DW-729: one arbiter (Decide points the link on accepting a reply) would close both; AD-6/AD-8 decision
 - 2026-11-05T11:53:12Z status=routed owner=17-8-only-decide-moves-a-conversation-s-link by=orchestrator note=decided by=Contest_Planner(delegated): a reply Decide does not accept moves nothing, any turn type; fix-forward 17.8
+- 2026-11-05T16:03:42Z status=resolved-by:17-8-only-decide-moves-a-conversation-s-link by=adjudication note=only Decide.PointLink (Conclude) moves the link; SaveLinked/SaveRetried/SwitchTo never Point; tests+mutations; ee860dfe+QA+CR
 
 ### DW-746: HistoryCount (GetContext().%Size() of the opened session) may not index RequestSize.StoredMessages for a session holding tool-call messages, so the retry seed's cut could be off (DW-726 seed)
 - source: spec-17-8-only-decide-moves-a-conversation-s-link.md | severity: med | fix-risk: low | footprint: in-story
 - evidence: Task 0 agreed for plain turns only; no test covers a session with tool messages, delta records or a compacted history; probe: a tool-using continue turn on the CI mock
 - 2026-11-05T15:20:50Z status=open owner=17-8-only-decide-moves-a-conversation-s-link by=harvest note=QA/CR of 17.8 probes it; resolve or fix in-story
+- 2026-11-05T16:03:42Z status=resolved-by:17-8-only-decide-moves-a-conversation-s-link by=adjudication note=QA measured counts agree (tool messages 4/8/12; compaction 8); pinned TestHistoryCountIndexesTheStoredHistory, TestHistoryCountAcrossCompaction

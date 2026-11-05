@@ -70,8 +70,8 @@
 /// Added for DW-725 (AD-6, AD-8: a late reply moves nothing):
 ///   - TestRetryMovesTheLinkOnlyWhenOnTime: a retry whose DecisionRef already has a Decision row (Decide recorded the decision when the retry's timer
 ///     fired) is late: it answers, its Usage row is counted under the DecisionRef, and it saves no session, leaves the link on the session it named and
-///     leaves SessionRotated 0; a retry with no Decision row yet is on time and moves the link (SessionRotated 1); and a late retry after an on-time one
-///     leaves the link on the on-time retry's session. The late first attempt that follows an on-time retry is TestRetriedContinueTurn's.
+///     leaves SessionRotated 0; a retry with no Decision row yet is on time, saves its session and moves nothing until Decide accepts it, which moves the
+///     link (SessionRotated 1); and a late retry after an on-time one leaves the link on the on-time retry's session. The late first attempt that follows an on-time retry is TestRetriedContinueTurn's.
 /// Added by Story 17.8 (AD-6, AD-8: only Decide moves the link; DW-726, DW-729, DW-730). A shadow runner moves nothing: Send accepts the reply as Decide
 /// would (Test.Bridge.Runner Accept) unless it is told not to, so a test can assert the link before and after the acceptance:
 ///   - TestBusyDecideMovesNothing: a retry that finishes after its timer while Decide is busy (no Decision row yet) saves its session and moves nothing; the timer's
@@ -79,6 +79,10 @@
 ///   - TestLateFreshTurnMovesNothing: a fresh turn that finishes after its timer saves its session and leaves the link on the old one, and so does the timer's fallback;
 ///   - TestRetrySeedHoldsNoFirstAttempt: the retry of a continue turn whose first attempt saved its refused exchange is seeded with the messages the first attempt
 ///     began with: the user's input appears once and the refusal not at all.
+/// Added by the QA stage of Story 17.8 (DW-746):
+///   - TestHistoryCountIndexesTheStoredHistory (QA): for a session that holds tool-call messages and was saved in place by continue turns, GetContext() of the
+///     opened session, the reply's HistoryCount and RequestSize.StoredMessages count the same messages, and the first HistoryCount stored messages are what the session
+///     held before the turn: the retry seed's cut lands on the turn boundary.
 /// Every test removes the AI sessions it saved (and the links that name them), the Decision rows it recorded and the Usage rows that ZzRunner and ZzRetry wrote.
 Class OcuTalon.Test.Bridge.Conversation Extends %UnitTest.TestCase
 {
@@ -447,10 +451,11 @@ Method TestLinkPointRefusals()
 	Do $$$AssertEquals(moved_"|"_..LinkOf(owner)_"|"_..Links(owner), "1|"_c_"|1", "which moves the link: the owner has one link")
 }
 
-/// The retry's Point is the retry's own only while the retry is on time (DW-725; AD-6, AD-8). A retry whose DecisionRef already has a Decision row is late,
-/// because Decide records the decision when the retry's timer fires: its reply is dropped there, so it must move nothing here. It still answers and its model
-/// request is still counted (one Usage row under the DecisionRef), but it saves no AI session, leaves the link on the session it named and leaves SessionRotated 0.
-/// A retry with no Decision row yet is on time and moves the link; a later late retry then leaves the link on the on-time retry's session.
+/// A retry moves the link only when it is on time and Decide accepts it (DW-725, Story 17.8; AD-6, AD-8). A retry whose DecisionRef already has a Decision row
+/// is late, because Decide records the decision when the retry's timer fires: its reply is dropped there, so it must move nothing here. It still answers and its
+/// model request is still counted (one Usage row under the DecisionRef), but it saves no AI session, leaves the link on the session it named and leaves
+/// SessionRotated 0. A retry with no Decision row yet is on time: the link moves to its session when Decide accepts the reply (Test.Bridge.Runner Accept); a
+/// later late retry then leaves the link on the on-time retry's session. The late retries are not accepted, as Decide drops them.
 Method TestRetryMovesTheLinkOnlyWhenOnTime()
 {
 	If ..Guard() Quit
@@ -467,7 +472,7 @@ Method TestRetryMovesTheLinkOnlyWhenOnTime()
 	Set retry = ##class(OcuTalon.Bridge.Process.Decide).RetryRequest(ask, ref, 0, ..#AGENT)
 	Do ..RecordDecision(ref, ask.ItemId, owner)
 	Set sessions = ##class(OcuTalon.Test.Agent.RunnerFixture).SessionMark()
-	Set sc = ..Send(retryHost, retry, .late, .logged)
+	Set sc = ..Send(retryHost, retry, .late, .logged, 0)
 	Do $$$AssertStatusOK(sc, "the late retry runner answers")
 	Do $$$AssertEquals(logged.%Size(), 1, "with one model request")
 	Do $$$AssertEquals($Select($IsObject(late): late.Busy_"|"_(late.Text '= "")_"|"_late.SessionRotated_"|"_late.FailureText, 1: "none"), "0|1|0|", "a reply with a text and SessionRotated 0")
@@ -492,7 +497,7 @@ Method TestRetryMovesTheLinkOnlyWhenOnTime()
 	Set ref3 = ##class(OcuTalon.Bridge.Ids).NewRef()
 	Set retry3 = ##class(OcuTalon.Bridge.Process.Decide).RetryRequest(ask3, ref3, 0, ..#AGENT)
 	Do ..RecordDecision(ref3, ask3.ItemId, owner)
-	Do $$$AssertStatusOK(..Send(retryHost, retry3, .late3, .logged3), "a second late retry answers")
+	Do $$$AssertStatusOK(..Send(retryHost, retry3, .late3, .logged3, 0), "a second late retry answers")
 	Do $$$AssertEquals($Select($IsObject(late3): late3.SessionRotated, 1: "none"), 0, "with SessionRotated 0")
 	Do $$$AssertEquals(..LinkOf(owner), s2, "and the link still names S2, the session of the on-time retry")
 }
@@ -646,6 +651,44 @@ Method TestRetrySeedHoldsNoFirstAttempt()
 	}
 	Do $$$AssertEquals(..LinkOf(owner), $Select($IsObject(answer): answer.SessionId, 1: ""), "the accepted retry moved the link to its session")
 	Do ##class(OcuTalon.Test.Contract.Mock).Arm("retry-chat", "")
+}
+
+/// DW-746 (AD-6, AD-8): HistoryCount, the count that the retry's seed is cut at, indexes the stored history of the session. It is GetContext().%Size() of the opened
+/// session (Adapter.Agent MessagesIn), and the seed's cut reads RequestSize.StoredMessages, so the two must count the same messages for a session that holds
+/// tool-call messages and for one that was saved in place by later turns (measured: the save in place rewrites one full export, 12 messages in one record after
+/// three turns, so the runner's path stores no delta records; StoredMessages reads them all the same). On the gate's agent a tool-using turn (gate-trusted, whose
+/// tool is trusted output) is followed by two continue turns that also call the tool. Before each, the opened session's GetContext() has as many messages as the stored
+/// history; the reply's HistoryCount is that number; and the first HistoryCount stored messages are, message for message, what the session held before the turn.
+Method TestHistoryCountIndexesTheStoredHistory()
+{
+	If ..Guard() Quit
+	Set stored = "OcuTalon.Bridge.RequestSize"
+	Set host = ..NewHost(..#GATEAGENT)
+	Set owner = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Do $$$AssertStatusOK(..Send(host, ..NewTurn("[[mock:gate-trusted]] Read your own records.", owner), .first), "turn 1 is answered")
+	Do $$$AssertEquals($Select($IsObject(first): first.ToolsRun_"|"_first.Tainted, 1: "none"), "1|0", "after a tool call that is not tainted")
+	Set id = ..LinkOf(owner)
+	Do $$$AssertTrue(id '= "", "and the link names the session: "_id)
+	Set before = $ClassMethod(stored, "StoredMessages", id)
+	Do $$$AssertTrue(before.%Size() > 2, "which holds more than the user's message and the reply: the tool call and its result are in it, "_before.%Size()_" messages")
+	Do $$$AssertTrue(before.%ToJSON() [ "zz_gate_trusted", "and the tool's name is in the stored messages")
+
+	For turn = 2:1:3 {
+		Set before = $ClassMethod(stored, "StoredMessages", id)
+		Set context = ##class(%DynamicAbstractObject).%FromJSON(..ContextOf(host, id)).%Size()
+		Do $$$AssertEquals(context, before.%Size(), "turn "_turn_": the opened session's GetContext() holds as many messages as the stored history, "_context_" and "_before.%Size())
+		Set request = ..NewTurn("[[mock:gate-trusted]] Read them again, turn "_turn_".", owner)
+		Do $$$AssertStatusOK(..Send(host, request, .reply, , 0), "turn "_turn_" is answered")
+		Do $$$AssertEquals($Select($IsObject(reply): reply.ToolsRun_"|"_reply.Tainted_"|"_reply.SessionFrom, 1: "none"), "1|0|"_id, "with a tool call, not tainted, from the session of the link")
+		Do $$$AssertEquals($Select($IsObject(reply): reply.HistoryCount, 1: "none"), before.%Size(), "the reply's HistoryCount is the stored count before the turn")
+		Set after = $ClassMethod(stored, "StoredMessages", id)
+		Do $$$AssertTrue(after.%Size() > before.%Size(), "the turn saved its exchange into the session in place: "_before.%Size()_" then "_after.%Size()_" messages")
+		Set cut = $ClassMethod(stored, "StoredMessages", id, $Select($IsObject(reply): reply.HistoryCount, 1: ""))
+		Do $$$AssertEquals(cut.%ToJSON(), before.%ToJSON(), "and the first HistoryCount stored messages are the messages the session held before the turn")
+		Do $$$AssertEquals(..LinkOf(owner), id, "the link still names the session")
+	}
+	Set whole = $ClassMethod(stored, "StoredMessages", id)
+	Do $$$AssertTrue(whole.%Size() > before.%Size() + 2, "after three turns the session holds all their messages: "_whole.%Size())
 }
 
 /// RetryAllowed of the real adapter strips the white space around the RetryItem setting, as Decide does when it reads the same setting (Story 17.2, QA): a value that

@@ -8,6 +8,8 @@
 ///   - TestGuardedCompaction (row 1): one summarizer request with the low effort and the transcript of turn 1; turn 3 starts from the summary,
 ///     then turn 2's messages, and holds none of turn 1; one compaction Usage row with the estimated costs; the reply names the fork and the link
 ///     names the original until Decide accepts the reply (Story 17.8), then the fork; the original session is kept; SessionRotated 1;
+///   - TestHistoryCountAcrossCompaction (QA of Story 17.8, DW-746): HistoryCount of the compacted turn is the original's whole count, and the turn after the accepted
+///     compaction counts the fork's history the same way GetContext() and the stored messages do;
 ///   - TestNothingOlder (row 2), TestNotCompactable (row 8): no summarizer request, no compaction row;
 ///   - TestSummarizerOffSchema, TestCheckFails, TestReopenFails, TestSummarizerRateLimited (rows 3 to 5): the seeded fallback, one warning, never a
 ///     FailureText;
@@ -127,6 +129,39 @@ Method TestGuardedCompaction()
 		Do $$$AssertEquals(row.CostUSD, cost, "and the cost is Price.CostFor of the estimate")
 		Do $$$AssertEquals(+##class(OcuTalon.Bridge.Data.Usage).Totals(request.DecisionRef).rows, 2, "Usage.Totals counts both rows")
 	}
+}
+
+/// DW-746 (AD-6, AD-8), the compacted case: HistoryCount counts the messages that the opened session held before the compaction, which is the whole stored history
+/// of the original session (the compaction saves a fork and leaves the original as it was), and the turn after an accepted compaction opens the fork, whose
+/// stored history (a summary-based export that holds fewer messages than the original did) is counted the same by GetContext(), the stored messages and the reply's
+/// HistoryCount, so that a retry's seed is cut at the turn boundary of either.
+Method TestHistoryCountAcrossCompaction()
+{
+	If ..Guard() Quit
+	Set host = ..NewHost()
+	Set owner = ##class(OcuTalon.Bridge.Ids).NewRef()
+	Do ..Build(host, owner, "[[mock:recall-tell]] ", .two)
+	Do $$$AssertStatusOK(..Go(host, ..Plain("[[mock:recall-tell]] One more thing.", owner), .extra), "turn 3 is answered, so that more is older than the last turn")
+	Set old = ..LinkOf(owner)
+	Set stored = "OcuTalon.Bridge.RequestSize"
+	Set original = $ClassMethod(stored, "StoredMessages", old)
+	Do $$$AssertEquals(..ContextOf(host, old).%Size(), original.%Size(), "the original session: GetContext() and the stored history count the same, "_original.%Size()_" messages")
+
+	Set request = ..Flagged("[[mock:recall-tell]] And a fourth thing.", owner)
+	Do $$$AssertStatusOK(..Go(host, request, .reply, .entries), "the flagged turn is answered and accepted")
+	Do $$$AssertEquals(..Summarizers(entries).%Size(), 1, "it was compacted: one summarizer request")
+	Do $$$AssertEquals($Select($IsObject(reply): reply.HistoryCount, 1: "none"), original.%Size(), "its HistoryCount is the original's whole count, taken before the compaction")
+	Set fork = ..LinkOf(owner)
+	Do $$$AssertTrue((fork '= "") && (fork '= old), "the link names the fork: "_fork)
+	Do $$$AssertEquals($ClassMethod(stored, "StoredMessages", old, reply.HistoryCount).%ToJSON(), original.%ToJSON(), "and the first HistoryCount stored messages of the original are all it held")
+
+	Set forked = $ClassMethod(stored, "StoredMessages", fork)
+	Do $$$AssertTrue((forked.%Size() > 0) && (forked.%Size() < original.%Size() + 2), "the fork stores a history that the compaction shortened: "_forked.%Size()_" messages against the original's "_original.%Size()_" and the turn's 2")
+	Do $$$AssertEquals(..ContextOf(host, fork).%Size(), forked.%Size(), "GetContext() of the fork and the stored history count the same messages")
+	Set next = ..Plain("[[mock:recall-tell]] And what is next?", owner)
+	Do $$$AssertStatusOK(..Go(host, next, .nextReply, .nextEntries, 0), "the next turn is answered")
+	Do $$$AssertEquals($Select($IsObject(nextReply): nextReply.HistoryCount_"|"_nextReply.SessionFrom, 1: "none"), forked.%Size()_"|"_fork, "its HistoryCount is the fork's stored count, and it began from the fork")
+	Do $$$AssertEquals($ClassMethod(stored, "StoredMessages", fork, nextReply.HistoryCount).%ToJSON(), forked.%ToJSON(), "and the first HistoryCount stored messages are what the fork held before the turn")
 }
 
 /// Row 2: an owner with one saved turn has nothing older to summarize, so a flagged turn within the limit is sent as it is.

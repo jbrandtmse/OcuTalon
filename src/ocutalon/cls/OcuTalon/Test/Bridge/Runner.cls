@@ -1245,7 +1245,8 @@ ClassMethod LinkCount() As %Integer [ Private ]
 
 /// Models Decide's acceptance of a runner's reply for the tests that drive a shadow runner without Decide (Story 17.8): it calls Decide PointLink for the
 /// reply of the request and sets the reply's SessionRotated as Decide's answer would. runner is the first runner, the agent of the link (a retried
-/// request's RetryOf). The reply keeps its SessionId, SessionFrom and HistoryCount, which Decide's answer clears. The status is PointLink's.
+/// request's RetryOf). The reply keeps its SessionId, SessionFrom and HistoryCount, which Decide's answer clears. The status is PointLink's. It does not
+/// classify the reply (on time, usable): the caller accepts only a reply that Decide would accept, and passes no refused or late one.
 ClassMethod Accept(request As OcuTalon.Bridge.Msg.Request, reply As OcuTalon.Bridge.Msg.Reply, runner As %String = "ZzRunner") As %Status
 {
 	If '$IsObject(reply) Quit $$$OK

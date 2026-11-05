@@ -84,7 +84,8 @@ ClassMethod HistoryChars(sessionId As %String) As %Integer
 /// a JSON array of new messages, all separated by the record separator $Char(30); the messages of the full export are the same JSON as
 /// GetContext() of the opened session. The session is not opened or attached, so the read takes no native call, no live agent and no lock.
 /// With count a whole number, only the first count messages are returned: the messages the session held when it held that many, because a
-/// session that is saved in place appends to what it stored (Story 17.8, Task 0). An empty count, or any other value, returns all of them.
+/// session that is saved in place keeps the messages it held before, in their order, at the head of what it stores (Story 17.8, Task 0 and
+/// DW-746, tool-call messages included). An empty count, or any other value, returns all of them.
 ClassMethod StoredMessages(sessionId As %String, count As %String = "") As %DynamicArray
 {
 	Set messages = []

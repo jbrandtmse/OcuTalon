@@ -870,9 +870,9 @@ ClassMethod Drain(item As %String) As %Status
 /// nothing is (QA, Story 1.6; AD-8, AD-26, AD-28, AD-30): the guarantees of every fallback in one place, so that no test leaves one out.
 ///   - the answer is a DecisionResponse for a decide or diagnose request and a Reply for a turn, with the outcome tellnow, Fallback true and
 ///     the reason, and no reasons, confidence or payload; a Reply also has no text, host data, steps, failure text or finish reason, and is
-///     not Busy (a Busy answer is never a fallback; Tainted, ToolsRun and SessionRotated are the runner's own, which a fallback carries, and
-///     SessionBroken is Decide's, for a user's turn whose history the provider rejected: none of the four is judged here, because a
-///     fallback after a tool ran, a rotation or a rejected history says so);
+///     not Busy (a Busy answer is never a fallback; Tainted and ToolsRun are the runner's own, which a fallback carries, SessionRotated is
+///     0 because a fallback moves no link, and SessionBroken is Decide's, for a user's turn whose history the provider rejected: none of
+///     these is judged here, because a fallback after a tool ran or a rejected history says so, and Test.Bridge.Decide pins the rotation);
 ///   - the XML of the answer, which Visual Trace shows, holds all three of <Outcome>tellnow</Outcome>, <Fallback>true</Fallback> and
 ///     <FallbackReason>the reason</FallbackReason>;
 ///   - the row exists, is of the kind, and holds the outcome tellnow, Fallback 1, the reason, no reasons, confidence or payload, and the
