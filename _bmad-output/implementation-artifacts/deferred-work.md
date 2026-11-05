@@ -4316,3 +4316,18 @@ See _bmad/custom/skill-rules.md Rule 15 (entry grammar) and Rule 17 (the drain).
 - source: spec-40-6-answer-a-proposed-persona-from-the-page-the-phone-or-telegra.md | severity: low | fix-risk: low | footprint: in-story
 - evidence: 40.6 added one selector (.setting-note beside .dry-note); angular.json error budget is 8 kB; the rest predates the story (inference, baseline not rebuilt)
 - 2026-11-05T18:11:19Z status=wontfix-accepted owner=40-6-answer-a-proposed-persona-from-the-page-the-phone-or-telegra by=cr note=reopen_if=ng build reports approval-request-card.ts over its 8 kB error budget or CI treats budget warnings as failures
+
+### DW-761: Eval.Sweep copies Report.TurnOf and Report.ReasonsOf (private) because Report.cls is Epic 39's; make them public and call them from Sweep once Epic 39 has merged
+- source: spec-40-7-evaluation-cases-for-the-persona.md | severity: low | fix-risk: low | footprint: in-epic
+- evidence: Rule 2 copy forced by the contention rule (spec-40-7 Design Notes); Eval/Report.cls:701,754
+- 2026-11-05T22:05:02Z status=wontfix-accepted owner=40-7-evaluation-cases-for-the-persona by=harvest note=reopen_if=after_Epic_39_merges_Eval/Sweep.cls_still_holds_copies_of_Report.TurnOf/ReasonsOf;the_story_that_next_edits_Report.cls_unifies_them
+
+### DW-762: The failure paths of a case's before turn (wrong kind, no Reply, Busy after BUSYMAX, fallback Reply, row removal) are not pinned, and a fallback Reply of the before turn is not treated as no Reply
+- source: spec-40-7-evaluation-cases-for-the-persona.md | severity: med | fix-risk: low | footprint: in-story
+- evidence: Eval/In.cls Before; only TestBadPersonaSkipped and TestHistoryLinked cover it; settle with a PersonaRuns fixture whose before text matches a fallback scenario
+- 2026-11-05T22:05:02Z status=open owner=40-7-evaluation-cases-for-the-persona by=harvest note=in-story_MED:for_the_40.7_code_review_to_patch
+
+### DW-763: No CI job runs eval/run.sh --personas on the mock; the sweep block's structural checks are guarded only by the story's verification run and test-eval-personas.sh
+- source: spec-40-7-evaluation-cases-for-the-persona.md | severity: med | fix-risk: low | footprint: out-of-footprint
+- evidence: lane-a.yml runs only the plain eval/run.sh; a --personas step needs an edit to .github/workflows/lane-a.yml (out of Epic 40's footprint; CI budget REL-4)
+- 2026-11-05T22:05:02Z status=escalated owner=burndown by=harvest note=for_the_decision_sheet:add_a_lane-a.yml_step(about_4_min_on_the_mock)_or_leave_it_to_the_release_runs
